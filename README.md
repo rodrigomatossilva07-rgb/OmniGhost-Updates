@@ -1,566 +1,501 @@
-<p align="center">
-  <img
-    width="100%"
-    alt="OMNIGHOST"
-    src="https://capsule-render.vercel.app/api?type=waving&height=230&color=0:080808,35:17130A,55:D4AF37,75:17130A,100:080808&text=OMNIGHOST&fontColor=FFFFFF&fontSize=52&fontAlignY=38&desc=DMA%20Launcher%20for%20Windows&descAlignY=59&descSize=17"
-  />
-</p>
+iblioteca
+/
+README_OMNIGHOST_ENGLISH.md
+
+
+<p align="center"> <img width="100%" alt="OMNIGHOST" src="https://capsule-render.vercel.app/api?type=waving&height=230&color=0:080808,35:17130A,55:D4AF37,75:17130A,100:080808&text=OMNIGHOST&fontColor=FFFFFF&fontSize=52&fontAlignY=38&desc=DMA%20Launcher%20for%20Windows&descAlignY=59&descSize=17" /> </p>
 
 <div align="center">
 
-[![Windows](https://img.shields.io/badge/WINDOWS-x64-D4AF37?style=for-the-badge&logo=windows&logoColor=white&labelColor=101010)](#-requisitos)
-[![DMA](https://img.shields.io/badge/DMA-REQUIRED-C9A227?style=for-the-badge&labelColor=101010)](#-requisitos)
-[![MAKCU](https://img.shields.io/badge/MAKCU-OPTIONAL-8D7627?style=for-the-badge&labelColor=101010)](#-requisitos)
-[![Fuser](https://img.shields.io/badge/FUSER-OPTIONAL-8D7627?style=for-the-badge&labelColor=101010)](#-requisitos)
+
+
+
+
 
 <br>
 
-### Biblioteca, configuração e experiência DMA num único launcher.
-
-O **OMNIGHOST** centraliza hardware, módulos, configurações e atualizações  
-numa interface moderna criada para Windows x64.
+Library, configuration, and DMA experience in one launcher.
+OMNIGHOST brings hardware, modules, settings, and updates together
+in a modern interface designed for Windows x64.
 
 <br>
 
-[![Latest Release](https://img.shields.io/github/v/release/rodrigomatossilva07-rgb/OmniGhost-Updates?display_name=tag&style=for-the-badge&label=LATEST%20RELEASE&labelColor=101010&color=D4AF37)](https://github.com/rodrigomatossilva07-rgb/OmniGhost-Updates/releases/latest)
-[![Download](https://img.shields.io/badge/DOWNLOAD-OMNIGHOST.ZIP-C9A227?style=for-the-badge&logo=github&logoColor=white&labelColor=101010)](https://github.com/rodrigomatossilva07-rgb/OmniGhost-Updates/releases/latest)
+
+
 
 </div>
 
----
+⚠️ Legal notice and responsible use
+OMNIGHOST is an independent project intended exclusively for research, development, and use on systems or in environments where the user has explicit authorization.
 
-## ⚠️ Aviso legal e utilização responsável
+The user is responsible for complying with:
 
-O **OMNIGHOST** é um projeto independente destinado exclusivamente a investigação, desenvolvimento e utilização em sistemas ou ambientes nos quais o utilizador possua autorização explícita.
+applicable laws and regulations;
 
-O utilizador é responsável por cumprir:
+the terms of service of any games involved;
 
-- a legislação aplicável;
-- os termos de utilização dos jogos;
-- as regras das plataformas utilizadas;
-- as políticas de serviços de terceiros;
-- as normas do ambiente onde o software for executado.
+the rules of the platforms being used;
 
-> [!CAUTION]
-> Não utilizes o OMNIGHOST em contas, sistemas, servidores ou ambientes onde este tipo de hardware ou software não seja autorizado. O projeto não concede permissão para contornar regras, medidas de segurança ou restrições impostas por terceiros.
+third-party service policies;
 
-> [!IMPORTANT]
-> O OMNIGHOST necessita de uma **placa DMA compatível** para as funcionalidades dependentes de DMA.  
-> O **MAKCU** e o **fuser** são componentes opcionais e dependem do setup utilizado.
+the policies of the environment in which the software is run.
 
-Todos os nomes, marcas, logótipos e produtos mencionados pertencem aos respetivos proprietários. A referência a esses produtos não implica associação, aprovação, patrocínio ou parceria oficial.
+[!CAUTION]
+Do not use OMNIGHOST on accounts, systems, servers, or environments where this type of hardware or software is not authorized. This project does not grant permission to bypass rules, security measures, or restrictions imposed by third parties.
 
----
+[!IMPORTANT]
+OMNIGHOST requires a compatible DMA card for DMA-dependent features.
+MAKCU and a fuser are optional components and depend on the setup being used.
 
-## ✦ Índice
+All names, trademarks, logos, and products mentioned belong to their respective owners. References to those products do not imply affiliation, approval, sponsorship, or an official partnership.
 
-<table>
-<tr>
-<td width="50%">
+✦ Table of contents
+<table> <tr> <td width="50%">
 
-- [Sobre o OMNIGHOST](#-sobre-o-omnighost)
-- [Destaques](#-destaques)
-- [Experiência do launcher](#-experiência-do-launcher)
-- [Instalação](#-instalação)
-- [Página Atualizações](#-página-atualizações)
+About OMNIGHOST
 
-</td>
-<td width="50%">
+Highlights
 
-- [Requisitos](#-requisitos)
-- [Resolução de problemas](#-resolução-de-problemas)
-- [Suporte](#-suporte)
-- [Estado do projeto](#-estado-do-projeto)
+Launcher experience
 
-</td>
-</tr>
-</table>
+Installation
 
----
+Updates page
 
-## ✦ Sobre o OMNIGHOST
+</td> <td width="50%">
 
-O **OMNIGHOST** é um launcher para Windows desenvolvido para centralizar a experiência de um projeto baseado em hardware **DMA**.
+Requirements
 
-A aplicação reúne numa única interface:
+Troubleshooting
 
-- biblioteca e integrações disponíveis;
-- estado dos componentes do setup;
-- configurações organizadas por módulo;
-- ações de inicialização;
-- histórico real de versões;
-- verificação de novas atualizações;
-- informação de compatibilidade do ambiente.
+Support
 
-O design combina uma identidade visual escura com detalhes dourados, navegação compacta e estados claros para cada operação.
+Project status
 
-### Arquitetura do setup
+</td> </tr> </table>
 
-```text
+✦ About OMNIGHOST
+OMNIGHOST is a Windows launcher developed to centralize the experience of a project built around DMA hardware.
+
+The application brings the following into a single interface:
+
+the available library and integrations;
+
+setup component status;
+
+module-based configuration;
+
+launch actions;
+
+a real version history;
+
+update checking;
+
+environment compatibility information.
+
+Its design combines a dark visual identity with gold accents, compact navigation, and clear states for every operation.
+
+Setup architecture
 ┌──────────────────────────────────────────────────────┐
 │                    OMNIGHOST                         │
-│        Biblioteca · Configuração · Atualizações      │
+│          Library · Configuration · Updates           │
 └──────────────────────────┬───────────────────────────┘
                            │
              ┌─────────────┴─────────────┐
              │                           │
-      Placa DMA compatível         Componentes opcionais
-          Obrigatória               MAKCU · Fuser
-```
+       Compatible DMA card         Optional components
+            Required                 MAKCU · Fuser
+Main hardware
+Component	Status	Role in the setup
+Compatible DMA card	Required	Main component for DMA-dependent features
+MAKCU	Optional	Additional input integration when supported by the setup
+Fuser	Optional	Combines or displays multiple video sources
+Network connection	Recommended	Updates, version history, and remote content
+[!NOTE]
+Compatibility depends on the card model, firmware, drivers, cables, ports, and the configuration of the computers involved.
 
-### Hardware principal
+✦ Highlights
+<table> <tr> <td width="50%" valign="top">
 
-| Componente | Estado | Função no setup |
-|:--|:--:|:--|
-| **Placa DMA compatível** | **Obrigatória** | Componente principal das funcionalidades dependentes de DMA |
-| **MAKCU** | Opcional | Integração adicional de entrada, quando suportada pelo setup |
-| **Fuser** | Opcional | Combinação ou apresentação de fontes de imagem |
-| **Ligação de rede** | Recomendada | Atualizações, histórico de versões e conteúdo remoto |
+◈ Centralized interface
+Library, modules, settings, and system status brought together in one application.
 
-> [!NOTE]
-> A compatibilidade depende do modelo da placa, firmware, drivers, cabos, portas utilizadas e configuração dos computadores envolvidos.
+</td> <td width="50%" valign="top">
 
----
+◈ DMA integration
+Designed to work with a compatible DMA card and different hardware configurations.
 
-## ✦ Destaques
+</td> </tr>
 
-<table>
-<tr>
-<td width="50%" valign="top">
+<tr> <td width="50%" valign="top">
 
-### ◈ Interface centralizada
+◈ Modular hardware
+The setup can be extended with MAKCU and a fuser without making them mandatory for every installation.
 
-Biblioteca, módulos, definições e estado do sistema reunidos numa única aplicação.
+</td> <td width="50%" valign="top">
 
-</td>
-<td width="50%" valign="top">
+◈ Real updates
+The version history is based on published releases, without presenting sample data as real changes.
 
-### ◈ Integração DMA
+</td> </tr>
 
-Estrutura preparada para trabalhar com uma placa DMA compatível e diferentes configurações de hardware.
+<tr> <td width="50%" valign="top">
 
-</td>
-</tr>
+◈ Consistent experience
+Dark theme, gold accents, compact cards, and organization by component.
 
-<tr>
-<td width="50%" valign="top">
+</td> <td width="50%" valign="top">
 
-### ◈ Hardware modular
+◈ Background checks
+The launcher can check for new versions without blocking the normal startup experience.
 
-O setup pode ser complementado com MAKCU e fuser sem os tornar obrigatórios para todas as instalações.
+</td> </tr>
 
-</td>
-<td width="50%" valign="top">
+<tr> <td width="50%" valign="top">
 
-### ◈ Atualizações reais
+◈ Clear states
+Visual feedback for loading, offline mode, temporary failures, and cached content.
 
-O histórico é baseado em versões efetivamente publicadas, sem dados fictícios apresentados como alterações reais.
+</td> <td width="50%" valign="top">
 
-</td>
-</tr>
+◈ Continuous development
+An architecture prepared for future UI improvements, compatibility updates, and new integrations.
 
-<tr>
-<td width="50%" valign="top">
+</td> </tr> </table>
 
-### ◈ Experiência consistente
+✦ Launcher experience
+◇ Library
+The Library presents the available games and integrations in one centralized area.
 
-Tema escuro, detalhes dourados, cartões compactos e organização por componente.
+Each entry may provide information such as:
 
-</td>
-<td width="50%" valign="top">
+module status;
 
-### ◈ Verificação em segundo plano
+installation availability;
 
-O launcher pode procurar novas versões sem bloquear a abertura normal da interface.
+compatibility;
 
-</td>
-</tr>
+primary actions;
 
-<tr>
-<td width="50%" valign="top">
+related settings;
 
-### ◈ Estados claros
+setup-related warnings.
 
-Informação visual para carregamento, ausência de ligação, falhas temporárias e conteúdo em cache.
+◇ Configuration
+Options are separated by component to avoid mixing global settings with integration-specific configuration.
 
-</td>
-<td width="50%" valign="top">
+This structure makes it easier to:
 
-### ◈ Desenvolvimento contínuo
+find settings;
 
-Arquitetura preparada para evolução da interface, compatibilidade e integrações futuras.
+identify the affected component;
 
-</td>
-</tr>
-</table>
+reduce configuration mistakes;
 
----
+maintain a consistent experience;
 
-## ✦ Experiência do launcher
+prepare future integrations.
 
-### ◇ Biblioteca
+◇ Hardware status
+The launcher can display information about the availability of the components required by the environment.
 
-A Biblioteca apresenta os jogos e integrações disponíveis numa área centralizada.
+The goal is to let the user confirm, before use, whether:
 
-Cada entrada pode disponibilizar informações como:
+the DMA card is available;
 
-- estado do módulo;
-- disponibilidade da instalação;
-- compatibilidade;
-- ações principais;
-- configurações relacionadas;
-- avisos relevantes para o setup.
+the expected components have been detected;
 
-### ◇ Configuração
+the required configuration has been loaded;
 
-As opções são separadas por componente para evitar misturar definições globais com configurações específicas.
+hardware-related warnings are present;
 
-Esta organização facilita:
+the setup is ready.
 
-- localizar opções;
-- identificar o componente afetado;
-- reduzir configurações incorretas;
-- manter uma experiência consistente;
-- preparar futuras integrações.
+◇ Navigation
+The interface is designed to provide:
 
-### ◇ Estado do hardware
+<table> <tr> <td width="33%" align="center">
 
-O launcher pode apresentar informações relacionadas com a disponibilidade dos componentes necessários ao ambiente.
+Fast navigation
 
-O objetivo é permitir confirmar, antes da utilização, se:
+Simple transitions between the Library, Updates, and other areas.
 
-- a placa DMA está disponível;
-- os componentes esperados foram reconhecidos;
-- a configuração necessária foi carregada;
-- existem avisos relacionados com o hardware;
-- o setup está preparado.
+</td> <td width="33%" align="center">
 
-### ◇ Navegação
+Organized content
 
-A interface foi desenhada para oferecer:
+Search, filters, cards, and consistent categories.
 
-<table>
-<tr>
-<td width="33%" align="center">
+</td> <td width="33%" align="center">
 
-**Navegação rápida**
+Visual identity
 
-Transição simples entre Biblioteca, Atualizações e outras áreas.
+Dark theme with gold accents and subtle status indicators.
 
-</td>
-<td width="33%" align="center">
+</td> </tr> </table>
 
-**Conteúdo organizado**
-
-Pesquisa, filtros, cartões e categorias consistentes.
-
-</td>
-<td width="33%" align="center">
-
-**Identidade visual**
-
-Tema escuro com detalhes dourados e estados discretos.
-
-</td>
-</tr>
-</table>
-
----
-
-## ✦ Instalação
-
-### 01 — Descarregar
-
-Abre a página da versão mais recente:
+✦ Installation
+01 — Download
+Open the latest release page:
 
 <div align="center">
 
-[![Download Latest](https://img.shields.io/badge/DESCARREGAR-ÚLTIMA%20VERSÃO-D4AF37?style=for-the-badge&logo=github&logoColor=white&labelColor=101010)](https://github.com/rodrigomatossilva07-rgb/OmniGhost-Updates/releases/latest)
+
 
 </div>
 
-Na secção **Assets**, descarrega:
+Under Assets, download:
 
-```text
 OmniGhost.zip
-```
+[!WARNING]
+Do not use Source code (zip) or Source code (tar.gz) as the launcher package. Those files are generated automatically by GitHub.
 
-> [!WARNING]
-> Não utilizes `Source code (zip)` ou `Source code (tar.gz)` como pacote do launcher. Esses ficheiros são criados automaticamente pelo GitHub.
+02 — Extract
+Extract the entire archive into its own folder.
 
-### 02 — Extrair
+Example:
 
-Extrai todo o conteúdo para uma pasta própria.
-
-Exemplo:
-
-```text
 C:\OmniGhost\
-```
+The structure should include:
 
-A estrutura deverá incluir:
-
-```text
 C:\OmniGhost\
 ├── OmniGhost.exe
 ├── data\
 ├── fonts\
 ├── images\
-└── restantes ficheiros necessários
-```
+└── other required files
+03 — Prepare the hardware
+Before starting the launcher, confirm that:
 
-### 03 — Preparar o hardware
+the DMA card is correctly installed and connected;
 
-Antes de iniciar o launcher, confirma:
+the manufacturer-required drivers are available;
 
-- placa DMA instalada e ligada corretamente;
-- drivers exigidos pelo fabricante disponíveis;
-- firmware compatível com o equipamento;
-- cabos e portas corretamente ligados;
-- MAKCU ligado apenas quando fizer parte do setup;
-- fuser configurado apenas quando necessário.
+the firmware is compatible with the hardware;
 
-### 04 — Executar
+all cables and ports are connected correctly;
 
-Abre:
+MAKCU is connected only when it is part of the setup;
 
-```text
+the fuser is configured only when required.
+
+04 — Run
+Open:
+
 OmniGhost.exe
-```
+[!IMPORTANT]
+Do not run the application directly from inside the ZIP archive. It must be extracted together with all required files.
 
-> [!IMPORTANT]
-> Não executes o programa diretamente dentro do ZIP. A aplicação deve ser extraída com todos os seus ficheiros.
+[!NOTE]
+A DMA card is required for DMA-dependent features. MAKCU and the fuser are optional.
 
-> [!NOTE]
-> A placa DMA é necessária para as funcionalidades DMA. O MAKCU e o fuser são opcionais.
+✦ Updates page
+The Updates page presents the real version history of published OMNIGHOST releases.
 
----
+Entries are organized by version, component, and category.
 
-## ✦ Página Atualizações
+Supported categories
+Category	Identifier	Description
+Added	NEW	New features, modules, or options
+Improved	IMPROVED	Stability, usability, or interface improvements
+Fixed	FIXED	Fixes for identified issues
+Performance	PERFORMANCE	Speed and resource optimizations
+Compatibility	COMPATIBILITY	Adjustments for hardware, versions, or environments
+Security	SECURITY	Validation and protection improvements
+Removed	REMOVED	Removed or discontinued features
+Breaking change	BREAKING	Changes that may require additional attention
+Page features
+text search;
 
-A página **Atualizações** apresenta o histórico real das versões publicadas do OMNIGHOST.
+filtering by component;
 
-As entradas são organizadas por versão, componente e categoria.
+filtering by category;
 
-### Categorias suportadas
+chronological sorting;
 
-| Categoria | Identificação | Descrição |
-|:--|:--:|:--|
-| **Adicionado** | `NEW` | Novas funcionalidades, módulos ou opções |
-| **Melhorado** | `IMPROVED` | Melhorias de estabilidade, utilização ou interface |
-| **Corrigido** | `FIXED` | Correções de problemas identificados |
-| **Desempenho** | `PERFORMANCE` | Otimizações de velocidade e recursos |
-| **Compatibilidade** | `COMPATIBILITY` | Ajustes para hardware, versões ou ambientes |
-| **Segurança** | `SECURITY` | Melhorias de validação e proteção |
-| **Removido** | `REMOVED` | Funcionalidades retiradas ou descontinuadas |
-| **Alteração importante** | `BREAKING` | Mudanças que podem exigir atenção adicional |
+grouping by month and year;
 
-### Funcionalidades da página
+identification of versions that have not yet been viewed;
 
-- pesquisa por texto;
-- filtro por componente;
-- filtro por categoria;
-- ordenação cronológica;
-- agrupamento por mês e ano;
-- identificação de versões ainda não visualizadas;
-- carregamento em segundo plano;
-- utilização do último histórico válido quando estiver offline.
+background loading;
 
-> [!IMPORTANT]
-> A página apresenta alterações realizadas no projeto OMNIGHOST. Alterações oficiais dos jogos não são apresentadas como modificações desenvolvidas pelo launcher.
+use of the latest valid history while offline.
 
----
+[!IMPORTANT]
+The page presents changes made to the OMNIGHOST project. Official game updates are not presented as changes developed by the launcher.
 
-## ✦ Requisitos
-
-### Sistema
-
-| Requisito | Estado |
-|:--|:--:|
-| Windows 10 ou Windows 11 | Obrigatório |
-| Sistema operativo x64 | Obrigatório |
-| Permissão para executar a aplicação | Obrigatório |
-| Espaço para aplicação e ficheiros temporários | Obrigatório |
-| Ligação à Internet | Recomendada |
-
-### Hardware
-
-| Componente | Estado |
-|:--|:--:|
-| Placa DMA compatível | **Obrigatória para funcionalidades DMA** |
-| Computador e ligações compatíveis com o setup | Obrigatório |
-| Drivers adequados | Obrigatório |
-| Firmware compatível | Obrigatório |
-| MAKCU | Opcional |
-| Fuser | Opcional |
-
-### Resumo
-
-```text
-Placa DMA  ─────────────── Obrigatória
-Windows x64 ────────────── Obrigatório
-Drivers e firmware ─────── Obrigatórios
-Internet ───────────────── Recomendada
-MAKCU ──────────────────── Opcional
-Fuser ──────────────────── Opcional
-```
-
----
-
-## ✦ Resolução de problemas
-
-<details>
-<summary><strong>◈ O launcher não abre</strong></summary>
+✦ Requirements
+System
+Requirement	Status
+Windows 10 or Windows 11	Required
+64-bit operating system	Required
+Permission to run the application	Required
+Space for the application and temporary files	Required
+Internet connection	Recommended
+Hardware
+Component	Status
+Compatible DMA card	Required for DMA-dependent features
+Computer and connections compatible with the DMA setup	Required
+Appropriate drivers	Required
+Compatible firmware	Required
+MAKCU	Optional
+Fuser	Optional
+Summary
+DMA card ───────────────── Required
+Windows x64 ────────────── Required
+Drivers and firmware ───── Required
+Internet ───────────────── Recommended
+MAKCU ──────────────────── Optional
+Fuser ──────────────────── Optional
+✦ Troubleshooting
+<details> <summary><strong>◈ The launcher does not open</strong></summary>
 
 <br>
 
-- Confirma que extraíste todos os ficheiros.
-- Não executes o programa dentro do ZIP.
-- Move a aplicação para uma pasta simples, como `C:\OmniGhost\`.
-- Confirma que o antivírus não removeu ficheiros necessários.
-- Verifica se tens permissões para executar e escrever na pasta.
+Confirm that all files were extracted.
+
+Do not run the application from inside the ZIP archive.
+
+Move the application to a simple folder such as C:\OmniGhost\.
+
+Confirm that your antivirus did not remove any required files.
+
+Make sure you have permission to run the application and write to its folder.
 
 </details>
 
-<details>
-<summary><strong>◈ A placa DMA não é detetada</strong></summary>
+<details> <summary><strong>◈ The DMA card is not detected</strong></summary>
 
 <br>
 
-- Confirma todas as ligações físicas.
-- Reinicia os sistemas envolvidos.
-- Verifica o firmware recomendado pelo fabricante.
-- Confirma a instalação dos drivers necessários.
-- Testa o equipamento com a ferramenta oficial do fabricante.
-- Verifica se outro programa está a utilizar o dispositivo.
+Check all physical connections.
+
+Restart the systems involved.
+
+Verify the firmware recommended by the manufacturer.
+
+Confirm that the required drivers are installed.
+
+Test the hardware using the manufacturer's official tool.
+
+Check whether another application is currently using the device.
 
 </details>
 
-<details>
-<summary><strong>◈ O MAKCU não aparece</strong></summary>
+<details> <summary><strong>◈ MAKCU is not detected</strong></summary>
 
 <br>
 
-- Confirma que o MAKCU faz parte do teu setup.
-- Verifica cabo, porta e alimentação.
-- Confirma se o dispositivo é reconhecido pelo Windows.
-- Reinicia o launcher depois de ligar o equipamento.
+Confirm that MAKCU is part of your setup.
 
-O MAKCU é opcional e a sua ausência não deve impedir a abertura normal do launcher.
+Check the cable, port, and power.
+
+Confirm that the device is recognized by Windows.
+
+Restart the launcher after connecting the hardware.
+
+MAKCU is optional, and its absence should not prevent the launcher from opening normally.
 
 </details>
 
-<details>
-<summary><strong>◈ O fuser não apresenta imagem</strong></summary>
+<details> <summary><strong>◈ The fuser does not display an image</strong></summary>
 
 <br>
 
-- Confirma as entradas e saídas selecionadas.
-- Verifica a resolução e frequência configuradas.
-- Testa cada fonte de imagem separadamente.
-- Confirma a alimentação e os cabos utilizados.
+Confirm the selected inputs and outputs.
 
-O fuser é opcional e depende da configuração física do utilizador.
+Check the configured resolution and refresh rate.
+
+Test each video source separately.
+
+Confirm the power supply and the cables being used.
+
+The fuser is optional and depends on the user's physical configuration.
 
 </details>
 
-<details>
-<summary><strong>◈ Não foi possível verificar atualizações</strong></summary>
+<details> <summary><strong>◈ Updates could not be checked</strong></summary>
 
 <br>
 
-- Confirma a ligação à Internet.
-- Tenta novamente após alguns segundos.
-- Verifica se o GitHub abre normalmente no navegador.
-- Confirma que uma firewall, VPN ou proxy não está a bloquear a aplicação.
+Confirm your Internet connection.
 
-Uma falha temporária na verificação não deve impedir a utilização normal do launcher.
+Try again after a few seconds.
+
+Check whether GitHub opens normally in your browser.
+
+Confirm that a firewall, VPN, or proxy is not blocking the application.
+
+A temporary update-check failure should not prevent normal use of the launcher.
 
 </details>
 
-<details>
-<summary><strong>◈ Qual ficheiro devo descarregar?</strong></summary>
+<details> <summary><strong>◈ Which file should I download?</strong></summary>
 
 <br>
 
-Descarrega sempre:
+Always download:
 
-```text
 OmniGhost.zip
-```
-
-Não utilizes os ficheiros automáticos de código-fonte como pacote do launcher.
+Do not use the automatically generated source-code archives as the launcher package.
 
 </details>
 
----
+✦ Support
+Before reporting an issue, gather the following information:
 
-## ✦ Suporte
+Information	Example
+OMNIGHOST version	1.6.4
+Windows version	Windows 11 x64
+DMA card model	Model in use
+Firmware	Installed version
+MAKCU	In use / Not in use
+Fuser	In use / Not in use
+Issue	Clear description
+Reproduction	Steps to reproduce
+Evidence	Relevant screenshots and logs
+Also include:
 
-Antes de reportar um problema, reúne as seguintes informações:
+the expected result;
 
-| Informação | Exemplo |
-|:--|:--|
-| Versão do OMNIGHOST | `1.6.4` |
-| Versão do Windows | Windows 11 x64 |
-| Modelo da placa DMA | Modelo utilizado |
-| Firmware | Versão instalada |
-| MAKCU | Utilizado / Não utilizado |
-| Fuser | Utilizado / Não utilizado |
-| Problema | Descrição clara |
-| Reprodução | Passos para reproduzir |
-| Evidências | Capturas e logs relevantes |
+the observed result;
 
-Inclui também:
+how often the issue occurs;
 
-- resultado esperado;
-- resultado observado;
-- frequência do problema;
-- alterações recentes no setup;
-- mensagem apresentada pela aplicação.
+recent changes to the setup;
 
-> [!WARNING]
-> Remove tokens, credenciais, números de série, identificadores pessoais e outras informações sensíveis antes de publicar logs ou capturas.
+the message shown by the application.
 
----
+[!WARNING]
+Remove tokens, credentials, serial numbers, personal identifiers, and any other sensitive information before publishing logs or screenshots.
 
-## ✦ Estado do projeto
-
+✦ Project status
 <div align="center">
 
-[![Development](https://img.shields.io/badge/DEVELOPMENT-ACTIVE-D4AF37?style=for-the-badge&labelColor=101010)](#)
-[![Platform](https://img.shields.io/badge/PLATFORM-WINDOWS%20x64-C9A227?style=for-the-badge&labelColor=101010)](#)
-[![Hardware](https://img.shields.io/badge/HARDWARE-DMA-8D7627?style=for-the-badge&labelColor=101010)](#)
+
+
+
 
 </div>
 
-O OMNIGHOST encontra-se em desenvolvimento ativo.
+OMNIGHOST is under active development.
 
-A interface, integrações, requisitos e compatibilidade de hardware podem mudar entre versões. Consulta sempre as notas da versão mais recente antes de atualizar ou alterar o setup.
+The interface, integrations, requirements, and hardware compatibility may change between releases. Always review the latest release notes before updating or changing your setup.
 
 <div align="center">
 
-[![Releases](https://img.shields.io/badge/CONSULTAR-RELEASES-D4AF37?style=for-the-badge&logo=github&logoColor=white&labelColor=101010)](https://github.com/rodrigomatossilva07-rgb/OmniGhost-Updates/releases)
-[![Latest](https://img.shields.io/badge/ABRIR-ÚLTIMA%20VERSÃO-C9A227?style=for-the-badge&logo=github&logoColor=white&labelColor=101010)](https://github.com/rodrigomatossilva07-rgb/OmniGhost-Updates/releases/latest)
+
+
 
 </div>
 
----
-
-<p align="center">
-  <img
-    width="100%"
-    alt="OMNIGHOST footer"
-    src="https://capsule-render.vercel.app/api?type=waving&height=130&section=footer&color=0:080808,50:D4AF37,100:080808"
-  />
-</p>
+<p align="center"> <img width="100%" alt="OMNIGHOST footer" src="https://capsule-render.vercel.app/api?type=waving&height=130&section=footer&color=0:080808,50:D4AF37,100:080808" /> </p>
 
 <div align="center">
 
-## OMNIGHOST
+OMNIGHOST
+DMA · Library · Configuration · Updates
 
-**DMA · Biblioteca · Configuração · Atualizações**
-
-<sub>Projeto independente para utilização responsável em ambientes autorizados.</sub>
+<sub>Independent project for responsible use in authorized environments.</sub>
 
 </div>
