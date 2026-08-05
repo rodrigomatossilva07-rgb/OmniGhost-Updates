@@ -1,412 +1,565 @@
 <p align="center">
-  <img width="100%" src="https://capsule-render.vercel.app/api?type=waving&height=220&color=0:080808,50:D4AF37,100:080808&text=OMNIGHOST&fontColor=FFFFFF&fontSize=54&fontAlignY=38&desc=DMA%20Gaming%20Launcher%20for%20Windows&descAlignY=59&descSize=17" alt="OMNIGHOST" />
+  <img
+    width="100%"
+    alt="OMNIGHOST"
+    src="https://capsule-render.vercel.app/api?type=waving&height=230&color=0:080808,35:17130A,55:D4AF37,75:17130A,100:080808&text=OMNIGHOST&fontColor=FFFFFF&fontSize=52&fontAlignY=38&desc=DMA%20Launcher%20for%20Windows&descAlignY=59&descSize=17"
+  />
 </p>
 
 <div align="center">
 
+[![Windows](https://img.shields.io/badge/WINDOWS-x64-D4AF37?style=for-the-badge&logo=windows&logoColor=white&labelColor=101010)](#-requisitos)
+[![DMA](https://img.shields.io/badge/DMA-REQUIRED-C9A227?style=for-the-badge&labelColor=101010)](#-requisitos)
+[![MAKCU](https://img.shields.io/badge/MAKCU-OPTIONAL-8D7627?style=for-the-badge&labelColor=101010)](#-requisitos)
+[![Fuser](https://img.shields.io/badge/FUSER-OPTIONAL-8D7627?style=for-the-badge&labelColor=101010)](#-requisitos)
 
+<br>
 
-Biblioteca, configuração e experiência DMA num único launcher.
+### Biblioteca, configuração e experiência DMA num único launcher.
+
+O **OMNIGHOST** centraliza hardware, módulos, configurações e atualizações  
+numa interface moderna criada para Windows x64.
+
+<br>
+
+[![Latest Release](https://img.shields.io/github/v/release/rodrigomatossilva07-rgb/OmniGhost-Updates?display_name=tag&style=for-the-badge&label=LATEST%20RELEASE&labelColor=101010&color=D4AF37)](https://github.com/rodrigomatossilva07-rgb/OmniGhost-Updates/releases/latest)
+[![Download](https://img.shields.io/badge/DOWNLOAD-OMNIGHOST.ZIP-C9A227?style=for-the-badge&logo=github&logoColor=white&labelColor=101010)](https://github.com/rodrigomatossilva07-rgb/OmniGhost-Updates/releases/latest)
 
 </div>
 
-⚠️ Aviso legal e utilização responsável
+---
 
-O OMNIGHOST é um projeto independente destinado exclusivamente a ambientes autorizados, investigação, desenvolvimento e utilização em sistemas nos quais o utilizador possua permissão explícita.
+## ⚠️ Aviso legal e utilização responsável
 
-O utilizador é responsável por cumprir a legislação aplicável, os termos de utilização dos jogos, as regras das plataformas e as políticas dos serviços de terceiros.
+O **OMNIGHOST** é um projeto independente destinado exclusivamente a investigação, desenvolvimento e utilização em sistemas ou ambientes nos quais o utilizador possua autorização explícita.
 
-[!CAUTION]Não utilizes o OMNIGHOST em sistemas, contas, servidores ou ambientes onde este tipo de hardware ou software não seja permitido. O projeto não concede autorização para contornar regras, medidas de segurança ou restrições impostas por terceiros.
+O utilizador é responsável por cumprir:
 
-As marcas, nomes, logótipos e produtos mencionados pertencem aos respetivos proprietários. A referência a esses produtos não implica associação, aprovação, patrocínio ou parceria oficial.
+- a legislação aplicável;
+- os termos de utilização dos jogos;
+- as regras das plataformas utilizadas;
+- as políticas de serviços de terceiros;
+- as normas do ambiente onde o software for executado.
 
-✦ Índice
+> [!CAUTION]
+> Não utilizes o OMNIGHOST em contas, sistemas, servidores ou ambientes onde este tipo de hardware ou software não seja autorizado. O projeto não concede permissão para contornar regras, medidas de segurança ou restrições impostas por terceiros.
 
-Sobre o OMNIGHOST
+> [!IMPORTANT]
+> O OMNIGHOST necessita de uma **placa DMA compatível** para as funcionalidades dependentes de DMA.  
+> O **MAKCU** e o **fuser** são componentes opcionais e dependem do setup utilizado.
 
-Destaques
+Todos os nomes, marcas, logótipos e produtos mencionados pertencem aos respetivos proprietários. A referência a esses produtos não implica associação, aprovação, patrocínio ou parceria oficial.
 
-Experiência do launcher
+---
 
-Instalação
+## ✦ Índice
 
-Página Atualizações
+<table>
+<tr>
+<td width="50%">
 
-Requisitos
+- [Sobre o OMNIGHOST](#-sobre-o-omnighost)
+- [Destaques](#-destaques)
+- [Experiência do launcher](#-experiência-do-launcher)
+- [Instalação](#-instalação)
+- [Página Atualizações](#-página-atualizações)
 
-Resolução de problemas
+</td>
+<td width="50%">
 
-Suporte
+- [Requisitos](#-requisitos)
+- [Resolução de problemas](#-resolução-de-problemas)
+- [Suporte](#-suporte)
+- [Estado do projeto](#-estado-do-projeto)
 
-Estado do projeto
+</td>
+</tr>
+</table>
 
-✦ Sobre o OMNIGHOST
+---
 
-O OMNIGHOST é um launcher para Windows criado para centralizar a experiência de um projeto baseado em hardware DMA.
+## ✦ Sobre o OMNIGHOST
 
-A aplicação reúne a biblioteca, as integrações disponíveis, as definições do hardware, o estado dos módulos e o histórico de versões numa interface moderna com identidade visual escura e detalhes dourados.
+O **OMNIGHOST** é um launcher para Windows desenvolvido para centralizar a experiência de um projeto baseado em hardware **DMA**.
 
-Hardware principal
+A aplicação reúne numa única interface:
 
-O funcionamento do projeto requer uma placa DMA compatível. Sem esse hardware, as funcionalidades dependentes de DMA não ficam disponíveis.
+- biblioteca e integrações disponíveis;
+- estado dos componentes do setup;
+- configurações organizadas por módulo;
+- ações de inicialização;
+- histórico real de versões;
+- verificação de novas atualizações;
+- informação de compatibilidade do ambiente.
 
-Componente
+O design combina uma identidade visual escura com detalhes dourados, navegação compacta e estados claros para cada operação.
 
-Estado
+### Arquitetura do setup
 
-Finalidade geral
+```text
+┌──────────────────────────────────────────────────────┐
+│                    OMNIGHOST                         │
+│        Biblioteca · Configuração · Atualizações      │
+└──────────────────────────┬───────────────────────────┘
+                           │
+             ┌─────────────┴─────────────┐
+             │                           │
+      Placa DMA compatível         Componentes opcionais
+          Obrigatória               MAKCU · Fuser
+```
 
-Placa DMA compatível
+### Hardware principal
 
-Obrigatória
+| Componente | Estado | Função no setup |
+|:--|:--:|:--|
+| **Placa DMA compatível** | **Obrigatória** | Componente principal das funcionalidades dependentes de DMA |
+| **MAKCU** | Opcional | Integração adicional de entrada, quando suportada pelo setup |
+| **Fuser** | Opcional | Combinação ou apresentação de fontes de imagem |
+| **Ligação de rede** | Recomendada | Atualizações, histórico de versões e conteúdo remoto |
 
-Comunicação principal do ambiente DMA
+> [!NOTE]
+> A compatibilidade depende do modelo da placa, firmware, drivers, cabos, portas utilizadas e configuração dos computadores envolvidos.
 
-MAKCU
+---
 
-Opcional
-
-Integração adicional de entrada, quando suportada pela configuração
-
-Fuser
-
-Opcional
-
-Combinação ou apresentação de fontes de imagem, consoante o setup utilizado
-
-[!IMPORTANT]A compatibilidade depende do modelo do hardware, firmware, drivers, cabos e configuração do sistema. Confirma sempre a documentação do fabricante do teu equipamento.
-
-✦ Destaques
+## ✦ Destaques
 
 <table>
 <tr>
 <td width="50%" valign="top">
 
-◈ Interface centralizada
+### ◈ Interface centralizada
 
 Biblioteca, módulos, definições e estado do sistema reunidos numa única aplicação.
 
 </td>
 <td width="50%" valign="top">
 
-◈ Integração DMA
+### ◈ Integração DMA
 
-Estrutura preparada para trabalhar com hardware DMA compatível e respetivos componentes opcionais.
-
-</td>
-</tr>
-<tr>
-<td width="50%" valign="top">
-
-◈ Atualizações reais
-
-Histórico baseado em versões publicadas, sem dados de demonstração apresentados como alterações reais.
-
-</td>
-<td width="50%" valign="top">
-
-◈ Experiência consistente
-
-Design escuro, detalhes dourados, navegação compacta e organização por jogo ou módulo.
+Estrutura preparada para trabalhar com uma placa DMA compatível e diferentes configurações de hardware.
 
 </td>
 </tr>
+
 <tr>
 <td width="50%" valign="top">
 
-◈ Verificação em segundo plano
+### ◈ Hardware modular
 
-A aplicação pode procurar novas versões sem bloquear a abertura normal da interface.
+O setup pode ser complementado com MAKCU e fuser sem os tornar obrigatórios para todas as instalações.
 
 </td>
 <td width="50%" valign="top">
 
-◈ Funcionamento resiliente
+### ◈ Atualizações reais
 
-Estados claros para carregamento, ausência de ligação, falhas temporárias e conteúdo guardado em cache.
+O histórico é baseado em versões efetivamente publicadas, sem dados fictícios apresentados como alterações reais.
+
+</td>
+</tr>
+
+<tr>
+<td width="50%" valign="top">
+
+### ◈ Experiência consistente
+
+Tema escuro, detalhes dourados, cartões compactos e organização por componente.
+
+</td>
+<td width="50%" valign="top">
+
+### ◈ Verificação em segundo plano
+
+O launcher pode procurar novas versões sem bloquear a abertura normal da interface.
+
+</td>
+</tr>
+
+<tr>
+<td width="50%" valign="top">
+
+### ◈ Estados claros
+
+Informação visual para carregamento, ausência de ligação, falhas temporárias e conteúdo em cache.
+
+</td>
+<td width="50%" valign="top">
+
+### ◈ Desenvolvimento contínuo
+
+Arquitetura preparada para evolução da interface, compatibilidade e integrações futuras.
 
 </td>
 </tr>
 </table>
 
-✦ Experiência do launcher
+---
 
-Biblioteca
+## ✦ Experiência do launcher
 
-A Biblioteca apresenta os jogos e integrações disponíveis numa área centralizada, permitindo consultar o estado de cada módulo e aceder às ações relevantes.
+### ◇ Biblioteca
 
-Configuração
+A Biblioteca apresenta os jogos e integrações disponíveis numa área centralizada.
 
-As opções do launcher são organizadas por componente para evitar misturar definições globais com configurações específicas de cada integração.
+Cada entrada pode disponibilizar informações como:
 
-Estado do hardware
+- estado do módulo;
+- disponibilidade da instalação;
+- compatibilidade;
+- ações principais;
+- configurações relacionadas;
+- avisos relevantes para o setup.
 
-O OMNIGHOST pode apresentar informações relacionadas com a disponibilidade dos componentes necessários ao setup, ajudando a identificar se o ambiente está pronto antes da utilização.
+### ◇ Configuração
 
-Navegação
+As opções são separadas por componente para evitar misturar definições globais com configurações específicas.
+
+Esta organização facilita:
+
+- localizar opções;
+- identificar o componente afetado;
+- reduzir configurações incorretas;
+- manter uma experiência consistente;
+- preparar futuras integrações.
+
+### ◇ Estado do hardware
+
+O launcher pode apresentar informações relacionadas com a disponibilidade dos componentes necessários ao ambiente.
+
+O objetivo é permitir confirmar, antes da utilização, se:
+
+- a placa DMA está disponível;
+- os componentes esperados foram reconhecidos;
+- a configuração necessária foi carregada;
+- existem avisos relacionados com o hardware;
+- o setup está preparado.
+
+### ◇ Navegação
 
 A interface foi desenhada para oferecer:
 
-navegação rápida entre áreas;
+<table>
+<tr>
+<td width="33%" align="center">
 
-pesquisa e filtros;
+**Navegação rápida**
 
-cartões compactos;
+Transição simples entre Biblioteca, Atualizações e outras áreas.
 
-estados visuais claros;
+</td>
+<td width="33%" align="center">
 
-tema escuro com elementos dourados;
+**Conteúdo organizado**
 
-comportamento consistente em diferentes resoluções.
+Pesquisa, filtros, cartões e categorias consistentes.
 
-✦ Instalação
+</td>
+<td width="33%" align="center">
 
-1. Descarregar a versão mais recente
+**Identidade visual**
 
-Abre a página oficial de releases e descarrega o pacote indicado para Windows x64.
+Tema escuro com detalhes dourados e estados discretos.
 
-2. Extrair todos os ficheiros
+</td>
+</tr>
+</table>
 
-Extrai o conteúdo completo do ficheiro ZIP para uma pasta própria.
+---
+
+## ✦ Instalação
+
+### 01 — Descarregar
+
+Abre a página da versão mais recente:
+
+<div align="center">
+
+[![Download Latest](https://img.shields.io/badge/DESCARREGAR-ÚLTIMA%20VERSÃO-D4AF37?style=for-the-badge&logo=github&logoColor=white&labelColor=101010)](https://github.com/rodrigomatossilva07-rgb/OmniGhost-Updates/releases/latest)
+
+</div>
+
+Na secção **Assets**, descarrega:
+
+```text
+OmniGhost.zip
+```
+
+> [!WARNING]
+> Não utilizes `Source code (zip)` ou `Source code (tar.gz)` como pacote do launcher. Esses ficheiros são criados automaticamente pelo GitHub.
+
+### 02 — Extrair
+
+Extrai todo o conteúdo para uma pasta própria.
 
 Exemplo:
 
+```text
 C:\OmniGhost\
+```
 
-3. Preparar o hardware
+A estrutura deverá incluir:
 
-Antes de abrir o launcher, confirma que:
+```text
+C:\OmniGhost\
+├── OmniGhost.exe
+├── data\
+├── fonts\
+├── images\
+└── restantes ficheiros necessários
+```
 
-a placa DMA está corretamente instalada e ligada;
+### 03 — Preparar o hardware
 
-os drivers e componentes exigidos pelo fabricante estão disponíveis;
+Antes de iniciar o launcher, confirma:
 
-o firmware utilizado é compatível com o teu equipamento;
+- placa DMA instalada e ligada corretamente;
+- drivers exigidos pelo fabricante disponíveis;
+- firmware compatível com o equipamento;
+- cabos e portas corretamente ligados;
+- MAKCU ligado apenas quando fizer parte do setup;
+- fuser configurado apenas quando necessário.
 
-o MAKCU está ligado apenas quando fizer parte do teu setup;
-
-o fuser está configurado apenas quando necessário.
-
-4. Executar o launcher
+### 04 — Executar
 
 Abre:
 
+```text
 OmniGhost.exe
+```
 
-[!IMPORTANT]Não executes o programa diretamente dentro do ficheiro ZIP. Extrai primeiro todos os ficheiros.
+> [!IMPORTANT]
+> Não executes o programa diretamente dentro do ZIP. A aplicação deve ser extraída com todos os seus ficheiros.
 
-[!NOTE]O MAKCU e o fuser são opcionais. A placa DMA compatível é necessária para as funcionalidades DMA do projeto.
+> [!NOTE]
+> A placa DMA é necessária para as funcionalidades DMA. O MAKCU e o fuser são opcionais.
 
-✦ Página Atualizações
+---
 
-A página Atualizações apresenta o histórico real das versões publicadas do OMNIGHOST.
+## ✦ Página Atualizações
 
-As entradas podem ser organizadas pelas seguintes categorias:
+A página **Atualizações** apresenta o histórico real das versões publicadas do OMNIGHOST.
 
-Categoria
+As entradas são organizadas por versão, componente e categoria.
 
-Descrição
+### Categorias suportadas
 
-Adicionado
+| Categoria | Identificação | Descrição |
+|:--|:--:|:--|
+| **Adicionado** | `NEW` | Novas funcionalidades, módulos ou opções |
+| **Melhorado** | `IMPROVED` | Melhorias de estabilidade, utilização ou interface |
+| **Corrigido** | `FIXED` | Correções de problemas identificados |
+| **Desempenho** | `PERFORMANCE` | Otimizações de velocidade e recursos |
+| **Compatibilidade** | `COMPATIBILITY` | Ajustes para hardware, versões ou ambientes |
+| **Segurança** | `SECURITY` | Melhorias de validação e proteção |
+| **Removido** | `REMOVED` | Funcionalidades retiradas ou descontinuadas |
+| **Alteração importante** | `BREAKING` | Mudanças que podem exigir atenção adicional |
 
-Novas funcionalidades, módulos ou opções
+### Funcionalidades da página
 
-Melhorado
+- pesquisa por texto;
+- filtro por componente;
+- filtro por categoria;
+- ordenação cronológica;
+- agrupamento por mês e ano;
+- identificação de versões ainda não visualizadas;
+- carregamento em segundo plano;
+- utilização do último histórico válido quando estiver offline.
 
-Melhorias de utilização, estabilidade ou interface
+> [!IMPORTANT]
+> A página apresenta alterações realizadas no projeto OMNIGHOST. Alterações oficiais dos jogos não são apresentadas como modificações desenvolvidas pelo launcher.
 
-Corrigido
+---
 
-Correções de problemas identificados
+## ✦ Requisitos
 
-Desempenho
+### Sistema
 
-Otimizações de velocidade e utilização de recursos
+| Requisito | Estado |
+|:--|:--:|
+| Windows 10 ou Windows 11 | Obrigatório |
+| Sistema operativo x64 | Obrigatório |
+| Permissão para executar a aplicação | Obrigatório |
+| Espaço para aplicação e ficheiros temporários | Obrigatório |
+| Ligação à Internet | Recomendada |
 
-Compatibilidade
+### Hardware
 
-Ajustes relacionados com hardware, versões ou ambientes suportados
+| Componente | Estado |
+|:--|:--:|
+| Placa DMA compatível | **Obrigatória para funcionalidades DMA** |
+| Computador e ligações compatíveis com o setup | Obrigatório |
+| Drivers adequados | Obrigatório |
+| Firmware compatível | Obrigatório |
+| MAKCU | Opcional |
+| Fuser | Opcional |
 
-Segurança
+### Resumo
 
-Melhorias de validação e proteção
+```text
+Placa DMA  ─────────────── Obrigatória
+Windows x64 ────────────── Obrigatório
+Drivers e firmware ─────── Obrigatórios
+Internet ───────────────── Recomendada
+MAKCU ──────────────────── Opcional
+Fuser ──────────────────── Opcional
+```
 
-Removido
+---
 
-Funcionalidades retiradas ou descontinuadas
-
-Alteração importante
-
-Mudanças que podem exigir atenção antes de atualizar
-
-A página pode incluir:
-
-pesquisa por texto;
-
-filtros por jogo ou componente;
-
-filtros por categoria;
-
-ordenação por data;
-
-identificação de versões ainda não visualizadas;
-
-cache local para apresentar os últimos dados válidos quando estiver offline.
-
-✦ Requisitos
-
-Requisito
-
-Estado
-
-Windows 10 ou Windows 11
-
-Obrigatório
-
-Sistema operativo x64
-
-Obrigatório
-
-Placa DMA compatível
-
-Obrigatório para funcionalidades DMA
-
-Computador e ligações compatíveis com o setup DMA
-
-Obrigatório
-
-Drivers e firmware adequados ao hardware
-
-Obrigatório
-
-Ligação à Internet
-
-Recomendada para atualizações e conteúdo remoto
-
-MAKCU
-
-Opcional
-
-Fuser
-
-Opcional
-
-A compatibilidade final depende do equipamento utilizado. Modelos, firmware e configurações diferentes podem exigir ajustes próprios.
-
-✦ Resolução de problemas
+## ✦ Resolução de problemas
 
 <details>
-<summary><strong>O launcher não abre</strong></summary>
+<summary><strong>◈ O launcher não abre</strong></summary>
 
-Confirma que extraíste todos os ficheiros do ZIP.
+<br>
 
-Executa o programa a partir de uma pasta local simples.
-
-Confirma que os ficheiros necessários não foram removidos pelo antivírus.
-
-Verifica se o Windows e os componentes necessários estão atualizados.
+- Confirma que extraíste todos os ficheiros.
+- Não executes o programa dentro do ZIP.
+- Move a aplicação para uma pasta simples, como `C:\OmniGhost\`.
+- Confirma que o antivírus não removeu ficheiros necessários.
+- Verifica se tens permissões para executar e escrever na pasta.
 
 </details>
 
 <details>
-<summary><strong>A placa DMA não é detetada</strong></summary>
+<summary><strong>◈ A placa DMA não é detetada</strong></summary>
 
-Confirma as ligações físicas.
+<br>
 
-Reinicia os sistemas envolvidos no setup.
-
-Confirma o firmware e os drivers recomendados pelo fabricante.
-
-Verifica se outro programa está a utilizar o mesmo dispositivo.
-
-Testa o hardware com a ferramenta oficial do fabricante.
-
-</details>
-
-<details>
-<summary><strong>O MAKCU não aparece</strong></summary>
-
-Confirma que o teu setup utiliza MAKCU.
-
-Verifica o cabo, a porta e a alimentação.
-
-Confirma que o dispositivo é reconhecido pelo Windows.
-
-O MAKCU é opcional e não deve impedir a abertura normal do launcher quando não é utilizado.
+- Confirma todas as ligações físicas.
+- Reinicia os sistemas envolvidos.
+- Verifica o firmware recomendado pelo fabricante.
+- Confirma a instalação dos drivers necessários.
+- Testa o equipamento com a ferramenta oficial do fabricante.
+- Verifica se outro programa está a utilizar o dispositivo.
 
 </details>
 
 <details>
-<summary><strong>O fuser não apresenta imagem</strong></summary>
+<summary><strong>◈ O MAKCU não aparece</strong></summary>
 
-Confirma as entradas e saídas selecionadas.
+<br>
 
-Verifica a resolução e a frequência suportadas.
+- Confirma que o MAKCU faz parte do teu setup.
+- Verifica cabo, porta e alimentação.
+- Confirma se o dispositivo é reconhecido pelo Windows.
+- Reinicia o launcher depois de ligar o equipamento.
 
-Testa cada fonte de imagem separadamente.
+O MAKCU é opcional e a sua ausência não deve impedir a abertura normal do launcher.
+
+</details>
+
+<details>
+<summary><strong>◈ O fuser não apresenta imagem</strong></summary>
+
+<br>
+
+- Confirma as entradas e saídas selecionadas.
+- Verifica a resolução e frequência configuradas.
+- Testa cada fonte de imagem separadamente.
+- Confirma a alimentação e os cabos utilizados.
 
 O fuser é opcional e depende da configuração física do utilizador.
 
 </details>
 
 <details>
-<summary><strong>Não foi possível verificar atualizações</strong></summary>
+<summary><strong>◈ Não foi possível verificar atualizações</strong></summary>
 
-Confirma a ligação à Internet.
+<br>
 
-Tenta novamente após alguns segundos.
+- Confirma a ligação à Internet.
+- Tenta novamente após alguns segundos.
+- Verifica se o GitHub abre normalmente no navegador.
+- Confirma que uma firewall, VPN ou proxy não está a bloquear a aplicação.
 
-Verifica se uma firewall, VPN ou proxy está a bloquear a aplicação.
-
-Confirma que o GitHub está acessível no navegador.
+Uma falha temporária na verificação não deve impedir a utilização normal do launcher.
 
 </details>
 
-✦ Suporte
+<details>
+<summary><strong>◈ Qual ficheiro devo descarregar?</strong></summary>
 
-Ao reportar um problema, inclui sempre que possível:
+<br>
 
-versão instalada do OMNIGHOST;
+Descarrega sempre:
 
-versão do Windows;
+```text
+OmniGhost.zip
+```
 
-modelo da placa DMA;
+Não utilizes os ficheiros automáticos de código-fonte como pacote do launcher.
 
-versão do firmware;
+</details>
 
-indicação sobre utilização de MAKCU;
+---
 
-indicação sobre utilização de fuser;
+## ✦ Suporte
 
-descrição clara do comportamento;
+Antes de reportar um problema, reúne as seguintes informações:
 
-passos para reproduzir;
+| Informação | Exemplo |
+|:--|:--|
+| Versão do OMNIGHOST | `1.6.4` |
+| Versão do Windows | Windows 11 x64 |
+| Modelo da placa DMA | Modelo utilizado |
+| Firmware | Versão instalada |
+| MAKCU | Utilizado / Não utilizado |
+| Fuser | Utilizado / Não utilizado |
+| Problema | Descrição clara |
+| Reprodução | Passos para reproduzir |
+| Evidências | Capturas e logs relevantes |
 
-captura de ecrã;
+Inclui também:
 
-mensagem apresentada pela aplicação;
+- resultado esperado;
+- resultado observado;
+- frequência do problema;
+- alterações recentes no setup;
+- mensagem apresentada pela aplicação.
 
-logs relevantes.
+> [!WARNING]
+> Remove tokens, credenciais, números de série, identificadores pessoais e outras informações sensíveis antes de publicar logs ou capturas.
 
-[!WARNING]Remove dos logs e capturas qualquer token, credencial, número de série, identificador pessoal ou outra informação sensível antes de publicar.
+---
 
-✦ Estado do projeto
+## ✦ Estado do projeto
 
 <div align="center">
 
-
+[![Development](https://img.shields.io/badge/DEVELOPMENT-ACTIVE-D4AF37?style=for-the-badge&labelColor=101010)](#)
+[![Platform](https://img.shields.io/badge/PLATFORM-WINDOWS%20x64-C9A227?style=for-the-badge&labelColor=101010)](#)
+[![Hardware](https://img.shields.io/badge/HARDWARE-DMA-8D7627?style=for-the-badge&labelColor=101010)](#)
 
 </div>
 
-O OMNIGHOST encontra-se em desenvolvimento ativo. A interface, as integrações, a compatibilidade de hardware e os requisitos podem mudar entre versões.
+O OMNIGHOST encontra-se em desenvolvimento ativo.
 
-Consulta sempre as notas da versão mais recente antes de atualizar ou alterar o teu setup.
+A interface, integrações, requisitos e compatibilidade de hardware podem mudar entre versões. Consulta sempre as notas da versão mais recente antes de atualizar ou alterar o setup.
 
 <div align="center">
 
-OMNIGHOST
+[![Releases](https://img.shields.io/badge/CONSULTAR-RELEASES-D4AF37?style=for-the-badge&logo=github&logoColor=white&labelColor=101010)](https://github.com/rodrigomatossilva07-rgb/OmniGhost-Updates/releases)
+[![Latest](https://img.shields.io/badge/ABRIR-ÚLTIMA%20VERSÃO-C9A227?style=for-the-badge&logo=github&logoColor=white&labelColor=101010)](https://github.com/rodrigomatossilva07-rgb/OmniGhost-Updates/releases/latest)
 
-DMA · Biblioteca · Configuração · Atualizações
+</div>
+
+---
+
+<p align="center">
+  <img
+    width="100%"
+    alt="OMNIGHOST footer"
+    src="https://capsule-render.vercel.app/api?type=waving&height=130&section=footer&color=0:080808,50:D4AF37,100:080808"
+  />
+</p>
+
+<div align="center">
+
+## OMNIGHOST
+
+**DMA · Biblioteca · Configuração · Atualizações**
 
 <sub>Projeto independente para utilização responsável em ambientes autorizados.</sub>
 
