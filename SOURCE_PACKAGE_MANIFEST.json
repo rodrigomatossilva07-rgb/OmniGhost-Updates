@@ -1,0 +1,3479 @@
+{
+  "schemaVersion": 1,
+  "product": "OmniGhost",
+  "version": "3.3.1",
+  "generatedUtc": "2026-08-23T13:57:02.852427Z",
+  "fileCount": 696,
+  "files": [
+    {
+      "path": ".github/workflows/release.yml",
+      "size": 5898,
+      "sha256": "eca554c35da88fc2f3a1d9f5ad2a15fbec27924d16340707b3a787653619dc1c"
+    },
+    {
+      "path": ".gitignore",
+      "size": 410,
+      "sha256": "0d9383b0699991491ca5fde7c21277ce91b888f995e9103188e02fcc0b756904"
+    },
+    {
+      "path": "Cs2/cs2_aim.cpp",
+      "size": 14349,
+      "sha256": "d2eef59d1cf358dc7a3468d4e0ca3110bb7ef6dacbdb2cdd76ca3db670be27a5"
+    },
+    {
+      "path": "Cs2/cs2_aim.h",
+      "size": 213,
+      "sha256": "e820c853dee62f924fe2731cdc23ca635223a7fcef5c485909d15f5537aa6546"
+    },
+    {
+      "path": "Cs2/cs2_config.h",
+      "size": 5814,
+      "sha256": "9d059ec90e05228f84b58a9c550b1144b647a8564db37486c9ae7679c5b24c79"
+    },
+    {
+      "path": "Cs2/cs2_config_io.cpp",
+      "size": 9966,
+      "sha256": "ec16e97dbf45cab8409a8203951303460cd81b172f469cc8a201cad5f537e50c"
+    },
+    {
+      "path": "Cs2/cs2_esp.cpp",
+      "size": 30844,
+      "sha256": "63465188075cca89a06673036f3153ca29d46240c0c8ccda7b35d9079d4542bf"
+    },
+    {
+      "path": "Cs2/cs2_esp.h",
+      "size": 121,
+      "sha256": "81633c9211bd8e56ff42df20731edf6d38bbf2ab4a4bf4e23b018b7ce96ee7dd"
+    },
+    {
+      "path": "Cs2/cs2_game.cpp",
+      "size": 82422,
+      "sha256": "b64f2ac9fab35328653922484188824c801ca8027be8b051cedae4ff587795b8"
+    },
+    {
+      "path": "Cs2/cs2_game.h",
+      "size": 4724,
+      "sha256": "960c2ad8921e1af8aff2e4953799dcf9ce8f337e55af248e1c07371df06b217d"
+    },
+    {
+      "path": "Cs2/cs2_radar.cpp",
+      "size": 38398,
+      "sha256": "d9dac5bfe915a9ac55835386169890b0c620ce6c29cf4f02e5ac53b754fb4c92"
+    },
+    {
+      "path": "Cs2/cs2_radar.h",
+      "size": 850,
+      "sha256": "4e5d72373d367dec935fae6caa79bff8d646e0814a0fc50cec3408f6dfc02957"
+    },
+    {
+      "path": "Cs2/cs2_weapon_icons.cpp",
+      "size": 10044,
+      "sha256": "30194906ecc81357ae76bade2a9108546e29fa44ec6cebc5cda44a1e5f755892"
+    },
+    {
+      "path": "Cs2/cs2_weapon_icons.h",
+      "size": 631,
+      "sha256": "b94500baebadca50b4e084bd25c96371a989b5bb72e1c6113c7034eb4c9396b0"
+    },
+    {
+      "path": "Cs2/cs2_weapons.h",
+      "size": 2930,
+      "sha256": "18710f4a533327b3c4569f0e579b77072adf88098bb8a989789f4debcc0f2de0"
+    },
+    {
+      "path": "Cs2/data/client_dll.json",
+      "size": 213331,
+      "sha256": "946245f1c9a6408c66f8789f8a0fba7254ca0b7c0e88894a13d6a860092b062b"
+    },
+    {
+      "path": "Cs2/data/offsets.json",
+      "size": 1261,
+      "sha256": "80853916427395720276a70e4fa80b79243d89ad0ed815692af11a7b1a049da7"
+    },
+    {
+      "path": "Cs2/data/version.json",
+      "size": 91,
+      "sha256": "b4e175b0990cbd65f8a05d3c600b965244c059b16fb0ce7b477ade208b914573"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_ak47.png",
+      "size": 2346,
+      "sha256": "6eb6bd280782f072f17bdd1be895c7a5d0e2d15e05e77068a395cff31e3c0e37"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_aug.png",
+      "size": 2447,
+      "sha256": "a4fb6d4e65581cc66ec266806d91a1f2ea3f36c0b52b3f34422d3c9022208ae5"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_awp.png",
+      "size": 1858,
+      "sha256": "b983542e3b864c06238849ebb5e9d6012a470ec36614ec95088ce30938e67ef0"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_bayonet.png",
+      "size": 1337,
+      "sha256": "99703e42e3710b146c5d641d62b30bbc2a67d2b70c4116717d65c66189e259df"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_bizon.png",
+      "size": 2298,
+      "sha256": "1e1c3d0e55dd9a883b719ac99b94d50037c6f06020d0733d89e9e57f7bc19f30"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_c4.png",
+      "size": 1556,
+      "sha256": "da2af28de49afe65b90f1b211be87670b0808d824378bf36478e27a2c1042a76"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_cz75a.png",
+      "size": 1801,
+      "sha256": "11ba4ca6e8467351f5a626a2ace0cde6be0cc0f94973d54a8220bd4f8b64ea6d"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_deagle.png",
+      "size": 1394,
+      "sha256": "19499b404661648f7c4a3deff00d5c1ca5ccf4dce897eea6b3aa48b92bc63808"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_decoy.png",
+      "size": 1684,
+      "sha256": "2b2f4d5478a90251a0b15377bf0bdd4cefbf8bb35d13c82461a2f0119e6cb64d"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_elite.png",
+      "size": 2032,
+      "sha256": "febc602adf9b690a9936344510fc6c17b83bf50c94e72f1ce0c3bee2e81f58ab"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_famas.png",
+      "size": 1987,
+      "sha256": "fa54948630ab6620d7db8e6737af1c6829f31c83f1e2e7e7793d95ac162c3bbd"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_fiveseven.png",
+      "size": 1177,
+      "sha256": "e357a3c2f3f4e5f5a1633a890903421bcd4e09cc5858c1dd16f10fb4de054fb1"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_flashbang.png",
+      "size": 1601,
+      "sha256": "5589de9af747eb68872a1b6a55330a5018055ecd1161af6f1851a8625ce276f4"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_g3sg1.png",
+      "size": 2449,
+      "sha256": "d635c5679ec653cc94067bab56e027e956296d00aa76f46b1cfab9426f996118"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_galilar.png",
+      "size": 2307,
+      "sha256": "108c9d1d7bed69522a39498e5dade15360d7d2cbd1386735949e703dd1376f23"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_glock.png",
+      "size": 1189,
+      "sha256": "ee56d80c5fbcb11747e8713726841a33251b2b900fd7d68456936ab46708727b"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_hegrenade.png",
+      "size": 1172,
+      "sha256": "b5132944a17959785804f1216d37cdba0e76416c6db268b5253a5632f9762ccb"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_hkp2000.png",
+      "size": 1076,
+      "sha256": "c3834441f65d729d6226f78d0c410a58c56d9f56d785078c0f7b6727d7076214"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_incgrenade.png",
+      "size": 1104,
+      "sha256": "2d195fad7894916e2a2555bf2e58522e08b2da751340c7d69763bc473e4637be"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_knife.png",
+      "size": 1540,
+      "sha256": "2b59dbde89860b7cc0052bc36b9b6eecb0b54a9fab2b3610164b0e81a48738c5"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_knife_bowie.png",
+      "size": 2245,
+      "sha256": "0066290ce13a312a6089ddd9695d4bf388a73dd0152a75e356c482b9c7a0b671"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_knife_butterfly.png",
+      "size": 1932,
+      "sha256": "189b309fa764fd9d8241a0e78ff48753216339ee84158ed8e542ad914fcb099e"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_knife_canis.png",
+      "size": 2078,
+      "sha256": "34dae7cabae1ce464cc51b0abf1ca3399d36870a0f948c7abd01ade921639e4b"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_knife_cord.png",
+      "size": 1309,
+      "sha256": "2cb999e182cca8ad82ca1494bfe22aed2c1628dc20883e7a9a65d09fea7eae7f"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_knife_css.png",
+      "size": 1538,
+      "sha256": "35aa284a57f60f05109daaff2dc760d82d242b7725d101bf4f4852cbd6d91f6f"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_knife_falchion.png",
+      "size": 2012,
+      "sha256": "3a338f1f45314604a1f4d54b5bcfe3f860ac0231fbb2702a90937c73e8ffca10"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_knife_flip.png",
+      "size": 1585,
+      "sha256": "6f6c6c2eb6ee98278fddce81c03362ef1d47800683772233bcc2c32af4750245"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_knife_gut.png",
+      "size": 1537,
+      "sha256": "a976ba9381757c7c594be969972601732f46e83fc6b4edf2b5b8d7522abdf016"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_knife_gypsy_jackknife.png",
+      "size": 1665,
+      "sha256": "3faf1986a6967f32e1322ab8ebd7779fcb3f1c9f1bea2e8682308e552377126a"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_knife_karambit.png",
+      "size": 2163,
+      "sha256": "9e42a07737f7550801edd4a74ae497b9fba9e886c3280f98530e881fad24a90f"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_knife_kukri.png",
+      "size": 2301,
+      "sha256": "b4c2ed59ccec4c2e95187b6de616d88e4a09c416bdabe3772861e211d6a4c2c8"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_knife_m9_bayonet.png",
+      "size": 1699,
+      "sha256": "c30c35087f512e7f835d3056a1d27a86e868107c7a2cca98755196720f70c62c"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_knife_outdoor.png",
+      "size": 1897,
+      "sha256": "9a80e9a28cb813ddaad6e1ac3bedf87e6b523f9732a03b1ba19c6564707b8275"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_knife_push.png",
+      "size": 3270,
+      "sha256": "51351c0b25db3fd922f4e270819e14e210092a7e028729eb58293b9f48d6c053"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_knife_skeleton.png",
+      "size": 1969,
+      "sha256": "4a3acf8d873adaf507da82b744233eb938b868017be0f3647fda08bd195beaa9"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_knife_stiletto.png",
+      "size": 1205,
+      "sha256": "4a4c82a32750aa709709292b4bc4f2f9c2e654050a9231135f5fc1a58c21cae6"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_knife_t.png",
+      "size": 1554,
+      "sha256": "fbf906e2bc5517dc987cfe91f97174f4c62c719eb7290a27ec96d4bae3710fdd"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_knife_tactical.png",
+      "size": 2319,
+      "sha256": "f945ba3da9ba24074c734ec45df995ada8dd7a4a4b5c7f3318e0a81bb5ad919f"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_knife_ursus.png",
+      "size": 1466,
+      "sha256": "43354175a7925a371c06452b1c2be1f3649ad243aa83259be857a465cde9317c"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_knife_widowmaker.png",
+      "size": 2651,
+      "sha256": "2647b6315ec718485ef3f3597b225e2ffefbc36e52767f0a23ed02ae6b7efd74"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_knifegg.png",
+      "size": 1858,
+      "sha256": "90b9f5834a0f3ca90bdb792fbf2d0f217cd2d87f603dc7aee12e627ef4d8ab9b"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_m249.png",
+      "size": 2427,
+      "sha256": "bd238ea4a31440ac002a1d516a3e2c4fc7fa8c132f3a0577ed10e5ec7c47a005"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_m4a1.png",
+      "size": 2019,
+      "sha256": "eabcc2600c1fbc13d8884f288ee7b4a84f5224db5fd20a8e7664a2aa6e4a4c78"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_m4a1_silencer.png",
+      "size": 2436,
+      "sha256": "701f35f9d299d66c5b7e8ca40cdb2e96408d3f615033902589413733e88a5cc9"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_mac10.png",
+      "size": 1473,
+      "sha256": "7aebd712dfc318d3cfbcd137560c3f7d1acadb3ade21bca4ee30a00dbc959db1"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_mag7.png",
+      "size": 1494,
+      "sha256": "ab9720798ad13b70d95a354dc20428a798314ca93f625c137efd45379adf8c50"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_molotov.png",
+      "size": 1055,
+      "sha256": "74ec8c8614710fa18b692ea8098975cb3aef2546ac8b64ee277c67aa41ae2ef7"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_mp5sd.png",
+      "size": 1898,
+      "sha256": "d021aaf26aa54ba143d489a744bb1fdc2c24ca59fa2a3229858cb866ea1018dc"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_mp7.png",
+      "size": 1469,
+      "sha256": "0d11f2334911591c864712325019e68dc1d37ba4e852ab58f7181143c3daacaa"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_mp9.png",
+      "size": 1839,
+      "sha256": "fb8e4517c5a433338b6e8252d97a0725928f1b3085ced13b15c295fe2ee8688e"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_negev.png",
+      "size": 2220,
+      "sha256": "9f584f1b927831bfeb3b729b85c9354e74c32f9c09ebff99051f24511b10d128"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_nova.png",
+      "size": 1719,
+      "sha256": "dde1a1fb800e8ec6059cadbfd7af0c381fa69bc142001de39a90389bf93146b1"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_p2000.png",
+      "size": 1076,
+      "sha256": "c3834441f65d729d6226f78d0c410a58c56d9f56d785078c0f7b6727d7076214"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_p250.png",
+      "size": 1208,
+      "sha256": "df2d1d9cf75768b9bfb3e53aaeb5d425ff36e3d9fb4bcf49e3ebcedf7c87502a"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_p90.png",
+      "size": 1909,
+      "sha256": "c725da676e31483945501722b648068f690cd3a594db6b940fcbef540bc61378"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_revolver.png",
+      "size": 1718,
+      "sha256": "b398d018b806a1938b9d7aa87a59f9fd3dbe8f8736ae0eed82713e190dc78870"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_sawedoff.png",
+      "size": 1383,
+      "sha256": "ef21c49867ffa237ea501b17a1fa24d4871f28fd9cdc8bc0586847a3ac9f3699"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_scar20.png",
+      "size": 2645,
+      "sha256": "100a05fa6704ae5945ffecb710bb19b23f6412c14d31db83c45113fe4f959d3e"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_sg556.png",
+      "size": 2294,
+      "sha256": "2e8414b42a01f09fc1d23ddd34bd1c5f5696fb3b4500aeb90a5b81a07e2671ee"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_smokegrenade.png",
+      "size": 717,
+      "sha256": "dba2e569ed6d656040cbe10b5a66cbdec2b0b65e786f28b11e32f9edc825f4c9"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_ssg08.png",
+      "size": 2031,
+      "sha256": "c87f03e95cad4c24be814e7a0d106b774a04bd766e211fe3def53528f76b7164"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_taser.png",
+      "size": 1319,
+      "sha256": "e2707c2639347dce1c9a3b17e1c8fd962543a513d7f868aa22eecefab9af9e72"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_tec9.png",
+      "size": 1556,
+      "sha256": "90e96dee90d005c2c937abb6d63fb4e66861e3a6da5465fbaf772c5397a76cc4"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_ump45.png",
+      "size": 2833,
+      "sha256": "c7d439995d9af187b97faa42811cfacf16e06bb5214e77a72e4aa8ce344d8258"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_usp_silencer.png",
+      "size": 1481,
+      "sha256": "67455fcb1946d7b2173b8d0ad55841cf7f028f4d7748c1834c5a90b87905d811"
+    },
+    {
+      "path": "Cs2/data/weapons/weapon_xm1014.png",
+      "size": 1685,
+      "sha256": "c33b5c8c91a437ab08e818e1ca7e3842d94b0ee36714b138827cbd43c9de3925"
+    },
+    {
+      "path": "Cs2/data/webradar/config/config.json5",
+      "size": 3877,
+      "sha256": "b4dc81602134cae64f3a64593289f80411875a9d5e5811c37238f9ab110b8107"
+    },
+    {
+      "path": "Cs2/data/webradar/config/keybinds.json5",
+      "size": 43,
+      "sha256": "7fa031ce136e674ea7ff807bfcc78116f13f82cb971a3fafabffb9e9983d3ef7"
+    },
+    {
+      "path": "Cs2/data/webradar/css/custom.css",
+      "size": 1524,
+      "sha256": "fce61042e4ec9e95cd5211a9c1a023625f565d8d259c2eb14b32ce518ee6cfdf"
+    },
+    {
+      "path": "Cs2/data/webradar/css/main.css",
+      "size": 12406,
+      "sha256": "e0884e63d05582b87e9dd4dabde582d98fb7dc99a7075cc30acb862e65336d7d"
+    },
+    {
+      "path": "Cs2/data/webradar/css/map.css",
+      "size": 13698,
+      "sha256": "8fd77f0bdabdf4142866074a121b3fba149bcd89a8565cf7374dd07f4edd4289"
+    },
+    {
+      "path": "Cs2/data/webradar/img/adv-defuse.webp",
+      "size": 3550,
+      "sha256": "f2c4e703cf31fa4dfb80c439629495a75e9c8dbf6560f3b39990c216f2ba4a30"
+    },
+    {
+      "path": "Cs2/data/webradar/img/adv-plant.webp",
+      "size": 936,
+      "sha256": "efe5b6ab9a716d42f77441094b347abda1194b6dca092998fef993200248142a"
+    },
+    {
+      "path": "Cs2/data/webradar/img/adv-solesurvivor.webp",
+      "size": 3030,
+      "sha256": "d3eb820bb68af7190bed2a907df8bc273106e28f3349f4b714ca728381e96768"
+    },
+    {
+      "path": "Cs2/data/webradar/img/bomb-defused.webp",
+      "size": 904,
+      "sha256": "f05a66b90cdc535a2b98a3fe42a6c90a8c60d00a233e950c04b81317d43f1f7b"
+    },
+    {
+      "path": "Cs2/data/webradar/img/bomb-dropped.webp",
+      "size": 984,
+      "sha256": "ad20d74b44952093a561f2857037cc338af27fd2433017345a9c12390cbeb7a0"
+    },
+    {
+      "path": "Cs2/data/webradar/img/bomb-planted.webp",
+      "size": 936,
+      "sha256": "dc4e5c2a642ed1f137b3f961748c46f01225e5fcbcd850c5dd8ed803a1769ce3"
+    },
+    {
+      "path": "Cs2/data/webradar/img/characters/ctm_sas.png",
+      "size": 153614,
+      "sha256": "83d2d05508e4d5d99584f35f9564ff82309d37dde1ed18f17e7f0522691b6843"
+    },
+    {
+      "path": "Cs2/data/webradar/img/characters/tm_phoenix.png",
+      "size": 174152,
+      "sha256": "06b1b31694196f281f585aa8b239dfaa0c41bdc093e3e4ffa1f760af5de43e90"
+    },
+    {
+      "path": "Cs2/data/webradar/img/empty.webp",
+      "size": 72,
+      "sha256": "78314b2a0afc11f8512802517d3497f25e333e4a858293af2e2deb62c99753ff"
+    },
+    {
+      "path": "Cs2/data/webradar/img/icon-64x64.png",
+      "size": 1330,
+      "sha256": "b172855e4d2f4d6efac951194013d9da220077915164b43a636000c4a8f61b7c"
+    },
+    {
+      "path": "Cs2/data/webradar/img/icon.svg",
+      "size": 458,
+      "sha256": "6aeb4f33753eb9084a149b30754dec8449711c9f28e5a48ab64b78b30a4906a9"
+    },
+    {
+      "path": "Cs2/data/webradar/img/icons/ak47.svg",
+      "size": 2240,
+      "sha256": "eac82435b3c9e6a5780ea5cb99ec991f4d8462ac67de62e0be98aaf1815f5245"
+    },
+    {
+      "path": "Cs2/data/webradar/img/icons/aug.svg",
+      "size": 3312,
+      "sha256": "d4afa24115386cb476b3355629898717873b0e10b7458cbe844abfdf036cfbd2"
+    },
+    {
+      "path": "Cs2/data/webradar/img/icons/awp.svg",
+      "size": 3045,
+      "sha256": "0e835b91d9926d5775fa3e9b9469745e44a9152937d2285d4990029bcf79379f"
+    },
+    {
+      "path": "Cs2/data/webradar/img/icons/bizon.svg",
+      "size": 30240,
+      "sha256": "94e420f0339b01efe6cf14f50d516153b278da5d6640f2301faa31b431f48f50"
+    },
+    {
+      "path": "Cs2/data/webradar/img/icons/c4.svg",
+      "size": 3694,
+      "sha256": "6dfe82ecd6818771c60608cfd2a2d8663a7e71bbff3482c2930c49c065f525c4"
+    },
+    {
+      "path": "Cs2/data/webradar/img/icons/cog.svg",
+      "size": 1424,
+      "sha256": "7e3a5b188923972d49dc7a857bbda243dad2f0c39dfe26036b2eaaf92a022fc0"
+    },
+    {
+      "path": "Cs2/data/webradar/img/icons/cz75a.svg",
+      "size": 3071,
+      "sha256": "0f9bc42b6dcd4305afe81b068bee1fb676b5f29b9700caa4c6a92c82ceb362b9"
+    },
+    {
+      "path": "Cs2/data/webradar/img/icons/deagle.svg",
+      "size": 2412,
+      "sha256": "775435ed5e1fd9d5907c31441cc4f818930d95671e10b3c853cfe5d6116c0c97"
+    },
+    {
+      "path": "Cs2/data/webradar/img/icons/decoy.svg",
+      "size": 1320,
+      "sha256": "8688b212b87e4a989e6ee12ee2a4334a72f95ced1cf37f61e47610cd277a080a"
+    },
+    {
+      "path": "Cs2/data/webradar/img/icons/defuser.svg",
+      "size": 2905,
+      "sha256": "bd2bd1f7d20e494994cf03f83ac4cfe357e8ecd521fbabdb92832e805a09365d"
+    },
+    {
+      "path": "Cs2/data/webradar/img/icons/elite.svg",
+      "size": 5729,
+      "sha256": "9ddb24ecf831f8303b9f8e431363a40ef39430f66d4e36be0da24892ca511402"
+    },
+    {
+      "path": "Cs2/data/webradar/img/icons/famas.svg",
+      "size": 3433,
+      "sha256": "55e6933188cdab52ab1d2e52c2d471b85829dd9c6fa627019e3905f3708d368e"
+    },
+    {
+      "path": "Cs2/data/webradar/img/icons/fiveseven.svg",
+      "size": 2089,
+      "sha256": "12b323996b19bd6c2af472e5bb0c4bc2c19bcd723eca94ffc37d55d17740f8c6"
+    },
+    {
+      "path": "Cs2/data/webradar/img/icons/flashbang.svg",
+      "size": 934,
+      "sha256": "cd7c68f38b9c5933c8e45cd484c73dd5a6a789ac109c228e14633fc641351a1f"
+    },
+    {
+      "path": "Cs2/data/webradar/img/icons/g3sg1.svg",
+      "size": 5485,
+      "sha256": "53e264d3ce405be567a62b5925b9d565868c1b8e81cd06611571fc8d9388079c"
+    },
+    {
+      "path": "Cs2/data/webradar/img/icons/galilar.svg",
+      "size": 3847,
+      "sha256": "209963154412d0bff0970883736885da920227a556fb7a0b751fef90c0ffcfd8"
+    },
+    {
+      "path": "Cs2/data/webradar/img/icons/gauge.svg",
+      "size": 1132,
+      "sha256": "9a9b411833dee40235abb8bb8e9ee520b23fa622a1511e75bac99bc4362afcbf"
+    },
+    {
+      "path": "Cs2/data/webradar/img/icons/glock.svg",
+      "size": 1989,
+      "sha256": "c2b4094178174b0331d35400b30cf1fb1c92c62709a6930c2169537991334080"
+    },
+    {
+      "path": "Cs2/data/webradar/img/icons/health.svg",
+      "size": 191,
+      "sha256": "39e625eb0ed6e582cf407480c5ef074b2602f60bc2be06f7ab6de212b29c3a01"
+    },
+    {
+      "path": "Cs2/data/webradar/img/icons/hegrenade.svg",
+      "size": 29778,
+      "sha256": "03de7368f011b1220ddda3a6139d70be60e06d77064241f24e7e22d82aee0ba1"
+    },
+    {
+      "path": "Cs2/data/webradar/img/icons/incgrenade.svg",
+      "size": 7819,
+      "sha256": "3b7b616177ff3d333644240f87b99084c6b91d6e615bea005e50cfefa470a946"
+    },
+    {
+      "path": "Cs2/data/webradar/img/icons/kevlar.svg",
+      "size": 1998,
+      "sha256": "ec5eebe352f2231548e7dece6062468b0c95f6727a64f87d03a875b633677290"
+    },
+    {
+      "path": "Cs2/data/webradar/img/icons/kevlar_helmet.svg",
+      "size": 3376,
+      "sha256": "b4733669dd4398da993493dd09dd0541cb08e43bf568559ee3e4bef0b3448baa"
+    },
+    {
+      "path": "Cs2/data/webradar/img/icons/knife.svg",
+      "size": 2239,
+      "sha256": "af576a872fb33c9efa5d1f72a993d43de244f5d6ab1861154a2aa13dc9940db6"
+    },
+    {
+      "path": "Cs2/data/webradar/img/icons/m249.svg",
+      "size": 4631,
+      "sha256": "a733e5c537d5b8b03b87298a99f0e0bcff81d2e5a641dc68ab34c9b6f0381f39"
+    },
+    {
+      "path": "Cs2/data/webradar/img/icons/m4a1.svg",
+      "size": 3005,
+      "sha256": "fa2b469bd9b4904776a065656d55dbad53a22c648cbe5be4b3a134d49779496e"
+    },
+    {
+      "path": "Cs2/data/webradar/img/icons/m4a1_silencer.svg",
+      "size": 3367,
+      "sha256": "715dab1b00d4fafe7b86c3bcf53253a623ab5babef98bf794dd400b99160d467"
+    },
+    {
+      "path": "Cs2/data/webradar/img/icons/mac10.svg",
+      "size": 2866,
+      "sha256": "04d23b29027e1c95fd77cc5e12cc8954245932ae9600a1b960affdddf0f6fd77"
+    },
+    {
+      "path": "Cs2/data/webradar/img/icons/mag7.svg",
+      "size": 17051,
+      "sha256": "808be2690299c3a3134db834edc3ae78fd03d2d7de501d81ad2a23d2246d559d"
+    },
+    {
+      "path": "Cs2/data/webradar/img/icons/molotov.svg",
+      "size": 1857,
+      "sha256": "78dcf0b07f15d826a9f20155c2a950fc73528127087d16cd6ad4d828f803097f"
+    },
+    {
+      "path": "Cs2/data/webradar/img/icons/mp5sd.svg",
+      "size": 2535,
+      "sha256": "5f864eb114ba0e89eba80405e2258fed934ef3c0b44c05f77c9c887e42be32dc"
+    },
+    {
+      "path": "Cs2/data/webradar/img/icons/mp7.svg",
+      "size": 22230,
+      "sha256": "58bf5b875331e213174945c7997e3edb67296b175c81d2b868ac35a57c6ae933"
+    },
+    {
+      "path": "Cs2/data/webradar/img/icons/mp9.svg",
+      "size": 14459,
+      "sha256": "b26e0b1b1e64786638429134d774f95ce80f155cc84d60b1f11617b9c35e9bfb"
+    },
+    {
+      "path": "Cs2/data/webradar/img/icons/negev.svg",
+      "size": 26591,
+      "sha256": "d24b68fccd830bfd3f47a0acad50f1f77fbd115208de7a6a79ce8ba118c27506"
+    },
+    {
+      "path": "Cs2/data/webradar/img/icons/nova.svg",
+      "size": 16531,
+      "sha256": "9f5b11818f2fd09836f447b68c1dea04ab0b6d4c2fe323798789275f64266ca3"
+    },
+    {
+      "path": "Cs2/data/webradar/img/icons/p2000.svg",
+      "size": 1899,
+      "sha256": "7ddbb9beb5772987ea035a0ed5cd96d5e54e8d53d0447d9ff86f4a584e339090"
+    },
+    {
+      "path": "Cs2/data/webradar/img/icons/p250.svg",
+      "size": 12840,
+      "sha256": "2485dfab0930ef15192f3ccdfb0c46f10151bf6504a4b0d160c05bf1e9f26dd0"
+    },
+    {
+      "path": "Cs2/data/webradar/img/icons/p90.svg",
+      "size": 2882,
+      "sha256": "82c39d94b1618f9a233f6e25e8ff8b3f04f28db8678e49d332ffe86a9301fc4b"
+    },
+    {
+      "path": "Cs2/data/webradar/img/icons/revolver.svg",
+      "size": 3511,
+      "sha256": "21fe349f0ef2a66fc4b64f3b5eadac2c9d330dd61222bf0a30c856deb4d5922c"
+    },
+    {
+      "path": "Cs2/data/webradar/img/icons/sawedoff.svg",
+      "size": 13695,
+      "sha256": "fb359c4c2dc4c26c8c04e6025d8adafaf19605791cf3a115caed498861b0067c"
+    },
+    {
+      "path": "Cs2/data/webradar/img/icons/scar20.svg",
+      "size": 21692,
+      "sha256": "e6c7ff4e170f7da52499d2d9df2fb73d1c5a0b603d12c96d7be4db75ee2bd298"
+    },
+    {
+      "path": "Cs2/data/webradar/img/icons/sg556.svg",
+      "size": 17960,
+      "sha256": "9fa00dd96bc4a54fc6bcdd170948380b0c930049cd2450b54b93a19b20233c12"
+    },
+    {
+      "path": "Cs2/data/webradar/img/icons/smokegrenade.svg",
+      "size": 678,
+      "sha256": "b29f03b810100f27680e42322069062aba6fe36f132dfa52c79462ea4e98f6d3"
+    },
+    {
+      "path": "Cs2/data/webradar/img/icons/ssg08.svg",
+      "size": 20759,
+      "sha256": "431f9dda056cfd9db81599461c278834400f14dc5dce460d9c91897b6cf6ca6f"
+    },
+    {
+      "path": "Cs2/data/webradar/img/icons/taser.svg",
+      "size": 1980,
+      "sha256": "67fac6c5455abc2b8401f51483b6996954a41abb70d546b9bfdce43f908325a1"
+    },
+    {
+      "path": "Cs2/data/webradar/NOTICE.txt",
+      "size": 524,
+      "sha256": "9025a89184c411bcade1d52c05149c60e6a6be38c3eb6393cecfad6ce86018f7"
+    },
+    {
+      "path": "Cs2/dumper/cs2-dumper.exe",
+      "size": 2153984,
+      "sha256": "b8077b3872331e7a6c245b1b6dc31ab314dc495a9d5c1aa647cfef79b746473b"
+    },
+    {
+      "path": "Cs2/radar_webapp/config/config.json5",
+      "size": 3877,
+      "sha256": "b4dc81602134cae64f3a64593289f80411875a9d5e5811c37238f9ab110b8107"
+    },
+    {
+      "path": "Cs2/radar_webapp/config/keybinds.json5",
+      "size": 43,
+      "sha256": "7fa031ce136e674ea7ff807bfcc78116f13f82cb971a3fafabffb9e9983d3ef7"
+    },
+    {
+      "path": "Cs2/radar_webapp/css/custom.css",
+      "size": 1524,
+      "sha256": "fce61042e4ec9e95cd5211a9c1a023625f565d8d259c2eb14b32ce518ee6cfdf"
+    },
+    {
+      "path": "Cs2/radar_webapp/css/main.css",
+      "size": 12406,
+      "sha256": "e0884e63d05582b87e9dd4dabde582d98fb7dc99a7075cc30acb862e65336d7d"
+    },
+    {
+      "path": "Cs2/radar_webapp/css/map.css",
+      "size": 13698,
+      "sha256": "8fd77f0bdabdf4142866074a121b3fba149bcd89a8565cf7374dd07f4edd4289"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/adv-defuse.webp",
+      "size": 3550,
+      "sha256": "f2c4e703cf31fa4dfb80c439629495a75e9c8dbf6560f3b39990c216f2ba4a30"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/adv-plant.webp",
+      "size": 936,
+      "sha256": "efe5b6ab9a716d42f77441094b347abda1194b6dca092998fef993200248142a"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/adv-solesurvivor.webp",
+      "size": 3030,
+      "sha256": "d3eb820bb68af7190bed2a907df8bc273106e28f3349f4b714ca728381e96768"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/bomb-defused.webp",
+      "size": 904,
+      "sha256": "f05a66b90cdc535a2b98a3fe42a6c90a8c60d00a233e950c04b81317d43f1f7b"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/bomb-dropped.webp",
+      "size": 984,
+      "sha256": "ad20d74b44952093a561f2857037cc338af27fd2433017345a9c12390cbeb7a0"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/bomb-planted.webp",
+      "size": 936,
+      "sha256": "dc4e5c2a642ed1f137b3f961748c46f01225e5fcbcd850c5dd8ed803a1769ce3"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/characters/ctm_sas.png",
+      "size": 153614,
+      "sha256": "83d2d05508e4d5d99584f35f9564ff82309d37dde1ed18f17e7f0522691b6843"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/characters/tm_phoenix.png",
+      "size": 174152,
+      "sha256": "06b1b31694196f281f585aa8b239dfaa0c41bdc093e3e4ffa1f760af5de43e90"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/empty.webp",
+      "size": 72,
+      "sha256": "78314b2a0afc11f8512802517d3497f25e333e4a858293af2e2deb62c99753ff"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icon-64x64.png",
+      "size": 1330,
+      "sha256": "b172855e4d2f4d6efac951194013d9da220077915164b43a636000c4a8f61b7c"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icon.svg",
+      "size": 458,
+      "sha256": "6aeb4f33753eb9084a149b30754dec8449711c9f28e5a48ab64b78b30a4906a9"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/ak47.svg",
+      "size": 2240,
+      "sha256": "eac82435b3c9e6a5780ea5cb99ec991f4d8462ac67de62e0be98aaf1815f5245"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/aug.svg",
+      "size": 3312,
+      "sha256": "d4afa24115386cb476b3355629898717873b0e10b7458cbe844abfdf036cfbd2"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/awp.svg",
+      "size": 3045,
+      "sha256": "0e835b91d9926d5775fa3e9b9469745e44a9152937d2285d4990029bcf79379f"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/bizon.svg",
+      "size": 30240,
+      "sha256": "94e420f0339b01efe6cf14f50d516153b278da5d6640f2301faa31b431f48f50"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/c4.svg",
+      "size": 3694,
+      "sha256": "6dfe82ecd6818771c60608cfd2a2d8663a7e71bbff3482c2930c49c065f525c4"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/cog.svg",
+      "size": 1424,
+      "sha256": "7e3a5b188923972d49dc7a857bbda243dad2f0c39dfe26036b2eaaf92a022fc0"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/cz75a.svg",
+      "size": 3071,
+      "sha256": "0f9bc42b6dcd4305afe81b068bee1fb676b5f29b9700caa4c6a92c82ceb362b9"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/deagle.svg",
+      "size": 2412,
+      "sha256": "775435ed5e1fd9d5907c31441cc4f818930d95671e10b3c853cfe5d6116c0c97"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/decoy.svg",
+      "size": 1320,
+      "sha256": "8688b212b87e4a989e6ee12ee2a4334a72f95ced1cf37f61e47610cd277a080a"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/defuser.svg",
+      "size": 2905,
+      "sha256": "bd2bd1f7d20e494994cf03f83ac4cfe357e8ecd521fbabdb92832e805a09365d"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/elite.svg",
+      "size": 5729,
+      "sha256": "9ddb24ecf831f8303b9f8e431363a40ef39430f66d4e36be0da24892ca511402"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/famas.svg",
+      "size": 3433,
+      "sha256": "55e6933188cdab52ab1d2e52c2d471b85829dd9c6fa627019e3905f3708d368e"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/fiveseven.svg",
+      "size": 2089,
+      "sha256": "12b323996b19bd6c2af472e5bb0c4bc2c19bcd723eca94ffc37d55d17740f8c6"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/flashbang.svg",
+      "size": 934,
+      "sha256": "cd7c68f38b9c5933c8e45cd484c73dd5a6a789ac109c228e14633fc641351a1f"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/g3sg1.svg",
+      "size": 5485,
+      "sha256": "53e264d3ce405be567a62b5925b9d565868c1b8e81cd06611571fc8d9388079c"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/galilar.svg",
+      "size": 3847,
+      "sha256": "209963154412d0bff0970883736885da920227a556fb7a0b751fef90c0ffcfd8"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/gauge.svg",
+      "size": 1132,
+      "sha256": "9a9b411833dee40235abb8bb8e9ee520b23fa622a1511e75bac99bc4362afcbf"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/glock.svg",
+      "size": 1989,
+      "sha256": "c2b4094178174b0331d35400b30cf1fb1c92c62709a6930c2169537991334080"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/health.svg",
+      "size": 191,
+      "sha256": "39e625eb0ed6e582cf407480c5ef074b2602f60bc2be06f7ab6de212b29c3a01"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/hegrenade.svg",
+      "size": 29778,
+      "sha256": "03de7368f011b1220ddda3a6139d70be60e06d77064241f24e7e22d82aee0ba1"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/incgrenade.svg",
+      "size": 7819,
+      "sha256": "3b7b616177ff3d333644240f87b99084c6b91d6e615bea005e50cfefa470a946"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/kevlar.svg",
+      "size": 1998,
+      "sha256": "ec5eebe352f2231548e7dece6062468b0c95f6727a64f87d03a875b633677290"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/kevlar_helmet.svg",
+      "size": 3376,
+      "sha256": "b4733669dd4398da993493dd09dd0541cb08e43bf568559ee3e4bef0b3448baa"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/knife.svg",
+      "size": 2239,
+      "sha256": "af576a872fb33c9efa5d1f72a993d43de244f5d6ab1861154a2aa13dc9940db6"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/m249.svg",
+      "size": 4631,
+      "sha256": "a733e5c537d5b8b03b87298a99f0e0bcff81d2e5a641dc68ab34c9b6f0381f39"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/m4a1.svg",
+      "size": 3005,
+      "sha256": "fa2b469bd9b4904776a065656d55dbad53a22c648cbe5be4b3a134d49779496e"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/m4a1_silencer.svg",
+      "size": 3367,
+      "sha256": "715dab1b00d4fafe7b86c3bcf53253a623ab5babef98bf794dd400b99160d467"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/mac10.svg",
+      "size": 2866,
+      "sha256": "04d23b29027e1c95fd77cc5e12cc8954245932ae9600a1b960affdddf0f6fd77"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/mag7.svg",
+      "size": 17051,
+      "sha256": "808be2690299c3a3134db834edc3ae78fd03d2d7de501d81ad2a23d2246d559d"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/molotov.svg",
+      "size": 1857,
+      "sha256": "78dcf0b07f15d826a9f20155c2a950fc73528127087d16cd6ad4d828f803097f"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/mp5sd.svg",
+      "size": 2535,
+      "sha256": "5f864eb114ba0e89eba80405e2258fed934ef3c0b44c05f77c9c887e42be32dc"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/mp7.svg",
+      "size": 22230,
+      "sha256": "58bf5b875331e213174945c7997e3edb67296b175c81d2b868ac35a57c6ae933"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/mp9.svg",
+      "size": 14459,
+      "sha256": "b26e0b1b1e64786638429134d774f95ce80f155cc84d60b1f11617b9c35e9bfb"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/negev.svg",
+      "size": 26591,
+      "sha256": "d24b68fccd830bfd3f47a0acad50f1f77fbd115208de7a6a79ce8ba118c27506"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/nova.svg",
+      "size": 16531,
+      "sha256": "9f5b11818f2fd09836f447b68c1dea04ab0b6d4c2fe323798789275f64266ca3"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/p2000.svg",
+      "size": 1899,
+      "sha256": "7ddbb9beb5772987ea035a0ed5cd96d5e54e8d53d0447d9ff86f4a584e339090"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/p250.svg",
+      "size": 12840,
+      "sha256": "2485dfab0930ef15192f3ccdfb0c46f10151bf6504a4b0d160c05bf1e9f26dd0"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/p90.svg",
+      "size": 2882,
+      "sha256": "82c39d94b1618f9a233f6e25e8ff8b3f04f28db8678e49d332ffe86a9301fc4b"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/revolver.svg",
+      "size": 3511,
+      "sha256": "21fe349f0ef2a66fc4b64f3b5eadac2c9d330dd61222bf0a30c856deb4d5922c"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/sawedoff.svg",
+      "size": 13695,
+      "sha256": "fb359c4c2dc4c26c8c04e6025d8adafaf19605791cf3a115caed498861b0067c"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/scar20.svg",
+      "size": 21692,
+      "sha256": "e6c7ff4e170f7da52499d2d9df2fb73d1c5a0b603d12c96d7be4db75ee2bd298"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/sg556.svg",
+      "size": 17960,
+      "sha256": "9fa00dd96bc4a54fc6bcdd170948380b0c930049cd2450b54b93a19b20233c12"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/smokegrenade.svg",
+      "size": 678,
+      "sha256": "b29f03b810100f27680e42322069062aba6fe36f132dfa52c79462ea4e98f6d3"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/ssg08.svg",
+      "size": 20759,
+      "sha256": "431f9dda056cfd9db81599461c278834400f14dc5dce460d9c91897b6cf6ca6f"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/taser.svg",
+      "size": 1980,
+      "sha256": "67fac6c5455abc2b8401f51483b6996954a41abb70d546b9bfdce43f908325a1"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/tec9.svg",
+      "size": 16829,
+      "sha256": "e0fb2f0bf62d4dd06e2e788935e7ad5cca85c77268ea746ecc405fb366dcec36"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/ump45.svg",
+      "size": 5460,
+      "sha256": "3447350ea5ebc10c5fc4d0546f02145bfb84936f6d5d6930aa7d4a5c062c0bf2"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/usp_silencer.svg",
+      "size": 1955,
+      "sha256": "e8e0e965ca417c77040389d8975d3f250eeab88f8cd30b8d3cdf4cb57c6b9fa5"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/icons/xm1014.svg",
+      "size": 3595,
+      "sha256": "b9964fab1474146a231c13e8444c6fb10df8e14027074d4e5ec7d5fa876a076a"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/projectile-hc-firebomb-CT.webp",
+      "size": 1676,
+      "sha256": "3449f9fd413d45079bae2500899adf80b41358cfd964d4144b12285bd6fa6b8e"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/projectile-hc-firebomb-T.webp",
+      "size": 1640,
+      "sha256": "09fb54513dd7001eecded4ce4865a01563096a377295a49f46fae2d9092a5a2e"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/projectile-hc-flashbang-CT.webp",
+      "size": 1118,
+      "sha256": "4c7497df9121c1e50a5b796a1fd8d1b3551c6e27b07f0d002bdeb1c3edb0929d"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/projectile-hc-flashbang-T.webp",
+      "size": 1112,
+      "sha256": "c528b476e57c7e8137bebb3f1d4c447acfdb6805a99515a4dec3699257e935f0"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/projectile-hc-frag-CT.webp",
+      "size": 1144,
+      "sha256": "531e6fc8d0da9781145a2cd1168556b8be7ed94553558c81c9f490f375526eaf"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/projectile-hc-frag-T.webp",
+      "size": 1160,
+      "sha256": "6ae4dfede4c66f0076d3043aafe7609999cdb1055dff2f8b4a05bf0aefe79227"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/projectile-hc-smoke-CT.webp",
+      "size": 1930,
+      "sha256": "847f1db372128a359b4bc91e39aaf6108138cd5b96fc0267d15855a1ad83f2f0"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/projectile-hc-smoke-T.webp",
+      "size": 1946,
+      "sha256": "3b403183461bdff0cab9c042c3968b3020eb5a29ab0262665a8d73d533d701fe"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/projectile-img-firebomb-CT.webp",
+      "size": 1600,
+      "sha256": "59655e401be2be928b2acf14a69fbd591ac4196abe80c078c724572f225f6e5b"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/projectile-img-firebomb-T.webp",
+      "size": 1876,
+      "sha256": "a13e2d78fdde789aff16c9180d6a12da19e178d6d6d1a03211839f8ec616d028"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/projectile-img-flashbang-CT.webp",
+      "size": 2232,
+      "sha256": "35685ffee2cda9f2b095a5721810e0caa3984b691d253ba5f7d0c2fb5b4839a0"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/projectile-img-flashbang-T.webp",
+      "size": 2286,
+      "sha256": "7cb1885e027e479fafc560308994819f3b549e81df62f5c659c0a378f62a0360"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/projectile-img-frag-CT.webp",
+      "size": 1508,
+      "sha256": "f3e48b084036ac8d93bb0b1e2b89c4cb93e3d93e857b1b274cddc2da1cb6d356"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/projectile-img-frag-T.webp",
+      "size": 1548,
+      "sha256": "2f173a8ccdb2876c49e21c2820f73bd32f8bcb5da4bae9753d2f003cc17e014d"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/projectile-img-smoke-CT.webp",
+      "size": 1408,
+      "sha256": "13de02e50792a972d3670fd8490051cd8339293155752252ca7913478dc0c2a2"
+    },
+    {
+      "path": "Cs2/radar_webapp/img/projectile-img-smoke-T.webp",
+      "size": 1432,
+      "sha256": "f05d77e74c715738ecf84e0b54d862afe96e672265c1b6431c81cf570a3f797e"
+    },
+    {
+      "path": "Cs2/radar_webapp/index.html",
+      "size": 14906,
+      "sha256": "a0d6f2eb4ee8faa8e58da24e99862aaa6cd62978223e149c81def4e2fc94c4c8"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/cs_agency/meta.json5",
+      "size": 983,
+      "sha256": "efca62b88b8c99d4d6de8e14b7f636adb127a3ae37d2329aa9855f09910b4a37"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/cs_agency/radar.png",
+      "size": 191790,
+      "sha256": "f80b8f4030249163841bd91068ad9b2490c7fcb3c0deefdda87fd027354bde98"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/cs_italy/meta.json5",
+      "size": 967,
+      "sha256": "1c991a992652c0a0e5febe5b2a38226c2e5c25ef699714287a2e5ab8a1fe4ed0"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/cs_italy/radar.png",
+      "size": 106720,
+      "sha256": "09b373a13df847d6486c0f326d4258fea977d4ce4064bebd2712bb2e4ef61fba"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/cs_office/meta.json5",
+      "size": 967,
+      "sha256": "913cbe38cd11c19807379fc1d7a232fb9caf5322aa3a5ef9d0ef61285f630db4"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/cs_office/radar.png",
+      "size": 190533,
+      "sha256": "5bff719cdd754aada5377792bb25338142e5ac5e9a77b7d7eeb9ea3b2efbbe50"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_ancient/LICENSE",
+      "size": 1066,
+      "sha256": "d05cb177a8de5a1b3903dbeef22e35c8da1f05fa4ba9f7e38d9d5f8f8eeaa86c"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_ancient/meta.json5",
+      "size": 965,
+      "sha256": "e5072830f3286304b91136eac990234554f887907a70abeebb11502a30df0cb9"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_ancient/overlay_buyzones.png",
+      "size": 24554,
+      "sha256": "7a308c0da0cb06b90efc3911fca271011254407f8d7f54f5e4a0d2ee3d1d6b6a"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_ancient/overlay_logos.png",
+      "size": 37102,
+      "sha256": "768b45e2e7ea91c0326024b9bb215e43c7645189fc20e39dcf6bcea7bde4f87a"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_ancient/radar.png",
+      "size": 200140,
+      "sha256": "34381b0349a145a75cf779ed8313425cd5602693a015b600d3d9b9bd2f0e6fe9"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_anubis/LICENSE",
+      "size": 1066,
+      "sha256": "d05cb177a8de5a1b3903dbeef22e35c8da1f05fa4ba9f7e38d9d5f8f8eeaa86c"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_anubis/meta.json5",
+      "size": 660,
+      "sha256": "c11bde50ae2df1aeb55e270720239f41326881afc9e45fd2831d8291fb215fb5"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_anubis/overlay_buyzones.png",
+      "size": 27088,
+      "sha256": "c5e1a96691448b4acb7c4941bde3f9897b4a98ac02ec6d4c5f776686fc031400"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_anubis/overlay_logos.png",
+      "size": 30984,
+      "sha256": "c6f5b0c3a221d9c9d312b5eb93b8c8120288d1502bb65e169b74d67c2bec352a"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_anubis/radar.png",
+      "size": 361480,
+      "sha256": "a117c55fcd6690c74210125c2f409a32b9348c931213b388cf3ab5ed0c3d47ae"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_cache/meta.json5",
+      "size": 553,
+      "sha256": "ae33048c4229ff443a19cdaa3c0f38aa77c6ec699ecde3507d6dd86d2d95a7b8"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_cache/overlay_buyzones.png",
+      "size": 24452,
+      "sha256": "fc77dbbf75cd748ce284db5abf7e1017449cc34b94a539af15a301423fd2955c"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_cache/overlay_logos.png",
+      "size": 38148,
+      "sha256": "26628c1ae16ba824c2bc9ebaf9f908525623db877bc8061f961d4a2b80af0666"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_cache/radar.png",
+      "size": 132550,
+      "sha256": "2f2e26043469a962a141e2f23b649c8750a71d02d3f4a7ab6a703e4046b27d2d"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_dust2/meta.json5",
+      "size": 968,
+      "sha256": "a4a6d5819d9951488c47f56e2cccc0ca90df3759450ec228cb2ebd1c62dcc3c5"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_dust2/overlay_buyzones.png",
+      "size": 30372,
+      "sha256": "ca917bb34f7d944befeca4817b96ce3cc7cef823fa97f3e00a28f087862e33bd"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_dust2/overlay_logos.png",
+      "size": 38158,
+      "sha256": "438ecdc2f2a80cf3d578d81a3b866b168be369cbf82391a73ed83b576ddcb387"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_dust2/radar.png",
+      "size": 183510,
+      "sha256": "058db75547a934f35da928c20048edaa51152fd1028eba42a310bb4d6144f977"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_golden/meta.json5",
+      "size": 981,
+      "sha256": "a50deda116f43b7cdc2461b4e39c93736726996fc3b187e8c1c60b25f73d9593"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_golden/radar.png",
+      "size": 182561,
+      "sha256": "7b4d6b966b8e8166d86ea8fd8d0e9ec30bed801cd7f494aadca9ae445f7efc10"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_grail/meta.json5",
+      "size": 981,
+      "sha256": "2a4aa7ca1ebde2d322d0b0f474d517aff1607db498160fd8e19a4eac0ec91f42"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_grail/radar.png",
+      "size": 453319,
+      "sha256": "42f9c09aacc083b0d6df1ec445cf2214abbc1c8f7a8642d8a6698895e0b33b78"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_inferno/meta.json5",
+      "size": 965,
+      "sha256": "21d47414a0cd718681807e3105fa9371db0b5782ec8a140a3e89294610e73872"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_inferno/overlay_buyzones.png",
+      "size": 31489,
+      "sha256": "21fe97f2a5938930efb5f4b5fdb795acaa6bb0ab5bc5f3fe36f10bc662400b26"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_inferno/overlay_logos.png",
+      "size": 38148,
+      "sha256": "26628c1ae16ba824c2bc9ebaf9f908525623db877bc8061f961d4a2b80af0666"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_inferno/radar.png",
+      "size": 173365,
+      "sha256": "ebbb73cf9a73b80e699d7765476c7bb490ba2524189ead14db6ed2a1a0bacc99"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_mirage/meta.json5",
+      "size": 968,
+      "sha256": "36626324efc6e633ed957481615f1ab38ac0020055430ce6e56f766191c2cc4e"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_mirage/overlay_buyzones.png",
+      "size": 25844,
+      "sha256": "65263aed6d7e33b3e5f2314536b998807ae9ca9d9502044bb309622553e453aa"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_mirage/overlay_logos.png",
+      "size": 38148,
+      "sha256": "26628c1ae16ba824c2bc9ebaf9f908525623db877bc8061f961d4a2b80af0666"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_mirage/radar.png",
+      "size": 119422,
+      "sha256": "13daee22f5807f0e3672bc42b606bfd273ef913dc01f5720b2215e6a2239063e"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_nuke/meta.json5",
+      "size": 1550,
+      "sha256": "32dc87a300f343b7c555167674f00571b1602c37d37e739c12c84b6487a30941"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_nuke/overlay_buyzones.png",
+      "size": 24559,
+      "sha256": "510af23404d77ec0f949e0a07814aa795806eee312dd9c5231ee1a30996bc946"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_nuke/overlay_logos.png",
+      "size": 38148,
+      "sha256": "26628c1ae16ba824c2bc9ebaf9f908525623db877bc8061f961d4a2b80af0666"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_nuke/radar.png",
+      "size": 116890,
+      "sha256": "8e9651be759665480a91b35de036e57e7feeb6e8537f6c4fb95c3f953925f4b8"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_overpass/meta.json5",
+      "size": 965,
+      "sha256": "0367728ce03b604735f64289ff50bc7f8da24627e4bcdbec12012fdb003267c2"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_overpass/overlay_buyzones.png",
+      "size": 44755,
+      "sha256": "ccdb3475447c7fbdf41e4723888635b4af6995995074ab415d4456b6c1e7a368"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_overpass/overlay_logos.png",
+      "size": 38148,
+      "sha256": "26628c1ae16ba824c2bc9ebaf9f908525623db877bc8061f961d4a2b80af0666"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_overpass/radar.png",
+      "size": 308854,
+      "sha256": "b5d0f31e8d2258e342952a3412a225654a2be4ef9d261adca8dd78a657509177"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_palacio/meta.json5",
+      "size": 982,
+      "sha256": "eeee282767a6be16cf32b47c8badfe57ace561326886f637a5e8f0c20938d552"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_palacio/radar.png",
+      "size": 552064,
+      "sha256": "5ef54765b9a3439e110252c6a8007f3122ee12f5ba4ae7f1cc6a643d81a8a446"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_thera/meta.json5",
+      "size": 982,
+      "sha256": "ebd2097ee976f1f6b33ff2958386068c0690327c52e3eecd6c2334cfd707240f"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_thera/radar.png",
+      "size": 208102,
+      "sha256": "ade2948d3e030f319c7be8fa07a179af26923c615d84fabb3e1cc1fa5012df70"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_train/meta.json5",
+      "size": 966,
+      "sha256": "6c242698e8f29589260c71efc7770146f33b287f07ccd87fccf24950818e3b73"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_train/overlay_buyzones.png",
+      "size": 22348,
+      "sha256": "d3193d53edae40b0e616dc8b4d915c4fc43f58a0e247d74da14b8d2fdcbc1878"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_train/overlay_logos.png",
+      "size": 30076,
+      "sha256": "bc96d56a1751b5deb82f7064f83b7bb7084684d87bcede771a8f5549544a57eb"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_train/radar.png",
+      "size": 256114,
+      "sha256": "bbfd1d10931df7cc2f76ab676c6b0a7de4bd5f63f60efbc16c93ffba2eb3473d"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_vertigo/meta.json5",
+      "size": 1030,
+      "sha256": "8e44a65dfc388a53eb8c3efb89d134249f50ae6dc31de0af15e095c439d96cad"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_vertigo/overlay_buyzones.png",
+      "size": 22955,
+      "sha256": "76a8071c3873e682768cdcc150b227b343c9be216816ca782b94772c8f295bdb"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_vertigo/overlay_logos.png",
+      "size": 38549,
+      "sha256": "db5796bdbc9b1267ca7f52a9dd61e58f103727ea9349819a8bb5198ae96e13eb"
+    },
+    {
+      "path": "Cs2/radar_webapp/maps/de_vertigo/radar.png",
+      "size": 88838,
+      "sha256": "1e713246692d74b22d8720cf2c0dfb99fac2e559d73d8a3b59a380d77362ce51"
+    },
+    {
+      "path": "Cs2/radar_webapp/NOTICE.txt",
+      "size": 524,
+      "sha256": "9025a89184c411bcade1d52c05149c60e6a6be38c3eb6393cecfad6ce86018f7"
+    },
+    {
+      "path": "Cs2/radar_webapp/renderers/_global.js",
+      "size": 4805,
+      "sha256": "207a2ec67f19f5020ed0751dffa17f7395dad0219517ca8f922d302bde86eda6"
+    },
+    {
+      "path": "Cs2/radar_webapp/renderers/_init.js",
+      "size": 7740,
+      "sha256": "d0f2fb0f6b9bac7639a5b6783cfaba8a2335051005c8720a76856ad5dd13da5f"
+    },
+    {
+      "path": "Cs2/radar_webapp/renderers/_map.js",
+      "size": 4435,
+      "sha256": "db46d75f864b47dc5641a2da52209933a05cdeb9b6088114a9502e00007c4d88"
+    },
+    {
+      "path": "Cs2/radar_webapp/renderers/_settings.js",
+      "size": 2946,
+      "sha256": "f04ca7cabe757c927f5f43a87cb6c3dafef15e74e984a25b76509d33cf61bb44"
+    },
+    {
+      "path": "Cs2/radar_webapp/renderers/_socket.js",
+      "size": 18392,
+      "sha256": "c9ada90a45190ead16986fed33e7cc132372833b6c727c690e5c02b180bc61d8"
+    },
+    {
+      "path": "Cs2/radar_webapp/renderers/advisory.js",
+      "size": 2143,
+      "sha256": "2e0038bef28ccaa7283980b9b8a5ab557b21de32ca3ba7dfd1c2802c23f4d599"
+    },
+    {
+      "path": "Cs2/radar_webapp/renderers/bomb.js",
+      "size": 1662,
+      "sha256": "7f9a3f988cb4f5526dbac8e8436921cdaa5e88f9fbf060ee24f23dbced76f520"
+    },
+    {
+      "path": "Cs2/radar_webapp/renderers/bombTimer.js",
+      "size": 4935,
+      "sha256": "41f8a90e029e6985d0ebf2f2a8132500eb24d42cc9ce390db057b436b63454f0"
+    },
+    {
+      "path": "Cs2/radar_webapp/renderers/droppedWeapons.js",
+      "size": 1910,
+      "sha256": "be2f1e40021a6394cbcd2b147dfcab9a74f60f6c9259c9489f3d3d81d924332f"
+    },
+    {
+      "path": "Cs2/radar_webapp/renderers/i18n.js",
+      "size": 8926,
+      "sha256": "abe11f149c6e51cfb4f0ef23ffc94f4c797819cba8fc3b0988edf91b02c6b6fe"
+    },
+    {
+      "path": "Cs2/radar_webapp/renderers/loopFast.js",
+      "size": 8863,
+      "sha256": "36a247ead2be7fceed144062e36701c8ada4333063ef28c96c6ac7ba2ac1f33c"
+    },
+    {
+      "path": "Cs2/radar_webapp/renderers/loopSlow.js",
+      "size": 3515,
+      "sha256": "77e0ae358ae2995969d4dc0a5afc8f345d4df5604ac2817f6bb5e3657c78af2d"
+    },
+    {
+      "path": "Cs2/radar_webapp/renderers/playerPosition.js",
+      "size": 11164,
+      "sha256": "8a9ad1e266551c2b24401448480db8575f5805dc6d7bd810e6e6d2426b3ecc69"
+    },
+    {
+      "path": "Cs2/radar_webapp/renderers/projectiles.js",
+      "size": 5537,
+      "sha256": "2852d88d64ee4162e195c487bc853f2e5e80bc0ccee29f908d78fba613c3bcf7"
+    },
+    {
+      "path": "Cs2/radar_webapp/renderers/rttMonitor.js",
+      "size": 3081,
+      "sha256": "14ab7317c33d2153e7f3ef4b5873deeecf23ab4f31931d6ffe94ef947893ce54"
+    },
+    {
+      "path": "Cs2/radar_webapp/renderers/smokes.js",
+      "size": 9446,
+      "sha256": "2195524bd945fd4d9fe91303f11b90c2363853d973b8cd44213037bb0efc266f"
+    },
+    {
+      "path": "Cs2/radar_webapp/renderers/teamPanel.js",
+      "size": 14094,
+      "sha256": "7c0002c19738ac7dd56d2a2f18751696480388e0f8f0ca9189a310347a815583"
+    },
+    {
+      "path": "data/apex_offsets.json",
+      "size": 35890,
+      "sha256": "3b449e6930d8e2c859ee4343ddc29349a2c99f4946c34f50d2b8b7ebede6985c"
+    },
+    {
+      "path": "data/cs2_offsets.json",
+      "size": 67773,
+      "sha256": "109b572c8d668f265a8c001e5fb5a794f646f9d2420dbe56d3f001cdaa47ad24"
+    },
+    {
+      "path": "data/fivem_offsets.json",
+      "size": 16453,
+      "sha256": "0c0b538f693a2c22995ca4d52f2100ea09594228496e70d49e7268217cf3823d"
+    },
+    {
+      "path": "data/fortnite_offsets.json",
+      "size": 6522,
+      "sha256": "508658f7557059b5e98dede27d4e5224d1ddafa812a0301f689a7a0d3529da0e"
+    },
+    {
+      "path": "data/rust_offsets.json",
+      "size": 15599,
+      "sha256": "7482dd4831c9ff39d09c898a44cfefe6db62e4c550e18b39789392473df7300c"
+    },
+    {
+      "path": "data/warzone_offsets.json",
+      "size": 2347,
+      "sha256": "1fc3cc2474a767dfc1ca8c7aef579f798c8df571d9381893ff0ee36bdb53db4d"
+    },
+    {
+      "path": "DMALibrary/Memory/InputManager.cpp",
+      "size": 3742,
+      "sha256": "d91299cacb397060a38f4d0210da1f446e492ba0e0e3695ecd0e173044c25b83"
+    },
+    {
+      "path": "DMALibrary/Memory/InputManager.h",
+      "size": 506,
+      "sha256": "415ebf90efc6095cfff4967d0a5dbdbf49c0962a813d787395fd07a0e83f9e3f"
+    },
+    {
+      "path": "DMALibrary/Memory/Memory.cpp",
+      "size": 75777,
+      "sha256": "1b62b475e4659c56eb7a1137bc6e0f5c13a7824391e481052b4d6738af2bc9be"
+    },
+    {
+      "path": "DMALibrary/Memory/Memory.h",
+      "size": 19514,
+      "sha256": "afab3d8d2ff4935dc1e364388f9f26fb1d49f8f7e70059bc827886f1e3ff91ba"
+    },
+    {
+      "path": "DMALibrary/Memory/MemoryIO.cpp",
+      "size": 7650,
+      "sha256": "30e47be38ddb88512a28035bbc04dce9308a574b91c65ec6fa133145b2b60d44"
+    },
+    {
+      "path": "DMALibrary/Memory/Registry.cpp",
+      "size": 1120,
+      "sha256": "9551c6d564b34c083aa56f7470fa29feb945486c9c51ae477954394d4642e2e0"
+    },
+    {
+      "path": "DMALibrary/Memory/Registry.h",
+      "size": 673,
+      "sha256": "4d0d358533b874c1231adf44f31029766b7b45846578301ffdf8a8fda7e5eab0"
+    },
+    {
+      "path": "DMALibrary/Memory/Shellcode.cpp",
+      "size": 3993,
+      "sha256": "9037eab652ae1599a9c73522d83f6fc82f211c5a0b679029f37880316138c6ec"
+    },
+    {
+      "path": "DMALibrary/Memory/Shellcode.h",
+      "size": 3668,
+      "sha256": "431e0463506a1949002218f014af93f31b28b8e4e5298c24c56620d4548c6b0c"
+    },
+    {
+      "path": "DMALibrary/nt/structs.h",
+      "size": 1611,
+      "sha256": "f7b674576aed40a77168a4dbf93ebdb6d60ce7e355631d3bec208985b6650be3"
+    },
+    {
+      "path": "DMALibrary/pch.cpp",
+      "size": 186,
+      "sha256": "b20ad711fa06e3ef62f8e3c626e13b3bdc69cff08c60c8b358f38b09e16c99ef"
+    },
+    {
+      "path": "DMALibrary/pch.h",
+      "size": 1874,
+      "sha256": "604d94328092d7157fcc8979217048cb45eeca892b54423a09513cb95b012d5a"
+    },
+    {
+      "path": "docs/BUILD_FIX_V4.txt",
+      "size": 903,
+      "sha256": "3e4a4312911da490c2d9893cc7c39e030c565409960d3b5872f2922355b3a4ee"
+    },
+    {
+      "path": "docs/BUILD_FIX_V5.txt",
+      "size": 434,
+      "sha256": "6e5074430a16c1e6a77588932d6976c1eddb3aa8c9a7925b155b783e51b67565"
+    },
+    {
+      "path": "docs/BUILD_FIX_V6.txt",
+      "size": 1440,
+      "sha256": "be54c056ff6431098006592693d1ebdce8087e1e8fed7d66adada1424575f65b"
+    },
+    {
+      "path": "docs/CODIGOS_DE_SUPORTE.md",
+      "size": 1018,
+      "sha256": "35252da4242eee601596afe61046619009866bb16885941e95681f1c1740f2f5"
+    },
+    {
+      "path": "docs/DMA_REINIT_FIX_V8.txt",
+      "size": 1783,
+      "sha256": "db27f03916165180ff62586ac42cccce890c5256f420bb889b06feeb10c2b52a"
+    },
+    {
+      "path": "docs/DMA_REINIT_FIX_V9.txt",
+      "size": 2556,
+      "sha256": "f38f4d8dcddd844bfdc1b2eea86b428e40e71033215ea459180761648d7092d2"
+    },
+    {
+      "path": "docs/INSTALACAO_HARDWARE_E_SUPORTE.md",
+      "size": 3722,
+      "sha256": "f97673485a410bb8c628e1c34845ddcf749bbc81ee75e5a84a2dc88284d4c893"
+    },
+    {
+      "path": "docs/OmniGhost_Engineering_Progress.docx",
+      "size": 111331,
+      "sha256": "ff147390e6f26df4b2d4705f94de82e421b3ade71c75279e02cb4ce0d5c48d03"
+    },
+    {
+      "path": "docs/RELEASE_PIPELINE.txt",
+      "size": 3624,
+      "sha256": "447c8a894dd667f9e8c022b0e62728675f3b751d8b9f269ab840070d07bd4b11"
+    },
+    {
+      "path": "docs/roadmap-status.json",
+      "size": 422657,
+      "sha256": "94986c04851d10db16951181c80e442d5b44e1d3e368d46a131983f199637586"
+    },
+    {
+      "path": "docs/SBOM.json",
+      "size": 5358,
+      "sha256": "c533aacc0037fd9a5b786adb1e6c3c6647a71306e34173cf3e41df133f9229c1"
+    },
+    {
+      "path": "docs/SECURE_RELEASES.md",
+      "size": 3985,
+      "sha256": "73d021b4d0052735ea2b2bd75af80a900471a6f5ceb1b306cfe0dd579c021afe"
+    },
+    {
+      "path": "docs/VALIDACAO_PRE_RELEASE.md",
+      "size": 2545,
+      "sha256": "415110bf04e3f8c95f22b56393adc12b6cdf46d3a81dfe00e7bdc1efb42c6329"
+    },
+    {
+      "path": "docs/WARZONE_UI_REDESIGN_V10.txt",
+      "size": 1052,
+      "sha256": "6a818e02366b0096568afa1138e95fe81aff5c37f2e0aeb33de6b5d89139c1b3"
+    },
+    {
+      "path": "docs/WARZONE_UI_REFINEMENT_V10_2.txt",
+      "size": 1480,
+      "sha256": "402bc51d7dfa452045847dbbdcd2c482dad3320f55f30e79b53e9eebe7f7f998"
+    },
+    {
+      "path": "Fivem/aimbot/aim_type.cpp",
+      "size": 9339,
+      "sha256": "53b85de3a795e992defd22e7f25ac812198402a19ff410f0f7079bd99cb1d940"
+    },
+    {
+      "path": "Fivem/aimbot/aim_type.h",
+      "size": 586,
+      "sha256": "7c3b424fcb3f499f4e59cb8546c259b880e7f7a1ea3c64961df8c7bc849ecf77"
+    },
+    {
+      "path": "Fivem/aimbot/aimbot.cpp",
+      "size": 44101,
+      "sha256": "580974b7d9fdb15ad34818dfd319e39505975ce7882d3a699e620d8716abb1c5"
+    },
+    {
+      "path": "Fivem/aimbot/aimbot.h",
+      "size": 752,
+      "sha256": "5a90c5e33c723edb9e4241453299b059e29d6077ed9869eb51fa32802064cfb7"
+    },
+    {
+      "path": "Fivem/dumper/FivemDumper.exe",
+      "size": 359936,
+      "sha256": "47367a52f8c021d9d5ee408f7e9764e1986519eae594a22c2c1f48e791efd0b1"
+    },
+    {
+      "path": "Fivem/esp/esp.cpp",
+      "size": 101977,
+      "sha256": "2c6999366dbba9d2f088d3b31193200ba41dc2ea28726d4cd1b2899bad61e644"
+    },
+    {
+      "path": "Fivem/esp/esp.h",
+      "size": 8669,
+      "sha256": "8a5c13968f2cc24f2ea7c12a8b5dc9add4310c0bb02673ad6785c112fbc91e2c"
+    },
+    {
+      "path": "Fivem/esp/esp_bone_cache.cpp",
+      "size": 4625,
+      "sha256": "bd1db3d8a00db53d7dec4c490952a57ed66f36bfa44fb71bdc619c809d1043af"
+    },
+    {
+      "path": "Fivem/esp/vehicle_esp.cpp",
+      "size": 21796,
+      "sha256": "f7b6d5dc74a33517cc342b6223816267183e1de35e48c0a38232eb2cfa2684fb"
+    },
+    {
+      "path": "Fivem/esp/vehicle_esp.h",
+      "size": 630,
+      "sha256": "02d068233b884d713102be33d50518c5f617eee587499340ed9d2f824f94258b"
+    },
+    {
+      "path": "Fivem/friends/friends.cpp",
+      "size": 6749,
+      "sha256": "6a43ed8883702b75eeab73dc4e3b6bafa2038e6352aa2d648663a45ca10a1e5b"
+    },
+    {
+      "path": "Fivem/friends/friends.h",
+      "size": 852,
+      "sha256": "c31f83e3af4de6b352d11d8cfba8eaba186c120afd278fb202d6f38a0a9fb016"
+    },
+    {
+      "path": "Fivem/game/esp_manager.cpp",
+      "size": 24846,
+      "sha256": "bea0a8842e0cd65665d7dcb69250b58f56c741a0d02f9f7d39f014fba4575003"
+    },
+    {
+      "path": "Fivem/game/esp_manager.h",
+      "size": 1167,
+      "sha256": "c5003761d0b44eba1de371a8fff8942cff6768c97d7cff982ba76899f500a2ac"
+    },
+    {
+      "path": "Fivem/game/game.cpp",
+      "size": 160,
+      "sha256": "d997edbfc2470719bc2987a0ff3e186809a9b5aa9fccea798ae6ec106a96fa6a"
+    },
+    {
+      "path": "Fivem/game/game.h",
+      "size": 154,
+      "sha256": "2776da58f3faddbaa2ce3a8944eee99ce7cd6f1a70d7675d0e7bd750e56267f2"
+    },
+    {
+      "path": "Fivem/game/game_setup.cpp",
+      "size": 6403,
+      "sha256": "78ab73d44a231a5ab443ba25d3cc0e2f8c0a5bff06d16d0bf91d2bc7655cc59c"
+    },
+    {
+      "path": "Fivem/game/game_setup.h",
+      "size": 263,
+      "sha256": "f3a7d8beb472b297a6a74d63f1ce6f6258f3b81c9f46c4464e6394e246553d2c"
+    },
+    {
+      "path": "Fivem/game/offset_auto.h",
+      "size": 552,
+      "sha256": "9740d539d450f2df2f7b16aac5401f63e54c38b5b03968d3d7c60483a164c23e"
+    },
+    {
+      "path": "Fivem/game/offsets.cpp",
+      "size": 2908,
+      "sha256": "baa8babce9f3ef338d185ed31286c87c058949dcb71e630f278a57debc1dbab6"
+    },
+    {
+      "path": "Fivem/game/offsets.h",
+      "size": 4706,
+      "sha256": "cc02ad953aa33a29ec2b60747524872b621b02e989db6bcc5e0af01cb6cb0a7a"
+    },
+    {
+      "path": "Fivem/game/visibility.h",
+      "size": 4530,
+      "sha256": "ca37b5bb7412c7139a9892aaf842de6da8c73dfaa658c1615cf586f52347dce7"
+    },
+    {
+      "path": "Fivem/playerInfo/PedData.cpp",
+      "size": 6281,
+      "sha256": "0fae2e848cb415820550b52e40307cee063cbdc29db2c0026be8f0a9fbdf036a"
+    },
+    {
+      "path": "Fivem/playerInfo/PedData.h",
+      "size": 1766,
+      "sha256": "0e9e846d81d83cadcaa3a10fc763cfb6592386391532eca44d29bd230b2df9e6"
+    },
+    {
+      "path": "Fivem/preview/preview_main.cpp",
+      "size": 570,
+      "sha256": "9158eab69540e1b0c05526ace37aee5a87385f9632d31b26bbc58a2fdd8c9ad4"
+    },
+    {
+      "path": "Fivem/preview/preview_runtime.cpp",
+      "size": 8852,
+      "sha256": "38f36c59204dc8d0f4ae347352e5fd85d93bc4299af75a6a44f5f704c5d16a94"
+    },
+    {
+      "path": "Fivem/preview/preview_runtime.h",
+      "size": 2418,
+      "sha256": "f933025008d61b6fda1c511ca74ccca7a31a6fd512b7327c67af9c58d21c1c0a"
+    },
+    {
+      "path": "Fortnite/data/fortnite_offsets.json",
+      "size": 6522,
+      "sha256": "508658f7557059b5e98dede27d4e5224d1ddafa812a0301f689a7a0d3529da0e"
+    },
+    {
+      "path": "Fortnite/fortnite_aim.cpp",
+      "size": 11231,
+      "sha256": "4f58c7355e536080ffafdc54b861cb53c536d71ea6aec2526bde89c083ccf583"
+    },
+    {
+      "path": "Fortnite/fortnite_aim.h",
+      "size": 122,
+      "sha256": "ae9c430c644c6448182454a324e80f09a25079d174d326322827d8837ebd99a1"
+    },
+    {
+      "path": "Fortnite/fortnite_config.h",
+      "size": 11242,
+      "sha256": "721564002960d691d6f8e7a70d26965eb1255913cf1e83a7aed9c7771f4d4e90"
+    },
+    {
+      "path": "Fortnite/fortnite_esp.cpp",
+      "size": 11820,
+      "sha256": "971ed55b283029bf81ee947cc8a7d66c791fcf58ed520b96ca0cdca8dde3b0e3"
+    },
+    {
+      "path": "Fortnite/fortnite_esp.h",
+      "size": 95,
+      "sha256": "7a35f8f49612f3ee7419252203091a180d95407810be40570c279014fc22e105"
+    },
+    {
+      "path": "Fortnite/fortnite_game.cpp",
+      "size": 25586,
+      "sha256": "7451723e58fc301fa99a2d77479b952bf34ff2f29a9bb42b2f7c2c4b982c40b3"
+    },
+    {
+      "path": "Fortnite/fortnite_game.h",
+      "size": 5320,
+      "sha256": "5f25c34ae459363411e184f838ec99ee1fbfacd619357303f0e69ca8431a4ca0"
+    },
+    {
+      "path": "Fortnite/fortnite_offsets_full.h",
+      "size": 7107,
+      "sha256": "f7566e028e380a0bde0477c9fbdc3648593b24d4d3a87975b4f4183002a31112"
+    },
+    {
+      "path": "ImGui/imconfig.h",
+      "size": 9765,
+      "sha256": "8d887055ad9b411a677d7c873f693a511522eb9473353f563b597db9142398c9"
+    },
+    {
+      "path": "ImGui/imgui.cpp",
+      "size": 757336,
+      "sha256": "386eb6a922e50fabb27613f6baa841e8d28391f9533df9b76d8dff6406900c7e"
+    },
+    {
+      "path": "ImGui/imgui.h",
+      "size": 316386,
+      "sha256": "5732dca98ad5bc4e50af347eb219e4e44fd2b4ca8bdddf28166a994dec2db0a1"
+    },
+    {
+      "path": "ImGui/imgui_demo.cpp",
+      "size": 418865,
+      "sha256": "9a14e6128549158794124beebcd3867bc5794b677fc59e85ebf134537f5744cb"
+    },
+    {
+      "path": "ImGui/imgui_draw.cpp",
+      "size": 213255,
+      "sha256": "2ec2323c1aef6e934ab3ae7fba0e31c4a2894792e58a3b958ada707de3226ef9"
+    },
+    {
+      "path": "ImGui/imgui_impl_dx11.cpp",
+      "size": 29087,
+      "sha256": "f6b06153167a57c4beb0881e41dd11d2b4f7335e6ddb05310a8a162837286b24"
+    },
+    {
+      "path": "ImGui/imgui_impl_dx11.h",
+      "size": 1364,
+      "sha256": "de2b5eebd2e4d14b4db418dc71319d729c826ea8e1b13b76d38f6d9823fbbc2c"
+    },
+    {
+      "path": "ImGui/imgui_impl_win32.cpp",
+      "size": 43920,
+      "sha256": "fa948957ae0eb42d1bf19494fea9c37a751f792e98dc5d5ab67bbfc33a5791b0"
+    },
+    {
+      "path": "ImGui/imgui_impl_win32.h",
+      "size": 3258,
+      "sha256": "3ecd38a93b1577ed8123ab17b8e4bd79bdf72a9eaf81ae266c778efe78f314f5"
+    },
+    {
+      "path": "ImGui/imgui_internal.h",
+      "size": 243141,
+      "sha256": "53e8f758630bdc424dd3835afdcec9c6002c11c2d2541bbe948997f44f008c25"
+    },
+    {
+      "path": "ImGui/imgui_tables.cpp",
+      "size": 220252,
+      "sha256": "cc653fd722bf1ecf2b3ce6d17b01ba57a74706dc32e7a5624320570d0230bc9d"
+    },
+    {
+      "path": "ImGui/imgui_widgets.cpp",
+      "size": 427100,
+      "sha256": "711f4d200b0a1a598564618e06bb459653a8869290536da0eeaf6207e789319a"
+    },
+    {
+      "path": "ImGui/imstb_rectpack.h",
+      "size": 20344,
+      "sha256": "2efa3d5f7d003c19743b15155dad9f46d9f9fc783a18893d703b431d3c990972"
+    },
+    {
+      "path": "ImGui/imstb_textedit.h",
+      "size": 54857,
+      "sha256": "3f4cf71a2b771d938f62ce4225df3ebe429b334fcdb3b89f1fedf43eeb0a3e1e"
+    },
+    {
+      "path": "ImGui/imstb_truetype.h",
+      "size": 199484,
+      "sha256": "5b7693f174b0458c7bec5522c8d6be4fe606d3f5da5082351959c14e59269b53"
+    },
+    {
+      "path": "libs/dbghelp.dll",
+      "size": 1768760,
+      "sha256": "3e82194c6edca48614faf6374b20c18387bc4f7f620ca2da26e87726c647827a"
+    },
+    {
+      "path": "libs/FTD3XX.dll",
+      "size": 513928,
+      "sha256": "3c0fc158fd4aa604c526d58ed8274ae830d53e69e01210cc5b5fa54ec5a9b7c0"
+    },
+    {
+      "path": "libs/FTD3XXWU.dll",
+      "size": 513928,
+      "sha256": "3c0fc158fd4aa604c526d58ed8274ae830d53e69e01210cc5b5fa54ec5a9b7c0"
+    },
+    {
+      "path": "libs/leechcore.dll",
+      "size": 154056,
+      "sha256": "187cf9bd0a190260300527dcd22725d3c59782163a464f5578390b123eec4918"
+    },
+    {
+      "path": "libs/pdbcrust.dll",
+      "size": 1162144,
+      "sha256": "4f4cf55e7e40e5acab006fc66872d8f0eb302e9a846c379999498076afc9051a"
+    },
+    {
+      "path": "libs/symsrv.dll",
+      "size": 149264,
+      "sha256": "c67be7d3f54d44ac264a18e33909482f1f8ca7b7fbaaf5659ef71ed9f8092c34"
+    },
+    {
+      "path": "libs/THIRD_PARTY_NOTICES.txt",
+      "size": 1423,
+      "sha256": "3ac980a18f510a960da942b4ec965a09092c2d7cce53c2786bcbf61cac3dcaa5"
+    },
+    {
+      "path": "libs/vmm.dll",
+      "size": 2416584,
+      "sha256": "0b20899956b399b1153ae1af90d5fac6861b69f4fb91360276d54ab55c4a8942"
+    },
+    {
+      "path": "OmiGhost.slnx",
+      "size": 361,
+      "sha256": "17d1b95938005aa911765cf1d92e44b14fd2b05d2f8db965a778338d1271cc63"
+    },
+    {
+      "path": "OmiGhost.vcxproj",
+      "size": 24497,
+      "sha256": "9494bf740ce27da3a520d6882f5c023c0381ae556480545b8610d389d9449fc4"
+    },
+    {
+      "path": "OmiGhost.vcxproj.filters",
+      "size": 19110,
+      "sha256": "e40bab2ec36c1ac4be3e83d818d85be3d1fa779275cde220dbe29caa42ceec2c"
+    },
+    {
+      "path": "OmniGhost.Common.props",
+      "size": 2652,
+      "sha256": "35e44286f7b7b46d13d6e2533af666c57019f7f0ebaaf99d001b8e78f9f2abbf"
+    },
+    {
+      "path": "OmniGhost.Publish.props",
+      "size": 524,
+      "sha256": "2ddd51c3bacb5182ce1e329432d33e2ed7bacbd530a5b73602a444fb0d0202ca"
+    },
+    {
+      "path": "OmniGhost.Release.props",
+      "size": 942,
+      "sha256": "bc1f409e7ca905ad516ca0fa99eb07cad40817a2a179428842ea147141777b85"
+    },
+    {
+      "path": "OmniGhost.Tester.props",
+      "size": 522,
+      "sha256": "fee65873ee6de2881fe5d407a3540e6c6ea9b83c6410f15434636b5b722e94a1"
+    },
+    {
+      "path": "release-notes.override.json",
+      "size": 1302,
+      "sha256": "a1087ebeb325ddbafb0c33ed9518782c2aec14cb9052282bb4182446b435d113"
+    },
+    {
+      "path": "release-publish.json",
+      "size": 893,
+      "sha256": "35d186c0fd76c9b20bbd17a67081757867fb8134e05add3f9fedfbb459487113"
+    },
+    {
+      "path": "resources/app.manifest",
+      "size": 1309,
+      "sha256": "7ea47bececf79c978cb489ef81a652b5903f04fba7c95e26d954a32ef46dd3b8"
+    },
+    {
+      "path": "resources/app.rc",
+      "size": 1737,
+      "sha256": "92f3394b05b494d8234a6bf6388fb37b8939a0467d48921f020b4f921ec62f8f"
+    },
+    {
+      "path": "resources/games/apex/banner.png",
+      "size": 240772,
+      "sha256": "4d557d7c7b98df66b02ae80ff89d8223ea65cc0f993b787faee6abd90dbe5241"
+    },
+    {
+      "path": "resources/games/apex/logo.png",
+      "size": 20715,
+      "sha256": "fd7a25db48d986f962d7a6b8e9929c5c8198cbd19f33eee143cb5acef7b0c51e"
+    },
+    {
+      "path": "resources/games/cs2/banner.png",
+      "size": 271893,
+      "sha256": "119c34e0498af9f68b3d4e67ee730391c55efb3f9e5fd3b899f1bbe35d6b53b0"
+    },
+    {
+      "path": "resources/games/cs2/logo.png",
+      "size": 61624,
+      "sha256": "ff4eb113de5422e5d4db589efb158f770a4778f53e5754b3e31810e38ea8dfc3"
+    },
+    {
+      "path": "resources/games/fivem/banner.png",
+      "size": 275855,
+      "sha256": "8c6bf72c30536da443370938fd2b0213dbe0e71ec65aeff7f4a4dc192f47346b"
+    },
+    {
+      "path": "resources/games/fivem/logo.png",
+      "size": 39574,
+      "sha256": "f76e735294b4bb08fda0324a84f7e04c49849c0d3f7c78f8e8166e1e3455a36a"
+    },
+    {
+      "path": "resources/games/fortnite/banner.png",
+      "size": 284903,
+      "sha256": "afcc8ae1be9ef1b6a67e3b566ec1a3df250f3bece6c604eb51056b71ac6852a3"
+    },
+    {
+      "path": "resources/games/fortnite/logo.png",
+      "size": 32606,
+      "sha256": "e46ca5d464d38bcc653d11bd44b4e08a79821e19d93cba8677194fdccb80d854"
+    },
+    {
+      "path": "resources/games/rust/banner.png",
+      "size": 265261,
+      "sha256": "3bb2d99b83b283bb325856edcbfebe368d6e725caaa8ae7e47bfaf2b04cd25ca"
+    },
+    {
+      "path": "resources/games/rust/esp_preview.png",
+      "size": 127286,
+      "sha256": "7af9db54f6f52a37ad5fdb2824629c4497843206c488753a51c88f91f5004e3c"
+    },
+    {
+      "path": "resources/games/rust/logo.png",
+      "size": 16143,
+      "sha256": "79a8a59ff1a1a024910af0aa7e4bbf2d295ffdfc2ce4995f7c52334f1a395b84"
+    },
+    {
+      "path": "resources/games/valorant/banner.png",
+      "size": 270525,
+      "sha256": "7868d9a80fb12eda36b8c251812aab3d5c05c172b106c9f742b3de3a6df4f63b"
+    },
+    {
+      "path": "resources/games/valorant/logo.png",
+      "size": 31217,
+      "sha256": "023bdf9ce1250e2254fc57ec1df3610645dee757b2fb1c83e483364c5ede76e9"
+    },
+    {
+      "path": "resources/games/warzone/banner.png",
+      "size": 269990,
+      "sha256": "b1ac5bfb92bf3b3b7905861ce0a2bcfd5fd1a958e997ebe7ecc89ff4092fd11a"
+    },
+    {
+      "path": "resources/games/warzone/logo.png",
+      "size": 23570,
+      "sha256": "729812fe646868cf36ec707de45af97eca45668d80142f08703edae8879a1763"
+    },
+    {
+      "path": "resources/OmniGhost.ico",
+      "size": 16958,
+      "sha256": "42ba7634109f25ce169d824a8bfbcb5a6c2580d92ceb2911107fa6e6eb753fa8"
+    },
+    {
+      "path": "resources/resource.h",
+      "size": 123,
+      "sha256": "40d9d3948259cd3babff7b2b43afa46388fbfe9ad89be9be32de12c6bbb15aeb"
+    },
+    {
+      "path": "runtime/own/pdbcrust.dll",
+      "size": 1162144,
+      "sha256": "4f4cf55e7e40e5acab006fc66872d8f0eb302e9a846c379999498076afc9051a"
+    },
+    {
+      "path": "runtime/own/README.txt",
+      "size": 178,
+      "sha256": "0f2c96991ed7f3a152e76874c2b14a79a082075ea3029c01e755eb41dce00a29"
+    },
+    {
+      "path": "Rust/rust_aim.cpp",
+      "size": 11357,
+      "sha256": "c1afe388fcd35cf5ecdc2639a1ead819925c1c43d9979c5d3e9f0a039ebfd179"
+    },
+    {
+      "path": "Rust/rust_aim.h",
+      "size": 172,
+      "sha256": "568197c19bae059be7e9ccca5a4704fa5f11c0310338418153d228450089bf6c"
+    },
+    {
+      "path": "Rust/rust_config.h",
+      "size": 7342,
+      "sha256": "5b3a3f85b6c5b1de51be3da3d4c6dc962aaff75bb248047abd78541673406ac4"
+    },
+    {
+      "path": "Rust/rust_decrypt.cpp",
+      "size": 17383,
+      "sha256": "dde48351ff7817a36932728d51fec83ed2ccfadfd9ffb1337c6616329a603bf2"
+    },
+    {
+      "path": "Rust/rust_decrypt.h",
+      "size": 2412,
+      "sha256": "2106ac19c7695d5b123b66263979dd0037287469a2d72c94b8abdb75287e5143"
+    },
+    {
+      "path": "Rust/rust_dumper/RustOffsetDumper.exe",
+      "size": 376320,
+      "sha256": "bd18ebe2ea46f7fed4a5d803524519c6b965ed9ddf69b1d7534b8202b005d306"
+    },
+    {
+      "path": "Rust/rust_dumper/tools/Il2CppDumper.exe",
+      "size": 152064,
+      "sha256": "03f566adfabb94a09a2b2c0d93e7b97500e42ce5d31b8e678e1f51a200a4026d"
+    },
+    {
+      "path": "Rust/rust_esp.cpp",
+      "size": 10202,
+      "sha256": "a5f7069e64698d22cea432c6b69a8d2f14ff73a93754c8ccd3e26154674f0ae9"
+    },
+    {
+      "path": "Rust/rust_esp.h",
+      "size": 121,
+      "sha256": "06456d54b0f68296f7737aae5466dcff6c8b4e52873676d79e1a4590f91b7e33"
+    },
+    {
+      "path": "Rust/rust_game.cpp",
+      "size": 108352,
+      "sha256": "ac3cf37dd6c4a2891ea71a762df00d0accf1e04caad5f150d96613fbc23a30ce"
+    },
+    {
+      "path": "Rust/rust_game.h",
+      "size": 7527,
+      "sha256": "2bf52e752368353605c2bc053c35eae114a4ba507a583a6ae9e8007623de51da"
+    },
+    {
+      "path": "Rust/rust_offset_api.cpp",
+      "size": 10829,
+      "sha256": "aeab2f37b6ed04d72945b1d2767648b372f5323c35a3a805bb0206b8e81e0c33"
+    },
+    {
+      "path": "Rust/rust_offset_api.h",
+      "size": 622,
+      "sha256": "a9130785d01b7bcaddc61ae088d1ce0707226dcf8f7e5d1291130706dbdd1d63"
+    },
+    {
+      "path": "src/app_version.h",
+      "size": 193,
+      "sha256": "c698d21a112342b962379a5cf2aee849c851bdf29de5e5d7924dd9a3ce25668e"
+    },
+    {
+      "path": "src/auth/auth_types.h",
+      "size": 1211,
+      "sha256": "90d39f585c0a3252a73e773086441a3f49744dceeb43f3bb8e7738bf0b332c44"
+    },
+    {
+      "path": "src/auth/keyauth_gateway.cpp",
+      "size": 3170,
+      "sha256": "d83e487a60ac5fddcad210cddde359b91515f2fbe0295503e9e3d44b45e6e6f3"
+    },
+    {
+      "path": "src/auth/keyauth_gateway.h",
+      "size": 2246,
+      "sha256": "06694a1d5c8e1920314cfb861a49ae2e818854a8eb2e1e855f318fbed8734a67"
+    },
+    {
+      "path": "src/auth/local_auth_service.cpp",
+      "size": 14467,
+      "sha256": "77fec7dfaaf7de89e1df1298fb290dde2a345387e844b11707720e9b5a971b8b"
+    },
+    {
+      "path": "src/auth/local_auth_service.h",
+      "size": 1522,
+      "sha256": "0d2dbb0d71f44ba7783c32d507faf867ab8bf5a477f5a301768143f037bb8a92"
+    },
+    {
+      "path": "src/config/app_settings.cpp",
+      "size": 20315,
+      "sha256": "02a0664f537687bc459ba7ff7aa80484a98021c194d74f5e248751d4bc249893"
+    },
+    {
+      "path": "src/config/app_settings.h",
+      "size": 4011,
+      "sha256": "ed650a53ecd2cc71f7a9dbfc06cae745068b7733ea6bd748bc999c4853f77eb0"
+    },
+    {
+      "path": "src/config/config_manager.cpp",
+      "size": 83201,
+      "sha256": "8171d475446c090a1bb150b1929e6c10d157003a57854b7afd82a0e716d5370d"
+    },
+    {
+      "path": "src/config/config_manager.h",
+      "size": 1753,
+      "sha256": "ea89fb8fdc4606c889cb4a3f4df169951443099eb06715c080b5d60a5a09fdef"
+    },
+    {
+      "path": "src/ferrum/ferrum_device.cpp",
+      "size": 11451,
+      "sha256": "881a96724c093805625bb3a10b91f123da7a65afa002d8da389ed00b60f03227"
+    },
+    {
+      "path": "src/ferrum/ferrum_device.h",
+      "size": 372,
+      "sha256": "9cf6da953cf5e651e4536c4e14acab7b643bc4bc5e2694701bfa884ce809943a"
+    },
+    {
+      "path": "src/gameplay/aim_controller.h",
+      "size": 9699,
+      "sha256": "c2ea5606e4b969cbf66108fd921cb80ec78df212213de25e8fb4a86f2eab2da4"
+    },
+    {
+      "path": "src/gameplay/esp_core.h",
+      "size": 5783,
+      "sha256": "3edd2b3057034beaeb2dd97d16899989debc2d9b286c2fbf6b1cc406d8c17dcf"
+    },
+    {
+      "path": "src/gameplay/trail_history.h",
+      "size": 2103,
+      "sha256": "0788479f478912a58b120d8422727761b1b2311ab62b4eb1c5d522a3b14391f6"
+    },
+    {
+      "path": "src/globals.h",
+      "size": 332,
+      "sha256": "0e8353b56146b4defaf2a2017e0e7d96bf76ca90e1b4a69290adb03e187bd949"
+    },
+    {
+      "path": "src/kmbox/Kmbox.cpp",
+      "size": 8166,
+      "sha256": "d15c4303655519e87ab6b83ac5907dafefb2e50689bd28386b85f3efb52db6db"
+    },
+    {
+      "path": "src/kmbox/Kmbox.h",
+      "size": 1032,
+      "sha256": "4cda7b2a8b7da17a8d164c25c8e034faeac40843d70d9ed6141b0044e2b4fb42"
+    },
+    {
+      "path": "src/kmbox/kmbox_net.cpp",
+      "size": 11907,
+      "sha256": "f10b1ffc8b5331dfbff405a4050a2a9c8fdffb8784b96138893b8590153e48be"
+    },
+    {
+      "path": "src/kmbox/kmbox_net.h",
+      "size": 316,
+      "sha256": "9e79e357accc582eb822b2112c6466df07f7bb5e199b2d75ac7a29514dbcc3db"
+    },
+    {
+      "path": "src/launcher/auth_page.cpp",
+      "size": 12955,
+      "sha256": "2a4e9b28cdfd5f1d629b485d66fad1642de6ea121daf64a3bcdaa7b94ec191b4"
+    },
+    {
+      "path": "src/launcher/auth_page.h",
+      "size": 279,
+      "sha256": "108f09f66c37092970febd8e1a9c01d1c34070ea8f9f8acc905cfe57f5301fc1"
+    },
+    {
+      "path": "src/launcher/changelog_service.cpp",
+      "size": 22892,
+      "sha256": "bdbec12f06210f81b2cff9e020ea16b0e65d5addc3886b5728aa7371d924817b"
+    },
+    {
+      "path": "src/launcher/changelog_service.h",
+      "size": 2158,
+      "sha256": "e07f281cf64ae824ee106e6357f4298d4191e03375db1bdb23bb123934958c4a"
+    },
+    {
+      "path": "src/launcher/game_select.cpp",
+      "size": 130912,
+      "sha256": "f4b39a6f5fbe0cee6f16f73a077ce71431bdd0c5cb7724f1dc03849aa6aa8d42"
+    },
+    {
+      "path": "src/launcher/game_select.h",
+      "size": 754,
+      "sha256": "19151d5b9acdcf13221d6131c67757924bfca5e62438e7830a36e885c8d4e3c5"
+    },
+    {
+      "path": "src/launcher/launcher_assets.cpp",
+      "size": 6242,
+      "sha256": "38cbc8cd59f842e3c5363c62deb0880dc6cd3a197e5e0355ef85704244519721"
+    },
+    {
+      "path": "src/launcher/launcher_assets.h",
+      "size": 591,
+      "sha256": "f7b25a443f701cf06b3d5c97514e23b011ea159c9855b7d7e9da43cf5619236c"
+    },
+    {
+      "path": "src/launcher/launcher_data.cpp",
+      "size": 11873,
+      "sha256": "9bba0d1e6424594907e220ca56486019d38638ecedc75fcced3192cf72e288ba"
+    },
+    {
+      "path": "src/launcher/launcher_data.h",
+      "size": 2710,
+      "sha256": "f47653333aeaab677a155fd0efc7cc9f60df1fe933d6c2d39bffe193f50d3f38"
+    },
+    {
+      "path": "src/launcher/launcher_status.cpp",
+      "size": 1968,
+      "sha256": "226300b90f22739cb955a467bdf5d50d06ee98d1dfff9d7b7b7be5702c042c00"
+    },
+    {
+      "path": "src/launcher/launcher_status.h",
+      "size": 319,
+      "sha256": "361d876d605f5097df24f6928c8de1d1ab1a89dc06701ce7a3c515c8951f331f"
+    },
+    {
+      "path": "src/launcher/license_page.cpp",
+      "size": 3884,
+      "sha256": "19f144d00bf053915b3fb890a8c20576bcdb58dd2beda023fa3a907b83f9d966"
+    },
+    {
+      "path": "src/launcher/license_page.h",
+      "size": 141,
+      "sha256": "c05fe660d19d6555eec7c39b09bb04f83d32f2c2285b6760495c37ea7161c22f"
+    },
+    {
+      "path": "src/launcher/updates_page.cpp",
+      "size": 64295,
+      "sha256": "c5c417cd3989e2b8c45a797ce2e7b145fa1c341b0ac16fa9213d85445dd3cf62"
+    },
+    {
+      "path": "src/launcher/updates_page.h",
+      "size": 206,
+      "sha256": "f581c08a76b2ae54713a62f80bd6485201df207c808257f341a11a062fbc927d"
+    },
+    {
+      "path": "src/licensing/license_service.cpp",
+      "size": 9618,
+      "sha256": "6ae84b8f2445a8370f363dbb8ea9d9a0589a61c243c10afe6a77364fb578ed67"
+    },
+    {
+      "path": "src/licensing/license_service.h",
+      "size": 1395,
+      "sha256": "7098be053f10850f69c5c6a9179366457e4cecdc0e8faa030a1e1b7960ddf489"
+    },
+    {
+      "path": "src/main.cpp",
+      "size": 44186,
+      "sha256": "45b896b3cdea109109438e5ec5a41e6a7322126e6a040ea34313fcba9cd3fbef"
+    },
+    {
+      "path": "src/makcu/makcu.cpp",
+      "size": 33559,
+      "sha256": "acdcd759132358637c729c393961d7d8b4062694d0edbba6cbf5fceb8eab1a02"
+    },
+    {
+      "path": "src/makcu/makcu.h",
+      "size": 9660,
+      "sha256": "d1ba61b7bcd654aac378166adb49366d64dc6c20952a88991285cb4ea24a72d6"
+    },
+    {
+      "path": "src/makcu/makcu_wrapper.cpp",
+      "size": 17006,
+      "sha256": "3f510378c2cb30ff21177d9630369cea7d275b41254be986feccabc2dc869ab5"
+    },
+    {
+      "path": "src/makcu/makcu_wrapper.h",
+      "size": 3536,
+      "sha256": "2bdba92381b70c1f36398d655d55c7550a82c9d9ce4d1eb760204d32d1ed03b4"
+    },
+    {
+      "path": "src/makcu/serialport.cpp",
+      "size": 28975,
+      "sha256": "7f607d703e352ced6fa46ac942d3d60b6bec5216cbd028aa23929b543a9a1093"
+    },
+    {
+      "path": "src/makcu/serialport.h",
+      "size": 4333,
+      "sha256": "23c8c19a56fc765b31558f53db19ae520c532d68332d1d7a91c8b37394c0838b"
+    },
+    {
+      "path": "src/math/math.cpp",
+      "size": 2376,
+      "sha256": "81abab92e38ffe285aa0aaa87d2500e32b94076196f2c9326927a46c26d3d097"
+    },
+    {
+      "path": "src/math/math.h",
+      "size": 1247,
+      "sha256": "7b49ef86d86f9524e8e6a33bb0bd092473b5189b1f197e1b005bd81e00f2e592"
+    },
+    {
+      "path": "src/platform/app_paths.cpp",
+      "size": 8810,
+      "sha256": "19b253f075fc886d42e98490bd113322f8280d375222ee39326d44a567e63049"
+    },
+    {
+      "path": "src/platform/app_paths.h",
+      "size": 558,
+      "sha256": "845fe1e43f6411dbddeb93d166ec9a2feb185273cdf799fee119338c51c70214"
+    },
+    {
+      "path": "src/platform/build_info.h",
+      "size": 861,
+      "sha256": "d99abf744dff8035e01803a10752bcde4b7066ea084d18c269d551e42c8450bc"
+    },
+    {
+      "path": "src/platform/cheatoffsets_api.cpp",
+      "size": 6398,
+      "sha256": "fccb7a9eb68d887817c43cd4b908e4259f791cb9325b6145b7b63d7582bdda05"
+    },
+    {
+      "path": "src/platform/cheatoffsets_api.h",
+      "size": 934,
+      "sha256": "7d37bc4761a627e86f8582029c4af8a06a313c684b66a62a0d489814549bb776"
+    },
+    {
+      "path": "src/platform/crash_handler.cpp",
+      "size": 8696,
+      "sha256": "68d1cfa3ba4b5e8bc51613921c73baaa5dbce5568b65d459c04474a7b182b53c"
+    },
+    {
+      "path": "src/platform/crash_handler.h",
+      "size": 416,
+      "sha256": "a017dedc4f6b0f7bad4dcd1822fa196b2bbd90cbd237a0d4e541f70f1563183d"
+    },
+    {
+      "path": "src/platform/diagnostics_package.cpp",
+      "size": 7816,
+      "sha256": "a1b07bda41ad788b85bd83910768627a5ebbe2b4d522fed3f672d581dadbc19b"
+    },
+    {
+      "path": "src/platform/diagnostics_package.h",
+      "size": 471,
+      "sha256": "ad2ae6ca82fa83c6f7b5905d9de291e93be5c0760834bff984dc89f402368fc3"
+    },
+    {
+      "path": "src/platform/file_integrity.cpp",
+      "size": 5294,
+      "sha256": "6b83a35107c85974954fffacc1a0528c4f4ca566d850bc45a6e50bd93eadabfa"
+    },
+    {
+      "path": "src/platform/file_integrity.h",
+      "size": 568,
+      "sha256": "be4541286227f144a438d880a0b941880327dd81f3cbd225f3a3216740f6cadd"
+    },
+    {
+      "path": "src/platform/internet_handle.h",
+      "size": 968,
+      "sha256": "979a32bfe0ee26b33043215540148b849c1606e431b25c8dbdc60785071f3457"
+    },
+    {
+      "path": "src/platform/match_lifecycle.h",
+      "size": 4315,
+      "sha256": "17c4d93c76deb26da353be6a4ca46961d6ebec7ada3052d9d1eb7e96e16ca78a"
+    },
+    {
+      "path": "src/platform/monitor_utils.cpp",
+      "size": 3005,
+      "sha256": "6d231b4ae867c3278992057cd67f4ac841abc092c9df861136e35022f22af2b5"
+    },
+    {
+      "path": "src/platform/monitor_utils.h",
+      "size": 491,
+      "sha256": "503f5c672df98fd138cdc6503850417a733a472bb03a66789f918007d435d883"
+    },
+    {
+      "path": "src/platform/offset_auto.cpp",
+      "size": 6401,
+      "sha256": "8a1e275418c2e05938fdafc9f06f7f20d9ff75fac9ace95f80070cf7f9b8679f"
+    },
+    {
+      "path": "src/platform/offset_auto.h",
+      "size": 1425,
+      "sha256": "737375cee8ce03344f12b101c0e97386e1b28fe44e03fe53c71c2fb6783eff87"
+    },
+    {
+      "path": "src/platform/path_security.h",
+      "size": 2407,
+      "sha256": "e6fb6082c758d1cb9e89bf0cb12b95a0681fb85c22cd1d55e946308454d6edff"
+    },
+    {
+      "path": "src/platform/process_metrics.cpp",
+      "size": 2020,
+      "sha256": "b34114a68d5c27288185bd8d6d305ade2d39dfcdd7956b64f948c60d5e048adf"
+    },
+    {
+      "path": "src/platform/process_metrics.h",
+      "size": 493,
+      "sha256": "4ccc0d66851e5803769181394726033591fc3151034b5b9498df3405875c8b52"
+    },
+    {
+      "path": "src/platform/radar_access.cpp",
+      "size": 4069,
+      "sha256": "0a4a731c844367ab37d4196ccdd76c1f0cdf11b2285bd86b025f42f6e11f308f"
+    },
+    {
+      "path": "src/platform/radar_access.h",
+      "size": 724,
+      "sha256": "b1e4ac3ea0e4909dd94fd7f9f58f8f3191168b8f64b9a18fcdc753c7249cf8e4"
+    },
+    {
+      "path": "src/platform/scope_exit.h",
+      "size": 1068,
+      "sha256": "3a0a9397dd1bb9dbab7203243f7926ddf7709f67180e16b88c4ce3fcda153966"
+    },
+    {
+      "path": "src/platform/session_log.cpp",
+      "size": 28673,
+      "sha256": "ba2b7c5b47852cd5447185a7a37c175a2f4a37b06570def5f49e1f3c10e5d181"
+    },
+    {
+      "path": "src/platform/session_log.h",
+      "size": 1767,
+      "sha256": "1586513adfc6c06c020fb20e03cc7b7d408db79ae3732e3844a18d83b8c7b930"
+    },
+    {
+      "path": "src/platform/support_error.cpp",
+      "size": 1739,
+      "sha256": "670bb0ac34eb6ea4e8196d1f59be734b6ff6b909b4de85ed242f1385887a5527"
+    },
+    {
+      "path": "src/platform/support_error.h",
+      "size": 424,
+      "sha256": "00be8304914c70c7d44822c514100469d9643591f235cbf2d83053d3d773bd97"
+    },
+    {
+      "path": "src/platform/system_info.cpp",
+      "size": 2683,
+      "sha256": "18c6298da53462bdb2c244743d5315771e8eb23474665c7fadd9e1f84bd11a09"
+    },
+    {
+      "path": "src/platform/system_info.h",
+      "size": 443,
+      "sha256": "fdec0936dcd8ee77b2c10f4f5bc4a6fd112277544a3a5c5756bfff65ab154385"
+    },
+    {
+      "path": "src/platform/text_encoding.cpp",
+      "size": 1914,
+      "sha256": "d8d40142aa357e20e146a096058b64bb27486388cc41d50bdb29e104dc96f9b5"
+    },
+    {
+      "path": "src/platform/text_encoding.h",
+      "size": 267,
+      "sha256": "f218c66196b5b5cd29317dfc14e0f0222be9ba6049081cf89304e68c933b08be"
+    },
+    {
+      "path": "src/platform/thread_utils.h",
+      "size": 984,
+      "sha256": "cd6166a498eca8244cee444f3ed8625215d993216d50a0d56822570cd7fbe5a0"
+    },
+    {
+      "path": "src/platform/unicorn_decrypt.h",
+      "size": 1571,
+      "sha256": "7055eb488096e4c8beabacce40230397b41f01a6df97a7cfdc7a44aebcd95340"
+    },
+    {
+      "path": "src/platform/unique_handle.h",
+      "size": 3884,
+      "sha256": "4f89f02afdb7c349ff8de18e60d44e69f954b04da21f2b899ddf2ce37a5e1b52"
+    },
+    {
+      "path": "src/platform/unique_socket.h",
+      "size": 1130,
+      "sha256": "22d3505ef860e00411684e87894b9514859c22db67f254e7603c1e12afeb3b4a"
+    },
+    {
+      "path": "src/ui/ui_models.h",
+      "size": 8165,
+      "sha256": "63dd82d4f5e7adc6e5cd44aa6ba3d047203c244a7790b54084d0b5ba914205fc"
+    },
+    {
+      "path": "src/updater/crypto.cpp",
+      "size": 12066,
+      "sha256": "720a849a3ed4098f9326cc5a9de4eecb2e7c6f8ff3267377b65ba91745fb1421"
+    },
+    {
+      "path": "src/updater/crypto.h",
+      "size": 1257,
+      "sha256": "df7bf7bd585b46b7fc52674e62fec57350250e7d0bde63c7568abe7de45b6843"
+    },
+    {
+      "path": "src/updater/github_release_resolver.cpp",
+      "size": 6607,
+      "sha256": "011254983a0abc667bb20ff8f998457aa760913900e31312961c4e1204283bc5"
+    },
+    {
+      "path": "src/updater/github_release_resolver.h",
+      "size": 655,
+      "sha256": "6fbcb1caf97b75adace1bb97dceff276ca041d5963bfd680f61e1b290d0a8dd4"
+    },
+    {
+      "path": "src/updater/http_client.cpp",
+      "size": 25405,
+      "sha256": "a8ef8d78145413da009361cdadae68a401df0c1066a425d93b2be1da48e004c7"
+    },
+    {
+      "path": "src/updater/http_client.h",
+      "size": 1319,
+      "sha256": "fd264b8dbc65c6f7cbb023dd2c3fe3a0194071730a42fa39970d26a9b264827d"
+    },
+    {
+      "path": "src/updater/http_policy.cpp",
+      "size": 4083,
+      "sha256": "c43c6c9f87909cb0585b4873d49c84f366b9be906a2f0b1b39c459d04b7c7b64"
+    },
+    {
+      "path": "src/updater/http_policy.h",
+      "size": 1042,
+      "sha256": "5fb080c124f9f9a9658521606a153cae8a6533a1b04435cf71c449fffb5e1625"
+    },
+    {
+      "path": "src/updater/install_engine.cpp",
+      "size": 20890,
+      "sha256": "eecf9ac8cdb2293a5736daa19c30dcaa3db0efb256684bcecea5c14902e6d341"
+    },
+    {
+      "path": "src/updater/install_engine.h",
+      "size": 1589,
+      "sha256": "c199f44cdd3372ab15394e103c10866d0f57a91d88f3de82c1e4c92c15d35de6"
+    },
+    {
+      "path": "src/updater/installation_integrity.cpp",
+      "size": 7119,
+      "sha256": "d2d332125f1e3638027c41b7063379be9b8ad492accf53aa7e1ae4f915fdb40f"
+    },
+    {
+      "path": "src/updater/installation_integrity.h",
+      "size": 726,
+      "sha256": "138dabc77a77f28c31b8dbb22cfafd906d1b74be2082b6b6a59370c99095f327"
+    },
+    {
+      "path": "src/updater/json.cpp",
+      "size": 16066,
+      "sha256": "6aae927a0aa6ef533dd955417c21289d28fadb29716516c188cdd158147788c1"
+    },
+    {
+      "path": "src/updater/json.h",
+      "size": 1313,
+      "sha256": "7203fb9ad21a49b8ae46d038c870e8c2db49be747b9267bb7a15ce9ba9de37e9"
+    },
+    {
+      "path": "src/updater/manifest.cpp",
+      "size": 7718,
+      "sha256": "bf9c59834cfe8a10dad28612161190e32ec10e3ce4a3b640ce50ac7e8f474b55"
+    },
+    {
+      "path": "src/updater/release_trust.h",
+      "size": 632,
+      "sha256": "3d6a7c5715c1284077e2834e60021d2a961538fcbab4f056deda1c00c344d27a"
+    },
+    {
+      "path": "src/updater/update_log.cpp",
+      "size": 8989,
+      "sha256": "8758252b9accff5098cf0fe93cf5fa74e098595b3b7d7dfde934407ab23d36d3"
+    },
+    {
+      "path": "src/updater/update_log.h",
+      "size": 817,
+      "sha256": "cc3224d3d6ec08e5ac4dd6a11cd230682aec42ab07b62d8f03e81b709394df1a"
+    },
+    {
+      "path": "src/updater/update_service.cpp",
+      "size": 47364,
+      "sha256": "a9e6fbc3963d0c17cd02248434cd132e9aea715efac8caa3dd121dc5957cfb1e"
+    },
+    {
+      "path": "src/updater/update_service.h",
+      "size": 2299,
+      "sha256": "0155bc7e70494b202ed4862a8a5e300d9495e69f14c0ee8215f9ece973ac09bf"
+    },
+    {
+      "path": "src/updater/update_types.h",
+      "size": 4357,
+      "sha256": "50e5bbc4cf71dc1eb375dfad0e273bccb44b0da6aa43cd0a2147e4313a843464"
+    },
+    {
+      "path": "src/updater/update_ui.cpp",
+      "size": 15542,
+      "sha256": "0216f619431942e16aa9ada05ce3dec74f26fd0724156196c8b282e6cef904fd"
+    },
+    {
+      "path": "src/updater/update_ui.h",
+      "size": 60,
+      "sha256": "5abf628bb5b7ce2bd7d5b4d3ef4745e1e5ef8f04bc414d9f9c7816ad78c8516f"
+    },
+    {
+      "path": "src/updater/updater_mode.cpp",
+      "size": 17672,
+      "sha256": "ccc92735c1f3b757607ed47132a90d6a2794ec5f4881d4a18208a7d99461cefc"
+    },
+    {
+      "path": "src/updater/updater_mode.h",
+      "size": 282,
+      "sha256": "ba0e6b9d6e7abdc821190248b98a536d30536d49f87b89f761d0d68d35866af3"
+    },
+    {
+      "path": "src/updater/version_comparer.cpp",
+      "size": 3987,
+      "sha256": "dcb7b42e161d7c42821a737d90a552dcae917b588ddb42b7ec2c23a36eedd79b"
+    },
+    {
+      "path": "src/updater/wininet_fallback.cpp",
+      "size": 25754,
+      "sha256": "98d65db045a542b086cf2fd36a68ed365ea2c9c192d04262481775e8d6c17a68"
+    },
+    {
+      "path": "src/updater/wininet_fallback.h",
+      "size": 498,
+      "sha256": "7f8b709e21222f0d4e18ce67fbfba1b6d2aa6c973ec97cf21c54e97962bd56bb"
+    },
+    {
+      "path": "src/window/AimPage.cpp",
+      "size": 6170,
+      "sha256": "786676b0f7241e61133342cdacda9ef2adbed6dcc9da0ed821084797920d0c39"
+    },
+    {
+      "path": "src/window/animations.cpp",
+      "size": 851,
+      "sha256": "c30e893eed7858aab07646803217b2e2ee27cede06f2780d38aacaad47e261b4"
+    },
+    {
+      "path": "src/window/animations.h",
+      "size": 180,
+      "sha256": "fb4d89f6d708f61ec02802b01b7319f36b794c0b2c3265f3f197fa01e9a69a39"
+    },
+    {
+      "path": "src/window/brand_assets.cpp",
+      "size": 3602,
+      "sha256": "08cc1b93e2b036fddea48f766a1d971882fba1a3ea8d977e917969a016f24f53"
+    },
+    {
+      "path": "src/window/brand_assets.h",
+      "size": 408,
+      "sha256": "b151ef1ed2376d83264ba6735675706c5c62445dd1492318f00788d887f0f598"
+    },
+    {
+      "path": "src/window/cards.cpp",
+      "size": 7074,
+      "sha256": "8ff31ab3788b5b1df0708d0e5eb96be293b319b289761676346920dc1ceb9e05"
+    },
+    {
+      "path": "src/window/ConfigsPage.cpp",
+      "size": 10938,
+      "sha256": "6d353cb16fdd063e5d1dff5901d0198121bae1f531a5e911605b317935298921"
+    },
+    {
+      "path": "src/window/Cs2AimPage.cpp",
+      "size": 5320,
+      "sha256": "e294b16766a225da41bfccbba9385853c09b3132cc91a738fd944faaac640fa2"
+    },
+    {
+      "path": "src/window/Cs2MiscPage.cpp",
+      "size": 2056,
+      "sha256": "c7402ef14d35922002a884a54492146cf7008cbbcd307a96339e7582c437123b"
+    },
+    {
+      "path": "src/window/Cs2VisualsPage.cpp",
+      "size": 10711,
+      "sha256": "a93c0c467a719d865efb9b900a1a89ec49a464f26608821e0ba8d42e9a615016"
+    },
+    {
+      "path": "src/window/digital_rain.cpp",
+      "size": 19171,
+      "sha256": "a37b9ec40fe842459574abcca60d5231e990c651d25784746460a7d6d398dee0"
+    },
+    {
+      "path": "src/window/digital_rain.h",
+      "size": 752,
+      "sha256": "c8e68ca8bcf2f4ee5111341477457c327b055f4c451d182c04b666c9ff46bf66"
+    },
+    {
+      "path": "src/window/fonts.cpp",
+      "size": 4572,
+      "sha256": "d9a49a4947d0f7eae0061a29fca759ad16c77f1b0f8fb549ecaf16537563ad90"
+    },
+    {
+      "path": "src/window/fonts.h",
+      "size": 257,
+      "sha256": "1c1ed67520567575f4e63d6442222137bc71155e3e42e90d666381970555d714"
+    },
+    {
+      "path": "src/window/footer.cpp",
+      "size": 8086,
+      "sha256": "16d76e608403fb690946dcc8b4e28d0e977e06a8d9c48100e2a6797def7cc583"
+    },
+    {
+      "path": "src/window/FortniteAimPage.cpp",
+      "size": 4690,
+      "sha256": "7658d237590a472237809c073631baabbdaa92de3733f294f6ad67e461635ab1"
+    },
+    {
+      "path": "src/window/FortniteEspPage.cpp",
+      "size": 6838,
+      "sha256": "3b4e5f24831bc5d486bad32793fd4ed4d8f7c3a52631d5d2585cca5d5dee66ee"
+    },
+    {
+      "path": "src/window/FortniteExtraPages.cpp",
+      "size": 9676,
+      "sha256": "1898615c07cd6cf6689085e4cb4a7f284b78fef844fc5518005bcee17090a9df"
+    },
+    {
+      "path": "src/window/FortniteMiscPage.cpp",
+      "size": 4919,
+      "sha256": "189f188a0e9fa7ae906bb3087a788a31c2b69894e970bc8d3072cebc3d0899eb"
+    },
+    {
+      "path": "src/window/FortniteRadarPage.cpp",
+      "size": 2087,
+      "sha256": "ca9c15b4c249f14e1cbf1fa780c3a33be61e6e3fd375b5bed6c7ffe0830029bc"
+    },
+    {
+      "path": "src/window/FortniteWorldPage.cpp",
+      "size": 4767,
+      "sha256": "c2a588cf5f7ee77b3559fea631944be56553676d70a66fbcc429cad41d031038"
+    },
+    {
+      "path": "src/window/FriendsPage.cpp",
+      "size": 7341,
+      "sha256": "db27dac049b790c5344ea4116aafb6db3b545d3f7851581ac44d0556d5eaec36"
+    },
+    {
+      "path": "src/window/header.cpp",
+      "size": 3543,
+      "sha256": "8022be89c2b14a5627945478a63ea55914459d2c6f2bc39d92c181fe8a5fc0ee"
+    },
+    {
+      "path": "src/window/icons.cpp",
+      "size": 10724,
+      "sha256": "78f3e25b984d7fb2a5e1fffa2e6aa4fd0a4456f99a632b3814fd5f1d99517eab"
+    },
+    {
+      "path": "src/window/icons.h",
+      "size": 1332,
+      "sha256": "f00c249009a141a984a7f2b58f0718f4726b0ff5232372bd9bf9c00bc2bb3df8"
+    },
+    {
+      "path": "src/window/InputDevicesCard.cpp",
+      "size": 5636,
+      "sha256": "cba83b13aa67bed8f8cab34b03b14acf712d95315d9de822242914735970ca9e"
+    },
+    {
+      "path": "src/window/InputDevicesCard.h",
+      "size": 243,
+      "sha256": "6c537b67416b466f9f69e705e10ac80aa1e3e72f53ea65b3e843de089e18bbcd"
+    },
+    {
+      "path": "src/window/localization.cpp",
+      "size": 84977,
+      "sha256": "ee5a97a5854f4e22b09c182b385972ce59a45d7503e27c00f842147a51b3b046"
+    },
+    {
+      "path": "src/window/localization.h",
+      "size": 613,
+      "sha256": "4b3ee37f84638c03aae897869ec0f6470dd4c1555024c3e0afd5257f254e792e"
+    },
+    {
+      "path": "src/window/logo_data.h",
+      "size": 47618,
+      "sha256": "717d7b5f666522587551244f3e5ad044605ceb5bbf304855d40a77b4788fcc4b"
+    },
+    {
+      "path": "src/window/menu_tab.h",
+      "size": 2275,
+      "sha256": "dba0fe54b3e41065a85593da821392f30f0dde6ffafaba7099c1d0aef890a504"
+    },
+    {
+      "path": "src/window/performance_mode.cpp",
+      "size": 2534,
+      "sha256": "94c18db3c03136777a8e45c689842193a10908891007183a296fab53171f61d1"
+    },
+    {
+      "path": "src/window/performance_mode.h",
+      "size": 604,
+      "sha256": "159c916d14844963cc2d5532b2aa091b11b05c900097620d019ad5a23489876e"
+    },
+    {
+      "path": "src/window/RustAimPage.cpp",
+      "size": 8584,
+      "sha256": "f691fb24266fa2e3af0b4ba41fe5acca5c5a9e8d41f4ef383c362f17510d63df"
+    },
+    {
+      "path": "src/window/RustDebugPage.cpp",
+      "size": 3755,
+      "sha256": "c8859a316e33b1c9ee3c7b375dc6a200e04b17a3165950778a20f1b96aef07a0"
+    },
+    {
+      "path": "src/window/RustMiscPage.cpp",
+      "size": 5674,
+      "sha256": "e2817cf33f151ee310178989a091d97a2581e5019c129c7ea1e8d39f69b09171"
+    },
+    {
+      "path": "src/window/RustPlayersPage.cpp",
+      "size": 4716,
+      "sha256": "01b12f2e9bb101585ee2a372f7b3e7620a7644f0124a9fce6927a136d5311b9f"
+    },
+    {
+      "path": "src/window/RustRadarPage.cpp",
+      "size": 713,
+      "sha256": "262626983c150e0677468a34dd90f2f2c6487a34f58f04d260b18c8a987bfaad"
+    },
+    {
+      "path": "src/window/RustVisualsPage.cpp",
+      "size": 9285,
+      "sha256": "bb57ea2aef3938b09a40d407aa6036567cbe9cb24f5332ed93dd66ab3be87467"
+    },
+    {
+      "path": "src/window/RustWorldPage.cpp",
+      "size": 5833,
+      "sha256": "a7f9333d8b2b8cdf3140acf7a837fe9b17cc0ef495e457544fcde9b0fd95aa62"
+    },
+    {
+      "path": "src/window/SaveConfigsPage.cpp",
+      "size": 14120,
+      "sha256": "3f8a97712d51c24b2db3a411f3dd5068a620867738811d1a3b24c2f17732d73d"
+    },
+    {
+      "path": "src/window/sidebar.cpp",
+      "size": 9943,
+      "sha256": "ac981d6f84546b6ad6456e7e8c3993d9fe18e8e9734fbfaa8b8167f685bb12f0"
+    },
+    {
+      "path": "src/window/StatusPage.cpp",
+      "size": 3258,
+      "sha256": "1700b87305eb911205e5a894b6913d3c5f56266934a25f481f0771728950cee0"
+    },
+    {
+      "path": "src/window/theme.cpp",
+      "size": 12244,
+      "sha256": "b8b98655afa8ae526f34f51cf42887cdaab809923fb767cc9129e067aadda7a3"
+    },
+    {
+      "path": "src/window/theme.h",
+      "size": 3547,
+      "sha256": "8cc86ffd335792e6ba69cccbd6c587d38ec07a6ec7e432a42ee527269764aa7c"
+    },
+    {
+      "path": "src/window/ui_format.h",
+      "size": 2333,
+      "sha256": "933b1f3c02e4298c7764710fa0c5e11dbde28bd826c00e6e2d6923dcf2eef054"
+    },
+    {
+      "path": "src/window/ValorantAimPage.cpp",
+      "size": 2244,
+      "sha256": "8b20c357867f831e399b1f549616ee171408c091072452d1691d458bba8d350b"
+    },
+    {
+      "path": "src/window/ValorantStatusPage.cpp",
+      "size": 1301,
+      "sha256": "bea9072945baf34d00c5276e5c737c9962c26e81cb2c8f4e488c966aa3ef53e5"
+    },
+    {
+      "path": "src/window/ValorantVisualsPage.cpp",
+      "size": 3022,
+      "sha256": "31abde3cbede922d3a58be596eda58261dc9839bc32a2760668f0343e740fe71"
+    },
+    {
+      "path": "src/window/VehiclesPage.cpp",
+      "size": 2983,
+      "sha256": "89efbac98bfcd83a2a6cf99b7d3870d53b6ded7f00e5bc8ad230431d7e00843c"
+    },
+    {
+      "path": "src/window/VisualsPage.cpp",
+      "size": 15793,
+      "sha256": "59bc6f1c84f78425f3e5246f4dc8e73f648b727d7ca80635f11e5c8a81b0a3f3"
+    },
+    {
+      "path": "src/window/WarzoneAimPage.cpp",
+      "size": 4773,
+      "sha256": "5c3f6552013cca3455b119ff4d1939d7854bd17c816850a774e8ae212f0751ba"
+    },
+    {
+      "path": "src/window/WarzoneMiscPage.cpp",
+      "size": 7664,
+      "sha256": "1cfe92d8f693cb7d6a43e17a857a4fc75cfaf26ef0beaea7d9c7f4904a220e43"
+    },
+    {
+      "path": "src/window/WarzonePlayersPage.cpp",
+      "size": 2282,
+      "sha256": "fa14b0f85176744f3ffa7a77a294de28496548a38ffac3d333dfec916ac24fd3"
+    },
+    {
+      "path": "src/window/WarzoneRadarPage.cpp",
+      "size": 1544,
+      "sha256": "b6c95cabed7f6e0a2130ec2a1f8fa47c8ea731142056a26fced8a68511aa4657"
+    },
+    {
+      "path": "src/window/WarzoneVisualsPage.cpp",
+      "size": 1941,
+      "sha256": "4b88667b64cc47951c411215ef16001f668bc7d8569755086e281553f3ce719c"
+    },
+    {
+      "path": "src/window/WarzoneWorldPage.cpp",
+      "size": 3008,
+      "sha256": "b9e9ee358433fb8f87ba0dafd7a05497ae2895c4f10a012a284c7e39875eba3e"
+    },
+    {
+      "path": "src/window/widgets.cpp",
+      "size": 64120,
+      "sha256": "605f089ba23e7ffa7c244508e35cbe5dfc0c65e6ba8d367ed7ea97acc3c646cd"
+    },
+    {
+      "path": "src/window/widgets.h",
+      "size": 5226,
+      "sha256": "7e478f934765d6de430794099e2f3de4c47613f94d2327da240f52f8d822cee4"
+    },
+    {
+      "path": "src/window/window.cpp",
+      "size": 18278,
+      "sha256": "0233745d7329a73721b0131db2afe753b7e7bd8082a38fbbad980c1f13f1cec5"
+    },
+    {
+      "path": "src/window/window.hpp",
+      "size": 1709,
+      "sha256": "5992082d074c73e7cb9bc9e74059347008580e03ebbd92035c6130338ea147e4"
+    },
+    {
+      "path": "src/window/window_runtime.cpp",
+      "size": 18481,
+      "sha256": "a8fe8947f4e2435d20a4c4f7357b3bd085497f11a316b1c1e24623e11097478a"
+    },
+    {
+      "path": "tests/OmniGhost.Tests.vcxproj",
+      "size": 3501,
+      "sha256": "18ff3e9a28c847cc4ec6a5271d79e4f9aaf5634c782ef99dd508322e55b05fe1"
+    },
+    {
+      "path": "tests/test_main.cpp",
+      "size": 11024,
+      "sha256": "7777dbad08068cf2db9baa9f75b780a0864ecee6d576a9869b229e0fce14706f"
+    },
+    {
+      "path": "third_party/dma_stack/bin/dbghelp.dll",
+      "size": 1768760,
+      "sha256": "3e82194c6edca48614faf6374b20c18387bc4f7f620ca2da26e87726c647827a"
+    },
+    {
+      "path": "third_party/dma_stack/bin/FTD3XX.dll",
+      "size": 513928,
+      "sha256": "3c0fc158fd4aa604c526d58ed8274ae830d53e69e01210cc5b5fa54ec5a9b7c0"
+    },
+    {
+      "path": "third_party/dma_stack/bin/FTD3XXWU.dll",
+      "size": 513928,
+      "sha256": "3c0fc158fd4aa604c526d58ed8274ae830d53e69e01210cc5b5fa54ec5a9b7c0"
+    },
+    {
+      "path": "third_party/dma_stack/bin/leechcore.dll",
+      "size": 154056,
+      "sha256": "187cf9bd0a190260300527dcd22725d3c59782163a464f5578390b123eec4918"
+    },
+    {
+      "path": "third_party/dma_stack/bin/symsrv.dll",
+      "size": 149264,
+      "sha256": "c67be7d3f54d44ac264a18e33909482f1f8ca7b7fbaaf5659ef71ed9f8092c34"
+    },
+    {
+      "path": "third_party/dma_stack/bin/vmm.dll",
+      "size": 2416584,
+      "sha256": "0b20899956b399b1153ae1af90d5fac6861b69f4fb91360276d54ab55c4a8942"
+    },
+    {
+      "path": "third_party/dma_stack/include/leechcore.h",
+      "size": 27459,
+      "sha256": "d3dd1553cd3dc57e620722e6d4456e9aaa819a97066119c921db43aac1c3f6e3"
+    },
+    {
+      "path": "third_party/dma_stack/include/vmmdll.h",
+      "size": 131422,
+      "sha256": "8a0736d4f050b75503809113c37033b6ea70586c58be7ad7d88993ae85bbc3c1"
+    },
+    {
+      "path": "third_party/dma_stack/lib/leechcore.lib",
+      "size": 5470,
+      "sha256": "de1259b698736a83c13f9731f7b823278e0b35df648f5a17552ae6490fb9b562"
+    },
+    {
+      "path": "third_party/dma_stack/lib/vmm.lib",
+      "size": 31218,
+      "sha256": "b8b045f7042360fb0f9f38eab90671b24f6a25a2b9c05494bd0254b715eab875"
+    },
+    {
+      "path": "third_party/dma_stack/managed-files.json",
+      "size": 383,
+      "sha256": "aa37a4d4e09a804933871496016ba3a50ba2cae9aa90e9944ab5407ea57c1943"
+    },
+    {
+      "path": "third_party/dma_stack/plugins/pym_pluginupdater/__init__.py",
+      "size": 100,
+      "sha256": "db148328ed94b5405a2e4e07b7404d2b11c78afb2ec301421ff4d1c936cdfaaf"
+    },
+    {
+      "path": "third_party/dma_stack/plugins/pym_pluginupdater/pym_pluginupdater.py",
+      "size": 7763,
+      "sha256": "d1ecb693d1ec2e7c0c70b53dc2d7fe18e7d830faa3347517028ff22dfca6fbf8"
+    },
+    {
+      "path": "third_party/dma_stack/plugins/pym_procstruct/__init__.py",
+      "size": 127,
+      "sha256": "191527ec59470c07a39b79900f6c808a02ea9d498dec48326dca03972c017990"
+    },
+    {
+      "path": "third_party/dma_stack/plugins/pym_procstruct/pym_procstruct.py",
+      "size": 8546,
+      "sha256": "ae63ffee5e23a2e927c10d44c656a9cef9a042d1f45268b5ba7c11854b448ceb"
+    },
+    {
+      "path": "third_party/dma_stack/plugins/pyp_reg_root_reg$net_bth$devices.py",
+      "size": 2443,
+      "sha256": "4b6c93e82912ff03d85c3a8d1c981e1fd0218848c0dbb47e8eb440f9c423baef"
+    },
+    {
+      "path": "third_party/dma_stack/plugins/pyp_reg_root_reg$net_tcpip$interfaces.py",
+      "size": 2144,
+      "sha256": "d503532048580fdc215672202043e797a010a8d8da0c7604833eec47c421dc2f"
+    },
+    {
+      "path": "third_party/dma_stack/plugins/pyp_reg_root_reg$usb_usb$devices.py",
+      "size": 1502,
+      "sha256": "7c3a13a17cb38c61286319350e8d7540398aa1bf28fff0a89c9e40bd93bcd226"
+    },
+    {
+      "path": "third_party/dma_stack/plugins/pyp_reg_root_reg$usb_usb$storage.py",
+      "size": 1853,
+      "sha256": "12af310814b93cf93865f5bbb3ba9bb42445a2cc66c2150092433a3948c209ba"
+    },
+    {
+      "path": "third_party/dma_stack/plugins/pyp_reg_user_reg$user_wallpaper.py",
+      "size": 756,
+      "sha256": "b5b5388d491a76c76c34bf8380eb54a1d019c5b2b713914a7d8892f4904dd6e0"
+    },
+    {
+      "path": "third_party/dma_stack/README.txt",
+      "size": 753,
+      "sha256": "a9070abaff5454ddea5431d5a2c4338b6c13d40e0e79df6419c6fcb3f149069d"
+    },
+    {
+      "path": "third_party/dma_stack/versions.json",
+      "size": 1171,
+      "sha256": "a318b8886966486db24cbef4baf4efe850fefa5a67de3e713d20086a594e07ba"
+    },
+    {
+      "path": "THIRD_PARTY_NOTICES.txt",
+      "size": 1578,
+      "sha256": "fb7d3cccf2692145300c14efc28bcac7d1c681b494a3b64b3f8a34efac954569"
+    },
+    {
+      "path": "tools/Audit-ReleaseDependencies.ps1",
+      "size": 4135,
+      "sha256": "834697249f888ed27419f0ae6d3b27197108432f3497de6aae15134159ee9a55"
+    },
+    {
+      "path": "tools/Build-Release.ps1",
+      "size": 1046,
+      "sha256": "bb4b9008a7f1ebeb09768eba41bd1ea27e384775988867a124b68a81b3ea1e60"
+    },
+    {
+      "path": "tools/Cleanup-ReleaseCopies.ps1",
+      "size": 3948,
+      "sha256": "25773914ff1b5fe2f4344574b26fc7833d5c094b6ce01642d7bec62f4c478446"
+    },
+    {
+      "path": "tools/Compare-Logs.ps1",
+      "size": 1611,
+      "sha256": "f2e29ddc8f5db7e5ba446001b16791ad60af601c4aeb678c866c3060c4ecefc8"
+    },
+    {
+      "path": "tools/Configure-ReleaseTrust.ps1",
+      "size": 4094,
+      "sha256": "f0982d23ab5eab35f3c0c2951e673d083c45bd019f2240c08a07055363156554"
+    },
+    {
+      "path": "tools/Create-RuntimePackage.ps1",
+      "size": 5331,
+      "sha256": "c30efee30e04d1d469f44ea62109770fcf94620f8db8809794d8128f43662bbf"
+    },
+    {
+      "path": "tools/Create-SourcePackage.ps1",
+      "size": 9402,
+      "sha256": "1523acc8a35906f8b153e76e04286942d768d795911c256eb383de1d85bfaa44"
+    },
+    {
+      "path": "tools/Create-SymbolsPackage.ps1",
+      "size": 1604,
+      "sha256": "88e868d2ea9fb13f401bdfc9531d581a21880d5f865eac171f9744837c0d22db"
+    },
+    {
+      "path": "tools/Diagnose-Updater.ps1",
+      "size": 6978,
+      "sha256": "9527d7dc3af7bdb02b804f8bbb51615c9e5dffda6bf04ad663895ac2017bf559"
+    },
+    {
+      "path": "tools/Doctor.ps1",
+      "size": 627,
+      "sha256": "ceb6d47d2a2efa75f922feecff4b149d9f42c1333cbf151ab2db1edfa7269870"
+    },
+    {
+      "path": "tools/Engineering.ps1",
+      "size": 1928,
+      "sha256": "4a79caa893821ee0ba9f9ee455b6121e5dd22adc7acfabf75767c46a4b5d97d5"
+    },
+    {
+      "path": "tools/Ensure-ProjectMetadata.ps1",
+      "size": 4010,
+      "sha256": "5cdd78c411a53991b45e88dfd68c82961ce16c733b19eb598b91a3bf6137796d"
+    },
+    {
+      "path": "tools/Export-Diagnostics.ps1",
+      "size": 6528,
+      "sha256": "d9d6296b2830dd4c407838366e12cdcb4a2b0c80538f4e9951b6d5d98f53e5fd"
+    },
+    {
+      "path": "tools/Generate-BuildMetadata.ps1",
+      "size": 15826,
+      "sha256": "a26c20bda66754556c99bcbf51696b240b9f4dd9e0af286a71b7e761f069c0b4"
+    },
+    {
+      "path": "tools/Generate-Changelog.ps1",
+      "size": 29098,
+      "sha256": "e94622188cb9516a179f8ba2849fa5ff887c40bb6cce4a0fbbdaff672bb88b43"
+    },
+    {
+      "path": "tools/Generate-Sbom.ps1",
+      "size": 4016,
+      "sha256": "b77ac9486f926117a389ff3c9b7f4f1a9dd78e2c627d49cb9dba2181420bc449"
+    },
+    {
+      "path": "tools/Hashing.ps1",
+      "size": 612,
+      "sha256": "6042bace5c3d1000d796f22da3c56ccb75fef4255d2e71bedf32a48b0ab60dec"
+    },
+    {
+      "path": "tools/Increment-Version.ps1",
+      "size": 7195,
+      "sha256": "575bd626002be7be82c747c4f18c80449425cb840c304dd07e8554e275e914ac"
+    },
+    {
+      "path": "tools/Package-Release.ps1",
+      "size": 1291,
+      "sha256": "ec5efbd7365172e0eae3e64befda4d0c39130bbedabe3b7a49a6975e513b541c"
+    },
+    {
+      "path": "tools/package_release.ps1",
+      "size": 37245,
+      "sha256": "67a3bae043e55c5578c2bac27f8dcb5651e4b14a1589d5c11951dcdebd77bac3"
+    },
+    {
+      "path": "tools/Publish-Build.ps1",
+      "size": 5917,
+      "sha256": "ce71986943bc963a5eaa148dea630adfff4efc0da8d3d49bac024b44ecef83ab"
+    },
+    {
+      "path": "tools/Publish-Release.ps1",
+      "size": 1764,
+      "sha256": "d37ce70800cfe15765d3846650a4127e8fa600220d4f9e785034cf4621cf6a38"
+    },
+    {
+      "path": "tools/publish_github_release.ps1",
+      "size": 16621,
+      "sha256": "fb3591c2caf10f6845b2ad0fff2aea636dbb03b93bee1abc7d8e4e603aeda86e"
+    },
+    {
+      "path": "tools/Repair-LatestRelease.ps1",
+      "size": 4477,
+      "sha256": "ff6a7755f7c5f7ce249bf81d272b0bb0b0c0fb6578610d2f6ab45a7da06c71d6"
+    },
+    {
+      "path": "tools/Repair-PublishedReleaseText.ps1",
+      "size": 10577,
+      "sha256": "74ce3853a5b8ab21944028245ce9399b3625699cc87231ead29bf0e08a49a1f1"
+    },
+    {
+      "path": "tools/Restore-Version.ps1",
+      "size": 2627,
+      "sha256": "4aaba2c8774932cd33aee51f0920438ff1f592c36ef892b661e3de4d999ff1bc"
+    },
+    {
+      "path": "tools/retry_publish_github_release.ps1",
+      "size": 855,
+      "sha256": "5bded44efeb8777d40663182b8e313d73ba3de13cc1e725457b5c962785b7f8c"
+    },
+    {
+      "path": "tools/Run-OmniGhostPowerShell.cmd",
+      "size": 5229,
+      "sha256": "c03e8331e43777359ea70878b72c4a55b8a72e5cdc514d5d3717ec6821c59383"
+    },
+    {
+      "path": "tools/Sign-AuthenticodeFile.ps1",
+      "size": 2215,
+      "sha256": "732518894883b4c71ce5d67ac2afec72cde04b28007b7420207fc44cf3a95982"
+    },
+    {
+      "path": "tools/Sign-UpdateManifest.ps1",
+      "size": 1488,
+      "sha256": "3187a50d3f3c2c151afe7f2ea679db894370198b400b77e7654bf35cc49fff52"
+    },
+    {
+      "path": "tools/sync_version.ps1",
+      "size": 2988,
+      "sha256": "fef291cd5d9021b394cddddb3e17c17d258d5d23a8a6fe8ad5506ff7a91ebb6b"
+    },
+    {
+      "path": "tools/Update-DmaDependencies.ps1",
+      "size": 22638,
+      "sha256": "35d4b86e032825fd2537591e6f5153e8df3c904c4c29d5b8e17da99e000ef741"
+    },
+    {
+      "path": "tools/UpdateDependencies.bat",
+      "size": 549,
+      "sha256": "6495e5e2aaf6f482cda3e5c977e209e974b23a2c3fcd8275a7a4ccb2e9a59c23"
+    },
+    {
+      "path": "tools/Validate-BuildEnvironment.ps1",
+      "size": 956,
+      "sha256": "b18ada342a1a3f94f664a10a12ed56b813397d0b7328f2cb8f38e286f95d2004"
+    },
+    {
+      "path": "tools/Validate-CommercialRelease.ps1",
+      "size": 6360,
+      "sha256": "6205e0b28b12a19cc1912b62d15b7d6be03fac6a90999532809f6b540b3bb3a1"
+    },
+    {
+      "path": "tools/Validate-DistributionBuild.ps1",
+      "size": 1303,
+      "sha256": "f3dadc7c742f0d8fcb28f4140cd66ece3a9e6c16e57fa9d817b511ea4189ae0a"
+    },
+    {
+      "path": "tools/Validate-Project.ps1",
+      "size": 20700,
+      "sha256": "80a7db50a6e2e83679dd0a1adfa2356be905c3f6db88f4b5f87fb1983ae9ec17"
+    },
+    {
+      "path": "Utils/SimpleMath.h",
+      "size": 2286,
+      "sha256": "22625290ef00412212a5463ace8fba73beac81ce6597af9fb6762a4b7250c89d"
+    },
+    {
+      "path": "Utils/SimpleMath.inl",
+      "size": 98,
+      "sha256": "90cdae8a90b5be799bab80fec4f75af778c6dc34fb1795f0361d69c02bebd116"
+    },
+    {
+      "path": "Valorant/data/valorant_offsets.json",
+      "size": 645,
+      "sha256": "6311d09bdf20c1fd035817d77457649db6f566216a9452496243ee0d6c2be6c6"
+    },
+    {
+      "path": "Valorant/valorant_aim.cpp",
+      "size": 5327,
+      "sha256": "3ee8c4f608a04f573d6d920e1b29561f2b7f00f8b4efdd9d69cf69f276ab37c5"
+    },
+    {
+      "path": "Valorant/valorant_aim.h",
+      "size": 51,
+      "sha256": "89982ffcc4c71e5df903aeab35d1250818209e680a60fb03d0cc575422f29320"
+    },
+    {
+      "path": "Valorant/valorant_config.h",
+      "size": 2257,
+      "sha256": "ebfc2a636e4fea176d58b85932d12ac1b5d9463be1f0d70b6029518e3df96d2b"
+    },
+    {
+      "path": "Valorant/valorant_esp.cpp",
+      "size": 4448,
+      "sha256": "a91e1f6137bea04dbbd9e07c57e3eb89f8d92de8cda7627643eb0cf5f62dd93b"
+    },
+    {
+      "path": "Valorant/valorant_esp.h",
+      "size": 52,
+      "sha256": "8b020fd44796abdb6db540c2efd1e3730467ad688580e9392db7e37bd375c3bf"
+    },
+    {
+      "path": "Valorant/valorant_game.cpp",
+      "size": 14548,
+      "sha256": "b7fa5ad924c1e705e9dad44b723f3583dc07a7a028b83c8d2e07ffbd07516eaf"
+    },
+    {
+      "path": "Valorant/valorant_game.h",
+      "size": 3024,
+      "sha256": "dfb2da215e60b63eb0872dfe39cd7c4c8985c7ccae570e113e1f9de618ce95a3"
+    },
+    {
+      "path": "version.txt",
+      "size": 8,
+      "sha256": "85131c930190110854406a77a2fd0e19e511831f985339a595c68299bc122010"
+    },
+    {
+      "path": "Warzone/warzone_aim.cpp",
+      "size": 6107,
+      "sha256": "386debd35c6ec4095f7921778c8761f5b5f05ee956302ff96c4519ece5a73be1"
+    },
+    {
+      "path": "Warzone/warzone_aim.h",
+      "size": 184,
+      "sha256": "1541887fbf26d2bf1c26571fd8420534603b77b4b2f88564a0333f3f4630079d"
+    },
+    {
+      "path": "Warzone/warzone_config.h",
+      "size": 1861,
+      "sha256": "e77fa055c294106edd9c336063a8777a9b215b9722321a2552452474729b01c0"
+    },
+    {
+      "path": "Warzone/warzone_decrypt.cpp",
+      "size": 66829,
+      "sha256": "8f0bb95a9801c7f44adee2c3951be03aab8744c03cfa1b281338d70a8ab6fe0c"
+    },
+    {
+      "path": "Warzone/warzone_decrypt.h",
+      "size": 1435,
+      "sha256": "7d56e8195dfb66d2d3388038d457e8a0e673389a7f99c150cb48e00a773c2c4c"
+    },
+    {
+      "path": "Warzone/warzone_esp.cpp",
+      "size": 3781,
+      "sha256": "8a133c691e75bf9e3d8b6b66206788f7a19e2b128b4023c9810f5130361dd235"
+    },
+    {
+      "path": "Warzone/warzone_esp.h",
+      "size": 133,
+      "sha256": "e7e699c2dbd79b9dddb796e25689635ce49bd61a75d3ff3b809d44777215a2e9"
+    },
+    {
+      "path": "Warzone/warzone_game.cpp",
+      "size": 32886,
+      "sha256": "6fb4215d131b18b73ed5a10e1c409c0876346e4bddbae7b2935d7bac6d52ad38"
+    },
+    {
+      "path": "Warzone/warzone_game.h",
+      "size": 3519,
+      "sha256": "efb92a5d866fd0b84b2268cdd283655f8611c9bf461b7f1350f15cc5b0caa2f1"
+    },
+    {
+      "path": "SOURCE_BUILD_METADATA.json",
+      "size": 210,
+      "sha256": "34a3e4f41b44e8e1671980ef6851a3a7d2227a647557c6a32ab16f1032c9bda7"
+    }
+  ]
+}

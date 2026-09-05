@@ -1,0 +1,537 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" ToolsVersion="4.0">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="Source Files\window">
+      <UniqueIdentifier>{68A7F049-05E4-4623-AB46-B77D40E51AD3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\preview">
+      <UniqueIdentifier>{8D1A563E-908A-4E99-86B8-6642726012B3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\window">
+      <UniqueIdentifier>{E2984817-1341-46EF-B9FC-7921AB2E060E}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\preview">
+      <UniqueIdentifier>{81D80783-8B76-4E64-93C5-F161A0D6F67D}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\ui">
+      <UniqueIdentifier>{B57287B0-CDEB-40AE-A4C5-3A2C4EE12359}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Cs2">
+      <UniqueIdentifier>{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Cs2">
+      <UniqueIdentifier>{B2C3D4E5-F6A7-8901-BCDE-F12345678901}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Warzone">
+      <UniqueIdentifier>{A7C19D84-610E-49C5-920A-ED52B5670001}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Warzone">
+      <UniqueIdentifier>{A7C19D84-610E-49C5-920A-ED52B5670002}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\launcher">
+      <UniqueIdentifier>{C3D4E5F6-A7B8-9012-CDEF-123456789012}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\updater">
+      <UniqueIdentifier>{A28A83F8-0D18-4A30-BD68-4BB179721F14}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\launcher">
+      <UniqueIdentifier>{D4E5F6A7-B8C9-0123-DEF0-234567890123}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\updater">
+      <UniqueIdentifier>{6BB2C050-E75E-4DE4-939B-E91D9FC0C00D}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\licensing">
+      <UniqueIdentifier>{B0A1C2D3-E4F5-4678-9012-3456789ABCDE}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\licensing">
+      <UniqueIdentifier>{C1B2D3E4-F5A6-4789-8123-456789ABCDEF}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\launcher\changelog_service.cpp">
+      <Filter>Source Files\launcher</Filter>
+    </ClCompile>
+    <ClCompile Include="src\updater\github_release_resolver.cpp">
+      <Filter>Source Files\updater</Filter>
+    </ClCompile>
+    <ClCompile Include="ImGui\imgui.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ImGui\imgui_demo.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ImGui\imgui_draw.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ImGui\imgui_impl_dx11.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ImGui\imgui_impl_win32.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ImGui\imgui_tables.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ImGui\imgui_widgets.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="DMALibrary\Memory\InputManager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="DMALibrary\Memory\Memory.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="DMALibrary\Memory\MemoryInit.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="DMALibrary\Memory\MemoryIO.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="DMALibrary\Memory\Registry.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="DMALibrary\Memory\Shellcode.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="DMALibrary\pch.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\math\math.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\window\window.cpp">
+      <Filter>Source Files\window</Filter>
+    </ClCompile>
+    <ClCompile Include="src\window\window_runtime.cpp">
+      <Filter>Source Files\window</Filter>
+    </ClCompile>
+    <ClCompile Include="src\makcu\makcu.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\makcu\serialport.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\makcu\makcu_wrapper.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\window\theme.cpp">
+      <Filter>Source Files\window</Filter>
+    </ClCompile>
+    <ClCompile Include="src\window\widgets.cpp">
+      <Filter>Source Files\window</Filter>
+    </ClCompile>
+    <ClCompile Include="src\window\brand_assets.cpp">
+      <Filter>Source Files\window</Filter>
+    </ClCompile>
+    <ClCompile Include="src\window\digital_rain.cpp">
+      <Filter>Source Files\window</Filter>
+    </ClCompile>
+    <ClCompile Include="src\window\performance_mode.cpp">
+      <Filter>Source Files\window</Filter>
+    </ClCompile>
+    <ClCompile Include="src\window\localization.cpp">
+      <Filter>Source Files\window</Filter>
+    </ClCompile>
+    <ClCompile Include="src\window\cards.cpp">
+      <Filter>Source Files\window</Filter>
+    </ClCompile>
+    <ClCompile Include="src\window\fonts.cpp">
+      <Filter>Source Files\window</Filter>
+    </ClCompile>
+    <ClCompile Include="src\window\animations.cpp">
+      <Filter>Source Files\window</Filter>
+    </ClCompile>
+    <ClCompile Include="src\window\icons.cpp">
+      <Filter>Source Files\window</Filter>
+    </ClCompile>
+    <ClCompile Include="src\config\app_settings.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\config\config_manager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\platform\app_paths.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\platform\monitor_utils.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\platform\crash_handler.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\platform\text_encoding.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\platform\process_metrics.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\platform\system_info.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\platform\offset_auto.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\updater\crypto.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\updater\http_client.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\updater\install_engine.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\updater\installation_integrity.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\updater\manifest.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\updater\update_log.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\updater\update_service.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\updater\update_ui.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\updater\updater_mode.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\updater\version_comparer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\updater\wininet_fallback.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\window\RustAimPage.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\window\RustDebugPage.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\window\RustMiscPage.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\window\RustPlayersPage.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\window\RustRadarPage.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\window\RustVisualsPage.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\window\RustWorldPage.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Fivem\aimbot\aim_type.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Fivem\aimbot\aimbot.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Fivem\esp\esp.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Fivem\esp\esp_bone_cache.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Fivem\esp\vehicle_esp.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Fivem\friends\friends.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Fivem\game\esp_manager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Fivem\game\game.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Fivem\game\game_setup.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Fivem\game\offsets.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Fivem\playerInfo\PedData.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Cs2\cs2_weapon_icons.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Rust\rust_aim.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Rust\rust_esp.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Rust\rust_game.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Rust\rust_entities.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Rust\rust_probe.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\auth\local_auth_service.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\launcher\auth_page.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\window\ValorantVisualsPage.cpp">
+      <Filter>Source Files\window</Filter>
+    </ClCompile>
+    <ClCompile Include="src\window\ValorantAimPage.cpp">
+      <Filter>Source Files\window</Filter>
+    </ClCompile>
+    <ClCompile Include="src\window\ValorantStatusPage.cpp">
+      <Filter>Source Files\window</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\updater\github_release_resolver.h">
+      <Filter>Header Files\updater</Filter>
+    </ClInclude>
+    <ClInclude Include="src\updater\installation_integrity.h">
+      <Filter>Header Files\updater</Filter>
+    </ClInclude>
+    <ClInclude Include="src\updater\release_trust.h">
+      <Filter>Header Files\updater</Filter>
+    </ClInclude>
+    <ClInclude Include="src\updater\wininet_fallback.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\launcher\license_page.h">
+      <Filter>Header Files\launcher</Filter>
+    </ClInclude>
+    <ClInclude Include="src\licensing\license_service.h">
+      <Filter>Header Files\licensing</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\window\header.cpp">
+      <Filter>Source Files\window</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\window\footer.cpp">
+      <Filter>Source Files\window</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\window\sidebar.cpp">
+      <Filter>Source Files\window</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\window\VisualsPage.cpp">
+      <Filter>Source Files\window</Filter>
+    </ClCompile>
+    <ClCompile Include="src\window\StatusPage.cpp">
+      <Filter>Source Files\window</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\window\AimPage.cpp">
+      <Filter>Source Files\window</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\window\VehiclesPage.cpp">
+      <Filter>Source Files\window</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\window\FriendsPage.cpp">
+      <Filter>Source Files\window</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\window\ConfigsPage.cpp">
+      <Filter>Source Files\window</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\window\SaveConfigsPage.cpp">
+      <Filter>Source Files\window</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\window\Cs2MiscPage.cpp">
+      <Filter>Source Files\window</Filter>
+    </ClCompile>
+    <ClCompile Include="src\window\Cs2AimPage.cpp">
+      <Filter>Source Files\window</Filter>
+    </ClCompile>
+    <ClCompile Include="src\window\Cs2VisualsPage.cpp">
+      <Filter>Source Files\window</Filter>
+    </ClCompile>
+    <ClCompile Include="Warzone\warzone_game.cpp">
+      <Filter>Source Files\Warzone</Filter>
+    </ClCompile>
+    <ClCompile Include="Warzone\warzone_decrypt.cpp">
+      <Filter>Source Files\Warzone</Filter>
+    </ClCompile>
+    <ClCompile Include="src\window\WarzoneVisualsPage.cpp">
+      <Filter>Source Files\window</Filter>
+    </ClCompile>
+    <ClCompile Include="src\window\WarzoneAimPage.cpp">
+      <Filter>Source Files\window</Filter>
+    </ClCompile>
+    <ClCompile Include="src\window\WarzoneRadarPage.cpp">
+      <Filter>Source Files\window</Filter>
+    </ClCompile>
+    <ClCompile Include="src\window\WarzoneWorldPage.cpp">
+      <Filter>Source Files\window</Filter>
+    </ClCompile>
+    <ClCompile Include="src\window\WarzonePlayersPage.cpp">
+      <Filter>Source Files\window</Filter>
+    </ClCompile>
+    <ClCompile Include="src\window\WarzoneMiscPage.cpp">
+      <Filter>Source Files\window</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\launcher\game_select.cpp">
+      <Filter>Source Files\launcher</Filter>
+    </ClCompile>
+    <ClCompile Include="src\launcher\launcher_data.cpp">
+      <Filter>Source Files\launcher</Filter>
+    </ClCompile>
+    <ClCompile Include="src\launcher\launcher_status.cpp">
+      <Filter>Source Files\launcher</Filter>
+    </ClCompile>
+    <ClCompile Include="src\launcher\launcher_assets.cpp">
+      <Filter>Source Files\launcher</Filter>
+    </ClCompile>
+    <ClCompile Include="src\launcher\updates_page.cpp">
+      <Filter>Source Files\launcher</Filter>
+    </ClCompile>
+    <ClCompile Include="Cs2\cs2_game.cpp">
+      <Filter>Source Files\Cs2</Filter>
+    </ClCompile>
+    <ClCompile Include="Cs2\cs2_config_io.cpp">
+      <Filter>Source Files\Cs2</Filter>
+    </ClCompile>
+    <ClCompile Include="Cs2\cs2_esp.cpp">
+      <Filter>Source Files\Cs2</Filter>
+    </ClCompile>
+    <ClCompile Include="Cs2\cs2_aim.cpp">
+      <Filter>Source Files\Cs2</Filter>
+    </ClCompile>
+    <ClCompile Include="Cs2\cs2_radar.cpp">
+      <Filter>Source Files\Cs2</Filter>
+    </ClCompile>
+    <ClCompile Include="src\launcher\license_page.cpp">
+      <Filter>Source Files\launcher</Filter>
+    </ClCompile>
+    <ClCompile Include="src\licensing\license_service.cpp">
+      <Filter>Source Files\licensing</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="resources\app.rc">
+      <Filter>Resource Files</Filter>
+    </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\ferrum\ferrum_device.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\kmbox\kmbox_net.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\window\InputDevicesCard.cpp">
+      <Filter>Source Files\window</Filter>
+    </ClCompile>
+    <ClCompile Include="src\platform\session_log.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClInclude Include="src\ferrum\ferrum_device.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\kmbox\kmbox_net.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\window\InputDevicesCard.h">
+      <Filter>Header Files\window</Filter>
+    </ClInclude>
+    <ClInclude Include="src\platform\session_log.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\platform\crash_handler.h"/>
+    <ClInclude Include="src\platform\monitor_utils.h"/>
+    <ClInclude Include="src\platform\scope_exit.h"/>
+    <ClInclude Include="src\platform\thread_utils.h"/>
+    <ClInclude Include="src\platform\text_encoding.h"/>
+    <ClInclude Include="src\platform\unique_handle.h"/>
+    <ClInclude Include="src\platform\unique_socket.h"/>
+    <ClInclude Include="src\platform\process_metrics.h"/>
+    <ClInclude Include="src\platform\system_info.h"/>
+  </ItemGroup>
+  <ClCompile Include="Valorant\valorant_game.cpp">
+    <Filter>Source Files\Valorant</Filter>
+  </ClCompile>
+  <ClCompile Include="Valorant\valorant_esp.cpp">
+    <Filter>Source Files\Valorant</Filter>
+  </ClCompile>
+  <ClCompile Include="Valorant\valorant_aim.cpp">
+    <Filter>Source Files\Valorant</Filter>
+  </ClCompile>
+  <ItemGroup>
+    <ClInclude Include="src\auth\auth_types.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\auth\local_auth_service.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\launcher\auth_page.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\platform\diagnostics_package.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\updater\json.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\updater\http_policy.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClInclude Include="src\platform\diagnostics_package.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\updater\json.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\updater\http_policy.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\platform\embedded_offsets.cpp"/>
+    <ClCompile Include="src\platform\runtime_bootstrap.cpp"/>
+    <ClInclude Include="src\platform\embedded_offsets.h"/>
+    <ClInclude Include="src\platform\runtime_bootstrap.h"/>
+  </ItemGroup>
+</Project>

@@ -1,0 +1,245 @@
+name: Build, test and release OmniGhost
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: omnighost-release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  RELEASE_REPOSITORY: rodrigomatossilva07-rgb/OmniGhost-Updates
+  RELEASE_TARGET_BRANCH: main
+
+jobs:
+  build_test_package:
+    name: Build, test and validate
+    runs-on: windows-2025
+    timeout-minutes: 75
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate version and tag
+        id: version
+        shell: pwsh
+        run: |
+          $version = (Get-Content -LiteralPath version.txt -Raw).Trim()
+          if ($version -notmatch '^(0|[1-9]\d*)\.[0-9]\.[0-9]$') {
+            throw "Invalid OmniGhost version '$version'. MINOR and PATCH must be 0..9."
+          }
+          if ('${{ github.ref_type }}' -eq 'tag' -and '${{ github.ref_name }}' -cne "v$version") {
+            throw "Tag '${{ github.ref_name }}' does not match version.txt (v$version)."
+          }
+          if (git status --porcelain --untracked-files=normal) {
+            throw 'Checkout is not clean before the release build.'
+          }
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Configure MSBuild
+        uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce # v2
+
+      - name: Validate project and release policy
+        shell: pwsh
+        run: |
+          ./tools/Validate-Project.ps1 -ProjectDir .
+          ./tools/Test-ReleaseEngineering.ps1 -ProjectDir .
+          ./tools/Audit-UiLocalization.ps1 -ProjectDir . -ReportPath artifacts/validation/localization.json
+          ./tools/Audit-SourceComplexity.ps1 -ProjectDir .
+
+      - name: Stress deterministic resource generators
+        shell: pwsh
+        run: |
+          ./tools/Test-GeneratedResourceConcurrency.ps1 -ProjectDir .
+
+      - name: Analyse release diff semantically
+        shell: pwsh
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_CHANGELOG_MODEL: ${{ vars.OPENAI_CHANGELOG_MODEL }}
+        run: |
+          ./tools/Analyze-ChangelogDiff.ps1 `
+            -ProjectDir . `
+            -Version '${{ steps.version.outputs.version }}' `
+            -OutputPath ./artifacts/semantic-analysis.json
+
+      - name: Build and run Release tests
+        shell: pwsh
+        run: |
+          msbuild tests/OmniGhost.Tests.vcxproj /m `
+            /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143
+          & ./.cache/tests/Release/OmniGhost.Tests.exe
+          if ($LASTEXITCODE -ne 0) { throw "Release tests failed with exit code $LASTEXITCODE." }
+
+      - name: Build local Release binary and inspect PE
+        shell: pwsh
+        run: |
+          msbuild OmiGhost.vcxproj /m `
+            /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143
+          ./tools/Validate-PeRuntime.ps1 `
+            -Executable ./x64/Release/OmniGhost.exe `
+            -OutputDirectory ./artifacts/validation/pe-release `
+            -RequireSingleExeDirectory
+
+      - name: Build and run Publish tests
+        shell: pwsh
+        run: |
+          msbuild tests/OmniGhost.Tests.vcxproj /m `
+            /p:Configuration=Publish /p:Platform=x64 /p:PlatformToolset=v143
+          & ./.cache/tests/Publish/OmniGhost.Tests.exe
+          if ($LASTEXITCODE -ne 0) { throw "Publish tests failed with exit code $LASTEXITCODE." }
+
+      - name: Build customer binary
+        shell: pwsh
+        run: |
+          msbuild OmiGhost.vcxproj /m `
+            /p:Configuration=Publish /p:Platform=x64 /p:PlatformToolset=v143 `
+            /p:OmniGhostSkipPackaging=true /p:OmniGhostSkipRemotePublish=true
+          ./tools/Validate-PeRuntime.ps1 `
+            -Executable ./build/Publish/OmniGhost.exe `
+            -OutputDirectory ./artifacts/validation/pe-publish `
+            -RequireSingleExeDirectory
+
+      - name: Run MSVC static analysis
+        shell: pwsh
+        run: |
+          msbuild OmiGhost.vcxproj /m `
+            /p:Configuration=Publish /p:Platform=x64 /p:PlatformToolset=v143 `
+            /p:OmniGhostSkipPackaging=true /p:OmniGhostSkipRemotePublish=true /p:RunCodeAnalysis=true `
+            /p:CodeAnalysisTreatWarningsAsErrors=false
+
+      - name: Package, generate SBOM and audit dependencies
+        shell: pwsh
+        run: |
+          ./tools/Package-Release.ps1 `
+            -ProjectDir . `
+            -BuildDir ./build/Publish `
+            -Mode Publish `
+            -SemanticAnalysisPath ./artifacts/semantic-analysis.json
+
+      - name: Validate final release assets
+        shell: pwsh
+        run: |
+          ./tools/Validate-ReleaseArtifacts.ps1 `
+            -ProjectDir . `
+            -ReleaseDirectory ./artifacts/release `
+            -Version '${{ steps.version.outputs.version }}'
+
+      - name: Upload validated release assets
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: omnighost-release-${{ steps.version.outputs.version }}
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            artifacts/release/OmniGhost.zip
+            artifacts/release/update.json
+            artifacts/release/install-manifest.sha256
+            artifacts/release/SBOM.cdx.json
+            artifacts/release/changelog.json
+            artifacts/release/release-notes.md
+            artifacts/release/release-meta.json
+
+      - name: Upload private symbols
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: private-symbols-${{ steps.version.outputs.version }}
+          if-no-files-found: error
+          retention-days: 90
+          path: .cache/symbols/Publish/OmniGhost.pdb
+
+      - name: Upload engineering validation reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: engineering-validation-${{ steps.version.outputs.version }}
+          if-no-files-found: warn
+          retention-days: 30
+          path: artifacts/validation
+
+  publish:
+    name: Publish approved tag
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    needs: build_test_package
+    runs-on: windows-2025
+    timeout-minutes: 20
+    environment: production
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout release scripts
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Download validated assets
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: omnighost-release-${{ needs.build_test_package.outputs.version }}
+          path: artifacts/release
+
+      - name: Resolve and revalidate release version
+        id: version
+        shell: pwsh
+        run: |
+          $version = (Get-Content -LiteralPath version.txt -Raw).Trim()
+          if ('${{ github.ref_name }}' -cne "v$version") { throw 'Tag/version mismatch.' }
+          ./tools/Validate-ReleaseArtifacts.ps1 -ProjectDir . -ReleaseDirectory ./artifacts/release -Version $version
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Create draft, upload every asset, then publish
+        id: publish_release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.OMNIGHOST_RELEASE_TOKEN }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:GH_TOKEN)) {
+            throw 'OMNIGHOST_RELEASE_TOKEN is required for the separate release repository.'
+          }
+          $tag = '${{ github.ref_name }}'
+          $repo = $env:RELEASE_REPOSITORY
+          gh release view $tag --repo $repo *> $null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Release $tag already exists in $repo; the local Publish build already completed the upload."
+            "published=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            exit 0
+          }
+          gh release create $tag --repo $repo --target $env:RELEASE_TARGET_BRANCH --draft --title "OmniGhost $tag" `
+            --notes-file artifacts/release/release-notes.md `
+            artifacts/release/OmniGhost.zip `
+            artifacts/release/update.json `
+            artifacts/release/install-manifest.sha256 `
+            artifacts/release/SBOM.cdx.json `
+            artifacts/release/changelog.json `
+            artifacts/release/release-meta.json
+          if ($LASTEXITCODE -ne 0) { throw 'Could not create the complete draft release.' }
+          $view = gh release view $tag --repo $repo --json isDraft,assets | ConvertFrom-Json
+          $expected = @('OmniGhost.zip','update.json','install-manifest.sha256','SBOM.cdx.json','changelog.json','release-meta.json')
+          $actual = @($view.assets | ForEach-Object name)
+          foreach ($asset in $expected) {
+            if ($asset -notin $actual) { throw "Draft release is incomplete: $asset missing." }
+          }
+          gh release edit $tag --repo $repo --draft=false --latest
+          if ($LASTEXITCODE -ne 0) { throw 'Assets were uploaded, but the draft could not be published.' }
+          "published=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Notify Discord from the same changelog
+        if: steps.publish_release.outputs.published == 'true'
+        shell: pwsh
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          ./tools/Notify-DiscordRelease.ps1 `
+            -ProjectDir . `
+            -Version '${{ steps.version.outputs.version }}' `
+            -ReleaseDir ./artifacts/release

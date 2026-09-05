@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!-- PRIVATE DEVELOPMENT BUILD - NOT FOR DISTRIBUTION -->
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <PreprocessorDefinitions>LEECHCORE_STATIC;fopen_su=LC_fopen_su;LoadLibraryU=LC_LoadLibraryU;Util_FillHexAscii=LC_Util_FillHexAscii;Util_GetNumericA=LC_Util_GetNumericA;Util_GetPathLib=LC_Util_GetPathLib;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory)..\third_party\upstream\LeechCore-v2.23\includes;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+  </ItemDefinitionGroup>
+</Project>

@@ -1,0 +1,37 @@
+﻿{
+  "version": "auto",
+  "title": "OmniGhost",
+  "summary": "Esta versão corrige o versionamento e separa a publicação automática de Publish das builds locais Release e Tester.",
+  "hideCommits": [
+    "chore: bump version",
+    "build: update version",
+    "chore(release)"
+  ],
+  "changes": [
+    {
+      "module": "core",
+      "type": "fixed",
+      "text": "Sincronizada a versão 3.0.0 no executável, recursos e fonte de versão, com rollover de 2.9.9 para 3.0.0."
+    },
+    {
+      "module": "core",
+      "type": "security",
+      "text": "A configuração Publish passa a empacotar e publicar automaticamente no GitHub, mantendo obrigatórios a tag correspondente, o source limpo e a validação dos artefactos; Release e Tester permanecem estritamente locais."
+    },
+    {
+      "module": "core",
+      "type": "improved",
+      "text": "O GitHub Actions passa a compilar, executar testes, fazer análise estática, gerar SBOM, validar o ZIP e publicar primeiro como draft."
+    },
+    {
+      "module": "core",
+      "type": "fixed",
+      "text": "Corrigida a limpeza das cópias temporárias OmniGhost.zip e OmniGhost-Release sem esconder erros de ficheiros bloqueados."
+    },
+    {
+      "module": "core",
+      "type": "improved",
+      "text": "Centralizadas várias etiquetas portuguesas de configuração, mira e visuais, com auditoria para impedir nova dívida de tradução."
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+Third-party components
+======================
+
+This source tree includes third-party components. Before redistribution, preserve
+the notices required by each upstream project and verify the exact license terms
+that apply to the binaries/plugins actually shipped.
+
+Declared upstream project licenses (reference only)
+---------------------------------------------------
+MemProcFS
+  Upstream: https://github.com/ufrisk/MemProcFS
+  Declared source license: GNU Affero General Public License v3.0 (AGPL-3.0).
+  Upstream also states that some bundled dependencies/plugins and Microsoft
+  redistributables use separate licenses.
+
+LeechCore
+  Upstream: https://github.com/ufrisk/LeechCore
+  Declared repository license: GNU General Public License v3.0 (GPL-3.0).
+
+cloudflared
+  Upstream: https://github.com/cloudflare/cloudflared
+  Version bundled: 2026.8.2 (Windows x64).
+  Declared repository license: Apache License 2.0 (Apache-2.0).
+  The signed helper is embedded in OmniGhost and materialized only in the
+  application-controlled private runtime when a public radar link is requested.
+
+Dear ImGui and other bundled components
+  Keep the license/notice information supplied with the corresponding upstream
+  source or asset. Do not infer one license for every third-party file.
+
+Project dependency inventory
+----------------------------
+The canonical MemProcFS/LeechCore binary/version manifest is:
+  third_party/dma_stack/versions.json
+
+The source-tree dependency inventory is:
+  docs/SBOM.json
+
+Every Publish package also contains a build-specific CycloneDX inventory:
+  data/SBOM.cdx.json
+and publishes the same file as the Release asset SBOM.cdx.json.
+
+CS2 WebRadar notice files remain next to the corresponding frontend assets as
+NOTICE.txt.
+
+This file records upstream declarations for engineering/compliance tracking; it
+is not legal advice and does not replace a distribution-specific license review.

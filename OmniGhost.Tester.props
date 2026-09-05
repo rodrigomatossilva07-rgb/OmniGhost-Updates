@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <PreprocessorDefinitions>OMNIGHOST_TESTER_BUILD=1;OMNIGHOST_REQUIRE_LOCAL_LICENSE=1;OMNIGHOST_DEV_EXTERNAL_OFFSETS=1;OMNIGHOST_DEV_EXTERNAL_RESOURCES=1;OMNIGHOST_VERBOSE_OFFSET_DIAGNOSTICS=1;OMNIGHOST_VERBOSE_RESOURCE_DIAGNOSTICS=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>OMNIGHOST_TESTER_BUILD=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ResourceCompile>
+  </ItemDefinitionGroup>
+</Project>

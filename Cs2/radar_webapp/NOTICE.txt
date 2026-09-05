@@ -1,0 +1,15 @@
+# Third-party notice
+
+This directory contains the WebRadar frontend imported from the user-provided
+CS2-DMA-main.zip.
+
+Upstream project: clauadv/cs2_webradar
+
+Upstream license: GNU General Public License v3.0 (GPL-3.0)
+
+OmniGhost changes are limited to the local HTTP transport adapter, Portuguese
+localization, default display settings, and visual theme overrides. The
+OmniGhost backend remains in Cs2/cs2_radar.cpp.
+
+When distributing builds containing these files, comply with the GPL-3.0
+source and notice requirements.

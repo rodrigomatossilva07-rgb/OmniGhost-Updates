@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "resources": [
+    { "name": "GameApexBanner", "id": 401, "logicalName": "resources/games/apex/banner.png", "source": "resources/games/apex/banner.png", "type": "image", "mandatory": true },
+    { "name": "GameApexLogo", "id": 402, "logicalName": "resources/games/apex/logo.png", "source": "resources/games/apex/logo.png", "type": "image", "mandatory": true },
+    { "name": "GameCs2Banner", "id": 403, "logicalName": "resources/games/cs2/banner.png", "source": "resources/games/cs2/banner.png", "type": "image", "mandatory": true },
+    { "name": "GameCs2Logo", "id": 404, "logicalName": "resources/games/cs2/logo.png", "source": "resources/games/cs2/logo.png", "type": "image", "mandatory": true },
+    { "name": "GameFivemBanner", "id": 405, "logicalName": "resources/games/fivem/banner.png", "source": "resources/games/fivem/banner.png", "type": "image", "mandatory": true },
+    { "name": "GameFivemLogo", "id": 406, "logicalName": "resources/games/fivem/logo.png", "source": "resources/games/fivem/logo.png", "type": "image", "mandatory": true },
+    { "name": "GameFortniteBanner", "id": 407, "logicalName": "resources/games/fortnite/banner.png", "source": "resources/games/fortnite/banner.png", "type": "image", "mandatory": true },
+    { "name": "GameFortniteLogo", "id": 408, "logicalName": "resources/games/fortnite/logo.png", "source": "resources/games/fortnite/logo.png", "type": "image", "mandatory": true },
+    { "name": "GameRustBanner", "id": 409, "logicalName": "resources/games/rust/banner.png", "source": "resources/games/rust/banner.png", "type": "image", "mandatory": true },
+    { "name": "GameRustEspPreview", "id": 410, "logicalName": "resources/games/rust/esp_preview.png", "source": "resources/games/rust/esp_preview.png", "type": "image", "mandatory": true },
+    { "name": "GameRustLogo", "id": 411, "logicalName": "resources/games/rust/logo.png", "source": "resources/games/rust/logo.png", "type": "image", "mandatory": true },
+    { "name": "GameValorantBanner", "id": 412, "logicalName": "resources/games/valorant/banner.png", "source": "resources/games/valorant/banner.png", "type": "image", "mandatory": true },
+    { "name": "GameValorantLogo", "id": 413, "logicalName": "resources/games/valorant/logo.png", "source": "resources/games/valorant/logo.png", "type": "image", "mandatory": true },
+    { "name": "GameWarzoneBanner", "id": 414, "logicalName": "resources/games/warzone/banner.png", "source": "resources/games/warzone/banner.png", "type": "image", "mandatory": true },
+    { "name": "GameWarzoneLogo", "id": 415, "logicalName": "resources/games/warzone/logo.png", "source": "resources/games/warzone/logo.png", "type": "image", "mandatory": true },
+    { "name": "DmaStackVersions", "id": 416, "logicalName": "runtime/dma_stack_versions.json", "source": "third_party/dma_stack/versions.json", "type": "json", "mandatory": true }
+  ],
+  "trees": [
+    { "namePrefix": "Cs2Weapon", "idStart": 10000, "logicalPrefix": "cs2/weapons", "source": "Cs2/data/weapons", "mandatory": true },
+    { "namePrefix": "Cs2WebRadar", "idStart": 20000, "logicalPrefix": "webradar", "source": "Cs2/radar_webapp", "mandatory": true }
+  ]
+}

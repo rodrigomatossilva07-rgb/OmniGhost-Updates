@@ -1,0 +1,36 @@
+# Visual Studio and local build state
+.vs/
+.cache/
+build/
+artifacts/
+*.user
+*.suo
+*.VC.db
+*.VC.VC.opendb
+
+# Compiler and diagnostic output
+*.obj
+*.pdb
+*.ilk
+*.tlog
+*.lastbuildstate
+*.log
+
+# Local release/signing material (private keys must never enter Git)
+*.pfx
+*.p12
+*.pvk
+*.snk
+*.key
+*.pem
+*.cer.local
+secrets/
+
+# Local user/runtime state
+logs/
+config/
+cache/
+crash-dumps/
+OmniGhost-Release/
+OmniGhost.zip
+

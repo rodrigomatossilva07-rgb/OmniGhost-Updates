@@ -1,0 +1,99 @@
+{
+  "schema_version": 2,
+  "game": "warzone",
+  "build": "Steam 0x6A6D4AEF",
+  "build_note": "Re-verified 2026-08-25 against cheatoffsets Warzone pinned build (globals/decrypt_rva/camera match published dump). view_matrix kept as live-probed value not published by cheatoffsets.",
+  "module": "cod.exe",
+  "offsets": {
+    "timestamp": "0x6A6D4AEF",
+    "ref_def": "0xEB841A0",
+    "name_array": "0xED1C710",
+    "camera_base": "0xE7764E0",
+    "game_mode": "0xDD44278",
+    "weapon_definitions": "0xE96ABF0",
+    "loot_ptr": "0xFD342C8",
+    "distribute": "0xB1D3E88",
+    "lobby_data": "0xE0D8CE8",
+    "view_matrix": "0xB0EEE40",
+    "entity_list": "0xC7F68A0",
+    "max_player_count": "0xDD44278"
+  },
+  "decrypt_rva": {
+    "client_info_enc": "0xEB72B98",
+    "client_info_key": "0xD92F779",
+    "client_base_enc": "0x23CDA8",
+    "client_base_key": "0xD92F7AA",
+    "bone_enc": "0x12EC3488",
+    "bone_key": "0xD92F89D",
+    "stub_client_info": "0x3DBE51D",
+    "stub_client_base": "0x3BF9F27",
+    "stub_bone_base": "0x75A19DE"
+  },
+  "camera": {
+    "base": "0xE7764E0",
+    "pos": "0x1F4",
+    "pos_enc": "0x160",
+    "pos_key": "0x16C",
+    "angles_a": "0x1E8",
+    "angles_b": "0x200",
+    "angles_c": "0x208"
+  },
+  "local": {
+    "index": "0xB03F0",
+    "index_pos": "0x418",
+    "visible_client_bits": "0x225FC4",
+    "recoil": "0xFD11C",
+    "scoreboard": "0x1F0F8",
+    "scoreboard_size": "0x80"
+  },
+  "player": {
+    "size": "0x2808",
+    "valid": "0x13FC",
+    "pos": "0xEB0",
+    "pos_data": "0x80",
+    "team": "0xB0",
+    "stance": "0x19D0",
+    "weapon_index": "0x208",
+    "weapon_obj": "0x200",
+    "usercmd": "0x308",
+    "health": "0x600"
+  },
+  "bone": {
+    "base_pos": "0x1E86A0",
+    "size": "0x1D8",
+    "offset": "0xE0",
+    "head": "0x7",
+    "neck": "0x6",
+    "chest": "0x5",
+    "pelvis": "0x0"
+  },
+  "entity": {
+    "predictedPlayerEntity": "0x35930",
+    "size": "0x720",
+    "nextState_number": "0x1D8",
+    "nextState_eType": "0x1E0",
+    "local_pos": "0x1FC",
+    "local_valid": "0x1F0",
+    "local_size": "0x648"
+  },
+  "name_array": {
+    "ptr": "0xED1C710",
+    "pos": "0x3038",
+    "size": "0xD0",
+    "entry_name": "0x10",
+    "entry_health": "0x90",
+    "entry_alive": "0x78"
+  },
+  "loot": {
+    "ptr": "0xFD342C8",
+    "size": "0x850",
+    "pos": "0x178",
+    "valid1": "0x83C",
+    "valid2": "0x848",
+    "valid_supply": "0x849"
+  },
+  "source": "https://www.cheatoffsets.com/g/warzone",
+  "verified_utc": "2026-08-25",
+  "cl": "",
+  "generated_at": "2026-08-25"
+}

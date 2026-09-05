@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Release|x64"><Configuration>Release</Configuration><Platform>x64</Platform></ProjectConfiguration>
+    <ProjectConfiguration Include="Tester|x64"><Configuration>Tester</Configuration><Platform>x64</Platform></ProjectConfiguration>
+    <ProjectConfiguration Include="Publish|x64"><Configuration>Publish</Configuration><Platform>x64</Platform></ProjectConfiguration>
+    <ProjectConfiguration Include="PrivateStatic|x64"><Configuration>PrivateStatic</Configuration><Platform>x64</Platform></ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <ProjectGuid>{4E9E24C5-A596-43C3-A920-ADAB17083E69}</ProjectGuid>
+    <RootNamespace>OmniGhostTests</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <PlatformToolset>v145</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+    <UseDebugLibraries Condition="'$(Configuration)'=='Release'">false</UseDebugLibraries>
+    <UseDebugLibraries Condition="'$(Configuration)'=='Tester'">false</UseDebugLibraries>
+    <UseDebugLibraries Condition="'$(Configuration)'=='Publish'">false</UseDebugLibraries>
+    <UseDebugLibraries Condition="'$(Configuration)'=='PrivateStatic'">false</UseDebugLibraries>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <PropertyGroup>
+    <OutDir>$(ProjectDir)..\.cache\tests\$(Configuration)\</OutDir>
+    <IntDir>$(ProjectDir)..\.cache\tests\obj\$(Configuration)\</IntDir>
+    <TargetName>OmniGhost.Tests</TargetName>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <WarningLevel>Level4</WarningLevel>
+      <TreatWarningAsError>true</TreatWarningAsError>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <ConformanceMode>true</ConformanceMode>
+      <SDLCheck>true</SDLCheck>
+      <EnableASAN Condition="'$(OmniGhostEnableSanitizers)'=='true'">true</EnableASAN>
+      <DebugInformationFormat Condition="'$(OmniGhostEnableSanitizers)'=='true'">ProgramDatabase</DebugInformationFormat>
+      <BasicRuntimeChecks Condition="'$(OmniGhostEnableSanitizers)'=='true'">Default</BasicRuntimeChecks>
+      <SupportJustMyCode Condition="'$(OmniGhostEnableSanitizers)'=='true'">false</SupportJustMyCode>
+      <PreprocessorDefinitions>WIN32_LEAN_AND_MEAN;NOMINMAX;OMNIGHOST_TESTING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)..;$(ProjectDir)..\src;$(ProjectDir)..\resources;$(ProjectDir)..\.cache\generated\$(Configuration);$(ProjectDir)..\.cache\generated;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalOptions>/utf-8 /permissive- /Zc:__cplusplus %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <Link><SubSystem>Console</SubSystem><AdditionalDependencies>bcrypt.lib;crypt32.lib;advapi32.lib;shell32.lib;ole32.lib;%(AdditionalDependencies)</AdditionalDependencies></Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="test_main.cpp" />
+    <ClCompile Include="..\src\auth\keyauth_gateway.cpp" />
+    <ClCompile Include="..\src\auth\local_auth_service.cpp" />
+    <ClCompile Include="..\src\config\app_settings.cpp" />
+    <ClCompile Include="session_log_stub.cpp" />
+    <ClCompile Include="..\src\updater\json.cpp" />
+    <ClCompile Include="..\src\updater\manifest.cpp" />
+    <ClCompile Include="..\src\updater\version_comparer.cpp" />
+    <ClCompile Include="..\src\updater\http_policy.cpp" />
+    <ClCompile Include="..\src\launcher\update_time_utils.cpp" />
+    <ClCompile Include="..\src\updater\install_engine.cpp" />
+    <ClCompile Include="..\src\platform\app_paths.cpp" />
+    <ClCompile Include="..\src\platform\radar_access.cpp" />
+    <ClCompile Include="..\src\platform\embedded_offsets.cpp" />
+    <ClCompile Include="..\src\platform\embedded_resources.cpp" />
+    <ClCompile Include="..\src\platform\shutdown_coordinator.cpp" />
+  </ItemGroup>
+  <Target Name="BuildOmniGhostEmbeddedResourcesForTests" BeforeTargets="ClCompile">
+    <Exec Command="&quot;$(ProjectDir)..\tools\Run-OmniGhostPowerShell.cmd&quot; generate-embedded-resources &quot;$(ProjectDir)..&quot; &quot;$(Configuration)&quot;" />
+  </Target>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

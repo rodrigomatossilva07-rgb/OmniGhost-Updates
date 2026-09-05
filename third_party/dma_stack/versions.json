@@ -1,0 +1,25 @@
+{
+  "updated_at": "2026-08-21T16:08:48.682347Z",
+  "architecture": "win-x64",
+  "source": "source-package-recovery-from-libs",
+  "compatibility": "PROJECT_USED_IMPORTS_VERIFIED_AGAINST_RECOVERED_RUNTIME_EXPORTS",
+  "memprocfs": {
+    "asset": "MemProcFS_files_and_binaries-win_x64-latest",
+    "detected_version": "5.17.9.238",
+    "sha256": {
+      "vmm.dll": "0b20899956b399b1153ae1af90d5fac6861b69f4fb91360276d54ab55c4a8942",
+      "vmm.lib": "b8b045f7042360fb0f9f38eab90671b24f6a25a2b9c05494bd0254b715eab875",
+      "vmmdll.h": "8a0736d4f050b75503809113c37033b6ea70586c58be7ad7d88993ae85bbc3c1"
+    }
+  },
+  "leechcore": {
+    "asset": "LeechCore_files_and_binaries_v2.23.3-win_x64-20260816",
+    "detected_version": "2.22.12.98",
+    "header_source": "LeechCore standalone package",
+    "sha256": {
+      "leechcore.dll": "187cf9bd0a190260300527dcd22725d3c59782163a464f5578390b123eec4918",
+      "leechcore.lib": "de1259b698736a83c13f9731f7b823278e0b35df648f5a17552ae6490fb9b562",
+      "leechcore.h": "d3dd1553cd3dc57e620722e6d4456e9aaa819a97066119c921db43aac1c3f6e3"
+    }
+  }
+}

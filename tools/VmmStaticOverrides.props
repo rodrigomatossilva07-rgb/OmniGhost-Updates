@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!-- PRIVATE DEVELOPMENT BUILD - NOT FOR DISTRIBUTION -->
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <PreprocessorDefinitions>VMMDLL_STATIC;LEECHCORE_STATIC;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory)..\third_party\upstream\MemProcFS-v5.17\vmm;$(MSBuildThisFileDirectory)..\third_party\upstream\MemProcFS-v5.17\includes;$(MSBuildThisFileDirectory)..\third_party\upstream\LeechCore-v2.23\includes;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <PreBuildEvent>
+      <Command></Command>
+    </PreBuildEvent>
+    <PostBuildEvent>
+      <Command></Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+</Project>

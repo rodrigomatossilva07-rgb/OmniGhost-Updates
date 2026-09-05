@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "process": "VALORANT-Win64-Shipping.exe",
+  "note": "Seed offsets from public UE/Valorant layouts. Refresh after each patch. UWorld may require decrypt.",
+  "uworld_state": "0x8C8A640",
+  "persistent_level": "0x38",
+  "owning_game_instance": "0x1A0",
+  "local_players": "0x40",
+  "player_controller": "0x38",
+  "acknowledged_pawn": "0x460",
+  "player_camera": "0x478",
+  "root_component": "0x230",
+  "relative_location": "0x164",
+  "current_mesh": "0x430",
+  "damage_handler": "0xA10",
+  "current_health": "0x1B0",
+  "team_component": "0x628",
+  "team_id": "0xF8",
+  "actor_array": "0xA0",
+  "camera_cache": "0x510"
+}

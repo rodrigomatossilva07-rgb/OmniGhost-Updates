@@ -1,0 +1,55 @@
+#include "resource.h"
+#include "embedded_offsets.rc2"
+#include "embedded_runtime.rc2"
+#include "embedded_resources.rc2"
+
+IDI_OMNIGHOST_ICON ICON "OmniGhost.ico"
+1 24 "app.manifest"
+
+#ifndef OMNIGHOST_VERSION_MAJOR
+#define OMNIGHOST_VERSION_MAJOR 3
+#define OMNIGHOST_VERSION_MINOR 3
+#define OMNIGHOST_VERSION_PATCH 9
+#define OMNIGHOST_VERSION_REVISION 0
+#endif
+#define OMNIGHOST_STRINGIZE_INNER(value) #value
+#define OMNIGHOST_STRINGIZE(value) OMNIGHOST_STRINGIZE_INNER(value)
+#define OMNIGHOST_VERSION_TEXT OMNIGHOST_STRINGIZE(OMNIGHOST_VERSION_MAJOR) "." OMNIGHOST_STRINGIZE(OMNIGHOST_VERSION_MINOR) "." OMNIGHOST_STRINGIZE(OMNIGHOST_VERSION_PATCH)
+
+1 VERSIONINFO
+ FILEVERSION OMNIGHOST_VERSION_MAJOR,OMNIGHOST_VERSION_MINOR,OMNIGHOST_VERSION_PATCH,OMNIGHOST_VERSION_REVISION
+ PRODUCTVERSION OMNIGHOST_VERSION_MAJOR,OMNIGHOST_VERSION_MINOR,OMNIGHOST_VERSION_PATCH,OMNIGHOST_VERSION_REVISION
+ FILEFLAGSMASK 0x3fL
+#ifdef _DEBUG
+ FILEFLAGS 0x1L
+#else
+ FILEFLAGS 0x0L
+#endif
+ FILEOS 0x40004L
+ FILETYPE 0x1L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904b0"
+        BEGIN
+            VALUE "CompanyName", "OmniGhost\0"
+#if defined(OMNIGHOST_TESTER_BUILD)
+            VALUE "FileDescription", "OmniGhost Launcher - Tester\0"
+#elif defined(OMNIGHOST_PUBLISH_BUILD)
+            VALUE "FileDescription", "OmniGhost Launcher - Customer Publish\0"
+#else
+            VALUE "FileDescription", "OmniGhost Launcher\0"
+#endif
+            VALUE "FileVersion", OMNIGHOST_VERSION_TEXT "\0"
+            VALUE "InternalName", "OmniGhost.exe\0"
+            VALUE "OriginalFilename", "OmniGhost.exe\0"
+            VALUE "ProductName", "OmniGhost\0"
+            VALUE "ProductVersion", OMNIGHOST_VERSION_TEXT "\0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END

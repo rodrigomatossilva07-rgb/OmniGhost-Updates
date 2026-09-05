@@ -1,0 +1,264 @@
+{
+  "schema_version": 1,
+  "game": "fortnite",
+  "build": "cheatoffsets-current",
+  "cl": "",
+  "module": "FortniteClient-Win64-Shipping.exe",
+  "source": "https://www.cheatoffsets.com/g/fortnite (user full paste 2026-08-27)",
+  "generated_at": "2026-08-27",
+  "note": "GWorld is ENCODED. Use decrypt_world: rotl64(encoded - 25199075, 13) ^ 0x30A8E859. Fallback: GEngine -> GameViewport -> World.",
+  "globals": {
+    "GWorld": "0x1A73C8B0",
+    "GEngine": "0x1A73E298",
+    "GNames": "0x1A5EF440",
+    "ProcessEvent": "0x00133316",
+    "g_objects": "0x1A5E2DC8",
+    "g_objects_count": "0x1A5E2DD8"
+  },
+  "gworld_crypto": {
+    "rva": "0x1A73C8B0",
+    "sub": "0x01807C63",
+    "sub_decimal": "0x18081E3",
+    "rol_amt": "0xD",
+    "xor_key": "0x30A8E859",
+    "encoded": true
+  },
+  "gobjects_crypto": {
+    "g_objects": "0x1A5E2DC8",
+    "g_objects_count": "0x1A5E2DD8",
+    "sub32": "0x1796CAA",
+    "rol32_amt": "0x1D",
+    "count_xor": "0xC2686E42",
+    "ptr_xor": "0xFF8C3AB7",
+    "sub64": "0x1AB923C",
+    "rol64_amt": "0x10",
+    "table_xor": "0x7B98734C",
+    "chunk_stride": "0x8",
+    "item_stride": "0x18",
+    "item_flags_mask": "0x1020000000000000",
+    "high_bits_mask": "0x3FFF00000000",
+    "ptr_shift": "0x3"
+  },
+  "World": {
+    "PersistentLevel": "0x38",
+    "NetDriver": "0x40",
+    "GameState": "0x1C8",
+    "Levels": "0x1E0",
+    "OwningGameInstance": "0x240"
+  },
+  "ULevel": {
+    "OwningWorld": "0xC8",
+    "ActorCluster": "0xE8",
+    "WorldSettings": "0x2C0"
+  },
+  "ULevelActorContainer": {
+    "Actors": "0x28"
+  },
+  "GameInstance": {
+    "LocalPlayers": "0x38"
+  },
+  "LocalPlayer": {
+    "ViewportClient": "0x78",
+    "ControllerId": "0xE8"
+  },
+  "Player": {
+    "PlayerController": "0x30"
+  },
+  "Engine": {
+    "GWorld": "0x1A73C8B0",
+    "GEngine": "0x1A73E298",
+    "GNames": "0x1A5EF440",
+    "ProcessEvent": "0x00133316",
+    "GameViewport": "0xB70"
+  },
+  "GameViewportClient": {
+    "World": "0x78",
+    "GameInstance": "0x80"
+  },
+  "PlayerController": {
+    "Player": "0x310",
+    "AcknowledgedPawn": "0x318",
+    "MyHUD": "0x320",
+    "PlayerCameraManager": "0x328"
+  },
+  "Controller": {
+    "PlayerState": "0x278",
+    "Pawn": "0x2B0",
+    "Character": "0x2C0",
+    "ControlRotation": "0x2E8"
+  },
+  "Pawn": {
+    "PlayerState": "0x290",
+    "Controller": "0x2A0"
+  },
+  "Character": {
+    "Mesh": "0x2F0",
+    "CharacterMovement": "0x2F8",
+    "CapsuleComponent": "0x300",
+    "CrouchedEyeHeight": "0x42C"
+  },
+  "Actor": {
+    "RootComponent": "0x1B0",
+    "Owner": "0x158",
+    "Instigator": "0x198",
+    "ReplicatedMovement": "0xD0",
+    "CustomTimeDilation": "0x68"
+  },
+  "SceneComponent": {
+    "RelativeLocation": "0x140",
+    "RelativeRotation": "0x158",
+    "RelativeScale3D": "0x170",
+    "ComponentVelocity": "0x188",
+    "AttachParent": "0xD0"
+  },
+  "PlayerCameraManager": {
+    "DefaultFOV": "0x284",
+    "ViewPitchMin": "0x28AC",
+    "ViewPitchMax": "0x28B0",
+    "ViewTarget": "0x300",
+    "CameraCachePrivate": "0x1590"
+  },
+  "PlayerState": {
+    "PlayerNamePrivate": "0x308",
+    "PlayerID": "0x274",
+    "CompressedPing": "0x278",
+    "Score": "0x270",
+    "PawnPrivate": "0x2E8",
+    "UniqueID": "0x280"
+  },
+  "GameStateBase": {
+    "PlayerArray": "0x288",
+    "GameModeClass": "0x270",
+    "ReplicatedWorldTimeSecondsDouble": "0x2A0",
+    "SpectatorClass": "0x280"
+  },
+  "FortPawn": {
+    "CurrentWeapon": "0x998",
+    "PreviousWeapon": "0x9C8",
+    "bIsJumping": "0x990",
+    "CurrentWeaponList": "0x9D0"
+  },
+  "FortPlayerStateAthena": {
+    "TeamIndex": "0xF31",
+    "SquadId": "0x108C",
+    "KillScore": "0xF48",
+    "Place": "0xF40",
+    "bIsDisconnected": "0x13FA"
+  },
+  "FortWeapon": {
+    "bIsReloadingWeapon": "0x371",
+    "bIsEquippingWeapon": "0x358",
+    "bIsChargingWeapon": "0x370",
+    "WeaponData": "0x630",
+    "AmmoCount": "0x1114"
+  },
+  "FortPickup": {
+    "PrimaryPickupItemEntry": "0x368"
+  },
+  "SkeletalMeshComponent": {
+    "AnimScriptInstance": "0x8F8"
+  },
+  "CharacterMovementComponent": {
+    "LastUpdateVelocity": "0x378",
+    "MaxWalkSpeed": "0x278",
+    "JumpZVelocity": "0x1A8",
+    "MovementMode": "0x231",
+    "GravityScale": "0x1A0"
+  },
+  "MovementComponent": {
+    "Velocity": "0xD8"
+  },
+  "FMinimalViewInfo": {
+    "Location": "0x0",
+    "Rotation": "0x18",
+    "FOV": "0x30",
+    "DesiredFOV": "0x34"
+  },
+  "FTViewTarget": {
+    "Target": "0x0",
+    "POV": "0x10"
+  },
+  "fn_esp_quick": {
+    "UWorld_PersistentLevel": "0x38",
+    "UWorld_GameState": "0x1C8",
+    "UWorld_OwningGameInstance": "0x240",
+    "UWorld_Levels": "0x1E0",
+    "UWorld_NetDriver": "0x40",
+    "ULevel_ActorCluster": "0xE8",
+    "ULevel_OwningWorld": "0xC8",
+    "ULevel_WorldSettings": "0x2C0",
+    "ULevelActorContainer_Actors": "0x28",
+    "UGameInstance_LocalPlayers": "0x38",
+    "UPlayer_PlayerController": "0x30",
+    "ULocalPlayer_ViewportClient": "0x78",
+    "ULocalPlayer_ControllerId": "0xE8",
+    "AActor_RootComponent": "0x1B0",
+    "AActor_Owner": "0x158",
+    "AActor_Instigator": "0x198",
+    "AActor_ReplicatedMovement": "0xD0",
+    "AActor_CustomTimeDilation": "0x68",
+    "APlayerController_Player": "0x310",
+    "APlayerController_AcknowledgedPawn": "0x318",
+    "APlayerController_PlayerCameraManager": "0x328",
+    "APlayerController_MyHUD": "0x320",
+    "AController_PlayerState": "0x278",
+    "AController_Pawn": "0x2B0",
+    "AController_Character": "0x2C0",
+    "AController_ControlRotation": "0x2E8",
+    "APawn_PlayerState": "0x290",
+    "APawn_Controller": "0x2A0",
+    "ACharacter_Mesh": "0x2F0",
+    "ACharacter_CharacterMovement": "0x2F8",
+    "ACharacter_CapsuleComponent": "0x300",
+    "ACharacter_BasedMovement": "0x308",
+    "ACharacter_CrouchedEyeHeight": "0x42C",
+    "USceneComponent_RelativeLocation": "0x140",
+    "USceneComponent_RelativeRotation": "0x158",
+    "USceneComponent_RelativeScale3D": "0x170",
+    "USceneComponent_ComponentVelocity": "0x188",
+    "USceneComponent_AttachParent": "0xD0",
+    "APlayerCameraManager_DefaultFOV": "0x284",
+    "APlayerCameraManager_ViewPitchMin": "0x28AC",
+    "APlayerCameraManager_ViewPitchMax": "0x28B0",
+    "APlayerCameraManager_ViewTarget": "0x300",
+    "APlayerCameraManager_CameraCachePrivate": "0x1590",
+    "APlayerState_PlayerNamePrivate": "0x308",
+    "APlayerState_PlayerID": "0x274",
+    "APlayerState_CompressedPing": "0x278",
+    "APlayerState_Score": "0x270",
+    "APlayerState_PawnPrivate": "0x2E8",
+    "APlayerState_UniqueID": "0x280",
+    "AGameStateBase_PlayerArray": "0x288",
+    "AGameStateBase_GameModeClass": "0x270",
+    "AGameStateBase_ReplicatedWorldTimeSecondsDouble": "0x2A0",
+    "AGameStateBase_SpectatorClass": "0x280",
+    "AFortPawn_CurrentWeapon": "0x998",
+    "AFortPawn_PreviousWeapon": "0x9C8",
+    "AFortPawn_bIsJumping": "0x990",
+    "AFortPawn_CurrentWeaponList": "0x9D0",
+    "AFortPlayerStateAthena_TeamIndex": "0xF31",
+    "AFortPlayerStateAthena_SquadId": "0x108C",
+    "AFortPlayerStateAthena_KillScore": "0xF48",
+    "AFortPlayerStateAthena_Place": "0xF40",
+    "AFortPlayerStateAthena_bIsDisconnected": "0x13FA",
+    "AFortWeapon_bIsReloadingWeapon": "0x371",
+    "AFortWeapon_bIsEquippingWeapon": "0x358",
+    "AFortWeapon_bIsChargingWeapon": "0x370",
+    "AFortWeapon_WeaponData": "0x630",
+    "AFortWeapon_AmmoCount": "0x1114",
+    "AFortPickup_PrimaryPickupItemEntry": "0x368",
+    "USkeletalMeshComponent_AnimScriptInstance": "0x8F8",
+    "UMovementComponent_Velocity": "0xD8",
+    "UCharacterMovementComponent_LastUpdateVelocity": "0x378",
+    "UCharacterMovementComponent_MaxWalkSpeed": "0x278",
+    "UCharacterMovementComponent_JumpZVelocity": "0x1A8",
+    "UCharacterMovementComponent_MovementMode": "0x231",
+    "UCharacterMovementComponent_GravityScale": "0x1A0",
+    "FMinimalViewInfo_Location": "0x0",
+    "FMinimalViewInfo_Rotation": "0x18",
+    "FMinimalViewInfo_FOV": "0x30",
+    "FMinimalViewInfo_DesiredFOV": "0x34",
+    "FTViewTarget_Target": "0x0",
+    "FTViewTarget_POV": "0x10"
+  }
+}

@@ -1,0 +1,81 @@
+/*
+ * OmniGhost theme overrides for the GPL-3.0 WebRadar frontend.
+ */
+
+:root {
+	--omnighost-gold: #d4af37;
+	--omnighost-panel: rgba(16, 16, 20, 0.96);
+}
+
+body {
+	background:
+		radial-gradient(circle at 50% 35%, rgba(212, 175, 55, 0.08), transparent 42%),
+		#050506;
+}
+
+.settings-toggle {
+	color: var(--omnighost-gold);
+	border: 1px solid rgba(212, 175, 55, 0.28);
+	background: rgba(16, 16, 20, 0.92);
+}
+
+.settings-toggle:hover {
+	color: #f1d675;
+	border-color: rgba(212, 175, 55, 0.65);
+	background: rgba(26, 24, 18, 0.96);
+}
+
+.settings-panel {
+	background: var(--omnighost-panel);
+	border: 1px solid rgba(212, 175, 55, 0.25);
+	box-shadow: 0 12px 35px rgba(0, 0, 0, 0.62);
+}
+
+.settings-header {
+	border-bottom-color: rgba(212, 175, 55, 0.32);
+}
+
+.conn-status {
+	border-color: rgba(212, 175, 55, 0.28);
+	background: rgba(16, 16, 20, 0.88);
+}
+
+/* Any player dot */
+div.dot {}
+
+/* Players that are CT or T */
+div.dot.CT {}
+div.dot.T {}
+
+/* The player with the bomb */
+div.dot.bomb{}
+
+/* The player currently being observed */
+div.dot.active {}
+
+/* A dead player */
+div.dot.dead {}
+
+/* The number on a player dot */
+div.label {}
+
+/* The number on the dot being spectated */
+div.label.active {}
+
+/* Damage indecator behind the player dot */
+div.dot::before {}
+
+/* Muzzle flash in fromt of the the player dot */
+div.dot::after {}
+
+/* The dropped or planted bomb on the map */
+#bomb {}
+
+/* Smoke circles on the map */
+#smokes > div {}
+
+/* Inferno circles on the map */
+.inferno > div {}
+
+/* The advisory on screen */
+#advisory {}

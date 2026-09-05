@@ -1,0 +1,154 @@
+[CmdletBinding()]
+param(
+    [Parameter(Mandatory=$true)]
+    [string]$ProjectDir,
+    [string]$VcToolsRedistDir = '',
+    [string]$Configuration = 'Release'
+)
+
+$ErrorActionPreference = 'Stop'
+Set-StrictMode -Version Latest
+$ProjectDir = [IO.Path]::GetFullPath($ProjectDir)
+$Configuration = ($Configuration -replace '[^A-Za-z0-9_.-]', '_')
+$privateStatic = $Configuration -ieq 'PrivateStatic' -or $Configuration -ieq 'Publish'
+$GeneratedDir = Join-Path $ProjectDir ".cache\generated\$Configuration"
+$RcOutput = Join-Path $GeneratedDir 'embedded_runtime.rc2'
+$HeaderOutput = Join-Path $GeneratedDir 'embedded_runtime_manifest.h'
+New-Item -ItemType Directory -Path $GeneratedDir -Force | Out-Null
+
+function Acquire-GeneratorLock([string]$Name) {
+    $lockPath = Join-Path $GeneratedDir (".$Name.lock")
+    $deadline = [DateTime]::UtcNow.AddMinutes(5)
+    while ([DateTime]::UtcNow -lt $deadline) {
+        try { return [IO.File]::Open($lockPath, 'OpenOrCreate', 'ReadWrite', 'None') }
+        catch [IO.IOException] { Start-Sleep -Milliseconds 100 }
+    }
+    throw "Timed out waiting for embedded generator lock: $Name"
+}
+$generatorLock = Acquire-GeneratorLock 'runtime'
+
+$files = @{}
+function Get-Sha256Hex([string]$Path) {
+    $stream = [IO.File]::OpenRead($Path)
+    try {
+        $sha = [Security.Cryptography.SHA256]::Create()
+        try { return ([BitConverter]::ToString($sha.ComputeHash($stream))).Replace('-','') }
+        finally { $sha.Dispose() }
+    }
+    finally { $stream.Dispose() }
+}
+function Add-RuntimeFile([string]$Source, [string]$Relative) {
+    if (-not (Test-Path -LiteralPath $Source -PathType Leaf)) { return }
+    $relativePath = $Relative.Replace('\','/').TrimStart('/')
+    if ([string]::IsNullOrWhiteSpace($relativePath) -or $relativePath.Contains('../')) {
+        throw "Invalid embedded runtime path: $Relative"
+    }
+    # LeechCore 2.23 prefers FTD3XXWU.dll and only retries FTD3XX.dll as a
+    # legacy fallback. The recovered project bundle contains the exact same
+    # signed binary under both names, so embedding both only materializes a
+    # byte-for-byte duplicate and cannot provide a distinct fallback.
+    if ($relativePath -ieq 'libs/FTD3XX.dll') { return }
+    # MemProcFS supports pdbcrust as its local PDB backend. Shipping the private
+    # Microsoft dbghelp/symsrv pair as well only duplicates the same optional
+    # capability; crash dumps use the Windows System32 dbghelp explicitly.
+    if ($relativePath -ieq 'libs/dbghelp.dll') { return }
+    if ($relativePath -ieq 'libs/symsrv.dll') { return }
+    # In the explicitly private prototype these two libraries are linked from
+    # their preserved upstream source trees. Do not leave dead DLL resources in
+    # the PE and do not materialize them at runtime.
+    if ($privateStatic -and $relativePath -ieq 'libs/vmm.dll') { return }
+    if ($privateStatic -and $relativePath -ieq 'libs/leechcore.dll') { return }
+    $files[$relativePath.ToLowerInvariant()] = [pscustomobject]@{
+        Source = [IO.Path]::GetFullPath($Source)
+        Relative = $relativePath
+    }
+}
+function Add-RuntimeTree([string]$Root, [string]$Prefix, [scriptblock]$Include = $null) {
+    if (-not (Test-Path -LiteralPath $Root -PathType Container)) { return }
+    $rootFull = [IO.Path]::GetFullPath($Root).TrimEnd('\')
+    foreach ($file in Get-ChildItem -LiteralPath $rootFull -Recurse -File | Sort-Object FullName) {
+        $relative = $file.FullName.Substring($rootFull.Length).TrimStart('\','/')
+        if ($null -ne $Include -and -not (& $Include $file $relative)) { continue }
+        Add-RuntimeFile $file.FullName ((Join-Path $Prefix $relative).Replace('\','/'))
+    }
+}
+
+# Local fallback first; authoritative DMA/custom copies replace duplicate names.
+foreach ($file in Get-ChildItem -LiteralPath (Join-Path $ProjectDir 'libs') -File -Filter '*.dll') {
+    Add-RuntimeFile $file.FullName ("libs/" + $file.Name)
+}
+foreach ($file in Get-ChildItem -LiteralPath (Join-Path $ProjectDir 'third_party\dma_stack\bin') -File -Filter '*.dll') {
+    Add-RuntimeFile $file.FullName ("libs/" + $file.Name)
+}
+foreach ($file in Get-ChildItem -LiteralPath (Join-Path $ProjectDir 'runtime\own') -File -Filter '*.dll') {
+    Add-RuntimeFile $file.FullName ("libs/" + $file.Name)
+}
+# The current pinned vmm.dll, leechcore.dll and pdbcrust.dll import only
+# VCRUNTIME140.dll from the private Microsoft VC runtime. Do not embed the
+# complete redistributable directory: msvcp/concrt/vccorlib and the auxiliary
+# vcruntime variants are not in the dependency closure of any bundled binary.
+# Keep this allow-list deliberately explicit so a dependency update cannot
+# silently grow the customer runtime again; Validate-Project.ps1/import-table
+# checks must be updated together when the pinned binaries change.
+if (-not [string]::IsNullOrWhiteSpace($VcToolsRedistDir) -and
+    (Test-Path -LiteralPath $VcToolsRedistDir -PathType Container)) {
+    $crt = Get-ChildItem -LiteralPath $VcToolsRedistDir -Directory -Filter 'Microsoft.VC*.CRT' -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+    if ($null -ne $crt) {
+        $vcruntime = Join-Path $crt.FullName 'vcruntime140.dll'
+        if (-not (Test-Path -LiteralPath $vcruntime -PathType Leaf)) {
+            throw 'vcruntime140.dll x64 não foi encontrado no redistributable do MSVC.'
+        }
+        Add-RuntimeFile $vcruntime 'libs/vcruntime140.dll'
+    }
+}
+$cloudflared = Join-Path $ProjectDir 'third_party\cloudflared\cloudflared.exe'
+if (-not (Test-Path -LiteralPath $cloudflared -PathType Leaf)) {
+    throw 'cloudflared.exe canónico em third_party\cloudflared está em falta.'
+}
+$expectedCloudflaredSha256 = 'C29EEE2B121F5436A642EED69FD9767DA7E7B8C510FA50AAA130337F931357B5'
+if ((Get-Sha256Hex $cloudflared) -cne $expectedCloudflaredSha256) {
+    throw 'cloudflared.exe não corresponde ao binário Cloudflare 2026.8.2 aprovado.'
+}
+Add-RuntimeFile $cloudflared 'libs/cloudflared.exe'
+# Only native DLLs and the selected pdbcrust symbol backend are materialized.
+# OmniGhost builds VMM with -disable-infodb, so info.db is not part of the bundle.
+# Windows cannot load ordinary DLL imports or execute cloudflared from RCDATA.
+# Product data, plug-in scripts and UI resources are deliberately not extracted.
+
+$ordered = @($files.Values | Sort-Object Relative)
+if ($ordered.Count -eq 0) { throw 'No files were selected for the embedded runtime bundle.' }
+
+$rcLines = New-Object System.Collections.Generic.List[string]
+$headerLines = New-Object System.Collections.Generic.List[string]
+$headerLines.Add('#pragma once')
+$headerLines.Add('#include <array>')
+$headerLines.Add('#include <cstddef>')
+$headerLines.Add('#include <cstdint>')
+$headerLines.Add('namespace OmniGhost::EmbeddedRuntimeGenerated {')
+$headerLines.Add('struct Entry { std::uint16_t resourceId; const wchar_t* relativePath; std::uint64_t size; std::array<std::uint8_t, 32> sha256; };')
+$headerLines.Add("inline constexpr std::array<Entry, $($ordered.Count)> kEntries = {{")
+
+$id = 1000
+$total = [uint64]0
+foreach ($entry in $ordered) {
+    $id++
+    $item = Get-Item -LiteralPath $entry.Source
+    $hash = Get-Sha256Hex $entry.Source
+    $bytes = for ($i=0; $i -lt 64; $i+=2) { '0x' + $hash.Substring($i,2) }
+    $escapedSource = $entry.Source.Replace('\','\\').Replace('"','\"')
+    $escapedRelative = $entry.Relative.Replace('\','/').Replace('"','\"')
+    $rcLines.Add("$id RCDATA `"$escapedSource`"")
+    $headerLines.Add("    Entry{$id, L`"$escapedRelative`", $($item.Length)ull, {$($bytes -join ',')}} ,")
+    $total += [uint64]$item.Length
+}
+$headerLines.Add('}};')
+$headerLines.Add('} // namespace OmniGhost::EmbeddedRuntimeGenerated')
+
+[IO.File]::WriteAllLines($RcOutput, $rcLines, (New-Object Text.UTF8Encoding($false)))
+[IO.File]::WriteAllLines($HeaderOutput, $headerLines, (New-Object Text.UTF8Encoding($false)))
+Write-Host "[EmbeddedRuntime] files=$($ordered.Count) bytes=$total"
+Write-Host "[EmbeddedRuntime] configuration=$Configuration private_static=$privateStatic"
+Write-Host "[EmbeddedRuntime] RC include: $RcOutput"
+Write-Host "[EmbeddedRuntime] manifest: $HeaderOutput"
+$generatorLock.Dispose()

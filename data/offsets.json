@@ -1,0 +1,29 @@
+{
+  "source": "https://www.cheatoffsets.com/g/cs2",
+  "version": "24701871",
+  "updated_utc": "2026-08-23",
+  "note": "Normalized from cheatoffsets API markdown for OmniGhost loader",
+  "client.dll": {
+    "dwEntityList": "0x2554050",
+    "dwLocalPlayerPawn": "0x23A9118",
+    "dwLocalPlayerController": "0x2383DB0",
+    "dwViewMatrix": "0x23AE550",
+    "dwViewAngles": "0x23BF1A8",
+    "dwGlobalVars": "0x2094D38",
+    "dwPlantedC4": "0x2373898",
+    "dwGameRules": "0x23A8BD8",
+    "dwGlowManager": "0x23A5908",
+    "dwCSGOInput": "0x23BEB20",
+    "dwSensitivity": "0x23A6428"
+  },
+  "engine2.dll": {
+    "dwBuildNumber": "0x60F594",
+    "dwNetworkGameClient": "0x90D490"
+  },
+  "schema_version": 1,
+  "game": "cs2",
+  "build": "24701871",
+  "cl": "",
+  "module": "client.dll",
+  "generated_at": "2026-08-23"
+}
