@@ -41,7 +41,7 @@
       <SupportJustMyCode Condition="'$(OmniGhostEnableSanitizers)'=='true'">false</SupportJustMyCode>
       <PreprocessorDefinitions>WIN32_LEAN_AND_MEAN;NOMINMAX;OMNIGHOST_TESTING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(ProjectDir)..;$(ProjectDir)..\src;$(ProjectDir)..\resources;$(ProjectDir)..\.cache\generated\$(Configuration);$(ProjectDir)..\.cache\generated;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <AdditionalOptions>/utf-8 /permissive- /Zc:__cplusplus %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/utf-8 /permissive- /Zc:__cplusplus /FS %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link><SubSystem>Console</SubSystem><AdditionalDependencies>bcrypt.lib;crypt32.lib;advapi32.lib;shell32.lib;ole32.lib;%(AdditionalDependencies)</AdditionalDependencies></Link>
   </ItemDefinitionGroup>
