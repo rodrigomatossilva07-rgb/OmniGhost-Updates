@@ -478,8 +478,10 @@ void LogRuntimeDirectoryContents() noexcept {
                 files.emplace_back(rel.string(), size);
                 totalSize += size;
             }
-        }
-    } catch (...) {}
+}
+    } catch (...) {
+        // Empty catch is intentional - we just skip invalid entries
+    }
 
     OmniGhost::SessionLog::Write(
         OmniGhost::SessionLog::Severity::Info,
