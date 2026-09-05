@@ -39,8 +39,10 @@ std::string RedactLogMessage(std::string message) {
             message,
             std::regex(R"(([?&](?:token|access_token|api_key|apikey|key|password|passwd|pwd)=)[^&#\s]+)", std::regex::icase),
             "$1<redacted>");
+    } catch (const std::exception& ex) {
+        std::cerr << "[Updater] UpdateLog: Redaction regex failed: " << ex.what() << "\n";
     } catch (...) {
-        // Logging must never fail solely because a defensive redaction regex failed.
+        std::cerr << "[Updater] UpdateLog: Redaction regex failed with unknown exception\n";
     }
     return message;
 }

@@ -550,8 +550,10 @@ std::string RedactForSupport(std::string_view input) {
         text = std::regex_replace(text,
             std::regex(R"((\"(?:password|passwd|pwd|token|access_token|refresh_token|api_key|apikey|license|licence|license_key|licence_key)\"\s*:\s*\")[^\"]*(\"))", std::regex::icase),
             "$1<redacted>$2");
+    } catch (const std::exception& ex) {
+        std::cerr << "[SessionLog] Redaction regex failed: " << ex.what() << "\n";
     } catch (...) {
-        // Redaction must never make logging fail.
+        std::cerr << "[SessionLog] Redaction regex failed with unknown exception\n";
     }
     return text;
 }

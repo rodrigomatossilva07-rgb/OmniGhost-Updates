@@ -71,8 +71,10 @@ public:
         if (!shutdown_) return;
         try {
             shutdown_();
+        } catch (const std::exception& ex) {
+            lastError_ = { OmniGhost::Launcher::AdapterErrorCode::InitializationFailed, "shutdown threw: " + std::string(ex.what()) };
         } catch (...) {
-            lastError_ = { OmniGhost::Launcher::AdapterErrorCode::InitializationFailed, "shutdown threw" };
+            lastError_ = { OmniGhost::Launcher::AdapterErrorCode::InitializationFailed, "shutdown threw unknown exception" };
         }
         attached_ = false;
     }

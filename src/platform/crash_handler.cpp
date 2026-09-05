@@ -88,8 +88,12 @@ void PruneCrashDumps() noexcept {
             fs::remove(entries[i].path, error);
             error.clear();
         }
+    } catch (const std::exception& ex) {
+        OutputDebugStringW(L"[OmniGhost CrashHandler] Falha ao limpar dumps antigos: ");
+        OutputDebugStringA(ex.what());
+        OutputDebugStringW(L"\n");
     } catch (...) {
-        OutputDebugStringW(L"[OmniGhost CrashHandler] Falha ao limpar dumps antigos.\n");
+        OutputDebugStringW(L"[OmniGhost CrashHandler] Falha ao limpar dumps antigos: exceção não identificada.\n");
     }
 }
 
@@ -116,7 +120,13 @@ bool WriteMarker(bool startupComplete) noexcept {
             return false;
         }
         return true;
+    } catch (const std::exception& ex) {
+        OutputDebugStringA("[OmniGhost CrashHandler] WriteMarker failed: ");
+        OutputDebugStringA(ex.what());
+        OutputDebugStringA("\n");
+        return false;
     } catch (...) {
+        OutputDebugStringW(L"[OmniGhost CrashHandler] WriteMarker failed: exceção não identificada.\n");
         return false;
     }
 }
@@ -132,7 +142,13 @@ PreviousRunState ReadPreviousMarker() noexcept {
                 return PreviousRunState::RuntimeInterrupted;
         }
         return PreviousRunState::StartupInterrupted;
+    } catch (const std::exception& ex) {
+        OutputDebugStringA("[OmniGhost CrashHandler] ReadPreviousMarker failed: ");
+        OutputDebugStringA(ex.what());
+        OutputDebugStringA("\n");
+        return PreviousRunState::Clean;
     } catch (...) {
+        OutputDebugStringW(L"[OmniGhost CrashHandler] ReadPreviousMarker failed: exceção não identificada.\n");
         return PreviousRunState::Clean;
     }
 }
@@ -201,7 +217,13 @@ bool WriteMiniDump(EXCEPTION_POINTERS* exceptionPointers) noexcept {
         if (!success)
             fs::remove(dumpPath, error);
         PruneCrashDumps();
+    } catch (const std::exception& ex) {
+        OutputDebugStringA("[OmniGhost CrashHandler] WriteMiniDump failed: ");
+        OutputDebugStringA(ex.what());
+        OutputDebugStringA("\n");
+        success = false;
     } catch (...) {
+        OutputDebugStringW(L"[OmniGhost CrashHandler] WriteMiniDump failed: exceção não identificada.\n");
         success = false;
     }
 
@@ -245,8 +267,12 @@ void MarkCleanShutdown() noexcept {
         std::error_code error;
         fs::remove(RunMarker(), error);
         fs::remove(RunMarker().wstring() + L".tmp", error);
+    } catch (const std::exception& ex) {
+        OutputDebugStringA("[OmniGhost CrashHandler] MarkCleanShutdown failed: ");
+        OutputDebugStringA(ex.what());
+        OutputDebugStringA("\n");
     } catch (...) {
-        OutputDebugStringW(L"[OmniGhost CrashHandler] Falha ao remover o marcador de execução.\n");
+        OutputDebugStringW(L"[OmniGhost CrashHandler] MarkCleanShutdown failed: exceção não identificada.\n");
     }
 }
 

@@ -118,7 +118,7 @@ bool CopyTree(const fs::path& source, const fs::path& destination, bool skipProt
     for (fs::recursive_directory_iterator it(source, fs::directory_options::skip_permission_denied, ec), end; it != end; it.increment(ec)) {
         if (ec) { error = "Falha ao percorrer ficheiros: " + ec.message(); return false; }
         const fs::path relative = fs::relative(it->path(), source, ec);
-        if (ec || !SafeRelative(relative)) { error = "Foi encontrado um caminho inseguro."; return false; }
+        if (ec || !SafeArchiveRelative(relative)) { error = "Foi encontrado um caminho inseguro."; return false; }
         if (skipProtected && Paths::IsProtectedInstallPath(relative)) { if (it->is_directory()) it.disable_recursion_pending(); continue; }
         const fs::path target = destination / relative;
         if (it->is_symlink(ec) || it->is_other(ec)) { error = "Links e ficheiros especiais não são permitidos."; return false; }
@@ -376,7 +376,7 @@ bool RollbackInstallation(const InstallOptions& options, std::string& error) {
 InstallResult InstallWithRollback(const InstallOptions& options) {
     InstallResult result{}; std::string error;
     auto failInjected = [&](const char* stage) { return options.failureInjector && options.failureInjector(stage); };
-    if (!SafeRelative(fs::path(options.executableName)) || !fs::exists(options.staging / options.executableName)) { result.error = "O pacote não contém o executável principal."; return result; }
+    if (!SafeArchiveRelative(fs::path(options.executableName)) || !fs::exists(options.staging / options.executableName)) { result.error = "O pacote não contém o executável principal."; return result; }
     const bool singleExecutable = ContainsOnlyExecutable(options.staging, options.executableName);
     const std::uint64_t required = (singleExecutable
         ? TreeSize(options.staging) * 2

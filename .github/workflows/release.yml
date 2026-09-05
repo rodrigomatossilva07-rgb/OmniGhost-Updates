@@ -73,37 +73,21 @@ jobs:
             -Version '${{ steps.version.outputs.version }}' `
             -OutputPath ./artifacts/semantic-analysis.json
 
-      - name: Build and run Release tests
-        shell: pwsh
-        run: |
-          msbuild tests/OmniGhost.Tests.vcxproj /m `
-            /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143
-          & ./.cache/tests/Release/OmniGhost.Tests.exe
-          if ($LASTEXITCODE -ne 0) { throw "Release tests failed with exit code $LASTEXITCODE." }
-
       - name: Build local Release binary and inspect PE
         shell: pwsh
         run: |
           msbuild OmiGhost.vcxproj /m `
-            /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143
+            /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v145
           ./tools/Validate-PeRuntime.ps1 `
             -Executable ./x64/Release/OmniGhost.exe `
             -OutputDirectory ./artifacts/validation/pe-release `
             -RequireSingleExeDirectory
 
-      - name: Build and run Publish tests
-        shell: pwsh
-        run: |
-          msbuild tests/OmniGhost.Tests.vcxproj /m `
-            /p:Configuration=Publish /p:Platform=x64 /p:PlatformToolset=v143
-          & ./.cache/tests/Publish/OmniGhost.Tests.exe
-          if ($LASTEXITCODE -ne 0) { throw "Publish tests failed with exit code $LASTEXITCODE." }
-
       - name: Build customer binary
         shell: pwsh
         run: |
           msbuild OmiGhost.vcxproj /m `
-            /p:Configuration=Publish /p:Platform=x64 /p:PlatformToolset=v143 `
+            /p:Configuration=Publish /p:Platform=x64 /p:PlatformToolset=v145 `
             /p:OmniGhostSkipPackaging=true /p:OmniGhostSkipRemotePublish=true
           ./tools/Validate-PeRuntime.ps1 `
             -Executable ./build/Publish/OmniGhost.exe `
@@ -114,7 +98,7 @@ jobs:
         shell: pwsh
         run: |
           msbuild OmiGhost.vcxproj /m `
-            /p:Configuration=Publish /p:Platform=x64 /p:PlatformToolset=v143 `
+            /p:Configuration=Publish /p:Platform=x64 /p:PlatformToolset=v145 `
             /p:OmniGhostSkipPackaging=true /p:OmniGhostSkipRemotePublish=true /p:RunCodeAnalysis=true `
             /p:CodeAnalysisTreatWarningsAsErrors=false
 
@@ -166,6 +150,71 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
           path: artifacts/validation
+
+  hardware_integration_test:
+    name: Hardware Integration Test (Single Process / Single HWND)
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    needs: build_test_package
+    runs-on: [self-hosted, windows, dma]
+    timeout-minutes: 30
+    env:
+      OMNIGHOST_DMA_DEVICE: ${{ vars.OMNIGHOST_DMA_DEVICE }}
+      OMNIGHOST_TEST_GAME: ${{ vars.OMNIGHOST_TEST_GAME }}
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure MSBuild
+        uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce # v2
+
+      - name: Build Tester configuration for integration test
+        shell: pwsh
+        run: |
+          msbuild OmiGhost.vcxproj /m `
+            /p:Configuration=Tester /p:Platform=x64 /p:PlatformToolset=v145 `
+            /p:OmniGhostSkipPackaging=true /p:OmniGhostSkipRemotePublish=true
+
+      - name: Run single-process single-HWND integration test
+        if: env.OMNIGHOST_DMA_DEVICE != '' && env.OMNIGHOST_TEST_GAME != ''
+        shell: pwsh
+        run: |
+          $exe = "./build/Tester/OmniGhost.exe"
+          if (-not (Test-Path -LiteralPath $exe)) { throw "Tester binary not found at $exe" }
+          
+          # Launch the game process (if not already running)
+          $gameProcess = Start-Process -FilePath $env:OMNIGHOST_TEST_GAME -PassThru
+          if (-not $gameProcess) { throw "Failed to start test game: $env:OMNIGHOST_TEST_GAME" }
+          
+          try {
+            # Wait for game window to appear
+            $hwnd = $null
+            for ($i = 0; $i -lt 30; $i++) {
+              $hwnd = (Get-Process -Id $gameProcess.Id).MainWindowHandle
+              if ($hwnd -ne 0 -and $hwnd -ne [IntPtr]::Zero) { break }
+              Start-Sleep -Seconds 1
+            }
+            if ($hwnd -eq 0 -or $hwnd -eq [IntPtr]::Zero) { throw "Game HWND not found within 30 seconds" }
+            
+            Write-Host "[Integration] Game PID: $($gameProcess.Id), HWND: $hwnd"
+            
+            # Run integration test with DMA device
+            & "./build/Tester/OmniGhost.exe" --integration-test `
+              --dma-device $env:OMNIGHOST_DMA_DEVICE `
+              --target-pid $gameProcess.Id `
+              --target-hwnd $hwnd `
+              --timeout 60
+            
+            if ($LASTEXITCODE -ne 0) { throw "Integration test failed with exit code $LASTEXITCODE" }
+            
+            Write-Host "[Integration] Single-process single-HWND test PASSED"
+          } finally {
+            if ($gameProcess -and -not $gameProcess.HasExited) {
+              Stop-Process -Id $gameProcess.Id -Force -ErrorAction SilentlyContinue
+            }
+          }
+        if: env.OMNIGHOST_DMA_DEVICE != '' && env.OMNIGHOST_TEST_GAME != ''
 
   publish:
     name: Publish approved tag

@@ -190,7 +190,14 @@ std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
 
     DWORD pid{}; std::uint64_t expectedSize{};
     try { pid = static_cast<DWORD>(std::stoul(args.at(L"--pid"))); expectedSize = std::stoull(args.at(L"--size")); }
-    catch (...) { return reject(21, "arguments", "PID ou tamanho do pacote inválido."); }
+    catch (const std::exception& ex) {
+        std::cerr << "[Updater] Invalid PID or size argument: " << ex.what() << "\n";
+        return reject(21, "arguments", "PID ou tamanho do pacote inválido.");
+    }
+    catch (...) {
+        std::cerr << "[Updater] Invalid PID or size argument: unknown exception\n";
+        return reject(21, "arguments", "PID ou tamanho do pacote inválido.");
+    }
     const fs::path package = args.at(L"--package"), target = args.at(L"--target"), backup = args.at(L"--backup");
     const fs::path executableName = args.at(L"--executable");
     const auto targetVersionValue = NarrowAscii(args.at(L"--version"));

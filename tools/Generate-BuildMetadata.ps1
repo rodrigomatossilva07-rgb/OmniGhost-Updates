@@ -19,11 +19,15 @@ Set-StrictMode -Version Latest
 
 $ProjectDir = [IO.Path]::GetFullPath($ProjectDir)
 if ([string]::IsNullOrWhiteSpace($OutputPath)) {
-    $OutputPath = Join-Path $ProjectDir '.cache\generated\omni_build_metadata.h'
+    $Configuration = ($Configuration -replace '[^A-Za-z0-9_.-]', '_')
+    $Platform = ($Architecture -replace '[^A-Za-z0-9_.-]', '_')
+    $OutputPath = Join-Path $ProjectDir ".cache\generated\$Configuration\$Platform\omni_build_metadata.h"
 }
 $OutputPath = [IO.Path]::GetFullPath($OutputPath)
 if ([string]::IsNullOrWhiteSpace($MetadataPath)) {
-    $MetadataPath = Join-Path $ProjectDir '.cache\build-metadata.json'
+    $Configuration = ($Configuration -replace '[^A-Za-z0-9_.-]', '_')
+    $Platform = ($Architecture -replace '[^A-Za-z0-9_.-]', '_')
+    $MetadataPath = Join-Path $ProjectDir ".cache\generated\$Configuration\$Platform\build-metadata.json"
 }
 $MetadataPath = [IO.Path]::GetFullPath($MetadataPath)
 [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($OutputPath)) | Out-Null

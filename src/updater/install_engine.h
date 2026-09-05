@@ -28,4 +28,7 @@ bool HasEnoughDiskSpace(const std::filesystem::path& path, std::uint64_t require
 // the same trust boundary.
 bool RestrictPathToCurrentUser(const std::filesystem::path& path, bool directory, std::string& error);
 void PruneBackups(const std::filesystem::path& backupRoot, int backupsToKeep);
+
+// Validates that a path is safe for archive extraction (no traversal, reserved names, etc.)
+bool SafeRelative(const std::filesystem::path& path);
 }

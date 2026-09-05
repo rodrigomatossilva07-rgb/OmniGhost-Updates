@@ -120,8 +120,11 @@ namespace makcu {
                     cmd->promise.set_exception(std::make_exception_ptr(
                         std::runtime_error("Connection closed")));
                 }
+                catch (const std::exception& ex) {
+                    std::cerr << "[SerialPort] Cancel promise failed: " << ex.what() << "\n";
+                }
                 catch (...) {
-                    // Promise already set
+                    std::cerr << "[SerialPort] Cancel promise failed with unknown exception\n";
                 }
             }
             m_pendingCommands.clear();
@@ -182,8 +185,11 @@ namespace makcu {
                     it->second->promise.set_exception(std::make_exception_ptr(
                         std::runtime_error("Write failed")));
                 }
+                catch (const std::exception& ex) {
+                    std::cerr << "[SerialPort] Write failed promise set failed: " << ex.what() << "\n";
+                }
                 catch (...) {
-                    // Promise already set
+                    std::cerr << "[SerialPort] Write failed promise set failed with unknown exception\n";
                 }
                 m_pendingCommands.erase(it);
             }
@@ -527,8 +533,11 @@ namespace makcu {
             try {
                 it->second->promise.set_value(content);
             }
+            catch (const std::exception& ex) {
+                std::cerr << "[SerialPort] Set value failed for untracked response: " << ex.what() << "\n";
+            }
             catch (...) {
-                // Promise already set
+                std::cerr << "[SerialPort] Set value failed for untracked response with unknown exception\n";
             }
             m_pendingCommands.erase(it);
         }
@@ -548,8 +557,11 @@ namespace makcu {
                     it->second->promise.set_exception(std::make_exception_ptr(
                         std::runtime_error("Command timeout")));
                 }
+                catch (const std::exception& ex) {
+                    std::cerr << "[SerialPort] Timeout exception for command " << it->first << ": " << ex.what() << "\n";
+                }
                 catch (...) {
-                    // Promise already set
+                    std::cerr << "[SerialPort] Timeout exception for command " << it->first << " with unknown exception\n";
                 }
                 it = m_pendingCommands.erase(it);
             }

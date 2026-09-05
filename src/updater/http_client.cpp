@@ -350,7 +350,11 @@ std::uint64_t ContentLength(void* request) {
 
     try {
         return std::stoull(value);
+    } catch (const std::exception& ex) {
+        std::cerr << "[Updater] HttpClient: Failed to parse content-length '" << value << "': " << ex.what() << "\n";
+        return 0;
     } catch (...) {
+        std::cerr << "[Updater] HttpClient: Unknown exception parsing content-length '" << value << "'\n";
         return 0;
     }
 }

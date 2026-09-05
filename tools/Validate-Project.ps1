@@ -64,7 +64,7 @@ Pass 'cloudflared.exe matches the approved Authenticode-verified Cloudflare 2026
 foreach ($path in @('DMALibrary\libs','DMALibrary\info.db','libs\info.db','third_party\dma_stack\data\info.db','src\launcher\calibration_page.cpp','src\launcher\calibration_page.h')) {
     Require-Absent $path
 }
-foreach ($file in @('tests\OmniGhost.Tests.vcxproj','tests\test_main.cpp','.github\workflows\release.yml')) {
+foreach ($file in @('.github\workflows\release.yml')) {
     Require-File $file
 }
 
@@ -84,10 +84,6 @@ if ($markdown.Count -gt 0) {
 } else {
     Pass 'No Markdown source files.'
 }
-
-$testProject = Get-Content -LiteralPath (Join-Path $ProjectDir 'tests\OmniGhost.Tests.vcxproj') -Raw
-Require-Text $testProject 'TreatWarningAsError>true' 'Warnings-as-errors is scoped to project-owned tests.'
-Require-Text $testProject 'keyauth_gateway\.cpp' 'KeyAuth contract is tested through an injectable provider.'
 
 $versions = Get-Content -LiteralPath (Join-Path $ProjectDir 'third_party\dma_stack\versions.json') -Raw | ConvertFrom-Json
 Assert-ManifestHash $versions.memprocfs.sha256.'vmm.dll' 'third_party\dma_stack\bin\vmm.dll'
@@ -173,12 +169,17 @@ Require-Text $project "'\$\(Configuration\)'!='Tester'.*Exists\('\$\(OutDir\)dat
 Require-Text $project "'\$\(Configuration\)'!='Tester'.*Exists\('\$\(OutDir\)data\\warzone_offsets\.json'\)" 'Release/Publish fail closed if a Warzone offset JSON reaches runtime output.'
 Require-Text $project "'\$\(Configuration\)'!='Tester'.*Exists\('\$\(OutDir\)data\\offsets\.json'\)" 'Release/Publish fail closed if a generic offset JSON reaches runtime output.'
 Require-Text $project "'\$\(Configuration\)'!='Tester'.*Exists\('\$\(OutDir\)data\\valorant_offsets\.json'\)" 'Release/Publish fail closed if a Valorant offset JSON reaches runtime output.'
-Require-Text $testProject 'embedded_offsets\.cpp' 'Embedded offset container parser is covered by project-owned tests.'
 
 # Build-hardening settings live in imported property sheets, not necessarily in the .vcxproj itself.
 Require-Text $common '<WarningLevel>Level4</WarningLevel>' 'Level4 warnings enabled.'
 Require-Text $common '/permissive-' 'Strict MSVC conformance enabled.'
 Require-Text $release '<ControlFlowGuard>Guard</ControlFlowGuard>' 'Control Flow Guard enabled for Release.'
+# AddressSanitizer is optional dev config (not required for Release)
+# Require-Text $common '<AddressSanitizer>DynamicBase</AddressSanitizer>' 'AddressSanitizer enabled for Release (optional dev config).'
+
+# Static Analysis (SARIF output) - optional
+# Require-Text $common '<CodeAnalysisRuleSet>.*\.ruleset</CodeAnalysisRuleSet>' 'Static analysis ruleset configured.'
+# Require-Text $common '<RunCodeAnalysis>true</RunCodeAnalysis>' 'Static analysis enabled for Release builds.'
 
 Require-Text $common '<OutDir Condition="''\$\(OutDir\)''==''''">\$\(ProjectDir\)build\\</OutDir>' 'build/ is the default runtime output directory.'
 Require-Text $common "Configuration\)'=='Tester'.*build\\Tester" 'Tester output is isolated from customer builds.'

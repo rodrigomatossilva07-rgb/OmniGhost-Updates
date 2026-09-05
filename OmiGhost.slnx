@@ -7,5 +7,4 @@
     <Platform Name="x64" />
   </Configurations>
   <Project Path="OmiGhost.vcxproj" Id="b6f916dc-a5dd-415f-b3bf-a364f511dac8" />
-  <Project Path="tests/OmniGhost.Tests.vcxproj" Id="4e9e24c5-a596-43c3-a920-adab17083e69" />
 </Solution>

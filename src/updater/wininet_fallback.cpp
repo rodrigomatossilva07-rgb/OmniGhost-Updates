@@ -469,7 +469,12 @@ namespace OmniGhost::Update {
             try {
                 return std::stoull(value);
             }
+            catch (const std::exception& ex) {
+                std::cerr << "[Updater] WinInet: Failed to parse content-length '" << value << "': " << ex.what() << "\n";
+                return 0;
+            }
             catch (...) {
+                std::cerr << "[Updater] WinInet: Unknown exception parsing content-length '" << value << "'\n";
                 return 0;
             }
         }

@@ -51,7 +51,11 @@ std::optional<DependencyManifest> LoadManifest(const std::filesystem::path& path
             manifest.entries.push_back(e);
         }
         return manifest;
+    } catch (const std::exception& ex) {
+        std::cerr << "[RuntimeManifest] LoadManifest failed: " << ex.what() << "\n";
+        return std::nullopt;
     } catch (...) {
+        std::cerr << "[RuntimeManifest] LoadManifest failed with unknown exception\n";
         return std::nullopt;
     }
 }
@@ -87,7 +91,11 @@ bool SaveManifest(const DependencyManifest& manifest, const std::filesystem::pat
         out.flush();
         if (!out) return false;
         out.close();
+    } catch (const std::exception& ex) {
+        std::cerr << "[RuntimeManifest] SaveManifest failed: " << ex.what() << "\n";
+        return false;
     } catch (...) {
+        std::cerr << "[RuntimeManifest] SaveManifest failed with unknown exception\n";
         return false;
     }
 

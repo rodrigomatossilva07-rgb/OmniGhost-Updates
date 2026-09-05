@@ -407,7 +407,12 @@ namespace makcu {
         try {
             return future.get();
         }
+        catch (const std::exception& ex) {
+            std::cerr << "[MAKCU] getVersion failed: " << ex.what() << "\n";
+            return "";
+        }
         catch (...) {
+            std::cerr << "[MAKCU] getVersion failed with unknown exception\n";
             return "";
         }
     }
@@ -711,7 +716,12 @@ namespace makcu {
             std::string response = future.get();
             return static_cast<uint8_t>(std::stoi(response));
         }
+        catch (const std::exception& ex) {
+            std::cerr << "[MAKCU] catchMouseLeft failed: " << ex.what() << "\n";
+            return 0;
+        }
         catch (...) {
+            std::cerr << "[MAKCU] catchMouseLeft failed with unknown exception\n";
             return 0;
         }
     }
@@ -725,7 +735,12 @@ namespace makcu {
             std::string response = future.get();
             return static_cast<uint8_t>(std::stoi(response));
         }
+        catch (const std::exception& ex) {
+            std::cerr << "[MAKCU] catchMouseMiddle failed: " << ex.what() << "\n";
+            return 0;
+        }
         catch (...) {
+            std::cerr << "[MAKCU] catchMouseMiddle failed with unknown exception\n";
             return 0;
         }
     }
@@ -739,7 +754,12 @@ namespace makcu {
             std::string response = future.get();
             return static_cast<uint8_t>(std::stoi(response));
         }
+        catch (const std::exception& ex) {
+            std::cerr << "[MAKCU] catchMouseRight failed: " << ex.what() << "\n";
+            return 0;
+        }
         catch (...) {
+            std::cerr << "[MAKCU] catchMouseRight failed with unknown exception\n";
             return 0;
         }
     }
@@ -753,7 +773,12 @@ namespace makcu {
             std::string response = future.get();
             return static_cast<uint8_t>(std::stoi(response));
         }
+        catch (const std::exception& ex) {
+            std::cerr << "[MAKCU] catchMouseSide1 failed: " << ex.what() << "\n";
+            return 0;
+        }
         catch (...) {
+            std::cerr << "[MAKCU] catchMouseSide1 failed with unknown exception\n";
             return 0;
         }
     }
@@ -767,7 +792,12 @@ namespace makcu {
             std::string response = future.get();
             return static_cast<uint8_t>(std::stoi(response));
         }
+        catch (const std::exception& ex) {
+            std::cerr << "[MAKCU] catchMouseSide2 failed: " << ex.what() << "\n";
+            return 0;
+        }
         catch (...) {
+            std::cerr << "[MAKCU] catchMouseSide2 failed with unknown exception\n";
             return 0;
         }
     }

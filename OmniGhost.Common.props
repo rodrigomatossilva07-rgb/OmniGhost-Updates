@@ -26,13 +26,15 @@
       <PreprocessorDefinitions Condition="'$(OmniGhostDisableVmmInfoDb)'=='true'">OMNIGHOST_DISABLE_VMM_INFODB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(OmniGhostDisableVmmSymbols)'=='true'">OMNIGHOST_DISABLE_VMM_SYMBOLS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(OmniGhostReadOnlyMode)'=='true'">OMNIGHOST_READONLY_MODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)src;$(ProjectDir)Fivem;$(ProjectDir)Cs2;$(ProjectDir)Rust;$(ProjectDir)Warzone;$(ProjectDir)Valorant;$(ProjectDir)ImGui;$(ProjectDir)DMALibrary;$(ProjectDir)third_party\dma_stack\include;$(ProjectDir)Utils;$(ProjectDir)resources;$(ProjectDir).cache\generated\$(Configuration);$(ProjectDir).cache\generated;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)src;$(ProjectDir)Fivem;$(ProjectDir)Cs2;$(ProjectDir)Rust;$(ProjectDir)Warzone;$(ProjectDir)Valorant;$(ProjectDir)ImGui;$(ProjectDir)DMALibrary;$(ProjectDir)third_party\dma_stack\include;$(ProjectDir)Utils;$(ProjectDir)resources;$(ProjectDir).cache\generated\$(Configuration)\$(Platform);$(ProjectDir).cache\generated;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <BufferSecurityCheck>true</BufferSecurityCheck>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
-      <AdditionalOptions>/utf-8 /permissive- /Zc:__cplusplus /Zc:preprocessor /Zc:inline /Zc:externConstexpr /FS /external:I"$(ProjectDir)third_party\dma_stack\include" %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/utf-8 /permissive- /Zc:__cplusplus /Zc:preprocessor /Zc:inline /Zc:externConstexpr /external:I"$(ProjectDir)third_party\dma_stack\include" %(AdditionalOptions)</AdditionalOptions>
+      <TreatWarningAsError Condition="'$(OmniGhostNewWarningsAsErrors)'=='true'">true</TreatWarningAsError>
+      <WarningBaselineFile>$(ProjectDir).cache\warnings\baseline.txt</WarningBaselineFile>
     </ClCompile>
     <ResourceCompile>
-      <AdditionalIncludeDirectories>$(ProjectDir).cache\generated\$(Configuration);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir).cache\generated\$(Configuration)\$(Platform);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
     <Link>
       <SubSystem>Windows</SubSystem>

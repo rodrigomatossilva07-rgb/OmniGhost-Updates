@@ -962,9 +962,25 @@ bool Memory::FixCr3()
 			if (!(fields >> index >> pidText >> dtbText)) continue;
 			// "%04x%7i" may glue index and pid together when pid has 7 digits; tolerate both.
 			int entryPid = -1;
-			try { entryPid = std::stoi(pidText); } catch (...) { continue; }
+			try { entryPid = std::stoi(pidText); }
+			catch (const std::exception& ex) {
+				std::cerr << "[DMA] FixCr3: Failed to parse PID from '" << pidText << "': " << ex.what() << "\n";
+				continue;
+			}
+			catch (...) {
+				std::cerr << "[DMA] FixCr3: Unknown exception parsing PID from '" << pidText << "'\n";
+				continue;
+			}
 			uint64_t dtb = 0;
-			try { dtb = std::stoull(dtbText, nullptr, 16); } catch (...) { continue; }
+			try { dtb = std::stoull(dtbText, nullptr, 16); }
+			catch (const std::exception& ex) {
+				std::cerr << "[DMA] FixCr3: Failed to parse DTB from '" << dtbText << "': " << ex.what() << "\n";
+				continue;
+			}
+			catch (...) {
+				std::cerr << "[DMA] FixCr3: Unknown exception parsing DTB from '" << dtbText << "'\n";
+				continue;
+			}
 			if (entryPid == 0) pid0.push_back(dtb);
 			else if (entryPid == static_cast<int>(pid)) samePid.push_back(dtb);
 		}

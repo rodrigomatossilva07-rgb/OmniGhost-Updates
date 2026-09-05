@@ -7,5 +7,17 @@
     <ResourceCompile>
       <PreprocessorDefinitions>OMNIGHOST_TESTER_BUILD=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ResourceCompile>
+    <Link>
+      <LinkTimeCodeGeneration>Incremental</LinkTimeCodeGeneration>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(EnableAddressSanitizer)'=='true'">
+    <ClCompile>
+      <EnableAddressSanitizer>true</EnableAddressSanitizer>
+      <AdditionalOptions>/fsanitize=address /fsanitize=undefined %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <Link>
+      <AdditionalOptions>/fsanitize=address /fsanitize=undefined %(AdditionalOptions)</AdditionalOptions>
+    </Link>
   </ItemDefinitionGroup>
 </Project>

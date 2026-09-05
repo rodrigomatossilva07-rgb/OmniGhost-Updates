@@ -99,7 +99,11 @@ bool ParseUuid(const std::string& input, std::uint32_t& value) {
         const unsigned long parsed = std::stoul(hex, nullptr, 16);
         value = static_cast<std::uint32_t>(parsed);
         return true;
+    } catch (const std::exception& ex) {
+        std::cerr << "[KMBox] ParseHexU32 failed for '" << hex << "': " << ex.what() << "\n";
+        return false;
     } catch (...) {
+        std::cerr << "[KMBox] ParseHexU32 unknown exception for '" << hex << "'\n";
         return false;
     }
 }

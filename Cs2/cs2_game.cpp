@@ -374,7 +374,13 @@ bool LoadOffsetsFromJson(const char* path) {
             while (e < data.size() && std::isxdigit((unsigned char)data[e])) ++e;
             try {
                 out = (uintptr_t)std::stoull(data.substr(hx, e - hx), nullptr, 16);
-            } catch (...) { out = 0; }
+            } catch (const std::exception& ex) {
+                std::cerr << "[CS2] LoadOffsetsFromJson: Failed to parse hex value at offset " << hx << ": " << ex.what() << "\n";
+                out = 0;
+            } catch (...) {
+                std::cerr << "[CS2] LoadOffsetsFromJson: Unknown exception parsing hex value at offset " << hx << "\n";
+                out = 0;
+            }
             return;
         }
     };

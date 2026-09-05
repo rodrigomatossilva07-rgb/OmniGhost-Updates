@@ -47,7 +47,11 @@ struct ProbeTask final {
             try {
                 if (!task->cancelRequested.load(std::memory_order_acquire))
                     value = operation();
+            } catch (const std::exception& ex) {
+                std::cerr << "[Hardware] Background task failed: " << ex.what() << "\n";
+                value = false;
             } catch (...) {
+                std::cerr << "[Hardware] Background task failed with unknown exception\n";
                 value = false;
             }
             if (!task->cancelRequested.load(std::memory_order_acquire))

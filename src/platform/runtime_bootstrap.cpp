@@ -357,7 +357,7 @@ bool RetireLegacyPrivateInstall(std::wstring& error) {
 bool EmbeddedRuntimeFileAvailable(std::wstring_view relativePath) noexcept {
     try {
         const fs::path requested(relativePath);
-        if (!IsSafeRelative(requested))
+if (!IsSafeRelative(requested))
             return false;
         for (const auto& entry : OmniGhost::EmbeddedRuntimeGenerated::kEntries) {
             if (_wcsicmp(entry.relativePath, requested.c_str()) != 0)
@@ -365,7 +365,11 @@ bool EmbeddedRuntimeFileAvailable(std::wstring_view relativePath) noexcept {
             const auto resource = OmniGhost::GetPeResourceView(entry.resourceId);
             return resource && resource->size() == entry.size && entry.size != 0;
         }
+    } catch (const std::exception& ex) {
+        std::cerr << "[RuntimeBootstrap] HasPrivateRuntimeFile failed: " << ex.what() << "\n";
+        return false;
     } catch (...) {
+        std::cerr << "[RuntimeBootstrap] HasPrivateRuntimeFile failed with unknown exception\n";
         return false;
     }
     return false;
@@ -468,7 +472,7 @@ void LogRuntimeDirectoryContents() noexcept {
     std::vector<std::pair<std::string, uintmax_t>> files;
     uintmax_t totalSize = 0;
     try {
-        for (const auto& entry : std::filesystem::recursive_directory_iterator(
+for (const auto& entry : std::filesystem::recursive_directory_iterator(
                 OmniGhost::Paths::NativeRuntime(),
                 std::filesystem::directory_options::skip_permission_denied, ec)) {
             if (ec) { ec.clear(); continue; }
@@ -479,8 +483,10 @@ void LogRuntimeDirectoryContents() noexcept {
                 totalSize += size;
             }
 }
+    } catch (const std::exception& ex) {
+        std::cerr << "[RuntimeBootstrap] Directory listing failed: " << ex.what() << "\n";
     } catch (...) {
-        // Empty catch is intentional - we just skip invalid entries
+        std::cerr << "[RuntimeBootstrap] Directory listing failed with unknown exception\n";
     }
 
     OmniGhost::SessionLog::Write(

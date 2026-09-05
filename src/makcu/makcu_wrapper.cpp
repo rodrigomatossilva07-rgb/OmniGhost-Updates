@@ -123,14 +123,18 @@ namespace makcu_wrapper {
         device->enableButtonMonitoring(true);
         try {
             device->sendRawCommand("km.buttons(1,10)");
-        } catch (...) { LogDeviceFailure("enable button stream"); }
+        } catch (const std::exception& ex) {
+            LogDeviceFailure("enable button stream: " + std::string(ex.what()));
+        } catch (...) {
+            LogDeviceFailure("enable button stream: unknown exception");
+        }
     }
 
     void MakcuShutdown() {
         connected = false;
         if (device) {
-            try { device->enableButtonMonitoring(false); } catch (...) { LogDeviceFailure("disable monitoring"); }
-            try { device->disconnect(); } catch (...) { LogDeviceFailure("disconnect"); }
+            try { device->enableButtonMonitoring(false); } catch (const std::exception& ex) { LogDeviceFailure("disable monitoring: " + std::string(ex.what())); } catch (...) { LogDeviceFailure("disable monitoring: unknown exception"); }
+            try { device->disconnect(); } catch (const std::exception& ex) { LogDeviceFailure("disconnect: " + std::string(ex.what())); } catch (...) { LogDeviceFailure("disconnect: unknown exception"); }
             device.reset();
         }
         g_state.monitoringRequested = false;
@@ -280,8 +284,8 @@ namespace makcu_wrapper {
         g_state.ignorePollUntilPacket.store(UINT64_MAX); // until real serial packet
         g_state.lastChangeTick.store(NowMs());
         if (device && device->isConnected()) {
-            try { device->enableButtonMonitoring(true); } catch (...) { LogDeviceFailure("resume monitoring"); }
-            try { device->sendRawCommand("km.buttons(1,10)"); } catch (...) { LogDeviceFailure("resume button stream"); }
+            try { device->enableButtonMonitoring(true); } catch (const std::exception& ex) { LogDeviceFailure("resume monitoring: " + std::string(ex.what())); } catch (...) { LogDeviceFailure("resume monitoring: unknown exception"); }
+            try { device->sendRawCommand("km.buttons(1,10)"); } catch (const std::exception& ex) { LogDeviceFailure("resume button stream: " + std::string(ex.what())); } catch (...) { LogDeviceFailure("resume button stream: unknown exception"); }
         }
     }
 
@@ -328,11 +332,11 @@ namespace makcu_wrapper {
         };
         const char* cmd = kEnableCmds[cmdRotate % 5];
         ++cmdRotate;
-        try { device->enableButtonMonitoring(true); } catch (...) { LogDeviceFailure("diagnostic monitoring"); }
-        try { device->sendRawCommand(cmd); } catch (...) { LogDeviceFailure("diagnostic command"); }
+        try { device->enableButtonMonitoring(true); } catch (const std::exception& ex) { LogDeviceFailure("diagnostic monitoring: " + std::string(ex.what())); } catch (...) { LogDeviceFailure("diagnostic monitoring: unknown exception"); }
+        try { device->sendRawCommand(cmd); } catch (const std::exception& ex) { LogDeviceFailure("diagnostic command: " + std::string(ex.what())); } catch (...) { LogDeviceFailure("diagnostic command: unknown exception"); }
         // Some builds only stream after a second enable pulse.
         if (pkts == 0) {
-            try { device->sendRawCommand("km.buttons(1,10)"); } catch (...) { LogDeviceFailure("diagnostic button stream"); }
+            try { device->sendRawCommand("km.buttons(1,10)"); } catch (const std::exception& ex) { LogDeviceFailure("diagnostic button stream: " + std::string(ex.what())); } catch (...) { LogDeviceFailure("diagnostic button stream: unknown exception"); }
         }
     }
 

@@ -44,6 +44,18 @@ if ([string]::IsNullOrWhiteSpace($msbuild) -or -not (Test-Path -LiteralPath $msb
 function Get-TreeFingerprint {
     $sha = [Security.Cryptography.SHA256]::Create()
     try {
+        # Get upstream commit hashes
+        $leechCommit = if (Test-Path (Join-Path $leechRoot '.git')) {
+            & git -C $leechRoot rev-parse HEAD 2>$null | Select-Object -First 1
+        } else { 'unknown' }
+        $vmmCommit = if (Test-Path (Join-Path $vmmRoot '.git')) {
+            & git -C $vmmRoot rev-parse HEAD 2>$null | Select-Object -First 1
+        } else { 'unknown' }
+        
+        # Get applied patches
+        $leechPatches = @(Get-ChildItem -LiteralPath (Join-Path $leechRoot 'patches') -File -ErrorAction SilentlyContinue | ForEach-Object { $_.Name } | Sort-Object)
+        $vmmPatches = @(Get-ChildItem -LiteralPath (Join-Path $vmmRoot 'patches') -File -ErrorAction SilentlyContinue | ForEach-Object { $_.Name } | Sort-Object)
+        
         $inputs = @(
             Get-ChildItem -LiteralPath $leechRoot,$vmmRoot -Recurse -File |
                 Where-Object { $_.Extension -in @('.c','.cpp','.h','.hpp','.vcxproj','.props','.targets','.def','.rc') -or $_.Name -eq 'LICENSE' }
@@ -57,7 +69,8 @@ function Get-TreeFingerprint {
             $bytes = [IO.File]::ReadAllBytes($input.FullName)
             [void]$sha.TransformBlock($bytes, 0, $bytes.Length, $bytes, 0)
         }
-        $identity = [Text.Encoding]::UTF8.GetBytes("toolset=$PlatformToolset`nmsbuild=$msbuild`n")
+        # Include upstream commits, patches, compiler version in fingerprint
+        $identity = [Text.Encoding]::UTF8.GetBytes("toolset=$PlatformToolset`nmsbuild=$msbuild`nleech_commit=$leechCommit`nvmm_commit=$vmmCommit`nleech_patches=$($leechPatches -join ',')`nvmm_patches=$($vmmPatches -join ',')`n")
         [void]$sha.TransformFinalBlock($identity, 0, $identity.Length)
         return ([BitConverter]::ToString($sha.Hash)).Replace('-','')
     }

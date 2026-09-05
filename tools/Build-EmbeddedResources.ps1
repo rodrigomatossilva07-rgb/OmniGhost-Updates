@@ -8,7 +8,8 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $ProjectDir = [IO.Path]::GetFullPath($ProjectDir)
 $Configuration = ($Configuration -replace '[^A-Za-z0-9_.-]', '_')
-$configurationGeneratedDir = Join-Path $ProjectDir ".cache\generated\$Configuration"
+$Platform = ($env:Platform -replace '[^A-Za-z0-9_.-]', '_')
+$configurationGeneratedDir = Join-Path $ProjectDir ".cache\generated\$Configuration\$Platform"
 $manifestPath = Join-Path $ProjectDir 'resources\embedded-resources.json'
 $generatedDir = Join-Path $configurationGeneratedDir 'resources'
 $catalogPath = Join-Path $configurationGeneratedDir 'embedded_resource_catalog.h'

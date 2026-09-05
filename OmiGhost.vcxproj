@@ -23,7 +23,7 @@
     <Keyword>Win32Proj</Keyword>
     <ProjectGuid>{B6F916DC-A5DD-415F-B3BF-A364F511DAC8}</ProjectGuid>
     <RootNamespace>OmniGhost</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion>
     <ProjectName>OmniGhost</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props"/>
@@ -215,6 +215,7 @@
   <ItemGroup>
     <ClInclude Include="src\auth\keyauth_gateway.h"/>
     <ClCompile Include="src\main.cpp"/>
+    <ClCompile Include="src\tests\auth_launcher_transition_test.cpp"/>
     <ClCompile Include="src\config\app_settings.cpp"/>
     <ClCompile Include="src\config\config_manager.cpp"/>
     <ClCompile Include="src\licensing\license_service.cpp"/>
@@ -251,8 +252,9 @@
     <ClCompile Include="src\platform\offset_auto.cpp">
       <ObjectFileName>$(IntDir)platform_offset_auto.obj</ObjectFileName>
     </ClCompile>
-    <ClCompile Include="src\platform\session_log.cpp"/>
-    <ClCompile Include="src\platform\shutdown_coordinator.cpp"/>
+<ClCompile Include="src\platform\session_log.cpp"/>
+<ClCompile Include="src\platform\screenshot.cpp"/>
+        <ClCompile Include="src\platform\shutdown_coordinator.cpp"/>
     <ClCompile Include="src\platform\window_instance_guard.cpp"/>
     <ClCompile Include="src\platform\diagnostics_package.cpp"/>
     <ClCompile Include="src\platform\hardware_manager.cpp"/>

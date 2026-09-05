@@ -9,7 +9,8 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $ProjectDir = [IO.Path]::GetFullPath($ProjectDir)
 $Configuration = ($Configuration -replace '[^A-Za-z0-9_.-]', '_')
-$ConfigurationGeneratedDir = Join-Path $ProjectDir ".cache\generated\$Configuration"
+$Platform = ($env:Platform -replace '[^A-Za-z0-9_.-]', '_')
+$ConfigurationGeneratedDir = Join-Path $ProjectDir ".cache\generated\$Configuration\$Platform"
 $GeneratedDir = Join-Path $ConfigurationGeneratedDir 'offsets'
 $RcOutput = Join-Path $ConfigurationGeneratedDir 'embedded_offsets.rc2'
 New-Item -ItemType Directory -Path $GeneratedDir -Force | Out-Null

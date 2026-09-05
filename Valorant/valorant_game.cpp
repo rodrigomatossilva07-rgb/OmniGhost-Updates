@@ -51,7 +51,11 @@ bool JsonU64(const std::string& j, const char* key, uintptr_t& out) {
     try {
         out = HexOrDec(j.substr(p, e - p));
         return true;
+    } catch (const std::exception& ex) {
+        std::cerr << "[Valorant] JsonU64 parse failed for key '" << key << "': " << ex.what() << "\n";
+        return false;
     } catch (...) {
+        std::cerr << "[Valorant] JsonU64 unknown exception for key '" << key << "'\n";
         return false;
     }
 }

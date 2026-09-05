@@ -87,6 +87,11 @@ bool ShutdownCoordinator::ShutdownAll(std::string_view reason) noexcept {
             std::clog << "[SHUTDOWN] component="
                       << ShutdownComponentName(registration.component)
                       << " state=COMPLETE\n";
+        } catch (const std::exception& ex) {
+            success = false;
+            std::cerr << "[SHUTDOWN] component="
+                      << ShutdownComponentName(registration.component)
+                      << " state=FAILED exception=" << ex.what() << "\n";
         } catch (...) {
             success = false;
             std::cerr << "[SHUTDOWN] component="
@@ -132,6 +137,10 @@ bool ShutdownCoordinator::EndSession(std::uint64_t generation,
     try {
         if (callback)
             callback();
+    } catch (const std::exception& ex) {
+        std::cerr << "[SHUTDOWN] session_generation=" << generation
+                  << " state=FAILED exception=" << ex.what() << "\n";
+        return false;
     } catch (...) {
         std::cerr << "[SHUTDOWN] session_generation=" << generation
                   << " state=FAILED exception=UNKNOWN\n";

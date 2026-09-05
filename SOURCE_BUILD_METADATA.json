@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "commit_id": "local-build",
+  "source_date_epoch": 1725494400,
+  "dirty": false,
+  "generatedUtc": "2026-09-06T00:00:00Z",
+  "version": "3.4.2",
+  "vc_tools_version": "14.50.30810",
+  "windows_sdk_version": "10.0.26100.0",
+  "compiler_version": "19.50.30810",
+  "dependencies": {
+    "memprocfs": "5.17",
+    "leechcore": "2.23"
+  }
+}

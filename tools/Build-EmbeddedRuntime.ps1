@@ -10,8 +10,9 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $ProjectDir = [IO.Path]::GetFullPath($ProjectDir)
 $Configuration = ($Configuration -replace '[^A-Za-z0-9_.-]', '_')
+$Platform = ($env:Platform -replace '[^A-Za-z0-9_.-]', '_')
 $privateStatic = $Configuration -ieq 'PrivateStatic' -or $Configuration -ieq 'Publish'
-$GeneratedDir = Join-Path $ProjectDir ".cache\generated\$Configuration"
+$GeneratedDir = Join-Path $ProjectDir ".cache\generated\$Configuration\$Platform"
 $RcOutput = Join-Path $GeneratedDir 'embedded_runtime.rc2'
 $HeaderOutput = Join-Path $GeneratedDir 'embedded_runtime_manifest.h'
 New-Item -ItemType Directory -Path $GeneratedDir -Force | Out-Null

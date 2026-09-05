@@ -418,14 +418,26 @@ static bool ParseHexU32(const std::string& s, uint32_t& out) {
     try {
         out = static_cast<uint32_t>(std::stoul(s, nullptr, 0));
         return true;
-    } catch (...) { return false; }
+    } catch (const std::exception& ex) {
+        std::cerr << "[Rust] ParseHexU32 failed for '" << s << "': " << ex.what() << "\n";
+        return false;
+    } catch (...) {
+        std::cerr << "[Rust] ParseHexU32 unknown exception for '" << s << "'\n";
+        return false;
+    }
 }
 
 static bool ParseHexU64(const std::string& s, uintptr_t& out) {
     try {
         out = static_cast<uintptr_t>(std::stoull(s, nullptr, 0));
         return true;
-    } catch (...) { return false; }
+    } catch (const std::exception& ex) {
+        std::cerr << "[Rust] ParseHexU64 failed for '" << s << "': " << ex.what() << "\n";
+        return false;
+    } catch (...) {
+        std::cerr << "[Rust] ParseHexU64 unknown exception for '" << s << "'\n";
+        return false;
+    }
 }
 
 static bool GrabStr(const std::string& json, const char* key, std::string& out) {

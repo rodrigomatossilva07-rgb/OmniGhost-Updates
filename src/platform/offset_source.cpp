@@ -61,7 +61,11 @@ bool ParseHexU64(const std::string& text, std::uint64_t& value) {
     try {
         value = std::stoull(text, nullptr, 16);
         return true;
+    } catch (const std::exception& ex) {
+        std::cerr << "[Offsets] ParseHexU64 failed for '" << text << "': " << ex.what() << "\n";
+        return false;
     } catch (...) {
+        std::cerr << "[Offsets] ParseHexU64 unknown exception for '" << text << "'\n";
         return false;
     }
 }
@@ -245,9 +249,10 @@ std::vector<std::string> ExternalJsonCandidates(GameId id) {
             add(exeDir / "data" / "offsets.json");
             add(exeDir / "offsets.json");
         }
+    } catch (const std::exception& ex) {
+        std::cerr << "[OmniGhost Offsets] Failed to resolve candidates beside EXE: " << ex.what() << "\n";
     } catch (...) {
-        std::cerr << "[OmniGhost Offsets] Nao foi possivel resolver os candidatos junto ao executavel; "
-                     "a usar caminhos relativos ao projeto.\n";
+        std::cerr << "[OmniGhost Offsets] Unknown exception resolving candidates beside EXE\n";
     }
     // Project-relative (dev tree)
     add(fs::path("data") / name);

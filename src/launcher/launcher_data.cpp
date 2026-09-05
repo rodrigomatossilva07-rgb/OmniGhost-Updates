@@ -319,7 +319,12 @@ void LoadLauncherState() {
                 if (parsed >= static_cast<int>(SessionResult::None) &&
                     parsed <= static_cast<int>(SessionResult::GameNotFound))
                     history.lastResult = static_cast<SessionResult>(parsed);
+            } catch (const std::exception& ex) {
+                std::cerr << "[Launcher] Failed to parse game history for game " << static_cast<int>(id) << ": " << ex.what() << "\n";
+                history.lastUsedUnix = 0;
+                history.lastResult = SessionResult::None;
             } catch (...) {
+                std::cerr << "[Launcher] Unknown exception parsing game history for game " << static_cast<int>(id) << "\n";
                 history.lastUsedUnix = 0;
                 history.lastResult = SessionResult::None;
             }
