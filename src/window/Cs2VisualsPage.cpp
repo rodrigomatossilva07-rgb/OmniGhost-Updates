@@ -115,12 +115,15 @@ void DrawCs2Visuals_FORCE(); void DrawCs2Visuals() {
     CyberWidgets::ToggleSwitch(Loc::TrID("vis.skeleton"), &CS2::config.skeleton);
     CyberWidgets::ToggleSwitch(Loc::TrID("vis.joints"), &CS2::config.skeleton_joints);
     CyberWidgets::ToggleSwitch(Loc::TrID("vis.head_circle"), &CS2::config.head_dot);
-    // removed trails
-    // CyberWidgets::ToggleSwitch("Trails (rasto de movimento)", &CS2::config.trails);
+    ImGui::BeginDisabled();
+    CyberWidgets::ToggleSwitch("Trails (rasto de movimento)", &CS2::config.trails);
+    ImGui::EndDisabled();
     CyberWidgets::ToggleSwitch("Auréola na cabeça", &CS2::config.head_halo);
     CyberWidgets::ToggleSwitch(Loc::TrID("vis.health_bar"), &CS2::config.health_bar);
     CyberWidgets::ToggleSwitch(Loc::TrID("vis.armor_bar"), &CS2::config.armor_bar);
-    // Weapon text name removed — icons only (see vis.weapon_icons in extras)
+    ImGui::BeginDisabled();
+    CyberWidgets::ToggleSwitch("Nome da arma (removido — apenas ícones)", &CS2::config.weapon_icons);
+    ImGui::EndDisabled();
     CyberWidgets::ToggleSwitch(Loc::TrID("vis.box_2d"), &CS2::config.box);
     CyberWidgets::ToggleSwitch(Loc::TrID("vis.corner"), &CS2::config.box_corner);
     CyberWidgets::ToggleSwitch(Loc::TrID("vis.snaplines"), &CS2::config.snaplines);
