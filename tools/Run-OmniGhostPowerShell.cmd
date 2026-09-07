@@ -89,7 +89,11 @@ if not defined PLATFORM_TOOLSET set "PLATFORM_TOOLSET=v145"
 exit /b %ERRORLEVEL%
 
 :embedded_runtime
-"%PS_EXE%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%SCRIPT%" -ProjectDir "%PROJECT_DIR%" -VcToolsRedistDir "%~3" -Configuration "%~4"
+set "CONFIGURATION=%~4"
+if not defined CONFIGURATION set "CONFIGURATION=Release"
+set "PLATFORM=%~5"
+if not defined PLATFORM set "PLATFORM=x64"
+"%PS_EXE%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%SCRIPT%" -ProjectDir "%PROJECT_DIR%" -VcToolsRedistDir "%~3" -Configuration "%CONFIGURATION%" -Platform "%PLATFORM%"
 exit /b %ERRORLEVEL%
 
 :embedded_data

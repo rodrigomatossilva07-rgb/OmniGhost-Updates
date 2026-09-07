@@ -3,14 +3,15 @@ param(
     [Parameter(Mandatory=$true)]
     [string]$ProjectDir,
     [string]$VcToolsRedistDir = '',
-    [string]$Configuration = 'Release'
+    [string]$Configuration = 'Release',
+    [string]$Platform = 'x64'
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $ProjectDir = [IO.Path]::GetFullPath($ProjectDir)
 $Configuration = ($Configuration -replace '[^A-Za-z0-9_.-]', '_')
-$Platform = ($env:Platform -replace '[^A-Za-z0-9_.-]', '_')
+$Platform = ($Platform -replace '[^A-Za-z0-9_.-]', '_')
 $privateStatic = $Configuration -ieq 'PrivateStatic' -or $Configuration -ieq 'Publish'
 $GeneratedDir = Join-Path $ProjectDir ".cache\generated\$Configuration\$Platform"
 $RcOutput = Join-Path $GeneratedDir 'embedded_runtime.rc2'
