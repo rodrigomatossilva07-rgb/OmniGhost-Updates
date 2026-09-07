@@ -191,6 +191,18 @@ try {
 
     Invoke-VersionSync
     Write-VersionLog "Recursos internos atualizados para $Next"
+
+    # Commit version bump to keep git tree clean for Publish validation
+    try {
+        $git = Get-Command git -ErrorAction Stop
+        & $git.Source -C $ProjectDir add -A
+        & $git.Source -C $ProjectDir -c "user.name=OmniGhost Build" -c "user.email=build@omnighost.local" commit -m "chore: prepare version $Next"
+        Write-VersionLog "Version bump committed to git"
+    }
+    catch {
+        Write-Warning "Could not commit version bump (git may not be available or no changes): $($_.Exception.Message)"
+    }
+
     return
 }
 catch {
