@@ -35,7 +35,7 @@
         <OmitFramePointers>true</OmitFramePointers>
         <ControlFlowGuard>true</ControlFlowGuard>
         <CETCompat>true</CETCompat>
-        <AdditionalOptions>/utf-8 /permissive- /Zc:__cplusplus /Zc:preprocessor /Zc:inline /Zc:externConstexpr /external:I"$(ProjectDir)third_party\dma_stack\include" /guard:cf /guard:ehcont %(AdditionalOptions)</AdditionalOptions>
+        <AdditionalOptions>/utf-8 /permissive- /Zc:__cplusplus /Zc:preprocessor /Zc:inline /Zc:externConstexpr /external:I"$(ProjectDir)third_party\dma_stack\include" /guard:cf /guard:ehcont /FS %(AdditionalOptions)</AdditionalOptions>
         <TreatWarningAsError Condition="'$(Configuration)'=='Release' Or '$(Configuration)'=='Publish' Or '$(OmniGhostNewWarningsAsErrors)'=='true'">true</TreatWarningAsError>
         <WarningBaselineFile>$(ProjectDir).cache\warnings\baseline.txt</WarningBaselineFile>
       </ClCompile>
