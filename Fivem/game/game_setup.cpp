@@ -70,7 +70,7 @@ void Setup() {
     framecountlastvisible = pedVisibilityOffset = blip_list = aim_cped = bullet = 0;
     network_player_mgr = object_pool = waypoint = 0;
 
-    auto game_base = mem.GetBaseDaddy(g_validExecutable);
+    auto game_base = mem.GetBaseDaddy(OmniGhost::GameContext::Instance().GetValidExecutable());
     if (!game_base) {
         std::cout << "[FiveM] Error: game base is null" << std::endl;
         return;
@@ -141,7 +141,7 @@ void InitializePedCache() {
 bool ReinitDma() {
     std::cout << "[FiveM] Reinit DMA (process + world pointers)" << std::endl;
     mem.InvalidateProcess();
-    std::string exe = g_validExecutable;
+    std::string exe = OmniGhost::GameContext::Instance().GetValidExecutable();
     if (exe.empty())
         exe = "GTAProcess.exe";
     bool ok = mem.Init(exe, true, false);

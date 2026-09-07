@@ -16,28 +16,32 @@ namespace {
         const char* es;
         const char* fr;
         const char* it;
+        const char* ru;
     };
+    
+    // Helper macro for adding Russian translations
+    // Most entries use English as fallback for RU
 
     const std::unordered_map<std::string_view, Pack> kTable = {
-        {"nav.title", {"NAVEGAÇÃO", "NAVIGATION", "NAVIGATION", "NAVEGACION", "NAVIGATION", "NAVIGAZIONE"}},
-        {"nav.visuals", {"Visuais", "Visuals", "Visuals", "Visuales", "Visuels", "Visuali"}},
-        {"nav.aim", {"Mira", "Aim", "Aim", "Punteria", "Visee", "Mira"}},
-        {"nav.vehicles", {"Veículos", "Vehicles", "Fahrzeuge", "Vehiculos", "Vehicules", "Veicoli"}},
-        {"nav.friends", {"Amigos", "Friends", "Freunde", "Amigos", "Amis", "Amici"}},
-        {"nav.configs", {"Definições", "Configs", "Einstellungen", "Ajustes", "Reglages", "Impostazioni"}},
-        {"nav.save", {"Guardar", "Save/Load", "Speichern/Laden", "Guardar/Cargar", "Sauver/Charger", "Salva/Carica"}},
-        {"nav.status", {"Estado", "Status", "Status", "Status", "Status", "Status"}},
-        {"nav.world", {"Mundo", "World", "World", "World", "World", "World"}},
-        {"nav.players", {"Jogadores", "Players", "Players", "Players", "Players", "Players"}},
-        {"nav.radar", {"Radar", "Radar", "Radar", "Radar", "Radar", "Radar"}},
-        {"nav.misc", {"Diversos", "Misc", "Misc", "Misc", "Misc", "Misc"}},
-        {"nav.debug", {"Diagnóstico", "Diagnostics", "Diagnostics", "Diagnostics", "Diagnostics", "Diagnostics"}},
-        {"nav.trigger", {"Disparo automático", "Trigger", "Trigger", "Trigger", "Trigger", "Trigger"}},
-        {"nav.player_esp", {"ESP de jogadores", "Player ESP", "Player ESP", "Player ESP", "Player ESP", "Player ESP"}},
-        {"nav.world_esp", {"ESP do mundo", "World ESP", "World ESP", "World ESP", "World ESP", "World ESP"}},
-        {"nav.webradar", {"Web Radar", "Web Radar", "Web Radar", "Web Radar", "Web Radar", "Web Radar"}},
-        {"nav.interface", {"Interface", "Interface", "Interface", "Interface", "Interface", "Interface"}},
-        {"nav.macros", {"Macros", "Macros", "Macros", "Macros", "Macros", "Macros"}},
+        {"nav.title", {"NAVEGAÇÃO", "NAVIGATION", "NAVIGATION", "NAVEGACION", "NAVIGATION", "NAVIGAZIONE", "НАВИГАЦИЯ"}},
+        {"nav.visuals", {"Visuais", "Visuals", "Visuals", "Visuales", "Visuels", "Visuali", "Визуалы"}},
+        {"nav.aim", {"Mira", "Aim", "Aim", "Punteria", "Visee", "Mira", "Прицеливание"}},
+        {"nav.vehicles", {"Veículos", "Vehicles", "Fahrzeuge", "Vehiculos", "Vehicules", "Veicoli", "Транспорт"}},
+        {"nav.friends", {"Amigos", "Friends", "Freunde", "Amigos", "Amis", "Amici", "Друзья"}},
+        {"nav.configs", {"Definições", "Configs", "Einstellungen", "Ajustes", "Reglages", "Impostazioni", "Настройки"}},
+        {"nav.save", {"Guardar", "Save/Load", "Speichern/Laden", "Guardar/Cargar", "Sauver/Charger", "Salva/Carica", "Сохранить/Загрузить"}},
+        {"nav.status", {"Estado", "Status", "Status", "Status", "Status", "Status", "Статус"}},
+        {"nav.world", {"Mundo", "World", "World", "World", "World", "World", "Мир"}},
+        {"nav.players", {"Jogadores", "Players", "Players", "Players", "Players", "Players", "Игроки"}},
+        {"nav.radar", {"Radar", "Radar", "Radar", "Radar", "Radar", "Radar", "Радар"}},
+        {"nav.misc", {"Diversos", "Misc", "Misc", "Misc", "Misc", "Misc", "Разное"}},
+        {"nav.debug", {"Diagnóstico", "Diagnostics", "Diagnostics", "Diagnostics", "Diagnostics", "Diagnostics", "Диагностика"}},
+        {"nav.trigger", {"Disparo automático", "Trigger", "Trigger", "Trigger", "Trigger", "Trigger", "Триггер"}},
+        {"nav.player_esp", {"ESP de jogadores", "Player ESP", "Player ESP", "Player ESP", "Player ESP", "Player ESP", "ESP Игроков"}},
+        {"nav.world_esp", {"ESP do mundo", "World ESP", "World ESP", "World ESP", "World ESP", "World ESP", "ESP Мира"}},
+        {"nav.webradar", {"Web Radar", "Web Radar", "Web Radar", "Web Radar", "Web Radar", "Web Radar", "Веб Радар"}},
+        {"nav.interface", {"Interface", "Interface", "Interface", "Interface", "Interface", "Interface", "Интерфейс"}},
+        {"nav.macros", {"Macros", "Macros", "Macros", "Macros", "Macros", "Macros", "Макросы"}},
 
         {"launcher.home", {"Início", "Home", "Home", "Home", "Home", "Home"}},
         {"launcher.library", {"Biblioteca", "Library", "Library", "Library", "Library", "Library"}},
@@ -625,15 +629,15 @@ namespace {
 
     const char* LanguageName(int index)
     {
-        static const char* names[] = { "Português", "English", "Deutsch", "Español", "Français", "Italiano" };
-        if (index < 0 || index >= 6)
+        static const char* names[] = { "Português", "English", "Deutsch", "Español", "Français", "Italiano", "Русский" };
+        if (index < 0 || index >= 7)
             return names[0];
         return names[index];
     }
 
     int LanguageCount()
     {
-        return 6;
+        return 7;
     }
 
 } // namespace Loc

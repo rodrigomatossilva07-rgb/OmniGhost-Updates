@@ -29,7 +29,7 @@ try {
 
 $configPath = Join-Path $ProjectDir 'release-publish.json'
 $versionPath = Join-Path $ProjectDir 'version.txt'
-$metadataPath = Join-Path $ProjectDir '.cache\build-metadata.json'
+$metadataPath = Join-Path $ProjectDir '.cache\generated\Publish\x64\build-metadata.json'
 
 foreach ($requiredPath in @($configPath, $versionPath, $metadataPath)) {
     if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {

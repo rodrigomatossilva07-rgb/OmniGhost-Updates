@@ -2,6 +2,7 @@
 #include "rust_game.h"
 #include "../DMALibrary/Memory/Memory.h"
 
+#include <iostream>
 #include <sstream>
 #include <algorithm>
 #include <vector>

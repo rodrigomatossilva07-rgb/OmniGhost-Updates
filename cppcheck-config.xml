@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CppcheckConfig>
+  <Settings>
+    <EnabledChecks>
+      <Check name="warning"/>
+      <Check name="style"/>
+      <Check name="performance"/>
+      <Check name="portability"/>
+      <Check name="information"/>
+      <Check name="missingInclude"/>
+    </EnabledChecks>
+    <DisabledChecks>
+      <Check name="missingIncludeSystem"/>
+      <Check name="unmatchedSuppression"/>
+    </DisabledChecks>
+    <ForceLanguage>c++</ForceLanguage>
+    <Standard>c++20</Standard>
+    <Platform>win64</Platform>
+    <Suppress>
+      <Pattern>variableScope</Pattern>
+      <File>.*</File>
+    </Suppress>
+    <Suppress>
+      <Pattern>unreadVariable</Pattern>
+      <File>.*</File>
+    </Suppress>
+    <Suppress>
+      <Pattern>uninitStructMember</Pattern>
+      <File>.*</File>
+    </Suppress>
+    <Suppress>
+      <Pattern>uninitvar</Pattern>
+      <File>.*ImGui.*</File>
+    </Suppress>
+    <Suppress>
+      <Pattern>uninitvar</Pattern>
+      <File>.*third_party.*</File>
+    </Suppress>
+    <Suppress>
+      <Pattern>missingInclude</Pattern>
+      <File>.*ImGui.*</File>
+    </Suppress>
+    <Suppress>
+      <Pattern>missingIncludeSystem</Pattern>
+      <File>.*ImGui.*</File>
+    </Suppress>
+    <Suppress>
+      <Pattern>missingIncludeSystem</Pattern>
+      <File>.*third_party.*</File>
+    </Suppress>
+    <Suppress>
+      <Pattern>constParameter</Pattern>
+      <File>.*</File>
+    </Suppress>
+    <Suppress>
+      <Pattern>passedByValue</Pattern>
+      <File>.*</File>
+    </Suppress>
+    <Suppress>
+      <Pattern>unusedFunction</Pattern>
+      <File>.*</File>
+    </Suppress>
+  </Settings>
+  <Platform name="win64">
+    <Define name="_WIN64"/>
+    <Define name="_WINDOWS"/>
+    <Define name="WIN32_LEAN_AND_MEAN"/>
+    <Define name="NOMINMAX"/>
+    <Define name="_CRT_SECURE_NO_WARNINGS"/>
+    <IncludePath>src</IncludePath>
+    <IncludePath>src/platform</IncludePath>
+    <IncludePath>ImGui</IncludePath>
+    <IncludePath>third_party/dma_stack/include</IncludePath>
+    <IncludePath>DMALibrary</IncludePath>
+    <IncludePath>Utils</IncludePath>
+  </Platform>
+</CppcheckConfig>

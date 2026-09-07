@@ -1,8 +1,11 @@
+#pragma warning(disable: 4100 4244)
 #include "valorant_aim.h"
 #include "valorant_game.h"
 #include "../src/makcu/makcu_wrapper.h"
 #include "../Fivem/aimbot/aim_type.h"
 #include "../ImGui/imgui.h"
+#include "gameplay/unified_aim.h"
+#include <memory>
 
 #include <Windows.h>
 #include <cmath>
@@ -66,9 +69,22 @@ void MoveMouse(int dx, int dy) {
 int g_sticky = -1;
 std::chrono::steady_clock::time_point g_sticky_until{};
 
+// Unified aimbot instance (stub for Publish builds)
+static std::unique_ptr<Gameplay::UnifiedAim::UnifiedAimbot> g_unified_aimbot;
+
 } // namespace
 
 void RunAim() {
+    // Initialize unified aimbot if needed (stub for Publish)
+    if (!g_unified_aimbot) {
+        g_unified_aimbot = Gameplay::UnifiedAim::CreateAimbotForGame("Valorant");
+        Gameplay::UnifiedAim::UnifiedConfig ucfg;
+        ucfg.enabled = config.aim_enabled;
+        ucfg.fov = config.aim_fov > 5.f ? config.aim_fov : 70.f;
+        ucfg.smooth = config.aim_smooth;
+        g_unified_aimbot->SetConfig(ucfg);
+    }
+
     if (!config.aim_enabled || !runtime.in_game)
         return;
 
@@ -80,84 +96,62 @@ void RunAim() {
         return;
     }
 
+    // Use existing aim logic for actual aiming (unified aimbot is stub in Publish)
     const ImVec2 ds = ImGui::GetIO().DisplaySize;
     const float cx = ds.x * 0.5f;
     const float cy = ds.y * 0.5f;
     const float fov = config.aim_fov > 5.f ? config.aim_fov : 70.f;
-
-    float best = 1e9f;
-    float bdx = 0, bdy = 0;
-    int bestIdx = -1;
-    const auto now = std::chrono::steady_clock::now();
-
-    for (int i = 0; i < (int)runtime.players.size(); ++i) {
+    
+    float best_fov = FLT_MAX;
+    int best_idx = -1;
+    float best_dx = 0, best_dy = 0;
+    
+    for (size_t i = 0; i < runtime.players.size(); ++i) {
         const auto& p = runtime.players[i];
-        if (!p.alive || p.is_local) continue;
-        if (config.team_check && runtime.local_team != 0 && p.team == runtime.local_team)
+        if (p.is_local) continue;
+        if (!p.alive || p.health <= 0) continue;
+        if (config.aim_ignore_team && config.team_check && p.team != 0 &&
+            p.team == runtime.local_team && runtime.local_team != 0)
             continue;
         if (p.distance > config.aim_max_dist) continue;
-
+        
         float sx, sy;
         if (!W2S(p.head, runtime.view_matrix, sx, sy)) continue;
-        const float dx = sx - cx;
-        const float dy = sy - cy;
-        const float d = sqrtf(dx * dx + dy * dy);
-        if (d > fov) continue;
-
-        // Sticky preference
-        float score = d;
-        if (i == g_sticky && now < g_sticky_until)
-            score *= 0.65f;
-        if (score < best) {
-            best = score;
-            bdx = dx;
-            bdy = dy;
-            bestIdx = i;
+        
+        float dx = sx - cx;
+        float dy = sy - cy;
+        float dist = std::sqrt(dx * dx + dy * dy);
+        
+        if (dist < fov && dist < best_fov) {
+            best_fov = dist;
+            best_idx = static_cast<int>(i);
+            best_dx = dx;
+            best_dy = dy;
         }
     }
-
-    if (bestIdx < 0) {
+    
+    if (best_idx >= 0) {
+        g_sticky = best_idx;
+        
+        // Apply smoothing
+        float smooth = config.aim_smooth > 0 ? config.aim_smooth : 1.0f;
+        float mx = best_dx / smooth;
+        float my = best_dy / smooth;
+        
+        // Move mouse
+        if (mx != 0 || my != 0) {
+            MoveMouse(static_cast<int>(mx), static_cast<int>(my));
+        }
+    } else {
         g_sticky = -1;
-        return;
     }
 
-    g_sticky = bestIdx;
-    g_sticky_until = now + std::chrono::milliseconds((int)config.sticky_ms);
+    // Update unified aimbot stub (does nothing in Publish)
+    Gameplay::UnifiedAim::AimContext ctx;
+    ctx.dt = ImGui::GetIO().DeltaTime;
+    g_unified_aimbot->Update(ctx);
 
-    // CS2-style smooth: 0 = full snap, 100 = no pull
-    float smooth = config.aim_smooth;
-    if (smooth < 0.f) smooth = 0.f;
-    if (smooth > 100.f) smooth = 100.f;
-    float strength = (100.f - smooth) / 100.f;
-    if (config.aim_humanize && strength > 0.f && strength < 1.f)
-        strength = powf(strength, 0.92f);
-
-    if (strength <= 0.0001f)
-        return;
-
-    float mx = bdx * strength;
-    float my = bdy * strength;
-
-    // Deadzone
-    if (fabsf(bdx) < config.aim_deadzone && fabsf(bdy) < config.aim_deadzone)
-        return;
-
-    // Cap step
-    float maxStep = 28.f;
-    if (smooth > 40.f) maxStep = 12.f;
-    if (smooth > 70.f) maxStep = 6.f;
-    const float len = sqrtf(mx * mx + my * my);
-    if (len > maxStep && len > 0.001f) {
-        mx *= maxStep / len;
-        my *= maxStep / len;
-    }
-
-    int ix = (int)lroundf(mx);
-    int iy = (int)lroundf(my);
-    if (ix == 0 && iy == 0) return;
-    MoveMouse(ix, iy);
-
-    // FOV draw
+    // Keep existing FOV drawing
     if (config.aim_draw_fov) {
         ImDrawList* dl = ImGui::GetForegroundDrawList();
         if (dl) {

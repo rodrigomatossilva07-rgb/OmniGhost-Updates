@@ -77,6 +77,7 @@ struct Player {
     bool dormant = false;
     float pos[3]{};
     float head[3]{};
+    float velocity[3]{};
     float distance = 0.f;
     char name[64]{};
     char agent[32]{};
@@ -92,6 +93,11 @@ struct Runtime {
     uintptr_t uworld = 0;
     uintptr_t local_pawn = 0;
     int local_team = 0;
+    int local_health = 100;
+    float local_pos[3]{};
+    float local_vel[3]{};
+    float local_angles[3]{};
+    bool local_scoped = false;
     float view_matrix[16]{};
     float cam_pos[3]{};
     float cam_rot[3]{};

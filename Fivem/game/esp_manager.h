@@ -36,5 +36,11 @@ namespace FiveM {
         bool FrameCacheValid();
         const Matrix& GetFrameViewMatrix();
         const Vec3& GetFrameLocalPos();
+        
+        // Prepared data access for aimbot integration
+        bool try_get_prepared_origin(uintptr_t ped, Vec3& out);
+        bool try_get_prepared_velocity(uintptr_t ped, Vec3& out);
+        bool try_get_prepared_health(uintptr_t ped, float& out);
+        bool try_get_prepared_bone_position(uintptr_t ped, int bone, Vec3& out);
     }
 }

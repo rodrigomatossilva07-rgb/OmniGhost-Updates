@@ -31,8 +31,10 @@ namespace CyberWidgets {
                        float height = 0.0f);
     void SectionTitle(const char* title);
     void Separator();
-    bool SliderFloat(const char* label, float* v, float v_min, float v_max, const char* format = "%.1f");
+    bool SliderFloat(const char* label, float* v, float v_min, float v_max, const char* format = "%.1f", const std::string& history_id = "");
     bool Combo(const char* label, int* current_item, const char* const items[], int items_count);
+    bool Combo(const char* label, int* current_item, const char* const items[], int items_count, const std::string& history_id);
+    bool ToggleSwitch(const char* label, bool* v, const std::string& history_id);
     bool InputField(const char* id, char* buffer, std::size_t buffer_size,
                     const char* hint = nullptr, ImGuiInputTextFlags flags = 0,
                     float width = -1.0f, bool default_focus = false);
@@ -80,6 +82,11 @@ namespace CyberWidgets {
                  TextTone tone = TextTone::Accent);
     void DrawSpinner(ImDrawList* draw, ImVec2 center, float radius = 7.0f,
                      float thickness = 2.0f, TextTone tone = TextTone::Accent);
+
+    // Real-time hardware status widget
+    void DrawHardwareStatusWidget();
+    void DrawMetricGraph(const char* label, const std::vector<float>& data, float width, float height, ImU32 color);
+    void DrawMetricGraphInt(const char* label, const std::vector<int>& data, float width, float height, ImU32 color);
 
     enum class ToastType { Info, Success, Error, Warning };
     using ToastActionCallback = void(*)();

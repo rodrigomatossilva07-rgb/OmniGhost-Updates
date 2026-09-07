@@ -1,14 +1,15 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory=$true)][string]$ProjectDir,
-    [string]$Configuration = 'Release'
+    [string]$Configuration = 'Release',
+    [string]$Platform = 'x64'
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $ProjectDir = [IO.Path]::GetFullPath($ProjectDir)
 $Configuration = ($Configuration -replace '[^A-Za-z0-9_.-]', '_')
-$Platform = ($env:Platform -replace '[^A-Za-z0-9_.-]', '_')
+$Platform = ($Platform -replace '[^A-Za-z0-9_.-]', '_')
 $configurationGeneratedDir = Join-Path $ProjectDir ".cache\generated\$Configuration\$Platform"
 $manifestPath = Join-Path $ProjectDir 'resources\embedded-resources.json'
 $generatedDir = Join-Path $configurationGeneratedDir 'resources'
@@ -106,7 +107,15 @@ foreach ($item in $items) {
     $raw = [IO.File]::ReadAllBytes($source)
     if ($raw.Length -eq 0 -or $raw.Length -gt 64MB) { throw "Invalid resource size: $logical" }
     if ([string]$item.type -eq 'json') {
-        try { $null = ([Text.Encoding]::UTF8.GetString($raw) | ConvertFrom-Json) } catch { throw "Invalid JSON resource $logical`: $($_.Exception.Message)" }
+        try {
+            $jsonBytes = $raw
+            if ($jsonBytes.Length -ge 3 -and $jsonBytes[0] -eq 0xEF -and $jsonBytes[1] -eq 0xBB -and $jsonBytes[2] -eq 0xBF) {
+                $jsonBytes = $jsonBytes[3..($jsonBytes.Length - 1)]
+            }
+            $null = ([Text.Encoding]::UTF8.GetString($jsonBytes) | ConvertFrom-Json)
+        } catch {
+            throw "Invalid JSON resource ${logical}: $($_.Exception.Message)"
+        }
     }
     $packed = Compress-PackBits $raw
     $compression = [byte]0; $payload = $raw

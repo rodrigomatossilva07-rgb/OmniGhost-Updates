@@ -54,6 +54,8 @@ struct Config {
     float sticky_ms = 120.f;
     bool aim_prediction = false;
     bool aim_humanize = true;
+    bool aim_ignore_team = true;
+    bool aim_ignore_bots = true;
     float col_fov[4] = { 0.83f, 0.69f, 0.22f, 0.45f };
 
     bool trigger_enabled = false;

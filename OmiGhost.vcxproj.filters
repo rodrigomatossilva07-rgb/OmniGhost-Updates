@@ -488,15 +488,17 @@
     <ClInclude Include="src\platform\process_metrics.h"/>
     <ClInclude Include="src\platform\system_info.h"/>
   </ItemGroup>
-  <ClCompile Include="Valorant\valorant_game.cpp">
-    <Filter>Source Files\Valorant</Filter>
-  </ClCompile>
-  <ClCompile Include="Valorant\valorant_esp.cpp">
-    <Filter>Source Files\Valorant</Filter>
-  </ClCompile>
-  <ClCompile Include="Valorant\valorant_aim.cpp">
-    <Filter>Source Files\Valorant</Filter>
-  </ClCompile>
+  <ItemGroup>
+    <ClCompile Include="Valorant\valorant_game.cpp">
+      <Filter>Source Files\Valorant</Filter>
+    </ClCompile>
+    <ClCompile Include="Valorant\valorant_esp.cpp">
+      <Filter>Source Files\Valorant</Filter>
+    </ClCompile>
+    <ClCompile Include="Valorant\valorant_aim.cpp">
+      <Filter>Source Files\Valorant</Filter>
+    </ClCompile>
+  </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\auth\auth_types.h">
       <Filter>Header Files</Filter>

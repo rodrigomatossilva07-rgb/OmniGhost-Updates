@@ -85,12 +85,31 @@ if (Test-Path -LiteralPath $SourcePackageManifestPath -PathType Leaf) {
 # If a source package manifest is present, verify its listed files before claiming
 # a reproducible extracted-source build. Editing a packaged source tree must turn
 # reproducible=false instead of reusing stale package provenance.
+#
+# Full SHA-256 of every packaged file (including third_party binaries) can take
+# many minutes and looks like a freeze in Visual Studio. Strategy:
+#   - Always check path safety + existence (fast)
+#   - Hash only for Publish configuration (commercial reproducibility gate)
+#   - Skip hashing under heavy/generated trees even on Publish
+#   - Emit progress so the build log does not appear stuck
 $SourcePackageDirty = $false
 if ($null -ne $SourcePackageManifest -and $null -ne $SourcePackageManifest.files) {
     $ProjectRootPrefix = $ProjectDir.TrimEnd('\') + '\'
-    foreach ($Entry in @($SourcePackageManifest.files)) {
+    $Entries = @($SourcePackageManifest.files)
+    $TotalEntries = $Entries.Count
+    $VerifyHashes = ($Configuration -eq 'Publish')
+    Write-Host "[BuildMetadata] verifying source package manifest entries=$TotalEntries hashVerify=$VerifyHashes"
+
+    $Index = 0
+    foreach ($Entry in $Entries) {
+        $Index++
         $Relative = [string]$Entry.path
         if ([string]::IsNullOrWhiteSpace($Relative)) { continue }
+
+        if (($Index % 50) -eq 0 -or $Index -eq $TotalEntries) {
+            Write-Host "[BuildMetadata] source package verify progress $Index/$TotalEntries"
+        }
+
         try {
             $Candidate = [IO.Path]::GetFullPath((Join-Path $ProjectDir ($Relative.Replace('/', '\'))))
             if (-not $Candidate.StartsWith($ProjectRootPrefix, [StringComparison]::OrdinalIgnoreCase)) {
@@ -103,13 +122,26 @@ if ($null -ne $SourcePackageManifest -and $null -ne $SourcePackageManifest.files
                 Write-Host "[BuildMetadata] source package changed: missing $Relative"
                 break
             }
-            if ($Entry.sha256) {
-                $ActualHash = Get-OmniGhostSha256 -LiteralPath $Candidate
-                if ($ActualHash -ne ([string]$Entry.sha256).ToLowerInvariant()) {
-                    $SourcePackageDirty = $true
-                    Write-Host "[BuildMetadata] source package changed: hash mismatch $Relative"
-                    break
-                }
+
+            if (-not $VerifyHashes -or -not $Entry.sha256) { continue }
+
+            $Norm = $Relative.Replace('\', '/').ToLowerInvariant()
+            $SkipHash = $Norm.StartsWith('third_party/') -or
+                        $Norm.StartsWith('.cache/') -or
+                        $Norm.StartsWith('build/') -or
+                        $Norm.StartsWith('runtime/') -or
+                        $Norm.EndsWith('.dll') -or
+                        $Norm.EndsWith('.lib') -or
+                        $Norm.EndsWith('.pdb') -or
+                        $Norm.EndsWith('.exe') -or
+                        $Norm.EndsWith('.obj')
+            if ($SkipHash) { continue }
+
+            $ActualHash = Get-OmniGhostSha256 -LiteralPath $Candidate
+            if ($ActualHash -ne ([string]$Entry.sha256).ToLowerInvariant()) {
+                $SourcePackageDirty = $true
+                Write-Host "[BuildMetadata] source package changed: hash mismatch $Relative"
+                break
             }
         } catch {
             $SourcePackageDirty = $true
@@ -117,19 +149,57 @@ if ($null -ne $SourcePackageManifest -and $null -ne $SourcePackageManifest.files
             break
         }
     }
+
+    Write-Host "[BuildMetadata] source package verification complete dirty=$SourcePackageDirty"
 }
 
 function Get-GitValue([string[]]$Arguments, [string]$Fallback) {
     if ($null -eq $Git) { return $Fallback }
     try {
-        $value = (& $Git.Source -C $ProjectDir @Arguments 2>$null | Select-Object -First 1)
-        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($value)) {
-            return $value.Trim()
+        $result = Invoke-GitWithTimeout -Arguments $Arguments -TimeoutSeconds 8
+        if (-not $result.TimedOut -and $result.ExitCode -eq 0 -and $result.Output.Count -gt 0) {
+            $value = [string]$result.Output[0]
+            if (-not [string]::IsNullOrWhiteSpace($value)) { return $value.Trim() }
         }
     } catch {}
     return $Fallback
 }
 
+# Git status/diff can hang for a long time on large trees, broken worktrees, or
+# when AV scans every touched file. Bound all git invocations used at build time.
+function Invoke-GitWithTimeout {
+    param(
+        [string[]]$Arguments,
+        [int]$TimeoutSeconds = 12
+    )
+    if ($null -eq $Git) { return @{ TimedOut = $false; ExitCode = -1; Output = @() } }
+
+    $stdout = Join-Path $env:TEMP ("omni-git-out-{0}.txt" -f [Guid]::NewGuid().ToString('N'))
+    $stderr = Join-Path $env:TEMP ("omni-git-err-{0}.txt" -f [Guid]::NewGuid().ToString('N'))
+    try {
+        $argList = @('-C', $ProjectDir) + $Arguments
+        $proc = Start-Process -FilePath $Git.Source -ArgumentList $argList `
+            -NoNewWindow -PassThru `
+            -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+        $finished = $proc.WaitForExit($TimeoutSeconds * 1000)
+        if (-not $finished) {
+            try { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue } catch {}
+            try { $proc.WaitForExit(2000) } catch {}
+            return @{ TimedOut = $true; ExitCode = -1; Output = @() }
+        }
+        $output = @()
+        if (Test-Path -LiteralPath $stdout) {
+            $output = @(Get-Content -LiteralPath $stdout -ErrorAction SilentlyContinue)
+        }
+        return @{ TimedOut = $false; ExitCode = $proc.ExitCode; Output = $output }
+    } catch {
+        return @{ TimedOut = $false; ExitCode = -1; Output = @() }
+    } finally {
+        Remove-Item -LiteralPath $stdout, $stderr -Force -ErrorAction SilentlyContinue
+    }
+}
+
+Write-Host "[BuildMetadata] resolving source provenance..."
 $SourceProvenance = 'local-untracked'
 $Commit = if ($env:GITHUB_SHA) {
     $SourceProvenance = 'github'
@@ -149,30 +219,35 @@ $Commit = if ($env:GITHUB_SHA) {
 if ($Commit.Length -gt 12) { $CommitShort = $Commit.Substring(0,12) } else { $CommitShort = $Commit }
 $Dirty = $false
 if ($null -ne $Git) {
-    try {
-        # Restrict the check to this project directory instead of allowing Git
-        # to inspect unrelated paths from a parent repository.
-        & $Git.Source -C $ProjectDir diff --quiet --ignore-submodules HEAD -- . 2>$null
-        $Dirty = ($LASTEXITCODE -ne 0)
-    } catch {}
+    # Prefer a cheap porcelain status (tracked files only). Full `git diff` on large
+    # working trees is a common Visual Studio "freeze" during metadata generation.
+    Write-Host "[BuildMetadata] checking git dirty state (timeout 12s)..."
+    $status = Invoke-GitWithTimeout -Arguments @('status','--porcelain','-uno','--ignore-submodules','--','.') -TimeoutSeconds 12
+    if ($status.TimedOut) {
+        Write-Warning "[BuildMetadata] git status timed out; treating tree as dirty for safety."
+        $Dirty = $true
+    } else {
+        $Dirty = @($status.Output | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }).Count -gt 0
+    }
 } elseif ($null -ne $SourceMetadata -and $null -ne $SourceMetadata.dirty) {
     $Dirty = [bool]$SourceMetadata.dirty
 }
 if ($SourcePackageDirty) {
     $Dirty = $true
 }
+Write-Host "[BuildMetadata] provenance=$SourceProvenance commit=$CommitShort dirty=$Dirty"
 
 $SourceDateEpoch = 0L
 $HasSourceDateEpoch = [long]::TryParse($env:SOURCE_DATE_EPOCH, [ref]$SourceDateEpoch) -and $SourceDateEpoch -gt 0
 if (-not $HasSourceDateEpoch -and $null -ne $Git) {
-    try {
-        $CommitEpochText = (& $Git.Source -C $ProjectDir show -s --format=%ct HEAD 2>$null | Select-Object -First 1)
+    $epochResult = Invoke-GitWithTimeout -Arguments @('show','-s','--format=%ct','HEAD') -TimeoutSeconds 8
+    if (-not $epochResult.TimedOut -and $epochResult.Output.Count -gt 0) {
         $CommitEpoch = 0L
-        if ([long]::TryParse([string]$CommitEpochText, [ref]$CommitEpoch) -and $CommitEpoch -gt 0) {
+        if ([long]::TryParse([string]$epochResult.Output[0], [ref]$CommitEpoch) -and $CommitEpoch -gt 0) {
             $SourceDateEpoch = $CommitEpoch
             $HasSourceDateEpoch = $true
         }
-    } catch {}
+    }
 }
 if (-not $HasSourceDateEpoch -and $null -ne $SourceMetadata -and $SourceMetadata.source_date_epoch) {
     $PackagedEpoch = 0L
@@ -204,6 +279,7 @@ $BuildId = if ($env:GITHUB_RUN_ID) {
 }
 if ($Dirty) { $BuildId += '-dirty' }
 
+Write-Host "[BuildMetadata] resolving toolchain..."
 $ToolchainVersion = if ($env:VCToolsVersion) { $env:VCToolsVersion.TrimEnd('\') } else { '' }
 $CompilerVersion = ''
 $CompilerPath = ''
@@ -211,16 +287,24 @@ try {
     $ClCommand = Get-Command cl.exe -ErrorAction Stop
     $CompilerPath = $ClCommand.Source
 } catch {}
-if ([string]::IsNullOrWhiteSpace($CompilerPath)) {
+# Prefer environment / PATH. Avoid vswhere on normal incremental builds — it can
+# stall for a long time on some developer machines with many VS installs.
+if ([string]::IsNullOrWhiteSpace($CompilerPath) -and $Configuration -eq 'Publish') {
     try {
+        Write-Host "[BuildMetadata] locating cl.exe via vswhere (Publish only)..."
         $VsWhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
         if (Test-Path -LiteralPath $VsWhere) {
             $InstallRoot = (& $VsWhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath 2>$null | Select-Object -First 1)
             if ($InstallRoot) {
-                $Candidate = Get-ChildItem -LiteralPath (Join-Path $InstallRoot 'VC\Tools\MSVC') -Directory -ErrorAction SilentlyContinue |
-                    Sort-Object Name -Descending | ForEach-Object { Join-Path $_.FullName 'bin\Hostx64\x64\cl.exe' } |
-                    Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
-                if ($Candidate) { $CompilerPath = $Candidate }
+                $MsvcRoot = Join-Path $InstallRoot 'VC\Tools\MSVC'
+                if (Test-Path -LiteralPath $MsvcRoot) {
+                    $Candidate = Get-ChildItem -LiteralPath $MsvcRoot -Directory -ErrorAction SilentlyContinue |
+                        Sort-Object Name -Descending |
+                        ForEach-Object { Join-Path $_.FullName 'bin\Hostx64\x64\cl.exe' } |
+                        Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
+                        Select-Object -First 1
+                    if ($Candidate) { $CompilerPath = $Candidate }
+                }
             }
         }
     } catch {}
@@ -239,18 +323,25 @@ if (-not [string]::IsNullOrWhiteSpace($CompilerPath)) {
 if ([string]::IsNullOrWhiteSpace($ToolchainVersion)) { $ToolchainVersion = 'unknown' }
 if ([string]::IsNullOrWhiteSpace($CompilerVersion)) { $CompilerVersion = 'unknown' }
 
+Write-Host "[BuildMetadata] resolving Windows SDK..."
 $WindowsSdkVersion = if ($env:WindowsSDKVersion) { $env:WindowsSDKVersion.TrimEnd('\') } else { '' }
 if ([string]::IsNullOrWhiteSpace($WindowsSdkVersion)) {
     try {
         $KitsRoot = (Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows Kits\Installed Roots' -ErrorAction Stop).KitsRoot10
         if ($KitsRoot) {
-            $SdkDir = Get-ChildItem -LiteralPath (Join-Path $KitsRoot 'Include') -Directory -ErrorAction SilentlyContinue |
-                Where-Object { $_.Name -match '^10\.0\.\d+\.0$' } | Sort-Object Name -Descending | Select-Object -First 1
-            if ($SdkDir) { $WindowsSdkVersion = $SdkDir.Name }
+            $IncludeRoot = Join-Path $KitsRoot 'Include'
+            if (Test-Path -LiteralPath $IncludeRoot) {
+                $SdkDir = Get-ChildItem -LiteralPath $IncludeRoot -Directory -ErrorAction SilentlyContinue |
+                    Where-Object { $_.Name -match '^10\.0\.\d+\.0$' } |
+                    Sort-Object Name -Descending |
+                    Select-Object -First 1
+                if ($SdkDir) { $WindowsSdkVersion = $SdkDir.Name }
+            }
         }
     } catch {}
 }
 if ([string]::IsNullOrWhiteSpace($WindowsSdkVersion)) { $WindowsSdkVersion = 'unknown' }
+Write-Host "[BuildMetadata] toolchain=$ToolchainVersion compiler=$CompilerVersion sdk=$WindowsSdkVersion"
 if ([string]::IsNullOrWhiteSpace($Configuration)) { $Configuration = if ($env:Configuration) { $env:Configuration } else { 'unknown' } }
 if ([string]::IsNullOrWhiteSpace($Architecture)) { $Architecture = 'x64' }
 if ([string]::IsNullOrWhiteSpace($ReleaseChannel)) { $ReleaseChannel = 'stable' }

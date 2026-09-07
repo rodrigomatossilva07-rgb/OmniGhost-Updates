@@ -145,7 +145,11 @@ struct Runtime {
     uintptr_t game_assembly = 0;
     uintptr_t local_player = 0;
     int local_team = 0;
+    int local_health = 100;
     float local_pos[3]{};
+    float local_vel[3]{};
+    float local_angles[3]{};
+    bool local_scoped = false;
     float view_matrix[16]{};
     std::vector<Player> players;
     std::vector<WorldEntity> world_entities;

@@ -20,23 +20,10 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <iostream>
 #include <unordered_map>
 
 namespace fs = std::filesystem;
-
-namespace OmniGhost::Platform {
-
-std::string DigestHex(const std::array<std::uint8_t, 32>& digest) {
-    static constexpr char hex[] = "0123456789abcdef";
-    std::string result(64, '0');
-    for (std::size_t i = 0; i < digest.size(); ++i) {
-        result[i * 2] = hex[digest[i] >> 4];
-        result[i * 2 + 1] = hex[digest[i] & 0x0f];
-    }
-    return result;
-}
-
-} // namespace OmniGhost::Platform
 
 namespace {
 
@@ -219,7 +206,8 @@ bool ExtractBundle(const fs::path& root, std::wstring& error) {
     staleError.clear();
     fs::remove(root / L"libs" / L"leechcore.dll", staleError);
 #endif
-    for (const auto& entry : OmniGhost::EmbeddedRuntimeGenerated::kEntries) {
+    for (std::size_t _i = 0; _i < OmniGhost::EmbeddedRuntimeGenerated::kEntryCount; ++_i) {
+        const auto& entry = OmniGhost::EmbeddedRuntimeGenerated::kEntries[_i];
         // Public Radar is optional. Keep cloudflared inside the PE until the user
         // explicitly enables that feature instead of leaving a daemon binary on
         // disk after every normal launcher start.
@@ -359,7 +347,8 @@ bool EmbeddedRuntimeFileAvailable(std::wstring_view relativePath) noexcept {
         const fs::path requested(relativePath);
 if (!IsSafeRelative(requested))
             return false;
-        for (const auto& entry : OmniGhost::EmbeddedRuntimeGenerated::kEntries) {
+        for (std::size_t _i = 0; _i < OmniGhost::EmbeddedRuntimeGenerated::kEntryCount; ++_i) {
+        const auto& entry = OmniGhost::EmbeddedRuntimeGenerated::kEntries[_i];
             if (_wcsicmp(entry.relativePath, requested.c_str()) != 0)
                 continue;
             const auto resource = OmniGhost::GetPeResourceView(entry.resourceId);
@@ -382,7 +371,8 @@ bool ValidatePrivateRuntimeFile(std::wstring_view relativePath, std::wstring& er
         return false;
     }
     const OmniGhost::EmbeddedRuntimeGenerated::Entry* expected = nullptr;
-    for (const auto& entry : OmniGhost::EmbeddedRuntimeGenerated::kEntries) {
+    for (std::size_t _i = 0; _i < OmniGhost::EmbeddedRuntimeGenerated::kEntryCount; ++_i) {
+        const auto& entry = OmniGhost::EmbeddedRuntimeGenerated::kEntries[_i];
         if (_wcsicmp(entry.relativePath, requested.c_str()) == 0) {
             expected = &entry;
             break;
@@ -416,7 +406,8 @@ bool MaterializePrivateRuntimeFile(std::wstring_view relativePath, std::wstring&
         return false;
     }
     const OmniGhost::EmbeddedRuntimeGenerated::Entry* selected = nullptr;
-    for (const auto& entry : OmniGhost::EmbeddedRuntimeGenerated::kEntries) {
+    for (std::size_t _i = 0; _i < OmniGhost::EmbeddedRuntimeGenerated::kEntryCount; ++_i) {
+        const auto& entry = OmniGhost::EmbeddedRuntimeGenerated::kEntries[_i];
         if (_wcsicmp(entry.relativePath, requested.c_str()) == 0) {
             selected = &entry;
             break;

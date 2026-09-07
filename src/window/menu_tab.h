@@ -33,7 +33,25 @@ enum class MenuTab : int {
     TAB_VALORANT_VISUALS = 400,
     TAB_VALORANT_AIM,
     TAB_VALORANT_STATUS,
-
+    
+    // New unified system pages (shared across games)
+    TAB_UNIFIED_AIM = 600,
+    TAB_WEB_RADAR,
+    TAB_SOUND_ESP,
+    TAB_SPECTATOR_LIST,
+    TAB_TRIGGERBOT,
+    TAB_RECOIL_CONTROL,
+    TAB_PREDICTION,
+    TAB_VISIBILITY,
+    TAB_BONE_SYSTEM,
+    TAB_SMOOTH_CURVES,
+    TAB_RECOIL_PATTERNS,
+    TAB_ENTITY_CACHE,
+    TAB_PROFILE_MANAGER,
+    TAB_OFFSET_MANAGER,
+    TAB_RESOLUTION,
+    TAB_GAME_ADAPTER,
+    
     TAB_FORTNITE_VISUALS = 500,
     TAB_FORTNITE_AIM,
     TAB_FORTNITE_STATUS
@@ -79,3 +97,21 @@ void DrawValorantStatus();
 void DrawFortniteVisuals();
 void DrawFortniteAim();
 void DrawFortniteStatus();
+
+// New unified system pages
+void DrawUnifiedAim();
+void DrawWebRadar();
+void DrawSoundESP();
+void DrawSpectatorList();
+void DrawTriggerbot();
+void DrawRecoilControl();
+void DrawPrediction();
+void DrawVisibility();
+void DrawBoneSystem();
+void DrawSmoothCurves();
+void DrawRecoilPatterns();
+void DrawEntityCache();
+void DrawProfileManager();
+void DrawOffsetManager();
+void DrawResolution();
+void DrawGameAdapter();

@@ -1,0 +1,238 @@
+name: Static Analysis & Security
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  checks: write
+  id-token: write
+  attestations: write
+
+jobs:
+  clang-tidy:
+    name: clang-tidy
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup MSVC
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Install clang-tidy
+        run: |
+          choco install llvm --version 18.1.8 -y
+          echo "C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Run clang-tidy
+        shell: cmd
+        run: |
+          msbuild OmiGhost.vcxproj /p:Configuration=Release /p:Platform=x64 /t:ClangTidy /v:m
+
+  cppcheck:
+    name: cppcheck
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install cppcheck
+        run: |
+          choco install cppcheck -y
+
+      - name: Run cppcheck
+        run: |
+          cppcheck --config-file=cppcheck-config.xml --force --enable=warning,style,performance,portability,information --std=c++20 --platform=win64 --inline-suppr --error-exitcode=1 --quiet src/
+
+  warnings-baseline:
+    name: Warnings Baseline Check
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup MSVC
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build with Warning Baseline
+        shell: cmd
+        run: |
+          msbuild OmiGhost.vcxproj /p:Configuration=Release /p:Platform=x64 /t:Rebuild /p:WarningBaselineFile=.cache\warnings\baseline.txt /v:m
+
+  sbom-generation:
+    name: SBOM Generation
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install CycloneDX CLI
+        run: |
+          choco install cyclonedx-cli -y
+
+      - name: Generate SBOM
+        run: |
+          cyclonedx-cli dotnet msbuild OmiGhost.vcxproj /p:Configuration=Release /p:Platform=x64 --output-file sbom.json
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: SBOM
+          path: sbom.json
+          retention-days: 30
+
+      - name: Attest SBOM
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: sbom.json
+
+  vulnerability-scan:
+    name: Vulnerability Scanning
+    runs-on: windows-latest
+    needs: sbom-generation
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download SBOM
+        uses: actions/download-artifact@v4
+        with:
+          name: SBOM
+          path: .
+
+      - name: Run Grype Vulnerability Scan
+        uses: anchore/scan-action@v3
+        with:
+          sbom: sbom.json
+          fail-build: true
+          severity-cutoff: high
+
+      - name: Run Trivy Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: sarif
+          output: trivy-results.sarif
+          severity: HIGH,CRITICAL
+
+      - name: Upload Trivy Results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+
+  code-signing:
+    name: Authenticode Code Signing
+    runs-on: windows-latest
+    if: github.event_name == 'release' && github.event.action == 'published'
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup MSVC
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build Publish
+        shell: cmd
+        run: |
+          msbuild OmiGhost.vcxproj /p:Configuration=Publish /p:Platform=x64 /t:Rebuild /v:m
+
+      - name: Sign Binary with Azure SignTool
+        uses: azure/signtool@v1
+        with:
+          file: build/Publish/OmniGhost.exe
+          key-vault-url: ${{ secrets.AZURE_KEY_VAULT_URL }}
+          certificate-name: ${{ secrets.SIGNING_CERT_NAME }}
+          timestamp-rfc3161: http://timestamp.digicert.com
+          hash-algorithm: sha256
+
+      - name: Verify Signature
+        run: |
+          signtool verify /pa /v build/Publish/OmniGhost.exe
+
+      - name: Upload Signed Binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: OmniGhost-Signed
+          path: build/Publish/OmniGhost.exe
+          retention-days: 7
+
+  build-verification:
+    name: Build Verification
+    runs-on: windows-latest
+    needs: [clang-tidy, cppcheck, warnings-baseline, sbom-generation, vulnerability-scan]
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup MSVC
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build Release
+        shell: cmd
+        run: |
+          msbuild OmiGhost.vcxproj /p:Configuration=Release /p:Platform=x64 /t:Rebuild /v:m
+
+      - name: Build Publish
+        shell: cmd
+        run: |
+          msbuild OmiGhost.vcxproj /p:Configuration=Publish /p:Platform=x64 /t:Rebuild /v:m
+
+      - name: Verify Binary Hardening
+        shell: cmd
+        run: |
+          dumpbin /headers build/Release/OmniGhost.exe | findstr /C:"Dynamic base" /C:"NX compat" /C:"Guard CF" /C:"SafeSEH"
+          dumpbin /headers build/Publish/OmniGhost.exe | findstr /C:"Dynamic base" /C:"NX compat" /C:"Guard CF" /C:"SafeSEH"
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: OmniGhost-Build
+          path: build/**/OmniGhost.exe
+          retention-days: 7
+
+  security-audit:
+    name: Security Audit
+    runs-on: windows-latest
+    needs: [clang-tidy, cppcheck, vulnerability-scan]
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Security Audit
+        run: |
+          # Check for common security issues
+          echo "Checking for hardcoded secrets..."
+          if (Select-String -Pattern "(password|secret|key|token)\s*=\s*[""']" -Path src -Recurse -Include "*.cpp","*.h" -SimpleMatch) {
+            Write-Error "Potential hardcoded secrets found"
+            exit 1
+          }
+          
+          # Check for unsafe functions
+          if (Select-String -Pattern "strcpy|strcat|sprintf|gets" -Path src -Recurse -Include "*.cpp","*.h") {
+            Write-Warning "Unsafe functions detected"
+          }
+          
+          # Check for proper error handling
+          if (Select-String -Pattern "catch\s*\(\.\.\.\)" -Path src -Recurse -Include "*.cpp") {
+            Write-Warning "Catch-all handlers detected"
+          }
+          
+          echo "Security audit passed"

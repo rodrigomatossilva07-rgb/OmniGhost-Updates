@@ -1,4 +1,6 @@
+#pragma warning(disable: 4189 4100)
 #include "InputDevicesCard.h"
+#include "hardware_monitor.h"
 
 #include "widgets.h"
 #include "localization.h"
@@ -26,9 +28,87 @@ void NotifyResult(bool ok, aim_type::DeviceType type) {
         ok ? CyberWidgets::ToastType::Success : CyberWidgets::ToastType::Error);
 }
 
+HardwareMonitor::DeviceType AimTypeToHW(aim_type::DeviceType type) {
+    switch (type) {
+        case aim_type::DeviceType::Makcu: return HardwareMonitor::DeviceType::Makcu;
+        case aim_type::DeviceType::KmboxNet: return HardwareMonitor::DeviceType::KMBoxNet;
+        case aim_type::DeviceType::Ferrum: return HardwareMonitor::DeviceType::Ferrum;
+        default: return HardwareMonitor::DeviceType::DMA;
+    }
+}
+
+void UpdateHardwareMonitor() {
+    // Update DMA status
+    HardwareMonitor::UpdateDeviceStatus(HardwareMonitor::DeviceType::DMA, true, "", "", "");
+    
+    // Update Makcu
+    if (makcu_wrapper::IsConnected()) {
+        HardwareMonitor::UpdateDeviceStatus(HardwareMonitor::DeviceType::Makcu, true, 
+            "COM", makcu_wrapper::DiagnosticsLine(), "");
+    } else {
+        HardwareMonitor::UpdateDeviceStatus(HardwareMonitor::DeviceType::Makcu, false, "", "", "");
+    }
+    HardwareMonitor::SetDeviceEnabled(HardwareMonitor::DeviceType::Makcu, aim_type::config.makcu_enabled);
+    
+    // Update KMBox-Net
+    if (kmbox_net::IsConnected()) {
+        HardwareMonitor::UpdateDeviceStatus(HardwareMonitor::DeviceType::KMBoxNet, true,
+            std::string(aim_type::config.kmbox_ip) + ":" + aim_type::config.kmbox_port, "", "");
+    } else {
+        HardwareMonitor::UpdateDeviceStatus(HardwareMonitor::DeviceType::KMBoxNet, false, "", "", "");
+    }
+    HardwareMonitor::SetDeviceEnabled(HardwareMonitor::DeviceType::KMBoxNet, aim_type::config.kmbox_net_enabled);
+    
+    // Update Ferrum
+    if (ferrum_device::IsConnected()) {
+        HardwareMonitor::UpdateDeviceStatus(HardwareMonitor::DeviceType::Ferrum, true,
+            ferrum_device::ConnectedPort(), ferrum_device::DeviceVersion(), "");
+    } else {
+        HardwareMonitor::UpdateDeviceStatus(HardwareMonitor::DeviceType::Ferrum, false, "", "", "");
+    }
+    HardwareMonitor::SetDeviceEnabled(HardwareMonitor::DeviceType::Ferrum, aim_type::config.ferrum_enabled);
+}
+
+void DrawDeviceStatus(const HardwareMonitor::DeviceStatus& status) {
+    const bool healthy = HardwareMonitor::IsDeviceHealthy(static_cast<HardwareMonitor::DeviceType>(0)); // placeholder
+    
+    // Connection status badge
+    CyberWidgets::StatusBadge(status.name.c_str(), status.connected);
+    
+    // Health indicator
+    std::string health = HardwareMonitor::GetDeviceHealthString(static_cast<HardwareMonitor::DeviceType>(0));
+    CyberWidgets::TextTone tone = CyberWidgets::TextTone::Success;
+    if (health == "Disconnected" || health == "Stale") tone = CyberWidgets::TextTone::Error;
+    else if (health == "High Latency" || health == "Elevated Latency") tone = CyberWidgets::TextTone::Warning;
+    else if (health == "Disabled") tone = CyberWidgets::TextTone::Secondary;
+    
+    CyberWidgets::Badge(health.c_str(), tone);
+    
+    // Latency info
+    if (status.connected) {
+        char lat[64];
+        std::snprintf(lat, sizeof(lat), "Avg: %.1fms Max: %.1fms", 
+            HardwareMonitor::GetAverageLatency(static_cast<HardwareMonitor::DeviceType>(0), 5),
+            HardwareMonitor::GetMaxLatency(static_cast<HardwareMonitor::DeviceType>(0), 5));
+        CyberWidgets::KeyValueRow("Latency", lat);
+    }
+    
+    if (!status.port.empty()) {
+        CyberWidgets::KeyValueRow("Port", status.port.c_str());
+    }
+    if (!status.version.empty()) {
+        CyberWidgets::KeyValueRow("Version", status.version.c_str());
+    }
+    if (!status.last_error.empty()) {
+        CyberWidgets::KeyValueRow("Last Error", status.last_error.c_str());
+    }
+}
+
 void DrawMakcu() {
-    const bool connected = makcu_wrapper::IsConnected();
-    CyberWidgets::StatusBadge("Makcu", connected);
+    const auto& status = HardwareMonitor::GetDeviceStatus(HardwareMonitor::DeviceType::Makcu);
+    DrawDeviceStatus(status);
+    CyberWidgets::Separator();
+    
     if (CyberWidgets::ToggleSwitch(Loc::TrID("aim.makcu"), &aim_type::config.makcu_enabled) &&
         !aim_type::config.makcu_enabled)
         aim_type::Disconnect(aim_type::DeviceType::Makcu);
@@ -51,15 +131,15 @@ void DrawMakcu() {
         }
         NotifyResult(makcu_wrapper::IsConnected(), aim_type::DeviceType::Makcu);
     }
-    if (connected && CyberWidgets::CyberButton("Desligar###makcu", ImVec2(120, 32)))
+    if (status.connected && CyberWidgets::CyberButton("Desligar###makcu", ImVec2(120, 32)))
         aim_type::Disconnect(aim_type::DeviceType::Makcu);
-    if (connected)
-        ImGui::TextDisabled("%s", makcu_wrapper::DiagnosticsLine());
 }
 
 void DrawKmboxNet() {
-    const bool connected = kmbox_net::IsConnected();
-    CyberWidgets::StatusBadge("Kmbox-Net", connected);
+    const auto& status = HardwareMonitor::GetDeviceStatus(HardwareMonitor::DeviceType::KMBoxNet);
+    DrawDeviceStatus(status);
+    CyberWidgets::Separator();
+    
     if (CyberWidgets::ToggleSwitch(Loc::TrID("aim.kmbox_net"), &aim_type::config.kmbox_net_enabled) &&
         !aim_type::config.kmbox_net_enabled)
         aim_type::Disconnect(aim_type::DeviceType::KmboxNet);
@@ -75,16 +155,15 @@ void DrawKmboxNet() {
     ImGui::SameLine();
     if (CyberWidgets::CyberButton(Loc::TrID("common.test"), ImVec2(105, 34)))
         NotifyResult(aim_type::Test(aim_type::DeviceType::KmboxNet), aim_type::DeviceType::KmboxNet);
-    if (connected && CyberWidgets::CyberButton("Desligar###kmbox", ImVec2(120, 32)))
+    if (status.connected && CyberWidgets::CyberButton("Desligar###kmbox", ImVec2(120, 32)))
         aim_type::Disconnect(aim_type::DeviceType::KmboxNet);
-    if (connected)
-        ImGui::TextDisabled("UDP binário ativo em %s:%s", aim_type::config.kmbox_ip,
-            aim_type::config.kmbox_port);
 }
 
 void DrawFerrum() {
-    const bool connected = ferrum_device::IsConnected();
-    CyberWidgets::StatusBadge("Ferrum", connected);
+    const auto& status = HardwareMonitor::GetDeviceStatus(HardwareMonitor::DeviceType::Ferrum);
+    DrawDeviceStatus(status);
+    CyberWidgets::Separator();
+    
     if (CyberWidgets::ToggleSwitch("Ferrum", &aim_type::config.ferrum_enabled) &&
         !aim_type::config.ferrum_enabled)
         aim_type::Disconnect(aim_type::DeviceType::Ferrum);
@@ -97,25 +176,26 @@ void DrawFerrum() {
     ImGui::SameLine();
     if (CyberWidgets::CyberButton(Loc::TrID("common.test"), ImVec2(105, 34)))
         NotifyResult(aim_type::Test(aim_type::DeviceType::Ferrum), aim_type::DeviceType::Ferrum);
-    if (connected && CyberWidgets::CyberButton("Desligar###ferrum", ImVec2(120, 32)))
+    if (status.connected && CyberWidgets::CyberButton("Desligar###ferrum", ImVec2(120, 32)))
         aim_type::Disconnect(aim_type::DeviceType::Ferrum);
-    if (connected) {
-        const std::string port = ferrum_device::ConnectedPort();
-        const std::string version = ferrum_device::DeviceVersion();
-        ImGui::TextDisabled("%s%s%s", port.c_str(), version.empty() ? "" : " | ", version.c_str());
-    } else {
-        ImGui::TextDisabled("Deteta automaticamente Ferrum / Silicon Labs CP210x; inicia a 115200 baud.");
-    }
 }
 
 } // namespace
 
 void Draw() {
     aim_type::Initialize();
+    UpdateHardwareMonitor();
+    
     CyberWidgets::BeginCard(Loc::Tr("aim.devices"));
     ImGui::Text("%s", aim_type::StatusText());
     ImGui::TextDisabled("O último dispositivo ligado fica ativo em todos os jogos.");
-
+    CyberWidgets::CardGap(8.0f);
+    
+    // DMA Status
+    const auto& dma_status = HardwareMonitor::GetDeviceStatus(HardwareMonitor::DeviceType::DMA);
+    DrawDeviceStatus(dma_status);
+    CyberWidgets::Separator();
+    
     DrawMakcu();
     CyberWidgets::Separator();
     DrawKmboxNet();

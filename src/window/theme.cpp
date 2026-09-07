@@ -2,12 +2,18 @@
 #include "../config/app_settings.h"
 #include <algorithm>
 #include <cmath>
+#include <fstream>
+#include <sstream>
+#include <filesystem>
 
 namespace CyberTheme {
 
     ColorPalette Colors;
     bool g_high_contrast = false;
     bool g_reduced_motion = false;
+    ThemeMode g_theme_mode = ThemeMode::Dark;
+    AccentPreset g_accent_preset = AccentPreset::Cyber;
+    ImVec4 g_custom_accent = ImVec4(0.83f, 0.69f, 0.22f, 1.0f);
 
     ImVec4 Mix(const ImVec4& a, const ImVec4& b, float amount) {
         amount = std::clamp(amount, 0.0f, 1.0f);
@@ -52,6 +58,108 @@ namespace CyberTheme {
         constexpr float kBaseSidebarItemHeight = 49.0f;
 
         float g_ui_scale = 1.0f;
+
+        const std::vector<AccentColor> kAccentPresets = {
+            { ImVec4(0.83f, 0.69f, 0.22f, 1.0f), ImVec4(1.0f, 0.89f, 0.54f, 1.0f), ImVec4(0.83f, 0.69f, 0.22f, 0.20f), "Cyber", "cyber" },
+            { ImVec4(0.94f, 0.74f, 0.25f, 1.0f), ImVec4(1.0f, 0.89f, 0.55f, 1.0f), ImVec4(0.94f, 0.74f, 0.25f, 0.20f), "Gold", "gold" },
+            { ImVec4(0.67f, 0.45f, 0.96f, 1.0f), ImVec4(0.83f, 0.70f, 1.0f, 1.0f), ImVec4(0.67f, 0.45f, 0.96f, 0.20f), "Purple", "purple" },
+            { ImVec4(0.24f, 0.87f, 0.47f, 1.0f), ImVec4(0.50f, 1.0f, 0.70f, 1.0f), ImVec4(0.24f, 0.87f, 0.47f, 0.20f), "Matrix", "matrix" },
+            { ImVec4(0.94f, 0.35f, 0.37f, 1.0f), ImVec4(1.0f, 0.60f, 0.60f, 1.0f), ImVec4(0.94f, 0.35f, 0.37f, 0.20f), "Red", "red" },
+            { ImVec4(0.32f, 0.62f, 0.96f, 1.0f), ImVec4(0.60f, 0.80f, 1.0f, 1.0f), ImVec4(0.32f, 0.62f, 0.96f, 0.20f), "Blue", "blue" },
+            { ImVec4(0.00f, 0.80f, 0.80f, 1.0f), ImVec4(0.40f, 0.95f, 0.95f, 1.0f), ImVec4(0.00f, 0.80f, 0.80f, 0.20f), "Teal", "teal" },
+            { ImVec4(1.0f, 0.55f, 0.10f, 1.0f), ImVec4(1.0f, 0.75f, 0.40f, 1.0f), ImVec4(1.0f, 0.55f, 0.10f, 0.20f), "Orange", "orange" },
+            { ImVec4(1.0f, 0.40f, 0.70f, 1.0f), ImVec4(1.0f, 0.70f, 0.85f, 1.0f), ImVec4(1.0f, 0.40f, 0.70f, 0.20f), "Pink", "pink" }
+        };
+
+        ImVec4 GetAccentBase() {
+            if (g_accent_preset == AccentPreset::Custom) {
+                return g_custom_accent;
+            }
+            int idx = static_cast<int>(g_accent_preset);
+            if (idx >= 0 && idx < static_cast<int>(kAccentPresets.size())) {
+                return kAccentPresets[idx].base;
+            }
+            return kAccentPresets[0].base;
+        }
+
+        ImVec4 GetAccentHover() {
+            if (g_accent_preset == AccentPreset::Custom) {
+                return Mix(g_custom_accent, ImVec4(1.f, 1.f, 1.f, 1.f), 0.26f);
+            }
+            int idx = static_cast<int>(g_accent_preset);
+            if (idx >= 0 && idx < static_cast<int>(kAccentPresets.size())) {
+                return kAccentPresets[idx].hover;
+            }
+            return kAccentPresets[0].hover;
+        }
+
+        ImVec4 GetAccentGlow() {
+            if (g_accent_preset == AccentPreset::Custom) {
+                return ImVec4(g_custom_accent.x, g_custom_accent.y, g_custom_accent.z, 0.20f);
+            }
+            int idx = static_cast<int>(g_accent_preset);
+            if (idx >= 0 && idx < static_cast<int>(kAccentPresets.size())) {
+                return kAccentPresets[idx].glow;
+            }
+            return kAccentPresets[0].glow;
+        }
+
+        void ApplyDarkPalette(ImVec4 accent, ImVec4 accentHover, ImVec4 accentGlow) {
+            Colors.Gold = accent;
+            Colors.GoldHover = accentHover;
+            Colors.GoldGlow = accentGlow;
+            Colors.Text = ImVec4(0.949f, 0.949f, 0.957f, 1.00f);
+            Colors.TextDisabled = ImVec4(0.56f, 0.57f, 0.62f, 1.00f);
+            Colors.Border = ImVec4(0.40f, 0.41f, 0.46f, 0.34f);
+            Colors.Success = ImVec4(0.286f, 0.820f, 0.537f, 1.00f);
+            Colors.Warning = ImVec4(0.945f, 0.671f, 0.275f, 1.00f);
+            Colors.Error = ImVec4(0.941f, 0.349f, 0.365f, 1.00f);
+            Colors.Info = ImVec4(0.353f, 0.671f, 0.965f, 1.00f);
+            Colors.Background = ImVec4(0.f, 0.f, 0.f, 1.f);
+            Colors.Surface = ImVec4(0.f, 0.f, 0.f, 1.f);
+            Colors.Card = ImVec4(0.f, 0.f, 0.f, 1.f);
+            Colors.CardHover = ImVec4(13.f / 255.f, 13.f / 255.f, 13.f / 255.f, 1.f);
+            Colors.Panel = Colors.Surface;
+            Colors.PanelHover = Colors.CardHover;
+        }
+
+        void ApplyLightPalette(ImVec4 accent, ImVec4 accentHover, ImVec4 accentGlow) {
+            Colors.Gold = accent;
+            Colors.GoldHover = accentHover;
+            Colors.GoldGlow = accentGlow;
+            Colors.Text = ImVec4(0.12f, 0.13f, 0.15f, 1.00f);
+            Colors.TextDisabled = ImVec4(0.45f, 0.47f, 0.52f, 1.00f);
+            Colors.Border = ImVec4(0.75f, 0.77f, 0.82f, 0.45f);
+            Colors.Success = ImVec4(0.15f, 0.65f, 0.35f, 1.00f);
+            Colors.Warning = ImVec4(0.85f, 0.55f, 0.10f, 1.00f);
+            Colors.Error = ImVec4(0.85f, 0.25f, 0.25f, 1.00f);
+            Colors.Info = ImVec4(0.20f, 0.50f, 0.85f, 1.00f);
+            Colors.Background = ImVec4(0.96f, 0.97f, 0.98f, 1.f);
+            Colors.Surface = ImVec4(1.f, 1.f, 1.f, 1.f);
+            Colors.Card = ImVec4(0.92f, 0.93f, 0.95f, 1.f);
+            Colors.CardHover = ImVec4(0.88f, 0.89f, 0.92f, 1.f);
+            Colors.Panel = Colors.Surface;
+            Colors.PanelHover = Colors.CardHover;
+        }
+
+        void ApplyHighContrastPalette(ImVec4 accent, ImVec4 accentHover, ImVec4 accentGlow) {
+            Colors.Gold = accent;
+            Colors.GoldHover = accentHover;
+            Colors.GoldGlow = accentGlow;
+            Colors.Text = ImVec4(1.f, 1.f, 1.f, 1.f);
+            Colors.TextDisabled = ImVec4(0.7f, 0.7f, 0.7f, 1.f);
+            Colors.Border = ImVec4(0.5f, 0.5f, 0.5f, 1.f);
+            Colors.Success = ImVec4(0.2f, 1.f, 0.4f, 1.f);
+            Colors.Warning = ImVec4(1.f, 0.8f, 0.f, 1.f);
+            Colors.Error = ImVec4(1.f, 0.3f, 0.3f, 1.f);
+            Colors.Info = ImVec4(0.2f, 0.7f, 1.f, 1.f);
+            Colors.Background = ImVec4(0.f, 0.f, 0.f, 1.f);
+            Colors.Surface = ImVec4(0.08f, 0.08f, 0.08f, 1.f);
+            Colors.Card = ImVec4(0.12f, 0.12f, 0.12f, 1.f);
+            Colors.CardHover = ImVec4(0.16f, 0.16f, 0.16f, 1.f);
+            Colors.Panel = Colors.Surface;
+            Colors.PanelHover = Colors.CardHover;
+        }
     }
 
     void SetHighContrast(bool enabled) {
@@ -143,27 +251,14 @@ namespace CyberTheme {
 
     void Initialize() {
         g_ui_scale = 1.0f;
-        g_high_contrast = app_settings::config.reduce_motion; // Note: we'll add high_contrast to app_settings
+        g_high_contrast = app_settings::config.high_contrast;
         g_reduced_motion = app_settings::config.reduce_motion;
+        g_theme_mode = static_cast<ThemeMode>(app_settings::config.theme_mode);
+        g_accent_preset = static_cast<AccentPreset>(app_settings::config.accent_preset);
+        g_custom_accent = ImGui::ColorConvertU32ToFloat4(app_settings::config.color_primary);
+        g_custom_accent.w = 1.0f;
         Colors = {};
-        Colors.Gold = ImVec4(212.f / 255.f, 175.f / 255.f, 55.f / 255.f, 1.00f);
-        Colors.GoldHover = ImVec4(1.000f, 226.f / 255.f, 138.f / 255.f, 1.00f);
-        Colors.GoldGlow = ImVec4(212.f / 255.f, 175.f / 255.f, 55.f / 255.f, 0.20f);
-        Colors.Text = ImVec4(0.949f, 0.949f, 0.957f, 1.00f);
-        Colors.TextDisabled = ImVec4(0.56f, 0.57f, 0.62f, 1.00f);
-        Colors.Border = ImVec4(0.40f, 0.41f, 0.46f, 0.34f);
-        Colors.Success = ImVec4(0.286f, 0.820f, 0.537f, 1.00f);
-        Colors.Warning = ImVec4(0.945f, 0.671f, 0.275f, 1.00f);
-        Colors.Error = ImVec4(0.941f, 0.349f, 0.365f, 1.00f);
-        Colors.Info = ImVec4(0.353f, 0.671f, 0.965f, 1.00f);
-
-        Colors.Background = ImVec4(0.f, 0.f, 0.f, 1.f);
-        Colors.Surface = ImVec4(0.f, 0.f, 0.f, 1.f);
-        Colors.Card = ImVec4(0.f, 0.f, 0.f, 1.f);
-        Colors.CardHover = ImVec4(13.f / 255.f, 13.f / 255.f, 13.f / 255.f, 1.f);
-        Colors.Panel = Colors.Surface;
-        Colors.PanelHover = Colors.CardHover;
-        SetUiScale(1.0f);
+        SetUiScale(app_settings::config.ui_scale);
         ApplyTheme();
     }
 
@@ -174,46 +269,17 @@ namespace CyberTheme {
         return U32(shadow);
     }
 
-void ApplyTheme() {
-        // Accent is a real global setting rather than a decorative preview-only
-        // value. Rebuild the interactive palette from the persisted accent each
-        // time the ImGui theme is applied.
-        ImVec4 accent = ImGui::ColorConvertU32ToFloat4(app_settings::config.color_primary);
-        accent.w = 1.0f;
+    void ApplyTheme() {
+        ImVec4 accent = GetAccentBase();
+        ImVec4 accentHover = GetAccentHover();
+        ImVec4 accentGlow = GetAccentGlow();
 
-        // High contrast mode overrides
         if (g_high_contrast) {
-            Colors.Background = ImVec4(0.f, 0.f, 0.f, 1.f);
-            Colors.Surface = ImVec4(0.08f, 0.08f, 0.08f, 1.f);
-            Colors.Card = ImVec4(0.12f, 0.12f, 0.12f, 1.f);
-            Colors.CardHover = ImVec4(0.16f, 0.16f, 0.16f, 1.f);
-            Colors.Text = ImVec4(1.f, 1.f, 1.f, 1.f);
-            Colors.TextDisabled = ImVec4(0.7f, 0.7f, 0.7f, 1.f);
-            Colors.Border = ImVec4(0.5f, 0.5f, 0.5f, 1.f);
-            Colors.Gold = ImVec4(1.f, 0.9f, 0.f, 1.f);
-            Colors.GoldHover = ImVec4(1.f, 1.f, 0.2f, 1.f);
-            Colors.GoldGlow = ImVec4(1.f, 0.9f, 0.f, 0.5f);
-            Colors.Success = ImVec4(0.2f, 1.f, 0.4f, 1.f);
-            Colors.Warning = ImVec4(1.f, 0.8f, 0.f, 1.f);
-            Colors.Error = ImVec4(1.f, 0.3f, 0.3f, 1.f);
-            Colors.Info = ImVec4(0.2f, 0.7f, 1.f, 1.f);
+            ApplyHighContrastPalette(accent, accentHover, accentGlow);
+        } else if (g_theme_mode == ThemeMode::Light) {
+            ApplyLightPalette(accent, accentHover, accentGlow);
         } else {
-            Colors.Gold = accent;
-            Colors.GoldHover = Mix(accent, ImVec4(1.f, 1.f, 1.f, 1.f), 0.26f);
-            Colors.GoldGlow = ImVec4(accent.x, accent.y, accent.z, 0.20f);
-            Colors.Text = ImVec4(0.949f, 0.949f, 0.957f, 1.00f);
-            Colors.TextDisabled = ImVec4(0.56f, 0.57f, 0.62f, 1.00f);
-            Colors.Border = ImVec4(0.40f, 0.41f, 0.46f, 0.34f);
-            Colors.Success = ImVec4(0.286f, 0.820f, 0.537f, 1.00f);
-            Colors.Warning = ImVec4(0.945f, 0.671f, 0.275f, 1.00f);
-            Colors.Error = ImVec4(0.941f, 0.349f, 0.365f, 1.00f);
-            Colors.Info = ImVec4(0.353f, 0.671f, 0.965f, 1.00f);
-            Colors.Background = ImVec4(0.f, 0.f, 0.f, 1.f);
-            Colors.Surface = ImVec4(0.f, 0.f, 0.f, 1.f);
-            Colors.Card = ImVec4(0.f, 0.f, 0.f, 1.f);
-            Colors.CardHover = ImVec4(13.f / 255.f, 13.f / 255.f, 13.f / 255.f, 1.f);
-            Colors.Panel = Colors.Surface;
-            Colors.PanelHover = Colors.CardHover;
+            ApplyDarkPalette(accent, accentHover, accentGlow);
         }
 
         ImGuiStyle& style = ImGui::GetStyle();
@@ -253,7 +319,7 @@ void ApplyTheme() {
         colors[ImGuiCol_Button] = Colors.Card;
         colors[ImGuiCol_ButtonHovered] = Colors.CardHover;
         colors[ImGuiCol_ButtonActive] = Colors.Gold;
-        colors[ImGuiCol_FrameBg] = Mix(Colors.Background, ImVec4(1, 1, 1, 1), 0.045f);
+        colors[ImGuiCol_FrameBg] = Mix(Colors.Background, ImVec4(1, 1, 1, 1), g_theme_mode == ThemeMode::Light ? 0.08f : 0.045f);
         colors[ImGuiCol_FrameBgHovered] = Colors.PanelHover;
         colors[ImGuiCol_FrameBgActive] = Mix(Colors.Card, Colors.Gold, 0.10f);
         colors[ImGuiCol_TitleBg] = Colors.Background;
@@ -288,10 +354,175 @@ void ApplyTheme() {
         colors[ImGuiCol_NavWindowingDimBg] = ImVec4(0.f, 0.f, 0.f, 0.35f);
         colors[ImGuiCol_ModalWindowDimBg] = ImVec4(0.f, 0.f, 0.f, 0.60f);
 
-        // Reduced motion: disable transitions
         if (g_reduced_motion) {
             style.HoverDelayNormal = 0.0f;
             style.HoverDelayShort = 0.0f;
+        }
+    }
+
+    void SetThemeMode(ThemeMode mode) {
+        g_theme_mode = mode;
+        app_settings::config.theme_mode = static_cast<int>(mode);
+        if (ImGui::GetCurrentContext())
+            ApplyTheme();
+    }
+
+    ThemeMode GetThemeMode() {
+        return g_theme_mode;
+    }
+
+    void SetAccentPreset(AccentPreset preset) {
+        g_accent_preset = preset;
+        app_settings::config.accent_preset = static_cast<int>(preset);
+        if (preset != AccentPreset::Custom) {
+            ImVec4 accent = GetAccentBase();
+            app_settings::config.color_primary = ImGui::ColorConvertFloat4ToU32(accent);
+        }
+        if (ImGui::GetCurrentContext())
+            ApplyTheme();
+    }
+
+    AccentPreset GetAccentPreset() {
+        return g_accent_preset;
+    }
+
+    void SetCustomAccent(const ImVec4& color) {
+        g_custom_accent = color;
+        g_custom_accent.w = 1.0f;
+        g_accent_preset = AccentPreset::Custom;
+        app_settings::config.accent_preset = static_cast<int>(AccentPreset::Custom);
+        app_settings::config.color_primary = ImGui::ColorConvertFloat4ToU32(color);
+        if (ImGui::GetCurrentContext())
+            ApplyTheme();
+    }
+
+    const ImVec4& GetCustomAccent() {
+        return g_custom_accent;
+    }
+
+    const std::vector<AccentColor>& GetAccentPresets() {
+        return kAccentPresets;
+    }
+
+    std::string SerializeTheme() {
+        ThemeExportData data;
+        data.mode = g_theme_mode;
+        data.accent = g_accent_preset;
+        data.custom_accent = g_custom_accent;
+        data.ui_scale = g_ui_scale;
+        data.high_contrast = g_high_contrast;
+        data.reduced_motion = g_reduced_motion;
+        data.schema_version = 1;
+
+        std::ostringstream out;
+        out << "{\n";
+        out << "  \"schema_version\": " << data.schema_version << ",\n";
+        out << "  \"theme_mode\": " << static_cast<int>(data.mode) << ",\n";
+        out << "  \"accent_preset\": " << static_cast<int>(data.accent) << ",\n";
+        out << "  \"custom_accent\": { \"r\": " << data.custom_accent.x << ", \"g\": " << data.custom_accent.y << ", \"b\": " << data.custom_accent.z << ", \"a\": " << data.custom_accent.w << " },\n";
+        out << "  \"ui_scale\": " << data.ui_scale << ",\n";
+        out << "  \"high_contrast\": " << (data.high_contrast ? "true" : "false") << ",\n";
+        out << "  \"reduced_motion\": " << (data.reduced_motion ? "true" : "false") << "\n";
+        out << "}";
+        return out.str();
+    }
+
+    bool DeserializeTheme(const std::string& json, std::string* error) {
+        try {
+            ThemeExportData data;
+            std::istringstream in(json);
+            std::string line;
+            while (std::getline(in, line)) {
+                if (line.find("schema_version") != std::string::npos) {
+                    size_t pos = line.find(":");
+                    if (pos != std::string::npos) data.schema_version = std::stoi(line.substr(pos + 1));
+                } else if (line.find("theme_mode") != std::string::npos) {
+                    size_t pos = line.find(":");
+                    if (pos != std::string::npos) data.mode = static_cast<ThemeMode>(std::stoi(line.substr(pos + 1)));
+                } else if (line.find("accent_preset") != std::string::npos) {
+                    size_t pos = line.find(":");
+                    if (pos != std::string::npos) data.accent = static_cast<AccentPreset>(std::stoi(line.substr(pos + 1)));
+                } else if (line.find("custom_accent") != std::string::npos) {
+                    size_t r = line.find("\"r\":");
+                    size_t g = line.find("\"g\":");
+                    size_t b = line.find("\"b\":");
+                    size_t a = line.find("\"a\":");
+                    if (r != std::string::npos) data.custom_accent.x = std::stof(line.substr(r + 4));
+                    if (g != std::string::npos) data.custom_accent.y = std::stof(line.substr(g + 4));
+                    if (b != std::string::npos) data.custom_accent.z = std::stof(line.substr(b + 4));
+                    if (a != std::string::npos) data.custom_accent.w = std::stof(line.substr(a + 4));
+                } else if (line.find("ui_scale") != std::string::npos) {
+                    size_t pos = line.find(":");
+                    if (pos != std::string::npos) data.ui_scale = std::stof(line.substr(pos + 1));
+                } else if (line.find("high_contrast") != std::string::npos) {
+                    data.high_contrast = line.find("true") != std::string::npos;
+                } else if (line.find("reduced_motion") != std::string::npos) {
+                    data.reduced_motion = line.find("true") != std::string::npos;
+                }
+            }
+
+            g_theme_mode = data.mode;
+            g_accent_preset = data.accent;
+            g_custom_accent = data.custom_accent;
+            g_high_contrast = data.high_contrast;
+            g_reduced_motion = data.reduced_motion;
+            SetUiScale(data.ui_scale);
+            ApplyTheme();
+
+            app_settings::config.theme_mode = static_cast<int>(g_theme_mode);
+            app_settings::config.accent_preset = static_cast<int>(g_accent_preset);
+            app_settings::config.high_contrast = g_high_contrast;
+            app_settings::config.reduce_motion = g_reduced_motion;
+            app_settings::config.ui_scale = g_ui_scale;
+            app_settings::config.color_primary = ImGui::ColorConvertFloat4ToU32(GetAccentBase());
+
+            return true;
+        } catch (const std::exception& e) {
+            if (error) *error = std::string("Failed to parse theme: ") + e.what();
+            return false;
+        }
+    }
+
+    bool ExportTheme(const std::filesystem::path& path, std::string* error) {
+        try {
+            std::string json = SerializeTheme();
+            std::error_code ec;
+            std::filesystem::create_directories(path.parent_path(), ec);
+            if (ec) {
+                if (error) *error = "Failed to create directory: " + ec.message();
+                return false;
+            }
+            std::ofstream file(path);
+            if (!file) {
+                if (error) *error = "Failed to open file for writing";
+                return false;
+            }
+            file << json;
+            return true;
+        } catch (const std::exception& e) {
+            if (error) *error = std::string("Export failed: ") + e.what();
+            return false;
+        }
+    }
+
+    bool ImportTheme(const std::filesystem::path& path, std::string* error) {
+        try {
+            std::error_code ec;
+            if (!std::filesystem::exists(path, ec)) {
+                if (error) *error = "Theme file does not exist";
+                return false;
+            }
+            std::ifstream file(path);
+            if (!file) {
+                if (error) *error = "Failed to open theme file";
+                return false;
+            }
+            std::stringstream buffer;
+            buffer << file.rdbuf();
+            return DeserializeTheme(buffer.str(), error);
+        } catch (const std::exception& e) {
+            if (error) *error = std::string("Import failed: ") + e.what();
+            return false;
         }
     }
 

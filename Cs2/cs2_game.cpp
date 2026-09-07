@@ -206,6 +206,7 @@ void LoadSchemaOffsets(const fs::path& data_dir) {
     JsonClassU64(schema, "C_CSPlayerPawn", "m_iShotsFired", offsets.m_iShotsFired);
     JsonClassU64(schema, "C_CSPlayerPawn", "m_iIDEntIndex", offsets.m_iIDEntIndex);
     JsonClassU64(schema, "CGameSceneNode", "m_vecAbsOrigin", offsets.m_vecAbsOrigin);
+    JsonClassU64(schema, "CGameSceneNode", "m_vecVelocity", offsets.m_vecVelocity);
     JsonClassU64(schema, "CGameSceneNode", "m_bDormant", offsets.m_bDormant);
     JsonClassU64(schema, "CSkeletonInstance", "m_modelState", offsets.m_modelState);
     JsonClassU64(schema, "C_PlantedC4", "m_bBombTicking", offsets.m_bBombTicking);
@@ -718,7 +719,7 @@ bool Attach() {
         std::cout << "[CS2] ViewMatrix ilegível; offsets podem estar desatualizados" << std::endl;
         if (!RecoverCriticalOffsets() || !ProbeViewMatrix()) {
             status = "Offsets incompatíveis com o build atual; atualiza os ficheiros em data/";
-            OmniGhost::OffsetAuto::MarkOutdated(ActiveGame::CS2, status);
+            OmniGhost::OffsetAuto::MarkOutdated(OmniGhost::ActiveGame::CS2, status);
             std::cout << "[CS2] " << status << std::endl;
             return false;
         }
@@ -728,7 +729,7 @@ bool Attach() {
         QReadT(runtime.engine_base + offsets.dwBuildNumber, runtime.build_number);
 
     ready = true;
-    OmniGhost::OffsetAuto::MarkLiveValid(ActiveGame::CS2,
+    OmniGhost::OffsetAuto::MarkLiveValid(OmniGhost::ActiveGame::CS2,
         "View matrix e módulos críticos validados no build em execução");
     char buf[160];
     std::snprintf(buf, sizeof(buf), "CS2 OK  client=0x%llX  build=%u",
@@ -1477,13 +1478,37 @@ void RunFrame() {
         else
             QRead(runtime.local_pawn + offsets.m_vOldOrigin, runtime.local_pos, sizeof(float) * 3);
 
+        // Read local player velocity
+        QRead(runtime.local_pawn + offsets.m_vecVelocity, runtime.local_vel, sizeof(float) * 3);
+
+        // Read local player view angles
         float view_angles[2]{};
         if (offsets.dwViewAngles && QRead(client + offsets.dwViewAngles, view_angles, sizeof(view_angles)) &&
             std::isfinite(view_angles[1]))
+        {
             runtime.local_view_yaw = view_angles[1];
+            runtime.local_angles[0] = view_angles[0];
+            runtime.local_angles[1] = view_angles[1];
+        }
         else if (QRead(runtime.local_pawn + offsets.m_angEyeAngles, view_angles, sizeof(view_angles)) &&
                  std::isfinite(view_angles[1]))
+        {
             runtime.local_view_yaw = view_angles[1];
+            runtime.local_angles[0] = view_angles[0];
+            runtime.local_angles[1] = view_angles[1];
+        }
+
+        // Read local player health
+        int health = 0;
+        if (QReadT(runtime.local_pawn + offsets.m_iHealth, health))
+            runtime.local_health = health;
+
+        // Read local player scoped state
+        if (offsets.m_bIsScoped) {
+            bool scoped = false;
+            if (QReadT(runtime.local_pawn + offsets.m_bIsScoped, scoped))
+                runtime.local_scoped = scoped;
+        }
     }
 
     if (!RefreshEntityListEntry()) {

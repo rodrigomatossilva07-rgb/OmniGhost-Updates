@@ -14,6 +14,7 @@
 #include <cstdlib>
 #include <cwctype>
 #include <fstream>
+#include <iostream>
 #include <memory>
 #include <sstream>
 #include <thread>
@@ -351,10 +352,20 @@ std::uint64_t ContentLength(void* request) {
     try {
         return std::stoull(value);
     } catch (const std::exception& ex) {
-        std::cerr << "[Updater] HttpClient: Failed to parse content-length '" << value << "': " << ex.what() << "\n";
+        std::string narrowValue;
+        narrowValue.resize(wcslen(value));
+        for (size_t i = 0; i < narrowValue.size(); ++i) {
+            narrowValue[i] = static_cast<char>(value[i]);
+        }
+        std::cerr << "[Updater] HttpClient: Failed to parse content-length '" << narrowValue << "': " << ex.what() << "\n";
         return 0;
     } catch (...) {
-        std::cerr << "[Updater] HttpClient: Unknown exception parsing content-length '" << value << "'\n";
+        std::string narrowValue;
+        narrowValue.resize(wcslen(value));
+        for (size_t i = 0; i < narrowValue.size(); ++i) {
+            narrowValue[i] = static_cast<char>(value[i]);
+        }
+        std::cerr << "[Updater] HttpClient: Unknown exception parsing content-length '" << narrowValue << "'\n";
         return 0;
     }
 }

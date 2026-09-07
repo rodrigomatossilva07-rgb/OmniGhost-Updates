@@ -21,6 +21,8 @@
 #include <cstring>
 #include <chrono>
 
+#include "gameplay/esp_optimizer.h"
+
 // Initialize global instances
 esp::ESPStats esp::esp_stats;
 

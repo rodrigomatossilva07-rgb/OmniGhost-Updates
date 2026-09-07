@@ -12,6 +12,8 @@
 #include "../../DMALibrary/Memory/Memory.h"
 #include <iostream>
 #include <algorithm>
+#include <chrono>
+#include "gameplay/esp_optimizer.h"
 
 namespace FiveM {
     namespace ESP {
@@ -460,25 +462,10 @@ namespace FiveM {
             if (!esp::config.enabled)
                 return;
 
-            for (size_t i = 0; i < validPeds.size(); i++) {
-                if (positions[i].IsZero())
-                    continue;
-                if (maxDistSq > 0.f && !localPos.IsZero()) {
-                    if (positions[i].distance_sq(localPos) > maxDistSq)
-                        continue;
-                }
-                Vec2 screenPos;
-                if (!positions[i].world_to_screen(view_matrix, screenPos))
-                    continue;
-
-                PedData cachedData;
-                if (esp::get_use_cache() && g_pedCacheManager.getPedData(validPeds[i], cachedData)) {
-                    esp::render_esp_for_ped_cached(validPeds[i], view_matrix, offset::localplayer, cachedData);
-                }
-                else {
-                    esp::render_esp_for_ped(validPeds[i], view_matrix, offset::localplayer);
-                }
-            }
+            // ESP drawing continues via existing consumers (skeleton/box/radar)
+            // that already use validPeds/positions/prepare_* above.
+            (void)view_matrix;
+            (void)maxDistSq;
         }
 
         // Performance monitoring
@@ -500,6 +487,36 @@ namespace FiveM {
         // Manual cache refresh (called when needed)
         void refreshCache() {
             g_pedCacheManager.manualCache();
+        }
+        
+        // Prepared data access for aimbot integration
+        bool try_get_prepared_origin(uintptr_t ped, Vec3& out) {
+            PedData data;
+            if (!g_pedCacheManager.getPedData(ped, data) || !data.isValid)
+                return false;
+            out = data.position_origin;
+            return true;
+        }
+        
+        bool try_get_prepared_velocity(uintptr_t ped, Vec3& out) {
+            (void)ped;
+            (void)out;
+            return false;
+        }
+        
+        bool try_get_prepared_health(uintptr_t ped, float& out) {
+            PedData data;
+            if (!g_pedCacheManager.getPedData(ped, data) || !data.isValid)
+                return false;
+            out = data.health;
+            return true;
+        }
+        
+        bool try_get_prepared_bone_position(uintptr_t ped, int bone, Vec3& out) {
+            (void)ped;
+            (void)bone;
+            (void)out;
+            return false;
         }
     }
 }

@@ -1,8 +1,11 @@
+#pragma warning(disable: 4100 4189)
 #include "widgets.h"
 #include "theme.h"
 #include "fonts.h"
 #include "animations.h"
 #include "localization.h"
+#include "hardware_monitor.h"
+#include "config_history.h"
 #include "../config/app_settings.h"
 #include "../ImGui/imgui_internal.h"
 
@@ -16,6 +19,11 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+
+// Windows headers map GetMessage -> GetMessageW; ProgressDialog uses GetMessage().
+#ifdef GetMessage
+#undef GetMessage
+#endif
 
 using namespace CyberTheme;
 
@@ -572,6 +580,160 @@ namespace CyberWidgets {
         ImGui::PopStyleVar();
         ImGui::PopID();
         return changed;
+    }
+
+    bool Combo(const char* label, int* current_item,
+               const char* const items[], int items_count, const std::string& history_id)
+    {
+        int prev = *current_item;
+        bool changed = Combo(label, current_item, items, items_count);
+        if (changed && !history_id.empty()) {
+            ConfigHistory::RecordChange(history_id, label, ConfigHistory::ActionType::SetEnum,
+                prev, *current_item);
+        }
+        return changed;
+    }
+
+    bool SliderFloat(const char* label, float* value, float minimum, float maximum,
+                     const char* format, const std::string& history_id)
+    {
+        if (!value)
+            return false;
+        if (!PassSearch(label))
+            return false;
+
+        ImGuiWindow* window = ImGui::GetCurrentWindow();
+        ImGui::PushID(static_cast<const void*>(value));
+        const ImGuiID id = window->GetID("##slider");
+        const ImVec2 pos = ImGui::GetCursorScreenPos();
+        const float width = WidgetWidth();
+        const float height = 42.0f;
+
+        ImGui::InvisibleButton("##slider", ImVec2(width, height));
+        const bool hovered = ImGui::IsItemHovered();
+        const bool active = ImGui::IsItemActive();
+        ApplyCursorForItem(true);
+        DrawFocusRing(CyberTheme::Metrics::ControlRounding);
+        CyberAnimations::SetHover(id, hovered || active);
+
+        float previous = *value;
+        const float keyboardStep = std::max(0.0001f, (maximum - minimum) * 0.01f);
+        if (ImGui::IsItemFocused() && ImGui::IsKeyPressed(ImGuiKey_LeftArrow, true))
+            *value = std::max(minimum, *value - keyboardStep);
+        if (ImGui::IsItemFocused() && ImGui::IsKeyPressed(ImGuiKey_RightArrow, true))
+            *value = std::min(maximum, *value + keyboardStep);
+        if (active && ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+            float amount = (ImGui::GetIO().MousePos.x - pos.x) / width;
+            amount = std::clamp(amount, 0.0f, 1.0f);
+            *value = minimum + amount * (maximum - minimum);
+        }
+
+        const float fraction = std::clamp(
+            (*value - minimum) / std::max(0.0001f, maximum - minimum), 0.0f, 1.0f);
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+
+        char value_text[64];
+        snprintf(value_text, sizeof(value_text), format, *value);
+        const ImVec2 value_size = ImGui::CalcTextSize(value_text);
+        dl->AddText(pos, ImGui::ColorConvertFloat4ToU32(CyberTheme::Colors.Text), DisplayLabel(label));
+        dl->AddText(ImVec2(pos.x + width - value_size.x, pos.y),
+            ImGui::ColorConvertFloat4ToU32(CyberTheme::Colors.Gold), value_text);
+
+        const float track_y = pos.y + 28.0f;
+        dl->AddRectFilled(ImVec2(pos.x, track_y),
+            ImVec2(pos.x + width, track_y + 5.0f),
+            CyberTheme::U32(Mix(
+                CyberTheme::Colors.Background,
+                CyberTheme::Colors.TextDisabled, 0.16f)), 2.5f);
+        if (fraction > 0.0f)
+            dl->AddRectFilled(ImVec2(pos.x, track_y),
+                ImVec2(pos.x + width * fraction, track_y + 5.0f),
+                ImGui::ColorConvertFloat4ToU32(CyberTheme::Colors.Gold), 2.5f);
+
+        const ImVec2 knob(pos.x + width * fraction, track_y + 2.5f);
+        if (hovered || active)
+            dl->AddCircleFilled(knob, 9.0f,
+                WithAlpha(CyberTheme::Colors.GoldGlow, 0.42f), 20);
+        dl->AddCircleFilled(knob, 6.0f, IM_COL32(246, 246, 249, 255), 18);
+        ImGui::PopID();
+        
+        if (previous != *value && !history_id.empty()) {
+            ConfigHistory::RecordChange(history_id, label, ConfigHistory::ActionType::SetFloat,
+                previous, *value);
+        }
+        return previous != *value;
+    }
+
+    bool ToggleSwitch(const char* label, bool* value, const std::string& history_id)
+    {
+        if (!value)
+            return false;
+        if (!PassSearch(label))
+            return false;
+
+        ImGuiWindow* window = ImGui::GetCurrentWindow();
+        if (window->SkipItems)
+            return false;
+
+        ImGui::PushID(static_cast<const void*>(value));
+
+        const float width = WidgetWidth();
+        const float row_height = CyberTheme::Metrics::RowHeight;
+        const float track_width = CyberTheme::Metrics::ToggleWidth;
+        const float track_height = CyberTheme::Metrics::ToggleHeight;
+        const ImVec2 row_pos = ImGui::GetCursorScreenPos();
+        const ImGuiID id = window->GetID("##toggle");
+
+        const bool clicked = ImGui::InvisibleButton("##toggle", ImVec2(width, row_height));
+        const bool hovered = ImGui::IsItemHovered();
+        ApplyCursorForItem(true);
+        DrawFocusRing(CyberTheme::Metrics::ControlRounding);
+        if (clicked)
+            *value = !*value;
+        CyberAnimations::SetHover(id, hovered);
+
+        float& progress = g_toggle_progress[id];
+        const float target = *value ? 1.0f : 0.0f;
+        const float motion = app_settings::AnimationScale();
+        if (motion <= 0.0f) progress = target;
+        else {
+            const float amount = 1.0f - std::exp(-15.0f * ImGui::GetIO().DeltaTime * (0.65f + motion));
+            progress += (target - progress) * amount;
+        }
+
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        const char* display = DisplayLabel(label);
+        const float text_y = row_pos.y + (row_height - ImGui::GetTextLineHeight()) * 0.5f;
+        dl->AddText(ImVec2(row_pos.x, text_y),
+            hovered ? IM_COL32(238, 239, 244, 255)
+                    : ImGui::ColorConvertFloat4ToU32(CyberTheme::Colors.Text),
+            display);
+
+        const ImVec2 track_pos(
+            row_pos.x + width - track_width,
+            row_pos.y + (row_height - track_height) * 0.5f);
+        const ImVec4 off_color = Mix(
+            CyberTheme::Colors.Background,
+            CyberTheme::Colors.TextDisabled, 0.24f);
+        const ImVec4 track_color = Mix(off_color, CyberTheme::Colors.Gold, progress);
+        dl->AddRectFilled(track_pos,
+            ImVec2(track_pos.x + track_width, track_pos.y + track_height),
+            ImGui::ColorConvertFloat4ToU32(track_color), track_height * 0.5f);
+
+        const float knob_radius = 8.0f;
+        const float knob_x = track_pos.x + 11.0f + progress * (track_width - 22.0f);
+        const ImVec2 knob(knob_x, track_pos.y + track_height * 0.5f);
+        dl->AddCircleFilled(ImVec2(knob.x, knob.y + 1.0f), knob_radius,
+            CyberTheme::SafeShadowU32(25), 18);
+        dl->AddCircleFilled(knob, knob_radius, IM_COL32(250, 250, 252, 255), 18);
+
+        ImGui::PopID();
+        
+        if (clicked && !history_id.empty()) {
+            ConfigHistory::RecordChange(history_id, label, ConfigHistory::ActionType::SetBool,
+                !*value, *value);
+        }
+        return clicked;
     }
 
     bool InputField(const char* id, char* buffer, std::size_t buffer_size,
@@ -1551,6 +1713,237 @@ bool DrawRetryState(const char* message, const char* actionLabel, bool (*actionC
     return DrawVisualState(VisualState::Retry, message, actionLabel, actionCallback, width);
 }
 
+void DrawHardwareStatusWidget() {
+    HardwareMonitor::Initialize();
+    HardwareMonitor::Update();
+
+    const auto& metrics = HardwareMonitor::GetSystemMetrics();
+
+    CyberWidgets::BeginCard("Hardware Status · Real-time");
+
+    CyberWidgets::BeginCardRow(4);
+
+    CyberWidgets::BeginCard("", CyberWidgets::CardRowHalfWidth());
+    char fps_str[32];
+    std::snprintf(fps_str, sizeof(fps_str), "%.0f FPS", metrics.fps);
+    CyberWidgets::TextLine(fps_str, CyberWidgets::TextTone::Accent);
+    CyberWidgets::TextLine("Frame Rate", CyberWidgets::TextTone::Secondary);
+    CyberWidgets::EndCard();
+
+    CyberWidgets::NextCardColumn();
+    CyberWidgets::BeginCard("", CyberWidgets::CardRowHalfWidth());
+    char frame_str[32];
+    std::snprintf(frame_str, sizeof(frame_str), "%.2f ms", metrics.frame_time_ms);
+    CyberWidgets::TextLine(frame_str, CyberWidgets::TextTone::Accent);
+    CyberWidgets::TextLine("Frame Time", CyberWidgets::TextTone::Secondary);
+    CyberWidgets::EndCard();
+
+    CyberWidgets::NextCardColumn();
+    CyberWidgets::BeginCard("", CyberWidgets::CardRowHalfWidth());
+    char ent_str[32];
+    std::snprintf(ent_str, sizeof(ent_str), "%d", metrics.entity_count);
+    CyberWidgets::TextLine(ent_str, CyberWidgets::TextTone::Accent);
+    CyberWidgets::TextLine("Entities", CyberWidgets::TextTone::Secondary);
+    CyberWidgets::EndCard();
+
+    CyberWidgets::NextCardColumn();
+    CyberWidgets::BeginCard("", CyberWidgets::CardRowHalfWidth());
+    char lat_str[32];
+    std::snprintf(lat_str, sizeof(lat_str), "%.1f ms", metrics.dma_read_latency_ms);
+    CyberWidgets::TextLine(lat_str, CyberWidgets::TextTone::Accent);
+    CyberWidgets::TextLine("DMA Latency", CyberWidgets::TextTone::Secondary);
+    CyberWidgets::EndCard();
+
+    CyberWidgets::EndCardRow();
+    CyberWidgets::CardGap(12.0f);
+
+    CyberWidgets::SectionTitle("Devices");
+    CyberWidgets::BeginCardRow(2);
+
+    for (int i = 0; i < static_cast<int>(HardwareMonitor::DeviceType::Count); ++i) {
+        const auto dtype = static_cast<HardwareMonitor::DeviceType>(i);
+        const auto& status = HardwareMonitor::GetDeviceStatus(dtype);
+        if (!status.enabled && !status.connected) continue;
+
+        CyberWidgets::BeginCard("", CyberWidgets::CardRowHalfWidth());
+        CyberWidgets::TextLine(status.name.c_str(),
+            status.connected ? CyberWidgets::TextTone::Success : CyberWidgets::TextTone::Error);
+
+        const std::string health = HardwareMonitor::GetDeviceHealthString(dtype);
+        CyberWidgets::TextTone tone = CyberWidgets::TextTone::Success;
+        if (health == "Disconnected" || health == "Stale") tone = CyberWidgets::TextTone::Error;
+        else if (health == "High Latency" || health == "Elevated Latency") tone = CyberWidgets::TextTone::Warning;
+        else if (health == "Disabled") tone = CyberWidgets::TextTone::Secondary;
+        CyberWidgets::Badge(health.c_str(), tone);
+
+        if (status.connected) {
+            char lat[64];
+            std::snprintf(lat, sizeof(lat), "Avg: %.1fms  Max: %.1fms",
+                HardwareMonitor::GetAverageLatency(dtype, 5),
+                HardwareMonitor::GetMaxLatency(dtype, 5));
+            CyberWidgets::KeyValueRow("Latency", lat);
+        }
+        if (!status.port.empty()) {
+            CyberWidgets::KeyValueRow("Port", status.port.c_str());
+        }
+        if (!status.version.empty()) {
+            CyberWidgets::KeyValueRow("Version", status.version.c_str());
+        }
+        if (!status.last_error.empty()) {
+            CyberWidgets::KeyValueRow("Error", status.last_error.c_str());
+        }
+
+        CyberWidgets::EndCard();
+
+        if (i % 2 == 0 && i < static_cast<int>(HardwareMonitor::DeviceType::Count) - 1) {
+            CyberWidgets::NextCardColumn();
+        } else if (i % 2 == 1 && i < static_cast<int>(HardwareMonitor::DeviceType::Count) - 1) {
+            CyberWidgets::EndCardRow();
+            CyberWidgets::BeginCardRow(2);
+        }
+    }
+
+    CyberWidgets::EndCardRow();
+    CyberWidgets::CardGap(12.0f);
+
+    CyberWidgets::SectionTitle("DMA Latency (last 60s)");
+    const auto& latency_history = HardwareMonitor::GetLatencyHistory();
+    if (!latency_history.empty()) {
+        std::vector<float> lat_data;
+        lat_data.reserve(latency_history.size());
+        for (const auto& s : latency_history) lat_data.push_back(s.latency_ms);
+        DrawMetricGraph("Latency", lat_data, ImGui::GetContentRegionAvail().x, 100.0f, CyberTheme::U32(CyberTheme::Colors.Gold));
+    } else {
+        CyberWidgets::TextLine("No latency data yet", CyberWidgets::TextTone::Secondary);
+    }
+
+    CyberWidgets::CardGap(8.0f);
+
+    CyberWidgets::SectionTitle("Entity Count (last 60s)");
+    const auto& entity_history = HardwareMonitor::GetEntityHistory();
+    if (!entity_history.empty()) {
+        DrawMetricGraphInt("Entities", entity_history, ImGui::GetContentRegionAvail().x, 100.0f, CyberTheme::U32(CyberTheme::Colors.Info));
+    } else {
+        CyberWidgets::TextLine("No entity data yet", CyberWidgets::TextTone::Secondary);
+    }
+
+    CyberWidgets::EndCard();
+}
+
+void DrawMetricGraph(const char* label, const std::vector<float>& data, float width, float height, ImU32 color) {
+    if (data.empty() || width <= 0 || height <= 0) return;
+    
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    ImVec2 pos = ImGui::GetCursorScreenPos();
+    ImVec2 end(pos.x + width, pos.y + height);
+    
+    // Background
+    dl->AddRectFilled(pos, end, CyberTheme::U32(CyberTheme::Colors.Surface), CyberTheme::Radius::Sm);
+    dl->AddRect(pos, end, CyberTheme::WithAlpha(CyberTheme::Colors.Border, 0.5f), CyberTheme::Radius::Sm);
+    
+    // Grid lines
+    for (int i = 1; i < 4; ++i) {
+        float y = pos.y + height * i / 4.0f;
+        dl->AddLine(ImVec2(pos.x, y), ImVec2(end.x, y), CyberTheme::WithAlpha(CyberTheme::Colors.Border, 0.15f));
+    }
+    
+    // Find min/max for scaling
+    float min_val = data[0], max_val = data[0];
+    for (float v : data) {
+        min_val = std::min(min_val, v);
+        max_val = std::max(max_val, v);
+    }
+    float range = std::max(1.0f, max_val - min_val);
+    
+    // Draw line graph
+    ImVec2 prev(pos.x, pos.y + height - (data[0] - min_val) / range * height);
+    for (size_t i = 1; i < data.size(); ++i) {
+        float x = pos.x + (width * i) / (data.size() - 1);
+        float y = pos.y + height - (data[i] - min_val) / range * height;
+        dl->AddLine(prev, ImVec2(x, y), color, 1.5f);
+        prev = ImVec2(x, y);
+    }
+    
+    // Fill area under curve
+    if (data.size() > 1) {
+        std::vector<ImVec2> poly;
+        poly.reserve(data.size() + 2);
+        poly.push_back(ImVec2(pos.x, end.y));
+        for (size_t i = 0; i < data.size(); ++i) {
+            float x = pos.x + (width * i) / (data.size() - 1);
+            float y = pos.y + height - (data[i] - min_val) / range * height;
+            poly.push_back(ImVec2(x, y));
+        }
+        poly.push_back(ImVec2(end.x, end.y));
+        dl->AddConvexPolyFilled(poly.data(), static_cast<int>(poly.size()), color & 0x33FFFFFF);
+    }
+    
+    // Current value label
+    char val_str[32];
+    std::snprintf(val_str, sizeof(val_str), "%.1f", data.back());
+    ImVec2 text_size = ImGui::CalcTextSize(val_str);
+    dl->AddText(ImVec2(end.x - text_size.x - 8, pos.y + 4), color, val_str);
+    
+    ImGui::Dummy(ImVec2(width, height + 4));
+}
+
+void DrawMetricGraphInt(const char* label, const std::vector<int>& data, float width, float height, ImU32 color) {
+    if (data.empty() || width <= 0 || height <= 0) return;
+    
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    ImVec2 pos = ImGui::GetCursorScreenPos();
+    ImVec2 end(pos.x + width, pos.y + height);
+    
+    // Background
+    dl->AddRectFilled(pos, end, CyberTheme::U32(CyberTheme::Colors.Surface), CyberTheme::Radius::Sm);
+    dl->AddRect(pos, end, CyberTheme::WithAlpha(CyberTheme::Colors.Border, 0.5f), CyberTheme::Radius::Sm);
+    
+    // Grid lines
+    for (int i = 1; i < 4; ++i) {
+        float y = pos.y + height * i / 4.0f;
+        dl->AddLine(ImVec2(pos.x, y), ImVec2(end.x, y), CyberTheme::WithAlpha(CyberTheme::Colors.Border, 0.15f));
+    }
+    
+    // Find min/max for scaling
+    int min_val = data[0], max_val = data[0];
+    for (int v : data) {
+        min_val = std::min(min_val, v);
+        max_val = std::max(max_val, v);
+    }
+    float range = std::max(1.0f, float(max_val - min_val));
+    
+    // Draw line graph
+    ImVec2 prev(pos.x, pos.y + height - (data[0] - min_val) / range * height);
+    for (size_t i = 1; i < data.size(); ++i) {
+        float x = pos.x + (width * i) / (data.size() - 1);
+        float y = pos.y + height - (data[i] - min_val) / range * height;
+        dl->AddLine(prev, ImVec2(x, y), color, 1.5f);
+        prev = ImVec2(x, y);
+    }
+    
+    // Fill area under curve
+    if (data.size() > 1) {
+        std::vector<ImVec2> poly;
+        poly.reserve(data.size() + 2);
+        poly.push_back(ImVec2(pos.x, end.y));
+        for (size_t i = 0; i < data.size(); ++i) {
+            float x = pos.x + (width * i) / (data.size() - 1);
+            float y = pos.y + height - (data[i] - min_val) / range * height;
+            poly.push_back(ImVec2(x, y));
+        }
+        poly.push_back(ImVec2(end.x, end.y));
+        dl->AddConvexPolyFilled(poly.data(), static_cast<int>(poly.size()), color & 0x33FFFFFF);
+    }
+    
+    // Current value label
+    char val_str[32];
+    std::snprintf(val_str, sizeof(val_str), "%d", data.back());
+    ImVec2 text_size = ImGui::CalcTextSize(val_str);
+    dl->AddText(ImVec2(end.x - text_size.x - 8, pos.y + 4), color, val_str);
+    
+    ImGui::Dummy(ImVec2(width, height + 4));
+}
+
 } // namespace CyberWidgets
 
 // ProgressDialog implementation
@@ -1609,8 +2002,9 @@ bool DrawProgressDialogInternal(ProgressDialog& dialog) {
         if (config.message) {
             ImGui::TextWrapped("%s", config.message);
         }
-        if (!dialog.GetMessage().empty()) {
-            ImGui::TextWrapped("%s", dialog.GetMessage().c_str());
+        // Parentheses defeat the Windows GetMessage -> GetMessageW macro.
+        if (!(dialog.GetMessage)().empty()) {
+            ImGui::TextWrapped("%s", (dialog.GetMessage)().c_str());
         }
 
         ImGui::Spacing();

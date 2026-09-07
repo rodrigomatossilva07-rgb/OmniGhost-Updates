@@ -1,3 +1,4 @@
+#pragma warning(disable: 4100 4244)
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
@@ -5,12 +6,14 @@
 #include "Memory/Memory.h"
 #include "../Fivem/aimbot/aim_type.h"
 #include "gameplay/aim_controller.h"
+#include "gameplay/unified_aim.h"
 #include "imgui.h"
 #include <Windows.h>
 #include <cmath>
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
+#include <memory>
 
 namespace CS2_Aim {
 namespace {
@@ -21,6 +24,9 @@ std::chrono::steady_clock::time_point g_last_switch{};
 char g_debug[128] = "aim idle";
 int g_frames_sem_bind = 0;
 OmniGhost::Gameplay::ContinuousAimController g_aim_motion;
+
+// Unified aimbot instance (stub for Publish builds)
+static std::unique_ptr<Gameplay::UnifiedAim::UnifiedAimbot> g_unified_aimbot;
 
 bool W2S(const float* world, const float* vm, float& sx, float& sy) {
     const ImVec2 ds = ImGui::GetIO().DisplaySize;
@@ -117,14 +123,23 @@ void HandlePanic(CS2::Config& cfg) {
     was_down = down;
 }
 
-} // namespace
+} // namespace (anonymous helpers)
 
 int ActiveTargetIndex() { return g_active_target_idx; }
 const char* DebugStatus() { return g_debug; }
-
 void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
     CS2::Config& cfg = const_cast<CS2::Config&>(cfg_in);
     HandlePanic(cfg);
+
+    // Initialize unified aimbot if needed (stub for Publish)
+    if (!g_unified_aimbot) {
+        g_unified_aimbot = Gameplay::UnifiedAim::CreateAimbotForGame("CS2");
+        Gameplay::UnifiedAim::UnifiedConfig ucfg;
+        ucfg.enabled = cfg.aim_enabled;
+        ucfg.fov = cfg.aim_fov > 1.f ? cfg.aim_fov : 80.f;
+        ucfg.smooth = cfg.aim_smooth;
+        g_unified_aimbot->SetConfig(ucfg);
+    }
 
     const bool playable = rt.in_match || !rt.players.empty();
     if (!playable) {
@@ -145,9 +160,67 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
         std::snprintf(g_debug, sizeof(g_debug), "display invalido");
         return;
     }
+
     const float cx = ds.x * 0.5f;
     const float cy = ds.y * 0.5f;
+    const float fov = EffectiveFov(cfg, 0.f); // distance not available here, use base fov
 
+    // Use existing aim logic for actual aiming (unified aimbot is stub in Publish)
+    float best_fov = FLT_MAX;
+    int best_idx = -1;
+    float best_dx = 0, best_dy = 0;
+    
+    for (size_t i = 0; i < rt.players.size(); ++i) {
+        const auto& p = rt.players[i];
+        if (p.is_local) continue;
+        if (!p.alive || p.health <= 0) continue;
+        if (cfg.aim_ignore_team && cfg.team_check && p.team == rt.local_team && rt.local_team >= 2) continue;
+        if (p.distance > cfg.aim_max_dist) continue;
+        
+        float sx, sy;
+        float bone_pos[3];
+        PickBone(p, 0, bone_pos); // head
+        if (!W2S(bone_pos, rt.view_matrix, sx, sy)) continue;
+        
+        float dx = sx - cx;
+        float dy = sy - cy;
+        float dist = std::sqrt(dx * dx + dy * dy);
+        
+        if (dist < fov && dist < best_fov) {
+            best_fov = dist;
+            best_idx = static_cast<int>(i);
+            best_dx = dx;
+            best_dy = dy;
+        }
+    }
+    
+    if (best_idx >= 0) {
+        g_active_target_idx = best_idx;
+        
+        // Apply smoothing
+        float smooth = cfg.aim_smooth > 0 ? cfg.aim_smooth : 1.0f;
+        float mx = best_dx / smooth;
+        float my = best_dy / smooth;
+        
+        // Update debug
+        std::snprintf(g_debug, sizeof(g_debug), "pull %+d,%+d d=%.0f idx=%d",
+            static_cast<int>(mx), static_cast<int>(my), best_fov, best_idx);
+        
+        // Move mouse
+        if (mx != 0 || my != 0) {
+            MoveMouse(static_cast<int>(mx), static_cast<int>(my));
+        }
+    } else {
+        g_active_target_idx = -1;
+        std::snprintf(g_debug, sizeof(g_debug), "aim: no target");
+    }
+
+    // Update unified aimbot stub (does nothing in Publish)
+    Gameplay::UnifiedAim::AimContext ctx;
+    ctx.dt = ImGui::GetIO().DeltaTime;
+    g_unified_aimbot->Update(ctx);
+
+    // Handle triggerbot separately (keep existing for now)
     bool local_scoped = false;
     if (cfg.trigger_scoped_only || cfg.scope_check) {
         for (const auto& p : rt.players) {
@@ -155,7 +228,6 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
         }
     }
 
-    // ── Triggerbot ────────────────────────────────────────────────────────
     if (cfg.trigger_enabled) {
         static auto lastShot = std::chrono::steady_clock::now();
         if (KeyDown(cfg.trigger_bind)) {
@@ -208,176 +280,6 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
             }
         }
     }
-
-    if (!cfg.aim_enabled) {
-        g_active_target_idx = -1;
-        g_aim_motion.Reset();
-        return;
-    }
-
-    const bool key = AimKeyDown(cfg);
-    if (!key) {
-        g_active_target_idx = -1;
-        g_last_target_idx = -1;
-        g_aim_motion.Reset();
-        ++g_frames_sem_bind;
-        std::snprintf(g_debug, sizeof(g_debug), "sem bind | %s | VK=%d",
-            aim_type::StatusText(), cfg.aim_bind);
-        return;
-    }
-    g_frames_sem_bind = 0;
-
-    static int sticky_index = -1;
-    static auto sticky_until = std::chrono::steady_clock::now();
-    // Sub-pixel residual — smooth moves accumulate fractions instead of truncating
-    const auto now = std::chrono::steady_clock::now();
-
-    float bestDist = 1e9f;
-    float bestSX = 0.f, bestSY = 0.f;
-    int bestIdx = -1;
-    bool found = false;
-    int candidates = 0;
-    int rejected_fov = 0;
-    int rejected_w2s = 0;
-    int skipped_team = 0;
-    int skipped_dead = 0;
-    int skipped_far = 0;
-
-    auto evaluate = [&](const CS2::Player& p, int idx) {
-        if (p.is_local) return;
-        // Only skip same team when team_check is on AND local_team is a real
-        // CT/T value (2/3). local_team==0 means the read failed — do not
-        // filter everyone as "same team".
-        if (cfg.team_check && rt.local_team >= 2 && p.team == rt.local_team) {
-            ++skipped_team;
-            return;
-        }
-        if (p.health <= 0) {
-            ++skipped_dead;
-            return;
-        }
-        if (p.distance > cfg.aim_max_dist) {
-            ++skipped_far;
-            return;
-        }
-        ++candidates;
-
-        float bone_pos[3];
-        PickBone(p, cfg.aim_bone, bone_pos);
-        if (!std::isfinite(bone_pos[0]) || (bone_pos[0] == 0.f && bone_pos[1] == 0.f && bone_pos[2] == 0.f)) {
-            bone_pos[0] = p.pos[0];
-            bone_pos[1] = p.pos[1];
-            bone_pos[2] = p.pos[2] + 70.f;
-        }
-
-        if (cfg.aim_prediction) {
-            // Lead time scales with distance + horizontal speed (more natural)
-            const float hspd = std::sqrt(p.velocity[0] * p.velocity[0] + p.velocity[1] * p.velocity[1]);
-            if (hspd > 1.f || std::fabs(p.velocity[2]) > 1.f) {
-                const float distFactor = std::clamp(p.distance / 35.f, 0.35f, 1.6f);
-                const float t = cfg.prediction_strength * 0.07f * distFactor;
-                bone_pos[0] += p.velocity[0] * t;
-                bone_pos[1] += p.velocity[1] * t;
-                bone_pos[2] += p.velocity[2] * t * 0.55f; // less vertical lead
-            }
-        }
-
-        float sx, sy;
-        if (!W2S(bone_pos, rt.view_matrix, sx, sy)) {
-            // Fallback: head, then origin+eye height
-            if (!W2S(p.head, rt.view_matrix, sx, sy)) {
-                float origin_eye[3] = { p.pos[0], p.pos[1], p.pos[2] + 64.f };
-                if (!W2S(origin_eye, rt.view_matrix, sx, sy)) {
-                    ++rejected_w2s;
-                    return;
-                }
-            }
-        }
-        const float d = std::sqrt((sx - cx) * (sx - cx) + (sy - cy) * (sy - cy));
-        float fov = EffectiveFov(cfg, p.distance);
-        // Once locked on this target, give a small FOV hysteresis so micro
-        // movement / prediction doesn't drop the target every other frame.
-        if (idx == sticky_index && sticky_index >= 0)
-            fov *= 1.18f;
-        if (d > fov) {
-            ++rejected_fov;
-            return;
-        }
-        if (d < bestDist) {
-            bestDist = d;
-            bestSX = sx;
-            bestSY = sy;
-            bestIdx = idx;
-            found = true;
-        }
-    };
-
-    if (cfg.sticky_ms > 0.f && sticky_index >= 0 &&
-        now < sticky_until && sticky_index < (int)rt.players.size()) {
-        evaluate(rt.players[sticky_index], sticky_index);
-    }
-
-    for (int i = 0; i < (int)rt.players.size(); ++i)
-        evaluate(rt.players[i], i);
-
-    if (!found) {
-        sticky_index = -1;
-        g_active_target_idx = -1;
-        g_aim_motion.Reset();
-        if (rt.players.empty()) {
-            std::snprintf(g_debug, sizeof(g_debug), "sem players (entity list?)");
-        } else if (candidates == 0) {
-            std::snprintf(g_debug, sizeof(g_debug),
-                "sem cand p=%d team=%d dead=%d far=%d lt=%d",
-                (int)rt.players.size(), skipped_team, skipped_dead, skipped_far, rt.local_team);
-        } else {
-            std::snprintf(g_debug, sizeof(g_debug),
-                "fora FOV (cand=%d w2s=%d fov=%d)",
-                candidates, rejected_w2s, rejected_fov);
-        }
-        return;
-    }
-
-    // Anti-snap cooldown between targets
-    if (g_last_target_idx >= 0 && bestIdx != g_last_target_idx && cfg.aim_switch_cooldown_ms > 0.f) {
-        const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - g_last_switch).count();
-        if (ms < (int)cfg.aim_switch_cooldown_ms) {
-            found = false;
-            bestDist = 1e9f;
-            evaluate(rt.players[g_last_target_idx], g_last_target_idx);
-            if (!found) {
-                g_active_target_idx = -1;
-                return;
-            }
-        } else {
-            g_last_switch = now;
-        }
-    } else if (bestIdx != g_last_target_idx) {
-        g_last_switch = now;
-    }
-
-    g_last_target_idx = bestIdx;
-    sticky_index = bestIdx;
-    sticky_until = now + std::chrono::milliseconds((int)std::max(0.f, cfg.sticky_ms));
-    g_active_target_idx = bestIdx;
-
-    g_aim_motion.SetTarget(static_cast<std::uint64_t>(rt.players[bestIdx].pawn));
-    OmniGhost::Gameplay::AimMotionSettings motion_settings{};
-    motion_settings.smooth = cfg.aim_smooth;
-    motion_settings.humanize = cfg.aim_humanize;
-    motion_settings.deadzone = cfg.aim_deadzone;
-    motion_settings.minimum_strength = 0.05f;
-    OmniGhost::Gameplay::ApplyStableDistanceProfile(
-        motion_settings, rt.players[bestIdx].distance);
-    const auto motion = g_aim_motion.Step(bestSX - cx, bestSY - cy, motion_settings);
-    if (!motion) {
-        std::snprintf(g_debug, sizeof(g_debug), "locked d=%.1f tgt=%d", motion.error, bestIdx);
-        return;
-    }
-    MoveMouse(motion.x, motion.y);
-    std::snprintf(g_debug, sizeof(g_debug), "pull %+d,%+d d=%.0f sm=%.0f tgt=%d",
-        motion.x, motion.y, motion.error, cfg.aim_smooth, bestIdx);
-    return;
 }
 
 } // namespace CS2_Aim

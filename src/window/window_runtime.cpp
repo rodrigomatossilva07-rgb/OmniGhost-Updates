@@ -5,6 +5,11 @@
 #include "fonts.h"
 #include "theme.h"
 #include "widgets.h"
+#include "hardware_monitor.h"
+#include "config_history.h"
+#include "hotkeys.h"
+#include "onboarding.h"
+#include "changelog.h"
 #include "../updater/update_service.h"
 #include "../launcher/launcher_assets.h"
 #include "../platform/offset_auto.h"
@@ -642,6 +647,12 @@ void Overlay::Shutdown() {
 
         imgui_initialized_ = false;
     }
+    
+    HardwareMonitor::Shutdown();
+    ConfigHistory::Shutdown();
+    Hotkeys::Shutdown();
+    Onboarding::Shutdown();
+    Changelog::Shutdown();
 
     CleanupRenderTarget();
 

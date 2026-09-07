@@ -1,6 +1,7 @@
 #include "valorant_esp.h"
 #include "valorant_game.h"
 #include "../ImGui/imgui.h"
+#include "gameplay/esp_optimizer.h"
 
 #include <cmath>
 #include <algorithm>

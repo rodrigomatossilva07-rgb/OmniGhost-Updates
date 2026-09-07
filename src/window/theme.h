@@ -2,8 +2,38 @@
 #include "../ImGui/imgui.h"
 
 #include <cstdint>
+#include <string>
+#include <vector>
+#include <filesystem>
 
 namespace CyberTheme {
+
+    enum class ThemeMode : int {
+        Dark = 0,
+        Light = 1,
+        System = 2
+    };
+
+    enum class AccentPreset : int {
+        Cyber = 0,
+        Gold = 1,
+        Purple = 2,
+        Matrix = 3,
+        Red = 4,
+        Blue = 5,
+        Teal = 6,
+        Orange = 7,
+        Pink = 8,
+        Custom = 99
+    };
+
+    struct AccentColor {
+        ImVec4 base;
+        ImVec4 hover;
+        ImVec4 glow;
+        const char* name;
+        const char* id;
+    };
 
     // Product-wide design tokens. All measurements are updated by SetUiScale()
     // from these logical 96-DPI base values so pages no longer invent their own
@@ -88,6 +118,9 @@ namespace CyberTheme {
     };
 
     extern ColorPalette Colors;
+    extern ThemeMode g_theme_mode;
+    extern AccentPreset g_accent_preset;
+    extern ImVec4 g_custom_accent;
 
     void Initialize();
     void ApplyTheme();
@@ -106,6 +139,30 @@ namespace CyberTheme {
     bool IsHighContrast();
     bool IsReducedMotion();
     float GetAnimationScale();
+
+    void SetThemeMode(ThemeMode mode);
+    ThemeMode GetThemeMode();
+    void SetAccentPreset(AccentPreset preset);
+    AccentPreset GetAccentPreset();
+    void SetCustomAccent(const ImVec4& color);
+    const ImVec4& GetCustomAccent();
+    const std::vector<AccentColor>& GetAccentPresets();
+
+    // Theme import/export
+    struct ThemeExportData {
+        ThemeMode mode = ThemeMode::Dark;
+        AccentPreset accent = AccentPreset::Cyber;
+        ImVec4 custom_accent = ImVec4(0.83f, 0.69f, 0.22f, 1.0f);
+        float ui_scale = 1.0f;
+        bool high_contrast = false;
+        bool reduced_motion = false;
+        int schema_version = 1;
+    };
+
+    bool ExportTheme(const std::filesystem::path& path, std::string* error = nullptr);
+    bool ImportTheme(const std::filesystem::path& path, std::string* error = nullptr);
+    std::string SerializeTheme();
+    bool DeserializeTheme(const std::string& json, std::string* error = nullptr);
 
     // Low-cost ambient texture used instead of heavy glows. Seed is stable so
     // the pattern does not shimmer between frames.

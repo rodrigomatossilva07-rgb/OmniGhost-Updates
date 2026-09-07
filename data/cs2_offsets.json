@@ -1,29 +1,121 @@
 {
-  "source": "https://www.cheatoffsets.com/g/cs2",
-  "version": "24701871",
-  "updated_utc": "2026-08-23",
-  "note": "Normalized from cheatoffsets API markdown for OmniGhost loader",
+  "source": "user-provided dump / cs2-dumper style",
+  "version": "latest",
+  "updated_utc": "2026-09-07",
+  "note": "Updated CS2 client/engine globals + essential schemas from provided offset dump",
   "client.dll": {
-    "dwEntityList": "0x2554050",
-    "dwLocalPlayerPawn": "0x23A9118",
-    "dwLocalPlayerController": "0x2383DB0",
-    "dwViewMatrix": "0x23AE550",
-    "dwViewAngles": "0x23BF1A8",
-    "dwGlobalVars": "0x2094D38",
-    "dwPlantedC4": "0x2373898",
-    "dwGameRules": "0x23A8BD8",
-    "dwGlowManager": "0x23A5908",
-    "dwCSGOInput": "0x23BEB20",
-    "dwSensitivity": "0x23A6428"
+    "dwCSGOInput": "0x23bfb20",
+    "dwEntityList": "0x2555050",
+    "dwGameEntitySystem": "0x2555050",
+    "dwGameEntitySystem_highestEntityIndex": "0x2090",
+    "dwGameRules": "0x23a9bd8",
+    "dwGlobalVars": "0x2095d48",
+    "dwGlowManager": "0x23a6908",
+    "dwLocalPlayerController": "0x2384db0",
+    "dwLocalPlayerPawn": "0x23aa118",
+    "dwPlantedC4": "0x2374898",
+    "dwPrediction": "0x23aa020",
+    "dwSensitivity": "0x23a7428",
+    "dwSensitivity_sensitivity": "0x58",
+    "dwViewAngles": "0x23c01a8",
+    "dwViewMatrix": "0x23af550",
+    "dwViewRender": "0x23af5a8",
+    "dwWeaponC4": "0x2322da0"
   },
   "engine2.dll": {
-    "dwBuildNumber": "0x60F594",
-    "dwNetworkGameClient": "0x90D490"
+    "dwBuildNumber": "0x60f594",
+    "dwNetworkGameClient": "0x90d4b0",
+    "dwNetworkGameClient_clientTickCount": "0x378",
+    "dwNetworkGameClient_deltaTick": "0x24c",
+    "dwNetworkGameClient_isBackgroundMap": "0x2c141f",
+    "dwNetworkGameClient_localPlayer": "0xf8",
+    "dwNetworkGameClient_maxClients": "0x240",
+    "dwNetworkGameClient_serverTickCount": "0x24c",
+    "dwNetworkGameClient_signOnState": "0x230",
+    "dwWindowHeight": "0x9118dc",
+    "dwWindowWidth": "0x9118d8"
+  },
+  "inputsystem.dll": {
+    "dwInputSystem": "0x45ba0"
+  },
+  "matchmaking.dll": {
+    "dwGameTypes": "0x1adf80"
+  },
+  "soundsystem.dll": {
+    "dwSoundSystem": "0x54b5d0",
+    "dwSoundSystem_engineViewData": "0x7c"
+  },
+  "schemas": {
+    "C_BaseEntity": {
+      "m_pGameSceneNode": "0x330",
+      "m_iHealth": "0x34c",
+      "m_iMaxHealth": "0x348",
+      "m_lifeState": "0x354",
+      "m_iTeamNum": "0x3e7",
+      "m_fFlags": "0x3f4"
+    },
+    "CGameSceneNode": {
+      "m_vecAbsOrigin": "0xc8",
+      "m_bDormant": "0x103",
+      "m_nodeToWorld": "0x10"
+    },
+    "CSkeletonInstance": {
+      "m_modelState": "0x140"
+    },
+    "C_BasePlayerPawn": {
+      "m_vOldOrigin": "0x13b8",
+      "m_pWeaponServices": "0x1208",
+      "m_vecViewOffset": "0xe78"
+    },
+    "C_CSPlayerPawnBase": {
+      "m_flFlashDuration": "0x1428"
+    },
+    "C_CSPlayerPawn": {
+      "m_ArmorValue": "0x1ca4",
+      "m_angEyeAngles": "0x3350",
+      "m_iShotsFired": "0x1c8c",
+      "m_iIDEntIndex": "0x342c",
+      "m_bIsScoped": "0x1c78",
+      "m_entitySpottedState": "0x1c60"
+    },
+    "EntitySpottedState_t": {
+      "m_bSpotted": "0x8"
+    },
+    "CCSPlayerController": {
+      "m_hPlayerPawn": "0x914",
+      "m_hObserverPawn": "0x918",
+      "m_bPawnIsAlive": "0x91c",
+      "m_iPawnHealth": "0x920",
+      "m_iPawnArmor": "0x924",
+      "m_iszPlayerName": "0x6f4",
+      "m_sSanitizedPlayerName": "0x868"
+    },
+    "C_PlantedC4": {
+      "m_bBombTicking": "0x11a0",
+      "m_flC4Blow": "0x11d0",
+      "m_flTimerLength": "0x11d8",
+      "m_bBeingDefused": "0x11dc",
+      "m_flDefuseCountDown": "0x11f0",
+      "m_bBombDefused": "0x11f4",
+      "m_hBombDefuser": "0x11f8"
+    },
+    "CPlayer_WeaponServices": {
+      "m_hActiveWeapon": "0x60"
+    },
+    "C_EconEntity": {
+      "m_AttributeManager": "0x1200"
+    },
+    "C_AttributeContainer": {
+      "m_Item": "0x50"
+    },
+    "C_EconItemView": {
+      "m_iItemDefinitionIndex": "0x1ba"
+    }
   },
   "schema_version": 1,
   "game": "cs2",
-  "build": "24701871",
+  "build": "latest",
   "cl": "",
   "module": "client.dll",
-  "generated_at": "2026-08-23"
+  "generated_at": "2026-09-07"
 }

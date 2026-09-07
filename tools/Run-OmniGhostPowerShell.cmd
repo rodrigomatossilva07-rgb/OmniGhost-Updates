@@ -22,6 +22,7 @@ if /I "%ACTION%"=="restore-version" set "SCRIPT=%PROJECT_DIR%\tools\Restore-Vers
 if /I "%ACTION%"=="repair-latest" set "SCRIPT=%PROJECT_DIR%\tools\Repair-LatestRelease.ps1"
 if /I "%ACTION%"=="validate-distribution" set "SCRIPT=%PROJECT_DIR%\tools\Validate-DistributionBuild.ps1"
 if /I "%ACTION%"=="publish-build" set "SCRIPT=%PROJECT_DIR%\tools\Publish-Build.ps1"
+if /I "%ACTION%"=="compress-assets" set "SCRIPT=%PROJECT_DIR%\tools\Compress-Assets.ps1"
 
 if not defined SCRIPT (
     echo [OmniGhost PowerShell] Unknown action: %ACTION%
@@ -73,6 +74,7 @@ if /I "%ACTION%"=="generate-build-metadata" goto :build_metadata
 if /I "%ACTION%"=="repair-latest" goto :repair_latest
 if /I "%ACTION%"=="validate-distribution" goto :validate_distribution
 if /I "%ACTION%"=="publish-build" goto :publish_build
+if /I "%ACTION%"=="compress-assets" goto :compress_assets
 if /I "%ACTION%"=="generate-embedded-runtime" goto :embedded_runtime
 if /I "%ACTION%"=="generate-embedded-offsets" goto :embedded_data
 if /I "%ACTION%"=="generate-embedded-resources" goto :embedded_data
@@ -93,7 +95,9 @@ exit /b %ERRORLEVEL%
 :embedded_data
 set "CONFIGURATION=%~3"
 if not defined CONFIGURATION set "CONFIGURATION=Release"
-"%PS_EXE%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%SCRIPT%" -ProjectDir "%PROJECT_DIR%" -Configuration "%CONFIGURATION%"
+set "PLATFORM=%~4"
+if not defined PLATFORM set "PLATFORM=x64"
+"%PS_EXE%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%SCRIPT%" -ProjectDir "%PROJECT_DIR%" -Configuration "%CONFIGURATION%" -Platform "%PLATFORM%"
 exit /b %ERRORLEVEL%
 
 :build_metadata
@@ -129,6 +133,12 @@ if /I "%VALIDATE_ONLY%"=="true" (
 )
 exit /b %ERRORLEVEL%
 
+:compress_assets
+set "CONFIGURATION=%~3"
+if not defined CONFIGURATION set "CONFIGURATION=Release"
+"%PS_EXE%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%SCRIPT%" -ProjectDir "%PROJECT_DIR%" -Configuration "%CONFIGURATION%"
+exit /b %ERRORLEVEL%
+
 :package
 if "%~3"=="" goto :usage
 if "%~4"=="" goto :usage
@@ -153,4 +163,5 @@ echo   Run-OmniGhostPowerShell.cmd restore-version PROJECT_DIR
 echo   Run-OmniGhostPowerShell.cmd repair-latest PROJECT_DIR [TAG]
 echo   Run-OmniGhostPowerShell.cmd validate-distribution PROJECT_DIR CONFIGURATION
 echo   Run-OmniGhostPowerShell.cmd publish-build PROJECT_DIR BUILD_DIR [true-for-preflight]
+echo   Run-OmniGhostPowerShell.cmd compress-assets PROJECT_DIR [CONFIGURATION]
 exit /b 64

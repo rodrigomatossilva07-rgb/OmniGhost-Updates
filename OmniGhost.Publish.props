@@ -1,11 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <DebugInformationFormat Condition="'$(Configuration)'=='Publish'">None</DebugInformationFormat>
+    <GenerateDebugInformation Condition="'$(Configuration)'=='Publish'">false</GenerateDebugInformation>
+    <StripSymbols>true</StripSymbols>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>$(ProjectDir)keys\OmniGhost.snk</AssemblyOriginatorKeyFile>
+  </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
       <PreprocessorDefinitions>OMNIGHOST_PUBLISH_BUILD=1;OMNIGHOST_REQUIRE_LOCAL_LICENSE=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>OMNIGHOST_PUBLISH_BUILD=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ResourceCompile>
+    <Link>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <AllowIsolation>false</AllowIsolation>
+      <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
+      <TerminalServerAware>true</TerminalServerAware>
+    </Link>
   </ItemDefinitionGroup>
 </Project>

@@ -14,9 +14,6 @@ namespace {
     std::string g_preview_clipboard;
 }
 
-std::string g_validExecutable;
-ActiveGame g_activeGame = ActiveGame::FiveM;
-
 void DrawCs2Visuals() {}
 void DrawCs2Aim() {}
 void DrawCs2Misc() {}

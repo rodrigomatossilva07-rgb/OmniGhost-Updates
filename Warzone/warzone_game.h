@@ -85,6 +85,7 @@ struct Player {
     float pos[3]{};
     float head[3]{};
     float chest[3]{};
+    float velocity[3]{};
     char name[64]{};
     float distance = 0.f;
     float health = 100.f;
@@ -104,7 +105,11 @@ struct Runtime {
     uintptr_t local_player = 0;
     int local_team = 0;
     int local_index = -1;
+    int local_health = 100;
     float local_pos[3]{};
+    float local_vel[3]{};
+    float local_angles[3]{};
+    bool local_scoped = false;
     float view_matrix[16]{};
     std::vector<Player> players;
     int player_count = 0;

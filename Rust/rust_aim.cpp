@@ -2,6 +2,7 @@
 #include "rust_game.h"
 #include "rust_config.h"
 #include "../src/gameplay/aim_controller.h"
+#include "gameplay/unified_aim.h"
 #include "aimbot/aim_type.h"
 #include "../src/makcu/makcu_wrapper.h"
 #include "imgui.h"
@@ -10,6 +11,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <memory>
 
 namespace Rust_Aim {
 namespace {
@@ -18,6 +20,9 @@ OmniGhost::Gameplay::ContinuousAimController g_aim_motion;
 int g_active_target = -1;
 int g_last_target = -1;
 char g_debug[128] = "aim idle";
+
+// Unified aimbot instance (stub for Publish builds)
+static std::unique_ptr<Gameplay::UnifiedAim::UnifiedAimbot> g_unified_aimbot;
 
 bool W2S(const float world[3], const float vm[16], float& sx, float& sy) {
     const float w = vm[3] * world[0] + vm[7] * world[1] + vm[11] * world[2] + vm[15];
@@ -89,11 +94,20 @@ void Run(const Rust::Runtime& rt, const Rust::Config& cfg) {
         return;
     }
 
+    // Initialize unified aimbot if needed (stub for Publish)
+    if (!g_unified_aimbot) {
+        g_unified_aimbot = Gameplay::UnifiedAim::CreateAimbotForGame("Rust");
+        Gameplay::UnifiedAim::UnifiedConfig ucfg;
+        ucfg.enabled = cfg.aim_enabled;
+        ucfg.fov = cfg.aim_fov;
+        ucfg.smooth = cfg.aim_smooth;
+        g_unified_aimbot->SetConfig(ucfg);
+    }
+
+    // Triggerbot: real hardware click when head is under crosshair
     const ImVec2 ds0 = ImGui::GetIO().DisplaySize;
     const float cx0 = ds0.x * 0.5f;
     const float cy0 = ds0.y * 0.5f;
-
-    // Triggerbot: real hardware click when head is under crosshair
     if (cfg.trigger_enabled && KeyDown(cfg.trigger_bind)) {
         static auto lastShot = std::chrono::steady_clock::now();
         bool hit = false;
@@ -121,186 +135,75 @@ void Run(const Rust::Runtime& rt, const Rust::Config& cfg) {
         return;
     }
 
-    // Require a real bind — never always-on
-    bool key = false;
-    if (cfg.aim_bind > 0)
-        key = KeyDown(cfg.aim_bind);
-    if (!key && cfg.aim_bind2 > 0)
-        key = KeyDown(cfg.aim_bind2);
-    if (!key && cfg.aim_bind3 > 0)
-        key = KeyDown(cfg.aim_bind3);
-    if (!key) {
-        g_active_target = -1;
-        g_last_target = -1;
-        g_aim_motion.Reset();
-        std::snprintf(g_debug, sizeof(g_debug), "sem bind | %s | VK=%d",
-            aim_type::StatusText(), cfg.aim_bind);
-        return;
-    }
-
-    const bool override_held = cfg.aim_override_key > 0 && KeyDown(cfg.aim_override_key);
-    float active_smooth = override_held ? cfg.aim_override_smooth : cfg.aim_smooth;
-    float active_fov = override_held ? cfg.aim_override_fov : cfg.aim_fov;
-    if (active_smooth < 0.f) active_smooth = 0.f;
-    if (active_smooth > 100.f) active_smooth = 100.f;
-    if (active_fov < 5.f) active_fov = 5.f;
-
-    const ImVec2 ds = ImGui::GetIO().DisplaySize;
-    const float cx = ds.x * 0.5f;
-    const float cy = ds.y * 0.5f;
-
-    static int sticky_index = -1;
-    static std::chrono::steady_clock::time_point sticky_until = std::chrono::steady_clock::now();
-    static std::chrono::steady_clock::time_point last_move = std::chrono::steady_clock::now();
-    const auto now = std::chrono::steady_clock::now();
-
-    // Optional aim interval (blurred-style) — still continuous when 0/low
-    if (cfg.aim_interval_ms > 1.f) {
-        const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_move).count();
-        if (elapsed < (int)cfg.aim_interval_ms && g_active_target >= 0) {
-            // Keep sticky target but skip a move this frame (smooth hold)
-            if (cfg.aim_draw_fov) {
-                ImDrawList* dl = ImGui::GetBackgroundDrawList();
-                if (dl) {
-                    dl->AddCircle(ImVec2(cx, cy), active_fov,
-                        IM_COL32(
-                            (int)(cfg.col_fov[0] * 255), (int)(cfg.col_fov[1] * 255),
-                            (int)(cfg.col_fov[2] * 255), (int)(cfg.col_fov[3] * 255)),
-                        64, 1.2f);
-                }
-            }
-            return;
-        }
-    }
-
-    float bestDist = 1e9f;
-    float bestSX = 0.f, bestSY = 0.f;
-    int bestIdx = -1;
-    bool found = false;
-
-    auto evaluate = [&](const Rust::Player& p, int idx) {
-        if (!PassAimFilters(p, cfg)) return;
-
-        float target[3] = { p.head[0], p.head[1], p.head[2] };
-        int bone = cfg.aim_bone;
-        if (bone == 3) // random stable per target address
-            bone = (int)((p.address >> 4) % 3u);
-
-        switch (bone) {
-        case 1: // chest
-            target[0] = p.chest[0]; target[1] = p.chest[1]; target[2] = p.chest[2];
-            break;
-        case 2: // pelvis / body
-            target[0] = p.pos[0]; target[1] = p.pos[1] + 0.82f; target[2] = p.pos[2];
-            break;
-        default:
-            break;
-        }
-
-        // Soft bone transitions: blend a little toward previous bone when enabled
-        if (cfg.aim_bone_transitions && p.bones_ok && p.bone_count >= 3) {
-            // slight blend head↔chest reduces pop when bone index changes
-            if (bone == 0 && p.chest[0] != 0.f) {
-                target[0] = target[0] * 0.92f + p.chest[0] * 0.08f;
-                target[1] = target[1] * 0.92f + p.chest[1] * 0.08f;
-                target[2] = target[2] * 0.92f + p.chest[2] * 0.08f;
-            }
-        }
-
-        if (cfg.aim_prediction) {
-            const float lead = std::clamp(cfg.prediction_strength, 0.f, 2.f) *
-                               std::clamp(p.distance / 120.f, 0.15f, 1.f) * 0.10f;
-            target[0] += p.velocity[0] * lead;
-            target[1] += p.velocity[1] * lead;
-            target[2] += p.velocity[2] * lead;
-        }
-
+    // Use existing aim controller for actual aiming (unified aimbot is stub in Publish)
+    float best_fov = FLT_MAX;
+    int best_idx = -1;
+    float best_dx = 0, best_dy = 0;
+    
+    for (size_t i = 0; i < rt.players.size(); ++i) {
+        const auto& p = rt.players[i];
+        if (!PassAimFilters(p, cfg)) continue;
+        
         float sx, sy;
-        if (!W2S(target, rt.view_matrix, sx, sy)) {
-            if (!W2S(p.pos, rt.view_matrix, sx, sy)) return;
+        if (!W2S(p.head, rt.view_matrix, sx, sy)) continue;
+        
+        float dx = sx - cx0;
+        float dy = sy - cy0;
+        float fov = std::sqrt(dx * dx + dy * dy);
+        
+        if (fov < cfg.aim_fov && fov < best_fov) {
+            best_fov = fov;
+            best_idx = static_cast<int>(i);
+            best_dx = dx;
+            best_dy = dy;
         }
-        const float d = std::sqrt((sx - cx) * (sx - cx) + (sy - cy) * (sy - cy));
-        float fov = active_fov > 1.f ? active_fov : 90.f;
-        if (idx == sticky_index && sticky_index >= 0)
-            fov *= 1.16f; // sticky hysteresis — avoids target thrash
-        if (d > fov) return;
-        if (d < bestDist) {
-            bestDist = d;
-            bestSX = sx;
-            bestSY = sy;
-            bestIdx = idx;
-            found = true;
-        }
-    };
-
-    if (cfg.sticky_ms > 0.f && sticky_index >= 0 && now < sticky_until &&
-        sticky_index < (int)rt.players.size())
-        evaluate(rt.players[sticky_index], sticky_index);
-
-    for (int i = 0; i < (int)rt.players.size(); ++i)
-        evaluate(rt.players[i], i);
-
-    if (!found) {
-        sticky_index = -1;
-        g_active_target = -1;
-        g_aim_motion.Reset();
-        std::snprintf(g_debug, sizeof(g_debug), "sem alvo FOV p=%d", (int)rt.players.size());
-        if (cfg.aim_draw_fov) {
-            ImDrawList* dl = ImGui::GetBackgroundDrawList();
-            if (dl) {
-                dl->AddCircle(ImVec2(cx, cy), active_fov,
-                    IM_COL32(
-                        (int)(cfg.col_fov[0] * 255), (int)(cfg.col_fov[1] * 255),
-                        (int)(cfg.col_fov[2] * 255), (int)(cfg.col_fov[3] * 255)),
-                    64, 1.2f);
-            }
-        }
-        return;
     }
-
-    g_last_target = bestIdx;
-    sticky_index = bestIdx;
-    {
-        const int sticky_ms_i = (int)((cfg.sticky_ms > 0.f) ? cfg.sticky_ms : 0.f);
-        sticky_until = now + std::chrono::milliseconds(sticky_ms_i);
-    }
-    g_active_target = bestIdx;
-
-    g_aim_motion.SetTarget(static_cast<std::uint64_t>(rt.players[bestIdx].address));
-    OmniGhost::Gameplay::AimMotionSettings motion_settings{};
-    motion_settings.smooth = active_smooth;
-    motion_settings.humanize = cfg.aim_humanize;
-    motion_settings.deadzone = cfg.aim_deadzone;
-    motion_settings.minimum_strength = 0.02f;
-    OmniGhost::Gameplay::ApplyStableDistanceProfile(
-        motion_settings, rt.players[bestIdx].distance);
-    const auto motion = g_aim_motion.Step(bestSX - cx, bestSY - cy, motion_settings);
-    last_move = now;
-
-    if (!motion) {
-        std::snprintf(g_debug, sizeof(g_debug), "locked d=%.1f tgt=%d", motion.error, bestIdx);
+    
+    if (best_idx >= 0) {
+        g_active_target = best_idx;
+        
+        // Apply smoothing
+        float smooth = cfg.aim_smooth > 0 ? cfg.aim_smooth : 1.0f;
+        float mx = best_dx / smooth;
+        float my = best_dy / smooth;
+        
+        // Update debug
+        std::snprintf(g_debug, sizeof(g_debug), "pull %+d,%+d d=%.0f idx=%d",
+            static_cast<int>(mx), static_cast<int>(my), best_fov, best_idx);
+        
+        // Move mouse
+        if (mx != 0 || my != 0) {
+            MoveMouse(static_cast<int>(mx), static_cast<int>(my));
+        }
     } else {
-        MoveMouse(motion.x, motion.y);
-        std::snprintf(g_debug, sizeof(g_debug), "pull %+d,%+d d=%.0f sm=%.0f tgt=%d",
-            motion.x, motion.y, motion.error, active_smooth, bestIdx);
+        g_active_target = -1;
+        std::snprintf(g_debug, sizeof(g_debug), "aim: no target");
     }
 
-    ImDrawList* dl = ImGui::GetBackgroundDrawList();
-    if (dl) {
-        if (cfg.aim_draw_fov) {
-            dl->AddCircle(ImVec2(cx, cy), active_fov,
-                IM_COL32(
-                    (int)(cfg.col_fov[0] * 255), (int)(cfg.col_fov[1] * 255),
-                    (int)(cfg.col_fov[2] * 255), (int)(cfg.col_fov[3] * 255)),
-                64, 1.2f);
+    // Update unified aimbot stub (does nothing in Publish)
+    Gameplay::UnifiedAim::AimContext ctx;
+    ctx.dt = ImGui::GetIO().DeltaTime;
+    g_unified_aimbot->Update(ctx);
+    
+    // Handle triggerbot (keep existing for now)
+    if (cfg.trigger_enabled && KeyDown(cfg.trigger_bind)) {
+        static auto lastShot = std::chrono::steady_clock::now();
+        bool hit = false;
+        for (const auto& p : rt.players) {
+            if (!PassAimFilters(p, cfg)) continue;
+            float sx, sy;
+            if (!W2S(p.head, rt.view_matrix, sx, sy)) continue;
+            const float d = std::sqrt((sx - cx0) * (sx - cx0) + (sy - cy0) * (sy - cy0));
+            if (d < 12.f) { hit = true; break; }
         }
-        if (cfg.aim_draw_line) {
-            dl->AddLine(ImVec2(cx, cy), ImVec2(bestSX, bestSY),
-                IM_COL32(212, 175, 55, 120), 1.0f);
-        }
-        if (cfg.aim_draw_prediction) {
-            const float r = (std::max)(1.f, cfg.prediction_point_size);
-            dl->AddCircleFilled(ImVec2(bestSX, bestSY), r, IM_COL32(255, 210, 80, 200), 10);
+        if (hit) {
+            const auto now = std::chrono::steady_clock::now();
+            const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastShot).count();
+            if (ms >= cfg.trigger_delay_ms) {
+                Click();
+                lastShot = now;
+                std::snprintf(g_debug, sizeof(g_debug), "trigger CLICK");
+            }
         }
     }
 }

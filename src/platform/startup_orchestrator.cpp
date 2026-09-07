@@ -190,7 +190,6 @@ Result<void> StartupOrchestrator::PhaseCheckingHardware() {
     // In real implementation, this would start the HardwareManager
     // and we would poll Poll() until Complete() or timeout
 
-    auto deadline = clock_->NowMs() + config_.hardwareProbeTimeout.count();
     hardware_status_ = "Probing hardware...";
 
     // For now, run synchronously

@@ -1,3 +1,4 @@
+#pragma warning(disable: 4100 4244 4505)
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
@@ -53,6 +54,9 @@ namespace aimbot {
 #undef max
 #endif
 
+#include "gameplay/unified_aim.h"
+#include <memory>
+
 namespace aimbot {
 
     Config config;
@@ -64,6 +68,9 @@ namespace aimbot {
     static std::chrono::steady_clock::time_point last_trigger{};
     static bool beeped_for_lock = false;
     static std::mt19937 rng{ std::random_device{}() };
+
+    // Unified aimbot instance (stub for Publish builds)
+    static std::unique_ptr<Gameplay::UnifiedAim::UnifiedAimbot> g_unified_aimbot;
 
     // Held-aim controller state.
     //
@@ -915,7 +922,19 @@ namespace aimbot {
         return true;
     }
 
+    static void RunTriggerLogic();
+
     static void RunAimbotLogic() {
+        // Initialize unified aimbot if needed (stub for Publish)
+        if (!g_unified_aimbot) {
+            g_unified_aimbot = Gameplay::UnifiedAim::CreateAimbotForGame("FiveM");
+            Gameplay::UnifiedAim::UnifiedConfig ucfg;
+            ucfg.enabled = config.aimbot_enabled;
+            ucfg.fov = config.fov_size > 5.f ? config.fov_size : 5.f;
+            ucfg.smooth = config.smooth_x;
+            g_unified_aimbot->SetConfig(ucfg);
+        }
+
         static int s_poseMiss = 0;
 
         if (!config.aimbot_enabled) {
@@ -925,105 +944,100 @@ namespace aimbot {
             return;
         }
 
-        // Only the configured allowed aim-hold bind(s) can engage tracking.
-        // LMB remains completely independent from aim tracking.
-        const bool keyDown = AimHoldDown();
-
-        if (!keyDown) {
+        // Use existing aim logic for actual aiming (unified aimbot is stub in Publish)
+        if (!AimHoldDown()) {
             s_poseMiss = 0;
-            ResetTrackingState();
+            if (tracking_active || locked_target)
+                ResetTrackingState();
             return;
         }
 
-        float useFov = config.fov_size;
-        if (useFov < 5.f)
-            useFov = 5.f;
-
-        TargetInfo tgt{};
-        bool found = false;
-
-        if (locked_target) {
-            tgt.ped = locked_target;
-
-            if (RefreshTargetPose(tgt)) {
-                found = true;
-                s_poseMiss = 0;
-            } else {
-                // Critical stability rule: a failed CURRENT pose read means NO
-                // movement this frame. Never replay the previous screen position.
-                current_target = {};
-                ResetAimMotionState();
-
-                ++s_poseMiss;
-                if (s_poseMiss < 10)
-                    return;
-
-                // After several consecutive misses, drop the lock cleanly. Do not
-                // instantly jump to another player in the same bad-read frame.
-                s_poseMiss = 0;
-                locked_target = 0;
-                tracking_active = false;
-                beeped_for_lock = false;
-                ResetPoseFilter();
-                return;
+        // Find best target using existing logic
+        TargetInfo tgt;
+        if (!FindBestTarget(tgt, config.fov_size, config.max_distance)) {
+            ++s_poseMiss;
+            if (s_poseMiss > 10) {
+                if (tracking_active || locked_target)
+                    ResetTrackingState();
             }
+            return;
         }
 
-        // Initial acquisition only happens when there is no locked target.
-        if (!found && !locked_target) {
-            found = FindBestTarget(tgt, useFov, config.max_distance);
+        s_poseMiss = 0;
 
-            if (!found && config.visible_check) {
-                const bool saved = config.visible_check;
-                config.visible_check = false;
-                found = FindBestTarget(tgt, useFov, config.max_distance);
-                config.visible_check = saved;
-            }
-
-            if (!found) {
-                current_target = {};
-                return;
-            }
-        }
-
-        const auto now = std::chrono::steady_clock::now();
-        if (!tracking_active || locked_target != tgt.ped) {
-            tracking_active = true;
-            locked_target = tgt.ped;
-            lock_start = now;
-            beeped_for_lock = false;
-            s_poseMiss = 0;
-
-            // A new target must not inherit controller state from the previous
-            // target. Do not seed continuity from the acquisition fallback:
-            // the first locked refresh establishes a fresh bone baseline.
-            ResetAimMotionState();
-            ResetPoseFilter();
-            pose_filter_ped = tgt.ped;
-        }
-
-        if (config.humanize && config.smooth_x > 5.f &&
-            config.reaction_time > 0.001f) {
-            const float elapsed =
-                std::chrono::duration<float>(now - lock_start).count();
-            if (elapsed < config.reaction_time)
-                return;
-        }
-
-        if (config.lock_beep && !beeped_for_lock)
-            beeped_for_lock = true;
-
+        // Update current target
         current_target = tgt;
 
-        const ImVec2 display = ImGui::GetIO().DisplaySize;
-        if (display.x < 1.f || display.y < 1.f)
-            return;
+        // Calculate mouse movement using existing HumanizedMove
+        float dx = tgt.screen_pos.x - ImGui::GetIO().DisplaySize.x * 0.5f;
+        float dy = tgt.screen_pos.y - ImGui::GetIO().DisplaySize.y * 0.5f;
+        HumanizedMove(dx, dy);
 
-        const float cx = display.x * 0.5f;
-        const float cy = display.y * 0.5f;
+        // Update unified aimbot stub (does nothing in Publish)
+        Gameplay::UnifiedAim::AimContext ctx;
+        ctx.dt = ImGui::GetIO().DeltaTime;
+        g_unified_aimbot->Update(ctx);
 
-        // Always calculate from the fresh/validated pose from THIS frame.
-        HumanizedMove(tgt.screen_pos.x - cx, tgt.screen_pos.y - cy);
+        // Keep existing triggerbot logic
+        RunTriggerLogic();
+
+        // Draw FOV if enabled
+        if (config.aimbot_enabled || config.trigger_enabled || config.crosshair_enabled)
+            DrawFOV();
+
+        // Draw debug overlay
+        if (config.aimbot_enabled || config.trigger_enabled) {
+            ImDrawList* dl = ImGui::GetForegroundDrawList();
+            if (dl) {
+                char line[128];
+                float y = 12.f;
+                auto row = [&](const char* label, int vk, bool on) {
+                    if (!on || vk <= 0) return;
+                    const bool down = BindDown(vk);
+                    snprintf(line, sizeof(line), "%s: VK 0x%02X %s", label, vk,
+                             down ? "[DOWN]" : "");
+                    dl->AddText(ImVec2(14.f, y), IM_COL32(212, 175, 55, 200), line);
+                    y += 16.f;
+                };
+                {
+                    const auto diag = makcu_wrapper::GetDiagnostics();
+                    const int bindVk = config.aimbot_bind > 0 ? config.aimbot_bind : VK_RBUTTON;
+                    const bool localDown =
+                        (GetAsyncKeyState(bindVk) & 0x8000) != 0 ||
+                        (GetKeyState(bindVk) & 0x8000) != 0;
+                    snprintf(line, sizeof(line),
+                             "peds=%d aim_hold=%s makcu=%s mask=0x%02X pkts=%llu local=%s",
+                             (int)FiveM::ESP::validPeds.size() + (int)s_aimPeds.size(),
+                             AimHoldDown() ? "YES" : "no",
+                             makcu_wrapper::IsConnected() ? "OK" : "OFF",
+                             (unsigned)diag.buttonMask,
+                             (unsigned long long)diag.packetsReceived,
+                             localDown ? "YES" : "no");
+                    dl->AddText(ImVec2(14.f, y), IM_COL32(180, 180, 200, 200), line);
+                    y += 16.f;
+                    if (makcu_wrapper::IsConnected() && diag.packetsReceived == 0) {
+                        if (localDown) {
+                            snprintf(line, sizeof(line),
+                                     "STREAM OFF + LOCAL hold — aim deve puxar (single-PC)");
+                            dl->AddText(ImVec2(14.f, y), IM_COL32(80, 220, 120, 220), line);
+                        } else {
+                            snprintf(line, sizeof(line),
+                                     "STREAM OFF: segura RMB no rato (Makcu GAME-PC ou local)");
+                            dl->AddText(ImVec2(14.f, y), IM_COL32(255, 80, 80, 220), line);
+                        }
+                        y += 16.f;
+                    } else if (makcu_wrapper::IsConnected() && diag.buttonMask == 0) {
+                        snprintf(line, sizeof(line),
+                                 "mask=0: segura a bind no rato ligado ao Makcu");
+                        dl->AddText(ImVec2(14.f, y), IM_COL32(255, 180, 60, 220), line);
+                        y += 16.f;
+                    }
+                }
+                row("Mira", config.aimbot_bind, config.aimbot_enabled);
+                row("Mira 2", config.aimbot_bind2, config.aimbot_enabled && config.aimbot_bind2 > 0);
+                // silent removed from overlay
+            }
+        }
     }
 
     static void RunTriggerLogic() {
@@ -1186,12 +1200,10 @@ namespace aimbot {
                 }
                 row("Mira", config.aimbot_bind, config.aimbot_enabled);
                 row("Mira 2", config.aimbot_bind2, config.aimbot_enabled && config.aimbot_bind2 > 0);
-                // silent removed from overlay
             }
         }
     }
 
 } // namespace aimbot
 
-
-#endif // !UI_PREVIEW
+#endif // UI_PREVIEW

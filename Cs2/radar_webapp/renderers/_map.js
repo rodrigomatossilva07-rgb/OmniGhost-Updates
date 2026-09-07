@@ -1,3 +1,9 @@
+﻿// Lazy initialization wrapper
+(function() {
+    if (typeof window.radarLazyInit === 'undefined') {
+        window.radarLazyInit = [];
+    }
+    window.radarLazyInit.push(function() {
 // Initial map rendering
 //
 // Responsible for changing radar background on map change, loading map
@@ -130,3 +136,6 @@ document.addEventListener("DOMContentLoaded", function() {
 
 // 监听配置变化更新旋转
 document.addEventListener("configchange", updateRotate90)
+
+    });
+})();

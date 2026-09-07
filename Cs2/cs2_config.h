@@ -91,6 +91,9 @@ struct Config {
     float prediction_strength = 0.35f;
     bool hit_chance_ui = false;
     float aim_switch_cooldown_ms = 90.f;
+    bool aim_ignore_team = true;
+    bool aim_ignore_spectators = false;
+    bool aim_ignore_bots = true;
     float col_fov[4] = { 0.83f, 0.69f, 0.22f, 0.45f };
 
     bool trigger_enabled = false;

@@ -250,7 +250,7 @@ try {
     if ($PublishBuild -or $Commercial) {
         # Any remotely publishable package must originate from Publish|x64. Signed
         # commercial builds additionally require clean reproducible provenance.
-        $BuildMetadataPath = Join-Path $ProjectDir '.cache\build-metadata.json'
+        $BuildMetadataPath = Join-Path $ProjectDir '.cache\generated\Publish\x64\build-metadata.json'
         if (-not (Test-Path -LiteralPath $BuildMetadataPath -PathType Leaf)) {
             throw 'Metadados de build em falta. Recompila Publish|x64 antes do packaging.'
         }

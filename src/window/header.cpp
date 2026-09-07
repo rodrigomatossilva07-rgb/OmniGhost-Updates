@@ -2,6 +2,7 @@
 #include "theme.h"
 #include "fonts.h"
 #include "brand_assets.h"
+#include "global_search.h"
 
 #include <cmath>
 
@@ -82,6 +83,46 @@ namespace CyberWidgets {
             dl->AddText(body, 10.5f, ImVec2(b.x - 118.0f, a.y + (h - 11.0f) * 0.5f),
                 CyberTheme::WithAlpha(CyberTheme::Colors.TextDisabled, 0.55f),
                 "PREMIUM DMA");
+        }
+        
+        // Search button (right side)
+        static bool show_search = false;
+        const float search_btn_w = 36.0f;
+        const float search_btn_h = 28.0f;
+        const ImVec2 search_pos(b.x - search_btn_w - 20.0f, a.y + (h - search_btn_h) * 0.5f);
+        const ImVec2 search_end(search_pos.x + search_btn_w, search_pos.y + search_btn_h);
+        
+        bool search_hovered = ImGui::IsMouseHoveringRect(search_pos, search_end);
+        if (search_hovered) {
+            ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+            if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+                show_search = true;
+            }
+        }
+        
+        dl->AddRectFilled(search_pos, search_end, 
+            CyberTheme::WithAlpha(search_hovered ? CyberTheme::Colors.Gold : CyberTheme::Colors.PanelHover, 0.3f),
+            6.0f);
+        dl->AddRect(search_pos, search_end,
+            CyberTheme::WithAlpha(search_hovered ? CyberTheme::Colors.Gold : CyberTheme::Colors.Border, search_hovered ? 0.6f : 0.3f),
+            6.0f);
+        
+        // Search icon (magnifying glass)
+        const ImVec2 icon_center((search_pos.x + search_end.x) * 0.5f, (search_pos.y + search_end.y) * 0.5f);
+        dl->AddCircle(ImVec2(icon_center.x - 2.0f, icon_center.y - 2.0f), 6.0f,
+            CyberTheme::WithAlpha(CyberTheme::Colors.Text, search_hovered ? 0.9f : 0.6f), 12, 1.5f);
+        dl->AddLine(ImVec2(icon_center.x + 3.0f, icon_center.y + 3.0f),
+            ImVec2(icon_center.x + 8.0f, icon_center.y + 8.0f),
+            CyberTheme::WithAlpha(CyberTheme::Colors.Text, search_hovered ? 0.9f : 0.6f), 1.5f);
+        
+        if (show_search) {
+            ImGui::OpenPopup("##global_search_popup");
+        }
+        
+        ImGui::SetNextWindowPos(ImVec2(search_pos.x - 400.0f, search_end.y + 4.0f), ImGuiCond_Appearing);
+        if (ImGui::BeginPopup("##global_search_popup")) {
+            GlobalSearch::DrawSearchOverlay(&show_search);
+            ImGui::EndPopup();
         }
     }
 

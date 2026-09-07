@@ -253,10 +253,4 @@ namespace friends {
 
 namespace config_manager {
 
-    struct SavedConfigInfo {
-        std::string name;
-        std::string path;
-        std::string date_str;
-    };
-
 } // namespace config_manager

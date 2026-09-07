@@ -141,18 +141,19 @@ bool StartFortnite() {
 }
 
 bool StartFiveM() {
-    g_activeGame = ActiveGame::FiveM;
+    OmniGhost::GameContext::Instance().SetActiveGame(ActiveGame::FiveM);
     if (!mem.Init(std::string(), true, false)) {
         std::cerr << "[FiveM] Falha a abrir o dispositivo DMA/FPGA.\n";
         return false;
     }
-    g_validExecutable = OmniGhost::GameLaunch::FindFiveMProcessViaDma();
-    if (g_validExecutable.empty()) {
+    std::string executable = OmniGhost::GameLaunch::FindFiveMProcessViaDma();
+    OmniGhost::GameContext::Instance().SetValidExecutable(executable);
+    if (executable.empty()) {
         std::cerr << "[FiveM] Processo GTAProcess nao encontrado no PC do jogo.\n";
         return false;
     }
-    if (!mem.Init(g_validExecutable, true, false)) {
-        std::cerr << "[FiveM] Falha ao anexar DMA a " << g_validExecutable << ".\n";
+    if (!mem.Init(executable, true, false)) {
+        std::cerr << "[FiveM] Falha ao anexar DMA a " << executable << ".\n";
         return false;
     }
     FiveM::Setup();
@@ -169,12 +170,12 @@ bool StartFiveM() {
 }
 
 std::string_view FiveMStatus() noexcept {
-    return g_validExecutable.empty() ? "FiveM não ligado" : "FiveM ligado";
+    return OmniGhost::GameContext::Instance().GetValidExecutable().empty() ? "FiveM não ligado" : "FiveM ligado";
 }
 
 // Static functions for adapter operations to avoid lambda/std::function issues
 bool FivemIsAlive() {
-    if (g_validExecutable.empty()) return false;
+    if (OmniGhost::GameContext::Instance().GetValidExecutable().empty()) return false;
     return !::OmniGhost::GameLaunch::FindFiveMProcessViaDma().empty();
 }
 bool FivemValidateOffsets() { return true; }

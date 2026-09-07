@@ -1,3 +1,9 @@
+﻿// Lazy initialization wrapper
+(function() {
+    if (typeof window.radarLazyInit === 'undefined') {
+        window.radarLazyInit = [];
+    }
+    window.radarLazyInit.push(function() {
 // 设置面板渲染器
 // 负责控件事件绑定、状态回填、重置功能
 //
@@ -104,3 +110,6 @@ if (document.readyState === "loading") {
 else {
 	initSettings()
 }
+
+    });
+})();

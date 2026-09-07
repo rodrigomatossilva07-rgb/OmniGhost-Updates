@@ -1,3 +1,9 @@
+﻿// Lazy initialization wrapper
+(function() {
+    if (typeof window.radarLazyInit === 'undefined') {
+        window.radarLazyInit = [];
+    }
+    window.radarLazyInit.push(function() {
 // Advisories
 //
 // Determines if an advisory can be shown and prioritizes the most important one.
@@ -98,3 +104,6 @@ socket.element.addEventListener("bomb", event => {
 
 	updateAdvisory()
 })
+
+    });
+})();

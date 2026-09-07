@@ -1,3 +1,9 @@
+﻿// Lazy initialization wrapper
+(function() {
+    if (typeof window.radarLazyInit === 'undefined') {
+        window.radarLazyInit = [];
+    }
+    window.radarLazyInit.push(function() {
 // WebRadar RTT monitor (Task 14)
 // Polls /api/ping every 1.5s, computes round-trip time median over the last
 // 20 samples, and updates the #conn-status indicator. Dispatches "rttupdate"
@@ -93,4 +99,7 @@
   } else {
     start();
   }
+})();
+
+    });
 })();

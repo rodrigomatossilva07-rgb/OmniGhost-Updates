@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)][string]$ProjectDir,
     [Parameter(Mandatory = $true)][string]$DumpPath,
@@ -38,7 +38,10 @@ try {
         exportedUtc = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
         privacyNotice = 'A memory dump can contain user data. Share only after explicit review and consent.'
     }
-    $buildMetadata = Join-Path $ProjectDir '.cache\build-metadata.json'
+    $buildMetadata = Join-Path $ProjectDir '.cache\generated\Publish\x64\build-metadata.json'
+    if (-not (Test-Path -LiteralPath $buildMetadata -PathType Leaf)) {
+        $buildMetadata = Join-Path $ProjectDir '.cache\build-metadata.json'
+    }
     if (Test-Path -LiteralPath $buildMetadata -PathType Leaf) {
         $metadata.build = Get-Content -LiteralPath $buildMetadata -Raw | ConvertFrom-Json
     }

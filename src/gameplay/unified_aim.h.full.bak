@@ -1,0 +1,559 @@
+#pragma once
+#include <array>
+#include <vector>
+#include <chrono>
+#include <memory>
+#include <functional>
+#include <unordered_map>
+#include <Windows.h>
+
+#include "../../ImGui/imgui.h"
+#include "../gameplay/bone_system.h"
+#include "../gameplay/prediction.h"
+#include "../gameplay/smooth_curves.h"
+#include "../gameplay/recoil_control.h"
+#include "../gameplay/visibility.h"
+#include "../gameplay/aim_controller.h"
+#include "../gameplay/triggerbot.h"
+#include "../gameplay/movement_assist.h"
+#include "../gameplay/entity_cache.h"
+#include "../gameplay/profile_manager.h"
+#include "../gameplay/offset_manager.h"
+#include "../gameplay/web_radar.h"
+#include "../gameplay/sound_esp.h"
+
+namespace Gameplay::UnifiedAim {
+
+// Basic math types
+struct Vec2 {
+    float x = 0, y = 0;
+    Vec2() = default;
+    Vec2(float x_, float y_) : x(x_), y(y_) {}
+    Vec2 operator+(const Vec2& o) const { return Vec2(x + o.x, y + o.y); }
+    Vec2 operator-(const Vec2& o) const { return Vec2(x - o.x, y - o.y); }
+    Vec2 operator*(float s) const { return Vec2(x * s, y * s); }
+    Vec2 operator/(float s) const { return Vec2(x / s, y / s); }
+    float Length() const { return sqrtf(x*x + y*y); }
+};
+
+struct Vec3 {
+    float x = 0, y = 0, z = 0;
+    Vec3() = default;
+    Vec3(float x_, float y_, float z_) : x(x_), y(y_), z(z_) {}
+    Vec3 operator+(const Vec3& o) const { return Vec3(x + o.x, y + o.y, z + o.z); }
+    Vec3 operator-(const Vec3& o) const { return Vec3(x - o.x, y - o.y, z - o.z); }
+    Vec3 operator*(float s) const { return Vec3(x * s, y * s, z * s); }
+    Vec3 operator/(float s) const { return Vec3(x / s, y / s, z / s); }
+    float Length() const { return sqrtf(x*x + y*y + z*z); }
+    float Length2D() const { return sqrtf(x*x + y*y); }
+    float Dot(const Vec3& o) const { return x*o.x + y*o.y + z*o.z; }
+    Vec3 Cross(const Vec3& o) const { return Vec3(y*o.z - z*o.y, z*o.x - x*o.z, x*o.y - y*o.x); }
+    Vec3 Normalized() const { float l = Length(); return l > 0 ? *this / l : Vec3{}; }
+    bool IsZero() const { return x == 0 && y == 0 && z == 0; }
+};
+
+struct Vec4 {
+    float x = 0, y = 0, z = 0, w = 0;
+};
+
+struct Matrix {
+    float m[16] = {};
+    float& operator()(int row, int col) { return m[row * 4 + col]; }
+    const float& operator()(int row, int col) const { return m[row * 4 + col]; }
+};
+
+    // Unified aim configuration - combines all features
+    struct UnifiedConfig {
+        // ============ BASIC ============
+        bool enabled = true;
+        bool only_when_aiming = true;
+        int aim_bind = VK_RBUTTON;
+        int aim_bind2 = 0;
+        
+        // ============ TARGETING ============
+        struct Targeting {
+            float fov = 5.0f;
+            float fov_min = 2.0f;
+            bool dynamic_fov = true;
+            float max_distance = 300.0f;
+            float min_distance = 0.0f;
+            
+            // Hitbox/Bone selection
+            Gameplay::BoneSystem::HitboxPreset hitbox_preset = Gameplay::BoneSystem::HitboxPreset::HeadNeck;
+            std::vector<int> hitbox_priority; // Custom priority
+            bool dynamic_bone_switch = true;
+            float bone_switch_distance = 50.0f;
+            bool visible_bone_only = true;
+            
+            // Target selection
+            enum class Priority : int {
+                CrosshairDistance = 0,
+                Distance = 1,
+                Threat = 2,
+                Health = 3,
+                Velocity = 4,
+                Exposure = 5,
+                Custom = 99
+            } priority = Priority::CrosshairDistance;
+            
+            bool ignore_teammates = true;
+            bool ignore_friends = true;
+            bool ignore_dead = true;
+            bool ignore_npcs = false;
+            bool ignore_sleepers = false;
+            bool ignore_vehicles = false;
+            float min_health = 1.0f;
+            float max_health = 1000.0f;
+            
+            // Target persistence
+            bool target_persistence = true;
+            float max_target_lost_time = 0.5f;
+            bool reacquisition = true;
+            float reacquisition_delay = 0.1f;
+        } targeting;
+        
+        // ============ SMOOTHING & MOVEMENT ============
+        struct Smoothing {
+            // Core smoothing
+            float smooth = 10.0f; // 0 = instant
+            float smooth_min = 1.0f;
+            float smooth_max = 100.0f;
+            
+            // Adaptive smoothing
+            bool adaptive = true;
+            bool distance_based = true;
+            bool velocity_based = true;
+            bool angle_based = true;
+            bool fov_based = true;
+            
+            // Curves
+            Gameplay::SmoothCurves::CurveType curve_type = Gameplay::SmoothCurves::CurveType::EaseOutCubic;
+            Gameplay::SmoothCurves::BezierCurve custom_bezier;
+            Gameplay::SmoothCurves::CatmullRomSpline custom_spline;
+            bool use_distance_curves = true;
+            Gameplay::SmoothCurves::DistanceCurveManager distance_curves;
+            
+            // Acceleration/Deceleration
+            float acceleration = 1.0f;
+            float deceleration = 1.0f;
+            float max_angular_velocity = 180.0f; // deg/s
+            float max_angular_acceleration = 360.0f; // deg/s²
+            
+            // Deadzone
+            float deadzone = 0.5f;
+            bool dynamic_deadzone = true;
+            
+            // Humanization
+            Gameplay::SmoothCurves::AimHumanizer::HumanizerConfig humanizer;
+            bool humanize = true;
+        } smoothing;
+        
+        // ============ PREDICTION ============
+        struct Prediction {
+            bool enabled = true;
+            
+            // Time
+            float prediction_time = 0.03f;
+            float max_prediction_time = 0.15f;
+            bool adaptive_time = true;
+            
+            // Components
+            bool velocity_prediction = true;
+            bool acceleration_prediction = false;
+            bool trajectory_prediction = true;
+            bool strafe_prediction = true;
+            bool jump_fall_prediction = true;
+            
+            // Latency compensation
+            bool latency_compensation = true;
+            float local_latency_ms = 5.0f;
+            float server_latency_ms = 0.0f;
+            bool adaptive_latency = true;
+            
+            // Distance scaling
+            bool distance_scaling = true;
+            float close_range = 30.0f;
+            float mid_range = 80.0f;
+            float far_range = 150.0f;
+            float close_scale = 1.0f;
+            float mid_scale = 0.5f;
+            float far_scale = 0.15f;
+            
+            // Falling/Jumping
+            bool predict_vertical = true;
+            float gravity = 9.81f;
+            float max_vertical_prediction = 2.0f;
+            
+            // Confidence
+            bool confidence_based = true;
+            float min_confidence = 0.5f;
+            float confidence_threshold = 0.7f;
+        } prediction;
+        
+        // ============ TRACKING ============
+        struct Tracking {
+            bool continuous = true;
+            bool predict_during_loss = true;
+            float max_loss_time = 0.3f;
+            
+            // Reacquisition
+            bool auto_reacquire = true;
+            float reacquire_delay = 0.05f;
+            float max_reacquire_distance = 50.0f;
+            
+            // Stability
+            float stability_threshold = 0.8f;
+            float instability_threshold = 0.3f;
+            int max_reversal_burst = 3;
+            
+            // Multi-target
+            bool track_multiple = false;
+            int max_tracked = 3;
+        } tracking;
+        
+        // ============ VISIBILITY ============
+        struct Visibility {
+            bool enabled = true;
+            Gameplay::Visibility::CheckMethod method = Gameplay::Visibility::CheckMethod::MultiPoint;
+            
+            Gameplay::Visibility::VisibilityConfig::MultiPointConfig multi_point;
+            Gameplay::Visibility::VisibilityConfig::RaycastConfig raycast;
+            
+            bool enable_caching = true;
+            float cache_duration = 0.1f;
+            bool cache_per_bone = true;
+            
+            bool check_penetration = true;
+            float max_penetration_depth = 20.0f;
+            int max_penetration_count = 2;
+            
+            bool ignore_smoke = true;
+            bool ignore_glass = true;
+            bool ignore_grates = true;
+            bool ignore_foliage = true;
+        } visibility;
+        
+        // ============ RECOIL CONTROL ============
+        struct RecoilControl {
+            bool enabled = false;
+            Gameplay::RecoilControl::RecoilControlConfig::Mode mode = Gameplay::RecoilControl::RecoilControlConfig::Mode::Hybrid;
+            float global_vertical = 1.0f;
+            float global_horizontal = 1.0f;
+            
+            bool only_when_aiming = true;
+            bool require_attack_held = true;
+            bool disable_on_reload = true;
+            bool disable_on_weapon_swap = true;
+            
+            bool learn_patterns = true;
+            int min_shots_to_learn = 30;
+            float pattern_confidence = 0.7f;
+        } recoil;
+        
+        // ============ TRIGGERBOT ============
+        struct Triggerbot {
+            bool enabled = false;
+            Gameplay::Triggerbot::TriggerbotConfig config;
+        } triggerbot;
+        
+        // ============ MOVEMENT ASSIST (CS2 ONLY) ============
+        struct MovementAssist {
+            bool enabled = false;
+            Gameplay::MovementAssist::MovementAssistConfig config;
+        } movement;
+        
+        // ============ RADAR & ESP ============
+        struct Radar {
+            bool enabled = true;
+            Gameplay::WebRadar::RadarConfig config;
+        } radar;
+        
+        struct SoundESP {
+            bool enabled = false;
+            Gameplay::SoundESP::SoundESPConfig config;
+        } sound_esp;
+        
+        // ============ PROFILES ============
+        struct Profiles {
+            bool auto_switch = false;
+            std::string legit_profile = "Legit";
+            std::string competitive_profile = "Competitive";
+            std::string rage_profile = "Rage";
+            std::string sniper_profile = "Sniper";
+            std::string current_profile = "Legit";
+        } profiles;
+        
+        // ============ SAFETY ============
+        struct Safety {
+            bool disable_in_menu = true;
+            bool disable_when_typing = true;
+            bool disable_on_reload = true;
+            bool disable_on_weapon_swap = true;
+            bool require_aim_key = false;
+            int aim_key = 0;
+            bool anti_afk = false;
+            int max_shots_per_second = 0;
+        } safety;
+        
+        // ============ VISUALS ============
+        struct Visuals {
+            bool show_fov = true;
+            bool show_target = true;
+            bool show_status = true;
+            bool show_prediction = false;
+            bool show_bone_debug = false;
+            bool show_visibility_debug = false;
+            bool show_recoil_debug = false;
+            
+            ImU32 fov_color = IM_COL32(255, 180, 50, 160);
+            ImU32 target_color = IM_COL32(255, 80, 80, 255);
+            ImU32 ready_color = IM_COL32(80, 255, 100, 255);
+            ImU32 prediction_color = IM_COL32(100, 200, 255, 200);
+        } visuals;
+    };
+    
+    // Unified aim state
+    struct UnifiedState {
+        bool active = false;
+        bool can_fire = true;
+        uint64_t current_target = 0;
+        uint64_t locked_target = 0;
+        int shots_fired = 0;
+        int burst_shots = 0;
+        bool in_burst = false;
+        
+        float last_shot_time = 0.0f;
+        float next_shot_time = 0.0f;
+        float burst_end_time = 0.0f;
+        
+        // Tracking state
+        bool tracking_active = false;
+        float tracking_confidence = 0.0f;
+        float tracking_stability = 1.0f;
+        int reversal_burst = 0;
+        
+        // Prediction state
+        Gameplay::Prediction::PredictionResult last_prediction;
+        bool prediction_valid = false;
+        
+        // Recoil state
+        Gameplay::RecoilControl::RecoilController::CompensationState recoil_state;
+        
+        // Movement assist state (CS2)
+        struct MovementAssistState {
+            bool was_on_ground = true;
+            float last_jump_time = 0.0f;
+            float last_crouch_time = 0.0f;
+            float strafe_angle = 0.0f;
+            int strafe_direction = 1;
+            float next_direction_change = 0.0f;
+            bool was_crouching = false;
+            float edge_check_timer = 0.0f;
+        } movement_state;
+        
+        // Timing
+        std::chrono::steady_clock::time_point lock_start{};
+        std::chrono::steady_clock::time_point last_shot{};
+        std::chrono::steady_clock::time_point last_reversal{};
+        std::chrono::steady_clock::time_point last_aim_move{};
+        
+        // Debug
+        char debug[256] = "idle";
+    };
+    
+    // Context for aim calculation
+    struct AimContext {
+        // Local player
+        Vec3 local_position;
+        Vec3 local_velocity;
+        Vec3 local_angles;
+        int local_health = 100;
+        int local_team = 0;
+        bool local_alive = true;
+        bool local_scoping = false;
+        bool local_moving = false;
+        float local_speed = 0.0f;
+        
+        // Camera/View
+        Matrix view_matrix;
+        Matrix proj_matrix;
+        float fov_horizontal = 90.0f;
+        float fov_vertical = 70.0f;
+        float aspect_ratio = 1.777f;
+        Vec2 screen_center;
+        Vec2 screen_size;
+        
+        // Input
+        bool aim_key_down = false;
+        bool attack_key_down = false;
+        bool in_menu = false;
+        bool typing = false;
+        
+        // Game state
+        float game_time = 0.0f;
+        float frame_time = 0.016f;
+        int ping_ms = 0;
+        int fps = 60;
+        
+        // Entities
+        std::vector<uint64_t> entity_list;
+        std::function<Vec3(uint64_t)> get_entity_position;
+        std::function<Vec3(uint64_t)> get_entity_velocity;
+        std::function<int(uint64_t)> get_entity_health;
+        std::function<int(uint64_t)> get_entity_max_health;
+        std::function<int(uint64_t)> get_entity_team;
+        std::function<bool(uint64_t)> is_entity_alive;
+        std::function<bool(uint64_t)> is_entity_visible;
+        std::function<bool(uint64_t)> is_entity_dormant;
+        std::function<std::string(uint64_t)> get_entity_name;
+        std::function<std::string(uint64_t)> get_entity_model;
+        std::function<int(uint64_t)> get_entity_weapon;
+        std::function<bool(uint64_t)> is_entity_friendly;
+        std::function<Vec3(uint64_t, int)> get_entity_bone; // bone index
+        std::function<bool(uint64_t, int)> is_bone_visible; // bone index
+        
+        // Weapon
+        int current_weapon = 0;
+        int ammo = 0;
+        bool reloading = false;
+        bool weapon_swapping = false;
+        float weapon_recoil_vertical = 0.0f;
+        float weapon_recoil_horizontal = 0.0f;
+    };
+    
+    // Aim result
+    struct AimResult {
+        bool success = false;
+        Vec2 screen_target;      // Target screen position
+        Vec3 world_target;       // Target world position
+        Vec2 mouse_delta;        // Mouse movement needed
+        float distance = 0.0f;   // Distance to target
+        float fov_to_target = 0.0f;
+        float confidence = 0.0f;
+        uint64_t target_id = 0;
+        int hitbone = 0;
+        
+        // Debug
+        char debug[256] = "";
+    };
+    
+    // ============================================
+    // UNIFIED AIMBOT INTERFACE
+    // ============================================
+    
+    class UnifiedAimbot {
+    public:
+        UnifiedAimbot();
+        ~UnifiedAimbot();
+        
+        // Configuration
+        void SetConfig(const UnifiedConfig& config);
+        const UnifiedConfig& GetConfig() const { return config_; }
+        UnifiedConfig& GetMutableConfig() { return config_; }
+        
+        // State
+        const UnifiedState& GetState() const { return state_; }
+        bool IsActive() const { return state_.active; }
+        bool CanFire() const { return state_.can_fire; }
+        uint64_t GetCurrentTarget() const { return state_.current_target; }
+        
+        // Main update - call every frame
+        AimResult Update(const AimContext& context);
+        
+        // Force trigger
+        void ForceTarget(uint64_t target_id);
+        void CancelTarget();
+        
+        // Profile management
+        void ApplyProfile(const std::string& profile_name);
+        void SaveProfile(const std::string& name);
+        void LoadProfile(const std::string& name);
+        std::vector<std::string> GetAvailableProfiles() const;
+        
+        // Recoil control
+        void OnShotFired();
+        void OnWeaponReload();
+        void OnWeaponSwap();
+        
+        // Movement assist (CS2)
+        void UpdateMovementAssist(float dt);
+        
+        // Debug
+        const char* GetDebugStatus() const { return state_.debug; }
+        void DrawDebug(ImDrawList* draw_list);
+        
+    private:
+        UnifiedConfig config_;
+        UnifiedState state_;
+        
+        // Sub-systems
+        std::unique_ptr<Gameplay::SmoothCurves::SmoothCurveEvaluator> smooth_evaluator_;
+        std::unique_ptr<Gameplay::Prediction::EntityPredictor> predictor_;
+        std::unique_ptr<Gameplay::Visibility::VisibilityManager> visibility_mgr_;
+        std::unique_ptr<Gameplay::RecoilControl::RecoilController> recoil_controller_;
+        std::unique_ptr<Gameplay::Triggerbot::TriggerbotManager> triggerbot_mgr_;
+        std::unique_ptr<Gameplay::MovementAssist::MovementAssistManager> movement_mgr_;
+        std::unique_ptr<Gameplay::BoneSystem::GameBoneMapping> bone_mapping_;
+        std::unique_ptr<Gameplay::EntityCache::EntityCache> entity_cache_;
+        std::unique_ptr<Gameplay::ProfileManager::GameProfile> active_profile_;
+        
+        // Game-specific bone mapping
+        Gameplay::BoneSystem::GameBoneMapping current_bone_mapping_;
+        
+        // Internal methods
+        AimResult ProcessAim(const AimContext& context);
+        uint64_t SelectBestTarget(const AimContext& context);
+        AimResult CalculateAim(const AimContext& context, uint64_t target_id);
+        Vec3 ResolveHitbox(const AimContext& context, uint64_t target_id);
+        bool CheckTargetValidity(const AimContext& context, uint64_t target_id);
+        bool CheckTargetingConditions(const AimContext& context, uint64_t target_id);
+        bool CheckSafetyConditions(const AimContext& context);
+        
+        // Smoothing
+        Vec2 ApplySmoothing(const Vec2& raw_delta, const AimContext& context, float distance);
+        Vec2 ApplyHumanization(const Vec2& delta, float distance, float dt);
+        
+        // Prediction
+        Vec3 PredictTargetPosition(const AimContext& context, uint64_t target_id, float time_ahead);
+        
+        // Recoil
+        Vec2 GetRecoilCompensation(const AimContext& context, float dt);
+        
+        // Visibility
+        bool CheckVisibility(const AimContext& context, uint64_t target_id, int bone_index);
+        
+        // Bone selection
+        int SelectBestBone(const AimContext& context, uint64_t target_id, float distance);
+        
+        // Target selection
+        float ScoreTarget(const AimContext& context, uint64_t target_id, float distance, float fov);
+        
+        // Initialize sub-systems
+        void InitializeSubSystems();
+        void UpdateSubSystems(float dt);
+        
+        // Profile management
+        void ApplyProfileSettings(const std::string& profile_name);
+        void RegisterDefaultProfiles();
+        
+        // Helpers
+        float GetDistanceToTarget(const AimContext& context, uint64_t target_id);
+        float GetFOVToTarget(const AimContext& context, const Vec3& target_pos);
+        bool IsKeyPressed(int key) const;
+        bool IsAimKeyDown() const;
+        
+        // Debug drawing
+void DrawFOV(ImDrawList* draw_list);
+         void DrawTargetInfo(ImDrawList* draw_list, const AimContext& context);
+         void DrawPredictionDebug(ImDrawList* draw_list, const AimContext& context);
+         void DrawBoneDebug(ImDrawList* draw_list, const AimContext& context, uint64_t target_id);
+         void DrawVisibilityDebug(ImDrawList* draw_list, const AimContext& context, uint64_t target_id);
+     };
+     
+     // Global instance accessor
+     UnifiedAimbot& GetUnifiedAimbot();
+     
+     // Game-specific factory
+     std::unique_ptr<UnifiedAimbot> CreateAimbotForGame(const char* game_name);
+     
+ } // namespace Gameplay::UnifiedAim

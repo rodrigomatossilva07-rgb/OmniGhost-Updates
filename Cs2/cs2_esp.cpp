@@ -5,12 +5,14 @@
 #include "aimbot/aim_type.h"
 #include "gameplay/esp_core.h"
 #include "gameplay/trail_history.h"
+#include "gameplay/esp_optimizer.h"
 #include "imgui.h"
 #include "../src/window/window.hpp"
 #include <Windows.h>
 #include <cmath>
-#include <cstdio>
 #include <algorithm>
+#include <chrono>
+#include <cstdio>
 #include <cstring>
 #include <unordered_map>
 

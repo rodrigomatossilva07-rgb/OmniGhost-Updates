@@ -14,6 +14,7 @@
 #include <cwctype>
 #include <filesystem>
 #include <fstream>
+#include <iostream>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -470,11 +471,21 @@ namespace OmniGhost::Update {
                 return std::stoull(value);
             }
             catch (const std::exception& ex) {
-                std::cerr << "[Updater] WinInet: Failed to parse content-length '" << value << "': " << ex.what() << "\n";
+                std::string narrowValue;
+                narrowValue.resize(wcslen(value));
+                for (size_t i = 0; i < narrowValue.size(); ++i) {
+                    narrowValue[i] = static_cast<char>(value[i]);
+                }
+                std::cerr << "[Updater] WinInet: Failed to parse content-length '" << narrowValue << "': " << ex.what() << "\n";
                 return 0;
             }
             catch (...) {
-                std::cerr << "[Updater] WinInet: Unknown exception parsing content-length '" << value << "'\n";
+                std::string narrowValue;
+                narrowValue.resize(wcslen(value));
+                for (size_t i = 0; i < narrowValue.size(); ++i) {
+                    narrowValue[i] = static_cast<char>(value[i]);
+                }
+                std::cerr << "[Updater] WinInet: Unknown exception parsing content-length '" << narrowValue << "'\n";
                 return 0;
             }
         }

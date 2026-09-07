@@ -9,7 +9,7 @@
     "sha256": {
       "vmm.dll": "0b20899956b399b1153ae1af90d5fac6861b69f4fb91360276d54ab55c4a8942",
       "vmm.lib": "b8b045f7042360fb0f9f38eab90671b24f6a25a2b9c05494bd0254b715eab875",
-      "vmmdll.h": "8a0736d4f050b75503809113c37033b6ea70586c58be7ad7d88993ae85bbc3c1"
+      "vmmdll.h": "67505accb79422a8c77787a558cb7562a8f24a799a8746756f6f49280da8a468"
     }
   },
   "leechcore": {

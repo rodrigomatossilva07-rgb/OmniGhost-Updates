@@ -16,6 +16,7 @@
 #include <cstdint>
 #include <cstring>
 #include <exception>
+#include <iostream>
 #include <mutex>
 #include <random>
 #include <string>

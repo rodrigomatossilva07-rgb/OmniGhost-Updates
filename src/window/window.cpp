@@ -9,6 +9,11 @@
 #include "digital_rain.h"
 #include "performance_mode.h"
 #include "performance_manager.h"
+#include "hardware_monitor.h"
+#include "config_history.h"
+#include "hotkeys.h"
+#include "onboarding.h"
+#include "changelog.h"
 #include "../config/app_settings.h"
 #include "../platform/app_paths.h"
 #include "../platform/monitor_utils.h"
@@ -20,6 +25,9 @@
 #include "../../Valorant/valorant_game.h"
 #ifndef UI_PREVIEW
 #include "../launcher/launcher_assets.h"
+#endif
+#ifdef UI_PREVIEW
+#include "preview/preview_runtime.h"
 #endif
 #ifdef UI_PREVIEW
 #include "preview/preview_runtime.h"
@@ -61,6 +69,25 @@ namespace {
         case MenuTab::TAB_FORTNITE_VISUALS:  DrawFortniteVisuals(); break;
         case MenuTab::TAB_FORTNITE_AIM:      DrawFortniteAim(); break;
         case MenuTab::TAB_FORTNITE_STATUS:   DrawFortniteStatus(); break;
+        
+        // Unified system pages
+        case MenuTab::TAB_UNIFIED_AIM:       DrawUnifiedAim(); break;
+        case MenuTab::TAB_WEB_RADAR:         DrawWebRadar(); break;
+        case MenuTab::TAB_SOUND_ESP:         DrawSoundESP(); break;
+        case MenuTab::TAB_SPECTATOR_LIST:    DrawSpectatorList(); break;
+        case MenuTab::TAB_TRIGGERBOT:        DrawTriggerbot(); break;
+        case MenuTab::TAB_RECOIL_CONTROL:    DrawRecoilControl(); break;
+        case MenuTab::TAB_PREDICTION:        DrawPrediction(); break;
+        case MenuTab::TAB_VISIBILITY:        DrawVisibility(); break;
+        case MenuTab::TAB_BONE_SYSTEM:       DrawBoneSystem(); break;
+        case MenuTab::TAB_SMOOTH_CURVES:     DrawSmoothCurves(); break;
+        case MenuTab::TAB_RECOIL_PATTERNS:   DrawRecoilPatterns(); break;
+        case MenuTab::TAB_ENTITY_CACHE:      DrawEntityCache(); break;
+        case MenuTab::TAB_PROFILE_MANAGER:   DrawProfileManager(); break;
+        case MenuTab::TAB_OFFSET_MANAGER:    DrawOffsetManager(); break;
+        case MenuTab::TAB_RESOLUTION:        DrawResolution(); break;
+        case MenuTab::TAB_GAME_ADAPTER:      DrawGameAdapter(); break;
+        
         default:
             if (overlay) { /* keep */ }
             DrawVisuals();
@@ -147,6 +174,11 @@ bool Overlay::CreateImGui()
     }
 
     CyberTheme::Initialize();
+    HardwareMonitor::Initialize();
+    ConfigHistory::Initialize();
+    Hotkeys::Initialize();
+    Onboarding::Initialize();
+    Changelog::Initialize();
     const float initialScale = std::clamp(
         OmniGhost::Platform::DpiScaleForWindow(overlay) * app_settings::UiScalePreference(),
         0.75f, 2.50f);
@@ -166,23 +198,24 @@ bool Overlay::CreateImGui()
     return true;
 }
 
+static MenuTab DefaultTabForGame(OmniGhost::ActiveGame game) {
+    if (game == OmniGhost::ActiveGame::CS2) return MenuTab::TAB_CS2_VISUALS;
+    if (game == OmniGhost::ActiveGame::Rust) return MenuTab::TAB_RUST_VISUALS;
+    if (game == OmniGhost::ActiveGame::Warzone) return MenuTab::TAB_WARZONE_AIM;
+    if (game == OmniGhost::ActiveGame::Valorant) return MenuTab::TAB_VALORANT_VISUALS;
+    return MenuTab::TAB_VISUALS;
+}
+
 void Overlay::Render()
 {
-    auto DefaultTabForGame = [](ActiveGame game) {
-        if (game == ActiveGame::CS2) return MenuTab::TAB_CS2_VISUALS;
-        if (game == ActiveGame::Rust) return MenuTab::TAB_RUST_VISUALS;
-        if (game == ActiveGame::Warzone) return MenuTab::TAB_WARZONE_AIM;
-        if (game == ActiveGame::Valorant) return MenuTab::TAB_VALORANT_VISUALS;
-        return MenuTab::TAB_VISUALS;
-    };
-
-    static ActiveGame tab_game = g_activeGame;
-    static MenuTab current_tab = DefaultTabForGame(g_activeGame);
+    auto& ctx = OmniGhost::GameContext::Instance();
+    static OmniGhost::ActiveGame tab_game = ctx.GetActiveGame();
+    static MenuTab current_tab = DefaultTabForGame(ctx.GetActiveGame());
     static MenuTab transition_tab = current_tab;
     static float tab_transition = 1.0f;
-    if (tab_game != g_activeGame) {
-        tab_game = g_activeGame;
-        current_tab = DefaultTabForGame(g_activeGame);
+    if (tab_game != ctx.GetActiveGame()) {
+        tab_game = ctx.GetActiveGame();
+        current_tab = DefaultTabForGame(ctx.GetActiveGame());
         transition_tab = current_tab;
         tab_transition = app_settings::MotionEnabled() ? 0.0f : 1.0f;
     }
@@ -190,7 +223,7 @@ void Overlay::Render()
 #ifndef UI_PREVIEW
     // Capture policy belongs to the owned overlay HWND and must be updated even
     // when the in-game menu is closed. Never exclude the launcher itself.
-    SetCaptureExclusion(!RenderMenu && g_activeGame == ActiveGame::CS2 && CS2::config.stream_proof);
+    SetCaptureExclusion(!RenderMenu && ctx.GetActiveGame() == OmniGhost::ActiveGame::CS2 && CS2::config.stream_proof);
 #else
     SetCaptureExclusion(false);
 #endif
@@ -254,9 +287,9 @@ const PerformanceMode::State performance = PerformanceMode::Update(
     static bool perfManagerConfigured = false;
     if (!perfManagerConfigured) {
         CyberPerformance::PerformanceManager::Config perfConfig;
-        perfConfig.targetFrameTimeMs = 16.67f;      // 60 FPS target
-        perfConfig.warningThresholdMs = 20.0f;      // Start reducing at ~50 FPS
-        perfConfig.criticalThresholdMs = 33.33f;    // Aggressive reduction at ~30 FPS
+        perfConfig.targetFrameTimeMs = 16.67f;
+        perfConfig.warningThresholdMs = 20.0f;
+        perfConfig.criticalThresholdMs = 33.33f;
         perfConfig.smoothingFrames = 60;
         perfConfig.adjustmentCooldownSec = 2.0f;
         perfConfig.reductionStep = 0.15f;
@@ -277,7 +310,7 @@ const PerformanceMode::State performance = PerformanceMode::Update(
         performance.effective ? 0.008f : 0.014f, 0x4F474D4Eu,
         performance.effective ? 100 : 210);
 
-// Shared Off/Subtle/Full rain. Subtle is the default and uses ~28% density.
+    // Shared Off/Subtle/Full rain. Subtle is the default and uses ~28% density.
     const float rainDensity = app_settings::DigitalRainDensity();
     // User preference is the base, dynamic scaling is applied inside DigitalRain::Draw
     DigitalRain::Draw(
@@ -315,32 +348,36 @@ const PerformanceMode::State performance = PerformanceMode::Update(
 #else
     {
         const float fps = ImGui::GetIO().Framerate;
+        const float frame_time_ms = 1000.0f / std::max(0.1f, fps);
+        HardwareMonitor::RecordFPS(fps, frame_time_ms);
+        Hotkeys::Update();
+        
         bool connected = false;
         const char* build = "Execução";
         int players = -1;
 
-        switch (g_activeGame) {
-        case ActiveGame::CS2:
+        switch (ctx.GetActiveGame()) {
+        case OmniGhost::ActiveGame::CS2:
             connected = CS2::ready;
             build = "CS2";
             players = static_cast<int>(CS2::runtime.players.size());
             break;
-        case ActiveGame::Rust:
+        case OmniGhost::ActiveGame::Rust:
             connected = Rust::ready;
             build = "Rust";
             players = static_cast<int>(Rust::runtime.players.size());
             break;
-        case ActiveGame::Warzone:
+        case OmniGhost::ActiveGame::Warzone:
             connected = Warzone::ready;
             build = "Warzone · BETA";
             players = static_cast<int>(Warzone::runtime.players.size());
             break;
-        case ActiveGame::Valorant:
+        case OmniGhost::ActiveGame::Valorant:
             connected = Valorant::runtime.attached;
             build = "Valorant · BETA";
             players = static_cast<int>(Valorant::runtime.players.size());
             break;
-        case ActiveGame::FiveM:
+        case OmniGhost::ActiveGame::FiveM:
         default:
             connected = true;
             build = "FiveM";
@@ -352,6 +389,12 @@ const PerformanceMode::State performance = PerformanceMode::Update(
         CyberWidgets::DrawFooter(window_pos, window_size, fps, connected, build, -1, players);
     }
 #endif
+
+    // Draw onboarding wizard if needed
+    if (Onboarding::ShouldRunOnboarding() && !Onboarding::IsActive()) {
+        Onboarding::Start();
+    }
+    Onboarding::DrawWizard();
 
     CyberWidgets::DrawSidebar(window_pos, window_size, &current_tab);
 
@@ -445,10 +488,10 @@ const PerformanceMode::State performance = PerformanceMode::Update(
             RequestReturnToLauncher();
     }
 
-ImGui::End();
+    ImGui::End();
     ImGui::PopStyleColor(3);
     ImGui::PopStyleVar(3);
-} // namespace
+}
 
 void Overlay::WaitForEvents(std::chrono::milliseconds timeout) {
     const DWORD timeoutMs = static_cast<DWORD>(timeout.count());

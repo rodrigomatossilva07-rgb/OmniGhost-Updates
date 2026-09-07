@@ -1,6 +1,7 @@
 #include "rust_esp.h"
 #include "rust_aim.h"
 #include "gameplay/esp_core.h"
+#include "gameplay/esp_optimizer.h"
 #include "../ImGui/imgui.h"
 #include <cmath>
 #include <cstdio>

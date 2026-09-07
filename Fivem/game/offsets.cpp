@@ -49,7 +49,7 @@ constexpr BuildOffsets kVerifiedBuildOffsets[] = {
 
 int BuildFromProcessName()
 {
-    const std::string& executable = g_validExecutable;
+    const std::string& executable = OmniGhost::GameContext::Instance().GetValidExecutable();
     std::size_t position = executable.find("_b");
     if (position == std::string::npos)
         position = executable.find("_B");
@@ -99,7 +99,7 @@ bool IsBuildSupported()
 
 bool SoftProbeLobbyOffsets() {
     using namespace offset;
-    auto game_base = mem.GetBaseDaddy(g_validExecutable);
+    auto game_base = mem.GetBaseDaddy(OmniGhost::GameContext::Instance().GetValidExecutable());
     if (!game_base)
         game_base = mem.GetBaseDaddy("GTAProcess.exe");
     if (!game_base) {

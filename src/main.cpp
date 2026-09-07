@@ -69,9 +69,6 @@
 #error Distribution builds must retain product-entitlement enforcement.
 #endif
 
-std::string g_validExecutable;
-ActiveGame g_activeGame = ActiveGame::FiveM;
-
 namespace {
 
 // Release is a native GUI application. Diagnostic output is mirrored to SessionLog.

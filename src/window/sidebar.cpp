@@ -52,6 +52,24 @@ namespace CyberWidgets {
             { "nav.configs", MenuTab::TAB_CONFIGS,    CyberIcons::DrawSettingsIcon },
             { "nav.save",    MenuTab::TAB_SAVECONFIG, CyberIcons::DrawSaveIcon },
         };
+        static const TabItem unifiedSystemTabs[] = {
+            { "Aimbot Unificado", MenuTab::TAB_UNIFIED_AIM,     CyberIcons::DrawAimIcon },
+            { "Web Radar", MenuTab::TAB_WEB_RADAR,   CyberIcons::DrawRadarIcon },
+            { "Sound ESP", MenuTab::TAB_SOUND_ESP,   CyberIcons::DrawVehicleIcon },
+            { "Spectator List", MenuTab::TAB_SPECTATOR_LIST, CyberIcons::DrawUserIcon },
+            { "Triggerbot", MenuTab::TAB_TRIGGERBOT, CyberIcons::DrawAimIcon },
+            { "Recoil Control", MenuTab::TAB_RECOIL_CONTROL, CyberIcons::DrawWrenchIcon },
+            { "Prediction", MenuTab::TAB_PREDICTION, CyberIcons::DrawStatusIcon },
+            { "Visibility", MenuTab::TAB_VISIBILITY, CyberIcons::DrawESPIcon },
+            { "Bone System", MenuTab::TAB_BONE_SYSTEM, CyberIcons::DrawESPIcon },
+            { "Smooth Curves", MenuTab::TAB_SMOOTH_CURVES, CyberIcons::DrawSettingsIcon },
+            { "Recoil Patterns", MenuTab::TAB_RECOIL_PATTERNS, CyberIcons::DrawWrenchIcon },
+            { "Entity Cache", MenuTab::TAB_ENTITY_CACHE, CyberIcons::DrawStatusIcon },
+            { "Profile Manager", MenuTab::TAB_PROFILE_MANAGER, CyberIcons::DrawSettingsIcon },
+            { "Offset Manager", MenuTab::TAB_OFFSET_MANAGER, CyberIcons::DrawSettingsIcon },
+            { "Resolution", MenuTab::TAB_RESOLUTION, CyberIcons::DrawRadarIcon },
+            { "Game Adapter", MenuTab::TAB_GAME_ADAPTER, CyberIcons::DrawWrenchIcon },
+        };
         static const TabItem cs2Tabs[] = {
             { "nav.visuals", MenuTab::TAB_CS2_VISUALS, CyberIcons::DrawESPIcon },
             { "nav.aim", MenuTab::TAB_CS2_AIM,     CyberIcons::DrawAimIcon },
@@ -104,10 +122,10 @@ namespace CyberWidgets {
             { "nav.configs", MenuTab::TAB_CONFIGS, CyberIcons::DrawSettingsIcon },
             { "nav.save", MenuTab::TAB_SAVECONFIG, CyberIcons::DrawSaveIcon },
         };
-        if (g_activeGame == ActiveGame::CS2) {
+        if (OmniGhost::GameContext::Instance().GetActiveGame() == OmniGhost::ActiveGame::CS2) {
             tabs = cs2Tabs;
             tabCount = (int)(sizeof(cs2Tabs) / sizeof(cs2Tabs[0]));
-        } else if (g_activeGame == ActiveGame::Rust) {
+        } else if (OmniGhost::GameContext::Instance().GetActiveGame() == OmniGhost::ActiveGame::Rust) {
             const bool developer = app_settings::config.show_advanced
 #ifdef _DEBUG
                 || true
@@ -125,19 +143,31 @@ namespace CyberWidgets {
                 if (*current_tab == MenuTab::TAB_RUST_DEBUG)
                     *current_tab = MenuTab::TAB_RUST_MISC;
             }
-        } else if (g_activeGame == ActiveGame::Warzone) {
+        } else if (OmniGhost::GameContext::Instance().GetActiveGame() == OmniGhost::ActiveGame::Warzone) {
             tabs = warzoneTabs;
             tabCount = (int)(sizeof(warzoneTabs) / sizeof(warzoneTabs[0]));
-        } else if (g_activeGame == ActiveGame::Valorant) {
+        } else if (OmniGhost::GameContext::Instance().GetActiveGame() == OmniGhost::ActiveGame::Valorant) {
             tabs = valorantTabs;
             tabCount = (int)(sizeof(valorantTabs) / sizeof(valorantTabs[0]));
-        } else if (g_activeGame == ActiveGame::Fortnite) {
+        } else if (OmniGhost::GameContext::Instance().GetActiveGame() == OmniGhost::ActiveGame::Fortnite) {
             tabs = fortniteTabs;
             tabCount = (int)(sizeof(fortniteTabs) / sizeof(fortniteTabs[0]));
         } else {
             tabs = fivemTabs;
             tabCount = (int)(sizeof(fivemTabs) / sizeof(fivemTabs[0]));
         }
+        
+        // Append unified system tabs
+        int unifiedCount = (int)(sizeof(unifiedSystemTabs) / sizeof(unifiedSystemTabs[0]));
+        int totalTabs = tabCount + unifiedCount;
+        
+        // Create combined tabs array
+        static TabItem combinedTabs[64];
+        for (int i = 0; i < tabCount; ++i) combinedTabs[i] = tabs[i];
+        for (int i = 0; i < unifiedCount; ++i) combinedTabs[tabCount + i] = unifiedSystemTabs[i];
+        
+        tabs = combinedTabs;
+        tabCount = totalTabs;
 
         // Fit every game's complete navigation in the same shared sidebar.
         const float topPad = CyberTheme::Px(28.0f);
