@@ -1,3 +1,17 @@
+## OmniGhost 3.4.6
+
+Released: 08/09/2026
+Channel: stable
+Tag: v3.4.6
+
+### Outras alterações
+
+#### :wrench: Corrigido
+
+- DMA detection in launcher + commit version bump.
+
+---
+
 ## OmniGhost 3.4.5
 
 Released: 08/09/2026
