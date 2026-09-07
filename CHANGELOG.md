@@ -1,3 +1,17 @@
+## OmniGhost 3.4.4
+
+Released: 08/09/2026
+Channel: stable
+Tag: v3.4.4
+
+### Outras alterações
+
+#### :wrench: Corrigido
+
+- DMA device detection in launcher UI - use ProbeDeviceAvailability to update startupDeviceProbeOk_.
+
+---
+
 ## OmniGhost 3.4.3
 
 Released: 08/09/2026
