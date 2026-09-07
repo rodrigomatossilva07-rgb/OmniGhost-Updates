@@ -20,11 +20,12 @@ namespace OmniGhost::Hardware {
 // whether the device is present in the system.
 // PnP probe is DIAGNOSTIC ONLY - it never proves a functional DMA session.
 static bool ActiveDmaProbe() {
-    // Use passive probe result as authoritative - it correctly detects
-    // FPGA presence via Windows PnP without crashing.
+    // Use ProbeDeviceAvailability which updates startupDeviceProbeOk_ so
+    // GetDiagnosticsSnapshot().deviceDetected reflects the startup probe result.
     // NOTE: PnP detection != functional DMA session. Real DMA verification
     // happens only during explicit game launch when the device is opened.
-    const bool present = Memory::ProbeDevicePresence();
+    Memory probe;
+    const bool present = probe.ProbeDeviceAvailability();
     std::clog << "[STARTUP][Hardware] active_probe=SKIPPED passive_pnp="
               << (present ? "DETECTED" : "NOT_FOUND")
               << " note=PnP_is_diagnostic_only_not_functional_session\n";

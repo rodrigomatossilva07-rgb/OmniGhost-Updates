@@ -1,3 +1,17 @@
+## OmniGhost 3.4.3
+
+Released: 08/09/2026
+Channel: stable
+Tag: v3.4.3
+
+### Outras alterações
+
+#### :wrench: Corrigido
+
+- Embed resources for Release/Publish configs and link generated .res files.
+
+---
+
 ## OmniGhost 3.4.2
 
 Released: 07/09/2026
