@@ -1,3 +1,17 @@
+## OmniGhost 3.4.7
+
+Released: 08/09/2026
+Channel: stable
+Tag: v3.4.7
+
+### Outras alterações
+
+#### :wrench: Corrigido
+
+- Add /FS flag for PDB concurrency.
+
+---
+
 ## OmniGhost 3.4.6
 
 Released: 08/09/2026
