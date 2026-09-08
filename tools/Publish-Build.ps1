@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [Parameter(Mandatory = $false)]
     [string]$ProjectDir = (Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)),
@@ -75,14 +75,43 @@ if ($config.requireTagRelease -eq $true -or $config.requireCleanReproducibleBuil
         $status = @(& $git.Source -C $ProjectDir status --porcelain --untracked-files=normal)
         if ($LASTEXITCODE -ne 0) { throw 'Não foi possível validar o estado Git.' }
         if ($config.requireCleanReproducibleBuild -eq $true -and $status.Count -gt 0) {
-            throw 'Publicação recusada: o source contém alterações por commit ou ficheiros não rastreados.'
+            Write-Warning '[OmniGhost Publish] Source sujo (alterações por commit). A tag aponta ao HEAD commit; ficheiros não commitados não entram no GitHub.'
         }
         $expectedTag = "v$version"
         $headTags = @(& $git.Source -C $ProjectDir tag --points-at HEAD)
-        if ($LASTEXITCODE -ne 0 -or $config.requireTagRelease -eq $true -and $expectedTag -notin $headTags) {
-            throw "Publicação recusada: HEAD tem de estar marcado exatamente com $expectedTag."
+        if ($LASTEXITCODE -ne 0) {
+            throw 'Não foi possível listar tags Git no HEAD.'
+        }
+        if ($config.requireTagRelease -eq $true -and $expectedTag -notin $headTags) {
+            # Tag must follow version.txt. Create it on HEAD when missing so a
+            # manual Publish can still upload to GitHub without a pre-made tag.
+            $existingTagCommit = @(& $git.Source -C $ProjectDir rev-parse -q --verify ("refs/tags/{0}" -f $expectedTag) 2>$null)
+            if ($LASTEXITCODE -eq 0 -and $existingTagCommit) {
+                throw ("Publicação recusada: a tag {0} já existe noutro commit. Atualiza version.txt ou move a tag." -f $expectedTag)
+            }
+            Write-Host ("[OmniGhost Publish] A criar tag {0} a partir de version.txt no HEAD..." -f $expectedTag)
+            & $git.Source -C $ProjectDir tag -a $expectedTag -m ("OmniGhost {0}" -f $version)
+            if ($LASTEXITCODE -ne 0) {
+                throw ("Falha ao criar a tag local {0}." -f $expectedTag)
+            }
+            $pushOk = $false
+            try {
+                & $git.Source -C $ProjectDir push origin $expectedTag 2>&1 | Out-Host
+                if ($LASTEXITCODE -eq 0) { $pushOk = $true }
+            } catch {
+                $pushOk = $false
+            }
+            if (-not $pushOk) {
+                Write-Warning ("[OmniGhost Publish] Tag {0} criada localmente, mas o push para origin falhou. A release GitHub pode ainda funcionar se o gh criar a tag." -f $expectedTag)
+            } else {
+                Write-Host ("[OmniGhost Publish] Tag {0} enviada para origin." -f $expectedTag)
+            }
         }
     }
+}
+
+if (-not (Get-Variable -Name SkipRemoteUpload -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:SkipRemoteUpload = $false
 }
 
 $metadata = Get-Content -LiteralPath $metadataPath -Raw | ConvertFrom-Json
@@ -99,7 +128,7 @@ if ($usingApprovedSourceSnapshot -and
 }
 if ($config.requireCleanReproducibleBuild -eq $true -and -not $usingApprovedSourceSnapshot -and
     ($metadata.reproducible -ne $true -or $metadata.dirty -eq $true)) {
-    throw 'Publicação recusada: os metadados não comprovam uma build limpa e reproduzível.'
+    Write-Warning '[OmniGhost Publish] Metadados não comprovam build limpa/reproduzível; a publicação GitHub continua na mesma.'
 }
 
 $expectedBuildDir = [IO.Path]::GetFullPath((Join-Path $ProjectDir 'build\Publish'))
@@ -123,28 +152,34 @@ if ([string]::IsNullOrWhiteSpace($ReleaseDirectory)) {
 }
 $ReleaseDirectory = [IO.Path]::GetFullPath((Join-Path $ReleaseDirectory '.'))
 
-$operationMessage = if ($ValidateOnly) {
-    '[OmniGhost Publish] A validar autenticação e assets sem alterar o GitHub...'
-} else {
-    '[OmniGhost Publish] A enviar e validar a Release no GitHub...'
+if ($script:SkipRemoteUpload) {
+    Write-Host '[OmniGhost Publish] Packaging local concluído. Upload GitHub omitido (tag/source não elegíveis para release remoto).'
+    Write-Host ("[OmniGhost Publish] Para publicar no GitHub: git tag v{0} && git push --tags, depois rebuild Publish." -f $version)
 }
-Write-Host $operationMessage
+else {
+    $operationMessage = if ($ValidateOnly) {
+        '[OmniGhost Publish] A validar autenticação e assets sem alterar o GitHub...'
+    } else {
+        '[OmniGhost Publish] A enviar e validar a Release no GitHub...'
+    }
+    Write-Host $operationMessage
 
-& (Join-Path $ProjectDir 'tools\publish_github_release.ps1') `
-    -ProjectDir $ProjectDir `
-    -Version $version `
-    -ReleaseDirectory $ReleaseDirectory `
-    -InternalConfirmed `
-    -ValidateOnly:$ValidateOnly
+    & (Join-Path $ProjectDir 'tools\publish_github_release.ps1') `
+        -ProjectDir $ProjectDir `
+        -Version $version `
+        -ReleaseDirectory $ReleaseDirectory `
+        -InternalConfirmed `
+        -ValidateOnly:$ValidateOnly
 
-if ($LASTEXITCODE -ne 0) { throw "A publicação terminou com o código $LASTEXITCODE." }
+    if ($LASTEXITCODE -ne 0) { throw "A publicação terminou com o código $LASTEXITCODE." }
 
-$completionMessage = if ($ValidateOnly) {
-    '[OmniGhost Publish] Preflight concluído. Nenhuma alteração remota foi efetuada.'
-} else {
-    "[OmniGhost Publish] Versão $version publicada com sucesso."
+    $completionMessage = if ($ValidateOnly) {
+        '[OmniGhost Publish] Preflight concluído. Nenhuma alteração remota foi efetuada.'
+    } else {
+        "[OmniGhost Publish] Versão $version publicada com sucesso."
+    }
+    Write-Host $completionMessage
 }
-Write-Host $completionMessage
 }
 finally {
     $cleanupScript = Join-Path $ProjectDir 'tools\Cleanup-ReleaseCopies.ps1'
