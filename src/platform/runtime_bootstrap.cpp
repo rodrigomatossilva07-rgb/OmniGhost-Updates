@@ -335,7 +335,7 @@ std::pair<int, int> SyncRuntimeLibraries(const fs::path& libsDir) {
         bool materialized = false;
         if (hasEmbedded) {
             std::wstring error;
-            if (MaterializePrivateRuntimeFile((L"libs/" + std::wstring(dllName)).c_str(), error)) {
+            if (OmniGhost::RuntimeBootstrap::MaterializePrivateRuntimeFile((L"libs/" + std::wstring(dllName)).c_str(), error)) {
                 materialized = true;
                 copied++;
             } else {
