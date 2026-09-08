@@ -255,6 +255,14 @@ std::pair<int, int> SyncRuntimeLibraries(const fs::path& libsDir) {
         L"vcruntime140.dll"
     };
     
+    auto Narrow = [](const std::wstring& text) -> std::string {
+        std::string out;
+        out.reserve(text.size());
+        for (wchar_t ch : text)
+            out.push_back(ch < 0x80 ? static_cast<char>(ch) : '?');
+        return out;
+    };
+    
     // Build a set of DLLs available in embedded manifest
     std::set<std::wstring> embeddedDlls;
     for (std::size_t i = 0; i < OmniGhost::EmbeddedRuntimeGenerated::kEntryCount; ++i) {
@@ -377,9 +385,18 @@ std::pair<int, int> SyncRuntimeLibraries(const fs::path& libsDir) {
             if (OmniGhost::RuntimeBootstrap::MaterializePrivateRuntimeFile((L"libs/" + std::wstring(dllName)).c_str(), error)) {
                 materialized = true;
                 copied++;
+                OmniGhost::SessionLog::Write(
+                    OmniGhost::SessionLog::Severity::Info,
+                    OmniGhost::SessionLog::Subsystem::Runtime,
+                    "Runtime library materialized from embedded",
+                    {{"dll", Narrow(dllName)}, {"source", "embedded"}});
             } else {
                 // Embedded materialization failed, will try source dirs
-                std::cout << "[Runtime] sync libs: embedded materialize failed for " << std::string(dllName, dllName + wcslen(dllName)) << ": " << std::string(error.begin(), error.end()) << "\n";
+                OmniGhost::SessionLog::Write(
+                    OmniGhost::SessionLog::Severity::Warning,
+                    OmniGhost::SessionLog::Subsystem::Runtime,
+                    "Embedded materialization failed, trying fallback",
+                    {{"dll", Narrow(dllName)}, {"error", Narrow(error)}});
             }
         }
         
@@ -412,6 +429,11 @@ std::pair<int, int> SyncRuntimeLibraries(const fs::path& libsDir) {
                         if (!ec) {
                             copied++;
                             materialized = true;
+                            OmniGhost::SessionLog::Write(
+                                OmniGhost::SessionLog::Severity::Info,
+                                OmniGhost::SessionLog::Subsystem::Runtime,
+                                "Runtime library copied from source",
+                                {{"dll", Narrow(dllName)}, {"source", Narrow(srcDir.wstring())}});
                             break;
                         }
                     } else {
@@ -427,10 +449,21 @@ std::pair<int, int> SyncRuntimeLibraries(const fs::path& libsDir) {
         if (!materialized && !targetExists) {
             // DLL is required but not available anywhere
             failed++;
+            OmniGhost::SessionLog::Write(
+                OmniGhost::SessionLog::Severity::Error,
+                OmniGhost::SessionLog::Subsystem::Runtime,
+                "Required runtime library not found",
+                {{"dll", Narrow(dllName)}});
         } else if (!materialized && targetExists) {
             skipped++;
         }
     }
+    
+    OmniGhost::SessionLog::Write(
+        OmniGhost::SessionLog::Severity::Info,
+        OmniGhost::SessionLog::Subsystem::Runtime,
+        "Runtime library sync complete",
+        {{"copied", std::to_string(copied)}, {"skipped", std::to_string(skipped)}, {"failed", std::to_string(failed)}});
     
     return {copied, skipped};
 }
@@ -650,12 +683,16 @@ Result Prepare() {
     
     // Sync runtime libraries from embedded manifest and fallback sources
     auto [copied, skipped] = SyncRuntimeLibraries(libs);
-    std::cout << "[Runtime] sync libs: copied=" << copied << " skipped=" << skipped << "\n";
     
     // Verify FTDI presence
     bool ftdiPresent = fs::is_regular_file(libs / L"FTD3XX.dll", ec) || fs::is_regular_file(libs / L"FTD3XXWU.dll", ec);
-    std::cout << "[Runtime] FTDI present=" << (ftdiPresent ? "YES" : "NO") << " path=" << libs.string() << "\n";
     ec.clear();
+    
+    OmniGhost::SessionLog::Write(
+        OmniGhost::SessionLog::Severity::Info,
+        OmniGhost::SessionLog::Subsystem::Runtime,
+        "Runtime bootstrap complete",
+        {{"ftdi_present", ftdiPresent ? "YES" : "NO"}, {"libs_path", libs.string()}});
     
     ConfigureRuntimeDllSearch(libs);
     return Result::Continue;

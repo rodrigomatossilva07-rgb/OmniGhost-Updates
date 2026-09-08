@@ -19,6 +19,8 @@
 #include "gameplay/resolution.h"
 #include "gameplay/game_adapter.h"
 #include "../config/app_settings.h"
+#include "Fivem/fivem_radar.h"
+#include "Fivem/fivem_radar_config.h"
 #include <memory>
 #include <string>
 #include <vector>
@@ -869,6 +871,97 @@ void DrawGameAdapter() {
     ImGui::SameLine();
     if (CyberButton("Via Steam", ImVec2(120, 32))) {
         Gameplay::GameAdapter::GameLauncher::Instance().LaunchViaSteam(steam_id, args);
+    }
+    
+    EndCard();
+}
+
+// ============================================================================
+// FiveM Web Radar Page
+// ============================================================================
+
+void DrawFivemWebRadar() {
+    using namespace Fivem_Radar;
+    
+    BeginCard("FiveM Web Radar - Configuração");
+    
+    // Main toggle
+    ToggleSwitch("Ativar Web Radar", &config.enabled);
+    
+    if (config.enabled) {
+        CardGap();
+        SectionTitle("Servidor HTTP");
+        
+        SliderInt("Porta", &config.port, 1024, 65535);
+        ToggleSwitch("Acesso LAN", &config.lan);
+        
+        CardGap();
+        SectionTitle("Cloudflare Tunnel (HTTPS Público)");
+        
+        ToggleSwitch("Ativar Cloudflare", &config.cloudflare);
+        
+        if (config.cloudflare) {
+            TextLine("Requer cloudflared.exe no runtime privado (libs/cloudflared.exe)", TextTone::Secondary);
+            TextLine("O link HTTPS será gerado automaticamente ao ativar", TextTone::Secondary);
+        }
+        
+        CardGap();
+        SectionTitle("Exibição");
+        
+        ToggleSwitch("Mostrar jogador local", &config.show_local);
+        ToggleSwitch("Mostrar NPCs", &config.show_npcs);
+        
+        SliderFloat("Taxa de atualização (Hz)", &config.update_rate_hz, 5.0f, 60.0f, "%.1f");
+        SliderFloat("Distância máxima (m)", &config.max_distance, 500.0f, 20000.0f, "%.0f");
+        
+        CardGap();
+        SectionTitle("Status");
+        
+        const char* status = Fivem_Radar::Status();
+        ImGui::Text("Status: %s", status);
+        
+        if (Fivem_Radar::IsRunning()) {
+            ImGui::Separator();
+            
+            const char* localUrl = "http://127.0.0.1:" + std::to_string(config.port) + "/";
+            ImGui::Text("URL Local: %s", localUrl);
+            if (CyberButton("Abrir Local", ImVec2(120, 30))) {
+                ShellExecuteA(nullptr, "open", localUrl, nullptr, nullptr, SW_SHOWNORMAL);
+            }
+            ImGui::SameLine();
+            if (CyberButton("Copiar Local", ImVec2(120, 30))) {
+                ImGui::SetClipboardText(localUrl);
+            }
+            
+            if (config.cloudflare && Fivem_Radar::CloudflareRunning()) {
+                const char* publicUrl = Fivem_Radar::PublicUrl();
+                if (publicUrl && publicUrl[0]) {
+                    ImGui::Text("URL Público: %s", publicUrl);
+                    if (CyberButton("Abrir Público", ImVec2(120, 30))) {
+                        ShellExecuteA(nullptr, "open", publicUrl, nullptr, nullptr, SW_SHOWNORMAL);
+                    }
+                    ImGui::SameLine();
+                    if (CyberButton("Copiar Público", ImVec2(120, 30))) {
+                        ImGui::SetClipboardText(publicUrl);
+                    }
+                } else {
+                    ImGui::Text("URL Público: Aguardando Cloudflare...");
+                }
+            }
+        }
+    } else {
+        TextLine("Web Radar desativado. Ative para configurar.", TextTone::Secondary);
+    }
+    
+    CardGap();
+    if (CyberButton("Salvar Configuração", ImVec2(150, 32))) {
+        Fivem_Radar::SaveConfig();
+        TextLine("Configuração salva!", TextTone::Success);
+    }
+    ImGui::SameLine();
+    if (CyberButton("Carregar Configuração", ImVec2(150, 32))) {
+        Fivem_Radar::LoadConfig();
+        TextLine("Configuração carregada!", TextTone::Success);
     }
     
     EndCard();

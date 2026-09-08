@@ -10,6 +10,7 @@
 #include "../../DMALibrary/Memory/Memory.h"
 #include "../../Fivem/aimbot/aim_type.h"
 #include "../../Fivem/game/game.h"
+#include "../../Fivem/fivem_radar.h"
 #include "../../Fortnite/fortnite_game.h"
 #include "../../Rust/rust_game.h"
 #include "../../Rust/rust_esp.h"
@@ -210,11 +211,12 @@ ActiveGame FortniteGameId() { return ActiveGame::Fortnite; }
 IGameAdapter* FindGameAdapter(::Launcher::GameId game) noexcept {
     using Capability = AdapterCapability;
     static FunctionGameAdapter fivem({ ::Launcher::GameId::FiveM, "FiveM", AdapterMaturity::Stable,
-        Capability::Menu | Capability::ReadOnlyMemory | Capability::Overlay },
+        Capability::Menu | Capability::ReadOnlyMemory | Capability::Overlay | Capability::Radar },
         StartFiveM, [] { mem.InvalidateProcess(); }, FiveMStatus,
         [] { 
             if (!g_validExecutable.empty()) {
                 FiveM::ESP::RunESP();
+                Fivem_Radar::Update();
             }
         },
         FivemIsAlive, FivemValidateOffsets, FivemTerminationReason, FivemGameId);

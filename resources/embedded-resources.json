@@ -20,6 +20,7 @@
   ],
   "trees": [
     { "namePrefix": "Cs2Weapon", "idStart": 10000, "logicalPrefix": "cs2/weapons", "source": "Cs2/data/weapons", "mandatory": true },
-    { "namePrefix": "Cs2WebRadar", "idStart": 20000, "logicalPrefix": "webradar", "source": "Cs2/radar_webapp", "mandatory": true }
+    { "namePrefix": "Cs2WebRadar", "idStart": 20000, "logicalPrefix": "webradar", "source": "Cs2/radar_webapp", "mandatory": true },
+    { "namePrefix": "FivemWebRadar", "idStart": 30000, "logicalPrefix": "webradar_fivem", "source": "Fivem/radar_webapp", "mandatory": true }
   ]
 }
