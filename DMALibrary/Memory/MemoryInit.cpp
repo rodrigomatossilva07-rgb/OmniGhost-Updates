@@ -80,9 +80,9 @@ bool Memory::EnsureRuntimeDependencies()
 	std::wstring error;
 
 	// The FTDI bridge is required for every FPGA session (dynamic-loaded by LeechCore).
-	if (!ValidatePrivateRuntimeFile(L"libs/FTD3XXWU.dll", error)) {
+	if (!ValidatePrivateRuntimeFile(L"libs/FTD3XX.dll", error)) {
 		dependencyIntegrityOk_ = false;
-		dependencyIntegrityMessage_ = "FTD3XXWU.dll: " + Narrow(error);
+		dependencyIntegrityMessage_ = "FTD3XX.dll: " + Narrow(error);
 	}
 
 #if !defined(OMNIGHOST_PRIVATE_STATIC_VMM)

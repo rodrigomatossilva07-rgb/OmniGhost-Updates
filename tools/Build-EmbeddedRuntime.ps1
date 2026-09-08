@@ -45,11 +45,8 @@ function Add-RuntimeFile([string]$Source, [string]$Relative) {
     if ([string]::IsNullOrWhiteSpace($relativePath) -or $relativePath.Contains('../')) {
         throw "Invalid embedded runtime path: $Relative"
     }
-    # LeechCore 2.23 prefers FTD3XXWU.dll and only retries FTD3XX.dll as a
-    # legacy fallback. The recovered project bundle contains the exact same
-    # signed binary under both names, so embedding both only materializes a
-    # byte-for-byte duplicate and cannot provide a distinct fallback.
-    if ($relativePath -ieq 'libs/FTD3XX.dll') { return }
+    # LeechCore uses FTD3XX.dll. Embed it for the private runtime.
+    if ($relativePath -ieq 'libs/FTD3XXWU.dll') { return }
     # MemProcFS supports pdbcrust as its local PDB backend. Shipping the private
     # Microsoft dbghelp/symsrv pair as well only duplicates the same optional
     # capability; crash dumps use the Windows System32 dbghelp explicitly.
