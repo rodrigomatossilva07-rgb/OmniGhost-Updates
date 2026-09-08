@@ -5,6 +5,7 @@
 #include "../../ImGui/imgui.h"
 #include <algorithm>
 #include <cmath>
+#include <iostream>
 
 namespace object_esp {
 
@@ -24,7 +25,13 @@ ObjectRenderer::~ObjectRenderer() {
 }
 
 bool ObjectRenderer::Initialize() {
-    // Get default font
+    // Get default font - ImGui context must exist
+    ImGuiContext* ctx = ImGui::GetCurrentContext();
+    if (!ctx) {
+        std::cout << "[ObjectESP Renderer] ImGui context not available, deferring font init" << std::endl;
+        return true; // Defer font initialization
+    }
+    
     ImGuiIO& io = ImGui::GetIO();
     font_ = io.FontDefault;
     
@@ -55,13 +62,10 @@ void ObjectRenderer::SetBoxThickness(float thickness) {
     box_thickness_ = std::max(1.0f, std::min(5.0f, thickness));
 }
 
-void ObjectRenderer::Render(const Matrix& view_matrix, uintptr_t localplayer) {
+void ObjectRenderer::Render(const Matrix& view_matrix, uintptr_t /*localplayer*/) {
     auto& manager = object_esp::GetObjectESPManager();
     if (!manager.GetConfig().enabled) return;
     
-    auto render_start = std::chrono::high_resolution_clock::now();
-    
-    auto& tracked = manager.GetTrackedObjects();
     ImVec2 display_size = ImGui::GetIO().DisplaySize;
     
     stats_.objects_rendered = 0;
@@ -120,10 +124,10 @@ void ObjectRenderer::DrawTextWithOutline(const Vec2& pos, const char* text, ImU3
     if (!draw_list || !font_) return;
     
     ImVec2 text_size = font_->CalcTextSizeA(text_scale_ * scale, FLT_MAX, 0.0f, text);
-    ImVec2 pos = ImVec2(pos.x, pos.y);
+    ImVec2 draw_pos(pos.x, pos.y);
     
     if (centered) {
-        pos.x -= text_size.x * 0.5f;
+        draw_pos.x -= text_size.x * 0.5f;
     }
     
     // Draw outline
@@ -134,13 +138,13 @@ void ObjectRenderer::DrawTextWithOutline(const Vec2& pos, const char* text, ImU3
         for (int dy = -1; dy <= 1; ++dy) {
             if (dx == 0 && dy == 0) continue;
             draw_list->AddText(font_, text_scale_ * scale, 
-                ImVec2(pos.x + dx * outline_thickness, pos.y + dy * outline_thickness),
+                ImVec2(draw_pos.x + dx * outline_thickness, draw_pos.y + dy * outline_thickness),
                 outline_color, text);
         }
     }
     
     // Draw main text
-    draw_list->AddText(font_, text_scale_ * scale, pos, color, text);
+    draw_list->AddText(font_, text_scale_ * scale, ImVec2(draw_pos.x, draw_pos.y), color, text);
 }
 
 void ObjectRenderer::DrawBox(const Vec2& min, const Vec2& max, ImU32 color, float thickness) {
@@ -171,31 +175,31 @@ void ObjectRenderer::RenderObject(const TrackedInstance& obj, const Matrix& view
         return;
     }
     
-    const auto& config = obj.config;
+    const auto& entry_config = obj.config;
     float distance = obj.entity.distance;
-    ImU32 color = config.color != 0 ? config.color : default_color_;
+    ImU32 color = entry_config.color != 0 ? entry_config.color : default_color_;
     
     // Draw marker if enabled
-    if (config.show_marker) {
+    if (entry_config.show_marker) {
         DrawMarker(screen_pos, 6.0f * text_scale_, color);
     }
     
     // Draw info text
-    if (config.show_name || config.show_distance || config.show_category) {
+    if (entry_config.show_name || entry_config.show_distance || entry_config.show_category) {
         std::string info;
         
-        if (config.show_name) {
-            info = config.display_name;
+        if (entry_config.show_name) {
+            info = entry_config.display_name;
         }
         
-        if (config.show_distance) {
+        if (entry_config.show_distance) {
             if (!info.empty()) info += " ";
             info += std::to_string(static_cast<int>(distance)) + "m";
         }
         
-        if (config.show_category) {
+        if (entry_config.show_category) {
             if (!info.empty()) info += " ";
-            info += "[" + std::string(ObjectCategoryToString(config.category)) + "]";
+            info += "[" + std::string(ObjectCategoryToString(entry_config.category)) + "]";
         }
         
         if (!info.empty()) {
@@ -205,7 +209,7 @@ void ObjectRenderer::RenderObject(const TrackedInstance& obj, const Matrix& view
     }
     
     // Draw box if enabled
-    if (config.show_box) {
+    if (entry_config.show_box) {
         // Estimate box size based on distance
         float box_size = std::max(20.0f, 100.0f / std::max(1.0f, distance * 0.1f)) * text_scale_;
         Vec2 min(screen_pos.x - box_size * 0.5f, screen_pos.y - box_size * 0.5f);

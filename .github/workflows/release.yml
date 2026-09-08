@@ -286,6 +286,10 @@ jobs:
         if: steps.publish_release.outputs.published == 'true'
         shell: pwsh
         env:
+          # Add DISCORD_WEBHOOK_URL as a GitHub repository secret:
+          # Settings > Secrets and variables > Actions > New repository secret
+          # Name: DISCORD_WEBHOOK_URL
+          # Value: https://discord.com/api/webhooks/1541133282173919262/O4GhDc75-fk-aLJ0_hRd5wftisicHHVBw_Ome0o9CoB8k-MQgTjeqLIE62ODnE-YCxHY
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |
           ./tools/Notify-DiscordRelease.ps1 `

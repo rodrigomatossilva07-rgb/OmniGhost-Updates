@@ -12,18 +12,13 @@
 #include <thread>
 #include "math/math.h"
 #include "game/offsets.h"
-#include "../DMALibrary/Memory/Memory.h"
+#include "../../DMALibrary/Memory/Memory.h"
 #include "object_esp_config.h"
 
 namespace object_esp {
 
 // Forward declarations
-class ObjectScanner;
-class ObjectCache;
-class ObjectDatabase;
-class WhitelistManager;
 class ObjectRenderer;
-class ObjectInspector;
 
 // Object entity representation
 struct ObjectEntity {
@@ -104,6 +99,7 @@ public:
     
     // Scanner results
     const std::vector<ScanResult>& GetScanResults() const { return scan_results_; }
+    std::vector<ScanResult> GetFilteredResults() const;
     void ClearScanResults();
     
     // Tracked objects
@@ -113,6 +109,7 @@ public:
     void OpenInspector(const std::string& model);
     void CloseInspector();
     const InspectorData* GetInspectorData() const { return inspector_open_ ? &inspector_data_ : nullptr; }
+    bool IsInspectorOpen() const { return inspector_open_; }
     
     // Categories
     void SetCategoryFilter(ObjectCategory cat) { current_filter_ = cat; }
@@ -123,7 +120,6 @@ public:
     // Search
     void SetSearchQuery(const std::string& query) { search_query_ = query; }
     const std::string& GetSearchQuery() const { return search_query_; }
-    std::vector<ScanResult> GetFilteredResults() const;
     std::vector<WhitelistEntry> GetFilteredWhitelist() const;
     
     // Settings
@@ -150,12 +146,7 @@ public:
 
 private:
     // Core components
-    std::unique_ptr<ObjectScanner> scanner_;
-    std::unique_ptr<ObjectCache> cache_;
-    std::unique_ptr<ObjectDatabase> database_;
-    std::unique_ptr<WhitelistManager> whitelist_manager_;
     std::unique_ptr<ObjectRenderer> renderer_;
-    std::unique_ptr<ObjectInspector> inspector_;
     
     // State
     Config config_;
@@ -167,17 +158,18 @@ private:
     bool inspector_open_ = false;
     ObjectCategory current_filter_ = ObjectCategory::All;
     std::string search_query_;
+    std::string selected_model_;
     Stats stats_;
     
     // Threading
     std::thread scanner_thread_;
     std::atomic<bool> scanner_running_{false};
-    std::mutex data_mutex_;
+    mutable std::mutex data_mutex_;
     
     // Internal methods
     void ScannerThread();
+    void PerformScan();
     void UpdateTrackedObjects();
-    void UpdateInspector();
     void PruneStaleObjects();
     void ApplyDistanceCulling();
     void ApplyFrustumCulling();

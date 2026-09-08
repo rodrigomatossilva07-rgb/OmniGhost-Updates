@@ -1,4 +1,5 @@
 #include "object_esp.h"
+#include "object_esp_renderer.h"
 #include "math/math.h"
 #include "game/offsets.h"
 #include "game/esp_manager.h"
@@ -32,16 +33,18 @@ ObjectESPManager& GetObjectESPManager() {
 // ============================================================================
 
 ObjectESPManager::ObjectESPManager() 
-    : scanner_state_(), stats_(), inspector_open_(false), current_filter_(ObjectCategory::All) {
+    : scanner_state_(), stats_(), inspector_open_(false), current_filter_(ObjectCategory::All), selected_model_() {
     // Initialize category visibility
     for (int i = 0; i < static_cast<int>(ObjectCategory::Count); ++i) {
         config_.category_visible[i] = true;
     }
+    
+    renderer_ = std::make_unique<ObjectRenderer>();
+    renderer_->Initialize();
 }
 
 ObjectESPManager::~ObjectESPManager() {
     Shutdown();
-    delete g_manager;
     g_manager = nullptr;
 }
 
@@ -61,6 +64,8 @@ void ObjectESPManager::Shutdown() {
     if (scanner_thread_.joinable()) {
         scanner_thread_.join();
     }
+    
+    renderer_.reset();
     
     SaveAll();
     
@@ -89,11 +94,6 @@ void ObjectESPManager::Update() {
     
     // Prune stale objects
     PruneStaleObjects();
-    
-    // Update inspector if open
-    if (inspector_open_) {
-        UpdateInspector();
-    }
     
     // Update stats
     stats_.tracked_objects = static_cast<int>(tracked_objects_.size());
@@ -129,7 +129,7 @@ void ObjectESPManager::ClearScanResults() {
     scanner_state_.total_objects_found = 0;
 }
 
-const std::vector<ScanResult> ObjectESPManager::GetFilteredResults() const {
+std::vector<ScanResult> ObjectESPManager::GetFilteredResults() const {
     std::vector<ScanResult> results;
     std::lock_guard<std::mutex> lock(data_mutex_);
     
@@ -209,6 +209,7 @@ void ObjectESPManager::OpenInspector(const std::string& model) {
         inspector_data_.entity_handle = tracked_it->entity.entity_handle;
         inspector_data_.network_id = tracked_it->entity.network_id;
         inspector_data_.is_networked = tracked_it->entity.is_networked;
+        inspector_data_.category = tracked_it->config.category;
     }
     
     std::cout << "[ObjectESP] Inspector opened for: " << model << std::endl;
@@ -217,10 +218,6 @@ void ObjectESPManager::OpenInspector(const std::string& model) {
 void ObjectESPManager::CloseInspector() {
     inspector_open_ = false;
     selected_model_.clear();
-}
-
-void ObjectESPManager::SetCategoryFilter(ObjectCategory cat) {
-    current_filter_ = cat;
 }
 
 void ObjectESPManager::ToggleCategoryVisibility(ObjectCategory cat) {
@@ -236,9 +233,7 @@ bool ObjectESPManager::IsCategoryVisible(ObjectCategory cat) const {
     return true;
 }
 
-void ObjectESPManager::SetSearchQuery(const std::string& query) {
-    search_query_ = query;
-}
+
 
 void ObjectESPManager::ScannerThread() {
     while (scanner_running_) {
@@ -281,7 +276,7 @@ void ObjectESPManager::PerformScan() {
         std::unordered_map<std::string, ScanResult> model_map;
         
         for (size_t i = 0; i < validPeds.size() && i < positions.size(); ++i) {
-            uintptr_t ped = validPeds[i];
+            (void)validPeds[i];
             const Vec3& pos = positions[i];
             
             if (pos.IsZero()) continue;
@@ -298,8 +293,8 @@ void ObjectESPManager::PerformScan() {
             
             // Calculate distance to local player
             float dist = 0.0f;
-            if (offset::localplayer) {
-                Vec3 localPos = mem.Read<Vec3>(offset::localplayer + offset::playerPosition);
+            if (FiveM::offset::localplayer) {
+                Vec3 localPos = mem.Read<Vec3>(FiveM::offset::localplayer + FiveM::offset::playerPosition);
                 if (!localPos.IsZero()) {
                     dist = pos.distance_to(localPos);
                 }
@@ -413,22 +408,6 @@ void ObjectESPManager::PruneStaleObjects() {
     }
 }
 
-void ObjectESPManager::UpdateInspector() {
-    if (selected_model_.empty()) return;
-    
-    // Update inspector data with current info
-    auto tracked_it = std::find_if(tracked_objects_.begin(), tracked_objects_.end(),
-        [this](const TrackedInstance& t) { return t.entity.model == selected_model_; });
-    
-    if (tracked_it != tracked_objects_.end()) {
-        inspector_data_.position = tracked_it->entity.position;
-        inspector_data_.distance = tracked_it->entity.distance;
-        inspector_data_.entity_handle = tracked_it->entity.entity_handle;
-        inspector_data_.network_id = tracked_it->entity.network_id;
-        inspector_data_.is_networked = tracked_it->entity.is_networked;
-    }
-}
-
 // Whitelist management
 bool ObjectESPManager::AddToWhitelist(const std::string& model, uint32_t hash,
                                       const std::string& display_name,
@@ -512,15 +491,6 @@ WhitelistEntry* ObjectESPManager::GetWhitelistEntry(const std::string& model) {
         [&model](const WhitelistEntry& e) { return e.model == model; });
     
     return it != whitelist_.end() ? &(*it) : nullptr;
-}
-
-TrackedInstance* ObjectESPManager::FindTrackedObject(const std::string& model) {
-    std::lock_guard<std::mutex> lock(data_mutex_);
-    
-    auto it = std::find_if(tracked_objects_.begin(), tracked_objects_.end(),
-        [&model](const TrackedInstance& t) { return t.entity.model == model; });
-    
-    return it != tracked_objects_.end() ? &(*it) : nullptr;
 }
 
 // Config persistence

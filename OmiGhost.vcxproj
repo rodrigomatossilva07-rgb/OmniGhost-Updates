@@ -315,6 +315,7 @@
     <ClCompile Include="src\window\widgets.cpp"/>
 <ClCompile Include="src\window\window.cpp"/>
       <ClCompile Include="src\window\window_runtime.cpp"/>
+      <ClCompile Include="src\window\pages\FivemObjectESPPage.cpp"/>
     <ClCompile Include="Fivem\aimbot\aim_type.cpp"/>
     <ClCompile Include="Fivem\aimbot\aimbot.cpp"/>
     <ClCompile Include="Fivem\esp\esp.cpp"/>

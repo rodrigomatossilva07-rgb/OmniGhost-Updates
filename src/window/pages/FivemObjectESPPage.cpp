@@ -11,18 +11,17 @@ namespace CyberWidgets {
 void DrawFivemObjectESP() {
     using namespace object_esp;
     auto& manager = GetObjectESPManager();
-    auto& config = manager.GetMutableConfig();
+    auto& esp_config = manager.GetMutableConfig();
     const auto& state = manager.GetScannerState();
     const auto& scan_results = manager.GetFilteredResults();
-    const auto& whitelist = manager.GetFilteredWhitelist();
-    const auto& tracked = manager.GetTrackedObjects();
+    auto whitelist = manager.GetFilteredWhitelist();
     
     BeginCard("Object ESP - FiveM");
     
     // Main toggle
-    ToggleSwitch("Ativar Object ESP", &config.enabled);
+    ToggleSwitch("Ativar Object ESP", &esp_config.enabled);
     
-    if (!config.enabled) {
+    if (!esp_config.enabled) {
         TextLine("Object ESP desativado. Ative para configurar.", TextTone::Secondary);
         EndCard();
         return;
@@ -36,17 +35,17 @@ void DrawFivemObjectESP() {
     ImGui::SetColumnWidth(0, 120);
     ImGui::Text("Raio (m):");
     ImGui::NextColumn();
-    SliderFloat("##scan_radius", &config.scan_radius, 50.0f, 2000.0f, "%.0fm");
+    SliderFloat("##scan_radius", &esp_config.scan_radius, 50.0f, 2000.0f, "%.0fm");
     ImGui::NextColumn();
     
-    ImGui::Text("Intervalo (ms):");
+ImGui::Text("Intervalo (ms):");
     ImGui::NextColumn();
-    SliderInt("##scan_interval", &config.scan_interval_ms, 1000, 60000);
+    InputInt("##scan_interval", &esp_config.scan_interval_ms);
     ImGui::NextColumn();
     
     ImGui::Text("Auto-scan:");
     ImGui::NextColumn();
-    ToggleSwitch("##auto_scan", &config.auto_scan);
+    ToggleSwitch("##auto_scan", &esp_config.auto_scan);
     ImGui::NextColumn();
     ImGui::Columns(1);
     
@@ -63,7 +62,7 @@ void DrawFivemObjectESP() {
     ImGui::SameLine();
     if (!state.scanning) {
         if (CyberButton("Escanear Agora", ImVec2(120, 30))) {
-            object_esp::GetObjectESPManager().StartScan(config.scan_radius);
+            object_esp::GetObjectESPManager().StartScan(esp_config.scan_radius);
         }
     } else {
         if (CyberButton("Parar Scan", ImVec2(120, 30))) {
@@ -92,7 +91,7 @@ void DrawFivemObjectESP() {
     static int cat_idx = 0;
     const char* cat_names[] = {"Todas", "Loot", "Missao", "Interacao", "Policial", "Medico",
         "Veiculo", "Crafting", "Oficina", "Trabalho", "Container", "Custom", "Outros"};
-    if (Combo("##cat_filter", &cat_names[0], 13)) {
+    if (Combo("##cat_filter", &cat_idx, cat_names, 13)) {
         object_esp::GetObjectESPManager().SetCategoryFilter(static_cast<ObjectCategory>(cat_idx));
     }
     
@@ -201,26 +200,26 @@ void DrawFivemObjectESP() {
     SectionTitle("Configuracoes de Exibicao");
     
     ImGui::Columns(2, nullptr, false);
-    ToggleSwitch("Mostrar Nome", &config.show_name);
+    ToggleSwitch("Mostrar Nome", &esp_config.show_name);
     ImGui::NextColumn();
-    ToggleSwitch("Mostrar Distancia", &config.show_distance);
+    ToggleSwitch("Mostrar Distancia", &esp_config.show_distance);
     ImGui::NextColumn();
-    ToggleSwitch("Mostrar Categoria", &config.show_category);
+    ToggleSwitch("Mostrar Categoria", &esp_config.show_category);
     ImGui::NextColumn();
-    ToggleSwitch("Mostrar Box", &config.show_box);
+    ToggleSwitch("Mostrar Box", &esp_config.show_box);
     ImGui::NextColumn();
-    ToggleSwitch("Mostrar Marker", &config.show_marker);
+    ToggleSwitch("Mostrar Marker", &esp_config.show_marker);
     ImGui::NextColumn();
-    ToggleSwitch("Culling por Distancia", &config.distance_culling);
+    ToggleSwitch("Culling por Distancia", &esp_config.distance_culling);
     ImGui::NextColumn();
-    ToggleSwitch("Culling Frustum", &config.frustum_culling);
+    ToggleSwitch("Culling Frustum", &esp_config.frustum_culling);
     ImGui::NextColumn();
     ImGui::Columns(1);
     
     ImGui::Separator();
-    SliderFloat("Escala Texto", &config.text_scale, 0.5f, 2.5f, "%.1f");
-    SliderFloat("Espessura Box", &config.box_thickness, 1.0f, 5.0f, "%.1f");
-    SliderFloat("Distancia Maxima", &config.max_distance, 50.0f, 5000.0f, "%.0fm");
+    SliderFloat("Escala Texto", &esp_config.text_scale, 0.5f, 2.5f, "%.1f");
+    SliderFloat("Espessura Box", &esp_config.box_thickness, 1.0f, 5.0f, "%.1f");
+    SliderFloat("Distancia Maxima", &esp_config.max_distance, 50.0f, 5000.0f, "%.0fm");
     
     CardGap();
     if (CyberButton("Salvar Configuracao", ImVec2(150, 32))) {

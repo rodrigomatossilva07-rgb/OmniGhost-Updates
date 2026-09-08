@@ -5,6 +5,8 @@
 #include <cstdint>
 #include <mutex>
 #include <unordered_map>
+#include <filesystem>
+#include "../../ImGui/imgui.h"
 
 namespace object_esp {
 
@@ -106,6 +108,8 @@ struct InspectorData {
     float distance = 0.0f;
     bool networked = false;
     bool is_entity = false;
+    ObjectCategory category = ObjectCategory::Other;
+    bool is_networked = false;
     std::vector<std::pair<std::string, std::string>> extra_props; // Additional properties
     
     InspectorData() = default;
