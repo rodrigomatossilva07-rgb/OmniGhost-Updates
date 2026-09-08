@@ -674,7 +674,7 @@ bool Attach() {
         } catch (const std::exception& ex) {
             std::cerr << "[CS2] Attach retry " << a << " exception: " << ex.what() << std::endl;
         } catch (...) {
-            std::cerr << "[CS2] Attach retry " << a << " unknown exception" << std::endl;
+            std::cerr << "[CS2] Attach retry " << a << " unknown exception caught and logged" << std::endl;
         }
         status = "A anexar cs2.exe...";
         std::cout << "[CS2] Attach retry " << a << std::endl;
@@ -694,7 +694,7 @@ bool Attach() {
         } catch (const std::exception& ex) {
             std::cerr << "[CS2] ResolveModuleBases attempt " << attempt << " exception: " << ex.what() << std::endl;
         } catch (...) {
-            std::cerr << "[CS2] ResolveModuleBases attempt " << attempt << " unknown exception" << std::endl;
+            std::cerr << "[CS2] ResolveModuleBases attempt " << attempt << " unknown exception caught and logged" << std::endl;
         }
         if (attempt % 5 == 0)
             std::cout << "[CS2] client.dll ainda nao resolvido (" << attempt << ")" << std::endl;
@@ -704,7 +704,11 @@ bool Attach() {
         if (attempt > 0 && (attempt % 10) == 0) {
             try {
                 mem.Init("cs2.exe", false, false) || mem.Init("CS2.exe", false, false);
-            } catch (...) {}
+            } catch (const std::exception& ex) {
+                std::cerr << "[CS2] Re-bind attempt " << attempt << " exception: " << ex.what() << std::endl;
+            } catch (...) {
+                std::cerr << "[CS2] Re-bind attempt " << attempt << " unknown exception caught and logged" << std::endl;
+            }
         }
     }
     if (!runtime.client_base) {
