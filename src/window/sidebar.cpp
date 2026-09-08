@@ -52,6 +52,7 @@ namespace CyberWidgets {
             { "nav.configs", MenuTab::TAB_CONFIGS,    CyberIcons::DrawSettingsIcon },
             { "nav.save",    MenuTab::TAB_SAVECONFIG, CyberIcons::DrawSaveIcon },
             { "Web Radar", MenuTab::TAB_FIVEM_WEB_RADAR, CyberIcons::DrawRadarIcon },
+            { "Object ESP", MenuTab::TAB_FIVEM_OBJECT_ESP, CyberIcons::DrawESPIcon },
         };
         static const TabItem unifiedSystemTabs[] = {
             { "Aimbot Unificado", MenuTab::TAB_UNIFIED_AIM,     CyberIcons::DrawAimIcon },

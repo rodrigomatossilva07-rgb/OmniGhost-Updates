@@ -11,6 +11,7 @@
 #include "../../Fivem/aimbot/aim_type.h"
 #include "../../Fivem/game/game.h"
 #include "../../Fivem/fivem_radar.h"
+#include "../../Fivem/object_esp.h"
 #include "../../Fortnite/fortnite_game.h"
 #include "../../Rust/rust_game.h"
 #include "../../Rust/rust_esp.h"
@@ -217,6 +218,7 @@ IGameAdapter* FindGameAdapter(::Launcher::GameId game) noexcept {
             if (!g_validExecutable.empty()) {
                 FiveM::ESP::RunESP();
                 Fivem_Radar::Update();
+                object_esp::GetObjectESPManager().Update();
             }
         },
         FivemIsAlive, FivemValidateOffsets, FivemTerminationReason, FivemGameId);

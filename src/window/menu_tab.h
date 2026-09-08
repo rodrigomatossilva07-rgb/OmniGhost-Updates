@@ -55,6 +55,7 @@ enum class MenuTab : int {
     // FiveM specific pages
     TAB_FIVEM_RADAR = 700,
     TAB_FIVEM_WEB_RADAR,
+    TAB_FIVEM_OBJECT_ESP,
     
     TAB_FORTNITE_VISUALS = 500,
     TAB_FORTNITE_AIM,
@@ -69,6 +70,7 @@ void DrawFriends();
 void DrawSaveConfigs();
 void DrawFiveMStatus();
 void DrawFivemWebRadar();
+void DrawFivemObjectESP();
 
 class Overlay;
 void DrawConfigs(Overlay* self);

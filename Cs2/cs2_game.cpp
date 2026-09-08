@@ -440,7 +440,7 @@ bool LoadEmbeddedOffsets() {
             OmniGhost::EmbeddedOffsets::Game::CS2, snapshot, diagnostics)) {
         offsets = {};
         offsets_source = "recurso embedded inválido";
-        std::clog << "[RESOURCE] id=data/cs2_offsets.json load=FAIL reason="
+        std::clog << "[RESOURCE] game=CS2 source=embedded id=IDR_OFFSETS_CS2 load=FAIL reason="
                   << diagnostics.error << '\n';
         return false;
     }
@@ -462,7 +462,7 @@ bool LoadEmbeddedOffsets() {
     offsets.loaded = required;
     if (offsets.loaded) {
         offsets_source = "offsets embedded";
-        std::cout << "[RESOURCE] id=data/cs2_offsets.json load=PASS build="
+        std::cout << "[RESOURCE] game=CS2 source=embedded id=IDR_OFFSETS_CS2 load=PASS build="
                   << snapshot.metadata.build << std::endl;
     }
     return offsets.loaded;

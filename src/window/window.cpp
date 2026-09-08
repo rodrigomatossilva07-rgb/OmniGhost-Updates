@@ -93,6 +93,7 @@ namespace {
         
         // FiveM specific pages
         case MenuTab::TAB_FIVEM_WEB_RADAR:   DrawFivemWebRadar(); break;
+        case MenuTab::TAB_FIVEM_OBJECT_ESP:  DrawFivemObjectESP(); break;
         
         default:
             if (overlay) { /* keep */ }

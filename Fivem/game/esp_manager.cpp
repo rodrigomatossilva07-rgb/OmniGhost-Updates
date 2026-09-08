@@ -162,6 +162,16 @@ namespace FiveM {
 
         // Data collection (now synchronous)
         void collectFrameData() {
+            // Never submit DMA reads with an incomplete pointer chain. FiveM can
+            // transition through lobby/loading states where one of these pointers
+            // is temporarily unavailable; treating that state as an empty frame
+            // keeps the launcher/session alive instead of issuing reads from 0.
+            if (!offset::world || !offset::replay || !offset::viewport || !offset::localplayer) {
+                validPeds.clear();
+                positions.clear();
+                return;
+            }
+
             // Single scatter handle for fast operations
             auto handle = mem.CreateScatterHandle();
 
@@ -407,6 +417,8 @@ namespace FiveM {
         // Rendering operations (now with batch skeleton support)
         void renderESP() {
             if (validPeds.empty() || positions.empty())
+                return;
+            if (!offset::viewport || !offset::localplayer)
                 return;
 
             // Do NOT auto-enable any visual (head circle, etc.) — master ESP alone draws nothing.
