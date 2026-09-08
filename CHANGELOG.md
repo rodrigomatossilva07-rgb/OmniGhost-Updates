@@ -1,3 +1,17 @@
+## OmniGhost 3.5.2
+
+Released: 08/09/2026
+Channel: stable
+Tag: v3.5.2
+
+### OMNIGHOST Launcher
+
+#### :gear: Manutenção
+
+- Maintenance release with no user-facing changes identified.
+
+---
+
 ## OmniGhost 3.5.1
 
 Released: 08/09/2026
