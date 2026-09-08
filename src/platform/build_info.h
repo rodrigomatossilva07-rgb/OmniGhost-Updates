@@ -5,9 +5,9 @@
 #else
 namespace OmniGhost::BuildInfo {
 inline constexpr char AppVersion[] = "unknown";
-inline constexpr char BuildId[] = "development";
-inline constexpr char CommitId[] = "untracked-source";
-inline constexpr char SourceProvenance[] = "local-untracked";
+inline constexpr char BuildId[] = "local-unknown";
+inline constexpr char CommitId[] = "unknown";
+inline constexpr char SourceProvenance[] = "git";
 inline constexpr char BuildUtc[] = "unknown";
 inline constexpr char ToolchainVersion[] = "unknown";
 inline constexpr char WindowsSdkVersion[] = "unknown";
