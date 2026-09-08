@@ -384,6 +384,10 @@ bool RotateOpenLog(std::ofstream& stream, const fs::path& path, const char* suff
     stream.clear();
     stream.open(path, std::ios::out | std::ios::trunc | std::ios::binary);
     if (!stream) return false;
+    if (suffix && std::strstr(suffix, ".jsonl")) {
+        static const char utf8Bom[] = {0xEF, 0xBB, 0xBF};
+        stream.write(utf8Bom, 3);
+    }
     bytes = 0;
     day = CurrentLocalDay();
     PruneArchives();
@@ -578,14 +582,18 @@ bool Initialize() {
     g_structuredLogPath.clear();
     ArchiveExistingLog(g_logPath, ".logs.txt");
 
-    g_file.open(g_logPath, std::ios::out | std::ios::trunc);
+    g_file.open(g_logPath, std::ios::out | std::ios::trunc | std::ios::binary);
     if (!g_file && g_logPath != Paths::Logs() / L"logs.txt") {
         g_logPath = Paths::Logs() / L"logs.txt";
         ArchiveExistingLog(g_logPath, ".logs.txt");
-        g_file.open(g_logPath, std::ios::out | std::ios::trunc);
+        g_file.open(g_logPath, std::ios::out | std::ios::trunc | std::ios::binary);
     }
     if (!g_file)
         return false;
+
+    // Write UTF-8 BOM
+    static const char utf8Bom[] = {0xEF, 0xBB, 0xBF};
+    g_file.write(utf8Bom, 3);
 
     // Single-log mode: no events.jsonl sidecar is created.
     g_fileBytes = 0;

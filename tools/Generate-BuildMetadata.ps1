@@ -156,7 +156,7 @@ if ($null -ne $SourcePackageManifest -and $null -ne $SourcePackageManifest.files
 function Get-GitValue([string[]]$Arguments, [string]$Fallback) {
     if ($null -eq $Git) { return $Fallback }
     try {
-        $result = Invoke-GitWithTimeout -Arguments $Arguments -TimeoutSeconds 8
+        $result = Invoke-GitWithTimeout -Arguments $Arguments -TimeoutSeconds 15
         if (-not $result.TimedOut -and $result.ExitCode -eq 0 -and $result.Output.Count -gt 0) {
             $value = [string]$result.Output[0]
             if (-not [string]::IsNullOrWhiteSpace($value)) { return $value.Trim() }
@@ -216,22 +216,31 @@ $Commit = if ($env:GITHUB_SHA) {
 } else {
     'untracked-source'
 }
+} elseif ($null -ne $SourceMetadata -and $SourceMetadata.commit_id -and [string]$SourceMetadata.commit_id -ne 'unknown') {
+    $SourceProvenance = 'source-build-metadata'
+    [string]$SourceMetadata.commit_id
+} elseif (-not [string]::IsNullOrWhiteSpace($SourcePackageFingerprint)) {
+    $SourceProvenance = 'source-package-fingerprint'
+    'source-' + $SourcePackageFingerprint.Substring(0,16)
+} else {
+    'untracked-source'
+}
 if ($Commit.Length -gt 12) { $CommitShort = $Commit.Substring(0,12) } else { $CommitShort = $Commit }
 $Dirty = $false
 if ($null -ne $Git) {
-    # Prefer a cheap porcelain status (tracked files only). Full `git diff` on large
-    # working trees is a common Visual Studio "freeze" during metadata generation.
-    Write-Host "[BuildMetadata] checking git dirty state (timeout 12s)..."
-    $status = Invoke-GitWithTimeout -Arguments @('status','--porcelain','-uno','--ignore-submodules','--','.') -TimeoutSeconds 12
-    if ($status.TimedOut) {
-        Write-Warning "[BuildMetadata] git status timed out; treating tree as dirty for safety."
-        $Dirty = $true
-    } else {
-        $Dirty = @($status.Output | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }).Count -gt 0
+        # Prefer a cheap porcelain status (tracked files only). Full `git diff` on large
+        # working trees is a common Visual Studio "freeze" during metadata generation.
+        Write-Host "[BuildMetadata] checking git dirty state (timeout 20s)..."
+        $status = Invoke-GitWithTimeout -Arguments @('status','--porcelain','-uno','--ignore-submodules','--','.') -TimeoutSeconds 20
+        if ($status.TimedOut) {
+            Write-Warning "[BuildMetadata] git status timed out; treating tree as dirty for safety."
+            $Dirty = $true
+        } else {
+            $Dirty = @($status.Output | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }).Count -gt 0
+        }
+    } elseif ($null -ne $SourceMetadata -and $null -ne $SourceMetadata.dirty) {
+        $Dirty = [bool]$SourceMetadata.dirty
     }
-} elseif ($null -ne $SourceMetadata -and $null -ne $SourceMetadata.dirty) {
-    $Dirty = [bool]$SourceMetadata.dirty
-}
 if ($SourcePackageDirty) {
     $Dirty = $true
 }
