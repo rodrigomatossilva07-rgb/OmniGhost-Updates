@@ -23,6 +23,19 @@
 #include <iostream>
 #include <unordered_map>
 
+#ifndef LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR
+#define LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR 0x00000100
+#endif
+#ifndef LOAD_LIBRARY_SEARCH_USER_DIRS
+#define LOAD_LIBRARY_SEARCH_USER_DIRS 0x00000400
+#endif
+#ifndef LOAD_LIBRARY_SEARCH_SYSTEM32
+#define LOAD_LIBRARY_SEARCH_SYSTEM32 0x00000800
+#endif
+#ifndef LOAD_LIBRARY_SEARCH_APPLICATION_DIR
+#define LOAD_LIBRARY_SEARCH_APPLICATION_DIR 0x00000200
+#endif
+
 namespace fs = std::filesystem;
 
 namespace {
@@ -226,10 +239,29 @@ bool ExtractBundle(const fs::path& root, std::wstring& error) {
 
 void ConfigureRuntimeDllSearch(const fs::path& libs) {
     SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_SYSTEM32 |
-        LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_USER_DIRS);
-    static DLL_DIRECTORY_COOKIE cookie = nullptr;
-    if (!cookie) cookie = AddDllDirectory(libs.c_str());
-    // SetDllDirectoryW removed - AddDllDirectory with restricted LoadLibraryEx flags is sufficient.
+        LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_USER_DIRS |
+        LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR);
+    // Prefer private runtime libs for FTDI/LeechCore resolution.
+    if (!libs.empty()) {
+        static DLL_DIRECTORY_COOKIE cookieLibs = nullptr;
+        if (!cookieLibs)
+            cookieLibs = AddDllDirectory(libs.c_str());
+        // Also set the process DLL directory so LoadLibrary("FTD3XX.dll")
+        // from static LeechCore resolves the side-by-side copy.
+        SetDllDirectoryW(libs.c_str());
+    }
+    const fs::path installLibs = OmniGhost::Paths::InstallDirectory() / L"libs";
+    if (installLibs != libs) {
+        static DLL_DIRECTORY_COOKIE cookieInstall = nullptr;
+        if (!cookieInstall)
+            cookieInstall = AddDllDirectory(installLibs.c_str());
+    }
+    const fs::path native = OmniGhost::Paths::NativeRuntime();
+    if (!native.empty() && native != libs) {
+        static DLL_DIRECTORY_COOKIE cookieNative = nullptr;
+        if (!cookieNative)
+            cookieNative = AddDllDirectory(native.c_str());
+    }
 }
 
 bool IsUpdaterWorker() {

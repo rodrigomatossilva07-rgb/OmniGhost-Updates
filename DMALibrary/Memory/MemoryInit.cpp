@@ -19,6 +19,40 @@
 
 namespace
 {
+// VMM/LeechCore can raise SEH (access violation) when FPGA/FTDI is absent.
+// C++ catch (...) does NOT catch SEH — wrap the native open in __try/__except.
+struct VmmOpenResult {
+    VMM_HANDLE handle = nullptr;
+    PLC_CONFIG_ERRORINFO errorInfo = nullptr;
+    bool sehFault = false;
+    unsigned sehCode = 0;
+};
+
+static VmmOpenResult SafeVmmInitializeEx(DWORD argc, LPCSTR* argv) noexcept
+{
+    VmmOpenResult result{};
+#if defined(_MSC_VER)
+    __try {
+        result.handle = VMMDLL_InitializeEx(argc, argv, &result.errorInfo);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        result.handle = nullptr;
+        result.errorInfo = nullptr;
+        result.sehFault = true;
+        result.sehCode = static_cast<unsigned>(GetExceptionCode());
+    }
+#else
+    try {
+        result.handle = VMMDLL_InitializeEx(argc, argv, &result.errorInfo);
+    } catch (...) {
+        result.handle = nullptr;
+        result.errorInfo = nullptr;
+        result.sehFault = true;
+        result.sehCode = 0;
+    }
+#endif
+    return result;
+}
+
 #ifndef LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR
 #define LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR 0x00000100
 #endif
@@ -66,6 +100,133 @@ HMODULE LoadPrivateLibrary(const std::filesystem::path& file)
 // Runtime dependencies
 // ─────────────────────────────────────────────────────────────────────────────
 
+
+// Prefer an already-loaded FTDI bridge so LeechCore resolves FTD3XX without
+// searching untrusted directories. Searches private runtime, install dir, and
+// common Windows/FTDI locations.
+HMODULE g_ftdiModule = nullptr;
+
+bool FileLooksLikeDll(const std::filesystem::path& path)
+{
+	std::error_code ec;
+	if (!std::filesystem::is_regular_file(path, ec) || ec)
+		return false;
+	const auto size = std::filesystem::file_size(path, ec);
+	return !ec && size > 4096;
+}
+
+void AddSearchDir(const std::filesystem::path& dir)
+{
+	if (dir.empty())
+		return;
+	std::error_code ec;
+	if (!std::filesystem::is_directory(dir, ec) || ec)
+		return;
+	(void)SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_SYSTEM32 |
+		LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_USER_DIRS);
+	(void)AddDllDirectory(dir.c_str());
+}
+
+bool TryLoadFtdiAt(const std::filesystem::path& file, std::string& detail)
+{
+	if (!FileLooksLikeDll(file))
+		return false;
+	AddSearchDir(file.parent_path());
+	HMODULE mod = LoadLibraryExW(file.c_str(), nullptr, LOAD_WITH_ALTERED_SEARCH_PATH);
+	if (!mod)
+		mod = LoadLibraryW(file.c_str());
+	if (!mod)
+		return false;
+	g_ftdiModule = mod;
+	detail = Narrow(file.wstring()) + ": preloaded";
+	std::cout << "[DMA][Init] FTDI preloaded from " << detail << "\n";
+	return true;
+}
+
+bool PreloadFtdiBridge(std::string& detail)
+{
+	namespace fs = std::filesystem;
+	if (g_ftdiModule) {
+		detail = "already loaded";
+		return true;
+	}
+
+	// Extract from embedded private runtime when the Publish build shipped FTDI.
+	{
+		std::wstring matErr;
+		const wchar_t* embedded[] = { L"libs/FTD3XX.dll", L"libs/FTD3XXWU.dll" };
+		for (const wchar_t* rel : embedded) {
+			if (OmniGhost::RuntimeBootstrap::MaterializePrivateRuntimeFile(rel, matErr) ||
+			    OmniGhost::RuntimeBootstrap::ValidatePrivateRuntimeFile(rel, matErr)) {
+				const fs::path extracted = OmniGhost::RuntimeBootstrap::PrivateRuntimePath(rel);
+				if (TryLoadFtdiAt(extracted, detail))
+					return true;
+			}
+		}
+	}
+
+	const wchar_t* names[] = { L"FTD3XX.dll", L"FTD3XXWU.dll" };
+	std::vector<fs::path> roots;
+
+	auto push = [&](fs::path path) {
+		if (path.empty()) return;
+		std::error_code ec;
+		path = fs::weakly_canonical(path, ec);
+		if (ec) return;
+		for (const auto& existing : roots)
+			if (existing == path) return;
+		roots.push_back(std::move(path));
+	};
+
+	push(OmniGhost::Paths::NativeRuntime() / L"libs");
+	push(OmniGhost::Paths::NativeRuntime());
+	push(OmniGhost::Paths::InstallDirectory() / L"libs");
+	push(OmniGhost::Paths::InstallDirectory());
+
+	wchar_t sysDir[MAX_PATH] = {};
+	if (GetSystemDirectoryW(sysDir, MAX_PATH) > 0)
+		push(sysDir);
+	wchar_t winDir[MAX_PATH] = {};
+	if (GetWindowsDirectoryW(winDir, MAX_PATH) > 0) {
+		push(fs::path(winDir) / L"System32");
+		push(fs::path(winDir) / L"SysWOW64");
+	}
+	wchar_t pf[MAX_PATH] = {};
+	if (ExpandEnvironmentStringsW(L"%ProgramFiles%", pf, MAX_PATH) > 0) {
+		push(fs::path(pf) / L"FTDI");
+		push(fs::path(pf) / L"FTD3XX");
+		push(fs::path(pf) / L"FTDI" / L"FTD3XX");
+	}
+	wchar_t pf86[MAX_PATH] = {};
+	if (ExpandEnvironmentStringsW(L"%ProgramFiles(x86)%", pf86, MAX_PATH) > 0) {
+		push(fs::path(pf86) / L"FTDI");
+		push(fs::path(pf86) / L"FTD3XX");
+	}
+
+	for (const auto& root : roots) {
+		AddSearchDir(root);
+		for (const wchar_t* name : names) {
+			if (TryLoadFtdiAt(root / name, detail))
+				return true;
+		}
+	}
+
+	for (const wchar_t* name : names) {
+		HMODULE mod = LoadLibraryW(name);
+		if (mod) {
+			g_ftdiModule = mod;
+			detail = Narrow(name) + std::string(": system search preloaded");
+			std::cout << "[DMA][Init] FTDI preloaded via system search (" << Narrow(name) << ")\n";
+			return true;
+		}
+	}
+
+	detail = "FTD3XX/FTD3XXWU not found in runtime, install dir, System32, or FTDI program folders";
+	std::cout << "[DMA][Init] " << detail << "\n";
+	std::cout << "[DMA][Init] Place FTD3XX.dll in libs\\ next to the EXE or install the FTDI D3XX driver.\n";
+	return false;
+}
+
 bool Memory::EnsureRuntimeDependencies()
 {
 	if (runtimeDependenciesInitialized_)
@@ -79,57 +240,14 @@ bool Memory::EnsureRuntimeDependencies()
 	dependencyIntegrityMessage_.clear();
 	std::wstring error;
 
-	// FTDI bridge policy (matches EXTERNAL_FTD3XXWU_ON_FPGA_OPEN):
-	// 1) Prefer private-runtime FTD3XX.dll / FTD3XXWU.dll when the embedded
-	//    manifest owns them (portable Publish builds).
-	// 2) Otherwise accept a side-by-side copy under NativeRuntime/libs or next
-	//    to the executable (dev machines with vendor drivers installed).
-	// 3) If nothing is present, do NOT hard-fail here — LeechCore loads the
-	//    FTDI DLL only when the FPGA device is opened. A missing bridge is
-	//    reported as a warning so static-VMM / PnP-only probes can continue.
-	auto ftdiOk = false;
+	// Discover + preload FTDI before LeechCore opens the FPGA.
 	std::string ftdiDetail;
-	const wchar_t* const kFtdiCandidates[] = {
-		L"libs/FTD3XX.dll",
-		L"libs/FTD3XXWU.dll",
-	};
-	for (const wchar_t* relative : kFtdiCandidates) {
-		if (ValidatePrivateRuntimeFile(relative, error)) {
-			ftdiOk = true;
-			ftdiDetail = Narrow(std::wstring(relative)) + ": private-runtime OK";
-			break;
-		}
-	}
-	if (!ftdiOk) {
-		namespace fs = std::filesystem;
-		const fs::path searchRoots[] = {
-			OmniGhost::Paths::NativeRuntime() / L"libs",
-			OmniGhost::Paths::InstallDirectory() / L"libs",
-			OmniGhost::Paths::InstallDirectory(),
-		};
-		const wchar_t* names[] = { L"FTD3XX.dll", L"FTD3XXWU.dll" };
-		for (const auto& root : searchRoots) {
-			for (const wchar_t* name : names) {
-				const fs::path candidate = root / name;
-				std::error_code ec;
-				if (fs::is_regular_file(candidate, ec) && !ec && fs::file_size(candidate, ec) > 0) {
-					ftdiOk = true;
-					ftdiDetail = Narrow(candidate.wstring()) + ": side-by-side OK";
-					break;
-				}
-			}
-			if (ftdiOk) break;
-		}
-	}
-	if (!ftdiOk) {
-		// Soft-fail: integrity still OK for session bootstrap; FPGA open will
-		// surface a real device error if the driver is truly unavailable.
-		ftdiDetail = "FTD3XX/FTD3XXWU absent from private runtime and side-by-side paths "
-			"(EXTERNAL_FTD3XXWU_ON_FPGA_OPEN — deferred to device open)";
-		std::cout << "[DMA][Init] FTDI bridge not pre-validated: " << ftdiDetail << "\n";
-	} else {
-		std::cout << "[DMA][Init] FTDI bridge: " << ftdiDetail << "\n";
-	}
+	const bool ftdiOk = PreloadFtdiBridge(ftdiDetail);
+	if (!ftdiOk)
+		std::cout << "[DMA][Init] FTDI bridge deferred: " << ftdiDetail << "\n";
+	else
+		std::cout << "[DMA][Init] FTDI bridge ready: " << ftdiDetail << "\n";
+
 
 #if !defined(OMNIGHOST_PRIVATE_STATIC_VMM)
 	// Release/Tester delay-load leechcore.dll + vmm.dll. Load them explicitly by
@@ -329,6 +447,23 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 
 	// Phase 1: open FPGA + VMM once. Device lifecycle is separate from process bind.
 	if (!DMA_INITIALIZED) {
+		{
+			// Ensure DLL search includes private runtime + install libs for FTDI.
+			namespace fs = std::filesystem;
+			const fs::path libs = OmniGhost::Paths::NativeRuntime() / L"libs";
+			AddSearchDir(libs);
+			AddSearchDir(OmniGhost::Paths::InstallDirectory() / L"libs");
+			AddSearchDir(OmniGhost::Paths::InstallDirectory());
+			if (!libs.empty())
+				SetDllDirectoryW(libs.c_str());
+			std::string ftdiDetail;
+			if (!PreloadFtdiBridge(ftdiDetail)) {
+				std::cout << "[DMA][Init] FTDI still unavailable before FPGA open: " << ftdiDetail << "\n";
+				std::cout << "[DMA][Init] Copy FTD3XX.dll (or FTD3XXWU.dll) into:\n"
+					<< "  - " << Narrow((OmniGhost::Paths::InstallDirectory() / L"libs").wstring()) << "\n"
+					<< "  - or " << Narrow(libs.wstring()) << "\n";
+			}
+		}
 		std::string mmapPath;
 		if (memMap) {
 			std::error_code ec;
@@ -366,9 +501,16 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 			std::cout << "[DMA][Init] attempt=" << attemptNo << "/" << attemptMax
 				<< " device=" << device << (useMmap && !mmapPath.empty() ? " memmap=YES" : " memmap=NO") << "\n";
 
-			PLC_CONFIG_ERRORINFO errorInfo = nullptr;
-			const VMM_HANDLE handle = VMMDLL_InitializeEx(static_cast<DWORD>(args.size()), args.data(), &errorInfo);
+			const VmmOpenResult openedNative = SafeVmmInitializeEx(static_cast<DWORD>(args.size()), args.data());
+			PLC_CONFIG_ERRORINFO errorInfo = openedNative.errorInfo;
+			const VMM_HANDLE handle = openedNative.handle;
 			std::string userMessage;
+			if (openedNative.sehFault) {
+				std::cout << "[DMA][Init] SEH fault during VMMDLL_InitializeEx code=0x"
+					<< std::hex << openedNative.sehCode << std::dec
+					<< " (FPGA/FTDI ausente ou driver instavel)\n";
+				userMessage = std::string(device) + " InitializeEx SEH fault (device/driver)";
+			}
 			if (errorInfo) {
 				if (errorInfo->dwVersion == LC_CONFIG_ERRORINFO_VERSION && errorInfo->cwszUserText)
 					userMessage = Narrow(std::wstring(errorInfo->wszUserText, errorInfo->cwszUserText));
@@ -399,7 +541,9 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 		const Candidate candidates[] = {
 			{ "fpga", false },
 			{ "fpga://algo=0", false },
+			{ "fpga://algo=1", false },
 			{ "fpga", true },
+			{ "fpga://algo=0", true },
 		};
 		constexpr int kAttemptsPerDevice = 2;
 		const int attemptMax = static_cast<int>(std::size(candidates)) * kAttemptsPerDevice;
