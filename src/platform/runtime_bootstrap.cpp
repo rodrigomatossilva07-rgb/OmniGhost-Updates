@@ -379,7 +379,7 @@ std::pair<int, int> SyncRuntimeLibraries(const fs::path& libsDir) {
                 copied++;
             } else {
                 // Embedded materialization failed, will try source dirs
-                std::cout << "[Runtime] sync libs: embedded materialize failed for " << dllName << ": " << std::string(error.begin(), error.end()) << "\n";
+                std::cout << "[Runtime] sync libs: embedded materialize failed for " << std::string(dllName, dllName + wcslen(dllName)) << ": " << std::string(error.begin(), error.end()) << "\n";
             }
         }
         
