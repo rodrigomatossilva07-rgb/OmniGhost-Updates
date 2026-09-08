@@ -22,19 +22,7 @@
 #include <vector>
 #include <iostream>
 #include <unordered_map>
-
-#ifndef LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR
-#define LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR 0x00000100
-#endif
-#ifndef LOAD_LIBRARY_SEARCH_USER_DIRS
-#define LOAD_LIBRARY_SEARCH_USER_DIRS 0x00000400
-#endif
-#ifndef LOAD_LIBRARY_SEARCH_SYSTEM32
-#define LOAD_LIBRARY_SEARCH_SYSTEM32 0x00000800
-#endif
-#ifndef LOAD_LIBRARY_SEARCH_APPLICATION_DIR
-#define LOAD_LIBRARY_SEARCH_APPLICATION_DIR 0x00000200
-#endif
+#include <set>
 
 namespace fs = std::filesystem;
 
@@ -239,29 +227,172 @@ bool ExtractBundle(const fs::path& root, std::wstring& error) {
 
 void ConfigureRuntimeDllSearch(const fs::path& libs) {
     SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_SYSTEM32 |
-        LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_USER_DIRS |
-        LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR);
-    // Prefer private runtime libs for FTDI/LeechCore resolution.
-    if (!libs.empty()) {
-        static DLL_DIRECTORY_COOKIE cookieLibs = nullptr;
-        if (!cookieLibs)
-            cookieLibs = AddDllDirectory(libs.c_str());
-        // Also set the process DLL directory so LoadLibrary("FTD3XX.dll")
-        // from static LeechCore resolves the side-by-side copy.
-        SetDllDirectoryW(libs.c_str());
+        LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_USER_DIRS);
+    static DLL_DIRECTORY_COOKIE cookie = nullptr;
+    if (!cookie) cookie = AddDllDirectory(libs.c_str());
+    // SetDllDirectoryW removed - AddDllDirectory with restricted LoadLibraryEx flags is sufficient.
+}
+
+// Synchronizes runtime libraries from embedded manifest and fallback source locations.
+// Returns pair<copied, skipped> count.
+std::pair<int, int> SyncRuntimeLibraries(const fs::path& libsDir) {
+    int copied = 0;
+    int skipped = 0;
+    int failed = 0;
+    
+    std::error_code ec;
+    fs::create_directories(libsDir, ec);
+    
+    // Required DLLs that must be present for DMA operation
+    static constexpr const wchar_t* kRequiredDlls[] = {
+        L"FTD3XX.dll",
+        L"FTD3XXWU.dll",
+        L"vmm.dll",
+        L"leechcore.dll",
+        L"pdbcrust.dll",
+        L"dbghelp.dll",
+        L"symsrv.dll",
+        L"vcruntime140.dll"
+    };
+    
+    // Build a set of DLLs available in embedded manifest
+    std::set<std::wstring> embeddedDlls;
+    for (std::size_t i = 0; i < OmniGhost::EmbeddedRuntimeGenerated::kEntryCount; ++i) {
+        const auto& entry = OmniGhost::EmbeddedRuntimeGenerated::kEntries[i];
+        const fs::path relPath(entry.relativePath);
+        if (relPath.parent_path() == L"libs") {
+            embeddedDlls.insert(relPath.filename().wstring());
+        }
     }
-    const fs::path installLibs = OmniGhost::Paths::InstallDirectory() / L"libs";
-    if (installLibs != libs) {
-        static DLL_DIRECTORY_COOKIE cookieInstall = nullptr;
-        if (!cookieInstall)
-            cookieInstall = AddDllDirectory(installLibs.c_str());
+    
+    // Source locations in priority order
+    std::vector<fs::path> sourceDirs;
+    
+    // 1. ProjectDir\third_party\dma_stack\bin (dev builds)
+    {
+        fs::path projectDir = OmniGhost::Paths::InstallDirectory();
+        // Go up to find project root (where third_party is)
+        for (int i = 0; i < 4 && !projectDir.empty(); ++i) {
+            fs::path candidate = projectDir / L"third_party" / L"dma_stack" / L"bin";
+            if (fs::is_directory(candidate, ec)) {
+                sourceDirs.push_back(candidate);
+                break;
+            }
+            projectDir = projectDir.parent_path();
+        }
     }
-    const fs::path native = OmniGhost::Paths::NativeRuntime();
-    if (!native.empty() && native != libs) {
-        static DLL_DIRECTORY_COOKIE cookieNative = nullptr;
-        if (!cookieNative)
-            cookieNative = AddDllDirectory(native.c_str());
+    
+    // 2. InstallDirectory\third_party\dma_stack\bin
+    {
+        fs::path candidate = OmniGhost::Paths::InstallDirectory() / L"third_party" / L"dma_stack" / L"bin";
+        if (fs::is_directory(candidate, ec)) {
+            sourceDirs.push_back(candidate);
+        }
     }
+    
+    // 3. InstallDirectory\libs
+    {
+        fs::path candidate = OmniGhost::Paths::InstallDirectory() / L"libs";
+        if (fs::is_directory(candidate, ec)) {
+            sourceDirs.push_back(candidate);
+        }
+    }
+    
+    // For each required DLL, ensure it exists in libsDir with correct content
+    for (const wchar_t* dllName : kRequiredDlls) {
+        fs::path target = libsDir / dllName;
+        bool hasEmbedded = embeddedDlls.find(dllName) != embeddedDlls.end();
+        bool targetExists = fs::is_regular_file(target, ec);
+        ec.clear();
+        
+        // Check if embedded version matches target
+        bool embeddedMatches = false;
+        if (hasEmbedded && targetExists) {
+            // Find the embedded entry
+            for (std::size_t i = 0; i < OmniGhost::EmbeddedRuntimeGenerated::kEntryCount; ++i) {
+                const auto& entry = OmniGhost::EmbeddedRuntimeGenerated::kEntries[i];
+                if (_wcsicmp(entry.relativePath, (L"libs/" + std::wstring(dllName)).c_str()) == 0) {
+                    std::uintmax_t targetSize = fs::file_size(target, ec);
+                    if (!ec && targetSize == entry.size) {
+                        std::string actualHash;
+                        std::string hashError;
+                        if (OmniGhost::Platform::Sha256File(target, actualHash, hashError) &&
+                            OmniGhost::Platform::ConstantTimeEquals(actualHash, OmniGhost::Platform::DigestHex(entry.sha256))) {
+                            embeddedMatches = true;
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+        
+        if (embeddedMatches) {
+            skipped++;
+            continue;
+        }
+        
+        // Try to materialize from embedded first
+        bool materialized = false;
+        if (hasEmbedded) {
+            std::wstring error;
+            if (MaterializePrivateRuntimeFile((L"libs/" + std::wstring(dllName)).c_str(), error)) {
+                materialized = true;
+                copied++;
+            } else {
+                // Embedded materialization failed, will try source dirs
+            }
+        }
+        
+        if (!materialized) {
+            // Try source directories
+            for (const auto& srcDir : sourceDirs) {
+                fs::path source = srcDir / dllName;
+                if (fs::is_regular_file(source, ec)) {
+                    // Check if source is newer/different
+                    bool shouldCopy = !targetExists;
+                    if (!shouldCopy) {
+                        std::uintmax_t srcSize = fs::file_size(source, ec);
+                        std::uintmax_t tgtSize = fs::file_size(target, ec);
+                        if (!ec && srcSize != tgtSize) {
+                            shouldCopy = true;
+                        } else if (!ec && srcSize == tgtSize) {
+                            // Compare hashes
+                            std::string srcHash, tgtHash, hashError;
+                            if (OmniGhost::Platform::Sha256File(source, srcHash, hashError) &&
+                                OmniGhost::Platform::Sha256File(target, tgtHash, hashError) &&
+                                srcHash != tgtHash) {
+                                shouldCopy = true;
+                            }
+                        }
+                    }
+                    
+                    if (shouldCopy) {
+                        fs::create_directories(target.parent_path(), ec);
+                        fs::copy_file(source, target, fs::copy_options::overwrite_existing, ec);
+                        if (!ec) {
+                            copied++;
+                            materialized = true;
+                            break;
+                        }
+                    } else {
+                        skipped++;
+                        materialized = true;
+                        break;
+                    }
+                }
+                ec.clear();
+            }
+        }
+        
+        if (!materialized && !targetExists) {
+            // DLL is required but not available anywhere
+            failed++;
+        } else if (!materialized && targetExists) {
+            skipped++;
+        }
+    }
+    
+    return {copied, skipped};
 }
 
 bool IsUpdaterWorker() {
@@ -462,6 +593,7 @@ Result Prepare() {
     const fs::path root = OmniGhost::Paths::NativeRuntime();
     const fs::path libs = root / L"libs";
     std::wstring error;
+    std::error_code ec;
 
     // The updater intentionally runs from a temporary copy. It must update the
     // installed EXE directly, not bootstrap/relaunch itself back into the file it
@@ -475,6 +607,16 @@ Result Prepare() {
         MessageBoxW(nullptr, error.c_str(), L"OmniGhost — runtime nativo", MB_OK | MB_ICONERROR);
         return Result::Failed;
     }
+    
+    // Sync runtime libraries from embedded manifest and fallback sources
+    auto [copied, skipped] = SyncRuntimeLibraries(libs);
+    std::cout << "[Runtime] sync libs: copied=" << copied << " skipped=" << skipped << "\n";
+    
+    // Verify FTDI presence
+    bool ftdiPresent = fs::is_regular_file(libs / L"FTD3XX.dll", ec) || fs::is_regular_file(libs / L"FTD3XXWU.dll", ec);
+    std::cout << "[Runtime] FTDI present=" << (ftdiPresent ? "YES" : "NO") << " path=" << libs.string() << "\n";
+    ec.clear();
+    
     ConfigureRuntimeDllSearch(libs);
     return Result::Continue;
 }

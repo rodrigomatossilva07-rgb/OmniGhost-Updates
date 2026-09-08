@@ -45,8 +45,6 @@ function Add-RuntimeFile([string]$Source, [string]$Relative) {
     if ([string]::IsNullOrWhiteSpace($relativePath) -or $relativePath.Contains('../')) {
         throw "Invalid embedded runtime path: $Relative"
     }
-    # LeechCore uses FTD3XX.dll. Embed it for the private runtime.
-    if ($relativePath -ieq 'libs/FTD3XXWU.dll') { return }
     # MemProcFS supports pdbcrust as its local PDB backend. Shipping the private
     # Microsoft dbghelp/symsrv pair as well only duplicates the same optional
     # capability; crash dumps use the Windows System32 dbghelp explicitly.
@@ -130,6 +128,40 @@ $headerLines.Add("inline constexpr std::array<Entry, $($ordered.Count)> kEntries
 
 $id = 1000
 $total = [uint64]0
+$embeddedList = @()
+$skippedList = @()
+foreach ($file in Get-ChildItem -LiteralPath (Join-Path $ProjectDir 'libs') -File -Filter '*.dll') {
+    $skippedList += "libs/$($file.Name) (from libs/)"
+}
+foreach ($file in Get-ChildItem -LiteralPath (Join-Path $ProjectDir 'third_party\dma_stack\bin') -File -Filter '*.dll') {
+    $relativePath = "libs/$($file.Name)"
+    $key = $relativePath.ToLowerInvariant()
+    if ($files.ContainsKey($key)) {
+        $embeddedList += $relativePath
+    } else {
+        $skippedList += $relativePath
+    }
+}
+foreach ($file in Get-ChildItem -LiteralPath (Join-Path $ProjectDir 'runtime\own') -File -Filter '*.dll') {
+    $relativePath = "libs/$($file.Name)"
+    $key = $relativePath.ToLowerInvariant()
+    if ($files.ContainsKey($key)) {
+        $embeddedList += $relativePath
+    } else {
+        $skippedList += $relativePath
+    }
+}
+# Add cloudflared and vcruntime to embedded list
+if ($files.ContainsKey('libs/cloudflared.exe')) { $embeddedList += 'libs/cloudflared.exe' }
+if ($files.ContainsKey('libs/vcruntime140.dll')) { $embeddedList += 'libs/vcruntime140.dll' }
+# Explicit skips
+$skippedList += 'libs/dbghelp.dll (explicit skip)'
+$skippedList += 'libs/symsrv.dll (explicit skip)'
+if ($privateStatic) {
+    $skippedList += 'libs/vmm.dll (privateStatic skip)'
+    $skippedList += 'libs/leechcore.dll (privateStatic skip)'
+}
+
 foreach ($entry in $ordered) {
     $id++
     $item = Get-Item -LiteralPath $entry.Source
@@ -146,7 +178,9 @@ $headerLines.Add('} // namespace OmniGhost::EmbeddedRuntimeGenerated')
 
 [IO.File]::WriteAllLines($RcOutput, $rcLines, (New-Object Text.UTF8Encoding($false)))
 [IO.File]::WriteAllLines($HeaderOutput, $headerLines, (New-Object Text.UTF8Encoding($false)))
-Write-Host "[EmbeddedRuntime] files=$($ordered.Count) bytes=$total"
+Write-Host "[EmbeddedRuntime] from dma_stack\bin: $($embeddedList.Count) files - $($embeddedList -join ', ')"
+Write-Host "[EmbeddedRuntime] embedded count=$($ordered.Count) total_bytes=$total"
+Write-Host "[EmbeddedRuntime] skipped: $($skippedList -join '; ')"
 Write-Host "[EmbeddedRuntime] configuration=$Configuration private_static=$privateStatic"
 Write-Host "[EmbeddedRuntime] RC include: $RcOutput"
 Write-Host "[EmbeddedRuntime] manifest: $HeaderOutput"

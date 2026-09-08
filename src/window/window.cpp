@@ -377,21 +377,11 @@ const PerformanceMode::State performance = PerformanceMode::Update(
             build = "Valorant · BETA";
             players = static_cast<int>(Valorant::runtime.players.size());
             break;
-        case OmniGhost::ActiveGame::Fortnite:
-            connected = false;
-            build = "Fortnite · BETA";
-            players = -1;
-            break;
         case OmniGhost::ActiveGame::FiveM:
+        default:
             connected = true;
             build = "FiveM";
             players = static_cast<int>(FiveM::ESP::validPeds.size());
-            break;
-        default:
-            // Launcher / no active game: never touch game runtimes.
-            connected = false;
-            build = "Launcher";
-            players = -1;
             break;
         }
 
