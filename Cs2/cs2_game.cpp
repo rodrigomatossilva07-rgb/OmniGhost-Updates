@@ -642,9 +642,19 @@ bool Attach() {
     if (!mem.vHandle) {
         status = "Inicializando DMA";
         std::cout << "[CS2] " << status << std::endl;
-        if (!mem.Init("", true, false)) {
-            status = "DMA offline";
-            std::cout << "[CS2] " << status << std::endl;
+        try {
+            if (!mem.Init("", true, false)) {
+                status = "DMA offline";
+                std::cout << "[CS2] " << status << std::endl;
+                return false;
+            }
+        } catch (const std::exception& ex) {
+            status = "Exceção ao inicializar DMA: " + std::string(ex.what());
+            std::cerr << "[CS2] CRASH em mem.Init: " << ex.what() << std::endl;
+            return false;
+        } catch (...) {
+            status = "Erro desconhecido ao inicializar DMA";
+            std::cerr << "[CS2] CRASH desconhecido em mem.Init" << std::endl;
             return false;
         }
     }
@@ -656,9 +666,15 @@ bool Attach() {
     // Attach may fail briefly while the process is still starting; retry.
     bool attached = false;
     for (int a = 0; a < 30; ++a) {
-        if (mem.Init("cs2.exe", false, false) || mem.Init("CS2.exe", false, false)) {
-            attached = true;
-            break;
+        try {
+            if (mem.Init("cs2.exe", false, false) || mem.Init("CS2.exe", false, false)) {
+                attached = true;
+                break;
+            }
+        } catch (const std::exception& ex) {
+            std::cerr << "[CS2] Attach retry " << a << " exception: " << ex.what() << std::endl;
+        } catch (...) {
+            std::cerr << "[CS2] Attach retry " << a << " unknown exception" << std::endl;
         }
         status = "A anexar cs2.exe...";
         std::cout << "[CS2] Attach retry " << a << std::endl;
@@ -672,15 +688,23 @@ bool Attach() {
 
     // client.dll is mapped late during boot — wait up to ~60s.
     for (int attempt = 0; attempt < 120; ++attempt) {
-        if (ResolveModuleBases())
-            break;
+        try {
+            if (ResolveModuleBases())
+                break;
+        } catch (const std::exception& ex) {
+            std::cerr << "[CS2] ResolveModuleBases attempt " << attempt << " exception: " << ex.what() << std::endl;
+        } catch (...) {
+            std::cerr << "[CS2] ResolveModuleBases attempt " << attempt << " unknown exception" << std::endl;
+        }
         if (attempt % 5 == 0)
             std::cout << "[CS2] client.dll ainda nao resolvido (" << attempt << ")" << std::endl;
         status = "A aguardar client.dll...";
         Sleep(500);
         // Re-bind process every few seconds in case DMA handle went stale
         if (attempt > 0 && (attempt % 10) == 0) {
-            mem.Init("cs2.exe", false, false) || mem.Init("CS2.exe", false, false);
+            try {
+                mem.Init("cs2.exe", false, false) || mem.Init("CS2.exe", false, false);
+            } catch (...) {}
         }
     }
     if (!runtime.client_base) {
