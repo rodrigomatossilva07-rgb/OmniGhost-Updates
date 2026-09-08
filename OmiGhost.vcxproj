@@ -326,6 +326,8 @@
     <ClCompile Include="Fivem\game\game_setup.cpp"/>
     <ClCompile Include="Fivem\game\offsets.cpp"/>
     <ClCompile Include="Fivem\playerInfo\PedData.cpp"/>
+    <ClCompile Include="Fivem\fivem_radar.cpp"/>
+    <ClCompile Include="Fivem\fivem_radar_config.cpp"/>
     <ClCompile Include="Cs2\cs2_aim.cpp"/>
     <ClCompile Include="Cs2\cs2_esp.cpp"/>
     <ClCompile Include="Cs2\cs2_game.cpp"/>

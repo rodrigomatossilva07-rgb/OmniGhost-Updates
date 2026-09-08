@@ -4,6 +4,7 @@
 #include <ws2tcpip.h>
 #include <Windows.h>
 #include <iphlpapi.h>
+#include <shellapi.h>
 
 #include "platform/app_paths.h"
 #include "platform/embedded_resources.h"
@@ -17,6 +18,8 @@
 #include "game/offsets.h"
 #include "game/esp_manager.h"
 #include "playerInfo/PedData.h"
+#include "config/app_settings.h"
+#include "../../DMALibrary/Memory/Memory.h"
 
 #include <atomic>
 #include <algorithm>
@@ -35,6 +38,7 @@
 #include <optional>
 #include <sstream>
 #include <string>
+#include <cstdint>
 #include <string_view>
 #include <thread>
 #include <stop_token>
@@ -54,9 +58,11 @@ std::atomic<bool> g_starting{ false };
 std::atomic<int>  g_port{ 8080 };
 std::atomic<bool> g_lan{ false };
 std::atomic<bool> g_public_access_requested{ false };
+std::atomic<bool> g_cf_running{ false };
 
 std::mutex g_data_mutex;
 std::string g_json = "{\"players\":[]}";
+std::string g_json_etag = "\"0\"";
 std::string g_access_token;
 
 std::mutex g_state_mutex;
@@ -599,20 +605,34 @@ void ServerThread(std::stop_token stopToken, bool lan, int port)
         } else if (request.target == "/fivem_webradar") {
             response = HttpResponse(426, "Upgrade Required",
                 "text/plain; charset=utf-8", "Usa o transporte HTTP autenticado");
-        } else if (request.target == "/api/state") {
+        } else if (request.target == "/api/state" || request.target == "/api/players") {
             std::string snapshot;
+            std::string etag;
             {
                 std::lock_guard<std::mutex> lock(g_data_mutex);
                 snapshot = g_json;
+                etag = g_json_etag;
             }
-            response = HttpResponse(200, "OK", "application/json; charset=utf-8", snapshot);
-        } else if (request.target == "/api/players") {
-            std::string snapshot;
+            std::string ifNone;
             {
-                std::lock_guard<std::mutex> lock(g_data_mutex);
-                snapshot = g_json;
+                constexpr const char kKey[] = "If-None-Match:";
+                const auto pos = requestText.find(kKey);
+                if (pos != std::string::npos) {
+                    auto start = pos + sizeof(kKey) - 1;
+                    while (start < requestText.size() && (requestText[start] == ' ' || requestText[start] == '\t'))
+                        ++start;
+                    auto end = requestText.find("\r\n", start);
+                    if (end == std::string::npos) end = requestText.size();
+                    ifNone = requestText.substr(start, end - start);
+                }
             }
-            response = HttpResponse(200, "OK", "application/json; charset=utf-8", snapshot);
+            if (!ifNone.empty() && !etag.empty() && ifNone == etag) {
+                response = HttpResponse(304, "Not Modified", "application/json; charset=utf-8", "",
+                    std::string("\r\nETag: ") + etag);
+            } else {
+                response = HttpResponse(200, "OK", "application/json; charset=utf-8", snapshot,
+                    std::string("\r\nETag: ") + etag);
+            }
         } else if (request.target == "/api/health") {
             response = HttpResponse(200, "OK", "application/json; charset=utf-8",
                 web_assets_ready ? "{\"status\":\"ok\",\"assets\":true}"
@@ -709,26 +729,43 @@ void EnsureRunning(int port, bool lan)
     EnsureServer(use_port, lan);
 }
 
+void StartCloudflareTunnel(int local_port);
+void StopCloudflareTunnel();
+
 void Update()
 {
+    static bool s_configLoaded = false;
+    if (!s_configLoaded) { LoadConfig(); s_configLoaded = true; }
     static ULONGLONG s_lastJsonMs = 0;
     const ULONGLONG nowMs = GetTickCount64();
-    if (s_lastJsonMs && (nowMs - s_lastJsonMs) < 66)
-        return;
-    s_lastJsonMs = nowMs;
+    const auto& cfg = Fivem_Radar::config;
 
-    const auto& cfg = app_settings::config;
-
-    if (!cfg.fivem_webradar_enabled) {
-        if (g_requested.load() || g_online.load() || g_starting.load())
+    if (!cfg.enabled) {
+        if (g_requested.load() || g_online.load() || g_starting.load() || g_cf_running.load())
             Shutdown();
         return;
     }
 
-    const int port = (cfg.fivem_webradar_port >= 1024 && cfg.fivem_webradar_port <= 65535)
-        ? cfg.fivem_webradar_port
+    // Rate from config (5–60 Hz), default ~15 Hz
+    const ULONGLONG minInterval = (ULONGLONG)(1000.0 / (std::max)(5.0f, (std::min)(60.0f, cfg.update_rate_hz)));
+    if (s_lastJsonMs && (nowMs - s_lastJsonMs) < minInterval)
+        return;
+    s_lastJsonMs = nowMs;
+
+    const int port = (cfg.port >= 1024 && cfg.port <= 65535)
+        ? cfg.port
         : 8080;
-    EnsureServer(port, cfg.fivem_webradar_lan);
+    EnsureServer(port, cfg.lan);
+
+    // Cloudflare lifecycle (menu flag → tunnel)
+    if (cfg.cloudflare) {
+        if (!g_cf_running.load())
+            StartCloudflareTunnel(port);
+    } else if (g_cf_running.load()) {
+        StopCloudflareTunnel();
+    }
+
+    const bool dmaOk = ::mem.IsDeviceOpen();
 
     const auto number = [](float value) {
         return std::isfinite(value) ? value : 0.f;
@@ -755,7 +792,7 @@ void Update()
         Vec3 localPos{};
         bool hasLocal = false;
         if (offset::localplayer) {
-            localPos = mem.Read<Vec3>(offset::localplayer + offset::playerPosition);
+            localPos = ::mem.Read<Vec3>(offset::localplayer + offset::playerPosition);
             hasLocal = !localPos.IsZero();
         }
 
@@ -766,7 +803,7 @@ void Update()
             if (pos.IsZero()) continue;
 
             bool isLocal = (ped == offset::localplayer);
-            if (isLocal && !cfg.fivem_webradar_show_local)
+            if (isLocal && !cfg.show_local)
                 continue;
 
             std::string name = "Ped";
@@ -780,47 +817,65 @@ void Update()
             // Read playerInfo for name and netId
             if (offset::playerInfo) {
                 uintptr_t pi = 0;
-                if (mem.Read(ped + offset::playerInfo, &pi, sizeof(pi)) && pi) {
+                if (::mem.Read(ped + offset::playerInfo, &pi, sizeof(pi)) && pi) {
                     char nameBuf[64]{};
-                    if (mem.Read(pi + offset::playerInfo_name, nameBuf, sizeof(nameBuf) - 1)) {
+                    if (::mem.Read(pi + offset::playerInfo_name, nameBuf, sizeof(nameBuf) - 1)) {
                         name = nameBuf;
                     }
                     // Net ID
-                    mem.Read(pi + offset::playerInfo_netId, &netId, sizeof(netId));
+                    ::mem.Read(pi + offset::playerInfo_netId, &netId, sizeof(netId));
                 }
             }
 
+            // Skip pure NPCs unless enabled (players usually resolve a non-empty name / netId)
+            if (!cfg.show_npcs && !isLocal && name == "Ped" && netId == 0)
+                continue;
+
             // Health
             if (offset::playerHealth) {
-                mem.Read(ped + offset::playerHealth, &health, sizeof(health));
+                ::mem.Read(ped + offset::playerHealth, &health, sizeof(health));
             }
 
             // Armor
-            mem.Read(ped + offset::playerArmor, &armor, sizeof(armor));
+            ::mem.Read(ped + offset::playerArmor, &armor, sizeof(armor));
 
             // Vehicle
             uintptr_t veh = 0;
-            if (mem.Read(ped + offset::pedVehicle, &veh, sizeof(veh)) && veh) {
+            if (::mem.Read(ped + offset::pedVehicle, &veh, sizeof(veh)) && veh) {
                 inVehicle = true;
                 // Try to get vehicle model name
                 uintptr_t modelInfo = 0;
-                if (mem.Read(veh + offset::vehicleModelInfo, &modelInfo, sizeof(modelInfo)) && modelInfo) {
+                if (::mem.Read(veh + offset::vehicleModelInfo, &modelInfo, sizeof(modelInfo)) && modelInfo) {
                     uintptr_t modelNamePtr = 0;
-                    if (mem.Read(modelInfo + 0x0, &modelNamePtr, sizeof(modelNamePtr)) && modelNamePtr) {
+                    if (::mem.Read(modelInfo + 0x0, &modelNamePtr, sizeof(modelNamePtr)) && modelNamePtr) {
                         char modelNameBuf[64]{};
-                        if (mem.Read(modelNamePtr, modelNameBuf, sizeof(modelNameBuf) - 1)) {
+                        if (::mem.Read(modelNamePtr, modelNameBuf, sizeof(modelNameBuf) - 1)) {
                             vehicleName = modelNameBuf;
                         }
                     }
                 }
             }
 
-            // Yaw/heading - read from entity rotation or velocity
-            // For peds, we can try to get heading from velocity direction
-            Vec3 velocity{};
-            mem.Read(ped + offset::pedVelocity, &velocity, sizeof(velocity));
-            if (!velocity.IsZero()) {
-                yaw = std::atan2(velocity.y, velocity.x);
+            // Heading: prefer entity forward from transform matrix; fallback velocity.
+            // Rage entity matrix is typically at the same base as position (CEntity + 0x60).
+            {
+                float mat[16]{};
+                const uintptr_t matrixBase = ped + offset::playerPosition - 0x30; // position at +0x90 ⇒ matrix ~+0x60
+                bool gotMatrix = ::mem.Read(matrixBase, mat, sizeof(mat));
+                if (!gotMatrix && offset::boneMatrix)
+                    gotMatrix = ::mem.Read(ped + offset::boneMatrix, mat, sizeof(mat));
+                if (gotMatrix) {
+                    // Row-major forward vector often in m[4], m[5] (second row) or m[1], m[5]
+                    const float fx = mat[4], fy = mat[5];
+                    if (std::fabs(fx) + std::fabs(fy) > 1e-3f)
+                        yaw = std::atan2(fy, fx);
+                }
+                if (yaw == 0.0f) {
+                    Vec3 velocity{};
+                    ::mem.Read(ped + offset::pedVelocity, &velocity, sizeof(velocity));
+                    if (!velocity.IsZero())
+                        yaw = std::atan2(velocity.y, velocity.x);
+                }
             }
 
             if (!first)
@@ -835,9 +890,9 @@ void Update()
 
             json << "{\"id\":" << (netId ? netId : (int)ped)
                  << ",\"name\":\"" << JsonEscape(name.c_str()) << "\""
-                 << ",\"x\":" << number(relX)
-                 << ",\"y\":" << number(relY)
-                 << ",\"z\":" << number(relZ)
+                 << ",\"x\":" << number(pos.x)
+                 << ",\"y\":" << number(pos.y)
+                 << ",\"z\":" << number(pos.z)
                  << ",\"yaw\":" << number(compass(yaw))
                  << ",\"health\":" << number(health)
                  << ",\"armor\":" << number(armor)
@@ -849,15 +904,24 @@ void Update()
         }
     }
 
-    json << "]}";
+    json << "],\"objects\":[],\"dma_status\":\"" << (dmaOk ? (playerCount ? "online" : "idle") : "offline") << "\"}";
 
     std::lock_guard<std::mutex> lock(g_data_mutex);
     g_json = json.str();
-    std::cout << "[FiveM Radar] JSON update: " << playerCount << " players" << std::endl;
+    {
+        std::uint64_t h = 14695981039346656037ull;
+        for (unsigned char c : g_json) { h ^= c; h *= 1099511628211ull; }
+        g_json_etag = "\"" + std::to_string(g_json.size()) + "-" + std::to_string(h) + "\"";
+    }
+    static ULONGLONG s_lastLog = 0;
+    if (nowMs - s_lastLog > 3000) {
+        s_lastLog = nowMs;
+        std::cout << "[FiveM Radar] players=" << playerCount
+                  << " dma=" << (dmaOk ? "ok" : "off") << std::endl;
+    }
 }
 
 // ── Cloudflare quick tunnel (cloudflared) ─────────────────────────────────
-std::atomic<bool> g_cf_running{ false };
 HANDLE g_cf_process = nullptr;
 HANDLE g_cf_stdout_rd = nullptr;
 std::mutex g_cf_mutex;
@@ -1014,6 +1078,17 @@ const char* PublicUrl() {
     if (!g_public_url.empty() && !g_access_token.empty()) {
         snap = g_public_url;
         if (snap.back() != '/') snap.push_back('/');
+        snap.push_back('#');
+        snap += g_access_token;
+    }
+    return snap.c_str();
+}
+
+const char* LocalUrl() {
+    static thread_local std::string snap;
+    std::lock_guard<std::mutex> lock(g_state_mutex);
+    snap = "http://127.0.0.1:" + std::to_string(g_port.load()) + "/";
+    if (!g_access_token.empty()) {
         snap.push_back('#');
         snap += g_access_token;
     }

@@ -1,165 +1,38 @@
 <!DOCTYPE html>
-<html lang="pt" dir="ltr">
+<html lang="pt">
 <head>
-	<title>Radar FiveM — OmniGhost</title>
 	<meta charset="utf-8">
-	<link rel="icon" href="/img/icon-64x64.png" sizes="64x64" type="image/png">
-
+	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+	<title>OmniGhost · FiveM Web Radar</title>
 	<link rel="stylesheet" href="/css/main.css">
 	<link rel="stylesheet" href="/css/map.css">
 	<link rel="stylesheet" href="/css/custom.css">
-    <link rel="preload" as="image" href="img/icon-64x64.png">
-    <link rel="preload" as="style" href="css/main.css">
-    <link rel="preload" as="script" href="js/main.js">
-
-<body>
-	<button id="settings-toggle" class="settings-toggle" title="Configurações" data-i18n-title="settings_toggle_title" aria-label="Configurações">
-	<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-		<path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
-	</svg>
-</button>
-<button id="rotate90-toggle" class="settings-toggle rotate90-toggle" title="Rotacionar 90°" data-i18n-title="rotate90_title" aria-label="Rotacionar 90°">
-	<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-		<path d="M12 5V2L8 6l4 4V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
-	</svg>
-</button>
-<div id="conn-status" class="conn-status conn-status--connecting">...</div>
-
-	<div id="settings-panel" class="settings-panel" hidden>
-		<div class="settings-header">
-			<h2 data-i18n="settings_title">Configurações do Radar</h2>
-			<button id="settings-reset" class="settings-reset" title="Restaurar padrões" data-i18n="settings_reset" data-i18n-title="settings_reset_title">Restaurar</button>
-		</div>
-		<div class="settings-body">
-			<div class="settings-group" data-group="language">
-				<div class="settings-row">
-					<label for="cfg-language" data-i18n="settings_language">Idioma</label>
-					<select id="cfg-language">
-						<option value="pt">Português</option>
-						<option value="en">English</option>
-						<option value="es">Español</option>
-					</select>
-				</div>
-			</div>
-			<div class="settings-group" data-group="display">
-				<h3 data-i18n="group_display">Exibição</h3>
-				<div class="settings-row">
-					<label for="cfg-showNames" data-i18n="showNames">Mostrar nomes</label>
-					<input type="checkbox" id="cfg-showNames" data-config="radar.showNames" checked>
-				</div>
-				<div class="settings-row">
-					<label for="cfg-showArrows" data-i18n="showArrows">Mostrar setas de direção</label>
-					<input type="checkbox" id="cfg-showArrows" data-config="radar.showArrows" checked>
-				</div>
-				<div class="settings-row">
-					<label for="cfg-showHealth" data-i18n="showHealth">Mostrar vida</label>
-					<input type="checkbox" id="cfg-showHealth" data-config="radar.showHealth" checked>
-				</div>
-				<div class="settings-row">
-					<label for="cfg-showArmor" data-i18n="showArmor">Mostrar colete</label>
-					<input type="checkbox" id="cfg-showArmor" data-config="radar.showArmor">
-				</div>
-				<div class="settings-row">
-					<label for="cfg-showVehicles" data-i18n="showVehicles">Mostrar veículos</label>
-					<input type="checkbox" id="cfg-showVehicles" data-config="radar.showVehicles" checked>
-				</div>
-				<div class="settings-row">
-					<label for="cfg-followRotation" data-i18n="followRotation">Mapa segue rotação</label>
-					<input type="checkbox" id="cfg-followRotation" data-config="radar.followRotation">
-				</div>
-				<div class="settings-row">
-					<label for="cfg-playerDotScale" data-i18n="playerDotScale">Tamanho dos pontos</label>
-					<div class="settings-control">
-						<input type="range" id="cfg-playerDotScale" data-config="radar.playerDotScale" min="0.3" max="1.5" step="0.1" value="0.7">
-						<span class="settings-value" data-value-for="radar.playerDotScale">0.7</span>
-					</div>
-				</div>
-			</div>
-			<div class="settings-group" data-group="name">
-				<h3 data-i18n="group_name">Nomes</h3>
-				<div class="settings-row">
-					<label for="cfg-showName" data-i18n="showName">Modo de exibição</label>
-					<select id="cfg-showName" data-config="radar.showName">
-						<option value="never" data-i18n="opt_never">Nunca</option>
-						<option value="always" data-i18n="opt_always">Sempre</option>
-						<option value="hover" data-i18n="opt_hover">Ao passar mouse</option>
-					</select>
-				</div>
-				<div class="settings-row">
-					<label for="cfg-maxNameLength" data-i18n="maxNameLength">Comprimento máximo</label>
-					<div class="settings-control">
-						<input type="range" id="cfg-maxNameLength" data-config="radar.maxNameLength" min="4" max="20" step="1" value="12">
-						<span class="settings-value" data-value-for="radar.maxNameLength">12</span>
-					</div>
-				</div>
-			</div>
-			<div class="settings-group" data-group="map">
-				<h3 data-i18n="group_map">Mapa</h3>
-				<div class="settings-row">
-					<label for="cfg-mapStyle" data-i18n="mapStyle">Estilo do mapa</label>
-					<select id="cfg-mapStyle" data-config="radar.mapStyle">
-						<option value="satellite" data-i18n="opt_satellite">Satélite</option>
-						<option value="roadmap" data-i18n="opt_roadmap">Ruas</option>
-						<option value="hybrid" data-i18n="opt_hybrid">Híbrido</option>
-					</select>
-				</div>
-				<div class="settings-row">
-					<label for="cfg-autoZoom" data-i18n="autoZoom">Zoom automático</label>
-					<input type="checkbox" id="cfg-autoZoom" data-config="radar.autoZoom" checked>
-				</div>
-				<div class="settings-row">
-					<label for="cfg-minZoom" data-i18n="minZoom">Zoom mínimo</label>
-					<div class="settings-control">
-						<input type="range" id="cfg-minZoom" data-config="radar.minZoom" min="1" max="5" step="0.1" value="1.5">
-						<span class="settings-value" data-value-for="radar.minZoom">1.5</span>
-					</div>
-				</div>
-			</div>
-			<div class="settings-group" data-group="filter">
-				<h3 data-i18n="group_filter">Filtros</h3>
-				<div class="settings-row">
-					<label for="cfg-filterPlayers" data-i18n="filterPlayers">Apenas jogadores</label>
-					<input type="checkbox" id="cfg-filterPlayers" data-config="radar.filterPlayers" checked>
-				</div>
-				<div class="settings-row">
-					<label for="cfg-filterNPCs" data-i18n="filterNPCs">Mostrar NPCs</label>
-					<input type="checkbox" id="cfg-filterNPCs" data-config="radar.filterNPCs">
-				</div>
-				<div class="settings-row">
-					<label for="cfg-filterVehicles" data-i18n="filterVehicles">Apenas em veículos</label>
-					<input type="checkbox" id="cfg-filterVehicles" data-config="radar.filterVehicles">
-				</div>
-				<div class="settings-row">
-					<label for="cfg-maxDistance" data-i18n="maxDistance">Distância máxima (m)</label>
-					<div class="settings-control">
-						<input type="range" id="cfg-maxDistance" data-config="radar.maxDistance" min="500" max="10000" step="100" value="5000">
-						<span class="settings-value" data-value-for="radar.maxDistance">5000</span>
-					</div>
-				</div>
-			</div>
-			<div class="settings-group" data-group="theme">
-				<h3 data-i18n="group_theme">Tema</h3>
-				<div class="settings-row">
-					<label for="cfg-theme" data-i18n="theme">Tema</label>
-					<select id="cfg-theme" data-config="radar.theme">
-						<option value="dark" data-i18n="opt_dark">Escuro</option>
-						<option value="light" data-i18n="opt_light">Claro</option>
-						<option value="tactical" data-i18n="opt_tactical">Tático</option>
-					</select>
-				</div>
-			</div>
-		</div>
+	<link rel="icon" href="/img/icon-64x64.png">
+</head>
+<body data-theme="omnighost-dark">
+	<div id="offline-banner" class="offline-banner" hidden>
+		<strong>DMA / ligação offline</strong> — à espera de dados do OmniGhost…
 	</div>
+
+	<header id="topbar" class="topbar">
+		<div class="brand">OmniGhost <span>FiveM Radar</span></div>
+		<div id="conn-status" class="conn-status conn-status--error">Offline</div>
+		<div class="topbar-actions">
+			<button type="button" id="minimap-toggle" title="Mini-mapa (M)">Mini</button>
+			<button type="button" id="operator-toggle" title="Operator mode">Operator</button>
+			<button type="button" id="settings-toggle" title="Settings">⚙</button>
+		</div>
+	</header>
 
 	<aside id="player-list" class="player-panel player-panel-right">
 		<div class="player-panel-header">
-			<h3 data-i18n="players_title">Jogadores (<span id="player-count">0</span>)</h3>
+			<h3>Jogadores (<span id="player-count">0</span>)</h3>
 			<div class="player-panel-controls">
-				<input type="text" id="player-search" placeholder="Pesquisar..." data-i18n-placeholder="search_placeholder">
+				<input type="text" id="player-search" placeholder="Pesquisar (/ ou Ctrl+F)">
 				<select id="player-sort">
-					<option value="distance" data-i18n="sort_distance">Distância</option>
-					<option value="name" data-i18n="sort_name">Nome</option>
-					<option value="health" data-i18n="sort_health">Vida</option>
+					<option value="distance">Distância</option>
+					<option value="name">Nome</option>
+					<option value="health">Vida</option>
 				</select>
 			</div>
 		</div>
@@ -167,38 +40,70 @@
 			<table id="player-table">
 				<thead>
 					<tr>
-						<th data-i18n="col_name">Nome</th>
-						<th data-i18n="col_dist">Dist.</th>
-						<th data-i18n="col_hp">HP</th>
-						<th data-i18n="col_armor">Colete</th>
-						<th data-i18n="col_vehicle">Veículo</th>
-						<th data-i18n="col_dir">Dir.</th>
+						<th>Nome</th><th>Dist.</th><th>HP</th><th>Colete</th><th>Veículo</th><th>Dir.</th>
 					</tr>
 				</thead>
 				<tbody id="player-tbody"></tbody>
 			</table>
 		</div>
+		<div class="player-panel-header objects-header">
+			<h3>Objetos (<span id="object-count">0</span>)</h3>
+			<input type="text" id="object-search" placeholder="Pesquisar objetos…">
+		</div>
+		<div id="object-table-container">
+			<table id="object-table">
+				<thead><tr><th>Nome</th><th>Cat.</th><th>Dist.</th></tr></thead>
+				<tbody id="object-tbody"></tbody>
+			</table>
+		</div>
 	</aside>
+
+	<div id="settings-panel" class="settings-panel" hidden>
+		<h3>Definições</h3>
+		<label><input type="checkbox" id="set-names" checked> Nomes</label>
+		<label><input type="checkbox" id="set-trails" checked> Trails</label>
+		<label><input type="checkbox" id="set-cone" checked> Cone de look</label>
+		<label><input type="checkbox" id="set-objects" checked> Objetos no mapa</label>
+		<label><input type="checkbox" id="set-heatmap"> Heatmap sessão</label>
+		<label><input type="checkbox" id="set-rotate"> Rodar com local</label>
+		<p class="hint">Duplo-clique na lista: pin (máx 3) + seguir. Teclas: M mini · R rotação · Esc limpar</p>
+	</div>
 
 	<div id="container">
 		<div id="radar">
-			<img id="radarBackground" src="/img/maps/gta5_map.jpg" alt="Mapa GTA V">
-			<img id="radarCayo" src="/img/maps/cayo_perico.jpg" alt="Cayo Perico" hidden>
+			<img id="radarBackground" class="map-layer map-visible" src="/img/maps/gta5_map.webp" alt="Mapa GTA V" draggable="false">
+			<img id="radarCayo" class="map-layer" src="/img/maps/cayo_perico.webp" alt="Cayo Perico" hidden draggable="false">
+			<canvas id="radar-canvas" class="radar-canvas"></canvas>
 		</div>
-
-		<div id="entities"></div>
-
-		<div id="unknownMap">
-		<span data-i18n="unsupported_map">
-			Mapa não suportado
-		</span>
+		<div id="unknownMap" hidden>
+			<span>Sem dados de mapa / DMA offline</span>
+		</div>
 	</div>
-</div>
 
-<script src="/js/i18n.js"></script>
-<script src="/js/main.js"></script>
-<script src="/js/map.js"></script>
-<script src="/js/playerList.js"></script>
-<script src="/js/settings.js"></script>
+	<script src="/js/i18n.js"></script>
+	<script src="/js/map.js"></script>
+	<script src="/js/main.js"></script>
+	<script src="/js/playerList.js"></script>
+	<script src="/js/settings.js"></script>
+	<script>
+		document.addEventListener('DOMContentLoaded', () => {
+			const bind = (id, key, def) => {
+				const el = document.getElementById(id);
+				if (!el || !window.RadarApp) return;
+				el.checked = RadarApp.state.settings[key] !== undefined ? !!RadarApp.state.settings[key] : def;
+				el.addEventListener('change', () => {
+					RadarApp.state.settings[key] = el.checked;
+					if (key === 'followRotation') RadarApp.state.followRotation = el.checked;
+					RadarApp.saveSettings();
+				});
+			};
+			bind('set-names', 'showNames', true);
+			bind('set-trails', 'showTrails', true);
+			bind('set-cone', 'showLookCone', true);
+			bind('set-objects', 'showObjects', true);
+			bind('set-heatmap', 'heatmap', false);
+			bind('set-rotate', 'followRotation', false);
+		});
+	</script>
 </body>
 </html>

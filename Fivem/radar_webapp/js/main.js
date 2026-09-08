@@ -1,59 +1,68 @@
-/* main.js - FiveM Radar Core Application */
-
+/* main.js - FiveM Web Radar (professional / CS2-parity features) */
 const RadarApp = {
-	// State
 	state: {
 		connected: false,
 		connecting: false,
 		players: [],
+		objects: [],
 		localPlayer: null,
 		selectedPlayerId: null,
 		followingPlayerId: null,
+		watchlist: [], // up to 3 ids
+		stickyId: null,
+		stickyUntil: 0,
 		mapType: 'los_santos',
 		inCayo: false,
-		zoom: 1.5,
-		minZoom: 1.5,
-		maxZoom: 8,
+		zoom: 1.2,
+		minZoom: 0.6,
+		maxZoom: 12,
 		centerX: 0,
 		centerY: 0,
 		rotation: 0,
 		followRotation: false,
 		autoZoom: true,
+		minimapMode: false,
+		operatorMode: false,
 		lastUpdate: 0,
 		updateInterval: null,
-		apiBase: '',
 		accessToken: '',
 		settings: {},
-		dmaStatus: 'offline'
+		dmaStatus: 'offline',
+		etag: '',
+		trails: new Map(), // id -> [{x,y,t}]
+		heatmap: [],
+		combatIds: new Set(),
+		lastPositions: new Map()
 	},
-	
-	// DOM elements
+
 	elements: {},
-	
-	// Constants
+	canvas: null,
+	ctx: null,
+	raf: 0,
+
 	CONFIG: {
-		API_POLL_INTERVAL: 100,
+		API_POLL_INTERVAL: 120,
 		STALE_THRESHOLD: 5000,
-		ZOOM_SPEED: 0.15,
-		PAN_SPEED: 0.5,
-		SMOOTHING: 0.15,
-		MAP_BOUNDS: {
-			los_santos: { x: [-4000, 4000], y: [-4000, 8000] },
-			cayo_perico: { x: [4500, 7500], y: [-3500, -500] }
-		}
+		TRAIL_MS: 8000,
+		TRAIL_MAX: 48,
+		STICKY_MS: 1500,
+		COMBAT_SPEED: 8.5, // m/s approx threshold via world units/s
+		CANVAS_ENTITY_THRESHOLD: 50
 	},
-	
-	// Initialize
+
 	init() {
 		this.cacheElements();
 		this.loadSettings();
+		this.setupCanvas();
 		this.setupEventListeners();
 		this.detectAccessToken();
+		this.applyTheme();
+		if (window.MapRenderer) MapRenderer.bindImageLoadHandlers();
 		this.startPolling();
-		this.initMap();
-		console.log('[FiveM Radar] Initialized');
+		this.loop();
+		console.log('[FiveM Radar] Initialized (multi-res + pro features)');
 	},
-	
+
 	cacheElements() {
 		this.elements = {
 			connStatus: document.getElementById('conn-status'),
@@ -67,697 +76,590 @@ const RadarApp = {
 			playerSort: document.getElementById('player-sort'),
 			settingsPanel: document.getElementById('settings-panel'),
 			settingsToggle: document.getElementById('settings-toggle'),
-			rotateToggle: document.getElementById('rotate90-toggle'),
-			settingsReset: document.getElementById('settings-reset'),
-			playerPanel: document.getElementById('player-list'),
 			unknownMap: document.getElementById('unknownMap'),
-			zoomIn: document.getElementById('zoom-in'),
-			zoomOut: document.getElementById('zoom-out'),
-			resetView: document.getElementById('reset-view')
+			offlineBanner: document.getElementById('offline-banner'),
+			objectTbody: document.getElementById('object-tbody'),
+			objectCount: document.getElementById('object-count'),
+			objectSearch: document.getElementById('object-search'),
+			minimapBtn: document.getElementById('minimap-toggle'),
+			operatorBtn: document.getElementById('operator-toggle')
 		};
 	},
-	
-	detectAccessToken() {
-		const hash = window.location.hash.slice(1);
-		if (hash) {
-			this.state.accessToken = decodeURIComponent(hash);
-			console.log('[FiveM Radar] Access token detected from URL');
+
+	setupCanvas() {
+		let c = document.getElementById('radar-canvas');
+		if (!c && this.elements.radar) {
+			c = document.createElement('canvas');
+			c.id = 'radar-canvas';
+			c.className = 'radar-canvas';
+			this.elements.radar.appendChild(c);
 		}
+		this.canvas = c;
+		this.ctx = c ? c.getContext('2d') : null;
+		this.resizeCanvas();
+		window.addEventListener('resize', () => this.resizeCanvas());
 	},
-	
+
+	resizeCanvas() {
+		if (!this.canvas || !this.elements.radar) return;
+		const rect = this.elements.radar.getBoundingClientRect();
+		const dpr = Math.min(window.devicePixelRatio || 1, 3);
+		this.canvas.width = Math.max(1, Math.floor(rect.width * dpr));
+		this.canvas.height = Math.max(1, Math.floor(rect.height * dpr));
+		this.canvas.style.width = rect.width + 'px';
+		this.canvas.style.height = rect.height + 'px';
+		if (this.ctx) this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+	},
+
 	loadSettings() {
-		const saved = localStorage.getItem('fivem_radar_settings');
-		if (saved) {
-			try {
-				this.state.settings = JSON.parse(saved);
-				this.applySettings(this.state.settings);
-			} catch (e) {
-				console.warn('[FiveM Radar] Failed to parse settings:', e);
-			}
-		}
-		// Apply defaults
-		this.state.settings = Object.assign({
-			showNames: true,
-			showArrows: true,
-			showHealth: true,
-			showArmor: false,
-			showVehicles: true,
-			followRotation: false,
-			playerDotScale: 0.7,
-			showName: 'always',
-			maxNameLength: 12,
-			mapStyle: 'satellite',
-			autoZoom: true,
-			minZoom: 1.5,
-			filterPlayers: true,
-			filterNPCs: false,
-			filterVehicles: false,
-			maxDistance: 5000,
-			theme: 'dark'
-		}, this.state.settings);
-		
-		this.applySettings(this.state.settings);
+		try {
+			this.state.settings = JSON.parse(localStorage.getItem('fivem_radar_settings') || '{}');
+		} catch { this.state.settings = {}; }
+		const s = this.state.settings;
+		this.state.followRotation = !!s.followRotation;
+		this.state.autoZoom = s.autoZoom !== false;
+		this.state.minimapMode = !!s.minimapMode;
+		this.state.operatorMode = !!s.operatorMode;
+		this.state.watchlist = Array.isArray(s.watchlist) ? s.watchlist.slice(0, 3) : [];
+		document.body.classList.toggle('minimap-mode', this.state.minimapMode);
+		document.body.classList.toggle('operator-mode', this.state.operatorMode);
 	},
-	
+
 	saveSettings() {
+		this.state.settings.followRotation = this.state.followRotation;
+		this.state.settings.autoZoom = this.state.autoZoom;
+		this.state.settings.minimapMode = this.state.minimapMode;
+		this.state.settings.operatorMode = this.state.operatorMode;
+		this.state.settings.watchlist = this.state.watchlist;
 		localStorage.setItem('fivem_radar_settings', JSON.stringify(this.state.settings));
 	},
-	
-	applySettings(settings) {
-		// Apply theme
-		document.documentElement.setAttribute('data-theme', settings.theme);
-		
-		// Apply to inputs
-		Object.keys(settings).forEach(key => {
-			const el = document.querySelector(`[data-config="radar.${key}"]`);
-			if (el) {
-				if (el.type === 'checkbox') el.checked = settings[key];
-				else if (el.type === 'range') {
-					el.value = settings[key];
-					const valEl = document.querySelector(`[data-value-for="radar.${key}"]`);
-					if (valEl) valEl.textContent = settings[key];
-				} else {
-					el.value = settings[key];
-				}
-			}
-		});
-		
-		this.updateMapStyle();
-	},
-	
-	setupEventListeners() {
-		// Settings panel
-		this.elements.settingsToggle.addEventListener('click', () => this.toggleSettings());
-		this.elements.rotateToggle.addEventListener('click', () => this.toggleRotation());
-		this.elements.settingsReset.addEventListener('click', () => this.resetSettings());
-		
-		// Settings inputs
-		document.querySelectorAll('[data-config]').forEach(el => {
-			const key = el.getAttribute('data-config').replace('radar.', '');
-			if (el.type === 'checkbox') {
-				el.addEventListener('change', (e) => this.updateSetting(key, e.target.checked));
-			} else if (el.type === 'range') {
-				el.addEventListener('input', (e) => {
-					this.updateSetting(key, parseFloat(e.target.value));
-					const valEl = document.querySelector(`[data-value-for="radar.${key}"]`);
-					if (valEl) valEl.textContent = e.target.value;
-				});
-			} else {
-				el.addEventListener('change', (e) => this.updateSetting(key, e.target.value));
-			}
-		});
-		
-		// Player list
-		this.elements.playerSearch.addEventListener('input', (e) => this.filterPlayers(e.target.value));
-		this.elements.playerSort.addEventListener('change', (e) => this.sortPlayers(e.target.value));
-		
-		// Map controls
-		if (this.elements.zoomIn) this.elements.zoomIn.addEventListener('click', () => this.zoom(1));
-		if (this.elements.zoomOut) this.elements.zoomOut.addEventListener('click', () => this.zoom(-1));
-		if (this.elements.resetView) this.elements.resetView.addEventListener('click', () => this.resetView());
-		
-		// Map interactions
-		this.elements.radar.addEventListener('wheel', (e) => this.handleWheel(e));
-		this.elements.radar.addEventListener('mousedown', (e) => this.startPan(e));
-		this.elements.radar.addEventListener('dblclick', (e) => this.handleDoubleClick(e));
-		
-		// Keyboard
-		document.addEventListener('keydown', (e) => this.handleKeyDown(e));
-		
-		// Window
-		window.addEventListener('resize', () => this.handleResize());
-		window.addEventListener('beforeunload', () => this.cleanup());
-	},
-	
+
 	updateSetting(key, value) {
 		this.state.settings[key] = value;
 		this.saveSettings();
-		
-		switch (key) {
-			case 'theme':
-				document.documentElement.setAttribute('data-theme', value);
-				break;
-			case 'followRotation':
-				this.state.followRotation = value;
-				break;
-			case 'autoZoom':
-				this.state.autoZoom = value;
-				break;
-			case 'minZoom':
-				this.state.minZoom = value;
-				if (this.state.zoom < value) this.setZoom(value);
-				break;
-			case 'mapStyle':
-				this.updateMapStyle();
-				break;
-			case 'playerDotScale':
-				this.updateAllMarkerSizes();
-				break;
-		}
 	},
-	
+
+	applyTheme() {
+		document.documentElement.setAttribute('data-theme', this.state.settings.theme || 'omnighost-dark');
+	},
+
+	detectAccessToken() {
+		const hash = (location.hash || '').replace(/^#/, '');
+		const q = new URLSearchParams(location.search);
+		this.state.accessToken = q.get('t') || q.get('token') || hash || '';
+	},
+
+	setupEventListeners() {
+		const r = this.elements.radar;
+		if (r) {
+			r.addEventListener('wheel', (e) => {
+				e.preventDefault();
+				const dir = e.deltaY > 0 ? -1 : 1;
+				this.state.zoom = Math.min(this.state.maxZoom, Math.max(this.state.minZoom,
+					this.state.zoom * (1 + dir * 0.12)));
+				this.state.autoZoom = false;
+				this.syncMapTransform();
+			}, { passive: false });
+			let dragging = false, lx = 0, ly = 0;
+			r.addEventListener('mousedown', (e) => { dragging = true; lx = e.clientX; ly = e.clientY; });
+			window.addEventListener('mouseup', () => { dragging = false; });
+			window.addEventListener('mousemove', (e) => {
+				if (!dragging) return;
+				this.state.centerX += e.clientX - lx;
+				this.state.centerY += e.clientY - ly;
+				lx = e.clientX; ly = e.clientY;
+				this.state.autoZoom = false;
+				this.syncMapTransform();
+			});
+		}
+		if (this.elements.playerSearch)
+			this.elements.playerSearch.addEventListener('input', () => this.updatePlayerList());
+		if (this.elements.playerSort)
+			this.elements.playerSort.addEventListener('change', () => this.updatePlayerList());
+		if (this.elements.objectSearch)
+			this.elements.objectSearch.addEventListener('input', () => this.updateObjectList());
+		if (this.elements.settingsToggle)
+			this.elements.settingsToggle.addEventListener('click', () => this.toggleSettings());
+		if (this.elements.minimapBtn)
+			this.elements.minimapBtn.addEventListener('click', () => this.toggleMinimap());
+		if (this.elements.operatorBtn)
+			this.elements.operatorBtn.addEventListener('click', () => this.toggleOperator());
+
+		document.addEventListener('keydown', (e) => {
+			if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+			if (e.key === '/' || (e.key === 'f' && e.ctrlKey)) {
+				e.preventDefault();
+				this.elements.playerSearch?.focus();
+			}
+			if (e.key === 'm') this.toggleMinimap();
+			if (e.key === 'r') {
+				this.state.followRotation = !this.state.followRotation;
+				this.saveSettings();
+			}
+			if (e.key === 'Escape') {
+				this.state.selectedPlayerId = null;
+				this.state.followingPlayerId = null;
+			}
+			if (e.key === 'f' && this.state.selectedPlayerId)
+				this.state.followingPlayerId = this.state.selectedPlayerId;
+		});
+	},
+
 	toggleSettings() {
-		const hidden = this.elements.settingsPanel.hasAttribute('hidden');
-		if (hidden) {
-			this.elements.settingsPanel.removeAttribute('hidden');
-		} else {
-			this.elements.settingsPanel.setAttribute('hidden', '');
-		}
+		const p = this.elements.settingsPanel;
+		if (!p) return;
+		if (p.hasAttribute('hidden')) p.removeAttribute('hidden');
+		else p.setAttribute('hidden', '');
 	},
-	
-	toggleRotation() {
-		this.state.followRotation = !this.state.followRotation;
-		this.updateSetting('followRotation', this.state.followRotation);
-		const el = document.querySelector('[data-config="radar.followRotation"]');
-		if (el) el.checked = this.state.followRotation;
+
+	toggleMinimap() {
+		this.state.minimapMode = !this.state.minimapMode;
+		document.body.classList.toggle('minimap-mode', this.state.minimapMode);
+		this.saveSettings();
+		this.resizeCanvas();
+		this.syncMapTransform();
 	},
-	
-	resetSettings() {
-		localStorage.removeItem('fivem_radar_settings');
-		this.state.settings = {};
-		this.loadSettings();
+
+	toggleOperator() {
+		this.state.operatorMode = !this.state.operatorMode;
+		document.body.classList.toggle('operator-mode', this.state.operatorMode);
+		this.saveSettings();
 	},
-	
-	// Connection & Polling
+
+	syncMapTransform() {
+		if (window.MapRenderer)
+			MapRenderer.applyMapImageTransform(this.state, this.state.mapType);
+	},
+
 	startPolling() {
 		if (this.state.updateInterval) clearInterval(this.state.updateInterval);
 		this.state.updateInterval = setInterval(() => this.pollState(), this.CONFIG.API_POLL_INTERVAL);
-		this.pollState(); // Initial poll
+		this.pollState();
 	},
-	
+
 	async pollState() {
 		if (this.state.connecting) return;
-		
+		this.state.connecting = true;
 		try {
-			const headers = this.state.accessToken ? { 'Authorization': `Bearer ${this.state.accessToken}` } : {};
-			const response = await fetch('/api/state', { 
-				cache: 'no-store',
-				headers 
-			});
-			
+			const headers = { 'Accept': 'application/json' };
+			if (this.state.accessToken) headers['Authorization'] = `Bearer ${this.state.accessToken}`;
+			if (this.state.etag) headers['If-None-Match'] = this.state.etag;
+			const response = await fetch('/api/state', { cache: 'no-store', headers });
+			if (response.status === 304) {
+				this.updateConnectionStatus(true);
+				return;
+			}
 			if (!response.ok) throw new Error(`HTTP ${response.status}`);
-			
+			const et = response.headers.get('ETag');
+			if (et) this.state.etag = et;
 			const data = await response.json();
 			this.handleStateUpdate(data);
 			this.updateConnectionStatus(true);
-			
-		} catch (error) {
-			console.warn('[FiveM Radar] Poll failed:', error.message);
+		} catch (err) {
+			console.warn('[FiveM Radar] Poll failed:', err.message);
 			this.updateConnectionStatus(false);
+		} finally {
+			this.state.connecting = false;
 		}
 	},
-	
+
 	updateConnectionStatus(connected) {
-		const wasConnected = this.state.connected;
+		const was = this.state.connected;
 		this.state.connected = connected;
-		
-		if (connected && !wasConnected) {
-			this.elements.connStatus.textContent = t('radar_online');
-			this.elements.connStatus.className = 'conn-status conn-status--online';
-			this.elements.unknownMap.hidden = true;
+		if (this.elements.connStatus) {
+			if (connected) {
+				this.elements.connStatus.textContent = (window.t && t('radar_online')) || 'Online';
+				this.elements.connStatus.className = 'conn-status conn-status--online';
+			} else {
+				this.elements.connStatus.textContent = (window.t && t('dma_offline')) || 'DMA offline';
+				this.elements.connStatus.className = 'conn-status conn-status--error';
+			}
+		}
+		if (this.elements.offlineBanner)
+			this.elements.offlineBanner.hidden = connected;
+		if (this.elements.unknownMap)
+			this.elements.unknownMap.hidden = connected;
+		if (this.elements.radar)
 			this.elements.radar.hidden = false;
-		} else if (!connected && wasConnected) {
-			this.elements.connStatus.textContent = t('dma_offline');
-			this.elements.connStatus.className = 'conn-status conn-status--error';
-			this.elements.unknownMap.hidden = false;
-			this.elements.radar.hidden = true;
-		}
 	},
-	
+
 	handleStateUpdate(data) {
-		if (!data || !data.players) return;
-		
-		this.state.players = data.players;
+		if (!data) return;
+		this.state.players = Array.isArray(data.players) ? data.players : [];
+		this.state.objects = Array.isArray(data.objects) ? data.objects : [];
 		this.state.lastUpdate = Date.now();
-		
-		// Find local player
-		this.state.localPlayer = data.players.find(p => p.is_local) || null;
-		
-		// Update DMA status
 		if (data.dma_status) this.state.dmaStatus = data.dma_status;
-		
-		// Update UI
+		this.state.localPlayer = this.state.players.find(p => p.is_local || p.local) || null;
+
+		this.updateTrailsAndCombat();
+		this.updateHeatmapSample();
+
+		// Sticky selection
+		if (this.state.stickyId && Date.now() < this.state.stickyUntil) {
+			const still = this.state.players.find(p => String(p.id) === String(this.state.stickyId));
+			if (still) this.state.selectedPlayerId = still.id;
+		}
+
+		if (this.state.localPlayer && window.MapRenderer) {
+			const mt = MapRenderer.getMapTypeForPosition(this.state.localPlayer);
+			this.setMapType(mt);
+			if (this.state.followRotation && typeof this.state.localPlayer.yaw === 'number')
+				this.state.rotation = this.state.localPlayer.yaw;
+		}
+
+		if (this.state.followingPlayerId) this.followPlayer(this.state.followingPlayerId);
+		else if (this.state.autoZoom) this.autoZoomToPlayers();
+
 		this.updatePlayerList();
-		this.updateMapMarkers();
-		this.updatePlayerCount();
-		
-		// Auto-zoom to fit all players
-		if (this.state.autoZoom && !this.state.followingPlayerId) {
-			this.autoZoomToPlayers();
-		}
-		
-		// Follow selected player
-		if (this.state.followingPlayerId) {
-			this.followPlayer(this.state.followingPlayerId);
-		}
-		
-		// Check for Cayo Perico
-		this.checkCayoTransition();
+		this.updateObjectList();
+		this.syncMapTransform();
 	},
-	
-	updatePlayerCount() {
-		const count = this.state.players.filter(p => !p.is_local || this.state.settings.show_local).length;
-		if (this.elements.playerCount) {
-			this.elements.playerCount.textContent = count;
+
+	updateTrailsAndCombat() {
+		const now = Date.now();
+		const nextCombat = new Set();
+		for (const p of this.state.players) {
+			const id = String(p.id);
+			const x = p.x, y = p.y;
+			if (typeof x !== 'number' || typeof y !== 'number') continue;
+			let trail = this.state.trails.get(id);
+			if (!trail) { trail = []; this.state.trails.set(id, trail); }
+			const last = this.state.lastPositions.get(id);
+			if (last) {
+				const dt = (now - last.t) / 1000;
+				if (dt > 0.05 && dt < 2) {
+					const dist = Math.hypot(x - last.x, y - last.y);
+					const speed = dist / dt;
+					if (speed > this.CONFIG.COMBAT_SPEED) nextCombat.add(id);
+				}
+			}
+			this.state.lastPositions.set(id, { x, y, t: now });
+			trail.push({ x, y, t: now });
+			while (trail.length > this.CONFIG.TRAIL_MAX) trail.shift();
+			while (trail.length && now - trail[0].t > this.CONFIG.TRAIL_MS) trail.shift();
+		}
+		this.state.combatIds = nextCombat;
+	},
+
+	updateHeatmapSample() {
+		if (!this.state.settings.heatmap) return;
+		for (const p of this.state.players) {
+			if (typeof p.x === 'number' && typeof p.y === 'number')
+				this.state.heatmap.push({ x: p.x, y: p.y, t: Date.now() });
+		}
+		const cut = Date.now() - 120000;
+		this.state.heatmap = this.state.heatmap.filter(h => h.t > cut).slice(-400);
+	},
+
+	setMapType(type) {
+		if (this.state.mapType === type) return;
+		this.state.mapType = type;
+		this.state.inCayo = type === 'cayo_perico';
+		const bg = this.elements.radarBackground;
+		const cayo = this.elements.radarCayo;
+		const radar = this.elements.radar;
+		if (radar) radar.classList.toggle('cayo-active', this.state.inCayo);
+		// Crossfade via CSS classes
+		if (bg && cayo) {
+			if (this.state.inCayo) {
+				cayo.hidden = false;
+				requestAnimationFrame(() => {
+					cayo.classList.add('map-visible');
+					bg.classList.remove('map-visible');
+				});
+			} else {
+				bg.classList.add('map-visible');
+				cayo.classList.remove('map-visible');
+				setTimeout(() => { if (!this.state.inCayo) cayo.hidden = true; }, 400);
+			}
 		}
 	},
-	
+
+	fuzzyMatch(query, text) {
+		if (!query) return true;
+		text = (text || '').toLowerCase();
+		query = query.toLowerCase();
+		if (text.includes(query)) return true;
+		// subsequence fuzzy
+		let i = 0;
+		for (const ch of text) {
+			if (ch === query[i]) i++;
+			if (i >= query.length) return true;
+		}
+		return false;
+	},
+
+	getFilteredPlayers() {
+		const q = (this.elements.playerSearch?.value || '').trim();
+		return this.state.players.filter(p => {
+			if (p.is_local && this.state.settings.show_local === false) return false;
+			if (!q) return true;
+			return this.fuzzyMatch(q, p.name) || this.fuzzyMatch(q, p.vehicle) ||
+				String(p.id).includes(q);
+		});
+	},
+
 	updatePlayerList() {
 		if (!this.elements.playerTableBody) return;
-		
-		const players = this.getFilteredPlayers();
 		const sortBy = this.elements.playerSort?.value || 'distance';
-		
+		const players = this.getFilteredPlayers().slice();
 		players.sort((a, b) => {
+			// watchlist first
+			const aw = this.state.watchlist.includes(String(a.id)) ? 0 : 1;
+			const bw = this.state.watchlist.includes(String(b.id)) ? 0 : 1;
+			if (aw !== bw) return aw - bw;
 			if (sortBy === 'name') return (a.name || '').localeCompare(b.name || '');
 			if (sortBy === 'health') return (b.health || 0) - (a.health || 0);
 			return (a.distance || 0) - (b.distance || 0);
 		});
-		
-		this.elements.playerTableBody.innerHTML = players.map(p => this.renderPlayerRow(p)).join('');
-		
-		// Add click handlers
-		this.elements.playerTableBody.querySelectorAll('tr').forEach((row, idx) => {
-			row.addEventListener('click', () => this.selectPlayer(players[idx].id));
-			row.addEventListener('dblclick', () => this.followPlayer(players[idx].id));
+		if (this.elements.playerCount)
+			this.elements.playerCount.textContent = String(players.length);
+
+		const useDom = players.length < this.CONFIG.CANVAS_ENTITY_THRESHOLD;
+		this.elements.playerTableBody.innerHTML = players.map(p => {
+			const id = String(p.id);
+			const sel = String(this.state.selectedPlayerId) === id ? ' selected' : '';
+			const pin = this.state.watchlist.includes(id) ? '📌 ' : '';
+			const combat = this.state.combatIds.has(id) ? ' combat' : '';
+			return `<tr class="player-row${sel}${combat}" data-id="${id}">
+				<td>${pin}${this.escape(p.name || 'Unknown')}</td>
+				<td>${(p.distance != null ? Math.round(p.distance) + 'm' : '—')}</td>
+				<td>${p.health != null ? Math.round(p.health) : '—'}</td>
+				<td>${p.armor != null ? Math.round(p.armor) : '—'}</td>
+				<td>${this.escape(p.vehicle || '')}</td>
+				<td>${p.yaw != null ? Math.round(p.yaw) + '°' : '—'}</td>
+			</tr>`;
+		}).join('');
+
+		this.elements.playerTableBody.querySelectorAll('tr.player-row').forEach(row => {
+			row.addEventListener('click', () => this.selectPlayer(row.getAttribute('data-id'), true));
+			row.addEventListener('dblclick', () => {
+				const id = row.getAttribute('data-id');
+				this.toggleWatchlist(id);
+				this.state.followingPlayerId = id;
+				this.selectPlayer(id, true);
+			});
 		});
 	},
-	
-	getFilteredPlayers() {
-		return this.state.players.filter(p => {
-			if (p.is_local && !this.state.settings.show_local) return false;
-			if (this.state.settings.filterPlayers && !p.is_player) return false;
-			if (!this.state.settings.filterNPCs && !p.is_player) return false;
-			if (this.state.settings.filterVehicles && !p.in_vehicle) return false;
-			if (this.state.settings.maxDistance && p.distance > this.state.settings.maxDistance) return false;
-			return true;
+
+	updateObjectList() {
+		if (!this.elements.objectTbody) return;
+		const q = (this.elements.objectSearch?.value || '').trim().toLowerCase();
+		let objs = this.state.objects.slice();
+		if (q) {
+			objs = objs.filter(o =>
+				this.fuzzyMatch(q, o.display || o.name) ||
+				this.fuzzyMatch(q, o.category) ||
+				String(o.hash || '').includes(q));
+		}
+		objs.sort((a, b) => (a.dist || 0) - (b.dist || 0));
+		if (this.elements.objectCount)
+			this.elements.objectCount.textContent = String(objs.length);
+		this.elements.objectTbody.innerHTML = objs.map(o => {
+			const id = String(o.id || o.hash);
+			return `<tr class="object-row" data-id="${this.escape(id)}">
+				<td>${this.escape(o.display || o.name || o.hash || '?')}</td>
+				<td>${this.escape(o.category || '')}</td>
+				<td>${o.dist != null ? Math.round(o.dist) + 'm' : '—'}</td>
+			</tr>`;
+		}).join('') || `<tr><td colspan="3" class="muted">Sem objetos</td></tr>`;
+		this.elements.objectTbody.querySelectorAll('tr.object-row').forEach(row => {
+			row.addEventListener('click', () => {
+				const o = this.state.objects.find(x => String(x.id || x.hash) === row.getAttribute('data-id'));
+				if (o && window.MapRenderer)
+					MapRenderer.animateToWorld(this.state, o, this.state.mapType, { zoom: 4 });
+			});
 		});
 	},
-	
-	renderPlayerRow(player) {
-		const isSelected = player.id === this.state.selectedPlayerId;
-		const isFollowing = player.id === this.state.followingPlayerId;
-		const hpClass = (player.health || 100) > 75 ? 'high' : (player.health || 100) > 35 ? 'med' : 'low';
-		const nameClass = player.is_local ? 'local' : (player.is_player ? '' : 'npc');
-		
-		return `
-			<tr class="${isSelected ? 'selected' : ''} ${isFollowing ? 'following' : ''}" data-id="${player.id}">
-				<td class="player-name ${nameClass}">${this.truncateName(player.name || t('unknown_player'), this.state.settings.maxNameLength)}${player.is_local ? ` <span class="local-badge">${t('local_player')}</span>` : ''}</td>
-				<td class="player-dist">${player.distance ? player.distance.toFixed(0) + 'm' : '—'}</td>
-				<td class="player-hp ${hpClass}">${player.health ? Math.round(player.health) : '—'}</td>
-				<td class="player-armor">${player.armor ? Math.round(player.armor) : '—'}</td>
-				<td class="player-vehicle">${player.in_vehicle ? (player.vehicle || t('in_vehicle')) : t('on_foot')}</td>
-				<td class="player-dir">${player.yaw !== undefined ? Math.round(player.yaw) + '°' : '—'}</td>
-			</tr>
-		`;
+
+	escape(s) {
+		return String(s ?? '').replace(/[&<>"']/g, c => ({
+			'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+		})[c]);
 	},
-	
-	truncateName(name, maxLen) {
-		if (name.length <= maxLen) return name;
-		return name.substring(0, maxLen - 1) + '…';
+
+	selectPlayer(id, zoom) {
+		this.state.selectedPlayerId = id;
+		this.state.stickyId = id;
+		this.state.stickyUntil = Date.now() + this.CONFIG.STICKY_MS;
+		this.updatePlayerList();
+		const p = this.state.players.find(x => String(x.id) === String(id));
+		if (zoom && p && window.MapRenderer)
+			MapRenderer.animateToWorld(this.state, p, this.state.mapType, { zoom: Math.max(this.state.zoom, 3.5) });
 	},
-	
-	filterPlayers(query) {
-		const rows = this.elements.playerTableBody.querySelectorAll('tr');
-		const q = query.toLowerCase();
-		rows.forEach(row => {
-			const name = row.querySelector('.player-name').textContent.toLowerCase();
-			row.style.display = name.includes(q) ? '' : 'none';
-		});
-	},
-	
-	sortPlayers(sortBy) {
+
+	toggleWatchlist(id) {
+		id = String(id);
+		const i = this.state.watchlist.indexOf(id);
+		if (i >= 0) this.state.watchlist.splice(i, 1);
+		else {
+			if (this.state.watchlist.length >= 3) this.state.watchlist.shift();
+			this.state.watchlist.push(id);
+		}
+		this.saveSettings();
 		this.updatePlayerList();
 	},
-	
-	selectPlayer(playerId) {
-		this.state.selectedPlayerId = playerId;
-		
-		// Update row highlight
-		this.elements.playerTableBody.querySelectorAll('tr').forEach(row => {
-			row.classList.toggle('selected', row.dataset.id == playerId);
-		});
-		
-		// Highlight marker
-		this.highlightMarker(playerId);
-		
-		// Center on player (single click)
-		const player = this.state.players.find(p => p.id == playerId);
-		if (player) this.centerOnPlayer(player, false);
+
+	followPlayer(id) {
+		const p = this.state.players.find(x => String(x.id) === String(id));
+		if (!p || !window.MapRenderer) return;
+		const screen = MapRenderer.worldToRadar(p, { ...this.state, centerX: 0, centerY: 0 }, this.state.mapType);
+		const m = MapRenderer.getRadarMetrics();
+		this.state.centerX += (m.centerX - screen.x) * 0.2;
+		this.state.centerY += (m.centerY - screen.y) * 0.2;
 	},
-	
-	followPlayer(playerId) {
-		this.state.followingPlayerId = playerId;
-		this.state.selectedPlayerId = playerId;
-		
-		// Update row highlight
-		this.elements.playerTableBody.querySelectorAll('tr').forEach(row => {
-			row.classList.toggle('following', row.dataset.id == playerId);
-			row.classList.toggle('selected', row.dataset.id == playerId);
-		});
-		
-		const player = this.state.players.find(p => p.id == playerId);
-		if (player) this.centerOnPlayer(player, true);
-	},
-	
-	stopFollowing() {
-		this.state.followingPlayerId = null;
-		this.elements.playerTableBody.querySelectorAll('tr').forEach(row => {
-			row.classList.remove('following');
-		});
-	},
-	
-	centerOnPlayer(player, follow) {
-		if (!player) return;
-		
-		const targetX = player.x;
-		const targetY = -player.y; // Invert Y for screen coords
-		
-		if (follow) {
-			this.state.followingPlayerId = player.id;
-		}
-		
-		this.smoothPanTo(targetX, targetY);
-	},
-	
-	highlightMarker(playerId) {
-		// Remove previous highlights
-		document.querySelectorAll('.player-marker.highlighted').forEach(m => m.classList.remove('highlighted'));
-		
-		// Add highlight
-		const marker = document.querySelector(`.player-marker[data-id="${playerId}"]`);
-		if (marker) {
-			marker.classList.add('highlighted');
-			setTimeout(() => marker.classList.remove('highlighted'), 2000);
-		}
-	},
-	
-	// Map Functions
-	initMap() {
-		this.state.zoom = this.state.settings.minZoom || 1.5;
-		this.state.minZoom = this.state.settings.minZoom || 1.5;
-		this.applyTransform();
-		this.updateMapStyle();
-	},
-	
-	updateMapStyle() {
-		const style = this.state.settings.mapStyle || 'satellite';
-		// Could switch map tiles here
-		console.log('[FiveM Radar] Map style:', style);
-	},
-	
-	applyTransform() {
-		const { zoom, centerX, centerY, rotation } = this.state;
-		const transform = `translate(${centerX}px, ${centerY}px) scale(${zoom}) rotate(${rotation}deg)`;
-		
-		this.elements.radarBackground.style.transform = transform;
-		this.elements.radarCayo.style.transform = transform;
-		this.elements.entities.style.transform = transform;
-	},
-	
-	setZoom(level) {
-		this.state.zoom = Math.max(this.state.minZoom, Math.min(this.state.maxZoom, level));
-		this.applyTransform();
-	},
-	
-	zoom(direction) {
-		const factor = direction > 0 ? 1.2 : 0.833;
-		this.setZoom(this.state.zoom * factor);
-	},
-	
-	handleWheel(e) {
-		e.preventDefault();
-		const direction = e.deltaY < 0 ? 1 : -1;
-		this.zoom(direction);
-	},
-	
-	startPan(e) {
-		if (e.target.closest('.player-marker')) return;
-		
-		const startX = e.clientX;
-		const startY = e.clientY;
-		const startCenterX = this.state.centerX;
-		const startCenterY = this.state.centerY;
-		
-		const onMove = (e) => {
-			const dx = (e.clientX - startX) / this.state.zoom;
-			const dy = (e.clientY - startY) / this.state.zoom;
-			this.state.centerX = startCenterX + dx;
-			this.state.centerY = startCenterY + dy;
-			this.applyTransform();
-		};
-		
-		const onUp = () => {
-			document.removeEventListener('mousemove', onMove);
-			document.removeEventListener('mouseup', onUp);
-		};
-		
-		document.addEventListener('mousemove', onMove);
-		document.addEventListener('mouseup', onUp);
-	},
-	
-	handleDoubleClick(e) {
-		if (e.target.closest('.player-marker')) return;
-		this.resetView();
-	},
-	
-	smoothPanTo(targetX, targetY) {
-		const animate = () => {
-			const dx = targetX - this.state.centerX;
-			const dy = targetY - this.state.centerY;
-			
-			if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) {
-				this.state.centerX = targetX;
-				this.state.centerY = targetY;
-				this.applyTransform();
-				return;
-			}
-			
-			this.state.centerX += dx * this.CONFIG.SMOOTHING;
-			this.state.centerY += dy * this.CONFIG.SMOOTHING;
-			this.applyTransform();
-			requestAnimationFrame(animate);
-		};
-		
-		requestAnimationFrame(animate);
-	},
-	
-	resetView() {
-		this.stopFollowing();
-		this.state.centerX = 0;
-		this.state.centerY = 0;
-		this.setZoom(this.state.minZoom);
-	},
-	
+
 	autoZoomToPlayers() {
-		const players = this.getFilteredPlayers().filter(p => !p.is_local);
-		if (players.length === 0) return;
-		
-		let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-		players.forEach(p => {
-			minX = Math.min(minX, p.x);
-			maxX = Math.max(maxX, p.x);
-			minY = Math.min(minY, p.y);
-			maxY = Math.max(maxY, p.y);
-		});
-		
-		const padding = 200;
-		const width = (maxX - minX) + padding * 2;
-		const height = (maxY - minY) + padding * 2;
-		
-		const radarRect = this.elements.radar.getBoundingClientRect();
-		const zoomX = radarRect.width / width;
-		const zoomY = radarRect.height / height;
-		const zoom = Math.min(zoomX, zoomY, this.state.maxZoom);
-		
-		this.state.centerX = -(minX + maxX) / 2 * zoom;
-		this.state.centerY = (minY + maxY) / 2 * zoom; // Y inverted
-		this.setZoom(Math.max(zoom, this.state.minZoom));
+		if (!this.state.players.length || !window.MapRenderer) return;
+		// Lightweight: keep current zoom; only soft-center on local
+		const lp = this.state.localPlayer;
+		if (lp) {
+			const screen = MapRenderer.worldToRadar(lp, { ...this.state, centerX: 0, centerY: 0 }, this.state.mapType);
+			const m = MapRenderer.getRadarMetrics();
+			this.state.centerX += (m.centerX - screen.x) * 0.08;
+			this.state.centerY += (m.centerY - screen.y) * 0.08;
+		}
 	},
-	
-	checkCayoTransition() {
-		if (!this.state.localPlayer) return;
-		
-		const { x, y } = this.state.localPlayer;
-		const inCayo = x > 4500 && x < 7500 && y < -500 && y > -3500;
-		
-		if (inCayo !== this.state.inCayo) {
-			this.state.inCayo = inCayo;
-			this.state.mapType = inCayo ? 'cayo_perico' : 'los_santos';
-			
-			this.elements.radarBackground.hidden = inCayo;
-			this.elements.radarCayo.hidden = !inCayo;
-			
-			// Show indicator
-			if (inCayo) {
-				this.showCayoIndicator();
+
+	loop() {
+		this.drawMarkers();
+		this.raf = requestAnimationFrame(() => this.loop());
+	},
+
+	drawMarkers() {
+		if (!this.ctx || !this.canvas) return;
+		const ctx = this.ctx;
+		const rect = this.elements.radar.getBoundingClientRect();
+		ctx.clearRect(0, 0, rect.width, rect.height);
+		if (!this.state.connected) return;
+
+		// Heatmap
+		if (this.state.settings.heatmap && this.state.heatmap.length) {
+			for (const h of this.state.heatmap) {
+				const s = MapRenderer.worldToRadar(h, this.state, this.state.mapType);
+				ctx.fillStyle = 'rgba(232,192,64,0.04)';
+				ctx.beginPath();
+				ctx.arc(s.x, s.y, 18, 0, Math.PI * 2);
+				ctx.fill();
 			}
-			
-			// Reset view for new map
-			this.resetView();
 		}
-	},
-	
-	showCayoIndicator() {
-		let indicator = document.getElementById('cayo-indicator');
-		if (!indicator) {
-			indicator = document.createElement('div');
-			indicator.id = 'cayo-indicator';
-			indicator.className = 'cayo-indicator';
-			indicator.textContent = t('cayo_perico');
-			this.elements.radar.appendChild(indicator);
-		}
-		indicator.hidden = false;
-		setTimeout(() => { if (indicator) indicator.hidden = true; }, 5000);
-	},
-	
-	updateMapMarkers() {
-		if (!this.elements.entities) return;
-		
-		const players = this.getFilteredPlayers();
-		const existingMarkers = new Map();
-		
-		// Cache existing markers
-		this.elements.entities.querySelectorAll('.player-marker').forEach(el => {
-			existingMarkers.set(el.dataset.id, el);
-		});
-		
-		// Update or create markers
-		players.forEach(player => {
-			let marker = existingMarkers.get(player.id);
-			const isNew = !marker;
-			
-			if (isNew) {
-				marker = this.createMarker(player);
-				this.elements.entities.appendChild(marker);
+
+		// Trails
+		if (this.state.settings.showTrails !== false) {
+			for (const [id, trail] of this.state.trails) {
+				if (trail.length < 2) continue;
+				ctx.beginPath();
+				let first = true;
+				for (const pt of trail) {
+					const s = MapRenderer.worldToRadar(pt, this.state, this.state.mapType);
+					if (first) { ctx.moveTo(s.x, s.y); first = false; }
+					else ctx.lineTo(s.x, s.y);
+				}
+				ctx.strokeStyle = this.state.watchlist.includes(id) ? 'rgba(232,192,64,0.55)' : 'rgba(100,180,255,0.35)';
+				ctx.lineWidth = 2;
+				ctx.stroke();
 			}
-			
-			this.updateMarker(marker, player);
-			existingMarkers.delete(player.id);
-		});
-		
-		// Remove stale markers
-		existingMarkers.forEach(marker => marker.remove());
-	},
-	
-	createMarker(player) {
-		const marker = document.createElement('div');
-		marker.className = `player-marker ${player.is_local ? 'local' : (player.is_player ? 'player' : 'npc')} ${player.in_vehicle ? 'in-vehicle' : ''}`;
-		marker.dataset.id = player.id;
-		marker.style.left = `${player.x}px`;
-		marker.style.top = `${-player.y}px`; // Invert Y
-		
-		marker.innerHTML = `
-			<div class="marker-dot"></div>
-			<div class="marker-arrow"></div>
-			<div class="marker-label">${this.truncateName(player.name || t('unknown_player'), this.state.settings.maxNameLength)}</div>
-			<div class="vehicle-ring"></div>
-		`;
-		
-		marker.addEventListener('click', (e) => {
-			e.stopPropagation();
-			this.selectPlayer(player.id);
-		});
-		
-		marker.addEventListener('dblclick', (e) => {
-			e.stopPropagation();
-			this.followPlayer(player.id);
-		});
-		
-		return marker;
-	},
-	
-	updateMarker(marker, player) {
-		const dot = marker.querySelector('.marker-dot');
-		const arrow = marker.querySelector('.marker-arrow');
-		const label = marker.querySelector('.marker-label');
-		const ring = marker.querySelector('.vehicle-ring');
-		
-		// Position
-		marker.style.left = `${player.x}px`;
-		marker.style.top = `${-player.y}px`;
-		
-		// Rotation (yaw)
-		if (this.state.settings.showArrows && player.yaw !== undefined && arrow) {
-			arrow.style.transform = `translate(-50%, -50%) rotate(${player.yaw}deg)`;
-			arrow.style.display = 'block';
-		} else if (arrow) {
-			arrow.style.display = 'none';
 		}
-		
-		// Label
-		if (label) {
-			label.textContent = this.truncateName(player.name || t('unknown_player'), this.state.settings.maxNameLength);
-			label.style.display = this.state.settings.showNames ? 'block' : 'none';
+
+		// Objects
+		if (this.state.settings.showObjects !== false) {
+			for (const o of this.state.objects) {
+				const s = MapRenderer.worldToRadar(o, this.state, this.state.mapType);
+				const col = this.categoryColor(o.category);
+				ctx.fillStyle = col;
+				ctx.fillRect(s.x - 3, s.y - 3, 6, 6);
+				if (this.state.settings.showObjectNames && (o.display || o.name)) {
+					ctx.fillStyle = '#ddd';
+					ctx.font = '10px Segoe UI, sans-serif';
+					ctx.fillText(o.display || o.name, s.x + 6, s.y + 3);
+				}
+			}
 		}
-		
-		// Vehicle ring
-		if (ring) {
-			ring.style.display = player.in_vehicle ? 'block' : 'none';
-		}
-		
-		// Dot size
-		const scale = this.state.settings.playerDotScale || 0.7;
-		if (dot) {
-			const baseSize = 12;
-			dot.style.width = `${baseSize * scale}px`;
-			dot.style.height = `${baseSize * scale}px`;
-		}
-		
-		// Classes
-		marker.classList.toggle('local', player.is_local);
-		marker.classList.toggle('player', player.is_player && !player.is_local);
-		marker.classList.toggle('npc', !player.is_player && !player.is_local);
-		marker.classList.toggle('in-vehicle', player.in_vehicle);
-	},
-	
-	updateAllMarkerSizes() {
-		const scale = this.state.settings.playerDotScale || 0.7;
-		const baseSize = 12;
-		document.querySelectorAll('.marker-dot').forEach(dot => {
-			dot.style.width = `${baseSize * scale}px`;
-			dot.style.height = `${baseSize * scale}px`;
-		});
-	},
-	
-	handleKeyDown(e) {
-		switch (e.key) {
-			case 'Escape':
-				this.stopFollowing();
-				this.toggleSettings();
-				break;
-			case '+':
-			case '=':
-				this.zoom(1);
-				break;
-			case '-':
-				this.zoom(-1);
-				break;
-			case '0':
-				this.resetView();
-				break;
-			case 'r':
-				this.toggleRotation();
-				break;
-			case 'f':
-				if (this.state.selectedPlayerId) this.followPlayer(this.state.selectedPlayerId);
-				break;
+
+		// Players
+		for (const p of this.state.players) {
+			if (typeof p.x !== 'number') continue;
+			const s = MapRenderer.worldToRadar(p, this.state, this.state.mapType);
+			const id = String(p.id);
+			const isLocal = !!(p.is_local || p.local);
+			const selected = String(this.state.selectedPlayerId) === id;
+			const watched = this.state.watchlist.includes(id);
+			const combat = this.state.combatIds.has(id);
+
+			// look cone
+			if (typeof p.yaw === 'number' && this.state.settings.showLookCone !== false) {
+				const rad = ((p.yaw - (this.state.followRotation ? this.state.rotation : 0)) - 90) * Math.PI / 180;
+				ctx.beginPath();
+				ctx.moveTo(s.x, s.y);
+				ctx.arc(s.x, s.y, 22, rad - 0.35, rad + 0.35);
+				ctx.closePath();
+				ctx.fillStyle = isLocal ? 'rgba(80,200,120,0.2)' : 'rgba(220,80,80,0.18)';
+				ctx.fill();
+			}
+
+			// armor ring
+			const hp = Math.max(0, Math.min(100, p.health ?? 100));
+			const ar = Math.max(0, Math.min(100, p.armor ?? 0));
+			ctx.beginPath();
+			ctx.arc(s.x, s.y, 11, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (ar / 100));
+			ctx.strokeStyle = 'rgba(100,160,255,0.9)';
+			ctx.lineWidth = 2;
+			ctx.stroke();
+			// hp ring
+			ctx.beginPath();
+			ctx.arc(s.x, s.y, 8, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (hp / 100));
+			ctx.strokeStyle = hp > 50 ? '#3dce6a' : hp > 25 ? '#e0c040' : '#e05050';
+			ctx.lineWidth = 2;
+			ctx.stroke();
+
+			// body
+			ctx.beginPath();
+			ctx.arc(s.x, s.y, selected ? 6.5 : 5, 0, Math.PI * 2);
+			ctx.fillStyle = isLocal ? '#4ade80' : watched ? '#e8c040' : combat ? '#ff6b4a' : '#f07178';
+			ctx.fill();
+			if (selected) {
+				ctx.strokeStyle = '#fff';
+				ctx.lineWidth = 1.5;
+				ctx.stroke();
+			}
+
+			// yaw arrow
+			if (typeof p.yaw === 'number') {
+				const rad = ((p.yaw - (this.state.followRotation ? this.state.rotation : 0)) - 90) * Math.PI / 180;
+				const len = 14;
+				ctx.beginPath();
+				ctx.moveTo(s.x, s.y);
+				ctx.lineTo(s.x + Math.cos(rad) * len, s.y + Math.sin(rad) * len);
+				ctx.strokeStyle = '#fff';
+				ctx.lineWidth = 2;
+				ctx.stroke();
+			}
+
+			if (this.state.settings.showNames !== false && p.name) {
+				ctx.font = '11px Segoe UI, sans-serif';
+				ctx.fillStyle = 'rgba(0,0,0,0.55)';
+				const label = p.name.length > 18 ? p.name.slice(0, 16) + '…' : p.name;
+				const tw = ctx.measureText(label).width;
+				ctx.fillRect(s.x - tw / 2 - 3, s.y + 10, tw + 6, 14);
+				ctx.fillStyle = '#f2f2f2';
+				ctx.textAlign = 'center';
+				ctx.fillText(label, s.x, s.y + 21);
+				ctx.textAlign = 'left';
+			}
 		}
 	},
-	
-	handleResize() {
-		if (this.state.autoZoom && !this.state.followingPlayerId) {
-			this.autoZoomToPlayers();
-		}
-	},
-	
-	cleanup() {
-		if (this.state.updateInterval) clearInterval(this.state.updateInterval);
+
+	categoryColor(cat) {
+		const c = (cat || '').toLowerCase();
+		if (c.includes('loot')) return '#e8c040';
+		if (c.includes('mission')) return '#60a5fa';
+		if (c.includes('police')) return '#3b82f6';
+		if (c.includes('medical')) return '#f87171';
+		if (c.includes('vehicle')) return '#a78bfa';
+		if (c.includes('container')) return '#34d399';
+		return '#94a3b8';
 	}
 };
 
-// Initialize on DOM ready
 document.addEventListener('DOMContentLoaded', () => RadarApp.init());
-
-// Export for debugging
 window.RadarApp = RadarApp;

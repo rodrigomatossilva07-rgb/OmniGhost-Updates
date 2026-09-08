@@ -1,13 +1,167 @@
-/* custom.css - User customizations for FiveM Radar */
-/* This file is intentionally empty - add your custom styles here */
-
-/* Example customizations:
-:root {
-    --accent-gold: #ffd700;
-    --bg-primary: #000000;
+/* OmniGhost FiveM Radar — pro polish */
+:root, [data-theme="omnighost-dark"] {
+	--bg-primary: #0d0f12;
+	--bg-secondary: #14181f;
+	--panel-bg: rgba(18, 22, 30, 0.92);
+	--accent-gold: #e8c040;
+	--accent-blue: #5b9fd4;
+	--fg-primary: #e8eaed;
+	--fg-muted: #8b93a1;
+	--danger: #e05050;
+	--ok: #3dce6a;
 }
 
-.player-marker.custom .marker-dot {
-    background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+body {
+	background: var(--bg-primary);
+	color: var(--fg-primary);
+	font-family: "Segoe UI", system-ui, sans-serif;
+	margin: 0;
+	overflow: hidden;
 }
-*/
+
+.offline-banner {
+	position: fixed;
+	top: 0; left: 0; right: 0;
+	z-index: 1000;
+	background: linear-gradient(90deg, #5c1a1a, #3a1515);
+	color: #ffc9c9;
+	text-align: center;
+	padding: 8px 12px;
+	font-size: 13px;
+	border-bottom: 1px solid #e05050;
+}
+
+.topbar {
+	position: fixed;
+	top: 0; left: 0; right: 0;
+	height: 42px;
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 0 12px;
+	background: var(--panel-bg);
+	border-bottom: 1px solid #2a3140;
+	z-index: 50;
+}
+.brand { font-weight: 700; letter-spacing: 0.02em; }
+.brand span { color: var(--accent-gold); font-weight: 500; margin-left: 6px; }
+.topbar-actions { margin-left: auto; display: flex; gap: 6px; }
+.topbar-actions button {
+	background: #1c2330;
+	border: 1px solid #333b4a;
+	color: var(--fg-primary);
+	border-radius: 6px;
+	padding: 4px 10px;
+	cursor: pointer;
+}
+.topbar-actions button:hover { border-color: var(--accent-gold); }
+
+.conn-status--online { color: var(--ok); }
+.conn-status--error { color: var(--danger); }
+
+#container {
+	position: fixed;
+	inset: 42px 340px 0 0;
+}
+body.minimap-mode #container {
+	right: 12px;
+	bottom: 12px;
+	left: auto;
+	top: auto;
+	width: 320px;
+	height: 240px;
+	border: 1px solid #333b4a;
+	border-radius: 10px;
+	overflow: hidden;
+	box-shadow: 0 8px 32px rgba(0,0,0,0.45);
+}
+body.operator-mode .player-panel { opacity: 0.95; }
+
+#radar {
+	position: absolute;
+	inset: 0;
+	overflow: hidden;
+	background: #0a2740;
+}
+.map-layer {
+	position: absolute;
+	top: 0; left: 0;
+	opacity: 0;
+	transition: opacity 0.4s ease;
+	will-change: transform, opacity;
+	pointer-events: none;
+	max-width: none;
+}
+.map-layer.map-visible { opacity: 1; }
+.radar-canvas {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	pointer-events: none;
+}
+
+.player-panel {
+	position: fixed;
+	top: 42px;
+	right: 0;
+	bottom: 0;
+	width: 340px;
+	background: var(--panel-bg);
+	border-left: 1px solid #2a3140;
+	display: flex;
+	flex-direction: column;
+	z-index: 40;
+	backdrop-filter: blur(8px);
+}
+body.minimap-mode .player-panel { display: none; }
+
+.player-panel-header { padding: 10px 12px 6px; }
+.player-panel-header h3 { margin: 0 0 8px; font-size: 13px; }
+.player-panel-controls { display: flex; gap: 6px; }
+.player-panel-controls input,
+.player-panel-controls select,
+#object-search {
+	flex: 1;
+	background: #121722;
+	border: 1px solid #2a3140;
+	color: var(--fg-primary);
+	border-radius: 6px;
+	padding: 6px 8px;
+	font-size: 12px;
+}
+#player-table-container, #object-table-container {
+	overflow: auto;
+	flex: 1;
+}
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+th, td { padding: 6px 8px; text-align: left; border-bottom: 1px solid #1e2533; }
+th { color: var(--fg-muted); font-weight: 600; position: sticky; top: 0; background: #121722; }
+tr.player-row, tr.object-row { cursor: pointer; }
+tr.player-row:hover, tr.object-row:hover { background: rgba(232,192,64,0.08); }
+tr.player-row.selected { background: rgba(91,159,212,0.15); }
+tr.player-row.combat td:first-child { color: #ff8a70; }
+.muted { color: var(--fg-muted); text-align: center; padding: 16px; }
+
+.settings-panel {
+	position: fixed;
+	top: 52px;
+	right: 360px;
+	width: 240px;
+	background: var(--panel-bg);
+	border: 1px solid #2a3140;
+	border-radius: 10px;
+	padding: 12px;
+	z-index: 60;
+}
+.settings-panel label { display: block; margin: 8px 0; font-size: 13px; }
+.settings-panel .hint { color: var(--fg-muted); font-size: 11px; margin-top: 10px; }
+
+#unknownMap {
+	position: absolute;
+	inset: 0;
+	display: grid;
+	place-items: center;
+	color: var(--fg-muted);
+	pointer-events: none;
+}

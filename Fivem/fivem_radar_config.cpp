@@ -1,8 +1,11 @@
 #include "fivem_radar_config.h"
 #include "platform/app_paths.h"
 #include "platform/text_encoding.h"
+#include <filesystem>
 #include <fstream>
 #include <iostream>
+
+namespace fs = std::filesystem;
 
 namespace Fivem_Radar {
 

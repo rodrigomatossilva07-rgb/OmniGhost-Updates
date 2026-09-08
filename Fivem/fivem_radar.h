@@ -1,5 +1,6 @@
 #pragma once
-#include "game_setup.h"
+#include "game/game_setup.h"
+#include "fivem_radar_config.h"
 
 namespace Fivem_Radar {
     void Update();
@@ -10,6 +11,7 @@ namespace Fivem_Radar {
     int  Port();
     const char* Status();
     const char* LanUrl();
+    const char* LocalUrl(); // http://127.0.0.1:port/#token
     void StartCloudflareTunnel(int local_port);
     void StopCloudflareTunnel();
     bool CloudflareRunning();

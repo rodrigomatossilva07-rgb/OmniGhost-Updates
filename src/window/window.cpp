@@ -23,6 +23,9 @@
 #include "../../Rust/rust_game.h"
 #include "../../Warzone/warzone_game.h"
 #include "../../Valorant/valorant_game.h"
+#include "../../Fivem/fivem_radar.h"
+#include "../../Fivem/fivem_radar_config.h"
+#include <shellapi.h>
 #ifndef UI_PREVIEW
 #include "../launcher/launcher_assets.h"
 #endif
@@ -356,7 +359,7 @@ const PerformanceMode::State performance = PerformanceMode::Update(
         Hotkeys::Update();
         
         bool connected = false;
-        const char* build = "Execução";
+        const char* build = "Execu��o";
         int players = -1;
 
         switch (ctx.GetActiveGame()) {
@@ -372,12 +375,12 @@ const PerformanceMode::State performance = PerformanceMode::Update(
             break;
         case OmniGhost::ActiveGame::Warzone:
             connected = Warzone::ready;
-            build = "Warzone · BETA";
+            build = "Warzone � BETA";
             players = static_cast<int>(Warzone::runtime.players.size());
             break;
         case OmniGhost::ActiveGame::Valorant:
             connected = Valorant::runtime.attached;
-            build = "Valorant · BETA";
+            build = "Valorant � BETA";
             players = static_cast<int>(Valorant::runtime.players.size());
             break;
         case OmniGhost::ActiveGame::FiveM:
@@ -505,5 +508,107 @@ void Overlay::WaitForEvents(std::chrono::milliseconds timeout) {
 }
 
 
+// FiveM Web Radar page - CS2-parity controls + tokenized URLs
+void DrawFivemWebRadar() {
+    using namespace Fivem_Radar;
+    using namespace CyberWidgets;
+
+    if (config.enabled) {
+        const int port = (config.port >= 1024 && config.port <= 65535) ? config.port : 8080;
+        config.port = port;
+        EnsureRunning(port, config.lan);
+        if (config.cloudflare && !CloudflareRunning())
+            StartCloudflareTunnel(port);
+        if (!config.cloudflare && CloudflareRunning())
+            StopCloudflareTunnel();
+    }
+
+    BeginCard("FiveM Web Radar");
+
+    const bool wasEnabled = config.enabled;
+    ToggleSwitch("Ativar Web Radar", &config.enabled);
+    if (wasEnabled && !config.enabled) {
+        config.cloudflare = false;
+        Shutdown();
+        SaveConfig();
+    } else if (!wasEnabled && config.enabled) {
+        SaveConfig();
+    }
+
+    if (config.enabled) {
+        CardGap();
+        SectionTitle("Servidor HTTP");
+        int port = config.port;
+        if (ImGui::SliderInt("Porta", &port, 1024, 65535))
+            config.port = port;
+        ToggleSwitch("Acesso LAN", &config.lan);
+
+        CardGap();
+        SectionTitle("Cloudflare (HTTPS público)");
+        ToggleSwitch("Ativar Cloudflare", &config.cloudflare);
+        TextLine("Usa libs/cloudflared.exe do runtime privado.", TextTone::Secondary);
+
+        CardGap();
+        SectionTitle("Exibição");
+        ToggleSwitch("Mostrar jogador local", &config.show_local);
+        ToggleSwitch("Mostrar NPCs", &config.show_npcs);
+        SliderFloat("Taxa de atualização (Hz)", &config.update_rate_hz, 5.0f, 30.0f, "%.0f");
+        SliderFloat("Distância máxima (m)", &config.max_distance, 500.0f, 20000.0f, "%.0f");
+
+        CardGap();
+        SectionTitle("Status");
+        TextLine(Status() ? Status() : "Offline",
+                 IsRunning() ? TextTone::Success : (IsStarting() ? TextTone::Warning : TextTone::Secondary));
+
+        const char* localUrl = LocalUrl();
+        if (localUrl && localUrl[0]) {
+            ImGui::TextWrapped("URL local: %s", localUrl);
+            if (CyberButton("Abrir local", ImVec2(120, 30)))
+                ShellExecuteA(nullptr, "open", localUrl, nullptr, nullptr, SW_SHOWNORMAL);
+            ImGui::SameLine();
+            if (CyberButton("Copiar local", ImVec2(120, 30)))
+                CopyToClipboard(localUrl, "URL local copiada");
+        }
+
+        if (config.lan) {
+            TextLine("LAN protegida por token temporário.", TextTone::Warning);
+            const char* lanUrl = LanUrl();
+            if (lanUrl && lanUrl[0]) {
+                ImGui::TextWrapped("URL LAN: %s", lanUrl);
+                if (CyberButton("Copiar LAN", ImVec2(120, 30)))
+                    CopyToClipboard(lanUrl, "URL LAN copiada");
+            }
+        }
+
+        if (config.cloudflare) {
+            const char* pub = PublicUrl();
+            if (pub && pub[0]) {
+                ImGui::TextWrapped("URL público: %s", pub);
+                if (CyberButton("Abrir público", ImVec2(120, 30)))
+                    ShellExecuteA(nullptr, "open", pub, nullptr, nullptr, SW_SHOWNORMAL);
+                ImGui::SameLine();
+                if (CyberButton("Copiar público", ImVec2(120, 30)))
+                    CopyToClipboard(pub, "Link Cloudflare copiado");
+            } else {
+                TextLine("Cloudflare a obter link…", TextTone::Warning);
+            }
+        }
+    } else {
+        TextLine("Web Radar desativado.", TextTone::Secondary);
+    }
+
+    CardGap();
+    if (CyberButton("Salvar configuração", ImVec2(160, 32))) {
+        SaveConfig();
+        TextLine("Guardado.", TextTone::Success);
+    }
+    ImGui::SameLine();
+    if (CyberButton("Carregar configuração", ImVec2(160, 32))) {
+        LoadConfig();
+        TextLine("Carregado.", TextTone::Success);
+    }
+
+    EndCard();
+}
 
 
