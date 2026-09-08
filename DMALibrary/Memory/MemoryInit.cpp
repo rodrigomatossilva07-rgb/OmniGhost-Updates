@@ -79,10 +79,56 @@ bool Memory::EnsureRuntimeDependencies()
 	dependencyIntegrityMessage_.clear();
 	std::wstring error;
 
-	// The FTDI bridge is required for every FPGA session (dynamic-loaded by LeechCore).
-	if (!ValidatePrivateRuntimeFile(L"libs/FTD3XX.dll", error)) {
-		dependencyIntegrityOk_ = false;
-		dependencyIntegrityMessage_ = "FTD3XX.dll: " + Narrow(error);
+	// FTDI bridge policy (matches EXTERNAL_FTD3XXWU_ON_FPGA_OPEN):
+	// 1) Prefer private-runtime FTD3XX.dll / FTD3XXWU.dll when the embedded
+	//    manifest owns them (portable Publish builds).
+	// 2) Otherwise accept a side-by-side copy under NativeRuntime/libs or next
+	//    to the executable (dev machines with vendor drivers installed).
+	// 3) If nothing is present, do NOT hard-fail here — LeechCore loads the
+	//    FTDI DLL only when the FPGA device is opened. A missing bridge is
+	//    reported as a warning so static-VMM / PnP-only probes can continue.
+	auto ftdiOk = false;
+	std::string ftdiDetail;
+	const wchar_t* const kFtdiCandidates[] = {
+		L"libs/FTD3XX.dll",
+		L"libs/FTD3XXWU.dll",
+	};
+	for (const wchar_t* relative : kFtdiCandidates) {
+		if (ValidatePrivateRuntimeFile(relative, error)) {
+			ftdiOk = true;
+			ftdiDetail = Narrow(std::wstring(relative)) + ": private-runtime OK";
+			break;
+		}
+	}
+	if (!ftdiOk) {
+		namespace fs = std::filesystem;
+		const fs::path searchRoots[] = {
+			OmniGhost::Paths::NativeRuntime() / L"libs",
+			OmniGhost::Paths::InstallDirectory() / L"libs",
+			OmniGhost::Paths::InstallDirectory(),
+		};
+		const wchar_t* names[] = { L"FTD3XX.dll", L"FTD3XXWU.dll" };
+		for (const auto& root : searchRoots) {
+			for (const wchar_t* name : names) {
+				const fs::path candidate = root / name;
+				std::error_code ec;
+				if (fs::is_regular_file(candidate, ec) && !ec && fs::file_size(candidate, ec) > 0) {
+					ftdiOk = true;
+					ftdiDetail = Narrow(candidate.wstring()) + ": side-by-side OK";
+					break;
+				}
+			}
+			if (ftdiOk) break;
+		}
+	}
+	if (!ftdiOk) {
+		// Soft-fail: integrity still OK for session bootstrap; FPGA open will
+		// surface a real device error if the driver is truly unavailable.
+		ftdiDetail = "FTD3XX/FTD3XXWU absent from private runtime and side-by-side paths "
+			"(EXTERNAL_FTD3XXWU_ON_FPGA_OPEN — deferred to device open)";
+		std::cout << "[DMA][Init] FTDI bridge not pre-validated: " << ftdiDetail << "\n";
+	} else {
+		std::cout << "[DMA][Init] FTDI bridge: " << ftdiDetail << "\n";
 	}
 
 #if !defined(OMNIGHOST_PRIVATE_STATIC_VMM)
@@ -123,7 +169,7 @@ bool Memory::EnsureRuntimeDependencies()
 	if (dependencyIntegrityOk_) {
 		dependencyIntegrityMessage_ = "runtime DMA SHA-256 validation passed";
 		std::cout << "[DMA] canonical runtime libraries validated (AMD64 + absolute-path loading)"
-			<< " ftd3xxwu=OK"
+			<< " ftdi=" << (ftdiOk ? "OK" : "DEFERRED")
 #if !defined(OMNIGHOST_PRIVATE_STATIC_VMM)
 			<< " leech=" << (modules.LEECHCORE ? "OK" : "FAIL")
 			<< " vmm=" << (modules.VMM ? "OK" : "FAIL")
