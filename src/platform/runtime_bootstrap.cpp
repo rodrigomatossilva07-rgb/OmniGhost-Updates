@@ -298,6 +298,45 @@ std::pair<int, int> SyncRuntimeLibraries(const fs::path& libsDir) {
         }
     }
     
+    // 4. ProjectDir\third_party\cloudflared (for cloudflared.exe)
+    {
+        fs::path projectDir = OmniGhost::Paths::InstallDirectory();
+        for (int i = 0; i < 4 && !projectDir.empty(); ++i) {
+            fs::path candidate = projectDir / L"third_party" / L"cloudflared";
+            if (fs::is_directory(candidate, ec)) {
+                sourceDirs.push_back(candidate);
+                break;
+            }
+            projectDir = projectDir.parent_path();
+        }
+    }
+    
+    // 5. ProjectDir\runtime\own (for pdbcrust.dll)
+    {
+        fs::path projectDir = OmniGhost::Paths::InstallDirectory();
+        for (int i = 0; i < 4 && !projectDir.empty(); ++i) {
+            fs::path candidate = projectDir / L"runtime" / L"own";
+            if (fs::is_directory(candidate, ec)) {
+                sourceDirs.push_back(candidate);
+                break;
+            }
+            projectDir = projectDir.parent_path();
+        }
+    }
+    
+    // 6. ProjectDir\libs (for pdbcrust.dll and other local DLLs)
+    {
+        fs::path projectDir = OmniGhost::Paths::InstallDirectory();
+        for (int i = 0; i < 4 && !projectDir.empty(); ++i) {
+            fs::path candidate = projectDir / L"libs";
+            if (fs::is_directory(candidate, ec)) {
+                sourceDirs.push_back(candidate);
+                break;
+            }
+            projectDir = projectDir.parent_path();
+        }
+    }
+    
     // For each required DLL, ensure it exists in libsDir with correct content
     for (const wchar_t* dllName : kRequiredDlls) {
         fs::path target = libsDir / dllName;
@@ -340,6 +379,7 @@ std::pair<int, int> SyncRuntimeLibraries(const fs::path& libsDir) {
                 copied++;
             } else {
                 // Embedded materialization failed, will try source dirs
+                std::cout << "[Runtime] sync libs: embedded materialize failed for " << dllName << ": " << std::string(error.begin(), error.end()) << "\n";
             }
         }
         

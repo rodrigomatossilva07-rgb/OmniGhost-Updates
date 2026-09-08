@@ -87,7 +87,14 @@ if ($config.requireTagRelease -eq $true -or $config.requireCleanReproducibleBuil
             # manual Publish can still upload to GitHub without a pre-made tag.
             $existingTagCommit = @(& $git.Source -C $ProjectDir rev-parse -q --verify ("refs/tags/{0}" -f $expectedTag) 2>$null)
             if ($LASTEXITCODE -eq 0 -and $existingTagCommit) {
-                throw ("Publicação recusada: a tag {0} já existe noutro commit. Atualiza version.txt ou move a tag." -f $expectedTag)
+                # Tag exists on another commit (e.g., from a previous failed build).
+                # Since version.txt has already been incremented by Prepare-PublishVersion,
+                # we can safely move the local tag to HEAD.
+                Write-Host ("[OmniGhost Publish] Tag {0} existe noutro commit; a mover para HEAD atual..." -f $expectedTag)
+                & $git.Source -C $ProjectDir tag -d $expectedTag
+                if ($LASTEXITCODE -ne 0) {
+                    throw ("Falha ao remover a tag local antiga {0}." -f $expectedTag)
+                }
             }
             Write-Host ("[OmniGhost Publish] A criar tag {0} a partir de version.txt no HEAD..." -f $expectedTag)
             & $git.Source -C $ProjectDir tag -a $expectedTag -m ("OmniGhost {0}" -f $version)
