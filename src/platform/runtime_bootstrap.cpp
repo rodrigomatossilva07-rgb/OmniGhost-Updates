@@ -358,7 +358,8 @@ std::pair<int, int> SyncRuntimeLibraries(const fs::path& libsDir) {
             // Find the embedded entry
             for (std::size_t i = 0; i < OmniGhost::EmbeddedRuntimeGenerated::kEntryCount; ++i) {
                 const auto& entry = OmniGhost::EmbeddedRuntimeGenerated::kEntries[i];
-                if (_wcsicmp(entry.relativePath, (L"libs/" + std::wstring(dllName)).c_str()) == 0) {
+                std::wstring lookupPath = std::wstring(L"libs/") + dllName;
+                if (_wcsicmp(entry.relativePath, lookupPath.c_str()) == 0) {
                     std::uintmax_t targetSize = fs::file_size(target, ec);
                     if (!ec && targetSize == entry.size) {
                         std::string actualHash;
@@ -382,7 +383,8 @@ std::pair<int, int> SyncRuntimeLibraries(const fs::path& libsDir) {
         bool materialized = false;
         if (hasEmbedded) {
             std::wstring error;
-            if (OmniGhost::RuntimeBootstrap::MaterializePrivateRuntimeFile((L"libs/" + std::wstring(dllName)).c_str(), error)) {
+            std::wstring lookupPath = std::wstring(L"libs/") + dllName;
+            if (OmniGhost::RuntimeBootstrap::MaterializePrivateRuntimeFile(lookupPath.c_str(), error)) {
                 materialized = true;
                 copied++;
                 OmniGhost::SessionLog::Write(
