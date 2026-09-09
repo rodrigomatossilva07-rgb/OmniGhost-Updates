@@ -45,5 +45,8 @@ foreach ($name in $required) {
 if ($headerText -match 'kEntryCount\s*=\s*0') {
     throw "Generated embedded runtime manifest is empty for $Configuration|$Platform."
 }
+if ($headerText -notmatch 'kEntryCount\s*=\s*kEntries\.size\(\)') {
+    throw "Generated embedded runtime manifest does not expose kEntryCount; runtime code could compile against an obsolete empty fallback."
+}
 
 Write-Host "[EmbeddedRuntimeValidate] PASS configuration=$Configuration platform=$Platform required DMA DLLs embedded."

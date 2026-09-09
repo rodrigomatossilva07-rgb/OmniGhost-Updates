@@ -3,7 +3,10 @@
 #include "session_log.h"
 #include "app_paths.h"
 #include "file_integrity.h"
-#include "embedded_runtime_manifest.h"
+// Use an angle include deliberately: the generated manifest must be selected
+// from the configuration-specific include directory, never the IDE fallback
+// header located beside this source file.
+#include <embedded_runtime_manifest.h>
 #include "embedded_resources.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -828,7 +831,6 @@ void RegisterFileOrigin(const std::string& relativePath, FileOrigin origin) noex
 }
 
 } // namespace OmniGhost::RuntimeBootstrap
-
 
 
 

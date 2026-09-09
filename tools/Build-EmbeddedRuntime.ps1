@@ -182,6 +182,7 @@ foreach ($entry in $ordered) {
     $total += [uint64]$item.Length
 }
 $headerLines.Add('}};')
+$headerLines.Add('inline constexpr std::size_t kEntryCount = kEntries.size();')
 $headerLines.Add('} // namespace OmniGhost::EmbeddedRuntimeGenerated')
 
 [IO.File]::WriteAllLines($RcOutput, $rcLines, (New-Object Text.UTF8Encoding($false)))
