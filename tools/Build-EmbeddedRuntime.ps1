@@ -138,6 +138,8 @@ if ($ordered.Count -eq 0) { throw 'No files were selected for the embedded runti
 
 $rcLines = New-Object System.Collections.Generic.List[string]
 $headerLines = New-Object System.Collections.Generic.List[string]
+$headerLines.Add('#ifndef OMNIGHOST_EMBEDDED_RUNTIME_MANIFEST_STUB')
+$headerLines.Add('#define OMNIGHOST_EMBEDDED_RUNTIME_MANIFEST_STUB')
 $headerLines.Add('#pragma once')
 $headerLines.Add('#include <array>')
 $headerLines.Add('#include <cstddef>')
@@ -182,7 +184,9 @@ foreach ($entry in $ordered) {
     $total += [uint64]$item.Length
 }
 $headerLines.Add('}};')
+$headerLines.Add("inline constexpr std::size_t kEntryCount = $($ordered.Count);")
 $headerLines.Add('} // namespace OmniGhost::EmbeddedRuntimeGenerated')
+$headerLines.Add('#endif')
 
 [IO.File]::WriteAllLines($RcOutput, $rcLines, (New-Object Text.UTF8Encoding($false)))
 [IO.File]::WriteAllLines($HeaderOutput, $headerLines, (New-Object Text.UTF8Encoding($false)))
