@@ -398,39 +398,6 @@ static VMM_HANDLE SafeVmmInitialize(DWORD argc, LPCSTR argv[], DWORD* outSehCode
 	return handle;
 }
 
-// VMMDLL_InitializeEx takes PPLC_CONFIG_ERRORINFO (== LC_CONFIG_ERRORINFO **).
-// Pass the caller's out-pointer through so SEH never changes the typedef shape.
-static VMM_HANDLE SafeVmmInitializeEx(DWORD argc, LPCSTR argv[], PPLC_CONFIG_ERRORINFO ppLcErrorInfo, DWORD* outSehCode) noexcept
-{
-	if (outSehCode)
-		*outSehCode = 0;
-	VMM_HANDLE handle = nullptr;
-	__try {
-		handle = VMMDLL_InitializeEx(argc, argv, ppLcErrorInfo);
-	} __except (EXCEPTION_EXECUTE_HANDLER) {
-		if (outSehCode)
-			*outSehCode = GetExceptionCode();
-		handle = nullptr;
-		if (ppLcErrorInfo)
-			*ppLcErrorInfo = nullptr;
-		// Log detailed SEH info for debugging
-		DWORD code = GetExceptionCode();
-		if (code == 0xC0000005) {
-			std::cout << "[DMA][Init] SEH 0xC0000005 (STATUS_ACCESS_VIOLATION) in VMMDLL_InitializeEx\n"
-				<< "           This typically means FTDI driver communication failure.\n"
-				<< "           Possible causes:\n"
-				<< "           1) FPGA device not connected or not recognized by Windows\n"
-				<< "           2) FTDI driver (FTD3XX/FTD3XXWU) version mismatch\n"
-				<< "           3) Another application holding the FPGA device\n"
-				<< "           4) PCIe link training failure (reseat FPGA card)\n"
-				<< "           5) Insufficient power to FPGA board\n"
-				<< "           6) Secure Boot enabled - blocks unsigned FTDI driver\n"
-				<< "           7) Virtualization (Hyper-V/VBS/WSL2) blocks DMA access\n";
-		}
-	}
-	return handle;
-}
-
 bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickDeviceProbe)
 {
 	// One control-plane owner at a time. Concurrent VMMDLL/LeechCore opens against
@@ -492,6 +459,10 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 			std::cout << "[DMA][Init] attempt=" << attemptNo << "/" << attemptMax
 				<< " device=" << device
 				<< (useMmap && !mmapPath.empty() ? " memmap=YES" : " memmap=NO") << "\n";
+
+			// Match working base: simple LoadLibraryA before init
+			LoadLibraryA("FTD3XX.dll");
+			LoadLibraryA("FTD3XXWU.dll");
 
 			DWORD sehCode = 0;
 			VMM_HANDLE handle = SafeVmmInitialize(static_cast<DWORD>(args.size()), args.data(), &sehCode);

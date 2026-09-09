@@ -86,28 +86,54 @@ bool DetectInstalled(const GameDefinition& game) {
     if (game.coming_soon)
         return false;
 
-    // This badge describes whether the adapter runtime is available to this
-    // build, not whether two particular DLL filenames happen to exist on disk.
-    // PrivateStatic/Publish intentionally link VMM + LeechCore into the EXE, so
-    // checking runtime\libs for those files incorrectly marked every adapter as
-    // "Not installed" even though the required code was already present.
+    // Badge = "can this build start the adapter", not "are two DLLs already
+    // extracted under AppData". Publish uses delay-loaded vmm/leechcore (same as
+    // Release); PrivateStatic links them into the EXE.
 #if defined(OMNIGHOST_PRIVATE_STATIC_VMM)
     return true;
 #else
-    std::wstring validationError;
-    const bool vmmMaterialized = OmniGhost::RuntimeBootstrap::ValidatePrivateRuntimeFile(
-        L"libs/vmm.dll", validationError);
-    validationError.clear();
-    const bool leechMaterialized = OmniGhost::RuntimeBootstrap::ValidatePrivateRuntimeFile(
-        L"libs/leechcore.dll", validationError);
-    if (vmmMaterialized && leechMaterialized)
-        return true;
+    namespace fs = std::filesystem;
+    auto present = [](const fs::path& file) noexcept {
+        std::error_code ec;
+        return fs::is_regular_file(file, ec) && !ec && fs::file_size(file, ec) > 0;
+    };
 
-    // The customer package is a single EXE. If the canonical entries are still
-    // embedded, launcher readiness must not claim that local components are
-    // missing merely because they have not yet been repaired/materialized.
-    return OmniGhost::RuntimeBootstrap::EmbeddedRuntimeFileAvailable(L"libs/vmm.dll") &&
-           OmniGhost::RuntimeBootstrap::EmbeddedRuntimeFileAvailable(L"libs/leechcore.dll");
+    // 1) Embedded in the EXE → ready (materialize best-effort for launch).
+    if (OmniGhost::RuntimeBootstrap::EmbeddedRuntimeFileAvailable(L"libs/vmm.dll") &&
+        OmniGhost::RuntimeBootstrap::EmbeddedRuntimeFileAvailable(L"libs/leechcore.dll")) {
+        std::wstring materializeError;
+        (void)OmniGhost::RuntimeBootstrap::MaterializePrivateRuntimeFile(L"libs/vmm.dll", materializeError);
+        materializeError.clear();
+        (void)OmniGhost::RuntimeBootstrap::MaterializePrivateRuntimeFile(L"libs/leechcore.dll", materializeError);
+        return true;
+    }
+
+    // 2) Already validated in the private runtime tree.
+    {
+        std::wstring validationError;
+        const bool vmmOk = OmniGhost::RuntimeBootstrap::ValidatePrivateRuntimeFile(
+            L"libs/vmm.dll", validationError);
+        validationError.clear();
+        const bool leechOk = OmniGhost::RuntimeBootstrap::ValidatePrivateRuntimeFile(
+            L"libs/leechcore.dll", validationError);
+        if (vmmOk && leechOk)
+            return true;
+    }
+
+    // 3) Disk fallback — same locations LoadLibrary / delay-load will search.
+    //    Does not require embed-manifest membership (dev machines copy DLLs from
+    //    third_party\dma_stack\bin or the UC DMA base).
+    const fs::path roots[] = {
+        OmniGhost::Paths::NativeRuntime() / L"libs",
+        OmniGhost::Paths::InstallDirectory() / L"libs",
+        OmniGhost::Paths::InstallDirectory() / L"third_party" / L"dma_stack" / L"bin",
+        OmniGhost::Paths::InstallDirectory(),
+    };
+    for (const auto& root : roots) {
+        if (present(root / L"vmm.dll") && present(root / L"leechcore.dll"))
+            return true;
+    }
+    return false;
 #endif
 }
 
