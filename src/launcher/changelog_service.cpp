@@ -142,7 +142,8 @@ std::optional<ChangeType> ParseChangeType(const std::string& type) {
     if (normalized == "removed") return ChangeType::Removed;
     if (normalized == "breaking") return ChangeType::Breaking;
     if (normalized == "maintenance") return ChangeType::Maintenance;
-    return std::nullopt;
+    // Gracefully handle unknown types instead of failing - treat as Maintenance
+    return ChangeType::Maintenance;
 }
 
 struct ParseResult {
@@ -286,10 +287,7 @@ ParseResult ParseChangelog(const std::string& json) {
                 ChangelogChange change;
                 if (!Text(*changeObject, "type", typeText))
                     return fail("Categoria de alteração em falta.");
-                const auto parsedType = ParseChangeType(typeText);
-                if (!parsedType)
-                    return fail("Categoria de alteração desconhecida.");
-                change.type = *parsedType;
+                change.type = ParseChangeType(typeText);
                 if (!Text(*changeObject, "text", change.text) ||
                     HasDemoText(change.text))
                     return fail("Texto de alteração inválido.");
