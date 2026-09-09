@@ -112,6 +112,10 @@
       <Output TaskParameter="ExitCode" PropertyName="OmniGhostEmbeddedRuntimeExitCode"/>
     </Exec>
     <Error Condition="'$(OmniGhostEmbeddedRuntimeExitCode)'!='0'" Code="OGRUN001" Text="Falha ao gerar o runtime auto-instalÃ¡vel. Consulta a janela SaÃ­da."/>
+    <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; validate-embedded-runtime &quot;$(MSBuildProjectDirectory)&quot; &quot;$(Configuration)&quot; &quot;$(Platform)&quot;" IgnoreExitCode="true" Condition="'$(Configuration)'!='PrivateStatic'">
+      <Output TaskParameter="ExitCode" PropertyName="OmniGhostEmbeddedRuntimeValidationExitCode"/>
+    </Exec>
+    <Error Condition="'$(OmniGhostEmbeddedRuntimeValidationExitCode)'!='0' And '$(Configuration)'!='PrivateStatic'" Code="OGRUN002" Text="O runtime embedded está incompleto: vmm.dll/leechcore.dll não foram incorporados ao EXE."/>
   </Target>
 
   <Target Name="BuildOmniGhostEmbeddedResources" BeforeTargets="ClCompile;ResourceCompile" Condition="'$(DesignTimeBuild)'!='true'">

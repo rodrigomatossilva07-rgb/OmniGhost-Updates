@@ -1,0 +1,190 @@
+diff --git a/OmiGhost.vcxproj b/OmiGhost.vcxproj
+index acf1cf7..33c7760 100644
+--- a/OmiGhost.vcxproj
++++ b/OmiGhost.vcxproj
+@@ -112,6 +112,10 @@
+       <Output TaskParameter="ExitCode" PropertyName="OmniGhostEmbeddedRuntimeExitCode"/>
+     </Exec>
+     <Error Condition="'$(OmniGhostEmbeddedRuntimeExitCode)'!='0'" Code="OGRUN001" Text="Falha ao gerar o runtime auto-instalÃ¡vel. Consulta a janela SaÃ­da."/>
++    <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; validate-embedded-runtime &quot;$(MSBuildProjectDirectory)&quot; &quot;$(Configuration)&quot; &quot;$(Platform)&quot;" IgnoreExitCode="true" Condition="'$(Configuration)'!='PrivateStatic'">
++      <Output TaskParameter="ExitCode" PropertyName="OmniGhostEmbeddedRuntimeValidationExitCode"/>
++    </Exec>
++    <Error Condition="'$(OmniGhostEmbeddedRuntimeValidationExitCode)'!='0' And '$(Configuration)'!='PrivateStatic'" Code="OGRUN002" Text="O runtime embedded está incompleto: vmm.dll/leechcore.dll não foram incorporados ao EXE."/>
+   </Target>
+ 
+   <Target Name="BuildOmniGhostEmbeddedResources" BeforeTargets="ClCompile;ResourceCompile" Condition="'$(DesignTimeBuild)'!='true'">
+diff --git a/tools/Build-EmbeddedRuntime.ps1 b/tools/Build-EmbeddedRuntime.ps1
+index d890466..5d6bd92 100644
+--- a/tools/Build-EmbeddedRuntime.ps1
++++ b/tools/Build-EmbeddedRuntime.ps1
+@@ -1,4 +1,4 @@
+-﻿[CmdletBinding()]
++[CmdletBinding()]
+ param(
+     [Parameter(Mandatory=$true)]
+     [string]$ProjectDir,
+@@ -136,6 +136,17 @@ Add-RuntimeFile $cloudflared 'libs/cloudflared.exe'
+ $ordered = @($files.Values | Sort-Object Relative)
+ if ($ordered.Count -eq 0) { throw 'No files were selected for the embedded runtime bundle.' }
+ 
++# Release/Tester/Publish use delay-loaded vmm/leechcore DLLs. They MUST be embedded
++# when the customer runtime is a single EXE; otherwise the executable can build
++# successfully and fail later with a misleading "not in private runtime manifest" error.
++if (-not $privateStatic) {
++    foreach ($requiredRelative in @('libs/vmm.dll','libs/leechcore.dll')) {
++        if (-not $files.ContainsKey($requiredRelative.ToLowerInvariant())) {
++            throw "Required embedded runtime dependency is missing: $requiredRelative"
++        }
++    }
++}
++
+ $rcLines = New-Object System.Collections.Generic.List[string]
+ $headerLines = New-Object System.Collections.Generic.List[string]
+ $headerLines.Add('#ifndef OMNIGHOST_EMBEDDED_RUNTIME_MANIFEST_STUB')
+diff --git a/tools/Run-OmniGhostPowerShell.cmd b/tools/Run-OmniGhostPowerShell.cmd
+index cd27c63..aa00cb3 100644
+--- a/tools/Run-OmniGhostPowerShell.cmd
++++ b/tools/Run-OmniGhostPowerShell.cmd
+@@ -13,6 +13,7 @@ if /I "%ACTION%"=="ensure-metadata" set "SCRIPT=%PROJECT_DIR%\tools\Ensure-Proje
+ if /I "%ACTION%"=="generate-build-metadata" set "SCRIPT=%PROJECT_DIR%\tools\Generate-BuildMetadata.ps1"
+ if /I "%ACTION%"=="generate-embedded-offsets" set "SCRIPT=%PROJECT_DIR%\tools\Build-EmbeddedOffsets.ps1"
+ if /I "%ACTION%"=="generate-embedded-runtime" set "SCRIPT=%PROJECT_DIR%\tools\Build-EmbeddedRuntime.ps1"
++if /I "%ACTION%"=="validate-embedded-runtime" set "SCRIPT=%PROJECT_DIR%\tools\Validate-EmbeddedRuntime.ps1"
+ if /I "%ACTION%"=="generate-embedded-resources" set "SCRIPT=%PROJECT_DIR%\tools\Build-EmbeddedResources.ps1"
+ if /I "%ACTION%"=="build-private-static-vmm" set "SCRIPT=%PROJECT_DIR%\tools\Build-PrivateStaticVmm.ps1"
+ if /I "%ACTION%"=="increment-version" set "SCRIPT=%PROJECT_DIR%\tools\Increment-Version.ps1"
+@@ -76,7 +77,16 @@ if /I "%ACTION%"=="validate-distribution" goto :validate_distribution
+ if /I "%ACTION%"=="publish-build" goto :publish_build
+ if /I "%ACTION%"=="compress-assets" goto :compress_assets
+ if /I "%ACTION%"=="generate-embedded-runtime" goto :embedded_runtime
+-if /I "%ACTION%"=="generate-embedded-offsets" goto :embedded_data
++if /I "%ACTION%"=="validate-embedded-runtime" goto :validate_embedded_runtime
++if /I "%ACTION%"=="generate-embedded-offsets" goto :validate_embedded_runtime
++set "CONFIGURATION=%~3"
++if not defined CONFIGURATION set "CONFIGURATION=Release"
++set "PLATFORM=%~4"
++if not defined PLATFORM set "PLATFORM=x64"
++"%PS_EXE%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%SCRIPT%" -ProjectDir "%PROJECT_DIR%" -Configuration "%CONFIGURATION%" -Platform "%PLATFORM%"
++exit /b %ERRORLEVEL%
++
++:embedded_data
+ if /I "%ACTION%"=="generate-embedded-resources" goto :embedded_data
+ if /I "%ACTION%"=="build-private-static-vmm" goto :private_static_vmm
+ "%PS_EXE%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%SCRIPT%" -ProjectDir "%PROJECT_DIR%"
+@@ -157,7 +167,8 @@ echo   Run-OmniGhostPowerShell.cmd validate-project PROJECT_DIR
+ echo   Run-OmniGhostPowerShell.cmd ensure-metadata PROJECT_DIR
+ echo   Run-OmniGhostPowerShell.cmd generate-build-metadata PROJECT_DIR [CONFIGURATION] [ARCHITECTURE] [RELEASE_CHANNEL]
+ echo   Run-OmniGhostPowerShell.cmd generate-embedded-offsets PROJECT_DIR
+-echo   Run-OmniGhostPowerShell.cmd generate-embedded-runtime PROJECT_DIR
++echo   Run-OmniGhostPowerShell.cmd generate-embedded-runtime PROJECT_DIR [REDIST_DIR] [CONFIGURATION] [PLATFORM]
++echo   Run-OmniGhostPowerShell.cmd validate-embedded-runtime PROJECT_DIR [CONFIGURATION] [PLATFORM]
+ echo   Run-OmniGhostPowerShell.cmd generate-embedded-resources PROJECT_DIR
+ echo   Run-OmniGhostPowerShell.cmd build-private-static-vmm PROJECT_DIR [PLATFORM_TOOLSET]
+ echo   Run-OmniGhostPowerShell.cmd increment-version PROJECT_DIR
+
+
+===== NEW FILE: tools/Validate-EmbeddedRuntime.ps1 =====
+[CmdletBinding()]
+param(
+    [Parameter(Mandatory=$true)][string]$ProjectDir,
+    [Parameter(Mandatory=$true)][string]$Configuration,
+    [Parameter(Mandatory=$false)][string]$Platform = 'x64'
+)
+
+$ErrorActionPreference = 'Stop'
+Set-StrictMode -Version Latest
+
+$ProjectDir = [IO.Path]::GetFullPath($ProjectDir)
+$generated = Join-Path $ProjectDir (".cache\generated\$Configuration\$Platform")
+$header = Join-Path $generated 'embedded_runtime_manifest.h'
+$rc = Join-Path $generated 'embedded_runtime.rc2'
+
+if ($Configuration -ieq 'PrivateStatic') {
+    Write-Host "[EmbeddedRuntimeValidate] PrivateStatic: vmm/leechcore are linked statically; DLL embedding check skipped."
+    exit 0
+}
+
+foreach ($path in @($header, $rc)) {
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+        throw "Embedded runtime output is missing: $path"
+    }
+}
+
+$headerText = Get-Content -LiteralPath $header -Raw
+$rcText = Get-Content -LiteralPath $rc -Raw
+
+$required = @('libs/vmm.dll','libs/leechcore.dll')
+foreach ($name in $required) {
+    if ($headerText -notmatch [regex]::Escape($name)) {
+        throw "Generated embedded runtime manifest does not contain $name. The build would produce an EXE that cannot validate its DMA runtime."
+    }
+    if ($rcText -notmatch [regex]::Escape($name)) {
+        # RC stores the absolute source path, so verify the filename rather than the
+        # generated relative logical path.
+        $leaf = Split-Path $name -Leaf
+        if ($rcText -notmatch [regex]::Escape($leaf)) {
+            throw "Generated embedded runtime resource list does not contain $leaf."
+        }
+    }
+}
+
+if ($headerText -match 'kEntryCount\s*=\s*0') {
+    throw "Generated embedded runtime manifest is empty for $Configuration|$Platform."
+}
+
+Write-Host "[EmbeddedRuntimeValidate] PASS configuration=$Configuration platform=$Platform required DMA DLLs embedded."
+
+
+===== NEW FILE: tools/Repair-EmbeddedRuntime.ps1 =====
+[CmdletBinding()]
+param(
+    [string]$ProjectDir = (Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)),
+    [ValidateSet('Release','Tester','Publish','PrivateStatic')][string]$Configuration = 'Release',
+    [string]$Platform = 'x64'
+)
+
+$ErrorActionPreference = 'Stop'
+Set-StrictMode -Version Latest
+
+$ProjectDir = [IO.Path]::GetFullPath($ProjectDir)
+$generator = Join-Path $ProjectDir 'tools\Build-EmbeddedRuntime.ps1'
+$validator = Join-Path $ProjectDir 'tools\Validate-EmbeddedRuntime.ps1'
+
+if (-not (Test-Path -LiteralPath $generator -PathType Leaf)) { throw "Missing: $generator" }
+if (-not (Test-Path -LiteralPath $validator -PathType Leaf)) { throw "Missing: $validator" }
+
+$vcToolsRedistDir = ''
+$vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+if (Test-Path -LiteralPath $vswhere -PathType Leaf) {
+    $installation = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath | Select-Object -First 1
+    if ($installation) {
+        $toolsRoot = Join-Path $installation 'VC\Tools\MSVC'
+        $tool = Get-ChildItem -LiteralPath $toolsRoot -Directory -ErrorAction SilentlyContinue |
+            Sort-Object Name -Descending | Select-Object -First 1
+        if ($tool) {
+            $candidate = Join-Path $tool.FullName 'Redist\MSVC'
+            if (Test-Path -LiteralPath $candidate -PathType Container) {
+                $vcToolsRedistDir = $candidate
+            }
+        }
+    }
+}
+
+& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $generator `
+    -ProjectDir $ProjectDir `
+    -VcToolsRedistDir $vcToolsRedistDir `
+    -Configuration $Configuration `
+    -Platform $Platform
+if ($LASTEXITCODE -ne 0) { throw "Embedded runtime generation failed with exit code $LASTEXITCODE." }
+
+if ($Configuration -ne 'PrivateStatic') {
+    & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $validator `
+        -ProjectDir $ProjectDir `
+        -Configuration $Configuration `
+        -Platform $Platform
+    if ($LASTEXITCODE -ne 0) { throw "Embedded runtime validation failed with exit code $LASTEXITCODE." }
+}
+
+Write-Host ''
+Write-Host "Repair/preflight PASS: $Configuration|$Platform" -ForegroundColor Green
+Write-Host 'Now rebuild the project from a clean output directory.'

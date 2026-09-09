@@ -439,14 +439,21 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 		std::string lastError;
 		std::string firstApiMessage;
 		std::string lastApiMessage;
+		bool sehFaultObserved = false;
 
 		// UC-base compatible open: exactly like the working base
 		// Minimal argv: "", "-device", "fpga://algo=0" [+ optional -memmap / -v / -printf]
-		auto tryOpen = [&](const char* device, bool useMmap, int attemptNo, int attemptMax) -> bool {
-			std::vector<LPCSTR> args;
-			args.push_back("");
-			args.push_back("-device");
-			args.push_back(device);
+			auto tryOpen = [&](const char* device, bool useMmap, int attemptNo, int attemptMax) -> bool {
+				std::vector<LPCSTR> args;
+				args.push_back("");
+				args.push_back("-device");
+				args.push_back(device);
+#if defined(OMNIGHOST_DISABLE_VMM_INFODB)
+				args.push_back("-disable-infodb");
+#endif
+#if defined(OMNIGHOST_DISABLE_VMM_SYMBOLS)
+				args.push_back("-disable-symbols");
+#endif
 			if (useMmap && !mmapPath.empty()) {
 				args.push_back("-memmap");
 				args.push_back(mmapPath.c_str());
@@ -458,18 +465,32 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 
 			std::cout << "[DMA][Init] attempt=" << attemptNo << "/" << attemptMax
 				<< " device=" << device
+				<< " infodb="
+#if defined(OMNIGHOST_DISABLE_VMM_INFODB)
+				<< "DISABLED"
+#else
+				<< "ENABLED"
+#endif
+				<< " symbols="
+#if defined(OMNIGHOST_DISABLE_VMM_SYMBOLS)
+				<< "DISABLED"
+#else
+				<< "ENABLED"
+#endif
 				<< (useMmap && !mmapPath.empty() ? " memmap=YES" : " memmap=NO") << "\n";
 
-			// Match working base: simple LoadLibraryA before init
-			LoadLibraryA("FTD3XX.dll");
-			LoadLibraryA("FTD3XXWU.dll");
+			// The bridges were already loaded from validated absolute paths above.
+			// Do not call LoadLibraryA here: that would reintroduce an unrestricted
+			// search and could select a stale vendor DLL from the current directory.
 
 			DWORD sehCode = 0;
 			VMM_HANDLE handle = SafeVmmInitialize(static_cast<DWORD>(args.size()), args.data(), &sehCode);
 			if (sehCode != 0) {
+				sehFaultObserved = true;
 				std::cout << "[DMA][Init] SEH fault during VMMDLL_Initialize code=0x"
-					<< std::hex << sehCode << std::dec << "\n";
-				const std::string message = std::string(device) + " Initialize SEH fault";
+					<< std::hex << sehCode << std::dec
+					<< " (runtime validated; fault originated in the VMM/vendor-device stack)\n";
+				const std::string message = std::string(device) + " Initialize SEH fault code=" + HexOf(sehCode);
 				if (firstError.empty()) firstError = message;
 				lastError = message;
 				if (firstApiMessage.empty()) firstApiMessage = message;
@@ -510,6 +531,10 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 		int attemptNo = 0;
 		bool opened = false;
 		for (const Candidate& candidate : candidates) {
+			if (sehFaultObserved) {
+				std::cout << "[DMA][Init] stopping fallback attempts after an SEH fault to avoid reopening an unstable device stack\n";
+				break;
+			}
 			if (candidate.useMmap && mmapPath.empty())
 				continue;
 			if (attemptNo > 0)

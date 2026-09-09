@@ -13,6 +13,7 @@ if /I "%ACTION%"=="ensure-metadata" set "SCRIPT=%PROJECT_DIR%\tools\Ensure-Proje
 if /I "%ACTION%"=="generate-build-metadata" set "SCRIPT=%PROJECT_DIR%\tools\Generate-BuildMetadata.ps1"
 if /I "%ACTION%"=="generate-embedded-offsets" set "SCRIPT=%PROJECT_DIR%\tools\Build-EmbeddedOffsets.ps1"
 if /I "%ACTION%"=="generate-embedded-runtime" set "SCRIPT=%PROJECT_DIR%\tools\Build-EmbeddedRuntime.ps1"
+if /I "%ACTION%"=="validate-embedded-runtime" set "SCRIPT=%PROJECT_DIR%\tools\Validate-EmbeddedRuntime.ps1"
 if /I "%ACTION%"=="generate-embedded-resources" set "SCRIPT=%PROJECT_DIR%\tools\Build-EmbeddedResources.ps1"
 if /I "%ACTION%"=="build-private-static-vmm" set "SCRIPT=%PROJECT_DIR%\tools\Build-PrivateStaticVmm.ps1"
 if /I "%ACTION%"=="increment-version" set "SCRIPT=%PROJECT_DIR%\tools\Increment-Version.ps1"
@@ -76,9 +77,24 @@ if /I "%ACTION%"=="validate-distribution" goto :validate_distribution
 if /I "%ACTION%"=="publish-build" goto :publish_build
 if /I "%ACTION%"=="compress-assets" goto :compress_assets
 if /I "%ACTION%"=="generate-embedded-runtime" goto :embedded_runtime
+if /I "%ACTION%"=="validate-embedded-runtime" goto :validate_embedded_runtime
 if /I "%ACTION%"=="generate-embedded-offsets" goto :embedded_data
 if /I "%ACTION%"=="generate-embedded-resources" goto :embedded_data
 if /I "%ACTION%"=="build-private-static-vmm" goto :private_static_vmm
+if /I "%ACTION%"=="prepare-publish-version" goto :prepare_publish_version
+if /I "%ACTION%"=="increment-version" goto :project_dir_only
+if /I "%ACTION%"=="restore-version" goto :project_dir_only
+if /I "%ACTION%"=="validate-project" goto :project_dir_only
+if /I "%ACTION%"=="ensure-metadata" goto :project_dir_only
+"%PS_EXE%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%SCRIPT%" -ProjectDir "%PROJECT_DIR%"
+exit /b %ERRORLEVEL%
+
+:prepare_publish_version
+rem Only -ProjectDir is required; -Configuration is optional and ignored by the script.
+"%PS_EXE%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%SCRIPT%" -ProjectDir "%PROJECT_DIR%"
+exit /b %ERRORLEVEL%
+
+:project_dir_only
 "%PS_EXE%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%SCRIPT%" -ProjectDir "%PROJECT_DIR%"
 exit /b %ERRORLEVEL%
 
@@ -94,6 +110,14 @@ if not defined CONFIGURATION set "CONFIGURATION=Release"
 set "PLATFORM=%~5"
 if not defined PLATFORM set "PLATFORM=x64"
 "%PS_EXE%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%SCRIPT%" -ProjectDir "%PROJECT_DIR%" -VcToolsRedistDir "%~3" -Configuration "%CONFIGURATION%" -Platform "%PLATFORM%"
+exit /b %ERRORLEVEL%
+
+:validate_embedded_runtime
+set "CONFIGURATION=%~3"
+if not defined CONFIGURATION set "CONFIGURATION=Release"
+set "PLATFORM=%~4"
+if not defined PLATFORM set "PLATFORM=x64"
+"%PS_EXE%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%SCRIPT%" -ProjectDir "%PROJECT_DIR%" -Configuration "%CONFIGURATION%" -Platform "%PLATFORM%"
 exit /b %ERRORLEVEL%
 
 :embedded_data
