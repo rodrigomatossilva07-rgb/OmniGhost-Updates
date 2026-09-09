@@ -13,11 +13,7 @@
       <Configuration>Publish</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
-    <ProjectConfiguration Include="PrivateStatic|x64">
-      <Configuration>PrivateStatic</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
-  </ItemGroup>
+</ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
@@ -41,30 +37,23 @@
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <OmniGhostTesterBuild>true</OmniGhostTesterBuild>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)'=='Publish'" Label="Configuration">
+<PropertyGroup Condition="'$(Configuration)'=='Publish'" Label="Configuration">
     <!-- PRIVATE DEVELOPMENT BUILD - NOT FOR DISTRIBUTION.
          Publish is the owner's private GitHub update channel. -->
     <UseDebugLibraries>false</UseDebugLibraries>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <OmniGhostPublishBuild>true</OmniGhostPublishBuild>
-    <OmniGhostPrivateStaticBuild>true</OmniGhostPrivateStaticBuild>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)'=='PrivateStatic'" Label="Configuration">
-    <!-- PRIVATE DEVELOPMENT BUILD - NOT FOR DISTRIBUTION -->
-    <UseDebugLibraries>false</UseDebugLibraries>
-    <WholeProgramOptimization>true</WholeProgramOptimization>
-    <OmniGhostPrivateStaticBuild>true</OmniGhostPrivateStaticBuild>
-  </PropertyGroup>
+</PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props"/>
   <ImportGroup Label="ExtensionSettings"/>
-  <ImportGroup Label="Shared"/>
-  <ImportGroup Label="PropertySheets">
+<ImportGroup Label="Shared"/>
+<ImportGroup Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform"/>
     <Import Project="$(ProjectDir)OmniGhost.Common.props"/>
-    <Import Project="$(ProjectDir)OmniGhost.Release.props" Condition="'$(Configuration)'=='Release' Or '$(Configuration)'=='Tester' Or '$(Configuration)'=='Publish' Or '$(Configuration)'=='PrivateStatic'"/>
+    <Import Project="$(ProjectDir)OmniGhost.Release.props" Condition="'$(Configuration)'=='Release' Or '$(Configuration)'=='Tester' Or '$(Configuration)'=='Publish'"/>
     <Import Project="$(ProjectDir)OmniGhost.Tester.props" Condition="'$(Configuration)'=='Tester'"/>
     <Import Project="$(ProjectDir)OmniGhost.Publish.props" Condition="'$(Configuration)'=='Publish'"/>
-  </ImportGroup>
+</ImportGroup>
   <PropertyGroup Label="UserMacros"/>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <!-- Release is an optimized local build and never publishes remotely. -->
@@ -124,13 +113,7 @@
     </Exec>
     <Error Condition="'$(OmniGhostEmbeddedRuntimeExitCode)'!='0'" Code="OGRUN001" Text="Falha ao gerar o runtime auto-instalÃ¡vel. Consulta a janela SaÃ­da."/>
   </Target>
-  <Target Name="BuildOmniGhostPrivateStaticVmm" BeforeTargets="ClCompile" Condition="('$(Configuration)'=='PrivateStatic' Or '$(Configuration)'=='Publish') And '$(DesignTimeBuild)'!='true'">
-    <Message Importance="High" Text="[$(Configuration)] PRIVATE DEVELOPMENT BUILD - NOT FOR DISTRIBUTION"/>
-    <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; build-private-static-vmm &quot;$(MSBuildProjectDirectory)&quot; &quot;$(PlatformToolset)&quot;" IgnoreExitCode="true">
-      <Output TaskParameter="ExitCode" PropertyName="OmniGhostPrivateStaticVmmExitCode"/>
-    </Exec>
-    <Error Condition="'$(OmniGhostPrivateStaticVmmExitCode)'!='0'" Code="OGSTA001" Text="A integraÃ§Ã£o estÃ¡tica privada de LeechCore/VMM falhou."/>
-  </Target>
+
   <Target Name="BuildOmniGhostEmbeddedResources" BeforeTargets="ClCompile;ResourceCompile" Condition="'$(DesignTimeBuild)'!='true'">
     <Message Importance="High" Text="[OmniGhost Resources] Validating and generating embedded runtime resources..."/>
     <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; generate-embedded-resources &quot;$(MSBuildProjectDirectory)&quot; &quot;$(Configuration)&quot;" IgnoreExitCode="true">
@@ -152,8 +135,7 @@
       <OmniGhostVcRuntimeLibrary Include="$(VCToolsRedistDir)\x64\Microsoft.VC*.CRT\concrt*.dll"/>
     </ItemGroup>
     <Error Condition="'@(OmniGhostLibRuntimeLibrary)'==''" Code="OGLIB001" Text="A pasta libs nÃ£o contÃ©m DLLs. Coloca a pasta libs na raiz do OmniGhost antes de compilar."/>
-    <Error Condition="'@(OmniGhostDmaRuntimeLibrary)'==''" Code="OGDLL001" Text="A stack canÃ³nica third_party\dma_stack\bin nÃ£o contÃ©m as DLLs de runtime necessÃ¡rias."/>
-    <Error Condition="!Exists('$(ProjectDir)third_party\dma_stack\versions.json')" Code="OGDLL005" Text="versions.json canÃ³nico da stack DMA estÃ¡ em falta."/>
+    <Error Condition="'@(OmniGhostDmaRuntimeLibrary)'==''" Code="OGDLL001" Text="A stack canÃ³nica libs nÃ£o contÃ©m as DLLs de runtime necessÃ¡rias."/>
     <MakeDir Directories="$(OutDir)data;$(OutDir)data\runtime;$(OutDir)resources"/>
     <MakeDir Directories="$(OutDir)plugins" Condition="'@(OmniGhostDmaPlugin)'!=''"/>
     <MakeDir Directories="$(OutDir)resources\games" Condition="'@(OmniGhostGameResource)'!=''"/>
@@ -164,7 +146,7 @@
     <Copy SourceFiles="@(OmniGhostDmaRuntimeLibrary)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true"/>
     <Copy SourceFiles="@(OmniGhostCustomRuntimeLibrary)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" Condition="'@(OmniGhostCustomRuntimeLibrary)'!=''"/>
     <Copy SourceFiles="@(OmniGhostVcRuntimeLibrary)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" Condition="'$(Configuration)'=='Release' And '@(OmniGhostVcRuntimeLibrary)'!=''"/>
-    <Copy SourceFiles="$(ProjectDir)third_party\dma_stack\versions.json" DestinationFiles="$(OutDir)data\runtime\dma_stack_versions.json" SkipUnchangedFiles="true"/>
+    <Copy SourceFiles="$(ProjectDir)versions.json" DestinationFiles="$(OutDir)data\runtime\dma_stack_versions.json" SkipUnchangedFiles="true"/>
     <Copy SourceFiles="@(OmniGhostDmaPlugin)" DestinationFiles="@(OmniGhostDmaPlugin-&gt;'$(OutDir)plugins\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" Condition="'@(OmniGhostDmaPlugin)'!=''"/>
     <Copy SourceFiles="@(OmniGhostRootResource)" DestinationFolder="$(OutDir)resources" SkipUnchangedFiles="true" Condition="'@(OmniGhostRootResource)'!=''"/>
     <Copy SourceFiles="@(OmniGhostGameResource)" DestinationFiles="@(OmniGhostGameResource-&gt;'$(OutDir)resources\games\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" Condition="'@(OmniGhostGameResource)'!=''"/>

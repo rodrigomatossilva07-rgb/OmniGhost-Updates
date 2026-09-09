@@ -234,103 +234,94 @@ void ConfigureRuntimeDllSearch(const fs::path& libs) {
 }
 
 // Synchronizes runtime libraries from embedded manifest and fallback source locations.
-// Returns pair<copied, skipped> count.
-std::pair<int, int> SyncRuntimeLibraries(const fs::path& libsDir) {
-    int copied = 0;
-    int skipped = 0;
-    int failed = 0;
-    
-    std::error_code ec;
-    fs::create_directories(libsDir, ec);
-    
-    // Required DLLs that must be present for DMA operation
-    static constexpr const wchar_t* kRequiredDlls[] = {
-        L"FTD3XX.dll",
-        L"FTD3XXWU.dll",
-        L"vmm.dll",
-        L"leechcore.dll",
-        L"pdbcrust.dll",
-        L"dbghelp.dll",
-        L"symsrv.dll",
-        L"vcruntime140.dll"
-    };
-    
-    auto Narrow = [](const std::wstring& text) -> std::string {
-        std::string out;
-        out.reserve(text.size());
-        for (wchar_t ch : text)
-            out.push_back(ch < 0x80 ? static_cast<char>(ch) : '?');
-        return out;
-    };
-    
-    // Build a set of DLLs available in embedded manifest
-    std::set<std::wstring> embeddedDlls;
-    for (std::size_t i = 0; i < OmniGhost::EmbeddedRuntimeGenerated::kEntryCount; ++i) {
-        const auto& entry = OmniGhost::EmbeddedRuntimeGenerated::kEntries[i];
-        const fs::path relPath(entry.relativePath);
-        if (relPath.parent_path() == L"libs") {
-            embeddedDlls.insert(relPath.filename().wstring());
-        }
-    }
-    
-    // Source locations in priority order
-    std::vector<fs::path> sourceDirs;
-    
-    // 1. ProjectDir\third_party\dma_stack\bin (dev builds)
-    {
-        fs::path projectDir = OmniGhost::Paths::InstallDirectory();
-        // Go up to find project root (where third_party is)
-        for (int i = 0; i < 4 && !projectDir.empty(); ++i) {
-            fs::path candidate = projectDir / L"third_party" / L"dma_stack" / L"bin";
-            if (fs::is_directory(candidate, ec)) {
-                sourceDirs.push_back(candidate);
-                break;
-            }
-            projectDir = projectDir.parent_path();
-        }
-    }
-    
-    // 2. InstallDirectory\third_party\dma_stack\bin
-    {
-        fs::path candidate = OmniGhost::Paths::InstallDirectory() / L"third_party" / L"dma_stack" / L"bin";
-        if (fs::is_directory(candidate, ec)) {
-            sourceDirs.push_back(candidate);
-        }
-    }
-    
-    // 3. InstallDirectory\libs
-    {
-        fs::path candidate = OmniGhost::Paths::InstallDirectory() / L"libs";
-        if (fs::is_directory(candidate, ec)) {
-            sourceDirs.push_back(candidate);
-        }
-    }
-    
-    // 4. ProjectDir\third_party\cloudflared (for cloudflared.exe)
-    {
-        fs::path projectDir = OmniGhost::Paths::InstallDirectory();
-        for (int i = 0; i < 4 && !projectDir.empty(); ++i) {
-            fs::path candidate = projectDir / L"third_party" / L"cloudflared";
-            if (fs::is_directory(candidate, ec)) {
-                sourceDirs.push_back(candidate);
-                break;
-            }
-            projectDir = projectDir.parent_path();
-        }
-    }
-    
-    // 5. ProjectDir\runtime\own (for pdbcrust.dll)
-    {
-        fs::path projectDir = OmniGhost::Paths::InstallDirectory();
-        for (int i = 0; i < 4 && !projectDir.empty(); ++i) {
-            fs::path candidate = projectDir / L"runtime" / L"own";
-            if (fs::is_directory(candidate, ec)) {
-                sourceDirs.push_back(candidate);
-                break;
-            }
-            projectDir = projectDir.parent_path();
-        }
-    }
+ // Returns pair<copied, skipped> count.
+ std::pair<int, int> SyncRuntimeLibraries(const fs::path& libsDir) {
+     int copied = 0;
+     int skipped = 0;
+     int failed = 0;
+     
+     std::error_code ec;
+     fs::create_directories(libsDir, ec);
+     
+     // Required DLLs that must be present for DMA operation
+     static constexpr const wchar_t* kRequiredDlls[] = {
+         L"FTD3XX.dll",
+         L"FTD3XXWU.dll",
+         L"vmm.dll",
+         L"leechcore.dll",
+         L"pdbcrust.dll",
+         L"dbghelp.dll",
+         L"symsrv.dll",
+         L"vcruntime140.dll"
+     };
+     
+     auto Narrow = [](const std::wstring& text) -> std::string {
+         std::string out;
+         out.reserve(text.size());
+         for (wchar_t ch : text)
+             out.push_back(ch < 0x80 ? static_cast<char>(ch) : '?');
+         return out;
+     };
+     
+     // Build a set of DLLs available in embedded manifest
+     std::set<std::wstring> embeddedDlls;
+     for (std::size_t i = 0; i < OmniGhost::EmbeddedRuntimeGenerated::kEntryCount; ++i) {
+         const auto& entry = OmniGhost::EmbeddedRuntimeGenerated::kEntries[i];
+         const fs::path relPath(entry.relativePath);
+         if (relPath.parent_path() == L"libs") {
+             embeddedDlls.insert(relPath.filename().wstring());
+         }
+     }
+     
+     // Source locations in priority order
+     std::vector<fs::path> sourceDirs;
+     
+     // 1. ProjectDir\libs (authoritative source for all runtime DLLs)
+     {
+         fs::path projectDir = OmniGhost::Paths::InstallDirectory();
+         for (int i = 0; i < 4 && !projectDir.empty(); ++i) {
+             fs::path candidate = projectDir / L"libs";
+             if (fs::is_directory(candidate, ec)) {
+                 sourceDirs.push_back(candidate);
+                 break;
+             }
+             projectDir = projectDir.parent_path();
+         }
+     }
+     
+     // 2. InstallDirectory\libs (fallback)
+     {
+         fs::path candidate = OmniGhost::Paths::InstallDirectory() / L"libs";
+         if (fs::is_directory(candidate, ec)) {
+             sourceDirs.push_back(candidate);
+         }
+     }
+     
+     // 3. ProjectDir\src\runtime\cloudflared (for cloudflared.exe)
+     {
+         fs::path projectDir = OmniGhost::Paths::InstallDirectory();
+         for (int i = 0; i < 4 && !projectDir.empty(); ++i) {
+             fs::path candidate = projectDir / L"src" / L"runtime" / L"cloudflared";
+             if (fs::is_directory(candidate, ec)) {
+                 sourceDirs.push_back(candidate);
+                 break;
+             }
+             projectDir = projectDir.parent_path();
+         }
+     }
+     
+     // 4. ProjectDir\runtime\own (for pdbcrust.dll fallback)
+     {
+         fs::path projectDir = OmniGhost::Paths::InstallDirectory();
+         for (int i = 0; i < 4 && !projectDir.empty(); ++i) {
+             fs::path candidate = projectDir / L"runtime" / L"own";
+             if (fs::is_directory(candidate, ec)) {
+                 sourceDirs.push_back(candidate);
+                 break;
+             }
+             projectDir = projectDir.parent_path();
+         }
+     }
     
     // 6. ProjectDir\libs (for pdbcrust.dll and other local DLLs)
     {

@@ -26,7 +26,7 @@
         <PreprocessorDefinitions Condition="'$(OmniGhostDisableVmmInfoDb)'=='true'">OMNIGHOST_DISABLE_VMM_INFODB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
         <PreprocessorDefinitions Condition="'$(OmniGhostDisableVmmSymbols)'=='true'">OMNIGHOST_DISABLE_VMM_SYMBOLS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
         <PreprocessorDefinitions Condition="'$(OmniGhostReadOnlyMode)'=='true'">OMNIGHOST_READONLY_MODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-        <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)src;$(ProjectDir)Fivem;$(ProjectDir)Cs2;$(ProjectDir)Rust;$(ProjectDir)Warzone;$(ProjectDir)Valorant;$(ProjectDir)ImGui;$(ProjectDir)DMALibrary;$(ProjectDir)third_party\dma_stack\include;$(ProjectDir)Utils;$(ProjectDir)resources;$(ProjectDir).cache\generated\$(Configuration)\$(Platform);$(ProjectDir).cache\generated;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+        <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)src;$(ProjectDir)Fivem;$(ProjectDir)Cs2;$(ProjectDir)Rust;$(ProjectDir)Warzone;$(ProjectDir)Valorant;$(ProjectDir)ImGui;$(ProjectDir)DMALibrary;$(ProjectDir)libs;$(ProjectDir)Utils;$(ProjectDir)resources;$(ProjectDir).cache\generated\$(Configuration)\$(Platform);$(ProjectDir).cache\generated;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
         <BufferSecurityCheck>true</BufferSecurityCheck>
         <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
         <Optimization>MaxSpeed</Optimization>

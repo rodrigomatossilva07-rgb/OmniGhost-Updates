@@ -60,7 +60,7 @@ try {
         'docs\validation-summary.json',
         'docs\SBOM.json',
         'docs\roadmap-status.json',
-        'third_party\dma_stack\versions.json',
+        'versions.json',
         'third_party\dma_stack\managed-files.json'
     )) {
         Copy-WhitelistedFile $relative $staging

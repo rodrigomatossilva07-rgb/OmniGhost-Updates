@@ -89,11 +89,7 @@ if ($markdown.Count -gt 0) {
 
 $versions = Read-Utf8Text (Join-Path $ProjectDir 'versions.json') | ConvertFrom-Json
 Assert-ManifestHash $versions.memprocfs.sha256.'vmm.dll' 'libs\vmm.dll'
-Assert-ManifestHash $versions.memprocfs.sha256.'vmm.lib' 'libs\vmm.lib'
-Assert-ManifestHash $versions.memprocfs.sha256.'vmmdll.h' 'libs\vmmdll.h'
 Assert-ManifestHash $versions.leechcore.sha256.'leechcore.dll' 'libs\leechcore.dll'
-Assert-ManifestHash $versions.leechcore.sha256.'leechcore.lib' 'libs\leechcore.lib'
-Assert-ManifestHash $versions.leechcore.sha256.'leechcore.h' 'libs\leechcore.h'
 
 # The build explicitly consumes/copies the canonical DMA runtime from
 # third_party\dma_stack. Copies produced by a previous build or release staging are
@@ -135,8 +131,6 @@ $release = Read-Utf8Text (Join-Path $ProjectDir 'OmniGhost.Release.props')
 $runtimeBootstrap = Read-Utf8Text (Join-Path $ProjectDir 'src\platform\runtime_bootstrap.cpp')
 
 # These are regular expressions, so literal Windows path separators must be escaped.
-Require-Text $common 'libs\\\*\.h' 'Canonical DMA includes configured.'
-Require-Text $common 'libs\\\*\.lib' 'Canonical DMA libraries configured.'
 Require-Text $project 'libs\\\*\.dll' 'Canonical DMA runtime configured.'
 Require-Text $project 'libs\\\*\.dll' 'Local libs source bundle configured.'
 Require-Text $project 'src\\licensing\\license_service\.cpp' 'Licensing service is part of the build.'

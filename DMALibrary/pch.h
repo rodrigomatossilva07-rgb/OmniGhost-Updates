@@ -25,7 +25,11 @@
 #ifndef NTSTATUS
 #define NTSTATUS LONG
 #endif
+#pragma warning(push)
+#pragma warning(disable: 4200 4201) // zero-size array in struct/union; nameless struct/union
 #include <vmmdll.h>
+#include <leechcore.h>
+#pragma warning(pop)
 
 // Resources returned through VMMDLL_* APIs are owned by MemProcFS and must
 // be released with VMMDLL_MemFree. Keeping the deleter next to the canonical

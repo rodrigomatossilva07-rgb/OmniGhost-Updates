@@ -19,7 +19,7 @@ $SbomPath = [IO.Path]::GetFullPath($SbomPath)
 
 foreach ($required in @(
     (Join-Path $ProjectDir 'THIRD_PARTY_NOTICES.txt'),
-    (Join-Path $ProjectDir 'third_party\dma_stack\versions.json'),
+    (Join-Path $ProjectDir 'versions.json'),
     $SbomPath
 )) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {

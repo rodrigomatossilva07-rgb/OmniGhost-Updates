@@ -353,7 +353,7 @@ if (Test-Path -LiteralPath $VersionPath -PathType Leaf) {
 }
 $MemProcFSVersion = 'unknown'
 $LeechCoreVersion = 'unknown'
-$DependencyVersionPath = Join-Path $ProjectDir 'third_party\dma_stack\versions.json'
+$DependencyVersionPath = Join-Path $ProjectDir 'versions.json'
 if (Test-Path -LiteralPath $DependencyVersionPath -PathType Leaf) {
     try {
         $DependencyVersions = [IO.File]::ReadAllText($DependencyVersionPath) | ConvertFrom-Json

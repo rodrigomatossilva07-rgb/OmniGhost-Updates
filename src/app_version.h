@@ -1,7 +1,7 @@
 #pragma once
 
 namespace OmniGhost {
-inline constexpr char Version[] = "3.6.8";
+inline constexpr char Version[] = "3.6.9";
 inline constexpr char BuildChannel[] = "Stable";
 inline constexpr wchar_t MainExecutable[] = L"OmniGhost.exe";
 }
