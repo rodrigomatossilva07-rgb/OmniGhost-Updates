@@ -319,6 +319,26 @@ static bool PreloadFtdiFromPath(const std::filesystem::path& file) noexcept
 	return false;
 }
 
+static bool PreloadAllFtdiBridges() noexcept
+{
+	bool any = false;
+	namespace fs = std::filesystem;
+	const fs::path roots[] = {
+		OmniGhost::Paths::NativeRuntime() / L"libs",
+		OmniGhost::Paths::InstallDirectory() / L"libs",
+		OmniGhost::Paths::InstallDirectory() / L"third_party" / L"dma_stack" / L"bin",
+		OmniGhost::Paths::InstallDirectory(),
+	};
+	const wchar_t* names[] = { L"FTD3XX.dll", L"FTD3XXWU.dll" };
+	for (const auto& root : roots) {
+		for (const wchar_t* name : names) {
+			if (PreloadFtdiFromPath(root / name))
+				any = true;
+		}
+	}
+	return any;
+}
+
 static bool HasFtdiBridge() noexcept
 {
 	namespace fs = std::filesystem;
@@ -365,6 +385,18 @@ static VMM_HANDLE SafeVmmInitializeEx(DWORD argc, LPCSTR argv[], PPLC_CONFIG_ERR
 		handle = nullptr;
 		if (ppLcErrorInfo)
 			*ppLcErrorInfo = nullptr;
+		// Log detailed SEH info for debugging
+		DWORD code = GetExceptionCode();
+		if (code == 0xC0000005) {
+			std::cout << "[DMA][Init] SEH 0xC0000005 (STATUS_ACCESS_VIOLATION) in VMMDLL_InitializeEx\n"
+				<< "           This typically means FTDI driver communication failure.\n"
+				<< "           Possible causes:\n"
+				<< "           1) FPGA device not connected or not recognized by Windows\n"
+				<< "           2) FTDI driver (FTD3XX/FTD3XXWU) version mismatch\n"
+				<< "           3) Another application holding the FPGA device\n"
+				<< "           4) PCIe link training failure (reseat FPGA card)\n"
+				<< "           5) Insufficient power to FPGA board\n";
+		}
 	}
 	return handle;
 }
@@ -476,6 +508,11 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 			return true;
 		};
 
+		// Preload ALL FTDI bridges before attempting VMM initialization
+		// This prevents SEH 0xc0000005 crashes in VMMDLL_InitializeEx
+		std::cout << "[DMA][Init] Preloading FTDI bridges...\n";
+		PreloadAllFtdiBridges();
+
 		if (!HasFtdiBridge()) {
 			const std::string detail =
 				"FTD3XX/FTD3XXWU not found - cannot open FPGA (place DLL in ProjectDir\\libs and Rebuild Publish)";
@@ -494,9 +531,12 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 		const Candidate candidates[] = {
 			{ "fpga", false },
 			{ "fpga://algo=0", false },
+			{ "fpga://algo=1", false },  // Alternative algorithm
 			{ "fpga", true },
+			{ "fpga://algo=0", true },   // With memmap + algo 0
+			{ "fpga://algo=1", true },   // With memmap + algo 1
 		};
-		constexpr int kAttemptsPerDevice = 2;
+		constexpr int kAttemptsPerDevice = 3;  // Increased from 2 to 3
 		const int attemptMax = static_cast<int>(std::size(candidates)) * kAttemptsPerDevice;
 		int attemptNo = 0;
 		bool opened = false;
@@ -515,7 +555,7 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 				++attemptNo;
 				opened = tryOpen(candidate.device, candidate.useMmap, attemptNo, attemptMax);
 				if (!opened)
-					std::this_thread::sleep_for(std::chrono::milliseconds(400));
+					std::this_thread::sleep_for(std::chrono::milliseconds(500));  // Increased delay
 			}
 			if (opened)
 				break;
@@ -526,8 +566,22 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 				<< " first_error=" << firstError << " last_error=" << lastError << "\n";
 			std::cout << "[DMA][Init] first_api_message=\"" << firstApiMessage
 				<< "\" last_api_message=\"" << lastApiMessage << "\"\n";
-			std::cout << "[DMA] Falha na comunicacao com o DMA/FPGA.\n"
-				"      nenhum PCILeech/MemProcFS/outra aplicacao a usar a FPGA.\n";
+			std::cout << "[DMA] ===============================================================\n";
+			std::cout << "[DMA] Falha na comunicacao com o DMA/FPGA.\n";
+			std::cout << "[DMA] Possiveis causas e solucoes:\n";
+			std::cout << "[DMA]   1) FPGA nao conectada ou nao reconhecida pelo Windows\n";
+			std::cout << "[DMA]      -> Verifique no Gerenciador de Dispositivos: 'FTDI FT600/FT601'\n";
+			std::cout << "[DMA]   2) Driver FTDI desatualizado ou corrompido\n";
+			std::cout << "[DMA]      -> Reinstale o driver FTDI D3XX do site da FTDI\n";
+			std::cout << "[DMA]   3) Outro programa usando a FPGA (PCILeech, MemProcFS, etc.)\n";
+			std::cout << "[DMA]      -> Feche outros programas DMA e reinicie o PC\n";
+			std::cout << "[DMA]   4) Falha no link PCIe (cabo/riser frouxo ou danificado)\n";
+			std::cout << "[DMA]      -> Reencaixe a placa FPGA e verifique cabos de alimentacao\n";
+			std::cout << "[DMA]   5) Alimentacao insuficiente para a placa FPGA\n";
+			std::cout << "[DMA]      -> Verifique conexoes de 12V/3.3V e cabos PCIe power\n";
+			std::cout << "[DMA]   6) Conflito de versao LeechCore/MemProcFS\n";
+			std::cout << "[DMA]      -> Verifique se vmm.dll e leechcore.dll sao da mesma versao\n";
+			std::cout << "[DMA] ===============================================================\n";
 			last_attach_result = AttachResult::Failed;
 			return false;
 		}
