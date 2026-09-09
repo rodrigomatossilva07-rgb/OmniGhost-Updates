@@ -72,7 +72,7 @@
     <OmniGhostReleaseChannel>private-development</OmniGhostReleaseChannel>
     <OutDir>$(ProjectDir)build\PrivateStatic\</OutDir>
   </PropertyGroup>
-  <ItemDefinitionGroup Condition="('$(Configuration)'=='PrivateStatic' Or '$(Configuration)'=='Publish') And '$(Platform)'=='x64'">
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='PrivateStatic' And '$(Platform)'=='x64'">
     <ClCompile>
       <PreprocessorDefinitions>OMNIGHOST_PRIVATE_STATIC_VMM;VMMDLL_STATIC;LEECHCORE_STATIC;OMNIGHOST_PRIVATE_DEVELOPMENT_BUILD;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
