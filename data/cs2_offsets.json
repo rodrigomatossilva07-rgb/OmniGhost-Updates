@@ -1,26 +1,26 @@
 {
-  "source": "user-provided dump / cs2-dumper style",
+  "source": "cs2-dumper output.zip (user)",
   "version": "latest",
-  "updated_utc": "2026-09-07",
-  "note": "Updated CS2 client/engine globals + essential schemas from provided offset dump",
+  "updated_utc": "2026-09-09",
+  "note": "Updated from dump build_number=14180 timestamp=2026-09-09T20:13:19.882215300+00:00",
   "client.dll": {
-    "dwCSGOInput": "0x23bfb20",
-    "dwEntityList": "0x2555050",
-    "dwGameEntitySystem": "0x2555050",
+    "dwCSGOInput": "0x23dbc70",
+    "dwEntityList": "0x2571220",
+    "dwGameEntitySystem": "0x2571220",
     "dwGameEntitySystem_highestEntityIndex": "0x2090",
-    "dwGameRules": "0x23a9bd8",
-    "dwGlobalVars": "0x2095d48",
-    "dwGlowManager": "0x23a6908",
-    "dwLocalPlayerController": "0x2384db0",
-    "dwLocalPlayerPawn": "0x23aa118",
-    "dwPlantedC4": "0x2374898",
-    "dwPrediction": "0x23aa020",
-    "dwSensitivity": "0x23a7428",
+    "dwGameRules": "0x23c5d28",
+    "dwGlobalVars": "0x20af5f0",
+    "dwGlowManager": "0x23c2a58",
+    "dwLocalPlayerController": "0x23a0f30",
+    "dwLocalPlayerPawn": "0x23c6268",
+    "dwPlantedC4": "0x2390a18",
+    "dwPrediction": "0x23c6170",
+    "dwSensitivity": "0x23c3578",
     "dwSensitivity_sensitivity": "0x58",
-    "dwViewAngles": "0x23c01a8",
-    "dwViewMatrix": "0x23af550",
-    "dwViewRender": "0x23af5a8",
-    "dwWeaponC4": "0x2322da0"
+    "dwViewAngles": "0x23dc2f8",
+    "dwViewMatrix": "0x23cb830",
+    "dwViewRender": "0x23cb898",
+    "dwWeaponC4": "0x233ef10"
   },
   "engine2.dll": {
     "dwBuildNumber": "0x60f594",
@@ -32,8 +32,8 @@
     "dwNetworkGameClient_maxClients": "0x240",
     "dwNetworkGameClient_serverTickCount": "0x24c",
     "dwNetworkGameClient_signOnState": "0x230",
-    "dwWindowHeight": "0x9118dc",
-    "dwWindowWidth": "0x9118d8"
+    "dwWindowHeight": "0x9118d4",
+    "dwWindowWidth": "0x9118d0"
   },
   "inputsystem.dll": {
     "dwInputSystem": "0x45ba0"
@@ -103,7 +103,7 @@
       "m_hActiveWeapon": "0x60"
     },
     "C_EconEntity": {
-      "m_AttributeManager": "0x1200"
+      "m_AttributeManager": "0x11a8"
     },
     "C_AttributeContainer": {
       "m_Item": "0x50"
@@ -114,8 +114,8 @@
   },
   "schema_version": 1,
   "game": "cs2",
-  "build": "latest",
-  "cl": "",
+  "build": "14180",
+  "cl": "14180",
   "module": "client.dll",
-  "generated_at": "2026-09-07"
+  "generated_at": "2026-09-09"
 }

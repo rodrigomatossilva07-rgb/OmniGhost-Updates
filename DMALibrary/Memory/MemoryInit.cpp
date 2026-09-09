@@ -395,7 +395,9 @@ static VMM_HANDLE SafeVmmInitializeEx(DWORD argc, LPCSTR argv[], PPLC_CONFIG_ERR
 				<< "           2) FTDI driver (FTD3XX/FTD3XXWU) version mismatch\n"
 				<< "           3) Another application holding the FPGA device\n"
 				<< "           4) PCIe link training failure (reseat FPGA card)\n"
-				<< "           5) Insufficient power to FPGA board\n";
+				<< "           5) Insufficient power to FPGA board\n"
+				<< "           6) Secure Boot enabled - blocks unsigned FTDI driver\n"
+				<< "           7) Virtualization (Hyper-V/VBS/WSL2) blocks DMA access\n";
 		}
 	}
 	return handle;
@@ -555,7 +557,7 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 				++attemptNo;
 				opened = tryOpen(candidate.device, candidate.useMmap, attemptNo, attemptMax);
 				if (!opened)
-					std::this_thread::sleep_for(std::chrono::milliseconds(500));  // Increased delay
+					std::this_thread::sleep_for(std::chrono::milliseconds(400));
 			}
 			if (opened)
 				break;
@@ -581,6 +583,10 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 			std::cout << "[DMA]      -> Verifique conexoes de 12V/3.3V e cabos PCIe power\n";
 			std::cout << "[DMA]   6) Conflito de versao LeechCore/MemProcFS\n";
 			std::cout << "[DMA]      -> Verifique se vmm.dll e leechcore.dll sao da mesma versao\n";
+			std::cout << "[DMA]   7) Secure Boot ativo impede driver FTDI de carregar\n";
+			std::cout << "[DMA]      -> Desative Secure Boot na BIOS/UEFI\n";
+			std::cout << "[DMA]   8) Virtualizacao (Hyper-V/VBS/WSL2) bloqueia acesso DMA\n";
+			std::cout << "[DMA]      -> Desative Hyper-V, VBS/Memory Integrity, WSL2\n";
 			std::cout << "[DMA] ===============================================================\n";
 			last_attach_result = AttachResult::Failed;
 			return false;

@@ -27,13 +27,13 @@ uint64_t c_shellcode::find_codecave(size_t function_size, const std::string& pro
 	const PIMAGE_SECTION_HEADER pSections = static_cast<PIMAGE_SECTION_HEADER>(LocalAlloc(LMEM_ZEROINIT, cSections * sizeof(IMAGE_SECTION_HEADER)));
 	if (!pSections || !VMMDLL_ProcessGetSectionsU(mem.vHandle, pid, const_cast<LPSTR>(module.c_str()), pSections, cSections, &cSections) || !cSections)
 	{
-		LOG("[!] Could not retrieve sections #2 for '%s'\n", module);
+		LOG("[!] Could not retrieve sections #2 for '%s'\n", module.c_str());
 		return 0;
 	}
 
 	/*Scan for code cave*/
 	uint64_t codecave = 0;
-	for (int i = 0; i < cSections; i++)
+	for (DWORD i = 0; i < cSections; ++i)
 	{
 		if (!codecave && ((pSections[i].Characteristics & (IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_MEM_WRITE | IMAGE_SCN_MEM_READ))) && ((pSections[i].Misc.VirtualSize & 0xfff) < (0x1000 - function_size)))
 		{
