@@ -7,6 +7,7 @@
 #include "hotkeys.h"
 #include "../config/app_settings.h"
 #include <algorithm>
+#include <cstdio>
 
 namespace Onboarding {
 
@@ -215,6 +216,40 @@ namespace Onboarding {
 
     void DrawStepContent(const WizardStep& step);
 
+    void DrawHardwareRow(const char* label, const char* role,
+                         const HardwareMonitor::DeviceStatus& status,
+                         bool optional) {
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        const ImVec2 pos = ImGui::GetCursorScreenPos();
+        const float width = ImGui::GetContentRegionAvail().x;
+        constexpr float height = 54.0f;
+        const ImVec4 stateColor = status.connected
+            ? CyberTheme::Colors.Success
+            : (status.port == "Checking" ? CyberTheme::Colors.Warning : CyberTheme::Colors.TextDisabled);
+        const char* state = status.connected
+            ? "Detected"
+            : (status.port == "Checking" ? "Checking" : "Not detected");
+
+        dl->AddRectFilled(pos, ImVec2(pos.x + width, pos.y + height),
+            CyberTheme::U32(CyberTheme::Colors.Card), CyberTheme::Radius::Sm);
+        dl->AddRect(pos, ImVec2(pos.x + width, pos.y + height),
+            CyberTheme::WithAlpha(CyberTheme::Colors.Border, 0.65f), CyberTheme::Radius::Sm);
+        dl->AddCircleFilled(ImVec2(pos.x + 17.0f, pos.y + height * 0.5f), 4.0f,
+            CyberTheme::U32(stateColor));
+        dl->AddText(ImVec2(pos.x + 31.0f, pos.y + 10.0f), CyberTheme::U32(CyberTheme::Colors.Text), label);
+        dl->AddText(ImVec2(pos.x + 31.0f, pos.y + 30.0f), CyberTheme::U32(CyberTheme::Colors.TextDisabled), role);
+        const ImVec2 stateSize = ImGui::CalcTextSize(state);
+        dl->AddText(ImVec2(pos.x + width - stateSize.x - 14.0f, pos.y + 19.0f),
+            CyberTheme::U32(stateColor), state);
+        if (optional) {
+            const char* optionalText = "OPTIONAL";
+            const ImVec2 optionalSize = ImGui::CalcTextSize(optionalText);
+            dl->AddText(ImVec2(pos.x + width - stateSize.x - optionalSize.x - 28.0f, pos.y + 19.0f),
+                CyberTheme::U32(CyberTheme::Colors.TextDisabled), optionalText);
+        }
+        ImGui::Dummy(ImVec2(width, height + 8.0f));
+    }
+
     void DrawWizard() {
         if (!g_active) return;
         
@@ -222,11 +257,18 @@ namespace Onboarding {
         int step_idx = static_cast<int>(g_current_step);
         int total_steps = static_cast<int>(Step::Count) - 1; // Exclude Complete
         
-        // Modal window
+        // Keep the wizard visually separate from the launcher. The old popup
+        // inherited a nearly-black transparent background, which made its text
+        // look as though it belonged to the page underneath.
         ImGui::OpenPopup("##onboarding_wizard");
         ImVec2 center = ImGui::GetMainViewport()->GetCenter();
         ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-        ImGui::SetNextWindowSize(ImVec2(600, 500), ImGuiCond_Appearing);
+        ImGui::SetNextWindowSize(ImVec2(700, 560), ImGuiCond_Appearing);
+        ImGui::PushStyleColor(ImGuiCol_PopupBg, CyberTheme::WithAlpha(CyberTheme::Colors.Surface, 0.99f));
+        ImGui::PushStyleColor(ImGuiCol_ModalWindowDimBg, IM_COL32(0, 0, 0, 188));
+        ImGui::PushStyleColor(ImGuiCol_Border, CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.34f));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, CyberTheme::Radius::Lg);
         
         if (ImGui::BeginPopupModal("##onboarding_wizard", &g_active, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove)) {
             ImDrawList* dl = ImGui::GetWindowDrawList();
@@ -235,51 +277,55 @@ namespace Onboarding {
             
             // Progress bar at top
             float progress = static_cast<float>(step_idx) / total_steps;
-            ImVec2 prog_pos(win_pos.x + 20, win_pos.y + 20);
-            ImVec2 prog_end(win_pos.x + win_size.x - 20, prog_pos.y + 4);
+            ImVec2 prog_pos(win_pos.x + 28, win_pos.y + 22);
+            ImVec2 prog_end(win_pos.x + win_size.x - 28, prog_pos.y + 3);
             dl->AddRectFilled(prog_pos, prog_end, CyberTheme::U32(CyberTheme::Colors.Panel), 2.0f);
             dl->AddRectFilled(prog_pos, ImVec2(prog_pos.x + (prog_end.x - prog_pos.x) * progress, prog_pos.y + 4),
                 CyberTheme::U32(CyberTheme::Colors.Gold), 2.0f);
             
             // Step indicator
-            ImGui::SetCursorPosY(40);
-            ImGui::TextColored(CyberTheme::Colors.TextDisabled, "Step %d of %d", step_idx + 1, total_steps);
-            
-            ImGui::Spacing();
-            ImGui::Separator();
-            ImGui::Spacing();
-            
-            // Icon and title
-            ImVec2 icon_pos = ImGui::GetCursorScreenPos();
+            ImGui::SetCursorPos(ImVec2(28.0f, 42.0f));
+            ImGui::TextColored(CyberTheme::Colors.TextDisabled, "SETUP  %d / %d", step_idx + 1, total_steps);
+
+            // Stable numbered badge: the previous emoji glyphs are not present
+            // in the product font and therefore rendered as question marks.
+            const ImVec2 badge = ImVec2(win_pos.x + 52.0f, win_pos.y + 112.0f);
+            dl->AddCircleFilled(badge, 24.0f, CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.16f));
+            dl->AddCircle(badge, 24.0f, CyberTheme::U32(CyberTheme::Colors.Gold), 0, 1.0f);
+            char stepNumber[8];
+            std::snprintf(stepNumber, sizeof(stepNumber), "%02d", step_idx + 1);
+            const ImVec2 numberSize = ImGui::CalcTextSize(stepNumber);
+            dl->AddText(ImVec2(badge.x - numberSize.x * 0.5f, badge.y - numberSize.y * 0.5f),
+                CyberTheme::U32(CyberTheme::Colors.Gold), stepNumber);
+
+            ImGui::SetCursorPos(ImVec2(96.0f, 83.0f));
             ImFont* title_font = CyberFonts::GetTitleFont();
             if (title_font) {
-                dl->AddText(title_font, 48.0f, icon_pos, CyberTheme::U32(CyberTheme::Colors.Gold), step.icon.c_str());
-                ImGui::Dummy(ImVec2(60, 60));
+                ImGui::PushFont(title_font);
             }
-            
-            ImGui::SetCursorPosX(80);
-            ImGui::BeginGroup();
+            ImGui::TextUnformatted(step.title.c_str());
             if (title_font) {
-                dl->AddText(title_font, 28.0f, ImGui::GetCursorScreenPos(), CyberTheme::U32(CyberTheme::Colors.Text), step.title.c_str());
-            } else {
-                ImGui::Text("%s", step.title.c_str());
+                ImGui::PopFont();
             }
-            ImGui::Dummy(ImVec2(0, 10));
-            ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + 480);
-            ImGui::TextWrapped("%s", step.description.c_str());
+            ImGui::SetCursorPos(ImVec2(96.0f, 121.0f));
+            ImGui::PushTextWrapPos(win_pos.x + win_size.x - 40.0f);
+            ImGui::TextColored(CyberTheme::Colors.TextDisabled, "%s", step.description.c_str());
             ImGui::PopTextWrapPos();
-            ImGui::EndGroup();
-            
-            ImGui::Spacing();
-            ImGui::Separator();
-            ImGui::Spacing();
-            
-            // Step-specific content
+
+            ImGui::SetCursorPos(ImVec2(28.0f, 164.0f));
+            dl->AddLine(ImGui::GetCursorScreenPos(), ImVec2(win_pos.x + win_size.x - 28.0f, ImGui::GetCursorScreenPos().y),
+                CyberTheme::WithAlpha(CyberTheme::Colors.Border, 0.75f));
+            ImGui::Dummy(ImVec2(0.0f, 12.0f));
+
+            ImGui::BeginChild("##onboarding_content", ImVec2(0.0f, win_size.y - 270.0f), false);
+            ImGui::SetCursorPosX(28.0f);
             DrawStepContent(step);
-            
-            ImGui::Spacing();
-            ImGui::Separator();
-            ImGui::Spacing();
+            ImGui::EndChild();
+
+            ImGui::SetCursorPos(ImVec2(28.0f, win_size.y - 66.0f));
+            dl->AddLine(ImGui::GetCursorScreenPos(), ImVec2(win_pos.x + win_size.x - 28.0f, ImGui::GetCursorScreenPos().y),
+                CyberTheme::WithAlpha(CyberTheme::Colors.Border, 0.75f));
+            ImGui::Dummy(ImVec2(0.0f, 12.0f));
             
             // Navigation buttons
             float btn_width = 120.0f;
@@ -313,6 +359,8 @@ namespace Onboarding {
             
             ImGui::EndPopup();
         }
+        ImGui::PopStyleVar(2);
+        ImGui::PopStyleColor(3);
         
         if (!g_active) {
             ImGui::CloseCurrentPopup();
@@ -344,26 +392,12 @@ namespace Onboarding {
                 break;
             }
             case Step::HardwareDetection: {
-                CyberWidgets::TextLine("Detecting hardware...", CyberWidgets::TextTone::Accent);
-                ImGui::Spacing();
-                
+                CyberWidgets::TextLine("Detection runs in the background. It does not open a DMA session.", CyberWidgets::TextTone::Secondary);
+                ImGui::Dummy(ImVec2(0.0f, 10.0f));
                 HardwareMonitor::Update();
-                
-                for (int i = 0; i < static_cast<int>(HardwareMonitor::DeviceType::Count); ++i) {
-                    const auto& status = HardwareMonitor::GetDeviceStatus(static_cast<HardwareMonitor::DeviceType>(i));
-                    if (status.enabled || status.connected) {
-                        std::string health = HardwareMonitor::GetDeviceHealthString(static_cast<HardwareMonitor::DeviceType>(i));
-                        CyberWidgets::TextTone tone = CyberWidgets::TextTone::Success;
-                        if (health == "Disconnected" || health == "Stale") tone = CyberWidgets::TextTone::Error;
-                        else if (health == "High Latency" || health == "Elevated Latency") tone = CyberWidgets::TextTone::Warning;
-                        CyberWidgets::StatusBadge(status.name.c_str(), status.connected);
-                        if (status.connected) {
-                            char lat[64];
-                            std::snprintf(lat, sizeof(lat), "Latency: %.1fms", HardwareMonitor::GetAverageLatency(static_cast<HardwareMonitor::DeviceType>(i)));
-                            CyberWidgets::KeyValueRow("Latency", lat);
-                        }
-                    }
-                }
+                DrawHardwareRow("DMA / FPGA", "Required when starting a game", HardwareMonitor::GetDeviceStatus(HardwareMonitor::DeviceType::DMA), false);
+                DrawHardwareRow("MAKCU", "Input device", HardwareMonitor::GetDeviceStatus(HardwareMonitor::DeviceType::Makcu), true);
+                CyberWidgets::TextLine("You can continue without MAKCU. DMA is opened only after selecting a game.", CyberWidgets::TextTone::Secondary);
                 break;
             }
             case Step::GameSelection: {

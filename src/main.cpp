@@ -49,6 +49,7 @@
 #include "platform/window_instance_guard.h"
 #include "window/performance_mode.h"
 #include "window/widgets.h"
+#include "window/hardware_monitor.h"
 #include "../ImGui/imgui.h"
 #include "makcu/makcu_wrapper.h"
 
@@ -423,6 +424,22 @@ while (application.shouldRun && !authenticated) {
     bool logout_requested = false;
     while (application.shouldRun && selected == Launcher::GameId::None && !logout_requested) {
         hardwareManager.Poll();
+        // The onboarding and status pages are read-only views. Mirror the
+        // HardwareManager snapshot into their display model; never let UI code
+        // probe a device or open a DMA session by itself.
+        const auto hardware = hardwareManager.Snapshot();
+        HardwareMonitor::SetDeviceEnabled(HardwareMonitor::DeviceType::DMA, true);
+        HardwareMonitor::UpdateDeviceStatus(
+            HardwareMonitor::DeviceType::DMA,
+            hardware.dmaFinished && hardware.dmaAvailable,
+            hardware.dmaFinished ? "Windows PnP" : "Checking",
+            hardware.dmaFinished ? "Presence check only" : "");
+        HardwareMonitor::SetDeviceEnabled(HardwareMonitor::DeviceType::Makcu, true);
+        HardwareMonitor::UpdateDeviceStatus(
+            HardwareMonitor::DeviceType::Makcu,
+            hardware.makcuFinished && hardware.makcuAvailable,
+            hardware.makcuFinished ? "Startup probe" : "Checking",
+            "Optional input device");
         application.StartRender();
         if (!application.shouldRun)
             break;
