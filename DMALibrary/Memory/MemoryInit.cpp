@@ -275,28 +275,39 @@ bool Memory::Rebind(std::string process_name, bool memMap, bool debug)
 
 bool Memory::SetFPGA()
 {
-	// Read-only capability query. Register-write tweaks are deliberately not
-	// applied: they are a stability risk on shared boards.
+	// Match UC DMA base behaviour: query FPGA id/version, then clear the PCIe
+	// auto-clear register on modern firmware (same LcCommand the working base uses).
 	if (!vHandle)
 		return false;
-	OMNIGHOST_VMM_TIMING("ConfigGet(LEECHCORE_HANDLE)");
-	ULONG64 lcHandle = 0;
-	if (!VMMDLL_ConfigGet(vHandle, VMMDLL_OPT_CORE_LEECHCORE_HANDLE, &lcHandle) || !lcHandle) {
-		std::cout << "[!] FPGA capability query failed - continuing anyway\n";
+	OMNIGHOST_VMM_TIMING("SetFPGA");
+	ULONG64 qwID = 0, qwVersionMajor = 0, qwVersionMinor = 0, deviceId = 0;
+	const bool idOk = VMMDLL_ConfigGet(vHandle, LC_OPT_FPGA_FPGA_ID, &qwID) != FALSE;
+	const bool verOk = VMMDLL_ConfigGet(vHandle, LC_OPT_FPGA_VERSION_MAJOR, &qwVersionMajor) != FALSE
+		&& VMMDLL_ConfigGet(vHandle, LC_OPT_FPGA_VERSION_MINOR, &qwVersionMinor) != FALSE;
+	(void)VMMDLL_ConfigGet(vHandle, LC_OPT_FPGA_DEVICE_ID, &deviceId);
+	if (!idOk && !verOk) {
+		std::cout << "[!] Failed to lookup FPGA device, attempting to proceed" << std::endl;
 		return true;
 	}
-	const HANDLE hLC = reinterpret_cast<HANDLE>(static_cast<uintptr_t>(lcHandle));
-	QWORD fpgaId = 0, verMajor = 0, verMinor = 0, deviceId = 0;
-	const bool idOk = LcGetOption(hLC, LC_OPT_FPGA_FPGA_ID, &fpgaId) != FALSE;
-	const bool verOk = LcGetOption(hLC, LC_OPT_FPGA_VERSION_MAJOR, &verMajor) != FALSE
-		&& LcGetOption(hLC, LC_OPT_FPGA_VERSION_MINOR, &verMinor) != FALSE;
-	(void)LcGetOption(hLC, LC_OPT_FPGA_DEVICE_ID, &deviceId);
-	std::cout << "[VMM] FPGA capability query idOk=" << (idOk ? "YES" : "NO")
-		<< " versionOk=" << (verOk ? "YES" : "NO") << "\n";
-	if (idOk)
-		std::cout << "[+] FPGA_ID=" << fpgaId << " fw=" << verMajor << "." << verMinor
-			<< " device=" << HexOf(deviceId) << "\n";
-	std::cout << "[DMA][STABILITY] FPGA register-write tweak disabled; read-only capability query only\n";
+	std::cout << "[+] FPGA_ID=" << qwID << " VERSION=" << qwVersionMajor << "." << qwVersionMinor
+		<< " device=" << HexOf(deviceId) << std::endl;
+
+	// Same threshold as the working UC base (major>=5 or major==4 && minor>=7).
+	if ((qwVersionMajor >= 4) && ((qwVersionMajor >= 5) || (qwVersionMinor >= 7))) {
+		LC_CONFIG config{};
+		config.dwVersion = LC_CONFIG_VERSION;
+		std::snprintf(config.szDevice, sizeof(config.szDevice), "existing");
+		const HANDLE handle = LcCreate(&config);
+		if (!handle) {
+			std::cout << "[!] Failed to create FPGA device for register clear - continuing" << std::endl;
+			return true;
+		}
+		DWORD abort2 = 0x10;
+		LcCommand(handle, LC_CMD_FPGA_CFGREGPCIE_MARKWR | 0x002, 4,
+			reinterpret_cast<PBYTE>(&abort2), nullptr, nullptr);
+		std::cout << "[-] Register auto cleared (UC-base SetFPGA path)" << std::endl;
+		LcClose(handle);
+	}
 	return true;
 }
 
@@ -368,6 +379,23 @@ static bool HasFtdiBridge() noexcept
 	    ValidatePrivateRuntimeFile(L"libs/FTD3XXWU.dll", err))
 		any = true;
 	return any;
+}
+
+
+// UC-base style: plain VMMDLL_Initialize (no errorinfo out-param).
+static VMM_HANDLE SafeVmmInitialize(DWORD argc, LPCSTR argv[], DWORD* outSehCode) noexcept
+{
+	if (outSehCode)
+		*outSehCode = 0;
+	VMM_HANDLE handle = nullptr;
+	__try {
+		handle = VMMDLL_Initialize(argc, argv);
+	} __except (EXCEPTION_EXECUTE_HANDLER) {
+		if (outSehCode)
+			*outSehCode = GetExceptionCode();
+		handle = nullptr;
+	}
+	return handle;
 }
 
 // VMMDLL_InitializeEx takes PPLC_CONFIG_ERRORINFO (== LC_CONFIG_ERRORINFO **).
@@ -445,7 +473,11 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 		std::string firstApiMessage;
 		std::string lastApiMessage;
 
-		auto tryOpen = [&](const char* device, bool useMmap, int attemptNo, int attemptMax) -> bool {
+		// UC-base compatible open:
+		//  1) Minimal argv: "", "-device", device  [+ optional -memmap / -v]
+		//  2) Prefer VMMDLL_Initialize (exactly like the working base)
+		//  3) Fall back to InitializeEx only if Initialize returns null without SEH
+		auto tryOpen = [&](const char* device, bool useMmap, bool ucSimple, int attemptNo, int attemptMax) -> bool {
 			std::vector<LPCSTR> args;
 			args.push_back("");
 			args.push_back("-device");
@@ -454,91 +486,101 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 				args.push_back("-memmap");
 				args.push_back(mmapPath.c_str());
 			}
-			args.push_back("-norefresh"); // OmniGhost triggers refreshes explicitly (PROCESS_DTB / plugins)
+			// UC simple path: NO -norefresh / -disable-infodb / -disable-symbols
+			if (!ucSimple) {
+				args.push_back("-norefresh");
 #if defined(OMNIGHOST_DISABLE_VMM_INFODB)
-			args.push_back("-disable-infodb");
+				args.push_back("-disable-infodb");
 #endif
 #if defined(OMNIGHOST_DISABLE_VMM_SYMBOLS)
-			args.push_back("-disable-symbols");
+				args.push_back("-disable-symbols");
 #endif
+			}
 			if (debug) {
 				args.push_back("-v");
 				args.push_back("-printf");
 			}
 
 			std::cout << "[DMA][Init] attempt=" << attemptNo << "/" << attemptMax
-				<< " device=" << device << (useMmap && !mmapPath.empty() ? " memmap=YES" : " memmap=NO") << "\n";
+				<< " device=" << device
+				<< (useMmap && !mmapPath.empty() ? " memmap=YES" : " memmap=NO")
+				<< (ucSimple ? " mode=UC-simple" : " mode=OG-extended") << "\n";
 
-			PLC_CONFIG_ERRORINFO errorInfo = nullptr;
 			DWORD sehCode = 0;
-			const VMM_HANDLE handle = SafeVmmInitializeEx(static_cast<DWORD>(args.size()), args.data(), &errorInfo, &sehCode);
+			VMM_HANDLE handle = nullptr;
+
+			// Primary: VMMDLL_Initialize like the working UC base
+			handle = SafeVmmInitialize(static_cast<DWORD>(args.size()), args.data(), &sehCode);
 			if (sehCode != 0) {
-				std::cout << "[DMA][Init] SEH fault during VMMDLL_InitializeEx code=0x"
-					<< std::hex << sehCode << std::dec
-					<< " (FPGA/FTDI missing or driver unstable)" << std::endl;
-				const std::string message = std::string(device) + " InitializeEx SEH fault";
+				std::cout << "[DMA][Init] SEH fault during VMMDLL_Initialize code=0x"
+					<< std::hex << sehCode << std::dec << "\n";
+				const std::string message = std::string(device) + " Initialize SEH fault";
 				if (firstError.empty()) firstError = message;
 				lastError = message;
 				if (firstApiMessage.empty()) firstApiMessage = message;
 				lastApiMessage = message;
 				return false;
 			}
-			std::string userMessage;
-			if (errorInfo) {
-				if (errorInfo->dwVersion == LC_CONFIG_ERRORINFO_VERSION && errorInfo->cwszUserText)
-					userMessage = Narrow(std::wstring(errorInfo->wszUserText, errorInfo->cwszUserText));
-				std::cout << "[DMA][Init] error_info_present=YES error_info.version=" << HexOf(errorInfo->dwVersion)
-					<< " user_input_request=" << (errorInfo->fUserInputRequest ? "YES" : "NO") << "\n";
-				LcMemFree(errorInfo);
+
+			if (!handle && !ucSimple) {
+				// Extended path only: try InitializeEx for richer error text
+				PLC_CONFIG_ERRORINFO errorInfo = nullptr;
+				sehCode = 0;
+				handle = SafeVmmInitializeEx(static_cast<DWORD>(args.size()), args.data(), &errorInfo, &sehCode);
+				if (sehCode != 0) {
+					std::cout << "[DMA][Init] SEH fault during VMMDLL_InitializeEx code=0x"
+						<< std::hex << sehCode << std::dec << "\n";
+					const std::string message = std::string(device) + " InitializeEx SEH fault";
+					if (firstError.empty()) firstError = message;
+					lastError = message;
+					return false;
+				}
+				if (errorInfo) {
+					std::string userMessage;
+					if (errorInfo->dwVersion == LC_CONFIG_ERRORINFO_VERSION && errorInfo->cwszUserText)
+						userMessage = Narrow(std::wstring(errorInfo->wszUserText, errorInfo->cwszUserText));
+					std::cout << "[DMA][Init] error_info user_message=\"" << userMessage << "\"\n";
+					if (!userMessage.empty()) {
+						if (firstApiMessage.empty()) firstApiMessage = userMessage;
+						lastApiMessage = userMessage;
+					}
+					LcMemFree(errorInfo);
+				}
 			}
+
 			if (!handle) {
-				const std::string message = userMessage.empty()
-					? std::string(device) + " InitializeEx FAIL (no Win32 error code; see LeechCore error_info)"
-					: userMessage;
+				const std::string message = std::string(device) + " Initialize FAIL";
 				if (firstError.empty()) firstError = message;
 				lastError = message;
-				if (!userMessage.empty()) {
-					if (firstApiMessage.empty()) firstApiMessage = userMessage;
-					lastApiMessage = userMessage;
-					std::cout << "[DMA][Init] user_message=\"" << userMessage << "\"\n";
-				} else {
-					std::cout << "[DMA][Init] user_message=(empty)\n";
-				}
+				std::cout << "[DMA][Init] " << message << "\n";
 				return false;
 			}
 			vHandle = handle;
+			std::cout << "[DMA][Init] OPEN OK device=" << device
+				<< (ucSimple ? " (UC-simple)" : " (OG-extended)") << "\n";
 			return true;
 		};
 
-		// Preload ALL FTDI bridges before attempting VMM initialization
-		// This prevents SEH 0xc0000005 crashes in VMMDLL_InitializeEx
-		std::cout << "[DMA][Init] Preloading FTDI bridges...\n";
-		PreloadAllFtdiBridges();
 
+				// Preload FTDI (best-effort). UC base does LoadLibraryA("FTD3XX.dll") and
+		// continues even if lookup is soft — do not hard-fail before open.
+		std::cout << "[DMA][Init] Preloading FTDI bridges (UC-compatible)...\n";
+		PreloadAllFtdiBridges();
 		if (!HasFtdiBridge()) {
-			const std::string detail =
-				"FTD3XX/FTD3XXWU not found - cannot open FPGA (place DLL in ProjectDir\\libs and Rebuild Publish)";
-			std::cout << "[DMA][Init] " << detail << std::endl;
-			firstError = detail;
-			lastError = detail;
-			firstApiMessage = detail;
-			lastApiMessage = detail;
-			std::cout << "[DMA][Init] FAILED attempts=0 first_error=" << firstError << std::endl;
-			std::cout << "[DMA] Falha na comunicacao com o DMA/FPGA." << std::endl;
-			last_attach_result = AttachResult::Failed;
-			return false;
+			std::cout << "[DMA][Init] WARN: FTD3XX not pre-validated — still trying open like UC base\n";
 		}
 
-		struct Candidate { const char* device; bool useMmap; };
+		// Order matches the working UC base first: fpga://algo=0 without extra flags.
+		struct Candidate { const char* device; bool useMmap; bool ucSimple; };
 		const Candidate candidates[] = {
-			{ "fpga", false },
-			{ "fpga://algo=0", false },
-			{ "fpga://algo=1", false },  // Alternative algorithm
-			{ "fpga", true },
-			{ "fpga://algo=0", true },   // With memmap + algo 0
-			{ "fpga://algo=1", true },   // With memmap + algo 1
+			{ "fpga://algo=0", false, true  }, // UC primary
+			{ "fpga://algo=0", true,  true  }, // UC + memmap
+			{ "fpga",          false, true  }, // UC-simple bare fpga
+			{ "fpga://algo=0", false, false }, // OG-extended fallback
+			{ "fpga",          false, false },
+			{ "fpga://algo=1", false, true  },
 		};
-		constexpr int kAttemptsPerDevice = 3;  // Increased from 2 to 3
+		constexpr int kAttemptsPerDevice = 2;
 		const int attemptMax = static_cast<int>(std::size(candidates)) * kAttemptsPerDevice;
 		int attemptNo = 0;
 		bool opened = false;
@@ -547,7 +589,8 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 				continue;
 			if (attemptNo > 0)
 				std::cout << "[DMA][Init] fallback device=" << candidate.device
-					<< (candidate.useMmap ? "+mmap" : "") << "\n";
+					<< (candidate.useMmap ? "+mmap" : "")
+					<< (candidate.ucSimple ? " UC-simple" : " OG-extended") << "\n";
 			for (int retry = 0; retry < kAttemptsPerDevice && !opened; ++retry) {
 				if (IsCancellationRequested()) {
 					std::cout << "[DMA][Init] cancelled during FPGA retry loop\n";
@@ -555,7 +598,7 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 					return false;
 				}
 				++attemptNo;
-				opened = tryOpen(candidate.device, candidate.useMmap, attemptNo, attemptMax);
+				opened = tryOpen(candidate.device, candidate.useMmap, candidate.ucSimple, attemptNo, attemptMax);
 				if (!opened)
 					std::this_thread::sleep_for(std::chrono::milliseconds(400));
 			}
@@ -609,7 +652,7 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 		(void)VMMDLL_ConfigGet(vHandle, VMMDLL_OPT_CONFIG_VMM_VERSION_MAJOR, &major);
 		(void)VMMDLL_ConfigGet(vHandle, VMMDLL_OPT_CONFIG_VMM_VERSION_MINOR, &minor);
 		(void)VMMDLL_ConfigGet(vHandle, VMMDLL_OPT_CONFIG_VMM_VERSION_REVISION, &revision);
-		std::cout << "[+] DMA opened device='fpga' attempts=" << attemptNo << "\n";
+		std::cout << "[+] DMA opened (UC-compatible path) attempts=" << attemptNo << "\n";
 		std::cout << "[VMM] version=" << major << "." << minor << "." << revision
 			<< " session_generation=" << SessionGeneration()
 			<< " open_count=" << vmmOpenCount_.load(std::memory_order_relaxed) << "\n";
