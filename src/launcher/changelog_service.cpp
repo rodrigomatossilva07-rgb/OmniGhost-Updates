@@ -141,6 +141,7 @@ std::optional<ChangeType> ParseChangeType(const std::string& type) {
     if (normalized == "security") return ChangeType::Security;
     if (normalized == "removed") return ChangeType::Removed;
     if (normalized == "breaking") return ChangeType::Breaking;
+    if (normalized == "maintenance") return ChangeType::Maintenance;
     return std::nullopt;
 }
 

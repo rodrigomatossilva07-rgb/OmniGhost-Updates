@@ -111,6 +111,9 @@ namespace LauncherUpdates {
             case Launcher::ChangeType::Breaking:
                 return "⚠";
 
+            case Launcher::ChangeType::Maintenance:
+                return "🔧";
+
             default:
                 return "•";
             }
@@ -143,6 +146,9 @@ namespace LauncherUpdates {
             case Launcher::ChangeType::Breaking:
                 return "Alteração importante";
 
+            case Launcher::ChangeType::Maintenance:
+                return "Manutenção";
+
             default:
                 return "Alteração";
             }
@@ -171,7 +177,8 @@ namespace LauncherUpdates {
                 Launcher::ChangeType::Compatibility,
                 Launcher::ChangeType::Fixed,
                 Launcher::ChangeType::Security,
-                Launcher::ChangeType::Removed
+                Launcher::ChangeType::Removed,
+                Launcher::ChangeType::Maintenance
             };
 
             std::size_t count = 0;
@@ -834,7 +841,8 @@ namespace LauncherUpdates {
                 Launcher::ChangeType::Compatibility,
                 Launcher::ChangeType::Fixed,
                 Launcher::ChangeType::Security,
-                Launcher::ChangeType::Removed
+                Launcher::ChangeType::Removed,
+                Launcher::ChangeType::Maintenance
             };
 
             for (const Launcher::ChangelogModule& module :

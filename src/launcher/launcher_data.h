@@ -25,7 +25,8 @@ enum class ChangeType : int {
     Compatibility,
     Security,
     Removed,
-    Breaking
+    Breaking,
+    Maintenance
 };
 
 enum class SessionResult : int {

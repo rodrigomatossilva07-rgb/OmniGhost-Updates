@@ -260,6 +260,7 @@ const char* ChangeTypeLabel(ChangeType type) {
     case ChangeType::Security:      return "SEGURANÇA";
     case ChangeType::Removed:       return "REMOVIDO";
     case ChangeType::Breaking:      return "ALTERAÇÃO IMPORTANTE";
+    case ChangeType::Maintenance:   return "MANUTENÇÃO";
     default:                        return "ALTERAÇÃO";
     }
 }
