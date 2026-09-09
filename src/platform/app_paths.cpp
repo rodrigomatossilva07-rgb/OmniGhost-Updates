@@ -242,7 +242,7 @@ fs::path Backups() {
 }
 
 bool EnsureUserDirectories() {
-    const std::array<fs::path, 4> directories = {
+    const std::array<fs::path, 5> directories = {
         LocalData(),
         NativeRuntime(),
         Configs(),

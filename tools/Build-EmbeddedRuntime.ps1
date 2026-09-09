@@ -70,14 +70,8 @@ function Add-RuntimeTree([string]$Root, [string]$Prefix, [scriptblock]$Include =
     }
 }
 
-# Local fallback first; authoritative DMA/custom copies replace duplicate names.
+# Local libs folder is the authoritative source for all runtime DLLs
 foreach ($file in Get-ChildItem -LiteralPath (Join-Path $ProjectDir 'libs') -File -Filter '*.dll') {
-    Add-RuntimeFile $file.FullName ("libs/" + $file.Name)
-}
-foreach ($file in Get-ChildItem -LiteralPath (Join-Path $ProjectDir 'third_party\dma_stack\bin') -File -Filter '*.dll') {
-    Add-RuntimeFile $file.FullName ("libs/" + $file.Name)
-}
-foreach ($file in Get-ChildItem -LiteralPath (Join-Path $ProjectDir 'runtime\own') -File -Filter '*.dll') {
     Add-RuntimeFile $file.FullName ("libs/" + $file.Name)
 }
 # The current pinned vmm.dll, leechcore.dll and pdbcrust.dll import only
@@ -131,24 +125,12 @@ $total = [uint64]0
 $embeddedList = @()
 $skippedList = @()
 foreach ($file in Get-ChildItem -LiteralPath (Join-Path $ProjectDir 'libs') -File -Filter '*.dll') {
-    $skippedList += "libs/$($file.Name) (from libs/)"
-}
-foreach ($file in Get-ChildItem -LiteralPath (Join-Path $ProjectDir 'third_party\dma_stack\bin') -File -Filter '*.dll') {
     $relativePath = "libs/$($file.Name)"
     $key = $relativePath.ToLowerInvariant()
     if ($files.ContainsKey($key)) {
         $embeddedList += $relativePath
     } else {
-        $skippedList += $relativePath
-    }
-}
-foreach ($file in Get-ChildItem -LiteralPath (Join-Path $ProjectDir 'runtime\own') -File -Filter '*.dll') {
-    $relativePath = "libs/$($file.Name)"
-    $key = $relativePath.ToLowerInvariant()
-    if ($files.ContainsKey($key)) {
-        $embeddedList += $relativePath
-    } else {
-        $skippedList += $relativePath
+        $skippedList += "$relativePath (from libs/)"
     }
 }
 # Add cloudflared and vcruntime to embedded list
@@ -178,7 +160,7 @@ $headerLines.Add('} // namespace OmniGhost::EmbeddedRuntimeGenerated')
 
 [IO.File]::WriteAllLines($RcOutput, $rcLines, (New-Object Text.UTF8Encoding($false)))
 [IO.File]::WriteAllLines($HeaderOutput, $headerLines, (New-Object Text.UTF8Encoding($false)))
-Write-Host "[EmbeddedRuntime] from dma_stack\bin: $($embeddedList.Count) files - $($embeddedList -join ', ')"
+Write-Host "[EmbeddedRuntime] from libs: $($embeddedList.Count) files - $($embeddedList -join ', ')"
 Write-Host "[EmbeddedRuntime] embedded count=$($ordered.Count) total_bytes=$total"
 Write-Host "[EmbeddedRuntime] skipped: $($skippedList -join '; ')"
 Write-Host "[EmbeddedRuntime] configuration=$Configuration private_static=$privateStatic"

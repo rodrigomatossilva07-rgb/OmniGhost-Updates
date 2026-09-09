@@ -44,12 +44,8 @@ function Assert-ManifestHash([object]$Expected, [string]$Relative) {
 # Essential project/runtime inputs only. No test-suite requirements.
 foreach ($file in @(
     'OmiGhost.vcxproj','OmniGhost.Common.props','OmniGhost.Release.props',
-    'third_party\dma_stack\versions.json','third_party\dma_stack\managed-files.json',
-    'third_party\dma_stack\include\vmmdll.h','third_party\dma_stack\include\leechcore.h',
-    'third_party\dma_stack\lib\vmm.lib','third_party\dma_stack\lib\leechcore.lib',
-    'third_party\dma_stack\bin\vmm.dll','third_party\dma_stack\bin\leechcore.dll',
-    'runtime\own\pdbcrust.dll',
-    'third_party\cloudflared\cloudflared.exe','THIRD_PARTY_NOTICES.txt',
+    'versions.json',
+    'src\runtime\cloudflared\cloudflared.exe','THIRD_PARTY_NOTICES.txt',
     'resources\OmniGhost.ico',
     'resources\resource.h','resources\embedded-resources.json',
     'src\platform\embedded_offsets.cpp','src\platform\embedded_offsets.h',
@@ -60,14 +56,14 @@ foreach ($file in @(
     'src\licensing\license_service.cpp','src\launcher\license_page.cpp'
 )) { Require-File $file }
 
-$cloudflaredPath = Join-Path $ProjectDir 'third_party\cloudflared\cloudflared.exe'
+$cloudflaredPath = Join-Path $ProjectDir 'src\runtime\cloudflared\cloudflared.exe'
 $expectedCloudflaredSha256 = 'c29eee2b121f5436a642eed69fd9767da7e7b8c510fa50aaa130337f931357b5'
 if ((Get-Sha256 $cloudflaredPath) -cne $expectedCloudflaredSha256) {
     Fail 'cloudflared.exe does not match the approved signed Cloudflare 2026.8.2 binary.'
 }
 Pass 'cloudflared.exe matches the approved Authenticode-verified Cloudflare 2026.8.2 binary.'
 
-foreach ($path in @('DMALibrary\libs','DMALibrary\info.db','libs\info.db','third_party\dma_stack\data\info.db','src\launcher\calibration_page.cpp','src\launcher\calibration_page.h')) {
+foreach ($path in @('DMALibrary\libs','DMALibrary\info.db','libs\info.db','src\launcher\calibration_page.cpp','src\launcher\calibration_page.h')) {
     Require-Absent $path
 }
 foreach ($file in @('.github\workflows\release.yml')) {
@@ -91,13 +87,13 @@ if ($markdown.Count -gt 0) {
     Pass 'No Markdown source files.'
 }
 
-$versions = Read-Utf8Text (Join-Path $ProjectDir 'third_party\dma_stack\versions.json') | ConvertFrom-Json
-Assert-ManifestHash $versions.memprocfs.sha256.'vmm.dll' 'third_party\dma_stack\bin\vmm.dll'
-Assert-ManifestHash $versions.memprocfs.sha256.'vmm.lib' 'third_party\dma_stack\lib\vmm.lib'
-Assert-ManifestHash $versions.memprocfs.sha256.'vmmdll.h' 'third_party\dma_stack\include\vmmdll.h'
-Assert-ManifestHash $versions.leechcore.sha256.'leechcore.dll' 'third_party\dma_stack\bin\leechcore.dll'
-Assert-ManifestHash $versions.leechcore.sha256.'leechcore.lib' 'third_party\dma_stack\lib\leechcore.lib'
-Assert-ManifestHash $versions.leechcore.sha256.'leechcore.h' 'third_party\dma_stack\include\leechcore.h'
+$versions = Read-Utf8Text (Join-Path $ProjectDir 'versions.json') | ConvertFrom-Json
+Assert-ManifestHash $versions.memprocfs.sha256.'vmm.dll' 'libs\vmm.dll'
+Assert-ManifestHash $versions.memprocfs.sha256.'vmm.lib' 'libs\vmm.lib'
+Assert-ManifestHash $versions.memprocfs.sha256.'vmmdll.h' 'libs\vmmdll.h'
+Assert-ManifestHash $versions.leechcore.sha256.'leechcore.dll' 'libs\leechcore.dll'
+Assert-ManifestHash $versions.leechcore.sha256.'leechcore.lib' 'libs\leechcore.lib'
+Assert-ManifestHash $versions.leechcore.sha256.'leechcore.h' 'libs\leechcore.h'
 
 # The build explicitly consumes/copies the canonical DMA runtime from
 # third_party\dma_stack. Copies produced by a previous build or release staging are
@@ -108,8 +104,8 @@ $ignoredGeneratedRoots = @('build\', 'x64\', '.cache\', 'artifacts\', 'dist\', '
 foreach ($name in @('vmm.dll','leechcore.dll')) {
     foreach ($file in Get-ChildItem -LiteralPath $ProjectDir -Recurse -File -Filter $name -ErrorAction SilentlyContinue) {
         $relative = $file.FullName.Substring($ProjectDir.Length).TrimStart('\')
-        if ($relative -ieq ('third_party\dma_stack\bin\' + $name)) { continue }
-        if ($relative -like 'third_party\dma_stack.backup\*' -or $relative -like 'third_party\dma_stack.failed-*\*') { continue }
+        if ($relative -ieq ('libs\' + $name)) { continue }
+        if ($relative -like 'libs.backup\*' -or $relative -like 'libs.failed-*\*') { continue }
 
         $isGeneratedCopy = $false
         foreach ($root in $ignoredGeneratedRoots) {
@@ -139,9 +135,9 @@ $release = Read-Utf8Text (Join-Path $ProjectDir 'OmniGhost.Release.props')
 $runtimeBootstrap = Read-Utf8Text (Join-Path $ProjectDir 'src\platform\runtime_bootstrap.cpp')
 
 # These are regular expressions, so literal Windows path separators must be escaped.
-Require-Text $common 'third_party\\dma_stack\\include' 'Canonical DMA includes configured.'
-Require-Text $common 'third_party\\dma_stack\\lib' 'Canonical DMA libraries configured.'
-Require-Text $project 'third_party\\dma_stack\\bin' 'Canonical DMA runtime configured.'
+Require-Text $common 'libs\\\*\.h' 'Canonical DMA includes configured.'
+Require-Text $common 'libs\\\*\.lib' 'Canonical DMA libraries configured.'
+Require-Text $project 'libs\\\*\.dll' 'Canonical DMA runtime configured.'
 Require-Text $project 'libs\\\*\.dll' 'Local libs source bundle configured.'
 Require-Text $project 'src\\licensing\\license_service\.cpp' 'Licensing service is part of the build.'
 Require-Text $project 'src\\launcher\\license_page\.cpp' 'Licensing page is part of the build.'
