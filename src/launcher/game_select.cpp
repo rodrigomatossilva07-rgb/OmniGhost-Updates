@@ -131,7 +131,6 @@ GameId g_detail_game = GameId::None;
 GameId g_help_game = GameId::None;
 GameId g_reset_settings_game = GameId::None;
 GameId g_card_menu_game = GameId::None;
-int g_card_menu_open_frame = -1;
 float g_time = 0.f;
 float g_page_transition = 1.f;
 int g_nav = static_cast<int>(NavPage::Home);
@@ -183,7 +182,6 @@ void Reset(EntryReason reason) {
     g_help_game = GameId::None;
     g_reset_settings_game = GameId::None;
     g_card_menu_game = GameId::None;
-    g_card_menu_open_frame = -1;
     // Let the UI transition settle before the first remote process inventory.
     // This avoids hitting the FPGA again in the same instant that startup
     // finishes opening the device.

@@ -125,14 +125,22 @@ bool HasDemoText(const std::string& value) {
 }
 
 std::optional<ChangeType> ParseChangeType(const std::string& type) {
-    if (type == "added") return ChangeType::Added;
-    if (type == "improved") return ChangeType::Improved;
-    if (type == "fixed") return ChangeType::Fixed;
-    if (type == "performance") return ChangeType::Performance;
-    if (type == "compatibility") return ChangeType::Compatibility;
-    if (type == "security") return ChangeType::Security;
-    if (type == "removed") return ChangeType::Removed;
-    if (type == "breaking") return ChangeType::Breaking;
+    // Releases produced by older tooling used mixed-case category names.
+    // Normalize the wire value so a cosmetic casing difference cannot poison
+    // the whole changelog refresh.
+    std::string normalized;
+    normalized.reserve(type.size());
+    for (const unsigned char character : type)
+        normalized.push_back(static_cast<char>(std::tolower(character)));
+
+    if (normalized == "added") return ChangeType::Added;
+    if (normalized == "improved") return ChangeType::Improved;
+    if (normalized == "fixed") return ChangeType::Fixed;
+    if (normalized == "performance") return ChangeType::Performance;
+    if (normalized == "compatibility") return ChangeType::Compatibility;
+    if (normalized == "security") return ChangeType::Security;
+    if (normalized == "removed") return ChangeType::Removed;
+    if (normalized == "breaking") return ChangeType::Breaking;
     return std::nullopt;
 }
 
