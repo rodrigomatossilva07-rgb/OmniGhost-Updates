@@ -59,8 +59,8 @@ void PruneCrashDumps() noexcept {
     try {
         std::error_code error;
         const fs::path directory = CrashDirectory();
-        fs::create_directories(directory, error);
-        if (error)
+        // Do not create crash-dumps/ until a dump is actually written.
+        if (!fs::is_directory(directory, error))
             return;
 
         struct Entry { fs::path path; fs::file_time_type time{}; };

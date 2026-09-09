@@ -1,4 +1,4 @@
-#include "game_adapter_registry.h"
+﻿#include "game_adapter_registry.h"
 #include "game_launch_service.h"
 
 #include "../globals.h"
@@ -169,19 +169,14 @@ bool StartFiveM() {
         }
         FiveM::Setup();
         if (!FiveM::IsBuildSupported()) {
-            constexpr std::string_view reason = "Build FiveM não suportada pela tabela validada do OmniGhost.";
+            constexpr std::string_view reason = "Build FiveM n├úo suportada pela tabela validada do OmniGhost.";
             OmniGhost::OffsetAuto::MarkOutdated(ActiveGame::FiveM, std::string(reason));
             std::cerr << "[FiveM] " << reason << '\n';
             return false;
         }
         OmniGhost::OffsetAuto::MarkLiveValid(ActiveGame::FiveM, "Build FiveM confirmada na tabela validada");
         FiveM::ESP::InitializeContainers();
-        try {
-            if (!aim_type::IsConnected()) makcu_wrapper::MakcuInitialize("");
-        } catch (...) {
-            std::cerr << "[FiveM] Makcu init ignored (optional hardware)
-";
-        }
+        if (!aim_type::IsConnected()) makcu_wrapper::MakcuInitialize("");
         return true;
     } catch (const std::exception& ex) {
         std::cerr << "[FiveM] CRASH em StartFiveM: " << ex.what() << std::endl;
@@ -193,7 +188,7 @@ bool StartFiveM() {
 }
 
 std::string_view FiveMStatus() noexcept {
-    return OmniGhost::GameContext::Instance().GetValidExecutable().empty() ? "FiveM não ligado" : "FiveM ligado";
+    return OmniGhost::GameContext::Instance().GetValidExecutable().empty() ? "FiveM n├úo ligado" : "FiveM ligado";
 }
 
 // Static functions for adapter operations to avoid lambda/std::function issues

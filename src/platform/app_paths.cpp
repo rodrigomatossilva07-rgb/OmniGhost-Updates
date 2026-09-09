@@ -221,33 +221,28 @@ fs::path Cache() {
 }
 
 fs::path Logs() {
-    auto path = LocalData() / L"logs";
-    std::error_code ec;
-    fs::create_directories(path, ec);
-    return path;
+    // Session log is LocalData()/logs.txt — no separate logs/ directory.
+    return LocalData();
 }
 
 fs::path Updates() {
-    auto path = LocalData() / L"updates";
-    std::error_code ec;
-    fs::create_directories(path, ec);
-    return path;
+    // Staging under runtime; do not create a permanent updates/ tree at startup.
+    return NativeRuntime() / L"updates-staging";
 }
 
 fs::path Backups() {
-    auto path = LocalData() / L"backups";
-    std::error_code ec;
-    fs::create_directories(path, ec);
-    return path;
+    // Only created when a caller actually writes a backup.
+    return LocalData() / L"backups";
 }
 
 bool EnsureUserDirectories() {
-    const std::array<fs::path, 5> directories = {
+    // Minimal footprint under %LOCALAPPDATA%\OmniGhost:
+    // - root + runtime + Configs only at startup
+    // - CS2/, cache/, backups/, crash-dumps/ created lazily when used
+    const std::array<fs::path, 3> directories = {
         LocalData(),
         NativeRuntime(),
         Configs(),
-        Cs2Configs(),
-        Cache()
     };
 
     for (const fs::path& directory : directories) {

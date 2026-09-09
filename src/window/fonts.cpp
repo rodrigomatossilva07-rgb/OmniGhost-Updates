@@ -75,7 +75,13 @@ namespace {
             if (candidate.empty() || !IsReadableFile(candidate))
                 continue;
 
-            if (ImFont* font = atlas->AddFontFromFileTTF(candidate.c_str(), size_pixels))
+            ImFontConfig cfg{};
+            cfg.OversampleH = 2;
+            cfg.OversampleV = 2;
+            cfg.PixelSnapH = true;
+            // Default + full Latin so PT/ES/FR accents render (não, ação, …).
+            const ImWchar* ranges = atlas->GetGlyphRangesDefault();
+            if (ImFont* font = atlas->AddFontFromFileTTF(candidate.c_str(), size_pixels, &cfg, ranges))
                 return font;
         }
 

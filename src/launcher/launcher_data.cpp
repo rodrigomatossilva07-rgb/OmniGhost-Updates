@@ -133,7 +133,7 @@ bool g_state_loaded = false;
 
 fs::path StatePath() {
     OmniGhost::Paths::EnsureUserDirectories();
-    return OmniGhost::Paths::LocalData() / L"launcher_state.cfg";
+    return OmniGhost::Paths::Configs() / L"launcher_state.cfg";
 }
 
 const char* GameIdString(GameId id) {

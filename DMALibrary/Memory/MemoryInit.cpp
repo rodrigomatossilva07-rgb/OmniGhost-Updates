@@ -1,4 +1,4 @@
-// MemoryInit.cpp - runtime dependencies, FPGA/VMM session open, process bind,
+﻿// MemoryInit.cpp - runtime dependencies, FPGA/VMM session open, process bind,
 // ProcInfo/DTB reconciliation (FixCr3) and session teardown.
 #include "pch.h"
 #include "Memory.h"
@@ -62,9 +62,9 @@ HMODULE LoadPrivateLibrary(const std::filesystem::path& file)
 
 } // namespace
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 // Runtime dependencies
-// ─────────────────────────────────────────────────────────────────────────────
+// ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 
 bool Memory::EnsureRuntimeDependencies()
 {
@@ -84,14 +84,9 @@ bool Memory::EnsureRuntimeDependencies()
 	//    manifest owns them (portable Publish builds).
 	// 2) Otherwise accept a side-by-side copy under NativeRuntime/libs or next
 	//    to the executable (dev machines with vendor drivers installed).
-	// 3) If nothing is present, do NOT hard-fail here — LeechCore loads the
+	// 3) If nothing is present, do NOT hard-fail here ÔÇö LeechCore loads the
 	//    FTDI DLL only when the FPGA device is opened. A missing bridge is
 	//    reported as a warning so static-VMM / PnP-only probes can continue.
-	{
-		std::wstring matErr;
-		(void)OmniGhost::RuntimeBootstrap::MaterializePrivateRuntimeFile(L"libs/FTD3XX.dll", matErr);
-		(void)OmniGhost::RuntimeBootstrap::MaterializePrivateRuntimeFile(L"libs/FTD3XXWU.dll", matErr);
-	}
 	auto ftdiOk = false;
 	std::string ftdiDetail;
 	const wchar_t* const kFtdiCandidates[] = {
@@ -100,12 +95,8 @@ bool Memory::EnsureRuntimeDependencies()
 	};
 	for (const wchar_t* relative : kFtdiCandidates) {
 		if (ValidatePrivateRuntimeFile(relative, error)) {
-			(void)LoadPrivateLibrary(PrivateRuntimePath(relative));
 			ftdiOk = true;
 			ftdiDetail = Narrow(std::wstring(relative)) + ": private-runtime OK";
-			std::cout << "[DMA][Init] FTDI loaded from private runtime: "
-				<< Narrow(PrivateRuntimePath(relative).wstring()) << "
-";
 			break;
 		}
 	}
@@ -114,8 +105,6 @@ bool Memory::EnsureRuntimeDependencies()
 		const fs::path searchRoots[] = {
 			OmniGhost::Paths::NativeRuntime() / L"libs",
 			OmniGhost::Paths::InstallDirectory() / L"libs",
-			OmniGhost::Paths::InstallDirectory() / L"third_party" / L"dma_stack" / L"bin",
-			OmniGhost::Paths::InstallDirectory() / L"third_party" / L"dma_stack" / L"files",
 			OmniGhost::Paths::InstallDirectory(),
 		};
 		const wchar_t* names[] = { L"FTD3XX.dll", L"FTD3XXWU.dll" };
@@ -124,18 +113,8 @@ bool Memory::EnsureRuntimeDependencies()
 				const fs::path candidate = root / name;
 				std::error_code ec;
 				if (fs::is_regular_file(candidate, ec) && !ec && fs::file_size(candidate, ec) > 0) {
-					// Prefer a stable private-runtime copy under NativeRuntime\libs.
-					const fs::path destDir = OmniGhost::Paths::NativeRuntime() / L"libs";
-					fs::create_directories(destDir, ec);
-					const fs::path dest = destDir / name;
-					std::error_code copyEc;
-					fs::copy_file(candidate, dest, fs::copy_options::overwrite_existing, copyEc);
-					const fs::path loadPath = (!copyEc && fs::is_regular_file(dest, ec)) ? dest : candidate;
-					(void)LoadPrivateLibrary(loadPath);
 					ftdiOk = true;
-					ftdiDetail = Narrow(candidate.wstring()) + " -> " + Narrow(loadPath.wstring());
-					std::cout << "[DMA][Init] FTDI loaded from " << ftdiDetail << "
-";
+					ftdiDetail = Narrow(candidate.wstring()) + ": side-by-side OK";
 					break;
 				}
 			}
@@ -146,7 +125,7 @@ bool Memory::EnsureRuntimeDependencies()
 		// Soft-fail: integrity still OK for session bootstrap; FPGA open will
 		// surface a real device error if the driver is truly unavailable.
 		ftdiDetail = "FTD3XX/FTD3XXWU absent from private runtime and side-by-side paths "
-			"(EXTERNAL_FTD3XXWU_ON_FPGA_OPEN — deferred to device open)";
+			"(EXTERNAL_FTD3XXWU_ON_FPGA_OPEN ÔÇö deferred to device open)";
 		std::cout << "[DMA][Init] FTDI bridge not pre-validated: " << ftdiDetail << "\n";
 	} else {
 		std::cout << "[DMA][Init] FTDI bridge: " << ftdiDetail << "\n";
@@ -207,9 +186,9 @@ bool Memory::EnsureRuntimeDependencies()
 	return dependencyIntegrityOk_;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 // State reset helpers
-// ─────────────────────────────────────────────────────────────────────────────
+// ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 
 void Memory::ResetProcessState(bool preserveAppliedOverride) noexcept
 {
@@ -290,9 +269,9 @@ bool Memory::Rebind(std::string process_name, bool memMap, bool debug)
 	return Init(std::move(process_name), memMap, debug);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 // FPGA / VMM session open + process bind
-// ─────────────────────────────────────────────────────────────────────────────
+// ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 
 bool Memory::SetFPGA()
 {
@@ -337,7 +316,6 @@ static bool HasFtdiBridge() noexcept
 		OmniGhost::Paths::NativeRuntime() / L"libs",
 		OmniGhost::Paths::InstallDirectory() / L"libs",
 		OmniGhost::Paths::InstallDirectory() / L"third_party" / L"dma_stack" / L"bin",
-		OmniGhost::Paths::InstallDirectory() / L"third_party" / L"dma_stack" / L"files",
 		OmniGhost::Paths::InstallDirectory(),
 	};
 	const wchar_t* names[] = { L"FTD3XX.dll", L"FTD3XXWU.dll" };
@@ -352,24 +330,19 @@ static bool HasFtdiBridge() noexcept
 	return false;
 }
 
-// LeechCore/FPGA can ACCESS_VIOLATE when FTD3XX is missing or the driver faults.
-// C++ catch (...) does NOT catch structured exceptions — use SEH here only.
 static VMM_HANDLE SafeVmmInitializeEx(DWORD argc, LPCSTR argv[], PPLC_CONFIG_ERRORINFO* ppErrorInfo, DWORD* outSehCode) noexcept
 {
-	if (outSehCode)
-		*outSehCode = 0;
+	if (outSehCode) *outSehCode = 0;
 	VMM_HANDLE handle = nullptr;
 	PPLC_CONFIG_ERRORINFO errorInfo = nullptr;
 	__try {
 		handle = VMMDLL_InitializeEx(argc, argv, &errorInfo);
 	} __except (EXCEPTION_EXECUTE_HANDLER) {
-		if (outSehCode)
-			*outSehCode = GetExceptionCode();
+		if (outSehCode) *outSehCode = GetExceptionCode();
 		handle = nullptr;
 		errorInfo = nullptr;
 	}
-	if (ppErrorInfo)
-		*ppErrorInfo = errorInfo;
+	if (ppErrorInfo) *ppErrorInfo = errorInfo;
 	return handle;
 }
 
@@ -445,8 +418,7 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 			if (sehCode != 0) {
 				std::cout << "[DMA][Init] SEH fault during VMMDLL_InitializeEx code=0x"
 					<< std::hex << sehCode << std::dec
-					<< " (FPGA/FTDI missing or driver unstable)
-";
+					<< " (FPGA/FTDI missing or driver unstable)" << std::endl;
 				const std::string message = std::string(device) + " InitializeEx SEH fault";
 				if (firstError.empty()) firstError = message;
 				lastError = message;
@@ -481,20 +453,16 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 			return true;
 		};
 
-		// Refuse FPGA open without FTDI bridge (prevents process-killing AVs).
 		if (!HasFtdiBridge()) {
 			const std::string detail =
-				"FTD3XX/FTD3XXWU not found — cannot open FPGA (place DLL in third_party/dma_stack/bin or libs and Publish)";
-			std::cout << "[DMA][Init] " << detail << "
-";
+				"FTD3XX/FTD3XXWU not found - cannot open FPGA (place DLL in ProjectDir\\libs and Rebuild Publish)";
+			std::cout << "[DMA][Init] " << detail << std::endl;
 			firstError = detail;
 			lastError = detail;
 			firstApiMessage = detail;
 			lastApiMessage = detail;
-			std::cout << "[DMA][Init] FAILED attempts=0 first_error=" << firstError << "
-";
-			std::cout << "[DMA] Falha na comunicacao com o DMA/FPGA.
-";
+			std::cout << "[DMA][Init] FAILED attempts=0 first_error=" << firstError << std::endl;
+			std::cout << "[DMA] Falha na comunicacao com o DMA/FPGA." << std::endl;
 			last_attach_result = AttachResult::Failed;
 			return false;
 		}
@@ -634,9 +602,9 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 	return true;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 // Plugins / ProcInfo / PROCESS_DTB
-// ─────────────────────────────────────────────────────────────────────────────
+// ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 
 bool Memory::EnsurePluginsInitialized()
 {
@@ -865,9 +833,9 @@ bool Memory::WaitForProcInfo(int timeout_sec, bool* out_stuck, bool* out_cancell
 	}
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 // FixCr3 - EAC CR3 shuffle reconciliation through MemProcFS misc/procinfo
-// ─────────────────────────────────────────────────────────────────────────────
+// ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 
 bool Memory::FixCr3()
 {

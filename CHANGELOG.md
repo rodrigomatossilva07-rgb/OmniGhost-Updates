@@ -1,3 +1,17 @@
+## OmniGhost 3.7.2
+
+Released: 09/09/2026
+Channel: stable
+Tag: v3.7.2
+
+### Outras alterações
+
+#### :wrench: Corrigido
+
+- Add debugging logs for tab switching and fix changelog validation.
+
+---
+
 ## OmniGhost 3.7.1
 
 Released: 09/09/2026
