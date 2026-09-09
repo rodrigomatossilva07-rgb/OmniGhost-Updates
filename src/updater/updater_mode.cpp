@@ -349,6 +349,8 @@ std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
     const bool startupConfirmed = applicationStarted &&
         ConfirmStarted(newPid, confirmation, token, configuration.startupConfirmationSeconds, error);
     if (!startupConfirmed) {
+        // Policy: never restore an older executable. Keep the newest installed
+        // bits even if the first post-update start fails (DMA/device/driver, etc.).
         if (newPid) {
             Platform::UniqueHandle process(OpenProcess(PROCESS_TERMINATE | SYNCHRONIZE, FALSE, newPid));
             if (process) {
@@ -356,27 +358,15 @@ std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
                 (void)WaitForSingleObject(process.get(), 5000);
             }
         }
-        std::string rollbackError; const bool rolledBack = RollbackInstallation(install, rollbackError); DWORD restoredPid{};
-        if (rolledBack) {
-            std::wstring rollbackToken;
-            std::string tokenError;
-            if (!RandomTokenHex(32, rollbackToken, tokenError)) rollbackToken = token;
-            const std::wstring rollbackArguments = L"--rollback-restored --failed-version " +
-                Quote(Platform::Utf8ToWide(targetVersion)) + L" --rollback-stage restart";
-            StartApplication(target / executableName, confirmation, rollbackToken, rollbackArguments, restoredPid, rollbackError);
-        }
         const std::string restartDetail = error.empty()
             ? "A nova versao nao confirmou o arranque."
             : error;
         WriteLog(log, LogLevel::Error, Version, targetVersion, "restart",
-            rolledBack
-                ? restartDetail + "; rollback concluido."
-                : restartDetail + "; rollback falhou: " + rollbackError);
+            restartDetail + "; rollback desativado — a versao instalada e mantida.");
         RecordHealth("startup-confirmation-failed", Version, targetVersion, expectedHash, {},
-            rolledBack ? "success" : "failed",
-            rolledBack ? restartDetail + "; rollback completed"
-                       : restartDetail + "; rollback failed: " + rollbackError);
-        return rolledBack ? 27 : 28;
+            "skipped-keep-latest",
+            restartDetail + "; kept latest version (no rollback)");
+        return 28;
     }
 
     fs::remove(package, cleanupError); fs::remove_all(staging, cleanupError); fs::remove(confirmation, cleanupError);

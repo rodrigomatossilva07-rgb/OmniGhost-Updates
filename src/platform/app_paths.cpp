@@ -275,8 +275,8 @@ void MigrateLegacyUserData() {
         fs::equivalent(portableRoot, LocalData(), equivalentError) &&
         !equivalentError;
     if (!sameRoot) {
-        static constexpr std::array<const wchar_t*, 4> mutableDirectories = {
-            L"Configs", L"CS2", L"cache", L"crash-dumps"
+        static constexpr std::array<const wchar_t*, 2> mutableDirectories = {
+            L"Configs", L"CS2"
         };
         for (const wchar_t* name : mutableDirectories)
             CopyMissing(portableRoot / name, LocalData() / name);

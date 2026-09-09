@@ -301,17 +301,36 @@ bool Memory::SetFPGA()
 }
 
 
+static bool PreloadFtdiFromPath(const std::filesystem::path& file) noexcept
+{
+	std::error_code ec;
+	if (!std::filesystem::is_regular_file(file, ec) || ec || std::filesystem::file_size(file, ec) == 0)
+		return false;
+	HMODULE mod = LoadLibraryExW(
+		file.c_str(),
+		nullptr,
+		LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
+	if (mod) {
+		std::wcout << L"[DMA][Init] LoadLibrary FTDI OK: " << file.wstring() << L"\n";
+		return true;
+	}
+	std::wcout << L"[DMA][Init] LoadLibrary FTDI FAIL: " << file.wstring()
+		<< L" win32=" << GetLastError() << L"\n";
+	return false;
+}
+
 static bool HasFtdiBridge() noexcept
 {
 	namespace fs = std::filesystem;
 	std::wstring err;
 	using OmniGhost::RuntimeBootstrap::ValidatePrivateRuntimeFile;
 	using OmniGhost::RuntimeBootstrap::MaterializePrivateRuntimeFile;
+
+	// Always try to materialize from the embedded PE first.
 	(void)MaterializePrivateRuntimeFile(L"libs/FTD3XX.dll", err);
 	(void)MaterializePrivateRuntimeFile(L"libs/FTD3XXWU.dll", err);
-	if (ValidatePrivateRuntimeFile(L"libs/FTD3XX.dll", err) ||
-	    ValidatePrivateRuntimeFile(L"libs/FTD3XXWU.dll", err))
-		return true;
+
+	bool any = false;
 	const fs::path roots[] = {
 		OmniGhost::Paths::NativeRuntime() / L"libs",
 		OmniGhost::Paths::InstallDirectory() / L"libs",
@@ -321,28 +340,32 @@ static bool HasFtdiBridge() noexcept
 	const wchar_t* names[] = { L"FTD3XX.dll", L"FTD3XXWU.dll" };
 	for (const auto& root : roots) {
 		for (const wchar_t* name : names) {
-			std::error_code ec;
-			const fs::path c = root / name;
-			if (fs::is_regular_file(c, ec) && !ec && fs::file_size(c, ec) > 0)
-				return true;
+			if (PreloadFtdiFromPath(root / name))
+				any = true;
 		}
 	}
-	return false;
+	if (ValidatePrivateRuntimeFile(L"libs/FTD3XX.dll", err) ||
+	    ValidatePrivateRuntimeFile(L"libs/FTD3XXWU.dll", err))
+		any = true;
+	return any;
 }
 
-static VMM_HANDLE SafeVmmInitializeEx(DWORD argc, LPCSTR argv[], PPLC_CONFIG_ERRORINFO* ppErrorInfo, DWORD* outSehCode) noexcept
+// VMMDLL_InitializeEx takes PPLC_CONFIG_ERRORINFO (== LC_CONFIG_ERRORINFO **).
+// Pass the caller's out-pointer through so SEH never changes the typedef shape.
+static VMM_HANDLE SafeVmmInitializeEx(DWORD argc, LPCSTR argv[], PPLC_CONFIG_ERRORINFO ppLcErrorInfo, DWORD* outSehCode) noexcept
 {
-	if (outSehCode) *outSehCode = 0;
+	if (outSehCode)
+		*outSehCode = 0;
 	VMM_HANDLE handle = nullptr;
-	PPLC_CONFIG_ERRORINFO errorInfo = nullptr;
 	__try {
-		handle = VMMDLL_InitializeEx(argc, argv, &errorInfo);
+		handle = VMMDLL_InitializeEx(argc, argv, ppLcErrorInfo);
 	} __except (EXCEPTION_EXECUTE_HANDLER) {
-		if (outSehCode) *outSehCode = GetExceptionCode();
+		if (outSehCode)
+			*outSehCode = GetExceptionCode();
 		handle = nullptr;
-		errorInfo = nullptr;
+		if (ppLcErrorInfo)
+			*ppLcErrorInfo = nullptr;
 	}
-	if (ppErrorInfo) *ppErrorInfo = errorInfo;
 	return handle;
 }
 

@@ -69,8 +69,9 @@ void MigrateLegacyMutableData(const fs::path& legacyRoot) {
         return;
     }
 
-    static constexpr std::array<const wchar_t*, 7> kMutableDirectories = {
-        L"Configs", L"CS2", L"logs", L"cache", L"updates", L"backups", L"crash-dumps"
+    // Only migrate durable user data. Do not re-create cache/backups/logs/crash-dumps.
+    static constexpr std::array<const wchar_t*, 2> kMutableDirectories = {
+        L"Configs", L"CS2"
     };
     for (const wchar_t* name : kMutableDirectories)
         CopyTreeMissing(legacyRoot / name, destination / name);
@@ -673,21 +674,55 @@ Result Prepare() {
         MessageBoxW(nullptr, error.c_str(), L"OmniGhost — runtime nativo", MB_OK | MB_ICONERROR);
         return Result::Failed;
     }
-    
+
+    // Force-materialize FTDI bridge from the embedded PE resources so a clean
+    // %LOCALAPPDATA%\OmniGhost\runtime\libs is always populated on first run.
+    {
+        std::wstring matErr;
+        (void)MaterializePrivateRuntimeFile(L"libs/FTD3XX.dll", matErr);
+        (void)MaterializePrivateRuntimeFile(L"libs/FTD3XXWU.dll", matErr);
+        (void)MaterializePrivateRuntimeFile(L"libs/pdbcrust.dll", matErr);
+        (void)MaterializePrivateRuntimeFile(L"libs/vcruntime140.dll", matErr);
+    }
+
     // Sync runtime libraries from embedded manifest and fallback sources
     auto [copied, skipped] = SyncRuntimeLibraries(libs);
-    
+
+    // Preload FTDI by absolute path so LeechCore/VMM never probe the process CWD.
+    ConfigureRuntimeDllSearch(libs);
+    {
+        const wchar_t* ftdiNames[] = { L"FTD3XX.dll", L"FTD3XXWU.dll" };
+        for (const wchar_t* name : ftdiNames) {
+            const fs::path candidate = libs / name;
+            if (fs::is_regular_file(candidate, ec) && !ec) {
+                HMODULE mod = LoadLibraryExW(
+                    candidate.c_str(),
+                    nullptr,
+                    LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
+                if (mod) {
+                    std::wcout << L"[Runtime] preloaded " << candidate.wstring() << L"\n";
+                } else {
+                    std::wcout << L"[Runtime] preload failed " << candidate.wstring()
+                               << L" win32=" << GetLastError() << L"\n";
+                }
+            }
+            ec.clear();
+        }
+    }
+
     // Verify FTDI presence
     bool ftdiPresent = fs::is_regular_file(libs / L"FTD3XX.dll", ec) || fs::is_regular_file(libs / L"FTD3XXWU.dll", ec);
     ec.clear();
-    
+
     OmniGhost::SessionLog::Write(
         OmniGhost::SessionLog::Severity::Info,
         OmniGhost::SessionLog::Subsystem::Runtime,
         "Runtime bootstrap complete",
-        {{"ftdi_present", ftdiPresent ? "YES" : "NO"}, {"libs_path", libs.string()}});
-    
-    ConfigureRuntimeDllSearch(libs);
+        {{"ftdi_present", ftdiPresent ? "YES" : "NO"},
+         {"libs_path", libs.string()},
+         {"copied", std::to_string(copied)},
+         {"skipped", std::to_string(skipped)}});
+
     return Result::Continue;
 }
 

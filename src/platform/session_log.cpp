@@ -313,7 +313,11 @@ void AddRecentEvent(const std::string& event) {
 void PruneArchives() {
     std::error_code error;
     const fs::path archiveDir = Paths::Logs() / L"archive";
-    fs::create_directories(archiveDir, error);
+    // Do not create archive/ just to prune — only touch it if it already exists.
+    if (!fs::is_directory(archiveDir, error)) {
+        error.clear();
+        return;
+    }
     error.clear();
 
     struct Candidate {
@@ -367,18 +371,19 @@ bool RotateOpenLog(std::ofstream& stream, const fs::path& path, const char* suff
     stream.flush();
     stream.close();
 
-    const fs::path archiveDir = Paths::Logs() / L"archive";
-    fs::create_directories(archiveDir, error);
-    if (!error && fs::is_regular_file(path, error) && fs::file_size(path, error) > 0) {
+    // Rotate in-place: keep at most one .prev sibling. No archive/ directory.
+    if (fs::is_regular_file(path, error) && fs::file_size(path, error) > 0) {
         error.clear();
-        const fs::path archived = archiveDir / fs::path(
-            "session-" + TimestampForFilename() + "-r" + std::to_string(++g_liveRotationSequence) + suffix);
-        fs::rename(path, archived, error);
+        const fs::path prev = path.wstring() + L".prev";
+        fs::remove(prev, error);
+        error.clear();
+        fs::rename(path, prev, error);
         if (error) {
             error.clear();
-            fs::copy_file(path, archived, fs::copy_options::overwrite_existing, error);
-            if (!error) fs::remove(path, error);
+            fs::remove(path, error);
         }
+        (void)suffix;
+        ++g_liveRotationSequence;
     }
 
     stream.clear();
@@ -409,7 +414,8 @@ bool RotateStructuredLogIfNeeded(std::uintmax_t incomingBytes) {
                          g_structuredFileBytes, g_structuredLogDay);
 }
 
-void ArchiveExistingLog(const fs::path& path, const char* suffix) {
+void ArchiveExistingLog(const fs::path& path, const char* /*suffix*/) {
+    // Keep a single previous copy beside the active log. Never create archive/.
     std::error_code error;
     if (!fs::is_regular_file(path, error))
         return;
@@ -421,22 +427,14 @@ void ArchiveExistingLog(const fs::path& path, const char* suffix) {
         return;
     }
 
-    const fs::path archiveDir = Paths::Logs() / L"archive";
-    fs::create_directories(archiveDir, error);
-    if (error)
-        return;
-
-    const fs::path archived = archiveDir /
-        fs::path("session-" + TimestampForFilename() + "-pid" +
-            std::to_string(GetCurrentProcessId()) + suffix);
-    fs::rename(path, archived, error);
+    const fs::path prev = path.wstring() + L".prev";
+    fs::remove(prev, error);
+    error.clear();
+    fs::rename(path, prev, error);
     if (error) {
         error.clear();
-        fs::copy_file(path, archived, fs::copy_options::overwrite_existing, error);
-        if (!error)
-            fs::remove(path, error);
+        fs::remove(path, error);
     }
-    PruneArchives();
 }
 
 fs::path PreferredLogPath() {
