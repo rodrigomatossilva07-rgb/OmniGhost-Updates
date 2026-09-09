@@ -83,58 +83,11 @@ std::filesystem::path RequiredDataPath(GameId id) {
 }
 
 bool DetectInstalled(const GameDefinition& game) {
+    // Dev/product preference: never gate the launcher card on DLL presence.
+    // Missing FPGA/DLLs are reported only when the user actually launches.
     if (game.coming_soon)
         return false;
-
-    // Badge = "can this build start the adapter", not "are two DLLs already
-    // extracted under AppData". Publish uses delay-loaded vmm/leechcore (same as
-    // Release); PrivateStatic links them into the EXE.
-#if defined(OMNIGHOST_PRIVATE_STATIC_VMM)
     return true;
-#else
-    namespace fs = std::filesystem;
-    auto present = [](const fs::path& file) noexcept {
-        std::error_code ec;
-        return fs::is_regular_file(file, ec) && !ec && fs::file_size(file, ec) > 0;
-    };
-
-    // 1) Embedded in the EXE → ready (materialize best-effort for launch).
-    if (OmniGhost::RuntimeBootstrap::EmbeddedRuntimeFileAvailable(L"libs/vmm.dll") &&
-        OmniGhost::RuntimeBootstrap::EmbeddedRuntimeFileAvailable(L"libs/leechcore.dll")) {
-        std::wstring materializeError;
-        (void)OmniGhost::RuntimeBootstrap::MaterializePrivateRuntimeFile(L"libs/vmm.dll", materializeError);
-        materializeError.clear();
-        (void)OmniGhost::RuntimeBootstrap::MaterializePrivateRuntimeFile(L"libs/leechcore.dll", materializeError);
-        return true;
-    }
-
-    // 2) Already validated in the private runtime tree.
-    {
-        std::wstring validationError;
-        const bool vmmOk = OmniGhost::RuntimeBootstrap::ValidatePrivateRuntimeFile(
-            L"libs/vmm.dll", validationError);
-        validationError.clear();
-        const bool leechOk = OmniGhost::RuntimeBootstrap::ValidatePrivateRuntimeFile(
-            L"libs/leechcore.dll", validationError);
-        if (vmmOk && leechOk)
-            return true;
-    }
-
-    // 3) Disk fallback — same locations LoadLibrary / delay-load will search.
-    //    Does not require embed-manifest membership (dev machines copy DLLs from
-    //    third_party\dma_stack\bin or the UC DMA base).
-    const fs::path roots[] = {
-        OmniGhost::Paths::NativeRuntime() / L"libs",
-        OmniGhost::Paths::InstallDirectory() / L"libs",
-        OmniGhost::Paths::InstallDirectory() / L"third_party" / L"dma_stack" / L"bin",
-        OmniGhost::Paths::InstallDirectory(),
-    };
-    for (const auto& root : roots) {
-        if (present(root / L"vmm.dll") && present(root / L"leechcore.dll"))
-            return true;
-    }
-    return false;
-#endif
 }
 
 bool HasRequiredOffsets(const GameDefinition& game) {
@@ -298,34 +251,12 @@ CardState ResolveRuntimeState(GameRuntime& runtime) {
         return CardState::LicenseRequired;
     if (OmniGhost::Update::UpdateService::Instance().BlocksGameLaunch())
         return CardState::UpdateRequired;
-    if (!runtime.installed)
-        return CardState::NotInstalled;
 
-    // Startup no longer opens the FPGA just to populate a status badge. Gate
-    // pre-launch only on the local DMA runtime/dependency integrity; the physical
-    // device is opened after an explicit game launch. A real failed launch is
-    // persisted below as DeviceMissing and can then be retried explicitly.
-    const auto dma = mem.GetDiagnosticsSnapshot();
-    if (!dma.dependencyIntegrityOk)
-        return CardState::DeviceMissing;
-    if (!HasRequiredOffsets(game))
-        return CardState::NeedsOffsets;
-
-    const ActiveGame active = ToActiveGame(game.launch_id);
-    if (OmniGhost::OffsetAuto::BlocksLaunch(active))
-        return CardState::NeedsOffsets;
+    // Do not block the card on DLL detection, dependency integrity, sticky
+    // history, or offset pre-checks. Clicking always proceeds to open FPGA/menu;
+    // real failures surface during the explicit launch path.
     if (DetectRunning(game.launch_id))
         return CardState::Running;
-
-    const GameHistory history = GetGameHistory(game.launch_id);
-    if (history.lastResult == SessionResult::DeviceMissing)
-        return CardState::DeviceMissing;
-    if (history.lastResult == SessionResult::GameNotFound)
-        return CardState::GameNotFound;
-    if (history.lastResult == SessionResult::LaunchFailed)
-        return CardState::LaunchFailed;
-    if (history.lastResult == SessionResult::OffsetsFailed)
-        return CardState::NeedsOffsets;
     return game.beta ? CardState::Beta : CardState::Ready;
 }
 
@@ -521,7 +452,21 @@ const char* SessionResultDisplay(SessionResult result) {
 }
 
 bool IsReadyState(CardState state) {
-    return state == CardState::Ready || state == CardState::Beta;
+    // Allow launch from any non-terminal gate except ComingSoon / Launching.
+    // License/Update are still checked inside ActivateGame.
+    switch (state) {
+    case CardState::Ready:
+    case CardState::Beta:
+    case CardState::NotInstalled:
+    case CardState::DeviceMissing:
+    case CardState::GameNotFound:
+    case CardState::LaunchFailed:
+    case CardState::NeedsOffsets:
+    case CardState::Error:
+        return true;
+    default:
+        return false;
+    }
 }
 
 bool CanRetryState(CardState state) {
