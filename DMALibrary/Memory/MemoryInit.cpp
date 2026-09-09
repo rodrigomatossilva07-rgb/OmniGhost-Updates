@@ -87,6 +87,11 @@ bool Memory::EnsureRuntimeDependencies()
 	// 3) If nothing is present, do NOT hard-fail here — LeechCore loads the
 	//    FTDI DLL only when the FPGA device is opened. A missing bridge is
 	//    reported as a warning so static-VMM / PnP-only probes can continue.
+	{
+		std::wstring matErr;
+		(void)OmniGhost::RuntimeBootstrap::MaterializePrivateRuntimeFile(L"libs/FTD3XX.dll", matErr);
+		(void)OmniGhost::RuntimeBootstrap::MaterializePrivateRuntimeFile(L"libs/FTD3XXWU.dll", matErr);
+	}
 	auto ftdiOk = false;
 	std::string ftdiDetail;
 	const wchar_t* const kFtdiCandidates[] = {
@@ -95,8 +100,12 @@ bool Memory::EnsureRuntimeDependencies()
 	};
 	for (const wchar_t* relative : kFtdiCandidates) {
 		if (ValidatePrivateRuntimeFile(relative, error)) {
+			(void)LoadPrivateLibrary(PrivateRuntimePath(relative));
 			ftdiOk = true;
 			ftdiDetail = Narrow(std::wstring(relative)) + ": private-runtime OK";
+			std::cout << "[DMA][Init] FTDI loaded from private runtime: "
+				<< Narrow(PrivateRuntimePath(relative).wstring()) << "
+";
 			break;
 		}
 	}
@@ -105,6 +114,8 @@ bool Memory::EnsureRuntimeDependencies()
 		const fs::path searchRoots[] = {
 			OmniGhost::Paths::NativeRuntime() / L"libs",
 			OmniGhost::Paths::InstallDirectory() / L"libs",
+			OmniGhost::Paths::InstallDirectory() / L"third_party" / L"dma_stack" / L"bin",
+			OmniGhost::Paths::InstallDirectory() / L"third_party" / L"dma_stack" / L"files",
 			OmniGhost::Paths::InstallDirectory(),
 		};
 		const wchar_t* names[] = { L"FTD3XX.dll", L"FTD3XXWU.dll" };
@@ -113,8 +124,18 @@ bool Memory::EnsureRuntimeDependencies()
 				const fs::path candidate = root / name;
 				std::error_code ec;
 				if (fs::is_regular_file(candidate, ec) && !ec && fs::file_size(candidate, ec) > 0) {
+					// Prefer a stable private-runtime copy under NativeRuntime\libs.
+					const fs::path destDir = OmniGhost::Paths::NativeRuntime() / L"libs";
+					fs::create_directories(destDir, ec);
+					const fs::path dest = destDir / name;
+					std::error_code copyEc;
+					fs::copy_file(candidate, dest, fs::copy_options::overwrite_existing, copyEc);
+					const fs::path loadPath = (!copyEc && fs::is_regular_file(dest, ec)) ? dest : candidate;
+					(void)LoadPrivateLibrary(loadPath);
 					ftdiOk = true;
-					ftdiDetail = Narrow(candidate.wstring()) + ": side-by-side OK";
+					ftdiDetail = Narrow(candidate.wstring()) + " -> " + Narrow(loadPath.wstring());
+					std::cout << "[DMA][Init] FTDI loaded from " << ftdiDetail << "
+";
 					break;
 				}
 			}
@@ -300,6 +321,58 @@ bool Memory::SetFPGA()
 	return true;
 }
 
+
+static bool HasFtdiBridge() noexcept
+{
+	namespace fs = std::filesystem;
+	std::wstring err;
+	using OmniGhost::RuntimeBootstrap::ValidatePrivateRuntimeFile;
+	using OmniGhost::RuntimeBootstrap::MaterializePrivateRuntimeFile;
+	(void)MaterializePrivateRuntimeFile(L"libs/FTD3XX.dll", err);
+	(void)MaterializePrivateRuntimeFile(L"libs/FTD3XXWU.dll", err);
+	if (ValidatePrivateRuntimeFile(L"libs/FTD3XX.dll", err) ||
+	    ValidatePrivateRuntimeFile(L"libs/FTD3XXWU.dll", err))
+		return true;
+	const fs::path roots[] = {
+		OmniGhost::Paths::NativeRuntime() / L"libs",
+		OmniGhost::Paths::InstallDirectory() / L"libs",
+		OmniGhost::Paths::InstallDirectory() / L"third_party" / L"dma_stack" / L"bin",
+		OmniGhost::Paths::InstallDirectory() / L"third_party" / L"dma_stack" / L"files",
+		OmniGhost::Paths::InstallDirectory(),
+	};
+	const wchar_t* names[] = { L"FTD3XX.dll", L"FTD3XXWU.dll" };
+	for (const auto& root : roots) {
+		for (const wchar_t* name : names) {
+			std::error_code ec;
+			const fs::path c = root / name;
+			if (fs::is_regular_file(c, ec) && !ec && fs::file_size(c, ec) > 0)
+				return true;
+		}
+	}
+	return false;
+}
+
+// LeechCore/FPGA can ACCESS_VIOLATE when FTD3XX is missing or the driver faults.
+// C++ catch (...) does NOT catch structured exceptions — use SEH here only.
+static VMM_HANDLE SafeVmmInitializeEx(DWORD argc, LPCSTR argv[], PPLC_CONFIG_ERRORINFO* ppErrorInfo, DWORD* outSehCode) noexcept
+{
+	if (outSehCode)
+		*outSehCode = 0;
+	VMM_HANDLE handle = nullptr;
+	PPLC_CONFIG_ERRORINFO errorInfo = nullptr;
+	__try {
+		handle = VMMDLL_InitializeEx(argc, argv, &errorInfo);
+	} __except (EXCEPTION_EXECUTE_HANDLER) {
+		if (outSehCode)
+			*outSehCode = GetExceptionCode();
+		handle = nullptr;
+		errorInfo = nullptr;
+	}
+	if (ppErrorInfo)
+		*ppErrorInfo = errorInfo;
+	return handle;
+}
+
 bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickDeviceProbe)
 {
 	// One control-plane owner at a time. Concurrent VMMDLL/LeechCore opens against
@@ -367,7 +440,20 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 				<< " device=" << device << (useMmap && !mmapPath.empty() ? " memmap=YES" : " memmap=NO") << "\n";
 
 			PLC_CONFIG_ERRORINFO errorInfo = nullptr;
-			const VMM_HANDLE handle = VMMDLL_InitializeEx(static_cast<DWORD>(args.size()), args.data(), &errorInfo);
+			DWORD sehCode = 0;
+			const VMM_HANDLE handle = SafeVmmInitializeEx(static_cast<DWORD>(args.size()), args.data(), &errorInfo, &sehCode);
+			if (sehCode != 0) {
+				std::cout << "[DMA][Init] SEH fault during VMMDLL_InitializeEx code=0x"
+					<< std::hex << sehCode << std::dec
+					<< " (FPGA/FTDI missing or driver unstable)
+";
+				const std::string message = std::string(device) + " InitializeEx SEH fault";
+				if (firstError.empty()) firstError = message;
+				lastError = message;
+				if (firstApiMessage.empty()) firstApiMessage = message;
+				lastApiMessage = message;
+				return false;
+			}
 			std::string userMessage;
 			if (errorInfo) {
 				if (errorInfo->dwVersion == LC_CONFIG_ERRORINFO_VERSION && errorInfo->cwszUserText)
@@ -394,6 +480,24 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 			vHandle = handle;
 			return true;
 		};
+
+		// Refuse FPGA open without FTDI bridge (prevents process-killing AVs).
+		if (!HasFtdiBridge()) {
+			const std::string detail =
+				"FTD3XX/FTD3XXWU not found — cannot open FPGA (place DLL in third_party/dma_stack/bin or libs and Publish)";
+			std::cout << "[DMA][Init] " << detail << "
+";
+			firstError = detail;
+			lastError = detail;
+			firstApiMessage = detail;
+			lastApiMessage = detail;
+			std::cout << "[DMA][Init] FAILED attempts=0 first_error=" << firstError << "
+";
+			std::cout << "[DMA] Falha na comunicacao com o DMA/FPGA.
+";
+			last_attach_result = AttachResult::Failed;
+			return false;
+		}
 
 		struct Candidate { const char* device; bool useMmap; };
 		const Candidate candidates[] = {

@@ -70,9 +70,35 @@ function Add-RuntimeTree([string]$Root, [string]$Prefix, [scriptblock]$Include =
     }
 }
 
-# Local libs folder is the authoritative source for all runtime DLLs
-foreach ($file in Get-ChildItem -LiteralPath (Join-Path $ProjectDir 'libs') -File -Filter '*.dll') {
-    Add-RuntimeFile $file.FullName ("libs/" + $file.Name)
+# Primary source: ProjectDir\libs\*.dll (includes FTD3XX.dll / FTD3XXWU.dll when present)
+$libsDir = Join-Path $ProjectDir 'libs'
+$libsEmbedded = @()
+if (Test-Path -LiteralPath $libsDir -PathType Container) {
+    foreach ($file in Get-ChildItem -LiteralPath $libsDir -File -Filter '*.dll') {
+        Add-RuntimeFile $file.FullName ("libs/" + $file.Name)
+        $libsEmbedded += $file.Name
+    }
+}
+Write-Host "[EmbeddedRuntime] from libs\: $($libsEmbedded.Count) files - $($libsEmbedded -join ', ')"
+
+# Secondary: third_party\dma_stack\bin\*.dll (also mapped to libs/<name>)
+$dmaBin = Join-Path $ProjectDir 'third_party\dma_stack\bin'
+$dmaEmbedded = @()
+if (Test-Path -LiteralPath $dmaBin -PathType Container) {
+    foreach ($file in Get-ChildItem -LiteralPath $dmaBin -File -Filter '*.dll') {
+        Add-RuntimeFile $file.FullName ("libs/" + $file.Name)
+        $dmaEmbedded += $file.Name
+    }
+}
+if ($dmaEmbedded.Count -gt 0) {
+    Write-Host "[EmbeddedRuntime] from dma_stack\bin: $($dmaEmbedded.Count) files - $($dmaEmbedded -join ', ')"
+}
+
+$hasFtdi = ($libsEmbedded + $dmaEmbedded) | Where-Object { $_ -ieq 'FTD3XX.dll' -or $_ -ieq 'FTD3XXWU.dll' }
+if (-not $hasFtdi) {
+    Write-Warning "[EmbeddedRuntime] FTD3XX.dll / FTD3XXWU.dll not found in libs\ or third_party\dma_stack\bin — FPGA open will fail until one is present at Publish time."
+} else {
+    Write-Host "[EmbeddedRuntime] FTDI bridge will be embedded: $($hasFtdi -join ', ')"
 }
 # The current pinned vmm.dll, leechcore.dll and pdbcrust.dll import only
 # VCRUNTIME140.dll from the private Microsoft VC runtime. Do not embed the

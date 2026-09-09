@@ -176,7 +176,12 @@ bool StartFiveM() {
         }
         OmniGhost::OffsetAuto::MarkLiveValid(ActiveGame::FiveM, "Build FiveM confirmada na tabela validada");
         FiveM::ESP::InitializeContainers();
-        if (!aim_type::IsConnected()) makcu_wrapper::MakcuInitialize("");
+        try {
+            if (!aim_type::IsConnected()) makcu_wrapper::MakcuInitialize("");
+        } catch (...) {
+            std::cerr << "[FiveM] Makcu init ignored (optional hardware)
+";
+        }
         return true;
     } catch (const std::exception& ex) {
         std::cerr << "[FiveM] CRASH em StartFiveM: " << ex.what() << std::endl;

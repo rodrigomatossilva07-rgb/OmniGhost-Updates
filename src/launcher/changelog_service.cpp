@@ -124,7 +124,7 @@ bool HasDemoText(const std::string& value) {
     return false;
 }
 
-ChangeType ParseChangeType(const std::string& type) {
+std::optional<ChangeType> ParseChangeType(const std::string& type) {
     // Releases produced by older tooling used mixed-case category names.
     // Normalize the wire value so a cosmetic casing difference cannot poison
     // the whole changelog refresh.
@@ -142,8 +142,7 @@ ChangeType ParseChangeType(const std::string& type) {
     if (normalized == "removed") return ChangeType::Removed;
     if (normalized == "breaking") return ChangeType::Breaking;
     if (normalized == "maintenance") return ChangeType::Maintenance;
-    // Gracefully handle unknown types instead of failing - treat as Maintenance
-    return ChangeType::Maintenance;
+    return std::nullopt;
 }
 
 struct ParseResult {
@@ -287,7 +286,10 @@ ParseResult ParseChangelog(const std::string& json) {
                 ChangelogChange change;
                 if (!Text(*changeObject, "type", typeText))
                     return fail("Categoria de alteração em falta.");
-                change.type = ParseChangeType(typeText);
+                const auto parsedType = ParseChangeType(typeText);
+                if (!parsedType)
+                    return fail("Categoria de alteração desconhecida.");
+                change.type = *parsedType;
                 if (!Text(*changeObject, "text", change.text) ||
                     HasDemoText(change.text))
                     return fail("Texto de alteração inválido.");
