@@ -40,61 +40,63 @@ namespace {
 
     std::string g_imgui_ini_path;
 
-    void DrawCurrentTab(MenuTab tab, Overlay* overlay)
-    {
-        switch (tab) {
-        case MenuTab::TAB_VISUALS:     DrawVisuals(); break;
-        case MenuTab::TAB_AIM:         DrawAim(); break;
-        case MenuTab::TAB_VEHICLES:    DrawVehicles(); break;
-        case MenuTab::TAB_FRIENDS:     DrawFriends(); break;
-        case MenuTab::TAB_STATUS:      DrawFiveMStatus(); break;
-        case MenuTab::TAB_CONFIGS:     DrawConfigs(overlay); break;
-        case MenuTab::TAB_SAVECONFIG:  DrawSaveConfigs(); break;
-        case MenuTab::TAB_CS2_VISUALS: DrawCs2Visuals(); break;
-        case MenuTab::TAB_CS2_AIM:     DrawCs2Aim(); break;
-        case MenuTab::TAB_CS2_MISC:    DrawCs2Misc(); break;
-        case MenuTab::TAB_RUST_VISUALS: DrawRustVisuals(); break;
-        case MenuTab::TAB_RUST_AIM:     DrawRustAim(); break;
-        case MenuTab::TAB_RUST_WORLD:   DrawRustWorld(); break;
-        case MenuTab::TAB_RUST_PLAYERS: DrawRustPlayers(); break;
-        case MenuTab::TAB_RUST_RADAR:   DrawRustRadar(); break;
-        case MenuTab::TAB_RUST_MISC:    DrawRustMisc(); break;
-        case MenuTab::TAB_RUST_DEBUG:   DrawRustDebug(); break;
-        case MenuTab::TAB_WARZONE_AIM:      DrawWarzoneAim(); break;
-        case MenuTab::TAB_WARZONE_VISUALS:  DrawWarzoneVisuals(); break;
-        case MenuTab::TAB_WARZONE_RADAR:    DrawWarzoneRadar(); break;
-        case MenuTab::TAB_WARZONE_WORLD:    DrawWarzoneWorld(); break;
-        case MenuTab::TAB_WARZONE_PLAYERS:  DrawWarzonePlayers(); break;
-        case MenuTab::TAB_WARZONE_MISC:     DrawWarzoneMisc(); break;
-        case MenuTab::TAB_VALORANT_VISUALS:  DrawValorantVisuals(); break;
-        case MenuTab::TAB_VALORANT_AIM:      DrawValorantAim(); break;
-        case MenuTab::TAB_VALORANT_STATUS:   DrawValorantStatus(); break;
-        case MenuTab::TAB_FORTNITE_VISUALS:  DrawFortniteVisuals(); break;
-        case MenuTab::TAB_FORTNITE_AIM:      DrawFortniteAim(); break;
-        case MenuTab::TAB_FORTNITE_STATUS:   DrawFortniteStatus(); break;
-        
-        // Unified system pages
-        case MenuTab::TAB_UNIFIED_AIM:       DrawUnifiedAim(); break;
-        case MenuTab::TAB_WEB_RADAR:         DrawWebRadar(); break;
-        case MenuTab::TAB_SOUND_ESP:         DrawSoundESP(); break;
-        case MenuTab::TAB_SPECTATOR_LIST:    DrawSpectatorList(); break;
-        case MenuTab::TAB_TRIGGERBOT:        DrawTriggerbot(); break;
-        case MenuTab::TAB_RECOIL_CONTROL:    DrawRecoilControl(); break;
-        case MenuTab::TAB_PREDICTION:        DrawPrediction(); break;
-        case MenuTab::TAB_VISIBILITY:        DrawVisibility(); break;
-        case MenuTab::TAB_BONE_SYSTEM:       DrawBoneSystem(); break;
-        case MenuTab::TAB_SMOOTH_CURVES:     DrawSmoothCurves(); break;
-        case MenuTab::TAB_RECOIL_PATTERNS:   DrawRecoilPatterns(); break;
-        case MenuTab::TAB_ENTITY_CACHE:      DrawEntityCache(); break;
-        case MenuTab::TAB_PROFILE_MANAGER:   DrawProfileManager(); break;
-        case MenuTab::TAB_OFFSET_MANAGER:    DrawOffsetManager(); break;
-        case MenuTab::TAB_RESOLUTION:        DrawResolution(); break;
-        case MenuTab::TAB_GAME_ADAPTER:      DrawGameAdapter(); break;
-        
+void DrawCurrentTab(MenuTab tab, Overlay* overlay)
+{
+    // Debug: Log tab switch
+    std::cout << "[WINDOW] DrawCurrentTab: tab=" << static_cast<int>(tab) << std::endl;
+    std::cout.flush();
+    
+    switch (tab) {
+case MenuTab::TAB_VISUALS:     std::cout << "[WINDOW] -> DrawVisuals()" << std::endl; std::cout.flush(); DrawVisuals(); break;
+        case MenuTab::TAB_AIM:         std::cout << "[WINDOW] -> DrawAim()" << std::endl; std::cout.flush(); DrawAim(); break;
+        case MenuTab::TAB_VEHICLES:    std::cout << "[WINDOW] -> DrawVehicles()" << std::endl; std::cout.flush(); DrawVehicles(); break;
+        case MenuTab::TAB_FRIENDS:     std::cout << "[WINDOW] -> DrawFriends()" << std::endl; std::cout.flush(); DrawFriends(); break;
+        case MenuTab::TAB_STATUS:      std::cout << "[WINDOW] -> DrawFiveMStatus()" << std::endl; std::cout.flush(); DrawFiveMStatus(); break;
+        case MenuTab::TAB_CONFIGS:     std::cout << "[WINDOW] -> DrawConfigs()" << std::endl; std::cout.flush(); DrawConfigs(overlay); break;
+        case MenuTab::TAB_SAVECONFIG:  std::cout << "[WINDOW] -> DrawSaveConfigs()" << std::endl; std::cout.flush(); DrawSaveConfigs(); break;
+        case MenuTab::TAB_CS2_VISUALS: std::cout << "[WINDOW] -> DrawCs2Visuals()" << std::endl; std::cout.flush(); DrawCs2Visuals(); break;
+        case MenuTab::TAB_CS2_AIM:     std::cout << "[WINDOW] -> DrawCs2Aim()" << std::endl; std::cout.flush(); DrawCs2Aim(); break;
+        case MenuTab::TAB_CS2_MISC:    std::cout << "[WINDOW] -> DrawCs2Misc()" << std::endl; std::cout.flush(); DrawCs2Misc(); break;
+        case MenuTab::TAB_RUST_VISUALS: std::cout << "[WINDOW] -> DrawRustVisuals()" << std::endl; std::cout.flush(); DrawRustVisuals(); break;
+        case MenuTab::TAB_RUST_AIM:     std::cout << "[WINDOW] -> DrawRustAim()" << std::endl; std::cout.flush(); DrawRustAim(); break;
+        case MenuTab::TAB_RUST_WORLD:   std::cout << "[WINDOW] -> DrawRustWorld()" << std::endl; std::cout.flush(); DrawRustWorld(); break;
+        case MenuTab::TAB_RUST_PLAYERS: std::cout << "[WINDOW] -> DrawRustPlayers()" << std::endl; std::cout.flush(); DrawRustPlayers(); break;
+        case MenuTab::TAB_RUST_RADAR:   std::cout << "[WINDOW] -> DrawRustRadar()" << std::endl; std::cout.flush(); DrawRustRadar(); break;
+        case MenuTab::TAB_RUST_MISC:    std::cout << "[WINDOW] -> DrawRustMisc()" << std::endl; std::cout.flush(); DrawRustMisc(); break;
+        case MenuTab::TAB_RUST_DEBUG:   std::cout << "[WINDOW] -> DrawRustDebug()" << std::endl; std::cout.flush(); DrawRustDebug(); break;
+        case MenuTab::TAB_WARZONE_AIM:      std::cout << "[WINDOW] -> DrawWarzoneAim()" << std::endl; std::cout.flush(); DrawWarzoneAim(); break;
+        case MenuTab::TAB_WARZONE_VISUALS:  std::cout << "[WINDOW] -> DrawWarzoneVisuals()" << std::endl; std::cout.flush(); DrawWarzoneVisuals(); break;
+        case MenuTab::TAB_WARZONE_RADAR:    std::cout << "[WINDOW] -> DrawWarzoneRadar()" << std::endl; std::cout.flush(); DrawWarzoneRadar(); break;
+        case MenuTab::TAB_WARZONE_WORLD:    std::cout << "[WINDOW] -> DrawWarzoneWorld()" << std::endl; std::cout.flush(); DrawWarzoneWorld(); break;
+        case MenuTab::TAB_WARZONE_PLAYERS:  std::cout << "[WINDOW] -> DrawWarzonePlayers()" << std::endl; std::cout.flush(); DrawWarzonePlayers(); break;
+        case MenuTab::TAB_WARZONE_MISC:     std::cout << "[WINDOW] -> DrawWarzoneMisc()" << std::endl; std::cout.flush(); DrawWarzoneMisc(); break;
+        case MenuTab::TAB_VALORANT_VISUALS:  std::cout << "[WINDOW] -> DrawValorantVisuals()" << std::endl; std::cout.flush(); DrawValorantVisuals(); break;
+        case MenuTab::TAB_VALORANT_AIM:      std::cout << "[WINDOW] -> DrawValorantAim()" << std::endl; std::cout.flush(); DrawValorantAim(); break;
+        case MenuTab::TAB_VALORANT_STATUS:   std::cout << "[WINDOW] -> DrawValorantStatus()" << std::endl; std::cout.flush(); DrawValorantStatus(); break;
+        case MenuTab::TAB_FORTNITE_VISUALS:  std::cout << "[WINDOW] -> DrawFortniteVisuals()" << std::endl; std::cout.flush(); DrawFortniteVisuals(); break;
+        case MenuTab::TAB_FORTNITE_AIM:      std::cout << "[WINDOW] -> DrawFortniteAim()" << std::endl; std::cout.flush(); DrawFortniteAim(); break;
+        case MenuTab::TAB_FORTNITE_STATUS:   std::cout << "[WINDOW] -> DrawFortniteStatus()" << std::endl; std::cout.flush(); DrawFortniteStatus(); break;
+        case MenuTab::TAB_UNIFIED_AIM:       std::cout << "[WINDOW] -> DrawUnifiedAim()" << std::endl; std::cout.flush(); DrawUnifiedAim(); break;
+        case MenuTab::TAB_WEB_RADAR:         std::cout << "[WINDOW] -> DrawWebRadar()" << std::endl; std::cout.flush(); DrawWebRadar(); break;
+        case MenuTab::TAB_SOUND_ESP:         std::cout << "[WINDOW] -> DrawSoundESP()" << std::endl; std::cout.flush(); DrawSoundESP(); break;
+        case MenuTab::TAB_SPECTATOR_LIST:    std::cout << "[WINDOW] -> DrawSpectatorList()" << std::endl; std::cout.flush(); DrawSpectatorList(); break;
+        case MenuTab::TAB_TRIGGERBOT:        std::cout << "[WINDOW] -> DrawTriggerbot()" << std::endl; std::cout.flush(); DrawTriggerbot(); break;
+        case MenuTab::TAB_RECOIL_CONTROL:    std::cout << "[WINDOW] -> DrawRecoilControl()" << std::endl; std::cout.flush(); DrawRecoilControl(); break;
+        case MenuTab::TAB_PREDICTION:        std::cout << "[WINDOW] -> DrawPrediction()" << std::endl; std::cout.flush(); DrawPrediction(); break;
+        case MenuTab::TAB_VISIBILITY:        std::cout << "[WINDOW] -> DrawVisibility()" << std::endl; std::cout.flush(); DrawVisibility(); break;
+        case MenuTab::TAB_BONE_SYSTEM:       std::cout << "[WINDOW] -> DrawBoneSystem()" << std::endl; std::cout.flush(); DrawBoneSystem(); break;
+        case MenuTab::TAB_SMOOTH_CURVES:     std::cout << "[WINDOW] -> DrawSmoothCurves()" << std::endl; std::cout.flush(); DrawSmoothCurves(); break;
+        case MenuTab::TAB_RECOIL_PATTERNS:   std::cout << "[WINDOW] -> DrawRecoilPatterns()" << std::endl; std::cout.flush(); DrawRecoilPatterns(); break;
+        case MenuTab::TAB_ENTITY_CACHE:      std::cout << "[WINDOW] -> DrawEntityCache()" << std::endl; std::cout.flush(); DrawEntityCache(); break;
+        case MenuTab::TAB_PROFILE_MANAGER:   std::cout << "[WINDOW] -> DrawProfileManager()" << std::endl; std::cout.flush(); DrawProfileManager(); break;
+        case MenuTab::TAB_OFFSET_MANAGER:    std::cout << "[WINDOW] -> DrawOffsetManager()" << std::endl; std::cout.flush(); DrawOffsetManager(); break;
+        case MenuTab::TAB_RESOLUTION:        std::cout << "[WINDOW] -> DrawResolution()" << std::endl; std::cout.flush(); DrawResolution(); break;
+        case MenuTab::TAB_GAME_ADAPTER:      std::cout << "[WINDOW] -> DrawGameAdapter()" << std::endl; std::cout.flush(); DrawGameAdapter(); break;
+
         // FiveM specific pages
-        case MenuTab::TAB_FIVEM_WEB_RADAR:   DrawFivemWebRadar(); break;
-        case MenuTab::TAB_FIVEM_OBJECT_ESP:  CyberWidgets::DrawFivemObjectESP(); break;
-        
+        case MenuTab::TAB_FIVEM_WEB_RADAR:   std::cout << "[WINDOW] -> DrawFivemWebRadar()" << std::endl; std::cout.flush(); CyberWidgets::DrawFivemWebRadar(); break;
+        case MenuTab::TAB_FIVEM_OBJECT_ESP:  std::cout << "[WINDOW] -> DrawFivemObjectESP()" << std::endl; std::cout.flush(); CyberWidgets::DrawFivemObjectESP(); break;
+
         default:
             if (overlay) { /* keep */ }
             DrawVisuals();

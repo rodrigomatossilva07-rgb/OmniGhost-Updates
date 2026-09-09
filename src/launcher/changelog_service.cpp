@@ -124,7 +124,7 @@ bool HasDemoText(const std::string& value) {
     return false;
 }
 
-std::optional<ChangeType> ParseChangeType(const std::string& type) {
+ChangeType ParseChangeType(const std::string& type) {
     // Releases produced by older tooling used mixed-case category names.
     // Normalize the wire value so a cosmetic casing difference cannot poison
     // the whole changelog refresh.
