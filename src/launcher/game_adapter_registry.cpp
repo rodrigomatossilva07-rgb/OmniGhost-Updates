@@ -113,8 +113,16 @@ private:
 };
 
 bool StartCs2() {
-    g_activeGame = ActiveGame::CS2;
-    return CS2::Attach();
+    try {
+        g_activeGame = ActiveGame::CS2;
+        return CS2::Attach();
+    } catch (const std::exception& ex) {
+        std::cerr << "[CS2] CRASH em StartCs2: " << ex.what() << std::endl;
+        return false;
+    } catch (...) {
+        std::cerr << "[CS2] CRASH desconhecido em StartCs2" << std::endl;
+        return false;
+    }
 }
 
 bool StartRust() {
@@ -143,32 +151,40 @@ bool StartFortnite() {
 }
 
 bool StartFiveM() {
-    OmniGhost::GameContext::Instance().SetActiveGame(ActiveGame::FiveM);
-    if (!mem.Init(std::string(), true, false)) {
-        std::cerr << "[FiveM] Falha a abrir o dispositivo DMA/FPGA.\n";
+    try {
+        OmniGhost::GameContext::Instance().SetActiveGame(ActiveGame::FiveM);
+        if (!mem.Init(std::string(), true, false)) {
+            std::cerr << "[FiveM] Falha a abrir o dispositivo DMA/FPGA.\n";
+            return false;
+        }
+        std::string executable = OmniGhost::GameLaunch::FindFiveMProcessViaDma();
+        OmniGhost::GameContext::Instance().SetValidExecutable(executable);
+        if (executable.empty()) {
+            std::cerr << "[FiveM] Processo GTAProcess nao encontrado no PC do jogo.\n";
+            return false;
+        }
+        if (!mem.Init(executable, true, false)) {
+            std::cerr << "[FiveM] Falha ao anexar DMA a " << executable << ".\n";
+            return false;
+        }
+        FiveM::Setup();
+        if (!FiveM::IsBuildSupported()) {
+            constexpr std::string_view reason = "Build FiveM não suportada pela tabela validada do OmniGhost.";
+            OmniGhost::OffsetAuto::MarkOutdated(ActiveGame::FiveM, std::string(reason));
+            std::cerr << "[FiveM] " << reason << '\n';
+            return false;
+        }
+        OmniGhost::OffsetAuto::MarkLiveValid(ActiveGame::FiveM, "Build FiveM confirmada na tabela validada");
+        FiveM::ESP::InitializeContainers();
+        if (!aim_type::IsConnected()) makcu_wrapper::MakcuInitialize("");
+        return true;
+    } catch (const std::exception& ex) {
+        std::cerr << "[FiveM] CRASH em StartFiveM: " << ex.what() << std::endl;
+        return false;
+    } catch (...) {
+        std::cerr << "[FiveM] CRASH desconhecido em StartFiveM" << std::endl;
         return false;
     }
-    std::string executable = OmniGhost::GameLaunch::FindFiveMProcessViaDma();
-    OmniGhost::GameContext::Instance().SetValidExecutable(executable);
-    if (executable.empty()) {
-        std::cerr << "[FiveM] Processo GTAProcess nao encontrado no PC do jogo.\n";
-        return false;
-    }
-    if (!mem.Init(executable, true, false)) {
-        std::cerr << "[FiveM] Falha ao anexar DMA a " << executable << ".\n";
-        return false;
-    }
-    FiveM::Setup();
-    if (!FiveM::IsBuildSupported()) {
-        constexpr std::string_view reason = "Build FiveM não suportada pela tabela validada do OmniGhost.";
-        OmniGhost::OffsetAuto::MarkOutdated(ActiveGame::FiveM, std::string(reason));
-        std::cerr << "[FiveM] " << reason << '\n';
-        return false;
-    }
-    OmniGhost::OffsetAuto::MarkLiveValid(ActiveGame::FiveM, "Build FiveM confirmada na tabela validada");
-    FiveM::ESP::InitializeContainers();
-    if (!aim_type::IsConnected()) makcu_wrapper::MakcuInitialize("");
-    return true;
 }
 
 std::string_view FiveMStatus() noexcept {
@@ -215,10 +231,16 @@ IGameAdapter* FindGameAdapter(::Launcher::GameId game) noexcept {
         Capability::Menu | Capability::ReadOnlyMemory | Capability::Overlay | Capability::Radar },
         StartFiveM, [] { mem.InvalidateProcess(); }, FiveMStatus,
         [] { 
-            if (!g_validExecutable.empty()) {
-                FiveM::ESP::RunESP();
-                Fivem_Radar::Update();
-                object_esp::GetObjectESPManager().Update();
+            try {
+                if (!g_validExecutable.empty()) {
+                    FiveM::ESP::RunESP();
+                    Fivem_Radar::Update();
+                    object_esp::GetObjectESPManager().Update();
+                }
+            } catch (const std::exception& ex) {
+                std::cerr << "[FiveM] CRASH em Tick: " << ex.what() << std::endl;
+            } catch (...) {
+                std::cerr << "[FiveM] CRASH desconhecido em Tick" << std::endl;
             }
         },
         FivemIsAlive, FivemValidateOffsets, FivemTerminationReason, FivemGameId);
@@ -227,10 +249,16 @@ IGameAdapter* FindGameAdapter(::Launcher::GameId game) noexcept {
         StartCs2, [] { CS2::Shutdown(); CS2::ready = false; },
         [] { return std::string_view(CS2::status); },
         [] { 
-            if (CS2::ready) {
-                CS2::RunFrame(); // data + radar; early-outs in lobby
-                CS2_ESP::Draw(CS2::runtime, CS2::config);
-                CS2_Aim::Run(CS2::runtime, CS2::config);
+            try {
+                if (CS2::ready) {
+                    CS2::RunFrame(); // data + radar; early-outs in lobby
+                    CS2_ESP::Draw(CS2::runtime, CS2::config);
+                    CS2_Aim::Run(CS2::runtime, CS2::config);
+                }
+            } catch (const std::exception& ex) {
+                std::cerr << "[CS2] CRASH em Tick: " << ex.what() << std::endl;
+            } catch (...) {
+                std::cerr << "[CS2] CRASH desconhecido em Tick" << std::endl;
             }
         },
         Cs2IsAlive, Cs2ValidateOffsets, Cs2TerminationReason, Cs2GameId);
