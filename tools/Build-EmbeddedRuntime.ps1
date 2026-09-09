@@ -99,9 +99,9 @@ if (-not [string]::IsNullOrWhiteSpace($VcToolsRedistDir) -and
         Add-RuntimeFile $vcruntime 'libs/vcruntime140.dll'
     }
 }
-$cloudflared = Join-Path $ProjectDir 'third_party\cloudflared\cloudflared.exe'
+$cloudflared = Join-Path $ProjectDir 'src\runtime\cloudflared\cloudflared.exe'
 if (-not (Test-Path -LiteralPath $cloudflared -PathType Leaf)) {
-    throw 'cloudflared.exe canónico em third_party\cloudflared está em falta.'
+    throw 'cloudflared.exe canónico em src\runtime\cloudflared está em falta.'
 }
 $expectedCloudflaredSha256 = 'C29EEE2B121F5436A642EED69FD9767DA7E7B8C510FA50AAA130337F931357B5'
 if ((Get-Sha256Hex $cloudflared) -cne $expectedCloudflaredSha256) {

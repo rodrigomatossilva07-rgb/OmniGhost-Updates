@@ -216,32 +216,38 @@ fs::path Cs2Configs() {
     return LocalData() / L"CS2";
 }
 
-fs::path Logs() {
-    return LocalData() / L"logs";
-}
-
 fs::path Cache() {
     return LocalData() / L"cache";
 }
 
+fs::path Logs() {
+    auto path = LocalData() / L"logs";
+    std::error_code ec;
+    fs::create_directories(path, ec);
+    return path;
+}
+
 fs::path Updates() {
-    return LocalData() / L"updates";
+    auto path = LocalData() / L"updates";
+    std::error_code ec;
+    fs::create_directories(path, ec);
+    return path;
 }
 
 fs::path Backups() {
-    return LocalData() / L"backups";
+    auto path = LocalData() / L"backups";
+    std::error_code ec;
+    fs::create_directories(path, ec);
+    return path;
 }
 
 bool EnsureUserDirectories() {
-    const std::array<fs::path, 8> directories = {
+    const std::array<fs::path, 4> directories = {
         LocalData(),
         NativeRuntime(),
         Configs(),
         Cs2Configs(),
-        Logs(),
-        Cache(),
-        Updates(),
-        Backups()
+        Cache()
     };
 
     for (const fs::path& directory : directories) {
@@ -274,9 +280,8 @@ void MigrateLegacyUserData() {
         fs::equivalent(portableRoot, LocalData(), equivalentError) &&
         !equivalentError;
     if (!sameRoot) {
-        static constexpr std::array<const wchar_t*, 8> mutableDirectories = {
-            L"Configs", L"CS2", L"logs", L"cache", L"updates", L"backups",
-            L"crash-dumps", L"support"
+        static constexpr std::array<const wchar_t*, 4> mutableDirectories = {
+            L"Configs", L"CS2", L"cache", L"crash-dumps"
         };
         for (const wchar_t* name : mutableDirectories)
             CopyMissing(portableRoot / name, LocalData() / name);
