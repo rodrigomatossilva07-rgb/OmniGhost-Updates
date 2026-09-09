@@ -473,11 +473,9 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 		std::string firstApiMessage;
 		std::string lastApiMessage;
 
-		// UC-base compatible open:
-		//  1) Minimal argv: "", "-device", device  [+ optional -memmap / -v]
-		//  2) Prefer VMMDLL_Initialize (exactly like the working base)
-		//  3) Fall back to InitializeEx only if Initialize returns null without SEH
-		auto tryOpen = [&](const char* device, bool useMmap, bool ucSimple, int attemptNo, int attemptMax) -> bool {
+		// UC-base compatible open: exactly like the working base
+		// Minimal argv: "", "-device", "fpga://algo=0" [+ optional -memmap / -v / -printf]
+		auto tryOpen = [&](const char* device, bool useMmap, int attemptNo, int attemptMax) -> bool {
 			std::vector<LPCSTR> args;
 			args.push_back("");
 			args.push_back("-device");
@@ -486,16 +484,6 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 				args.push_back("-memmap");
 				args.push_back(mmapPath.c_str());
 			}
-			// UC simple path: NO -norefresh / -disable-infodb / -disable-symbols
-			if (!ucSimple) {
-				args.push_back("-norefresh");
-#if defined(OMNIGHOST_DISABLE_VMM_INFODB)
-				args.push_back("-disable-infodb");
-#endif
-#if defined(OMNIGHOST_DISABLE_VMM_SYMBOLS)
-				args.push_back("-disable-symbols");
-#endif
-			}
 			if (debug) {
 				args.push_back("-v");
 				args.push_back("-printf");
@@ -503,14 +491,10 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 
 			std::cout << "[DMA][Init] attempt=" << attemptNo << "/" << attemptMax
 				<< " device=" << device
-				<< (useMmap && !mmapPath.empty() ? " memmap=YES" : " memmap=NO")
-				<< (ucSimple ? " mode=UC-simple" : " mode=OG-extended") << "\n";
+				<< (useMmap && !mmapPath.empty() ? " memmap=YES" : " memmap=NO") << "\n";
 
 			DWORD sehCode = 0;
-			VMM_HANDLE handle = nullptr;
-
-			// Primary: VMMDLL_Initialize like the working UC base
-			handle = SafeVmmInitialize(static_cast<DWORD>(args.size()), args.data(), &sehCode);
+			VMM_HANDLE handle = SafeVmmInitialize(static_cast<DWORD>(args.size()), args.data(), &sehCode);
 			if (sehCode != 0) {
 				std::cout << "[DMA][Init] SEH fault during VMMDLL_Initialize code=0x"
 					<< std::hex << sehCode << std::dec << "\n";
@@ -522,32 +506,6 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 				return false;
 			}
 
-			if (!handle && !ucSimple) {
-				// Extended path only: try InitializeEx for richer error text
-				PLC_CONFIG_ERRORINFO errorInfo = nullptr;
-				sehCode = 0;
-				handle = SafeVmmInitializeEx(static_cast<DWORD>(args.size()), args.data(), &errorInfo, &sehCode);
-				if (sehCode != 0) {
-					std::cout << "[DMA][Init] SEH fault during VMMDLL_InitializeEx code=0x"
-						<< std::hex << sehCode << std::dec << "\n";
-					const std::string message = std::string(device) + " InitializeEx SEH fault";
-					if (firstError.empty()) firstError = message;
-					lastError = message;
-					return false;
-				}
-				if (errorInfo) {
-					std::string userMessage;
-					if (errorInfo->dwVersion == LC_CONFIG_ERRORINFO_VERSION && errorInfo->cwszUserText)
-						userMessage = Narrow(std::wstring(errorInfo->wszUserText, errorInfo->cwszUserText));
-					std::cout << "[DMA][Init] error_info user_message=\"" << userMessage << "\"\n";
-					if (!userMessage.empty()) {
-						if (firstApiMessage.empty()) firstApiMessage = userMessage;
-						lastApiMessage = userMessage;
-					}
-					LcMemFree(errorInfo);
-				}
-			}
-
 			if (!handle) {
 				const std::string message = std::string(device) + " Initialize FAIL";
 				if (firstError.empty()) firstError = message;
@@ -556,8 +514,7 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 				return false;
 			}
 			vHandle = handle;
-			std::cout << "[DMA][Init] OPEN OK device=" << device
-				<< (ucSimple ? " (UC-simple)" : " (OG-extended)") << "\n";
+			std::cout << "[DMA][Init] OPEN OK device=" << device << "\n";
 			return true;
 		};
 
@@ -570,17 +527,14 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 			std::cout << "[DMA][Init] WARN: FTD3XX not pre-validated — still trying open like UC base\n";
 		}
 
-		// Order matches the working UC base first: fpga://algo=0 without extra flags.
-		struct Candidate { const char* device; bool useMmap; bool ucSimple; };
+		// Exact match with working UC base: only fpga://algo=0, no extended flags
+		struct Candidate { const char* device; bool useMmap; };
 		const Candidate candidates[] = {
-			{ "fpga://algo=0", false, true  }, // UC primary
-			{ "fpga://algo=0", true,  true  }, // UC + memmap
-			{ "fpga",          false, true  }, // UC-simple bare fpga
-			{ "fpga://algo=0", false, false }, // OG-extended fallback
-			{ "fpga",          false, false },
-			{ "fpga://algo=1", false, true  },
+			{ "fpga://algo=0", false }, // Primary (matches working base)
+			{ "fpga://algo=0", true  }, // + memmap fallback
+			{ "fpga",          false }, // Bare fpga fallback
 		};
-		constexpr int kAttemptsPerDevice = 2;
+		constexpr int kAttemptsPerDevice = 1; // Single attempt like working base
 		const int attemptMax = static_cast<int>(std::size(candidates)) * kAttemptsPerDevice;
 		int attemptNo = 0;
 		bool opened = false;
@@ -589,8 +543,7 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 				continue;
 			if (attemptNo > 0)
 				std::cout << "[DMA][Init] fallback device=" << candidate.device
-					<< (candidate.useMmap ? "+mmap" : "")
-					<< (candidate.ucSimple ? " UC-simple" : " OG-extended") << "\n";
+					<< (candidate.useMmap ? "+mmap" : "") << "\n";
 			for (int retry = 0; retry < kAttemptsPerDevice && !opened; ++retry) {
 				if (IsCancellationRequested()) {
 					std::cout << "[DMA][Init] cancelled during FPGA retry loop\n";
@@ -598,7 +551,7 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 					return false;
 				}
 				++attemptNo;
-				opened = tryOpen(candidate.device, candidate.useMmap, candidate.ucSimple, attemptNo, attemptMax);
+				opened = tryOpen(candidate.device, candidate.useMmap, attemptNo, attemptMax);
 				if (!opened)
 					std::this_thread::sleep_for(std::chrono::milliseconds(400));
 			}
