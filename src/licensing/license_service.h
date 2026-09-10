@@ -45,6 +45,10 @@ struct Snapshot {
 [[nodiscard]] OmniGhost::Auth::LicenseResult Upgrade(std::string_view username, std::string_view licenseKey);
 void LogoutRemote() noexcept;
 [[nodiscard]] bool IsRemoteConfigured() noexcept;
+// Remember-me for KeyAuth login: credentials are DPAPI-protected under Configs/.
+[[nodiscard]] bool SaveRememberedRemoteCredentials(std::string_view username, std::string_view password);
+[[nodiscard]] bool LoadRememberedRemoteCredentials(std::string& username, std::string& password);
+void ClearRememberedRemoteCredentials() noexcept;
 [[nodiscard]] bool IsRemoteAuthenticated() noexcept;
 [[nodiscard]] std::string RemoteUsername();
 // Central game-access gate. A valid KeyAuth session grants the currently

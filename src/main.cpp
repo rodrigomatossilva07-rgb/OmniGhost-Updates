@@ -302,9 +302,6 @@ int RunOmniGhost(int argc, wchar_t** argv) {
     (void)shutdownCoordinator.Register(
         OmniGhost::Platform::ShutdownComponent::Ui, 100,
         [&application] { application.Shutdown(); });
-    (void)shutdownCoordinator.Register(
-        OmniGhost::Platform::ShutdownComponent::Radar, 900,
-
     // The app is now visibly alive. Waiting for a user to enter a local license or
     // account must not be interpreted by the updater/crash recovery as startup failure.
     OmniGhost::CrashHandler::MarkStartupComplete();

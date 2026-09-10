@@ -28,6 +28,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstring>
+#include <cstdio>
 #include <future>
 #include <string>
 
@@ -35,6 +36,8 @@ namespace LauncherAuth {
 namespace {
 
 float S(float value) { return CyberTheme::Px(value); }
+ImVec2 Add(const ImVec2& left, const ImVec2& right) { return {left.x + right.x, left.y + right.y}; }
+ImVec2 Sub(const ImVec2& left, const ImVec2& right) { return {left.x - right.x, left.y - right.y}; }
 
 enum class Screen { Landing, Login, Register, Activate };
 enum class Completion { None, Login, Register, AutoLogin, Preparing };
@@ -51,18 +54,39 @@ struct Copy {
 };
 
 const Copy& Text() {
+    // Prefer ASCII-safe UI strings here so accents never show as "?" when the
+    // active font atlas lacks the glyph. Full localization can expand later.
     static constexpr std::array<Copy, 6> copy{{
-        {"ENTRAR", "CRIAR CONTA", "Sair", "Email", "Palavra-passe", "Confirmar palavra-passe", "REGISTAR", "VOLTAR"},
-        {"SIGN IN", "CREATE ACCOUNT", "Exit", "Email", "Password", "Confirm password", "REGISTER", "BACK"},
-        {"ANMELDEN", "KONTO ERSTELLEN", "Beenden", "E-Mail", "Passwort", "Passwort bestätigen", "REGISTRIEREN", "ZURÜCK"},
-        {"ENTRAR", "CREAR CUENTA", "Salir", "Correo electrónico", "Contraseña", "Confirmar contraseña", "REGISTRARSE", "VOLVER"},
-        {"CONNEXION", "CRÉER UN COMPTE", "Quitter", "E-mail", "Mot de passe", "Confirmer le mot de passe", "S'INSCRIRE", "RETOUR"},
-        {"ACCEDI", "CREA ACCOUNT", "Esci", "Email", "Password", "Conferma password", "REGISTRATI", "INDIETRO"}
+        {"ENTRAR", "CRIAR CONTA", "Sair", "Utilizador", "Palavra-passe", "Confirmar palavra-passe", "REGISTAR", "VOLTAR"},
+        {"SIGN IN", "CREATE ACCOUNT", "Exit", "Username", "Password", "Confirm password", "REGISTER", "BACK"},
+        {"ANMELDEN", "KONTO ERSTELLEN", "Beenden", "Benutzer", "Passwort", "Passwort bestaetigen", "REGISTRIEREN", "ZURUECK"},
+        {"ENTRAR", "CREAR CUENTA", "Salir", "Usuario", "Contrasena", "Confirmar contrasena", "REGISTRARSE", "VOLVER"},
+        {"CONNEXION", "CREER UN COMPTE", "Quitter", "Utilisateur", "Mot de passe", "Confirmer le mot de passe", "S'INSCRIRE", "RETOUR"},
+        {"ACCEDI", "CREA ACCOUNT", "Esci", "Utente", "Password", "Conferma password", "REGISTRATI", "INDIETRO"}
     }};
     const int index = std::clamp(static_cast<int>(app_settings::config.language), 0,
                                  static_cast<int>(copy.size() - 1));
     return copy[static_cast<std::size_t>(index)];
 }
+
+const char* RememberMeLabel() {
+    static constexpr std::array<const char*, 6> labels{{
+        "Lembrar-me", "Remember me", "Angemeldet bleiben", "Recordarme", "Se souvenir de moi", "Ricordami"
+    }};
+    const int index = std::clamp(static_cast<int>(app_settings::config.language), 0,
+                                 static_cast<int>(labels.size() - 1));
+    return labels[static_cast<std::size_t>(index)];
+}
+
+const char* LicenseKeyHint() {
+    static constexpr std::array<const char*, 6> labels{{
+        "Chave de licenca", "License key", "Lizenzschluessel", "Clave de licencia", "Cle de licence", "Chiave di licenza"
+    }};
+    const int index = std::clamp(static_cast<int>(app_settings::config.language), 0,
+                                 static_cast<int>(labels.size() - 1));
+    return labels[static_cast<std::size_t>(index)];
+}
+
 
 Screen g_screen = Screen::Landing;
 float g_transition = 1.0f;
@@ -74,6 +98,8 @@ bool g_show_confirm = false;
 bool g_show_license_key = false;
 bool g_language_open = false;
 bool g_upgrade_mode = false;
+bool g_remember_me = true;
+bool g_auto_login_attempt = false;
 char g_email[320]{};
 char g_password[256]{};
 char g_confirm[256]{};
@@ -102,15 +128,28 @@ void SetScreen(Screen screen) {
     g_error.clear();
 }
 
+void StartRemoteOperation(RemoteOperation operation, std::string username,
+                          std::string password, std::string licenseKey);
+
 void InitializeState() {
     auto& auth = OmniGhost::Auth::LocalAuthService::Instance();
     auth.Initialize();
-    if (!OmniGhost::Licensing::IsRemoteConfigured() && auth.TryAutoLogin()) {
+    g_screen = Screen::Landing;
+    if (OmniGhost::Licensing::IsRemoteConfigured()) {
+        std::string user, pass;
+        if (OmniGhost::Licensing::LoadRememberedRemoteCredentials(user, pass)) {
+            g_remember_me = true;
+            g_auto_login_attempt = true;
+            if (user.size() < sizeof(g_email))
+                std::snprintf(g_email, sizeof(g_email), "%s", user.c_str());
+            // Validate against KeyAuth in the background; only enter if still valid.
+            StartRemoteOperation(RemoteOperation::Login, user, pass, {});
+            if (!pass.empty()) SecureZeroMemory(pass.data(), pass.size());
+        }
+    } else if (auth.TryAutoLogin()) {
         g_completion = Completion::AutoLogin;
         g_completion_time = 0.0f;
     }
-    else
-        g_screen = Screen::Landing;
     g_initialized = true;
 }
 
@@ -169,10 +208,17 @@ void PollRemoteOperation() {
     g_remote_operation_pending = false;
     try {
         RemoteOperationResult result = g_remote_operation.get();
-        if (result.success)
+        if (result.success) {
+            g_auto_login_attempt = false;
             BeginCompletion(result.completion);
-        else
-            g_error = result.message.empty() ? "Não foi possível iniciar sessão." : result.message;
+        } else {
+            g_error = result.message.empty() ? "Nao foi possivel iniciar sessao." : result.message;
+            // Only wipe stored credentials when an automatic remember-me login failed.
+            if (g_auto_login_attempt) {
+                OmniGhost::Licensing::ClearRememberedRemoteCredentials();
+                g_auto_login_attempt = false;
+            }
+        }
     } catch (...) {
         g_error = "Não foi possível contactar o serviço de autenticação.";
     }
@@ -199,7 +245,7 @@ void DrawCenteredText(const char* text, ImVec4 color, ImFont* font = nullptr) {
 
 void DrawBrandSignal(const ImVec2& center) {
     ImDrawList* draw = ImGui::GetWindowDrawList();
-    const ImU32 line = CyberTheme::U32(CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.075f));
+    const ImU32 line = CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.075f);
     for (int i = 0; i < 4; ++i) {
         const float radius = S(31.f + i * 13.f);
         draw->AddCircle(center, radius, line, 48, S(0.7f));
@@ -214,13 +260,13 @@ void DrawBrand(bool prominent) {
                            ImGui::GetCursorScreenPos().y + S(8.f));
     DrawBrandSignal(ImVec2(markStart.x + markSize * 0.5f, markStart.y + markSize * 0.5f));
     ImDrawList* draw = ImGui::GetWindowDrawList();
-    draw->AddRectFilled(markStart, markStart + ImVec2(markSize, markSize),
+    draw->AddRectFilled(markStart, Add(markStart, ImVec2(markSize, markSize)),
         CyberTheme::U32(CyberTheme::Colors.Surface), S(12.f));
-    draw->AddRect(markStart, markStart + ImVec2(markSize, markSize),
-        CyberTheme::U32(CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.48f)), S(12.f), 0, S(1.f));
+    draw->AddRect(markStart, Add(markStart, ImVec2(markSize, markSize)),
+        CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.48f), S(12.f), 0, S(1.f));
     if (const ImTextureID logo = BrandAssets::GetLogoTexture()) {
-        draw->AddImage(logo, markStart + ImVec2(S(7.f), S(7.f)),
-                       markStart + ImVec2(markSize - S(7.f), markSize - S(7.f)));
+        draw->AddImage(logo, Add(markStart, ImVec2(S(7.f), S(7.f))),
+                       Add(markStart, ImVec2(markSize - S(7.f), markSize - S(7.f))));
     }
     ImGui::Dummy(ImVec2(0, markSize + S(14.f)));
     ImFont* title = CyberFonts::GetTitleFont();
@@ -281,7 +327,6 @@ bool AuthPasswordField(const char* id, char* buffer, std::size_t bufferSize,
     ImGui::SetNextItemWidth(width);
     const bool changed = ImGui::InputTextWithHint("##field", hint, buffer, bufferSize,
         *reveal ? flags : (flags | ImGuiInputTextFlags_Password));
-    CyberWidgets::DrawFocusRing();
     const float height = ImGui::GetItemRectSize().y;
     const ImVec2 eyeMin(position.x + width - S(38.f), position.y + S(3.f));
     ImGui::SetCursorScreenPos(eyeMin);
@@ -293,7 +338,7 @@ bool AuthPasswordField(const char* id, char* buffer, std::size_t bufferSize,
     const ImU32 eye = CyberTheme::U32(hovered ? CyberTheme::Colors.GoldHover : CyberTheme::Colors.TextDisabled);
     draw->AddCircle(center, S(6.f), eye, 16, S(1.1f));
     draw->AddCircleFilled(center, S(1.7f), eye, 10);
-    if (!*reveal) draw->AddLine(center - ImVec2(S(6.f), S(6.f)), center + ImVec2(S(6.f), S(6.f)), eye, S(1.2f));
+    if (!*reveal) draw->AddLine(Sub(center, ImVec2(S(6.f), S(6.f))), Add(center, ImVec2(S(6.f), S(6.f))), eye, S(1.2f));
     ImGui::SetCursorScreenPos(ImVec2(position.x, position.y + height));
     ImGui::PopID();
     ImGui::PopStyleVar();
@@ -337,22 +382,22 @@ void DrawLanguageSelector(const ImVec2& windowPos, float windowWidth) {
         g_language_open = !g_language_open;
     const bool hovered = ImGui::IsItemHovered();
     ImDrawList* draw = ImGui::GetWindowDrawList();
-    draw->AddRectFilled(buttonPos, buttonPos + ImVec2(width, S(30.f)),
-        CyberTheme::U32(CyberTheme::WithAlpha(CyberTheme::Colors.Surface, hovered ? 0.98f : 0.88f)), S(8.f));
-    draw->AddRect(buttonPos, buttonPos + ImVec2(width, S(30.f)),
-        CyberTheme::U32(CyberTheme::WithAlpha(CyberTheme::Colors.Gold, hovered || g_language_open ? 0.34f : 0.16f)), S(8.f));
-    draw->AddText(buttonPos + ImVec2(S(11.f), S(8.f)), CyberTheme::U32(CyberTheme::Colors.Text), codes[selected]);
-    draw->AddTriangleFilled(buttonPos + ImVec2(width - S(14.f), S(12.f)),
-        buttonPos + ImVec2(width - S(7.f), S(12.f)), buttonPos + ImVec2(width - S(10.5f), S(17.f)),
+    draw->AddRectFilled(buttonPos, Add(buttonPos, ImVec2(width, S(30.f))),
+        CyberTheme::WithAlpha(CyberTheme::Colors.Surface, hovered ? 0.98f : 0.88f), S(8.f));
+    draw->AddRect(buttonPos, Add(buttonPos, ImVec2(width, S(30.f))),
+        CyberTheme::WithAlpha(CyberTheme::Colors.Gold, hovered || g_language_open ? 0.34f : 0.16f), S(8.f));
+    draw->AddText(Add(buttonPos, ImVec2(S(11.f), S(8.f))), CyberTheme::U32(CyberTheme::Colors.Text), codes[selected]);
+    draw->AddTriangleFilled(Add(buttonPos, ImVec2(width - S(14.f), S(12.f))),
+        Add(buttonPos, ImVec2(width - S(7.f), S(12.f))), Add(buttonPos, ImVec2(width - S(10.5f), S(17.f))),
         CyberTheme::U32(CyberTheme::Colors.TextDisabled));
 
     if (g_language_open) {
         const ImVec2 popoverPos(buttonPos.x - S(112.f), buttonPos.y + S(38.f));
         const ImVec2 popoverSize(S(170.f), S(static_cast<float>(visibleLanguages * 36 + 10)));
-        draw->AddRectFilled(popoverPos, popoverPos + popoverSize,
+        draw->AddRectFilled(popoverPos, Add(popoverPos, popoverSize),
             CyberTheme::U32(CyberTheme::Colors.Surface), S(10.f));
-        draw->AddRect(popoverPos, popoverPos + popoverSize,
-            CyberTheme::U32(CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.20f)), S(10.f));
+        draw->AddRect(popoverPos, Add(popoverPos, popoverSize),
+            CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.20f), S(10.f));
         for (int index = 0; index < visibleLanguages; ++index) {
             const bool active = index == selected;
             const ImVec2 itemPos(popoverPos.x + S(5.f), popoverPos.y + S(5.f + index * 36.f));
@@ -364,12 +409,12 @@ void DrawLanguageSelector(const ImVec2& windowPos, float windowWidth) {
             }
             const bool itemHovered = ImGui::IsItemHovered();
             if (active || itemHovered) {
-                draw->AddRectFilled(itemPos, itemPos + ImVec2(popoverSize.x - S(10.f), S(32.f)),
-                    CyberTheme::U32(CyberTheme::WithAlpha(CyberTheme::Colors.Gold, active ? 0.12f : 0.06f)), S(6.f));
+                draw->AddRectFilled(itemPos, Add(itemPos, ImVec2(popoverSize.x - S(10.f), S(32.f))),
+                    CyberTheme::WithAlpha(CyberTheme::Colors.Gold, active ? 0.12f : 0.06f), S(6.f));
             }
             if (active)
-                draw->AddCircleFilled(itemPos + ImVec2(S(10.f), S(16.f)), S(2.5f), CyberTheme::U32(CyberTheme::Colors.Gold));
-            draw->AddText(itemPos + ImVec2(S(20.f), S(8.f)), CyberTheme::U32(active ? CyberTheme::Colors.Text : CyberTheme::Colors.TextDisabled), Loc::LanguageName(index));
+                draw->AddCircleFilled(Add(itemPos, ImVec2(S(10.f), S(16.f))), S(2.5f), CyberTheme::U32(CyberTheme::Colors.Gold));
+            draw->AddText(Add(itemPos, ImVec2(S(20.f), S(8.f))), CyberTheme::U32(active ? CyberTheme::Colors.Text : CyberTheme::Colors.TextDisabled), Loc::LanguageName(index));
         }
     }
     ImGui::PopID();
@@ -402,10 +447,6 @@ void DrawLanding() {
     CenterCursor(contentWidth);
     if (CyberWidgets::GhostButton(text.createAccount, ImVec2(contentWidth, S(46.f))))
         SetScreen(Screen::Register);
-    ImGui::Dummy(ImVec2(0, S(10.f)));
-    CenterCursor(contentWidth);
-    if (CyberWidgets::GhostButton("ATIVAR COM KEY", ImVec2(contentWidth, S(42.f))))
-        SetScreen(Screen::Activate);
     ImGui::Dummy(ImVec2(0, S(12.f)));
     if (DrawTextAction(text.exit))
         g_close_requested = true;
@@ -416,53 +457,60 @@ void DrawLogin() {
     auto& auth = OmniGhost::Auth::LocalAuthService::Instance();
     const float contentWidth = S(330.f);
 
-    CenterBlockVertically(S(324.f));
+    CenterBlockVertically(S(360.f));
     DrawBrand(false);
-    ImGui::Dummy(ImVec2(0, S(24.f)));
-    DrawCenteredText("ACCESS // AUTHENTICATION", CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.70f));
     ImGui::Dummy(ImVec2(0, S(20.f)));
+    DrawCenteredText("ACCESS // AUTHENTICATION", ImGui::ColorConvertU32ToFloat4(CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.70f)));
+    ImGui::Dummy(ImVec2(0, S(22.f)));
 
     CenterCursor(contentWidth);
     ImGui::BeginGroup();
     const bool remote = OmniGhost::Licensing::IsRemoteConfigured();
-    const char* identity = remote ? "Utilizador" : text.email;
-    DrawFieldLabel(identity);
+    const char* identity = text.email; // already localized (Utilizador / Username / ...)
     AuthInputField("login_email", g_email, sizeof(g_email), identity,
                    contentWidth, true, AuthFieldIcon::Email);
     ImGui::Dummy(ImVec2(0, S(13.f)));
-    DrawFieldLabel(text.password);
     const bool enter = AuthPasswordField("login_password", g_password,
         sizeof(g_password), &g_show_password, text.password, contentWidth,
         ImGuiInputTextFlags_EnterReturnsTrue);
-    ImGui::Dummy(ImVec2(0, S(18.f)));
+    ImGui::Dummy(ImVec2(0, S(12.f)));
+    {
+        CenterCursor(contentWidth);
+        ImGui::PushStyleColor(ImGuiCol_Text, CyberTheme::Colors.TextDisabled);
+        ImGui::Checkbox(RememberMeLabel(), &g_remember_me);
+        ImGui::PopStyleColor();
+    }
+    ImGui::Dummy(ImVec2(0, S(14.f)));
     ImGui::BeginDisabled(g_remote_operation_pending);
     const bool submit = CyberWidgets::GoldButton(g_remote_operation_pending ? "A AUTENTICAR..." : text.enter,
         ImVec2(contentWidth, S(46.f))) || enter;
     ImGui::EndDisabled();
     if (submit && !g_remote_operation_pending) {
         if (remote) {
-            StartRemoteOperation(RemoteOperation::Login, g_email, g_password, {});
+            const std::string user = g_email;
+            const std::string pass = g_password;
+            if (g_remember_me)
+                OmniGhost::Licensing::SaveRememberedRemoteCredentials(user, pass);
+            else
+                OmniGhost::Licensing::ClearRememberedRemoteCredentials();
+            StartRemoteOperation(RemoteOperation::Login, user, pass, {});
             SecureClear(g_password, sizeof(g_password));
             ImGui::EndGroup();
             DrawFeedback(contentWidth);
             return;
         }
-        bool accepted = false;
-        std::string message;
-        const auto result = auth.Login(g_email, g_password, true);
-        accepted = result.Ok();
-        message = result.message;
-        if (accepted) {
+        const auto result = auth.Login(g_email, g_password, g_remember_me);
+        if (result.Ok()) {
             SecureClear(g_password, sizeof(g_password));
             BeginCompletion(Completion::Login);
         } else {
-            g_error = message;
+            g_error = result.message;
         }
     }
     ImGui::EndGroup();
     DrawFeedback(contentWidth);
     ImGui::Dummy(ImVec2(0, S(12.f)));
-    const std::string back = std::string("← ") + text.back;
+    const std::string back = std::string("<- ") + text.back;
     if (DrawTextAction(back.c_str())) {
         SecureClear(g_password, sizeof(g_password));
         SetScreen(Screen::Landing);
@@ -474,46 +522,55 @@ void DrawRegister() {
     auto& auth = OmniGhost::Auth::LocalAuthService::Instance();
     const float contentWidth = S(330.f);
 
-    CenterBlockVertically(S(462.f));
+    CenterBlockVertically(S(440.f));
     DrawBrand(false);
     ImGui::Dummy(ImVec2(0, S(18.f)));
-    DrawCenteredText("CREATE // IDENTITY", CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.70f));
-    ImGui::Dummy(ImVec2(0, S(16.f)));
+    DrawCenteredText("CREATE // IDENTITY", ImGui::ColorConvertU32ToFloat4(CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.70f)));
+    ImGui::Dummy(ImVec2(0, S(18.f)));
 
     CenterCursor(contentWidth);
     ImGui::BeginGroup();
     const bool remote = OmniGhost::Licensing::IsRemoteConfigured();
-    const char* identity = remote ? "Utilizador" : text.email;
-    DrawFieldLabel(identity);
-    AuthInputField("register_email", g_email, sizeof(g_email), identity,
+    AuthInputField("register_email", g_email, sizeof(g_email), text.email,
                    contentWidth, true, AuthFieldIcon::Email);
     ImGui::Dummy(ImVec2(0, S(11.f)));
-    DrawFieldLabel(text.password);
     AuthPasswordField("register_password", g_password, sizeof(g_password),
         &g_show_password, text.password, contentWidth);
     ImGui::Dummy(ImVec2(0, S(11.f)));
-    DrawFieldLabel(text.confirmPassword);
     AuthPasswordField("register_confirm", g_confirm,
         sizeof(g_confirm), &g_show_confirm, text.confirmPassword, contentWidth);
     bool submit = false;
     if (remote) {
         ImGui::Dummy(ImVec2(0, S(11.f)));
-        DrawFieldLabel("Chave de licença");
         submit = AuthPasswordField("register_key", g_license_key,
-            sizeof(g_license_key), &g_show_license_key, "Chave de licença", contentWidth,
+            sizeof(g_license_key), &g_show_license_key, LicenseKeyHint(), contentWidth,
             ImGuiInputTextFlags_EnterReturnsTrue);
     }
-    ImGui::Dummy(ImVec2(0, S(17.f)));
+    ImGui::Dummy(ImVec2(0, S(12.f)));
+    {
+        CenterCursor(contentWidth);
+        ImGui::PushStyleColor(ImGuiCol_Text, CyberTheme::Colors.TextDisabled);
+        ImGui::Checkbox(RememberMeLabel(), &g_remember_me);
+        ImGui::PopStyleColor();
+    }
+    ImGui::Dummy(ImVec2(0, S(14.f)));
     ImGui::BeginDisabled(g_remote_operation_pending);
     const bool registerPressed = CyberWidgets::GoldButton(g_remote_operation_pending ? "A REGISTAR..." : text.registerAction,
         ImVec2(contentWidth, S(46.f))) || submit;
     ImGui::EndDisabled();
     if (registerPressed && !g_remote_operation_pending) {
         if (std::strcmp(g_password, g_confirm) != 0) {
-            g_error = "As palavras-passe não coincidem.";
+            g_error = "As palavras-passe nao coincidem.";
         } else {
             if (remote) {
-                StartRemoteOperation(RemoteOperation::Register, g_email, g_password, g_license_key);
+                const std::string user = g_email;
+                const std::string pass = g_password;
+                const std::string key = g_license_key;
+                if (g_remember_me)
+                    OmniGhost::Licensing::SaveRememberedRemoteCredentials(user, pass);
+                else
+                    OmniGhost::Licensing::ClearRememberedRemoteCredentials();
+                StartRemoteOperation(RemoteOperation::Register, user, pass, key);
                 SecureClear(g_password, sizeof(g_password));
                 SecureClear(g_confirm, sizeof(g_confirm));
                 SecureClear(g_license_key, sizeof(g_license_key));
@@ -521,23 +578,21 @@ void DrawRegister() {
                 DrawFeedback(contentWidth);
                 return;
             }
-            const auto result = auth.Register(g_email, g_password, true);
-            const bool accepted = result.Ok();
-            const std::string message = result.message;
-            if (accepted) {
+            const auto result = auth.Register(g_email, g_password, g_remember_me);
+            if (result.Ok()) {
                 SecureClear(g_password, sizeof(g_password));
                 SecureClear(g_confirm, sizeof(g_confirm));
                 SecureClear(g_license_key, sizeof(g_license_key));
                 BeginCompletion(Completion::Register);
             } else {
-                g_error = message;
+                g_error = result.message;
             }
         }
     }
     ImGui::EndGroup();
     DrawFeedback(contentWidth);
     ImGui::Dummy(ImVec2(0, S(9.f)));
-    const std::string back = std::string("← ") + text.back;
+    const std::string back = std::string("<- ") + text.back;
     if (DrawTextAction(back.c_str())) {
         SecureClear(g_password, sizeof(g_password));
         SecureClear(g_confirm, sizeof(g_confirm));
@@ -551,7 +606,7 @@ void DrawActivate() {
     DrawBrand(false);
     ImGui::Dummy(ImVec2(0, S(24.f)));
     DrawCenteredText(g_upgrade_mode ? "UPGRADE // LICENSE" : "ACTIVATE // LICENSE",
-        CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.70f));
+        ImGui::ColorConvertU32ToFloat4(CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.70f)));
     ImGui::Dummy(ImVec2(0, S(22.f)));
 
     CenterCursor(contentWidth);
@@ -597,6 +652,7 @@ void DrawActivate() {
 
 void Reset() {
     g_initialized = false;
+    g_remember_me = true;
     g_authenticated = false;
     g_close_requested = false;
     g_transition = 1.0f;
@@ -674,9 +730,12 @@ bool Draw() {
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, S(1.f));
     ImGui::PushStyleColor(ImGuiCol_WindowBg, CyberTheme::WithAlpha(CyberTheme::Colors.Card, 0.985f));
     ImGui::PushStyleColor(ImGuiCol_Border, CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.24f));
+    ImGui::GetIO().MouseWheel = 0.0f;
+    ImGui::GetIO().MouseWheelH = 0.0f;
     ImGui::Begin("##omnighost_auth", nullptr,
         ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize |
-        ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoCollapse);
+        ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoCollapse |
+        ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 
     const ImVec2 windowPos = ImGui::GetWindowPos();
     ImDrawList* draw = ImGui::GetWindowDrawList();

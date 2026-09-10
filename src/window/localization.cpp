@@ -629,15 +629,12 @@ namespace {
 
     const char* LanguageName(int index)
     {
-        static const char* names[] = { "Portugu¬s", "English", "Deutsch", "Espa▒ol", "Français", "Italiano", "ðáÐâÐüÐüð║ð©ð╣" };
+        // Keep ASCII-safe labels in the language switcher to avoid mojibake when
+        // the source encoding or font atlas does not cover all glyphs.
+        static const char* names[] = {
+            "Portugues", "English", "Deutsch", "Espanol", "Francais", "Italiano", "Russian"
+        };
         if (index < 0 || index >= 7)
             return names[0];
         return names[index];
-    }
-
-    int LanguageCount()
-    {
-        return 7;
-    }
-
-} // namespace Loc
+    };

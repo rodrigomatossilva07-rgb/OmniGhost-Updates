@@ -449,7 +449,8 @@ void DrawSettings(ImVec2 display) {
     for (const SettingsNavigationItem& item : navigation) {
         if (!previousGroup || std::strcmp(previousGroup, item.group) != 0) {
             if (previousGroup) ImGui::Dummy(ImVec2(0.f, S(8.f)));
-            ImGui::TextColored(CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.68f), "%s", item.group);
+            ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(
+                CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.68f)), "%s", item.group);
             ImGui::Dummy(ImVec2(0.f, S(4.f)));
             previousGroup = item.group;
         }

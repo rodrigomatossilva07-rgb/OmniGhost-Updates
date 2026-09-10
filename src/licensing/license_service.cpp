@@ -12,6 +12,8 @@
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
+#include <cstring>
+#include <cstdint>
 #include <Windows.h>
 #include <wincrypt.h>
 
@@ -20,6 +22,7 @@
 #include <cctype>
 #include <chrono>
 #include <fstream>
+#include <iterator>
 #include <iostream>
 #include <memory>
 #include <mutex>
@@ -508,6 +511,56 @@ bool EnsureInteractive() {
     Snapshot current = InspectLocal();
     Publish(current);
     return current.localLicenseValid;
+}
+
+
+namespace {
+std::filesystem::path RememberedRemotePath() {
+    return OmniGhost::Paths::Configs() / L"keyauth_remember.bin";
+}
+} // namespace
+
+bool SaveRememberedRemoteCredentials(std::string_view username, std::string_view password) {
+    if (username.empty() || password.empty())
+        return false;
+    // username length + username + NUL + password
+    std::string payload;
+    payload.reserve(username.size() + password.size() + 8);
+    const uint32_t userLen = static_cast<uint32_t>(username.size());
+    payload.append(reinterpret_cast<const char*>(&userLen), sizeof(userLen));
+    payload.append(username.data(), username.size());
+    payload.append(password.data(), password.size());
+    return SaveProtected(RememberedRemotePath(), payload);
+}
+
+bool LoadRememberedRemoteCredentials(std::string& username, std::string& password) {
+    username.clear();
+    password.clear();
+    const auto path = RememberedRemotePath();
+    std::error_code ec;
+    if (!std::filesystem::exists(path, ec) || !std::filesystem::is_regular_file(path, ec))
+        return false;
+    std::ifstream input(path, std::ios::binary);
+    if (!input)
+        return false;
+    std::vector<unsigned char> blob((std::istreambuf_iterator<char>(input)),
+                                    std::istreambuf_iterator<char>());
+    std::string payload;
+    if (!UnprotectForCurrentUser(blob, payload) || payload.size() < sizeof(uint32_t) + 2)
+        return false;
+    uint32_t userLen = 0;
+    std::memcpy(&userLen, payload.data(), sizeof(userLen));
+    if (userLen == 0 || sizeof(uint32_t) + userLen >= payload.size())
+        return false;
+    username.assign(payload.data() + sizeof(uint32_t), userLen);
+    password.assign(payload.data() + sizeof(uint32_t) + userLen,
+                    payload.size() - sizeof(uint32_t) - userLen);
+    return !username.empty() && !password.empty();
+}
+
+void ClearRememberedRemoteCredentials() noexcept {
+    std::error_code ec;
+    std::filesystem::remove(RememberedRemotePath(), ec);
 }
 
 } // namespace OmniGhost::Licensing

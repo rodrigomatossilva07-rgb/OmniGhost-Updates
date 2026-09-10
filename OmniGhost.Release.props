@@ -21,10 +21,20 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Release' Or '$(Configuration)'=='Publish'">
     <ClCompile>
-      <PreprocessorDefinitions>OMNIGHOST_KEYAUTH_ENABLED=1;CURL_STATICLIB;SODIUM_STATIC;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(ProjectDir)keyauth\x64;$(ProjectDir)keyauth\x64\lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <!-- The official x64 KeyAuth SDK supplied with OmniGhost is built with
+           the MSVC dynamic runtime.  Keep every Release/Publish translation
+           unit on the same runtime to avoid CRT/STL ABI mismatches at link
+           time.  The customer artifact remains a single OmniGhost.exe; the
+           supported Microsoft VC runtime is supplied by Windows/VC Redist. -->
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <PreprocessorDefinitions>OMNIGHOST_KEYAUTH_ENABLED=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)keyauth\x64;$(ProjectDir)keyauth\x64\lib;$(ProjectDir)keyauth\x64\lib\libsodium;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
+      <!-- KeyAuth's prebuilt static archive was shipped without its private
+           libsodium PDB. Keep OmniGhost's own PDB generation intact while
+           suppressing only that third-party debug-symbol diagnostic. -->
+      <AdditionalOptions>/IGNORE:4099 %(AdditionalOptions)</AdditionalOptions>
       <AdditionalDependencies>library_x64.lib;libcurl.lib;zlib.lib;libsodium.lib;winhttp.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(ProjectDir)keyauth\x64;$(ProjectDir)keyauth\x64\lib\curl;$(ProjectDir)keyauth\x64\lib\libsodium;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
