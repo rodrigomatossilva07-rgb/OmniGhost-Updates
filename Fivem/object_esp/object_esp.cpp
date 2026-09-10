@@ -78,6 +78,7 @@ void ObjectESPManager::Shutdown() {
 }
 
 void ObjectESPManager::Update() {
+    try {
     auto start_time = std::chrono::high_resolution_clock::now();
 
     // A scan is requested by the UI but executed here, on the same serialized
@@ -92,9 +93,7 @@ void ObjectESPManager::Update() {
         scanner_state_.scanning = false;
         scanner_state_.scan_complete = true;
         scanner_state_.scan_progress = 1.0f;
-        scanner_state_.status_message = scanner_state_.total_objects_found > 0
-            ? "Scan complete"
-            : "No eligible entities in the current FiveM snapshot";
+        scanner_state_.status_message = "Object discovery is unavailable for this FiveM build";
     }
     
     if (!config_.enabled) {
@@ -119,6 +118,19 @@ void ObjectESPManager::Update() {
     
     auto end_time = std::chrono::high_resolution_clock::now();
     stats_.update_time_ms = std::chrono::duration<float, std::milli>(end_time - start_time).count();
+    } catch (const std::exception& ex) {
+        scanner_state_.scanning = false;
+        scanner_state_.scan_complete = true;
+        scanner_state_.error_message = "Object ESP update failed safely";
+        scanner_state_.status_message = scanner_state_.error_message;
+        std::cerr << "[ObjectESP] Update failed: " << ex.what() << std::endl;
+    } catch (...) {
+        scanner_state_.scanning = false;
+        scanner_state_.scan_complete = true;
+        scanner_state_.error_message = "Object ESP update failed safely";
+        scanner_state_.status_message = scanner_state_.error_message;
+        std::cerr << "[ObjectESP] Update failed with an unknown exception" << std::endl;
+    }
 }
 
 void ObjectESPManager::StartScan(float radius) {
@@ -128,6 +140,14 @@ void ObjectESPManager::StartScan(float radius) {
         scanner_state_.scan_complete = true;
         scanner_state_.status_message = "Start a FiveM session before scanning";
         std::cout << "[ObjectESP] Scan rejected: FiveM session is not initialized" << std::endl;
+        return;
+    }
+    if (!HasValidatedDiscoverySource()) {
+        scanner_state_.Reset();
+        scanner_state_.scan_complete = true;
+        scanner_state_.status_message = "Object discovery is not validated for this FiveM build";
+        scanner_state_.error_message = scanner_state_.status_message;
+        std::cout << "[ObjectESP] Scan rejected: no validated object discovery source" << std::endl;
         return;
     }
     
@@ -261,85 +281,12 @@ bool ObjectESPManager::IsCategoryVisible(ObjectCategory cat) const {
 
 
 void ObjectESPManager::PerformScan() {
-    // Use the read-only player snapshot already collected by FiveM::ESP.  This
-    // is not an object-pool scanner and intentionally does not add new DMA
-    // reads just because the UI requested a scan.
-    
     std::lock_guard<std::mutex> lock(data_mutex_);
     scan_results_.clear();
     scanner_state_.total_entities_scanned = 0;
     scanner_state_.unique_models_found = 0;
     scanner_state_.total_objects_found = 0;
     
-    // Get entities from FiveM ESP manager
-    using namespace FiveM::ESP;
-    if (!validPeds.empty() && !positions.empty()) {
-        // For now, we'll use the ped list as a proxy for objects
-        // In a real implementation, we'd scan the entity pool
-        
-        // Create a map to group by model
-        std::unordered_map<std::string, ScanResult> model_map;
-        
-        for (size_t i = 0; i < validPeds.size() && i < positions.size(); ++i) {
-            (void)validPeds[i];
-            const Vec3& pos = positions[i];
-            
-            if (pos.IsZero()) continue;
-            
-            scanner_state_.total_entities_scanned++;
-            
-            // Try to get model name from entity
-            std::string model = "Unknown";
-            uint32_t hash = 0;
-            
-            // Try to read model info from the entity
-            // This would require reading the entity's model info
-            // For now, we'll use a placeholder
-            
-            // The local position is already captured in the same ESP frame.
-            const Vec3& localPos = FiveM::ESP::GetFrameLocalPos();
-            const float dist = localPos.IsZero() ? 0.0f : pos.distance_to(localPos);
-            
-            if (dist > config_.scan_radius) continue;
-            
-            scanner_state_.total_objects_found++;
-            
-            // Group by model
-            auto& result = model_map[model];
-            if (result.model.empty()) {
-                result.model = model;
-                result.hash = hash;
-                result.nearest_distance = dist;
-                scanner_state_.unique_models_found++;
-            }
-            result.count++;
-            if (dist < result.nearest_distance || result.nearest_distance == 0) {
-                result.nearest_distance = dist;
-            }
-            if (result.sample_positions.size() < 5) {
-                result.sample_positions.push_back(pos);
-            }
-        }
-        
-        // Convert map to vector
-        scan_results_.clear();
-        for (auto& pair : model_map) {
-            scan_results_.push_back(std::move(pair.second));
-        }
-        
-        // Sort by count descending
-        std::sort(scan_results_.begin(), scan_results_.end(),
-            [](const ScanResult& a, const ScanResult& b) {
-                return a.count > b.count;
-            });
-        
-        // Limit results
-        if (scan_results_.size() > config_.max_scan_results) {
-            scan_results_.resize(config_.max_scan_results);
-        }
-        
-        scanner_state_.unique_models_found = static_cast<int>(scan_results_.size());
-    }
     scanner_state_.scan_progress = 1.0f;
 }
 
@@ -355,7 +302,8 @@ void ObjectESPManager::UpdateTrackedObjects() {
         // For now, we'll use the scan results
         
         for (const auto& result : scan_results_) {
-            if (result.model == entry.model || result.hash == entry.hash) {
+            if (result.model == entry.model ||
+                (entry.hash != 0 && result.hash != 0 && result.hash == entry.hash)) {
                 // Create tracked instances for each position
                 for (const auto& pos : result.sample_positions) {
                     ObjectEntity entity;
@@ -533,24 +481,25 @@ void ObjectESPManager::LoadConfig() {
         std::string key = line.substr(0, eq);
         std::string val = line.substr(eq + 1);
         
-        if (key == "enabled") config_.enabled = (val == "1");
-        else if (key == "max_distance") config_.max_distance = std::stof(val);
-        else if (key == "scan_radius") config_.scan_radius = std::stof(val);
-        else if (key == "scan_interval_ms") config_.scan_interval_ms = std::stoi(val);
-        else if (key == "auto_scan") config_.auto_scan = (val == "1");
-        else if (key == "show_name") config_.show_name = (val == "1");
-        else if (key == "show_distance") config_.show_distance = (val == "1");
-        else if (key == "show_category") config_.show_category = (val == "1");
-        else if (key == "show_box") config_.show_box = (val == "1");
-        else if (key == "show_marker") config_.show_marker = (val == "1");
-        else if (key == "text_scale") config_.text_scale = std::stof(val);
-        else if (key == "box_thickness") config_.box_thickness = std::stof(val);
-        else if (key == "distance_culling") config_.distance_culling = (val == "1");
-        else if (key == "frustum_culling") config_.frustum_culling = (val == "1");
-        else if (key == "max_scan_results") config_.max_scan_results = std::stoi(val);
-        else if (key == "scan_interval_ms") config_.scan_interval_ms = std::stoi(val);
-        else if (key == "text_scale") config_.text_scale = std::stof(val);
-        else if (key == "box_thickness") config_.box_thickness = std::stof(val);
+        try {
+            if (key == "enabled") config_.enabled = (val == "1");
+            else if (key == "max_distance") config_.max_distance = std::clamp(std::stof(val), 50.0f, 5000.0f);
+            else if (key == "scan_radius") config_.scan_radius = std::clamp(std::stof(val), 50.0f, 2000.0f);
+            else if (key == "scan_interval_ms") config_.scan_interval_ms = std::clamp(std::stoi(val), 250, 60000);
+            else if (key == "auto_scan") config_.auto_scan = (val == "1");
+            else if (key == "show_name") config_.show_name = (val == "1");
+            else if (key == "show_distance") config_.show_distance = (val == "1");
+            else if (key == "show_category") config_.show_category = (val == "1");
+            else if (key == "show_box") config_.show_box = (val == "1");
+            else if (key == "show_marker") config_.show_marker = (val == "1");
+            else if (key == "text_scale") config_.text_scale = std::clamp(std::stof(val), 0.5f, 2.5f);
+            else if (key == "box_thickness") config_.box_thickness = std::clamp(std::stof(val), 1.0f, 5.0f);
+            else if (key == "distance_culling") config_.distance_culling = (val == "1");
+            else if (key == "frustum_culling") config_.frustum_culling = (val == "1");
+            else if (key == "max_scan_results") config_.max_scan_results = std::clamp(std::stoi(val), 1, 500);
+        } catch (const std::exception&) {
+            std::cerr << "[ObjectESP] Ignored invalid config value for " << key << std::endl;
+        }
     }
 }
 
@@ -594,26 +543,28 @@ void ObjectESPManager::LoadWhitelistFromDisk() {
         
         if (parts.size() < 11) continue;
         
-        WhitelistEntry entry;
-        entry.model = parts[0];
-        entry.hash = std::stoul(parts[1], nullptr, 10);
-        entry.display_name = parts[2];
-        entry.category = static_cast<ObjectCategory>(std::stoi(parts[3]));
-        entry.enabled = (parts[4] == "1");
-        entry.max_distance = std::stof(parts[5]);
-        entry.show_name = (parts[6] == "1");
-        entry.show_distance = (parts[7] == "1");
-        entry.show_category = (parts[8] == "1");
-        entry.show_box = (parts[9] == "1");
-        entry.show_marker = (parts[10] == "1");
-        if (parts.size() > 11) {
-            entry.color = std::stoul(parts[11], nullptr, 16);
+        try {
+            WhitelistEntry entry;
+            entry.model = parts[0];
+            if (entry.model.empty()) continue;
+            entry.hash = std::stoul(parts[1], nullptr, 10);
+            entry.display_name = parts[2].empty() ? entry.model : parts[2];
+            const int category = std::stoi(parts[3]);
+            entry.category = category >= 0 && category < static_cast<int>(ObjectCategory::Count)
+                ? static_cast<ObjectCategory>(category) : ObjectCategory::Other;
+            entry.enabled = (parts[4] == "1");
+            entry.max_distance = std::clamp(std::stof(parts[5]), 10.0f, 5000.0f);
+            entry.show_name = (parts[6] == "1");
+            entry.show_distance = (parts[7] == "1");
+            entry.show_category = (parts[8] == "1");
+            entry.show_box = (parts[9] == "1");
+            entry.show_marker = (parts[10] == "1");
+            if (parts.size() > 11) entry.color = std::stoul(parts[11], nullptr, 16);
+            if (parts.size() > 12) entry.is_custom = (parts[12] == "1");
+            whitelist_.push_back(std::move(entry));
+        } catch (const std::exception&) {
+            std::cerr << "[ObjectESP] Ignored invalid whitelist entry" << std::endl;
         }
-        if (parts.size() > 12) {
-            entry.is_custom = (parts[12] == "1");
-        }
-        
-        whitelist_.push_back(std::move(entry));
     }
 }
 
@@ -624,6 +575,7 @@ void ObjectESPManager::SaveAll() {
 
 void ObjectESPManager::LoadAll() {
     LoadConfig();
+    whitelist_.clear();
     LoadWhitelistFromDisk();
 }
 

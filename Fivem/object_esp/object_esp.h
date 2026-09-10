@@ -61,7 +61,8 @@ struct TrackedInstance {
     std::chrono::steady_clock::time_point last_render;
     
     TrackedInstance() = default;
-    TrackedInstance(const ObjectEntity& e, const WhitelistEntry& cfg) : entity(e), config(cfg) {}
+    TrackedInstance(const ObjectEntity& e, const WhitelistEntry& cfg)
+        : entity(e), config(cfg), last_render(std::chrono::steady_clock::now()) {}
 };
 
 // Main Object ESP Manager
@@ -74,6 +75,9 @@ public:
     bool Initialize();
     void Shutdown();
     bool IsInitialized() const noexcept { return initialized_; }
+    // The current client does not have a validated object-pool layout for every
+    // supported FiveM build. Do not label the player snapshot as world objects.
+    bool HasValidatedDiscoverySource() const noexcept { return false; }
     
     // Main update loop (call every frame)
     void Update();

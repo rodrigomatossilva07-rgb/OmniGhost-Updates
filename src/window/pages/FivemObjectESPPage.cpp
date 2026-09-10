@@ -17,6 +17,13 @@ void DrawFivemObjectESP() {
     auto whitelist = manager.GetFilteredWhitelist();
     
     BeginCard("Object ESP - FiveM");
+
+    if (!manager.HasValidatedDiscoverySource()) {
+        TextLine("A descoberta de objetos está desativada até existir uma fonte de entidades validada para a build FiveM atual.", TextTone::Warning);
+        TextLine("O módulo não usa jogadores como objetos nem executa leituras não validadas.", TextTone::Secondary);
+        EndCard();
+        return;
+    }
     
     // Main toggle
     ToggleSwitch("Ativar Object ESP", &esp_config.enabled);
