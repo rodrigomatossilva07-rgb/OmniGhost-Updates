@@ -3,6 +3,7 @@
 #include "../../theme.h"
 #include "../../fonts.h"
 #include "../../localization.h"
+#include "../../../launcher/launcher_assets.h"
 #include "../../../gameplay/sound_esp.h"
 #ifdef UI_PREVIEW
 #include "preview/preview_runtime.h"
@@ -10,6 +11,7 @@
 #include "esp/esp.h"
 #endif
 #include <cmath>
+#include <cfloat>
 #include <cstdio>
 #include <algorithm>
 
@@ -84,11 +86,17 @@ void DrawEspPreviewPanel(float panelWidth, float panelHeight, bool previewVisibl
         ImVec2(end.x - 16.f, origin.y + 47.f), IM_COL32(199, 165, 43, 78), 1.f);
     dl->AddRectFilled(ImVec2(origin.x + 12.f, origin.y + 12.f),
         ImVec2(origin.x + 15.f, origin.y + 32.f), kChampagne, 1.f);
-    if (ImFont* title = CyberFonts::GetTitleFont())
-        dl->AddText(title, 15.f, ImVec2(origin.x + 23.f, origin.y + 10.f),
-            kText, "PRÉ-VISUALIZAÇÃO DO ESP");
-    else
-        dl->AddText(ImVec2(origin.x + 23.f, origin.y + 12.f), kText, "PRÉ-VISUALIZAÇÃO DO ESP");
+    const char* previewTitle = "ESP Preview";
+    if (ImFont* title = CyberFonts::GetTitleFont()) {
+        const float titleWidth = title->CalcTextSizeA(15.f, FLT_MAX, 0.f, previewTitle).x;
+        dl->AddText(title, 15.f,
+            ImVec2(origin.x + (panelWidth - titleWidth) * 0.5f, origin.y + 10.f),
+            kText, previewTitle);
+    } else {
+        const float titleWidth = ImGui::CalcTextSize(previewTitle).x;
+        dl->AddText(ImVec2(origin.x + (panelWidth - titleWidth) * 0.5f, origin.y + 12.f),
+            kText, previewTitle);
+    }
     dl->AddText(ImVec2(origin.x + 23.f, origin.y + 29.f),
         kMuted, "TARGET TELEMETRY  //  CONFIGURAÇÃO AO VIVO");
 
@@ -159,22 +167,41 @@ void DrawEspPreviewPanel(float panelWidth, float panelHeight, bool previewVisibl
         ImVec2(cx + 78.f * sc, top + 34.f * sc + scanPhase),
         IM_COL32(227, 198, 90, 22), 1.f);
 
-    // Layered character silhouette: shadow, body mass, then the actual bone
-    // overlay. This resembles an in-game target instead of a stick figure.
+    // The provided operator image remains beneath the overlay. The preview is
+    // still dynamic: every ESP element below observes its corresponding toggle.
+    const LauncherAssets::Texture operatorImage = LauncherAssets::FiveMEspPreview();
+    const float portraitTop = top - 12.f * sc;
+    const float portraitBottom = end.y - 39.f;
+    const float portraitHeight = portraitBottom - portraitTop;
+    const float portraitWidth = portraitHeight * 0.60f;
+    if (operatorImage.id && operatorImage.width > 0 && operatorImage.height > 0) {
+        dl->AddImage(operatorImage.id,
+            ImVec2(cx - portraitWidth * 0.5f, portraitTop),
+            ImVec2(cx + portraitWidth * 0.5f, portraitBottom),
+            ImVec2(0.f, 0.f), ImVec2(1.f, 1.f), IM_COL32(255, 255, 255, 232));
+    }
+
+    // Fallback mannequin keeps the preview useful if an embedded asset fails
+    // integrity validation; it is intentionally subdued behind the real image.
     const ImU32 limbShadow = IM_COL32(0, 0, 0, 210);
     const ImU32 limbFill = kGunmetal;
-    dl->AddCircleFilled(ImVec2(head.x + 2.f, head.y + 3.f), 16.f * sc,
-        IM_COL32(0, 0, 0, 180), 28);
-    dl->AddCircleFilled(head, 15.f * sc, IM_COL32(30, 32, 32, 255), 28);
-    dl->AddCircle(head, 15.f * sc, IM_COL32(199, 165, 43, 70), 28, 1.f);
+    if (!operatorImage.id) {
+        dl->AddCircleFilled(ImVec2(head.x + 2.f, head.y + 3.f), 16.f * sc,
+            IM_COL32(0, 0, 0, 180), 28);
+        dl->AddCircleFilled(head, 15.f * sc, IM_COL32(30, 32, 32, 255), 28);
+        dl->AddCircle(head, 15.f * sc, IM_COL32(199, 165, 43, 70), 28, 1.f);
+    }
     const ImVec2 torsoShadow[] = {
         ImVec2(l_sh.x - 3.f, l_sh.y + 3.f), ImVec2(r_sh.x + 3.f, r_sh.y + 3.f),
         ImVec2(r_hi.x + 4.f, r_hi.y + 4.f), ImVec2(l_hi.x - 4.f, l_hi.y + 4.f)
     };
-    dl->AddConvexPolyFilled(torsoShadow, 4, IM_COL32(0, 0, 0, 190));
+    if (!operatorImage.id)
+        dl->AddConvexPolyFilled(torsoShadow, 4, IM_COL32(0, 0, 0, 190));
     const ImVec2 torso[] = { l_sh, r_sh, r_hi, l_hi };
-    dl->AddConvexPolyFilled(torso, 4, IM_COL32(22, 24, 24, 255));
-    dl->AddPolyline(torso, 4, IM_COL32(199, 165, 43, 72), true, 1.f);
+    if (!operatorImage.id) {
+        dl->AddConvexPolyFilled(torso, 4, IM_COL32(22, 24, 24, 255));
+        dl->AddPolyline(torso, 4, IM_COL32(199, 165, 43, 72), true, 1.f);
+    }
     const ImVec2 waist[] = {
         ImVec2(l_hi.x, l_hi.y - 2.f), ImVec2(r_hi.x, r_hi.y - 2.f),
         ImVec2(r_th.x + 2.f, r_th.y), ImVec2(l_th.x - 2.f, l_th.y)
@@ -184,12 +211,16 @@ void DrawEspPreviewPanel(float panelWidth, float panelHeight, bool previewVisibl
         std::pair<ImVec2, ImVec2>{l_sh, l_el}, {l_el, l_ha},
         {r_sh, r_el}, {r_el, r_ha}, {l_hi, l_kn}, {l_kn, l_an},
         {r_hi, r_kn}, {r_kn, r_an} }) {
-        dl->AddLine(ImVec2(segment.first.x + 2.f, segment.first.y + 3.f),
-            ImVec2(segment.second.x + 2.f, segment.second.y + 3.f), limbShadow, 15.f * sc);
-        dl->AddLine(segment.first, segment.second, limbFill, 12.f * sc);
+        if (!operatorImage.id) {
+            dl->AddLine(ImVec2(segment.first.x + 2.f, segment.first.y + 3.f),
+                ImVec2(segment.second.x + 2.f, segment.second.y + 3.f), limbShadow, 15.f * sc);
+            dl->AddLine(segment.first, segment.second, limbFill, 12.f * sc);
+        }
     }
-    dl->AddLine(l_an, l_ft, limbFill, 10.f * sc);
-    dl->AddLine(r_an, r_ft, limbFill, 10.f * sc);
+    if (!operatorImage.id) {
+        dl->AddLine(l_an, l_ft, limbFill, 10.f * sc);
+        dl->AddLine(r_an, r_ft, limbFill, 10.f * sc);
+    }
 
     auto bone = [&](ImVec2 a, ImVec2 b) {
         if (esp::config.skeleton) {
@@ -269,7 +300,7 @@ void DrawEspPreviewPanel(float panelWidth, float panelHeight, bool previewVisibl
     }
 
     auto segmentedMeter = [&](float x, float topY, float bottomY, float pct,
-                              const char* label, const char* value, ImU32 color) {
+                              const char* label, const char* value, ImU32 color, bool health) {
         constexpr int segments = 10;
         const float meterH = bottomY - topY;
         const float step = meterH / static_cast<float>(segments);
@@ -279,45 +310,56 @@ void DrawEspPreviewPanel(float panelWidth, float panelHeight, bool previewVisibl
             const float y0 = bottomY - (i + 1) * step + 1.f;
             const float y1 = bottomY - i * step - 2.f;
             const bool active = (i + 1) <= static_cast<int>(std::ceil(pct * segments));
+            ImU32 segmentColor = color;
+            if (health) {
+                const float t = static_cast<float>(i) / static_cast<float>(segments - 1);
+                segmentColor = ImGui::ColorConvertFloat4ToU32(ImVec4(
+                    0.92f + 0.05f * t, 0.16f + 0.60f * t,
+                    0.12f + 0.14f * t, 1.f));
+            }
             dl->AddRectFilled(ImVec2(x, y0), ImVec2(x + 4.f, y1),
-                active ? color : IM_COL32(42, 44, 42, 255), 1.f);
+                active ? segmentColor : IM_COL32(42, 44, 42, 255), 1.f);
             if ((i % 2) == 0)
                 dl->AddLine(ImVec2(x + 6.f, (y0 + y1) * 0.5f), ImVec2(x + 9.f, (y0 + y1) * 0.5f),
                     IM_COL32(199, 165, 43, 62), 1.f);
         }
     };
     if (esp::config.health_bar)
-        segmentedMeter(boxMin.x - 15.f, head.y - 4.f, l_ft.y, 0.72f, "HP", "072", kActive);
+        segmentedMeter(boxMin.x - 15.f, head.y - 4.f, l_ft.y, 0.72f, "HP", "072", kActive, true);
     if (esp::config.armor_bar)
-        segmentedMeter(boxMax.x + 11.f, head.y - 4.f, r_ft.y, 0.55f, "AP", "055", kChampagne);
+        segmentedMeter(boxMax.x + 11.f, head.y - 4.f, r_ft.y, 0.55f, "AP", "055", IM_COL32(67, 171, 243, 255), false);
 
-    char line[64]{};
-    if (esp::config.player_name || esp::config.player_id || esp::config.distance) {
-        const char* name = esp::config.player_name ? "Jogador" : "";
-        const char* id = esp::config.player_id ? " [42]" : "";
-        const char* distance = esp::config.distance ? " | 85m" : "";
-        std::snprintf(line, sizeof(line), "%s%s%s", name, id, distance);
-        if (!esp::config.player_name && esp::config.player_id)
-            std::snprintf(line, sizeof(line), "ID 42%s", distance);
-        if (!esp::config.player_name && !esp::config.player_id)
-            std::snprintf(line, sizeof(line), "85m");
-        ImVec2 ts = ImGui::CalcTextSize(line);
-        dl->AddRectFilled(ImVec2(cx - ts.x * 0.5f - 7.f, boxMin.y - 25.f),
-            ImVec2(cx + ts.x * 0.5f + 7.f, boxMin.y - 5.f), kElevated, 3.f);
-        dl->AddText(ImVec2(cx - ts.x * 0.5f, boxMin.y - 23.f),
-            kText, line);
+    if (esp::config.player_id) {
+        const char* id = "ID: 42";
+        const ImVec2 idSize = ImGui::CalcTextSize(id);
+        dl->AddText(ImVec2(cx - idSize.x * 0.5f, boxMin.y - 22.f), kText, id);
     }
-    if (esp::config.weapon_name) {
-        const char* w = "PISTOLA";
+    if (esp::config.player_name) {
+        const char* name = "Jogador";
+        const ImVec2 nameSize = ImGui::CalcTextSize(name);
+        dl->AddText(ImVec2(cx - nameSize.x * 0.5f,
+                boxMin.y - (esp::config.player_id ? 37.f : 22.f)), kMuted, name);
+    }
+    if (esp::config.weapon_name || esp::config.distance) {
+        const char* w = "Pistol";
         ImVec2 ws = ImGui::CalcTextSize(w);
-        const ImVec2 footerMin(cx - ws.x * 0.5f - 29.f, boxMax.y + 7.f);
-        const ImVec2 footerMax(cx + ws.x * 0.5f + 23.f, boxMax.y + 31.f);
+        const float footerWidth = (esp::config.weapon_name ? ws.x + 28.f : 0.f) +
+            (esp::config.distance ? 37.f : 0.f);
+        const ImVec2 footerMin(cx - footerWidth * .5f - 12.f, boxMax.y + 7.f);
+        const ImVec2 footerMax(cx + footerWidth * .5f + 12.f, boxMax.y + 31.f);
         dl->AddRectFilled(footerMin, footerMax, kElevated, 3.f);
         dl->AddRect(footerMin, footerMax, IM_COL32(199, 165, 43, 80), 3.f, 0, 1.f);
-        // Tiny technical marker / weapon category glyph.
-        dl->AddLine(ImVec2(footerMin.x + 9.f, footerMin.y + 12.f), ImVec2(footerMin.x + 18.f, footerMin.y + 12.f), kGold, 1.3f);
-        dl->AddLine(ImVec2(footerMin.x + 13.f, footerMin.y + 8.f), ImVec2(footerMin.x + 18.f, footerMin.y + 12.f), kGold, 1.3f);
-        dl->AddText(ImVec2(cx - ws.x * 0.5f, boxMax.y + 11.f), kChampagne, w);
+        float textX = footerMin.x + 10.f;
+        if (esp::config.weapon_name) {
+            dl->AddLine(ImVec2(textX, footerMin.y + 12.f), ImVec2(textX + 9.f, footerMin.y + 12.f), kGold, 1.3f);
+            dl->AddLine(ImVec2(textX + 4.f, footerMin.y + 8.f), ImVec2(textX + 9.f, footerMin.y + 12.f), kGold, 1.3f);
+            textX += 14.f;
+            dl->AddText(ImVec2(textX, boxMax.y + 11.f), kChampagne, w);
+            textX += ws.x + 6.f;
+        }
+        if (esp::config.distance)
+            dl->AddText(ImVec2(textX, boxMax.y + 11.f), IM_COL32(226, 88, 183, 255),
+                esp::config.weapon_name ? "| 85m" : "85m");
     }
 
     const float telemetryY = end.y - 27.f;

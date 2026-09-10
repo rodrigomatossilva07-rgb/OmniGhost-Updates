@@ -116,6 +116,25 @@ body.operator-mode .player-panel { opacity: 0.95; }
 }
 body.minimap-mode .player-panel { display: none; }
 
+.replay-bar {
+	position: fixed; z-index: 20; top: 45px; left: 50%; transform: translateX(-50%);
+	display: flex; align-items: center; gap: 8px; min-width: min(440px, calc(100vw - 28px));
+	padding: 5px 9px; color: #b9b7ad; font-size: 10px; letter-spacing: .08em;
+	background: rgba(10, 12, 13, .88); border: 1px solid rgba(210, 177, 64, .22); border-radius: 5px;
+}
+.replay-bar input { flex: 1; accent-color: #d9b743; }
+.session-stats {
+	position: fixed; z-index: 12; left: 14px; bottom: 14px; min-width: 170px;
+	padding: 9px 11px; color: #d7d5cd; background: rgba(10, 12, 13, .88);
+	border: 1px solid rgba(210, 177, 64, .2); border-radius: 6px;
+}
+.session-stats strong { color: #d9b743; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+.session-stats dl { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; margin: 7px 0 0; }
+.session-stats dt { color: #777b7e; font-size: 9px; text-transform: uppercase; }
+.session-stats dd { margin: 2px 0 0; font-size: 11px; }
+.topbar-actions button.active { color: #131313; background: #d9b743; border-color: #e7c85d; }
+@media (max-width: 760px) { .session-stats { display: none; } .replay-bar { top: 42px; } }
+
 .player-panel-header { padding: 10px 12px 6px; }
 .player-panel-header h3 { margin: 0 0 8px; font-size: 13px; }
 .player-panel-controls { display: flex; gap: 6px; }

@@ -4,6 +4,7 @@
 #include "cs2_radar.h"
 #include "fonts.h"
 #include "../../localization.h"
+#include "../../../launcher/launcher_assets.h"
 #include "imgui.h"
 #include <cstdio>
 #include <algorithm>
@@ -17,24 +18,36 @@ void DrawCs2Preview(float width, float height) {
     dl->AddRectFilled(o, e, IM_COL32(8, 8, 12, 240), 10.f);
     dl->AddRect(o, e, IM_COL32(212, 175, 55, 40), 10.f);
     dl->AddRectFilled(o, ImVec2(e.x, o.y + 28.f), IM_COL32(14, 14, 18, 255), 10.f, ImDrawFlags_RoundCornersTop);
-    dl->AddText(ImVec2(o.x + 12.f, o.y + 7.f), IM_COL32(230, 230, 235, 255), "Pré-visualização ESP");
+    // Keep the title centred even when the preview width changes.
+    const char* previewTitle = "ESP Preview";
+    const ImVec2 previewTitleSize = ImGui::CalcTextSize(previewTitle);
+    dl->AddText(ImVec2(o.x + (width - previewTitleSize.x) * .5f, o.y + 7.f),
+        IM_COL32(230, 230, 235, 255), previewTitle);
 
-    float cx = o.x + width * 0.5f, cy = o.y + height * 0.52f;
-    float sc = (std::min)(width, height) * 0.105f;
-    ImVec2 head(cx, cy - 0.92f * sc * 10.f);
-    ImVec2 neck(cx, cy - 0.72f * sc * 10.f);
-    ImVec2 chest(cx, cy - 0.48f * sc * 10.f);
-    ImVec2 pelvis(cx, cy - 0.06f * sc * 10.f);
-    ImVec2 lsh(cx - 0.30f * sc * 10.f, cy - 0.52f * sc * 10.f);
-    ImVec2 rsh(cx + 0.30f * sc * 10.f, cy - 0.52f * sc * 10.f);
-    ImVec2 lel(cx - 0.42f * sc * 10.f, cy - 0.20f * sc * 10.f);
-    ImVec2 rel(cx + 0.42f * sc * 10.f, cy - 0.20f * sc * 10.f);
-    ImVec2 lha(cx - 0.48f * sc * 10.f, cy + 0.10f * sc * 10.f);
-    ImVec2 rha(cx + 0.48f * sc * 10.f, cy + 0.10f * sc * 10.f);
-    ImVec2 lkn(cx - 0.16f * sc * 10.f, cy + 0.42f * sc * 10.f);
-    ImVec2 rkn(cx + 0.16f * sc * 10.f, cy + 0.42f * sc * 10.f);
-    ImVec2 lft(cx - 0.18f * sc * 10.f, cy + 0.86f * sc * 10.f);
-    ImVec2 rft(cx + 0.18f * sc * 10.f, cy + 0.86f * sc * 10.f);
+    // Reuse the embedded operator portrait used by the FiveM preview. It is a
+    // UI-only asset; every ESP layer below still follows CS2's own settings.
+    const LauncherAssets::Texture portrait = LauncherAssets::FiveMEspPreview();
+    if (portrait.id) {
+        const float portraitH = height - 50.f;
+        const float portraitW = portraitH * 0.52f;
+        dl->AddImage(portrait.id, ImVec2(o.x + width * .5f - portraitW * .5f, o.y + 34.f),
+            ImVec2(o.x + width * .5f + portraitW * .5f, o.y + 34.f + portraitH),
+            ImVec2(0.f, 0.f), ImVec2(1.f, 1.f), IM_COL32(255,255,255,224));
+    }
+
+    const float cx = o.x + width * .5f;
+    const float top = o.y + 34.f;
+    const float figureH = height - 50.f;
+    const float sc = figureH / 370.f;
+    // Normalized to the real full-body operator portrait, not to the old
+    // mannequin. This keeps the skeleton aligned when the card is resized.
+    const ImVec2 head(cx, top + figureH * .090f), neck(cx, top + figureH * .166f);
+    const ImVec2 chest(cx, top + figureH * .300f), pelvis(cx, top + figureH * .530f);
+    const ImVec2 lsh(cx - figureH * .104f, top + figureH * .218f), rsh(cx + figureH * .104f, top + figureH * .218f);
+    const ImVec2 lel(cx - figureH * .140f, top + figureH * .390f), rel(cx + figureH * .140f, top + figureH * .390f);
+    const ImVec2 lha(cx - figureH * .158f, top + figureH * .510f), rha(cx + figureH * .158f, top + figureH * .510f);
+    const ImVec2 lkn(cx - figureH * .064f, top + figureH * .770f), rkn(cx + figureH * .064f, top + figureH * .770f);
+    const ImVec2 lft(cx - figureH * .078f, top + figureH * .940f), rft(cx + figureH * .078f, top + figureH * .940f);
 
     ImU32 sk = IM_COL32((int)(CS2::config.col_skeleton[0]*255), (int)(CS2::config.col_skeleton[1]*255),
         (int)(CS2::config.col_skeleton[2]*255), 220);
@@ -53,7 +66,10 @@ void DrawCs2Preview(float width, float height) {
     bone(neck,lsh); bone(neck,rsh); bone(lsh,lel); bone(lel,lha); bone(rsh,rel); bone(rel,rha);
     bone(pelvis,lkn); bone(lkn,lft); bone(pelvis,rkn); bone(rkn,rft);
     for (ImVec2 p : {head,neck,chest,pelvis,lsh,rsh,lel,rel,lha,rha,lkn,rkn,lft,rft}) joint(p);
-    if (CS2::config.head_dot) dl->AddCircle(head, 11.f, IM_COL32(255,80,80,220), 24, 2.f);
+    if (CS2::config.head_dot) {
+        dl->AddCircle(head, 12.f * sc, IM_COL32(244, 64, 75, 230), 24, 1.6f);
+        dl->AddCircleFilled(head, 2.4f, IM_COL32(40,244,91,255), 12);
+    }
     if (CS2::config.head_halo) {
         ImVec2 halo[25]{};
         for (int i = 0; i <= 24; ++i) {
@@ -71,16 +87,27 @@ void DrawCs2Preview(float width, float height) {
     if (CS2::config.health_bar) {
         float top = head.y - 8.f, bot = lft.y, bx = (std::min)(lha.x, lft.x) - 18.f, h = bot - top;
         dl->AddRectFilled(ImVec2(bx-4, top), ImVec2(bx, bot), CyberTheme::SafeShadowU32(180));
-        dl->AddRectFilled(ImVec2(bx-4, bot - h*0.72f), ImVec2(bx, bot), IM_COL32(80, 220, 60, 255));
+        dl->AddRectFilledMultiColor(ImVec2(bx-4, bot - h*.72f), ImVec2(bx, bot), IM_COL32(227,190,72,255), IM_COL32(227,190,72,255), IM_COL32(235,50,35,255), IM_COL32(235,50,35,255));
     }
     if (CS2::config.armor_bar) {
         float top = head.y - 8.f, bot = rft.y, bx = (std::max)(rha.x, rft.x) + 14.f, h = bot - top;
         dl->AddRectFilled(ImVec2(bx, top), ImVec2(bx+4, bot), CyberTheme::SafeShadowU32(180));
         dl->AddRectFilled(ImVec2(bx, bot - h*0.55f), ImVec2(bx+4, bot), IM_COL32(70, 150, 255, 255));
     }
-    const char* line = "Jogador | 85 m";
-    ImVec2 ts = ImGui::CalcTextSize(line);
-    dl->AddText(ImVec2(cx - ts.x*0.5f, lft.y + 8.f), IM_COL32(180,255,140,230), line);
+    if (CS2::config.name) {
+        const char* name = "Player";
+        const ImVec2 nameSize = ImGui::CalcTextSize(name);
+        dl->AddText(ImVec2(cx - nameSize.x * .5f, head.y - 25.f),
+            IM_COL32(216,216,210,235), name);
+    }
+    if (CS2::config.weapon_icons || CS2::config.distance) {
+        const ImVec2 footer(cx - 40.f, lft.y + 8.f);
+        if (CS2::config.weapon_icons)
+            dl->AddText(footer, IM_COL32(227,198,90,255), "Pistol");
+        if (CS2::config.distance)
+            dl->AddText(ImVec2(footer.x + (CS2::config.weapon_icons ? 38.f : 0.f), footer.y),
+                IM_COL32(226,88,183,255), CS2::config.weapon_icons ? "| 85m" : "85m");
+    }
 
     if (CS2::config.radar_2d) {
         const ImVec2 radar(o.x + 58.f, o.y + 75.f);
@@ -121,14 +148,12 @@ void DrawCs2Visuals_FORCE(); void DrawCs2Visuals() {
     CyberWidgets::ToggleSwitch("Auréola na cabeça", &CS2::config.head_halo);
     CyberWidgets::ToggleSwitch(Loc::TrID("vis.health_bar"), &CS2::config.health_bar);
     CyberWidgets::ToggleSwitch(Loc::TrID("vis.armor_bar"), &CS2::config.armor_bar);
-    ImGui::BeginDisabled();
-    CyberWidgets::ToggleSwitch("Nome da arma (removido — apenas ícones)", &CS2::config.weapon_icons);
-    ImGui::EndDisabled();
+    CyberWidgets::ToggleSwitch("Nome da arma", &CS2::config.weapon_icons);
     CyberWidgets::ToggleSwitch(Loc::TrID("vis.box_2d"), &CS2::config.box);
     CyberWidgets::ToggleSwitch(Loc::TrID("vis.corner"), &CS2::config.box_corner);
     CyberWidgets::ToggleSwitch(Loc::TrID("vis.snaplines"), &CS2::config.snaplines);
-    CyberWidgets::ToggleSwitch(Loc::TrID("vis.distance"), &CS2::config.distance);
     CyberWidgets::ToggleSwitch(Loc::TrID("vis.name"), &CS2::config.name);
+    CyberWidgets::ToggleSwitch(Loc::TrID("vis.distance"), &CS2::config.distance);
     CyberWidgets::SliderFloat(Loc::TrID("vis.max_dist"), &CS2::config.max_distance, 20.f, 500.f, "%.0f m");
     CyberWidgets::EndCard();
 
@@ -216,7 +241,7 @@ void DrawCs2Visuals_FORCE(); void DrawCs2Visuals() {
     ImGui::SameLine(0.f, 12.f);
     ImGui::BeginGroup();
     CyberWidgets::BeginCard("##cs2_preview", right_w);
-    DrawCs2Preview((std::max)(220.f, right_w - 24.f), 420.f);
+    DrawCs2Preview((std::max)(260.f, right_w - 24.f), 520.f);
     CyberWidgets::EndCard();
     ImGui::EndGroup();
 }

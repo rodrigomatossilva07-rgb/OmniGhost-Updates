@@ -3,6 +3,7 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <Windows.h>
+#include <bcrypt.h>
 #include <iphlpapi.h>
 #include <shellapi.h>
 
@@ -23,6 +24,7 @@
 
 #include <atomic>
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <cstdio>
 #include <cstring>
@@ -35,6 +37,7 @@
 #include <iterator>
 #include <cmath>
 #include <mutex>
+#include <memory>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -46,6 +49,7 @@
 
 #pragma comment(lib, "ws2_32.lib")
 #pragma comment(lib, "iphlpapi.lib")
+#pragma comment(lib, "bcrypt.lib")
 
 namespace Fivem_Radar {
 namespace {
@@ -63,6 +67,7 @@ std::atomic<bool> g_cf_running{ false };
 std::mutex g_data_mutex;
 std::string g_json = "{\"players\":[]}";
 std::string g_json_etag = "\"0\"";
+std::atomic<std::uint64_t> g_snapshot_sequence{ 0 };
 std::string g_access_token;
 
 std::mutex g_state_mutex;
@@ -70,6 +75,13 @@ std::string g_status = "Offline";
 std::string g_lan_url;
 SOCKET g_socket = INVALID_SOCKET;
 std::jthread g_thread;
+
+struct WebSocketWorker {
+    std::jthread thread;
+    std::shared_ptr<std::atomic_bool> finished{ std::make_shared<std::atomic_bool>(false) };
+};
+std::mutex g_websocket_mutex;
+std::vector<std::unique_ptr<WebSocketWorker>> g_websocket_workers;
 
 const char* kHtml = R"HTML(<!DOCTYPE html>
 <html lang="pt"><head><meta charset="utf-8"/><title>OmniGhost FiveM Radar</title>
@@ -100,12 +112,12 @@ function draw(data){
   const players=data.players||[];
   info.textContent=players.length+' jogadores';
   for(const p of players){
-    if(p.local) continue;
+    if(p.is_local) continue;
     const x=cx+p.x*scale,y=cy-p.y*scale;
-    ctx.fillStyle=p.team===3?'#4fc3f7':(p.team===2?'#ef5350':'#aaa');
+    ctx.fillStyle=p.is_local?'#4fc3f7':'#ef5350';
     ctx.beginPath();ctx.arc(x,y,5,0,Math.PI*2);ctx.fill();
     ctx.fillStyle='#ccc';ctx.font='11px sans-serif';
-    ctx.fillText((p.name||'')+' '+(p.hp|0),x+7,y+3);
+    ctx.fillText((p.name||'')+' '+Math.round(p.health||0),x+7,y+3);
   }
 }
 async function tick(){
@@ -421,6 +433,120 @@ bool SendAll(SOCKET socket, const std::string& data)
     return true;
 }
 
+std::string Base64Encode(const unsigned char* data, size_t length)
+{
+    static constexpr char alphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    std::string output;
+    output.reserve(((length + 2) / 3) * 4);
+    for (size_t index = 0; index < length; index += 3) {
+        const unsigned value = static_cast<unsigned>(data[index]) << 16 |
+            (index + 1 < length ? static_cast<unsigned>(data[index + 1]) << 8 : 0) |
+            (index + 2 < length ? static_cast<unsigned>(data[index + 2]) : 0);
+        output.push_back(alphabet[(value >> 18) & 63]);
+        output.push_back(alphabet[(value >> 12) & 63]);
+        output.push_back(index + 1 < length ? alphabet[(value >> 6) & 63] : '=');
+        output.push_back(index + 2 < length ? alphabet[value & 63] : '=');
+    }
+    return output;
+}
+
+std::optional<std::string> WebSocketAcceptKey(std::string_view key)
+{
+    if (key.empty() || key.size() > 128) return std::nullopt;
+    const std::string source = std::string(key) + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+    BCRYPT_ALG_HANDLE algorithm{}; BCRYPT_HASH_HANDLE hash{};
+    DWORD objectLength = 0, resultLength = 0;
+    std::vector<unsigned char> object;
+    std::array<unsigned char, 20> digest{};
+    bool ok = BCryptOpenAlgorithmProvider(&algorithm, BCRYPT_SHA1_ALGORITHM, nullptr, 0) >= 0;
+    if (ok) ok = BCryptGetProperty(algorithm, BCRYPT_OBJECT_LENGTH,
+        reinterpret_cast<PUCHAR>(&objectLength), sizeof(objectLength), &resultLength, 0) >= 0;
+    if (ok) object.resize(objectLength);
+    if (ok) ok = BCryptCreateHash(algorithm, &hash, object.data(), objectLength, nullptr, 0, 0) >= 0;
+    if (ok) ok = BCryptHashData(hash, reinterpret_cast<PUCHAR>(const_cast<char*>(source.data())),
+        static_cast<ULONG>(source.size()), 0) >= 0;
+    if (ok) ok = BCryptFinishHash(hash, digest.data(), static_cast<ULONG>(digest.size()), 0) >= 0;
+    if (hash) BCryptDestroyHash(hash);
+    if (algorithm) BCryptCloseAlgorithmProvider(algorithm, 0);
+    return ok ? std::optional<std::string>(Base64Encode(digest.data(), digest.size())) : std::nullopt;
+}
+
+bool SendWebSocketFrame(SOCKET socket, unsigned char opcode, std::string_view payload)
+{
+    std::string frame; frame.reserve(payload.size() + 10);
+    frame.push_back(static_cast<char>(0x80 | (opcode & 0x0f)));
+    if (payload.size() < 126) frame.push_back(static_cast<char>(payload.size()));
+    else if (payload.size() <= 0xffff) {
+        frame.push_back(126); frame.push_back(static_cast<char>((payload.size() >> 8) & 0xff)); frame.push_back(static_cast<char>(payload.size() & 0xff));
+    } else {
+        frame.push_back(127);
+        for (int shift = 56; shift >= 0; shift -= 8) frame.push_back(static_cast<char>((payload.size() >> shift) & 0xff));
+    }
+    frame.append(payload.data(), payload.size());
+    return SendAll(socket, frame);
+}
+
+void ReapWebSocketWorkers()
+{
+    std::lock_guard<std::mutex> lock(g_websocket_mutex);
+    for (auto it = g_websocket_workers.begin(); it != g_websocket_workers.end();) {
+        if ((*it)->finished->load()) { (*it)->thread.join(); it = g_websocket_workers.erase(it); }
+        else ++it;
+    }
+}
+
+void StopWebSocketWorkers()
+{
+    std::vector<std::unique_ptr<WebSocketWorker>> workers;
+    { std::lock_guard<std::mutex> lock(g_websocket_mutex); workers.swap(g_websocket_workers); }
+    for (auto& worker : workers) worker->thread.request_stop();
+    for (auto& worker : workers) if (worker->thread.joinable()) worker->thread.join();
+}
+
+void RunWebSocket(std::stop_token stopToken, SOCKET rawSocket, std::string requestText,
+                  std::string selectedProtocol, std::shared_ptr<std::atomic_bool> finished)
+{
+    OmniGhost::Platform::UniqueSocket socket(rawSocket);
+    auto done = OmniGhost::Platform::MakeScopeExit([&] { finished->store(true); });
+    const auto key = OmniGhost::RadarAccess::HeaderValue(requestText, "Sec-WebSocket-Key");
+    const auto accept = WebSocketAcceptKey(key);
+    if (!accept) return;
+    std::string handshake = "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: " + *accept;
+    if (!selectedProtocol.empty()) handshake += "\r\nSec-WebSocket-Protocol: " + selectedProtocol;
+    handshake += "\r\nCache-Control: no-store\r\n\r\n";
+    if (!SendAll(socket.get(), handshake)) return;
+
+    std::string lastEtag;
+    auto lastPing = std::chrono::steady_clock::now();
+    while (g_requested.load() && !stopToken.stop_requested()) {
+        ReapWebSocketWorkers();
+        fd_set readSet; FD_ZERO(&readSet); FD_SET(socket.get(), &readSet);
+        timeval timeout{ 0, 200000 };
+        const int ready = select(0, &readSet, nullptr, nullptr, &timeout);
+        if (ready == SOCKET_ERROR) break;
+        if (ready > 0) { char discard[512]; const int read = recv(socket.get(), discard, sizeof(discard), 0); if (read <= 0) break; }
+        std::string snapshot, etag;
+        { std::lock_guard<std::mutex> lock(g_data_mutex); snapshot = g_json; etag = g_json_etag; }
+        if (etag != lastEtag) { if (!SendWebSocketFrame(socket.get(), 0x1, snapshot)) break; lastEtag = std::move(etag); }
+        const auto now = std::chrono::steady_clock::now();
+        if (now - lastPing >= std::chrono::seconds(15)) { if (!SendWebSocketFrame(socket.get(), 0x9, "")) break; lastPing = now; }
+    }
+}
+
+void RunSse(std::stop_token stopToken, SOCKET rawSocket, std::shared_ptr<std::atomic_bool> finished)
+{
+    OmniGhost::Platform::UniqueSocket socket(rawSocket);
+    auto done = OmniGhost::Platform::MakeScopeExit([&] { finished->store(true); });
+    if (!SendAll(socket.get(), "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-store\r\nConnection: keep-alive\r\nX-Accel-Buffering: no\r\n\r\n")) return;
+    std::string lastEtag;
+    while (g_requested.load() && !stopToken.stop_requested()) {
+        std::string snapshot, etag;
+        { std::lock_guard<std::mutex> lock(g_data_mutex); snapshot = g_json; etag = g_json_etag; }
+        if (etag != lastEtag) { if (!SendAll(socket.get(), "data: " + snapshot + "\n\n")) break; lastEtag = std::move(etag); }
+        std::this_thread::sleep_for(std::chrono::milliseconds(150));
+    }
+}
+
 void FailStart(const char* stage, int error)
 {
     char message[160]{};
@@ -602,9 +728,49 @@ void ServerThread(std::stop_token stopToken, bool lan, int port)
             response = HttpResponse(401, "Unauthorized",
                 "text/plain; charset=utf-8", "Token de acesso inválido",
                 "\r\nWWW-Authenticate: Bearer realm=\"OmniGhost Radar\"");
+        } else if (request.target.rfind("/api/stream", 0) == 0) {
+            // EventSource cannot send Authorization headers. Keep SSE loopback-only;
+            // LAN/public clients use the authenticated WebSocket transport instead.
+            if (lan || g_public_access_requested.load()) {
+                response = HttpResponse(401, "Unauthorized", "text/plain; charset=utf-8", "SSE disponível apenas localmente");
+            } else {
+                ReapWebSocketWorkers();
+                std::lock_guard<std::mutex> lock(g_websocket_mutex);
+                if (g_websocket_workers.size() >= 8) {
+                    response = HttpResponse(503, "Service Unavailable", "text/plain; charset=utf-8", "Limite de streams atingido");
+                } else {
+                    auto worker = std::make_unique<WebSocketWorker>();
+                    const auto finished = worker->finished; const SOCKET streamSocket = client.release();
+                    worker->thread = std::jthread([streamSocket, finished](std::stop_token workerStop) { RunSse(workerStop, streamSocket, finished); });
+                    g_websocket_workers.push_back(std::move(worker));
+                    continue;
+                }
+            }
         } else if (request.target == "/fivem_webradar") {
-            response = HttpResponse(426, "Upgrade Required",
-                "text/plain; charset=utf-8", "Usa o transporte HTTP autenticado");
+            const std::string upgrade = OmniGhost::RadarAccess::HeaderValue(requestText, "Upgrade");
+            const std::string key = OmniGhost::RadarAccess::HeaderValue(requestText, "Sec-WebSocket-Key");
+            if (_stricmp(upgrade.c_str(), "websocket") != 0 || key.empty()) {
+                response = HttpResponse(426, "Upgrade Required", "text/plain; charset=utf-8", "WebSocket requerido");
+            } else {
+                ReapWebSocketWorkers();
+                std::shared_ptr<std::atomic_bool> finished;
+                {
+                    std::lock_guard<std::mutex> lock(g_websocket_mutex);
+                    if (g_websocket_workers.size() >= 8) {
+                        response = HttpResponse(503, "Service Unavailable", "text/plain; charset=utf-8", "Limite de clientes WebSocket atingido");
+                    } else {
+                        auto worker = std::make_unique<WebSocketWorker>();
+                        finished = worker->finished;
+                        const std::string protocol = g_access_token.empty() ? "" : "omnighost-radar." + g_access_token;
+                        const SOCKET socket = client.release();
+                        worker->thread = std::jthread([socket, requestText, protocol, finished](std::stop_token workerStop) {
+                            RunWebSocket(workerStop, socket, requestText, protocol, finished);
+                        });
+                        g_websocket_workers.push_back(std::move(worker));
+                    }
+                }
+                if (response.empty()) continue; // Worker owns this upgraded socket.
+            }
         } else if (request.target == "/api/state" || request.target == "/api/players") {
             std::string snapshot;
             std::string etag;
@@ -653,6 +819,7 @@ void ServerThread(std::stop_token stopToken, bool lan, int port)
         shutdown(client.get(), SD_BOTH);
     }
 
+    StopWebSocketWorkers();
     {
         std::lock_guard<std::mutex> lock(g_state_mutex);
         if (g_socket == listen_socket)
@@ -779,8 +946,11 @@ void Update()
         return angle;
     };
 
+    const std::uint64_t sequence = ++g_snapshot_sequence;
     std::ostringstream json;
-    json << std::fixed << std::setprecision(3) << "{\"players\":[";
+    json << std::fixed << std::setprecision(3)
+         << "{\"schema_version\":2,\"seq\":" << sequence
+         << ",\"timestamp_ms\":" << nowMs << ",\"players\":[";
 
     bool first = true;
     int playerCount = 0;
@@ -812,6 +982,8 @@ void Update()
             float armor = 0.0f;
             bool inVehicle = false;
             float yaw = 0.0f;
+            Vec3 velocity{};
+            const bool hasVelocity = ::mem.Read(ped + offset::pedVelocity, &velocity, sizeof(velocity));
             std::string vehicleName = "";
 
             // Read playerInfo for name and netId
@@ -871,9 +1043,7 @@ void Update()
                         yaw = std::atan2(fy, fx);
                 }
                 if (yaw == 0.0f) {
-                    Vec3 velocity{};
-                    ::mem.Read(ped + offset::pedVelocity, &velocity, sizeof(velocity));
-                    if (!velocity.IsZero())
+                    if (hasVelocity && !velocity.IsZero())
                         yaw = std::atan2(velocity.y, velocity.x);
                 }
             }
@@ -888,23 +1058,38 @@ void Update()
             const float relZ = hasLocal ? (pos.z - localPos.z) : pos.z;
             const float dist = hasLocal ? std::sqrt(relX * relX + relY * relY + relZ * relZ) : 0.0f;
 
-            json << "{\"id\":" << (netId ? netId : (int)ped)
+            // A pointer is 64-bit. Keep fallback identifiers as strings rather
+            // than truncating them to int and risking collisions in the UI.
+            const std::string stableId = netId ? std::to_string(netId) : std::to_string(static_cast<std::uint64_t>(ped));
+            const float speed = hasVelocity
+                ? std::sqrt(velocity.x * velocity.x + velocity.y * velocity.y + velocity.z * velocity.z)
+                : 0.0f;
+            json << "{\"id\":\"" << stableId << "\""
                  << ",\"name\":\"" << JsonEscape(name.c_str()) << "\""
                  << ",\"x\":" << number(pos.x)
                  << ",\"y\":" << number(pos.y)
                  << ",\"z\":" << number(pos.z)
+                 << ",\"position\":{\"x\":" << number(pos.x) << ",\"y\":" << number(pos.y) << ",\"z\":" << number(pos.z) << "}"
                  << ",\"yaw\":" << number(compass(yaw))
+                 << ",\"heading\":" << number(compass(yaw))
                  << ",\"health\":" << number(health)
                  << ",\"armor\":" << number(armor)
                  << ",\"is_local\":" << (isLocal ? "true" : "false")
                  << ",\"is_player\":" << (name != "Ped" ? "true" : "false")
                  << ",\"in_vehicle\":" << (inVehicle ? "true" : "false")
                  << ",\"vehicle\":\"" << JsonEscape(vehicleName.c_str()) << "\""
-                 << ",\"distance\":" << number(dist) << '}';
+                 << ",\"distance\":" << number(dist);
+            if (hasVelocity) {
+                json << ",\"velocity\":{\"x\":" << number(velocity.x)
+                     << ",\"y\":" << number(velocity.y)
+                     << ",\"z\":" << number(velocity.z) << "}"
+                     << ",\"speed\":" << number(speed);
+            }
+            json << '}';
         }
     }
 
-    json << "],\"objects\":[],\"dma_status\":\"" << (dmaOk ? (playerCount ? "online" : "idle") : "offline") << "\"}";
+    json << "],\"dma_status\":\"" << (dmaOk ? (playerCount ? "online" : "idle") : "offline") << "\"}";
 
     std::lock_guard<std::mutex> lock(g_data_mutex);
     g_json = json.str();

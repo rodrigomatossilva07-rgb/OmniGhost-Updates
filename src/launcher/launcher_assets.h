@@ -22,5 +22,6 @@ void Shutdown();
 Texture Logo(Launcher::GameId game);
 Texture Banner(Launcher::GameId game);
 Texture RustEspPreview();
+Texture FiveMEspPreview();
 
 } // namespace LauncherAssets

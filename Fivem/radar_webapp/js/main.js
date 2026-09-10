@@ -4,7 +4,6 @@ const RadarApp = {
 		connected: false,
 		connecting: false,
 		players: [],
-		objects: [],
 		localPlayer: null,
 		selectedPlayerId: null,
 		followingPlayerId: null,
@@ -25,6 +24,17 @@ const RadarApp = {
 		autoZoom: false,
 		minimapMode: false,
 		operatorMode: false,
+		cameraMode: 'free',
+		activeFilter: 'all', distanceLimit: 0,
+		measure: { active: false, start: null, end: null },
+		replay: { live: true, snapshots: [], maxAge: 5 * 60 * 1000, index: 0 },
+		annotations: { active: false, points: [] },
+		session: { startedAt: Date.now(), distance: 0, maxSpeed: 0, positions: new Map() },
+		transport: 'http',
+		connectionState: 'offline',
+		lastSnapshotAt: 0,
+		previousSnapshot: null,
+		currentSnapshot: null,
 		lastUpdate: 0,
 		updateInterval: null,
 		accessToken: '',
@@ -32,23 +42,26 @@ const RadarApp = {
 		dmaStatus: 'offline',
 		etag: '',
 		trails: new Map(), // id -> [{x,y,t}]
-		heatmap: [],
-		combatIds: new Set(),
-		lastPositions: new Map()
+		heatmap: new Map(),
+		lastPositions: new Map(),
+		playerRows: new Map(),
+		events: [], previousPlayers: new Map()
 	},
 
 	elements: {},
 	canvas: null,
 	ctx: null,
 	raf: 0,
+	transportClient: null,
 
 	CONFIG: {
 		API_POLL_INTERVAL: 120,
 		STALE_THRESHOLD: 5000,
-		TRAIL_MS: 8000,
-		TRAIL_MAX: 48,
 		STICKY_MS: 1500,
-		COMBAT_SPEED: 8.5, // m/s approx threshold via world units/s
+		TRAIL_MIN_DISTANCE: 2.0,
+		TRAIL_MAX_AGE_MS: 5 * 60 * 1000,
+		HEATMAP_CELL_SIZE: 80,
+		HEATMAP_MAX_AGE_MS: 2 * 60 * 1000,
 		CANVAS_ENTITY_THRESHOLD: 50
 	},
 
@@ -80,11 +93,27 @@ const RadarApp = {
 			settingsToggle: document.getElementById('settings-toggle'),
 			unknownMap: document.getElementById('unknownMap'),
 			offlineBanner: document.getElementById('offline-banner'),
-			objectTbody: document.getElementById('object-tbody'),
-			objectCount: document.getElementById('object-count'),
-			objectSearch: document.getElementById('object-search'),
 			minimapBtn: document.getElementById('minimap-toggle'),
-			operatorBtn: document.getElementById('operator-toggle')
+			operatorBtn: document.getElementById('operator-toggle'),
+			playerInspector: document.getElementById('player-inspector'),
+			centerLocal: document.getElementById('center-local'),
+			fitAll: document.getElementById('fit-all'),
+			resetView: document.getElementById('reset-view'),
+			eventList: document.getElementById('event-list'),
+			quickFilters: document.getElementById('quick-filters'),
+			distanceFilter: document.getElementById('distance-filter'),
+			diagnostics: document.getElementById('diagnostics'),
+			measureToggle: document.getElementById('measure-toggle'),
+			measureReadout: document.getElementById('measure-readout'),
+			replayLive: document.getElementById('replay-live'),
+			replayTimeline: document.getElementById('replay-timeline'),
+			replayLabel: document.getElementById('replay-label'),
+			drawToggle: document.getElementById('draw-toggle'),
+			clearAnnotations: document.getElementById('clear-annotations'),
+			statObserved: document.getElementById('stat-observed'),
+			statDistance: document.getElementById('stat-distance'),
+			statSpeed: document.getElementById('stat-speed'),
+			preset: document.getElementById('set-preset')
 		};
 	},
 
@@ -147,6 +176,25 @@ const RadarApp = {
 		document.documentElement.setAttribute('data-theme', this.state.settings.theme || 'omnighost-dark');
 	},
 
+	applyPreset(name) {
+		const presets = {
+			clean: { showNames: true, showTrails: false, showLookCone: false, heatmap: false, followRotation: false },
+			tactical: { showNames: true, showTrails: true, showLookCone: true, heatmap: false, followRotation: false },
+			analysis: { showNames: true, showTrails: true, showLookCone: true, heatmap: true, followRotation: false },
+			operator: { showNames: true, showTrails: true, showLookCone: true, heatmap: false, followRotation: true }
+		};
+		const preset = presets[name];
+		if (!preset) return;
+		Object.assign(this.state.settings, preset);
+		this.state.followRotation = preset.followRotation;
+		for (const [id, key] of Object.entries({ 'set-names': 'showNames', 'set-trails': 'showTrails', 'set-cone': 'showLookCone', 'set-heatmap': 'heatmap', 'set-rotate': 'followRotation' })) {
+			const control = document.getElementById(id); if (control) control.checked = !!preset[key];
+		}
+		if (name === 'operator' && !this.state.operatorMode) this.toggleOperator();
+		this.state.settings.preset = name;
+		this.saveSettings();
+	},
+
 	detectAccessToken() {
 		const hash = (location.hash || '').replace(/^#/, '');
 		const q = new URLSearchParams(location.search);
@@ -158,26 +206,100 @@ const RadarApp = {
 		if (r) {
 			r.addEventListener('wheel', (e) => {
 				e.preventDefault();
-				const dir = e.deltaY > 0 ? -1 : 1;
-				this.state.zoom = Math.min(this.state.maxZoom, Math.max(this.state.minZoom,
-					this.state.zoom * (1 + dir * 0.12)));
-				this.state.autoZoom = false;
+				const box = r.getBoundingClientRect();
+				MapRenderer.zoomAt(this.state, { x: e.clientX - box.left, y: e.clientY - box.top },
+					e.deltaY > 0 ? 0.88 : 1.14, this.state.mapType);
+				this.state.cameraMode = 'free';
 				this.syncMapTransform();
 			}, { passive: false });
-			// Deliberately no drag-to-pan handler in the default full-map radar.
+			let drag = null;
+			const pointers = new Map();
+			let pinchDistance = 0;
+			r.addEventListener('pointerdown', (e) => {
+				r.setPointerCapture?.(e.pointerId);
+				pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+				if (pointers.size === 1) drag = { x: e.clientX, y: e.clientY, moved: false };
+				if (pointers.size === 2) {
+					const p = [...pointers.values()];
+					pinchDistance = Math.hypot(p[1].x - p[0].x, p[1].y - p[0].y);
+					drag = null;
+				}
+			});
+			r.addEventListener('pointermove', (e) => {
+				if (!pointers.has(e.pointerId)) return;
+				pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+				if (pointers.size === 2) {
+					const p = [...pointers.values()];
+					const next = Math.hypot(p[1].x - p[0].x, p[1].y - p[0].y);
+					if (pinchDistance > 0 && next > 0) {
+						const box = r.getBoundingClientRect();
+						MapRenderer.zoomAt(this.state, { x: (p[0].x + p[1].x) / 2 - box.left, y: (p[0].y + p[1].y) / 2 - box.top }, next / pinchDistance, this.state.mapType);
+						this.state.cameraMode = 'free';
+						this.syncMapTransform();
+					}
+					pinchDistance = next;
+					return;
+				}
+				if (!drag) return;
+				const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+				if (dx || dy) {
+					MapRenderer.panBy(this.state, dx, dy);
+					this.state.cameraMode = 'free';
+					drag.x = e.clientX; drag.y = e.clientY; drag.moved = true;
+					this.syncMapTransform();
+				}
+			});
+			const endPointer = (e) => { pointers.delete(e.pointerId); if (!pointers.size) drag = null; };
+			r.addEventListener('pointerup', endPointer);
+			r.addEventListener('pointercancel', endPointer);
+			r.addEventListener('dblclick', (e) => {
+				const box = r.getBoundingClientRect();
+				MapRenderer.zoomAt(this.state, { x: e.clientX - box.left, y: e.clientY - box.top }, 1.5, this.state.mapType);
+				this.state.cameraMode = 'free'; this.syncMapTransform();
+			});
+			r.addEventListener('click', e => {
+				if (!this.state.measure.active && !this.state.annotations.active) return;
+				const box = r.getBoundingClientRect();
+				const point = MapRenderer.screenToWorld({ x:e.clientX-box.left, y:e.clientY-box.top }, this.state, this.state.mapType);
+				if (this.state.annotations.active) {
+					this.state.annotations.points.push({ ...point, label: String(this.state.annotations.points.length + 1) });
+					return;
+				}
+				if (!this.state.measure.start || this.state.measure.end) { this.state.measure.start = point; this.state.measure.end = null; }
+				else this.state.measure.end = point;
+				this.updateMeasureReadout();
+			});
 		}
 		if (this.elements.playerSearch)
 			this.elements.playerSearch.addEventListener('input', () => this.updatePlayerList());
 		if (this.elements.playerSort)
 			this.elements.playerSort.addEventListener('change', () => this.updatePlayerList());
-		if (this.elements.objectSearch)
-			this.elements.objectSearch.addEventListener('input', () => this.updateObjectList());
 		if (this.elements.settingsToggle)
 			this.elements.settingsToggle.addEventListener('click', () => this.toggleSettings());
 		if (this.elements.minimapBtn)
 			this.elements.minimapBtn.addEventListener('click', () => this.toggleMinimap());
 		if (this.elements.operatorBtn)
 			this.elements.operatorBtn.addEventListener('click', () => this.toggleOperator());
+		this.elements.centerLocal?.addEventListener('click', () => this.centerLocal());
+		this.elements.fitAll?.addEventListener('click', () => this.fitAllPlayers());
+		this.elements.resetView?.addEventListener('click', () => { MapRenderer.resetView(this.state); this.syncMapTransform(); });
+		this.elements.quickFilters?.addEventListener('click', e => {
+			const button = e.target.closest('[data-filter]'); if (!button) return;
+			this.state.activeFilter = button.dataset.filter;
+			this.elements.quickFilters.querySelectorAll('[data-filter]').forEach(b => b.classList.toggle('active', b === button));
+			this.updatePlayerList();
+		});
+		this.elements.distanceFilter?.addEventListener('change', e => { this.state.distanceLimit = Number(e.target.value) || 0; this.updatePlayerList(); });
+		this.elements.measureToggle?.addEventListener('click', () => { this.state.measure.active = !this.state.measure.active; this.state.measure.start = this.state.measure.end = null; this.updateMeasureReadout(); });
+		this.elements.replayLive?.addEventListener('click', () => { this.state.replay.live = true; this.elements.replayLive.textContent = 'LIVE'; });
+		this.elements.replayLive?.addEventListener('click', () => this.showLiveSnapshot());
+		this.elements.replayTimeline?.addEventListener('input', e => this.selectReplaySnapshot(Number(e.target.value)));
+		this.elements.drawToggle?.addEventListener('click', () => {
+			this.state.annotations.active = !this.state.annotations.active;
+			this.elements.drawToggle.classList.toggle('active', this.state.annotations.active);
+		});
+		this.elements.clearAnnotations?.addEventListener('click', () => { this.state.annotations.points = []; });
+		this.elements.preset?.addEventListener('change', e => this.applyPreset(e.target.value));
 
 		document.addEventListener('keydown', (e) => {
 			if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
@@ -195,8 +317,33 @@ const RadarApp = {
 				this.state.followingPlayerId = null;
 			}
 			if (e.key === 'f' && this.state.selectedPlayerId)
-				this.state.followingPlayerId = this.state.selectedPlayerId;
+				this.follow(this.state.selectedPlayerId);
+			if (e.key === '0') { MapRenderer.resetView(this.state); this.syncMapTransform(); }
 		});
+	},
+
+	follow(id) {
+		this.state.followingPlayerId = id;
+		this.state.cameraMode = 'follow';
+	},
+
+	centerLocal() {
+		if (this.state.localPlayer) this.follow(this.state.localPlayer.id);
+	},
+
+	fitAllPlayers() {
+		const valid = this.state.players.filter(p => Number.isFinite(p.x) && Number.isFinite(p.y));
+		if (!valid.length || !window.MapRenderer) return;
+		const m = MapRenderer.getRadarMetrics();
+		const xs = valid.map(p => p.x), ys = valid.map(p => p.y);
+		const span = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys), 100);
+		const cal = MapRenderer.ensureCalibrated(this.state.mapType);
+		const fit = Math.max(m.width / cal.imageSize.width, m.height / cal.imageSize.height);
+		this.state.zoom = Math.max(this.state.minZoom, Math.min(this.state.maxZoom, Math.min(m.width, m.height) / (span / Math.max(cal.scaleX, cal.scaleY)) / fit * 0.65));
+		const center = { x: (Math.min(...xs) + Math.max(...xs)) / 2, y: (Math.min(...ys) + Math.max(...ys)) / 2 };
+		const projected = MapRenderer.worldToRadar(center, { ...this.state, centerX: 0, centerY: 0 }, this.state.mapType);
+		this.state.centerX = m.centerX - projected.x; this.state.centerY = m.centerY - projected.y;
+		this.state.cameraMode = 'free'; this.syncMapTransform();
 	},
 
 	toggleSettings() {
@@ -226,9 +373,15 @@ const RadarApp = {
 	},
 
 	startPolling() {
-		if (this.state.updateInterval) clearInterval(this.state.updateInterval);
-		this.state.updateInterval = setInterval(() => this.pollState(), this.CONFIG.API_POLL_INTERVAL);
-		this.pollState();
+		this.transportClient?.stop();
+		if (!window.RadarTransport) { this.pollState(); return; }
+		this.transportClient = new RadarTransport({
+			token: this.state.accessToken,
+			onSnapshot: data => this.handleStateUpdate(data),
+			onStatus: info => this.updateConnectionStatus(info),
+			onMetrics: metrics => { this.state.transportMetrics = metrics; this.updateDiagnostics(); }
+		});
+		this.transportClient.start();
 	},
 
 	async pollState() {
@@ -257,20 +410,26 @@ const RadarApp = {
 		}
 	},
 
-	updateConnectionStatus(connected) {
-		const was = this.state.connected;
+	updateConnectionStatus(info) {
+		const detail = typeof info === 'boolean' ? { state: info ? 'connected' : 'offline', mode: 'http' } : info;
+		const connected = detail.state === 'connected';
 		this.state.connected = connected;
+		this.state.connectionState = detail.state;
+		this.state.transport = detail.mode || this.state.transport;
 		if (this.elements.connStatus) {
 			if (connected) {
-				this.elements.connStatus.textContent = (window.t && t('radar_online')) || 'Online';
+				this.elements.connStatus.textContent = `${detail.mode || 'HTTP'} · ${(window.t && t('radar_online')) || 'Online'}`;
 				this.elements.connStatus.className = 'conn-status conn-status--online';
+			} else if (detail.state === 'reconnecting' || detail.state === 'stale') {
+				this.elements.connStatus.textContent = detail.state === 'stale' ? 'Dados desatualizados' : 'A reconectar…';
+				this.elements.connStatus.className = 'conn-status conn-status--connecting';
 			} else {
 				this.elements.connStatus.textContent = (window.t && t('dma_offline')) || 'DMA offline';
 				this.elements.connStatus.className = 'conn-status conn-status--error';
 			}
 		}
 		if (this.elements.offlineBanner)
-			this.elements.offlineBanner.hidden = connected;
+			this.elements.offlineBanner.hidden = connected || detail.state === 'reconnecting';
 		if (this.elements.unknownMap)
 			this.elements.unknownMap.hidden = connected;
 		if (this.elements.radar)
@@ -279,14 +438,41 @@ const RadarApp = {
 
 	handleStateUpdate(data) {
 		if (!data) return;
+		// Accept the future compact protocol as well as today's full snapshots.
+		// Missing fields retain their last known value; removals are explicit.
+		if (Array.isArray(data.upserts) && this.state.currentSnapshot) {
+			const byId = new Map((this.state.currentSnapshot.players || []).map(player => [String(player.id), player]));
+			for (const update of data.upserts) {
+				const id = String(update.id);
+				byId.set(id, { ...(byId.get(id) || {}), ...update });
+			}
+			for (const id of data.removedIds || []) byId.delete(String(id));
+			data = { ...this.state.currentSnapshot, ...data, players: [...byId.values()] };
+		}
+		const capturedAt = Date.now();
+		this.state.replay.snapshots.push({ t: capturedAt, data });
+		while (this.state.replay.snapshots.length && Date.now() - this.state.replay.snapshots[0].t > this.state.replay.maxAge)
+			this.state.replay.snapshots.shift();
+		this.updateReplayTimeline();
+		if (!this.state.replay.live) return;
+		this.applySnapshot(data, capturedAt);
+	},
+
+	applySnapshot(data, capturedAt = Date.now()) {
+		this.state.previousSnapshot = this.state.currentSnapshot;
+		this.state.currentSnapshot = data;
 		this.state.players = Array.isArray(data.players) ? data.players : [];
-		this.state.objects = Array.isArray(data.objects) ? data.objects : [];
-		this.state.lastUpdate = Date.now();
+		this.state.seq = data.seq || this.state.seq || 0;
+		this.state.snapshotTimestamp = data.timestamp_ms || 0;
+		this.state.lastUpdate = capturedAt;
+		this.state.lastSnapshotAt = performance.now();
 		if (data.dma_status) this.state.dmaStatus = data.dma_status;
 		this.state.localPlayer = this.state.players.find(p => p.is_local || p.local) || null;
 
-		this.updateTrailsAndCombat();
+		this.updateEventStream();
+		this.updateTrails();
 		this.updateHeatmapSample();
+		this.updateSessionStats();
 
 		// Sticky selection
 		if (this.state.stickyId && Date.now() < this.state.stickyUntil) {
@@ -304,44 +490,147 @@ const RadarApp = {
 		if (this.state.followingPlayerId) this.followPlayer(this.state.followingPlayerId);
 
 		this.updatePlayerList();
-		this.updateObjectList();
+		this.updateInspector();
 		this.syncMapTransform();
 	},
 
-	updateTrailsAndCombat() {
+	updateReplayTimeline() {
+		const replay = this.state.replay, input = this.elements.replayTimeline;
+		if (!input) return;
+		const max = Math.max(0, replay.snapshots.length - 1);
+		input.max = String(max); input.disabled = max === 0;
+		if (replay.live) { replay.index = max; input.value = String(max); }
+		if (this.elements.replayLabel) this.elements.replayLabel.textContent = replay.live ? 'LIVE' : 'REPLAY';
+	},
+
+	selectReplaySnapshot(index) {
+		const replay = this.state.replay;
+		const snapshot = replay.snapshots[index];
+		if (!snapshot) return;
+		replay.live = index === replay.snapshots.length - 1;
+		replay.index = index;
+		this.applySnapshot(snapshot.data, snapshot.t);
+		this.updateReplayTimeline();
+	},
+
+	showLiveSnapshot() {
+		const replay = this.state.replay;
+		if (!replay.snapshots.length) return;
+		replay.live = true;
+		this.applySnapshot(replay.snapshots[replay.snapshots.length - 1].data, Date.now());
+		this.updateReplayTimeline();
+	},
+
+	updateSessionStats() {
+		const session = this.state.session, now = Date.now();
+		for (const player of this.state.players) {
+			const id = String(player.id);
+			if (Number.isFinite(player.speed)) session.maxSpeed = Math.max(session.maxSpeed, player.speed);
+			if (!Number.isFinite(player.x) || !Number.isFinite(player.y)) continue;
+			const previous = session.positions.get(id);
+			if (previous) {
+				const delta = Math.hypot(player.x - previous.x, player.y - previous.y);
+				if (delta < 1000) session.distance += delta;
+			}
+			session.positions.set(id, { x: player.x, y: player.y, t: now });
+		}
+		const elapsed = Math.floor((now - session.startedAt) / 1000);
+		if (this.elements.statObserved) this.elements.statObserved.textContent = `${Math.floor(elapsed / 60)}m ${elapsed % 60}s`;
+		if (this.elements.statDistance) this.elements.statDistance.textContent = session.distance >= 1000 ? `${(session.distance / 1000).toFixed(1)} km` : `${Math.round(session.distance)} m`;
+		if (this.elements.statSpeed) this.elements.statSpeed.textContent = session.maxSpeed ? session.maxSpeed.toFixed(1) : '—';
+	},
+
+
+	updateDiagnostics() {
+		const el = this.elements.diagnostics, m = this.state.transportMetrics;
+		if (!el || !m) return;
+		el.textContent = `${this.state.transport.toUpperCase()} · ${m.rtt || 0} ms · ${this.state.players.length} jogadores · ${m.dropped || 0} perdidos`;
+	},
+
+	updateMeasureReadout() {
+		const el = this.elements.measureReadout, m = this.state.measure;
+		if (!el) return;
+		if (!m.active || !m.start) { el.hidden = true; return; }
+		if (!m.end) { el.textContent = 'Seleciona o segundo ponto'; el.hidden = false; return; }
+		const d = Math.hypot(m.end.x - m.start.x, m.end.y - m.start.y);
+		el.textContent = d >= 1000 ? `${(d / 1000).toFixed(2)} km` : `${Math.round(d)} m`; el.hidden = false;
+	},
+
+	updateTrails() {
 		const now = Date.now();
-		const nextCombat = new Set();
-		for (const p of this.state.players) {
+		const seen = new Set();
+		for (const p of this.getRenderPlayers()) {
 			const id = String(p.id);
+			seen.add(id);
 			const x = p.x, y = p.y;
 			if (typeof x !== 'number' || typeof y !== 'number') continue;
 			let trail = this.state.trails.get(id);
 			if (!trail) { trail = []; this.state.trails.set(id, trail); }
 			const last = this.state.lastPositions.get(id);
-			if (last) {
-				const dt = (now - last.t) / 1000;
-				if (dt > 0.05 && dt < 2) {
-					const dist = Math.hypot(x - last.x, y - last.y);
-					const speed = dist / dt;
-					if (speed > this.CONFIG.COMBAT_SPEED) nextCombat.add(id);
-				}
-			}
+			const moved = !last || Math.hypot(x - last.x, y - last.y) >= this.CONFIG.TRAIL_MIN_DISTANCE;
 			this.state.lastPositions.set(id, { x, y, t: now });
-			trail.push({ x, y, t: now });
-			while (trail.length > this.CONFIG.TRAIL_MAX) trail.shift();
-			while (trail.length && now - trail[0].t > this.CONFIG.TRAIL_MS) trail.shift();
+			if (moved) trail.push({ x, y, t: now });
+			while (trail.length && now - trail[0].t > this.CONFIG.TRAIL_MAX_AGE_MS) trail.shift();
 		}
-		this.state.combatIds = nextCombat;
+		for (const id of this.state.trails.keys()) if (!seen.has(id)) this.state.trails.delete(id);
+		for (const id of this.state.lastPositions.keys()) if (!seen.has(id)) this.state.lastPositions.delete(id);
+	},
+
+	updateEventStream() {
+		const previous = this.state.previousPlayers, next = new Map(), now = new Date();
+		const add = (player, message) => {
+			this.state.events.unshift({ id: `${Date.now()}-${Math.random()}`, time: now, message: `${player.name || player.id} ${message}` });
+		};
+		for (const p of this.state.players) {
+			const id = String(p.id), before = previous.get(id); next.set(id, p);
+			if (!before) add(p, 'apareceu');
+			else {
+				if (!!before.in_vehicle !== !!p.in_vehicle) add(p, p.in_vehicle ? `entrou em ${p.vehicle || 'veículo'}` : 'saiu do veículo');
+				if (Number.isFinite(before.health) && Number.isFinite(p.health) && p.health < before.health) add(p, `perdeu ${Math.round(before.health - p.health)} HP`);
+				if (Number.isFinite(before.armor) && Number.isFinite(p.armor) && p.armor < before.armor) add(p, `perdeu ${Math.round(before.armor - p.armor)} AP`);
+				if (before.vehicle !== p.vehicle && p.in_vehicle) add(p, `mudou para ${p.vehicle || 'veículo'}`);
+			}
+		}
+		for (const [id, p] of previous) if (!next.has(id)) add(p, 'desapareceu');
+		this.state.previousPlayers = next;
+		this.state.events.length = Math.min(this.state.events.length, 250);
+		if (this.elements.eventList) this.elements.eventList.replaceChildren(...this.state.events.slice(0, 8).map(e => {
+			const li = document.createElement('li'); li.textContent = `${e.time.toLocaleTimeString()} · ${e.message}`; return li;
+		}));
+	},
+
+	getRenderPlayers() {
+		const current = this.state.players;
+		const previous = this.state.previousSnapshot?.players;
+		if (!Array.isArray(previous) || !this.state.lastSnapshotAt) return current;
+		const alpha = Math.max(0, Math.min(1, (performance.now() - this.state.lastSnapshotAt) / this.CONFIG.API_POLL_INTERVAL));
+		const before = new Map(previous.map(p => [String(p.id), p]));
+		return current.map(p => {
+			const old = before.get(String(p.id));
+			if (!old || !Number.isFinite(old.x) || !Number.isFinite(old.y) || !Number.isFinite(p.x) || !Number.isFinite(p.y)) return p;
+			const heading = (a, b) => {
+				if (!Number.isFinite(a) || !Number.isFinite(b)) return b ?? a;
+				let d = ((b - a + 540) % 360) - 180;
+				return a + d * alpha;
+			};
+			return { ...p, x: old.x + (p.x - old.x) * alpha, y: old.y + (p.y - old.y) * alpha,
+				z: Number.isFinite(old.z) && Number.isFinite(p.z) ? old.z + (p.z - old.z) * alpha : p.z,
+				yaw: heading(old.yaw, p.yaw), heading: heading(old.heading, p.heading) };
+		});
 	},
 
 	updateHeatmapSample() {
 		if (!this.state.settings.heatmap) return;
-		for (const p of this.state.players) {
-			if (typeof p.x === 'number' && typeof p.y === 'number')
-				this.state.heatmap.push({ x: p.x, y: p.y, t: Date.now() });
+		const now = Date.now();
+		const cellSize = this.CONFIG.HEATMAP_CELL_SIZE;
+		const bins = this.state.heatmap;
+		for (const p of this.getRenderPlayers()) {
+			if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) continue;
+			const key = `${Math.floor(p.x / cellSize)}:${Math.floor(p.y / cellSize)}`;
+			const bin = bins.get(key) || { x: (Math.floor(p.x / cellSize) + .5) * cellSize, y: (Math.floor(p.y / cellSize) + .5) * cellSize, hits: 0, t: now };
+			bin.hits += 1; bin.t = now; bins.set(key, bin);
 		}
-		const cut = Date.now() - 120000;
-		this.state.heatmap = this.state.heatmap.filter(h => h.t > cut).slice(-400);
+		for (const [key, bin] of bins) if (now - bin.t > this.CONFIG.HEATMAP_MAX_AGE_MS) bins.delete(key);
 	},
 
 	setMapType(type) {
@@ -386,6 +675,13 @@ const RadarApp = {
 		const q = (this.elements.playerSearch?.value || '').trim();
 		return this.state.players.filter(p => {
 			if (p.is_local && this.state.settings.show_local === false) return false;
+			const filter = this.state.activeFilter;
+			if (filter === 'players' && !p.is_player) return false;
+			if (filter === 'on-foot' && p.in_vehicle) return false;
+			if (filter === 'vehicles' && !p.in_vehicle) return false;
+			if (filter === 'pinned' && !this.state.watchlist.includes(String(p.id))) return false;
+			if (filter === 'nearby' && (!Number.isFinite(p.distance) || p.distance > 250)) return false;
+			if (this.state.distanceLimit && (!Number.isFinite(p.distance) || p.distance > this.state.distanceLimit)) return false;
 			if (!q) return true;
 			return this.fuzzyMatch(q, p.name) || this.fuzzyMatch(q, p.vehicle) ||
 				String(p.id).includes(q);
@@ -408,61 +704,30 @@ const RadarApp = {
 		if (this.elements.playerCount)
 			this.elements.playerCount.textContent = String(players.length);
 
-		const useDom = players.length < this.CONFIG.CANVAS_ENTITY_THRESHOLD;
-		this.elements.playerTableBody.innerHTML = players.map(p => {
-			const id = String(p.id);
-			const sel = String(this.state.selectedPlayerId) === id ? ' selected' : '';
-			const pin = this.state.watchlist.includes(id) ? '📌 ' : '';
-			const combat = this.state.combatIds.has(id) ? ' combat' : '';
-			return `<tr class="player-row${sel}${combat}" data-id="${id}">
-				<td>${pin}${this.escape(p.name || 'Unknown')}</td>
-				<td>${(p.distance != null ? Math.round(p.distance) + 'm' : '—')}</td>
-				<td>${p.health != null ? Math.round(p.health) : '—'}</td>
-				<td>${p.armor != null ? Math.round(p.armor) : '—'}</td>
-				<td>${this.escape(p.vehicle || '')}</td>
-				<td>${p.yaw != null ? Math.round(p.yaw) + '°' : '—'}</td>
-			</tr>`;
-		}).join('');
-
-		this.elements.playerTableBody.querySelectorAll('tr.player-row').forEach(row => {
-			row.addEventListener('click', () => this.selectPlayer(row.getAttribute('data-id'), true));
-			row.addEventListener('dblclick', () => {
-				const id = row.getAttribute('data-id');
-				this.toggleWatchlist(id);
-				this.state.followingPlayerId = id;
-				this.selectPlayer(id, true);
-			});
-		});
-	},
-
-	updateObjectList() {
-		if (!this.elements.objectTbody) return;
-		const q = (this.elements.objectSearch?.value || '').trim().toLowerCase();
-		let objs = this.state.objects.slice();
-		if (q) {
-			objs = objs.filter(o =>
-				this.fuzzyMatch(q, o.display || o.name) ||
-				this.fuzzyMatch(q, o.category) ||
-				String(o.hash || '').includes(q));
+		const active = new Set();
+		for (const p of players) {
+			const id = String(p.id); active.add(id);
+			let row = this.state.playerRows.get(id);
+			if (!row) {
+				row = document.createElement('tr'); row.className = 'player-row'; row.dataset.id = id;
+				for (let i = 0; i < 6; i++) row.appendChild(document.createElement('td'));
+				row.addEventListener('click', () => this.selectPlayer(row.dataset.id, true));
+				row.addEventListener('dblclick', () => { this.toggleWatchlist(row.dataset.id); this.follow(row.dataset.id); this.selectPlayer(row.dataset.id, true); });
+				this.state.playerRows.set(id, row);
+			}
+			row.className = `player-row${String(this.state.selectedPlayerId) === id ? ' selected' : ''}${Number.isFinite(p.speed) && p.speed > 8.5 ? ' fast-movement' : ''}`;
+			const cells = row.cells;
+			cells[0].textContent = `${this.state.watchlist.includes(id) ? '📌 ' : ''}${p.name || 'Unknown'}`;
+			cells[1].textContent = p.distance != null ? `${Math.round(p.distance)}m` : '—';
+			cells[2].textContent = p.health != null ? String(Math.round(p.health)) : '—';
+			cells[3].textContent = p.armor != null ? String(Math.round(p.armor)) : '—';
+			cells[4].textContent = p.vehicle || '';
+			cells[5].textContent = p.yaw != null ? `${Math.round(p.yaw)}°` : '—';
+			this.elements.playerTableBody.appendChild(row); // reorders without recreating
 		}
-		objs.sort((a, b) => (a.dist || 0) - (b.dist || 0));
-		if (this.elements.objectCount)
-			this.elements.objectCount.textContent = String(objs.length);
-		this.elements.objectTbody.innerHTML = objs.map(o => {
-			const id = String(o.id || o.hash);
-			return `<tr class="object-row" data-id="${this.escape(id)}">
-				<td>${this.escape(o.display || o.name || o.hash || '?')}</td>
-				<td>${this.escape(o.category || '')}</td>
-				<td>${o.dist != null ? Math.round(o.dist) + 'm' : '—'}</td>
-			</tr>`;
-		}).join('') || `<tr><td colspan="3" class="muted">Sem objetos</td></tr>`;
-		this.elements.objectTbody.querySelectorAll('tr.object-row').forEach(row => {
-			row.addEventListener('click', () => {
-				const o = this.state.objects.find(x => String(x.id || x.hash) === row.getAttribute('data-id'));
-				if (o && window.MapRenderer)
-					MapRenderer.animateToWorld(this.state, o, this.state.mapType, { zoom: 4 });
-			});
-		});
+		for (const [id, row] of this.state.playerRows) {
+			if (!active.has(id)) { row.remove(); this.state.playerRows.delete(id); }
+		}
 	},
 
 	escape(s) {
@@ -476,9 +741,37 @@ const RadarApp = {
 		this.state.stickyId = id;
 		this.state.stickyUntil = Date.now() + this.CONFIG.STICKY_MS;
 		this.updatePlayerList();
+		this.updateInspector();
 		const p = this.state.players.find(x => String(x.id) === String(id));
 		if (zoom && p && window.MapRenderer)
 			MapRenderer.animateToWorld(this.state, p, this.state.mapType, { zoom: Math.max(this.state.zoom, 3.5) });
+	},
+
+	updateInspector() {
+		const host = this.elements.playerInspector;
+		if (!host) return;
+		const p = this.state.players.find(x => String(x.id) === String(this.state.selectedPlayerId));
+		if (!p) { host.hidden = true; host.replaceChildren(); return; }
+		const number = v => Number.isFinite(v) ? Math.round(v) : '—';
+		const pos = p.position || p;
+		const zone = p.zone || MapRenderer.zoneForPosition(pos) || '—';
+		const vehicle = p.vehicle || 'A pé';
+		const weapon = p.weapon?.name || p.weapon || '—';
+		const isPinned = this.state.watchlist.includes(String(p.id));
+		host.hidden = false;
+		host.innerHTML = `<header><strong>${this.escape(p.name || 'Desconhecido')}</strong><span>ID ${this.escape(p.id)}</span></header>
+			<div class="inspector-vitals"><span>HP <b>${number(p.health)}</b></span><span>AP <b>${number(p.armor)}</b></span><span>${p.in_vehicle ? 'VEÍCULO' : 'A PÉ'}</span></div>
+			<dl><div><dt>Posição</dt><dd>${number(pos.x)}, ${number(pos.y)}, ${Number.isFinite(pos.z) ? pos.z.toFixed(1) : '—'}</dd></div>
+			<div><dt>Distância</dt><dd>${number(p.distance)} m</dd></div>
+			<div><dt>Direção</dt><dd>${number(p.heading ?? p.yaw)}°</dd></div>
+			<div><dt>Velocidade</dt><dd>${Number.isFinite(p.speed) ? p.speed.toFixed(1) : '—'}</dd></div>
+			<div><dt>Zona</dt><dd>${this.escape(zone)}</dd></div><div><dt>Veículo</dt><dd>${this.escape(vehicle)}</dd></div><div><dt>Arma</dt><dd>${this.escape(weapon)}</dd></div></dl>
+			<div class="inspector-actions"><button data-action="follow">SEGUIR</button><button data-action="center">CENTRAR</button><button data-action="pin">${isPinned ? 'REMOVER PIN' : 'PIN'}</button><button data-action="trail">TRAIL</button><button data-action="copy">COPIAR</button></div>`;
+		host.querySelector('[data-action="follow"]')?.addEventListener('click', () => this.follow(p.id));
+		host.querySelector('[data-action="center"]')?.addEventListener('click', () => MapRenderer.animateToWorld(this.state, p, this.state.mapType, { zoom: Math.max(this.state.zoom, 3) }));
+		host.querySelector('[data-action="pin"]')?.addEventListener('click', () => { this.toggleWatchlist(p.id); this.updateInspector(); });
+		host.querySelector('[data-action="trail"]')?.addEventListener('click', () => { this.state.settings.showTrails = true; this.saveSettings(); });
+		host.querySelector('[data-action="copy"]')?.addEventListener('click', () => navigator.clipboard?.writeText(`${p.id} · ${pos.x}, ${pos.y}, ${pos.z ?? ''}`));
 	},
 
 	toggleWatchlist(id) {
@@ -515,8 +808,16 @@ const RadarApp = {
 	},
 
 	loop() {
+		this.checkConnectionHealth();
 		this.drawMarkers();
 		this.raf = requestAnimationFrame(() => this.loop());
+	},
+
+	checkConnectionHealth() {
+		if (!this.state.lastUpdate || this.state.connectionState === 'offline') return;
+		const age = Date.now() - this.state.lastUpdate;
+		if (age > this.CONFIG.STALE_THRESHOLD && this.state.connectionState !== 'stale')
+			this.updateConnectionStatus({ state: 'stale', mode: this.state.transport, age });
 	},
 
 	drawMarkers() {
@@ -527,12 +828,14 @@ const RadarApp = {
 		if (!this.state.connected) return;
 
 		// Heatmap
-		if (this.state.settings.heatmap && this.state.heatmap.length) {
-			for (const h of this.state.heatmap) {
+		if (this.state.settings.heatmap && this.state.heatmap.size) {
+			const now = Date.now();
+			for (const h of this.state.heatmap.values()) {
 				const s = MapRenderer.worldToRadar(h, this.state, this.state.mapType);
-				ctx.fillStyle = 'rgba(232,192,64,0.04)';
+				const age = Math.max(0, 1 - (now - h.t) / this.CONFIG.HEATMAP_MAX_AGE_MS);
+				ctx.fillStyle = `rgba(232,192,64,${Math.min(.24, .025 + h.hits * .012) * age})`;
 				ctx.beginPath();
-				ctx.arc(s.x, s.y, 18, 0, Math.PI * 2);
+				ctx.arc(s.x, s.y, 14 + Math.min(24, h.hits * 1.8), 0, Math.PI * 2);
 				ctx.fill();
 			}
 		}
@@ -554,30 +857,36 @@ const RadarApp = {
 			}
 		}
 
-		// Objects
-		if (this.state.settings.showObjects !== false) {
-			for (const o of this.state.objects) {
-				const s = MapRenderer.worldToRadar(o, this.state, this.state.mapType);
-				const col = this.categoryColor(o.category);
-				ctx.fillStyle = col;
-				ctx.fillRect(s.x - 3, s.y - 3, 6, 6);
-				if (this.state.settings.showObjectNames && (o.display || o.name)) {
-					ctx.fillStyle = '#ddd';
-					ctx.font = '10px Segoe UI, sans-serif';
-					ctx.fillText(o.display || o.name, s.x + 6, s.y + 3);
-				}
+		// Local annotations deliberately remain client-side: they never imply that
+		// the backend observed a game-world entity.
+		if (this.state.annotations.points.length) {
+			ctx.strokeStyle = 'rgba(232,192,64,.9)'; ctx.fillStyle = 'rgba(232,192,64,.96)';
+			ctx.lineWidth = 1.5; ctx.setLineDash([4, 4]);
+			ctx.beginPath();
+			this.state.annotations.points.forEach((point, index) => {
+				const s = MapRenderer.worldToRadar(point, this.state, this.state.mapType);
+				if (index) ctx.lineTo(s.x, s.y); else ctx.moveTo(s.x, s.y);
+			});
+			ctx.stroke(); ctx.setLineDash([]);
+			for (const point of this.state.annotations.points) {
+				const s = MapRenderer.worldToRadar(point, this.state, this.state.mapType);
+				ctx.beginPath(); ctx.arc(s.x, s.y, 4, 0, Math.PI * 2); ctx.fill();
+				ctx.fillText(point.label, s.x + 7, s.y - 6);
 			}
 		}
 
-		// Players
-		for (const p of this.state.players) {
+		// Players. Labels use semantic zoom and a tiny collision pass so a busy
+		// server remains readable instead of drawing hundreds of overlapping names.
+		const occupiedLabels = [];
+		for (const p of this.getRenderPlayers()) {
 			if (typeof p.x !== 'number') continue;
 			const s = MapRenderer.worldToRadar(p, this.state, this.state.mapType);
+			if (s.x < -32 || s.y < -32 || s.x > rect.width + 32 || s.y > rect.height + 32) continue;
 			const id = String(p.id);
 			const isLocal = !!(p.is_local || p.local);
 			const selected = String(this.state.selectedPlayerId) === id;
 			const watched = this.state.watchlist.includes(id);
-			const combat = this.state.combatIds.has(id);
+			const fastMovement = Number.isFinite(p.speed) && p.speed > 8.5;
 
 			// look cone
 			if (typeof p.yaw === 'number' && this.state.settings.showLookCone !== false) {
@@ -605,11 +914,17 @@ const RadarApp = {
 			ctx.lineWidth = 2;
 			ctx.stroke();
 
-			// body
-			ctx.beginPath();
-			ctx.arc(s.x, s.y, selected ? 6.5 : 5, 0, Math.PI * 2);
-			ctx.fillStyle = isLocal ? '#4ade80' : watched ? '#e8c040' : combat ? '#ff6b4a' : '#f07178';
-			ctx.fill();
+			// Category-specific blip: player, vehicle or a clearly non-live state.
+			const dead = Number.isFinite(p.health) && p.health <= 0;
+			ctx.fillStyle = isLocal ? '#4ade80' : watched ? '#e8c040' : fastMovement ? '#ff9f43' : dead ? '#8d9297' : '#f07178';
+			if (dead) {
+				ctx.lineWidth = 2; ctx.strokeStyle = ctx.fillStyle;
+				ctx.beginPath(); ctx.moveTo(s.x - 5, s.y - 5); ctx.lineTo(s.x + 5, s.y + 5); ctx.moveTo(s.x + 5, s.y - 5); ctx.lineTo(s.x - 5, s.y + 5); ctx.stroke();
+			} else if (p.in_vehicle) {
+				ctx.beginPath(); ctx.moveTo(s.x, s.y - 7); ctx.lineTo(s.x + 6, s.y + 5); ctx.lineTo(s.x - 6, s.y + 5); ctx.closePath(); ctx.fill();
+			} else {
+				ctx.beginPath(); ctx.arc(s.x, s.y, selected ? 6.5 : 5, 0, Math.PI * 2); ctx.fill();
+			}
 			if (selected) {
 				ctx.strokeStyle = '#fff';
 				ctx.lineWidth = 1.5;
@@ -628,29 +943,25 @@ const RadarApp = {
 				ctx.stroke();
 			}
 
-			if (this.state.settings.showNames !== false && p.name) {
+			const detailZoom = this.state.zoom >= 2.2;
+			const mediumZoom = this.state.zoom >= 1.15;
+			if (this.state.settings.showNames !== false && p.name && (mediumZoom || selected || watched || isLocal)) {
 				ctx.font = '11px Segoe UI, sans-serif';
 				ctx.fillStyle = 'rgba(0,0,0,0.55)';
-				const label = p.name.length > 18 ? p.name.slice(0, 16) + '…' : p.name;
+				const base = p.name.length > 18 ? p.name.slice(0, 16) + '…' : p.name;
+				const label = detailZoom ? `${base} · ${id}` : base;
 				const tw = ctx.measureText(label).width;
-				ctx.fillRect(s.x - tw / 2 - 3, s.y + 10, tw + 6, 14);
+				const box = { x: s.x - tw / 2 - 3, y: s.y + 10, w: tw + 6, h: 14 };
+				const overlaps = occupiedLabels.some(b => box.x < b.x + b.w && box.x + box.w > b.x && box.y < b.y + b.h && box.y + box.h > b.y);
+				if (overlaps && !selected && !watched && !isLocal) continue;
+				occupiedLabels.push(box);
+				ctx.fillRect(box.x, box.y, box.w, box.h);
 				ctx.fillStyle = '#f2f2f2';
 				ctx.textAlign = 'center';
 				ctx.fillText(label, s.x, s.y + 21);
 				ctx.textAlign = 'left';
 			}
 		}
-	},
-
-	categoryColor(cat) {
-		const c = (cat || '').toLowerCase();
-		if (c.includes('loot')) return '#e8c040';
-		if (c.includes('mission')) return '#60a5fa';
-		if (c.includes('police')) return '#3b82f6';
-		if (c.includes('medical')) return '#f87171';
-		if (c.includes('vehicle')) return '#a78bfa';
-		if (c.includes('container')) return '#34d399';
-		return '#94a3b8';
 	}
 };
 

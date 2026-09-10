@@ -17,12 +17,26 @@
 	<header id="topbar" class="topbar">
 		<div class="brand">OmniGhost <span>FiveM Radar</span></div>
 		<div id="conn-status" class="conn-status conn-status--error">Offline</div>
+		<div id="diagnostics" class="diagnostics" title="Diagnósticos de transporte">—</div>
 		<div class="topbar-actions">
+			<button type="button" id="center-local" title="Centrar jogador local">Local</button>
+			<button type="button" id="fit-all" title="Enquadrar todos os jogadores">Enquadrar</button>
+			<button type="button" id="reset-view" title="Repor vista (0)">Repor</button>
+			<button type="button" id="measure-toggle" title="Medir distância">Medir</button>
+			<button type="button" id="draw-toggle" title="Anotações locais">Desenhar</button>
+			<button type="button" id="replay-live" title="Voltar a live">LIVE</button>
 			<button type="button" id="minimap-toggle" title="Mini-mapa (M)">Mini</button>
 			<button type="button" id="operator-toggle" title="Operator mode">Operator</button>
 			<button type="button" id="settings-toggle" title="Settings">⚙</button>
 		</div>
 	</header>
+	<div class="replay-bar" aria-label="Timeline da sessão">
+		<span id="replay-label">LIVE</span><input id="replay-timeline" type="range" min="0" max="0" value="0" step="1" disabled aria-label="Navegar no histórico">
+	</div>
+	<nav id="quick-filters" class="quick-filters" aria-label="Filtros rápidos">
+		<button data-filter="all" class="active">Todos</button><button data-filter="players">Jogadores</button><button data-filter="on-foot">A pé</button><button data-filter="vehicles">Veículos</button><button data-filter="pinned">Pins</button><button data-filter="nearby">Perto</button>
+		<select id="distance-filter" aria-label="Distância máxima"><option value="0">Qualquer distância</option><option value="100">100 m</option><option value="250">250 m</option><option value="500">500 m</option><option value="1000">1 km</option><option value="5000">5 km</option></select>
+	</nav>
 
 	<aside id="player-list" class="player-panel player-panel-right">
 		<div class="player-panel-header">
@@ -46,16 +60,14 @@
 				<tbody id="player-tbody"></tbody>
 			</table>
 		</div>
-		<div class="player-panel-header objects-header">
-			<h3>Objetos (<span id="object-count">0</span>)</h3>
-			<input type="text" id="object-search" placeholder="Pesquisar objetos…">
-		</div>
-		<div id="object-table-container">
-			<table id="object-table">
-				<thead><tr><th>Nome</th><th>Cat.</th><th>Dist.</th></tr></thead>
-				<tbody id="object-tbody"></tbody>
-			</table>
-		</div>
+	</aside>
+
+	<aside id="player-inspector" class="player-inspector" hidden aria-live="polite"></aside>
+	<aside id="event-panel" class="event-panel" aria-live="polite">
+		<strong>Eventos</strong><ol id="event-list"></ol>
+	</aside>
+	<aside id="session-stats" class="session-stats" aria-live="polite">
+		<strong>Sessão</strong><dl><div><dt>Observado</dt><dd id="stat-observed">0</dd></div><div><dt>Distância</dt><dd id="stat-distance">0 m</dd></div><div><dt>Velocidade máx.</dt><dd id="stat-speed">—</dd></div></dl>
 	</aside>
 
 	<div id="settings-panel" class="settings-panel" hidden>
@@ -63,9 +75,10 @@
 		<label><input type="checkbox" id="set-names" checked> Nomes</label>
 		<label><input type="checkbox" id="set-trails" checked> Trails</label>
 		<label><input type="checkbox" id="set-cone" checked> Cone de look</label>
-		<label><input type="checkbox" id="set-objects" checked> Objetos no mapa</label>
 		<label><input type="checkbox" id="set-heatmap"> Heatmap sessão</label>
 		<label><input type="checkbox" id="set-rotate"> Rodar com local</label>
+		<label>Preset <select id="set-preset"><option value="custom">Personalizado</option><option value="clean">Clean</option><option value="tactical">Tactical</option><option value="analysis">Analysis</option><option value="operator">Operator</option></select></label>
+		<button type="button" id="clear-annotations">Limpar anotações</button>
 		<p class="hint">Duplo-clique na lista: pin (máx 3) + seguir. Teclas: M mini · R rotação · Esc limpar</p>
 	</div>
 
@@ -75,6 +88,7 @@
 			<img id="radarCayo" class="map-layer" src="/img/maps/cayo_perico.webp" alt="Cayo Perico" hidden draggable="false">
 			<canvas id="radar-canvas" class="radar-canvas"></canvas>
 		</div>
+		<div id="measure-readout" class="measure-readout" hidden></div>
 		<div id="unknownMap" hidden>
 			<span>Sem dados de mapa / DMA offline</span>
 		</div>
@@ -82,6 +96,7 @@
 
 	<script src="/js/i18n.js"></script>
 	<script src="/js/map.js"></script>
+	<script src="/js/transport.js"></script>
 	<script src="/js/main.js"></script>
 	<script src="/js/playerList.js"></script>
 	<script src="/js/settings.js"></script>
@@ -100,7 +115,6 @@
 			bind('set-names', 'showNames', true);
 			bind('set-trails', 'showTrails', true);
 			bind('set-cone', 'showLookCone', true);
-			bind('set-objects', 'showObjects', true);
 			bind('set-heatmap', 'heatmap', false);
 			bind('set-rotate', 'followRotation', false);
 		});

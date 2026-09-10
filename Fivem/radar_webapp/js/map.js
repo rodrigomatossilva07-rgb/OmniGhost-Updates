@@ -3,6 +3,18 @@
  * World↔map math does NOT depend on monitor resolution — only on map image + world bounds.
  */
 const MapRenderer = {
+	ZONES: [
+		{ name: 'Mission Row', minX: 250, maxX: 650, minY: -1200, maxY: -650 },
+		{ name: 'Sandy Shores', minX: 1100, maxX: 2200, minY: 2500, maxY: 4200 },
+		{ name: 'Paleto Bay', minX: -450, maxX: 450, minY: 5600, maxY: 6800 },
+		{ name: 'Los Santos International', minX: -1500, maxX: -700, minY: -3200, maxY: -2400 },
+		{ name: 'Bolingbroke Penitentiary', minX: 1500, maxX: 1900, minY: 2450, maxY: 2750 },
+		{ name: 'Cayo Perico', minX: 3200, maxX: 6400, minY: -5600, maxY: -2400 }
+	],
+	zoneForPosition(pos) {
+		if (!pos || !Number.isFinite(pos.x) || !Number.isFinite(pos.y)) return '';
+		return this.ZONES.find(z => pos.x >= z.minX && pos.x <= z.maxX && pos.y >= z.minY && pos.y <= z.maxY)?.name || '';
+	},
 	CALIBRATION: {
 		// World bounds for each atlas; imageSize filled automatically from <img>.natural*
 		// Approximate atlas bounds for the shipped GTA V / Cayo artwork.
@@ -84,7 +96,7 @@ const MapRenderer = {
 		};
 	},
 
-	/** Fit map image into radar with zoom/pan; returns CSS transform for the map layer. */
+	/** One canonical world -> map -> viewport transform used by every radar layer. */
 	computeMapTransform(radarState, mapType = 'los_santos') {
 		const cal = this.ensureCalibrated(mapType);
 		const m = this.getRadarMetrics();
@@ -92,8 +104,8 @@ const MapRenderer = {
 		// Base scale: cover container with map, then apply user zoom
 		const fit = Math.max(m.width / cal.imageSize.width, m.height / cal.imageSize.height);
 		const scale = fit * zoom;
-		const tx = m.centerX + (radarState.centerX || 0) - (cal.imageSize.width * scale) / 2;
-		const ty = m.centerY + (radarState.centerY || 0) - (cal.imageSize.height * scale) / 2;
+		const tx = m.centerX + (radarState.centerX || 0);
+		const ty = m.centerY + (radarState.centerY || 0);
 		const rot = radarState.followRotation ? (radarState.rotation || 0) : 0;
 		return { scale, tx, ty, rot, fit, cal, metrics: m };
 	},
@@ -102,7 +114,8 @@ const MapRenderer = {
 		const { scale, tx, ty, rot } = this.computeMapTransform(radarState, mapType);
 		const bg = document.getElementById('radarBackground');
 		const cayo = document.getElementById('radarCayo');
-		const transform = `translate(${tx}px, ${ty}px) rotate(${-rot}deg) scale(${scale})`;
+		const image = this.CALIBRATION[mapType].imageSize;
+		const transform = `translate(${tx}px, ${ty}px) rotate(${-rot}deg) scale(${scale}) translate(${-image.width / 2}px, ${-image.height / 2}px)`;
 		const transformOrigin = '0 0';
 		if (bg) {
 			bg.style.transformOrigin = transformOrigin;
@@ -112,7 +125,8 @@ const MapRenderer = {
 		}
 		if (cayo) {
 			const t2 = this.computeMapTransform(radarState, 'cayo_perico');
-			const tr2 = `translate(${t2.tx}px, ${t2.ty}px) rotate(${-(radarState.followRotation ? (radarState.rotation || 0) : 0)}deg) scale(${t2.scale})`;
+			const cayoSize = this.CALIBRATION.cayo_perico.imageSize;
+			const tr2 = `translate(${t2.tx}px, ${t2.ty}px) rotate(${-(radarState.followRotation ? (radarState.rotation || 0) : 0)}deg) scale(${t2.scale}) translate(${-cayoSize.width / 2}px, ${-cayoSize.height / 2}px)`;
 			cayo.style.transformOrigin = '0 0';
 			cayo.style.transform = tr2;
 			cayo.style.width = this.CALIBRATION.cayo_perico.imageSize.width + 'px';
@@ -121,11 +135,9 @@ const MapRenderer = {
 	},
 
 	worldToRadar(worldPos, radarState, mapType = 'los_santos') {
-		const { scale, tx, ty, rot, cal, metrics } = this.computeMapTransform(radarState, mapType);
+		const { scale, rot, cal, metrics } = this.computeMapTransform(radarState, mapType);
 		const mapPos = this.worldToMap(worldPos, mapType);
-		// Position in map image pixels → container after translate/scale/rotate around map top-left
-		// With transform-origin 0,0: p' = R * (scale * p) + T — rotation around top-left is awkward.
-		// Use center-based layout for markers:
+		// Match applyMapImageTransform exactly: image centre -> scale -> rotation -> viewport centre/pan.
 		const cx = cal.imageSize.width / 2;
 		const cy = cal.imageSize.height / 2;
 		let relX = (mapPos.x - cx) * scale;
@@ -141,6 +153,43 @@ const MapRenderer = {
 			x: metrics.centerX + (radarState.centerX || 0) + relX,
 			y: metrics.centerY + (radarState.centerY || 0) + relY
 		};
+	},
+
+	screenToWorld(screenPos, radarState, mapType = 'los_santos') {
+		const { scale, rot, cal, metrics } = this.computeMapTransform(radarState, mapType);
+		let x = screenPos.x - metrics.centerX - (radarState.centerX || 0);
+		let y = screenPos.y - metrics.centerY - (radarState.centerY || 0);
+		if (rot !== 0) {
+			const rad = rot * Math.PI / 180;
+			const cos = Math.cos(rad), sin = Math.sin(rad);
+			const rx = x * cos - y * sin;
+			y = x * sin + y * cos;
+			x = rx;
+		}
+		return this.mapToWorld({
+			x: cal.imageSize.width / 2 + x / scale,
+			y: cal.imageSize.height / 2 + y / scale
+		}, mapType);
+	},
+
+	panBy(radarState, dx, dy) {
+		radarState.centerX += dx;
+		radarState.centerY += dy;
+	},
+
+	zoomAt(radarState, screenPos, factor, mapType = 'los_santos') {
+		const anchor = this.screenToWorld(screenPos, radarState, mapType);
+		radarState.zoom = Math.max(radarState.minZoom || 0.5,
+			Math.min(radarState.maxZoom || 12, radarState.zoom * factor));
+		const moved = this.worldToRadar(anchor, radarState, mapType);
+		radarState.centerX += screenPos.x - moved.x;
+		radarState.centerY += screenPos.y - moved.y;
+	},
+
+	resetView(radarState) {
+		radarState.zoom = 1.2;
+		radarState.centerX = 0;
+		radarState.centerY = 0;
 	},
 
 	getMapTypeForPosition(pos) {

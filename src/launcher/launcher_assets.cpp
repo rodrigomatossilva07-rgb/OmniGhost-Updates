@@ -30,6 +30,7 @@ struct LoadedTexture {
 
 std::vector<LoadedTexture> g_textures;
 LoadedTexture g_rust_preview;
+LoadedTexture g_fivem_preview;
 IWICImagingFactory* g_factory = nullptr;
 
 
@@ -231,6 +232,8 @@ void Initialize(ID3D11Device* device) {
 
     g_rust_preview = {};
     LoadAsset(device, "resources/games/rust/esp_preview.png", g_rust_preview);
+    g_fivem_preview = {};
+    LoadAsset(device, "resources/games/fivem/esp_preview_operator.png", g_fivem_preview);
 }
 
 void Shutdown() {
@@ -241,6 +244,10 @@ void Shutdown() {
     if (g_rust_preview.view) {
         g_rust_preview.view->Release();
         g_rust_preview = {};
+    }
+    if (g_fivem_preview.view) {
+        g_fivem_preview.view->Release();
+        g_fivem_preview = {};
     }
     if (g_factory) {
         g_factory->Release();
@@ -253,6 +260,10 @@ Texture Banner(Launcher::GameId game) { return Find(game, true); }
 Texture RustEspPreview() {
     return { reinterpret_cast<ImTextureID>(g_rust_preview.view),
              g_rust_preview.width, g_rust_preview.height };
+}
+Texture FiveMEspPreview() {
+    return { reinterpret_cast<ImTextureID>(g_fivem_preview.view),
+             g_fivem_preview.width, g_fivem_preview.height };
 }
 
 } // namespace LauncherAssets
