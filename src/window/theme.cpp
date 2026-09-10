@@ -234,7 +234,7 @@ namespace CyberTheme {
         Metrics::SearchHeight = kBaseSearchHeight * scale;
         Metrics::LogoSize = kBaseLogoSize * scale;
         Metrics::SidebarItemHeight = kBaseSidebarItemHeight * scale;
-        Metrics::CardMinHeight = 156.0f * scale;
+        Metrics::CardMinHeight = 0.0f; // content-sized
         Metrics::PageTransitionSeconds = g_reduced_motion ? 0.0f : 0.20f;
 
         if (ImGui::GetCurrentContext())

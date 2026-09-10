@@ -991,39 +991,28 @@ namespace CyberWidgets {
 
     void InlineMessage(const char* message, TextTone tone, const char* error_id)
     {
+        // Compact muted helper text — no large tinted boxes (esp_disabled / aim_disabled).
+        (void)error_id;
         const float width = WidgetWidth();
         const ImVec2 pos = ImGui::GetCursorScreenPos();
         const char* text = message ? message : "";
-        const ImU32 accent = ToneColor(tone);
-        const float wrapWidth = std::max(CyberTheme::Px(120.0f), width - CyberTheme::Px(28.0f));
+        const ImU32 accent = (tone == TextTone::Secondary)
+            ? CyberTheme::U32(CyberTheme::Colors.TextDisabled)
+            : ToneColor(tone);
+        const float wrapWidth = std::max(CyberTheme::Px(80.0f), width - CyberTheme::Px(8.0f));
         const ImVec2 textSize = ImGui::CalcTextSize(text, nullptr, false, wrapWidth);
-        const float extra = error_id && *error_id ? CyberTheme::Px(19.0f) : 0.0f;
-        const float height = std::max(CyberTheme::Px(44.0f), textSize.y + CyberTheme::Px(20.0f) + extra);
-        const ImVec2 end(pos.x + width, pos.y + height);
+        const float height = textSize.y + CyberTheme::Px(4.0f);
         ImDrawList* dl = ImGui::GetWindowDrawList();
-        ImVec4 semantic = CyberTheme::Colors.Info;
-        if (tone == TextTone::Success) semantic = CyberTheme::Colors.Success;
-        else if (tone == TextTone::Warning) semantic = CyberTheme::Colors.Warning;
-        else if (tone == TextTone::Error) semantic = CyberTheme::Colors.Error;
-        else if (tone == TextTone::Accent) semantic = CyberTheme::Colors.Gold;
-        dl->AddRectFilled(pos, end, WithAlpha(semantic, 0.085f), CyberTheme::Radius::Sm);
-        dl->AddRect(pos, end, WithAlpha(semantic, 0.30f), CyberTheme::Radius::Sm, 0, 1.0f);
-        dl->AddRectFilled(pos, ImVec2(pos.x + CyberTheme::Px(3.0f), end.y),
-                          WithAlpha(semantic, 0.88f), CyberTheme::Radius::Sm);
-        dl->AddText(nullptr, 0.0f, ImVec2(pos.x + CyberTheme::Px(13.0f), pos.y + CyberTheme::Px(9.0f)),
+        dl->AddText(nullptr, 0.0f, ImVec2(pos.x + CyberTheme::Px(2.0f), pos.y + CyberTheme::Px(1.0f)),
                     accent, text, nullptr, wrapWidth);
-        if (error_id && *error_id) {
-            dl->AddText(ImVec2(pos.x + CyberTheme::Px(13.0f), end.y - CyberTheme::Px(18.0f)),
-                        CyberTheme::U32(CyberTheme::Colors.TextDisabled), error_id);
-        }
-        ImGui::Dummy(ImVec2(width, height + CyberTheme::Spacing::Xs));
+        ImGui::Dummy(ImVec2(width, height));
     }
 
     bool EmptyState(const char* title, const char* description, const char* action_label)
     {
         const float width = WidgetWidth();
         const ImVec2 start = ImGui::GetCursorScreenPos();
-        const float height = CyberTheme::Px(action_label && *action_label ? 154.0f : 118.0f);
+        const float height = CyberTheme::Px(action_label && *action_label ? 56.0f : 36.0f);
         const ImVec2 end(start.x + width, start.y + height);
         ImDrawList* dl = ImGui::GetWindowDrawList();
         dl->AddRectFilled(start, end, CyberTheme::U32(CyberTheme::Colors.Surface), CyberTheme::Radius::Md);
@@ -1087,7 +1076,7 @@ namespace CyberWidgets {
         ImGui::PushID(id);
         ImGui::SetCursorScreenPos(ImVec2(pos.x + 5.0f, pos.y + 5.0f));
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(7.0f, 6.0f));
-        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(6.0f, 4.0f));
+        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(5.0f, 2.0f));
         ImGui::BeginChild("##surface_list",
             ImVec2(width - 10.0f, height - 10.0f), false,
             ImGuiWindowFlags_NoBackground);

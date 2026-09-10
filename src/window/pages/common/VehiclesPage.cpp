@@ -13,7 +13,7 @@ void DrawVehicles()
     CyberWidgets::BeginCardRow();
     float half = CyberWidgets::CardRowHalfWidth();
 
-    CyberWidgets::BeginCard("VEH // 03   ESP DE VEÍCULOS", half);
+    CyberWidgets::BeginCard("VEÍCULOS", half);
     CyberWidgets::TextLine("Estado, ocupantes e movimento sem sobrecarregar o ecrã.",
                            CyberWidgets::TextTone::Secondary);
     CyberWidgets::Separator();
@@ -34,8 +34,7 @@ void DrawVehicles()
         if (ImGui::CollapsingHeader("AVANÇADO", ImGuiTreeNodeFlags_None))
             CyberWidgets::ToggleSwitch("Ignorar veículos ocupados", &vehicle_esp::config.ignore_occupied);
     } else {
-        CyberWidgets::InlineMessage("Ativa o ESP para revelar as opções relacionadas.",
-                                    CyberWidgets::TextTone::Secondary, "vehicle_esp_disabled");
+        CyberWidgets::TextLine("Ativa o ESP para revelar as opções relacionadas.", CyberWidgets::TextTone::Secondary);
     }
     CyberWidgets::EndCard();
 

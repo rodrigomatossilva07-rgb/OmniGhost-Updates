@@ -74,22 +74,22 @@ namespace CyberTheme {
         inline float HeaderHeight = 62.0f;
         inline float FooterHeight = 40.0f;
         inline float SidebarWidth = 188.0f;
-        inline float ContentInset = 14.0f;
-        inline float ContentPaddingX = 18.0f;
-        inline float ContentPaddingY = 14.0f;
-        inline float GridGap = 16.0f;
-        inline float CardPadding = 18.0f;
-        inline float CardHeaderHeight = 44.0f;
+        inline float ContentInset = 10.0f;
+        inline float ContentPaddingX = 12.0f;
+        inline float ContentPaddingY = 8.0f;
+        inline float GridGap = 8.0f;
+        inline float CardPadding = 12.0f;
+        inline float CardHeaderHeight = 30.0f;
         inline float CardRounding = 11.0f;
-        inline float ControlHeight = 42.0f;
+        inline float ControlHeight = 30.0f;
         inline float ControlRounding = 9.0f;
-        inline float RowHeight = 40.0f;
+        inline float RowHeight = 28.0f;
         inline float ToggleWidth = 48.0f;
         inline float ToggleHeight = 25.0f;
-        inline float SearchHeight = 42.0f;
+        inline float SearchHeight = 32.0f;
         inline float LogoSize = 42.0f;
-        inline float SidebarItemHeight = 44.0f;
-        inline float CardMinHeight = 156.0f;
+        inline float SidebarItemHeight = 36.0f;
+        inline float CardMinHeight = 0.0f; // content-sized cards
         inline float PageTransitionSeconds = 0.20f;
     }
 

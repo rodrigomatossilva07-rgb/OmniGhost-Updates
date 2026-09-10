@@ -79,7 +79,12 @@ void MarkUnsupported(ActiveGame game, const std::string& detail) {
     SetState(game, CompatibilityState::Unsupported, detail);
 }
 bool BlocksLaunch(ActiveGame game) {
-    return Compatibility(game).state == CompatibilityState::Outdated;
+    // Soft gate: outdated offsets are a warning, not a hard block.
+    // User can still open the menu; features may fail until SoftProbe/live
+    // validation succeeds. Unsupported stays non-blocking here as well —
+    // launch path reports the real attach/read error instead.
+    (void)game;
+    return false;
 }
 bool SupportsAutomaticRefresh(ActiveGame game) {
     switch (game) {

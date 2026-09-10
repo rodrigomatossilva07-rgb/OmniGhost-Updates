@@ -39,15 +39,12 @@ void DrawRadarPreview(float previewWidth, float previewHeight)
 void DrawRadar()
 {
     const float full = CyberWidgets::CardContentWidth();
-    const float gap = CyberTheme::Spacing::Md;
+    const float gap = CyberTheme::Spacing::Sm;
     const float left = (full - gap) * .58f;
     const float right = full - left - gap;
 
     ImGui::BeginGroup();
-    CyberWidgets::BeginCard("RAD // 04   RADAR", left);
-    CyberWidgets::TextLine("Leitura espacial compacta com controlos essenciais.",
-                           CyberWidgets::TextTone::Secondary);
-    CyberWidgets::Separator();
+    CyberWidgets::BeginCard("RADAR", left);
     CyberWidgets::ToggleSwitch("Ativar radar", &esp::config.radar_enabled);
     if (esp::config.radar_enabled) {
         CyberWidgets::ToggleSwitch("Radar quadrado", &esp::config.square_radar);
@@ -61,8 +58,7 @@ void DrawRadar()
             CyberWidgets::SliderFloat("Posição vertical", &esp::config.radar_pos_y, .05f, .95f, "%.2f");
         }
     } else {
-        CyberWidgets::InlineMessage("Ativa o radar para configurar apresentação e alcance.",
-                                    CyberWidgets::TextTone::Secondary, "radar_disabled");
+        CyberWidgets::TextLine("Radar desativado.", CyberWidgets::TextTone::Secondary);
     }
     CyberWidgets::EndCard();
     ImGui::EndGroup();
@@ -72,7 +68,7 @@ void DrawRadar()
     CyberWidgets::BeginCard("PRÉ-VISUALIZAÇÃO", right);
     CyberWidgets::Badge(esp::config.radar_enabled ? "ONLINE" : "OFFLINE",
         esp::config.radar_enabled ? CyberWidgets::TextTone::Success : CyberWidgets::TextTone::Secondary);
-    DrawRadarPreview((std::max)(180.f, right - 24.f), 320.f);
+    DrawRadarPreview((std::max)(160.f, right - 20.f), 240.f);
     CyberWidgets::EndCard();
     ImGui::EndGroup();
 }

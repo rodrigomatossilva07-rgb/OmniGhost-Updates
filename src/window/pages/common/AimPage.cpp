@@ -125,12 +125,12 @@ void DrawFovPreview(float previewWidth, float previewHeight) {
 void DrawAim()
 {
     const float full = CyberWidgets::CardContentWidth();
-    const float gap = CyberTheme::Spacing::Md;
+    const float gap = CyberTheme::Spacing::Sm;
     const float left = (full - gap) * .58f;
     const float right = full - left - gap;
 
     ImGui::BeginGroup();
-    CyberWidgets::BeginCard("AIM // 02   ASSISTÊNCIA DE MIRA", left);
+    CyberWidgets::BeginCard("ASSISTÊNCIA DE MIRA", left);
     CyberWidgets::ToggleSwitch("Ativar assistência", &aimbot::config.aimbot_enabled);
     if (aimbot::config.aimbot_enabled) {
         CyberWidgets::ToggleSwitch("Verificação de visibilidade", &aimbot::config.visible_check);
@@ -165,8 +165,7 @@ void DrawAim()
         aimbot::config.aimbot_bind2 == aimbot::config.aimbot_bind)
         aimbot::config.aimbot_bind2 = 0;
     if (!aimbot::config.aimbot_enabled)
-        CyberWidgets::InlineMessage("Ativa a assistência para configurar alvo, alcance e teclas.",
-                                    CyberWidgets::TextTone::Secondary, "aim_disabled");
+        CyberWidgets::TextLine("Assistência desativada — ativa para configurar alvo e teclas.", CyberWidgets::TextTone::Secondary);
     CyberWidgets::EndCard();
 
     CyberWidgets::CardGap(gap);
@@ -190,7 +189,7 @@ void DrawAim()
         aimbot::config.fov_style = static_cast<aimbot::FovStyle>(fs);
     CyberWidgets::SliderFloat("Tamanho", &aimbot::config.fov_size, 10.f, 500.f, "%.0f px");
     CyberWidgets::ColorEditU32("Cor", &aimbot::config.fov_color);
-    DrawFovPreview((std::max)(160.f, right - 24.f), 190.f);
+    DrawFovPreview((std::max)(140.f, right - 20.f), 160.f);
     CyberWidgets::EndCard();
     ImGui::EndGroup();
 

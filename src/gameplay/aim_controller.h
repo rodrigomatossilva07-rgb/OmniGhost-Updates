@@ -88,6 +88,8 @@ public:
         ema_x_ = 0.f;
         ema_y_ = 0.f;
         target_id_ = target_id;
+        target_switched_ = true;
+        overshoot_remaining_ = 0.f;
         previous_error_x_ = 0.f;
         previous_error_y_ = 0.f;
         have_previous_error_ = false;
@@ -191,39 +193,102 @@ public:
         previous_error_y_ = error_y;
         have_previous_error_ = true;
 
+        // Soft reaction delay on new target (permanent humanization).
+        if (settings.permanent_humanize || settings.humanize) {
+            if (target_switched_) {
+                const int span = (std::max)(1, settings.reaction_delay_ms_max - settings.reaction_delay_ms_min);
+                const int delay = settings.reaction_delay_ms_min +
+                    static_cast<int>((target_id_ * 17u) % static_cast<unsigned>(span));
+                acquire_time_ = now;
+                reaction_delay_ms_ = delay;
+                overshoot_remaining_ = settings.overshoot_px;
+                target_switched_ = false;
+            }
+            const auto since_acquire = std::chrono::duration_cast<std::chrono::milliseconds>(
+                now - acquire_time_).count();
+            if (since_acquire < reaction_delay_ms_) {
+                // Hold aim assist during reaction latency — mouse still works.
+                residual_x_ = residual_y_ = 0.f;
+                ema_x_ *= 0.7f;
+                ema_y_ *= 0.7f;
+                return result;
+            }
+        }
+
         // Desired continuous move (screen px * strength * scale).
         float desired_x = error_x * strength * scale_x;
         float desired_y = error_y * strength * scale_y;
 
+        // Prediction lead (optional menu toggle): advance along last error delta.
+        if (settings.prediction && have_previous_error_) {
+            const float vx = error_x - previous_error_x_;
+            const float vy = error_y - previous_error_y_;
+            desired_x += vx * (settings.prediction_lead * 60.f);
+            desired_y += vy * (settings.prediction_lead * 60.f);
+        }
+
+        // Bezier-like ease on the strength curve even at smooth 0 (anti-linear).
+        if (settings.permanent_humanize) {
+            const float t = std::clamp(result.error / 120.f, 0.f, 1.f);
+            // Hermite smoothstep: accelerate then decelerate.
+            const float ease = t * t * (3.f - 2.f * t);
+            desired_x *= (0.55f + 0.45f * ease);
+            desired_y *= (0.55f + 0.45f * ease);
+
+            // First-impulse overshoot then correction.
+            if (overshoot_remaining_ > 0.05f && result.error > 6.f) {
+                const float sign_x = error_x >= 0.f ? 1.f : -1.f;
+                const float sign_y = error_y >= 0.f ? 1.f : -1.f;
+                const float boost = (std::min)(overshoot_remaining_, 1.2f);
+                desired_x += sign_x * boost * 0.35f;
+                desired_y += sign_y * boost * 0.35f;
+                overshoot_remaining_ *= 0.82f;
+            }
+        }
+
         // Temporal EMA so consecutive frames do not fight each other (side wobble).
         const float alpha = std::clamp(settings.ema_alpha, 0.15f, 0.85f);
-        if (smooth <= 1.f) {
+        // Even at smooth 0, keep a light EMA so motion is never a pure step function.
+        if (smooth <= 1.f && !settings.permanent_humanize) {
             ema_x_ = desired_x;
             ema_y_ = desired_y;
         } else {
-            ema_x_ = ema_x_ * (1.f - alpha) + desired_x * alpha;
-            ema_y_ = ema_y_ * (1.f - alpha) + desired_y * alpha;
+            const float a = (smooth <= 1.f) ? (std::max)(alpha, 0.55f) : alpha;
+            ema_x_ = ema_x_ * (1.f - a) + desired_x * a;
+            ema_y_ = ema_y_ * (1.f - a) + desired_y * a;
         }
 
-        const float move_x = ema_x_ + residual_x_;
-        const float move_y = ema_y_ + residual_y_;
+        // Micro-jitter (muscle tremor) — permanent, low amplitude.
+        float jitter_x = 0.f, jitter_y = 0.f;
+        if (settings.permanent_humanize && settings.micro_jitter_px > 0.f && result.error > 2.f) {
+            const float phase = static_cast<float>((target_id_ + static_cast<std::uint64_t>(
+                std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count())) % 1000u) * 0.006283185f;
+            jitter_x = std::sin(phase * 1.7f) * settings.micro_jitter_px;
+            jitter_y = std::cos(phase * 1.3f) * settings.micro_jitter_px * 0.85f;
+        }
+
+        const float move_x = ema_x_ + residual_x_ + jitter_x;
+        const float move_y = ema_y_ + residual_y_ + jitter_y;
         int x = static_cast<int>(std::lround(move_x));
         int y = static_cast<int>(std::lround(move_y));
         residual_x_ = std::clamp(move_x - static_cast<float>(x), -1.25f, 1.25f);
         residual_y_ = std::clamp(move_y - static_cast<float>(y), -1.25f, 1.25f);
 
-        if (smooth <= 1.f) {
-            // Snap path: still allow 1px steps so it can finish locking.
+        if (smooth <= 1.f && !settings.permanent_humanize) {
             if (x == 0 && std::fabs(error_x) >= 0.5f) x = error_x > 0.f ? 1 : -1;
             if (y == 0 && std::fabs(error_y) >= 0.5f) y = error_y > 0.f ? 1 : -1;
             residual_x_ = residual_y_ = 0.f;
         } else {
-            // Only emit a 1px nudge when residual proves consistent direction.
             if (x == 0 && std::fabs(move_x) >= 0.28f) x = move_x > 0.f ? 1 : -1;
             if (y == 0 && std::fabs(move_y) >= 0.28f) y = move_y > 0.f ? 1 : -1;
         }
 
-        int limit = smooth <= 1.f ? 2000 : (smooth <= 12.f ? 140 : (smooth <= 40.f ? 70 : 40));
+        // Rate limiter / anti-snap (always).
+        int limit = smooth <= 1.f ? 48 : (smooth <= 12.f ? 36 : (smooth <= 40.f ? 28 : 20));
+        if (settings.permanent_humanize) {
+            const float rate = (std::max)(4.f, settings.max_deg_per_ms * 8.f);
+            limit = (std::min)(limit, static_cast<int>(rate));
+        }
         if (settings.max_step > 0)
             limit = (std::min)(limit, settings.max_step);
         result.x = std::clamp(x, -limit, limit);
@@ -231,6 +296,14 @@ public:
         if (result)
             last_output_ = now;
         return result;
+    }
+
+    void NotifyTarget(std::uint64_t target_id) noexcept {
+        if (target_id != target_id_) {
+            target_id_ = target_id;
+            target_switched_ = true;
+            overshoot_remaining_ = 0.f;
+        }
     }
 
 private:
@@ -244,6 +317,10 @@ private:
     bool have_previous_error_ = false;
     int flip_streak_ = 0;
     std::chrono::steady_clock::time_point last_output_{};
+    std::chrono::steady_clock::time_point acquire_time_{};
+    int reaction_delay_ms_ = 0;
+    float overshoot_remaining_ = 0.f;
+    bool target_switched_ = false;
 };
 
 } // namespace OmniGhost::Gameplay

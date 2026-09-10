@@ -39,13 +39,7 @@ void DrawFiveMStatus()
 
     BeginCardRow();
     const float half = CardRowHalfWidth();
-    BeginCard("SYS // 06   SISTEMA", half);
-    Badge(healthy ? "OPERACIONAL" : "REQUER ATENÇÃO",
-          healthy ? TextTone::Success : TextTone::Warning);
-    TextLine(healthy ? "Os serviços essenciais estão prontos."
-                     : "Uma dependência essencial precisa de atenção.",
-             healthy ? TextTone::Secondary : TextTone::Warning);
-    Separator();
+    BeginCard("SISTEMA", half);
     HealthRow("DMA", worldOk ? "Ligado" : "A ligar",
               worldOk ? HealthStatus::Ok : HealthStatus::Warning);
     HealthRow("FiveM", viewOk ? "Detetado" : "Não detetado",

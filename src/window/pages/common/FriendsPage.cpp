@@ -15,10 +15,12 @@ void DrawFriends()
 
     static char searchBuf[64] = {};
 
-    CyberWidgets::BeginCardRow();
-    float half = CyberWidgets::CardRowHalfWidth();
+    const float full = CyberWidgets::CardContentWidth();
+    const float gap = CyberTheme::Spacing::Sm;
+    const float leftW = full * 0.45f;
+    const float rightW = full - leftW - gap;
 
-    CyberWidgets::BeginCard("FRN // 05   AMIGOS", half);
+    CyberWidgets::BeginCard("AMIGOS", leftW);
     CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary,
         "%d jogadores próximos", (int)friends::player_list.size());
     CyberWidgets::Separator();
@@ -68,7 +70,7 @@ void DrawFriends()
             edl->AddText(ImVec2(ep.x + 10.0f, ep.y + 42.0f),
                 IM_COL32(100, 104, 118, 255),
                 Loc::Tr("fr.empty_hint"));
-            ImGui::Dummy(ImVec2(ew, 72.0f));
+            ImGui::Dummy(ImVec2(ew, 28.0f));
         }
         for (size_t i = 0; i < friends::friend_list.size(); ++i) {
             auto& f = friends::friend_list[i];
@@ -97,9 +99,9 @@ void DrawFriends()
         friends::RemoveFriend(to_remove);
     CyberWidgets::EndCard();
 
-    CyberWidgets::NextCardColumn();
+    ImGui::SameLine(0.f, gap);
 
-    CyberWidgets::BeginCard("JOGADORES", half);
+    CyberWidgets::BeginCard("JOGADORES PRÓXIMOS", rightW);
     static char search[64] = "";
     CyberWidgets::TextInput(Loc::TrID("fr.search"), search, sizeof(search), Loc::Tr("fr.search_hint"));
     CyberWidgets::Separator();
@@ -190,5 +192,4 @@ void DrawFriends()
 
     CyberWidgets::EndCard();
 
-    CyberWidgets::EndCardRow();
 }

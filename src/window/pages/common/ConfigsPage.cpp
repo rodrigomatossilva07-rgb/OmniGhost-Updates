@@ -102,7 +102,7 @@ void DrawConfigs(Overlay* self)
                 ImVec2(132.f, 34.f)))
             settingsTab = i;
     }
-    CyberWidgets::CardGap(CyberTheme::Spacing::Md);
+    CyberWidgets::CardGap(CyberTheme::Spacing::Sm);
 
     if (settingsTab == 0) {
         CyberWidgets::BeginCardRow();

@@ -389,15 +389,12 @@ void DrawVisuals()
     esp::config.trails = false;
     esp::config.look_direction = false;
     const float full = CyberWidgets::CardContentWidth();
-    const float gap = CyberTheme::Spacing::Md;
-    const float previewWidth = std::clamp(full * 0.36f, 285.f, 370.f);
+    const float gap = CyberTheme::Spacing::Sm;
+    const float previewWidth = std::clamp(full * 0.38f, 280.f, 360.f);
     const float controlsWidth = full - previewWidth - gap;
 
     ImGui::BeginGroup();
-    CyberWidgets::BeginCard("VIS // 01   ESP DE JOGADORES", controlsWidth);
-    CyberWidgets::TextLine("Informação essencial primeiro. Os detalhes aparecem apenas quando necessários.",
-                           CyberWidgets::TextTone::Secondary);
-    CyberWidgets::Separator();
+    CyberWidgets::BeginCard("ESP DE JOGADORES", controlsWidth);
     CyberWidgets::ToggleSwitch("Ativar ESP", &esp::config.enabled);
     if (esp::config.enabled) {
         CyberWidgets::SectionTitle("ELEMENTOS");
@@ -466,19 +463,17 @@ void DrawVisuals()
             CyberWidgets::Badge("ESP DE OBJETOS · EXPERIMENTAL", CyberWidgets::TextTone::Secondary);
         }
     } else {
-        CyberWidgets::InlineMessage(
-            "Ativa o ESP para configurar elementos, alcance e aparência.",
-            CyberWidgets::TextTone::Secondary, "esp_disabled");
+        CyberWidgets::TextLine("ESP desativado — ativa para configurar elementos.", CyberWidgets::TextTone::Secondary);
     }
     CyberWidgets::EndCard();
     ImGui::EndGroup();
 
     ImGui::SameLine(0.f, gap);
     ImGui::BeginGroup();
-    CyberWidgets::BeginCard("PRÉ-VISUALIZAÇÃO AO VIVO", previewWidth);
+    CyberWidgets::BeginCard("PRÉ-VISUALIZAÇÃO", previewWidth);
     static bool previewVisible = true;
     CyberWidgets::ToggleSwitch("Alvo visível", &previewVisible);
-    DrawEspPreviewPanel((std::max)(180.f, previewWidth - 24.f), 520.f, previewVisible);
+    DrawEspPreviewPanel((std::max)(160.f, previewWidth - 20.f), 340.f, previewVisible);
     CyberWidgets::EndCard();
     ImGui::EndGroup();
 
@@ -511,7 +506,7 @@ void DrawVisuals()
     CyberWidgets::CardGap(gap);
     static Gameplay::SoundESP::SoundESPConfig sound =
         Gameplay::SoundESP::GetLegitSoundESPConfig();
-    CyberWidgets::BeginCard("AVANÇADO · INDICADORES SONOROS", controlsWidth);
+    CyberWidgets::BeginCard("INDICADORES SONOROS", controlsWidth);
     CyberWidgets::ToggleSwitch("Ativar indicadores sonoros", &sound.enabled);
     if (sound.enabled) {
         CyberWidgets::ToggleSwitch("Apenas enquanto mira", &sound.only_when_aiming);
