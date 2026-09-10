@@ -49,35 +49,53 @@ ObjectESPManager::~ObjectESPManager() {
 }
 
 bool ObjectESPManager::Initialize() {
+    if (initialized_)
+        return true;
+
+    if (!renderer_) {
+        renderer_ = std::make_unique<ObjectRenderer>();
+        renderer_->Initialize();
+    }
     LoadAll();
-    
-    // Start scanner thread
-    scanner_running_ = true;
-    scanner_thread_ = std::thread(&ObjectESPManager::ScannerThread, this);
-    
-    std::cout << "[ObjectESP] Initialized" << std::endl;
+    initialized_ = true;
+    std::cout << "[ObjectESP] Initialized (frame-snapshot scanner)" << std::endl;
     return true;
 }
 
 void ObjectESPManager::Shutdown() {
-    scanner_running_ = false;
-    if (scanner_thread_.joinable()) {
-        scanner_thread_.join();
-    }
-    
+    if (!initialized_)
+        return;
+
+    scanner_state_.scanning = false;
+    scanner_state_.scan_complete = true;
     renderer_.reset();
-    
     SaveAll();
-    
     std::lock_guard<std::mutex> lock(data_mutex_);
     tracked_objects_.clear();
     scan_results_.clear();
-    
+    initialized_ = false;
     std::cout << "[ObjectESP] Shutdown complete" << std::endl;
 }
 
 void ObjectESPManager::Update() {
     auto start_time = std::chrono::high_resolution_clock::now();
+
+    // A scan is requested by the UI but executed here, on the same serialized
+    // frame that has just refreshed FiveM::ESP::{validPeds,positions}.  The old
+    // background thread was never started by the game lifecycle and could leave
+    // the UI permanently at 0%; it also raced the frame containers.
+    if (initialized_ && scanner_state_.scanning) {
+        const auto scan_start = std::chrono::high_resolution_clock::now();
+        PerformScan();
+        const auto scan_end = std::chrono::high_resolution_clock::now();
+        stats_.last_scan_time_ms = std::chrono::duration<float, std::milli>(scan_end - scan_start).count();
+        scanner_state_.scanning = false;
+        scanner_state_.scan_complete = true;
+        scanner_state_.scan_progress = 1.0f;
+        scanner_state_.status_message = scanner_state_.total_objects_found > 0
+            ? "Scan complete"
+            : "No eligible entities in the current FiveM snapshot";
+    }
     
     if (!config_.enabled) {
         return;
@@ -105,6 +123,13 @@ void ObjectESPManager::Update() {
 
 void ObjectESPManager::StartScan(float radius) {
     if (scanner_state_.scanning) return;
+    if (!initialized_) {
+        scanner_state_.Reset();
+        scanner_state_.scan_complete = true;
+        scanner_state_.status_message = "Start a FiveM session before scanning";
+        std::cout << "[ObjectESP] Scan rejected: FiveM session is not initialized" << std::endl;
+        return;
+    }
     
     scanner_state_.Reset();
     scanner_state_.scanning = true;
@@ -235,30 +260,10 @@ bool ObjectESPManager::IsCategoryVisible(ObjectCategory cat) const {
 
 
 
-void ObjectESPManager::ScannerThread() {
-    while (scanner_running_) {
-        if (scanner_state_.scanning) {
-            auto scan_start = std::chrono::high_resolution_clock::now();
-            
-            // Perform scan using DMA
-            PerformScan();
-            
-            auto scan_end = std::chrono::high_resolution_clock::now();
-            stats_.last_scan_time_ms = std::chrono::duration<float, std::milli>(scan_end - scan_start).count();
-            
-            scanner_state_.scanning = false;
-            scanner_state_.scan_complete = true;
-            scanner_state_.status_message = "Scan complete";
-        }
-        
-        // Sleep between scans
-        std::this_thread::sleep_for(std::chrono::milliseconds(config_.scan_interval_ms));
-    }
-}
-
 void ObjectESPManager::PerformScan() {
-    // This would use DMA to scan the world for objects
-    // For now, we'll simulate with the entity list from ESP manager
+    // Use the read-only player snapshot already collected by FiveM::ESP.  This
+    // is not an object-pool scanner and intentionally does not add new DMA
+    // reads just because the UI requested a scan.
     
     std::lock_guard<std::mutex> lock(data_mutex_);
     scan_results_.clear();
@@ -291,14 +296,9 @@ void ObjectESPManager::PerformScan() {
             // This would require reading the entity's model info
             // For now, we'll use a placeholder
             
-            // Calculate distance to local player
-            float dist = 0.0f;
-            if (FiveM::offset::localplayer) {
-                Vec3 localPos = mem.Read<Vec3>(FiveM::offset::localplayer + FiveM::offset::playerPosition);
-                if (!localPos.IsZero()) {
-                    dist = pos.distance_to(localPos);
-                }
-            }
+            // The local position is already captured in the same ESP frame.
+            const Vec3& localPos = FiveM::ESP::GetFrameLocalPos();
+            const float dist = localPos.IsZero() ? 0.0f : pos.distance_to(localPos);
             
             if (dist > config_.scan_radius) continue;
             
@@ -339,8 +339,8 @@ void ObjectESPManager::PerformScan() {
         }
         
         scanner_state_.unique_models_found = static_cast<int>(scan_results_.size());
-        scanner_state_.scan_progress = 1.0f;
     }
+    scanner_state_.scan_progress = 1.0f;
 }
 
 void ObjectESPManager::UpdateTrackedObjects() {

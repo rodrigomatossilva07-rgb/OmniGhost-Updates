@@ -176,6 +176,9 @@ bool StartFiveM() {
         }
         OmniGhost::OffsetAuto::MarkLiveValid(ActiveGame::FiveM, "Build FiveM confirmada na tabela validada");
         FiveM::ESP::InitializeContainers();
+        if (!object_esp::GetObjectESPManager().Initialize()) {
+            std::cerr << "[FiveM][ObjectESP] Inicializacao indisponivel; a sessao continua sem Object ESP.\n";
+        }
         if (!aim_type::IsConnected()) makcu_wrapper::MakcuInitialize("");
         return true;
     } catch (const std::exception& ex) {
@@ -229,7 +232,7 @@ IGameAdapter* FindGameAdapter(::Launcher::GameId game) noexcept {
     using Capability = AdapterCapability;
     static FunctionGameAdapter fivem({ ::Launcher::GameId::FiveM, "FiveM", AdapterMaturity::Stable,
         Capability::Menu | Capability::ReadOnlyMemory | Capability::Overlay | Capability::Radar },
-        StartFiveM, [] { mem.InvalidateProcess(); }, FiveMStatus,
+        StartFiveM, [] { object_esp::GetObjectESPManager().Shutdown(); mem.InvalidateProcess(); }, FiveMStatus,
         [] { 
             try {
                 if (!g_validExecutable.empty()) {

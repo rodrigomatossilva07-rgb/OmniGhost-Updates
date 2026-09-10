@@ -20,7 +20,9 @@ const RadarApp = {
 		centerY: 0,
 		rotation: 0,
 		followRotation: false,
-		autoZoom: true,
+		// Full-map mode: map imagery stays stable while markers move, like the
+		// CS2 radar. Users can still choose a player to intentionally focus it.
+		autoZoom: false,
 		minimapMode: false,
 		operatorMode: false,
 		lastUpdate: 0,
@@ -117,7 +119,9 @@ const RadarApp = {
 		} catch { this.state.settings = {}; }
 		const s = this.state.settings;
 		this.state.followRotation = !!s.followRotation;
-		this.state.autoZoom = s.autoZoom !== false;
+		// Do not restore the old follow-the-local-player behaviour. It made the
+		// entire map drift on every state update and obscured movement of markers.
+		this.state.autoZoom = false;
 		this.state.minimapMode = !!s.minimapMode;
 		this.state.operatorMode = !!s.operatorMode;
 		this.state.watchlist = Array.isArray(s.watchlist) ? s.watchlist.slice(0, 3) : [];
@@ -160,17 +164,7 @@ const RadarApp = {
 				this.state.autoZoom = false;
 				this.syncMapTransform();
 			}, { passive: false });
-			let dragging = false, lx = 0, ly = 0;
-			r.addEventListener('mousedown', (e) => { dragging = true; lx = e.clientX; ly = e.clientY; });
-			window.addEventListener('mouseup', () => { dragging = false; });
-			window.addEventListener('mousemove', (e) => {
-				if (!dragging) return;
-				this.state.centerX += e.clientX - lx;
-				this.state.centerY += e.clientY - ly;
-				lx = e.clientX; ly = e.clientY;
-				this.state.autoZoom = false;
-				this.syncMapTransform();
-			});
+			// Deliberately no drag-to-pan handler in the default full-map radar.
 		}
 		if (this.elements.playerSearch)
 			this.elements.playerSearch.addEventListener('input', () => this.updatePlayerList());
@@ -308,7 +302,6 @@ const RadarApp = {
 		}
 
 		if (this.state.followingPlayerId) this.followPlayer(this.state.followingPlayerId);
-		else if (this.state.autoZoom) this.autoZoomToPlayers();
 
 		this.updatePlayerList();
 		this.updateObjectList();

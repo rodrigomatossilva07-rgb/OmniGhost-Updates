@@ -482,9 +482,14 @@ namespace FiveM {
             if (!esp::config.enabled)
                 return;
 
-            // ESP drawing continues via existing consumers (skeleton/box/radar)
-            // that already use validPeds/positions/prepare_* above.
-            (void)view_matrix;
+            // The data preparation above deliberately happens once per frame.
+            // It still needs to be consumed by the existing per-ped renderer;
+            // without this dispatch the ESP can be enabled and have valid data,
+            // yet never draw anything.
+            for (const uintptr_t ped : validPeds) {
+                if (ped)
+                    esp::render_esp_for_ped(ped, view_matrix, offset::localplayer);
+            }
             (void)maxDistSq;
         }
 

@@ -7,9 +7,7 @@
 #include <chrono>
 #include <functional>
 #include <memory>
-#include <atomic>
 #include <set>
-#include <thread>
 #include "math/math.h"
 #include "game/offsets.h"
 #include "../../DMALibrary/Memory/Memory.h"
@@ -75,6 +73,7 @@ public:
     // Initialization
     bool Initialize();
     void Shutdown();
+    bool IsInitialized() const noexcept { return initialized_; }
     
     // Main update loop (call every frame)
     void Update();
@@ -161,13 +160,13 @@ private:
     std::string selected_model_;
     Stats stats_;
     
-    // Threading
-    std::thread scanner_thread_;
-    std::atomic<bool> scanner_running_{false};
+    // All scanner work runs on the existing FiveM frame sequence after ESP has
+    // published its read-only snapshot. This avoids a worker reading mutable
+    // frame containers concurrently with the adapter/UI lifecycle.
+    bool initialized_ = false;
     mutable std::mutex data_mutex_;
-    
+
     // Internal methods
-    void ScannerThread();
     void PerformScan();
     void UpdateTrackedObjects();
     void PruneStaleObjects();
