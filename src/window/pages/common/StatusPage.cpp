@@ -1,17 +1,17 @@
 #include "../../widgets.h"
 #include "../../menu_tab.h"
 #include "../../../globals.h"
-#include "../config/app_settings.h"
+#include "config/app_settings.h"
 #include "game/offsets.h"
 #include "game/esp_manager.h"
-#include "game/offset_auto.h"
+#include "platform/offset_auto.h"
 #include "esp/esp.h"
 #include "Memory/Memory.h"
 #include "imgui.h"
 #include <cstdio>
-#include "hardware_monitor.h"
-#include "config_history.h"
-#include "changelog.h"
+#include "../../hardware_monitor.h"
+#include "../../config_history.h"
+#include "../../changelog.h"
 
 #ifndef UI_PREVIEW
 namespace {
@@ -32,7 +32,8 @@ void DrawFiveMStatus()
     const bool worldOk = LooksPtr(world);
     const bool viewOk = LooksPtr(viewport);
     const bool localOk = LooksPtr(localplayer);
-    const bool offsetsOk = FiveM::OffsetAuto::PointersLookValid() && worldOk && viewOk;
+    const bool offsetsOk = OmniGhost::OffsetAuto::HasCriticalOffsets(ActiveGame::FiveM)
+        && worldOk && viewOk;
     const int pedCount = static_cast<int>(FiveM::ESP::validPeds.size());
     const bool espOn = esp::config.enabled;
     const bool healthy = offsetsOk && (!espOn || (worldOk && viewOk));

@@ -1,8 +1,9 @@
 #include "../../window.hpp"
 #include "../../widgets.h"
 #include "../../theme.h"
-#include "fonts.h"
+#include "../../fonts.h"
 #include "../../localization.h"
+#include "../../../gameplay/sound_esp.h"
 #ifdef UI_PREVIEW
 #include "preview/preview_runtime.h"
 #else
@@ -401,4 +402,24 @@ void DrawVisuals()
     DrawEspPreviewPanel((std::max)(120.f, column - 24.f), 520.f, previewVisible);
     CyberWidgets::EndCard();
     ImGui::EndGroup();
+
+    CyberWidgets::CardGap(10.f);
+    static Gameplay::SoundESP::SoundESPConfig sound =
+        Gameplay::SoundESP::GetLegitSoundESPConfig();
+    CyberWidgets::BeginCard("Sound ESP", full);
+    CyberWidgets::ToggleSwitch("Ativar Sound ESP", &sound.enabled);
+    CyberWidgets::ToggleSwitch("Apenas enquanto mira", &sound.only_when_aiming);
+    CyberWidgets::ToggleSwitch("Passos", &sound.visual.show_footsteps);
+    CyberWidgets::ToggleSwitch("Tiros", &sound.visual.show_gunshots);
+    CyberWidgets::ToggleSwitch("Explosões", &sound.visual.show_explosions);
+    CyberWidgets::ToggleSwitch("Recarregamentos", &sound.visual.show_reloads);
+    CyberWidgets::ToggleSwitch("Voz", &sound.visual.show_voice);
+    CyberWidgets::ToggleSwitch("Indicadores no ecrã", &sound.directionals.show_on_screen);
+    CyberWidgets::ToggleSwitch("Indicadores no radar", &sound.directionals.show_on_radar);
+    CyberWidgets::SliderFloat("Distância máxima do som", &sound.max_distance,
+                              10.f, 500.f, "%.0f m");
+    CyberWidgets::SliderFloat("Tamanho do indicador", &sound.directionals.indicator_size,
+                              10.f, 100.f, "%.0f px");
+    CyberWidgets::EndCard();
+    Gameplay::SoundESP::SoundESPManager::Instance().SetConfig(sound);
 }

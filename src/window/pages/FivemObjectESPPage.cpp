@@ -1,8 +1,8 @@
 #include "../widgets.h"
 #include "../theme.h"
 #include "../localization.h"
-#include "../../Fivem/object_esp.h"
-#include "../../Fivem/object_esp_config.h"
+#include "../../Fivem/object_esp/object_esp.h"
+#include "../../Fivem/object_esp/object_esp_config.h"
 #include <string>
 #include <vector>
 

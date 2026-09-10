@@ -54,24 +54,6 @@ namespace CyberWidgets {
             { "Web Radar", MenuTab::TAB_FIVEM_WEB_RADAR, CyberIcons::DrawRadarIcon },
             { "Object ESP", MenuTab::TAB_FIVEM_OBJECT_ESP, CyberIcons::DrawESPIcon },
         };
-        static const TabItem unifiedSystemTabs[] = {
-            { "Aimbot Unificado", MenuTab::TAB_UNIFIED_AIM,     CyberIcons::DrawAimIcon },
-            { "Web Radar", MenuTab::TAB_WEB_RADAR,   CyberIcons::DrawRadarIcon },
-            { "Sound ESP", MenuTab::TAB_SOUND_ESP,   CyberIcons::DrawVehicleIcon },
-            { "Spectator List", MenuTab::TAB_SPECTATOR_LIST, CyberIcons::DrawUserIcon },
-            { "Triggerbot", MenuTab::TAB_TRIGGERBOT, CyberIcons::DrawAimIcon },
-            { "Recoil Control", MenuTab::TAB_RECOIL_CONTROL, CyberIcons::DrawWrenchIcon },
-            { "Prediction", MenuTab::TAB_PREDICTION, CyberIcons::DrawStatusIcon },
-            { "Visibility", MenuTab::TAB_VISIBILITY, CyberIcons::DrawESPIcon },
-            { "Bone System", MenuTab::TAB_BONE_SYSTEM, CyberIcons::DrawESPIcon },
-            { "Smooth Curves", MenuTab::TAB_SMOOTH_CURVES, CyberIcons::DrawSettingsIcon },
-            { "Recoil Patterns", MenuTab::TAB_RECOIL_PATTERNS, CyberIcons::DrawWrenchIcon },
-            { "Entity Cache", MenuTab::TAB_ENTITY_CACHE, CyberIcons::DrawStatusIcon },
-            { "Profile Manager", MenuTab::TAB_PROFILE_MANAGER, CyberIcons::DrawSettingsIcon },
-            { "Offset Manager", MenuTab::TAB_OFFSET_MANAGER, CyberIcons::DrawSettingsIcon },
-            { "Resolution", MenuTab::TAB_RESOLUTION, CyberIcons::DrawRadarIcon },
-            { "Game Adapter", MenuTab::TAB_GAME_ADAPTER, CyberIcons::DrawWrenchIcon },
-        };
         static const TabItem cs2Tabs[] = {
             { "nav.visuals", MenuTab::TAB_CS2_VISUALS, CyberIcons::DrawESPIcon },
             { "nav.aim", MenuTab::TAB_CS2_AIM,     CyberIcons::DrawAimIcon },
@@ -159,18 +141,6 @@ namespace CyberWidgets {
             tabCount = (int)(sizeof(fivemTabs) / sizeof(fivemTabs[0]));
         }
         
-        // Append unified system tabs
-        int unifiedCount = (int)(sizeof(unifiedSystemTabs) / sizeof(unifiedSystemTabs[0]));
-        int totalTabs = tabCount + unifiedCount;
-        
-        // Create combined tabs array
-        static TabItem combinedTabs[64];
-        for (int i = 0; i < tabCount; ++i) combinedTabs[i] = tabs[i];
-        for (int i = 0; i < unifiedCount; ++i) combinedTabs[tabCount + i] = unifiedSystemTabs[i];
-        
-        tabs = combinedTabs;
-        tabCount = totalTabs;
-
         // Fit every game's complete navigation in the same shared sidebar.
         const float topPad = CyberTheme::Px(28.0f);
         const float usableHeight = (std::max)(CyberTheme::Px(360.0f),

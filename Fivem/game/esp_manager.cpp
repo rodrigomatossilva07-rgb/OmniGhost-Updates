@@ -14,7 +14,7 @@
 #include <algorithm>
 #include <chrono>
 #include "gameplay/esp_optimizer.h"
-#include "../fivem_radar.h"
+#include "../radar/fivem_radar.h"
 
 namespace FiveM {
     namespace ESP {

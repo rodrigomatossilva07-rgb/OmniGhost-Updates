@@ -23,8 +23,8 @@
 #include "../../Rust/rust_game.h"
 #include "../../Warzone/warzone_game.h"
 #include "../../Valorant/valorant_game.h"
-#include "../../Fivem/fivem_radar.h"
-#include "../../Fivem/fivem_radar_config.h"
+#include "../../Fivem/radar/fivem_radar.h"
+#include "../../Fivem/radar/fivem_radar_config.h"
 #include <shellapi.h>
 #ifndef UI_PREVIEW
 #include "../launcher/launcher_assets.h"
@@ -463,38 +463,6 @@ const PerformanceMode::State performance = PerformanceMode::Update(
             ImVec2(window_pos.x + delta.x, window_pos.y + delta.y));
     }
 
-    // Universal in-game session exit. The main loop consumes the request after
-    // the frame, shuts the active adapter down, and returns to the launcher.
-    {
-        const float buttonSize = CyberTheme::Px(32.0f);
-        const ImVec2 buttonMin(
-            window_pos.x + window_size.x - buttonSize - CyberTheme::Px(16.0f),
-            window_pos.y + (CyberTheme::Metrics::HeaderHeight - buttonSize) * 0.5f);
-        ImGui::SetCursorScreenPos(buttonMin);
-        ImGui::InvisibleButton("##close_game_menu", ImVec2(buttonSize, buttonSize));
-        const bool hovered = ImGui::IsItemHovered();
-        if (hovered)
-            ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
-        const ImU32 border = CyberTheme::WithAlpha(
-            hovered ? CyberTheme::Colors.Error : CyberTheme::Colors.Border,
-            hovered ? 0.72f : 0.48f);
-        const ImU32 fill = CyberTheme::WithAlpha(
-            hovered ? CyberTheme::Colors.Error : CyberTheme::Colors.Surface,
-            hovered ? 0.13f : 0.42f);
-        const ImVec2 buttonMax(buttonMin.x + buttonSize, buttonMin.y + buttonSize);
-        draw_list->AddRectFilled(buttonMin, buttonMax, fill, buttonSize * 0.5f);
-        draw_list->AddRect(buttonMin, buttonMax, border, buttonSize * 0.5f, 0, CyberTheme::Px(1.0f));
-        const float inset = CyberTheme::Px(10.0f);
-        const ImU32 cross = CyberTheme::U32(
-            hovered ? CyberTheme::Colors.Error : CyberTheme::Colors.TextDisabled);
-        draw_list->AddLine(ImVec2(buttonMin.x + inset, buttonMin.y + inset),
-                           ImVec2(buttonMax.x - inset, buttonMax.y - inset), cross, CyberTheme::Px(1.5f));
-        draw_list->AddLine(ImVec2(buttonMax.x - inset, buttonMin.y + inset),
-                           ImVec2(buttonMin.x + inset, buttonMax.y - inset), cross, CyberTheme::Px(1.5f));
-        if (ImGui::IsItemClicked(ImGuiMouseButton_Left))
-            RequestReturnToLauncher();
-    }
-
     ImGui::End();
     ImGui::PopStyleColor(3);
     ImGui::PopStyleVar(3);
@@ -611,7 +579,6 @@ void DrawFivemWebRadar() {
 
     EndCard();
 }
-
 
 
 

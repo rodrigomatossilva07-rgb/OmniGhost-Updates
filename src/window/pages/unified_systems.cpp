@@ -19,8 +19,8 @@
 #include "gameplay/resolution.h"
 #include "gameplay/game_adapter.h"
 #include "../config/app_settings.h"
-#include "Fivem/fivem_radar.h"
-#include "Fivem/fivem_radar_config.h"
+#include "Fivem/radar/fivem_radar.h"
+#include "Fivem/radar/fivem_radar_config.h"
 #include <memory>
 #include <string>
 #include <vector>

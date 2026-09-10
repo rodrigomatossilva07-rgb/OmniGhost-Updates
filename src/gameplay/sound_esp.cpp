@@ -32,6 +32,7 @@ namespace Gameplay::SoundESP {
     }
 
     void SoundESPManager::Update(float dt) {
+        (void)dt;
         CleanupOldEvents();
     }
 
@@ -66,12 +67,12 @@ namespace Gameplay::SoundESP {
     }
 
     void SoundESPManager::DrawDirectionalIndicators(ImDrawList* draw_list, const Vec3& camera_pos, const Matrix& view_proj) {
-        if (!config_.directional.enabled) return;
+        if (!config_.directionals.enabled) return;
         
         ImVec2 screen_center = ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f, ImGui::GetIO().DisplaySize.y * 0.5f);
         
         for (const auto& event : events_) {
-            if (event.distance > config_.directional.fade_distance) continue;
+            if (event.distance > config_.directionals.fade_distance) continue;
             if (event.distance < 5.0f) continue; // Too close
             
             // Calculate direction on screen
@@ -79,12 +80,12 @@ namespace Gameplay::SoundESP {
             if (WorldToScreen(event.position, camera_pos, view_proj, screen_pos)) {
                 // On screen - draw at position
                 DrawDirectionalArrow(draw_list, event, screen_pos);
-            } else if (config_.directional.show_on_screen) {
+            } else if (config_.directionals.show_on_screen) {
                 // Off screen - draw at edge
                 Vec3 to_event = event.position - camera_pos;
                 float angle = atan2f(to_event.x, to_event.z);
                 
-                float margin = config_.directional.screen_edge_margin;
+                float margin = config_.directionals.screen_edge_margin;
                 ImVec2 edge_pos(
                     screen_center.x + sinf(angle) * (ImGui::GetIO().DisplaySize.x * 0.5f - margin),
                     screen_center.y - cosf(angle) * (ImGui::GetIO().DisplaySize.y * 0.5f - margin)
@@ -161,7 +162,7 @@ namespace Gameplay::SoundESP {
         }
         
         // Distance text
-        if (config_.directional.show_distance) {
+        if (config_.directionals.show_distance) {
             char buf[32];
             snprintf(buf, sizeof(buf), "%.0fm", event.distance);
             draw_list->AddText(ImVec2(screen_pos.x + size + 4, screen_pos.y - 8), 
@@ -170,17 +171,17 @@ namespace Gameplay::SoundESP {
     }
 
     void SoundESPManager::DrawDirectionalArrow(ImDrawList* draw_list, const SoundEvent& event, const ImVec2& pos) {
-        if (!config_.directional.enabled) return;
+        if (!config_.directionals.enabled) return;
         
         auto now = std::chrono::steady_clock::now();
         float age = std::chrono::duration<float>(now - event.timestamp).count();
-        float alpha = std::max(0.0f, 1.0f - age / config_.directional.fade_distance * 50.0f);
+        float alpha = std::max(0.0f, 1.0f - age / config_.directionals.fade_distance * 50.0f);
         
-        ImU32 color = event.is_friendly ? config_.directional.friendly_color : config_.directional.color;
+        ImU32 color = event.is_friendly ? config_.directionals.friendly_color : config_.directionals.color;
         color = (color & 0xFFFFFF) | (int)(alpha * 255) << 24;
         
         // Calculate arrow direction
-        float size = config_.directional.indicator_size;
+        float size = config_.directionals.indicator_size;
         // Arrow points toward sound
         ImVec2 tip(pos.x, pos.y - size);
         ImVec2 left(pos.x - size * 0.5f, pos.y + size * 0.3f);
@@ -189,7 +190,7 @@ namespace Gameplay::SoundESP {
         draw_list->AddTriangleFilled(tip, left, right, color);
         
         // Distance
-        if (config_.directional.show_distance) {
+        if (config_.directionals.show_distance) {
             char buf[16];
             snprintf(buf, sizeof(buf), "%.0fm", event.distance);
             draw_list->AddText(ImVec2(pos.x + size + 4, pos.y - 8), color, buf);
@@ -246,10 +247,10 @@ namespace Gameplay::SoundESP {
             << config_.visual.show_explosions << '|'
             << config_.visual.show_reloads << '|'
             << config_.visual.show_voice << '|'
-            << config_.directional.enabled << '|'
-            << config_.directional.show_on_radar << '|'
-            << config_.directional.show_on_screen << '|'
-            << config_.directional.show_3d << '|'
+            << config_.directionals.enabled << '|'
+            << config_.directionals.show_on_radar << '|'
+            << config_.directionals.show_on_screen << '|'
+            << config_.directionals.show_3d << '|'
             << config_.audio_visual.enabled << '|'
             << config_.max_distance << '|'
             << config_.min_volume << '|'
@@ -282,10 +283,10 @@ namespace Gameplay::SoundESP {
         read_bool(config_.visual.show_explosions);
         read_bool(config_.visual.show_reloads);
         read_bool(config_.visual.show_voice);
-        read_bool(config_.directional.enabled);
-        read_bool(config_.directional.show_on_radar);
-        read_bool(config_.directional.show_on_screen);
-        read_bool(config_.directional.show_3d);
+        read_bool(config_.directionals.enabled);
+        read_bool(config_.directionals.show_on_radar);
+        read_bool(config_.directionals.show_on_screen);
+        read_bool(config_.directionals.show_3d);
         read_bool(config_.audio_visual.enabled);
         read_float(config_.max_distance);
         read_float(config_.min_volume);

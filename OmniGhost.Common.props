@@ -36,7 +36,7 @@
         <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
         <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
         <OmitFramePointers>true</OmitFramePointers>
-        <ControlFlowGuard>true</ControlFlowGuard>
+        <ControlFlowGuard>Guard</ControlFlowGuard>
         <CETCompat>true</CETCompat>
         <AdditionalOptions>/utf-8 /permissive- /Zc:__cplusplus /Zc:preprocessor /Zc:inline /Zc:externConstexpr /external:I"$(ProjectDir)third_party\dma_stack\include" /guard:cf /guard:ehcont /FS %(AdditionalOptions)</AdditionalOptions>
         <TreatWarningAsError Condition="'$(Configuration)'=='Release' Or '$(Configuration)'=='Publish' Or '$(OmniGhostNewWarningsAsErrors)'=='true'">true</TreatWarningAsError>

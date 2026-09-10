@@ -9,10 +9,6 @@ namespace Onboarding {
         Welcome = 0,
         LicenseAgreement,
         HardwareDetection,
-        GameSelection,
-        ThemeSelection,
-        HotkeySetup,
-        DMASetup,
         Complete,
         Count
     };

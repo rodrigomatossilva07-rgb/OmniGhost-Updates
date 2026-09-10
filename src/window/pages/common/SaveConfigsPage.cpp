@@ -2,16 +2,16 @@
 #include "../../theme.h"
 #include "../../localization.h"
 #include "../../../globals.h"
-#include "../config/app_settings.h"
-#include "../../Cs2/cs2_config.h"
-#include "../../Rust/rust_config.h"
-#include "../../Warzone/warzone_config.h"
-#include "../../Valorant/valorant_config.h"
+#include "config/app_settings.h"
+#include "Cs2/cs2_config.h"
+#include "Rust/rust_config.h"
+#include "Warzone/warzone_config.h"
+#include "Valorant/valorant_config.h"
 #include "esp/esp.h"
 #ifdef UI_PREVIEW
 #include "preview/preview_runtime.h"
 #else
-#include "../config/config_manager.h"
+#include "config/config_manager.h"
 #endif
 
 #include <algorithm>

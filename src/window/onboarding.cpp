@@ -62,54 +62,6 @@ namespace Onboarding {
                 []() {}
             });
             
-            // Game Selection
-            g_steps.push_back({
-                Step::GameSelection,
-                "Select Your Game",
-                "Choose which game you want to configure first. You can add more later.",
-                "🎮",
-                false,
-                []() { return app_settings::config.last_selected_game != -1; },
-                []() {},
-                []() {}
-            });
-            
-            // Theme Selection
-            g_steps.push_back({
-                Step::ThemeSelection,
-                "Choose Your Theme",
-                "Pick a visual theme that matches your style. You can change this anytime.",
-                "🎨",
-                true,
-                []() { return true; },
-                []() {},
-                []() {}
-            });
-            
-            // Hotkey Setup
-            g_steps.push_back({
-                Step::HotkeySetup,
-                "Configure Hotkeys",
-                "Set up your preferred keyboard shortcuts for quick access to features.",
-                "⌨️",
-                true,
-                []() { return true; },
-                []() { Hotkeys::Initialize(); },
-                []() {}
-            });
-            
-            // DMA Setup
-            g_steps.push_back({
-                Step::DMASetup,
-                "DMA Configuration",
-                "Configure your DMA device connection settings for optimal performance.",
-                "💾",
-                false,
-                []() { return HardwareMonitor::GetDeviceStatus(HardwareMonitor::DeviceType::DMA).connected; },
-                []() {},
-                []() {}
-            });
-            
             // Complete
             g_steps.push_back({
                 Step::Complete,
@@ -270,7 +222,7 @@ namespace Onboarding {
         ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, CyberTheme::Radius::Lg);
         
-        if (ImGui::BeginPopupModal("##onboarding_wizard", &g_active, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove)) {
+        if (ImGui::BeginPopupModal("##onboarding_wizard", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove)) {
             ImDrawList* dl = ImGui::GetWindowDrawList();
             ImVec2 win_pos = ImGui::GetWindowPos();
             ImVec2 win_size = ImGui::GetWindowSize();
@@ -398,64 +350,6 @@ namespace Onboarding {
                 DrawHardwareRow("DMA / FPGA", "Required when starting a game", HardwareMonitor::GetDeviceStatus(HardwareMonitor::DeviceType::DMA), false);
                 DrawHardwareRow("MAKCU", "Input device", HardwareMonitor::GetDeviceStatus(HardwareMonitor::DeviceType::Makcu), true);
                 CyberWidgets::TextLine("You can continue without MAKCU. DMA is opened only after selecting a game.", CyberWidgets::TextTone::Secondary);
-                break;
-            }
-            case Step::GameSelection: {
-                CyberWidgets::TextLine("Select your primary game:", CyberWidgets::TextTone::Secondary);
-                ImGui::Spacing();
-                
-                const char* games[] = { "FiveM (GTA V RP)", "Counter-Strike 2", "Rust", "Warzone", "Valorant", "Fortnite" };
-                static int selected = 0;
-                if (CyberWidgets::Combo("Game", &selected, games, 6)) {
-                    app_settings::config.last_selected_game = selected;
-                }
-                break;
-            }
-            case Step::ThemeSelection: {
-                CyberWidgets::TextLine("Choose your preferred theme:", CyberWidgets::TextTone::Secondary);
-                ImGui::Spacing();
-                CyberWidgets::ThemeCombo("Theme");
-                ImGui::Spacing();
-                CyberWidgets::TextLine("Accent Color:", CyberWidgets::TextTone::Secondary);
-                const auto& presets = CyberTheme::GetAccentPresets();
-                const char* preset_names[9];
-                for (int i = 0; i < 9; ++i) preset_names[i] = presets[i].name;
-                int preset_idx = static_cast<int>(CyberTheme::GetAccentPreset());
-                if (CyberWidgets::Combo("Accent", &preset_idx, preset_names, 9)) {
-                    CyberTheme::SetAccentPreset(static_cast<CyberTheme::AccentPreset>(preset_idx));
-                }
-                break;
-            }
-            case Step::HotkeySetup: {
-                CyberWidgets::TextLine("Configure your keyboard shortcuts:", CyberWidgets::TextTone::Secondary);
-                ImGui::Spacing();
-                CyberWidgets::TextLine("Press the button next to each action to set a new hotkey.", CyberWidgets::TextTone::Secondary);
-                ImGui::Spacing();
-                
-                // Show key hotkeys
-                const Hotkeys::Action key_actions[] = {
-                    Hotkeys::Action::ToggleMenu,
-                    Hotkeys::Action::ToggleESP,
-                    Hotkeys::Action::ToggleAim,
-                    Hotkeys::Action::PanicButton
-                };
-                
-                for (auto action : key_actions) {
-                    const auto& hk = Hotkeys::GetHotkey(action);
-                    char buf[128];
-                    std::snprintf(buf, sizeof(buf), "%s: %s", hk.label.c_str(), Hotkeys::GetHotkeyDisplayString(hk).c_str());
-                    CyberWidgets::TextLine(buf, CyberWidgets::TextTone::Primary);
-                }
-                break;
-            }
-            case Step::DMASetup: {
-                CyberWidgets::TextLine("DMA Device Configuration", CyberWidgets::TextTone::Accent);
-                ImGui::Spacing();
-                CyberWidgets::TextLine("If your DMA device is not detected, please:", CyberWidgets::TextTone::Secondary);
-                CyberWidgets::TextLine("1. Ensure the DMA device is properly connected via PCIe");
-                CyberWidgets::TextLine("2. Install the appropriate drivers (LeechCore/Vmm)");
-                CyberWidgets::TextLine("3. Run the DMA validation tool from the Diagnostics page");
-                CyberWidgets::TextLine("4. Restart OmniGhost after connecting the device");
                 break;
             }
             case Step::Complete: {

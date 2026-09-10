@@ -79,6 +79,7 @@ namespace Gameplay::SoundESP {
             
             // Icons
             struct IconConfig {
+                bool enabled = true;
                 ImVec2 size = ImVec2(20, 20);
                 float fade_time = 3.0f;        // Seconds before fading
                 float fade_duration = 1.0f;    // Fade out duration
@@ -105,7 +106,7 @@ namespace Gameplay::SoundESP {
             ImU32 friendly_color = IM_COL32(0, 200, 255, 255);
             float fade_distance = 100.0f;
             bool show_distance = true;
-        } directional;
+        } directionals;
         
         // Audio visualization
         struct AudioVisualConfig {
@@ -167,6 +168,8 @@ namespace Gameplay::SoundESP {
         void CleanupOldEvents();
         void DrawEventIcon(ImDrawList* draw_list, const SoundEvent& event, const ImVec2& screen_pos);
         void DrawDirectionalArrow(ImDrawList* draw_list, const SoundEvent& event, const ImVec2& screen_center);
+        bool WorldToScreen(const Vec3& world, const Vec3& camera_pos,
+                           const Matrix& view_proj, ImVec2& out);
     };
     
     // Sound type presets

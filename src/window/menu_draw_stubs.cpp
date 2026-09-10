@@ -3,10 +3,6 @@
 
 class Overlay;
 
-void DrawVisuals() {}
-void DrawAim() {}
-void DrawFriends() {}
-void DrawConfigs(Overlay*) {}
 void DrawSaveConfigs() {}
 void DrawCs2Visuals() {}
 void DrawCs2Aim() {}
@@ -30,8 +26,6 @@ void DrawValorantStatus() {}
 void DrawFortniteAim() {}
 void DrawFortniteVisuals() {}
 void DrawFortniteStatus() {}
-void DrawFiveMStatus() {}
-void DrawVehicles() {}
 void DrawUnifiedAim() {}
 void DrawWebRadar() {}
 void DrawSoundESP() {}

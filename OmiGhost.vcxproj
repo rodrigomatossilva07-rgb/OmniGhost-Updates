@@ -286,6 +286,13 @@
     <ClCompile Include="src\window\localization.cpp"/>
     <ClCompile Include="src\window\layout.cpp"/>
     <ClCompile Include="src\window\menu_draw_stubs.cpp"/>
+    <ClCompile Include="src\window\pages\common\AimPage.cpp"/>
+    <ClCompile Include="src\window\pages\common\ConfigsPage.cpp"/>
+    <ClCompile Include="src\window\pages\common\FriendsPage.cpp"/>
+    <ClCompile Include="src\window\pages\common\StatusPage.cpp"/>
+    <ClCompile Include="src\window\pages\common\VehiclesPage.cpp"/>
+    <ClCompile Include="src\window\pages\common\VisualsPage.cpp"/>
+    <ClCompile Include="src\gameplay\sound_esp.cpp"/>
     <ClCompile Include="src\window\onboarding.cpp"/>
     <ClCompile Include="src\window\performance_manager.cpp"/>
     <ClCompile Include="src\window\performance_mode.cpp"/>
@@ -313,10 +320,10 @@
     <ClCompile Include="Fivem\game\game_setup.cpp"/>
     <ClCompile Include="Fivem\game\offsets.cpp"/>
     <ClCompile Include="Fivem\playerInfo\PedData.cpp"/>
-    <ClCompile Include="Fivem\fivem_radar.cpp"/>
-    <ClCompile Include="Fivem\fivem_radar_config.cpp"/>
-    <ClCompile Include="Fivem\object_esp.cpp"/>
-    <ClCompile Include="Fivem\object_esp_renderer.cpp"/>
+    <ClCompile Include="Fivem\radar\fivem_radar.cpp"/>
+    <ClCompile Include="Fivem\radar\fivem_radar_config.cpp"/>
+    <ClCompile Include="Fivem\object_esp\object_esp.cpp"/>
+    <ClCompile Include="Fivem\object_esp\object_esp_renderer.cpp"/>
     <ClCompile Include="Cs2\cs2_aim.cpp"/>
     <ClCompile Include="Cs2\cs2_esp.cpp"/>
     <ClCompile Include="Cs2\cs2_game.cpp"/>
@@ -455,5 +462,3 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets"/>
   <ImportGroup Label="ExtensionTargets"/>
 </Project>
-
-
