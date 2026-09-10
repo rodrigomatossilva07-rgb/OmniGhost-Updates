@@ -231,8 +231,12 @@ void CenterCursor(float width) {
 }
 
 void CenterBlockVertically(float blockHeight) {
-    const float available = ImGui::GetWindowHeight() - S(72.f);
-    ImGui::SetCursorPosY(S(36.f) + (std::max)(0.f, (available - blockHeight) * 0.5f));
+    // Center the form block inside the card, leaving room for language chip / padding.
+    const float topPad = S(28.f);
+    const float bottomPad = S(20.f);
+    const float available = ImGui::GetWindowHeight() - topPad - bottomPad;
+    const float y = topPad + (std::max)(0.f, (available - blockHeight) * 0.5f);
+    ImGui::SetCursorPosY(y);
 }
 
 void DrawCenteredText(const char* text, ImVec4 color, ImFont* font = nullptr) {
@@ -457,7 +461,7 @@ void DrawLogin() {
     auto& auth = OmniGhost::Auth::LocalAuthService::Instance();
     const float contentWidth = S(330.f);
 
-    CenterBlockVertically(S(360.f));
+    CenterBlockVertically(S(320.f));
     DrawBrand(false);
     ImGui::Dummy(ImVec2(0, S(20.f)));
     DrawCenteredText("ACCESS // AUTHENTICATION", ImGui::ColorConvertU32ToFloat4(CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.70f)));
@@ -521,63 +525,61 @@ void DrawRegister() {
     const Copy& text = Text();
     auto& auth = OmniGhost::Auth::LocalAuthService::Instance();
     const float contentWidth = S(330.f);
+    const bool remote = OmniGhost::Licensing::IsRemoteConfigured();
 
-    CenterBlockVertically(S(440.f));
+    // Compact block so the full form (fields + remember + button + back) stays visible.
+    const float blockHeight = remote ? S(360.f) : S(300.f);
+    CenterBlockVertically(blockHeight);
     DrawBrand(false);
-    ImGui::Dummy(ImVec2(0, S(18.f)));
-    DrawCenteredText("CREATE // IDENTITY", ImGui::ColorConvertU32ToFloat4(CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.70f)));
-    ImGui::Dummy(ImVec2(0, S(18.f)));
+    ImGui::Dummy(ImVec2(0, S(12.f)));
+    DrawCenteredText("CREATE // IDENTITY",
+        ImGui::ColorConvertU32ToFloat4(CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.70f)));
+    ImGui::Dummy(ImVec2(0, S(14.f)));
 
     CenterCursor(contentWidth);
     ImGui::BeginGroup();
-    const bool remote = OmniGhost::Licensing::IsRemoteConfigured();
     AuthInputField("register_email", g_email, sizeof(g_email), text.email,
                    contentWidth, true, AuthFieldIcon::Email);
-    ImGui::Dummy(ImVec2(0, S(11.f)));
-    AuthPasswordField("register_password", g_password, sizeof(g_password),
-        &g_show_password, text.password, contentWidth);
-    ImGui::Dummy(ImVec2(0, S(11.f)));
-    AuthPasswordField("register_confirm", g_confirm,
-        sizeof(g_confirm), &g_show_confirm, text.confirmPassword, contentWidth);
-    bool submit = false;
+    ImGui::Dummy(ImVec2(0, S(10.f)));
+    bool submit = AuthPasswordField("register_password", g_password, sizeof(g_password),
+        &g_show_password, text.password, contentWidth,
+        remote ? 0 : ImGuiInputTextFlags_EnterReturnsTrue);
     if (remote) {
-        ImGui::Dummy(ImVec2(0, S(11.f)));
+        ImGui::Dummy(ImVec2(0, S(10.f)));
         submit = AuthPasswordField("register_key", g_license_key,
             sizeof(g_license_key), &g_show_license_key, LicenseKeyHint(), contentWidth,
-            ImGuiInputTextFlags_EnterReturnsTrue);
+            ImGuiInputTextFlags_EnterReturnsTrue) || submit;
     }
+    ImGui::Dummy(ImVec2(0, S(10.f)));
+    CenterCursor(contentWidth);
+    ImGui::PushStyleColor(ImGuiCol_Text, CyberTheme::Colors.TextDisabled);
+    ImGui::Checkbox(RememberMeLabel(), &g_remember_me);
+    ImGui::PopStyleColor();
     ImGui::Dummy(ImVec2(0, S(12.f)));
-    {
-        CenterCursor(contentWidth);
-        ImGui::PushStyleColor(ImGuiCol_Text, CyberTheme::Colors.TextDisabled);
-        ImGui::Checkbox(RememberMeLabel(), &g_remember_me);
-        ImGui::PopStyleColor();
-    }
-    ImGui::Dummy(ImVec2(0, S(14.f)));
     ImGui::BeginDisabled(g_remote_operation_pending);
-    const bool registerPressed = CyberWidgets::GoldButton(g_remote_operation_pending ? "A REGISTAR..." : text.registerAction,
+    const bool registerPressed = CyberWidgets::GoldButton(
+        g_remote_operation_pending ? "A REGISTAR..." : text.registerAction,
         ImVec2(contentWidth, S(46.f))) || submit;
     ImGui::EndDisabled();
     if (registerPressed && !g_remote_operation_pending) {
-        if (std::strcmp(g_password, g_confirm) != 0) {
-            g_error = "As palavras-passe nao coincidem.";
+        if (g_password[0] == '\0') {
+            g_error = "Indica uma palavra-passe.";
+        } else if (remote) {
+            const std::string user = g_email;
+            const std::string pass = g_password;
+            const std::string key = g_license_key;
+            if (g_remember_me)
+                (void)OmniGhost::Licensing::SaveRememberedRemoteCredentials(user, pass);
+            else
+                OmniGhost::Licensing::ClearRememberedRemoteCredentials();
+            StartRemoteOperation(RemoteOperation::Register, user, pass, key);
+            SecureClear(g_password, sizeof(g_password));
+            SecureClear(g_confirm, sizeof(g_confirm));
+            SecureClear(g_license_key, sizeof(g_license_key));
+            ImGui::EndGroup();
+            DrawFeedback(contentWidth);
+            return;
         } else {
-            if (remote) {
-                const std::string user = g_email;
-                const std::string pass = g_password;
-                const std::string key = g_license_key;
-                if (g_remember_me)
-                    (void)OmniGhost::Licensing::SaveRememberedRemoteCredentials(user, pass);
-                else
-                    OmniGhost::Licensing::ClearRememberedRemoteCredentials();
-                StartRemoteOperation(RemoteOperation::Register, user, pass, key);
-                SecureClear(g_password, sizeof(g_password));
-                SecureClear(g_confirm, sizeof(g_confirm));
-                SecureClear(g_license_key, sizeof(g_license_key));
-                ImGui::EndGroup();
-                DrawFeedback(contentWidth);
-                return;
-            }
             const auto result = auth.Register(g_email, g_password, g_remember_me);
             if (result.Ok()) {
                 SecureClear(g_password, sizeof(g_password));
@@ -591,11 +593,12 @@ void DrawRegister() {
     }
     ImGui::EndGroup();
     DrawFeedback(contentWidth);
-    ImGui::Dummy(ImVec2(0, S(9.f)));
+    ImGui::Dummy(ImVec2(0, S(8.f)));
     const std::string back = std::string("<- ") + text.back;
     if (DrawTextAction(back.c_str())) {
         SecureClear(g_password, sizeof(g_password));
         SecureClear(g_confirm, sizeof(g_confirm));
+        SecureClear(g_license_key, sizeof(g_license_key));
         SetScreen(Screen::Landing);
     }
 }
@@ -715,11 +718,14 @@ bool Draw() {
         app_settings::DigitalRainOpacity() * 0.08f,
         app_settings::DigitalRainDensity() * 0.16f, animation, true);
 
-    const float desiredWidth = S(540.f);
-    const float desiredHeight = g_screen == Screen::Register ? S(690.f) :
-        (g_screen == Screen::Login ? S(560.f) : (g_screen == Screen::Activate ? S(520.f) : S(570.f)));
+    const float desiredWidth = S(480.f);
+    const float desiredHeight =
+        g_screen == Screen::Register ? S(560.f) :
+        (g_screen == Screen::Login ? S(520.f) :
+         (g_screen == Screen::Activate ? S(500.f) : S(500.f)));
     const float width = (std::max)(S(360.f), (std::min)(desiredWidth, display.x - S(40.f)));
-    const float height = (std::max)(S(430.f), (std::min)(desiredHeight, display.y - S(32.f)));
+    // Prefer fitting the form on screen over a tall card that clips the bottom.
+    const float height = (std::max)(S(400.f), (std::min)(desiredHeight, display.y - S(48.f)));
     const float slide = animation > 0.f ? (1.f - eased) * S(14.f) : 0.f;
     const ImVec2 position((display.x - width) * 0.5f + slide, (display.y - height) * 0.5f);
 
