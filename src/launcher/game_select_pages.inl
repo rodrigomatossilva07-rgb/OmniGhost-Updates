@@ -18,12 +18,22 @@ void EndControlPage() {
 }
 
 void DrawPageHeading(const char* title, const char* subtitle) {
+    // Shared page signature: it keeps every area of the launcher recognisably
+    // OmniGhost without introducing a separate visual language per page.
+    ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(
+        CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.66f)),
+        "OMNI // CONTROL CENTER");
+    ImGui::Dummy(ImVec2(0.f, S(3.f)));
     if (ImFont* font = CyberFonts::GetTitleFont()) ImGui::PushFont(font);
     ImGui::TextColored(CyberTheme::Colors.Text, "%s", title);
     if (CyberFonts::GetTitleFont()) ImGui::PopFont();
     if (subtitle && *subtitle)
         ImGui::TextColored(CyberTheme::Colors.TextDisabled, "%s", subtitle);
-    ImGui::Dummy(ImVec2(0.f, S(14.f)));
+    ImGui::Dummy(ImVec2(0.f, S(10.f)));
+    const ImVec2 lineStart = ImGui::GetCursorScreenPos();
+    ImGui::GetWindowDrawList()->AddLine(lineStart, ImVec2(lineStart.x + S(42.f), lineStart.y),
+        CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.62f), S(1.f));
+    ImGui::Dummy(ImVec2(0.f, S(10.f)));
 }
 
 void DrawHome(ImVec2 display) {
@@ -43,10 +53,11 @@ void DrawHome(ImVec2 display) {
         GameRuntime* runtime = FindRuntime(last);
         const GameHistory history = GetGameHistory(last);
         if (game && runtime) {
-            CyberWidgets::Badge(IsReadyState(runtime->state) ? "READY" : CardStateLabel(runtime->state),
+            CyberWidgets::Badge(IsReadyState(runtime->state) ? "PRONTO PARA CONTINUAR" : CardStateLabel(runtime->state),
                 IsReadyState(runtime->state) ? CyberWidgets::TextTone::Success : CyberWidgets::TextTone::Warning);
+            ImGui::Dummy(ImVec2(0, S(5.f)));
             CyberWidgets::TextLine(game->name, CyberWidgets::TextTone::Primary);
-            CyberWidgets::TextLine("DMA PREMIUM", CyberWidgets::TextTone::Secondary);
+            CyberWidgets::TextLine("PERFIL LOCAL · SESSÃO PROTEGIDA", CyberWidgets::TextTone::Secondary);
             CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, "Última sessão · %s · %s",
                 SessionResultDisplay(history.lastResult), FormatLastUsed(history.lastUsedUnix).c_str());
             ImGui::Dummy(ImVec2(0, S(8.f)));
@@ -63,7 +74,7 @@ void DrawHome(ImVec2 display) {
     CyberWidgets::EndCard();
 
     if (two) ImGui::SameLine(0.f, gap);
-    CyberWidgets::BeginCard("SISTEMA", systemWidth);
+    CyberWidgets::BeginCard("ESTADO DO SISTEMA", systemWidth);
     const auto dma = mem.GetDiagnosticsSnapshot();
     const auto update = OmniGhost::Update::UpdateService::Instance().GetSnapshot();
     CyberWidgets::HealthRow("DMA", dma.deviceOpen ? Loc::Tr("launcher.connected")
@@ -90,7 +101,7 @@ void DrawHome(ImVec2 display) {
         if (!history.detail.empty())
             CyberWidgets::TextLine(history.detail.c_str(), CyberWidgets::TextTone::Secondary);
     } else {
-        CyberWidgets::TextLine(Loc::Tr("launcher.no_history"), CyberWidgets::TextTone::Secondary);
+        CyberWidgets::EmptyState("SEM ATIVIDADE", "Quando iniciares um jogo, a última sessão será mostrada aqui.");
     }
     CyberWidgets::EndCard();
 
@@ -105,6 +116,7 @@ void DrawHome(ImVec2 display) {
     const std::string availableSummary = std::to_string(availableGames) + " produtos disponíveis";
     CyberWidgets::KeyValueRow("Catálogo", availableSummary.c_str());
     CyberWidgets::KeyValueRow("Estado", "Pronto para explorar");
+    CyberWidgets::TextLine("Escolhe um produto para ver o respetivo estado e as ações disponíveis.", CyberWidgets::TextTone::Secondary);
     if (CyberWidgets::Button("Abrir biblioteca", CyberWidgets::ButtonStyle::Secondary, ImVec2(S(165.f), S(33.f))))
         ChangeNavigation(static_cast<int>(NavPage::Library));
     CyberWidgets::EndCard();
@@ -534,8 +546,6 @@ void DrawSettings(ImVec2 display) {
         const char* levels[] = {Loc::Tr("launcher.effect.off"), Loc::Tr("launcher.effect.subtle"), Loc::Tr("launcher.effect.full")};
         int animation = static_cast<int>(app_settings::config.animation_intensity);
         if (CyberWidgets::Combo(Loc::Tr("launcher.animation"), &animation, levels, 3)) { app_settings::config.animation_intensity = static_cast<app_settings::EffectLevel>(animation); changed = true; }
-        app_settings::config.digital_rain_level = app_settings::EffectLevel::Full;
-        app_settings::config.matrix_rain = true;
         changed |= CyberWidgets::ToggleSwitch(Loc::Tr("launcher.reduce_motion"), &app_settings::config.reduce_motion);
         const ImU32 accentBefore = app_settings::config.color_primary;
         CyberWidgets::ColorEditU32(Loc::Tr("launcher.accent"), &app_settings::config.color_primary);
@@ -548,7 +558,7 @@ void DrawSettings(ImVec2 display) {
         changed |= CyberWidgets::ToggleSwitch(Loc::Tr("launcher.manual_performance"), &app_settings::config.performance_mode);
         changed |= CyberWidgets::ToggleSwitch(Loc::Tr("launcher.particles"), &app_settings::config.particles);
         changed |= CyberWidgets::ToggleSwitch(Loc::Tr("launcher.snow_effect"), &app_settings::config.snow_effect);
-        CyberWidgets::KeyValueRow("Chuva digital", "Completa · identidade OmniGhost");
+        CyberWidgets::KeyValueRow("Chuva digital", "Subtil · textura de fundo");
         CyberWidgets::EndCard();
         break;
     }
@@ -870,6 +880,7 @@ void DrawAccount(ImVec2 display) {
 
     ImGui::Dummy(ImVec2(0, S(14.f)));
     CyberWidgets::BeginCard("AÇÕES DA CONTA", 0.f);
+    CyberWidgets::TextLine("Ações locais. Nenhuma credencial ou chave é exposta nesta página.", CyberWidgets::TextTone::Secondary);
     ImGui::Dummy(ImVec2(0, S(8.f)));
     if (CyberWidgets::CyberButton(Loc::Tr("launcher.refresh_state"), ImVec2(S(140.f), S(32.f))))
         OmniGhost::Licensing::Refresh();
@@ -886,7 +897,8 @@ void DrawAccount(ImVec2 display) {
     CyberWidgets::EndCard();
 
     ImGui::Dummy(ImVec2(0, S(14.f)));
-    if (CyberWidgets::DangerButton(Loc::Tr("launcher.logout"), ImVec2(S(160.f), S(36.f)))) {
+    CyberWidgets::TextLine("SESSÃO", CyberWidgets::TextTone::Secondary);
+    if (CyberWidgets::DangerButton(Loc::Tr("launcher.logout"), ImVec2(S(160.f), S(34.f)))) {
         OmniGhost::Licensing::LogoutRemote();
         OmniGhost::Auth::LocalAuthService::Instance().Logout(true);
         g_logout_requested = true;

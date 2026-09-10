@@ -54,11 +54,11 @@ namespace CyberTheme {
     }
 
     namespace Typography {
-        inline float Title = 27.0f;
-        inline float Heading = 22.0f;
-        inline float Body = 19.0f;
-        inline float Caption = 15.0f;
-        inline float Mono = 16.5f;
+        inline float Title = 20.0f;
+        inline float Heading = 16.0f;
+        inline float Body = 14.0f;
+        inline float Caption = 11.5f;
+        inline float Mono = 11.0f;
     }
 
     namespace Shadow {
@@ -71,8 +71,8 @@ namespace CyberTheme {
         inline float WindowWidth = 1180.0f;
         inline float WindowHeight = 720.0f;
         inline float WindowRounding = 14.0f;
-        inline float HeaderHeight = 68.0f;
-        inline float FooterHeight = 48.0f;
+        inline float HeaderHeight = 62.0f;
+        inline float FooterHeight = 40.0f;
         inline float SidebarWidth = 188.0f;
         inline float ContentInset = 14.0f;
         inline float ContentPaddingX = 18.0f;
@@ -88,7 +88,7 @@ namespace CyberTheme {
         inline float ToggleHeight = 25.0f;
         inline float SearchHeight = 42.0f;
         inline float LogoSize = 42.0f;
-        inline float SidebarItemHeight = 49.0f;
+        inline float SidebarItemHeight = 44.0f;
         inline float CardMinHeight = 156.0f;
         inline float PageTransitionSeconds = 0.20f;
     }

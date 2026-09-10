@@ -38,8 +38,8 @@ namespace CyberTheme {
         constexpr float kBaseWindowWidth = 1180.0f;
         constexpr float kBaseWindowHeight = 720.0f;
         constexpr float kBaseWindowRounding = 14.0f;
-        constexpr float kBaseHeaderHeight = 68.0f;
-        constexpr float kBaseFooterHeight = 48.0f;
+        constexpr float kBaseHeaderHeight = 62.0f;
+        constexpr float kBaseFooterHeight = 40.0f;
         constexpr float kBaseSidebarWidth = 188.0f;
         constexpr float kBaseContentInset = 14.0f;
         constexpr float kBaseContentPaddingX = 18.0f;
@@ -55,7 +55,7 @@ namespace CyberTheme {
         constexpr float kBaseToggleHeight = 25.0f;
         constexpr float kBaseSearchHeight = 42.0f;
         constexpr float kBaseLogoSize = 42.0f;
-        constexpr float kBaseSidebarItemHeight = 49.0f;
+        constexpr float kBaseSidebarItemHeight = 44.0f;
 
         float g_ui_scale = 1.0f;
 
@@ -108,17 +108,17 @@ namespace CyberTheme {
             Colors.Gold = accent;
             Colors.GoldHover = accentHover;
             Colors.GoldGlow = accentGlow;
-            Colors.Text = ImVec4(0.949f, 0.949f, 0.957f, 1.00f);
-            Colors.TextDisabled = ImVec4(0.56f, 0.57f, 0.62f, 1.00f);
-            Colors.Border = ImVec4(0.40f, 0.41f, 0.46f, 0.34f);
-            Colors.Success = ImVec4(0.286f, 0.820f, 0.537f, 1.00f);
-            Colors.Warning = ImVec4(0.945f, 0.671f, 0.275f, 1.00f);
-            Colors.Error = ImVec4(0.941f, 0.349f, 0.365f, 1.00f);
-            Colors.Info = ImVec4(0.353f, 0.671f, 0.965f, 1.00f);
-            Colors.Background = ImVec4(0.f, 0.f, 0.f, 1.f);
-            Colors.Surface = ImVec4(0.f, 0.f, 0.f, 1.f);
-            Colors.Card = ImVec4(0.f, 0.f, 0.f, 1.f);
-            Colors.CardHover = ImVec4(13.f / 255.f, 13.f / 255.f, 13.f / 255.f, 1.f);
+            Colors.Text = ImVec4(236.f / 255.f, 236.f / 255.f, 232.f / 255.f, 1.00f);
+            Colors.TextDisabled = ImVec4(161.f / 255.f, 161.f / 255.f, 155.f / 255.f, 1.00f);
+            Colors.Border = ImVec4(225.f / 255.f, 187.f / 255.f, 55.f / 255.f, 0.10f);
+            Colors.Success = ImVec4(53.f / 255.f, 210.f / 255.f, 127.f / 255.f, 1.00f);
+            Colors.Warning = ImVec4(227.f / 255.f, 184.f / 255.f, 62.f / 255.f, 1.00f);
+            Colors.Error = ImVec4(1.00f, 86.f / 255.f, 95.f / 255.f, 1.00f);
+            Colors.Info = ImVec4(73.f / 255.f, 150.f / 255.f, 1.00f, 1.00f);
+            Colors.Background = ImVec4(5.f / 255.f, 5.f / 255.f, 5.f / 255.f, 1.f);
+            Colors.Surface = ImVec4(8.f / 255.f, 8.f / 255.f, 8.f / 255.f, 1.f);
+            Colors.Card = ImVec4(11.f / 255.f, 11.f / 255.f, 12.f / 255.f, 1.f);
+            Colors.CardHover = ImVec4(21.f / 255.f, 21.f / 255.f, 21.f / 255.f, 1.f);
             Colors.Panel = Colors.Surface;
             Colors.PanelHover = Colors.CardHover;
         }
@@ -203,11 +203,11 @@ namespace CyberTheme {
         Radius::Md = 10.0f * scale;
         Radius::Lg = 14.0f * scale;
 
-        Typography::Title = 27.0f * scale;
-        Typography::Heading = 22.0f * scale;
-        Typography::Body = 19.0f * scale;
-        Typography::Caption = 15.0f * scale;
-        Typography::Mono = 16.5f * scale;
+        Typography::Title = 20.0f * scale;
+        Typography::Heading = 16.0f * scale;
+        Typography::Body = 14.0f * scale;
+        Typography::Caption = 11.5f * scale;
+        Typography::Mono = 11.0f * scale;
 
         Shadow::SoftOffsetY = 5.0f * scale;
         Shadow::SoftRadius = 12.0f * scale;

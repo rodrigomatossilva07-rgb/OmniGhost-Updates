@@ -6,6 +6,7 @@
 #include "game/esp_manager.h"
 #include "platform/offset_auto.h"
 #include "esp/esp.h"
+#include "aimbot/aim_type.h"
 #include "Memory/Memory.h"
 #include "imgui.h"
 #include <cstdio>
@@ -25,8 +26,6 @@ void DrawFiveMStatus()
 {
     using namespace CyberWidgets;
     ImGui::PushID("fivem_status");
-
-    BeginCard("FiveM · Estado", 0.f);
 #ifndef UI_PREVIEW
     using namespace FiveM::offset;
     const bool worldOk = LooksPtr(world);
@@ -38,30 +37,42 @@ void DrawFiveMStatus()
     const bool espOn = esp::config.enabled;
     const bool healthy = offsetsOk && (!espOn || (worldOk && viewOk));
 
-    Badge(healthy ? "SAUDÁVEL" : "REQUER ATENÇÃO", healthy ? TextTone::Success : TextTone::Warning);
-    TextLine(healthy
-        ? "O runtime principal está pronto. Uma lista vazia de jogadores não é tratada como falha."
-        : "Há uma dependência de runtime que precisa de atenção. Usa as linhas abaixo para localizar a etapa.",
-        healthy ? TextTone::Secondary : TextTone::Warning);
+    BeginCardRow();
+    const float half = CardRowHalfWidth();
+    BeginCard("SYS // 06   SISTEMA", half);
+    Badge(healthy ? "OPERACIONAL" : "REQUER ATENÇÃO",
+          healthy ? TextTone::Success : TextTone::Warning);
+    TextLine(healthy ? "Os serviços essenciais estão prontos."
+                     : "Uma dependência essencial precisa de atenção.",
+             healthy ? TextTone::Secondary : TextTone::Warning);
     Separator();
-
-    StatusBadge("Offsets", offsetsOk);
-    StatusBadge("Mundo", worldOk);
-    StatusBadge("Câmara / viewport", viewOk);
-    StatusBadge("Jogador local", localOk);
-    if (!espOn) Badge("ESP DESLIGADO", TextTone::Secondary);
-    else if (!worldOk || !viewOk) Badge("ESP BLOQUEADO", TextTone::Error);
-    else Badge(pedCount > 0 ? "ESP ATIVO" : "ESP PRONTO · 0 JOGADORES", pedCount > 0 ? TextTone::Success : TextTone::Warning);
-
-    char players[48]{};
-    std::snprintf(players, sizeof(players), "%d detetados", pedCount);
-    KeyValueRow("Jogadores", players);
-    char build[32]{};
-    std::snprintf(build, sizeof(build), "b%d", buildVersion);
-    KeyValueRow("Build do jogo", build);
-
-    Separator();
+    HealthRow("DMA", worldOk ? "Ligado" : "A ligar",
+              worldOk ? HealthStatus::Ok : HealthStatus::Warning);
+    HealthRow("FiveM", viewOk ? "Detetado" : "Não detetado",
+              viewOk ? HealthStatus::Ok : HealthStatus::Warning);
+    HealthRow("Jogador local", localOk ? "Detetado" : "A aguardar",
+              localOk ? HealthStatus::Ok : HealthStatus::Warning);
+    HealthRow("Offsets", offsetsOk ? "Verificados" : "Por validar",
+              offsetsOk ? HealthStatus::Ok : HealthStatus::Warning);
+    char players[32]{};
+    std::snprintf(players, sizeof(players), "%d jogadores", pedCount);
+    HealthRow("ESP", !espOn ? "Desativado" : players,
+              !espOn ? HealthStatus::Warning : HealthStatus::Ok);
     EndCard();
+
+    NextCardColumn();
+    BeginCard("DISPOSITIVOS", half);
+    HealthRow("Makcu", aim_type::config.makcu_connected ? "Ligado" : "Desligado",
+              aim_type::config.makcu_connected ? HealthStatus::Ok : HealthStatus::Warning);
+    HealthRow("KMBox", aim_type::config.kmbox_net_connected ? "Ligado" : "Desligado",
+              aim_type::config.kmbox_net_connected ? HealthStatus::Ok : HealthStatus::Warning);
+    HealthRow("Ferrum", aim_type::config.ferrum_connected ? "Ligado" : "Desligado",
+              aim_type::config.ferrum_connected ? HealthStatus::Ok : HealthStatus::Warning);
+    Separator();
+    TextLine("Configurações técnicas ficam disponíveis em Definições > Avançado.",
+             TextTone::Secondary);
+    EndCard();
+    EndCardRow();
 
     bool technical = app_settings::config.show_advanced;
 #ifdef _DEBUG
@@ -72,31 +83,32 @@ void DrawFiveMStatus()
 #endif
     if (technical) {
         CardGap();
-        BeginCard("Diagnóstico de desenvolvimento", 0.f);
-        TextLine("Os endereços técnicos são ocultados na versão normal e só aparecem no modo avançado/diagnóstico.", TextTone::Warning);
+        BeginCard("DETALHES TÉCNICOS", 0.f);
+        TextLine("Informação de diagnóstico destinada a utilizadores avançados.", TextTone::Warning);
         char value[64]{};
         std::snprintf(value, sizeof(value), "0x%llX", static_cast<unsigned long long>(world)); KeyValueRow("world", value);
         std::snprintf(value, sizeof(value), "0x%llX", static_cast<unsigned long long>(viewport)); KeyValueRow("viewport", value);
         std::snprintf(value, sizeof(value), "0x%llX", static_cast<unsigned long long>(localplayer)); KeyValueRow("localplayer", value);
         std::snprintf(value, sizeof(value), "0x%llX", static_cast<unsigned long long>(base)); KeyValueRow("DMA base", value);
+        char build[32]{};
+        std::snprintf(build, sizeof(build), "b%d", buildVersion);
+        KeyValueRow("Build do jogo", build);
         EndCard();
     }
 #else
+    BeginCard("SYS // 06   SISTEMA", 0.f);
     TextLine("Página de estado disponível no runtime Windows com DMA.", TextTone::Secondary);
     EndCard();
 #endif
 
-    // Hardware Status Widget
-    CardGap();
-    DrawHardwareStatusWidget();
-    
-    // Config History Widget
-    CardGap();
-    ConfigHistory::DrawHistoryWidget();
-    
-    // Changelog Widget
-    CardGap();
-    Changelog::DrawChangelogCompact();
+    if (app_settings::config.show_advanced) {
+        CardGap();
+        DrawHardwareStatusWidget();
+        CardGap();
+        ConfigHistory::DrawHistoryWidget();
+        CardGap();
+        Changelog::DrawChangelogCompact();
+    }
 
     ImGui::PopID();
 }

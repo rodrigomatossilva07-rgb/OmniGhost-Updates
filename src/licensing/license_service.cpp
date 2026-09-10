@@ -394,6 +394,7 @@ OmniGhost::Auth::LicenseResult Upgrade(std::string_view username, std::string_vi
 
 void LogoutRemote() noexcept {
     RemoteGateway().Logout();
+    ClearRememberedRemoteCredentials();
     Refresh();
 }
 

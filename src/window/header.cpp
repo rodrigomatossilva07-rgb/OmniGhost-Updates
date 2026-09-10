@@ -2,18 +2,19 @@
 #include "theme.h"
 #include "fonts.h"
 #include "brand_assets.h"
+#include "../config/config_manager.h"
 
 #include <cmath>
+#include <string>
 
 namespace CyberWidgets {
 
     void DrawHeader(const ImVec2& wp, const ImVec2& ws, float fps, bool dma_ok,
                     const char* build, int ping_ms, int players)
     {
-        // Status metrics live only in the footer.
+        // Detailed telemetry lives in the footer; the header carries only the
+        // global state needed for orientation.
         (void)fps;
-        (void)dma_ok;
-        (void)build;
         (void)ping_ms;
         (void)players;
 
@@ -78,11 +79,23 @@ namespace CyberWidgets {
             dl->AddText(ImVec2(text_x + 1.0f, a.y + 35.0f),
                 IM_COL32(160, 165, 180, 220), "CONTROL CENTER");
 
-        if (body) {
-            dl->AddText(body, 10.5f, ImVec2(b.x - 118.0f, a.y + (h - 11.0f) * 0.5f),
-                CyberTheme::WithAlpha(CyberTheme::Colors.TextDisabled, 0.55f),
-                "PREMIUM DMA");
-        }
+        const char* systemState = dma_ok ? "DMA ONLINE" : "DMA OFFLINE";
+        const ImU32 systemColor = dma_ok
+            ? CyberTheme::U32(CyberTheme::Colors.Success)
+            : CyberTheme::U32(CyberTheme::Colors.Error);
+        const float right = b.x - 18.f;
+        const std::string profile = std::string("PERFIL  ") + config_manager::CurrentGameProfileName();
+        const ImVec2 profileSize = ImGui::CalcTextSize(profile.c_str());
+        dl->AddText(ImVec2(right - profileSize.x, a.y + 30.f),
+                    CyberTheme::U32(CyberTheme::Colors.TextDisabled), profile.c_str());
+        const char* game = build ? build : "FiveM";
+        const ImVec2 gameSize = ImGui::CalcTextSize(game);
+        dl->AddText(ImVec2(right - gameSize.x, a.y + 12.f),
+                    CyberTheme::U32(CyberTheme::Colors.Text), game);
+        const ImVec2 stateSize = ImGui::CalcTextSize(systemState);
+        const float stateX = right - gameSize.x - stateSize.x - 30.f;
+        dl->AddCircleFilled(ImVec2(stateX, a.y + 19.f), 3.f, systemColor, 10);
+        dl->AddText(ImVec2(stateX + 9.f, a.y + 12.f), systemColor, systemState);
         
     }
 

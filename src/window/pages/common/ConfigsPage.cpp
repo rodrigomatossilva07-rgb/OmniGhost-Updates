@@ -4,6 +4,7 @@
 #include "../../localization.h"
 #include "../../global_search.h"
 #include "../../hotkeys.h"
+#include "../../InputDevicesCard.h"
 #include "config/app_settings.h"
 #include "../../../globals.h"
 #include "platform/monitor_utils.h"
@@ -11,6 +12,7 @@
 #include "Rust/rust_game.h"
 #include "Cs2/cs2_game.h"
 #include "Fivem/game/game_setup.h"
+#include "config/config_manager.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -90,47 +92,41 @@ void DrawConfigs(Overlay* self)
         g_search_registered = true;
     }
     
-    const float half = (ImGui::GetContentRegionAvail().x - 12.f) * 0.5f;
+    static int settingsTab = 0;
+    const char* tabLabels[] = { "GERAL##settings_general", "APARÊNCIA##settings_appearance",
+                                "TECLAS##settings_keys", "AVANÇADO##settings_advanced" };
+    for (int i = 0; i < 4; ++i) {
+        if (i) ImGui::SameLine(0.f, CyberTheme::Spacing::Sm);
+        if (CyberWidgets::Button(tabLabels[i], settingsTab == i
+                ? CyberWidgets::ButtonStyle::Primary : CyberWidgets::ButtonStyle::Ghost,
+                ImVec2(132.f, 34.f)))
+            settingsTab = i;
+    }
+    CyberWidgets::CardGap(CyberTheme::Spacing::Md);
 
-    CyberWidgets::BeginCardRow();
-
-    CyberWidgets::BeginCard(Loc::Tr("cfg.visual"), half);
-    {
-        const bool prev_bg = app_settings::config.black_background;
-        CyberWidgets::ToggleSwitch(Loc::TrID("cfg.black_bg"), &app_settings::config.black_background);
-        if (app_settings::config.black_background != prev_bg) {
-            // Toggle is a shortcut for full on / full off
-            app_settings::config.black_level = app_settings::config.black_background ? 100.f : 0.f;
+    if (settingsTab == 0) {
+        CyberWidgets::BeginCardRow();
+        const float half = CyberWidgets::CardRowHalfWidth();
+        CyberWidgets::BeginCard("GERAL", half);
+        std::vector<const char*> langs;
+        langs.reserve(Loc::LanguageCount());
+        for (int i = 0; i < Loc::LanguageCount(); ++i)
+            langs.push_back(Loc::LanguageName(i));
+        int lang = static_cast<int>(app_settings::config.language);
+        if (CyberWidgets::Combo("Idioma", &lang, langs.data(), static_cast<int>(langs.size())))
+            app_settings::config.language = static_cast<app_settings::Language>(lang);
+        CyberWidgets::ToggleSwitch("Guardar automaticamente", &app_settings::config.auto_save);
+        const char* performanceModes[] = { "Automático", "Qualidade", "Desempenho" };
+        int performanceMode = app_settings::config.auto_performance ? 0
+            : (app_settings::config.performance_mode ? 2 : 1);
+        if (CyberWidgets::Combo("Desempenho", &performanceMode, performanceModes, 3)) {
+            app_settings::config.auto_performance = performanceMode == 0;
+            app_settings::config.performance_mode = performanceMode == 2;
         }
-        CyberWidgets::SliderFloat("Opacidade do fundo preto", &app_settings::config.black_level, 0.f, 100.f, "%.0f");
-        // Slider is the real control used by the renderer
-        app_settings::config.black_background = (app_settings::config.black_level > 0.5f);
-    }
-    CyberWidgets::ToggleSwitch(Loc::TrID("cfg.perf"), &app_settings::config.performance_mode);
-    CyberWidgets::HelpMarker("Reduz efeitos visuais e carga de animação. O modo automático ativa-se apenas quando o FPS fica baixo.");
-    CyberWidgets::ToggleSwitch(Loc::TrID("cfg.auto_perf"), &app_settings::config.auto_performance);
-    CyberWidgets::ToggleSwitch(Loc::TrID("cfg.auto_save"), &app_settings::config.auto_save);
+        CyberWidgets::EndCard();
 
-    CyberWidgets::Separator();
-    CyberWidgets::SectionTitle("Movimento e ambiente");
-    CyberWidgets::Badge("RECOMMENDED", CyberWidgets::TextTone::Accent);
-    CyberWidgets::CardGap(CyberTheme::Spacing::Xs);
-    const char* effectLevels[] = { "Off", "Subtle", "Full" };
-    int rainLevel = static_cast<int>(app_settings::config.digital_rain_level);
-    if (CyberWidgets::Combo("Digital Rain", &rainLevel, effectLevels, 3)) {
-        rainLevel = std::clamp(rainLevel, 0, 2);
-        app_settings::config.digital_rain_level = static_cast<app_settings::EffectLevel>(rainLevel);
-        app_settings::config.matrix_rain = rainLevel != 0;
-    }
-    CyberWidgets::HelpMarker("Subtle usa cerca de 28% da densidade original e é o modo recomendado para um visual mais premium.");
-    int animationLevel = static_cast<int>(app_settings::config.animation_intensity);
-    if (CyberWidgets::Combo("Animation intensity", &animationLevel, effectLevels, 3))
-        app_settings::config.animation_intensity = static_cast<app_settings::EffectLevel>(std::clamp(animationLevel, 0, 2));
-    CyberWidgets::ToggleSwitch(Loc::Tr("launcher.reduce_motion"), &app_settings::config.reduce_motion);
-    CyberWidgets::HelpMarker("Desativa deslocamentos, pulsos e transições não essenciais sem remover informação funcional.");
-
-    CyberWidgets::Separator();
-    CyberWidgets::SectionTitle("Escala e ecrã");
+        CyberWidgets::NextCardColumn();
+        CyberWidgets::BeginCard("ECRÃ", half);
     const char* uiScales[] = { "75%", "80%", "90%", "100%", "110%", "125%", "150%", "175%", "200%", "250%" };
     const float uiScaleValues[] = { 0.75f, 0.80f, 0.90f, 1.00f, 1.10f, 1.25f, 1.50f, 1.75f, 2.00f, 2.50f };
     int uiScaleIndex = 3; // 100% default
@@ -163,55 +159,78 @@ void DrawConfigs(Overlay* self)
     monitorSelection = std::clamp(monitorSelection, 0, static_cast<int>(monitorItems.size()) - 1);
     if (CyberWidgets::Combo("Monitor", &monitorSelection, monitorItems.data(), static_cast<int>(monitorItems.size())))
         app_settings::config.monitor_index = monitorSelection - 1;
-    CyberWidgets::HelpMarker("Escolhe o monitor físico onde o overlay e o launcher devem ocupar o ecrã inteiro. Automático segue o monitor atual/principal.");
+        CyberWidgets::EndCard();
+        CyberWidgets::EndCardRow();
 
-    CyberWidgets::ToggleSwitch(Loc::TrID("cfg.show_fps"), &app_settings::config.show_fps);
-    CyberWidgets::ToggleSwitch(Loc::TrID("cfg.hotkey_overlay"), &app_settings::config.show_hotkey_overlay);
-    CyberWidgets::ToggleSwitch(Loc::TrID("cfg.vsync"), &app_settings::config.vsync);
-    CyberWidgets::Separator();
-    CyberWidgets::SectionTitle(Loc::Tr("cfg.colors"));
-    CyberWidgets::ColorEditU32(Loc::TrID("cfg.color_primary"), &app_settings::config.color_primary);
-    CyberWidgets::ColorEditU32(Loc::TrID("cfg.color_secondary"), &app_settings::config.color_secondary);
-    CyberWidgets::ColorEditU32(Loc::TrID("cfg.color_fps"), &app_settings::config.color_fps);
-    CyberWidgets::Separator();
-    CyberWidgets::ThemeCombo(Loc::Tr("cfg.theme"));
-    CyberWidgets::EndCard();
-
-    CyberWidgets::NextCardColumn();
-
-    CyberWidgets::BeginCard(Loc::Tr("cfg.settings"), half);
-    {
-        std::vector<const char*> langs;
-        langs.reserve(Loc::LanguageCount());
-        for (int i = 0; i < Loc::LanguageCount(); ++i)
-            langs.push_back(Loc::LanguageName(i));
-        int lang = static_cast<int>(app_settings::config.language);
-        if (CyberWidgets::Combo(Loc::TrID("cfg.language"), &lang, langs.data(), static_cast<int>(langs.size())))
-            app_settings::config.language = static_cast<app_settings::Language>(lang);
-    }
-    CyberWidgets::KeyValueRow(Loc::Tr("cfg.menu_bind"), MenuVkName(app_settings::config.menu_bind));
-    static bool waiting_bind = false;
-    if (waiting_bind) {
-        CyberWidgets::TextLine(Loc::Tr("status.press_key"), CyberWidgets::TextTone::Warning);
-        for (int vk = 1; vk < 256; ++vk) {
-            if (vk == app_settings::config.menu_bind) continue;
-            if (GetAsyncKeyState(vk) & 1) {
-                app_settings::config.menu_bind = vk;
-                waiting_bind = false;
-                CyberWidgets::Notify(Loc::Tr("status.hotkey_set"), CyberWidgets::ToastType::Success);
-                break;
-            }
+        CyberWidgets::CardGap();
+        CyberWidgets::BeginCard("CONFIGURAÇÃO E PERFIL");
+        CyberWidgets::KeyValueRow("Perfil atual", config_manager::CurrentGameProfileName());
+        if (CyberWidgets::Button("DEFAULT", CyberWidgets::ButtonStyle::Secondary, ImVec2(110, 34)))
+            config_manager::ApplyGameProfile(config_manager::GameProfile::Default);
+        ImGui::SameLine();
+        if (CyberWidgets::Button("MINIMAL", CyberWidgets::ButtonStyle::Secondary, ImVec2(110, 34)))
+            config_manager::ApplyGameProfile(config_manager::GameProfile::Minimal);
+        ImGui::SameLine();
+        if (CyberWidgets::Button("VISUAL", CyberWidgets::ButtonStyle::Secondary, ImVec2(110, 34)))
+            config_manager::ApplyGameProfile(config_manager::GameProfile::Visual);
+        ImGui::SameLine();
+        if (CyberWidgets::Button("GUARDAR ATUAL", CyberWidgets::ButtonStyle::Primary, ImVec2(150, 34)))
+            config_manager::SaveCustomGameProfile();
+        CyberWidgets::EndCard();
+    } else if (settingsTab == 1) {
+        CyberWidgets::BeginCard("APARÊNCIA");
+        CyberWidgets::SliderFloat("Escurecimento do fundo", &app_settings::config.black_level, 0.f, 100.f, "%.0f%%");
+        app_settings::config.black_background = app_settings::config.black_level > .5f;
+        const char* effectLevels[] = { "Desligado", "Subtil", "Completo" };
+        int rainLevel = static_cast<int>(app_settings::config.digital_rain_level);
+        if (CyberWidgets::Combo("Chuva digital", &rainLevel, effectLevels, 3)) {
+            rainLevel = std::clamp(rainLevel, 0, 2);
+            app_settings::config.digital_rain_level = static_cast<app_settings::EffectLevel>(rainLevel);
+            app_settings::config.matrix_rain = rainLevel != 0;
         }
-    }
-    else {
-        if (CyberWidgets::CyberButton(Loc::TrID("cfg.rebind"), ImVec2(160, 32)))
+        int animationLevel = static_cast<int>(app_settings::config.animation_intensity);
+        if (CyberWidgets::Combo("Intensidade das animações", &animationLevel, effectLevels, 3))
+            app_settings::config.animation_intensity = static_cast<app_settings::EffectLevel>(std::clamp(animationLevel, 0, 2));
+        CyberWidgets::ToggleSwitch("Movimento reduzido", &app_settings::config.reduce_motion);
+        CyberWidgets::ToggleSwitch("Mostrar FPS", &app_settings::config.show_fps);
+        CyberWidgets::Separator();
+        CyberWidgets::SectionTitle("IDENTIDADE");
+        CyberWidgets::TextLine("OMNIGHOST · Preto, dourado e precisão.",
+                               CyberWidgets::TextTone::Accent);
+        CyberWidgets::EndCard();
+    } else if (settingsTab == 2) {
+        CyberWidgets::BeginCard("TECLAS");
+        CyberWidgets::KeyValueRow("Abrir menu", MenuVkName(app_settings::config.menu_bind));
+        static bool waiting_bind = false;
+        if (waiting_bind) {
+            CyberWidgets::TextLine("Prime qualquer tecla…", CyberWidgets::TextTone::Warning);
+            for (int vk = 1; vk < 256; ++vk) {
+                if (vk != app_settings::config.menu_bind && (GetAsyncKeyState(vk) & 1)) {
+                    app_settings::config.menu_bind = vk;
+                    waiting_bind = false;
+                    break;
+                }
+            }
+        } else if (CyberWidgets::CyberButton("ALTERAR TECLA", ImVec2(160, 32))) {
             waiting_bind = true;
-    }
-    CyberWidgets::Separator();
-    CyberWidgets::SectionTitle("DMA");
-    CyberWidgets::TextLine(
-        "Lobby→server (Rust) / mudar de cidade (FiveM) / re-attach sem fechar o menu",
-        CyberWidgets::TextTone::Secondary);
+        }
+        CyberWidgets::EndCard();
+        CyberWidgets::CardGap();
+        Hotkeys::DrawHotkeyConfig();
+    } else {
+        CyberWidgets::BeginCard("AVANÇADO");
+        CyberWidgets::ToggleSwitch("Sincronização vertical", &app_settings::config.vsync);
+        CyberWidgets::ToggleSwitch("Mostrar atalhos no overlay", &app_settings::config.show_hotkey_overlay);
+        CyberWidgets::ToggleSwitch("Detalhes técnicos", &app_settings::config.show_advanced);
+        CyberWidgets::EndCard();
+        CyberWidgets::CardGap();
+        InputDevicesCard::Draw();
+        CyberWidgets::CardGap();
+        CyberWidgets::BeginCard("MANUTENÇÃO");
+        CyberWidgets::Separator();
+        CyberWidgets::SectionTitle("DMA");
+        CyberWidgets::TextLine("Reinicia a ligação sem fechar o Control Center.",
+                               CyberWidgets::TextTone::Secondary);
     if (CyberWidgets::GoldButton(Loc::Tr("device.reinit_dma"), ImVec2(160, 36))) {
         bool ok = false;
         std::string msg;
@@ -249,11 +268,6 @@ void DrawConfigs(Overlay* self)
     if (CyberWidgets::DangerButton("Voltar ao launcher", ImVec2(190, 36))) {
         self->RequestReturnToLauncher();
     }
-    CyberWidgets::EndCard();
-
-    // Hotkey configuration
-    CyberWidgets::CardGap(12.0f);
-    Hotkeys::DrawHotkeyConfig();
-
-    CyberWidgets::EndCardRow();
+        CyberWidgets::EndCard();
+    }
 }

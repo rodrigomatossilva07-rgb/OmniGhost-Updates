@@ -3,7 +3,6 @@
 #include "fonts.h"
 #include "localization.h"
 #include "globals.h"
-#include "../app_version.h"
 #include "../../Cs2/cs2_game.h"
 #include "../../Rust/rust_game.h"
 #include "../../Warzone/warzone_game.h"
@@ -68,14 +67,9 @@ namespace CyberWidgets {
             dma_ok ? CyberTheme::WithAlpha(CyberTheme::Colors.Success, alpha / 255.0f)
                    : CyberTheme::U32(CyberTheme::Colors.Error), 12);
         x += 16.0f;
-        // Product line: DMA + github version (bottom-left brand)
-        {
-            char ver[48];
-            std::snprintf(ver, sizeof(ver), "DMA %s", OmniGhost::Version);
-            x = DrawFooterItem(dl, body, x, text_y, ver,
-                CyberTheme::U32(CyberTheme::Colors.Gold), kFont);
-            x = DrawDivider(dl, x, text_y);
-        }
+        x = DrawFooterItem(dl, body, x, text_y, "DMA",
+            CyberTheme::U32(CyberTheme::Colors.Gold), kFont);
+        x = DrawDivider(dl, x, text_y);
         const char* connection_text = (g_activeGame == ActiveGame::Warzone)
             ? (Warzone::runtime.module_base ? "Processo ligado" : "A ligar...")
             : (dma_ok ? Loc::Tr("footer.connected") : Loc::Tr("footer.offline"));
@@ -131,8 +125,7 @@ namespace CyberWidgets {
                 verified ? CyberTheme::U32(CyberTheme::Colors.Success) : CyberTheme::U32(CyberTheme::Colors.Warning), kFont);
             x = DrawDivider(dl, x, text_y);
         }
-        x = DrawFooterItem(dl, body, x, text_y, Loc::Tr("footer.discord"),
-            CyberTheme::U32(CyberTheme::Colors.Gold), kFont);
+        // Support links and exact version strings belong in Definições > Sobre.
 
         char fps_value[24];
         snprintf(fps_value, sizeof(fps_value), Loc::Tr("footer.fps"), fps);

@@ -535,7 +535,8 @@ void Draw(
     float opacity,
     float density_scale,
     float motion_scale,
-    bool edge_only) {
+    bool edge_only,
+    bool draw_constellations) {
 
     if (!enabled || !dl || opacity <= 0.0f || !IsValidSize(window_size.x, window_size.y)) {
         return;
@@ -548,15 +549,19 @@ void Draw(
         return;
     }
 
-    float width = window_size.x;
+    float local_offset = std::clamp(quiet_left_width, 0.0f, window_size.x - 32.0f);
+    float width = window_size.x - local_offset;
     float height = window_size.y;
-    float left = window_pos.x + quiet_left_width;
-    float right = window_pos.x + window_size.x;
+    // Particles are stored in local window coordinates and translated only
+    // when drawn. Comparing them with screen-space bounds made rain disappear
+    // from centred/floating windows such as authentication.
+    float left = 0.0f;
+    float right = width;
 
     if (edge_only) {
         width = window_size.x * 0.5f;
-        left = window_pos.x + window_size.x * 0.5f;
-        right = window_pos.x + window_size.x;
+        local_offset = window_size.x * 0.5f;
+        right = width;
     }
 
     EnsureColumns(width, height, performance_mode);
@@ -580,12 +585,11 @@ void Draw(
         col.y += col.speed * dt;
         if (col.y > height + col.length * col.font_size) {
             SeedColumn(col, width, height, false);
-            col.x = left + (col.x - window_pos.x);
         }
     }
 
     // Update stars
-    if (g_qualitySettings.enableConstellations) {
+    if (draw_constellations && g_qualitySettings.enableConstellations) {
         for (int i = 0; i < g_star_count; ++i) {
             Star& s = g_stars[i];
             s.x += s.vx * dt;
@@ -635,13 +639,13 @@ void Draw(
                 (int)(55 * alpha / 255.0f),
                 static_cast<int>(alpha));
 
-            ImVec2 pos(x, window_pos.y + ty);
+            ImVec2 pos(window_pos.x + local_offset + x, window_pos.y + ty);
             dl->AddText(font, col.font_size, pos, color, &ch, &ch + 1);
         }
     }
 
     // Draw constellations
-    if (g_qualitySettings.enableConstellations && g_cluster_count > 0) {
+    if (draw_constellations && g_qualitySettings.enableConstellations && g_cluster_count > 0) {
         for (int c = 0; c < g_cluster_count; ++c) {
             Cluster& cl = g_clusters[c];
             int end = cl.start + cl.count;
@@ -651,7 +655,7 @@ void Draw(
                 if (s.y < 0 || s.y > height) continue;
 
                 ImU32 color = IM_COL32(212, 175, 55, g_qualitySettings.nodeAlphaMax);
-                dl->AddCircleFilled(ImVec2(window_pos.x + s.x, window_pos.y + s.y), s.radius, color);
+                dl->AddCircleFilled(ImVec2(window_pos.x + local_offset + s.x, window_pos.y + s.y), s.radius, color);
 
                 // Links to other stars in same cluster
                 if (g_qualitySettings.linkAlphaMax > 0) {
@@ -665,8 +669,8 @@ void Draw(
                         if (d2 < maxD * maxD) {
                             ImU32 linkColor = IM_COL32(212, 175, 55, g_qualitySettings.linkAlphaMax);
                             dl->AddLine(
-                                ImVec2(window_pos.x + s.x, window_pos.y + s.y),
-                                ImVec2(window_pos.x + s2.x, window_pos.y + s2.y),
+                                ImVec2(window_pos.x + local_offset + s.x, window_pos.y + s.y),
+                                ImVec2(window_pos.x + local_offset + s2.x, window_pos.y + s2.y),
                                 linkColor, 0.8f);
                         }
                     }

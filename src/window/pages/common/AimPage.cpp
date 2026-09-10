@@ -1,7 +1,6 @@
 #include "../../widgets.h"
 #include "../../theme.h"
 #include "../../localization.h"
-#include "../../InputDevicesCard.h"
 #include "aimbot/aim_type.h"
 #ifdef UI_PREVIEW
 #include "preview/preview_runtime.h"
@@ -90,65 +89,112 @@ bool HotkeyCaptureButton(const char* id, int* vk) {
     return false;
 }
 
+void DrawFovPreview(float previewWidth, float previewHeight) {
+    const ImVec2 p = ImGui::GetCursorScreenPos();
+    const ImVec2 q(p.x + previewWidth, p.y + previewHeight);
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    dl->AddRectFilled(p, q, IM_COL32(5, 5, 5, 255), 8.f);
+    dl->AddRect(p, q, CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.14f), 8.f);
+    const ImVec2 c(p.x + previewWidth * .5f, p.y + previewHeight * .52f);
+    const float radius = 18.f + (aimbot::config.fov_size / 500.f) * (std::min)(previewWidth, previewHeight) * .34f;
+    const ImU32 color = aimbot::config.show_fov
+        ? aimbot::config.fov_color
+        : CyberTheme::WithAlpha(CyberTheme::Colors.TextDisabled, .25f);
+    dl->AddLine(ImVec2(c.x - 8.f, c.y), ImVec2(c.x + 8.f, c.y),
+                CyberTheme::WithAlpha(CyberTheme::Colors.Text, .55f), 1.f);
+    dl->AddLine(ImVec2(c.x, c.y - 8.f), ImVec2(c.x, c.y + 8.f),
+                CyberTheme::WithAlpha(CyberTheme::Colors.Text, .55f), 1.f);
+    if (aimbot::config.fov_style == aimbot::FovStyle::Circle)
+        dl->AddCircle(c, radius, color, 48, 1.4f);
+    else if (aimbot::config.fov_style == aimbot::FovStyle::Square)
+        dl->AddRect(ImVec2(c.x - radius, c.y - radius), ImVec2(c.x + radius, c.y + radius), color, 2.f, 0, 1.4f);
+    else {
+        dl->AddLine(ImVec2(c.x - radius, c.y), ImVec2(c.x - 12.f, c.y), color, 1.4f);
+        dl->AddLine(ImVec2(c.x + 12.f, c.y), ImVec2(c.x + radius, c.y), color, 1.4f);
+        dl->AddLine(ImVec2(c.x, c.y - radius), ImVec2(c.x, c.y - 12.f), color, 1.4f);
+        dl->AddLine(ImVec2(c.x, c.y + 12.f), ImVec2(c.x, c.y + radius), color, 1.4f);
+    }
+    dl->AddText(ImVec2(p.x + 12.f, p.y + 10.f),
+                CyberTheme::U32(CyberTheme::Colors.TextDisabled),
+                aimbot::config.show_fov ? "FOV VISÍVEL" : "FOV OCULTO");
+    ImGui::Dummy(ImVec2(previewWidth, previewHeight));
+}
+
 } // namespace
 
 void DrawAim()
 {
-    CyberWidgets::SearchBar(Loc::Tr("aim.search"));
-    CyberWidgets::CardGap(6.f);
+    const float full = CyberWidgets::CardContentWidth();
+    const float gap = CyberTheme::Spacing::Md;
+    const float left = (full - gap) * .58f;
+    const float right = full - left - gap;
 
-    CyberWidgets::BeginCard(Loc::Tr("aim.general"));
-    {
-        const char* fov_styles[] = {
-            Loc::Tr("aim.fov_circle"), Loc::Tr("aim.fov_square"), Loc::Tr("aim.fov_cross")
-        };
-        int fs = (int)aimbot::config.fov_style;
-        if (CyberWidgets::Combo(Loc::TrID("aim.fov_style"), &fs, fov_styles, 3))
-            aimbot::config.fov_style = (aimbot::FovStyle)fs;
-        CyberWidgets::ToggleSwitch(Loc::TrID("aim.visible_check"), &aimbot::config.visible_check);
+    ImGui::BeginGroup();
+    CyberWidgets::BeginCard("AIM // 02   ASSISTÊNCIA DE MIRA", left);
+    CyberWidgets::ToggleSwitch("Ativar assistência", &aimbot::config.aimbot_enabled);
+    if (aimbot::config.aimbot_enabled) {
+        CyberWidgets::ToggleSwitch("Verificação de visibilidade", &aimbot::config.visible_check);
+        CyberWidgets::Separator();
+        CyberWidgets::SectionTitle("ALVO");
+        const char* hitboxes[] = { "Cabeça", "Pescoço", "Tronco", "Pélvis", "Pernas" };
+        int hitbox = static_cast<int>(aimbot::config.hitbox);
+        if (CyberWidgets::Combo("Área do alvo", &hitbox, hitboxes, 5))
+            aimbot::config.hitbox = static_cast<aimbot::Hitbox>(hitbox);
+        CyberWidgets::SliderFloat("Distância máxima", &aimbot::config.max_distance, 10.f, 500.f, "%.0f m");
+        CyberWidgets::SliderFloat("Suavidade", &aimbot::config.smooth_x, 0.f, 100.f, "%.0f");
+        aimbot::config.smooth_y = aimbot::config.smooth_x;
+        CyberWidgets::ToggleSwitch("Humanizar movimento", &aimbot::config.humanize);
+        CyberWidgets::Separator();
+        CyberWidgets::SectionTitle("ENTRADA");
+        ImGui::TextUnformatted("Tecla principal");
+        ImGui::SameLine(160.f);
+        HotkeyCaptureButton("aim1", &aimbot::config.aimbot_bind);
     }
-    CyberWidgets::EndCard();
-
-    CyberWidgets::BeginCard(Loc::Tr("aim.aimbot"));
-    CyberWidgets::ToggleSwitch(Loc::TrID("aim.enable"), &aimbot::config.aimbot_enabled);
-    CyberWidgets::ToggleSwitch(Loc::TrID("aim.show_fov"), &aimbot::config.show_fov);
-    CyberWidgets::ToggleSwitch(Loc::TrID("aim.fov_rgb"), &aimbot::config.fov_rgb);
-    CyberWidgets::ColorEditU32(Loc::TrID("aim.fov_color"), &aimbot::config.fov_color);
-
-    ImGui::TextUnformatted(Loc::Tr("aim.bind"));
-    ImGui::SameLine(160.f);
-    HotkeyCaptureButton("aim1", &aimbot::config.aimbot_bind);
     // FiveM aiming is fire-independent: never allow LMB to become the aim bind.
     // Invalid/cleared primary binds fall back to RMB, matching the project default.
     if (aimbot::config.aimbot_bind <= 0 || aimbot::config.aimbot_bind == VK_LBUTTON)
         aimbot::config.aimbot_bind = VK_RBUTTON;
 
-    ImGui::TextUnformatted(Loc::Tr("aim.bind2"));
-    ImGui::SameLine(160.f);
-    HotkeyCaptureButton("aim2", &aimbot::config.aimbot_bind2);
+    if (aimbot::config.aimbot_enabled) {
+        ImGui::TextUnformatted("Tecla secundária");
+        ImGui::SameLine(160.f);
+        HotkeyCaptureButton("aim2", &aimbot::config.aimbot_bind2);
+    }
     // LMB must never acquire or reinforce aim. Also avoid duplicate binds.
     if (aimbot::config.aimbot_bind2 == VK_LBUTTON ||
         aimbot::config.aimbot_bind2 == aimbot::config.aimbot_bind)
         aimbot::config.aimbot_bind2 = 0;
-    ImGui::TextDisabled("LMB/fire does not control FiveM aim; RMB is the default hold.");
-
-    CyberWidgets::SliderFloat(Loc::TrID("aim.fov_size"), &aimbot::config.fov_size, 10.0f, 500.0f, "%.0f px");
-    CyberWidgets::SliderFloat(Loc::TrID("aim.distance"), &aimbot::config.max_distance, 10.0f, 500.0f, "%.0f m");
-    CyberWidgets::SliderFloat(Loc::TrID("aim.smooth_x"), &aimbot::config.smooth_x, 0.0f, 100.0f, "%.0f"); // 0=snap 100=none
-    aimbot::config.smooth_y = aimbot::config.smooth_x;
-    CyberWidgets::ToggleSwitch(Loc::TrID("aim.humanize"), &aimbot::config.humanize);
+    if (!aimbot::config.aimbot_enabled)
+        CyberWidgets::InlineMessage("Ativa a assistência para configurar alvo, alcance e teclas.",
+                                    CyberWidgets::TextTone::Secondary, "aim_disabled");
     CyberWidgets::EndCard();
 
-    CyberWidgets::BeginCard(Loc::Tr("aim.trigger_title"));
-    CyberWidgets::ToggleSwitch(Loc::TrID("aim.trigger"), &aimbot::config.trigger_enabled);
-    CyberWidgets::ToggleSwitch(Loc::TrID("aim.trigger_head"), &aimbot::config.trigger_head_only);
-    CyberWidgets::SliderFloat(Loc::TrID("aim.trigger_fov"), &aimbot::config.trigger_fov, 4.0f, 80.0f, "%.0f px");
-    CyberWidgets::SliderFloat(Loc::TrID("aim.trigger_delay"), &aimbot::config.trigger_delay, 0.0f, 0.5f, "%.3f s");
-    ImGui::TextDisabled("%s", Loc::Tr("aim.trigger_hint"));
+    CyberWidgets::CardGap(gap);
+    CyberWidgets::BeginCard("DISPARO AUTOMÁTICO", left);
+    CyberWidgets::ToggleSwitch("Ativar disparo automático", &aimbot::config.trigger_enabled);
+    if (aimbot::config.trigger_enabled) {
+        CyberWidgets::ToggleSwitch("Apenas cabeça", &aimbot::config.trigger_head_only);
+        CyberWidgets::SliderFloat("FOV de disparo", &aimbot::config.trigger_fov, 4.f, 80.f, "%.0f px");
+        CyberWidgets::SliderFloat("Atraso", &aimbot::config.trigger_delay, 0.f, .5f, "%.3f s");
+    }
     CyberWidgets::EndCard();
+    ImGui::EndGroup();
+
+    ImGui::SameLine(0.f, gap);
+    ImGui::BeginGroup();
+    CyberWidgets::BeginCard("FOV", right);
+    CyberWidgets::ToggleSwitch("Mostrar FOV", &aimbot::config.show_fov);
+    const char* fov_styles[] = { "Círculo", "Quadrado", "Dinâmico" };
+    int fs = static_cast<int>(aimbot::config.fov_style);
+    if (CyberWidgets::Combo("Forma", &fs, fov_styles, 3))
+        aimbot::config.fov_style = static_cast<aimbot::FovStyle>(fs);
+    CyberWidgets::SliderFloat("Tamanho", &aimbot::config.fov_size, 10.f, 500.f, "%.0f px");
+    CyberWidgets::ColorEditU32("Cor", &aimbot::config.fov_color);
+    DrawFovPreview((std::max)(160.f, right - 24.f), 190.f);
+    CyberWidgets::EndCard();
+    ImGui::EndGroup();
 
     // Hard-disable silent leftovers from old configs
     aimbot::config.silent_enabled = false;
-
-    InputDevicesCard::Draw();
+    aimbot::config.fov_rgb = false;
 }

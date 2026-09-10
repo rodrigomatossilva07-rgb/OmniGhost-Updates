@@ -1472,6 +1472,11 @@ namespace LauncherUpdates {
         }
 
         ImGui::TextColored(
+            ToVec4(C_GOLD),
+            "%s",
+            "OMNI // RELEASE NOTES");
+        ImGui::Dummy(ImVec2(0.0f, CyberTheme::Spacing::Xs));
+        ImGui::TextColored(
             ToVec4(C_TEXT),
             "%s",
             "Atualizações");
@@ -1483,8 +1488,8 @@ namespace LauncherUpdates {
         ImGui::TextColored(
             ToVec4(C_MUTED),
             "%s",
-            "Notas da versão publicada no GitHub e alterações reais "
-            "organizadas por jogo e componente.");
+            "Histórico publicado, organizado por produto e componente. "
+            "Apenas alterações verificadas são apresentadas aqui.");
 
         const std::string lastDate =
             snapshot.releases.empty()

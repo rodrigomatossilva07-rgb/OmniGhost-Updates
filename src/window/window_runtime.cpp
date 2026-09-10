@@ -39,6 +39,11 @@ Overlay* g_overlay_instance = nullptr;
 
 namespace {
 
+constexpr float kCompactWindowWidth = 480.0f;
+// Compact desktop-launcher footprint. The authentication card adapts inside
+// this surface and enables scrolling only on unusually small displays/scales.
+constexpr float kCompactWindowHeight = 520.0f;
+
 std::wstring Widen(const char* text) {
     if (!text || !*text) {
         return L"OmniGhostOverlay";
@@ -169,8 +174,8 @@ void Overlay::CreateOverlay(const char* window_name) {
     int window_top = targetMonitor.rect.top;
     if (compact_mode_) {
         const float systemScale = static_cast<float>(GetDpiForSystem()) / 96.0f;
-        window_width = (std::min)(monitor_width, static_cast<int>(540.0f * systemScale));
-        window_height = (std::min)(monitor_height, static_cast<int>(560.0f * systemScale));
+        window_width = (std::min)(monitor_width, static_cast<int>(kCompactWindowWidth * systemScale));
+        window_height = (std::min)(monitor_height, static_cast<int>(kCompactWindowHeight * systemScale));
         window_left += (monitor_width - window_width) / 2;
         window_top += (monitor_height - window_height) / 2;
     }
@@ -246,8 +251,8 @@ void Overlay::ApplyDisplayConfiguration(bool force) {
         int top = monitor.rect.top;
         if (compact_mode_) {
             const float dpi = OmniGhost::Platform::DpiScaleForWindow(overlay);
-            width = (std::min)(width, static_cast<int>(540.0f * dpi));
-            height = (std::min)(height, static_cast<int>(560.0f * dpi));
+            width = (std::min)(width, static_cast<int>(kCompactWindowWidth * dpi));
+            height = (std::min)(height, static_cast<int>(kCompactWindowHeight * dpi));
             left = monitor.rect.left + ((monitor.rect.right - monitor.rect.left) - width) / 2;
             top = monitor.rect.top + ((monitor.rect.bottom - monitor.rect.top) - height) / 2;
         }

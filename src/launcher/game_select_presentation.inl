@@ -82,7 +82,9 @@ void DrawBackground(
         0x4F474C41u, performance_mode ? 150 : 330);
 
     const float rainDensity = app_settings::DigitalRainDensity();
-    const float rainOpacity = app_settings::DigitalRainOpacity();
+    // Rain is a peripheral brand texture, never the foreground.  Keeping it
+    // inside this narrow range also makes the visual stable across monitors.
+    const float rainOpacity = std::clamp(app_settings::DigitalRainOpacity(), 0.02f, 0.04f);
     DigitalRain::Draw(
         draw,
         ImVec2(0.0f, header),
@@ -867,8 +869,10 @@ void DrawLibrary(ImDrawList* draw, ImVec2 display, float delta) {
     ImFont* title = CyberFonts::GetTitleFont();
     ImFont* body = CyberFonts::GetBodyFont();
     if (body) ImGui::PushFont(body);
+    draw->AddText(ImVec2(content_x, top - S(13.f)),
+        CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.66f), "OMNI // PRODUCT LIBRARY");
     if (title) ImGui::PushFont(title);
-    draw->AddText(ImVec2(content_x, top), C_TEXT(), Loc::Tr("launcher.library"));
+    draw->AddText(ImVec2(content_x, top + S(4.f)), C_TEXT(), Loc::Tr("launcher.library"));
     if (title) ImGui::PopFont();
 
     int visible_count = 0;
@@ -877,11 +881,11 @@ void DrawLibrary(ImDrawList* draw, ImVec2 display, float delta) {
     std::snprintf(count, sizeof(count), Loc::Tr("launcher.games_available"), visible_count);
 
     const float search_width = display.x < S(720.f) ? S(175.f) : S(240.f);
-    ImGui::SetCursorScreenPos(ImVec2(content_right - search_width, top + S(1.f)));
+    ImGui::SetCursorScreenPos(ImVec2(content_right - search_width, top + S(5.f)));
     CyberWidgets::InputField("##library_search", g_search, sizeof(g_search),
         Loc::Tr("launcher.search_hint"), 0, search_width);
 
-    draw->AddText(ImVec2(content_x, top + S(40.f)), C_MUTED(), count);
+    draw->AddText(ImVec2(content_x, top + S(45.f)), C_MUTED(), count);
 
     const char* filters[] = {
         Loc::Tr("launcher.filter.all"),
@@ -890,7 +894,7 @@ void DrawLibrary(ImDrawList* draw, ImVec2 display, float delta) {
         Loc::Tr("launcher.filter.ready")
     };
     float filter_x = content_x + ImGui::CalcTextSize(count).x + S(28.f);
-    const float filter_y = top + S(35.f);
+    const float filter_y = top + S(40.f);
     for (int index = 0; index < 4; ++index) {
         const ImVec2 text_size = ImGui::CalcTextSize(filters[index]);
         const ImVec2 min(filter_x, filter_y);
@@ -915,7 +919,7 @@ void DrawLibrary(ImDrawList* draw, ImVec2 display, float delta) {
     if (body) ImGui::PopFont();
 
     const float gap = display.x < S(760.f) ? S(14.f) : S(20.f);
-    const float start_y = top + S(82.f);
+    const float start_y = top + S(88.f);
     const float footer = S(36.f);
     const float grid_height = (std::max)(S(130.0f), display.y - start_y - footer - S(10.f));
     const float scrollbar_reserve = S(14.0f);

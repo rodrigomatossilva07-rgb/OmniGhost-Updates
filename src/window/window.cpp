@@ -44,6 +44,7 @@ namespace {
         case MenuTab::TAB_VISUALS:     DrawVisuals(); break;
         case MenuTab::TAB_AIM:         DrawAim(); break;
         case MenuTab::TAB_VEHICLES:    DrawVehicles(); break;
+        case MenuTab::TAB_RADAR:       DrawRadar(); break;
         case MenuTab::TAB_FRIENDS:     DrawFriends(); break;
         case MenuTab::TAB_STATUS:      DrawFiveMStatus(); break;
         case MenuTab::TAB_CONFIGS:     DrawConfigs(overlay); break;
@@ -356,7 +357,7 @@ const PerformanceMode::State performance = PerformanceMode::Update(
         Hotkeys::Update();
         
         bool connected = false;
-        const char* build = "Execu��o";
+        const char* build = "Execução";
         int players = -1;
 
         switch (ctx.GetActiveGame()) {
@@ -372,12 +373,12 @@ const PerformanceMode::State performance = PerformanceMode::Update(
             break;
         case OmniGhost::ActiveGame::Warzone:
             connected = Warzone::ready;
-            build = "Warzone � BETA";
+            build = "Warzone · BETA";
             players = static_cast<int>(Warzone::runtime.players.size());
             break;
         case OmniGhost::ActiveGame::Valorant:
             connected = Valorant::runtime.attached;
-            build = "Valorant � BETA";
+            build = "Valorant · BETA";
             players = static_cast<int>(Valorant::runtime.players.size());
             break;
         case OmniGhost::ActiveGame::FiveM:
@@ -471,5 +472,3 @@ void Overlay::WaitForEvents(std::chrono::milliseconds timeout) {
         QS_ALLINPUT, MWMO_ALERTABLE);
     (void)result;
 }
-
-

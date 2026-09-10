@@ -30,7 +30,7 @@ namespace {
         {"nav.friends", {"Amigos", "Friends", "Freunde", "Amigos", "Amis", "Amici", "ðöÐÇÐâðÀÐîÐÅ"}},
         {"nav.configs", {"Definições", "Configs", "Einstellungen", "Ajustes", "Reglages", "Impostazioni", "ðØð░ÐüÐéÐÇð¥ð╣ð║ð©"}},
         {"nav.save", {"Guardar", "Save/Load", "Speichern/Laden", "Guardar/Cargar", "Sauver/Charger", "Salva/Carica", "ðíð¥ÐàÐÇð░ð¢ð©ÐéÐî/ðùð░ð│ÐÇÐâðÀð©ÐéÐî"}},
-        {"nav.status", {"Estado", "Status", "Status", "Status", "Status", "Status", "ðíÐéð░ÐéÐâÐü"}},
+        {"nav.status", {"Sistema", "System", "System", "Sistema", "Système", "Sistema", "ðíÐéð░ÐéÐâÐü"}},
         {"nav.world", {"Mundo", "World", "World", "World", "World", "World", "ð£ð©ÐÇ"}},
         {"nav.players", {"Jogadores", "Players", "Players", "Players", "Players", "Players", "ðÿð│ÐÇð¥ð║ð©"}},
         {"nav.radar", {"Radar", "Radar", "Radar", "Radar", "Radar", "Radar", "ðáð░ð┤ð░ÐÇ"}},

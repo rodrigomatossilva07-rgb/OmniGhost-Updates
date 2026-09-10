@@ -85,7 +85,8 @@ void Draw(
     float opacity = 1.0f,
     float density_scale = 1.0f,
     float motion_scale = 1.0f,
-    bool edge_only = false);
+    bool edge_only = false,
+    bool draw_constellations = true);
 
 // Dynamic performance scaling - called from PerformanceManager
 void SetDynamicDensity(float density_scale) noexcept;

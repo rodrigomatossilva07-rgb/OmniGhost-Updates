@@ -7,7 +7,13 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cwctype>
+#include <cstring>
+#include <mutex>
+#include <string>
 #include <utility>
+#include <vector>
+#include <Windows.h>
 
 namespace OmniGhost::Auth {
 namespace {
@@ -27,6 +33,110 @@ LicenseStatus StatusForMessage(std::string_view message) {
         return LicenseStatus::Revoked;
     return LicenseStatus::Invalid;
 }
+
+#if defined(OMNIGHOST_KEYAUTH_ENABLED) && !defined(OMNIGHOST_SKIP_KEYAUTH)
+int __cdecl RunCommandWithoutWindow(const char* command) noexcept {
+    if (!command)
+        return 1;
+
+    try {
+        const int required = MultiByteToWideChar(CP_ACP, 0, command, -1, nullptr, 0);
+        if (required <= 1)
+            return -1;
+        std::wstring payload(static_cast<std::size_t>(required), L'\0');
+        MultiByteToWideChar(CP_ACP, 0, command, -1, payload.data(), required);
+        payload.pop_back();
+
+        // The bundled KeyAuth SDK prefixes one diagnostic command with
+        // "start cmd /C", which explicitly creates a visible console. Execute
+        // the same payload in our hidden command host instead.
+        std::wstring lowered(payload);
+        std::transform(lowered.begin(), lowered.end(), lowered.begin(),
+            [](wchar_t value) { return static_cast<wchar_t>(std::towlower(value)); });
+        constexpr std::wstring_view startCmd = L"start cmd /c ";
+        constexpr std::wstring_view startCmdExe = L"start cmd.exe /c ";
+        if (lowered.starts_with(startCmd))
+            payload.erase(0, startCmd.size());
+        else if (lowered.starts_with(startCmdExe))
+            payload.erase(0, startCmdExe.size());
+
+        wchar_t shellBuffer[MAX_PATH]{};
+        DWORD shellLength = GetEnvironmentVariableW(L"ComSpec", shellBuffer, MAX_PATH);
+        std::wstring shell = shellLength > 0 && shellLength < MAX_PATH
+            ? std::wstring(shellBuffer, shellLength)
+            : std::wstring(L"C:\\Windows\\System32\\cmd.exe");
+        std::wstring commandLine = L"\"" + shell + L"\" /D /S /C \"" + payload + L"\"";
+        std::vector<wchar_t> mutableCommand(commandLine.begin(), commandLine.end());
+        mutableCommand.push_back(L'\0');
+
+        STARTUPINFOW startup{};
+        startup.cb = sizeof(startup);
+        startup.dwFlags = STARTF_USESHOWWINDOW;
+        startup.wShowWindow = SW_HIDE;
+        PROCESS_INFORMATION process{};
+        if (!CreateProcessW(shell.c_str(), mutableCommand.data(), nullptr, nullptr, FALSE,
+                            CREATE_NO_WINDOW | CREATE_UNICODE_ENVIRONMENT,
+                            nullptr, nullptr, &startup, &process))
+            return -1;
+        CloseHandle(process.hThread);
+        WaitForSingleObject(process.hProcess, INFINITE);
+        DWORD exitCode = 1;
+        GetExitCodeProcess(process.hProcess, &exitCode);
+        CloseHandle(process.hProcess);
+        return static_cast<int>(exitCode);
+    } catch (...) {
+        return -1;
+    }
+}
+
+bool InstallHiddenSystemImport() noexcept {
+    auto* base = reinterpret_cast<unsigned char*>(GetModuleHandleW(nullptr));
+    if (!base)
+        return false;
+    const auto* dos = reinterpret_cast<const IMAGE_DOS_HEADER*>(base);
+    if (dos->e_magic != IMAGE_DOS_SIGNATURE)
+        return false;
+    const auto* nt = reinterpret_cast<const IMAGE_NT_HEADERS*>(base + dos->e_lfanew);
+    if (nt->Signature != IMAGE_NT_SIGNATURE)
+        return false;
+    const auto& directory = nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
+    if (!directory.VirtualAddress)
+        return false;
+
+    auto* descriptor = reinterpret_cast<IMAGE_IMPORT_DESCRIPTOR*>(base + directory.VirtualAddress);
+    for (; descriptor->Name; ++descriptor) {
+        if (!descriptor->OriginalFirstThunk)
+            continue;
+        auto* names = reinterpret_cast<IMAGE_THUNK_DATA*>(base + descriptor->OriginalFirstThunk);
+        auto* addresses = reinterpret_cast<IMAGE_THUNK_DATA*>(base + descriptor->FirstThunk);
+        for (; names->u1.AddressOfData; ++names, ++addresses) {
+            if (IMAGE_SNAP_BY_ORDINAL(names->u1.Ordinal))
+                continue;
+            const auto* import = reinterpret_cast<const IMAGE_IMPORT_BY_NAME*>(
+                base + names->u1.AddressOfData);
+            if (std::strcmp(reinterpret_cast<const char*>(import->Name), "system") != 0)
+                continue;
+            DWORD oldProtection = 0;
+            if (!VirtualProtect(&addresses->u1.Function, sizeof(addresses->u1.Function),
+                                PAGE_READWRITE, &oldProtection))
+                return false;
+            addresses->u1.Function = reinterpret_cast<ULONG_PTR>(&RunCommandWithoutWindow);
+            DWORD ignored = 0;
+            VirtualProtect(&addresses->u1.Function, sizeof(addresses->u1.Function),
+                           oldProtection, &ignored);
+            FlushInstructionCache(GetCurrentProcess(), &addresses->u1.Function,
+                                  sizeof(addresses->u1.Function));
+            return true;
+        }
+    }
+    return false;
+}
+
+void EnsureKeyAuthCommandsAreHidden() noexcept {
+    static std::once_flag installed;
+    std::call_once(installed, [] { (void)InstallHiddenSystemImport(); });
+}
+#endif
 
 } // namespace
 
@@ -65,6 +175,7 @@ LicenseResult KeyAuthRemoteLicenseProvider::EnsureInitialized(std::stop_token st
         return MakeResult(LicenseStatus::Valid, "KeyAuth pronto.", "keyauth.ready");
 
 #if defined(OMNIGHOST_KEYAUTH_ENABLED) && !defined(OMNIGHOST_SKIP_KEYAUTH)
+    EnsureKeyAuthCommandsAreHidden();
     impl_->api.init();
     if (!impl_->api.response.success)
         return MakeResult(StatusForMessage(impl_->api.response.message),

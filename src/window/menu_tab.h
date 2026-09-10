@@ -9,6 +9,7 @@ enum class MenuTab : int {
     TAB_CONFIGS,
     TAB_SAVECONFIG,
     TAB_STATUS,
+    TAB_RADAR,
     // CS2-specific (same style, different pages)
     TAB_CS2_VISUALS = 100,
     TAB_CS2_AIM,
@@ -63,6 +64,7 @@ enum class MenuTab : int {
 void DrawVisuals();
 void DrawAim();
 void DrawVehicles();
+void DrawRadar();
 void DrawFriends();
 void DrawSaveConfigs();
 void DrawFiveMStatus();
