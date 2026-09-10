@@ -490,7 +490,7 @@ void DrawLogin() {
             const std::string user = g_email;
             const std::string pass = g_password;
             if (g_remember_me)
-                OmniGhost::Licensing::SaveRememberedRemoteCredentials(user, pass);
+                (void)OmniGhost::Licensing::SaveRememberedRemoteCredentials(user, pass);
             else
                 OmniGhost::Licensing::ClearRememberedRemoteCredentials();
             StartRemoteOperation(RemoteOperation::Login, user, pass, {});
@@ -567,7 +567,7 @@ void DrawRegister() {
                 const std::string pass = g_password;
                 const std::string key = g_license_key;
                 if (g_remember_me)
-                    OmniGhost::Licensing::SaveRememberedRemoteCredentials(user, pass);
+                    (void)OmniGhost::Licensing::SaveRememberedRemoteCredentials(user, pass);
                 else
                     OmniGhost::Licensing::ClearRememberedRemoteCredentials();
                 StartRemoteOperation(RemoteOperation::Register, user, pass, key);
