@@ -4,6 +4,8 @@
 #include <string>
 #include <string_view>
 
+#include "../auth/keyauth_gateway.h"
+
 namespace OmniGhost::Licensing {
 
 enum class LocalState {
@@ -19,6 +21,8 @@ struct Snapshot {
     bool localLicenseValid = false;
     bool protectedStorage = false;
     bool remoteServiceConfigured = false;
+    bool remoteAuthenticated = false;
+    std::string remoteUsername;
     std::filesystem::path storagePath;
     std::string userMessage;
 };
@@ -32,9 +36,20 @@ struct Snapshot {
 // It is currently available in Release, Tester and Publish at the project owner's
 // explicit request. Remove this API together with its UI before customer rollout.
 [[nodiscard]] bool CreateTemporaryLocalLicense(std::string* userMessage = nullptr);
-// Central game-access gate. The current offline compatibility license grants
-// every integrated product. A future KeyAuth-backed implementation will return
-// independent entitlements and expirations without changing launcher code.
+// KeyAuth account and activation flows. UI code calls these service functions;
+// the official SDK remains isolated behind LicenseGateway.
+[[nodiscard]] OmniGhost::Auth::LicenseResult Login(std::string_view username, std::string_view password);
+[[nodiscard]] OmniGhost::Auth::LicenseResult Register(std::string_view username, std::string_view password,
+                                                       std::string_view licenseKey);
+[[nodiscard]] OmniGhost::Auth::LicenseResult ActivateKey(std::string_view licenseKey);
+[[nodiscard]] OmniGhost::Auth::LicenseResult Upgrade(std::string_view username, std::string_view licenseKey);
+void LogoutRemote() noexcept;
+[[nodiscard]] bool IsRemoteConfigured() noexcept;
+[[nodiscard]] bool IsRemoteAuthenticated() noexcept;
+[[nodiscard]] std::string RemoteUsername();
+// Central game-access gate. A valid KeyAuth session grants the currently
+// integrated products; the development fallback keeps local activation only
+// when OMNIGHOST_SKIP_KEYAUTH is enabled.
 [[nodiscard]] bool HasGameAccess(std::string_view productId);
 [[nodiscard]] bool HasAnyGameAccess();
 [[nodiscard]] Snapshot GetSnapshot();

@@ -114,7 +114,6 @@ void HandlePanic(CS2::Config& cfg) {
         cfg.aim_enabled = false;
         cfg.trigger_enabled = false;
         cfg.esp_enabled = false;
-        cfg.webradar_enabled = false;
         cfg.radar_2d = false;
         cfg.bomb_timer = false;
         MessageBeep(MB_OK);

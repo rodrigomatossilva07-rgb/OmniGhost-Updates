@@ -10,7 +10,6 @@
 #include "../../DMALibrary/Memory/Memory.h"
 #include "../../Fivem/aimbot/aim_type.h"
 #include "../../Fivem/game/game.h"
-#include "../../Fivem/radar/fivem_radar.h"
 #include "../../Fivem/object_esp/object_esp.h"
 #include "../../Fortnite/fortnite_game.h"
 #include "../../Rust/rust_game.h"
@@ -169,7 +168,7 @@ bool StartFiveM() {
         }
         FiveM::Setup();
         if (!FiveM::IsBuildSupported()) {
-            constexpr std::string_view reason = "Build FiveM n├úo suportada pela tabela validada do OmniGhost.";
+            constexpr std::string_view reason = "Build FiveM não suportada pela tabela validada do OmniGhost.";
             OmniGhost::OffsetAuto::MarkOutdated(ActiveGame::FiveM, std::string(reason));
             std::cerr << "[FiveM] " << reason << '\n';
             return false;
@@ -191,7 +190,7 @@ bool StartFiveM() {
 }
 
 std::string_view FiveMStatus() noexcept {
-    return OmniGhost::GameContext::Instance().GetValidExecutable().empty() ? "FiveM n├úo ligado" : "FiveM ligado";
+    return OmniGhost::GameContext::Instance().GetValidExecutable().empty() ? "FiveM não ligado" : "FiveM ligado";
 }
 
 // Static functions for adapter operations to avoid lambda/std::function issues
@@ -237,7 +236,6 @@ IGameAdapter* FindGameAdapter(::Launcher::GameId game) noexcept {
             try {
                 if (!g_validExecutable.empty()) {
                     FiveM::ESP::RunESP();
-                    Fivem_Radar::Update();
                     object_esp::GetObjectESPManager().Update();
                 }
             } catch (const std::exception& ex) {

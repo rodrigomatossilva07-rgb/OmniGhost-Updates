@@ -65,6 +65,8 @@ LicenseResult LicenseGateway::Authenticate(std::string_view licenseKey,
 }
 
 void LicenseGateway::Logout() noexcept {
+    if (provider_)
+        provider_->Logout();
     std::scoped_lock lock(mutex_);
     authenticated_ = false;
 }
@@ -72,6 +74,63 @@ void LicenseGateway::Logout() noexcept {
 bool LicenseGateway::IsAuthenticated() const noexcept {
     std::scoped_lock lock(mutex_);
     return authenticated_;
+}
+
+LicenseResult LicenseGateway::CompleteRemoteOperation(LicenseResult result) {
+    std::scoped_lock lock(mutex_);
+    authenticated_ = result.Ok();
+    if (result.Ok()) {
+        consecutiveFailures_ = 0;
+        lockedUntil_ = {};
+    }
+    return result;
+}
+
+LicenseResult LicenseGateway::Login(std::string_view username, std::string_view password,
+                                    std::stop_token stopToken) {
+    if (stopToken.stop_requested())
+        return Result(LicenseStatus::Cancelled, "Autenticação cancelada.", "auth.cancelled");
+    if (username.empty() || password.empty())
+        return Result(LicenseStatus::Invalid, "Introduz o utilizador e a palavra-passe.", "auth.invalid_input");
+    return CompleteRemoteOperation(provider_ ? provider_->Login(username, password, stopToken)
+        : Result(LicenseStatus::NotConfigured, "KeyAuth não está configurado.", "auth.not_configured"));
+}
+
+LicenseResult LicenseGateway::Register(std::string_view username, std::string_view password,
+                                       std::string_view licenseKey, std::stop_token stopToken) {
+    if (stopToken.stop_requested())
+        return Result(LicenseStatus::Cancelled, "Registo cancelado.", "auth.cancelled");
+    if (username.empty() || password.empty() || licenseKey.empty())
+        return Result(LicenseStatus::Invalid, "Introduz utilizador, palavra-passe e chave de licença.", "auth.invalid_input");
+    return CompleteRemoteOperation(provider_ ? provider_->Register(username, password, licenseKey, stopToken)
+        : Result(LicenseStatus::NotConfigured, "KeyAuth não está configurado.", "auth.not_configured"));
+}
+
+LicenseResult LicenseGateway::Activate(std::string_view licenseKey, std::stop_token stopToken) {
+    if (stopToken.stop_requested())
+        return Result(LicenseStatus::Cancelled, "Ativação cancelada.", "auth.cancelled");
+    if (licenseKey.empty())
+        return Result(LicenseStatus::Invalid, "Introduz uma chave de licença.", "auth.invalid_input");
+    return CompleteRemoteOperation(provider_ ? provider_->Activate(licenseKey, stopToken)
+        : Result(LicenseStatus::NotConfigured, "KeyAuth não está configurado.", "auth.not_configured"));
+}
+
+LicenseResult LicenseGateway::Upgrade(std::string_view username, std::string_view licenseKey,
+                                      std::stop_token stopToken) {
+    if (stopToken.stop_requested())
+        return Result(LicenseStatus::Cancelled, "Upgrade cancelado.", "auth.cancelled");
+    if (username.empty() || licenseKey.empty())
+        return Result(LicenseStatus::Invalid, "Introduz o utilizador e a chave de licença.", "auth.invalid_input");
+    return CompleteRemoteOperation(provider_ ? provider_->Upgrade(username, licenseKey, stopToken)
+        : Result(LicenseStatus::NotConfigured, "KeyAuth não está configurado.", "auth.not_configured"));
+}
+
+bool LicenseGateway::IsConfigured() const noexcept {
+    return provider_ && provider_->IsConfigured();
+}
+
+std::string LicenseGateway::CurrentUsername() const {
+    return provider_ ? provider_->CurrentUsername() : std::string{};
 }
 
 void LicenseGateway::SetOfflineGrantForTesting(
@@ -82,4 +141,3 @@ void LicenseGateway::SetOfflineGrantForTesting(
 }
 
 } // namespace OmniGhost::Auth
-

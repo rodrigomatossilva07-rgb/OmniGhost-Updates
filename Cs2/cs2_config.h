@@ -106,13 +106,6 @@ struct Config {
 
     int profile = 0; // 0 custom, 1 legit, 2 rage
 
-    bool webradar_enabled = false;
-    int webradar_port = 8080;
-    // Local-only by default. LAN/public exposure must be an explicit user choice.
-    bool webradar_lan = false;
-    bool webradar_qr = false;
-    bool webradar_cloudflare = false; // public link via cloudflared
-
     int max_entities = 32;
     bool auto_entity_cap = true;
 

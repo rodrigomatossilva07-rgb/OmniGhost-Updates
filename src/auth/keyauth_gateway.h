@@ -31,7 +31,7 @@ struct LicenseResult {
     [[nodiscard]] bool Ok() const noexcept { return status == LicenseStatus::Valid; }
 };
 
-// Boundary implemented by a future KeyAuth adapter. It deliberately accepts no
+// Boundary implemented by the KeyAuth adapter. It deliberately accepts no
 // Seller API key: administrative credentials must exist only in CI/backend code.
 class IRemoteLicenseProvider {
 public:
@@ -39,6 +39,24 @@ public:
     virtual LicenseResult Authenticate(std::string_view licenseKey,
                                        std::string_view hardwareId,
                                        std::stop_token stopToken) = 0;
+
+    // Account operations deliberately live behind the same gateway boundary as
+    // license-only activation. The launcher never owns an SDK instance.
+    virtual LicenseResult Login(std::string_view, std::string_view, std::stop_token) {
+        return {LicenseStatus::NotConfigured, "O serviço de autenticação não está configurado.", "auth.not_configured", {}};
+    }
+    virtual LicenseResult Register(std::string_view, std::string_view, std::string_view, std::stop_token) {
+        return {LicenseStatus::NotConfigured, "O serviço de autenticação não está configurado.", "auth.not_configured", {}};
+    }
+    virtual LicenseResult Activate(std::string_view, std::stop_token) {
+        return {LicenseStatus::NotConfigured, "O serviço de autenticação não está configurado.", "auth.not_configured", {}};
+    }
+    virtual LicenseResult Upgrade(std::string_view, std::string_view, std::stop_token) {
+        return {LicenseStatus::NotConfigured, "O serviço de autenticação não está configurado.", "auth.not_configured", {}};
+    }
+    virtual void Logout() noexcept {}
+    [[nodiscard]] virtual std::string CurrentUsername() const { return {}; }
+    [[nodiscard]] virtual bool IsConfigured() const noexcept { return false; }
 };
 
 class LicenseGateway final {
@@ -50,8 +68,17 @@ public:
                                bool allowOffline,
                                std::chrono::steady_clock::time_point now,
                                std::stop_token stopToken = {});
+    LicenseResult Login(std::string_view username, std::string_view password,
+                        std::stop_token stopToken = {});
+    LicenseResult Register(std::string_view username, std::string_view password,
+                           std::string_view licenseKey, std::stop_token stopToken = {});
+    LicenseResult Activate(std::string_view licenseKey, std::stop_token stopToken = {});
+    LicenseResult Upgrade(std::string_view username, std::string_view licenseKey,
+                          std::stop_token stopToken = {});
     void Logout() noexcept;
     [[nodiscard]] bool IsAuthenticated() const noexcept;
+    [[nodiscard]] bool IsConfigured() const noexcept;
+    [[nodiscard]] std::string CurrentUsername() const;
 
     void SetOfflineGrantForTesting(std::string hardwareId,
                                    std::chrono::steady_clock::time_point expiresAt);
@@ -67,7 +94,8 @@ private:
     std::string offlineHardwareId_;
     std::chrono::steady_clock::time_point offlineExpiresAt_{};
     bool authenticated_{};
+
+    LicenseResult CompleteRemoteOperation(LicenseResult result);
 };
 
 } // namespace OmniGhost::Auth
-

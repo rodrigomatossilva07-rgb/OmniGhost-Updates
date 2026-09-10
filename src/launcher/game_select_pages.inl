@@ -33,20 +33,22 @@ void DrawHome(ImVec2 display) {
     const float gap = S(14.f);
     const float available = ImGui::GetContentRegionAvail().x;
     const bool two = available >= S(760.f);
-    const float cardWidth = two ? (available - gap) * .5f : available;
+    const float heroWidth = two ? (available - gap) * .64f : available;
+    const float systemWidth = two ? (available - gap) - heroWidth : available;
 
-    CyberWidgets::BeginCard(Loc::Tr("launcher.continue_last"), cardWidth);
+    CyberWidgets::BeginCard("CONTINUAR", heroWidth);
     const GameId last = LastPlayedGame();
     if (last != GameId::None) {
         const GameDefinition* game = FindGame(last);
         GameRuntime* runtime = FindRuntime(last);
         const GameHistory history = GetGameHistory(last);
         if (game && runtime) {
+            CyberWidgets::Badge(IsReadyState(runtime->state) ? "READY" : CardStateLabel(runtime->state),
+                IsReadyState(runtime->state) ? CyberWidgets::TextTone::Success : CyberWidgets::TextTone::Warning);
             CyberWidgets::TextLine(game->name, CyberWidgets::TextTone::Primary);
-            CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, "%s · %s",
+            CyberWidgets::TextLine("DMA PREMIUM", CyberWidgets::TextTone::Secondary);
+            CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, "Última sessão · %s · %s",
                 SessionResultDisplay(history.lastResult), FormatLastUsed(history.lastUsedUnix).c_str());
-            CyberWidgets::TextLineF(IsReadyState(runtime->state) ? CyberWidgets::TextTone::Success : CyberWidgets::TextTone::Warning,
-                "%s", CardStateLabel(runtime->state));
             ImGui::Dummy(ImVec2(0, S(8.f)));
             if (IsReadyState(runtime->state)) {
                 if (CyberWidgets::GoldButton(Loc::Tr("launcher.action.continue"), ImVec2(S(150.f), S(34.f))))
@@ -61,21 +63,23 @@ void DrawHome(ImVec2 display) {
     CyberWidgets::EndCard();
 
     if (two) ImGui::SameLine(0.f, gap);
-    CyberWidgets::BeginCard(Loc::Tr("launcher.device_status"), cardWidth);
+    CyberWidgets::BeginCard("SISTEMA", systemWidth);
     const auto dma = mem.GetDiagnosticsSnapshot();
     const auto update = OmniGhost::Update::UpdateService::Instance().GetSnapshot();
-    CyberWidgets::KeyValueRow("DMA", dma.deviceOpen ? Loc::Tr("launcher.connected")
-        : (dma.deviceDetected ? "Detetado" : "Não detetado"));
+    CyberWidgets::HealthRow("DMA", dma.deviceOpen ? Loc::Tr("launcher.connected")
+        : (dma.deviceDetected ? "Detetado" : "Não detetado"),
+        dma.deviceOpen ? CyberWidgets::HealthStatus::Ok : CyberWidgets::HealthStatus::Warning);
     std::string input = std::string(InputDeviceName()) + " · " +
         (InputDeviceConnected() ? Loc::Tr("launcher.connected") : Loc::Tr("launcher.standby"));
-    CyberWidgets::KeyValueRow(Loc::Tr("launcher.input"), input.c_str());
-    CyberWidgets::KeyValueRow(Loc::Tr("launcher.updates_status"), UpdateStatusText(update));
+    CyberWidgets::HealthRow(Loc::Tr("launcher.input"), input.c_str(), InputDeviceConnected() ? CyberWidgets::HealthStatus::Ok : CyberWidgets::HealthStatus::Warning);
+    CyberWidgets::HealthRow(Loc::Tr("launcher.updates_status"), UpdateStatusText(update),
+        update.status == OmniGhost::Update::Status::Error ? CyberWidgets::HealthStatus::Error : CyberWidgets::HealthStatus::Ok);
     if (!dma.dependencyIntegrityOk)
         CyberWidgets::TextLine("Integridade das dependências DMA requer atenção.", CyberWidgets::TextTone::Warning);
     CyberWidgets::EndCard();
 
     ImGui::Dummy(ImVec2(0, gap));
-    CyberWidgets::BeginCard(Loc::Tr("launcher.last_session"), cardWidth);
+    CyberWidgets::BeginCard("ATIVIDADE RECENTE", two ? (available - gap) * .5f : available);
     if (last != GameId::None) {
         const GameDefinition* game = FindGame(last);
         const GameHistory history = GetGameHistory(last);
@@ -91,7 +95,7 @@ void DrawHome(ImVec2 display) {
     CyberWidgets::EndCard();
 
     if (two) ImGui::SameLine(0.f, gap);
-    CyberWidgets::BeginCard("Resumo da biblioteca", cardWidth);
+    CyberWidgets::BeginCard("BIBLIOTECA", two ? (available - gap) * .5f : available);
     std::size_t homeGameCount = 0;
     const GameDefinition* homeGames = Games(homeGameCount);
     std::size_t availableGames = 0;
@@ -100,11 +104,9 @@ void DrawHome(ImVec2 display) {
     }
     const std::string availableSummary = std::to_string(availableGames) + " produtos disponíveis";
     CyberWidgets::KeyValueRow("Catálogo", availableSummary.c_str());
-    CyberWidgets::KeyValueRow("Estado", "Pronto para abrir a Biblioteca");
-    CyberWidgets::KeyValueRow("Versão", UiFormat::Version(OmniGhost::Version).c_str());
-    CyberWidgets::KeyValueRow("Canal", LocalizedChannelLabel(OmniGhost::BuildInfo::ReleaseChannel));
-    CyberWidgets::TextLine("Abre a Biblioteca para consultar compatibilidade, estado e iniciar um produto.",
-        CyberWidgets::TextTone::Secondary);
+    CyberWidgets::KeyValueRow("Estado", "Pronto para explorar");
+    if (CyberWidgets::Button("Abrir biblioteca", CyberWidgets::ButtonStyle::Secondary, ImVec2(S(165.f), S(33.f))))
+        ChangeNavigation(static_cast<int>(NavPage::Library));
     CyberWidgets::EndCard();
 
     EndControlPage();
@@ -265,6 +267,7 @@ void DrawDiagnostics(ImVec2 display) {
     CyberWidgets::EndCard();
 
     ImGui::Dummy(ImVec2(0, S(14.f)));
+    if (ImGui::CollapsingHeader("DETALHES TÉCNICOS", ImGuiTreeNodeFlags_None)) {
     CyberWidgets::BeginCard(Loc::Tr("launcher.build_metadata"), 0.f);
     CyberWidgets::KeyValueRow(Loc::Tr("launcher.build_id"), OmniGhost::BuildInfo::BuildId);
     CyberWidgets::KeyValueRow(Loc::Tr("launcher.commit_source"), OmniGhost::BuildInfo::CommitId);
@@ -278,6 +281,7 @@ void DrawDiagnostics(ImVec2 display) {
     CyberWidgets::KeyValueRow(Loc::Tr("launcher.reproducible"),
                               OmniGhost::BuildInfo::Reproducible ? Loc::Tr("launcher.yes") : Loc::Tr("launcher.no"));
     CyberWidgets::EndCard();
+    }
 
     ImGui::Dummy(ImVec2(0, S(14.f)));
     CyberWidgets::BeginCard(Loc::Tr("launcher.installation"), 0.f);
@@ -421,23 +425,34 @@ void DrawSettings(ImVec2 display) {
     BeginControlPage("##launcher_settings", display);
     DrawPageHeading(Loc::Tr("launcher.settings"), Loc::Tr("launcher.settings.description"));
 
-    struct SettingsNavigationItem { app_settings::SettingsPage page; const char* label; };
+    struct SettingsNavigationItem {
+        app_settings::SettingsPage page;
+        const char* label;
+        const char* group;
+    };
     const SettingsNavigationItem navigation[] = {
-        {app_settings::SettingsPage::General, Loc::Tr("launcher.settings.general")},
-        {app_settings::SettingsPage::Appearance, Loc::Tr("launcher.settings.appearance")},
-        {app_settings::SettingsPage::Overlay, Loc::Tr("launcher.settings.overlay")},
-        {app_settings::SettingsPage::Input, Loc::Tr("launcher.settings.input")},
-        {app_settings::SettingsPage::Licenses, Loc::Tr("launcher.settings.licenses")},
-        {app_settings::SettingsPage::Updates, Loc::Tr("launcher.updates")},
-        {app_settings::SettingsPage::Language, Loc::Tr("launcher.language")},
-        {app_settings::SettingsPage::Diagnostics, Loc::Tr("launcher.diagnostics")},
-        {app_settings::SettingsPage::About, Loc::Tr("launcher.settings.about")}
+        {app_settings::SettingsPage::General, Loc::Tr("launcher.settings.general"), "GERAL"},
+        {app_settings::SettingsPage::Appearance, Loc::Tr("launcher.settings.appearance"), "APARÊNCIA"},
+        {app_settings::SettingsPage::Overlay, Loc::Tr("launcher.settings.overlay"), "APARÊNCIA"},
+        {app_settings::SettingsPage::Input, Loc::Tr("launcher.settings.input"), "CONTROLOS"},
+        {app_settings::SettingsPage::Licenses, Loc::Tr("launcher.settings.licenses"), "SISTEMA"},
+        {app_settings::SettingsPage::Updates, Loc::Tr("launcher.updates"), "SISTEMA"},
+        {app_settings::SettingsPage::Language, Loc::Tr("launcher.language"), "SISTEMA"},
+        {app_settings::SettingsPage::Diagnostics, Loc::Tr("launcher.diagnostics"), "SISTEMA"},
+        {app_settings::SettingsPage::About, Loc::Tr("launcher.settings.about"), "SISTEMA"}
     };
     if (page == app_settings::SettingsPage::Devices)
         page = app_settings::SettingsPage::General;
     const float navWidth = S(176.f);
     ImGui::BeginChild("##settings_nav", ImVec2(navWidth, 0.f), false);
+    const char* previousGroup = nullptr;
     for (const SettingsNavigationItem& item : navigation) {
+        if (!previousGroup || std::strcmp(previousGroup, item.group) != 0) {
+            if (previousGroup) ImGui::Dummy(ImVec2(0.f, S(8.f)));
+            ImGui::TextColored(CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.68f), "%s", item.group);
+            ImGui::Dummy(ImVec2(0.f, S(4.f)));
+            previousGroup = item.group;
+        }
         const bool selected = page == item.page;
         if (selected) ImGui::PushStyleColor(ImGuiCol_Button, CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.16f));
         if (CyberWidgets::CyberButton(item.label, ImVec2(navWidth - S(8.f), S(36.f))))
@@ -582,6 +597,8 @@ void DrawSettings(ImVec2 display) {
         break;
     case app_settings::SettingsPage::Licenses: {
         const auto license = OmniGhost::Licensing::GetSnapshot();
+        const bool remote = license.remoteServiceConfigured;
+        const bool accessActive = remote ? license.remoteAuthenticated : license.localLicenseValid;
         std::size_t gameCount = 0;
         const GameDefinition* gameList = Games(gameCount);
         std::size_t integratedGames = 0;
@@ -594,20 +611,22 @@ void DrawSettings(ImVec2 display) {
         const float licenseColumnWidth = CyberWidgets::CardRowHalfWidth();
         CyberWidgets::BeginCard("Estado da licença", licenseColumnWidth);
         CyberWidgets::Badge(
-            license.localLicenseValid ? "ACESSO LOCAL ATIVO" : "AÇÃO NECESSÁRIA",
-            license.localLicenseValid ? CyberWidgets::TextTone::Success : CyberWidgets::TextTone::Warning);
+            accessActive ? (remote ? "SESSÃO KEYAUTH ATIVA" : "ACESSO LOCAL ATIVO") : "AÇÃO NECESSÁRIA",
+            accessActive ? CyberWidgets::TextTone::Success : CyberWidgets::TextTone::Warning);
         ImGui::Dummy(ImVec2(0, S(6.f)));
-        CyberWidgets::KeyValueRow("Modo", license.remoteServiceConfigured
-            ? Loc::Tr("launcher.online_licensing") : "Compatibilidade local");
-        CyberWidgets::KeyValueRow("Estado", OmniGhost::Licensing::StateLabel(license.localState));
-        CyberWidgets::KeyValueRow("Armazenamento", license.protectedStorage
-            ? "Protegido por Windows DPAPI" : "Ainda não inicializado");
-        const std::string coverage = license.localLicenseValid
+        CyberWidgets::KeyValueRow("Modo", remote ? "KeyAuth" : "Compatibilidade local");
+        CyberWidgets::KeyValueRow("Estado", remote
+            ? (license.remoteAuthenticated ? "Autenticado" : "Sem sessão")
+            : OmniGhost::Licensing::StateLabel(license.localState));
+        CyberWidgets::KeyValueRow("Armazenamento", remote ? "Sessão remota" : (license.protectedStorage
+            ? "Protegido por Windows DPAPI" : "Ainda não inicializado"));
+        const std::string coverage = accessActive
             ? std::to_string(integratedGames) + " jogos autorizados"
             : "Nenhum jogo autorizado";
         CyberWidgets::KeyValueRow("Cobertura", coverage.c_str());
-        CyberWidgets::TextLine(
-            "A conta e a licença são independentes. O acesso é revisto imediatamente após cada alteração.",
+        CyberWidgets::TextLine(remote
+            ? "A sessão KeyAuth controla o acesso aos jogos desta instalação."
+            : "A conta e a licença são independentes. O acesso é revisto imediatamente após cada alteração.",
             CyberWidgets::TextTone::Secondary);
         CyberWidgets::EndCard();
 
@@ -624,8 +643,13 @@ void DrawSettings(ImVec2 display) {
         CyberWidgets::EndCard();
         CyberWidgets::EndCardRow();
 
-        CyberWidgets::BeginCard("Ativação local", 0.f);
-        if (!license.localLicenseValid) {
+        CyberWidgets::BeginCard(remote ? "Licenciamento KeyAuth" : "Ativação local", 0.f);
+        if (remote) {
+            CyberWidgets::InlineMessage(license.remoteAuthenticated
+                ? "A sessão KeyAuth está ativa. Terminar sessão bloqueia imediatamente os jogos."
+                : "Inicia sessão, cria uma conta ou ativa uma key na página de autenticação para desbloquear os jogos.",
+                license.remoteAuthenticated ? CyberWidgets::TextTone::Success : CyberWidgets::TextTone::Warning);
+        } else if (!license.localLicenseValid) {
             CyberWidgets::TextLine(
                 "Introduz uma licença válida ou cria temporariamente o acesso local desta instalação.",
                 CyberWidgets::TextTone::Secondary);
@@ -816,17 +840,35 @@ void DrawAccount(ImVec2 display) {
     const auto& auth = OmniGhost::Auth::LocalAuthService::Instance();
     const auto license = OmniGhost::Licensing::GetSnapshot();
 
-    CyberWidgets::BeginCard(Loc::Tr("launcher.profile"), 0.f);
-    CyberWidgets::KeyValueRow(Loc::Tr("launcher.email"), auth.CurrentEmail().empty() ? "—" : auth.CurrentEmail().c_str());
-    CyberWidgets::KeyValueRow(Loc::Tr("launcher.authentication"), Loc::Tr("launcher.local_dpapi"));
-    CyberWidgets::KeyValueRow(Loc::Tr("launcher.remember_me"), auth.RememberMe() ? Loc::Tr("launcher.enabled") : Loc::Tr("launcher.disabled"));
+    const bool remote = license.remoteServiceConfigured;
+    const std::string identity = remote ? license.remoteUsername : MaskEmail(auth.CurrentEmail());
+    const bool accessActive = remote ? license.remoteAuthenticated : license.localLicenseValid;
+    CyberWidgets::BeginCardRow(2);
+    const float columnWidth = CyberWidgets::CardRowHalfWidth();
+    CyberWidgets::BeginCard(Loc::Tr("launcher.profile"), columnWidth);
+    CyberWidgets::Badge("SESSÃO PRIVADA", CyberWidgets::TextTone::Success);
+    ImGui::Dummy(ImVec2(0, S(7.f)));
+    CyberWidgets::KeyValueRow(remote ? "Utilizador" : Loc::Tr("launcher.email"), identity.empty() ? "—" : identity.c_str());
+    CyberWidgets::KeyValueRow(Loc::Tr("launcher.authentication"), remote ? "KeyAuth" : Loc::Tr("launcher.local_dpapi"));
+    CyberWidgets::KeyValueRow(Loc::Tr("launcher.remember_me"), remote ? "Sessão atual" : (auth.RememberMe() ? Loc::Tr("launcher.enabled") : Loc::Tr("launcher.disabled")));
+    CyberWidgets::TextLine(remote ? "As credenciais não são guardadas pelo launcher." : "O endereço completo não é exposto nesta interface.", CyberWidgets::TextTone::Secondary);
     CyberWidgets::EndCard();
 
+    CyberWidgets::NextCardColumn();
+    CyberWidgets::BeginCard(Loc::Tr("launcher.license"), columnWidth);
+    CyberWidgets::Badge(accessActive ? "ACESSO ATIVO" : "AÇÃO NECESSÁRIA",
+        accessActive ? CyberWidgets::TextTone::Success : CyberWidgets::TextTone::Warning);
+    ImGui::Dummy(ImVec2(0, S(7.f)));
+    CyberWidgets::KeyValueRow(Loc::Tr("launcher.state"), remote
+        ? (license.remoteAuthenticated ? "Sessão KeyAuth válida" : "Sem sessão KeyAuth")
+        : OmniGhost::Licensing::StateLabel(license.localState));
+    CyberWidgets::KeyValueRow(Loc::Tr("launcher.storage"), remote ? "KeyAuth" : (license.protectedStorage ? "Windows DPAPI" : Loc::Tr("launcher.unprotected_missing")));
+    CyberWidgets::TextLine(remote ? "O acesso aos jogos depende da sessão KeyAuth atual." : Loc::Tr("launcher.license_separate"), CyberWidgets::TextTone::Secondary);
+    CyberWidgets::EndCard();
+    CyberWidgets::EndCardRow();
+
     ImGui::Dummy(ImVec2(0, S(14.f)));
-    CyberWidgets::BeginCard(Loc::Tr("launcher.license"), 0.f);
-    CyberWidgets::KeyValueRow(Loc::Tr("launcher.state"), OmniGhost::Licensing::StateLabel(license.localState));
-    CyberWidgets::KeyValueRow(Loc::Tr("launcher.storage"), license.protectedStorage ? "Windows DPAPI" : Loc::Tr("launcher.unprotected_missing"));
-    CyberWidgets::TextLine(Loc::Tr("launcher.license_separate"), CyberWidgets::TextTone::Secondary);
+    CyberWidgets::BeginCard("AÇÕES DA CONTA", 0.f);
     ImGui::Dummy(ImVec2(0, S(8.f)));
     if (CyberWidgets::CyberButton(Loc::Tr("launcher.refresh_state"), ImVec2(S(140.f), S(32.f))))
         OmniGhost::Licensing::Refresh();
@@ -844,9 +886,9 @@ void DrawAccount(ImVec2 display) {
 
     ImGui::Dummy(ImVec2(0, S(14.f)));
     if (CyberWidgets::DangerButton(Loc::Tr("launcher.logout"), ImVec2(S(160.f), S(36.f)))) {
+        OmniGhost::Licensing::LogoutRemote();
         OmniGhost::Auth::LocalAuthService::Instance().Logout(true);
         g_logout_requested = true;
     }
     EndControlPage();
 }
-

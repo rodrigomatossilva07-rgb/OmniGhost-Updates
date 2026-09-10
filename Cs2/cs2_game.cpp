@@ -4,7 +4,6 @@
 #include "../src/platform/embedded_offsets.h"
 #include "cs2_esp.h"
 #include "cs2_aim.h"
-#include "cs2_radar.h"
 #include "cs2_weapons.h"
 #include "Memory/Memory.h"
 #include "globals.h"
@@ -147,7 +146,6 @@ bool NeedsPlayerScan() {
         || config.aim_enabled
         || config.trigger_enabled
         || config.radar_2d
-        || config.webradar_enabled
         || config.spectator_list
         || config.recoil_visual
         || config.offscreen_arrows
@@ -1441,10 +1439,6 @@ void RunFrame() {
     if (!runtime.in_match) {
         zero_player_frames = 0;
         status = "Lobby / a aguardar partida (map/pawn probe ativo)";
-        if (config.webradar_enabled && (runtime.frames % 6) == 0)
-            CS2_Radar::Update(runtime, config);
-        else if (!config.webradar_enabled)
-            CS2_Radar::Update(runtime, config);
         return;
     }
 
@@ -1455,20 +1449,12 @@ void RunFrame() {
             UpdateBombState();
         else if (!config.bomb_timer)
             runtime.bomb = BombState{};
-        if (config.webradar_enabled && (runtime.frames % 6) == 0)
-            CS2_Radar::Update(runtime, config);
-        else if (!config.webradar_enabled)
-            CS2_Radar::Update(runtime, config);
         return;
     }
 
     if (!ProbeViewMatrix(runtime.view_matrix)) {
         if ((runtime.frames % 180) == 1)
             std::cout << "[CS2] ViewMatrix fail (fails=" << runtime.read_fails << ")" << std::endl;
-        if (config.webradar_enabled && (runtime.frames % 6) == 0)
-            CS2_Radar::Update(runtime, config);
-        else if (!config.webradar_enabled)
-            CS2_Radar::Update(runtime, config);
         return;
     }
 
@@ -1547,10 +1533,6 @@ void RunFrame() {
             runtime.player_count = static_cast<int>(runtime.players.size());
             ++last_good_age;
         }
-        if (config.webradar_enabled && (runtime.frames % 6) == 0)
-            CS2_Radar::Update(runtime, config);
-        else if (!config.webradar_enabled)
-            CS2_Radar::Update(runtime, config);
         return;
     }
 
@@ -1628,7 +1610,7 @@ void RunFrame() {
     requested.health = config.health_bar;
     requested.armor = config.armor_bar;
     requested.snapline = config.snaplines;
-    requested.name = config.name || config.webradar_enabled || config.spectator_list;
+    requested.name = config.name || config.spectator_list;
     requested.weapon = config.weapon_icons;
     requested.distance = config.distance;
     requested.aim = config.aim_enabled || config.trigger_enabled;
@@ -1644,7 +1626,7 @@ void RunFrame() {
         fields, OmniGhost::Gameplay::EspCore::DataField::Name);
     const bool need_weapons = OmniGhost::Gameplay::EspCore::Has(
         fields, OmniGhost::Gameplay::EspCore::DataField::Weapon);
-    const bool need_yaw = config.webradar_enabled || config.radar_2d ||
+    const bool need_yaw = config.radar_2d ||
         OmniGhost::Gameplay::EspCore::Has(
             fields, OmniGhost::Gameplay::EspCore::DataField::Facing);
     const bool track_velocity = OmniGhost::Gameplay::EspCore::Has(
@@ -2090,12 +2072,6 @@ void RunFrame() {
 
     // Presentation (ESP / Aim) stays in main.cpp — calling them here too
     // doubled DMA + mouse work every frame and tanked FPS / aim pull.
-    if (config.webradar_enabled) {
-        if ((runtime.frames % 6) == 0)
-            CS2_Radar::Update(runtime, config);
-    } else {
-        CS2_Radar::Update(runtime, config);
-    }
 }
 
 
@@ -2127,7 +2103,6 @@ bool ReinitDma() {
 }
 
 void Shutdown() {
-    CS2_Radar::Shutdown();
     DestroyScatter();
     g_pending_entity_list = 0;
     g_entity_list_confirmations = 0;

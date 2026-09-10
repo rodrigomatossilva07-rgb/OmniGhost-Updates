@@ -23,7 +23,6 @@
 #include "../Fivem/aimbot/aimbot.h"
 #include "../Fivem/friends/friends.h"
 #include "../Cs2/cs2_game.h"
-#include "../Cs2/cs2_radar.h"
 #include "../Cs2/cs2_esp.h"
 #include "../Cs2/cs2_aim.h"
 #include "../Rust/rust_game.h"
@@ -60,14 +59,15 @@
 #include <cfloat>
 #include <cmath>
 #include <cstdint>
+#include <cwchar>
 #include <future>
 #include <iostream>
 #include <iterator>
 #include <string>
 #include <thread>
 
-#if (defined(OMNIGHOST_TESTER_BUILD) || defined(OMNIGHOST_PUBLISH_BUILD)) && !defined(OMNIGHOST_REQUIRE_LOCAL_LICENSE)
-#error Distribution builds must retain product-entitlement enforcement.
+#if defined(OMNIGHOST_PUBLISH_BUILD) && !defined(OMNIGHOST_KEYAUTH_ENABLED) && !defined(OMNIGHOST_SKIP_KEYAUTH)
+#error Publish builds must retain a configured entitlement provider.
 #endif
 
 namespace {
@@ -76,6 +76,34 @@ namespace {
 
 // DMA reads the *remote* process list (game PC), not this machine's Task Manager.
 // Local Toolhelp32 never sees FiveM when the cheat runs on the second PC.
+
+// A DMA PID lookup is intentionally not treated as an authoritative liveness
+// signal.  During a VMM refresh it can be empty even while FiveM is running.
+// When OmniGhost and the game share a PC, Toolhelp gives us an independent,
+// cheap confirmation before a session is ever returned to the launcher.
+bool IsLocalFiveMProcessRunning() noexcept {
+    HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (snapshot == INVALID_HANDLE_VALUE)
+        return false;
+
+    PROCESSENTRY32W entry{};
+    entry.dwSize = sizeof(entry);
+    bool found = false;
+    if (Process32FirstW(snapshot, &entry)) {
+        do {
+            const wchar_t* name = entry.szExeFile;
+            const bool buildProcess = wcsstr(name, L"FiveM_b") == name &&
+                wcsstr(name, L"_GTAProcess.exe") != nullptr;
+            if (_wcsicmp(name, L"GTAProcess.exe") == 0 ||
+                _wcsicmp(name, L"FiveM_GTAProcess.exe") == 0 || buildProcess) {
+                found = true;
+                break;
+            }
+        } while (Process32NextW(snapshot, &entry));
+    }
+    CloseHandle(snapshot);
+    return found;
+}
 
 int RunOmniGhost(int argc, wchar_t** argv) {
     OmniGhost::Startup::StateMachine startupState;
@@ -276,7 +304,6 @@ int RunOmniGhost(int argc, wchar_t** argv) {
         [&application] { application.Shutdown(); });
     (void)shutdownCoordinator.Register(
         OmniGhost::Platform::ShutdownComponent::Radar, 900,
-        [] { CS2_Radar::Shutdown(); });
 
     // The app is now visibly alive. Waiting for a user to enter a local license or
     // account must not be interpreted by the updater/crash recovery as startup failure.
@@ -731,6 +758,12 @@ while (application.shouldRun && !authenticated) {
 
 
     int process_miss_frames = 0;
+    // DMA name lookups can fail transiently while FiveM changes process state or
+    // the hardware session is being refreshed.  A single missed lookup must not
+    // be interpreted as the game closing.
+    ULONGLONG fivem_missing_since = 0;
+    ULONGLONG fivem_next_alive_check = 0;
+    bool fivem_presence_confirmed = false;
     int offset_probe_failures = 0;
     ULONGLONG next_offset_probe = GetTickCount64() + 5000;
     bool return_to_launcher = false;
@@ -830,11 +863,11 @@ while (application.shouldRun && !authenticated) {
                 break;
             }
             case ActiveGame::FiveM: {
-                // Only process FiveM logic if we have a valid executable
-                if (!g_validExecutable.empty()) {
-                    static int fivem_alive_tick = 0;
-                    if (++fivem_alive_tick >= 30) {
-                        fivem_alive_tick = 0;
+                // Do not conflate a transient DMA/PID lookup miss with the game
+                // exiting.  FiveM can expose GTAProcess under several names.
+                const ULONGLONG now = GetTickCount64();
+                if (now >= fivem_next_alive_check) {
+                    fivem_next_alive_check = now + 1000;
                         DWORD pid = 0;
                         if (!g_validExecutable.empty())
                             pid = mem.GetPidFromName(g_validExecutable);
@@ -851,16 +884,29 @@ while (application.shouldRun && !authenticated) {
                                 if (pid) break;
                             }
                         }
-                        if (!pid) {
-                            ++process_miss_frames;
-                            if (process_miss_frames >= 1) {
+                        const bool localProcessAlive = IsLocalFiveMProcessRunning();
+                        if (pid || localProcessAlive) {
+                            fivem_presence_confirmed = true;
+                            fivem_missing_since = 0;
+                            process_miss_frames = 0;
+                        } else if (fivem_presence_confirmed) {
+                            if (fivem_missing_since == 0) {
+                                fivem_missing_since = now;
+                                std::cout << "[FiveM] DMA e processo local não confirmaram FiveM; a confirmar antes de encerrar a sessão." << std::endl;
+                            }
+                            // Keep the session alive through VMM/FPGA refreshes. A return is
+                            // permitted only after a continuous, independently confirmed miss.
+                            if (now - fivem_missing_since >= 20000) {
                                 shouldReturnToLauncher = true;
                                 terminationReason = "Processo FiveM/GTA terminou";
                             }
                         } else {
-                            process_miss_frames = 0;
+                            // The adapter attached successfully, but this machine may be the
+                            // controller rather than the game PC. Never infer an exit merely
+                            // because neither local Toolhelp nor a transient DMA lookup has
+                            // observed the remote executable yet.
+                            fivem_missing_since = 0;
                         }
-                    }
                 }
                 break;
             }

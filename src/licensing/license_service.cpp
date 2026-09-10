@@ -1,6 +1,8 @@
 #pragma warning(disable: 5046)
 #include "license_service.h"
 
+#include "../auth/keyauth_remote_provider.h"
+
 #include "../platform/app_paths.h"
 #include "../platform/file_integrity.h"
 #include "../platform/scope_exit.h"
@@ -19,6 +21,7 @@
 #include <chrono>
 #include <fstream>
 #include <iostream>
+#include <memory>
 #include <mutex>
 #include <string_view>
 #include <thread>
@@ -45,6 +48,19 @@ constexpr std::size_t kMaximumLicenseBytes = 512;
 
 std::mutex g_mutex;
 Snapshot g_snapshot{};
+
+OmniGhost::Auth::LicenseGateway& RemoteGateway() {
+    static OmniGhost::Auth::LicenseGateway gateway(
+        std::make_shared<OmniGhost::Auth::KeyAuthRemoteLicenseProvider>());
+    return gateway;
+}
+
+void ApplyRemoteState(Snapshot& snapshot) {
+    auto& gateway = RemoteGateway();
+    snapshot.remoteServiceConfigured = gateway.IsConfigured();
+    snapshot.remoteAuthenticated = gateway.IsAuthenticated();
+    snapshot.remoteUsername = gateway.CurrentUsername();
+}
 
 // ============================================================
 // License Anti-Tamper / Anti-Patching Protection
@@ -249,7 +265,7 @@ Snapshot InspectLocal() {
     
     Snapshot snapshot{};
     snapshot.storagePath = StoragePath();
-    snapshot.remoteServiceConfigured = false; // Future VPS/API integration point.
+    ApplyRemoteState(snapshot);
 
     std::error_code error;
     const bool exists = std::filesystem::exists(snapshot.storagePath, error);
@@ -343,14 +359,51 @@ Snapshot GetSnapshot() {
     
     {
         std::lock_guard lock(g_mutex);
-        if (!g_snapshot.storagePath.empty())
-            return g_snapshot;
+        if (!g_snapshot.storagePath.empty()) {
+            Snapshot snapshot = g_snapshot;
+            ApplyRemoteState(snapshot);
+            return snapshot;
+        }
     }
 
     // Lazy fallback for callers that query licensing before the normal startup gate.
     Snapshot snapshot = InspectLocal();
     Publish(snapshot);
     return snapshot;
+}
+
+OmniGhost::Auth::LicenseResult Login(std::string_view username, std::string_view password) {
+    return RemoteGateway().Login(username, password);
+}
+
+OmniGhost::Auth::LicenseResult Register(std::string_view username, std::string_view password,
+                                        std::string_view licenseKey) {
+    return RemoteGateway().Register(username, password, licenseKey);
+}
+
+OmniGhost::Auth::LicenseResult ActivateKey(std::string_view licenseKey) {
+    return RemoteGateway().Activate(licenseKey);
+}
+
+OmniGhost::Auth::LicenseResult Upgrade(std::string_view username, std::string_view licenseKey) {
+    return RemoteGateway().Upgrade(username, licenseKey);
+}
+
+void LogoutRemote() noexcept {
+    RemoteGateway().Logout();
+    Refresh();
+}
+
+bool IsRemoteConfigured() noexcept {
+    return RemoteGateway().IsConfigured();
+}
+
+bool IsRemoteAuthenticated() noexcept {
+    return RemoteGateway().IsAuthenticated();
+}
+
+std::string RemoteUsername() {
+    return RemoteGateway().CurrentUsername();
 }
 
 bool ActivateLocalKey(std::string_view keyInput, std::string* userMessage) {
@@ -429,12 +482,24 @@ bool HasGameAccess(std::string_view productId) {
     };
     if (std::find(kLegacyProducts.begin(), kLegacyProducts.end(), productId) == kLegacyProducts.end())
         return false;
+    if (IsRemoteAuthenticated())
+        return true;
+#if defined(OMNIGHOST_KEYAUTH_ENABLED) && !defined(OMNIGHOST_SKIP_KEYAUTH)
+    return false;
+#else
     return GetSnapshot().localLicenseValid;
+#endif
 }
 
 bool HasAnyGameAccess() {
     LicenseProtection::RunIntegrityChecks();
+    if (IsRemoteAuthenticated())
+        return true;
+#if defined(OMNIGHOST_KEYAUTH_ENABLED) && !defined(OMNIGHOST_SKIP_KEYAUTH)
+    return false;
+#else
     return GetSnapshot().localLicenseValid;
+#endif
 }
 
 bool EnsureInteractive() {

@@ -27,7 +27,6 @@ void DrawFortniteAim() {}
 void DrawFortniteVisuals() {}
 void DrawFortniteStatus() {}
 void DrawUnifiedAim() {}
-void DrawWebRadar() {}
 void DrawSoundESP() {}
 void DrawSpectatorList() {}
 void DrawTriggerbot() {}

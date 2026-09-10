@@ -3,7 +3,6 @@
 #include "../localization.h"
 #include "global_search.h"
 #include "gameplay/unified_aim.h"
-#include "gameplay/web_radar.h"
 #include "gameplay/sound_esp.h"
 #include "gameplay/spectator_list.h"
 #include "gameplay/triggerbot.h"
@@ -19,8 +18,6 @@
 #include "gameplay/resolution.h"
 #include "gameplay/game_adapter.h"
 #include "../config/app_settings.h"
-#include "Fivem/radar/fivem_radar.h"
-#include "Fivem/radar/fivem_radar_config.h"
 #include <memory>
 #include <string>
 #include <vector>
@@ -144,55 +141,6 @@ void DrawUnifiedAim() {
     SliderFloat("Escala Perto", &config.prediction.close_scale, 0.1f, 2.0f, "%.2f");
     SliderFloat("Escala Média", &config.prediction.mid_scale, 0.1f, 1.0f, "%.2f");
     SliderFloat("Escala Longe", &config.prediction.far_scale, 0.05f, 0.5f, "%.2f");
-    
-    EndCard();
-}
-
-// ============================================================================
-// Web Radar Page
-// ============================================================================
-
-void DrawWebRadar() {
-    static Gameplay::WebRadar::RadarConfig radar_config = Gameplay::WebRadar::GetDefaultRadarConfig();
-    static Gameplay::WebRadar::RadarManager radar_manager;
-    static Gameplay::WebRadar::IRadarAdapter* current_adapter = nullptr;
-    
-    BeginCard("Web Radar - Configuração");
-    
-    ToggleSwitch("Radar Ativado", &radar_config.enabled);
-    ToggleSwitch("Seguir Jogador", &radar_config.follow_player);
-    ToggleSwitch("Rotacionar com Jogador", &radar_config.rotate_with_player);
-    
-    SliderFloat("Raio Mínimo", &radar_config.min_range, 10.0f, 500.0f, "%.0fm");
-    SliderFloat("Raio Máximo", &radar_config.max_range, 100.0f, 5000.0f, "%.0fm");
-    SliderFloat("Raio Padrão", &radar_config.default_range, 50.0f, 2000.0f, "%.0fm");
-    SliderFloat("Passo Zoom", &radar_config.range_step, 10.0f, 200.0f, "%.0fm");
-    ToggleSwitch("Auto Range", &radar_config.auto_range);
-    
-    SliderFloat("Tamanho Radar", &radar_config.radar_size, 150.0f, 500.0f, "%.0fpx");
-    
-    CardGap();
-    SectionTitle("Entidades");
-    
-    for (int i = 0; i < 10; ++i) {
-        auto& display = radar_config.entity_displays[i];
-        const char* type_names[] = {"Player", "Vehicle", "Animal", "Item", "Projectile", "Building", "NPC", "Resource", "Dropped Item", "Custom"};
-        ImGui::Text("%s:", type_names[i]);
-        ImGui::SameLine();
-        ToggleSwitch("##enable", &display.enabled);
-        ImGui::SameLine();
-        SliderFloat("Dist. Máx.", &display.max_distance, 50.0f, 2000.0f, "%.0fm");
-        ImGui::SameLine();
-        ToggleSwitch("Nomes", &display.show_names);
-        ImGui::SameLine();
-        ToggleSwitch("Dist.", &display.show_distance);
-        ImGui::SameLine();
-        ToggleSwitch("HP", &display.show_health);
-        ImGui::SameLine();
-        ToggleSwitch("Cor Time", &display.show_team_color);
-        ImGui::SameLine();
-        ToggleSwitch("Apenas Visível", &display.only_visible);
-    }
     
     EndCard();
 }

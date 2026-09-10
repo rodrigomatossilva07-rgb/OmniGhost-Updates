@@ -1,7 +1,6 @@
 #include "../../widgets.h"
 #include "../../theme.h"
 #include "cs2_config.h"
-#include "cs2_radar.h"
 #include "fonts.h"
 #include "../../localization.h"
 #include "../../../launcher/launcher_assets.h"
@@ -170,64 +169,8 @@ void DrawCs2Visuals_FORCE(); void DrawCs2Visuals() {
     CyberWidgets::EndCard();
 
     CyberWidgets::BeginCard("Radar", left_w);
-    // Legacy QR setting never had a renderer. Keep the serialized field for
-    // backwards compatibility, but never advertise or enable a fake feature.
-    CS2::config.webradar_qr = false;
     CyberWidgets::ToggleSwitch("Radar 2D integrado", &CS2::config.radar_2d);
     CyberWidgets::SliderFloat("Tamanho do radar", &CS2::config.radar_2d_size, 110.f, 320.f, "%.0f px");
-    const bool radarToggled = CyberWidgets::ToggleSwitch(
-        Loc::TrID("vis.webradar"), &CS2::config.webradar_enabled);
-    if (radarToggled && !CS2::config.webradar_enabled) {
-        CS2::config.webradar_cloudflare = false;
-        CS2_Radar::Shutdown();
-    }
-    if (CS2::config.webradar_enabled) {
-        CyberWidgets::ToggleSwitch("Acesso LAN", &CS2::config.webradar_lan);
-        CyberWidgets::InputInt("Porta", &CS2::config.webradar_port);
-        if (CS2::config.webradar_port < 1024 || CS2::config.webradar_port > 65535)
-            CS2::config.webradar_port = 8080;
-        CyberWidgets::TextLine(CS2_Radar::Status(), CyberWidgets::TextTone::Secondary);
-        if (CS2::config.webradar_lan) {
-            CyberWidgets::TextLine("A LAN está protegida por um token temporário. Partilha apenas o endereço copiado abaixo.", CyberWidgets::TextTone::Warning);
-            const char* accessUrl = CS2_Radar::LanUrl();
-            if (accessUrl && accessUrl[0] &&
-                CyberWidgets::Button("Copiar endereço LAN seguro", CyberWidgets::ButtonStyle::Secondary, ImVec2(230.f, 32.f))) {
-                CyberWidgets::CopyToClipboard(accessUrl, "Endereço seguro copiado");
-            }
-        } else {
-            CyberWidgets::TextLine("Apenas este computador pode aceder ao radar.", CyberWidgets::TextTone::Secondary);
-        }
-
-        ImGui::Dummy(ImVec2(0.f, 6.f));
-        CyberWidgets::TextLine(
-            "Link público temporário protegido por token. Qualquer pessoa com o endereço poderá ver o radar até o terminares.",
-            CyberWidgets::TextTone::Warning);
-        if (!CS2_Radar::CloudflareRunning()) {
-            if (CyberWidgets::Button("Criar link público seguro",
-                    CyberWidgets::ButtonStyle::Primary, ImVec2(230.f, 32.f))) {
-                CS2_Radar::EnsureRunning(CS2::config.webradar_port, CS2::config.webradar_lan);
-                CS2_Radar::StartCloudflareTunnel(CS2::config.webradar_port);
-                CS2::config.webradar_cloudflare = true;
-            }
-        } else {
-            const char* publicUrl = CS2_Radar::PublicUrl();
-            if (publicUrl && publicUrl[0]) {
-                if (CyberWidgets::Button("Copiar link público seguro",
-                        CyberWidgets::ButtonStyle::Primary, ImVec2(230.f, 32.f))) {
-                    CyberWidgets::CopyToClipboard(publicUrl, "Link público seguro copiado");
-                }
-            } else {
-                CyberWidgets::TextLine("A Cloudflare está a preparar o endereço...",
-                    CyberWidgets::TextTone::Secondary);
-            }
-            ImGui::SameLine(0.f, 8.f);
-            if (CyberWidgets::Button("Terminar link",
-                    CyberWidgets::ButtonStyle::Destructive, ImVec2(145.f, 32.f))) {
-                CS2_Radar::StopCloudflareTunnel();
-                CS2::config.webradar_cloudflare = false;
-            }
-        }
-    }
     CyberWidgets::EndCard();
 
     CyberWidgets::BeginCard(Loc::Tr("vis.extras"), left_w);

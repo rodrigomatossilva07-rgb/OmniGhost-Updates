@@ -3,7 +3,9 @@
 #include "../auth/local_auth_service.h"
 #include "../config/app_settings.h"
 #include "../config/config_manager.h"
+#include "../licensing/license_service.h"
 #include "../window/digital_rain.h"
+#include "../window/brand_assets.h"
 #include "../window/fonts.h"
 #include "../window/localization.h"
 #include "../window/performance_mode.h"
@@ -23,8 +25,10 @@
 #include <algorithm>
 #include <array>
 #include <cfloat>
+#include <chrono>
 #include <cmath>
 #include <cstring>
+#include <future>
 #include <string>
 
 namespace LauncherAuth {
@@ -32,7 +36,7 @@ namespace {
 
 float S(float value) { return CyberTheme::Px(value); }
 
-enum class Screen { Landing, Login, Register };
+enum class Screen { Landing, Login, Register, Activate };
 enum class Completion { None, Login, Register, AutoLogin, Preparing };
 
 struct Copy {
@@ -67,12 +71,25 @@ bool g_authenticated = false;
 bool g_close_requested = false;
 bool g_show_password = false;
 bool g_show_confirm = false;
+bool g_show_license_key = false;
+bool g_language_open = false;
+bool g_upgrade_mode = false;
 char g_email[320]{};
 char g_password[256]{};
 char g_confirm[256]{};
+char g_license_key[512]{};
 std::string g_error;
 Completion g_completion = Completion::None;
 float g_completion_time = 0.0f;
+
+enum class RemoteOperation { Login, Register, Activate, Upgrade };
+struct RemoteOperationResult {
+    bool success{};
+    std::string message;
+    Completion completion{Completion::None};
+};
+std::future<RemoteOperationResult> g_remote_operation;
+bool g_remote_operation_pending = false;
 
 void SecureClear(char* value, std::size_t size) {
     if (value && size) SecureZeroMemory(value, size);
@@ -88,7 +105,7 @@ void SetScreen(Screen screen) {
 void InitializeState() {
     auto& auth = OmniGhost::Auth::LocalAuthService::Instance();
     auth.Initialize();
-    if (auth.TryAutoLogin()) {
+    if (!OmniGhost::Licensing::IsRemoteConfigured() && auth.TryAutoLogin()) {
         g_completion = Completion::AutoLogin;
         g_completion_time = 0.0f;
     }
@@ -103,6 +120,64 @@ void BeginCompletion(Completion completion) {
     g_error.clear();
 }
 
+void StartRemoteOperation(RemoteOperation operation, std::string username,
+                          std::string password, std::string licenseKey) {
+    if (g_remote_operation_pending)
+        return;
+    g_remote_operation_pending = true;
+    g_error.clear();
+    g_remote_operation = std::async(std::launch::async,
+        [operation, username = std::move(username), password = std::move(password), licenseKey = std::move(licenseKey)]() mutable {
+            RemoteOperationResult outcome{};
+            try {
+                OmniGhost::Auth::LicenseResult result{};
+                switch (operation) {
+                case RemoteOperation::Login:
+                    result = OmniGhost::Licensing::Login(username, password);
+                    outcome.completion = Completion::Login;
+                    break;
+                case RemoteOperation::Register:
+                    result = OmniGhost::Licensing::Register(username, password, licenseKey);
+                    outcome.completion = Completion::Register;
+                    break;
+                case RemoteOperation::Activate:
+                    result = OmniGhost::Licensing::ActivateKey(licenseKey);
+                    outcome.completion = Completion::Login;
+                    break;
+                case RemoteOperation::Upgrade:
+                    result = OmniGhost::Licensing::Upgrade(username, licenseKey);
+                    outcome.completion = Completion::Login;
+                    break;
+                }
+                outcome.success = result.Ok();
+                outcome.message = std::move(result.userMessage);
+            } catch (...) {
+                outcome.success = false;
+                outcome.message = "Não foi possível contactar o serviço de autenticação.";
+            }
+            if (!password.empty()) SecureZeroMemory(password.data(), password.size());
+            if (!licenseKey.empty()) SecureZeroMemory(licenseKey.data(), licenseKey.size());
+            return outcome;
+        });
+}
+
+void PollRemoteOperation() {
+    using namespace std::chrono_literals;
+    if (!g_remote_operation_pending || !g_remote_operation.valid() ||
+        g_remote_operation.wait_for(0ms) != std::future_status::ready)
+        return;
+    g_remote_operation_pending = false;
+    try {
+        RemoteOperationResult result = g_remote_operation.get();
+        if (result.success)
+            BeginCompletion(result.completion);
+        else
+            g_error = result.message.empty() ? "Não foi possível iniciar sessão." : result.message;
+    } catch (...) {
+        g_error = "Não foi possível contactar o serviço de autenticação.";
+    }
+}
+
 void CenterCursor(float width) {
     const float available = ImGui::GetContentRegionAvail().x;
     if (available > width)
@@ -110,8 +185,8 @@ void CenterCursor(float width) {
 }
 
 void CenterBlockVertically(float blockHeight) {
-    const float available = ImGui::GetWindowHeight() - S(48.f);
-    ImGui::SetCursorPosY(S(24.f) + (std::max)(0.f, (available - blockHeight) * 0.5f));
+    const float available = ImGui::GetWindowHeight() - S(72.f);
+    ImGui::SetCursorPosY(S(36.f) + (std::max)(0.f, (available - blockHeight) * 0.5f));
 }
 
 void DrawCenteredText(const char* text, ImVec4 color, ImFont* font = nullptr) {
@@ -122,9 +197,33 @@ void DrawCenteredText(const char* text, ImVec4 color, ImFont* font = nullptr) {
     if (font) ImGui::PopFont();
 }
 
+void DrawBrandSignal(const ImVec2& center) {
+    ImDrawList* draw = ImGui::GetWindowDrawList();
+    const ImU32 line = CyberTheme::U32(CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.075f));
+    for (int i = 0; i < 4; ++i) {
+        const float radius = S(31.f + i * 13.f);
+        draw->AddCircle(center, radius, line, 48, S(0.7f));
+    }
+    draw->AddLine(ImVec2(center.x - S(76.f), center.y), ImVec2(center.x - S(60.f), center.y), line, S(0.8f));
+    draw->AddLine(ImVec2(center.x + S(60.f), center.y), ImVec2(center.x + S(76.f), center.y), line, S(0.8f));
+}
+
 void DrawBrand(bool prominent) {
+    const float markSize = S(prominent ? 48.f : 40.f);
+    const ImVec2 markStart(ImGui::GetCursorScreenPos().x + (ImGui::GetContentRegionAvail().x - markSize) * 0.5f,
+                           ImGui::GetCursorScreenPos().y + S(8.f));
+    DrawBrandSignal(ImVec2(markStart.x + markSize * 0.5f, markStart.y + markSize * 0.5f));
+    ImDrawList* draw = ImGui::GetWindowDrawList();
+    draw->AddRectFilled(markStart, markStart + ImVec2(markSize, markSize),
+        CyberTheme::U32(CyberTheme::Colors.Surface), S(12.f));
+    draw->AddRect(markStart, markStart + ImVec2(markSize, markSize),
+        CyberTheme::U32(CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.48f)), S(12.f), 0, S(1.f));
+    if (const ImTextureID logo = BrandAssets::GetLogoTexture()) {
+        draw->AddImage(logo, markStart + ImVec2(S(7.f), S(7.f)),
+                       markStart + ImVec2(markSize - S(7.f), markSize - S(7.f)));
+    }
+    ImGui::Dummy(ImVec2(0, markSize + S(14.f)));
     ImFont* title = CyberFonts::GetTitleFont();
-    ImGui::Dummy(ImVec2(0, prominent ? S(6.f) : S(2.f)));
     DrawCenteredText("OMNIGHOST", CyberTheme::Colors.GoldHover, title);
     ImGui::Dummy(ImVec2(0, S(3.f)));
     DrawCenteredText("Everywhere. Nowhere.", CyberTheme::Colors.TextDisabled);
@@ -164,12 +263,11 @@ bool AuthInputField(const char* id, char* buffer, std::size_t bufferSize,
                     const char* hint, float width, bool defaultFocus,
                     AuthFieldIcon icon, ImGuiInputTextFlags flags = 0) {
     const ImVec2 position = ImGui::GetCursorScreenPos();
-    const float height = ImGui::GetFrameHeight();
-    const ImVec2 framePadding = ImGui::GetStyle().FramePadding;
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(S(40.f), framePadding.y));
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(S(40.f), S(13.f)));
     const bool changed = CyberWidgets::InputField(
         id, buffer, bufferSize, hint, flags, width, defaultFocus);
     ImGui::PopStyleVar();
+    const float height = ImGui::GetItemRectSize().y;
     DrawAuthFieldIcon(icon, position, height, width);
     return changed;
 }
@@ -178,39 +276,103 @@ bool AuthPasswordField(const char* id, char* buffer, std::size_t bufferSize,
                        bool* reveal, const char* hint, float width,
                        ImGuiInputTextFlags flags = 0) {
     const ImVec2 position = ImGui::GetCursorScreenPos();
-    const float height = ImGui::GetFrameHeight();
-    const ImVec2 framePadding = ImGui::GetStyle().FramePadding;
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(S(40.f), framePadding.y));
-    const bool changed = CyberWidgets::PasswordField(
-        id, buffer, bufferSize, reveal, hint, flags, width, false);
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(S(40.f), S(13.f)));
+    ImGui::PushID(id);
+    ImGui::SetNextItemWidth(width);
+    const bool changed = ImGui::InputTextWithHint("##field", hint, buffer, bufferSize,
+        *reveal ? flags : (flags | ImGuiInputTextFlags_Password));
+    CyberWidgets::DrawFocusRing();
+    const float height = ImGui::GetItemRectSize().y;
+    const ImVec2 eyeMin(position.x + width - S(38.f), position.y + S(3.f));
+    ImGui::SetCursorScreenPos(eyeMin);
+    const bool clicked = ImGui::InvisibleButton("##eye", ImVec2(S(32.f), height - S(6.f)));
+    if (clicked) *reveal = !*reveal;
+    const bool hovered = ImGui::IsItemHovered();
+    const ImVec2 center(eyeMin.x + S(16.f), eyeMin.y + (height - S(6.f)) * 0.5f);
+    ImDrawList* draw = ImGui::GetWindowDrawList();
+    const ImU32 eye = CyberTheme::U32(hovered ? CyberTheme::Colors.GoldHover : CyberTheme::Colors.TextDisabled);
+    draw->AddCircle(center, S(6.f), eye, 16, S(1.1f));
+    draw->AddCircleFilled(center, S(1.7f), eye, 10);
+    if (!*reveal) draw->AddLine(center - ImVec2(S(6.f), S(6.f)), center + ImVec2(S(6.f), S(6.f)), eye, S(1.2f));
+    ImGui::SetCursorScreenPos(ImVec2(position.x, position.y + height));
+    ImGui::PopID();
     ImGui::PopStyleVar();
     DrawAuthFieldIcon(AuthFieldIcon::Lock, position, height, width);
     return changed;
 }
 
+void DrawFieldLabel(const char* label) {
+    ImGui::PushStyleColor(ImGuiCol_Text, CyberTheme::WithAlpha(CyberTheme::Colors.TextDisabled, 0.92f));
+    ImGui::TextUnformatted(label);
+    ImGui::PopStyleColor();
+    ImGui::Dummy(ImVec2(0, S(5.f)));
+}
+
+bool DrawTextAction(const char* label, bool centered = true) {
+    const float width = ImGui::CalcTextSize(label).x;
+    if (centered) CenterCursor(width);
+    ImGui::PushStyleColor(ImGuiCol_Text, CyberTheme::Colors.TextDisabled);
+    const bool pressed = ImGui::Selectable(label, false, ImGuiSelectableFlags_None, ImVec2(width, S(24.f)));
+    const bool hovered = ImGui::IsItemHovered();
+    ImGui::PopStyleColor();
+    if (hovered) {
+        const ImVec2 min = ImGui::GetItemRectMin();
+        const ImVec2 max = ImGui::GetItemRectMax();
+        ImGui::GetWindowDrawList()->AddLine(ImVec2(min.x, max.y - S(3.f)),
+            ImVec2(max.x, max.y - S(3.f)), CyberTheme::U32(CyberTheme::Colors.Gold), S(1.f));
+    }
+    return pressed;
+}
+
 void DrawLanguageSelector(const ImVec2& windowPos, float windowWidth) {
-    constexpr int visibleLanguages = 5;
+    constexpr int visibleLanguages = 6;
+    static constexpr std::array<const char*, visibleLanguages> codes{{"PT", "EN", "DE", "ES", "FR", "IT"}};
     int selected = std::clamp(static_cast<int>(app_settings::config.language), 0,
                               visibleLanguages - 1);
-    const float width = S(94.f);
-    ImGui::SetCursorScreenPos(ImVec2(windowPos.x + windowWidth - width - S(8.f),
-                                    windowPos.y + S(9.f)));
-    ImGui::SetNextItemWidth(width);
-    ImGui::PushStyleColor(ImGuiCol_FrameBg, CyberTheme::WithAlpha(CyberTheme::Colors.Surface, 0.92f));
-    ImGui::PushStyleColor(ImGuiCol_Border, CyberTheme::WithAlpha(CyberTheme::Colors.Border, 0.80f));
-    if (ImGui::BeginCombo("##auth_language", Loc::LanguageName(selected),
-                          ImGuiComboFlags_HeightRegular)) {
+    const float width = S(58.f);
+    const ImVec2 buttonPos(windowPos.x + windowWidth - width - S(24.f), windowPos.y + S(22.f));
+    ImGui::SetCursorScreenPos(buttonPos);
+    ImGui::PushID("auth_language");
+    if (ImGui::InvisibleButton("##toggle", ImVec2(width, S(30.f))))
+        g_language_open = !g_language_open;
+    const bool hovered = ImGui::IsItemHovered();
+    ImDrawList* draw = ImGui::GetWindowDrawList();
+    draw->AddRectFilled(buttonPos, buttonPos + ImVec2(width, S(30.f)),
+        CyberTheme::U32(CyberTheme::WithAlpha(CyberTheme::Colors.Surface, hovered ? 0.98f : 0.88f)), S(8.f));
+    draw->AddRect(buttonPos, buttonPos + ImVec2(width, S(30.f)),
+        CyberTheme::U32(CyberTheme::WithAlpha(CyberTheme::Colors.Gold, hovered || g_language_open ? 0.34f : 0.16f)), S(8.f));
+    draw->AddText(buttonPos + ImVec2(S(11.f), S(8.f)), CyberTheme::U32(CyberTheme::Colors.Text), codes[selected]);
+    draw->AddTriangleFilled(buttonPos + ImVec2(width - S(14.f), S(12.f)),
+        buttonPos + ImVec2(width - S(7.f), S(12.f)), buttonPos + ImVec2(width - S(10.5f), S(17.f)),
+        CyberTheme::U32(CyberTheme::Colors.TextDisabled));
+
+    if (g_language_open) {
+        const ImVec2 popoverPos(buttonPos.x - S(112.f), buttonPos.y + S(38.f));
+        const ImVec2 popoverSize(S(170.f), S(static_cast<float>(visibleLanguages * 36 + 10)));
+        draw->AddRectFilled(popoverPos, popoverPos + popoverSize,
+            CyberTheme::U32(CyberTheme::Colors.Surface), S(10.f));
+        draw->AddRect(popoverPos, popoverPos + popoverSize,
+            CyberTheme::U32(CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.20f)), S(10.f));
         for (int index = 0; index < visibleLanguages; ++index) {
             const bool active = index == selected;
-            if (ImGui::Selectable(Loc::LanguageName(index), active)) {
+            const ImVec2 itemPos(popoverPos.x + S(5.f), popoverPos.y + S(5.f + index * 36.f));
+            ImGui::SetCursorScreenPos(itemPos);
+            if (ImGui::InvisibleButton(codes[index], ImVec2(popoverSize.x - S(10.f), S(32.f)))) {
                 app_settings::config.language = static_cast<app_settings::Language>(index);
                 config_manager::FlushActiveConfig();
+                g_language_open = false;
             }
-            if (active) ImGui::SetItemDefaultFocus();
+            const bool itemHovered = ImGui::IsItemHovered();
+            if (active || itemHovered) {
+                draw->AddRectFilled(itemPos, itemPos + ImVec2(popoverSize.x - S(10.f), S(32.f)),
+                    CyberTheme::U32(CyberTheme::WithAlpha(CyberTheme::Colors.Gold, active ? 0.12f : 0.06f)), S(6.f));
+            }
+            if (active)
+                draw->AddCircleFilled(itemPos + ImVec2(S(10.f), S(16.f)), S(2.5f), CyberTheme::U32(CyberTheme::Colors.Gold));
+            draw->AddText(itemPos + ImVec2(S(20.f), S(8.f)), CyberTheme::U32(active ? CyberTheme::Colors.Text : CyberTheme::Colors.TextDisabled), Loc::LanguageName(index));
         }
-        ImGui::EndCombo();
     }
-    ImGui::PopStyleColor(2);
+    ImGui::PopID();
 }
 
 void DrawFeedback(float contentWidth) {
@@ -229,9 +391,9 @@ void DrawLanding() {
     constexpr float baseWidth = 330.f;
     const float contentWidth = S(baseWidth);
 
-    CenterBlockVertically(S(236.f));
+    CenterBlockVertically(S(304.f));
     DrawBrand(true);
-    ImGui::Dummy(ImVec2(0, S(46.f)));
+    ImGui::Dummy(ImVec2(0, S(42.f)));
 
     CenterCursor(contentWidth);
     if (CyberWidgets::GoldButton(text.enter, ImVec2(contentWidth, S(46.f))))
@@ -240,10 +402,12 @@ void DrawLanding() {
     CenterCursor(contentWidth);
     if (CyberWidgets::GhostButton(text.createAccount, ImVec2(contentWidth, S(46.f))))
         SetScreen(Screen::Register);
-    ImGui::Dummy(ImVec2(0, S(16.f)));
-    const float exitWidth = ImGui::CalcTextSize(text.exit).x + S(30.f);
-    CenterCursor(exitWidth);
-    if (CyberWidgets::GhostButton(text.exit, ImVec2(exitWidth, S(30.f))))
+    ImGui::Dummy(ImVec2(0, S(10.f)));
+    CenterCursor(contentWidth);
+    if (CyberWidgets::GhostButton("ATIVAR COM KEY", ImVec2(contentWidth, S(42.f))))
+        SetScreen(Screen::Activate);
+    ImGui::Dummy(ImVec2(0, S(12.f)));
+    if (DrawTextAction(text.exit))
         g_close_requested = true;
 }
 
@@ -252,34 +416,54 @@ void DrawLogin() {
     auto& auth = OmniGhost::Auth::LocalAuthService::Instance();
     const float contentWidth = S(330.f);
 
-    CenterBlockVertically(S(268.f));
+    CenterBlockVertically(S(324.f));
     DrawBrand(false);
-    ImGui::Dummy(ImVec2(0, S(34.f)));
+    ImGui::Dummy(ImVec2(0, S(24.f)));
+    DrawCenteredText("ACCESS // AUTHENTICATION", CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.70f));
+    ImGui::Dummy(ImVec2(0, S(20.f)));
 
     CenterCursor(contentWidth);
     ImGui::BeginGroup();
-    AuthInputField("login_email", g_email, sizeof(g_email), text.email,
+    const bool remote = OmniGhost::Licensing::IsRemoteConfigured();
+    const char* identity = remote ? "Utilizador" : text.email;
+    DrawFieldLabel(identity);
+    AuthInputField("login_email", g_email, sizeof(g_email), identity,
                    contentWidth, true, AuthFieldIcon::Email);
-    ImGui::Dummy(ImVec2(0, S(10.f)));
+    ImGui::Dummy(ImVec2(0, S(13.f)));
+    DrawFieldLabel(text.password);
     const bool enter = AuthPasswordField("login_password", g_password,
         sizeof(g_password), &g_show_password, text.password, contentWidth,
         ImGuiInputTextFlags_EnterReturnsTrue);
     ImGui::Dummy(ImVec2(0, S(18.f)));
-    if (CyberWidgets::GoldButton(text.enter, ImVec2(contentWidth, S(46.f))) || enter) {
+    ImGui::BeginDisabled(g_remote_operation_pending);
+    const bool submit = CyberWidgets::GoldButton(g_remote_operation_pending ? "A AUTENTICAR..." : text.enter,
+        ImVec2(contentWidth, S(46.f))) || enter;
+    ImGui::EndDisabled();
+    if (submit && !g_remote_operation_pending) {
+        if (remote) {
+            StartRemoteOperation(RemoteOperation::Login, g_email, g_password, {});
+            SecureClear(g_password, sizeof(g_password));
+            ImGui::EndGroup();
+            DrawFeedback(contentWidth);
+            return;
+        }
+        bool accepted = false;
+        std::string message;
         const auto result = auth.Login(g_email, g_password, true);
-        if (result.Ok()) {
+        accepted = result.Ok();
+        message = result.message;
+        if (accepted) {
             SecureClear(g_password, sizeof(g_password));
             BeginCompletion(Completion::Login);
         } else {
-            g_error = result.message;
+            g_error = message;
         }
     }
     ImGui::EndGroup();
     DrawFeedback(contentWidth);
-    ImGui::Dummy(ImVec2(0, S(14.f)));
-    const float backWidth = ImGui::CalcTextSize(text.back).x + S(34.f);
-    CenterCursor(backWidth);
-    if (CyberWidgets::GhostButton(text.back, ImVec2(backWidth, S(30.f)))) {
+    ImGui::Dummy(ImVec2(0, S(12.f)));
+    const std::string back = std::string("← ") + text.back;
+    if (DrawTextAction(back.c_str())) {
         SecureClear(g_password, sizeof(g_password));
         SetScreen(Screen::Landing);
     }
@@ -290,44 +474,121 @@ void DrawRegister() {
     auto& auth = OmniGhost::Auth::LocalAuthService::Instance();
     const float contentWidth = S(330.f);
 
-    CenterBlockVertically(S(326.f));
+    CenterBlockVertically(S(462.f));
     DrawBrand(false);
-    ImGui::Dummy(ImVec2(0, S(22.f)));
+    ImGui::Dummy(ImVec2(0, S(18.f)));
+    DrawCenteredText("CREATE // IDENTITY", CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.70f));
+    ImGui::Dummy(ImVec2(0, S(16.f)));
 
     CenterCursor(contentWidth);
     ImGui::BeginGroup();
-    AuthInputField("register_email", g_email, sizeof(g_email), text.email,
+    const bool remote = OmniGhost::Licensing::IsRemoteConfigured();
+    const char* identity = remote ? "Utilizador" : text.email;
+    DrawFieldLabel(identity);
+    AuthInputField("register_email", g_email, sizeof(g_email), identity,
                    contentWidth, true, AuthFieldIcon::Email);
-    ImGui::Dummy(ImVec2(0, S(9.f)));
+    ImGui::Dummy(ImVec2(0, S(11.f)));
+    DrawFieldLabel(text.password);
     AuthPasswordField("register_password", g_password, sizeof(g_password),
         &g_show_password, text.password, contentWidth);
-    ImGui::Dummy(ImVec2(0, S(9.f)));
-    const bool enter = AuthPasswordField("register_confirm", g_confirm,
-        sizeof(g_confirm), &g_show_confirm, text.confirmPassword, contentWidth,
-        ImGuiInputTextFlags_EnterReturnsTrue);
+    ImGui::Dummy(ImVec2(0, S(11.f)));
+    DrawFieldLabel(text.confirmPassword);
+    AuthPasswordField("register_confirm", g_confirm,
+        sizeof(g_confirm), &g_show_confirm, text.confirmPassword, contentWidth);
+    bool submit = false;
+    if (remote) {
+        ImGui::Dummy(ImVec2(0, S(11.f)));
+        DrawFieldLabel("Chave de licença");
+        submit = AuthPasswordField("register_key", g_license_key,
+            sizeof(g_license_key), &g_show_license_key, "Chave de licença", contentWidth,
+            ImGuiInputTextFlags_EnterReturnsTrue);
+    }
     ImGui::Dummy(ImVec2(0, S(17.f)));
-    if (CyberWidgets::GoldButton(text.registerAction, ImVec2(contentWidth, S(46.f))) || enter) {
+    ImGui::BeginDisabled(g_remote_operation_pending);
+    const bool registerPressed = CyberWidgets::GoldButton(g_remote_operation_pending ? "A REGISTAR..." : text.registerAction,
+        ImVec2(contentWidth, S(46.f))) || submit;
+    ImGui::EndDisabled();
+    if (registerPressed && !g_remote_operation_pending) {
         if (std::strcmp(g_password, g_confirm) != 0) {
             g_error = "As palavras-passe não coincidem.";
         } else {
-            const auto result = auth.Register(g_email, g_password, true);
-            if (result.Ok()) {
+            if (remote) {
+                StartRemoteOperation(RemoteOperation::Register, g_email, g_password, g_license_key);
                 SecureClear(g_password, sizeof(g_password));
                 SecureClear(g_confirm, sizeof(g_confirm));
+                SecureClear(g_license_key, sizeof(g_license_key));
+                ImGui::EndGroup();
+                DrawFeedback(contentWidth);
+                return;
+            }
+            const auto result = auth.Register(g_email, g_password, true);
+            const bool accepted = result.Ok();
+            const std::string message = result.message;
+            if (accepted) {
+                SecureClear(g_password, sizeof(g_password));
+                SecureClear(g_confirm, sizeof(g_confirm));
+                SecureClear(g_license_key, sizeof(g_license_key));
                 BeginCompletion(Completion::Register);
             } else {
-                g_error = result.message;
+                g_error = message;
             }
         }
     }
     ImGui::EndGroup();
     DrawFeedback(contentWidth);
-    ImGui::Dummy(ImVec2(0, S(10.f)));
-    const float backWidth = ImGui::CalcTextSize(text.back).x + S(34.f);
-    CenterCursor(backWidth);
-    if (CyberWidgets::GhostButton(text.back, ImVec2(backWidth, S(30.f)))) {
+    ImGui::Dummy(ImVec2(0, S(9.f)));
+    const std::string back = std::string("← ") + text.back;
+    if (DrawTextAction(back.c_str())) {
         SecureClear(g_password, sizeof(g_password));
         SecureClear(g_confirm, sizeof(g_confirm));
+        SetScreen(Screen::Landing);
+    }
+}
+
+void DrawActivate() {
+    const float contentWidth = S(330.f);
+    CenterBlockVertically(S(298.f));
+    DrawBrand(false);
+    ImGui::Dummy(ImVec2(0, S(24.f)));
+    DrawCenteredText(g_upgrade_mode ? "UPGRADE // LICENSE" : "ACTIVATE // LICENSE",
+        CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.70f));
+    ImGui::Dummy(ImVec2(0, S(22.f)));
+
+    CenterCursor(contentWidth);
+    ImGui::BeginGroup();
+    if (g_upgrade_mode) {
+        DrawFieldLabel("Utilizador");
+        AuthInputField("upgrade_username", g_email, sizeof(g_email), "Utilizador",
+            contentWidth, true, AuthFieldIcon::Email);
+        ImGui::Dummy(ImVec2(0, S(12.f)));
+    }
+    DrawFieldLabel("Chave de licença");
+    const bool enter = AuthPasswordField("activate_key", g_license_key, sizeof(g_license_key),
+        &g_show_license_key, "Chave de licença", contentWidth, ImGuiInputTextFlags_EnterReturnsTrue);
+    ImGui::Dummy(ImVec2(0, S(18.f)));
+    ImGui::BeginDisabled(g_remote_operation_pending);
+    const bool activatePressed = CyberWidgets::GoldButton(g_remote_operation_pending
+        ? (g_upgrade_mode ? "A ATUALIZAR..." : "A ATIVAR...")
+        : (g_upgrade_mode ? "ATUALIZAR ACESSO" : "ATIVAR"),
+        ImVec2(contentWidth, S(46.f))) || enter;
+    ImGui::EndDisabled();
+    if (activatePressed && !g_remote_operation_pending) {
+        StartRemoteOperation(g_upgrade_mode ? RemoteOperation::Upgrade : RemoteOperation::Activate,
+            g_upgrade_mode ? g_email : std::string{}, {}, g_license_key);
+        SecureClear(g_license_key, sizeof(g_license_key));
+        ImGui::EndGroup();
+        DrawFeedback(contentWidth);
+        return;
+    }
+    ImGui::EndGroup();
+    DrawFeedback(contentWidth);
+    ImGui::Dummy(ImVec2(0, S(8.f)));
+    if (DrawTextAction(g_upgrade_mode ? "Ativar apenas com key" : "Atualizar uma conta existente"))
+        g_upgrade_mode = !g_upgrade_mode;
+    ImGui::Dummy(ImVec2(0, S(12.f)));
+    if (DrawTextAction("← Voltar")) {
+        SecureClear(g_license_key, sizeof(g_license_key));
+        g_upgrade_mode = false;
         SetScreen(Screen::Landing);
     }
 }
@@ -343,18 +604,25 @@ void Reset() {
     g_error.clear();
     g_completion = Completion::None;
     g_completion_time = 0.0f;
+    g_language_open = false;
+    g_show_license_key = false;
+    g_upgrade_mode = false;
+    g_remote_operation_pending = false;
     g_email[0] = '\0';
     SecureClear(g_password, sizeof(g_password));
     SecureClear(g_confirm, sizeof(g_confirm));
+    SecureClear(g_license_key, sizeof(g_license_key));
 }
 
 bool Draw() {
     if (!g_initialized) InitializeState();
     if (g_authenticated) return true;
+    PollRemoteOperation();
 
     if (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && g_screen != Screen::Landing) {
         SecureClear(g_password, sizeof(g_password));
         SecureClear(g_confirm, sizeof(g_confirm));
+        SecureClear(g_license_key, sizeof(g_license_key));
         SetScreen(Screen::Landing);
     }
 
@@ -388,17 +656,20 @@ bool Draw() {
     CyberTheme::DrawSubtleNoise(background, ImVec2(0, 0), display, 0.012f, 0x41555448u, 180);
     const PerformanceMode::State performance = PerformanceMode::Current();
     DigitalRain::Draw(background, ImVec2(0, 0), display, true, performance.effective, 0.0f,
-        app_settings::DigitalRainOpacity() * 0.22f,
-        app_settings::DigitalRainDensity() * 0.45f, animation, true);
+        app_settings::DigitalRainOpacity() * 0.08f,
+        app_settings::DigitalRainDensity() * 0.16f, animation, true);
 
-    const float width = (std::max)(S(360.f), display.x - S(24.f));
-    const float height = (std::max)(S(430.f), display.y - S(24.f));
+    const float desiredWidth = S(540.f);
+    const float desiredHeight = g_screen == Screen::Register ? S(690.f) :
+        (g_screen == Screen::Login ? S(560.f) : (g_screen == Screen::Activate ? S(520.f) : S(570.f)));
+    const float width = (std::max)(S(360.f), (std::min)(desiredWidth, display.x - S(40.f)));
+    const float height = (std::max)(S(430.f), (std::min)(desiredHeight, display.y - S(32.f)));
     const float slide = animation > 0.f ? (1.f - eased) * S(14.f) : 0.f;
     const ImVec2 position((display.x - width) * 0.5f + slide, (display.y - height) * 0.5f);
 
     ImGui::SetNextWindowPos(position, ImGuiCond_Always);
     ImGui::SetNextWindowSize(ImVec2(width, height), ImGuiCond_Always);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(S(28.f), S(24.f)));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(S(40.f), S(34.f)));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, CyberTheme::Radius::Lg);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, S(1.f));
     ImGui::PushStyleColor(ImGuiCol_WindowBg, CyberTheme::WithAlpha(CyberTheme::Colors.Card, 0.985f));
@@ -409,9 +680,9 @@ bool Draw() {
 
     const ImVec2 windowPos = ImGui::GetWindowPos();
     ImDrawList* draw = ImGui::GetWindowDrawList();
-    draw->AddLine(ImVec2(windowPos.x + S(24.f), windowPos.y + S(12.f)),
-                  ImVec2(windowPos.x + width - S(164.f), windowPos.y + S(12.f)),
-                  CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.18f), S(1.f));
+    draw->AddLine(ImVec2(windowPos.x + S(28.f), windowPos.y + S(16.f)),
+                  ImVec2(windowPos.x + S(92.f), windowPos.y + S(16.f)),
+                  CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.30f), S(1.f));
     CyberTheme::DrawRadialAccent(draw, ImVec2(windowPos.x + width * 0.5f,
         windowPos.y + height * 0.32f), S(210.f), 0.045f);
     DrawLanguageSelector(windowPos, width);
@@ -423,6 +694,7 @@ bool Draw() {
         case Screen::Landing: DrawLanding(); break;
         case Screen::Login: DrawLogin(); break;
         case Screen::Register: DrawRegister(); break;
+        case Screen::Activate: DrawActivate(); break;
         }
     } else {
         const bool success = g_completion == Completion::Login ||

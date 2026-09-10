@@ -36,7 +36,6 @@ enum class MenuTab : int {
     
     // New unified system pages (shared across games)
     TAB_UNIFIED_AIM = 600,
-    TAB_WEB_RADAR,
     TAB_SOUND_ESP,
     TAB_SPECTATOR_LIST,
     TAB_TRIGGERBOT,
@@ -53,9 +52,7 @@ enum class MenuTab : int {
     TAB_GAME_ADAPTER,
     
     // FiveM specific pages
-    TAB_FIVEM_RADAR = 700,
-    TAB_FIVEM_WEB_RADAR,
-    TAB_FIVEM_OBJECT_ESP,
+    TAB_FIVEM_OBJECT_ESP = 700,
     
     TAB_FORTNITE_VISUALS = 500,
     TAB_FORTNITE_AIM,
@@ -69,7 +66,6 @@ void DrawVehicles();
 void DrawFriends();
 void DrawSaveConfigs();
 void DrawFiveMStatus();
-void DrawFivemWebRadar();
 void DrawFivemObjectESP();
 
 class Overlay;
@@ -107,7 +103,6 @@ void DrawFortniteStatus();
 
 // New unified system pages
 void DrawUnifiedAim();
-void DrawWebRadar();
 void DrawSoundESP();
 void DrawSpectatorList();
 void DrawTriggerbot();

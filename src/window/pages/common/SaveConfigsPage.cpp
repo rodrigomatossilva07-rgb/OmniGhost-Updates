@@ -60,7 +60,7 @@ VisualPreviewState CurrentVisualState() {
         value.health = CS2::config.health_bar;
         value.name = CS2::config.name;
         value.distance = CS2::config.distance;
-        value.radar = CS2::config.radar_2d || CS2::config.webradar_enabled;
+        value.radar = CS2::config.radar_2d;
         break;
     case ActiveGame::Rust:
         value.enabled = Rust::config.esp_enabled;

@@ -85,11 +85,6 @@ bool SaveConfig(const char* name) {
     w("trigger_scoped_only", config.trigger_scoped_only ? 1 : 0);
     w("trigger_head_only", config.trigger_head_only ? 1 : 0);
     w("trigger_use_ident", config.trigger_use_ident ? 1 : 0);
-    w("webradar_enabled", config.webradar_enabled ? 1 : 0);
-    w("webradar_port", config.webradar_port);
-    w("webradar_lan", config.webradar_lan ? 1 : 0);
-    w("webradar_qr", config.webradar_qr ? 1 : 0);
-    w("webradar_cloudflare", config.webradar_cloudflare ? 1 : 0);
     w("profile", config.profile);
     w("auto_dump_on_mismatch", config.auto_dump_on_mismatch ? 1 : 0);
     wc("col_enemy", config.col_enemy);
@@ -195,11 +190,6 @@ bool LoadConfig(const char* name) {
         bi("trigger_scoped_only", config.trigger_scoped_only);
         bi("trigger_head_only", config.trigger_head_only);
         bi("trigger_use_ident", config.trigger_use_ident);
-        bi("webradar_enabled", config.webradar_enabled);
-        ii("webradar_port", config.webradar_port);
-        bi("webradar_lan", config.webradar_lan);
-        bi("webradar_qr", config.webradar_qr);
-        bi("webradar_cloudflare", config.webradar_cloudflare);
         ii("profile", config.profile);
         bi("auto_dump_on_mismatch", config.auto_dump_on_mismatch);
         ci("col_enemy", config.col_enemy);

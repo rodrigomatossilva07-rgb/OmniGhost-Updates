@@ -19,4 +19,14 @@
       <AdditionalOptions>/CETCOMPAT /Brepro %(AdditionalOptions)</AdditionalOptions>
     </Link>
   </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Release' Or '$(Configuration)'=='Publish'">
+    <ClCompile>
+      <PreprocessorDefinitions>OMNIGHOST_KEYAUTH_ENABLED=1;CURL_STATICLIB;SODIUM_STATIC;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)keyauth\x64;$(ProjectDir)keyauth\x64\lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>library_x64.lib;libcurl.lib;zlib.lib;libsodium.lib;winhttp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(ProjectDir)keyauth\x64;$(ProjectDir)keyauth\x64\lib\curl;$(ProjectDir)keyauth\x64\lib\libsodium;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Link>
+  </ItemDefinitionGroup>
 </Project>

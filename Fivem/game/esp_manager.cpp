@@ -14,7 +14,6 @@
 #include <algorithm>
 #include <chrono>
 #include "gameplay/esp_optimizer.h"
-#include "../radar/fivem_radar.h"
 
 namespace FiveM {
     namespace ESP {
@@ -116,13 +115,6 @@ namespace FiveM {
             }
 
             renderESP();
-
-            // Web radar snapshot + HTTP (self rate-limited inside Update)
-            try {
-                Fivem_Radar::Update();
-            } catch (...) {
-                // never let radar take down the ESP frame
-            }
 
             // Radar every frame (10Hz caused triangle flicker)
             if (offset::localplayer && (esp::config.triangle_radar || esp::config.square_radar || esp::config.radar_enabled)) {
