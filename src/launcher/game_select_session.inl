@@ -235,7 +235,9 @@ bool DetectRunning(GameId id) {
     // this badge.
     switch (id) {
     case GameId::CS2:
-        return CS2::ready || LocalProcessRunning({L"cs2.exe"}) || RemoteGameRunning(id);
+        // `CS2::ready` can describe an earlier successful attachment. Only a
+        // current cs2.exe process is allowed to produce the Running badge.
+        return LocalProcessRunning({L"cs2.exe"}) || RemoteGameRunning(id);
     case GameId::Rust:
         return Rust::ready || LocalProcessRunning({L"RustClient.exe", L"Rust.exe"}) ||
                RemoteGameRunning(id);
@@ -353,7 +355,7 @@ void RefreshRuntimeStates() {
 }
 
 void ToastOpenUpdates() {
-    ChangeNavigation(static_cast<int>(NavPage::Updates));
+    ChangeNavigation(static_cast<int>(NavPage::Library));
 }
 
 void ToastOpenLogs() {
@@ -526,4 +528,3 @@ void RequestOffsetRefresh(GameId id, bool silent = false) {
         return OmniGhost::OffsetAuto::EnsureOffsets(game, true); // force fetch from cheatoffsets.com
     });
 }
-

@@ -4,6 +4,7 @@
 
 #include <d3d11.h>
 #include "imgui.h"
+#include <filesystem>
 
 namespace LauncherAssets {
 
@@ -23,5 +24,8 @@ Texture Logo(Launcher::GameId game);
 Texture Banner(Launcher::GameId game);
 Texture RustEspPreview();
 Texture FiveMEspPreview();
+Texture ProfileAvatar();
+bool ImportProfileAvatar(const std::filesystem::path& source);
+bool HasCustomProfileAvatar();
 
 } // namespace LauncherAssets

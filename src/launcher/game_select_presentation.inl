@@ -138,13 +138,13 @@ void DrawBackground(
 void ChangeNavigation(int page) {
     if (page < static_cast<int>(NavPage::Home) || page > static_cast<int>(NavPage::Account))
         page = static_cast<int>(NavPage::Home);
+    if (page == static_cast<int>(NavPage::Updates))
+        page = static_cast<int>(NavPage::Library);
     if (page == g_nav) return;
     g_nav = page;
     g_page_transition = app_settings::MotionEnabled() ? 0.f : 1.f;
     g_keyboard_active = false;
     g_profile_menu_open = false;
-    if (page == static_cast<int>(NavPage::Updates))
-        LauncherUpdates::OnOpened();
 }
 
 void DrawTrackedText(ImDrawList* draw, ImFont* font, ImVec2 pos,
@@ -210,7 +210,6 @@ void DrawHeader(ImDrawList* draw, ImVec2 display) {
         {NavPage::Home, "launcher.home"},
         {NavPage::Library, "launcher.library"},
         {NavPage::Marketplace, "launcher.marketplace"},
-        {NavPage::Updates, "launcher.updates"},
         {NavPage::Diagnostics, "launcher.diagnostics"},
     };
     float x = display.x < S(900.f) ? S(92.f) : S(112.f);
@@ -225,17 +224,6 @@ void DrawHeader(ImDrawList* draw, ImVec2 display) {
         draw->AddText(ImVec2(x, S(20.f)), active ? C_GOLD_LT() : (hovered ? C_TEXT() : C_MUTED()), text);
         if (active)
             draw->AddRectFilled(ImVec2(x, height - S(3.f)), ImVec2(x + size.x, height), C_GOLD(), S(1.f));
-        if (item.page == NavPage::Updates) {
-            const int unread = ChangelogService::Instance().UnreadCount();
-            if (unread > 0) {
-                const ImVec2 center(x + size.x + S(8.f), S(17.f));
-                draw->AddCircleFilled(center, S(7.f), C_GOLD(), 16);
-                char value[8]{};
-                std::snprintf(value, sizeof(value), "%d", unread);
-                const ImVec2 valueSize = ImGui::CalcTextSize(value);
-                draw->AddText(ImVec2(center.x - valueSize.x * .5f, center.y - valueSize.y * .5f), C_BG(), value);
-            }
-        }
         if (hovered && ImGui::IsMouseClicked(0))
             ChangeNavigation(static_cast<int>(item.page));
         x += size.x + (display.x < S(900.f) ? S(18.f) : S(28.f));
@@ -870,10 +858,8 @@ void DrawLibrary(ImDrawList* draw, ImVec2 display, float delta) {
     ImFont* title = CyberFonts::GetTitleFont();
     ImFont* body = CyberFonts::GetBodyFont();
     if (body) ImGui::PushFont(body);
-    draw->AddText(ImVec2(content_x, top - S(13.f)),
-        CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.66f), "OMNI // PRODUCT LIBRARY");
     if (title) ImGui::PushFont(title);
-    draw->AddText(ImVec2(content_x, top + S(4.f)), C_TEXT(), Loc::Tr("launcher.library"));
+    draw->AddText(ImVec2(content_x, top - S(4.f)), C_TEXT(), Loc::Tr("launcher.library"));
     if (title) ImGui::PopFont();
 
     int visible_count = 0;
@@ -882,11 +868,11 @@ void DrawLibrary(ImDrawList* draw, ImVec2 display, float delta) {
     std::snprintf(count, sizeof(count), Loc::Tr("launcher.games_available"), visible_count);
 
     const float search_width = display.x < S(720.f) ? S(175.f) : S(240.f);
-    ImGui::SetCursorScreenPos(ImVec2(content_right - search_width, top + S(5.f)));
+    ImGui::SetCursorScreenPos(ImVec2(content_right - search_width, top - S(3.f)));
     CyberWidgets::InputField("##library_search", g_search, sizeof(g_search),
         Loc::Tr("launcher.search_hint"), 0, search_width);
 
-    draw->AddText(ImVec2(content_x, top + S(45.f)), C_MUTED(), count);
+    draw->AddText(ImVec2(content_x, top + S(36.f)), C_MUTED(), count);
 
     const char* filters[] = {
         Loc::Tr("launcher.filter.all"),
@@ -895,7 +881,7 @@ void DrawLibrary(ImDrawList* draw, ImVec2 display, float delta) {
         Loc::Tr("launcher.filter.ready")
     };
     float filter_x = content_x + ImGui::CalcTextSize(count).x + S(28.f);
-    const float filter_y = top + S(40.f);
+    const float filter_y = top + S(31.f);
     for (int index = 0; index < 4; ++index) {
         const ImVec2 text_size = ImGui::CalcTextSize(filters[index]);
         const ImVec2 min(filter_x, filter_y);
@@ -919,8 +905,51 @@ void DrawLibrary(ImDrawList* draw, ImVec2 display, float delta) {
     }
     if (body) ImGui::PopFont();
 
+    const auto update = OmniGhost::Update::UpdateService::Instance().GetSnapshot();
+    using UpdateStatus = OmniGhost::Update::Status;
+    const bool showUpdate = update.status == UpdateStatus::Available ||
+        update.status == UpdateStatus::Downloading || update.status == UpdateStatus::Ready ||
+        update.status == UpdateStatus::Installing || update.status == UpdateStatus::Error;
+    if (showUpdate) {
+        const float bannerY = top + S(70.f);
+        const ImVec2 bannerMin(content_x, bannerY);
+        const ImVec2 bannerMax(content_right, bannerY + S(48.f));
+        draw->AddRectFilled(bannerMin, bannerMax, C_CARD(), CyberTheme::Radius::Sm);
+        draw->AddRect(bannerMin, bannerMax,
+            update.status == UpdateStatus::Error ? C_RED() : CyberTheme::WithAlpha(CyberTheme::Colors.Gold, .55f),
+            CyberTheme::Radius::Sm);
+        const char* heading = update.status == UpdateStatus::Error
+            ? app_settings::T("Falha ao procurar a atualização", "Update check failed")
+            : app_settings::T("Atualização disponível", "Update available");
+        draw->AddText(ImVec2(bannerMin.x + S(14.f), bannerMin.y + S(7.f)), C_TEXT(), heading);
+        draw->AddText(ImVec2(bannerMin.x + S(14.f), bannerMin.y + S(26.f)), C_MUTED(), UpdateStatusText(update));
+
+        const char* action = nullptr;
+        if (update.status == UpdateStatus::Available) action = app_settings::T("Transferir", "Download");
+        else if (update.status == UpdateStatus::Ready) action = app_settings::T("Instalar", "Install");
+        else if (update.status == UpdateStatus::Error) action = app_settings::T("Tentar novamente", "Retry");
+        if (action) {
+            const ImVec2 actionSize(S(132.f), S(32.f));
+            const ImVec2 actionMin(bannerMax.x - actionSize.x - S(9.f), bannerMin.y + S(8.f));
+            const ImVec2 actionMax(actionMin.x + actionSize.x, actionMin.y + actionSize.y);
+            const bool hovered = ImGui::IsMouseHoveringRect(actionMin, actionMax);
+            draw->AddRectFilled(actionMin, actionMax,
+                hovered ? C_GOLD_LT() : C_GOLD(), CyberTheme::Radius::Sm);
+            const ImVec2 actionText = ImGui::CalcTextSize(action);
+            draw->AddText(ImVec2(actionMin.x + (actionSize.x - actionText.x) * .5f,
+                                 actionMin.y + (actionSize.y - actionText.y) * .5f), C_BG(), action);
+            if (hovered) ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+            if (hovered && ImGui::IsMouseClicked(0)) {
+                auto& updater = OmniGhost::Update::UpdateService::Instance();
+                if (update.status == UpdateStatus::Available) updater.DownloadAsync();
+                else if (update.status == UpdateStatus::Ready) updater.InstallPreparedUpdateAsync();
+                else updater.RetryLastFailure();
+            }
+        }
+    }
+
     const float gap = display.x < S(760.f) ? S(14.f) : S(20.f);
-    const float start_y = top + S(88.f);
+    const float start_y = top + S(showUpdate ? 132.f : 79.f);
     const float footer = S(36.f);
     const float grid_height = (std::max)(S(130.0f), display.y - start_y - footer - S(10.f));
     const float scrollbar_reserve = S(14.0f);

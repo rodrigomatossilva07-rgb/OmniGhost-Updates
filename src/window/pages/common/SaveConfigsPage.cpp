@@ -303,19 +303,20 @@ void DrawAimPreview() {
 
 void DrawSaveConfigs()
 {
-    CyberWidgets::BeginCard("Perfis por jogo");
-    CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, "%s · perfil atual: %s",
+    CyberWidgets::BeginCard(app_settings::T("Perfis por jogo", "Game profiles"));
+    CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, app_settings::T("%s · perfil atual: %s", "%s · current profile: %s"),
         ActiveGameName(), config_manager::CurrentGameProfileName());
-    CyberWidgets::TextLine("Os perfis são apenas conjuntos de configuração; não indicam segurança nem deteção.",
+    CyberWidgets::TextLine(app_settings::T("Os perfis são apenas conjuntos de configuração; não indicam segurança nem deteção.",
+                                          "Profiles are configuration sets; they do not indicate safety or detection."),
         CyberWidgets::TextTone::Secondary);
     CyberWidgets::CardGap(8.f);
 
-    if (CyberWidgets::GoldButton("Predefinido", ImVec2(112, 34))) {
+    if (CyberWidgets::GoldButton(app_settings::T("Predefinido", "Default"), ImVec2(112, 34))) {
         config_manager::ApplyGameProfile(config_manager::GameProfile::Default);
         CyberWidgets::Notify("Perfil predefinido aplicado", CyberWidgets::ToastType::Success);
     }
     ImGui::SameLine();
-    if (CyberWidgets::CyberButton("Mínimo", ImVec2(112, 34))) {
+    if (CyberWidgets::CyberButton(app_settings::T("Mínimo", "Minimal"), ImVec2(112, 34))) {
         config_manager::ApplyGameProfile(config_manager::GameProfile::Minimal);
         CyberWidgets::Notify("Perfil mínimo aplicado", CyberWidgets::ToastType::Info);
     }
@@ -325,36 +326,22 @@ void DrawSaveConfigs()
         CyberWidgets::Notify("Perfil Visual aplicado", CyberWidgets::ToastType::Info);
     }
     ImGui::SameLine();
-    if (CyberWidgets::CyberButton("Personalizado", ImVec2(132, 34))) {
+    if (CyberWidgets::CyberButton(app_settings::T("Personalizado", "Custom"), ImVec2(132, 34))) {
         config_manager::ApplyGameProfile(config_manager::GameProfile::Custom);
         CyberWidgets::Notify("Perfil personalizado carregado", CyberWidgets::ToastType::Info);
     }
     ImGui::SameLine();
-    if (CyberWidgets::GoldButton("Guardar personalizado", ImVec2(180, 34))) {
+    if (CyberWidgets::GoldButton(app_settings::T("Guardar personalizado", "Save custom"), ImVec2(180, 34))) {
         const bool ok = config_manager::SaveCustomGameProfile();
         CyberWidgets::Notify(ok ? "Perfil personalizado atualizado" : "Falha ao guardar o perfil personalizado",
             ok ? CyberWidgets::ToastType::Success : CyberWidgets::ToastType::Error);
     }
     CyberWidgets::EndCard();
 
-    CyberWidgets::BeginCard("Pré-visualização · Visuais");
-    CyberWidgets::TextLine("Pré-visualização imediata dos principais elementos visuais do perfil ativo.",
-        CyberWidgets::TextTone::Secondary);
-    CyberWidgets::CardGap(8.f);
-    DrawVisualPreview();
-    CyberWidgets::EndCard();
-
-    CyberWidgets::BeginCard("Pré-visualização · Mira");
-    CyberWidgets::TextLine("Pré-visualização imediata das configurações de mira do perfil ativo.",
-        CyberWidgets::TextTone::Secondary);
-    CyberWidgets::CardGap(8.f);
-    DrawAimPreview();
-    CyberWidgets::EndCard();
-
     CyberWidgets::BeginCard(Loc::Tr("save.title"));
-    CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, "Config ativa: %s",
+    CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, app_settings::T("Config ativa: %s", "Active config: %s"),
         config_manager::ActiveConfigName());
-    CyberWidgets::TextLine("Nome (escreve e guarda)", CyberWidgets::TextTone::Secondary);
+    CyberWidgets::TextLine(app_settings::T("Nome (escreve e guarda)", "Name (type and save)"), CyberWidgets::TextTone::Secondary);
     CyberWidgets::InputField("##cfg_name_full", config_manager::new_config_name,
         sizeof(config_manager::new_config_name), "ex: Visual cidade X", 0, -1.0f);
     CyberWidgets::CardGap(6.0f);
@@ -382,14 +369,15 @@ void DrawSaveConfigs()
         CyberWidgets::Notify(Loc::Tr("status.pasted"), CyberWidgets::ToastType::Info);
     }
     ImGui::SameLine();
-    if (CyberWidgets::CyberButton("Repor jogo", ImVec2(130, 32))) {
+    if (CyberWidgets::CyberButton(app_settings::T("Repor jogo", "Reset game"), ImVec2(130, 32))) {
         config_manager::ResetActiveGameToDefaults();
         CyberWidgets::Notify("Configuração do jogo reposta", CyberWidgets::ToastType::Warning);
     }
     CyberWidgets::EndCard();
 
     CyberWidgets::BeginCard(Loc::Tr("save.list"));
-    CyberWidgets::TextLine("Arrasta para reordenar — a do topo carrega ao iniciar",
+    CyberWidgets::TextLine(app_settings::T("Arrasta para reordenar — a do topo carrega ao iniciar",
+                                          "Drag to reorder — the top entry loads at startup"),
         CyberWidgets::TextTone::Secondary);
     CyberWidgets::BeginSurfaceList("##config_list", 240.0f);
     int moveFrom = -1, moveTo = -1;

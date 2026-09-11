@@ -390,7 +390,7 @@ namespace CyberWidgets {
             : (hovered ? IM_COL32(218, 220, 228, 255)
                        : ImGui::ColorConvertFloat4ToU32(CyberTheme::Colors.TextDisabled));
         if (icon_fn) {
-            const float iconBox = CyberTheme::Px(30.0f);
+            const float iconBox = CyberTheme::Px(34.0f);
             const ImVec2 iconMin(pos.x + CyberTheme::Px(8.0f),
                 pos.y + (size.y - iconBox) * 0.5f);
             const ImVec2 iconMax(iconMin.x + iconBox, iconMin.y + iconBox);
@@ -405,10 +405,10 @@ namespace CyberWidgets {
             if (active)
                 dl->AddCircleFilled(
                     ImVec2((iconMin.x + iconMax.x) * 0.5f, (iconMin.y + iconMax.y) * 0.5f),
-                    CyberTheme::Px(13.0f), WithAlpha(CyberTheme::Colors.GoldGlow, 0.20f), 18);
-            icon_fn(dl, ImVec2(iconMin.x + CyberTheme::Px(4.0f),
-                               iconMin.y + CyberTheme::Px(4.0f)),
-                    CyberTheme::Px(22.0f), icon_color);
+                    CyberTheme::Px(15.0f), WithAlpha(CyberTheme::Colors.GoldGlow, 0.20f), 18);
+            icon_fn(dl, ImVec2(iconMin.x + CyberTheme::Px(4.5f),
+                               iconMin.y + CyberTheme::Px(4.5f)),
+                    CyberTheme::Px(25.0f), icon_color);
         }
 
         const ImU32 text_color = active
@@ -418,10 +418,10 @@ namespace CyberWidgets {
         ImFont* body = CyberFonts::GetBodyFont();
         const char* side_display = DisplayLabel(label);
         if (body)
-            dl->AddText(body, CyberTheme::Px(14.0f), ImVec2(pos.x + 48.0f, pos.y + (size.y - CyberTheme::Px(14.0f)) * 0.5f - 1.0f),
+            dl->AddText(body, CyberTheme::Px(15.0f), ImVec2(pos.x + CyberTheme::Px(52.0f), pos.y + (size.y - CyberTheme::Px(15.0f)) * 0.5f - 1.0f),
                 text_color, side_display);
         else
-            dl->AddText(ImVec2(pos.x + 46.0f, pos.y + 12.0f), text_color, side_display);
+            dl->AddText(ImVec2(pos.x + CyberTheme::Px(52.0f), pos.y + 12.0f), text_color, side_display);
         return clicked;
     }
 
@@ -565,11 +565,18 @@ namespace CyberWidgets {
             IM_COL32(137, 140, 153, 255));
 
         bool changed = false;
+        const bool source_visible = ImGui::IsRectVisible(
+            pos, ImVec2(pos.x + width, pos.y + row_height));
         ImGui::SetNextWindowSizeConstraints(
             ImVec2(field_width, 0.0f), ImVec2(field_width, 220.0f));
+        // Re-anchor the popup every frame. This makes it travel with its row
+        // when an independently scrollable settings column moves.
+        ImGui::SetNextWindowPos(ImVec2(field_pos.x, field_end.y + 4.0f), ImGuiCond_Always);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(5.0f, 5.0f));
         if (ImGui::BeginPopup("##combo_popup",
             ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar)) {
+            if (!source_visible)
+                ImGui::CloseCurrentPopup();
             for (int index = 0; index < items_count; ++index) {
                 ImGui::PushID(index);
                 const ImVec2 item_pos = ImGui::GetCursorScreenPos();

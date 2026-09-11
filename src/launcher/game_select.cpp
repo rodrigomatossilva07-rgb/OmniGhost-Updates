@@ -290,8 +290,6 @@ bool Draw() {
         ImGui::End();
         ImGui::PopStyleVar(2);
         ImGui::PopStyleColor();
-    } else if (g_nav == static_cast<int>(NavPage::Updates)) {
-        LauncherUpdates::Draw(display, S(78.f), S(56.f));
     } else if (g_nav == static_cast<int>(NavPage::Marketplace)) {
         DrawMarketplace(display);
     } else if (g_nav == static_cast<int>(NavPage::Diagnostics)) {

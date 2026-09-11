@@ -2,6 +2,7 @@
 #include "../../theme.h"
 #include "../../localization.h"
 #include "aimbot/aim_type.h"
+#include "config/app_settings.h"
 #ifdef UI_PREVIEW
 #include "preview/preview_runtime.h"
 #else
@@ -130,23 +131,23 @@ void DrawAim()
     const float right = full - left - gap;
 
     ImGui::BeginGroup();
-    CyberWidgets::BeginCard("ASSISTÊNCIA DE MIRA", left);
-    CyberWidgets::ToggleSwitch("Ativar assistência", &aimbot::config.aimbot_enabled);
+    CyberWidgets::BeginCard(app_settings::T("ASSISTÊNCIA DE MIRA", "AIM ASSIST"), left);
+    CyberWidgets::ToggleSwitch(app_settings::T("Ativar assistência", "Enable aim assist"), &aimbot::config.aimbot_enabled);
     if (aimbot::config.aimbot_enabled) {
-        CyberWidgets::ToggleSwitch("Verificação de visibilidade", &aimbot::config.visible_check);
+        CyberWidgets::ToggleSwitch(Loc::Tr("aim.visible_check"), &aimbot::config.visible_check);
         CyberWidgets::Separator();
-        CyberWidgets::SectionTitle("ALVO");
-        const char* hitboxes[] = { "Cabeça", "Pescoço", "Tronco", "Pélvis", "Pernas" };
+        CyberWidgets::SectionTitle(app_settings::T("ALVO", "TARGET"));
+        const char* hitboxes[] = { Loc::Tr("aim.bone_head"), Loc::Tr("aim.bone_neck"), Loc::Tr("aim.bone_chest"), Loc::Tr("aim.bone_pelvis"), app_settings::T("Pernas", "Legs") };
         int hitbox = static_cast<int>(aimbot::config.hitbox);
-        if (CyberWidgets::Combo("Área do alvo", &hitbox, hitboxes, 5))
+        if (CyberWidgets::Combo(Loc::Tr("aim.hitbox"), &hitbox, hitboxes, 5))
             aimbot::config.hitbox = static_cast<aimbot::Hitbox>(hitbox);
-        CyberWidgets::SliderFloat("Distância máxima", &aimbot::config.max_distance, 10.f, 500.f, "%.0f m");
-        CyberWidgets::SliderFloat("Suavidade", &aimbot::config.smooth_x, 0.f, 100.f, "%.0f");
+        CyberWidgets::SliderFloat(Loc::Tr("vis.max_dist"), &aimbot::config.max_distance, 10.f, 500.f, "%.0f m");
+        CyberWidgets::SliderFloat(Loc::Tr("aim.smooth"), &aimbot::config.smooth_x, 0.f, 100.f, "%.0f");
         aimbot::config.smooth_y = aimbot::config.smooth_x;
-        CyberWidgets::ToggleSwitch("Humanizar movimento", &aimbot::config.humanize);
+        CyberWidgets::ToggleSwitch(app_settings::T("Humanizar movimento", "Humanize movement"), &aimbot::config.humanize);
         CyberWidgets::Separator();
-        CyberWidgets::SectionTitle("ENTRADA");
-        ImGui::TextUnformatted("Tecla principal");
+        CyberWidgets::SectionTitle(app_settings::T("ENTRADA", "INPUT"));
+        ImGui::TextUnformatted(app_settings::T("Tecla principal", "Primary key"));
         ImGui::SameLine(160.f);
         HotkeyCaptureButton("aim1", &aimbot::config.aimbot_bind);
     }
@@ -156,7 +157,7 @@ void DrawAim()
         aimbot::config.aimbot_bind = VK_RBUTTON;
 
     if (aimbot::config.aimbot_enabled) {
-        ImGui::TextUnformatted("Tecla secundária");
+        ImGui::TextUnformatted(app_settings::T("Tecla secundária", "Secondary key"));
         ImGui::SameLine(160.f);
         HotkeyCaptureButton("aim2", &aimbot::config.aimbot_bind2);
     }
@@ -165,16 +166,17 @@ void DrawAim()
         aimbot::config.aimbot_bind2 == aimbot::config.aimbot_bind)
         aimbot::config.aimbot_bind2 = 0;
     if (!aimbot::config.aimbot_enabled)
-        CyberWidgets::TextLine("Assistência desativada — ativa para configurar alvo e teclas.", CyberWidgets::TextTone::Secondary);
+        CyberWidgets::TextLine(app_settings::T("Assistência desativada — ativa para configurar alvo e teclas.",
+                                              "Aim assist disabled — enable it to configure targets and keys."), CyberWidgets::TextTone::Secondary);
     CyberWidgets::EndCard();
 
     CyberWidgets::CardGap(gap);
-    CyberWidgets::BeginCard("DISPARO AUTOMÁTICO", left);
-    CyberWidgets::ToggleSwitch("Ativar disparo automático", &aimbot::config.trigger_enabled);
+    CyberWidgets::BeginCard(Loc::Tr("aim.trigger_title"), left);
+    CyberWidgets::ToggleSwitch(Loc::Tr("aim.trigger"), &aimbot::config.trigger_enabled);
     if (aimbot::config.trigger_enabled) {
-        CyberWidgets::ToggleSwitch("Apenas cabeça", &aimbot::config.trigger_head_only);
-        CyberWidgets::SliderFloat("FOV de disparo", &aimbot::config.trigger_fov, 4.f, 80.f, "%.0f px");
-        CyberWidgets::SliderFloat("Atraso", &aimbot::config.trigger_delay, 0.f, .5f, "%.3f s");
+        CyberWidgets::ToggleSwitch(Loc::Tr("aim.trigger_head"), &aimbot::config.trigger_head_only);
+        CyberWidgets::SliderFloat(Loc::Tr("aim.trigger_fov"), &aimbot::config.trigger_fov, 4.f, 80.f, "%.0f px");
+        CyberWidgets::SliderFloat(Loc::Tr("aim.trigger_delay"), &aimbot::config.trigger_delay, 0.f, .5f, "%.3f s");
     }
     CyberWidgets::EndCard();
     ImGui::EndGroup();
@@ -182,13 +184,13 @@ void DrawAim()
     ImGui::SameLine(0.f, gap);
     ImGui::BeginGroup();
     CyberWidgets::BeginCard("FOV", right);
-    CyberWidgets::ToggleSwitch("Mostrar FOV", &aimbot::config.show_fov);
-    const char* fov_styles[] = { "Círculo", "Quadrado", "Dinâmico" };
+    CyberWidgets::ToggleSwitch(Loc::Tr("aim.show_fov"), &aimbot::config.show_fov);
+    const char* fov_styles[] = { Loc::Tr("aim.fov_circle"), Loc::Tr("aim.fov_square"), app_settings::T("Dinâmico", "Dynamic") };
     int fs = static_cast<int>(aimbot::config.fov_style);
-    if (CyberWidgets::Combo("Forma", &fs, fov_styles, 3))
+    if (CyberWidgets::Combo(app_settings::T("Forma", "Shape"), &fs, fov_styles, 3))
         aimbot::config.fov_style = static_cast<aimbot::FovStyle>(fs);
-    CyberWidgets::SliderFloat("Tamanho", &aimbot::config.fov_size, 10.f, 500.f, "%.0f px");
-    CyberWidgets::ColorEditU32("Cor", &aimbot::config.fov_color);
+    CyberWidgets::SliderFloat(app_settings::T("Tamanho", "Size"), &aimbot::config.fov_size, 10.f, 500.f, "%.0f px");
+    CyberWidgets::ColorEditU32(Loc::Tr("fr.color"), &aimbot::config.fov_color);
     DrawFovPreview((std::max)(140.f, right - 20.f), 160.f);
     CyberWidgets::EndCard();
     ImGui::EndGroup();

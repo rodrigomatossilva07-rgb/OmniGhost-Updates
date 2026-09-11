@@ -31,7 +31,14 @@ struct LoadedTexture {
 std::vector<LoadedTexture> g_textures;
 LoadedTexture g_rust_preview;
 LoadedTexture g_fivem_preview;
+LoadedTexture g_profile_avatar;
 IWICImagingFactory* g_factory = nullptr;
+ID3D11Device* g_device = nullptr;
+
+fs::path ProfileAvatarPath() {
+    OmniGhost::Paths::EnsureUserDirectories();
+    return OmniGhost::Paths::Configs() / L"profile_avatar.image";
+}
 
 
 fs::path ResolveLocalPath(const char* relative) {
@@ -82,7 +89,8 @@ bool LoadPng(ID3D11Device* device, const fs::path& path, LoadedTexture& output) 
             WICBitmapPaletteTypeCustom)))
         goto cleanup;
 
-    if (FAILED(converter->GetSize(&width, &height)) || width == 0 || height == 0)
+    if (FAILED(converter->GetSize(&width, &height)) || width == 0 || height == 0 ||
+        width > 8192 || height > 8192)
         goto cleanup;
 
     {
@@ -206,6 +214,8 @@ Texture Find(Launcher::GameId game, bool banner) {
 void Initialize(ID3D11Device* device) {
     Shutdown();
     if (!device) return;
+    g_device = device;
+    g_device->AddRef();
 
     CoInitializeEx(nullptr, COINIT_MULTITHREADED);
     if (FAILED(CoCreateInstance(
@@ -234,6 +244,11 @@ void Initialize(ID3D11Device* device) {
     LoadAsset(device, "resources/games/rust/esp_preview.png", g_rust_preview);
     g_fivem_preview = {};
     LoadAsset(device, "resources/games/fivem/esp_preview_operator.png", g_fivem_preview);
+    g_profile_avatar = {};
+    std::error_code avatarError;
+    const fs::path avatarPath = ProfileAvatarPath();
+    if (fs::exists(avatarPath, avatarError) && fs::is_regular_file(avatarPath, avatarError))
+        LoadPng(device, avatarPath, g_profile_avatar);
 }
 
 void Shutdown() {
@@ -248,6 +263,14 @@ void Shutdown() {
     if (g_fivem_preview.view) {
         g_fivem_preview.view->Release();
         g_fivem_preview = {};
+    }
+    if (g_profile_avatar.view) {
+        g_profile_avatar.view->Release();
+        g_profile_avatar = {};
+    }
+    if (g_device) {
+        g_device->Release();
+        g_device = nullptr;
     }
     if (g_factory) {
         g_factory->Release();
@@ -264,6 +287,34 @@ Texture RustEspPreview() {
 Texture FiveMEspPreview() {
     return { reinterpret_cast<ImTextureID>(g_fivem_preview.view),
              g_fivem_preview.width, g_fivem_preview.height };
+}
+Texture ProfileAvatar() {
+    return { reinterpret_cast<ImTextureID>(g_profile_avatar.view),
+             g_profile_avatar.width, g_profile_avatar.height };
+}
+
+bool HasCustomProfileAvatar() {
+    return g_profile_avatar.view != nullptr;
+}
+
+bool ImportProfileAvatar(const fs::path& source) {
+    if (!g_device || source.empty()) return false;
+    std::error_code error;
+    if (!fs::is_regular_file(source, error)) return false;
+    const std::uintmax_t size = fs::file_size(source, error);
+    if (error || size == 0 || size > 20u * 1024u * 1024u) return false;
+
+    LoadedTexture candidate{};
+    if (!LoadPng(g_device, source, candidate)) return false;
+    const fs::path destination = ProfileAvatarPath();
+    fs::copy_file(source, destination, fs::copy_options::overwrite_existing, error);
+    if (error) {
+        if (candidate.view) candidate.view->Release();
+        return false;
+    }
+    if (g_profile_avatar.view) g_profile_avatar.view->Release();
+    g_profile_avatar = candidate;
+    return true;
 }
 
 } // namespace LauncherAssets

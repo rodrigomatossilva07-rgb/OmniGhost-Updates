@@ -141,12 +141,17 @@ namespace CyberWidgets {
 
             ImFont* body = CyberFonts::GetBodyFont();
             const float titleSize = CyberTheme::Px(15.0f);
+            const char* titleEnd = ImGui::FindRenderedTextEnd(card.title);
+            const ImVec2 titleExtent = body
+                ? body->CalcTextSizeA(titleSize, FLT_MAX, 0.0f, card.title, titleEnd)
+                : ImGui::CalcTextSize(card.title, titleEnd);
+            const float titleX = a.x + (card.width - titleExtent.x) * 0.5f;
             if (body)
-                dl->AddText(body, titleSize, ImVec2(a.x + 24.0f, a.y + 11.0f),
-                    CyberTheme::U32(CyberTheme::Colors.Text), card.title);
+                dl->AddText(body, titleSize, ImVec2(titleX, a.y + 11.0f),
+                    CyberTheme::U32(CyberTheme::Colors.Text), card.title, titleEnd);
             else
-                dl->AddText(ImVec2(a.x + 24.0f, a.y + 12.0f),
-                    CyberTheme::U32(CyberTheme::Colors.Text), card.title);
+                dl->AddText(ImVec2(titleX, a.y + 12.0f),
+                    CyberTheme::U32(CyberTheme::Colors.Text), card.title, titleEnd);
 
             // Soft hover outline only
             const ImVec2 mouse = ImGui::GetIO().MousePos;

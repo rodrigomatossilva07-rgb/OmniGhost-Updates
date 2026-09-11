@@ -608,14 +608,15 @@ void esp::render_batch_head_circles(const std::vector<BatchHeadData>& head_data,
                 color = IM_COL32(100, 100, 100, 255);
             }
 
-            // Draw circle
-            draw_list->AddCircle(
-                ImVec2(head_screen_pos.x, head_screen_pos.y),
-                4.0f,
-                color,
-                20,
-                2.0f
-            );
+            const ImVec2 head(head_screen_pos.x, head_screen_pos.y);
+            if (esp::config.circle_type == 1) {
+                draw_list->AddCircleFilled(head, 4.0f, color, 20);
+            } else if (esp::config.circle_type == 2) {
+                draw_list->AddLine(ImVec2(head.x - 6.f, head.y), ImVec2(head.x + 6.f, head.y), color, 2.f);
+                draw_list->AddLine(ImVec2(head.x, head.y - 6.f), ImVec2(head.x, head.y + 6.f), color, 2.f);
+            } else {
+                draw_list->AddCircle(head, 4.0f, color, 20, 2.0f);
+            }
         }
 
         // Update cache
@@ -651,24 +652,33 @@ void esp::render_head_circle_esp_batch() {
 
 static bool IsPlausiblePlayerName(const char* s) {
     if (!s || !s[0]) return false;
-    int letters = 0, digits = 0, len = 0, hexish = 0;
-    for (int i = 0; s[i] && i < 48; ++i) {
-        unsigned char c = (unsigned char)s[i];
-        if (c < 32 || c > 126) return false;
-        ++len;
-        if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) ++letters;
-        else if (c >= '0' && c <= '9') ++digits;
-        else if (c == '_' || c == '-' || c == ' ' || c == '.') continue;
-        else return false; // weird punctuation
-        char lc = (char)tolower(c);
-        if ((lc >= 'a' && lc <= 'f') || (lc >= '0' && lc <= '9')) ++hexish;
+    size_t len = 0;
+    int visible = 0;
+    while (s[len] && len < 48) {
+        const unsigned char c = static_cast<unsigned char>(s[len]);
+        if (c < 0x20 || c == 0x7F) return false;
+        if (c < 0x80) {
+            if (c != ' ') ++visible;
+            ++len;
+            continue;
+        }
+
+        // FiveM names are UTF-8.  The previous ASCII-only filter discarded
+        // accents, symbols and many perfectly valid player names.
+        int continuation = 0;
+        if ((c & 0xE0) == 0xC0 && c >= 0xC2) continuation = 1;
+        else if ((c & 0xF0) == 0xE0) continuation = 2;
+        else if ((c & 0xF8) == 0xF0 && c <= 0xF4) continuation = 3;
+        else return false;
+        if (len + static_cast<size_t>(continuation) >= 48) return false;
+        for (int n = 1; n <= continuation; ++n) {
+            const unsigned char next = static_cast<unsigned char>(s[len + n]);
+            if ((next & 0xC0) != 0x80) return false;
+        }
+        len += static_cast<size_t>(continuation) + 1;
+        ++visible;
     }
-    if (len < 3 || len > 24) return false;
-    if (letters < 2) return false; // need real letters
-    // reject pure/mostly hex garbage like "R0c5636c0"
-    if (hexish >= len - 1 && digits >= 3) return false;
-    if (digits > letters + 2) return false;
-    return true;
+    return len >= 1 && len <= 47 && visible > 0 && s[len] == '\0';
 }
 
 // Name cache by netId — TTL + hard cap
@@ -710,8 +720,8 @@ static bool ReadPlayerDisplayName(uintptr_t ped, uintptr_t pinfo, uint32_t netId
     bool ok = false;
 
     // 1) Inline string at CPlayerInfo+name (0x100 cheatoffsets)
-    mem.Read(pinfo + offset::playerInfo_name, buf, 31);
-    buf[31] = 0;
+    mem.Read(pinfo + offset::playerInfo_name, buf, sizeof(buf) - 1);
+    buf[sizeof(buf) - 1] = 0;
     ok = IsPlausiblePlayerName(buf);
 
     // 2) Pointer at same offset
@@ -719,8 +729,8 @@ static bool ReadPlayerDisplayName(uintptr_t ped, uintptr_t pinfo, uint32_t netId
         uintptr_t sp = mem.Read<uintptr_t>(pinfo + offset::playerInfo_name);
         if (sp > 0x10000 && sp < 0x7FFFFFFFFFFFULL) {
             memset(buf, 0, sizeof(buf));
-            mem.Read(sp, buf, 31);
-            buf[31] = 0;
+            mem.Read(sp, buf, sizeof(buf) - 1);
+            buf[sizeof(buf) - 1] = 0;
             ok = IsPlausiblePlayerName(buf);
         }
     }
@@ -729,14 +739,14 @@ static bool ReadPlayerDisplayName(uintptr_t ped, uintptr_t pinfo, uint32_t netId
     if (!ok) {
         for (uintptr_t off : { 0x100u, 0xFCu, 0x7Cu, 0xA0u, 0x84u, 0xBC0u, 0xE0u }) {
             memset(buf, 0, sizeof(buf));
-            mem.Read(pinfo + off, buf, 31);
-            buf[31] = 0;
+            mem.Read(pinfo + off, buf, sizeof(buf) - 1);
+            buf[sizeof(buf) - 1] = 0;
             if (IsPlausiblePlayerName(buf)) { ok = true; break; }
             uintptr_t sp = mem.Read<uintptr_t>(pinfo + off);
             if (sp > 0x10000 && sp < 0x7FFFFFFFFFFFULL) {
                 memset(buf, 0, sizeof(buf));
-                mem.Read(sp, buf, 31);
-                buf[31] = 0;
+                mem.Read(sp, buf, sizeof(buf) - 1);
+                buf[sizeof(buf) - 1] = 0;
                 if (IsPlausiblePlayerName(buf)) { ok = true; break; }
             }
         }
@@ -753,14 +763,14 @@ static bool ReadPlayerDisplayName(uintptr_t ped, uintptr_t pinfo, uint32_t netId
                 for (uintptr_t stride : { 0x10ull, 0x18ull, 0x20ull }) {
                     uintptr_t entry = table + (uintptr_t)netId * stride;
                     memset(buf, 0, sizeof(buf));
-                    mem.Read(entry, buf, 31);
-                    buf[31] = 0;
+                    mem.Read(entry, buf, sizeof(buf) - 1);
+                    buf[sizeof(buf) - 1] = 0;
                     if (IsPlausiblePlayerName(buf)) { ok = true; break; }
                     uintptr_t sp = mem.Read<uintptr_t>(entry);
                     if (sp > 0x10000 && sp < 0x7FFFFFFFFFFFULL) {
                         memset(buf, 0, sizeof(buf));
-                        mem.Read(sp, buf, 31);
-                        buf[31] = 0;
+                        mem.Read(sp, buf, sizeof(buf) - 1);
+                        buf[sizeof(buf) - 1] = 0;
                         if (IsPlausiblePlayerName(buf)) { ok = true; break; }
                     }
                 }
@@ -1553,13 +1563,13 @@ static void DrawHeadCircleAt(ImDrawList* draw_list, const Vec2& screen, ImU32 co
     const float th = (r > 4.f) ? 2.0f : 1.4f;
     // LOD segments: far = fewer verts (cheaper), near = smoother
     const int segs = (distance_m > 80.f) ? 10 : (distance_m > 40.f) ? 14 : 20;
-    if (esp::config.circle_type == 1)
+    if (esp::config.circle_type == 1) {
         draw_list->AddCircleFilled(ImVec2(screen.x, screen.y), r, col, segs);
-    else
-        draw_list->AddCircle(ImVec2(screen.x, screen.y), r, col, segs, th);
-    if (esp::config.circle_type == 2) {
+    } else if (esp::config.circle_type == 2) {
         draw_list->AddLine(ImVec2(screen.x - r - 2, screen.y), ImVec2(screen.x + r + 2, screen.y), col, th);
         draw_list->AddLine(ImVec2(screen.x, screen.y - r - 2), ImVec2(screen.x, screen.y + r + 2), col, th);
+    } else {
+        draw_list->AddCircle(ImVec2(screen.x, screen.y), r, col, segs, th);
     }
 }
 
@@ -2100,8 +2110,9 @@ void esp::draw_skeleton(uintptr_t ped, Matrix viewport, uintptr_t localplayer) {
 void esp::DrawPlayerRadar(const Matrix& /*view_matrix*/, uintptr_t localplayer) {
     if (!localplayer) return;
 
-    // Square corner minimap (legacy) — only if explicitly enabled
-    if (config.square_radar && config.radar_enabled && !FiveM::ESP::validPeds.empty()) {
+    // Square corner radar. The frame remains visible even when no players are
+    // currently available, so enabling it always produces an immediate result.
+    if (config.square_radar && config.radar_enabled) {
         ImDrawList* dl = ImGui::GetForegroundDrawList();
         if (!dl) return;
         ImVec2 scr = ImGui::GetIO().DisplaySize;
@@ -2109,8 +2120,29 @@ void esp::DrawPlayerRadar(const Matrix& /*view_matrix*/, uintptr_t localplayer) 
         float cy = scr.y * config.radar_pos_y;
         float R = config.radar_size;
         float range = (std::max)(20.f, config.radar_range);
-        dl->AddCircleFilled(ImVec2(cx, cy), R + 4.f, IM_COL32(8, 8, 12, 180), 64);
-        dl->AddCircle(ImVec2(cx, cy), R, IM_COL32(40, 40, 50, 255), 64, 1.0f);
+
+        static bool draggingRadar = false;
+        ImGuiIO& io = ImGui::GetIO();
+        const bool mouseInside = io.MousePos.x >= cx - R && io.MousePos.x <= cx + R &&
+                                 io.MousePos.y >= cy - R && io.MousePos.y <= cy + R;
+        if (app_settings::menu_open && mouseInside && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+            draggingRadar = true;
+        if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
+            draggingRadar = false;
+        if (app_settings::menu_open && draggingRadar) {
+            cx = std::clamp(cx + io.MouseDelta.x, R + 8.f, scr.x - R - 8.f);
+            cy = std::clamp(cy + io.MouseDelta.y, R + 8.f, scr.y - R - 8.f);
+            config.radar_pos_x = cx / (std::max)(1.f, scr.x);
+            config.radar_pos_y = cy / (std::max)(1.f, scr.y);
+        }
+
+        const ImVec2 radarMin(cx - R, cy - R);
+        const ImVec2 radarMax(cx + R, cy + R);
+        dl->AddRectFilled(ImVec2(radarMin.x - 4.f, radarMin.y - 4.f),
+            ImVec2(radarMax.x + 4.f, radarMax.y + 4.f), IM_COL32(8, 8, 12, 205), 9.f);
+        dl->AddRect(radarMin, radarMax, IM_COL32(212, 175, 55, 165), 7.f, 0, 1.5f);
+        dl->AddLine(ImVec2(radarMin.x, cy), ImVec2(radarMax.x, cy), IM_COL32(212, 175, 55, 45), 1.f);
+        dl->AddLine(ImVec2(cx, radarMin.y), ImVec2(cx, radarMax.y), IM_COL32(212, 175, 55, 45), 1.f);
         dl->AddCircleFilled(ImVec2(cx, cy), 3.5f, IM_COL32(0, 255, 120, 255), 12);
         Vec3 localPos = mem.Read<Vec3>(localplayer + FiveM::offset::playerPosition);
         if (localPos.IsZero()) localPos = mem.Read<Vec3>(localplayer + 0x90);
@@ -2133,8 +2165,8 @@ void esp::DrawPlayerRadar(const Matrix& /*view_matrix*/, uintptr_t localplayer) 
             float localY = dx * fx + dy * fy;
             float nx = (localX / range) * R;
             float ny = (-localY / range) * R;
-            float pr = sqrtf(nx * nx + ny * ny);
-            if (pr > R && pr > 1e-3f) { nx = nx / pr * R; ny = ny / pr * R; }
+            nx = std::clamp(nx, -R + 5.f, R - 5.f);
+            ny = std::clamp(ny, -R + 5.f, R - 5.f);
             ImU32 col = EspPedColor(ped, config.color_visible, visible);
             if (friends::IsFriendPed(ped)) col = friends::config.friend_color;
             dl->AddCircleFilled(ImVec2(cx + nx, cy + ny), 3.0f, col, 10);

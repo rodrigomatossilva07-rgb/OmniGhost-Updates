@@ -13,30 +13,29 @@ void DrawFriends()
 {
     friends::UpdatePlayerList();
 
-    static char searchBuf[64] = {};
-
     const float full = CyberWidgets::CardContentWidth();
     const float gap = CyberTheme::Spacing::Sm;
     const float leftW = full * 0.45f;
     const float rightW = full - leftW - gap;
 
-    CyberWidgets::BeginCard("AMIGOS", leftW);
+    ImGui::BeginGroup();
+    CyberWidgets::BeginCard(Loc::Tr("fr.list"), leftW);
     CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary,
-        "%d jogadores próximos", (int)friends::player_list.size());
+        Loc::Tr("fr.nearby"), (int)friends::player_list.size());
     CyberWidgets::Separator();
     CyberWidgets::SectionTitle("REGRAS");
-    CyberWidgets::ToggleSwitch("Ignorar amigos", &friends::config.ignore_aim);
+    CyberWidgets::ToggleSwitch(Loc::Tr("fr.ignore_aim"), &friends::config.ignore_aim);
     if (friends::config.ignore_aim)
-        CyberWidgets::ToggleSwitch("Também no disparo automático", &friends::config.ignore_silent);
-    CyberWidgets::ToggleSwitch("ESP de amigos", &friends::config.show_friend_esp);
+        CyberWidgets::ToggleSwitch(Loc::Tr("fr.ignore_silent"), &friends::config.ignore_silent);
+    CyberWidgets::ToggleSwitch(Loc::Tr("fr.show_esp"), &friends::config.show_friend_esp);
     if (friends::config.show_friend_esp)
-        CyberWidgets::ColorEditU32("Cor", &friends::config.friend_color);
+        CyberWidgets::ColorEditU32(Loc::Tr("fr.color"), &friends::config.friend_color);
     CyberWidgets::Separator();
     CyberWidgets::SectionTitle("PROXIMIDADE");
-    CyberWidgets::ToggleSwitch("Usar alcance próximo", &friends::config.add_by_prox);
+    CyberWidgets::ToggleSwitch(Loc::Tr("fr.add_prox"), &friends::config.add_by_prox);
     if (friends::config.add_by_prox)
-        CyberWidgets::SliderFloat("Alcance", &friends::config.prox_max_distance, 5.0f, 200.0f, "%.0f m");
-    if (CyberWidgets::GoldButton("ADICIONAR MAIS PRÓXIMO", ImVec2(190, 34))) {
+        CyberWidgets::SliderFloat(Loc::Tr("fr.prox_dist"), &friends::config.prox_max_distance, 5.0f, 200.0f, "%.0f m");
+    if (CyberWidgets::GoldButton(Loc::Tr("fr.add_closest"), ImVec2(190, 34))) {
         friends::AddClosestAsFriend();
         CyberWidgets::Notify(Loc::Tr("status.friend_added"), CyberWidgets::ToastType::Success);
     }
@@ -98,10 +97,12 @@ void DrawFriends()
     if (to_remove)
         friends::RemoveFriend(to_remove);
     CyberWidgets::EndCard();
+    ImGui::EndGroup();
 
     ImGui::SameLine(0.f, gap);
 
-    CyberWidgets::BeginCard("JOGADORES PRÓXIMOS", rightW);
+    ImGui::BeginGroup();
+    CyberWidgets::BeginCard(Loc::Tr("fr.players"), rightW);
     static char search[64] = "";
     CyberWidgets::TextInput(Loc::TrID("fr.search"), search, sizeof(search), Loc::Tr("fr.search_hint"));
     CyberWidgets::Separator();
@@ -191,5 +192,6 @@ void DrawFriends()
         &selectedPlayer);
 
     CyberWidgets::EndCard();
+    ImGui::EndGroup();
 
 }

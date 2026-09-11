@@ -487,7 +487,6 @@ void DrawSettings(ImVec2 display) {
         {app_settings::SettingsPage::Overlay, Loc::Tr("launcher.settings.overlay"), "APARÊNCIA"},
         {app_settings::SettingsPage::Input, Loc::Tr("launcher.settings.input"), "CONTROLOS"},
         {app_settings::SettingsPage::Licenses, Loc::Tr("launcher.settings.licenses"), "SISTEMA"},
-        {app_settings::SettingsPage::Updates, Loc::Tr("launcher.updates"), "SISTEMA"},
         {app_settings::SettingsPage::Language, Loc::Tr("launcher.language"), "SISTEMA"},
         {app_settings::SettingsPage::Diagnostics, Loc::Tr("launcher.diagnostics"), "SISTEMA"},
         {app_settings::SettingsPage::About, Loc::Tr("launcher.settings.about"), "SISTEMA"}

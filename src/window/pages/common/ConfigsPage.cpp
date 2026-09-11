@@ -7,6 +7,10 @@
 #include "../../InputDevicesCard.h"
 #include "config/app_settings.h"
 #include "../../../globals.h"
+#include "../../../launcher/launcher_assets.h"
+#include "../../brand_assets.h"
+#include "../../../auth/local_auth_service.h"
+#include "../../../licensing/license_service.h"
 #include "platform/monitor_utils.h"
 #include "Memory/Memory.h"
 #include "Rust/rust_game.h"
@@ -17,6 +21,7 @@
 #include <cmath>
 #include <cstdio>
 #include <Windows.h>
+#include <commdlg.h>
 #include <string>
 #include <vector>
 
@@ -61,6 +66,44 @@ const char* MenuVkName(int vk) {
     std::snprintf(buf, sizeof(buf), "VK 0x%02X", vk);
     return buf;
 }
+
+std::string CurrentProfileName() {
+    const auto license = OmniGhost::Licensing::GetSnapshot();
+    std::string name = license.remoteUsername;
+    if (name.empty()) name = OmniGhost::Auth::LocalAuthService::Instance().CurrentEmail();
+    if (const std::size_t at = name.find('@'); at != std::string::npos) name.resize(at);
+    return name.empty() ? "OmniGhost User" : name;
+}
+
+bool ChooseProfileImage() {
+    wchar_t selected[MAX_PATH]{};
+    OPENFILENAMEW dialog{};
+    dialog.lStructSize = sizeof(dialog);
+    dialog.lpstrFile = selected;
+    dialog.nMaxFile = MAX_PATH;
+    dialog.lpstrFilter = L"Image files\0*.png;*.jpg;*.jpeg;*.bmp\0PNG\0*.png\0JPEG\0*.jpg;*.jpeg\0Bitmap\0*.bmp\0\0";
+    dialog.nFilterIndex = 1;
+    dialog.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
+    if (!GetOpenFileNameW(&dialog)) return false;
+    return LauncherAssets::ImportProfileAvatar(selected);
+}
+
+void DrawProfileAvatar(ImDrawList* draw, ImVec2 min, ImVec2 max) {
+    const LauncherAssets::Texture texture = LauncherAssets::ProfileAvatar();
+    ImTextureID image = texture.id ? texture.id : BrandAssets::GetLogoTexture();
+    ImVec2 uv0(0.f, 0.f), uv1(1.f, 1.f);
+    if (texture.id && texture.width > 0 && texture.height > 0) {
+        if (texture.width > texture.height) {
+            const float inset = (1.f - static_cast<float>(texture.height) / texture.width) * .5f;
+            uv0.x = inset; uv1.x = 1.f - inset;
+        } else if (texture.height > texture.width) {
+            const float inset = (1.f - static_cast<float>(texture.width) / texture.height) * .5f;
+            uv0.y = inset; uv1.y = 1.f - inset;
+        }
+    }
+    if (image)
+        draw->AddImageRounded(image, min, max, uv0, uv1, IM_COL32_WHITE, (max.x - min.x) * .5f);
+}
 } // namespace
 
 static bool g_search_registered = false;
@@ -93,8 +136,11 @@ void DrawConfigs(Overlay* self)
     }
     
     static int settingsTab = 0;
-    const char* tabLabels[] = { "GERAL##settings_general", "APARÊNCIA##settings_appearance",
-                                "TECLAS##settings_keys", "AVANÇADO##settings_advanced" };
+    const char* tabLabels[] = {
+        app_settings::T("GERAL##settings_general", "GENERAL##settings_general"),
+        app_settings::T("APARÊNCIA##settings_appearance", "APPEARANCE##settings_appearance"),
+        app_settings::T("TECLAS##settings_keys", "KEYS##settings_keys"),
+        app_settings::T("AVANÇADO##settings_advanced", "ADVANCED##settings_advanced") };
     for (int i = 0; i < 4; ++i) {
         if (i) ImGui::SameLine(0.f, CyberTheme::Spacing::Sm);
         if (CyberWidgets::Button(tabLabels[i], settingsTab == i
@@ -105,28 +151,59 @@ void DrawConfigs(Overlay* self)
     CyberWidgets::CardGap(CyberTheme::Spacing::Sm);
 
     if (settingsTab == 0) {
+        CyberWidgets::BeginCard(Loc::Tr("profile.label"));
+        const ImVec2 avatarMin = ImGui::GetCursorScreenPos();
+        const ImVec2 avatarSize(CyberTheme::Px(76.f), CyberTheme::Px(76.f));
+        ImGui::InvisibleButton("##change_profile_avatar", avatarSize);
+        const bool avatarHovered = ImGui::IsItemHovered();
+        if (avatarHovered) ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+        const ImVec2 avatarMax(avatarMin.x + avatarSize.x, avatarMin.y + avatarSize.y);
+        DrawProfileAvatar(ImGui::GetWindowDrawList(), avatarMin, avatarMax);
+        ImGui::GetWindowDrawList()->AddCircle(
+            ImVec2(avatarMin.x + avatarSize.x * .5f, avatarMin.y + avatarSize.y * .5f), avatarSize.x * .5f,
+            CyberTheme::WithAlpha(CyberTheme::Colors.Gold, avatarHovered ? .92f : .55f), 40, avatarHovered ? 2.f : 1.f);
+        if (avatarHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+            const bool imported = ChooseProfileImage();
+            CyberWidgets::Notify(imported
+                ? app_settings::T("Foto de perfil atualizada", "Profile picture updated")
+                : app_settings::T("Nenhuma imagem válida foi selecionada", "No valid image was selected"),
+                imported ? CyberWidgets::ToastType::Success : CyberWidgets::ToastType::Info);
+        }
+        ImGui::SameLine(0.f, CyberTheme::Spacing::Md);
+        ImGui::BeginGroup();
+        CyberWidgets::TextLine(CurrentProfileName().c_str(), CyberWidgets::TextTone::Primary);
+        CyberWidgets::TextLine(app_settings::T("Clica na fotografia para escolher uma imagem do computador.",
+                                              "Click the picture to choose an image from your computer."),
+                                CyberWidgets::TextTone::Secondary);
+        ImGui::EndGroup();
+        CyberWidgets::EndCard();
+        CyberWidgets::CardGap();
+
         CyberWidgets::BeginCardRow();
         const float half = CyberWidgets::CardRowHalfWidth();
-        CyberWidgets::BeginCard("GERAL", half);
+        CyberWidgets::BeginCard(app_settings::T("GERAL", "GENERAL"), half);
         std::vector<const char*> langs;
         langs.reserve(Loc::LanguageCount());
         for (int i = 0; i < Loc::LanguageCount(); ++i)
             langs.push_back(Loc::LanguageName(i));
         int lang = static_cast<int>(app_settings::config.language);
-        if (CyberWidgets::Combo("Idioma", &lang, langs.data(), static_cast<int>(langs.size())))
+        if (CyberWidgets::Combo(Loc::Tr("cfg.language"), &lang, langs.data(), static_cast<int>(langs.size()))) {
             app_settings::config.language = static_cast<app_settings::Language>(lang);
-        CyberWidgets::ToggleSwitch("Guardar automaticamente", &app_settings::config.auto_save);
-        const char* performanceModes[] = { "Automático", "Qualidade", "Desempenho" };
+            std::string saveError;
+            (void)app_settings::SaveGlobal(&saveError);
+        }
+        CyberWidgets::ToggleSwitch(Loc::Tr("cfg.auto_save"), &app_settings::config.auto_save);
+        const char* performanceModes[] = { app_settings::T("Automático", "Automatic"), app_settings::T("Qualidade", "Quality"), app_settings::T("Desempenho", "Performance") };
         int performanceMode = app_settings::config.auto_performance ? 0
             : (app_settings::config.performance_mode ? 2 : 1);
-        if (CyberWidgets::Combo("Desempenho", &performanceMode, performanceModes, 3)) {
+        if (CyberWidgets::Combo(app_settings::T("Desempenho", "Performance"), &performanceMode, performanceModes, 3)) {
             app_settings::config.auto_performance = performanceMode == 0;
             app_settings::config.performance_mode = performanceMode == 2;
         }
         CyberWidgets::EndCard();
 
         CyberWidgets::NextCardColumn();
-        CyberWidgets::BeginCard("ECRÃ", half);
+        CyberWidgets::BeginCard(app_settings::T("ECRÃ", "DISPLAY"), half);
     const char* uiScales[] = { "75%", "80%", "90%", "100%", "110%", "125%", "150%", "175%", "200%", "250%" };
     const float uiScaleValues[] = { 0.75f, 0.80f, 0.90f, 1.00f, 1.10f, 1.25f, 1.50f, 1.75f, 2.00f, 2.50f };
     int uiScaleIndex = 3; // 100% default
@@ -163,8 +240,8 @@ void DrawConfigs(Overlay* self)
         CyberWidgets::EndCardRow();
 
         CyberWidgets::CardGap();
-        CyberWidgets::BeginCard("CONFIGURAÇÃO E PERFIL");
-        CyberWidgets::KeyValueRow("Perfil atual", config_manager::CurrentGameProfileName());
+        CyberWidgets::BeginCard(app_settings::T("CONFIGURAÇÃO E PERFIL", "CONFIGURATION AND PROFILE"));
+        CyberWidgets::KeyValueRow(app_settings::T("Perfil atual", "Current profile"), config_manager::CurrentGameProfileName());
         if (CyberWidgets::Button("DEFAULT", CyberWidgets::ButtonStyle::Secondary, ImVec2(110, 34)))
             config_manager::ApplyGameProfile(config_manager::GameProfile::Default);
         ImGui::SameLine();
@@ -174,36 +251,36 @@ void DrawConfigs(Overlay* self)
         if (CyberWidgets::Button("VISUAL", CyberWidgets::ButtonStyle::Secondary, ImVec2(110, 34)))
             config_manager::ApplyGameProfile(config_manager::GameProfile::Visual);
         ImGui::SameLine();
-        if (CyberWidgets::Button("GUARDAR ATUAL", CyberWidgets::ButtonStyle::Primary, ImVec2(150, 34)))
+        if (CyberWidgets::Button(app_settings::T("GUARDAR ATUAL", "SAVE CURRENT"), CyberWidgets::ButtonStyle::Primary, ImVec2(150, 34)))
             config_manager::SaveCustomGameProfile();
         CyberWidgets::EndCard();
     } else if (settingsTab == 1) {
-        CyberWidgets::BeginCard("APARÊNCIA");
-        CyberWidgets::SliderFloat("Escurecimento do fundo", &app_settings::config.black_level, 0.f, 100.f, "%.0f%%");
+        CyberWidgets::BeginCard(app_settings::T("APARÊNCIA", "APPEARANCE"));
+        CyberWidgets::SliderFloat(app_settings::T("Escurecimento do fundo", "Background darkness"), &app_settings::config.black_level, 0.f, 100.f, "%.0f%%");
         app_settings::config.black_background = app_settings::config.black_level > .5f;
-        const char* effectLevels[] = { "Desligado", "Subtil", "Completo" };
+        const char* effectLevels[] = { app_settings::T("Desligado", "Off"), app_settings::T("Subtil", "Subtle"), app_settings::T("Completo", "Full") };
         int rainLevel = static_cast<int>(app_settings::config.digital_rain_level);
-        if (CyberWidgets::Combo("Chuva digital", &rainLevel, effectLevels, 3)) {
+        if (CyberWidgets::Combo(Loc::Tr("cfg.matrix"), &rainLevel, effectLevels, 3)) {
             rainLevel = std::clamp(rainLevel, 0, 2);
             app_settings::config.digital_rain_level = static_cast<app_settings::EffectLevel>(rainLevel);
             app_settings::config.matrix_rain = rainLevel != 0;
         }
         int animationLevel = static_cast<int>(app_settings::config.animation_intensity);
-        if (CyberWidgets::Combo("Intensidade das animações", &animationLevel, effectLevels, 3))
+        if (CyberWidgets::Combo(app_settings::T("Intensidade das animações", "Animation intensity"), &animationLevel, effectLevels, 3))
             app_settings::config.animation_intensity = static_cast<app_settings::EffectLevel>(std::clamp(animationLevel, 0, 2));
-        CyberWidgets::ToggleSwitch("Movimento reduzido", &app_settings::config.reduce_motion);
-        CyberWidgets::ToggleSwitch("Mostrar FPS", &app_settings::config.show_fps);
+        CyberWidgets::ToggleSwitch(app_settings::T("Movimento reduzido", "Reduce motion"), &app_settings::config.reduce_motion);
+        CyberWidgets::ToggleSwitch(Loc::Tr("cfg.show_fps"), &app_settings::config.show_fps);
         CyberWidgets::Separator();
         CyberWidgets::SectionTitle("IDENTIDADE");
         CyberWidgets::TextLine("OMNIGHOST · Preto, dourado e precisão.",
                                CyberWidgets::TextTone::Accent);
         CyberWidgets::EndCard();
     } else if (settingsTab == 2) {
-        CyberWidgets::BeginCard("TECLAS");
-        CyberWidgets::KeyValueRow("Abrir menu", MenuVkName(app_settings::config.menu_bind));
+        CyberWidgets::BeginCard(app_settings::T("TECLAS", "KEYS"));
+        CyberWidgets::KeyValueRow(Loc::Tr("cfg.menu_bind"), MenuVkName(app_settings::config.menu_bind));
         static bool waiting_bind = false;
         if (waiting_bind) {
-            CyberWidgets::TextLine("Prime qualquer tecla…", CyberWidgets::TextTone::Warning);
+            CyberWidgets::TextLine(app_settings::T("Prime qualquer tecla…", "Press any key…"), CyberWidgets::TextTone::Warning);
             for (int vk = 1; vk < 256; ++vk) {
                 if (vk != app_settings::config.menu_bind && (GetAsyncKeyState(vk) & 1)) {
                     app_settings::config.menu_bind = vk;
@@ -211,22 +288,22 @@ void DrawConfigs(Overlay* self)
                     break;
                 }
             }
-        } else if (CyberWidgets::CyberButton("ALTERAR TECLA", ImVec2(160, 32))) {
+        } else if (CyberWidgets::CyberButton(Loc::Tr("cfg.rebind"), ImVec2(160, 32))) {
             waiting_bind = true;
         }
         CyberWidgets::EndCard();
         CyberWidgets::CardGap();
         Hotkeys::DrawHotkeyConfig();
     } else {
-        CyberWidgets::BeginCard("AVANÇADO");
-        CyberWidgets::ToggleSwitch("Sincronização vertical", &app_settings::config.vsync);
-        CyberWidgets::ToggleSwitch("Mostrar atalhos no overlay", &app_settings::config.show_hotkey_overlay);
-        CyberWidgets::ToggleSwitch("Detalhes técnicos", &app_settings::config.show_advanced);
+        CyberWidgets::BeginCard(app_settings::T("AVANÇADO", "ADVANCED"));
+        CyberWidgets::ToggleSwitch(Loc::Tr("cfg.vsync"), &app_settings::config.vsync);
+        CyberWidgets::ToggleSwitch(Loc::Tr("cfg.hotkey_overlay"), &app_settings::config.show_hotkey_overlay);
+        CyberWidgets::ToggleSwitch(app_settings::T("Detalhes técnicos", "Technical details"), &app_settings::config.show_advanced);
         CyberWidgets::EndCard();
         CyberWidgets::CardGap();
         InputDevicesCard::Draw();
         CyberWidgets::CardGap();
-        CyberWidgets::BeginCard("MANUTENÇÃO");
+        CyberWidgets::BeginCard(app_settings::T("MANUTENÇÃO", "MAINTENANCE"));
         CyberWidgets::Separator();
         CyberWidgets::SectionTitle("DMA");
         CyberWidgets::TextLine("Reinicia a ligação sem fechar o Control Center.",
@@ -265,7 +342,7 @@ void DrawConfigs(Overlay* self)
         }
     }
     CyberWidgets::CardGap(12.0f);
-    if (CyberWidgets::DangerButton("Voltar ao launcher", ImVec2(190, 36))) {
+    if (CyberWidgets::DangerButton(app_settings::T("Voltar ao launcher", "Return to launcher"), ImVec2(190, 36))) {
         self->RequestReturnToLauncher();
     }
         CyberWidgets::EndCard();

@@ -12,6 +12,7 @@ namespace vehicle_esp {
         Vec3 position{};
         float distance = 0.f;
         bool locked = false;
+        bool lock_state_known = false;
         bool occupied = false;
         bool valid = false;
     };

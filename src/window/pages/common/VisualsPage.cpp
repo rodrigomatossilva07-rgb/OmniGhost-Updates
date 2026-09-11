@@ -4,7 +4,7 @@
 #include "../../fonts.h"
 #include "../../localization.h"
 #include "../../../launcher/launcher_assets.h"
-#include "../../../gameplay/sound_esp.h"
+#include "config/app_settings.h"
 #ifdef UI_PREVIEW
 #include "preview/preview_runtime.h"
 #else
@@ -79,18 +79,18 @@ void DrawEspPreviewPanel(float panelWidth, float panelHeight, bool previewVisibl
     const ImVec2 pelvis(cx, top + 164.f * sc);
     const ImVec2 l_cl(cx - 18.f * sc, top + 58.f * sc);
     const ImVec2 r_cl(cx + 18.f * sc, top + 58.f * sc);
-    const ImVec2 l_sh(cx - 38.f * sc, top + 70.f * sc);
-    const ImVec2 r_sh(cx + 38.f * sc, top + 70.f * sc);
-    const ImVec2 l_up(cx - 49.f * sc, top + 105.f * sc);
-    const ImVec2 r_up(cx + 49.f * sc, top + 105.f * sc);
-    const ImVec2 l_el(cx - 55.f * sc, top + 139.f * sc);
-    const ImVec2 r_el(cx + 55.f * sc, top + 139.f * sc);
-    const ImVec2 l_fore(cx - 59.f * sc, top + 166.f * sc);
-    const ImVec2 r_fore(cx + 59.f * sc, top + 166.f * sc);
-    const ImVec2 l_wr(cx - 61.f * sc, top + 184.f * sc);
-    const ImVec2 r_wr(cx + 61.f * sc, top + 184.f * sc);
-    const ImVec2 l_ha(cx - 62.f * sc, top + 191.f * sc);
-    const ImVec2 r_ha(cx + 62.f * sc, top + 191.f * sc);
+    const ImVec2 l_sh(cx - 46.f * sc, top + 70.f * sc);
+    const ImVec2 r_sh(cx + 46.f * sc, top + 70.f * sc);
+    const ImVec2 l_up(cx - 61.f * sc, top + 105.f * sc);
+    const ImVec2 r_up(cx + 61.f * sc, top + 105.f * sc);
+    const ImVec2 l_el(cx - 72.f * sc, top + 139.f * sc);
+    const ImVec2 r_el(cx + 72.f * sc, top + 139.f * sc);
+    const ImVec2 l_fore(cx - 79.f * sc, top + 166.f * sc);
+    const ImVec2 r_fore(cx + 79.f * sc, top + 166.f * sc);
+    const ImVec2 l_wr(cx - 82.f * sc, top + 184.f * sc);
+    const ImVec2 r_wr(cx + 82.f * sc, top + 184.f * sc);
+    const ImVec2 l_ha(cx - 83.f * sc, top + 191.f * sc);
+    const ImVec2 r_ha(cx + 83.f * sc, top + 191.f * sc);
     const ImVec2 l_hi(cx - 18.f * sc, top + 164.f * sc);
     const ImVec2 r_hi(cx + 18.f * sc, top + 164.f * sc);
     const ImVec2 l_th(cx - 22.f * sc, top + 207.f * sc);
@@ -114,7 +114,10 @@ void DrawEspPreviewPanel(float panelWidth, float panelHeight, bool previewVisibl
     const float portraitTop = top - 12.f * sc;
     const float portraitBottom = end.y - 16.f;
     const float portraitHeight = portraitBottom - portraitTop;
-    const float portraitWidth = portraitHeight * 0.60f;
+    const float sourceAspect = operatorImage.width > 0 && operatorImage.height > 0
+        ? static_cast<float>(operatorImage.width) / static_cast<float>(operatorImage.height)
+        : 0.6667f;
+    const float portraitWidth = (std::min)(portraitHeight * sourceAspect, panelWidth - 18.f);
     if (operatorImage.id && operatorImage.width > 0 && operatorImage.height > 0) {
         dl->AddImage(operatorImage.id,
             ImVec2(cx - portraitWidth * 0.5f, portraitTop),
@@ -222,9 +225,17 @@ void DrawEspPreviewPanel(float panelWidth, float panelHeight, bool previewVisibl
             PreviewColor(esp::config.color_snaplines, previewVisible), 1.5f);
     }
 
-    if (esp::config.head_circle)
-        dl->AddCircle(head, 11.f,
-            PreviewColor(esp::config.color_head_circle, previewVisible), 24, 2.0f);
+    if (esp::config.head_circle) {
+        const ImU32 headColor = PreviewColor(esp::config.color_head_circle, previewVisible);
+        if (esp::config.circle_type == 1) {
+            dl->AddCircleFilled(head, 11.f, headColor, 24);
+        } else if (esp::config.circle_type == 2) {
+            dl->AddLine(ImVec2(head.x - 12.f, head.y), ImVec2(head.x + 12.f, head.y), headColor, 2.f);
+            dl->AddLine(ImVec2(head.x, head.y - 12.f), ImVec2(head.x, head.y + 12.f), headColor, 2.f);
+        } else {
+            dl->AddCircle(head, 11.f, headColor, 24, 2.0f);
+        }
+    }
     if (esp::config.head_halo) {
         ImVec2 halo[25]{};
         for (int i = 0; i <= 24; ++i) {
@@ -259,7 +270,7 @@ void DrawEspPreviewPanel(float panelWidth, float panelHeight, bool previewVisibl
         dl->AddText(ImVec2(cx - idSize.x * 0.5f, boxMin.y - 22.f), kText, id);
     }
     if (esp::config.player_name) {
-        const char* name = "Jogador";
+        const char* name = app_settings::T("Jogador", "Player");
         const ImVec2 nameSize = ImGui::CalcTextSize(name);
         dl->AddText(ImVec2(cx - nameSize.x * 0.5f,
                 boxMin.y - (esp::config.player_id ? 37.f : 22.f)), kMuted, name);
@@ -383,9 +394,7 @@ void DrawVisualsLegacy()
     ImGui::SameLine(0.f, gap);
     ImGui::BeginGroup();
     CyberWidgets::BeginCard("PRÉ-VISUALIZAÇÃO", previewWidth);
-    static bool previewVisible = true;
-    CyberWidgets::ToggleSwitch("Alvo visível", &previewVisible);
-    DrawEspPreviewPanel((std::max)(160.f, previewWidth - 20.f), 340.f, previewVisible);
+    DrawEspPreviewPanel((std::max)(160.f, previewWidth - 20.f), 374.f, true);
     CyberWidgets::EndCard();
     ImGui::EndGroup();
 
@@ -415,28 +424,6 @@ void DrawVisualsLegacy()
         CyberWidgets::EndModal();
     }
 
-    CyberWidgets::CardGap(gap);
-    static Gameplay::SoundESP::SoundESPConfig sound =
-        Gameplay::SoundESP::GetLegitSoundESPConfig();
-    CyberWidgets::BeginCard("INDICADORES SONOROS", controlsWidth);
-    CyberWidgets::ToggleSwitch("Ativar indicadores sonoros", &sound.enabled);
-    if (sound.enabled) {
-        CyberWidgets::ToggleSwitch("Apenas enquanto mira", &sound.only_when_aiming);
-        CyberWidgets::SectionTitle("EVENTOS");
-        CyberWidgets::ToggleSwitch("Passos", &sound.visual.show_footsteps);
-        CyberWidgets::ToggleSwitch("Tiros", &sound.visual.show_gunshots);
-        CyberWidgets::ToggleSwitch("Explosões", &sound.visual.show_explosions);
-        CyberWidgets::ToggleSwitch("Recarregamentos", &sound.visual.show_reloads);
-        CyberWidgets::ToggleSwitch("Voz", &sound.visual.show_voice);
-        CyberWidgets::SectionTitle("APRESENTAÇÃO");
-        CyberWidgets::ToggleSwitch("Ecrã", &sound.directionals.show_on_screen);
-        CyberWidgets::ToggleSwitch("Radar", &sound.directionals.show_on_radar);
-        CyberWidgets::SliderFloat("Distância máxima", &sound.max_distance, 10.f, 500.f, "%.0f m");
-        CyberWidgets::SliderFloat("Tamanho do indicador", &sound.directionals.indicator_size,
-                                  10.f, 100.f, "%.0f px");
-    }
-    CyberWidgets::EndCard();
-    Gameplay::SoundESP::SoundESPManager::Instance().SetConfig(sound);
 }
 
 void DrawVisuals()
@@ -456,104 +443,87 @@ void DrawVisuals()
 
     ImGui::BeginChild("##esp_features_scroll", ImVec2(featuresWidth, columnHeight), false,
         ImGuiWindowFlags_AlwaysVerticalScrollbar);
-    CyberWidgets::BeginCard("FUNÇÕES ESP");
-    CyberWidgets::ToggleSwitch("Ativar ESP", &esp::config.enabled);
+    CyberWidgets::BeginCard(Loc::Tr("vis.features"));
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.enable"), &esp::config.enabled);
     CyberWidgets::Separator();
     ImGui::BeginDisabled(!esp::config.enabled);
-    CyberWidgets::ToggleSwitch("ESP próprio", &esp::config.self_esp);
-    CyberWidgets::ToggleSwitch("ESP de NPCs", &esp::config.npc_esp);
-    CyberWidgets::ToggleSwitch("Mostrar mortos", &esp::config.show_dead);
-    CyberWidgets::ToggleSwitch("Mostrar abatidos", &esp::config.show_knocked);
-    CyberWidgets::ToggleSwitch("Verificação de visibilidade", &esp::config.visible_check);
-    CyberWidgets::ToggleSwitch("Ocultar membros da equipa", &esp::config.team_check);
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.self_esp"), &esp::config.self_esp);
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.npc"), &esp::config.npc_esp);
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.show_dead"), &esp::config.show_dead);
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.show_knocked"), &esp::config.show_knocked);
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.visible_check"), &esp::config.visible_check);
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.hide_team"), &esp::config.team_check);
     CyberWidgets::Separator();
-    CyberWidgets::SectionTitle("ELEMENTOS");
-    CyberWidgets::ToggleSwitch("Esqueleto", &esp::config.skeleton);
-    CyberWidgets::ToggleSwitch("Pontos do esqueleto", &esp::config.joints);
-    CyberWidgets::ToggleSwitch("Círculo na cabeça", &esp::config.head_circle);
+    CyberWidgets::SectionTitle(Loc::Tr("vis.elements"));
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.skeleton"), &esp::config.skeleton);
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.joints"), &esp::config.joints);
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.head_circle"), &esp::config.head_circle);
     if (esp::config.head_circle) {
-        const char* circleTypes[] = { "Contorno", "Preenchido", "Cruz" };
-        CyberWidgets::Combo("Estilo do círculo", &esp::config.circle_type, circleTypes, 3);
+        const char* circleTypes[] = { Loc::Tr("vis.circle_normal"), Loc::Tr("vis.circle_filled"), Loc::Tr("vis.circle_cross") };
+        CyberWidgets::Combo(Loc::Tr("vis.circle_type"), &esp::config.circle_type, circleTypes, 3);
     }
-    CyberWidgets::ToggleSwitch("Barra de vida", &esp::config.health_bar);
-    CyberWidgets::ToggleSwitch("Barra de armadura", &esp::config.armor_bar);
-    CyberWidgets::ToggleSwitch("Nome do jogador", &esp::config.player_name);
-    CyberWidgets::ToggleSwitch("ID do jogador", &esp::config.player_id);
-    CyberWidgets::ToggleSwitch("Nome da arma", &esp::config.weapon_name);
-    CyberWidgets::ToggleSwitch("Distância", &esp::config.distance);
-    CyberWidgets::ToggleSwitch("Caixa 2D", &esp::config.box_2d);
-    CyberWidgets::ToggleSwitch("Caixa de cantos", &esp::config.corner_box);
-    CyberWidgets::ToggleSwitch("Linhas guia", &esp::config.snaplines);
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.health_bar"), &esp::config.health_bar);
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.armor_bar"), &esp::config.armor_bar);
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.player_name"), &esp::config.player_name);
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.player_id"), &esp::config.player_id);
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.weapon_name"), &esp::config.weapon_name);
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.distance"), &esp::config.distance);
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.box_2d"), &esp::config.box_2d);
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.corner_box"), &esp::config.corner_box);
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.snaplines"), &esp::config.snaplines);
     if (esp::config.snaplines) {
-        const char* snapPositions[] = { "Topo", "Centro", "Fundo" };
-        CyberWidgets::Combo("Posição das linhas", &esp::config.snapline_pos, snapPositions, 3);
+        const char* snapPositions[] = { Loc::Tr("common.top"), Loc::Tr("common.center"), Loc::Tr("common.bottom") };
+        CyberWidgets::Combo(Loc::Tr("vis.snap_pos"), &esp::config.snapline_pos, snapPositions, 3);
     }
-    CyberWidgets::ToggleSwitch("Auréola na cabeça", &esp::config.head_halo);
-    CyberWidgets::SliderFloat("Distância máxima", &esp::config.max_esp_distance,
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.head_halo"), &esp::config.head_halo);
+    CyberWidgets::SliderFloat(Loc::Tr("vis.max_dist"), &esp::config.max_esp_distance,
                               20.f, 500.f, "%.0f m");
     ImGui::EndDisabled();
     CyberWidgets::EndCard();
 
-    static Gameplay::SoundESP::SoundESPConfig sound =
-        Gameplay::SoundESP::GetLegitSoundESPConfig();
-    CyberWidgets::BeginCard("INDICADORES SONOROS");
-    CyberWidgets::ToggleSwitch("Ativar indicadores sonoros", &sound.enabled);
-    ImGui::BeginDisabled(!sound.enabled);
-    CyberWidgets::ToggleSwitch("Apenas enquanto mira", &sound.only_when_aiming);
-    CyberWidgets::ToggleSwitch("Passos", &sound.visual.show_footsteps);
-    CyberWidgets::ToggleSwitch("Tiros", &sound.visual.show_gunshots);
-    CyberWidgets::ToggleSwitch("Explosões", &sound.visual.show_explosions);
-    CyberWidgets::ToggleSwitch("Recarregamentos", &sound.visual.show_reloads);
-    CyberWidgets::ToggleSwitch("Voz", &sound.visual.show_voice);
-    CyberWidgets::ToggleSwitch("Mostrar no ecrã", &sound.directionals.show_on_screen);
-    CyberWidgets::ToggleSwitch("Mostrar no radar", &sound.directionals.show_on_radar);
-    CyberWidgets::SliderFloat("Distância sonora", &sound.max_distance, 10.f, 500.f, "%.0f m");
-    ImGui::EndDisabled();
-    CyberWidgets::EndCard();
-    Gameplay::SoundESP::SoundESPManager::Instance().SetConfig(sound);
     ImGui::EndChild();
 
     ImGui::SameLine(0.0f, gap);
     ImGui::BeginChild("##esp_colors_scroll", ImVec2(colorsWidth, columnHeight), false,
         ImGuiWindowFlags_AlwaysVerticalScrollbar);
-    CyberWidgets::BeginCard("PERSONALIZAR CORES");
+    CyberWidgets::BeginCard(Loc::Tr("vis.customize"));
     const auto colorWhenEnabled = [](const char* label, ImU32* color, bool enabled) {
         ImGui::BeginDisabled(!enabled);
         CyberWidgets::ColorEditU32(label, color);
         ImGui::EndDisabled();
     };
     const bool espEnabled = esp::config.enabled;
-    CyberWidgets::ToggleSwitch("Cores por visibilidade", &esp::config.visibility_colors);
-    CyberWidgets::SectionTitle("JOGADORES");
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.visibility_colors"), &esp::config.visibility_colors);
+    CyberWidgets::SectionTitle(Loc::Tr("fr.players"));
     const bool visibilityColorsEnabled = espEnabled && esp::config.visibility_colors && esp::config.visible_check;
-    colorWhenEnabled("Visível", &esp::config.color_visible, visibilityColorsEnabled);
-    colorWhenEnabled("Oculto", &esp::config.color_invisible, visibilityColorsEnabled);
-    colorWhenEnabled("Abatido", &esp::config.color_knocked, espEnabled && esp::config.show_knocked);
-    colorWhenEnabled("Morto", &esp::config.color_dead, espEnabled && esp::config.show_dead);
-    colorWhenEnabled("Equipa", &esp::config.color_team, espEnabled && !esp::config.team_check);
+    colorWhenEnabled(Loc::Tr("vis.visible"), &esp::config.color_visible, visibilityColorsEnabled);
+    colorWhenEnabled(Loc::Tr("vis.hidden"), &esp::config.color_invisible, visibilityColorsEnabled);
+    colorWhenEnabled(Loc::Tr("vis.knocked"), &esp::config.color_knocked, espEnabled && esp::config.show_knocked);
+    colorWhenEnabled(Loc::Tr("vis.dead"), &esp::config.color_dead, espEnabled && esp::config.show_dead);
+    colorWhenEnabled(Loc::Tr("vis.team"), &esp::config.color_team, espEnabled && !esp::config.team_check);
     CyberWidgets::Separator();
-    CyberWidgets::SectionTitle("DESENHO ESP");
-    colorWhenEnabled("Esqueleto", &esp::config.color_skeleton, espEnabled && esp::config.skeleton);
-    colorWhenEnabled("Pontos do esqueleto", &esp::config.color_skeleton_points,
+    CyberWidgets::SectionTitle(Loc::Tr("vis.drawing"));
+    colorWhenEnabled(Loc::Tr("vis.skeleton"), &esp::config.color_skeleton, espEnabled && esp::config.skeleton);
+    colorWhenEnabled(Loc::Tr("vis.color_points"), &esp::config.color_skeleton_points,
                      espEnabled && esp::config.skeleton && esp::config.joints);
-    colorWhenEnabled("Círculo da cabeça", &esp::config.color_head_circle,
+    colorWhenEnabled(Loc::Tr("vis.color_head"), &esp::config.color_head_circle,
                      espEnabled && esp::config.head_circle);
-    colorWhenEnabled("Caixa 2D", &esp::config.color_box_2d, espEnabled && esp::config.box_2d);
-    colorWhenEnabled("Caixa de cantos", &esp::config.color_corner_box,
+    colorWhenEnabled(Loc::Tr("vis.box_2d"), &esp::config.color_box_2d, espEnabled && esp::config.box_2d);
+    colorWhenEnabled(Loc::Tr("vis.corner_box"), &esp::config.color_corner_box,
                      espEnabled && esp::config.corner_box);
-    colorWhenEnabled("Linhas guia", &esp::config.color_snaplines,
+    colorWhenEnabled(Loc::Tr("vis.snaplines"), &esp::config.color_snaplines,
                      espEnabled && esp::config.snaplines);
     CyberWidgets::Separator();
-    CyberWidgets::SectionTitle("INFORMAÇÃO");
-    colorWhenEnabled("Vida", &esp::config.color_health, espEnabled && esp::config.health_bar);
-    colorWhenEnabled("Armadura", &esp::config.color_armor, espEnabled && esp::config.armor_bar);
-    colorWhenEnabled("Nome", &esp::config.color_name, espEnabled && esp::config.player_name);
-    colorWhenEnabled("ID", &esp::config.color_id, espEnabled && esp::config.player_id);
-    colorWhenEnabled("Distância", &esp::config.color_distance, espEnabled && esp::config.distance);
-    colorWhenEnabled("Arma", &esp::config.color_weapon, espEnabled && esp::config.weapon_name);
+    CyberWidgets::SectionTitle(Loc::Tr("vis.information"));
+    colorWhenEnabled(Loc::Tr("vis.health"), &esp::config.color_health, espEnabled && esp::config.health_bar);
+    colorWhenEnabled(Loc::Tr("vis.armor"), &esp::config.color_armor, espEnabled && esp::config.armor_bar);
+    colorWhenEnabled(Loc::Tr("common.name"), &esp::config.color_name, espEnabled && esp::config.player_name);
+    colorWhenEnabled(Loc::Tr("common.id"), &esp::config.color_id, espEnabled && esp::config.player_id);
+    colorWhenEnabled(Loc::Tr("common.distance"), &esp::config.color_distance, espEnabled && esp::config.distance);
+    colorWhenEnabled(Loc::Tr("vis.weapon_short"), &esp::config.color_weapon, espEnabled && esp::config.weapon_name);
     colorWhenEnabled("NPC", &esp::config.color_npc, espEnabled && esp::config.npc_esp);
     CyberWidgets::Separator();
-    if (CyberWidgets::Button("REPOR CORES", CyberWidgets::ButtonStyle::Ghost,
+    if (CyberWidgets::Button(Loc::Tr("vis.reset_colors"), CyberWidgets::ButtonStyle::Ghost,
                              ImVec2(CyberWidgets::CardContentWidth(), CyberTheme::Metrics::ControlHeight))) {
         const esp::Config defaults{};
         esp::config.color_visible = defaults.color_visible;
@@ -580,14 +550,12 @@ void DrawVisuals()
 
     ImGui::SameLine(0.0f, gap);
     ImGui::BeginGroup();
-    CyberWidgets::BeginCard("PRÉ-VISUALIZAÇÃO", previewWidth);
-    static bool previewVisible = true;
-    CyberWidgets::ToggleSwitch("Alvo visível", &previewVisible);
+    CyberWidgets::BeginCard(Loc::Tr("vis.preview"), previewWidth);
     const float panelHeight = (std::max)(CyberTheme::Px(300.0f),
         columnHeight - CyberTheme::Metrics::CardHeaderHeight -
-        CyberTheme::Metrics::RowHeight - CyberTheme::Metrics::CardPadding * 2.0f - CyberTheme::Px(22.0f));
+        CyberTheme::Metrics::CardPadding * 2.0f - CyberTheme::Px(12.0f));
     DrawEspPreviewPanel((std::max)(CyberTheme::Px(180.0f),
-        previewWidth - CyberTheme::Metrics::CardPadding * 2.0f), panelHeight, previewVisible);
+        previewWidth - CyberTheme::Metrics::CardPadding * 2.0f), panelHeight, true);
     CyberWidgets::EndCard();
     ImGui::EndGroup();
 }

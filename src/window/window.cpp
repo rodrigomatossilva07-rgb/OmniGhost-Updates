@@ -5,6 +5,7 @@
 #include "globals.h"
 #include "theme.h"
 #include "widgets.h"
+#include "localization.h"
 #include "brand_assets.h"
 #include "digital_rain.h"
 #include "performance_mode.h"
@@ -44,14 +45,14 @@ namespace {
     PagePresentation PresentationFor(MenuTab tab)
     {
         switch (tab) {
-        case MenuTab::TAB_VISUALS:          return { "VISUAIS ESP", "Jogadores, informação e aparência" };
-        case MenuTab::TAB_AIM:              return { "SISTEMA DE MIRA", "Alvo, suavidade e disparo" };
-        case MenuTab::TAB_VEHICLES:         return { "VEÍCULOS", "ESP, estado e personalização" };
-        case MenuTab::TAB_RADAR:            return { "RADAR", "Posição, alcance e apresentação" };
-        case MenuTab::TAB_FRIENDS:          return { "AMIGOS", "Lista segura e jogadores próximos" };
-        case MenuTab::TAB_STATUS:           return { "SISTEMA", "Ligação, offsets e diagnóstico" };
-        case MenuTab::TAB_CONFIGS:          return { "DEFINIÇÕES", "Interface, desempenho e preferências" };
-        case MenuTab::TAB_SAVECONFIG:       return { "CONFIGURAÇÕES", "Guardar, carregar e organizar perfis" };
+        case MenuTab::TAB_VISUALS:          return { Loc::Tr("nav.visuals"), app_settings::T("Jogadores, informação e aparência", "Players, information and appearance") };
+        case MenuTab::TAB_AIM:              return { Loc::Tr("nav.aim"), app_settings::T("Alvo, suavidade e disparo", "Targeting, smoothing and trigger") };
+        case MenuTab::TAB_VEHICLES:         return { Loc::Tr("nav.vehicles"), app_settings::T("ESP, estado e personalização", "ESP, status and customization") };
+        case MenuTab::TAB_RADAR:            return { Loc::Tr("nav.radar"), app_settings::T("Posição, alcance e apresentação", "Position, range and appearance") };
+        case MenuTab::TAB_FRIENDS:          return { Loc::Tr("nav.friends"), app_settings::T("Lista segura e jogadores próximos", "Friend list and nearby players") };
+        case MenuTab::TAB_STATUS:           return { Loc::Tr("nav.status"), app_settings::T("Ligação, offsets e diagnóstico", "Connection, offsets and diagnostics") };
+        case MenuTab::TAB_CONFIGS:          return { Loc::Tr("nav.configs"), app_settings::T("Interface, desempenho e preferências", "Interface, performance and preferences") };
+        case MenuTab::TAB_SAVECONFIG:       return { Loc::Tr("nav.save"), app_settings::T("Guardar, carregar e organizar perfis", "Save, load and organize profiles") };
         case MenuTab::TAB_CS2_VISUALS:      return { "VISUAIS CS2", "ESP de jogadores e pré-visualização" };
         case MenuTab::TAB_CS2_AIM:          return { "MIRA CS2", "Perfis e assistência de mira" };
         case MenuTab::TAB_CS2_MISC:         return { "SISTEMA CS2", "Estado e opções adicionais" };
@@ -391,7 +392,7 @@ const PerformanceMode::State performance = PerformanceMode::Update(
         draw_list,
         window_pos,
         window_size,
-        rainDensity > 0.0f && app_settings::menu_open,
+        rainDensity > 0.0f && (app_settings::menu_open || RenderMenu),
         performance.effective,
         CyberTheme::Metrics::SidebarWidth,
         app_settings::DigitalRainOpacity(),

@@ -1,6 +1,7 @@
 #include "vehicle_esp.h"
 #include "../game/game.h"
 #include "../game/offsets.h"
+#include "../game/esp_manager.h"
 #include "../../ImGui/imgui.h"
 #include <Memory/Memory.h>
 #include <cmath>
@@ -8,6 +9,7 @@
 #include <cstdio>
 #include <chrono>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace vehicle_esp {
 
@@ -16,13 +18,10 @@ namespace vehicle_esp {
 
     static const int MAX_VEHICLES = 128;
 
-    static constexpr uintptr_t VEHICLE_INTERFACE_OFFSET = 0x10;
     static constexpr uintptr_t VEHICLE_LIST_OFFSET = 0x180;
+    static constexpr uintptr_t VEHICLE_COUNT_OFFSET = 0x188;
+    static constexpr uintptr_t VEHICLE_ENTRY_STRIDE = 0x10;
     static constexpr uintptr_t VEHICLE_POSITION_OFFSET = 0x90;
-    static constexpr uintptr_t VEHICLE_LOCK_STATE_OFFSET = 0x1370;
-    static constexpr uintptr_t VEHICLE_LOCK_STATE_ALT = 0x13C0;
-    static constexpr uintptr_t VEHICLE_DRIVER_OFFSET = 0xC68;
-    static constexpr uintptr_t VEHICLE_DRIVER_ALT = 0xC90;
     static constexpr uintptr_t VEHICLE_MATRIX_OFFSET = 0x60;
 
     // Cached entity matrices from last Collect (for oriented 3D boxes)
@@ -42,7 +41,9 @@ namespace vehicle_esp {
 
     // eCarLockState values used by GTA V
     static bool IsLockedState(uint32_t state) {
-        return state == 2 || state == 3 || state == 4 || state == 7 || state == 8 || state == 10;
+        // GTA uses 0/1 for none/unlocked.  The remaining native enum values
+        // (2..10) all restrict entry in some form.
+        return state >= 2 && state <= 10;
     }
 
     // Extract basis vectors from a 4x4 row-major entity matrix (GTA style)
@@ -81,33 +82,58 @@ namespace vehicle_esp {
         Matrix view_matrix{};
         Vec3 localPos{};
         uintptr_t vehicle_interface = 0;
+        uintptr_t vehicle_interface_alt = 0;
 
         mem.AddScatterReadRequest(handle, offset::viewport + 0x24C, &view_matrix, sizeof(Matrix));
         mem.AddScatterReadRequest(handle, offset::localplayer + offset::playerPosition, &localPos, sizeof(Vec3));
-        mem.AddScatterReadRequest(handle, offset::replay + VEHICLE_INTERFACE_OFFSET, &vehicle_interface, sizeof(uintptr_t));
+        // Normal CReplayInterface layout uses +0x10.  The supplied b3258 dump
+        // also advertises +0xD10, so probe it as a fallback and validate the
+        // resulting list rather than trusting either blindly.
+        mem.AddScatterReadRequest(handle, offset::replay + 0x10, &vehicle_interface, sizeof(uintptr_t));
+        mem.AddScatterReadRequest(handle, offset::replay + 0xD10, &vehicle_interface_alt, sizeof(uintptr_t));
         mem.ExecuteReadScatter(handle);
 
-        if (!vehicle_interface) {
+        if (!IsValidPtr(vehicle_interface) && IsValidPtr(vehicle_interface_alt))
+            vehicle_interface = vehicle_interface_alt;
+        if (!IsValidPtr(vehicle_interface)) {
             mem.CloseScatterHandle(handle);
             return;
         }
 
-        uintptr_t vehicleListBase = 0;
+        uintptr_t vehicleListBase = 0, vehicleListBaseAlt = 0;
+        int vehicleCount = 0, vehicleCountAlt = 0;
         mem.AddScatterReadRequest(handle, vehicle_interface + VEHICLE_LIST_OFFSET, &vehicleListBase, sizeof(uintptr_t));
+        mem.AddScatterReadRequest(handle, vehicle_interface + VEHICLE_COUNT_OFFSET, &vehicleCount, sizeof(int));
+        if (IsValidPtr(vehicle_interface_alt) && vehicle_interface_alt != vehicle_interface) {
+            mem.AddScatterReadRequest(handle, vehicle_interface_alt + VEHICLE_LIST_OFFSET, &vehicleListBaseAlt, sizeof(uintptr_t));
+            mem.AddScatterReadRequest(handle, vehicle_interface_alt + VEHICLE_COUNT_OFFSET, &vehicleCountAlt, sizeof(int));
+        }
         mem.ExecuteReadScatter(handle);
 
-        if (!vehicleListBase) {
+        auto validList = [](uintptr_t list, int count) {
+            return IsValidPtr(list) && count > 0 && count <= 2048;
+        };
+        if (!validList(vehicleListBase, vehicleCount) && validList(vehicleListBaseAlt, vehicleCountAlt)) {
+            vehicle_interface = vehicle_interface_alt;
+            vehicleListBase = vehicleListBaseAlt;
+            vehicleCount = vehicleCountAlt;
+        }
+        if (!IsValidPtr(vehicleListBase)) {
             mem.CloseScatterHandle(handle);
             return;
         }
 
-        std::vector<uintptr_t> rawPtrs(MAX_VEHICLES, 0);
-        mem.AddScatterReadRequest(handle, vehicleListBase, rawPtrs.data(), sizeof(uintptr_t) * MAX_VEHICLES);
+        const int listCount = (vehicleCount > 0 && vehicleCount <= 2048)
+            ? (std::min)(vehicleCount, MAX_VEHICLES) : MAX_VEHICLES;
+        std::vector<uintptr_t> rawPtrs(listCount, 0);
+        for (int i = 0; i < listCount; ++i)
+            mem.AddScatterReadRequest(handle, vehicleListBase + (uintptr_t)i * VEHICLE_ENTRY_STRIDE,
+                                      &rawPtrs[i], sizeof(uintptr_t));
         mem.ExecuteReadScatter(handle);
 
         std::vector<uintptr_t> valid;
         valid.reserve(MAX_VEHICLES);
-        for (int i = 0; i < MAX_VEHICLES; ++i) {
+        for (int i = 0; i < listCount; ++i) {
             if (IsValidPtr(rawPtrs[i]))
                 valid.push_back(rawPtrs[i]);
         }
@@ -119,69 +145,41 @@ namespace vehicle_esp {
 
         std::vector<Vec3> positions(valid.size());
         std::vector<Matrix> matrices(valid.size());
-        std::vector<uint32_t> lockA(valid.size(), 0), lockB(valid.size(), 0), lockC(valid.size(), 0), lockD(valid.size(), 0);
-        std::vector<uintptr_t> drvA(valid.size(), 0), drvB(valid.size(), 0), drvC(valid.size(), 0);
+        std::vector<uint32_t> lockState(valid.size(), UINT32_MAX);
+        std::vector<uintptr_t> driverPrimary(valid.size(), 0), driverFallback(valid.size(), 0);
 
         for (size_t i = 0; i < valid.size(); ++i) {
             mem.AddScatterReadRequest(handle, valid[i] + VEHICLE_POSITION_OFFSET, &positions[i], sizeof(Vec3));
             mem.AddScatterReadRequest(handle, valid[i] + VEHICLE_MATRIX_OFFSET, &matrices[i], sizeof(Matrix));
-            // Lock state candidates (build-dependent)
-            mem.AddScatterReadRequest(handle, valid[i] + 0x1370, &lockA[i], sizeof(uint32_t));
-            mem.AddScatterReadRequest(handle, valid[i] + 0x13C0, &lockB[i], sizeof(uint32_t));
-            mem.AddScatterReadRequest(handle, valid[i] + 0xEC0,  &lockC[i], sizeof(uint32_t));
-            mem.AddScatterReadRequest(handle, valid[i] + 0x4F8,  &lockD[i], sizeof(uint32_t));
-            // Driver / seat pointers
-            mem.AddScatterReadRequest(handle, valid[i] + 0xC68, &drvA[i], sizeof(uintptr_t));
-            mem.AddScatterReadRequest(handle, valid[i] + 0xC90, &drvB[i], sizeof(uintptr_t));
-            mem.AddScatterReadRequest(handle, valid[i] + 0xBA0, &drvC[i], sizeof(uintptr_t));
+            mem.AddScatterReadRequest(handle, valid[i] + offset::vehicleLock,
+                                      &lockState[i], sizeof(uint32_t));
+            const uintptr_t buildDriver = offset::buildVersion >= 3751 ? 0xCA8 : offset::vehicleDriver;
+            mem.AddScatterReadRequest(handle, valid[i] + buildDriver,
+                                      &driverPrimary[i], sizeof(uintptr_t));
+            if (buildDriver != offset::vehicleDriver)
+                mem.AddScatterReadRequest(handle, valid[i] + offset::vehicleDriver,
+                                          &driverFallback[i], sizeof(uintptr_t));
         }
         mem.ExecuteReadScatter(handle);
 
-        // Second pass: validate candidate driver pointers look like real peds
-        std::vector<float> drvHealth(valid.size(), -1.f);
-        std::vector<Vec3> drvPos(valid.size());
-        std::vector<uintptr_t> drvChosen(valid.size(), 0);
-        for (size_t i = 0; i < valid.size(); ++i) {
-            uintptr_t cand = 0;
-            if (IsValidPtr(drvA[i])) cand = drvA[i];
-            else if (IsValidPtr(drvB[i])) cand = drvB[i];
-            else if (IsValidPtr(drvC[i])) cand = drvC[i];
-            drvChosen[i] = cand;
-            if (cand) {
-                mem.AddScatterReadRequest(handle, cand + 0x280, &drvHealth[i], sizeof(float));
-                mem.AddScatterReadRequest(handle, cand + 0x90,  &drvPos[i], sizeof(Vec3));
-            }
-        }
+        // A driver pointer catches NPC-driven vehicles.  Comparing every player
+        // ped's current CVehicle catches passengers too, which is what the UI's
+        // "ignore occupied" option promises.
+        std::vector<uintptr_t> pedVehicles(FiveM::ESP::validPeds.size(), 0);
+        for (size_t i = 0; i < FiveM::ESP::validPeds.size(); ++i)
+            mem.AddScatterReadRequest(handle, FiveM::ESP::validPeds[i] + offset::pedVehicle,
+                                      &pedVehicles[i], sizeof(uintptr_t));
         mem.ExecuteReadScatter(handle);
         mem.CloseScatterHandle(handle);
 
-        auto pickLock = [](uint32_t a, uint32_t b, uint32_t c, uint32_t d) -> uint32_t {
-            // Prefer a value in the native eCarLockState range 0..10
-            const uint32_t cands[] = { a, b, c, d };
-            for (uint32_t v : cands) {
-                if (v <= 10u) return v;
-            }
-            // Low byte sometimes holds the enum when upper bits are noise
-            for (uint32_t v : cands) {
-                uint32_t lo = v & 0xFFu;
-                if (lo <= 10u) return lo;
-            }
-            return 0; // treat as unlocked if unknown
-        };
-
-        auto isRealOccupant = [&](size_t i) -> bool {
-            uintptr_t cand = drvChosen[i];
-            if (!cand) return false;
-            float hp = drvHealth[i];
-            // Real ped health is typically 0..200 (sometimes up to ~200 with armor separate)
-            if (!(hp >= 0.f && hp <= 250.f)) return false;
-            // Occupant should be near the vehicle
-            if (!drvPos[i].IsZero() && !positions[i].IsZero()) {
-                float d = drvPos[i].distance_to(positions[i]);
-                if (d > 12.0f) return false;
-            }
-            return true;
-        };
+        std::unordered_set<uintptr_t> occupiedVehicles;
+        occupiedVehicles.reserve(pedVehicles.size() * 2 + valid.size());
+        for (uintptr_t vehicle : pedVehicles)
+            if (IsValidPtr(vehicle)) occupiedVehicles.insert(vehicle);
+        for (size_t i = 0; i < valid.size(); ++i) {
+            uintptr_t driver = IsValidPtr(driverPrimary[i]) ? driverPrimary[i] : driverFallback[i];
+            if (IsValidPtr(driver)) occupiedVehicles.insert(valid[i]);
+        }
 
         for (size_t i = 0; i < valid.size(); ++i) {
             if (positions[i].IsZero())
@@ -191,19 +189,20 @@ namespace vehicle_esp {
             if (dist > config.max_distance || dist < 0.1f)
                 continue;
 
-            bool occupied = isRealOccupant(i);
+            bool occupied = occupiedVehicles.find(valid[i]) != occupiedVehicles.end();
 
             if (config.ignore_occupied && occupied)
                 continue;
 
-            uint32_t lockVal = pickLock(lockA[i], lockB[i], lockC[i], lockD[i]);
-            bool locked = IsLockedState(lockVal);
+            const bool lockKnown = lockState[i] <= 10u;
+            bool locked = lockKnown && IsLockedState(lockState[i]);
 
             VehicleData vd;
             vd.address = valid[i];
             vd.position = positions[i];
             vd.distance = dist;
             vd.locked = locked;
+            vd.lock_state_known = lockKnown;
             vd.occupied = occupied;
             vd.valid = true;
             vehicles.push_back(vd);
@@ -393,8 +392,10 @@ namespace vehicle_esp {
             }
 
             if (config.lock_status) {
-                const char* status = v.locked ? "Trancado" : "Destrancado";
-                ImU32 col = v.locked ? config.color_locked : config.color_unlocked;
+                const char* status = !v.lock_state_known ? "Estado desconhecido"
+                    : (v.locked ? "Trancado" : "Destrancado");
+                ImU32 col = !v.lock_state_known ? IM_COL32(160, 160, 160, 220)
+                    : (v.locked ? config.color_locked : config.color_unlocked);
                 ImVec2 ts = ImGui::CalcTextSize(status);
                 dl->AddText(ImVec2(screenPos.x - ts.x * 0.5f, textY), col, status);
                 textY += ts.y + 2.f;

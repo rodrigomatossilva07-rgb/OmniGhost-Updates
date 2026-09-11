@@ -81,7 +81,7 @@ void DrawLauncherModals(ImDrawList* draw, ImVec2 display) {
             g_settings_page = app_settings::SettingsPage::Licenses;
             ChangeNavigation(static_cast<int>(NavPage::Settings));
         } else if (state == CardState::NeedsOffsets) RequestOffsetRefresh(id);
-        else if (state == CardState::UpdateRequired) ChangeNavigation(static_cast<int>(NavPage::Updates));
+        else if (state == CardState::UpdateRequired) ToastOpenUpdates();
         else if (state == CardState::DeviceMissing) {
             // Explicit retry is allowed to leave the launcher so main can make
             // one fresh device-open attempt. The game menu still opens only if
@@ -140,4 +140,3 @@ void DrawNews(ImDrawList* draw, ImVec2 display) {
     draw->AddText(ImVec2((display.x - detail_size.x) * .5f, center + S(27.f)), C_MUTED(), detail);
     if (body) ImGui::PopFont();
 }
-

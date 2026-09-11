@@ -1,5 +1,6 @@
 #include "../../widgets.h"
 #include "../../theme.h"
+#include "config/app_settings.h"
 #ifdef UI_PREVIEW
 #include "preview/preview_runtime.h"
 #else
@@ -16,8 +17,8 @@ void DrawRadarPreview(float previewWidth, float previewHeight)
     ImDrawList* dl = ImGui::GetWindowDrawList();
     dl->AddRectFilled(p, q, IM_COL32(5, 5, 5, 255), 8.f);
     dl->AddRect(p, q, CyberTheme::WithAlpha(CyberTheme::Colors.Gold, .18f), 8.f);
-    for (int i = 1; i <= 3; ++i)
-        dl->AddCircle(c, i * 34.f, CyberTheme::WithAlpha(CyberTheme::Colors.Gold, .08f), 48, 1.f);
+    dl->AddRect(ImVec2(c.x - 104.f, c.y - 104.f), ImVec2(c.x + 104.f, c.y + 104.f),
+                CyberTheme::WithAlpha(CyberTheme::Colors.Gold, .24f), 7.f, 0, 1.5f);
     dl->AddLine(ImVec2(c.x - 104.f, c.y), ImVec2(c.x + 104.f, c.y),
                 CyberTheme::WithAlpha(CyberTheme::Colors.Gold, .10f));
     dl->AddLine(ImVec2(c.x, c.y - 104.f), ImVec2(c.x, c.y + 104.f),
@@ -45,27 +46,29 @@ void DrawRadar()
 
     ImGui::BeginGroup();
     CyberWidgets::BeginCard("RADAR", left);
-    CyberWidgets::ToggleSwitch("Ativar radar", &esp::config.radar_enabled);
+    if (CyberWidgets::ToggleSwitch(app_settings::T("Ativar radar", "Enable radar"), &esp::config.radar_enabled) && esp::config.radar_enabled)
+        esp::config.square_radar = true;
     if (esp::config.radar_enabled) {
-        CyberWidgets::ToggleSwitch("Radar quadrado", &esp::config.square_radar);
-        CyberWidgets::ToggleSwitch("Indicadores triangulares", &esp::config.triangle_radar);
-        CyberWidgets::ToggleSwitch("Marcadores no mapa", &esp::config.blip_esp);
-        CyberWidgets::ToggleSwitch("Linha para o ponto marcado", &esp::config.waypoint_line);
-        CyberWidgets::SliderFloat("Alcance", &esp::config.radar_range, 20.f, 500.f, "%.0f m");
-        CyberWidgets::SliderFloat("Tamanho", &esp::config.radar_size, 80.f, 240.f, "%.0f px");
-        if (ImGui::CollapsingHeader("POSIÇÃO AVANÇADA", ImGuiTreeNodeFlags_None)) {
-            CyberWidgets::SliderFloat("Posição horizontal", &esp::config.radar_pos_x, .05f, .95f, "%.2f");
-            CyberWidgets::SliderFloat("Posição vertical", &esp::config.radar_pos_y, .05f, .95f, "%.2f");
-        }
+        CyberWidgets::ToggleSwitch(app_settings::T("Radar quadrado", "Square radar"), &esp::config.square_radar);
+        CyberWidgets::ToggleSwitch(app_settings::T("Indicadores triangulares", "Triangle indicators"), &esp::config.triangle_radar);
+        CyberWidgets::ToggleSwitch(app_settings::T("Marcadores no mapa", "Map markers"), &esp::config.blip_esp);
+        CyberWidgets::ToggleSwitch(app_settings::T("Linha para o ponto marcado", "Line to waypoint"), &esp::config.waypoint_line);
+        CyberWidgets::SliderFloat(app_settings::T("Alcance", "Range"), &esp::config.radar_range, 20.f, 500.f, "%.0f m");
+        CyberWidgets::SliderFloat(app_settings::T("Tamanho", "Size"), &esp::config.radar_size, 80.f, 240.f, "%.0f px");
+        CyberWidgets::TextLine(app_settings::T("Com o menu aberto, arrasta o radar diretamente no ecrã.",
+                                              "With the menu open, drag the radar directly on screen."),
+            CyberWidgets::TextTone::Secondary);
+        CyberWidgets::SliderFloat(app_settings::T("Posição horizontal", "Horizontal position"), &esp::config.radar_pos_x, .05f, .95f, "%.2f");
+        CyberWidgets::SliderFloat(app_settings::T("Posição vertical", "Vertical position"), &esp::config.radar_pos_y, .05f, .95f, "%.2f");
     } else {
-        CyberWidgets::TextLine("Radar desativado.", CyberWidgets::TextTone::Secondary);
+        CyberWidgets::TextLine(app_settings::T("Radar desativado.", "Radar disabled."), CyberWidgets::TextTone::Secondary);
     }
     CyberWidgets::EndCard();
     ImGui::EndGroup();
 
     ImGui::SameLine(0.f, gap);
     ImGui::BeginGroup();
-    CyberWidgets::BeginCard("PRÉ-VISUALIZAÇÃO", right);
+    CyberWidgets::BeginCard(app_settings::T("PRÉ-VISUALIZAÇÃO", "PREVIEW"), right);
     CyberWidgets::Badge(esp::config.radar_enabled ? "ONLINE" : "OFFLINE",
         esp::config.radar_enabled ? CyberWidgets::TextTone::Success : CyberWidgets::TextTone::Secondary);
     DrawRadarPreview((std::max)(160.f, right - 20.f), 240.f);
