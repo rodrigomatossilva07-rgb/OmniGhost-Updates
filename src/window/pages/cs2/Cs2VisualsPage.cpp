@@ -1,7 +1,6 @@
 #include "../../widgets.h"
 #include "../../theme.h"
 #include "cs2_config.h"
-#include "fonts.h"
 #include "../../localization.h"
 #include "../../../launcher/launcher_assets.h"
 #include "imgui.h"

@@ -1,6 +1,7 @@
 #include "../../widgets.h"
 #include "../../theme.h"
 #include "cs2_config.h"
+#include "cs2_game.h"
 #include "cs2_radar.h"
 #include "imgui.h"
 #include <Windows.h>
@@ -133,7 +134,8 @@ void DrawCs2Radar() {
     char line[128];
     std::snprintf(line, sizeof(line), "Jogadores no snapshot: %d", CS2::runtime.player_count);
     CyberWidgets::KeyValueRow("Dados", line);
-    std::snprintf(line, sizeof(line), "%s", CS2::runtime.map_name[0] ? CS2::runtime.map_name : "—");
+    const char* mapLabel = CS2::runtime.map_name[0] ? CS2::runtime.map_name : "-";
+    std::snprintf(line, sizeof(line), "%s", mapLabel);
     CyberWidgets::KeyValueRow("Mapa", line);
     std::snprintf(line, sizeof(line), "%s", CS2::WebRadar::IsRunning() ? "HTTP a escutar" : "parado");
     CyberWidgets::KeyValueRow("Servidor", line);

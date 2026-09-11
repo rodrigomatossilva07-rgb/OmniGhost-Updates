@@ -178,7 +178,7 @@ void SendAll(SOCKET s, const char* data, int len) {
     }
 }
 
-void SendResponse(SOCKET s, int code, const char* status, const std::string& body,
+void SendResponse(SOCKET s, int code, const char* statusText, const std::string& body,
                   const char* contentType, bool noCache = true) {
     char header[512];
     std::snprintf(header, sizeof(header),
@@ -189,7 +189,7 @@ void SendResponse(SOCKET s, int code, const char* status, const std::string& bod
         "Access-Control-Allow-Headers: Authorization, Content-Type\r\n"
         "%s"
         "Connection: close\r\n\r\n",
-        code, status, contentType, body.size(),
+        code, statusText, contentType, body.size(),
         noCache ? "Cache-Control: no-store\r\n" : "Cache-Control: public, max-age=60\r\n");
     SendAll(s, header, static_cast<int>(std::strlen(header)));
     if (!body.empty())
@@ -529,7 +529,7 @@ bool StartCloudflare() {
     si.wShowWindow = SW_HIDE;
     si.hStdOutput = wr;
     si.hStdError = wr;
-    si.hStdInput = GetStdHandle(STD_INPUT);
+    si.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
 
     PROCESS_INFORMATION pi{};
     std::wstring mutableCmd(cmd);

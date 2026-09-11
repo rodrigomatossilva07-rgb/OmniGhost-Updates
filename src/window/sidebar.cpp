@@ -192,8 +192,6 @@ namespace CyberWidgets {
             size.y - topPad - profileHeight - CyberTheme::Spacing::Lg);
         float gapY = CyberTheme::Px(6.0f);
         float itemH = CyberTheme::Metrics::SidebarItemHeight;
-        const float desiredHeight = tabCount * itemH +
-            (tabCount > 0 ? (tabCount - 1) * gapY : 0.0f);
         float blockHeight = tabCount * itemH +
             (tabCount > 0 ? (tabCount - 1) * gapY : 0.0f);
         if (blockHeight > usableHeight && tabCount > 0) {
