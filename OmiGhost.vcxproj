@@ -296,6 +296,7 @@
     <ClCompile Include="src\window\pages\cs2\Cs2AimPage.cpp"/>
     <ClCompile Include="src\window\pages\cs2\Cs2MiscPage.cpp"/>
     <ClCompile Include="src\window\pages\cs2\Cs2VisualsPage.cpp"/>
+    <ClCompile Include="src\window\pages\cs2\Cs2RadarPage.cpp"/>
     <ClCompile Include="src\gameplay\sound_esp.cpp"/>
     <ClCompile Include="src\window\onboarding.cpp"/>
     <ClCompile Include="src\window\performance_manager.cpp"/>
@@ -329,6 +330,7 @@
     <ClCompile Include="Cs2\cs2_aim.cpp"/>
     <ClCompile Include="Cs2\cs2_esp.cpp"/>
     <ClCompile Include="Cs2\cs2_game.cpp"/>
+    <ClCompile Include="Cs2\cs2_radar.cpp"/>
     <ClCompile Include="Cs2\cs2_config_io.cpp"/>
     <ClCompile Include="Cs2\cs2_weapon_icons.cpp"/>
     <ClCompile Include="Rust\rust_aim.cpp"/>

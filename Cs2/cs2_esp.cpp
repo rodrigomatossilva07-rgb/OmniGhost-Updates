@@ -617,7 +617,10 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
         }
 
         if (cfg.head_dot) {
-            dl->AddCircle(ImVec2(hx, hy), (std::max)(2.f, h * 0.06f), teamCol, 16, 1.5f);
+            const ImU32 headCol = cfg.visibility_colors
+                ? (p.spotted ? Col(cfg.col_head) : Col(cfg.col_occluded))
+                : Col(cfg.col_head);
+            dl->AddCircle(ImVec2(hx, hy), (std::max)(2.f, h * 0.06f), headCol, 16, 1.5f);
         }
 
         if (cfg.health_bar) {

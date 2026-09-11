@@ -1,7 +1,7 @@
 #include "../../widgets.h"
 #include "../../theme.h"
 #include "cs2_config.h"
-#include "../../fonts.h"
+#include "fonts.h"
 #include "../../localization.h"
 #include "../../../launcher/launcher_assets.h"
 #include "imgui.h"
@@ -10,181 +10,183 @@
 #include <cmath>
 
 namespace {
-void DrawCs2Preview(float width, float height) {
+
+void DrawDetailedPreview(float width, float height, bool visible) {
     ImDrawList* dl = ImGui::GetWindowDrawList();
     ImVec2 o = ImGui::GetCursorScreenPos();
     ImVec2 e(o.x + width, o.y + height);
     dl->AddRectFilled(o, e, IM_COL32(8, 8, 12, 240), 10.f);
     dl->AddRect(o, e, IM_COL32(212, 175, 55, 40), 10.f);
-    dl->AddRectFilled(o, ImVec2(e.x, o.y + 28.f), IM_COL32(14, 14, 18, 255), 10.f, ImDrawFlags_RoundCornersTop);
-    // Keep the title centred even when the preview width changes.
-    const char* previewTitle = "ESP Preview";
-    const ImVec2 previewTitleSize = ImGui::CalcTextSize(previewTitle);
-    dl->AddText(ImVec2(o.x + (width - previewTitleSize.x) * .5f, o.y + 7.f),
-        IM_COL32(230, 230, 235, 255), previewTitle);
 
-    // Reuse the embedded operator portrait used by the FiveM preview. It is a
-    // UI-only asset; every ESP layer below still follows CS2's own settings.
-    const LauncherAssets::Texture portrait = LauncherAssets::FiveMEspPreview();
-    if (portrait.id) {
-        const float portraitH = height - 50.f;
-        const float portraitW = portraitH * 0.52f;
-        dl->AddImage(portrait.id, ImVec2(o.x + width * .5f - portraitW * .5f, o.y + 34.f),
-            ImVec2(o.x + width * .5f + portraitW * .5f, o.y + 34.f + portraitH),
-            ImVec2(0.f, 0.f), ImVec2(1.f, 1.f), IM_COL32(255,255,255,224));
-    }
+    const float sc = (std::min)(width / 280.f, (height - 24.f) / 380.f);
+    const float cx = o.x + width * 0.5f;
+    const float top = o.y + 18.f;
 
-    const float cx = o.x + width * .5f;
-    const float top = o.y + 34.f;
-    const float figureH = height - 50.f;
-    const float sc = figureH / 370.f;
-    // Normalized to the real full-body operator portrait, not to the old
-    // mannequin. This keeps the skeleton aligned when the card is resized.
-    const ImVec2 head(cx, top + figureH * .090f), neck(cx, top + figureH * .166f);
-    const ImVec2 chest(cx, top + figureH * .300f), pelvis(cx, top + figureH * .530f);
-    const ImVec2 lsh(cx - figureH * .104f, top + figureH * .218f), rsh(cx + figureH * .104f, top + figureH * .218f);
-    const ImVec2 lel(cx - figureH * .140f, top + figureH * .390f), rel(cx + figureH * .140f, top + figureH * .390f);
-    const ImVec2 lha(cx - figureH * .158f, top + figureH * .510f), rha(cx + figureH * .158f, top + figureH * .510f);
-    const ImVec2 lkn(cx - figureH * .064f, top + figureH * .770f), rkn(cx + figureH * .064f, top + figureH * .770f);
-    const ImVec2 lft(cx - figureH * .078f, top + figureH * .940f), rft(cx + figureH * .078f, top + figureH * .940f);
+    // Detailed skeleton points (FiveM-like articulation density)
+    const ImVec2 head(cx, top + 22.f * sc);
+    const ImVec2 neck(cx, top + 46.f * sc);
+    const ImVec2 clav_l(cx - 16.f * sc, top + 54.f * sc);
+    const ImVec2 clav_r(cx + 16.f * sc, top + 54.f * sc);
+    const ImVec2 chest(cx, top + 78.f * sc);
+    const ImVec2 spine(cx, top + 110.f * sc);
+    const ImVec2 pelvis(cx, top + 148.f * sc);
+    const ImVec2 sh_l(cx - 42.f * sc, top + 66.f * sc);
+    const ImVec2 sh_r(cx + 42.f * sc, top + 66.f * sc);
+    const ImVec2 el_l(cx - 68.f * sc, top + 118.f * sc);
+    const ImVec2 el_r(cx + 68.f * sc, top + 118.f * sc);
+    const ImVec2 wr_l(cx - 78.f * sc, top + 162.f * sc);
+    const ImVec2 wr_r(cx + 78.f * sc, top + 162.f * sc);
+    const ImVec2 ha_l(cx - 82.f * sc, top + 178.f * sc);
+    const ImVec2 ha_r(cx + 82.f * sc, top + 178.f * sc);
+    const ImVec2 hip_l(cx - 16.f * sc, top + 148.f * sc);
+    const ImVec2 hip_r(cx + 16.f * sc, top + 148.f * sc);
+    const ImVec2 kn_l(cx - 22.f * sc, top + 220.f * sc);
+    const ImVec2 kn_r(cx + 22.f * sc, top + 220.f * sc);
+    const ImVec2 an_l(cx - 24.f * sc, top + 285.f * sc);
+    const ImVec2 an_r(cx + 24.f * sc, top + 285.f * sc);
+    const ImVec2 ft_l(cx - 26.f * sc, top + 302.f * sc);
+    const ImVec2 ft_r(cx + 26.f * sc, top + 302.f * sc);
 
-    ImU32 sk = IM_COL32((int)(CS2::config.col_skeleton[0]*255), (int)(CS2::config.col_skeleton[1]*255),
-        (int)(CS2::config.col_skeleton[2]*255), 220);
-    auto color = [](const float value[4], float alpha = 1.f) {
-        return IM_COL32((int)(value[0] * 255.f), (int)(value[1] * 255.f),
-            (int)(value[2] * 255.f), (int)(value[3] * alpha * 255.f));
+    auto col4 = [](const float c[4]) {
+        return ImGui::ColorConvertFloat4ToU32(ImVec4(c[0], c[1], c[2], c[3]));
     };
-    auto bone = [&](ImVec2 a, ImVec2 b) { if (CS2::config.skeleton) dl->AddLine(a, b, sk, 2.f); };
+    const ImU32 sk = visible ? col4(CS2::config.col_skeleton) : col4(CS2::config.col_occluded);
+    const ImU32 jn = col4(CS2::config.col_joints);
+    const ImU32 hd = col4(CS2::config.col_head);
+
+    auto line = [&](ImVec2 a, ImVec2 b) {
+        if (CS2::config.skeleton)
+            dl->AddLine(a, b, sk, 2.0f);
+    };
     auto joint = [&](ImVec2 p) {
-        if (CS2::config.skeleton_joints) {
-            dl->AddCircleFilled(p, 2.8f, IM_COL32(80, 220, 90, 255), 10);
-            dl->AddCircle(p, 2.8f, CyberTheme::SafeShadowU32(180), 10, 1.f);
-        }
+        if (CS2::config.skeleton_joints)
+            dl->AddCircleFilled(p, 3.2f * sc, jn, 10);
     };
-    bone(head,neck); bone(neck,chest); bone(chest,pelvis);
-    bone(neck,lsh); bone(neck,rsh); bone(lsh,lel); bone(lel,lha); bone(rsh,rel); bone(rel,rha);
-    bone(pelvis,lkn); bone(lkn,lft); bone(pelvis,rkn); bone(rkn,rft);
-    for (ImVec2 p : {head,neck,chest,pelvis,lsh,rsh,lel,rel,lha,rha,lkn,rkn,lft,rft}) joint(p);
-    if (CS2::config.head_dot) {
-        dl->AddCircle(head, 12.f * sc, IM_COL32(244, 64, 75, 230), 24, 1.6f);
-        dl->AddCircleFilled(head, 2.4f, IM_COL32(40,244,91,255), 12);
+
+    if (CS2::config.skeleton) {
+        line(head, neck); line(neck, chest); line(chest, spine); line(spine, pelvis);
+        line(neck, clav_l); line(clav_l, sh_l); line(sh_l, el_l); line(el_l, wr_l); line(wr_l, ha_l);
+        line(neck, clav_r); line(clav_r, sh_r); line(sh_r, el_r); line(el_r, wr_r); line(wr_r, ha_r);
+        line(pelvis, hip_l); line(hip_l, kn_l); line(kn_l, an_l); line(an_l, ft_l);
+        line(pelvis, hip_r); line(hip_r, kn_r); line(kn_r, an_r); line(an_r, ft_r);
     }
-    if (CS2::config.head_halo) {
-        ImVec2 halo[25]{};
-        for (int i = 0; i <= 24; ++i) {
-            const float angle = i * 6.28318530718f / 24.f;
-            halo[i] = ImVec2(head.x + std::cos(angle) * 16.f,
-                             head.y - 16.f + std::sin(angle) * 5.f);
-        }
-        dl->AddPolyline(halo, 25, color(CS2::config.col_halo), false, 1.7f);
+    if (CS2::config.skeleton_joints) {
+        for (ImVec2 p : { head, neck, clav_l, clav_r, chest, spine, pelvis,
+                          sh_l, sh_r, el_l, el_r, wr_l, wr_r, ha_l, ha_r,
+                          hip_l, hip_r, kn_l, kn_r, an_l, an_r, ft_l, ft_r })
+            joint(p);
     }
-    if (CS2::config.look_direction) {
-        const ImVec2 end(head.x + 48.f, head.y - 4.f);
-        dl->AddLine(head, end, color(CS2::config.col_look), 1.7f);
-        dl->AddCircleFilled(end, 2.2f, color(CS2::config.col_look), 8);
+    if (CS2::config.head_dot)
+        dl->AddCircle(head, 8.f * sc, hd, 16, 1.6f);
+
+    if (CS2::config.box || CS2::config.box_corner) {
+        const float left = cx - 55.f * sc, right = cx + 55.f * sc;
+        const float topb = top + 8.f * sc, bot = top + 310.f * sc;
+        dl->AddRect(ImVec2(left, topb), ImVec2(right, bot), col4(CS2::config.col_box), 0.f, 0, 1.5f);
     }
     if (CS2::config.health_bar) {
-        float barTop = head.y - 8.f, bot = lft.y, bx = (std::min)(lha.x, lft.x) - 18.f, h = bot - barTop;
-        dl->AddRectFilled(ImVec2(bx-4, barTop), ImVec2(bx, bot), CyberTheme::SafeShadowU32(180));
-        dl->AddRectFilledMultiColor(ImVec2(bx-4, bot - h*.72f), ImVec2(bx, bot), IM_COL32(227,190,72,255), IM_COL32(227,190,72,255), IM_COL32(235,50,35,255), IM_COL32(235,50,35,255));
+        const float left = cx - 62.f * sc;
+        dl->AddRectFilled(ImVec2(left - 5.f, top + 20.f * sc),
+                          ImVec2(left - 2.f, top + 300.f * sc), IM_COL32(20, 20, 24, 200));
+        dl->AddRectFilled(ImVec2(left - 5.f, top + 80.f * sc),
+                          ImVec2(left - 2.f, top + 300.f * sc), col4(CS2::config.col_health));
     }
     if (CS2::config.armor_bar) {
-        float barTop = head.y - 8.f, bot = rft.y, bx = (std::max)(rha.x, rft.x) + 14.f, h = bot - barTop;
-        dl->AddRectFilled(ImVec2(bx, barTop), ImVec2(bx+4, bot), CyberTheme::SafeShadowU32(180));
-        dl->AddRectFilled(ImVec2(bx, bot - h*0.55f), ImVec2(bx+4, bot), IM_COL32(70, 150, 255, 255));
+        const float right = cx + 62.f * sc;
+        dl->AddRectFilled(ImVec2(right + 2.f, top + 20.f * sc),
+                          ImVec2(right + 5.f, top + 300.f * sc), IM_COL32(20, 20, 24, 200));
+        dl->AddRectFilled(ImVec2(right + 2.f, top + 100.f * sc),
+                          ImVec2(right + 5.f, top + 300.f * sc), col4(CS2::config.col_armor));
     }
-    if (CS2::config.name) {
-        const char* name = "Player";
-        const ImVec2 nameSize = ImGui::CalcTextSize(name);
-        dl->AddText(ImVec2(cx - nameSize.x * .5f, head.y - 25.f),
-            IM_COL32(216,216,210,235), name);
-    }
-    if (CS2::config.weapon_icons || CS2::config.distance) {
-        const ImVec2 footer(cx - 40.f, lft.y + 8.f);
-        if (CS2::config.weapon_icons)
-            dl->AddText(footer, IM_COL32(227,198,90,255), "Pistol");
-        if (CS2::config.distance)
-            dl->AddText(ImVec2(footer.x + (CS2::config.weapon_icons ? 38.f : 0.f), footer.y),
-                IM_COL32(226,88,183,255), CS2::config.weapon_icons ? "| 85m" : "85m");
-    }
+    if (CS2::config.name)
+        dl->AddText(ImVec2(cx - 20.f, top - 2.f), col4(CS2::config.col_name), "Jogador");
+    if (CS2::config.distance)
+        dl->AddText(ImVec2(cx - 12.f, top + 312.f * sc), col4(CS2::config.col_distance), "24m");
 
-    if (CS2::config.radar_2d) {
-        const ImVec2 radar(o.x + 58.f, o.y + 75.f);
-        const float radius = 34.f;
-        dl->AddCircleFilled(radar, radius, CyberTheme::WithAlpha(CyberTheme::Colors.Surface, 0.82f), 36);
-        dl->AddCircle(radar, radius, CyberTheme::WithAlpha(CyberTheme::Colors.Border, 0.82f), 36, 1.2f);
-        dl->AddLine(ImVec2(radar.x - radius, radar.y), ImVec2(radar.x + radius, radar.y), IM_COL32(140,140,150,90), 1.f);
-        dl->AddLine(ImVec2(radar.x, radar.y - radius), ImVec2(radar.x, radar.y + radius), IM_COL32(140,140,150,90), 1.f);
-        dl->AddCircleFilled(radar, 3.f, IM_COL32(220,220,225,255), 12);
-        dl->AddCircleFilled(ImVec2(radar.x + 13.f, radar.y - 10.f), 3.8f, color(CS2::config.col_enemy), 12);
-        dl->AddText(ImVec2(radar.x - 25.f, radar.y + radius + 5.f), IM_COL32(160,160,170,210), "Radar");
-    }
     ImGui::Dummy(ImVec2(width, height));
 }
-}
 
-void DrawCs2Visuals_FORCE(); void DrawCs2Visuals() {
+} // namespace
+
+void DrawCs2Visuals() {
     CS2::config.trails = false;
     CS2::config.look_direction = false;
 
-    CyberWidgets::SearchBar(Loc::Tr("vis.search"));
-    float full = CyberWidgets::CardContentWidth();
-    float left_w = full * 0.52f;
-    float right_w = full - left_w - 12.f;
+    const float full = CyberWidgets::CardContentWidth();
+    const float gap = CyberTheme::Spacing::Sm;
+    const float previewW = std::clamp(full * 0.34f, 240.f, 320.f);
+    const float leftW = full - previewW - gap;
 
     ImGui::BeginGroup();
-    CyberWidgets::BeginCard(Loc::Tr("vis.esp_configs"), left_w);
-    CyberWidgets::ToggleSwitch("Cores por visibilidade", &CS2::config.visibility_colors);
-    CyberWidgets::ToggleSwitch(Loc::TrID("vis.enable"), &CS2::config.esp_enabled);
-    CyberWidgets::ToggleSwitch(Loc::TrID("vis.self_esp"), &CS2::config.self_esp);
-    CyberWidgets::ToggleSwitch(Loc::TrID("vis.team_check"), &CS2::config.team_check);
-    CyberWidgets::ToggleSwitch(Loc::TrID("vis.skeleton"), &CS2::config.skeleton);
-    CyberWidgets::ToggleSwitch(Loc::TrID("vis.joints"), &CS2::config.skeleton_joints);
-    CyberWidgets::ToggleSwitch(Loc::TrID("vis.head_circle"), &CS2::config.head_dot);
-    ImGui::BeginDisabled();
-    CyberWidgets::ToggleSwitch("Trails (rasto de movimento)", &CS2::config.trails);
-    ImGui::EndDisabled();
-    CyberWidgets::ToggleSwitch("Auréola na cabeça", &CS2::config.head_halo);
-    CyberWidgets::ToggleSwitch(Loc::TrID("vis.health_bar"), &CS2::config.health_bar);
-    CyberWidgets::ToggleSwitch(Loc::TrID("vis.armor_bar"), &CS2::config.armor_bar);
-    CyberWidgets::ToggleSwitch("Nome da arma", &CS2::config.weapon_icons);
-    CyberWidgets::ToggleSwitch(Loc::TrID("vis.box_2d"), &CS2::config.box);
-    CyberWidgets::ToggleSwitch(Loc::TrID("vis.corner"), &CS2::config.box_corner);
-    CyberWidgets::ToggleSwitch(Loc::TrID("vis.snaplines"), &CS2::config.snaplines);
-    CyberWidgets::ToggleSwitch(Loc::TrID("vis.name"), &CS2::config.name);
-    CyberWidgets::ToggleSwitch(Loc::TrID("vis.distance"), &CS2::config.distance);
-    CyberWidgets::SliderFloat(Loc::TrID("vis.max_dist"), &CS2::config.max_distance, 20.f, 500.f, "%.0f m");
-    CyberWidgets::EndCard();
+    CyberWidgets::BeginCard("ESP DE JOGADORES", leftW);
+    CyberWidgets::ToggleSwitch("Ativar ESP", &CS2::config.esp_enabled);
+    if (CS2::config.esp_enabled) {
+        CyberWidgets::SectionTitle("ELEMENTOS");
+        CyberWidgets::ToggleSwitch("Caixa", &CS2::config.box);
+        CyberWidgets::ToggleSwitch("Caixa de cantos", &CS2::config.box_corner);
+        CyberWidgets::ToggleSwitch("Esqueleto", &CS2::config.skeleton);
+        if (CS2::config.skeleton) {
+            CyberWidgets::ToggleSwitch("Articulacoes", &CS2::config.skeleton_joints);
+            CyberWidgets::ToggleSwitch("Bracos", &CS2::config.bone_draw_arms);
+            CyberWidgets::ToggleSwitch("Pernas", &CS2::config.bone_draw_legs);
+        }
+        CyberWidgets::ToggleSwitch("Ponto na cabeca", &CS2::config.head_dot);
+        CyberWidgets::ToggleSwitch("Aureola na cabeca", &CS2::config.head_halo);
+        CyberWidgets::ToggleSwitch("Vida", &CS2::config.health_bar);
+        CyberWidgets::ToggleSwitch("Armadura", &CS2::config.armor_bar);
+        CyberWidgets::ToggleSwitch("Nome", &CS2::config.name);
+        CyberWidgets::ToggleSwitch("Distancia", &CS2::config.distance);
+        CyberWidgets::ToggleSwitch("Arma", &CS2::config.weapon_icons);
+        CyberWidgets::ToggleSwitch("Linhas guia", &CS2::config.snaplines);
+        CyberWidgets::SliderFloat("Distancia maxima", &CS2::config.max_distance, 20.f, 500.f, "%.0f m");
 
-    CyberWidgets::BeginCard(Loc::Tr("vis.colors"), left_w);
-    ImGui::ColorEdit4(Loc::Tr("vis.col_enemy"), CS2::config.col_enemy, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
-    ImGui::ColorEdit4(Loc::Tr("vis.col_team"), CS2::config.col_team, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
-    ImGui::ColorEdit4(Loc::Tr("vis.col_skeleton"), CS2::config.col_skeleton, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
-    ImGui::ColorEdit4(Loc::Tr("vis.col_name"), CS2::config.col_name, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
-    ImGui::ColorEdit4("Pontos do esqueleto", CS2::config.col_joints, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
-    ImGui::ColorEdit4("Barra de vida", CS2::config.col_health, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
-    ImGui::ColorEdit4("Barra de armadura", CS2::config.col_armor, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
-    ImGui::ColorEdit4("Linhas guia", CS2::config.col_snaplines, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
-    ImGui::ColorEdit4("Auréola", CS2::config.col_halo, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
-    CyberWidgets::EndCard();
-
-    CyberWidgets::BeginCard("Radar", left_w);
-    CyberWidgets::ToggleSwitch("Radar 2D integrado", &CS2::config.radar_2d);
-    CyberWidgets::SliderFloat("Tamanho do radar", &CS2::config.radar_2d_size, 110.f, 320.f, "%.0f px");
-    CyberWidgets::EndCard();
-
-    CyberWidgets::BeginCard(Loc::Tr("vis.extras"), left_w);
-    CyberWidgets::ToggleSwitch(Loc::TrID("vis.weapon_icons"), &CS2::config.weapon_icons);
-    CyberWidgets::ToggleSwitch(Loc::TrID("vis.show_bots"), &CS2::config.show_bots);
-    CyberWidgets::ToggleSwitch(Loc::TrID("vis.bomb"), &CS2::config.bomb_timer);
-    CyberWidgets::ToggleSwitch(Loc::TrID("vis.spectators"), &CS2::config.spectator_list);
+        if (ImGui::CollapsingHeader("APARENCIA", ImGuiTreeNodeFlags_DefaultOpen)) {
+            CyberWidgets::ToggleSwitch("Cores por visibilidade", &CS2::config.visibility_colors);
+            if (CyberWidgets::Button("PERSONALIZAR CORES", CyberWidgets::ButtonStyle::Secondary, ImVec2(190.f, 32.f)))
+                CyberWidgets::OpenModal("##cs2_esp_colors");
+        }
+        if (ImGui::CollapsingHeader("AVANCADO")) {
+            CyberWidgets::ToggleSwitch("Mostrar jogador local", &CS2::config.self_esp);
+            CyberWidgets::ToggleSwitch("Apenas alvos visiveis", &CS2::config.visible_check);
+            CyberWidgets::ToggleSwitch("Ocultar equipa", &CS2::config.team_check);
+            CyberWidgets::ToggleSwitch("Mostrar bots", &CS2::config.show_bots);
+        }
+    } else {
+        CyberWidgets::TextLine("ESP desativado — ativa para configurar elementos.", CyberWidgets::TextTone::Secondary);
+    }
     CyberWidgets::EndCard();
     ImGui::EndGroup();
 
-    ImGui::SameLine(0.f, 12.f);
+    ImGui::SameLine(0.f, gap);
     ImGui::BeginGroup();
-    CyberWidgets::BeginCard("##cs2_preview", right_w);
-    DrawCs2Preview((std::max)(260.f, right_w - 24.f), 520.f);
+    CyberWidgets::BeginCard("PRE-VISUALIZACAO", previewW);
+    static bool previewVisible = true;
+    CyberWidgets::ToggleSwitch("Alvo visivel", &previewVisible);
+    DrawDetailedPreview((std::max)(160.f, previewW - 20.f), 360.f, previewVisible);
     CyberWidgets::EndCard();
     ImGui::EndGroup();
+
+    if (CyberWidgets::BeginModal("##cs2_esp_colors", "PERSONALIZAR CORES", 520.f)) {
+        CyberWidgets::SectionTitle("JOGADOR");
+        ImGui::ColorEdit4("Visivel", CS2::config.col_visible, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
+        ImGui::ColorEdit4("Oculto", CS2::config.col_occluded, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
+        ImGui::ColorEdit4("Inimigo", CS2::config.col_enemy, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
+        ImGui::ColorEdit4("Equipa", CS2::config.col_team, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
+        CyberWidgets::Separator();
+        CyberWidgets::SectionTitle("ESP");
+        ImGui::ColorEdit4("Caixa", CS2::config.col_box, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
+        ImGui::ColorEdit4("Esqueleto", CS2::config.col_skeleton, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
+        ImGui::ColorEdit4("Articulacoes", CS2::config.col_joints, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
+        ImGui::ColorEdit4("Cabeca", CS2::config.col_head, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
+        ImGui::ColorEdit4("Aureola", CS2::config.col_halo, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
+        ImGui::ColorEdit4("Linhas guia", CS2::config.col_snaplines, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
+        CyberWidgets::Separator();
+        CyberWidgets::SectionTitle("INFORMACAO");
+        ImGui::ColorEdit4("Vida", CS2::config.col_health, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
+        ImGui::ColorEdit4("Armadura", CS2::config.col_armor, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
+        ImGui::ColorEdit4("Nome", CS2::config.col_name, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
+        ImGui::ColorEdit4("Distancia", CS2::config.col_distance, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
+        ImGui::ColorEdit4("Arma", CS2::config.col_weapon, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
+        CyberWidgets::EndModal();
+    }
 }

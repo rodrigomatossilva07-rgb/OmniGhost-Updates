@@ -14,6 +14,7 @@ enum class MenuTab : int {
     TAB_CS2_VISUALS = 100,
     TAB_CS2_AIM,
     TAB_CS2_MISC,
+    TAB_CS2_RADAR,
     TAB_CS2_CONFIGS,
     // Rust-specific (blurred-inspired layout)
     TAB_RUST_VISUALS = 200,
@@ -77,6 +78,7 @@ void DrawConfigs(Overlay* self);
 void DrawCs2Visuals();
 void DrawCs2Aim();
 void DrawCs2Misc();
+void DrawCs2Radar();
 
 // Rust pages
 void DrawRustVisuals();

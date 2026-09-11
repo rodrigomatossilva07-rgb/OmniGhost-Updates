@@ -35,6 +35,9 @@ struct Config {
     bool sound_esp = false;
     bool grenade_trail = false;
     bool radar_2d = false;
+    bool webradar_enabled = false;
+    int webradar_port = 8080;
+    bool webradar_cloudflare = false;
     float radar_2d_x = 18.f;
     float radar_2d_y = 18.f;
     float radar_2d_size = 160.f;
@@ -70,6 +73,10 @@ struct Config {
     float col_trail[4]    = { 0.83f, 0.69f, 0.22f, 0.82f };
     float col_halo[4]     = { 1.00f, 0.89f, 0.54f, 0.90f };
     float col_look[4]     = { 0.83f, 0.69f, 0.22f, 0.86f };
+    float col_head[4]     = { 0.95f, 0.85f, 0.35f, 1.f };
+    float col_distance[4] = { 0.85f, 0.85f, 0.90f, 1.f };
+    float col_visible[4]  = { 0.27f, 0.90f, 0.37f, 1.f };
+    float col_occluded[4] = { 0.90f, 0.25f, 0.25f, 1.f };
 
     bool aim_enabled = false;
     bool aim_draw_fov = true;

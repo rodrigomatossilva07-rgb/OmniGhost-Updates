@@ -122,6 +122,7 @@ namespace {
         case MenuTab::TAB_CS2_VISUALS: DrawCs2Visuals(); break;
         case MenuTab::TAB_CS2_AIM:     DrawCs2Aim(); break;
         case MenuTab::TAB_CS2_MISC:    DrawCs2Misc(); break;
+        case MenuTab::TAB_CS2_RADAR:   DrawCs2Radar(); break;
         case MenuTab::TAB_RUST_VISUALS: DrawRustVisuals(); break;
         case MenuTab::TAB_RUST_AIM:     DrawRustAim(); break;
         case MenuTab::TAB_RUST_WORLD:   DrawRustWorld(); break;

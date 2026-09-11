@@ -99,10 +99,11 @@ namespace CyberWidgets {
         };
         static const TabItem cs2Tabs[] = {
             { "nav.visuals", MenuTab::TAB_CS2_VISUALS, CyberIcons::DrawESPIcon },
-            { "nav.aim", MenuTab::TAB_CS2_AIM,     CyberIcons::DrawAimIcon },
-            { "nav.status", MenuTab::TAB_CS2_MISC,    CyberIcons::DrawStatusIcon },
+            { "nav.aim",     MenuTab::TAB_CS2_AIM,     CyberIcons::DrawAimIcon },
+            { "nav.status",  MenuTab::TAB_CS2_MISC,    CyberIcons::DrawStatusIcon },
+            { "nav.radar",   MenuTab::TAB_CS2_RADAR,   CyberIcons::DrawRadarIcon },
             { "nav.configs", MenuTab::TAB_CONFIGS,     CyberIcons::DrawSettingsIcon },
-            { "nav.save", MenuTab::TAB_SAVECONFIG,  CyberIcons::DrawSaveIcon },
+            { "nav.save",    MenuTab::TAB_SAVECONFIG,  CyberIcons::DrawSaveIcon },
         };
         static const TabItem rustTabs[] = {
             { "nav.aim", MenuTab::TAB_RUST_AIM,     CyberIcons::DrawAimIcon },
@@ -193,15 +194,17 @@ namespace CyberWidgets {
         float itemH = CyberTheme::Metrics::SidebarItemHeight;
         const float desiredHeight = tabCount * itemH +
             (tabCount > 0 ? (tabCount - 1) * gapY : 0.0f);
-        if (desiredHeight > usableHeight && tabCount > 0) {
+        float blockHeight = tabCount * itemH +
+            (tabCount > 0 ? (tabCount - 1) * gapY : 0.0f);
+        if (blockHeight > usableHeight && tabCount > 0) {
             gapY = CyberTheme::Px(3.0f);
             itemH = (std::max)(CyberTheme::Px(34.0f),
                 (usableHeight - (tabCount - 1) * gapY) / tabCount);
+            blockHeight = tabCount * itemH + (tabCount - 1) * gapY;
         }
-        // The references use a predictable top-aligned navigation stack.  Keeping
-        // the first destination in the same place on every game makes switching
-        // between modules feel like one product instead of several separate UIs.
-        const float startY = pos.y + topPad;
+        // Vertically centre the navigation stack inside the sidebar.
+        const float startY = pos.y + topPad +
+            (std::max)(0.0f, (usableHeight - blockHeight) * 0.5f);
 
         dl->PushClipRect(
             ImVec2(pos.x, pos.y + CyberTheme::Spacing::Sm),

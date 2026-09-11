@@ -291,8 +291,15 @@ namespace CyberWidgets {
                     : ImGui::ColorConvertFloat4ToU32(CyberTheme::Colors.Text),
             display);
 
+        // Keep the switch closer to the label (≈ half the previous empty gap).
+        const float text_w = ImGui::CalcTextSize(display).x;
+        const float tight_x = row_pos.x + text_w + CyberTheme::Px(18.0f);
+        const float far_x = row_pos.x + width - track_width;
+        const float track_x = (tight_x < far_x)
+            ? (tight_x + (far_x - tight_x) * 0.45f)
+            : far_x;
         const ImVec2 track_pos(
-            row_pos.x + width - track_width,
+            track_x,
             row_pos.y + (row_height - track_height) * 0.5f);
         const ImVec4 off_color = Mix(
             CyberTheme::Colors.Background,
@@ -738,8 +745,15 @@ namespace CyberWidgets {
                     : ImGui::ColorConvertFloat4ToU32(CyberTheme::Colors.Text),
             display);
 
+        // Keep the switch closer to the label (≈ half the previous empty gap).
+        const float text_w = ImGui::CalcTextSize(display).x;
+        const float tight_x = row_pos.x + text_w + CyberTheme::Px(18.0f);
+        const float far_x = row_pos.x + width - track_width;
+        const float track_x = (tight_x < far_x)
+            ? (tight_x + (far_x - tight_x) * 0.45f)
+            : far_x;
         const ImVec2 track_pos(
-            row_pos.x + width - track_width,
+            track_x,
             row_pos.y + (row_height - track_height) * 0.5f);
         const ImVec4 off_color = Mix(
             CyberTheme::Colors.Background,

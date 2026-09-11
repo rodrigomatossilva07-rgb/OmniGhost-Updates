@@ -1,4 +1,5 @@
 #include "cs2_game.h"
+#include "cs2_radar.h"
 #include "platform/session_log.h"
 #include "../src/platform/offset_auto.h"
 #include "../src/platform/app_paths.h"
@@ -147,6 +148,7 @@ bool NeedsPlayerScan() {
         || config.aim_enabled
         || config.trigger_enabled
         || config.radar_2d
+        || config.webradar_enabled
         || config.spectator_list
         || config.recoil_visual
         || config.offscreen_arrows
@@ -1409,6 +1411,19 @@ void UpdateBombState() {
 }
 
 void RunFrame() {
+    // Keep web radar HTTP server in sync with UI toggles.
+    if (config.webradar_enabled) {
+        if (!WebRadar::IsRunning())
+            WebRadar::Start(config.webradar_port);
+        WebRadar::Tick();
+        if (config.webradar_cloudflare && !WebRadar::CloudflareRunning())
+            WebRadar::StartCloudflare();
+        if (!config.webradar_cloudflare && WebRadar::CloudflareRunning())
+            WebRadar::StopCloudflare();
+    } else if (WebRadar::IsRunning()) {
+        WebRadar::Stop();
+    }
+
     if (!ready || !offsets.loaded || !runtime.client_base)
         return;
 
@@ -2177,6 +2192,7 @@ bool ReinitDma() {
 }
 
 void Shutdown() {
+    WebRadar::Stop();
     DestroyScatter();
     g_pending_entity_list = 0;
     g_entity_list_confirmations = 0;

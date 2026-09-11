@@ -476,11 +476,12 @@ void Overlay::StartRender() {
     if (!RenderMenu && app_settings::menu_open && (GetAsyncKeyState(VK_ESCAPE) & 1))
         app_settings::menu_open = false;
 
-    if (GetAsyncKeyState(
-        app_settings::config.menu_bind
-    ) & 1) {
-        app_settings::menu_open =
-            !app_settings::menu_open;
+    // Default Insert (VK_INSERT=0x2D). Recover if config was zeroed / invalid.
+    int menu_vk = app_settings::config.menu_bind;
+    if (menu_vk <= 0 || menu_vk > 0xFE)
+        menu_vk = 0x2D; // VK_INSERT
+    if (GetAsyncKeyState(menu_vk) & 1) {
+        app_settings::menu_open = !app_settings::menu_open;
     }
 
     const bool interactive =
