@@ -70,6 +70,7 @@ struct Config {
     float col_team[4]     = { 0.25f, 0.75f, 0.95f, 1.f };
     float col_skeleton[4] = { 0.95f, 0.85f, 0.35f, 1.f };
     float col_box[4]      = { 0.90f, 0.25f, 0.25f, 1.f };
+    float col_box_corner[4] = { 0.00f, 0.78f, 1.00f, 1.f };
     float col_name[4]     = { 1.f, 1.f, 1.f, 1.f };
     float col_weapon[4]   = { 0.85f, 0.85f, 0.90f, 1.f };
     float col_target[4]   = { 1.f, 0.85f, 0.15f, 1.f };

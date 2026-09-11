@@ -867,10 +867,45 @@ void DrawLibrary(ImDrawList* draw, ImVec2 display, float delta) {
     char count[72]{};
     std::snprintf(count, sizeof(count), Loc::Tr("launcher.games_available"), visible_count);
 
-    const float search_width = display.x < S(720.f) ? S(175.f) : S(240.f);
-    ImGui::SetCursorScreenPos(ImVec2(content_right - search_width, top - S(3.f)));
+    // Search field + always-visible "Procurar atualizações" on the same row.
+    const float check_btn_w = S(178.f);
+    const float check_btn_h = S(34.f);
+    const float search_width = display.x < S(720.f) ? S(150.f) : S(220.f);
+    const float row_y = top - S(3.f);
+    const float check_x = content_right - check_btn_w;
+    const float search_x = check_x - S(10.f) - search_width;
+
+    ImGui::SetCursorScreenPos(ImVec2(search_x, row_y));
     CyberWidgets::InputField("##library_search", g_search, sizeof(g_search),
         Loc::Tr("launcher.search_hint"), 0, search_width);
+
+    {
+        using US = OmniGhost::Update::Status;
+        const auto updSnap = OmniGhost::Update::UpdateService::Instance().GetSnapshot();
+        const bool checking = updSnap.status == US::Checking ||
+                              updSnap.status == US::Downloading ||
+                              updSnap.status == US::Installing;
+        const char* checkLabel = checking
+            ? app_settings::T("A procurar…", "Checking…")
+            : app_settings::T("Procurar atualizações", "Check for updates");
+
+        ImGui::SetCursorScreenPos(ImVec2(check_x, row_y));
+        ImGui::PushStyleColor(ImGuiCol_Button, CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.22f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.38f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.50f));
+        ImGui::PushStyleColor(ImGuiCol_Text, C_GOLD_LT());
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, CyberTheme::Radius::Sm);
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
+        ImGui::PushStyleColor(ImGuiCol_Border, CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.75f));
+        const bool clicked = ImGui::Button(checkLabel, ImVec2(check_btn_w, check_btn_h));
+        ImGui::PopStyleColor(5);
+        ImGui::PopStyleVar(2);
+        if (clicked && !checking) {
+            OmniGhost::Update::UpdateService::Instance().CheckAsync(true);
+            PushToast(app_settings::T("A procurar atualizações…", "Checking for updates…"),
+                      C_GOLD(), ToastAction::None, nullptr);
+        }
+    }
 
     draw->AddText(ImVec2(content_x, top + S(36.f)), C_MUTED(), count);
 

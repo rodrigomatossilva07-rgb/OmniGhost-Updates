@@ -1,9 +1,7 @@
 <Solution>
   <Configurations>
     <BuildType Name="Release" />
-    <BuildType Name="Tester" />
     <BuildType Name="Publish" />
-    <BuildType Name="PrivateStatic" />
     <Platform Name="x64" />
   </Configurations>
   <Project Path="OmiGhost.vcxproj" Id="b6f916dc-a5dd-415f-b3bf-a364f511dac8" />

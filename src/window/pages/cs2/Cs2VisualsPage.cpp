@@ -121,8 +121,9 @@ void DrawCs2Visuals() {
         ImGuiWindowFlags_AlwaysVerticalScrollbar);
     CyberWidgets::BeginCard("FUNÇÕES ESP");
     CyberWidgets::ToggleSwitch("Ativar ESP", &CS2::config.esp_enabled);
+    if (!CS2::config.esp_enabled)
+        CyberWidgets::TextLine("ESP desativado no jogo — podes configurar à vontade.", CyberWidgets::TextTone::Secondary);
     CyberWidgets::Separator();
-    ImGui::BeginDisabled(!CS2::config.esp_enabled);
     CyberWidgets::ToggleSwitch("ESP do próprio jogador", &CS2::config.self_esp);
     CyberWidgets::ToggleSwitch("Mostrar bots", &CS2::config.show_bots);
     CyberWidgets::ToggleSwitch("Apenas alvos visíveis", &CS2::config.visible_check);
@@ -159,7 +160,6 @@ void DrawCs2Visuals() {
     CyberWidgets::SliderFloat("Eye Line##th", &CS2::config.eye_line_thickness, 0.5f, 6.f, "%.1f");
     if (CS2::config.trails)
         CyberWidgets::SliderFloat("Rastro##th", &CS2::config.trail_thickness, 1.f, 8.f, "%.1f");
-    ImGui::EndDisabled();
     CyberWidgets::EndCard();
     ImGui::EndChild();
 
@@ -177,8 +177,9 @@ void DrawCs2Visuals() {
     CyberWidgets::SectionTitle("DESENHO ESP");
     ImGui::ColorEdit4("Esqueleto##c", CS2::config.col_skeleton, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     ImGui::ColorEdit4("Articulações##c", CS2::config.col_joints, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
-    ImGui::ColorEdit4("Cabeça##c", CS2::config.col_head, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
+    ImGui::ColorEdit4("Ponto na cabeça##c", CS2::config.col_head, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     ImGui::ColorEdit4("Caixa##c", CS2::config.col_box, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
+    ImGui::ColorEdit4("Caixa de cantos##c", CS2::config.col_box_corner, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     ImGui::ColorEdit4("Linhas guia##c", CS2::config.col_snaplines, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     CyberWidgets::SectionTitle("INFORMAÇÃO");
     ImGui::ColorEdit4("Vida##c", CS2::config.col_health, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
