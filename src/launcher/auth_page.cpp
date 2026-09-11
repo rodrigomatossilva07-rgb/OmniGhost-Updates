@@ -536,14 +536,19 @@ void DrawLanguageSelector(const ImVec2& windowPos, float windowWidth) {
 }
 
 void DrawFeedback(float contentWidth) {
-    if (g_error.empty()) return;
-    ImGui::Dummy(ImVec2(0, S(10.f)));
+    // Reserve this slot even when there is no message.  Otherwise an error
+    // inserts a variable-height block below the primary button and can push
+    // the Back action outside the compact authentication card.
+    ImGui::Dummy(ImVec2(0, S(7.f)));
     CenterCursor(contentWidth);
-    ImGui::BeginGroup();
-    ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + contentWidth);
-    ImGui::TextColored(CyberTheme::Colors.Error, "%s", g_error.c_str());
-    ImGui::PopTextWrapPos();
-    ImGui::EndGroup();
+    ImGui::BeginChild("##auth_feedback_slot", ImVec2(contentWidth, S(34.f)), false,
+                      ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    if (!g_error.empty()) {
+        ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + contentWidth);
+        ImGui::TextColored(CyberTheme::Colors.Error, "%s", g_error.c_str());
+        ImGui::PopTextWrapPos();
+    }
+    ImGui::EndChild();
 }
 
 void DrawLanding() {
@@ -572,10 +577,9 @@ void DrawLogin() {
     auto& auth = OmniGhost::Auth::LocalAuthService::Instance();
     const float contentWidth = S(342.f);
 
-    // Includes the brand, both fields, remember-me, primary action, feedback
-    // allowance and the back action. The previous estimate was too short and
-    // vertically centred the real content below the card boundary.
-    CenterBlockVertically(S(276.f), 0.48f);
+    // The feedback slot has a stable height, so the Back action never moves
+    // outside the card when KeyAuth returns an error.
+    CenterBlockVertically(S(310.f), 0.48f);
     DrawBrand(false);
     ImGui::Dummy(ImVec2(0, S(14.f)));
 
@@ -642,7 +646,7 @@ void DrawRegister() {
     const bool remote = OmniGhost::Licensing::IsRemoteConfigured();
 
     // Compact block so the full form (fields + remember + button + back) stays visible.
-    const float blockHeight = remote ? S(320.f) : S(270.f);
+    const float blockHeight = remote ? S(354.f) : S(304.f);
     CenterBlockVertically(blockHeight, 0.48f);
     DrawBrand(false);
     ImGui::Dummy(ImVec2(0, S(14.f)));
@@ -876,8 +880,8 @@ bool Draw() {
 
     const float desiredWidth = S(468.f);
     const float desiredHeight =
-        g_screen == Screen::Register ? S(496.f) :
-        (g_screen == Screen::Login ? S(452.f) :
+        g_screen == Screen::Register ? S(530.f) :
+        (g_screen == Screen::Login ? S(486.f) :
          (g_screen == Screen::Activate ? S(438.f) : S(360.f)));
     const float width = (std::max)(S(340.f), (std::min)(desiredWidth, display.x - S(20.f)));
     const float availableHeight = (std::max)(S(300.f), display.y - S(24.f));

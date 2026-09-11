@@ -51,9 +51,17 @@ public:
 
     bool Attach() override {
         attached_ = attach_ && attach_();
-        lastError_ = attached_
-            ? OmniGhost::Launcher::AdapterError{}
-            : OmniGhost::Launcher::AdapterError{ OmniGhost::Launcher::AdapterErrorCode::AttachFailed, {} };
+        if (attached_) {
+            lastError_ = {};
+        } else {
+            std::string detail;
+            if (status_) {
+                const auto st = status_();
+                if (!st.empty())
+                    detail.assign(st.data(), st.size());
+            }
+            lastError_ = { OmniGhost::Launcher::AdapterErrorCode::AttachFailed, std::move(detail) };
+        }
         return attached_;
     }
 

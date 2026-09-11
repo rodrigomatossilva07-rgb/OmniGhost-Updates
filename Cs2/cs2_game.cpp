@@ -1,4 +1,5 @@
 #include "cs2_game.h"
+#include "platform/session_log.h"
 #include "../src/platform/offset_auto.h"
 #include "../src/platform/app_paths.h"
 #include "../src/platform/embedded_offsets.h"
@@ -636,34 +637,76 @@ bool RecoverCriticalOffsets() {
 
 bool Attach() {
     status = "A anexar cs2.exe";
+    OmniGhost::SessionLog::Write(
+        OmniGhost::SessionLog::Severity::Info,
+        OmniGhost::SessionLog::Subsystem::Adapter,
+        "CS2 attach begin",
+        {{"game", "CS2"}, {"vHandle", mem.vHandle ? "yes" : "no"}});
 
+    // Prefer opening a functional FPGA session (not launcher PnP probe).
     if (!mem.vHandle) {
         status = "Inicializando DMA";
         std::cout << "[CS2] " << status << std::endl;
+        OmniGhost::SessionLog::Write(
+            OmniGhost::SessionLog::Severity::Info,
+            OmniGhost::SessionLog::Subsystem::DMA,
+            "CS2 opening FPGA session", {});
         try {
             if (!mem.Init("", true, false)) {
-                status = "DMA offline";
+                status = "DMA offline (FPGA nao abriu sessao funcional)";
                 std::cout << "[CS2] " << status << std::endl;
+                OmniGhost::SessionLog::Write(
+                    OmniGhost::SessionLog::Severity::Error,
+                    OmniGhost::SessionLog::Subsystem::DMA,
+                    "CS2 DMA offline after mem.Init",
+                    {{"status", status}});
                 return false;
             }
+            OmniGhost::SessionLog::Write(
+                OmniGhost::SessionLog::Severity::Info,
+                OmniGhost::SessionLog::Subsystem::DMA,
+                "CS2 FPGA session open",
+                {{"vHandle", mem.vHandle ? "yes" : "no"}});
         } catch (const std::exception& ex) {
-            status = "Exceção ao inicializar DMA: " + std::string(ex.what());
+            status = "Excecao ao inicializar DMA: " + std::string(ex.what());
             std::cerr << "[CS2] CRASH em mem.Init: " << ex.what() << std::endl;
+            OmniGhost::SessionLog::Write(
+                OmniGhost::SessionLog::Severity::Error,
+                OmniGhost::SessionLog::Subsystem::DMA,
+                "CS2 mem.Init exception",
+                {{"what", ex.what()}});
             return false;
         } catch (...) {
             status = "Erro desconhecido ao inicializar DMA";
             std::cerr << "[CS2] CRASH desconhecido em mem.Init" << std::endl;
+            OmniGhost::SessionLog::Write(
+                OmniGhost::SessionLog::Severity::Error,
+                OmniGhost::SessionLog::Subsystem::DMA,
+                "CS2 mem.Init unknown exception", {});
             return false;
         }
     }
 
-    // Wait up to 3 minutes — user may click Start before launching CS2.
-    if (!WaitForProcess(180))
+    // Fast path: process already running (local name lookup) before long wait.
+    if (FindProcessIdByName("cs2.exe") || FindProcessIdByName("CS2.exe")) {
+        status = "cs2.exe encontrado";
+        std::cout << "[CS2] " << status << " (local)" << std::endl;
+        OmniGhost::SessionLog::Write(
+            OmniGhost::SessionLog::Severity::Info,
+            OmniGhost::SessionLog::Subsystem::Process,
+            "CS2 process present (local)", {});
+    } else if (!WaitForProcess(180)) {
+        OmniGhost::SessionLog::Write(
+            OmniGhost::SessionLog::Severity::Error,
+            OmniGhost::SessionLog::Subsystem::Process,
+            "CS2 process wait timeout",
+            {{"status", status}});
         return false;
+    }
 
     // Attach may fail briefly while the process is still starting; retry.
     bool attached = false;
-    for (int a = 0; a < 30; ++a) {
+    for (int a = 0; a < 40; ++a) {
         try {
             if (mem.Init("cs2.exe", false, false) || mem.Init("CS2.exe", false, false)) {
                 attached = true;
@@ -671,18 +714,39 @@ bool Attach() {
             }
         } catch (const std::exception& ex) {
             std::cerr << "[CS2] Attach retry " << a << " exception: " << ex.what() << std::endl;
+            OmniGhost::SessionLog::Write(
+                OmniGhost::SessionLog::Severity::Warning,
+                OmniGhost::SessionLog::Subsystem::Process,
+                "CS2 process bind retry exception",
+                {{"attempt", std::to_string(a)}, {"what", ex.what()}});
         } catch (...) {
             std::cerr << "[CS2] Attach retry " << a << " unknown exception caught and logged" << std::endl;
         }
         status = "A anexar cs2.exe...";
-        std::cout << "[CS2] Attach retry " << a << std::endl;
-        Sleep(500);
+        if ((a % 5) == 0) {
+            std::cout << "[CS2] Attach retry " << a << std::endl;
+            OmniGhost::SessionLog::Write(
+                OmniGhost::SessionLog::Severity::Info,
+                OmniGhost::SessionLog::Subsystem::Process,
+                "CS2 process bind retry",
+                {{"attempt", std::to_string(a)}});
+        }
+        Sleep(a < 10 ? 250 : 500);
     }
     if (!attached) {
-        status = "Falha ao anexar cs2.exe";
+        status = "Falha ao anexar cs2.exe (DMA aberto mas processo nao ligado)";
         std::cout << "[CS2] " << status << std::endl;
+        OmniGhost::SessionLog::Write(
+            OmniGhost::SessionLog::Severity::Error,
+            OmniGhost::SessionLog::Subsystem::Process,
+            "CS2 process bind failed",
+            {{"status", status}});
         return false;
     }
+    OmniGhost::SessionLog::Write(
+        OmniGhost::SessionLog::Severity::Info,
+        OmniGhost::SessionLog::Subsystem::Process,
+        "CS2 process bound", {});
 
     // client.dll is mapped late during boot — wait up to ~60s.
     for (int attempt = 0; attempt < 120; ++attempt) {
@@ -712,8 +776,18 @@ bool Attach() {
     if (!runtime.client_base) {
         status = "client.dll nao encontrado (abre o CS2 e espera o menu principal)";
         std::cout << "[CS2] " << status << std::endl;
+        OmniGhost::SessionLog::Write(
+            OmniGhost::SessionLog::Severity::Error,
+            OmniGhost::SessionLog::Subsystem::Process,
+            "CS2 client.dll not found",
+            {{"status", status}});
         return false;
     }
+    OmniGhost::SessionLog::Write(
+        OmniGhost::SessionLog::Severity::Info,
+        OmniGhost::SessionLog::Subsystem::Process,
+        "CS2 modules resolved",
+        {{"client", std::to_string(runtime.client_base)}});
 
     // Priority: packaged/local data → embedded fallback → signature recovery.
     if (!offsets.loaded) {

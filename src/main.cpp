@@ -631,12 +631,25 @@ while (application.shouldRun && !authenticated) {
     (void)game_present_before_attach;
 
     // Initialize the game using the adapter
+    OmniGhost::SessionLog::Write(
+        OmniGhost::SessionLog::Severity::Info,
+        OmniGhost::SessionLog::Subsystem::Adapter,
+        "StartGameAdapter begin",
+        {{"game", selectedDefinition ? selectedDefinition->id : "unknown"}});
+
     OmniGhost::Launcher::AdapterStartResult startResult =
         OmniGhost::Launcher::StartGameAdapter(selected);
     if (!startResult.succeeded) {
         // Use centralized adapter error model for consistent messaging
         const std::string_view errorMessage =
             OmniGhost::Launcher::AdapterErrorMessage(startResult.error.code);
+        OmniGhost::SessionLog::Write(
+            OmniGhost::SessionLog::Severity::Error,
+            OmniGhost::SessionLog::Subsystem::Adapter,
+            "StartGameAdapter failed",
+            {{"code", std::to_string(static_cast<int>(startResult.error.code))},
+             {"message", std::string(errorMessage)},
+             {"detail", startResult.error.detail}});
         std::string detail = startResult.error.detail.empty()
             ? std::string(errorMessage)
             : std::string(startResult.error.detail);
