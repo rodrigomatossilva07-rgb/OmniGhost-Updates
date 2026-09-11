@@ -428,7 +428,7 @@ namespace FiveM {
             static std::vector<bool> frameVisibility;
             const bool hasEspDrawing = (esp::config.enabled &&
                 (esp::config.skeleton || esp::config.head_circle || esp::config.trails ||
-                 esp::config.head_halo || esp::config.look_direction || esp::has_extra_visuals())) ||
+                 esp::config.head_halo || esp::config.look_direction || esp::config.chinese_hat || esp::has_extra_visuals())) ||
                 esp::config.triangle_radar || esp::config.square_radar ||
                 esp::config.radar_enabled;
             const bool needsEspVisibility = hasEspDrawing &&
@@ -441,7 +441,7 @@ namespace FiveM {
                 boneMask = 0x01FFu;
             } else {
                 if (esp::config.enabled && (esp::config.head_circle ||
-                    esp::config.head_halo || esp::config.look_direction))
+                    esp::config.head_halo || esp::config.look_direction || esp::config.chinese_hat))
                     boneMask |= uint16_t(1u << 0);
                 if (esp::config.enabled && (esp::config.box_2d || esp::config.corner_box ||
                     esp::config.snaplines || esp::config.health_bar || esp::config.armor_bar)) {
@@ -467,7 +467,7 @@ namespace FiveM {
             const bool needsFriendData = esp::config.enabled && friends::HasFriends();
             if ((esp::config.enabled && (esp::has_extra_visuals() || esp::config.npc_esp ||
                 esp::config.team_check || esp::config.trails || esp::config.head_halo ||
-                esp::config.look_direction)) || needsFriendData ||
+                esp::config.look_direction || esp::config.chinese_hat)) || needsFriendData ||
                 aimbot::config.aimbot_enabled || aimbot::config.trigger_enabled)
                 esp::prepare_esp_frame(validPeds, positions);
 

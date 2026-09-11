@@ -108,9 +108,6 @@ void DrawDetailedPreview(float width, float height, bool visible) {
 } // namespace
 
 void DrawCs2Visuals() {
-    CS2::config.trails = false;
-    CS2::config.look_direction = false;
-
     const float full = CyberWidgets::CardContentWidth();
     const float gap = CyberTheme::Spacing::Sm;
     const float previewW = std::clamp(full * 0.34f, 240.f, 320.f);
@@ -131,6 +128,12 @@ void DrawCs2Visuals() {
         }
         CyberWidgets::ToggleSwitch("Ponto na cabeca", &CS2::config.head_dot);
         CyberWidgets::ToggleSwitch("Aureola na cabeca", &CS2::config.head_halo);
+        CyberWidgets::ToggleSwitch("Chapeu chines 3D", &CS2::config.chinese_hat);
+        CyberWidgets::ToggleSwitch("Rastros", &CS2::config.trails);
+        if (CS2::config.trails)
+            CyberWidgets::ToggleSwitch("Rastros arco-iris", &CS2::config.rainbow_trails);
+        CyberWidgets::ToggleSwitch("Eye Line", &CS2::config.look_direction);
+
         CyberWidgets::ToggleSwitch("Vida", &CS2::config.health_bar);
         CyberWidgets::ToggleSwitch("Armadura", &CS2::config.armor_bar);
         CyberWidgets::ToggleSwitch("Nome", &CS2::config.name);
@@ -138,6 +141,15 @@ void DrawCs2Visuals() {
         CyberWidgets::ToggleSwitch("Arma", &CS2::config.weapon_icons);
         CyberWidgets::ToggleSwitch("Linhas guia", &CS2::config.snaplines);
         CyberWidgets::SliderFloat("Distancia maxima", &CS2::config.max_distance, 20.f, 500.f, "%.0f m");
+        CyberWidgets::SectionTitle("ESPESSURA");
+        CyberWidgets::SliderFloat("Esqueleto", &CS2::config.skeleton_thickness, 0.5f, 6.f, "%.1f");
+        CyberWidgets::SliderFloat("Linhas guia", &CS2::config.snapline_thickness, 0.5f, 6.f, "%.1f");
+        CyberWidgets::SliderFloat("Circulo cabeca", &CS2::config.head_circle_thickness, 0.5f, 6.f, "%.1f");
+        CyberWidgets::SliderFloat("Caixa", &CS2::config.box_thickness, 0.5f, 6.f, "%.1f");
+        CyberWidgets::SliderFloat("Eye Line", &CS2::config.eye_line_thickness, 0.5f, 6.f, "%.1f");
+        if (CS2::config.trails)
+            CyberWidgets::SliderFloat("Rastro", &CS2::config.trail_thickness, 1.f, 8.f, "%.1f");
+
 
         if (ImGui::CollapsingHeader("APARENCIA", ImGuiTreeNodeFlags_DefaultOpen)) {
             CyberWidgets::ToggleSwitch("Cores por visibilidade", &CS2::config.visibility_colors);

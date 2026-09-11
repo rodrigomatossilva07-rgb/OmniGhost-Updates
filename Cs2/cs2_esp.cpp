@@ -5,6 +5,7 @@
 #include "aimbot/aim_type.h"
 #include "gameplay/esp_core.h"
 #include "gameplay/trail_history.h"
+#include "gameplay/esp_fx.h"
 #include "gameplay/esp_optimizer.h"
 #include "imgui.h"
 #include "../src/window/window.hpp"
@@ -29,7 +30,7 @@ bool W2S(const float* world, const float* vm, float& sx, float& sy);
 
 void DrawMotionVisuals(ImDrawList* dl, const CS2::Runtime& rt,
                        const CS2::Config& cfg, const CS2::Player& player) {
-    if (!dl || (!cfg.trails && !cfg.head_halo && !cfg.look_direction)) return;
+    if (!dl || (!cfg.trails && !cfg.head_halo && !cfg.look_direction && !cfg.chinese_hat)) return;
 
     const double now = ImGui::GetTime();
     static std::unordered_map<uintptr_t, OmniGhost::Gameplay::FixedTrailHistory<18>> trails;
@@ -51,9 +52,12 @@ void DrawMotionVisuals(ImDrawList* dl, const CS2::Runtime& rt,
             if (!W2S(wa, rt.view_matrix, ax, ay) || !W2S(wb, rt.view_matrix, bx, by))
                 continue;
             const float fade = static_cast<float>(1.0 - age / duration);
-            dl->AddLine(ImVec2(ax, ay), ImVec2(bx, by),
-                        Col(cfg.col_trail, fade * fade),
-                        std::clamp(cfg.trail_thickness, 1.f, 4.f));
+            const ImU32 col = cfg.rainbow_trails
+                ? OmniGhost::Gameplay::EspFx::RainbowFade(static_cast<float>(b.time) * 0.35f,
+                    fade > 0.f ? 1.f - fade : 1.f)
+                : Col(cfg.col_trail, fade * fade);
+            dl->AddLine(ImVec2(ax, ay), ImVec2(bx, by), col,
+                        std::clamp(cfg.trail_thickness, 1.f, 8.f));
         }
     }
 
@@ -89,6 +93,17 @@ void DrawMotionVisuals(ImDrawList* dl, const CS2::Runtime& rt,
         }
     }
 
+    if (cfg.chinese_hat) {
+        auto project = [&](float wx, float wy, float wz, float& sx, float& sy) -> bool {
+            const float pt[3] = { wx, wy, wz };
+            return W2S(pt, rt.view_matrix, sx, sy);
+        };
+        // CS2 units are larger than GTA — scale hat up.
+        OmniGhost::Gameplay::EspFx::DrawChineseHat(
+            dl, player.head[0], player.head[1], player.head[2],
+            project, static_cast<float>(now), 18.f, true);
+    }
+
     if (cfg.look_direction && std::isfinite(player.view_yaw)) {
         const float yaw = player.view_yaw * 0.01745329251f;
         const float length = std::clamp(cfg.look_direction_length, 30.f, 220.f);
@@ -101,11 +116,13 @@ void DrawMotionVisuals(ImDrawList* dl, const CS2::Runtime& rt,
         if (W2S(player.head, rt.view_matrix, ax, ay) &&
             W2S(end, rt.view_matrix, bx, by)) {
             const ImU32 color = Col(cfg.col_look);
-            dl->AddLine(ImVec2(ax, ay), ImVec2(bx, by), color, 1.6f);
+            dl->AddLine(ImVec2(ax, ay), ImVec2(bx, by), color,
+                        std::clamp(cfg.eye_line_thickness, 0.5f, 6.f));
             dl->AddCircleFilled(ImVec2(bx, by), 2.2f, color, 8);
         }
     }
 }
+
 
 bool W2S(const float* world, const float* vm, float& sx, float& sy) {
     ImVec2 ds = ImGui::GetIO().DisplaySize;
@@ -556,7 +573,9 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
 
         if (cfg.box || cfg.box_corner) {
             ImU32 c = teamCol;
-            float thickness = isAimTarget ? 2.6f : 1.8f;
+            float thickness = isAimTarget
+                ? std::clamp(cfg.box_thickness + 0.8f, 0.5f, 10.f)
+                : std::clamp(cfg.box_thickness, 0.5f, 8.f);
             if (cfg.box && !cfg.box_corner) {
                 dl->AddRect(ImVec2(left, top), ImVec2(right, bottom), c, 0.f, 0, thickness);
             } else {
@@ -569,7 +588,7 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
         // chain does not add DMA reads. Keep the same quality at every distance.
         if (cfg.skeleton && p.bones_ok) {
             ImU32 sc = teamCol;
-            constexpr float th = 1.85f;
+            const float th = std::clamp(cfg.skeleton_thickness, 0.5f, 8.f);
 
             // Spine column (head → neck → spine chain → pelvis)
             DrawBoneLine(dl, p.bones, 0, 1, rt.view_matrix, sc, th);
@@ -620,7 +639,8 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
             const ImU32 headCol = cfg.visibility_colors
                 ? (p.spotted ? Col(cfg.col_head) : Col(cfg.col_occluded))
                 : Col(cfg.col_head);
-            dl->AddCircle(ImVec2(hx, hy), (std::max)(2.f, h * 0.06f), headCol, 16, 1.5f);
+            dl->AddCircle(ImVec2(hx, hy), (std::max)(2.f, h * 0.06f), headCol, 16,
+                std::clamp(cfg.head_circle_thickness, 0.5f, 6.f));
         }
 
         if (cfg.health_bar) {
@@ -651,7 +671,8 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
         }
 
         if (cfg.snaplines) {
-            dl->AddLine(ImVec2(ds.x * 0.5f, ds.y), ImVec2(fx, fy), Col(cfg.col_snaplines), 1.f);
+            dl->AddLine(ImVec2(ds.x * 0.5f, ds.y), ImVec2(fx, fy), Col(cfg.col_snaplines),
+                        std::clamp(cfg.snapline_thickness, 0.5f, 8.f));
         }
 
         // Name above head

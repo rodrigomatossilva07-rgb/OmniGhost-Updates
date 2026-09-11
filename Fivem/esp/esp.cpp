@@ -9,6 +9,7 @@
 #include "config/app_settings.h"
 #include "gameplay/esp_core.h"
 #include "gameplay/trail_history.h"
+#include "gameplay/esp_fx.h"
 #include "../game/visibility.h"
 #include "../game/esp_manager.h"
 #include <cmath>
@@ -864,7 +865,7 @@ static ImU32 MultiplyAlpha(ImU32 color, float factor) {
 
 static void DrawMotionVisuals(uintptr_t ped, Matrix viewport, const PedData* cached) {
     const auto& cfg = esp::config;
-    if (!cfg.trails && !cfg.head_halo && !cfg.look_direction)
+    if (!cfg.trails && !cfg.head_halo && !cfg.look_direction && !cfg.chinese_hat)
         return;
 
     ImDrawList* draw = ImGui::GetForegroundDrawList();
@@ -897,9 +898,11 @@ static void DrawMotionVisuals(uintptr_t ped, Matrix viewport, const PedData* cac
                 !Vec3(b.x, b.y, b.z).world_to_screen(viewport, sb))
                 continue;
             const float fade = static_cast<float>(1.0 - age / duration);
+            const ImU32 col = cfg.rainbow_trails
+                ? OmniGhost::Gameplay::EspFx::RainbowFade(static_cast<float>(b.time) * 0.35f, fade > 0.f ? 1.f - fade : 1.f)
+                : MultiplyAlpha(base, fade * fade);
             draw->AddLine(ImVec2(sa.x, sa.y), ImVec2(sb.x, sb.y),
-                MultiplyAlpha(base, fade * fade),
-                std::clamp(cfg.trail_thickness, 1.f, 4.f));
+                col, std::clamp(cfg.trail_thickness, 1.f, 8.f));
         }
     }
 
@@ -938,6 +941,17 @@ static void DrawMotionVisuals(uintptr_t ped, Matrix viewport, const PedData* cac
         }
     }
 
+    if (cfg.chinese_hat) {
+        auto project = [&](float wx, float wy, float wz, float& sx, float& sy) -> bool {
+            Vec2 screen{};
+            if (!Vec3(wx, wy, wz).world_to_screen(viewport, screen)) return false;
+            sx = screen.x; sy = screen.y;
+            return true;
+        };
+        OmniGhost::Gameplay::EspFx::DrawChineseHat(
+            draw, head.x, head.y, head.z, project, static_cast<float>(now), 1.f, true);
+    }
+
     if (cfg.look_direction && skeleton) {
         Vec3 forward(skeleton->bone_matrix._21, skeleton->bone_matrix._22, 0.f);
         const float length = std::sqrt(forward.x * forward.x + forward.y * forward.y);
@@ -951,7 +965,7 @@ static void DrawMotionVisuals(uintptr_t ped, Matrix viewport, const PedData* cac
             Vec2 from{}, to{};
             if (head.world_to_screen(viewport, from) && end.world_to_screen(viewport, to)) {
                 const ImU32 color = EspPedColor(ped, cfg.color_look_direction, visible);
-                draw->AddLine(ImVec2(from.x, from.y), ImVec2(to.x, to.y), color, 1.6f);
+                draw->AddLine(ImVec2(from.x, from.y), ImVec2(to.x, to.y), color, std::clamp(cfg.eye_line_thickness, 1.f, 6.f));
                 draw->AddCircleFilled(ImVec2(to.x, to.y), 2.2f, color, 8);
             }
         }
@@ -973,7 +987,7 @@ void esp::prepare_esp_frame(const std::vector<uintptr_t>& peds,
                             const std::vector<Vec3>& origins) {
     g_prepared_esp_frame = static_cast<uint32_t>(ImGui::GetFrameCount());
     g_prepared_esp_index.clear();
-    const bool needs_motion_origin = config.trails || config.head_halo || config.look_direction;
+    const bool needs_motion_origin = config.trails || config.head_halo || config.look_direction || config.chinese_hat;
     if (peds.empty() || (!AnyEspExtrasEnabled() && !needs_motion_origin &&
         !aimbot::config.aimbot_enabled && !aimbot::config.trigger_enabled)) {
         g_prepared_esp.clear();
@@ -1251,7 +1265,8 @@ static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer,
     }
 
     if (esp::config.corner_box)
-        OmniGhost::Gameplay::EspCore::DrawCornerBox(dl, boxMin, boxMax, colCorner, 1.6f);
+        OmniGhost::Gameplay::EspCore::DrawCornerBox(dl, boxMin, boxMax, colCorner,
+            std::clamp(esp::config.box_thickness, 0.5f, 8.f));
 
     if (esp::config.snaplines) {
         ImVec2 scr = ImGui::GetIO().DisplaySize;
@@ -1259,7 +1274,8 @@ static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer,
         if (esp::config.snapline_pos == 0) start = ImVec2(scr.x * 0.5f, 0.f);
         else if (esp::config.snapline_pos == 1) start = ImVec2(scr.x * 0.5f, scr.y * 0.5f);
         else start = ImVec2(scr.x * 0.5f, scr.y);
-        dl->AddLine(start, ImVec2((boxMin.x + boxMax.x) * 0.5f, boxMin.y), colSnap, 1.2f);
+        dl->AddLine(start, ImVec2((boxMin.x + boxMax.x) * 0.5f, boxMin.y), colSnap,
+            std::clamp(esp::config.snapline_thickness, 0.5f, 8.f));
     }
 
     float maxHealth = maxHealthProbe;
@@ -1560,7 +1576,8 @@ static void DrawHeadCircleAt(ImDrawList* draw_list, const Vec2& screen, ImU32 co
     float r = 220.0f / (distance_m + 12.0f);
     if (r < 2.0f) r = 2.0f;
     if (r > 9.0f) r = 9.0f;
-    const float th = (r > 4.f) ? 2.0f : 1.4f;
+    const float th = std::clamp(esp::config.head_circle_thickness, 0.5f, 6.f);
+    if (r <= 4.f) th = (std::min)(th, 1.6f);
     // LOD segments: far = fewer verts (cheaper), near = smoother
     const int segs = (distance_m > 80.f) ? 10 : (distance_m > 40.f) ? 14 : 20;
     if (esp::config.circle_type == 1) {
@@ -2041,7 +2058,7 @@ void esp::draw_skeleton(uintptr_t ped, Matrix viewport, uintptr_t localplayer) {
     float bodyPx = 50.f;
     if (iHead >= 0 && iHip >= 0 && J[iHead].on && J[iHip].on)
         bodyPx = fabsf(J[iHip].s.y - J[iHead].s.y);
-    float th = line_thickness;
+    float th = std::clamp(config.skeleton_thickness > 0.1f ? config.skeleton_thickness : line_thickness, 0.5f, 8.f);
     if (bodyPx < 70.f) th = (std::max)(th, 1.7f);
     if (bodyPx < 35.f) th = (std::max)(th, 2.1f);
 

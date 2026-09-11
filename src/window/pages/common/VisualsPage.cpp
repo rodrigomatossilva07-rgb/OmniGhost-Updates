@@ -476,7 +476,23 @@ void DrawVisuals()
         CyberWidgets::Combo(Loc::Tr("vis.snap_pos"), &esp::config.snapline_pos, snapPositions, 3);
     }
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.head_halo"), &esp::config.head_halo);
-    CyberWidgets::SliderFloat(Loc::Tr("vis.max_dist"), &esp::config.max_esp_distance,
+    CyberWidgets::ToggleSwitch("Chapeu chines 3D", &esp::config.chinese_hat);
+    CyberWidgets::ToggleSwitch("Rastros", &esp::config.trails);
+    if (esp::config.trails)
+        CyberWidgets::ToggleSwitch("Rastros arco-iris", &esp::config.rainbow_trails);
+    CyberWidgets::ToggleSwitch("Eye Line", &esp::config.look_direction);
+
+    
+    CyberWidgets::SectionTitle("ESPESSURA");
+    CyberWidgets::SliderFloat("Esqueleto", &esp::config.skeleton_thickness, 0.5f, 6.f, "%.1f");
+    CyberWidgets::SliderFloat("Linhas guia", &esp::config.snapline_thickness, 0.5f, 6.f, "%.1f");
+    CyberWidgets::SliderFloat("Circulo cabeca", &esp::config.head_circle_thickness, 0.5f, 6.f, "%.1f");
+    CyberWidgets::SliderFloat("Caixa", &esp::config.box_thickness, 0.5f, 6.f, "%.1f");
+    CyberWidgets::SliderFloat("Eye Line", &esp::config.eye_line_thickness, 0.5f, 6.f, "%.1f");
+    if (esp::config.trails)
+        CyberWidgets::SliderFloat("Rastro", &esp::config.trail_thickness, 1.f, 8.f, "%.1f");
+
+CyberWidgets::SliderFloat(Loc::Tr("vis.max_dist"), &esp::config.max_esp_distance,
                               20.f, 500.f, "%.0f m");
     ImGui::EndDisabled();
     CyberWidgets::EndCard();
