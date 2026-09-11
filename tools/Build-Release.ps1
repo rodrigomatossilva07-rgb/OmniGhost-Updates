@@ -1,11 +1,14 @@
 ﻿[CmdletBinding()]
 param(
     [Parameter(Mandatory=$false)]
-    [string]$ProjectDir = (Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path))
+    [string]$ProjectDir = ''
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+if ([string]::IsNullOrWhiteSpace($ProjectDir)) {
+    $ProjectDir = Split-Path -Parent $PSScriptRoot
+}
 $ProjectDir = [IO.Path]::GetFullPath($ProjectDir)
 
 try {

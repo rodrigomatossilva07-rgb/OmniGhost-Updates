@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "../auth/keyauth_gateway.h"
 
@@ -23,6 +24,7 @@ struct Snapshot {
     bool remoteServiceConfigured = false;
     bool remoteAuthenticated = false;
     std::string remoteUsername;
+    std::vector<OmniGhost::Auth::RemoteEntitlement> remoteEntitlements;
     std::filesystem::path storagePath;
     std::string userMessage;
 };
@@ -55,6 +57,9 @@ void ClearRememberedRemoteCredentials() noexcept;
 // integrated products; the development fallback keeps local activation only
 // when OMNIGHOST_SKIP_KEYAUTH is enabled.
 [[nodiscard]] bool HasGameAccess(std::string_view productId);
+// Human-readable remaining duration supplied by KeyAuth for a product. Empty
+// means that the product is not covered by the active remote account.
+[[nodiscard]] std::string GameAccessDuration(std::string_view productId);
 [[nodiscard]] bool HasAnyGameAccess();
 [[nodiscard]] Snapshot GetSnapshot();
 void Refresh();

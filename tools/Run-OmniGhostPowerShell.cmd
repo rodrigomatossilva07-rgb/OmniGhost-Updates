@@ -14,6 +14,7 @@ if /I "%ACTION%"=="generate-build-metadata" set "SCRIPT=%PROJECT_DIR%\tools\Gene
 if /I "%ACTION%"=="generate-embedded-offsets" set "SCRIPT=%PROJECT_DIR%\tools\Build-EmbeddedOffsets.ps1"
 if /I "%ACTION%"=="generate-embedded-runtime" set "SCRIPT=%PROJECT_DIR%\tools\Build-EmbeddedRuntime.ps1"
 if /I "%ACTION%"=="validate-embedded-runtime" set "SCRIPT=%PROJECT_DIR%\tools\Validate-EmbeddedRuntime.ps1"
+if /I "%ACTION%"=="validate-embedded-offsets" set "SCRIPT=%PROJECT_DIR%\tools\Validate-EmbeddedOffsets.ps1"
 if /I "%ACTION%"=="generate-embedded-resources" set "SCRIPT=%PROJECT_DIR%\tools\Build-EmbeddedResources.ps1"
 if /I "%ACTION%"=="build-private-static-vmm" set "SCRIPT=%PROJECT_DIR%\tools\Build-PrivateStaticVmm.ps1"
 if /I "%ACTION%"=="increment-version" set "SCRIPT=%PROJECT_DIR%\tools\Increment-Version.ps1"
@@ -78,6 +79,7 @@ if /I "%ACTION%"=="publish-build" goto :publish_build
 if /I "%ACTION%"=="compress-assets" goto :compress_assets
 if /I "%ACTION%"=="generate-embedded-runtime" goto :embedded_runtime
 if /I "%ACTION%"=="validate-embedded-runtime" goto :validate_embedded_runtime
+if /I "%ACTION%"=="validate-embedded-offsets" goto :validate_embedded_offsets
 if /I "%ACTION%"=="generate-embedded-offsets" goto :embedded_data
 if /I "%ACTION%"=="generate-embedded-resources" goto :embedded_data
 if /I "%ACTION%"=="build-private-static-vmm" goto :private_static_vmm
@@ -118,6 +120,15 @@ if not defined CONFIGURATION set "CONFIGURATION=Release"
 set "PLATFORM=%~4"
 if not defined PLATFORM set "PLATFORM=x64"
 "%PS_EXE%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%SCRIPT%" -ProjectDir "%PROJECT_DIR%" -Configuration "%CONFIGURATION%" -Platform "%PLATFORM%"
+exit /b %ERRORLEVEL%
+
+:validate_embedded_offsets
+if "%~3"=="" goto :usage
+set "CONFIGURATION=%~4"
+if not defined CONFIGURATION set "CONFIGURATION=Release"
+set "PLATFORM=%~5"
+if not defined PLATFORM set "PLATFORM=x64"
+"%PS_EXE%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%SCRIPT%" -ProjectDir "%PROJECT_DIR%" -Executable "%~f3" -Configuration "%CONFIGURATION%" -Platform "%PLATFORM%"
 exit /b %ERRORLEVEL%
 
 :embedded_data
@@ -182,6 +193,7 @@ echo   Run-OmniGhostPowerShell.cmd ensure-metadata PROJECT_DIR
 echo   Run-OmniGhostPowerShell.cmd generate-build-metadata PROJECT_DIR [CONFIGURATION] [ARCHITECTURE] [RELEASE_CHANNEL]
 echo   Run-OmniGhostPowerShell.cmd generate-embedded-offsets PROJECT_DIR
 echo   Run-OmniGhostPowerShell.cmd generate-embedded-runtime PROJECT_DIR
+echo   Run-OmniGhostPowerShell.cmd validate-embedded-offsets PROJECT_DIR EXECUTABLE
 echo   Run-OmniGhostPowerShell.cmd generate-embedded-resources PROJECT_DIR
 echo   Run-OmniGhostPowerShell.cmd build-private-static-vmm PROJECT_DIR [PLATFORM_TOOLSET]
 echo   Run-OmniGhostPowerShell.cmd increment-version PROJECT_DIR

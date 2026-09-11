@@ -509,6 +509,12 @@ void DrawLanguageSelector(const ImVec2& windowPos, float windowWidth) {
                 ImGui::Dummy(itemSize);
             if (pressed) {
                 app_settings::config.language = static_cast<app_settings::Language>(index);
+                // Authentication is displayed before a game profile exists, so
+                // save the global preference here as well. This keeps the
+                // selected language across the next launch, including login and
+                // account creation screens.
+                std::string saveError;
+                (void)app_settings::SaveGlobal(&saveError);
                 config_manager::FlushActiveConfig();
                 g_language_open = false;
             }

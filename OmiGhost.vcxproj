@@ -366,19 +366,11 @@
   <ItemGroup>
     <ResourceCompile Include="resources\app.rc"/>
   </ItemGroup>
-  <Target Name="AddGeneratedResourceScripts" BeforeTargets="SelectResourceCompile" Condition="'$(DesignTimeBuild)'!='true'">
-    <ItemGroup>
-      <ResourceCompile Include="$(ProjectDir).cache\generated\$(Configuration)\$(Platform)\embedded_offsets.rc2" Condition="Exists('$(ProjectDir).cache\generated\$(Configuration)\$(Platform)\embedded_offsets.rc2')"/>
-      <ResourceCompile Include="$(ProjectDir).cache\generated\$(Configuration)\$(Platform)\embedded_runtime.rc2" Condition="Exists('$(ProjectDir).cache\generated\$(Configuration)\$(Platform)\embedded_runtime.rc2')"/>
-      <ResourceCompile Include="$(ProjectDir).cache\generated\$(Configuration)\$(Platform)\embedded_resources.rc2" Condition="Exists('$(ProjectDir).cache\generated\$(Configuration)\$(Platform)\embedded_resources.rc2')"/>
-    </ItemGroup>
-  </Target>
-  <Target Name="AddGeneratedResourceOutputsToLink" BeforeTargets="Link" Condition="'$(DesignTimeBuild)'!='true'">
-    <ItemGroup>
-      <LinkResource Include="$(ProjectDir).cache\intermediate\$(Platform)\$(Configuration)\embedded_offsets.res" Condition="Exists('$(ProjectDir).cache\intermediate\$(Platform)\$(Configuration)\embedded_offsets.res')"/>
-      <LinkResource Include="$(ProjectDir).cache\intermediate\$(Platform)\$(Configuration)\embedded_resources.res" Condition="Exists('$(ProjectDir).cache\intermediate\$(Platform)\$(Configuration)\embedded_resources.res')"/>
-      <LinkResource Include="$(ProjectDir).cache\intermediate\$(Platform)\$(Configuration)\embedded_runtime.res" Condition="Exists('$(ProjectDir).cache\intermediate\$(Platform)\$(Configuration)\embedded_runtime.res')"/>
-    </ItemGroup>
+  <Target Name="ValidateOmniGhostEmbeddedOffsets" AfterTargets="Link" Condition="'$(DesignTimeBuild)'!='true'">
+    <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; validate-embedded-offsets &quot;$(MSBuildProjectDirectory)&quot; &quot;$(TargetPath)&quot; &quot;$(Configuration)&quot; &quot;$(Platform)&quot;" IgnoreExitCode="true">
+      <Output TaskParameter="ExitCode" PropertyName="OmniGhostEmbeddedOffsetsValidationExitCode"/>
+    </Exec>
+    <Error Condition="'$(OmniGhostEmbeddedOffsetsValidationExitCode)'!='0'" Code="OGOFF002" Text="O executável não contém todos os snapshots de offsets embedded obrigatórios."/>
   </Target>
   <ItemGroup>
     <ClInclude Include="src\auth\auth_types.h"/>

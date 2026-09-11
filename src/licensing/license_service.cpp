@@ -63,6 +63,40 @@ void ApplyRemoteState(Snapshot& snapshot) {
     snapshot.remoteServiceConfigured = gateway.IsConfigured();
     snapshot.remoteAuthenticated = gateway.IsAuthenticated();
     snapshot.remoteUsername = gateway.CurrentUsername();
+    snapshot.remoteEntitlements = gateway.CurrentEntitlements();
+}
+
+std::string NormalizeEntitlement(std::string_view value) {
+    std::string result;
+    result.reserve(value.size());
+    for (const unsigned char character : value) {
+        if (std::isalnum(character))
+            result.push_back(static_cast<char>(std::tolower(character)));
+        else if (character == '-' || character == '_' || character == '.' || character == ' ')
+            result.push_back('_');
+    }
+    while (!result.empty() && result.back() == '_') result.pop_back();
+    return result;
+}
+
+bool RemoteEntitlementGrants(std::string_view productId) {
+    const std::string product = NormalizeEntitlement(productId);
+    if (product.empty()) return false;
+
+    // Configure these as subscription names in KeyAuth. The short aliases make
+    // existing product-specific plans easy to migrate; the omnighost_ prefix
+    // avoids collisions with unrelated subscriptions in a shared KeyAuth app.
+    const std::string canonical = "omnighost_" + product;
+    const auto entitlements = RemoteGateway().CurrentEntitlements();
+    for (const auto& item : entitlements) {
+        const std::string entitlement = NormalizeEntitlement(item.name);
+        if (entitlement == "all" || entitlement == "todos" || entitlement == "todos_os_jogos" ||
+            entitlement == "omnighost_all" ||
+            entitlement == "omnighost_full" || entitlement == "omnighost_universal" ||
+            entitlement == product || entitlement == canonical)
+            return true;
+    }
+    return false;
 }
 
 // ============================================================
@@ -487,7 +521,7 @@ bool HasGameAccess(std::string_view productId) {
     if (std::find(kLegacyProducts.begin(), kLegacyProducts.end(), productId) == kLegacyProducts.end())
         return false;
     if (IsRemoteAuthenticated())
-        return true;
+        return RemoteEntitlementGrants(productId);
 #if defined(OMNIGHOST_KEYAUTH_ENABLED) && !defined(OMNIGHOST_SKIP_KEYAUTH)
     return false;
 #else
@@ -495,10 +529,30 @@ bool HasGameAccess(std::string_view productId) {
 #endif
 }
 
+std::string GameAccessDuration(std::string_view productId) {
+    if (!IsRemoteAuthenticated())
+        return {};
+    const std::string product = NormalizeEntitlement(productId);
+    const std::string canonical = "omnighost_" + product;
+    for (const auto& item : RemoteGateway().CurrentEntitlements()) {
+        const std::string entitlement = NormalizeEntitlement(item.name);
+        if (entitlement == "all" || entitlement == "todos" || entitlement == "todos_os_jogos" ||
+            entitlement == "omnighost_all" || entitlement == "omnighost_full" ||
+            entitlement == "omnighost_universal" || entitlement == product || entitlement == canonical) {
+            return item.remaining.empty() ? "Ativo" : item.remaining;
+        }
+    }
+    return {};
+}
+
 bool HasAnyGameAccess() {
     LicenseProtection::RunIntegrityChecks();
-    if (IsRemoteAuthenticated())
-        return true;
+    if (IsRemoteAuthenticated()) {
+        constexpr std::array<std::string_view, 7> kProducts{
+            "fivem", "cs2", "rust", "warzone", "valorant", "apex", "fortnite"
+        };
+        return std::any_of(kProducts.begin(), kProducts.end(), RemoteEntitlementGrants);
+    }
 #if defined(OMNIGHOST_KEYAUTH_ENABLED) && !defined(OMNIGHOST_SKIP_KEYAUTH)
     return false;
 #else

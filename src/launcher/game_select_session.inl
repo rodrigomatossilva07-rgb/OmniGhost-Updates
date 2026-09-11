@@ -25,6 +25,39 @@ void StartLicenseOperation(bool createTemporary, std::string key = {}) {
         });
 }
 
+void StartRemoteLicenseUpgrade(std::string key) {
+    if (g_license_operation_pending)
+        return;
+    const std::string username = OmniGhost::Licensing::RemoteUsername();
+    if (username.empty()) {
+        g_license_feedback_success = false;
+        g_license_feedback = "Inicia sessão no KeyAuth antes de adicionar uma licença.";
+        SecureZeroMemory(key.data(), key.size());
+        return;
+    }
+    g_license_operation_pending = true;
+    g_license_feedback_success = false;
+    g_license_feedback = "A adicionar licença à conta...";
+    g_license_operation = std::async(std::launch::async,
+        [username, key = std::move(key)]() mutable {
+            LicenseOperationResult result;
+            try {
+                const auto response = OmniGhost::Licensing::Upgrade(username, key);
+                result.success = response.Ok();
+                result.message = response.userMessage;
+                if (result.success)
+                    OmniGhost::Licensing::Refresh();
+            } catch (const std::exception& error) {
+                result.message = std::string("Não foi possível adicionar a licença: ") + error.what();
+            } catch (...) {
+                result.message = "Não foi possível adicionar a licença.";
+            }
+            if (!key.empty())
+                SecureZeroMemory(key.data(), key.size());
+            return result;
+        });
+}
+
 void PollLicenseOperation() {
     using namespace std::chrono_literals;
     if (!g_license_operation_pending || !g_license_operation.valid() ||
@@ -493,5 +526,4 @@ void RequestOffsetRefresh(GameId id, bool silent = false) {
         return OmniGhost::OffsetAuto::EnsureOffsets(game, true); // force fetch from cheatoffsets.com
     });
 }
-
 

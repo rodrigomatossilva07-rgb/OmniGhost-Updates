@@ -133,6 +133,10 @@ std::string LicenseGateway::CurrentUsername() const {
     return provider_ ? provider_->CurrentUsername() : std::string{};
 }
 
+std::vector<RemoteEntitlement> LicenseGateway::CurrentEntitlements() const {
+    return provider_ ? provider_->CurrentEntitlements() : std::vector<RemoteEntitlement>{};
+}
+
 void LicenseGateway::SetOfflineGrantForTesting(
     std::string hardwareId, std::chrono::steady_clock::time_point expiresAt) {
     std::scoped_lock lock(mutex_);

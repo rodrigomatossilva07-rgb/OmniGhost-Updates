@@ -11,6 +11,18 @@ struct AimMotionSettings {
     float smooth = 0.f;              // 0 = full assist, 100 = disabled
     float deadzone = 0.f;
     bool humanize = false;
+
+    // Optional advanced motion shaping. These defaults keep the behaviour of
+    // older configurations unless the corresponding feature is enabled.
+    bool permanent_humanize = false;
+    int reaction_delay_ms_min = 35;
+    int reaction_delay_ms_max = 85;
+    float overshoot_px = 0.65f;
+    bool prediction = false;
+    float prediction_lead = 0.02f;
+    float micro_jitter_px = 0.08f;
+    float max_deg_per_ms = 6.f;
+
     float minimum_strength = 0.02f;  // low floor so held assist does not fight the mouse
     float minimum_error = 0.45f;
     float output_scale = 1.f;        // device counts per screen-space correction
@@ -77,6 +89,10 @@ public:
         previous_error_y_ = 0.f;
         have_previous_error_ = false;
         last_output_ = {};
+        acquire_time_ = {};
+        reaction_delay_ms_ = 0;
+        overshoot_remaining_ = 0.f;
+        target_switched_ = false;
         flip_streak_ = 0;
     }
 
@@ -189,6 +205,9 @@ public:
                 residual_y_ = 0.f;
             }
         }
+        const float previous_error_x = previous_error_x_;
+        const float previous_error_y = previous_error_y_;
+        const bool had_previous_error = have_previous_error_;
         previous_error_x_ = error_x;
         previous_error_y_ = error_y;
         have_previous_error_ = true;
@@ -196,9 +215,11 @@ public:
         // Soft reaction delay on new target (permanent humanization).
         if (settings.permanent_humanize || settings.humanize) {
             if (target_switched_) {
-                const int span = (std::max)(1, settings.reaction_delay_ms_max - settings.reaction_delay_ms_min);
-                const int delay = settings.reaction_delay_ms_min +
-                    static_cast<int>((target_id_ * 17u) % static_cast<unsigned>(span));
+                const int delay_min = (std::max)(0, (std::min)(settings.reaction_delay_ms_min, settings.reaction_delay_ms_max));
+                const int delay_max = (std::max)(delay_min, (std::max)(settings.reaction_delay_ms_min, settings.reaction_delay_ms_max));
+                const unsigned span = static_cast<unsigned>(delay_max - delay_min + 1);
+                const int delay = delay_min +
+                    static_cast<int>((target_id_ * 17u) % span);
                 acquire_time_ = now;
                 reaction_delay_ms_ = delay;
                 overshoot_remaining_ = settings.overshoot_px;
@@ -220,9 +241,9 @@ public:
         float desired_y = error_y * strength * scale_y;
 
         // Prediction lead (optional menu toggle): advance along last error delta.
-        if (settings.prediction && have_previous_error_) {
-            const float vx = error_x - previous_error_x_;
-            const float vy = error_y - previous_error_y_;
+        if (settings.prediction && had_previous_error) {
+            const float vx = error_x - previous_error_x;
+            const float vy = error_y - previous_error_y;
             desired_x += vx * (settings.prediction_lead * 60.f);
             desired_y += vy * (settings.prediction_lead * 60.f);
         }

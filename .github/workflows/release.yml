@@ -62,6 +62,14 @@ jobs:
         run: |
           ./tools/Test-GeneratedResourceConcurrency.ps1 -ProjectDir .
 
+      - name: Run authentication regression tests
+        shell: pwsh
+        run: |
+          msbuild tests/OmniGhost.AuthRegressionTests.vcxproj /m `
+            /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v145
+          & ./.cache/tests/auth/OmniGhost.AuthRegressionTests.exe
+          if ($LASTEXITCODE -ne 0) { throw "Authentication regression tests failed: $LASTEXITCODE" }
+
       - name: Analyse release diff semantically
         shell: pwsh
         env:
@@ -79,9 +87,13 @@ jobs:
           msbuild OmiGhost.vcxproj /m `
             /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v145
           ./tools/Validate-PeRuntime.ps1 `
-            -Executable ./x64/Release/OmniGhost.exe `
+            -Executable ./build/OmniGhost.exe `
             -OutputDirectory ./artifacts/validation/pe-release `
             -RequireSingleExeDirectory
+          ./tools/Validate-EmbeddedOffsets.ps1 `
+            -ProjectDir . `
+            -Executable ./build/OmniGhost.exe `
+            -Configuration Release -Platform x64
 
       - name: Build customer binary
         shell: pwsh
@@ -93,6 +105,10 @@ jobs:
             -Executable ./build/Publish/OmniGhost.exe `
             -OutputDirectory ./artifacts/validation/pe-publish `
             -RequireSingleExeDirectory
+          ./tools/Validate-EmbeddedOffsets.ps1 `
+            -ProjectDir . `
+            -Executable ./build/Publish/OmniGhost.exe `
+            -Configuration Publish -Platform x64
 
       - name: Run MSVC static analysis
         shell: pwsh

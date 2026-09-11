@@ -209,6 +209,7 @@ void DrawHeader(ImDrawList* draw, ImVec2 display) {
     static constexpr NavItem kTabs[] = {
         {NavPage::Home, "launcher.home"},
         {NavPage::Library, "launcher.library"},
+        {NavPage::Marketplace, "launcher.marketplace"},
         {NavPage::Updates, "launcher.updates"},
         {NavPage::Diagnostics, "launcher.diagnostics"},
     };

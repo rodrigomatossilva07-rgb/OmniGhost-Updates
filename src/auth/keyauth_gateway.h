@@ -6,6 +6,7 @@
 #include <stop_token>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace OmniGhost::Auth {
 
@@ -29,6 +30,12 @@ struct LicenseResult {
     std::string diagnosticCode;
     std::chrono::system_clock::time_point licenseExpiresAt{};
     [[nodiscard]] bool Ok() const noexcept { return status == LicenseStatus::Valid; }
+};
+
+struct RemoteEntitlement {
+    std::string name;
+    std::string expiresAt;
+    std::string remaining;
 };
 
 // Boundary implemented by the KeyAuth adapter. It deliberately accepts no
@@ -56,6 +63,9 @@ public:
     }
     virtual void Logout() noexcept {}
     [[nodiscard]] virtual std::string CurrentUsername() const { return {}; }
+    // Product identifiers returned from the remote account. They are data from
+    // the licensing provider, never values chosen by the launcher UI.
+    [[nodiscard]] virtual std::vector<RemoteEntitlement> CurrentEntitlements() const { return {}; }
     [[nodiscard]] virtual bool IsConfigured() const noexcept { return false; }
 };
 
@@ -79,6 +89,7 @@ public:
     [[nodiscard]] bool IsAuthenticated() const noexcept;
     [[nodiscard]] bool IsConfigured() const noexcept;
     [[nodiscard]] std::string CurrentUsername() const;
+    [[nodiscard]] std::vector<RemoteEntitlement> CurrentEntitlements() const;
 
     void SetOfflineGrantForTesting(std::string hardwareId,
                                    std::chrono::steady_clock::time_point expiresAt);

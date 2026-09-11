@@ -35,7 +35,6 @@ void DrawFiveMStatus()
         && worldOk && viewOk;
     const int pedCount = static_cast<int>(FiveM::ESP::validPeds.size());
     const bool espOn = esp::config.enabled;
-    const bool healthy = offsetsOk && (!espOn || (worldOk && viewOk));
 
     BeginCardRow();
     const float half = CardRowHalfWidth();

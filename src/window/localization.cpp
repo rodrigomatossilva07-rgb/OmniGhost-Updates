@@ -45,6 +45,8 @@ namespace {
 
         {"launcher.home", {"Início", "Home", "Home", "Home", "Home", "Home"}},
         {"launcher.library", {"Biblioteca", "Library", "Library", "Library", "Library", "Library"}},
+        {"launcher.marketplace", {"Marketplace", "Marketplace", "Marketplace", "Marketplace", "Marketplace", "Marketplace"}},
+        {"launcher.marketplace.subtitle", {"Catálogo oficial, preparado para conteúdo validado.", "Official catalogue, prepared for validated content.", "Official catalogue, prepared for validated content.", "Official catalogue, prepared for validated content.", "Official catalogue, prepared for validated content.", "Official catalogue, prepared for validated content."}},
         {"launcher.updates", {"Atualizações", "Updates", "Updates", "Updates", "Updates", "Updates"}},
         {"launcher.diagnostics", {"Diagnóstico", "Diagnostics", "Diagnostics", "Diagnostics", "Diagnostics", "Diagnostics"}},
         {"launcher.settings", {"Definições", "Settings", "Settings", "Settings", "Settings", "Settings"}},

@@ -456,8 +456,8 @@ while (application.shouldRun && !authenticated) {
         HardwareMonitor::UpdateDeviceStatus(
             HardwareMonitor::DeviceType::DMA,
             hardware.dmaFinished && hardware.dmaAvailable,
-            hardware.dmaFinished ? "Windows PnP" : "Checking",
-            hardware.dmaFinished ? "Presence check only" : "");
+            hardware.dmaFinished ? "PnP detected" : "Checking",
+            hardware.dmaFinished ? "Not opened until game launch" : "");
         HardwareMonitor::SetDeviceEnabled(HardwareMonitor::DeviceType::Makcu, true);
         HardwareMonitor::UpdateDeviceStatus(
             HardwareMonitor::DeviceType::Makcu,

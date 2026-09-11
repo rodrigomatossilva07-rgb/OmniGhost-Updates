@@ -281,4 +281,19 @@ std::string KeyAuthRemoteLicenseProvider::CurrentUsername() const {
     return username_;
 }
 
+std::vector<RemoteEntitlement> KeyAuthRemoteLicenseProvider::CurrentEntitlements() const {
+    std::scoped_lock lock(mutex_);
+    std::vector<RemoteEntitlement> result;
+#if defined(OMNIGHOST_KEYAUTH_ENABLED) && !defined(OMNIGHOST_SKIP_KEYAUTH)
+    result.reserve(impl_->api.user_data.subscriptions.size());
+    for (const auto& subscription : impl_->api.user_data.subscriptions) {
+        if (!subscription.name.empty()) {
+            result.push_back({subscription.name, subscription.expiry,
+                              KeyAuth::api::expiry_remaining(subscription.expiry)});
+        }
+    }
+#endif
+    return result;
+}
+
 } // namespace OmniGhost::Auth

@@ -25,6 +25,7 @@ public:
                           std::stop_token stopToken) override;
     void Logout() noexcept override;
     [[nodiscard]] std::string CurrentUsername() const override;
+    [[nodiscard]] std::vector<RemoteEntitlement> CurrentEntitlements() const override;
     [[nodiscard]] bool IsConfigured() const noexcept override;
 
 private:

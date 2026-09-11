@@ -124,6 +124,45 @@ void DrawHome(ImVec2 display) {
     EndControlPage();
 }
 
+void DrawMarketplace(ImVec2 display) {
+    BeginControlPage("##launcher_marketplace", display);
+    DrawPageHeading(Loc::Tr("launcher.marketplace"), Loc::Tr("launcher.marketplace.subtitle"));
+
+    const float gap = S(14.f);
+    const float available = ImGui::GetContentRegionAvail().x;
+    const bool twoColumns = available >= S(760.f);
+    const float cardWidth = twoColumns ? (available - gap) * .5f : available;
+
+    CyberWidgets::BeginCard("CATÁLOGO OFICIAL", cardWidth);
+    CyberWidgets::Badge("EM PREPARAÇÃO", CyberWidgets::TextTone::Warning);
+    ImGui::Dummy(ImVec2(0.f, S(7.f)));
+    CyberWidgets::TextLine("Conteúdo validado e compatível com a tua versão do OmniGhost.",
+                           CyberWidgets::TextTone::Primary);
+    CyberWidgets::TextLine("O catálogo será disponibilizado quando o serviço remoto estiver pronto.",
+                           CyberWidgets::TextTone::Secondary);
+    CyberWidgets::EndCard();
+
+    if (twoColumns) ImGui::SameLine(0.f, gap);
+    CyberWidgets::BeginCard("PERFIS", cardWidth);
+    CyberWidgets::Badge("LOCAL PRIMEIRO", CyberWidgets::TextTone::Secondary);
+    ImGui::Dummy(ImVec2(0.f, S(7.f)));
+    CyberWidgets::TextLine("Os teus perfis permanecem locais e privados por agora.",
+                           CyberWidgets::TextTone::Primary);
+    CyberWidgets::TextLine("A partilha só será ativada com revisão, autoria e controlo de versões.",
+                           CyberWidgets::TextTone::Secondary);
+    CyberWidgets::EndCard();
+
+    ImGui::Dummy(ImVec2(0.f, gap));
+    CyberWidgets::BeginCard("LANÇAMENTO CONTROLADO", 0.f);
+    CyberWidgets::HealthRow("Serviço de catálogo", "Ainda não configurado", CyberWidgets::HealthStatus::Warning);
+    CyberWidgets::HealthRow("Instalação automática", "Desativada até existir assinatura de conteúdo", CyberWidgets::HealthStatus::Warning);
+    CyberWidgets::TextLine("Esta área não descarrega nem executa conteúdo externo nesta fase.",
+                           CyberWidgets::TextTone::Secondary);
+    CyberWidgets::EndCard();
+
+    EndControlPage();
+}
+
 const char* DiagnosticsGameName(GameId id) {
     const GameDefinition* game = FindGame(id);
     return game ? game->name : "—";
@@ -631,8 +670,13 @@ void DrawSettings(ImVec2 display) {
             : OmniGhost::Licensing::StateLabel(license.localState));
         CyberWidgets::KeyValueRow("Armazenamento", remote ? "Sessão remota" : (license.protectedStorage
             ? "Protegido por Windows DPAPI" : "Ainda não inicializado"));
+        std::size_t grantedGames = 0;
+        for (std::size_t index = 0; index < gameCount; ++index) {
+            if (!gameList[index].coming_soon && OmniGhost::Licensing::HasGameAccess(gameList[index].id))
+                ++grantedGames;
+        }
         const std::string coverage = accessActive
-            ? std::to_string(integratedGames) + " jogos autorizados"
+            ? std::to_string(grantedGames) + " de " + std::to_string(integratedGames) + " jogos autorizados"
             : "Nenhum jogo autorizado";
         CyberWidgets::KeyValueRow("Cobertura", coverage.c_str());
         CyberWidgets::TextLine(remote
@@ -647,8 +691,12 @@ void DrawSettings(ImVec2 display) {
             const GameDefinition& game = gameList[index];
             if (game.coming_soon) continue;
             const bool granted = OmniGhost::Licensing::HasGameAccess(game.id);
+            const std::string duration = granted ? OmniGhost::Licensing::GameAccessDuration(game.id) : std::string{};
+            const std::string status = granted
+                ? (duration.empty() ? "Acesso ativo" : "Acesso ativo · " + duration)
+                : "Sem acesso";
             CyberWidgets::HealthRow(game.name,
-                granted ? "Acesso ativo" : "Sem acesso",
+                status.c_str(),
                 granted ? CyberWidgets::HealthStatus::Ok : CyberWidgets::HealthStatus::Warning);
         }
         CyberWidgets::EndCard();
@@ -657,9 +705,36 @@ void DrawSettings(ImVec2 display) {
         CyberWidgets::BeginCard(remote ? "Licenciamento KeyAuth" : "Ativação local", 0.f);
         if (remote) {
             CyberWidgets::InlineMessage(license.remoteAuthenticated
-                ? "A sessão KeyAuth está ativa. Terminar sessão bloqueia imediatamente os jogos."
+                ? "A sessão KeyAuth está ativa. Cada subscrição da conta desbloqueia apenas os produtos respetivos."
                 : "Inicia sessão, cria uma conta ou ativa uma key na página de autenticação para desbloquear os jogos.",
                 license.remoteAuthenticated ? CyberWidgets::TextTone::Success : CyberWidgets::TextTone::Warning);
+            if (license.remoteAuthenticated && !license.remoteEntitlements.empty()) {
+                std::string plans;
+                for (const auto& entitlement : license.remoteEntitlements) {
+                    if (!plans.empty()) plans += ", ";
+                    plans += entitlement.name;
+                }
+                CyberWidgets::KeyValueRow("Planos KeyAuth", plans.c_str());
+            }
+            if (license.remoteAuthenticated) {
+                ImGui::Dummy(ImVec2(0, S(8.f)));
+                CyberWidgets::TextLine("Adicionar uma licença à conta", CyberWidgets::TextTone::Primary);
+                const bool enter = CyberWidgets::InputField("##settings_remote_license_key", g_license_input,
+                    sizeof(g_license_input), "Nova licença", ImGuiInputTextFlags_Password | ImGuiInputTextFlags_EnterReturnsTrue,
+                    -1.f, true);
+                ImGui::BeginDisabled(g_license_operation_pending);
+                if (CyberWidgets::GoldButton(
+                        g_license_operation_pending ? "A processar...##upgrade_license" : "Adicionar licença",
+                        ImVec2(S(170.f), S(34.f))) || (enter && !g_license_operation_pending)) {
+                    std::string key(g_license_input);
+                    SecureZeroMemory(g_license_input, sizeof(g_license_input));
+                    StartRemoteLicenseUpgrade(std::move(key));
+                }
+                ImGui::EndDisabled();
+                CyberWidgets::TextLine(
+                    "A key é associada à conta KeyAuth atual; os acessos existentes mantêm-se.",
+                    CyberWidgets::TextTone::Secondary);
+            }
         } else if (!license.localLicenseValid) {
             CyberWidgets::TextLine(
                 "Introduz uma licença válida ou cria temporariamente o acesso local desta instalação.",

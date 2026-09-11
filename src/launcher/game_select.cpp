@@ -119,10 +119,11 @@ struct GameRuntime {
 enum class NavPage : int {
     Home = 0,
     Library = 1,
-    Updates = 2,
-    Diagnostics = 3,
-    Settings = 4,
-    Account = 5,
+    Marketplace = 2,
+    Updates = 3,
+    Diagnostics = 4,
+    Settings = 5,
+    Account = 6,
 };
 
 std::vector<GameRuntime> g_games;
@@ -291,6 +292,8 @@ bool Draw() {
         ImGui::PopStyleColor();
     } else if (g_nav == static_cast<int>(NavPage::Updates)) {
         LauncherUpdates::Draw(display, S(78.f), S(56.f));
+    } else if (g_nav == static_cast<int>(NavPage::Marketplace)) {
+        DrawMarketplace(display);
     } else if (g_nav == static_cast<int>(NavPage::Diagnostics)) {
         DrawDiagnostics(display);
     } else if (g_nav == static_cast<int>(NavPage::Settings)) {
