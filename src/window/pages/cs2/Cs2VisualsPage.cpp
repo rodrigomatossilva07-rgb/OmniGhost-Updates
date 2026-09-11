@@ -110,57 +110,58 @@ void DrawDetailedPreview(float width, float height, bool visible) {
 void DrawCs2Visuals() {
     const float full = CyberWidgets::CardContentWidth();
     const float gap = CyberTheme::Spacing::Sm;
-    const float previewW = std::clamp(full * 0.34f, 240.f, 320.f);
-    const float leftW = full - previewW - gap;
+    // Same proportions as FiveM VisualsPage
+    const float previewWidth = std::clamp(full * 0.31f, CyberTheme::Px(250.0f), CyberTheme::Px(310.0f));
+    const float settingsWidth = (std::max)(CyberTheme::Px(220.0f), full - previewWidth - gap * 2.0f);
 
     ImGui::BeginGroup();
-    CyberWidgets::BeginCard("ESP DE JOGADORES", leftW);
+    CyberWidgets::BeginCard("ESP DE JOGADORES", settingsWidth);
     CyberWidgets::ToggleSwitch("Ativar ESP", &CS2::config.esp_enabled);
     if (CS2::config.esp_enabled) {
-        CyberWidgets::SectionTitle("ELEMENTOS");
+        // Main elements — mirror FiveM density and order
         CyberWidgets::ToggleSwitch("Caixa", &CS2::config.box);
-        CyberWidgets::ToggleSwitch("Caixa de cantos", &CS2::config.box_corner);
         CyberWidgets::ToggleSwitch("Esqueleto", &CS2::config.skeleton);
         if (CS2::config.skeleton) {
-            CyberWidgets::ToggleSwitch("Articulacoes", &CS2::config.skeleton_joints);
-            CyberWidgets::ToggleSwitch("Bracos", &CS2::config.bone_draw_arms);
+            CyberWidgets::ToggleSwitch("Pontos das articulações", &CS2::config.skeleton_joints);
+            CyberWidgets::ToggleSwitch("Braços", &CS2::config.bone_draw_arms);
             CyberWidgets::ToggleSwitch("Pernas", &CS2::config.bone_draw_legs);
         }
-        CyberWidgets::ToggleSwitch("Ponto na cabeca", &CS2::config.head_dot);
-        CyberWidgets::ToggleSwitch("Aureola na cabeca", &CS2::config.head_halo);
-        CyberWidgets::ToggleSwitch("Chapeu chines 3D", &CS2::config.chinese_hat);
-        CyberWidgets::ToggleSwitch("Rastros", &CS2::config.trails);
-        if (CS2::config.trails)
-            CyberWidgets::ToggleSwitch("Rastros arco-iris", &CS2::config.rainbow_trails);
-        CyberWidgets::ToggleSwitch("Eye Line", &CS2::config.look_direction);
-
+        CyberWidgets::ToggleSwitch("Ponto na cabeça", &CS2::config.head_dot);
         CyberWidgets::ToggleSwitch("Vida", &CS2::config.health_bar);
         CyberWidgets::ToggleSwitch("Armadura", &CS2::config.armor_bar);
         CyberWidgets::ToggleSwitch("Nome", &CS2::config.name);
-        CyberWidgets::ToggleSwitch("Distancia", &CS2::config.distance);
+        CyberWidgets::ToggleSwitch("Distância", &CS2::config.distance);
         CyberWidgets::ToggleSwitch("Arma", &CS2::config.weapon_icons);
-        CyberWidgets::ToggleSwitch("Linhas guia", &CS2::config.snaplines);
-        CyberWidgets::SliderFloat("Distancia maxima", &CS2::config.max_distance, 20.f, 500.f, "%.0f m");
+
+        CyberWidgets::SliderFloat("Distância máxima", &CS2::config.max_distance, 20.f, 500.f, "%.0f m");
+
         CyberWidgets::SectionTitle("ESPESSURA");
-        CyberWidgets::SliderFloat("Esqueleto", &CS2::config.skeleton_thickness, 0.5f, 6.f, "%.1f");
-        CyberWidgets::SliderFloat("Linhas guia", &CS2::config.snapline_thickness, 0.5f, 6.f, "%.1f");
-        CyberWidgets::SliderFloat("Circulo cabeca", &CS2::config.head_circle_thickness, 0.5f, 6.f, "%.1f");
-        CyberWidgets::SliderFloat("Caixa", &CS2::config.box_thickness, 0.5f, 6.f, "%.1f");
-        CyberWidgets::SliderFloat("Eye Line", &CS2::config.eye_line_thickness, 0.5f, 6.f, "%.1f");
+        CyberWidgets::SliderFloat("Esqueleto##th", &CS2::config.skeleton_thickness, 0.5f, 6.f, "%.1f");
+        CyberWidgets::SliderFloat("Linhas guia##th", &CS2::config.snapline_thickness, 0.5f, 6.f, "%.1f");
+        CyberWidgets::SliderFloat("Círculo cabeça", &CS2::config.head_circle_thickness, 0.5f, 6.f, "%.1f");
+        CyberWidgets::SliderFloat("Caixa##th", &CS2::config.box_thickness, 0.5f, 6.f, "%.1f");
+        CyberWidgets::SliderFloat("Eye Line##th", &CS2::config.eye_line_thickness, 0.5f, 6.f, "%.1f");
         if (CS2::config.trails)
-            CyberWidgets::SliderFloat("Rastro", &CS2::config.trail_thickness, 1.f, 8.f, "%.1f");
+            CyberWidgets::SliderFloat("Rastro##th", &CS2::config.trail_thickness, 1.f, 8.f, "%.1f");
 
-
-        if (ImGui::CollapsingHeader("APARENCIA", ImGuiTreeNodeFlags_DefaultOpen)) {
+        if (ImGui::CollapsingHeader("APARÊNCIA", ImGuiTreeNodeFlags_DefaultOpen)) {
             CyberWidgets::ToggleSwitch("Cores por visibilidade", &CS2::config.visibility_colors);
             if (CyberWidgets::Button("PERSONALIZAR CORES", CyberWidgets::ButtonStyle::Secondary, ImVec2(190.f, 32.f)))
                 CyberWidgets::OpenModal("##cs2_esp_colors");
         }
-        if (ImGui::CollapsingHeader("AVANCADO")) {
-            CyberWidgets::ToggleSwitch("Mostrar jogador local", &CS2::config.self_esp);
-            CyberWidgets::ToggleSwitch("Apenas alvos visiveis", &CS2::config.visible_check);
+        if (ImGui::CollapsingHeader("AVANÇADO")) {
+            CyberWidgets::ToggleSwitch("Mostrar o jogador local", &CS2::config.self_esp);
+            CyberWidgets::ToggleSwitch("Apenas alvos visíveis", &CS2::config.visible_check);
             CyberWidgets::ToggleSwitch("Ocultar equipa", &CS2::config.team_check);
             CyberWidgets::ToggleSwitch("Mostrar bots", &CS2::config.show_bots);
+            CyberWidgets::ToggleSwitch("Caixa de cantos", &CS2::config.box_corner);
+            CyberWidgets::ToggleSwitch("Linhas guia", &CS2::config.snaplines);
+            CyberWidgets::ToggleSwitch("Auréola na cabeça", &CS2::config.head_halo);
+            CyberWidgets::ToggleSwitch("Chapéu chinês 3D", &CS2::config.chinese_hat);
+            CyberWidgets::ToggleSwitch("Rastros", &CS2::config.trails);
+            if (CS2::config.trails)
+                CyberWidgets::ToggleSwitch("Rastros arco-íris", &CS2::config.rainbow_trails);
+            CyberWidgets::ToggleSwitch("Eye Line", &CS2::config.look_direction);
         }
     } else {
         CyberWidgets::TextLine("ESP desativado — ativa para configurar elementos.", CyberWidgets::TextTone::Secondary);
@@ -170,14 +171,13 @@ void DrawCs2Visuals() {
 
     ImGui::SameLine(0.f, gap);
     ImGui::BeginGroup();
-    CyberWidgets::BeginCard("PRE-VISUALIZACAO", previewW);
-    static bool previewVisible = true;
-    CyberWidgets::ToggleSwitch("Alvo visivel", &previewVisible);
-    DrawDetailedPreview((std::max)(160.f, previewW - 20.f), 360.f, previewVisible);
+    CyberWidgets::BeginCard("PRÉ-VISUALIZAÇÃO", previewWidth);
+    // No "Alvo visível" toggle — preview always shows a visible target like FiveM
+    DrawDetailedPreview((std::max)(160.f, previewWidth - 20.f), 374.f, true);
     CyberWidgets::EndCard();
     ImGui::EndGroup();
 
-    if (CyberWidgets::BeginModal("##cs2_esp_colors", "PERSONALIZAR CORES", 520.f)) {
+if (CyberWidgets::BeginModal("##cs2_esp_colors", "PERSONALIZAR CORES", 520.f)) {
         CyberWidgets::SectionTitle("JOGADOR");
         ImGui::ColorEdit4("Visivel", CS2::config.col_visible, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
         ImGui::ColorEdit4("Oculto", CS2::config.col_occluded, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);

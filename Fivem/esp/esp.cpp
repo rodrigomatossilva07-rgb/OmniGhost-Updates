@@ -1576,7 +1576,7 @@ static void DrawHeadCircleAt(ImDrawList* draw_list, const Vec2& screen, ImU32 co
     float r = 220.0f / (distance_m + 12.0f);
     if (r < 2.0f) r = 2.0f;
     if (r > 9.0f) r = 9.0f;
-    const float th = std::clamp(esp::config.head_circle_thickness, 0.5f, 6.f);
+    float th = std::clamp(esp::config.head_circle_thickness, 0.5f, 6.f);
     if (r <= 4.f) th = (std::min)(th, 1.6f);
     // LOD segments: far = fewer verts (cheaper), near = smoother
     const int segs = (distance_m > 80.f) ? 10 : (distance_m > 40.f) ? 14 : 20;

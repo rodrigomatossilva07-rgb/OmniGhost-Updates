@@ -40,11 +40,11 @@ inline void DrawChineseHat(ImDrawList* dl, float hx, float hy, float hz,
     if (!dl || !project) return;
     const float spin = timeSec * 1.85f;
     const float baseR = 0.28f * scale;
-    const float height = 0.32f * scale;
+    const float hatHeight = 0.32f * scale;
     constexpr int segs = 20;
 
     float apexX = 0.f, apexY = 0.f;
-    if (!project(hx, hy, hz + height + 0.06f * scale, apexX, apexY))
+    if (!project(hx, hy, hz + hatHeight + 0.06f * scale, apexX, apexY))
         return;
 
     // Cone sides

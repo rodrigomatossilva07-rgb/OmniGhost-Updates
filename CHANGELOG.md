@@ -1,3 +1,17 @@
+## OmniGhost 4.0.7
+
+Released: 11/09/2026
+Channel: stable
+Tag: v4.0.7
+
+### OMNIGHOST Launcher
+
+#### :gear: Manutenção
+
+- Maintenance release with no user-facing changes identified.
+
+---
+
 ## OmniGhost 4.0.6
 
 Released: 11/09/2026

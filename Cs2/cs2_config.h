@@ -12,7 +12,7 @@ struct Config {
     bool box = false;
     bool box_corner = false;
     bool skeleton = false;
-    bool skeleton_joints = true; // joint dots like reference ESP
+    bool skeleton_joints = false; // joint dots like reference ESP
     bool health_bar = false;
     bool armor_bar = false;
     bool name = false;

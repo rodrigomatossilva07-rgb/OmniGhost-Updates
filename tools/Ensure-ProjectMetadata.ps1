@@ -78,12 +78,23 @@ if (-not (Test-VersionFormat -Version $Version)) {
 
 $HeaderVersion = Get-VersionFromHeader
 $ResourceVersion = Get-VersionFromResource
-if ($HeaderVersion -ne $Version) {
-    throw "Versões dessincronizadas: version.txt=$Version, app_version.h=$HeaderVersion. Usa a ferramenta explícita de versão antes de compilar."
+if (($HeaderVersion -ne $Version) -or ($ResourceVersion -ne $Version)) {
+    Write-MetadataLog "Versões dessincronizadas (version.txt=$Version, app_version.h=$HeaderVersion, app.rc=$ResourceVersion). A sincronizar a partir de version.txt…"
+    $SyncScript = Join-Path $ProjectDir 'tools\sync_version.ps1'
+    if (-not (Test-Path -LiteralPath $SyncScript -PathType Leaf)) {
+        throw "Ferramenta de sincronização em falta: $SyncScript"
+    }
+    & $SyncScript -ProjectDir $ProjectDir
+    if ($LASTEXITCODE -ne 0) {
+        throw "Falha ao sincronizar versão a partir de version.txt."
+    }
+    $HeaderVersion = Get-VersionFromHeader
+    $ResourceVersion = Get-VersionFromResource
+    if (($HeaderVersion -ne $Version) -or ($ResourceVersion -ne $Version)) {
+        throw "Após sincronização ainda há divergência: version.txt=$Version, app_version.h=$HeaderVersion, app.rc=$ResourceVersion."
+    }
+    Write-MetadataLog "Versão sincronizada com sucesso: $Version"
+} else {
+    Write-MetadataLog "Validação concluída: versão $Version sincronizada."
 }
-if ($ResourceVersion -ne $Version) {
-    throw "Versões dessincronizadas: version.txt=$Version, app.rc=$ResourceVersion. Usa a ferramenta explícita de versão antes de compilar."
-}
-
-Write-MetadataLog "Validação read-only concluída: versão $Version sincronizada; source não foi alterado."
 exit 0
