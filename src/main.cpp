@@ -647,9 +647,9 @@ while (application.shouldRun && !authenticated) {
             OmniGhost::SessionLog::Severity::Error,
             OmniGhost::SessionLog::Subsystem::Adapter,
             "StartGameAdapter failed",
-            {{"code", std::to_string(static_cast<int>(startResult.error.code))},
+             {{"code", std::to_string(static_cast<int>(startResult.error.code))},
              {"message", std::string(errorMessage)},
-             {"detail", startResult.error.detail}});
+             {"detail", std::string(startResult.error.detail)}});
         std::string detail = startResult.error.detail.empty()
             ? std::string(errorMessage)
             : std::string(startResult.error.detail);
