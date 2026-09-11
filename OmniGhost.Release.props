@@ -21,16 +21,20 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Release' Or '$(Configuration)'=='Publish'">
     <ClCompile>
-      <!-- The official x64 KeyAuth SDK supplied with OmniGhost is built with
-           the MSVC dynamic runtime.  Keep every Release/Publish translation
-           unit on the same runtime to avoid CRT/STL ABI mismatches at link
-           time.  The customer artifact remains a single OmniGhost.exe; the
-           supported Microsoft VC runtime is supplied by Windows/VC Redist. -->
+      <!-- Keep the application and its supported dependencies on the MSVC
+           dynamic runtime.  The supplied KeyAuth archive contains legacy
+           mixed-runtime directives, which are explicitly normalised below.
+           The supported Microsoft VC runtime is supplied by Windows/VC Redist. -->
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <PreprocessorDefinitions>OMNIGHOST_KEYAUTH_ENABLED=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(ProjectDir)keyauth\x64;$(ProjectDir)keyauth\x64\lib;$(ProjectDir)keyauth\x64\lib\libsodium;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
+      <!-- library_x64.lib from the supplied KeyAuth SDK contains legacy
+           /DEFAULTLIB:LIBCMT directives despite this application and its
+           supported dependencies using /MD.  Prefer the project's single
+           dynamic CRT instead of allowing both runtimes into the process. -->
+      <IgnoreSpecificDefaultLibraries>LIBCMT;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
       <!-- KeyAuth's prebuilt static archive was shipped without its private
            libsodium PDB. Keep OmniGhost's own PDB generation intact while
            suppressing only that third-party debug-symbol diagnostic. -->
