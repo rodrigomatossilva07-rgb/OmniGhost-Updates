@@ -50,6 +50,7 @@ namespace CyberWidgets {
             { "nav.radar",   MenuTab::TAB_RADAR,      CyberIcons::DrawRadarIcon },
             { "nav.friends", MenuTab::TAB_FRIENDS,    CyberIcons::DrawUserIcon },
             { "nav.status",  MenuTab::TAB_STATUS,     CyberIcons::DrawStatusIcon },
+            { "nav.save",    MenuTab::TAB_SAVECONFIG, CyberIcons::DrawSaveIcon },
             { "nav.configs", MenuTab::TAB_CONFIGS,    CyberIcons::DrawSettingsIcon },
         };
         static const TabItem cs2Tabs[] = {
@@ -140,7 +141,7 @@ namespace CyberWidgets {
         }
         
         // Fit every game's complete navigation in the same shared sidebar.
-        const float topPad = CyberTheme::Px(28.0f);
+        const float topPad = CyberTheme::Px(34.0f);
         const float usableHeight = (std::max)(CyberTheme::Px(360.0f),
             size.y - topPad - CyberTheme::Spacing::Lg);
         float gapY = CyberTheme::Px(6.0f);
@@ -152,9 +153,10 @@ namespace CyberWidgets {
             itemH = (std::max)(CyberTheme::Px(34.0f),
                 (usableHeight - (tabCount - 1) * gapY) / tabCount);
         }
-        const float stackH = tabCount * itemH + (tabCount > 0 ? (tabCount - 1) * gapY : 0.0f);
-        float startY = pos.y + topPad + std::max(0.0f,
-            (size.y - topPad - CyberTheme::Spacing::Lg - stackH) * 0.35f);
+        // The references use a predictable top-aligned navigation stack.  Keeping
+        // the first destination in the same place on every game makes switching
+        // between modules feel like one product instead of several separate UIs.
+        const float startY = pos.y + topPad;
 
         dl->PushClipRect(
             ImVec2(pos.x, pos.y + CyberTheme::Spacing::Sm),

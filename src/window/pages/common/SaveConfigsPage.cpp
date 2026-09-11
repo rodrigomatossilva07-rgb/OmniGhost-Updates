@@ -110,9 +110,9 @@ AimPreviewState CurrentAimState() {
         value.fov = CS2::config.aim_fov;
         value.smooth = CS2::config.aim_smooth;
         value.bone = CS2::config.aim_bone;
-        value.rcs = CS2::config.rcs_enabled;
-        value.prediction = CS2::config.prediction_enabled;
-        value.aim_key = CS2::config.aim_key;
+        value.rcs = false;
+        value.prediction = CS2::config.aim_prediction;
+        value.aim_key = CS2::config.aim_bind;
         value.max_dist = CS2::config.aim_max_dist;
         break;
     case ActiveGame::Rust:
@@ -120,9 +120,9 @@ AimPreviewState CurrentAimState() {
         value.fov = Rust::config.aim_fov;
         value.smooth = Rust::config.aim_smooth;
         value.bone = Rust::config.aim_bone;
-        value.rcs = Rust::config.rcs_enabled;
-        value.prediction = Rust::config.prediction_enabled;
-        value.aim_key = Rust::config.aim_key;
+        value.rcs = Rust::config.no_recoil;
+        value.prediction = Rust::config.aim_prediction;
+        value.aim_key = Rust::config.aim_bind;
         value.max_dist = Rust::config.aim_max_dist;
         break;
     case ActiveGame::Warzone:
@@ -130,9 +130,9 @@ AimPreviewState CurrentAimState() {
         value.fov = Warzone::config.aim_fov;
         value.smooth = Warzone::config.aim_smooth;
         value.bone = Warzone::config.aim_bone;
-        value.rcs = Warzone::config.rcs_enabled;
-        value.prediction = Warzone::config.prediction_enabled;
-        value.aim_key = Warzone::config.aim_key;
+        value.rcs = false;
+        value.prediction = Warzone::config.aim_prediction;
+        value.aim_key = Warzone::config.aim_bind;
         value.max_dist = Warzone::config.aim_max_dist;
         break;
     case ActiveGame::Valorant:
@@ -140,9 +140,9 @@ AimPreviewState CurrentAimState() {
         value.fov = Valorant::config.aim_fov;
         value.smooth = Valorant::config.aim_smooth;
         value.bone = Valorant::config.aim_bone;
-        value.rcs = Valorant::config.rcs_enabled;
-        value.prediction = Valorant::config.prediction_enabled;
-        value.aim_key = Valorant::config.aim_key;
+        value.rcs = false;
+        value.prediction = Valorant::config.aim_prediction;
+        value.aim_key = Valorant::config.aim_bind;
         value.max_dist = Valorant::config.aim_max_dist;
         break;
     default:
@@ -248,8 +248,11 @@ void DrawAimPreview() {
     } else {
         // FOV circle
         float fov_radius = std::clamp(state.fov * 2.0f, 20.0f, 150.0f);
-        draw->AddCircle(center, fov_radius, CyberTheme::WithAlpha(accent, 0.3f), 64, 1.5f);
-        draw->AddCircle(center, fov_radius, CyberTheme::WithAlpha(accent, 0.6f), 64, 1.0f);
+        ImVec4 accentColor = ImGui::ColorConvertU32ToFloat4(accent);
+        accentColor.w = 0.3f;
+        draw->AddCircle(center, fov_radius, ImGui::ColorConvertFloat4ToU32(accentColor), 64, 1.5f);
+        accentColor.w = 0.6f;
+        draw->AddCircle(center, fov_radius, ImGui::ColorConvertFloat4ToU32(accentColor), 64, 1.0f);
         
         // Smooth indicator
         char smooth_str[32];
@@ -288,7 +291,7 @@ void DrawAimPreview() {
         // Key binding indicator
         if (state.aim_key > 0) {
             char key_str[32];
-            std::snprintf(key_str, sizeof(key_str), "Key: %s", CyberWidgets::MenuVkName(state.aim_key));
+            std::snprintf(key_str, sizeof(key_str), "Tecla: 0x%02X", state.aim_key);
             draw->AddText(ImVec2(origin.x + previewWidth - 120.f, origin.y + 20.f), muted, key_str);
         }
     }

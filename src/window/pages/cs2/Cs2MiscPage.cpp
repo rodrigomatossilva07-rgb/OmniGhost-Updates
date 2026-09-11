@@ -3,7 +3,6 @@
 #include "cs2_config.h"
 #include "imgui.h"
 #include <cstdio>
-#include "gameplay/movement_assist.h"
 
 void DrawCs2Misc()
 {
@@ -51,10 +50,6 @@ void DrawCs2Misc()
     }
     TextLine("Guardado em %LocalAppData%\\OmniGhost\\CS2", TextTone::Secondary);
     EndCard();
-
-    CardGap();
-    MovementAssist::MovementAssistManager& movement = MovementAssist::MovementAssistManager::Instance();
-    movement.DrawStatus(nullptr);
 
     ImGui::PopID();
 }

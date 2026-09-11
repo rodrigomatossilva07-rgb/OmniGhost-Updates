@@ -374,11 +374,14 @@ namespace CyberWidgets {
         }
 
         if (active) {
-            const float indicator_h = 24.0f + transition * 6.0f;
-            const float indicator_y = pos.y + (size.y - indicator_h) * 0.5f;
+            dl->AddRect(pos, ImVec2(pos.x + size.x, pos.y + size.y),
+                WithAlpha(CyberTheme::Colors.Gold, 0.46f),
+                CyberTheme::Metrics::ControlRounding, 0, 1.0f);
+            const float indicator_h = size.y - CyberTheme::Px(12.0f);
+            const float indicator_y = pos.y + CyberTheme::Px(6.0f);
             dl->AddRectFilled(
                 ImVec2(pos.x, indicator_y),
-                ImVec2(pos.x + 4.0f, indicator_y + indicator_h),
+                ImVec2(pos.x + 3.0f, indicator_y + indicator_h),
                 ImGui::ColorConvertFloat4ToU32(CyberTheme::Colors.Gold), 2.0f);
         }
 
@@ -386,8 +389,27 @@ namespace CyberWidgets {
             ? ImGui::ColorConvertFloat4ToU32(CyberTheme::Colors.Gold)
             : (hovered ? IM_COL32(218, 220, 228, 255)
                        : ImGui::ColorConvertFloat4ToU32(CyberTheme::Colors.TextDisabled));
-        if (icon_fn)
-            icon_fn(dl, ImVec2(pos.x + 12.0f, pos.y + 10.0f), 26.0f, icon_color);
+        if (icon_fn) {
+            const float iconBox = CyberTheme::Px(30.0f);
+            const ImVec2 iconMin(pos.x + CyberTheme::Px(8.0f),
+                pos.y + (size.y - iconBox) * 0.5f);
+            const ImVec2 iconMax(iconMin.x + iconBox, iconMin.y + iconBox);
+            dl->AddRectFilled(iconMin, iconMax,
+                active ? WithAlpha(CyberTheme::Colors.Gold, 0.11f)
+                       : IM_COL32(255, 255, 255, hovered ? 10 : 5),
+                CyberTheme::Px(7.0f));
+            dl->AddRect(iconMin, iconMax,
+                active ? WithAlpha(CyberTheme::Colors.Gold, 0.30f)
+                       : WithAlpha(CyberTheme::Colors.Border, 0.28f),
+                CyberTheme::Px(7.0f), 0, 1.0f);
+            if (active)
+                dl->AddCircleFilled(
+                    ImVec2((iconMin.x + iconMax.x) * 0.5f, (iconMin.y + iconMax.y) * 0.5f),
+                    CyberTheme::Px(13.0f), WithAlpha(CyberTheme::Colors.GoldGlow, 0.20f), 18);
+            icon_fn(dl, ImVec2(iconMin.x + CyberTheme::Px(4.0f),
+                               iconMin.y + CyberTheme::Px(4.0f)),
+                    CyberTheme::Px(22.0f), icon_color);
+        }
 
         const ImU32 text_color = active
             ? IM_COL32(239, 240, 244, 255)
@@ -396,7 +418,7 @@ namespace CyberWidgets {
         ImFont* body = CyberFonts::GetBodyFont();
         const char* side_display = DisplayLabel(label);
         if (body)
-            dl->AddText(body, 16.0f, ImVec2(pos.x + 46.0f, pos.y + 11.0f),
+            dl->AddText(body, CyberTheme::Px(14.0f), ImVec2(pos.x + 48.0f, pos.y + (size.y - CyberTheme::Px(14.0f)) * 0.5f - 1.0f),
                 text_color, side_display);
         else
             dl->AddText(ImVec2(pos.x + 46.0f, pos.y + 12.0f), text_color, side_display);
@@ -1443,6 +1465,8 @@ namespace CyberWidgets {
         const ImVec2 pos = ImGui::GetCursorScreenPos();
         const float width = WidgetWidth();
         const float row_height = 30.0f;
+        const bool disabled = (ImGui::GetCurrentContext()->CurrentItemFlags &
+                               ImGuiItemFlags_Disabled) != 0;
 
         // Fixed zones: [label flexible] [HEX fixed] [swatch fixed]
         const float swatch_w = 42.0f;
@@ -1460,9 +1484,9 @@ namespace CyberWidgets {
         const float hex_w = hex_size.x;
         const float label_max = std::max(40.0f, width - swatch_w - hex_w - gap * 2.0f);
 
-        const bool color_clicked = ImGui::InvisibleButton("##color_row", ImVec2(width, row_height));
+        const bool color_clicked = ImGui::InvisibleButton("##color_row", ImVec2(width, row_height)) && !disabled;
         const bool hovered = ImGui::IsItemHovered();
-        ApplyCursorForItem(true);
+        ApplyCursorForItem(!disabled);
         DrawFocusRing(CyberTheme::Metrics::ControlRounding);
         if (color_clicked)
             ImGui::OpenPopup("##color_picker_popup");
@@ -1481,7 +1505,9 @@ namespace CyberWidgets {
         }
         const float label_y = pos.y + (row_height - label_size.y) * 0.5f;
         dl->AddText(font, label_size_px, ImVec2(pos.x, label_y),
-            ImGui::ColorConvertFloat4ToU32(CyberTheme::Colors.Text), DisplayLabel(label));
+            ImGui::ColorConvertFloat4ToU32(disabled
+                ? CyberTheme::Colors.TextDisabled
+                : CyberTheme::Colors.Text), DisplayLabel(label));
 
         // Full label always available on hover (fallback)
         if (hovered)
@@ -1491,7 +1517,7 @@ namespace CyberWidgets {
         const float hex_x = pos.x + width - swatch_w - gap - hex_w;
         const float hex_y = pos.y + (row_height - hex_size.y) * 0.5f;
         dl->AddText(font, base_size * 0.92f, ImVec2(hex_x, hex_y),
-            IM_COL32(140, 144, 158, 255), hex);
+            disabled ? IM_COL32(82, 84, 92, 210) : IM_COL32(140, 144, 158, 255), hex);
 
         // Swatch
         const ImVec2 swatch_a(pos.x + width - swatch_w, pos.y + 5.0f);
@@ -1499,8 +1525,10 @@ namespace CyberWidgets {
         DrawCheckers(dl, swatch_a, swatch_b, 6.0f);
         dl->AddRectFilled(swatch_a, swatch_b,
             ImGui::ColorConvertFloat4ToU32(value), 5.0f);
+        if (disabled)
+            dl->AddRectFilled(swatch_a, swatch_b, IM_COL32(8, 8, 9, 150), 5.0f);
         dl->AddRect(swatch_a, swatch_b,
-            hovered ? WithAlpha(CyberTheme::Colors.Gold, 0.60f)
+            hovered && !disabled ? WithAlpha(CyberTheme::Colors.Gold, 0.60f)
                     : IM_COL32(255, 255, 255, 25),
             5.0f, 0, 1.0f);
 

@@ -289,9 +289,13 @@
     <ClCompile Include="src\window\pages\common\ConfigsPage.cpp"/>
     <ClCompile Include="src\window\pages\common\FriendsPage.cpp"/>
     <ClCompile Include="src\window\pages\common\RadarPage.cpp"/>
+    <ClCompile Include="src\window\pages\common\SaveConfigsPage.cpp"/>
     <ClCompile Include="src\window\pages\common\StatusPage.cpp"/>
     <ClCompile Include="src\window\pages\common\VehiclesPage.cpp"/>
     <ClCompile Include="src\window\pages\common\VisualsPage.cpp"/>
+    <ClCompile Include="src\window\pages\cs2\Cs2AimPage.cpp"/>
+    <ClCompile Include="src\window\pages\cs2\Cs2MiscPage.cpp"/>
+    <ClCompile Include="src\window\pages\cs2\Cs2VisualsPage.cpp"/>
     <ClCompile Include="src\gameplay\sound_esp.cpp"/>
     <ClCompile Include="src\window\onboarding.cpp"/>
     <ClCompile Include="src\window\performance_manager.cpp"/>

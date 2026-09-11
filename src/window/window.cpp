@@ -36,6 +36,75 @@
 
 namespace {
 
+    struct PagePresentation {
+        const char* title;
+        const char* description;
+    };
+
+    PagePresentation PresentationFor(MenuTab tab)
+    {
+        switch (tab) {
+        case MenuTab::TAB_VISUALS:          return { "VISUAIS ESP", "Jogadores, informação e aparência" };
+        case MenuTab::TAB_AIM:              return { "SISTEMA DE MIRA", "Alvo, suavidade e disparo" };
+        case MenuTab::TAB_VEHICLES:         return { "VEÍCULOS", "ESP, estado e personalização" };
+        case MenuTab::TAB_RADAR:            return { "RADAR", "Posição, alcance e apresentação" };
+        case MenuTab::TAB_FRIENDS:          return { "AMIGOS", "Lista segura e jogadores próximos" };
+        case MenuTab::TAB_STATUS:           return { "SISTEMA", "Ligação, offsets e diagnóstico" };
+        case MenuTab::TAB_CONFIGS:          return { "DEFINIÇÕES", "Interface, desempenho e preferências" };
+        case MenuTab::TAB_SAVECONFIG:       return { "CONFIGURAÇÕES", "Guardar, carregar e organizar perfis" };
+        case MenuTab::TAB_CS2_VISUALS:      return { "VISUAIS CS2", "ESP de jogadores e pré-visualização" };
+        case MenuTab::TAB_CS2_AIM:          return { "MIRA CS2", "Perfis e assistência de mira" };
+        case MenuTab::TAB_CS2_MISC:         return { "SISTEMA CS2", "Estado e opções adicionais" };
+        case MenuTab::TAB_RUST_VISUALS:     return { "VISUAIS RUST", "Jogadores e pré-visualização" };
+        case MenuTab::TAB_RUST_AIM:         return { "MIRA RUST", "Aquisição e controlo do alvo" };
+        case MenuTab::TAB_RUST_WORLD:       return { "MUNDO RUST", "Recursos, objetos e distâncias" };
+        case MenuTab::TAB_RUST_PLAYERS:     return { "JOGADORES RUST", "Filtros, equipas e informação" };
+        case MenuTab::TAB_RUST_RADAR:       return { "RADAR RUST", "Orientação e alcance" };
+        case MenuTab::TAB_RUST_MISC:        return { "EXTRAS RUST", "Utilidades e preferências" };
+        case MenuTab::TAB_RUST_DEBUG:       return { "DIAGNÓSTICO RUST", "Leituras e estado interno" };
+        case MenuTab::TAB_WARZONE_AIM:      return { "MIRA WARZONE", "Alvo, precisão e suavidade" };
+        case MenuTab::TAB_WARZONE_VISUALS:  return { "VISUAIS WARZONE", "ESP de jogadores" };
+        case MenuTab::TAB_WARZONE_RADAR:    return { "RADAR WARZONE", "Posições e orientação" };
+        case MenuTab::TAB_WARZONE_WORLD:    return { "MUNDO WARZONE", "Objetos e informação" };
+        case MenuTab::TAB_WARZONE_PLAYERS:  return { "JOGADORES WARZONE", "Lista e prioridades" };
+        case MenuTab::TAB_WARZONE_MISC:     return { "EXTRAS WARZONE", "Sistema e utilidades" };
+        case MenuTab::TAB_VALORANT_VISUALS: return { "VISUAIS VALORANT", "ESP e informação de jogadores" };
+        case MenuTab::TAB_VALORANT_AIM:     return { "MIRA VALORANT", "Alvo e assistência" };
+        case MenuTab::TAB_VALORANT_STATUS:  return { "SISTEMA VALORANT", "Ligação e diagnóstico" };
+        case MenuTab::TAB_FORTNITE_VISUALS: return { "VISUAIS FORTNITE", "ESP e informação" };
+        case MenuTab::TAB_FORTNITE_AIM:     return { "MIRA FORTNITE", "Alvo e assistência" };
+        case MenuTab::TAB_FORTNITE_STATUS:  return { "SISTEMA FORTNITE", "Ligação e diagnóstico" };
+        default:                            return { "OMNIGHOST", "Centro de controlo" };
+        }
+    }
+
+    void DrawPageHeading(MenuTab tab)
+    {
+        const PagePresentation page = PresentationFor(tab);
+        const ImVec2 pos = ImGui::GetCursorScreenPos();
+        const float headingWidth = ImGui::GetContentRegionAvail().x;
+        const float headingHeight = CyberTheme::Px(52.0f);
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        const ImVec2 end(pos.x + headingWidth, pos.y + headingHeight);
+
+        dl->AddRectFilled(pos, end,
+            CyberTheme::U32(CyberTheme::Mix(CyberTheme::Colors.Panel,
+                                            CyberTheme::Colors.Background, 0.22f)),
+            CyberTheme::Metrics::CardRounding);
+        dl->AddRect(pos, end, CyberTheme::WithAlpha(CyberTheme::Colors.Border, 0.54f),
+            CyberTheme::Metrics::CardRounding, 0, CyberTheme::Px(1.0f));
+        dl->AddRectFilled(
+            ImVec2(pos.x, pos.y + CyberTheme::Px(10.0f)),
+            ImVec2(pos.x + CyberTheme::Px(3.0f), end.y - CyberTheme::Px(10.0f)),
+            CyberTheme::U32(CyberTheme::Colors.Gold), CyberTheme::Px(1.5f));
+        dl->AddText(ImVec2(pos.x + CyberTheme::Px(16.0f), pos.y + CyberTheme::Px(8.0f)),
+            CyberTheme::U32(CyberTheme::Colors.Text), page.title);
+        dl->AddText(ImVec2(pos.x + CyberTheme::Px(16.0f), pos.y + CyberTheme::Px(28.0f)),
+            CyberTheme::U32(CyberTheme::Colors.TextDisabled), page.description);
+
+        ImGui::Dummy(ImVec2(headingWidth, headingHeight + CyberTheme::Metrics::GridGap));
+    }
+
     std::string g_imgui_ini_path;
 
     void DrawCurrentTab(MenuTab tab, Overlay* overlay)
@@ -207,6 +276,7 @@ static MenuTab DefaultTabForGame(OmniGhost::ActiveGame game) {
     if (game == OmniGhost::ActiveGame::Rust) return MenuTab::TAB_RUST_VISUALS;
     if (game == OmniGhost::ActiveGame::Warzone) return MenuTab::TAB_WARZONE_AIM;
     if (game == OmniGhost::ActiveGame::Valorant) return MenuTab::TAB_VALORANT_VISUALS;
+    if (game == OmniGhost::ActiveGame::Fortnite) return MenuTab::TAB_FORTNITE_VISUALS;
     return MenuTab::TAB_VISUALS;
 }
 
@@ -442,6 +512,7 @@ const PerformanceMode::State performance = PerformanceMode::Update(
         "Content", content_size, false,
         ImGuiWindowFlags_NoBackground);
     ImGui::PushStyleVar(ImGuiStyleVar_Alpha, (std::max)(0.18f, tabEase));
+    DrawPageHeading(current_tab);
     DrawCurrentTab(current_tab, this);
     // Keep last widgets clear of the footer
     ImGui::Dummy(ImVec2(0.0f, CyberTheme::Spacing::Xl));

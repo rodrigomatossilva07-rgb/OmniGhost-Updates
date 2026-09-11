@@ -3,10 +3,6 @@
 
 class Overlay;
 
-void DrawSaveConfigs() {}
-void DrawCs2Visuals() {}
-void DrawCs2Aim() {}
-void DrawCs2Misc() {}
 void DrawRustVisuals() {}
 void DrawRustAim() {}
 void DrawRustRadar() {}

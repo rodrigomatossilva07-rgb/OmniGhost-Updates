@@ -1,7 +1,7 @@
 #include "../../widgets.h"
 #include "../../theme.h"
 #include "cs2_config.h"
-#include "fonts.h"
+#include "../../fonts.h"
 #include "../../localization.h"
 #include "../../../launcher/launcher_assets.h"
 #include "imgui.h"
@@ -84,13 +84,13 @@ void DrawCs2Preview(float width, float height) {
         dl->AddCircleFilled(end, 2.2f, color(CS2::config.col_look), 8);
     }
     if (CS2::config.health_bar) {
-        float top = head.y - 8.f, bot = lft.y, bx = (std::min)(lha.x, lft.x) - 18.f, h = bot - top;
-        dl->AddRectFilled(ImVec2(bx-4, top), ImVec2(bx, bot), CyberTheme::SafeShadowU32(180));
+        float barTop = head.y - 8.f, bot = lft.y, bx = (std::min)(lha.x, lft.x) - 18.f, h = bot - barTop;
+        dl->AddRectFilled(ImVec2(bx-4, barTop), ImVec2(bx, bot), CyberTheme::SafeShadowU32(180));
         dl->AddRectFilledMultiColor(ImVec2(bx-4, bot - h*.72f), ImVec2(bx, bot), IM_COL32(227,190,72,255), IM_COL32(227,190,72,255), IM_COL32(235,50,35,255), IM_COL32(235,50,35,255));
     }
     if (CS2::config.armor_bar) {
-        float top = head.y - 8.f, bot = rft.y, bx = (std::max)(rha.x, rft.x) + 14.f, h = bot - top;
-        dl->AddRectFilled(ImVec2(bx, top), ImVec2(bx+4, bot), CyberTheme::SafeShadowU32(180));
+        float barTop = head.y - 8.f, bot = rft.y, bx = (std::max)(rha.x, rft.x) + 14.f, h = bot - barTop;
+        dl->AddRectFilled(ImVec2(bx, barTop), ImVec2(bx+4, bot), CyberTheme::SafeShadowU32(180));
         dl->AddRectFilled(ImVec2(bx, bot - h*0.55f), ImVec2(bx+4, bot), IM_COL32(70, 150, 255, 255));
     }
     if (CS2::config.name) {

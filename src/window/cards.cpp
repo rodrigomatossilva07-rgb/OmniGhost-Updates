@@ -102,11 +102,6 @@ namespace CyberWidgets {
         const ImVec2 end_cursor = ImGui::GetCursorScreenPos();
         const ImVec2 a = card.start;
         const ImVec2 b(card.start.x + card.width, end_cursor.y - 2.0f);
-        constexpr float cut = 9.f;
-        const ImVec2 shape[] = {
-            a, ImVec2(b.x - cut, a.y), ImVec2(b.x, a.y + cut),
-            b, ImVec2(a.x + cut, b.y), ImVec2(a.x, b.y - cut)
-        };
 
         dl->ChannelsSetCurrent(0);
 
@@ -120,37 +115,44 @@ namespace CyberWidgets {
             ImVec2(b.x + 2.0f, b.y + 3.0f),
             CyberTheme::SafeShadowU32(13), CyberTheme::Metrics::CardRounding + 1.0f);
 
-        dl->AddConvexPolyFilled(shape, 6, CyberTheme::U32(CyberTheme::Colors.Panel));
-        dl->AddPolyline(shape, 6, CyberTheme::WithAlpha(CyberTheme::Colors.Border, 0.48f),
-            true, 1.0f);
-        dl->AddLine(ImVec2(a.x + 12.f, a.y + 1.f), ImVec2(b.x - cut - 5.f, a.y + 1.f),
-            CyberTheme::WithAlpha(CyberTheme::Colors.GoldHover, 0.09f), 1.f);
-        dl->AddLine(ImVec2(a.x + cut + 4.f, b.y - 2.f), ImVec2(b.x - 12.f, b.y - 2.f),
-            CyberTheme::SafeShadowU32(120), 1.f);
+        dl->AddRectFilled(a, b, CyberTheme::U32(CyberTheme::Colors.Panel),
+            CyberTheme::Metrics::CardRounding);
+        dl->AddRectFilled(a,
+            ImVec2(b.x, a.y + CyberTheme::Metrics::CardHeaderHeight),
+            CyberTheme::U32(CyberTheme::Mix(CyberTheme::Colors.Panel,
+                                            CyberTheme::Colors.CardHover, 0.46f)),
+            CyberTheme::Metrics::CardRounding, ImDrawFlags_RoundCornersTop);
+        dl->AddRect(a, b, CyberTheme::WithAlpha(CyberTheme::Colors.Border, 0.62f),
+            CyberTheme::Metrics::CardRounding, 0, 1.0f);
+        dl->AddLine(
+            ImVec2(a.x + CyberTheme::Metrics::CardPadding,
+                   a.y + CyberTheme::Metrics::CardHeaderHeight),
+            ImVec2(b.x - CyberTheme::Metrics::CardPadding,
+                   a.y + CyberTheme::Metrics::CardHeaderHeight),
+            CyberTheme::WithAlpha(CyberTheme::Colors.Border, 0.44f), 1.0f);
 
         // Clean card title — gold accent bar, no template numbering
         {
             dl->AddRectFilledMultiColor(
-                ImVec2(a.x + 12.0f, a.y + 12.0f),
-                ImVec2(a.x + 15.0f, a.y + 26.0f),
+                ImVec2(a.x + 13.0f, a.y + 13.0f),
+                ImVec2(a.x + 16.0f, a.y + 29.0f),
                 IM_COL32(116, 86, 18, 255), IM_COL32(255, 226, 138, 255),
                 IM_COL32(212, 175, 55, 255), IM_COL32(116, 86, 18, 255));
 
             ImFont* body = CyberFonts::GetBodyFont();
             const float titleSize = CyberTheme::Px(15.0f);
             if (body)
-                dl->AddText(body, titleSize, ImVec2(a.x + 22.0f, a.y + 10.0f),
+                dl->AddText(body, titleSize, ImVec2(a.x + 24.0f, a.y + 11.0f),
                     CyberTheme::U32(CyberTheme::Colors.Text), card.title);
             else
-                dl->AddText(ImVec2(a.x + 22.0f, a.y + 11.0f),
+                dl->AddText(ImVec2(a.x + 24.0f, a.y + 12.0f),
                     CyberTheme::U32(CyberTheme::Colors.Text), card.title);
 
             // Soft hover outline only
             const ImVec2 mouse = ImGui::GetIO().MousePos;
             if (mouse.x >= a.x && mouse.x <= b.x && mouse.y >= a.y && mouse.y <= b.y) {
-                dl->AddPolyline(shape, 6,
-                    CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.20f),
-                    true, 1.0f);
+                dl->AddRect(a, b, CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.22f),
+                    CyberTheme::Metrics::CardRounding, 0, 1.0f);
             }
         }
         dl->ChannelsMerge();
