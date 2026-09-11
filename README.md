@@ -2,28 +2,28 @@
   <img
     width="100%"
     alt="OMNIGHOST"
-    src="https://capsule-render.vercel.app/api?type=waving&height=230&color=0:080808,35:17130A,55:D4AF37,75:17130A,100:080808&text=OMNIGHOST&fontColor=FFFFFF&fontSize=52&fontAlignY=38&desc=DMA%20Launcher%20for%20Windows&descAlignY=59&descSize=17"
+    src="https://capsule-render.vercel.app/api?type=waving&height=230&color=0:080808,35:17130A,55:D4AF37,75:17130A,100:080808&text=OMNIGHOST&fontColor=FFFFFF&fontSize=52&fontAlignY=38&desc=Everywhere.%20Nowhere.&descAlignY=59&descSize=17"
   />
 </p>
 
 <div align="center">
 
-[![Windows](https://img.shields.io/badge/WINDOWS-x64-D4AF37?style=for-the-badge&logo=windows&logoColor=white&labelColor=101010)](#-requirements)
-[![DMA](https://img.shields.io/badge/DMA-REQUIRED-C9A227?style=for-the-badge&labelColor=101010)](#-requirements)
-[![MAKCU](https://img.shields.io/badge/MAKCU-OPTIONAL-8D7627?style=for-the-badge&labelColor=101010)](#-requirements)
-[![Fuser](https://img.shields.io/badge/FUSER-OPTIONAL-8D7627?style=for-the-badge&labelColor=101010)](#-requirements)
+[![Windows](https://img.shields.io/badge/WINDOWS-x64-D4AF37?style=for-the-badge\&logo=windows\&logoColor=white\&labelColor=101010)](#-requirements)
+[![DMA](https://img.shields.io/badge/DMA-REQUIRED-C9A227?style=for-the-badge\&labelColor=101010)](#-requirements)
+[![MAKCU](https://img.shields.io/badge/MAKCU-OPTIONAL-8D7627?style=for-the-badge\&labelColor=101010)](#-requirements)
+[![Fuser](https://img.shields.io/badge/FUSER-OPTIONAL-8D7627?style=for-the-badge\&labelColor=101010)](#-requirements)
 
 <br>
 
-### Library, configuration, and DMA experience in one launcher.
+### Everywhere. Nowhere.
 
-**OMNIGHOST** brings hardware, modules, settings, and updates together  
-in a modern interface designed for Windows x64.
+**OMNIGHOST** brings authentication, your game library, hardware status, diagnostics, licensing, and automatic updates together in a modern Windows x64 launcher.
 
 <br>
 
-[![Latest Release](https://img.shields.io/github/v/release/rodrigomatossilva07-rgb/OmniGhost-Updates?display_name=tag&style=for-the-badge&label=LATEST%20RELEASE&labelColor=101010&color=D4AF37)](https://github.com/rodrigomatossilva07-rgb/OmniGhost-Updates/releases/latest)
-[![Download](https://img.shields.io/badge/DOWNLOAD-OMNIGHOST.ZIP-C9A227?style=for-the-badge&logo=github&logoColor=white&labelColor=101010)](https://github.com/rodrigomatossilva07-rgb/OmniGhost-Updates/releases/latest)
+[![Latest Release](https://img.shields.io/github/v/release/rodrigomatossilva07-rgb/OmniGhost-Updates?display_name=tag\&style=for-the-badge\&label=LATEST%20RELEASE\&labelColor=101010\&color=D4AF37)](https://github.com/rodrigomatossilva07-rgb/OmniGhost-Updates/releases/latest)
+[![Download](https://img.shields.io/badge/DOWNLOAD-OMNIGHOST.EXE-C9A227?style=for-the-badge\&logo=github\&logoColor=white\&labelColor=101010)](https://github.com/rodrigomatossilva07-rgb/OmniGhost-Updates/releases/latest)
+[![Discord](https://img.shields.io/badge/DISCORD-JOIN%20COMMUNITY-D4AF37?style=for-the-badge\&logo=discord\&logoColor=white\&labelColor=101010)](https://discord.gg/wsXAyWd5)
 
 </div>
 
@@ -35,20 +35,25 @@ in a modern interface designed for Windows x64.
 
 The user is responsible for complying with:
 
-- applicable laws and regulations;
-- the terms of service of any games involved;
-- the rules of the platforms being used;
-- third-party service policies;
-- the policies of the environment in which the software is run.
+* applicable laws and regulations;
+* the terms of service of any games involved;
+* the rules of the platforms being used;
+* third-party service policies;
+* the policies of the environment in which the software is run.
 
 > [!CAUTION]
-> Do not use OMNIGHOST on accounts, systems, servers, or environments where this type of hardware or software is not authorized. This project does not grant permission to bypass rules, security measures, or restrictions imposed by third parties.
+> Do not use OMNIGHOST on accounts, systems, servers, or environments where this type of hardware or software is not authorized.
+>
+> This project does not grant permission to bypass rules, security measures, access controls, or restrictions imposed by third parties.
 
 > [!IMPORTANT]
-> OMNIGHOST requires a **compatible DMA card** for DMA-dependent features.  
-> **MAKCU** and a **fuser** are optional components and depend on the setup being used.
+> OMNIGHOST requires a **compatible DMA card** for DMA-dependent features.
+>
+> **MAKCU** and a **fuser** remain optional components and depend on the setup being used.
 
-All names, trademarks, logos, and products mentioned belong to their respective owners. References to those products do not imply affiliation, approval, sponsorship, or an official partnership.
+All names, trademarks, logos, games, services, and products mentioned belong to their respective owners.
+
+References to third-party products do not imply affiliation, approval, sponsorship, or an official partnership.
 
 ---
 
@@ -58,19 +63,23 @@ All names, trademarks, logos, and products mentioned belong to their respective 
 <tr>
 <td width="50%">
 
-- [About OMNIGHOST](#-about-omnighost)
-- [Highlights](#-highlights)
-- [Launcher experience](#-launcher-experience)
-- [Installation](#-installation)
-- [Updates page](#-updates-page)
+* [About OMNIGHOST](#-about-omnighost)
+* [Highlights](#-highlights)
+* [Authentication](#-authentication)
+* [Home](#-home)
+* [Library](#-library)
 
 </td>
 <td width="50%">
 
-- [Requirements](#-requirements)
-- [Troubleshooting](#-troubleshooting)
-- [Support](#-support)
-- [Project status](#-project-status)
+* [Marketplace](#-marketplace)
+* [Diagnostics](#-diagnostics)
+* [Automatic updates](#-automatic-updates)
+* [Installation](#-installation)
+* [Requirements](#-requirements)
+* [Troubleshooting](#-troubleshooting)
+* [Support](#-support)
+* [Project status](#-project-status)
 
 </td>
 </tr>
@@ -80,45 +89,51 @@ All names, trademarks, logos, and products mentioned belong to their respective 
 
 ## ✦ About OMNIGHOST
 
-**OMNIGHOST** is a Windows launcher developed to centralize the experience of a project built around **DMA hardware**.
+**OMNIGHOST** is a Windows x64 launcher developed to centralize the experience around supported games, licenses, DMA hardware, optional peripherals, diagnostics, and application updates.
 
-The application brings the following into a single interface:
+The launcher is organized around four main areas:
 
-- the available library and integrations;
-- setup component status;
-- module-based configuration;
-- launch actions;
-- a real version history;
-- update checking;
-- environment compatibility information.
+```text
+┌──────────────────────────────────────────────────────────┐
+│                       OMNIGHOST                          │
+│                  Everywhere. Nowhere.                    │
+├──────────────┬──────────────┬──────────────┬─────────────┤
+│     Home     │   Library    │ Marketplace  │ Diagnostics │
+└──────────────┴──────────────┴──────────────┴─────────────┘
+```
 
-Its design combines a dark visual identity with gold accents, compact navigation, and clear states for every operation.
+Access to available games is determined by the licenses associated with the authenticated OMNIGHOST account.
 
 ### Setup architecture
 
 ```text
-┌──────────────────────────────────────────────────────┐
-│                    OMNIGHOST                         │
-│          Library · Configuration · Updates           │
-└──────────────────────────┬───────────────────────────┘
-                           │
-             ┌─────────────┴─────────────┐
-             │                           │
-       Compatible DMA card         Optional components
-            Required                 MAKCU · Fuser
+                         OMNIGHOST
+                             │
+             ┌───────────────┴───────────────┐
+             │                               │
+        User account                    Local system
+             │                               │
+      Authentication                  Hardware status
+        & licensing                 DMA · MAKCU · System
+             │                               │
+             └───────────────┬───────────────┘
+                             │
+                    Available library
+                             │
+                     Licensed games
 ```
 
 ### Main hardware
 
-| Component | Status | Role in the setup |
-|:--|:--:|:--|
-| **Compatible DMA card** | **Required** | Main component for DMA-dependent features |
-| **MAKCU** | Optional | Additional input integration when supported by the setup |
-| **Fuser** | Optional | Combines or displays multiple video sources |
-| **Network connection** | Recommended | Updates, version history, and remote content |
+| Component               |    Status    | Role                                                          |
+| :---------------------- | :----------: | :------------------------------------------------------------ |
+| **Compatible DMA card** | **Required** | Main component for DMA-dependent functionality                |
+| **MAKCU**               |   Optional   | Additional input-related hardware when supported by the setup |
+| **Fuser**               |   Optional   | External hardware used when required by the physical setup    |
+| **Internet connection** |  Recommended | Authentication, licensing, updates, and online services       |
 
 > [!NOTE]
-> Compatibility depends on the card model, firmware, drivers, cables, ports, and the configuration of the computers involved.
+> Hardware compatibility may depend on the card model, firmware, drivers, cables, ports, and configuration of the computers involved.
 
 ---
 
@@ -128,33 +143,16 @@ Its design combines a dark visual identity with gold accents, compact navigation
 <tr>
 <td width="50%" valign="top">
 
-### ◈ Centralized interface
+### ◈ Account authentication
 
-Library, modules, settings, and system status brought together in one application.
-
-</td>
-<td width="50%" valign="top">
-
-### ◈ DMA integration
-
-Designed to work with a compatible DMA card and different hardware configurations.
-
-</td>
-</tr>
-
-<tr>
-<td width="50%" valign="top">
-
-### ◈ Modular hardware
-
-The setup can be extended with MAKCU and a fuser without making them mandatory for every installation.
+Secure account-based access using username and password authentication.
 
 </td>
 <td width="50%" valign="top">
 
-### ◈ Real updates
+### ◈ License-based library
 
-The version history is based on published releases, without presenting sample data as real changes.
+The Library automatically displays games available for the licenses associated with the authenticated account.
 
 </td>
 </tr>
@@ -162,16 +160,16 @@ The version history is based on published releases, without presenting sample da
 <tr>
 <td width="50%" valign="top">
 
-### ◈ Consistent experience
+### ◈ System overview
 
-Dark theme, gold accents, compact cards, and organization by component.
+The Home page provides quick access to relevant system and hardware information.
 
 </td>
 <td width="50%" valign="top">
 
-### ◈ Background checks
+### ◈ Complete diagnostics
 
-The launcher can check for new versions without blocking the normal startup experience.
+Built-in diagnostics help verify the application's environment, hardware, connectivity, configuration, and other relevant components.
 
 </td>
 </tr>
@@ -179,16 +177,33 @@ The launcher can check for new versions without blocking the normal startup expe
 <tr>
 <td width="50%" valign="top">
 
-### ◈ Clear states
+### ◈ Automatic updates
 
-Visual feedback for loading, offline mode, temporary failures, and cached content.
+OMNIGHOST can detect new versions and offer to update the launcher when a new release becomes available.
 
 </td>
 <td width="50%" valign="top">
 
-### ◈ Continuous development
+### ◈ Lightweight installation
 
-An architecture prepared for future UI improvements, compatibility updates, and new integrations.
+OMNIGHOST is distributed as a standalone executable without requiring a ZIP-based installation structure.
+
+</td>
+</tr>
+
+<tr>
+<td width="50%" valign="top">
+
+### ◈ Local application data
+
+Cache, logs, and other application-generated data are stored under the user's Local AppData directory.
+
+</td>
+<td width="50%" valign="top">
+
+### ◈ Marketplace-ready architecture
+
+A dedicated Marketplace section is part of the interface and is being prepared for future functionality.
 
 </td>
 </tr>
@@ -196,178 +211,267 @@ An architecture prepared for future UI improvements, compatibility updates, and 
 
 ---
 
-## ✦ Launcher experience
+## ✦ Authentication
 
-### ◇ Library
+OMNIGHOST uses an account-based authentication system powered by **KeyAuth**.
 
-The Library presents the available games and integrations in one centralized area.
+### Existing users
 
-Each entry may provide information such as:
+To sign in, the user provides:
 
-- module status;
-- installation availability;
-- compatibility;
-- primary actions;
-- related settings;
-- setup-related warnings.
+```text
+Username
+Password
+```
 
-### ◇ Configuration
+After successful authentication, OMNIGHOST loads the account information and determines which games and features are available according to the licenses linked to that account.
 
-Options are separated by component to avoid mixing global settings with integration-specific configuration.
+### New users
 
-This structure makes it easier to:
+Account registration requires:
 
-- find settings;
-- identify the affected component;
-- reduce configuration mistakes;
-- maintain a consistent experience;
-- prepare future integrations.
+```text
+Username
+Password
+Valid license
+```
 
-### ◇ Hardware status
+A valid license must be provided during registration.
 
-The launcher can display information about the availability of the components required by the environment.
+> [!IMPORTANT]
+> Never share your OMNIGHOST username, password, license information, authentication tokens, or other account credentials.
 
-The goal is to let the user confirm, before use, whether:
+### Licensing
 
-- the DMA card is available;
-- the expected components have been detected;
-- the required configuration has been loaded;
-- hardware-related warnings are present;
-- the setup is ready.
+OMNIGHOST supports different licensing options.
 
-### ◇ Navigation
+Licenses may provide access to:
 
-The interface is designed to provide:
+* an individual game;
+* specific available content;
+* multiple supported games;
+* broader packages that include access to the complete available library.
 
-<table>
-<tr>
-<td width="33%" align="center">
+The content displayed in the Library depends on the licenses currently associated with the authenticated account.
 
-**Fast navigation**
+---
 
-Simple transitions between the Library, Updates, and other areas.
+## ✦ Home
 
-</td>
-<td width="33%" align="center">
+The **Home** page provides a centralized overview of the current OMNIGHOST environment.
 
-**Organized content**
+It may display information such as:
 
-Search, filters, cards, and consistent categories.
+* the most recently played game;
+* DMA status;
+* MAKCU status;
+* system information;
+* launcher version;
+* update status;
+* relevant environment information.
 
-</td>
-<td width="33%" align="center">
+The goal of the Home page is to provide the most useful information without requiring the user to navigate through multiple sections.
 
-**Visual identity**
+### Example overview
 
-Dark theme with gold accents and subtle status indicators.
+```text
+┌─────────────────────────────────────────────┐
+│                   HOME                      │
+├─────────────────────────────────────────────┤
+│ Last played        → Available game         │
+│ DMA                → Connected / Status     │
+│ MAKCU              → Connected / Optional   │
+│ OMNIGHOST          → Up to date             │
+│ System             → Ready                  │
+└─────────────────────────────────────────────┘
+```
 
-</td>
-</tr>
-</table>
+---
+
+## ✦ Library
+
+The **Library** displays the games currently available to the authenticated user.
+
+The available content is determined automatically according to the licenses associated with the account.
+
+This means different users may see different games depending on their active licenses.
+
+### Library flow
+
+```text
+User signs in
+      │
+      ▼
+Licenses are validated
+      │
+      ▼
+Available access is determined
+      │
+      ▼
+Library is populated
+      │
+      ▼
+Licensed games are displayed
+```
+
+This keeps the interface focused on the content that is actually available to the current account.
+
+> [!NOTE]
+> A game that is not included in the account's current licenses may not appear as available in the Library.
+
+---
+
+## ✦ Marketplace
+
+The **Marketplace** is a dedicated section of OMNIGHOST intended for future integration with the project's licensing and product ecosystem.
+
+> [!NOTE]
+> Marketplace functionality is currently under development and is not yet fully implemented.
+
+Its presence in the interface prepares OMNIGHOST for future functionality without requiring major changes to the main navigation structure.
+
+Features and availability may change as development continues.
+
+---
+
+## ✦ Diagnostics
+
+The **Diagnostics** page provides tools for checking the current OMNIGHOST environment.
+
+Diagnostics may verify areas such as:
+
+* DMA availability;
+* MAKCU availability;
+* hardware status;
+* Internet connectivity;
+* authentication connectivity;
+* application configuration;
+* local application files;
+* permissions;
+* system information;
+* launcher version;
+* update status;
+* required services or dependencies;
+* application-generated logs;
+* general environment readiness.
+
+The goal is to make it easier to identify configuration or environment problems before attempting to use the available content.
+
+### Diagnostic overview
+
+```text
+Hardware ─────────────── Checked
+DMA ─────────────────── Checked
+MAKCU ───────────────── Checked when applicable
+Network ──────────────── Checked
+Authentication ───────── Checked
+Application ──────────── Checked
+Updates ──────────────── Checked
+Environment ──────────── Checked
+```
+
+> [!NOTE]
+> The exact checks performed may change as OMNIGHOST continues to evolve.
+
+---
+
+## ✦ Automatic updates
+
+OMNIGHOST includes an automatic update system.
+
+When a newer version is available, the launcher can detect it and notify the user.
+
+The user is asked before the update process begins.
+
+```text
+New release published
+        │
+        ▼
+OMNIGHOST detects it
+        │
+        ▼
+User is notified
+        │
+        ▼
+Update confirmation
+     ┌──┴──┐
+    Yes    No
+     │      │
+     ▼      └── Continue current version
+Update
+```
+
+This allows users to remain on the latest available version while keeping control over when an update is installed.
+
+> [!IMPORTANT]
+> It is recommended to use the latest available OMNIGHOST release whenever possible.
+
+The badge at the top of this README automatically displays the latest version published through GitHub Releases.
 
 ---
 
 ## ✦ Installation
 
+OMNIGHOST no longer requires a ZIP archive or a manually maintained folder structure.
+
 ### 01 — Download
 
-Open the latest release page:
+Open the latest release:
 
 <div align="center">
 
-[![Download Latest](https://img.shields.io/badge/DOWNLOAD-LATEST%20VERSION-D4AF37?style=for-the-badge&logo=github&logoColor=white&labelColor=101010)](https://github.com/rodrigomatossilva07-rgb/OmniGhost-Updates/releases/latest)
+[![Download Latest](https://img.shields.io/badge/DOWNLOAD-LATEST%20VERSION-D4AF37?style=for-the-badge\&logo=github\&logoColor=white\&labelColor=101010)](https://github.com/rodrigomatossilva07-rgb/OmniGhost-Updates/releases/latest)
 
 </div>
 
-Under **Assets**, download:
-
-```text
-OmniGhost.zip
-```
-
-> [!WARNING]
-> Do not use `Source code (zip)` or `Source code (tar.gz)` as the launcher package. Those files are generated automatically by GitHub.
-
-### 02 — Extract
-
-Extract the entire archive into its own folder.
-
-Example:
-
-```text
-C:\OmniGhost\
-```
-
-The structure should include:
-
-```text
-C:\OmniGhost\
-├── OmniGhost.exe
-├── data\
-├── fonts\
-├── images\
-└── other required files
-```
-
-### 03 — Prepare the hardware
-
-Before starting the launcher, confirm that:
-
-- the DMA card is correctly installed and connected;
-- the manufacturer-required drivers are available;
-- the firmware is compatible with the hardware;
-- all cables and ports are connected correctly;
-- MAKCU is connected only when it is part of the setup;
-- the fuser is configured only when required.
-
-### 04 — Run
-
-Open:
+Download the OMNIGHOST executable from the release assets.
 
 ```text
 OmniGhost.exe
 ```
 
+> [!WARNING]
+> Download OMNIGHOST only from an official project release or another officially provided source.
+
+### 02 — Run
+
+Place the executable in a suitable location and open:
+
+```text
+OmniGhost.exe
+```
+
+There is no requirement to manually create folders such as:
+
+```text
+data\
+fonts\
+images\
+```
+
+OMNIGHOST manages its own application data automatically.
+
+### 03 — Local application data
+
+Runtime information generated by OMNIGHOST is stored under:
+
+```text
+%LOCALAPPDATA%\OmniGhost\
+```
+
+This location may contain application-generated information such as:
+
+```text
+OmniGhost\
+├── cache\
+├── logs\
+└── other application data
+```
+
+The exact internal structure may change between versions.
+
 > [!IMPORTANT]
-> Do not run the application directly from inside the ZIP archive. It must be extracted together with all required files.
-
-> [!NOTE]
-> A DMA card is required for DMA-dependent features. MAKCU and the fuser are optional.
-
----
-
-## ✦ Updates page
-
-The **Updates** page presents the real version history of published OMNIGHOST releases.
-
-Entries are organized by version, component, and category.
-
-### Supported categories
-
-| Category | Identifier | Description |
-|:--|:--:|:--|
-| **Added** | `NEW` | New features, modules, or options |
-| **Improved** | `IMPROVED` | Stability, usability, or interface improvements |
-| **Fixed** | `FIXED` | Fixes for identified issues |
-| **Performance** | `PERFORMANCE` | Speed and resource optimizations |
-| **Compatibility** | `COMPATIBILITY` | Adjustments for hardware, versions, or environments |
-| **Security** | `SECURITY` | Validation and protection improvements |
-| **Removed** | `REMOVED` | Removed or discontinued features |
-| **Breaking change** | `BREAKING` | Changes that may require additional attention |
-
-### Page features
-
-- text search;
-- filtering by component;
-- filtering by category;
-- chronological sorting;
-- grouping by month and year;
-- identification of versions that have not yet been viewed;
-- background loading;
-- use of the latest valid history while offline.
-
-> [!IMPORTANT]
-> The page presents changes made to the OMNIGHOST project. Official game updates are not presented as changes developed by the launcher.
+> Avoid manually modifying files inside the OMNIGHOST application-data directory unless instructed to do so for troubleshooting purposes.
 
 ---
 
@@ -375,30 +479,30 @@ Entries are organized by version, component, and category.
 
 ### System
 
-| Requirement | Status |
-|:--|:--:|
-| Windows 10 or Windows 11 | Required |
-| 64-bit operating system | Required |
-| Permission to run the application | Required |
-| Space for the application and temporary files | Required |
-| Internet connection | Recommended |
+| Requirement                              |    Status   |
+| :--------------------------------------- | :---------: |
+| Windows 10 or Windows 11                 |   Required  |
+| 64-bit operating system                  |   Required  |
+| Permission to run the application        |   Required  |
+| Space for the application and local data |   Required  |
+| Internet connection                      | Recommended |
 
 ### Hardware
 
-| Component | Status |
-|:--|:--:|
-| Compatible DMA card | **Required for DMA-dependent features** |
-| Computer and connections compatible with the DMA setup | Required |
-| Appropriate drivers | Required |
-| Compatible firmware | Required |
-| MAKCU | Optional |
-| Fuser | Optional |
+| Component                                              |                  Status                 |
+| :----------------------------------------------------- | :-------------------------------------: |
+| Compatible DMA card                                    | **Required for DMA-dependent features** |
+| Computer and connections compatible with the DMA setup |                 Required                |
+| Appropriate drivers                                    |                 Required                |
+| Compatible firmware                                    |                 Required                |
+| MAKCU                                                  |                 Optional                |
+| Fuser                                                  |                 Optional                |
 
 ### Summary
 
 ```text
-DMA card ───────────────── Required
 Windows x64 ────────────── Required
+DMA card ───────────────── Required
 Drivers and firmware ───── Required
 Internet ───────────────── Recommended
 MAKCU ──────────────────── Optional
@@ -410,15 +514,65 @@ Fuser ──────────────────── Optional
 ## ✦ Troubleshooting
 
 <details>
-<summary><strong>◈ The launcher does not open</strong></summary>
+<summary><strong>◈ OMNIGHOST does not open</strong></summary>
 
 <br>
 
-- Confirm that all files were extracted.
-- Do not run the application from inside the ZIP archive.
-- Move the application to a simple folder such as `C:\OmniGhost\`.
-- Confirm that your antivirus did not remove any required files.
-- Make sure you have permission to run the application and write to its folder.
+* Restart the application.
+* Move the executable to a normal user-accessible directory.
+* Confirm that your antivirus did not quarantine or remove the executable.
+* Make sure your Windows account has permission to run the application.
+* Check `%LOCALAPPDATA%\OmniGhost\` for relevant logs.
+* Restart Windows if the issue persists.
+
+</details>
+
+<details>
+<summary><strong>◈ I cannot sign in</strong></summary>
+
+<br>
+
+* Confirm that the username is correct.
+* Confirm that the password is correct.
+* Check your Internet connection.
+* Confirm that the account is valid.
+* Restart OMNIGHOST and try again.
+* Check whether an authentication-related error appears in the application.
+
+Do not publish passwords, licenses, tokens, or other account credentials when requesting support.
+
+</details>
+
+<details>
+<summary><strong>◈ Registration fails</strong></summary>
+
+<br>
+
+Registration requires:
+
+* a username;
+* a password;
+* a valid license.
+
+Confirm that the provided information is valid and that the computer has an active Internet connection.
+
+</details>
+
+<details>
+<summary><strong>◈ A game does not appear in the Library</strong></summary>
+
+<br>
+
+The Library is generated according to the licenses associated with the authenticated account.
+
+Confirm that:
+
+* you are signed in to the correct account;
+* the required license is associated with that account;
+* the license is valid;
+* OMNIGHOST has an active Internet connection.
+
+Restart OMNIGHOST after making changes to your account or licenses.
 
 </details>
 
@@ -427,12 +581,13 @@ Fuser ──────────────────── Optional
 
 <br>
 
-- Check all physical connections.
-- Restart the systems involved.
-- Verify the firmware recommended by the manufacturer.
-- Confirm that the required drivers are installed.
-- Test the hardware using the manufacturer's official tool.
-- Check whether another application is currently using the device.
+* Check all physical connections.
+* Restart the systems involved.
+* Verify the firmware recommended for the hardware.
+* Confirm that the required drivers are installed.
+* Test the hardware using the manufacturer's official tools when available.
+* Check whether another application is currently using the device.
+* Run the OMNIGHOST Diagnostics page.
 
 </details>
 
@@ -441,12 +596,13 @@ Fuser ──────────────────── Optional
 
 <br>
 
-- Confirm that MAKCU is part of your setup.
-- Check the cable, port, and power.
-- Confirm that the device is recognized by Windows.
-- Restart the launcher after connecting the hardware.
+* Confirm that MAKCU is part of your setup.
+* Check its cable, port, and power.
+* Confirm that the device is recognized by Windows.
+* Restart OMNIGHOST after reconnecting the hardware.
+* Run the Diagnostics page.
 
-MAKCU is optional, and its absence should not prevent the launcher from opening normally.
+MAKCU is optional, and its absence should not prevent OMNIGHOST from opening normally.
 
 </details>
 
@@ -455,41 +611,60 @@ MAKCU is optional, and its absence should not prevent the launcher from opening 
 
 <br>
 
-- Confirm the selected inputs and outputs.
-- Check the configured resolution and refresh rate.
-- Test each video source separately.
-- Confirm the power supply and the cables being used.
+* Confirm the selected inputs and outputs.
+* Check the configured resolution and refresh rate.
+* Test each video source separately.
+* Confirm the power supply.
+* Check all video cables.
 
-The fuser is optional and depends on the user's physical configuration.
-
-</details>
-
-<details>
-<summary><strong>◈ Updates could not be checked</strong></summary>
-
-<br>
-
-- Confirm your Internet connection.
-- Try again after a few seconds.
-- Check whether GitHub opens normally in your browser.
-- Confirm that a firewall, VPN, or proxy is not blocking the application.
-
-A temporary update-check failure should not prevent normal use of the launcher.
+The fuser is optional external hardware and is not required for every OMNIGHOST setup.
 
 </details>
 
 <details>
-<summary><strong>◈ Which file should I download?</strong></summary>
+<summary><strong>◈ Diagnostics reports a problem</strong></summary>
 
 <br>
 
-Always download:
+Review the affected component and follow the information displayed by OMNIGHOST.
+
+If the issue persists:
+
+* restart OMNIGHOST;
+* restart the affected hardware;
+* check physical connections;
+* verify your Internet connection;
+* inspect the relevant logs;
+* contact support with the diagnostic information.
+
+</details>
+
+<details>
+<summary><strong>◈ OMNIGHOST cannot check for updates</strong></summary>
+
+<br>
+
+* Confirm your Internet connection.
+* Restart OMNIGHOST.
+* Check whether GitHub is accessible.
+* Confirm that a firewall, VPN, proxy, or security application is not blocking OMNIGHOST.
+
+A temporary update-check failure may not prevent the launcher from opening normally.
+
+</details>
+
+<details>
+<summary><strong>◈ Where are the logs stored?</strong></summary>
+
+<br>
+
+OMNIGHOST application data is stored under:
 
 ```text
-OmniGhost.zip
+%LOCALAPPDATA%\OmniGhost\
 ```
 
-Do not use the automatically generated source-code archives as the launcher package.
+Logs may be located inside the application-data structure.
 
 </details>
 
@@ -497,30 +672,47 @@ Do not use the automatically generated source-code archives as the launcher pack
 
 ## ✦ Support
 
-Before reporting an issue, gather the following information:
+For help, troubleshooting, announcements, and community support, join the official OMNIGHOST Discord:
 
-| Information | Example |
-|:--|:--|
-| OMNIGHOST version | `1.6.4` |
-| Windows version | Windows 11 x64 |
-| DMA card model | Model in use |
-| Firmware | Installed version |
-| MAKCU | In use / Not in use |
-| Fuser | In use / Not in use |
-| Issue | Clear description |
-| Reproduction | Steps to reproduce |
-| Evidence | Relevant screenshots and logs |
+<div align="center">
+
+[![Discord](https://img.shields.io/badge/JOIN-OMNIGHOST%20DISCORD-D4AF37?style=for-the-badge\&logo=discord\&logoColor=white\&labelColor=101010)](https://discord.gg/wsXAyWd5)
+
+</div>
+
+Before requesting support, gather the following information:
+
+| Information       | Example                       |
+| :---------------- | :---------------------------- |
+| OMNIGHOST version | Latest installed version      |
+| Windows version   | Windows 11 x64                |
+| DMA card model    | Model in use                  |
+| Firmware          | Installed version             |
+| MAKCU             | In use / Not in use           |
+| Fuser             | In use / Not in use           |
+| Account access    | Relevant license/game only    |
+| Issue             | Clear description             |
+| Reproduction      | Steps to reproduce            |
+| Diagnostics       | Relevant diagnostic result    |
+| Evidence          | Relevant screenshots and logs |
 
 Also include:
 
-- the expected result;
-- the observed result;
-- how often the issue occurs;
-- recent changes to the setup;
-- the message shown by the application.
+* the expected result;
+* the observed result;
+* how often the issue occurs;
+* recent changes to the setup;
+* the exact error message shown by OMNIGHOST.
 
 > [!WARNING]
-> Remove tokens, credentials, serial numbers, personal identifiers, and any other sensitive information before publishing logs or screenshots.
+> Before publishing screenshots or logs, remove:
+>
+> * passwords;
+> * license keys;
+> * authentication tokens;
+> * serial numbers;
+> * personal identifiers;
+> * other sensitive information.
 
 ---
 
@@ -528,20 +720,36 @@ Also include:
 
 <div align="center">
 
-[![Development](https://img.shields.io/badge/DEVELOPMENT-ACTIVE-D4AF37?style=for-the-badge&labelColor=101010)](#)
-[![Platform](https://img.shields.io/badge/PLATFORM-WINDOWS%20x64-C9A227?style=for-the-badge&labelColor=101010)](#)
-[![Hardware](https://img.shields.io/badge/HARDWARE-DMA-8D7627?style=for-the-badge&labelColor=101010)](#)
+[![Development](https://img.shields.io/badge/DEVELOPMENT-ACTIVE-D4AF37?style=for-the-badge\&labelColor=101010)](#)
+[![Platform](https://img.shields.io/badge/PLATFORM-WINDOWS%20x64-C9A227?style=for-the-badge\&labelColor=101010)](#)
+[![Hardware](https://img.shields.io/badge/HARDWARE-DMA-8D7627?style=for-the-badge\&labelColor=101010)](#)
 
 </div>
 
 OMNIGHOST is under active development.
 
-The interface, integrations, requirements, and hardware compatibility may change between releases. Always review the latest release notes before updating or changing your setup.
+The launcher currently includes:
+
+```text
+✓ Account authentication
+✓ License-based Library
+✓ Home system overview
+✓ Hardware information
+✓ Diagnostics
+✓ Automatic update checking
+✓ User-confirmed updates
+◈ Marketplace — In development
+```
+
+The interface, integrations, licensing options, requirements, diagnostics, and hardware compatibility may change between releases.
+
+Always use the latest available OMNIGHOST version whenever possible.
 
 <div align="center">
 
-[![Releases](https://img.shields.io/badge/VIEW-RELEASES-D4AF37?style=for-the-badge&logo=github&logoColor=white&labelColor=101010)](https://github.com/rodrigomatossilva07-rgb/OmniGhost-Updates/releases)
-[![Latest](https://img.shields.io/badge/OPEN-LATEST%20VERSION-C9A227?style=for-the-badge&logo=github&logoColor=white&labelColor=101010)](https://github.com/rodrigomatossilva07-rgb/OmniGhost-Updates/releases/latest)
+[![Releases](https://img.shields.io/badge/VIEW-RELEASES-D4AF37?style=for-the-badge\&logo=github\&logoColor=white\&labelColor=101010)](https://github.com/rodrigomatossilva07-rgb/OmniGhost-Updates/releases)
+[![Latest](https://img.shields.io/badge/OPEN-LATEST%20VERSION-C9A227?style=for-the-badge\&logo=github\&logoColor=white\&labelColor=101010)](https://github.com/rodrigomatossilva07-rgb/OmniGhost-Updates/releases/latest)
+[![Discord](https://img.shields.io/badge/JOIN-DISCORD-8D7627?style=for-the-badge\&logo=discord\&logoColor=white\&labelColor=101010)](https://discord.gg/wsXAyWd5)
 
 </div>
 
@@ -559,7 +767,9 @@ The interface, integrations, requirements, and hardware compatibility may change
 
 ## OMNIGHOST
 
-**DMA · Library · Configuration · Updates**
+### Everywhere. Nowhere.
+
+**Authentication · Library · Marketplace · Diagnostics**
 
 <sub>Independent project for responsible use in authorized environments.</sub>
 
