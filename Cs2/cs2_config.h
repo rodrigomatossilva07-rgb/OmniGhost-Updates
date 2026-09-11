@@ -24,6 +24,7 @@ struct Config {
     bool head_halo = false;
     bool look_direction = false; // Eye Line
     bool chinese_hat = false;
+    float chinese_hat_scale = 1.0f;
     bool rainbow_trails = true;
     float trail_duration = 0.80f;
     float trail_thickness = 2.0f;
@@ -53,7 +54,7 @@ struct Config {
     float skeleton_lod_distance = 70.f; // more aggressive default
     bool weapon_icons = false;
     bool offscreen_arrows = false;
-    bool highlight_aim_target = true;
+    bool highlight_aim_target = false;
     bool c4_carrier = false;
     bool distance_feet = false; // m by default
     bool hotkey_overlay = false;
@@ -153,7 +154,7 @@ inline void ApplyLegitProfile(Config& c) {
     c.skeleton_lod = true;
     c.skeleton_lod_distance = 60.f;
     c.max_entities = 24;
-    c.highlight_aim_target = true;
+    c.highlight_aim_target = false;
 }
 
 inline void ApplyRageProfile(Config& c) {
@@ -183,7 +184,7 @@ inline void ApplyRageProfile(Config& c) {
     c.team_check = true;
     c.skeleton_lod = false;
     c.max_entities = 48;
-    c.highlight_aim_target = true;
+    c.highlight_aim_target = false;
     c.offscreen_arrows = true;
 }
 

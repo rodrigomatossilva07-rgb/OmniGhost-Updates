@@ -256,16 +256,32 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
                     }
                 }
                 if (!hit) {
+                    // Fire when ANY body part crosses the FOV (screen-center radius).
+                    const float triggerFov = cfg.trigger_head_only
+                        ? 14.f
+                        : (std::max)(18.f, cfg.aim_fov > 1.f ? cfg.aim_fov * 0.35f : 28.f);
                     for (const auto& p : rt.players) {
                         if (p.is_local) continue;
                         if (cfg.trigger_team_check && p.team == rt.local_team) continue;
-                        if (!p.alive) continue;
-                        float sx, sy;
-                        const float* bone = cfg.trigger_head_only ? p.head
-                            : (p.bones_ok ? p.bones[0] : p.head);
-                        if (!W2S(bone, rt.view_matrix, sx, sy)) continue;
-                        const float d = std::sqrt((sx - cx) * (sx - cx) + (sy - cy) * (sy - cy));
-                        if (d < (cfg.trigger_head_only ? 14.f : 10.f)) { hit = true; break; }
+                        if (!p.alive || p.health <= 0) continue;
+                        auto testPoint = [&](const float* w) {
+                            float sx = 0.f, sy = 0.f;
+                            if (!W2S(w, rt.view_matrix, sx, sy)) return false;
+                            const float d = std::sqrt((sx - cx) * (sx - cx) + (sy - cy) * (sy - cy));
+                            return d < triggerFov;
+                        };
+                        if (cfg.trigger_head_only) {
+                            if (testPoint(p.head)) { hit = true; break; }
+                            continue;
+                        }
+                        if (p.bones_ok) {
+                            for (int bi = 0; bi < 20; ++bi) {
+                                if (testPoint(p.bones[bi])) { hit = true; break; }
+                            }
+                            if (hit) break;
+                        } else {
+                            if (testPoint(p.head) || testPoint(p.pos)) { hit = true; break; }
+                        }
                     }
                 }
                 if (hit) {

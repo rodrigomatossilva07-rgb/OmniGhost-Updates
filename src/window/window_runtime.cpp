@@ -476,12 +476,21 @@ void Overlay::StartRender() {
     if (!RenderMenu && app_settings::menu_open && (GetAsyncKeyState(VK_ESCAPE) & 1))
         app_settings::menu_open = false;
 
-    // Default Insert (VK_INSERT=0x2D). Recover if config was zeroed / invalid.
-    int menu_vk = app_settings::config.menu_bind;
-    if (menu_vk <= 0 || menu_vk > 0xFE)
-        menu_vk = 0x2D; // VK_INSERT
-    if (GetAsyncKeyState(menu_vk) & 1) {
-        app_settings::menu_open = !app_settings::menu_open;
+    // Menu toggle: Insert by default. Edge-detect with sticky previous state so
+    // other GetAsyncKeyState consumers cannot "eat" the transition bit.
+    {
+        int menu_vk = app_settings::config.menu_bind;
+        if (menu_vk <= 0 || menu_vk > 0xFE)
+            menu_vk = 0x2D; // VK_INSERT
+        static int s_prev_menu_down = 0;
+        const int down = (GetAsyncKeyState(menu_vk) & 0x8000) ? 1 : 0;
+        // Also accept physical Insert even if menu_bind was rebound incorrectly.
+        const int insert_down = (GetAsyncKeyState(0x2D) & 0x8000) ? 1 : 0;
+        const int any_down = down | insert_down;
+        if (any_down && !s_prev_menu_down) {
+            app_settings::menu_open = !app_settings::menu_open;
+        }
+        s_prev_menu_down = any_down;
     }
 
     const bool interactive =

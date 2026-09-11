@@ -3,6 +3,8 @@
 #include "cs2_config.h"
 #include "../../localization.h"
 #include "../../../launcher/launcher_assets.h"
+#include "gameplay/esp_fx.h"
+#include "gameplay/esp_core.h"
 #include "imgui.h"
 #include <cstdio>
 #include <algorithm>
@@ -28,7 +30,6 @@ void DrawCs2EspPreviewPanel(float width, float height) {
     const float top = o.y + 18.f;
     const float panelWidth = width;
 
-    // Operator portrait (same asset pipeline as FiveM preview)
     const LauncherAssets::Texture operatorImage = LauncherAssets::FiveMEspPreview();
     const float portraitTop = top - 12.f * sc;
     const float portraitBottom = e.y - 16.f;
@@ -62,25 +63,23 @@ void DrawCs2EspPreviewPanel(float width, float height) {
     const ImVec2 an_l(cx - 24.f * sc, top + 285.f * sc);
     const ImVec2 an_r(cx + 24.f * sc, top + 285.f * sc);
 
-    auto line = [&](ImVec2 a, ImVec2 b, ImU32 col, float th) {
-        dl->AddLine(a, b, col, th);
-    };
+    auto line = [&](ImVec2 a, ImVec2 b, ImU32 col, float th) { dl->AddLine(a, b, col, th); };
 
-    const float skTh = std::clamp(CS2::config.skeleton_thickness, 0.5f, 6.f);
+    const float left = cx - 70.f * sc, right = cx + 70.f * sc;
+    const float topB = top + 8.f * sc, bot = top + 310.f * sc;
+
+    // Full skeleton always when enabled
     if (CS2::config.skeleton) {
         const ImU32 sk = Col4(CS2::config.col_skeleton);
+        const float skTh = std::clamp(CS2::config.skeleton_thickness, 0.5f, 6.f);
         line(head, neck, sk, skTh);
         line(neck, chest, sk, skTh);
         line(chest, spine, sk, skTh);
         line(spine, pelvis, sk, skTh);
-        if (CS2::config.bone_draw_arms) {
-            line(neck, sh_l, sk, skTh); line(sh_l, el_l, sk, skTh); line(el_l, ha_l, sk, skTh);
-            line(neck, sh_r, sk, skTh); line(sh_r, el_r, sk, skTh); line(el_r, ha_r, sk, skTh);
-        }
-        if (CS2::config.bone_draw_legs) {
-            line(pelvis, hip_l, sk, skTh); line(hip_l, kn_l, sk, skTh); line(kn_l, an_l, sk, skTh);
-            line(pelvis, hip_r, sk, skTh); line(hip_r, kn_r, sk, skTh); line(kn_r, an_r, sk, skTh);
-        }
+        line(neck, sh_l, sk, skTh); line(sh_l, el_l, sk, skTh); line(el_l, ha_l, sk, skTh);
+        line(neck, sh_r, sk, skTh); line(sh_r, el_r, sk, skTh); line(el_r, ha_r, sk, skTh);
+        line(pelvis, hip_l, sk, skTh); line(hip_l, kn_l, sk, skTh); line(kn_l, an_l, sk, skTh);
+        line(pelvis, hip_r, sk, skTh); line(hip_r, kn_r, sk, skTh); line(kn_r, an_r, sk, skTh);
         if (CS2::config.skeleton_joints) {
             const ImU32 jn = Col4(CS2::config.col_joints);
             for (const ImVec2& p : { head, neck, chest, spine, pelvis, sh_l, sh_r, el_l, el_r,
@@ -88,18 +87,69 @@ void DrawCs2EspPreviewPanel(float width, float height) {
                 dl->AddCircleFilled(p, 2.4f * sc, jn, 10);
         }
     }
+
     if (CS2::config.head_dot)
         dl->AddCircleFilled(head, 4.f * sc, Col4(CS2::config.col_head), 12);
-    if (CS2::config.box) {
-        const float left = cx - 70.f * sc, right = cx + 70.f * sc;
-        const float topB = top + 8.f * sc, bot = top + 310.f * sc;
+
+    if (CS2::config.box && !CS2::config.box_corner) {
         dl->AddRect(ImVec2(left, topB), ImVec2(right, bot), Col4(CS2::config.col_box),
                     0.f, 0, std::clamp(CS2::config.box_thickness, 0.5f, 6.f));
+    }
+    if (CS2::config.box_corner) {
+        OmniGhost::Gameplay::EspCore::DrawCornerBox(
+            dl, ImVec2(left, topB), ImVec2(right, bot),
+            Col4(CS2::config.col_box_corner),
+            std::clamp(CS2::config.box_thickness, 0.5f, 6.f));
+    }
+
+    if (CS2::config.health_bar) {
+        const float bar_w = 4.f;
+        const float bx = left - 8.f;
+        dl->AddRectFilled(ImVec2(bx, topB), ImVec2(bx + bar_w, bot), IM_COL32(20, 20, 20, 180));
+        dl->AddRectFilled(ImVec2(bx, topB + (bot - topB) * 0.25f), ImVec2(bx + bar_w, bot), Col4(CS2::config.col_health));
+    }
+    if (CS2::config.armor_bar) {
+        const float bar_w = 4.f;
+        const float bx = right + 4.f;
+        dl->AddRectFilled(ImVec2(bx, topB), ImVec2(bx + bar_w, bot), IM_COL32(20, 20, 20, 180));
+        dl->AddRectFilled(ImVec2(bx, topB + (bot - topB) * 0.40f), ImVec2(bx + bar_w, bot), Col4(CS2::config.col_armor));
+    }
+
+    if (CS2::config.head_halo) {
+        const float r = 14.f * sc;
+        dl->AddCircle(ImVec2(head.x, head.y - 2.f * sc), r, Col4(CS2::config.col_halo), 24, 1.6f);
+    }
+    if (CS2::config.chinese_hat) {
+        // 2D preview stand-in for the 3D rotating hat
+        const float hs = std::clamp(CS2::config.chinese_hat_scale, 0.4f, 3.f);
+        const float base = 22.f * sc * hs;
+        const float tipY = head.y - 28.f * sc * hs;
+        const float baseY = head.y - 4.f * sc;
+        for (int i = 0; i < 12; ++i) {
+            const float t0 = (float)i / 12.f;
+            const float t1 = (float)(i + 1) / 12.f;
+            const ImU32 c0 = OmniGhost::Gameplay::EspFx::Hsv(t0 + (float)ImGui::GetTime() * 0.15f, 0.95f, 1.f, 0.95f);
+            const float a0 = t0 * 6.2831853f, a1 = t1 * 6.2831853f;
+            dl->AddLine(ImVec2(cx, tipY),
+                        ImVec2(cx + std::cos(a0) * base, baseY + std::sin(a0) * base * 0.25f), c0, 1.4f);
+            dl->AddLine(ImVec2(cx + std::cos(a0) * base, baseY + std::sin(a0) * base * 0.25f),
+                        ImVec2(cx + std::cos(a1) * base, baseY + std::sin(a1) * base * 0.25f), c0, 1.3f);
+        }
+    }
+    if (CS2::config.look_direction) {
+        dl->AddLine(head, ImVec2(head.x + 40.f * sc, head.y - 8.f * sc), Col4(CS2::config.col_look),
+                    std::clamp(CS2::config.eye_line_thickness, 0.5f, 6.f));
+    }
+    if (CS2::config.snaplines) {
+        dl->AddLine(ImVec2(cx, e.y - 4.f), ImVec2(cx, bot), Col4(CS2::config.col_snaplines),
+                    std::clamp(CS2::config.snapline_thickness, 0.5f, 6.f));
     }
     if (CS2::config.name)
         dl->AddText(ImVec2(cx - 24.f, top - 2.f), Col4(CS2::config.col_name), "Jogador");
     if (CS2::config.distance)
-        dl->AddText(ImVec2(cx - 12.f, top + 312.f * sc), Col4(CS2::config.col_distance), "24m");
+        dl->AddText(ImVec2(cx - 12.f, bot + 4.f), Col4(CS2::config.col_distance), "24m");
+    if (CS2::config.weapon_icons)
+        dl->AddText(ImVec2(cx - 14.f, bot + 18.f), Col4(CS2::config.col_weapon), "AK-47");
 
     ImGui::Dummy(ImVec2(width, height));
 }
@@ -107,7 +157,10 @@ void DrawCs2EspPreviewPanel(float width, float height) {
 } // namespace
 
 void DrawCs2Visuals() {
-    // Three independent columns like FiveM: features | colors | fixed preview
+    // Keep full body skeleton always on for gameplay + preview
+    CS2::config.bone_draw_arms = true;
+    CS2::config.bone_draw_legs = true;
+
     const float full = ImGui::GetContentRegionAvail().x;
     const float columnHeight = (std::max)(CyberTheme::Px(410.0f), ImGui::GetContentRegionAvail().y);
     const float gap = CyberTheme::Metrics::GridGap;
@@ -116,13 +169,10 @@ void DrawCs2Visuals() {
     const float featuresWidth = settingsWidth * 0.50f;
     const float colorsWidth = settingsWidth - featuresWidth;
 
-    // ── Column 1: FUNÇÕES ESP (scrollable) ──────────────────────────
     ImGui::BeginChild("##cs2_esp_features_scroll", ImVec2(featuresWidth, columnHeight), false,
         ImGuiWindowFlags_AlwaysVerticalScrollbar);
     CyberWidgets::BeginCard("FUNÇÕES ESP");
     CyberWidgets::ToggleSwitch("Ativar ESP", &CS2::config.esp_enabled);
-    if (!CS2::config.esp_enabled)
-        CyberWidgets::TextLine("ESP desativado no jogo — podes configurar à vontade.", CyberWidgets::TextTone::Secondary);
     CyberWidgets::Separator();
     CyberWidgets::ToggleSwitch("ESP do próprio jogador", &CS2::config.self_esp);
     CyberWidgets::ToggleSwitch("Mostrar bots", &CS2::config.show_bots);
@@ -131,11 +181,8 @@ void DrawCs2Visuals() {
     CyberWidgets::Separator();
     CyberWidgets::SectionTitle("ELEMENTOS");
     CyberWidgets::ToggleSwitch("Esqueleto", &CS2::config.skeleton);
-    if (CS2::config.skeleton) {
+    if (CS2::config.skeleton)
         CyberWidgets::ToggleSwitch("Articulações", &CS2::config.skeleton_joints);
-        CyberWidgets::ToggleSwitch("Braços", &CS2::config.bone_draw_arms);
-        CyberWidgets::ToggleSwitch("Pernas", &CS2::config.bone_draw_legs);
-    }
     CyberWidgets::ToggleSwitch("Ponto na cabeça", &CS2::config.head_dot);
     CyberWidgets::ToggleSwitch("Vida", &CS2::config.health_bar);
     CyberWidgets::ToggleSwitch("Armadura", &CS2::config.armor_bar);
@@ -147,6 +194,8 @@ void DrawCs2Visuals() {
     CyberWidgets::ToggleSwitch("Linhas guia", &CS2::config.snaplines);
     CyberWidgets::ToggleSwitch("Auréola na cabeça", &CS2::config.head_halo);
     CyberWidgets::ToggleSwitch("Chapéu chinês 3D", &CS2::config.chinese_hat);
+    if (CS2::config.chinese_hat)
+        CyberWidgets::SliderFloat("Tamanho do chapéu", &CS2::config.chinese_hat_scale, 0.4f, 2.5f, "%.2f");
     CyberWidgets::ToggleSwitch("Rastros", &CS2::config.trails);
     if (CS2::config.trails)
         CyberWidgets::ToggleSwitch("Rastros arco-íris", &CS2::config.rainbow_trails);
@@ -163,7 +212,6 @@ void DrawCs2Visuals() {
     CyberWidgets::EndCard();
     ImGui::EndChild();
 
-    // ── Column 2: PERSONALIZAÇÃO (scrollable) ───────────────────────
     ImGui::SameLine(0.0f, gap);
     ImGui::BeginChild("##cs2_esp_colors_scroll", ImVec2(colorsWidth, columnHeight), false,
         ImGuiWindowFlags_AlwaysVerticalScrollbar);
@@ -186,10 +234,10 @@ void DrawCs2Visuals() {
     ImGui::ColorEdit4("Armadura##c", CS2::config.col_armor, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     ImGui::ColorEdit4("Nome##c", CS2::config.col_name, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     ImGui::ColorEdit4("Distância##c", CS2::config.col_distance, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
+    ImGui::ColorEdit4("Arma##c", CS2::config.col_weapon, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     CyberWidgets::EndCard();
     ImGui::EndChild();
 
-    // ── Column 3: PRÉ-VISUALIZAÇÃO (fixed) ───────────────────────────
     ImGui::SameLine(0.0f, gap);
     ImGui::BeginGroup();
     CyberWidgets::BeginCard("PRÉ-VISUALIZAÇÃO DO ESP", previewWidth);

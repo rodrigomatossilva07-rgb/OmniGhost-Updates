@@ -1884,21 +1884,26 @@ void RunFrame() {
                 // Read enough joints for detailed close-range skeleton
                 BoneJoint joints[32]{};
                 if (!QRead(boneBase, joints, sizeof(joints))) return false;
-                // Valve bone indices → our slot map (expanded for detail)
-                // 0 head(7) 1 neck(6) 2 spine2(5) 3 spine1(4) 4 spine0(2) 5 pelvis(1)
-                // 6 clav_l(8) 7 sh_l(9) 8 elb_l(10) 9 hand_l(11)
-                // 10 clav_r(12) 11 sh_r(13) 12 elb_r(14) 13 hand_r(15)
-                // 14 hip_l(22) 15 knee_l(23) 16 ankle_l(24) — fall back to 17/18/19 if needed
-                // 17 hip_r(25) 18 knee_r(26) 19 ankle_r(27) — fall back to 20/21/22
+                // CS2 / Source 2 bone indices (community + cs2-dumper consistent):
+                // head=6 neck=5 spine2=4 spine1=2 spine0=1 pelvis=0
+                // L: clav/upper/lower/hand 8-11   R: 13-16
+                // L leg: 22-24   R leg: 25-27
+                // Slot map matches cs2_esp DrawBoneLine comments.
                 static const int kIdx[20] = {
-                    7, 6, 5, 4, 2, 1,
+                    6, 5, 4, 2, 1, 0,
                     8, 9, 10, 11,
-                    12, 13, 14, 15,
+                    13, 14, 15, 16,
                     22, 23, 24,
                     25, 26, 27
                 };
-                // Fallback leg chain used by many builds
-                static const int kLegAlt[6] = { 17, 18, 19, 20, 21, 22 };
+                // Alternate chains if a build shifts clavicle / leg roots
+                static const int kIdxAlt[20] = {
+                    7, 6, 5, 4, 2, 1,
+                    8, 9, 10, 11,
+                    12, 13, 14, 15,
+                    17, 18, 19,
+                    20, 21, 22
+                };
 
                 float tmp[20][3]{};
                 for (int b = 0; b < 20; ++b) {
@@ -1910,47 +1915,63 @@ void RunFrame() {
                     if (!std::isfinite(tmp[b][0]) || !std::isfinite(tmp[b][1]) || !std::isfinite(tmp[b][2]))
                         return false;
                 }
-                // If primary leg indices look broken (zero / on top of pelvis), use alt chain
-                {
-                    const float px = tmp[5][0], py = tmp[5][1], pz = tmp[5][2];
-                    auto badLeg = [&](int i) {
-                        float dx = tmp[i][0] - px, dy = tmp[i][1] - py, dz = tmp[i][2] - pz;
-                        float d2 = dx * dx + dy * dy + dz * dz;
-                        return d2 < 4.f || d2 > 120.f * 120.f;
+                auto fill_from = [&](const int idx[20], float out[20][3]) {
+                    for (int b = 0; b < 20; ++b) {
+                        const int id = idx[b];
+                        out[b][0] = joints[id].x;
+                        out[b][1] = joints[id].y;
+                        out[b][2] = joints[id].z;
+                    }
+                };
+                auto skeleton_score = [&](float bones[20][3]) -> float {
+                    // Prefer coherent head-above-pelvis torso length and arm/leg span.
+                    const float* h = bones[0];
+                    const float* pel = bones[5];
+                    const float torso = std::sqrt(
+                        (h[0]-pel[0])*(h[0]-pel[0]) + (h[1]-pel[1])*(h[1]-pel[1]) + (h[2]-pel[2])*(h[2]-pel[2]));
+                    if (!(torso > 25.f && torso < 100.f)) return -1.f;
+                    if (h[2] < p.pos[2] + 15.f) return -1.f;
+                    float score = 100.f - std::fabs(torso - 55.f);
+                    // Arms should be lateral to spine
+                    auto seg = [&](int a, int b) {
+                        float dx = bones[a][0]-bones[b][0], dy = bones[a][1]-bones[b][1], dz = bones[a][2]-bones[b][2];
+                        return std::sqrt(dx*dx+dy*dy+dz*dz);
                     };
-                    if (badLeg(14) || badLeg(17)) {
-                        for (int i = 0; i < 6; ++i) {
-                            int id = kLegAlt[i];
-                            tmp[14 + i][0] = joints[id].x;
-                            tmp[14 + i][1] = joints[id].y;
-                            tmp[14 + i][2] = joints[id].z;
-                        }
+                    const float armL = seg(7, 9), armR = seg(11, 13), legL = seg(14, 16), legR = seg(17, 19);
+                    if (armL > 5.f && armL < 70.f) score += 10.f;
+                    if (armR > 5.f && armR < 70.f) score += 10.f;
+                    if (legL > 10.f && legL < 90.f) score += 12.f;
+                    if (legR > 10.f && legR < 90.f) score += 12.f;
+                    const float horiz = std::sqrt((h[0]-p.pos[0])*(h[0]-p.pos[0]) + (h[1]-p.pos[1])*(h[1]-p.pos[1]));
+                    if (horiz > 60.f) score -= 40.f;
+                    return score;
+                };
+
+                float alt[20][3]{};
+                fill_from(kIdxAlt, alt);
+                const float scoreMain = skeleton_score(tmp);
+                const float scoreAlt = skeleton_score(alt);
+                if (scoreAlt > scoreMain) {
+                    for (int b = 0; b < 20; ++b) {
+                        tmp[b][0] = alt[b][0];
+                        tmp[b][1] = alt[b][1];
+                        tmp[b][2] = alt[b][2];
                     }
                 }
+                if (skeleton_score(tmp) < 0.f) return false;
 
                 const float hx = tmp[0][0], hy = tmp[0][1], hz = tmp[0][2];
                 const float px = tmp[5][0], py = tmp[5][1], pz = tmp[5][2];
-                const float dx = hx - p.pos[0], dy = hy - p.pos[1];
-                const float horiz = std::sqrt(dx * dx + dy * dy);
-                const float torso = std::sqrt(
-                    (hx - px) * (hx - px) + (hy - py) * (hy - py) + (hz - pz) * (hz - pz));
-                if (horiz > 55.f) return false;
-                if (torso < 20.f || torso > 110.f) return false;
-                if (hz < p.pos[2] + 20.f) return false;
 
-                if (p.distance <= 50.f) {
+                // Soft ground-align pelvis to pawn origin (reduces floaty skeletons)
+                {
                     const float gdx = p.pos[0] - px;
                     const float gdy = p.pos[1] - py;
-                    if (std::fabs(gdx) < 45.f && std::fabs(gdy) < 45.f) {
+                    if (std::fabs(gdx) < 40.f && std::fabs(gdy) < 40.f) {
                         for (int b = 0; b < 20; ++b) {
                             tmp[b][0] += gdx;
                             tmp[b][1] += gdy;
                         }
-                    }
-                    const float gdz = p.pos[2] - pz;
-                    if (std::fabs(gdz) < 25.f) {
-                        for (int b = 0; b < 20; ++b)
-                            tmp[b][2] += gdz;
                     }
                 }
 

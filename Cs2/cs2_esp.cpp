@@ -38,8 +38,19 @@ void DrawMotionVisuals(ImDrawList* dl, const CS2::Runtime& rt,
 
     if (cfg.trails) {
         auto& history = trails[player.pawn];
-        history.Push(player.pos[0], player.pos[1], player.pos[2] + 2.f,
-                     now, 3.f, 0.035);
+        // Trail from torso (spine/chest), not feet.
+        float tx = player.pos[0], ty = player.pos[1], tz = player.pos[2] + 40.f;
+        if (player.bones_ok) {
+            // bone 2 ~ spine2 / chest region in expanded skeleton
+            tx = player.bones[2][0];
+            ty = player.bones[2][1];
+            tz = player.bones[2][2];
+        } else if (std::isfinite(player.head[0])) {
+            tx = player.head[0];
+            ty = player.head[1];
+            tz = player.head[2] - 25.f;
+        }
+        history.Push(tx, ty, tz, now, 3.f, 0.035);
         const double duration = std::clamp(static_cast<double>(cfg.trail_duration), 0.20, 2.50);
         for (std::size_t i = 1; i < history.Size(); ++i) {
             const auto& a = history.At(i - 1);
@@ -99,9 +110,10 @@ void DrawMotionVisuals(ImDrawList* dl, const CS2::Runtime& rt,
             return W2S(pt, rt.view_matrix, sx, sy);
         };
         // CS2 units are larger than GTA — scale hat up.
+        const float hatScale = 18.f * std::clamp(cfg.chinese_hat_scale, 0.4f, 3.0f);
         OmniGhost::Gameplay::EspFx::DrawChineseHat(
             dl, player.head[0], player.head[1], player.head[2],
-            project, static_cast<float>(now), 18.f, true);
+            project, static_cast<float>(now), hatScale, true);
     }
 
     if (cfg.look_direction && std::isfinite(player.view_yaw)) {
@@ -145,12 +157,12 @@ void DrawBoneLine(ImDrawList* dl, const float bones[][3], int a, int b, const fl
     const float wy = bones[a][1] - bones[b][1];
     const float wz = bones[a][2] - bones[b][2];
     const float wlen2 = wx * wx + wy * wy + wz * wz;
-    if (wlen2 < 1.f || wlen2 > 90.f * 90.f) return;
+    if (wlen2 < 0.25f || wlen2 > 130.f * 130.f) return;
 
     float ax, ay, bx, by;
     if (!W2S(bones[a], vm, ax, ay) || !W2S(bones[b], vm, bx, by)) return;
     const float dx = ax - bx, dy = ay - by;
-    if (dx * dx + dy * dy > 380.f * 380.f) return;
+    if (dx * dx + dy * dy > 520.f * 520.f) return;
     dl->AddLine(ImVec2(ax, ay), ImVec2(bx, by), col, thickness);
 }
 
@@ -491,7 +503,7 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
             if (!p.is_local && cfg.team_check && p.team == rt.local_team) continue;
             if (!p.alive && p.health <= 0) continue;
 
-            const bool isAimTarget = cfg.highlight_aim_target && pi == aimTarget;
+            const bool isAimTarget = false; // aim-target gold highlight removed
             const float* colBase = isAimTarget ? cfg.col_target
                 : ((p.team == rt.local_team) ? cfg.col_team : cfg.col_enemy);
             const ImU32 teamCol = Col(colBase);
@@ -528,7 +540,7 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
             continue;
 
         // Team/enemy color for ALL ESP elements except weapon icons
-        const bool isAimTarget = cfg.highlight_aim_target && pi == aimTarget;
+        const bool isAimTarget = false; // aim-target gold highlight removed
         const float* colBase = isAimTarget ? cfg.col_target
             : ((p.team == rt.local_team) ? cfg.col_team : cfg.col_enemy);
         // Cores por visibilidade (spotted)
@@ -597,7 +609,7 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
             DrawBoneLine(dl, p.bones, 3, 4, rt.view_matrix, sc, th);
             DrawBoneLine(dl, p.bones, 4, 5, rt.view_matrix, sc, th);
 
-            if (cfg.bone_draw_arms) {
+            if (true) { // always full arms
                 // L: neck/clav → shoulder → elbow → hand
                 DrawBoneLine(dl, p.bones, 1, 6, rt.view_matrix, sc, th);
                 DrawBoneLine(dl, p.bones, 6, 7, rt.view_matrix, sc, th);
@@ -609,7 +621,7 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
                 DrawBoneLine(dl, p.bones, 11, 12, rt.view_matrix, sc, th);
                 DrawBoneLine(dl, p.bones, 12, 13, rt.view_matrix, sc, th);
             }
-            if (cfg.bone_draw_legs) {
+            if (true) { // always full legs
                 DrawBoneLine(dl, p.bones, 5, 14, rt.view_matrix, sc, th);
                 DrawBoneLine(dl, p.bones, 14, 15, rt.view_matrix, sc, th);
                 DrawBoneLine(dl, p.bones, 15, 16, rt.view_matrix, sc, th);

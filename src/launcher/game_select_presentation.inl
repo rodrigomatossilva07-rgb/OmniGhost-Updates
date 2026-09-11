@@ -940,51 +940,9 @@ void DrawLibrary(ImDrawList* draw, ImVec2 display, float delta) {
     }
     if (body) ImGui::PopFont();
 
-    const auto update = OmniGhost::Update::UpdateService::Instance().GetSnapshot();
-    using UpdateStatus = OmniGhost::Update::Status;
-    const bool showUpdate = update.status == UpdateStatus::Available ||
-        update.status == UpdateStatus::Downloading || update.status == UpdateStatus::Ready ||
-        update.status == UpdateStatus::Installing || update.status == UpdateStatus::Error;
-    if (showUpdate) {
-        const float bannerY = top + S(70.f);
-        const ImVec2 bannerMin(content_x, bannerY);
-        const ImVec2 bannerMax(content_right, bannerY + S(48.f));
-        draw->AddRectFilled(bannerMin, bannerMax, C_CARD(), CyberTheme::Radius::Sm);
-        draw->AddRect(bannerMin, bannerMax,
-            update.status == UpdateStatus::Error ? C_RED() : CyberTheme::WithAlpha(CyberTheme::Colors.Gold, .55f),
-            CyberTheme::Radius::Sm);
-        const char* heading = update.status == UpdateStatus::Error
-            ? app_settings::T("Falha ao procurar a atualização", "Update check failed")
-            : app_settings::T("Atualização disponível", "Update available");
-        draw->AddText(ImVec2(bannerMin.x + S(14.f), bannerMin.y + S(7.f)), C_TEXT(), heading);
-        draw->AddText(ImVec2(bannerMin.x + S(14.f), bannerMin.y + S(26.f)), C_MUTED(), UpdateStatusText(update));
-
-        const char* action = nullptr;
-        if (update.status == UpdateStatus::Available) action = app_settings::T("Transferir", "Download");
-        else if (update.status == UpdateStatus::Ready) action = app_settings::T("Instalar", "Install");
-        else if (update.status == UpdateStatus::Error) action = app_settings::T("Tentar novamente", "Retry");
-        if (action) {
-            const ImVec2 actionSize(S(132.f), S(32.f));
-            const ImVec2 actionMin(bannerMax.x - actionSize.x - S(9.f), bannerMin.y + S(8.f));
-            const ImVec2 actionMax(actionMin.x + actionSize.x, actionMin.y + actionSize.y);
-            const bool hovered = ImGui::IsMouseHoveringRect(actionMin, actionMax);
-            draw->AddRectFilled(actionMin, actionMax,
-                hovered ? C_GOLD_LT() : C_GOLD(), CyberTheme::Radius::Sm);
-            const ImVec2 actionText = ImGui::CalcTextSize(action);
-            draw->AddText(ImVec2(actionMin.x + (actionSize.x - actionText.x) * .5f,
-                                 actionMin.y + (actionSize.y - actionText.y) * .5f), C_BG(), action);
-            if (hovered) ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
-            if (hovered && ImGui::IsMouseClicked(0)) {
-                auto& updater = OmniGhost::Update::UpdateService::Instance();
-                if (update.status == UpdateStatus::Available) updater.DownloadAsync();
-                else if (update.status == UpdateStatus::Ready) updater.InstallPreparedUpdateAsync();
-                else updater.RetryLastFailure();
-            }
-        }
-    }
-
+    // Update install UI lives in the top-right UpdateUI only (no mid-page banner).
     const float gap = display.x < S(760.f) ? S(14.f) : S(20.f);
-    const float start_y = top + S(showUpdate ? 132.f : 79.f);
+    const float start_y = top + S(79.f);
     const float footer = S(36.f);
     const float grid_height = (std::max)(S(130.0f), display.y - start_y - footer - S(10.f));
     const float scrollbar_reserve = S(14.0f);
