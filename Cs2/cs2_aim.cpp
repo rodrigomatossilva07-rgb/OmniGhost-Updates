@@ -163,37 +163,46 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
     const float cx = ds.x * 0.5f;
     const float cy = ds.y * 0.5f;
     const float fov = EffectiveFov(cfg, 0.f); // distance not available here, use base fov
+    const bool aim_key_down = cfg.aim_enabled && AimKeyDown(cfg);
 
-    // Use existing aim logic for actual aiming (unified aimbot is stub in Publish)
+    // A selected/enabled bind is not the same as a pressed bind. Never acquire
+    // or move towards a target until the configured aim key is physically down.
     float best_fov = FLT_MAX;
     int best_idx = -1;
     float best_dx = 0, best_dy = 0;
-    
-    for (size_t i = 0; i < rt.players.size(); ++i) {
-        const auto& p = rt.players[i];
-        if (p.is_local) continue;
-        if (!p.alive || p.health <= 0) continue;
-        if (cfg.aim_ignore_team && cfg.team_check && p.team == rt.local_team && rt.local_team >= 2) continue;
-        if (p.distance > cfg.aim_max_dist) continue;
-        
-        float sx, sy;
-        float bone_pos[3];
-        PickBone(p, 0, bone_pos); // head
-        if (!W2S(bone_pos, rt.view_matrix, sx, sy)) continue;
-        
-        float dx = sx - cx;
-        float dy = sy - cy;
-        float dist = std::sqrt(dx * dx + dy * dy);
-        
-        if (dist < fov && dist < best_fov) {
-            best_fov = dist;
-            best_idx = static_cast<int>(i);
-            best_dx = dx;
-            best_dy = dy;
+
+    if (aim_key_down) {
+        for (size_t i = 0; i < rt.players.size(); ++i) {
+            const auto& p = rt.players[i];
+            if (p.is_local) continue;
+            if (!p.alive || p.health <= 0) continue;
+            if (cfg.aim_ignore_team && cfg.team_check && p.team == rt.local_team && rt.local_team >= 2) continue;
+            if (p.distance > cfg.aim_max_dist) continue;
+
+            float sx, sy;
+            float bone_pos[3];
+            PickBone(p, cfg.aim_bone, bone_pos);
+            if (!W2S(bone_pos, rt.view_matrix, sx, sy)) continue;
+
+            const float dx = sx - cx;
+            const float dy = sy - cy;
+            const float dist = std::sqrt(dx * dx + dy * dy);
+
+            if (dist < fov && dist < best_fov) {
+                best_fov = dist;
+                best_idx = static_cast<int>(i);
+                best_dx = dx;
+                best_dy = dy;
+            }
         }
     }
-    
-    if (best_idx >= 0) {
+
+    if (!aim_key_down) {
+        g_active_target_idx = -1;
+        g_last_target_idx = -1;
+        g_aim_motion.Reset();
+        std::snprintf(g_debug, sizeof(g_debug), "aim: aguarda tecla");
+    } else if (best_idx >= 0) {
         g_active_target_idx = best_idx;
         
         // Apply smoothing
@@ -215,9 +224,11 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
     }
 
     // Update unified aimbot stub (does nothing in Publish)
-    Gameplay::UnifiedAim::AimContext ctx;
-    ctx.dt = ImGui::GetIO().DeltaTime;
-    g_unified_aimbot->Update(ctx);
+    if (aim_key_down) {
+        Gameplay::UnifiedAim::AimContext ctx;
+        ctx.dt = ImGui::GetIO().DeltaTime;
+        g_unified_aimbot->Update(ctx);
+    }
 
     // Handle triggerbot separately (keep existing for now)
     bool local_scoped = false;
