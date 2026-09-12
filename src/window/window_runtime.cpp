@@ -13,7 +13,6 @@
 #include "../updater/update_service.h"
 #include "../launcher/launcher_assets.h"
 #include "../platform/offset_auto.h"
-#include "../../Rust/rust_game.h"
 
 #include <dwmapi.h>
 #include <algorithm>
@@ -544,7 +543,7 @@ void Overlay::RequestClose() {
         update.status == Status::Checking ||
         update.status == Status::Downloading ||
         update.status == Status::Installing;
-    const bool importantOperation = updaterBusy || Rust::backend_busy.load() || OmniGhost::OffsetAuto::g_busy;
+    const bool importantOperation = updaterBusy || OmniGhost::OffsetAuto::g_busy;
 
     if (importantOperation) {
         exit_confirmation_requested_ = true;
@@ -595,8 +594,6 @@ void Overlay::EndRender() {
         } else if (result == CyberWidgets::ModalResult::Confirmed) {
             exit_confirmation_requested_ = false;
             OmniGhost::Update::UpdateService::Instance().Cancel();
-            if (Rust::backend_busy.load())
-                Rust::CancelBackendOperation();
             shouldRun = false;
             if (overlay)
                 DestroyWindow(overlay);

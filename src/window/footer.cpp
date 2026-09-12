@@ -4,7 +4,6 @@
 #include "localization.h"
 #include "globals.h"
 #include "../../Cs2/cs2_game.h"
-#include "../../Rust/rust_game.h"
 #include "../../Warzone/warzone_game.h"
 #include "../config/app_settings.h"
 #include "game/offsets.h"
@@ -81,15 +80,6 @@ namespace CyberWidgets {
         char value[192];
         if (g_activeGame == ActiveGame::CS2) {
             snprintf(value, sizeof(value), "%s", CS2::StatusLine());
-        } else if (g_activeGame == ActiveGame::Rust) {
-            // Rust: show local/matrix/list status instead of FiveM build number
-            if (Rust::runtime.matrix_ok && Rust::runtime.list_ok)
-                snprintf(value, sizeof(value), "Rust offsets OK");
-            else if (Rust::runtime.matrix_ok)
-                snprintf(value, sizeof(value), "Rust mx OK list?");
-            else
-                snprintf(value, sizeof(value), "Rust %s",
-                    Rust::status.empty() ? "..." : Rust::status.c_str());
         } else if (g_activeGame == ActiveGame::Warzone) {
             snprintf(value, sizeof(value), "%s", Warzone::StatusLine());
         } else {
@@ -108,8 +98,6 @@ namespace CyberWidgets {
                 const auto snapshot = CS2::AcquireRuntimeSnapshot();
                 verified = (snapshot && snapshot->offsets_self_test_ok) || CS2::ready;
             }
-            else if (g_activeGame == ActiveGame::Rust)
-                verified = Rust::runtime.matrix_ok || (Rust::offsets.loaded && Rust::offsets.BasePlayer_TypeInfo != 0);
             else if (g_activeGame == ActiveGame::Warzone)
                 verified = Warzone::runtime.matrix_ok;
             else
@@ -119,8 +107,6 @@ namespace CyberWidgets {
                 (g_activeGame == ActiveGame::Warzone && Warzone::runtime.matrix_ok) ? "Matrix OK" :
                 (g_activeGame == ActiveGame::Warzone && Warzone::offsets.loaded) ? "Offsets carregados" :
                 (g_activeGame == ActiveGame::Warzone) ? "Offsets ?" :
-                (g_activeGame == ActiveGame::Rust && verified) ? "Offsets data OK" :
-                (g_activeGame == ActiveGame::Rust && !verified) ? "Offsets update?" :
                 (verified ? "Offsets OK" : "Offsets ?");
             x = DrawFooterItem(dl, body, x, text_y,
                 offsets_text,

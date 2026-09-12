@@ -19,7 +19,6 @@ namespace OmniGhost::Security {
 enum class GameId : uint8_t {
     FiveM = 0,
     CS2 = 1,
-    Rust = 2,
     Warzone = 3,
     Valorant = 4,
     Fortnite = 5,
@@ -126,19 +125,6 @@ public:
     void InstallAntiTamper() const noexcept override;
 };
 
-// Rust Crypto Provider
-class RustCryptoProvider final : public GameCryptoProvider {
-public:
-    [[nodiscard]] GameId GetGameId() const noexcept override { return GameId::Rust; }
-    [[nodiscard]] std::string_view GetGameName() const noexcept override { return "Rust"; }
-    
-    void DecryptOffsets(std::span<uint8_t> data) const noexcept override;
-    void EncryptOffsets(std::span<uint8_t> data) const noexcept override;
-    bool VerifyIntegrity() const noexcept override;
-    std::array<uint8_t, 32> DeriveKey(std::string_view context) const noexcept override;
-    void InstallAntiTamper() const noexcept override;
-};
-
 // Warzone Crypto Provider
 class WarzoneCryptoProvider final : public GameCryptoProvider {
 public:
@@ -199,7 +185,6 @@ inline void InitializeGameCrypto() noexcept {
     auto& registry = CryptoRegistry::Instance();
     registry.RegisterProvider(std::make_unique<FiveMCryptoProvider>());
     registry.RegisterProvider(std::make_unique<CS2CryptoProvider>());
-    registry.RegisterProvider(std::make_unique<RustCryptoProvider>());
     registry.RegisterProvider(std::make_unique<WarzoneCryptoProvider>());
     registry.RegisterProvider(std::make_unique<ValorantCryptoProvider>());
     registry.RegisterProvider(std::make_unique<FortniteCryptoProvider>());

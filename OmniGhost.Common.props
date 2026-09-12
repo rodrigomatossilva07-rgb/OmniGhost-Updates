@@ -30,7 +30,7 @@
         <!-- Generated manifests must precede source include directories.  In
              particular, runtime_bootstrap.cpp has an optional IDE stub beside
              it; shipping builds must never compile against that empty stub. -->
-        <AdditionalIncludeDirectories>$(ProjectDir).cache\generated\$(Configuration)\$(Platform);$(ProjectDir).cache\generated;$(ProjectDir);$(ProjectDir)src;$(ProjectDir)Fivem;$(ProjectDir)Cs2;$(ProjectDir)Rust;$(ProjectDir)Warzone;$(ProjectDir)Valorant;$(ProjectDir)ImGui;$(ProjectDir)DMALibrary;$(ProjectDir)libs;$(ProjectDir)Utils;$(ProjectDir)resources;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+        <AdditionalIncludeDirectories>$(ProjectDir).cache\generated\$(Configuration)\$(Platform);$(ProjectDir).cache\generated;$(ProjectDir);$(ProjectDir)src;$(ProjectDir)Fivem;$(ProjectDir)Cs2;$(ProjectDir)Warzone;$(ProjectDir)Valorant;$(ProjectDir)ImGui;$(ProjectDir)DMALibrary;$(ProjectDir)libs;$(ProjectDir)Utils;$(ProjectDir)resources;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
         <BufferSecurityCheck>true</BufferSecurityCheck>
         <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
         <Optimization>MaxSpeed</Optimization>

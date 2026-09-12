@@ -255,21 +255,6 @@
     <ClCompile Include="Cs2\cs2_weapon_icons.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Rust\rust_aim.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="Rust\rust_esp.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="Rust\rust_game.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="Rust\rust_entities.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="Rust\rust_probe.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="src\auth\local_auth_service.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -435,12 +420,6 @@
     <ClCompile Include="Fivem\object_esp\object_esp_renderer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Rust\rust_decrypt.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="Rust\rust_offset_api.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="Warzone\warzone_aim.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -501,9 +480,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\launcher\game_select_modals.inl">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Rust\rust_offset_loading.inl">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\window\layout.h">

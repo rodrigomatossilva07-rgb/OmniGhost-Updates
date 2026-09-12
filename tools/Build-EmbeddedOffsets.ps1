@@ -242,7 +242,6 @@ $games = @(
     @{ Id=1; Name='fortnite'; Json='data\fortnite_offsets.json'; Resource='IDR_OFFSETS_FORTNITE' },
     @{ Id=2; Name='warzone';  Json='data\warzone_offsets.json';  Resource='IDR_OFFSETS_WARZONE' },
     @{ Id=3; Name='cs2';      Json='data\cs2_offsets.json';      Resource='IDR_OFFSETS_CS2' },
-    @{ Id=4; Name='rust';     Json='data\rust_offsets.json';     Resource='IDR_OFFSETS_RUST' },
     @{ Id=5; Name='fivem';    Json='data\fivem_offsets.json';    Resource='IDR_OFFSETS_FIVEM' },
     @{ Id=6; Name='apex';     Json='data\apex_offsets.json';     Resource='IDR_OFFSETS_APEX' }
 )

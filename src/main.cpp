@@ -25,9 +25,6 @@
 #include "../Cs2/cs2_game.h"
 #include "../Cs2/cs2_esp.h"
 #include "../Cs2/cs2_aim.h"
-#include "../Rust/rust_game.h"
-#include "../Rust/rust_esp.h"
-#include "../Rust/rust_aim.h"
 #include "../Warzone/warzone_game.h"
 #include "../Valorant/valorant_game.h"
 #include "../Fortnite/fortnite_game.h"
@@ -532,7 +529,6 @@ while (application.shouldRun && !authenticated) {
     ActiveGame pending_game = ActiveGame::FiveM;
     switch (selected) {
         case Launcher::GameId::CS2: pending_game = ActiveGame::CS2; break;
-        case Launcher::GameId::Rust: pending_game = ActiveGame::Rust; break;
         case Launcher::GameId::Warzone: pending_game = ActiveGame::Warzone; break;
         case Launcher::GameId::Valorant: pending_game = ActiveGame::Valorant; break;
         case Launcher::GameId::Fortnite: pending_game = ActiveGame::Fortnite; break;
@@ -551,13 +547,7 @@ while (application.shouldRun && !authenticated) {
     if (pending_game != ActiveGame::Warzone) {
         bool need_refresh = false;
         // Pre-load JSON if present so HasCriticalOffsets works
-        if (pending_game == ActiveGame::Rust) {
-            // Rust starts from local JSON or embedded defaults.
-            Rust::LoadOffsetsFromJson(nullptr);
-            if (!Rust::offsets.loaded)
-                Rust::ApplyEmbeddedDefaults();
-            need_refresh = false;
-        } else if (pending_game == ActiveGame::CS2) {
+        if (pending_game == ActiveGame::CS2) {
             CS2::LoadOffsetsFromJson(nullptr);
             if (!OmniGhost::OffsetAuto::HasCriticalOffsets(pending_game))
                 need_refresh = true;
@@ -718,7 +708,7 @@ while (application.shouldRun && !authenticated) {
 // User preference: open the game menu even when offsets look outdated.
     if (adapter && (OmniGhost::OffsetAuto::SupportsAutomaticRefresh(pending_game) ||
         pending_game == ActiveGame::Valorant || pending_game == ActiveGame::FiveM ||
-        pending_game == ActiveGame::CS2 || pending_game == ActiveGame::Rust ||
+        pending_game == ActiveGame::CS2 ||
         pending_game == ActiveGame::Warzone || pending_game == ActiveGame::Fortnite)) {
         const bool probe_ok = OmniGhost::OffsetAuto::SoftProbeLive(pending_game);
         if (probe_ok) {
@@ -753,9 +743,6 @@ while (application.shouldRun && !authenticated) {
         if (g_activeGame == ActiveGame::CS2) {
             CS2::Shutdown();
             CS2::ready = false;
-        } else if (g_activeGame == ActiveGame::Rust) {
-            Rust::Shutdown();
-            Rust::ready = false;
         } else if (g_activeGame == ActiveGame::Warzone) {
             Warzone::Shutdown();
         } else if (g_activeGame == ActiveGame::Valorant) {
@@ -806,22 +793,6 @@ while (application.shouldRun && !authenticated) {
                         if (process_miss_frames >= 1) {
                             shouldReturnToLauncher = true;
                             terminationReason = "Processo cs2.exe terminou";
-                        }
-                    } else {
-                        process_miss_frames = 0;
-                    }
-                }
-                break;
-            }
-            case ActiveGame::Rust: {
-                static uint64_t last_alive_check_r = 0;
-                if (Rust::runtime.frames - last_alive_check_r >= 8) {
-                    last_alive_check_r = Rust::runtime.frames;
-                    if (!Rust::IsGameProcessAlive()) {
-                        ++process_miss_frames;
-                        if (process_miss_frames >= 3) {
-                            shouldReturnToLauncher = true;
-                            terminationReason = "Processo Rust terminou";
                         }
                     } else {
                         process_miss_frames = 0;
@@ -930,7 +901,6 @@ while (application.shouldRun && !authenticated) {
         
         if (shouldReturnToLauncher) {
             std::cout << "[" << (g_activeGame == ActiveGame::CS2 ? "CS2" :
-                                  g_activeGame == ActiveGame::Rust ? "Rust" :
                                   g_activeGame == ActiveGame::Warzone ? "Warzone" :
                                   g_activeGame == ActiveGame::Valorant ? "Valorant" :
                                   g_activeGame == ActiveGame::Fortnite ? "Fortnite" : "FiveM") 
@@ -944,14 +914,12 @@ while (application.shouldRun && !authenticated) {
         // the adapter only after repeated failures (transient reads are ignored).
         const ULONGLONG probe_now = GetTickCount64();
         if (probe_now >= next_offset_probe &&
-            (g_activeGame == ActiveGame::CS2 || g_activeGame == ActiveGame::Rust)) {
+            g_activeGame == ActiveGame::CS2) {
             next_offset_probe = probe_now + 5000;
             bool can_probe = false;
             if (g_activeGame == ActiveGame::CS2) {
                 const auto cs2_snapshot = CS2::AcquireRuntimeSnapshot();
                 can_probe = CS2::ready && cs2_snapshot && cs2_snapshot->local_pawn != 0;
-            } else {
-                can_probe = Rust::ready && Rust::runtime.local_player != 0 && Rust::runtime.matrix_ok;
             }
             if (can_probe) {
                 if (OmniGhost::OffsetAuto::ValidateLive(g_activeGame)) {

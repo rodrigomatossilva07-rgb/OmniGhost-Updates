@@ -12,7 +12,6 @@ $ceilings = [ordered]@{
     'src/launcher/updates_page.cpp' = 2050
     'DMALibrary/Memory/Memory.cpp' = 2404
     'Fivem/esp/esp.cpp' = 2495
-    'Rust/rust_game.cpp' = 2469
     'Cs2/cs2_game.cpp' = 2200
 }
 $rows = @()

@@ -12,9 +12,6 @@
 #include "../../Fivem/game/game.h"
 #include "../../Fivem/object_esp/object_esp.h"
 #include "../../Fortnite/fortnite_game.h"
-#include "../../Rust/rust_game.h"
-#include "../../Rust/rust_esp.h"
-#include "../../Rust/rust_aim.h"
 #include "../../Valorant/valorant_game.h"
 #include "../../Valorant/valorant_esp.h"
 #include "../../Valorant/valorant_aim.h"
@@ -133,14 +130,6 @@ bool StartCs2() {
     }
 }
 
-bool StartRust() {
-    g_activeGame = ActiveGame::Rust;
-    if (!Rust::offsets.loaded) Rust::LoadOffsetsFromJson(nullptr);
-    if (!Rust::offsets.loaded) Rust::ApplyEmbeddedDefaults();
-    std::cout << "[Rust] offsets loaded source=" << Rust::offsets.source << '\n';
-    return Rust::StartBackendAsync();
-}
-
 bool StartWarzone() {
     g_activeGame = ActiveGame::Warzone;
     if (Warzone::Attach()) return true;
@@ -216,11 +205,6 @@ bool Cs2ValidateOffsets() { return CS2::ValidateLiveOffsets(); }
 std::string_view Cs2TerminationReason() { return "Processo cs2.exe terminou"; }
 ActiveGame Cs2GameId() { return ActiveGame::CS2; }
 
-bool RustIsAlive() { return Rust::IsGameProcessAlive(); }
-bool RustValidateOffsets() { return Rust::ValidateLiveOffsets(); }
-std::string_view RustTerminationReason() { return "Processo Rust terminou"; }
-ActiveGame RustGameId() { return ActiveGame::Rust; }
-
 bool WarzoneIsAlive() { return Warzone::IsGameProcessAlive(); }
 bool WarzoneValidateOffsets() { return Warzone::ValidateLiveOffsets(); }
 std::string_view WarzoneTerminationReason() { return "Processo Warzone terminou"; }
@@ -281,18 +265,6 @@ IGameAdapter* FindGameAdapter(::Launcher::GameId game) noexcept {
             }
         },
         Cs2IsAlive, Cs2ValidateOffsets, Cs2TerminationReason, Cs2GameId);
-    static FunctionGameAdapter rust({ ::Launcher::GameId::Rust, "Rust", AdapterMaturity::Stable,
-        Capability::Menu | Capability::ReadOnlyMemory | Capability::Overlay | Capability::Radar },
-        StartRust, [] { Rust::Shutdown(); Rust::ready = false; },
-        [] { return std::string_view(Rust::status); },
-        [] { 
-            if (Rust::ready) {
-                Rust::RunFrame();
-                Rust_ESP::Draw(Rust::runtime, Rust::config);
-                Rust_Aim::Run(Rust::runtime, Rust::config);
-            }
-        },
-        RustIsAlive, RustValidateOffsets, RustTerminationReason, RustGameId);
     static FunctionGameAdapter warzone({ ::Launcher::GameId::Warzone, "Call of Duty: Warzone", AdapterMaturity::Beta,
         Capability::Menu | Capability::ReadOnlyMemory },
         StartWarzone, [] { Warzone::Shutdown(); },
@@ -327,7 +299,6 @@ IGameAdapter* FindGameAdapter(::Launcher::GameId game) noexcept {
     switch (game) {
     case ::Launcher::GameId::FiveM: return &fivem;
     case ::Launcher::GameId::CS2: return &cs2;
-    case ::Launcher::GameId::Rust: return &rust;
     case ::Launcher::GameId::Warzone: return &warzone;
     case ::Launcher::GameId::Valorant: return &valorant;
     case ::Launcher::GameId::Fortnite: return &fortnite;

@@ -157,7 +157,6 @@ bool ParsePayload(ByteView payload, Game expectedGame, Snapshot& snapshot) {
     case Game::Fortnite: expectedSlug = "fortnite"; break;
     case Game::Warzone: expectedSlug = "warzone"; break;
     case Game::CS2: expectedSlug = "cs2"; break;
-    case Game::Rust: expectedSlug = "rust"; break;
     case Game::FiveM: expectedSlug = "fivem"; break;
     case Game::Apex: expectedSlug = "apex"; break;
     default: return false;
@@ -204,7 +203,6 @@ const char* GameName(Game game) noexcept {
     case Game::Fortnite: return "Fortnite";
     case Game::Warzone: return "Warzone";
     case Game::CS2: return "CS2";
-    case Game::Rust: return "Rust";
     case Game::FiveM: return "FiveM";
     case Game::Apex: return "Apex";
     default: return "Unknown";
@@ -216,7 +214,6 @@ int ResourceIdForGame(Game game) noexcept {
     case Game::Fortnite: return IDR_OFFSETS_FORTNITE;
     case Game::Warzone: return IDR_OFFSETS_WARZONE;
     case Game::CS2: return IDR_OFFSETS_CS2;
-    case Game::Rust: return IDR_OFFSETS_RUST;
     case Game::FiveM: return IDR_OFFSETS_FIVEM;
     case Game::Apex: return IDR_OFFSETS_APEX;
     default: return 0;

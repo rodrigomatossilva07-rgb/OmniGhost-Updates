@@ -11,7 +11,7 @@
 // Unified offset source policy for all games:
 //
 //   SOURCE OF TRUTH (edit only these):
-//     data/<game>_offsets.json   (and data/cs2_offsets.json / data/offsets.json for CS2)
+//     data/<game>_offsets.json
 //
 //   BUILD:
 //     tools/Build-EmbeddedOffsets.ps1 packs those JSON files into RCDATA.
@@ -30,7 +30,6 @@ enum class GameId : std::uint16_t {
     Fortnite = 1,
     Warzone = 2,
     CS2 = 3,
-    Rust = 4,
     FiveM = 5,
     Apex = 6,
 };

@@ -105,27 +105,6 @@ namespace CyberWidgets {
             { "nav.configs", MenuTab::TAB_CONFIGS,     CyberIcons::DrawSettingsIcon },
             { "nav.save",    MenuTab::TAB_SAVECONFIG,  CyberIcons::DrawSaveIcon },
         };
-        static const TabItem rustTabs[] = {
-            { "nav.aim", MenuTab::TAB_RUST_AIM,     CyberIcons::DrawAimIcon },
-            { "nav.visuals", MenuTab::TAB_RUST_VISUALS, CyberIcons::DrawESPIcon },
-            { "nav.world", MenuTab::TAB_RUST_WORLD,   CyberIcons::DrawWorldIcon },
-            { "nav.players", MenuTab::TAB_RUST_PLAYERS, CyberIcons::DrawUserIcon },
-            { "nav.radar", MenuTab::TAB_RUST_RADAR,   CyberIcons::DrawRadarIcon },
-            { "nav.misc", MenuTab::TAB_RUST_MISC,    CyberIcons::DrawWrenchIcon },
-            { "nav.configs", MenuTab::TAB_CONFIGS,      CyberIcons::DrawSettingsIcon },
-            { "nav.save", MenuTab::TAB_SAVECONFIG,   CyberIcons::DrawSaveIcon },
-        };
-        static const TabItem rustAdvancedTabs[] = {
-            { "nav.aim", MenuTab::TAB_RUST_AIM,     CyberIcons::DrawAimIcon },
-            { "nav.visuals", MenuTab::TAB_RUST_VISUALS, CyberIcons::DrawESPIcon },
-            { "nav.world", MenuTab::TAB_RUST_WORLD,   CyberIcons::DrawWorldIcon },
-            { "nav.players", MenuTab::TAB_RUST_PLAYERS, CyberIcons::DrawUserIcon },
-            { "nav.radar", MenuTab::TAB_RUST_RADAR,   CyberIcons::DrawRadarIcon },
-            { "nav.misc", MenuTab::TAB_RUST_MISC,    CyberIcons::DrawWrenchIcon },
-            { "nav.debug", MenuTab::TAB_RUST_DEBUG,   CyberIcons::DrawStatusIcon },
-            { "nav.configs", MenuTab::TAB_CONFIGS,      CyberIcons::DrawSettingsIcon },
-            { "nav.save", MenuTab::TAB_SAVECONFIG,   CyberIcons::DrawSaveIcon },
-        };
         static const TabItem warzoneTabs[] = {
             { "nav.aim", MenuTab::TAB_WARZONE_AIM,      CyberIcons::DrawAimIcon },
             { "nav.player_esp", MenuTab::TAB_WARZONE_VISUALS,  CyberIcons::DrawESPIcon },
@@ -153,24 +132,6 @@ namespace CyberWidgets {
         if (OmniGhost::GameContext::Instance().GetActiveGame() == OmniGhost::ActiveGame::CS2) {
             tabs = cs2Tabs;
             tabCount = (int)(sizeof(cs2Tabs) / sizeof(cs2Tabs[0]));
-        } else if (OmniGhost::GameContext::Instance().GetActiveGame() == OmniGhost::ActiveGame::Rust) {
-            const bool developer = app_settings::config.show_advanced
-#ifdef _DEBUG
-                || true
-#endif
-#ifdef OMNIGHOST_DIAGNOSTICS
-                || true
-#endif
-                ;
-            if (developer) {
-                tabs = rustAdvancedTabs;
-                tabCount = (int)(sizeof(rustAdvancedTabs) / sizeof(rustAdvancedTabs[0]));
-            } else {
-                tabs = rustTabs;
-                tabCount = (int)(sizeof(rustTabs) / sizeof(rustTabs[0]));
-                if (*current_tab == MenuTab::TAB_RUST_DEBUG)
-                    *current_tab = MenuTab::TAB_RUST_MISC;
-            }
         } else if (OmniGhost::GameContext::Instance().GetActiveGame() == OmniGhost::ActiveGame::Warzone) {
             tabs = warzoneTabs;
             tabCount = (int)(sizeof(warzoneTabs) / sizeof(warzoneTabs[0]));

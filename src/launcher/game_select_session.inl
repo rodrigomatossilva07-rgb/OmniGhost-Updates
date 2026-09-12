@@ -83,15 +83,9 @@ std::filesystem::path RequiredDataPath(GameId id) {
     case GameId::FiveM: return {};
     case GameId::CS2:
 #if defined(OMNIGHOST_DEV_EXTERNAL_OFFSETS)
-        return root / L"data" / L"offsets.json";
+        return root / L"data" / L"cs2_offsets.json";
 #else
         return {}; // Customer builds load the compact embedded CS2 snapshot.
-#endif
-    case GameId::Rust:
-#if defined(OMNIGHOST_DEV_EXTERNAL_OFFSETS)
-        return root / L"data" / L"rust_offsets.json";
-#else
-        return {};
 #endif
     case GameId::Warzone:
 #if defined(OMNIGHOST_DEV_EXTERNAL_OFFSETS)
@@ -157,7 +151,6 @@ bool LocalProcessRunning(std::initializer_list<const wchar_t*> names) {
 
 enum RemoteGameMask : std::uint32_t {
     RemoteCs2      = 1u << 0,
-    RemoteRust     = 1u << 1,
     RemoteWarzone  = 1u << 2,
     RemoteValorant = 1u << 3,
     RemoteFortnite = 1u << 4,
@@ -172,7 +165,6 @@ bool RemoteGameRunning(GameId id) noexcept {
     std::uint32_t bit = 0;
     switch (id) {
     case GameId::CS2: bit = RemoteCs2; break;
-    case GameId::Rust: bit = RemoteRust; break;
     case GameId::Warzone: bit = RemoteWarzone; break;
     case GameId::Valorant: bit = RemoteValorant; break;
     case GameId::Fortnite: bit = RemoteFortnite; break;
@@ -217,7 +209,6 @@ void PollRemoteProcessScan(double now) {
             return false;
         };
         if (present({"cs2.exe"})) mask |= RemoteCs2;
-        if (present({"RustClient.exe", "Rust.exe"})) mask |= RemoteRust;
         if (present({"cod.exe"})) mask |= RemoteWarzone;
         if (present({"VALORANT-Win64-Shipping.exe", "VALORANT.exe"})) mask |= RemoteValorant;
         if (present({"FortniteClient-Win64-Shipping.exe", "Fortnite.exe"})) mask |= RemoteFortnite;
@@ -238,9 +229,6 @@ bool DetectRunning(GameId id) {
         // `CS2::ready` can describe an earlier successful attachment. Only a
         // current cs2.exe process is allowed to produce the Running badge.
         return LocalProcessRunning({L"cs2.exe"}) || RemoteGameRunning(id);
-    case GameId::Rust:
-        return Rust::ready || LocalProcessRunning({L"RustClient.exe", L"Rust.exe"}) ||
-               RemoteGameRunning(id);
     case GameId::Warzone:
         return Warzone::ready || LocalProcessRunning({L"cod.exe"}) || RemoteGameRunning(id);
     case GameId::Valorant:
@@ -265,7 +253,6 @@ bool DetectRunning(GameId id) {
 bool AdapterAttached(GameId id) {
     switch (id) {
     case GameId::CS2: return CS2::ready;
-    case GameId::Rust: return Rust::ready;
     case GameId::Warzone: return Warzone::ready;
     case GameId::Valorant: return Valorant::runtime.attached;
     case GameId::Fortnite: return Fortnite::runtime.attached;
@@ -387,7 +374,6 @@ void PushToast(const char* text, ImU32 color = 0,
 ActiveGame ToActiveGame(GameId id) {
     switch (id) {
     case GameId::CS2: return ActiveGame::CS2;
-    case GameId::Rust: return ActiveGame::Rust;
     case GameId::Warzone: return ActiveGame::Warzone;
     case GameId::Valorant: return ActiveGame::Valorant;
     case GameId::Fortnite: return ActiveGame::Fortnite;

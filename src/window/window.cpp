@@ -21,7 +21,6 @@
 #include "../platform/text_encoding.h"
 #include "game/esp_manager.h"
 #include "../../Cs2/cs2_game.h"
-#include "../../Rust/rust_game.h"
 #include "../../Warzone/warzone_game.h"
 #include "../../Valorant/valorant_game.h"
 #include <shellapi.h>
@@ -56,13 +55,6 @@ namespace {
         case MenuTab::TAB_CS2_VISUALS:      return { "VISUAIS CS2", "ESP de jogadores e pré-visualização" };
         case MenuTab::TAB_CS2_AIM:          return { "MIRA CS2", "Perfis e assistência de mira" };
         case MenuTab::TAB_CS2_MISC:         return { "SISTEMA CS2", "Estado e opções adicionais" };
-        case MenuTab::TAB_RUST_VISUALS:     return { "VISUAIS RUST", "Jogadores e pré-visualização" };
-        case MenuTab::TAB_RUST_AIM:         return { "MIRA RUST", "Aquisição e controlo do alvo" };
-        case MenuTab::TAB_RUST_WORLD:       return { "MUNDO RUST", "Recursos, objetos e distâncias" };
-        case MenuTab::TAB_RUST_PLAYERS:     return { "JOGADORES RUST", "Filtros, equipas e informação" };
-        case MenuTab::TAB_RUST_RADAR:       return { "RADAR RUST", "Orientação e alcance" };
-        case MenuTab::TAB_RUST_MISC:        return { "EXTRAS RUST", "Utilidades e preferências" };
-        case MenuTab::TAB_RUST_DEBUG:       return { "DIAGNÓSTICO RUST", "Leituras e estado interno" };
         case MenuTab::TAB_WARZONE_AIM:      return { "MIRA WARZONE", "Alvo, precisão e suavidade" };
         case MenuTab::TAB_WARZONE_VISUALS:  return { "VISUAIS WARZONE", "ESP de jogadores" };
         case MenuTab::TAB_WARZONE_RADAR:    return { "RADAR WARZONE", "Posições e orientação" };
@@ -123,13 +115,6 @@ namespace {
         case MenuTab::TAB_CS2_AIM:     DrawCs2Aim(); break;
         case MenuTab::TAB_CS2_MISC:    DrawCs2Misc(); break;
         case MenuTab::TAB_CS2_RADAR:   DrawCs2Radar(); break;
-        case MenuTab::TAB_RUST_VISUALS: DrawRustVisuals(); break;
-        case MenuTab::TAB_RUST_AIM:     DrawRustAim(); break;
-        case MenuTab::TAB_RUST_WORLD:   DrawRustWorld(); break;
-        case MenuTab::TAB_RUST_PLAYERS: DrawRustPlayers(); break;
-        case MenuTab::TAB_RUST_RADAR:   DrawRustRadar(); break;
-        case MenuTab::TAB_RUST_MISC:    DrawRustMisc(); break;
-        case MenuTab::TAB_RUST_DEBUG:   DrawRustDebug(); break;
         case MenuTab::TAB_WARZONE_AIM:      DrawWarzoneAim(); break;
         case MenuTab::TAB_WARZONE_VISUALS:  DrawWarzoneVisuals(); break;
         case MenuTab::TAB_WARZONE_RADAR:    DrawWarzoneRadar(); break;
@@ -275,7 +260,6 @@ bool Overlay::CreateImGui()
 
 static MenuTab DefaultTabForGame(OmniGhost::ActiveGame game) {
     if (game == OmniGhost::ActiveGame::CS2) return MenuTab::TAB_CS2_VISUALS;
-    if (game == OmniGhost::ActiveGame::Rust) return MenuTab::TAB_RUST_VISUALS;
     if (game == OmniGhost::ActiveGame::Warzone) return MenuTab::TAB_WARZONE_AIM;
     if (game == OmniGhost::ActiveGame::Valorant) return MenuTab::TAB_VALORANT_VISUALS;
     if (game == OmniGhost::ActiveGame::Fortnite) return MenuTab::TAB_FORTNITE_VISUALS;
@@ -440,11 +424,6 @@ const PerformanceMode::State performance = PerformanceMode::Update(
             players = snapshot ? static_cast<int>(snapshot->players.size()) : 0;
             break;
         }
-        case OmniGhost::ActiveGame::Rust:
-            connected = Rust::ready;
-            build = "Rust";
-            players = static_cast<int>(Rust::runtime.players.size());
-            break;
         case OmniGhost::ActiveGame::Warzone:
             connected = Warzone::ready;
             build = "Warzone · BETA";

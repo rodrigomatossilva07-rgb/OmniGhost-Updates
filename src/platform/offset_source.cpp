@@ -201,7 +201,6 @@ EmbeddedOffsets::Game ToEmbeddedGame(GameId id) noexcept {
     case GameId::Fortnite: return EmbeddedOffsets::Game::Fortnite;
     case GameId::Warzone: return EmbeddedOffsets::Game::Warzone;
     case GameId::CS2: return EmbeddedOffsets::Game::CS2;
-    case GameId::Rust: return EmbeddedOffsets::Game::Rust;
     case GameId::FiveM: return EmbeddedOffsets::Game::FiveM;
     case GameId::Apex: return EmbeddedOffsets::Game::Apex;
     default: return EmbeddedOffsets::Game::Fortnite;
@@ -213,7 +212,6 @@ const char* GameSlug(GameId id) noexcept {
     case GameId::Fortnite: return "fortnite";
     case GameId::Warzone: return "warzone";
     case GameId::CS2: return "cs2";
-    case GameId::Rust: return "rust";
     case GameId::FiveM: return "fivem";
     case GameId::Apex: return "apex";
     default: return "unknown";
@@ -225,7 +223,6 @@ const char* CanonicalJsonName(GameId id) noexcept {
     case GameId::Fortnite: return "fortnite_offsets.json";
     case GameId::Warzone: return "warzone_offsets.json";
     case GameId::CS2: return "cs2_offsets.json";
-    case GameId::Rust: return "rust_offsets.json";
     case GameId::FiveM: return "fivem_offsets.json";
     case GameId::Apex: return "apex_offsets.json";
     default: return "offsets.json";

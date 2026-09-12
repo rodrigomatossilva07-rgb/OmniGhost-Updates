@@ -46,6 +46,11 @@ struct Offsets {
     uintptr_t m_entitySpottedState = 0x1C60;
     uintptr_t m_bSpotted = 0x8; // within EntitySpottedState_t
     uintptr_t m_flFlashDuration = 0x1428;
+    // Current CS2 builds expose aim punch through a pawn component. Keep the
+    // legacy direct angle for compatibility with older offset dumps.
+    uintptr_t m_pAimPunchServices = 0x14B8;
+    uintptr_t m_predictableBaseAngle = 0x50;
+    uintptr_t m_unpredictableBaseAngle = 0xA4;
     uintptr_t m_aimPunchAngle = 0x1584;
     // C_PlantedC4 fields for build 14174
     uintptr_t m_bBombTicking = 0x11A0;
@@ -135,6 +140,10 @@ struct Runtime {
     float local_view_yaw = 0.f;
     bool local_scoped = false;
     int local_crosshair_entity = 0;
+    int local_shots_fired = 0;
+    int local_weapon_def = 0;
+    float local_aim_punch[2]{};
+    bool local_aim_punch_valid = false;
     float view_matrix[16]{};
     char map_name[64]{};
     bool in_match = false;

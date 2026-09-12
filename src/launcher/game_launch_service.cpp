@@ -7,7 +7,6 @@
 #include "../../Fivem/game/game.h"
 #include "../../Fivem/aimbot/aim_type.h"
 #include "../../Cs2/cs2_game.h"
-#include "../../Rust/rust_game.h"
 #include "../../Warzone/warzone_game.h"
 #include "../../Valorant/valorant_game.h"
 #include "../../Fortnite/fortnite_game.h"
@@ -60,8 +59,6 @@ bool IsProcessPresent(::Launcher::GameId selected) {
     switch (selected) {
     case ::Launcher::GameId::CS2:
         return mem.GetPidFromName("cs2.exe") != 0 || mem.GetPidFromName("CS2.exe") != 0;
-    case ::Launcher::GameId::Rust:
-        return mem.GetPidFromName("RustClient.exe") != 0 || mem.GetPidFromName("Rust.exe") != 0;
     case ::Launcher::GameId::Warzone: return mem.GetPidFromName("cod.exe") != 0;
     case ::Launcher::GameId::Valorant:
         return mem.GetPidFromName("VALORANT-Win64-Shipping.exe") != 0 ||

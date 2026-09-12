@@ -3,7 +3,6 @@
 #include "../globals.h"
 #include "game_session.h"
 #include "cs2_session.h"
-#include "rust_session.h"
 #include "fivem_session.h"
 #include "valorant_session.h"
 #include "fortnite_session.h"
@@ -23,8 +22,6 @@ public:
         switch (game) {
             case ActiveGame::CS2:
                 return std::make_unique<Cs2Session>(services);
-            case ActiveGame::Rust:
-                return std::make_unique<RustSession>(services);
             case ActiveGame::FiveM:
                 return std::make_unique<FivemSession>(services);
             case ActiveGame::Valorant:
@@ -41,7 +38,6 @@ public:
     bool SupportsGame(ActiveGame game) const noexcept override {
         switch (game) {
             case ActiveGame::CS2:
-            case ActiveGame::Rust:
             case ActiveGame::FiveM:
             case ActiveGame::Valorant:
             case ActiveGame::Fortnite:

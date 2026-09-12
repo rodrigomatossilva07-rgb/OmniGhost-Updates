@@ -4,7 +4,6 @@
 #include "../../../globals.h"
 #include "config/app_settings.h"
 #include "Cs2/cs2_config.h"
-#include "Rust/rust_config.h"
 #include "Warzone/warzone_config.h"
 #include "Valorant/valorant_config.h"
 #include "esp/esp.h"
@@ -22,7 +21,6 @@ namespace {
 const char* ActiveGameName() {
     switch (g_activeGame) {
     case ActiveGame::CS2: return "Counter-Strike 2";
-    case ActiveGame::Rust: return "Rust";
     case ActiveGame::Warzone: return "Warzone";
     case ActiveGame::Valorant: return "Valorant";
     default: return "FiveM";
@@ -61,15 +59,6 @@ VisualPreviewState CurrentVisualState() {
         value.name = CS2::config.name;
         value.distance = CS2::config.distance;
         value.radar = CS2::config.radar_2d;
-        break;
-    case ActiveGame::Rust:
-        value.enabled = Rust::config.esp_enabled;
-        value.box = Rust::config.box || Rust::config.box_corner;
-        value.skeleton = Rust::config.skeleton;
-        value.health = Rust::config.health_bar;
-        value.name = Rust::config.name;
-        value.distance = Rust::config.distance;
-        value.radar = Rust::config.radar_2d;
         break;
     case ActiveGame::Warzone:
         value.enabled = Warzone::config.esp_enabled;
@@ -114,16 +103,6 @@ AimPreviewState CurrentAimState() {
         value.prediction = CS2::config.aim_prediction;
         value.aim_key = CS2::config.aim_bind;
         value.max_dist = CS2::config.aim_max_dist;
-        break;
-    case ActiveGame::Rust:
-        value.enabled = Rust::config.aim_enabled;
-        value.fov = Rust::config.aim_fov;
-        value.smooth = Rust::config.aim_smooth;
-        value.bone = Rust::config.aim_bone;
-        value.rcs = Rust::config.no_recoil;
-        value.prediction = Rust::config.aim_prediction;
-        value.aim_key = Rust::config.aim_bind;
-        value.max_dist = Rust::config.aim_max_dist;
         break;
     case ActiveGame::Warzone:
         value.enabled = Warzone::config.aim_enabled;

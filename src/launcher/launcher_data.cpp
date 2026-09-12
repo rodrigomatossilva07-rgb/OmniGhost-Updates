@@ -51,22 +51,6 @@ constexpr GameDefinition kGames[] = {
         "2", "launcher.game.cs2.tagline"
     },
     {
-        GameId::Rust,
-        "rust",
-        "Rust",
-        "launcher.game.rust.description",
-        "resources/games/rust/logo.png",
-        "resources/games/rust/banner.png",
-        "0.1.0",
-        false,
-        false,
-        { 40, 28, 22 },
-        { 18, 12, 10 },
-        { 212, 175, 55 },
-        "R",
-        "launcher.game.rust.tagline"
-    },
-    {
         GameId::Warzone,
         "warzone",
         "Call of Duty: Warzone",

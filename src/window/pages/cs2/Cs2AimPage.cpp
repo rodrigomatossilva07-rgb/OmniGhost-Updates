@@ -104,6 +104,30 @@ void DrawCs2Aim() {
     CyberWidgets::EndCard();
 
     CyberWidgets::CardGap(gap);
+    CyberWidgets::BeginCard("CONTROLO DE RECOIL", left);
+    CyberWidgets::ToggleSwitch("Ativar RCS", &CS2::config.rcs_enabled);
+    if (CS2::config.rcs_enabled) {
+        CyberWidgets::SliderFloat("Forca", &CS2::config.rcs_strength,
+                                  0.f, 100.f, "%.0f%%");
+        CyberWidgets::SliderFloat("Sensibilidade CS2", &CS2::config.rcs_sensitivity,
+                                  0.10f, 5.f, "%.2f");
+        CyberWidgets::SliderFloat("Escala de recoil", &CS2::config.rcs_recoil_scale,
+                                  0.f, 4.f, "%.2f");
+        float recovery = static_cast<float>(CS2::config.rcs_recovery_ms);
+        if (CyberWidgets::SliderFloat("Reset sem disparo", &recovery,
+                                      50.f, 350.f, "%.0f ms"))
+            CS2::config.rcs_recovery_ms = static_cast<int>(recovery);
+        CyberWidgets::ToggleSwitch("Fallback por pattern", &CS2::config.rcs_pattern_fallback);
+        CyberWidgets::ToggleSwitch("Combinar com aimbot", &CS2::config.rcs_with_aimbot);
+        CyberWidgets::TextLine(
+            "Atua apenas durante o disparo; punch DMA tem prioridade.",
+            CyberWidgets::TextTone::Secondary);
+    } else {
+        CyberWidgets::TextLine("RCS desativado.", CyberWidgets::TextTone::Secondary);
+    }
+    CyberWidgets::EndCard();
+
+    CyberWidgets::CardGap(gap);
     CyberWidgets::BeginCard("DISPARO AUTOMATICO", left);
     CyberWidgets::ToggleSwitch("Ativar disparo automatico", &CS2::config.trigger_enabled);
     if (CS2::config.trigger_enabled) {

@@ -33,7 +33,6 @@
 #include "../licensing/license_service.h"
 #include "../platform/offset_auto.h"
 #include "../../Cs2/cs2_game.h"
-#include "../../Rust/rust_game.h"
 #include "../../Warzone/warzone_game.h"
 #include "../../Valorant/valorant_game.h"
 #include "../../Fortnite/fortnite_game.h"
@@ -236,7 +235,7 @@ void Reset(EntryReason reason) {
     if (!g_startup_offset_checks.valid()) {
         // Soft background check (ETag / If-None-Match) for every API-backed game
         for (ActiveGame g : {
-                ActiveGame::Rust, ActiveGame::CS2,
+                ActiveGame::CS2,
                 ActiveGame::Warzone, ActiveGame::FiveM, ActiveGame::Apex}) {
             OmniGhost::OffsetAuto::MarkChecking(g);
         }

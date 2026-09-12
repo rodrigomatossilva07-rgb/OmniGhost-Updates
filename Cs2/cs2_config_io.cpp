@@ -78,6 +78,13 @@ bool SaveConfig(const char* name) {
     w("prediction_strength", config.prediction_strength);
     w("hit_chance_ui", config.hit_chance_ui ? 1 : 0);
     w("aim_switch_cooldown_ms", config.aim_switch_cooldown_ms);
+    w("rcs_enabled", config.rcs_enabled ? 1 : 0);
+    w("rcs_strength", config.rcs_strength);
+    w("rcs_sensitivity", config.rcs_sensitivity);
+    w("rcs_recoil_scale", config.rcs_recoil_scale);
+    w("rcs_recovery_ms", config.rcs_recovery_ms);
+    w("rcs_pattern_fallback", config.rcs_pattern_fallback ? 1 : 0);
+    w("rcs_with_aimbot", config.rcs_with_aimbot ? 1 : 0);
     w("trigger_enabled", config.trigger_enabled ? 1 : 0);
     w("trigger_bind", config.trigger_bind);
     w("trigger_delay_ms", config.trigger_delay_ms);
@@ -183,6 +190,13 @@ bool LoadConfig(const char* name) {
         fi("prediction_strength", config.prediction_strength);
         bi("hit_chance_ui", config.hit_chance_ui);
         fi("aim_switch_cooldown_ms", config.aim_switch_cooldown_ms);
+        bi("rcs_enabled", config.rcs_enabled);
+        fi("rcs_strength", config.rcs_strength);
+        fi("rcs_sensitivity", config.rcs_sensitivity);
+        fi("rcs_recoil_scale", config.rcs_recoil_scale);
+        ii("rcs_recovery_ms", config.rcs_recovery_ms);
+        bi("rcs_pattern_fallback", config.rcs_pattern_fallback);
+        bi("rcs_with_aimbot", config.rcs_with_aimbot);
         bi("trigger_enabled", config.trigger_enabled);
         ii("trigger_bind", config.trigger_bind);
         ii("trigger_delay_ms", config.trigger_delay_ms);

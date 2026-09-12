@@ -95,8 +95,8 @@
     <OmniGhostRootResource Include="$(ProjectDir)resources\OmniGhost.ico;$(ProjectDir)resources\OmniGhost.png"/>
     <OmniGhostGameResource Include="$(ProjectDir)resources\games\**\*.png;$(ProjectDir)resources\games\**\*.jpg;$(ProjectDir)resources\games\**\*.jpeg;$(ProjectDir)resources\games\**\*.webp"/>
     <OmniGhostProjectData Include="$(ProjectDir)data\**\*" Exclude="$(ProjectDir)data\*offsets.json;$(ProjectDir)data\offsets.json;$(ProjectDir)data\fortnite_offsets\**\*;$(ProjectDir)data\**\*offsets*.json"/>
-    <OmniGhostDevOffsetData Include="$(ProjectDir)data\fortnite_offsets.json;$(ProjectDir)data\warzone_offsets.json;$(ProjectDir)data\cs2_offsets.json;$(ProjectDir)data\rust_offsets.json;$(ProjectDir)data\fivem_offsets.json;$(ProjectDir)data\apex_offsets.json;$(ProjectDir)data\offsets.json;$(ProjectDir)Valorant\data\valorant_offsets.json" Condition="'$(Configuration)'=='Tester'"/>
-    <OmniGhostCs2Data Include="$(ProjectDir)Cs2\data\**\*" Exclude="$(ProjectDir)Cs2\data\offsets.json"/>
+    <OmniGhostDevOffsetData Include="$(ProjectDir)data\fortnite_offsets.json;$(ProjectDir)data\warzone_offsets.json;$(ProjectDir)data\cs2_offsets.json;$(ProjectDir)data\fivem_offsets.json;$(ProjectDir)data\apex_offsets.json;$(ProjectDir)Valorant\data\valorant_offsets.json" Condition="'$(Configuration)'=='Tester'"/>
+    <OmniGhostCs2Data Include="$(ProjectDir)Cs2\data\weapons\**\*;$(ProjectDir)Cs2\data\webradar\**\*" Exclude="$(ProjectDir)Cs2\data\offsets.json"/>
     <OmniGhostValorantData Include="$(ProjectDir)Valorant\data\**\*" Exclude="$(ProjectDir)Valorant\data\*offsets*.json"/>
   </ItemGroup>
   <Target Name="BuildOmniGhostEmbeddedOffsets" BeforeTargets="ResourceCompile" Condition="'$(DesignTimeBuild)'!='true'">
@@ -169,7 +169,6 @@
     <Error Condition="'$(Configuration)'!='Tester' And Exists('$(OutDir)data\fortnite_offsets.json')" Code="OGOFF002" Text="Release/Publish nÃ£o podem distribuir data\fortnite_offsets.json; o snapshot deve estar embutido no EXE."/>
     <Error Condition="'$(Configuration)'!='Tester' And Exists('$(OutDir)data\warzone_offsets.json')" Code="OGOFF003" Text="Release/Publish nÃ£o podem distribuir data\warzone_offsets.json; o snapshot deve estar embutido no EXE."/>
     <Error Condition="'$(Configuration)'!='Tester' And Exists('$(OutDir)data\cs2_offsets.json')" Code="OGOFF004" Text="Release/Publish cannot ship plaintext cs2 offsets; must be embedded."/>
-    <Error Condition="'$(Configuration)'!='Tester' And Exists('$(OutDir)data\rust_offsets.json')" Code="OGOFF005" Text="Release/Publish cannot ship plaintext rust offsets; must be embedded."/>
     <Error Condition="'$(Configuration)'!='Tester' And Exists('$(OutDir)data\fivem_offsets.json')" Code="OGOFF006" Text="Release/Publish cannot ship plaintext fivem offsets; must be embedded."/>
     <Error Condition="'$(Configuration)'!='Tester' And Exists('$(OutDir)data\apex_offsets.json')" Code="OGOFF007" Text="Release/Publish cannot ship plaintext apex offsets; must be embedded."/>
     <Error Condition="'$(Configuration)'!='Tester' And Exists('$(OutDir)data\offsets.json')" Code="OGOFF008" Text="Release/Publish cannot ship plaintext offsets.json; must be embedded."/>
@@ -221,7 +220,6 @@
     <ClInclude Include="src\launcher\game_select_presentation.inl"/>
     <ClInclude Include="src\launcher\game_select_pages.inl"/>
     <ClInclude Include="src\launcher\game_select_modals.inl"/>
-    <ClInclude Include="Rust\rust_offset_loading.inl"/>
     <ClCompile Include="src\launcher\license_page.cpp"/>
     <ClCompile Include="src\launcher\launcher_assets.cpp"/>
     <ClCompile Include="src\launcher\launcher_data.cpp"/>
@@ -335,13 +333,6 @@
     <ClCompile Include="Cs2\cs2_radar.cpp"/>
     <ClCompile Include="Cs2\cs2_config_io.cpp"/>
     <ClCompile Include="Cs2\cs2_weapon_icons.cpp"/>
-    <ClCompile Include="Rust\rust_aim.cpp"/>
-    <ClCompile Include="Rust\rust_decrypt.cpp"/>
-    <ClCompile Include="Rust\rust_offset_api.cpp"/>
-    <ClCompile Include="Rust\rust_esp.cpp"/>
-    <ClCompile Include="Rust\rust_game.cpp"/>
-    <ClCompile Include="Rust\rust_entities.cpp"/>
-    <ClCompile Include="Rust\rust_probe.cpp"/>
     <ClCompile Include="Warzone\warzone_game.cpp"/>
     <ClCompile Include="Warzone\warzone_decrypt.cpp"/>
     <ClCompile Include="Warzone\warzone_aim.cpp"/>

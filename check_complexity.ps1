@@ -3,7 +3,6 @@ $files = @(
     'src/launcher/updates_page.cpp',
     'DMALibrary/Memory/Memory.cpp',
     'Fivem/esp/esp.cpp',
-    'Rust/rust_game.cpp',
     'Cs2/cs2_game.cpp'
 )
 foreach ($f in $files) {

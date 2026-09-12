@@ -127,37 +127,6 @@ void CS2CryptoProvider::InstallAntiTamper() const noexcept {
 }
 
 // ============================================================
-// Rust Crypto Provider
-// ============================================================
-
-void RustCryptoProvider::DecryptOffsets(std::span<uint8_t> data) const noexcept {
-    static constexpr uint8_t key[32] = {0x13, 0x37, 0x42, 0x42, 0xDE, 0xAD, 0xBE, 0xEF,
-                                         0xCA, 0xFE, 0xBA, 0xBE, 0xFE, 0xED, 0xFA, 0xCE,
-                                         0xDE, 0xAD, 0xC0, 0xDE, 0xFA, 0xCE, 0xB0, 0x0C,
-                                         0xAB, 0xAD, 0xBA, 0xBE, 0xFE, 0xED, 0xFA, 0xCE};
-    
-    for (size_t i = 0; i < data.size(); ++i) {
-        data[i] ^= key[i % 32];
-    }
-}
-
-void RustCryptoProvider::EncryptOffsets(std::span<uint8_t> data) const noexcept {
-    DecryptOffsets(data);
-}
-
-bool RustCryptoProvider::VerifyIntegrity() const noexcept {
-    return true;
-}
-
-std::array<uint8_t, 32> RustCryptoProvider::DeriveKey(std::string_view context) const noexcept {
-    return DeriveKeyFromContext(context, "Rust_Salt_v1");
-}
-
-void RustCryptoProvider::InstallAntiTamper() const noexcept {
-    // Rust-specific anti-tamper
-}
-
-// ============================================================
 // Warzone Crypto Provider
 // ============================================================
 

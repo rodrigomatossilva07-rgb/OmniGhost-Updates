@@ -526,7 +526,6 @@ float OpticalLogoScale(GameId id) {
     switch (id) {
     case GameId::FiveM: return 0.72f;
     case GameId::CS2: return 0.88f;
-    case GameId::Rust: return 0.56f;
     case GameId::Warzone: return 0.72f;
     case GameId::Valorant: return 0.72f;
     case GameId::Apex: return 0.66f;

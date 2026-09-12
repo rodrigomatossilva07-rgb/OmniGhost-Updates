@@ -11,7 +11,6 @@ namespace OmniGhost {
 enum class ActiveGame : int {
     FiveM = 0,
     CS2 = 1,
-    Rust = 2,
     Warzone = 3,
     Valorant = 4,
     Fortnite = 5,
@@ -75,7 +74,6 @@ public:
     static std::string GetGamePrefix(ActiveGame game) noexcept {
         switch (game) {
             case ActiveGame::CS2: return "cs2_";
-            case ActiveGame::Rust: return "rust_";
             case ActiveGame::Warzone: return "warzone_";
             case ActiveGame::Valorant: return "valorant_";
             default: return "fivem_";
@@ -85,7 +83,6 @@ public:
     static std::string GetGameMeta(ActiveGame game) noexcept {
         switch (game) {
             case ActiveGame::CS2: return "cs2";
-            case ActiveGame::Rust: return "rust";
             case ActiveGame::Warzone: return "warzone";
             case ActiveGame::Valorant: return "valorant";
             default: return "fivem";

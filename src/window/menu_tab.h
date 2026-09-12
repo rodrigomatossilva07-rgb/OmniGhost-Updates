@@ -16,14 +16,6 @@ enum class MenuTab : int {
     TAB_CS2_MISC,
     TAB_CS2_RADAR,
     TAB_CS2_CONFIGS,
-    // Rust-specific (blurred-inspired layout)
-    TAB_RUST_VISUALS = 200,
-    TAB_RUST_AIM,
-    TAB_RUST_WORLD,
-    TAB_RUST_PLAYERS,
-    TAB_RUST_RADAR,
-    TAB_RUST_MISC,
-    TAB_RUST_DEBUG,
     // Warzone-specific runtime pages
     TAB_WARZONE_AIM = 300,
     TAB_WARZONE_VISUALS,
@@ -79,15 +71,6 @@ void DrawCs2Visuals();
 void DrawCs2Aim();
 void DrawCs2Misc();
 void DrawCs2Radar();
-
-// Rust pages
-void DrawRustVisuals();
-void DrawRustAim();
-void DrawRustWorld();
-void DrawRustPlayers();
-void DrawRustRadar();
-void DrawRustMisc();
-void DrawRustDebug();
 
 // Warzone pages
 void DrawWarzoneAim();

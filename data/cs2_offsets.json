@@ -71,6 +71,7 @@
       "m_angEyeAngles": "0x3350",
       "m_iShotsFired": "0x1c8c",
       "m_iIDEntIndex": "0x342c",
+      "m_pAimPunchServices": "0x14b8",
       "m_bIsScoped": "0x1c78",
       "m_entitySpottedState": "0x1c60"
     },
@@ -97,6 +98,10 @@
     },
     "CPlayer_WeaponServices": {
       "m_hActiveWeapon": "0x60"
+    },
+    "CCSPlayer_AimPunchServices": {
+      "m_predictableBaseAngle": "0x50",
+      "m_unpredictableBaseAngle": "0xa4"
     },
     "C_EconEntity": {
       "m_AttributeManager": "0x11a8"

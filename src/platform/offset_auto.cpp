@@ -2,8 +2,6 @@
 
 #include "cheatoffsets_api.h"
 #include "../../Cs2/cs2_game.h"
-#include "../../Rust/rust_game.h"
-#include "../../Rust/rust_offset_api.h"
 #include "../../Warzone/warzone_game.h"
 #include "../../Valorant/valorant_game.h"
 #include "../../Fivem/game/offsets.h"
@@ -88,7 +86,6 @@ bool BlocksLaunch(ActiveGame game) {
 }
 bool SupportsAutomaticRefresh(ActiveGame game) {
     switch (game) {
-    case ActiveGame::Rust:
     case ActiveGame::CS2:
 #if defined(OMNIGHOST_DEV_EXTERNAL_OFFSETS)
     case ActiveGame::Warzone:
@@ -102,12 +99,6 @@ bool SupportsAutomaticRefresh(ActiveGame game) {
 }
 
 bool HasCriticalOffsets(ActiveGame game) {
-    if (game == ActiveGame::Rust) {
-        // BN + MainCamera are enough (BasePlayer TypeInfo is often absent in current dumps)
-        return Rust::offsets.MainCamera_TypeInfo != 0
-            && (Rust::offsets.BaseNetworkable_TypeInfo != 0
-                || Rust::offsets.BasePlayer_TypeInfo != 0);
-    }
     if (game == ActiveGame::CS2) {
         return CS2::offsets.loaded
             && CS2::offsets.dwEntityList != 0
@@ -124,10 +115,6 @@ bool HasCriticalOffsets(ActiveGame game) {
 }
 
 bool ValidateLive(ActiveGame game) {
-    if (game == ActiveGame::Rust) {
-        if (!Rust::ready) return false;
-        return Rust::ValidateLiveOffsets();
-    }
     if (game == ActiveGame::CS2) {
         if (!CS2::ready) return false;
         return CS2::ValidateLiveOffsets();
@@ -139,10 +126,6 @@ bool SoftProbeLive(ActiveGame game) {
     switch (game) {
     case ActiveGame::CS2:
         return CS2::ready && CS2::ValidateLiveOffsets();
-    case ActiveGame::Rust:
-        // Rust attach is async — only probe when backend is ready with GA
-        if (!Rust::ready) return true; // do not block menu while connecting
-        return Rust::SoftProbeLobbyOffsets();
     case ActiveGame::Warzone:
         return Warzone::ready && Warzone::SoftProbeLobbyOffsets();
     case ActiveGame::Valorant:
@@ -160,8 +143,6 @@ const char* SoftProbeFailReason(ActiveGame game) {
     switch (game) {
     case ActiveGame::CS2:
         return "Offsets CS2 inválidos no lobby (entity list / view matrix). Atualiza os offsets.";
-    case ActiveGame::Rust:
-        return "Offsets Rust inválidos (MainCamera/BaseNetworkable TypeInfo). Atualiza os offsets.";
     case ActiveGame::Warzone:
         return "Offsets Warzone inválidos (view_matrix / módulo). Atualiza os offsets.";
     case ActiveGame::Valorant:
@@ -205,48 +186,14 @@ Result EnsureOffsets(ActiveGame game, bool force_refresh) {
         return true;
     };
 
-    if (game == ActiveGame::Rust) {
-        const auto candidate = data / L"rust_offsets.candidate.json";
-        const bool downloaded = force_refresh
-            ? Rust::OffsetApi::FetchAndSave(candidate.string().c_str(), &networkStatus)
-            : Rust::OffsetApi::FetchIfChanged(candidate.string().c_str(), &networkStatus);
-        if (downloaded && try_install(candidate, data / L"rust_offsets.json",
-                [](const char* p) { return Rust::LoadOffsetsFromJson(p); })) {
-            MarkLiveValid(game, networkStatus.empty()
-                ? "Rust: offsets atualizados via cheatoffsets.com" : networkStatus);
-            g_status = "Rust: offsets atualizados";
-            return Result::Ok;
-        }
-        // 304 already current — reload local and treat as Current
-        if (!force_refresh && networkStatus.find("304") != std::string::npos) {
-            Rust::LoadOffsetsFromJson(nullptr);
-            if (HasCriticalOffsets(game)) {
-                MarkLiveValid(game, "Rust: já atuais (API 304)");
-                g_status = "Rust: offsets já atuais";
-                return Result::Current;
-            }
-        }
-        Rust::LoadOffsetsFromJson(nullptr);
-        const bool cached = HasCriticalOffsets(game);
-        g_status = cached
-            ? (std::string("Rust: API indisponível (") + networkStatus + "); mantido último válido")
-            : "Rust: offsets críticos em falta";
-        if (cached && !BlocksLaunch(game)) MarkLiveValid(game, g_status);
-        else if (!cached) MarkOutdated(game, g_status);
-        return cached ? Result::UsingCached : Result::RefreshFailed;
-    }
     if (game == ActiveGame::CS2) {
-        const auto candidate = data / L"offsets.candidate.json";
+        const auto candidate = data / L"cs2_offsets.candidate.json";
         const bool downloaded = force_refresh
             ? OmniGhost::CheatOffsets::FetchGame("cs2", candidate.string().c_str(), &networkStatus)
             : OmniGhost::CheatOffsets::FetchGameIfChanged("cs2", candidate.string().c_str(), &networkStatus);
         // LoadOffsetsFromJson now accepts API markdown + classic client.dll JSON.
-        if (downloaded && try_install(candidate, data / L"offsets.json",
+        if (downloaded && try_install(candidate, data / L"cs2_offsets.json",
                 [](const char* p) { return CS2::LoadOffsetsFromJson(p); })) {
-            // Mirror into cs2_offsets.json for diagnostics / dual path
-            std::error_code ec;
-            std::filesystem::copy_file(data / L"offsets.json", data / L"cs2_offsets.json",
-                std::filesystem::copy_options::overwrite_existing, ec);
             MarkLiveValid(game, networkStatus.empty()
                 ? "CS2: offsets atualizados via cheatoffsets.com" : networkStatus);
             g_status = "CS2: offsets atualizados";
@@ -365,7 +312,6 @@ Result EnsureOffsets(ActiveGame game, bool force_refresh) {
 int RefreshAllSupported(bool force) {
     int ok = 0;
     const ActiveGame games[] = {
-        ActiveGame::Rust,
         ActiveGame::CS2,
         ActiveGame::Warzone,
         ActiveGame::FiveM,

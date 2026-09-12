@@ -13,7 +13,6 @@
 #include "../../../licensing/license_service.h"
 #include "platform/monitor_utils.h"
 #include "Memory/Memory.h"
-#include "Rust/rust_game.h"
 #include "Cs2/cs2_game.h"
 #include "Fivem/game/game_setup.h"
 #include "config/config_manager.h"
@@ -314,11 +313,7 @@ void DrawConfigs(Overlay* self)
     if (CyberWidgets::GoldButton(Loc::Tr("device.reinit_dma"), ImVec2(160, 36))) {
         bool ok = false;
         std::string msg;
-        if (g_activeGame == ActiveGame::Rust) {
-            ok = Rust::ReinitDmaAsync();
-            msg = ok ? "Rust Reinit DMA iniciado em background"
-                     : (Rust::status.empty() ? "Rust Reinit DMA falhou" : Rust::status);
-        } else if (g_activeGame == ActiveGame::CS2) {
+        if (g_activeGame == ActiveGame::CS2) {
             ok = CS2::ReinitDma();
             msg = ok ? "CS2 Reinit DMA OK" : (CS2::status.empty() ? "CS2 Reinit DMA falhou" : CS2::status);
         } else if (g_activeGame == ActiveGame::FiveM) {
@@ -336,13 +331,6 @@ void DrawConfigs(Overlay* self)
         }
         CyberWidgets::Notify(msg.c_str(),
             ok ? CyberWidgets::ToastType::Success : CyberWidgets::ToastType::Error);
-    }
-    if (g_activeGame == ActiveGame::Rust && Rust::backend_busy.load()) {
-        ImGui::SameLine();
-        if (CyberWidgets::CyberButton("Cancelar reinicialização", ImVec2(210, 36))) {
-            Rust::CancelBackendOperation();
-            CyberWidgets::Notify("Cancelamento do motor do jogo solicitado", CyberWidgets::ToastType::Info);
-        }
     }
     CyberWidgets::CardGap(12.0f);
     if (CyberWidgets::DangerButton(app_settings::T("Voltar ao launcher", "Return to launcher"), ImVec2(190, 36))) {
