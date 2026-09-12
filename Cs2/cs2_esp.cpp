@@ -9,6 +9,7 @@
 #include "gameplay/esp_optimizer.h"
 #include "imgui.h"
 #include "../src/window/window.hpp"
+#include "../src/config/app_settings.h"
 #include <Windows.h>
 #include <cmath>
 #include <algorithm>
@@ -222,19 +223,22 @@ void DrawRadar2D(ImDrawList* dl, const CS2::Runtime& rt, CS2::Config& cfg) {
     float& oy = cfg.radar_2d_y;
     const float size = cfg.radar_2d_size > 80.f ? cfg.radar_2d_size : 160.f;
 
-    // Draggable when any ImGui window is open (menu visible)
-    if (ImGui::GetCurrentContext() && ImGui::GetIO().WantCaptureMouse) {
-        ImGui::SetNextWindowPos(ImVec2(ox, oy), ImGuiCond_Appearing);
-        ImGui::SetNextWindowSize(ImVec2(size, size));
+    // Keep the drag hitbox attached to the visible radar after every move.
+    if (ImGui::GetCurrentContext() && app_settings::menu_open) {
+        ImGui::SetNextWindowPos(ImVec2(ox, oy), ImGuiCond_Always);
+        ImGui::SetNextWindowSize(ImVec2(size, size), ImGuiCond_Always);
         ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0));
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
         ImGui::Begin("##radar2d_drag", nullptr,
             ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
             ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoCollapse |
-            ImGuiWindowFlags_NoBackground);
+            ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoMove);
         if (ImGui::IsWindowHovered() && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
             ox += ImGui::GetIO().MouseDelta.x;
             oy += ImGui::GetIO().MouseDelta.y;
+            const ImVec2 display = ImGui::GetIO().DisplaySize;
+            ox = std::clamp(ox, 0.f, std::max(0.f, display.x - size));
+            oy = std::clamp(oy, 0.f, std::max(0.f, display.y - size));
         }
         ImGui::End();
         ImGui::PopStyleVar();
@@ -491,7 +495,6 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
         }
     }
 
-    const int aimTarget = CS2_Aim::ActiveTargetIndex();
     const float screenCx = ds.x * 0.5f, screenCy = ds.y * 0.5f;
 
     // ── FOV-ring arrows for ALL match players (always visible, size = FOV+5) ──
@@ -503,9 +506,7 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
             if (!p.is_local && cfg.team_check && p.team == rt.local_team) continue;
             if (!p.alive && p.health <= 0) continue;
 
-            const bool isAimTarget = false; // aim-target gold highlight removed
-            const float* colBase = isAimTarget ? cfg.col_target
-                : ((p.team == rt.local_team) ? cfg.col_team : cfg.col_enemy);
+            const float* colBase = (p.team == rt.local_team) ? cfg.col_team : cfg.col_enemy;
             const ImU32 teamCol = Col(colBase);
 
             float dirX = 0.f, dirY = 0.f;
@@ -531,6 +532,11 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
 
     if (!cfg.esp_enabled) return;
 
+    // Texture initialization is global, not player-specific. Keep it outside
+    // the player loop even though EnsureLoaded has its own fast guard.
+    if (cfg.weapon_icons && g_overlay_instance && g_overlay_instance->device)
+        CS2_WeaponIcons::EnsureLoaded(g_overlay_instance->device);
+
     for (int pi = 0; pi < (int)rt.players.size(); ++pi) {
         const auto& p = rt.players[pi];
         if (p.is_local && !cfg.self_esp) continue;
@@ -540,9 +546,7 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
             continue;
 
         // Team/enemy color for ALL ESP elements except weapon icons
-        const bool isAimTarget = false; // aim-target gold highlight removed
-        const float* colBase = isAimTarget ? cfg.col_target
-            : ((p.team == rt.local_team) ? cfg.col_team : cfg.col_enemy);
+        const float* colBase = (p.team == rt.local_team) ? cfg.col_team : cfg.col_enemy;
         // Cores por visibilidade (spotted)
         float colVis[4] = { colBase[0], colBase[1], colBase[2], colBase[3] };
         if (cfg.visibility_colors && !p.is_local) {
@@ -552,28 +556,19 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
                 colVis[0] = 0.95f; colVis[1] = 0.35f; colVis[2] = 0.30f;
             }
         }
-        const ImU32 teamCol = Col(isAimTarget ? colBase : colVis);
+        const ImU32 teamCol = Col(colVis);
 
         DrawMotionVisuals(dl, rt, cfg, p);
 
+        // Anchor the box to the current pawn origin. Bone snapshots can be a
+        // fraction of a tick older while a player is moving and must not drag
+        // the entire box/name away from the entity.
+        const float boxHead[3] = { p.pos[0], p.pos[1], p.pos[2] + 72.f };
+        const float boxFeet[3] = { p.pos[0], p.pos[1], p.pos[2] };
         float hx, hy, fx, fy;
-        if (!W2S(p.head, rt.view_matrix, hx, hy))
+        if (!W2S(boxHead, rt.view_matrix, hx, hy))
             continue;
-
-        // Prefer ankle mid-point for feet when skeleton is valid — reduces
-        // the classic "skeleton drifts off the box" look.
-        float feet[3] = { p.pos[0], p.pos[1], p.pos[2] };
-        if (p.bones_ok) {
-            // slots 16 = L ankle, 19 = R ankle
-            feet[0] = (p.bones[16][0] + p.bones[19][0]) * 0.5f;
-            feet[1] = (p.bones[16][1] + p.bones[19][1]) * 0.5f;
-            feet[2] = (std::min)(p.bones[16][2], p.bones[19][2]);
-            const float adx = feet[0] - p.pos[0], ady = feet[1] - p.pos[1];
-            if (adx * adx + ady * ady > 40.f * 40.f) {
-                feet[0] = p.pos[0]; feet[1] = p.pos[1]; feet[2] = p.pos[2];
-            }
-        }
-        if (!W2S(feet, rt.view_matrix, fx, fy)) continue;
+        if (!W2S(boxFeet, rt.view_matrix, fx, fy)) continue;
 
         float h = fabsf(fy - hy);
         if (h < 8.f) h = 8.f;
@@ -585,9 +580,7 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
 
         if (cfg.box || cfg.box_corner) {
             ImU32 c = teamCol;
-            float thickness = isAimTarget
-                ? std::clamp(cfg.box_thickness + 0.8f, 0.5f, 10.f)
-                : std::clamp(cfg.box_thickness, 0.5f, 8.f);
+            const float thickness = std::clamp(cfg.box_thickness, 0.5f, 8.f);
             if (cfg.box && !cfg.box_corner) {
                 dl->AddRect(ImVec2(left, top), ImVec2(right, bottom), c, 0.f, 0, thickness);
             } else {
@@ -715,8 +708,6 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
         // Text weapon name was removed; icons are the only weapon display path.
         float belowY = fy + 4.f;
         if (cfg.weapon_icons && p.weapon_def > 0) {
-            if (g_overlay_instance && g_overlay_instance->device)
-                CS2_WeaponIcons::EnsureLoaded(g_overlay_instance->device);
             if (ID3D11ShaderResourceView* srv = CS2_WeaponIcons::Get(p.weapon_def)) {
                 int iw = 0, ih = 0;
                 CS2_WeaponIcons::GetSize(p.weapon_def, iw, ih);

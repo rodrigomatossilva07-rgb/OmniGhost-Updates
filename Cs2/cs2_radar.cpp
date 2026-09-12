@@ -1,6 +1,7 @@
 #include "cs2_radar.h"
 #include "cs2_game.h"
 #include "cs2_config.h"
+#include "../src/platform/runtime_bootstrap.h"
 
 #include <Windows.h>
 #include <winsock2.h>
@@ -35,8 +36,10 @@ std::mutex g_mu;
 std::string g_token;
 std::string g_public_url;
 std::string g_web_root;
+std::string g_live_json = "{\"m_map\":\"unknown\",\"m_round_phase\":\"warmup\",\"m_players\":[],\"m_bomb\":null}";
+std::thread g_server_thread;
 HANDLE g_cf_proc = nullptr;
-HANDLE g_cf_thread = nullptr;
+std::thread g_cf_reader;
 std::atomic<bool> g_cf_stop{false};
 
 bool EnsureWsa() {
@@ -196,6 +199,11 @@ void SendResponse(SOCKET s, int code, const char* statusText, const std::string&
         SendAll(s, body.data(), static_cast<int>(body.size()));
 }
 
+std::string LiveJsonSnapshot() {
+    std::lock_guard<std::mutex> lock(g_mu);
+    return g_live_json;
+}
+
 bool TokenOk(const std::string& req) {
     std::lock_guard<std::mutex> lock(g_mu);
     if (g_token.empty()) return true;
@@ -262,7 +270,7 @@ void HandleClient(SOCKET client) {
             req.find("authorization:") == std::string::npos) {
             // Allow unauthenticated local polling for LAN ease; token still in URL hash for browsers.
         }
-        const std::string json = BuildLiveJson();
+        const std::string json = LiveJsonSnapshot();
         SendResponse(client, 200, "OK", json, "application/json; charset=utf-8");
         closesocket(client);
         return;
@@ -270,7 +278,7 @@ void HandleClient(SOCKET client) {
 
     if (method == "GET" && pure == "/api/stream") {
         // Minimal SSE stream — one snapshot then close (client will reconnect/poll).
-        const std::string json = BuildLiveJson();
+        const std::string json = LiveJsonSnapshot();
         std::string body = "data: " + json + "\n\n";
         char header[256];
         std::snprintf(header, sizeof(header),
@@ -318,12 +326,43 @@ void HandleClient(SOCKET client) {
     closesocket(client);
 }
 
-DWORD WINAPI CloudflareReader(LPVOID) {
-    // Not used if we don't redirect pipes; placeholder.
-    return 0;
+void ServerLoop() {
+    while (g_running.load()) {
+        SOCKET listenSock = INVALID_SOCKET;
+        {
+            std::lock_guard<std::mutex> lock(g_mu);
+            listenSock = g_listen;
+        }
+        if (listenSock == INVALID_SOCKET) break;
+
+        sockaddr_in cli{};
+        int clen = sizeof(cli);
+        SOCKET client = accept(listenSock, reinterpret_cast<sockaddr*>(&cli), &clen);
+        if (client == INVALID_SOCKET) {
+            Sleep(5);
+            continue;
+        }
+        u_long blocking = 0;
+        ioctlsocket(client, FIONBIO, &blocking);
+        DWORD timeout = 750;
+        setsockopt(client, SOL_SOCKET, SO_RCVTIMEO,
+                   reinterpret_cast<const char*>(&timeout), sizeof(timeout));
+        setsockopt(client, SOL_SOCKET, SO_SNDTIMEO,
+                   reinterpret_cast<const char*>(&timeout), sizeof(timeout));
+        HandleClient(client);
+    }
 }
 
 std::wstring FindCloudflared() {
+    std::wstring materializeError;
+    if (OmniGhost::RuntimeBootstrap::MaterializePrivateRuntimeFile(
+            L"libs/cloudflared.exe", materializeError)) {
+        const fs::path embedded = OmniGhost::RuntimeBootstrap::PrivateRuntimePath(
+            L"libs/cloudflared.exe");
+        if (fs::is_regular_file(embedded))
+            return embedded.wstring();
+    }
+
     const std::string exe = ExeDir();
     const wchar_t* rels[] = {
         L"libs\\cloudflared.exe",
@@ -443,6 +482,7 @@ bool Start(int port) {
         g_public_url.clear();
     }
     g_running.store(true);
+    g_server_thread = std::thread(ServerLoop);
     std::cout << "[WebRadar] listening on 0.0.0.0:" << port
               << " root=" << g_web_root << "\n";
     return true;
@@ -450,13 +490,16 @@ bool Start(int port) {
 
 void Stop() {
     g_running.store(false);
-    StopCloudflare();
-    std::lock_guard<std::mutex> lock(g_mu);
-    if (g_listen != INVALID_SOCKET) {
-        closesocket(g_listen);
-        g_listen = INVALID_SOCKET;
+    {
+        std::lock_guard<std::mutex> lock(g_mu);
+        if (g_listen != INVALID_SOCKET) {
+            closesocket(g_listen);
+            g_listen = INVALID_SOCKET;
+        }
     }
-    g_public_url.clear();
+    if (g_server_thread.joinable())
+        g_server_thread.join();
+    StopCloudflare();
 }
 
 bool IsRunning() noexcept { return g_running.load(); }
@@ -464,27 +507,20 @@ int Port() noexcept { return g_port; }
 
 void Tick() {
     if (!g_running.load()) return;
-    SOCKET listenSock = INVALID_SOCKET;
-    {
-        std::lock_guard<std::mutex> lock(g_mu);
-        listenSock = g_listen;
-    }
-    if (listenSock == INVALID_SOCKET) return;
+    static ULONGLONG nextSnapshot = 0;
+    const ULONGLONG now = GetTickCount64();
+    if (now < nextSnapshot) return;
+    nextSnapshot = now + (CS2::runtime.in_match ? 33 : 500);
 
-    // Accept a few clients per frame
-    for (int i = 0; i < 8; ++i) {
-        sockaddr_in cli{};
-        int clen = sizeof(cli);
-        SOCKET c = accept(listenSock, reinterpret_cast<sockaddr*>(&cli), &clen);
-        if (c == INVALID_SOCKET) break;
-        // Handle synchronously (keep simple; payload is small)
-        u_long nb = 0;
-        ioctlsocket(c, FIONBIO, &nb);
-        DWORD timeout = 2000;
-        setsockopt(c, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&timeout), sizeof(timeout));
-        setsockopt(c, SOL_SOCKET, SO_SNDTIMEO, reinterpret_cast<const char*>(&timeout), sizeof(timeout));
-        HandleClient(c);
+    std::string snapshot;
+    if (CS2::runtime.in_match) {
+        snapshot = BuildLiveJson();
+    } else {
+        snapshot = "{\"m_map\":\"unknown\",\"m_observed_idx\":-1,"
+                   "\"m_round_phase\":\"warmup\",\"m_players\":[],\"m_bomb\":null}";
     }
+    std::lock_guard<std::mutex> lock(g_mu);
+    g_live_json = std::move(snapshot);
 }
 
 std::string LocalIp() { return DetectLanIp(); }
@@ -512,6 +548,15 @@ std::string PublicUrl() {
 bool StartCloudflare() {
     if (CloudflareRunning()) return true;
     if (!IsRunning()) return false;
+
+    g_cf_stop.store(true);
+    if (g_cf_reader.joinable())
+        g_cf_reader.join();
+    if (g_cf_proc) {
+        CloseHandle(g_cf_proc);
+        g_cf_proc = nullptr;
+    }
+    g_cf_stop.store(false);
 
     const std::wstring exe = FindCloudflared();
     wchar_t cmd[512]{};
@@ -544,44 +589,51 @@ bool StartCloudflare() {
     CloseHandle(pi.hThread);
     g_cf_proc = pi.hProcess;
 
-    // Read a bit of output for trycloudflare URL (sync short wait)
-    std::string output;
-    char tmp[256];
-    DWORD read = 0;
-    const ULONGLONG deadline = GetTickCount64() + 8000;
-    while (GetTickCount64() < deadline) {
-        DWORD avail = 0;
-        if (!PeekNamedPipe(rd, nullptr, 0, nullptr, &avail, nullptr)) break;
-        if (avail) {
+    // Pipe parsing belongs off the render thread. Keep draining after finding
+    // the URL so cloudflared cannot block on a full output pipe.
+    g_cf_reader = std::thread([rd]() {
+        std::string output;
+        char tmp[512];
+        while (!g_cf_stop.load()) {
+            DWORD avail = 0;
+            if (!PeekNamedPipe(rd, nullptr, 0, nullptr, &avail, nullptr)) break;
+            if (!avail) {
+                Sleep(100);
+                continue;
+            }
+            DWORD read = 0;
             if (!ReadFile(rd, tmp, sizeof(tmp) - 1, &read, nullptr) || !read) break;
             tmp[read] = 0;
-            output += tmp;
-            auto pos = output.find("https://");
+            output.append(tmp, read);
+            const auto pos = output.find("https://");
             if (pos != std::string::npos) {
-                auto end = output.find_first_of(" \r\n\t\"'", pos);
-                std::string url = output.substr(pos, end == std::string::npos ? std::string::npos : end - pos);
-                // trim trailing slash
+                const auto end = output.find_first_of(" \r\n\t\"'", pos);
+                std::string url = output.substr(pos,
+                    end == std::string::npos ? std::string::npos : end - pos);
                 while (!url.empty() && url.back() == '/') url.pop_back();
-                std::lock_guard<std::mutex> lock(g_mu);
-                g_public_url = url;
-                std::cout << "[WebRadar] public URL " << url << "\n";
-                break;
+                {
+                    std::lock_guard<std::mutex> lock(g_mu);
+                    if (g_public_url.empty()) g_public_url = url;
+                }
+                if (output.size() > 4096) output.erase(0, pos);
+            } else if (output.size() > 8192) {
+                output.erase(0, output.size() - 1024);
             }
-        } else {
-            Sleep(100);
         }
-    }
-    // Keep reading pipe in background to avoid fill — drain async not critical
-    CloseHandle(rd);
-    return CloudflareRunning();
+        CloseHandle(rd);
+    });
+    return true;
 }
 
 void StopCloudflare() {
+    g_cf_stop.store(true);
     if (g_cf_proc) {
         TerminateProcess(g_cf_proc, 0);
         CloseHandle(g_cf_proc);
         g_cf_proc = nullptr;
     }
+    if (g_cf_reader.joinable())
+        g_cf_reader.join();
     std::lock_guard<std::mutex> lock(g_mu);
     g_public_url.clear();
 }

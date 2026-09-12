@@ -476,19 +476,26 @@ void Overlay::StartRender() {
     if (!RenderMenu && app_settings::menu_open && (GetAsyncKeyState(VK_ESCAPE) & 1))
         app_settings::menu_open = false;
 
-    // Menu toggle: Insert by default. Edge-detect with sticky previous state so
-    // other GetAsyncKeyState consumers cannot "eat" the transition bit.
+    // Menu toggle: Insert by default. Use both the Win32 transition bit and a
+    // held-state edge because the overlay does not always own keyboard focus.
     {
         int menu_vk = app_settings::config.menu_bind;
         if (menu_vk <= 0 || menu_vk > 0xFE)
             menu_vk = 0x2D; // VK_INSERT
-        static int s_prev_menu_down = 0;
-        const int down = (GetAsyncKeyState(menu_vk) & 0x8000) ? 1 : 0;
+        const SHORT menu_state = GetAsyncKeyState(menu_vk);
+        const SHORT insert_state = menu_vk == VK_INSERT
+            ? menu_state
+            : GetAsyncKeyState(VK_INSERT);
+        const bool any_down = ((menu_state | insert_state) & 0x8000) != 0;
+        const bool transitioned = ((menu_state | insert_state) & 1) != 0;
+        static bool s_prev_menu_down = false;
+        static ULONGLONG s_last_menu_toggle = 0;
+        const ULONGLONG now = GetTickCount64();
         // Also accept physical Insert even if menu_bind was rebound incorrectly.
-        const int insert_down = (GetAsyncKeyState(0x2D) & 0x8000) ? 1 : 0;
-        const int any_down = down | insert_down;
-        if (any_down && !s_prev_menu_down) {
+        if ((transitioned || (any_down && !s_prev_menu_down)) &&
+            now - s_last_menu_toggle >= 120) {
             app_settings::menu_open = !app_settings::menu_open;
+            s_last_menu_toggle = now;
         }
         s_prev_menu_down = any_down;
     }

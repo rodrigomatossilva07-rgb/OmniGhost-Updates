@@ -73,8 +73,7 @@ bool HotkeyCaptureButton(const char* id, int* vk) {
 void DrawCs2Aim() {
     const float full = CyberWidgets::CardContentWidth();
     const float gap = CyberTheme::Spacing::Sm;
-    const float left = (full - gap) * 0.58f;
-    const float right = full - left - gap;
+    const float left = full;
 
     ImGui::BeginGroup();
     CyberWidgets::BeginCard("ASSISTENCIA DE MIRA", left);
@@ -113,17 +112,6 @@ void DrawCs2Aim() {
         if (CyberWidgets::SliderFloat("Atraso", &delay_ms, 0.f, 200.f, "%.0f ms"))
             CS2::config.trigger_delay_ms = static_cast<int>(delay_ms);
     }
-    CyberWidgets::EndCard();
-    ImGui::EndGroup();
-
-    ImGui::SameLine(0.f, gap);
-    ImGui::BeginGroup();
-    CyberWidgets::BeginCard("FOV", right);
-    CyberWidgets::ToggleSwitch("Mostrar FOV", &CS2::config.aim_draw_fov);
-    const char* styles[] = { "Circulo", "Quadrado", "Dinamico" };
-    CyberWidgets::Combo("Forma", &CS2::config.aim_fov_style, styles, 3);
-    CyberWidgets::SliderFloat("Tamanho", &CS2::config.aim_fov, 10.f, 400.f, "%.0f px");
-    ImGui::ColorEdit4("Cor", CS2::config.col_fov, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     CyberWidgets::EndCard();
     ImGui::EndGroup();
 }

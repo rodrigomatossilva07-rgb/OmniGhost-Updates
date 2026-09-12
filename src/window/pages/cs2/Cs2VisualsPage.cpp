@@ -149,7 +149,19 @@ void DrawCs2EspPreviewPanel(float width, float height) {
     if (CS2::config.distance)
         dl->AddText(ImVec2(cx - 12.f, bot + 4.f), Col4(CS2::config.col_distance), "24m");
     if (CS2::config.weapon_icons)
-        dl->AddText(ImVec2(cx - 14.f, bot + 18.f), Col4(CS2::config.col_weapon), "AK-47");
+    {
+        const char* weapon = "AK-47";
+        const ImVec2 textSize = ImGui::CalcTextSize(weapon);
+        const float weaponY = (std::min)(bot + 18.f, e.y - textSize.y - 8.f);
+        dl->AddRectFilled(ImVec2(cx - textSize.x * .5f - 7.f, weaponY - 3.f),
+                          ImVec2(cx + textSize.x * .5f + 7.f, weaponY + textSize.y + 3.f),
+                          IM_COL32(7, 7, 9, 225), 4.f);
+        dl->AddRect(ImVec2(cx - textSize.x * .5f - 7.f, weaponY - 3.f),
+                    ImVec2(cx + textSize.x * .5f + 7.f, weaponY + textSize.y + 3.f),
+                    Col4(CS2::config.col_weapon, .55f), 4.f);
+        dl->AddText(ImVec2(cx - textSize.x * .5f, weaponY),
+                    Col4(CS2::config.col_weapon), weapon);
+    }
 
     ImGui::Dummy(ImVec2(width, height));
 }
@@ -181,8 +193,7 @@ void DrawCs2Visuals() {
     CyberWidgets::Separator();
     CyberWidgets::SectionTitle("ELEMENTOS");
     CyberWidgets::ToggleSwitch("Esqueleto", &CS2::config.skeleton);
-    if (CS2::config.skeleton)
-        CyberWidgets::ToggleSwitch("Articulações", &CS2::config.skeleton_joints);
+    CyberWidgets::ToggleSwitch("Articulações", &CS2::config.skeleton_joints);
     CyberWidgets::ToggleSwitch("Ponto na cabeça", &CS2::config.head_dot);
     CyberWidgets::ToggleSwitch("Vida", &CS2::config.health_bar);
     CyberWidgets::ToggleSwitch("Armadura", &CS2::config.armor_bar);
@@ -194,8 +205,6 @@ void DrawCs2Visuals() {
     CyberWidgets::ToggleSwitch("Linhas guia", &CS2::config.snaplines);
     CyberWidgets::ToggleSwitch("Auréola na cabeça", &CS2::config.head_halo);
     CyberWidgets::ToggleSwitch("Chapéu chinês 3D", &CS2::config.chinese_hat);
-    if (CS2::config.chinese_hat)
-        CyberWidgets::SliderFloat("Tamanho do chapéu", &CS2::config.chinese_hat_scale, 0.4f, 2.5f, "%.2f");
     CyberWidgets::ToggleSwitch("Rastros", &CS2::config.trails);
     if (CS2::config.trails)
         CyberWidgets::ToggleSwitch("Rastros arco-íris", &CS2::config.rainbow_trails);
@@ -209,6 +218,8 @@ void DrawCs2Visuals() {
     CyberWidgets::SliderFloat("Eye Line##th", &CS2::config.eye_line_thickness, 0.5f, 6.f, "%.1f");
     if (CS2::config.trails)
         CyberWidgets::SliderFloat("Rastro##th", &CS2::config.trail_thickness, 1.f, 8.f, "%.1f");
+    if (CS2::config.chinese_hat)
+        CyberWidgets::SliderFloat("Tamanho do chapéu", &CS2::config.chinese_hat_scale, 0.4f, 2.5f, "%.2f");
     CyberWidgets::EndCard();
     ImGui::EndChild();
 

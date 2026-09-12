@@ -960,10 +960,12 @@ static bool RefreshEntityListEntry() {
     }
     g_cached_entity_root = root;
 
-    const bool havePlayers = !runtime.players.empty();
     const bool haveEntry = runtime.entity_list_entry != 0;
 
-    if (haveEntry && havePlayers && s_fullProbeCooldown > 0) {
+    // runtime.players is rebuilt at the start of every scan, so using it here
+    // made the supposed fast path unreachable. A confirmed entry is enough to
+    // perform the cheap one-pointer validation.
+    if (haveEntry && s_fullProbeCooldown > 0) {
         --s_fullProbeCooldown;
         // Cheap confirm: primary page still matches
         uintptr_t entry = 0;
@@ -1270,6 +1272,67 @@ static void ScatterReadPawnHandles(const uintptr_t* controllers, uint32_t* handl
     }
 }
 
+// Resolve all Source 2 handles in two DMA round-trips: one for the unique page
+// pointers and one for the entity pointers. The old path resolved and validated
+// every pawn with several synchronous reads, which scaled very poorly in a full
+// lobby. Health/team validation already happens in the following core scatter.
+static int ScatterResolvePawnHandles(const uint32_t* handles, uintptr_t* pawns,
+                                     int count, uintptr_t stride) {
+    if (!handles || !pawns || count <= 0) return 0;
+    std::fill(pawns, pawns + count, 0);
+
+    uintptr_t root = g_cached_entity_root;
+    if (!IsUserPointer(root)) {
+        if (!QReadT(runtime.client_base + offsets.dwEntityList, root) || !IsUserPointer(root))
+            return 0;
+        g_cached_entity_root = root;
+    }
+
+    constexpr int kMaxPages = 64;
+    uintptr_t chunks[kMaxPages]{};
+    bool pageUsed[kMaxPages]{};
+    for (int i = 0; i < count; ++i) {
+        if (!handles[i] || handles[i] == 0xFFFFFFFF) continue;
+        const int page = static_cast<int>((handles[i] & 0x7FFF) >> 9);
+        if (page >= 0 && page < kMaxPages) pageUsed[page] = true;
+    }
+
+    EnsureScatter();
+    if (!g_scatter) {
+        int resolved = 0;
+        for (int i = 0; i < count; ++i) {
+            pawns[i] = ResolvePawnFromHandle(handles[i], runtime.local_pawn);
+            if (IsUserPointer(pawns[i])) ++resolved;
+        }
+        return resolved;
+    }
+
+    for (int page = 0; page < kMaxPages; ++page) {
+        if (!pageUsed[page]) continue;
+        mem.AddScatterReadRequest(g_scatter,
+            root + kEntityPageTableOffset + sizeof(uintptr_t) * static_cast<uintptr_t>(page),
+            &chunks[page], sizeof(uintptr_t));
+    }
+    mem.ExecuteReadScatter(g_scatter);
+
+    for (int i = 0; i < count; ++i) {
+        if (!handles[i] || handles[i] == 0xFFFFFFFF) continue;
+        const int page = static_cast<int>((handles[i] & 0x7FFF) >> 9);
+        const uintptr_t index = static_cast<uintptr_t>(handles[i] & 0x1FF);
+        if (page < 0 || page >= kMaxPages || !IsUserPointer(chunks[page])) continue;
+        mem.AddScatterReadRequest(g_scatter, chunks[page] + stride * index,
+                                  &pawns[i], sizeof(uintptr_t));
+    }
+    mem.ExecuteReadScatter(g_scatter);
+
+    int resolved = 0;
+    for (int i = 0; i < count; ++i) {
+        if (IsUserPointer(pawns[i])) ++resolved;
+        else pawns[i] = 0;
+    }
+    return resolved;
+}
+
 // Core pawn fields in one scatter: health, team, armor, scene node.
 struct PawnCoreFields {
     int health = 0;
@@ -1277,10 +1340,15 @@ struct PawnCoreFields {
     int armor = 0;
     uintptr_t scene = 0;
     bool spotted = true;
+    uint8_t scoped = 0;
+    float flash = 0.f;
+    float eye_angles[2]{};
+    uintptr_t weapon_services = 0;
 };
 
 static void ScatterReadPawnCore(const uintptr_t* pawns, PawnCoreFields* fields, int count,
-                                bool need_armor) {
+                                bool need_armor, bool need_scoped, bool need_flash,
+                                bool need_yaw, bool need_weapons) {
     if (!pawns || !fields || count <= 0) return;
     EnsureScatter();
     if (!g_scatter) {
@@ -1297,6 +1365,15 @@ static void ScatterReadPawnCore(const uintptr_t* pawns, PawnCoreFields* fields, 
             if (need_armor)
                 QReadT(pawns[i] + offsets.m_ArmorValue, fields[i].armor);
             QReadT(pawns[i] + offsets.m_pGameSceneNode, fields[i].scene);
+            if (need_scoped && offsets.m_bIsScoped)
+                QReadT(pawns[i] + offsets.m_bIsScoped, fields[i].scoped);
+            if (need_flash && offsets.m_flFlashDuration)
+                QReadT(pawns[i] + offsets.m_flFlashDuration, fields[i].flash);
+            if (need_yaw)
+                QRead(pawns[i] + offsets.m_angEyeAngles, fields[i].eye_angles,
+                      sizeof(fields[i].eye_angles));
+            if (need_weapons && offsets.m_pWeaponServices)
+                QReadT(pawns[i] + offsets.m_pWeaponServices, fields[i].weapon_services);
         }
         return;
     }
@@ -1319,6 +1396,18 @@ static void ScatterReadPawnCore(const uintptr_t* pawns, PawnCoreFields* fields, 
             mem.AddScatterReadRequest(g_scatter,
                 pawns[i] + offsets.m_entitySpottedState + offsets.m_bSpotted,
                 &spotted_buf[i], sizeof(uint8_t));
+        if (need_scoped && offsets.m_bIsScoped)
+            mem.AddScatterReadRequest(g_scatter, pawns[i] + offsets.m_bIsScoped,
+                                      &fields[i].scoped, sizeof(fields[i].scoped));
+        if (need_flash && offsets.m_flFlashDuration)
+            mem.AddScatterReadRequest(g_scatter, pawns[i] + offsets.m_flFlashDuration,
+                                      &fields[i].flash, sizeof(fields[i].flash));
+        if (need_yaw)
+            mem.AddScatterReadRequest(g_scatter, pawns[i] + offsets.m_angEyeAngles,
+                                      fields[i].eye_angles, sizeof(fields[i].eye_angles));
+        if (need_weapons && offsets.m_pWeaponServices)
+            mem.AddScatterReadRequest(g_scatter, pawns[i] + offsets.m_pWeaponServices,
+                                      &fields[i].weapon_services, sizeof(uintptr_t));
     }
     mem.ExecuteReadScatter(g_scatter);
     for (int i = 0; i < count; ++i)
@@ -1416,8 +1505,14 @@ void RunFrame() {
         if (!WebRadar::IsRunning())
             WebRadar::Start(config.webradar_port);
         WebRadar::Tick();
-        if (config.webradar_cloudflare && !WebRadar::CloudflareRunning())
-            WebRadar::StartCloudflare();
+        static ULONGLONG next_cloudflare_attempt = 0;
+        if (config.webradar_cloudflare && !WebRadar::CloudflareRunning()) {
+            const ULONGLONG now = GetTickCount64();
+            if (now >= next_cloudflare_attempt) {
+                WebRadar::StartCloudflare();
+                next_cloudflare_attempt = now + 5000;
+            }
+        }
         if (!config.webradar_cloudflare && WebRadar::CloudflareRunning())
             WebRadar::StopCloudflare();
     } else if (WebRadar::IsRunning()) {
@@ -1672,17 +1767,29 @@ void RunFrame() {
     ScatterReadPawnHandles(controllers, handles, kMaxSlots);
 
     // ── Phase 2: resolve handles → pawn pointers (root cached this frame) ─
+    int handle_nonzero = 0;
+    for (int i = 0; i < kMaxSlots; ++i)
+        if (handles[i]) ++handle_nonzero;
+    uintptr_t resolved_by_slot[kMaxSlots]{};
+    int resolve_ok = ScatterResolvePawnHandles(
+        handles, resolved_by_slot, kMaxSlots,
+        g_pawn_stride ? g_pawn_stride : kEntityIdentityStride);
+    // If the calibrated stride stopped resolving entirely after an update,
+    // retry the alternate layout once as a recovery path.
+    if (resolve_ok == 0 && handle_nonzero > 0) {
+        const uintptr_t alternate = g_pawn_stride == kEntityIdentityStride
+            ? kLegacyEntityIdentityStride : kEntityIdentityStride;
+        resolve_ok = ScatterResolvePawnHandles(handles, resolved_by_slot, kMaxSlots, alternate);
+        if (resolve_ok > 0) g_pawn_stride = alternate;
+    }
+
     uintptr_t resolved_pawns[kMaxSlots]{};
     int slot_index[kMaxSlots]{};
     int candidate_count = 0;
-    int handle_nonzero = 0;
-    int resolve_ok = 0;
     for (int i = 0; i < kMaxSlots && candidate_count < kMax; ++i) {
         if (!controllers[i] || !handles[i]) continue;
-        ++handle_nonzero;
-        uintptr_t pawn = ResolvePawnFromHandle(handles[i], runtime.local_pawn);
+        uintptr_t pawn = resolved_by_slot[i];
         if (!pawn) continue;
-        ++resolve_ok;
         resolved_pawns[candidate_count] = pawn;
         slot_index[candidate_count] = i;
         ++candidate_count;
@@ -1720,12 +1827,24 @@ void RunFrame() {
             fields, OmniGhost::Gameplay::EspCore::DataField::Facing);
     const bool track_velocity = OmniGhost::Gameplay::EspCore::Has(
         fields, OmniGhost::Gameplay::EspCore::DataField::Velocity);
+    const bool need_bones = OmniGhost::Gameplay::EspCore::Has(
+        fields, OmniGhost::Gameplay::EspCore::DataField::Skeleton);
+    const bool need_scoped = config.scope_check || config.trigger_scoped_only;
 
     PawnCoreFields core[kMaxSlots]{};
-    ScatterReadPawnCore(resolved_pawns, core, candidate_count, need_armor);
+    ScatterReadPawnCore(resolved_pawns, core, candidate_count, need_armor,
+                        need_scoped, config.smoke_flash, need_yaw, need_weapons);
 
     // ── Phase 4: scatter positions (scene+origin or pawn+oldOrigin) ──────
+    struct BoneJointSnapshot { float x, y, z, scale; char pad[0x10]; };
+    static_assert(sizeof(BoneJointSnapshot) == 32, "BoneJointSnapshot size");
     float positions[kMaxSlots][3]{};
+    char playerNames[kMaxSlots][64]{};
+    uintptr_t boneBases[kMaxSlots]{};
+    BoneJointSnapshot boneSnapshots[kMaxSlots][32]{};
+    uint32_t weaponHandles[kMaxSlots]{};
+    uintptr_t weaponEntities[kMaxSlots]{};
+    uint16_t weaponDefinitions[kMaxSlots]{};
     EnsureScatter();
     if (g_scatter && candidate_count > 0) {
         for (int c = 0; c < candidate_count; ++c) {
@@ -1736,14 +1855,59 @@ void RunFrame() {
             else
                 mem.AddScatterReadRequest(g_scatter, resolved_pawns[c] + offsets.m_vOldOrigin,
                                           positions[c], sizeof(float) * 3);
+            if (need_names) {
+                const int controllerSlot = slot_index[c];
+                if (controllers[controllerSlot])
+                    mem.AddScatterReadRequest(g_scatter,
+                        controllers[controllerSlot] + offsets.m_iszPlayerName,
+                        playerNames[c], sizeof(playerNames[c]) - 1);
+            }
+            if (need_bones && IsUserPointer(scene))
+                mem.AddScatterReadRequest(g_scatter, scene + offsets.BoneArray,
+                                          &boneBases[c], sizeof(uintptr_t));
         }
         mem.ExecuteReadScatter(g_scatter);
+        if (need_bones) {
+            for (int c = 0; c < candidate_count; ++c) {
+                if (IsUserPointer(boneBases[c]))
+                    mem.AddScatterReadRequest(g_scatter, boneBases[c], boneSnapshots[c],
+                                              sizeof(boneSnapshots[c]));
+            }
+            mem.ExecuteReadScatter(g_scatter);
+        }
+        if (need_weapons) {
+            for (int c = 0; c < candidate_count; ++c) {
+                if (IsUserPointer(core[c].weapon_services))
+                    mem.AddScatterReadRequest(g_scatter,
+                        core[c].weapon_services + offsets.m_hActiveWeapon,
+                        &weaponHandles[c], sizeof(uint32_t));
+            }
+            mem.ExecuteReadScatter(g_scatter);
+            ScatterResolvePawnHandles(weaponHandles, weaponEntities, candidate_count,
+                g_pawn_stride ? g_pawn_stride : kEntityIdentityStride);
+            for (int c = 0; c < candidate_count; ++c) {
+                if (!IsUserPointer(weaponEntities[c])) continue;
+                const uintptr_t primary = weaponEntities[c] + offsets.m_AttributeManager +
+                                          offsets.m_Item + offsets.m_iItemDefinitionIndex;
+                mem.AddScatterReadRequest(g_scatter, primary, &weaponDefinitions[c],
+                                          sizeof(uint16_t));
+            }
+            mem.ExecuteReadScatter(g_scatter);
+        }
     } else {
         for (int c = 0; c < candidate_count; ++c) {
             if (IsUserPointer(core[c].scene))
                 QRead(core[c].scene + offsets.m_vecAbsOrigin, positions[c], sizeof(float) * 3);
             else
                 QRead(resolved_pawns[c] + offsets.m_vOldOrigin, positions[c], sizeof(float) * 3);
+            const int controllerSlot = slot_index[c];
+            if (need_names && controllers[controllerSlot])
+                QRead(controllers[controllerSlot] + offsets.m_iszPlayerName,
+                      playerNames[c], sizeof(playerNames[c]) - 1);
+            if (need_bones && IsUserPointer(core[c].scene) &&
+                QReadT(core[c].scene + offsets.BoneArray, boneBases[c]) &&
+                IsUserPointer(boneBases[c]))
+                QRead(boneBases[c], boneSnapshots[c], sizeof(boneSnapshots[c]));
         }
     }
 
@@ -1782,17 +1946,13 @@ void RunFrame() {
         p.alive = true;
         p.is_local = pawn == runtime.local_pawn || controller == runtime.local_controller;
 
-        // Scope / flash / recoil punch (cheap singles; only when features need them)
-        if (config.scope_check || config.trigger_scoped_only || p.is_local) {
-            uint8_t scoped = 0;
-            if (offsets.m_bIsScoped && QReadT(pawn + offsets.m_bIsScoped, scoped))
-                p.is_scoped = scoped != 0;
-        }
-        if (config.smoke_flash) {
-            float flash = 0.f;
-            if (offsets.m_flFlashDuration && QReadT(pawn + offsets.m_flFlashDuration, flash))
-                p.is_flashed = flash > 0.15f;
-        }
+        // These per-player fields arrive in the core scatter above.
+        if (need_scoped)
+            p.is_scoped = cf.scoped != 0;
+        if (p.is_local)
+            p.is_scoped = runtime.local_scoped;
+        if (config.smoke_flash)
+            p.is_flashed = cf.flash > 0.15f;
         if ((config.recoil_visual || config.aim_enabled) && p.is_local && offsets.m_aimPunchAngle) {
             float punch[2]{};
             if (QRead(pawn + offsets.m_aimPunchAngle, punch, sizeof(punch))) {
@@ -1810,10 +1970,8 @@ void RunFrame() {
         const uintptr_t scene = IsUserPointer(cf.scene) ? cf.scene : 0;
 
         if (need_yaw || p.is_local) {
-            float eye_angles[2]{};
-            if (QRead(pawn + offsets.m_angEyeAngles, eye_angles, sizeof(eye_angles)) &&
-                std::isfinite(eye_angles[1]))
-                p.view_yaw = eye_angles[1];
+            if (std::isfinite(cf.eye_angles[1]))
+                p.view_yaw = cf.eye_angles[1];
             if (p.is_local)
                 p.view_yaw = runtime.local_view_yaw;
         }
@@ -1831,7 +1989,7 @@ void RunFrame() {
 
         if (need_names) {
             char nameBuf[64]{};
-            QRead(controller + offsets.m_iszPlayerName, nameBuf, sizeof(nameBuf) - 1);
+            std::memcpy(nameBuf, playerNames[c], sizeof(nameBuf));
             nameBuf[sizeof(nameBuf) - 1] = '\0';
             for (char* ch = nameBuf; *ch; ++ch) {
                 if (static_cast<unsigned char>(*ch) < 0x20 || static_cast<unsigned char>(*ch) > 0x7E)
@@ -1872,18 +2030,9 @@ void RunFrame() {
         // L leg 17/18/19  R leg 20/21/22
         // One contiguous 32-joint snapshot per player. Distance never removes
         // bones, so the visual quality stays identical under load.
-        const bool need_bones = OmniGhost::Gameplay::EspCore::Has(
-            fields, OmniGhost::Gameplay::EspCore::DataField::Skeleton);
         if (scene && need_bones) {
-            // BoneJointData: Vec3 + float scale + pad[0x10] = 32 bytes
-            struct BoneJoint { float x, y, z, scale; char pad[0x10]; };
-            static_assert(sizeof(BoneJoint) == 32, "BoneJoint size");
-
-            auto try_bones = [&](uintptr_t boneBase) -> bool {
-                if (!IsUserPointer(boneBase)) return false;
-                // Read enough joints for detailed close-range skeleton
-                BoneJoint joints[32]{};
-                if (!QRead(boneBase, joints, sizeof(joints))) return false;
+            auto try_bones = [&](const BoneJointSnapshot* joints) -> bool {
+                if (!joints) return false;
                 // CS2 / Source 2 bone indices (community + cs2-dumper consistent):
                 // head=6 neck=5 spine2=4 spine1=2 spine0=1 pelvis=0
                 // L: clav/upper/lower/hand 8-11   R: 13-16
@@ -1896,15 +2045,6 @@ void RunFrame() {
                     22, 23, 24,
                     25, 26, 27
                 };
-                // Alternate chains if a build shifts clavicle / leg roots
-                static const int kIdxAlt[20] = {
-                    7, 6, 5, 4, 2, 1,
-                    8, 9, 10, 11,
-                    12, 13, 14, 15,
-                    17, 18, 19,
-                    20, 21, 22
-                };
-
                 float tmp[20][3]{};
                 for (int b = 0; b < 20; ++b) {
                     int id = kIdx[b];
@@ -1915,14 +2055,6 @@ void RunFrame() {
                     if (!std::isfinite(tmp[b][0]) || !std::isfinite(tmp[b][1]) || !std::isfinite(tmp[b][2]))
                         return false;
                 }
-                auto fill_from = [&](const int idx[20], float out[20][3]) {
-                    for (int b = 0; b < 20; ++b) {
-                        const int id = idx[b];
-                        out[b][0] = joints[id].x;
-                        out[b][1] = joints[id].y;
-                        out[b][2] = joints[id].z;
-                    }
-                };
                 auto skeleton_score = [&](float bones[20][3]) -> float {
                     // Prefer coherent head-above-pelvis torso length and arm/leg span.
                     const float* h = bones[0];
@@ -1947,21 +2079,9 @@ void RunFrame() {
                     return score;
                 };
 
-                float alt[20][3]{};
-                fill_from(kIdxAlt, alt);
-                const float scoreMain = skeleton_score(tmp);
-                const float scoreAlt = skeleton_score(alt);
-                if (scoreAlt > scoreMain) {
-                    for (int b = 0; b < 20; ++b) {
-                        tmp[b][0] = alt[b][0];
-                        tmp[b][1] = alt[b][1];
-                        tmp[b][2] = alt[b][2];
-                    }
-                }
                 if (skeleton_score(tmp) < 0.f) return false;
 
-                const float hx = tmp[0][0], hy = tmp[0][1], hz = tmp[0][2];
-                const float px = tmp[5][0], py = tmp[5][1], pz = tmp[5][2];
+                const float px = tmp[5][0], py = tmp[5][1];
 
                 // Soft ground-align pelvis to pawn origin (reduces floaty skeletons)
                 {
@@ -1986,15 +2106,18 @@ void RunFrame() {
 
             uintptr_t boneBase = 0;
             // Primary: CSkeletonInstance m_modelState + 0x80 (matches CS2-DMA)
-            if (QReadT(scene + offsets.BoneArray, boneBase) && try_bones(boneBase)) {
+            if (IsUserPointer(boneBases[c]) && try_bones(boneSnapshots[c])) {
                 p.bones_ok = true;
             } else {
                 // Fallback: some builds expose the bone pointer at scene+0x1D0 / 0x160
                 for (uintptr_t alt : {(uintptr_t)0x1D0, (uintptr_t)0x160, (uintptr_t)0x1C0}) {
                     if (alt == offsets.BoneArray) continue;
-                    if (QReadT(scene + alt, boneBase) && try_bones(boneBase)) {
-                        p.bones_ok = true;
-                        break;
+                    if (QReadT(scene + alt, boneBase) && IsUserPointer(boneBase)) {
+                        BoneJointSnapshot fallback[32]{};
+                        if (QRead(boneBase, fallback, sizeof(fallback)) && try_bones(fallback)) {
+                            p.bones_ok = true;
+                            break;
+                        }
                     }
                 }
             }
@@ -2005,44 +2128,34 @@ void RunFrame() {
             p.head[2] = p.pos[2] + 72.f;
         }
 
-        // Active weapon → item definition index → white icon code / name
+        // Active weapon → item definition index → white icon code / name.
+        // The normal chain is already batch-read; singles remain only as a
+        // schema-drift fallback when the primary definition slot is invalid.
         if (need_weapons) {
-            uintptr_t weapon_services = 0;
-            uint32_t weapon_handle = 0;
-            if (offsets.m_pWeaponServices &&
-                QReadT(p.pawn + offsets.m_pWeaponServices, weapon_services) &&
-                IsUserPointer(weapon_services) &&
-                QReadT(weapon_services + offsets.m_hActiveWeapon, weapon_handle) &&
-                weapon_handle && weapon_handle != 0xFFFFFFFF) {
-                uintptr_t weapon_ent = ResolveEntityByHandle(weapon_handle, g_pawn_stride ? g_pawn_stride : kEntityIdentityStride);
-                if (IsUserPointer(weapon_ent)) {
-                    // Primary: AttributeManager + Item + ItemDefinitionIndex
-                    // Fallback: try a few known relative slots if schema drifts
-                    uint16_t def = 0;
-                    const uintptr_t primary = weapon_ent + offsets.m_AttributeManager +
-                                              offsets.m_Item + offsets.m_iItemDefinitionIndex;
-                    const uintptr_t candidates[] = {
-                        primary,
-                        weapon_ent + 0x11A8 + 0x50 + 0x1BA, // AttributeManager + Item + def
-                        weapon_ent + 0x1BA,
-                        weapon_ent + 0x16F0, // near weapon tick fields
-                    };
-                    for (uintptr_t addr : candidates) {
-                        uint16_t d = 0;
-                        if (QReadT(addr, d) && d > 0 && d < 6000) {
-                            def = d;
-                            break;
-                        }
-                    }
-                    if (def > 0) {
-                        p.weapon_def = def;
-                        const char* wname = CS2_Weapons::NameFromDefIndex(def);
-                        if (wname)
-                            std::snprintf(p.weapon, sizeof(p.weapon), "%s", wname);
-                        else
-                            std::snprintf(p.weapon, sizeof(p.weapon), "Wpn_%u", (unsigned)def);
+            const uintptr_t weapon_ent = weaponEntities[c];
+            uint16_t def = weaponDefinitions[c];
+            if ((def == 0 || def >= 6000) && IsUserPointer(weapon_ent)) {
+                const uintptr_t fallbacks[] = {
+                    weapon_ent + 0x11A8 + 0x50 + 0x1BA,
+                    weapon_ent + 0x1BA,
+                    weapon_ent + 0x16F0,
+                };
+                def = 0;
+                for (uintptr_t addr : fallbacks) {
+                    uint16_t candidate = 0;
+                    if (QReadT(addr, candidate) && candidate > 0 && candidate < 6000) {
+                        def = candidate;
+                        break;
                     }
                 }
+            }
+            if (def > 0 && def < 6000) {
+                p.weapon_def = def;
+                const char* wname = CS2_Weapons::NameFromDefIndex(def);
+                if (wname)
+                    std::snprintf(p.weapon, sizeof(p.weapon), "%s", wname);
+                else
+                    std::snprintf(p.weapon, sizeof(p.weapon), "Wpn_%u", (unsigned)def);
             }
         }
 

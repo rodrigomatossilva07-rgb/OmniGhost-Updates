@@ -6,10 +6,21 @@
 #include "imgui.h"
 #include <Windows.h>
 #include <shellapi.h>
+#include <algorithm>
 #include <cstdio>
 #include <string>
 
 namespace {
+
+bool CompactToggle(const char* id, const char* label, bool* value, float width) {
+    ImGui::PushID(id);
+    ImGui::BeginChild("##compact_toggle", ImVec2(width, CyberTheme::Metrics::RowHeight), false,
+                      ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    const bool changed = CyberWidgets::ToggleSwitch(label, value);
+    ImGui::EndChild();
+    ImGui::PopID();
+    return changed;
+}
 
 void CopyToClipboard(const std::string& text) {
     if (!OpenClipboard(nullptr)) return;
@@ -33,7 +44,8 @@ void DrawCs2Radar() {
 
     ImGui::BeginGroup();
     CyberWidgets::BeginCard("RADAR 2D", left);
-    CyberWidgets::ToggleSwitch("Ativar radar 2D", &CS2::config.radar_2d);
+    const float controlWidth = (std::min)(left * 0.62f, 310.f);
+    CompactToggle("radar2d", "Ativar radar 2D", &CS2::config.radar_2d, controlWidth);
     if (CS2::config.radar_2d) {
         CyberWidgets::SliderFloat("Tamanho", &CS2::config.radar_2d_size, 80.f, 320.f, "%.0f px");
         CyberWidgets::TextLine("Arrasta o radar no ecrã do jogo para reposicionar.",
@@ -44,7 +56,7 @@ void DrawCs2Radar() {
     CyberWidgets::CardGap(gap);
     CyberWidgets::BeginCard("WEB RADAR", left);
     const bool was = CS2::config.webradar_enabled;
-    CyberWidgets::ToggleSwitch("Ativar Web Radar", &CS2::config.webradar_enabled);
+    CompactToggle("webradar", "Ativar Web Radar", &CS2::config.webradar_enabled, controlWidth);
     if (CS2::config.webradar_enabled != was && CS2::config.webradar_enabled) {
         if (CS2::WebRadar::Start(CS2::config.webradar_port))
             CyberWidgets::Notify("Web Radar a escutar", CyberWidgets::ToastType::Success);
@@ -57,8 +69,11 @@ void DrawCs2Radar() {
 
     if (CS2::config.webradar_enabled) {
         int port = CS2::config.webradar_port;
-        if (ImGui::SliderInt("Porto HTTP", &port, 1024, 65535)) {
+        ImGui::SetNextItemWidth((std::min)(left * 0.50f, 260.f));
+        if (ImGui::SliderInt("Porta", &port, 1024, 65535)) {
             CS2::config.webradar_port = port;
+        }
+        if (ImGui::IsItemDeactivatedAfterEdit()) {
             if (CS2::WebRadar::IsRunning() && CS2::WebRadar::Port() != port) {
                 CS2::WebRadar::Stop();
                 CS2::WebRadar::Start(port);
@@ -89,7 +104,7 @@ void DrawCs2Radar() {
         CyberWidgets::Separator();
         CyberWidgets::SectionTitle("LINK PUBLICO (CLOUDFLARE)");
         bool cf = CS2::config.webradar_cloudflare;
-        if (CyberWidgets::ToggleSwitch("Tunel Cloudflare", &cf)) {
+        if (CompactToggle("cloudflare", "Tunel Cloudflare", &cf, controlWidth)) {
             CS2::config.webradar_cloudflare = cf;
             if (cf) {
                 if (CS2::WebRadar::StartCloudflare())
