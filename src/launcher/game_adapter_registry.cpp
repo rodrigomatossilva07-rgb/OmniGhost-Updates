@@ -19,6 +19,7 @@
 #include "../../Valorant/valorant_esp.h"
 #include "../../Valorant/valorant_aim.h"
 #include "../../Warzone/warzone_game.h"
+#include "imgui.h"
 
 #include <functional>
 #include <iostream>
@@ -239,7 +240,11 @@ IGameAdapter* FindGameAdapter(::Launcher::GameId game) noexcept {
     using Capability = AdapterCapability;
     static FunctionGameAdapter fivem({ ::Launcher::GameId::FiveM, "FiveM", AdapterMaturity::Stable,
         Capability::Menu | Capability::ReadOnlyMemory | Capability::Overlay | Capability::Radar },
-        StartFiveM, [] { object_esp::GetObjectESPManager().Shutdown(); mem.InvalidateProcess(); }, FiveMStatus,
+        StartFiveM, [] {
+            FiveM::ESP::StopAcquisition();
+            object_esp::GetObjectESPManager().Shutdown();
+            mem.InvalidateProcess();
+        }, FiveMStatus,
         [] { 
             try {
                 if (!g_validExecutable.empty()) {
@@ -260,9 +265,14 @@ IGameAdapter* FindGameAdapter(::Launcher::GameId game) noexcept {
         [] { 
             try {
                 if (CS2::ready) {
-                    CS2::RunFrame(); // data + radar; early-outs in lobby
-                    CS2_ESP::Draw(CS2::runtime, CS2::config);
-                    CS2_Aim::Run(CS2::runtime, CS2::config);
+                    CS2::SetPresentationFps(ImGui::GetIO().Framerate);
+                    CS2::SubmitAcquisitionConfig(CS2::config);
+                    CS2::EnsureAcquisitionStarted();
+                    auto snapshot = CS2::AcquireRuntimeSnapshot();
+                    if (snapshot) {
+                        CS2_ESP::Draw(*snapshot, CS2::config);
+                        CS2_Aim::Run(*snapshot, CS2::config);
+                    }
                 }
             } catch (const std::exception& ex) {
                 std::cerr << "[CS2] CRASH em Tick: " << ex.what() << std::endl;

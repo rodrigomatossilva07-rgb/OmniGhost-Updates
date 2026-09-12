@@ -1,49 +1,132 @@
-#include "game_session.h"
-#include "service_container.h"
-#include "result.h"
-#include <atomic>
-#include <functional>
-#include <memory>
-#include <string>
+#include "cs2_session.h"
+
+#include "../../Cs2/cs2_game.h"
+
+#include <utility>
 
 namespace OmniGhost::Platform {
 
-namespace {
-class CS2Session final : public IGameSession {
-public:
-    explicit CS2Session(const ServiceContainer&) : state_(SessionState::Detached) {}
-    Result<void> Attach() noexcept override {
-        state_ = SessionState::Attached;
-        return Ok();
-    }
-    Result<void> LoadOffsets() noexcept override {
-        state_ = SessionState::OffsetsLoaded;
-        return Ok();
-    }
-    Result<void> Initialize() noexcept override {
-        state_ = SessionState::Running;
-        return Ok();
-    }
-    void Tick() noexcept override {}
-    Result<bool> SoftProbeOffsets() noexcept override { return Ok(false); }
-    Result<bool> ValidateLiveOffsets() noexcept override { return Ok(false); }
-    Result<bool> IsGameProcessAlive() const noexcept override { return Ok(false); }
-    [[nodiscard]] std::string_view GetStatus() const noexcept override { return "CS2"; }
-    [[nodiscard]] SessionState GetState() const noexcept override { return state_.load(); }
-    [[nodiscard]] std::string_view GetTerminationReason() const noexcept override { return termination_; }
-    void Shutdown() noexcept override { state_ = SessionState::Detached; }
-    void SetStateCallback(std::function<void(const SessionEvent&)> callback) noexcept override {
-        callback_ = std::move(callback);
-    }
-private:
-    std::atomic<SessionState> state_;
-    std::string termination_;
-    std::function<void(const SessionEvent&)> callback_;
-};
-} // namespace
+Cs2Session::Cs2Session(const ServiceContainer& services)
+    : services_(services), lastTick_(std::chrono::steady_clock::now()) {
+    (void)services_;
+    status_ = "CS2 desligado";
+}
 
-std::unique_ptr<IGameSession> CreateCS2Session(const ServiceContainer& services) {
-    return std::make_unique<CS2Session>(services);
+Cs2Session::~Cs2Session() { Shutdown(); }
+
+void Cs2Session::EmitState(SessionState newState, std::string_view message) {
+    const SessionState oldState = state_.exchange(newState, std::memory_order_acq_rel);
+    if (!message.empty()) status_.assign(message);
+    if (!stateCallback_) return;
+    SessionEvent event{};
+    event.type = SessionEvent::Type::StateChanged;
+    event.oldState = oldState;
+    event.newState = newState;
+    event.message.assign(message);
+    stateCallback_(event);
+}
+
+Result<void> Cs2Session::Attach() noexcept {
+    try {
+        EmitState(SessionState::Attaching, "A ligar ao CS2");
+        if (!CS2::Attach()) {
+            EmitState(SessionState::Failed, CS2::status);
+            return Err(CS2::status.empty() ? "Falha ao ligar ao CS2" : CS2::status);
+        }
+        attached_ = true;
+        offsetsLoaded_ = CS2::offsets.loaded;
+        EmitState(SessionState::Attached, "CS2 ligado");
+        return Ok();
+    } catch (...) {
+        EmitState(SessionState::Failed, "Erro inesperado ao ligar ao CS2");
+        return Err("Exceção durante o attach CS2");
+    }
+}
+
+Result<void> Cs2Session::LoadOffsets() noexcept {
+    if (!attached_) return Err("Sessão CS2 ainda não está ligada");
+    try {
+        EmitState(SessionState::LoadingOffsets, "A validar offsets CS2");
+        offsetsLoaded_ = CS2::offsets.loaded || CS2::LoadOffsetsFromJson(nullptr);
+        if (offsetsLoaded_ && !CS2::SoftProbeLobbyOffsets())
+            offsetsLoaded_ = CS2::RecoverCriticalOffsets() && CS2::SoftProbeLobbyOffsets();
+        if (!offsetsLoaded_) {
+            EmitState(SessionState::Failed, "Offsets CS2 incompatíveis");
+            return Err("Offsets CS2 inválidos para esta build");
+        }
+        EmitState(SessionState::OffsetsLoaded, "Offsets CS2 validados");
+        return Ok();
+    } catch (...) {
+        EmitState(SessionState::Failed, "Erro ao carregar offsets CS2");
+        return Err("Exceção ao carregar offsets CS2");
+    }
+}
+
+Result<void> Cs2Session::Initialize() noexcept {
+    if (!attached_ || !offsetsLoaded_)
+        return Err("Attach e offsets são necessários antes de inicializar");
+    CS2::SubmitAcquisitionConfig(CS2::config);
+    CS2::EnsureAcquisitionStarted();
+    initialized_ = true;
+    lastTick_ = std::chrono::steady_clock::now();
+    EmitState(SessionState::Running, "Sessão CS2 ativa");
+    return Ok();
+}
+
+void Cs2Session::Tick() noexcept {
+    if (!initialized_ || state_.load(std::memory_order_relaxed) != SessionState::Running)
+        return;
+    CS2::SubmitAcquisitionConfig(CS2::config);
+    CS2::EnsureAcquisitionStarted();
+    ++frameCount_;
+    if ((frameCount_ % 60u) == 0u && !IsProcessAliveImpl()) {
+        terminationReason_ = "Processo cs2.exe terminou";
+        EmitState(SessionState::Terminating, terminationReason_);
+    }
+    lastTick_ = std::chrono::steady_clock::now();
+}
+
+Result<bool> Cs2Session::SoftProbeOffsets() noexcept {
+    if (!attached_ || !offsetsLoaded_) return Ok(false);
+    EmitState(SessionState::SoftProbing, "A verificar offsets CS2");
+    const bool valid = CS2::SoftProbeLobbyOffsets();
+    EmitState(valid ? SessionState::Running : SessionState::OffsetsLoaded,
+              valid ? "Offsets CS2 operacionais" : "Offsets CS2 precisam de atualização");
+    return Ok(valid);
+}
+
+Result<bool> Cs2Session::ValidateLiveOffsets() noexcept {
+    if (!attached_ || !offsetsLoaded_) return Ok(false);
+    return Ok(CS2::ValidateLiveOffsets());
+}
+
+bool Cs2Session::IsProcessAliveImpl() const noexcept { return CS2::IsGameProcessAlive(); }
+
+Result<bool> Cs2Session::IsGameProcessAlive() const noexcept {
+    return Ok(IsProcessAliveImpl());
+}
+
+std::string_view Cs2Session::GetStatus() const noexcept { return status_; }
+SessionState Cs2Session::GetState() const noexcept {
+    return state_.load(std::memory_order_acquire);
+}
+std::string_view Cs2Session::GetTerminationReason() const noexcept {
+    return terminationReason_;
+}
+
+void Cs2Session::Shutdown() noexcept {
+    if (!attached_ && !initialized_) return;
+    EmitState(SessionState::Cleanup, "A terminar sessão CS2");
+    CS2::Shutdown();
+    attached_ = false;
+    offsetsLoaded_ = false;
+    initialized_ = false;
+    EmitState(SessionState::Detached, "CS2 desligado");
+}
+
+void Cs2Session::SetStateCallback(
+    std::function<void(const SessionEvent&)> callback) noexcept {
+    stateCallback_ = std::move(callback);
 }
 
 } // namespace OmniGhost::Platform

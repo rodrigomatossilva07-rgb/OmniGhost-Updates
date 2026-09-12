@@ -72,12 +72,12 @@ public:
             auto age = now - it->second.last_update;
             if (age < SKELETON_CACHE_VALIDITY_MS) {
                 bone_positions = it->second.bone_positions;
-                esp::esp_stats.cache_hits++;
+                esp::esp_stats.cache_hits.fetch_add(1, std::memory_order_relaxed);
                 return true;
             }
         }
 
-        esp::esp_stats.cache_misses++;
+        esp::esp_stats.cache_misses.fetch_add(1, std::memory_order_relaxed);
 
         // Read all skeleton bones in one batch operation
         Matrix bone_matrix = esp::bone_cache.get_bone_matrix(ped, force_refresh);
@@ -108,7 +108,8 @@ public:
         cached_data.last_update = now;
         cached_data.is_valid = true;
 
-        esp::esp_stats.memory_reads += static_cast<int>(bone_indices.size());
+        esp::esp_stats.memory_reads.fetch_add(
+            static_cast<int>(bone_indices.size()), std::memory_order_relaxed);
         return true;
     }
 
@@ -274,7 +275,7 @@ void esp::batch_read_skeleton_data(const std::vector<uintptr_t>& peds,
     out_data.resize(peds.size());
 
     // Define which bones we need for skeleton
-    const std::vector<int> skeleton_bones = { 0, 1, 2, 3, 4, 5, 6, 7, 8 };
+    static constexpr std::array<int, 9> skeleton_bones = { 0, 1, 2, 3, 4, 5, 6, 7, 8 };
 
     // Create single scatter handle for ALL reads
     auto handle = mem.CreateScatterHandle();
@@ -289,10 +290,7 @@ void esp::batch_read_skeleton_data(const std::vector<uintptr_t>& peds,
         out_data[i].valid = false;
         out_data[i].bone_mask = bone_mask;
         out_data[i].bone_matrix = {};
-        if (out_data[i].bone_offsets.size() != 9)
-            out_data[i].bone_offsets.resize(9);
-        else
-            std::fill(out_data[i].bone_offsets.begin(), out_data[i].bone_offsets.end(), Vector3{});
+        std::fill(out_data[i].bone_offsets.begin(), out_data[i].bone_offsets.end(), Vector3{});
         mem.AddScatterReadRequest(handle, peds[i] + BONE_MATRIX_OFFSET,
             &out_data[i].bone_matrix, sizeof(Matrix));
     }
@@ -324,8 +322,9 @@ void esp::batch_read_skeleton_data(const std::vector<uintptr_t>& peds,
     for (int bone_id : skeleton_bones)
         if ((bone_mask & (uint16_t(1u) << static_cast<unsigned>(bone_id))) != 0)
             ++requested_bones;
-    esp_stats.memory_reads += static_cast<int>(peds.size() * (1 + requested_bones));
-    esp_stats.batch_reads++;
+    esp_stats.memory_reads.fetch_add(
+        static_cast<int>(peds.size() * (1 + requested_bones)), std::memory_order_relaxed);
+    esp_stats.batch_reads.fetch_add(1, std::memory_order_relaxed);
 }
 
 void esp::prepare_skeleton_frame(const std::vector<uintptr_t>& peds,
@@ -557,8 +556,9 @@ void esp::batch_read_head_data(const std::vector<uintptr_t>& peds, std::vector<B
     }
 
     // Update stats
-    esp_stats.memory_reads += static_cast<int>(peds.size() * 2);
-    esp_stats.batch_reads++;
+    esp_stats.memory_reads.fetch_add(
+        static_cast<int>(peds.size() * 2), std::memory_order_relaxed);
+    esp_stats.batch_reads.fetch_add(1, std::memory_order_relaxed);
 }
 
 // NEW: Batch head circle rendering
@@ -2440,7 +2440,8 @@ void esp::batch_update_bone_cache(const std::vector<uintptr_t>& peds) {
         bone_cache.update_bone_data(peds[i], bone_matrices[i], head_pos);
     }
 
-    esp_stats.memory_reads += static_cast<int>(peds.size() * 2);
+    esp_stats.memory_reads.fetch_add(
+        static_cast<int>(peds.size() * 2), std::memory_order_relaxed);
 }
 
 // Batch skeleton update for multiple peds (performance optimization)

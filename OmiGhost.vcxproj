@@ -235,6 +235,8 @@
     <ClCompile Include="src\platform\app_paths.cpp"/>
     <!-- <ClCompile Include="src\platform\error_codes.cpp"/> -->
     <ClCompile Include="src\platform\interfaces.cpp"/>
+    <ClCompile Include="src\platform\fivem_session.cpp"/>
+    <ClCompile Include="src\platform\cs2_session.cpp"/>
     <ClCompile Include="src\platform\service_container.cpp"/>
     <ClCompile Include="src\platform\startup_orchestrator.cpp"/>
     <ClCompile Include="src\platform\monitor_utils.cpp"/>

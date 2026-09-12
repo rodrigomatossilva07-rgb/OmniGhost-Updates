@@ -25,6 +25,8 @@
 #include <cstring>
 #include <unordered_map>
 #include <vector>
+#include <atomic>
+#include <thread>
 #include "makcu/makcu_wrapper.h"
 #include "../Fivem/aimbot/aim_type.h"
 
@@ -40,7 +42,45 @@ bool ready = false;
 std::string status = "idle";
 std::string offsets_source = "não carregados";
 
+bool Offsets::Validate(std::string* reason) const noexcept {
+    const auto fail = [&](const char* text) {
+        if (reason) *reason = text;
+        return false;
+    };
+    const auto module_offset = [](uintptr_t value) {
+        return value != 0 && value < 0x40000000ull;
+    };
+    const auto field_offset = [](uintptr_t value) {
+        return value != 0 && value < 0x100000ull;
+    };
+
+    if (!module_offset(dwEntityList)) return fail("dwEntityList inválido");
+    if (!module_offset(dwLocalPlayerPawn)) return fail("dwLocalPlayerPawn inválido");
+    if (!module_offset(dwViewMatrix)) return fail("dwViewMatrix inválido");
+    if (!field_offset(m_iHealth)) return fail("m_iHealth inválido");
+    if (!field_offset(m_iTeamNum)) return fail("m_iTeamNum inválido");
+    if (!field_offset(m_pGameSceneNode)) return fail("m_pGameSceneNode inválido");
+    if (!field_offset(m_hPlayerPawn)) return fail("m_hPlayerPawn inválido");
+    if (!field_offset(m_vecAbsOrigin)) return fail("m_vecAbsOrigin inválido");
+    if (reason) reason->clear();
+    return true;
+}
+
 namespace {
+
+OmniGhost::Gameplay::SnapshotExchange<Runtime> g_runtime_snapshots;
+OmniGhost::Gameplay::SnapshotExchange<Config> g_config_snapshots;
+std::atomic_bool g_acquisition_stop{false};
+std::atomic_bool g_acquisition_running{false};
+std::atomic<float> g_presentation_fps{0.f};
+std::thread g_acquisition_thread;
+
+void PublishRuntimeSnapshot() {
+    auto slot = g_runtime_snapshots.TryBeginWrite();
+    if (!slot) return; // renderer still owns both spare slots; never wait
+    *slot.value = runtime;
+    g_runtime_snapshots.Publish(slot.index);
+}
 
 bool JsonU64(const std::string& src, const char* key, uintptr_t& out) {
     const std::string pat = std::string("\"") + key + "\"";
@@ -124,36 +164,70 @@ bool QReadT(uintptr_t addr, T& out) {
     return QRead(addr, &out, sizeof(T));
 }
 
-// Persistent scatter handle — N sequential DMA reads → 1 round-trip.
-VMMDLL_SCATTER_HANDLE g_scatter = nullptr;
+// Persistent scatter handle — N sequential DMA reads → 1 round-trip. Ownership
+// is explicit so every shutdown/error path closes the native resource once.
+class ScatterHandleOwner {
+public:
+    ScatterHandleOwner() = default;
+    ~ScatterHandleOwner() { Reset(); }
+    ScatterHandleOwner(const ScatterHandleOwner&) = delete;
+    ScatterHandleOwner& operator=(const ScatterHandleOwner&) = delete;
+
+    void Ensure() {
+        if (!handle_ && mem.vHandle) handle_ = mem.CreateScatterHandle();
+    }
+    void Reset() {
+        if (!handle_) return;
+        mem.CloseScatterHandle(handle_);
+        handle_ = nullptr;
+    }
+    explicit operator bool() const noexcept { return handle_ != nullptr; }
+    operator VMMDLL_SCATTER_HANDLE() const noexcept { return handle_; }
+
+private:
+    VMMDLL_SCATTER_HANDLE handle_ = nullptr;
+};
+
+ScatterHandleOwner g_scatter;
 uintptr_t g_cached_entity_root = 0; // refreshed once per frame when scanning
 
 void EnsureScatter() {
-    if (!g_scatter && mem.vHandle)
-        g_scatter = mem.CreateScatterHandle();
+    g_scatter.Ensure();
 }
 
 void DestroyScatter() {
-    if (g_scatter) {
-        mem.CloseScatterHandle(g_scatter);
-        g_scatter = nullptr;
-    }
+    g_scatter.Reset();
     g_cached_entity_root = 0;
 }
 
+struct EntityHandleParts {
+    uintptr_t page = 0;
+    uintptr_t index = 0;
+    bool valid = false;
+};
+
+constexpr EntityHandleParts DecodeEntityHandle(uint32_t handle) noexcept {
+    return { static_cast<uintptr_t>((handle & 0x7FFFu) >> 9),
+             static_cast<uintptr_t>(handle & 0x1FFu),
+             handle != 0 && handle != 0xFFFFFFFFu };
+}
+
+static_assert(DecodeEntityHandle(0x201u).page == 1u);
+static_assert(DecodeEntityHandle(0x201u).index == 1u);
+
 // True only when some feature actually needs the player list this frame.
 // With everything OFF this is false → RunFrame is nearly free (target 130+ FPS).
-bool NeedsPlayerScan() {
-    return config.esp_enabled
-        || config.aim_enabled
-        || config.trigger_enabled
-        || config.radar_2d
-        || config.webradar_enabled
-        || config.spectator_list
-        || config.recoil_visual
-        || config.offscreen_arrows
-        || config.bomb_timer
-        || config.hotkey_overlay;
+bool NeedsPlayerScan(const Config& frame_config) {
+    return frame_config.esp_enabled
+        || frame_config.aim_enabled
+        || frame_config.trigger_enabled
+        || frame_config.radar_2d
+        || frame_config.webradar_enabled
+        || frame_config.spectator_list
+        || frame_config.recoil_visual
+        || frame_config.offscreen_arrows
+        || frame_config.bomb_timer
+        || frame_config.hotkey_overlay;
 }
 
 bool ReadTextFile(const fs::path& path, std::string& out) {
@@ -404,7 +478,8 @@ bool LoadOffsetsFromJson(const char* path) {
     }
 
     LoadSchemaOffsets(fs::path(file).parent_path());
-    offsets.loaded = offsets.dwEntityList && offsets.dwLocalPlayerPawn && offsets.dwViewMatrix;
+    std::string validation_error;
+    offsets.loaded = offsets.Validate(&validation_error);
 
     const bool loaded_from_file = offsets.loaded;
     if (loaded_from_file) {
@@ -424,8 +499,8 @@ bool LoadOffsetsFromJson(const char* path) {
                   << " m_ArmorValue=0x" << offsets.m_ArmorValue
                   << std::dec << std::endl;
     } else {
-        status = "offsets.json incompleto";
-        offsets_source = "offsets.json incompleto";
+        status = validation_error.empty() ? "offsets.json incompleto" : validation_error;
+        offsets_source = status;
         if (explicit_path)
             offsets = previous;
     }
@@ -460,11 +535,15 @@ bool LoadEmbeddedOffsets() {
     read("client.dll.dwGlobalVars", offsets.dwGlobalVars, false);
     read("client.dll.dwPlantedC4", offsets.dwPlantedC4, false);
     read("engine2.dll.dwBuildNumber", offsets.dwBuildNumber, false);
-    offsets.loaded = required;
+    std::string validation_error;
+    offsets.loaded = required && offsets.Validate(&validation_error);
     if (offsets.loaded) {
         offsets_source = "offsets embedded";
         std::cout << "[RESOURCE] game=CS2 source=embedded id=IDR_OFFSETS_CS2 load=PASS build="
                   << snapshot.metadata.build << std::endl;
+    } else if (!validation_error.empty()) {
+        status = validation_error;
+        offsets_source = "offsets embedded inválidos";
     }
     return offsets.loaded;
 }
@@ -623,7 +702,13 @@ bool RecoverCriticalOffsets() {
     offsets.dwLocalPlayerPawn = local_pawn;
     if (local_controller) offsets.dwLocalPlayerController = local_controller;
     if (build_number) offsets.dwBuildNumber = build_number;
-    offsets.loaded = true;
+    std::string validation_error;
+    offsets.loaded = offsets.Validate(&validation_error);
+    if (!offsets.loaded) {
+        status = validation_error;
+        offsets_source = "assinaturas inválidas";
+        return false;
+    }
     offsets_source = "assinaturas do processo atual";
 
     char recovered[224]{};
@@ -881,6 +966,23 @@ bool IsFinitePosition(const float* pos) {
     return pos && std::isfinite(pos[0]) && std::isfinite(pos[1]) && std::isfinite(pos[2]);
 }
 
+// Cheap broad-phase test used before requesting a complete bone array.  It
+// uses clip space directly, so it needs no ImGui state and can run safely on
+// the acquisition thread.  The generous margin preserves targets entering the
+// screen while rejecting entities well behind/outside the camera frustum.
+bool InsideExpandedFrustum(const float* pos, const float* vm) {
+    if (!IsFinitePosition(pos) || !vm) return false;
+    const float x = pos[0], y = pos[1], z = pos[2] + 38.f;
+    const float clipX = x * vm[0]  + y * vm[1]  + z * vm[2]  + vm[3];
+    const float clipY = x * vm[4]  + y * vm[5]  + z * vm[6]  + vm[7];
+    const float clipW = x * vm[12] + y * vm[13] + z * vm[14] + vm[15];
+    if (!std::isfinite(clipW) || clipW <= 0.01f) return false;
+    const float nx = clipX / clipW;
+    const float ny = clipY / clipW;
+    return std::isfinite(nx) && std::isfinite(ny) &&
+           nx >= -1.35f && nx <= 1.35f && ny >= -1.45f && ny <= 1.45f;
+}
+
 bool IsPlayableMapName(const char* map) {
     if (!map || !*map) return false;
     const std::string name(map);
@@ -1082,16 +1184,15 @@ static uintptr_t ResolveEntityByHandle(uint32_t handle, uintptr_t stride) {
         g_cached_entity_root = root;
     }
 
-    const uintptr_t page = static_cast<uintptr_t>((handle & 0x7FFF) >> 9);
-    const uintptr_t index = static_cast<uintptr_t>(handle & 0x1FF);
+    const EntityHandleParts parts = DecodeEntityHandle(handle);
 
     uintptr_t chunk = 0;
-    if (!QReadT(root + kEntityPageTableOffset + sizeof(uintptr_t) * page, chunk) ||
+    if (!QReadT(root + kEntityPageTableOffset + sizeof(uintptr_t) * parts.page, chunk) ||
         !IsUserPointer(chunk))
         return 0;
 
     uintptr_t entity = 0;
-    if (!QReadT(chunk + stride * index, entity) || !IsUserPointer(entity))
+    if (!QReadT(chunk + stride * parts.index, entity) || !IsUserPointer(entity))
         return 0;
     return entity;
 }
@@ -1292,8 +1393,9 @@ static int ScatterResolvePawnHandles(const uint32_t* handles, uintptr_t* pawns,
     uintptr_t chunks[kMaxPages]{};
     bool pageUsed[kMaxPages]{};
     for (int i = 0; i < count; ++i) {
-        if (!handles[i] || handles[i] == 0xFFFFFFFF) continue;
-        const int page = static_cast<int>((handles[i] & 0x7FFF) >> 9);
+        const EntityHandleParts parts = DecodeEntityHandle(handles[i]);
+        if (!parts.valid) continue;
+        const int page = static_cast<int>(parts.page);
         if (page >= 0 && page < kMaxPages) pageUsed[page] = true;
     }
 
@@ -1316,11 +1418,11 @@ static int ScatterResolvePawnHandles(const uint32_t* handles, uintptr_t* pawns,
     mem.ExecuteReadScatter(g_scatter);
 
     for (int i = 0; i < count; ++i) {
-        if (!handles[i] || handles[i] == 0xFFFFFFFF) continue;
-        const int page = static_cast<int>((handles[i] & 0x7FFF) >> 9);
-        const uintptr_t index = static_cast<uintptr_t>(handles[i] & 0x1FF);
+        const EntityHandleParts parts = DecodeEntityHandle(handles[i]);
+        if (!parts.valid) continue;
+        const int page = static_cast<int>(parts.page);
         if (page < 0 || page >= kMaxPages || !IsUserPointer(chunks[page])) continue;
-        mem.AddScatterReadRequest(g_scatter, chunks[page] + stride * index,
+        mem.AddScatterReadRequest(g_scatter, chunks[page] + stride * parts.index,
                                   &pawns[i], sizeof(uintptr_t));
     }
     mem.ExecuteReadScatter(g_scatter);
@@ -1499,21 +1601,21 @@ void UpdateBombState() {
         QRead(scene + offsets.m_vecAbsOrigin, runtime.bomb.pos, sizeof(runtime.bomb.pos));
 }
 
-void RunFrame() {
+static void RunFrameWithConfig(const Config& frame_config) {
     // Keep web radar HTTP server in sync with UI toggles.
-    if (config.webradar_enabled) {
+    if (frame_config.webradar_enabled) {
         if (!WebRadar::IsRunning())
-            WebRadar::Start(config.webradar_port);
+            WebRadar::Start(frame_config.webradar_port);
         WebRadar::Tick();
         static ULONGLONG next_cloudflare_attempt = 0;
-        if (config.webradar_cloudflare && !WebRadar::CloudflareRunning()) {
+        if (frame_config.webradar_cloudflare && !WebRadar::CloudflareRunning()) {
             const ULONGLONG now = GetTickCount64();
             if (now >= next_cloudflare_attempt) {
                 WebRadar::StartCloudflare();
                 next_cloudflare_attempt = now + 5000;
             }
         }
-        if (!config.webradar_cloudflare && WebRadar::CloudflareRunning())
+        if (!frame_config.webradar_cloudflare && WebRadar::CloudflareRunning())
             WebRadar::StopCloudflare();
     } else if (WebRadar::IsRunning()) {
         WebRadar::Stop();
@@ -1523,18 +1625,7 @@ void RunFrame() {
         return;
 
     ++runtime.frames;
-    {
-        static auto last = std::chrono::steady_clock::now();
-        static int frame_bucket = 0;
-        ++frame_bucket;
-        const auto now = std::chrono::steady_clock::now();
-        const float elapsed = std::chrono::duration<float>(now - last).count();
-        if (elapsed >= 0.5f) {
-            runtime.fps = frame_bucket / elapsed;
-            frame_bucket = 0;
-            last = now;
-        }
-    }
+    runtime.fps = g_presentation_fps.load(std::memory_order_relaxed);
 
     const uintptr_t client = runtime.client_base;
     // Keep last-good player snapshot when entity list briefly fails (prevents
@@ -1622,16 +1713,15 @@ void RunFrame() {
     // LOBBY / MENU: keep light probes only; entity DMA resumes on match enter.
     if (!runtime.in_match) {
         zero_player_frames = 0;
-        status = "Lobby / a aguardar partida (map/pawn probe ativo)";
         return;
     }
 
     // CRITICAL: with ESP/Aim/Radar all OFF, do almost zero DMA work.
-    if (!NeedsPlayerScan()) {
+    if (!NeedsPlayerScan(frame_config)) {
         zero_player_frames = 0;
-        if (config.bomb_timer && (runtime.frames % 2) == 0)
+        if (frame_config.bomb_timer && (runtime.frames % 2) == 0)
             UpdateBombState();
-        else if (!config.bomb_timer)
+        else if (!frame_config.bomb_timer)
             runtime.bomb = BombState{};
         return;
     }
@@ -1707,6 +1797,13 @@ void RunFrame() {
             if (QReadT(runtime.local_pawn + offsets.m_bIsScoped, scoped))
                 runtime.local_scoped = scoped;
         }
+
+        runtime.local_crosshair_entity = 0;
+        if (frame_config.trigger_enabled && frame_config.trigger_use_ident && offsets.m_iIDEntIndex)
+            QReadT(runtime.local_pawn + offsets.m_iIDEntIndex,
+                   runtime.local_crosshair_entity);
+    } else {
+        runtime.local_crosshair_entity = 0;
     }
 
     if (!RefreshEntityListEntry()) {
@@ -1720,9 +1817,9 @@ void RunFrame() {
         return;
     }
 
-    int kMax = config.max_entities > 0 ? config.max_entities : 32;
+    int kMax = frame_config.max_entities > 0 ? frame_config.max_entities : 32;
     if (kMax > 64) kMax = 64;
-    if (config.auto_entity_cap) {
+    if (frame_config.auto_entity_cap) {
         if (runtime.fps > 1.f && runtime.fps < 40.f) kMax = (std::min)(kMax, 16);
         else if (runtime.fps < 55.f) kMax = (std::min)(kMax, 24);
         else if (runtime.fps > 90.f) kMax = (std::min)(kMax, 48);
@@ -1799,21 +1896,21 @@ void RunFrame() {
 
     // ── Phase 3: scatter health / team / armor / scene for candidates ────
     OmniGhost::Gameplay::EspCore::FeatureSet requested{};
-    requested.box = config.box;
-    requested.corner_box = config.box_corner;
-    requested.skeleton = config.skeleton;
-    requested.head = config.head_dot;
-    requested.health = config.health_bar;
-    requested.armor = config.armor_bar;
-    requested.snapline = config.snaplines;
-    requested.name = config.name || config.spectator_list;
-    requested.weapon = config.weapon_icons;
-    requested.distance = config.distance;
-    requested.aim = config.aim_enabled || config.trigger_enabled;
-    requested.prediction = config.aim_enabled && config.aim_prediction;
-    requested.trail = config.trails;
-    requested.halo = config.head_halo;
-    requested.look_direction = config.look_direction;
+    requested.box = frame_config.box;
+    requested.corner_box = frame_config.box_corner;
+    requested.skeleton = frame_config.skeleton;
+    requested.head = frame_config.head_dot;
+    requested.health = frame_config.health_bar;
+    requested.armor = frame_config.armor_bar;
+    requested.snapline = frame_config.snaplines;
+    requested.name = frame_config.name || frame_config.spectator_list;
+    requested.weapon = frame_config.weapon_icons;
+    requested.distance = frame_config.distance;
+    requested.aim = frame_config.aim_enabled || frame_config.trigger_enabled;
+    requested.prediction = frame_config.aim_enabled && frame_config.aim_prediction;
+    requested.trail = frame_config.trails;
+    requested.halo = frame_config.head_halo;
+    requested.look_direction = frame_config.look_direction;
     const auto fields = requested.RequiredFields();
 
     const bool need_armor = OmniGhost::Gameplay::EspCore::Has(
@@ -1822,29 +1919,39 @@ void RunFrame() {
         fields, OmniGhost::Gameplay::EspCore::DataField::Name);
     const bool need_weapons = OmniGhost::Gameplay::EspCore::Has(
         fields, OmniGhost::Gameplay::EspCore::DataField::Weapon);
-    const bool need_yaw = config.radar_2d ||
+    const bool need_yaw = frame_config.radar_2d ||
         OmniGhost::Gameplay::EspCore::Has(
             fields, OmniGhost::Gameplay::EspCore::DataField::Facing);
     const bool track_velocity = OmniGhost::Gameplay::EspCore::Has(
         fields, OmniGhost::Gameplay::EspCore::DataField::Velocity);
     const bool need_bones = OmniGhost::Gameplay::EspCore::Has(
         fields, OmniGhost::Gameplay::EspCore::DataField::Skeleton);
-    const bool need_scoped = config.scope_check || config.trigger_scoped_only;
+    const bool need_scoped = frame_config.scope_check || frame_config.trigger_scoped_only;
 
     PawnCoreFields core[kMaxSlots]{};
     ScatterReadPawnCore(resolved_pawns, core, candidate_count, need_armor,
-                        need_scoped, config.smoke_flash, need_yaw, need_weapons);
+                        need_scoped, frame_config.smoke_flash, need_yaw, need_weapons);
 
     // ── Phase 4: scatter positions (scene+origin or pawn+oldOrigin) ──────
     struct BoneJointSnapshot { float x, y, z, scale; char pad[0x10]; };
     static_assert(sizeof(BoneJointSnapshot) == 32, "BoneJointSnapshot size");
     float positions[kMaxSlots][3]{};
     char playerNames[kMaxSlots][64]{};
+    bool nameNeedsRefresh[kMaxSlots]{};
+    struct CachedName {
+        std::array<char, 64> text{};
+        uint64_t lastRefresh = 0;
+    };
+    static std::unordered_map<uintptr_t, CachedName> nameCache;
     uintptr_t boneBases[kMaxSlots]{};
+    bool boneReadEligible[kMaxSlots]{};
     BoneJointSnapshot boneSnapshots[kMaxSlots][32]{};
     uint32_t weaponHandles[kMaxSlots]{};
     uintptr_t weaponEntities[kMaxSlots]{};
     uint16_t weaponDefinitions[kMaxSlots]{};
+    bool weaponDefinitionRead[kMaxSlots]{};
+    struct CachedWeaponDefinition { uint16_t definition = 0; uint64_t lastRefresh = 0; };
+    static std::unordered_map<uintptr_t, CachedWeaponDefinition> weaponDefinitionCache;
     EnsureScatter();
     if (g_scatter && candidate_count > 0) {
         for (int c = 0; c < candidate_count; ++c) {
@@ -1857,10 +1964,18 @@ void RunFrame() {
                                           positions[c], sizeof(float) * 3);
             if (need_names) {
                 const int controllerSlot = slot_index[c];
-                if (controllers[controllerSlot])
+                const uintptr_t controller = controllers[controllerSlot];
+                const auto cached = nameCache.find(controller);
+                if (cached != nameCache.end() && cached->second.text[0] &&
+                    runtime.frames - cached->second.lastRefresh < 250) {
+                    std::memcpy(playerNames[c], cached->second.text.data(),
+                                sizeof(playerNames[c]));
+                } else if (controller) {
+                    nameNeedsRefresh[c] = true;
                     mem.AddScatterReadRequest(g_scatter,
-                        controllers[controllerSlot] + offsets.m_iszPlayerName,
+                        controller + offsets.m_iszPlayerName,
                         playerNames[c], sizeof(playerNames[c]) - 1);
+                }
             }
             if (need_bones && IsUserPointer(scene))
                 mem.AddScatterReadRequest(g_scatter, scene + offsets.BoneArray,
@@ -1868,12 +1983,18 @@ void RunFrame() {
         }
         mem.ExecuteReadScatter(g_scatter);
         if (need_bones) {
+            bool queuedBoneReads = false;
             for (int c = 0; c < candidate_count; ++c) {
-                if (IsUserPointer(boneBases[c]))
+                boneReadEligible[c] = InsideExpandedFrustum(
+                    positions[c], runtime.view_matrix);
+                if (boneReadEligible[c] && IsUserPointer(boneBases[c])) {
                     mem.AddScatterReadRequest(g_scatter, boneBases[c], boneSnapshots[c],
                                               sizeof(boneSnapshots[c]));
+                    queuedBoneReads = true;
+                }
             }
-            mem.ExecuteReadScatter(g_scatter);
+            if (queuedBoneReads)
+                mem.ExecuteReadScatter(g_scatter);
         }
         if (need_weapons) {
             for (int c = 0; c < candidate_count; ++c) {
@@ -1885,14 +2006,30 @@ void RunFrame() {
             mem.ExecuteReadScatter(g_scatter);
             ScatterResolvePawnHandles(weaponHandles, weaponEntities, candidate_count,
                 g_pawn_stride ? g_pawn_stride : kEntityIdentityStride);
+            bool queuedWeaponDefinitions = false;
             for (int c = 0; c < candidate_count; ++c) {
                 if (!IsUserPointer(weaponEntities[c])) continue;
+                const auto cached = weaponDefinitionCache.find(weaponEntities[c]);
+                if (cached != weaponDefinitionCache.end() && cached->second.definition > 0 &&
+                    runtime.frames - cached->second.lastRefresh < 1250) {
+                    weaponDefinitions[c] = cached->second.definition;
+                    continue;
+                }
                 const uintptr_t primary = weaponEntities[c] + offsets.m_AttributeManager +
                                           offsets.m_Item + offsets.m_iItemDefinitionIndex;
                 mem.AddScatterReadRequest(g_scatter, primary, &weaponDefinitions[c],
                                           sizeof(uint16_t));
+                weaponDefinitionRead[c] = true;
+                queuedWeaponDefinitions = true;
             }
-            mem.ExecuteReadScatter(g_scatter);
+            if (queuedWeaponDefinitions)
+                mem.ExecuteReadScatter(g_scatter);
+            for (int c = 0; c < candidate_count; ++c) {
+                if (!weaponDefinitionRead[c] || !weaponDefinitions[c]) continue;
+                weaponDefinitionCache[weaponEntities[c]] = {
+                    weaponDefinitions[c], runtime.frames
+                };
+            }
         }
     } else {
         for (int c = 0; c < candidate_count; ++c) {
@@ -1901,10 +2038,22 @@ void RunFrame() {
             else
                 QRead(resolved_pawns[c] + offsets.m_vOldOrigin, positions[c], sizeof(float) * 3);
             const int controllerSlot = slot_index[c];
-            if (need_names && controllers[controllerSlot])
-                QRead(controllers[controllerSlot] + offsets.m_iszPlayerName,
-                      playerNames[c], sizeof(playerNames[c]) - 1);
-            if (need_bones && IsUserPointer(core[c].scene) &&
+            if (need_names && controllers[controllerSlot]) {
+                const uintptr_t controller = controllers[controllerSlot];
+                const auto cached = nameCache.find(controller);
+                if (cached != nameCache.end() && cached->second.text[0] &&
+                    runtime.frames - cached->second.lastRefresh < 250) {
+                    std::memcpy(playerNames[c], cached->second.text.data(),
+                                sizeof(playerNames[c]));
+                } else {
+                    nameNeedsRefresh[c] = true;
+                    QRead(controller + offsets.m_iszPlayerName,
+                          playerNames[c], sizeof(playerNames[c]) - 1);
+                }
+            }
+            boneReadEligible[c] = need_bones && InsideExpandedFrustum(
+                positions[c], runtime.view_matrix);
+            if (boneReadEligible[c] && IsUserPointer(core[c].scene) &&
                 QReadT(core[c].scene + offsets.BoneArray, boneBases[c]) &&
                 IsUserPointer(boneBases[c]))
                 QRead(boneBases[c], boneSnapshots[c], sizeof(boneSnapshots[c]));
@@ -1951,9 +2100,9 @@ void RunFrame() {
             p.is_scoped = cf.scoped != 0;
         if (p.is_local)
             p.is_scoped = runtime.local_scoped;
-        if (config.smoke_flash)
+        if (frame_config.smoke_flash)
             p.is_flashed = cf.flash > 0.15f;
-        if ((config.recoil_visual || config.aim_enabled) && p.is_local && offsets.m_aimPunchAngle) {
+        if ((frame_config.recoil_visual || frame_config.aim_enabled) && p.is_local && offsets.m_aimPunchAngle) {
             float punch[2]{};
             if (QRead(pawn + offsets.m_aimPunchAngle, punch, sizeof(punch))) {
                 p.aim_punch[0] = punch[0];
@@ -1987,6 +2136,19 @@ void RunFrame() {
             current_positions[pawn] = { p.pos[0], p.pos[1], p.pos[2] };
         }
 
+        // Reject distant entities before name sanitising, skeleton validation
+        // and weapon formatting.  The squared comparison avoids a sqrt for
+        // entities that cannot contribute to this frame at all.
+        const float dx = p.pos[0] - runtime.local_pos[0];
+        const float dy = p.pos[1] - runtime.local_pos[1];
+        const float dz = p.pos[2] - runtime.local_pos[2];
+        const float distanceSq = dx * dx + dy * dy + dz * dz;
+        const float maxDistanceUnits = frame_config.max_distance * 39.37f;
+        if (!p.is_local && frame_config.max_distance > 1.f &&
+            distanceSq > maxDistanceUnits * maxDistanceUnits)
+            continue;
+        p.distance = std::sqrt((std::max)(distanceSq, 0.f)) / 39.37f;
+
         if (need_names) {
             char nameBuf[64]{};
             std::memcpy(nameBuf, playerNames[c], sizeof(nameBuf));
@@ -2010,19 +2172,17 @@ void RunFrame() {
                 _strnicmp(nameBuf, "Player_", 7) == 0 ||
                 _strnicmp(nameBuf, "Jogador_", 8) == 0)
                 p.is_bot = true;
-            if (!config.show_bots && p.is_bot)
+            if (nameNeedsRefresh[c] && controller) {
+                auto& cached = nameCache[controller];
+                std::memcpy(cached.text.data(), nameBuf, cached.text.size());
+                cached.lastRefresh = runtime.frames;
+            }
+            if (!frame_config.show_bots && p.is_bot)
                 continue;
             std::memcpy(p.name, nameBuf, sizeof(p.name));
         } else {
             std::snprintf(p.name, sizeof(p.name), "P%d", p.ent_index);
         }
-
-        const float dx = p.pos[0] - runtime.local_pos[0];
-        const float dy = p.pos[1] - runtime.local_pos[1];
-        const float dz = p.pos[2] - runtime.local_pos[2];
-        p.distance = std::sqrt(dx * dx + dy * dy + dz * dz) / 39.37f;
-        if (!p.is_local && config.max_distance > 1.f && p.distance > config.max_distance)
-            continue;
 
         // CS2 bone indices (Source 2 / CS2-DMA-main Bone.h):
         // head=7 neck=6 spine1=4 spine2=2 pelvis=1
@@ -2030,23 +2190,24 @@ void RunFrame() {
         // L leg 17/18/19  R leg 20/21/22
         // One contiguous 32-joint snapshot per player. Distance never removes
         // bones, so the visual quality stays identical under load.
-        if (scene && need_bones) {
+        if (scene && need_bones && boneReadEligible[c]) {
             auto try_bones = [&](const BoneJointSnapshot* joints) -> bool {
                 if (!joints) return false;
-                // CS2 / Source 2 bone indices (community + cs2-dumper consistent):
-                // head=6 neck=5 spine2=4 spine1=2 spine0=1 pelvis=0
-                // L: clav/upper/lower/hand 8-11   R: 13-16
-                // L leg: 22-24   R leg: 25-27
-                // Slot map matches cs2_esp DrawBoneLine comments.
-                static const int kIdx[20] = {
+                // CS2 / Source 2 bone indices.  The arm chains end at 10/15;
+                // 11/16 are hand/finger auxiliaries and using them as a hand
+                // makes the pose bend or stretch as the weapon animates.
+                // Keep the public four-slot layout, duplicating the shoulder
+                // at the clavicle slot so every rendered limb is anatomical.
+                // L leg: upper=22, lower=23, ankle=24; R=25..27.
+                static const int kIdx[kBoneSlotCount] = {
                     6, 5, 4, 2, 1, 0,
-                    8, 9, 10, 11,
-                    13, 14, 15, 16,
+                    8, 8, 9, 10,
+                    13, 13, 14, 15,
                     22, 23, 24,
                     25, 26, 27
                 };
-                float tmp[20][3]{};
-                for (int b = 0; b < 20; ++b) {
+                float tmp[kBoneSlotCount][3]{};
+                for (std::size_t b = 0; b < kBoneSlotCount; ++b) {
                     int id = kIdx[b];
                     if (id < 0 || id >= 32) return false;
                     tmp[b][0] = joints[id].x;
@@ -2055,7 +2216,7 @@ void RunFrame() {
                     if (!std::isfinite(tmp[b][0]) || !std::isfinite(tmp[b][1]) || !std::isfinite(tmp[b][2]))
                         return false;
                 }
-                auto skeleton_score = [&](float bones[20][3]) -> float {
+                auto skeleton_score = [&](float bones[kBoneSlotCount][3]) -> float {
                     // Prefer coherent head-above-pelvis torso length and arm/leg span.
                     const float* h = bones[0];
                     const float* pel = bones[5];
@@ -2074,6 +2235,18 @@ void RunFrame() {
                     if (armR > 5.f && armR < 70.f) score += 10.f;
                     if (legL > 10.f && legL < 90.f) score += 12.f;
                     if (legR > 10.f && legR < 90.f) score += 12.f;
+                    // A malformed lower-body sample is much more distracting
+                    // than a skipped skeleton.  Ankles must remain below their
+                    // knees and the two leg chains need a plausible length.
+                    auto leg_valid = [&](int hip, int knee, int ankle) {
+                        const float upper = seg(hip, knee);
+                        const float lower = seg(knee, ankle);
+                        if (upper < 5.f || upper > 65.f || lower < 5.f || lower > 65.f)
+                            return false;
+                        return bones[ankle][2] <= bones[knee][2] + 12.f;
+                    };
+                    if (!leg_valid(14, 15, 16) || !leg_valid(17, 18, 19))
+                        return -1.f;
                     const float horiz = std::sqrt((h[0]-p.pos[0])*(h[0]-p.pos[0]) + (h[1]-p.pos[1])*(h[1]-p.pos[1]));
                     if (horiz > 60.f) score -= 40.f;
                     return score;
@@ -2088,14 +2261,14 @@ void RunFrame() {
                     const float gdx = p.pos[0] - px;
                     const float gdy = p.pos[1] - py;
                     if (std::fabs(gdx) < 40.f && std::fabs(gdy) < 40.f) {
-                        for (int b = 0; b < 20; ++b) {
+                        for (std::size_t b = 0; b < kBoneSlotCount; ++b) {
                             tmp[b][0] += gdx;
                             tmp[b][1] += gdy;
                         }
                     }
                 }
 
-                for (int b = 0; b < 20; ++b) {
+                for (std::size_t b = 0; b < kBoneSlotCount; ++b) {
                     p.bones[b][0] = tmp[b][0];
                     p.bones[b][1] = tmp[b][1];
                     p.bones[b][2] = tmp[b][2];
@@ -2241,7 +2414,7 @@ void RunFrame() {
         zero_player_frames = 0;
     }
 
-    if (runtime.in_match && config.bomb_timer)
+    if (runtime.in_match && frame_config.bomb_timer)
         UpdateBombState();
     else
         runtime.bomb = BombState{};
@@ -2297,8 +2470,79 @@ void RunFrame() {
     // doubled DMA + mouse work every frame and tanked FPS / aim pull.
 }
 
+void RunFrame() {
+    RunFrameWithConfig(config);
+}
+
+void SubmitAcquisitionConfig(const Config& next) noexcept {
+    auto slot = g_config_snapshots.TryBeginWrite();
+    if (!slot) return;
+    *slot.value = next;
+    g_config_snapshots.Publish(slot.index);
+}
+
+void EnsureAcquisitionStarted() {
+    bool expected = false;
+    if (!g_acquisition_running.compare_exchange_strong(
+            expected, true, std::memory_order_acq_rel))
+        return;
+
+    g_acquisition_stop.store(false, std::memory_order_release);
+    PublishRuntimeSnapshot();
+    g_acquisition_thread = std::thread([] {
+        while (!g_acquisition_stop.load(std::memory_order_acquire)) {
+            try {
+                auto frame_config = g_config_snapshots.Acquire();
+                RunFrameWithConfig(*frame_config);
+                PublishRuntimeSnapshot();
+            } catch (const std::exception& ex) {
+                std::cerr << "[CS2] acquisition exception: " << ex.what() << std::endl;
+            } catch (...) {
+                std::cerr << "[CS2] acquisition unknown exception" << std::endl;
+            }
+
+            // Match the producer rate to current presentation pressure.  This
+            // preserves the 250 Hz fast lane when there is headroom, but avoids
+            // competing for a core/DMA bandwidth while frametime is already
+            // over budget. Published snapshots never queue: readers take the
+            // newest generation directly.
+            int delayMs = 16;
+            if (runtime.in_match) {
+                const float fps = g_presentation_fps.load(std::memory_order_relaxed);
+                delayMs = (fps > 1.f && fps < 45.f) ? 8
+                        : (fps > 1.f && fps < 80.f) ? 6
+                        : 4;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(delayMs));
+        }
+    });
+}
+
+void StopAcquisition() {
+    g_acquisition_stop.store(true, std::memory_order_release);
+    if (g_acquisition_thread.joinable())
+        g_acquisition_thread.join();
+    g_acquisition_running.store(false, std::memory_order_release);
+}
+
+RuntimeSnapshotLease AcquireRuntimeSnapshot() {
+    return g_runtime_snapshots.Acquire();
+}
+
+bool AcquisitionRunning() noexcept {
+    return g_acquisition_running.load(std::memory_order_acquire);
+}
+
+void SetPresentationFps(float fps) noexcept {
+    if (std::isfinite(fps) && fps >= 0.f)
+        g_presentation_fps.store(fps, std::memory_order_relaxed);
+}
+
 
 bool ReinitDma() {
+    const bool restart_acquisition = AcquisitionRunning();
+    if (restart_acquisition)
+        StopAcquisition();
     status = "Reinit DMA...";
     std::cout << "[CS2] Reinit DMA\n";
     mem.InvalidateProcess();
@@ -2322,10 +2566,13 @@ bool ReinitDma() {
     }
     status = "Reinit DMA OK";
     std::cout << "[CS2] " << status << std::endl;
+    if (restart_acquisition)
+        EnsureAcquisitionStarted();
     return true;
 }
 
 void Shutdown() {
+    StopAcquisition();
     WebRadar::Stop();
     DestroyScatter();
     g_pending_entity_list = 0;
@@ -2334,6 +2581,7 @@ void Shutdown() {
     g_pawn_stride = kEntityIdentityStride;
     ready = false;
     runtime = Runtime{};
+    PublishRuntimeSnapshot();
     status = "Shutdown";
 }
 
@@ -2355,13 +2603,19 @@ const char* StatusLine() {
     static char buf[96];
     if (!ready)
         std::snprintf(buf, sizeof(buf), "%s", status.c_str());
-    else
+    else {
+        const auto snapshot = AcquireRuntimeSnapshot();
         std::snprintf(buf, sizeof(buf), "CS2 b%u  %d jogadores",
-            runtime.build_number, runtime.player_count);
+            snapshot ? snapshot->build_number : 0,
+            snapshot ? snapshot->player_count : 0);
+    }
     return buf;
 }
 
-int PlayerCount() { return runtime.player_count; }
+int PlayerCount() {
+    const auto snapshot = AcquireRuntimeSnapshot();
+    return snapshot ? snapshot->player_count : 0;
+}
 
 // Soft probe that works in lobby/menu: entity list + view matrix must resolve.
 // Does NOT require local pawn (often null in main menu).
@@ -2431,6 +2685,13 @@ bool SelfTestOffsets() {
 }
 
 bool ValidateLiveOffsets() {
+    if (AcquisitionRunning()) {
+        const auto snapshot = AcquireRuntimeSnapshot();
+        // The worker already proved the same pointer chain while producing a
+        // recent frame. Avoid a second DMA probe racing the acquisition lane.
+        return snapshot && snapshot->client_base != 0 &&
+            (snapshot->frames > 0 || snapshot->offsets_self_test_ok);
+    }
     // Use soft probe for lobby-safe validation; if that passes, offsets are not outdated.
     return SoftProbeLobbyOffsets();
 }

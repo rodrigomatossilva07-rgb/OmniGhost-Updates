@@ -153,18 +153,23 @@ bool W2S(const float* world, const float* vm, float& sx, float& sy) {
 // 0 head 1 neck 2 spine2 3 spine1 4 spine0 5 pelvis
 // 6 clav_l 7 sh_l 8 elb_l 9 hand_l | 10 clav_r 11 sh_r 12 elb_r 13 hand_r
 // 14 hip_l 15 knee_l 16 ankle_l   | 17 hip_r 18 knee_r 19 ankle_r
-void DrawBoneLine(ImDrawList* dl, const float bones[][3], int a, int b, const float* vm, ImU32 col, float thickness = 1.6f) {
+// The skeleton and joints share this projection cache.  Previously every line
+// projected both endpoints again, meaning a complete skeleton could perform
+// almost sixty identical world-to-screen transforms per player and frame.
+void DrawBoneLine(ImDrawList* dl, const float bones[][3], const ImVec2 projected[],
+                  const bool projected_ok[], int a, int b, ImU32 col,
+                  float thickness = 1.6f) {
     const float wx = bones[a][0] - bones[b][0];
     const float wy = bones[a][1] - bones[b][1];
     const float wz = bones[a][2] - bones[b][2];
     const float wlen2 = wx * wx + wy * wy + wz * wz;
     if (wlen2 < 0.25f || wlen2 > 130.f * 130.f) return;
 
-    float ax, ay, bx, by;
-    if (!W2S(bones[a], vm, ax, ay) || !W2S(bones[b], vm, bx, by)) return;
-    const float dx = ax - bx, dy = ay - by;
+    if (!projected_ok[a] || !projected_ok[b]) return;
+    const float dx = projected[a].x - projected[b].x;
+    const float dy = projected[a].y - projected[b].y;
     if (dx * dx + dy * dy > 520.f * 520.f) return;
-    dl->AddLine(ImVec2(ax, ay), ImVec2(bx, by), col, thickness);
+    dl->AddLine(projected[a], projected[b], col, thickness);
 }
 
 const char* WeaponIconCode(int def) {
@@ -558,8 +563,6 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
         }
         const ImU32 teamCol = Col(colVis);
 
-        DrawMotionVisuals(dl, rt, cfg, p);
-
         // Anchor the box to the current pawn origin. Bone snapshots can be a
         // fraction of a tick older while a player is moving and must not drag
         // the entire box/name away from the entity.
@@ -578,6 +581,17 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
         float top = hy - h * 0.10f; // slight head padding
         float bottom = fy;
 
+        // Do not run cosmetic or bone work for an entity wholly outside the
+        // drawable area.  Off-screen arrows were handled above, so this does
+        // not remove the player's directional cue.  The margin avoids a pop
+        // at the edge of the display while keeping the hot path bounded.
+        constexpr float kScreenCullMargin = 128.f;
+        if (right < -kScreenCullMargin || left > ds.x + kScreenCullMargin ||
+            bottom < -kScreenCullMargin || top > ds.y + kScreenCullMargin)
+            continue;
+
+        DrawMotionVisuals(dl, rt, cfg, p);
+
         if (cfg.box || cfg.box_corner) {
             ImU32 c = teamCol;
             const float thickness = std::clamp(cfg.box_thickness, 0.5f, 8.f);
@@ -595,32 +609,42 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
             ImU32 sc = teamCol;
             const float th = std::clamp(cfg.skeleton_thickness, 0.5f, 8.f);
 
+            // Project every required bone once.  Lines and optional joint
+            // dots then consume the same stable per-player data.
+            ImVec2 projected[CS2::kBoneSlotCount]{};
+            bool projectedOk[CS2::kBoneSlotCount]{};
+            for (std::size_t bone = 0; bone < CS2::kBoneSlotCount; ++bone) {
+                float sx = 0.f, sy = 0.f;
+                projectedOk[bone] = W2S(p.bones[bone], rt.view_matrix, sx, sy);
+                if (projectedOk[bone]) projected[bone] = ImVec2(sx, sy);
+            }
+
             // Spine column (head → neck → spine chain → pelvis)
-            DrawBoneLine(dl, p.bones, 0, 1, rt.view_matrix, sc, th);
-            DrawBoneLine(dl, p.bones, 1, 2, rt.view_matrix, sc, th);
-            DrawBoneLine(dl, p.bones, 2, 3, rt.view_matrix, sc, th);
-            DrawBoneLine(dl, p.bones, 3, 4, rt.view_matrix, sc, th);
-            DrawBoneLine(dl, p.bones, 4, 5, rt.view_matrix, sc, th);
+            DrawBoneLine(dl, p.bones, projected, projectedOk, 0, 1, sc, th);
+            DrawBoneLine(dl, p.bones, projected, projectedOk, 1, 2, sc, th);
+            DrawBoneLine(dl, p.bones, projected, projectedOk, 2, 3, sc, th);
+            DrawBoneLine(dl, p.bones, projected, projectedOk, 3, 4, sc, th);
+            DrawBoneLine(dl, p.bones, projected, projectedOk, 4, 5, sc, th);
 
             if (true) { // always full arms
                 // L: neck/clav → shoulder → elbow → hand
-                DrawBoneLine(dl, p.bones, 1, 6, rt.view_matrix, sc, th);
-                DrawBoneLine(dl, p.bones, 6, 7, rt.view_matrix, sc, th);
-                DrawBoneLine(dl, p.bones, 7, 8, rt.view_matrix, sc, th);
-                DrawBoneLine(dl, p.bones, 8, 9, rt.view_matrix, sc, th);
+                DrawBoneLine(dl, p.bones, projected, projectedOk, 1, 6, sc, th);
+                DrawBoneLine(dl, p.bones, projected, projectedOk, 6, 7, sc, th);
+                DrawBoneLine(dl, p.bones, projected, projectedOk, 7, 8, sc, th);
+                DrawBoneLine(dl, p.bones, projected, projectedOk, 8, 9, sc, th);
                 // R
-                DrawBoneLine(dl, p.bones, 1, 10, rt.view_matrix, sc, th);
-                DrawBoneLine(dl, p.bones, 10, 11, rt.view_matrix, sc, th);
-                DrawBoneLine(dl, p.bones, 11, 12, rt.view_matrix, sc, th);
-                DrawBoneLine(dl, p.bones, 12, 13, rt.view_matrix, sc, th);
+                DrawBoneLine(dl, p.bones, projected, projectedOk, 1, 10, sc, th);
+                DrawBoneLine(dl, p.bones, projected, projectedOk, 10, 11, sc, th);
+                DrawBoneLine(dl, p.bones, projected, projectedOk, 11, 12, sc, th);
+                DrawBoneLine(dl, p.bones, projected, projectedOk, 12, 13, sc, th);
             }
             if (true) { // always full legs
-                DrawBoneLine(dl, p.bones, 5, 14, rt.view_matrix, sc, th);
-                DrawBoneLine(dl, p.bones, 14, 15, rt.view_matrix, sc, th);
-                DrawBoneLine(dl, p.bones, 15, 16, rt.view_matrix, sc, th);
-                DrawBoneLine(dl, p.bones, 5, 17, rt.view_matrix, sc, th);
-                DrawBoneLine(dl, p.bones, 17, 18, rt.view_matrix, sc, th);
-                DrawBoneLine(dl, p.bones, 18, 19, rt.view_matrix, sc, th);
+                DrawBoneLine(dl, p.bones, projected, projectedOk, 5, 14, sc, th);
+                DrawBoneLine(dl, p.bones, projected, projectedOk, 14, 15, sc, th);
+                DrawBoneLine(dl, p.bones, projected, projectedOk, 15, 16, sc, th);
+                DrawBoneLine(dl, p.bones, projected, projectedOk, 5, 17, sc, th);
+                DrawBoneLine(dl, p.bones, projected, projectedOk, 17, 18, sc, th);
+                DrawBoneLine(dl, p.bones, projected, projectedOk, 18, 19, sc, th);
             }
 
             if (cfg.skeleton_joints) {
@@ -632,10 +656,10 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
                 const int* ids = kAll;
                 constexpr int nIds = 20;
                 for (int i = 0; i < nIds; ++i) {
-                    float jx, jy;
-                    if (!W2S(p.bones[ids[i]], rt.view_matrix, jx, jy)) continue;
-                    dl->AddCircleFilled(ImVec2(jx, jy), jr, jc, 12);
-                    dl->AddCircle(ImVec2(jx, jy), jr, IM_COL32(0, 0, 0, 200), 12, 1.0f);
+                    const int bone = ids[i];
+                    if (!projectedOk[bone]) continue;
+                    dl->AddCircleFilled(projected[bone], jr, jc, 12);
+                    dl->AddCircle(projected[bone], jr, IM_COL32(0, 0, 0, 200), 12, 1.0f);
                 }
             }
         }

@@ -1,8 +1,10 @@
 #pragma once
+#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <vector>
 #include "cs2_config.h"
+#include "gameplay/snapshot_exchange.h"
 
 namespace CS2 {
 
@@ -60,7 +62,20 @@ struct Offsets {
     uintptr_t m_Item = 0x50;
     uintptr_t m_iItemDefinitionIndex = 0x1BA;
     bool loaded = false;
+
+    bool Validate(std::string* reason = nullptr) const noexcept;
 };
+
+enum class BoneSlot : std::size_t {
+    Head, Neck, SpineUpper, SpineMiddle, SpineLower, Pelvis,
+    ClavicleLeft, ShoulderLeft, ElbowLeft, HandLeft,
+    ClavicleRight, ShoulderRight, ElbowRight, HandRight,
+    HipLeft, KneeLeft, AnkleLeft, HipRight, KneeRight, AnkleRight,
+    Count
+};
+
+inline constexpr std::size_t kBoneSlotCount =
+    static_cast<std::size_t>(BoneSlot::Count);
 
 struct Player {
     uintptr_t controller = 0;
@@ -88,8 +103,7 @@ struct Player {
     // 10 clav_r 11 shoulder_r 12 elbow_r 13 hand_r
     // 14 hip_l  15 knee_l  16 ankle_l
     // 17 hip_r  18 knee_r  19 ankle_r
-    // 20 (spare) 21 (spare)
-    float bones[22][3]{};
+    float bones[kBoneSlotCount][3]{};
     bool bones_ok = false;
     bool spotted = true; // m_bSpotted (EntitySpottedState_t)
     int ent_index = 0;
@@ -120,6 +134,7 @@ struct Runtime {
     float local_angles[3]{};
     float local_view_yaw = 0.f;
     bool local_scoped = false;
+    int local_crosshair_entity = 0;
     float view_matrix[16]{};
     char map_name[64]{};
     bool in_match = false;
@@ -141,6 +156,8 @@ struct Runtime {
     std::vector<Player> spectators;
 };
 
+using RuntimeSnapshotLease = OmniGhost::Gameplay::SnapshotExchange<Runtime>::ReadLease;
+
 extern Offsets offsets;
 extern Config config;
 extern Runtime runtime;
@@ -154,6 +171,12 @@ bool WaitForProcess(int timeout_sec = 120);
 bool Attach();
 bool RecoverCriticalOffsets();
 void RunFrame();
+void EnsureAcquisitionStarted();
+void StopAcquisition();
+void SubmitAcquisitionConfig(const Config& next) noexcept;
+[[nodiscard]] RuntimeSnapshotLease AcquireRuntimeSnapshot();
+[[nodiscard]] bool AcquisitionRunning() noexcept;
+void SetPresentationFps(float fps) noexcept;
 void Shutdown();
 const char* StatusLine();
 int PlayerCount();

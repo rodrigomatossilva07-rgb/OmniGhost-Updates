@@ -2,6 +2,8 @@
 #include <cstdint>
 #include <unordered_map>
 #include <chrono>
+#include <atomic>
+#include <array>
 #include "math/math.h"
 #include "../game/game.h"
 #include "ui/ui_models.h"
@@ -53,15 +55,13 @@ namespace esp {
     struct BatchSkeletonData {
         uintptr_t ped;
         Matrix bone_matrix;
-        std::vector<Vector3> bone_offsets;
+        std::array<Vector3, 9> bone_offsets{};
         Vec3 origin;
         float health;
         uint16_t bone_mask;
         bool valid;
 
-        BatchSkeletonData() : ped(0), health(0.0f), bone_mask(0), valid(false) {
-            bone_offsets.resize(9); // Pre-allocate for bones 0-8
-        }
+        BatchSkeletonData() : ped(0), health(0.0f), bone_mask(0), valid(false) {}
     };
 
     // NEW: Batch head data structure
@@ -83,7 +83,9 @@ namespace esp {
     class BoneCache {
     private:
         std::unordered_map<uintptr_t, CachedBoneData> cached_bone_data;
-        static constexpr std::chrono::milliseconds CACHE_VALIDITY_MS{ 0 }; // Always refresh (less ESP lag)
+        // Reuse data within one 120 Hz acquisition interval. A zero duration
+        // made every lookup a guaranteed miss and defeated the cache entirely.
+        static constexpr std::chrono::milliseconds CACHE_VALIDITY_MS{ 8 };
         static constexpr std::chrono::seconds CLEANUP_INTERVAL{ 2 }; // Cleanup every 2 seconds
         std::chrono::steady_clock::time_point last_cleanup;
 
@@ -198,22 +200,27 @@ namespace esp {
 
     // Performance monitoring
     struct ESPStats {
-        int cache_hits = 0;
-        int cache_misses = 0;
-        int memory_reads = 0;
-        int batch_reads = 0;  // NEW: Track batch read operations
+        std::atomic<int> cache_hits{0};
+        std::atomic<int> cache_misses{0};
+        std::atomic<int> memory_reads{0};
+        std::atomic<int> batch_reads{0};
         std::chrono::steady_clock::time_point last_reset;
 
         ESPStats() : last_reset(std::chrono::steady_clock::now()) {}
 
         void reset() {
-            cache_hits = cache_misses = memory_reads = batch_reads = 0;
+            cache_hits.store(0, std::memory_order_relaxed);
+            cache_misses.store(0, std::memory_order_relaxed);
+            memory_reads.store(0, std::memory_order_relaxed);
+            batch_reads.store(0, std::memory_order_relaxed);
             last_reset = std::chrono::steady_clock::now();
         }
 
         double get_hit_ratio() const {
-            int total = cache_hits + cache_misses;
-            return total > 0 ? (double)cache_hits / total : 0.0;
+            const int hits = cache_hits.load(std::memory_order_relaxed);
+            const int misses = cache_misses.load(std::memory_order_relaxed);
+            const int total = hits + misses;
+            return total > 0 ? static_cast<double>(hits) / total : 0.0;
         }
     };
 

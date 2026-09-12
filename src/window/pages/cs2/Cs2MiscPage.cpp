@@ -8,27 +8,38 @@ void DrawCs2Misc()
 {
     using namespace CyberWidgets;
     ImGui::PushID("cs2_misc");
+    const auto snapshot = CS2::AcquireRuntimeSnapshot();
+    const CS2::Runtime empty{};
+    const CS2::Runtime& runtime = snapshot ? *snapshot : empty;
 
     BeginCard("Estado CS2", 0.f);
-    const bool offsetsOk = CS2::runtime.offsets_self_test_ok
+    const bool offsetsOk = runtime.offsets_self_test_ok
         || (CS2::offsets.dwEntityList && CS2::offsets.dwViewMatrix);
     StatusBadge("Offsets", offsetsOk);
-    StatusBadge("Execução", CS2::runtime.in_match);
+    StatusBadge("Execução", runtime.in_match);
     char players[64]{};
-    std::snprintf(players, sizeof(players), "%d jogadores · %d inimigos", CS2::runtime.player_count, CS2::runtime.enemy_count);
+    std::snprintf(players, sizeof(players), "%d jogadores · %d inimigos", runtime.player_count, runtime.enemy_count);
     KeyValueRow("Entidades", players);
     char fps[32]{};
-    std::snprintf(fps, sizeof(fps), "%.0f FPS", CS2::runtime.fps);
+    std::snprintf(fps, sizeof(fps), "%.0f FPS", runtime.fps);
     KeyValueRow("Renderizador", fps);
-    KeyValueRow("Mapa", CS2::runtime.map_name[0] ? CS2::runtime.map_name : "A aguardar partida");
+    KeyValueRow("Mapa", runtime.map_name[0] ? runtime.map_name : "A aguardar partida");
     if (!offsetsOk)
         TextLine("Offsets precisam de atenção. Recarrega o ficheiro local.", TextTone::Warning);
     Separator();
-    if (CyberButton("Recarregar offsets", ImVec2(170, 32)))
+    if (CyberButton("Recarregar offsets", ImVec2(170, 32))) {
+        const bool restart = CS2::AcquisitionRunning();
+        if (restart) CS2::StopAcquisition();
         CS2::LoadOffsetsFromJson(nullptr);
+        if (restart) CS2::EnsureAcquisitionStarted();
+    }
     ImGui::SameLine();
-    if (GoldButton("Autoteste", ImVec2(120, 32)))
+    if (GoldButton("Autoteste", ImVec2(120, 32))) {
+        const bool restart = CS2::AcquisitionRunning();
+        if (restart) CS2::StopAcquisition();
         CS2::SelfTestOffsets();
+        if (restart) CS2::EnsureAcquisitionStarted();
+    }
     EndCard();
 
     CardGap();

@@ -3,7 +3,6 @@
 #define NOMINMAX
 #endif
 #include "cs2_aim.h"
-#include "Memory/Memory.h"
 #include "../Fivem/aimbot/aim_type.h"
 #include "gameplay/aim_controller.h"
 #include "gameplay/unified_aim.h"
@@ -244,9 +243,8 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
             if (!(cfg.trigger_scoped_only && !local_scoped)) {
                 bool hit = false;
                 if (cfg.trigger_use_ident && rt.local_pawn && CS2::offsets.m_iIDEntIndex) {
-                    int idEnt = 0;
-                    if (mem.Read(rt.local_pawn + CS2::offsets.m_iIDEntIndex, &idEnt, sizeof(idEnt))
-                        && idEnt > 0) {
+                    const int idEnt = rt.local_crosshair_entity;
+                    if (idEnt > 0) {
                         for (const auto& p : rt.players) {
                             if (p.is_local) continue;
                             if (cfg.trigger_team_check && p.team == rt.local_team) continue;

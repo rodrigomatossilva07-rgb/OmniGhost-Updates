@@ -130,10 +130,7 @@ bool ValidateLive(ActiveGame game) {
     }
     if (game == ActiveGame::CS2) {
         if (!CS2::ready) return false;
-        // Lobby-safe probe first; full SelfTest when local pawn exists
-        if (CS2::SoftProbeLobbyOffsets())
-            return true;
-        return CS2::SelfTestOffsets() || CS2::runtime.offsets_self_test_ok;
+        return CS2::ValidateLiveOffsets();
     }
     return true;
 }
@@ -141,7 +138,7 @@ bool ValidateLive(ActiveGame game) {
 bool SoftProbeLive(ActiveGame game) {
     switch (game) {
     case ActiveGame::CS2:
-        return CS2::ready && CS2::SoftProbeLobbyOffsets();
+        return CS2::ready && CS2::ValidateLiveOffsets();
     case ActiveGame::Rust:
         // Rust attach is async — only probe when backend is ready with GA
         if (!Rust::ready) return true; // do not block menu while connecting

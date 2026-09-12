@@ -12,8 +12,11 @@
 #include "../../DMALibrary/Memory/Memory.h"
 #include <iostream>
 #include <algorithm>
+#include <atomic>
 #include <chrono>
+#include <thread>
 #include "gameplay/esp_optimizer.h"
+#include "gameplay/snapshot_exchange.h"
 
 namespace FiveM {
     namespace ESP {
@@ -24,10 +27,39 @@ namespace FiveM {
         std::vector<uintptr_t> rawPedPointers;
         std::vector<Vec3> positions;
         std::vector<uintptr_t> validPeds;
+        std::vector<Vec2> screenPositions;
+
+        struct AcquisitionSnapshot {
+            std::vector<uintptr_t> validPeds;
+            std::vector<Vec3> positions;
+            Matrix viewMatrix{};
+            Vec3 localPos{};
+            uintptr_t localPlayer = 0;
+            bool frameCacheValid = false;
+            uint64_t generation = 0;
+        };
+
+        static OmniGhost::Gameplay::SnapshotExchange<AcquisitionSnapshot> s_snapshots;
+        static std::vector<uintptr_t> s_acquireRawPeds;
+        static std::vector<uintptr_t> s_acquireValidPeds;
+        static std::vector<Vec3> s_acquirePositions;
         static std::vector<uintptr_t> s_lastGoodPeds;
         static std::vector<Vec3> s_lastGoodPos;
+        static Matrix s_acquireViewMatrix{};
+        static Vec3 s_acquireLocalPos{};
         static int s_emptyFrames = 0;
-        std::vector<Vec2> screenPositions;
+        static std::atomic_bool s_acquisitionRunning{false};
+        static std::atomic_bool s_acquisitionStop{false};
+        static std::atomic_bool s_needPeds{false};
+        static std::atomic_bool s_selfEsp{false};
+        static std::atomic_bool s_npcEsp{false};
+        static std::atomic_bool s_performanceMode{false};
+        static std::atomic<float> s_maxDistance{500.f};
+        static std::atomic<float> s_renderFps{60.f};
+        static std::atomic<float> s_displayWidth{1920.f};
+        static std::atomic<float> s_displayHeight{1080.f};
+        static std::thread s_acquisitionThread;
+        static uint64_t s_acquisitionGeneration = 0;
 
         // Performance tracking
         int frameCount = 0;
@@ -41,6 +73,9 @@ namespace FiveM {
                 positions.reserve(MAX_PEDS);
                 validPeds.reserve(MAX_PEDS);
                 screenPositions.reserve(MAX_PEDS);
+                s_acquireRawPeds.reserve(MAX_PEDS);
+                s_acquireValidPeds.reserve(MAX_PEDS);
+                s_acquirePositions.reserve(MAX_PEDS);
                 initialized = true;
                 lastFrameTime = std::chrono::steady_clock::now();
             }
@@ -56,11 +91,116 @@ namespace FiveM {
         const Matrix& GetFrameViewMatrix() { return s_viewMatrix; }
         const Vec3& GetFrameLocalPos() { return s_localPos; }
 
+        static void PublishAcquisitionSnapshot(uintptr_t localPlayer, bool cacheValid) {
+            auto slot = s_snapshots.TryBeginWrite();
+            if (!slot) return;
+            slot.value->validPeds.assign(s_acquireValidPeds.begin(), s_acquireValidPeds.end());
+            slot.value->positions.assign(s_acquirePositions.begin(), s_acquirePositions.end());
+            slot.value->viewMatrix = s_acquireViewMatrix;
+            slot.value->localPos = s_acquireLocalPos;
+            slot.value->localPlayer = localPlayer;
+            slot.value->frameCacheValid = cacheValid;
+            slot.value->generation = ++s_acquisitionGeneration;
+            s_snapshots.Publish(slot.index);
+        }
+
+        static void AcquisitionLoop() {
+            uintptr_t localPlayer = offset::localplayer;
+            while (!s_acquisitionStop.load(std::memory_order_acquire)) {
+                const bool needPeds = s_needPeds.load(std::memory_order_relaxed);
+                bool cacheValid = false;
+
+                if (needPeds && offset::world && offset::replay && offset::viewport) {
+                    auto h = mem.CreateScatterHandle();
+                    uintptr_t freshLp = 0;
+                    mem.AddScatterReadRequest(h, offset::world + 0x8, &freshLp, sizeof(uintptr_t));
+                    mem.AddScatterReadRequest(h, offset::viewport + 0x24C,
+                                              &s_acquireViewMatrix, sizeof(Matrix));
+                    mem.ExecuteReadScatter(h);
+                    mem.CloseScatterHandle(h);
+                    if (freshLp) localPlayer = freshLp;
+
+                    if (localPlayer) {
+                        h = mem.CreateScatterHandle();
+                        mem.AddScatterReadRequest(h, localPlayer + offset::playerPosition,
+                                                  &s_acquireLocalPos, sizeof(Vec3));
+                        mem.ExecuteReadScatter(h);
+                        mem.CloseScatterHandle(h);
+                        cacheValid = true;
+                        collectFrameData(localPlayer, s_acquireLocalPos);
+                    } else {
+                        s_acquireValidPeds.clear();
+                        s_acquirePositions.clear();
+                        s_acquireLocalPos = {};
+                    }
+
+                    if (s_acquireValidPeds.empty() && !s_lastGoodPeds.empty() && s_emptyFrames < 8) {
+                        s_acquireValidPeds.assign(s_lastGoodPeds.begin(), s_lastGoodPeds.end());
+                        s_acquirePositions.assign(s_lastGoodPos.begin(), s_lastGoodPos.end());
+                        ++s_emptyFrames;
+                    } else if (!s_acquireValidPeds.empty()) {
+                        s_lastGoodPeds.assign(s_acquireValidPeds.begin(), s_acquireValidPeds.end());
+                        s_lastGoodPos.assign(s_acquirePositions.begin(), s_acquirePositions.end());
+                        s_emptyFrames = 0;
+                    } else {
+                        ++s_emptyFrames;
+                    }
+                } else {
+                    s_acquireValidPeds.clear();
+                    s_acquirePositions.clear();
+                    s_acquireLocalPos = {};
+                    s_emptyFrames = 0;
+                }
+
+                PublishAcquisitionSnapshot(localPlayer, cacheValid);
+
+                // Hierarchical/adaptive acquisition frequency.  Position data
+                // stays fast when presentation has headroom, while an already
+                // overloaded renderer stops asking DMA for 250 updates/second.
+                // The exchange always exposes only the newest generation, so
+                // reducing producer pressure cannot build a stale backlog.
+                int delayMs = 16;
+                if (needPeds) {
+                    const float fps = s_renderFps.load(std::memory_order_relaxed);
+                    delayMs = (fps > 1.f && fps < 45.f) ? 8
+                            : (fps > 1.f && fps < 80.f) ? 6
+                            : 4;
+                    if (s_performanceMode.load(std::memory_order_relaxed))
+                        delayMs = (std::max)(delayMs, 7);
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(delayMs));
+            }
+        }
+
+        static void EnsureAcquisitionStarted() {
+            bool expected = false;
+            if (!s_acquisitionRunning.compare_exchange_strong(
+                    expected, true, std::memory_order_acq_rel))
+                return;
+            s_acquisitionStop.store(false, std::memory_order_release);
+            s_acquisitionThread = std::thread(AcquisitionLoop);
+        }
+
+        void StopAcquisition() {
+            s_acquisitionStop.store(true, std::memory_order_release);
+            if (s_acquisitionThread.joinable())
+                s_acquisitionThread.join();
+            s_acquisitionRunning.store(false, std::memory_order_release);
+            s_acquireRawPeds.clear();
+            s_acquireValidPeds.clear();
+            s_acquirePositions.clear();
+            s_lastGoodPeds.clear();
+            s_lastGoodPos.clear();
+            s_acquireViewMatrix = {};
+            s_acquireLocalPos = {};
+            s_emptyFrames = 0;
+            PublishAcquisitionSnapshot(0, false);
+        }
+
         void RunESP() {
             InitializeContainers();
             frameCount++;
             auto currentTime = std::chrono::steady_clock::now();
-            s_frameCacheValid = false;
 
             const bool needPeds = esp::config.enabled
                 || aimbot::config.aimbot_enabled
@@ -71,47 +211,27 @@ namespace FiveM {
                 || esp::config.waypoint_line
                 || esp::config.blip_esp;
 
-            if (needPeds) {
-                // Frame cache: localplayer from World+0x8, then matrix + pos
-                {
-                    auto h = mem.CreateScatterHandle();
-                    uintptr_t freshLp = 0;
-                    if (offset::world)
-                        mem.AddScatterReadRequest(h, offset::world + 0x8, &freshLp, sizeof(uintptr_t));
-                    if (offset::viewport)
-                        mem.AddScatterReadRequest(h, offset::viewport + 0x24C, &s_viewMatrix, sizeof(Matrix));
-                    mem.ExecuteReadScatter(h);
-                    mem.CloseScatterHandle(h);
-                    if (freshLp)
-                        offset::localplayer = freshLp;
-                }
-                if (offset::localplayer) {
-                    auto h = mem.CreateScatterHandle();
-                    mem.AddScatterReadRequest(h, offset::localplayer + offset::playerPosition, &s_localPos, sizeof(Vec3));
-                    mem.ExecuteReadScatter(h);
-                    mem.CloseScatterHandle(h);
-                    s_frameCacheValid = (offset::viewport != 0);
-                } else {
-                    s_frameCacheValid = false;
-                    s_localPos = {};
-                }
-                collectFrameData();
-                if (validPeds.empty() && !s_lastGoodPeds.empty() && s_emptyFrames < 8) {
-                    // Brief hold — avoids ESP blink (pointer copy of last good, no realloc)
-                    validPeds.assign(s_lastGoodPeds.begin(), s_lastGoodPeds.end());
-                    positions.assign(s_lastGoodPos.begin(), s_lastGoodPos.end());
-                    ++s_emptyFrames;
-                } else if (!validPeds.empty()) {
-                    s_lastGoodPeds.assign(validPeds.begin(), validPeds.end());
-                    s_lastGoodPos.assign(positions.begin(), positions.end());
-                    s_emptyFrames = 0;
-                } else {
-                    ++s_emptyFrames;
-                }
-            } else {
-                validPeds.clear();
-                positions.clear();
-                s_emptyFrames = 0;
+            const ImVec2 display = ImGui::GetIO().DisplaySize;
+            s_needPeds.store(needPeds, std::memory_order_relaxed);
+            s_selfEsp.store(esp::config.self_esp, std::memory_order_relaxed);
+            s_npcEsp.store(esp::config.npc_esp, std::memory_order_relaxed);
+            s_performanceMode.store(app_settings::config.performance_mode, std::memory_order_relaxed);
+            s_maxDistance.store(esp::config.max_esp_distance, std::memory_order_relaxed);
+            s_renderFps.store(ImGui::GetIO().Framerate, std::memory_order_relaxed);
+            s_displayWidth.store(display.x, std::memory_order_relaxed);
+            s_displayHeight.store(display.y, std::memory_order_relaxed);
+            EnsureAcquisitionStarted();
+
+            static uint64_t consumedGeneration = 0;
+            auto snapshot = s_snapshots.Acquire();
+            if (snapshot && snapshot->generation != consumedGeneration) {
+                validPeds.assign(snapshot->validPeds.begin(), snapshot->validPeds.end());
+                positions.assign(snapshot->positions.begin(), snapshot->positions.end());
+                s_viewMatrix = snapshot->viewMatrix;
+                s_localPos = snapshot->localPos;
+                s_frameCacheValid = snapshot->frameCacheValid;
+                offset::localplayer = snapshot->localPlayer;
+                consumedGeneration = snapshot->generation;
             }
 
             renderESP();
@@ -152,163 +272,142 @@ namespace FiveM {
             lastFrameTime = currentTime;
         }
 
-        // Data collection (now synchronous)
-        void collectFrameData() {
+        // Producer-side data collection.
+        void collectFrameData(uintptr_t localPlayer, const Vec3& localPos) {
+            // Producer-private containers. Presentation owns the public vectors
+            // and therefore never observes a partially rebuilt entity list.
+            auto& writeRawPeds = s_acquireRawPeds;
+            auto& writePeds = s_acquireValidPeds;
+            auto& writePositions = s_acquirePositions;
             // Never submit DMA reads with an incomplete pointer chain. FiveM can
             // transition through lobby/loading states where one of these pointers
             // is temporarily unavailable; treating that state as an empty frame
             // keeps the launcher/session alive instead of issuing reads from 0.
-            if (!offset::world || !offset::replay || !offset::viewport || !offset::localplayer) {
-                validPeds.clear();
-                positions.clear();
+            if (!offset::world || !offset::replay || !offset::viewport || !localPlayer) {
+                writePeds.clear();
+                writePositions.clear();
                 return;
             }
+            writePeds.clear();
+            writePositions.clear();
 
             // Single scatter handle for fast operations
             auto handle = mem.CreateScatterHandle();
 
-            // Fast critical data reads
-            Matrix view_matrix;
-            Vec3 localPos;
-            uintptr_t ped_replay_interface = 0;
-            uintptr_t pedListBase = 0;
+            static uintptr_t ped_replay_interface = 0;
+            static uintptr_t pedListBase = 0;
+            static ULONGLONG nextChainRefresh = 0;
+            const ULONGLONG now = GetTickCount64();
 
-            // Batch critical reads
-            mem.AddScatterReadRequest(handle, offset::viewport + 0x24C,
-                &view_matrix, sizeof(Matrix));
-            mem.AddScatterReadRequest(handle, offset::localplayer + offset::playerPosition,
-                &localPos, sizeof(Vec3));
-            mem.AddScatterReadRequest(handle, offset::replay + 0x18,
-                &ped_replay_interface, sizeof(uintptr_t));
-            uintptr_t freshLpEarly = 0;
-            if (offset::world)
-                mem.AddScatterReadRequest(handle, offset::world + 0x8, &freshLpEarly, sizeof(uintptr_t));
-
-            mem.ExecuteReadScatter(handle);
-            if (freshLpEarly)
-                offset::localplayer = freshLpEarly;
-
-            // Diagnostics every ~3s when ESP is on but ped chain fails
-            static double lastDiag = 0.0;
-            const double nowDiag = ImGui::GetTime();
-            if (esp::config.enabled && (nowDiag - lastDiag) > 3.0) {
-                lastDiag = nowDiag;
-                if (!offset::replay || !offset::viewport || !offset::world) {
-                    if (false) std::cout << "[ESP] offsets nulos world=0x" << std::hex << offset::world
-                              << " replay=0x" << offset::replay
-                              << " viewport=0x" << offset::viewport << std::dec << std::endl;
-                } else if (!ped_replay_interface) {
-                    if (false) std::cout << "[ESP] ped_replay_interface=0 (replay+0x18 falhou). replay=0x"
-                              << std::hex << offset::replay << std::dec << std::endl;
+            // Replay interface/list addresses are slow metadata. Refresh them at
+            // 4 Hz, or immediately after a chain failure, while positions stay
+            // on the fast lane.
+            if (now >= nextChainRefresh) {
+                ped_replay_interface = 0;
+                pedListBase = 0;
+                mem.AddScatterReadRequest(handle, offset::replay + 0x18,
+                    &ped_replay_interface, sizeof(uintptr_t));
+                mem.ExecuteReadScatter(handle);
+                if (ped_replay_interface) {
+                    mem.AddScatterReadRequest(handle, ped_replay_interface + 0x100,
+                        &pedListBase, sizeof(uintptr_t));
+                    mem.ExecuteReadScatter(handle);
                 }
+                nextChainRefresh = now + 250;
             }
 
             if (ped_replay_interface) {
-                mem.AddScatterReadRequest(handle, ped_replay_interface + 0x100,
-                    &pedListBase, sizeof(uintptr_t));
-                mem.ExecuteReadScatter(handle);
-
-                if (!pedListBase && esp::config.enabled && (nowDiag - lastDiag) <= 0.05) {
-                }
-
                 if (pedListBase) {
                     // Full ped list capacity every frame (do not shrink — misses players)
                     const int listCap = MAX_PEDS;
-                    if ((int)rawPedPointers.size() != listCap)
-                        rawPedPointers.resize(listCap);
+                    if ((int)writeRawPeds.size() != listCap)
+                        writeRawPeds.resize(listCap);
 
                     mem.AddScatterReadRequest(handle, pedListBase,
-                        rawPedPointers.data(), sizeof(uintptr_t) * listCap);
+                        writeRawPeds.data(), sizeof(uintptr_t) * listCap);
                     mem.ExecuteReadScatter(handle);
-
-                    // Refresh localplayer every tick (prevents self-ESP when pointer goes stale)
-                    // Continuous probe: lobby → sessão → lobby without menu restart
-                    if (offset::world) {
-                        uintptr_t freshLp = 0;
-                        mem.AddScatterReadRequest(handle, offset::world + 0x8, &freshLp, sizeof(uintptr_t));
-                        mem.ExecuteReadScatter(handle);
-                        if (freshLp) offset::localplayer = freshLp;
-                    }
 
                     // Then batch read playerInfo for all peds (static buffer)
                     static std::vector<uintptr_t> playerInfoPtrs;
-                    if ((int)playerInfoPtrs.size() != listCap)
+                    static std::vector<uintptr_t> playerInfoOwners;
+                    static ULONGLONG nextInfoRefresh = 0;
+                    if ((int)playerInfoPtrs.size() != listCap) {
                         playerInfoPtrs.assign(listCap, 0);
-                    else
-                        std::fill(playerInfoPtrs.begin(), playerInfoPtrs.end(), 0);
+                        playerInfoOwners.assign(listCap, 0);
+                    }
+                    const bool refreshAllInfo = now >= nextInfoRefresh;
+                    bool queuedInfoReads = false;
                     for (int i = 0; i < listCap; i++) {
-                        if (rawPedPointers[i] && rawPedPointers[i] != offset::localplayer) {
-                            mem.AddScatterReadRequest(handle, rawPedPointers[i] + offset::playerInfo,
+                        const uintptr_t ped = writeRawPeds[i];
+                        if (!ped || ped == localPlayer) {
+                            playerInfoPtrs[i] = 0;
+                            playerInfoOwners[i] = ped;
+                        } else if (refreshAllInfo || playerInfoOwners[i] != ped) {
+                            playerInfoPtrs[i] = 0;
+                            playerInfoOwners[i] = ped;
+                            mem.AddScatterReadRequest(handle, writeRawPeds[i] + offset::playerInfo,
                                 &playerInfoPtrs[i], sizeof(uintptr_t));
+                            queuedInfoReads = true;
                         }
                     }
-                    mem.ExecuteReadScatter(handle);
+                    if (queuedInfoReads)
+                        mem.ExecuteReadScatter(handle);
+                    if (refreshAllInfo)
+                        nextInfoRefresh = now + 500;
 
                     // Filter like the original working base:
                     //  - prefer peds with playerInfo (real players)
                     //  - if playerInfo chain is dead (all null), keep raw peds so ESP still works
-                    validPeds.clear();
                     int withInfo = 0;
-                    int rawCount = 0;
-                    for (int i = 0; i < (int)rawPedPointers.size(); i++) {
-                        if (rawPedPointers[i] && rawPedPointers[i] > 0x10000)
-                            ++rawCount;
-                        if (rawPedPointers[i] && playerInfoPtrs[i])
+                    for (int i = 0; i < (int)writeRawPeds.size(); i++) {
+                        if (writeRawPeds[i] && playerInfoPtrs[i])
                             ++withInfo;
                     }
                     const bool playerInfoReliable = (withInfo > 0);
 
-                    for (int i = 0; i < (int)rawPedPointers.size(); i++) {
-                        uintptr_t ped = rawPedPointers[i];
+                    for (int i = 0; i < (int)writeRawPeds.size(); i++) {
+                        uintptr_t ped = writeRawPeds[i];
                         if (!ped || ped < 0x10000) continue;
 
-                        const bool isLocal = (ped == offset::localplayer);
-                        if (isLocal && !esp::config.self_esp)
+                        const bool isLocal = (ped == localPlayer);
+                        if (isLocal && !s_selfEsp.load(std::memory_order_relaxed))
                             continue;
 
                         if (!playerInfoReliable) {
                             // No playerInfo on entire list (offset lag) — keep everyone so ESP/aim live,
                             // but still honor npc_esp when we *can* tell NPCs apart (we can't here).
-                            validPeds.push_back(ped);
+                            writePeds.push_back(ped);
                             continue;
                         }
                         if (playerInfoPtrs[i]) {
                             // Real player (has CPlayerInfo)
-                            validPeds.push_back(ped);
-                        } else if (esp::config.npc_esp) {
-                            validPeds.push_back(ped);
-                        } else if (isLocal && esp::config.self_esp) {
-                            validPeds.push_back(ped);
+                            writePeds.push_back(ped);
+                        } else if (s_npcEsp.load(std::memory_order_relaxed)) {
+                            writePeds.push_back(ped);
+                        } else if (isLocal && s_selfEsp.load(std::memory_order_relaxed)) {
+                            writePeds.push_back(ped);
                         }
                         // else: NPC with npc_esp OFF → skip (do NOT push)
 
                     }
 
-                    if (esp::config.enabled && (nowDiag - lastDiag) <= 0.05) {
-                        if (false) std::cout << "[ESP] raw=" << rawCount
-                                  << " withInfo=" << withInfo
-                                  << " valid=" << validPeds.size()
-                                  << " local=0x" << std::hex << offset::localplayer << std::dec
-                                  << std::endl;
-                    }
-
                     // Read positions for ALL candidates first
-                    positions.clear();
-                    if (!validPeds.empty()) {
-                        positions.resize(validPeds.size());
-                        for (size_t i = 0; i < validPeds.size(); i++) {
-                            mem.AddScatterReadRequest(handle, validPeds[i] + offset::playerPosition,
-                                &positions[i], sizeof(Vec3));
+                    writePositions.clear();
+                    if (!writePeds.empty()) {
+                        writePositions.resize(writePeds.size());
+                        for (size_t i = 0; i < writePeds.size(); i++) {
+                            mem.AddScatterReadRequest(handle, writePeds[i] + offset::playerPosition,
+                                &writePositions[i], sizeof(Vec3));
                         }
                         mem.ExecuteReadScatter(handle);
 
                         // Drop invalid / stale entity slots (ghost peds)
                         std::vector<uintptr_t> alivePeds;
                         std::vector<Vec3> alivePos;
-                        alivePeds.reserve(validPeds.size());
-                        alivePos.reserve(validPeds.size());
-                        for (size_t i = 0; i < validPeds.size(); i++) {
-                            const Vec3& p = positions[i];
+                        alivePeds.reserve(writePeds.size());
+                        alivePos.reserve(writePeds.size());
+                        for (size_t i = 0; i < writePeds.size(); i++) {
+                            const Vec3& p = writePositions[i];
                             if (p.IsZero()) continue;
                             // GTA map sanity
                             if (p.x < -10000.f || p.x > 10000.f || p.y < -10000.f || p.y > 10000.f)
@@ -316,50 +415,52 @@ namespace FiveM {
                             if (p.z < -500.f || p.z > 3000.f)
                                 continue;
                             // Also respect global ESP max distance early (frees cap for near players)
-                            if (!localPos.IsZero() && esp::config.max_esp_distance > 1.f) {
-                                if (p.distance_to(localPos) > esp::config.max_esp_distance)
+                            const float maxDistance = s_maxDistance.load(std::memory_order_relaxed);
+                            if (!localPos.IsZero() && maxDistance > 1.f) {
+                                const float maxDistanceSq = maxDistance * maxDistance;
+                                if (p.distance_sq(localPos) > maxDistanceSq)
                                     continue;
                             }
-                            alivePeds.push_back(validPeds[i]);
+                            alivePeds.push_back(writePeds[i]);
                             alivePos.push_back(p);
                         }
-                        validPeds.swap(alivePeds);
-                        positions.swap(alivePos);
+                        writePeds.swap(alivePeds);
+                        writePositions.swap(alivePos);
                     }
                     // Frustum-first + distance (game-style streaming for ESP):
                     // 1) Prefer peds currently on screen / just at the edge of FOV
                     // 2) Fill remaining slots with nearest off-screen (aim sticky / turn-in)
                     // When you turn the camera, next frame W2S promotes them → full ESP ASAP
                     // without paying bone/DMA cost for the whole server list.
-                    float fps = ImGui::GetIO().Framerate;
+                    const float fps = s_renderFps.load(std::memory_order_relaxed);
                     size_t kMax = 48;
                     if (fps > 1.f && fps < 45.f) kMax = 28;
                     else if (fps >= 45.f && fps < 70.f) kMax = 40;
-                    if (app_settings::config.performance_mode)
+                    if (s_performanceMode.load(std::memory_order_relaxed))
                         kMax = (std::min)(kMax, (size_t)30);
 
-                    Matrix vmCull = s_frameCacheValid ? s_viewMatrix
-                        : (offset::viewport ? mem.Read<Matrix>(offset::viewport + 0x24C) : Matrix{});
-                    const ImVec2 ds = ImGui::GetIO().DisplaySize;
+                    const Matrix vmCull = s_acquireViewMatrix;
+                    const ImVec2 ds(s_displayWidth.load(std::memory_order_relaxed),
+                                    s_displayHeight.load(std::memory_order_relaxed));
                     const float margin = 80.f; // soft edge: almost in view still counts as "streaming in"
 
-                    if (!validPeds.empty() && !localPos.IsZero()) {
+                    if (!writePeds.empty() && !localPos.IsZero()) {
                         struct PedRank {
                             size_t idx;
                             float dist;
                             bool on_screen;
-                            float cross;
+                            float crossSq;
                         };
                         static std::vector<PedRank> order;
                         static std::vector<uintptr_t> rankedPeds;
                         static std::vector<Vec3> rankedPos;
                         order.clear();
-                        order.reserve(validPeds.size());
-                        for (size_t i = 0; i < validPeds.size(); ++i) {
-                            const float d = positions[i].distance_sq(localPos); // sort by dist²
+                        order.reserve(writePeds.size());
+                        for (size_t i = 0; i < writePeds.size(); ++i) {
+                            const float d = writePositions[i].distance_sq(localPos); // sort by dist²
                             Vec2 sp{};
-                            bool on = positions[i].world_to_screen(vmCull, sp);
-                            float cross = 1e9f;
+                            bool on = writePositions[i].world_to_screen(vmCull, sp);
+                            float crossSq = 1.0e30f;
                             if (on) {
                                 const bool inFrame =
                                     sp.x >= -margin && sp.x <= ds.x + margin &&
@@ -368,15 +469,15 @@ namespace FiveM {
                                 if (on) {
                                     const float cx = sp.x - ds.x * 0.5f;
                                     const float cy = sp.y - ds.y * 0.5f;
-                                    cross = sqrtf(cx * cx + cy * cy);
+                                    crossSq = cx * cx + cy * cy;
                                 }
                             }
-                            order.push_back({ i, d, on, cross });
+                            order.push_back({ i, d, on, crossSq });
                         }
                         auto rankLess = [](const PedRank& a, const PedRank& b) {
                                 if (a.on_screen != b.on_screen) return a.on_screen > b.on_screen;
                                 if (a.on_screen) {
-                                    if (fabsf(a.cross - b.cross) > 1.f) return a.cross < b.cross;
+                                    if (fabsf(a.crossSq - b.crossSq) > 1.f) return a.crossSq < b.crossSq;
                                     return a.dist < b.dist;
                                 }
                                 return a.dist < b.dist;
@@ -391,14 +492,14 @@ namespace FiveM {
                         rankedPeds.reserve(take);
                         rankedPos.reserve(take);
                         for (size_t n = 0; n < take; ++n) {
-                            rankedPeds.push_back(validPeds[order[n].idx]);
-                            rankedPos.push_back(positions[order[n].idx]);
+                            rankedPeds.push_back(writePeds[order[n].idx]);
+                            rankedPos.push_back(writePositions[order[n].idx]);
                         }
-                        validPeds.swap(rankedPeds);
-                        positions.swap(rankedPos);
-                    } else if (validPeds.size() > kMax) {
-                        validPeds.resize(kMax);
-                        if (positions.size() > kMax) positions.resize(kMax);
+                        writePeds.swap(rankedPeds);
+                        writePositions.swap(rankedPos);
+                    } else if (writePeds.size() > kMax) {
+                        writePeds.resize(kMax);
+                        if (writePositions.size() > kMax) writePositions.resize(kMax);
                     }
                 }
             }

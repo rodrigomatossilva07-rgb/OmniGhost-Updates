@@ -146,10 +146,12 @@ void DrawCs2Radar() {
     ImGui::SameLine(0.f, gap);
     ImGui::BeginGroup();
     CyberWidgets::BeginCard("ESTADO", right);
+    const auto snapshot = CS2::AcquireRuntimeSnapshot();
     char line[128];
-    std::snprintf(line, sizeof(line), "Jogadores no snapshot: %d", CS2::runtime.player_count);
+    std::snprintf(line, sizeof(line), "Jogadores no snapshot: %d",
+                  snapshot ? snapshot->player_count : 0);
     CyberWidgets::KeyValueRow("Dados", line);
-    const char* mapLabel = CS2::runtime.map_name[0] ? CS2::runtime.map_name : "-";
+    const char* mapLabel = snapshot && snapshot->map_name[0] ? snapshot->map_name : "-";
     std::snprintf(line, sizeof(line), "%s", mapLabel);
     CyberWidgets::KeyValueRow("Mapa", line);
     std::snprintf(line, sizeof(line), "%s", CS2::WebRadar::IsRunning() ? "HTTP a escutar" : "parado");

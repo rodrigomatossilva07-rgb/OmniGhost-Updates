@@ -762,6 +762,8 @@ while (application.shouldRun && !authenticated) {
             Valorant::Detach();
         } else if (g_activeGame == ActiveGame::Fortnite) {
             Fortnite::Detach();
+        } else if (g_activeGame == ActiveGame::FiveM) {
+            FiveM::ESP::StopAcquisition();
         }
         mem.InvalidateProcess();
     });
@@ -795,8 +797,10 @@ while (application.shouldRun && !authenticated) {
         switch (g_activeGame) {
             case ActiveGame::CS2: {
                 static uint64_t last_alive_check = 0;
-                if (CS2::runtime.frames - last_alive_check >= 8) {
-                    last_alive_check = CS2::runtime.frames;
+                const auto cs2_snapshot = CS2::AcquireRuntimeSnapshot();
+                const uint64_t frames = cs2_snapshot ? cs2_snapshot->frames : 0;
+                if (frames - last_alive_check >= 8) {
+                    last_alive_check = frames;
                     if (!CS2::IsGameProcessAlive()) {
                         ++process_miss_frames;
                         if (process_miss_frames >= 1) {
@@ -942,9 +946,13 @@ while (application.shouldRun && !authenticated) {
         if (probe_now >= next_offset_probe &&
             (g_activeGame == ActiveGame::CS2 || g_activeGame == ActiveGame::Rust)) {
             next_offset_probe = probe_now + 5000;
-            const bool can_probe = g_activeGame == ActiveGame::CS2
-                ? (CS2::ready && CS2::runtime.local_pawn != 0)
-                : (Rust::ready && Rust::runtime.local_player != 0 && Rust::runtime.matrix_ok);
+            bool can_probe = false;
+            if (g_activeGame == ActiveGame::CS2) {
+                const auto cs2_snapshot = CS2::AcquireRuntimeSnapshot();
+                can_probe = CS2::ready && cs2_snapshot && cs2_snapshot->local_pawn != 0;
+            } else {
+                can_probe = Rust::ready && Rust::runtime.local_player != 0 && Rust::runtime.matrix_ok;
+            }
             if (can_probe) {
                 if (OmniGhost::OffsetAuto::ValidateLive(g_activeGame)) {
                     offset_probe_failures = 0;

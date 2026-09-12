@@ -20,10 +20,11 @@ namespace FiveM {
 
         // Core ESP functions
         void InitializeContainers();
-        void RunESP(); // Main ESP loop (single-threaded)
+        void RunESP(); // Presentation loop; acquisition is asynchronous
+        void StopAcquisition();
 
         // Data collection and rendering functions
-        void collectFrameData(); // Data collection
+        void collectFrameData(uintptr_t localPlayer, const Vec3& localPos); // acquisition thread only
         void renderESP();        // Rendering
 
         // Cache management

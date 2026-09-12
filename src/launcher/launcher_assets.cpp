@@ -35,6 +35,19 @@ LoadedTexture g_profile_avatar;
 IWICImagingFactory* g_factory = nullptr;
 ID3D11Device* g_device = nullptr;
 
+constexpr UINT kMaxTextureDimension = 4096;
+constexpr std::size_t kMaxDecodedBytes = 64u * 1024u * 1024u;
+
+bool ValidDecodedSize(UINT width, UINT height, std::size_t& bytes) {
+    if (!width || !height || width > kMaxTextureDimension || height > kMaxTextureDimension)
+        return false;
+    const std::size_t pixels = static_cast<std::size_t>(width) *
+                               static_cast<std::size_t>(height);
+    if (pixels > kMaxDecodedBytes / 4u) return false;
+    bytes = pixels * 4u;
+    return bytes <= MAXDWORD;
+}
+
 fs::path ProfileAvatarPath() {
     OmniGhost::Paths::EnsureUserDirectories();
     return OmniGhost::Paths::Configs() / L"profile_avatar.image";
@@ -73,6 +86,7 @@ bool LoadPng(ID3D11Device* device, const fs::path& path, LoadedTexture& output) 
     ID3D11Texture2D* texture = nullptr;
     UINT width = 0;
     UINT height = 0;
+    std::size_t pixelBytes = 0;
     bool loaded = false;
 
     if (FAILED(g_factory->CreateDecoderFromFilename(
@@ -89,13 +103,13 @@ bool LoadPng(ID3D11Device* device, const fs::path& path, LoadedTexture& output) 
             WICBitmapPaletteTypeCustom)))
         goto cleanup;
 
-    if (FAILED(converter->GetSize(&width, &height)) || width == 0 || height == 0 ||
-        width > 8192 || height > 8192)
+    if (FAILED(converter->GetSize(&width, &height)) ||
+        !ValidDecodedSize(width, height, pixelBytes))
         goto cleanup;
 
     {
         const UINT stride = width * 4U;
-        std::vector<unsigned char> pixels(static_cast<std::size_t>(stride) * height);
+        std::vector<unsigned char> pixels(pixelBytes);
         if (FAILED(converter->CopyPixels(nullptr, stride,
                 static_cast<UINT>(pixels.size()), pixels.data())))
             goto cleanup;
@@ -145,6 +159,7 @@ bool LoadPngMemory(ID3D11Device* device, const std::vector<std::uint8_t>& bytes,
     IWICFormatConverter* converter = nullptr;
     ID3D11Texture2D* texture = nullptr;
     UINT width = 0, height = 0;
+    std::size_t pixelBytes = 0;
     bool loaded = false;
     if (FAILED(g_factory->CreateStream(&stream))) goto cleanup;
     if (FAILED(stream->InitializeFromMemory(
@@ -156,11 +171,9 @@ bool LoadPngMemory(ID3D11Device* device, const std::vector<std::uint8_t>& bytes,
     if (FAILED(g_factory->CreateFormatConverter(&converter))) goto cleanup;
     if (FAILED(converter->Initialize(frame, GUID_WICPixelFormat32bppRGBA,
             WICBitmapDitherTypeNone, nullptr, 0.0, WICBitmapPaletteTypeCustom))) goto cleanup;
-    if (FAILED(converter->GetSize(&width, &height)) || !width || !height ||
-        width > 16384 || height > 16384) goto cleanup;
+    if (FAILED(converter->GetSize(&width, &height)) ||
+        !ValidDecodedSize(width, height, pixelBytes)) goto cleanup;
     {
-        const std::size_t pixelBytes = static_cast<std::size_t>(width) * height * 4u;
-        if (pixelBytes > 512u * 1024u * 1024u || pixelBytes > MAXDWORD) goto cleanup;
         const UINT stride = width * 4u;
         std::vector<unsigned char> pixels(pixelBytes);
         if (FAILED(converter->CopyPixels(nullptr, stride, static_cast<UINT>(pixels.size()), pixels.data()))) goto cleanup;
@@ -291,6 +304,42 @@ Texture FiveMEspPreview() {
 Texture ProfileAvatar() {
     return { reinterpret_cast<ImTextureID>(g_profile_avatar.view),
              g_profile_avatar.width, g_profile_avatar.height };
+}
+
+bool IsLoaded(Launcher::GameId game, bool banner) {
+    return static_cast<bool>(Find(game, banner));
+}
+
+bool Reload(Launcher::GameId game) {
+    if (!g_device || !g_factory) return false;
+    const Launcher::GameDefinition* definition = Launcher::FindGame(game);
+    if (!definition) return false;
+
+    LoadedTexture replacements[2]{};
+    replacements[0].game = game;
+    replacements[0].banner = false;
+    replacements[1].game = game;
+    replacements[1].banner = true;
+    if (!LoadAsset(g_device, definition->logo_path, replacements[0]) ||
+        !LoadAsset(g_device, definition->banner_path, replacements[1])) {
+        for (auto& texture : replacements)
+            if (texture.view) texture.view->Release();
+        return false;
+    }
+
+    for (LoadedTexture& replacement : replacements) {
+        auto existing = std::find_if(g_textures.begin(), g_textures.end(),
+            [&](const LoadedTexture& texture) {
+                return texture.game == game && texture.banner == replacement.banner;
+            });
+        if (existing != g_textures.end()) {
+            if (existing->view) existing->view->Release();
+            *existing = replacement;
+        } else {
+            g_textures.push_back(replacement);
+        }
+    }
+    return true;
 }
 
 bool HasCustomProfileAvatar() {

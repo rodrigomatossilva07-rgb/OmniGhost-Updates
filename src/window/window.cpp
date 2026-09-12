@@ -433,11 +433,13 @@ const PerformanceMode::State performance = PerformanceMode::Update(
         int players = -1;
 
         switch (ctx.GetActiveGame()) {
-        case OmniGhost::ActiveGame::CS2:
+        case OmniGhost::ActiveGame::CS2: {
+            const auto snapshot = CS2::AcquireRuntimeSnapshot();
             connected = CS2::ready;
             build = "CS2";
-            players = static_cast<int>(CS2::runtime.players.size());
+            players = snapshot ? static_cast<int>(snapshot->players.size()) : 0;
             break;
+        }
         case OmniGhost::ActiveGame::Rust:
             connected = Rust::ready;
             build = "Rust";

@@ -104,8 +104,10 @@ namespace CyberWidgets {
 #ifdef UI_PREVIEW
             verified = true;
 #else
-            if (g_activeGame == ActiveGame::CS2)
-                verified = CS2::runtime.offsets_self_test_ok || CS2::ready;
+            if (g_activeGame == ActiveGame::CS2) {
+                const auto snapshot = CS2::AcquireRuntimeSnapshot();
+                verified = (snapshot && snapshot->offsets_self_test_ok) || CS2::ready;
+            }
             else if (g_activeGame == ActiveGame::Rust)
                 verified = Rust::runtime.matrix_ok || (Rust::offsets.loaded && Rust::offsets.BasePlayer_TypeInfo != 0);
             else if (g_activeGame == ActiveGame::Warzone)

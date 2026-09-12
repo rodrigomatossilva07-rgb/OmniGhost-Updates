@@ -14,13 +14,13 @@ Matrix esp::BoneCache::get_bone_matrix(uintptr_t ped, bool force_refresh) {
     if (!force_refresh && it != cached_bone_data.end() && it->second.is_valid) {
         auto age = now - it->second.last_update;
         if (age < CACHE_VALIDITY_MS) {
-            esp_stats.cache_hits++;
+            esp_stats.cache_hits.fetch_add(1, std::memory_order_relaxed);
             return it->second.bone_matrix;
         }
     }
 
-    esp_stats.cache_misses++;
-    esp_stats.memory_reads++;
+    esp_stats.cache_misses.fetch_add(1, std::memory_order_relaxed);
+    esp_stats.memory_reads.fetch_add(1, std::memory_order_relaxed);
 
     Matrix bone_matrix{};
     // Preferred chain (cheatoffsets): ped + frag(0xFF8/0x12B8) → +skel_o1 → matrix
@@ -67,14 +67,14 @@ Vec3 esp::BoneCache::get_bone_position(uintptr_t ped, int bone_position, bool fo
         if (!force_refresh && it != cached_bone_data.end() && it->second.is_valid) {
             auto age = now - it->second.last_update;
             if (age < CACHE_VALIDITY_MS) {
-                esp_stats.cache_hits++;
+                esp_stats.cache_hits.fetch_add(1, std::memory_order_relaxed);
                 return it->second.head_position;
             }
         }
     }
 
-    esp_stats.cache_misses++;
-    esp_stats.memory_reads++;
+    esp_stats.cache_misses.fetch_add(1, std::memory_order_relaxed);
+    esp_stats.memory_reads.fetch_add(1, std::memory_order_relaxed);
 
     Matrix bone_matrix = get_bone_matrix(ped, force_refresh);
 
@@ -137,5 +137,4 @@ bool esp::BoneCache::is_data_valid(uintptr_t ped) const {
     auto age = now - it->second.last_update;
     return it->second.is_valid && age < CACHE_VALIDITY_MS;
 }
-
 

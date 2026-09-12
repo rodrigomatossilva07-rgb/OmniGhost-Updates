@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <string_view>
 
 namespace Launcher {
 
@@ -14,7 +15,8 @@ enum class GameId : int {
     Fortnite = 4,
     Rust = 5,
     Warzone = 6,
-    Apex = 7
+    Apex = 7,
+    Count
 };
 
 enum class ChangeType : int {
@@ -47,12 +49,15 @@ struct GameHistory {
 };
 
 struct RgbColor {
-    std::uint8_t r;
-    std::uint8_t g;
-    std::uint8_t b;
+    std::uint8_t r = 0;
+    std::uint8_t g = 0;
+    std::uint8_t b = 0;
+    std::uint8_t a = 255;
 };
 
 struct GameDefinition {
+    static constexpr std::uint32_t CurrentSchemaVersion = 1;
+
     GameId launch_id;
     const char* id;
     const char* name;
@@ -67,6 +72,7 @@ struct GameDefinition {
     RgbColor accent;
     const char* fallback_mark;
     const char* tagline;
+    std::uint32_t schema_version = CurrentSchemaVersion;
 };
 
 struct UpdateChange {

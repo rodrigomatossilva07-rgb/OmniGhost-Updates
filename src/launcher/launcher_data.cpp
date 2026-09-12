@@ -21,6 +21,8 @@ namespace fs = std::filesystem;
 namespace Launcher {
 namespace {
 
+constexpr unsigned kLauncherStateSchema = 2;
+
 constexpr GameDefinition kGames[] = {
     {
         GameId::FiveM,
@@ -124,6 +126,9 @@ constexpr GameDefinition kGames[] = {
     }
 };
 
+static_assert(std::size(kGames) == static_cast<std::size_t>(GameId::Count) - 1,
+              "GameId and launcher catalogue must be updated together");
+
 constexpr std::array<UpdateDefinition, 0> kUpdates{};
 
 std::unordered_set<std::string> g_read_updates;
@@ -168,6 +173,7 @@ void SaveLauncherState() {
         std::ofstream file(temporary, std::ios::binary | std::ios::trunc);
         if (!file) return;
         file << "# OmniGhost launcher local state\n";
+        file << "schema=" << kLauncherStateSchema << '\n';
         for (const std::string& id : g_read_updates)
             file << "read=" << id << '\n';
         if (app_settings::config.remember_last_game && g_last_played != GameId::None)
@@ -235,8 +241,9 @@ const UpdateDefinition* Updates(std::size_t& count) {
 
 const GameDefinition* FindGame(const char* id) {
     if (!id) return nullptr;
+    const std::string_view requested(id);
     for (const GameDefinition& game : kGames) {
-        if (std::string(game.id) == id)
+        if (std::string_view(game.id) == requested)
             return &game;
     }
     return nullptr;
@@ -284,7 +291,16 @@ void LoadLauncherState() {
 
     std::ifstream file(StatePath());
     std::string line;
+    unsigned loadedSchema = 1; // legacy files had no explicit version
     while (file && std::getline(file, line)) {
+        if (line.rfind("schema=", 0) == 0) {
+            try {
+                loadedSchema = static_cast<unsigned>(std::stoul(line.substr(7)));
+            } catch (...) {
+                loadedSchema = 1;
+            }
+            continue;
+        }
         if (line.rfind("read=", 0) == 0 && line.size() > 5) {
             g_read_updates.insert(line.substr(5));
             continue;
@@ -333,6 +349,9 @@ void LoadLauncherState() {
             history.detail = detail;
         }
     }
+    // Unknown newer schemas keep recognized keys but are never rewritten just
+    // by loading. Mutating an item writes the current normalized schema.
+    (void)loadedSchema;
     g_state_loaded = true;
 }
 

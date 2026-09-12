@@ -75,7 +75,7 @@ std::string CurrentProfileName() {
     return name.empty() ? "OmniGhost User" : name;
 }
 
-bool ChooseProfileImage() {
+bool ChooseProfileImage(HWND owner) {
     wchar_t selected[MAX_PATH]{};
     OPENFILENAMEW dialog{};
     dialog.lStructSize = sizeof(dialog);
@@ -84,6 +84,9 @@ bool ChooseProfileImage() {
     dialog.lpstrFilter = L"Image files\0*.png;*.jpg;*.jpeg;*.bmp\0PNG\0*.png\0JPEG\0*.jpg;*.jpeg\0Bitmap\0*.bmp\0\0";
     dialog.nFilterIndex = 1;
     dialog.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
+    // The overlay itself is topmost.  Making the native file picker its owned
+    // dialog keeps the picker above the menu/background instead of behind it.
+    dialog.hwndOwner = owner;
     if (!GetOpenFileNameW(&dialog)) return false;
     return LauncherAssets::ImportProfileAvatar(selected);
 }
@@ -163,7 +166,7 @@ void DrawConfigs(Overlay* self)
             ImVec2(avatarMin.x + avatarSize.x * .5f, avatarMin.y + avatarSize.y * .5f), avatarSize.x * .5f,
             CyberTheme::WithAlpha(CyberTheme::Colors.Gold, avatarHovered ? .92f : .55f), 40, avatarHovered ? 2.f : 1.f);
         if (avatarHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-            const bool imported = ChooseProfileImage();
+            const bool imported = ChooseProfileImage(self ? self->overlay : nullptr);
             CyberWidgets::Notify(imported
                 ? app_settings::T("Foto de perfil atualizada", "Profile picture updated")
                 : app_settings::T("Nenhuma imagem válida foi selecionada", "No valid image was selected"),
