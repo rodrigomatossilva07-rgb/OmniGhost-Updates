@@ -111,155 +111,28 @@ ImU32 Col(const float* c, float aMul = 1.f) {
 
 bool W2S(const float* world, const float* vm, float& sx, float& sy);
 
-// Presentation-only smoothing. DMA snapshots and aim logic remain untouched.
-// Each pawn keeps a tiny render state that interpolates toward a short,
-// velocity-based prediction. The prediction is capped so packet/DMA stalls
-// cannot make players drift across the screen.
-struct VisualPlayerState {
-    float position[3]{};
-    float raw_position[3]{};
-    float previous_raw_position[3]{};
-    float bone_positions[CS2::kBoneSlotCount][3]{};
-    float raw_bones[CS2::kBoneSlotCount][3]{};
-    float previous_raw_bones[CS2::kBoneSlotCount][3]{};
-    CS2::Player output{};
-    double sample_time = 0.0;
-    uint64_t source_snapshot_ms = 0;
-    double last_seen = 0.0;
-    int last_frame = -1;
-    bool initialized = false;
-    bool bones_initialized = false;
-};
-static uint64_t g_renderSnapshotTimestampMs = 0;
-static float g_renderSnapshotIntervalMs = 6.f;
-static float g_previousViewMatrix[16]{};
-static float g_currentViewMatrix[16]{};
+// The acquisition lane already validates and caches complete snapshots.  The
+// renderer deliberately presents the newest complete sample: blending it here
+// made the ESP visibly trail a running player and a fast camera turn.
 static float g_presentViewMatrix[16]{};
 static uint64_t g_viewSnapshotMs = 0;
-static float g_viewSnapshotIntervalMs = 2.f;
 static bool g_havePresentationView = false;
 
 void UpdatePresentationViewMatrix(const CS2::Runtime& rt, const float* latestMatrix,
                                   uint64_t matrixTimestamp) {
     if (matrixTimestamp && matrixTimestamp != g_viewSnapshotMs) {
-        if (g_viewSnapshotMs && matrixTimestamp > g_viewSnapshotMs)
-            g_viewSnapshotIntervalMs = std::clamp(
-                static_cast<float>(matrixTimestamp - g_viewSnapshotMs), 1.f, 12.f);
-        if (g_viewSnapshotMs)
-            std::memcpy(g_previousViewMatrix, g_currentViewMatrix, sizeof(g_previousViewMatrix));
-        std::memcpy(g_currentViewMatrix, latestMatrix ? latestMatrix : rt.view_matrix,
-                    sizeof(g_currentViewMatrix));
-        if (!g_viewSnapshotMs)
-            std::memcpy(g_previousViewMatrix, g_currentViewMatrix, sizeof(g_previousViewMatrix));
+        std::memcpy(g_presentViewMatrix, latestMatrix ? latestMatrix : rt.view_matrix,
+                    sizeof(g_presentViewMatrix));
         g_viewSnapshotMs = matrixTimestamp;
     }
-    const float interval = std::clamp(g_viewSnapshotIntervalMs * .001f, .001f, .012f);
-    const float age = g_viewSnapshotMs
-        ? static_cast<float>(GetTickCount64() - g_viewSnapshotMs) * .001f : interval;
-    const float t = std::clamp(age / interval, 0.f, 1.f);
-    for (int i = 0; i < 16; ++i)
-        g_presentViewMatrix[i] = g_previousViewMatrix[i] +
-            (g_currentViewMatrix[i] - g_previousViewMatrix[i]) * t;
+    if (!g_viewSnapshotMs)
+        std::memcpy(g_presentViewMatrix, latestMatrix ? latestMatrix : rt.view_matrix,
+                    sizeof(g_presentViewMatrix));
     g_havePresentationView = true;
 }
 
 CS2::Player SmoothPlayerForPresentation(const CS2::Player& raw) {
-    static std::unordered_map<uintptr_t, VisualPlayerState> states;
-    static int cleanup_frame = -1;
-
-    const int frame = ImGui::GetFrameCount();
-    const double now = ImGui::GetTime();
-    auto& state = states[raw.pawn];
-    if (state.last_frame == frame)
-        return state.output;
-
-    const bool new_snapshot = g_renderSnapshotTimestampMs != 0 &&
-        g_renderSnapshotTimestampMs != state.source_snapshot_ms;
-    if (!state.initialized || new_snapshot) {
-        if (state.initialized) {
-            std::copy(std::begin(state.raw_position), std::end(state.raw_position),
-                      std::begin(state.previous_raw_position));
-            if (state.bones_initialized)
-                std::memcpy(state.previous_raw_bones, state.raw_bones,
-                            sizeof(state.previous_raw_bones));
-        }
-        std::copy(std::begin(raw.pos), std::end(raw.pos), state.raw_position);
-        if (!state.initialized)
-            std::copy(std::begin(raw.pos), std::end(raw.pos), std::begin(state.previous_raw_position));
-        state.source_snapshot_ms = g_renderSnapshotTimestampMs;
-        state.sample_time = g_renderSnapshotTimestampMs
-            ? static_cast<double>(g_renderSnapshotTimestampMs) / 1000.0 : now;
-    }
-
-    const float dx = raw.pos[0] - state.position[0];
-    const float dy = raw.pos[1] - state.position[1];
-    const float dz = raw.pos[2] - state.position[2];
-    const float distance_sq = dx * dx + dy * dy + dz * dz;
-    const bool invalid = !std::isfinite(raw.pos[0]) || !std::isfinite(raw.pos[1]) || !std::isfinite(raw.pos[2]);
-    constexpr float kTeleportDistance = 192.f;
-    if (!state.initialized || invalid || distance_sq > kTeleportDistance * kTeleportDistance) {
-        std::copy(std::begin(raw.pos), std::end(raw.pos), state.position);
-        state.initialized = !invalid;
-    } else {
-        // Present one acquisition interval behind the producer, then smoothly
-        // travel from the previous immutable sample to the current one. This
-        // is actual temporal interpolation, rather than a filter chasing a
-        // jumping target every frame.
-        const float interval = std::clamp(g_renderSnapshotIntervalMs * .001f, .003f, .030f);
-        const float age = g_renderSnapshotTimestampMs
-            ? static_cast<float>(GetTickCount64() - g_renderSnapshotTimestampMs) * .001f : 0.f;
-        const float phase = std::clamp(age / interval, 0.f, 1.f);
-        const float extra = std::clamp(age - interval, 0.f, .004f);
-        for (int axis = 0; axis < 3; ++axis) {
-            const float velocity = (state.raw_position[axis] - state.previous_raw_position[axis]) / interval;
-            const float base = state.previous_raw_position[axis] +
-                (state.raw_position[axis] - state.previous_raw_position[axis]) * phase;
-            state.position[axis] = base + velocity * extra;
-        }
-    }
-
-    state.output = raw;
-    const float shift[3] = {
-        state.position[0] - raw.pos[0],
-        state.position[1] - raw.pos[1],
-        state.position[2] - raw.pos[2]
-    };
-    for (int axis = 0; axis < 3; ++axis) {
-        state.output.pos[axis] += shift[axis];
-        state.output.head[axis] += shift[axis];
-    }
-    if (state.output.bones_ok) {
-        if (!state.bones_initialized)
-            std::memcpy(state.previous_raw_bones, raw.bones, sizeof(state.previous_raw_bones));
-        std::memcpy(state.raw_bones, raw.bones, sizeof(state.raw_bones));
-        for (std::size_t bone = 0; bone < CS2::kBoneSlotCount; ++bone) {
-            for (int axis = 0; axis < 3; ++axis) {
-                const float interval = std::clamp(g_renderSnapshotIntervalMs * .001f, .003f, .030f);
-                const float age = g_renderSnapshotTimestampMs
-                    ? static_cast<float>(GetTickCount64() - g_renderSnapshotTimestampMs) * .001f : 0.f;
-                const float phase = std::clamp(age / interval, 0.f, 1.f);
-                const float target = state.previous_raw_bones[bone][axis] +
-                    (raw.bones[bone][axis] - state.previous_raw_bones[bone][axis]) * phase + shift[axis];
-                state.bone_positions[bone][axis] = target;
-                state.output.bones[bone][axis] = state.bone_positions[bone][axis];
-            }
-        }
-        state.bones_initialized = true;
-        std::memcpy(state.output.head, state.output.bones[0], sizeof(state.output.head));
-    } else {
-        state.bones_initialized = false;
-    }
-    state.last_seen = now;
-    state.last_frame = frame;
-
-    if (cleanup_frame != frame && (frame % 240) == 0) {
-        cleanup_frame = frame;
-        for (auto it = states.begin(); it != states.end();) {
-            if (now - it->second.last_seen > 2.0) it = states.erase(it);
-            else ++it;
-        }
-    }
-    return state.output;
+    return raw;
 }
 
 void DrawMotionVisuals(ImDrawList* dl, const CS2::Runtime& rt,
@@ -642,9 +515,6 @@ void DrawKillFeed(ImDrawList* dl) {
 } // namespace
 
 void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
-    g_renderSnapshotTimestampMs = rt.snapshot_timestamp_ms;
-    if (rt.snapshot_interval_ms > 0.f)
-        g_renderSnapshotIntervalMs = rt.snapshot_interval_ms;
     const auto fastCamera = CS2::AcquireCameraSnapshot();
     // The camera lane runs independently at 2–4 ms.  Position/bone snapshots
     // can remain coherent and heavier, while rapid mouse turns are projected

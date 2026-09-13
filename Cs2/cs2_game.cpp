@@ -2332,7 +2332,11 @@ static void RunFrameWithConfig(const Config& frame_config) {
         if (!p.bones_ok) {
             const auto cached = bone_cache.find(p.pawn);
             if (cached != bone_cache.end() &&
-                scan_now_ms - cached->second.last_valid_ms <= 50u) {
+                // A scatter/bone-base miss is normally transient.  Preserve
+                // the last anatomical pose long enough to bridge it, while
+                // translating it by the current origin so it never freezes in
+                // world space or visibly pops out for a single bad read.
+                scan_now_ms - cached->second.last_valid_ms <= 200u) {
                 std::memcpy(p.bones, cached->second.joints, sizeof(p.bones));
                 const float cached_shift[3] = {
                     p.pos[0] - cached->second.origin[0],
