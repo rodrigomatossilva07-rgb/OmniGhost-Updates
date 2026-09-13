@@ -1623,6 +1623,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
     };
     struct CachedBones {
         float joints[kBoneSlotCount][3]{};
+        float origin[3]{};
         uint64_t last_valid_ms = 0;
     };
     static std::unordered_map<uintptr_t, RecentPlayer> recent_players;
@@ -1915,7 +1916,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
     const bool need_names = OmniGhost::Gameplay::EspCore::Has(
         fields, OmniGhost::Gameplay::EspCore::DataField::Name);
     const bool need_weapons = OmniGhost::Gameplay::EspCore::Has(
-        fields, OmniGhost::Gameplay::EspCore::DataField::Weapon);
+        fields, OmniGhost::Gameplay::EspCore::DataField::Weapon) ||
+        frame_config.aim_enabled || frame_config.trigger_enabled;
     const bool need_yaw = frame_config.radar_2d ||
         OmniGhost::Gameplay::EspCore::Has(
             fields, OmniGhost::Gameplay::EspCore::DataField::Facing);
@@ -1997,22 +1999,9 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 // Do not reject it using an approximate origin/frustum test:
                 // near screen edges that test could suppress every bone even
                 // though the pawn itself was visible in the final projection.
-                bool sample_this_scan = true;
-                if (frame_config.skeleton_lod && frame_config.skeleton_lod_distance > 1.f &&
-                    IsFinitePosition(positions[c])) {
-                    const float lod_dx = positions[c][0] - runtime.local_pos[0];
-                    const float lod_dy = positions[c][1] - runtime.local_pos[1];
-                    const float lod_dz = positions[c][2] - runtime.local_pos[2];
-                    const float lod_units = frame_config.skeleton_lod_distance * 39.37f;
-                    if (lod_dx * lod_dx + lod_dy * lod_dy + lod_dz * lod_dz > lod_units * lod_units) {
-                        const uintptr_t pawn_key = resolved_pawns[c];
-                        const bool have_recent = bone_cache.find(pawn_key) != bone_cache.end();
-                        // Stagger distant pawns across four scans. Always acquire
-                        // the first valid skeleton before allowing LOD reuse.
-                        sample_this_scan = !have_recent ||
-                            ((runtime.frames + (pawn_key >> 4)) & 3u) == 0u;
-                    }
-                }
+                // Animated bones are latency-sensitive. Sampling every scan
+                // prevents distant players from appearing frozen between poses.
+                const bool sample_this_scan = true;
                 boneReadEligible[c] = sample_this_scan && IsUserPointer(boneBases[c]);
                 if (boneReadEligible[c] && IsUserPointer(boneBases[c])) {
                     mem.AddScatterReadRequest(g_scatter, boneBases[c], boneSnapshots[c],
@@ -2054,7 +2043,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
             for (int c = 0; c < candidate_count; ++c) {
                 if (!weaponDefinitionRead[c] || !weaponDefinitions[c]) continue;
                 weaponDefinitionCache[weaponEntities[c]] = {
-                    weaponDefinitions[c], runtime.frames
+                    weaponDefinitions[c], scan_now_ms
                 };
             }
         }
@@ -2304,14 +2293,23 @@ static void RunFrameWithConfig(const Config& frame_config) {
             if (acquired_real_bones) {
                 auto& cached = bone_cache[p.pawn];
                 std::memcpy(cached.joints, p.bones, sizeof(p.bones));
+                std::memcpy(cached.origin, p.pos, sizeof(cached.origin));
                 cached.last_valid_ms = scan_now_ms;
             }
         }
         if (!p.bones_ok) {
             const auto cached = bone_cache.find(p.pawn);
             if (cached != bone_cache.end() &&
-                scan_now_ms - cached->second.last_valid_ms <= 180u) {
+                scan_now_ms - cached->second.last_valid_ms <= 50u) {
                 std::memcpy(p.bones, cached->second.joints, sizeof(p.bones));
+                const float cached_shift[3] = {
+                    p.pos[0] - cached->second.origin[0],
+                    p.pos[1] - cached->second.origin[1],
+                    p.pos[2] - cached->second.origin[2]
+                };
+                for (std::size_t bone = 0; bone < kBoneSlotCount; ++bone)
+                    for (int axis = 0; axis < 3; ++axis)
+                        p.bones[bone][axis] += cached_shift[axis];
                 std::memcpy(p.head, p.bones[0], sizeof(p.head));
                 p.bones_ok = true;
             }
@@ -2320,29 +2318,6 @@ static void RunFrameWithConfig(const Config& frame_config) {
             p.head[0] = p.pos[0];
             p.head[1] = p.pos[1];
             p.head[2] = p.pos[2] + 72.f;
-            if (need_bones) {
-                // Last-resort presentation skeleton. It keeps the feature
-                // visible when a game update changes the bone pointer/indexes,
-                // while remaining anchored to the real pawn origin.
-                const float yaw = p.view_yaw * 0.01745329251f;
-                const float rx = -std::sin(yaw), ry = std::cos(yaw);
-                auto set_bone = [&](std::size_t id, float lateral, float z) {
-                    p.bones[id][0] = p.pos[0] + rx * lateral;
-                    p.bones[id][1] = p.pos[1] + ry * lateral;
-                    p.bones[id][2] = p.pos[2] + z;
-                };
-                set_bone(0, 0.f, 72.f); set_bone(1, 0.f, 66.f);
-                set_bone(2, 0.f, 60.f); set_bone(3, 0.f, 52.f);
-                set_bone(4, 0.f, 44.f); set_bone(5, 0.f, 38.f);
-                set_bone(6, -4.f, 62.f); set_bone(7, -9.f, 60.f);
-                set_bone(8, -15.f, 53.f); set_bone(9, -20.f, 46.f);
-                set_bone(10, 4.f, 62.f); set_bone(11, 9.f, 60.f);
-                set_bone(12, 15.f, 53.f); set_bone(13, 20.f, 46.f);
-                set_bone(14, -4.f, 38.f); set_bone(15, -4.f, 20.f);
-                set_bone(16, -4.f, 2.f); set_bone(17, 4.f, 38.f);
-                set_bone(18, 4.f, 20.f); set_bone(19, 4.f, 2.f);
-                p.bones_ok = true;
-            }
         }
 
         // Active weapon → item definition index → white icon code / name.
@@ -2439,10 +2414,9 @@ static void RunFrameWithConfig(const Config& frame_config) {
         }
     }
 
-    // The entity scan (especially a complete skeleton pass) can span several
-    // milliseconds. Refresh the lightweight anchors and camera together at
-    // the end so the renderer never combines new positions with an old view
-    // matrix. This is one grouped DMA transaction, not N synchronous reads.
+    // Refresh the camera at the end of the scan. Player origins and bones stay
+    // from the same scene-node sample; mixing them with m_vOldOrigin here used
+    // to offset the ESP from the animated model while a player was moving.
     if (frame_config.esp_enabled && !runtime.players.empty()) {
         EnsureScatter();
         if (g_scatter) {
@@ -2450,10 +2424,6 @@ static void RunFrameWithConfig(const Config& frame_config) {
             pre_refresh_positions.reserve(runtime.players.size());
             for (auto& player : runtime.players) {
                 pre_refresh_positions.push_back({player.pos[0], player.pos[1], player.pos[2]});
-                if (IsUserPointer(player.pawn))
-                    mem.AddScatterReadRequest(g_scatter,
-                        player.pawn + offsets.m_vOldOrigin,
-                        player.pos, sizeof(player.pos));
             }
             mem.AddScatterReadRequest(g_scatter,
                 runtime.client_base + offsets.dwViewMatrix,

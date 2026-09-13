@@ -47,6 +47,10 @@ struct VisualPlayerState {
 };
 
 CS2::Player SmoothPlayerForPresentation(const CS2::Player& raw) {
+    // Acquisition already publishes coherent snapshots at a high rate. Do not
+    // add presentation interpolation: it delays the box and individual joints.
+    return raw;
+#if 0
     static std::unordered_map<uintptr_t, VisualPlayerState> states;
     static int cleanup_frame = -1;
 
@@ -128,6 +132,7 @@ CS2::Player SmoothPlayerForPresentation(const CS2::Player& raw) {
         }
     }
     return state.output;
+#endif
 }
 
 void DrawMotionVisuals(ImDrawList* dl, const CS2::Runtime& rt,

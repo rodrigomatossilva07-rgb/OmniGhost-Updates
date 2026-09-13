@@ -2,6 +2,7 @@
 #include "cs2_game.h"
 #include "cs2_config.h"
 #include "../src/platform/runtime_bootstrap.h"
+#include "../src/platform/embedded_resources.h"
 
 #include <Windows.h>
 #include <winsock2.h>
@@ -317,9 +318,17 @@ void HandleClient(SOCKET client) {
     fs::path file = fs::path(root) / pure.substr(1);
     std::string body;
     if (!ReadFileBinary(file, body)) {
-        SendResponse(client, 404, "Not Found", "not found", "text/plain");
-        closesocket(client);
-        return;
+        std::string logical = "cs2/webradar/" + pure.substr(1);
+        for (char& ch : logical) {
+            if (ch == '\\') ch = '/';
+        }
+        if (const auto embedded = OmniGhost::LoadEmbeddedResource(logical)) {
+            body.assign(reinterpret_cast<const char*>(embedded->data()), embedded->size());
+        } else {
+            SendResponse(client, 404, "Not Found", "not found", "text/plain");
+            closesocket(client);
+            return;
+        }
     }
     if (method == "HEAD") body.clear();
     SendResponse(client, 200, "OK", body, MimeType(file.string()).c_str(), false);
@@ -605,11 +614,19 @@ bool StartCloudflare() {
             if (!ReadFile(rd, tmp, sizeof(tmp) - 1, &read, nullptr) || !read) break;
             tmp[read] = 0;
             output.append(tmp, read);
-            const auto pos = output.find("https://");
-            if (pos != std::string::npos) {
+            std::size_t pos = 0;
+            std::string url;
+            while ((pos = output.find("https://", pos)) != std::string::npos) {
                 const auto end = output.find_first_of(" \r\n\t\"'", pos);
-                std::string url = output.substr(pos,
+                const std::string candidate = output.substr(pos,
                     end == std::string::npos ? std::string::npos : end - pos);
+                if (candidate.find(".trycloudflare.com") != std::string::npos) {
+                    url = candidate;
+                    break;
+                }
+                pos += 8;
+            }
+            if (!url.empty()) {
                 while (!url.empty() && url.back() == '/') url.pop_back();
                 {
                     std::lock_guard<std::mutex> lock(g_mu);

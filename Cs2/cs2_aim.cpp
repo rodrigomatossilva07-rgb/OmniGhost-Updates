@@ -97,6 +97,22 @@ bool AimKeyDown(const CS2::Config& cfg) {
     return down;
 }
 
+bool IsFirearm(int definition) {
+    switch (definition) {
+    case 1: case 2: case 3: case 4:
+    case 7: case 8: case 9: case 10: case 11:
+    case 13: case 14: case 16: case 17: case 19:
+    case 23: case 24: case 25: case 26: case 27:
+    case 28: case 29: case 30: case 32: case 33:
+    case 34: case 35: case 36: case 38: case 39:
+    case 40: case 60: case 61: case 63: case 64:
+        return true;
+    default:
+        // Includes knives, Zeus, grenades, C4 and unknown/new utility items.
+        return false;
+    }
+}
+
 float EffectiveFov(const CS2::Config& cfg, float distance_m) {
     float fov = cfg.aim_fov > 1.f ? cfg.aim_fov : 80.f;
     if (!cfg.aim_dynamic_fov) return fov;
@@ -150,6 +166,22 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
         g_active_target_idx = -1;
         g_aim_motion.Reset();
         std::snprintf(g_debug, sizeof(g_debug), "aim/trig OFF");
+        return;
+    }
+
+    int local_weapon_definition = 0;
+    for (const auto& player : rt.players) {
+        if (player.is_local) {
+            local_weapon_definition = player.weapon_def;
+            break;
+        }
+    }
+    if (!IsFirearm(local_weapon_definition)) {
+        g_active_target_idx = -1;
+        g_last_target_idx = -1;
+        g_aim_motion.Reset();
+        std::snprintf(g_debug, sizeof(g_debug), "aim bloqueado: utilitario (%d)",
+            local_weapon_definition);
         return;
     }
 

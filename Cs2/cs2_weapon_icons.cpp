@@ -291,17 +291,21 @@ void EnsureLoaded(ID3D11Device* device) {
     static bool com = false;
     if (!com) { CoInitializeEx(nullptr, COINIT_MULTITHREADED); com = true; }
     if (g_attempted && g_device == device) return;
+
+    // A device change invalidates every SRV created by the previous device.
+    // Release them before accepting the new one instead of leaving stale GPU
+    // pointers in the map.
+    if (g_device && g_device != device) {
+        for (auto& [definition, icon] : g_icons) {
+            (void)definition;
+            if (icon.srv) icon.srv->Release();
+        }
+        g_icons.clear();
+    }
     g_device = device;
     g_attempted = true;
-
-    // Preload common weapons + individual knives so ESP swaps icons instantly
-    static const int kCommon[] = {
-        1,2,3,4,7,8,9,10,11,13,14,16,17,19,23,24,25,26,27,28,29,30,31,32,33,34,35,36,
-        38,39,40,41,42,43,44,45,46,47,48,49,59,60,61,63,64,
-        500,503,505,506,507,508,509,512,514,515,516,517,518,519,520,521,522,523,525,526
-    };
-    for (int d : kCommon)
-        LoadOne(device, d);
+    // Textures are loaded lazily by Get(). Preloading the complete catalogue
+    // here stalls one render frame and can overwhelm/lose the D3D device.
 }
 
 ID3D11ShaderResourceView* Get(int weapon_def) {
