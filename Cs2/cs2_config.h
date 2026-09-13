@@ -9,14 +9,14 @@ struct Config {
     // Spotted-state based visibility (m_entitySpottedState + m_bSpotted)
     bool visibility_colors = true;
     bool visible_check = false;
-    bool box = false;
+    bool box = true;
     bool box_corner = false;
-    bool skeleton = false;
+    bool skeleton = true;
     bool skeleton_joints = false; // joint dots like reference ESP
-    bool health_bar = false;
+    bool health_bar = true;
     bool armor_bar = false;
-    bool name = false;
-    bool distance = false;
+    bool name = true;
+    bool distance = true;
     bool team_check = true;
     bool show_bots = true;
     bool head_dot = false;

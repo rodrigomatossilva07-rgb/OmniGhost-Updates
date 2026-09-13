@@ -1,4 +1,5 @@
 #pragma once
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -83,6 +84,7 @@ inline constexpr std::size_t kBoneSlotCount =
 struct Player {
     uintptr_t controller = 0;
     uintptr_t pawn = 0;
+    uintptr_t scene = 0;
     int health = 0;
     int armor = 0;
     int team = 0;
@@ -174,6 +176,19 @@ struct CameraSnapshot {
 };
 using CameraSnapshotLease = OmniGhost::Gameplay::SnapshotExchange<CameraSnapshot>::ReadLease;
 
+// Lightweight motion lane used only to keep the visual anchored between full
+// entity/bone scans.  Fixed storage avoids allocations in the fast thread.
+struct MotionSample {
+    uintptr_t pawn = 0;
+    float pos[3]{};
+};
+struct MotionSnapshot {
+    std::array<MotionSample, 64> players{};
+    uint32_t count = 0;
+    uint64_t timestamp_ms = 0;
+};
+using MotionSnapshotLease = OmniGhost::Gameplay::SnapshotExchange<MotionSnapshot>::ReadLease;
+
 extern Offsets offsets;
 extern Config config;
 extern Runtime runtime;
@@ -192,6 +207,7 @@ void StopAcquisition();
 void SubmitAcquisitionConfig(const Config& next) noexcept;
 [[nodiscard]] RuntimeSnapshotLease AcquireRuntimeSnapshot();
 [[nodiscard]] CameraSnapshotLease AcquireCameraSnapshot();
+[[nodiscard]] MotionSnapshotLease AcquireMotionSnapshot();
 [[nodiscard]] bool AcquisitionRunning() noexcept;
 void SetPresentationFps(float fps) noexcept;
 void Shutdown();

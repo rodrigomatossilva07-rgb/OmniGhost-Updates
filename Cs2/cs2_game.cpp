@@ -71,6 +71,7 @@ namespace {
 
 OmniGhost::Gameplay::SnapshotExchange<Runtime> g_runtime_snapshots;
 OmniGhost::Gameplay::SnapshotExchange<CameraSnapshot> g_camera_snapshots;
+OmniGhost::Gameplay::SnapshotExchange<MotionSnapshot> g_motion_snapshots;
 OmniGhost::Gameplay::SnapshotExchange<Config> g_config_snapshots;
 std::atomic_bool g_acquisition_stop{false};
 std::atomic_bool g_acquisition_running{false};
@@ -102,6 +103,13 @@ void PublishCameraSnapshot(const float* matrix) {
     std::memcpy(slot.value->view_matrix, matrix, sizeof(slot.value->view_matrix));
     slot.value->timestamp_ms = GetTickCount64();
     g_camera_snapshots.Publish(slot.index);
+}
+
+void PublishMotionSnapshot(const MotionSnapshot& motion) {
+    auto slot = g_motion_snapshots.TryBeginWrite();
+    if (!slot) return;
+    *slot.value = motion;
+    g_motion_snapshots.Publish(slot.index);
 }
 
 bool JsonU64(const std::string& src, const char* key, uintptr_t& out) {
@@ -2140,6 +2148,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
             continue;
 
         const uintptr_t scene = IsUserPointer(cf.scene) ? cf.scene : 0;
+        p.scene = scene;
 
         if (need_yaw || p.is_local) {
             if (std::isfinite(cf.eye_angles[1]))
@@ -2244,7 +2253,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
                     const float* pel = bones[5];
                     const float torso = std::sqrt(
                         (h[0]-pel[0])*(h[0]-pel[0]) + (h[1]-pel[1])*(h[1]-pel[1]) + (h[2]-pel[2])*(h[2]-pel[2]));
-                    if (!(torso > 25.f && torso < 100.f)) return -1.f;
+                    if (!(torso > 20.f && torso < 140.f)) return -1.f;
                     if (h[2] < p.pos[2] + 15.f) return -1.f;
                     float score = 100.f - std::fabs(torso - 55.f);
                     // Arms should be lateral to spine
@@ -2278,7 +2287,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 float tmp[kBoneSlotCount][3]{};
                 float best[kBoneSlotCount][3]{};
                 float bestScore = -1.f;
-                for (const auto* indices : {kCurrentIdx, kReferenceIdx}) {
+                for (const auto* indices : {kReferenceIdx, kCurrentIdx}) { // CS2-DMA layout first
                     bool finite = true;
                     for (std::size_t b = 0; b < kBoneSlotCount; ++b) {
                         const int id = indices[b];
@@ -2690,9 +2699,9 @@ void EnsureAcquisitionStarted() {
 
     g_acquisition_stop.store(false, std::memory_order_release);
     PublishRuntimeSnapshot();
-    // Camera/view matrix is latency-critical for visual attachment while
-    // turning.  Keep it off the entity/bone lane: one 64-byte read at a
-    // stable cadence is vastly cheaper than making every full scan faster.
+    // Camera and origins are latency-critical for visual attachment while
+    // turning or moving.  Bones remain in the validated full scan; this small
+    // lane refreshes only their common origin and the view matrix.
     g_camera_thread = std::thread([] {
         OmniGhost::Gameplay::FixedRateScheduler scheduler;
         float matrix[16]{};
@@ -2700,6 +2709,25 @@ void EnsureAcquisitionStarted() {
             const bool canRead = ready && offsets.loaded && runtime.client_base && offsets.dwViewMatrix;
             if (canRead && QRead(runtime.client_base + offsets.dwViewMatrix, matrix, sizeof(matrix)))
                 PublishCameraSnapshot(matrix);
+            if (canRead && runtime.in_match) {
+                const auto current = g_runtime_snapshots.Acquire();
+                MotionSnapshot motion{};
+                for (const auto& player : current->players) {
+                    if (motion.count >= motion.players.size() || !player.pawn || !IsUserPointer(player.scene))
+                        continue;
+                    auto& sample = motion.players[motion.count];
+                    sample.pawn = player.pawn;
+                    if (!QRead(player.scene + offsets.m_vecAbsOrigin, sample.pos, sizeof(sample.pos)) ||
+                        !std::isfinite(sample.pos[0]) || !std::isfinite(sample.pos[1]) ||
+                        !std::isfinite(sample.pos[2]))
+                        continue;
+                    ++motion.count;
+                }
+                if (motion.count) {
+                    motion.timestamp_ms = GetTickCount64();
+                    PublishMotionSnapshot(motion);
+                }
+            }
             const float fps = g_presentation_fps.load(std::memory_order_relaxed);
             const int cadence = runtime.in_match ? ((fps > 1.f && fps < 55.f) ? 4 : 2) : 12;
             scheduler.Wait(std::chrono::milliseconds(cadence));
@@ -2760,6 +2788,10 @@ RuntimeSnapshotLease AcquireRuntimeSnapshot() {
 
 CameraSnapshotLease AcquireCameraSnapshot() {
     return g_camera_snapshots.Acquire();
+}
+
+MotionSnapshotLease AcquireMotionSnapshot() {
+    return g_motion_snapshots.Acquire();
 }
 
 bool AcquisitionRunning() noexcept {

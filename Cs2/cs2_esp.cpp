@@ -131,8 +131,33 @@ void UpdatePresentationViewMatrix(const CS2::Runtime& rt, const float* latestMat
     g_havePresentationView = true;
 }
 
-CS2::Player SmoothPlayerForPresentation(const CS2::Player& raw) {
-    return raw;
+CS2::Player SmoothPlayerForPresentation(const CS2::Player& raw,
+                                        const CS2::MotionSnapshot* motion) {
+    CS2::Player output = raw;
+    if (!motion || !raw.pawn) return output;
+
+    for (uint32_t i = 0; i < motion->count; ++i) {
+        const auto& sample = motion->players[i];
+        if (sample.pawn != raw.pawn) continue;
+        const float dx = sample.pos[0] - raw.pos[0];
+        const float dy = sample.pos[1] - raw.pos[1];
+        const float dz = sample.pos[2] - raw.pos[2];
+        // Never apply a stale/recycled scene node as a visual teleport.
+        if (!std::isfinite(dx) || !std::isfinite(dy) || !std::isfinite(dz) ||
+            dx * dx + dy * dy + dz * dz > 192.f * 192.f)
+            return output;
+        output.pos[0] += dx; output.pos[1] += dy; output.pos[2] += dz;
+        output.head[0] += dx; output.head[1] += dy; output.head[2] += dz;
+        if (output.bones_ok) {
+            for (std::size_t bone = 0; bone < CS2::kBoneSlotCount; ++bone) {
+                output.bones[bone][0] += dx;
+                output.bones[bone][1] += dy;
+                output.bones[bone][2] += dz;
+            }
+        }
+        return output;
+    }
+    return output;
 }
 
 void DrawMotionVisuals(ImDrawList* dl, const CS2::Runtime& rt,
@@ -647,196 +672,173 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
         }
     }
 
+
     if (!cfg.esp_enabled) return;
 
-    // Texture initialization is global, not player-specific. Keep it outside
-    // the player loop even though EnsureLoaded has its own fast guard.
+    // ── ESP style CS2-DMA: caixa (head→feet), corner, skeleton chains, bars ──
     if (cfg.weapon_icons && g_overlay_instance && g_overlay_instance->device)
         CS2_WeaponIcons::EnsureLoaded(g_overlay_instance->device);
+
+    auto health_color = [](float ratio) -> ImU32 {
+        ratio = std::clamp(ratio, 0.f, 1.f);
+        if (ratio > 0.66f) return IM_COL32(96, 246, 113, 230);
+        if (ratio > 0.33f) return IM_COL32(247, 214, 103, 230);
+        return IM_COL32(255, 95, 95, 230);
+    };
+
+    auto draw_corner_box = [&](float x, float y, float w, float h, ImU32 col, float th, float frac) {
+        const float lx = w * frac, ly = h * frac;
+        // TL
+        dl->AddLine(ImVec2(x, y), ImVec2(x + lx, y), col, th);
+        dl->AddLine(ImVec2(x, y), ImVec2(x, y + ly), col, th);
+        // TR
+        dl->AddLine(ImVec2(x + w, y), ImVec2(x + w - lx, y), col, th);
+        dl->AddLine(ImVec2(x + w, y), ImVec2(x + w, y + ly), col, th);
+        // BL
+        dl->AddLine(ImVec2(x, y + h), ImVec2(x + lx, y + h), col, th);
+        dl->AddLine(ImVec2(x, y + h), ImVec2(x, y + h - ly), col, th);
+        // BR
+        dl->AddLine(ImVec2(x + w, y + h), ImVec2(x + w - lx, y + h), col, th);
+        dl->AddLine(ImVec2(x + w, y + h), ImVec2(x + w, y + h - ly), col, th);
+    };
+
+    // BoneSlot chains matching CS2-DMA BoneJointList (after reference index map)
+    static constexpr int kChainTrunk[] = { 1, 2, 3, 4, 5 };           // neck..pelvis via spine
+    static constexpr int kChainLArm[]  = { 1, 7, 8, 9 };              // neck, shoulder, elbow, hand
+    static constexpr int kChainRArm[]  = { 1, 11, 12, 13 };
+    static constexpr int kChainLLeg[]  = { 5, 14, 15, 16 };
+    static constexpr int kChainRLeg[]  = { 5, 17, 18, 19 };
+    static constexpr const int* kChains[] = { kChainTrunk, kChainLArm, kChainRArm, kChainLLeg, kChainRLeg };
+    static constexpr int kChainLen[] = { 5, 4, 4, 4, 4 };
 
     for (int pi = 0; pi < (int)rt.players.size(); ++pi) {
         const CS2::Player p = SmoothPlayerForPresentation(rt.players[pi]);
         if (p.is_local && !cfg.self_esp) continue;
         if (!p.is_local && cfg.team_check && p.team == rt.local_team) continue;
         if (p.distance > cfg.max_distance) continue;
-        if (cfg.visible_check && !p.spotted)
-            continue;
+        if (cfg.visible_check && !p.spotted) continue;
+        if (!p.alive && p.health <= 0) continue;
 
-        // Team/enemy color for ALL ESP elements except weapon icons
+        float colVis[4];
         const float* colBase = (p.team == rt.local_team) ? cfg.col_team : cfg.col_enemy;
-        // Cores por visibilidade (spotted)
-        float colVis[4] = { colBase[0], colBase[1], colBase[2], colBase[3] };
+        for (int i = 0; i < 4; ++i) colVis[i] = colBase[i];
         if (cfg.visibility_colors && !p.is_local) {
-            if (p.spotted) {
-                colVis[0] = 0.25f; colVis[1] = 0.95f; colVis[2] = 0.35f;
-            } else {
-                colVis[0] = 0.95f; colVis[1] = 0.35f; colVis[2] = 0.30f;
-            }
+            if (p.spotted) { colVis[0] = 0.25f; colVis[1] = 0.95f; colVis[2] = 0.35f; }
+            else { colVis[0] = 0.95f; colVis[1] = 0.35f; colVis[2] = 0.30f; }
         }
         const ImU32 teamCol = Col(colVis);
+        const ImU32 boxCol = cfg.box ? Col(cfg.col_box) : teamCol;
 
-        // Prefer the current animated pose for crouching, jumping and leaning.
-        // Fall back to the conventional 72-unit standing hull when no validated
-        // skeleton is available.
-        const float boxHead[3] = { p.pos[0], p.pos[1], p.pos[2] + 72.f };
-        const float boxFeet[3] = { p.pos[0], p.pos[1], p.pos[2] };
-        float hx, hy, fx, fy;
-        if (!W2S(boxHead, rt.view_matrix, hx, hy))
+        // Screen: feet = origin, head = bone head or +72 hull (CS2-DMA Get2DBox)
+        float fx = 0.f, fy = 0.f, hx = 0.f, hy = 0.f;
+        if (!W2S(p.pos, rt.view_matrix, fx, fy))
             continue;
-        if (!W2S(boxFeet, rt.view_matrix, fx, fy)) continue;
-
-        float h = fabsf(fy - hy);
-        if (h < 8.f) h = 8.f;
-        float w = h * 0.42f;
+        bool head_ok = false;
         if (p.bones_ok) {
-            float headX = 0.f, headY = 0.f, pelvisX = 0.f, pelvisY = 0.f;
-            float shoulderLX = 0.f, shoulderLY = 0.f, shoulderRX = 0.f, shoulderRY = 0.f;
-            float hipLX = 0.f, hipLY = 0.f, hipRX = 0.f, hipRY = 0.f;
-            float ankleLX = 0.f, ankleLY = 0.f, ankleRX = 0.f, ankleRY = 0.f;
-            const bool pose_ok =
-                W2S(p.bones[0], rt.view_matrix, headX, headY) &&
-                W2S(p.bones[5], rt.view_matrix, pelvisX, pelvisY) &&
-                W2S(p.bones[7], rt.view_matrix, shoulderLX, shoulderLY) &&
-                W2S(p.bones[11], rt.view_matrix, shoulderRX, shoulderRY) &&
-                W2S(p.bones[14], rt.view_matrix, hipLX, hipLY) &&
-                W2S(p.bones[17], rt.view_matrix, hipRX, hipRY) &&
-                W2S(p.bones[16], rt.view_matrix, ankleLX, ankleLY) &&
-                W2S(p.bones[19], rt.view_matrix, ankleRX, ankleRY);
-            if (pose_ok) {
-                const float pose_bottom = (std::max)(ankleLY, ankleRY);
-                const float pose_h = pose_bottom - headY;
-                if (pose_h >= 8.f && pose_h < ImGui::GetIO().DisplaySize.y * 1.5f) {
-                    hx = (headX + pelvisX) * 0.5f;
-                    hy = headY;
-                    fy = pose_bottom;
-                    h = pose_h;
-                    const float body_left = (std::min)({shoulderLX, shoulderRX, hipLX, hipRX});
-                    const float body_right = (std::max)({shoulderLX, shoulderRX, hipLX, hipRX});
-                    w = (std::max)(h * 0.32f, (body_right - body_left) * 1.20f);
-                }
-            }
+            head_ok = W2S(p.bones[0], rt.view_matrix, hx, hy);
         }
-        float left = hx - w * 0.5f;
-        float right = hx + w * 0.5f;
-        float top = hy - h * 0.08f;
-        float bottom = fy + h * 0.025f;
-
-        // Do not run cosmetic or bone work for an entity wholly outside the
-        // drawable area.  Off-screen arrows were handled above, so this does
-        // not remove the player's directional cue.  The margin avoids a pop
-        // at the edge of the display while keeping the hot path bounded.
-        constexpr float kScreenCullMargin = 128.f;
-        if (right < -kScreenCullMargin || left > ds.x + kScreenCullMargin ||
-            bottom < -kScreenCullMargin || top > ds.y + kScreenCullMargin)
-            continue;
-
-        DrawMotionVisuals(dl, rt, cfg, p);
-
-        if (cfg.box || cfg.box_corner) {
-            ImU32 c = teamCol;
-            const float thickness = std::clamp(cfg.box_thickness, 0.5f, 8.f);
-            if (cfg.box && !cfg.box_corner) {
-                dl->AddRect(ImVec2(left, top), ImVec2(right, bottom), c, 0.f, 0, thickness);
-            } else {
-                OmniGhost::Gameplay::EspCore::DrawCornerBox(
-                    dl, ImVec2(left, top), ImVec2(right, bottom), c, thickness);
-            }
+        if (!head_ok) {
+            const float headWorld[3] = { p.pos[0], p.pos[1], p.pos[2] + 72.f };
+            if (!W2S(headWorld, rt.view_matrix, hx, hy))
+                continue;
         }
 
-        // Bone data arrives as one contiguous snapshot, so drawing the complete
-        // chain does not add DMA reads. Keep the same quality at every distance.
+        // CS2-DMA: Size.y = (feetY - headY) * 1.09; Size.x = Size.y * 0.6
+        float boxH = (fy - hy) * 1.09f;
+        if (boxH < 4.f) boxH = fabsf(fy - hy);
+        if (boxH < 8.f) boxH = 8.f;
+        float boxW = boxH * 0.6f;
+        float boxX = fx - boxW * 0.5f;
+        float boxY = hy - boxH * 0.08f;
+        if (boxH > 4000.f || boxW < 2.f) continue;
+        const float left = boxX, right = boxX + boxW, top = boxY, bottom = boxY + boxH;
+
+        // Box
+        const float thBox = std::clamp(cfg.box_thickness, 0.5f, 8.f);
+        if (cfg.box_corner) {
+            draw_corner_box(left, top, boxW, boxH, Col(cfg.col_box_corner), thBox, 0.25f);
+        } else if (cfg.box) {
+            dl->AddRect(ImVec2(left, top), ImVec2(right, bottom), boxCol, 0.f, 0, thBox);
+            dl->AddRect(ImVec2(left - 1.f, top - 1.f), ImVec2(right + 1.f, bottom + 1.f),
+                        IM_COL32(0, 0, 0, 120), 0.f, 0, 1.f);
+        }
+
+        // Skeleton (CS2-DMA DrawBone chains)
         if (cfg.skeleton && p.bones_ok) {
-            ImU32 sc = teamCol;
             const float th = std::clamp(cfg.skeleton_thickness, 0.5f, 8.f);
-
-            // Project every required bone once.  Lines and optional joint
-            // dots then consume the same stable per-player data.
-            ImVec2 projected[CS2::kBoneSlotCount]{};
-            bool projectedOk[CS2::kBoneSlotCount]{};
-            for (std::size_t bone = 0; bone < CS2::kBoneSlotCount; ++bone) {
-                float sx = 0.f, sy = 0.f;
-                projectedOk[bone] = W2S(p.bones[bone], rt.view_matrix, sx, sy);
-                if (projectedOk[bone]) projected[bone] = ImVec2(sx, sy);
+            const ImU32 skCol = Col(cfg.col_skeleton);
+            float screen[CS2::kBoneSlotCount][2]{};
+            bool ok[CS2::kBoneSlotCount]{};
+            for (std::size_t b = 0; b < CS2::kBoneSlotCount; ++b) {
+                ok[b] = W2S(p.bones[b], rt.view_matrix, screen[b][0], screen[b][1]);
             }
-
-            // Spine column (head → neck → spine chain → pelvis)
-            DrawBoneLine(dl, p.bones, projected, projectedOk, 0, 1, sc, th);
-            DrawBoneLine(dl, p.bones, projected, projectedOk, 1, 2, sc, th);
-            DrawBoneLine(dl, p.bones, projected, projectedOk, 2, 3, sc, th);
-            DrawBoneLine(dl, p.bones, projected, projectedOk, 3, 4, sc, th);
-            DrawBoneLine(dl, p.bones, projected, projectedOk, 4, 5, sc, th);
-
-            if (true) { // always full arms
-                // L: neck/clav → shoulder → elbow → hand
-                DrawBoneLine(dl, p.bones, projected, projectedOk, 1, 6, sc, th);
-                DrawBoneLine(dl, p.bones, projected, projectedOk, 6, 7, sc, th);
-                DrawBoneLine(dl, p.bones, projected, projectedOk, 7, 8, sc, th);
-                DrawBoneLine(dl, p.bones, projected, projectedOk, 8, 9, sc, th);
-                // R
-                DrawBoneLine(dl, p.bones, projected, projectedOk, 1, 10, sc, th);
-                DrawBoneLine(dl, p.bones, projected, projectedOk, 10, 11, sc, th);
-                DrawBoneLine(dl, p.bones, projected, projectedOk, 11, 12, sc, th);
-                DrawBoneLine(dl, p.bones, projected, projectedOk, 12, 13, sc, th);
+            for (int c = 0; c < 5; ++c) {
+                if (c >= 1 && c <= 2 && !cfg.bone_draw_arms) continue;
+                if (c >= 3 && !cfg.bone_draw_legs) continue;
+                for (int i = 1; i < kChainLen[c]; ++i) {
+                    const int a = kChains[c][i - 1];
+                    const int b = kChains[c][i];
+                    if (a < 0 || b < 0 || a >= (int)CS2::kBoneSlotCount || b >= (int)CS2::kBoneSlotCount)
+                        continue;
+                    if (!ok[a] || !ok[b]) continue;
+                    dl->AddLine(ImVec2(screen[a][0], screen[a][1]),
+                                ImVec2(screen[b][0], screen[b][1]), skCol, th);
+                }
             }
-            if (true) { // always full legs
-                DrawBoneLine(dl, p.bones, projected, projectedOk, 5, 14, sc, th);
-                DrawBoneLine(dl, p.bones, projected, projectedOk, 14, 15, sc, th);
-                DrawBoneLine(dl, p.bones, projected, projectedOk, 15, 16, sc, th);
-                DrawBoneLine(dl, p.bones, projected, projectedOk, 5, 17, sc, th);
-                DrawBoneLine(dl, p.bones, projected, projectedOk, 17, 18, sc, th);
-                DrawBoneLine(dl, p.bones, projected, projectedOk, 18, 19, sc, th);
-            }
-
             if (cfg.skeleton_joints) {
-                const ImU32 jc = Col(cfg.col_joints);
-                constexpr float jr = 2.8f;
-                static const int kAll[] = {
-                    0,1,2,3,4,5, 6,7,8,9, 10,11,12,13, 14,15,16, 17,18,19
-                };
-                const int* ids = kAll;
-                constexpr int nIds = 20;
-                for (int i = 0; i < nIds; ++i) {
-                    const int bone = ids[i];
-                    if (!projectedOk[bone]) continue;
-                    dl->AddCircleFilled(projected[bone], jr, jc, 12);
-                    dl->AddCircle(projected[bone], jr, IM_COL32(0, 0, 0, 200), 12, 1.0f);
+                for (std::size_t b = 0; b < CS2::kBoneSlotCount; ++b) {
+                    if (!ok[b]) continue;
+                    dl->AddCircleFilled(ImVec2(screen[b][0], screen[b][1]), 2.2f, Col(cfg.col_joints), 8);
                 }
             }
         }
 
+        // Head dot
         if (cfg.head_dot) {
-            const ImU32 headCol = cfg.visibility_colors
-                ? (p.spotted ? Col(cfg.col_head) : Col(cfg.col_occluded))
-                : Col(cfg.col_head);
-            dl->AddCircle(ImVec2(hx, hy), (std::max)(2.f, h * 0.06f), headCol, 16,
-                std::clamp(cfg.head_circle_thickness, 0.5f, 6.f));
+            float r = std::clamp(boxH * 0.06f, 2.f, 8.f);
+            dl->AddCircle(ImVec2(hx, hy), r, Col(cfg.col_head), 16, 1.6f);
         }
 
+        // Eye / look line
+        if (cfg.eye_line || cfg.look_direction) {
+            const float yaw = p.view_yaw * 0.01745329251f;
+            const float len = 40.f;
+            float endW[3] = {
+                p.bones_ok ? p.bones[0][0] : p.pos[0],
+                p.bones_ok ? p.bones[0][1] : p.pos[1],
+                p.bones_ok ? p.bones[0][2] : p.pos[2] + 64.f
+            };
+            endW[0] += std::cos(yaw) * len;
+            endW[1] += std::sin(yaw) * len;
+            float ex = 0.f, ey = 0.f;
+            if (W2S(endW, rt.view_matrix, ex, ey))
+                dl->AddLine(ImVec2(hx, hy), ImVec2(ex, ey), Col(cfg.col_look), 1.4f);
+        }
+
+        // Health bar (CS2-DMA style left)
         if (cfg.health_bar) {
-            float pct = (std::min)(1.f, (std::max)(0.f, p.health / 100.f));
-            const float bar_w = 4.f;
-            float bx = left - 6.f;
-            const ImU32 health_top = Col(cfg.col_health);
-            const ImVec4 health_value = ImGui::ColorConvertU32ToFloat4(health_top);
-            const ImU32 health_bottom = ImGui::ColorConvertFloat4ToU32(ImVec4(
-                health_value.x * 0.48f, health_value.y * 0.48f,
-                health_value.z * 0.48f, health_value.w));
-            OmniGhost::Gameplay::EspCore::DrawVerticalBar(
-                dl, ImVec2(bx - bar_w, top), ImVec2(bx, bottom), pct,
-                health_top, health_bottom);
-            char hpBuf[16];
-            std::snprintf(hpBuf, sizeof(hpBuf), "%d", p.health);
-            ImVec2 ts = ImGui::CalcTextSize(hpBuf);
-            dl->AddText(ImVec2(bx - bar_w * 0.5f - ts.x * 0.5f, top - ts.y - 2.f), IM_COL32(255,255,255,240), hpBuf);
+            const float ratio = std::clamp(p.health / 100.f, 0.f, 1.f);
+            const float barW = 3.5f;
+            const float bx = left - 6.f;
+            dl->AddRectFilled(ImVec2(bx - 1.f, top - 1.f), ImVec2(bx + barW + 1.f, bottom + 1.f),
+                              IM_COL32(20, 20, 20, 180));
+            const float filled = boxH * ratio;
+            dl->AddRectFilled(ImVec2(bx, bottom - filled), ImVec2(bx + barW, bottom), health_color(ratio));
+            {
+                char hp[16];
+                std::snprintf(hp, sizeof(hp), "%d", p.health);
+                ImVec2 ts = ImGui::CalcTextSize(hp);
+                dl->AddText(ImVec2(bx - ts.x * 0.5f + barW * 0.5f, top - ts.y - 2.f),
+                            IM_COL32(255, 255, 255, 240), hp);
+            }
         }
 
-        if (cfg.armor_bar && p.armor > 0.5f) {
-            float pct = (std::min)(1.f, p.armor / 100.f);
-            const float bar_w = 3.5f;
-            float bx = right + 6.f;
-            OmniGhost::Gameplay::EspCore::DrawVerticalBar(
-                dl, ImVec2(bx, top), ImVec2(bx + bar_w, bottom), pct,
-                Col(cfg.col_armor), Col(cfg.col_armor, 0.48f));
+        if (cfg.armor_bar && p.armor > 0) {
+            const float ratio = std::clamp(p.armor / 100.f, 0.f, 1.f);
+            const float barW = 3.f;
+            const float bx = right + 4.f;
+            dl->AddRectFilled(ImVec2(bx, top), ImVec2(bx + barW, bottom), IM_COL32(20, 20, 20, 160));
+            dl->AddRectFilled(ImVec2(bx, bottom - boxH * ratio), ImVec2(bx + barW, bottom), Col(cfg.col_armor));
         }
 
         if (cfg.snaplines) {
@@ -844,59 +846,38 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
                         std::clamp(cfg.snapline_thickness, 0.5f, 8.f));
         }
 
-        // Name above head
         float textY = top - 16.f;
         if (cfg.name) {
             char label[96];
             if (p.is_bot) std::snprintf(label, sizeof(label), "%s [BOT]", p.name);
-            else if (p.is_scoped && cfg.scope_check) std::snprintf(label, sizeof(label), "%s [MIRA]", p.name);
-            else std::snprintf(label, sizeof(label), "%s", p.name);
+            else std::snprintf(label, sizeof(label), "%s", p.name[0] ? p.name : "Jogador");
             ImVec2 ts = ImGui::CalcTextSize(label);
-            dl->AddText(ImVec2(hx - ts.x * 0.5f + 1, textY + 1), IM_COL32(0, 0, 0, 180), label);
-            dl->AddText(ImVec2(hx - ts.x * 0.5f, textY), teamCol, label);
+            dl->AddText(ImVec2(hx - ts.x * 0.5f + 1.f, textY + 1.f), IM_COL32(0, 0, 0, 180), label);
+            dl->AddText(ImVec2(hx - ts.x * 0.5f, textY), Col(cfg.col_name), label);
             textY -= 14.f;
         }
 
-        if (cfg.hit_chance_ui && cfg.aim_enabled) {
-            float chance = 100.f - p.distance * 0.35f - (100 - p.health) * 0.15f;
-            if (chance < 5.f) chance = 5.f;
-            if (chance > 98.f) chance = 98.f;
-            char hc[32];
-            std::snprintf(hc, sizeof(hc), "%.0f%%", chance);
-            ImVec2 ts = ImGui::CalcTextSize(hc);
-            dl->AddText(ImVec2(hx - ts.x * 0.5f, textY), IM_COL32(200, 200, 120, 200), hc);
-            textY -= 14.f;
-        }
-
-        // Below feet: weapon icon (PNG) — updates live with p.weapon_def each frame.
-        // Text weapon name was removed; icons are the only weapon display path.
-        float belowY = fy + 4.f;
-        if (cfg.weapon_icons && p.weapon_def > 0) {
-            if (ID3D11ShaderResourceView* srv = CS2_WeaponIcons::Get(p.weapon_def)) {
-                int iw = 0, ih = 0;
-                CS2_WeaponIcons::GetSize(p.weapon_def, iw, ih);
-                const float target_h = 18.f;
-                float aspect = (iw > 0 && ih > 0) ? (float)iw / (float)ih : 2.2f;
-                const float draw_h = target_h;
-                const float draw_w = draw_h * aspect;
-                const float x0 = hx - draw_w * 0.5f;
-                const float y0 = belowY;
-                dl->AddImage((ImTextureID)srv,
-                    ImVec2(x0, y0), ImVec2(x0 + draw_w, y0 + draw_h),
-                    ImVec2(0, 0), ImVec2(1, 1), IM_COL32(255, 255, 255, 245));
-                belowY += draw_h + 2.f;
-            } else {
-                // Fallback glyph/code only when PNG is missing for this def
-                const char* icon = WeaponIconCode(p.weapon_def);
-                const char* show = (icon && icon[0]) ? icon : nullptr;
-                if (show && show[0]) {
-                    ImVec2 ts = ImGui::CalcTextSize(show);
-                    dl->AddText(ImVec2(hx - ts.x * 0.5f + 1, belowY + 1), IM_COL32(0, 0, 0, 200), show);
-                    dl->AddText(ImVec2(hx - ts.x * 0.5f, belowY), IM_COL32(255, 255, 255, 245), show);
-                    belowY += 14.f;
+        float belowY = bottom + 3.f;
+        if (cfg.weapon || cfg.weapon_icons) {
+            if (cfg.weapon_icons && p.weapon_def > 0) {
+                if (ID3D11ShaderResourceView* srv = CS2_WeaponIcons::Get(p.weapon_def)) {
+                    int iw = 0, ih = 0;
+                    CS2_WeaponIcons::GetSize(p.weapon_def, iw, ih);
+                    float aspect = (iw > 0 && ih > 0) ? (float)iw / (float)ih : 2.2f;
+                    const float draw_h = 16.f;
+                    const float draw_w = draw_h * aspect;
+                    const float x0 = hx - draw_w * 0.5f;
+                    dl->AddImage((ImTextureID)srv, ImVec2(x0, belowY), ImVec2(x0 + draw_w, belowY + draw_h));
+                    belowY += draw_h + 2.f;
                 }
             }
+            if (cfg.weapon && p.weapon[0]) {
+                ImVec2 ts = ImGui::CalcTextSize(p.weapon);
+                dl->AddText(ImVec2(hx - ts.x * 0.5f, belowY), Col(cfg.col_weapon), p.weapon);
+                belowY += 14.f;
+            }
         }
+
         if (cfg.distance) {
             char db[32];
             if (cfg.distance_feet)
@@ -904,13 +885,12 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
             else
                 std::snprintf(db, sizeof(db), "%.0fm", p.distance);
             ImVec2 ts = ImGui::CalcTextSize(db);
-            dl->AddText(ImVec2(hx - ts.x * 0.5f + 1, belowY + 1), IM_COL32(0, 0, 0, 180), db);
-            dl->AddText(ImVec2(hx - ts.x * 0.5f, belowY), teamCol, db);
+            dl->AddText(ImVec2(hx - ts.x * 0.5f, belowY), Col(cfg.col_distance), db);
             belowY += 14.f;
         }
-        if (cfg.smoke_flash && p.is_flashed) {
+
+        if (cfg.smoke_flash && p.is_flashed)
             dl->AddText(ImVec2(hx - 20.f, belowY), IM_COL32(255, 255, 120, 220), "FLASHED");
-        }
     }
 }
 
