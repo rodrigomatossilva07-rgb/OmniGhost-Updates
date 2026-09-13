@@ -2253,8 +2253,12 @@ static void RunFrameWithConfig(const Config& frame_config) {
                     const float* pel = bones[5];
                     const float torso = std::sqrt(
                         (h[0]-pel[0])*(h[0]-pel[0]) + (h[1]-pel[1])*(h[1]-pel[1]) + (h[2]-pel[2])*(h[2]-pel[2]));
-                    if (!(torso > 20.f && torso < 140.f)) return -1.f;
-                    if (h[2] < p.pos[2] + 15.f) return -1.f;
+                    // The bone buffer is valid for crouching, jumping and
+                    // uncommon agent animations too.  Keep the corruption
+                    // guard broad enough that a genuine pose is not dropped
+                    // for one frame merely because an arm/leg is compressed.
+                    if (!(torso > 10.f && torso < 190.f)) return -1.f;
+                    if (h[2] < p.pos[2] + 5.f) return -1.f;
                     float score = 100.f - std::fabs(torso - 55.f);
                     // Arms should be lateral to spine
                     auto seg = [&](int a, int b) {
@@ -2267,15 +2271,15 @@ static void RunFrameWithConfig(const Config& frame_config) {
                     // Animated agents, crouching and weapon-holding poses vary
                     // substantially. Reject only clearly corrupt segments;
                     // narrow human-pose assumptions were discarding real bones.
-                    if (!(armL > 3.f && armL < 80.f && armR > 3.f && armR < 80.f)) return -1.f;
-                    if (!(legL > 8.f && legL < 105.f && legR > 8.f && legR < 105.f)) return -1.f;
-                    if (!(shoulderWidth > 1.f && shoulderWidth < 75.f)) return -1.f;
-                    if (!(bones[0][2] > bones[5][2] + 25.f)) return -1.f;
+                    if (!(armL > 1.f && armL < 150.f && armR > 1.f && armR < 150.f)) return -1.f;
+                    if (!(legL > 2.f && legL < 180.f && legR > 2.f && legR < 180.f)) return -1.f;
+                    if (!(shoulderWidth > .2f && shoulderWidth < 150.f)) return -1.f;
+                    if (!(bones[0][2] > bones[5][2] + 8.f)) return -1.f;
                     for (std::size_t i = 0; i < kBoneSlotCount; ++i) {
                         const float ox = bones[i][0] - p.pos[0];
                         const float oy = bones[i][1] - p.pos[1];
                         const float oz = bones[i][2] - p.pos[2];
-                        if (ox * ox + oy * oy > 140.f * 140.f || oz < -45.f || oz > 135.f)
+                        if (ox * ox + oy * oy > 260.f * 260.f || oz < -100.f || oz > 220.f)
                             return -1.f;
                     }
                     score += 44.f;
@@ -2345,7 +2349,10 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 // the last anatomical pose long enough to bridge it, while
                 // translating it by the current origin so it never freezes in
                 // world space or visibly pops out for a single bad read.
-                scan_now_ms - cached->second.last_valid_ms <= 200u) {
+                // Keep a verified pose through short scene-node/bone-buffer
+                // outages.  The fast origin lane translates this cached pose
+                // each render, so it stays attached instead of blinking out.
+                scan_now_ms - cached->second.last_valid_ms <= 750u) {
                 std::memcpy(p.bones, cached->second.joints, sizeof(p.bones));
                 const float cached_shift[3] = {
                     p.pos[0] - cached->second.origin[0],
@@ -2388,11 +2395,6 @@ static void RunFrameWithConfig(const Config& frame_config) {
             }
             if (def > 0 && def < 6000) {
                 p.weapon_def = def;
-                const char* wname = CS2_Weapons::NameFromDefIndex(def);
-                if (wname)
-                    std::snprintf(p.weapon, sizeof(p.weapon), "%s", wname);
-                else
-                    std::snprintf(p.weapon, sizeof(p.weapon), "Wpn_%u", (unsigned)def);
             }
         }
 
@@ -2406,7 +2408,9 @@ static void RunFrameWithConfig(const Config& frame_config) {
     // Retain a fully validated pawn for a short wall-clock grace period when
     // only its individual controller/pawn read drops out. Time-based expiry is
     // stable regardless of acquisition rate or presentation FPS.
-    constexpr uint64_t kPlayerDropoutGraceMs = 35;
+    // A controller/list flicker must not immediately purge the validated bone
+    // cache.  This is wall-clock based, so it remains stable at any FPS.
+    constexpr uint64_t kPlayerDropoutGraceMs = 120;
     for (const auto& player : runtime.players) {
         if (IsUserPointer(player.pawn))
             recent_players[player.pawn] = {player, scan_now_ms};
@@ -2591,7 +2595,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
         if (refresh_spectators) {
             cached_spectators = runtime.spectators;
             cached_target = runtime.spectator_target;
-            next_spectator_refresh_ms = scan_now_ms + 125u;
+            next_spectator_refresh_ms = scan_now_ms + 50u;
         }
         runtime.spectator_count = static_cast<int>(runtime.spectators.size());
     }
@@ -2754,20 +2758,12 @@ void EnsureAcquisitionStarted() {
                 std::cerr << "[CS2] acquisition unknown exception" << std::endl;
             }
 
-            // Match the producer rate to current presentation pressure.  This
-            // preserves the 250 Hz fast lane when there is headroom, but avoids
-            // competing for a core/DMA bandwidth while frametime is already
-            // over budget. Published snapshots never queue: readers take the
-            // newest generation directly.
-            int delayMs = 16;
-            if (runtime.in_match) {
-                const float fps = g_presentation_fps.load(std::memory_order_relaxed);
-                // Fast lane target: ~6 ms.  Do not oversample DMA when the
-                // presentation thread is already under pressure.
-                delayMs = (fps > 1.f && fps < 45.f) ? 10
-                        : (fps > 1.f && fps < 70.f) ? 8
-                        : 6;
-            }
+            // Full entity/bone producer: fixed 6 ms in a match.  The
+            // scheduler is deadline-based, so work that finishes early waits
+            // only until the next cadence and never accumulates Sleep drift.
+            // If a scan itself takes longer than 6 ms it is published at once;
+            // snapshots are never queued behind an older frame.
+            const int delayMs = runtime.in_match ? 6 : 16;
             scheduler.Wait(std::chrono::milliseconds(delayMs));
         }
     });

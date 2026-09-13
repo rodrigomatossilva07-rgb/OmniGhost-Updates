@@ -394,7 +394,7 @@ void DrawRadar2D(ImDrawList* dl, const CS2::Runtime& rt, CS2::Config& cfg) {
     const float yaw = rt.local_view_yaw * 0.01745329251f;
     const float cy = std::cos(yaw), sy = std::sin(yaw);
     for (const auto& raw : rt.players) {
-        const CS2::Player p = SmoothPlayerForPresentation(raw);
+        const CS2::Player p = SmoothPlayerForPresentation(raw, nullptr);
         if (p.is_local) continue;
         if (cfg.team_check && p.team == rt.local_team) continue;
         float dx = p.pos[0] - rt.local_pos[0];
@@ -541,6 +541,8 @@ void DrawKillFeed(ImDrawList* dl) {
 
 void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
     const auto fastCamera = CS2::AcquireCameraSnapshot();
+    const auto motionLease = CS2::AcquireMotionSnapshot();
+    const CS2::MotionSnapshot* motionPtr = motionLease ? &*motionLease : nullptr;
     // The camera lane runs independently at 2–4 ms.  Position/bone snapshots
     // can remain coherent and heavier, while rapid mouse turns are projected
     // with the freshest available matrix for this exact render frame.
@@ -643,7 +645,7 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
     if (cfg.offscreen_arrows) {
         const float arrowRadius = (cfg.aim_fov > 1.f ? cfg.aim_fov : 80.f) + 5.f;
         for (int pi = 0; pi < (int)rt.players.size(); ++pi) {
-            const CS2::Player p = SmoothPlayerForPresentation(rt.players[pi]);
+            const CS2::Player p = SmoothPlayerForPresentation(rt.players[pi], motionPtr);
             if (p.is_local && !cfg.self_esp) continue;
             if (!p.is_local && cfg.team_check && p.team == rt.local_team) continue;
             if (!p.alive && p.health <= 0) continue;
@@ -712,7 +714,7 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
     static constexpr int kChainLen[] = { 5, 4, 4, 4, 4 };
 
     for (int pi = 0; pi < (int)rt.players.size(); ++pi) {
-        const CS2::Player p = SmoothPlayerForPresentation(rt.players[pi]);
+        const CS2::Player p = SmoothPlayerForPresentation(rt.players[pi], motionPtr);
         if (p.is_local && !cfg.self_esp) continue;
         if (!p.is_local && cfg.team_check && p.team == rt.local_team) continue;
         if (p.distance > cfg.max_distance) continue;
@@ -800,7 +802,7 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
         }
 
         // Eye / look line
-        if (cfg.eye_line || cfg.look_direction) {
+        if (cfg.look_direction) {
             const float yaw = p.view_yaw * 0.01745329251f;
             const float len = 40.f;
             float endW[3] = {
@@ -858,7 +860,7 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
         }
 
         float belowY = bottom + 3.f;
-        if (cfg.weapon || cfg.weapon_icons) {
+        if (cfg.weapon_icons) {
             if (cfg.weapon_icons && p.weapon_def > 0) {
                 if (ID3D11ShaderResourceView* srv = CS2_WeaponIcons::Get(p.weapon_def)) {
                     int iw = 0, ih = 0;
@@ -870,11 +872,6 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
                     dl->AddImage((ImTextureID)srv, ImVec2(x0, belowY), ImVec2(x0 + draw_w, belowY + draw_h));
                     belowY += draw_h + 2.f;
                 }
-            }
-            if (cfg.weapon && p.weapon[0]) {
-                ImVec2 ts = ImGui::CalcTextSize(p.weapon);
-                dl->AddText(ImVec2(hx - ts.x * 0.5f, belowY), Col(cfg.col_weapon), p.weapon);
-                belowY += 14.f;
             }
         }
 
