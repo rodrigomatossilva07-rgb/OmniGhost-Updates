@@ -70,6 +70,7 @@ bool Offsets::Validate(std::string* reason) const noexcept {
 namespace {
 
 OmniGhost::Gameplay::SnapshotExchange<Runtime> g_runtime_snapshots;
+OmniGhost::Gameplay::SnapshotExchange<CameraSnapshot> g_camera_snapshots;
 OmniGhost::Gameplay::SnapshotExchange<Config> g_config_snapshots;
 std::atomic_bool g_acquisition_stop{false};
 std::atomic_bool g_acquisition_running{false};
@@ -77,6 +78,7 @@ std::atomic<float> g_presentation_fps{0.f};
 std::atomic<uint64_t> g_last_snapshot_publish_ms{0};
 std::atomic<float> g_acquisition_hz{0.f};
 std::thread g_acquisition_thread;
+std::thread g_camera_thread;
 OmniGhost::Gameplay::PipelineTelemetry g_pipeline_metrics;
 
 void PublishRuntimeSnapshot() {
@@ -91,6 +93,15 @@ void PublishRuntimeSnapshot() {
     if (!slot) return; // renderer still owns both spare slots; never wait
     *slot.value = runtime;
     g_runtime_snapshots.Publish(slot.index);
+}
+
+void PublishCameraSnapshot(const float* matrix) {
+    if (!matrix) return;
+    auto slot = g_camera_snapshots.TryBeginWrite();
+    if (!slot) return;
+    std::memcpy(slot.value->view_matrix, matrix, sizeof(slot.value->view_matrix));
+    slot.value->timestamp_ms = GetTickCount64();
+    g_camera_snapshots.Publish(slot.index);
 }
 
 bool JsonU64(const std::string& src, const char* key, uintptr_t& out) {
@@ -2209,23 +2220,24 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 // Keep the public four-slot layout, duplicating the shoulder
                 // at the clavicle slot so every rendered limb is anatomical.
                 // L leg: upper=22, lower=23, ankle=24; R=25..27.
-                static constexpr int kIdx[kBoneSlotCount] = {
+                // Two verified Source 2 layouts are seen in the wild.  The
+                // first is the current CS2 rig; the second is the contiguous
+                // layout used by the reference DMA implementation.  Score both
+                // against the current pawn and retain only an anatomical pose.
+                static constexpr int kCurrentIdx[kBoneSlotCount] = {
                     6, 5, 4, 3, 2, 0,
                     8, 8, 9, 10,
                     13, 13, 14, 15,
                     22, 23, 24,
                     25, 26, 27
                 };
-                float tmp[kBoneSlotCount][3]{};
-                for (std::size_t b = 0; b < kBoneSlotCount; ++b) {
-                    int id = kIdx[b];
-                    if (id < 0 || id >= 32) return false;
-                    tmp[b][0] = joints[id].x;
-                    tmp[b][1] = joints[id].y;
-                    tmp[b][2] = joints[id].z;
-                    if (!std::isfinite(tmp[b][0]) || !std::isfinite(tmp[b][1]) || !std::isfinite(tmp[b][2]))
-                        return false;
-                }
+                static constexpr int kReferenceIdx[kBoneSlotCount] = {
+                    7, 6, 4, 3, 3, 1,
+                    6, 9, 10, 11,
+                    6, 13, 14, 15,
+                    17, 18, 19,
+                    20, 21, 22
+                };
                 auto skeleton_score = [&](float bones[kBoneSlotCount][3]) -> float {
                     // Prefer coherent head-above-pelvis torso length and arm/leg span.
                     const float* h = bones[0];
@@ -2263,14 +2275,30 @@ static void RunFrameWithConfig(const Config& frame_config) {
                     return score;
                 };
 
-                if (skeleton_score(tmp) < 0.f) return false;
+                float tmp[kBoneSlotCount][3]{};
+                float best[kBoneSlotCount][3]{};
+                float bestScore = -1.f;
+                for (const auto* indices : {kCurrentIdx, kReferenceIdx}) {
+                    bool finite = true;
+                    for (std::size_t b = 0; b < kBoneSlotCount; ++b) {
+                        const int id = indices[b];
+                        tmp[b][0] = joints[id].x; tmp[b][1] = joints[id].y; tmp[b][2] = joints[id].z;
+                        finite = finite && std::isfinite(tmp[b][0]) && std::isfinite(tmp[b][1]) && std::isfinite(tmp[b][2]);
+                    }
+                    const float score = finite ? skeleton_score(tmp) : -1.f;
+                    if (score > bestScore) {
+                        bestScore = score;
+                        std::memcpy(best, tmp, sizeof(best));
+                    }
+                }
+                if (bestScore < 0.f) return false;
 
                 for (std::size_t b = 0; b < kBoneSlotCount; ++b) {
-                    p.bones[b][0] = tmp[b][0];
-                    p.bones[b][1] = tmp[b][1];
-                    p.bones[b][2] = tmp[b][2];
+                    p.bones[b][0] = best[b][0];
+                    p.bones[b][1] = best[b][1];
+                    p.bones[b][2] = best[b][2];
                 }
-                p.head[0] = tmp[0][0]; p.head[1] = tmp[0][1]; p.head[2] = tmp[0][2];
+                p.head[0] = best[0][0]; p.head[1] = best[0][1]; p.head[2] = best[0][2];
                 return true;
             };
 
@@ -2658,6 +2686,21 @@ void EnsureAcquisitionStarted() {
 
     g_acquisition_stop.store(false, std::memory_order_release);
     PublishRuntimeSnapshot();
+    // Camera/view matrix is latency-critical for visual attachment while
+    // turning.  Keep it off the entity/bone lane: one 64-byte read at a
+    // stable cadence is vastly cheaper than making every full scan faster.
+    g_camera_thread = std::thread([] {
+        OmniGhost::Gameplay::FixedRateScheduler scheduler;
+        float matrix[16]{};
+        while (!g_acquisition_stop.load(std::memory_order_acquire)) {
+            const bool canRead = ready && offsets.loaded && runtime.client_base && offsets.dwViewMatrix;
+            if (canRead && QRead(runtime.client_base + offsets.dwViewMatrix, matrix, sizeof(matrix)))
+                PublishCameraSnapshot(matrix);
+            const float fps = g_presentation_fps.load(std::memory_order_relaxed);
+            const int cadence = runtime.in_match ? ((fps > 1.f && fps < 55.f) ? 4 : 2) : 12;
+            scheduler.Wait(std::chrono::milliseconds(cadence));
+        }
+    });
     g_acquisition_thread = std::thread([] {
         OmniGhost::Gameplay::FixedRateScheduler scheduler;
         while (!g_acquisition_stop.load(std::memory_order_acquire)) {
@@ -2700,6 +2743,8 @@ void EnsureAcquisitionStarted() {
 
 void StopAcquisition() {
     g_acquisition_stop.store(true, std::memory_order_release);
+    if (g_camera_thread.joinable())
+        g_camera_thread.join();
     if (g_acquisition_thread.joinable())
         g_acquisition_thread.join();
     g_acquisition_running.store(false, std::memory_order_release);
@@ -2707,6 +2752,10 @@ void StopAcquisition() {
 
 RuntimeSnapshotLease AcquireRuntimeSnapshot() {
     return g_runtime_snapshots.Acquire();
+}
+
+CameraSnapshotLease AcquireCameraSnapshot() {
+    return g_camera_snapshots.Acquire();
 }
 
 bool AcquisitionRunning() noexcept {

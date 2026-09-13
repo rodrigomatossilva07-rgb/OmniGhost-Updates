@@ -132,6 +132,36 @@ struct VisualPlayerState {
 };
 static uint64_t g_renderSnapshotTimestampMs = 0;
 static float g_renderSnapshotIntervalMs = 6.f;
+static float g_previousViewMatrix[16]{};
+static float g_currentViewMatrix[16]{};
+static float g_presentViewMatrix[16]{};
+static uint64_t g_viewSnapshotMs = 0;
+static float g_viewSnapshotIntervalMs = 2.f;
+static bool g_havePresentationView = false;
+
+void UpdatePresentationViewMatrix(const CS2::Runtime& rt, const float* latestMatrix,
+                                  uint64_t matrixTimestamp) {
+    if (matrixTimestamp && matrixTimestamp != g_viewSnapshotMs) {
+        if (g_viewSnapshotMs && matrixTimestamp > g_viewSnapshotMs)
+            g_viewSnapshotIntervalMs = std::clamp(
+                static_cast<float>(matrixTimestamp - g_viewSnapshotMs), 1.f, 12.f);
+        if (g_viewSnapshotMs)
+            std::memcpy(g_previousViewMatrix, g_currentViewMatrix, sizeof(g_previousViewMatrix));
+        std::memcpy(g_currentViewMatrix, latestMatrix ? latestMatrix : rt.view_matrix,
+                    sizeof(g_currentViewMatrix));
+        if (!g_viewSnapshotMs)
+            std::memcpy(g_previousViewMatrix, g_currentViewMatrix, sizeof(g_previousViewMatrix));
+        g_viewSnapshotMs = matrixTimestamp;
+    }
+    const float interval = std::clamp(g_viewSnapshotIntervalMs * .001f, .001f, .012f);
+    const float age = g_viewSnapshotMs
+        ? static_cast<float>(GetTickCount64() - g_viewSnapshotMs) * .001f : interval;
+    const float t = std::clamp(age / interval, 0.f, 1.f);
+    for (int i = 0; i < 16; ++i)
+        g_presentViewMatrix[i] = g_previousViewMatrix[i] +
+            (g_currentViewMatrix[i] - g_previousViewMatrix[i]) * t;
+    g_havePresentationView = true;
+}
 
 CS2::Player SmoothPlayerForPresentation(const CS2::Player& raw) {
     static std::unordered_map<uintptr_t, VisualPlayerState> states;
@@ -341,6 +371,10 @@ void DrawMotionVisuals(ImDrawList* dl, const CS2::Runtime& rt,
 
 
 bool W2S(const float* world, const float* vm, float& sx, float& sy) {
+    // All W2S calls made while drawing a CS2 frame use the exact same
+    // temporally interpolated camera.  This prevents bones, boxes and labels
+    // from stepping differently when the player turns the view quickly.
+    if (g_havePresentationView) vm = g_presentViewMatrix;
     ImVec2 ds = ImGui::GetIO().DisplaySize;
     const float clipX = world[0] * vm[0]  + world[1] * vm[1]  + world[2] * vm[2]  + vm[3];
     const float clipY = world[0] * vm[4]  + world[1] * vm[5]  + world[2] * vm[6]  + vm[7];
@@ -611,6 +645,12 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
     g_renderSnapshotTimestampMs = rt.snapshot_timestamp_ms;
     if (rt.snapshot_interval_ms > 0.f)
         g_renderSnapshotIntervalMs = rt.snapshot_interval_ms;
+    const auto fastCamera = CS2::AcquireCameraSnapshot();
+    // The camera lane runs independently at 2–4 ms.  Position/bone snapshots
+    // can remain coherent and heavier, while rapid mouse turns are projected
+    // with the freshest available matrix for this exact render frame.
+    UpdatePresentationViewMatrix(rt, fastCamera ? fastCamera->view_matrix : rt.view_matrix,
+        fastCamera ? fastCamera->timestamp_ms : rt.snapshot_timestamp_ms);
     // Non-const for radar drag — safe: config is global mutable
     CS2::Config& mut_cfg = const_cast<CS2::Config&>(cfg);
 

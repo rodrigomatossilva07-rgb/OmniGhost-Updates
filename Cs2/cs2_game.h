@@ -168,6 +168,12 @@ struct Runtime {
 
 using RuntimeSnapshotLease = OmniGhost::Gameplay::SnapshotExchange<Runtime>::ReadLease;
 
+struct CameraSnapshot {
+    float view_matrix[16]{};
+    uint64_t timestamp_ms = 0;
+};
+using CameraSnapshotLease = OmniGhost::Gameplay::SnapshotExchange<CameraSnapshot>::ReadLease;
+
 extern Offsets offsets;
 extern Config config;
 extern Runtime runtime;
@@ -185,6 +191,7 @@ void EnsureAcquisitionStarted();
 void StopAcquisition();
 void SubmitAcquisitionConfig(const Config& next) noexcept;
 [[nodiscard]] RuntimeSnapshotLease AcquireRuntimeSnapshot();
+[[nodiscard]] CameraSnapshotLease AcquireCameraSnapshot();
 [[nodiscard]] bool AcquisitionRunning() noexcept;
 void SetPresentationFps(float fps) noexcept;
 void Shutdown();

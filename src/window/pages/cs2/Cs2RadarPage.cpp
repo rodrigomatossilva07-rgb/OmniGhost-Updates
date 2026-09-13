@@ -47,6 +47,9 @@ void DrawCs2Radar() {
     const float controlWidth = (std::min)(left * 0.62f, 310.f);
     CompactToggle("radar2d", "Ativar radar 2D", &CS2::config.radar_2d, controlWidth);
     if (CS2::config.radar_2d) {
+        if (ImGui::Button("Pequeno")) CS2::config.radar_2d_size = 160.f;
+        ImGui::SameLine();
+        if (ImGui::Button("Grande")) CS2::config.radar_2d_size = 280.f;
         CyberWidgets::SliderFloat("Tamanho", &CS2::config.radar_2d_size, 80.f, 320.f, "%.0f px");
         CyberWidgets::TextLine("Arrasta o radar no ecrã do jogo para reposicionar.",
                                CyberWidgets::TextTone::Secondary);
