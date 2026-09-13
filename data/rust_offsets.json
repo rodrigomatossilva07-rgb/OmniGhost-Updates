@@ -1,0 +1,107 @@
+{
+  "schema_version": 5,
+  "source": "offsets.json dumper build 25231061",
+  "build_id": "25231061",
+  "version": "25231061",
+  "version_source": "steam_buildid",
+  "steam_appid": 252490,
+  "module_hint": "GameAssembly.dll",
+  "updated_at": "2026-09-13T11:33:39Z",
+  "note": "Recreated with Rust module rewrite. BN/camera/Il2cppHandle + fields + decrypt RVAs.",
+  "BaseNetworkable_TypeInfo": "0x10BE8EC8",
+  "MainCamera_TypeInfo": "0x10C62B28",
+  "il2cpphandle": "0x10CA7920",
+  "base_networkable": "0x10BE8EC8",
+  "main_camera_c": "0x10C62B28",
+  "displayName": "0x520",
+  "playerFlags": "0x6D8",
+  "playerModel": "0x2F0",
+  "currentTeam": "0x558",
+  "playerEyes": "0x718",
+  "clActiveItem": "0x350",
+  "inventory": "0x3A0",
+  "movement": "0x348",
+  "_health": "0x2B0",
+  "_maxHealth": "0x240",
+  "lifestate": "0x2A8",
+  "modelPosition": "0x1F8",
+  "newVelocity": "0x21C",
+  "viewMatrix": "0x30C",
+  "staticFields": "0xB8",
+  "structs": {
+    "base_networkable": {
+      "base_networkable": "0x10BE8EC8",
+      "static_fields": "0xB8",
+      "client_entities": "0x28",
+      "entity_list": "0x10",
+      "buffer_list": "0x10",
+      "entities": "0x10",
+      "entity_size": "0x18",
+      "prefabID": "0x54"
+    },
+    "camera": {
+      "main_camera_c": "0x10C62B28",
+      "camera_static": "0xB8",
+      "wrapper_class": "0x78",
+      "parent_static_fields": "0x10",
+      "view_matrix": "0x30C",
+      "position": "0x454"
+    },
+    "base_player": {
+      "player_model": "0x2F0",
+      "player_flags": "0x6D8",
+      "display_name": "0x520",
+      "current_team": "0x558",
+      "cl_active_item": "0x350",
+      "player_inventory": "0x3A0",
+      "player_input": "0x6F0",
+      "player_eyes": "0x718",
+      "base_movement": "0x348",
+      "visible_player_list": "0x600"
+    },
+    "base_combat_entity": {
+      "lifestate": "0x2A8",
+      "model": "0x1B8",
+      "_health": "0x2B0",
+      "_maxHealth": "0x240"
+    },
+    "base_entity": {
+      "model": "0x1B8"
+    },
+    "player_model": {
+      "position": "0x1F8",
+      "velocity": "0x21C",
+      "rotation": "0x228",
+      "skinnedMultiMesh": "0x488",
+      "isNpc": "0x3DD",
+      "headBone": "0xF8"
+    },
+    "player_eyes": {
+      "bodyRotation": "0x50",
+      "view_offset": "0x40"
+    },
+    "player_input": {
+      "bodyAngles": "0x44"
+    },
+    "model": {
+      "rootBone": "0x28",
+      "headBone": "0x30",
+      "boneTransforms": "0x50"
+    }
+  },
+  "decrypt": {
+    "gchandle_base_rva": "0x10CA7920",
+    "client_entities_decrypt_rva": "0x256A013",
+    "entity_list_decrypt_rva": "0x259050D",
+    "ActiveItemDecryption": "0x366037B",
+    "PlayerInventoryDecryption": "0x3634360",
+    "PlayerEyesDecryption": "0x36A5D30",
+    "chain": {
+      "static_fields": "0xB8",
+      "client_entities": "0x28",
+      "entity_list": "0x10",
+      "buffer": "0x10",
+      "count": "0x18"
+    }
+  }
+}

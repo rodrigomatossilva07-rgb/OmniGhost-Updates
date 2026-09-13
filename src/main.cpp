@@ -747,6 +747,8 @@ while (application.shouldRun && !authenticated) {
             Warzone::Shutdown();
         } else if (g_activeGame == ActiveGame::Valorant) {
             Valorant::Detach();
+        } else if (g_activeGame == ActiveGame::Rust) {
+            /* Rust tick handled by adapter */
         } else if (g_activeGame == ActiveGame::Fortnite) {
             Fortnite::Detach();
         } else if (g_activeGame == ActiveGame::FiveM) {
@@ -903,7 +905,8 @@ while (application.shouldRun && !authenticated) {
             std::cout << "[" << (g_activeGame == ActiveGame::CS2 ? "CS2" :
                                   g_activeGame == ActiveGame::Warzone ? "Warzone" :
                                   g_activeGame == ActiveGame::Valorant ? "Valorant" :
-                                  g_activeGame == ActiveGame::Fortnite ? "Fortnite" : "FiveM") 
+                                  g_activeGame == ActiveGame::Fortnite ? "Fortnite" :
+                                  g_activeGame == ActiveGame::Rust ? "Rust" : "FiveM") 
                       << "] " << terminationReason << " — a voltar ao launcher." << std::endl;
             return_to_launcher = true;
         }

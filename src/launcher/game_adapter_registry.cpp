@@ -12,6 +12,9 @@
 #include "../../Fivem/game/game.h"
 #include "../../Fivem/object_esp/object_esp.h"
 #include "../../Fortnite/fortnite_game.h"
+#include "../../Rust/rust_game.h"
+#include "../../Rust/rust_esp.h"
+#include "../../Rust/rust_aim.h"
 #include "../../Valorant/valorant_game.h"
 #include "../../Valorant/valorant_esp.h"
 #include "../../Valorant/valorant_aim.h"
@@ -220,6 +223,16 @@ bool FortniteValidateOffsets() { return Fortnite::ValidateLiveOffsets(); }
 std::string_view FortniteTerminationReason() { return "Processo Fortnite terminou"; }
 ActiveGame FortniteGameId() { return ActiveGame::Fortnite; }
 
+bool StartRustAdapter() {
+    g_activeGame = ActiveGame::Rust;
+    OmniGhost::GameContext::Instance().SetActiveGame(ActiveGame::Rust);
+    return Rust::Attach();
+}
+bool RustIsAliveAdapter() { return Rust::IsAlive(); }
+bool RustValidateOffsetsAdapter() { return Rust::ValidateOffsets(); }
+std::string_view RustTerminationReasonAdapter() { return "Processo Rust terminou"; }
+ActiveGame RustGameIdAdapter() { return ActiveGame::Rust; }
+
 IGameAdapter* FindGameAdapter(::Launcher::GameId game) noexcept {
     using Capability = AdapterCapability;
     static FunctionGameAdapter fivem({ ::Launcher::GameId::FiveM, "FiveM", AdapterMaturity::Stable,
@@ -295,6 +308,16 @@ IGameAdapter* FindGameAdapter(::Launcher::GameId game) noexcept {
             Fortnite::RunAim();
         },
         FortniteIsAlive, FortniteValidateOffsets, FortniteTerminationReason, FortniteGameId);
+    static FunctionGameAdapter rust({ ::Launcher::GameId::Rust, "Rust", AdapterMaturity::Beta,
+        Capability::Menu | Capability::ReadOnlyMemory | Capability::Overlay },
+        StartRustAdapter, [] { Rust::Shutdown(); Rust::ready = false; },
+        [] { return std::string_view(Rust::StatusText()); },
+        [] {
+            if (Rust::ready) {
+                Rust::RunFrame();
+            }
+        },
+        RustIsAliveAdapter, RustValidateOffsetsAdapter, RustTerminationReasonAdapter, RustGameIdAdapter);
 
     switch (game) {
     case ::Launcher::GameId::FiveM: return &fivem;
@@ -302,6 +325,7 @@ IGameAdapter* FindGameAdapter(::Launcher::GameId game) noexcept {
     case ::Launcher::GameId::Warzone: return &warzone;
     case ::Launcher::GameId::Valorant: return &valorant;
     case ::Launcher::GameId::Fortnite: return &fortnite;
+    case ::Launcher::GameId::Rust: return &rust;
     default: return nullptr;
     }
 }

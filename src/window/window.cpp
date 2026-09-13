@@ -67,6 +67,9 @@ namespace {
         case MenuTab::TAB_FORTNITE_VISUALS: return { "VISUAIS FORTNITE", "ESP e informação" };
         case MenuTab::TAB_FORTNITE_AIM:     return { "MIRA FORTNITE", "Alvo e assistência" };
         case MenuTab::TAB_FORTNITE_STATUS:  return { "SISTEMA FORTNITE", "Ligação e diagnóstico" };
+        case MenuTab::TAB_RUST_VISUALS:     return { "VISUAIS RUST", "ESP de jogadores" };
+        case MenuTab::TAB_RUST_AIM:         return { "MIRA RUST", "Aimbot" };
+        case MenuTab::TAB_RUST_SYSTEM:      return { "SISTEMA RUST", "DMA, DTB e offsets" };
         default:                            return { "OMNIGHOST", "Centro de controlo" };
         }
     }
@@ -127,6 +130,9 @@ namespace {
         case MenuTab::TAB_FORTNITE_VISUALS:  DrawFortniteVisuals(); break;
         case MenuTab::TAB_FORTNITE_AIM:      DrawFortniteAim(); break;
         case MenuTab::TAB_FORTNITE_STATUS:   DrawFortniteStatus(); break;
+        case MenuTab::TAB_RUST_VISUALS:      DrawRustVisuals(); break;
+        case MenuTab::TAB_RUST_AIM:          DrawRustAim(); break;
+        case MenuTab::TAB_RUST_SYSTEM:       DrawRustSystem(); break;
         
         // Unified system pages
         case MenuTab::TAB_UNIFIED_AIM:       DrawUnifiedAim(); break;
@@ -263,6 +269,7 @@ static MenuTab DefaultTabForGame(OmniGhost::ActiveGame game) {
     if (game == OmniGhost::ActiveGame::Warzone) return MenuTab::TAB_WARZONE_AIM;
     if (game == OmniGhost::ActiveGame::Valorant) return MenuTab::TAB_VALORANT_VISUALS;
     if (game == OmniGhost::ActiveGame::Fortnite) return MenuTab::TAB_FORTNITE_VISUALS;
+    if (game == OmniGhost::ActiveGame::Rust) return MenuTab::TAB_RUST_VISUALS;
     return MenuTab::TAB_VISUALS;
 }
 

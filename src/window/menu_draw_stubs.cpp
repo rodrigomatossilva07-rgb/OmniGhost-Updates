@@ -3,8 +3,6 @@
 
 class Overlay;
 
-void DrawRustVisuals() {}
-void DrawRustAim() {}
 void DrawRustRadar() {}
 void DrawRustWorld() {}
 void DrawRustPlayers() {}

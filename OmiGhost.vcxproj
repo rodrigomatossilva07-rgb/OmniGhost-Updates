@@ -339,6 +339,15 @@
     <ClCompile Include="Valorant\valorant_esp.cpp"/>
     <ClCompile Include="Valorant\valorant_aim.cpp"/>
     <ClCompile Include="Fortnite\fortnite_game.cpp"/>
+    <ClCompile Include="Rust\rust_game.cpp"/>
+    <ClCompile Include="Rust\rust_dtb.cpp"/>
+    <ClCompile Include="Rust\rust_decrypt.cpp"/>
+    <ClCompile Include="Rust\rust_entities.cpp"/>
+    <ClCompile Include="Rust\rust_esp.cpp"/>
+    <ClCompile Include="Rust\rust_aim.cpp"/>
+    <ClCompile Include="src\window\pages\rust\RustVisualsPage.cpp"/>
+    <ClCompile Include="src\window\pages\rust\RustAimPage.cpp"/>
+
     <ClCompile Include="ImGui\imgui.cpp"/>
     <ClCompile Include="ImGui\imgui_demo.cpp"/>
     <ClCompile Include="ImGui\imgui_draw.cpp"/>

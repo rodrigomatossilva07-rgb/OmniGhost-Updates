@@ -5,6 +5,7 @@
 #include "MemoryInternal.h"
 #include "../../src/platform/app_paths.h"
 #include "../../src/platform/runtime_bootstrap.h"
+#include "../../src/platform/session_log.h"
 
 #include <leechcore.h>
 
@@ -405,11 +406,17 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 	std::scoped_lock controlPlaneLock(controlPlaneMutex_);
 
 	if (!EnsureRuntimeDependencies()) {
+		OmniGhost::SessionLog::Write(OmniGhost::SessionLog::Severity::Error,
+			OmniGhost::SessionLog::Subsystem::DMA, "Memory::Init runtime dependencies failed",
+			{{"detail", dependencyIntegrityMessage_}});
 		last_attach_result = AttachResult::Failed;
 		return false;
 	}
 	if (!dependencyIntegrityOk_) {
 		std::cout << "[DMA][INTEGRITY] refusing initialization: " << dependencyIntegrityMessage_ << "\n";
+		OmniGhost::SessionLog::Write(OmniGhost::SessionLog::Severity::Error,
+			OmniGhost::SessionLog::Subsystem::DMA, "Memory::Init dependency integrity failed",
+			{{"detail", dependencyIntegrityMessage_}});
 		last_attach_result = AttachResult::Failed;
 		return false;
 	}
@@ -427,6 +434,10 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 
 	// Phase 1: open FPGA + VMM once. Device lifecycle is separate from process bind.
 	if (!DMA_INITIALIZED) {
+		OmniGhost::SessionLog::Write(OmniGhost::SessionLog::Severity::Info,
+			OmniGhost::SessionLog::Subsystem::DMA, "FPGA open started",
+			{{"memmap_requested", memMap ? "yes" : "no"},
+			 {"debug", debug ? "yes" : "no"}});
 		std::string mmapPath;
 		if (memMap) {
 			std::error_code ec;
@@ -478,6 +489,10 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 				<< "ENABLED"
 #endif
 				<< (useMmap && !mmapPath.empty() ? " memmap=YES" : " memmap=NO") << "\n";
+			OmniGhost::SessionLog::Write(OmniGhost::SessionLog::Severity::Info,
+				OmniGhost::SessionLog::Subsystem::DMA, "FPGA open attempt",
+				{{"attempt", std::to_string(attemptNo)}, {"attempt_max", std::to_string(attemptMax)},
+				 {"device", device}, {"memmap", (useMmap && !mmapPath.empty()) ? "yes" : "no"}});
 
 			// The bridges were already loaded from validated absolute paths above.
 			// Do not call LoadLibraryA here: that would reintroduce an unrestricted
@@ -495,6 +510,9 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 				lastError = message;
 				if (firstApiMessage.empty()) firstApiMessage = message;
 				lastApiMessage = message;
+				OmniGhost::SessionLog::Write(OmniGhost::SessionLog::Severity::Critical,
+					OmniGhost::SessionLog::Subsystem::DMA, "FPGA open SEH fault",
+					{{"device", device}, {"seh_code", HexOf(sehCode)}});
 				return false;
 			}
 
@@ -503,10 +521,15 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 				if (firstError.empty()) firstError = message;
 				lastError = message;
 				std::cout << "[DMA][Init] " << message << "\n";
+				OmniGhost::SessionLog::Write(OmniGhost::SessionLog::Severity::Error,
+					OmniGhost::SessionLog::Subsystem::DMA, "FPGA open failed",
+					{{"device", device}, {"result", "VMMDLL_Initialize returned null"}});
 				return false;
 			}
 			vHandle = handle;
 			std::cout << "[DMA][Init] OPEN OK device=" << device << "\n";
+			OmniGhost::SessionLog::Write(OmniGhost::SessionLog::Severity::Info,
+				OmniGhost::SessionLog::Subsystem::DMA, "FPGA open succeeded", {{"device", device}});
 			return true;
 		};
 
@@ -561,6 +584,11 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 			std::cout << "[DMA][Init] first_api_message=\"" << firstApiMessage
 				<< "\" last_api_message=\"" << lastApiMessage << "\"\n";
 			std::cout << "[DMA] ===============================================================\n";
+			OmniGhost::SessionLog::Write(OmniGhost::SessionLog::Severity::Critical,
+				OmniGhost::SessionLog::Subsystem::DMA, "FPGA open exhausted all candidates",
+				{{"attempts", std::to_string(attemptNo)}, {"first_error", firstError},
+				 {"last_error", lastError}, {"first_api_message", firstApiMessage},
+				 {"last_api_message", lastApiMessage}, {"seh_fault", sehFaultObserved ? "yes" : "no"}});
 			std::cout << "[DMA] Falha na comunicacao com o DMA/FPGA.\n";
 			std::cout << "[DMA] Possiveis causas e solucoes:\n";
 			std::cout << "[DMA]   1) FPGA nao conectada ou nao reconhecida pelo Windows\n";
