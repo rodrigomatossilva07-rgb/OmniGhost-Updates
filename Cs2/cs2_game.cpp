@@ -2500,7 +2500,14 @@ static void RunFrameWithConfig(const Config& frame_config) {
             }
         }
 
-        for (int i = 0; i < kMaxSlots; ++i) {
+        static std::vector<Player> cached_spectators;
+        static uintptr_t cached_target = 0;
+        static uint64_t next_spectator_refresh_ms = 0;
+        const bool refresh_spectators = scan_now_ms >= next_spectator_refresh_ms ||
+                                        cached_target != runtime.spectator_target;
+        if (!refresh_spectators) {
+            runtime.spectators = cached_spectators;
+        } else for (int i = 0; i < kMaxSlots; ++i) {
             const uintptr_t controller = controllers[i];
             if (!IsUserPointer(controller) || controller == runtime.local_controller)
                 continue;
@@ -2539,6 +2546,11 @@ static void RunFrameWithConfig(const Config& frame_config) {
                     std::snprintf(spectator.name, sizeof(spectator.name), "Jogador_%d", i + 1);
                 runtime.spectators.push_back(spectator);
             }
+        }
+        if (refresh_spectators) {
+            cached_spectators = runtime.spectators;
+            cached_target = runtime.spectator_target;
+            next_spectator_refresh_ms = scan_now_ms + 125u;
         }
         runtime.spectator_count = static_cast<int>(runtime.spectators.size());
     }

@@ -7,6 +7,7 @@
 #include "gameplay/trail_history.h"
 #include "gameplay/esp_fx.h"
 #include "gameplay/esp_optimizer.h"
+#include "updater/http_client.h"
 #include "imgui.h"
 #include "../src/window/window.hpp"
 #include "../src/config/app_settings.h"
@@ -18,9 +19,89 @@
 #include <cstring>
 #include <iterator>
 #include <unordered_map>
+#include <future>
+#include <wincodec.h>
 
 namespace CS2_ESP {
 namespace {
+
+struct AvatarEntry {
+    std::future<std::vector<unsigned char>> pending;
+    ID3D11ShaderResourceView* texture = nullptr;
+    bool requested = false;
+};
+static std::unordered_map<uint64_t, AvatarEntry> g_avatarCache;
+static ID3D11Device* g_avatarDevice = nullptr;
+
+std::vector<unsigned char> FetchSteamAvatar(uint64_t steamId) {
+    std::atomic_bool cancelled{false};
+    OmniGhost::Update::WinHttpClient http;
+    const auto profile = http.GetText("https://steamcommunity.com/profiles/" +
+        std::to_string(steamId) + "?xml=1", 4000, cancelled);
+    if (profile.statusCode != 200) return {};
+    constexpr const char* open = "<avatarMedium><![CDATA[";
+    const auto begin = profile.body.find(open);
+    if (begin == std::string::npos) return {};
+    const auto urlBegin = begin + std::strlen(open);
+    const auto end = profile.body.find("]]></avatarMedium>", urlBegin);
+    if (end == std::string::npos) return {};
+    const auto image = http.GetText(profile.body.substr(urlBegin, end - urlBegin),
+                                    4000, cancelled);
+    if (image.statusCode != 200 || image.body.size() > 2u * 1024u * 1024u) return {};
+    return {image.body.begin(), image.body.end()};
+}
+
+ID3D11ShaderResourceView* DecodeAvatar(ID3D11Device* device,
+                                        const std::vector<unsigned char>& bytes) {
+    if (!device || bytes.empty() || bytes.size() > MAXDWORD) return nullptr;
+    IWICImagingFactory* factory = nullptr; IWICStream* stream = nullptr;
+    IWICBitmapDecoder* decoder = nullptr; IWICBitmapFrameDecode* frame = nullptr;
+    IWICFormatConverter* converter = nullptr; ID3D11Texture2D* texture = nullptr;
+    ID3D11ShaderResourceView* view = nullptr; UINT w = 0, h = 0;
+    if (FAILED(CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER,
+                                IID_PPV_ARGS(&factory)))) goto done;
+    if (FAILED(factory->CreateStream(&stream)) ||
+        FAILED(stream->InitializeFromMemory(const_cast<BYTE*>(bytes.data()),
+                                            static_cast<DWORD>(bytes.size()))) ||
+        FAILED(factory->CreateDecoderFromStream(stream, nullptr, WICDecodeMetadataCacheOnLoad, &decoder)) ||
+        FAILED(decoder->GetFrame(0, &frame)) || FAILED(factory->CreateFormatConverter(&converter)) ||
+        FAILED(converter->Initialize(frame, GUID_WICPixelFormat32bppRGBA,
+            WICBitmapDitherTypeNone, nullptr, 0.0, WICBitmapPaletteTypeCustom)) ||
+        FAILED(converter->GetSize(&w, &h)) || !w || !h || w > 512 || h > 512) goto done;
+    {
+        std::vector<unsigned char> pixels(static_cast<size_t>(w) * h * 4u);
+        if (FAILED(converter->CopyPixels(nullptr, w * 4u, static_cast<UINT>(pixels.size()), pixels.data()))) goto done;
+        D3D11_TEXTURE2D_DESC desc{}; desc.Width=w; desc.Height=h; desc.MipLevels=1; desc.ArraySize=1;
+        desc.Format=DXGI_FORMAT_R8G8B8A8_UNORM; desc.SampleDesc.Count=1;
+        desc.Usage=D3D11_USAGE_DEFAULT; desc.BindFlags=D3D11_BIND_SHADER_RESOURCE;
+        D3D11_SUBRESOURCE_DATA data{}; data.pSysMem=pixels.data(); data.SysMemPitch=w*4u;
+        if (FAILED(device->CreateTexture2D(&desc, &data, &texture)) ||
+            FAILED(device->CreateShaderResourceView(texture, nullptr, &view))) view = nullptr;
+    }
+done:
+    if (texture) texture->Release(); if (converter) converter->Release();
+    if (frame) frame->Release(); if (decoder) decoder->Release();
+    if (stream) stream->Release(); if (factory) factory->Release();
+    return view;
+}
+
+ID3D11ShaderResourceView* SteamAvatar(uint64_t steamId) {
+    if (!steamId || !g_overlay_instance || !g_overlay_instance->device) return nullptr;
+    ID3D11Device* device = g_overlay_instance->device;
+    if (g_avatarDevice != device) {
+        for (auto& [_, entry] : g_avatarCache) if (entry.texture) entry.texture->Release();
+        g_avatarCache.clear(); g_avatarDevice = device;
+    }
+    auto& entry = g_avatarCache[steamId];
+    if (!entry.requested) {
+        entry.requested = true;
+        entry.pending = std::async(std::launch::async, FetchSteamAvatar, steamId);
+    }
+    if (!entry.texture && entry.pending.valid() &&
+        entry.pending.wait_for(std::chrono::seconds(0)) == std::future_status::ready)
+        entry.texture = DecodeAvatar(device, entry.pending.get());
+    return entry.texture;
+}
 
 ImU32 Col(const float* c, float aMul = 1.f) {
     int a = (int)(c[3] * aMul * 255.f);
@@ -45,6 +126,7 @@ struct VisualPlayerState {
     bool initialized = false;
     bool bones_initialized = false;
 };
+static uint64_t g_renderSnapshotTimestampMs = 0;
 
 CS2::Player SmoothPlayerForPresentation(const CS2::Player& raw) {
     static std::unordered_map<uintptr_t, VisualPlayerState> states;
@@ -62,7 +144,8 @@ CS2::Player SmoothPlayerForPresentation(const CS2::Player& raw) {
     const float raw_delta_sq = raw_delta_x * raw_delta_x + raw_delta_y * raw_delta_y + raw_delta_z * raw_delta_z;
     if (!state.initialized || raw_delta_sq > 0.0001f) {
         std::copy(std::begin(raw.pos), std::end(raw.pos), state.raw_position);
-        state.sample_time = now;
+        state.sample_time = g_renderSnapshotTimestampMs
+            ? static_cast<double>(g_renderSnapshotTimestampMs) / 1000.0 : now;
     }
 
     const float dx = raw.pos[0] - state.position[0];
@@ -79,11 +162,16 @@ CS2::Player SmoothPlayerForPresentation(const CS2::Player& raw) {
     } else {
         // Quality preset: 30 ms produces a continuous ESP without introducing
         // the long visual tail caused by the previous hold-over logic.
-        constexpr float kSmoothingSeconds = 0.030f;
-        const float alpha = 1.f - std::exp(-dt / kSmoothingSeconds);
-        const float sample_age = static_cast<float>(std::clamp(now - state.sample_time, 0.0, 0.024));
         const float speed_sq = raw.velocity[0] * raw.velocity[0] + raw.velocity[1] * raw.velocity[1] + raw.velocity[2] * raw.velocity[2];
-        const float lead = speed_sq < 5000.f * 5000.f ? std::min(sample_age + 0.006f, 0.030f) : 0.f;
+        const float speed = std::sqrt(speed_sq);
+        // Stationary players get stronger jitter rejection; fast players get a
+        // shorter time constant so the ESP does not trail the model.
+        const float smoothingSeconds = std::clamp(0.032f - speed * 0.000045f, 0.010f, 0.032f);
+        const float alpha = 1.f - std::exp(-dt / smoothingSeconds);
+        const float snapshotAge = g_renderSnapshotTimestampMs
+            ? static_cast<float>(std::clamp((GetTickCount64() - g_renderSnapshotTimestampMs) / 1000.0, 0.0, 0.012))
+            : 0.f;
+        const float lead = speed < 5000.f ? std::min(snapshotAge, 0.008f) : 0.f;
         for (int axis = 0; axis < 3; ++axis) {
             const float target = raw.pos[axis] + raw.velocity[axis] * lead;
             state.position[axis] += (target - state.position[axis]) * alpha;
@@ -101,8 +189,7 @@ CS2::Player SmoothPlayerForPresentation(const CS2::Player& raw) {
         state.output.head[axis] += shift[axis];
     }
     if (state.output.bones_ok) {
-        constexpr float kBoneSmoothingSeconds = 0.030f;
-        const float bone_alpha = 1.f - std::exp(-dt / kBoneSmoothingSeconds);
+        const float bone_alpha = 1.f - std::exp(-dt / 0.016f);
         for (std::size_t bone = 0; bone < CS2::kBoneSlotCount; ++bone) {
             for (int axis = 0; axis < 3; ++axis) {
                 const float target = raw.bones[bone][axis] + shift[axis];
@@ -386,7 +473,11 @@ void DrawSpectatorList(ImDrawList* dl, const CS2::Runtime& rt) {
     dl->AddRectFilled(ImVec2(x - 8.f, y - 4.f), ImVec2(ds.x - 12.f, y + 20.f + 14.f * 12),
         IM_COL32(8, 8, 10, 160), 4.f);
     char title[48];
-    std::snprintf(title, sizeof(title), "A observar-te (%d)", rt.spectator_count);
+    if (rt.spectator_target != rt.local_pawn && rt.spectator_target_name[0])
+        std::snprintf(title, sizeof(title), "A observar %s (%d)",
+                      rt.spectator_target_name, rt.spectator_count);
+    else
+        std::snprintf(title, sizeof(title), "A observar-te (%d)", rt.spectator_count);
     dl->AddText(ImVec2(x, y), IM_COL32(212, 175, 55, 255), title);
     y += 18.f;
     int shown = 0;
@@ -395,10 +486,13 @@ void DrawSpectatorList(ImDrawList* dl, const CS2::Runtime& rt) {
     for (const auto& p : list) {
         if (!p.is_spectator && &list == &rt.players) continue;
         if (p.is_local) continue;
-        char line[80];
-        std::snprintf(line, sizeof(line), "- %s", p.name[0] ? p.name : "Jogador");
-        dl->AddText(ImVec2(x, y), IM_COL32(200, 200, 200, 220), line);
-        y += 14.f;
+        if (auto* avatar = SteamAvatar(p.steam_id))
+            dl->AddImage(reinterpret_cast<ImTextureID>(avatar), ImVec2(x, y), ImVec2(x + 18.f, y + 18.f));
+        else
+            dl->AddCircleFilled(ImVec2(x + 9.f, y + 9.f), 8.f, IM_COL32(60, 60, 66, 230));
+        dl->AddText(ImVec2(x + 24.f, y + 2.f), IM_COL32(200, 200, 200, 220),
+                    p.name[0] ? p.name : "Jogador");
+        y += 22.f;
         if (++shown >= 12) break;
     }
     if (shown == 0)
@@ -501,6 +595,7 @@ void DrawKillFeed(ImDrawList* dl) {
 } // namespace
 
 void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
+    g_renderSnapshotTimestampMs = rt.snapshot_timestamp_ms;
     // Non-const for radar drag — safe: config is global mutable
     CS2::Config& mut_cfg = const_cast<CS2::Config&>(cfg);
 
