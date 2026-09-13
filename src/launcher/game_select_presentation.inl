@@ -543,6 +543,12 @@ GameRuntime* FindRuntime(GameId id) {
 }
 
 void ActivateGame(GameRuntime& runtime) {
+    // Launcher cards are drawn before popups. Without this guard, the release
+    // click on a modal button could be processed by a card behind it in the
+    // same ImGui frame. A visible modal must own that input completely.
+    if (g_help_game != GameId::None || g_reset_settings_game != GameId::None)
+        return;
+
     const GameDefinition& game = *runtime.definition;
     const bool attach_to_running = runtime.state == CardState::Running && !AdapterAttached(game.launch_id);
     if (IsReadyState(runtime.state) || attach_to_running) {
