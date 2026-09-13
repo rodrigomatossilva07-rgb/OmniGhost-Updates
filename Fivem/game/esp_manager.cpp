@@ -15,6 +15,7 @@
 #include <atomic>
 #include <chrono>
 #include <thread>
+#include <unordered_map>
 #include "gameplay/esp_optimizer.h"
 #include "gameplay/snapshot_exchange.h"
 #include "gameplay/frame_pipeline.h"
@@ -64,6 +65,14 @@ namespace FiveM {
         static std::thread s_acquisitionThread;
         static uint64_t s_acquisitionGeneration = 0;
         static OmniGhost::Gameplay::PipelineTelemetry s_pipelineMetrics;
+
+        struct PresentationState {
+            Vec3 position{};
+            Vec3 velocity{};
+            uint64_t sourceGeneration = 0;
+            bool initialized = false;
+        };
+        static std::unordered_map<uintptr_t, PresentationState> s_presentation;
 
         // Performance tracking
         int frameCount = 0;
@@ -252,31 +261,47 @@ namespace FiveM {
             }
 
             validPeds.assign(currentSnapshot.validPeds.begin(), currentSnapshot.validPeds.end());
-            positions.assign(currentSnapshot.positions.begin(), currentSnapshot.positions.end());
-            if (previousSnapshot.generation && currentSnapshot.generation &&
-                currentSnapshot.timestamp > previousSnapshot.timestamp) {
-                const float interval = std::chrono::duration<float>(
-                    currentSnapshot.timestamp - previousSnapshot.timestamp).count();
-                const float elapsed = std::chrono::duration<float>(
-                    currentTime - currentSnapshot.timestamp).count();
-                const float t = std::clamp(elapsed / (std::max)(interval, .001f), 0.f, 1.f);
-                for (std::size_t i = 0; i < validPeds.size() && i < positions.size(); ++i) {
-                    const auto it = std::find(previousSnapshot.validPeds.begin(),
-                                              previousSnapshot.validPeds.end(), validPeds[i]);
-                    if (it == previousSnapshot.validPeds.end()) continue;
-                    const auto oldIndex = static_cast<std::size_t>(it - previousSnapshot.validPeds.begin());
-                    if (oldIndex >= previousSnapshot.positions.size()) continue;
-                    const Vec3& a = previousSnapshot.positions[oldIndex];
-                    const Vec3& b = currentSnapshot.positions[i];
-                    positions[i] = a + (b - a) * t;
-                    // At most 8 ms of bounded prediction after the interpolation
-                    // window.  This only bridges a late sample and cannot run on.
-                    if (elapsed > interval && interval > .001f) {
-                        const float lead = (std::min)(elapsed - interval, .008f);
-                        const Vec3 velocity = (b - a) * (1.f / interval);
-                        positions[i] = b + velocity * lead;
-                    }
+            positions.resize(currentSnapshot.positions.size());
+            const float presentDt = std::clamp(ImGui::GetIO().DeltaTime, .001f, .033f);
+            const float snapshotAge = currentSnapshot.timestamp.time_since_epoch().count()
+                ? std::clamp(std::chrono::duration<float>(currentTime - currentSnapshot.timestamp).count(), 0.f, .008f)
+                : 0.f;
+            for (std::size_t i = 0; i < validPeds.size() && i < currentSnapshot.positions.size(); ++i) {
+                const Vec3& raw = currentSnapshot.positions[i];
+                auto& presentation = s_presentation[validPeds[i]];
+                if (!presentation.initialized) {
+                    presentation.position = raw;
+                    presentation.initialized = true;
                 }
+                if (presentation.sourceGeneration != currentSnapshot.generation &&
+                    previousSnapshot.generation && currentSnapshot.timestamp > previousSnapshot.timestamp) {
+                    const auto old = std::find(previousSnapshot.validPeds.begin(),
+                        previousSnapshot.validPeds.end(), validPeds[i]);
+                    if (old != previousSnapshot.validPeds.end()) {
+                        const auto oldIndex = static_cast<std::size_t>(old - previousSnapshot.validPeds.begin());
+                        const float interval = std::chrono::duration<float>(
+                            currentSnapshot.timestamp - previousSnapshot.timestamp).count();
+                        if (oldIndex < previousSnapshot.positions.size() && interval > .001f)
+                            presentation.velocity = (raw - previousSnapshot.positions[oldIndex]) * (1.f / interval);
+                    }
+                    presentation.sourceGeneration = currentSnapshot.generation;
+                }
+                Vec3 target = raw + presentation.velocity * snapshotAge;
+                const Vec3 delta = target - presentation.position;
+                const float distanceSq = delta.x * delta.x + delta.y * delta.y + delta.z * delta.z;
+                // Snap entity reuse/teleports. Otherwise use a very short,
+                // frame-rate independent EMA: it removes tiny DMA jitter but
+                // follows a running player within a few milliseconds.
+                if (distanceSq > 9.f) {
+                    presentation.position = raw;
+                } else {
+                    const float speedSq = presentation.velocity.x * presentation.velocity.x +
+                        presentation.velocity.y * presentation.velocity.y + presentation.velocity.z * presentation.velocity.z;
+                    const float tau = speedSq > 9.f ? .007f : .014f;
+                    const float alpha = 1.f - std::exp(-presentDt / tau);
+                    presentation.position = presentation.position + delta * alpha;
+                }
+                positions[i] = presentation.position;
             }
 
             renderESP();
