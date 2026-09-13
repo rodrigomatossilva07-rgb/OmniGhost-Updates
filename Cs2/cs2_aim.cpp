@@ -3,14 +3,19 @@
 #define NOMINMAX
 #endif
 #include "cs2_aim.h"
+#include "Memory/Memory.h"
 #include "../Fivem/aimbot/aim_type.h"
 #include "gameplay/aim_controller.h"
+#include "gameplay/smooth_curves.h"
+#include "gameplay/prediction.h"
 #include "imgui.h"
 #include <Windows.h>
 #include <cmath>
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
+#include <array>
+#include <unordered_map>
 
 namespace CS2_Aim {
 namespace {
@@ -22,7 +27,22 @@ std::chrono::steady_clock::time_point g_target_acquired{};
 uintptr_t g_target_pawn = 0;
 char g_debug[128] = "aim idle";
 int g_frames_sem_bind = 0;
+
 OmniGhost::Gameplay::ContinuousAimController g_aim_motion;
+Gameplay::SmoothCurves::AimHumanizer g_humanizer;
+Gameplay::SmoothCurves::SmoothCurveEvaluator g_curve_evaluator;
+
+struct WeaponRecoilPattern {
+    std::array<std::pair<float, float>, 30> offsets{};
+    int length = 0;
+    float scale = 1.f;
+};
+
+static std::unordered_map<int, WeaponRecoilPattern> g_recoil_patterns;
+static std::array<std::pair<float, float>, 30> g_current_pattern{};
+static int g_shots_fired = 0;
+static int g_last_shots_fired = 0;
+static bool g_patterns_loaded = false;
 
 bool W2S(const float* world, const float* vm, float& sx, float& sy) {
     const ImVec2 ds = ImGui::GetIO().DisplaySize;
@@ -41,15 +61,15 @@ void PickBone(const CS2::Player& p, int bone, float out[3]) {
     const float* selected = p.head;
     if (p.bones_ok) {
         switch (bone) {
-        case 1: selected = p.bones[1]; break; // neck
-        case 2: selected = p.bones[2]; break; // chest / upper spine
-        case 3: selected = p.bones[5]; break; // pelvis
-        case 4: // stable midpoint between both knees
+        case 1: selected = p.bones[1]; break;
+        case 2: selected = p.bones[2]; break;
+        case 3: selected = p.bones[5]; break;
+        case 4:
             out[0] = (p.bones[15][0] + p.bones[18][0]) * 0.5f;
             out[1] = (p.bones[15][1] + p.bones[18][1]) * 0.5f;
             out[2] = (p.bones[15][2] + p.bones[18][2]) * 0.5f;
             return;
-        default: selected = p.bones[0]; break; // head
+        default: selected = p.bones[0]; break;
         }
     }
     out[0] = selected[0];
@@ -57,13 +77,30 @@ void PickBone(const CS2::Player& p, int bone, float out[3]) {
     out[2] = selected[2];
 }
 
-// Makcu only accepts -127..127 per packet — split larger moves in one frame.
+bool IsBoneVisible(const CS2::Player& p, int bone, const float* view_matrix) {
+    float sx, sy;
+    float point[3];
+    PickBone(p, bone, point);
+    return W2S(point, view_matrix, sx, sy);
+}
+
+int SelectBestVisibleBone(const CS2::Player& p, const float* view_matrix, int preferred_bone) {
+    if (preferred_bone >= 0 && preferred_bone <= 4 && IsBoneVisible(p, preferred_bone, view_matrix))
+        return preferred_bone;
+
+    static const int bone_priority[] = { 0, 1, 2, 3, 4 };
+    for (int bone : bone_priority) {
+        if (IsBoneVisible(p, bone, view_matrix))
+            return bone;
+    }
+    return preferred_bone;
+}
+
 void MoveMouse(int dx, int dy) {
     if (dx == 0 && dy == 0) return;
 
     int left_x = dx;
     int left_y = dy;
-    // Up to 12 packets ≈ ±1524 px in a single frame (enough for full-screen snap)
     for (int n = 0; n < 12 && (left_x != 0 || left_y != 0); ++n) {
         int sx = left_x; if (sx > 127) sx = 127; if (sx < -127) sx = -127;
         int sy = left_y; if (sy > 127) sy = 127; if (sy < -127) sy = -127;
@@ -85,7 +122,6 @@ bool KeyDown(int vk) {
 }
 
 bool AimKeyDown(const CS2::Config& cfg) {
-    // Require a real bind — never "always on"
     bool down = false;
     if (cfg.aim_bind > 0)
         down = KeyDown(cfg.aim_bind);
@@ -105,7 +141,6 @@ bool IsFirearm(int definition) {
     case 40: case 60: case 61: case 63: case 64:
         return true;
     default:
-        // Includes knives, Zeus, grenades, C4 and unknown/new utility items.
         return false;
     }
 }
@@ -118,6 +153,34 @@ float EffectiveFov(const CS2::Config& cfg, float distance_m) {
     return minF + (fov - minF) * t;
 }
 
+float WeaponThreat(int definition) noexcept {
+    switch (definition) {
+    case 9: case 11: case 38: case 40: return 1.f;
+    case 7: case 8: case 10: case 13: case 16: case 39: case 60: return .75f;
+    case 1: case 2: case 3: case 4: case 30: case 32: case 36: case 61: case 63: case 64: return .45f;
+    default: return .2f;
+    }
+}
+
+int AutoSelectBone(const CS2::Player& p, int weapon_def, float distance_m, const float* view_matrix, bool visibility_check, bool auto_bone_enabled, int fallback_bone) {
+    if (!auto_bone_enabled) return fallback_bone;
+
+    bool is_sniper = (weapon_def == 9 || weapon_def == 11 || weapon_def == 38 || weapon_def == 40);
+    bool is_rifle = (weapon_def == 7 || weapon_def == 8 || weapon_def == 10 || weapon_def == 13 || weapon_def == 16 || weapon_def == 39 || weapon_def == 60);
+    bool is_pistol = (weapon_def >= 1 && weapon_def <= 4) || weapon_def == 30 || weapon_def == 32 || weapon_def == 36 || weapon_def == 61 || weapon_def == 63 || weapon_def == 64;
+
+    int preferred = 0;
+    if (is_sniper) preferred = 0;
+    else if (is_rifle) preferred = (distance_m > 50.f) ? 0 : 1;
+    else if (is_pistol) preferred = (distance_m > 30.f) ? 1 : 2;
+    else preferred = 0;
+
+    if (visibility_check) {
+        return SelectBestVisibleBone(p, view_matrix, preferred);
+    }
+    return preferred;
+}
+
 struct TargetCandidate {
     int index = -1;
     uintptr_t pawn = 0;
@@ -126,19 +189,19 @@ struct TargetCandidate {
     float screen_distance = FLT_MAX;
     float distance_m = 0.f;
     float score = FLT_MAX;
+    float velocity_x = 0.f;
+    float velocity_y = 0.f;
+    float velocity_z = 0.f;
+    float prev_velocity_x = 0.f;
+    float prev_velocity_y = 0.f;
+    float prev_velocity_z = 0.f;
+    int weapon_def = 0;
+    int bone = 0;
 };
 
-float WeaponThreat(int definition) noexcept {
-    switch (definition) {
-    case 9: case 11: case 38: case 40: return 1.f;       // precision rifles
-    case 7: case 8: case 10: case 13: case 16: case 39: case 60: return .75f;
-    case 1: case 2: case 3: case 4: case 30: case 32: case 36: case 61: case 63: case 64: return .45f;
-    default: return .2f;
-    }
-}
+static std::unordered_map<uintptr_t, std::array<float, 3>> g_prev_velocities;
 
-TargetCandidate SelectTarget(const CS2::Runtime& rt, const CS2::Config& cfg,
-                             float cx, float cy) {
+TargetCandidate SelectTarget(const CS2::Runtime& rt, const CS2::Config& cfg, float cx, float cy) {
     TargetCandidate best{};
     const uint64_t now_ms = GetTickCount64();
     const float snapshot_age = rt.snapshot_timestamp_ms && now_ms > rt.snapshot_timestamp_ms
@@ -151,20 +214,28 @@ TargetCandidate SelectTarget(const CS2::Runtime& rt, const CS2::Config& cfg,
         if (cfg.aim_ignore_team && player.team == rt.local_team && rt.local_team >= 2) continue;
         if (cfg.aim_ignore_bots && player.is_bot) continue;
         if (cfg.aim_ignore_spectators && player.is_spectator) continue;
-        if (cfg.visible_check && !player.spotted) continue;
+        if (cfg.aim_visibility_check && !player.spotted) continue;
         if (player.distance > cfg.aim_max_dist) continue;
 
+        int bone = AutoSelectBone(player, player.weapon_def, player.distance, rt.view_matrix, cfg.aim_visibility_check, cfg.aim_auto_bone, cfg.aim_bone);
+        
         float point[3]{};
-        PickBone(player, cfg.aim_bone, point);
+        PickBone(player, bone, point);
+
         if (cfg.aim_prediction) {
-            // Hitscan CS2 needs only enough lead to compensate acquisition and
-            // presentation age.  Keep it short to prevent overshoot.
-            const float lead = std::clamp((.006f + snapshot_age) * cfg.prediction_strength,
-                                          0.f, .045f);
-            point[0] += player.velocity[0] * lead;
-            point[1] += player.velocity[1] * lead;
-            point[2] += player.velocity[2] * lead;
+            float accel_x = player.velocity[0] - g_prev_velocities[player.pawn][0];
+            float accel_y = player.velocity[1] - g_prev_velocities[player.pawn][1];
+            float accel_z = player.velocity[2] - g_prev_velocities[player.pawn][2];
+
+            float lead = std::clamp((.006f + snapshot_age) * cfg.prediction_strength, 0.f, .045f);
+            float accel_factor = std::clamp(cfg.prediction_strength * 0.5f, 0.f, 0.02f);
+
+            point[0] += player.velocity[0] * lead + accel_x * accel_factor;
+            point[1] += player.velocity[1] * lead + accel_y * accel_factor;
+            point[2] += player.velocity[2] * lead + accel_z * accel_factor;
         }
+
+        g_prev_velocities[player.pawn] = { player.velocity[0], player.velocity[1], player.velocity[2] };
 
         float sx = 0.f, sy = 0.f;
         if (!W2S(point, rt.view_matrix, sx, sy)) continue;
@@ -173,9 +244,6 @@ TargetCandidate SelectTarget(const CS2::Runtime& rt, const CS2::Config& cfg,
         const float screen = std::sqrt(dx * dx + dy * dy);
         if (screen > EffectiveFov(cfg, player.distance)) continue;
 
-        // Screen alignment dominates. Distance, visibility, remaining health
-        // and weapon threat only break close choices instead of pulling aim
-        // away from the crosshair.
         float score = screen;
         score += std::clamp(player.distance, 0.f, 300.f) * .018f;
         score += std::clamp(static_cast<float>(player.health), 0.f, 100.f) * .008f;
@@ -191,13 +259,17 @@ TargetCandidate SelectTarget(const CS2::Runtime& rt, const CS2::Config& cfg,
             best.screen_distance = screen;
             best.distance_m = player.distance;
             best.score = score;
+            best.velocity_x = player.velocity[0];
+            best.velocity_y = player.velocity[1];
+            best.velocity_z = player.velocity[2];
+            best.weapon_def = player.weapon_def;
+            best.bone = bone;
         }
     }
     return best;
 }
 
-OmniGhost::Gameplay::AimMotionSettings BuildMotionSettings(
-        const CS2::Config& cfg, float distance_m) noexcept {
+OmniGhost::Gameplay::AimMotionSettings BuildMotionSettings(const CS2::Config& cfg, float distance_m) noexcept {
     OmniGhost::Gameplay::AimMotionSettings settings{};
     settings.smooth = cfg.aim_smooth;
     settings.deadzone = cfg.aim_deadzone;
@@ -208,9 +280,161 @@ OmniGhost::Gameplay::AimMotionSettings BuildMotionSettings(
     settings.overshoot_px = .55f;
     settings.micro_jitter_px = .06f;
     settings.minimum_error = .35f;
-    settings.prediction = false; // prediction is applied in world space above
+    settings.prediction = false;
     OmniGhost::Gameplay::ApplyStableDistanceProfile(settings, distance_m);
     return settings;
+}
+
+void InitializeHumanizer() {
+    static bool initialized = false;
+    if (initialized) return;
+    initialized = true;
+
+    Gameplay::SmoothCurves::AimHumanizer::HumanizerConfig hcfg;
+    hcfg.enabled = true;
+    hcfg.micro_jitter = 0.12f;
+    hcfg.macro_drift = 0.03f;
+    hcfg.reaction_variance = 0.015f;
+    hcfg.overshoot_chance = 0.025f;
+    hcfg.overshoot_amount = 0.08f;
+    hcfg.pause_chance = 0.008f;
+    hcfg.pause_duration = 0.04f;
+    hcfg.curve_variance = 0.04f;
+    hcfg.close_range_multiplier = 0.6f;
+    hcfg.mid_range_multiplier = 1.0f;
+    hcfg.far_range_multiplier = 1.3f;
+    g_humanizer.SetConfig(hcfg);
+
+    Gameplay::SmoothCurves::SmoothCurveConfig ccfg = Gameplay::SmoothCurves::SmoothCurveConfig::LegitConfig();
+    ccfg.type = Gameplay::SmoothCurves::CurveType::EaseOutCubic;
+    ccfg.dynamic_adjustment = true;
+    ccfg.distance_factor = 0.03f;
+    ccfg.velocity_factor = 0.08f;
+    g_curve_evaluator.SetConfig(ccfg);
+}
+
+void LoadRecoilPatterns() {
+    if (g_patterns_loaded) return;
+    g_patterns_loaded = true;
+
+    auto add_pattern = [](int def, std::initializer_list<std::pair<float, float>> offsets, float scale = 1.f) {
+        WeaponRecoilPattern& p = g_recoil_patterns[def];
+        int i = 0;
+        for (auto& o : offsets) {
+            if (i >= 30) break;
+            p.offsets[i++] = o;
+        }
+        p.length = i;
+        p.scale = scale;
+    };
+
+    add_pattern(7, {  // AK-47
+        {0,0}, {0.5,2.1}, {1.2,3.8}, {1.8,5.2}, {2.1,6.5}, {2.3,7.8}, {2.4,9.1}, {2.3,10.3}, {2.1,11.4}, {1.8,12.4},
+        {1.4,13.3}, {1.0,14.1}, {0.5,14.8}, {0,15.4}, {-0.5,15.9}, {-1.0,16.3}, {-1.5,16.6}, {-2.0,16.8}, {-2.4,16.9}, {-2.8,16.9},
+        {-3.1,16.8}, {-3.3,16.6}, {-3.4,16.3}, {-3.4,15.8}, {-3.3,15.2}, {-3.1,14.5}, {-2.8,13.7}, {-2.4,12.8}, {-2.0,11.9}, {-1.5,10.9}
+    }, 1.0f);
+
+    add_pattern(8, {  // AUG
+        {0,0}, {0.3,1.8}, {0.8,3.2}, {1.2,4.5}, {1.5,5.6}, {1.7,6.6}, {1.8,7.5}, {1.8,8.3}, {1.7,9.0}, {1.5,9.7},
+        {1.2,10.3}, {0.8,10.8}, {0.4,11.2}, {0,11.5}, {-0.4,11.7}, {-0.8,11.8}, {-1.2,11.8}, {-1.5,11.7}, {-1.8,11.5}, {-2.0,11.2},
+        {-2.2,10.8}, {-2.3,10.3}, {-2.4,9.7}, {-2.4,9.1}, {-2.3,8.4}, {-2.2,7.6}, {-2.0,6.8}, {-1.7,5.9}, {-1.4,5.0}, {-1.0,4.1}
+    }, 0.85f);
+
+    add_pattern(9, {  // AWP
+        {0,0}, {0,12.0}, {0,24.0}, {0,36.0}, {0,48.0}, {0,60.0}, {0,72.0}, {0,84.0}, {0,96.0}, {0,108.0},
+        {0,120.0}, {0,132.0}, {0,144.0}, {0,156.0}, {0,168.0}, {0,180.0}, {0,192.0}, {0,204.0}, {0,216.0}, {0,228.0},
+        {0,240.0}, {0,252.0}, {0,264.0}, {0,276.0}, {0,288.0}, {0,300.0}, {0,312.0}, {0,324.0}, {0,336.0}, {0,348.0}
+    }, 1.0f);
+
+    add_pattern(10, { // FAMAS
+        {0,0}, {0.4,2.0}, {1.0,3.6}, {1.5,5.0}, {1.8,6.2}, {2.0,7.3}, {2.1,8.3}, {2.1,9.2}, {2.0,10.0}, {1.8,10.7},
+        {1.5,11.3}, {1.1,11.8}, {0.6,12.2}, {0,12.5}, {-0.5,12.7}, {-1.0,12.8}, {-1.5,12.8}, {-1.9,12.7}, {-2.3,12.5}, {-2.6,12.2},
+        {-2.8,11.7}, {-3.0,11.1}, {-3.1,10.4}, {-3.1,9.6}, {-3.0,8.8}, {-2.8,7.9}, {-2.5,7.0}, {-2.1,6.0}, {-1.7,5.1}, {-1.2,4.1}
+    }, 0.9f);
+
+    add_pattern(13, { // Galil AR
+        {0,0}, {0.6,2.2}, {1.4,4.0}, {2.0,5.5}, {2.4,6.8}, {2.6,8.0}, {2.7,9.1}, {2.7,10.1}, {2.5,11.0}, {2.2,11.8},
+        {1.8,12.5}, {1.3,13.1}, {0.7,13.6}, {0,14.0}, {-0.7,14.3}, {-1.4,14.5}, {-2.0,14.6}, {-2.6,14.6}, {-3.1,14.5}, {-3.6,14.3},
+        {-4.0,14.0}, {-4.3,13.5}, {-4.5,12.8}, {-4.6,12.1}, {-4.6,11.3}, {-4.5,10.4}, {-4.3,9.5}, {-4.0,8.5}, {-3.6,7.5}, {-3.1,6.5}
+    }, 0.95f);
+
+    add_pattern(16, { // M4A4
+        {0,0}, {0.4,1.9}, {1.0,3.5}, {1.5,4.9}, {1.8,6.1}, {2.0,7.2}, {2.1,8.1}, {2.1,9.0}, {2.0,9.8}, {1.8,10.5},
+        {1.5,11.1}, {1.1,11.6}, {0.6,12.0}, {0,12.3}, {-0.5,12.5}, {-1.0,12.6}, {-1.4,12.6}, {-1.8,12.5}, {-2.1,12.3}, {-2.4,12.0},
+        {-2.6,11.6}, {-2.7,11.1}, {-2.8,10.5}, {-2.8,9.8}, {-2.7,9.1}, {-2.5,8.3}, {-2.3,7.5}, {-2.0,6.6}, {-1.6,5.7}, {-1.2,4.7}
+    }, 0.9f);
+
+    add_pattern(60, { // M4A1-S
+        {0,0}, {0.3,1.7}, {0.8,3.1}, {1.2,4.3}, {1.5,5.4}, {1.7,6.4}, {1.8,7.2}, {1.8,8.0}, {1.7,8.7}, {1.5,9.3},
+        {1.2,9.9}, {0.9,10.3}, {0.5,10.7}, {0,11.0}, {-0.4,11.2}, {-0.8,11.3}, {-1.2,11.3}, {-1.5,11.2}, {-1.8,11.0}, {-2.0,10.7},
+        {-2.2,10.3}, {-2.3,9.9}, {-2.3,9.3}, {-2.3,8.7}, {-2.2,8.0}, {-2.0,7.3}, {-1.8,6.5}, {-1.5,5.7}, {-1.2,4.9}, {-0.9,4.1}
+    }, 0.85f);
+
+    add_pattern(1, { // Desert Eagle
+        {0,0}, {0,3.5}, {0,6.8}, {0,9.8}, {0,12.5}, {0,15.0}, {0,17.2}, {0,19.2}, {0,21.0}, {0,22.6},
+        {0,24.0}, {0,25.3}, {0,26.4}, {0,27.4}, {0,28.2}, {0,28.9}, {0,29.5}, {0,30.0}, {0,30.4}, {0,30.7},
+        {0,30.9}, {0,31.0}, {0,31.1}, {0,31.1}, {0,31.0}, {0,30.9}, {0,30.7}, {0,30.4}, {0,30.1}, {0,29.7}
+    }, 1.2f);
+
+    add_pattern(4, { // Glock-18
+        {0,0}, {0.2,1.5}, {0.5,2.8}, {0.8,3.9}, {1.0,4.8}, {1.1,5.6}, {1.2,6.3}, {1.2,6.9}, {1.1,7.4}, {1.0,7.8},
+        {0.8,8.1}, {0.5,8.3}, {0.2,8.5}, {0,8.6}, {-0.2,8.6}, {-0.5,8.5}, {-0.8,8.4}, {-1.1,8.2}, {-1.4,7.9}, {-1.6,7.5},
+        {-1.8,7.1}, {-1.9,6.6}, {-2.0,6.1}, {-2.0,5.5}, {-2.0,4.9}, {-1.9,4.3}, {-1.8,3.7}, {-1.6,3.1}, {-1.4,2.5}, {-1.1,1.9}
+    }, 0.7f);
+
+    add_pattern(61, { // USP-S
+        {0,0}, {0.2,1.4}, {0.5,2.6}, {0.7,3.6}, {0.9,4.5}, {1.0,5.2}, {1.0,5.9}, {1.0,6.4}, {0.9,6.9}, {0.8,7.3},
+        {0.6,7.7}, {0.3,7.9}, {0,8.1}, {-0.3,8.1}, {-0.6,8.1}, {-0.9,8.0}, {-1.2,7.8}, {-1.5,7.5}, {-1.7,7.1}, {-1.9,6.6},
+        {-2.0,6.1}, {-2.1,5.5}, {-2.1,4.9}, {-2.1,4.2}, {-2.0,3.6}, {-1.9,2.9}, {-1.7,2.3}, {-1.5,1.7}, {-1.2,1.1}, {-0.9,0.5}
+    }, 0.75f);
+}
+
+void ApplyRCS(const CS2::Runtime& rt, const CS2::Config& cfg, int weapon_def) {
+    if (!cfg.aim_rcs_auto && !cfg.aim_rcs_standalone) return;
+    if (!rt.local_pawn) return;
+
+    int shots_fired = 0;
+    if (CS2::offsets.m_iShotsFired) {
+        mem.Read(rt.local_pawn + CS2::offsets.m_iShotsFired, &shots_fired, sizeof(shots_fired));
+    }
+
+    if (shots_fired <= 1) {
+        g_shots_fired = 0;
+        g_last_shots_fired = 0;
+        return;
+    }
+
+    if (shots_fired != g_last_shots_fired) {
+        g_shots_fired = shots_fired - 1;
+        g_last_shots_fired = shots_fired;
+    }
+
+    if (g_shots_fired <= 0) return;
+
+    LoadRecoilPatterns();
+
+    auto it = g_recoil_patterns.find(weapon_def);
+    if (it == g_recoil_patterns.end()) return;
+
+    const WeaponRecoilPattern& pattern = it->second;
+    if (pattern.length == 0) return;
+
+    int idx = std::clamp(g_shots_fired - 1, 0, pattern.length - 1);
+    float punch_x = 0.f, punch_y = 0.f;
+    if (CS2::offsets.m_aimPunchAngle) {
+        mem.Read(rt.local_pawn + CS2::offsets.m_aimPunchAngle, &punch_x, sizeof(punch_x));
+        mem.Read(rt.local_pawn + CS2::offsets.m_aimPunchAngle + 4, &punch_y, sizeof(punch_y));
+    }
+
+    float pattern_x = pattern.offsets[idx].first * pattern.scale * cfg.aim_rcs_x;
+    float pattern_y = pattern.offsets[idx].second * pattern.scale * cfg.aim_rcs_y;
+
+    float rcs_x = -punch_y * cfg.aim_rcs_x + pattern_x;
+    float rcs_y = -punch_x * cfg.aim_rcs_y + pattern_y;
+
+    if (std::fabs(rcs_x) > 0.5f || std::fabs(rcs_y) > 0.5f) {
+        MoveMouse(static_cast<int>(rcs_x), static_cast<int>(rcs_y));
+    }
 }
 
 void HandlePanic(CS2::Config& cfg) {
@@ -229,26 +453,33 @@ void HandlePanic(CS2::Config& cfg) {
     was_down = down;
 }
 
-} // namespace (anonymous helpers)
+} // namespace
 
 int ActiveTargetIndex() { return g_active_target_idx; }
 const char* DebugStatus() { return g_debug; }
+
 void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
     CS2::Config& cfg = const_cast<CS2::Config&>(cfg_in);
     HandlePanic(cfg);
+
+    InitializeHumanizer();
 
     const bool playable = rt.in_match || !rt.players.empty();
     if (!playable) {
         g_active_target_idx = -1;
         g_target_pawn = 0;
         g_aim_motion.Reset();
+        g_humanizer.Reset();
+        g_shots_fired = 0;
+        g_last_shots_fired = 0;
         std::snprintf(g_debug, sizeof(g_debug), "sem partida");
         return;
     }
-    if (!cfg.aim_enabled && !cfg.trigger_enabled) {
+    if (!cfg.aim_enabled && !cfg.trigger_enabled && !cfg.aim_rcs_standalone) {
         g_active_target_idx = -1;
         g_target_pawn = 0;
         g_aim_motion.Reset();
+        g_humanizer.Reset();
         std::snprintf(g_debug, sizeof(g_debug), "aim/trig OFF");
         return;
     }
@@ -260,13 +491,18 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
             break;
         }
     }
+
+    if (cfg.aim_rcs_standalone || (cfg.aim_enabled && cfg.aim_rcs_auto)) {
+        ApplyRCS(rt, cfg, local_weapon_definition);
+    }
+
     if (!IsFirearm(local_weapon_definition)) {
         g_active_target_idx = -1;
         g_last_target_idx = -1;
         g_target_pawn = 0;
         g_aim_motion.Reset();
-        std::snprintf(g_debug, sizeof(g_debug), "aim bloqueado: utilitario (%d)",
-            local_weapon_definition);
+        g_humanizer.Reset();
+        std::snprintf(g_debug, sizeof(g_debug), "aim bloqueado: utilitario (%d)", local_weapon_definition);
         return;
     }
 
@@ -287,6 +523,7 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
         g_last_target_idx = -1;
         g_target_pawn = 0;
         g_aim_motion.Reset();
+        g_humanizer.Reset();
         std::snprintf(g_debug, sizeof(g_debug), "aim: aguarda tecla");
     } else if (target.index >= 0) {
         const auto now = std::chrono::steady_clock::now();
@@ -302,10 +539,11 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
                         (cfg.aim_ignore_team && held.team == rt.local_team && rt.local_team >= 2) ||
                         (cfg.aim_ignore_bots && held.is_bot) ||
                         (cfg.aim_ignore_spectators && held.is_spectator) ||
-                        (cfg.visible_check && !held.spotted) || held.distance > cfg.aim_max_dist)
+                        (cfg.aim_visibility_check && !held.spotted) || held.distance > cfg.aim_max_dist)
                         break;
                     float point[3]{};
-                    PickBone(held, cfg.aim_bone, point);
+                    int bone = AutoSelectBone(held, held.weapon_def, held.distance, rt.view_matrix, cfg.aim_visibility_check, cfg.aim_auto_bone, cfg.aim_bone);
+                    PickBone(held, bone, point);
                     float sx = 0.f, sy = 0.f;
                     if (held.alive && held.health > 0 && W2S(point, rt.view_matrix, sx, sy)) {
                         target.index = static_cast<int>(i);
@@ -314,6 +552,7 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
                         target.error_y = sy - cy;
                         target.screen_distance = std::sqrt(target.error_x * target.error_x + target.error_y * target.error_y);
                         target.distance_m = held.distance;
+                        target.bone = bone;
                     }
                     break;
                 }
@@ -330,15 +569,22 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
 
         const auto settings = BuildMotionSettings(cfg, target.distance_m);
         const auto motion = g_aim_motion.Step(target.error_x, target.error_y, settings);
-        if (motion) MoveMouse(motion.x, motion.y);
-        std::snprintf(g_debug, sizeof(g_debug), "lock %+d,%+d err=%.1f idx=%d",
-            motion.x, motion.y, motion.error, target.index);
+        if (motion) {
+            ImVec2 raw{motion.x, motion.y};
+            const auto humanized = g_humanizer.Humanize(raw, target.distance_m, ImGui::GetIO().DeltaTime);
+            MoveMouse(static_cast<int>(humanized.x), static_cast<int>(humanized.y));
+            std::snprintf(g_debug, sizeof(g_debug),
+                "lock %+d,%+d err=%.1f idx=%d bone=%d dist=%.0fm",
+                static_cast<int>(humanized.x), static_cast<int>(humanized.y),
+                motion.error, target.index, target.bone, target.distance_m);
+        } else {
+            std::snprintf(g_debug, sizeof(g_debug), "aim: on target (deadzone)");
+        }
     } else {
         g_active_target_idx = -1;
         std::snprintf(g_debug, sizeof(g_debug), "aim: no target");
     }
 
-    // Handle triggerbot separately (keep existing for now)
     bool local_scoped = false;
     if (cfg.trigger_scoped_only || cfg.scope_check) {
         for (const auto& p : rt.players) {
@@ -374,7 +620,6 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
                     }
                 }
                 if (!hit) {
-                    // Fire when ANY body part crosses the FOV (screen-center radius).
                     const float triggerFov = cfg.trigger_head_only
                         ? 14.f
                         : (std::max)(18.f, cfg.aim_fov > 1.f ? cfg.aim_fov * 0.35f : 28.f);
@@ -413,7 +658,6 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
             }
         }
     }
-
 }
 
 } // namespace CS2_Aim
