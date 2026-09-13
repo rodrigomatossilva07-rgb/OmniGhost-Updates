@@ -47,10 +47,6 @@ struct VisualPlayerState {
 };
 
 CS2::Player SmoothPlayerForPresentation(const CS2::Player& raw) {
-    // Acquisition already publishes coherent snapshots at a high rate. Do not
-    // add presentation interpolation: it delays the box and individual joints.
-    return raw;
-#if 0
     static std::unordered_map<uintptr_t, VisualPlayerState> states;
     static int cleanup_frame = -1;
 
@@ -81,7 +77,9 @@ CS2::Player SmoothPlayerForPresentation(const CS2::Player& raw) {
         std::copy(std::begin(raw.pos), std::end(raw.pos), state.position);
         state.initialized = !invalid;
     } else {
-        constexpr float kSmoothingSeconds = 0.026f;
+        // Quality preset: 30 ms produces a continuous ESP without introducing
+        // the long visual tail caused by the previous hold-over logic.
+        constexpr float kSmoothingSeconds = 0.030f;
         const float alpha = 1.f - std::exp(-dt / kSmoothingSeconds);
         const float sample_age = static_cast<float>(std::clamp(now - state.sample_time, 0.0, 0.024));
         const float speed_sq = raw.velocity[0] * raw.velocity[0] + raw.velocity[1] * raw.velocity[1] + raw.velocity[2] * raw.velocity[2];
@@ -103,7 +101,7 @@ CS2::Player SmoothPlayerForPresentation(const CS2::Player& raw) {
         state.output.head[axis] += shift[axis];
     }
     if (state.output.bones_ok) {
-        constexpr float kBoneSmoothingSeconds = 0.018f;
+        constexpr float kBoneSmoothingSeconds = 0.030f;
         const float bone_alpha = 1.f - std::exp(-dt / kBoneSmoothingSeconds);
         for (std::size_t bone = 0; bone < CS2::kBoneSlotCount; ++bone) {
             for (int axis = 0; axis < 3; ++axis) {
@@ -132,7 +130,6 @@ CS2::Player SmoothPlayerForPresentation(const CS2::Player& raw) {
         }
     }
     return state.output;
-#endif
 }
 
 void DrawMotionVisuals(ImDrawList* dl, const CS2::Runtime& rt,

@@ -1808,7 +1808,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
         // Hold last-good ESP/aim targets briefly so the overlay does not blink
         // off when ListEntry is transiently null after map/round changes.
         const uint64_t now_ms = GetTickCount64();
-        if (!last_good_players.empty() && now_ms - last_good_ms <= 350u) {
+        if (!last_good_players.empty() && now_ms - last_good_ms <= 50u) {
             runtime.players = last_good_players;
             runtime.player_count = static_cast<int>(runtime.players.size());
         }
@@ -2239,18 +2239,18 @@ static void RunFrameWithConfig(const Config& frame_config) {
                     const float armL = seg(7, 9), armR = seg(11, 13);
                     const float legL = seg(14, 16), legR = seg(17, 19);
                     const float shoulderWidth = seg(7, 11);
-                    if (!(armL > 8.f && armL < 55.f && armR > 8.f && armR < 55.f)) return -1.f;
-                    if (!(legL > 18.f && legL < 80.f && legR > 18.f && legR < 80.f)) return -1.f;
-                    if (!(shoulderWidth > 5.f && shoulderWidth < 55.f)) return -1.f;
+                    // Animated agents, crouching and weapon-holding poses vary
+                    // substantially. Reject only clearly corrupt segments;
+                    // narrow human-pose assumptions were discarding real bones.
+                    if (!(armL > 3.f && armL < 80.f && armR > 3.f && armR < 80.f)) return -1.f;
+                    if (!(legL > 8.f && legL < 105.f && legR > 8.f && legR < 105.f)) return -1.f;
+                    if (!(shoulderWidth > 1.f && shoulderWidth < 75.f)) return -1.f;
                     if (!(bones[0][2] > bones[5][2] + 25.f)) return -1.f;
-                    if (bones[15][2] > bones[14][2] + 8.f || bones[16][2] > bones[15][2] + 8.f ||
-                        bones[18][2] > bones[17][2] + 8.f || bones[19][2] > bones[18][2] + 8.f)
-                        return -1.f;
                     for (std::size_t i = 0; i < kBoneSlotCount; ++i) {
                         const float ox = bones[i][0] - p.pos[0];
                         const float oy = bones[i][1] - p.pos[1];
                         const float oz = bones[i][2] - p.pos[2];
-                        if (ox * ox + oy * oy > 100.f * 100.f || oz < -25.f || oz > 115.f)
+                        if (ox * ox + oy * oy > 140.f * 140.f || oz < -45.f || oz > 135.f)
                             return -1.f;
                     }
                     score += 44.f;
@@ -2361,7 +2361,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
     // Retain a fully validated pawn for a short wall-clock grace period when
     // only its individual controller/pawn read drops out. Time-based expiry is
     // stable regardless of acquisition rate or presentation FPS.
-    constexpr uint64_t kPlayerDropoutGraceMs = 120;
+    constexpr uint64_t kPlayerDropoutGraceMs = 35;
     for (const auto& player : runtime.players) {
         if (IsUserPointer(player.pawn))
             recent_players[player.pawn] = {player, scan_now_ms};
@@ -2536,7 +2536,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
     if (!runtime.players.empty()) {
         last_good_players = runtime.players;
         last_good_ms = scan_now_ms;
-    } else if (!last_good_players.empty() && scan_now_ms - last_good_ms > 700u) {
+    } else if (!last_good_players.empty() && scan_now_ms - last_good_ms > 100u) {
         last_good_players.clear();
     }
 
