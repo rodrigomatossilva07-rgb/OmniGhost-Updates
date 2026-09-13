@@ -17,6 +17,7 @@
 #include <thread>
 #include "gameplay/esp_optimizer.h"
 #include "gameplay/snapshot_exchange.h"
+#include "gameplay/frame_pipeline.h"
 
 namespace FiveM {
     namespace ESP {
@@ -37,6 +38,8 @@ namespace FiveM {
             uintptr_t localPlayer = 0;
             bool frameCacheValid = false;
             uint64_t generation = 0;
+            std::chrono::steady_clock::time_point timestamp{};
+            float acquireMs = 0.f;
         };
 
         static OmniGhost::Gameplay::SnapshotExchange<AcquisitionSnapshot> s_snapshots;
@@ -60,6 +63,7 @@ namespace FiveM {
         static std::atomic<float> s_displayHeight{1080.f};
         static std::thread s_acquisitionThread;
         static uint64_t s_acquisitionGeneration = 0;
+        static OmniGhost::Gameplay::PipelineTelemetry s_pipelineMetrics;
 
         // Performance tracking
         int frameCount = 0;
@@ -91,7 +95,8 @@ namespace FiveM {
         const Matrix& GetFrameViewMatrix() { return s_viewMatrix; }
         const Vec3& GetFrameLocalPos() { return s_localPos; }
 
-        static void PublishAcquisitionSnapshot(uintptr_t localPlayer, bool cacheValid) {
+        static void PublishAcquisitionSnapshot(uintptr_t localPlayer, bool cacheValid,
+                                               float acquireMs) {
             auto slot = s_snapshots.TryBeginWrite();
             if (!slot) return;
             slot.value->validPeds.assign(s_acquireValidPeds.begin(), s_acquireValidPeds.end());
@@ -101,12 +106,16 @@ namespace FiveM {
             slot.value->localPlayer = localPlayer;
             slot.value->frameCacheValid = cacheValid;
             slot.value->generation = ++s_acquisitionGeneration;
+            slot.value->timestamp = std::chrono::steady_clock::now();
+            slot.value->acquireMs = acquireMs;
             s_snapshots.Publish(slot.index);
         }
 
         static void AcquisitionLoop() {
             uintptr_t localPlayer = offset::localplayer;
+            OmniGhost::Gameplay::FixedRateScheduler scheduler;
             while (!s_acquisitionStop.load(std::memory_order_acquire)) {
+                const auto acquireBegin = std::chrono::steady_clock::now();
                 const bool needPeds = s_needPeds.load(std::memory_order_relaxed);
                 bool cacheValid = false;
 
@@ -152,7 +161,12 @@ namespace FiveM {
                     s_emptyFrames = 0;
                 }
 
-                PublishAcquisitionSnapshot(localPlayer, cacheValid);
+                const float acquireMs = OmniGhost::Gameplay::TimeMs(acquireBegin);
+                OmniGhost::Gameplay::PipelineTelemetry::Smooth(
+                    s_pipelineMetrics.acquire_ms, acquireMs);
+                s_pipelineMetrics.entities.store(
+                    static_cast<int>(s_acquireValidPeds.size()), std::memory_order_relaxed);
+                PublishAcquisitionSnapshot(localPlayer, cacheValid, acquireMs);
 
                 // Hierarchical/adaptive acquisition frequency.  Position data
                 // stays fast when presentation has headroom, while an already
@@ -162,13 +176,13 @@ namespace FiveM {
                 int delayMs = 16;
                 if (needPeds) {
                     const float fps = s_renderFps.load(std::memory_order_relaxed);
-                    delayMs = (fps > 1.f && fps < 45.f) ? 8
-                            : (fps > 1.f && fps < 80.f) ? 6
-                            : 4;
+                    delayMs = (fps > 1.f && fps < 45.f) ? 10
+                            : (fps > 1.f && fps < 70.f) ? 8
+                            : 6;
                     if (s_performanceMode.load(std::memory_order_relaxed))
                         delayMs = (std::max)(delayMs, 7);
                 }
-                std::this_thread::sleep_for(std::chrono::milliseconds(delayMs));
+                scheduler.Wait(std::chrono::milliseconds(delayMs));
             }
         }
 
@@ -194,13 +208,14 @@ namespace FiveM {
             s_acquireViewMatrix = {};
             s_acquireLocalPos = {};
             s_emptyFrames = 0;
-            PublishAcquisitionSnapshot(0, false);
+            PublishAcquisitionSnapshot(0, false, 0.f);
         }
 
         void RunESP() {
             InitializeContainers();
             frameCount++;
             auto currentTime = std::chrono::steady_clock::now();
+            const auto renderBegin = currentTime;
 
             const bool needPeds = esp::config.enabled
                 || aimbot::config.aimbot_enabled
@@ -223,15 +238,45 @@ namespace FiveM {
             EnsureAcquisitionStarted();
 
             static uint64_t consumedGeneration = 0;
+            static AcquisitionSnapshot previousSnapshot;
+            static AcquisitionSnapshot currentSnapshot;
             auto snapshot = s_snapshots.Acquire();
             if (snapshot && snapshot->generation != consumedGeneration) {
-                validPeds.assign(snapshot->validPeds.begin(), snapshot->validPeds.end());
-                positions.assign(snapshot->positions.begin(), snapshot->positions.end());
+                previousSnapshot = std::move(currentSnapshot);
+                currentSnapshot = *snapshot;
                 s_viewMatrix = snapshot->viewMatrix;
                 s_localPos = snapshot->localPos;
                 s_frameCacheValid = snapshot->frameCacheValid;
                 offset::localplayer = snapshot->localPlayer;
                 consumedGeneration = snapshot->generation;
+            }
+
+            validPeds.assign(currentSnapshot.validPeds.begin(), currentSnapshot.validPeds.end());
+            positions.assign(currentSnapshot.positions.begin(), currentSnapshot.positions.end());
+            if (previousSnapshot.generation && currentSnapshot.generation &&
+                currentSnapshot.timestamp > previousSnapshot.timestamp) {
+                const float interval = std::chrono::duration<float>(
+                    currentSnapshot.timestamp - previousSnapshot.timestamp).count();
+                const float elapsed = std::chrono::duration<float>(
+                    currentTime - currentSnapshot.timestamp).count();
+                const float t = std::clamp(elapsed / (std::max)(interval, .001f), 0.f, 1.f);
+                for (std::size_t i = 0; i < validPeds.size() && i < positions.size(); ++i) {
+                    const auto it = std::find(previousSnapshot.validPeds.begin(),
+                                              previousSnapshot.validPeds.end(), validPeds[i]);
+                    if (it == previousSnapshot.validPeds.end()) continue;
+                    const auto oldIndex = static_cast<std::size_t>(it - previousSnapshot.validPeds.begin());
+                    if (oldIndex >= previousSnapshot.positions.size()) continue;
+                    const Vec3& a = previousSnapshot.positions[oldIndex];
+                    const Vec3& b = currentSnapshot.positions[i];
+                    positions[i] = a + (b - a) * t;
+                    // At most 8 ms of bounded prediction after the interpolation
+                    // window.  This only bridges a late sample and cannot run on.
+                    if (elapsed > interval && interval > .001f) {
+                        const float lead = (std::min)(elapsed - interval, .008f);
+                        const Vec3 velocity = (b - a) * (1.f / interval);
+                        positions[i] = b + velocity * lead;
+                    }
+                }
             }
 
             renderESP();
@@ -267,7 +312,12 @@ namespace FiveM {
                 g_pedCacheManager.update();
             }
 
+            const float frameMs = std::chrono::duration<float, std::milli>(
+                currentTime - lastFrameTime).count();
             lastFrameTime = currentTime;
+            const float renderMs = OmniGhost::Gameplay::TimeMs(renderBegin);
+            OmniGhost::Gameplay::PipelineTelemetry::Smooth(s_pipelineMetrics.render_ms, renderMs);
+            s_pipelineMetrics.RecordFrame(frameMs);
         }
 
         // Producer-side data collection.

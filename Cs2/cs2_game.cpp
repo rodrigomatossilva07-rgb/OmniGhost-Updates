@@ -10,6 +10,7 @@
 #include "Memory/Memory.h"
 #include "globals.h"
 #include "gameplay/esp_core.h"
+#include "gameplay/frame_pipeline.h"
 
 #include <Windows.h>
 #include <TlHelp32.h>
@@ -76,6 +77,7 @@ std::atomic<float> g_presentation_fps{0.f};
 std::atomic<uint64_t> g_last_snapshot_publish_ms{0};
 std::atomic<float> g_acquisition_hz{0.f};
 std::thread g_acquisition_thread;
+OmniGhost::Gameplay::PipelineTelemetry g_pipeline_metrics;
 
 void PublishRuntimeSnapshot() {
     const uint64_t now = GetTickCount64();
@@ -84,6 +86,7 @@ void PublishRuntimeSnapshot() {
         g_acquisition_hz.store(1000.0f / static_cast<float>(now - previous), std::memory_order_relaxed);
     runtime.snapshot_timestamp_ms = now;
     runtime.acquisition_hz = g_acquisition_hz.load(std::memory_order_relaxed);
+    runtime.snapshot_interval_ms = previous && now > previous ? static_cast<float>(now - previous) : 0.f;
     auto slot = g_runtime_snapshots.TryBeginWrite();
     if (!slot) return; // renderer still owns both spare slots; never wait
     *slot.value = runtime;
@@ -260,6 +263,7 @@ void LoadSchemaOffsets(const std::string& schema) {
     JsonClassU64(schema, "CCSPlayerController", "m_iPawnHealth", offsets.m_iPawnHealth);
     JsonClassU64(schema, "CCSPlayerController", "m_iPawnArmor", offsets.m_iPawnArmor);
     JsonClassU64(schema, "CBasePlayerController", "m_iszPlayerName", offsets.m_iszPlayerName);
+    JsonClassU64(schema, "CBasePlayerController", "m_steamID", offsets.m_steamID);
     JsonClassU64(schema, "CCSPlayerController", "m_sSanitizedPlayerName", offsets.m_sSanitizedPlayerName);
     JsonClassU64(schema, "CCSPlayerController", "m_bPawnIsAlive", offsets.m_bPawnIsAlive);
     JsonClassU64(schema, "C_CSPlayerPawn", "m_ArmorValue", offsets.m_ArmorValue);
@@ -2467,17 +2471,49 @@ static void RunFrameWithConfig(const Config& frame_config) {
         runtime.in_match = true;
     runtime.player_count = static_cast<int>(runtime.players.size());
 
-    // Who is spectating the local player (deathcam / observer target → local pawn).
+    // Spectator target follows the player's actual point of view.  When alive
+    // that is the local pawn; when dead it is the pawn currently being watched.
+    // Walk controllers instead of runtime.players: the latter intentionally
+    // contains only alive, drawable pawns and used to discard spectators.
     runtime.spectators.clear();
     runtime.spectator_count = 0;
+    runtime.spectator_target = runtime.local_pawn;
+    runtime.spectator_target_name[0] = '\0';
     if (frame_config.spectator_list && runtime.local_pawn &&
         offsets.m_pObserverServices && offsets.m_hObserverTarget) {
-        for (auto& p : runtime.players) {
-            p.is_spectator = false;
-            if (p.is_local || !p.pawn || !IsUserPointer(p.pawn))
+        if (runtime.local_health <= 0) {
+            uintptr_t local_services = 0;
+            uint32_t watched_handle = 0;
+            if (QReadT(runtime.local_pawn + offsets.m_pObserverServices, local_services) &&
+                IsUserPointer(local_services) &&
+                QReadT(local_services + offsets.m_hObserverTarget, watched_handle)) {
+                const uintptr_t watched = ResolveEntityByHandle(
+                    watched_handle, g_pawn_stride ? g_pawn_stride : kEntityIdentityStride);
+                if (IsUserPointer(watched)) runtime.spectator_target = watched;
+            }
+        }
+        for (const auto& live : runtime.players) {
+            if (live.pawn == runtime.spectator_target) {
+                std::snprintf(runtime.spectator_target_name,
+                    sizeof(runtime.spectator_target_name), "%s", live.name);
+                break;
+            }
+        }
+
+        for (int i = 0; i < kMaxSlots; ++i) {
+            const uintptr_t controller = controllers[i];
+            if (!IsUserPointer(controller) || controller == runtime.local_controller)
                 continue;
+            uint32_t observer_handle = 0;
+            if (!offsets.m_hObserverPawn ||
+                !QReadT(controller + offsets.m_hObserverPawn, observer_handle) ||
+                !observer_handle || observer_handle == 0xFFFFFFFFu)
+                continue;
+            const uintptr_t observer_pawn = ResolveEntityByHandle(
+                observer_handle, g_pawn_stride ? g_pawn_stride : kEntityIdentityStride);
+            if (!IsUserPointer(observer_pawn)) continue;
             uintptr_t services = 0;
-            if (!QReadT(p.pawn + offsets.m_pObserverServices, services) ||
+            if (!QReadT(observer_pawn + offsets.m_pObserverServices, services) ||
                 !services || !IsUserPointer(services))
                 continue;
             uint32_t target_handle = 0;
@@ -2488,10 +2524,20 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 target_handle, g_pawn_stride ? g_pawn_stride : kEntityIdentityStride);
             if (!target)
                 continue;
-            if (target == runtime.local_pawn ||
-                (runtime.local_controller && target == runtime.local_controller)) {
-                p.is_spectator = true;
-                runtime.spectators.push_back(p);
+            if (target == runtime.spectator_target) {
+                Player spectator{};
+                spectator.controller = controller;
+                spectator.pawn = observer_pawn;
+                spectator.is_spectator = true;
+                spectator.alive = false;
+                if (offsets.m_steamID)
+                    QReadT(controller + offsets.m_steamID, spectator.steam_id);
+                QRead(controller + offsets.m_iszPlayerName,
+                    spectator.name, sizeof(spectator.name) - 1);
+                spectator.name[sizeof(spectator.name) - 1] = '\0';
+                if (!spectator.name[0])
+                    std::snprintf(spectator.name, sizeof(spectator.name), "Jogador_%d", i + 1);
+                runtime.spectators.push_back(spectator);
             }
         }
         runtime.spectator_count = static_cast<int>(runtime.spectators.size());
@@ -2601,10 +2647,19 @@ void EnsureAcquisitionStarted() {
     g_acquisition_stop.store(false, std::memory_order_release);
     PublishRuntimeSnapshot();
     g_acquisition_thread = std::thread([] {
+        OmniGhost::Gameplay::FixedRateScheduler scheduler;
         while (!g_acquisition_stop.load(std::memory_order_acquire)) {
+            const auto acquire_begin = std::chrono::steady_clock::now();
             try {
                 auto frame_config = g_config_snapshots.Acquire();
                 RunFrameWithConfig(*frame_config);
+                runtime.acquisition_ms = OmniGhost::Gameplay::TimeMs(acquire_begin);
+                // Processing is deliberately kept producer-side and currently
+                // consists of validation/cache assembly included in RunFrame.
+                runtime.processing_ms = runtime.acquisition_ms;
+                OmniGhost::Gameplay::PipelineTelemetry::Smooth(
+                    g_pipeline_metrics.acquire_ms, runtime.acquisition_ms);
+                g_pipeline_metrics.entities.store(runtime.player_count, std::memory_order_relaxed);
                 PublishRuntimeSnapshot();
             } catch (const std::exception& ex) {
                 std::cerr << "[CS2] acquisition exception: " << ex.what() << std::endl;
@@ -2620,11 +2675,13 @@ void EnsureAcquisitionStarted() {
             int delayMs = 16;
             if (runtime.in_match) {
                 const float fps = g_presentation_fps.load(std::memory_order_relaxed);
-                delayMs = (fps > 1.f && fps < 45.f) ? 6
-                        : (fps > 1.f && fps < 80.f) ? 4
-                        : 2;
+                // Fast lane target: ~6 ms.  Do not oversample DMA when the
+                // presentation thread is already under pressure.
+                delayMs = (fps > 1.f && fps < 45.f) ? 10
+                        : (fps > 1.f && fps < 70.f) ? 8
+                        : 6;
             }
-            std::this_thread::sleep_for(std::chrono::milliseconds(delayMs));
+            scheduler.Wait(std::chrono::milliseconds(delayMs));
         }
     });
 }

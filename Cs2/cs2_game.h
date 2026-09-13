@@ -31,6 +31,7 @@ struct Offsets {
     uintptr_t m_iPawnArmor = 0x924;
     uintptr_t m_iszPlayerName = 0x6F4;
     uintptr_t m_sSanitizedPlayerName = 0x868;
+    uintptr_t m_steamID = 0x780;
     uintptr_t m_bPawnIsAlive = 0x91C;
     // C_CSPlayerPawn fields for build 14174
     uintptr_t m_ArmorValue = 0x1CA4;
@@ -109,6 +110,7 @@ struct Player {
     bool bones_ok = false;
     bool spotted = true; // m_bSpotted (EntitySpottedState_t)
     int ent_index = 0;
+    uint64_t steam_id = 0;
 };
 
 struct BombState {
@@ -147,11 +149,16 @@ struct Runtime {
     int controller_count = 0;
     int pawn_count = 0;
     int spectator_count = 0;
+    uintptr_t spectator_target = 0;
+    char spectator_target_name[64]{};
     uint32_t build_number = 0;
     uint64_t frames = 0;
     uint64_t read_fails = 0;
     uint64_t snapshot_timestamp_ms = 0;
     float acquisition_hz = 0.f;
+    float acquisition_ms = 0.f;
+    float processing_ms = 0.f;
+    float snapshot_interval_ms = 0.f;
     float fps = 0.f;
     int entity_cap_used = 0;
     bool offsets_self_test_ok = false;
