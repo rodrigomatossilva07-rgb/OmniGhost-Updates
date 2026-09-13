@@ -355,8 +355,8 @@ void DrawSaveConfigs()
     CyberWidgets::EndCard();
 
     CyberWidgets::BeginCard(Loc::Tr("save.list"));
-    CyberWidgets::TextLine(app_settings::T("Arrasta para reordenar — a do topo carrega ao iniciar",
-                                          "Drag to reorder — the top entry loads at startup"),
+    CyberWidgets::TextLine(app_settings::T("Duplo clique para marcar favorito — a estrela carrega ao iniciar",
+                                          "Double-click to favorite — the starred config loads at startup"),
         CyberWidgets::TextTone::Secondary);
     CyberWidgets::BeginSurfaceList("##config_list", 240.0f);
     int moveFrom = -1, moveTo = -1;
@@ -373,6 +373,8 @@ void DrawSaveConfigs()
         if (hovered)
             dl->AddRectFilled(row, ImVec2(row.x + row_width, row.y + rowH), IM_COL32(212, 175, 55, 20), 4.f);
 
+        const bool toggle_favorite = hovered && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left);
+
         if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceAllowNullID)) {
             ImGui::SetDragDropPayload("CFG_ORDER", &i, sizeof(int));
             ImGui::Text("%s", cfg.name.c_str());
@@ -386,15 +388,14 @@ void DrawSaveConfigs()
             ImGui::EndDragDropTarget();
         }
 
-        if (i == 0) {
-            dl->AddText(ImVec2(row.x + 2.0f, row.y + 2.0f),
-                CyberTheme::U32(CyberTheme::Colors.Success), "STARTUP");
-            dl->AddText(ImVec2(row.x + 2.0f, row.y + 16.0f),
-                CyberTheme::U32(CyberTheme::Colors.Gold), cfg.name.c_str());
-        } else {
-            dl->AddText(ImVec2(row.x + 2.0f, row.y + 10.0f),
-                CyberTheme::U32(CyberTheme::Colors.Gold), cfg.name.c_str());
+        float name_x = row.x + 2.0f;
+        if (cfg.favorite) {
+            dl->AddText(ImVec2(name_x, row.y + 9.0f),
+                CyberTheme::U32(CyberTheme::Colors.Gold), "★");
+            name_x += 18.0f;
         }
+        dl->AddText(ImVec2(name_x, row.y + 10.0f),
+            CyberTheme::U32(CyberTheme::Colors.Gold), cfg.name.c_str());
         dl->AddText(ImVec2(row.x + row_width * 0.32f, row.y + 10.0f),
             CyberTheme::U32(CyberTheme::Colors.TextDisabled), cfg.date_str.c_str());
 
@@ -412,6 +413,16 @@ void DrawSaveConfigs()
         if (CyberWidgets::GoldButton(Loc::TrID("common.load"), ImVec2(load_width, 32.0f))) {
             config_manager::LoadFromFile(cfg.name);
             CyberWidgets::Notify(Loc::Tr("status.config_loaded"), CyberWidgets::ToastType::Success);
+        }
+        if (toggle_favorite) {
+            const bool favorite = config_manager::ToggleFavoriteConfig(cfg.name);
+            CyberWidgets::Notify(favorite
+                ? app_settings::T("Config favorita definida", "Favorite config selected")
+                : app_settings::T("Favorito removido", "Favorite removed"),
+                favorite ? CyberWidgets::ToastType::Success : CyberWidgets::ToastType::Info);
+            ImGui::SetCursorScreenPos(ImVec2(row.x, row.y + rowH + 2.0f));
+            ImGui::PopID();
+            break;
         }
         ImGui::SetCursorScreenPos(ImVec2(row.x, row.y + rowH + 2.0f));
         ImGui::PopID();

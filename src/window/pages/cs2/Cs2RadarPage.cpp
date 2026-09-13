@@ -56,6 +56,31 @@ void DrawCs2Radar() {
     CyberWidgets::CardGap(gap);
     CyberWidgets::BeginCard("WEB RADAR", left);
     const bool was = CS2::config.webradar_enabled;
+
+    CyberWidgets::Separator();
+    CyberWidgets::SectionTitle("ESPECTADORES");
+    CompactToggle("spectator_list", "Lista de quem te observa", &CS2::config.spectator_list, controlWidth);
+    if (CS2::config.spectator_list) {
+        const auto snap = CS2::AcquireRuntimeSnapshot();
+        char spec_line[64];
+        const int spectator_count = snap ? snap->spectator_count : 0;
+        std::snprintf(spec_line, sizeof(spec_line), "A observar-te agora: %d", spectator_count);
+        CyberWidgets::TextLine(spec_line, CyberWidgets::TextTone::Secondary);
+        CyberWidgets::TextLine(
+            "Janela no canto superior direito do overlay (in-game).",
+            CyberWidgets::TextTone::Secondary);
+        if (snap && snap->spectator_count > 0) {
+            int shown = 0;
+            for (const auto& sp : snap->spectators) {
+                if (shown >= 8) break;
+                char row[80];
+                std::snprintf(row, sizeof(row), "  - %s", sp.name[0] ? sp.name : "Jogador");
+                CyberWidgets::TextLine(row, CyberWidgets::TextTone::Secondary);
+                ++shown;
+            }
+        }
+    }
+
     CompactToggle("webradar", "Ativar Web Radar", &CS2::config.webradar_enabled, controlWidth);
     if (CS2::config.webradar_enabled != was && CS2::config.webradar_enabled) {
         if (CS2::WebRadar::Start(CS2::config.webradar_port))

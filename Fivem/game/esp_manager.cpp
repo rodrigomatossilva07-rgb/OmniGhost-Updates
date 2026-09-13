@@ -262,8 +262,6 @@ namespace FiveM {
 
             vehicle_esp::Run();
             aimbot::Run();
-            config_manager::TickAutoSave();
-
             if (!validPeds.empty() && esp::get_use_cache() && !app_settings::config.performance_mode) {
                 g_pedCacheManager.fastCache(validPeds, positions);
                 g_pedCacheManager.update();

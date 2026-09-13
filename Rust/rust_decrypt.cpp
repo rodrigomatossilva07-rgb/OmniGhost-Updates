@@ -20,10 +20,6 @@ void SetGameAssembly(uintptr_t ga) { g_ga = ga; }
 static bool ReadU64(uintptr_t a, uint64_t& o) {
     return mem.Read(a, &o, sizeof(o));
 }
-static bool ReadI32(uintptr_t a, int32_t& o) {
-    return mem.Read(a, &o, sizeof(o));
-}
-
 static uint32_t Rol32(uint32_t v, uint32_t r) {
     r &= 31u;
     return r ? ((v << r) | (v >> (32u - r))) : v;

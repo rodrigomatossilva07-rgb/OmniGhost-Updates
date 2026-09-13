@@ -1,6 +1,7 @@
 #include "../../widgets.h"
 #include "cs2_game.h"
 #include "cs2_config.h"
+#include "config/config_manager.h"
 #include "imgui.h"
 #include <cstdio>
 
@@ -44,14 +45,14 @@ void DrawCs2Misc()
 
     CardGap();
     BeginCard("Configuração local", 0.f);
-    TextLine("Ferramentas rápidas para o perfil CS2. Os perfis comuns ficam na página Perfis.", TextTone::Secondary);
+    TextLine("Ferramentas rápidas para o perfil CS2 ativo. Os perfis completos ficam na página Perfis.", TextTone::Secondary);
     if (CyberButton("Guardar config CS2", ImVec2(180, 32))) {
-        CS2::SaveConfig("cs2_default");
+        CS2::SaveConfig(config_manager::ActiveConfigName());
         Notify("Config CS2 guardada", ToastType::Success);
     }
     ImGui::SameLine();
     if (CyberButton("Carregar config CS2", ImVec2(180, 32))) {
-        CS2::LoadConfig("cs2_default");
+        CS2::LoadConfig(config_manager::ActiveConfigName());
         Notify("Config CS2 carregada", ToastType::Info);
     }
     ImGui::SameLine();
@@ -59,7 +60,7 @@ void DrawCs2Misc()
         CS2::config = CS2::Config{};
         Notify("Config CS2 reposta", ToastType::Warning);
     }
-    TextLine("Guardado em %LocalAppData%\\OmniGhost\\CS2", TextTone::Secondary);
+    TextLine("Usa o mesmo sistema completo e seguro da página Perfis.", TextTone::Secondary);
     EndCard();
 
     ImGui::PopID();

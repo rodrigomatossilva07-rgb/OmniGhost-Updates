@@ -139,7 +139,10 @@
       <OmniGhostVcRuntimeLibrary Include="$(VCToolsRedistDir)\x64\Microsoft.VC*.CRT\concrt*.dll"/>
     </ItemGroup>
     <Error Condition="'@(OmniGhostLibRuntimeLibrary)'==''" Code="OGLIB001" Text="A pasta libs nÃ£o contÃ©m DLLs. Coloca a pasta libs na raiz do OmniGhost antes de compilar."/>
-    <Error Condition="'@(OmniGhostDmaRuntimeLibrary)'==''" Code="OGDLL001" Text="A stack canÃ³nica libs nÃ£o contÃ©m as DLLs de runtime necessÃ¡rias."/>
+    <!-- A project-owned third_party bundle is optional. The validated local
+         libs\ bundle is the supported fallback and is enough for Tester. -->
+    <Error Condition="!Exists('$(ProjectDir)libs\vmm.dll') And !Exists('$(ProjectDir)third_party\dma_stack\bin\vmm.dll')" Code="OGDLL001" Text="Nenhuma cópia de vmm.dll foi encontrada em libs\ ou third_party\dma_stack\bin\."/>
+    <Error Condition="!Exists('$(ProjectDir)libs\leechcore.dll') And !Exists('$(ProjectDir)third_party\dma_stack\bin\leechcore.dll')" Code="OGDLL001" Text="Nenhuma cópia de leechcore.dll foi encontrada em libs\ ou third_party\dma_stack\bin\."/>
     <MakeDir Directories="$(OutDir)data;$(OutDir)data\runtime;$(OutDir)resources"/>
     <MakeDir Directories="$(OutDir)plugins" Condition="'@(OmniGhostDmaPlugin)'!=''"/>
     <MakeDir Directories="$(OutDir)resources\games" Condition="'@(OmniGhostGameResource)'!=''"/>

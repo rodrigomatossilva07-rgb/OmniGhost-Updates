@@ -4,6 +4,7 @@
 #include "../globals.h"
 #include "../makcu/makcu_wrapper.h"
 #include "../platform/offset_auto.h"
+#include "../config/config_manager.h"
 #include "../../Cs2/cs2_game.h"
 #include "../../Cs2/cs2_esp.h"
 #include "../../Cs2/cs2_aim.h"
@@ -123,6 +124,7 @@ private:
 bool StartCs2() {
     try {
         g_activeGame = ActiveGame::CS2;
+        config_manager::ActivateCurrentGameConfig();
         return CS2::Attach();
     } catch (const std::exception& ex) {
         std::cerr << "[CS2] CRASH em StartCs2: " << ex.what() << std::endl;
@@ -308,6 +310,7 @@ IGameAdapter* FindGameAdapter(::Launcher::GameId game) noexcept {
             Fortnite::RunAim();
         },
         FortniteIsAlive, FortniteValidateOffsets, FortniteTerminationReason, FortniteGameId);
+
     static FunctionGameAdapter rust({ ::Launcher::GameId::Rust, "Rust", AdapterMaturity::Beta,
         Capability::Menu | Capability::ReadOnlyMemory | Capability::Overlay },
         StartRustAdapter, [] { Rust::Shutdown(); Rust::ready = false; },

@@ -8,7 +8,11 @@
       <PreprocessorDefinitions>OMNIGHOST_TESTER_BUILD=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ResourceCompile>
     <Link>
-      <LinkTimeCodeGeneration>Incremental</LinkTimeCodeGeneration>
+      <!-- Incremental is a LinkIncremental value, not a valid LTCG mode in
+           current MSVC toolsets. Keep Tester fast without passing an invalid
+           value to link.exe. -->
+      <LinkTimeCodeGeneration>Default</LinkTimeCodeGeneration>
+      <LinkIncremental>true</LinkIncremental>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(EnableAddressSanitizer)'=='true'">

@@ -25,6 +25,8 @@ struct Offsets {
     uintptr_t m_vOldOrigin = 0x13B8;
     uintptr_t m_hPlayerPawn = 0x914;
     uintptr_t m_hObserverPawn = 0x918;
+    uintptr_t m_pObserverServices = 0x1220; // C_CSPlayerPawn → CPlayer_ObserverServices*
+    uintptr_t m_hObserverTarget = 0x4C;   // CPlayer_ObserverServices
     uintptr_t m_iPawnHealth = 0x920;
     uintptr_t m_iPawnArmor = 0x924;
     uintptr_t m_iszPlayerName = 0x6F4;

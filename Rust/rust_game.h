@@ -71,7 +71,8 @@ struct Runtime {
     bool attached = false;
     bool ready = false;
     bool matrix_ok = false;
-    DWORD pid = 0;
+    // Avoid a Windows SDK dependency in a shared runtime data structure.
+    uint32_t pid = 0;
     uintptr_t game_assembly = 0;
     uintptr_t dtb = 0;
     float view_matrix[16]{};

@@ -16,6 +16,7 @@
 #include "onboarding.h"
 #include "changelog.h"
 #include "../config/app_settings.h"
+#include "../config/config_manager.h"
 #include "../platform/app_paths.h"
 #include "../platform/monitor_utils.h"
 #include "../platform/text_encoding.h"
@@ -275,6 +276,10 @@ static MenuTab DefaultTabForGame(OmniGhost::ActiveGame game) {
 
 void Overlay::Render()
 {
+    // Config persistence is game-independent. Keep ticking even while the menu
+    // is hidden so a change made just before closing it is still committed.
+    config_manager::TickAutoSave();
+
     auto& ctx = OmniGhost::GameContext::Instance();
     static OmniGhost::ActiveGame tab_game = ctx.GetActiveGame();
     static MenuTab current_tab = DefaultTabForGame(ctx.GetActiveGame());

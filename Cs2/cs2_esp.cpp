@@ -37,11 +37,13 @@ bool W2S(const float* world, const float* vm, float& sx, float& sy);
 struct VisualPlayerState {
     float position[3]{};
     float raw_position[3]{};
+    float bone_positions[CS2::kBoneSlotCount][3]{};
     CS2::Player output{};
     double sample_time = 0.0;
     double last_seen = 0.0;
     int last_frame = -1;
     bool initialized = false;
+    bool bones_initialized = false;
 };
 
 CS2::Player SmoothPlayerForPresentation(const CS2::Player& raw) {
@@ -69,12 +71,12 @@ CS2::Player SmoothPlayerForPresentation(const CS2::Player& raw) {
     const float distance_sq = dx * dx + dy * dy + dz * dz;
     const bool invalid = !std::isfinite(raw.pos[0]) || !std::isfinite(raw.pos[1]) || !std::isfinite(raw.pos[2]);
     constexpr float kTeleportDistance = 192.f;
+    const float dt = std::clamp(ImGui::GetIO().DeltaTime, 0.001f, 0.050f);
 
     if (!state.initialized || invalid || distance_sq > kTeleportDistance * kTeleportDistance) {
         std::copy(std::begin(raw.pos), std::end(raw.pos), state.position);
         state.initialized = !invalid;
     } else {
-        const float dt = std::clamp(ImGui::GetIO().DeltaTime, 0.001f, 0.050f);
         constexpr float kSmoothingSeconds = 0.026f;
         const float alpha = 1.f - std::exp(-dt / kSmoothingSeconds);
         const float sample_age = static_cast<float>(std::clamp(now - state.sample_time, 0.0, 0.024));
@@ -97,9 +99,23 @@ CS2::Player SmoothPlayerForPresentation(const CS2::Player& raw) {
         state.output.head[axis] += shift[axis];
     }
     if (state.output.bones_ok) {
-        for (std::size_t bone = 0; bone < CS2::kBoneSlotCount; ++bone)
-            for (int axis = 0; axis < 3; ++axis)
-                state.output.bones[bone][axis] += shift[axis];
+        constexpr float kBoneSmoothingSeconds = 0.018f;
+        const float bone_alpha = 1.f - std::exp(-dt / kBoneSmoothingSeconds);
+        for (std::size_t bone = 0; bone < CS2::kBoneSlotCount; ++bone) {
+            for (int axis = 0; axis < 3; ++axis) {
+                const float target = raw.bones[bone][axis] + shift[axis];
+                const float delta = target - state.bone_positions[bone][axis];
+                if (!state.bones_initialized || !std::isfinite(delta) || std::fabs(delta) > 64.f)
+                    state.bone_positions[bone][axis] = target;
+                else
+                    state.bone_positions[bone][axis] += delta * bone_alpha;
+                state.output.bones[bone][axis] = state.bone_positions[bone][axis];
+            }
+        }
+        state.bones_initialized = true;
+        std::memcpy(state.output.head, state.output.bones[0], sizeof(state.output.head));
+    } else {
+        state.bones_initialized = false;
     }
     state.last_seen = now;
     state.last_frame = frame;
@@ -368,7 +384,7 @@ void DrawSpectatorList(ImDrawList* dl, const CS2::Runtime& rt) {
     dl->AddRectFilled(ImVec2(x - 8.f, y - 4.f), ImVec2(ds.x - 12.f, y + 20.f + 14.f * 12),
         IM_COL32(8, 8, 10, 160), 4.f);
     char title[48];
-    std::snprintf(title, sizeof(title), "Spectators (%d)", rt.spectator_count);
+    std::snprintf(title, sizeof(title), "A observar-te (%d)", rt.spectator_count);
     dl->AddText(ImVec2(x, y), IM_COL32(212, 175, 55, 255), title);
     y += 18.f;
     int shown = 0;
@@ -384,7 +400,7 @@ void DrawSpectatorList(ImDrawList* dl, const CS2::Runtime& rt) {
         if (++shown >= 12) break;
     }
     if (shown == 0)
-        dl->AddText(ImVec2(x, y), IM_COL32(120, 120, 120, 180), "(nenhum)");
+        dl->AddText(ImVec2(x, y), IM_COL32(120, 120, 120, 180), "(ninguem a observar)");
 }
 
 // Directional arrow around the FOV ring. Always drawn for every match player
@@ -637,9 +653,9 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
         }
         const ImU32 teamCol = Col(colVis);
 
-        // Anchor the box to the current pawn origin. Bone snapshots can be a
-        // fraction of a tick older while a player is moving and must not drag
-        // the entire box/name away from the entity.
+        // Prefer the current animated pose for crouching, jumping and leaning.
+        // Fall back to the conventional 72-unit standing hull when no validated
+        // skeleton is available.
         const float boxHead[3] = { p.pos[0], p.pos[1], p.pos[2] + 72.f };
         const float boxFeet[3] = { p.pos[0], p.pos[1], p.pos[2] };
         float hx, hy, fx, fy;
@@ -650,10 +666,38 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
         float h = fabsf(fy - hy);
         if (h < 8.f) h = 8.f;
         float w = h * 0.42f;
+        if (p.bones_ok) {
+            float headX = 0.f, headY = 0.f, pelvisX = 0.f, pelvisY = 0.f;
+            float shoulderLX = 0.f, shoulderLY = 0.f, shoulderRX = 0.f, shoulderRY = 0.f;
+            float hipLX = 0.f, hipLY = 0.f, hipRX = 0.f, hipRY = 0.f;
+            float ankleLX = 0.f, ankleLY = 0.f, ankleRX = 0.f, ankleRY = 0.f;
+            const bool pose_ok =
+                W2S(p.bones[0], rt.view_matrix, headX, headY) &&
+                W2S(p.bones[5], rt.view_matrix, pelvisX, pelvisY) &&
+                W2S(p.bones[7], rt.view_matrix, shoulderLX, shoulderLY) &&
+                W2S(p.bones[11], rt.view_matrix, shoulderRX, shoulderRY) &&
+                W2S(p.bones[14], rt.view_matrix, hipLX, hipLY) &&
+                W2S(p.bones[17], rt.view_matrix, hipRX, hipRY) &&
+                W2S(p.bones[16], rt.view_matrix, ankleLX, ankleLY) &&
+                W2S(p.bones[19], rt.view_matrix, ankleRX, ankleRY);
+            if (pose_ok) {
+                const float pose_bottom = (std::max)(ankleLY, ankleRY);
+                const float pose_h = pose_bottom - headY;
+                if (pose_h >= 8.f && pose_h < ImGui::GetIO().DisplaySize.y * 1.5f) {
+                    hx = (headX + pelvisX) * 0.5f;
+                    hy = headY;
+                    fy = pose_bottom;
+                    h = pose_h;
+                    const float body_left = (std::min)({shoulderLX, shoulderRX, hipLX, hipRX});
+                    const float body_right = (std::max)({shoulderLX, shoulderRX, hipLX, hipRX});
+                    w = (std::max)(h * 0.32f, (body_right - body_left) * 1.20f);
+                }
+            }
+        }
         float left = hx - w * 0.5f;
         float right = hx + w * 0.5f;
-        float top = hy - h * 0.10f; // slight head padding
-        float bottom = fy;
+        float top = hy - h * 0.08f;
+        float bottom = fy + h * 0.025f;
 
         // Do not run cosmetic or bone work for an entity wholly outside the
         // drawable area.  Off-screen arrows were handled above, so this does

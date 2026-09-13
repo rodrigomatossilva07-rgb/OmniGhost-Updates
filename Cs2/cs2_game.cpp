@@ -255,6 +255,8 @@ void LoadSchemaOffsets(const std::string& schema) {
     JsonClassU64(schema, "C_BasePlayerPawn", "m_vOldOrigin", offsets.m_vOldOrigin);
     JsonClassU64(schema, "CCSPlayerController", "m_hPlayerPawn", offsets.m_hPlayerPawn);
     JsonClassU64(schema, "CCSPlayerController", "m_hObserverPawn", offsets.m_hObserverPawn);
+    JsonClassU64(schema, "C_CSPlayerPawn", "m_pObserverServices", offsets.m_pObserverServices);
+    JsonClassU64(schema, "CPlayer_ObserverServices", "m_hObserverTarget", offsets.m_hObserverTarget);
     JsonClassU64(schema, "CCSPlayerController", "m_iPawnHealth", offsets.m_iPawnHealth);
     JsonClassU64(schema, "CCSPlayerController", "m_iPawnArmor", offsets.m_iPawnArmor);
     JsonClassU64(schema, "CBasePlayerController", "m_iszPlayerName", offsets.m_iszPlayerName);
@@ -1614,7 +1616,17 @@ static void RunFrameWithConfig(const Config& frame_config) {
     // Keep last-good player snapshot when entity list briefly fails (prevents
     // ESP/aim going empty for 1–2 frames on ListEntry null flicker).
     static std::vector<Player> last_good_players;
-    static int last_good_age = 0;
+    static uint64_t last_good_ms = 0;
+    struct RecentPlayer {
+        Player player{};
+        uint64_t last_seen_ms = 0;
+    };
+    struct CachedBones {
+        float joints[kBoneSlotCount][3]{};
+        uint64_t last_valid_ms = 0;
+    };
+    static std::unordered_map<uintptr_t, RecentPlayer> recent_players;
+    static std::unordered_map<uintptr_t, CachedBones> bone_cache;
     runtime.player_count = 0;
     runtime.enemy_count = 0;
     runtime.controller_count = 0;
@@ -1640,6 +1652,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
         runtime.entity_list_entry = 0;
         runtime.entity_list_addr = 0;
         runtime.bomb = BombState{};
+        recent_players.clear();
+        bone_cache.clear();
         runtime.players.clear();
         runtime.player_count = 0;
         runtime.pawn_count = 0;
@@ -1792,10 +1806,10 @@ static void RunFrameWithConfig(const Config& frame_config) {
     if (!RefreshEntityListEntry()) {
         // Hold last-good ESP/aim targets briefly so the overlay does not blink
         // off when ListEntry is transiently null after map/round changes.
-        if (!last_good_players.empty() && last_good_age < 90) {
+        const uint64_t now_ms = GetTickCount64();
+        if (!last_good_players.empty() && now_ms - last_good_ms <= 350u) {
             runtime.players = last_good_players;
             runtime.player_count = static_cast<int>(runtime.players.size());
-            ++last_good_age;
         }
         return;
     }
@@ -1923,7 +1937,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
     bool nameNeedsRefresh[kMaxSlots]{};
     struct CachedName {
         std::array<char, 64> text{};
-        uint64_t lastRefresh = 0;
+        uint64_t last_refresh_ms = 0;
     };
     static std::unordered_map<uintptr_t, CachedName> nameCache;
     uintptr_t boneBases[kMaxSlots]{};
@@ -1933,16 +1947,16 @@ static void RunFrameWithConfig(const Config& frame_config) {
     uintptr_t weaponEntities[kMaxSlots]{};
     uint16_t weaponDefinitions[kMaxSlots]{};
     bool weaponDefinitionRead[kMaxSlots]{};
-    struct CachedWeaponDefinition { uint16_t definition = 0; uint64_t lastRefresh = 0; };
+    struct CachedWeaponDefinition { uint16_t definition = 0; uint64_t last_refresh_ms = 0; };
     static std::unordered_map<uintptr_t, CachedWeaponDefinition> weaponDefinitionCache;
+    const uint64_t scan_now_ms = GetTickCount64();
     if ((runtime.frames % 600u) == 0u) {
-        const auto stale_before = runtime.frames > 5000u ? runtime.frames - 5000u : 0u;
         for (auto it = nameCache.begin(); it != nameCache.end();) {
-            if (it->second.lastRefresh < stale_before) it = nameCache.erase(it);
+            if (scan_now_ms - it->second.last_refresh_ms > 30000u) it = nameCache.erase(it);
             else ++it;
         }
         for (auto it = weaponDefinitionCache.begin(); it != weaponDefinitionCache.end();) {
-            if (it->second.lastRefresh < stale_before) it = weaponDefinitionCache.erase(it);
+            if (scan_now_ms - it->second.last_refresh_ms > 30000u) it = weaponDefinitionCache.erase(it);
             else ++it;
         }
     }
@@ -1961,7 +1975,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 const uintptr_t controller = controllers[controllerSlot];
                 const auto cached = nameCache.find(controller);
                 if (cached != nameCache.end() && cached->second.text[0] &&
-                    runtime.frames - cached->second.lastRefresh < 250) {
+                    scan_now_ms - cached->second.last_refresh_ms < 2000u) {
                     std::memcpy(playerNames[c], cached->second.text.data(),
                                 sizeof(playerNames[c]));
                 } else if (controller) {
@@ -1983,7 +1997,23 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 // Do not reject it using an approximate origin/frustum test:
                 // near screen edges that test could suppress every bone even
                 // though the pawn itself was visible in the final projection.
-                boneReadEligible[c] = IsUserPointer(boneBases[c]);
+                bool sample_this_scan = true;
+                if (frame_config.skeleton_lod && frame_config.skeleton_lod_distance > 1.f &&
+                    IsFinitePosition(positions[c])) {
+                    const float lod_dx = positions[c][0] - runtime.local_pos[0];
+                    const float lod_dy = positions[c][1] - runtime.local_pos[1];
+                    const float lod_dz = positions[c][2] - runtime.local_pos[2];
+                    const float lod_units = frame_config.skeleton_lod_distance * 39.37f;
+                    if (lod_dx * lod_dx + lod_dy * lod_dy + lod_dz * lod_dz > lod_units * lod_units) {
+                        const uintptr_t pawn_key = resolved_pawns[c];
+                        const bool have_recent = bone_cache.find(pawn_key) != bone_cache.end();
+                        // Stagger distant pawns across four scans. Always acquire
+                        // the first valid skeleton before allowing LOD reuse.
+                        sample_this_scan = !have_recent ||
+                            ((runtime.frames + (pawn_key >> 4)) & 3u) == 0u;
+                    }
+                }
+                boneReadEligible[c] = sample_this_scan && IsUserPointer(boneBases[c]);
                 if (boneReadEligible[c] && IsUserPointer(boneBases[c])) {
                     mem.AddScatterReadRequest(g_scatter, boneBases[c], boneSnapshots[c],
                                               sizeof(boneSnapshots[c]));
@@ -2008,7 +2038,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 if (!IsUserPointer(weaponEntities[c])) continue;
                 const auto cached = weaponDefinitionCache.find(weaponEntities[c]);
                 if (cached != weaponDefinitionCache.end() && cached->second.definition > 0 &&
-                    runtime.frames - cached->second.lastRefresh < 1250) {
+                    scan_now_ms - cached->second.last_refresh_ms < 5000u) {
                     weaponDefinitions[c] = cached->second.definition;
                     continue;
                 }
@@ -2039,7 +2069,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 const uintptr_t controller = controllers[controllerSlot];
                 const auto cached = nameCache.find(controller);
                 if (cached != nameCache.end() && cached->second.text[0] &&
-                    runtime.frames - cached->second.lastRefresh < 250) {
+                    scan_now_ms - cached->second.last_refresh_ms < 2000u) {
                     std::memcpy(playerNames[c], cached->second.text.data(),
                                 sizeof(playerNames[c]));
                 } else {
@@ -2164,7 +2194,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
             if (nameNeedsRefresh[c] && controller) {
                 auto& cached = nameCache[controller];
                 std::memcpy(cached.text.data(), nameBuf, cached.text.size());
-                cached.lastRefresh = runtime.frames;
+                cached.last_refresh_ms = scan_now_ms;
             }
             if (!frame_config.show_bots && p.is_bot)
                 continue;
@@ -2173,10 +2203,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
             std::snprintf(p.name, sizeof(p.name), "P%d", p.ent_index);
         }
 
-        // CS2 bone indices (Source 2 / CS2-DMA-main Bone.h):
-        // head=7 neck=6 spine1=4 spine2=2 pelvis=1
-        // L arm 9/10/11  R arm 13/14/15
-        // L leg 17/18/19  R leg 20/21/22
+        // Current Source 2 player rig: pelvis=0, spine=2/3/4,
+        // neck=5, head=6, arms=8..15 and legs=22..27.
         // One contiguous 32-joint snapshot per player. Distance never removes
         // bones, so the visual quality stays identical under load.
         if (scene && need_bones && boneReadEligible[c]) {
@@ -2188,8 +2216,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 // Keep the public four-slot layout, duplicating the shoulder
                 // at the clavicle slot so every rendered limb is anatomical.
                 // L leg: upper=22, lower=23, ankle=24; R=25..27.
-                static const int kIdx[kBoneSlotCount] = {
-                    6, 5, 4, 2, 1, 0,
+                static constexpr int kIdx[kBoneSlotCount] = {
+                    6, 5, 4, 3, 2, 0,
                     8, 8, 9, 10,
                     13, 13, 14, 15,
                     22, 23, 24,
@@ -2219,31 +2247,30 @@ static void RunFrameWithConfig(const Config& frame_config) {
                         float dx = bones[a][0]-bones[b][0], dy = bones[a][1]-bones[b][1], dz = bones[a][2]-bones[b][2];
                         return std::sqrt(dx*dx+dy*dy+dz*dz);
                     };
-                    const float armL = seg(7, 9), armR = seg(11, 13), legL = seg(14, 16), legR = seg(17, 19);
-                    if (armL > 5.f && armL < 70.f) score += 10.f;
-                    if (armR > 5.f && armR < 70.f) score += 10.f;
-                    if (legL > 10.f && legL < 90.f) score += 12.f;
-                    if (legR > 10.f && legR < 90.f) score += 12.f;
+                    const float armL = seg(7, 9), armR = seg(11, 13);
+                    const float legL = seg(14, 16), legR = seg(17, 19);
+                    const float shoulderWidth = seg(7, 11);
+                    if (!(armL > 8.f && armL < 55.f && armR > 8.f && armR < 55.f)) return -1.f;
+                    if (!(legL > 18.f && legL < 80.f && legR > 18.f && legR < 80.f)) return -1.f;
+                    if (!(shoulderWidth > 5.f && shoulderWidth < 55.f)) return -1.f;
+                    if (!(bones[0][2] > bones[5][2] + 25.f)) return -1.f;
+                    if (bones[15][2] > bones[14][2] + 8.f || bones[16][2] > bones[15][2] + 8.f ||
+                        bones[18][2] > bones[17][2] + 8.f || bones[19][2] > bones[18][2] + 8.f)
+                        return -1.f;
+                    for (std::size_t i = 0; i < kBoneSlotCount; ++i) {
+                        const float ox = bones[i][0] - p.pos[0];
+                        const float oy = bones[i][1] - p.pos[1];
+                        const float oz = bones[i][2] - p.pos[2];
+                        if (ox * ox + oy * oy > 100.f * 100.f || oz < -25.f || oz > 115.f)
+                            return -1.f;
+                    }
+                    score += 44.f;
                     const float horiz = std::sqrt((h[0]-p.pos[0])*(h[0]-p.pos[0]) + (h[1]-p.pos[1])*(h[1]-p.pos[1]));
                     if (horiz > 60.f) score -= 40.f;
                     return score;
                 };
 
                 if (skeleton_score(tmp) < 0.f) return false;
-
-                const float px = tmp[5][0], py = tmp[5][1];
-
-                // Soft ground-align pelvis to pawn origin (reduces floaty skeletons)
-                {
-                    const float gdx = p.pos[0] - px;
-                    const float gdy = p.pos[1] - py;
-                    if (std::fabs(gdx) < 40.f && std::fabs(gdy) < 40.f) {
-                        for (std::size_t b = 0; b < kBoneSlotCount; ++b) {
-                            tmp[b][0] += gdx;
-                            tmp[b][1] += gdy;
-                        }
-                    }
-                }
 
                 for (std::size_t b = 0; b < kBoneSlotCount; ++b) {
                     p.bones[b][0] = tmp[b][0];
@@ -2255,9 +2282,11 @@ static void RunFrameWithConfig(const Config& frame_config) {
             };
 
             uintptr_t boneBase = 0;
+            bool acquired_real_bones = false;
             // Primary: CSkeletonInstance m_modelState + 0x80 (matches CS2-DMA)
             if (IsUserPointer(boneBases[c]) && try_bones(boneSnapshots[c])) {
                 p.bones_ok = true;
+                acquired_real_bones = true;
             } else {
                 // Fallback: some builds expose the bone pointer at scene+0x1D0 / 0x160
                 for (uintptr_t alt : {(uintptr_t)0x1D0, (uintptr_t)0x160, (uintptr_t)0x1C0}) {
@@ -2266,10 +2295,25 @@ static void RunFrameWithConfig(const Config& frame_config) {
                         BoneJointSnapshot fallback[32]{};
                         if (QRead(boneBase, fallback, sizeof(fallback)) && try_bones(fallback)) {
                             p.bones_ok = true;
+                            acquired_real_bones = true;
                             break;
                         }
                     }
                 }
+            }
+            if (acquired_real_bones) {
+                auto& cached = bone_cache[p.pawn];
+                std::memcpy(cached.joints, p.bones, sizeof(p.bones));
+                cached.last_valid_ms = scan_now_ms;
+            }
+        }
+        if (!p.bones_ok) {
+            const auto cached = bone_cache.find(p.pawn);
+            if (cached != bone_cache.end() &&
+                scan_now_ms - cached->second.last_valid_ms <= 180u) {
+                std::memcpy(p.bones, cached->second.joints, sizeof(p.bones));
+                std::memcpy(p.head, p.bones[0], sizeof(p.head));
+                p.bones_ok = true;
             }
         }
         if (!p.bones_ok) {
@@ -2339,6 +2383,30 @@ static void RunFrameWithConfig(const Config& frame_config) {
         ++processed;
     }
 
+    // Retain a fully validated pawn for a short wall-clock grace period when
+    // only its individual controller/pawn read drops out. Time-based expiry is
+    // stable regardless of acquisition rate or presentation FPS.
+    constexpr uint64_t kPlayerDropoutGraceMs = 120;
+    for (const auto& player : runtime.players) {
+        if (IsUserPointer(player.pawn))
+            recent_players[player.pawn] = {player, scan_now_ms};
+    }
+    for (auto it = recent_players.begin(); it != recent_players.end();) {
+        if (scan_now_ms - it->second.last_seen_ms > kPlayerDropoutGraceMs) {
+            bone_cache.erase(it->first);
+            it = recent_players.erase(it);
+            continue;
+        }
+        const bool present = std::any_of(runtime.players.begin(), runtime.players.end(),
+            [&](const Player& player) { return player.pawn == it->first; });
+        if (!present && runtime.players.size() < static_cast<std::size_t>(kMax)) {
+            runtime.players.push_back(it->second.player);
+            if (!it->second.player.is_local && it->second.player.team != runtime.local_team)
+                ++runtime.enemy_count;
+        }
+        ++it;
+    }
+
     // Safety net: inject local pawn if handle resolution missed it entirely.
     if (runtime.local_pawn && IsUserPointer(runtime.local_pawn)) {
         bool have_local = false;
@@ -2378,7 +2446,10 @@ static void RunFrameWithConfig(const Config& frame_config) {
     if (frame_config.esp_enabled && !runtime.players.empty()) {
         EnsureScatter();
         if (g_scatter) {
+            std::vector<std::array<float, 3>> pre_refresh_positions;
+            pre_refresh_positions.reserve(runtime.players.size());
             for (auto& player : runtime.players) {
+                pre_refresh_positions.push_back({player.pos[0], player.pos[1], player.pos[2]});
                 if (IsUserPointer(player.pawn))
                     mem.AddScatterReadRequest(g_scatter,
                         player.pawn + offsets.m_vOldOrigin,
@@ -2388,7 +2459,23 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 runtime.client_base + offsets.dwViewMatrix,
                 runtime.view_matrix, sizeof(runtime.view_matrix));
             mem.ExecuteReadScatter(g_scatter);
-            for (auto& player : runtime.players) {
+            for (std::size_t i = 0; i < runtime.players.size(); ++i) {
+                auto& player = runtime.players[i];
+                if (!IsFinitePosition(player.pos)) {
+                    std::memcpy(player.pos, pre_refresh_positions[i].data(), sizeof(player.pos));
+                }
+                const float shift[3] = {
+                    player.pos[0] - pre_refresh_positions[i][0],
+                    player.pos[1] - pre_refresh_positions[i][1],
+                    player.pos[2] - pre_refresh_positions[i][2]
+                };
+                if (player.bones_ok) {
+                    for (std::size_t bone = 0; bone < kBoneSlotCount; ++bone)
+                        for (int axis = 0; axis < 3; ++axis)
+                            player.bones[bone][axis] += shift[axis];
+                    for (int axis = 0; axis < 3; ++axis)
+                        player.head[axis] += shift[axis];
+                }
                 if (player.is_local) {
                     std::memcpy(runtime.local_pos, player.pos, sizeof(runtime.local_pos));
                     break;
@@ -2409,6 +2496,36 @@ static void RunFrameWithConfig(const Config& frame_config) {
     if (!runtime.in_match && (runtime.pawn_count > 0 || !runtime.players.empty()))
         runtime.in_match = true;
     runtime.player_count = static_cast<int>(runtime.players.size());
+
+    // Who is spectating the local player (deathcam / observer target → local pawn).
+    runtime.spectators.clear();
+    runtime.spectator_count = 0;
+    if (frame_config.spectator_list && runtime.local_pawn &&
+        offsets.m_pObserverServices && offsets.m_hObserverTarget) {
+        for (auto& p : runtime.players) {
+            p.is_spectator = false;
+            if (p.is_local || !p.pawn || !IsUserPointer(p.pawn))
+                continue;
+            uintptr_t services = 0;
+            if (!QReadT(p.pawn + offsets.m_pObserverServices, services) ||
+                !services || !IsUserPointer(services))
+                continue;
+            uint32_t target_handle = 0;
+            if (!QReadT(services + offsets.m_hObserverTarget, target_handle) ||
+                !target_handle || target_handle == 0xFFFFFFFFu)
+                continue;
+            const uintptr_t target = ResolveEntityByHandle(
+                target_handle, g_pawn_stride ? g_pawn_stride : kEntityIdentityStride);
+            if (!target)
+                continue;
+            if (target == runtime.local_pawn ||
+                (runtime.local_controller && target == runtime.local_controller)) {
+                p.is_spectator = true;
+                runtime.spectators.push_back(p);
+            }
+        }
+        runtime.spectator_count = static_cast<int>(runtime.spectators.size());
+    }
 
     // Recovery only when the list is truly broken.
     // Death / spectate often drops drawn players briefly — do NOT wipe the
@@ -2448,11 +2565,9 @@ static void RunFrameWithConfig(const Config& frame_config) {
     // Snapshot successful scans for the hold-over path above.
     if (!runtime.players.empty()) {
         last_good_players = runtime.players;
-        last_good_age = 0;
-    } else if (!last_good_players.empty()) {
-        ++last_good_age;
-        if (last_good_age > 180)
-            last_good_players.clear();
+        last_good_ms = scan_now_ms;
+    } else if (!last_good_players.empty() && scan_now_ms - last_good_ms > 700u) {
+        last_good_players.clear();
     }
 
     // Periodic diagnostics when controllers exist but pawns do not —
