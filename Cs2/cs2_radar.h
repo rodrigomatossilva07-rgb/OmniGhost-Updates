@@ -23,6 +23,7 @@ std::string AccessToken();
 bool StartCloudflare();
 void StopCloudflare();
 bool CloudflareRunning() noexcept;
+std::string CloudflareStatus();
 
 // Build snapshot JSON from CS2::runtime (thread-safe enough for single consumer).
 std::string BuildLiveJson();

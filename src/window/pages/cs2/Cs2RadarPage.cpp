@@ -155,7 +155,9 @@ void DrawCs2Radar() {
                 ShellExecuteA(nullptr, "open", pub.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
             }
         } else if (CS2::config.webradar_cloudflare) {
-            CyberWidgets::TextLine("A aguardar URL do cloudflared...", CyberWidgets::TextTone::Secondary);
+            const std::string tunnelStatus = CS2::WebRadar::CloudflareStatus();
+            CyberWidgets::TextLine(tunnelStatus.empty() ? "A aguardar URL do cloudflared..." : tunnelStatus.c_str(),
+                                   CyberWidgets::TextTone::Secondary);
         } else {
             CyberWidgets::TextLine("Ativa o tunel para obter um link https publico.",
                                    CyberWidgets::TextTone::Secondary);

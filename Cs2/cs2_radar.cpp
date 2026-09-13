@@ -36,6 +36,7 @@ int g_port = 8080;
 std::mutex g_mu;
 std::string g_token;
 std::string g_public_url;
+std::string g_cloudflare_status;
 std::string g_web_root;
 std::string g_live_json = "{\"m_map\":\"unknown\",\"m_round_phase\":\"warmup\",\"m_players\":[],\"m_bomb\":null}";
 std::thread g_server_thread;
@@ -277,6 +278,12 @@ void HandleClient(SOCKET client) {
         return;
     }
 
+    if (method == "GET" && pure == "/healthz") {
+        SendResponse(client, 200, "OK", "ok", "text/plain");
+        closesocket(client);
+        return;
+    }
+
     if (method == "GET" && pure == "/api/stream") {
         // Minimal SSE stream — one snapshot then close (client will reconnect/poll).
         const std::string json = LiveJsonSnapshot();
@@ -489,6 +496,7 @@ bool Start(int port) {
         if (g_token.empty()) g_token = RandomToken();
         g_web_root = ResolveWebRoot();
         g_public_url.clear();
+        g_cloudflare_status.clear();
     }
     g_running.store(true);
     g_server_thread = std::thread(ServerLoop);
@@ -554,6 +562,11 @@ std::string PublicUrl() {
     return g_public_url;
 }
 
+std::string CloudflareStatus() {
+    std::lock_guard<std::mutex> lock(g_mu);
+    return g_cloudflare_status;
+}
+
 bool StartCloudflare() {
     if (CloudflareRunning()) return true;
     if (!IsRunning()) return false;
@@ -566,6 +579,10 @@ bool StartCloudflare() {
         g_cf_proc = nullptr;
     }
     g_cf_stop.store(false);
+    {
+        std::lock_guard<std::mutex> lock(g_mu);
+        g_cloudflare_status = "A iniciar túnel...";
+    }
 
     const std::wstring exe = FindCloudflared();
     wchar_t cmd[512]{};
@@ -591,6 +608,8 @@ bool StartCloudflare() {
                         CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi)) {
         CloseHandle(rd);
         CloseHandle(wr);
+        std::lock_guard<std::mutex> lock(g_mu);
+        g_cloudflare_status = "Não foi possível iniciar cloudflared.";
         std::cout << "[WebRadar] cloudflared launch failed\n";
         return false;
     }
@@ -614,6 +633,10 @@ bool StartCloudflare() {
             if (!ReadFile(rd, tmp, sizeof(tmp) - 1, &read, nullptr) || !read) break;
             tmp[read] = 0;
             output.append(tmp, read);
+            {
+                std::lock_guard<std::mutex> lock(g_mu);
+                g_cloudflare_status = output.size() > 220 ? output.substr(output.size() - 220) : output;
+            }
             std::size_t pos = 0;
             std::string url;
             while ((pos = output.find("https://", pos)) != std::string::npos) {
@@ -631,11 +654,17 @@ bool StartCloudflare() {
                 {
                     std::lock_guard<std::mutex> lock(g_mu);
                     if (g_public_url.empty()) g_public_url = url;
+                    g_cloudflare_status = "Túnel ligado.";
                 }
                 if (output.size() > 4096) output.erase(0, pos);
             } else if (output.size() > 8192) {
                 output.erase(0, output.size() - 1024);
             }
+        }
+        if (!g_cf_stop.load()) {
+            std::lock_guard<std::mutex> lock(g_mu);
+            if (g_public_url.empty() && g_cloudflare_status.empty())
+                g_cloudflare_status = "cloudflared terminou antes de criar o túnel.";
         }
         CloseHandle(rd);
     });
@@ -653,6 +682,7 @@ void StopCloudflare() {
         g_cf_reader.join();
     std::lock_guard<std::mutex> lock(g_mu);
     g_public_url.clear();
+    g_cloudflare_status.clear();
 }
 
 bool CloudflareRunning() noexcept {

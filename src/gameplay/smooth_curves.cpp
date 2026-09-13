@@ -147,12 +147,12 @@ namespace Gameplay::SmoothCurves {
     // SmoothCurveEvaluator implementation
     SmoothCurveEvaluator::SmoothCurveEvaluator() {
         config_ = SmoothCurveConfig();
-        config_.bezier = BezierCurve::EaseOutCubic();
+        config_.bezier = BezierCurve::EaseOut();
     }
 
     SmoothCurveEvaluator::SmoothCurveEvaluator(const SmoothCurveConfig& config) : config_(config) {
         if (config_.type == CurveType::Bezier && (config_.bezier.p3.x == 0 && config_.bezier.p3.y == 0)) {
-            config_.bezier = BezierCurve::EaseOutCubic();
+            config_.bezier = BezierCurve::EaseOut();
         }
     }
 
@@ -405,7 +405,7 @@ namespace Gameplay::SmoothCurves {
         SmoothCurveConfig cfg;
         cfg.type = CurveType::EaseOutCubic;
         cfg.use_distance_curves = true;
-        cfg.distance_curves[0] = {30.0f, CurveType::EaseOutCubic, BezierCurve::EaseOutCubic()};
+        cfg.distance_curves[0] = {30.0f, CurveType::EaseOutCubic, BezierCurve::EaseOut()};
         cfg.distance_curves[1] = {80.0f, CurveType::EaseOutQuart, BezierCurve::Gentle()};
         cfg.distance_curves[2] = {150.0f, CurveType::EaseOutQuint, BezierCurve::Smooth()};
         cfg.distance_curves[3] = {FLT_MAX, CurveType::EaseOutQuint, BezierCurve::Smooth()};

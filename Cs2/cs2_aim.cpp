@@ -5,14 +5,12 @@
 #include "cs2_aim.h"
 #include "../Fivem/aimbot/aim_type.h"
 #include "gameplay/aim_controller.h"
-#include "gameplay/unified_aim.h"
 #include "imgui.h"
 #include <Windows.h>
 #include <cmath>
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
-#include <memory>
 
 namespace CS2_Aim {
 namespace {
@@ -20,12 +18,11 @@ namespace {
 int g_last_target_idx = -1;
 int g_active_target_idx = -1;
 std::chrono::steady_clock::time_point g_last_switch{};
+std::chrono::steady_clock::time_point g_target_acquired{};
+uintptr_t g_target_pawn = 0;
 char g_debug[128] = "aim idle";
 int g_frames_sem_bind = 0;
 OmniGhost::Gameplay::ContinuousAimController g_aim_motion;
-
-// Unified aimbot instance (stub for Publish builds)
-static std::unique_ptr<Gameplay::UnifiedAim::UnifiedAimbot> g_unified_aimbot;
 
 bool W2S(const float* world, const float* vm, float& sx, float& sy) {
     const ImVec2 ds = ImGui::GetIO().DisplaySize;
@@ -121,6 +118,101 @@ float EffectiveFov(const CS2::Config& cfg, float distance_m) {
     return minF + (fov - minF) * t;
 }
 
+struct TargetCandidate {
+    int index = -1;
+    uintptr_t pawn = 0;
+    float error_x = 0.f;
+    float error_y = 0.f;
+    float screen_distance = FLT_MAX;
+    float distance_m = 0.f;
+    float score = FLT_MAX;
+};
+
+float WeaponThreat(int definition) noexcept {
+    switch (definition) {
+    case 9: case 11: case 38: case 40: return 1.f;       // precision rifles
+    case 7: case 8: case 10: case 13: case 16: case 39: case 60: return .75f;
+    case 1: case 2: case 3: case 4: case 30: case 32: case 36: case 61: case 63: case 64: return .45f;
+    default: return .2f;
+    }
+}
+
+TargetCandidate SelectTarget(const CS2::Runtime& rt, const CS2::Config& cfg,
+                             float cx, float cy) {
+    TargetCandidate best{};
+    const uint64_t now_ms = GetTickCount64();
+    const float snapshot_age = rt.snapshot_timestamp_ms && now_ms > rt.snapshot_timestamp_ms
+        ? std::clamp(static_cast<float>(now_ms - rt.snapshot_timestamp_ms) * .001f, 0.f, .050f)
+        : 0.f;
+
+    for (std::size_t i = 0; i < rt.players.size(); ++i) {
+        const auto& player = rt.players[i];
+        if (player.is_local || !player.alive || player.health <= 0) continue;
+        if (cfg.aim_ignore_team && player.team == rt.local_team && rt.local_team >= 2) continue;
+        if (cfg.aim_ignore_bots && player.is_bot) continue;
+        if (cfg.aim_ignore_spectators && player.is_spectator) continue;
+        if (cfg.visible_check && !player.spotted) continue;
+        if (player.distance > cfg.aim_max_dist) continue;
+
+        float point[3]{};
+        PickBone(player, cfg.aim_bone, point);
+        if (cfg.aim_prediction) {
+            // Hitscan CS2 needs only enough lead to compensate acquisition and
+            // presentation age.  Keep it short to prevent overshoot.
+            const float lead = std::clamp((.006f + snapshot_age) * cfg.prediction_strength,
+                                          0.f, .045f);
+            point[0] += player.velocity[0] * lead;
+            point[1] += player.velocity[1] * lead;
+            point[2] += player.velocity[2] * lead;
+        }
+
+        float sx = 0.f, sy = 0.f;
+        if (!W2S(point, rt.view_matrix, sx, sy)) continue;
+        const float dx = sx - cx;
+        const float dy = sy - cy;
+        const float screen = std::sqrt(dx * dx + dy * dy);
+        if (screen > EffectiveFov(cfg, player.distance)) continue;
+
+        // Screen alignment dominates. Distance, visibility, remaining health
+        // and weapon threat only break close choices instead of pulling aim
+        // away from the crosshair.
+        float score = screen;
+        score += std::clamp(player.distance, 0.f, 300.f) * .018f;
+        score += std::clamp(static_cast<float>(player.health), 0.f, 100.f) * .008f;
+        if (!player.spotted) score += 18.f;
+        score -= WeaponThreat(player.weapon_def) * 2.f;
+        if (player.pawn == g_target_pawn) score *= .78f;
+
+        if (score < best.score) {
+            best.index = static_cast<int>(i);
+            best.pawn = player.pawn;
+            best.error_x = dx;
+            best.error_y = dy;
+            best.screen_distance = screen;
+            best.distance_m = player.distance;
+            best.score = score;
+        }
+    }
+    return best;
+}
+
+OmniGhost::Gameplay::AimMotionSettings BuildMotionSettings(
+        const CS2::Config& cfg, float distance_m) noexcept {
+    OmniGhost::Gameplay::AimMotionSettings settings{};
+    settings.smooth = cfg.aim_smooth;
+    settings.deadzone = cfg.aim_deadzone;
+    settings.humanize = cfg.aim_humanize;
+    settings.permanent_humanize = cfg.aim_humanize;
+    settings.reaction_delay_ms_min = 30;
+    settings.reaction_delay_ms_max = 80;
+    settings.overshoot_px = .55f;
+    settings.micro_jitter_px = .06f;
+    settings.minimum_error = .35f;
+    settings.prediction = false; // prediction is applied in world space above
+    OmniGhost::Gameplay::ApplyStableDistanceProfile(settings, distance_m);
+    return settings;
+}
+
 void HandlePanic(CS2::Config& cfg) {
     if (!cfg.panic_key_enabled || cfg.panic_key == 0) return;
     static bool was_down = false;
@@ -145,25 +237,17 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
     CS2::Config& cfg = const_cast<CS2::Config&>(cfg_in);
     HandlePanic(cfg);
 
-    // Initialize unified aimbot if needed (stub for Publish)
-    if (!g_unified_aimbot) {
-        g_unified_aimbot = Gameplay::UnifiedAim::CreateAimbotForGame("CS2");
-        Gameplay::UnifiedAim::UnifiedConfig ucfg;
-        ucfg.enabled = cfg.aim_enabled;
-        ucfg.fov = cfg.aim_fov > 1.f ? cfg.aim_fov : 80.f;
-        ucfg.smooth = cfg.aim_smooth;
-        g_unified_aimbot->SetConfig(ucfg);
-    }
-
     const bool playable = rt.in_match || !rt.players.empty();
     if (!playable) {
         g_active_target_idx = -1;
+        g_target_pawn = 0;
         g_aim_motion.Reset();
         std::snprintf(g_debug, sizeof(g_debug), "sem partida");
         return;
     }
     if (!cfg.aim_enabled && !cfg.trigger_enabled) {
         g_active_target_idx = -1;
+        g_target_pawn = 0;
         g_aim_motion.Reset();
         std::snprintf(g_debug, sizeof(g_debug), "aim/trig OFF");
         return;
@@ -179,6 +263,7 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
     if (!IsFirearm(local_weapon_definition)) {
         g_active_target_idx = -1;
         g_last_target_idx = -1;
+        g_target_pawn = 0;
         g_aim_motion.Reset();
         std::snprintf(g_debug, sizeof(g_debug), "aim bloqueado: utilitario (%d)",
             local_weapon_definition);
@@ -193,72 +278,64 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
 
     const float cx = ds.x * 0.5f;
     const float cy = ds.y * 0.5f;
-    const float fov = EffectiveFov(cfg, 0.f); // distance not available here, use base fov
     const bool aim_key_down = cfg.aim_enabled && AimKeyDown(cfg);
-
-    // A selected/enabled bind is not the same as a pressed bind. Never acquire
-    // or move towards a target until the configured aim key is physically down.
-    float best_fov = FLT_MAX;
-    int best_idx = -1;
-    float best_dx = 0, best_dy = 0;
-
-    if (aim_key_down) {
-        for (size_t i = 0; i < rt.players.size(); ++i) {
-            const auto& p = rt.players[i];
-            if (p.is_local) continue;
-            if (!p.alive || p.health <= 0) continue;
-            if (cfg.aim_ignore_team && cfg.team_check && p.team == rt.local_team && rt.local_team >= 2) continue;
-            if (p.distance > cfg.aim_max_dist) continue;
-
-            float sx, sy;
-            float bone_pos[3];
-            PickBone(p, cfg.aim_bone, bone_pos);
-            if (!W2S(bone_pos, rt.view_matrix, sx, sy)) continue;
-
-            const float dx = sx - cx;
-            const float dy = sy - cy;
-            const float dist = std::sqrt(dx * dx + dy * dy);
-
-            if (dist < fov && dist < best_fov) {
-                best_fov = dist;
-                best_idx = static_cast<int>(i);
-                best_dx = dx;
-                best_dy = dy;
-            }
-        }
-    }
+    TargetCandidate target{};
+    if (aim_key_down) target = SelectTarget(rt, cfg, cx, cy);
 
     if (!aim_key_down) {
         g_active_target_idx = -1;
         g_last_target_idx = -1;
+        g_target_pawn = 0;
         g_aim_motion.Reset();
         std::snprintf(g_debug, sizeof(g_debug), "aim: aguarda tecla");
-    } else if (best_idx >= 0) {
-        g_active_target_idx = best_idx;
-        
-        // Apply smoothing
-        float smooth = cfg.aim_smooth > 0 ? cfg.aim_smooth : 1.0f;
-        float mx = best_dx / smooth;
-        float my = best_dy / smooth;
-        
-        // Update debug
-        std::snprintf(g_debug, sizeof(g_debug), "pull %+d,%+d d=%.0f idx=%d",
-            static_cast<int>(mx), static_cast<int>(my), best_fov, best_idx);
-        
-        // Move mouse
-        if (mx != 0 || my != 0) {
-            MoveMouse(static_cast<int>(mx), static_cast<int>(my));
+    } else if (target.index >= 0) {
+        const auto now = std::chrono::steady_clock::now();
+        if (g_target_pawn && target.pawn != g_target_pawn) {
+            const auto held_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                now - g_target_acquired).count();
+            const float lock_ms = (std::max)(cfg.sticky_ms, cfg.aim_switch_cooldown_ms);
+            if (held_ms < static_cast<long long>(lock_ms)) {
+                for (std::size_t i = 0; i < rt.players.size(); ++i) {
+                    if (rt.players[i].pawn != g_target_pawn) continue;
+                    const auto& held = rt.players[i];
+                    if (!held.alive || held.health <= 0 ||
+                        (cfg.aim_ignore_team && held.team == rt.local_team && rt.local_team >= 2) ||
+                        (cfg.aim_ignore_bots && held.is_bot) ||
+                        (cfg.aim_ignore_spectators && held.is_spectator) ||
+                        (cfg.visible_check && !held.spotted) || held.distance > cfg.aim_max_dist)
+                        break;
+                    float point[3]{};
+                    PickBone(held, cfg.aim_bone, point);
+                    float sx = 0.f, sy = 0.f;
+                    if (held.alive && held.health > 0 && W2S(point, rt.view_matrix, sx, sy)) {
+                        target.index = static_cast<int>(i);
+                        target.pawn = held.pawn;
+                        target.error_x = sx - cx;
+                        target.error_y = sy - cy;
+                        target.screen_distance = std::sqrt(target.error_x * target.error_x + target.error_y * target.error_y);
+                        target.distance_m = held.distance;
+                    }
+                    break;
+                }
+            }
         }
+        if (target.pawn != g_target_pawn) {
+            g_target_pawn = target.pawn;
+            g_target_acquired = now;
+            g_last_switch = now;
+            g_aim_motion.SetTarget(static_cast<std::uint64_t>(target.pawn));
+        }
+        g_active_target_idx = target.index;
+        g_last_target_idx = target.index;
+
+        const auto settings = BuildMotionSettings(cfg, target.distance_m);
+        const auto motion = g_aim_motion.Step(target.error_x, target.error_y, settings);
+        if (motion) MoveMouse(motion.x, motion.y);
+        std::snprintf(g_debug, sizeof(g_debug), "lock %+d,%+d err=%.1f idx=%d",
+            motion.x, motion.y, motion.error, target.index);
     } else {
         g_active_target_idx = -1;
         std::snprintf(g_debug, sizeof(g_debug), "aim: no target");
-    }
-
-    // Update unified aimbot stub (does nothing in Publish)
-    if (aim_key_down) {
-        Gameplay::UnifiedAim::AimContext ctx;
-        ctx.dt = ImGui::GetIO().DeltaTime;
-        g_unified_aimbot->Update(ctx);
     }
 
     // Handle triggerbot separately (keep existing for now)

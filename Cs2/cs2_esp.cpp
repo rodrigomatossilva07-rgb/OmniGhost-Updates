@@ -155,6 +155,11 @@ CS2::Player SmoothPlayerForPresentation(const CS2::Player& raw,
                 output.bones[bone][2] += dz;
             }
         }
+        if (sample.bones_ok) {
+            std::memcpy(output.bones, sample.bones, sizeof(output.bones));
+            std::memcpy(output.head, sample.bones[0], sizeof(output.head));
+            output.bones_ok = true;
+        }
         return output;
     }
     return output;

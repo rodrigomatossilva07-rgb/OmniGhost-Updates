@@ -85,6 +85,8 @@ struct Player {
     uintptr_t controller = 0;
     uintptr_t pawn = 0;
     uintptr_t scene = 0;
+    uintptr_t bone_base = 0;
+    uint8_t bone_layout = 0;
     int health = 0;
     int armor = 0;
     int team = 0;
@@ -181,6 +183,8 @@ using CameraSnapshotLease = OmniGhost::Gameplay::SnapshotExchange<CameraSnapshot
 struct MotionSample {
     uintptr_t pawn = 0;
     float pos[3]{};
+    float bones[kBoneSlotCount][3]{};
+    bool bones_ok = false;
 };
 struct MotionSnapshot {
     std::array<MotionSample, 64> players{};

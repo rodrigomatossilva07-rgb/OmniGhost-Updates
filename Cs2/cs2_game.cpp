@@ -2291,6 +2291,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 float tmp[kBoneSlotCount][3]{};
                 float best[kBoneSlotCount][3]{};
                 float bestScore = -1.f;
+                uint8_t bestLayout = 0;
+                uint8_t layout = 0;
                 for (const auto* indices : {kReferenceIdx, kCurrentIdx}) { // CS2-DMA layout first
                     bool finite = true;
                     for (std::size_t b = 0; b < kBoneSlotCount; ++b) {
@@ -2301,8 +2303,10 @@ static void RunFrameWithConfig(const Config& frame_config) {
                     const float score = finite ? skeleton_score(tmp) : -1.f;
                     if (score > bestScore) {
                         bestScore = score;
+                        bestLayout = layout;
                         std::memcpy(best, tmp, sizeof(best));
                     }
+                    ++layout;
                 }
                 if (bestScore < 0.f) return false;
 
@@ -2312,6 +2316,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
                     p.bones[b][2] = best[b][2];
                 }
                 p.head[0] = best[0][0]; p.head[1] = best[0][1]; p.head[2] = best[0][2];
+                p.bone_layout = bestLayout;
                 return true;
             };
 
@@ -2320,6 +2325,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
             // Primary: CSkeletonInstance m_modelState + 0x80 (matches CS2-DMA)
             if (IsUserPointer(boneBases[c]) && try_bones(boneSnapshots[c])) {
                 p.bones_ok = true;
+                p.bone_base = boneBases[c];
                 acquired_real_bones = true;
             } else {
                 // Fallback: some builds expose the bone pointer at scene+0x1D0 / 0x160
@@ -2329,6 +2335,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
                         BoneJointSnapshot fallback[32]{};
                         if (QRead(boneBase, fallback, sizeof(fallback)) && try_bones(fallback)) {
                             p.bones_ok = true;
+                            p.bone_base = boneBase;
                             acquired_real_bones = true;
                             break;
                         }
@@ -2725,6 +2732,33 @@ void EnsureAcquisitionStarted() {
                         !std::isfinite(sample.pos[0]) || !std::isfinite(sample.pos[1]) ||
                         !std::isfinite(sample.pos[2]))
                         continue;
+                    // A compact 32-joint read keeps limb animation on the
+                    // same fast lane as the box.  A failed/invalid fast read
+                    // never replaces the last full validated pose.
+                    if (player.bones_ok && IsUserPointer(player.bone_base)) {
+                        struct FastBoneJoint { float x, y, z, scale; char pad[0x10]; } joints[32]{};
+                        static constexpr int kReferenceIdx[kBoneSlotCount] = {
+                            7, 6, 4, 3, 3, 1, 6, 9, 10, 11, 6, 13, 14, 15, 17, 18, 19, 20, 21, 22
+                        };
+                        static constexpr int kCurrentIdx[kBoneSlotCount] = {
+                            6, 5, 4, 3, 2, 0, 8, 8, 9, 10, 13, 13, 14, 15, 22, 23, 24, 25, 26, 27
+                        };
+                        const int* indices = player.bone_layout == 0 ? kReferenceIdx : kCurrentIdx;
+                        bool valid = QRead(player.bone_base, joints, sizeof(joints));
+                        for (std::size_t bone = 0; valid && bone < kBoneSlotCount; ++bone) {
+                            const auto& joint = joints[indices[bone]];
+                            const float dx = joint.x - sample.pos[0];
+                            const float dy = joint.y - sample.pos[1];
+                            const float dz = joint.z - sample.pos[2];
+                            valid = std::isfinite(joint.x) && std::isfinite(joint.y) && std::isfinite(joint.z) &&
+                                dx * dx + dy * dy < 260.f * 260.f && dz > -100.f && dz < 220.f;
+                            sample.bones[bone][0] = joint.x;
+                            sample.bones[bone][1] = joint.y;
+                            sample.bones[bone][2] = joint.z;
+                        }
+                        valid = valid && sample.bones[0][2] > sample.bones[5][2] + 8.f;
+                        sample.bones_ok = valid;
+                    }
                     ++motion.count;
                 }
                 if (motion.count) {
