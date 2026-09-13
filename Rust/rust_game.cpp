@@ -171,9 +171,9 @@ bool LoadOffsetsFromJson(const char* explicit_path) {
 bool Attach() {
     ready = false;
     runtime = Runtime{};
-    std::snprintf(runtime.status, sizeof(runtime.status), "A iniciar DMA / Rust...");
+    std::snprintf(runtime.status, sizeof(runtime.status), "A anexar RustClient.exe");
     std::snprintf(status, sizeof(status), "%s", runtime.status);
-    std::cout << "[Rust] DMA init\n";
+    std::cout << "[Rust] attach begin vHandle=" << (mem.vHandle ? "yes" : "no") << "\n";
 
     if (!LoadOffsetsFromJson(nullptr)) {
         std::snprintf(runtime.status, sizeof(runtime.status), "Offsets Rust em falta");
@@ -185,27 +185,46 @@ bool Attach() {
               << " BN=0x" << std::hex << offsets.BaseNetworkable_TypeInfo
               << " CAM=0x" << offsets.MainCamera_TypeInfo << std::dec << "\n";
 
-    if (!mem.Init(std::string(), true, false) && !mem.GetDiagnosticsSnapshot().deviceOpen) {
-        std::snprintf(runtime.status, sizeof(runtime.status), "DMA/FPGA indisponivel");
+    // Paridade com CS2: so abre FPGA se ainda nao existir sessao VMM.
+    // Reabrir com Init("", true) quando vHandle ja existe pode fechar/falhar a sessao.
+    if (!mem.vHandle) {
+        std::snprintf(runtime.status, sizeof(runtime.status), "Inicializando DMA");
         std::snprintf(status, sizeof(status), "%s", runtime.status);
-        std::cout << "[Rust] DMA open failed\n";
-        return false;
+        std::cout << "[Rust] DMA init (nova sessao FPGA)\n";
+        if (!mem.Init(std::string(), true, false)) {
+            std::snprintf(runtime.status, sizeof(runtime.status),
+                "DMA offline (FPGA nao abriu sessao funcional)");
+            std::snprintf(status, sizeof(status), "%s", runtime.status);
+            std::cout << "[Rust] DMA open failed (same path as CS2)\n";
+            return false;
+        }
+        std::cout << "[Rust] FPGA session open vHandle=yes\n";
+    } else {
+        std::cout << "[Rust] Reutilizando sessao DMA ja aberta (ex. apos CS2)\n";
     }
 
     const char* kProc = "RustClient.exe";
     DWORD pid = mem.GetPidFromName(kProc);
     if (!pid) {
-        std::snprintf(runtime.status, sizeof(runtime.status), "Abre o Rust no PC principal e tenta de novo");
+        std::snprintf(runtime.status, sizeof(runtime.status),
+            "Abre o Rust no PC principal e tenta de novo");
         std::snprintf(status, sizeof(status), "%s", runtime.status);
         std::cout << "[Rust] PID not found\n";
         return false;
     }
     runtime.pid = pid;
     std::cout << "[Rust] PID=" << pid << "\n";
+
+    // Bind ao processo (sem reabrir device). FixCr3 corre dentro do Init bind.
     std::snprintf(runtime.status, sizeof(runtime.status), "DTB fix / a mapear GameAssembly...");
     std::snprintf(status, sizeof(status), "%s", runtime.status);
-
     auto dtb = Dtb::EnsureGameAssembly(kProc);
+    if (!dtb.ok || !dtb.game_assembly) {
+        // Segundo intento: bind explicito como o CS2 faz com cs2.exe
+        if (mem.Init(kProc, false, false)) {
+            dtb = Dtb::EnsureGameAssembly(kProc);
+        }
+    }
     if (!dtb.ok || !dtb.game_assembly) {
         std::snprintf(runtime.status, sizeof(runtime.status), "%s",
             dtb.detail.empty() ? "DTB/GameAssembly falhou" : dtb.detail.c_str());
