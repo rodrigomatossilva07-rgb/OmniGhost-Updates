@@ -73,9 +73,17 @@ OmniGhost::Gameplay::SnapshotExchange<Config> g_config_snapshots;
 std::atomic_bool g_acquisition_stop{false};
 std::atomic_bool g_acquisition_running{false};
 std::atomic<float> g_presentation_fps{0.f};
+std::atomic<uint64_t> g_last_snapshot_publish_ms{0};
+std::atomic<float> g_acquisition_hz{0.f};
 std::thread g_acquisition_thread;
 
 void PublishRuntimeSnapshot() {
+    const uint64_t now = GetTickCount64();
+    const uint64_t previous = g_last_snapshot_publish_ms.exchange(now, std::memory_order_relaxed);
+    if (previous != 0 && now > previous)
+        g_acquisition_hz.store(1000.0f / static_cast<float>(now - previous), std::memory_order_relaxed);
+    runtime.snapshot_timestamp_ms = now;
+    runtime.acquisition_hz = g_acquisition_hz.load(std::memory_order_relaxed);
     auto slot = g_runtime_snapshots.TryBeginWrite();
     if (!slot) return; // renderer still owns both spare slots; never wait
     *slot.value = runtime;
@@ -220,12 +228,10 @@ static_assert(DecodeEntityHandle(0x201u).index == 1u);
 bool NeedsPlayerScan(const Config& frame_config) {
     return frame_config.esp_enabled
         || frame_config.aim_enabled
-        || frame_config.rcs_enabled
         || frame_config.trigger_enabled
         || frame_config.radar_2d
         || frame_config.webradar_enabled
         || frame_config.spectator_list
-        || frame_config.recoil_visual
         || frame_config.offscreen_arrows
         || frame_config.bomb_timer
         || frame_config.hotkey_overlay;
@@ -256,11 +262,7 @@ void LoadSchemaOffsets(const std::string& schema) {
     JsonClassU64(schema, "CCSPlayerController", "m_bPawnIsAlive", offsets.m_bPawnIsAlive);
     JsonClassU64(schema, "C_CSPlayerPawn", "m_ArmorValue", offsets.m_ArmorValue);
     JsonClassU64(schema, "C_CSPlayerPawn", "m_angEyeAngles", offsets.m_angEyeAngles);
-    JsonClassU64(schema, "C_CSPlayerPawn", "m_iShotsFired", offsets.m_iShotsFired);
     JsonClassU64(schema, "C_CSPlayerPawn", "m_iIDEntIndex", offsets.m_iIDEntIndex);
-    JsonClassU64(schema, "C_CSPlayerPawn", "m_pAimPunchServices", offsets.m_pAimPunchServices);
-    JsonClassU64(schema, "CCSPlayer_AimPunchServices", "m_predictableBaseAngle", offsets.m_predictableBaseAngle);
-    JsonClassU64(schema, "CCSPlayer_AimPunchServices", "m_unpredictableBaseAngle", offsets.m_unpredictableBaseAngle);
     JsonClassU64(schema, "CGameSceneNode", "m_vecAbsOrigin", offsets.m_vecAbsOrigin);
     JsonClassU64(schema, "CGameSceneNode", "m_vecVelocity", offsets.m_vecVelocity);
     JsonClassU64(schema, "CGameSceneNode", "m_bDormant", offsets.m_bDormant);
@@ -1617,11 +1619,6 @@ static void RunFrameWithConfig(const Config& frame_config) {
     runtime.enemy_count = 0;
     runtime.controller_count = 0;
     runtime.pawn_count = 0;
-    runtime.local_shots_fired = 0;
-    runtime.local_weapon_def = 0;
-    runtime.local_aim_punch[0] = 0.f;
-    runtime.local_aim_punch[1] = 0.f;
-    runtime.local_aim_punch_valid = false;
     if (!runtime.players.empty())
         runtime.players.clear();
     g_cached_entity_root = 0; // force refresh once per scanning frame
@@ -1782,86 +1779,6 @@ static void RunFrameWithConfig(const Config& frame_config) {
             bool scoped = false;
             if (QReadT(runtime.local_pawn + offsets.m_bIsScoped, scoped))
                 runtime.local_scoped = scoped;
-        }
-
-        // RCS fast lane: publish only the local state needed by the input loop.
-        // This stays independent of ESP filters and still works when self ESP
-        // or weapon icons are disabled.
-        if (frame_config.rcs_enabled) {
-            if (offsets.m_iShotsFired)
-                QReadT(runtime.local_pawn + offsets.m_iShotsFired,
-                       runtime.local_shots_fired);
-
-            bool punchRead = false;
-            if (offsets.m_pAimPunchServices) {
-                uintptr_t punchServices = 0;
-                if (QReadT(runtime.local_pawn + offsets.m_pAimPunchServices,
-                           punchServices) && IsUserPointer(punchServices)) {
-                    float predictable[3]{};
-                    float unpredictable[3]{};
-                    const bool predictableOk = QRead(
-                        punchServices + offsets.m_predictableBaseAngle,
-                        predictable, sizeof(predictable));
-                    const bool unpredictableOk = QRead(
-                        punchServices + offsets.m_unpredictableBaseAngle,
-                        unpredictable, sizeof(unpredictable));
-                    const float pitch = predictable[0] +
-                        (unpredictableOk ? unpredictable[0] : 0.f);
-                    const float yaw = predictable[1] +
-                        (unpredictableOk ? unpredictable[1] : 0.f);
-                    if (predictableOk && std::isfinite(pitch) && std::isfinite(yaw) &&
-                        std::fabs(pitch) < 90.f && std::fabs(yaw) < 90.f) {
-                        runtime.local_aim_punch[0] = pitch;
-                        runtime.local_aim_punch[1] = yaw;
-                        runtime.local_aim_punch_valid = true;
-                        punchRead = true;
-                    }
-                }
-            }
-            if (!punchRead && offsets.m_aimPunchAngle) {
-                float punch[2]{};
-                if (QRead(runtime.local_pawn + offsets.m_aimPunchAngle,
-                          punch, sizeof(punch)) &&
-                    std::isfinite(punch[0]) && std::isfinite(punch[1]) &&
-                    std::fabs(punch[0]) < 90.f && std::fabs(punch[1]) < 90.f) {
-                    runtime.local_aim_punch[0] = punch[0];
-                    runtime.local_aim_punch[1] = punch[1];
-                    runtime.local_aim_punch_valid = true;
-                }
-            }
-
-            uintptr_t weaponServices = 0;
-            uint32_t activeWeapon = 0;
-            if (offsets.m_pWeaponServices && offsets.m_hActiveWeapon &&
-                QReadT(runtime.local_pawn + offsets.m_pWeaponServices, weaponServices) &&
-                IsUserPointer(weaponServices) &&
-                QReadT(weaponServices + offsets.m_hActiveWeapon, activeWeapon)) {
-                const uintptr_t weaponEntity = ResolveEntityByHandle(
-                    activeWeapon, g_pawn_stride ? g_pawn_stride : kEntityIdentityStride);
-                if (IsUserPointer(weaponEntity)) {
-                    const uintptr_t definitionAddress = weaponEntity +
-                        offsets.m_AttributeManager + offsets.m_Item +
-                        offsets.m_iItemDefinitionIndex;
-                    uint16_t definition = 0;
-                    if (QReadT(definitionAddress, definition) &&
-                        definition > 0 && definition < 6000)
-                        runtime.local_weapon_def = static_cast<int>(definition);
-                    else {
-                        const uintptr_t fallbacks[] = {
-                            weaponEntity + 0x11A8 + 0x50 + 0x1BA,
-                            weaponEntity + 0x1BA,
-                            weaponEntity + 0x16F0,
-                        };
-                        for (const uintptr_t address : fallbacks) {
-                            uint16_t candidate = 0;
-                            if (QReadT(address, candidate) && candidate > 0 && candidate < 6000) {
-                                runtime.local_weapon_def = static_cast<int>(candidate);
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
         }
 
         runtime.local_crosshair_entity = 0;
@@ -2181,13 +2098,6 @@ static void RunFrameWithConfig(const Config& frame_config) {
             p.is_scoped = runtime.local_scoped;
         if (frame_config.smoke_flash)
             p.is_flashed = cf.flash > 0.15f;
-        if ((frame_config.recoil_visual || frame_config.aim_enabled) && p.is_local && offsets.m_aimPunchAngle) {
-            float punch[2]{};
-            if (QRead(pawn + offsets.m_aimPunchAngle, punch, sizeof(punch))) {
-                p.aim_punch[0] = punch[0];
-                p.aim_punch[1] = punch[1];
-            }
-        }
 
         p.pos[0] = positions[c][0];
         p.pos[1] = positions[c][1];

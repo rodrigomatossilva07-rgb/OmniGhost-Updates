@@ -107,6 +107,7 @@ bool Memory::Read(uintptr_t address, void* buffer, size_t size) const
 	DataCallLease dataLease(this);
 	if (!dataLease || !this->vHandle)
 		return false;
+	readRequestCount_.fetch_add(1, std::memory_order_relaxed);
 	if (size > static_cast<size_t>(MAXDWORD))
 		return false;
 	const DWORD byteCount = static_cast<DWORD>(size);
@@ -133,6 +134,7 @@ bool Memory::ReadWithCount(uintptr_t address, void* buffer, size_t size, size_t&
 	DataCallLease dataLease(this);
 	if (!dataLease || !this->vHandle || !buffer)
 		return false;
+	readRequestCount_.fetch_add(1, std::memory_order_relaxed);
 	if (size > static_cast<size_t>(MAXDWORD))
 		return false;
 
@@ -286,6 +288,7 @@ void Memory::ExecuteReadScatter(VMMDLL_SCATTER_HANDLE handle, int pid)
 		return;
 	if (pid == 0)
 		pid = current_process.PID;
+	scatterReadBatchCount_.fetch_add(1, std::memory_order_relaxed);
 
 	if (!VMMDLL_Scatter_ExecuteRead(handle))
 	{

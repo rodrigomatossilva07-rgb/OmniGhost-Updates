@@ -22,7 +22,7 @@ if (-not (Test-Path -LiteralPath $generatedRc -PathType Leaf)) {
 $rc = Get-Content -LiteralPath $generatedRc -Raw
 $required = @(
     @{ id = 201; name = 'FORTNITE' }, @{ id = 202; name = 'WARZONE' },
-    @{ id = 203; name = 'CS2' }, @{ id = 204; name = 'RUST' },
+    @{ id = 203; name = 'CS2' },
     @{ id = 205; name = 'FIVEM' }, @{ id = 206; name = 'APEX' }
 )
 foreach ($entry in $required) {

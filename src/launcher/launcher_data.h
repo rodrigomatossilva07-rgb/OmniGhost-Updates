@@ -13,9 +13,10 @@ enum class GameId : int {
     CS2 = 2,
     Valorant = 3,
     Fortnite = 4,
+    Rust = 5,
     Warzone = 6,
     Apex = 7,
-    Count = 7
+    Count = 8
 };
 
 enum class ChangeType : int {

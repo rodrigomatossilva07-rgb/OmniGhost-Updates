@@ -33,7 +33,6 @@ struct Offsets {
     // C_CSPlayerPawn fields for build 14174
     uintptr_t m_ArmorValue = 0x1CA4;
     uintptr_t m_angEyeAngles = 0x3350;
-    uintptr_t m_iShotsFired = 0x1C8C;
     uintptr_t m_iIDEntIndex = 0x342C;
     uintptr_t m_vecAbsOrigin = 0xC8;
     uintptr_t m_vecVelocity = 0x1D8;
@@ -48,10 +47,6 @@ struct Offsets {
     uintptr_t m_flFlashDuration = 0x1428;
     // Current CS2 builds expose aim punch through a pawn component. Keep the
     // legacy direct angle for compatibility with older offset dumps.
-    uintptr_t m_pAimPunchServices = 0x14B8;
-    uintptr_t m_predictableBaseAngle = 0x50;
-    uintptr_t m_unpredictableBaseAngle = 0xA4;
-    uintptr_t m_aimPunchAngle = 0x1584;
     // C_PlantedC4 fields for build 14174
     uintptr_t m_bBombTicking = 0x11A0;
     uintptr_t m_flC4Blow = 0x11D0;
@@ -112,7 +107,6 @@ struct Player {
     bool bones_ok = false;
     bool spotted = true; // m_bSpotted (EntitySpottedState_t)
     int ent_index = 0;
-    float aim_punch[2]{};
 };
 
 struct BombState {
@@ -140,10 +134,6 @@ struct Runtime {
     float local_view_yaw = 0.f;
     bool local_scoped = false;
     int local_crosshair_entity = 0;
-    int local_shots_fired = 0;
-    int local_weapon_def = 0;
-    float local_aim_punch[2]{};
-    bool local_aim_punch_valid = false;
     float view_matrix[16]{};
     char map_name[64]{};
     bool in_match = false;
@@ -158,6 +148,8 @@ struct Runtime {
     uint32_t build_number = 0;
     uint64_t frames = 0;
     uint64_t read_fails = 0;
+    uint64_t snapshot_timestamp_ms = 0;
+    float acquisition_hz = 0.f;
     float fps = 0.f;
     int entity_cap_used = 0;
     bool offsets_self_test_ok = false;

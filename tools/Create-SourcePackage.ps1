@@ -37,7 +37,7 @@ $allowedRootFiles = @(
     'release-notes.override.json', 'release-publish.json'
 )
 $allowedRoots = @(
-    'Cs2', 'DMALibrary', 'Fivem', 'ImGui', 'Rust', 'Utils',
+    'Cs2', 'DMALibrary', 'Fivem', 'ImGui', 'Utils',
     'Valorant', 'Warzone', 'data', 'docs', 'libs', 'resources', 'runtime', 'src',
     'third_party', 'tools'
 )

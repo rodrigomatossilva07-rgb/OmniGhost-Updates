@@ -16,6 +16,7 @@
 #include <chrono>
 #include <cstdio>
 #include <cstring>
+#include <iterator>
 #include <unordered_map>
 
 namespace CS2_ESP {
@@ -28,6 +29,90 @@ ImU32 Col(const float* c, float aMul = 1.f) {
 }
 
 bool W2S(const float* world, const float* vm, float& sx, float& sy);
+
+// Presentation-only smoothing. DMA snapshots and aim logic remain untouched.
+// Each pawn keeps a tiny render state that interpolates toward a short,
+// velocity-based prediction. The prediction is capped so packet/DMA stalls
+// cannot make players drift across the screen.
+struct VisualPlayerState {
+    float position[3]{};
+    float raw_position[3]{};
+    CS2::Player output{};
+    double sample_time = 0.0;
+    double last_seen = 0.0;
+    int last_frame = -1;
+    bool initialized = false;
+};
+
+CS2::Player SmoothPlayerForPresentation(const CS2::Player& raw) {
+    static std::unordered_map<uintptr_t, VisualPlayerState> states;
+    static int cleanup_frame = -1;
+
+    const int frame = ImGui::GetFrameCount();
+    const double now = ImGui::GetTime();
+    auto& state = states[raw.pawn];
+    if (state.last_frame == frame)
+        return state.output;
+
+    const float raw_delta_x = raw.pos[0] - state.raw_position[0];
+    const float raw_delta_y = raw.pos[1] - state.raw_position[1];
+    const float raw_delta_z = raw.pos[2] - state.raw_position[2];
+    const float raw_delta_sq = raw_delta_x * raw_delta_x + raw_delta_y * raw_delta_y + raw_delta_z * raw_delta_z;
+    if (!state.initialized || raw_delta_sq > 0.0001f) {
+        std::copy(std::begin(raw.pos), std::end(raw.pos), state.raw_position);
+        state.sample_time = now;
+    }
+
+    const float dx = raw.pos[0] - state.position[0];
+    const float dy = raw.pos[1] - state.position[1];
+    const float dz = raw.pos[2] - state.position[2];
+    const float distance_sq = dx * dx + dy * dy + dz * dz;
+    const bool invalid = !std::isfinite(raw.pos[0]) || !std::isfinite(raw.pos[1]) || !std::isfinite(raw.pos[2]);
+    constexpr float kTeleportDistance = 192.f;
+
+    if (!state.initialized || invalid || distance_sq > kTeleportDistance * kTeleportDistance) {
+        std::copy(std::begin(raw.pos), std::end(raw.pos), state.position);
+        state.initialized = !invalid;
+    } else {
+        const float dt = std::clamp(ImGui::GetIO().DeltaTime, 0.001f, 0.050f);
+        constexpr float kSmoothingSeconds = 0.026f;
+        const float alpha = 1.f - std::exp(-dt / kSmoothingSeconds);
+        const float sample_age = static_cast<float>(std::clamp(now - state.sample_time, 0.0, 0.024));
+        const float speed_sq = raw.velocity[0] * raw.velocity[0] + raw.velocity[1] * raw.velocity[1] + raw.velocity[2] * raw.velocity[2];
+        const float lead = speed_sq < 5000.f * 5000.f ? std::min(sample_age + 0.006f, 0.030f) : 0.f;
+        for (int axis = 0; axis < 3; ++axis) {
+            const float target = raw.pos[axis] + raw.velocity[axis] * lead;
+            state.position[axis] += (target - state.position[axis]) * alpha;
+        }
+    }
+
+    state.output = raw;
+    const float shift[3] = {
+        state.position[0] - raw.pos[0],
+        state.position[1] - raw.pos[1],
+        state.position[2] - raw.pos[2]
+    };
+    for (int axis = 0; axis < 3; ++axis) {
+        state.output.pos[axis] += shift[axis];
+        state.output.head[axis] += shift[axis];
+    }
+    if (state.output.bones_ok) {
+        for (std::size_t bone = 0; bone < CS2::kBoneSlotCount; ++bone)
+            for (int axis = 0; axis < 3; ++axis)
+                state.output.bones[bone][axis] += shift[axis];
+    }
+    state.last_seen = now;
+    state.last_frame = frame;
+
+    if (cleanup_frame != frame && (frame % 240) == 0) {
+        cleanup_frame = frame;
+        for (auto it = states.begin(); it != states.end();) {
+            if (now - it->second.last_seen > 2.0) it = states.erase(it);
+            else ++it;
+        }
+    }
+    return state.output;
+}
 
 void DrawMotionVisuals(ImDrawList* dl, const CS2::Runtime& rt,
                        const CS2::Config& cfg, const CS2::Player& player) {
@@ -258,7 +343,8 @@ void DrawRadar2D(ImDrawList* dl, const CS2::Runtime& rt, CS2::Config& cfg) {
     const float scale = 0.08f;
     const float yaw = rt.local_view_yaw * 0.01745329251f;
     const float cy = std::cos(yaw), sy = std::sin(yaw);
-    for (const auto& p : rt.players) {
+    for (const auto& raw : rt.players) {
+        const CS2::Player p = SmoothPlayerForPresentation(raw);
         if (p.is_local) continue;
         if (cfg.team_check && p.team == rt.local_team) continue;
         float dx = p.pos[0] - rt.local_pos[0];
@@ -448,18 +534,6 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
             IM_COL32(212, 175, 55, 200), st);
     }
 
-    if (cfg.recoil_visual && rt.local_pawn) {
-        for (const auto& p : rt.players) {
-            if (!p.is_local) continue;
-            const float punch_scale = 8.f;
-            float ox = p.aim_punch[1] * punch_scale;
-            float oy = p.aim_punch[0] * punch_scale;
-            ImVec2 c(ds.x * 0.5f - ox, ds.y * 0.5f + oy);
-            dl->AddLine(ImVec2(c.x - 6, c.y), ImVec2(c.x + 6, c.y), IM_COL32(212, 175, 55, 180), 1.5f);
-            dl->AddLine(ImVec2(c.x, c.y - 6), ImVec2(c.x, c.y + 6), IM_COL32(212, 175, 55, 180), 1.5f);
-            break;
-        }
-    }
 
     // Bomb timer — banner + world marker + soft beep under 5s
     if (cfg.bomb_timer && rt.bomb.planted && !rt.bomb.defused &&
@@ -506,7 +580,7 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
     if (cfg.offscreen_arrows) {
         const float arrowRadius = (cfg.aim_fov > 1.f ? cfg.aim_fov : 80.f) + 5.f;
         for (int pi = 0; pi < (int)rt.players.size(); ++pi) {
-            const auto& p = rt.players[pi];
+            const CS2::Player p = SmoothPlayerForPresentation(rt.players[pi]);
             if (p.is_local && !cfg.self_esp) continue;
             if (!p.is_local && cfg.team_check && p.team == rt.local_team) continue;
             if (!p.alive && p.health <= 0) continue;
@@ -543,7 +617,7 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
         CS2_WeaponIcons::EnsureLoaded(g_overlay_instance->device);
 
     for (int pi = 0; pi < (int)rt.players.size(); ++pi) {
-        const auto& p = rt.players[pi];
+        const CS2::Player p = SmoothPlayerForPresentation(rt.players[pi]);
         if (p.is_local && !cfg.self_esp) continue;
         if (!p.is_local && cfg.team_check && p.team == rt.local_team) continue;
         if (p.distance > cfg.max_distance) continue;

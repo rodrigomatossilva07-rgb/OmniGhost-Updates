@@ -161,7 +161,7 @@ Result<void> TestReconnectionAfterFailure() {
 
 // Item 61: Test game -> launcher -> another game in same execution
 Result<void> TestGameSwitching() {
-    // CS2 -> Launcher -> Rust -> Launcher -> Warzone
+    // CS2 -> Launcher -> Warzone
     return Ok();
 }
 

@@ -25,6 +25,92 @@
 #include <vector>
 
 namespace {
+const char* ActiveGameTelemetryName() {
+    switch (g_activeGame) {
+    case ActiveGame::CS2: return "CS2";
+    case ActiveGame::FiveM: return "FiveM";
+    case ActiveGame::Warzone: return "Warzone";
+    case ActiveGame::Valorant: return "Valorant";
+    case ActiveGame::Fortnite: return "Fortnite";
+    default: return "OmniGhost";
+    }
+}
+
+void DrawTelemetryWindow() {
+    static bool open = false;
+    static Memory::DiagnosticsSnapshot previous{};
+    static ULONGLONG previousTick = 0;
+    static float readsPerSecond = 0.0f;
+    static float scatterBatchesPerSecond = 0.0f;
+
+    if (CyberWidgets::Button("TELEMETRIA##open_telemetry", CyberWidgets::ButtonStyle::Secondary, ImVec2(150, 34)))
+        open = !open;
+    ImGui::SameLine();
+    CyberWidgets::TextLine(app_settings::T("Janela móvel com métricas reais do DMA.", "Movable window with live DMA metrics."),
+                           CyberWidgets::TextTone::Secondary);
+
+    if (!open)
+        return;
+
+    const auto current = mem.GetDiagnosticsSnapshot();
+    const ULONGLONG now = GetTickCount64();
+    if (previousTick != 0 && now > previousTick) {
+        const float seconds = static_cast<float>(now - previousTick) / 1000.0f;
+        if (seconds >= 0.25f) {
+            readsPerSecond = static_cast<float>(current.readRequestCount - previous.readRequestCount) / seconds;
+            scatterBatchesPerSecond = static_cast<float>(current.scatterReadBatchCount - previous.scatterReadBatchCount) / seconds;
+            previous = current;
+            previousTick = now;
+        }
+    } else {
+        previous = current;
+        previousTick = now;
+    }
+
+    ImGui::SetNextWindowSize(ImVec2(390.f, 0.f), ImGuiCond_FirstUseEver);
+    if (ImGui::Begin("Telemetria DMA##telemetry_window", &open,
+                     ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize)) {
+        CyberWidgets::TextLineF(CyberWidgets::TextTone::Accent, "%s · %s",
+                                ActiveGameTelemetryName(), current.processInitialized ? "Processo ligado" : "À espera do processo");
+        CyberWidgets::Separator();
+        char value[112]{};
+        std::snprintf(value, sizeof(value), "%.0f /s", readsPerSecond);
+        CyberWidgets::KeyValueRow("Leituras", value);
+        std::snprintf(value, sizeof(value), "%.1f /s", scatterBatchesPerSecond);
+        CyberWidgets::KeyValueRow("Scatter batches", value);
+        std::snprintf(value, sizeof(value), "%llu ms / p95 %llu ms / máx %llu ms",
+                      static_cast<unsigned long long>(current.vmmLatencyAverageMs),
+                      static_cast<unsigned long long>(current.vmmLatencyP95Ms),
+                      static_cast<unsigned long long>(current.maxVmmLatencyMs));
+        CyberWidgets::KeyValueRow("Latência VMM", value);
+        std::snprintf(value, sizeof(value), "%llu", static_cast<unsigned long long>(current.readFailureCount));
+        CyberWidgets::KeyValueRow("Leituras falhadas", value);
+        std::snprintf(value, sizeof(value), "PID %d · DMA %s", current.processId,
+                      current.deviceOpen ? "aberto" : (current.deviceDetected ? "detetado" : "offline"));
+        CyberWidgets::KeyValueRow("Sessão", value);
+        std::snprintf(value, sizeof(value), "%s · handles %u · bloqueadas %llu",
+                      current.maintenanceActive ? "manutenção" : "ativa",
+                      current.activeScatterHandles,
+                      static_cast<unsigned long long>(current.blockedDataCalls));
+        CyberWidgets::KeyValueRow("Pipeline", value);
+        CyberWidgets::Separator();
+        if (g_activeGame == ActiveGame::CS2) {
+            const auto snapshot = CS2::AcquireRuntimeSnapshot();
+            if (snapshot && snapshot->snapshot_timestamp_ms != 0) {
+                const uint64_t age = GetTickCount64() - snapshot->snapshot_timestamp_ms;
+                std::snprintf(value, sizeof(value), "%llu ms · %.0f Hz · %d entidades",
+                              static_cast<unsigned long long>(age), snapshot->acquisition_hz, snapshot->player_count);
+                CyberWidgets::KeyValueRow("Snapshot CS2", value);
+            }
+        } else {
+            CyberWidgets::TextLine(app_settings::T("Snapshot por jogo ainda não publicado por este adapter.",
+                                                   "Per-game snapshot is not yet published by this adapter."),
+                                   CyberWidgets::TextTone::Secondary);
+        }
+    }
+    ImGui::End();
+}
+
 const char* MenuVkName(int vk) {
     switch (vk) {
     case 0: return "Nenhuma";
@@ -301,6 +387,8 @@ void DrawConfigs(Overlay* self)
         CyberWidgets::ToggleSwitch(Loc::Tr("cfg.vsync"), &app_settings::config.vsync);
         CyberWidgets::ToggleSwitch(Loc::Tr("cfg.hotkey_overlay"), &app_settings::config.show_hotkey_overlay);
         CyberWidgets::ToggleSwitch(app_settings::T("Detalhes técnicos", "Technical details"), &app_settings::config.show_advanced);
+        CyberWidgets::Separator();
+        DrawTelemetryWindow();
         CyberWidgets::EndCard();
         CyberWidgets::CardGap();
         InputDevicesCard::Draw();

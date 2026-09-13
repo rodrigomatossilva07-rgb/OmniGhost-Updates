@@ -169,6 +169,10 @@ private:
 	std::atomic<uint64_t> deviceResetCount_{ 0 };
 	std::atomic<uint64_t> processBindCount_{ 0 };
 	std::atomic<uint64_t> vmmCallCount_{ 0 };
+	// Data-plane counters are independent from VMM control-plane timing. The
+	// diagnostics UI turns these monotonic values into rates without extra reads.
+	mutable std::atomic<uint64_t> readRequestCount_{ 0 };
+	mutable std::atomic<uint64_t> scatterReadBatchCount_{ 0 };
 	std::atomic<uint64_t> maxVmmLatencyMs_{ 0 };
 	// Passive startup/status result only. OmniGhost deliberately does not open
 	// the FPGA during startup just to paint a status indicator; real device open
@@ -272,7 +276,10 @@ public:
 		uint64_t deviceResetCount = 0;
 		uint64_t processBindCount = 0;
 		uint64_t vmmCallCount = 0;
+		uint64_t readRequestCount = 0;
+		uint64_t scatterReadBatchCount = 0;
 		uint64_t maxVmmLatencyMs = 0;
+		uint64_t vmmLatencyAverageMs = 0;
 		uint64_t vmmLatencyP50Ms = 0;
 		uint64_t vmmLatencyP95Ms = 0;
 		uint64_t readFailureCount = 0;

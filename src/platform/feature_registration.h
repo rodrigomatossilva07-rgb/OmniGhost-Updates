@@ -42,7 +42,7 @@ public:
     void OnConfigChange(std::string_view key, std::string_view value) noexcept override { (void)key; (void)value; }
 };
 
-// Vehicle ESP Feature (Rust, FiveM)
+// Vehicle ESP Feature (FiveM)
 class VehicleEspFeature final : public GameFeatureBase<VehicleEspFeature> {
 public:
     static constexpr std::string_view Id = "vehicle_esp";

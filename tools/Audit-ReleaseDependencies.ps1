@@ -87,7 +87,7 @@ foreach ($game in @('Warzone', 'Valorant')) {
     }
 }
 
-$ownSourceRoots = @('src', 'Cs2', 'Fivem', 'Rust', 'Warzone', 'Valorant', 'DMALibrary')
+$ownSourceRoots = @('src', 'Cs2', 'Fivem', 'Warzone', 'Valorant', 'DMALibrary')
 foreach ($rootName in $ownSourceRoots) {
     $root = Join-Path $ProjectDir $rootName
     if (-not (Test-Path -LiteralPath $root -PathType Container)) { continue }

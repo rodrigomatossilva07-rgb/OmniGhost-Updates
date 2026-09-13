@@ -39,7 +39,6 @@ struct Config {
     bool spectator_list = false;
     bool smoke_flash = false;
     bool scope_check = false;
-    bool recoil_visual = false;
     bool sound_esp = false;
     bool grenade_trail = false;
     bool radar_2d = false;
@@ -111,16 +110,6 @@ struct Config {
     bool aim_ignore_spectators = false;
     bool aim_ignore_bots = true;
     float col_fov[4] = { 0.83f, 0.69f, 0.22f, 0.45f };
-
-    // Recoil control. Live aim punch is preferred; per-weapon patterns are
-    // only used when that DMA read is unavailable.
-    bool rcs_enabled = false;
-    float rcs_strength = 100.f;       // percent
-    float rcs_sensitivity = 1.f;      // CS2 sensitivity (degrees -> counts)
-    float rcs_recoil_scale = 2.f;     // weapon_recoil_scale (normally 2.0)
-    int rcs_recovery_ms = 140;
-    bool rcs_pattern_fallback = true;
-    bool rcs_with_aimbot = true;
 
     bool trigger_enabled = false;
     int trigger_bind = 0x12; // ALT

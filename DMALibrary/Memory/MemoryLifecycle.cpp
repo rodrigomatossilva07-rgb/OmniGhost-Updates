@@ -58,13 +58,17 @@ Memory::DiagnosticsSnapshot Memory::GetDiagnosticsSnapshot() const noexcept
 	snapshot.deviceResetCount = deviceResetCount_.load(std::memory_order_relaxed);
 	snapshot.processBindCount = processBindCount_.load(std::memory_order_relaxed);
 	snapshot.vmmCallCount = vmmCallCount_.load(std::memory_order_relaxed);
+	snapshot.readRequestCount = readRequestCount_.load(std::memory_order_relaxed);
+	snapshot.scatterReadBatchCount = scatterReadBatchCount_.load(std::memory_order_relaxed);
 	snapshot.maxVmmLatencyMs = maxVmmLatencyMs_.load(std::memory_order_relaxed);
 	const uint64_t sampleIndex = vmmLatencySampleIndex_.load(std::memory_order_acquire);
 	const size_t sampleCount = static_cast<size_t>((std::min)(sampleIndex, static_cast<uint64_t>(vmmLatencySamples_.size())));
 	if (sampleCount > 0) {
 		std::array<uint64_t, kVmmLatencySampleCapacity> samples{};
+		uint64_t total = 0;
 		for (size_t i = 0; i < sampleCount; ++i)
-			samples[i] = vmmLatencySamples_[i].load(std::memory_order_relaxed);
+			total += (samples[i] = vmmLatencySamples_[i].load(std::memory_order_relaxed));
+		snapshot.vmmLatencyAverageMs = total / sampleCount;
 		std::sort(samples.begin(), samples.begin() + static_cast<std::ptrdiff_t>(sampleCount));
 		auto percentile = [&](size_t numerator, size_t denominator) -> uint64_t {
 			const size_t index = ((sampleCount - 1) * numerator) / denominator;
@@ -257,4 +261,3 @@ bool Memory::ProbePhysicalDataPath()
 		<< maxProbeRanges << " ranges\n";
 	return false;
 }
-

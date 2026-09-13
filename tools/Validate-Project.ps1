@@ -51,7 +51,7 @@ foreach ($file in @(
     'src\platform\embedded_offsets.cpp','src\platform\embedded_offsets.h',
     'src\platform\embedded_resources.cpp','src\platform\embedded_resources.h',
     'src\platform\runtime_bootstrap.cpp','src\platform\runtime_bootstrap.h',
-    'tools\Build-EmbeddedOffsets.ps1','tools\Build-EmbeddedRuntime.ps1','tools\Build-EmbeddedResources.ps1',
+    'tools\Build-EmbeddedOffsets.ps1','tools\Build-EmbeddedRuntime.ps1','tools\Build-EmbeddedResources.ps1','tools\Verify-BuildMatrix.ps1',
     'data\fortnite_offsets.json','data\warzone_offsets.json',
     'src\licensing\license_service.cpp','src\launcher\license_page.cpp'
 )) { Require-File $file }

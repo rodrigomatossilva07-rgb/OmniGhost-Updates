@@ -69,14 +69,12 @@ void UpdateHardwareMonitor() {
     HardwareMonitor::SetDeviceEnabled(HardwareMonitor::DeviceType::Ferrum, aim_type::config.ferrum_enabled);
 }
 
-void DrawDeviceStatus(const HardwareMonitor::DeviceStatus& status) {
-    const bool healthy = HardwareMonitor::IsDeviceHealthy(static_cast<HardwareMonitor::DeviceType>(0)); // placeholder
-    
+void DrawDeviceStatus(HardwareMonitor::DeviceType type, const HardwareMonitor::DeviceStatus& status) {
     // Connection status badge
     CyberWidgets::StatusBadge(status.name.c_str(), status.connected);
     
     // Health indicator
-    std::string health = HardwareMonitor::GetDeviceHealthString(static_cast<HardwareMonitor::DeviceType>(0));
+    std::string health = HardwareMonitor::GetDeviceHealthString(type);
     CyberWidgets::TextTone tone = CyberWidgets::TextTone::Success;
     if (health == "Disconnected" || health == "Stale") tone = CyberWidgets::TextTone::Error;
     else if (health == "High Latency" || health == "Elevated Latency") tone = CyberWidgets::TextTone::Warning;
@@ -88,8 +86,8 @@ void DrawDeviceStatus(const HardwareMonitor::DeviceStatus& status) {
     if (status.connected) {
         char lat[64];
         std::snprintf(lat, sizeof(lat), "Avg: %.1fms Max: %.1fms", 
-            HardwareMonitor::GetAverageLatency(static_cast<HardwareMonitor::DeviceType>(0), 5),
-            HardwareMonitor::GetMaxLatency(static_cast<HardwareMonitor::DeviceType>(0), 5));
+            HardwareMonitor::GetAverageLatency(type, 5),
+            HardwareMonitor::GetMaxLatency(type, 5));
         CyberWidgets::KeyValueRow("Latency", lat);
     }
     
@@ -106,7 +104,7 @@ void DrawDeviceStatus(const HardwareMonitor::DeviceStatus& status) {
 
 void DrawMakcu() {
     const auto& status = HardwareMonitor::GetDeviceStatus(HardwareMonitor::DeviceType::Makcu);
-    DrawDeviceStatus(status);
+    DrawDeviceStatus(HardwareMonitor::DeviceType::Makcu, status);
     CyberWidgets::Separator();
     
     if (CyberWidgets::ToggleSwitch(Loc::TrID("aim.makcu"), &aim_type::config.makcu_enabled) &&
@@ -137,7 +135,7 @@ void DrawMakcu() {
 
 void DrawKmboxNet() {
     const auto& status = HardwareMonitor::GetDeviceStatus(HardwareMonitor::DeviceType::KMBoxNet);
-    DrawDeviceStatus(status);
+    DrawDeviceStatus(HardwareMonitor::DeviceType::KMBoxNet, status);
     CyberWidgets::Separator();
     
     if (CyberWidgets::ToggleSwitch(Loc::TrID("aim.kmbox_net"), &aim_type::config.kmbox_net_enabled) &&
@@ -161,7 +159,7 @@ void DrawKmboxNet() {
 
 void DrawFerrum() {
     const auto& status = HardwareMonitor::GetDeviceStatus(HardwareMonitor::DeviceType::Ferrum);
-    DrawDeviceStatus(status);
+    DrawDeviceStatus(HardwareMonitor::DeviceType::Ferrum, status);
     CyberWidgets::Separator();
     
     if (CyberWidgets::ToggleSwitch("Ferrum", &aim_type::config.ferrum_enabled) &&
@@ -193,7 +191,7 @@ void Draw() {
     
     // DMA Status
     const auto& dma_status = HardwareMonitor::GetDeviceStatus(HardwareMonitor::DeviceType::DMA);
-    DrawDeviceStatus(dma_status);
+    DrawDeviceStatus(HardwareMonitor::DeviceType::DMA, dma_status);
     CyberWidgets::Separator();
     
     DrawMakcu();

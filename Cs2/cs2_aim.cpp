@@ -3,7 +3,6 @@
 #define NOMINMAX
 #endif
 #include "cs2_aim.h"
-#include "cs2_recoil_patterns.h"
 #include "../Fivem/aimbot/aim_type.h"
 #include "gameplay/aim_controller.h"
 #include "gameplay/unified_aim.h"
@@ -24,18 +23,6 @@ std::chrono::steady_clock::time_point g_last_switch{};
 char g_debug[128] = "aim idle";
 int g_frames_sem_bind = 0;
 OmniGhost::Gameplay::ContinuousAimController g_aim_motion;
-
-struct RcsState {
-    int weapon_def = 0;
-    int last_shots = 0;
-    bool fire_was_down = false;
-    float previous_punch[2]{};
-    float residual_x = 0.f;
-    float residual_y = 0.f;
-    std::chrono::steady_clock::time_point last_shot{};
-};
-
-RcsState g_rcs;
 
 // Unified aimbot instance (stub for Publish builds)
 static std::unique_ptr<Gameplay::UnifiedAim::UnifiedAimbot> g_unified_aimbot;
@@ -110,95 +97,6 @@ bool AimKeyDown(const CS2::Config& cfg) {
     return down;
 }
 
-void ResetRcs() {
-    g_rcs = RcsState{};
-}
-
-void MoveMousePrecise(float dx, float dy) {
-    if (!std::isfinite(dx) || !std::isfinite(dy)) return;
-    g_rcs.residual_x += dx;
-    g_rcs.residual_y += dy;
-    const int ix = static_cast<int>(g_rcs.residual_x);
-    const int iy = static_cast<int>(g_rcs.residual_y);
-    g_rcs.residual_x -= static_cast<float>(ix);
-    g_rcs.residual_y -= static_cast<float>(iy);
-    MoveMouse(ix, iy);
-}
-
-void RunRcs(const CS2::Runtime& rt, const CS2::Config& cfg, bool aim_key_down) {
-    const bool fire_down = KeyDown(VK_LBUTTON);
-    const float strength = std::clamp(cfg.rcs_strength, 0.f, 100.f) * 0.01f;
-    const auto pattern = CS2::Recoil::PatternForWeapon(rt.local_weapon_def);
-
-    if (!cfg.rcs_enabled || strength <= 0.f || !fire_down ||
-        rt.local_health <= 0 || !pattern.shots ||
-        (!cfg.rcs_with_aimbot && aim_key_down)) {
-        ResetRcs();
-        return;
-    }
-
-    const auto now = std::chrono::steady_clock::now();
-    const int shots = std::clamp(rt.local_shots_fired, 0, 200);
-    if (!g_rcs.fire_was_down || g_rcs.weapon_def != rt.local_weapon_def ||
-        shots < g_rcs.last_shots) {
-        ResetRcs();
-        g_rcs.fire_was_down = true;
-        g_rcs.weapon_def = rt.local_weapon_def;
-        g_rcs.last_shot = now;
-    }
-
-    const bool new_shot = shots > g_rcs.last_shots;
-    if (new_shot)
-        g_rcs.last_shot = now;
-
-    const int recovery_ms = std::clamp(cfg.rcs_recovery_ms, 50, 500);
-    if (g_rcs.last_shot.time_since_epoch().count() != 0 &&
-        std::chrono::duration_cast<std::chrono::milliseconds>(
-            now - g_rcs.last_shot).count() > recovery_ms) {
-        // Holding fire without new shots (empty magazine / semi-auto pause)
-        // must not continue moving the mouse.
-        g_rcs.last_shots = shots;
-        g_rcs.previous_punch[0] = rt.local_aim_punch[0];
-        g_rcs.previous_punch[1] = rt.local_aim_punch[1];
-        g_rcs.residual_x = g_rcs.residual_y = 0.f;
-        return;
-    }
-
-    const bool punch_has_signal = rt.local_aim_punch_valid &&
-        (std::fabs(rt.local_aim_punch[0]) > 0.0001f ||
-         std::fabs(rt.local_aim_punch[1]) > 0.0001f ||
-         std::fabs(g_rcs.previous_punch[0]) > 0.0001f ||
-         std::fabs(g_rcs.previous_punch[1]) > 0.0001f);
-    if (shots > 0 && punch_has_signal) {
-        const float sensitivity = std::clamp(cfg.rcs_sensitivity, 0.05f, 20.f);
-        const float recoil_scale = std::clamp(cfg.rcs_recoil_scale, 0.f, 5.f);
-        const float counts_per_degree = 1.f / (0.022f * sensitivity);
-        const float delta_pitch = rt.local_aim_punch[0] - g_rcs.previous_punch[0];
-        const float delta_yaw = rt.local_aim_punch[1] - g_rcs.previous_punch[1];
-
-        // CS2 convention requested by the integration: positive pitch pulls
-        // down, while positive yaw is compensated to the left.
-        MoveMousePrecise(-delta_yaw * recoil_scale * counts_per_degree * strength,
-                          delta_pitch * recoil_scale * counts_per_degree * strength);
-    } else if (new_shot && cfg.rcs_pattern_fallback) {
-        // The public tables are calibrated at sensitivity 0.54. Apply every
-        // missed entry if the DMA snapshot skipped more than one game shot.
-        const float sensitivity = std::clamp(cfg.rcs_sensitivity, 0.05f, 20.f);
-        const float pattern_scale = (0.54f / sensitivity) * strength;
-        const int first = std::max(g_rcs.last_shots, 0);
-        const int last = std::min(shots, static_cast<int>(pattern.count));
-        for (int shot = first; shot < last; ++shot) {
-            const auto& delta = pattern.shots[shot];
-            MoveMousePrecise(delta.dx * pattern_scale, delta.dy * pattern_scale);
-        }
-    }
-
-    g_rcs.previous_punch[0] = rt.local_aim_punch[0];
-    g_rcs.previous_punch[1] = rt.local_aim_punch[1];
-    g_rcs.last_shots = shots;
-    g_rcs.fire_was_down = true;
-}
-
 float EffectiveFov(const CS2::Config& cfg, float distance_m) {
     float fov = cfg.aim_fov > 1.f ? cfg.aim_fov : 80.f;
     if (!cfg.aim_dynamic_fov) return fov;
@@ -213,7 +111,6 @@ void HandlePanic(CS2::Config& cfg) {
     const bool down = KeyDown(cfg.panic_key);
     if (down && !was_down) {
         cfg.aim_enabled = false;
-        cfg.rcs_enabled = false;
         cfg.trigger_enabled = false;
         cfg.esp_enabled = false;
         cfg.radar_2d = false;
@@ -244,13 +141,12 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
 
     const bool playable = rt.in_match || !rt.players.empty();
     if (!playable) {
-        ResetRcs();
         g_active_target_idx = -1;
         g_aim_motion.Reset();
         std::snprintf(g_debug, sizeof(g_debug), "sem partida");
         return;
     }
-    if (!cfg.aim_enabled && !cfg.trigger_enabled && !cfg.rcs_enabled) {
+    if (!cfg.aim_enabled && !cfg.trigger_enabled) {
         g_active_target_idx = -1;
         g_aim_motion.Reset();
         std::snprintf(g_debug, sizeof(g_debug), "aim/trig OFF");
@@ -409,8 +305,6 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
         }
     }
 
-    // Input composition order: target pull first, recoil compensation second.
-    RunRcs(rt, cfg, aim_key_down);
 }
 
 } // namespace CS2_Aim

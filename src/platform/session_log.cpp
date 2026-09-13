@@ -99,7 +99,7 @@ bool IsEssentialConsoleLine(std::string_view line, ConsoleStreamKind kind) {
 
     // High-level application/game state only. Detailed probes use [DEBUG] and stay in logs.txt.
     if (StartsWith(line, "[Warzone]") || StartsWith(line, "[CS2]") ||
-        StartsWith(line, "[Rust]") || StartsWith(line, "[FiveM]") ||
+        StartsWith(line, "[FiveM]") ||
         StartsWith(line, "[Valorant]") || StartsWith(line, "[OmniGhost]") ||
         StartsWith(line, "[Kmbox]") || StartsWith(line, "[OffsetAuto]")) {
         return ContainsAny(line, {

@@ -70,7 +70,7 @@ namespace {
         {"launcher.status.update_required", {"Atualização necessária", "Update required", "Update required", "Update required", "Update required", "Update required"}},
         {"launcher.status.beta", {"Beta", "Beta", "Beta", "Beta", "Beta", "Beta"}},
         {"launcher.status.development", {"Desenvolvimento", "Development", "Development", "Desarrollo", "D®veloppement", "Sviluppo"}},
-        {"launcher.status.coming_soon", {"Em breve", "Coming soon", "Coming soon", "Coming soon", "Coming soon", "Coming soon"}},
+        {"launcher.status.coming_soon", {"Em Breve", "Coming soon", "Coming soon", "Coming soon", "Coming soon", "Coming soon"}},
         {"launcher.status.launch_failed", {"Falhou ao iniciar", "Launch failed", "Launch failed", "Launch failed", "Launch failed", "Launch failed"}},
         {"launcher.action.how_fix", {"Como corrigir", "How to fix", "How to fix", "How to fix", "How to fix", "How to fix"}},
         {"launcher.action.diagnostics", {"Diagnóstico", "Diagnostics", "Diagnostics", "Diagnostics", "Diagnostics", "Diagnostics"}},
