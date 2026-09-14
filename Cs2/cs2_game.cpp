@@ -2883,11 +2883,25 @@ void EnsureAcquisitionStarted() {
     g_camera_thread = std::thread([] {
         OmniGhost::Gameplay::FixedRateScheduler scheduler;
         float matrix[16]{};
+        uint64_t next_motion_ms = 0;
         while (!g_acquisition_stop.load(std::memory_order_acquire)) {
             const bool canRead = ready && offsets.loaded && runtime.client_base && offsets.dwViewMatrix;
             if (canRead && QRead(runtime.client_base + offsets.dwViewMatrix, matrix, sizeof(matrix)))
                 PublishCameraSnapshot(matrix);
-            if (canRead && runtime.in_match) {
+            // Keep the view matrix on its own very fast lane, but never make
+            // one DMA read per player every 2 ms.  That old pattern could
+            // starve the regular entity scan and made even boxes/bars hitch.
+            // Player motion is sampled at the same 6-ms cadence as the
+            // producer; rendering still runs every overlay frame.
+            const uint64_t now_ms = GetTickCount64();
+            const auto frame_config = g_config_snapshots.Acquire();
+            const bool needs_motion = frame_config->esp_enabled &&
+                (frame_config->box || frame_config->box_corner || frame_config->health_bar ||
+                 frame_config->armor_bar || frame_config->skeleton || frame_config->trails ||
+                 frame_config->head_halo || frame_config->look_direction || frame_config->chinese_hat ||
+                 frame_config->angel_wings || frame_config->devil_horns || frame_config->floating_crown);
+            if (canRead && runtime.in_match && needs_motion && now_ms >= next_motion_ms) {
+                next_motion_ms = now_ms + 6;
                 const auto current = g_runtime_snapshots.Acquire();
                 MotionSnapshot motion{};
                 for (const auto& player : current->players) {
@@ -2902,7 +2916,7 @@ void EnsureAcquisitionStarted() {
                     // A compact 32-joint read keeps limb animation on the
                     // same fast lane as the box.  A failed/invalid fast read
                     // never replaces the last full validated pose.
-                    if (player.bones_ok && IsUserPointer(player.bone_base)) {
+                    if (frame_config->skeleton && player.bones_ok && IsUserPointer(player.bone_base)) {
                         struct FastBoneJoint { float x, y, z, scale; char pad[0x10]; } joints[32]{};
                         static constexpr int kReferenceIdx[kBoneSlotCount] = {
                             7, 6, 4, 3, 3, 1, 6, 9, 10, 11, 6, 13, 14, 15, 17, 18, 19, 20, 21, 22

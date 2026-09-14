@@ -581,6 +581,7 @@ bool StartCloudflare() {
     g_cf_stop.store(false);
     {
         std::lock_guard<std::mutex> lock(g_mu);
+        g_public_url.clear();
         g_cloudflare_status = "A iniciar túnel...";
     }
 
@@ -606,10 +607,13 @@ bool StartCloudflare() {
     std::wstring mutableCmd(cmd);
     if (!CreateProcessW(nullptr, mutableCmd.data(), nullptr, nullptr, TRUE,
                         CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi)) {
+        const DWORD launchError = GetLastError();
         CloseHandle(rd);
         CloseHandle(wr);
         std::lock_guard<std::mutex> lock(g_mu);
-        g_cloudflare_status = "Não foi possível iniciar cloudflared.";
+        g_cloudflare_status = launchError == ERROR_FILE_NOT_FOUND
+            ? "cloudflared.exe não foi encontrado. Instala-o ou adiciona-o à pasta libs."
+            : "Não foi possível iniciar cloudflared (erro " + std::to_string(launchError) + ").";
         std::cout << "[WebRadar] cloudflared launch failed\n";
         return false;
     }

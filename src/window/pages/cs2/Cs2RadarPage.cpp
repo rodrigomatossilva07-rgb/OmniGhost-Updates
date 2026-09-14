@@ -60,7 +60,7 @@ void DrawCs2Radar() {
     CyberWidgets::BeginCard("WEB RADAR", left);
     const bool was = CS2::config.webradar_enabled;
 
-    CompactToggle("webradar", "Ativar Web Radar", &CS2::config.webradar_enabled, controlWidth);
+    CyberWidgets::ToggleSwitch("Ativar Web Radar", &CS2::config.webradar_enabled);
     if (CS2::config.webradar_enabled != was && CS2::config.webradar_enabled) {
         if (CS2::WebRadar::Start(CS2::config.webradar_port))
             CyberWidgets::Notify("Web Radar a escutar", CyberWidgets::ToastType::Success);
@@ -88,27 +88,9 @@ void DrawCs2Radar() {
         CyberWidgets::Badge(online ? "ONLINE" : "OFFLINE",
             online ? CyberWidgets::TextTone::Success : CyberWidgets::TextTone::Warning);
 
-        const std::string local = CS2::WebRadar::LocalUrl();
-        CyberWidgets::SectionTitle("LINK LOCAL (LAN)");
-        CyberWidgets::TextLine(local.c_str(), CyberWidgets::TextTone::Secondary);
-        if (CyberWidgets::Button("Copiar link local", CyberWidgets::ButtonStyle::Secondary, ImVec2(180.f, 32.f))) {
-            CopyToClipboard(local);
-            CyberWidgets::Notify("Link local copiado", CyberWidgets::ToastType::Success);
-        }
-        ImGui::SameLine();
-        if (CyberWidgets::Button("Abrir local", CyberWidgets::ButtonStyle::Ghost, ImVec2(120.f, 32.f))) {
-            std::string open = local;
-            auto hash = open.find('#');
-            if (hash != std::string::npos) open = open.substr(0, hash); // ShellExecute may not like hash
-            open.push_back('#');
-            open += CS2::WebRadar::AccessToken();
-            ShellExecuteA(nullptr, "open", open.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
-        }
-
-        CyberWidgets::Separator();
         CyberWidgets::SectionTitle("LINK PUBLICO (CLOUDFLARE)");
         bool cf = CS2::config.webradar_cloudflare;
-        if (CompactToggle("cloudflare", "Tunel Cloudflare", &cf, controlWidth)) {
+        if (CyberWidgets::ToggleSwitch("Ativar túnel Cloudflare", &cf)) {
             CS2::config.webradar_cloudflare = cf;
             if (cf) {
                 if (CS2::WebRadar::StartCloudflare())
@@ -140,9 +122,8 @@ void DrawCs2Radar() {
         }
 
         CyberWidgets::Separator();
-        CyberWidgets::TextLine(
-            "Frontend: Cs2/radar_webapp  ·  API: /api/live  ·  Token no # da URL",
-            CyberWidgets::TextTone::Secondary);
+        CyberWidgets::TextLine("O link público aparece apenas depois de o túnel ficar ligado.",
+                               CyberWidgets::TextTone::Secondary);
     } else {
         CyberWidgets::TextLine("Web Radar desativado.", CyberWidgets::TextTone::Secondary);
     }

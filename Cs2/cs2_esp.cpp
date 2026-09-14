@@ -537,6 +537,10 @@ void DrawRadar2D(ImDrawList* dl, const CS2::Runtime& rt, CS2::Config& cfg) {
     dl->AddRectFilled(origin, ImVec2(origin.x + size, origin.y + size), IM_COL32(8, 8, 10, 190), 6.f);
     dl->AddRect(origin, ImVec2(origin.x + size, origin.y + size), IM_COL32(212, 175, 55, 90), 6.f, 0, 1.2f);
     dl->AddCircle(center, 4.f, IM_COL32(212, 175, 55, 255), 12, 1.5f);
+    // Local heading: the map already rotates with the view, but a small
+    // forward marker makes the orientation immediately obvious.
+    dl->AddTriangleFilled(ImVec2(center.x, center.y - 10.f), ImVec2(center.x - 5.f, center.y + 6.f),
+                          ImVec2(center.x + 5.f, center.y + 6.f), IM_COL32(235, 235, 238, 245));
     const float scale = 0.08f;
     const float yaw = rt.local_view_yaw * 0.01745329251f;
     const float cy = std::cos(yaw), sy = std::sin(yaw);
@@ -548,31 +552,62 @@ void DrawRadar2D(ImDrawList* dl, const CS2::Runtime& rt, CS2::Config& cfg) {
         float dy = p.pos[1] - rt.local_pos[1];
         float rx = dx * cy + dy * sy;
         float ry = -dx * sy + dy * cy;
+        const float radarDistance = std::sqrt(rx * rx + ry * ry) * scale;
+        const bool outside = radarDistance > size * 0.5f - 12.f;
         float px = center.x + rx * scale;
         float py = center.y - ry * scale;
         px = std::clamp(px, origin.x + 4.f, origin.x + size - 4.f);
         py = std::clamp(py, origin.y + 4.f, origin.y + size - 4.f);
         const ImU32 c = (p.team == rt.local_team)
             ? Col(cfg.col_team) : Col(cfg.col_enemy);
-        dl->AddCircleFilled(ImVec2(px, py), 3.5f, c, 8);
+        if (!outside) {
+            dl->AddCircleFilled(ImVec2(px, py), 3.5f, c, 8);
+            continue;
+        }
+
+        // The clamped marker becomes a directional arrow instead of a dot
+        // stuck to the edge.  Its distance uses the same metre value as ESP.
+        const float inv = radarDistance > 0.001f ? 1.f / radarDistance : 0.f;
+        const ImVec2 dir(rx * scale * inv, -ry * scale * inv);
+        const ImVec2 tip(px + dir.x * 5.f, py + dir.y * 5.f);
+        const ImVec2 left(px - dir.x * 4.f - dir.y * 4.f, py - dir.y * 4.f + dir.x * 4.f);
+        const ImVec2 right(px - dir.x * 4.f + dir.y * 4.f, py - dir.y * 4.f - dir.x * 4.f);
+        dl->AddTriangleFilled(tip, left, right, c);
+        char distance[20]{};
+        std::snprintf(distance, sizeof(distance), "%.0fm", p.distance);
+        dl->AddText(ImVec2(px + 6.f, py - 7.f), IM_COL32(225, 225, 230, 225), distance);
     }
 }
 
-void DragOverlayPanel(float& x, float& y, float width, float height, const ImVec2& display) {
+void DragOverlayPanel(const char* id, float& x, float& y, float width, float height, const ImVec2& display) {
     if (x < 0.f) x = display.x - width - 20.f;
     x = std::clamp(x, 0.f, (std::max)(0.f, display.x - width));
     y = std::clamp(y, 0.f, (std::max)(0.f, display.y - height));
-    if (!app_settings::menu_open || !ImGui::IsMouseHoveringRect(ImVec2(x, y), ImVec2(x + width, y + height)))
+    if (!app_settings::menu_open || !ImGui::GetCurrentContext())
         return;
-    if (ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
+
+    // A draw-list rectangle cannot receive mouse input when the main menu is
+    // interactive.  Use a transparent, real ImGui hitbox like the radar so
+    // these panels remain freely draggable while the menu is open.
+    ImGui::SetNextWindowPos(ImVec2(x, y), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(width, height), ImGuiCond_Always);
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.f, 0.f, 0.f, 0.f));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.f, 0.f));
+    ImGui::Begin(id, nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+        ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoCollapse |
+        ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoMove);
+    if (ImGui::IsWindowHovered() && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
         x = std::clamp(x + ImGui::GetIO().MouseDelta.x, 0.f, (std::max)(0.f, display.x - width));
         y = std::clamp(y + ImGui::GetIO().MouseDelta.y, 0.f, (std::max)(0.f, display.y - height));
     }
+    ImGui::End();
+    ImGui::PopStyleVar();
+    ImGui::PopStyleColor();
 }
 
 void DrawSpectatorList(ImDrawList* dl, const CS2::Runtime& rt, CS2::Config& cfg) {
     ImVec2 ds = ImGui::GetIO().DisplaySize;
-    DragOverlayPanel(cfg.spectator_window_x, cfg.spectator_window_y, 236.f, 290.f, ds);
+    DragOverlayPanel("##spectator_drag", cfg.spectator_window_x, cfg.spectator_window_y, 236.f, 290.f, ds);
     float x = cfg.spectator_window_x + 8.f;
     float y = cfg.spectator_window_y + 4.f;
     dl->AddRectFilled(ImVec2(x - 8.f, y - 4.f), ImVec2(ds.x - 12.f, y + 20.f + 14.f * 12),
@@ -608,7 +643,7 @@ void DrawBombTimerPanel(ImDrawList* dl, const CS2::Runtime& rt, CS2::Config& cfg
     const ImVec2 ds = ImGui::GetIO().DisplaySize;
     if (cfg.bomb_window_x < 0.f) cfg.bomb_window_x = ds.x - 240.f;
     if (cfg.bomb_window_y < 0.f) cfg.bomb_window_y = cfg.spectator_list ? 338.f : 40.f;
-    DragOverlayPanel(cfg.bomb_window_x, cfg.bomb_window_y, 228.f, 81.f, ds);
+    DragOverlayPanel("##bomb_timer_drag", cfg.bomb_window_x, cfg.bomb_window_y, 228.f, 81.f, ds);
     const float x = cfg.bomb_window_x + 8.f;
     const float y = cfg.bomb_window_y + 5.f;
     constexpr float width = 220.f;
