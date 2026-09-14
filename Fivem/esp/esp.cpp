@@ -865,7 +865,8 @@ static ImU32 MultiplyAlpha(ImU32 color, float factor) {
 
 static void DrawMotionVisuals(uintptr_t ped, Matrix viewport, const PedData* cached) {
     const auto& cfg = esp::config;
-    if (!cfg.trails && !cfg.head_halo && !cfg.look_direction && !cfg.chinese_hat)
+    if (!cfg.trails && !cfg.head_halo && !cfg.look_direction && !cfg.chinese_hat &&
+        !cfg.angel_wings && !cfg.devil_horns && !cfg.floating_crown)
         return;
 
     ImDrawList* draw = ImGui::GetForegroundDrawList();
@@ -952,6 +953,85 @@ static void DrawMotionVisuals(uintptr_t ped, Matrix viewport, const PedData* cac
             draw, head.x, head.y, head.z, project, static_cast<float>(now), 1.f, true);
     }
 
+    const float fxScale = std::clamp(cfg.fun_effects_scale, .5f, 2.5f);
+    Vec3 forward(1.f, 0.f, 0.f);
+    if (skeleton) {
+        forward = Vec3(skeleton->bone_matrix._21, skeleton->bone_matrix._22, 0.f);
+        const float len = std::sqrt(forward.x * forward.x + forward.y * forward.y);
+        if (len > .001f) { forward.x /= len; forward.y /= len; }
+        else forward = Vec3(1.f, 0.f, 0.f);
+    }
+    const Vec3 side(-forward.y, forward.x, 0.f);
+    auto fxColor = [&](float phase, float alpha = 1.f) -> ImU32 {
+        return cfg.fun_effects_rainbow
+            ? OmniGhost::Gameplay::EspFx::Hsv(static_cast<float>(now) * .16f + phase, .88f, 1.f, alpha)
+            : MultiplyAlpha(EspPedColor(ped, cfg.color_fun_effects, visible), alpha);
+    };
+    auto worldLine = [&](const Vec3& a, const Vec3& b, ImU32 color, float thickness) {
+        Vec2 sa{}, sb{};
+        if (a.world_to_screen(viewport, sa) && b.world_to_screen(viewport, sb))
+            draw->AddLine(ImVec2(sa.x, sa.y), ImVec2(sb.x, sb.y), color, thickness);
+    };
+
+    if (cfg.angel_wings) {
+        const float flap = std::sin(static_cast<float>(now) * 3.2f) * .10f * fxScale;
+        const Vec3 center(origin.x - forward.x * .08f, origin.y - forward.y * .08f, origin.z + .58f);
+        for (int wingSide = -1; wingSide <= 1; wingSide += 2) {
+            const float s = static_cast<float>(wingSide);
+            const Vec3 root(center.x + side.x * s * .10f, center.y + side.y * s * .10f, center.z);
+            const Vec3 joint(center.x + side.x * s * .48f * fxScale - forward.x * .10f,
+                             center.y + side.y * s * .48f * fxScale - forward.y * .10f,
+                             center.z + .42f * fxScale + flap);
+            const Vec3 tip(center.x + side.x * s * .80f * fxScale - forward.x * .18f,
+                           center.y + side.y * s * .80f * fxScale - forward.y * .18f,
+                           center.z - .12f * fxScale + flap);
+            worldLine(root, joint, fxColor(wingSide > 0 ? .1f : .55f), 2.f);
+            worldLine(joint, tip, fxColor(wingSide > 0 ? .2f : .65f), 2.f);
+            for (int feather = 0; feather < 3; ++feather) {
+                const float t = .25f + feather * .22f;
+                const Vec3 base(root.x + (joint.x - root.x) * t,
+                                root.y + (joint.y - root.y) * t,
+                                root.z + (joint.z - root.z) * t);
+                const Vec3 end(base.x + side.x * s * (.30f + feather * .08f) * fxScale,
+                               base.y + side.y * s * (.30f + feather * .08f) * fxScale,
+                               base.z - (.24f + feather * .09f) * fxScale);
+                worldLine(base, end, fxColor(.15f * feather + (wingSide > 0 ? 0.f : .5f), .85f), 1.5f);
+            }
+        }
+    }
+
+    if (cfg.devil_horns) {
+        for (int hornSide = -1; hornSide <= 1; hornSide += 2) {
+            const float s = static_cast<float>(hornSide);
+            const Vec3 base(head.x + side.x * s * .11f * fxScale,
+                            head.y + side.y * s * .11f * fxScale, head.z + .03f);
+            const Vec3 bend(base.x + side.x * s * .11f * fxScale,
+                            base.y + side.y * s * .11f * fxScale, base.z + .18f * fxScale);
+            const Vec3 tip(bend.x + forward.x * .08f * fxScale,
+                           bend.y + forward.y * .08f * fxScale, bend.z + .13f * fxScale);
+            worldLine(base, bend, fxColor(hornSide > 0 ? .02f : .52f), 2.3f);
+            worldLine(bend, tip, fxColor(hornSide > 0 ? .10f : .60f), 1.7f);
+        }
+    }
+
+    if (cfg.floating_crown) {
+        constexpr int segments = 18;
+        const float bob = std::sin(static_cast<float>(now) * 2.2f) * .03f;
+        const float z = head.z + (.27f + bob) * fxScale;
+        const float radius = .18f * fxScale;
+        for (int i = 0; i < segments; ++i) {
+            const float a0 = static_cast<float>(now) * .8f + 6.2831853f * i / segments;
+            const float a1 = static_cast<float>(now) * .8f + 6.2831853f * (i + 1) / segments;
+            const Vec3 p0(head.x + std::cos(a0) * radius, head.y + std::sin(a0) * radius, z);
+            const Vec3 p1(head.x + std::cos(a1) * radius, head.y + std::sin(a1) * radius, z);
+            worldLine(p0, p1, fxColor(static_cast<float>(i) / segments), 1.8f);
+            if ((i % 3) == 0) {
+                const Vec3 peak(p0.x, p0.y, z + .14f * fxScale);
+                worldLine(p0, peak, fxColor(static_cast<float>(i) / segments), 1.8f);
+            }
+        }
+    }
+
     if (cfg.look_direction && skeleton) {
         Vec3 forward(skeleton->bone_matrix._21, skeleton->bone_matrix._22, 0.f);
         const float length = std::sqrt(forward.x * forward.x + forward.y * forward.y);
@@ -987,7 +1067,8 @@ void esp::prepare_esp_frame(const std::vector<uintptr_t>& peds,
                             const std::vector<Vec3>& origins) {
     g_prepared_esp_frame = static_cast<uint32_t>(ImGui::GetFrameCount());
     g_prepared_esp_index.clear();
-    const bool needs_motion_origin = config.trails || config.head_halo || config.look_direction || config.chinese_hat;
+    const bool needs_motion_origin = config.trails || config.head_halo || config.look_direction ||
+        config.chinese_hat || config.angel_wings || config.devil_horns || config.floating_crown;
     if (peds.empty() || (!AnyEspExtrasEnabled() && !needs_motion_origin &&
         !aimbot::config.aimbot_enabled && !aimbot::config.trigger_enabled)) {
         g_prepared_esp.clear();

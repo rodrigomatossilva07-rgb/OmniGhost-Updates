@@ -288,6 +288,8 @@ void LoadSchemaOffsets(const std::string& schema) {
     JsonClassU64(schema, "C_CSPlayerPawn", "m_ArmorValue", offsets.m_ArmorValue);
     JsonClassU64(schema, "C_CSPlayerPawn", "m_angEyeAngles", offsets.m_angEyeAngles);
     JsonClassU64(schema, "C_CSPlayerPawn", "m_iIDEntIndex", offsets.m_iIDEntIndex);
+    JsonClassU64(schema, "C_CSPlayerPawn", "m_iShotsFired", offsets.m_iShotsFired);
+    JsonClassU64(schema, "C_CSPlayerPawn", "m_aimPunchAngle", offsets.m_aimPunchAngle);
     JsonClassU64(schema, "CGameSceneNode", "m_vecAbsOrigin", offsets.m_vecAbsOrigin);
     JsonClassU64(schema, "CGameSceneNode", "m_vecVelocity", offsets.m_vecVelocity);
     JsonClassU64(schema, "CGameSceneNode", "m_bDormant", offsets.m_bDormant);
@@ -300,6 +302,8 @@ void LoadSchemaOffsets(const std::string& schema) {
     JsonClassU64(schema, "C_PlantedC4", "m_flDefuseCountDown", offsets.m_flDefuseCountDown);
     JsonClassU64(schema, "C_PlantedC4", "m_hBombDefuser", offsets.m_hBombDefuser);
     JsonClassU64(schema, "C_BasePlayerPawn", "m_pWeaponServices", offsets.m_pWeaponServices);
+    JsonClassU64(schema, "C_BasePlayerPawn", "m_pItemServices", offsets.m_pItemServices);
+    JsonClassU64(schema, "CCSPlayer_ItemServices", "m_bHasDefuser", offsets.m_bHasDefuser);
     JsonClassU64(schema, "CPlayer_WeaponServices", "m_hActiveWeapon", offsets.m_hActiveWeapon);
     JsonClassU64(schema, "C_EconEntity", "m_AttributeManager", offsets.m_AttributeManager);
     JsonClassU64(schema, "C_AttributeContainer", "m_Item", offsets.m_Item);
@@ -1819,12 +1823,22 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 runtime.local_scoped = scoped;
         }
 
+        runtime.local_has_defuser = false;
+        if (offsets.m_pItemServices && offsets.m_bHasDefuser) {
+            uintptr_t item_services = 0;
+            if (QReadT(runtime.local_pawn + offsets.m_pItemServices, item_services) &&
+                IsUserPointer(item_services)) {
+                QReadT(item_services + offsets.m_bHasDefuser, runtime.local_has_defuser);
+            }
+        }
+
         runtime.local_crosshair_entity = 0;
         if (frame_config.trigger_enabled && frame_config.trigger_use_ident && offsets.m_iIDEntIndex)
             QReadT(runtime.local_pawn + offsets.m_iIDEntIndex,
                    runtime.local_crosshair_entity);
     } else {
         runtime.local_crosshair_entity = 0;
+        runtime.local_has_defuser = false;
     }
 
     if (!RefreshEntityListEntry()) {
@@ -1930,8 +1944,9 @@ static void RunFrameWithConfig(const Config& frame_config) {
     requested.aim = frame_config.aim_enabled || frame_config.trigger_enabled;
     requested.prediction = frame_config.aim_enabled && frame_config.aim_prediction;
     requested.trail = frame_config.trails;
-    requested.halo = frame_config.head_halo;
-    requested.look_direction = frame_config.look_direction;
+    requested.halo = frame_config.head_halo || frame_config.chinese_hat ||
+        frame_config.devil_horns || frame_config.floating_crown;
+    requested.look_direction = frame_config.look_direction || frame_config.angel_wings;
     const auto fields = requested.RequiredFields();
 
     const bool need_armor = OmniGhost::Gameplay::EspCore::Has(
@@ -1953,6 +1968,30 @@ static void RunFrameWithConfig(const Config& frame_config) {
     PawnCoreFields core[kMaxSlots]{};
     ScatterReadPawnCore(resolved_pawns, core, candidate_count, need_armor,
                         need_scoped, frame_config.smoke_flash, need_yaw, need_weapons);
+
+    // Health and team are the minimum discriminator reads: without them we
+    // cannot know which pawns to exclude. Compact the candidate set here so
+    // dead players and hidden team-mates never reach position, bone, weapon or
+    // name acquisition. Spectators are resolved later from controllers through
+    // their own lightweight observer path.
+    int eligible_count = 0;
+    for (int c = 0; c < candidate_count; ++c) {
+        const bool is_local = resolved_pawns[c] == runtime.local_pawn ||
+            controllers[slot_index[c]] == runtime.local_controller;
+        const bool alive = core[c].health > 0 && core[c].health <= 200 &&
+            IsPlayableTeam(static_cast<int>(core[c].team));
+        const bool hidden_teammate = frame_config.team_check && !is_local &&
+            static_cast<int>(core[c].team) == runtime.local_team;
+        if (!alive || hidden_teammate) continue;
+        if (eligible_count != c) {
+            resolved_pawns[eligible_count] = resolved_pawns[c];
+            slot_index[eligible_count] = slot_index[c];
+            core[eligible_count] = core[c];
+        }
+        ++eligible_count;
+    }
+    candidate_count = eligible_count;
+    runtime.pawn_count = candidate_count;
 
     // ── Phase 4: scatter positions (scene+origin or pawn+oldOrigin) ──────
     struct BoneJointSnapshot { float x, y, z, scale; char pad[0x10]; };

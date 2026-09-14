@@ -38,6 +38,11 @@ namespace esp {
         bool head_halo = false;
         bool look_direction = false; // Eye Line
         bool chinese_hat = false;
+        bool angel_wings = false;
+        bool devil_horns = false;
+        bool floating_crown = false;
+        bool fun_effects_rainbow = true;
+        float fun_effects_scale = 1.0f;
         bool rainbow_trails = true;
         float trail_duration = 0.80f;
         float trail_thickness = 2.0f;
@@ -80,6 +85,7 @@ namespace esp {
         ImU32 color_armor = IM_COL32(70, 150, 255, 255);
         ImU32 color_trail = IM_COL32(212, 175, 55, 210);
         ImU32 color_halo = IM_COL32(255, 226, 138, 230);
+        ImU32 color_fun_effects = IM_COL32(255, 184, 46, 242);
         ImU32 color_look_direction = IM_COL32(212, 175, 55, 220);
 
         bool rgb_mode = false;

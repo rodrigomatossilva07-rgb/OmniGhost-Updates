@@ -167,9 +167,19 @@ CS2::Player SmoothPlayerForPresentation(const CS2::Player& raw,
 
 void DrawMotionVisuals(ImDrawList* dl, const CS2::Runtime& rt,
                        const CS2::Config& cfg, const CS2::Player& player) {
-    if (!dl || (!cfg.trails && !cfg.head_halo && !cfg.look_direction && !cfg.chinese_hat)) return;
+    if (!dl || (!cfg.trails && !cfg.head_halo && !cfg.look_direction &&
+        !cfg.chinese_hat && !cfg.angel_wings && !cfg.devil_horns &&
+        !cfg.floating_crown)) return;
 
     const double now = ImGui::GetTime();
+    // Effects must not disappear merely because one bone sample was rejected.
+    // Fall back to the standing hull head, matching the box projection path.
+    float effectHead[3] = { player.pos[0], player.pos[1], player.pos[2] + 72.f };
+    if (player.bones_ok &&
+        std::isfinite(player.head[0]) && std::isfinite(player.head[1]) &&
+        std::isfinite(player.head[2])) {
+        std::memcpy(effectHead, player.head, sizeof(effectHead));
+    }
     static std::unordered_map<uintptr_t, OmniGhost::Gameplay::FixedTrailHistory<18>> trails;
     static int cleanup_frame = -1;
 
@@ -182,10 +192,6 @@ void DrawMotionVisuals(ImDrawList* dl, const CS2::Runtime& rt,
             tx = player.bones[2][0];
             ty = player.bones[2][1];
             tz = player.bones[2][2];
-        } else if (std::isfinite(player.head[0])) {
-            tx = player.head[0];
-            ty = player.head[1];
-            tz = player.head[2] - 25.f;
         }
         history.Push(tx, ty, tz, now, 3.f, 0.035);
         const double duration = std::clamp(static_cast<double>(cfg.trail_duration), 0.20, 2.50);
@@ -226,9 +232,9 @@ void DrawMotionVisuals(ImDrawList* dl, const CS2::Runtime& rt,
         for (int i = 0; i <= segments; ++i) {
             const float angle = static_cast<float>(i) * 6.28318530718f / segments;
             const float point[3] = {
-                player.head[0] + std::cos(angle) * radius,
-                player.head[1] + std::sin(angle) * radius,
-                player.head[2] + 3.5f
+                effectHead[0] + std::cos(angle) * radius,
+                effectHead[1] + std::sin(angle) * radius,
+                effectHead[2] + 3.5f
             };
             float sx = 0.f, sy = 0.f;
             const bool ok = W2S(point, rt.view_matrix, sx, sy);
@@ -249,20 +255,105 @@ void DrawMotionVisuals(ImDrawList* dl, const CS2::Runtime& rt,
         // CS2 units are larger than GTA — scale hat up.
         const float hatScale = 18.f * std::clamp(cfg.chinese_hat_scale, 0.4f, 3.0f);
         OmniGhost::Gameplay::EspFx::DrawChineseHat(
-            dl, player.head[0], player.head[1], player.head[2],
+            dl, effectHead[0], effectHead[1], effectHead[2],
             project, static_cast<float>(now), hatScale, true);
     }
 
+    const float fxScale = std::clamp(cfg.fun_effects_scale, 0.5f, 2.5f);
+    const float yaw = player.view_yaw * 0.01745329251f;
+    const float sideX = -std::sin(yaw), sideY = std::cos(yaw);
+    const float backX = -std::cos(yaw), backY = -std::sin(yaw);
+    auto effectColor = [&](float phase, float alpha = 1.f) -> ImU32 {
+        if (cfg.fun_effects_rainbow)
+            return OmniGhost::Gameplay::EspFx::Hsv(
+                static_cast<float>(now) * .16f + phase, .88f, 1.f, alpha);
+        return Col(cfg.col_fun_effects, alpha);
+    };
+    auto worldLine = [&](const float a[3], const float b[3], ImU32 color, float thickness) {
+        float ax = 0.f, ay = 0.f, bx = 0.f, by = 0.f;
+        if (W2S(a, rt.view_matrix, ax, ay) && W2S(b, rt.view_matrix, bx, by))
+            dl->AddLine(ImVec2(ax, ay), ImVec2(bx, by), color, thickness);
+    };
+
+    if (cfg.angel_wings) {
+        const float flap = std::sin(static_cast<float>(now) * 3.2f) * 4.f * fxScale;
+        float center[3] = { player.pos[0] + backX * 3.f, player.pos[1] + backY * 3.f,
+                            player.pos[2] + 48.f };
+        if (player.bones_ok) {
+            center[0] = player.bones[2][0] + backX * 3.f;
+            center[1] = player.bones[2][1] + backY * 3.f;
+            center[2] = player.bones[2][2];
+        }
+        for (int side = -1; side <= 1; side += 2) {
+            const float s = static_cast<float>(side);
+            float root[3] = { center[0] + sideX * s * 4.f, center[1] + sideY * s * 4.f, center[2] };
+            float joint[3] = { center[0] + sideX * s * 18.f * fxScale + backX * 4.f,
+                               center[1] + sideY * s * 18.f * fxScale + backY * 4.f,
+                               center[2] + 18.f * fxScale + flap };
+            float tip[3] = { center[0] + sideX * s * 31.f * fxScale + backX * 8.f,
+                             center[1] + sideY * s * 31.f * fxScale + backY * 8.f,
+                             center[2] - 6.f * fxScale + flap };
+            worldLine(root, joint, effectColor(side > 0 ? .10f : .55f), 2.0f);
+            worldLine(joint, tip, effectColor(side > 0 ? .22f : .67f), 2.0f);
+            for (int feather = 0; feather < 3; ++feather) {
+                const float t = .25f + feather * .22f;
+                float base[3] = { root[0] + (joint[0] - root[0]) * t,
+                                  root[1] + (joint[1] - root[1]) * t,
+                                  root[2] + (joint[2] - root[2]) * t };
+                float end[3] = { base[0] + sideX * s * (12.f + feather * 3.f) * fxScale,
+                                 base[1] + sideY * s * (12.f + feather * 3.f) * fxScale,
+                                 base[2] - (10.f + feather * 4.f) * fxScale };
+                worldLine(base, end, effectColor(.15f * feather + (side > 0 ? 0.f : .5f), .85f), 1.5f);
+            }
+        }
+    }
+
+    if (cfg.devil_horns) {
+        for (int side = -1; side <= 1; side += 2) {
+            const float s = static_cast<float>(side);
+            float base[3] = { effectHead[0] + sideX * s * 3.8f * fxScale,
+                              effectHead[1] + sideY * s * 3.8f * fxScale,
+                              effectHead[2] + 2.f };
+            float bend[3] = { base[0] + sideX * s * 4.f * fxScale,
+                              base[1] + sideY * s * 4.f * fxScale,
+                              base[2] + 6.f * fxScale };
+            float tip[3] = { bend[0] - backX * 3.f * fxScale,
+                             bend[1] - backY * 3.f * fxScale,
+                             bend[2] + 5.f * fxScale };
+            worldLine(base, bend, effectColor(side > 0 ? .02f : .52f), 2.3f);
+            worldLine(bend, tip, effectColor(side > 0 ? .10f : .60f), 1.7f);
+        }
+    }
+
+    if (cfg.floating_crown) {
+        constexpr int segments = 18;
+        const float bob = std::sin(static_cast<float>(now) * 2.2f) * 1.2f;
+        const float z = effectHead[2] + (10.f + bob) * fxScale;
+        const float radius = 6.5f * fxScale;
+        for (int i = 0; i < segments; ++i) {
+            const float a0 = static_cast<float>(now) * .8f + 6.2831853f * i / segments;
+            const float a1 = static_cast<float>(now) * .8f + 6.2831853f * (i + 1) / segments;
+            float p0[3] = { effectHead[0] + std::cos(a0) * radius,
+                            effectHead[1] + std::sin(a0) * radius, z };
+            float p1[3] = { effectHead[0] + std::cos(a1) * radius,
+                            effectHead[1] + std::sin(a1) * radius, z };
+            worldLine(p0, p1, effectColor(static_cast<float>(i) / segments), 1.8f);
+            if ((i % 3) == 0) {
+                float peak[3] = { p0[0], p0[1], z + 5.f * fxScale };
+                worldLine(p0, peak, effectColor(static_cast<float>(i) / segments), 1.8f);
+            }
+        }
+    }
+
     if (cfg.look_direction && std::isfinite(player.view_yaw)) {
-        const float yaw = player.view_yaw * 0.01745329251f;
         const float length = std::clamp(cfg.look_direction_length, 30.f, 220.f);
         const float end[3] = {
-            player.head[0] + std::cos(yaw) * length,
-            player.head[1] + std::sin(yaw) * length,
-            player.head[2]
+            effectHead[0] + std::cos(yaw) * length,
+            effectHead[1] + std::sin(yaw) * length,
+            effectHead[2]
         };
         float ax = 0.f, ay = 0.f, bx = 0.f, by = 0.f;
-        if (W2S(player.head, rt.view_matrix, ax, ay) &&
+        if (W2S(effectHead, rt.view_matrix, ax, ay) &&
             W2S(end, rt.view_matrix, bx, by)) {
             const ImU32 color = Col(cfg.col_look);
             dl->AddLine(ImVec2(ax, ay), ImVec2(bx, by), color,
@@ -270,6 +361,44 @@ void DrawMotionVisuals(ImDrawList* dl, const CS2::Runtime& rt,
             dl->AddCircleFilled(ImVec2(bx, by), 2.2f, color, 8);
         }
     }
+}
+
+void DrawDamageMarker(ImDrawList* dl, const CS2::Runtime& rt,
+                      const CS2::Config& cfg, const CS2::Player& player,
+                      int playerIndex) {
+    struct MarkerState {
+        int health = -1;
+        double expires = 0.0;
+        float world[3]{};
+    };
+    static std::unordered_map<uintptr_t, MarkerState> markers;
+    if (!player.pawn) return;
+    auto& marker = markers[player.pawn];
+    const double now = ImGui::GetTime();
+    const bool healthDropped = marker.health >= 0 && player.health > 0 &&
+                               player.health < marker.health;
+    const bool likelyOurTarget = playerIndex == CS2_Aim::ActiveTargetIndex() ||
+        (rt.local_crosshair_entity > 0 && player.ent_index == rt.local_crosshair_entity);
+    if (cfg.hit_marker && healthDropped && likelyOurTarget) {
+        const std::size_t selected = cfg.aim_bone == 1 ? 1u :
+            cfg.aim_bone == 2 ? 2u : cfg.aim_bone == 3 ? 5u :
+            cfg.aim_bone == 4 ? 15u : 0u;
+        const float* hit = player.bones_ok ? player.bones[selected] : player.head;
+        std::memcpy(marker.world, hit, sizeof(marker.world));
+        marker.expires = now + 0.5;
+    }
+    marker.health = player.health;
+    if (!cfg.hit_marker || marker.expires <= now) return;
+
+    float sx = 0.f, sy = 0.f;
+    if (!W2S(marker.world, rt.view_matrix, sx, sy)) return;
+    const float life = std::clamp(static_cast<float>((marker.expires - now) / 0.5), 0.f, 1.f);
+    const float arm = 5.f + 3.f * (1.f - life);
+    const ImU32 color = IM_COL32(255, 255, 255, static_cast<int>(255.f * life));
+    dl->AddLine(ImVec2(sx - arm, sy - arm), ImVec2(sx - 2.f, sy - 2.f), color, 2.f);
+    dl->AddLine(ImVec2(sx + arm, sy - arm), ImVec2(sx + 2.f, sy - 2.f), color, 2.f);
+    dl->AddLine(ImVec2(sx - arm, sy + arm), ImVec2(sx - 2.f, sy + 2.f), color, 2.f);
+    dl->AddLine(ImVec2(sx + arm, sy + arm), ImVec2(sx + 2.f, sy + 2.f), color, 2.f);
 }
 
 
@@ -610,10 +739,17 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
         rt.bomb.blow_time > 0.f && rt.bomb.blow_time <= 45.f) {
         float sx = 0.f, sy = 0.f;
         bool on_screen = W2S(rt.bomb.pos, rt.view_matrix, sx, sy);
-        char bomb_text[64];
+        char bomb_text[128];
         if (rt.bomb.defusing && rt.bomb.defuse_time > 0.f && rt.bomb.defuse_time <= 15.f)
-            std::snprintf(bomb_text, sizeof(bomb_text), "BOMB  %.1fs  DEFUSING %.1fs",
-                rt.bomb.blow_time, rt.bomb.defuse_time);
+            std::snprintf(bomb_text, sizeof(bomb_text), "BOMB  %.1fs  DEFUSE %.1fs  %s",
+                rt.bomb.blow_time, rt.bomb.defuse_time,
+                rt.bomb.defuse_time + .05f < rt.bomb.blow_time ? "TEM TEMPO" : "SEM TEMPO");
+        else if (rt.local_team == 3) {
+            const float needed = rt.local_has_defuser ? 5.f : 10.f;
+            std::snprintf(bomb_text, sizeof(bomb_text), "BOMB  %.1fs  %s  %s",
+                rt.bomb.blow_time, rt.local_has_defuser ? "KIT" : "SEM KIT",
+                rt.bomb.blow_time > needed + .05f ? "TEM TEMPO" : "SEM TEMPO");
+        }
         else
             std::snprintf(bomb_text, sizeof(bomb_text), "BOMB  %.1fs", rt.bomb.blow_time);
         const ImU32 bomb_col = rt.bomb.blow_time < 5.f
@@ -760,6 +896,12 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
         if (boxH > 4000.f || boxW < 2.f) continue;
         const float left = boxX, right = boxX + boxW, top = boxY, bottom = boxY + boxH;
 
+        // World-space player effects must run from the real ESP entity loop.
+        // The preview has its own 2D stand-in, so leaving this helper uncalled
+        // made the Chinese hat (and the other motion effects) preview-only.
+        DrawMotionVisuals(dl, rt, cfg, p);
+        DrawDamageMarker(dl, rt, cfg, p, pi);
+
         // Box
         const float thBox = std::clamp(cfg.box_thickness, 0.5f, 8.f);
         if (cfg.box_corner) {
@@ -804,22 +946,6 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
         if (cfg.head_dot) {
             float r = std::clamp(boxH * 0.06f, 2.f, 8.f);
             dl->AddCircle(ImVec2(hx, hy), r, Col(cfg.col_head), 16, 1.6f);
-        }
-
-        // Eye / look line
-        if (cfg.look_direction) {
-            const float yaw = p.view_yaw * 0.01745329251f;
-            const float len = 40.f;
-            float endW[3] = {
-                p.bones_ok ? p.bones[0][0] : p.pos[0],
-                p.bones_ok ? p.bones[0][1] : p.pos[1],
-                p.bones_ok ? p.bones[0][2] : p.pos[2] + 64.f
-            };
-            endW[0] += std::cos(yaw) * len;
-            endW[1] += std::sin(yaw) * len;
-            float ex = 0.f, ey = 0.f;
-            if (W2S(endW, rt.view_matrix, ex, ey))
-                dl->AddLine(ImVec2(hx, hy), ImVec2(ex, ey), Col(cfg.col_look), 1.4f);
         }
 
         // Health bar (CS2-DMA style left)

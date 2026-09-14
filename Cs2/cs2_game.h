@@ -49,6 +49,10 @@ struct Offsets {
     uintptr_t m_entitySpottedState = 0x1C60;
     uintptr_t m_bSpotted = 0x8; // within EntitySpottedState_t
     uintptr_t m_flFlashDuration = 0x1428;
+    // Optional recoil fields. They are refreshed from the schema dump when
+    // available; zero keeps RCS disabled safely on incompatible builds.
+    uintptr_t m_iShotsFired = 0;
+    uintptr_t m_aimPunchAngle = 0;
     // Current CS2 builds expose aim punch through a pawn component. Keep the
     // legacy direct angle for compatibility with older offset dumps.
     // C_PlantedC4 fields for build 14174
@@ -61,6 +65,8 @@ struct Offsets {
     uintptr_t m_hBombDefuser = 0x11F8;
     // Weapon chain
     uintptr_t m_pWeaponServices = 0x1208;
+    uintptr_t m_pItemServices = 0x1210;
+    uintptr_t m_bHasDefuser = 0x48;
     uintptr_t m_hActiveWeapon = 0x60;
     uintptr_t m_AttributeManager = 0x1200;
     uintptr_t m_Item = 0x50;
@@ -141,6 +147,7 @@ struct Runtime {
     float local_angles[3]{};
     float local_view_yaw = 0.f;
     bool local_scoped = false;
+    bool local_has_defuser = false;
     int local_crosshair_entity = 0;
     float view_matrix[16]{};
     char map_name[64]{};

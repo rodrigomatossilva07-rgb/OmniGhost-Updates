@@ -305,7 +305,7 @@ void InitializeHumanizer() {
     hcfg.far_range_multiplier = 1.3f;
     g_humanizer.SetConfig(hcfg);
 
-    Gameplay::SmoothCurves::SmoothCurveConfig ccfg = Gameplay::SmoothCurves::SmoothCurveConfig::LegitConfig();
+    Gameplay::SmoothCurves::SmoothCurveConfig ccfg = Gameplay::SmoothCurves::SmoothCurveEvaluator::LegitConfig();
     ccfg.type = Gameplay::SmoothCurves::CurveType::EaseOutCubic;
     ccfg.dynamic_adjustment = true;
     ccfg.distance_factor = 0.03f;
@@ -570,7 +570,7 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
         const auto settings = BuildMotionSettings(cfg, target.distance_m);
         const auto motion = g_aim_motion.Step(target.error_x, target.error_y, settings);
         if (motion) {
-            ImVec2 raw{motion.x, motion.y};
+            ImVec2 raw{static_cast<float>(motion.x), static_cast<float>(motion.y)};
             const auto humanized = g_humanizer.Humanize(raw, target.distance_m, ImGui::GetIO().DeltaTime);
             MoveMouse(static_cast<int>(humanized.x), static_cast<int>(humanized.y));
             std::snprintf(g_debug, sizeof(g_debug),

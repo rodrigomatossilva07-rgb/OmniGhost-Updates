@@ -477,6 +477,13 @@ void DrawVisuals()
     }
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.head_halo"), &esp::config.head_halo);
     CyberWidgets::ToggleSwitch("Chapeu chines 3D", &esp::config.chinese_hat);
+    CyberWidgets::ToggleSwitch("Asas 3D", &esp::config.angel_wings);
+    CyberWidgets::ToggleSwitch("Chifres 3D", &esp::config.devil_horns);
+    CyberWidgets::ToggleSwitch("Coroa flutuante", &esp::config.floating_crown);
+    if (esp::config.angel_wings || esp::config.devil_horns || esp::config.floating_crown) {
+        CyberWidgets::ToggleSwitch("Efeitos arco-iris", &esp::config.fun_effects_rainbow);
+        CyberWidgets::SliderFloat("Tamanho dos efeitos", &esp::config.fun_effects_scale, .5f, 2.5f, "%.2f");
+    }
     CyberWidgets::ToggleSwitch("Rastros", &esp::config.trails);
     if (esp::config.trails)
         CyberWidgets::ToggleSwitch("Rastros arco-iris", &esp::config.rainbow_trails);
@@ -529,6 +536,9 @@ CyberWidgets::SliderFloat(Loc::Tr("vis.max_dist"), &esp::config.max_esp_distance
                      espEnabled && esp::config.corner_box);
     colorWhenEnabled(Loc::Tr("vis.snaplines"), &esp::config.color_snaplines,
                      espEnabled && esp::config.snaplines);
+    colorWhenEnabled("Efeitos 3D", &esp::config.color_fun_effects,
+                     espEnabled && !esp::config.fun_effects_rainbow &&
+                     (esp::config.angel_wings || esp::config.devil_horns || esp::config.floating_crown));
     CyberWidgets::Separator();
     CyberWidgets::SectionTitle(Loc::Tr("vis.information"));
     colorWhenEnabled(Loc::Tr("vis.health"), &esp::config.color_health, espEnabled && esp::config.health_bar);
@@ -560,6 +570,7 @@ CyberWidgets::SliderFloat(Loc::Tr("vis.max_dist"), &esp::config.max_esp_distance
         esp::config.color_id = defaults.color_id;
         esp::config.color_distance = defaults.color_distance;
         esp::config.color_npc = defaults.color_npc;
+        esp::config.color_fun_effects = defaults.color_fun_effects;
     }
     CyberWidgets::EndCard();
     ImGui::EndChild();

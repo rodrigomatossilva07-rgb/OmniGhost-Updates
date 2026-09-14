@@ -25,6 +25,12 @@ struct Config {
     bool look_direction = false; // Eye Line
     bool chinese_hat = false;
     float chinese_hat_scale = 1.0f;
+    bool angel_wings = false;
+    bool devil_horns = false;
+    bool floating_crown = false;
+    bool fun_effects_rainbow = true;
+    float fun_effects_scale = 1.0f;
+    bool hit_marker = false;
     bool rainbow_trails = true;
     float trail_duration = 0.80f;
     float trail_thickness = 2.0f;
@@ -80,6 +86,7 @@ struct Config {
     float col_snaplines[4]= { 0.83f, 0.69f, 0.22f, 0.55f };
     float col_trail[4]    = { 0.83f, 0.69f, 0.22f, 0.82f };
     float col_halo[4]     = { 1.00f, 0.89f, 0.54f, 0.90f };
+    float col_fun_effects[4] = { 1.00f, 0.72f, 0.18f, 0.95f };
     float col_look[4]     = { 0.83f, 0.69f, 0.22f, 0.86f };
     float col_head[4]     = { 0.95f, 0.85f, 0.35f, 1.f };
     float col_distance[4] = { 0.85f, 0.85f, 0.90f, 1.f };

@@ -205,6 +205,13 @@ void DrawCs2Visuals() {
     CyberWidgets::ToggleSwitch("Linhas guia", &CS2::config.snaplines);
     CyberWidgets::ToggleSwitch("Auréola na cabeça", &CS2::config.head_halo);
     CyberWidgets::ToggleSwitch("Chapéu chinês 3D", &CS2::config.chinese_hat);
+    CyberWidgets::ToggleSwitch("Asas 3D", &CS2::config.angel_wings);
+    CyberWidgets::ToggleSwitch("Chifres 3D", &CS2::config.devil_horns);
+    CyberWidgets::ToggleSwitch("Coroa flutuante", &CS2::config.floating_crown);
+    if (CS2::config.angel_wings || CS2::config.devil_horns || CS2::config.floating_crown) {
+        CyberWidgets::ToggleSwitch("Efeitos arco-íris", &CS2::config.fun_effects_rainbow);
+        CyberWidgets::SliderFloat("Tamanho dos efeitos", &CS2::config.fun_effects_scale, 0.5f, 2.5f, "%.2f");
+    }
     CyberWidgets::ToggleSwitch("Rastros", &CS2::config.trails);
     if (CS2::config.trails)
         CyberWidgets::ToggleSwitch("Rastros arco-íris", &CS2::config.rainbow_trails);
@@ -240,6 +247,7 @@ void DrawCs2Visuals() {
     ImGui::ColorEdit4("Caixa##c", CS2::config.col_box, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     ImGui::ColorEdit4("Caixa de cantos##c", CS2::config.col_box_corner, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     ImGui::ColorEdit4("Linhas guia##c", CS2::config.col_snaplines, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
+    ImGui::ColorEdit4("Efeitos 3D##c", CS2::config.col_fun_effects, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     CyberWidgets::SectionTitle("INFORMAÇÃO");
     ImGui::ColorEdit4("Vida##c", CS2::config.col_health, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     ImGui::ColorEdit4("Armadura##c", CS2::config.col_armor, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);

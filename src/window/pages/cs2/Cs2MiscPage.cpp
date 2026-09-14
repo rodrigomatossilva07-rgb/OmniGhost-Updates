@@ -44,6 +44,18 @@ void DrawCs2Misc()
     EndCard();
 
     CardGap();
+    BeginCard("OVERLAY DIVERSOS", 0.f);
+    TextLine("Informação de partida que aparece por cima do jogo.", TextTone::Secondary);
+    ToggleSwitch("Lista de espectadores", &CS2::config.spectator_list);
+    ToggleSwitch("Temporizador da bomba", &CS2::config.bomb_timer);
+    ToggleSwitch("Marcador de impacto (0,5 s)", &CS2::config.hit_marker);
+    if (CS2::config.bomb_timer) {
+        TextLine("Em CT indica se ainda existe tempo para desarmar, considerando o kit.",
+                 TextTone::Secondary);
+    }
+    EndCard();
+
+    CardGap();
     BeginCard("Configuração local", 0.f);
     TextLine("Ferramentas rápidas para o perfil CS2 ativo. Os perfis completos ficam na página Perfis.", TextTone::Secondary);
     if (CyberButton("Guardar config CS2", ImVec2(180, 32))) {

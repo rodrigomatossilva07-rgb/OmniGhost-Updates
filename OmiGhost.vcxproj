@@ -299,6 +299,7 @@
     <ClCompile Include="src\window\pages\cs2\Cs2VisualsPage.cpp"/>
     <ClCompile Include="src\window\pages\cs2\Cs2RadarPage.cpp"/>
     <ClCompile Include="src\gameplay\sound_esp.cpp"/>
+    <ClCompile Include="src\gameplay\smooth_curves.cpp"/>
     <ClCompile Include="src\window\onboarding.cpp"/>
     <ClCompile Include="src\window\performance_manager.cpp"/>
     <ClCompile Include="src\window\performance_mode.cpp"/>
