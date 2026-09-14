@@ -370,6 +370,7 @@ void DrawDamageMarker(ImDrawList* dl, const CS2::Runtime& rt,
         int health = -1;
         double expires = 0.0;
         float world[3]{};
+        bool at_crosshair = false;
     };
     static std::unordered_map<uintptr_t, MarkerState> markers;
     if (!player.pawn) return;
@@ -377,7 +378,14 @@ void DrawDamageMarker(ImDrawList* dl, const CS2::Runtime& rt,
     const double now = ImGui::GetTime();
     const bool healthDropped = marker.health >= 0 && player.health > 0 &&
                                player.health < marker.health;
-    const bool likelyOurTarget = playerIndex == CS2_Aim::ActiveTargetIndex() ||
+    const uint64_t now_ms = GetTickCount64();
+    const bool recentLocalShot = rt.local_last_shot_ms != 0 && now_ms >= rt.local_last_shot_ms &&
+        now_ms - rt.local_last_shot_ms <= 750u;
+    // The prior implementation required an active aimbot target or the
+    // optional trigger crosshair read.  Ordinary manual hits therefore never
+    // qualified.  A recent local shot is the primary attribution signal,
+    // while the two precise target signals remain useful fallbacks.
+    const bool likelyOurTarget = recentLocalShot || playerIndex == CS2_Aim::ActiveTargetIndex() ||
         (rt.local_crosshair_entity > 0 && player.ent_index == rt.local_crosshair_entity);
     if (cfg.hit_marker && healthDropped && likelyOurTarget) {
         const std::size_t selected = cfg.aim_bone == 1 ? 1u :
@@ -385,16 +393,21 @@ void DrawDamageMarker(ImDrawList* dl, const CS2::Runtime& rt,
             cfg.aim_bone == 4 ? 15u : 0u;
         const float* hit = player.bones_ok ? player.bones[selected] : player.head;
         std::memcpy(marker.world, hit, sizeof(marker.world));
+        marker.at_crosshair = recentLocalShot;
         marker.expires = now + 0.5;
     }
     marker.health = player.health;
     if (!cfg.hit_marker || marker.expires <= now) return;
 
     float sx = 0.f, sy = 0.f;
-    if (!W2S(marker.world, rt.view_matrix, sx, sy)) return;
+    if (marker.at_crosshair) {
+        const ImVec2 display = ImGui::GetIO().DisplaySize;
+        sx = display.x * .5f;
+        sy = display.y * .5f;
+    } else if (!W2S(marker.world, rt.view_matrix, sx, sy)) return;
     const float life = std::clamp(static_cast<float>((marker.expires - now) / 0.5), 0.f, 1.f);
     const float arm = 5.f + 3.f * (1.f - life);
-    const ImU32 color = IM_COL32(255, 255, 255, static_cast<int>(255.f * life));
+    const ImU32 color = IM_COL32(226, 184, 46, static_cast<int>(255.f * life));
     dl->AddLine(ImVec2(sx - arm, sy - arm), ImVec2(sx - 2.f, sy - 2.f), color, 2.f);
     dl->AddLine(ImVec2(sx + arm, sy - arm), ImVec2(sx + 2.f, sy - 2.f), color, 2.f);
     dl->AddLine(ImVec2(sx - arm, sy + arm), ImVec2(sx - 2.f, sy + 2.f), color, 2.f);
@@ -545,10 +558,23 @@ void DrawRadar2D(ImDrawList* dl, const CS2::Runtime& rt, CS2::Config& cfg) {
     }
 }
 
-void DrawSpectatorList(ImDrawList* dl, const CS2::Runtime& rt) {
+void DragOverlayPanel(float& x, float& y, float width, float height, const ImVec2& display) {
+    if (x < 0.f) x = display.x - width - 20.f;
+    x = std::clamp(x, 0.f, (std::max)(0.f, display.x - width));
+    y = std::clamp(y, 0.f, (std::max)(0.f, display.y - height));
+    if (!app_settings::menu_open || !ImGui::IsMouseHoveringRect(ImVec2(x, y), ImVec2(x + width, y + height)))
+        return;
+    if (ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
+        x = std::clamp(x + ImGui::GetIO().MouseDelta.x, 0.f, (std::max)(0.f, display.x - width));
+        y = std::clamp(y + ImGui::GetIO().MouseDelta.y, 0.f, (std::max)(0.f, display.y - height));
+    }
+}
+
+void DrawSpectatorList(ImDrawList* dl, const CS2::Runtime& rt, CS2::Config& cfg) {
     ImVec2 ds = ImGui::GetIO().DisplaySize;
-    float x = ds.x - 240.f;
-    float y = 40.f;
+    DragOverlayPanel(cfg.spectator_window_x, cfg.spectator_window_y, 236.f, 290.f, ds);
+    float x = cfg.spectator_window_x + 8.f;
+    float y = cfg.spectator_window_y + 4.f;
     dl->AddRectFilled(ImVec2(x - 8.f, y - 4.f), ImVec2(ds.x - 12.f, y + 20.f + 14.f * 12),
         IM_COL32(8, 8, 10, 160), 4.f);
     char title[48];
@@ -576,6 +602,47 @@ void DrawSpectatorList(ImDrawList* dl, const CS2::Runtime& rt) {
     }
     if (shown == 0)
         dl->AddText(ImVec2(x, y), IM_COL32(120, 120, 120, 180), "(ninguem a observar)");
+}
+
+void DrawBombTimerPanel(ImDrawList* dl, const CS2::Runtime& rt, CS2::Config& cfg) {
+    const ImVec2 ds = ImGui::GetIO().DisplaySize;
+    if (cfg.bomb_window_x < 0.f) cfg.bomb_window_x = ds.x - 240.f;
+    if (cfg.bomb_window_y < 0.f) cfg.bomb_window_y = cfg.spectator_list ? 338.f : 40.f;
+    DragOverlayPanel(cfg.bomb_window_x, cfg.bomb_window_y, 228.f, 81.f, ds);
+    const float x = cfg.bomb_window_x + 8.f;
+    const float y = cfg.bomb_window_y + 5.f;
+    constexpr float width = 220.f;
+    const bool active = rt.bomb.planted && !rt.bomb.defused &&
+        rt.bomb.blow_time > 0.f && rt.bomb.blow_time <= 45.f;
+    const ImU32 accent = active
+        ? (rt.bomb.blow_time < 5.f ? IM_COL32(255, 72, 72, 255) : IM_COL32(255, 184, 46, 255))
+        : IM_COL32(212, 175, 55, 220);
+    dl->AddRectFilled(ImVec2(x - 8.f, y - 5.f), ImVec2(x + width, y + 76.f),
+        IM_COL32(8, 8, 10, 180), 4.f);
+    dl->AddRect(ImVec2(x - 8.f, y - 5.f), ImVec2(x + width, y + 76.f), accent, 4.f, 0, 1.1f);
+    dl->AddText(ImVec2(x, y), accent, "BOMB TIMER");
+    if (!active) {
+        dl->AddText(ImVec2(x, y + 24.f), IM_COL32(160, 160, 166, 220), "A aguardar bomba plantada");
+        return;
+    }
+
+    char timeText[64];
+    std::snprintf(timeText, sizeof(timeText), "%.1f segundos", rt.bomb.blow_time);
+    dl->AddText(ImVec2(x, y + 23.f), IM_COL32(235, 235, 238, 255), timeText);
+    const float ratio = std::clamp(rt.bomb.blow_time / 40.f, 0.f, 1.f);
+    dl->AddRectFilled(ImVec2(x, y + 43.f), ImVec2(x + width - 14.f, y + 49.f), IM_COL32(28, 28, 32, 220), 2.f);
+    dl->AddRectFilled(ImVec2(x, y + 43.f), ImVec2(x + (width - 14.f) * ratio, y + 49.f), accent, 2.f);
+    char state[96];
+    if (rt.bomb.defusing && rt.bomb.defuse_time > 0.f)
+        std::snprintf(state, sizeof(state), "Defuse %.1fs  %s", rt.bomb.defuse_time,
+            rt.bomb.defuse_time + .05f < rt.bomb.blow_time ? "TEM TEMPO" : "SEM TEMPO");
+    else if (rt.local_team == 3) {
+        const float needed = rt.local_has_defuser ? 5.f : 10.f;
+        std::snprintf(state, sizeof(state), "%s  %s", rt.local_has_defuser ? "KIT" : "SEM KIT",
+            rt.bomb.blow_time > needed + .05f ? "TEM TEMPO" : "SEM TEMPO");
+    } else
+        std::snprintf(state, sizeof(state), "Bomba ativa");
+    dl->AddText(ImVec2(x, y + 57.f), IM_COL32(205, 205, 210, 230), state);
 }
 
 // Directional arrow around the FOV ring. Always drawn for every match player
@@ -682,6 +749,12 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
     // with the freshest available matrix for this exact render frame.
     UpdatePresentationViewMatrix(rt, fastCamera ? fastCamera->view_matrix : rt.view_matrix,
         fastCamera ? fastCamera->timestamp_ms : rt.snapshot_timestamp_ms);
+    // Every projection in this render pass uses the same freshest validated
+    // camera sample.  Previously the fast camera lane was populated but the
+    // drawing code still projected with the older acquisition matrix.
+    CS2::Runtime frame = rt;
+    if (g_havePresentationView)
+        std::memcpy(frame.view_matrix, g_presentViewMatrix, sizeof(frame.view_matrix));
     // Non-const for radar drag — safe: config is global mutable
     CS2::Config& mut_cfg = const_cast<CS2::Config&>(cfg);
 
@@ -694,10 +767,12 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
     ImVec2 ds = ImGui::GetIO().DisplaySize;
 
     if (cfg.radar_2d)
-        DrawRadar2D(dl, rt, mut_cfg);
+        DrawRadar2D(dl, frame, mut_cfg);
 
     if (cfg.spectator_list)
-        DrawSpectatorList(dl, rt);
+        DrawSpectatorList(dl, frame, mut_cfg);
+    if (cfg.bomb_timer)
+        DrawBombTimerPanel(dl, frame, mut_cfg);
 
     if (cfg.aim_enabled && cfg.aim_draw_fov) {
         ImVec2 c(ds.x * 0.5f, ds.y * 0.5f);
@@ -720,7 +795,7 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
             dl->AddCircle(c, cfg.aim_deadzone, IM_COL32(212, 175, 55, 60), 32, 1.f);
     }
 
-    UpdateKillFeed(rt);
+    UpdateKillFeed(frame);
     DrawKillFeed(dl);
     if (cfg.hotkey_overlay)
         DrawHotkeyOverlay(dl, cfg);
@@ -735,24 +810,24 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
 
 
     // Bomb timer — banner + world marker + soft beep under 5s
-    if (cfg.bomb_timer && rt.bomb.planted && !rt.bomb.defused &&
-        rt.bomb.blow_time > 0.f && rt.bomb.blow_time <= 45.f) {
+    if (cfg.bomb_timer && frame.bomb.planted && !frame.bomb.defused &&
+        frame.bomb.blow_time > 0.f && frame.bomb.blow_time <= 45.f) {
         float sx = 0.f, sy = 0.f;
-        bool on_screen = W2S(rt.bomb.pos, rt.view_matrix, sx, sy);
+        bool on_screen = W2S(frame.bomb.pos, frame.view_matrix, sx, sy);
         char bomb_text[128];
-        if (rt.bomb.defusing && rt.bomb.defuse_time > 0.f && rt.bomb.defuse_time <= 15.f)
+        if (frame.bomb.defusing && frame.bomb.defuse_time > 0.f && frame.bomb.defuse_time <= 15.f)
             std::snprintf(bomb_text, sizeof(bomb_text), "BOMB  %.1fs  DEFUSE %.1fs  %s",
-                rt.bomb.blow_time, rt.bomb.defuse_time,
-                rt.bomb.defuse_time + .05f < rt.bomb.blow_time ? "TEM TEMPO" : "SEM TEMPO");
-        else if (rt.local_team == 3) {
-            const float needed = rt.local_has_defuser ? 5.f : 10.f;
+                frame.bomb.blow_time, frame.bomb.defuse_time,
+                frame.bomb.defuse_time + .05f < frame.bomb.blow_time ? "TEM TEMPO" : "SEM TEMPO");
+        else if (frame.local_team == 3) {
+            const float needed = frame.local_has_defuser ? 5.f : 10.f;
             std::snprintf(bomb_text, sizeof(bomb_text), "BOMB  %.1fs  %s  %s",
-                rt.bomb.blow_time, rt.local_has_defuser ? "KIT" : "SEM KIT",
-                rt.bomb.blow_time > needed + .05f ? "TEM TEMPO" : "SEM TEMPO");
+                frame.bomb.blow_time, frame.local_has_defuser ? "KIT" : "SEM KIT",
+                frame.bomb.blow_time > needed + .05f ? "TEM TEMPO" : "SEM TEMPO");
         }
         else
-            std::snprintf(bomb_text, sizeof(bomb_text), "BOMB  %.1fs", rt.bomb.blow_time);
-        const ImU32 bomb_col = rt.bomb.blow_time < 5.f
+            std::snprintf(bomb_text, sizeof(bomb_text), "BOMB  %.1fs", frame.bomb.blow_time);
+        const ImU32 bomb_col = frame.bomb.blow_time < 5.f
             ? IM_COL32(255, 60, 60, 255) : IM_COL32(255, 180, 40, 255);
 
         ImVec2 ts = ImGui::CalcTextSize(bomb_text);
@@ -770,9 +845,9 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
             dl->AddCircleFilled(ImVec2(sx, sy), 3.f, bomb_col, 12);
         }
 
-        if (rt.bomb.blow_time < 5.f) {
+        if (frame.bomb.blow_time < 5.f) {
             static float last_beep_bucket = -1.f;
-            const float bucket = std::floor(rt.bomb.blow_time);
+            const float bucket = std::floor(frame.bomb.blow_time);
             if (bucket != last_beep_bucket) {
                 last_beep_bucket = bucket;
                 MessageBeep(MB_ICONEXCLAMATION);
@@ -785,25 +860,25 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
     // ── FOV-ring arrows for ALL match players (always visible, size = FOV+5) ──
     if (cfg.offscreen_arrows) {
         const float arrowRadius = (cfg.aim_fov > 1.f ? cfg.aim_fov : 80.f) + 5.f;
-        for (int pi = 0; pi < (int)rt.players.size(); ++pi) {
-            const CS2::Player p = SmoothPlayerForPresentation(rt.players[pi], motionPtr);
+        for (int pi = 0; pi < (int)frame.players.size(); ++pi) {
+            const CS2::Player p = SmoothPlayerForPresentation(frame.players[pi], motionPtr);
             if (p.is_local && !cfg.self_esp) continue;
-            if (!p.is_local && cfg.team_check && p.team == rt.local_team) continue;
+            if (!p.is_local && cfg.team_check && p.team == frame.local_team) continue;
             if (!p.alive && p.health <= 0) continue;
 
-            const float* colBase = (p.team == rt.local_team) ? cfg.col_team : cfg.col_enemy;
+            const float* colBase = (p.team == frame.local_team) ? cfg.col_team : cfg.col_enemy;
             const ImU32 teamCol = Col(colBase);
 
             float dirX = 0.f, dirY = 0.f;
             float hx = 0.f, hy = 0.f;
-            if (W2S(p.head, rt.view_matrix, hx, hy)) {
+            if (W2S(p.head, frame.view_matrix, hx, hy)) {
                 dirX = hx - screenCx;
                 dirY = hy - screenCy;
             } else {
                 // Behind camera / no projection — use world yaw relative direction
-                const float dx = p.pos[0] - rt.local_pos[0];
-                const float dy = p.pos[1] - rt.local_pos[1];
-                const float yaw = rt.local_view_yaw * 0.01745329251f;
+                const float dx = p.pos[0] - frame.local_pos[0];
+                const float dy = p.pos[1] - frame.local_pos[1];
+                const float yaw = frame.local_view_yaw * 0.01745329251f;
                 const float c = std::cos(yaw), s = std::sin(yaw);
                 const float rx = dx * c + dy * s;
                 const float ry = -dx * s + dy * c;
@@ -854,16 +929,16 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
     static constexpr const int* kChains[] = { kChainTrunk, kChainLArm, kChainRArm, kChainLLeg, kChainRLeg };
     static constexpr int kChainLen[] = { 5, 4, 4, 4, 4 };
 
-    for (int pi = 0; pi < (int)rt.players.size(); ++pi) {
-        const CS2::Player p = SmoothPlayerForPresentation(rt.players[pi], motionPtr);
+    for (int pi = 0; pi < (int)frame.players.size(); ++pi) {
+        const CS2::Player p = SmoothPlayerForPresentation(frame.players[pi], motionPtr);
         if (p.is_local && !cfg.self_esp) continue;
-        if (!p.is_local && cfg.team_check && p.team == rt.local_team) continue;
+        if (!p.is_local && cfg.team_check && p.team == frame.local_team) continue;
         if (p.distance > cfg.max_distance) continue;
         if (cfg.visible_check && !p.spotted) continue;
         if (!p.alive && p.health <= 0) continue;
 
         float colVis[4];
-        const float* colBase = (p.team == rt.local_team) ? cfg.col_team : cfg.col_enemy;
+        const float* colBase = (p.team == frame.local_team) ? cfg.col_team : cfg.col_enemy;
         for (int i = 0; i < 4; ++i) colVis[i] = colBase[i];
         if (cfg.visibility_colors && !p.is_local) {
             if (p.spotted) { colVis[0] = 0.25f; colVis[1] = 0.95f; colVis[2] = 0.35f; }
@@ -874,15 +949,15 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
 
         // Screen: feet = origin, head = bone head or +72 hull (CS2-DMA Get2DBox)
         float fx = 0.f, fy = 0.f, hx = 0.f, hy = 0.f;
-        if (!W2S(p.pos, rt.view_matrix, fx, fy))
+        if (!W2S(p.pos, frame.view_matrix, fx, fy))
             continue;
         bool head_ok = false;
         if (p.bones_ok) {
-            head_ok = W2S(p.bones[0], rt.view_matrix, hx, hy);
+            head_ok = W2S(p.bones[0], frame.view_matrix, hx, hy);
         }
         if (!head_ok) {
             const float headWorld[3] = { p.pos[0], p.pos[1], p.pos[2] + 72.f };
-            if (!W2S(headWorld, rt.view_matrix, hx, hy))
+            if (!W2S(headWorld, frame.view_matrix, hx, hy))
                 continue;
         }
 
@@ -899,8 +974,8 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
         // World-space player effects must run from the real ESP entity loop.
         // The preview has its own 2D stand-in, so leaving this helper uncalled
         // made the Chinese hat (and the other motion effects) preview-only.
-        DrawMotionVisuals(dl, rt, cfg, p);
-        DrawDamageMarker(dl, rt, cfg, p, pi);
+        DrawMotionVisuals(dl, frame, cfg, p);
+        DrawDamageMarker(dl, frame, cfg, p, pi);
 
         // Box
         const float thBox = std::clamp(cfg.box_thickness, 0.5f, 8.f);
@@ -919,7 +994,7 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
             float screen[CS2::kBoneSlotCount][2]{};
             bool ok[CS2::kBoneSlotCount]{};
             for (std::size_t b = 0; b < CS2::kBoneSlotCount; ++b) {
-                ok[b] = W2S(p.bones[b], rt.view_matrix, screen[b][0], screen[b][1]);
+                ok[b] = W2S(p.bones[b], frame.view_matrix, screen[b][0], screen[b][1]);
             }
             for (int c = 0; c < 5; ++c) {
                 if (c >= 1 && c <= 2 && !cfg.bone_draw_arms) continue;
@@ -987,6 +1062,12 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
             ImVec2 ts = ImGui::CalcTextSize(label);
             dl->AddText(ImVec2(hx - ts.x * 0.5f + 1.f, textY + 1.f), IM_COL32(0, 0, 0, 180), label);
             dl->AddText(ImVec2(hx - ts.x * 0.5f, textY), Col(cfg.col_name), label);
+            textY -= 14.f;
+        }
+        if (cfg.c4_carrier && p.weapon_def == 49) {
+            const char* c4 = "C4";
+            const ImVec2 ts = ImGui::CalcTextSize(c4);
+            dl->AddText(ImVec2(hx - ts.x * .5f, textY), IM_COL32(255, 184, 46, 255), c4);
             textY -= 14.f;
         }
 

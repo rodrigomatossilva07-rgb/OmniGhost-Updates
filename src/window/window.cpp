@@ -55,7 +55,7 @@ namespace {
         case MenuTab::TAB_SAVECONFIG:       return { Loc::Tr("nav.save"), app_settings::T("Guardar, carregar e organizar perfis", "Save, load and organize profiles") };
         case MenuTab::TAB_CS2_VISUALS:      return { "VISUAIS CS2", "ESP de jogadores e pré-visualização" };
         case MenuTab::TAB_CS2_AIM:          return { "MIRA CS2", "Perfis e assistência de mira" };
-        case MenuTab::TAB_CS2_MISC:         return { "SISTEMA CS2", "Estado e opções adicionais" };
+        case MenuTab::TAB_CS2_MISC:         return { "DIVERSOS CS2", "Widgets, bomba e utilitários" };
         case MenuTab::TAB_WARZONE_AIM:      return { "MIRA WARZONE", "Alvo, precisão e suavidade" };
         case MenuTab::TAB_WARZONE_VISUALS:  return { "VISUAIS WARZONE", "ESP de jogadores" };
         case MenuTab::TAB_WARZONE_RADAR:    return { "RADAR WARZONE", "Posições e orientação" };

@@ -2,6 +2,7 @@
 #include "../../theme.h"
 #include "../../localization.h"
 #include "cs2_config.h"
+#include "cs2_aim.h"
 #include "imgui.h"
 #include <Windows.h>
 #include <cstdio>
@@ -79,8 +80,9 @@ void DrawCs2Aim() {
     CyberWidgets::BeginCard("ASSISTENCIA DE MIRA", left);
     CyberWidgets::ToggleSwitch("Ativar assistencia", &CS2::config.aim_enabled);
     if (CS2::config.aim_enabled) {
-        CyberWidgets::ToggleSwitch("Verificacao de visibilidade", &CS2::config.visible_check);
-        CyberWidgets::ToggleSwitch(Loc::Tr("vis.team_check"), &CS2::config.team_check);
+        // These must drive the aim filters, not the independent ESP filters.
+        CyberWidgets::ToggleSwitch("Verificacao de visibilidade", &CS2::config.aim_visibility_check);
+        CyberWidgets::ToggleSwitch("Ignorar equipa", &CS2::config.aim_ignore_team);
         CyberWidgets::Separator();
         CyberWidgets::SectionTitle("ALVO");
         const char* hitboxes[] = { "Cabeca", "Pescoco", "Tronco", "Pelvis", "Pernas" };
@@ -97,6 +99,7 @@ void DrawCs2Aim() {
         if (CS2::config.aim_bind <= 0)
             CS2::config.aim_bind = 0x02;
         CS2::config.aim_bind2 = 0;
+        CyberWidgets::KeyValueRow("Estado", CS2_Aim::DebugStatus());
     } else {
         CyberWidgets::TextLine("Assistencia desativada — ativa para configurar alvo e teclas.",
                                CyberWidgets::TextTone::Secondary);

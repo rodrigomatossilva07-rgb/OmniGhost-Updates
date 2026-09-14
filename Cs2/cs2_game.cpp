@@ -77,6 +77,7 @@ std::atomic_bool g_acquisition_stop{false};
 std::atomic_bool g_acquisition_running{false};
 std::atomic<float> g_presentation_fps{0.f};
 std::atomic<uint64_t> g_last_snapshot_publish_ms{0};
+std::atomic<uint64_t> g_runtime_snapshot_drops{0};
 std::atomic<float> g_acquisition_hz{0.f};
 std::thread g_acquisition_thread;
 std::thread g_camera_thread;
@@ -91,7 +92,11 @@ void PublishRuntimeSnapshot() {
     runtime.acquisition_hz = g_acquisition_hz.load(std::memory_order_relaxed);
     runtime.snapshot_interval_ms = previous && now > previous ? static_cast<float>(now - previous) : 0.f;
     auto slot = g_runtime_snapshots.TryBeginWrite();
-    if (!slot) return; // renderer still owns both spare slots; never wait
+    if (!slot) {
+        g_runtime_snapshot_drops.fetch_add(1, std::memory_order_relaxed);
+        return; // renderer still owns both spare slots; never wait
+    }
+    runtime.snapshot_drops = g_runtime_snapshot_drops.load(std::memory_order_relaxed);
     *slot.value = runtime;
     g_runtime_snapshots.Publish(slot.index);
 }
@@ -1613,6 +1618,82 @@ void UpdateBombState() {
         QRead(scene + offsets.m_vecAbsOrigin, runtime.bomb.pos, sizeof(runtime.bomb.pos));
 }
 
+// Death-mode is deliberately a separate, low-frequency path.  It never reads
+// player transforms, bones, weapons or aim data; it only follows observer
+// handles so the spectator widget keeps working while the main acquisition is
+// paused.  The normal scan resumes automatically as soon as local HP is back.
+static void UpdateSpectatorsWhileDead(const Config& frame_config,
+                                      const uintptr_t* controllers, int count) {
+    runtime.spectators.clear();
+    runtime.spectator_count = 0;
+    runtime.spectator_target = runtime.local_pawn;
+    runtime.spectator_target_name[0] = '\0';
+    if (!frame_config.spectator_list || !runtime.local_pawn ||
+        !offsets.m_pObserverServices || !offsets.m_hObserverTarget)
+        return;
+
+    uintptr_t localServices = 0;
+    uint32_t watchedHandle = 0;
+    if (QReadT(runtime.local_pawn + offsets.m_pObserverServices, localServices) &&
+        IsUserPointer(localServices) &&
+        QReadT(localServices + offsets.m_hObserverTarget, watchedHandle)) {
+        const uintptr_t watched = ResolveEntityByHandle(
+            watchedHandle, g_pawn_stride ? g_pawn_stride : kEntityIdentityStride);
+        if (IsUserPointer(watched)) runtime.spectator_target = watched;
+    }
+
+    static std::vector<Player> cachedSpectators;
+    static uintptr_t cachedTarget = 0;
+    static uint64_t nextRefreshMs = 0;
+    const uint64_t now = GetTickCount64();
+    if (now < nextRefreshMs && cachedTarget == runtime.spectator_target) {
+        runtime.spectators = cachedSpectators;
+        runtime.spectator_count = static_cast<int>(runtime.spectators.size());
+        return;
+    }
+
+    for (int i = 0; i < count; ++i) {
+        const uintptr_t controller = controllers[i];
+        if (!IsUserPointer(controller) || controller == runtime.local_controller)
+            continue;
+        uint32_t observerHandle = 0;
+        if (!offsets.m_hObserverPawn ||
+            !QReadT(controller + offsets.m_hObserverPawn, observerHandle) ||
+            !observerHandle || observerHandle == 0xFFFFFFFFu)
+            continue;
+        const uintptr_t observerPawn = ResolveEntityByHandle(
+            observerHandle, g_pawn_stride ? g_pawn_stride : kEntityIdentityStride);
+        uintptr_t services = 0;
+        uint32_t targetHandle = 0;
+        if (!IsUserPointer(observerPawn) ||
+            !QReadT(observerPawn + offsets.m_pObserverServices, services) ||
+            !IsUserPointer(services) ||
+            !QReadT(services + offsets.m_hObserverTarget, targetHandle))
+            continue;
+        const uintptr_t target = ResolveEntityByHandle(
+            targetHandle, g_pawn_stride ? g_pawn_stride : kEntityIdentityStride);
+        if (target != runtime.spectator_target)
+            continue;
+
+        Player spectator{};
+        spectator.controller = controller;
+        spectator.pawn = observerPawn;
+        spectator.is_spectator = true;
+        spectator.alive = false;
+        if (offsets.m_steamID)
+            QReadT(controller + offsets.m_steamID, spectator.steam_id);
+        QRead(controller + offsets.m_iszPlayerName, spectator.name, sizeof(spectator.name) - 1);
+        spectator.name[sizeof(spectator.name) - 1] = '\0';
+        if (!spectator.name[0])
+            std::snprintf(spectator.name, sizeof(spectator.name), "Jogador_%d", i + 1);
+        runtime.spectators.push_back(spectator);
+    }
+    cachedSpectators = runtime.spectators;
+    cachedTarget = runtime.spectator_target;
+    nextRefreshMs = now + 50u;
+    runtime.spectator_count = static_cast<int>(runtime.spectators.size());
+}
+
 static void RunFrameWithConfig(const Config& frame_config) {
     // Keep web radar HTTP server in sync with UI toggles.
     if (frame_config.webradar_enabled) {
@@ -1774,7 +1855,25 @@ static void RunFrameWithConfig(const Config& frame_config) {
             runtime.local_controller = localController;
     }
 
+    // This is the only per-frame player-state read retained while dead.  It
+    // makes death-mode self-healing at round respawn without keeping the ESP
+    // acquisition lanes alive.
     if (runtime.local_pawn) {
+        int sampled_health = runtime.local_health;
+        // A failed DMA read must not be reinterpreted as HP=0.  Keep the last
+        // validated value and only enter death-mode on a successful 0-HP read.
+        if (QReadT(runtime.local_pawn + offsets.m_iHealth, sampled_health) &&
+            sampled_health >= 0 && sampled_health <= 200)
+            runtime.local_health = sampled_health;
+    } else {
+        runtime.local_health = 0;
+    }
+
+    if (runtime.local_pawn) {
+        // HP is read immediately above.  Do not keep reading local movement,
+        // view, item or trigger state after death; observer/bomb handling
+        // below is the only remaining DMA work in that state.
+        if (runtime.local_health > 0) {
         {
             static ULONGLONG s_lastTeamMs = 0;
             const ULONGLONG nowT = GetTickCount64();
@@ -1811,11 +1910,6 @@ static void RunFrameWithConfig(const Config& frame_config) {
             runtime.local_angles[1] = view_angles[1];
         }
 
-        // Read local player health
-        int health = 0;
-        if (QReadT(runtime.local_pawn + offsets.m_iHealth, health))
-            runtime.local_health = health;
-
         // Read local player scoped state
         if (offsets.m_bIsScoped) {
             bool scoped = false;
@@ -1836,6 +1930,23 @@ static void RunFrameWithConfig(const Config& frame_config) {
         if (frame_config.trigger_enabled && frame_config.trigger_use_ident && offsets.m_iIDEntIndex)
             QReadT(runtime.local_pawn + offsets.m_iIDEntIndex,
                    runtime.local_crosshair_entity);
+        if (frame_config.hit_marker && offsets.m_iShotsFired) {
+            int shots = 0;
+            if (QReadT(runtime.local_pawn + offsets.m_iShotsFired, shots) && shots >= 0 && shots < 256) {
+                static int previous_shots = -1;
+                if (previous_shots >= 0 && shots > previous_shots)
+                    runtime.local_last_shot_ms = GetTickCount64();
+                previous_shots = shots;
+                runtime.local_shots_fired = shots;
+            }
+        }
+        } else {
+            runtime.local_crosshair_entity = 0;
+            runtime.local_has_defuser = false;
+            runtime.local_scoped = false;
+            runtime.local_shots_fired = 0;
+            std::memset(runtime.local_vel, 0, sizeof(runtime.local_vel));
+        }
     } else {
         runtime.local_crosshair_entity = 0;
         runtime.local_has_defuser = false;
@@ -1889,6 +2000,23 @@ static void RunFrameWithConfig(const Config& frame_config) {
     }
     runtime.controller_stride = g_controller_stride;
     runtime.controller_count = collected;
+
+    // While dead, do not enter the entity, position, bone, weapon, visibility
+    // or aim acquisition stages.  Spectators and bomb state remain available
+    // through their small dedicated paths; a positive local HP next frame
+    // immediately falls through to the normal 6 ms pipeline again.
+    if (runtime.local_health <= 0) {
+        runtime.players.clear();
+        runtime.player_count = 0;
+        runtime.pawn_count = 0;
+        runtime.enemy_count = 0;
+        UpdateSpectatorsWhileDead(frame_config, controllers, kMaxSlots);
+        if (frame_config.bomb_timer)
+            UpdateBombState();
+        else
+            runtime.bomb = BombState{};
+        return;
+    }
 
     // Calibrate handle→pawn stride against the local player when available.
     if (runtime.local_controller && runtime.local_pawn)

@@ -43,6 +43,10 @@ struct Config {
     bool snaplines = false;
     bool bomb_timer = false;
     bool spectator_list = false;
+    float spectator_window_x = -1.f;
+    float spectator_window_y = 40.f;
+    float bomb_window_x = -1.f;
+    float bomb_window_y = 338.f;
     bool smoke_flash = false;
     bool scope_check = false;
     bool sound_esp = false;

@@ -496,7 +496,10 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
         ApplyRCS(rt, cfg, local_weapon_definition);
     }
 
-    if (!IsFirearm(local_weapon_definition)) {
+    // A zero definition means the weapon-chain read was unavailable for this
+    // snapshot.  Do not turn that transient read failure into a permanent aim
+    // block; known utility definitions remain strictly blocked.
+    if (local_weapon_definition > 0 && !IsFirearm(local_weapon_definition)) {
         g_active_target_idx = -1;
         g_last_target_idx = -1;
         g_target_pawn = 0;

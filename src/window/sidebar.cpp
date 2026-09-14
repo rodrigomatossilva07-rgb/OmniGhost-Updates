@@ -100,7 +100,7 @@ namespace CyberWidgets {
         static const TabItem cs2Tabs[] = {
             { "nav.visuals", MenuTab::TAB_CS2_VISUALS, CyberIcons::DrawESPIcon },
             { "nav.aim",     MenuTab::TAB_CS2_AIM,     CyberIcons::DrawAimIcon },
-            { "nav.status",  MenuTab::TAB_CS2_MISC,    CyberIcons::DrawStatusIcon },
+            { "nav.misc",    MenuTab::TAB_CS2_MISC,    CyberIcons::DrawWrenchIcon },
             { "nav.radar",   MenuTab::TAB_CS2_RADAR,   CyberIcons::DrawRadarIcon },
             { "nav.configs", MenuTab::TAB_CONFIGS,     CyberIcons::DrawSettingsIcon },
             { "nav.save",    MenuTab::TAB_SAVECONFIG,  CyberIcons::DrawSaveIcon },

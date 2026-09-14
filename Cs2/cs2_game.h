@@ -149,6 +149,8 @@ struct Runtime {
     bool local_scoped = false;
     bool local_has_defuser = false;
     int local_crosshair_entity = 0;
+    int local_shots_fired = 0;
+    uint64_t local_last_shot_ms = 0;
     float view_matrix[16]{};
     char map_name[64]{};
     bool in_match = false;
@@ -166,6 +168,7 @@ struct Runtime {
     uint64_t frames = 0;
     uint64_t read_fails = 0;
     uint64_t snapshot_timestamp_ms = 0;
+    uint64_t snapshot_drops = 0;
     float acquisition_hz = 0.f;
     float acquisition_ms = 0.f;
     float processing_ms = 0.f;
