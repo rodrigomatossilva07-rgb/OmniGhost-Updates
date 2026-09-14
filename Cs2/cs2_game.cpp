@@ -1535,22 +1535,32 @@ static void ScatterReadPawnCore(const uintptr_t* pawns, PawnCoreFields* fields, 
 
 void UpdateBombState() {
     runtime.bomb = BombState{};
-    if (!offsets.dwPlantedC4 || offsets.dwPlantedC4 < 8)
+    if (!offsets.dwPlantedC4)
         return;
 
-    uint8_t planted_count = 0;
-    if (!QReadT(runtime.client_base + offsets.dwPlantedC4 - 8, planted_count) || planted_count == 0)
+    // CS2 has exposed dwPlantedC4 in both forms across builds: either the
+    // C_PlantedC4 pointer itself, or a pointer to a one-entry list.  The old
+    // reader required a count at offset -8, which is not part of the current
+    // direct-pointer layout and made a planted bomb look absent.
+    uintptr_t candidate = 0;
+    if (!QReadT(runtime.client_base + offsets.dwPlantedC4, candidate) || !IsUserPointer(candidate))
         return;
 
-    uintptr_t list_data = 0;
     uintptr_t entity = 0;
-    if (!QReadT(runtime.client_base + offsets.dwPlantedC4, list_data) || !IsUserPointer(list_data) ||
-        !QReadT(list_data, entity) || !IsUserPointer(entity))
-        return;
-
     uint8_t ticking = 0;
     if (offsets.m_bBombTicking)
-        QReadT(entity + offsets.m_bBombTicking, ticking);
+        QReadT(candidate + offsets.m_bBombTicking, ticking);
+    if (ticking) {
+        entity = candidate;
+    } else {
+        // Compatibility for older list-backed offset dumps.
+        uintptr_t list_entity = 0;
+        if (!QReadT(candidate, list_entity) || !IsUserPointer(list_entity))
+            return;
+        if (offsets.m_bBombTicking)
+            QReadT(list_entity + offsets.m_bBombTicking, ticking);
+        entity = list_entity;
+    }
     if (!ticking)
         return;
 
