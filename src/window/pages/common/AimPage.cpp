@@ -174,9 +174,16 @@ void DrawAim()
     CyberWidgets::BeginCard(Loc::Tr("aim.trigger_title"), left);
     CyberWidgets::ToggleSwitch(Loc::Tr("aim.trigger"), &aimbot::config.trigger_enabled);
     if (aimbot::config.trigger_enabled) {
+        CyberWidgets::TextLine(Loc::Tr("aim.trigger_hint2"), CyberWidgets::TextTone::Secondary);
+        CyberWidgets::ToggleSwitch(Loc::Tr("aim.trigger_always"), &aimbot::config.trigger_always_on);
+        if (!aimbot::config.trigger_always_on) {
+            ImGui::TextUnformatted(Loc::Tr("aim.trigger_key"));
+            ImGui::SameLine(160.f);
+            HotkeyCaptureButton("trigger", &aimbot::config.trigger_bind);
+        }
         CyberWidgets::ToggleSwitch(Loc::Tr("aim.trigger_head"), &aimbot::config.trigger_head_only);
         CyberWidgets::SliderFloat(Loc::Tr("aim.trigger_fov"), &aimbot::config.trigger_fov, 4.f, 80.f, "%.0f px");
-        CyberWidgets::SliderFloat(Loc::Tr("aim.trigger_delay"), &aimbot::config.trigger_delay, 0.f, .5f, "%.3f s");
+        CyberWidgets::SliderFloat(Loc::Tr("aim.trigger_reaction"), &aimbot::config.trigger_delay, 0.f, .5f, "%.3f s");
     }
     CyberWidgets::EndCard();
     ImGui::EndGroup();

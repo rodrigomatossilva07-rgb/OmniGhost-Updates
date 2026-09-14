@@ -61,23 +61,9 @@ namespace CyberWidgets {
         dl->AddRect(logo_a, logo_b,
             CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.38f), 8.0f, 0, 1.1f);
 
-        ImFont* title = CyberFonts::GetTitleFont();
-        ImFont* body = CyberFonts::GetBodyFont();
-        const float text_x = logo_b.x + 14.0f;
-
-        if (title)
-            dl->AddText(title, 20.0f, ImVec2(text_x, a.y + 12.0f),
-                CyberTheme::U32(CyberTheme::Colors.Text), "OMNIGHOST");
-        else
-            dl->AddText(ImVec2(text_x, a.y + 12.0f),
-                CyberTheme::U32(CyberTheme::Colors.Text), "OMNIGHOST");
-
-        if (body)
-            dl->AddText(body, 11.5f, ImVec2(text_x + 1.0f, a.y + 35.0f),
-                IM_COL32(160, 165, 180, 220), "CONTROL CENTER");
-        else
-            dl->AddText(ImVec2(text_x + 1.0f, a.y + 35.0f),
-                IM_COL32(160, 165, 180, 220), "CONTROL CENTER");
+        // The home header intentionally stays icon-led.  Keeping the brand
+        // mark without the old "Omni // Control Center" copy gives the page
+        // more room and avoids repeating the application name.
 
         const char* systemState = dma_ok ? "DMA ONLINE" : "DMA OFFLINE";
         const ImU32 systemColor = dma_ok

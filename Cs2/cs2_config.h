@@ -125,6 +125,7 @@ struct Config {
     float col_fov[4] = { 0.83f, 0.69f, 0.22f, 0.45f };
 
     bool trigger_enabled = false;
+    bool trigger_always_on = true;
     int trigger_bind = 0x12; // ALT
     int trigger_delay_ms = 30;
     bool trigger_team_check = true;

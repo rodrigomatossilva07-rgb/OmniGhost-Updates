@@ -41,6 +41,7 @@ namespace esp {
         bool angel_wings = false;
         bool devil_horns = false;
         bool floating_crown = false;
+        bool hit_marker = false;
         bool fun_effects_rainbow = true;
         float fun_effects_scale = 1.0f;
         bool rainbow_trails = true;
@@ -152,6 +153,8 @@ namespace aimbot {
         bool silent_rage = false;
 
         bool trigger_enabled = false;
+        bool trigger_always_on = true;
+        int trigger_bind = 0;
         bool trigger_head_only = true;
         bool trigger_show_fov = false;
         float trigger_fov = 25.0f;

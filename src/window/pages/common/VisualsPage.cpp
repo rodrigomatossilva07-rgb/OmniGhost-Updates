@@ -14,6 +14,7 @@
 #include <cfloat>
 #include <cstdio>
 #include <algorithm>
+#include <string>
 
 namespace {
 
@@ -46,12 +47,8 @@ void DrawEspPreviewPanel(float panelWidth, float panelHeight, bool previewVisibl
     const ImVec2 origin = ImGui::GetCursorScreenPos();
     const ImVec2 end(origin.x + panelWidth, origin.y + panelHeight);
     constexpr ImU32 kBlack = IM_COL32(5, 5, 5, 255);
-    constexpr ImU32 kElevated = IM_COL32(13, 14, 14, 255);
     constexpr ImU32 kGunmetal = IM_COL32(27, 29, 29, 255);
-    constexpr ImU32 kMuted = IM_COL32(116, 118, 116, 255);
     constexpr ImU32 kText = IM_COL32(216, 216, 210, 255);
-    constexpr ImU32 kGold = IM_COL32(199, 165, 43, 255);
-    constexpr ImU32 kChampagne = IM_COL32(227, 198, 90, 255);
     constexpr ImU32 kActive = IM_COL32(40, 244, 91, 255);
 
     // Layered, clipped HUD surface. All decoration is intentionally subtle so
@@ -71,38 +68,30 @@ void DrawEspPreviewPanel(float panelWidth, float panelHeight, bool previewVisibl
     const float sc = (std::min)(panelWidth / 275.f, (panelHeight - 30.f) / 360.f);
     const float cx = origin.x + panelWidth * 0.50f;
     const float top = origin.y + 16.f;
-    const ImVec2 head(cx, top + 24.f * sc);
-    const ImVec2 neck(cx, top + 48.f * sc);
-    const ImVec2 chest(cx, top + 84.f * sc);
-    const ImVec2 spine_mid(cx, top + 116.f * sc);
-    const ImVec2 spine_low(cx, top + 142.f * sc);
-    const ImVec2 pelvis(cx, top + 164.f * sc);
-    const ImVec2 l_cl(cx - 18.f * sc, top + 58.f * sc);
-    const ImVec2 r_cl(cx + 18.f * sc, top + 58.f * sc);
-    const ImVec2 l_sh(cx - 46.f * sc, top + 70.f * sc);
-    const ImVec2 r_sh(cx + 46.f * sc, top + 70.f * sc);
-    const ImVec2 l_up(cx - 61.f * sc, top + 105.f * sc);
-    const ImVec2 r_up(cx + 61.f * sc, top + 105.f * sc);
-    const ImVec2 l_el(cx - 72.f * sc, top + 139.f * sc);
-    const ImVec2 r_el(cx + 72.f * sc, top + 139.f * sc);
-    const ImVec2 l_fore(cx - 79.f * sc, top + 166.f * sc);
-    const ImVec2 r_fore(cx + 79.f * sc, top + 166.f * sc);
-    const ImVec2 l_wr(cx - 82.f * sc, top + 184.f * sc);
-    const ImVec2 r_wr(cx + 82.f * sc, top + 184.f * sc);
-    const ImVec2 l_ha(cx - 83.f * sc, top + 191.f * sc);
-    const ImVec2 r_ha(cx + 83.f * sc, top + 191.f * sc);
-    const ImVec2 l_hi(cx - 18.f * sc, top + 164.f * sc);
-    const ImVec2 r_hi(cx + 18.f * sc, top + 164.f * sc);
-    const ImVec2 l_th(cx - 22.f * sc, top + 207.f * sc);
-    const ImVec2 r_th(cx + 22.f * sc, top + 207.f * sc);
-    const ImVec2 l_kn(cx - 25.f * sc, top + 246.f * sc);
-    const ImVec2 r_kn(cx + 25.f * sc, top + 246.f * sc);
-    const ImVec2 l_shin(cx - 26.f * sc, top + 278.f * sc);
-    const ImVec2 r_shin(cx + 26.f * sc, top + 278.f * sc);
-    const ImVec2 l_an(cx - 27.f * sc, top + 310.f * sc);
-    const ImVec2 r_an(cx + 27.f * sc, top + 310.f * sc);
-    const ImVec2 l_ft(cx - 35.f * sc, top + 319.f * sc);
-    const ImVec2 r_ft(cx + 35.f * sc, top + 319.f * sc);
+    // Single visual reference for every layer in this preview.  Landmarks are
+    // ratios of this body box, not independent screen coordinates.
+    const float playerTop = top + 4.f * sc;
+    const float playerBottom = top + 323.f * sc;
+    const float playerHalfWidth = 62.f * sc;
+    const float playerHeight = playerBottom - playerTop;
+    const float playerLeft = cx - playerHalfWidth;
+    const float playerRight = cx + playerHalfWidth;
+    const auto pt = [&](float x, float y) { return ImVec2(cx + x * playerHalfWidth, playerTop + y * playerHeight); };
+    const ImVec2 head = pt(0.f, .075f), neck = pt(0.f, .145f), chest = pt(0.f, .245f);
+    const ImVec2 spine_mid = pt(0.f, .345f), spine_low = pt(0.f, .420f), pelvis = pt(0.f, .490f);
+    const ImVec2 l_cl = pt(-.27f, .175f), r_cl = pt(.27f, .175f);
+    const ImVec2 l_sh = pt(-.63f, .205f), r_sh = pt(.63f, .205f);
+    const ImVec2 l_up = pt(-.82f, .285f), r_up = pt(.82f, .285f);
+    const ImVec2 l_el = pt(-.96f, .390f), r_el = pt(.96f, .390f);
+    const ImVec2 l_fore = pt(-1.04f, .465f), r_fore = pt(1.04f, .465f);
+    const ImVec2 l_wr = pt(-1.06f, .530f), r_wr = pt(1.06f, .530f);
+    const ImVec2 l_ha = pt(-1.04f, .550f), r_ha = pt(1.04f, .550f);
+    const ImVec2 l_hi = pt(-.26f, .490f), r_hi = pt(.26f, .490f);
+    const ImVec2 l_th = pt(-.31f, .630f), r_th = pt(.31f, .630f);
+    const ImVec2 l_kn = pt(-.35f, .760f), r_kn = pt(.35f, .760f);
+    const ImVec2 l_shin = pt(-.37f, .860f), r_shin = pt(.37f, .860f);
+    const ImVec2 l_an = pt(-.39f, .950f), r_an = pt(.39f, .950f);
+    const ImVec2 l_ft = pt(-.52f, 1.f), r_ft = pt(.52f, 1.f);
 
     const ImU32 sk = previewVisible ? kActive : PreviewColor(esp::config.color_skeleton, false);
     const ImU32 jt = previewVisible ? kActive : PreviewColor(esp::config.color_skeleton_points, false);
@@ -197,8 +186,8 @@ void DrawEspPreviewPanel(float panelWidth, float panelHeight, bool previewVisibl
         r_hi, r_th, r_kn, r_shin, r_an, r_ft })
         joint(p);
 
-    const ImVec2 boxMin(cx - 72.f * sc, head.y - 22.f * sc);
-    const ImVec2 boxMax(cx + 72.f * sc, l_ft.y + 12.f * sc);
+    const ImVec2 boxMin(playerLeft, playerTop);
+    const ImVec2 boxMax(playerRight, playerBottom);
     const ImU32 boxColor = PreviewColor(esp::config.color_box_2d, previewVisible);
     if (esp::config.box_2d) {
         dl->AddRect(ImVec2(boxMin.x - 1.f, boxMin.y - 1.f),
@@ -236,6 +225,25 @@ void DrawEspPreviewPanel(float panelWidth, float panelHeight, bool previewVisibl
             dl->AddCircle(head, 11.f, headColor, 24, 2.0f);
         }
     }
+    if (esp::config.chinese_hat) {
+        const float hatScale = std::clamp(esp::config.fun_effects_scale, .5f, 2.5f) * sc;
+        const float base = 25.f * hatScale;
+        const float tipY = playerTop - 23.f * hatScale;
+        const float baseY = playerTop + 3.f * sc;
+        for (int i = 0; i < 14; ++i) {
+            const float a0 = i * 6.2831853f / 14.f;
+            const float a1 = (i + 1) * 6.2831853f / 14.f;
+            const ImU32 color = esp::config.fun_effects_rainbow
+                ? IM_COL32((int)(std::sin(a0 + ImGui::GetTime() * .2f) * 127.f + 128.f),
+                    (int)(std::sin(a0 + ImGui::GetTime() * .2f + 2.094f) * 127.f + 128.f),
+                    (int)(std::sin(a0 + ImGui::GetTime() * .2f + 4.188f) * 127.f + 128.f), 245)
+                : esp::config.color_fun_effects;
+            const ImVec2 p0(cx + std::cos(a0) * base, baseY + std::sin(a0) * base * .24f);
+            const ImVec2 p1(cx + std::cos(a1) * base, baseY + std::sin(a1) * base * .24f);
+            dl->AddLine(ImVec2(cx, tipY), p0, color, 1.35f);
+            dl->AddLine(p0, p1, color, 1.2f);
+        }
+    }
     if (esp::config.head_halo) {
         ImVec2 halo[25]{};
         for (int i = 0; i <= 24; ++i) {
@@ -244,6 +252,45 @@ void DrawEspPreviewPanel(float panelWidth, float panelHeight, bool previewVisibl
                              head.y - 15.f * sc + std::sin(angle) * 5.f * sc);
         }
         dl->AddPolyline(halo, 25, PreviewColor(esp::config.color_halo, previewVisible), false, 1.7f);
+    }
+    // Preview-only silhouettes mirror the optional in-game adornments.  Their
+    // anchors are the same head/shoulder landmarks used by the skeleton, so
+    // they remain correctly placed as this panel scales.
+    const float fxScale = std::clamp(esp::config.fun_effects_scale, .5f, 2.5f) * sc;
+    const float hue = static_cast<float>(ImGui::GetTime()) * .18f;
+    const auto fxColor = [&](float offset = 0.f) {
+        if (!esp::config.fun_effects_rainbow)
+            return esp::config.color_fun_effects;
+        return IM_COL32((int)(std::sin(hue + offset) * 127.f + 128.f),
+                        (int)(std::sin(hue + offset + 2.094f) * 127.f + 128.f),
+                        (int)(std::sin(hue + offset + 4.188f) * 127.f + 128.f), 245);
+    };
+    if (esp::config.angel_wings) {
+        const float w = 44.f * fxScale, h = 42.f * fxScale;
+        for (int side : { -1, 1 }) {
+            const ImVec2 root(cx + side * 18.f * sc, chest.y - 8.f * sc);
+            const ImVec2 tip(root.x + side * w, root.y + h * .30f);
+            dl->AddBezierCubic(root, ImVec2(root.x + side * w * .42f, root.y - h),
+                ImVec2(tip.x, tip.y - h * .60f), tip, fxColor(side * .4f), 2.f);
+            dl->AddLine(root, ImVec2(root.x + side * w * .72f, root.y + h), fxColor(side * .7f), 1.5f);
+        }
+    }
+    if (esp::config.devil_horns) {
+        const float w = 12.f * fxScale, h = 20.f * fxScale;
+        for (int side : { -1, 1 }) {
+            const ImVec2 base(head.x + side * 8.f * sc, head.y - 10.f * sc);
+            const ImVec2 horn[] = { base, ImVec2(base.x + side * w, base.y - h),
+                ImVec2(base.x + side * w * 1.15f, base.y + 2.f * sc) };
+            dl->AddPolyline(horn, 3, fxColor(side * .5f), false, 2.f);
+        }
+    }
+    if (esp::config.floating_crown) {
+        const float w = 19.f * fxScale, y = head.y - 27.f * sc - std::sin(hue * 2.f) * 3.f * sc;
+        const ImVec2 crown[] = { ImVec2(cx - w, y + 8.f * fxScale), ImVec2(cx - w, y),
+            ImVec2(cx - w * .35f, y + 5.f * fxScale), ImVec2(cx, y - 5.f * fxScale),
+            ImVec2(cx + w * .35f, y + 5.f * fxScale), ImVec2(cx + w, y), ImVec2(cx + w, y + 8.f * fxScale) };
+        dl->AddPolyline(crown, 7, fxColor(), false, 2.f);
+        dl->AddLine(crown[0], crown[6], fxColor(.4f), 2.f);
     }
     if (esp::config.look_direction) {
         const ImVec2 lookEnd(head.x + 48.f * sc, head.y - 3.f * sc);
@@ -264,37 +311,29 @@ void DrawEspPreviewPanel(float panelWidth, float panelHeight, bool previewVisibl
     if (esp::config.armor_bar)
         meter(boxMax.x + 11.f, head.y - 4.f, r_ft.y, 0.55f, IM_COL32(67, 171, 243, 255));
 
+    const bool hasHeadAdornment = esp::config.chinese_hat || esp::config.floating_crown || esp::config.devil_horns;
+    const float labelTop = boxMin.y - (hasHeadAdornment ? 52.f * sc : (esp::config.head_halo ? 31.f * sc : 18.f));
     if (esp::config.player_id) {
         const char* id = "ID: 42";
         const ImVec2 idSize = ImGui::CalcTextSize(id);
-        dl->AddText(ImVec2(cx - idSize.x * 0.5f, boxMin.y - 22.f), kText, id);
+        dl->AddText(ImVec2(cx - idSize.x * 0.5f, labelTop - 15.f), kText, id);
     }
-    if (esp::config.player_name) {
-        const char* name = app_settings::T("Jogador", "Player");
-        const ImVec2 nameSize = ImGui::CalcTextSize(name);
-        dl->AddText(ImVec2(cx - nameSize.x * 0.5f,
-                boxMin.y - (esp::config.player_id ? 37.f : 22.f)), kMuted, name);
+    if (esp::config.player_name || esp::config.distance) {
+        const std::string label = (esp::config.player_name ? app_settings::T("Jogador", "Player") : "") +
+            std::string(esp::config.player_name && esp::config.distance ? "  |  " : "") +
+            (esp::config.distance ? "85m" : "");
+        const ImVec2 labelSize = ImGui::CalcTextSize(label.c_str());
+        dl->AddText(ImVec2(cx - labelSize.x * .5f, labelTop - (esp::config.player_id ? 30.f : 15.f)),
+            esp::config.player_name ? esp::config.color_name : esp::config.color_distance, label.c_str());
     }
-    if (esp::config.weapon_name || esp::config.distance) {
-        const char* w = "Pistol";
-        ImVec2 ws = ImGui::CalcTextSize(w);
-        const float footerWidth = (esp::config.weapon_name ? ws.x + 28.f : 0.f) +
-            (esp::config.distance ? 37.f : 0.f);
-        const ImVec2 footerMin(cx - footerWidth * .5f - 12.f, boxMax.y + 7.f);
-        const ImVec2 footerMax(cx + footerWidth * .5f + 12.f, boxMax.y + 31.f);
-        dl->AddRectFilled(footerMin, footerMax, kElevated, 3.f);
-        dl->AddRect(footerMin, footerMax, IM_COL32(199, 165, 43, 80), 3.f, 0, 1.f);
-        float textX = footerMin.x + 10.f;
-        if (esp::config.weapon_name) {
-            dl->AddLine(ImVec2(textX, footerMin.y + 12.f), ImVec2(textX + 9.f, footerMin.y + 12.f), kGold, 1.3f);
-            dl->AddLine(ImVec2(textX + 4.f, footerMin.y + 8.f), ImVec2(textX + 9.f, footerMin.y + 12.f), kGold, 1.3f);
-            textX += 14.f;
-            dl->AddText(ImVec2(textX, boxMax.y + 11.f), kChampagne, w);
-            textX += ws.x + 6.f;
-        }
-        if (esp::config.distance)
-            dl->AddText(ImVec2(textX, boxMax.y + 11.f), IM_COL32(226, 88, 183, 255),
-                esp::config.weapon_name ? "| 85m" : "85m");
+    if (esp::config.weapon_name) {
+        // Neutral firearm glyph: previewing the icon does not need a label or
+        // a decorative badge that would not exist in the live ESP.
+        const float y = boxMax.y + 11.f;
+        const ImU32 wc = esp::config.color_weapon;
+        dl->AddLine(ImVec2(cx - 12.f, y), ImVec2(cx + 12.f, y), wc, 2.f);
+        dl->AddLine(ImVec2(cx - 5.f, y), ImVec2(cx - 8.f, y + 6.f), wc, 2.f);
+        dl->AddLine(ImVec2(cx + 7.f, y), ImVec2(cx + 12.f, y - 3.f), wc, 1.5f);
     }
 
     dl->PopClipRect();
@@ -476,13 +515,14 @@ void DrawVisuals()
         CyberWidgets::Combo(Loc::Tr("vis.snap_pos"), &esp::config.snapline_pos, snapPositions, 3);
     }
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.head_halo"), &esp::config.head_halo);
-    CyberWidgets::ToggleSwitch("Chapeu chines 3D", &esp::config.chinese_hat);
-    CyberWidgets::ToggleSwitch("Asas 3D", &esp::config.angel_wings);
-    CyberWidgets::ToggleSwitch("Chifres 3D", &esp::config.devil_horns);
-    CyberWidgets::ToggleSwitch("Coroa flutuante", &esp::config.floating_crown);
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.chinese_hat"), &esp::config.chinese_hat);
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.angel_wings"), &esp::config.angel_wings);
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.devil_horns"), &esp::config.devil_horns);
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.floating_crown"), &esp::config.floating_crown);
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.hit_marker"), &esp::config.hit_marker);
     if (esp::config.angel_wings || esp::config.devil_horns || esp::config.floating_crown) {
-        CyberWidgets::ToggleSwitch("Efeitos arco-iris", &esp::config.fun_effects_rainbow);
-        CyberWidgets::SliderFloat("Tamanho dos efeitos", &esp::config.fun_effects_scale, .5f, 2.5f, "%.2f");
+        CyberWidgets::ToggleSwitch(Loc::Tr("vis.fun_rainbow"), &esp::config.fun_effects_rainbow);
+        CyberWidgets::SliderFloat(Loc::Tr("vis.fun_size"), &esp::config.fun_effects_scale, .5f, 2.5f, "%.2f");
     }
     CyberWidgets::ToggleSwitch("Rastros", &esp::config.trails);
     if (esp::config.trails)
@@ -536,7 +576,7 @@ CyberWidgets::SliderFloat(Loc::Tr("vis.max_dist"), &esp::config.max_esp_distance
                      espEnabled && esp::config.corner_box);
     colorWhenEnabled(Loc::Tr("vis.snaplines"), &esp::config.color_snaplines,
                      espEnabled && esp::config.snaplines);
-    colorWhenEnabled("Efeitos 3D", &esp::config.color_fun_effects,
+    colorWhenEnabled(Loc::Tr("vis.fun_color"), &esp::config.color_fun_effects,
                      espEnabled && !esp::config.fun_effects_rainbow &&
                      (esp::config.angel_wings || esp::config.devil_horns || esp::config.floating_crown));
     CyberWidgets::Separator();

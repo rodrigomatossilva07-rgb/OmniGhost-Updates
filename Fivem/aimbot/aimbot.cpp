@@ -978,9 +978,6 @@ namespace aimbot {
         ctx.dt = ImGui::GetIO().DeltaTime;
         g_unified_aimbot->Update(ctx);
 
-        // Keep existing triggerbot logic
-        RunTriggerLogic();
-
         // Draw FOV if enabled
         if (config.aimbot_enabled || config.trigger_enabled || config.crosshair_enabled)
             DrawFOV();
@@ -1044,24 +1041,62 @@ namespace aimbot {
         if (!config.trigger_enabled)
             return;
 
-        Hitbox savedHb = config.hitbox;
-        if (config.trigger_head_only)
-            config.hitbox = Hitbox::Head;
-
-        TargetInfo tgt;
-        bool found = FindBestTarget(tgt, config.trigger_fov, config.max_distance);
-        config.hitbox = savedHb;
-        if (!found)
+        const bool active = config.trigger_always_on || config.trigger_bind <= 0 ||
+            BindDown(config.trigger_bind);
+        static uintptr_t triggerTarget = 0;
+        static std::chrono::steady_clock::time_point targetEntered{};
+        static float targetDelay = 0.f;
+        if (!active) {
+            triggerTarget = 0;
             return;
+        }
+
+        const Hitbox savedHb = config.hitbox;
+        TargetInfo tgt{};
+        bool found = false;
+        if (config.trigger_head_only) {
+            config.hitbox = Hitbox::Head;
+            found = FindBestTarget(tgt, config.trigger_fov, config.max_distance);
+        } else {
+            // Body mode is independent of the configured aimbot bone. Check
+            // every major anatomical region and keep the one actually closest
+            // to the crosshair.
+            constexpr Hitbox hitboxes[] = {
+                Hitbox::Head, Hitbox::Neck, Hitbox::Torso, Hitbox::Pelvis, Hitbox::Legs
+            };
+            for (const Hitbox hitbox : hitboxes) {
+                config.hitbox = hitbox;
+                TargetInfo candidate{};
+                if (!FindBestTarget(candidate, config.trigger_fov, config.max_distance))
+                    continue;
+                if (!found || candidate.crosshair_dist < tgt.crosshair_dist) {
+                    tgt = candidate;
+                    found = true;
+                }
+            }
+        }
+        config.hitbox = savedHb;
+        if (!found) {
+            triggerTarget = 0;
+            return;
+        }
+        // Share the trigger target with visual feedback such as the 0.5 s hit
+        // marker, including when triggerbot is used without aim assist.
+        current_target = tgt;
 
         auto now = std::chrono::steady_clock::now();
-        float elapsed = std::chrono::duration<float>(now - last_trigger).count();
-        float delay = config.trigger_delay;
-        if (config.trigger_random_extra > 0.f) {
-            std::uniform_real_distribution<float> r(0.f, config.trigger_random_extra);
-            delay += r(rng);
+        if (tgt.ped != triggerTarget) {
+            triggerTarget = tgt.ped;
+            targetEntered = now;
+            targetDelay = (std::max)(config.trigger_delay, 0.f);
+            if (config.trigger_random_extra > 0.f) {
+                std::uniform_real_distribution<float> randomDelay(0.f, config.trigger_random_extra);
+                targetDelay += randomDelay(rng);
+            }
         }
-        if (elapsed < delay)
+        const float reactionElapsed = std::chrono::duration<float>(now - targetEntered).count();
+        const float shotElapsed = std::chrono::duration<float>(now - last_trigger).count();
+        if (reactionElapsed < targetDelay || shotElapsed < .06f)
             return;
 
         last_trigger = now;

@@ -594,9 +594,14 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
 
     if (cfg.trigger_enabled) {
         static auto lastShot = std::chrono::steady_clock::now();
-        if (KeyDown(cfg.trigger_bind)) {
+        static auto targetEntered = std::chrono::steady_clock::now();
+        static uintptr_t triggerTarget = 0;
+        const bool triggerActive = cfg.trigger_always_on || cfg.trigger_bind <= 0 ||
+            KeyDown(cfg.trigger_bind);
+        if (triggerActive) {
             if (!(cfg.trigger_scoped_only && !local_scoped)) {
                 bool hit = false;
+                uintptr_t hitPawn = 0;
                 if (cfg.trigger_use_ident && rt.local_pawn && CS2::offsets.m_iIDEntIndex) {
                     const int idEnt = rt.local_crosshair_entity;
                     if (idEnt > 0) {
@@ -609,10 +614,11 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
                                     float sx, sy;
                                     if (W2S(p.head, rt.view_matrix, sx, sy)) {
                                         const float d = std::sqrt((sx - cx) * (sx - cx) + (sy - cy) * (sy - cy));
-                                        if (d < 16.f) hit = true;
+                                        if (d < 16.f) { hit = true; hitPawn = p.pawn; }
                                     }
                                 } else {
                                     hit = true;
+                                    hitPawn = p.pawn;
                                 }
                                 break;
                             }
@@ -634,28 +640,41 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
                             return d < triggerFov;
                         };
                         if (cfg.trigger_head_only) {
-                            if (testPoint(p.head)) { hit = true; break; }
+                            if (testPoint(p.head)) { hit = true; hitPawn = p.pawn; break; }
                             continue;
                         }
                         if (p.bones_ok) {
                             for (int bi = 0; bi < 20; ++bi) {
-                                if (testPoint(p.bones[bi])) { hit = true; break; }
+                                if (testPoint(p.bones[bi])) { hit = true; hitPawn = p.pawn; break; }
                             }
                             if (hit) break;
                         } else {
-                            if (testPoint(p.head) || testPoint(p.pos)) { hit = true; break; }
+                            if (testPoint(p.head) || testPoint(p.pos)) {
+                                hit = true; hitPawn = p.pawn; break;
+                            }
                         }
                     }
                 }
                 if (hit) {
                     const auto now = std::chrono::steady_clock::now();
-                    const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastShot).count();
-                    if (ms >= cfg.trigger_delay_ms) {
+                    if (hitPawn != triggerTarget) {
+                        triggerTarget = hitPawn;
+                        targetEntered = now;
+                    }
+                    const auto reactionMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+                        now - targetEntered).count();
+                    const auto cooldownMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+                        now - lastShot).count();
+                    if (reactionMs >= (std::max)(cfg.trigger_delay_ms, 0) && cooldownMs >= 60) {
                         Click();
                         lastShot = now;
                     }
+                } else {
+                    triggerTarget = 0;
                 }
             }
+        } else {
+            triggerTarget = 0;
         }
     }
 }

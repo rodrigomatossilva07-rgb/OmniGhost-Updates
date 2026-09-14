@@ -104,12 +104,20 @@ void DrawCs2Aim() {
     CyberWidgets::EndCard();
 
     CyberWidgets::CardGap(gap);
-    CyberWidgets::BeginCard("DISPARO AUTOMATICO", left);
-    CyberWidgets::ToggleSwitch("Ativar disparo automatico", &CS2::config.trigger_enabled);
+    CyberWidgets::BeginCard(Loc::Tr("aim.trigger_title"), left);
+    CyberWidgets::ToggleSwitch(Loc::Tr("aim.trigger"), &CS2::config.trigger_enabled);
     if (CS2::config.trigger_enabled) {
-        CyberWidgets::ToggleSwitch("Apenas cabeca", &CS2::config.trigger_head_only);
+        CyberWidgets::TextLine(Loc::Tr("aim.trigger_hint2"), CyberWidgets::TextTone::Secondary);
+        CyberWidgets::ToggleSwitch(Loc::Tr("aim.trigger_always"), &CS2::config.trigger_always_on);
+        if (!CS2::config.trigger_always_on) {
+            ImGui::TextUnformatted(Loc::Tr("aim.trigger_key"));
+            ImGui::SameLine(140.f);
+            HotkeyCaptureButton("cs2trigger", &CS2::config.trigger_bind);
+        }
+        CyberWidgets::ToggleSwitch(Loc::Tr("aim.trigger_head"), &CS2::config.trigger_head_only);
+        CyberWidgets::ToggleSwitch(Loc::Tr("vis.team_check"), &CS2::config.trigger_team_check);
         float delay_ms = static_cast<float>(CS2::config.trigger_delay_ms);
-        if (CyberWidgets::SliderFloat("Atraso", &delay_ms, 0.f, 200.f, "%.0f ms"))
+        if (CyberWidgets::SliderFloat(Loc::Tr("aim.trigger_reaction"), &delay_ms, 0.f, 500.f, "%.0f ms"))
             CS2::config.trigger_delay_ms = static_cast<int>(delay_ms);
     }
     CyberWidgets::EndCard();

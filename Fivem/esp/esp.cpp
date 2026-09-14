@@ -1033,14 +1033,14 @@ static void DrawMotionVisuals(uintptr_t ped, Matrix viewport, const PedData* cac
     }
 
     if (cfg.look_direction && skeleton) {
-        Vec3 forward(skeleton->bone_matrix._21, skeleton->bone_matrix._22, 0.f);
-        const float length = std::sqrt(forward.x * forward.x + forward.y * forward.y);
+        Vec3 lookForward(skeleton->bone_matrix._21, skeleton->bone_matrix._22, 0.f);
+        const float length = std::sqrt(lookForward.x * lookForward.x + lookForward.y * lookForward.y);
         if (length > 0.001f) {
-            forward.x /= length;
-            forward.y /= length;
+            lookForward.x /= length;
+            lookForward.y /= length;
             const float line_length = std::clamp(cfg.look_direction_length, 0.5f, 5.f);
-            Vec3 end(head.x + forward.x * line_length,
-                     head.y + forward.y * line_length,
+            Vec3 end(head.x + lookForward.x * line_length,
+                     head.y + lookForward.y * line_length,
                      head.z);
             Vec2 from{}, to{};
             if (head.world_to_screen(viewport, from) && end.world_to_screen(viewport, to)) {
@@ -1056,7 +1056,7 @@ static void DrawMotionVisuals(uintptr_t ped, Matrix viewport, const PedData* cac
 static bool AnyEspExtrasEnabled() {
     const auto& c = esp::config;
     return c.box_2d || c.corner_box || c.snaplines || c.health_bar || c.armor_bar
-        || c.weapon_name || c.distance || c.player_name || c.player_id;
+        || c.weapon_name || c.distance || c.player_name || c.player_id || c.hit_marker;
 }
 
 bool esp::has_extra_visuals() {
@@ -1291,6 +1291,35 @@ static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer,
     // Ensure head is above feet in world space
     if (head.z < feet.z + 0.3f)
         head.z = feet.z + 1.0f;
+
+    if (esp::config.hit_marker) {
+        struct HitMarkerState { float health = -1.f; double expires = 0.0; Vec3 world{}; };
+        static std::unordered_map<uintptr_t, HitMarkerState> hitMarkers;
+        auto& marker = hitMarkers[ped];
+        const double markerNow = ImGui::GetTime();
+        if (marker.health >= 0.f && health > 0.f && health < marker.health &&
+            aimbot::current_target.valid && aimbot::current_target.ped == ped) {
+            marker.world = aimbot::current_target.world_pos.IsZero()
+                ? head : aimbot::current_target.world_pos;
+            marker.expires = markerNow + .5;
+        }
+        marker.health = health;
+        if (marker.expires > markerNow) {
+            Vec2 hitScreen{};
+            if (marker.world.world_to_screen(viewport, hitScreen)) {
+                const float life = std::clamp(
+                    static_cast<float>((marker.expires - markerNow) / .5), 0.f, 1.f);
+                const float arm = 5.f + 3.f * (1.f - life);
+                const ImU32 color = IM_COL32(255, 255, 255,
+                    static_cast<int>(255.f * life));
+                const ImVec2 h(hitScreen.x, hitScreen.y);
+                dl->AddLine(ImVec2(h.x-arm,h.y-arm), ImVec2(h.x-2,h.y-2), color, 2.f);
+                dl->AddLine(ImVec2(h.x+arm,h.y-arm), ImVec2(h.x+2,h.y-2), color, 2.f);
+                dl->AddLine(ImVec2(h.x-arm,h.y+arm), ImVec2(h.x-2,h.y+2), color, 2.f);
+                dl->AddLine(ImVec2(h.x+arm,h.y+arm), ImVec2(h.x+2,h.y+2), color, 2.f);
+            }
+        }
+    }
 
     Vec2 headS{}, feetS{}, originS{};
     const bool okHead = head.world_to_screen(viewport, headS);

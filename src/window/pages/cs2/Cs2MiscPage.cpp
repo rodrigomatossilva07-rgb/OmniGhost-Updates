@@ -2,6 +2,7 @@
 #include "cs2_game.h"
 #include "cs2_config.h"
 #include "config/config_manager.h"
+#include "../../localization.h"
 #include "imgui.h"
 #include <cstdio>
 
@@ -44,13 +45,13 @@ void DrawCs2Misc()
     EndCard();
 
     CardGap();
-    BeginCard("OVERLAY DIVERSOS", 0.f);
-    TextLine("Informação de partida que aparece por cima do jogo.", TextTone::Secondary);
-    ToggleSwitch("Lista de espectadores", &CS2::config.spectator_list);
-    ToggleSwitch("Temporizador da bomba", &CS2::config.bomb_timer);
-    ToggleSwitch("Marcador de impacto (0,5 s)", &CS2::config.hit_marker);
+    BeginCard(Loc::Tr("cs2.misc.overlay"), 0.f);
+    TextLine(Loc::Tr("cs2.misc.overlay_desc"), TextTone::Secondary);
+    ToggleSwitch(Loc::Tr("cs2.misc.spectators"), &CS2::config.spectator_list);
+    ToggleSwitch(Loc::Tr("cs2.misc.bomb_timer"), &CS2::config.bomb_timer);
+    ToggleSwitch(Loc::Tr("cs2.misc.hit_marker"), &CS2::config.hit_marker);
     if (CS2::config.bomb_timer) {
-        TextLine("Em CT indica se ainda existe tempo para desarmar, considerando o kit.",
+        TextLine(Loc::Tr("cs2.misc.bomb_hint"),
                  TextTone::Secondary);
     }
     EndCard();

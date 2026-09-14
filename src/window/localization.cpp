@@ -355,7 +355,11 @@ namespace {
         {"cfg.hotkey_overlay", {"Hotkey Overlay", "Hotkey Overlay", "Hotkey Overlay", "Hotkey Overlay", "Hotkey Overlay", "Hotkey Overlay"}},
         {"aim.threat", {"Prioridade de Ameaca", "Threat Priority", "Threat Priority", "Threat Priority", "Threat Priority", "Threat Priority"}},
         {"aim.prediction", {"Predicao por Velocidade", "Velocity Prediction", "Velocity Prediction", "Velocity Prediction", "Velocity Prediction", "Velocity Prediction"}},
-        {"aim.trigger_head", {"Disparar apenas na cabeça", "Trigger Head Only", "Trigger Head Only", "Trigger Head Only", "Trigger Head Only", "Trigger Head Only"}},
+        {"aim.trigger_head", {"Disparar apenas na cabeça", "Head only", "Nur Kopf", "Solo cabeza", "Tête uniquement", "Solo testa", "Только голова"}},
+        {"aim.trigger_always", {"Sempre ativo", "Always active", "Immer aktiv", "Siempre activo", "Toujours actif", "Sempre attivo", "Всегда активно"}},
+        {"aim.trigger_key", {"Tecla do disparo", "Trigger key", "Trigger-Taste", "Tecla de disparo", "Touche de tir", "Tasto di sparo", "Клавиша выстрела"}},
+        {"aim.trigger_reaction", {"Tempo de reação", "Reaction time", "Reaktionszeit", "Tiempo de reacción", "Temps de réaction", "Tempo di reazione", "Время реакции"}},
+        {"aim.trigger_hint2", {"Dispara quando um alvo cruza a mira. Pode funcionar juntamente com a assistência de mira.", "Fires when a target crosses the crosshair. Can work together with aim assist.", "Feuert, wenn ein Ziel das Fadenkreuz kreuzt. Funktioniert zusammen mit der Zielhilfe.", "Dispara cuando un objetivo cruza la mira. Puede funcionar junto con la asistencia de puntería.", "Tire lorsqu'une cible traverse le réticule. Peut fonctionner avec l'assistance à la visée.", "Spara quando un bersaglio attraversa il mirino. Può funzionare insieme all'assistenza alla mira.", "Стреляет, когда цель пересекает прицел. Может работать вместе с помощью прицеливания."}},
         {"vis.search", {"Procurar funcionalidades ESP...", "Search ESP features...", "Search ESP features...", "Search ESP features...", "Search ESP features...", "Search ESP features..."}},
         {"vis.configs", {"DEFINIÇÕES DO ESP", "ESP CONFIGS", "ESP CONFIGS", "ESP CONFIGS", "ESP CONFIGS", "ESP CONFIGS"}},
         {"vis.customize", {"PERSONALIZACAO", "CUSTOMIZE", "CUSTOMIZE", "CUSTOMIZE", "CUSTOMIZE", "CUSTOMIZE"}},
@@ -368,7 +372,7 @@ namespace {
         {"vis.esp_configs", {"Definições do ESP", "ESP Configs", "ESP Configs", "ESP Configs", "ESP Configs", "ESP Configs"}},
         {"vis.enable", {"Ativar ESP", "Enable ESP", "Enable ESP", "Enable ESP", "Enable ESP", "Enable ESP"}},
         {"vis.self_esp", {"ESP do próprio jogador", "Self ESP", "Self ESP", "Self ESP", "Self ESP", "Self ESP"}},
-        {"vis.team_check", {"Verificação de equipa", "Team Check", "Team Check", "Team Check", "Team Check", "Team Check"}},
+        {"vis.team_check", {"Verificação de equipa", "Team check", "Teamprüfung", "Comprobar equipo", "Vérifier l'équipe", "Controllo squadra", "Проверка команды"}},
         {"vis.skeleton", {"Esqueleto", "Skeleton", "Skeleton", "Skeleton", "Skeleton", "Skeleton"}},
         {"vis.joints", {"Articulaçães", "Joints", "Joints", "Joints", "Joints", "Joints"}},
         {"aim.smooth", {"Suavidade", "Smooth", "Smooth", "Smooth", "Smooth", "Smooth"}},
@@ -398,7 +402,7 @@ namespace {
 
         {"vis.only_visible", {"Mostrar apenas visíveis", "Only Visible", "Only Visible", "Only Visible", "Only Visible", "Only Visible"}},
         {"vis.hide_text_vis", {"Ocultar textos nos visíveis", "Hide Text When Visible", "Hide Text When Visible", "Hide Text When Visible", "Hide Text When Visible", "Hide Text When Visible"}},
-        {"vis.team_check", {"Verificação de equipa", "Team Check", "Team Check", "Team Check", "Team Check", "Team Check"}},
+        {"vis.team_check", {"Verificação de equipa", "Team check", "Teamprüfung", "Comprobar equipo", "Vérifier l'équipe", "Controllo squadra", "Проверка команды"}},
         {"vis.joints", {"Articulaçães", "Joints", "Joints", "Joints", "Joints", "Joints"}},
         {"aim.profiles", {"Perfis", "Profiles", "Profiles", "Profiles", "Profiles", "Profiles"}},
         {"aim.profile_legit", {"Minimal", "Minimal", "Minimal", "Minimal", "Minimal", "Minimal"}},
@@ -468,6 +472,20 @@ namespace {
         {"vis.armor", {"Armadura", "Armor", "Armor", "Armor", "Armor", "Armor"}},
         {"vis.weapon_short", {"Arma", "Weapon", "Weapon", "Weapon", "Weapon", "Weapon"}},
         {"vis.head_halo", {"Auréola na cabeça", "Head halo", "Head halo", "Head halo", "Head halo", "Head halo"}},
+        {"vis.chinese_hat", {"Chapéu chinês 3D", "3D Chinese hat", "3D-Chinesenhut", "Sombrero chino 3D", "Chapeau chinois 3D", "Cappello cinese 3D", "Китайская шляпа 3D"}},
+        {"vis.angel_wings", {"Asas 3D", "3D wings", "3D-Flügel", "Alas 3D", "Ailes 3D", "Ali 3D", "Крылья 3D"}},
+        {"vis.devil_horns", {"Chifres 3D", "3D horns", "3D-Hörner", "Cuernos 3D", "Cornes 3D", "Corna 3D", "Рога 3D"}},
+        {"vis.floating_crown", {"Coroa flutuante", "Floating crown", "Schwebende Krone", "Corona flotante", "Couronne flottante", "Corona fluttuante", "Парящая корона"}},
+        {"vis.fun_rainbow", {"Efeitos arco-íris", "Rainbow effects", "Regenbogeneffekte", "Efectos arcoíris", "Effets arc-en-ciel", "Effetti arcobaleno", "Радужные эффекты"}},
+        {"vis.fun_size", {"Tamanho dos efeitos", "Effect size", "Effektgröße", "Tamaño de efectos", "Taille des effets", "Dimensione effetti", "Размер эффектов"}},
+        {"vis.fun_color", {"Efeitos 3D", "3D effects", "3D-Effekte", "Efectos 3D", "Effets 3D", "Effetti 3D", "3D-эффекты"}},
+        {"vis.hit_marker", {"Marcador de impacto (0,5 s)", "Hit marker (0.5 s)", "Treffermarker (0,5 s)", "Marcador de impacto (0,5 s)", "Marqueur d'impact (0,5 s)", "Indicatore colpo (0,5 s)", "Маркер попадания (0,5 с)"}},
+        {"cs2.misc.overlay", {"OVERLAY DIVERSOS", "MISC OVERLAY", "SONSTIGES OVERLAY", "OVERLAY VARIOS", "OVERLAY DIVERS", "OVERLAY VARIE", "РАЗНОЕ В ОВЕРЛЕЕ"}},
+        {"cs2.misc.overlay_desc", {"Informação de partida que aparece por cima do jogo.", "Match information shown over the game.", "Spielinformationen über dem Spiel.", "Información de partida sobre el juego.", "Informations de match affichées sur le jeu.", "Informazioni partita mostrate sul gioco.", "Информация о матче поверх игры."}},
+        {"cs2.misc.spectators", {"Lista de espectadores", "Spectator list", "Zuschauerliste", "Lista de espectadores", "Liste des spectateurs", "Elenco spettatori", "Список зрителей"}},
+        {"cs2.misc.bomb_timer", {"Temporizador da bomba", "Bomb timer", "Bomben-Timer", "Temporizador de bomba", "Minuteur de bombe", "Timer bomba", "Таймер бомбы"}},
+        {"cs2.misc.hit_marker", {"Marcador de impacto (0,5 s)", "Hit marker (0.5 s)", "Treffermarker (0,5 s)", "Marcador de impacto (0,5 s)", "Marqueur d'impact (0,5 s)", "Indicatore colpo (0,5 s)", "Маркер попадания (0,5 с)"}},
+        {"cs2.misc.bomb_hint", {"Em CT indica se ainda existe tempo para desarmar, considerando o kit.", "As CT, shows whether there is enough time to defuse, considering the kit.", "Zeigt als CT unter Berücksichtigung des Kits, ob genug Zeit zum Entschärfen bleibt.", "Como CT, indica si queda tiempo para desactivar considerando el kit.", "En CT, indique s'il reste assez de temps pour désamorcer selon le kit.", "Come CT, indica se resta tempo per disinnescare considerando il kit.", "За CT показывает, хватит ли времени на обезвреживание с учётом набора."}},
         {"vis.reset_colors", {"REPOR CORES", "RESET COLORS", "RESET COLORS", "RESET COLORS", "RESET COLORS", "RESET COLORS"}},
         {"aim.search", {"Procurar funcionalidades de mira...", "Search aim features...", "Search aim features...", "Search aim features...", "Search aim features...", "Search aim features..."}},
         {"aim.general", {"DEFINIÇÕES GERAIS", "GENERAL CONFIGS", "GENERAL CONFIGS", "GENERAL CONFIGS", "GENERAL CONFIGS", "GENERAL CONFIGS"}},
@@ -502,8 +520,8 @@ namespace {
         {"aim.bone", {"Selecao de Osso", "Bone Selector", "Bone Selector", "Bone Selector", "Bone Selector", "Bone Selector"}},
         {"aim.legit", {"Ajuste Minimal", "Minimal tuning", "Minimal tuning", "Minimal tuning", "Minimal tuning", "Minimal tuning"}},
         {"aim.rage", {"Ajuste Visual", "Visual tuning", "Visual tuning", "Visual tuning", "Visual tuning", "Visual tuning"}},
-        {"aim.trigger_title", {"Disparo automático", "Trigger", "Trigger", "Trigger", "Trigger", "Trigger"}},
-        {"aim.trigger", {"Ativar disparo automático", "Enable Trigger", "Enable Trigger", "Enable Trigger", "Enable Trigger", "Enable Trigger"}},
+        {"aim.trigger_title", {"Disparo automático", "Triggerbot", "Triggerbot", "Disparo automático", "Tir automatique", "Fuoco automatico", "Автоматический выстрел"}},
+        {"aim.trigger", {"Ativar disparo automático", "Enable triggerbot", "Triggerbot aktivieren", "Activar disparo automático", "Activer le tir automatique", "Attiva fuoco automatico", "Включить автоматический выстрел"}},
         {"aim.trigger_fov", {"Exibir FOV do disparo automático", "Show Trigger FOV", "Show Trigger FOV", "Show Trigger FOV", "Show Trigger FOV", "Show Trigger FOV"}},
         {"aim.devices", {"DISPOSITIVOS", "DEVICES", "DEVICES", "DEVICES", "DEVICES", "DEVICES"}},
         {"aim.bind", {"Tecla principal da mira", "Aimbot Bind", "Aimbot Bind", "Aimbot Bind", "Aimbot Bind", "Aimbot Bind"}},
@@ -617,6 +635,7 @@ namespace {
         case Language::ES: return pack.es && pack.es[0] ? pack.es : pack.en;
         case Language::FR: return pack.fr && pack.fr[0] ? pack.fr : pack.en;
         case Language::IT: return pack.it && pack.it[0] ? pack.it : pack.en;
+        case Language::RU: return pack.ru && pack.ru[0] ? pack.ru : pack.en;
         default:           return pack.en ? pack.en : pack.pt;
         }
     }

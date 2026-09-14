@@ -58,14 +58,26 @@ if ($ValidateOnly) {
 
 $gh = Get-Command gh -ErrorAction Stop
 $tag = "v$version"
-$previousErrorPreference = $ErrorActionPreference
-$ErrorActionPreference = 'Continue'
-try {
-    $output = @(& $gh.Source release view $tag --repo $repository --json tagName 2>&1)
-    $exitCode = $LASTEXITCODE
-}
-finally {
-    $ErrorActionPreference = $previousErrorPreference
+$output = @()
+$exitCode = 1
+for ($attempt = 1; $attempt -le 3; ++$attempt) {
+    $previousErrorPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $output = @(& $gh.Source release view $tag --repo $repository --json tagName 2>&1)
+        $exitCode = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $previousErrorPreference
+    }
+
+    if ($exitCode -eq 0) { break }
+    $detail = ($output -join [Environment]::NewLine)
+    if ($detail -match '(?i)release not found|HTTP 404|Not Found') { break }
+    if ($attempt -lt 3) {
+        Write-Warning "[OmniGhost Version] GitHub indisponivel (tentativa $attempt/3); a tentar novamente..."
+        Start-Sleep -Seconds 3
+    }
 }
 
 if ($exitCode -ne 0) {

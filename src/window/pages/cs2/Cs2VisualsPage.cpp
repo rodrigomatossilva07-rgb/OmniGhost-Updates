@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <algorithm>
 #include <cmath>
+#include <string>
 
 namespace {
 
@@ -45,28 +46,26 @@ void DrawCs2EspPreviewPanel(float width, float height) {
             ImVec2(0.f, 0.f), ImVec2(1.f, 1.f), IM_COL32(255, 255, 255, 232));
     }
 
-    const ImVec2 head(cx, top + 22.f * sc);
-    const ImVec2 neck(cx, top + 46.f * sc);
-    const ImVec2 chest(cx, top + 78.f * sc);
-    const ImVec2 spine(cx, top + 110.f * sc);
-    const ImVec2 pelvis(cx, top + 148.f * sc);
-    const ImVec2 sh_l(cx - 42.f * sc, top + 66.f * sc);
-    const ImVec2 sh_r(cx + 42.f * sc, top + 66.f * sc);
-    const ImVec2 el_l(cx - 68.f * sc, top + 118.f * sc);
-    const ImVec2 el_r(cx + 68.f * sc, top + 118.f * sc);
-    const ImVec2 ha_l(cx - 82.f * sc, top + 178.f * sc);
-    const ImVec2 ha_r(cx + 82.f * sc, top + 178.f * sc);
-    const ImVec2 hip_l(cx - 16.f * sc, top + 148.f * sc);
-    const ImVec2 hip_r(cx + 16.f * sc, top + 148.f * sc);
-    const ImVec2 kn_l(cx - 22.f * sc, top + 220.f * sc);
-    const ImVec2 kn_r(cx + 22.f * sc, top + 220.f * sc);
-    const ImVec2 an_l(cx - 24.f * sc, top + 285.f * sc);
-    const ImVec2 an_r(cx + 24.f * sc, top + 285.f * sc);
+    // One body box drives every ESP layer in this preview.  The landmarks are
+    // normalized to it, so boxes, bars and bones remain aligned on resize.
+    const float playerTop = top + 4.f * sc;
+    const float playerBottom = top + 323.f * sc;
+    const float playerHalfWidth = 62.f * sc;
+    const float playerHeight = playerBottom - playerTop;
+    const float left = cx - playerHalfWidth, right = cx + playerHalfWidth;
+    const auto pt = [&](float x, float y) { return ImVec2(cx + x * playerHalfWidth, playerTop + y * playerHeight); };
+    const ImVec2 head = pt(0.f, .075f), neck = pt(0.f, .145f), chest = pt(0.f, .245f);
+    const ImVec2 spine = pt(0.f, .360f), pelvis = pt(0.f, .490f);
+    const ImVec2 sh_l = pt(-.63f, .205f), sh_r = pt(.63f, .205f);
+    const ImVec2 el_l = pt(-.96f, .390f), el_r = pt(.96f, .390f);
+    const ImVec2 ha_l = pt(-1.04f, .550f), ha_r = pt(1.04f, .550f);
+    const ImVec2 hip_l = pt(-.26f, .490f), hip_r = pt(.26f, .490f);
+    const ImVec2 kn_l = pt(-.35f, .760f), kn_r = pt(.35f, .760f);
+    const ImVec2 an_l = pt(-.39f, .950f), an_r = pt(.39f, .950f);
 
     auto line = [&](ImVec2 a, ImVec2 b, ImU32 col, float th) { dl->AddLine(a, b, col, th); };
 
-    const float left = cx - 70.f * sc, right = cx + 70.f * sc;
-    const float topB = top + 8.f * sc, bot = top + 310.f * sc;
+    const float topB = playerTop, bot = playerBottom;
 
     // Full skeleton always when enabled
     if (CS2::config.skeleton) {
@@ -119,6 +118,45 @@ void DrawCs2EspPreviewPanel(float width, float height) {
         const float r = 14.f * sc;
         dl->AddCircle(ImVec2(head.x, head.y - 2.f * sc), r, Col4(CS2::config.col_halo), 24, 1.6f);
     }
+    // These are lightweight preview equivalents of the 3D effects.  They use
+    // the same head and shoulder anchors as the preview skeleton, preventing
+    // effects from drifting as the card changes size.
+    const float fxScale = std::clamp(CS2::config.fun_effects_scale, .5f, 2.5f) * sc;
+    const float hue = static_cast<float>(ImGui::GetTime()) * .18f;
+    const auto fxColor = [&](float offset = 0.f) {
+        return CS2::config.fun_effects_rainbow
+            ? OmniGhost::Gameplay::EspFx::Hsv(hue + offset, .88f, 1.f, .96f)
+            : Col4(CS2::config.col_fun_effects);
+    };
+    if (CS2::config.angel_wings) {
+        const float wingW = 43.f * fxScale, wingH = 42.f * fxScale;
+        for (int side : { -1, 1 }) {
+            const ImVec2 root(cx + side * 17.f * sc, chest.y - 7.f * sc);
+            const ImVec2 tip(root.x + side * wingW, root.y + wingH * .28f);
+            dl->AddBezierCubic(root, ImVec2(root.x + side * wingW * .42f, root.y - wingH),
+                ImVec2(tip.x, tip.y - wingH * .60f), tip, fxColor(side * .4f), 2.f);
+            dl->AddLine(root, ImVec2(root.x + side * wingW * .70f, root.y + wingH), fxColor(side * .7f), 1.5f);
+        }
+    }
+    if (CS2::config.devil_horns) {
+        const float hornW = 12.f * fxScale, hornH = 20.f * fxScale;
+        for (int side : { -1, 1 }) {
+            const ImVec2 base(head.x + side * 8.f * sc, head.y - 10.f * sc);
+            const ImVec2 horn[] = { base, ImVec2(base.x + side * hornW, base.y - hornH),
+                ImVec2(base.x + side * hornW * 1.15f, base.y + 2.f * sc) };
+            dl->AddPolyline(horn, 3, fxColor(side * .5f), false, 2.f);
+        }
+    }
+    if (CS2::config.floating_crown) {
+        const float crownW = 19.f * fxScale;
+        const float crownY = head.y - 27.f * sc - std::sin(hue * 2.f) * 3.f * sc;
+        const ImVec2 crown[] = { ImVec2(cx - crownW, crownY + 8.f * fxScale), ImVec2(cx - crownW, crownY),
+            ImVec2(cx - crownW * .35f, crownY + 5.f * fxScale), ImVec2(cx, crownY - 5.f * fxScale),
+            ImVec2(cx + crownW * .35f, crownY + 5.f * fxScale), ImVec2(cx + crownW, crownY),
+            ImVec2(cx + crownW, crownY + 8.f * fxScale) };
+        dl->AddPolyline(crown, 7, fxColor(), false, 2.f);
+        dl->AddLine(crown[0], crown[6], fxColor(.4f), 2.f);
+    }
     if (CS2::config.chinese_hat) {
         // 2D preview stand-in for the 3D rotating hat
         const float hs = std::clamp(CS2::config.chinese_hat_scale, 0.4f, 3.f);
@@ -144,23 +182,23 @@ void DrawCs2EspPreviewPanel(float width, float height) {
         dl->AddLine(ImVec2(cx, e.y - 4.f), ImVec2(cx, bot), Col4(CS2::config.col_snaplines),
                     std::clamp(CS2::config.snapline_thickness, 0.5f, 6.f));
     }
-    if (CS2::config.name)
-        dl->AddText(ImVec2(cx - 24.f, top - 2.f), Col4(CS2::config.col_name), "Jogador");
-    if (CS2::config.distance)
-        dl->AddText(ImVec2(cx - 12.f, bot + 4.f), Col4(CS2::config.col_distance), "24m");
+    if (CS2::config.name || CS2::config.distance) {
+        const std::string label = (CS2::config.name ? "Jogador" : "") +
+            std::string(CS2::config.name && CS2::config.distance ? "  |  " : "") +
+            (CS2::config.distance ? "24m" : "");
+        const ImVec2 labelSize = ImGui::CalcTextSize(label.c_str());
+        const bool hasHeadAdornment = CS2::config.chinese_hat || CS2::config.floating_crown || CS2::config.devil_horns;
+        const float labelY = topB - (hasHeadAdornment ? 52.f * sc : (CS2::config.head_halo ? 31.f * sc : 18.f));
+        dl->AddText(ImVec2(cx - labelSize.x * .5f, labelY),
+            CS2::config.name ? Col4(CS2::config.col_name) : Col4(CS2::config.col_distance), label.c_str());
+    }
     if (CS2::config.weapon_icons)
     {
-        const char* weapon = "AK-47";
-        const ImVec2 textSize = ImGui::CalcTextSize(weapon);
-        const float weaponY = (std::min)(bot + 18.f, e.y - textSize.y - 8.f);
-        dl->AddRectFilled(ImVec2(cx - textSize.x * .5f - 7.f, weaponY - 3.f),
-                          ImVec2(cx + textSize.x * .5f + 7.f, weaponY + textSize.y + 3.f),
-                          IM_COL32(7, 7, 9, 225), 4.f);
-        dl->AddRect(ImVec2(cx - textSize.x * .5f - 7.f, weaponY - 3.f),
-                    ImVec2(cx + textSize.x * .5f + 7.f, weaponY + textSize.y + 3.f),
-                    Col4(CS2::config.col_weapon, .55f), 4.f);
-        dl->AddText(ImVec2(cx - textSize.x * .5f, weaponY),
-                    Col4(CS2::config.col_weapon), weapon);
+        const float weaponY = (std::min)(bot + 12.f, e.y - 10.f);
+        const ImU32 weaponColor = Col4(CS2::config.col_weapon);
+        dl->AddLine(ImVec2(cx - 12.f, weaponY), ImVec2(cx + 12.f, weaponY), weaponColor, 2.f);
+        dl->AddLine(ImVec2(cx - 5.f, weaponY), ImVec2(cx - 8.f, weaponY + 6.f), weaponColor, 2.f);
+        dl->AddLine(ImVec2(cx + 7.f, weaponY), ImVec2(cx + 12.f, weaponY - 3.f), weaponColor, 1.5f);
     }
 
     ImGui::Dummy(ImVec2(width, height));
@@ -204,13 +242,13 @@ void DrawCs2Visuals() {
     CyberWidgets::ToggleSwitch("Caixa de cantos", &CS2::config.box_corner);
     CyberWidgets::ToggleSwitch("Linhas guia", &CS2::config.snaplines);
     CyberWidgets::ToggleSwitch("Auréola na cabeça", &CS2::config.head_halo);
-    CyberWidgets::ToggleSwitch("Chapéu chinês 3D", &CS2::config.chinese_hat);
-    CyberWidgets::ToggleSwitch("Asas 3D", &CS2::config.angel_wings);
-    CyberWidgets::ToggleSwitch("Chifres 3D", &CS2::config.devil_horns);
-    CyberWidgets::ToggleSwitch("Coroa flutuante", &CS2::config.floating_crown);
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.chinese_hat"), &CS2::config.chinese_hat);
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.angel_wings"), &CS2::config.angel_wings);
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.devil_horns"), &CS2::config.devil_horns);
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.floating_crown"), &CS2::config.floating_crown);
     if (CS2::config.angel_wings || CS2::config.devil_horns || CS2::config.floating_crown) {
-        CyberWidgets::ToggleSwitch("Efeitos arco-íris", &CS2::config.fun_effects_rainbow);
-        CyberWidgets::SliderFloat("Tamanho dos efeitos", &CS2::config.fun_effects_scale, 0.5f, 2.5f, "%.2f");
+        CyberWidgets::ToggleSwitch(Loc::Tr("vis.fun_rainbow"), &CS2::config.fun_effects_rainbow);
+        CyberWidgets::SliderFloat(Loc::Tr("vis.fun_size"), &CS2::config.fun_effects_scale, 0.5f, 2.5f, "%.2f");
     }
     CyberWidgets::ToggleSwitch("Rastros", &CS2::config.trails);
     if (CS2::config.trails)
@@ -247,7 +285,7 @@ void DrawCs2Visuals() {
     ImGui::ColorEdit4("Caixa##c", CS2::config.col_box, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     ImGui::ColorEdit4("Caixa de cantos##c", CS2::config.col_box_corner, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     ImGui::ColorEdit4("Linhas guia##c", CS2::config.col_snaplines, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
-    ImGui::ColorEdit4("Efeitos 3D##c", CS2::config.col_fun_effects, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
+    ImGui::ColorEdit4(Loc::TrID("vis.fun_color"), CS2::config.col_fun_effects, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     CyberWidgets::SectionTitle("INFORMAÇÃO");
     ImGui::ColorEdit4("Vida##c", CS2::config.col_health, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     ImGui::ColorEdit4("Armadura##c", CS2::config.col_armor, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
