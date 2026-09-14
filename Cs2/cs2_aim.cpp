@@ -612,6 +612,7 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
                             if (p.is_local) continue;
                             if (cfg.trigger_team_check && p.team == rt.local_team) continue;
                             if (!p.alive || p.health <= 0) continue;
+                            if (!p.spotted) continue; // never fire at an unspotted target through cover
                             if (p.ent_index == idEnt || p.ent_index == (idEnt & 0x7FFF)) {
                                 if (cfg.trigger_head_only) {
                                     float sx, sy;
@@ -636,6 +637,7 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
                         if (p.is_local) continue;
                         if (cfg.trigger_team_check && p.team == rt.local_team) continue;
                         if (!p.alive || p.health <= 0) continue;
+                        if (!p.spotted) continue; // screen proximity alone is not visibility
                         auto testPoint = [&](const float* w) {
                             float sx = 0.f, sy = 0.f;
                             if (!W2S(w, rt.view_matrix, sx, sy)) return false;
@@ -668,7 +670,8 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
                         now - targetEntered).count();
                     const auto cooldownMs = std::chrono::duration_cast<std::chrono::milliseconds>(
                         now - lastShot).count();
-                    if (reactionMs >= (std::max)(cfg.trigger_delay_ms, 0) && cooldownMs >= 60) {
+                    const int weaponDelayMs = local_weapon_definition == 64 ? 90 : 0; // R8 requires a brief cock delay
+                    if (reactionMs >= (std::max)(cfg.trigger_delay_ms, 0) + weaponDelayMs && cooldownMs >= 60) {
                         Click();
                         lastShot = now;
                     }

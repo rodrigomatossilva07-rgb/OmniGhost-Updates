@@ -107,9 +107,9 @@ namespace CyberWidgets {
         };
         static const TabItem warzoneTabs[] = {
             { "nav.aim", MenuTab::TAB_WARZONE_AIM,      CyberIcons::DrawAimIcon },
+            { "nav.world_esp", MenuTab::TAB_WARZONE_WORLD,    CyberIcons::DrawWorldIcon },
             { "nav.player_esp", MenuTab::TAB_WARZONE_VISUALS,  CyberIcons::DrawESPIcon },
             { "nav.radar", MenuTab::TAB_WARZONE_RADAR,    CyberIcons::DrawRadarIcon },
-            { "nav.world_esp", MenuTab::TAB_WARZONE_WORLD,    CyberIcons::DrawWorldIcon },
             { "nav.players", MenuTab::TAB_WARZONE_PLAYERS,  CyberIcons::DrawUserIcon },
             { "nav.misc", MenuTab::TAB_WARZONE_MISC,     CyberIcons::DrawWrenchIcon },
             { "nav.configs", MenuTab::TAB_CONFIGS,          CyberIcons::DrawSettingsIcon },

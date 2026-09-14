@@ -2076,7 +2076,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
     requested.health = frame_config.health_bar;
     requested.armor = frame_config.armor_bar;
     requested.snapline = frame_config.snaplines;
-    requested.name = frame_config.name || frame_config.spectator_list;
+    requested.name = frame_config.name || frame_config.spectator_list || frame_config.bomb_timer;
     requested.weapon = frame_config.weapon_icons;
     requested.distance = frame_config.distance;
     requested.aim = frame_config.aim_enabled || frame_config.trigger_enabled;
@@ -2093,7 +2093,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
         fields, OmniGhost::Gameplay::EspCore::DataField::Name);
     const bool need_weapons = OmniGhost::Gameplay::EspCore::Has(
         fields, OmniGhost::Gameplay::EspCore::DataField::Weapon) ||
-        frame_config.aim_enabled || frame_config.trigger_enabled;
+        frame_config.aim_enabled || frame_config.trigger_enabled || frame_config.sniper_crosshair;
     const bool need_yaw = frame_config.radar_2d ||
         OmniGhost::Gameplay::EspCore::Has(
             fields, OmniGhost::Gameplay::EspCore::DataField::Facing);
@@ -2818,6 +2818,17 @@ static void RunFrameWithConfig(const Config& frame_config) {
         UpdateBombState();
     else
         runtime.bomb = BombState{};
+
+    if (runtime.bomb.defusing && runtime.bomb.defuser_handle) {
+        const uintptr_t defuser = ResolveEntityByHandle(runtime.bomb.defuser_handle,
+            g_pawn_stride ? g_pawn_stride : kEntityIdentityStride);
+        for (const auto& player : runtime.players) {
+            if (player.pawn == defuser && player.name[0]) {
+                std::snprintf(runtime.bomb.defuser_name, sizeof(runtime.bomb.defuser_name), "%s", player.name);
+                break;
+            }
+        }
+    }
 
     // Snapshot successful scans for the hold-over path above.
     if (!runtime.players.empty()) {

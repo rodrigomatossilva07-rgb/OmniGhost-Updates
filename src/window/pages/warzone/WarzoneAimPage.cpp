@@ -50,22 +50,22 @@ bool HotkeyCaptureButton(const char* id, int* vk) {
 }
 
 void DrawWarzoneAim() {
-    CyberWidgets::BeginCard("Warzone · Mira");
-    CyberWidgets::StatusBadge("UI", true);
-    CyberWidgets::StatusBadge("DMA", Warzone::runtime.module_base != 0);
-    CyberWidgets::StatusBadge("Matriz", Warzone::runtime.matrix_ok);
-    CyberWidgets::StatusBadge("Lista", Warzone::runtime.list_ok);
-    ImGui::TextWrapped("%s", Warzone::StatusLine());
-    if (Warzone::runtime.decrypt_needed)
-        ImGui::TextColored(ImVec4(0.95f, 0.75f, 0.25f, 1.f),
-            "A lista de entidades precisa de desencriptação; ESP/mira ficam sem jogadores até estar disponível.");
+    static bool smoothTransitions = true, visibility = true, hardLock = false, deadzoneVisual = false, predictionDot = false;
+    static float aimInterval = 5.f, cameraReaction = 0.f, bezier = 0.f, predictionDotSize = 1.f;
+    CyberWidgets::BeginCard("MIRA GLOBAL", 0.f);
+    CyberWidgets::TextLine("Uma configuração única para todas as armas.", CyberWidgets::TextTone::Secondary);
     CyberWidgets::EndCard();
-
     CyberWidgets::BeginCardRow();
-    CyberWidgets::BeginCard("Configurações globais");
+    CyberWidgets::BeginCard("CONFIGURAÇÕES GLOBAIS");
     CyberWidgets::ToggleSwitch("Ativado", &Warzone::config.aim_enabled);
+    CyberWidgets::ToggleSwitch("Sempre ativo", &Warzone::config.aim_always_on);
+    CyberWidgets::ToggleSwitch("Transições suaves entre bones", &smoothTransitions);
     CyberWidgets::ToggleSwitch("Humanização", &Warzone::config.aim_humanize);
-    CyberWidgets::ToggleSwitch("Desenhar FOV", &Warzone::config.aim_draw_fov);
+    CyberWidgets::SliderFloat("Intervalo de mira", &aimInterval, 1.f, 25.f, "%.0f ms");
+    CyberWidgets::SliderFloat("Tempo de reação da câmera", &cameraReaction, 0.f, 250.f, "%.0f ms");
+    CyberWidgets::SliderFloat("Curva Bézier", &bezier, 0.f, 100.f, "%.0f%%");
+    CyberWidgets::Separator();
+    CyberWidgets::SectionTitle("MIRA");
     CyberWidgets::SliderFloat("FOV", &Warzone::config.aim_fov, 10.0f, 300.0f, "%.0f px");
     CyberWidgets::SliderFloat("Suavização", &Warzone::config.aim_smooth, 0.0f, 100.0f, "%.0f");
     CyberWidgets::SliderFloat("Zona morta", &Warzone::config.aim_deadzone, 0.0f, 20.0f, "%.1f px");
@@ -80,16 +80,59 @@ void DrawWarzoneAim() {
     CyberWidgets::EndCard();
 
     CyberWidgets::NextCardColumn();
-    CyberWidgets::BeginCard("Filtros");
+    CyberWidgets::BeginCard("FILTROS");
+    CyberWidgets::ToggleSwitch("Verificar visibilidade", &visibility);
     CyberWidgets::ToggleSwitch("Ignorar equipa", &Warzone::config.aim_ignore_team);
     CyberWidgets::ToggleSwitch("Ignorar derrubados", &Warzone::config.aim_ignore_downed);
     CyberWidgets::ToggleSwitch("Ignorar IA", &Warzone::config.aim_ignore_ai);
     CyberWidgets::ToggleSwitch("Verificar equipa no ESP", &Warzone::config.team_check);
-    CyberWidgets::Separator();
-    CyberWidgets::ToggleSwitch("Disparo automático", &Warzone::config.trigger_enabled);
+    CyberWidgets::ToggleSwitch("Hard lock", &hardLock);
+    CyberWidgets::EndCard();
+    CyberWidgets::EndCardRow();
+
+    CyberWidgets::BeginCardRow();
+    CyberWidgets::BeginCard("TRIGGER BOT");
+    CyberWidgets::ToggleSwitch("Ativado", &Warzone::config.trigger_enabled);
+    CyberWidgets::ToggleSwitch("Ignorar equipa", &Warzone::config.trigger_team_check);
+    static bool verifyDowned = true, verifySpectators = false;
+    CyberWidgets::ToggleSwitch("Verificar derrubados", &verifyDowned);
+    CyberWidgets::ToggleSwitch("Verificar espectadores ativos", &verifySpectators);
+    CyberWidgets::EndCard();
+    CyberWidgets::NextCardColumn();
+    CyberWidgets::BeginCard("TECLAS");
+    CyberWidgets::TextLine("Define uma tecla para ativar o trigger bot.", CyberWidgets::TextTone::Secondary);
     ImGui::TextUnformatted("Tecla de disparo");
-    ImGui::SameLine(140.f); HotkeyCaptureButton("wz_trig", &Warzone::config.trigger_bind);
-    CyberWidgets::InputInt("Atraso (ms)", &Warzone::config.trigger_delay_ms);
+    ImGui::SameLine(150.f); HotkeyCaptureButton("wz_trig", &Warzone::config.trigger_bind);
+    CyberWidgets::EndCard();
+    CyberWidgets::EndCardRow();
+
+    CyberWidgets::BeginCardRow();
+    CyberWidgets::BeginCard("CONFIGURAÇÃO GLOBAL");
+    float triggerDelay = (float)Warzone::config.trigger_delay_ms;
+    if (CyberWidgets::SliderFloat("Delay de tiro", &triggerDelay, 0.f, 500.f, "%.0f ms"))
+        Warzone::config.trigger_delay_ms = (int)triggerDelay;
+    CyberWidgets::EndCard();
+    CyberWidgets::NextCardColumn();
+    CyberWidgets::BeginCard("ESTADO GLOBAL");
+    static bool triggerAlways = false, scopedOnly = false;
+    CyberWidgets::ToggleSwitch("Sempre ativo", &triggerAlways);
+    CyberWidgets::ToggleSwitch("Ativar apenas com mira", &scopedOnly);
+    CyberWidgets::TextLine("Configuração global para todas as armas.", CyberWidgets::TextTone::Secondary);
+    CyberWidgets::EndCard();
+    CyberWidgets::EndCardRow();
+
+    CyberWidgets::BeginCardRow();
+    CyberWidgets::BeginCard("VISUAIS");
+    CyberWidgets::ToggleSwitch("Desenhar círculo de FOV", &Warzone::config.aim_draw_fov);
+    CyberWidgets::ToggleSwitch("Desenhar círculo de deadzone", &deadzoneVisual);
+    CyberWidgets::ToggleSwitch("Desenhar ponto de predição", &predictionDot);
+    CyberWidgets::SliderFloat("Tamanho do ponto", &predictionDotSize, .5f, 8.f, "%.1f px");
+    CyberWidgets::EndCard();
+    CyberWidgets::NextCardColumn();
+    CyberWidgets::BeginCard("SENSIBILIDADES");
+    CyberWidgets::TextLine("Parâmetros visuais preparados para futura integração de sensibilidade.", CyberWidgets::TextTone::Secondary);
+    CyberWidgets::SliderFloat("Sensibilidade do mouse", &Warzone::config.aim_smooth, .1f, 100.f, "%.2f");
+    CyberWidgets::SliderFloat("Multiplicador ADS", &Warzone::config.aim_deadzone, .1f, 5.f, "%.2fx");
     CyberWidgets::EndCard();
     CyberWidgets::EndCardRow();
 

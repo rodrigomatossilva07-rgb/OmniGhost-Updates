@@ -130,6 +130,7 @@ struct BombState {
     float blow_time = 0.f;
     float defuse_time = 0.f;
     uint32_t defuser_handle = 0;
+    char defuser_name[64]{};
     float pos[3]{};
 };
 

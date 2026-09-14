@@ -1,6 +1,7 @@
 #include "../../widgets.h"
 #include "../../theme.h"
 #include "imgui.h"
+#include "../../Warzone/warzone_game.h"
 
 namespace {
 bool g_group_teams = true;
@@ -10,14 +11,15 @@ bool g_hide_ai = true;
 }
 
 void DrawWarzonePlayers() {
-    CyberWidgets::BeginCard("Warzone · Lista de jogadores");
-    CyberWidgets::Badge("BETA", CyberWidgets::TextTone::Warning);
+    CyberWidgets::BeginCard("LISTA DE JOGADORES");
+    CyberWidgets::ToggleSwitch("Ativar lista de jogadores", &Warzone::config.player_list_enabled);
     CyberWidgets::CardGap(CyberTheme::Spacing::Xs);
     CyberWidgets::TextLine("A tabela é preenchida quando o runtime disponibiliza um snapshot de jogadores válido.",
                            CyberWidgets::TextTone::Secondary);
     CyberWidgets::EndCard();
 
-    CyberWidgets::BeginCard("Filtros");
+    if (!Warzone::config.player_list_enabled) return;
+    CyberWidgets::BeginCard("FILTROS");
     CyberWidgets::ToggleSwitch("Agrupar por times", &g_group_teams);
     CyberWidgets::ToggleSwitch("Esconder local", &g_hide_local);
     CyberWidgets::ToggleSwitch("Esconder mortos", &g_hide_dead);
@@ -37,13 +39,13 @@ void DrawWarzonePlayers() {
         ImGui::TableSetupColumn("Distancia");
         ImGui::TableSetupColumn("Notas");
         ImGui::TableHeadersRow();
-        ImGui::TableNextRow();
-        ImGui::TableSetColumnIndex(0); ImGui::TextDisabled("Nenhum dado ao vivo");
-        ImGui::TableSetColumnIndex(1); ImGui::TextDisabled("--");
-        ImGui::TableSetColumnIndex(2); ImGui::TextDisabled("--");
-        ImGui::TableSetColumnIndex(3); ImGui::TextDisabled("A aguardar snapshot");
-        ImGui::TableSetColumnIndex(4); ImGui::TextDisabled("--");
-        ImGui::TableSetColumnIndex(5); ImGui::TextDisabled("BETA");
+        for (const auto& p : Warzone::runtime.players) {
+            if ((g_hide_local && p.is_local) || (g_hide_dead && !p.alive) || (g_hide_ai && p.ai)) continue;
+            ImGui::TableNextRow(); ImGui::TableSetColumnIndex(0); ImGui::TextUnformatted(p.name[0] ? p.name : "Jogador");
+            ImGui::TableSetColumnIndex(1); ImGui::TextDisabled("--"); ImGui::TableSetColumnIndex(2); ImGui::Text("%d",p.team);
+            ImGui::TableSetColumnIndex(3); ImGui::TextUnformatted(p.downed ? "Derrubado" : p.alive ? "Vivo" : "Morto");
+            ImGui::TableSetColumnIndex(4); ImGui::Text("%.0fm",p.distance); ImGui::TableSetColumnIndex(5); ImGui::TextUnformatted(p.ai ? "IA" : p.is_local ? "Local" : "-");
+        }
         ImGui::EndTable();
     }
     ImGui::PopStyleColor(2);

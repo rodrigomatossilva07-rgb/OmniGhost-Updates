@@ -10,6 +10,16 @@
 void DrawWarzoneMisc() {
     const float half = CyberWidgets::CardRowHalfWidth();
 
+    CyberWidgets::BeginCard("DIVERSOS GERAL", 0.f);
+    CyberWidgets::ToggleSwitch("Aviso de Airstrike e Cluster Strike", &Warzone::config.misc_airstrike_alert);
+    CyberWidgets::ToggleSwitch("Alertar jogadores Top 250", &Warzone::config.misc_top250_alert);
+    CyberWidgets::ToggleSwitch("Aviso se estiver sendo olhado", &Warzone::config.misc_watched_alert);
+    CyberWidgets::ToggleSwitch("Mostrar tags de clã quando possível", &Warzone::config.misc_clan_tags);
+    CyberWidgets::ToggleSwitch("Rastrear jogadores entre partidas", &Warzone::config.misc_track_between_matches);
+    CyberWidgets::ToggleSwitch("Lista de espectadores", &Warzone::config.misc_spectator_list);
+    CyberWidgets::TextLine("Opções visuais guardadas no perfil Warzone.", CyberWidgets::TextTone::Secondary);
+    CyberWidgets::EndCard();
+
     // Live backend status (real runtime — not a UI stub)
     CyberWidgets::BeginCard("Estado do Warzone", 0.f);
     {

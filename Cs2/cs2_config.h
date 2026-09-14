@@ -99,6 +99,7 @@ struct Config {
 
     bool aim_enabled = false;
     bool aim_draw_fov = true;
+    bool sniper_crosshair = false;
     bool aim_fov_rgb = false;
     int aim_fov_style = 0; // 0 circle 1 square 2 cross
     bool aim_dynamic_fov = false;

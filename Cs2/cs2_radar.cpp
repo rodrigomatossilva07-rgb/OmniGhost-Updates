@@ -556,6 +556,10 @@ std::string LocalUrl() {
 }
 
 std::string PublicUrl() {
+    // Quick-tunnel domains are valid only while their cloudflared process is
+    // alive.  Never leave an old link available in the UI after that process
+    // has stopped: opening it produces the misleading "page unavailable".
+    if (!CloudflareRunning()) return {};
     std::lock_guard<std::mutex> lock(g_mu);
     if (g_public_url.empty()) return {};
     if (!g_token.empty()) return g_public_url + "/#" + g_token;
@@ -587,7 +591,7 @@ bool StartCloudflare() {
 
     const std::wstring exe = FindCloudflared();
     wchar_t cmd[512]{};
-    std::swprintf(cmd, 512, L"\"%s\" tunnel --url http://127.0.0.1:%d",
+    std::swprintf(cmd, 512, L"\"%s\" tunnel --no-autoupdate --url http://127.0.0.1:%d",
                   exe.c_str(), g_port);
 
     SECURITY_ATTRIBUTES sa{ sizeof(sa), nullptr, TRUE };

@@ -79,6 +79,7 @@ void DrawCs2Aim() {
     ImGui::BeginGroup();
     CyberWidgets::BeginCard("ASSISTENCIA DE MIRA", left);
     CyberWidgets::ToggleSwitch("Ativar assistencia", &CS2::config.aim_enabled);
+    CyberWidgets::ToggleSwitch("Crosshair para sniper", &CS2::config.sniper_crosshair);
     if (CS2::config.aim_enabled) {
         // These must drive the aim filters, not the independent ESP filters.
         CyberWidgets::ToggleSwitch("Verificacao de visibilidade", &CS2::config.aim_visibility_check);

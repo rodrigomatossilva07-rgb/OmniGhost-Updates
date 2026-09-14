@@ -56,6 +56,14 @@ struct Config {
     bool radar_only_mode = false;     // ESP+aim off, radar on — teammate share
     int  esp_density_limit = 40;      // hide long labels when players > limit
     bool esp_auto_hide_names = true;  // density: prefer box/hp over name spam
+    // Visual-only Warzone panels; backend bindings are intentionally separate.
+    bool player_list_enabled = false;
+    bool misc_airstrike_alert = false;
+    bool misc_top250_alert = false;
+    bool misc_watched_alert = false;
+    bool misc_clan_tags = false;
+    bool misc_track_between_matches = false;
+    bool misc_spectator_list = false;
     char scenario_preset[32] = "custom"; // stream|ranked|hotdrop|radar_only|visuals|custom
 };
 

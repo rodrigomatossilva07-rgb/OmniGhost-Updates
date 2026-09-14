@@ -643,7 +643,7 @@ void DrawBombTimerPanel(ImDrawList* dl, const CS2::Runtime& rt, CS2::Config& cfg
     const ImVec2 ds = ImGui::GetIO().DisplaySize;
     if (cfg.bomb_window_x < 0.f) cfg.bomb_window_x = ds.x - 240.f;
     if (cfg.bomb_window_y < 0.f) cfg.bomb_window_y = cfg.spectator_list ? 338.f : 40.f;
-    DragOverlayPanel("##bomb_timer_drag", cfg.bomb_window_x, cfg.bomb_window_y, 228.f, 81.f, ds);
+    DragOverlayPanel("##bomb_timer_drag", cfg.bomb_window_x, cfg.bomb_window_y, 228.f, 98.f, ds);
     const float x = cfg.bomb_window_x + 8.f;
     const float y = cfg.bomb_window_y + 5.f;
     constexpr float width = 220.f;
@@ -652,9 +652,9 @@ void DrawBombTimerPanel(ImDrawList* dl, const CS2::Runtime& rt, CS2::Config& cfg
     const ImU32 accent = active
         ? (rt.bomb.blow_time < 5.f ? IM_COL32(255, 72, 72, 255) : IM_COL32(255, 184, 46, 255))
         : IM_COL32(212, 175, 55, 220);
-    dl->AddRectFilled(ImVec2(x - 8.f, y - 5.f), ImVec2(x + width, y + 76.f),
+    dl->AddRectFilled(ImVec2(x - 8.f, y - 5.f), ImVec2(x + width, y + 93.f),
         IM_COL32(8, 8, 10, 180), 4.f);
-    dl->AddRect(ImVec2(x - 8.f, y - 5.f), ImVec2(x + width, y + 76.f), accent, 4.f, 0, 1.1f);
+    dl->AddRect(ImVec2(x - 8.f, y - 5.f), ImVec2(x + width, y + 93.f), accent, 4.f, 0, 1.1f);
     dl->AddText(ImVec2(x, y), accent, "BOMB TIMER");
     if (!active) {
         dl->AddText(ImVec2(x, y + 24.f), IM_COL32(160, 160, 166, 220), "A aguardar bomba plantada");
@@ -678,6 +678,11 @@ void DrawBombTimerPanel(ImDrawList* dl, const CS2::Runtime& rt, CS2::Config& cfg
     } else
         std::snprintf(state, sizeof(state), "Bomba ativa");
     dl->AddText(ImVec2(x, y + 57.f), IM_COL32(205, 205, 210, 230), state);
+    if (rt.bomb.defusing && rt.bomb.defuser_name[0]) {
+        char defuser[96]{};
+        std::snprintf(defuser, sizeof(defuser), "A defusar: %s", rt.bomb.defuser_name);
+        dl->AddText(ImVec2(x, y + 74.f), IM_COL32(235, 235, 238, 235), defuser);
+    }
 }
 
 // Directional arrow around the FOV ring. Always drawn for every match player
@@ -793,7 +798,7 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
     // Non-const for radar drag — safe: config is global mutable
     CS2::Config& mut_cfg = const_cast<CS2::Config&>(cfg);
 
-    if (!cfg.esp_enabled && !cfg.radar_2d && !cfg.spectator_list && !cfg.aim_enabled
+    if (!cfg.esp_enabled && !cfg.radar_2d && !cfg.spectator_list && !cfg.aim_enabled && !cfg.sniper_crosshair
         && !cfg.bomb_timer && !cfg.hotkey_overlay && !cfg.offscreen_arrows)
         return;
 
@@ -828,6 +833,22 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
             dl->AddCircle(c, r, col, 64, 1.5f);
         if (cfg.aim_deadzone > 0.5f)
             dl->AddCircle(c, cfg.aim_deadzone, IM_COL32(212, 175, 55, 60), 32, 1.f);
+    }
+
+    if (cfg.sniper_crosshair) {
+        int localWeapon = 0;
+        for (const auto& player : frame.players) {
+            if (player.is_local) { localWeapon = player.weapon_def; break; }
+        }
+        const bool sniper = localWeapon == 9 || localWeapon == 11 || localWeapon == 38 || localWeapon == 40;
+        if (sniper) {
+            const ImVec2 c(ds.x * 0.5f, ds.y * 0.5f);
+            const ImU32 cross = IM_COL32(226, 184, 46, 235);
+            dl->AddLine(ImVec2(c.x - 8.f, c.y), ImVec2(c.x - 2.f, c.y), cross, 1.4f);
+            dl->AddLine(ImVec2(c.x + 2.f, c.y), ImVec2(c.x + 8.f, c.y), cross, 1.4f);
+            dl->AddLine(ImVec2(c.x, c.y - 8.f), ImVec2(c.x, c.y - 2.f), cross, 1.4f);
+            dl->AddLine(ImVec2(c.x, c.y + 2.f), ImVec2(c.x, c.y + 8.f), cross, 1.4f);
+        }
     }
 
     UpdateKillFeed(frame);
