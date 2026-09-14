@@ -298,6 +298,12 @@
     <ClCompile Include="src\window\pages\cs2\Cs2MiscPage.cpp"/>
     <ClCompile Include="src\window\pages\cs2\Cs2VisualsPage.cpp"/>
     <ClCompile Include="src\window\pages\cs2\Cs2RadarPage.cpp"/>
+    <ClCompile Include="src\window\pages\warzone\WarzoneAimPage.cpp"/>
+    <ClCompile Include="src\window\pages\warzone\WarzoneVisualsPage.cpp"/>
+    <ClCompile Include="src\window\pages\warzone\WarzoneRadarPage.cpp"/>
+    <ClCompile Include="src\window\pages\warzone\WarzoneWorldPage.cpp"/>
+    <ClCompile Include="src\window\pages\warzone\WarzonePlayersPage.cpp"/>
+    <ClCompile Include="src\window\pages\warzone\WarzoneMiscPage.cpp"/>
     <ClCompile Include="src\gameplay\sound_esp.cpp"/>
     <ClCompile Include="src\gameplay\smooth_curves.cpp"/>
     <ClCompile Include="src\window\onboarding.cpp"/>

@@ -8,12 +8,6 @@ void DrawRustWorld() {}
 void DrawRustPlayers() {}
 void DrawRustMisc() {}
 void DrawRustDebug() {}
-void DrawWarzoneAim() {}
-void DrawWarzoneVisuals() {}
-void DrawWarzoneRadar() {}
-void DrawWarzoneWorld() {}
-void DrawWarzonePlayers() {}
-void DrawWarzoneMisc() {}
 void DrawValorantAim() {}
 void DrawValorantVisuals() {}
 void DrawValorantStatus() {}
