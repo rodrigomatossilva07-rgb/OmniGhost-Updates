@@ -337,6 +337,18 @@ bool Attach() {
             if (!module_size) module_size = mem.GetBaseSize("cod.exe");
             std::cout << "[Warzone] Module base OK 0x" << std::hex << runtime.module_base
                       << " size=0x" << module_size << std::dec << std::endl;
+            // PE TimeDateStamp — must match offsets.timestamp (Steam 0x6A6D4AEF) or decrypt RVAs are stale.
+            uint32_t pe_ts = 0;
+            uint32_t e_lfanew = 0;
+            if (mem.Read(runtime.module_base + 0x3C, &e_lfanew, sizeof(e_lfanew)) &&
+                e_lfanew > 0 && e_lfanew < 0x1000 &&
+                mem.Read(runtime.module_base + e_lfanew + 8, &pe_ts, sizeof(pe_ts))) {
+                const uint32_t expect = offsets.timestamp ? (uint32_t)offsets.timestamp : 0x6A6D4AEFu;
+                std::cout << "[Warzone] PE TimeDateStamp=0x" << std::hex << pe_ts
+                          << " expected=0x" << expect << std::dec
+                          << (pe_ts == expect ? " MATCH" : " MISMATCH — atualiza offsets/decrypt")
+                          << std::endl;
+            }
         } else {
             std::cout << "[Warzone] Module MZ fail — CR3/base pode estar errado" << std::endl;
             runtime.decrypt_needed = true;
