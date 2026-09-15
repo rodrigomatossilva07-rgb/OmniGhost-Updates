@@ -922,38 +922,9 @@ static void DrawMotionVisuals(uintptr_t ped, Matrix viewport, const PedData* cac
         head.z += 0.92f;
     }
 
-    if (cfg.head_halo) {
-        const ImU32 color = EspPedColor(ped, cfg.color_halo, visible);
-        constexpr float radius = 0.18f;
-        constexpr int segments = 14;
-        Vec2 previous{};
-        bool previous_ok = false;
-        for (int i = 0; i <= segments; ++i) {
-            const float angle = static_cast<float>(i) * 6.28318530718f / segments;
-            Vec3 point(head.x + std::cos(angle) * radius,
-                       head.y + std::sin(angle) * radius,
-                       head.z + 0.12f);
-            Vec2 screen{};
-            const bool ok = point.world_to_screen(viewport, screen);
-            if (ok && previous_ok)
-                draw->AddLine(ImVec2(previous.x, previous.y), ImVec2(screen.x, screen.y), color, 1.6f);
-            previous = screen;
-            previous_ok = ok;
-        }
-    }
-
-    if (cfg.chinese_hat) {
-        auto project = [&](float wx, float wy, float wz, float& sx, float& sy) -> bool {
-            Vec2 screen{};
-            if (!Vec3(wx, wy, wz).world_to_screen(viewport, screen)) return false;
-            sx = screen.x; sy = screen.y;
-            return true;
-        };
-        OmniGhost::Gameplay::EspFx::DrawChineseHat(
-            draw, head.x, head.y, head.z, project, static_cast<float>(now), 1.f, true);
-    }
-
+    // --- Head ornaments (screen-projected world polylines; scale with head) ---
     const float fxScale = std::clamp(cfg.fun_effects_scale, .5f, 2.5f);
+    const float hatScale = std::clamp(cfg.chinese_hat_scale, 0.4f, 2.5f);
     Vec3 forward(1.f, 0.f, 0.f);
     if (skeleton) {
         forward = Vec3(skeleton->bone_matrix._21, skeleton->bone_matrix._22, 0.f);
@@ -972,64 +943,207 @@ static void DrawMotionVisuals(uintptr_t ped, Matrix viewport, const PedData* cac
         if (a.world_to_screen(viewport, sa) && b.world_to_screen(viewport, sb))
             draw->AddLine(ImVec2(sa.x, sa.y), ImVec2(sb.x, sb.y), color, thickness);
     };
+    auto worldPoly = [&](const Vec3* pts, int n, ImU32 color, float thickness, bool closed) {
+        for (int i = 0; i < n - 1; ++i)
+            worldLine(pts[i], pts[i + 1], color, thickness);
+        if (closed && n > 2)
+            worldLine(pts[n - 1], pts[0], color, thickness);
+    };
+
+    if (cfg.head_halo) {
+        // Horizontal ellipse above head (not a vertical ring).
+        const ImU32 color = EspPedColor(ped, cfg.color_halo, visible);
+        const ImU32 glow = MultiplyAlpha(color, 0.35f);
+        constexpr int segments = 32;
+        const float rx = 0.22f;   // width ~ head
+        const float ry = 0.11f;   // depth (horizontal ellipse in XY)
+        const float z = head.z + 0.16f;
+        Vec2 prev{}, first{};
+        bool prev_ok = false, first_ok = false;
+        for (int i = 0; i <= segments; ++i) {
+            const float a = static_cast<float>(i) * 6.28318530718f / segments;
+            Vec3 point(
+                head.x + std::cos(a) * rx,
+                head.y + std::sin(a) * ry,
+                z);
+            Vec2 screen{};
+            const bool ok = point.world_to_screen(viewport, screen);
+            if (ok && prev_ok) {
+                draw->AddLine(ImVec2(prev.x, prev.y), ImVec2(screen.x, screen.y), color, 2.0f);
+                // Soft outer glow ellipse
+                Vec3 gout(
+                    head.x + std::cos(a) * rx * 1.18f,
+                    head.y + std::sin(a) * ry * 1.18f,
+                    z);
+                Vec2 gs{};
+                if (gout.world_to_screen(viewport, gs) && i > 0) {
+                    // approximate glow by second ring segment only when both ok
+                }
+            }
+            if (i == 0) { first = screen; first_ok = ok; }
+            prev = screen;
+            prev_ok = ok;
+        }
+        // Dedicated outer glow ring
+        prev_ok = false;
+        for (int i = 0; i <= segments; ++i) {
+            const float a = static_cast<float>(i) * 6.28318530718f / segments;
+            Vec3 point(
+                head.x + std::cos(a) * rx * 1.2f,
+                head.y + std::sin(a) * ry * 1.2f,
+                z);
+            Vec2 screen{};
+            const bool ok = point.world_to_screen(viewport, screen);
+            if (ok && prev_ok)
+                draw->AddLine(ImVec2(prev.x, prev.y), ImVec2(screen.x, screen.y), glow, 1.2f);
+            prev = screen;
+            prev_ok = ok;
+        }
+    }
+
+    if (cfg.chinese_hat) {
+        auto project = [&](float wx, float wy, float wz, float& sx, float& sy) -> bool {
+            Vec2 screen{};
+            if (!Vec3(wx, wy, wz).world_to_screen(viewport, screen)) return false;
+            sx = screen.x; sy = screen.y;
+            return true;
+        };
+        OmniGhost::Gameplay::EspFx::DrawChineseHat(
+            draw, head.x, head.y, head.z, project, static_cast<float>(now), hatScale, true);
+    }
 
     if (cfg.angel_wings) {
-        const float flap = std::sin(static_cast<float>(now) * 3.2f) * .10f * fxScale;
-        const Vec3 center(origin.x - forward.x * .08f, origin.y - forward.y * .08f, origin.z + .58f);
+        // Stylized wing silhouette from shoulder: top arc + lower tip + inner feathers.
+        const float flap = std::sin(static_cast<float>(now) * 3.0f) * 0.06f * fxScale;
+        const Vec3 shoulder(
+            origin.x - forward.x * 0.06f,
+            origin.y - forward.y * 0.06f,
+            origin.z + 0.62f);
         for (int wingSide = -1; wingSide <= 1; wingSide += 2) {
             const float s = static_cast<float>(wingSide);
-            const Vec3 root(center.x + side.x * s * .10f, center.y + side.y * s * .10f, center.z);
-            const Vec3 joint(center.x + side.x * s * .48f * fxScale - forward.x * .10f,
-                             center.y + side.y * s * .48f * fxScale - forward.y * .10f,
-                             center.z + .42f * fxScale + flap);
-            const Vec3 tip(center.x + side.x * s * .80f * fxScale - forward.x * .18f,
-                           center.y + side.y * s * .80f * fxScale - forward.y * .18f,
-                           center.z - .12f * fxScale + flap);
-            worldLine(root, joint, fxColor(wingSide > 0 ? .1f : .55f), 2.f);
-            worldLine(joint, tip, fxColor(wingSide > 0 ? .2f : .65f), 2.f);
-            for (int feather = 0; feather < 3; ++feather) {
-                const float t = .25f + feather * .22f;
-                const Vec3 base(root.x + (joint.x - root.x) * t,
-                                root.y + (joint.y - root.y) * t,
-                                root.z + (joint.z - root.z) * t);
-                const Vec3 end(base.x + side.x * s * (.30f + feather * .08f) * fxScale,
-                               base.y + side.y * s * (.30f + feather * .08f) * fxScale,
-                               base.z - (.24f + feather * .09f) * fxScale);
-                worldLine(base, end, fxColor(.15f * feather + (wingSide > 0 ? 0.f : .5f), .85f), 1.5f);
+            const Vec3 root(
+                shoulder.x + side.x * s * 0.12f * fxScale,
+                shoulder.y + side.y * s * 0.12f * fxScale,
+                shoulder.z);
+            // Upper edge (6 segments)
+            Vec3 upper[7]{};
+            for (int i = 0; i <= 6; ++i) {
+                const float t = static_cast<float>(i) / 6.f;
+                const float out = (0.15f + t * 0.70f) * fxScale;
+                const float back = (0.02f + t * 0.16f) * fxScale;
+                const float up = (0.05f + std::sin(t * 1.4f) * 0.38f) * fxScale + flap * (1.f - t * 0.4f);
+                upper[i] = Vec3(
+                    root.x + side.x * s * out - forward.x * back,
+                    root.y + side.y * s * out - forward.y * back,
+                    root.z + up);
+            }
+            // Lower tip path
+            Vec3 lower[5]{};
+            for (int i = 0; i <= 4; ++i) {
+                const float t = static_cast<float>(i) / 4.f;
+                const float out = (0.18f + t * 0.55f) * fxScale;
+                const float back = (0.04f + t * 0.12f) * fxScale;
+                const float up = (0.02f - t * 0.28f) * fxScale + flap * 0.5f;
+                lower[i] = Vec3(
+                    root.x + side.x * s * out - forward.x * back,
+                    root.y + side.y * s * out - forward.y * back,
+                    root.z + up);
+            }
+            worldPoly(upper, 7, fxColor(wingSide > 0 ? 0.08f : 0.55f), 2.0f, false);
+            worldPoly(lower, 5, fxColor(wingSide > 0 ? 0.18f : 0.65f), 1.7f, false);
+            worldLine(upper[6], lower[4], fxColor(wingSide > 0 ? 0.22f : 0.70f), 1.6f);
+            worldLine(root, upper[0], fxColor(wingSide > 0 ? 0.05f : 0.50f), 1.8f);
+            // Inner feathers (4), shorter near body
+            for (int f = 0; f < 4; ++f) {
+                const float t = 0.2f + f * 0.18f;
+                const int ui = std::clamp(static_cast<int>(t * 6.f), 0, 6);
+                const Vec3 base = upper[ui];
+                const float featherOut = (0.10f + f * 0.04f) * fxScale;
+                const float featherDown = (0.14f + f * 0.06f) * fxScale;
+                const Vec3 tip(
+                    base.x + side.x * s * featherOut - forward.x * 0.04f * fxScale,
+                    base.y + side.y * s * featherOut - forward.y * 0.04f * fxScale,
+                    base.z - featherDown);
+                worldLine(base, tip, fxColor(0.12f * f + (wingSide > 0 ? 0.f : 0.5f), 0.9f), 1.4f);
             }
         }
     }
 
     if (cfg.devil_horns) {
+        // Curved demonic horns: 6 segments, thick near base → thin tip.
         for (int hornSide = -1; hornSide <= 1; hornSide += 2) {
             const float s = static_cast<float>(hornSide);
-            const Vec3 base(head.x + side.x * s * .11f * fxScale,
-                            head.y + side.y * s * .11f * fxScale, head.z + .03f);
-            const Vec3 bend(base.x + side.x * s * .11f * fxScale,
-                            base.y + side.y * s * .11f * fxScale, base.z + .18f * fxScale);
-            const Vec3 tip(bend.x + forward.x * .08f * fxScale,
-                           bend.y + forward.y * .08f * fxScale, bend.z + .13f * fxScale);
-            worldLine(base, bend, fxColor(hornSide > 0 ? .02f : .52f), 2.3f);
-            worldLine(bend, tip, fxColor(hornSide > 0 ? .10f : .60f), 1.7f);
+            Vec3 pts[7]{};
+            for (int i = 0; i <= 6; ++i) {
+                const float t = static_cast<float>(i) / 6.f;
+                // Out then curve inward toward centerline
+                const float lateral = (0.10f + 0.14f * t * (1.f - t * 0.85f)) * fxScale;
+                const float forwardAmt = (0.02f + 0.10f * t * t) * fxScale;
+                const float up = (0.04f + 0.28f * t) * fxScale;
+                pts[i] = Vec3(
+                    head.x + side.x * s * lateral + forward.x * forwardAmt,
+                    head.y + side.y * s * lateral + forward.y * forwardAmt,
+                    head.z + up);
+            }
+            for (int i = 0; i < 6; ++i) {
+                const float th = 2.6f - i * 0.28f;
+                worldLine(pts[i], pts[i + 1], fxColor(hornSide > 0 ? 0.05f + i * 0.03f : 0.55f + i * 0.03f), th);
+            }
         }
     }
 
     if (cfg.floating_crown) {
-        constexpr int segments = 18;
-        const float bob = std::sin(static_cast<float>(now) * 2.2f) * .03f;
-        const float z = head.z + (.27f + bob) * fxScale;
-        const float radius = .18f * fxScale;
-        for (int i = 0; i < segments; ++i) {
-            const float a0 = static_cast<float>(now) * .8f + 6.2831853f * i / segments;
-            const float a1 = static_cast<float>(now) * .8f + 6.2831853f * (i + 1) / segments;
-            const Vec3 p0(head.x + std::cos(a0) * radius, head.y + std::sin(a0) * radius, z);
-            const Vec3 p1(head.x + std::cos(a1) * radius, head.y + std::sin(a1) * radius, z);
-            worldLine(p0, p1, fxColor(static_cast<float>(i) / segments), 1.8f);
-            if ((i % 3) == 0) {
-                const Vec3 peak(p0.x, p0.y, z + .14f * fxScale);
-                worldLine(p0, peak, fxColor(static_cast<float>(i) / segments), 1.8f);
-            }
+        // True crown silhouette: base + 5 peaks (center tallest).
+        const float bob = std::sin(static_cast<float>(now) * 2.2f) * 0.02f;
+        const float zBase = head.z + (0.20f + bob) * fxScale;
+        const float halfW = 0.16f * fxScale;
+        const float baseH = 0.04f * fxScale;
+        // Base trapezoid corners (front-ish using forward bias small)
+        const Vec3 bl(
+            head.x - side.x * halfW - forward.x * 0.02f * fxScale,
+            head.y - side.y * halfW - forward.y * 0.02f * fxScale,
+            zBase);
+        const Vec3 br(
+            head.x + side.x * halfW - forward.x * 0.02f * fxScale,
+            head.y + side.y * halfW - forward.y * 0.02f * fxScale,
+            zBase);
+        const Vec3 tl(
+            head.x - side.x * halfW * 0.92f - forward.x * 0.02f * fxScale,
+            head.y - side.y * halfW * 0.92f - forward.y * 0.02f * fxScale,
+            zBase + baseH);
+        const Vec3 tr(
+            head.x + side.x * halfW * 0.92f - forward.x * 0.02f * fxScale,
+            head.y + side.y * halfW * 0.92f - forward.y * 0.02f * fxScale,
+            zBase + baseH);
+        worldLine(bl, br, fxColor(0.1f), 2.0f);
+        worldLine(bl, tl, fxColor(0.15f), 1.8f);
+        worldLine(br, tr, fxColor(0.15f), 1.8f);
+        worldLine(tl, tr, fxColor(0.2f), 1.8f);
+
+        // Peak heights: outer low, mid medium, center high
+        const float peaksX[5] = { -0.85f, -0.42f, 0.f, 0.42f, 0.85f };
+        const float peaksH[5] = { 0.08f, 0.14f, 0.22f, 0.14f, 0.08f };
+        Vec3 peakPts[5]{};
+        Vec3 basePts[5]{};
+        for (int i = 0; i < 5; ++i) {
+            const float px = peaksX[i] * halfW * 0.95f;
+            basePts[i] = Vec3(
+                head.x + side.x * px - forward.x * 0.02f * fxScale,
+                head.y + side.y * px - forward.y * 0.02f * fxScale,
+                zBase + baseH);
+            peakPts[i] = Vec3(
+                basePts[i].x,
+                basePts[i].y,
+                zBase + baseH + peaksH[i] * fxScale);
         }
+        // Continuous silhouette: base-left → peaks zigzag → base-right
+        worldLine(tl, basePts[0], fxColor(0.25f), 1.7f);
+        for (int i = 0; i < 5; ++i) {
+            worldLine(basePts[i], peakPts[i], fxColor(0.3f + i * 0.05f), 1.8f);
+            if (i < 4)
+                worldLine(peakPts[i], basePts[i + 1], fxColor(0.35f + i * 0.05f), 1.8f);
+        }
+        worldLine(basePts[4], tr, fxColor(0.25f), 1.7f);
     }
 
     if (cfg.look_direction && skeleton) {

@@ -13,6 +13,9 @@
 #include <sstream>
 #include <cctype>
 #include <filesystem>
+#include <unordered_map>
+#include <cmath>
+#include <cstdio>
 
 namespace fs = std::filesystem;
 
@@ -280,14 +283,202 @@ bool ObjectESPManager::IsCategoryVisible(ObjectCategory cat) const {
 
 
 
+bool ObjectESPManager::HasValidatedDiscoverySource() const noexcept {
+    using namespace FiveM::offset;
+    // object_pool set by game_setup for supported builds (e.g. b3258).
+    return base != 0 && object_pool != 0;
+}
+
+namespace {
+
+bool ReadU64Safe(uintptr_t addr, uintptr_t& out) {
+    out = 0;
+    if (!addr) return false;
+    return mem.Read(addr, &out, sizeof(out)) && out > 0x10000ULL && out < 0x00007FFFFFFFFFFFULL;
+}
+
+bool ReadVec3Safe(uintptr_t addr, Vec3& out) {
+    out = {};
+    if (!addr) return false;
+    return mem.Read(addr, &out, sizeof(out));
+}
+
+bool LooksFinite(const Vec3& v) {
+    return std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z)
+        && std::fabs(v.x) < 50000.f && std::fabs(v.y) < 50000.f && std::fabs(v.z) < 50000.f;
+}
+
+std::string HashToModelLabel(uint32_t hash) {
+    char buf[32];
+    std::snprintf(buf, sizeof(buf), "0x%08X", hash);
+    return buf;
+}
+
+// Prefer known prop name patterns; otherwise keep hex hash as model id.
+std::string GuessModelName(uint32_t hash) {
+    return HashToModelLabel(hash);
+}
+
+} // namespace
+
 void ObjectESPManager::PerformScan() {
+    using namespace FiveM::offset;
     std::lock_guard<std::mutex> lock(data_mutex_);
     scan_results_.clear();
     scanner_state_.total_entities_scanned = 0;
     scanner_state_.unique_models_found = 0;
     scanner_state_.total_objects_found = 0;
-    
+    scanner_state_.scan_progress = 0.05f;
+
+    if (!HasValidatedDiscoverySource()) {
+        scanner_state_.scanning = false;
+        scanner_state_.scan_complete = true;
+        scanner_state_.status_message = "Object pool unavailable";
+        scanner_state_.scan_progress = 1.0f;
+        return;
+    }
+
+    Vec3 localPos{};
+    if (localplayer)
+        ReadVec3Safe(localplayer + playerPosition, localPos);
+
+    // Resolve pool: object_pool may be a pointer-to-pool or the pool base itself.
+    uintptr_t pool = 0;
+    if (!ReadU64Safe(object_pool, pool))
+        pool = object_pool;
+
+    uintptr_t items = 0;
+    uintptr_t flags = 0;
+    uint32_t size = 0;
+    uint32_t itemSize = 0;
+
+    // rage::fwBasePool layout (common external FiveM)
+    ReadU64Safe(pool + 0x0, items);
+    ReadU64Safe(pool + 0x8, flags);
+    mem.Read(pool + 0x10, &size, sizeof(size));
+    mem.Read(pool + 0x14, &itemSize, sizeof(itemSize));
+
+    // Fallback: some builds store pool pointer one indirection deeper
+    if ((!items || !size || size > 300000 || itemSize == 0 || itemSize > 0x4000) && pool) {
+        uintptr_t pool2 = 0;
+        if (ReadU64Safe(pool, pool2)) {
+            ReadU64Safe(pool2 + 0x0, items);
+            ReadU64Safe(pool2 + 0x8, flags);
+            mem.Read(pool2 + 0x10, &size, sizeof(size));
+            mem.Read(pool2 + 0x14, &itemSize, sizeof(itemSize));
+            pool = pool2;
+        }
+    }
+
+    if (!items || size == 0 || size > 300000) {
+        scanner_state_.scanning = false;
+        scanner_state_.scan_complete = true;
+        scanner_state_.status_message = "Object pool layout not readable";
+        scanner_state_.error_message = scanner_state_.status_message;
+        scanner_state_.scan_progress = 1.0f;
+        std::cout << "[ObjectESP] Pool unreadable pool=0x" << std::hex << pool
+                  << " items=0x" << items << " size=" << std::dec << size << std::endl;
+        return;
+    }
+    if (itemSize == 0 || itemSize > 0x4000)
+        itemSize = 0x10; // treat as pointer table
+
+    const float maxR = config_.scan_radius > 1.f ? config_.scan_radius : 500.f;
+    const float maxR2 = maxR * maxR;
+
+    struct Acc {
+        ScanResult result;
+    };
+    std::unordered_map<uint32_t, Acc> byHash;
+    byHash.reserve(256);
+
+    const uint32_t maxIter = (std::min)(size, 20000u);
+    for (uint32_t i = 0; i < maxIter; ++i) {
+        if ((i & 0x3FF) == 0)
+            scanner_state_.scan_progress = 0.05f + 0.9f * (float)i / (float)maxIter;
+
+        if (flags) {
+            uint8_t bit = 0;
+            if (mem.Read(flags + i, &bit, 1) && (bit & 0x80))
+                continue; // free slot
+        }
+
+        uintptr_t ent = 0;
+        // Pointer table vs inline entities
+        if (itemSize <= 0x20) {
+            if (!ReadU64Safe(items + (uintptr_t)i * itemSize, ent))
+                continue;
+        } else {
+            ent = items + (uintptr_t)i * itemSize;
+        }
+        if (!ent || ent < 0x10000ULL)
+            continue;
+
+        ++scanner_state_.total_entities_scanned;
+
+        // Position: CEntity/CPhysical +0x90 (FiveM ped/object convention in this project)
+        Vec3 pos{};
+        if (!ReadVec3Safe(ent + playerPosition, pos) || !LooksFinite(pos))
+            continue;
+
+        float dist2 = 0.f;
+        if (!localPos.IsZero()) {
+            const float dx = pos.x - localPos.x;
+            const float dy = pos.y - localPos.y;
+            const float dz = pos.z - localPos.z;
+            dist2 = dx * dx + dy * dy + dz * dz;
+            if (dist2 > maxR2)
+                continue;
+        }
+
+        // Model hash: try CEntity model info pointer chain
+        uint32_t hash = 0;
+        uintptr_t modelInfo = 0;
+        if (ReadU64Safe(ent + 0x20, modelInfo) && modelInfo) {
+            mem.Read(modelInfo + 0x18, &hash, sizeof(hash));
+        }
+        if (!hash)
+            mem.Read(ent + 0x18, &hash, sizeof(hash));
+        if (!hash)
+            continue;
+
+        const float dist = localPos.IsZero() ? 0.f : std::sqrt(dist2);
+        auto& acc = byHash[hash];
+        if (acc.result.hash == 0) {
+            acc.result.hash = hash;
+            acc.result.model = GuessModelName(hash);
+            acc.result.category = ObjectCategory::Other;
+            // Heuristic: very high hashes often custom streamed assets
+            acc.result.is_custom = (hash > 0x10000000u);
+        }
+        acc.result.count++;
+        if (acc.result.sample_positions.size() < 8)
+            acc.result.sample_positions.push_back(pos);
+        if (acc.result.count == 1 || dist < acc.result.nearest_distance)
+            acc.result.nearest_distance = dist;
+    }
+
+    scan_results_.clear();
+    scan_results_.reserve(byHash.size());
+    for (auto& kv : byHash)
+        scan_results_.push_back(std::move(kv.second.result));
+
+    std::sort(scan_results_.begin(), scan_results_.end(),
+        [](const ScanResult& a, const ScanResult& b) { return a.count > b.count; });
+
+    scanner_state_.unique_models_found = static_cast<int>(scan_results_.size());
+    scanner_state_.total_objects_found = 0;
+    for (const auto& r : scan_results_)
+        scanner_state_.total_objects_found += r.count;
+
+    scanner_state_.scanning = false;
+    scanner_state_.scan_complete = true;
     scanner_state_.scan_progress = 1.0f;
+    char msg[128];
+    std::snprintf(msg, sizeof(msg), "Scan completo: %d modelos, %d objetos",
+        scanner_state_.unique_models_found, scanner_state_.total_objects_found);
+    scanner_state_.status_message = msg;
+    std::cout << "[ObjectESP] " << msg << std::endl;
 }
 
 void ObjectESPManager::UpdateTrackedObjects() {

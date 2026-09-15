@@ -29,22 +29,28 @@ bool LocalPlayerLooksAlive() {
 void ApplyBuildExtras(uintptr_t game_base, int build) {
     using namespace offset;
     base = game_base;
-    if (build == 3258) {
-        blip_list = game_base + 0x2023400;
-        aim_cped = game_base + 0x202C8D0;
-        network_player_mgr = game_base + 0x1E63C68;
-        object_pool = game_base + 0x25BFDE8;
-        waypoint = game_base + 0x2EE0288;
-        bullet = 0;
-        pedVisibilityOffset = 0x147C;
-        // Module RVA for framecountlastvisible (global). Soft — used with ped flag.
-        framecountlastvisible = game_base + 0x5719A3;
-        boneList = 0x410;
-        boneMatrix = 0x60;
-        playerInfo = 0x10A8;
-        playerHealth = 0x280;
-        playerPosition = 0x90;
+    const BuildOffsets* bo = GetOffsetsForBuild(build);
+    if (!bo) {
+        object_pool = network_player_mgr = blip_list = waypoint = aim_cped = 0;
+        framecountlastvisible = 0;
+        return;
     }
+    // All module RVAs come from data/fivem_offsets.json via BuildOffsets.
+    blip_list = bo->blip_list_offset ? game_base + bo->blip_list_offset : 0;
+    aim_cped = bo->aim_cped_offset ? game_base + bo->aim_cped_offset : 0;
+    network_player_mgr = bo->network_player_mgr_offset ? game_base + bo->network_player_mgr_offset : 0;
+    object_pool = bo->object_pool_offset ? game_base + bo->object_pool_offset : 0;
+    waypoint = bo->waypoint_offset ? game_base + bo->waypoint_offset : 0;
+    bullet = 0;
+    pedVisibilityOffset = bo->ped_visibility_offset ? bo->ped_visibility_offset : 0x147C;
+    framecountlastvisible = bo->framecount_last_visible_offset
+        ? game_base + bo->framecount_last_visible_offset : 0;
+    // Prefer JSON field offsets when present (also set from build_offset in Setup).
+    if (bo->boneList_offset) boneList = bo->boneList_offset;
+    if (bo->boneMatrix_offset) boneMatrix = bo->boneMatrix_offset;
+    if (bo->playerInfo_offset) playerInfo = bo->playerInfo_offset;
+    if (bo->playerHealth_offset) playerHealth = bo->playerHealth_offset;
+    if (bo->playerPosition_offset) playerPosition = bo->playerPosition_offset;
 }
 
 void WriteStatusLog(const char* note) {
@@ -76,6 +82,7 @@ void Setup() {
         return;
     }
 
+    LoadOffsetsFromJson(nullptr);
     buildVersion = GetBuildVersion();
     if (!IsBuildSupported()) {
         std::cerr << "[FiveM] Build b" << buildVersion

@@ -75,9 +75,8 @@ public:
     bool Initialize();
     void Shutdown();
     bool IsInitialized() const noexcept { return initialized_; }
-    // The current client does not have a validated object-pool layout for every
-    // supported FiveM build. Do not label the player snapshot as world objects.
-    bool HasValidatedDiscoverySource() const noexcept { return false; }
+    // True when FiveM session has a resolved object_pool (or replay) pointer.
+    bool HasValidatedDiscoverySource() const noexcept;
     
     // Main update loop (call every frame)
     void Update();

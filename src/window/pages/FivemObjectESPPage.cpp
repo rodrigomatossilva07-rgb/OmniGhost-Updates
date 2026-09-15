@@ -16,13 +16,14 @@ void DrawFivemObjectESP() {
     const auto& scan_results = manager.GetFilteredResults();
     auto whitelist = manager.GetFilteredWhitelist();
     
-    BeginCard("Object ESP - FiveM");
+    BeginCard("Esp de Objetos");
+
+    if (!manager.IsInitialized())
+        manager.Initialize();
 
     if (!manager.HasValidatedDiscoverySource()) {
-        TextLine("A descoberta de objetos está desativada até existir uma fonte de entidades validada para a build FiveM atual.", TextTone::Warning);
-        TextLine("O módulo não usa jogadores como objetos nem executa leituras não validadas.", TextTone::Secondary);
-        EndCard();
-        return;
+        TextLine("Object pool ainda nao validado — entra no servidor FiveM (build com object_pool).", TextTone::Warning);
+        TextLine("Quando a sessao FiveM estiver OK, usa Escanear para descobrir props (incluindo custom).", TextTone::Secondary);
     }
     
     // Main toggle

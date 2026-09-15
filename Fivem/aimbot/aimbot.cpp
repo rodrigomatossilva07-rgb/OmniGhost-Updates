@@ -982,59 +982,8 @@ namespace aimbot {
         if (config.aimbot_enabled || config.trigger_enabled || config.crosshair_enabled)
             DrawFOV();
 
-        // Draw debug overlay
-        if (config.aimbot_enabled || config.trigger_enabled) {
-            ImDrawList* dl = ImGui::GetForegroundDrawList();
-            if (dl) {
-                char line[128];
-                float y = 12.f;
-                auto row = [&](const char* label, int vk, bool on) {
-                    if (!on || vk <= 0) return;
-                    const bool down = BindDown(vk);
-                    snprintf(line, sizeof(line), "%s: VK 0x%02X %s", label, vk,
-                             down ? "[DOWN]" : "");
-                    dl->AddText(ImVec2(14.f, y), IM_COL32(212, 175, 55, 200), line);
-                    y += 16.f;
-                };
-                {
-                    const auto diag = makcu_wrapper::GetDiagnostics();
-                    const int bindVk = config.aimbot_bind > 0 ? config.aimbot_bind : VK_RBUTTON;
-                    const bool localDown =
-                        (GetAsyncKeyState(bindVk) & 0x8000) != 0 ||
-                        (GetKeyState(bindVk) & 0x8000) != 0;
-                    snprintf(line, sizeof(line),
-                             "peds=%d aim_hold=%s makcu=%s mask=0x%02X pkts=%llu local=%s",
-                             (int)FiveM::ESP::validPeds.size() + (int)s_aimPeds.size(),
-                             AimHoldDown() ? "YES" : "no",
-                             makcu_wrapper::IsConnected() ? "OK" : "OFF",
-                             (unsigned)diag.buttonMask,
-                             (unsigned long long)diag.packetsReceived,
-                             localDown ? "YES" : "no");
-                    dl->AddText(ImVec2(14.f, y), IM_COL32(180, 180, 200, 200), line);
-                    y += 16.f;
-                    if (makcu_wrapper::IsConnected() && diag.packetsReceived == 0) {
-                        if (localDown) {
-                            snprintf(line, sizeof(line),
-                                     "STREAM OFF + LOCAL hold — aim deve puxar (single-PC)");
-                            dl->AddText(ImVec2(14.f, y), IM_COL32(80, 220, 120, 220), line);
-                        } else {
-                            snprintf(line, sizeof(line),
-                                     "STREAM OFF: segura RMB no rato (Makcu GAME-PC ou local)");
-                            dl->AddText(ImVec2(14.f, y), IM_COL32(255, 80, 80, 220), line);
-                        }
-                        y += 16.f;
-                    } else if (makcu_wrapper::IsConnected() && diag.buttonMask == 0) {
-                        snprintf(line, sizeof(line),
-                                 "mask=0: segura a bind no rato ligado ao Makcu");
-                        dl->AddText(ImVec2(14.f, y), IM_COL32(255, 180, 60, 220), line);
-                        y += 16.f;
-                    }
-                }
-                row("Mira", config.aimbot_bind, config.aimbot_enabled);
-                row("Mira 2", config.aimbot_bind2, config.aimbot_enabled && config.aimbot_bind2 > 0);
-                // silent removed from overlay
-            }
-        }
+                // Aim/trigger debug overlay removed (UI clean).
+
     }
 
     static void RunTriggerLogic() {
@@ -1186,57 +1135,8 @@ namespace aimbot {
         if (config.aimbot_enabled || config.trigger_enabled || config.crosshair_enabled)
             DrawFOV();
 
-        if (config.aimbot_enabled || config.trigger_enabled) {
-            ImDrawList* dl = ImGui::GetForegroundDrawList();
-            if (dl) {
-                char line[128];
-                float y = 12.f;
-                auto row = [&](const char* label, int vk, bool on) {
-                    if (!on || vk <= 0) return;
-                    const bool down = BindDown(vk);
-                    snprintf(line, sizeof(line), "%s: VK 0x%02X %s", label, vk,
-                             down ? "[DOWN]" : "");
-                    dl->AddText(ImVec2(14.f, y), IM_COL32(212, 175, 55, 200), line);
-                    y += 16.f;
-                };
-                {
-                    const auto diag = makcu_wrapper::GetDiagnostics();
-                    const int bindVk = config.aimbot_bind > 0 ? config.aimbot_bind : VK_RBUTTON;
-                    const bool localDown =
-                        (GetAsyncKeyState(bindVk) & 0x8000) != 0 ||
-                        (GetKeyState(bindVk) & 0x8000) != 0;
-                    snprintf(line, sizeof(line),
-                             "peds=%d aim_hold=%s makcu=%s mask=0x%02X pkts=%llu local=%s",
-                             (int)FiveM::ESP::validPeds.size() + (int)s_aimPeds.size(),
-                             AimHoldDown() ? "YES" : "no",
-                             makcu_wrapper::IsConnected() ? "OK" : "OFF",
-                             (unsigned)diag.buttonMask,
-                             (unsigned long long)diag.packetsReceived,
-                             localDown ? "YES" : "no");
-                    dl->AddText(ImVec2(14.f, y), IM_COL32(180, 180, 200, 200), line);
-                    y += 16.f;
-                    if (makcu_wrapper::IsConnected() && diag.packetsReceived == 0) {
-                        if (localDown) {
-                            snprintf(line, sizeof(line),
-                                     "STREAM OFF + LOCAL hold — aim deve puxar (single-PC)");
-                            dl->AddText(ImVec2(14.f, y), IM_COL32(80, 220, 120, 220), line);
-                        } else {
-                            snprintf(line, sizeof(line),
-                                     "STREAM OFF: segura RMB no rato (Makcu GAME-PC ou local)");
-                            dl->AddText(ImVec2(14.f, y), IM_COL32(255, 80, 80, 220), line);
-                        }
-                        y += 16.f;
-                    } else if (makcu_wrapper::IsConnected() && diag.buttonMask == 0) {
-                        snprintf(line, sizeof(line),
-                                 "mask=0: segura a bind no rato ligado ao Makcu");
-                        dl->AddText(ImVec2(14.f, y), IM_COL32(255, 180, 60, 220), line);
-                        y += 16.f;
-                    }
-                }
-                row("Mira", config.aimbot_bind, config.aimbot_enabled);
-                row("Mira 2", config.aimbot_bind2, config.aimbot_enabled && config.aimbot_bind2 > 0);
-            }
-        }
+                // Aim/trigger debug overlay removed (UI clean).
+
     }
 
 } // namespace aimbot

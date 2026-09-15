@@ -38,6 +38,7 @@ namespace esp {
         bool head_halo = false;
         bool look_direction = false; // Eye Line
         bool chinese_hat = false;
+        float chinese_hat_scale = 1.0f;
         bool angel_wings = false;
         bool devil_horns = false;
         bool floating_crown = false;

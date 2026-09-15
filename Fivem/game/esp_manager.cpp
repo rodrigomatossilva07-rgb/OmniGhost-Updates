@@ -1,4 +1,6 @@
 #include "esp_manager.h"
+#include "../object_esp/object_esp.h"
+#include "../object_esp/object_esp_renderer.h"
 #include "config/app_settings.h"
 #include "../../ImGui/imgui.h"
 #include "offsets.h"
@@ -305,6 +307,20 @@ namespace FiveM {
             }
 
             renderESP();
+
+            // Object ESP (scan / track / draw) — independent from player ESP master toggle
+            try {
+                auto& objEsp = object_esp::GetObjectESPManager();
+                if (!objEsp.IsInitialized())
+                    objEsp.Initialize();
+                objEsp.Update();
+                if (objEsp.GetConfig().enabled) {
+                    Matrix vm = s_frameCacheValid ? s_viewMatrix
+                        : mem.Read<Matrix>(offset::viewport + 0x24C);
+                    object_esp::GetObjectRenderer().Render(vm, offset::localplayer);
+                }
+            } catch (...) {
+            }
 
             // Radar every frame (10Hz caused triangle flicker)
             if (offset::localplayer && (esp::config.triangle_radar || esp::config.square_radar || esp::config.radar_enabled)) {

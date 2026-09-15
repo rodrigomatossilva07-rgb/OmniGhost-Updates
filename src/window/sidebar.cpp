@@ -92,6 +92,7 @@ namespace CyberWidgets {
             { "nav.aim",     MenuTab::TAB_AIM,        CyberIcons::DrawAimIcon },
             { "nav.vehicles", MenuTab::TAB_VEHICLES,   CyberIcons::DrawVehicleIcon },
             { "nav.radar",   MenuTab::TAB_RADAR,      CyberIcons::DrawRadarIcon },
+            { "nav.object_esp", MenuTab::TAB_FIVEM_OBJECT_ESP, CyberIcons::DrawESPIcon },
             { "nav.friends", MenuTab::TAB_FRIENDS,    CyberIcons::DrawUserIcon },
             { "nav.status",  MenuTab::TAB_STATUS,     CyberIcons::DrawStatusIcon },
             { "nav.save",    MenuTab::TAB_SAVECONFIG, CyberIcons::DrawSaveIcon },

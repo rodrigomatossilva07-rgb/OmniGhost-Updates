@@ -226,7 +226,7 @@ void DrawEspPreviewPanel(float panelWidth, float panelHeight, bool previewVisibl
         }
     }
     if (esp::config.chinese_hat) {
-        const float hatScale = std::clamp(esp::config.fun_effects_scale, .5f, 2.5f) * sc;
+        const float hatScale = std::clamp(esp::config.chinese_hat_scale, .4f, 2.5f) * sc;
         const float base = 25.f * hatScale;
         const float tipY = playerTop - 23.f * hatScale;
         const float baseY = playerTop + 3.f * sc;
@@ -538,6 +538,9 @@ void DrawVisuals()
     CyberWidgets::SliderFloat("Eye Line", &esp::config.eye_line_thickness, 0.5f, 6.f, "%.1f");
     if (esp::config.trails)
         CyberWidgets::SliderFloat("Rastro", &esp::config.trail_thickness, 1.f, 8.f, "%.1f");
+    // Chapéu chinês 3D: este slider controla TAMANHO (não espessura de linha).
+    if (esp::config.chinese_hat)
+        CyberWidgets::SliderFloat("Chapéu Chinês 3D", &esp::config.chinese_hat_scale, 0.4f, 2.5f, "%.2f");
 
 CyberWidgets::SliderFloat(Loc::Tr("vis.max_dist"), &esp::config.max_esp_distance,
                               20.f, 500.f, "%.0f m");

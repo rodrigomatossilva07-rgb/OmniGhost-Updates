@@ -42,6 +42,7 @@ struct TargetDiagnostics {
     int projection = 0;
     int fov = 0;
     int eligible = 0;
+    int retained = 0;
 };
 
 TargetDiagnostics g_target_diag{};
@@ -206,16 +207,91 @@ struct TargetCandidate {
     int bone = 0;
 };
 
-static std::unordered_map<uintptr_t, std::array<float, 3>> g_prev_velocities;
-static std::unordered_map<uintptr_t, uint64_t> g_velocity_sample_ms;
+struct MotionHistory {
+    std::array<float, 3> velocity{};
+    std::array<float, 3> acceleration{};
+    uint64_t sample_ms = 0;
+    bool initialized = false;
+};
+
+static std::unordered_map<uintptr_t, MotionHistory> g_motion_history;
+
+float Length3(const std::array<float, 3>& value) noexcept {
+    return std::sqrt(value[0] * value[0] + value[1] * value[1] + value[2] * value[2]);
+}
+
+void ClampMagnitude(std::array<float, 3>& value, float maximum) noexcept {
+    const float length = Length3(value);
+    if (length <= maximum || length <= 0.0001f) return;
+    const float scale = maximum / length;
+    value[0] *= scale;
+    value[1] *= scale;
+    value[2] *= scale;
+}
+
+// A bounded, direction-aware prediction. It deliberately stops trusting
+// acceleration during a sharp reversal, where an instantaneous velocity is
+// usually stale and would put the cursor ahead of the player.
+void ApplyRobustPrediction(float point[3], const CS2::Player& player,
+                           const CS2::Runtime& rt, const CS2::Config& cfg,
+                           uint64_t now_ms) {
+    if (!cfg.aim_prediction || !player.pawn) return;
+
+    const uint64_t sample_ms = rt.snapshot_timestamp_ms ? rt.snapshot_timestamp_ms : now_ms;
+    auto& history = g_motion_history[player.pawn];
+    std::array<float, 3> raw_velocity{ player.velocity[0], player.velocity[1], player.velocity[2] };
+    std::array<float, 3> filtered_velocity = raw_velocity;
+    bool reversal = false;
+
+    if (history.initialized) {
+        const float dot = raw_velocity[0] * history.velocity[0] +
+                          raw_velocity[1] * history.velocity[1] +
+                          raw_velocity[2] * history.velocity[2];
+        reversal = dot < -25.f && Length3(raw_velocity) > 20.f && Length3(history.velocity) > 20.f;
+        const float velocity_alpha = reversal ? .78f : .42f;
+        for (int axis = 0; axis < 3; ++axis)
+            filtered_velocity[axis] = history.velocity[axis] * (1.f - velocity_alpha) + raw_velocity[axis] * velocity_alpha;
+    }
+
+    if (!history.initialized || history.sample_ms != sample_ms) {
+        std::array<float, 3> acceleration{};
+        if (history.initialized && sample_ms > history.sample_ms) {
+            const float dt = std::clamp(static_cast<float>(sample_ms - history.sample_ms) * .001f, .003f, .100f);
+            for (int axis = 0; axis < 3; ++axis)
+                acceleration[axis] = (filtered_velocity[axis] - history.velocity[axis]) / dt;
+            ClampMagnitude(acceleration, 2400.f);
+            if (reversal) acceleration = {};
+            else for (int axis = 0; axis < 3; ++axis)
+                acceleration[axis] = history.acceleration[axis] * .72f + acceleration[axis] * .28f;
+        }
+        history.velocity = filtered_velocity;
+        history.acceleration = acceleration;
+        history.sample_ms = sample_ms;
+        history.initialized = true;
+    } else {
+        filtered_velocity = history.velocity;
+    }
+
+    const float snapshot_age = sample_ms && now_ms > sample_ms
+        ? std::clamp(static_cast<float>(now_ms - sample_ms) * .001f, 0.f, .050f) : 0.f;
+    float lead = std::clamp((.004f + snapshot_age) * cfg.prediction_strength, 0.f, .045f);
+    if (reversal) lead *= .35f;
+    std::array<float, 3> displacement{};
+    const float accel_term = reversal ? 0.f : .5f * lead * lead;
+    for (int axis = 0; axis < 3; ++axis)
+        displacement[axis] = history.velocity[axis] * lead + history.acceleration[axis] * accel_term;
+
+    // Never allow an old/stale sample to lead more than a small, distance-aware
+    // world displacement. Incoming data corrects naturally on the next sample.
+    ClampMagnitude(displacement, std::clamp(2.f + player.distance * .055f, 4.f, 14.f));
+    for (int axis = 0; axis < 3; ++axis) point[axis] += displacement[axis];
+}
 
 TargetCandidate SelectTarget(const CS2::Runtime& rt, const CS2::Config& cfg, float cx, float cy) {
     TargetCandidate best{};
+    TargetCandidate incumbent{};
     g_target_diag = {};
     const uint64_t now_ms = GetTickCount64();
-    const float snapshot_age = rt.snapshot_timestamp_ms && now_ms > rt.snapshot_timestamp_ms
-        ? std::clamp(static_cast<float>(now_ms - rt.snapshot_timestamp_ms) * .001f, 0.f, .050f)
-        : 0.f;
 
     for (std::size_t i = 0; i < rt.players.size(); ++i) {
         const auto& player = rt.players[i];
@@ -233,26 +309,7 @@ TargetCandidate SelectTarget(const CS2::Runtime& rt, const CS2::Config& cfg, flo
         float point[3]{};
         PickBone(player, bone, point);
 
-        if (cfg.aim_prediction) {
-            const auto previous = g_prev_velocities[player.pawn];
-            const uint64_t previous_ms = g_velocity_sample_ms[player.pawn];
-            const uint64_t sample_ms = rt.snapshot_timestamp_ms ? rt.snapshot_timestamp_ms : now_ms;
-            const float sample_dt = previous_ms && sample_ms > previous_ms
-                ? std::clamp(static_cast<float>(sample_ms - previous_ms) * .001f, .002f, .100f)
-                : .006f;
-            const float accel_x = (player.velocity[0] - previous[0]) / sample_dt;
-            const float accel_y = (player.velocity[1] - previous[1]) / sample_dt;
-            const float accel_z = (player.velocity[2] - previous[2]) / sample_dt;
-            const float lead = std::clamp((.004f + snapshot_age) * cfg.prediction_strength, 0.f, .040f);
-            const float accel_term = .5f * lead * lead;
-
-            point[0] += player.velocity[0] * lead + accel_x * accel_term;
-            point[1] += player.velocity[1] * lead + accel_y * accel_term;
-            point[2] += player.velocity[2] * lead + accel_z * accel_term;
-        }
-
-        g_prev_velocities[player.pawn] = { player.velocity[0], player.velocity[1], player.velocity[2] };
-        g_velocity_sample_ms[player.pawn] = rt.snapshot_timestamp_ms ? rt.snapshot_timestamp_ms : now_ms;
+        ApplyRobustPrediction(point, player, rt, cfg, now_ms);
 
         float sx = 0.f, sy = 0.f;
         if (!W2S(point, rt.view_matrix, sx, sy)) { ++g_target_diag.projection; continue; }
@@ -268,21 +325,31 @@ TargetCandidate SelectTarget(const CS2::Runtime& rt, const CS2::Config& cfg, flo
         score += std::clamp(static_cast<float>(player.health), 0.f, 100.f) * .008f;
         if (!player.spotted) score += 18.f;
         score -= WeaponThreat(player.weapon_def) * 2.f;
-        if (player.pawn == g_target_pawn) score *= .78f;
+        TargetCandidate candidate{};
+        candidate.index = static_cast<int>(i);
+        candidate.pawn = player.pawn;
+        candidate.error_x = dx;
+        candidate.error_y = dy;
+        candidate.screen_distance = screen;
+        candidate.distance_m = player.distance;
+        candidate.score = score;
+        candidate.velocity_x = player.velocity[0];
+        candidate.velocity_y = player.velocity[1];
+        candidate.velocity_z = player.velocity[2];
+        candidate.weapon_def = player.weapon_def;
+        candidate.bone = bone;
+        if (candidate.pawn == g_target_pawn) incumbent = candidate;
+        if (candidate.score < best.score) best = candidate;
+    }
 
-        if (score < best.score) {
-            best.index = static_cast<int>(i);
-            best.pawn = player.pawn;
-            best.error_x = dx;
-            best.error_y = dy;
-            best.screen_distance = screen;
-            best.distance_m = player.distance;
-            best.score = score;
-            best.velocity_x = player.velocity[0];
-            best.velocity_y = player.velocity[1];
-            best.velocity_z = player.velocity[2];
-            best.weapon_def = player.weapon_def;
-            best.bone = bone;
+    // Keep the current target unless the alternative wins by a meaningful,
+    // screen-space margin. This is more stable than applying a hidden fixed
+    // multiplier to the incumbent score.
+    if (incumbent.index >= 0 && best.pawn != incumbent.pawn) {
+        const float required_gain = 3.f + std::clamp(cfg.aim_switch_margin, .02f, .50f) * 32.f;
+        if ((incumbent.score - best.score) < required_gain) {
+            ++g_target_diag.retained;
+            return incumbent;
         }
     }
     return best;

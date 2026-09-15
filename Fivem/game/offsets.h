@@ -71,19 +71,36 @@ namespace FiveM {
         extern uintptr_t waypoint;
     }
 
-    // Structure to hold offset configurations for different builds
+    // Structure to hold offset configurations for different builds.
+    // Module RVAs (world/replay/object_pool/...) are relative to game base.
+    // Field offsets (playerInfo/bone/health/position/ped_visibility) are relative to entity.
+    // Populated from data/fivem_offsets.json (source of truth).
     struct BuildOffsets {
-        int build;
-        uintptr_t world_offset;
-        uintptr_t replay_offset;
-        uintptr_t viewport_offset;
-        uintptr_t camera_offset;
-        uintptr_t playerInfo_offset;
-        uintptr_t boneList_offset;
-        uintptr_t boneMatrix_offset;
-        uintptr_t playerHealth_offset;
-        uintptr_t playerPosition_offset;
+        int build = 0;
+        uintptr_t world_offset = 0;
+        uintptr_t replay_offset = 0;
+        uintptr_t viewport_offset = 0;
+        uintptr_t camera_offset = 0;
+        uintptr_t playerInfo_offset = 0;
+        uintptr_t boneList_offset = 0;
+        uintptr_t boneMatrix_offset = 0;
+        uintptr_t playerHealth_offset = 0;
+        uintptr_t playerPosition_offset = 0;
+        // Module RVAs — optional extras (0 = unavailable for this build)
+        uintptr_t object_pool_offset = 0;
+        uintptr_t network_player_mgr_offset = 0;
+        uintptr_t blip_list_offset = 0;
+        uintptr_t waypoint_offset = 0;
+        uintptr_t aim_cped_offset = 0;
+        uintptr_t ped_pool_offset = 0;
+        uintptr_t vehicle_pool_offset = 0;
+        uintptr_t framecount_last_visible_offset = 0;
+        uintptr_t ped_visibility_offset = 0x147C;
     };
+
+    // Load / reload builds from data/fivem_offsets.json (or embedded snapshot).
+    // Returns number of builds loaded. Safe to call multiple times.
+    int LoadOffsetsFromJson(const char* explicit_path = nullptr);
 
     // Get the explicit FiveM build encoded in the process name.
     int GetBuildVersion();
@@ -91,8 +108,7 @@ namespace FiveM {
     // Check if offsets are supported for current build
     bool IsBuildSupported();
 
-    // Returns only production-verified configurations. Unknown, provisional or
-    // placeholder builds always return nullptr.
+    // Returns config for build if present in the JSON table; nullptr otherwise.
     const BuildOffsets* GetOffsetsForBuild(int build);
 
     /*

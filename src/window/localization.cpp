@@ -35,6 +35,7 @@ namespace {
         {"nav.world", {"Mundo", "World", "World", "World", "World", "World", "ð£ð©ÐÇ"}},
         {"nav.players", {"Jogadores", "Players", "Players", "Players", "Players", "Players", "ðÿð│ÐÇð¥ð║ð©"}},
         {"nav.radar", {"Radar", "Radar", "Radar", "Radar", "Radar", "Radar", "ðáð░ð┤ð░ÐÇ"}},
+        {"nav.object_esp", {"Esp de Objetos", "Object ESP", "Objekt-ESP", "ESP de objetos", "ESP objets", "ESP oggetti", "ESP объектов"}},
         {"nav.misc", {"Diversos", "Misc", "Misc", "Misc", "Misc", "Misc", "ðáð░ðÀð¢ð¥ðÁ"}},
         {"nav.debug", {"Diagnóstico", "Diagnostics", "Diagnostics", "Diagnostics", "Diagnostics", "Diagnostics", "ðöð©ð░ð│ð¢ð¥ÐüÐéð©ð║ð░"}},
         {"nav.trigger", {"Disparo automático", "Trigger", "Trigger", "Trigger", "Trigger", "Trigger", "ðóÐÇð©ð│ð│ðÁÐÇ"}},
