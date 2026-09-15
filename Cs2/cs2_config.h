@@ -108,7 +108,7 @@ struct Config {
     float aim_fov_min = 25.f;
     float aim_smooth = 12.f; // 0 = instant snap, 100 = no pull
     float aim_max_dist = 150.f;
-    int aim_bone = 0;
+    int aim_bone = 0; // aim_point: 0 Head, 1 Neck, 2 Chest, 3 Stomach
     int aim_bind = 0x01;   // LMB — change in UI (click bind → press key)
     int aim_bind2 = 0x02;  // RMB
     int aim_bind3 = 0;     // optional

@@ -2993,7 +2993,6 @@ void EnsureAcquisitionStarted() {
                     PublishMotionSnapshot(motion);
                 }
             }
-            const float fps = g_presentation_fps.load(std::memory_order_relaxed);
             const int cadence = runtime.in_match ? CAMERA_INTERVAL_MS : 12;
             scheduler.Wait(std::chrono::milliseconds(cadence));
         }
