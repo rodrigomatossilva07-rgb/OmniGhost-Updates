@@ -250,6 +250,35 @@ bool DetectRunning(GameId id) {
     }
 }
 
+// DMA process context is global to the application. Starting an adapter for a
+// different game while another supported title is running can replace that
+// context mid-session, which is unsafe for both adapters.
+const GameDefinition* FindConflictingRunningGame(GameId selected) {
+    std::size_t count = 0;
+    const GameDefinition* games = Games(count);
+    for (std::size_t i = 0; i < count; ++i) {
+        const GameDefinition& candidate = games[i];
+        if (candidate.launch_id == GameId::None || candidate.launch_id == selected)
+            continue;
+        if (DetectRunning(candidate.launch_id))
+            return &candidate;
+    }
+    return nullptr;
+}
+
+bool CanStartGame(GameId selected) {
+    const GameDefinition* conflict = FindConflictingRunningGame(selected);
+    if (!conflict)
+        return true;
+
+    const GameDefinition* requested = FindGame(selected);
+    char message[192]{};
+    std::snprintf(message, sizeof(message), Loc::Tr("launcher.toast.close_other_game"),
+                  conflict->name, requested ? requested->name : "o jogo selecionado");
+    PushToast(message, C_RED(), ToastAction::None, nullptr);
+    return false;
+}
+
 bool AdapterAttached(GameId id) {
     switch (id) {
     case GameId::CS2: return CS2::ready;

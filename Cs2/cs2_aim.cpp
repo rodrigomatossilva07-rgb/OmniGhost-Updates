@@ -16,6 +16,7 @@
 #include <cstdio>
 #include <array>
 #include <unordered_map>
+#include <utility>
 
 namespace CS2_Aim {
 namespace {
@@ -27,6 +28,23 @@ std::chrono::steady_clock::time_point g_target_acquired{};
 uintptr_t g_target_pawn = 0;
 char g_debug[128] = "aim idle";
 int g_frames_sem_bind = 0;
+float g_output_residual_x = 0.f;
+float g_output_residual_y = 0.f;
+
+struct TargetDiagnostics {
+    int scanned = 0;
+    int dead = 0;
+    int team = 0;
+    int bots = 0;
+    int spectators = 0;
+    int hidden = 0;
+    int distance = 0;
+    int projection = 0;
+    int fov = 0;
+    int eligible = 0;
+};
+
+TargetDiagnostics g_target_diag{};
 
 OmniGhost::Gameplay::ContinuousAimController g_aim_motion;
 Gameplay::SmoothCurves::AimHumanizer g_humanizer;
@@ -77,30 +95,19 @@ void PickBone(const CS2::Player& p, int bone, float out[3]) {
     out[2] = selected[2];
 }
 
-bool IsBoneVisible(const CS2::Player& p, int bone, const float* view_matrix) {
-    float sx, sy;
-    float point[3];
-    PickBone(p, bone, point);
-    return W2S(point, view_matrix, sx, sy);
-}
+void MoveMouse(float dx, float dy) {
+    // Input devices accept integer counts, but aim/RCS/humanization are all
+    // fractional. Keep the remainder across frames instead of discarding it.
+    const float desired_x = dx + g_output_residual_x;
+    const float desired_y = dy + g_output_residual_y;
+    int whole_x = static_cast<int>(std::lround(desired_x));
+    int whole_y = static_cast<int>(std::lround(desired_y));
+    g_output_residual_x = std::clamp(desired_x - static_cast<float>(whole_x), -0.95f, 0.95f);
+    g_output_residual_y = std::clamp(desired_y - static_cast<float>(whole_y), -0.95f, 0.95f);
+    if (whole_x == 0 && whole_y == 0) return;
 
-int SelectBestVisibleBone(const CS2::Player& p, const float* view_matrix, int preferred_bone) {
-    if (preferred_bone >= 0 && preferred_bone <= 4 && IsBoneVisible(p, preferred_bone, view_matrix))
-        return preferred_bone;
-
-    static const int bone_priority[] = { 0, 1, 2, 3, 4 };
-    for (int bone : bone_priority) {
-        if (IsBoneVisible(p, bone, view_matrix))
-            return bone;
-    }
-    return preferred_bone;
-}
-
-void MoveMouse(int dx, int dy) {
-    if (dx == 0 && dy == 0) return;
-
-    int left_x = dx;
-    int left_y = dy;
+    int left_x = whole_x;
+    int left_y = whole_y;
     for (int n = 0; n < 12 && (left_x != 0 || left_y != 0); ++n) {
         int sx = left_x; if (sx > 127) sx = 127; if (sx < -127) sx = -127;
         int sy = left_y; if (sy > 127) sy = 127; if (sy < -127) sy = -127;
@@ -162,7 +169,7 @@ float WeaponThreat(int definition) noexcept {
     }
 }
 
-int AutoSelectBone(const CS2::Player& p, int weapon_def, float distance_m, const float* view_matrix, bool visibility_check, bool auto_bone_enabled, int fallback_bone) {
+int AutoSelectBone(const CS2::Player& p, int weapon_def, float distance_m, bool auto_bone_enabled, int fallback_bone) {
     if (!auto_bone_enabled) return fallback_bone;
 
     bool is_sniper = (weapon_def == 9 || weapon_def == 11 || weapon_def == 38 || weapon_def == 40);
@@ -175,9 +182,9 @@ int AutoSelectBone(const CS2::Player& p, int weapon_def, float distance_m, const
     else if (is_pistol) preferred = (distance_m > 30.f) ? 1 : 2;
     else preferred = 0;
 
-    if (visibility_check) {
-        return SelectBestVisibleBone(p, view_matrix, preferred);
-    }
+    // The available signal is player.spotted. Projecting a bone to screen is
+    // not a wall trace, so it must not be presented as per-bone visibility.
+    // Target filtering performs the reliable spotted-state check separately.
     return preferred;
 }
 
@@ -200,9 +207,11 @@ struct TargetCandidate {
 };
 
 static std::unordered_map<uintptr_t, std::array<float, 3>> g_prev_velocities;
+static std::unordered_map<uintptr_t, uint64_t> g_velocity_sample_ms;
 
 TargetCandidate SelectTarget(const CS2::Runtime& rt, const CS2::Config& cfg, float cx, float cy) {
     TargetCandidate best{};
+    g_target_diag = {};
     const uint64_t now_ms = GetTickCount64();
     const float snapshot_age = rt.snapshot_timestamp_ms && now_ms > rt.snapshot_timestamp_ms
         ? std::clamp(static_cast<float>(now_ms - rt.snapshot_timestamp_ms) * .001f, 0.f, .050f)
@@ -210,39 +219,49 @@ TargetCandidate SelectTarget(const CS2::Runtime& rt, const CS2::Config& cfg, flo
 
     for (std::size_t i = 0; i < rt.players.size(); ++i) {
         const auto& player = rt.players[i];
-        if (player.is_local || !player.alive || player.health <= 0) continue;
-        if (cfg.aim_ignore_team && player.team == rt.local_team && rt.local_team >= 2) continue;
-        if (cfg.aim_ignore_bots && player.is_bot) continue;
-        if (cfg.aim_ignore_spectators && player.is_spectator) continue;
-        if (cfg.aim_visibility_check && !player.spotted) continue;
-        if (player.distance > cfg.aim_max_dist) continue;
+        if (player.is_local) continue;
+        ++g_target_diag.scanned;
+        if (!player.alive || player.health <= 0) { ++g_target_diag.dead; continue; }
+        if (cfg.aim_ignore_team && player.team == rt.local_team && rt.local_team >= 2) { ++g_target_diag.team; continue; }
+        if (cfg.aim_ignore_bots && player.is_bot) { ++g_target_diag.bots; continue; }
+        if (cfg.aim_ignore_spectators && player.is_spectator) { ++g_target_diag.spectators; continue; }
+        if (cfg.aim_visibility_check && !player.spotted) { ++g_target_diag.hidden; continue; }
+        if (player.distance > cfg.aim_max_dist) { ++g_target_diag.distance; continue; }
 
-        int bone = AutoSelectBone(player, player.weapon_def, player.distance, rt.view_matrix, cfg.aim_visibility_check, cfg.aim_auto_bone, cfg.aim_bone);
+        int bone = AutoSelectBone(player, player.weapon_def, player.distance, cfg.aim_auto_bone, cfg.aim_bone);
         
         float point[3]{};
         PickBone(player, bone, point);
 
         if (cfg.aim_prediction) {
-            float accel_x = player.velocity[0] - g_prev_velocities[player.pawn][0];
-            float accel_y = player.velocity[1] - g_prev_velocities[player.pawn][1];
-            float accel_z = player.velocity[2] - g_prev_velocities[player.pawn][2];
+            const auto previous = g_prev_velocities[player.pawn];
+            const uint64_t previous_ms = g_velocity_sample_ms[player.pawn];
+            const uint64_t sample_ms = rt.snapshot_timestamp_ms ? rt.snapshot_timestamp_ms : now_ms;
+            const float sample_dt = previous_ms && sample_ms > previous_ms
+                ? std::clamp(static_cast<float>(sample_ms - previous_ms) * .001f, .002f, .100f)
+                : .006f;
+            const float accel_x = (player.velocity[0] - previous[0]) / sample_dt;
+            const float accel_y = (player.velocity[1] - previous[1]) / sample_dt;
+            const float accel_z = (player.velocity[2] - previous[2]) / sample_dt;
+            const float lead = std::clamp((.004f + snapshot_age) * cfg.prediction_strength, 0.f, .040f);
+            const float accel_term = .5f * lead * lead;
 
-            float lead = std::clamp((.006f + snapshot_age) * cfg.prediction_strength, 0.f, .045f);
-            float accel_factor = std::clamp(cfg.prediction_strength * 0.5f, 0.f, 0.02f);
-
-            point[0] += player.velocity[0] * lead + accel_x * accel_factor;
-            point[1] += player.velocity[1] * lead + accel_y * accel_factor;
-            point[2] += player.velocity[2] * lead + accel_z * accel_factor;
+            point[0] += player.velocity[0] * lead + accel_x * accel_term;
+            point[1] += player.velocity[1] * lead + accel_y * accel_term;
+            point[2] += player.velocity[2] * lead + accel_z * accel_term;
         }
 
         g_prev_velocities[player.pawn] = { player.velocity[0], player.velocity[1], player.velocity[2] };
+        g_velocity_sample_ms[player.pawn] = rt.snapshot_timestamp_ms ? rt.snapshot_timestamp_ms : now_ms;
 
         float sx = 0.f, sy = 0.f;
-        if (!W2S(point, rt.view_matrix, sx, sy)) continue;
+        if (!W2S(point, rt.view_matrix, sx, sy)) { ++g_target_diag.projection; continue; }
         const float dx = sx - cx;
         const float dy = sy - cy;
         const float screen = std::sqrt(dx * dx + dy * dy);
-        if (screen > EffectiveFov(cfg, player.distance)) continue;
+        if (screen > EffectiveFov(cfg, player.distance)) { ++g_target_diag.fov; continue; }
+
+        ++g_target_diag.eligible;
 
         float score = screen;
         score += std::clamp(player.distance, 0.f, 300.f) * .018f;
@@ -275,13 +294,17 @@ OmniGhost::Gameplay::AimMotionSettings BuildMotionSettings(const CS2::Config& cf
     settings.deadzone = cfg.aim_deadzone;
     settings.humanize = cfg.aim_humanize;
     settings.permanent_humanize = cfg.aim_humanize;
-    settings.reaction_delay_ms_min = 30;
-    settings.reaction_delay_ms_max = 80;
-    settings.overshoot_px = .55f;
-    settings.micro_jitter_px = .06f;
+    settings.reaction_delay_ms_min = cfg.aim_reaction_min_ms;
+    settings.reaction_delay_ms_max = cfg.aim_reaction_max_ms;
+    settings.overshoot_px = cfg.aim_overshoot_px;
+    settings.micro_jitter_px = cfg.aim_micro_jitter_px;
     settings.minimum_error = .35f;
     settings.prediction = false;
     OmniGhost::Gameplay::ApplyStableDistanceProfile(settings, distance_m);
+    settings.minimum_interval_ms = std::clamp(cfg.aim_motion_interval_ms, 1, 20);
+    settings.max_step = std::clamp(cfg.aim_max_step, 0, 48);
+    settings.ema_alpha = std::clamp(cfg.aim_ema_alpha, .15f, .85f);
+    settings.reversal_damping = std::clamp(cfg.aim_reversal_damping, .05f, .75f);
     return settings;
 }
 
@@ -389,9 +412,9 @@ void LoadRecoilPatterns() {
     }, 0.75f);
 }
 
-void ApplyRCS(const CS2::Runtime& rt, const CS2::Config& cfg, int weapon_def) {
-    if (!cfg.aim_rcs_auto && !cfg.aim_rcs_standalone) return;
-    if (!rt.local_pawn) return;
+std::pair<float, float> CalculateRCS(const CS2::Runtime& rt, const CS2::Config& cfg, int weapon_def) {
+    if (!cfg.aim_rcs_auto && !cfg.aim_rcs_standalone) return {};
+    if (!rt.local_pawn) return {};
 
     int shots_fired = 0;
     if (CS2::offsets.m_iShotsFired) {
@@ -401,7 +424,7 @@ void ApplyRCS(const CS2::Runtime& rt, const CS2::Config& cfg, int weapon_def) {
     if (shots_fired <= 1) {
         g_shots_fired = 0;
         g_last_shots_fired = 0;
-        return;
+        return {};
     }
 
     if (shots_fired != g_last_shots_fired) {
@@ -409,15 +432,15 @@ void ApplyRCS(const CS2::Runtime& rt, const CS2::Config& cfg, int weapon_def) {
         g_last_shots_fired = shots_fired;
     }
 
-    if (g_shots_fired <= 0) return;
+    if (g_shots_fired <= 0) return {};
 
     LoadRecoilPatterns();
 
     auto it = g_recoil_patterns.find(weapon_def);
-    if (it == g_recoil_patterns.end()) return;
+    if (it == g_recoil_patterns.end()) return {};
 
     const WeaponRecoilPattern& pattern = it->second;
-    if (pattern.length == 0) return;
+    if (pattern.length == 0) return {};
 
     int idx = std::clamp(g_shots_fired - 1, 0, pattern.length - 1);
     float punch_x = 0.f, punch_y = 0.f;
@@ -432,9 +455,9 @@ void ApplyRCS(const CS2::Runtime& rt, const CS2::Config& cfg, int weapon_def) {
     float rcs_x = -punch_y * cfg.aim_rcs_x + pattern_x;
     float rcs_y = -punch_x * cfg.aim_rcs_y + pattern_y;
 
-    if (std::fabs(rcs_x) > 0.5f || std::fabs(rcs_y) > 0.5f) {
-        MoveMouse(static_cast<int>(rcs_x), static_cast<int>(rcs_y));
-    }
+    if (std::fabs(rcs_x) <= 0.08f && std::fabs(rcs_y) <= 0.08f)
+        return {};
+    return { rcs_x, rcs_y };
 }
 
 void HandlePanic(CS2::Config& cfg) {
@@ -470,6 +493,7 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
         g_target_pawn = 0;
         g_aim_motion.Reset();
         g_humanizer.Reset();
+        g_output_residual_x = g_output_residual_y = 0.f;
         g_shots_fired = 0;
         g_last_shots_fired = 0;
         std::snprintf(g_debug, sizeof(g_debug), "sem partida");
@@ -480,6 +504,7 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
         g_target_pawn = 0;
         g_aim_motion.Reset();
         g_humanizer.Reset();
+        g_output_residual_x = g_output_residual_y = 0.f;
         std::snprintf(g_debug, sizeof(g_debug), "aim/trig OFF");
         return;
     }
@@ -492,10 +517,6 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
         }
     }
 
-    if (cfg.aim_rcs_standalone || (cfg.aim_enabled && cfg.aim_rcs_auto)) {
-        ApplyRCS(rt, cfg, local_weapon_definition);
-    }
-
     // A zero definition means the weapon-chain read was unavailable for this
     // snapshot.  Do not turn that transient read failure into a permanent aim
     // block; known utility definitions remain strictly blocked.
@@ -505,6 +526,7 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
         g_target_pawn = 0;
         g_aim_motion.Reset();
         g_humanizer.Reset();
+        g_output_residual_x = g_output_residual_y = 0.f;
         std::snprintf(g_debug, sizeof(g_debug), "aim bloqueado: utilitario (%d)", local_weapon_definition);
         return;
     }
@@ -519,6 +541,8 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
     const float cy = ds.y * 0.5f;
     const bool aim_key_down = cfg.aim_enabled && AimKeyDown(cfg);
     TargetCandidate target{};
+    float aim_output_x = 0.f;
+    float aim_output_y = 0.f;
     if (aim_key_down) target = SelectTarget(rt, cfg, cx, cy);
 
     if (!aim_key_down) {
@@ -527,13 +551,17 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
         g_target_pawn = 0;
         g_aim_motion.Reset();
         g_humanizer.Reset();
+        g_output_residual_x = g_output_residual_y = 0.f;
         std::snprintf(g_debug, sizeof(g_debug), "aim: aguarda tecla");
     } else if (target.index >= 0) {
         const auto now = std::chrono::steady_clock::now();
         if (g_target_pawn && target.pawn != g_target_pawn) {
             const auto held_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                 now - g_target_acquired).count();
-            const float lock_ms = (std::max)(cfg.sticky_ms, cfg.aim_switch_cooldown_ms);
+            // A small hysteresis margin extends the incumbent target hold;
+            // it prevents close scores from producing rapid target swaps.
+            const float lock_ms = (std::max)(cfg.sticky_ms, cfg.aim_switch_cooldown_ms) +
+                std::clamp(cfg.aim_switch_margin, 0.f, .50f) * 200.f;
             if (held_ms < static_cast<long long>(lock_ms)) {
                 for (std::size_t i = 0; i < rt.players.size(); ++i) {
                     if (rt.players[i].pawn != g_target_pawn) continue;
@@ -545,7 +573,7 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
                         (cfg.aim_visibility_check && !held.spotted) || held.distance > cfg.aim_max_dist)
                         break;
                     float point[3]{};
-                    int bone = AutoSelectBone(held, held.weapon_def, held.distance, rt.view_matrix, cfg.aim_visibility_check, cfg.aim_auto_bone, cfg.aim_bone);
+                    int bone = AutoSelectBone(held, held.weapon_def, held.distance, cfg.aim_auto_bone, cfg.aim_bone);
                     PickBone(held, bone, point);
                     float sx = 0.f, sy = 0.f;
                     if (held.alive && held.health > 0 && W2S(point, rt.view_matrix, sx, sy)) {
@@ -573,20 +601,43 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
         const auto settings = BuildMotionSettings(cfg, target.distance_m);
         const auto motion = g_aim_motion.Step(target.error_x, target.error_y, settings);
         if (motion) {
-            ImVec2 raw{static_cast<float>(motion.x), static_cast<float>(motion.y)};
-            const auto humanized = g_humanizer.Humanize(raw, target.distance_m, ImGui::GetIO().DeltaTime);
-            MoveMouse(static_cast<int>(humanized.x), static_cast<int>(humanized.y));
+            // ContinuousAimController already owns reaction, easing, EMA,
+            // overshoot and micro-jitter. A second independent humanizer here
+            // used to distort and truncate that controlled output.
+            aim_output_x = static_cast<float>(motion.x);
+            aim_output_y = static_cast<float>(motion.y);
             std::snprintf(g_debug, sizeof(g_debug),
                 "lock %+d,%+d err=%.1f idx=%d bone=%d dist=%.0fm",
-                static_cast<int>(humanized.x), static_cast<int>(humanized.y),
+                motion.x, motion.y,
                 motion.error, target.index, target.bone, target.distance_m);
         } else {
             std::snprintf(g_debug, sizeof(g_debug), "aim: on target (deadzone)");
         }
     } else {
         g_active_target_idx = -1;
-        std::snprintf(g_debug, sizeof(g_debug), "aim: no target");
+        if (g_target_diag.hidden)
+            std::snprintf(g_debug, sizeof(g_debug), "sem alvo: invisivel=%d fov=%d", g_target_diag.hidden, g_target_diag.fov);
+        else if (g_target_diag.fov)
+            std::snprintf(g_debug, sizeof(g_debug), "sem alvo: fora FOV=%d", g_target_diag.fov);
+        else if (g_target_diag.distance)
+            std::snprintf(g_debug, sizeof(g_debug), "sem alvo: distancia=%d", g_target_diag.distance);
+        else if (g_target_diag.team)
+            std::snprintf(g_debug, sizeof(g_debug), "sem alvo: equipa=%d", g_target_diag.team);
+        else if (g_target_diag.scanned == 0)
+            std::snprintf(g_debug, sizeof(g_debug), "sem alvo: sem jogadores validos");
+        else
+            std::snprintf(g_debug, sizeof(g_debug), "sem alvo: projecao=%d", g_target_diag.projection);
     }
+
+    // Aim and recoil now share one dispatch per frame. Previously each sent a
+    // separate packet and the second correction could fight the first.
+    if (cfg.aim_rcs_standalone || (cfg.aim_enabled && cfg.aim_rcs_auto && aim_key_down)) {
+        const auto [rcs_x, rcs_y] = CalculateRCS(rt, cfg, local_weapon_definition);
+        aim_output_x += rcs_x;
+        aim_output_y += rcs_y;
+    }
+    if (std::fabs(aim_output_x) > 0.001f || std::fabs(aim_output_y) > 0.001f)
+        MoveMouse(aim_output_x, aim_output_y);
 
     bool local_scoped = false;
     if (cfg.trigger_scoped_only || cfg.scope_check) {

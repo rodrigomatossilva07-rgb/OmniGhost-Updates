@@ -55,11 +55,18 @@ std::string FindFiveMProcessViaDma() {
 }
 
 bool IsProcessPresent(::Launcher::GameId selected) {
-    if (!mem.GetDiagnosticsSnapshot().deviceOpen) return false;
+    // This is a preflight only: open the DMA device without binding it to a
+    // game process, then look for the selected executable.  It prevents a
+    // wrong menu from changing the global DMA process context.
+    if (!mem.GetDiagnosticsSnapshot().deviceOpen &&
+        !mem.Init(std::string(), true, false))
+        return false;
     switch (selected) {
     case ::Launcher::GameId::CS2:
         return mem.GetPidFromName("cs2.exe") != 0 || mem.GetPidFromName("CS2.exe") != 0;
-    case ::Launcher::GameId::Warzone: return mem.GetPidFromName("cod.exe") != 0;
+    case ::Launcher::GameId::Warzone:
+        return mem.GetPidFromName("cod.exe") != 0 ||
+               mem.GetPidFromName("ModernWarfare.exe") != 0;
     case ::Launcher::GameId::Valorant:
         return mem.GetPidFromName("VALORANT-Win64-Shipping.exe") != 0 ||
                mem.GetPidFromName("VALORANT.exe") != 0;
@@ -68,6 +75,9 @@ bool IsProcessPresent(::Launcher::GameId selected) {
                mem.GetPidFromName("FortniteClient-Win64-Shipping_EAC_EOS.exe") != 0 ||
                mem.GetPidFromName("Fortnite.exe") != 0;
     case ::Launcher::GameId::FiveM: return !FindFiveMProcessViaDma().empty();
+    case ::Launcher::GameId::Rust:
+        return mem.GetPidFromName("RustClient.exe") != 0 ||
+               mem.GetPidFromName("Rust.exe") != 0;
     default: return false;
     }
 }

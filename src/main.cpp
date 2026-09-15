@@ -618,7 +618,6 @@ while (application.shouldRun && !authenticated) {
     // into the misleading "game not found" diagnosis.
     const bool game_present_before_attach =
         OmniGhost::GameLaunch::IsProcessPresent(selected);
-    (void)game_present_before_attach;
 
     // Initialize the game using the adapter
     OmniGhost::SessionLog::Write(
@@ -627,8 +626,13 @@ while (application.shouldRun && !authenticated) {
         "StartGameAdapter begin",
         {{"game", selectedDefinition ? selectedDefinition->id : "unknown"}});
 
-    OmniGhost::Launcher::AdapterStartResult startResult =
-        OmniGhost::Launcher::StartGameAdapter(selected);
+    OmniGhost::Launcher::AdapterStartResult startResult;
+    if (!game_present_before_attach) {
+        startResult = { false, { OmniGhost::Launcher::AdapterErrorCode::AttachFailed,
+            "Jogo não encontrado. Está aberto?" } };
+    } else {
+        startResult = OmniGhost::Launcher::StartGameAdapter(selected);
+    }
     if (!startResult.succeeded) {
         // Use centralized adapter error model for consistent messaging
         const std::string_view errorMessage =
@@ -669,8 +673,10 @@ while (application.shouldRun && !authenticated) {
         }
         
         // Map adapter error to session result for telemetry
-        Launcher::SessionResult sessionResult = Launcher::SessionResult::LaunchFailed;
-        switch (startResult.error.code) {
+        Launcher::SessionResult sessionResult = game_present_before_attach
+            ? Launcher::SessionResult::LaunchFailed
+            : Launcher::SessionResult::GameNotFound;
+        if (game_present_before_attach) switch (startResult.error.code) {
             case OmniGhost::Launcher::AdapterErrorCode::UnsupportedGame:
                 sessionResult = Launcher::SessionResult::LaunchFailed;
                 break;

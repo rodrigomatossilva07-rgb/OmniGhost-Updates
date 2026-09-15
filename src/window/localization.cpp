@@ -71,6 +71,7 @@ namespace {
         {"launcher.status.beta", {"Beta", "Beta", "Beta", "Beta", "Beta", "Beta"}},
         {"launcher.status.development", {"Desenvolvimento", "Development", "Development", "Desarrollo", "D®veloppement", "Sviluppo"}},
         {"launcher.status.coming_soon", {"Em Breve", "Coming soon", "Coming soon", "Coming soon", "Coming soon", "Coming soon"}},
+        {"launcher.toast.close_other_game", {"Fecha %s antes de abrir %s.", "Close %s before opening %s.", "Schließe %s, bevor du %s öffnest.", "Cierra %s antes de abrir %s.", "Ferme %s avant d'ouvrir %s.", "Chiudi %s prima di aprire %s."}},
         {"launcher.status.launch_failed", {"Falhou ao iniciar", "Launch failed", "Launch failed", "Launch failed", "Launch failed", "Launch failed"}},
         {"launcher.action.how_fix", {"Como corrigir", "How to fix", "How to fix", "How to fix", "How to fix", "How to fix"}},
         {"launcher.action.diagnostics", {"Diagnóstico", "Diagnostics", "Diagnostics", "Diagnostics", "Diagnostics", "Diagnostics"}},

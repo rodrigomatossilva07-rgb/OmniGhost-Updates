@@ -556,6 +556,8 @@ void ActivateGame(GameRuntime& runtime) {
             g_help_game = game.launch_id;
             return;
         }
+        if (!CanStartGame(game.launch_id))
+            return;
         // Dependency / FPGA checks run during the real game launch, not here.
         MarkGameUsed(game.launch_id);
         RecordGameSession(game.launch_id, SessionResult::None, {});

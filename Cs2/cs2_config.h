@@ -118,11 +118,20 @@ struct Config {
     float prediction_strength = 0.35f;
     bool hit_chance_ui = false;
     float aim_switch_cooldown_ms = 90.f;
+    float aim_switch_margin = 0.16f;   // retain a valid target unless a new one is clearly better
+    int aim_reaction_min_ms = 30;
+    int aim_reaction_max_ms = 80;
+    float aim_overshoot_px = 0.55f;
+    float aim_micro_jitter_px = 0.06f;
+    int aim_motion_interval_ms = 6;
+    int aim_max_step = 0;              // 0 = adaptive distance profile
+    float aim_ema_alpha = 0.40f;
+    float aim_reversal_damping = 0.16f;
     bool aim_ignore_team = true;
     bool aim_ignore_spectators = false;
     bool aim_ignore_bots = true;
-    bool aim_auto_bone = true;          // auto-select bone based on visibility/distance/weapon
-    bool aim_visibility_check = true;   // prefer visible bones (uses spotted + LOS)
+    bool aim_auto_bone = true;          // auto-select bone based on distance/weapon
+    bool aim_visibility_check = true;   // uses game spotted-state; this is not a geometry trace
     bool aim_rcs_standalone = false;    // RCS without aimbot
     bool aim_rcs_auto = true;           // auto-detect weapon & apply inverse pattern
     float aim_rcs_x = 1.f;              // horizontal strength multiplier

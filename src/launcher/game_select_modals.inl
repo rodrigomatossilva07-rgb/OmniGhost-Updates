@@ -86,6 +86,10 @@ void DrawLauncherModals(ImDrawList* draw, ImVec2 display) {
             // Explicit retry is allowed to leave the launcher so main can make
             // one fresh device-open attempt. The game menu still opens only if
             // that DMA attempt succeeds.
+            if (!CanStartGame(id)) {
+                CyberWidgets::EndModal();
+                return;
+            }
             MarkGameUsed(id);
             RecordGameSession(id, SessionResult::None, {});
             runtime->state = CardState::Launching;
