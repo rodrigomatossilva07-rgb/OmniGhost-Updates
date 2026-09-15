@@ -223,6 +223,7 @@ void DrawCs2Visuals() {
         ImGuiWindowFlags_AlwaysVerticalScrollbar);
     CyberWidgets::BeginCard("FUNÇÕES ESP");
     CyberWidgets::ToggleSwitch("Ativar ESP", &CS2::config.esp_enabled);
+    CyberWidgets::ToggleSwitch("Modo RGB", &CS2::config.rgb_mode);
     CyberWidgets::Separator();
     CyberWidgets::ToggleSwitch("ESP do próprio jogador", &CS2::config.self_esp);
     CyberWidgets::ToggleSwitch("Mostrar bots", &CS2::config.show_bots);

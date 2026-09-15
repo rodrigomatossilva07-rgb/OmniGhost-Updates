@@ -819,6 +819,68 @@ static bool EspPedVisible(uintptr_t ped) {
     return FiveM::Visibility::IsPedVisible(ped);
 }
 
+// Health dead probe used by all ESP paths (skeleton / hat / box).
+static bool EspPedIsDead(uintptr_t ped, float* outHealth = nullptr) {
+    using namespace FiveM::offset;
+    float health = 0.f;
+    float maxH = 0.f;
+    const PreparedEspData* prepared = FindPreparedEsp(ped);
+    if (prepared) {
+        health = prepared->health;
+        maxH = prepared->max_health;
+    } else {
+        health = mem.Read<float>(ped + playerHealth);
+        if (health <= 0.f) health = mem.Read<float>(ped + 0x280);
+        maxH = mem.Read<float>(ped + 0x284);
+    }
+    if (outHealth) *outHealth = health;
+    const bool healthLooksValid = (maxH > 50.f && maxH < 1000.f) || (health > 0.f && health < 1000.f);
+    if (!healthLooksValid) return false;
+    return health <= 0.f;
+}
+
+// Admin / staff heuristic: godmode, freefly (on foot, not vehicle), or vanished ped.
+static bool EspPedIsAdmSuspect(uintptr_t ped) {
+    using namespace FiveM::offset;
+    if (!ped) return false;
+
+    // Godmode bit (CPed +0x189 — community offset used across builds)
+    const uint8_t god = mem.Read<uint8_t>(ped + 0x189);
+    const bool isGod = (god == 1) || ((god & 0x01) != 0);
+
+    // Vehicle occupancy — freefly must NOT count plane/car occupants.
+    uintptr_t veh = 0;
+    mem.Read(ped + pedVehicle, &veh, sizeof(veh));
+    const bool inVehicle = veh > 0x10000ULL;
+
+    // Freefly: on foot + strong vertical / rapid 3D motion
+    bool isFly = false;
+    if (!inVehicle) {
+        Vec3 vel{};
+        if (!mem.Read(ped + 0x320, &vel, sizeof(vel)))
+            mem.Read(ped + 0x2F0, &vel, sizeof(vel));
+        const float vz = std::fabs(vel.z);
+        const float h2 = vel.x * vel.x + vel.y * vel.y;
+        if (vz > 2.5f) isFly = true;
+        else if (vz > 1.5f && h2 > 25.f) isFly = true;
+    }
+
+    // Invisible: engine visibility says hidden while the ped is still simulated.
+    // Avoid treating normal occluded players as ADM (requires god or fly too),
+    // unless the raw visible-flag matches known "vanish" values with freefly.
+    bool isInvis = false;
+    if (!inVehicle) {
+        const uintptr_t visOff = pedVisibilityOffset ? pedVisibilityOffset : 0x147C;
+        const uint8_t vis = mem.Read<uint8_t>(ped + visOff);
+        if (vis == 36 || vis == 4)
+            isInvis = true;
+        else if (!FiveM::Visibility::IsPedVisible(ped) && (isGod || isFly))
+            isInvis = true;
+    }
+
+    return isGod || isFly || isInvis;
+}
+
 static bool EspPedIsFriend(uintptr_t ped, bool allowDirectRead) {
     const PreparedEspData* prepared = FindPreparedEsp(ped);
     if (prepared)
@@ -827,9 +889,18 @@ static bool EspPedIsFriend(uintptr_t ped, bool allowDirectRead) {
 }
 
 static ImU32 EspPedColor(uintptr_t ped, ImU32 configured, bool visible) {
+    // ADM suspects always render in animated RGB (not user-configurable).
+    if (esp::config.show_adm && EspPedIsAdmSuspect(ped))
+        return EspRGB();
     if (esp::config.rgb_mode)
         return EspRGB();
-    if (esp::config.visibility_colors)
+    // Dead players: always red when shown
+    if (EspPedIsDead(ped))
+        return esp::config.color_dead ? esp::config.color_dead : IM_COL32(255, 50, 50, 255);
+    // Only tint by LoS when the user explicitly enabled visibility colouring.
+    // If visible_check is off, IsPedVisible is forced true and would paint
+    // every ped with color_visible (default green) — ignore that path.
+    if (esp::config.visibility_colors && esp::config.visible_check)
         return visible ? esp::config.color_visible : esp::config.color_invisible;
     // Colour rendering can call this several times for the same entity. Never
     // perform a fresh DMA read here; reuse the player-info batch for the frame.
@@ -865,6 +936,8 @@ static ImU32 MultiplyAlpha(ImU32 color, float factor) {
 
 static void DrawMotionVisuals(uintptr_t ped, Matrix viewport, const PedData* cached) {
     const auto& cfg = esp::config;
+    if (EspPedIsDead(ped) && !cfg.show_dead)
+        return;
     if (!cfg.trails && !cfg.head_halo && !cfg.look_direction && !cfg.chinese_hat &&
         !cfg.angel_wings && !cfg.devil_horns && !cfg.floating_crown)
         return;
@@ -1304,6 +1377,8 @@ void esp::prepare_esp_frame(const std::vector<uintptr_t>& peds,
 }
 
 static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer, const PedData* cached) {
+    if (EspPedIsDead(ped) && !esp::config.show_dead) return;
+
     if (!AnyEspExtrasEnabled()) return;
     using namespace FiveM;
     ImDrawList* dl = ImGui::GetForegroundDrawList();
@@ -1756,14 +1831,30 @@ static bool IsLocalPlayerPed(uintptr_t ped, uintptr_t localplayer) {
 
 // Main rendering dispatcher
 void esp::render_esp_for_ped(uintptr_t ped, Matrix viewport, uintptr_t localplayer) {
-    if (!config.enabled) return;
+    if (!config.enabled && !config.show_adm) return;
     if (!config.self_esp && IsLocalPlayerPed(ped, localplayer)) return;
     // Team check = hide friends from ESP when enabled
     if (config.team_check && EspPedIsFriend(ped, true))
         return;
-    // Visibility: when ON, skip entities that are not visible
-    if (config.visible_check && !EspPedVisible(ped))
+    // Dead: never draw skeleton/hat/etc unless "Mostrar mortos"
+    if (EspPedIsDead(ped) && !config.show_dead)
         return;
+    // Visibility: when ON, skip entities that are not visible (ADM freefly still shown via show_adm path below)
+    if (config.visible_check && !EspPedVisible(ped) && !(config.show_adm && EspPedIsAdmSuspect(ped)))
+        return;
+
+    // ADM-only highlight layer (forced RGB via EspPedColor)
+    if (config.show_adm && EspPedIsAdmSuspect(ped)) {
+        if (config.skeleton || true)
+            draw_skeleton(ped, viewport, localplayer);
+        if (config.head_circle)
+            draw_head_circle(ped, viewport, localplayer);
+        DrawEspExtras(ped, viewport, localplayer, nullptr);
+        // continue with normal ESP if master enabled
+        if (!config.enabled) return;
+    }
+
+    if (!config.enabled) return;
 
     if (config.head_circle)
         draw_head_circle(ped, viewport, localplayer);
@@ -1777,12 +1868,24 @@ void esp::render_esp_for_ped(uintptr_t ped, Matrix viewport, uintptr_t localplay
 }
 
 void esp::render_esp_for_ped_cached(uintptr_t ped, Matrix viewport, uintptr_t localplayer, const PedData& cached_ped_data) {
-    if (!config.enabled) return;
+    if (!config.enabled && !config.show_adm) return;
     if (!config.self_esp && IsLocalPlayerPed(ped, localplayer)) return;
     if (config.team_check && EspPedIsFriend(ped, true))
         return;
-    if (config.visible_check && !EspPedVisible(ped))
+    if (EspPedIsDead(ped) && !config.show_dead)
         return;
+    if (config.visible_check && !EspPedVisible(ped) && !(config.show_adm && EspPedIsAdmSuspect(ped)))
+        return;
+
+    if (config.show_adm && EspPedIsAdmSuspect(ped)) {
+        draw_skeleton(ped, viewport, localplayer);
+        if (config.head_circle)
+            draw_head_circle_cached(ped, viewport, localplayer, cached_ped_data);
+        DrawEspExtras(ped, viewport, localplayer, &cached_ped_data);
+        if (!config.enabled) return;
+    }
+
+    if (!config.enabled) return;
 
     if (config.head_circle)
         draw_head_circle_cached(ped, viewport, localplayer, cached_ped_data);
@@ -1898,6 +2001,7 @@ void esp::draw_skeleton_cached(uintptr_t ped, Matrix viewport, uintptr_t localpl
 }
 
 void esp::draw_skeleton(uintptr_t ped, Matrix viewport, uintptr_t localplayer) {
+    if (EspPedIsDead(ped) && !esp::config.show_dead) return;
     ImDrawList* draw_list = ImGui::GetForegroundDrawList();
     if (!draw_list) return;
 

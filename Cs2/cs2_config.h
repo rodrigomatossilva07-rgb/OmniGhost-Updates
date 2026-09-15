@@ -21,6 +21,7 @@ struct Config {
     bool show_bots = true;
     bool head_dot = false;
     bool trails = false;
+    bool rgb_mode = false;
     bool head_halo = false;
     bool look_direction = false; // Eye Line
     bool chinese_hat = false;

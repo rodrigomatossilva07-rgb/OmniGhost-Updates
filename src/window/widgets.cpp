@@ -1561,30 +1561,29 @@ namespace CyberWidgets {
         if (ImGui::BeginPopup("##color_picker_popup",
             ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar)) {
             ImGui::TextColored(CyberTheme::Colors.Text, "%s", DisplayLabel(label));
-            ImGui::TextColored(CyberTheme::Colors.TextDisabled,
-                "HUE  /  SATURATION  /  RGB  /  ALPHA");
-            ImGui::Dummy(ImVec2(0.0f, 3.0f));
+            ImGui::Dummy(ImVec2(0.0f, 4.0f));
 
-            const ImVec2 preview_a = ImGui::GetCursorScreenPos();
-            const ImVec2 preview_b(preview_a.x + 64.0f, preview_a.y + 44.0f);
-            DrawCheckers(ImGui::GetWindowDrawList(), preview_a, preview_b, 7.0f);
-            ImGui::GetWindowDrawList()->AddRectFilled(preview_a, preview_b,
-                ImGui::ColorConvertFloat4ToU32(value), 7.0f);
-            ImGui::GetWindowDrawList()->AddRect(preview_a, preview_b,
-                IM_COL32(255, 255, 255, 28), 7.0f);
-            ImGui::GetWindowDrawList()->AddText(
-                ImVec2(preview_b.x + 12.0f, preview_a.y + 4.0f),
-                ImGui::ColorConvertFloat4ToU32(CyberTheme::Colors.Gold), hex);
-            char rgba[64];
-            snprintf(rgba, sizeof(rgba), "R %d   G %d   B %d   A %d",
+            // Preview row: swatch + hex (layout via ImGui, no overlapping DrawList text)
+            ImGui::BeginGroup();
+            {
+                const ImVec2 preview_a = ImGui::GetCursorScreenPos();
+                const ImVec2 preview_b(preview_a.x + 48.0f, preview_a.y + 32.0f);
+                DrawCheckers(ImGui::GetWindowDrawList(), preview_a, preview_b, 6.0f);
+                ImGui::GetWindowDrawList()->AddRectFilled(preview_a, preview_b,
+                    ImGui::ColorConvertFloat4ToU32(value), 6.0f);
+                ImGui::GetWindowDrawList()->AddRect(preview_a, preview_b,
+                    IM_COL32(255, 255, 255, 28), 6.0f);
+                ImGui::Dummy(ImVec2(48.0f, 32.0f));
+            }
+            ImGui::EndGroup();
+            ImGui::SameLine();
+            ImGui::BeginGroup();
+            ImGui::TextColored(CyberTheme::Colors.Gold, "%s", hex);
+            ImGui::TextColored(CyberTheme::Colors.TextDisabled, "R %d  G %d  B %d  A %d",
                 red, green, blue, alpha);
-            ImGui::GetWindowDrawList()->AddText(
-                ImVec2(preview_b.x + 12.0f, preview_a.y + 23.0f),
-                ImGui::ColorConvertFloat4ToU32(CyberTheme::Colors.TextDisabled), rgba);
-            ImGui::Dummy(ImVec2(0.0f, 50.0f));
+            ImGui::EndGroup();
 
-            ImGui::TextColored(CyberTheme::Colors.TextDisabled,
-                "SATURATION / VALUE");
+            ImGui::Dummy(ImVec2(0.0f, 6.0f));
             ImGui::SetNextItemWidth(306.0f);
             const ImGuiColorEditFlags flags =
                 ImGuiColorEditFlags_NoLabel |
@@ -1595,26 +1594,26 @@ namespace CyberWidgets {
                 ImGuiColorEditFlags_DisplayRGB |
                 ImGuiColorEditFlags_PickerHueBar |
                 ImGuiColorEditFlags_InputRGB;
-            if (ImGui::ColorPicker4("##photoshop_picker", &value.x, flags))
+            if (ImGui::ColorPicker4("##photoshop_picker", &value.x, flags)) {
                 *color = ImGui::ColorConvertFloat4ToU32(value);
+                // refresh channel ints after picker drag
+            }
 
-            ImGui::Dummy(ImVec2(0.0f, 6.0f));
-            ImGui::TextColored(CyberTheme::Colors.TextDisabled, "RGB manual");
+            // Recompute channels after possible picker edit
+            value = ImGui::ColorConvertU32ToFloat4(*color);
             int rgb[4] = {
                 static_cast<int>(value.x * 255.0f + 0.5f),
                 static_cast<int>(value.y * 255.0f + 0.5f),
                 static_cast<int>(value.z * 255.0f + 0.5f),
                 static_cast<int>(value.w * 255.0f + 0.5f)
             };
-            ImGui::SetNextItemWidth(306.0f);
-            if (ImGui::SliderInt4("##rgb_sliders", rgb, 0, 255)) {
-                value.x = rgb[0] / 255.0f;
-                value.y = rgb[1] / 255.0f;
-                value.z = rgb[2] / 255.0f;
-                value.w = rgb[3] / 255.0f;
-                *color = ImGui::ColorConvertFloat4ToU32(value);
-            }
-            if (ImGui::Button("Aplicar RGB", ImVec2(140.0f, 0.0f))) {
+
+            ImGui::Dummy(ImVec2(0.0f, 4.0f));
+            ImGui::SetNextItemWidth(220.0f);
+            bool rgb_changed = ImGui::SliderInt4("##rgb_sliders", rgb, 0, 255);
+            ImGui::SameLine();
+            const bool apply_rgb = ImGui::Button("Aplicar RGB");
+            if (rgb_changed || apply_rgb) {
                 value.x = rgb[0] / 255.0f;
                 value.y = rgb[1] / 255.0f;
                 value.z = rgb[2] / 255.0f;

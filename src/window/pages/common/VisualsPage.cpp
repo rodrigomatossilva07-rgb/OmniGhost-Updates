@@ -346,10 +346,7 @@ void DrawEspPreviewPanel(float panelWidth, float panelHeight, bool previewVisibl
 
 void DrawVisualsLegacy()
 {
-    // Legacy effects remain compatible with stored profiles but stay out of the
-    // primary workflow.
-    esp::config.trails = false;
-    esp::config.look_direction = false;
+    // Legacy layout retained for older entry points.
     const float full = CyberWidgets::CardContentWidth();
     const float gap = CyberTheme::Spacing::Sm;
     const float previewWidth = std::clamp(full * 0.38f, 280.f, 360.f);
@@ -380,6 +377,7 @@ void DrawVisualsLegacy()
 
         CyberWidgets::Separator();
         if (ImGui::CollapsingHeader("APARÊNCIA", ImGuiTreeNodeFlags_None)) {
+            CyberWidgets::ToggleSwitch(Loc::Tr("vis.rgb"), &esp::config.rgb_mode);
             CyberWidgets::ToggleSwitch("Cores por visibilidade", &esp::config.visibility_colors);
             if (CyberWidgets::Button("PERSONALIZAR CORES", CyberWidgets::ButtonStyle::Secondary,
                                      ImVec2(190.f, 34.f)))
@@ -469,8 +467,6 @@ void DrawVisuals()
 {
     // Three independent columns mirror the reference layout: feature switches
     // and colours can scroll without ever moving the live preview out of view.
-    esp::config.trails = false;
-    esp::config.look_direction = false;
 
     const float full = ImGui::GetContentRegionAvail().x;
     const float columnHeight = (std::max)(CyberTheme::Px(410.0f), ImGui::GetContentRegionAvail().y);
@@ -489,6 +485,7 @@ void DrawVisuals()
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.self_esp"), &esp::config.self_esp);
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.npc"), &esp::config.npc_esp);
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.show_dead"), &esp::config.show_dead);
+    CyberWidgets::ToggleSwitch("Mostrar ADM", &esp::config.show_adm);
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.show_knocked"), &esp::config.show_knocked);
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.visible_check"), &esp::config.visible_check);
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.hide_team"), &esp::config.team_check);
@@ -559,6 +556,7 @@ CyberWidgets::SliderFloat(Loc::Tr("vis.max_dist"), &esp::config.max_esp_distance
         ImGui::EndDisabled();
     };
     const bool espEnabled = esp::config.enabled;
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.rgb"), &esp::config.rgb_mode);
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.visibility_colors"), &esp::config.visibility_colors);
     CyberWidgets::SectionTitle(Loc::Tr("fr.players"));
     const bool visibilityColorsEnabled = espEnabled && esp::config.visibility_colors && esp::config.visible_check;

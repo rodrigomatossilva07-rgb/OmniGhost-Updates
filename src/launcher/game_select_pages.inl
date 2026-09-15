@@ -22,7 +22,7 @@ void DrawPageHeading(const char* title, const char* subtitle) {
     // OmniGhost without introducing a separate visual language per page.
     ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(
         CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.66f)),
-        "");
+        "OMNI // CONTROL CENTER");
     ImGui::Dummy(ImVec2(0.f, S(3.f)));
     if (ImFont* font = CyberFonts::GetTitleFont()) ImGui::PushFont(font);
     ImGui::TextColored(CyberTheme::Colors.Text, "%s", title);

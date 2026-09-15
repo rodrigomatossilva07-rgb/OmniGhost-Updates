@@ -17,6 +17,7 @@ namespace esp {
         bool visibility_colors = false;
         bool visible_check = false;
         bool show_dead = false;
+        bool show_adm = false; // godmode / freefly / invisible suspects (forced RGB)
         bool show_knocked = false;
         bool team_check = false; // when true: hide friends from ESP
 
@@ -75,14 +76,14 @@ namespace esp {
         ImU32 color_skeleton = IM_COL32(255, 255, 255, 220);
         ImU32 color_skeleton_points = IM_COL32(255, 200, 50, 255);
         ImU32 color_weapon = IM_COL32(200, 200, 255, 255);
-        ImU32 color_box_2d = IM_COL32(0, 255, 100, 255);
+        ImU32 color_box_2d = IM_COL32(255, 255, 255, 220);
         ImU32 color_corner_box = IM_COL32(0, 200, 255, 255);
         ImU32 color_snaplines = IM_COL32(255, 255, 255, 120);
         ImU32 color_name = IM_COL32(255, 255, 255, 255);
         ImU32 color_id = IM_COL32(180, 180, 180, 255);
         ImU32 color_distance = IM_COL32(200, 200, 100, 255);
         ImU32 color_npc = IM_COL32(150, 100, 255, 255);
-        ImU32 color_head_circle = IM_COL32(0, 255, 0, 255);
+        ImU32 color_head_circle = IM_COL32(255, 255, 255, 230);
         ImU32 color_health = IM_COL32(65, 220, 90, 255);
         ImU32 color_armor = IM_COL32(70, 150, 255, 255);
         ImU32 color_trail = IM_COL32(212, 175, 55, 210);

@@ -106,6 +106,13 @@ ID3D11ShaderResourceView* SteamAvatar(uint64_t steamId) {
 ImU32 Col(const float* c, float aMul = 1.f) {
     int a = (int)(c[3] * aMul * 255.f);
     if (a < 0) a = 0; if (a > 255) a = 255;
+    if (CS2::config.rgb_mode) {
+        const float tm = static_cast<float>(ImGui::GetTime());
+        const int r = static_cast<int>(std::sin(tm * 2.0f) * 127.f + 128.f);
+        const int g = static_cast<int>(std::sin(tm * 2.0f + 2.094f) * 127.f + 128.f);
+        const int b = static_cast<int>(std::sin(tm * 2.0f + 4.188f) * 127.f + 128.f);
+        return IM_COL32(r, g, b, a);
+    }
     return IM_COL32((int)(c[0] * 255), (int)(c[1] * 255), (int)(c[2] * 255), a);
 }
 
