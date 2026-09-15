@@ -70,6 +70,20 @@ bool Offsets::Validate(std::string* reason) const noexcept {
 namespace {
 
 OmniGhost::Gameplay::SnapshotExchange<Runtime> g_runtime_snapshots;
+
+// Multi-rate acquisition profile (render still every overlay frame)
+namespace {
+constexpr int CAMERA_INTERVAL_MS = 3;
+constexpr int MOTION_INTERVAL_MS = 8;
+constexpr int BONES_INTERVAL_MS = 10;
+constexpr int FULL_SCAN_INTERVAL_MS = 16;   // health / spotted / core identity
+constexpr int ARMOR_INTERVAL_MS = 50;
+constexpr int WEAPON_INTERVAL_MS = 100;
+constexpr int ENTITY_LIST_INTERVAL_MS = 150;
+constexpr int NAME_INTERVAL_MS = 1000;
+constexpr int TEAM_INTERVAL_MS = 500;
+}
+
 OmniGhost::Gameplay::SnapshotExchange<CameraSnapshot> g_camera_snapshots;
 OmniGhost::Gameplay::SnapshotExchange<MotionSnapshot> g_motion_snapshots;
 OmniGhost::Gameplay::SnapshotExchange<Config> g_config_snapshots;
@@ -1752,7 +1766,13 @@ static void RunFrameWithConfig(const Config& frame_config) {
     runtime.pawn_count = 0;
     if (!runtime.players.empty())
         runtime.players.clear();
-    g_cached_entity_root = 0; // force refresh once per scanning frame
+    {
+        static uint64_t s_lastEntityListMs = 0;
+        const uint64_t nowEl = GetTickCount64();
+        if (!s_lastEntityListMs || nowEl - s_lastEntityListMs >= static_cast<uint64_t>(ENTITY_LIST_INTERVAL_MS))
+            g_cached_entity_root = 0; // rediscover entity list at medium rate
+        s_lastEntityListMs = (!g_cached_entity_root) ? nowEl : s_lastEntityListMs;
+    }
 
     // Map detection — faster while in lobby so lobby→match recovers quickly.
     static char previous_map[64]{};
@@ -1887,7 +1907,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
         {
             static ULONGLONG s_lastTeamMs = 0;
             const ULONGLONG nowT = GetTickCount64();
-            if (runtime.local_team < 2 || !s_lastTeamMs || (nowT - s_lastTeamMs) > 1000) {
+            if (runtime.local_team < 2 || !s_lastTeamMs || (nowT - s_lastTeamMs) > static_cast<ULONGLONG>(TEAM_INTERVAL_MS)) {
                 uint8_t team8 = 0;
                 if (QReadT(runtime.local_pawn + offsets.m_iTeamNum, team8))
                     runtime.local_team = static_cast<int>(team8);
@@ -2177,7 +2197,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 const uintptr_t controller = controllers[controllerSlot];
                 const auto cached = nameCache.find(controller);
                 if (cached != nameCache.end() && cached->second.text[0] &&
-                    scan_now_ms - cached->second.last_refresh_ms < 2000u) {
+                    scan_now_ms - cached->second.last_refresh_ms < static_cast<uint64_t>(NAME_INTERVAL_MS)) {
                     std::memcpy(playerNames[c], cached->second.text.data(),
                                 sizeof(playerNames[c]));
                 } else if (controller) {
@@ -2201,7 +2221,12 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 // though the pawn itself was visible in the final projection.
                 // Animated bones are latency-sensitive. Sampling every scan
                 // prevents distant players from appearing frozen between poses.
-                const bool sample_this_scan = true;
+                static std::unordered_map<uintptr_t, uint64_t> s_lastBoneMs;
+                const bool sample_this_scan =
+                    !s_lastBoneMs.count(resolved_pawns[c]) ||
+                    scan_now_ms - s_lastBoneMs[resolved_pawns[c]] >= static_cast<uint64_t>(BONES_INTERVAL_MS);
+                if (sample_this_scan)
+                    s_lastBoneMs[resolved_pawns[c]] = scan_now_ms;
                 boneReadEligible[c] = sample_this_scan && IsUserPointer(boneBases[c]);
                 if (boneReadEligible[c] && IsUserPointer(boneBases[c])) {
                     mem.AddScatterReadRequest(g_scatter, boneBases[c], boneSnapshots[c],
@@ -2227,7 +2252,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 if (!IsUserPointer(weaponEntities[c])) continue;
                 const auto cached = weaponDefinitionCache.find(weaponEntities[c]);
                 if (cached != weaponDefinitionCache.end() && cached->second.definition > 0 &&
-                    scan_now_ms - cached->second.last_refresh_ms < 5000u) {
+                    scan_now_ms - cached->second.last_refresh_ms < static_cast<uint64_t>(WEAPON_INTERVAL_MS)) {
                     weaponDefinitions[c] = cached->second.definition;
                     continue;
                 }
@@ -2258,7 +2283,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 const uintptr_t controller = controllers[controllerSlot];
                 const auto cached = nameCache.find(controller);
                 if (cached != nameCache.end() && cached->second.text[0] &&
-                    scan_now_ms - cached->second.last_refresh_ms < 2000u) {
+                    scan_now_ms - cached->second.last_refresh_ms < static_cast<uint64_t>(NAME_INTERVAL_MS)) {
                     std::memcpy(playerNames[c], cached->second.text.data(),
                                 sizeof(playerNames[c]));
                 } else {
@@ -2912,8 +2937,8 @@ void EnsureAcquisitionStarted() {
             // Keep the view matrix on its own very fast lane, but never make
             // one DMA read per player every 2 ms.  That old pattern could
             // starve the regular entity scan and made even boxes/bars hitch.
-            // Player motion is sampled at the same 6-ms cadence as the
-            // producer; rendering still runs every overlay frame.
+            // Player motion is sampled at MOTION_INTERVAL_MS; rendering still
+            // runs every overlay frame.
             const uint64_t now_ms = GetTickCount64();
             const auto frame_config = g_config_snapshots.Acquire();
             const bool needs_motion = frame_config->esp_enabled &&
@@ -2922,7 +2947,7 @@ void EnsureAcquisitionStarted() {
                  frame_config->head_halo || frame_config->look_direction || frame_config->chinese_hat ||
                  frame_config->angel_wings || frame_config->devil_horns || frame_config->floating_crown);
             if (canRead && runtime.in_match && needs_motion && now_ms >= next_motion_ms) {
-                next_motion_ms = now_ms + 6;
+                next_motion_ms = now_ms + MOTION_INTERVAL_MS;
                 const auto current = g_runtime_snapshots.Acquire();
                 MotionSnapshot motion{};
                 for (const auto& player : current->players) {
@@ -2969,7 +2994,7 @@ void EnsureAcquisitionStarted() {
                 }
             }
             const float fps = g_presentation_fps.load(std::memory_order_relaxed);
-            const int cadence = runtime.in_match ? ((fps > 1.f && fps < 55.f) ? 4 : 2) : 12;
+            const int cadence = runtime.in_match ? CAMERA_INTERVAL_MS : 12;
             scheduler.Wait(std::chrono::milliseconds(cadence));
         }
     });
@@ -2999,7 +3024,7 @@ void EnsureAcquisitionStarted() {
             // only until the next cadence and never accumulates Sleep drift.
             // If a scan itself takes longer than 6 ms it is published at once;
             // snapshots are never queued behind an older frame.
-            const int delayMs = runtime.in_match ? 6 : 16;
+            const int delayMs = runtime.in_match ? FULL_SCAN_INTERVAL_MS : 16;
             scheduler.Wait(std::chrono::milliseconds(delayMs));
         }
     });

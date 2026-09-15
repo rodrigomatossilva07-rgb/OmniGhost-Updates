@@ -512,7 +512,7 @@ const char* WeaponIconCode(int def) {
     }
 }
 
-void DrawRadar2D(ImDrawList* dl, const CS2::Runtime& rt, CS2::Config& cfg) {
+void DrawRadar2D(ImDrawList* dl, const CS2::Runtime& rt, CS2::Config& cfg, const CS2::MotionSnapshot* motionPtr) {
     float& ox = cfg.radar_2d_x;
     float& oy = cfg.radar_2d_y;
     const float size = cfg.radar_2d_size > 80.f ? cfg.radar_2d_size : 160.f;
@@ -552,7 +552,7 @@ void DrawRadar2D(ImDrawList* dl, const CS2::Runtime& rt, CS2::Config& cfg) {
     const float yaw = rt.local_view_yaw * 0.01745329251f;
     const float cy = std::cos(yaw), sy = std::sin(yaw);
     for (const auto& raw : rt.players) {
-        const CS2::Player p = SmoothPlayerForPresentation(raw, nullptr);
+        const CS2::Player p = SmoothPlayerForPresentation(raw, motionPtr);
         if (p.is_local) continue;
         if (cfg.team_check && p.team == rt.local_team) continue;
         float dx = p.pos[0] - rt.local_pos[0];
@@ -778,7 +778,7 @@ void DrawKillFeed(ImDrawList* dl) {
         if (g_kills[i].ttl <= 0.f) continue;
         char line[64];
         std::snprintf(line, sizeof(line), "KILL  %s", g_kills[i].name);
-        const int a = (int)std::clamp(g_kills[i].ttl / 4.f, 0.f, 1.f) * 255;
+        const int a = (int)(std::clamp(g_kills[i].ttl / 4.f, 0.f, 1.f) * 255.f);
         dl->AddText(ImVec2(x + 1, y + 1), IM_COL32(0, 0, 0, a), line);
         dl->AddText(ImVec2(x, y), IM_COL32(212, 175, 55, a), line);
         y += 16.f;
@@ -791,7 +791,7 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
     const auto fastCamera = CS2::AcquireCameraSnapshot();
     const auto motionLease = CS2::AcquireMotionSnapshot();
     const CS2::MotionSnapshot* motionPtr = motionLease ? &*motionLease : nullptr;
-    // The camera lane runs independently at 2–4 ms.  Position/bone snapshots
+    // The camera lane runs independently at ~3 ms.  Position/bone snapshots
     // can remain coherent and heavier, while rapid mouse turns are projected
     // with the freshest available matrix for this exact render frame.
     UpdatePresentationViewMatrix(rt, fastCamera ? fastCamera->view_matrix : rt.view_matrix,
@@ -814,7 +814,7 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
     ImVec2 ds = ImGui::GetIO().DisplaySize;
 
     if (cfg.radar_2d)
-        DrawRadar2D(dl, frame, mut_cfg);
+        DrawRadar2D(dl, frame, mut_cfg, motionPtr);
 
     if (cfg.spectator_list)
         DrawSpectatorList(dl, frame, mut_cfg);

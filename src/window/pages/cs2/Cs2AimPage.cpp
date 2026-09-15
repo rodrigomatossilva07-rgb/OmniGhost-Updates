@@ -73,62 +73,45 @@ bool HotkeyCaptureButton(const char* id, int* vk) {
 } // namespace
 
 void DrawCs2Aim() {
+    const float gap = CyberTheme::Spacing::Md;
     const float full = CyberWidgets::CardContentWidth();
-    const float gap = CyberTheme::Spacing::Sm;
     const float left = full;
 
-    ImGui::BeginGroup();
     CyberWidgets::BeginCard("ASSISTENCIA DE MIRA", left);
-    CyberWidgets::ToggleSwitch("Ativar assistencia", &CS2::config.aim_enabled);
-    CyberWidgets::ToggleSwitch("Crosshair para sniper", &CS2::config.sniper_crosshair);
+    CyberWidgets::ToggleSwitch("Ativar mira", &CS2::config.aim_enabled);
     if (CS2::config.aim_enabled) {
-        // These must drive the aim filters, not the independent ESP filters.
-        CyberWidgets::ToggleSwitch("Verificacao de visibilidade", &CS2::config.aim_visibility_check);
-        CyberWidgets::ToggleSwitch("Ignorar equipa", &CS2::config.aim_ignore_team);
-        CyberWidgets::Separator();
-        CyberWidgets::SectionTitle("ALVO");
-        const char* hitboxes[] = { "Cabeca", "Pescoco", "Tronco", "Pelvis", "Pernas" };
-        CyberWidgets::Combo("Zona do alvo", &CS2::config.aim_bone, hitboxes, 5);
-        CyberWidgets::SliderFloat("FOV", &CS2::config.aim_fov, 10.f, 400.f, "%.0f px");
-        CyberWidgets::SliderFloat("Distancia", &CS2::config.aim_max_dist, 10.f, 500.f, "%.0f m");
-        CyberWidgets::SliderFloat("Suavidade", &CS2::config.aim_smooth, 0.f, 100.f, "%.0f");
-        CyberWidgets::SliderFloat("Deadzone", &CS2::config.aim_deadzone, 0.f, 8.f, "%.1f px");
-        CyberWidgets::ToggleSwitch("Humanizar", &CS2::config.aim_humanize);
-        CyberWidgets::ToggleSwitch("Predicao de movimento", &CS2::config.aim_prediction);
-        if (CS2::config.aim_prediction)
-            CyberWidgets::SliderFloat("Forca da predicao", &CS2::config.prediction_strength, 0.f, 1.f, "%.2f");
-        CyberWidgets::Separator();
-        CyberWidgets::SectionTitle("ESTABILIDADE");
-        CyberWidgets::SliderFloat("Retencao do alvo", &CS2::config.sticky_ms, 0.f, 400.f, "%.0f ms");
-        CyberWidgets::SliderFloat("Margem de troca", &CS2::config.aim_switch_margin, 0.f, .50f, "%.2f");
-        float interval = static_cast<float>(CS2::config.aim_motion_interval_ms);
-        if (CyberWidgets::SliderFloat("Intervalo de movimento", &interval, 1.f, 20.f, "%.0f ms"))
-            CS2::config.aim_motion_interval_ms = static_cast<int>(interval);
-        CyberWidgets::SliderFloat("EMA anti-jitter", &CS2::config.aim_ema_alpha, .15f, .85f, "%.2f");
-        CyberWidgets::SliderFloat("Damping de reversao", &CS2::config.aim_reversal_damping, .05f, .75f, "%.2f");
-        if (CS2::config.aim_humanize) {
-            float reactionMin = static_cast<float>(CS2::config.aim_reaction_min_ms);
-            float reactionMax = static_cast<float>(CS2::config.aim_reaction_max_ms);
-            if (CyberWidgets::SliderFloat("Reacao minima", &reactionMin, 0.f, 150.f, "%.0f ms"))
-                CS2::config.aim_reaction_min_ms = static_cast<int>(reactionMin);
-            reactionMax = (std::max)(reactionMax, reactionMin);
-            if (CyberWidgets::SliderFloat("Reacao maxima", &reactionMax, reactionMin, 200.f, "%.0f ms"))
-                CS2::config.aim_reaction_max_ms = static_cast<int>(reactionMax);
-            CyberWidgets::SliderFloat("Overshoot", &CS2::config.aim_overshoot_px, 0.f, 2.f, "%.2f px");
-            CyberWidgets::SliderFloat("Micro movimento", &CS2::config.aim_micro_jitter_px, 0.f, .25f, "%.2f px");
-        }
-        CyberWidgets::Separator();
-        CyberWidgets::SectionTitle("TECLA");
-        ImGui::TextUnformatted("Tecla da mira");
-        ImGui::SameLine(140.f);
+        // 1) Activation Key
+        ImGui::TextUnformatted("Activation Key");
+        ImGui::SameLine(160.f);
         HotkeyCaptureButton("cs2aim1", &CS2::config.aim_bind);
         if (CS2::config.aim_bind <= 0)
             CS2::config.aim_bind = 0x02;
         CS2::config.aim_bind2 = 0;
+        CS2::config.aim_bind3 = 0;
+
+        // 2) Smooth 0..100
+        CyberWidgets::SliderFloat("Smooth", &CS2::config.aim_smooth, 0.f, 100.f, "%.0f");
+        CS2::config.aim_smooth = std::clamp(CS2::config.aim_smooth, 0.f, 100.f);
+
+        // 3) Aim Point — fixed only
+        CS2::config.aim_auto_bone = false;
+        static const char* kPoints[] = { "Head", "Neck", "Chest", "Stomach" };
+        int point = CS2::config.aim_bone;
+        if (point < 0) point = 0;
+        if (point > 3) point = 3;
+        if (CyberWidgets::Combo("Aim Point", &point, kPoints, 4))
+            CS2::config.aim_bone = point;
+
+        // 4) Humanization 0..100
+        CyberWidgets::SliderFloat("Humanization", &CS2::config.aim_humanization, 0.f, 100.f, "%.0f");
+        CS2::config.aim_humanization = std::clamp(CS2::config.aim_humanization, 0.f, 100.f);
+        CS2::config.aim_humanize = CS2::config.aim_humanization > 0.5f;
+
+        CyberWidgets::Separator();
         CyberWidgets::KeyValueRow("Diagnostico", CS2_Aim::DebugStatus());
         CyberWidgets::KeyValueRow("Entrada", aim_type::StatusText());
     } else {
-        CyberWidgets::TextLine("Assistencia desativada — ativa para configurar alvo e teclas.",
+        CyberWidgets::TextLine("Ativa a mira para configurar tecla, smooth, ponto e humanizacao.",
                                CyberWidgets::TextTone::Secondary);
     }
     CyberWidgets::EndCard();
@@ -151,5 +134,5 @@ void DrawCs2Aim() {
             CS2::config.trigger_delay_ms = static_cast<int>(delay_ms);
     }
     CyberWidgets::EndCard();
-    ImGui::EndGroup();
 }
+

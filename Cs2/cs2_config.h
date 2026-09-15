@@ -115,7 +115,8 @@ struct Config {
     float aim_deadzone = 2.f;
     float sticky_ms = 120.f;
     bool aim_prediction = false;
-    bool aim_humanize = true;
+    bool aim_humanize = false; // derived from aim_humanization > 0
+    float aim_humanization = 0.f; // 0..100 — trajectory shape only
     float prediction_strength = 0.35f;
     bool hit_chance_ui = false;
     float aim_switch_cooldown_ms = 90.f;
@@ -131,7 +132,7 @@ struct Config {
     bool aim_ignore_team = true;
     bool aim_ignore_spectators = false;
     bool aim_ignore_bots = true;
-    bool aim_auto_bone = true;          // auto-select bone based on distance/weapon
+    bool aim_auto_bone = false;         // fixed aim point only (head/neck/chest/stomach)
     bool aim_visibility_check = true;   // uses game spotted-state; this is not a geometry trace
     bool aim_rcs_standalone = false;    // RCS without aimbot
     bool aim_rcs_auto = true;           // auto-detect weapon & apply inverse pattern
@@ -171,7 +172,8 @@ inline void ApplyLegitProfile(Config& c) {
     c.aim_dynamic_fov = true;
     c.aim_fov_min = 15.f;
     c.aim_humanize = true;
-    c.aim_auto_bone = true;
+    c.aim_humanization = 35.f;
+    c.aim_auto_bone = false;
     c.aim_visibility_check = true;
     c.aim_ignore_bots = true;
     c.aim_ignore_spectators = true;
@@ -206,6 +208,7 @@ inline void ApplyRageProfile(Config& c) {
     c.prediction_strength = 0.55f;
     c.aim_dynamic_fov = false;
     c.aim_humanize = false;
+    c.aim_humanization = 0.f;
     c.aim_auto_bone = false;
     c.aim_visibility_check = false;
     c.aim_ignore_bots = false;

@@ -16,7 +16,7 @@ namespace vehicle_esp {
     Config config;
     std::vector<VehicleData> vehicles;
 
-    static const int MAX_VEHICLES = 128;
+    static const int MAX_VEHICLES = 64;
 
     static constexpr uintptr_t VEHICLE_LIST_OFFSET = 0x180;
     static constexpr uintptr_t VEHICLE_COUNT_OFFSET = 0x188;
@@ -61,12 +61,18 @@ namespace vehicle_esp {
     }
 
     void Collect(bool force) {
-        static auto s_lastCollect = std::chrono::steady_clock::time_point{};
+        static auto s_lastPose = std::chrono::steady_clock::time_point{};
+        static auto s_lastDiscovery = std::chrono::steady_clock::time_point{};
         auto nowc = std::chrono::steady_clock::now();
-        if (!force && s_lastCollect.time_since_epoch().count() != 0 &&
-            nowc - s_lastCollect < std::chrono::milliseconds(100))
+        // Pose/matrix refresh ~30 Hz for smooth vehicle ESP; list discovery slower.
+        if (!force && s_lastPose.time_since_epoch().count() != 0 &&
+            nowc - s_lastPose < std::chrono::milliseconds(33))
             return;
-        s_lastCollect = nowc;
+        s_lastPose = nowc;
+        const bool rediscover = force || s_lastDiscovery.time_since_epoch().count() == 0 ||
+            (nowc - s_lastDiscovery) >= std::chrono::milliseconds(100);
+        if (rediscover)
+            s_lastDiscovery = nowc;
         vehicles.clear();
         g_matrices.clear();
         // ESP draw gated in Render(); force=true lets lock/repair work with toggle off
@@ -148,28 +154,36 @@ namespace vehicle_esp {
         std::vector<uint32_t> lockState(valid.size(), UINT32_MAX);
         std::vector<uintptr_t> driverPrimary(valid.size(), 0), driverFallback(valid.size(), 0);
 
+        const bool needMatrix = config.box_3d;
+        const bool needLock = config.lock_status;
+        const bool needOccupied = config.ignore_occupied || config.show_occupants;
         for (size_t i = 0; i < valid.size(); ++i) {
             mem.AddScatterReadRequest(handle, valid[i] + VEHICLE_POSITION_OFFSET, &positions[i], sizeof(Vec3));
-            mem.AddScatterReadRequest(handle, valid[i] + VEHICLE_MATRIX_OFFSET, &matrices[i], sizeof(Matrix));
-            mem.AddScatterReadRequest(handle, valid[i] + offset::vehicleLock,
-                                      &lockState[i], sizeof(uint32_t));
-            const uintptr_t buildDriver = offset::buildVersion >= 3751 ? 0xCA8 : offset::vehicleDriver;
-            mem.AddScatterReadRequest(handle, valid[i] + buildDriver,
-                                      &driverPrimary[i], sizeof(uintptr_t));
-            if (buildDriver != offset::vehicleDriver)
-                mem.AddScatterReadRequest(handle, valid[i] + offset::vehicleDriver,
-                                          &driverFallback[i], sizeof(uintptr_t));
+            if (needMatrix)
+                mem.AddScatterReadRequest(handle, valid[i] + VEHICLE_MATRIX_OFFSET, &matrices[i], sizeof(Matrix));
+            if (needLock)
+                mem.AddScatterReadRequest(handle, valid[i] + offset::vehicleLock,
+                                          &lockState[i], sizeof(uint32_t));
+            if (needOccupied) {
+                const uintptr_t buildDriver = offset::buildVersion >= 3751 ? 0xCA8 : offset::vehicleDriver;
+                mem.AddScatterReadRequest(handle, valid[i] + buildDriver,
+                                          &driverPrimary[i], sizeof(uintptr_t));
+                if (buildDriver != offset::vehicleDriver)
+                    mem.AddScatterReadRequest(handle, valid[i] + offset::vehicleDriver,
+                                              &driverFallback[i], sizeof(uintptr_t));
+            }
         }
         mem.ExecuteReadScatter(handle);
 
-        // A driver pointer catches NPC-driven vehicles.  Comparing every player
-        // ped's current CVehicle catches passengers too, which is what the UI's
-        // "ignore occupied" option promises.
-        std::vector<uintptr_t> pedVehicles(FiveM::ESP::validPeds.size(), 0);
-        for (size_t i = 0; i < FiveM::ESP::validPeds.size(); ++i)
-            mem.AddScatterReadRequest(handle, FiveM::ESP::validPeds[i] + offset::pedVehicle,
-                                      &pedVehicles[i], sizeof(uintptr_t));
-        mem.ExecuteReadScatter(handle);
+        // Only walk ped->vehicle when occupied filtering/labels are needed.
+        std::vector<uintptr_t> pedVehicles;
+        if (needOccupied && !FiveM::ESP::validPeds.empty()) {
+            pedVehicles.assign(FiveM::ESP::validPeds.size(), 0);
+            for (size_t i = 0; i < FiveM::ESP::validPeds.size(); ++i)
+                mem.AddScatterReadRequest(handle, FiveM::ESP::validPeds[i] + offset::pedVehicle,
+                                          &pedVehicles[i], sizeof(uintptr_t));
+            mem.ExecuteReadScatter(handle);
+        }
         mem.CloseScatterHandle(handle);
 
         std::unordered_set<uintptr_t> occupiedVehicles;
@@ -288,10 +302,12 @@ namespace vehicle_esp {
         using namespace FiveM;
 
         Matrix view_matrix{};
-        auto handle = mem.CreateScatterHandle();
-        mem.AddScatterReadRequest(handle, offset::viewport + 0x24C, &view_matrix, sizeof(Matrix));
-        mem.ExecuteReadScatter(handle);
-        mem.CloseScatterHandle(handle);
+        if (FiveM::ESP::FrameCacheValid()) {
+            view_matrix = FiveM::ESP::GetFrameViewMatrix();
+        } else {
+            // Fallback only when the player ESP frame did not publish a matrix.
+            mem.Read(offset::viewport + 0x24C, &view_matrix, sizeof(Matrix));
+        }
 
         ImDrawList* dl = ImGui::GetForegroundDrawList();
         if (!dl) return;
@@ -310,8 +326,19 @@ namespace vehicle_esp {
             }
         }
 
-        for (const auto& v : vehicles) {
-            if (!v.valid) continue;
+        // Draw closest vehicles first; hard-cap GPU/line work under load.
+        std::vector<const VehicleData*> drawList;
+        drawList.reserve(vehicles.size());
+        for (const auto& v : vehicles)
+            if (v.valid) drawList.push_back(&v);
+        std::sort(drawList.begin(), drawList.end(),
+            [](const VehicleData* a, const VehicleData* b) { return a->distance < b->distance; });
+        constexpr size_t kMaxDraw = 40;
+        if (drawList.size() > kMaxDraw)
+            drawList.resize(kMaxDraw);
+
+        for (const VehicleData* vp : drawList) {
+            const auto& v = *vp;
 
             Vec2 screenPos;
             if (!Project(v.position, view_matrix, screenPos))
@@ -401,27 +428,32 @@ namespace vehicle_esp {
                 textY += ts.y + 2.f;
             }
 
-            // Gear / engine / RPM (dump b3258 fields)
+            // Gear / engine: medium-rate cache (not per-frame DMA)
             {
-                int8_t gear = mem.Read<int8_t>(v.address + FiveM::offset::vehicleGear);
-                float eng = mem.Read<float>(v.address + FiveM::offset::vehicleEngineHp);
-                float rpm = mem.Read<float>(v.address + FiveM::offset::vehicleRPM);
+                struct GearCache { int8_t gear = 0; float eng = 0.f; double t = 0.0; };
+                static std::unordered_map<uintptr_t, GearCache> s_gear;
+                const double nowG = ImGui::GetTime();
+                GearCache& gc = s_gear[v.address];
+                if (nowG - gc.t > 0.080) {
+                    gc.gear = mem.Read<int8_t>(v.address + FiveM::offset::vehicleGear);
+                    gc.eng = mem.Read<float>(v.address + FiveM::offset::vehicleEngineHp);
+                    gc.t = nowG;
+                }
                 char buf[48];
-                if (gear >= -1 && gear <= 8) {
-                    snprintf(buf, sizeof(buf), "G%d", (int)gear);
+                if (gc.gear >= -1 && gc.gear <= 8) {
+                    snprintf(buf, sizeof(buf), "G%d", (int)gc.gear);
                     ImVec2 ts = ImGui::CalcTextSize(buf);
                     dl->AddText(ImVec2(screenPos.x - ts.x * 0.5f, textY),
                         IM_COL32(255, 220, 120, 220), buf);
                     textY += ts.y + 2.f;
                 }
-                if (eng > 1.f && eng <= 1000.f) {
-                    snprintf(buf, sizeof(buf), "Motor %.0f", eng);
+                if (gc.eng > 1.f && gc.eng <= 1000.f) {
+                    snprintf(buf, sizeof(buf), "Motor %.0f", gc.eng);
                     ImVec2 ts = ImGui::CalcTextSize(buf);
                     dl->AddText(ImVec2(screenPos.x - ts.x * 0.5f, textY),
-                        eng < 300.f ? IM_COL32(255, 80, 80, 220) : IM_COL32(180, 255, 180, 220), buf);
+                        gc.eng < 300.f ? IM_COL32(255, 80, 80, 220) : IM_COL32(180, 255, 180, 220), buf);
                     textY += ts.y + 2.f;
                 }
-                (void)rpm;
             }
         }
     }

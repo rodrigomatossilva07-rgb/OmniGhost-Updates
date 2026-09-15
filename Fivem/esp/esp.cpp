@@ -52,12 +52,14 @@ struct CachedSkeletonData {
 };
 
 // Enhanced bone cache for skeleton
+static const esp::BatchSkeletonData* FindPreparedSkeleton(uintptr_t ped);
+
 class EnhancedBoneCache {
 public:  // Made public for batch updates
     std::unordered_map<uintptr_t, CachedSkeletonData> skeleton_cache;
 
 private:
-    static constexpr std::chrono::milliseconds SKELETON_CACHE_VALIDITY_MS{ 50 }; // ~20Hz bone refresh
+    static constexpr std::chrono::milliseconds SKELETON_CACHE_VALIDITY_MS{ 10 }; // ~100Hz bone refresh (sweet spot)
     std::chrono::steady_clock::time_point last_cleanup;
 
 public:
@@ -66,6 +68,32 @@ public:
     // Get all bone positions for skeleton at once
     bool get_skeleton_bones(uintptr_t ped, std::vector<Vec3>& bone_positions, bool force_refresh = false) {
         auto now = std::chrono::steady_clock::now();
+
+        // Prefer frame-prepared batch skeleton (no per-ped scatter during draw)
+        if (!force_refresh) {
+            if (const auto* prepared = FindPreparedSkeleton(ped)) {
+                if (prepared->valid) {
+                    bone_positions.resize(9);
+                    bool any = false;
+                    for (int i = 0; i < 9; ++i) {
+                        if ((prepared->bone_mask & (uint16_t(1u) << static_cast<unsigned>(i))) == 0) {
+                            bone_positions[i] = Vec3{};
+                            continue;
+                        }
+                        const Vector3& local = prepared->bone_offsets[static_cast<size_t>(i)];
+                        DirectX::SimpleMath::Vector3 value(local.x, local.y, local.z);
+                        const DirectX::SimpleMath::Vector3 transformed =
+                            DirectX::XMVector3Transform(value, prepared->bone_matrix);
+                        bone_positions[i] = Vec3(transformed.x, transformed.y, transformed.z);
+                        any = true;
+                    }
+                    if (any) {
+                        esp::esp_stats.cache_hits.fetch_add(1, std::memory_order_relaxed);
+                        return true;
+                    }
+                }
+            }
+        }
 
         auto it = skeleton_cache.find(ped);
         if (!force_refresh && it != skeleton_cache.end() && it->second.is_valid) {
@@ -79,7 +107,7 @@ public:
 
         esp::esp_stats.cache_misses.fetch_add(1, std::memory_order_relaxed);
 
-        // Read all skeleton bones in one batch operation
+        // Fallback only: Read all skeleton bones in one batch operation
         Matrix bone_matrix = esp::bone_cache.get_bone_matrix(ped, force_refresh);
 
         // Read all bone offsets we need for skeleton
@@ -819,9 +847,42 @@ static bool EspPedVisible(uintptr_t ped) {
     return FiveM::Visibility::IsPedVisible(ped);
 }
 
+// Per-frame flags — avoid repeated DMA from EspPedColor / skeleton / hat paths.
+struct PedFrameFlags {
+    uint32_t frame = 0;
+    bool dead = false;
+    bool dead_known = false;
+    bool adm = false;
+    bool adm_known = false;
+};
+static std::unordered_map<uintptr_t, PedFrameFlags> g_pedFrameFlags;
+
+static PedFrameFlags& PedFlags(uintptr_t ped) {
+    const uint32_t f = static_cast<uint32_t>(ImGui::GetFrameCount());
+    auto& e = g_pedFrameFlags[ped];
+    if (e.frame != f) {
+        e = PedFrameFlags{};
+        e.frame = f;
+    }
+    // Opportunistic prune once in a while
+    static uint32_t s_lastPrune = 0;
+    if (f != s_lastPrune && (f % 300) == 0) {
+        s_lastPrune = f;
+        for (auto it = g_pedFrameFlags.begin(); it != g_pedFrameFlags.end();) {
+            if (it->second.frame + 120 < f) it = g_pedFrameFlags.erase(it);
+            else ++it;
+        }
+    }
+    return e;
+}
+
 // Health dead probe used by all ESP paths (skeleton / hat / box).
 static bool EspPedIsDead(uintptr_t ped, float* outHealth = nullptr) {
     using namespace FiveM::offset;
+    auto& flags = PedFlags(ped);
+    if (flags.dead_known && !outHealth)
+        return flags.dead;
+
     float health = 0.f;
     float maxH = 0.f;
     const PreparedEspData* prepared = FindPreparedEsp(ped);
@@ -829,56 +890,15 @@ static bool EspPedIsDead(uintptr_t ped, float* outHealth = nullptr) {
         health = prepared->health;
         maxH = prepared->max_health;
     } else {
-        health = mem.Read<float>(ped + playerHealth);
-        if (health <= 0.f) health = mem.Read<float>(ped + 0x280);
-        maxH = mem.Read<float>(ped + 0x284);
+        // Single read path — no double fallback unless needed
+        health = mem.Read<float>(ped + (playerHealth ? playerHealth : 0x280));
+        maxH = 200.f; // avoid second DMA; treat health alone when no prepare
     }
     if (outHealth) *outHealth = health;
     const bool healthLooksValid = (maxH > 50.f && maxH < 1000.f) || (health > 0.f && health < 1000.f);
-    if (!healthLooksValid) return false;
-    return health <= 0.f;
-}
-
-// Admin / staff heuristic: godmode, freefly (on foot, not vehicle), or vanished ped.
-static bool EspPedIsAdmSuspect(uintptr_t ped) {
-    using namespace FiveM::offset;
-    if (!ped) return false;
-
-    // Godmode bit (CPed +0x189 — community offset used across builds)
-    const uint8_t god = mem.Read<uint8_t>(ped + 0x189);
-    const bool isGod = (god == 1) || ((god & 0x01) != 0);
-
-    // Vehicle occupancy — freefly must NOT count plane/car occupants.
-    uintptr_t veh = 0;
-    mem.Read(ped + pedVehicle, &veh, sizeof(veh));
-    const bool inVehicle = veh > 0x10000ULL;
-
-    // Freefly: on foot + strong vertical / rapid 3D motion
-    bool isFly = false;
-    if (!inVehicle) {
-        Vec3 vel{};
-        if (!mem.Read(ped + 0x320, &vel, sizeof(vel)))
-            mem.Read(ped + 0x2F0, &vel, sizeof(vel));
-        const float vz = std::fabs(vel.z);
-        const float h2 = vel.x * vel.x + vel.y * vel.y;
-        if (vz > 2.5f) isFly = true;
-        else if (vz > 1.5f && h2 > 25.f) isFly = true;
-    }
-
-    // Invisible: engine visibility says hidden while the ped is still simulated.
-    // Avoid treating normal occluded players as ADM (requires god or fly too),
-    // unless the raw visible-flag matches known "vanish" values with freefly.
-    bool isInvis = false;
-    if (!inVehicle) {
-        const uintptr_t visOff = pedVisibilityOffset ? pedVisibilityOffset : 0x147C;
-        const uint8_t vis = mem.Read<uint8_t>(ped + visOff);
-        if (vis == 36 || vis == 4)
-            isInvis = true;
-        else if (!FiveM::Visibility::IsPedVisible(ped) && (isGod || isFly))
-            isInvis = true;
-    }
-
-    return isGod || isFly || isInvis;
+    flags.dead = healthLooksValid && health <= 0.f;
+    flags.dead_known = true;
+    return flags.dead;
 }
 
 static bool EspPedIsFriend(uintptr_t ped, bool allowDirectRead) {
@@ -889,9 +909,6 @@ static bool EspPedIsFriend(uintptr_t ped, bool allowDirectRead) {
 }
 
 static ImU32 EspPedColor(uintptr_t ped, ImU32 configured, bool visible) {
-    // ADM suspects always render in animated RGB (not user-configurable).
-    if (esp::config.show_adm && EspPedIsAdmSuspect(ped))
-        return EspRGB();
     if (esp::config.rgb_mode)
         return EspRGB();
     // Dead players: always red when shown
@@ -952,12 +969,21 @@ static void DrawMotionVisuals(uintptr_t ped, Matrix viewport, const PedData* cac
     if (origin.IsZero() && cached) origin = cached->position_origin;
     if (origin.IsZero()) return;
 
+    // Distance LOD: heavy ornaments are pure GPU+CPU cost at range.
+    float motionDist = 0.f;
+    if (FiveM::ESP::FrameCacheValid()) {
+        const Vec3& lp = FiveM::ESP::GetFrameLocalPos();
+        if (!lp.IsZero()) motionDist = origin.distance_to(lp);
+    }
+    const bool farOrnament = motionDist > 70.f;
+    const bool veryFar = motionDist > 120.f;
+
     const bool visible = EspPedVisible(ped);
     const double now = ImGui::GetTime();
     static std::unordered_map<uintptr_t, OmniGhost::Gameplay::FixedTrailHistory<18>> trails;
     static int cleanup_frame = -1;
 
-    if (cfg.trails) {
+    if (cfg.trails && !veryFar) {
         auto& history = trails[ped];
         history.Push(origin.x, origin.y, origin.z + 0.04f, now, 0.10f, 0.035);
         const double duration = std::clamp(static_cast<double>(cfg.trail_duration), 0.20, 2.50);
@@ -1074,7 +1100,7 @@ static void DrawMotionVisuals(uintptr_t ped, Matrix viewport, const PedData* cac
         }
     }
 
-    if (cfg.chinese_hat) {
+    if (cfg.chinese_hat && !farOrnament) {
         auto project = [&](float wx, float wy, float wz, float& sx, float& sy) -> bool {
             Vec2 screen{};
             if (!Vec3(wx, wy, wz).world_to_screen(viewport, screen)) return false;
@@ -1085,7 +1111,7 @@ static void DrawMotionVisuals(uintptr_t ped, Matrix viewport, const PedData* cac
             draw, head.x, head.y, head.z, project, static_cast<float>(now), hatScale, true);
     }
 
-    if (cfg.angel_wings) {
+    if (cfg.angel_wings && !farOrnament) {
         // Stylized wing silhouette from shoulder: top arc + lower tip + inner feathers.
         const float flap = std::sin(static_cast<float>(now) * 3.0f) * 0.06f * fxScale;
         const Vec3 shoulder(
@@ -1142,7 +1168,7 @@ static void DrawMotionVisuals(uintptr_t ped, Matrix viewport, const PedData* cac
         }
     }
 
-    if (cfg.devil_horns) {
+    if (cfg.devil_horns && !farOrnament) {
         // Curved demonic horns: 6 segments, thick near base → thin tip.
         for (int hornSide = -1; hornSide <= 1; hornSide += 2) {
             const float s = static_cast<float>(hornSide);
@@ -1165,7 +1191,7 @@ static void DrawMotionVisuals(uintptr_t ped, Matrix viewport, const PedData* cac
         }
     }
 
-    if (cfg.floating_crown) {
+    if (cfg.floating_crown && !farOrnament) {
         // True crown silhouette: base + 5 peaks (center tallest).
         const float bob = std::sin(static_cast<float>(now) * 2.2f) * 0.02f;
         const float zBase = head.z + (0.20f + bob) * fxScale;
@@ -1253,6 +1279,13 @@ bool esp::has_extra_visuals() {
 void esp::prepare_esp_frame(const std::vector<uintptr_t>& peds,
                             const std::vector<Vec3>& origins) {
     g_prepared_esp_frame = static_cast<uint32_t>(ImGui::GetFrameCount());
+    // Medium-rate identity/combat fields (~40 Hz). Origins update every call.
+    static auto s_lastPrepScatter = std::chrono::steady_clock::time_point{};
+    static std::unordered_map<uintptr_t, PreparedEspData> s_stickyPrep;
+    const auto nowPrep = std::chrono::steady_clock::now();
+    const bool doScatter = s_lastPrepScatter.time_since_epoch().count() == 0 ||
+        (nowPrep - s_lastPrepScatter) >= std::chrono::milliseconds(25);
+
     g_prepared_esp_index.clear();
     const bool needs_motion_origin = config.trails || config.head_halo || config.look_direction ||
         config.chinese_hat || config.angel_wings || config.devil_horns || config.floating_crown;
@@ -1278,6 +1311,22 @@ void esp::prepare_esp_frame(const std::vector<uintptr_t>& peds,
     if (!AnyEspExtrasEnabled() && !aimbot::config.aimbot_enabled &&
         !aimbot::config.trigger_enabled)
         return;
+
+    // Reuse medium-rate sticky fields when within 25ms window (positions always fresh).
+    if (!doScatter) {
+        for (auto& data : g_prepared_esp) {
+            auto it = s_stickyPrep.find(data.ped);
+            if (it == s_stickyPrep.end()) continue;
+            const Vec3 originKeep = data.origin;
+            const uintptr_t pedKeep = data.ped;
+            data = it->second;
+            data.origin = originKeep;
+            data.ped = pedKeep;
+            data.valid = pedKeep != 0 && !originKeep.IsZero();
+        }
+        return;
+    }
+    s_lastPrepScatter = nowPrep;
 
     using namespace FiveM;
     OmniGhost::Gameplay::EspCore::FeatureSet requested{};
@@ -1374,6 +1423,11 @@ void esp::prepare_esp_frame(const std::vector<uintptr_t>& peds,
             mem.CloseScatterHandle(third);
         }
     }
+
+    // Persist medium-rate fields for the 25ms sticky window
+    s_stickyPrep.clear();
+    for (const auto& data : g_prepared_esp)
+        if (data.ped) s_stickyPrep[data.ped] = data;
 }
 
 static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer, const PedData* cached) {
@@ -1831,7 +1885,7 @@ static bool IsLocalPlayerPed(uintptr_t ped, uintptr_t localplayer) {
 
 // Main rendering dispatcher
 void esp::render_esp_for_ped(uintptr_t ped, Matrix viewport, uintptr_t localplayer) {
-    if (!config.enabled && !config.show_adm) return;
+    if (!config.enabled) return;
     if (!config.self_esp && IsLocalPlayerPed(ped, localplayer)) return;
     // Team check = hide friends from ESP when enabled
     if (config.team_check && EspPedIsFriend(ped, true))
@@ -1839,22 +1893,9 @@ void esp::render_esp_for_ped(uintptr_t ped, Matrix viewport, uintptr_t localplay
     // Dead: never draw skeleton/hat/etc unless "Mostrar mortos"
     if (EspPedIsDead(ped) && !config.show_dead)
         return;
-    // Visibility: when ON, skip entities that are not visible (ADM freefly still shown via show_adm path below)
-    if (config.visible_check && !EspPedVisible(ped) && !(config.show_adm && EspPedIsAdmSuspect(ped)))
+    // Visibility: when ON, skip entities that are not visible
+    if (config.visible_check && !EspPedVisible(ped))
         return;
-
-    // ADM-only highlight layer (forced RGB via EspPedColor)
-    if (config.show_adm && EspPedIsAdmSuspect(ped)) {
-        if (config.skeleton || true)
-            draw_skeleton(ped, viewport, localplayer);
-        if (config.head_circle)
-            draw_head_circle(ped, viewport, localplayer);
-        DrawEspExtras(ped, viewport, localplayer, nullptr);
-        // continue with normal ESP if master enabled
-        if (!config.enabled) return;
-    }
-
-    if (!config.enabled) return;
 
     if (config.head_circle)
         draw_head_circle(ped, viewport, localplayer);
@@ -1868,24 +1909,14 @@ void esp::render_esp_for_ped(uintptr_t ped, Matrix viewport, uintptr_t localplay
 }
 
 void esp::render_esp_for_ped_cached(uintptr_t ped, Matrix viewport, uintptr_t localplayer, const PedData& cached_ped_data) {
-    if (!config.enabled && !config.show_adm) return;
+    if (!config.enabled) return;
     if (!config.self_esp && IsLocalPlayerPed(ped, localplayer)) return;
     if (config.team_check && EspPedIsFriend(ped, true))
         return;
     if (EspPedIsDead(ped) && !config.show_dead)
         return;
-    if (config.visible_check && !EspPedVisible(ped) && !(config.show_adm && EspPedIsAdmSuspect(ped)))
+    if (config.visible_check && !EspPedVisible(ped))
         return;
-
-    if (config.show_adm && EspPedIsAdmSuspect(ped)) {
-        draw_skeleton(ped, viewport, localplayer);
-        if (config.head_circle)
-            draw_head_circle_cached(ped, viewport, localplayer, cached_ped_data);
-        DrawEspExtras(ped, viewport, localplayer, &cached_ped_data);
-        if (!config.enabled) return;
-    }
-
-    if (!config.enabled) return;
 
     if (config.head_circle)
         draw_head_circle_cached(ped, viewport, localplayer, cached_ped_data);
@@ -2004,6 +2035,16 @@ void esp::draw_skeleton(uintptr_t ped, Matrix viewport, uintptr_t localplayer) {
     if (EspPedIsDead(ped) && !esp::config.show_dead) return;
     ImDrawList* draw_list = ImGui::GetForegroundDrawList();
     if (!draw_list) return;
+    // Hard distance LOD for skeleton — biggest CPU cost per ped
+    if (esp::config.skeleton_lod && FiveM::ESP::FrameCacheValid()) {
+        // origin resolved later; cheap early reject via prepared origin
+        if (const auto* pe = FindPreparedEsp(ped)) {
+            const Vec3& lp = FiveM::ESP::GetFrameLocalPos();
+            if (!lp.IsZero() && !pe->origin.IsZero() &&
+                pe->origin.distance_to(lp) > esp::config.max_esp_distance * 0.85f)
+                return;
+        }
+    }
 
     // Per-ped temporal smooth state (stops flicker)
     struct SkelSmooth {

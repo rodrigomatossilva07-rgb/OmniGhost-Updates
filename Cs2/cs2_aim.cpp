@@ -76,25 +76,92 @@ bool W2S(const float* world, const float* vm, float& sx, float& sy) {
     return std::isfinite(sx) && std::isfinite(sy);
 }
 
+// Aim point is fixed: 0 Head, 1 Neck, 2 Chest, 3 Stomach. No auto-bone.
 void PickBone(const CS2::Player& p, int bone, float out[3]) {
     const float* selected = p.head;
     if (p.bones_ok) {
         switch (bone) {
-        case 1: selected = p.bones[1]; break;
-        case 2: selected = p.bones[2]; break;
-        case 3: selected = p.bones[5]; break;
-        case 4:
-            out[0] = (p.bones[15][0] + p.bones[18][0]) * 0.5f;
-            out[1] = (p.bones[15][1] + p.bones[18][1]) * 0.5f;
-            out[2] = (p.bones[15][2] + p.bones[18][2]) * 0.5f;
-            return;
-        default: selected = p.bones[0]; break;
+        case 1: selected = p.bones[1]; break; // neck
+        case 2: selected = p.bones[2]; break; // chest
+        case 3: selected = p.bones[5]; break; // stomach
+        default: selected = p.bones[0]; break; // head
         }
     }
     out[0] = selected[0];
     out[1] = selected[1];
     out[2] = selected[2];
 }
+
+// Smooth 0..100 → strength 1..0. Monotonic ease-out curve (not 1/smooth).
+// 0-20 strong, 20-50 moderate, 50-80 soft, 80-99 feather, 100 off.
+float SmoothToStrength(float smooth) {
+    if (smooth <= 0.f) return 1.f;
+    if (smooth >= 100.f) return 0.f;
+    const float t = smooth * 0.01f; // 0..1
+    // strength = (1-t)^1.75 → decays slowly at first, then faster toward 0
+    return std::pow(1.f - t, 1.75f);
+}
+
+// Single motion controller: error → smooth → humanize → residual integers.
+struct PaidAimController {
+    float residual_x = 0.f;
+    float residual_y = 0.f;
+    float phase = 0.f;
+    float phase2 = 0.f;
+    void Reset() {
+        residual_x = residual_y = 0.f;
+        phase = phase2 = 0.f;
+    }
+    // Returns mouse deltas (float before quantization is applied in MoveMouse)
+    void Step(float err_x, float err_y, float smooth, float humanization, float dt,
+              float deadzone, float& out_x, float& out_y) {
+        out_x = out_y = 0.f;
+        dt = std::clamp(dt, 1.e-4f, 0.05f);
+        const float err = std::sqrt(err_x * err_x + err_y * err_y);
+        if (err <= deadzone) {
+            residual_x = residual_y = 0.f;
+            return;
+        }
+
+        float strength = SmoothToStrength(smooth);
+        if (strength <= 1.e-6f) {
+            residual_x = residual_y = 0.f;
+            return;
+        }
+
+        // FPS-independent approach: close a fraction of remaining error this frame.
+        // strength=1 → nearly full correction; strength→0 → no move.
+        const float rate = 4.f + strength * 22.f; // Hz-ish pull rate
+        float frac = 1.f - std::exp(-rate * dt * strength);
+        if (strength >= 0.999f)
+            frac = 1.f; // Smooth 0: full lock
+
+        float mx = err_x * frac;
+        float my = err_y * frac;
+
+        // Humanization: low-frequency continuous perturbation of the trajectory
+        // (does not significantly change final accuracy).
+        const float h = std::clamp(humanization, 0.f, 100.f) * 0.01f;
+        if (h > 0.001f) {
+            phase += dt * (0.85f + 1.4f * h);
+            phase2 += dt * (0.55f + 0.9f * h);
+            const float speedVar = 1.f + 0.10f * h * std::sin(phase);
+            const float curve = 0.06f * h * std::sin(phase2);
+            // rotate delta slightly + scale speed
+            const float rx = mx * speedVar - my * curve;
+            const float ry = my * speedVar + mx * curve;
+            // tiny overshoot tendency when far from target
+            const float over = 0.03f * h * std::sin(phase * 0.37f);
+            mx = rx * (1.f + over);
+            my = ry * (1.f + over);
+        }
+
+        out_x = mx;
+        out_y = my;
+    }
+};
+
+static PaidAimController g_paid_aim;
 
 void MoveMouse(float dx, float dy) {
     // Input devices accept integer counts, but aim/RCS/humanization are all
@@ -304,7 +371,7 @@ TargetCandidate SelectTarget(const CS2::Runtime& rt, const CS2::Config& cfg, flo
         if (cfg.aim_visibility_check && !player.spotted) { ++g_target_diag.hidden; continue; }
         if (player.distance > cfg.aim_max_dist) { ++g_target_diag.distance; continue; }
 
-        int bone = AutoSelectBone(player, player.weapon_def, player.distance, cfg.aim_auto_bone, cfg.aim_bone);
+        int bone = std::clamp(cfg.aim_bone, 0, 3);
         
         float point[3]{};
         PickBone(player, bone, point);
@@ -640,7 +707,7 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
                         (cfg.aim_visibility_check && !held.spotted) || held.distance > cfg.aim_max_dist)
                         break;
                     float point[3]{};
-                    int bone = AutoSelectBone(held, held.weapon_def, held.distance, cfg.aim_auto_bone, cfg.aim_bone);
+                    int bone = std::clamp(cfg.aim_bone, 0, 3);
                     PickBone(held, bone, point);
                     float sx = 0.f, sy = 0.f;
                     if (held.alive && held.health > 0 && W2S(point, rt.view_matrix, sx, sy)) {
@@ -661,27 +728,37 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
             g_target_acquired = now;
             g_last_switch = now;
             g_aim_motion.SetTarget(static_cast<std::uint64_t>(target.pawn));
+            g_paid_aim.Reset();
         }
         g_active_target_idx = target.index;
         g_last_target_idx = target.index;
 
-        const auto settings = BuildMotionSettings(cfg, target.distance_m);
-        const auto motion = g_aim_motion.Step(target.error_x, target.error_y, settings);
-        if (motion) {
-            // ContinuousAimController already owns reaction, easing, EMA,
-            // overshoot and micro-jitter. A second independent humanizer here
-            // used to distort and truncate that controlled output.
-            aim_output_x = static_cast<float>(motion.x);
-            aim_output_y = static_cast<float>(motion.y);
+        // Single controller: smooth strength + independent humanization.
+        CS2::config.aim_auto_bone = false;
+        const int boneFixed = std::clamp(cfg.aim_bone, 0, 3);
+        (void)boneFixed;
+        const float dt = ImGui::GetIO().DeltaTime;
+        const float deadzone = (std::max)(0.75f, cfg.aim_deadzone);
+        float mx = 0.f, my = 0.f;
+        g_paid_aim.Step(target.error_x, target.error_y,
+                        cfg.aim_smooth,
+                        cfg.aim_humanization,
+                        dt,
+                        deadzone,
+                        mx, my);
+        aim_output_x = mx;
+        aim_output_y = my;
+        if (std::fabs(mx) < 0.01f && std::fabs(my) < 0.01f)
+            std::snprintf(g_debug, sizeof(g_debug), "aim: on target (deadzone/smooth100)");
+        else
             std::snprintf(g_debug, sizeof(g_debug),
-                "lock %+d,%+d err=%.1f idx=%d bone=%d dist=%.0fm",
-                motion.x, motion.y,
-                motion.error, target.index, target.bone, target.distance_m);
-        } else {
-            std::snprintf(g_debug, sizeof(g_debug), "aim: on target (deadzone)");
-        }
+                "lock %.1f,%.1f err=%.1f bone=%d smooth=%.0f hum=%.0f",
+                mx, my,
+                std::sqrt(target.error_x * target.error_x + target.error_y * target.error_y),
+                std::clamp(cfg.aim_bone, 0, 3), cfg.aim_smooth, cfg.aim_humanization);
     } else {
         g_active_target_idx = -1;
+        g_paid_aim.Reset();
         if (g_target_diag.hidden)
             std::snprintf(g_debug, sizeof(g_debug), "sem alvo: invisivel=%d fov=%d", g_target_diag.hidden, g_target_diag.fov);
         else if (g_target_diag.fov)

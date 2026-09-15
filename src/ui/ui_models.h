@@ -17,7 +17,6 @@ namespace esp {
         bool visibility_colors = false;
         bool visible_check = false;
         bool show_dead = false;
-        bool show_adm = false; // godmode / freefly / invisible suspects (forced RGB)
         bool show_knocked = false;
         bool team_check = false; // when true: hide friends from ESP
 
