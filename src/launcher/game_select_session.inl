@@ -230,20 +230,18 @@ bool DetectRunning(GameId id) {
         // current cs2.exe process is allowed to produce the Running badge.
         return LocalProcessRunning({L"cs2.exe"}) || RemoteGameRunning(id);
     case GameId::Warzone:
-        return Warzone::ready || LocalProcessRunning({L"cod.exe"}) || RemoteGameRunning(id);
+        return LocalProcessRunning({L"cod.exe"}) || RemoteGameRunning(id);
     case GameId::Valorant:
-        return Valorant::runtime.attached ||
-               LocalProcessRunning({L"VALORANT-Win64-Shipping.exe", L"VALORANT.exe"}) ||
+        return LocalProcessRunning({L"VALORANT-Win64-Shipping.exe", L"VALORANT.exe"}) ||
                RemoteGameRunning(id);
     case GameId::Fortnite:
-        return Fortnite::runtime.attached ||
-               LocalProcessRunning({L"FortniteClient-Win64-Shipping.exe", L"Fortnite.exe"}) ||
+        return LocalProcessRunning({L"FortniteClient-Win64-Shipping.exe", L"Fortnite.exe"}) ||
                RemoteGameRunning(id);
     case GameId::FiveM: {
-        const auto dma = mem.GetDiagnosticsSnapshot();
-        if (g_activeGame == ActiveGame::FiveM && dma.processInitialized)
-            return true;
-        return LocalProcessRunning({L"FiveM_GTAProcess.exe", L"GTAProcess.exe"}) ||
+        return LocalProcessRunning({
+                   L"FiveM_GTAProcess.exe", L"FiveM_b3258_GTAProcess.exe",
+                   L"FiveM_b3407_GTAProcess.exe", L"FiveM_b3570_GTAProcess.exe",
+                   L"GTAProcess.exe"}) ||
                RemoteGameRunning(id);
     }
     default: return false;

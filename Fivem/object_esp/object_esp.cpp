@@ -322,6 +322,7 @@ std::string GuessModelName(uint32_t hash) {
 } // namespace
 
 void ObjectESPManager::PerformScan() {
+    try {
     using namespace FiveM::offset;
     std::lock_guard<std::mutex> lock(data_mutex_);
     scan_results_.clear();
@@ -479,6 +480,20 @@ void ObjectESPManager::PerformScan() {
         scanner_state_.unique_models_found, scanner_state_.total_objects_found);
     scanner_state_.status_message = msg;
     std::cout << "[ObjectESP] " << msg << std::endl;
+    } catch (const std::exception& ex) {
+        scanner_state_.scanning = false;
+        scanner_state_.scan_complete = true;
+        scanner_state_.status_message = "Scan failed";
+        scanner_state_.error_message = ex.what();
+        std::cerr << "[ObjectESP] PerformScan exception: " << ex.what() << std::endl;
+    } catch (...) {
+        scanner_state_.scanning = false;
+        scanner_state_.scan_complete = true;
+        scanner_state_.status_message = "Scan failed";
+        scanner_state_.error_message = "unknown";
+        std::cerr << "[ObjectESP] PerformScan unknown exception" << std::endl;
+    }
+
 }
 
 void ObjectESPManager::UpdateTrackedObjects() {

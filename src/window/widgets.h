@@ -92,6 +92,7 @@ namespace CyberWidgets {
     enum class ToastType { Info, Success, Error, Warning };
     using ToastActionCallback = void(*)();
     void Notify(const char* msg, ToastType type = ToastType::Success);
+    void Notify(const char* msg, ToastType type, float duration_seconds);
     void NotifyAction(const char* msg, ToastType type, const char* action_label,
                       ToastActionCallback callback);
     void DrawToasts();

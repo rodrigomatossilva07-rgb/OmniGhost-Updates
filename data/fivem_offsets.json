@@ -1,9 +1,9 @@
 {
-  "schema_version": 2,
+  "schema_version": "0x2",
   "game": "fivem",
   "module": "GTAProcess.exe",
   "note": "Module RVAs are relative to game base. Field offsets are relative to ped/entity. Source of truth for FiveM::offset runtime \u2014 update this file for new builds.",
-  "default_build": 3258,
+  "default_build": "0xCB2",
   "builds": {
     "2802": {
       "world": "0x1F5B820",

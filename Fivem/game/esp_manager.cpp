@@ -319,7 +319,10 @@ namespace FiveM {
                         : mem.Read<Matrix>(offset::viewport + 0x24C);
                     object_esp::GetObjectRenderer().Render(vm, offset::localplayer);
                 }
+            } catch (const std::exception& ex) {
+                std::cerr << "[FiveM][ObjectESP] frame exception: " << ex.what() << std::endl;
             } catch (...) {
+                std::cerr << "[FiveM][ObjectESP] frame exception (unknown)" << std::endl;
             }
 
             // Radar every frame (10Hz caused triangle flicker)

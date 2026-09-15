@@ -135,7 +135,9 @@ int LoadOffsetsFromJsonImpl(const char* explicit_path) {
             candidates.push_back(dir + "\\data\\fivem_offsets.json");
             candidates.push_back(dir + "\\fivem_offsets.json");
         }
-    } catch (...) {}
+    } catch (...) {
+        std::cerr << "[FiveM] Falha ao adicionar caminhos de offsets junto ao executavel; a continuar com os caminhos padrao.\n";
+    }
 
     std::string data;
     std::string used;

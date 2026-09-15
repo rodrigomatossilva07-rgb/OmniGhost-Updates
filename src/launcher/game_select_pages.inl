@@ -22,7 +22,7 @@ void DrawPageHeading(const char* title, const char* subtitle) {
     // OmniGhost without introducing a separate visual language per page.
     ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(
         CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.66f)),
-        "OMNI // CONTROL CENTER");
+        "");
     ImGui::Dummy(ImVec2(0.f, S(3.f)));
     if (ImFont* font = CyberFonts::GetTitleFont()) ImGui::PushFont(font);
     ImGui::TextColored(CyberTheme::Colors.Text, "%s", title);
@@ -859,6 +859,38 @@ void DrawSettings(ImVec2 display) {
         CyberWidgets::KeyValueRow("Windows SDK", OmniGhost::BuildInfo::WindowsSdkVersion);
         CyberWidgets::TextLine(Loc::Tr("launcher.about_metadata_help"), CyberWidgets::TextTone::Secondary);
         CyberWidgets::EndCard();
+        CyberWidgets::CardGap();
+        CyberWidgets::BeginCard("Desinstalar OmniGhost", 0.f);
+        CyberWidgets::TextLine(
+            "Remove dados locais do OmniGhost (configs, logs, cache, runtime, licença local). "
+            "Não apaga o executável. A ação é irreversível.",
+            CyberWidgets::TextTone::Warning);
+        static bool s_confirm_uninstall = false;
+        if (!s_confirm_uninstall) {
+            if (CyberWidgets::CyberButton("Desinstalar OmniGhost…", ImVec2(S(220.f), S(33.f))))
+                s_confirm_uninstall = true;
+        } else {
+            CyberWidgets::TextLine("Tens a certeza? Isto apaga a pasta AppData\\Local\\OmniGhost.",
+                                   CyberWidgets::TextTone::Error);
+            if (CyberWidgets::GoldButton("Confirmar desinstalação", ImVec2(S(220.f), S(33.f)))) {
+                namespace fs = std::filesystem;
+                std::error_code ec;
+                const fs::path root = OmniGhost::Paths::LocalData();
+                if (!root.empty()) {
+                    fs::remove_all(root, ec);
+                }
+                // Also wipe common legacy folders if present
+                const fs::path roaming = fs::path(OmniGhost::Paths::LocalData()).parent_path().parent_path() / L"Roaming" / L"OmniGhost";
+                fs::remove_all(roaming, ec);
+                s_confirm_uninstall = false;
+                PushToast("Dados locais do OmniGhost removidos. Reinicia a aplicação.", C_GOLD(), ToastAction::None, nullptr);
+            }
+            ImGui::SameLine();
+            if (CyberWidgets::CyberButton("Cancelar", ImVec2(S(120.f), S(33.f))))
+                s_confirm_uninstall = false;
+        }
+        CyberWidgets::EndCard();
+
         break;
     }
     }

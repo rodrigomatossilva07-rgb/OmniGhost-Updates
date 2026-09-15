@@ -371,8 +371,8 @@ void DrawVisualsLegacy()
         }
         CyberWidgets::ToggleSwitch("Vida", &esp::config.health_bar);
         CyberWidgets::ToggleSwitch("Armadura", &esp::config.armor_bar);
-        CyberWidgets::ToggleSwitch("Nome", &esp::config.player_name);
-        CyberWidgets::ToggleSwitch("ID", &esp::config.player_id);
+        esp::config.player_name = false; // removido
+        esp::config.player_id = false; // removido
         CyberWidgets::ToggleSwitch("Distância", &esp::config.distance);
         CyberWidgets::ToggleSwitch("Arma", &esp::config.weapon_name);
         CyberWidgets::SliderFloat("Distância máxima", &esp::config.max_esp_distance,
@@ -503,8 +503,8 @@ void DrawVisuals()
     }
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.health_bar"), &esp::config.health_bar);
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.armor_bar"), &esp::config.armor_bar);
-    CyberWidgets::ToggleSwitch(Loc::Tr("vis.player_name"), &esp::config.player_name);
-    CyberWidgets::ToggleSwitch(Loc::Tr("vis.player_id"), &esp::config.player_id);
+    esp::config.player_name = false; // removido
+    esp::config.player_id = false; // removido
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.weapon_name"), &esp::config.weapon_name);
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.distance"), &esp::config.distance);
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.box_2d"), &esp::config.box_2d);
@@ -586,8 +586,6 @@ CyberWidgets::SliderFloat(Loc::Tr("vis.max_dist"), &esp::config.max_esp_distance
     CyberWidgets::SectionTitle(Loc::Tr("vis.information"));
     colorWhenEnabled(Loc::Tr("vis.health"), &esp::config.color_health, espEnabled && esp::config.health_bar);
     colorWhenEnabled(Loc::Tr("vis.armor"), &esp::config.color_armor, espEnabled && esp::config.armor_bar);
-    colorWhenEnabled(Loc::Tr("common.name"), &esp::config.color_name, espEnabled && esp::config.player_name);
-    colorWhenEnabled(Loc::Tr("common.id"), &esp::config.color_id, espEnabled && esp::config.player_id);
     colorWhenEnabled(Loc::Tr("common.distance"), &esp::config.color_distance, espEnabled && esp::config.distance);
     colorWhenEnabled(Loc::Tr("vis.weapon_short"), &esp::config.color_weapon, espEnabled && esp::config.weapon_name);
     colorWhenEnabled("NPC", &esp::config.color_npc, espEnabled && esp::config.npc_esp);

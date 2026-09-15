@@ -14,7 +14,7 @@ namespace esp {
         // The colour state and the visibility filter are independent: colour
         // state keeps every player visible (green/red), while visible_check
         // hides occluded players entirely.
-        bool visibility_colors = true;
+        bool visibility_colors = false;
         bool visible_check = false;
         bool show_dead = false;
         bool show_knocked = false;

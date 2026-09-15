@@ -104,14 +104,14 @@
     <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; generate-embedded-offsets &quot;$(MSBuildProjectDirectory)&quot; &quot;$(Configuration)&quot;" IgnoreExitCode="true">
       <Output TaskParameter="ExitCode" PropertyName="OmniGhostEmbeddedOffsetsExitCode"/>
     </Exec>
-    <Error Condition="'$(OmniGhostEmbeddedOffsetsExitCode)'!='0'" Code="OGOFF001" Text="Falha ao gerar os recursos de offsets embutidos. Consulta a janela SaÃ­da."/>
+    <Error Condition="'$(OmniGhostEmbeddedOffsetsExitCode)'!='0'" Code="OGOFF001" Text="Falha ao gerar os recursos de offsets embutidos. Consulta a janela Saída."/>
   </Target>
   <Target Name="BuildOmniGhostEmbeddedRuntime" BeforeTargets="ClCompile;ResourceCompile" Condition="'$(DesignTimeBuild)'!='true'">
     <Message Importance="High" Text="[OmniGhost Runtime] Generating single-process native dependency bundle..."/>
     <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; generate-embedded-runtime &quot;$(MSBuildProjectDirectory)&quot; &quot;$(VCInstallDir)Redist\MSVC\$(VCToolsVersion)\x64&quot; &quot;$(Configuration)&quot;" IgnoreExitCode="true">
       <Output TaskParameter="ExitCode" PropertyName="OmniGhostEmbeddedRuntimeExitCode"/>
     </Exec>
-    <Error Condition="'$(OmniGhostEmbeddedRuntimeExitCode)'!='0'" Code="OGRUN001" Text="Falha ao gerar o runtime auto-instalÃ¡vel. Consulta a janela SaÃ­da."/>
+    <Error Condition="'$(OmniGhostEmbeddedRuntimeExitCode)'!='0'" Code="OGRUN001" Text="Falha ao gerar o runtime auto-instalável. Consulta a janela Saída."/>
     <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; validate-embedded-runtime &quot;$(MSBuildProjectDirectory)&quot; &quot;$(Configuration)&quot; &quot;$(Platform)&quot;" IgnoreExitCode="true" Condition="'$(Configuration)'!='PrivateStatic'">
       <Output TaskParameter="ExitCode" PropertyName="OmniGhostEmbeddedRuntimeValidationExitCode"/>
     </Exec>
@@ -123,7 +123,7 @@
     <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; generate-embedded-resources &quot;$(MSBuildProjectDirectory)&quot; &quot;$(Configuration)&quot;" IgnoreExitCode="true">
       <Output TaskParameter="ExitCode" PropertyName="OmniGhostEmbeddedResourcesExitCode"/>
     </Exec>
-    <Error Condition="'$(OmniGhostEmbeddedResourcesExitCode)'!='0'" Code="OGRES001" Text="Falha ao gerar os recursos embedded. Consulta a janela SaÃ­da."/>
+    <Error Condition="'$(OmniGhostEmbeddedResourcesExitCode)'!='0'" Code="OGRES001" Text="Falha ao gerar os recursos embedded. Consulta a janela Saída."/>
   </Target>
   <Target Name="CleanOmniGhostRuntimeOutput" BeforeTargets="PrepareForBuild" Condition="'$(DesignTimeBuild)'!='true' And '$(OmniGhostCleanRuntimeOutput)'!='false'">
     <RemoveDir Directories="$(OutDir)" Condition="Exists('$(OutDir)')"/>
@@ -138,7 +138,7 @@
       <OmniGhostVcRuntimeLibrary Include="$(VCToolsRedistDir)\x64\Microsoft.VC*.CRT\vcruntime*.dll"/>
       <OmniGhostVcRuntimeLibrary Include="$(VCToolsRedistDir)\x64\Microsoft.VC*.CRT\concrt*.dll"/>
     </ItemGroup>
-    <Error Condition="'@(OmniGhostLibRuntimeLibrary)'==''" Code="OGLIB001" Text="A pasta libs nÃ£o contÃ©m DLLs. Coloca a pasta libs na raiz do OmniGhost antes de compilar."/>
+    <Error Condition="'@(OmniGhostLibRuntimeLibrary)'==''" Code="OGLIB001" Text="A pasta libs não contém DLLs. Coloca a pasta libs na raiz do OmniGhost antes de compilar."/>
     <!-- A project-owned third_party bundle is optional. The validated local
          libs\ bundle is the supported fallback and is enough for Tester. -->
     <Error Condition="!Exists('$(ProjectDir)libs\vmm.dll') And !Exists('$(ProjectDir)third_party\dma_stack\bin\vmm.dll')" Code="OGDLL001" Text="Nenhuma cópia de vmm.dll foi encontrada em libs\ ou third_party\dma_stack\bin\."/>
@@ -167,34 +167,34 @@
       <OmniGhostRuntimeDestination Include="@(OmniGhostCustomRuntimeLibrary-&gt;'$(OutDir)%(Filename)%(Extension)')"/>
       <OmniGhostRuntimeDestination Include="@(OmniGhostVcRuntimeLibrary-&gt;'$(OutDir)%(Filename)%(Extension)')" Condition="'$(Configuration)'=='Release'"/>
     </ItemGroup>
-    <Error Condition="!Exists('%(OmniGhostRuntimeDestination.Identity)')" Code="OGDLL002" Text="A DLL de runtime nÃ£o foi copiada para junto do executÃ¡vel: %(OmniGhostRuntimeDestination.Filename)%(OmniGhostRuntimeDestination.Extension)"/>
-    <Error Condition="!Exists('$(OutDir)data\runtime\dma_stack_versions.json')" Code="OGDLL007" Text="O manifest de versÃµes da stack DMA nÃ£o foi copiado para data\runtime."/>
-    <Error Condition="'$(Configuration)'!='Tester' And Exists('$(OutDir)data\fortnite_offsets.json')" Code="OGOFF002" Text="Release/Publish nÃ£o podem distribuir data\fortnite_offsets.json; o snapshot deve estar embutido no EXE."/>
-    <Error Condition="'$(Configuration)'!='Tester' And Exists('$(OutDir)data\warzone_offsets.json')" Code="OGOFF003" Text="Release/Publish nÃ£o podem distribuir data\warzone_offsets.json; o snapshot deve estar embutido no EXE."/>
+    <Error Condition="!Exists('%(OmniGhostRuntimeDestination.Identity)')" Code="OGDLL002" Text="A DLL de runtime não foi copiada para junto do executável: %(OmniGhostRuntimeDestination.Filename)%(OmniGhostRuntimeDestination.Extension)"/>
+    <Error Condition="!Exists('$(OutDir)data\runtime\dma_stack_versions.json')" Code="OGDLL007" Text="O manifest de versões da stack DMA não foi copiado para data\runtime."/>
+    <Error Condition="'$(Configuration)'!='Tester' And Exists('$(OutDir)data\fortnite_offsets.json')" Code="OGOFF002" Text="Release/Publish não podem distribuir data\fortnite_offsets.json; o snapshot deve estar embutido no EXE."/>
+    <Error Condition="'$(Configuration)'!='Tester' And Exists('$(OutDir)data\warzone_offsets.json')" Code="OGOFF003" Text="Release/Publish não podem distribuir data\warzone_offsets.json; o snapshot deve estar embutido no EXE."/>
     <Error Condition="'$(Configuration)'!='Tester' And Exists('$(OutDir)data\cs2_offsets.json')" Code="OGOFF004" Text="Release/Publish cannot ship plaintext cs2 offsets; must be embedded."/>
     <Error Condition="'$(Configuration)'!='Tester' And Exists('$(OutDir)data\fivem_offsets.json')" Code="OGOFF006" Text="Release/Publish cannot ship plaintext fivem offsets; must be embedded."/>
     <Error Condition="'$(Configuration)'!='Tester' And Exists('$(OutDir)data\apex_offsets.json')" Code="OGOFF007" Text="Release/Publish cannot ship plaintext apex offsets; must be embedded."/>
     <Error Condition="'$(Configuration)'!='Tester' And Exists('$(OutDir)data\offsets.json')" Code="OGOFF008" Text="Release/Publish cannot ship plaintext offsets.json; must be embedded."/>
     <Error Condition="'$(Configuration)'!='Tester' And Exists('$(OutDir)data\valorant_offsets.json')" Code="OGOFF009" Text="Release/Publish cannot ship plaintext Valorant offsets; use compiled defaults until its embedded loader is available."/>
 
-    <Message Importance="High" Text="[OmniGhost Runtime] DLLs de libs\ sincronizadas para build\; runtimes canÃ³nicos validados e copiados."/>
+    <Message Importance="High" Text="[OmniGhost Runtime] DLLs de libs\ sincronizadas para build\; runtimes canónicos validados e copiados."/>
   </Target>
   <Target Name="ValidateOmniGhostSingleExeRuntime" AfterTargets="Build" Condition="'$(Configuration)'=='Release' Or '$(Configuration)'=='Publish'">
     <ItemGroup>
       <OmniGhostUnexpectedCustomerRuntime Include="$(OutDir)**\*" Exclude="$(OutDir)OmniGhost.exe"/>
     </ItemGroup>
-    <Error Condition="!Exists('$(OutDir)OmniGhost.exe')" Code="OGRUN002" Text="A build single-EXE nÃ£o produziu OmniGhost.exe."/>
-    <Error Condition="'@(OmniGhostUnexpectedCustomerRuntime)'!=''" Code="OGRUN003" Text="A build comercial contÃ©m ficheiros externos inesperados: @(OmniGhostUnexpectedCustomerRuntime)."/>
+    <Error Condition="!Exists('$(OutDir)OmniGhost.exe')" Code="OGRUN002" Text="A build single-EXE não produziu OmniGhost.exe."/>
+    <Error Condition="'@(OmniGhostUnexpectedCustomerRuntime)'!=''" Code="OGRUN003" Text="A build comercial contém ficheiros externos inesperados: @(OmniGhostUnexpectedCustomerRuntime)."/>
     <Message Importance="High" Text="[OmniGhost Runtime] Single-EXE distribution validated; no private OmniGhost.exe is installed or relaunched."/>
   </Target>
-  <!-- Publish Ã© a Ãºnica configuraÃ§Ã£o que pode alterar o GitHub. Release e Tester
-       nunca alcanÃ§am este target. Tag, source limpo e artefactos vÃ¡lidos continuam obrigatÃ³rios. -->
+  <!-- Publish é a única configuração que pode alterar o GitHub. Release e Tester
+       nunca alcançam este target. Tag, source limpo e artefactos válidos continuam obrigatórios. -->
   <Target Name="PublishOmniGhostRelease" AfterTargets="ValidateOmniGhostSingleExeRuntime" Condition="'$(Configuration)'=='Publish' And '$(DesignTimeBuild)'!='true' And '$(OmniGhostSkipRemotePublish)'!='true'">
-    <Message Importance="High" Text="[OmniGhost Publish] A validar, empacotar e publicar a versÃ£o no GitHub."/>
+    <Message Importance="High" Text="[OmniGhost Publish] A validar, empacotar e publicar a versão no GitHub."/>
     <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; publish-build &quot;$(MSBuildProjectDirectory)&quot; &quot;$(OutDir).&quot;" IgnoreExitCode="true">
       <Output TaskParameter="ExitCode" PropertyName="OmniGhostPublishExitCode"/>
     </Exec>
-    <Error Condition="'$(OmniGhostPublishExitCode)'!='0'" Code="OGPUB001" Text="A build Publish compilou, mas a publicaÃ§Ã£o no GitHub falhou. Consulta a janela SaÃ­da; nenhuma configuraÃ§Ã£o Release publica remotamente."/>
+    <Error Condition="'$(OmniGhostPublishExitCode)'!='0'" Code="OGPUB001" Text="A build Publish compilou, mas o pipeline de publicação falhou. Consulta a janela Saída e a primeira causa reportada; o upload para o GitHub pode ainda não ter começado. Release nunca publica remotamente."/>
   </Target>
   <Target Name="ValidateOmniGhostPlatform" BeforeTargets="PrepareForBuild">
     <Error Condition="'$(Platform)'!='x64'" Code="OGPLAT001" Text="OmniGhost suporta apenas x64. Seleciona Release, Tester ou Publish em x64."/>
@@ -438,26 +438,26 @@
     <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; validate-project &quot;$(MSBuildProjectDirectory)&quot;" IgnoreExitCode="true">
       <Output TaskParameter="ExitCode" PropertyName="OmniGhostProjectValidationExitCode"/>
     </Exec>
-    <Error Condition="'$(OmniGhostProjectValidationExitCode)'!='0'" Code="OGENG001" Text="Falha na validaÃ§Ã£o de engenharia/dependÃªncias do projeto. Consulta a janela SaÃ­da e procura a primeira linha [FAIL] para ver a causa exata."/>
+    <Error Condition="'$(OmniGhostProjectValidationExitCode)'!='0'" Code="OGENG001" Text="Falha na validação de engenharia/dependências do projeto. Consulta a janela Saída e procura a primeira linha [FAIL] para ver a causa exata."/>
   </Target>
   <Target Name="ValidateOmniGhostPublishVersion" BeforeTargets="ValidateOmniGhostProjectLayout" Condition="'$(Configuration)'=='Publish' And '$(DesignTimeBuild)'!='true' And '$(OmniGhostSkipRemotePublish)'!='true' And '$(OmniGhostSkipVersionAdvance)'!='true'">
-    <Message Importance="High" Text="[OmniGhost Publish] A confirmar a versÃ£o atual no GitHub e a preparar a prÃ³xima versÃ£o quando necessÃ¡rio."/>
+    <Message Importance="High" Text="[OmniGhost Publish] A confirmar a versão atual no GitHub e a preparar a próxima versão quando necessário."/>
     <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; prepare-publish-version &quot;$(MSBuildProjectDirectory)&quot;" IgnoreExitCode="true">
       <Output TaskParameter="ExitCode" PropertyName="OmniGhostPreparePublishVersionExitCode"/>
     </Exec>
-    <Error Condition="'$(OmniGhostPreparePublishVersionExitCode)'!='0'" Code="OGVER002" Text="NÃ£o foi possÃ­vel determinar/preparar a prÃ³xima versÃ£o Publish. Consulta a primeira mensagem [OmniGhost Version]."/>
+    <Error Condition="'$(OmniGhostPreparePublishVersionExitCode)'!='0'" Code="OGVER002" Text="Não foi possível determinar/preparar a próxima versão Publish. Consulta a primeira mensagem [OmniGhost Version]."/>
   </Target>
   <Target Name="EnsureOmniGhostMetadata" BeforeTargets="PrepareForBuild">
     <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; ensure-metadata &quot;$(MSBuildProjectDirectory)&quot;" IgnoreExitCode="true">
       <Output TaskParameter="ExitCode" PropertyName="OmniGhostMetadataExitCode"/>
     </Exec>
-    <Error Condition="'$(OmniGhostMetadataExitCode)'!='0'" Code="OGVER001" Text="Falha ao validar os metadados e a versÃ£o do OmniGhost."/>
+    <Error Condition="'$(OmniGhostMetadataExitCode)'!='0'" Code="OGVER001" Text="Falha ao validar os metadados e a versão do OmniGhost."/>
   </Target>
   <Target Name="ValidateOmniGhostDistributionBuild" BeforeTargets="PrepareForBuild" Condition="'$(Configuration)'!='PrivateStatic'">
     <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; validate-distribution &quot;$(MSBuildProjectDirectory)&quot; &quot;$(Configuration)&quot;" IgnoreExitCode="true">
       <Output TaskParameter="ExitCode" PropertyName="OmniGhostDistributionValidationExitCode"/>
     </Exec>
-    <Error Condition="'$(OmniGhostDistributionValidationExitCode)'!='0'" Code="OGDIST001" Text="A configuraÃ§Ã£o de distribuiÃ§Ã£o $(Configuration) nÃ£o cumpre a polÃ­tica de seguranÃ§a."/>
+    <Error Condition="'$(OmniGhostDistributionValidationExitCode)'!='0'" Code="OGDIST001" Text="A configuração de distribuição $(Configuration) não cumpre a política de segurança."/>
   </Target>
   <Target Name="GenerateOmniGhostBuildMetadata" BeforeTargets="ClCompile">
     <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; generate-build-metadata &quot;$(MSBuildProjectDirectory)&quot; &quot;$(Configuration)&quot; &quot;$(Platform)&quot; &quot;$(OmniGhostReleaseChannel)&quot;" IgnoreExitCode="true">

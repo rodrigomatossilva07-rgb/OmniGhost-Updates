@@ -1225,7 +1225,18 @@ namespace CyberWidgets {
 
     void Notify(const char* msg, ToastType type)
     {
+        Notify(msg, type, 1.0f);
+    }
+
+    void Notify(const char* msg, ToastType type, float duration_seconds)
+    {
         NotifyAction(msg, type, nullptr, nullptr);
+        if (!g_toasts.empty() && duration_seconds > 0.05f) {
+            g_toasts.back().maximum = duration_seconds;
+            g_toasts.back().life = duration_seconds;
+        }
+        (void)type;
+        (void)msg;
     }
 
     void NotifyAction(const char* msg, ToastType type, const char* action_label,
@@ -1235,7 +1246,7 @@ namespace CyberWidgets {
         std::snprintf(toast.msg, sizeof(toast.msg), "%s", msg ? msg : "");
         if (action_label)
             std::snprintf(toast.action, sizeof(toast.action), "%s", action_label);
-        toast.maximum = callback && toast.action[0] ? 4.6f : 3.2f;
+        toast.maximum = callback && toast.action[0] ? 4.6f : 1.0f;
         toast.life = toast.maximum;
         toast.type = type;
         toast.callback = callback;
@@ -1586,6 +1597,30 @@ namespace CyberWidgets {
                 ImGuiColorEditFlags_InputRGB;
             if (ImGui::ColorPicker4("##photoshop_picker", &value.x, flags))
                 *color = ImGui::ColorConvertFloat4ToU32(value);
+
+            ImGui::Dummy(ImVec2(0.0f, 6.0f));
+            ImGui::TextColored(CyberTheme::Colors.TextDisabled, "RGB manual");
+            int rgb[4] = {
+                static_cast<int>(value.x * 255.0f + 0.5f),
+                static_cast<int>(value.y * 255.0f + 0.5f),
+                static_cast<int>(value.z * 255.0f + 0.5f),
+                static_cast<int>(value.w * 255.0f + 0.5f)
+            };
+            ImGui::SetNextItemWidth(306.0f);
+            if (ImGui::SliderInt4("##rgb_sliders", rgb, 0, 255)) {
+                value.x = rgb[0] / 255.0f;
+                value.y = rgb[1] / 255.0f;
+                value.z = rgb[2] / 255.0f;
+                value.w = rgb[3] / 255.0f;
+                *color = ImGui::ColorConvertFloat4ToU32(value);
+            }
+            if (ImGui::Button("Aplicar RGB", ImVec2(140.0f, 0.0f))) {
+                value.x = rgb[0] / 255.0f;
+                value.y = rgb[1] / 255.0f;
+                value.z = rgb[2] / 255.0f;
+                value.w = rgb[3] / 255.0f;
+                *color = ImGui::ColorConvertFloat4ToU32(value);
+            }
 
             ImGui::EndPopup();
         }
