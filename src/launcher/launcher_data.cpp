@@ -57,9 +57,9 @@ constexpr GameDefinition kGames[] = {
         "launcher.game.rust.description",
         "resources/games/rust/logo.png",
         "resources/games/rust/banner.png",
-        "Em Breve",
-        true,
+        "Beta",
         false,
+        true,
         { 40, 28, 22 }, { 18, 12, 10 }, { 212, 175, 55 },
         "R", "launcher.game.rust.tagline"
     },

@@ -2,7 +2,7 @@
 #include "../../theme.h"
 #include "imgui.h"
 #include "../../Warzone/warzone_game.h"
-#include "../config/config_manager.h"
+#include "../../../config/config_manager.h"
 #include <cstdio>
 #include <cstring>
 #include <string>

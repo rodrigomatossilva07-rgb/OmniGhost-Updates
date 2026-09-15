@@ -26,7 +26,7 @@ void DrawWarzoneVisuals() {
     CyberWidgets::ToggleSwitch("Caixa", &Warzone::config.box);
     CyberWidgets::ToggleSwitch("Caixa de cantos", &Warzone::config.box_corner);
     CyberWidgets::ToggleSwitch("Linhas guia", &Warzone::config.snaplines);
-    CyberWidgets::SliderInt("Distância máxima", &Warzone::config.max_distance, 50, 800, "%d m");
+    ImGui::SliderInt("Distância máxima", &Warzone::config.max_distance, 50, 800, "%d m");
     CyberWidgets::EndCard();
     ImGui::EndChild();
     ImGui::SameLine(0.f, gap);
