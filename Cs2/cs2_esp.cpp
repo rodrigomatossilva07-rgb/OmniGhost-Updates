@@ -8,6 +8,7 @@
 #include "gameplay/esp_fx.h"
 #include "gameplay/esp_optimizer.h"
 #include "updater/http_client.h"
+#include "../src/platform/app_paths.h"
 #include "imgui.h"
 #include "../src/window/window.hpp"
 #include "../src/config/app_settings.h"
@@ -20,6 +21,8 @@
 #include <iterator>
 #include <unordered_map>
 #include <future>
+#include <fstream>
+#include <filesystem>
 #include <wincodec.h>
 
 namespace CS2_ESP {
@@ -33,7 +36,43 @@ struct AvatarEntry {
 static std::unordered_map<uint64_t, AvatarEntry> g_avatarCache;
 static ID3D11Device* g_avatarDevice = nullptr;
 
+std::filesystem::path AvatarCachePath(uint64_t steamId) {
+    return OmniGhost::Paths::Cache() / L"cs2" / L"avatars" /
+           (std::to_wstring(steamId) + L".jpg");
+}
+
+std::vector<unsigned char> LoadAvatarFromDisk(uint64_t steamId) {
+    try {
+        const auto path = AvatarCachePath(steamId);
+        if (!std::filesystem::exists(path)) return {};
+        std::ifstream in(path, std::ios::binary);
+        if (!in) return {};
+        return std::vector<unsigned char>(
+            (std::istreambuf_iterator<char>(in)),
+            std::istreambuf_iterator<char>());
+    } catch (...) {
+        return {};
+    }
+}
+
+void SaveAvatarToDisk(uint64_t steamId, const std::vector<unsigned char>& bytes) {
+    if (bytes.empty()) return;
+    try {
+        const auto path = AvatarCachePath(steamId);
+        std::filesystem::create_directories(path.parent_path());
+        std::ofstream out(path, std::ios::binary | std::ios::trunc);
+        if (!out) return;
+        out.write(reinterpret_cast<const char*>(bytes.data()),
+                  static_cast<std::streamsize>(bytes.size()));
+    } catch (...) {
+    }
+}
+
 std::vector<unsigned char> FetchSteamAvatar(uint64_t steamId) {
+    // Persistent cache under %LOCALAPPDATA%\OmniGhost\cache\cs2\avatars
+    if (auto disk = LoadAvatarFromDisk(steamId); !disk.empty() && disk.size() < 2u * 1024u * 1024u)
+        return disk;
+
     std::atomic_bool cancelled{false};
     OmniGhost::Update::WinHttpClient http;
     const auto profile = http.GetText("https://steamcommunity.com/profiles/" +
@@ -48,7 +87,9 @@ std::vector<unsigned char> FetchSteamAvatar(uint64_t steamId) {
     const auto image = http.GetText(profile.body.substr(urlBegin, end - urlBegin),
                                     4000, cancelled);
     if (image.statusCode != 200 || image.body.size() > 2u * 1024u * 1024u) return {};
-    return {image.body.begin(), image.body.end()};
+    std::vector<unsigned char> bytes{image.body.begin(), image.body.end()};
+    SaveAvatarToDisk(steamId, bytes);
+    return bytes;
 }
 
 ID3D11ShaderResourceView* DecodeAvatar(ID3D11Device* device,
@@ -155,6 +196,9 @@ CS2::Player SmoothPlayerForPresentation(const CS2::Player& raw,
             return output;
         output.pos[0] += dx; output.pos[1] += dy; output.pos[2] += dz;
         output.head[0] += dx; output.head[1] += dy; output.head[2] += dz;
+        // Translate the FULL joint set from the last validated pose. This keeps
+        // every bone (arms/legs/spine) without re-reading the 32-joint buffer
+        // on the motion lane — visual parity, far less DMA.
         if (output.bones_ok) {
             for (std::size_t bone = 0; bone < CS2::kBoneSlotCount; ++bone) {
                 output.bones[bone][0] += dx;
@@ -162,7 +206,8 @@ CS2::Player SmoothPlayerForPresentation(const CS2::Player& raw,
                 output.bones[bone][2] += dz;
             }
         }
-        if (sample.bones_ok) {
+        // Optional motion-lane bone top-up (usually disabled); prefer translation.
+        if (sample.bones_ok && !output.bones_ok) {
             std::memcpy(output.bones, sample.bones, sizeof(output.bones));
             std::memcpy(output.head, sample.bones[0], sizeof(output.head));
             output.bones_ok = true;

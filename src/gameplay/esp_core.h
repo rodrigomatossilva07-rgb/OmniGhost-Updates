@@ -54,17 +54,22 @@ struct FeatureSet {
     bool look_direction = false;
 
     constexpr DataField RequiredFields() const noexcept {
-        DataField fields = DataField::Position;
-        if (box || corner_box || skeleton || head || health || armor || snapline || aim || halo)
+        // Position is enough for box / HP / armor (origin + standing hull).
+        // Skeleton is ONLY for features that truly need the joint buffer —
+        // forcing bones for simple boxes caused massive DMA hitch spikes.
+        DataField fields = DataField::None;
+        if (box || corner_box || skeleton || head || health || armor || snapline ||
+            distance || trail || halo || look_direction || aim || name || weapon)
+            fields |= DataField::Position;
+        if (skeleton || aim || halo || look_direction)
             fields |= DataField::Skeleton;
-        if (health) fields |= DataField::Health;
+        if (health || aim) fields |= DataField::Health;
         if (armor) fields |= DataField::Armor;
         if (name) fields |= DataField::Name;
         if (weapon) fields |= DataField::Weapon;
         if (visibility) fields |= DataField::Visibility;
         if (prediction) fields |= DataField::Velocity;
         if (look_direction) fields |= DataField::Facing;
-        if (aim) fields |= DataField::Health;
         return fields;
     }
 };

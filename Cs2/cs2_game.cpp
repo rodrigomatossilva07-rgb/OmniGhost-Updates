@@ -1481,7 +1481,7 @@ struct PawnCoreFields {
 
 static void ScatterReadPawnCore(const uintptr_t* pawns, PawnCoreFields* fields, int count,
                                 bool need_armor, bool need_scoped, bool need_flash,
-                                bool need_yaw, bool need_weapons) {
+                                bool need_yaw, bool need_weapons, bool need_spotted) {
     if (!pawns || !fields || count <= 0) return;
     EnsureScatter();
     if (!g_scatter) {
@@ -1490,7 +1490,7 @@ static void ScatterReadPawnCore(const uintptr_t* pawns, PawnCoreFields* fields, 
             QReadT(pawns[i] + offsets.m_iHealth, fields[i].health);
             {
                 uint8_t sp = 1;
-                if (offsets.m_entitySpottedState)
+                if (need_spotted && offsets.m_entitySpottedState)
                     QReadT(pawns[i] + offsets.m_entitySpottedState + offsets.m_bSpotted, sp);
                 fields[i].spotted = (sp != 0);
             }
@@ -1525,10 +1525,12 @@ static void ScatterReadPawnCore(const uintptr_t* pawns, PawnCoreFields* fields, 
                                       &fields[i].armor, sizeof(int));
         mem.AddScatterReadRequest(g_scatter, pawns[i] + offsets.m_pGameSceneNode,
                                   &fields[i].scene, sizeof(uintptr_t));
-        if (offsets.m_entitySpottedState)
+        if (need_spotted && offsets.m_entitySpottedState)
             mem.AddScatterReadRequest(g_scatter,
                 pawns[i] + offsets.m_entitySpottedState + offsets.m_bSpotted,
                 &spotted_buf[i], sizeof(uint8_t));
+        else
+            spotted_buf[i] = 1;
         if (need_scoped && offsets.m_bIsScoped)
             mem.AddScatterReadRequest(g_scatter, pawns[i] + offsets.m_bIsScoped,
                                       &fields[i].scoped, sizeof(fields[i].scoped));
@@ -1760,12 +1762,14 @@ static void RunFrameWithConfig(const Config& frame_config) {
     };
     static std::unordered_map<uintptr_t, RecentPlayer> recent_players;
     static std::unordered_map<uintptr_t, CachedBones> bone_cache;
+    static std::unordered_map<uintptr_t, uint8_t> s_stickyBoneLayout; // 0/1 once validated
     runtime.player_count = 0;
     runtime.enemy_count = 0;
     runtime.controller_count = 0;
     runtime.pawn_count = 0;
-    if (!runtime.players.empty())
-        runtime.players.clear();
+    runtime.players.clear();
+    if (runtime.players.capacity() < 64)
+        runtime.players.reserve(64);
     // Keep entity-list root sticky.  Periodic zeroing forced a full multi-page
     // probe every few frames and produced visible hitch spikes under DMA load.
     // Only clear when ValidateEntityList already failed (root becomes 0).
@@ -1790,6 +1794,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
         runtime.bomb = BombState{};
         recent_players.clear();
         bone_cache.clear();
+        s_stickyBoneLayout.clear();
         runtime.players.clear();
         runtime.player_count = 0;
         runtime.pawn_count = 0;
@@ -2121,8 +2126,10 @@ static void RunFrameWithConfig(const Config& frame_config) {
     const bool need_scoped = frame_config.scope_check || frame_config.trigger_scoped_only;
 
     PawnCoreFields core[kMaxSlots]{};
+    const bool need_spotted = frame_config.visible_check || frame_config.visibility_colors;
     ScatterReadPawnCore(resolved_pawns, core, candidate_count, need_armor,
-                        need_scoped, frame_config.smoke_flash, need_yaw, need_weapons);
+                        need_scoped, frame_config.smoke_flash, need_yaw, need_weapons,
+                        need_spotted);
 
     // Health and team are the minimum discriminator reads: without them we
     // cannot know which pawns to exclude. Compact the candidate set here so
@@ -2151,6 +2158,9 @@ static void RunFrameWithConfig(const Config& frame_config) {
     // ── Phase 4: scatter positions (scene+origin or pawn+oldOrigin) ──────
     struct BoneJointSnapshot { float x, y, z, scale; char pad[0x10]; };
     static_assert(sizeof(BoneJointSnapshot) == 32, "BoneJointSnapshot size");
+    // Highest joint index used by either layout is 27 → read 28 joints only.
+    constexpr int kBoneJointReadCount = 28;
+    constexpr size_t kBoneReadBytes = sizeof(BoneJointSnapshot) * kBoneJointReadCount;
     float positions[kMaxSlots][3]{};
     char playerNames[kMaxSlots][64]{};
     bool nameNeedsRefresh[kMaxSlots]{};
@@ -2161,7 +2171,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
     static std::unordered_map<uintptr_t, CachedName> nameCache;
     uintptr_t boneBases[kMaxSlots]{};
     bool boneReadEligible[kMaxSlots]{};
-    BoneJointSnapshot boneSnapshots[kMaxSlots][32]{};
+    BoneJointSnapshot boneSnapshots[kMaxSlots][kBoneJointReadCount]{};
     uint32_t weaponHandles[kMaxSlots]{};
     uintptr_t weaponEntities[kMaxSlots]{};
     uint16_t weaponDefinitions[kMaxSlots]{};
@@ -2210,26 +2220,50 @@ static void RunFrameWithConfig(const Config& frame_config) {
         }
         mem.ExecuteReadScatter(g_scatter);
         if (need_bones) {
-            bool queuedBoneReads = false;
+            // Community-proven approach for external DMA skeletons:
+            //  - one scatter of a tight joint window (not 64× full arrays every frame)
+            //  - distance-tiered refresh (near more often, far less)
+            //  - hard budget of fresh bone DMAs per scan; others keep translated cache
+            //  - still draw ALL slots (kBoneSlotCount) every frame from cache/pose
+            static std::unordered_map<uintptr_t, uint64_t> s_lastBoneMs;
+            struct BoneCand { int c; float distSq; uint64_t interval; };
+            BoneCand cand[kMaxSlots]{};
+            int candN = 0;
+            const float lx = runtime.local_pos[0], ly = runtime.local_pos[1], lz = runtime.local_pos[2];
             for (int c = 0; c < candidate_count; ++c) {
-                // Skeleton is an explicitly enabled, high-priority feature.
-                // Do not reject it using an approximate origin/frustum test:
-                // near screen edges that test could suppress every bone even
-                // though the pawn itself was visible in the final projection.
-                // Animated bones are latency-sensitive. Sampling every scan
-                // prevents distant players from appearing frozen between poses.
-                static std::unordered_map<uintptr_t, uint64_t> s_lastBoneMs;
-                const bool sample_this_scan =
-                    !s_lastBoneMs.count(resolved_pawns[c]) ||
-                    scan_now_ms - s_lastBoneMs[resolved_pawns[c]] >= static_cast<uint64_t>(BONES_INTERVAL_MS);
-                if (sample_this_scan)
-                    s_lastBoneMs[resolved_pawns[c]] = scan_now_ms;
-                boneReadEligible[c] = sample_this_scan && IsUserPointer(boneBases[c]);
-                if (boneReadEligible[c] && IsUserPointer(boneBases[c])) {
-                    mem.AddScatterReadRequest(g_scatter, boneBases[c], boneSnapshots[c],
-                                              sizeof(boneSnapshots[c]));
-                    queuedBoneReads = true;
+                if (!IsUserPointer(boneBases[c])) continue;
+                const float* pos = positions[c];
+                if (!std::isfinite(pos[0]) || !std::isfinite(pos[1]) || !std::isfinite(pos[2]))
+                    continue;
+                const float dx = pos[0] - lx, dy = pos[1] - ly, dz = pos[2] - lz;
+                const float distSq = dx * dx + dy * dy + dz * dz;
+                // LOD intervals (ms): close / mid / far — visual still full skeleton
+                uint64_t interval = static_cast<uint64_t>(BONES_INTERVAL_MS);
+                if (distSq > 3000.f * 3000.f) interval = 40;       // ~76m+
+                else if (distSq > 1500.f * 1500.f) interval = 24;  // ~38m+
+                else if (distSq > 800.f * 800.f) interval = 16;    // ~20m+
+                const auto it = s_lastBoneMs.find(resolved_pawns[c]);
+                if (it != s_lastBoneMs.end() && scan_now_ms - it->second < interval)
+                    continue;
+                if (candN < kMaxSlots) {
+                    cand[candN++] = { c, distSq, interval };
                 }
+            }
+            // Nearest first within budget
+            for (int i = 0; i < candN; ++i)
+                for (int j = i + 1; j < candN; ++j)
+                    if (cand[j].distSq < cand[i].distSq)
+                        std::swap(cand[i], cand[j]);
+            constexpr int kMaxBoneReadsPerScan = 14;
+            const int take = candN < kMaxBoneReadsPerScan ? candN : kMaxBoneReadsPerScan;
+            bool queuedBoneReads = false;
+            for (int i = 0; i < take; ++i) {
+                const int c = cand[i].c;
+                boneReadEligible[c] = true;
+                s_lastBoneMs[resolved_pawns[c]] = scan_now_ms;
+                mem.AddScatterReadRequest(g_scatter, boneBases[c], boneSnapshots[c],
+                                          kBoneReadBytes);
+                queuedBoneReads = true;
             }
             if (queuedBoneReads)
                 mem.ExecuteReadScatter(g_scatter);
@@ -2491,21 +2525,42 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 float best[kBoneSlotCount][3]{};
                 float bestScore = -1.f;
                 uint8_t bestLayout = 0;
-                uint8_t layout = 0;
-                for (const auto* indices : {kReferenceIdx, kCurrentIdx}) { // CS2-DMA layout first
+
+                // Sticky layout: once a pawn's rig is known, skip dual scoring.
+                const auto stickyIt = s_stickyBoneLayout.find(p.pawn);
+                const bool haveSticky = stickyIt != s_stickyBoneLayout.end();
+                const uint8_t stickyLayout = haveSticky ? stickyIt->second : 0;
+
+                auto score_layout = [&](const int* indices, uint8_t layoutId) {
                     bool finite = true;
                     for (std::size_t b = 0; b < kBoneSlotCount; ++b) {
                         const int id = indices[b];
-                        tmp[b][0] = joints[id].x; tmp[b][1] = joints[id].y; tmp[b][2] = joints[id].z;
-                        finite = finite && std::isfinite(tmp[b][0]) && std::isfinite(tmp[b][1]) && std::isfinite(tmp[b][2]);
+                        if (id < 0 || id >= kBoneJointReadCount) { finite = false; break; }
+                        tmp[b][0] = joints[id].x;
+                        tmp[b][1] = joints[id].y;
+                        tmp[b][2] = joints[id].z;
+                        finite = finite && std::isfinite(tmp[b][0]) && std::isfinite(tmp[b][1]) &&
+                                 std::isfinite(tmp[b][2]);
                     }
                     const float score = finite ? skeleton_score(tmp) : -1.f;
                     if (score > bestScore) {
                         bestScore = score;
-                        bestLayout = layout;
+                        bestLayout = layoutId;
                         std::memcpy(best, tmp, sizeof(best));
                     }
-                    ++layout;
+                };
+
+                if (haveSticky) {
+                    // 0 = reference (CS2-DMA first historically), 1 = current
+                    score_layout(stickyLayout == 0 ? kReferenceIdx : kCurrentIdx, stickyLayout);
+                    if (bestScore < 0.f) {
+                        // Sticky failed (model change) — re-probe both once
+                        score_layout(kReferenceIdx, 0);
+                        score_layout(kCurrentIdx, 1);
+                    }
+                } else {
+                    score_layout(kReferenceIdx, 0);
+                    score_layout(kCurrentIdx, 1);
                 }
                 if (bestScore < 0.f) return false;
 
@@ -2516,6 +2571,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 }
                 p.head[0] = best[0][0]; p.head[1] = best[0][1]; p.head[2] = best[0][2];
                 p.bone_layout = bestLayout;
+                s_stickyBoneLayout[p.pawn] = bestLayout;
                 return true;
             };
 
@@ -2527,16 +2583,20 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 p.bone_base = boneBases[c];
                 acquired_real_bones = true;
             } else {
-                // Fallback: some builds expose the bone pointer at scene+0x1D0 / 0x160
-                for (uintptr_t alt : {(uintptr_t)0x1D0, (uintptr_t)0x160, (uintptr_t)0x1C0}) {
-                    if (alt == offsets.BoneArray) continue;
-                    if (QReadT(scene + alt, boneBase) && IsUserPointer(boneBase)) {
-                        BoneJointSnapshot fallback[32]{};
-                        if (QRead(boneBase, fallback, sizeof(fallback)) && try_bones(fallback)) {
-                            p.bones_ok = true;
-                            p.bone_base = boneBase;
-                            acquired_real_bones = true;
-                            break;
+                // Rare recovery only — avoid sequential 3× full-joint DMA in the hot path.
+                static uint64_t s_lastFallbackMs = 0;
+                if (scan_now_ms - s_lastFallbackMs > 500u) {
+                    s_lastFallbackMs = scan_now_ms;
+                    for (uintptr_t alt : {(uintptr_t)0x1D0, (uintptr_t)0x160, (uintptr_t)0x1C0}) {
+                        if (alt == offsets.BoneArray) continue;
+                        if (QReadT(scene + alt, boneBase) && IsUserPointer(boneBase)) {
+                            BoneJointSnapshot fallback[kBoneJointReadCount]{};
+                            if (QRead(boneBase, fallback, kBoneReadBytes) && try_bones(fallback)) {
+                                p.bones_ok = true;
+                                p.bone_base = boneBase;
+                                acquired_real_bones = true;
+                                break;
+                            }
                         }
                     }
                 }
@@ -2558,7 +2618,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 // Keep a verified pose through short scene-node/bone-buffer
                 // outages.  The fast origin lane translates this cached pose
                 // each render, so it stays attached instead of blinking out.
-                scan_now_ms - cached->second.last_valid_ms <= 750u) {
+                scan_now_ms - cached->second.last_valid_ms <= 1200u) {
                 std::memcpy(p.bones, cached->second.joints, sizeof(p.bones));
                 const float cached_shift[3] = {
                     p.pos[0] - cached->second.origin[0],
@@ -2944,64 +3004,49 @@ void EnsureAcquisitionStarted() {
                  frame_config->head_halo || frame_config->look_direction || frame_config->chinese_hat ||
                  frame_config->angel_wings || frame_config->devil_horns || frame_config->floating_crown);
             if (canRead && runtime.in_match && needs_motion && now_ms >= next_motion_ms) {
-                next_motion_ms = now_ms + MOTION_INTERVAL_MS;
+                // Slightly slower motion when skeleton is off — boxes/bars stay smooth
+                // with far less DMA pressure (main source of intermittent freezes).
+                const int motionPeriod = frame_config->skeleton ? MOTION_INTERVAL_MS : 12;
+                next_motion_ms = now_ms + motionPeriod;
                 const auto current = g_runtime_snapshots.Acquire();
                 MotionSnapshot motion{};
-                // Position every MOTION_INTERVAL; bones only every other tick so we
-                // never stack full-scan bone DMA with 32-joint*N sequential reads
-                // (that pattern caused intermittent overlay freezes under load).
-                static uint32_t s_motionTick = 0;
-                ++s_motionTick;
-                const bool sampleBonesThisTick =
-                    frame_config->skeleton && (s_motionTick % 2u) == 0u;
-                int boneReadsThisTick = 0;
-                constexpr int kMaxBoneReadsPerMotion = 12;
-                const auto motionBegin = std::chrono::steady_clock::now();
-
+                // One scatter round-trip for all origins instead of N sequential DMA reads.
+                struct MotItem { uintptr_t pawn; uintptr_t scene; float pos[3]; };
+                MotItem items[32]{};
+                int n = 0;
                 for (const auto& player : current->players) {
-                    if (motion.count >= motion.players.size() || !player.pawn || !IsUserPointer(player.scene))
+                    if (n >= 32 || !player.pawn || !IsUserPointer(player.scene))
                         continue;
-                    // Cap motion samples — far / excess entities stay on full-scan poses
-                    if (motion.count >= 24)
-                        break;
-                    auto& sample = motion.players[motion.count];
-                    sample = {};
-                    sample.pawn = player.pawn;
-                    if (!QRead(player.scene + offsets.m_vecAbsOrigin, sample.pos, sizeof(sample.pos)) ||
-                        !std::isfinite(sample.pos[0]) || !std::isfinite(sample.pos[1]) ||
-                        !std::isfinite(sample.pos[2]))
-                        continue;
-
-                    // Bones: budgeted. Full scan already refreshes pose ~10–16 ms.
-                    // Motion lane only top-ups nearby skeletons when DMA budget allows.
-                    if (sampleBonesThisTick && player.bones_ok && IsUserPointer(player.bone_base) &&
-                        boneReadsThisTick < kMaxBoneReadsPerMotion &&
-                        OmniGhost::Gameplay::TimeMs(motionBegin) < 3.5) {
-                        struct FastBoneJoint { float x, y, z, scale; char pad[0x10]; } joints[32]{};
-                        static constexpr int kReferenceIdx[kBoneSlotCount] = {
-                            7, 6, 4, 3, 3, 1, 6, 9, 10, 11, 6, 13, 14, 15, 17, 18, 19, 20, 21, 22
-                        };
-                        static constexpr int kCurrentIdx[kBoneSlotCount] = {
-                            6, 5, 4, 3, 2, 0, 8, 8, 9, 10, 13, 13, 14, 15, 22, 23, 24, 25, 26, 27
-                        };
-                        const int* indices = player.bone_layout == 0 ? kReferenceIdx : kCurrentIdx;
-                        bool valid = QRead(player.bone_base, joints, sizeof(joints));
-                        ++boneReadsThisTick;
-                        for (std::size_t bone = 0; valid && bone < kBoneSlotCount; ++bone) {
-                            const auto& joint = joints[indices[bone]];
-                            const float dx = joint.x - sample.pos[0];
-                            const float dy = joint.y - sample.pos[1];
-                            const float dz = joint.z - sample.pos[2];
-                            valid = std::isfinite(joint.x) && std::isfinite(joint.y) && std::isfinite(joint.z) &&
-                                dx * dx + dy * dy < 260.f * 260.f && dz > -100.f && dz < 220.f;
-                            sample.bones[bone][0] = joint.x;
-                            sample.bones[bone][1] = joint.y;
-                            sample.bones[bone][2] = joint.z;
-                        }
-                        valid = valid && sample.bones[0][2] > sample.bones[5][2] + 8.f;
-                        sample.bones_ok = valid;
+                    items[n].pawn = player.pawn;
+                    items[n].scene = player.scene;
+                    ++n;
+                }
+                if (n > 0) {
+                    EnsureScatter();
+                    if (g_scatter) {
+                        for (int i = 0; i < n; ++i)
+                            mem.AddScatterReadRequest(g_scatter,
+                                items[i].scene + offsets.m_vecAbsOrigin,
+                                items[i].pos, sizeof(items[i].pos));
+                        mem.ExecuteReadScatter(g_scatter);
+                    } else {
+                        for (int i = 0; i < n; ++i)
+                            QRead(items[i].scene + offsets.m_vecAbsOrigin,
+                                  items[i].pos, sizeof(items[i].pos));
                     }
-                    ++motion.count;
+                    for (int i = 0; i < n; ++i) {
+                        if (!std::isfinite(items[i].pos[0]) || !std::isfinite(items[i].pos[1]) ||
+                            !std::isfinite(items[i].pos[2]))
+                            continue;
+                        if (motion.count >= motion.players.size()) break;
+                        auto& sample = motion.players[motion.count];
+                        sample = {};
+                        sample.pawn = items[i].pawn;
+                        sample.pos[0] = items[i].pos[0];
+                        sample.pos[1] = items[i].pos[1];
+                        sample.pos[2] = items[i].pos[2];
+                        ++motion.count;
+                    }
                 }
                 if (motion.count) {
                     motion.timestamp_ms = GetTickCount64();
@@ -3038,9 +3083,16 @@ void EnsureAcquisitionStarted() {
             // only until the next cadence and never accumulates Sleep drift.
             // If a scan itself takes longer than 6 ms it is published at once;
             // snapshots are never queued behind an older frame.
-            // If the last full scan was heavy (DMA stall), back off so the
-            // camera/motion lanes can catch up instead of stacking freezes.
+            // Lightweight profiles (box/HP/armor only) can scan slower; skeleton
+            // keeps the tighter FULL_SCAN interval. Back off further after stalls.
             int delayMs = runtime.in_match ? FULL_SCAN_INTERVAL_MS : 16;
+            try {
+                auto cfgLease = g_config_snapshots.Acquire();
+                if (cfgLease && runtime.in_match && !cfgLease->skeleton &&
+                    !cfgLease->aim_enabled) {
+                    delayMs = (std::max)(delayMs, 20); // still smooth boxes via motion lane
+                }
+            } catch (...) {}
             if (runtime.in_match && runtime.acquisition_ms > 12.f)
                 delayMs = (std::max)(delayMs, 24);
             if (runtime.in_match && runtime.acquisition_ms > 20.f)

@@ -11,6 +11,7 @@
 #include <exception>
 #include <filesystem>
 #include <iostream>
+#include <fstream>
 
 #pragma comment(lib, "windowscodecs.lib")
 
@@ -223,10 +224,17 @@ bool CreateSrv(ID3D11Device* device, const uint8_t* rgba, int w, int h, IconTex&
     return true;
 }
 
+std::filesystem::path WeaponIconCacheDir() {
+    return OmniGhost::Paths::Cache() / L"cs2" / L"weapons";
+}
+
 std::vector<std::filesystem::path> IconSearchDirs() {
     namespace fs = std::filesystem;
     std::vector<fs::path> dirs;
     try {
+        // Prefer persistent LocalAppData cache so icons are not re-decoded
+        // from embedded resources on every process start.
+        dirs.push_back(WeaponIconCacheDir());
         const fs::path install = OmniGhost::Paths::InstallDirectory();
         const fs::path exe = OmniGhost::Paths::Executable().parent_path();
         dirs.push_back(install / "data" / "weapons");
@@ -250,14 +258,15 @@ void LoadOne(ID3D11Device* device, int def) {
     const char* stem = StemFromDef(def);
     if (!stem) return;
 
-#if defined(OMNIGHOST_DEV_EXTERNAL_RESOURCES)
+    // 1) Disk cache / install folders first (no embedded decode if already cached).
     for (const auto& dir : IconSearchDirs()) {
         const auto path = dir / (std::string(stem) + ".png");
-        if (!std::filesystem::exists(path)) continue;
+        std::error_code ec;
+        if (!std::filesystem::exists(path, ec)) continue;
 
         std::vector<uint8_t> rgba;
         int w = 0, h = 0;
-        if (!LoadPngRgba(Widen(path.string()), rgba, w, h))
+        if (!LoadPngRgba(path.wstring(), rgba, w, h))
             continue;
 
         IconTex tex{};
@@ -266,7 +275,8 @@ void LoadOne(ID3D11Device* device, int def) {
             return;
         }
     }
-#endif
+
+    // 2) Embedded resource — only when CS2 actually requests this icon.
     const std::string logical = std::string("cs2/weapons/") + stem + ".png";
     OmniGhost::EmbeddedResourceDiagnostics diagnostics;
     const auto bytes = OmniGhost::LoadEmbeddedResource(logical, &diagnostics);
@@ -275,6 +285,18 @@ void LoadOne(ID3D11Device* device, int def) {
                   << diagnostics.error << '\n';
         return;
     }
+
+    // Materialize into LocalAppData so the next session skips embedded decode.
+    try {
+        const auto cachePath = WeaponIconCacheDir() / (std::string(stem) + ".png");
+        std::filesystem::create_directories(cachePath.parent_path());
+        std::ofstream out(cachePath, std::ios::binary | std::ios::trunc);
+        if (out)
+            out.write(reinterpret_cast<const char*>(bytes->data()),
+                      static_cast<std::streamsize>(bytes->size()));
+    } catch (...) {
+    }
+
     std::vector<uint8_t> rgba;
     int w = 0, h = 0;
     if (!LoadPngRgbaMemory(*bytes, rgba, w, h)) return;
