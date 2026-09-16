@@ -1766,13 +1766,10 @@ static void RunFrameWithConfig(const Config& frame_config) {
     runtime.pawn_count = 0;
     if (!runtime.players.empty())
         runtime.players.clear();
-    {
-        static uint64_t s_lastEntityListMs = 0;
-        const uint64_t nowEl = GetTickCount64();
-        if (!s_lastEntityListMs || nowEl - s_lastEntityListMs >= static_cast<uint64_t>(ENTITY_LIST_INTERVAL_MS))
-            g_cached_entity_root = 0; // rediscover entity list at medium rate
-        s_lastEntityListMs = (!g_cached_entity_root) ? nowEl : s_lastEntityListMs;
-    }
+    // Keep entity-list root sticky.  Periodic zeroing forced a full multi-page
+    // probe every few frames and produced visible hitch spikes under DMA load.
+    // Only clear when ValidateEntityList already failed (root becomes 0).
+    (void)ENTITY_LIST_INTERVAL_MS;
 
     // Map detection — faster while in lobby so lobby→match recovers quickly.
     static char previous_map[64]{};
@@ -2172,7 +2169,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
     struct CachedWeaponDefinition { uint16_t definition = 0; uint64_t last_refresh_ms = 0; };
     static std::unordered_map<uintptr_t, CachedWeaponDefinition> weaponDefinitionCache;
     const uint64_t scan_now_ms = GetTickCount64();
-    if ((runtime.frames % 600u) == 0u) {
+    if ((runtime.frames % 1800u) == 0u) { // rarer cleanup — avoid mid-fight hitch
         for (auto it = nameCache.begin(); it != nameCache.end();) {
             if (scan_now_ms - it->second.last_refresh_ms > 30000u) it = nameCache.erase(it);
             else ++it;
@@ -2950,19 +2947,36 @@ void EnsureAcquisitionStarted() {
                 next_motion_ms = now_ms + MOTION_INTERVAL_MS;
                 const auto current = g_runtime_snapshots.Acquire();
                 MotionSnapshot motion{};
+                // Position every MOTION_INTERVAL; bones only every other tick so we
+                // never stack full-scan bone DMA with 32-joint*N sequential reads
+                // (that pattern caused intermittent overlay freezes under load).
+                static uint32_t s_motionTick = 0;
+                ++s_motionTick;
+                const bool sampleBonesThisTick =
+                    frame_config->skeleton && (s_motionTick % 2u) == 0u;
+                int boneReadsThisTick = 0;
+                constexpr int kMaxBoneReadsPerMotion = 12;
+                const auto motionBegin = std::chrono::steady_clock::now();
+
                 for (const auto& player : current->players) {
                     if (motion.count >= motion.players.size() || !player.pawn || !IsUserPointer(player.scene))
                         continue;
+                    // Cap motion samples — far / excess entities stay on full-scan poses
+                    if (motion.count >= 24)
+                        break;
                     auto& sample = motion.players[motion.count];
+                    sample = {};
                     sample.pawn = player.pawn;
                     if (!QRead(player.scene + offsets.m_vecAbsOrigin, sample.pos, sizeof(sample.pos)) ||
                         !std::isfinite(sample.pos[0]) || !std::isfinite(sample.pos[1]) ||
                         !std::isfinite(sample.pos[2]))
                         continue;
-                    // A compact 32-joint read keeps limb animation on the
-                    // same fast lane as the box.  A failed/invalid fast read
-                    // never replaces the last full validated pose.
-                    if (frame_config->skeleton && player.bones_ok && IsUserPointer(player.bone_base)) {
+
+                    // Bones: budgeted. Full scan already refreshes pose ~10–16 ms.
+                    // Motion lane only top-ups nearby skeletons when DMA budget allows.
+                    if (sampleBonesThisTick && player.bones_ok && IsUserPointer(player.bone_base) &&
+                        boneReadsThisTick < kMaxBoneReadsPerMotion &&
+                        OmniGhost::Gameplay::TimeMs(motionBegin) < 3.5) {
                         struct FastBoneJoint { float x, y, z, scale; char pad[0x10]; } joints[32]{};
                         static constexpr int kReferenceIdx[kBoneSlotCount] = {
                             7, 6, 4, 3, 3, 1, 6, 9, 10, 11, 6, 13, 14, 15, 17, 18, 19, 20, 21, 22
@@ -2972,6 +2986,7 @@ void EnsureAcquisitionStarted() {
                         };
                         const int* indices = player.bone_layout == 0 ? kReferenceIdx : kCurrentIdx;
                         bool valid = QRead(player.bone_base, joints, sizeof(joints));
+                        ++boneReadsThisTick;
                         for (std::size_t bone = 0; valid && bone < kBoneSlotCount; ++bone) {
                             const auto& joint = joints[indices[bone]];
                             const float dx = joint.x - sample.pos[0];
@@ -3023,7 +3038,13 @@ void EnsureAcquisitionStarted() {
             // only until the next cadence and never accumulates Sleep drift.
             // If a scan itself takes longer than 6 ms it is published at once;
             // snapshots are never queued behind an older frame.
-            const int delayMs = runtime.in_match ? FULL_SCAN_INTERVAL_MS : 16;
+            // If the last full scan was heavy (DMA stall), back off so the
+            // camera/motion lanes can catch up instead of stacking freezes.
+            int delayMs = runtime.in_match ? FULL_SCAN_INTERVAL_MS : 16;
+            if (runtime.in_match && runtime.acquisition_ms > 12.f)
+                delayMs = (std::max)(delayMs, 24);
+            if (runtime.in_match && runtime.acquisition_ms > 20.f)
+                delayMs = (std::max)(delayMs, 32);
             scheduler.Wait(std::chrono::milliseconds(delayMs));
         }
     });
