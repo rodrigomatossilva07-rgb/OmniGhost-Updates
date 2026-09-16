@@ -277,6 +277,10 @@ struct MotionHistory {
 
 static std::unordered_map<uintptr_t, MotionHistory> g_motion_history;
 
+void EnsureMotionHistoryCapacity() {
+    if (g_motion_history.bucket_count() < 128) g_motion_history.reserve(128);
+}
+
 float Length3(const std::array<float, 3>& value) noexcept {
     return std::sqrt(value[0] * value[0] + value[1] * value[1] + value[2] * value[2]);
 }
@@ -297,6 +301,7 @@ void ApplyRobustPrediction(float point[3], const CS2::Player& player,
                            const CS2::Runtime& rt, const CS2::Config& cfg,
                            uint64_t now_ms) {
     if (!cfg.aim_prediction || !player.pawn) return;
+    EnsureMotionHistoryCapacity();
 
     const uint64_t sample_ms = rt.snapshot_timestamp_ms ? rt.snapshot_timestamp_ms : now_ms;
     auto& history = g_motion_history[player.pawn];

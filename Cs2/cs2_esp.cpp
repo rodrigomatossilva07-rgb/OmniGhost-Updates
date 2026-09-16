@@ -6,7 +6,6 @@
 #include "gameplay/esp_core.h"
 #include "gameplay/trail_history.h"
 #include "gameplay/esp_fx.h"
-#include "gameplay/esp_optimizer.h"
 #include "updater/http_client.h"
 #include "../src/platform/app_paths.h"
 #include "imgui.h"
@@ -20,7 +19,9 @@
 #include <cstring>
 #include <iterator>
 #include <unordered_map>
+#include <array>
 #include <future>
+#include <thread>
 #include <fstream>
 #include <filesystem>
 #include <wincodec.h>
@@ -28,10 +29,19 @@
 namespace CS2_ESP {
 namespace {
 
+struct AvatarPixels {
+    std::vector<unsigned char> rgba;
+    UINT w = 0;
+    UINT h = 0;
+    [[nodiscard]] bool valid() const noexcept { return !rgba.empty() && w && h; }
+};
+
 struct AvatarEntry {
-    std::future<std::vector<unsigned char>> pending;
+    std::future<AvatarPixels> pending;
+    AvatarPixels pixels;
     ID3D11ShaderResourceView* texture = nullptr;
     bool requested = false;
+    double last_used = 0.0;
 };
 static std::unordered_map<uint64_t, AvatarEntry> g_avatarCache;
 static ID3D11Device* g_avatarDevice = nullptr;
@@ -50,9 +60,7 @@ std::vector<unsigned char> LoadAvatarFromDisk(uint64_t steamId) {
         return std::vector<unsigned char>(
             (std::istreambuf_iterator<char>(in)),
             std::istreambuf_iterator<char>());
-    } catch (...) {
-        return {};
-    }
+    } catch (...) { return {}; }
 }
 
 void SaveAvatarToDisk(uint64_t steamId, const std::vector<unsigned char>& bytes) {
@@ -65,14 +73,13 @@ void SaveAvatarToDisk(uint64_t steamId, const std::vector<unsigned char>& bytes)
         out.write(reinterpret_cast<const char*>(bytes.data()),
                   static_cast<std::streamsize>(bytes.size()));
     } catch (...) {
+        OutputDebugStringA("[CS2 ESP] SaveAvatarToDisk failed with unknown exception\n");
     }
 }
 
 std::vector<unsigned char> FetchSteamAvatar(uint64_t steamId) {
-    // Persistent cache under %LOCALAPPDATA%\OmniGhost\cache\cs2\avatars
     if (auto disk = LoadAvatarFromDisk(steamId); !disk.empty() && disk.size() < 2u * 1024u * 1024u)
         return disk;
-
     std::atomic_bool cancelled{false};
     OmniGhost::Update::WinHttpClient http;
     const auto profile = http.GetText("https://steamcommunity.com/profiles/" +
@@ -84,63 +91,114 @@ std::vector<unsigned char> FetchSteamAvatar(uint64_t steamId) {
     const auto urlBegin = begin + std::strlen(open);
     const auto end = profile.body.find("]]></avatarMedium>", urlBegin);
     if (end == std::string::npos) return {};
-    const auto image = http.GetText(profile.body.substr(urlBegin, end - urlBegin),
-                                    4000, cancelled);
+    const auto image = http.GetText(profile.body.substr(urlBegin, end - urlBegin), 4000, cancelled);
     if (image.statusCode != 200 || image.body.size() > 2u * 1024u * 1024u) return {};
     std::vector<unsigned char> bytes{image.body.begin(), image.body.end()};
     SaveAvatarToDisk(steamId, bytes);
     return bytes;
 }
 
-ID3D11ShaderResourceView* DecodeAvatar(ID3D11Device* device,
-                                        const std::vector<unsigned char>& bytes) {
-    if (!device || bytes.empty() || bytes.size() > MAXDWORD) return nullptr;
+AvatarPixels DecodeAvatarPixels(const std::vector<unsigned char>& bytes) {
+    AvatarPixels out{};
+    if (bytes.empty() || bytes.size() > MAXDWORD) return out;
+    const HRESULT co = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
     IWICImagingFactory* factory = nullptr; IWICStream* stream = nullptr;
     IWICBitmapDecoder* decoder = nullptr; IWICBitmapFrameDecode* frame = nullptr;
-    IWICFormatConverter* converter = nullptr; ID3D11Texture2D* texture = nullptr;
-    ID3D11ShaderResourceView* view = nullptr; UINT w = 0, h = 0;
+    IWICFormatConverter* converter = nullptr; UINT w = 0, h = 0;
     if (FAILED(CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER,
                                 IID_PPV_ARGS(&factory)))) goto done;
     if (FAILED(factory->CreateStream(&stream)) ||
-        FAILED(stream->InitializeFromMemory(const_cast<BYTE*>(bytes.data()),
-                                            static_cast<DWORD>(bytes.size()))) ||
+        FAILED(stream->InitializeFromMemory(const_cast<BYTE*>(bytes.data()), static_cast<DWORD>(bytes.size()))) ||
         FAILED(factory->CreateDecoderFromStream(stream, nullptr, WICDecodeMetadataCacheOnLoad, &decoder)) ||
         FAILED(decoder->GetFrame(0, &frame)) || FAILED(factory->CreateFormatConverter(&converter)) ||
         FAILED(converter->Initialize(frame, GUID_WICPixelFormat32bppRGBA,
             WICBitmapDitherTypeNone, nullptr, 0.0, WICBitmapPaletteTypeCustom)) ||
         FAILED(converter->GetSize(&w, &h)) || !w || !h || w > 512 || h > 512) goto done;
-    {
-        std::vector<unsigned char> pixels(static_cast<size_t>(w) * h * 4u);
-        if (FAILED(converter->CopyPixels(nullptr, w * 4u, static_cast<UINT>(pixels.size()), pixels.data()))) goto done;
-        D3D11_TEXTURE2D_DESC desc{}; desc.Width=w; desc.Height=h; desc.MipLevels=1; desc.ArraySize=1;
-        desc.Format=DXGI_FORMAT_R8G8B8A8_UNORM; desc.SampleDesc.Count=1;
-        desc.Usage=D3D11_USAGE_DEFAULT; desc.BindFlags=D3D11_BIND_SHADER_RESOURCE;
-        D3D11_SUBRESOURCE_DATA data{}; data.pSysMem=pixels.data(); data.SysMemPitch=w*4u;
-        if (FAILED(device->CreateTexture2D(&desc, &data, &texture)) ||
-            FAILED(device->CreateShaderResourceView(texture, nullptr, &view))) view = nullptr;
+    out.rgba.resize(static_cast<size_t>(w) * h * 4u);
+    if (FAILED(converter->CopyPixels(nullptr, w * 4u, static_cast<UINT>(out.rgba.size()), out.rgba.data()))) {
+        out = {};
+        goto done;
     }
+    out.w = w; out.h = h;
 done:
-    if (texture) texture->Release(); if (converter) converter->Release();
-    if (frame) frame->Release(); if (decoder) decoder->Release();
-    if (stream) stream->Release(); if (factory) factory->Release();
+    if (converter) converter->Release(); if (frame) frame->Release();
+    if (decoder) decoder->Release(); if (stream) stream->Release(); if (factory) factory->Release();
+    if (SUCCEEDED(co)) CoUninitialize();
+    return out;
+}
+
+ID3D11ShaderResourceView* CreateAvatarTexture(ID3D11Device* device, const AvatarPixels& pixels) {
+    if (!device || !pixels.valid()) return nullptr;
+    D3D11_TEXTURE2D_DESC desc{}; desc.Width=pixels.w; desc.Height=pixels.h; desc.MipLevels=1; desc.ArraySize=1;
+    desc.Format=DXGI_FORMAT_R8G8B8A8_UNORM; desc.SampleDesc.Count=1;
+    desc.Usage=D3D11_USAGE_DEFAULT; desc.BindFlags=D3D11_BIND_SHADER_RESOURCE;
+    D3D11_SUBRESOURCE_DATA data{}; data.pSysMem=pixels.rgba.data(); data.SysMemPitch=pixels.w*4u;
+    ID3D11Texture2D* texture = nullptr; ID3D11ShaderResourceView* view = nullptr;
+    if (SUCCEEDED(device->CreateTexture2D(&desc, &data, &texture)))
+        device->CreateShaderResourceView(texture, nullptr, &view);
+    if (texture) texture->Release();
     return view;
+}
+
+void PumpAvatarUploads(ID3D11Device* device, int maxUploads = 1) {
+    if (!device || maxUploads <= 0) return;
+    if (g_avatarDevice != device) {
+        for (auto& [_, entry] : g_avatarCache) {
+            if (entry.texture) { entry.texture->Release(); entry.texture = nullptr; }
+        }
+        g_avatarDevice = device;
+    }
+    int uploaded = 0;
+    for (auto& [_, entry] : g_avatarCache) {
+        if (!entry.pixels.valid() && entry.pending.valid() &&
+            entry.pending.wait_for(std::chrono::seconds(0)) == std::future_status::ready)
+            entry.pixels = entry.pending.get();
+        if (!entry.texture && entry.pixels.valid() && uploaded < maxUploads) {
+            entry.texture = CreateAvatarTexture(device, entry.pixels);
+            if (entry.texture) ++uploaded;
+        }
+    }
+
+    // Prune completed entries that have not appeared for a minute. Pending
+    // futures are intentionally retained so their destructor never blocks a frame.
+    static int cleanupFrame = -1;
+    const int frame = ImGui::GetFrameCount();
+    if (frame != cleanupFrame && frame % 600 == 0) {
+        cleanupFrame = frame;
+        const double now = ImGui::GetTime();
+        for (auto it = g_avatarCache.begin(); it != g_avatarCache.end();) {
+            const bool pending = it->second.pending.valid() &&
+                it->second.pending.wait_for(std::chrono::seconds(0)) != std::future_status::ready;
+            if (!pending && it->second.last_used > 0.0 && now - it->second.last_used > 60.0) {
+                if (it->second.texture) it->second.texture->Release();
+                it = g_avatarCache.erase(it);
+            } else {
+                ++it;
+            }
+        }
+    }
 }
 
 ID3D11ShaderResourceView* SteamAvatar(uint64_t steamId) {
     if (!steamId || !g_overlay_instance || !g_overlay_instance->device) return nullptr;
-    ID3D11Device* device = g_overlay_instance->device;
-    if (g_avatarDevice != device) {
-        for (auto& [_, entry] : g_avatarCache) if (entry.texture) entry.texture->Release();
-        g_avatarCache.clear(); g_avatarDevice = device;
-    }
     auto& entry = g_avatarCache[steamId];
+    entry.last_used = ImGui::GetTime();
     if (!entry.requested) {
-        entry.requested = true;
-        entry.pending = std::async(std::launch::async, FetchSteamAvatar, steamId);
+        // Avoid a burst of one std::async thread per newly visible spectator.
+        // Entries that are not scheduled this frame are retried on the next draw.
+        std::size_t activeWorkers = 0;
+        for (auto& [_, candidate] : g_avatarCache) {
+            if (candidate.pending.valid() &&
+                candidate.pending.wait_for(std::chrono::seconds(0)) != std::future_status::ready)
+                ++activeWorkers;
+        }
+        if (activeWorkers < 2) {
+            entry.requested = true;
+            entry.pending = std::async(std::launch::async, [steamId] {
+                return DecodeAvatarPixels(FetchSteamAvatar(steamId));
+            });
+        }
     }
-    if (!entry.texture && entry.pending.valid() &&
-        entry.pending.wait_for(std::chrono::seconds(0)) == std::future_status::ready)
-        entry.texture = DecodeAvatar(device, entry.pending.get());
     return entry.texture;
 }
 
@@ -148,11 +206,17 @@ ImU32 Col(const float* c, float aMul = 1.f) {
     int a = (int)(c[3] * aMul * 255.f);
     if (a < 0) a = 0; if (a > 255) a = 255;
     if (CS2::config.rgb_mode) {
-        const float tm = static_cast<float>(ImGui::GetTime());
-        const int r = static_cast<int>(std::sin(tm * 2.0f) * 127.f + 128.f);
-        const int g = static_cast<int>(std::sin(tm * 2.0f + 2.094f) * 127.f + 128.f);
-        const int b = static_cast<int>(std::sin(tm * 2.0f + 4.188f) * 127.f + 128.f);
-        return IM_COL32(r, g, b, a);
+        static double cachedTime = -1.0;
+        static int cachedR = 255, cachedG = 255, cachedB = 255;
+        const double now = ImGui::GetTime();
+        if (now != cachedTime) {
+            cachedTime = now;
+            const float tm = static_cast<float>(now);
+            cachedR = static_cast<int>(std::sin(tm * 2.0f) * 127.f + 128.f);
+            cachedG = static_cast<int>(std::sin(tm * 2.0f + 2.094f) * 127.f + 128.f);
+            cachedB = static_cast<int>(std::sin(tm * 2.0f + 4.188f) * 127.f + 128.f);
+        }
+        return IM_COL32(cachedR, cachedG, cachedB, a);
     }
     return IM_COL32((int)(c[0] * 255), (int)(c[1] * 255), (int)(c[2] * 255), a);
 }
@@ -165,6 +229,7 @@ bool W2S(const float* world, const float* vm, float& sx, float& sy);
 static float g_presentViewMatrix[16]{};
 static uint64_t g_viewSnapshotMs = 0;
 static bool g_havePresentationView = false;
+static ImVec2 g_frameDisplaySize{};
 
 void UpdatePresentationViewMatrix(const CS2::Runtime& rt, const float* latestMatrix,
                                   uint64_t matrixTimestamp) {
@@ -200,17 +265,20 @@ CS2::Player SmoothPlayerForPresentation(const CS2::Player& raw,
         // every bone (arms/legs/spine) without re-reading the 32-joint buffer
         // on the motion lane — visual parity, far less DMA.
         if (output.bones_ok) {
-            for (std::size_t bone = 0; bone < CS2::kBoneSlotCount; ++bone) {
-                output.bones[bone][0] += dx;
-                output.bones[bone][1] += dy;
-                output.bones[bone][2] += dz;
+            if (output.full_bones_ok) {
+                for (std::size_t bone = 0; bone < CS2::kBoneSlotCount; ++bone) {
+                    output.bones[bone][0] += dx;
+                    output.bones[bone][1] += dy;
+                    output.bones[bone][2] += dz;
+                }
+            } else {
+                static constexpr std::size_t kCompactSlots[] = {0, 1, 2, 4};
+                for (const std::size_t bone : kCompactSlots) {
+                    output.bones[bone][0] += dx;
+                    output.bones[bone][1] += dy;
+                    output.bones[bone][2] += dz;
+                }
             }
-        }
-        // Optional motion-lane bone top-up (usually disabled); prefer translation.
-        if (sample.bones_ok && !output.bones_ok) {
-            std::memcpy(output.bones, sample.bones, sizeof(output.bones));
-            std::memcpy(output.head, sample.bones[0], sizeof(output.head));
-            output.bones_ok = true;
         }
         return output;
     }
@@ -233,6 +301,7 @@ void DrawMotionVisuals(ImDrawList* dl, const CS2::Runtime& rt,
         std::memcpy(effectHead, player.head, sizeof(effectHead));
     }
     static std::unordered_map<uintptr_t, OmniGhost::Gameplay::FixedTrailHistory<18>> trails;
+    if (trails.bucket_count() < 128) trails.reserve(128);
     static int cleanup_frame = -1;
 
     if (cfg.trails) {
@@ -421,13 +490,23 @@ void DrawDamageMarker(ImDrawList* dl, const CS2::Runtime& rt,
     struct MarkerState {
         int health = -1;
         double expires = 0.0;
+        double last_seen = 0.0;
         float world[3]{};
         bool at_crosshair = false;
     };
     static std::unordered_map<uintptr_t, MarkerState> markers;
+    if (markers.bucket_count() < 128) markers.reserve(128);
     if (!player.pawn) return;
-    auto& marker = markers[player.pawn];
     const double now = ImGui::GetTime();
+    const int markerFrame = ImGui::GetFrameCount();
+    if ((markerFrame % 300) == 0) {
+        for (auto it = markers.begin(); it != markers.end();) {
+            if (it->second.last_seen > 0.0 && now - it->second.last_seen > 5.0) it = markers.erase(it);
+            else ++it;
+        }
+    }
+    auto& marker = markers[player.pawn];
+    marker.last_seen = now;
     const bool healthDropped = marker.health >= 0 && player.health > 0 &&
                                player.health < marker.health;
     const uint64_t now_ms = GetTickCount64();
@@ -443,7 +522,9 @@ void DrawDamageMarker(ImDrawList* dl, const CS2::Runtime& rt,
         const std::size_t selected = cfg.aim_bone == 1 ? 1u :
             cfg.aim_bone == 2 ? 2u : cfg.aim_bone == 3 ? 5u :
             cfg.aim_bone == 4 ? 15u : 0u;
-        const float* hit = player.bones_ok ? player.bones[selected] : player.head;
+        const bool selectedNeedsFullPose = selected >= 5u;
+        const float* hit = (player.bones_ok && (!selectedNeedsFullPose || player.full_bones_ok))
+            ? player.bones[selected] : player.head;
         std::memcpy(marker.world, hit, sizeof(marker.world));
         marker.at_crosshair = recentLocalShot;
         marker.expires = now + 0.5;
@@ -472,7 +553,8 @@ bool W2S(const float* world, const float* vm, float& sx, float& sy) {
     // temporally interpolated camera.  This prevents bones, boxes and labels
     // from stepping differently when the player turns the view quickly.
     if (g_havePresentationView) vm = g_presentViewMatrix;
-    ImVec2 ds = ImGui::GetIO().DisplaySize;
+    const ImVec2 ds = (g_frameDisplaySize.x > 0.f && g_frameDisplaySize.y > 0.f)
+        ? g_frameDisplaySize : ImGui::GetIO().DisplaySize;
     const float clipX = world[0] * vm[0]  + world[1] * vm[1]  + world[2] * vm[2]  + vm[3];
     const float clipY = world[0] * vm[4]  + world[1] * vm[5]  + world[2] * vm[6]  + vm[7];
     const float clipW = world[0] * vm[12] + world[1] * vm[13] + world[2] * vm[14] + vm[15];
@@ -557,7 +639,8 @@ const char* WeaponIconCode(int def) {
     }
 }
 
-void DrawRadar2D(ImDrawList* dl, const CS2::Runtime& rt, CS2::Config& cfg, const CS2::MotionSnapshot* motionPtr) {
+void DrawRadar2D(ImDrawList* dl, const CS2::Runtime& rt, CS2::Config& cfg,
+                 const CS2::Player* presentedPlayers, std::size_t presentedCount) {
     float& ox = cfg.radar_2d_x;
     float& oy = cfg.radar_2d_y;
     const float size = cfg.radar_2d_size > 80.f ? cfg.radar_2d_size : 160.f;
@@ -596,8 +679,8 @@ void DrawRadar2D(ImDrawList* dl, const CS2::Runtime& rt, CS2::Config& cfg, const
     const float scale = 0.08f;
     const float yaw = rt.local_view_yaw * 0.01745329251f;
     const float cy = std::cos(yaw), sy = std::sin(yaw);
-    for (const auto& raw : rt.players) {
-        const CS2::Player p = SmoothPlayerForPresentation(raw, motionPtr);
+    for (std::size_t index = 0; index < presentedCount; ++index) {
+        const CS2::Player& p = presentedPlayers[index];
         if (p.is_local) continue;
         if (cfg.team_check && p.team == rt.local_team) continue;
         float dx = p.pos[0] - rt.local_pos[0];
@@ -662,7 +745,8 @@ void DrawSpectatorList(ImDrawList* dl, const CS2::Runtime& rt, CS2::Config& cfg)
     DragOverlayPanel("##spectator_drag", cfg.spectator_window_x, cfg.spectator_window_y, 236.f, 290.f, ds);
     float x = cfg.spectator_window_x + 8.f;
     float y = cfg.spectator_window_y + 4.f;
-    dl->AddRectFilled(ImVec2(x - 8.f, y - 4.f), ImVec2(ds.x - 12.f, y + 20.f + 14.f * 12),
+    dl->AddRectFilled(ImVec2(x - 8.f, y - 4.f),
+        ImVec2(cfg.spectator_window_x + 236.f, cfg.spectator_window_y + 290.f),
         IM_COL32(8, 8, 10, 160), 4.f);
     char title[48];
     if (rt.spectator_target != rt.local_pawn && rt.spectator_target_name[0])
@@ -691,6 +775,21 @@ void DrawSpectatorList(ImDrawList* dl, const CS2::Runtime& rt, CS2::Config& cfg)
         dl->AddText(ImVec2(x, y), IM_COL32(120, 120, 120, 180), "(ninguem a observar)");
 }
 
+float BombAgeSeconds(const CS2::Runtime& rt) {
+    if (!rt.bomb.sample_timestamp_ms) return 0.f;
+    const uint64_t now = GetTickCount64();
+    if (now <= rt.bomb.sample_timestamp_ms) return 0.f;
+    return static_cast<float>(now - rt.bomb.sample_timestamp_ms) * 0.001f;
+}
+
+float BombRemaining(const CS2::Runtime& rt) {
+    return (std::max)(0.f, rt.bomb.blow_time - BombAgeSeconds(rt));
+}
+
+float DefuseRemaining(const CS2::Runtime& rt) {
+    return (std::max)(0.f, rt.bomb.defuse_time - BombAgeSeconds(rt));
+}
+
 void DrawBombTimerPanel(ImDrawList* dl, const CS2::Runtime& rt, CS2::Config& cfg) {
     const ImVec2 ds = ImGui::GetIO().DisplaySize;
     if (cfg.bomb_window_x < 0.f) cfg.bomb_window_x = ds.x - 240.f;
@@ -699,10 +798,12 @@ void DrawBombTimerPanel(ImDrawList* dl, const CS2::Runtime& rt, CS2::Config& cfg
     const float x = cfg.bomb_window_x + 8.f;
     const float y = cfg.bomb_window_y + 5.f;
     constexpr float width = 220.f;
+    const float bombRemaining = BombRemaining(rt);
+    const float defuseRemaining = DefuseRemaining(rt);
     const bool active = rt.bomb.planted && !rt.bomb.defused &&
-        rt.bomb.blow_time > 0.f && rt.bomb.blow_time <= 45.f;
+        bombRemaining > 0.f && bombRemaining <= 45.f;
     const ImU32 accent = active
-        ? (rt.bomb.blow_time < 5.f ? IM_COL32(255, 72, 72, 255) : IM_COL32(255, 184, 46, 255))
+        ? (bombRemaining < 5.f ? IM_COL32(255, 72, 72, 255) : IM_COL32(255, 184, 46, 255))
         : IM_COL32(212, 175, 55, 220);
     dl->AddRectFilled(ImVec2(x - 8.f, y - 5.f), ImVec2(x + width, y + 93.f),
         IM_COL32(8, 8, 10, 180), 4.f);
@@ -714,19 +815,19 @@ void DrawBombTimerPanel(ImDrawList* dl, const CS2::Runtime& rt, CS2::Config& cfg
     }
 
     char timeText[64];
-    std::snprintf(timeText, sizeof(timeText), "%.1f segundos", rt.bomb.blow_time);
+    std::snprintf(timeText, sizeof(timeText), "%.1f segundos", bombRemaining);
     dl->AddText(ImVec2(x, y + 23.f), IM_COL32(235, 235, 238, 255), timeText);
-    const float ratio = std::clamp(rt.bomb.blow_time / 40.f, 0.f, 1.f);
+    const float ratio = std::clamp(bombRemaining / 40.f, 0.f, 1.f);
     dl->AddRectFilled(ImVec2(x, y + 43.f), ImVec2(x + width - 14.f, y + 49.f), IM_COL32(28, 28, 32, 220), 2.f);
     dl->AddRectFilled(ImVec2(x, y + 43.f), ImVec2(x + (width - 14.f) * ratio, y + 49.f), accent, 2.f);
     char state[96];
-    if (rt.bomb.defusing && rt.bomb.defuse_time > 0.f)
-        std::snprintf(state, sizeof(state), "Defuse %.1fs  %s", rt.bomb.defuse_time,
-            rt.bomb.defuse_time + .05f < rt.bomb.blow_time ? "TEM TEMPO" : "SEM TEMPO");
+    if (rt.bomb.defusing && defuseRemaining > 0.f)
+        std::snprintf(state, sizeof(state), "Defuse %.1fs  %s", defuseRemaining,
+            defuseRemaining + .05f < bombRemaining ? "TEM TEMPO" : "SEM TEMPO");
     else if (rt.local_team == 3) {
         const float needed = rt.local_has_defuser ? 5.f : 10.f;
         std::snprintf(state, sizeof(state), "%s  %s", rt.local_has_defuser ? "KIT" : "SEM KIT",
-            rt.bomb.blow_time > needed + .05f ? "TEM TEMPO" : "SEM TEMPO");
+            bombRemaining > needed + .05f ? "TEM TEMPO" : "SEM TEMPO");
     } else
         std::snprintf(state, sizeof(state), "Bomba ativa");
     dl->AddText(ImVec2(x, y + 57.f), IM_COL32(205, 205, 210, 230), state);
@@ -836,17 +937,23 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
     const auto fastCamera = CS2::AcquireCameraSnapshot();
     const auto motionLease = CS2::AcquireMotionSnapshot();
     const CS2::MotionSnapshot* motionPtr = motionLease ? &*motionLease : nullptr;
-    // The camera lane runs independently at ~3 ms.  Position/bone snapshots
+    // The camera lane runs independently at ~4 ms.  Position/bone snapshots
     // can remain coherent and heavier, while rapid mouse turns are projected
     // with the freshest available matrix for this exact render frame.
     UpdatePresentationViewMatrix(rt, fastCamera ? fastCamera->view_matrix : rt.view_matrix,
         fastCamera ? fastCamera->timestamp_ms : rt.snapshot_timestamp_ms);
-    // Every projection in this render pass uses the same freshest validated
-    // camera sample.  Previously the fast camera lane was populated but the
-    // drawing code still projected with the older acquisition matrix.
-    CS2::Runtime frame = rt;
-    if (g_havePresentationView)
-        std::memcpy(frame.view_matrix, g_presentViewMatrix, sizeof(frame.view_matrix));
+    // Runtime contains dynamic vectors; keep the snapshot lease by reference and
+    // let W2S consume g_presentViewMatrix instead of deep-copying Runtime each frame.
+    const CS2::Runtime& frame = rt;
+
+    std::array<CS2::Player, 64> presentedPlayers{};
+    const std::size_t presentedCount = (std::min)(frame.players.size(), presentedPlayers.size());
+    for (std::size_t i = 0; i < presentedCount; ++i)
+        presentedPlayers[i] = SmoothPlayerForPresentation(frame.players[i], motionPtr);
+
+    if (g_overlay_instance && g_overlay_instance->device)
+        PumpAvatarUploads(g_overlay_instance->device, 1);
+
     // Non-const for radar drag — safe: config is global mutable
     CS2::Config& mut_cfg = const_cast<CS2::Config&>(cfg);
 
@@ -857,9 +964,10 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
     ImDrawList* dl = ImGui::GetForegroundDrawList();
     if (!dl) return;
     ImVec2 ds = ImGui::GetIO().DisplaySize;
+    g_frameDisplaySize = ds;
 
     if (cfg.radar_2d)
-        DrawRadar2D(dl, frame, mut_cfg, motionPtr);
+        DrawRadar2D(dl, frame, mut_cfg, presentedPlayers.data(), presentedCount);
 
     if (cfg.spectator_list)
         DrawSpectatorList(dl, frame, mut_cfg);
@@ -917,25 +1025,28 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
     }
 
 
-    // Bomb timer — banner + world marker + soft beep under 5s
+    // Bomb timer — banner + world marker + soft beep under 5s. Remaining
+    // time is interpolated locally between the 50 ms DMA samples.
+    const float bombRemaining = BombRemaining(frame);
+    const float defuseRemaining = DefuseRemaining(frame);
     if (cfg.bomb_timer && frame.bomb.planted && !frame.bomb.defused &&
-        frame.bomb.blow_time > 0.f && frame.bomb.blow_time <= 45.f) {
+        bombRemaining > 0.f && bombRemaining <= 45.f) {
         float sx = 0.f, sy = 0.f;
         bool on_screen = W2S(frame.bomb.pos, frame.view_matrix, sx, sy);
         char bomb_text[128];
-        if (frame.bomb.defusing && frame.bomb.defuse_time > 0.f && frame.bomb.defuse_time <= 15.f)
+        if (frame.bomb.defusing && defuseRemaining > 0.f && defuseRemaining <= 15.f)
             std::snprintf(bomb_text, sizeof(bomb_text), "BOMB  %.1fs  DEFUSE %.1fs  %s",
-                frame.bomb.blow_time, frame.bomb.defuse_time,
-                frame.bomb.defuse_time + .05f < frame.bomb.blow_time ? "TEM TEMPO" : "SEM TEMPO");
+                bombRemaining, defuseRemaining,
+                defuseRemaining + .05f < bombRemaining ? "TEM TEMPO" : "SEM TEMPO");
         else if (frame.local_team == 3) {
             const float needed = frame.local_has_defuser ? 5.f : 10.f;
             std::snprintf(bomb_text, sizeof(bomb_text), "BOMB  %.1fs  %s  %s",
-                frame.bomb.blow_time, frame.local_has_defuser ? "KIT" : "SEM KIT",
-                frame.bomb.blow_time > needed + .05f ? "TEM TEMPO" : "SEM TEMPO");
+                bombRemaining, frame.local_has_defuser ? "KIT" : "SEM KIT",
+                bombRemaining > needed + .05f ? "TEM TEMPO" : "SEM TEMPO");
         }
         else
-            std::snprintf(bomb_text, sizeof(bomb_text), "BOMB  %.1fs", frame.bomb.blow_time);
-        const ImU32 bomb_col = frame.bomb.blow_time < 5.f
+            std::snprintf(bomb_text, sizeof(bomb_text), "BOMB  %.1fs", bombRemaining);
+        const ImU32 bomb_col = bombRemaining < 5.f
             ? IM_COL32(255, 60, 60, 255) : IM_COL32(255, 180, 40, 255);
 
         ImVec2 ts = ImGui::CalcTextSize(bomb_text);
@@ -953,12 +1064,12 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
             dl->AddCircleFilled(ImVec2(sx, sy), 3.f, bomb_col, 12);
         }
 
-        if (frame.bomb.blow_time < 5.f) {
+        if (bombRemaining < 5.f) {
             static float last_beep_bucket = -1.f;
-            const float bucket = std::floor(frame.bomb.blow_time);
+            const float bucket = std::floor(bombRemaining);
             if (bucket != last_beep_bucket) {
                 last_beep_bucket = bucket;
-                MessageBeep(MB_ICONEXCLAMATION);
+                std::thread([] { ::MessageBeep(MB_ICONEXCLAMATION); }).detach();
             }
         }
     }
@@ -968,8 +1079,8 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
     // ── FOV-ring arrows for ALL match players (always visible, size = FOV+5) ──
     if (cfg.offscreen_arrows) {
         const float arrowRadius = (cfg.aim_fov > 1.f ? cfg.aim_fov : 80.f) + 5.f;
-        for (int pi = 0; pi < (int)frame.players.size(); ++pi) {
-            const CS2::Player p = SmoothPlayerForPresentation(frame.players[pi], motionPtr);
+        for (std::size_t pi = 0; pi < presentedCount; ++pi) {
+            const CS2::Player& p = presentedPlayers[pi];
             if (p.is_local && !cfg.self_esp) continue;
             if (!p.is_local && cfg.team_check && p.team == frame.local_team) continue;
             if (!p.alive && p.health <= 0) continue;
@@ -1037,8 +1148,8 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
     static constexpr const int* kChains[] = { kChainTrunk, kChainLArm, kChainRArm, kChainLLeg, kChainRLeg };
     static constexpr int kChainLen[] = { 5, 4, 4, 4, 4 };
 
-    for (int pi = 0; pi < (int)frame.players.size(); ++pi) {
-        const CS2::Player p = SmoothPlayerForPresentation(frame.players[pi], motionPtr);
+    for (std::size_t pi = 0; pi < presentedCount; ++pi) {
+        const CS2::Player& p = presentedPlayers[pi];
         if (p.is_local && !cfg.self_esp) continue;
         if (!p.is_local && cfg.team_check && p.team == frame.local_team) continue;
         if (p.distance > cfg.max_distance) continue;
@@ -1096,14 +1207,24 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
         }
 
         // Skeleton (CS2-DMA DrawBone chains)
-        if (cfg.skeleton && p.bones_ok) {
+        if (cfg.skeleton && p.full_bones_ok) {
             const float th = std::clamp(cfg.skeleton_thickness, 0.5f, 8.f);
             const ImU32 skCol = Col(cfg.col_skeleton);
             float screen[CS2::kBoneSlotCount][2]{};
             bool ok[CS2::kBoneSlotCount]{};
-            for (std::size_t b = 0; b < CS2::kBoneSlotCount; ++b) {
-                ok[b] = W2S(p.bones[b], frame.view_matrix, screen[b][0], screen[b][1]);
-            }
+            bool needed[CS2::kBoneSlotCount]{};
+            auto markChain = [&](const int* chain, int len) {
+                for (int i = 0; i < len; ++i)
+                    if (chain[i] >= 0 && chain[i] < static_cast<int>(CS2::kBoneSlotCount))
+                        needed[chain[i]] = true;
+            };
+            markChain(kChainTrunk, kChainLen[0]);
+            if (cfg.bone_draw_arms) { markChain(kChainLArm, kChainLen[1]); markChain(kChainRArm, kChainLen[2]); }
+            if (cfg.bone_draw_legs) { markChain(kChainLLeg, kChainLen[3]); markChain(kChainRLeg, kChainLen[4]); }
+            if (cfg.skeleton_joints)
+                for (std::size_t b = 0; b < CS2::kBoneSlotCount; ++b) needed[b] = true;
+            for (std::size_t b = 0; b < CS2::kBoneSlotCount; ++b)
+                if (needed[b]) ok[b] = W2S(p.bones[b], frame.view_matrix, screen[b][0], screen[b][1]);
             for (int c = 0; c < 5; ++c) {
                 if (c >= 1 && c <= 2 && !cfg.bone_draw_arms) continue;
                 if (c >= 3 && !cfg.bone_draw_legs) continue;
@@ -1118,9 +1239,10 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
                 }
             }
             if (cfg.skeleton_joints) {
+                const ImU32 jointColor = Col(cfg.col_joints);
                 for (std::size_t b = 0; b < CS2::kBoneSlotCount; ++b) {
                     if (!ok[b]) continue;
-                    dl->AddCircleFilled(ImVec2(screen[b][0], screen[b][1]), 2.2f, Col(cfg.col_joints), 8);
+                    dl->AddCircleFilled(ImVec2(screen[b][0], screen[b][1]), 2.2f, jointColor, 8);
                 }
             }
         }

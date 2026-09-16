@@ -12,6 +12,8 @@
 #include <filesystem>
 #include <iostream>
 #include <fstream>
+#include <future>
+#include <chrono>
 
 #pragma comment(lib, "windowscodecs.lib")
 
@@ -23,7 +25,15 @@ struct IconTex {
     int w = 0, h = 0;
 };
 
+struct IconPixels {
+    std::vector<uint8_t> rgba;
+    int w = 0, h = 0;
+    [[nodiscard]] bool valid() const noexcept { return !rgba.empty() && w > 0 && h > 0; }
+};
+
 std::unordered_map<int, IconTex> g_icons;
+std::unordered_map<int, IconPixels> g_cpu_icons;
+std::unordered_map<int, std::future<IconPixels>> g_pending_icons;
 bool g_attempted = false;
 ID3D11Device* g_device = nullptr;
 
@@ -253,55 +263,79 @@ std::vector<std::filesystem::path> IconSearchDirs() {
     return dirs;
 }
 
-void LoadOne(ID3D11Device* device, int def) {
-    if (g_icons.count(def)) return;
+IconPixels DecodeOne(int def) {
+    IconPixels result{};
     const char* stem = StemFromDef(def);
-    if (!stem) return;
+    if (!stem) return result;
 
-    // 1) Disk cache / install folders first (no embedded decode if already cached).
+    const HRESULT co = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
     for (const auto& dir : IconSearchDirs()) {
         const auto path = dir / (std::string(stem) + ".png");
         std::error_code ec;
         if (!std::filesystem::exists(path, ec)) continue;
+        if (LoadPngRgba(path.wstring(), result.rgba, result.w, result.h)) break;
+    }
 
-        std::vector<uint8_t> rgba;
-        int w = 0, h = 0;
-        if (!LoadPngRgba(path.wstring(), rgba, w, h))
-            continue;
-
-        IconTex tex{};
-        if (CreateSrv(device, rgba.data(), w, h, tex)) {
-            g_icons[def] = tex;
-            return;
+    if (!result.valid()) {
+        const std::string logical = std::string("cs2/weapons/") + stem + ".png";
+        OmniGhost::EmbeddedResourceDiagnostics diagnostics;
+        const auto bytes = OmniGhost::LoadEmbeddedResource(logical, &diagnostics);
+        if (bytes) {
+            try {
+                const auto cachePath = WeaponIconCacheDir() / (std::string(stem) + ".png");
+                std::filesystem::create_directories(cachePath.parent_path());
+                std::ofstream out(cachePath, std::ios::binary | std::ios::trunc);
+                if (out) out.write(reinterpret_cast<const char*>(bytes->data()),
+                                   static_cast<std::streamsize>(bytes->size()));
+            } catch (...) {
+                OutputDebugStringA("[CS2][WeaponIcons] cache write failed\n");
+            }
+            LoadPngRgbaMemory(*bytes, result.rgba, result.w, result.h);
         }
     }
+    if (SUCCEEDED(co)) CoUninitialize();
+    return result;
+}
 
-    // 2) Embedded resource — only when CS2 actually requests this icon.
-    const std::string logical = std::string("cs2/weapons/") + stem + ".png";
-    OmniGhost::EmbeddedResourceDiagnostics diagnostics;
-    const auto bytes = OmniGhost::LoadEmbeddedResource(logical, &diagnostics);
-    if (!bytes) {
-        std::clog << "[RESOURCE] id=" << logical << " load=FAIL reason="
-                  << diagnostics.error << '\n';
-        return;
+void RequestOne(int def) {
+    if (def <= 0 || !StemFromDef(def) || g_icons.count(def) || g_cpu_icons.count(def) ||
+        g_pending_icons.count(def)) return;
+    // Cap background decode concurrency. A newly requested definition that
+    // misses the cap is retried by Get() on a following frame.
+    std::size_t activeWorkers = 0;
+    for (auto& [_, future] : g_pending_icons) {
+        if (future.valid() && future.wait_for(std::chrono::seconds(0)) != std::future_status::ready)
+            ++activeWorkers;
+    }
+    if (activeWorkers >= 2) return;
+    g_pending_icons.emplace(def, std::async(std::launch::async, [def] { return DecodeOne(def); }));
+}
+
+void PumpUploads(ID3D11Device* device, int max_uploads) {
+    if (!device || max_uploads <= 0) return;
+
+    // Collect completed CPU decodes without waiting. WIC/filesystem work stays off render.
+    for (auto it = g_pending_icons.begin(); it != g_pending_icons.end();) {
+        if (it->second.wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
+            ++it;
+            continue;
+        }
+        IconPixels pixels = it->second.get();
+        const int def = it->first;
+        it = g_pending_icons.erase(it);
+        if (pixels.valid()) g_cpu_icons[def] = std::move(pixels);
     }
 
-    // Materialize into LocalAppData so the next session skips embedded decode.
-    try {
-        const auto cachePath = WeaponIconCacheDir() / (std::string(stem) + ".png");
-        std::filesystem::create_directories(cachePath.parent_path());
-        std::ofstream out(cachePath, std::ios::binary | std::ios::trunc);
-        if (out)
-            out.write(reinterpret_cast<const char*>(bytes->data()),
-                      static_cast<std::streamsize>(bytes->size()));
-    } catch (...) {
+    int uploaded = 0;
+    for (auto& [def, pixels] : g_cpu_icons) {
+        if (uploaded >= max_uploads) break;
+        if (g_icons.count(def) || !pixels.valid()) continue;
+        IconTex tex{};
+        if (CreateSrv(device, pixels.rgba.data(), pixels.w, pixels.h, tex)) {
+            g_icons[def] = tex;
+            ++uploaded;
+        }
     }
-
-    std::vector<uint8_t> rgba;
-    int w = 0, h = 0;
-    if (!LoadPngRgbaMemory(*bytes, rgba, w, h)) return;
-    IconTex texture{};
-    if (CreateSrv(device, rgba.data(), w, h, texture)) g_icons[def] = texture;
 }
 
 } // namespace
@@ -310,13 +344,6 @@ const char* FileStem(int weapon_def) { return StemFromDef(weapon_def); }
 
 void EnsureLoaded(ID3D11Device* device) {
     if (!device) return;
-    static bool com = false;
-    if (!com) { CoInitializeEx(nullptr, COINIT_MULTITHREADED); com = true; }
-    if (g_attempted && g_device == device) return;
-
-    // A device change invalidates every SRV created by the previous device.
-    // Release them before accepting the new one instead of leaving stale GPU
-    // pointers in the map.
     if (g_device && g_device != device) {
         for (auto& [definition, icon] : g_icons) {
             (void)definition;
@@ -326,22 +353,19 @@ void EnsureLoaded(ID3D11Device* device) {
     }
     g_device = device;
     g_attempted = true;
-    // Textures are loaded lazily by Get(). Preloading the complete catalogue
-    // here stalls one render frame and can overwhelm/lose the D3D device.
+    // One D3D upload per render frame caps the worst-case frametime cost.
+    PumpUploads(device, 1);
 }
 
 ID3D11ShaderResourceView* Get(int weapon_def) {
     if (weapon_def <= 0) return nullptr;
     auto it = g_icons.find(weapon_def);
     if (it != g_icons.end()) return it->second.srv;
-    if (g_device) {
-        LoadOne(g_device, weapon_def);
-        // Fallback: generic knife icon if specific knife PNG is missing
-        if (weapon_def >= 500 && weapon_def <= 530 && !g_icons.count(weapon_def))
-            LoadOne(g_device, 41);
-    }
-    it = g_icons.find(weapon_def);
-    if (it != g_icons.end()) return it->second.srv;
+
+    RequestOne(weapon_def);
+    if (weapon_def >= 500 && weapon_def <= 530)
+        RequestOne(41); // generic knife fallback, also decoded asynchronously
+
     if (weapon_def >= 500 && weapon_def <= 530) {
         it = g_icons.find(41);
         if (it != g_icons.end()) return it->second.srv;
@@ -354,7 +378,11 @@ void GetSize(int weapon_def, int& out_w, int& out_h) {
     auto it = g_icons.find(weapon_def);
     if (it == g_icons.end() && weapon_def >= 500 && weapon_def <= 530)
         it = g_icons.find(41);
-    if (it != g_icons.end()) { out_w = it->second.w; out_h = it->second.h; }
+    if (it != g_icons.end()) { out_w = it->second.w; out_h = it->second.h; return; }
+    auto cpu = g_cpu_icons.find(weapon_def);
+    if (cpu == g_cpu_icons.end() && weapon_def >= 500 && weapon_def <= 530)
+        cpu = g_cpu_icons.find(41);
+    if (cpu != g_cpu_icons.end()) { out_w = cpu->second.w; out_h = cpu->second.h; }
 }
 
 void Shutdown() {
@@ -362,6 +390,9 @@ void Shutdown() {
         if (kv.second.srv) kv.second.srv->Release();
     }
     g_icons.clear();
+    // Pending futures are allowed to finish during orderly shutdown; no render frame is blocked.
+    g_pending_icons.clear();
+    g_cpu_icons.clear();
     g_attempted = false;
     g_device = nullptr;
 }

@@ -101,6 +101,10 @@ void DrawTelemetryWindow() {
                 std::snprintf(value, sizeof(value), "%llu ms · %.0f Hz · %d entidades",
                               static_cast<unsigned long long>(age), snapshot->acquisition_hz, snapshot->player_count);
                 CyberWidgets::KeyValueRow("Snapshot CS2", value);
+                std::snprintf(value, sizeof(value), "%.2f ms · interval %.1f ms · drops %llu",
+                              snapshot->acquisition_ms, snapshot->snapshot_interval_ms,
+                              static_cast<unsigned long long>(snapshot->snapshot_drops));
+                CyberWidgets::KeyValueRow("Aquisição CS2", value);
             }
         } else {
             CyberWidgets::TextLine(app_settings::T("Snapshot por jogo ainda não publicado por este adapter.",

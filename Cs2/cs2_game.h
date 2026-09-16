@@ -117,7 +117,8 @@ struct Player {
     // 14 hip_l  15 knee_l  16 ankle_l
     // 17 hip_r  18 knee_r  19 ankle_r
     float bones[kBoneSlotCount][3]{};
-    bool bones_ok = false;
+    bool bones_ok = false;          // at least head/neck/chest/stomach are valid
+    bool full_bones_ok = false;     // complete 20-slot pose is valid for skeleton/body trigger
     bool spotted = true; // m_bSpotted (EntitySpottedState_t)
     int ent_index = 0;
     uint64_t steam_id = 0;
@@ -132,6 +133,7 @@ struct BombState {
     uint32_t defuser_handle = 0;
     char defuser_name[64]{};
     float pos[3]{};
+    uint64_t sample_timestamp_ms = 0;
 };
 
 struct Runtime {
@@ -181,7 +183,7 @@ struct Runtime {
     std::vector<Player> spectators;
 };
 
-using RuntimeSnapshotLease = OmniGhost::Gameplay::SnapshotExchange<Runtime>::ReadLease;
+using RuntimeSnapshotLease = OmniGhost::Gameplay::SnapshotExchange<Runtime, 4>::ReadLease;
 
 struct CameraSnapshot {
     float view_matrix[16]{};
@@ -194,8 +196,6 @@ using CameraSnapshotLease = OmniGhost::Gameplay::SnapshotExchange<CameraSnapshot
 struct MotionSample {
     uintptr_t pawn = 0;
     float pos[3]{};
-    float bones[kBoneSlotCount][3]{};
-    bool bones_ok = false;
 };
 struct MotionSnapshot {
     std::array<MotionSample, 64> players{};
