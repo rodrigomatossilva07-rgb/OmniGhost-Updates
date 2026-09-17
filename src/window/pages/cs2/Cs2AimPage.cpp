@@ -1,8 +1,8 @@
 #include "../../widgets.h"
 #include "../../theme.h"
 #include "../../localization.h"
-#include "cs2_config.h"
-#include "cs2_aim.h"
+#include "Cs2/config/cs2_config.h"
+#include "Cs2/aimbot/cs2_aim.h"
 #include "aimbot/aim_type.h"
 #include "imgui.h"
 #include <Windows.h>

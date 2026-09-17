@@ -1618,22 +1618,27 @@ static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer,
 
     ImVec2 boxMin{}, boxMax{};
     if (okHead && okFeet) {
+        // Box spans from head to feet - accurately follows body
         float h = fabsf(feetS.y - headS.y);
         if (h < 12.f) h = 12.f;
         float w = h * 0.42f;
-        boxMin = ImVec2(headS.x - w * 0.5f, (std::min)(headS.y, feetS.y));
-        boxMax = ImVec2(headS.x + w * 0.5f, (std::max)(headS.y, feetS.y));
+        float topY = (std::min)(headS.y, feetS.y);
+        float bottomY = (std::max)(headS.y, feetS.y);
+        boxMin = ImVec2(headS.x - w * 0.5f, topY);
+        boxMax = ImVec2(headS.x + w * 0.5f, bottomY);
     } else if (okHead) {
+        // Fallback: estimate body height from head position
         float h = 60.f;
         float w = h * 0.42f;
         boxMin = ImVec2(headS.x - w * 0.5f, headS.y);
         boxMax = ImVec2(headS.x + w * 0.5f, headS.y + h);
     } else if (okOrigin) {
+        // Fallback: estimate from origin (body center)
         float h = 70.f;
         float w = h * 0.42f;
-        boxMin = ImVec2(originS.x - w * 0.5f, originS.y - h);
-        boxMax = ImVec2(originS.x + w * 0.5f, originS.y);
-        headS = Vec2(originS.x, originS.y - h);
+        boxMin = ImVec2(originS.x - w * 0.5f, originS.y - h * 0.5f);
+        boxMax = ImVec2(originS.x + w * 0.5f, originS.y + h * 0.5f);
+        headS = Vec2(originS.x, originS.y - h * 0.5f);
     } else {
         return; // fully off-screen
     }
@@ -1674,7 +1679,11 @@ static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer,
         if (esp::config.snapline_pos == 0) start = ImVec2(scr.x * 0.5f, 0.f);
         else if (esp::config.snapline_pos == 1) start = ImVec2(scr.x * 0.5f, scr.y * 0.5f);
         else start = ImVec2(scr.x * 0.5f, scr.y);
-        dl->AddLine(start, ImVec2((boxMin.x + boxMax.x) * 0.5f, boxMin.y), colSnap,
+        
+        // Draw to feet position (or box center if feet not available) for better visual alignment
+        float snapTargetY = okFeet ? feetS.y : ((boxMin.y + boxMax.y) * 0.5f);
+        float snapTargetX = (boxMin.x + boxMax.x) * 0.5f;
+        dl->AddLine(start, ImVec2(snapTargetX, snapTargetY), colSnap,
             std::clamp(esp::config.snapline_thickness, 0.5f, 8.f));
     }
 
@@ -1738,9 +1747,8 @@ static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer,
     // ── Centered text under box: name, weapon, distance ──
     {
         const float cx = (boxMin.x + boxMax.x) * 0.5f;
-        float textY = boxMax.y + 3.f;
-
-        // Name above box
+        
+        // Name ABOVE box (head level)
         if (esp::config.player_name || esp::config.player_id) {
             char nbuf[64]{};
             const uintptr_t pinfo = prepared_esp ? prepared_esp->player_info
@@ -1757,11 +1765,16 @@ static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer,
             else
                 snprintf(line, sizeof(line), "%s", nbuf);
             ImVec2 ts = ImGui::CalcTextSize(line);
-            DrawTextOutlined(dl, ImVec2(cx - ts.x * 0.5f, boxMin.y - ts.y - 3.f),
+            DrawTextOutlined(dl, ImVec2(cx - ts.x * 0.5f, boxMin.y - ts.y - 5.f),
                         EspPedColor(ped,
                             (esp::config.player_name ? esp::config.color_name : esp::config.color_id),
                             visible), line);
         }
+
+        // Weapon name and distance BELOW feet (not below box)
+        // Use feet position for reference, with fallback to boxMax
+        float feetScreenY = okFeet ? feetS.y : boxMax.y;
+        float textY = feetScreenY + 8.f; // Start below feet with padding
 
         if (esp::config.weapon_name) {
             uintptr_t wpnMgr = prepared_esp ? prepared_esp->weapon_manager

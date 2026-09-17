@@ -2,9 +2,9 @@
 #include "gameplay/dma_telemetry_log.h"
 #include "gameplay/frame_pipeline.h"
 #include "../DMALibrary/Memory/Memory.h"
-#include "cs2_weapons.h"
-#include "cs2_weapon_icons.h"
-#include "cs2_aim.h"
+#include "weapons/cs2_weapons.h"
+#include "weapons/cs2_weapon_icons.h"
+#include "aimbot/cs2_aim.h"
 #include "aimbot/aim_type.h"
 #include "gameplay/esp_core.h"
 #include "gameplay/trail_history.h"
@@ -28,6 +28,7 @@
 #include <fstream>
 #include <filesystem>
 #include <wincodec.h>
+#include <iostream>
 
 namespace CS2_ESP {
 namespace {
@@ -189,35 +190,6 @@ void PumpAvatarUploads(ID3D11Device* device, int maxUploads = 1) {
             }
         }
     }
-}
-
-
-void ClearAvatarCache() {
-    // Wait briefly for any in-flight decode so we do not destroy running futures.
-    for (auto& [_, entry] : g_avatarCache) {
-        if (entry.pending.valid()) {
-            try {
-                if (entry.pending.wait_for(std::chrono::milliseconds(50)) == std::future_status::ready)
-                    (void)entry.pending.get();
-            } catch (...) {}
-        }
-        if (entry.texture) {
-            entry.texture->Release();
-            entry.texture = nullptr;
-        }
-    }
-    g_avatarCache.clear();
-    try {
-        const auto dir = OmniGhost::Paths::Cache() / L"cs2" / L"avatars";
-        if (std::filesystem::exists(dir)) {
-            std::error_code ec;
-            for (const auto& ent : std::filesystem::directory_iterator(dir, ec)) {
-                if (ent.is_regular_file(ec))
-                    std::filesystem::remove(ent.path(), ec);
-            }
-        }
-    } catch (...) {}
-    std::cout << "[CS2] Avatar cache limpa (memória + disco)\n";
 }
 
 ID3D11ShaderResourceView* SteamAvatar(uint64_t steamId) {
@@ -1402,3 +1374,39 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
 }
 
 } // namespace CS2_ESP
+
+void CS2_ESP::ClearAvatarCache() {
+    // Wait briefly for any in-flight decode so we do not destroy running futures.
+    for (auto& [_, entry] : g_avatarCache) {
+        if (entry.pending.valid()) {
+            try {
+                if (entry.pending.wait_for(std::chrono::milliseconds(50)) == std::future_status::ready)
+                    (void)entry.pending.get();
+            } catch (const std::exception&) {
+                OutputDebugStringA("[CS2 ESP] ClearAvatarCache: pending get failed\n");
+            } catch (...) {
+                OutputDebugStringA("[CS2 ESP] ClearAvatarCache: pending get failed with unknown exception\n");
+            }
+        }
+        if (entry.texture) {
+            entry.texture->Release();
+            entry.texture = nullptr;
+        }
+    }
+    g_avatarCache.clear();
+    try {
+        const auto dir = OmniGhost::Paths::Cache() / L"cs2" / L"avatars";
+        if (std::filesystem::exists(dir)) {
+            std::error_code ec;
+            for (const auto& ent : std::filesystem::directory_iterator(dir, ec)) {
+                if (ent.is_regular_file(ec))
+                    std::filesystem::remove(ent.path(), ec);
+            }
+        }
+    } catch (const std::exception&) {
+            OutputDebugStringA("[CS2 ESP] ClearAvatarCache: directory cleanup failed\n");
+        } catch (...) {
+            OutputDebugStringA("[CS2 ESP] ClearAvatarCache: directory cleanup failed with unknown exception\n");
+        }
+    std::cout << "[CS2] Avatar cache limpa (memória + disco)\n";
+}

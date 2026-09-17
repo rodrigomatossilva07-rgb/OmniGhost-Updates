@@ -336,12 +336,12 @@
     <ClCompile Include="Fivem\playerInfo\PedData.cpp"/>
     <ClCompile Include="Fivem\object_esp\object_esp.cpp"/>
     <ClCompile Include="Fivem\object_esp\object_esp_renderer.cpp"/>
-    <ClCompile Include="Cs2\cs2_aim.cpp"/>
-    <ClCompile Include="Cs2\cs2_esp.cpp"/>
+    <ClCompile Include="Cs2\aimbot\cs2_aim.cpp"/>
+    <ClCompile Include="Cs2\esp\cs2_esp.cpp"/>
     <ClCompile Include="Cs2\cs2_game.cpp"/>
-    <ClCompile Include="Cs2\cs2_radar.cpp"/>
-    <ClCompile Include="Cs2\cs2_config_io.cpp"/>
-    <ClCompile Include="Cs2\cs2_weapon_icons.cpp"/>
+    <ClCompile Include="Cs2\radar\cs2_radar.cpp"/>
+    <ClCompile Include="Cs2\config\cs2_config_io.cpp"/>
+    <ClCompile Include="Cs2\weapons\cs2_weapon_icons.cpp"/>
     <ClCompile Include="Warzone\warzone_game.cpp"/>
     <ClCompile Include="Warzone\warzone_decrypt.cpp"/>
     <ClCompile Include="Warzone\warzone_aim.cpp"/>

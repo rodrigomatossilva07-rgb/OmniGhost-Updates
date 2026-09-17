@@ -113,6 +113,9 @@ public:
     const InspectorData* GetInspectorData() const { return inspector_open_ ? &inspector_data_ : nullptr; }
     bool IsInspectorOpen() const { return inspector_open_; }
     
+    // Custom display name
+    void SetCustomDisplayName(const std::string& model, const std::string& display_name);
+    
     // Categories
     void SetCategoryFilter(ObjectCategory cat) { current_filter_ = cat; }
     ObjectCategory GetCategoryFilter() const { return current_filter_; }

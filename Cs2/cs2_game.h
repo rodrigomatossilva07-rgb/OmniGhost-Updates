@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <string>
 #include <vector>
-#include "cs2_config.h"
+#include "config/cs2_config.h"
 #include "gameplay/snapshot_exchange.h"
 
 namespace CS2 {

@@ -1,6 +1,6 @@
 #include "../../widgets.h"
 #include "../../theme.h"
-#include "cs2_config.h"
+#include "Cs2/config/cs2_config.h"
 #include "../../localization.h"
 #include "../../../launcher/launcher_assets.h"
 #include "gameplay/esp_fx.h"

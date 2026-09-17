@@ -5,48 +5,119 @@
 #include "../../Fivem/object_esp/object_esp_config.h"
 #include <string>
 #include <vector>
+#include <algorithm>
 
 namespace CyberWidgets {
+
+static void DrawObjectInspector() {
+    using namespace object_esp;
+    auto& manager = GetObjectESPManager();
+    const auto* inspector = manager.GetInspectorData();
+    if (!inspector || !manager.IsInspectorOpen()) return;
+    
+    bool inspector_open = manager.IsInspectorOpen();
+    ImGui::SetNextWindowSize(ImVec2(400, 550), ImGuiCond_FirstUseEver);
+    if (ImGui::Begin("Object Inspector", &inspector_open, ImGuiWindowFlags_NoCollapse)) {
+        if (!inspector_open) manager.CloseInspector();
+        ImGui::Text("Model: %s", inspector->model.c_str());
+        ImGui::Separator();
+        
+        // Custom display name editor
+        static char display_name_buf[256] = "";
+        if (ImGui::InputText("Display Name", display_name_buf, sizeof(display_name_buf), ImGuiInputTextFlags_EnterReturnsTrue)) {
+            manager.SetCustomDisplayName(inspector->model, display_name_buf);
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Save Name")) {
+            manager.SetCustomDisplayName(inspector->model, display_name_buf);
+        }
+        
+        if (!inspector->display_name.empty() && inspector->display_name != inspector->model) {
+            ImGui::Text("Current Display Name: %s", inspector->display_name.c_str());
+        }
+        
+        ImGui::Separator();
+        
+        ImGui::Text("Hash: 0x%08X (%u)", inspector->hash, inspector->hash);
+        ImGui::Text("Distance: %.1fm", inspector->distance);
+        ImGui::Text("Position: X=%.1f Y=%.1f Z=%.1f", 
+            inspector->position.x, inspector->position.y, inspector->position.z);
+        
+        if (inspector->networked) {
+            ImGui::Text("Network ID: %u", inspector->network_id);
+            ImGui::Text("Entity Handle: 0x%llX", (unsigned long long)inspector->entity_handle);
+            ImGui::Text("Networked: Yes");
+        }
+        
+        if (!inspector->extra_props.empty()) {
+            ImGui::Separator();
+            ImGui::Text("Extra Properties:");
+            for (const auto& prop : inspector->extra_props) {
+                ImGui::Text("  %s: %s", prop.first.c_str(), prop.second.c_str());
+            }
+        }
+        
+        ImGui::Separator();
+        if (CyberButton("Close", ImVec2(80, 30))) {
+            manager.CloseInspector();
+        }
+    }
+    ImGui::End();
+}
 
 void DrawFivemObjectESP() {
     using namespace object_esp;
     auto& manager = GetObjectESPManager();
-    auto& esp_config = manager.GetMutableConfig();
+    Config& esp_config = manager.GetMutableConfig();
     const auto& state = manager.GetScannerState();
     const auto& scan_results = manager.GetFilteredResults();
     auto whitelist = manager.GetFilteredWhitelist();
     
-    BeginCard("Esp de Objetos");
-
+    BeginCard("Object ESP");
+    
     if (!manager.IsInitialized())
         manager.Initialize();
 
+    // Draw inspector if open
+    DrawObjectInspector();
+
     if (!manager.HasValidatedDiscoverySource()) {
-        TextLine("Object pool ainda nao validado — entra no servidor FiveM (build com object_pool).", TextTone::Warning);
-        TextLine("Quando a sessao FiveM estiver OK, usa Escanear para descobrir props (incluindo custom).", TextTone::Secondary);
+        TextLine("Object pool nao validado — entra no servidor FiveM (build b3258+).", TextTone::Warning);
+        TextLine("Quando a sessao FiveM estiver OK, usa 'Escanear' para descobrir props.", TextTone::Secondary);
     }
     
-    // Main toggle
+    // Main toggle with status indicator
+    ImGui::Columns(2, "main_toggle", false);
+    ImGui::SetColumnWidth(0, 150);
     ToggleSwitch("Ativar Object ESP", &esp_config.enabled);
+    ImGui::NextColumn();
+    if (esp_config.enabled) {
+        ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.2f, 1.0f), "ONLINE");
+    } else {
+        ImGui::TextColored(ImVec4(0.8f, 0.8f, 0.8f, 1.0f), "OFFLINE");
+    }
+    ImGui::Columns(1);
     
     if (!esp_config.enabled) {
         TextLine("Object ESP desativado. Ative para configurar.", TextTone::Secondary);
         EndCard();
         return;
     }
-    
+
     CardGap();
     SectionTitle("Scanner");
     
     // Scan controls
-    ImGui::Columns(2, nullptr, false);
-    ImGui::SetColumnWidth(0, 120);
+    ImGui::Columns(3, "scan_controls", false);
+    ImGui::SetColumnWidth(0, 100);
+    ImGui::SetColumnWidth(1, 180);
     ImGui::Text("Raio (m):");
     ImGui::NextColumn();
+    ImGui::SetNextItemWidth(ImGui::GetColumnWidth() * 0.5f);
     SliderFloat("##scan_radius", &esp_config.scan_radius, 50.0f, 2000.0f, "%.0fm");
     ImGui::NextColumn();
     
-ImGui::Text("Intervalo (ms):");
+    ImGui::Text("Intervalo (ms):");
     ImGui::NextColumn();
     InputInt("##scan_interval", &esp_config.scan_interval_ms);
     ImGui::NextColumn();
@@ -57,12 +128,15 @@ ImGui::Text("Intervalo (ms):");
     ImGui::NextColumn();
     ImGui::Columns(1);
     
-    // Scan button
+    // Scan button and status
     if (state.scanning) {
         ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.0f, 1.0f), "Scanning... %.0f%%", state.scan_progress * 100.0f);
     } else if (state.scan_complete) {
         ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "Scan completo: %d modelos, %d objetos", 
             state.unique_models_found, state.total_objects_found);
+        if (state.error_message.empty() == false) {
+            ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.4f, 1.0f), "Erro: %s", state.error_message.c_str());
+        }
     } else {
         ImGui::Text("Pronto para escanear");
     }
@@ -78,6 +152,7 @@ ImGui::Text("Intervalo (ms):");
         }
     }
     
+    ImGui::SameLine();
     if (CyberButton("Limpar Resultados", ImVec2(120, 30))) {
         object_esp::GetObjectESPManager().ClearScanResults();
     }
@@ -85,32 +160,37 @@ ImGui::Text("Intervalo (ms):");
     CardGap();
     SectionTitle("Resultados do Scan");
     
-    // Search filter
+    // Search and category filter
+    ImGui::Columns(3, "scan_filters", false);
+    ImGui::SetColumnWidth(0, 180);
+    ImGui::SetColumnWidth(1, 150);
     ImGui::Text("Filtrar:");
-    ImGui::SameLine();
+    ImGui::NextColumn();
     static char search_buf[256] = "";
     ImGui::InputText("##obj_search", search_buf, sizeof(search_buf));
     object_esp::GetObjectESPManager().SetSearchQuery(search_buf);
+    ImGui::NextColumn();
     
-    // Category filter
-    ImGui::SameLine();
     ImGui::Text("Categoria:");
-    ImGui::SameLine();
+    ImGui::NextColumn();
     static int cat_idx = 0;
     const char* cat_names[] = {"Todas", "Loot", "Missao", "Interacao", "Policial", "Medico",
         "Veiculo", "Crafting", "Oficina", "Trabalho", "Container", "Custom", "Outros"};
     if (Combo("##cat_filter", &cat_idx, cat_names, 13)) {
         object_esp::GetObjectESPManager().SetCategoryFilter(static_cast<ObjectCategory>(cat_idx));
     }
+    ImGui::NextColumn();
+    ImGui::Columns(1);
     
     // Scan results table
     if (!scan_results.empty()) {
         ImGui::Separator();
-        BeginSurfaceList("##scan_results", 200.0f);
+        BeginSurfaceList("##scan_results", 250.0f);
         
         ImGui::TableSetupColumn("Modelo", ImGuiTableColumnFlags_WidthStretch);
         ImGui::TableSetupColumn("Count", ImGuiTableColumnFlags_WidthFixed, 60);
         ImGui::TableSetupColumn("Distancia", ImGuiTableColumnFlags_WidthFixed, 80);
+        ImGui::TableSetupColumn("Custom", ImGuiTableColumnFlags_WidthFixed, 60);
         ImGui::TableSetupColumn("Acao", ImGuiTableColumnFlags_WidthFixed, 100);
         ImGui::TableHeadersRow();
         
@@ -126,6 +206,13 @@ ImGui::Text("Intervalo (ms):");
             ImGui::Text("%.0fm", result.nearest_distance);
             
             ImGui::TableSetColumnIndex(3);
+            if (result.is_custom) {
+                ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.0f, 1.0f), "CUSTOM");
+            } else {
+                ImGui::Text("-");
+            }
+            
+            ImGui::TableSetColumnIndex(4);
             bool in_whitelist = std::any_of(
                 object_esp::GetObjectESPManager().GetWhitelist().begin(),
                 object_esp::GetObjectESPManager().GetWhitelist().end(),
@@ -149,17 +236,20 @@ ImGui::Text("Intervalo (ms):");
     SectionTitle("Objetos Rastreados (Whitelist)");
     
     if (!whitelist.empty()) {
-        ImGui::Columns(4, "whitelist_cols", false);
-        ImGui::SetColumnWidth(0, 180); // Name
+        ImGui::Columns(5, "whitelist_cols", false);
+        ImGui::SetColumnWidth(0, 160); // Name
         ImGui::SetColumnWidth(1, 100); // Category
         ImGui::SetColumnWidth(2, 80);  // Distance
-        ImGui::SetColumnWidth(3, 120); // Actions
+        ImGui::SetColumnWidth(3, 80);  // Display options
+        ImGui::SetColumnWidth(4, 140); // Actions
         
-        ImGui::Text("Modelo");
+        ImGui::Text("Modelo / Nome");
         ImGui::NextColumn();
         ImGui::Text("Categoria");
         ImGui::NextColumn();
         ImGui::Text("Dist Max");
+        ImGui::NextColumn();
+        ImGui::Text("Exibir");
         ImGui::NextColumn();
         ImGui::Text("Acoes");
         ImGui::NextColumn();
@@ -168,21 +258,47 @@ ImGui::Text("Intervalo (ms):");
         for (auto& entry : whitelist) {
             ImGui::PushID(entry.model.c_str());
             
-            ImGui::Text("%s", entry.display_name.c_str());
+            // Name with custom display name support
+            std::string display = entry.display_name.empty() ? entry.model : entry.display_name;
+            ImGui::Text("%s", display.c_str());
+            if (entry.is_custom) {
+                ImGui::SameLine();
+                ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.0f, 1.0f), " [CUSTOM]");
+            }
             ImGui::NextColumn();
             ImGui::Text("%s", ObjectCategoryToString(entry.category));
             ImGui::NextColumn();
             
             ImGui::SetNextItemWidth(70);
-            SliderFloat("##dist", &entry.max_distance, 10.0f, 2000.0f, "%.0fm");
+            SliderFloat("##dist", &entry.max_distance, 10.0f, 5000.0f, "%.0fm");
             ImGui::NextColumn();
             
+            // Display toggles
+            ImGui::Columns(4, "display_opts", false);
+            ImGui::SetColumnWidth(0, 30);
+            ImGui::SetColumnWidth(1, 30);
+            ImGui::SetColumnWidth(2, 30);
+            ImGui::SetColumnWidth(3, 30);
+            ImGui::PushID("disp");
+            ToggleSwitch("##name", &entry.show_name); ImGui::SameLine(); ImGui::Text("N");
+            ImGui::NextColumn();
+            ToggleSwitch("##dist", &entry.show_distance); ImGui::SameLine(); ImGui::Text("D");
+            ImGui::NextColumn();
+            ToggleSwitch("##cat", &entry.show_category); ImGui::SameLine(); ImGui::Text("C");
+            ImGui::NextColumn();
+            ToggleSwitch("##box", &entry.show_box); ImGui::SameLine(); ImGui::Text("B");
+            ImGui::NextColumn();
+            ImGui::PopID();
+            ImGui::Columns(1);
+            ImGui::NextColumn();
+            
+            // Actions
             if (entry.enabled) {
-                if (CyberButton("Desativar", ImVec2(80, 25))) {
+                if (CyberButton("Desativar", ImVec2(70, 25))) {
                     object_esp::GetObjectESPManager().ToggleWhitelistEntry(entry.model, false);
                 }
             } else {
-                if (CyberButton("Ativar", ImVec2(80, 25))) {
+                if (CyberButton("Ativar", ImVec2(70, 25))) {
                     object_esp::GetObjectESPManager().ToggleWhitelistEntry(entry.model, true);
                 }
             }
@@ -192,7 +308,6 @@ ImGui::Text("Intervalo (ms):");
             }
             ImGui::SameLine();
             if (CyberButton("Config", ImVec2(60, 25))) {
-                // Open inspector
                 object_esp::GetObjectESPManager().OpenInspector(entry.model);
             }
             
@@ -230,13 +345,24 @@ ImGui::Text("Intervalo (ms):");
     SliderFloat("Distancia Maxima", &esp_config.max_distance, 50.0f, 5000.0f, "%.0fm");
     
     CardGap();
-    if (CyberButton("Salvar Configuracao", ImVec2(150, 32))) {
+    SectionTitle("Persistencia");
+    
+    ImGui::Columns(2, "persist", false);
+    if (CyberButton("Salvar Tudo", ImVec2(-1, 32))) {
         object_esp::GetObjectESPManager().SaveAll();
     }
-    ImGui::SameLine();
-    if (CyberButton("Carregar Configuracao", ImVec2(150, 32))) {
+    ImGui::NextColumn();
+    if (CyberButton("Carregar Tudo", ImVec2(-1, 32))) {
         object_esp::GetObjectESPManager().LoadAll();
     }
+    ImGui::Columns(1);
+    
+    // Stats
+    CardGap();
+    const auto& stats = manager.GetStats();
+    ImGui::Text("Estatisticas: Scanned=%d | Tracked=%d | Rendered=%d | ScanTime=%.1fms | UpdateTime=%.1fms", 
+        stats.total_scanned, stats.tracked_objects, stats.rendered_objects, 
+        stats.last_scan_time_ms, stats.update_time_ms);
     
     EndCard();
 }

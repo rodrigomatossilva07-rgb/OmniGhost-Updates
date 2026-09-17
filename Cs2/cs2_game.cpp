@@ -1,12 +1,12 @@
 #include "cs2_game.h"
-#include "cs2_radar.h"
+#include "radar/cs2_radar.h"
 #include "platform/session_log.h"
 #include "../src/platform/offset_auto.h"
 #include "../src/platform/app_paths.h"
 #include "../src/platform/embedded_offsets.h"
-#include "cs2_esp.h"
-#include "cs2_aim.h"
-#include "cs2_weapons.h"
+#include "esp/cs2_esp.h"
+#include "aimbot/cs2_aim.h"
+#include "weapons/cs2_weapons.h"
 #include "Memory/Memory.h"
 #include "globals.h"
 #include "gameplay/esp_core.h"
@@ -393,9 +393,10 @@ bool ScanRipRelative(uintptr_t module_base, size_t module_size, const char* sign
 
 bool ProbeViewMatrix(float* destination = nullptr) {
     float probe[16]{};
-    if (!runtime.client_base || !offsets.dwViewMatrix ||
-        !mem.SetDmaCallTag("CS2.ViewMatrix");
-                    QRead(runtime.client_base + offsets.dwViewMatrix, probe, sizeof(probe)))
+    if (!runtime.client_base || !offsets.dwViewMatrix)
+        return false;
+    mem.SetDmaCallTag("CS2.ViewMatrix");
+    if (!QRead(runtime.client_base + offsets.dwViewMatrix, probe, sizeof(probe)))
         return false;
 
     int finite_values = 0;

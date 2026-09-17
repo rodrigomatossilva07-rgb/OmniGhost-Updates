@@ -1,8 +1,8 @@
 #include "../../widgets.h"
 #include "../../theme.h"
-#include "cs2_config.h"
-#include "cs2_game.h"
-#include "cs2_radar.h"
+#include "Cs2/config/cs2_config.h"
+#include "Cs2/cs2_game.h"
+#include "Cs2/radar/cs2_radar.h"
 #include "imgui.h"
 #include <Windows.h>
 #include <shellapi.h>

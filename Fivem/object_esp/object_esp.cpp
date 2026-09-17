@@ -16,16 +16,44 @@
 #include <unordered_map>
 #include <cmath>
 #include <cstdio>
+#include <chrono>
 
 namespace fs = std::filesystem;
 
 namespace object_esp {
+
+// ============================================================================
+// Logging Helper
+// ============================================================================
+#define OBJESP_LOG(level, fmt, ...) do { \
+    auto now = std::chrono::system_clock::now(); \
+    auto time = std::chrono::system_clock::to_time_t(now); \
+    char timebuf[32]; \
+    std::strftime(timebuf, sizeof(timebuf), "%H:%M:%S", std::localtime(&time)); \
+    std::cout << "[" << timebuf << "] [ObjectESP][" << level << "] " << fmt << "\n"; \
+} while(0)
+
+#define OBJESP_LOG_DEBUG(fmt, ...) OBJESP_LOG("DEBUG", fmt, ##__VA_ARGS__)
+#define OBJESP_LOG_INFO(fmt, ...) OBJESP_LOG("INFO", fmt, ##__VA_ARGS__)
+#define OBJESP_LOG_WARN(fmt, ...) OBJESP_LOG("WARN", fmt, ##__VA_ARGS__)
+#define OBJESP_LOG_ERROR(fmt, ...) OBJESP_LOG("ERROR", fmt, ##__VA_ARGS__)
+
+static void LogCrashContext(const char* context) {
+    (void)context;
+    using namespace FiveM::offset;
+    OBJESP_LOG_ERROR("CRASH CONTEXT: %s", context);
+    OBJESP_LOG_ERROR("  base=0x%llX, object_pool=0x%llX, localplayer=0x%llX, replay=0x%llX",
+        (unsigned long long)base, (unsigned long long)object_pool,
+        (unsigned long long)localplayer, (unsigned long long)replay);
+    OBJESP_LOG_ERROR("  viewport=0x%llX, world=0x%llX", (unsigned long long)viewport, (unsigned long long)world);
+}
 
 // Global instance
 static ObjectESPManager* g_manager = nullptr;
 
 ObjectESPManager& GetObjectESPManager() {
     if (!g_manager) {
+        OBJESP_LOG_INFO("Creating ObjectESPManager instance");
         g_manager = new ObjectESPManager();
     }
     return *g_manager;
@@ -37,35 +65,60 @@ ObjectESPManager& GetObjectESPManager() {
 
 ObjectESPManager::ObjectESPManager() 
     : scanner_state_(), stats_(), inspector_open_(false), current_filter_(ObjectCategory::All), selected_model_() {
-    // Initialize category visibility
+    OBJESP_LOG_INFO("ObjectESPManager constructor");
     for (int i = 0; i < static_cast<int>(ObjectCategory::Count); ++i) {
         config_.category_visible[i] = true;
     }
     
-    renderer_ = std::make_unique<ObjectRenderer>();
-    renderer_->Initialize();
+    OBJESP_LOG_DEBUG("Creating ObjectRenderer");
+    try {
+        renderer_ = std::make_unique<ObjectRenderer>();
+        renderer_->Initialize();
+        OBJESP_LOG_INFO("ObjectRenderer initialized successfully");
+    } catch (const std::exception&) {
+        OBJESP_LOG_ERROR("Failed to initialize ObjectRenderer");
+    } catch (...) {
+        OBJESP_LOG_ERROR("Unknown exception during ObjectRenderer initialization");
+    }
 }
 
 ObjectESPManager::~ObjectESPManager() {
+    OBJESP_LOG_INFO("ObjectESPManager destructor");
     Shutdown();
     g_manager = nullptr;
 }
 
 bool ObjectESPManager::Initialize() {
-    if (initialized_)
+    OBJESP_LOG_INFO("Initialize() called, initialized_=%s", initialized_ ? "true" : "false");
+    
+    if (initialized_) {
+        OBJESP_LOG_INFO("Already initialized");
         return true;
-
-    if (!renderer_) {
-        renderer_ = std::make_unique<ObjectRenderer>();
-        renderer_->Initialize();
     }
-    LoadAll();
-    initialized_ = true;
-    std::cout << "[ObjectESP] Initialized (frame-snapshot scanner)" << std::endl;
+
+    try {
+        if (!renderer_) {
+            OBJESP_LOG_DEBUG("Creating ObjectRenderer");
+            renderer_ = std::make_unique<ObjectRenderer>();
+            renderer_->Initialize();
+            OBJESP_LOG_INFO("ObjectRenderer initialized");
+        }
+        LoadAll();
+        initialized_ = true;
+        OBJESP_LOG_INFO("ObjectESP initialized successfully (frame-snapshot scanner)");
+    } catch (const std::exception&) {
+        OBJESP_LOG_ERROR("Initialize failed");
+        return false;
+    } catch (...) {
+        OBJESP_LOG_ERROR("Initialize failed with unknown exception");
+        return false;
+    }
     return true;
 }
 
 void ObjectESPManager::Shutdown() {
+    OBJESP_LOG_INFO("Shutdown() called, initialized_=%s", initialized_ ? "true" : "false");
+    
     if (!initialized_)
         return;
 
@@ -73,81 +126,93 @@ void ObjectESPManager::Shutdown() {
     scanner_state_.scan_complete = true;
     renderer_.reset();
     SaveAll();
-    std::lock_guard<std::mutex> lock(data_mutex_);
-    tracked_objects_.clear();
-    scan_results_.clear();
+    {
+        std::lock_guard<std::mutex> lock(data_mutex_);
+        tracked_objects_.clear();
+        scan_results_.clear();
+    }
     initialized_ = false;
-    std::cout << "[ObjectESP] Shutdown complete" << std::endl;
+    OBJESP_LOG_INFO("Shutdown complete");
 }
 
 void ObjectESPManager::Update() {
+    static int frame_counter = 0;
+    if (frame_counter++ % 300 == 0) { // Log every 300 frames (~5 seconds at 60fps)
+        OBJESP_LOG_DEBUG("Update: initialized_=%s, enabled=%s, scanning=%s, tracked=%d, scan_results=%d",
+            initialized_ ? "Y" : "N", config_.enabled ? "Y" : "N", 
+            scanner_state_.scanning ? "Y" : "N",
+            (int)tracked_objects_.size(), (int)scan_results_.size());
+    }
+    
     try {
-    auto start_time = std::chrono::high_resolution_clock::now();
+        auto start_time = std::chrono::high_resolution_clock::now();
 
-    // A scan is requested by the UI but executed here, on the same serialized
-    // frame that has just refreshed FiveM::ESP::{validPeds,positions}.  The old
-    // background thread was never started by the game lifecycle and could leave
-    // the UI permanently at 0%; it also raced the frame containers.
-    if (initialized_ && scanner_state_.scanning) {
-        const auto scan_start = std::chrono::high_resolution_clock::now();
-        PerformScan();
-        const auto scan_end = std::chrono::high_resolution_clock::now();
-        stats_.last_scan_time_ms = std::chrono::duration<float, std::milli>(scan_end - scan_start).count();
-        scanner_state_.status_message = "Object discovery is unavailable for this FiveM build";
-    }
-    
-    if (!config_.enabled) {
-        return;
-    }
-    
-    std::lock_guard<std::mutex> lock(data_mutex_);
-    
-    // Update tracked objects from current scan results and whitelist
-    {
-        static auto s_lastTrackRebuild = std::chrono::steady_clock::time_point{};
-        const auto nowTr = std::chrono::steady_clock::now();
-        if (s_lastTrackRebuild.time_since_epoch().count() == 0 ||
-            nowTr - s_lastTrackRebuild > std::chrono::milliseconds(300)) {
-            UpdateTrackedObjects();
-            s_lastTrackRebuild = nowTr;
+        if (initialized_ && scanner_state_.scanning) {
+            OBJESP_LOG_DEBUG("Starting PerformScan");
+            const auto scan_start = std::chrono::high_resolution_clock::now();
+            PerformScan();
+            const auto scan_end = std::chrono::high_resolution_clock::now();
+            stats_.last_scan_time_ms = std::chrono::duration<float, std::milli>(scan_end - scan_start).count();
+            OBJESP_LOG_DEBUG("PerformScan completed in %.2f ms", stats_.last_scan_time_ms);
         }
-    }
-    
-    // Apply culling
-    if (config_.distance_culling) ApplyDistanceCulling();
-    if (config_.frustum_culling) ApplyFrustumCulling();
-    
-    // Prune stale objects
-    PruneStaleObjects();
-    
-    // Update stats
-    stats_.tracked_objects = static_cast<int>(tracked_objects_.size());
-    stats_.rendered_objects = 0; // Will be updated by renderer
-    
-    auto end_time = std::chrono::high_resolution_clock::now();
-    stats_.update_time_ms = std::chrono::duration<float, std::milli>(end_time - start_time).count();
-    } catch (const std::exception& ex) {
+        
+        if (!config_.enabled) {
+            return;
+        }
+        
+        std::lock_guard<std::mutex> lock(data_mutex_);
+        
+        // Update tracked objects from current scan results and whitelist
+        {
+            static auto s_lastTrackRebuild = std::chrono::steady_clock::time_point{};
+            const auto nowTr = std::chrono::steady_clock::now();
+            if (s_lastTrackRebuild.time_since_epoch().count() == 0 ||
+                nowTr - s_lastTrackRebuild > std::chrono::milliseconds(300)) {
+                UpdateTrackedObjects();
+                s_lastTrackRebuild = nowTr;
+            }
+        }
+        
+        // Apply culling
+        if (config_.distance_culling) ApplyDistanceCulling();
+        if (config_.frustum_culling) ApplyFrustumCulling();
+        
+        // Prune stale objects
+        PruneStaleObjects();
+        
+        // Update stats
+        stats_.tracked_objects = static_cast<int>(tracked_objects_.size());
+        stats_.rendered_objects = 0; // Will be updated by renderer
+        
+        auto end_time = std::chrono::high_resolution_clock::now();
+        stats_.update_time_ms = std::chrono::duration<float, std::milli>(end_time - start_time).count();
+    } catch (const std::exception&) {
+        OBJESP_LOG_ERROR("Update failed");
         scanner_state_.scanning = false;
         scanner_state_.scan_complete = true;
         scanner_state_.error_message = "Object ESP update failed safely";
         scanner_state_.status_message = scanner_state_.error_message;
-        std::cerr << "[ObjectESP] Update failed: " << ex.what() << std::endl;
     } catch (...) {
+        OBJESP_LOG_ERROR("Update failed with unknown exception");
         scanner_state_.scanning = false;
         scanner_state_.scan_complete = true;
         scanner_state_.error_message = "Object ESP update failed safely";
         scanner_state_.status_message = scanner_state_.error_message;
-        std::cerr << "[ObjectESP] Update failed with an unknown exception" << std::endl;
     }
 }
 
 void ObjectESPManager::StartScan(float radius) {
-    if (scanner_state_.scanning) return;
+    OBJESP_LOG_INFO("StartScan called, radius=%.1f", radius);
+    if (scanner_state_.scanning) {
+        OBJESP_LOG_WARN("Scan already in progress");
+        return;
+    }
     if (!initialized_) {
         scanner_state_.Reset();
         scanner_state_.scan_complete = true;
         scanner_state_.status_message = "Start a FiveM session before scanning";
-        std::cout << "[ObjectESP] Scan rejected: FiveM session is not initialized" << std::endl;
+        OBJESP_LOG_WARN("Scan rejected: FiveM session not initialized");
+        LogCrashContext("StartScan - not initialized");
         return;
     }
     if (!HasValidatedDiscoverySource()) {
@@ -155,7 +220,8 @@ void ObjectESPManager::StartScan(float radius) {
         scanner_state_.scan_complete = true;
         scanner_state_.status_message = "Object discovery is not validated for this FiveM build";
         scanner_state_.error_message = scanner_state_.status_message;
-        std::cout << "[ObjectESP] Scan rejected: no validated object discovery source" << std::endl;
+        OBJESP_LOG_WARN("Scan rejected: no validated object discovery source");
+        LogCrashContext("StartScan - no validated discovery source");
         return;
     }
     
@@ -165,17 +231,19 @@ void ObjectESPManager::StartScan(float radius) {
     scanner_state_.status_message = "Scanning objects...";
     config_.scan_radius = radius;
     
-    std::cout << "[ObjectESP] Scan started, radius: " << radius << "m" << std::endl;
+    OBJESP_LOG_INFO("Scan started, radius: %.1fm", radius);
 }
 
 void ObjectESPManager::StopScan() {
+    OBJESP_LOG_INFO("StopScan called");
     scanner_state_.scanning = false;
     scanner_state_.scan_complete = true;
     scanner_state_.status_message = "Scan complete";
-    std::cout << "[ObjectESP] Scan stopped" << std::endl;
+    OBJESP_LOG_INFO("Scan stopped");
 }
 
 void ObjectESPManager::ClearScanResults() {
+    OBJESP_LOG_DEBUG("ClearScanResults");
     std::lock_guard<std::mutex> lock(data_mutex_);
     scan_results_.clear();
     scanner_state_.unique_models_found = 0;
@@ -238,6 +306,7 @@ std::vector<WhitelistEntry> ObjectESPManager::GetFilteredWhitelist() const {
 }
 
 void ObjectESPManager::OpenInspector(const std::string& model) {
+    OBJESP_LOG_INFO("Opening inspector for: %s", model.c_str());
     std::lock_guard<std::mutex> lock(data_mutex_);
     inspector_open_ = true;
     inspector_data_ = InspectorData();
@@ -263,14 +332,56 @@ void ObjectESPManager::OpenInspector(const std::string& model) {
         inspector_data_.network_id = tracked_it->entity.network_id;
         inspector_data_.is_networked = tracked_it->entity.is_networked;
         inspector_data_.category = tracked_it->config.category;
+        
+        // Add extra properties
+        inspector_data_.extra_props.clear();
+        inspector_data_.extra_props.emplace_back("Entity Handle", "0x" + std::to_string(tracked_it->entity.entity_handle));
+        inspector_data_.extra_props.emplace_back("Network ID", std::to_string(tracked_it->entity.network_id));
+        inspector_data_.extra_props.emplace_back("Networked", tracked_it->entity.is_networked ? "Yes" : "No");
+        inspector_data_.extra_props.emplace_back("Position X", std::to_string(tracked_it->entity.position.x));
+        inspector_data_.extra_props.emplace_back("Position Y", std::to_string(tracked_it->entity.position.y));
+        inspector_data_.extra_props.emplace_back("Position Z", std::to_string(tracked_it->entity.position.z));
+        inspector_data_.extra_props.emplace_back("Distance", std::to_string(tracked_it->entity.distance) + "m");
+        inspector_data_.extra_props.emplace_back("Category", ObjectCategoryToString(tracked_it->config.category));
+        inspector_data_.extra_props.emplace_back("Max Distance", std::to_string(tracked_it->config.max_distance) + "m");
+        inspector_data_.extra_props.emplace_back("Show Name", tracked_it->config.show_name ? "Yes" : "No");
+        inspector_data_.extra_props.emplace_back("Show Distance", tracked_it->config.show_distance ? "Yes" : "No");
+        inspector_data_.extra_props.emplace_back("Show Box", tracked_it->config.show_box ? "Yes" : "No");
+        inspector_data_.extra_props.emplace_back("Show Marker", tracked_it->config.show_marker ? "Yes" : "No");
     }
     
-    std::cout << "[ObjectESP] Inspector opened for: " << model << std::endl;
+    // Add scan result info if available
+    for (const auto& result : scan_results_) {
+        if (result.model == model) {
+            inspector_data_.extra_props.emplace_back("Total Count", std::to_string(result.count));
+            inspector_data_.extra_props.emplace_back("Nearest Distance", std::to_string(result.nearest_distance) + "m");
+            inspector_data_.extra_props.emplace_back("Is Custom", result.is_custom ? "Yes" : "No");
+            inspector_data_.extra_props.emplace_back("Hash", "0x" + std::to_string(result.hash));
+            break;
+        }
+    }
+    
+    OBJESP_LOG_INFO("Inspector opened for: %s", model.c_str());
 }
 
 void ObjectESPManager::CloseInspector() {
+    OBJESP_LOG_DEBUG("Closing inspector");
     inspector_open_ = false;
     selected_model_.clear();
+}
+
+void ObjectESPManager::SetCustomDisplayName(const std::string& model, const std::string& display_name) {
+    OBJESP_LOG_INFO("Setting custom display name for %s: %s", model.c_str(), display_name.c_str());
+    std::lock_guard<std::mutex> lock(data_mutex_);
+    config_.custom_display_names[model] = display_name;
+    
+    // Also update whitelist entry if it exists
+    auto it = std::find_if(whitelist_.begin(), whitelist_.end(),
+        [&model](const WhitelistEntry& e) { return e.model == model; });
+    if (it != whitelist_.end()) {
+        it->display_name = display_name;
+    }
+    SaveWhitelistToDisk();
 }
 
 void ObjectESPManager::ToggleCategoryVisibility(ObjectCategory cat) {
@@ -327,6 +438,7 @@ std::string GuessModelName(uint32_t hash) {
 } // namespace
 
 void ObjectESPManager::PerformScan() {
+    OBJESP_LOG_DEBUG("PerformScan started");
     try {
     using namespace FiveM::offset;
     std::lock_guard<std::mutex> lock(data_mutex_);
@@ -337,21 +449,25 @@ void ObjectESPManager::PerformScan() {
     scanner_state_.scan_progress = 0.05f;
 
     if (!HasValidatedDiscoverySource()) {
+        OBJESP_LOG_WARN("No validated discovery source");
         scanner_state_.scanning = false;
         scanner_state_.scan_complete = true;
         scanner_state_.status_message = "Object pool unavailable";
         scanner_state_.scan_progress = 1.0f;
+        LogCrashContext("PerformScan - no validated discovery source");
         return;
     }
 
     Vec3 localPos{};
     if (localplayer)
         ReadVec3Safe(localplayer + playerPosition, localPos);
+    OBJESP_LOG_DEBUG("Local player position: %.2f, %.2f, %.2f", localPos.x, localPos.y, localPos.z);
 
     // Resolve pool: object_pool may be a pointer-to-pool or the pool base itself.
     uintptr_t pool = 0;
     if (!ReadU64Safe(object_pool, pool))
         pool = object_pool;
+    OBJESP_LOG_DEBUG("Object pool: 0x%llX (resolved from 0x%llX)", (unsigned long long)pool, (unsigned long long)object_pool);
 
     uintptr_t items = 0;
     uintptr_t flags = 0;
@@ -363,9 +479,12 @@ void ObjectESPManager::PerformScan() {
     ReadU64Safe(pool + 0x8, flags);
     mem.Read(pool + 0x10, &size, sizeof(size));
     mem.Read(pool + 0x14, &itemSize, sizeof(itemSize));
+    OBJESP_LOG_DEBUG("Pool layout: items=0x%llX, flags=0x%llX, size=%u, itemSize=%u", 
+        (unsigned long long)items, (unsigned long long)flags, size, itemSize);
 
     // Fallback: some builds store pool pointer one indirection deeper
     if ((!items || !size || size > 300000 || itemSize == 0 || itemSize > 0x4000) && pool) {
+        OBJESP_LOG_DEBUG("Trying fallback pool resolution");
         uintptr_t pool2 = 0;
         if (ReadU64Safe(pool, pool2)) {
             ReadU64Safe(pool2 + 0x0, items);
@@ -373,17 +492,20 @@ void ObjectESPManager::PerformScan() {
             mem.Read(pool2 + 0x10, &size, sizeof(size));
             mem.Read(pool2 + 0x14, &itemSize, sizeof(itemSize));
             pool = pool2;
+            OBJESP_LOG_DEBUG("Fallback pool: items=0x%llX, size=%u, itemSize=%u", 
+                (unsigned long long)items, size, itemSize);
         }
     }
 
     if (!items || size == 0 || size > 300000) {
+        OBJESP_LOG_ERROR("Pool unreadable: pool=0x%llX items=0x%llX size=%u", 
+            (unsigned long long)pool, (unsigned long long)items, size);
         scanner_state_.scanning = false;
         scanner_state_.scan_complete = true;
         scanner_state_.status_message = "Object pool layout not readable";
         scanner_state_.error_message = scanner_state_.status_message;
         scanner_state_.scan_progress = 1.0f;
-        std::cout << "[ObjectESP] Pool unreadable pool=0x" << std::hex << pool
-                  << " items=0x" << items << " size=" << std::dec << size << std::endl;
+        LogCrashContext("PerformScan - pool unreadable");
         return;
     }
     if (itemSize == 0 || itemSize > 0x4000)
@@ -391,6 +513,7 @@ void ObjectESPManager::PerformScan() {
 
     const float maxR = config_.scan_radius > 1.f ? config_.scan_radius : 500.f;
     const float maxR2 = maxR * maxR;
+    OBJESP_LOG_DEBUG("Scan radius: %.1fm (maxR2=%.1f)", maxR, maxR2);
 
     struct Acc {
         ScanResult result;
@@ -401,9 +524,12 @@ void ObjectESPManager::PerformScan() {
     const uint32_t maxIter = (std::min)(size, 4000u); // budgeted — avoid 20k sync slots
     // Time-budgeted scan: process up to maxIter but yield after ~3ms of work.
     const auto scanDeadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(3);
+    uint32_t valid_entities = 0;
     for (uint32_t i = 0; i < maxIter; ++i) {
-        if ((i & 0x3F) == 0 && i > 0 && std::chrono::steady_clock::now() >= scanDeadline)
+        if ((i & 0x3F) == 0 && i > 0 && std::chrono::steady_clock::now() >= scanDeadline) {
+            OBJESP_LOG_DEBUG("Scan time budget exceeded at iteration %u/%u", i, maxIter);
             break;
+        }
         if ((i & 0xFF) == 0)
             scanner_state_.scan_progress = 0.05f + 0.9f * (float)i / (float)maxIter;
 
@@ -452,6 +578,7 @@ void ObjectESPManager::PerformScan() {
         if (!hash)
             continue;
 
+        valid_entities++;
         const float dist = localPos.IsZero() ? 0.f : std::sqrt(dist2);
         auto& acc = byHash[hash];
         if (acc.result.hash == 0) {
@@ -467,6 +594,8 @@ void ObjectESPManager::PerformScan() {
         if (acc.result.count == 1 || dist < acc.result.nearest_distance)
             acc.result.nearest_distance = dist;
     }
+    OBJESP_LOG_DEBUG("Scanned %u entities, found %zu unique hashes, %u valid", 
+        scanner_state_.total_entities_scanned, byHash.size(), valid_entities);
 
     scan_results_.clear();
     scan_results_.reserve(byHash.size());
@@ -488,19 +617,19 @@ void ObjectESPManager::PerformScan() {
     std::snprintf(msg, sizeof(msg), "Scan completo: %d modelos, %d objetos",
         scanner_state_.unique_models_found, scanner_state_.total_objects_found);
     scanner_state_.status_message = msg;
-    std::cout << "[ObjectESP] " << msg << std::endl;
+    OBJESP_LOG_INFO("%s", msg);
     } catch (const std::exception& ex) {
+        OBJESP_LOG_ERROR("PerformScan exception: %s", ex.what());
         scanner_state_.scanning = false;
         scanner_state_.scan_complete = true;
         scanner_state_.status_message = "Scan failed";
         scanner_state_.error_message = ex.what();
-        std::cerr << "[ObjectESP] PerformScan exception: " << ex.what() << std::endl;
     } catch (...) {
+        OBJESP_LOG_ERROR("PerformScan unknown exception");
         scanner_state_.scanning = false;
         scanner_state_.scan_complete = true;
         scanner_state_.status_message = "Scan failed";
         scanner_state_.error_message = "unknown";
-        std::cerr << "[ObjectESP] PerformScan unknown exception" << std::endl;
     }
 
 }
