@@ -210,8 +210,8 @@ bool IsUserPointer(uintptr_t value) {
 }
 
 template<typename T>
-bool QReadT(uintptr_t addr, T& out) {
-    return QRead(addr, &out, sizeof(T));
+bool QReadT(uintptr_t addr, T& out, const char* tag = "QRead") {
+    return QRead(addr, &out, sizeof(T), tag);
 }
 
 // Persistent scatter handle — N sequential DMA reads → 1 round-trip. Ownership
@@ -264,6 +264,8 @@ struct Cs2PhaseTiming {
 };
 static Cs2PhaseTiming g_phase{};
 static std::atomic<int> g_pressure_level{0}; // 0=NORMAL 1=MODERATE 2=HIGH 3=RECOVERY
+static std::atomic_bool g_acq_busy{false}; // full scan holds data plane priority over camera motion
+
 
 struct ScopedPhase {
     float* target;
@@ -392,7 +394,8 @@ bool ScanRipRelative(uintptr_t module_base, size_t module_size, const char* sign
 bool ProbeViewMatrix(float* destination = nullptr) {
     float probe[16]{};
     if (!runtime.client_base || !offsets.dwViewMatrix ||
-        !QRead(runtime.client_base + offsets.dwViewMatrix, probe, sizeof(probe)))
+        !mem.SetDmaCallTag("CS2.ViewMatrix");
+                    QRead(runtime.client_base + offsets.dwViewMatrix, probe, sizeof(probe)))
         return false;
 
     int finite_values = 0;
@@ -1794,6 +1797,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
     if (!ready || !offsets.loaded || !runtime.client_base)
         return;
 
+    const auto _frameWallBegin = std::chrono::steady_clock::now();
     ++runtime.frames;
     runtime.fps = g_presentation_fps.load(std::memory_order_relaxed);
 
@@ -1820,6 +1824,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
     if (s_stickyBoneLayout.bucket_count() < 128) s_stickyBoneLayout.reserve(128);
     runtime.player_count = 0;
     runtime.enemy_count = 0;
+    mem.SetDmaCallTag("CS2.Controllers");
     runtime.controller_count = 0;
     runtime.pawn_count = 0;
     runtime.players.clear();
@@ -1838,7 +1843,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
     if (map_now_ms >= next_map_refresh_ms) {
         mem.SetDmaCallTag("CS2.MapRefresh");
         RefreshMapName();
-        next_map_refresh_ms = map_now_ms + (runtime.in_match ? 1000u : 150u);
+        next_map_refresh_ms = map_now_ms + (runtime.in_match ? 2500u : 200u);
     }
 
     // Match transition: map changed → force entity-list re-acquire so ESP
@@ -1905,6 +1910,11 @@ static void RunFrameWithConfig(const Config& frame_config) {
         zero_player_frames = 0;
         makcu_wrapper::ForceClearButtons();
         std::cout << "[CS2] Entrada em partida — a revalidar entity list" << std::endl;
+    }
+    // Leaving a match → drop avatar cache (memory + %LocalAppData%/OmniGhost/cache/cs2/avatars).
+    if (was_in_match && !runtime.in_match) {
+        std::cout << "[CS2] Saída de partida — a limpar cache de avatares\n";
+        CS2_ESP::ClearAvatarCache();
     }
     was_in_match = runtime.in_match;
 
@@ -2363,6 +2373,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 mem.AddScatterReadRequest(g_scatter_full, resolved_pawns[c] + offsets.m_vOldOrigin,
                                           positions[c], sizeof(float) * 3);
             if (need_names) {
+            mem.SetDmaCallTag("CS2.Names");
                 const int controllerSlot = slot_index[c];
                 const uintptr_t controller = controllers[controllerSlot];
                 const auto cached = nameCache.find(controller);
@@ -3205,6 +3216,16 @@ if (need_bones) {
 
     // Presentation (ESP / Aim) stays in main.cpp — calling them here too
     // doubled DMA + mouse work every frame and tanked FPS / aim pull.
+    // Residual wall time not covered by named phases (unaccounted attribution).
+    {
+        const float wall = OmniGhost::Gameplay::TimeMs(_frameWallBegin);
+        const float accounted = g_phase.webradar_ms + g_phase.entity_ms + g_phase.local_ms
+            + g_phase.core_scatter_ms + g_phase.positions_ms + g_phase.bones_ms
+            + g_phase.weapon_ms + g_phase.spectator_ms + g_phase.bomb_ms
+            + g_phase.publish_ms + g_phase.cleanup_ms;
+        g_phase.other_ms = (std::max)(0.f, wall - accounted);
+    }
+
 }
 
 void RunFrame() {
@@ -3253,7 +3274,8 @@ void EnsureAcquisitionStarted() {
                  frame_config->armor_bar || frame_config->skeleton || frame_config->trails ||
                  frame_config->head_halo || frame_config->look_direction || frame_config->chinese_hat ||
                  frame_config->angel_wings || frame_config->devil_horns || frame_config->floating_crown);
-            if (canRead && in_match && needs_motion && now_ms >= next_motion_ms) {
+            if (canRead && in_match && needs_motion && now_ms >= next_motion_ms
+                && !g_acq_busy.load(std::memory_order_acquire)) {
                 // Slightly slower motion when skeleton is off — boxes/bars stay smooth
                 // with far less DMA pressure (main source of intermittent freezes).
                 const int motionPeriod = frame_config->skeleton ? MOTION_INTERVAL_MS : 16;
@@ -3278,6 +3300,7 @@ void EnsureAcquisitionStarted() {
                             mem.AddScatterReadRequest(g_scatter_motion,
                                 items[i].scene + offsets.m_vecAbsOrigin,
                                 items[i].pos, sizeof(items[i].pos));
+                        mem.SetDmaCallTag("CS2.MotionOrigins");
                         mem.ExecuteReadScatter(g_scatter_motion);
                     } else {
                         for (int i = 0; i < n; ++i)
@@ -3318,8 +3341,10 @@ void EnsureAcquisitionStarted() {
                 mem.SetDmaScanId(g_phase.scan_id);
                 mem.SetDmaLane("full");
                 mem.SetDmaCallTag("CS2.Acquire");
+                g_acq_busy.store(true, std::memory_order_release);
                 auto frame_config = g_config_snapshots.Acquire();
                 RunFrameWithConfig(*frame_config);
+                g_acq_busy.store(false, std::memory_order_release);
                 runtime.acquisition_ms = OmniGhost::Gameplay::TimeMs(acquire_begin);
                 {
                     auto& tel = OmniGhost::Gameplay::DmaTelemetry::CS2();
@@ -3376,6 +3401,21 @@ void EnsureAcquisitionStarted() {
                         bd.total_ms = runtime.acquisition_ms;
                         bd.lock_wait_ms = g_phase.lock_wait_ms;
                         bd.other_ms = g_phase.other_ms;
+                        {
+                            const auto ds = mem.GetScanDmaStats();
+                            bd.qread_calls = ds.qread_calls;
+                            bd.qread_total_ms = static_cast<float>(ds.qread_total_ms);
+                            bd.qread_max_ms = static_cast<float>(ds.qread_max_ms);
+                            bd.scatter_calls = ds.scatter_calls;
+                            bd.scatter_total_ms = static_cast<float>(ds.scatter_total_ms);
+                            bd.scatter_max_ms = static_cast<float>(ds.scatter_max_ms);
+                            bd.top_tag = ds.top_tag;
+                            bd.top_tag_ms = static_cast<float>(ds.top_tag_ms);
+                            bd.top2_tag = ds.top2_tag;
+                            bd.top2_tag_ms = static_cast<float>(ds.top2_tag_ms);
+                            bd.top3_tag = ds.top3_tag;
+                            bd.top3_tag_ms = static_cast<float>(ds.top3_tag_ms);
+                        }
                         bd.webradar_ms = g_phase.webradar_ms;
                         bd.entity_ms = g_phase.entity_ms;
                         bd.local_ms = g_phase.local_ms;

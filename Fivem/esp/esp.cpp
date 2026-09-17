@@ -1505,8 +1505,8 @@ static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer,
         localPos = mem.Read<Vec3>(localplayer + 0x90);
 
     float dist = origin.distance_to(localPos);
-    const float maxDist = (esp::config.max_esp_distance > 1.f) ? esp::config.max_esp_distance : 150.f;
-    if (dist > maxDist) return;
+    const float maxDist = esp::config.max_esp_distance;
+    if (maxDist <= 0.f || dist > maxDist) return;
 
     float health = prepared_esp ? prepared_esp->health : (cached ? cached->health : 0.f);
     if (!prepared_esp && health <= 0.f)
@@ -2088,7 +2088,7 @@ void esp::draw_skeleton(uintptr_t ped, Matrix viewport, uintptr_t localplayer) {
         if (const auto* pe = FindPreparedEsp(ped)) {
             const Vec3& lp = FiveM::ESP::GetFrameLocalPos();
             if (!lp.IsZero() && !pe->origin.IsZero() &&
-                pe->origin.distance_to(lp) > esp::config.max_esp_distance * 0.85f)
+                esp::config.max_esp_distance <= 0.f || pe->origin.distance_to(lp) > esp::config.max_esp_distance)
                 return;
         }
     }
@@ -2153,8 +2153,8 @@ void esp::draw_skeleton(uintptr_t ped, Matrix viewport, uintptr_t localplayer) {
         }
     }
     {
-        const float maxDist = (config.max_esp_distance > 1.f) ? config.max_esp_distance : 150.f;
-        if (lodDist > maxDist)
+        const float maxDist = config.max_esp_distance;
+        if (maxDist <= 0.f || lodDist > maxDist)
             return;
     }
 
@@ -2650,7 +2650,8 @@ void esp::DrawPlayerRadar(const Matrix& /*view_matrix*/, uintptr_t localplayer) 
         }
     }
 
-    const float maxDist = (config.max_esp_distance > 1.f) ? config.max_esp_distance : 150.f;
+    const float maxDist = config.max_esp_distance;
+    if (maxDist <= 0.f) return;
 
     for (size_t i = 0; i < FiveM::ESP::validPeds.size(); ++i) {
         uintptr_t ped = FiveM::ESP::validPeds[i];

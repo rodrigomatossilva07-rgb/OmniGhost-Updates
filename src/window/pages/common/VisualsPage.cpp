@@ -372,8 +372,8 @@ void DrawVisualsLegacy()
         esp::config.player_id = false; // removido
         CyberWidgets::ToggleSwitch("Distância", &esp::config.distance);
         CyberWidgets::ToggleSwitch("Arma", &esp::config.weapon_name);
-        CyberWidgets::SliderFloat("Distância máxima", &esp::config.max_esp_distance,
-                                  20.f, 500.f, "%.0f m");
+        CyberWidgets::SliderFloat("Distância", &esp::config.max_esp_distance,
+                                  0.f, 500.f, "%.0f m");
 
         CyberWidgets::Separator();
         if (ImGui::CollapsingHeader("APARÊNCIA", ImGuiTreeNodeFlags_None)) {
@@ -539,7 +539,7 @@ void DrawVisuals()
         CyberWidgets::SliderFloat("Chapéu Chinês 3D", &esp::config.chinese_hat_scale, 0.4f, 2.5f, "%.2f");
 
 CyberWidgets::SliderFloat(Loc::Tr("vis.max_dist"), &esp::config.max_esp_distance,
-                              20.f, 500.f, "%.0f m");
+                              0.f, 500.f, "%.0f m");
     ImGui::EndDisabled();
     CyberWidgets::EndCard();
 

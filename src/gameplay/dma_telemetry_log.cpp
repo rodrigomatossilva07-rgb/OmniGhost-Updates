@@ -12,7 +12,33 @@
 #include <vector>
 #include <Windows.h>
 #include <psapi.h>
+#include <tlhelp32.h>
 
+
+namespace {
+int CountProcessThreadsCached() {
+    static int cached = 0;
+    static ULONGLONG last = 0;
+    const ULONGLONG now = GetTickCount64();
+    if (last != 0 && now - last < 1000)
+        return cached;
+    last = now;
+    int n = 0;
+    HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+    if (snap == INVALID_HANDLE_VALUE) return cached;
+    THREADENTRY32 te{};
+    te.dwSize = sizeof(te);
+    const DWORD pid = GetCurrentProcessId();
+    if (Thread32First(snap, &te)) {
+        do {
+            if (te.th32OwnerProcessID == pid) ++n;
+        } while (Thread32Next(snap, &te));
+    }
+    CloseHandle(snap);
+    cached = n;
+    return cached;
+}
+} // namespace
 namespace OmniGhost::Gameplay::DmaTelemetry {
 namespace {
 
@@ -184,17 +210,20 @@ void WritePerf(std::string_view tag, Sample& s) {
         working = pmc.WorkingSetSize;
         priv = pmc.PrivateUsage;
     }
-    char res[256]{};
+    const auto memSnap = mem.GetDiagnosticsSnapshot();
+    char res[320]{};
     std::snprintf(res, sizeof(res),
-        "\nprocess_handles=%lu\nprocess_threads=%lu\nworking_set_mb=%.1f\nprivate_mb=%.1f",
+        "\nprocess_handles=%lu\nprocess_threads=%d\nworking_set_mb=%.1f\nprivate_mb=%.1f"
+        "\nscatter_handles_live=%u\nscatter_created=%llu\nscatter_destroyed=%llu",
         static_cast<unsigned long>(handleCount),
-        static_cast<unsigned long>(0), // filled below if possible
+        CountProcessThreadsCached(),
         working / (1024.0 * 1024.0),
-        priv / (1024.0 * 1024.0));
-    // append resource block
+        priv / (1024.0 * 1024.0),
+        static_cast<unsigned>(memSnap.scatterHandlesLive),
+        static_cast<unsigned long long>(memSnap.scatterHandlesCreated),
+        static_cast<unsigned long long>(memSnap.scatterHandlesDestroyed));
     std::string full = buf;
     full.append(res);
-    // thread count via Toolhelp is heavier — skip; handle/memory is enough for leak rate
     Emit(tag, full);
 }
 
@@ -400,6 +429,9 @@ void LogSpikeBreakdown(std::string_view tag, const SpikeBreakdown& b) noexcept {
         "weapon_ms=%.2f\nspectator_ms=%.2f\nbomb_ms=%.2f\n"
         "publish_ms=%.2f\ncleanup_ms=%.2f\nother_ms=%.2f\nlock_wait_ms=%.2f\n"
         "unaccounted_ms=%.2f\n"
+        "qread_calls=%d\nqread_total_ms=%.2f\nqread_max_ms=%.2f\n"
+        "scatter_calls=%d\nscatter_total_ms=%.2f\nscatter_max_ms=%.2f\n"
+        "top_tag=%s\ntop_tag_ms=%.2f\ntop2_tag=%s\ntop2_tag_ms=%.2f\ntop3_tag=%s\ntop3_tag_ms=%.2f\n"
         "players=%d\nbones_players=%d\n"
         "entity_full_probe=%d\nspectator_refresh=%d\nbomb_refresh=%d\ncache_cleanup=%d",
         static_cast<unsigned long long>(b.scan_id),
@@ -407,6 +439,11 @@ void LogSpikeBreakdown(std::string_view tag, const SpikeBreakdown& b) noexcept {
         b.core_scatter_ms, b.positions_ms, b.bones_ms,
         b.weapon_ms, b.spectator_ms, b.bomb_ms,
         b.publish_ms, b.cleanup_ms, b.other_ms, b.lock_wait_ms, unaccounted,
+        b.qread_calls, b.qread_total_ms, b.qread_max_ms,
+        b.scatter_calls, b.scatter_total_ms, b.scatter_max_ms,
+        b.top_tag ? b.top_tag : "none", b.top_tag_ms,
+        b.top2_tag ? b.top2_tag : "none", b.top2_tag_ms,
+        b.top3_tag ? b.top3_tag : "none", b.top3_tag_ms,
         b.players, b.bones_players,
         b.entity_full_probe, b.spectator_refresh, b.bomb_refresh, b.cache_cleanup);
     EmitWarn(tag, buf);

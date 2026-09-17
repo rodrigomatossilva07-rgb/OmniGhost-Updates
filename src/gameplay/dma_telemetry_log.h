@@ -104,6 +104,18 @@ struct SpikeBreakdown {
     int spectator_refresh = 0;
     int bomb_refresh = 0;
     int cache_cleanup = 0;
+    int qread_calls = 0;
+    float qread_total_ms = 0.f;
+    float qread_max_ms = 0.f;
+    int scatter_calls = 0;
+    float scatter_total_ms = 0.f;
+    float scatter_max_ms = 0.f;
+    const char* top_tag = "none";
+    float top_tag_ms = 0.f;
+    const char* top2_tag = "none";
+    float top2_tag_ms = 0.f;
+    const char* top3_tag = "none";
+    float top3_tag_ms = 0.f;
 };
 void LogSpikeBreakdown(std::string_view tag, const SpikeBreakdown& b) noexcept;
 

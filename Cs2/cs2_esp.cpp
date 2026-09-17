@@ -178,8 +178,10 @@ void PumpAvatarUploads(ID3D11Device* device, int maxUploads = 1) {
         for (auto it = g_avatarCache.begin(); it != g_avatarCache.end();) {
             const bool pending = it->second.pending.valid() &&
                 it->second.pending.wait_for(std::chrono::seconds(0)) != std::future_status::ready;
-            if (g_avatarCache.size() > 32 ||
-                (!pending && it->second.last_used > 0.0 && now - it->second.last_used > 60.0)) {
+            // Never destroy a running future (blocks / leaks threads on MSVC).
+            if (pending) { ++it; continue; }
+            if (g_avatarCache.size() > 16 ||
+                (it->second.last_used > 0.0 && now - it->second.last_used > 45.0)) {
                 if (it->second.texture) it->second.texture->Release();
                 it = g_avatarCache.erase(it);
             } else {
@@ -187,6 +189,35 @@ void PumpAvatarUploads(ID3D11Device* device, int maxUploads = 1) {
             }
         }
     }
+}
+
+
+void ClearAvatarCache() {
+    // Wait briefly for any in-flight decode so we do not destroy running futures.
+    for (auto& [_, entry] : g_avatarCache) {
+        if (entry.pending.valid()) {
+            try {
+                if (entry.pending.wait_for(std::chrono::milliseconds(50)) == std::future_status::ready)
+                    (void)entry.pending.get();
+            } catch (...) {}
+        }
+        if (entry.texture) {
+            entry.texture->Release();
+            entry.texture = nullptr;
+        }
+    }
+    g_avatarCache.clear();
+    try {
+        const auto dir = OmniGhost::Paths::Cache() / L"cs2" / L"avatars";
+        if (std::filesystem::exists(dir)) {
+            std::error_code ec;
+            for (const auto& ent : std::filesystem::directory_iterator(dir, ec)) {
+                if (ent.is_regular_file(ec))
+                    std::filesystem::remove(ent.path(), ec);
+            }
+        }
+    } catch (...) {}
+    std::cout << "[CS2] Avatar cache limpa (memória + disco)\n";
 }
 
 ID3D11ShaderResourceView* SteamAvatar(uint64_t steamId) {
@@ -202,7 +233,7 @@ ID3D11ShaderResourceView* SteamAvatar(uint64_t steamId) {
                 candidate.pending.wait_for(std::chrono::seconds(0)) != std::future_status::ready)
                 ++activeWorkers;
         }
-        if (activeWorkers < 2) {
+        if (activeWorkers < 1 && g_avatarCache.size() < 16) {
             entry.requested = true;
             entry.pending = std::async(std::launch::async, [steamId] {
                 return DecodeAvatarPixels(FetchSteamAvatar(steamId));
@@ -972,6 +1003,16 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
     // Runtime contains dynamic vectors; keep the snapshot lease by reference and
     // let W2S consume g_presentViewMatrix instead of deep-copying Runtime each frame.
     const CS2::Runtime& frame = rt;
+    {
+        const uint64_t now = GetTickCount64();
+        const float age = (frame.snapshot_timestamp_ms && now >= frame.snapshot_timestamp_ms)
+            ? static_cast<float>(now - frame.snapshot_timestamp_ms) : 0.f;
+        auto& tel = OmniGhost::Gameplay::DmaTelemetry::CS2();
+        tel.snapshot_age_ms.store(age, std::memory_order_relaxed);
+        // Clamp absurd ages after idle → active transitions
+        if (age > 5000.f)
+            tel.snapshot_age_ms.store(0.f, std::memory_order_relaxed);
+    }
 
     std::array<CS2::Player, 64> presentedPlayers{};
     const std::size_t presentedCount = (std::min)(frame.players.size(), presentedPlayers.size());

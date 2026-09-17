@@ -307,7 +307,8 @@ void RequestOne(int def) {
         if (future.valid() && future.wait_for(std::chrono::seconds(0)) != std::future_status::ready)
             ++activeWorkers;
     }
-    if (activeWorkers >= 2) return;
+    if (activeWorkers >= 1) return; // single worker — avoid thread explosion
+    if (g_pending_icons.size() >= 8) return;
     g_pending_icons.emplace(def, std::async(std::launch::async, [def] { return DecodeOne(def); }));
 }
 

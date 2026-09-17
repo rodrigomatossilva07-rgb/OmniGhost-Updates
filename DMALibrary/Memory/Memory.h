@@ -62,6 +62,13 @@ private:
 	VMM_HANDLE handle_ = nullptr;
 };
 
+namespace OmniGhost::MemoryCounters {
+// Process-wide (not part of sizeof(Memory) — avoids ODR/C4743 on partial rebuilds).
+uint64_t GetScatterHandlesCreated() noexcept;
+uint64_t GetScatterHandlesDestroyed() noexcept;
+uint32_t GetScatterHandlesLive() noexcept;
+} // namespace OmniGhost::MemoryCounters
+
 class Memory
 {
 private:
@@ -174,9 +181,6 @@ private:
 	// diagnostics UI turns these monotonic values into rates without extra reads.
 	mutable std::atomic<uint64_t> readRequestCount_{ 0 };
 	mutable std::atomic<uint64_t> scatterReadBatchCount_{ 0 };
-	mutable std::atomic<uint64_t> scatterHandlesCreated_{ 0 };
-	mutable std::atomic<uint64_t> scatterHandlesDestroyed_{ 0 };
-	mutable std::atomic<uint32_t> scatterHandlesLive_{ 0 };
 	std::atomic<uint64_t> maxVmmLatencyMs_{ 0 };
 	// Passive startup/status result only. OmniGhost deliberately does not open
 	// the FPGA during startup just to paint a status indicator; real device open
@@ -315,6 +319,25 @@ public:
 	static void SetDmaCallTag(const char* tag) noexcept;
 	static void SetDmaScanId(uint64_t id) noexcept;
 	static void SetDmaLane(const char* lane) noexcept;
+	// Per-scan DMA accumulators (thread-local; reset when scan_id changes).
+	struct ScanDmaStats {
+		uint64_t scan_id = 0;
+		int qread_calls = 0;
+		double qread_total_ms = 0.0;
+		double qread_max_ms = 0.0;
+		int scatter_calls = 0;
+		double scatter_total_ms = 0.0;
+		double scatter_max_ms = 0.0;
+		// Top callsite by total time
+		const char* top_tag = "none";
+		double top_tag_ms = 0.0;
+		const char* top2_tag = "none";
+		double top2_tag_ms = 0.0;
+		const char* top3_tag = "none";
+		double top3_tag_ms = 0.0;
+	};
+	static ScanDmaStats GetScanDmaStats() noexcept;
+	static void ResetScanDmaStats() noexcept;
 	static const char* GetDmaCallTag() noexcept;
 	// Cumulative lock/maintenance block wait (microseconds) for current thread.
 	static void ResetThreadDmaWaitUs() noexcept;
@@ -752,4 +775,4 @@ public:
 	}
 };
 
-inline Memory mem;
+extern Memory mem;

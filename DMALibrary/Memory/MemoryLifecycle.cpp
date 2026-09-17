@@ -1,6 +1,8 @@
 #include "pch.h"
 #include "Memory.h"
 
+
+
 #include <algorithm>
 #include <chrono>
 #include <iostream>
@@ -60,9 +62,9 @@ Memory::DiagnosticsSnapshot Memory::GetDiagnosticsSnapshot() const noexcept
 	snapshot.vmmCallCount = vmmCallCount_.load(std::memory_order_relaxed);
 	snapshot.readRequestCount = readRequestCount_.load(std::memory_order_relaxed);
 	snapshot.scatterReadBatchCount = scatterReadBatchCount_.load(std::memory_order_relaxed);
-	snapshot.scatterHandlesCreated = scatterHandlesCreated_.load(std::memory_order_relaxed);
-	snapshot.scatterHandlesDestroyed = scatterHandlesDestroyed_.load(std::memory_order_relaxed);
-	snapshot.scatterHandlesLive = scatterHandlesLive_.load(std::memory_order_relaxed);
+	snapshot.scatterHandlesCreated = OmniGhost::MemoryCounters::GetScatterHandlesCreated();
+	snapshot.scatterHandlesDestroyed = OmniGhost::MemoryCounters::GetScatterHandlesDestroyed();
+	snapshot.scatterHandlesLive = OmniGhost::MemoryCounters::GetScatterHandlesLive();
 	snapshot.maxVmmLatencyMs = maxVmmLatencyMs_.load(std::memory_order_relaxed);
 	const uint64_t sampleIndex = vmmLatencySampleIndex_.load(std::memory_order_acquire);
 	const size_t sampleCount = static_cast<size_t>((std::min)(sampleIndex, static_cast<uint64_t>(vmmLatencySamples_.size())));

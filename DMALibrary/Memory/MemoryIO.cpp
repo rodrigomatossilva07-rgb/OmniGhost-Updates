@@ -9,6 +9,20 @@
 #include <iostream>
 #include <vector>
 #include <cstdio>
+#include <cstring>
+
+
+namespace OmniGhost::MemoryCounters {
+std::atomic<uint64_t> ScatterHandlesCreated{0};
+std::atomic<uint64_t> ScatterHandlesDestroyed{0};
+std::atomic<uint32_t> ScatterHandlesLive{0};
+} // namespace OmniGhost::MemoryCounters
+
+namespace OmniGhost::MemoryCounters {
+uint64_t GetScatterHandlesCreated() noexcept { return ScatterHandlesCreated.load(std::memory_order_relaxed); }
+uint64_t GetScatterHandlesDestroyed() noexcept { return ScatterHandlesDestroyed.load(std::memory_order_relaxed); }
+uint32_t GetScatterHandlesLive() noexcept { return ScatterHandlesLive.load(std::memory_order_relaxed); }
+} // namespace OmniGhost::MemoryCounters
 
 static const char* hexdigits =
 "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
@@ -114,6 +128,57 @@ thread_local const char* t_dmaTag = "untagged";
 thread_local const char* t_dmaLane = "unknown";
 thread_local uint64_t t_dmaScanId = 0;
 thread_local uint64_t t_dmaWaitUs = 0;
+
+struct TagAccum {
+    const char* tag = "none";
+    double total_ms = 0.0;
+};
+thread_local Memory::ScanDmaStats t_scanStats{};
+thread_local TagAccum t_tagAccums[12]{};
+thread_local int t_tagAccumCount = 0;
+
+void NoteDmaCall(const char* op, double duration_ms) {
+    auto& s = t_scanStats;
+    if (op && (op[0] == 'S' || std::strcmp(op, "Scatter") == 0)) {
+        s.scatter_calls += 1;
+        s.scatter_total_ms += duration_ms;
+        if (duration_ms > s.scatter_max_ms) s.scatter_max_ms = duration_ms;
+    } else {
+        s.qread_calls += 1;
+        s.qread_total_ms += duration_ms;
+        if (duration_ms > s.qread_max_ms) s.qread_max_ms = duration_ms;
+    }
+    const char* tag = t_dmaTag ? t_dmaTag : "untagged";
+    // accumulate by tag
+    int found = -1;
+    for (int i = 0; i < t_tagAccumCount; ++i) {
+        if (t_tagAccums[i].tag == tag || (t_tagAccums[i].tag && tag && std::strcmp(t_tagAccums[i].tag, tag) == 0)) {
+            found = i;
+            break;
+        }
+    }
+    if (found < 0 && t_tagAccumCount < 12) {
+        found = t_tagAccumCount++;
+        t_tagAccums[found].tag = tag;
+        t_tagAccums[found].total_ms = 0.0;
+    }
+    if (found >= 0) {
+        t_tagAccums[found].total_ms += duration_ms;
+    }
+    // refresh top3
+    double best[3] = {-1,-1,-1};
+    const char* bestT[3] = {"none","none","none"};
+    for (int i = 0; i < t_tagAccumCount; ++i) {
+        const double v = t_tagAccums[i].total_ms;
+        if (v > best[0]) { best[2]=best[1]; bestT[2]=bestT[1]; best[1]=best[0]; bestT[1]=bestT[0]; best[0]=v; bestT[0]=t_tagAccums[i].tag; }
+        else if (v > best[1]) { best[2]=best[1]; bestT[2]=bestT[1]; best[1]=v; bestT[1]=t_tagAccums[i].tag; }
+        else if (v > best[2]) { best[2]=v; bestT[2]=t_tagAccums[i].tag; }
+    }
+    s.top_tag = bestT[0]; s.top_tag_ms = best[0] > 0 ? best[0] : 0;
+    s.top2_tag = bestT[1]; s.top2_tag_ms = best[1] > 0 ? best[1] : 0;
+    s.top3_tag = bestT[2]; s.top3_tag_ms = best[2] > 0 ? best[2] : 0;
+}
+
 std::atomic<std::uintptr_t> g_renderThreadHash{0};
 
 std::uintptr_t ThreadHash(std::thread::id id) {
@@ -173,7 +238,25 @@ std::thread::id Memory::GetRenderThreadId() noexcept {
 void Memory::SetDmaCallTag(const char* tag) noexcept {
     t_dmaTag = tag ? tag : "untagged";
 }
-void Memory::SetDmaScanId(uint64_t id) noexcept { t_dmaScanId = id; }
+void Memory::SetDmaScanId(uint64_t id) noexcept {
+    if (id != t_scanStats.scan_id) {
+        t_scanStats = Memory::ScanDmaStats{};
+        t_scanStats.scan_id = id;
+        t_tagAccumCount = 0;
+        for (auto& a : t_tagAccums) { a.tag = "none"; a.total_ms = 0.0; }
+    }
+    t_dmaScanId = id;
+}
+Memory::ScanDmaStats Memory::GetScanDmaStats() noexcept {
+    t_scanStats.scan_id = t_dmaScanId;
+    return t_scanStats;
+}
+void Memory::ResetScanDmaStats() noexcept {
+    t_scanStats = Memory::ScanDmaStats{};
+    t_scanStats.scan_id = t_dmaScanId;
+    t_tagAccumCount = 0;
+}
+
 void Memory::SetDmaLane(const char* lane) noexcept { t_dmaLane = lane ? lane : "unknown"; }
 const char* Memory::GetDmaCallTag() noexcept {
     return t_dmaTag ? t_dmaTag : "untagged";
@@ -205,6 +288,7 @@ bool Memory::Read(uintptr_t address, void* buffer, size_t size) const
 	const bool ok1 = VMMDLL_MemReadEx(this->vHandle, current_process.PID, address, static_cast<PBYTE>(buffer), byteCount, &read_size, VMMDLL_FLAG_NOCACHE)
 		&& read_size == byteCount;
 	const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+	NoteDmaCall("Read", ms);
 	LogSlowDma("Read", ms, 1);
 	if (ok1)
 		return true;
@@ -269,13 +353,14 @@ VMMDLL_SCATTER_HANDLE Memory::CreateScatterHandle() const
 	DataCallLease dataLease(this);
 	if (!dataLease || !this->vHandle)
 		return nullptr;
-	scatterHandlesCreated_.fetch_add(1, std::memory_order_relaxed);
-	scatterHandlesLive_.fetch_add(1, std::memory_order_relaxed);
 	const VMMDLL_SCATTER_HANDLE ScatterHandle = VMMDLL_Scatter_Initialize(this->vHandle, current_process.PID, VMMDLL_FLAG_NOCACHE);
-	if (!ScatterHandle)
+	if (!ScatterHandle) {
 		LOG("[!] Failed to create scatter handle\n");
-	else
-		RegisterScatterHandle(ScatterHandle);
+		return nullptr;
+	}
+	OmniGhost::MemoryCounters::ScatterHandlesCreated.fetch_add(1, std::memory_order_relaxed);
+	OmniGhost::MemoryCounters::ScatterHandlesLive.fetch_add(1, std::memory_order_relaxed);
+	RegisterScatterHandle(ScatterHandle);
 	return ScatterHandle;
 }
 
@@ -284,13 +369,14 @@ VMMDLL_SCATTER_HANDLE Memory::CreateScatterHandle(int pid) const
 	DataCallLease dataLease(this);
 	if (!dataLease || !this->vHandle)
 		return nullptr;
-	scatterHandlesCreated_.fetch_add(1, std::memory_order_relaxed);
-	scatterHandlesLive_.fetch_add(1, std::memory_order_relaxed);
 	const VMMDLL_SCATTER_HANDLE ScatterHandle = VMMDLL_Scatter_Initialize(this->vHandle, pid, VMMDLL_FLAG_NOCACHE);
-	if (!ScatterHandle)
+	if (!ScatterHandle) {
 		LOG("[!] Failed to create scatter handle\n");
-	else
-		RegisterScatterHandle(ScatterHandle);
+		return nullptr;
+	}
+	OmniGhost::MemoryCounters::ScatterHandlesCreated.fetch_add(1, std::memory_order_relaxed);
+	OmniGhost::MemoryCounters::ScatterHandlesLive.fetch_add(1, std::memory_order_relaxed);
+	RegisterScatterHandle(ScatterHandle);
 	return ScatterHandle;
 }
 
@@ -347,9 +433,9 @@ void Memory::CloseScatterHandle(VMMDLL_SCATTER_HANDLE handle)
 		scatterHandles_.erase(found);
 		activeScatterHandles_.store(static_cast<uint32_t>(scatterHandles_.size()), std::memory_order_release);
 	}
-	scatterHandlesDestroyed_.fetch_add(1, std::memory_order_relaxed);
-	uint32_t live = scatterHandlesLive_.load(std::memory_order_relaxed);
-	while (live > 0 && !scatterHandlesLive_.compare_exchange_weak(live, live - 1, std::memory_order_relaxed)) {}
+	OmniGhost::MemoryCounters::ScatterHandlesDestroyed.fetch_add(1, std::memory_order_relaxed);
+	uint32_t live = OmniGhost::MemoryCounters::ScatterHandlesLive.load(std::memory_order_relaxed);
+	while (live > 0 && !OmniGhost::MemoryCounters::ScatterHandlesLive.compare_exchange_weak(live, live - 1, std::memory_order_relaxed)) {}
 	VMMDLL_Scatter_CloseHandle(handle);
 }
 
@@ -402,6 +488,7 @@ void Memory::ExecuteReadScatter(VMMDLL_SCATTER_HANDLE handle, int pid)
 		LOG("[-] Failed to Execute Scatter Read\n");
 	}
 	const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+	NoteDmaCall("Scatter", ms);
 	LogSlowDma("Scatter", ms, 0);
 	//Clear after using it
 	if (!VMMDLL_Scatter_Clear(handle, pid, VMMDLL_FLAG_NOCACHE))

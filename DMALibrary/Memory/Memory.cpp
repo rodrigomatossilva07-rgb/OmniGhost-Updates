@@ -437,3 +437,6 @@ bool Memory::DumpMemoryMap(bool debug)
 	// (MemProcFS resolves it live). Kept for API compatibility only.
 	return false;
 }
+
+// Single definition of the process-wide Memory instance (header is extern only).
+Memory mem;

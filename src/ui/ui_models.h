@@ -60,7 +60,7 @@ namespace esp {
         float radar_pos_x = 0.88f; // fraction of screen
         float radar_pos_y = 0.78f;
         bool skeleton_lod = true;
-        float max_esp_distance = 150.0f;
+        float max_esp_distance = 150.0f; // 0..500 m — DMA + draw cutoff (0 = nobody)
         bool triangle_radar = false;
         bool blip_esp = false;
         bool waypoint_line = true;      // arrows around crosshair

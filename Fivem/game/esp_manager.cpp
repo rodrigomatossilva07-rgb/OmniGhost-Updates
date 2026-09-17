@@ -602,7 +602,10 @@ namespace FiveM {
                                 continue;
                             // Also respect global ESP max distance early (frees cap for near players)
                             const float maxDistance = s_maxDistance.load(std::memory_order_relaxed);
-                            if (!localPos.IsZero() && maxDistance > 1.f) {
+                            if (!localPos.IsZero()) {
+                                // 0 m = não ler/mostrar ninguém remoto; N m = só até N metros.
+                                if (maxDistance <= 0.f)
+                                    continue;
                                 const float maxDistanceSq = maxDistance * maxDistance;
                                 if (p.distance_sq(localPos) > maxDistanceSq)
                                     continue;
@@ -708,7 +711,7 @@ namespace FiveM {
             Vec3 localPos = s_localPos;
 
             const float maxDist = esp::config.max_esp_distance;
-            const float maxDistSq = (maxDist > 1.f) ? (maxDist * maxDist) : 0.f;
+            const float maxDistSq = (maxDist > 0.f) ? (maxDist * maxDist) : 0.f;
 
             // Prime visibility, visual data and only the bone anchors required
             // by the enabled features. Every consumer shares these batches.
