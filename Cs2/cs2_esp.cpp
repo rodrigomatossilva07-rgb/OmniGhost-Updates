@@ -1,4 +1,7 @@
 #include "cs2_esp.h"
+#include "gameplay/dma_telemetry_log.h"
+#include "gameplay/frame_pipeline.h"
+#include "../DMALibrary/Memory/Memory.h"
 #include "cs2_weapons.h"
 #include "cs2_weapon_icons.h"
 #include "cs2_aim.h"
@@ -175,7 +178,8 @@ void PumpAvatarUploads(ID3D11Device* device, int maxUploads = 1) {
         for (auto it = g_avatarCache.begin(); it != g_avatarCache.end();) {
             const bool pending = it->second.pending.valid() &&
                 it->second.pending.wait_for(std::chrono::seconds(0)) != std::future_status::ready;
-            if (!pending && it->second.last_used > 0.0 && now - it->second.last_used > 60.0) {
+            if (g_avatarCache.size() > 32 ||
+                (!pending && it->second.last_used > 0.0 && now - it->second.last_used > 60.0)) {
                 if (it->second.texture) it->second.texture->Release();
                 it = g_avatarCache.erase(it);
             } else {
@@ -940,9 +944,17 @@ void DrawKillFeed(ImDrawList* dl) {
     }
 }
 
-} // namespace
+} // namespace (anonymous)
 
 void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
+    struct RenderScope {
+        std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
+        ~RenderScope() {
+            const float ms = OmniGhost::Gameplay::TimeMs(t0);
+            OmniGhost::Gameplay::DmaTelemetry::ObserveRender(
+                OmniGhost::Gameplay::DmaTelemetry::CS2(), ms);
+        }
+    } _renderScope;
     static bool s_renderThreadMarked = false;
     if (!s_renderThreadMarked) {
         mem.SetRenderThreadId(std::this_thread::get_id());
@@ -1084,7 +1096,7 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
             const float bucket = std::floor(bombRemaining);
             if (bucket != last_beep_bucket) {
                 last_beep_bucket = bucket;
-                std::thread([] { ::MessageBeep(MB_ICONEXCLAMATION); }).detach();
+                ::MessageBeep(MB_ICONEXCLAMATION); // sync — avoid detached thread leak
             }
         }
     }

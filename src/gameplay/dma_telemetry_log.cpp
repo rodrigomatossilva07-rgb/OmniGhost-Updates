@@ -188,7 +188,7 @@ bool IsEnabled() noexcept {
 Sample& FiveM() { return g_fivem; }
 Sample& CS2() { return g_cs2; }
 
-void ObserveAcquire(Sample& s, float work_ms, bool activeSample) noexcept {
+void ObserveAcquire(Sample& s, float work_ms, bool activeSample, uint64_t scan_id) noexcept {
     if (work_ms < 0.f) return;
     if (!activeSample) {
         s.active.store(false, std::memory_order_relaxed);
@@ -231,7 +231,8 @@ void ObserveAcquire(Sample& s, float work_ms, bool activeSample) noexcept {
     s.acquisition_spikes.fetch_add(1, std::memory_order_relaxed);
     char buf[256]{};
     std::snprintf(buf, sizeof(buf),
-                  "SPIKE\ntotal_ms=%.2f\nplayers=%d\nreads_s=%d\nscatter_s=%d",
+                  "SPIKE\nscan_id=%llu\ntotal_ms=%.2f\nplayers=%d\nreads_s=%d\nscatter_s=%d",
+                  static_cast<unsigned long long>(scan_id),
                   work_ms, s.entities.load(), s.reads_s.load(), s.scatter_s.load());
     EmitWarn(isCs2 ? "CS2" : "FIVEM", buf);
 }
@@ -369,18 +370,20 @@ void LogSpikeBreakdown(std::string_view tag, const SpikeBreakdown& b) noexcept {
     char buf[900]{};
     std::snprintf(buf, sizeof(buf),
         "SPIKE_BREAKDOWN\n"
+        "scan_id=%llu\n"
         "total_ms=%.2f\n"
         "webradar_ms=%.2f\nentity_ms=%.2f\nlocal_ms=%.2f\n"
         "core_scatter_ms=%.2f\npositions_ms=%.2f\nbones_ms=%.2f\n"
         "weapon_ms=%.2f\nspectator_ms=%.2f\nbomb_ms=%.2f\n"
-        "publish_ms=%.2f\ncleanup_ms=%.2f\nother_ms=%.2f\n"
+        "publish_ms=%.2f\ncleanup_ms=%.2f\nother_ms=%.2f\nlock_wait_ms=%.2f\n"
         "unaccounted_ms=%.2f\n"
         "players=%d\nbones_players=%d\n"
         "entity_full_probe=%d\nspectator_refresh=%d\nbomb_refresh=%d\ncache_cleanup=%d",
+        static_cast<unsigned long long>(b.scan_id),
         b.total_ms, b.webradar_ms, b.entity_ms, b.local_ms,
         b.core_scatter_ms, b.positions_ms, b.bones_ms,
         b.weapon_ms, b.spectator_ms, b.bomb_ms,
-        b.publish_ms, b.cleanup_ms, b.other_ms, unaccounted,
+        b.publish_ms, b.cleanup_ms, b.other_ms, b.lock_wait_ms, unaccounted,
         b.players, b.bones_players,
         b.entity_full_probe, b.spectator_refresh, b.bomb_refresh, b.cache_cleanup);
     EmitWarn(tag, buf);

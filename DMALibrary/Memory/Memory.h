@@ -305,6 +305,12 @@ public:
 	// Debug/diagnostics: mark the ImGui/render thread. DMA calls from that
 	// thread are logged (Release) / asserted (Debug) but never crash Release.
 	static void SetRenderThreadId(std::thread::id id) noexcept;
+	// Optional tag for SLOW_DMA_CALL attribution (thread-local, acquisition path).
+	static void SetDmaCallTag(const char* tag) noexcept;
+	static const char* GetDmaCallTag() noexcept;
+	// Cumulative lock/maintenance block wait (microseconds) for current thread.
+	static void ResetThreadDmaWaitUs() noexcept;
+	static uint64_t ConsumeThreadDmaWaitUs() noexcept;
 	[[nodiscard]] static std::thread::id GetRenderThreadId() noexcept;
 
 	void SetTimeouts(const TimeoutConfig& config) noexcept { timeouts_ = config; }

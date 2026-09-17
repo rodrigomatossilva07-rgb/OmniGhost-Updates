@@ -1,3 +1,4 @@
+#include <chrono>
 ﻿#include "../pch.h"
 #include "Memory.h"
 #include "MemoryInternal.h"
@@ -106,8 +107,12 @@ bool Memory::Write(uintptr_t address, void* buffer, size_t size, int pid) const
 }
 
 
+
 namespace {
+thread_local const char* t_dmaTag = "untagged";
+thread_local uint64_t t_dmaWaitUs = 0;
 std::atomic<std::uintptr_t> g_renderThreadHash{0};
+
 std::uintptr_t ThreadHash(std::thread::id id) {
     return static_cast<std::uintptr_t>(std::hash<std::thread::id>{}(id));
 }
@@ -125,28 +130,67 @@ void WarnIfDmaOnRenderThread(const char* where) {
     s_lastLog.store(now, std::memory_order_relaxed);
     std::cout << "[CS2] ERROR DMA_ON_RENDER_THREAD where=" << where << std::endl;
 }
+void LogSlowDma(const char* op, double duration_ms, int requests = 0) {
+    if (duration_ms < 10.0) return;
+    static std::atomic<uint64_t> s_last{0};
+    const uint64_t now = GetTickCount64();
+    // Always log if >50ms; rate-limit 10-50ms to 1/250ms
+    if (duration_ms < 50.0) {
+        uint64_t prev = s_last.load(std::memory_order_relaxed);
+        if (now - prev < 250 && prev != 0) return;
+        s_last.store(now, std::memory_order_relaxed);
+    }
+    std::cout << "[CS2] SLOW_DMA_CALL"
+              << " op=" << op
+              << " tag=" << (t_dmaTag ? t_dmaTag : "null")
+              << " duration_ms=" << duration_ms
+              << " requests=" << requests
+              << " thread=" << GetCurrentThreadId()
+              << std::endl;
+}
 } // namespace
 
 void Memory::SetRenderThreadId(std::thread::id id) noexcept {
     g_renderThreadHash.store(ThreadHash(id), std::memory_order_release);
 }
 std::thread::id Memory::GetRenderThreadId() noexcept {
-    return std::this_thread::get_id(); // not recoverable from hash; placeholder
+    return std::thread::id{};
+}
+void Memory::SetDmaCallTag(const char* tag) noexcept {
+    t_dmaTag = tag ? tag : "untagged";
+}
+const char* Memory::GetDmaCallTag() noexcept {
+    return t_dmaTag ? t_dmaTag : "untagged";
+}
+void Memory::ResetThreadDmaWaitUs() noexcept { t_dmaWaitUs = 0; }
+uint64_t Memory::ConsumeThreadDmaWaitUs() noexcept {
+    const uint64_t v = t_dmaWaitUs;
+    t_dmaWaitUs = 0;
+    return v;
 }
 
 bool Memory::Read(uintptr_t address, void* buffer, size_t size) const
 {
 	WarnIfDmaOnRenderThread("Read");
+	const auto t0 = std::chrono::steady_clock::now();
 	DataCallLease dataLease(this);
-	if (!dataLease || !this->vHandle)
+	if (!dataLease) {
+		// Maintenance blocked the data plane — count as wait.
+		t_dmaWaitUs += 500; // approximate small wait quantum; caller aggregates
+		return false;
+	}
+	if (!this->vHandle)
 		return false;
 	readRequestCount_.fetch_add(1, std::memory_order_relaxed);
 	if (size > static_cast<size_t>(MAXDWORD))
 		return false;
 	const DWORD byteCount = static_cast<DWORD>(size);
 	DWORD read_size = 0;
-	if (VMMDLL_MemReadEx(this->vHandle, current_process.PID, address, static_cast<PBYTE>(buffer), byteCount, &read_size, VMMDLL_FLAG_NOCACHE)
-		&& read_size == byteCount)
+	const bool ok1 = VMMDLL_MemReadEx(this->vHandle, current_process.PID, address, static_cast<PBYTE>(buffer), byteCount, &read_size, VMMDLL_FLAG_NOCACHE)
+		&& read_size == byteCount;
+	const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+	LogSlowDma("Read", ms, 1);
+	if (ok1)
 		return true;
 
 	// Fallback: cached read (sometimes works when NOCACHE fails mid DTB fix)
@@ -317,8 +361,13 @@ void Memory::AddScatterWriteRequest(VMMDLL_SCATTER_HANDLE handle, uint64_t addre
 void Memory::ExecuteReadScatter(VMMDLL_SCATTER_HANDLE handle, int pid)
 {
 	WarnIfDmaOnRenderThread("ExecuteReadScatter");
+	const auto t0 = std::chrono::steady_clock::now();
 	DataCallLease dataLease(this);
-	if (!dataLease || !ScatterHandleIsCurrent(handle))
+	if (!dataLease) {
+		t_dmaWaitUs += 500;
+		return;
+	}
+	if (!ScatterHandleIsCurrent(handle))
 		return;
 	if (pid == 0)
 		pid = current_process.PID;
@@ -329,6 +378,8 @@ void Memory::ExecuteReadScatter(VMMDLL_SCATTER_HANDLE handle, int pid)
 	{
 		LOG("[-] Failed to Execute Scatter Read\n");
 	}
+	const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+	LogSlowDma("Scatter", ms, 0);
 	//Clear after using it
 	if (!VMMDLL_Scatter_Clear(handle, pid, VMMDLL_FLAG_NOCACHE))
 	{

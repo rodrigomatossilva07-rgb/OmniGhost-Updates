@@ -74,7 +74,7 @@ struct Sample {
 [[nodiscard]] Sample& CS2();
 
 // activeSample=false → idle/dead/menu: never enters percentiles or SPIKE logs.
-void ObserveAcquire(Sample& s, float work_ms, bool activeSample) noexcept;
+void ObserveAcquire(Sample& s, float work_ms, bool activeSample, uint64_t scan_id = 0) noexcept;
 void ObserveRender(Sample& s, float ms) noexcept;
 void ObserveSchedulerWait(Sample& s, float wait_ms) noexcept;
 
@@ -83,6 +83,7 @@ void RefreshFromMemory() noexcept;
 
 // Detailed acquire phase breakdown (only emitted for real spikes).
 struct SpikeBreakdown {
+    uint64_t scan_id = 0;
     float total_ms = 0.f;
     float webradar_ms = 0.f;
     float entity_ms = 0.f;
@@ -96,6 +97,7 @@ struct SpikeBreakdown {
     float publish_ms = 0.f;
     float cleanup_ms = 0.f;
     float other_ms = 0.f;
+    float lock_wait_ms = 0.f;
     int players = 0;
     int bones_players = 0;
     int entity_full_probe = 0;
