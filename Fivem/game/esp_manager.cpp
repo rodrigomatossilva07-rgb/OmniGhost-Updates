@@ -755,15 +755,8 @@ namespace FiveM {
                     addAimBones(aimbot::config.trigger_head_only
                         ? aimbot::Hitbox::Head : aimbot::config.hitbox);
             }
-            if (boneMask)
-                // skeleton prepared on acquisition thread
-            const bool needsFriendData = esp::config.enabled && friends::HasFriends();
-            if ((esp::config.enabled && (esp::has_extra_visuals() || esp::config.npc_esp ||
-                esp::config.team_check || esp::config.trails || esp::config.head_halo ||
-                esp::config.look_direction || esp::config.chinese_hat || esp::config.angel_wings ||
-                esp::config.devil_horns || esp::config.floating_crown)) || needsFriendData ||
-                aimbot::config.aimbot_enabled || aimbot::config.trigger_enabled)
-                // esp prepared on acquisition thread
+            // skeleton / prepared ESP already produced on the acquisition thread
+            (void)boneMask;
 
             if (!esp::config.enabled)
                 return;

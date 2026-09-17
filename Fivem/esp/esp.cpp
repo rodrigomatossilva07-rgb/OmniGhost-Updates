@@ -1984,7 +1984,7 @@ static void DrawHeadCircleAt(ImDrawList* draw_list, const Vec2& screen, ImU32 co
     float th = std::clamp(esp::config.head_circle_thickness, 0.5f, 6.f);
     if (r <= 4.f) th = (std::min)(th, 1.6f);
     // LOD segments: far = fewer verts (cheaper), near = smoother
-    const int segs = (distance_m > 80.f) ? 10 : (distance_m > 40.f) ? 14 : 20;
+    const int segs = FxSegCount(distance_m, 20, 10);
     if (esp::config.circle_type == 1) {
         draw_list->AddCircleFilled(ImVec2(screen.x, screen.y), r, col, segs);
     } else if (esp::config.circle_type == 2) {
@@ -2014,7 +2014,7 @@ void esp::draw_head_circle(uintptr_t ped, Matrix viewport, uintptr_t localplayer
     }
 
     Vec2 head_screen_pos;
-    if (!head_world_pos.world_to_screen(viewport, head_screen_pos))
+    if (!CachedWorldToScreen(ped, 0, head_world_pos, viewport, head_screen_pos))
         return;
 
     float dist = 25.f;
