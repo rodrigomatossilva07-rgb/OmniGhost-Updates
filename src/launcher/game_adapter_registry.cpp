@@ -248,6 +248,7 @@ IGameAdapter* FindGameAdapter(::Launcher::GameId game) noexcept {
             try {
                 if (!g_validExecutable.empty()) {
                     FiveM::ESP::RunESP();
+                    object_esp::GetObjectESPManager().Update();
                 }
             } catch (const std::exception& ex) {
                 std::cerr << "[FiveM] CRASH em Tick: " << ex.what() << std::endl;

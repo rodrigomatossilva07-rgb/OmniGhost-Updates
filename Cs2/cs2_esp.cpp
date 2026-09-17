@@ -943,6 +943,12 @@ void DrawKillFeed(ImDrawList* dl) {
 } // namespace
 
 void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
+    static bool s_renderThreadMarked = false;
+    if (!s_renderThreadMarked) {
+        mem.SetRenderThreadId(std::this_thread::get_id());
+        s_renderThreadMarked = true;
+    }
+
     const auto fastCamera = CS2::AcquireCameraSnapshot();
     const auto motionLease = CS2::AcquireMotionSnapshot();
     const CS2::MotionSnapshot* motionPtr = motionLease ? &*motionLease : nullptr;

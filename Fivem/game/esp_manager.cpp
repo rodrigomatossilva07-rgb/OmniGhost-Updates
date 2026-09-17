@@ -220,7 +220,7 @@ namespace FiveM {
                 PublishAcquisitionSnapshot(localPlayer, cacheValid, acquireMs);
                 {
                     auto& tel = OmniGhost::Gameplay::DmaTelemetry::FiveM();
-                    OmniGhost::Gameplay::DmaTelemetry::ObserveAcquire(tel, acquireMs);
+                    OmniGhost::Gameplay::DmaTelemetry::ObserveAcquire(tel, acquireMs, !s_acquireValidPeds.empty());
                     tel.entities.store(static_cast<int>(s_acquireValidPeds.size()), std::memory_order_relaxed);
                     tel.snapshot_drops.store(s_snapshotDrops.load(std::memory_order_relaxed), std::memory_order_relaxed);
                     tel.dma_open.store(mem.vHandle != nullptr, std::memory_order_relaxed);

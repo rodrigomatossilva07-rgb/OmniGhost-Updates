@@ -239,6 +239,39 @@ private:
 };
 
 ScatterHandleOwner g_scatter_full;
+// Per-scan phase timings for SPIKE_BREAKDOWN (acquisition thread only).
+struct Cs2PhaseTiming {
+    float webradar_ms = 0.f;
+    float entity_ms = 0.f;
+    float local_ms = 0.f;
+    float core_scatter_ms = 0.f;
+    float positions_ms = 0.f;
+    float bones_ms = 0.f;
+    float weapon_ms = 0.f;
+    float spectator_ms = 0.f;
+    float bomb_ms = 0.f;
+    float publish_ms = 0.f;
+    float cleanup_ms = 0.f;
+    int entity_full_probe = 0;
+    int spectator_refresh = 0;
+    int bomb_refresh = 0;
+    int cache_cleanup = 0;
+    int bones_players = 0;
+};
+static Cs2PhaseTiming g_phase{};
+static std::atomic<int> g_pressure_level{0}; // 0=NORMAL 1=MODERATE 2=HIGH 3=RECOVERY
+
+struct ScopedPhase {
+    float* target;
+    std::chrono::steady_clock::time_point t0;
+    explicit ScopedPhase(float* out) : target(out), t0(std::chrono::steady_clock::now()) {}
+    ~ScopedPhase() {
+        if (target)
+            *target = OmniGhost::Gameplay::TimeMs(t0);
+    }
+};
+
+
 ScatterHandleOwner g_scatter_motion;
 uintptr_t g_cached_entity_root = 0; // refreshed once per frame when scanning
 
@@ -1087,6 +1120,7 @@ static bool ProbeListEntry(uintptr_t entry, uintptr_t stride) {
 }
 
 static bool RefreshEntityListEntry() {
+    ScopedPhase _phEntity(&g_phase.entity_ms);
     // Fast path: list healthy + we have players → only verify primary page (~1 read)
     // Full multi-page probe only when empty, collapsed, or periodic revalidate.
     static uint64_t s_nextFullProbeMs = 0;
@@ -1119,6 +1153,7 @@ static bool RefreshEntityListEntry() {
         }
     }
 
+    g_phase.entity_full_probe = 1;
     static const uintptr_t kPageOffs[] = {
         kEntityPageTableOffset, // 0x10
         0x08,
@@ -1730,7 +1765,9 @@ static void UpdateSpectatorsWhileDead(const Config& frame_config,
 }
 
 static void RunFrameWithConfig(const Config& frame_config) {
-    // Keep web radar HTTP server in sync with UI toggles.
+    // Keep web radar HTTP server in sync with UI toggles (timed separately).
+    {
+        ScopedPhase _phWr(&g_phase.webradar_ms);
     if (frame_config.webradar_enabled) {
         if (!WebRadar::IsRunning())
             WebRadar::Start(frame_config.webradar_port);
@@ -1748,6 +1785,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
     } else if (WebRadar::IsRunning()) {
         WebRadar::Stop();
     }
+    } // webradar phase
 
     if (!ready || !offsets.loaded || !runtime.client_base)
         return;
@@ -2282,18 +2320,26 @@ static void RunFrameWithConfig(const Config& frame_config) {
     if (armorCache.bucket_count() < 128) armorCache.reserve(128);
     if (nameCache.bucket_count() < 128) nameCache.reserve(128);
     if (weaponStateCache.bucket_count() < 128) weaponStateCache.reserve(128);
-    if ((runtime.frames % 1800u) == 0u) { // rarer cleanup — avoid mid-fight hitch
-        for (auto it = nameCache.begin(); it != nameCache.end();) {
-            if (scan_now_ms - it->second.last_refresh_ms > 30000u) it = nameCache.erase(it);
-            else ++it;
-        }
-        for (auto it = weaponStateCache.begin(); it != weaponStateCache.end();) {
-            if (scan_now_ms - it->second.last_refresh_ms > 30000u) it = weaponStateCache.erase(it);
-            else ++it;
-        }
-        for (auto it = armorCache.begin(); it != armorCache.end();) {
-            if (scan_now_ms - it->second.last_refresh_ms > 30000u) it = armorCache.erase(it);
-            else ++it;
+    // Incremental cache maintenance: budget a few erases per scan (never full-map sweep).
+    {
+        ScopedPhase _phCleanup(&g_phase.cleanup_ms);
+        constexpr int kBudget = 4;
+        int erased = 0;
+        auto prune = [&](auto& cache) {
+            for (auto it = cache.begin(); it != cache.end() && erased < kBudget;) {
+                if (scan_now_ms - it->second.last_refresh_ms > 30000u) {
+                    it = cache.erase(it);
+                    ++erased;
+                    g_phase.cache_cleanup = 1;
+                } else {
+                    ++it;
+                }
+            }
+        };
+        if ((runtime.frames % 32u) == 0u) {
+            prune(nameCache);
+            if (erased < kBudget) prune(weaponStateCache);
+            if (erased < kBudget) prune(armorCache);
         }
     }
     EnsureScatter();
@@ -2327,6 +2373,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
         }
         mem.ExecuteReadScatter(g_scatter_full);
         if (need_bones) {
+            ScopedPhase _phBones(&g_phase.bones_ms);
             // Community-proven approach for external DMA skeletons:
             //  - one scatter of a tight joint window (not 64× full arrays every frame)
             //  - distance-tiered refresh (near more often, far less)
@@ -2374,6 +2421,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
                         std::swap(cand[i], cand[j]);
             const int maxBoneReadsPerScan = frame_config.performance_mode ? 8 : 14;
             const int take = candN < maxBoneReadsPerScan ? candN : maxBoneReadsPerScan;
+            g_phase.bones_players = take;
             bool queuedBoneReads = false;
             for (int i = 0; i < take; ++i) {
                 const int c = cand[i].c;
@@ -3251,15 +3299,52 @@ void EnsureAcquisitionStarted() {
         while (!g_acquisition_stop.load(std::memory_order_acquire)) {
             const auto acquire_begin = std::chrono::steady_clock::now();
             try {
+                g_phase = Cs2PhaseTiming{};
                 auto frame_config = g_config_snapshots.Acquire();
                 RunFrameWithConfig(*frame_config);
                 runtime.acquisition_ms = OmniGhost::Gameplay::TimeMs(acquire_begin);
                 {
                     auto& tel = OmniGhost::Gameplay::DmaTelemetry::CS2();
-                    OmniGhost::Gameplay::DmaTelemetry::ObserveAcquire(tel, runtime.acquisition_ms);
+                    const bool activeSample = runtime.in_match && runtime.player_count > 0;
+                    if (!runtime.in_match)
+                        tel.idle_reason.store(2, std::memory_order_relaxed); // not_in_match
+                    else if (runtime.player_count <= 0)
+                        tel.idle_reason.store(5, std::memory_order_relaxed); // no_local/no players
+                    else
+                        tel.idle_reason.store(0, std::memory_order_relaxed);
+                    OmniGhost::Gameplay::DmaTelemetry::ObserveAcquire(
+                        tel, runtime.acquisition_ms, activeSample);
                     tel.entities.store(runtime.player_count, std::memory_order_relaxed);
                     tel.snapshot_drops.store(g_runtime_snapshot_drops.load(std::memory_order_relaxed), std::memory_order_relaxed);
                     tel.dma_open.store(mem.vHandle != nullptr, std::memory_order_relaxed);
+                    tel.process_id.store(static_cast<std::uint32_t>(mem.current_process.PID), std::memory_order_relaxed);
+                    tel.process_connected.store(runtime.client_base != 0, std::memory_order_relaxed);
+                    tel.snapshot_hz.store(g_acquisition_hz.load(std::memory_order_relaxed), std::memory_order_relaxed);
+                    if (OmniGhost::Gameplay::DmaTelemetry::IsEnabled())
+                        OmniGhost::Gameplay::DmaTelemetry::Tick("CS2");
+                    if (OmniGhost::Gameplay::DmaTelemetry::IsEnabled() &&
+                        activeSample && runtime.acquisition_ms >= 50.f) {
+                        OmniGhost::Gameplay::DmaTelemetry::SpikeBreakdown bd{};
+                        bd.total_ms = runtime.acquisition_ms;
+                        bd.webradar_ms = g_phase.webradar_ms;
+                        bd.entity_ms = g_phase.entity_ms;
+                        bd.local_ms = g_phase.local_ms;
+                        bd.core_scatter_ms = g_phase.core_scatter_ms;
+                        bd.positions_ms = g_phase.positions_ms;
+                        bd.bones_ms = g_phase.bones_ms;
+                        bd.weapon_ms = g_phase.weapon_ms;
+                        bd.spectator_ms = g_phase.spectator_ms;
+                        bd.bomb_ms = g_phase.bomb_ms;
+                        bd.publish_ms = g_phase.publish_ms;
+                        bd.cleanup_ms = g_phase.cleanup_ms;
+                        bd.players = runtime.player_count;
+                        bd.bones_players = g_phase.bones_players;
+                        bd.entity_full_probe = g_phase.entity_full_probe;
+                        bd.spectator_refresh = g_phase.spectator_refresh;
+                        bd.bomb_refresh = g_phase.bomb_refresh;
+                        bd.cache_cleanup = g_phase.cache_cleanup;
+                        OmniGhost::Gameplay::DmaTelemetry::LogSpikeBreakdown("CS2", bd);
+                    }
                 }
                 // Processing is deliberately kept producer-side and currently
                 // consists of validation/cache assembly included in RunFrame.
@@ -3281,6 +3366,7 @@ void EnsureAcquisitionStarted() {
             // snapshots are never queued behind an older frame.
             // Lightweight profiles (box/HP/armor only) can scan slower; skeleton
             // keeps the tighter FULL_SCAN interval. Back off further after stalls.
+            // Adaptive scheduler (hysteresis): based on measured work, not board name.
             int delayMs = runtime.in_match ? FULL_SCAN_INTERVAL_MS : 16;
             try {
                 auto cfgLease = g_config_snapshots.Acquire();
@@ -3293,16 +3379,33 @@ void EnsureAcquisitionStarted() {
             } catch (...) {
                 std::cerr << "[CS2] acquisition config snapshot failed with unknown exception" << std::endl;
             }
-            if (runtime.in_match && runtime.acquisition_ms > 12.f)
-                delayMs = (std::max)(delayMs, 24);
-            if (runtime.in_match && runtime.acquisition_ms > 20.f)
-                delayMs = (std::max)(delayMs, 32);
+            {
+                const float work = runtime.acquisition_ms;
+                const float p95 = OmniGhost::Gameplay::DmaTelemetry::CS2().acquire_p95_ms.load(
+                    std::memory_order_relaxed);
+                int level = g_pressure_level.load(std::memory_order_relaxed);
+                // Enter higher pressure with hysteresis
+                if (work > 40.f || p95 > 35.f) level = 3;
+                else if (work > 28.f || p95 > 24.f) level = (std::max)(level, 2);
+                else if (work > 18.f || p95 > 16.f) level = (std::max)(level, 1);
+                else if (work < 12.f && p95 < 14.f) level = (std::max)(0, level - 1);
+                g_pressure_level.store(level, std::memory_order_relaxed);
+                if (level >= 3) delayMs = (std::max)(delayMs, 40);
+                else if (level == 2) delayMs = (std::max)(delayMs, 32);
+                else if (level == 1) delayMs = (std::max)(delayMs, 24);
+            }
+            const auto waitBegin = std::chrono::steady_clock::now();
             scheduler.Wait(std::chrono::milliseconds(delayMs));
+            OmniGhost::Gameplay::DmaTelemetry::ObserveSchedulerWait(
+                OmniGhost::Gameplay::DmaTelemetry::CS2(),
+                OmniGhost::Gameplay::TimeMs(waitBegin));
         }
     });
 }
 
 void StopAcquisition() {
+    if (OmniGhost::Gameplay::DmaTelemetry::IsEnabled())
+        OmniGhost::Gameplay::DmaTelemetry::LogSessionSummary("CS2");
     g_acquisition_stop.store(true, std::memory_order_release);
     if (g_camera_thread.joinable())
         g_camera_thread.join();

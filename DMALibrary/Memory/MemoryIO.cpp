@@ -1,5 +1,8 @@
 ﻿#include "../pch.h"
 #include "Memory.h"
+#include "MemoryInternal.h"
+#include <cassert>
+#include <thread>
 
 #include <atomic>
 #include <iostream>
@@ -102,8 +105,38 @@ bool Memory::Write(uintptr_t address, void* buffer, size_t size, int pid) const
 #endif
 }
 
+
+namespace {
+std::atomic<std::uintptr_t> g_renderThreadHash{0};
+std::uintptr_t ThreadHash(std::thread::id id) {
+    return static_cast<std::uintptr_t>(std::hash<std::thread::id>{}(id));
+}
+void WarnIfDmaOnRenderThread(const char* where) {
+    const auto h = g_renderThreadHash.load(std::memory_order_relaxed);
+    if (!h) return;
+    if (ThreadHash(std::this_thread::get_id()) != h) return;
+#ifdef _DEBUG
+    assert(false && "DMA called on render thread");
+#endif
+    static std::atomic<uint64_t> s_lastLog{0};
+    const uint64_t now = GetTickCount64();
+    uint64_t prev = s_lastLog.load(std::memory_order_relaxed);
+    if (now - prev < 1000 && prev != 0) return;
+    s_lastLog.store(now, std::memory_order_relaxed);
+    std::cout << "[CS2] ERROR DMA_ON_RENDER_THREAD where=" << where << std::endl;
+}
+} // namespace
+
+void Memory::SetRenderThreadId(std::thread::id id) noexcept {
+    g_renderThreadHash.store(ThreadHash(id), std::memory_order_release);
+}
+std::thread::id Memory::GetRenderThreadId() noexcept {
+    return std::this_thread::get_id(); // not recoverable from hash; placeholder
+}
+
 bool Memory::Read(uintptr_t address, void* buffer, size_t size) const
 {
+	WarnIfDmaOnRenderThread("Read");
 	DataCallLease dataLease(this);
 	if (!dataLease || !this->vHandle)
 		return false;
@@ -283,12 +316,14 @@ void Memory::AddScatterWriteRequest(VMMDLL_SCATTER_HANDLE handle, uint64_t addre
 
 void Memory::ExecuteReadScatter(VMMDLL_SCATTER_HANDLE handle, int pid)
 {
+	WarnIfDmaOnRenderThread("ExecuteReadScatter");
 	DataCallLease dataLease(this);
 	if (!dataLease || !ScatterHandleIsCurrent(handle))
 		return;
 	if (pid == 0)
 		pid = current_process.PID;
 	scatterReadBatchCount_.fetch_add(1, std::memory_order_relaxed);
+	OMNIGHOST_VMM_TIMING("Scatter_ExecuteRead");
 
 	if (!VMMDLL_Scatter_ExecuteRead(handle))
 	{

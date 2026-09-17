@@ -5,6 +5,7 @@
 #include "Shellcode.h"
 #include "../nt/structs.h"
 #include <atomic>
+#include <thread>
 #include <chrono>
 #include <array>
 #include <mutex>
@@ -300,6 +301,11 @@ public:
 	};
 
 	[[nodiscard]] DiagnosticsSnapshot GetDiagnosticsSnapshot() const noexcept;
+
+	// Debug/diagnostics: mark the ImGui/render thread. DMA calls from that
+	// thread are logged (Release) / asserted (Debug) but never crash Release.
+	static void SetRenderThreadId(std::thread::id id) noexcept;
+	[[nodiscard]] static std::thread::id GetRenderThreadId() noexcept;
 
 	void SetTimeouts(const TimeoutConfig& config) noexcept { timeouts_ = config; }
 	[[nodiscard]] const TimeoutConfig& GetTimeouts() const noexcept { return timeouts_; }
