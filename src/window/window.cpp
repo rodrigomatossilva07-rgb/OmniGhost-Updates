@@ -385,6 +385,7 @@ const PerformanceMode::State performance = PerformanceMode::Update(
     // Shared Off/Subtle/Full rain. Subtle is the default and uses ~28% density.
     const float rainDensity = app_settings::DigitalRainDensity();
     // User preference is the base, dynamic scaling is applied inside DigitalRain::Draw
+    DigitalRain::SetQualityFromEffectLevel(static_cast<int>(app_settings::config.digital_rain_level));
     DigitalRain::Draw(
         draw_list,
         window_pos,

@@ -919,6 +919,7 @@ bool Draw() {
         // Rain belongs to the authentication card itself. Keep it deliberately
         // faint and sparse so fields and branding remain the visual hierarchy.
         draw->PushClipRect(windowPos, Add(windowPos, ImVec2(width, height)), true);
+        DigitalRain::SetQualityFromEffectLevel(static_cast<int>(app_settings::config.digital_rain_level));
         DigitalRain::Draw(draw, windowPos, ImVec2(width, height), true,
             performance.effective, 0.0f, 0.58f, 0.28f, animation, false, false);
         draw->PopClipRect();

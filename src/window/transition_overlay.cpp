@@ -23,6 +23,7 @@ void DrawTransitionOverlay(const TransitionOverlayOptions& options) {
     background->AddRectFilled(ImVec2(0, 0), display,
         IM_COL32(3, 3, 4, static_cast<int>(255.0f * alpha)));
     const PerformanceMode::State performance = PerformanceMode::Current();
+    DigitalRain::SetQualityFromEffectLevel(static_cast<int>(app_settings::config.digital_rain_level));
     DigitalRain::Draw(background, ImVec2(0, 0), display, true,
         performance.effective, 0.0f, 0.075f * alpha, 0.40f,
         app_settings::AnimationScale(), true);

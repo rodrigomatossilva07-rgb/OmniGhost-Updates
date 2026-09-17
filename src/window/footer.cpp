@@ -8,6 +8,7 @@
 #include "../config/app_settings.h"
 #include "game/offsets.h"
 #include "../platform/session_log.h"
+#include "hardware_monitor.h"
 
 #include <cmath>
 #include <cfloat>
@@ -117,6 +118,17 @@ namespace CyberWidgets {
 
         char fps_value[24];
         snprintf(fps_value, sizeof(fps_value), Loc::Tr("footer.fps"), fps);
+        
+        // Get DMA latency from HardwareMonitor
+        const auto& metrics = HardwareMonitor::GetSystemMetrics();
+        char dma_latency_value[32];
+        if (metrics.dma_read_latency_ms > 0.0f || metrics.dma_write_latency_ms > 0.0f) {
+            snprintf(dma_latency_value, sizeof(dma_latency_value), "DMA R:%.1fms W:%.1fms", 
+                metrics.dma_read_latency_ms, metrics.dma_write_latency_ms);
+        } else {
+            snprintf(dma_latency_value, sizeof(dma_latency_value), "-- ms");
+        }
+        
         char ping_value[24];
         if (ping_ms >= 0)
             snprintf(ping_value, sizeof(ping_value), Loc::Tr("footer.ping"), ping_ms);
@@ -145,6 +157,14 @@ namespace CyberWidgets {
                 CyberTheme::U32(CyberTheme::Colors.TextDisabled), kFont);
             right -= 20.0f;
         }
+
+        const ImVec2 dma_latency_size = body
+            ? body->CalcTextSizeA(kFont, FLT_MAX, 0.0f, dma_latency_value)
+            : ImGui::CalcTextSize(dma_latency_value);
+        right -= dma_latency_size.x;
+        DrawFooterItem(dl, body, right, text_y, dma_latency_value,
+            CyberTheme::U32(CyberTheme::Colors.Gold), kFont);
+        right -= 20.0f;
 
         const ImVec2 ping_size = body
             ? body->CalcTextSizeA(kFont, FLT_MAX, 0.0f, ping_value)

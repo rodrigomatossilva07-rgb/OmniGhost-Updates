@@ -8,6 +8,7 @@
 #include <functional>
 #include <memory>
 #include <set>
+#include <atomic>
 #include "math/math.h"
 #include "game/offsets.h"
 #include "../../DMALibrary/Memory/Memory.h"
@@ -17,6 +18,48 @@ namespace object_esp {
 
 // Forward declarations
 class ObjectRenderer;
+
+// Diagnostic Counters (moved from cpp to header for use in ScanProgress)
+struct DiagnosticCounters {
+    std::atomic<int> pool_slots{0};
+    std::atomic<int> occupied_slots{0};
+    std::atomic<int> entity_ptrs_valid{0};
+    std::atomic<int> valid_entities{0};
+    std::atomic<int> valid_model_info{0};
+    std::atomic<int> valid_hashes{0};
+    std::atomic<int> valid_positions{0};
+    std::atomic<int> within_distance{0};
+    std::atomic<int> accepted_objects{0};
+    
+    void Reset() {
+        pool_slots = occupied_slots = entity_ptrs_valid = valid_entities = 0;
+        valid_model_info = valid_hashes = valid_positions = within_distance = accepted_objects = 0;
+    }
+};
+
+// Helper functions for memory reading
+inline bool ReadU64Safe(uintptr_t addr, uintptr_t& out) {
+    out = 0;
+    if (!addr) return false;
+    return mem.Read(addr, &out, sizeof(out)) && out > 0x10000ULL && out < 0x00007FFFFFFFFFFFULL;
+}
+
+inline bool ReadVec3Safe(uintptr_t addr, Vec3& out) {
+    out = {};
+    if (!addr) return false;
+    return mem.Read(addr, &out, sizeof(out));
+}
+
+inline bool LooksFinite(const Vec3& v) {
+    return std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z)
+        && std::fabs(v.x) < 50000.f && std::fabs(v.y) < 50000.f && std::fabs(v.z) < 50000.f;
+}
+
+inline std::string HashToModelLabel(uint32_t hash) {
+    char buf[32];
+    std::snprintf(buf, sizeof(buf), "0x%08X", hash);
+    return buf;
+}
 
 // Object entity representation
 struct ObjectEntity {
@@ -46,6 +89,7 @@ struct ScanResult {
     std::vector<Vec3> sample_positions; // First few positions
     ObjectCategory category = ObjectCategory::Other;
     bool is_custom = false;
+    uintptr_t entity_address = 0; // Store entity address for tracking
     
     ScanResult() = default;
     ScanResult(const std::string& m, uint32_t h) : model(m), hash(h) {}
@@ -195,6 +239,7 @@ private:
     bool ValidatePoolPointer(uintptr_t pool_ptr, uintptr_t& out_pool);
     bool ResolvePoolAddress(uintptr_t& out_pool);
     bool ValidatePoolStructure(uintptr_t pool, uintptr_t& items, uintptr_t& flags, uint32_t& size, uint32_t& itemSize);
+    void PerformScan();
     void PerformScanIncremental();
     void PerformScanSinglePass();
     void UpdateTrackedObjects();

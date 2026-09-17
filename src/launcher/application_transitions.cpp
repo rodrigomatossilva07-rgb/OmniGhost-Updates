@@ -23,6 +23,7 @@ void DrawDmaPreparation(std::chrono::steady_clock::time_point started) {
     ImDrawList* background = ImGui::GetBackgroundDrawList();
     background->AddRectFilled(ImVec2(0, 0), display, IM_COL32(3, 3, 4, 255));
     const float animation = app_settings::AnimationScale();
+    DigitalRain::SetQualityFromEffectLevel(static_cast<int>(app_settings::config.digital_rain_level));
     DigitalRain::Draw(background, ImVec2(0, 0), display, true,
         PerformanceMode::Current().effective, 0.0f,
         app_settings::DigitalRainOpacity() * 0.075f,

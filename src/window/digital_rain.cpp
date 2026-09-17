@@ -485,6 +485,21 @@ void SetQualityPresetOverride(QualityPreset preset) noexcept {
     g_qualityOverrideActive = true;
 }
 
+void SetQualityFromEffectLevel(int level) noexcept {
+    switch (level) {
+        case 0: // Off
+            SetQualityPresetOverride(QualityPreset::Disabled);
+            break;
+        case 1: // Subtle
+            SetQualityPresetOverride(QualityPreset::Medium);
+            break;
+        case 2: // Full
+        default:
+            SetQualityPresetOverride(QualityPreset::Ultra);
+            break;
+    }
+}
+
 bool IsQualityOverrideActive() noexcept {
     return g_overrideActive;
 }

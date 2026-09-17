@@ -44,7 +44,7 @@ void UpdateHardwareMonitor() {
     // Update Makcu
     if (makcu_wrapper::IsConnected()) {
         HardwareMonitor::UpdateDeviceStatus(HardwareMonitor::DeviceType::Makcu, true, 
-            "COM", makcu_wrapper::DiagnosticsLine(), "");
+            makcu_wrapper::GetPort(), makcu_wrapper::DiagnosticsLine(), "");
     } else {
         HardwareMonitor::UpdateDeviceStatus(HardwareMonitor::DeviceType::Makcu, false, "", "", "");
     }
@@ -82,12 +82,18 @@ void DrawDeviceStatus(HardwareMonitor::DeviceType type, const HardwareMonitor::D
     
     CyberWidgets::Badge(health.c_str(), tone);
     
-    // Latency info
+    // Latency info - show real-time latency from system metrics for DMA
     if (status.connected) {
         char lat[64];
-        std::snprintf(lat, sizeof(lat), "Avg: %.1fms Max: %.1fms", 
-            HardwareMonitor::GetAverageLatency(type, 5),
-            HardwareMonitor::GetMaxLatency(type, 5));
+        if (type == HardwareMonitor::DeviceType::DMA) {
+            const auto& metrics = HardwareMonitor::GetSystemMetrics();
+            std::snprintf(lat, sizeof(lat), "Read: %.1fms Write: %.1fms", 
+                metrics.dma_read_latency_ms, metrics.dma_write_latency_ms);
+        } else {
+            std::snprintf(lat, sizeof(lat), "Avg: %.1fms Max: %.1fms", 
+                HardwareMonitor::GetAverageLatency(type, 5),
+                HardwareMonitor::GetMaxLatency(type, 5));
+        }
         CyberWidgets::KeyValueRow("Latency", lat);
     }
     

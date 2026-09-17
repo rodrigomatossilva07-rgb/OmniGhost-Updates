@@ -2,6 +2,7 @@
 #include "Memory.h"
 #include "MemoryInternal.h"
 #include "../../src/platform/session_log.h"
+#include "../../src/window/hardware_monitor.h"
 #include <cassert>
 #include <chrono>
 #include <thread>
@@ -106,18 +107,21 @@ bool Memory::Write(uintptr_t address, void* buffer, size_t size, int pid) const
 		std::clog << "[DMA][WRITE] blocked: build is read-only (OMNIGHOST_READONLY_MODE)\n";
 	return false;
 #else
+	const auto t0 = std::chrono::steady_clock::now();
 	DataCallLease dataLease(this);
 	if (!dataLease || !this->vHandle || !buffer)
 		return false;
 	if (size > static_cast<size_t>(MAXDWORD))
 		return false;
 	const DWORD byteCount = static_cast<DWORD>(size);
-	if (!VMMDLL_MemWrite(this->vHandle, pid, address, static_cast<PBYTE>(buffer), byteCount))
-	{
-		LOG("[!] Failed to write Memory at 0x%p\n", address);
-		return false;
+	const bool ok = VMMDLL_MemWrite(this->vHandle, pid, address, static_cast<PBYTE>(buffer), byteCount);
+	const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+	if (ok) {
+		HardwareMonitor::RecordDMALatency(0.0f, static_cast<float>(ms));
+		return true;
 	}
-	return true;
+	LOG("[!] Failed to write Memory at 0x%p\n", address);
+	return false;
 #endif
 }
 
@@ -290,14 +294,19 @@ bool Memory::Read(uintptr_t address, void* buffer, size_t size) const
 	const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
 	NoteDmaCall("Read", ms);
 	LogSlowDma("Read", ms, 1);
-	if (ok1)
+	if (ok1) {
+		HardwareMonitor::RecordDMALatency(static_cast<float>(ms), 0.0f);
 		return true;
+	}
 
 	// Fallback: cached read (sometimes works when NOCACHE fails mid DTB fix)
 	read_size = 0;
 	if (VMMDLL_MemReadEx(this->vHandle, current_process.PID, address, static_cast<PBYTE>(buffer), byteCount, &read_size, 0)
-		&& read_size == byteCount)
+		&& read_size == byteCount) {
+		const double ms2 = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+		HardwareMonitor::RecordDMALatency(static_cast<float>(ms2), 0.0f);
 		return true;
+	}
 
 	const unsigned fail_count = readFailureCount_.fetch_add(1, std::memory_order_relaxed) + 1;
 	if ((fail_count % 200) == 1)
@@ -490,6 +499,7 @@ void Memory::ExecuteReadScatter(VMMDLL_SCATTER_HANDLE handle, int pid)
 	const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
 	NoteDmaCall("Scatter", ms);
 	LogSlowDma("Scatter", ms, 0);
+	HardwareMonitor::RecordDMALatency(static_cast<float>(ms), 0.0f);
 	//Clear after using it
 	if (!VMMDLL_Scatter_Clear(handle, pid, VMMDLL_FLAG_NOCACHE))
 	{
@@ -499,6 +509,7 @@ void Memory::ExecuteReadScatter(VMMDLL_SCATTER_HANDLE handle, int pid)
 
 void Memory::ExecuteWriteScatter(VMMDLL_SCATTER_HANDLE handle, int pid)
 {
+	const auto t0 = std::chrono::steady_clock::now();
 	DataCallLease dataLease(this);
 	if (!dataLease || !ScatterHandleIsCurrent(handle))
 		return;
@@ -509,6 +520,8 @@ void Memory::ExecuteWriteScatter(VMMDLL_SCATTER_HANDLE handle, int pid)
 	{
 		LOG("[-] Failed to Execute Scatter Read\n");
 	}
+	const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+	HardwareMonitor::RecordDMALatency(0.0f, static_cast<float>(ms));
 	//Clear after using it
 	if (!VMMDLL_Scatter_Clear(handle, pid, VMMDLL_FLAG_NOCACHE))
 	{

@@ -111,4 +111,6 @@ void ApplyIGPUFallback() noexcept;
 void SetCustomQualitySettings(const struct QualitySettings& settings) noexcept;
 [[nodiscard]] struct QualitySettings GetCurrentQualitySettings() noexcept;
 
+void SetQualityFromEffectLevel(int level) noexcept;
+
 } // namespace DigitalRain

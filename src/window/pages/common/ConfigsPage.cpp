@@ -253,8 +253,10 @@ void DrawConfigs(Overlay* self)
         const float distance = std::fabs(app_settings::config.ui_scale - uiScaleValues[i]);
         if (distance < bestDistance) { bestDistance = distance; uiScaleIndex = i; }
     }
+    ImGui::PushItemWidth(-1);
     if (CyberWidgets::Combo("UI Scale", &uiScaleIndex, uiScales, 10))
         app_settings::config.ui_scale = uiScaleValues[std::clamp(uiScaleIndex, 0, 9)];
+    ImGui::PopItemWidth();
     CyberWidgets::HelpMarker("A escala é combinada com o DPI do monitor. Em 125%, 150% ou 200% do Windows, o OmniGhost mantém texto e controlos nítidos.");
 
     const auto monitors = OmniGhost::Platform::EnumerateMonitors();
@@ -275,8 +277,10 @@ void DrawConfigs(Overlay* self)
     for (const auto& label : monitorLabels) monitorItems.push_back(label.c_str());
     int monitorSelection = app_settings::config.monitor_index + 1;
     monitorSelection = std::clamp(monitorSelection, 0, static_cast<int>(monitorItems.size()) - 1);
+    ImGui::PushItemWidth(-1);
     if (CyberWidgets::Combo("Monitor", &monitorSelection, monitorItems.data(), static_cast<int>(monitorItems.size())))
         app_settings::config.monitor_index = monitorSelection - 1;
+    ImGui::PopItemWidth();
         CyberWidgets::EndCard();
         CyberWidgets::EndCardRow();
 

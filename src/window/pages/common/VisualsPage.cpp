@@ -41,6 +41,18 @@ ImU32 PreviewDarker(ImU32 color)
     return ImGui::ColorConvertFloat4ToU32(value);
 }
 
+ImU32 PreviewSkeletonColor(ImU32 configured)
+{
+    if (esp::config.rgb_mode) {
+        const float t = static_cast<float>(ImGui::GetTime());
+        return IM_COL32(
+            static_cast<int>(std::sin(t * 2.0f) * 127.f + 128.f),
+            static_cast<int>(std::sin(t * 2.0f + 2.094f) * 127.f + 128.f),
+            static_cast<int>(std::sin(t * 2.0f + 4.188f) * 127.f + 128.f), 255);
+    }
+    return configured;
+}
+
 void DrawEspPreviewPanel(float panelWidth, float panelHeight, bool previewVisible)
 {
     ImDrawList* dl = ImGui::GetWindowDrawList();
@@ -93,8 +105,8 @@ void DrawEspPreviewPanel(float panelWidth, float panelHeight, bool previewVisibl
     const ImVec2 l_an = pt(-.39f, .950f), r_an = pt(.39f, .950f);
     const ImVec2 l_ft = pt(-.52f, 1.f), r_ft = pt(.52f, 1.f);
 
-    const ImU32 sk = previewVisible ? kActive : PreviewColor(esp::config.color_skeleton, false);
-    const ImU32 jt = previewVisible ? kActive : PreviewColor(esp::config.color_skeleton_points, false);
+    const ImU32 sk = previewVisible ? kActive : PreviewSkeletonColor(esp::config.color_skeleton);
+    const ImU32 jt = previewVisible ? kActive : PreviewSkeletonColor(esp::config.color_skeleton_points);
 
 
     // The provided operator image remains beneath the overlay. The preview is
@@ -620,7 +632,7 @@ CyberWidgets::SliderFloat(Loc::Tr("vis.max_dist"), &esp::config.max_esp_distance
         columnHeight - CyberTheme::Metrics::CardHeaderHeight -
         CyberTheme::Metrics::CardPadding * 2.0f - CyberTheme::Px(12.0f));
     DrawEspPreviewPanel((std::max)(CyberTheme::Px(180.0f),
-        previewWidth - CyberTheme::Metrics::CardPadding * 2.0f), panelHeight, true);
+        previewWidth - CyberTheme::Metrics::CardPadding * 2.0f), panelHeight, false);
     CyberWidgets::EndCard();
     ImGui::EndGroup();
 }

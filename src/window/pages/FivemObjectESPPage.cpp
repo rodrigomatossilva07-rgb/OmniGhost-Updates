@@ -111,7 +111,7 @@ void DrawFivemObjectESP() {
     ImGui::Text("Intervalo (ms):");
     ImGui::NextColumn();
     ImGui::SetNextItemWidth(ImGui::GetColumnWidth() * 0.5f);
-    SliderInt("##scan_interval", &esp_config.scan_interval_ms, 100, 60000, "%d ms");
+    ImGui::SliderInt("##scan_interval", &esp_config.scan_interval_ms, 100, 60000, "%d ms");
     ImGui::NextColumn();
     
     ImGui::Text("Auto-scan:");

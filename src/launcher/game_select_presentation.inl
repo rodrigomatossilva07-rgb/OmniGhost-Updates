@@ -85,6 +85,7 @@ void DrawBackground(
     // Rain is a peripheral brand texture, never the foreground.  Keeping it
     // inside this narrow range also makes the visual stable across monitors.
     const float rainOpacity = std::clamp(app_settings::DigitalRainOpacity(), 0.02f, 0.04f);
+    DigitalRain::SetQualityFromEffectLevel(static_cast<int>(app_settings::config.digital_rain_level));
     DigitalRain::Draw(
         draw,
         ImVec2(0.0f, header),

@@ -53,69 +53,8 @@ static void LogCrashContext(const char* context) {
 }
 
 // ============================================================================
-// Pointer Validation Helpers
+// Pointer Validation Helpers (now defined in header's namespace scope for class method access)
 // ============================================================================
-static bool IsCanonicalPointer(uint64_t addr) {
-    return addr >= 0x10000ULL && addr < 0x00007FFFFFFFFFFFULL;
-}
-
-static bool IsReadablePointer(uint64_t addr) {
-    return IsCanonicalPointer(addr);
-}
-
-static bool ReadPointer(uint64_t addr, uint64_t& out) {
-    if (!IsCanonicalPointer(addr)) return false;
-    return mem.Read(addr, &out, sizeof(out)) && IsCanonicalPointer(out);
-}
-
-static bool ReadVec3Safe(uint64_t addr, Vec3& out) {
-    out = {};
-    if (!IsCanonicalPointer(addr)) return false;
-    return mem.Read(addr, &out, sizeof(out));
-}
-
-static bool LooksFinite(const Vec3& v) {
-    return std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z)
-        && std::fabs(v.x) < 50000.f && std::fabs(v.y) < 50000.f && std::fabs(v.z) < 50000.f;
-}
-
-static std::string HashToModelLabel(uint32_t hash) {
-    char buf[32];
-    std::snprintf(buf, sizeof(buf), "0x%08X", hash);
-    return buf;
-}
-
-// ============================================================================
-// Diagnostic Counters
-// ============================================================================
-struct DiagnosticCounters {
-    std::atomic<int> pool_slots{0};
-    std::atomic<int> occupied_slots{0};
-    std::atomic<int> entity_ptrs_valid{0};
-    std::atomic<int> valid_entities{0};
-    std::atomic<int> valid_model_info{0};
-    std::atomic<int> valid_hashes{0};
-    std::atomic<int> valid_positions{0};
-    std::atomic<int> within_distance{0};
-    std::atomic<int> accepted_objects{0};
-    
-    void Reset() {
-        pool_slots = occupied_slots = entity_ptrs_valid = valid_entities = 0;
-        valid_model_info = valid_hashes = valid_positions = within_distance = accepted_objects = 0;
-    }
-    
-    void PrintSummary() const {
-        OBJESP_LOG_INFO("=== SCAN DIAGNOSTICS ===");
-        OBJESP_LOG_INFO("Pool slots:          {}", pool_slots.load());
-        OBJESP_LOG_INFO("Occupied:            {}", occupied_slots.load());
-        OBJESP_LOG_INFO("Entity ptr valid:    {}", entity_ptrs_valid.load());
-        OBJESP_LOG_INFO("ModelInfo valid:     {}", valid_model_info.load());
-        OBJESP_LOG_INFO("Hash valid:          {}", valid_hashes.load());
-        OBJESP_LOG_INFO("Position valid:      {}", valid_positions.load());
-        OBJESP_LOG_INFO("Within radius:       {}", within_distance.load());
-        OBJESP_LOG_INFO("Accepted:            {}", accepted_objects.load());
-    }
-};
 
 // Global instance
 static ObjectESPManager* g_manager = nullptr;
@@ -490,38 +429,6 @@ bool ObjectESPManager::HasValidatedDiscoverySource() const noexcept {
     return true;
 }
 
-namespace {
-
-bool ReadU64Safe(uintptr_t addr, uintptr_t& out) {
-    out = 0;
-    if (!addr) return false;
-    return mem.Read(addr, &out, sizeof(out)) && out > 0x10000ULL && out < 0x00007FFFFFFFFFFFULL;
-}
-
-bool ReadVec3Safe(uintptr_t addr, Vec3& out) {
-    out = {};
-    if (!addr) return false;
-    return mem.Read(addr, &out, sizeof(out));
-}
-
-bool LooksFinite(const Vec3& v) {
-    return std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z)
-        && std::fabs(v.x) < 50000.f && std::fabs(v.y) < 50000.f && std::fabs(v.z) < 50000.f;
-}
-
-std::string HashToModelLabel(uint32_t hash) {
-    char buf[32];
-    std::snprintf(buf, sizeof(buf), "0x%08X", hash);
-    return buf;
-}
-
-// Prefer known prop name patterns; otherwise keep hex hash as model id.
-std::string GuessModelName(uint32_t hash) {
-    return HashToModelLabel(hash);
-}
-
-} // namespace
-
 void ObjectESPManager::PerformScan() {
     OBJESP_LOG_DEBUG("PerformScan started");
     try {
@@ -607,8 +514,8 @@ void ObjectESPManager::PerformScan() {
     byHash.reserve(256);
 
     const uint32_t maxIter = (std::min)(size, 4000u); // budgeted — avoid 20k sync slots
-    // Time-budgeted scan: process up to maxIter but yield after ~3ms of work.
-    const auto scanDeadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(3);
+    // Time-budgeted scan: process up to maxIter but yield after ~10ms of work.
+    const auto scanDeadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(10);
     uint32_t valid_entities = 0;
     for (uint32_t i = 0; i < maxIter; ++i) {
         if ((i & 0x3F) == 0 && i > 0 && std::chrono::steady_clock::now() >= scanDeadline) {
@@ -668,7 +575,7 @@ void ObjectESPManager::PerformScan() {
         auto& acc = byHash[hash];
         if (acc.result.hash == 0) {
             acc.result.hash = hash;
-            acc.result.model = GuessModelName(hash);
+            acc.result.model = std::format("0x{:08X}", hash); // Use hash as model name
             acc.result.category = ObjectCategory::Other;
             // Heuristic: very high hashes often custom streamed assets
             acc.result.is_custom = (hash > 0x10000000u);
@@ -678,6 +585,7 @@ void ObjectESPManager::PerformScan() {
             acc.result.sample_positions.push_back(pos);
         if (acc.result.count == 1 || dist < acc.result.nearest_distance)
             acc.result.nearest_distance = dist;
+        acc.result.entity_address = ent; // Store entity address
     }
     OBJESP_LOG_DEBUG("Scanned %u entities, found %zu unique hashes, %u valid", 
         scanner_state_.total_entities_scanned, byHash.size(), valid_entities);
@@ -740,6 +648,7 @@ void ObjectESPManager::UpdateTrackedObjects() {
                     entity.hash = result.hash;
                     entity.position = pos;
                     entity.distance = result.nearest_distance;
+                    entity.address = result.entity_address; // Preserve entity address
                     
                     tracked_objects_.emplace_back(entity, entry);
                 }
