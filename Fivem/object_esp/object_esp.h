@@ -166,6 +166,25 @@ private:
     std::string selected_model_;
     Stats stats_;
     
+    // Incremental scanning state
+    struct ScanProgress {
+        uint32_t current_index = 0;
+        uint32_t total_slots = 0;
+        uintptr_t pool_address = 0;
+        uintptr_t items_address = 0;
+        uintptr_t flags_address = 0;
+        uint32_t pool_size = 0;
+        uint32_t item_size = 0;
+        uintptr_t flags_address_ptr = 0;
+        uint32_t total_slots_total = 0;
+        Vec3 local_position{};
+        float max_radius_sq = 0;
+        std::unordered_map<uint32_t, ScanResult> by_hash;
+        DiagnosticCounters diagnostics;
+        bool pool_validated = false;
+    };
+    std::optional<ScanProgress> scan_progress_;
+    
     // All scanner work runs on the existing FiveM frame sequence after ESP has
     // published its read-only snapshot. This avoids a worker reading mutable
     // frame containers concurrently with the adapter/UI lifecycle.
@@ -173,11 +192,16 @@ private:
     mutable std::mutex data_mutex_;
 
     // Internal methods
-    void PerformScan();
+    bool ValidatePoolPointer(uintptr_t pool_ptr, uintptr_t& out_pool);
+    bool ResolvePoolAddress(uintptr_t& out_pool);
+    bool ValidatePoolStructure(uintptr_t pool, uintptr_t& items, uintptr_t& flags, uint32_t& size, uint32_t& itemSize);
+    void PerformScanIncremental();
+    void PerformScanSinglePass();
     void UpdateTrackedObjects();
     void PruneStaleObjects();
     void ApplyDistanceCulling();
     void ApplyFrustumCulling();
+    void ApplyDiagnosticMode();
     
     // Config persistence
     void SaveWhitelistToDisk();

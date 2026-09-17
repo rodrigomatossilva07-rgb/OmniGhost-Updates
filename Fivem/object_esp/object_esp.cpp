@@ -17,36 +17,105 @@
 #include <cmath>
 #include <cstdio>
 #include <chrono>
+#include <format>
+#include <iomanip>
 
 namespace fs = std::filesystem;
 
 namespace object_esp {
 
 // ============================================================================
-// Logging Helper
+// Logging Helper (fixed to properly format arguments)
 // ============================================================================
-#define OBJESP_LOG(level, fmt, ...) do { \
-    auto now = std::chrono::system_clock::now(); \
-    auto time = std::chrono::system_clock::to_time_t(now); \
-    char timebuf[32]; \
-    std::strftime(timebuf, sizeof(timebuf), "%H:%M:%S", std::localtime(&time)); \
-    std::cout << "[" << timebuf << "] [ObjectESP][" << level << "] " << fmt << "\n"; \
-} while(0)
+template<typename... Args>
+static void LogImpl(const char* level, const char* fmt, Args&&... args) {
+    auto now = std::chrono::system_clock::now();
+    auto time = std::chrono::system_clock::to_time_t(now);
+    char timebuf[32];
+    std::strftime(timebuf, sizeof(timebuf), "%H:%M:%S", std::localtime(&time));
+    std::cout << "[" << timebuf << "] [ObjectESP][" << level << "] " 
+              << std::vformat(fmt, std::make_format_args(args...)) << "\n";
+}
 
-#define OBJESP_LOG_DEBUG(fmt, ...) OBJESP_LOG("DEBUG", fmt, ##__VA_ARGS__)
-#define OBJESP_LOG_INFO(fmt, ...) OBJESP_LOG("INFO", fmt, ##__VA_ARGS__)
-#define OBJESP_LOG_WARN(fmt, ...) OBJESP_LOG("WARN", fmt, ##__VA_ARGS__)
-#define OBJESP_LOG_ERROR(fmt, ...) OBJESP_LOG("ERROR", fmt, ##__VA_ARGS__)
+#define OBJESP_LOG_DEBUG(fmt, ...) LogImpl("DEBUG", fmt, ##__VA_ARGS__)
+#define OBJESP_LOG_INFO(fmt, ...)  LogImpl("INFO", fmt, ##__VA_ARGS__)
+#define OBJESP_LOG_WARN(fmt, ...)  LogImpl("WARN", fmt, ##__VA_ARGS__)
+#define OBJESP_LOG_ERROR(fmt, ...) LogImpl("ERROR", fmt, ##__VA_ARGS__)
 
 static void LogCrashContext(const char* context) {
-    (void)context;
     using namespace FiveM::offset;
-    OBJESP_LOG_ERROR("CRASH CONTEXT: %s", context);
-    OBJESP_LOG_ERROR("  base=0x%llX, object_pool=0x%llX, localplayer=0x%llX, replay=0x%llX",
+    OBJESP_LOG_ERROR("CRASH CONTEXT: {}", context);
+    OBJESP_LOG_ERROR("  base=0x{:X}, object_pool=0x{:X}, localplayer=0x{:X}, replay=0x{:X}",
         (unsigned long long)base, (unsigned long long)object_pool,
         (unsigned long long)localplayer, (unsigned long long)replay);
-    OBJESP_LOG_ERROR("  viewport=0x%llX, world=0x%llX", (unsigned long long)viewport, (unsigned long long)world);
+    OBJESP_LOG_ERROR("  viewport=0x{:X}, world=0x{:X}", 
+        (unsigned long long)viewport, (unsigned long long)world);
 }
+
+// ============================================================================
+// Pointer Validation Helpers
+// ============================================================================
+static bool IsCanonicalPointer(uint64_t addr) {
+    return addr >= 0x10000ULL && addr < 0x00007FFFFFFFFFFFULL;
+}
+
+static bool IsReadablePointer(uint64_t addr) {
+    return IsCanonicalPointer(addr);
+}
+
+static bool ReadPointer(uint64_t addr, uint64_t& out) {
+    if (!IsCanonicalPointer(addr)) return false;
+    return mem.Read(addr, &out, sizeof(out)) && IsCanonicalPointer(out);
+}
+
+static bool ReadVec3Safe(uint64_t addr, Vec3& out) {
+    out = {};
+    if (!IsCanonicalPointer(addr)) return false;
+    return mem.Read(addr, &out, sizeof(out));
+}
+
+static bool LooksFinite(const Vec3& v) {
+    return std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z)
+        && std::fabs(v.x) < 50000.f && std::fabs(v.y) < 50000.f && std::fabs(v.z) < 50000.f;
+}
+
+static std::string HashToModelLabel(uint32_t hash) {
+    char buf[32];
+    std::snprintf(buf, sizeof(buf), "0x%08X", hash);
+    return buf;
+}
+
+// ============================================================================
+// Diagnostic Counters
+// ============================================================================
+struct DiagnosticCounters {
+    std::atomic<int> pool_slots{0};
+    std::atomic<int> occupied_slots{0};
+    std::atomic<int> entity_ptrs_valid{0};
+    std::atomic<int> valid_entities{0};
+    std::atomic<int> valid_model_info{0};
+    std::atomic<int> valid_hashes{0};
+    std::atomic<int> valid_positions{0};
+    std::atomic<int> within_distance{0};
+    std::atomic<int> accepted_objects{0};
+    
+    void Reset() {
+        pool_slots = occupied_slots = entity_ptrs_valid = valid_entities = 0;
+        valid_model_info = valid_hashes = valid_positions = within_distance = accepted_objects = 0;
+    }
+    
+    void PrintSummary() const {
+        OBJESP_LOG_INFO("=== SCAN DIAGNOSTICS ===");
+        OBJESP_LOG_INFO("Pool slots:          {}", pool_slots.load());
+        OBJESP_LOG_INFO("Occupied:            {}", occupied_slots.load());
+        OBJESP_LOG_INFO("Entity ptr valid:    {}", entity_ptrs_valid.load());
+        OBJESP_LOG_INFO("ModelInfo valid:     {}", valid_model_info.load());
+        OBJESP_LOG_INFO("Hash valid:          {}", valid_hashes.load());
+        OBJESP_LOG_INFO("Position valid:      {}", valid_positions.load());
+        OBJESP_LOG_INFO("Within radius:       {}", within_distance.load());
+        OBJESP_LOG_INFO("Accepted:            {}", accepted_objects.load());
+    }
+};
 
 // Global instance
 static ObjectESPManager* g_manager = nullptr;
@@ -401,8 +470,24 @@ bool ObjectESPManager::IsCategoryVisible(ObjectCategory cat) const {
 
 bool ObjectESPManager::HasValidatedDiscoverySource() const noexcept {
     using namespace FiveM::offset;
-    // object_pool set by game_setup for supported builds (e.g. b3258).
-    return base != 0 && object_pool != 0;
+    // Validate that we have a valid base address and object_pool pointer
+    // Also verify the object_pool points to a valid pool structure
+    if (base == 0 || object_pool == 0) return false;
+    
+    // Try to validate the pool structure
+    uintptr_t pool = 0;
+    if (!ReadU64Safe(object_pool, pool)) return false;
+    if (pool == 0) return false;
+    
+    // Try to read pool structure
+    uintptr_t items = 0, flags = 0;
+    uint32_t size = 0, itemSize = 0;
+    if (!ReadU64Safe(pool + 0x0, items) || items == 0) return false;
+    if (!ReadU64Safe(pool + 0x8, flags)) return false;
+    if (!mem.Read(pool + 0x10, &size, sizeof(size)) || size == 0) return false;
+    if (!mem.Read(pool + 0x14, &itemSize, sizeof(itemSize)) || itemSize == 0) return false;
+    
+    return true;
 }
 
 namespace {

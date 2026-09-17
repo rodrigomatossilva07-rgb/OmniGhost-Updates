@@ -86,17 +86,8 @@ void DrawFivemObjectESP() {
         TextLine("Quando a sessao FiveM estiver OK, usa 'Escanear' para descobrir props.", TextTone::Secondary);
     }
     
-    // Main toggle with status indicator
-    ImGui::Columns(2, "main_toggle", false);
-    ImGui::SetColumnWidth(0, 150);
+    // Main toggle - simple toggle like ESP
     ToggleSwitch("Ativar Object ESP", &esp_config.enabled);
-    ImGui::NextColumn();
-    if (esp_config.enabled) {
-        ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.2f, 1.0f), "ONLINE");
-    } else {
-        ImGui::TextColored(ImVec4(0.8f, 0.8f, 0.8f, 1.0f), "OFFLINE");
-    }
-    ImGui::Columns(1);
     
     if (!esp_config.enabled) {
         TextLine("Object ESP desativado. Ative para configurar.", TextTone::Secondary);
@@ -119,7 +110,8 @@ void DrawFivemObjectESP() {
     
     ImGui::Text("Intervalo (ms):");
     ImGui::NextColumn();
-    InputInt("##scan_interval", &esp_config.scan_interval_ms);
+    ImGui::SetNextItemWidth(ImGui::GetColumnWidth() * 0.5f);
+    SliderInt("##scan_interval", &esp_config.scan_interval_ms, 100, 60000, "%d ms");
     ImGui::NextColumn();
     
     ImGui::Text("Auto-scan:");
