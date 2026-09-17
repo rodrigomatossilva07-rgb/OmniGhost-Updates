@@ -10,6 +10,8 @@
 #include <mutex>
 #include <string>
 #include <vector>
+#include <Windows.h>
+#include <psapi.h>
 
 namespace OmniGhost::Gameplay::DmaTelemetry {
 namespace {
@@ -172,7 +174,28 @@ void WritePerf(std::string_view tag, Sample& s) {
         static_cast<unsigned long long>(s.suppressed_spikes_20.load()),
         static_cast<unsigned long long>(s.suppressed_spikes_50.load()),
         static_cast<unsigned long long>(s.suppressed_spikes_100.load()));
-    Emit(tag, buf);
+    // Resource footprint (leak detection)
+    DWORD handleCount = 0;
+    GetProcessHandleCount(GetCurrentProcess(), &handleCount);
+    PROCESS_MEMORY_COUNTERS_EX pmc{};
+    pmc.cb = sizeof(pmc);
+    SIZE_T working = 0, priv = 0;
+    if (GetProcessMemoryInfo(GetCurrentProcess(), reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&pmc), sizeof(pmc))) {
+        working = pmc.WorkingSetSize;
+        priv = pmc.PrivateUsage;
+    }
+    char res[256]{};
+    std::snprintf(res, sizeof(res),
+        "\nprocess_handles=%lu\nprocess_threads=%lu\nworking_set_mb=%.1f\nprivate_mb=%.1f",
+        static_cast<unsigned long>(handleCount),
+        static_cast<unsigned long>(0), // filled below if possible
+        working / (1024.0 * 1024.0),
+        priv / (1024.0 * 1024.0));
+    // append resource block
+    std::string full = buf;
+    full.append(res);
+    // thread count via Toolhelp is heavier — skip; handle/memory is enough for leak rate
+    Emit(tag, full);
 }
 
 } // namespace

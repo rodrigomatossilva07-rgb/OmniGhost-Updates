@@ -1836,6 +1836,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
     static uint64_t next_map_refresh_ms = 0;
     const uint64_t map_now_ms = GetTickCount64();
     if (map_now_ms >= next_map_refresh_ms) {
+        mem.SetDmaCallTag("CS2.MapRefresh");
         RefreshMapName();
         next_map_refresh_ms = map_now_ms + (runtime.in_match ? 1000u : 150u);
     }
@@ -3229,6 +3230,7 @@ void EnsureAcquisitionStarted() {
     // turning or moving.  Bones remain in the validated full scan; this small
     // lane refreshes only their common origin and the view matrix.
     g_camera_thread = std::thread([] {
+        mem.SetDmaLane("camera");
         OmniGhost::Gameplay::FixedRateScheduler scheduler;
         float matrix[16]{};
         uint64_t next_motion_ms = 0;
@@ -3313,6 +3315,8 @@ void EnsureAcquisitionStarted() {
                 g_phase = Cs2PhaseTiming{};
                 g_phase.scan_id = g_scan_id.fetch_add(1, std::memory_order_relaxed) + 1;
                 mem.ResetThreadDmaWaitUs();
+                mem.SetDmaScanId(g_phase.scan_id);
+                mem.SetDmaLane("full");
                 mem.SetDmaCallTag("CS2.Acquire");
                 auto frame_config = g_config_snapshots.Acquire();
                 RunFrameWithConfig(*frame_config);
@@ -3326,6 +3330,11 @@ void EnsureAcquisitionStarted() {
                         tel.idle_reason.store(5, std::memory_order_relaxed); // no_local/no players
                     else
                         tel.idle_reason.store(0, std::memory_order_relaxed);
+                    if (!activeSample) {
+                        MotionSnapshot empty{};
+                        empty.timestamp_ms = GetTickCount64();
+                        PublishMotionSnapshot(empty);
+                    }
                     g_phase.lock_wait_ms = static_cast<float>(mem.ConsumeThreadDmaWaitUs()) / 1000.f;
                     OmniGhost::Gameplay::DmaTelemetry::ObserveAcquire(
                         tel, runtime.acquisition_ms, activeSample, g_phase.scan_id);

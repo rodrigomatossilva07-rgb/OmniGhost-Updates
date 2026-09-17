@@ -1,13 +1,14 @@
-#include <chrono>
-﻿#include "../pch.h"
+#include "../pch.h"
 #include "Memory.h"
 #include "MemoryInternal.h"
+#include "../../src/platform/session_log.h"
 #include <cassert>
+#include <chrono>
 #include <thread>
-
 #include <atomic>
 #include <iostream>
 #include <vector>
+#include <cstdio>
 
 static const char* hexdigits =
 "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
@@ -110,6 +111,8 @@ bool Memory::Write(uintptr_t address, void* buffer, size_t size, int pid) const
 
 namespace {
 thread_local const char* t_dmaTag = "untagged";
+thread_local const char* t_dmaLane = "unknown";
+thread_local uint64_t t_dmaScanId = 0;
 thread_local uint64_t t_dmaWaitUs = 0;
 std::atomic<std::uintptr_t> g_renderThreadHash{0};
 
@@ -134,19 +137,30 @@ void LogSlowDma(const char* op, double duration_ms, int requests = 0) {
     if (duration_ms < 10.0) return;
     static std::atomic<uint64_t> s_last{0};
     const uint64_t now = GetTickCount64();
-    // Always log if >50ms; rate-limit 10-50ms to 1/250ms
+    // Always log if >=50ms; rate-limit 10-50ms to 1/200ms
     if (duration_ms < 50.0) {
         uint64_t prev = s_last.load(std::memory_order_relaxed);
-        if (now - prev < 250 && prev != 0) return;
+        if (now - prev < 200 && prev != 0) return;
         s_last.store(now, std::memory_order_relaxed);
     }
-    std::cout << "[CS2] SLOW_DMA_CALL"
-              << " op=" << op
-              << " tag=" << (t_dmaTag ? t_dmaTag : "null")
-              << " duration_ms=" << duration_ms
-              << " requests=" << requests
-              << " thread=" << GetCurrentThreadId()
-              << std::endl;
+    char buf[384];
+    std::snprintf(buf, sizeof(buf),
+        "SLOW_DMA_CALL scan_id=%llu lane=%s tag=%s op=%s duration_ms=%.2f lock_wait_ms=%.3f execute_ms=%.2f requests=%d thread=%lu",
+        static_cast<unsigned long long>(t_dmaScanId),
+        t_dmaLane ? t_dmaLane : "unknown",
+        t_dmaTag ? t_dmaTag : "null",
+        op ? op : "?",
+        duration_ms,
+        static_cast<double>(t_dmaWaitUs) / 1000.0,
+        duration_ms,
+        requests,
+        static_cast<unsigned long>(GetCurrentThreadId()));
+    OmniGhost::SessionLog::Write(
+        duration_ms >= 100.0 ? OmniGhost::SessionLog::Severity::Warning
+                             : OmniGhost::SessionLog::Severity::Info,
+        OmniGhost::SessionLog::Subsystem::DMA,
+        buf);
+    std::cout << "[CS2] " << buf << std::endl;
 }
 } // namespace
 
@@ -159,6 +173,8 @@ std::thread::id Memory::GetRenderThreadId() noexcept {
 void Memory::SetDmaCallTag(const char* tag) noexcept {
     t_dmaTag = tag ? tag : "untagged";
 }
+void Memory::SetDmaScanId(uint64_t id) noexcept { t_dmaScanId = id; }
+void Memory::SetDmaLane(const char* lane) noexcept { t_dmaLane = lane ? lane : "unknown"; }
 const char* Memory::GetDmaCallTag() noexcept {
     return t_dmaTag ? t_dmaTag : "untagged";
 }
@@ -253,6 +269,8 @@ VMMDLL_SCATTER_HANDLE Memory::CreateScatterHandle() const
 	DataCallLease dataLease(this);
 	if (!dataLease || !this->vHandle)
 		return nullptr;
+	scatterHandlesCreated_.fetch_add(1, std::memory_order_relaxed);
+	scatterHandlesLive_.fetch_add(1, std::memory_order_relaxed);
 	const VMMDLL_SCATTER_HANDLE ScatterHandle = VMMDLL_Scatter_Initialize(this->vHandle, current_process.PID, VMMDLL_FLAG_NOCACHE);
 	if (!ScatterHandle)
 		LOG("[!] Failed to create scatter handle\n");
@@ -266,6 +284,8 @@ VMMDLL_SCATTER_HANDLE Memory::CreateScatterHandle(int pid) const
 	DataCallLease dataLease(this);
 	if (!dataLease || !this->vHandle)
 		return nullptr;
+	scatterHandlesCreated_.fetch_add(1, std::memory_order_relaxed);
+	scatterHandlesLive_.fetch_add(1, std::memory_order_relaxed);
 	const VMMDLL_SCATTER_HANDLE ScatterHandle = VMMDLL_Scatter_Initialize(this->vHandle, pid, VMMDLL_FLAG_NOCACHE);
 	if (!ScatterHandle)
 		LOG("[!] Failed to create scatter handle\n");
@@ -327,6 +347,9 @@ void Memory::CloseScatterHandle(VMMDLL_SCATTER_HANDLE handle)
 		scatterHandles_.erase(found);
 		activeScatterHandles_.store(static_cast<uint32_t>(scatterHandles_.size()), std::memory_order_release);
 	}
+	scatterHandlesDestroyed_.fetch_add(1, std::memory_order_relaxed);
+	uint32_t live = scatterHandlesLive_.load(std::memory_order_relaxed);
+	while (live > 0 && !scatterHandlesLive_.compare_exchange_weak(live, live - 1, std::memory_order_relaxed)) {}
 	VMMDLL_Scatter_CloseHandle(handle);
 }
 

@@ -174,6 +174,9 @@ private:
 	// diagnostics UI turns these monotonic values into rates without extra reads.
 	mutable std::atomic<uint64_t> readRequestCount_{ 0 };
 	mutable std::atomic<uint64_t> scatterReadBatchCount_{ 0 };
+	mutable std::atomic<uint64_t> scatterHandlesCreated_{ 0 };
+	mutable std::atomic<uint64_t> scatterHandlesDestroyed_{ 0 };
+	mutable std::atomic<uint32_t> scatterHandlesLive_{ 0 };
 	std::atomic<uint64_t> maxVmmLatencyMs_{ 0 };
 	// Passive startup/status result only. OmniGhost deliberately does not open
 	// the FPGA during startup just to paint a status indicator; real device open
@@ -279,6 +282,9 @@ public:
 		uint64_t vmmCallCount = 0;
 		uint64_t readRequestCount = 0;
 		uint64_t scatterReadBatchCount = 0;
+		uint64_t scatterHandlesCreated = 0;
+		uint64_t scatterHandlesDestroyed = 0;
+		uint32_t scatterHandlesLive = 0;
 		uint64_t maxVmmLatencyMs = 0;
 		uint64_t vmmLatencyAverageMs = 0;
 		uint64_t vmmLatencyP50Ms = 0;
@@ -307,6 +313,8 @@ public:
 	static void SetRenderThreadId(std::thread::id id) noexcept;
 	// Optional tag for SLOW_DMA_CALL attribution (thread-local, acquisition path).
 	static void SetDmaCallTag(const char* tag) noexcept;
+	static void SetDmaScanId(uint64_t id) noexcept;
+	static void SetDmaLane(const char* lane) noexcept;
 	static const char* GetDmaCallTag() noexcept;
 	// Cumulative lock/maintenance block wait (microseconds) for current thread.
 	static void ResetThreadDmaWaitUs() noexcept;
