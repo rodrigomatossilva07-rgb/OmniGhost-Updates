@@ -93,9 +93,6 @@ void ObjectESPManager::Update() {
         PerformScan();
         const auto scan_end = std::chrono::high_resolution_clock::now();
         stats_.last_scan_time_ms = std::chrono::duration<float, std::milli>(scan_end - scan_start).count();
-        scanner_state_.scanning = false;
-        scanner_state_.scan_complete = true;
-        scanner_state_.scan_progress = 1.0f;
         scanner_state_.status_message = "Object discovery is unavailable for this FiveM build";
     }
     
@@ -106,7 +103,15 @@ void ObjectESPManager::Update() {
     std::lock_guard<std::mutex> lock(data_mutex_);
     
     // Update tracked objects from current scan results and whitelist
-    UpdateTrackedObjects();
+    {
+        static auto s_lastTrackRebuild = std::chrono::steady_clock::time_point{};
+        const auto nowTr = std::chrono::steady_clock::now();
+        if (s_lastTrackRebuild.time_since_epoch().count() == 0 ||
+            nowTr - s_lastTrackRebuild > std::chrono::milliseconds(300)) {
+            UpdateTrackedObjects();
+            s_lastTrackRebuild = nowTr;
+        }
+    }
     
     // Apply culling
     if (config_.distance_culling) ApplyDistanceCulling();
@@ -393,9 +398,13 @@ void ObjectESPManager::PerformScan() {
     std::unordered_map<uint32_t, Acc> byHash;
     byHash.reserve(256);
 
-    const uint32_t maxIter = (std::min)(size, 20000u);
+    const uint32_t maxIter = (std::min)(size, 4000u); // budgeted — avoid 20k sync slots
+    // Time-budgeted scan: process up to maxIter but yield after ~3ms of work.
+    const auto scanDeadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(3);
     for (uint32_t i = 0; i < maxIter; ++i) {
-        if ((i & 0x3FF) == 0)
+        if ((i & 0x3F) == 0 && i > 0 && std::chrono::steady_clock::now() >= scanDeadline)
+            break;
+        if ((i & 0xFF) == 0)
             scanner_state_.scan_progress = 0.05f + 0.9f * (float)i / (float)maxIter;
 
         if (flags) {

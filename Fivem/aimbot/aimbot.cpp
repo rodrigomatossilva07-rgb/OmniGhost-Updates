@@ -334,26 +334,15 @@ namespace aimbot {
         using namespace FiveM;
         s_aimPeds.clear();
         s_aimPos.clear();
-        if (!offset::replay) return;
-        uintptr_t pedIface = mem.Read<uintptr_t>(offset::replay + 0x18);
-        if (!pedIface) return;
-        uintptr_t listBase = mem.Read<uintptr_t>(pedIface + 0x100);
-        if (!listBase) return;
-        // Same stride as ESP manager (ped pool entries)
-        constexpr int kMax = 110;
-        s_aimPeds.reserve(kMax);
-        s_aimPos.reserve(kMax);
-        for (int i = 0; i < kMax; ++i) {
-            // Contiguous pointer array (same as ESP manager), not 0x10 stride
-            uintptr_t ped = mem.Read<uintptr_t>(listBase + static_cast<uintptr_t>(i) * sizeof(uintptr_t));
-            if (!ped || ped < 0x10000) continue;
-            if (ped == offset::localplayer) continue;
-            s_aimPeds.push_back(ped);
-            Vec3 pos = mem.Read<Vec3>(ped + offset::playerPosition);
-            if (pos.IsZero()) pos = mem.Read<Vec3>(ped + 0x90);
-            s_aimPos.push_back(pos);
+        // Exclusive consumer of main ESP snapshot — no parallel sequential scanner.
+        if (!ESP::validPeds.empty() && ESP::validPeds.size() == ESP::positions.size()) {
+            s_aimPeds = ESP::validPeds;
+            s_aimPos = ESP::positions;
+            return;
         }
+        // Wait for a valid acquisition generation instead of hammering DMA.
     }
+
 
     bool FindBestTarget(TargetInfo& out, float fov_px, float max_dist) {
         out = {};
@@ -412,7 +401,11 @@ namespace aimbot {
                 continue;
 
             // GTA/FiveM: alive peds typically 1..200 (some builds ~100–200 full)
-            float health = mem.Read<float>(ped + offset::playerHealth);
+            float health = 0.f;
+            if (!esp::try_get_prepared_health(ped, health)) {
+                // Prefer prepared snapshot; avoid per-target DMA on the hot path.
+                continue;
+            }
             if (health <= 1.f || health > 500.f)
                 continue;
 

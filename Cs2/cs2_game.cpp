@@ -30,6 +30,7 @@
 #include <thread>
 #include "makcu/makcu_wrapper.h"
 #include "../Fivem/aimbot/aim_type.h"
+#include "gameplay/dma_telemetry_log.h"
 
 namespace fs = std::filesystem;
 
@@ -3253,6 +3254,13 @@ void EnsureAcquisitionStarted() {
                 auto frame_config = g_config_snapshots.Acquire();
                 RunFrameWithConfig(*frame_config);
                 runtime.acquisition_ms = OmniGhost::Gameplay::TimeMs(acquire_begin);
+                {
+                    auto& tel = OmniGhost::Gameplay::DmaTelemetry::CS2();
+                    OmniGhost::Gameplay::DmaTelemetry::ObserveAcquire(tel, runtime.acquisition_ms);
+                    tel.entities.store(runtime.player_count, std::memory_order_relaxed);
+                    tel.snapshot_drops.store(g_runtime_snapshot_drops.load(std::memory_order_relaxed), std::memory_order_relaxed);
+                    tel.dma_open.store(mem.vHandle != nullptr, std::memory_order_relaxed);
+                }
                 // Processing is deliberately kept producer-side and currently
                 // consists of validation/cache assembly included in RunFrame.
                 runtime.processing_ms = runtime.acquisition_ms;

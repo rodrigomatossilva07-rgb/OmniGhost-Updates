@@ -44,23 +44,11 @@ namespace FiveM {
                 return cached->second.visible;
             }
 
-            // The reliable b3258 path compares the global current-visible frame
-            // with CPed::m_lastVisibleFrame. Treating 0/4/36 as magic booleans was
-            // the reason the old option hid or accepted players at random.
-            if (offset::framecountlastvisible && offset::pedVisibilityOffset) {
-                uint8_t currentFrame = 0;
-                uint8_t lastVisibleFrame = 0;
-                if (mem.Read(offset::framecountlastvisible, &currentFrame, sizeof(currentFrame)) &&
-                    mem.Read(ped + offset::pedVisibilityOffset, &lastVisibleFrame, sizeof(lastVisibleFrame))) {
-                    const bool result = IsRecentlyVisible(currentFrame, lastVisibleFrame);
-                    cache[ped] = { result, now };
-                    return result;
-                }
-            }
-
-            // Fail open when an unsupported build has no verified visibility
-            // pair. A failed DMA read must never make every entity disappear.
-            cache[ped] = { true, now };
+            // Cache miss on the presentation thread: do NOT issue DMA here.
+            // Producer BatchCheckVisibility stamps the cache every acquisition.
+            // Fail-open keeps ESP drawing instead of flickering everyone hidden.
+            if (cached != cache.end())
+                return cached->second.visible;
             return true;
         }
 
@@ -77,17 +65,18 @@ namespace FiveM {
                 return;
 
             std::vector<uint8_t> lastVisibleFrames(peds.size(), currentFrame);
-            auto handle = mem.CreateScatterHandle();
-            if (!handle) return;
+            static VMMDLL_SCATTER_HANDLE visHandle = nullptr;
+            if (!visHandle && mem.vHandle)
+                visHandle = mem.CreateScatterHandle();
+            if (!visHandle) return;
             for (size_t i = 0; i < peds.size(); ++i) {
                 if (peds[i]) {
-                    mem.AddScatterReadRequest(handle,
+                    mem.AddScatterReadRequest(visHandle,
                         peds[i] + offset::pedVisibilityOffset,
                         &lastVisibleFrames[i], sizeof(uint8_t));
                 }
             }
-            mem.ExecuteReadScatter(handle);
-            mem.CloseScatterHandle(handle);
+            mem.ExecuteReadScatter(visHandle);
 
             auto& cache = Cache();
             const auto now = std::chrono::steady_clock::now();
@@ -97,6 +86,9 @@ namespace FiveM {
                 visibilityResults[i] = visible;
                 if (peds[i]) cache[peds[i]] = { visible, now };
             }
+            // Producer-stamped generation: render must not re-DMA within same gen
+            static std::atomic<uint64_t> s_visGen{0};
+            s_visGen.fetch_add(1, std::memory_order_relaxed);
 
             if (cache.size() > 512)
                 cache.clear();

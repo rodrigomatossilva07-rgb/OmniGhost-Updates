@@ -34,7 +34,7 @@ namespace fs = std::filesystem;
 namespace OmniGhost::SessionLog {
 namespace {
 
-constexpr std::uintmax_t kMaximumLogBytes = 5u * 1024u * 1024u;
+constexpr std::uintmax_t kMaximumLogBytes = 10u * 1024u * 1024u;
 constexpr std::uintmax_t kMaximumStructuredLogBytes = 5u * 1024u * 1024u;
 constexpr size_t kMaximumArchivedLogs = 8;
 constexpr std::uintmax_t kMaximumArchiveBytes = 40u * 1024u * 1024u;
@@ -371,13 +371,19 @@ bool RotateOpenLog(std::ofstream& stream, const fs::path& path, const char* suff
     stream.flush();
     stream.close();
 
-    // Rotate in-place: keep at most one .prev sibling. No archive/ directory.
+    // Rotate: logs.txt → logs.1.txt → logs.2.txt (drop oldest). No archive/.
     if (fs::is_regular_file(path, error) && fs::file_size(path, error) > 0) {
         error.clear();
-        const fs::path prev = path.wstring() + L".prev";
-        fs::remove(prev, error);
+        const fs::path log2 = path.parent_path() / (path.stem().wstring() + L".2.txt");
+        const fs::path log1 = path.parent_path() / (path.stem().wstring() + L".1.txt");
+        fs::remove(log2, error);
         error.clear();
-        fs::rename(path, prev, error);
+        if (fs::is_regular_file(log1, error)) {
+            error.clear();
+            fs::rename(log1, log2, error);
+        }
+        error.clear();
+        fs::rename(path, log1, error);
         if (error) {
             error.clear();
             fs::remove(path, error);

@@ -60,7 +60,13 @@ std::vector<unsigned char> LoadAvatarFromDisk(uint64_t steamId) {
         return std::vector<unsigned char>(
             (std::istreambuf_iterator<char>(in)),
             std::istreambuf_iterator<char>());
-    } catch (...) { return {}; }
+    } catch (const std::exception& ex) {
+        OutputDebugStringA(("[CS2 ESP] LoadAvatarFromDisk: " + std::string(ex.what()) + "\n").c_str());
+        return {};
+    } catch (...) {
+        OutputDebugStringA("[CS2 ESP] LoadAvatarFromDisk unknown exception\n");
+        return {};
+    }
 }
 
 void SaveAvatarToDisk(uint64_t steamId, const std::vector<unsigned char>& bytes) {
@@ -486,7 +492,7 @@ void DrawMotionVisuals(ImDrawList* dl, const CS2::Runtime& rt,
 
 void DrawDamageMarker(ImDrawList* dl, const CS2::Runtime& rt,
                       const CS2::Config& cfg, const CS2::Player& player,
-                      int playerIndex) {
+                      std::size_t playerIndex) {
     struct MarkerState {
         int health = -1;
         double expires = 0.0;
@@ -516,7 +522,10 @@ void DrawDamageMarker(ImDrawList* dl, const CS2::Runtime& rt,
     // optional trigger crosshair read.  Ordinary manual hits therefore never
     // qualified.  A recent local shot is the primary attribution signal,
     // while the two precise target signals remain useful fallbacks.
-    const bool likelyOurTarget = recentLocalShot || playerIndex == CS2_Aim::ActiveTargetIndex() ||
+    const int activeTargetIndex = CS2_Aim::ActiveTargetIndex();
+    const bool activeTargetMatch = activeTargetIndex >= 0 &&
+        playerIndex == static_cast<std::size_t>(activeTargetIndex);
+    const bool likelyOurTarget = recentLocalShot || activeTargetMatch ||
         (rt.local_crosshair_entity > 0 && player.ent_index == rt.local_crosshair_entity);
     if (cfg.hit_marker && healthDropped && likelyOurTarget) {
         const std::size_t selected = cfg.aim_bone == 1 ? 1u :

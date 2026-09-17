@@ -40,6 +40,40 @@ static ImU32 EspRGB();
 static bool EspPedVisible(uintptr_t ped);
 static ImU32 EspPedColor(uintptr_t ped, ImU32 configured, bool visible);
 
+
+// Per-frame world→screen projection cache (one W2S per world point key).
+struct ProjCacheEntry { float x, y, z; Vec2 screen; bool ok; };
+static uint32_t g_proj_frame = 0;
+static std::unordered_map<uint64_t, ProjCacheEntry> g_proj_cache;
+
+static uint64_t ProjKey(uintptr_t ped, int slot, float x, float y, float z) {
+    // Quantize to ~2cm to hit cache across tiny jitter
+    const int qx = static_cast<int>(x * 50.f);
+    const int qy = static_cast<int>(y * 50.f);
+    const int qz = static_cast<int>(z * 50.f);
+    return (uint64_t)ped ^ (uint64_t(slot) << 40) ^ (uint64_t(qx) << 20) ^ (uint64_t(qy) << 10) ^ uint64_t(qz & 0x3FF);
+}
+
+static bool CachedWorldToScreen(uintptr_t ped, int slot, const Vec3& world, const Matrix& vp, Vec2& out) {
+    const uint32_t frame = static_cast<uint32_t>(ImGui::GetFrameCount());
+    if (g_proj_frame != frame) {
+        g_proj_frame = frame;
+        g_proj_cache.clear();
+    }
+    const uint64_t key = ProjKey(ped, slot, world.x, world.y, world.z);
+    auto it = g_proj_cache.find(key);
+    if (it != g_proj_cache.end()) {
+        out = it->second.screen;
+        return it->second.ok;
+    }
+    ProjCacheEntry e{};
+    e.x = world.x; e.y = world.y; e.z = world.z;
+    e.ok = world.world_to_screen(vp, e.screen);
+    g_proj_cache.emplace(key, e);
+    out = e.screen;
+    return e.ok;
+}
+
 // Enhanced skeleton data structure for caching
 struct CachedSkeletonData {
     std::vector<Vec3> bone_positions;  // Cache all bone positions
@@ -175,6 +209,7 @@ static EnhancedBoneCache enhanced_bone_cache;
 static std::vector<esp::BatchSkeletonData> g_prepared_skeletons;
 static std::unordered_map<uintptr_t, size_t> g_prepared_skeleton_index;
 static uint32_t g_prepared_skeleton_frame = 0;
+static std::chrono::steady_clock::time_point g_prepared_skeleton_at{};
 
 struct PreparedEspData {
     uintptr_t ped = 0;
@@ -196,9 +231,12 @@ struct PreparedEspData {
 static std::vector<PreparedEspData> g_prepared_esp;
 static std::unordered_map<uintptr_t, size_t> g_prepared_esp_index;
 static uint32_t g_prepared_esp_frame = 0;
+static std::chrono::steady_clock::time_point g_prepared_esp_at{};
 
 static const esp::BatchSkeletonData* FindPreparedSkeleton(uintptr_t ped) {
-    if (g_prepared_skeleton_frame != static_cast<uint32_t>(ImGui::GetFrameCount()))
+    // Age-based (producer thread can prepare; render consumes within ~80ms)
+    if (g_prepared_skeleton_at.time_since_epoch().count() == 0 ||
+        std::chrono::steady_clock::now() - g_prepared_skeleton_at > std::chrono::milliseconds(80))
         return nullptr;
     const auto it = g_prepared_skeleton_index.find(ped);
     if (it == g_prepared_skeleton_index.end() || it->second >= g_prepared_skeletons.size())
@@ -220,7 +258,8 @@ static Vec3 PreparedBonePosition(const esp::BatchSkeletonData* data, int index) 
 }
 
 static const PreparedEspData* FindPreparedEsp(uintptr_t ped) {
-    if (g_prepared_esp_frame != static_cast<uint32_t>(ImGui::GetFrameCount()))
+    if (g_prepared_esp_at.time_since_epoch().count() == 0 ||
+        std::chrono::steady_clock::now() - g_prepared_esp_at > std::chrono::milliseconds(80))
         return nullptr;
     const auto it = g_prepared_esp_index.find(ped);
     if (it == g_prepared_esp_index.end() || it->second >= g_prepared_esp.size())
@@ -360,6 +399,7 @@ void esp::prepare_skeleton_frame(const std::vector<uintptr_t>& peds,
                                  uint16_t bone_mask) {
     g_prepared_skeleton_index.clear();
     g_prepared_skeleton_frame = static_cast<uint32_t>(ImGui::GetFrameCount());
+    g_prepared_skeleton_at = std::chrono::steady_clock::now();
     if (peds.empty()) {
         g_prepared_skeletons.clear();
         return;
@@ -951,6 +991,12 @@ static ImU32 MultiplyAlpha(ImU32 color, float factor) {
     return ImGui::ColorConvertFloat4ToU32(value);
 }
 
+static int FxSegCount(float distM, int nearSegs, int farSegs) {
+    if (distM > 90.f) return (std::max)(3, farSegs / 2);
+    if (distM > 50.f) return (std::max)(4, (nearSegs + farSegs) / 2);
+    return nearSegs;
+}
+
 static void DrawMotionVisuals(uintptr_t ped, Matrix viewport, const PedData* cached) {
     const auto& cfg = esp::config;
     if (EspPedIsDead(ped) && !cfg.show_dead)
@@ -1279,6 +1325,7 @@ bool esp::has_extra_visuals() {
 void esp::prepare_esp_frame(const std::vector<uintptr_t>& peds,
                             const std::vector<Vec3>& origins) {
     g_prepared_esp_frame = static_cast<uint32_t>(ImGui::GetFrameCount());
+    g_prepared_esp_at = std::chrono::steady_clock::now();
     // Medium-rate identity/combat fields (~40 Hz). Origins update every call.
     static auto s_lastPrepScatter = std::chrono::steady_clock::time_point{};
     static std::unordered_map<uintptr_t, PreparedEspData> s_stickyPrep;
