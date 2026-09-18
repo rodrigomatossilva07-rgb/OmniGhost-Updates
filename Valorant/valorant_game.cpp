@@ -464,4 +464,10 @@ const char* StatusText() {
     return runtime.status.c_str();
 }
 
+bool ReinitDma() {
+    std::cout << "[Valorant] Reinit DMA" << std::endl;
+    Detach();
+    return Attach();
+}
+
 } // namespace Valorant

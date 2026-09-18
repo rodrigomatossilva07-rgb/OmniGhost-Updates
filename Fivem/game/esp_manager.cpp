@@ -20,6 +20,7 @@
 #include <chrono>
 #include <thread>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 #include "gameplay/esp_optimizer.h"
 #include "gameplay/snapshot_exchange.h"
@@ -33,8 +34,6 @@ namespace FiveM {
         std::vector<Vec3> positions;
         std::vector<uintptr_t> validPeds;
         std::vector<Vec2> screenPositions;
-
-        const int MAX_PEDS = 110;
 
         static OmniGhost::Gameplay::SnapshotExchange<AcquisitionSnapshot, 4> s_snapshots;
         static std::atomic<uint64_t> s_snapshotDrops{0};
@@ -63,7 +62,7 @@ namespace FiveM {
         static OmniGhost::Gameplay::PipelineTelemetry s_pipelineMetrics;
 
         // Vehicle acquisition lane
-        static OmniGhost::Gameplay::SnapshotExchange<AcquisitionSnapshot::VehicleSnapshot, 4> s_vehicleSnapshots;
+        static OmniGhost::Gameplay::SnapshotExchange<VehicleSnapshot, 4> s_vehicleSnapshots;
         static std::atomic<uint64_t> s_vehicleSnapshotDrops{0};
         static uint64_t s_vehicleGeneration = 0;
         static std::chrono::steady_clock::time_point s_lastVehicleDiscovery{};
@@ -91,48 +90,18 @@ namespace FiveM {
         const Vec3& GetFrameLocalPos() { return s_localPos; }
 
         const AcquisitionSnapshot* AcquireSnapshot() {
-            return s_snapshots.Acquire();
+            auto lease = s_snapshots.Acquire();
+            return lease ? lease.operator->() : nullptr;
         }
 
-        const AcquisitionSnapshot::VehicleSnapshot* AcquireVehicleSnapshot() {
-            return s_vehicleSnapshots.Acquire();
+        const VehicleSnapshot* AcquireVehicleSnapshot() {
+            auto lease = s_vehicleSnapshots.Acquire();
+            return lease ? lease.operator->() : nullptr;
         }
 
         static void EnsureAcqScatter() {
             if (!s_acqScatter && mem.vHandle)
                 s_acqScatter = mem.CreateScatterHandle();
-        }
-
-        // Compute the required bone mask for the current feature set.
-        // Single source of truth for bone requirements — used exclusively on producer.
-        static uint16_t RequiredBoneMask() {
-            uint16_t mask = 0;
-            if (esp::config.skeleton) {
-                mask |= 0x01FFu; // all 9 bones for full skeleton
-            } else {
-                if (esp::config.enabled && (esp::config.head_circle ||
-                    esp::config.head_halo || esp::config.look_direction || esp::config.chinese_hat ||
-                    esp::config.angel_wings || esp::config.devil_horns || esp::config.floating_crown))
-                    mask |= uint16_t(1u << 0); // head
-                if (esp::config.enabled && (esp::config.box_2d || esp::config.corner_box ||
-                    esp::config.snaplines || esp::config.health_bar || esp::config.armor_bar)) {
-                    mask |= uint16_t((1u << 0) | (1u << 1) | (1u << 2)); // head, neck, spine
-                }
-            }
-            auto addAimBones = [&](aimbot::Hitbox hitbox) {
-                switch (hitbox) {
-                case aimbot::Hitbox::Head:   mask |= uint16_t(1u << 0); break;
-                case aimbot::Hitbox::Neck:   mask |= uint16_t(1u << 7); break;
-                case aimbot::Hitbox::Torso:  mask |= uint16_t((1u << 7) | (1u << 8)); break;
-                case aimbot::Hitbox::Pelvis: mask |= uint16_t(1u << 8); break;
-                case aimbot::Hitbox::Legs:   mask |= uint16_t((1u << 1) | (1u << 2) | (1u << 8)); break;
-                }
-            };
-            if (aimbot::config.aimbot_enabled)
-                addAimBones(aimbot::config.hitbox);
-            if (aimbot::config.trigger_enabled)
-                addAimBones(aimbot::config.trigger_head_only ? aimbot::Hitbox::Head : aimbot::config.hitbox);
-            return mask;
         }
 
         static void PublishAcquisitionSnapshot(uintptr_t localPlayer, bool cacheValid, float acquireMs) {
@@ -169,12 +138,6 @@ namespace FiveM {
             if (!localPlayer || !offset::replay || !offset::viewport)
                 return;
 
-            auto vSlot = s_vehicleSnapshots.TryBeginWrite();
-            if (!vSlot) {
-                s_vehicleSnapshotDrops.fetch_add(1, std::memory_order_relaxed);
-                return;
-            }
-
             const int MAX_VEHICLES = 64;
             constexpr uintptr_t VEHICLE_LIST_OFFSET = 0x180;
             constexpr uintptr_t VEHICLE_COUNT_OFFSET = 0x188;
@@ -185,6 +148,12 @@ namespace FiveM {
             auto IsValidPtr = [](uintptr_t p) {
                 return p > 0x10000ULL && p < 0x7FFFFFFFFFFFULL;
             };
+
+            auto vSlot = s_vehicleSnapshots.TryBeginWrite();
+            if (!vSlot) {
+                s_vehicleSnapshotDrops.fetch_add(1, std::memory_order_relaxed);
+                return;
+            }
 
             auto handle = s_acqScatter ? s_acqScatter : mem.CreateScatterHandle();
             const bool ownedHandle = (handle != s_acqScatter);
@@ -263,7 +232,7 @@ namespace FiveM {
             }
 
             // For discovery, we need positions; for pose update, we need matrices + gear/engine
-            std::vector<Vec3> positions(valid.size());
+            std::vector<Vec3> vehiclePositions(valid.size());
             std::vector<Matrix> matrices;
             std::vector<uint32_t> lockState;
             std::vector<uintptr_t> driverPrimary, driverFallback;
@@ -281,7 +250,7 @@ namespace FiveM {
             }
 
             for (size_t i = 0; i < valid.size(); ++i) {
-                mem.AddScatterReadRequest(handle, valid[i] + VEHICLE_POSITION_OFFSET, &positions[i], sizeof(Vec3));
+                mem.AddScatterReadRequest(handle, valid[i] + VEHICLE_POSITION_OFFSET, &vehiclePositions[i], sizeof(Vec3));
                 if (needMatrix)
                     mem.AddScatterReadRequest(handle, valid[i] + VEHICLE_MATRIX_OFFSET, &matrices[i], sizeof(Matrix));
                 if (needLock)
@@ -331,8 +300,8 @@ namespace FiveM {
             // Populate vehicle snapshot
             int count = 0;
             for (size_t i = 0; i < valid.size() && count < MAX_VEHICLES; ++i) {
-                if (positions[i].IsZero()) continue;
-                float dist = positions[i].distance_to(localPos);
+                if (vehiclePositions[i].IsZero()) continue;
+                float dist = vehiclePositions[i].distance_to(localPos);
                 if (dist > 500.f || dist < 0.1f) continue; // Default max distance
 
                 bool occupied = occupiedVehicles.find(valid[i]) != occupiedVehicles.end();
@@ -505,6 +474,22 @@ namespace FiveM {
             s_acquireLocalPos = {};
             s_emptyFrames = 0;
             PublishAcquisitionSnapshot(0, false, 0.f);
+        }
+
+        // Initialize containers with reserved memory
+        void InitializeContainers() {
+            static bool initialized = false;
+            if (!initialized) {
+                rawPedPointers.reserve(MAX_PEDS);
+                positions.reserve(MAX_PEDS);
+                validPeds.reserve(MAX_PEDS);
+                screenPositions.reserve(MAX_PEDS);
+                s_acquireRawPeds.reserve(MAX_PEDS);
+                s_acquireValidPeds.reserve(MAX_PEDS);
+                s_acquirePositions.reserve(MAX_PEDS);
+                s_acquireEntityFrames.reserve(MAX_PEDS);
+                initialized = true;
+            }
         }
 
         void RunESP() {

@@ -35,6 +35,36 @@ struct DiagnosticCounters {
         pool_slots = occupied_slots = entity_ptrs_valid = valid_entities = 0;
         valid_model_info = valid_hashes = valid_positions = within_distance = accepted_objects = 0;
     }
+    
+    // Make movable for std::optional
+    DiagnosticCounters() = default;
+    DiagnosticCounters(const DiagnosticCounters&) = delete;
+    DiagnosticCounters& operator=(const DiagnosticCounters&) = delete;
+    DiagnosticCounters(DiagnosticCounters&& other) noexcept {
+        pool_slots.store(other.pool_slots.load());
+        occupied_slots.store(other.occupied_slots.load());
+        entity_ptrs_valid.store(other.entity_ptrs_valid.load());
+        valid_entities.store(other.valid_entities.load());
+        valid_model_info.store(other.valid_model_info.load());
+        valid_hashes.store(other.valid_hashes.load());
+        valid_positions.store(other.valid_positions.load());
+        within_distance.store(other.within_distance.load());
+        accepted_objects.store(other.accepted_objects.load());
+    }
+    DiagnosticCounters& operator=(DiagnosticCounters&& other) noexcept {
+        if (this != &other) {
+            pool_slots.store(other.pool_slots.load());
+            occupied_slots.store(other.occupied_slots.load());
+            entity_ptrs_valid.store(other.entity_ptrs_valid.load());
+            valid_entities.store(other.valid_entities.load());
+            valid_model_info.store(other.valid_model_info.load());
+            valid_hashes.store(other.valid_hashes.load());
+            valid_positions.store(other.valid_positions.load());
+            within_distance.store(other.within_distance.load());
+            accepted_objects.store(other.accepted_objects.load());
+        }
+        return *this;
+    }
 };
 
 // Helper functions for memory reading

@@ -295,6 +295,7 @@
     <ClCompile Include="src\window\pages\common\VehiclesPage.cpp"/>
     <ClCompile Include="src\window\pages\common\VisualsPage.cpp"/>
     <ClCompile Include="src\window\pages\cs2\Cs2AimPage.cpp"/>
+    <ClCompile Include="src\window\pages\cs2\Cs2GrenadeHelperPage.cpp"/>
     <ClCompile Include="src\window\pages\cs2\Cs2MiscPage.cpp"/>
     <ClCompile Include="src\window\pages\cs2\Cs2VisualsPage.cpp"/>
     <ClCompile Include="src\window\pages\cs2\Cs2RadarPage.cpp"/>
@@ -338,6 +339,9 @@
     <ClCompile Include="Fivem\object_esp\object_esp_renderer.cpp"/>
     <ClCompile Include="Cs2\aimbot\cs2_aim.cpp"/>
     <ClCompile Include="Cs2\esp\cs2_esp.cpp"/>
+    <ClCompile Include="Cs2\grenade\cs2_grenade_types.cpp"/>
+    <ClCompile Include="Cs2\grenade\cs2_grenade_predictor.cpp"/>
+    <ClCompile Include="Cs2\grenade\cs2_grenade_helper.cpp"/>
     <ClCompile Include="Cs2\cs2_game.cpp"/>
     <ClCompile Include="Cs2\radar\cs2_radar.cpp"/>
     <ClCompile Include="Cs2\config\cs2_config_io.cpp"/>

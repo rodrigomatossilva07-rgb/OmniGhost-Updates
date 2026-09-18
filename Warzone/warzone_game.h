@@ -142,5 +142,6 @@ bool LoadOffsetsFromJson(const char* path = nullptr);
 bool ReloadOffsets();
 bool InitializeMenuShell();
 const char* StatusLine();
+bool ReinitDma();
 
 } // namespace Warzone

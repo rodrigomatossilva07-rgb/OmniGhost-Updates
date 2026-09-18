@@ -321,43 +321,43 @@ bool IsBuildSupported()
 bool SupportsVisibility()
 {
     const BuildOffsets* bo = GetOffsetsForBuild(offset::buildVersion);
-    return bo && bo.supports_visibility;
+    return bo && bo->supports_visibility;
 }
 
 bool SupportsObjects()
 {
     const BuildOffsets* bo = GetOffsetsForBuild(offset::buildVersion);
-    return bo && bo.supports_objects;
+    return bo && bo->supports_objects;
 }
 
 bool SupportsWaypoint()
 {
     const BuildOffsets* bo = GetOffsetsForBuild(offset::buildVersion);
-    return bo && bo.supports_waypoint;
+    return bo && bo->supports_waypoint;
 }
 
 bool SupportsVehiclePool()
 {
     const BuildOffsets* bo = GetOffsetsForBuild(offset::buildVersion);
-    return bo && bo.supports_vehicle_pool;
+    return bo && bo->supports_vehicle_pool;
 }
 
 bool SupportsNames()
 {
     const BuildOffsets* bo = GetOffsetsForBuild(offset::buildVersion);
-    return bo && bo.supports_names;
+    return bo && bo->supports_names;
 }
 
 bool SupportsPickups()
 {
     const BuildOffsets* bo = GetOffsetsForBuild(offset::buildVersion);
-    return bo && bo.supports_pickups;
+    return bo && bo->supports_pickups;
 }
 
 bool SupportsAimAssist()
 {
     const BuildOffsets* bo = GetOffsetsForBuild(offset::buildVersion);
-    return bo && bo.supports_aim_assist;
+    return bo && bo->supports_aim_assist;
 }
 
 bool SoftProbeLobbyOffsets() {

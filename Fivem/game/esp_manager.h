@@ -10,6 +10,12 @@ namespace FiveM {
         // Constants
         const int MAX_PEDS = 110;
 
+        // Global containers (kept for backward compatibility with render consumers)
+        extern std::vector<uintptr_t> rawPedPointers;
+        extern std::vector<Vec3> positions;
+        extern std::vector<uintptr_t> validPeds;
+        extern std::vector<Vec2> screenPositions;
+
         // Per-entity data frame — fully populated on acquisition thread,
         // immutable once published via SnapshotExchange.
         struct EntityFrame {
@@ -47,7 +53,7 @@ namespace FiveM {
             float acquireMs = 0.f;
         };
 
-        // Vehicle snapshot for acquisition lane
+        // Vehicle snapshot for acquisition lane (namespace level)
         struct VehicleSnapshot {
             struct VehicleData {
                 uintptr_t address = 0;
@@ -105,6 +111,6 @@ namespace FiveM {
 
         // Snapshot access for render
         const AcquisitionSnapshot* AcquireSnapshot();
-        const AcquisitionSnapshot::VehicleSnapshot* AcquireVehicleSnapshot();
+        const VehicleSnapshot* AcquireVehicleSnapshot();
     }
 }

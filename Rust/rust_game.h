@@ -97,6 +97,7 @@ void RunFrame();
 bool IsAlive();
 bool ValidateOffsets();
 const char* StatusText();
+bool ReinitDma();
 
 // Entity snapshot for ESP/UI
 std::vector<Player> SnapshotPlayers();

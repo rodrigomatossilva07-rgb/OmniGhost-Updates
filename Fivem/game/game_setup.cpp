@@ -3,6 +3,7 @@
 #include "../../DMALibrary/Memory/Memory.h"
 #include "globals.h"
 #include "../playerInfo/PedData.h"
+#include "esp_manager.h"
 #include <cmath>
 #include <iostream>
 

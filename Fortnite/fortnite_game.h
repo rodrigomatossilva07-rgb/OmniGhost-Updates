@@ -185,5 +185,6 @@ bool IsGameProcessAlive();
 bool ValidateLiveOffsets();
 const char* StatusText();
 void FlushDiagnosticsToLog();
+bool ReinitDma();
 
 } // namespace Fortnite

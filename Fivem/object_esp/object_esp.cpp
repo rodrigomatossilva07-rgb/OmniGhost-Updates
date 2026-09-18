@@ -582,7 +582,7 @@ void ObjectESPManager::PerformScanSinglePass() {
 
         // Stage 3: Read position
         Vec3 pos{};
-        if (!ReadVec3Safe(ent + playerPosition, pos) || !LooksFinite(pos))
+        if (!ReadVec3Safe(ent + FiveM::offset::playerPosition, pos) || !LooksFinite(pos))
             continue;
 
         float dist2 = 0.f;
@@ -608,18 +608,18 @@ void ObjectESPManager::PerformScanSinglePass() {
 
         const float dist = progress.local_position.IsZero() ? 0.f : std::sqrt(dist2);
         auto& acc = progress.by_hash[hash];
-        if (acc.result.hash == 0) {
-            acc.result.hash = hash;
-            acc.result.model = std::format("0x{:08X}", hash);
-            acc.result.category = ObjectCategory::Other;
-            acc.result.is_custom = (hash > 0x10000000u);
+        if (acc.hash == 0) {
+            acc.hash = hash;
+            acc.model = std::format("0x{:08X}", hash);
+            acc.category = ObjectCategory::Other;
+            acc.is_custom = (hash > 0x10000000u);
         }
-        acc.result.count++;
-        if (acc.result.sample_positions.size() < 8)
-            acc.result.sample_positions.push_back(pos);
-        if (acc.result.count == 1 || dist < acc.result.nearest_distance)
-            acc.result.nearest_distance = dist;
-        acc.result.entity_address = ent;
+        acc.count++;
+        if (acc.sample_positions.size() < 8)
+            acc.sample_positions.push_back(pos);
+        if (acc.count == 1 || dist < acc.nearest_distance)
+            acc.nearest_distance = dist;
+        acc.entity_address = ent;
     }
 
     // Check if scan is complete
@@ -628,7 +628,7 @@ void ObjectESPManager::PerformScanSinglePass() {
         scan_results_.clear();
         scan_results_.reserve(progress.by_hash.size());
         for (auto& kv : progress.by_hash)
-            scan_results_.push_back(std::move(kv.second.result));
+            scan_results_.push_back(std::move(kv.second));
 
         std::sort(scan_results_.begin(), scan_results_.end(),
             [](const ScanResult& a, const ScanResult& b) { return a.count > b.count; });
@@ -721,7 +721,6 @@ void ObjectESPManager::ApplyFrustumCulling() {
         bool keep = onScreen;
         if (!keep) {
             // Check if object is near screen bounds (for smooth LOD)
-            float distToScreen = FLT_MAX;
             if (screenPos.x < -margin || screenPos.x > s_displayWidth + margin ||
                 screenPos.y < -margin || screenPos.y > s_displayHeight + margin) {
                 keep = false;

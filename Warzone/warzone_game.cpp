@@ -423,6 +423,13 @@ bool Attach() {
     return true;
 }
 
+bool ReinitDma() {
+    std::cout << "[Warzone] Reinit DMA" << std::endl;
+    Shutdown();
+    status = "Warzone: Reinit DMA...";
+    return Attach();
+}
+
 bool InitializeMenuShell() {
     // Prefer real attach when called from launcher
     return Attach();

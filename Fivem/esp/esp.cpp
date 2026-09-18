@@ -245,7 +245,7 @@ static const esp::BatchSkeletonData* FindPreparedSkeleton(uintptr_t ped) {
     return data.valid ? &data : nullptr;
 }
 
-static Vec3 PreparedBonePosition(const esp::BatchSkeletonData* data, int index) {
+[[maybe_unused]] static Vec3 PreparedBonePosition(const esp::BatchSkeletonData* data, int index) {
     if (!data || index < 0 || index >= static_cast<int>(data->bone_offsets.size()))
         return {};
     if ((data->bone_mask & (uint16_t(1u) << static_cast<unsigned>(index))) == 0)
@@ -266,46 +266,6 @@ static const PreparedEspData* FindPreparedEsp(uintptr_t ped) {
         return nullptr;
     const auto& data = g_prepared_esp[it->second];
     return data.valid ? &data : nullptr;
-}
-
-bool esp::try_get_prepared_bone_position(uintptr_t ped, int bone_index, Vec3& out) {
-    out = PreparedBonePosition(FindPreparedSkeleton(ped), bone_index);
-    return !out.IsZero();
-}
-
-bool esp::try_get_prepared_origin(uintptr_t ped, Vec3& out) {
-    const BatchSkeletonData* skeleton = FindPreparedSkeleton(ped);
-    if (skeleton && !skeleton->origin.IsZero()) {
-        out = skeleton->origin;
-        return true;
-    }
-    const PreparedEspData* data = FindPreparedEsp(ped);
-    if (data && !data->origin.IsZero()) {
-        out = data->origin;
-        return true;
-    }
-    out = {};
-    return false;
-}
-
-bool esp::try_get_prepared_health(uintptr_t ped, float& out) {
-    const PreparedEspData* data = FindPreparedEsp(ped);
-    if (!data) {
-        out = 0.0f;
-        return false;
-    }
-    out = data->health;
-    return data->health > 0.0f && data->health < 1000.0f;
-}
-
-bool esp::try_get_prepared_vehicle(uintptr_t ped, uintptr_t& out) {
-    const PreparedEspData* data = FindPreparedEsp(ped);
-    if (!data) {
-        out = 0;
-        return false;
-    }
-    out = data->vehicle;
-    return true;
 }
 
 // Snapshot-based helpers (render thread only - zero DMA)
@@ -1574,6 +1534,42 @@ void esp::prepare_esp_frame(const std::vector<uintptr_t>& peds,
     for (const auto& data : g_prepared_esp)
         if (data.ped) s_stickyPrep[data.ped] = data;
 }
+
+namespace esp {
+
+// Compute the required bone mask for the current feature set.
+// Single source of truth for bone requirements — used exclusively on producer.
+uint16_t RequiredBoneMask() {
+    uint16_t mask = 0;
+    if (config.skeleton) {
+        mask |= 0x01FFu; // all 9 bones for full skeleton
+    } else {
+        if (config.enabled && (config.head_circle ||
+            config.head_halo || config.look_direction || config.chinese_hat ||
+            config.angel_wings || config.devil_horns || config.floating_crown))
+            mask |= uint16_t(1u << 0); // head
+        if (config.enabled && (config.box_2d || config.corner_box ||
+            config.snaplines || config.health_bar || config.armor_bar)) {
+            mask |= uint16_t((1u << 0) | (1u << 1) | (1u << 2)); // head, neck, spine
+        }
+    }
+    auto addAimBones = [&](aimbot::Hitbox hitbox) {
+        switch (hitbox) {
+        case aimbot::Hitbox::Head:   mask |= uint16_t(1u << 0); break;
+        case aimbot::Hitbox::Neck:   mask |= uint16_t(1u << 7); break;
+        case aimbot::Hitbox::Torso:  mask |= uint16_t((1u << 7) | (1u << 8)); break;
+        case aimbot::Hitbox::Pelvis: mask |= uint16_t(1u << 8); break;
+        case aimbot::Hitbox::Legs:   mask |= uint16_t((1u << 1) | (1u << 2) | (1u << 8)); break;
+        }
+    };
+    if (aimbot::config.aimbot_enabled)
+        addAimBones(aimbot::config.hitbox);
+    if (aimbot::config.trigger_enabled)
+        addAimBones(aimbot::config.trigger_head_only ? aimbot::Hitbox::Head : aimbot::config.hitbox);
+    return mask;
+}
+
+} // namespace esp
 
 void esp::prepare_entity_frames(const std::vector<uintptr_t>& peds, const std::vector<Vec3>& origins,
                                 std::vector<FiveM::ESP::EntityFrame>& out_frames) {

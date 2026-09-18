@@ -319,6 +319,8 @@ namespace vehicle_esp {
         bool ignore_occupied = false;
         bool lock_status = true;
         bool show_speed = false;
+        bool show_gear = false;
+        bool show_engine = false;
 
         float max_distance = 200.0f;
 
@@ -330,6 +332,8 @@ namespace vehicle_esp {
         ImU32 color_locked = IM_COL32(255, 50, 50, 255);
         ImU32 color_occupants = IM_COL32(100, 200, 255, 255);
         ImU32 color_name = IM_COL32(255, 255, 255, 255);
+        ImU32 color_gear = IM_COL32(255, 220, 120, 220);
+        ImU32 color_engine = IM_COL32(180, 255, 180, 220);
 
         bool rgb_mode = false;
         int snapline_pos = 0;

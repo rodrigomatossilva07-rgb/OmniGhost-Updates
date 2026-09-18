@@ -110,6 +110,9 @@ public:
     virtual bool Rebind() { return Attach(); }
 };
 
+// Forward declaration for adapter registry
+IGameAdapter* FindGameAdapter(::Launcher::GameId game) noexcept;
+
 // Multi-game session manager - tracks multiple attached games and handles switching
 class GameSessionManager {
 public:

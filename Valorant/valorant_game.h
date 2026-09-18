@@ -120,5 +120,6 @@ void Tick(); // refresh players + camera
 bool LoadOffsetsJson(const char* path);
 bool SaveOffsetsJson(const char* path);
 const char* StatusText();
+bool ReinitDma();
 
 } // namespace Valorant

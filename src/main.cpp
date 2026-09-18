@@ -765,7 +765,7 @@ while (application.shouldRun && !authenticated) {
     });
 
 
-    int process_miss_frames = 0;
+int process_miss_frames = 0;
     // DMA name lookups can fail transiently while FiveM changes process state or
     // the hardware session is being refreshed.  A single missed lookup must not
     // be interpreted as the game closing.
@@ -776,20 +776,21 @@ while (application.shouldRun && !authenticated) {
     ULONGLONG next_offset_probe = GetTickCount64() + 5000;
     bool return_to_launcher = false;
     bool return_requested_by_user = false;
+
     while (application.shouldRun && !return_to_launcher) {
         application.StartRender();
         if (!application.shouldRun)
             break;
 
-// Game session update and process monitoring
-    OmniGhost::Launcher::GameSessionManager::Instance().TickActive();
-    
-    // Process alive checking and session management
-    ::Launcher::GameId activeGame = OmniGhost::Launcher::GameSessionManager::Instance().GetActiveGame();
-    bool shouldReturnToLauncher = false;
-    std::string terminationReason;
-    
-    switch (static_cast<ActiveGame>(activeGame)) {
+        // Game session update and process monitoring
+        OmniGhost::Launcher::GameSessionManager::Instance().TickActive();
+        
+        // Process alive checking and session management
+        ::Launcher::GameId activeGame = OmniGhost::Launcher::GameSessionManager::Instance().GetActiveGame();
+        bool shouldReturnToLauncher = false;
+        std::string terminationReason;
+        
+        switch (activeGame) {
             case ::Launcher::GameId::CS2: {
                 static uint64_t last_alive_check = 0;
                 const auto cs2_snapshot = CS2::AcquireRuntimeSnapshot();
@@ -861,45 +862,46 @@ while (application.shouldRun && !authenticated) {
                 const ULONGLONG now = GetTickCount64();
                 if (now >= fivem_next_alive_check) {
                     fivem_next_alive_check = now + 1000;
-                        DWORD pid = 0;
-                        if (!g_validExecutable.empty())
-                            pid = mem.GetPidFromName(g_validExecutable);
-                        if (!pid)
-                            pid = mem.GetPidFromName("GTAProcess.exe");
-                        // Also try common FiveM names if specific exe gone
-                        if (!pid) {
-                            const char* alts[] = {
-                                "FiveM_GTAProcess.exe", "FiveM_b3258_GTAProcess.exe",
-                                "FiveM_b3407_GTAProcess.exe", "FiveM_b3570_GTAProcess.exe", nullptr
-                            };
-                            for (int i = 0; alts[i]; ++i) {
-                                pid = mem.GetPidFromName(alts[i]);
-                                if (pid) break;
-                            }
+                    DWORD pid = 0;
+                    if (!g_validExecutable.empty())
+                        pid = mem.GetPidFromName(g_validExecutable);
+                    if (!pid)
+                        pid = mem.GetPidFromName("GTAProcess.exe");
+                    // Also try common FiveM names if specific exe gone
+                    if (!pid) {
+                        const char* alts[] = {
+                            "FiveM_GTAProcess.exe", "FiveM_b3258_GTAProcess.exe",
+                            "FiveM_b3407_GTAProcess.exe", "FiveM_b3570_GTAProcess.exe", nullptr
+                        };
+                        for (int i = 0; alts[i]; ++i) {
+                            pid = mem.GetPidFromName(alts[i]);
+                            if (pid) break;
                         }
-                        const bool localProcessAlive = IsLocalFiveMProcessRunning();
-                        if (pid || localProcessAlive) {
-                            fivem_presence_confirmed = true;
-                            fivem_missing_since = 0;
-                            process_miss_frames = 0;
-                        } else if (fivem_presence_confirmed) {
-                            if (fivem_missing_since == 0) {
-                                fivem_missing_since = now;
-                                std::cout << "[FiveM] DMA e processo local não confirmaram FiveM; a confirmar antes de encerrar a sessão." << std::endl;
-                            }
-                            // Keep the session alive through VMM/FPGA refreshes. A return is
-                            // permitted only after a continuous, independently confirmed miss.
-                            if (now - fivem_missing_since >= 20000) {
-                                shouldReturnToLauncher = true;
-                                terminationReason = "Processo FiveM/GTA terminou";
-                            }
-                        } else {
-                            // The adapter attached successfully, but this machine may be the
-                            // controller rather than the game PC. Never infer an exit merely
-                            // because neither local Toolhelp nor a transient DMA lookup has
-                            // observed the remote executable yet.
-                            fivem_missing_since = 0;
+                    }
+                    
+                    const bool localProcessAlive = IsLocalFiveMProcessRunning();
+                    if (pid || localProcessAlive) {
+                        fivem_presence_confirmed = true;
+                        fivem_missing_since = 0;
+                        process_miss_frames = 0;
+                    } else if (fivem_presence_confirmed) {
+                        if (fivem_missing_since == 0) {
+                            fivem_missing_since = now;
+                            std::cout << "[FiveM] DMA e processo local não confirmaram FiveM; a confirmar antes de encerrar a sessão." << std::endl;
                         }
+                        // Keep the session alive through VMM/FPGA refreshes. A return is
+                        // permitted only after a continuous, independently confirmed miss.
+                        if (now - fivem_missing_since >= 20000) {
+                            shouldReturnToLauncher = true;
+                            terminationReason = "Processo FiveM/GTA terminou";
+                        }
+                    } else {
+                        // The adapter attached successfully, but this machine may be the
+                        // controller rather than the game PC. Never infer an exit merely
+                        // because neither local Toolhelp nor a transient DMA lookup has
+                        // observed the remote executable yet.
+                        fivem_missing_since = 0;
+                    }
                 }
                 break;
             }
@@ -917,8 +919,7 @@ while (application.shouldRun && !authenticated) {
             OmniGhost::Launcher::GameSessionManager::Instance().EndSession(activeGame);
             return_to_launcher = true;
         }
-    }
-
+        
         // A recent API timestamp alone cannot prove compatibility. While a
         // session is active, probe real pointers periodically and quarantine
         // the adapter only after repeated failures (transient reads are ignored).
@@ -943,7 +944,7 @@ while (application.shouldRun && !authenticated) {
                 }
             }
         }
-
+        
         application.Render();
         application.EndRender();
         if (application.ConsumeReturnToLauncherRequest()) {
@@ -954,29 +955,28 @@ while (application.shouldRun && !authenticated) {
         if (update_service.ShouldExitForUpdate())
             application.shouldRun = false;
     }
-
-
-        // Exactly one owner tears the active adapter down. Late process-loss,
-        // menu-exit and application-exit observations cannot double-close it.
-        if (application.shouldRun && return_to_launcher) {
-            OmniGhost::UI::EndGameSessionWithTransition(application, shutdownCoordinator,
-                shutdownGeneration, return_requested_by_user);
-        } else {
-            (void)shutdownCoordinator.EndSession(shutdownGeneration, "application-exit");
-        }
-
-        if (application.shouldRun) {
-            (void)startupState.Transition(OmniGhost::Startup::State::Running,
-                                         OmniGhost::Startup::State::Ready);
-        }
-
-        if (!application.shouldRun) {
-            Launcher::RecordGameSession(
-                selected, Launcher::SessionResult::Completed,
-                "Sessão encerrada pelo utilizador.");
-            break; // user quit
-        }
-        if (return_to_launcher) {
+    
+    // Exactly one owner tears the active adapter down. Late process-loss,
+    // menu-exit and application-exit observations cannot double-close it.
+    if (application.shouldRun && return_to_launcher) {
+        OmniGhost::UI::EndGameSessionWithTransition(application, shutdownCoordinator,
+            shutdownGeneration, return_requested_by_user);
+    } else {
+        (void)shutdownCoordinator.EndSession(shutdownGeneration, "application-exit");
+    }
+    
+    if (application.shouldRun) {
+        (void)startupState.Transition(OmniGhost::Startup::State::Running,
+                                      OmniGhost::Startup::State::Ready);
+    }
+    
+    if (!application.shouldRun) {
+        Launcher::RecordGameSession(
+            selected, Launcher::SessionResult::Completed,
+            "Sessão encerrada pelo utilizador.");
+        break; // user quit
+    }
+    if (return_to_launcher) {
             Launcher::RecordGameSession(
                 selected,
                 return_requested_by_user

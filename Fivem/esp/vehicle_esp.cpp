@@ -35,12 +35,12 @@ namespace vehicle_esp {
         return IM_COL32(r, g, b, 255);
     }
 
-    static bool IsValidPtr(uintptr_t p) {
+[[maybe_unused]] static bool IsValidPtr(uintptr_t p) {
         return p > 0x10000ULL && p < 0x7FFFFFFFFFFFULL;
     }
-
+    
     // eCarLockState values used by GTA V
-    static bool IsLockedState(uint32_t state) {
+    [[maybe_unused]] static bool IsLockedState(uint32_t state) {
         // GTA uses 0/1 for none/unlocked.  The remaining native enum values
         // (2..10) all restrict entry in some form.
         return state >= 2 && state <= 10;
@@ -97,75 +97,9 @@ namespace vehicle_esp {
                 g_matrices[vd.address] = vd.matrix;
             }
         }
-    }
-        for (size_t i = 0; i < valid.size(); ++i) {
-            mem.AddScatterReadRequest(handle, valid[i] + VEHICLE_POSITION_OFFSET, &positions[i], sizeof(Vec3));
-            if (needMatrix)
-                mem.AddScatterReadRequest(handle, valid[i] + VEHICLE_MATRIX_OFFSET, &matrices[i], sizeof(Matrix));
-            if (needLock)
-                mem.AddScatterReadRequest(handle, valid[i] + offset::vehicleLock,
-                                          &lockState[i], sizeof(uint32_t));
-            if (needOccupied) {
-                const uintptr_t buildDriver = offset::buildVersion >= 3751 ? 0xCA8 : offset::vehicleDriver;
-                mem.AddScatterReadRequest(handle, valid[i] + buildDriver,
-                                          &driverPrimary[i], sizeof(uintptr_t));
-                if (buildDriver != offset::vehicleDriver)
-                    mem.AddScatterReadRequest(handle, valid[i] + offset::vehicleDriver,
-                                              &driverFallback[i], sizeof(uintptr_t));
-            }
-        }
-        mem.ExecuteReadScatter(handle);
+}
 
-        // Only walk ped->vehicle when occupied filtering/labels are needed.
-        std::vector<uintptr_t> pedVehicles;
-        if (needOccupied && !FiveM::ESP::validPeds.empty()) {
-            pedVehicles.assign(FiveM::ESP::validPeds.size(), 0);
-            for (size_t i = 0; i < FiveM::ESP::validPeds.size(); ++i)
-                mem.AddScatterReadRequest(handle, FiveM::ESP::validPeds[i] + offset::pedVehicle,
-                                          &pedVehicles[i], sizeof(uintptr_t));
-            mem.ExecuteReadScatter(handle);
-        }
-        mem.CloseScatterHandle(handle);
-
-        std::unordered_set<uintptr_t> occupiedVehicles;
-        occupiedVehicles.reserve(pedVehicles.size() * 2 + valid.size());
-        for (uintptr_t vehicle : pedVehicles)
-            if (IsValidPtr(vehicle)) occupiedVehicles.insert(vehicle);
-        for (size_t i = 0; i < valid.size(); ++i) {
-            uintptr_t driver = IsValidPtr(driverPrimary[i]) ? driverPrimary[i] : driverFallback[i];
-            if (IsValidPtr(driver)) occupiedVehicles.insert(valid[i]);
-        }
-
-        for (size_t i = 0; i < valid.size(); ++i) {
-            if (positions[i].IsZero())
-                continue;
-
-            float dist = positions[i].distance_to(localPos);
-            if (dist > config.max_distance || dist < 0.1f)
-                continue;
-
-            bool occupied = occupiedVehicles.find(valid[i]) != occupiedVehicles.end();
-
-            if (config.ignore_occupied && occupied)
-                continue;
-
-            const bool lockKnown = lockState[i] <= 10u;
-            bool locked = lockKnown && IsLockedState(lockState[i]);
-
-            VehicleData vd;
-            vd.address = valid[i];
-            vd.position = positions[i];
-            vd.distance = dist;
-            vd.locked = locked;
-            vd.lock_state_known = lockKnown;
-            vd.occupied = occupied;
-            vd.valid = true;
-            vehicles.push_back(vd);
-            g_matrices[valid[i]] = matrices[i];
-        }
-    }
-
-    // Project a world point; returns false if behind camera / off-screen enough
+// Project a world point; returns false if behind camera / off-screen enough
     static bool Project(const Vec3& world, const Matrix& view, Vec2& out) {
         return world.world_to_screen(const_cast<Matrix&>(view), out);
     }
@@ -369,9 +303,21 @@ namespace vehicle_esp {
             }
 
             // Gear / engine: use cached data from acquisition (no DMA in render)
-            if (config.show_gear || config.show_engine) {
-                // Data should come from vehicle snapshot populated by acquisition thread
-                // For now, skip if not available (no DMA fallback)
+            if (config.show_gear) {
+                char buf[32];
+                snprintf(buf, sizeof(buf), "G%d", v.gear);
+                ImVec2 ts = ImGui::CalcTextSize(buf);
+                dl->AddText(ImVec2(screenPos.x - ts.x * 0.5f, textY),
+                    config.color_gear, buf);
+                textY += ts.y + 2.f;
+            }
+            if (config.show_engine) {
+                char buf[32];
+                snprintf(buf, sizeof(buf), "Motor %.0f", v.engine_hp);
+                ImVec2 ts = ImGui::CalcTextSize(buf);
+                ImU32 col = v.engine_hp < 300.f ? IM_COL32(255, 80, 80, 220) : IM_COL32(180, 255, 180, 220);
+                dl->AddText(ImVec2(screenPos.x - ts.x * 0.5f, textY), col, buf);
+                textY += ts.y + 2.f;
             }
         }
     }
