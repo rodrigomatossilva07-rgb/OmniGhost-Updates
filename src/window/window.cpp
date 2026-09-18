@@ -34,6 +34,7 @@
 #ifdef UI_PREVIEW
 #include "preview/preview_runtime.h"
 #endif
+#include "../launcher/game_adapter.h"
 
 namespace {
 

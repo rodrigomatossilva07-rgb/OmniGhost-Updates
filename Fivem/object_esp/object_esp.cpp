@@ -156,12 +156,12 @@ void ObjectESPManager::Update() {
         auto start_time = std::chrono::high_resolution_clock::now();
 
         if (initialized_ && scanner_state_.scanning) {
-            OBJESP_LOG_DEBUG("Starting PerformScan");
+            OBJESP_LOG_DEBUG("Starting PerformScanIncremental");
             const auto scan_start = std::chrono::high_resolution_clock::now();
-            PerformScan();
+            PerformScanIncremental();
             const auto scan_end = std::chrono::high_resolution_clock::now();
             stats_.last_scan_time_ms = std::chrono::duration<float, std::milli>(scan_end - scan_start).count();
-            OBJESP_LOG_DEBUG("PerformScan completed in %.2f ms", stats_.last_scan_time_ms);
+            OBJESP_LOG_DEBUG("PerformScanIncremental completed in %.2f ms", stats_.last_scan_time_ms);
         }
         
         if (!config_.enabled) {
@@ -430,136 +430,172 @@ bool ObjectESPManager::HasValidatedDiscoverySource() const noexcept {
 }
 
 void ObjectESPManager::PerformScan() {
-    OBJESP_LOG_DEBUG("PerformScan started");
+    OBJESP_LOG_DEBUG("PerformScan started (incremental)");
+    // Start incremental scan
+    PerformScanIncremental();
+}
+
+void ObjectESPManager::PerformScanIncremental() {
+    OBJESP_LOG_DEBUG("PerformScanIncremental started");
     try {
-    using namespace FiveM::offset;
-    std::lock_guard<std::mutex> lock(data_mutex_);
-    scan_results_.clear();
-    scanner_state_.total_entities_scanned = 0;
-    scanner_state_.unique_models_found = 0;
-    scanner_state_.total_objects_found = 0;
-    scanner_state_.scan_progress = 0.05f;
+        using namespace FiveM::offset;
+        std::lock_guard<std::mutex> lock(data_mutex_);
 
-    if (!HasValidatedDiscoverySource()) {
-        OBJESP_LOG_WARN("No validated discovery source");
-        scanner_state_.scanning = false;
-        scanner_state_.scan_complete = true;
-        scanner_state_.status_message = "Object pool unavailable";
-        scanner_state_.scan_progress = 1.0f;
-        LogCrashContext("PerformScan - no validated discovery source");
-        return;
-    }
+        // Initialize scan progress if first frame
+        if (!scan_progress_.has_value()) {
+            if (!HasValidatedDiscoverySource()) {
+                OBJESP_LOG_WARN("No validated discovery source");
+                scanner_state_.scanning = false;
+                scanner_state_.scan_complete = true;
+                scanner_state_.status_message = "Object pool unavailable";
+                scanner_state_.scan_progress = 1.0f;
+                LogCrashContext("PerformScanIncremental - no validated discovery source");
+                return;
+            }
 
-    Vec3 localPos{};
-    if (localplayer)
-        ReadVec3Safe(localplayer + playerPosition, localPos);
-    OBJESP_LOG_DEBUG("Local player position: %.2f, %.2f, %.2f", localPos.x, localPos.y, localPos.z);
+            Vec3 localPos{};
+            if (localplayer)
+                ReadVec3Safe(localplayer + playerPosition, localPos);
 
-    // Resolve pool: object_pool may be a pointer-to-pool or the pool base itself.
-    uintptr_t pool = 0;
-    if (!ReadU64Safe(object_pool, pool))
-        pool = object_pool;
-    OBJESP_LOG_DEBUG("Object pool: 0x%llX (resolved from 0x%llX)", (unsigned long long)pool, (unsigned long long)object_pool);
+            // Resolve pool
+            uintptr_t pool = 0;
+            if (!ReadU64Safe(object_pool, pool))
+                pool = object_pool;
 
-    uintptr_t items = 0;
-    uintptr_t flags = 0;
-    uint32_t size = 0;
-    uint32_t itemSize = 0;
+            uintptr_t items = 0;
+            uintptr_t flags = 0;
+            uint32_t size = 0;
+            uint32_t itemSize = 0;
 
-    // rage::fwBasePool layout (common external FiveM)
-    ReadU64Safe(pool + 0x0, items);
-    ReadU64Safe(pool + 0x8, flags);
-    mem.Read(pool + 0x10, &size, sizeof(size));
-    mem.Read(pool + 0x14, &itemSize, sizeof(itemSize));
-    OBJESP_LOG_DEBUG("Pool layout: items=0x%llX, flags=0x%llX, size=%u, itemSize=%u", 
-        (unsigned long long)items, (unsigned long long)flags, size, itemSize);
+            ReadU64Safe(pool + 0x0, items);
+            ReadU64Safe(pool + 0x8, flags);
+            mem.Read(pool + 0x10, &size, sizeof(size));
+            mem.Read(pool + 0x14, &itemSize, sizeof(itemSize));
 
-    // Fallback: some builds store pool pointer one indirection deeper
-    if ((!items || !size || size > 300000 || itemSize == 0 || itemSize > 0x4000) && pool) {
-        OBJESP_LOG_DEBUG("Trying fallback pool resolution");
-        uintptr_t pool2 = 0;
-        if (ReadU64Safe(pool, pool2)) {
-            ReadU64Safe(pool2 + 0x0, items);
-            ReadU64Safe(pool2 + 0x8, flags);
-            mem.Read(pool2 + 0x10, &size, sizeof(size));
-            mem.Read(pool2 + 0x14, &itemSize, sizeof(itemSize));
-            pool = pool2;
-            OBJESP_LOG_DEBUG("Fallback pool: items=0x%llX, size=%u, itemSize=%u", 
-                (unsigned long long)items, size, itemSize);
+            // Fallback pool resolution
+            if ((!items || !size || size > 300000 || itemSize == 0 || itemSize > 0x4000) && pool) {
+                uintptr_t pool2 = 0;
+                if (ReadU64Safe(pool, pool2)) {
+                    ReadU64Safe(pool2 + 0x0, items);
+                    ReadU64Safe(pool2 + 0x8, flags);
+                    mem.Read(pool2 + 0x10, &size, sizeof(size));
+                    mem.Read(pool2 + 0x14, &itemSize, sizeof(itemSize));
+                    pool = pool2;
+                }
+            }
+
+            if (!items || size == 0 || size > 300000) {
+                OBJESP_LOG_ERROR("Pool unreadable");
+                scanner_state_.scanning = false;
+                scanner_state_.scan_complete = true;
+                scanner_state_.status_message = "Object pool layout not readable";
+                scanner_state_.error_message = scanner_state_.status_message;
+                scanner_state_.scan_progress = 1.0f;
+                LogCrashContext("PerformScanIncremental - pool unreadable");
+                return;
+            }
+            if (itemSize == 0 || itemSize > 0x4000)
+                itemSize = 0x10;
+
+            const float maxR = config_.scan_radius > 1.f ? config_.scan_radius : 500.f;
+            const float maxR2 = maxR * maxR;
+
+            ScanProgress progress;
+            progress.current_index = 0;
+            progress.total_slots = size;
+            progress.pool_address = pool;
+            progress.items_address = items;
+            progress.flags_address = flags;
+            progress.pool_size = size;
+            progress.item_size = itemSize;
+            progress.local_position = localPos;
+            progress.max_radius_sq = maxR2;
+            progress.by_hash.reserve(256);
+            progress.pool_validated = true;
+
+            scan_progress_ = std::move(progress);
+            scan_results_.clear();
+            scanner_state_.total_entities_scanned = 0;
+            scanner_state_.unique_models_found = 0;
+            scanner_state_.total_objects_found = 0;
+            scanner_state_.scan_progress = 0.05f;
+            scanner_state_.scanning = true;
+            scanner_state_.scan_complete = false;
+            scanner_state_.status_message = "Scanning objects incrementally...";
         }
-    }
 
-    if (!items || size == 0 || size > 300000) {
-        OBJESP_LOG_ERROR("Pool unreadable: pool=0x%llX items=0x%llX size=%u", 
-            (unsigned long long)pool, (unsigned long long)items, size);
+        // Perform a single pass of the incremental scan
+        PerformScanSinglePass();
+
+    } catch (const std::exception& ex) {
+        OBJESP_LOG_ERROR("PerformScanIncremental exception: %s", ex.what());
         scanner_state_.scanning = false;
         scanner_state_.scan_complete = true;
-        scanner_state_.status_message = "Object pool layout not readable";
-        scanner_state_.error_message = scanner_state_.status_message;
-        scanner_state_.scan_progress = 1.0f;
-        LogCrashContext("PerformScan - pool unreadable");
-        return;
+        scanner_state_.status_message = "Scan failed";
+        scanner_state_.error_message = ex.what();
+    } catch (...) {
+        OBJESP_LOG_ERROR("PerformScanIncremental unknown exception");
+        scanner_state_.scanning = false;
+        scanner_state_.scan_complete = true;
+        scanner_state_.status_message = "Scan failed";
+        scanner_state_.error_message = "unknown";
     }
-    if (itemSize == 0 || itemSize > 0x4000)
-        itemSize = 0x10; // treat as pointer table
+}
 
-    const float maxR = config_.scan_radius > 1.f ? config_.scan_radius : 500.f;
-    const float maxR2 = maxR * maxR;
-    OBJESP_LOG_DEBUG("Scan radius: %.1fm (maxR2=%.1f)", maxR, maxR2);
+void ObjectESPManager::PerformScanSinglePass() {
+    if (!scan_progress_.has_value()) return;
 
-    struct Acc {
-        ScanResult result;
-    };
-    std::unordered_map<uint32_t, Acc> byHash;
-    byHash.reserve(256);
+    auto& progress = *scan_progress_;
+    const uint32_t slotsPerPass = 256; // Process 256 slots per acquisition frame
+    const auto scanDeadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(8);
 
-    const uint32_t maxIter = (std::min)(size, 4000u); // budgeted — avoid 20k sync slots
-    // Time-budgeted scan: process up to maxIter but yield after ~10ms of work.
-    const auto scanDeadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(10);
-    uint32_t valid_entities = 0;
-    for (uint32_t i = 0; i < maxIter; ++i) {
-        if ((i & 0x3F) == 0 && i > 0 && std::chrono::steady_clock::now() >= scanDeadline) {
-            OBJESP_LOG_DEBUG("Scan time budget exceeded at iteration %u/%u", i, maxIter);
+    for (uint32_t processed = 0; processed < slotsPerPass && progress.current_index < progress.total_slots; ++processed, ++progress.current_index) {
+        if (std::chrono::steady_clock::now() >= scanDeadline) {
             break;
         }
-        if ((i & 0xFF) == 0)
-            scanner_state_.scan_progress = 0.05f + 0.9f * (float)i / (float)maxIter;
 
-        if (flags) {
+        const uint32_t i = progress.current_index;
+
+        // Update progress
+        if ((i & 0xFF) == 0)
+            scanner_state_.scan_progress = 0.05f + 0.9f * (float)i / (float)progress.total_slots;
+
+        // Stage 1: Check flags (free slot)
+        if (progress.flags_address) {
             uint8_t bit = 0;
-            if (mem.Read(flags + i, &bit, 1) && (bit & 0x80))
+            if (mem.Read(progress.flags_address + i, &bit, 1) && (bit & 0x80))
                 continue; // free slot
         }
 
+        // Stage 2: Read entity pointer
         uintptr_t ent = 0;
-        // Pointer table vs inline entities
-        if (itemSize <= 0x20) {
-            if (!ReadU64Safe(items + (uintptr_t)i * itemSize, ent))
+        if (progress.item_size <= 0x20) {
+            if (!ReadU64Safe(progress.items_address + (uintptr_t)i * progress.item_size, ent))
                 continue;
         } else {
-            ent = items + (uintptr_t)i * itemSize;
+            ent = progress.items_address + (uintptr_t)i * progress.item_size;
         }
         if (!ent || ent < 0x10000ULL)
             continue;
 
         ++scanner_state_.total_entities_scanned;
 
-        // Position: CEntity/CPhysical +0x90 (FiveM ped/object convention in this project)
+        // Stage 3: Read position
         Vec3 pos{};
         if (!ReadVec3Safe(ent + playerPosition, pos) || !LooksFinite(pos))
             continue;
 
         float dist2 = 0.f;
-        if (!localPos.IsZero()) {
-            const float dx = pos.x - localPos.x;
-            const float dy = pos.y - localPos.y;
-            const float dz = pos.z - localPos.z;
+        if (!progress.local_position.IsZero()) {
+            const float dx = pos.x - progress.local_position.x;
+            const float dy = pos.y - progress.local_position.y;
+            const float dz = pos.z - progress.local_position.z;
             dist2 = dx * dx + dy * dy + dz * dz;
-            if (dist2 > maxR2)
+            if (dist2 > progress.max_radius_sq)
                 continue;
         }
 
-        // Model hash: try CEntity model info pointer chain
+        // Stage 4: Read model hash
         uint32_t hash = 0;
         uintptr_t modelInfo = 0;
         if (ReadU64Safe(ent + 0x20, modelInfo) && modelInfo) {
@@ -570,14 +606,12 @@ void ObjectESPManager::PerformScan() {
         if (!hash)
             continue;
 
-        valid_entities++;
-        const float dist = localPos.IsZero() ? 0.f : std::sqrt(dist2);
-        auto& acc = byHash[hash];
+        const float dist = progress.local_position.IsZero() ? 0.f : std::sqrt(dist2);
+        auto& acc = progress.by_hash[hash];
         if (acc.result.hash == 0) {
             acc.result.hash = hash;
-            acc.result.model = std::format("0x{:08X}", hash); // Use hash as model name
+            acc.result.model = std::format("0x{:08X}", hash);
             acc.result.category = ObjectCategory::Other;
-            // Heuristic: very high hashes often custom streamed assets
             acc.result.is_custom = (hash > 0x10000000u);
         }
         acc.result.count++;
@@ -585,46 +619,36 @@ void ObjectESPManager::PerformScan() {
             acc.result.sample_positions.push_back(pos);
         if (acc.result.count == 1 || dist < acc.result.nearest_distance)
             acc.result.nearest_distance = dist;
-        acc.result.entity_address = ent; // Store entity address
-    }
-    OBJESP_LOG_DEBUG("Scanned %u entities, found %zu unique hashes, %u valid", 
-        scanner_state_.total_entities_scanned, byHash.size(), valid_entities);
-
-    scan_results_.clear();
-    scan_results_.reserve(byHash.size());
-    for (auto& kv : byHash)
-        scan_results_.push_back(std::move(kv.second.result));
-
-    std::sort(scan_results_.begin(), scan_results_.end(),
-        [](const ScanResult& a, const ScanResult& b) { return a.count > b.count; });
-
-    scanner_state_.unique_models_found = static_cast<int>(scan_results_.size());
-    scanner_state_.total_objects_found = 0;
-    for (const auto& r : scan_results_)
-        scanner_state_.total_objects_found += r.count;
-
-    scanner_state_.scanning = false;
-    scanner_state_.scan_complete = true;
-    scanner_state_.scan_progress = 1.0f;
-    char msg[128];
-    std::snprintf(msg, sizeof(msg), "Scan completo: %d modelos, %d objetos",
-        scanner_state_.unique_models_found, scanner_state_.total_objects_found);
-    scanner_state_.status_message = msg;
-    OBJESP_LOG_INFO("%s", msg);
-    } catch (const std::exception& ex) {
-        OBJESP_LOG_ERROR("PerformScan exception: %s", ex.what());
-        scanner_state_.scanning = false;
-        scanner_state_.scan_complete = true;
-        scanner_state_.status_message = "Scan failed";
-        scanner_state_.error_message = ex.what();
-    } catch (...) {
-        OBJESP_LOG_ERROR("PerformScan unknown exception");
-        scanner_state_.scanning = false;
-        scanner_state_.scan_complete = true;
-        scanner_state_.status_message = "Scan failed";
-        scanner_state_.error_message = "unknown";
+        acc.result.entity_address = ent;
     }
 
+    // Check if scan is complete
+    if (progress.current_index >= progress.total_slots) {
+        // Scan complete - finalize results
+        scan_results_.clear();
+        scan_results_.reserve(progress.by_hash.size());
+        for (auto& kv : progress.by_hash)
+            scan_results_.push_back(std::move(kv.second.result));
+
+        std::sort(scan_results_.begin(), scan_results_.end(),
+            [](const ScanResult& a, const ScanResult& b) { return a.count > b.count; });
+
+        scanner_state_.unique_models_found = static_cast<int>(scan_results_.size());
+        scanner_state_.total_objects_found = 0;
+        for (const auto& r : scan_results_)
+            scanner_state_.total_objects_found += r.count;
+
+        scanner_state_.scanning = false;
+        scanner_state_.scan_complete = true;
+        scanner_state_.scan_progress = 1.0f;
+        char msg[128];
+        std::snprintf(msg, sizeof(msg), "Scan completo: %d modelos, %d objetos",
+            scanner_state_.unique_models_found, scanner_state_.total_objects_found);
+        scanner_state_.status_message = msg;
+        OBJESP_LOG_INFO("%s", msg);
+
+        scan_progress_.reset();
+    }
 }
 
 void ObjectESPManager::UpdateTrackedObjects() {
@@ -676,8 +700,42 @@ void ObjectESPManager::ApplyDistanceCulling() {
 void ObjectESPManager::ApplyFrustumCulling() {
     if (!config_.frustum_culling) return;
     
-    // Would check if object is in view frustum
-    // For now, we skip this
+    using namespace FiveM;
+    
+    // Get view matrix from ESP frame cache
+    if (!ESP::FrameCacheValid()) return;
+    const Matrix& viewMatrix = ESP::GetFrameViewMatrix();
+    
+    // Extract frustum planes from view-projection matrix
+    // We'll use a simple frustum culling: check if object's screen position is within extended viewport
+    static float s_displayWidth = 1920.f;
+    static float s_displayHeight = 1080.f;
+    const float margin = 100.f; // Extended margin for off-screen objects
+    
+    auto it = tracked_objects_.begin();
+    while (it != tracked_objects_.end()) {
+        Vec2 screenPos;
+        bool onScreen = it->entity.position.world_to_screen(const_cast<Matrix&>(viewMatrix), screenPos);
+        
+        // Keep object if on screen or near screen edge (for LOD transition)
+        bool keep = onScreen;
+        if (!keep) {
+            // Check if object is near screen bounds (for smooth LOD)
+            float distToScreen = FLT_MAX;
+            if (screenPos.x < -margin || screenPos.x > s_displayWidth + margin ||
+                screenPos.y < -margin || screenPos.y > s_displayHeight + margin) {
+                keep = false;
+            } else {
+                keep = true; // Near screen edge, keep for LOD
+            }
+        }
+        
+        if (!keep) {
+            it = tracked_objects_.erase(it);
+        } else {
+            ++it;
+        }
+    }
 }
 
 void ObjectESPManager::PruneStaleObjects() {

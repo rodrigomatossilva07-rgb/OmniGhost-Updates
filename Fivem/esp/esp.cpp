@@ -308,6 +308,106 @@ bool esp::try_get_prepared_vehicle(uintptr_t ped, uintptr_t& out) {
     return true;
 }
 
+// Snapshot-based helpers (render thread only - zero DMA)
+static const FiveM::ESP::EntityFrame* FindEntityFrame(uintptr_t ped) {
+    const auto snap = FiveM::ESP::AcquireSnapshot();
+    if (!snap) return nullptr;
+    for (int i = 0; i < snap->count; ++i) {
+        if (snap->entities[static_cast<size_t>(i)].ped == ped &&
+            snap->entities[static_cast<size_t>(i)].valid) {
+            return &snap->entities[static_cast<size_t>(i)];
+        }
+    }
+    return nullptr;
+}
+
+static Vec3 SnapshotBonePosition(const FiveM::ESP::EntityFrame* frame, int bone_index) {
+    if (!frame || bone_index < 0 || bone_index >= 9) return {};
+    if ((frame->bone_mask & (uint16_t(1u) << static_cast<unsigned>(bone_index))) == 0)
+        return {};
+    const Vector3& local = frame->bone_offsets[static_cast<size_t>(bone_index)];
+    DirectX::SimpleMath::Vector3 value(local.x, local.y, local.z);
+    const DirectX::SimpleMath::Vector3 transformed =
+        DirectX::XMVector3Transform(value, frame->bone_matrix);
+    return Vec3(transformed.x, transformed.y, transformed.z);
+}
+
+bool esp::try_get_prepared_bone_position(uintptr_t ped, int bone_index, Vec3& out) {
+    const auto* frame = FindEntityFrame(ped);
+    out = SnapshotBonePosition(frame, bone_index);
+    return !out.IsZero();
+}
+
+bool esp::try_get_prepared_origin(uintptr_t ped, Vec3& out) {
+    const auto* frame = FindEntityFrame(ped);
+    if (frame && !frame->position.IsZero()) {
+        out = frame->position;
+        return true;
+    }
+    out = {};
+    return false;
+}
+
+bool esp::try_get_prepared_health(uintptr_t ped, float& out) {
+    const auto* frame = FindEntityFrame(ped);
+    if (!frame) {
+        out = 0.0f;
+        return false;
+    }
+    out = frame->health;
+    return frame->health > 0.0f && frame->health < 1000.0f;
+}
+
+bool esp::try_get_prepared_armor(uintptr_t ped, float& out) {
+    const auto* frame = FindEntityFrame(ped);
+    if (!frame) {
+        out = 0.0f;
+        return false;
+    }
+    out = frame->armor;
+    return true;
+}
+
+bool esp::try_get_prepared_weapon(uintptr_t ped, uint32_t& out) {
+    const auto* frame = FindEntityFrame(ped);
+    if (!frame) {
+        out = 0;
+        return false;
+    }
+    out = frame->weapon_hash;
+    return true;
+}
+
+bool esp::try_get_prepared_vehicle(uintptr_t ped, uintptr_t& out) {
+    const auto* frame = FindEntityFrame(ped);
+    if (!frame) {
+        out = 0;
+        return false;
+    }
+    out = frame->vehicle;
+    return true;
+}
+
+bool esp::try_get_prepared_visibility(uintptr_t ped, bool& out) {
+    const auto* frame = FindEntityFrame(ped);
+    if (!frame) {
+        out = true;
+        return false;
+    }
+    out = frame->visible;
+    return true;
+}
+
+bool esp::try_get_prepared_network_id(uintptr_t ped, uint32_t& out) {
+    const auto* frame = FindEntityFrame(ped);
+    if (!frame) {
+        out = 0;
+        return false;
+    }
+    out = frame->network_id;
+    return true;
+}
+
 // ESP Mode Management
 void esp::set_esp_mode(ESPMode mode) {
     current_esp_mode = mode;
@@ -1008,23 +1108,21 @@ static void DrawMotionVisuals(uintptr_t ped, Matrix viewport, const PedData* cac
     ImDrawList* draw = ImGui::GetForegroundDrawList();
     if (!draw) return;
 
-    const esp::BatchSkeletonData* skeleton = FindPreparedSkeleton(ped);
-    const PreparedEspData* prepared = FindPreparedEsp(ped);
-    Vec3 origin = skeleton ? skeleton->origin : Vec3{};
-    if (origin.IsZero() && prepared) origin = prepared->origin;
+    const auto* frame = FindEntityFrame(ped);
+    if (!frame) return; // No DMA fallback
+
+    Vec3 origin = frame->position;
     if (origin.IsZero() && cached) origin = cached->position_origin;
     if (origin.IsZero()) return;
 
     // Distance LOD: heavy ornaments are pure GPU+CPU cost at range.
     float motionDist = 0.f;
-    if (FiveM::ESP::FrameCacheValid()) {
-        const Vec3& lp = FiveM::ESP::GetFrameLocalPos();
-        if (!lp.IsZero()) motionDist = origin.distance_to(lp);
-    }
+    const Vec3& lp = FiveM::ESP::GetFrameLocalPos();
+    if (!lp.IsZero()) motionDist = origin.distance_to(lp);
     const bool farOrnament = motionDist > 70.f;
     const bool veryFar = motionDist > 120.f;
 
-    const bool visible = EspPedVisible(ped);
+    bool visible = frame->visible;
     const double now = ImGui::GetTime();
     static std::unordered_map<uintptr_t, OmniGhost::Gameplay::FixedTrailHistory<18>> trails;
     static int cleanup_frame = -1;
@@ -1052,16 +1150,16 @@ static void DrawMotionVisuals(uintptr_t ped, Matrix viewport, const PedData* cac
         }
     }
 
-    const int frame = ImGui::GetFrameCount();
-    if (frame != cleanup_frame && (frame % 120) == 0) {
-        cleanup_frame = frame;
+    const int frameCount = ImGui::GetFrameCount();
+    if (frameCount != cleanup_frame && (frameCount % 120) == 0) {
+        cleanup_frame = frameCount;
         for (auto it = trails.begin(); it != trails.end();) {
             if (it->second.Stale(now, 3.0)) it = trails.erase(it);
             else ++it;
         }
     }
 
-    Vec3 head = skeleton ? PreparedBonePosition(skeleton, 0) : Vec3{};
+    Vec3 head = SnapshotBonePosition(frame, 0);
     if (!BoneLooksValid(head, origin)) {
         head = origin;
         head.z += 0.92f;
@@ -1071,8 +1169,8 @@ static void DrawMotionVisuals(uintptr_t ped, Matrix viewport, const PedData* cac
     const float fxScale = std::clamp(cfg.fun_effects_scale, .5f, 2.5f);
     const float hatScale = std::clamp(cfg.chinese_hat_scale, 0.4f, 2.5f);
     Vec3 forward(1.f, 0.f, 0.f);
-    if (skeleton) {
-        forward = Vec3(skeleton->bone_matrix._21, skeleton->bone_matrix._22, 0.f);
+    if (frame->bone_mask) {
+        forward = Vec3(frame->bone_matrix._21, frame->bone_matrix._22, 0.f);
         const float len = std::sqrt(forward.x * forward.x + forward.y * forward.y);
         if (len > .001f) { forward.x /= len; forward.y /= len; }
         else forward = Vec3(1.f, 0.f, 0.f);
@@ -1291,8 +1389,8 @@ static void DrawMotionVisuals(uintptr_t ped, Matrix viewport, const PedData* cac
         worldLine(basePts[4], tr, fxColor(0.25f), 1.7f);
     }
 
-    if (cfg.look_direction && skeleton) {
-        Vec3 lookForward(skeleton->bone_matrix._21, skeleton->bone_matrix._22, 0.f);
+    if (cfg.look_direction && frame->bone_mask) {
+        Vec3 lookForward(frame->bone_matrix._21, frame->bone_matrix._22, 0.f);
         const float length = std::sqrt(lookForward.x * lookForward.x + lookForward.y * lookForward.y);
         if (length > 0.001f) {
             lookForward.x /= length;
@@ -1477,6 +1575,147 @@ void esp::prepare_esp_frame(const std::vector<uintptr_t>& peds,
         if (data.ped) s_stickyPrep[data.ped] = data;
 }
 
+void esp::prepare_entity_frames(const std::vector<uintptr_t>& peds, const std::vector<Vec3>& origins,
+                                std::vector<FiveM::ESP::EntityFrame>& out_frames) {
+    using namespace FiveM;
+    if (peds.empty()) {
+        out_frames.clear();
+        return;
+    }
+
+    out_frames.resize(peds.size());
+
+    // Determine what features need what data
+    OmniGhost::Gameplay::EspCore::FeatureSet requested{};
+    requested.box = config.box_2d;
+    requested.corner_box = config.corner_box;
+    requested.skeleton = config.skeleton;
+    requested.head = config.head_circle;
+    requested.health = config.health_bar;
+    requested.armor = config.armor_bar;
+    requested.snapline = config.snaplines;
+    requested.name = config.player_name || config.player_id || config.npc_esp ||
+        config.team_check || friends::HasFriends();
+    requested.weapon = config.weapon_name;
+    requested.distance = config.distance;
+    requested.visibility = aimbot::config.visible_check ||
+        esp::config.visible_check || esp::config.visibility_colors;
+    requested.aim = aimbot::config.aimbot_enabled || aimbot::config.trigger_enabled;
+    requested.prediction = aimbot::config.velocity_prediction;
+    requested.trail = config.trails;
+    requested.halo = config.head_halo;
+    requested.look_direction = config.look_direction;
+    const auto fields = requested.RequiredFields();
+
+    const bool need_health = OmniGhost::Gameplay::EspCore::Has(fields, OmniGhost::Gameplay::EspCore::DataField::Health);
+    const bool need_armor = OmniGhost::Gameplay::EspCore::Has(fields, OmniGhost::Gameplay::EspCore::DataField::Armor);
+    const bool need_identity = OmniGhost::Gameplay::EspCore::Has(fields, OmniGhost::Gameplay::EspCore::DataField::Name);
+    const bool need_weapon = OmniGhost::Gameplay::EspCore::Has(fields, OmniGhost::Gameplay::EspCore::DataField::Weapon);
+    const bool need_vehicle = OmniGhost::Gameplay::EspCore::Has(fields, OmniGhost::Gameplay::EspCore::DataField::Visibility);
+    const bool need_bones = config.skeleton || config.head_circle || config.head_halo ||
+        config.look_direction || config.chinese_hat || config.angel_wings ||
+        config.devil_horns || config.floating_crown;
+
+    // Initialize frames
+    for (size_t i = 0; i < peds.size(); ++i) {
+        out_frames[i] = {};
+        out_frames[i].ped = peds[i];
+        out_frames[i].position = i < origins.size() ? origins[i] : Vec3{};
+        out_frames[i].valid = peds[i] != 0 && !out_frames[i].position.IsZero();
+    }
+
+    // Single scatter for core identity/combat data
+    auto handle = mem.CreateScatterHandle();
+    if (!handle) return;
+
+    for (size_t i = 0; i < peds.size(); ++i) {
+        const uintptr_t ped = peds[i];
+        if (!ped) continue;
+
+        if (need_health) {
+            mem.AddScatterReadRequest(handle, ped + offset::playerHealth,
+                &out_frames[i].health, sizeof(float));
+            mem.AddScatterReadRequest(handle, ped + 0x284,
+                &out_frames[i].max_health, sizeof(float));
+        }
+        if (need_armor) {
+            mem.AddScatterReadRequest(handle, ped + offset::playerArmor,
+                &out_frames[i].armor, sizeof(float));
+            mem.AddScatterReadRequest(handle, ped + 0x14E0,
+                &out_frames[i].armor, sizeof(float)); // alt1
+            mem.AddScatterReadRequest(handle, ped + 0x1530,
+                &out_frames[i].armor, sizeof(float)); // alt2
+        }
+        if (need_identity) {
+            mem.AddScatterReadRequest(handle, ped + offset::playerInfo,
+                &out_frames[i].player_info, sizeof(uintptr_t));
+        }
+        if (need_weapon) {
+            mem.AddScatterReadRequest(handle, ped + offset::weaponManager,
+                &out_frames[i].weapon_manager, sizeof(uintptr_t));
+        }
+        if (need_vehicle) {
+            mem.AddScatterReadRequest(handle, ped + offset::pedVehicle,
+                &out_frames[i].vehicle, sizeof(uintptr_t));
+        }
+    }
+    mem.ExecuteReadScatter(handle);
+    mem.CloseScatterHandle(handle);
+
+    // Second pass: network_id from player_info, weapon_hash from weapon_info
+    if (need_identity || need_weapon) {
+        auto handle2 = mem.CreateScatterHandle();
+        if (handle2) {
+            for (size_t i = 0; i < peds.size(); ++i) {
+                const uintptr_t ped = peds[i];
+                if (!ped) continue;
+
+                if (need_identity && out_frames[i].player_info) {
+                    mem.AddScatterReadRequest(handle2,
+                        out_frames[i].player_info + offset::playerInfo_netId,
+                        &out_frames[i].network_id, sizeof(uint32_t));
+                }
+                if (need_weapon && out_frames[i].weapon_manager) {
+                    mem.AddScatterReadRequest(handle2,
+                        out_frames[i].weapon_manager + offset::weaponMgr_currentWeapon,
+                        &out_frames[i].weapon_info, sizeof(uintptr_t));
+                }
+            }
+            mem.ExecuteReadScatter(handle2);
+            mem.CloseScatterHandle(handle2);
+        }
+    }
+
+    if (need_weapon) {
+        auto handle3 = mem.CreateScatterHandle();
+        if (handle3) {
+            for (size_t i = 0; i < peds.size(); ++i) {
+                if (out_frames[i].weapon_info) {
+                    mem.AddScatterReadRequest(handle3,
+                        out_frames[i].weapon_info + offset::weaponInfo_hash,
+                        &out_frames[i].weapon_hash, sizeof(uint32_t));
+                }
+            }
+            mem.ExecuteReadScatter(handle3);
+            mem.CloseScatterHandle(handle3);
+        }
+    }
+
+    // Bone data: reuse prepare_skeleton_frame's batch read but store in EntityFrame
+    uint16_t boneMask = RequiredBoneMask();
+    if (boneMask && need_bones) {
+        std::vector<BatchSkeletonData> skeletonData;
+        batch_read_skeleton_data(peds, skeletonData, boneMask);
+        for (size_t i = 0; i < skeletonData.size(); ++i) {
+            if (skeletonData[i].valid && i < out_frames.size()) {
+                out_frames[i].bone_matrix = skeletonData[i].bone_matrix;
+                out_frames[i].bone_offsets = skeletonData[i].bone_offsets;
+                out_frames[i].bone_mask = skeletonData[i].bone_mask;
+            }
+        }
+    }
+}
+
 static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer, const PedData* cached) {
     if (EspPedIsDead(ped) && !esp::config.show_dead) return;
 
@@ -1485,45 +1724,31 @@ static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer,
     ImDrawList* dl = ImGui::GetForegroundDrawList();
     if (!dl) return;
 
-    const PreparedEspData* prepared_esp = FindPreparedEsp(ped);
-    const esp::BatchSkeletonData* prepared_bones = FindPreparedSkeleton(ped);
+    const auto* frame = FindEntityFrame(ped);
+    if (!frame) return; // No DMA fallback - skip if not in snapshot
 
-    Vec3 origin = prepared_esp ? prepared_esp->origin : Vec3{};
+    Vec3 origin = frame->position;
     if (origin.IsZero() && cached && !cached->position_origin.IsZero())
         origin = cached->position_origin;
-    if (origin.IsZero())
-        origin = mem.Read<Vec3>(ped + offset::playerPosition);
-    if (origin.IsZero())
-        origin = mem.Read<Vec3>(ped + 0x90);
     if (origin.IsZero()) return;
 
-    Vec3 localPos = FiveM::ESP::FrameCacheValid()
-        ? FiveM::ESP::GetFrameLocalPos() : Vec3{};
-    if (localPos.IsZero() && localplayer)
-        localPos = mem.Read<Vec3>(localplayer + offset::playerPosition);
-    if (localPos.IsZero())
-        localPos = mem.Read<Vec3>(localplayer + 0x90);
+    Vec3 localPos = FiveM::ESP::GetFrameLocalPos();
+    if (localPos.IsZero() && localplayer) return;
 
     float dist = origin.distance_to(localPos);
     const float maxDist = esp::config.max_esp_distance;
     if (maxDist <= 0.f || dist > maxDist) return;
 
-    float health = prepared_esp ? prepared_esp->health : (cached ? cached->health : 0.f);
-    if (!prepared_esp && health <= 0.f)
-        health = mem.Read<float>(ped + offset::playerHealth);
-    if (!prepared_esp && health <= 0.f)
-        health = mem.Read<float>(ped + 0x280);
-
-    // Only treat as dead when health is clearly <= 0 AND we successfully read a
-    // plausible max-health (avoids "everyone invisible" when the offset is wrong).
-    float maxHealthProbe = prepared_esp ? prepared_esp->max_health : mem.Read<float>(ped + 0x284);
-    const bool healthLooksValid = (maxHealthProbe > 50.f && maxHealthProbe < 1000.f);
+    float health = frame->health;
+    float maxHealth = frame->max_health;
+    if (maxHealth < 1.f) maxHealth = 200.f;
+    const bool healthLooksValid = (maxHealth > 50.f && maxHealth < 1000.f);
     if (healthLooksValid && health <= 0.f && !esp::config.show_dead)
         return;
     if (!healthLooksValid && health <= 0.f)
         health = 100.f; // assume alive when health chain is unreliable
 
-    const bool visible = EspPedVisible(ped);
+    bool visible = frame->visible;
     if (esp::config.visible_check && !visible)
         return;
 
@@ -1532,30 +1757,9 @@ static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer,
         || esp::config.snaplines || esp::config.health_bar || esp::config.armor_bar;
     Vec3 head, footL, footR;
     if (needBones) {
-        head = PreparedBonePosition(prepared_bones, 0);
-        footL = PreparedBonePosition(prepared_bones, 1);
-        footR = PreparedBonePosition(prepared_bones, 2);
-        if (!prepared_bones) {
-            Matrix bone_matrix{};
-            Vector3 loc0{}, loc1{}, loc2{};
-            auto bh = mem.CreateScatterHandle();
-            if (bh) {
-                mem.AddScatterReadRequest(bh, ped + 0x60, &bone_matrix, sizeof(Matrix));
-                mem.AddScatterReadRequest(bh, ped + (0x410 + 0x10 * 0), &loc0, sizeof(Vector3));
-                mem.AddScatterReadRequest(bh, ped + (0x410 + 0x10 * 1), &loc1, sizeof(Vector3));
-                mem.AddScatterReadRequest(bh, ped + (0x410 + 0x10 * 2), &loc2, sizeof(Vector3));
-                mem.ExecuteReadScatter(bh);
-                mem.CloseScatterHandle(bh);
-                auto xform = [&](const Vector3& l) -> Vec3 {
-                    DirectX::SimpleMath::Vector3 v(l.x, l.y, l.z);
-                    DirectX::SimpleMath::Vector3 tf = DirectX::XMVector3Transform(v, bone_matrix);
-                    return Vec3(tf.x, tf.y, tf.z);
-                };
-                head = xform(loc0);
-                footL = xform(loc1);
-                footR = xform(loc2);
-            }
-        }
+        head = SnapshotBonePosition(frame, 0);
+        footL = SnapshotBonePosition(frame, 1);
+        footR = SnapshotBonePosition(frame, 2);
         if (!BoneLooksValid(head, origin)) {
             head = origin; head.z += 0.95f;
         } else {
@@ -1687,8 +1891,6 @@ static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer,
             std::clamp(esp::config.snapline_thickness, 0.5f, 8.f));
     }
 
-    float maxHealth = maxHealthProbe;
-    if (maxHealth < 1.f) maxHealth = 200.f;
     float hp100 = (health / maxHealth) * 100.f;
     if (hp100 < 0.f) hp100 = 0.f;
     if (hp100 > 100.f) hp100 = 100.f;
@@ -1711,19 +1913,7 @@ static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer,
 
     // ── Armor bar matching health style (right of box) ──
     if (esp::config.armor_bar) {
-        float armor = prepared_esp ? prepared_esp->armor
-            : mem.Read<float>(ped + offset::playerArmor);
-        // Only probe fallback offsets when value looks invalid (not when truly 0 armor)
-        if (armor < 0.f || armor > 200.f) {
-            float a2 = prepared_esp ? prepared_esp->armor_alt_1
-                : mem.Read<float>(ped + 0x14E0);
-            if (a2 >= 0.f && a2 <= 200.f) armor = a2;
-            else {
-                a2 = prepared_esp ? prepared_esp->armor_alt_2
-                    : mem.Read<float>(ped + 0x1530);
-                if (a2 >= 0.f && a2 <= 200.f) armor = a2;
-            }
-        }
+        float armor = frame->armor;
         if (armor > 0.5f && armor <= 200.f) {
             float ar100 = armor;
             if (ar100 > 100.f) ar100 = 100.f;
@@ -1751,12 +1941,9 @@ static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer,
         // Name ABOVE box (head level)
         if (esp::config.player_name || esp::config.player_id) {
             char nbuf[64]{};
-            const uintptr_t pinfo = prepared_esp ? prepared_esp->player_info
-                : mem.Read<uintptr_t>(ped + offset::playerInfo);
-            const uint32_t netId = prepared_esp ? prepared_esp->network_id
-                : (pinfo ? mem.Read<uint32_t>(pinfo + offset::playerInfo_netId) : 0);
-            ReadPlayerDisplayName(ped, pinfo, netId, prepared_esp == nullptr,
-                nbuf, sizeof(nbuf));
+            const uintptr_t pinfo = frame->player_info;
+            const uint32_t netId = frame->network_id;
+            ReadPlayerDisplayName(ped, pinfo, netId, false, nbuf, sizeof(nbuf));
             char line[96]{};
             if (esp::config.player_name && esp::config.player_id && netId)
                 snprintf(line, sizeof(line), "%s [%u]", nbuf, netId);
@@ -1777,139 +1964,132 @@ static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer,
         float textY = feetScreenY + 8.f; // Start below feet with padding
 
         if (esp::config.weapon_name) {
-            uintptr_t wpnMgr = prepared_esp ? prepared_esp->weapon_manager
-                : mem.Read<uintptr_t>(ped + offset::weaponManager);
             const char* wname = "Desarmado";
             char wbuf[48];
-            if (wpnMgr) {
-                uintptr_t wpnInfo = prepared_esp ? prepared_esp->weapon_info
-                    : mem.Read<uintptr_t>(wpnMgr + offset::weaponMgr_currentWeapon);
-                if (wpnInfo) {
-                    uint32_t hash = prepared_esp ? prepared_esp->weapon_hash
-                        : mem.Read<uint32_t>(wpnInfo + offset::weaponInfo_hash);
-                    switch (hash) {
-                    // Melee
-                    case 0xA2719263u: wname = "Soco"; break;
-                    case 0x92A27487u: wname = "Adaga"; break;
-                    case 0x958A4A8Fu: wname = "Bastao"; break;
-                    case 0xF9E6AA4Bu: wname = "Garrafa"; break;
-                    case 0x84BD7BFDu: wname = "Crowbar"; break;
-                    case 0x8BB05FD7u: wname = "Lanterna"; break;
-                    case 0x440E4788u: wname = "Golf"; break;
-                    case 0x4E875F73u: wname = "Martelo"; break;
-                    case 0xF9DCBF2Du: wname = "Machado"; break;
-                    case 0xD8DF3C3Cu: wname = "Soco Ingles"; break;
-                    case 0x99B507EAu: wname = "Faca"; break;
-                    case 0xDD5DF8D9u: wname = "Machete"; break;
-                    case 0xDFE37640u: wname = "Canivete"; break;
-                    case 0x678B81B1u: wname = "Taco"; break;
-                    case 0x19044EE0u: wname = "Chave Inglesa"; break;
-                    case 0xCD274149u: wname = "Battle Axe"; break;
-                    case 0x94117305u: wname = "Pool Cue"; break;
-                    case 0x3813BA38u: wname = "Stone Hatchet"; break;
-                    // Pistols
-                    case 0x1B06D571u: wname = "Pistola"; break;
-                    case 0xBFE256D4u: wname = "Pistola MK2"; break;
-                    case 0x5EF9FEC4u: wname = "Combat Pistol"; break;
-                    case 0x22D8FE39u: wname = "AP Pistol"; break;
-                    case 0x3656C8C1u: wname = "Stun Gun"; break;
-                    case 0x99AEEB3Bu: wname = "Pistol .50"; break;
-                    case 0xBFD21232u: wname = "SNS Pistol"; break;
-                    case 0x88374054u: wname = "SNS Pistol MK2"; break;
-                    case 0xD205520Eu: wname = "Heavy Pistol"; break;
-                    case 0x083839C4u: wname = "Vintage Pistol"; break;
-                    case 0x47757124u: wname = "Flare Gun"; break;
-                    case 0xDC4DB296u: wname = "Marksman Pistol"; break;
-                    case 0xC1B3C3D1u: wname = "Revolver"; break;
-                    case 0xCB96392Fu: wname = "Revolver MK2"; break;
-                    case 0x97EA20B8u: wname = "Double Action"; break;
-                    case 0xAF3696A1u: wname = "Up-n-Atomizer"; break;
-                    case 0x2B5EF5ECu: wname = "Ceramic Pistol"; break;
-                    case 0x917F6C8Cu: wname = "Navy Revolver"; break;
-                    case 0x57A4368Cu: wname = "Perico Pistol"; break;
-                    case 0x1BC4FDB9u: wname = "WM 29"; break;
-                    // SMG
-                    case 0x13532244u: wname = "Micro SMG"; break;
-                    case 0x2BE6766Bu: wname = "SMG"; break;
-                    case 0x78A97CD0u: wname = "SMG MK2"; break;
-                    case 0xEFE7E2DFu: wname = "Assault SMG"; break;
-                    case 0x0A3D4D34u: wname = "Combat PDW"; break;
-                    case 0xDB1AA450u: wname = "Machine Pistol"; break;
-                    case 0xBD248B55u: wname = "Mini SMG"; break;
-                    case 0x476BF155u: wname = "Unholy Hellbringer"; break;
-                    // Shotguns
-                    case 0x1D073A89u: wname = "Pump Shotgun"; break;
-                    case 0x555AF99Au: wname = "Pump Shotgun MK2"; break;
-                    case 0x7846A318u: wname = "Sawed-Off"; break;
-                    case 0xE284C527u: wname = "Assault Shotgun"; break;
-                    case 0x9D61E50Fu: wname = "Bullpup Shotgun"; break;
-                    case 0xA89CB99Eu: wname = "Musket"; break;
-                    case 0xEF951FBBu: wname = "Heavy Shotgun"; break;
-                    case 0x12E82D3Du: wname = "Double Barrel"; break;
-                    case 0x05A96BA4u: wname = "Sweeper Shotgun"; break;
-                    case 0x5FC3FC38u: wname = "Combat Shotgun"; break;
-                    // Rifles
-                    case 0xBFEFFF6Du: wname = "Assault Rifle"; break;
-                    case 0x394F415Cu: wname = "Assault Rifle MK2"; break;
-                    case 0x83BF0278u: wname = "Carbine Rifle"; break;
-                    case 0xFAD1F1C9u: wname = "Carbine Rifle MK2"; break;
-                    case 0xAF113F99u: wname = "Advanced Rifle"; break;
-                    case 0xC0A3098Du: wname = "Special Carbine"; break;
-                    case 0x969C3D67u: wname = "Special Carbine MK2"; break;
-                    case 0x7F229F94u: wname = "Bullpup Rifle"; break;
-                    case 0x84D6FAFDu: wname = "Bullpup Rifle MK2"; break;
-                    case 0x624FE830u: wname = "Compact Rifle"; break;
-                    case 0x9D1F17E6u: wname = "Military Rifle"; break;
-                    case 0xC78D71B4u: wname = "Heavy Rifle"; break;
-                    case 0xD1D5F52Bu: wname = "Tactical Rifle"; break;
-                    // MG
-                    case 0x9D07F764u: wname = "MG"; break;
-                    case 0x7FD62962u: wname = "Combat MG"; break;
-                    case 0xDBBD7280u: wname = "Combat MG MK2"; break;
-                    case 0x61012683u: wname = "Gusenberg"; break;
-                    // Sniper
-                    case 0x05FC3C11u: wname = "Sniper Rifle"; break;
-                    case 0x0C472FE2u: wname = "Heavy Sniper"; break;
-                    case 0x0A914799u: wname = "Heavy Sniper MK2"; break;
-                    case 0xC734385Au: wname = "Marksman Rifle"; break;
-                    case 0x6A6C02E0u: wname = "Marksman Rifle MK2"; break;
-                    case 0x6E7DDDECu: wname = "Precision Rifle"; break;
-                    // Heavy
-                    case 0xB1CA77B1u: wname = "RPG"; break;
-                    case 0xA284510Bu: wname = "Grenade Launcher"; break;
-                    case 0x4DD2DC56u: wname = "Smoke Launcher"; break;
-                    case 0x42BF8A85u: wname = "Minigun"; break;
-                    case 0x7F7497E5u: wname = "Firework"; break;
-                    case 0x6D544C99u: wname = "Railgun"; break;
-                    case 0x63AB0442u: wname = "Homing Launcher"; break;
-                    case 0x0781FE4Au: wname = "Compact Launcher"; break;
-                    case 0xB62D1F67u: wname = "Widowmaker"; break;
-                    case 0xDB2678E3u: wname = "Compact EMP"; break;
-                    // Throwables
-                    case 0x93E220BDu: wname = "Granada"; break;
-                    case 0xA0973D5Eu: wname = "BZ Gas"; break;
-                    case 0x24B17070u: wname = "Molotov"; break;
-                    case 0x2C3731D9u: wname = "Sticky Bomb"; break;
-                    case 0xAB564B93u: wname = "Proximity Mine"; break;
-                    case 0x0787F0BBu: wname = "Snowball"; break;
-                    case 0xBA45E8B8u: wname = "Pipe Bomb"; break;
-                    case 0x23C9F95Cu: wname = "Ball"; break;
-                    case 0xFDBC8A50u: wname = "Smoke Grenade"; break;
-                    case 0x497FACC3u: wname = "Flare"; break;
-                    // Misc
-                    case 0x34A67B97u: wname = "Jerry Can"; break;
-                    case 0xFBAB5776u: wname = "Parachute"; break;
-                    case 0x060EC506u: wname = "Fire Extinguisher"; break;
-                    case 0xBA536372u: wname = "Hazard Can"; break;
-                    case 0x1B574AFEu: wname = "Fertilizer Can"; break;
-                    case 0x184140A1u: wname = "Fertilizer Can"; break;
-                    default:
-                        if (hash != 0) {
-                            snprintf(wbuf, sizeof(wbuf), "Arma");
-                            wname = wbuf;
-                        }
-                        break;
+            uint32_t hash = frame->weapon_hash;
+            if (hash) {
+                switch (hash) {
+                // Melee
+                case 0xA2719263u: wname = "Soco"; break;
+                case 0x92A27487u: wname = "Adaga"; break;
+                case 0x958A4A8Fu: wname = "Bastao"; break;
+                case 0xF9E6AA4Bu: wname = "Garrafa"; break;
+                case 0x84BD7BFDu: wname = "Crowbar"; break;
+                case 0x8BB05FD7u: wname = "Lanterna"; break;
+                case 0x440E4788u: wname = "Golf"; break;
+                case 0x4E875F73u: wname = "Martelo"; break;
+                case 0xF9DCBF2Du: wname = "Machado"; break;
+                case 0xD8DF3C3Cu: wname = "Soco Ingles"; break;
+                case 0x99B507EAu: wname = "Faca"; break;
+                case 0xDD5DF8D9u: wname = "Machete"; break;
+                case 0xDFE37640u: wname = "Canivete"; break;
+                case 0x678B81B1u: wname = "Taco"; break;
+                case 0x19044EE0u: wname = "Chave Inglesa"; break;
+                case 0xCD274149u: wname = "Battle Axe"; break;
+                case 0x94117305u: wname = "Pool Cue"; break;
+                case 0x3813BA38u: wname = "Stone Hatchet"; break;
+                // Pistols
+                case 0x1B06D571u: wname = "Pistola"; break;
+                case 0xBFE256D4u: wname = "Pistola MK2"; break;
+                case 0x5EF9FEC4u: wname = "Combat Pistol"; break;
+                case 0x22D8FE39u: wname = "AP Pistol"; break;
+                case 0x3656C8C1u: wname = "Stun Gun"; break;
+                case 0x99AEEB3Bu: wname = "Pistol .50"; break;
+                case 0xBFD21232u: wname = "SNS Pistol"; break;
+                case 0x88374054u: wname = "SNS Pistol MK2"; break;
+                case 0xD205520Eu: wname = "Heavy Pistol"; break;
+                case 0x083839C4u: wname = "Vintage Pistol"; break;
+                case 0x47757124u: wname = "Flare Gun"; break;
+                case 0xDC4DB296u: wname = "Marksman Pistol"; break;
+                case 0xC1B3C3D1u: wname = "Revolver"; break;
+                case 0xCB96392Fu: wname = "Revolver MK2"; break;
+                case 0x97EA20B8u: wname = "Double Action"; break;
+                case 0xAF3696A1u: wname = "Up-n-Atomizer"; break;
+                case 0x2B5EF5ECu: wname = "Ceramic Pistol"; break;
+                case 0x917F6C8Cu: wname = "Navy Revolver"; break;
+                case 0x57A4368Cu: wname = "Perico Pistol"; break;
+                case 0x1BC4FDB9u: wname = "WM 29"; break;
+                // SMG
+                case 0x13532244u: wname = "Micro SMG"; break;
+                case 0x2BE6766Bu: wname = "SMG"; break;
+                case 0x78A97CD0u: wname = "SMG MK2"; break;
+                case 0xEFE7E2DFu: wname = "Assault SMG"; break;
+                case 0x0A3D4D34u: wname = "Combat PDW"; break;
+                case 0xDB1AA450u: wname = "Machine Pistol"; break;
+                case 0xBD248B55u: wname = "Mini SMG"; break;
+                case 0x476BF155u: wname = "Unholy Hellbringer"; break;
+                // Shotguns
+                case 0x1D073A89u: wname = "Pump Shotgun"; break;
+                case 0x555AF99Au: wname = "Pump Shotgun MK2"; break;
+                case 0x7846A318u: wname = "Sawed-Off"; break;
+                case 0xE284C527u: wname = "Assault Shotgun"; break;
+                case 0x9D61E50Fu: wname = "Bullpup Shotgun"; break;
+                case 0xA89CB99Eu: wname = "Musket"; break;
+                case 0xEF951FBBu: wname = "Heavy Shotgun"; break;
+                case 0x12E82D3Du: wname = "Double Barrel"; break;
+                case 0x05A96BA4u: wname = "Sweeper Shotgun"; break;
+                case 0x5FC3FC38u: wname = "Combat Shotgun"; break;
+                // Rifles
+                case 0xBFEFFF6Du: wname = "Assault Rifle"; break;
+                case 0x394F415Cu: wname = "Assault Rifle MK2"; break;
+                case 0x83BF0278u: wname = "Carbine Rifle"; break;
+                case 0xFAD1F1C9u: wname = "Carbine Rifle MK2"; break;
+                case 0xAF113F99u: wname = "Advanced Rifle"; break;
+                case 0xC0A3098Du: wname = "Special Carbine"; break;
+                case 0x969C3D67u: wname = "Special Carbine MK2"; break;
+                case 0x7F229F94u: wname = "Bullpup Rifle"; break;
+                case 0x84D6FAFDu: wname = "Bullpup Rifle MK2"; break;
+                case 0x624FE830u: wname = "Compact Rifle"; break;
+                case 0x9D1F17E6u: wname = "Military Rifle"; break;
+                case 0xC78D71B4u: wname = "Heavy Rifle"; break;
+                case 0xD1D5F52Bu: wname = "Tactical Rifle"; break;
+                // MG
+                case 0x9D07F764u: wname = "MG"; break;
+                case 0x7FD62962u: wname = "Combat MG"; break;
+                case 0xDBBD7280u: wname = "Combat MG MK2"; break;
+                case 0x61012683u: wname = "Gusenberg"; break;
+                // Sniper
+                case 0x05FC3C11u: wname = "Sniper Rifle"; break;
+                case 0x0C472FE2u: wname = "Heavy Sniper"; break;
+                case 0x0A914799u: wname = "Heavy Sniper MK2"; break;
+                case 0xC734385Au: wname = "Marksman Rifle"; break;
+                case 0x6A6C02E0u: wname = "Marksman Rifle MK2"; break;
+                case 0x6E7DDDECu: wname = "Precision Rifle"; break;
+                // Heavy
+                case 0xB1CA77B1u: wname = "RPG"; break;
+                case 0xA284510Bu: wname = "Grenade Launcher"; break;
+                case 0x4DD2DC56u: wname = "Smoke Launcher"; break;
+                case 0x42BF8A85u: wname = "Minigun"; break;
+                case 0x7F7497E5u: wname = "Firework"; break;
+                case 0x6D544C99u: wname = "Railgun"; break;
+                case 0x63AB0442u: wname = "Homing Launcher"; break;
+                case 0x0781FE4Au: wname = "Compact Launcher"; break;
+                case 0xB62D1F67u: wname = "Widowmaker"; break;
+                case 0xDB2678E3u: wname = "Compact EMP"; break;
+                // Throwables
+                case 0x93E220BDu: wname = "Granada"; break;
+                case 0xA0973D5Eu: wname = "BZ Gas"; break;
+                case 0x24B17070u: wname = "Molotov"; break;
+                case 0x2C3731D9u: wname = "Sticky Bomb"; break;
+                case 0xAB564B93u: wname = "Proximity Mine"; break;
+                case 0x0787F0BBu: wname = "Snowball"; break;
+                case 0xBA45E8B8u: wname = "Pipe Bomb"; break;
+                case 0x23C9F95Cu: wname = "Ball"; break;
+                case 0xFDBC8A50u: wname = "Smoke Grenade"; break;
+                case 0x497FACC3u: wname = "Flare"; break;
+                // Misc
+                case 0x34A67B97u: wname = "Jerry Can"; break;
+                case 0xFBAB5776u: wname = "Parachute"; break;
+                case 0x060EC506u: wname = "Fire Extinguisher"; break;
+                case 0xBA536372u: wname = "Hazard Can"; break;
+                case 0x1B574AFEu: wname = "Fertilizer Can"; break;
+                case 0x184140A1u: wname = "Fertilizer Can"; break;
+                default:
+                    if (hash != 0) {
+                        snprintf(wbuf, sizeof(wbuf), "Arma");
+                        wname = wbuf;
                     }
+                    break;
                 }
             }
             ImVec2 ts = ImGui::CalcTextSize(wname);
@@ -2013,14 +2193,11 @@ void esp::draw_head_circle(uintptr_t ped, Matrix viewport, uintptr_t localplayer
     ImDrawList* draw_list = ImGui::GetForegroundDrawList();
     if (!draw_list) return;
 
-    const BatchSkeletonData* prepared = FindPreparedSkeleton(ped);
-    Vec3 origin = prepared ? prepared->origin : Vec3{};
-    if (origin.IsZero())
-        origin = mem.Read<Vec3>(ped + FiveM::offset::playerPosition);
+    const auto* frame = FindEntityFrame(ped);
+    Vec3 origin = frame ? frame->position : Vec3{};
+    if (origin.IsZero()) return; // No DMA fallback - skip if not in snapshot
 
-    Vec3 head_world_pos = prepared
-        ? PreparedBonePosition(prepared, 0)
-        : esp::get_bone_position(ped, 0);
+    Vec3 head_world_pos = SnapshotBonePosition(frame, 0);
     if (head_world_pos.IsZero() || head_world_pos.distance_to(origin) > 3.5f) {
         head_world_pos = origin;
         head_world_pos.z += 0.9f;
@@ -2032,13 +2209,12 @@ void esp::draw_head_circle(uintptr_t ped, Matrix viewport, uintptr_t localplayer
 
     float dist = 25.f;
     if (localplayer) {
-        Vec3 lp = FiveM::ESP::FrameCacheValid()
-            ? FiveM::ESP::GetFrameLocalPos()
-            : mem.Read<Vec3>(localplayer + FiveM::offset::playerPosition);
+        Vec3 lp = FiveM::ESP::GetFrameLocalPos();
         if (!lp.IsZero() && !head_world_pos.IsZero())
             dist = lp.distance_to(head_world_pos);
     }
-    const bool visible = EspPedVisible(ped);
+    bool visible = true;
+    try_get_prepared_visibility(ped, visible);
     ImU32 col = EspPedColor(ped, config.color_head_circle, visible);
     DrawHeadCircleAt(draw_list, head_screen_pos, col, dist);
 }
@@ -2048,14 +2224,11 @@ void esp::draw_head_circle_cached(uintptr_t ped, Matrix viewport, uintptr_t loca
     ImDrawList* draw_list = ImGui::GetForegroundDrawList();
     if (!draw_list) return;
 
-    const BatchSkeletonData* prepared = FindPreparedSkeleton(ped);
-    Vec3 origin = prepared ? prepared->origin : cached_ped_data.position_origin;
-    if (origin.IsZero())
-        origin = mem.Read<Vec3>(ped + 0x90);
+    const auto* frame = FindEntityFrame(ped);
+    Vec3 origin = frame ? frame->position : cached_ped_data.position_origin;
+    if (origin.IsZero()) return; // No DMA fallback
 
-    Vec3 head_world_pos = prepared
-        ? PreparedBonePosition(prepared, 0)
-        : esp::get_bone_position(ped, 0);
+    Vec3 head_world_pos = SnapshotBonePosition(frame, 0);
     if (head_world_pos.IsZero() || head_world_pos.distance_to(origin) > 3.5f) {
         head_world_pos = origin;
         head_world_pos.z += 0.9f;
@@ -2065,19 +2238,20 @@ void esp::draw_head_circle_cached(uintptr_t ped, Matrix viewport, uintptr_t loca
     if (!head_world_pos.world_to_screen(viewport, head_screen_pos))
         return;
 
-    const bool visible = EspPedVisible(ped);
+    bool visible = true;
+    try_get_prepared_visibility(ped, visible);
     ImU32 color = EspPedColor(ped, config.color_head_circle, visible);
-    if (!config.visibility_colors && cached_ped_data.health < 50.0f)
+    float health = 0.f;
+    try_get_prepared_health(ped, health);
+    if (!config.visibility_colors && health < 50.0f)
         color = IM_COL32(255, 255, 0, 255);
-    if (!config.visibility_colors && cached_ped_data.health < 25.0f)
+    if (!config.visibility_colors && health < 25.0f)
         color = IM_COL32(255, 0, 0, 255);
-    if (cached_ped_data.health <= 0.0f) color = IM_COL32(100, 100, 100, 255);
+    if (health <= 0.0f) color = IM_COL32(100, 100, 100, 255);
 
     float dist = 25.f;
     if (localplayer) {
-        Vec3 lp = FiveM::ESP::FrameCacheValid()
-            ? FiveM::ESP::GetFrameLocalPos()
-            : mem.Read<Vec3>(localplayer + FiveM::offset::playerPosition);
+        Vec3 lp = FiveM::ESP::GetFrameLocalPos();
         if (!lp.IsZero())
             dist = lp.distance_to(head_world_pos);
     }
@@ -2095,13 +2269,14 @@ void esp::draw_skeleton(uintptr_t ped, Matrix viewport, uintptr_t localplayer) {
     if (EspPedIsDead(ped) && !esp::config.show_dead) return;
     ImDrawList* draw_list = ImGui::GetForegroundDrawList();
     if (!draw_list) return;
+
     // Hard distance LOD for skeleton — biggest CPU cost per ped
     if (esp::config.skeleton_lod && FiveM::ESP::FrameCacheValid()) {
-        // origin resolved later; cheap early reject via prepared origin
-        if (const auto* pe = FindPreparedEsp(ped)) {
+        const auto* frame = FindEntityFrame(ped);
+        if (frame) {
             const Vec3& lp = FiveM::ESP::GetFrameLocalPos();
-            if (!lp.IsZero() && !pe->origin.IsZero() &&
-                esp::config.max_esp_distance <= 0.f || pe->origin.distance_to(lp) > esp::config.max_esp_distance)
+            if (!lp.IsZero() && !frame->position.IsZero() &&
+                (esp::config.max_esp_distance <= 0.f || frame->position.distance_to(lp) > esp::config.max_esp_distance))
                 return;
         }
     }
@@ -2142,25 +2317,13 @@ void esp::draw_skeleton(uintptr_t ped, Matrix viewport, uintptr_t localplayer) {
         B_NECK = 7, B_HIP = 8
     };
 
-    const BatchSkeletonData* prepared = FindPreparedSkeleton(ped);
-    Vec3 origin = prepared ? prepared->origin : Vec3{};
-    if (origin.IsZero())
-        origin = mem.Read<Vec3>(ped + FiveM::offset::playerPosition);
-    if (origin.IsZero())
-        origin = mem.Read<Vec3>(ped + 0x90);
-    if (origin.IsZero())
-        return;
+    const auto* frame = FindEntityFrame(ped);
+    Vec3 origin = frame ? frame->position : Vec3{};
+    if (origin.IsZero()) return; // No DMA fallback - skip if not in snapshot
 
     float lodDist = 0.f;
     if (localplayer) { // LOD always on with skeleton
-        Vec3 lp{};
-        if (FiveM::ESP::FrameCacheValid())
-            lp = FiveM::ESP::GetFrameLocalPos();
-        if (lp.IsZero()) {
-            lp = mem.Read<Vec3>(localplayer + 0x90);
-            if (lp.IsZero())
-                lp = mem.Read<Vec3>(localplayer + FiveM::offset::playerPosition);
-        }
+        Vec3 lp = FiveM::ESP::GetFrameLocalPos();
         if (!lp.IsZero()) {
             lodDist = origin.distance_to(lp);
         }
@@ -2176,18 +2339,12 @@ void esp::draw_skeleton(uintptr_t ped, Matrix viewport, uintptr_t localplayer) {
 
     Matrix bone_matrix{};
     Vector3 localBones[9]{};
-    if (prepared && prepared->bone_offsets.size() >= 9) {
-        bone_matrix = prepared->bone_matrix;
+    if (frame && frame->bone_mask) {
+        bone_matrix = frame->bone_matrix;
         for (int i = 0; i < 9; ++i)
-            localBones[i] = prepared->bone_offsets[static_cast<size_t>(i)];
+            localBones[i] = frame->bone_offsets[static_cast<size_t>(i)];
     } else {
-        auto h = mem.CreateScatterHandle();
-        if (!h) return;
-        mem.AddScatterReadRequest(h, ped + 0x60, &bone_matrix, sizeof(Matrix));
-        for (int i = 0; i < 9; ++i)
-            mem.AddScatterReadRequest(h, ped + (0x410 + 0x10 * i), &localBones[i], sizeof(Vector3));
-        mem.ExecuteReadScatter(h);
-        mem.CloseScatterHandle(h);
+        return; // No bone data in snapshot - skip (no DMA fallback)
     }
 
     auto readBone = [&](int idx) -> Vec3 {

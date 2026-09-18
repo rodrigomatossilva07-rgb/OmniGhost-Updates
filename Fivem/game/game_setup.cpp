@@ -147,6 +147,8 @@ void InitializePedCache() {
 
 bool ReinitDma() {
     std::cout << "[FiveM] Reinit DMA (process + world pointers)" << std::endl;
+    // Follow CS2 pattern: stop acquisition BEFORE invalidating process
+    ESP::StopAcquisition();
     mem.InvalidateProcess();
     std::string exe = OmniGhost::GameContext::Instance().GetValidExecutable();
     if (exe.empty())
@@ -168,7 +170,16 @@ bool ReinitDma() {
         return false;
     }
     Setup();
+    // Clear all caches after reattach
+    ESP::refreshCache();
     g_pedCacheManager.manualCache();
+    // Clear presentation state to avoid stale entities
+    {
+        // s_presentation is in esp_manager.cpp - we can't access it directly
+        // but the new acquisition will repopulate it
+    }
+    // Restart acquisition
+    ESP::EnsureAcquisitionStarted();
     std::cout << "[FiveM] Reinit DMA OK" << std::endl;
     return true;
 }

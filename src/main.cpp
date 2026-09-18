@@ -14,6 +14,7 @@
 #include "launcher/application_transitions.h"
 #include "launcher/game_launch_service.h"
 #include "launcher/game_adapter_registry.h"
+#include "launcher/game_adapter.h"
 #include "licensing/license_service.h"
 #include "updater/update_service.h"
 #include "updater/updater_mode.h"
@@ -619,11 +620,11 @@ while (application.shouldRun && !authenticated) {
     const bool game_present_before_attach =
         OmniGhost::GameLaunch::IsProcessPresent(selected);
 
-    // Initialize the game using the adapter
+    // Initialize the game using the session manager (supports multi-game)
     OmniGhost::SessionLog::Write(
         OmniGhost::SessionLog::Severity::Info,
         OmniGhost::SessionLog::Subsystem::Adapter,
-        "StartGameAdapter begin",
+        "StartGameSession begin",
         {{"game", selectedDefinition ? selectedDefinition->id : "unknown"}});
 
     OmniGhost::Launcher::AdapterStartResult startResult;
@@ -631,7 +632,7 @@ while (application.shouldRun && !authenticated) {
         startResult = { false, { OmniGhost::Launcher::AdapterErrorCode::AttachFailed,
             "Jogo não encontrado. Está aberto?" } };
     } else {
-        startResult = OmniGhost::Launcher::StartGameAdapter(selected);
+        startResult = OmniGhost::Launcher::GameSessionManager::Instance().StartSession(selected);
     }
     if (!startResult.succeeded) {
         // Use centralized adapter error model for consistent messaging
@@ -781,16 +782,15 @@ while (application.shouldRun && !authenticated) {
             break;
 
 // Game session update and process monitoring
-    if (adapter) {
-        // Update game logic, ESP, and aim through adapter
-        adapter->Tick();
-        
-        // Process alive checking and session management
-        bool shouldReturnToLauncher = false;
-        std::string terminationReason;
-        
-        switch (g_activeGame) {
-            case ActiveGame::CS2: {
+    OmniGhost::Launcher::GameSessionManager::Instance().TickActive();
+    
+    // Process alive checking and session management
+    ::Launcher::GameId activeGame = OmniGhost::Launcher::GameSessionManager::Instance().GetActiveGame();
+    bool shouldReturnToLauncher = false;
+    std::string terminationReason;
+    
+    switch (static_cast<ActiveGame>(activeGame)) {
+            case ::Launcher::GameId::CS2: {
                 static uint64_t last_alive_check = 0;
                 const auto cs2_snapshot = CS2::AcquireRuntimeSnapshot();
                 const uint64_t frames = cs2_snapshot ? cs2_snapshot->frames : 0;
@@ -808,7 +808,7 @@ while (application.shouldRun && !authenticated) {
                 }
                 break;
             }
-            case ActiveGame::Warzone: {
+            case ::Launcher::GameId::Warzone: {
                 static uint64_t last_alive_wz = 0;
                 if (Warzone::runtime.frames - last_alive_wz >= 90) {
                     last_alive_wz = Warzone::runtime.frames;
@@ -819,7 +819,7 @@ while (application.shouldRun && !authenticated) {
                 }
                 break;
             }
-            case ActiveGame::Valorant: {
+            case ::Launcher::GameId::Valorant: {
                 static ULONGLONG last_alive_valorant = 0;
                 const ULONGLONG now = GetTickCount64();
                 if (now - last_alive_valorant >= 750) {
@@ -838,7 +838,7 @@ while (application.shouldRun && !authenticated) {
                 }
                 break;
             }
-            case ActiveGame::Fortnite: {
+            case ::Launcher::GameId::Fortnite: {
                 static ULONGLONG last_alive_fn = 0;
                 const ULONGLONG now_fn = GetTickCount64();
                 if (now_fn - last_alive_fn >= 750) {
@@ -855,7 +855,7 @@ while (application.shouldRun && !authenticated) {
                 }
                 break;
             }
-            case ActiveGame::FiveM: {
+            case ::Launcher::GameId::FiveM: {
                 // Do not conflate a transient DMA/PID lookup miss with the game
                 // exiting.  FiveM can expose GTAProcess under several names.
                 const ULONGLONG now = GetTickCount64();
@@ -908,12 +908,13 @@ while (application.shouldRun && !authenticated) {
         }
         
         if (shouldReturnToLauncher) {
-            std::cout << "[" << (g_activeGame == ActiveGame::CS2 ? "CS2" :
-                                  g_activeGame == ActiveGame::Warzone ? "Warzone" :
-                                  g_activeGame == ActiveGame::Valorant ? "Valorant" :
-                                  g_activeGame == ActiveGame::Fortnite ? "Fortnite" :
-                                  g_activeGame == ActiveGame::Rust ? "Rust" : "FiveM") 
+            std::cout << "[" << (activeGame == ::Launcher::GameId::CS2 ? "CS2" :
+                                  activeGame == ::Launcher::GameId::Warzone ? "Warzone" :
+                                  activeGame == ::Launcher::GameId::Valorant ? "Valorant" :
+                                  activeGame == ::Launcher::GameId::Fortnite ? "Fortnite" :
+                                  activeGame == ::Launcher::GameId::Rust ? "Rust" : "FiveM") 
                       << "] " << terminationReason << " — a voltar ao launcher." << std::endl;
+            OmniGhost::Launcher::GameSessionManager::Instance().EndSession(activeGame);
             return_to_launcher = true;
         }
     }
@@ -923,17 +924,17 @@ while (application.shouldRun && !authenticated) {
         // the adapter only after repeated failures (transient reads are ignored).
         const ULONGLONG probe_now = GetTickCount64();
         if (probe_now >= next_offset_probe &&
-            g_activeGame == ActiveGame::CS2) {
+            activeGame == ::Launcher::GameId::CS2) {
             next_offset_probe = probe_now + 5000;
             bool can_probe = false;
-            if (g_activeGame == ActiveGame::CS2) {
+            if (activeGame == ::Launcher::GameId::CS2) {
                 const auto cs2_snapshot = CS2::AcquireRuntimeSnapshot();
                 can_probe = CS2::ready && cs2_snapshot && cs2_snapshot->local_pawn != 0;
             }
             if (can_probe) {
-                if (OmniGhost::OffsetAuto::ValidateLive(g_activeGame)) {
+                if (OmniGhost::OffsetAuto::ValidateLive(ActiveGame::CS2)) {
                     offset_probe_failures = 0;
-                    OmniGhost::OffsetAuto::MarkLiveValid(g_activeGame);
+                    OmniGhost::OffsetAuto::MarkLiveValid(ActiveGame::CS2);
                 } else if (++offset_probe_failures >= 3) {
                     // Diagnostic only — keep the menu/session open.
                     const std::string reason = "Os offsets falharam três validações consecutivas no jogo em execução.";

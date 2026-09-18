@@ -61,102 +61,43 @@ namespace vehicle_esp {
     }
 
     void Collect(bool force) {
-        static auto s_lastPose = std::chrono::steady_clock::time_point{};
-        static auto s_lastDiscovery = std::chrono::steady_clock::time_point{};
-        auto nowc = std::chrono::steady_clock::now();
-        // Pose/matrix refresh ~30 Hz for smooth vehicle ESP; list discovery slower.
-        if (!force && s_lastPose.time_since_epoch().count() != 0 &&
-            nowc - s_lastPose < std::chrono::milliseconds(33))
+        // Read from vehicle snapshot (populated by acquisition thread)
+        // This is now zero-DMA on the render/presentation thread
+        using namespace FiveM;
+        
+        const auto* vSnap = ESP::AcquireVehicleSnapshot();
+        if (!vSnap || vSnap->count == 0) {
+            vehicles.clear();
+            g_matrices.clear();
             return;
-        s_lastPose = nowc;
-        const bool rediscover = force || s_lastDiscovery.time_since_epoch().count() == 0 ||
-            (nowc - s_lastDiscovery) >= std::chrono::milliseconds(100);
-        if (rediscover)
-            s_lastDiscovery = nowc;
-        vehicles.clear();
-        g_matrices.clear();
+        }
+        
         // ESP draw gated in Render(); force=true lets lock/repair work with toggle off
         if (!force && !config.enabled) return;
-
-        using namespace FiveM;
-
-        if (!offset::replay || !offset::viewport || !offset::localplayer)
-            return;
-
-        auto handle = mem.CreateScatterHandle();
-
-        Matrix view_matrix{};
-        Vec3 localPos{};
-        uintptr_t vehicle_interface = 0;
-        uintptr_t vehicle_interface_alt = 0;
-
-        mem.AddScatterReadRequest(handle, offset::viewport + 0x24C, &view_matrix, sizeof(Matrix));
-        mem.AddScatterReadRequest(handle, offset::localplayer + offset::playerPosition, &localPos, sizeof(Vec3));
-        // Normal CReplayInterface layout uses +0x10.  The supplied b3258 dump
-        // also advertises +0xD10, so probe it as a fallback and validate the
-        // resulting list rather than trusting either blindly.
-        mem.AddScatterReadRequest(handle, offset::replay + 0x10, &vehicle_interface, sizeof(uintptr_t));
-        mem.AddScatterReadRequest(handle, offset::replay + 0xD10, &vehicle_interface_alt, sizeof(uintptr_t));
-        mem.ExecuteReadScatter(handle);
-
-        if (!IsValidPtr(vehicle_interface) && IsValidPtr(vehicle_interface_alt))
-            vehicle_interface = vehicle_interface_alt;
-        if (!IsValidPtr(vehicle_interface)) {
-            mem.CloseScatterHandle(handle);
-            return;
+        
+        vehicles.clear();
+        g_matrices.clear();
+        
+        // Convert snapshot data to VehicleData format
+        for (int i = 0; i < vSnap->count; ++i) {
+            const auto& vd = vSnap->vehicles[static_cast<size_t>(i)];
+            if (!vd.valid) continue;
+            
+            VehicleData v;
+            v.address = vd.address;
+            v.position = vd.position;
+            v.distance = vd.distance;
+            v.locked = vd.locked;
+            v.lock_state_known = vd.lock_state_known;
+            v.occupied = vd.occupied;
+            v.valid = true;
+            vehicles.push_back(v);
+            
+            if (config.box_3d) {
+                g_matrices[vd.address] = vd.matrix;
+            }
         }
-
-        uintptr_t vehicleListBase = 0, vehicleListBaseAlt = 0;
-        int vehicleCount = 0, vehicleCountAlt = 0;
-        mem.AddScatterReadRequest(handle, vehicle_interface + VEHICLE_LIST_OFFSET, &vehicleListBase, sizeof(uintptr_t));
-        mem.AddScatterReadRequest(handle, vehicle_interface + VEHICLE_COUNT_OFFSET, &vehicleCount, sizeof(int));
-        if (IsValidPtr(vehicle_interface_alt) && vehicle_interface_alt != vehicle_interface) {
-            mem.AddScatterReadRequest(handle, vehicle_interface_alt + VEHICLE_LIST_OFFSET, &vehicleListBaseAlt, sizeof(uintptr_t));
-            mem.AddScatterReadRequest(handle, vehicle_interface_alt + VEHICLE_COUNT_OFFSET, &vehicleCountAlt, sizeof(int));
-        }
-        mem.ExecuteReadScatter(handle);
-
-        auto validList = [](uintptr_t list, int count) {
-            return IsValidPtr(list) && count > 0 && count <= 2048;
-        };
-        if (!validList(vehicleListBase, vehicleCount) && validList(vehicleListBaseAlt, vehicleCountAlt)) {
-            vehicle_interface = vehicle_interface_alt;
-            vehicleListBase = vehicleListBaseAlt;
-            vehicleCount = vehicleCountAlt;
-        }
-        if (!IsValidPtr(vehicleListBase)) {
-            mem.CloseScatterHandle(handle);
-            return;
-        }
-
-        const int listCount = (vehicleCount > 0 && vehicleCount <= 2048)
-            ? (std::min)(vehicleCount, MAX_VEHICLES) : MAX_VEHICLES;
-        std::vector<uintptr_t> rawPtrs(listCount, 0);
-        for (int i = 0; i < listCount; ++i)
-            mem.AddScatterReadRequest(handle, vehicleListBase + (uintptr_t)i * VEHICLE_ENTRY_STRIDE,
-                                      &rawPtrs[i], sizeof(uintptr_t));
-        mem.ExecuteReadScatter(handle);
-
-        std::vector<uintptr_t> valid;
-        valid.reserve(MAX_VEHICLES);
-        for (int i = 0; i < listCount; ++i) {
-            if (IsValidPtr(rawPtrs[i]))
-                valid.push_back(rawPtrs[i]);
-        }
-
-        if (valid.empty()) {
-            mem.CloseScatterHandle(handle);
-            return;
-        }
-
-        std::vector<Vec3> positions(valid.size());
-        std::vector<Matrix> matrices(valid.size());
-        std::vector<uint32_t> lockState(valid.size(), UINT32_MAX);
-        std::vector<uintptr_t> driverPrimary(valid.size(), 0), driverFallback(valid.size(), 0);
-
-        const bool needMatrix = config.box_3d;
-        const bool needLock = config.lock_status;
-        const bool needOccupied = config.ignore_occupied || config.show_occupants;
+    }
         for (size_t i = 0; i < valid.size(); ++i) {
             mem.AddScatterReadRequest(handle, valid[i] + VEHICLE_POSITION_OFFSET, &positions[i], sizeof(Vec3));
             if (needMatrix)
@@ -305,8 +246,7 @@ namespace vehicle_esp {
         if (FiveM::ESP::FrameCacheValid()) {
             view_matrix = FiveM::ESP::GetFrameViewMatrix();
         } else {
-            // Fallback only when the player ESP frame did not publish a matrix.
-            mem.Read(offset::viewport + 0x24C, &view_matrix, sizeof(Matrix));
+            return; // No DMA fallback - skip if frame cache not valid
         }
 
         ImDrawList* dl = ImGui::GetForegroundDrawList();
@@ -428,32 +368,10 @@ namespace vehicle_esp {
                 textY += ts.y + 2.f;
             }
 
-            // Gear / engine: medium-rate cache (not per-frame DMA)
-            {
-                struct GearCache { int8_t gear = 0; float eng = 0.f; double t = 0.0; };
-                static std::unordered_map<uintptr_t, GearCache> s_gear;
-                const double nowG = ImGui::GetTime();
-                GearCache& gc = s_gear[v.address];
-                if (nowG - gc.t > 0.080) {
-                    gc.gear = mem.Read<int8_t>(v.address + FiveM::offset::vehicleGear);
-                    gc.eng = mem.Read<float>(v.address + FiveM::offset::vehicleEngineHp);
-                    gc.t = nowG;
-                }
-                char buf[48];
-                if (gc.gear >= -1 && gc.gear <= 8) {
-                    snprintf(buf, sizeof(buf), "G%d", (int)gc.gear);
-                    ImVec2 ts = ImGui::CalcTextSize(buf);
-                    dl->AddText(ImVec2(screenPos.x - ts.x * 0.5f, textY),
-                        IM_COL32(255, 220, 120, 220), buf);
-                    textY += ts.y + 2.f;
-                }
-                if (gc.eng > 1.f && gc.eng <= 1000.f) {
-                    snprintf(buf, sizeof(buf), "Motor %.0f", gc.eng);
-                    ImVec2 ts = ImGui::CalcTextSize(buf);
-                    dl->AddText(ImVec2(screenPos.x - ts.x * 0.5f, textY),
-                        gc.eng < 300.f ? IM_COL32(255, 80, 80, 220) : IM_COL32(180, 255, 180, 220), buf);
-                    textY += ts.y + 2.f;
-                }
+            // Gear / engine: use cached data from acquisition (no DMA in render)
+            if (config.show_gear || config.show_engine) {
+                // Data should come from vehicle snapshot populated by acquisition thread
+                // For now, skip if not available (no DMA fallback)
             }
         }
     }
