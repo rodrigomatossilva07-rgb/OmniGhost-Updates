@@ -18,9 +18,6 @@ $config = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
 if ($config.enabled -ne $true) {
     throw 'Publication is disabled in release-publish.json. No remote changes were made.'
 }
-if ($config.preserveLocalReleaseAfterUpload -ne $true) {
-    throw 'release-publish.json must keep preserveLocalReleaseAfterUpload=true.'
-}
 $phrase = if ($config.confirmationPhrase) { [string]$config.confirmationPhrase } else { 'PUBLISH OMNIGHOST' }
 if ($config.requireConfirmation -eq $true -and $Confirm -cne $phrase) {
     throw "Publication is explicit. Re-run with -Confirm '$phrase'. No remote changes were made."

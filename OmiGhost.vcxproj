@@ -196,6 +196,17 @@
     </Exec>
     <Error Condition="'$(OmniGhostPublishExitCode)'!='0'" Code="OGPUB001" Text="A build Publish compilou, mas o pipeline de publicação falhou. Consulta a janela Saída e a primeira causa reportada; o upload para o GitHub pode ainda não ter começado. Release nunca publica remotamente."/>
   </Target>
+  <!-- Local outputs are disposable once the single-EXE validation has passed.
+       A real Publish is deliberately excluded: Publish-Build cleans only after
+       GitHub has confirmed the public Latest release. -->
+  <Target Name="CleanupVerifiedLocalBuildWorkspace" AfterTargets="ValidateOmniGhostSingleExeRuntime"
+          Condition="'$(DesignTimeBuild)'!='true' And ( '$(Configuration)'=='Release' Or '$(Configuration)'=='Tester' Or ( '$(Configuration)'=='Publish' And '$(OmniGhostSkipRemotePublish)'=='true' )">
+    <Message Importance="High" Text="[OmniGhost Build] Build validada; a limpar .cache, artifacts e build."/>
+    <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; cleanup-verified-build &quot;$(MSBuildProjectDirectory)&quot;" IgnoreExitCode="true">
+      <Output TaskParameter="ExitCode" PropertyName="OmniGhostLocalCleanupExitCode"/>
+    </Exec>
+    <Warning Condition="'$(OmniGhostLocalCleanupExitCode)'!='0'" Text="A build foi validada, mas a limpeza local não terminou completamente. Fecha processos que estejam a usar o output e volta a compilar."/>
+  </Target>
   <Target Name="ValidateOmniGhostPlatform" BeforeTargets="PrepareForBuild">
     <Error Condition="'$(Platform)'!='x64'" Code="OGPLAT001" Text="OmniGhost suporta apenas x64. Seleciona Release, Tester ou Publish em x64."/>
   </Target>

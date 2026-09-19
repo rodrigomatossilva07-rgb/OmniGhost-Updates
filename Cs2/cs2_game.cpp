@@ -82,7 +82,9 @@ constexpr int FULL_SCAN_INTERVAL_MS = 12;   // health / spotted / core identity
 constexpr int ARMOR_INTERVAL_MS = 50;
 constexpr int WEAPON_INTERVAL_MS = 100;
 constexpr int ENTITY_LIST_INTERVAL_MS = 150;
-constexpr int NAME_INTERVAL_MS = 1000;
+// Player names are static for a round.  Keeping them out of the hot DMA path
+// avoids a second expensive controller scatter every second.
+constexpr int NAME_INTERVAL_MS = 3000;
 constexpr int TEAM_INTERVAL_MS = 500;
 }
 
@@ -2126,7 +2128,11 @@ static void RunFrameWithConfig(const Config& frame_config) {
     bool haveView = false;
     if (const auto camera = g_camera_snapshots.Acquire(); camera && camera->timestamp_ms) {
         const uint64_t now = GetTickCount64();
-        if (now >= camera->timestamp_ms && now - camera->timestamp_ms <= 100u) {
+        // A fresh matrix is ideal, but after a transport stall a slightly old
+        // coherent matrix is preferable to scheduling another synchronous
+        // QRead.  The render keeps one consistent camera state until the fast
+        // camera lane catches up again instead of amplifying the stall.
+        if (now >= camera->timestamp_ms && now - camera->timestamp_ms <= 2000u) {
             std::memcpy(runtime.view_matrix, camera->view_matrix, sizeof(runtime.view_matrix));
             haveView = true;
         }
@@ -2139,32 +2145,44 @@ static void RunFrameWithConfig(const Config& frame_config) {
 
     runtime.players.reserve(64);
 
-    runtime.local_controller = 0;
     // Keep the last validated team so TEAM_INTERVAL_MS is effective.
     runtime.local_view_yaw = 0.f;
     std::memset(runtime.local_pos, 0, sizeof(runtime.local_pos));
-    // Single scatter for local pawn + controller + health (was 3 sequential QReads).
-    mem.SetDmaCallTag("CS2.LocalBootstrap");
-    uintptr_t localPawn = 0;
-    uintptr_t localController = 0;
+    // The local pawn/controller pointers rarely change while alive.  Refresh
+    // them at a controlled cadence, while still sampling HP every full pass so
+    // death-mode can stop the non-essential reads promptly.
+    static uint64_t s_lastLocalBootstrapMs = 0;
+    const uint64_t localNowMs = GetTickCount64();
+    const bool refreshLocalBootstrap = !IsUserPointer(runtime.local_pawn) ||
+        !s_lastLocalBootstrapMs || localNowMs - s_lastLocalBootstrapMs >= 250u;
+    uintptr_t localPawn = runtime.local_pawn;
+    uintptr_t localController = runtime.local_controller;
     int sampled_health = runtime.local_health;
     EnsureScatter();
-    if (g_scatter_full) {
+    if (g_scatter_full && refreshLocalBootstrap) {
+        mem.SetDmaCallTag("CS2.LocalBootstrap");
         mem.AddScatterReadRequest(g_scatter_full, client + offsets.dwLocalPlayerPawn,
                                   &localPawn, sizeof(localPawn));
         if (offsets.dwLocalPlayerController)
             mem.AddScatterReadRequest(g_scatter_full, client + offsets.dwLocalPlayerController,
                                       &localController, sizeof(localController));
         mem.ExecuteReadScatter(g_scatter_full);
+        s_lastLocalBootstrapMs = localNowMs;
+    }
+    if (g_scatter_full) {
         if (IsUserPointer(localPawn) && offsets.m_iHealth) {
+            mem.SetDmaCallTag("CS2.LocalHealth");
             mem.AddScatterReadRequest(g_scatter_full, localPawn + offsets.m_iHealth,
                                       &sampled_health, sizeof(sampled_health));
             mem.ExecuteReadScatter(g_scatter_full);
         }
     } else {
-        QReadT(client + offsets.dwLocalPlayerPawn, localPawn, "CS2.LocalPawn");
-        if (offsets.dwLocalPlayerController)
-            QReadT(client + offsets.dwLocalPlayerController, localController, "CS2.LocalController");
+        if (refreshLocalBootstrap) {
+            QReadT(client + offsets.dwLocalPlayerPawn, localPawn, "CS2.LocalPawn");
+            if (offsets.dwLocalPlayerController)
+                QReadT(client + offsets.dwLocalPlayerController, localController, "CS2.LocalController");
+            s_lastLocalBootstrapMs = localNowMs;
+        }
         if (IsUserPointer(localPawn) && offsets.m_iHealth)
             QReadT(localPawn + offsets.m_iHealth, sampled_health, "CS2.LocalHP");
     }
@@ -3700,8 +3718,10 @@ void EnsureAcquisitionStarted() {
                 }
                 g_phase.other_ms = static_cast<float>(mem.ConsumeThreadDmaWaitUs()) / 1000.f;
             } catch (const std::exception& ex) {
+                g_acq_busy.store(false, std::memory_order_release);
                 std::cerr << "[CS2] acquisition exception: " << ex.what() << std::endl;
             } catch (...) {
+                g_acq_busy.store(false, std::memory_order_release);
                 std::cerr << "[CS2] acquisition unknown exception" << std::endl;
             }
 

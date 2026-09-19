@@ -429,19 +429,30 @@ namespace CyberTheme {
 
     bool DeserializeTheme(const std::string& json, std::string* error) {
         try {
+            // Theme packs are data only.  Keep the parser deliberately small
+            // and bounded so a Marketplace download can never become a code
+            // execution or resource-exhaustion path.
+            if (json.empty() || json.size() > 64u * 1024u) {
+                if (error) *error = "Theme pack must be between 1 byte and 64 KiB";
+                return false;
+            }
             ThemeExportData data;
+            bool sawSchema = false;
+            bool sawMode = false;
+            bool sawAccent = false;
+            bool sawScale = false;
             std::istringstream in(json);
             std::string line;
             while (std::getline(in, line)) {
                 if (line.find("schema_version") != std::string::npos) {
                     size_t pos = line.find(":");
-                    if (pos != std::string::npos) data.schema_version = std::stoi(line.substr(pos + 1));
+                    if (pos != std::string::npos) { data.schema_version = std::stoi(line.substr(pos + 1)); sawSchema = true; }
                 } else if (line.find("theme_mode") != std::string::npos) {
                     size_t pos = line.find(":");
-                    if (pos != std::string::npos) data.mode = static_cast<ThemeMode>(std::stoi(line.substr(pos + 1)));
+                    if (pos != std::string::npos) { data.mode = static_cast<ThemeMode>(std::stoi(line.substr(pos + 1))); sawMode = true; }
                 } else if (line.find("accent_preset") != std::string::npos) {
                     size_t pos = line.find(":");
-                    if (pos != std::string::npos) data.accent = static_cast<AccentPreset>(std::stoi(line.substr(pos + 1)));
+                    if (pos != std::string::npos) { data.accent = static_cast<AccentPreset>(std::stoi(line.substr(pos + 1))); sawAccent = true; }
                 } else if (line.find("custom_accent") != std::string::npos) {
                     size_t r = line.find("\"r\":");
                     size_t g = line.find("\"g\":");
@@ -453,12 +464,29 @@ namespace CyberTheme {
                     if (a != std::string::npos) data.custom_accent.w = std::stof(line.substr(a + 4));
                 } else if (line.find("ui_scale") != std::string::npos) {
                     size_t pos = line.find(":");
-                    if (pos != std::string::npos) data.ui_scale = std::stof(line.substr(pos + 1));
+                    if (pos != std::string::npos) { data.ui_scale = std::stof(line.substr(pos + 1)); sawScale = true; }
                 } else if (line.find("high_contrast") != std::string::npos) {
                     data.high_contrast = line.find("true") != std::string::npos;
                 } else if (line.find("reduced_motion") != std::string::npos) {
                     data.reduced_motion = line.find("true") != std::string::npos;
                 }
+            }
+
+            const int mode = static_cast<int>(data.mode);
+            const int accent = static_cast<int>(data.accent);
+            const bool validAccent = (accent >= static_cast<int>(AccentPreset::Cyber) &&
+                                      accent <= static_cast<int>(AccentPreset::Pink)) ||
+                                     data.accent == AccentPreset::Custom;
+            const auto finiteUnit = [](float value) {
+                return std::isfinite(value) && value >= 0.0f && value <= 1.0f;
+            };
+            if (!sawSchema || !sawMode || !sawAccent || !sawScale || data.schema_version != 1 || mode < static_cast<int>(ThemeMode::Dark) ||
+                mode > static_cast<int>(ThemeMode::System) || !validAccent ||
+                !finiteUnit(data.custom_accent.x) || !finiteUnit(data.custom_accent.y) ||
+                !finiteUnit(data.custom_accent.z) || !finiteUnit(data.custom_accent.w) ||
+                !std::isfinite(data.ui_scale) || data.ui_scale < 0.75f || data.ui_scale > 1.50f) {
+                if (error) *error = "Theme pack contains unsupported or unsafe visual values";
+                return false;
             }
 
             g_theme_mode = data.mode;
@@ -510,6 +538,16 @@ namespace CyberTheme {
             std::error_code ec;
             if (!std::filesystem::exists(path, ec)) {
                 if (error) *error = "Theme file does not exist";
+                return false;
+            }
+            if (!std::filesystem::is_regular_file(path, ec) || ec ||
+                path.extension() != ".ogtheme") {
+                if (error) *error = "Only regular .ogtheme files are accepted";
+                return false;
+            }
+            const auto size = std::filesystem::file_size(path, ec);
+            if (ec || size == 0 || size > 64u * 1024u) {
+                if (error) *error = "Theme pack must be between 1 byte and 64 KiB";
                 return false;
             }
             std::ifstream file(path);

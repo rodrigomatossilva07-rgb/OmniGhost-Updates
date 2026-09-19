@@ -254,14 +254,14 @@ if ($publishConfig.allowDeterministicSourceSnapshot -ne $true) { Fail 'This sour
 Pass 'Deterministic source snapshots are explicitly authorized without weakening validation for real Git clones.'
 if ($publishConfig.PSObject.Properties.Name -contains 'allowUnsignedDevelopmentPublish') { Fail 'Unsigned publication exceptions are forbidden.' }
 Pass 'Unsigned publication exceptions are absent.'
-if ($publishConfig.preserveLocalReleaseAfterUpload -ne $true) { Fail 'release-publish.json must preserve canonical local/CI release artefacts after upload.' }
-Pass 'Canonical local/CI release artefacts are preserved after upload.'
+if ($publishConfig.cleanWorkspaceAfterVerifiedPublish -ne $true) { Fail 'Publish must clean the requested local workspace only after a verified public release.' }
+Pass 'Post-publish workspace cleanup is enabled only after verified publication.'
 if (($publishConfig.requireAuthenticode -eq $true) -xor ($publishConfig.requireManifestSignature -eq $true)) { Fail 'Authenticode and manifest signatures must be toggled together.' }
 Pass 'Optional signing policy is internally consistent.'
 if ([int]$publishConfig.certificateRotationWarningDays -lt 30) { Fail 'Certificate rotation warning must be at least 30 days.' }
 Pass 'Certificate expiry/rotation policy is configured.'
-if ($publishConfig.PSObject.Properties.Name -contains 'deleteLocalReleaseAfterUpload') { Fail 'release-publish.json must not expose automatic local release deletion.' }
-Pass 'No automatic local release deletion setting is exposed.'
+if ($publishConfig.PSObject.Properties.Name -contains 'deleteLocalReleaseAfterUpload') { Fail 'Use cleanWorkspaceAfterVerifiedPublish rather than the legacy cleanup setting.' }
+Pass 'No legacy automatic cleanup setting is exposed.'
 if ($publishConfig.defaultMandatory -ne $false) { Fail 'release-publish.json must default to optional updates; mandatory releases are explicit.' }
 Pass 'Update policy defaults to optional; mandatory releases require an explicit policy change.'
 

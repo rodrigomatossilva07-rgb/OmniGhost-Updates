@@ -120,6 +120,21 @@ CyberWidgets::KeyValueRow(Loc::Tr("launcher.games"), availableSummary.c_str());
     EndControlPage();
 }
 
+bool MarketplaceThemeFileDialog(std::filesystem::path& selected) {
+    wchar_t path[MAX_PATH]{};
+    OPENFILENAMEW dialog{};
+    dialog.lStructSize = sizeof(dialog);
+    dialog.hwndOwner = g_overlay_instance ? g_overlay_instance->overlay : nullptr;
+    dialog.lpstrFilter = L"Pacotes de tema OmniGhost (*.ogtheme)\0*.ogtheme\0\0";
+    dialog.lpstrFile = path;
+    dialog.nMaxFile = MAX_PATH;
+    dialog.lpstrDefExt = L"ogtheme";
+    dialog.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
+    if (!GetOpenFileNameW(&dialog)) return false;
+    selected = path;
+    return true;
+}
+
 void DrawMarketplace(ImVec2 display) {
     BeginControlPage("##launcher_marketplace", display);
     DrawPageHeading(Loc::Tr("launcher.marketplace"), Loc::Tr("launcher.marketplace.subtitle"));
@@ -129,18 +144,53 @@ void DrawMarketplace(ImVec2 display) {
     const bool twoColumns = available >= S(760.f);
     const float cardWidth = twoColumns ? (available - gap) * .5f : available;
 
-    CyberWidgets::BeginCard("TEMAS E VISUAIS", cardWidth);
-    CyberWidgets::Badge("EM BREVE", CyberWidgets::TextTone::Info);
+    CyberWidgets::BeginCard("TEMAS E VISUAIS", 0.f);
+    CyberWidgets::Badge("INCLUÍDOS", CyberWidgets::TextTone::Success);
     ImGui::Dummy(ImVec2(0.f, S(7.f)));
-    CyberWidgets::TextLine("Temas para o launcher, menus, cores, layouts e packs visuais de ESP.",
+    CyberWidgets::TextLine("Estilos prontos para o launcher e menus. Aplicam-se já e ficam guardados nas definições.",
                            CyberWidgets::TextTone::Primary);
-    CyberWidgets::TextLine("Itens opcionais: o acesso aos jogos continua associado à conta/plano.",
+    CyberWidgets::TextLine("São cosméticos: não mudam o acesso aos jogos, ao DMA ou às funcionalidades.",
                            CyberWidgets::TextTone::Secondary);
     CyberWidgets::EndCard();
 
-    if (twoColumns) ImGui::SameLine(0.f, gap);
+    struct MarketplaceStyle {
+        const char* title;
+        const char* description;
+        CyberTheme::ThemeMode mode;
+        CyberTheme::AccentPreset accent;
+    };
+    static constexpr MarketplaceStyle styles[] = {
+        { "Obsidian Gold", "Escuro, elegante e com o dourado clássico do OmniGhost.", CyberTheme::ThemeMode::Dark, CyberTheme::AccentPreset::Gold },
+        { "Neon Azure", "Escuro, limpo e frio, com destaque azul elétrico.", CyberTheme::ThemeMode::Dark, CyberTheme::AccentPreset::Blue },
+        { "Violet Pulse", "Escuro com identidade roxa para um painel mais expressivo.", CyberTheme::ThemeMode::Dark, CyberTheme::AccentPreset::Purple },
+        { "Matrix Signal", "Escuro, verde e focado em leitura rápida de estado.", CyberTheme::ThemeMode::Dark, CyberTheme::AccentPreset::Matrix },
+        { "Crimson Focus", "Escuro de alto contraste com detalhes vermelhos.", CyberTheme::ThemeMode::Dark, CyberTheme::AccentPreset::Red },
+        { "Arctic Teal", "Escuro e sereno, com uma paleta azul-esverdeada.", CyberTheme::ThemeMode::Dark, CyberTheme::AccentPreset::Teal },
+    };
+
+    for (int i = 0; i < static_cast<int>(std::size(styles)); ++i) {
+        const auto& style = styles[i];
+        ImGui::PushID(i);
+        CyberWidgets::BeginCard(style.title, cardWidth);
+        CyberWidgets::TextLine(style.description, CyberWidgets::TextTone::Secondary);
+        ImGui::Dummy(ImVec2(0.f, S(10.f)));
+        if (CyberWidgets::Button("APLICAR ESTILO", CyberWidgets::ButtonStyle::Primary,
+                                 ImVec2(S(150.f), S(32.f)))) {
+            CyberTheme::SetThemeMode(style.mode);
+            CyberTheme::SetAccentPreset(style.accent);
+            CyberWidgets::Notify("Estilo aplicado e guardado nas definições.", CyberWidgets::ToastType::Success);
+        }
+        CyberWidgets::EndCard();
+        ImGui::PopID();
+        if (twoColumns && (i % 2) == 0)
+            ImGui::SameLine(0.f, gap);
+        else if (i + 1 < static_cast<int>(std::size(styles)))
+            ImGui::Dummy(ImVec2(0.f, gap));
+    }
+
+    ImGui::Dummy(ImVec2(0.f, gap));
     CyberWidgets::BeginCard("PRESETS", cardWidth);
-    CyberWidgets::Badge("LOCAL PRIMEIRO", CyberWidgets::TextTone::Secondary);
+    CyberWidgets::Badge("EM PREPARAÇÃO", CyberWidgets::TextTone::Info);
     ImGui::Dummy(ImVec2(0.f, S(7.f)));
     CyberWidgets::TextLine("Configs prontas por jogo: limpo, detalhado ou leve para PCs menos potentes.",
                            CyberWidgets::TextTone::Primary);
@@ -159,9 +209,21 @@ void DrawMarketplace(ImVec2 display) {
     CyberWidgets::BeginCard("CRIADORES DA COMUNIDADE", 0.f);
     CyberWidgets::TextLine("Podes enviar ideias e temas para revisão antes de serem publicados no Marketplace.",
                            CyberWidgets::TextTone::Primary);
-    CyberWidgets::TextLine("Serão aceites apenas pacotes de tema e imagens válidas; executáveis e scripts nunca são aceites.",
+    CyberWidgets::TextLine("Os packs descarregados usam apenas o formato .ogtheme; executáveis, scripts e ZIPs não são aceites.",
                            CyberWidgets::TextTone::Secondary);
-    CyberWidgets::HealthRow("Envio de ficheiros", "A aguardar serviço seguro de revisão", CyberWidgets::HealthStatus::Warning);
+    if (CyberWidgets::Button("IMPORTAR PACK .OGTHEME", CyberWidgets::ButtonStyle::Secondary,
+                             ImVec2(S(205.f), S(32.f)))) {
+        std::filesystem::path path;
+        if (MarketplaceThemeFileDialog(path)) {
+            std::string error;
+            if (CyberTheme::ImportTheme(path, &error))
+                CyberWidgets::Notify("Pack de tema validado e aplicado.", CyberWidgets::ToastType::Success);
+            else
+                CyberWidgets::Notify(error.empty() ? "Não foi possível validar este pack de tema." : error.c_str(),
+                                     CyberWidgets::ToastType::Error);
+        }
+    }
+    CyberWidgets::HealthRow("Catálogo online", "A aguardar serviço seguro de revisão e distribuição", CyberWidgets::HealthStatus::Warning);
     CyberWidgets::EndCard();
 
     EndControlPage();

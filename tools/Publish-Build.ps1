@@ -186,6 +186,21 @@ else {
         "[OmniGhost Publish] Versão $version publicada com sucesso."
     }
     Write-Host $completionMessage
+
+    # Only a fully public, latest release may discard local build outputs.
+    # A failed upload, preflight, draft, or skipped remote upload deliberately
+    # leaves every artifact intact for diagnosis and retry.
+    if (-not $ValidateOnly -and -not $script:SkipRemoteUpload -and $config.draft -ne $true -and
+        $config.cleanWorkspaceAfterVerifiedPublish -eq $true) {
+        $workspaceCleanup = Join-Path $ProjectDir 'tools\Cleanup-PublishWorkspace.ps1'
+        if (-not (Test-Path -LiteralPath $workspaceCleanup -PathType Leaf)) {
+            throw "Limpeza pós-publicação configurada, mas o script não existe: $workspaceCleanup"
+        }
+        & $workspaceCleanup -ProjectDir $ProjectDir
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "A Release já foi publicada, mas a limpeza pós-publicação terminou com o código $LASTEXITCODE."
+        }
+    }
 }
 }
 finally {
