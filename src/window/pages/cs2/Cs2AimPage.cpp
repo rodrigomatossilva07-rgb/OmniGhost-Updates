@@ -111,7 +111,13 @@ void DrawCs2Aim() {
         CS2::config.aim_humanization = std::clamp(CS2::config.aim_humanization, 0.f, 100.f);
         CS2::config.aim_humanize = CS2::config.aim_humanization > 0.5f;
 
-        // 6) Dynamic FOV
+        // 6) Visibility check — only pull when game reports target as spotted
+        CyberWidgets::ToggleSwitch("Verificacao de visibilidade", &CS2::config.aim_visibility_check);
+        if (CS2::config.aim_visibility_check)
+            CyberWidgets::TextLine("So puxa alvos visiveis (spotted). Desliga para puxar atras de paredes.",
+                                   CyberWidgets::TextTone::Secondary);
+
+        // 7) Dynamic FOV
         CyberWidgets::ToggleSwitch("Dynamic FOV", &CS2::config.aim_dynamic_fov);
         if (CS2::config.aim_dynamic_fov) {
             CyberWidgets::SliderFloat("Min FOV", &CS2::config.aim_fov_min, 5.f, 200.f, "%.0f px");

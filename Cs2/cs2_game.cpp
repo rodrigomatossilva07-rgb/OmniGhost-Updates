@@ -75,9 +75,9 @@ OmniGhost::Gameplay::SnapshotExchange<Runtime, 4> g_runtime_snapshots;
 // Multi-rate acquisition profile (render still every overlay frame)
 namespace {
 constexpr int CAMERA_INTERVAL_MS = 4;
-constexpr int MOTION_INTERVAL_MS = 12;
-constexpr int BONES_INTERVAL_MS = 16;
-constexpr int FULL_SCAN_INTERVAL_MS = 16;   // health / spotted / core identity
+constexpr int MOTION_INTERVAL_MS = 8;       // smoother player movement on ESP
+constexpr int BONES_INTERVAL_MS = 12;       // fluid skeleton without flooding DMA
+constexpr int FULL_SCAN_INTERVAL_MS = 12;   // health / spotted / core identity
 constexpr int ARMOR_INTERVAL_MS = 50;
 constexpr int WEAPON_INTERVAL_MS = 100;
 constexpr int ENTITY_LIST_INTERVAL_MS = 150;
@@ -272,9 +272,12 @@ static std::atomic<uint64_t> g_dma_cooldown_until_ms{0};
 static std::atomic<float> g_last_slow_dma_ms{0.f};
 
 static void NotePossibleDeviceStall(float duration_ms) {
-    if (!(duration_ms >= 80.f)) return;
+    // Only true device hangs (~300ms+). Normal scans on 35T/75T often sit at
+    // 20–120ms — treating those as stalls froze ESP (bones skipped, sleeps).
+    if (!(duration_ms >= 300.f)) return;
     g_last_slow_dma_ms.store(duration_ms, std::memory_order_relaxed);
-    const uint64_t cool = static_cast<uint64_t>((std::max)(40.f, (std::min)(400.f, duration_ms * 0.35f)));
+    // Short cool-down only; never long enough to make motion look stuck.
+    const uint64_t cool = static_cast<uint64_t>((std::max)(20.f, (std::min)(80.f, duration_ms * 0.08f)));
     const uint64_t until = GetTickCount64() + cool;
     uint64_t cur = g_dma_cooldown_until_ms.load(std::memory_order_relaxed);
     while (until > cur &&
@@ -2392,7 +2395,9 @@ static void RunFrameWithConfig(const Config& frame_config) {
 
     const uint64_t scan_now_ms = GetTickCount64();
     PawnCoreFields core[kMaxSlots]{};
-    const bool need_spotted = frame_config.visible_check || frame_config.visibility_colors;
+    const bool need_spotted = frame_config.visible_check || frame_config.visibility_colors ||
+        (frame_config.aim_enabled && frame_config.aim_visibility_check) ||
+        (frame_config.trigger_enabled && frame_config.aim_visibility_check);
     // Health/team/scene stay on the full cadence; slower fields are cached below.
     mem.SetDmaCallTag("CS2.PawnCore");
     const auto _posBegin = std::chrono::steady_clock::now();
@@ -2591,13 +2596,12 @@ if (need_bones) {
                 for (int j = i + 1; j < candN; ++j)
                     if (cand[j].distSq < cand[i].distSq)
                         std::swap(cand[i], cand[j]);
-            // Cap bone DMA under pressure / post-stall cooldown so the FPGA recovers.
+            // Prefer fluid poses: keep reading bones every scan. Only mild caps
+            // under sustained pressure — never stop bone updates (looks "frozen").
             const int pressure = g_pressure_level.load(std::memory_order_relaxed);
-            int maxBoneReadsPerScan = frame_config.performance_mode ? 8 : 14;
-            if (DmaCooldownActive()) maxBoneReadsPerScan = 0; // reuse cached poses this scan
-            else if (pressure >= 3) maxBoneReadsPerScan = 6;
-            else if (pressure == 2) maxBoneReadsPerScan = 8;
-            else if (pressure == 1) maxBoneReadsPerScan = (std::min)(maxBoneReadsPerScan, 10);
+            int maxBoneReadsPerScan = frame_config.performance_mode ? 10 : 16;
+            if (pressure >= 3) maxBoneReadsPerScan = 10;
+            else if (pressure == 2) maxBoneReadsPerScan = 12;
             const int take = candN < maxBoneReadsPerScan ? candN : maxBoneReadsPerScan;
             g_phase.bones_players = take;
             bool queuedBoneReads = false;
@@ -3493,11 +3497,8 @@ void EnsureAcquisitionStarted() {
                     PublishMotionSnapshot(motion);
                 }
             }
-            int cadence = in_match ? CAMERA_INTERVAL_MS : 12;
-            if (DmaCooldownActive())
-                cadence = (std::max)(cadence, 12);
-            else if (g_pressure_level.load(std::memory_order_relaxed) >= 2)
-                cadence = (std::max)(cadence, 8);
+            // Keep camera/motion snappy — view matrix must stay fluid for ESP.
+            const int cadence = in_match ? CAMERA_INTERVAL_MS : 12;
             scheduler.Wait(std::chrono::milliseconds(cadence));
         }
     });
@@ -3509,14 +3510,6 @@ void EnsureAcquisitionStarted() {
                 g_phase = Cs2PhaseTiming{};
                 g_phase.scan_id = g_scan_id.fetch_add(1, std::memory_order_relaxed) + 1;
                 mem.ResetThreadDmaWaitUs();
-                // If the previous scan stalled the device, take a short breath before
-                // issuing another full payload of scatters.
-                if (DmaCooldownActive()) {
-                    const uint64_t left = g_dma_cooldown_until_ms.load(std::memory_order_relaxed)
-                        - GetTickCount64();
-                    if (left > 0 && left < 500)
-                        std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<int>(left)));
-                }
                 mem.SetDmaScanId(g_phase.scan_id);
                 mem.SetDmaLane("full");
                 mem.SetDmaCallTag("CS2.Acquire");
@@ -3659,16 +3652,16 @@ void EnsureAcquisitionStarted() {
                     std::memory_order_relaxed);
                 int level = g_pressure_level.load(std::memory_order_relaxed);
                 // Enter higher pressure with hysteresis
-                if (work > 40.f || p95 > 35.f) level = 3;
-                else if (work > 28.f || p95 > 24.f) level = (std::max)(level, 2);
-                else if (work > 18.f || p95 > 16.f) level = (std::max)(level, 1);
-                else if (work < 12.f && p95 < 14.f) level = (std::max)(0, level - 1);
+                // Higher thresholds so normal 20–100ms scans don't force "recovery".
+                if (work > 120.f || p95 > 100.f) level = 3;
+                else if (work > 80.f || p95 > 70.f) level = (std::max)(level, 2);
+                else if (work > 50.f || p95 > 45.f) level = (std::max)(level, 1);
+                else if (work < 30.f && p95 < 35.f) level = (std::max)(0, level - 1);
                 g_pressure_level.store(level, std::memory_order_relaxed);
-                if (level >= 3) delayMs = (std::max)(delayMs, 40);
-                else if (level == 2) delayMs = (std::max)(delayMs, 32);
-                else if (level == 1) delayMs = (std::max)(delayMs, 24);
-                if (DmaCooldownActive())
-                    delayMs = (std::max)(delayMs, 48);
+                // Mild backoff only on sustained pressure — keep ESP fluid.
+                if (level >= 3) delayMs = (std::max)(delayMs, 28);
+                else if (level == 2) delayMs = (std::max)(delayMs, 22);
+                else if (level == 1) delayMs = (std::max)(delayMs, 18);
             }
             const auto waitBegin = std::chrono::steady_clock::now();
             scheduler.Wait(std::chrono::milliseconds(delayMs));

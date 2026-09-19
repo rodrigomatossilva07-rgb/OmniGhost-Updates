@@ -133,7 +133,7 @@ struct Config {
     bool aim_ignore_spectators = false;
     bool aim_ignore_bots = true;
     bool aim_auto_bone = false;         // fixed aim point only (head/neck/chest/stomach)
-    bool aim_visibility_check = true;   // uses game spotted-state; this is not a geometry trace
+    bool aim_visibility_check = false;  // ON: only aim at spotted targets; OFF: aim through walls (spotted-state, not raytrace)
     bool aim_rcs_standalone = false;    // RCS without aimbot
     bool aim_rcs_auto = true;           // auto-detect weapon & apply inverse pattern
     float aim_rcs_x = 1.f;              // horizontal strength multiplier
