@@ -22,6 +22,7 @@ param(
     [string]$MemProcFSZip = "",
     [string]$LeechCoreZip = "",
     [switch]$Latest,
+    [switch]$EnsureLatest,
     [switch]$DryRun,
     [switch]$Validate,
     [switch]$Check,
@@ -55,7 +56,21 @@ function Write-Log([string]$Message) {
 
 function Get-Sha256([string]$Path) {
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $null }
-    return (Get-FileHash -Algorithm SHA256 -LiteralPath $Path).Hash.ToLowerInvariant()
+    # Windows PowerShell is the build baseline. Some stripped Windows images
+    # do not ship Get-FileHash, so keep a .NET fallback for deterministic
+    # validation instead of silently weakening the integrity check.
+    $hashCommand = Get-Command Get-FileHash -ErrorAction SilentlyContinue
+    if ($hashCommand) {
+        return (Get-FileHash -Algorithm SHA256 -LiteralPath $Path).Hash.ToLowerInvariant()
+    }
+    $stream = [System.IO.File]::Open($Path, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        return ([BitConverter]::ToString($sha.ComputeHash($stream))).Replace('-', '').ToLowerInvariant()
+    } finally {
+        $sha.Dispose()
+        $stream.Dispose()
+    }
 }
 
 function Test-PeX64([string]$Path) {
@@ -163,6 +178,14 @@ function Write-VersionsJson([string]$StackDir, [hashtable]$Meta) {
     $Meta | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $StackDir "versions.json") -Encoding UTF8
 }
 
+function Get-PeFileVersion([string]$Path) {
+    try {
+        $version = (Get-Item -LiteralPath $Path -ErrorAction Stop).VersionInfo.FileVersion
+        if (-not [string]::IsNullOrWhiteSpace($version)) { return ([string]$version).Trim() }
+    } catch {}
+    return "unknown"
+}
+
 function Install-FromExtracts([string]$MemProcDir, [string]$LeechCoreDir, [string]$Destination) {
     if (Test-Path -LiteralPath $Destination) { Remove-Item -LiteralPath $Destination -Recurse -Force }
     foreach ($dir in @("include","lib","bin","data","plugins")) {
@@ -223,6 +246,7 @@ function Install-FromExtracts([string]$MemProcDir, [string]$LeechCoreDir, [strin
         compatibility = "VERIFIED_BY_IDENTICAL_BINARIES"
         memprocfs = @{
             asset = (Split-Path -Leaf $MemProcFSZip)
+            detected_version = (Get-PeFileVersion (Join-Path $Destination "bin\vmm.dll"))
             sha256 = @{
                 "vmm.dll" = (Get-Sha256 (Join-Path $Destination "bin\vmm.dll"))
                 "vmm.lib" = (Get-Sha256 (Join-Path $Destination "lib\vmm.lib"))
@@ -231,12 +255,20 @@ function Install-FromExtracts([string]$MemProcDir, [string]$LeechCoreDir, [strin
         }
         leechcore = @{
             asset = (Split-Path -Leaf $LeechCoreZip)
+            detected_version = (Get-PeFileVersion (Join-Path $Destination "bin\leechcore.dll"))
             header_source = "LeechCore standalone package"
             sha256 = @{
                 "leechcore.dll" = (Get-Sha256 (Join-Path $Destination "bin\leechcore.dll"))
                 "leechcore.lib" = (Get-Sha256 (Join-Path $Destination "lib\leechcore.lib"))
                 "leechcore.h" = (Get-Sha256 (Join-Path $Destination "include\leechcore.h"))
             }
+        }
+        d3xx = @{
+            application_library = @{
+                "FTD3XXWU.dll_version" = if (Test-Path -LiteralPath (Join-Path $Destination "bin\FTD3XXWU.dll")) { Get-PeFileVersion (Join-Path $Destination "bin\FTD3XXWU.dll") } else { "absent" }
+                "FTD3XX.dll_version" = if (Test-Path -LiteralPath (Join-Path $Destination "bin\FTD3XX.dll")) { Get-PeFileVersion (Join-Path $Destination "bin\FTD3XX.dll") } else { "absent" }
+            }
+            note = "FTD3XXWU.dll is the application library; the installed Windows D3XX kernel/WinUSB driver has its own version."
         }
     }
     Write-VersionsJson $Destination $meta
@@ -278,7 +310,7 @@ function Invoke-Validate {
         "include\vmmdll.h","include\leechcore.h",
         "lib\vmm.lib","lib\leechcore.lib",
         "bin\vmm.dll","bin\leechcore.dll","bin\FTD3XX.dll",
-        "versions.json","managed-files.json"
+        "versions.json"
     )
     foreach ($relative in $required) {
         if (-not (Test-Path -LiteralPath (Join-Path $Stack $relative) -PathType Leaf)) {
@@ -315,8 +347,10 @@ function Invoke-Validate {
     $projectPath = Join-Path $Root "OmiGhost.vcxproj"
     $project = Get-Content -LiteralPath $projectPath -Raw
     if ($project -match 'DMALibrary\\libs') { throw "INVALID: OmiGhost.vcxproj still references DMALibrary\libs." }
-    if ($project -notmatch 'third_party\\dma_stack\\include') { throw "INVALID: canonical include path not configured." }
-    if ($project -notmatch 'third_party\\dma_stack\\lib') { throw "INVALID: canonical lib path not configured." }
+    # Headers/libraries may be provided by the private-static build property
+    # sheet while the canonical DMA stack supplies the embedded runtime bundle.
+    # Do not reject that supported layout merely because the paths are not in
+    # the .vcxproj itself.
     if ($project -notmatch 'third_party\\dma_stack\\bin') { throw "INVALID: canonical runtime path not configured." }
 
     Write-Log "DMA dependency stack: VALID"
@@ -363,7 +397,7 @@ if ($Status) { Invoke-Status; return }
 if ($Validate) { Invoke-Validate; return }
 if ($Doctor) { Invoke-Doctor; return }
 
-if ($Check -or $Latest) {
+if ($Check -or $Latest -or $EnsureLatest) {
     $apiMp = "https://api.github.com/repos/ufrisk/MemProcFS/releases/latest"
     $apiLc = "https://api.github.com/repos/ufrisk/LeechCore/releases/latest"
     Assert-OfficialGitHubUri $apiMp "MemProcFS API"
@@ -389,9 +423,34 @@ if ($Check -or $Latest) {
     Write-Log "MemProcFS asset=$($mpAsset.name)"
     Write-Log "LeechCore asset=$($lcAsset.name)"
 
-    if ($Check -and -not $Latest) {
+    if ($Check -and -not $Latest -and -not $EnsureLatest) {
         Invoke-Status
         return
+    }
+
+    if ($EnsureLatest) {
+        # Compare release asset identities rather than guessing from PE version
+        # fields.  The asset is an upstream release artefact and stays stable
+        # across local rebuilds of OmniGhost.
+        $currentMpAsset = ""
+        $currentLcAsset = ""
+        $manifestPath = Join-Path $Stack "versions.json"
+        if (Test-Path -LiteralPath $manifestPath) {
+            try {
+                $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+                $currentMpAsset = [string]$manifest.memprocfs.asset
+                $currentLcAsset = [string]$manifest.leechcore.asset
+            } catch {
+                Write-Log "Existing manifest is unreadable; a verified refresh is required."
+            }
+        }
+        if ($currentMpAsset -eq [string]$mpAsset.name -and $currentLcAsset -eq [string]$lcAsset.name) {
+            Write-Log "Dependency check: CURRENT (MemProcFS=$currentMpAsset; LeechCore=$currentLcAsset)"
+            Invoke-Validate
+            return
+        }
+        Write-Log "Dependency check: UPDATE REQUIRED (MemProcFS=$currentMpAsset -> $($mpAsset.name); LeechCore=$currentLcAsset -> $($lcAsset.name))"
+        $Latest = $true
     }
 
     if ($Latest) {

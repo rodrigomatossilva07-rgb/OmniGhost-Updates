@@ -1,6 +1,4 @@
 #include "esp_manager.h"
-#include "../object_esp/object_esp.h"
-#include "../object_esp/object_esp_renderer.h"
 #include "config/app_settings.h"
 #include "../../ImGui/imgui.h"
 #include "offsets.h"
@@ -377,39 +375,22 @@ namespace FiveM {
                 bit(esp::config.trails, 7); bit(esp::config.angel_wings, 8);
                 bit(esp::config.head_halo, 9); bit(esp::config.floating_crown, 10);
                 bit(esp::config.triangle_radar || esp::config.radar_enabled, 11); bit(aimbot::config.aimbot_enabled, 12);
-                bit(object_esp::GetObjectESPManager().GetConfig().enabled, 13);
                 if (bits != s_cfgBits) {
                     s_cfgBits = bits;
                     char blob[256];
                     std::snprintf(blob, sizeof(blob),
                         "skeleton=%d\nbox=%d\nhealth=%d\narmor=%d\nweapon=%d\nvisibility=%d\n"
-                        "trails=%d\nwings=%d\nhalo=%d\ncrown=%d\nvehicles=%d\nobjects=%d\naim=%d",
+                        "trails=%d\nwings=%d\nhalo=%d\ncrown=%d\nvehicles=%d\naim=%d",
                         esp::config.skeleton, esp::config.box_2d, esp::config.health_bar, esp::config.armor_bar,
                         esp::config.weapon_name, (esp::config.visibility_colors || esp::config.visible_check) ? 1 : 0,
                         esp::config.trails, esp::config.angel_wings, esp::config.head_halo, esp::config.floating_crown,
                         (esp::config.triangle_radar || esp::config.radar_enabled) ? 1 : 0,
-                        object_esp::GetObjectESPManager().GetConfig().enabled ? 1 : 0,
                         aimbot::config.aimbot_enabled ? 1 : 0);
                     OmniGhost::Gameplay::DmaTelemetry::LogConfigChanged("FIVEM", blob);
                 }
             }
 
             renderESP();
-
-            // Object ESP (scan / track / draw) — independent from player ESP master toggle
-            try {
-                auto& objEsp = object_esp::GetObjectESPManager();
-                if (!objEsp.IsInitialized())
-                    objEsp.Initialize();
-                objEsp.Update();
-                if (objEsp.GetConfig().enabled && s_frameCacheValid) {
-                    object_esp::GetObjectRenderer().Render(s_viewMatrix, offset::localplayer);
-                }
-            } catch (const std::exception& ex) {
-                std::cerr << "[FiveM][ObjectESP] frame exception: " << ex.what() << std::endl;
-            } catch (...) {
-                std::cerr << "[FiveM][ObjectESP] frame exception (unknown)" << std::endl;
-            }
 
             // Radar every frame (10Hz caused triangle flicker)
             if (offset::localplayer && (esp::config.triangle_radar || esp::config.square_radar || esp::config.radar_enabled)) {

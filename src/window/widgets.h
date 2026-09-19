@@ -58,7 +58,6 @@ namespace CyberWidgets {
                     const char* action_label = nullptr);
     void SkeletonLine(float width = -1.0f, float height = 14.0f);
     void BeginSurfaceList(const char* id, float height);
-    void DrawFivemObjectESP();
     void EndSurfaceList();
 
     void BeginCard(const char* title, float width = 0.f);

@@ -152,9 +152,6 @@ namespace {
         case MenuTab::TAB_RESOLUTION:        DrawResolution(); break;
         case MenuTab::TAB_GAME_ADAPTER:      DrawGameAdapter(); break;
         
-        // FiveM specific pages
-        case MenuTab::TAB_FIVEM_OBJECT_ESP:  CyberWidgets::DrawFivemObjectESP(); break;
-        
         default:
             if (overlay) { /* keep */ }
             DrawVisuals();

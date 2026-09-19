@@ -26,6 +26,7 @@ if /I "%ACTION%"=="validate-distribution" set "SCRIPT=%PROJECT_DIR%\tools\Valida
 if /I "%ACTION%"=="publish-build" set "SCRIPT=%PROJECT_DIR%\tools\Publish-Build.ps1"
 if /I "%ACTION%"=="cleanup-verified-build" set "SCRIPT=%PROJECT_DIR%\tools\Cleanup-PublishWorkspace.ps1"
 if /I "%ACTION%"=="compress-assets" set "SCRIPT=%PROJECT_DIR%\tools\Compress-Assets.ps1"
+if /I "%ACTION%"=="ensure-dma-dependencies" set "SCRIPT=%PROJECT_DIR%\tools\Update-DmaDependencies.ps1"
 
 if not defined SCRIPT (
     echo [OmniGhost PowerShell] Unknown action: %ACTION%
@@ -90,6 +91,7 @@ if /I "%ACTION%"=="increment-version" goto :project_dir_only
 if /I "%ACTION%"=="restore-version" goto :project_dir_only
 if /I "%ACTION%"=="validate-project" goto :project_dir_only
 if /I "%ACTION%"=="ensure-metadata" goto :project_dir_only
+if /I "%ACTION%"=="ensure-dma-dependencies" goto :ensure_dma_dependencies
 "%PS_EXE%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%SCRIPT%" -ProjectDir "%PROJECT_DIR%"
 exit /b %ERRORLEVEL%
 
@@ -172,6 +174,10 @@ if /I "%VALIDATE_ONLY%"=="true" (
 ) else (
     "%PS_EXE%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%SCRIPT%" -ProjectDir "%PROJECT_DIR%" -BuildDir "%BUILD_DIR%" -ExplicitConfirmed
 )
+exit /b %ERRORLEVEL%
+
+:ensure_dma_dependencies
+"%PS_EXE%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%SCRIPT%" -EnsureLatest
 exit /b %ERRORLEVEL%
 
 :cleanup_verified_build

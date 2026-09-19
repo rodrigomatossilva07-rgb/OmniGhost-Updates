@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 2,
+  "product": "FTDI-D3XX",
+  "channel": "stable",
+  "expiresAt": "REPLACE_ISO_8601_UTC",
+  "latest": {
+    "packageVersion": "REPLACE_PACKAGE_VERSION",
+    "supportedDevices": [
+      { "vid": "0403", "pid": "601F", "product": "FT601" },
+      { "vid": "0403", "pid": "601E", "product": "FT600" }
+    ],
+    "acceptedInstalledDrivers": [
+      {
+        "generation": "WinUSB",
+        "provider": "FTDI",
+        "originalInf": [ "ftd3xxwu.inf" ],
+        "minimumVersion": "REPLACE_REPORTED_DRIVER_VERSION"
+      }
+    ],
+    "legacyDrivers": [
+      {
+        "generation": "WDF",
+        "provider": "FTDI",
+        "originalInf": [ "ftdibus3.inf" ],
+        "versionRange": "<REPLACE_WINUSB_MINIMUM"
+      }
+    ],
+    "package": {
+      "type": "ZIP_WITH_INF",
+      "url": "https://REPLACE_WITH_OFFICIAL_FTDI_HOST/PATH",
+      "sha256": "REPLACE_LOWERCASE_SHA256",
+      "size": 0,
+      "publisher": "FTDI",
+      "driver": {
+        "infCandidates": [ "WU_FTD3XX_Driver/FTD3XXWU.inf" ]
+      }
+    }
+  }
+}

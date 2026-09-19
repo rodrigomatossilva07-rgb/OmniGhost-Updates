@@ -1,0 +1,56 @@
+name: Publish signed FTDI driver manifest
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - drivers/ftdi/driver-manifest.json
+      - .github/workflows/publish-ftdi-driver-manifest.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout OmniGhost
+        uses: actions/checkout@v4
+
+      - name: Validate policy is complete
+        run: |
+          test -s drivers/ftdi/driver-manifest.json
+          ! grep -q 'REPLACE_' drivers/ftdi/driver-manifest.json
+          jq -e '
+            .schemaVersion == 2 and .product == "FTDI-D3XX" and
+            .channel == "stable" and
+            (.latest.package.url | startswith("https://")) and
+            (.latest.package.url | test("^https://([^/]*\\.)?ftdichip\\.com/")) and
+            (.latest.package.sha256 | test("^[a-f0-9]{64}$")) and
+            (.latest.package.size | numbers and . > 0) and
+            (.latest.package.type == "ZIP_WITH_INF") and
+            (.latest.acceptedInstalledDrivers | length > 0)
+          ' drivers/ftdi/driver-manifest.json >/dev/null
+
+      - name: Write private signing key
+        env:
+          SIGNING_KEY: ${{ secrets.FTDI_MANIFEST_SIGNING_KEY_PEM }}
+        run: |
+          test -n "$SIGNING_KEY"
+          umask 077
+          printf '%s' "$SIGNING_KEY" > /tmp/ftdi-manifest-private.pem
+
+      - name: Sign canonical JSON bytes
+        run: |
+          openssl pkeyutl -sign -rawin -inkey /tmp/ftdi-manifest-private.pem \
+            -in drivers/ftdi/driver-manifest.json -out /tmp/driver-manifest.sig.bin
+          base64 -w 0 /tmp/driver-manifest.sig.bin > /tmp/driver-manifest.sig
+
+      - name: Commit detached signature
+        run: |
+          git config user.name "OmniGhost Driver Publisher"
+          git config user.email "actions@github.com"
+          git add drivers/ftdi/driver-manifest.json drivers/ftdi/driver-manifest.sig
+          git diff --cached --quiet || git commit -m "Publish signed FTDI driver manifest"
+          git push

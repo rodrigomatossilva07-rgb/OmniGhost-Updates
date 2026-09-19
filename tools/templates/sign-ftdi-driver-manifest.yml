@@ -1,0 +1,36 @@
+name: Sign FTDI driver manifest
+
+on:
+  push:
+    paths:
+      - drivers/ftdi/driver-manifest.json
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sign:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Write signing key
+        run: |
+          umask 077
+          printf '%s' "${{ secrets.FTDI_MANIFEST_SIGNING_KEY_PEM }}" > /tmp/ftdi-manifest-private.pem
+      - name: Sign manifest
+        run: |
+          openssl pkeyutl -sign -rawin -inkey /tmp/ftdi-manifest-private.pem \
+            -in drivers/ftdi/driver-manifest.json \
+            -out drivers/ftdi/driver-manifest.sig
+          base64 -w 0 drivers/ftdi/driver-manifest.sig > drivers/ftdi/driver-manifest.sig.b64
+          mv drivers/ftdi/driver-manifest.sig.b64 drivers/ftdi/driver-manifest.sig
+      - name: Commit signature
+        run: |
+          git config user.name "OmniGhost manifest signer"
+          git config user.email "actions@github.com"
+          git add drivers/ftdi/driver-manifest.sig
+          git diff --cached --quiet || git commit -m "Sign FTDI driver manifest"
+          git push

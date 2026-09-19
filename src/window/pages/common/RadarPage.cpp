@@ -37,7 +37,6 @@ void DrawRadarPreview(float previewWidth, float previewHeight)
 
 } // namespace
 
-// forward: object esp lives in its own tab under Radar in the FiveM nav
 void DrawRadar()
 {
     const float full = CyberWidgets::CardContentWidth();

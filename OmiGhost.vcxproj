@@ -106,6 +106,17 @@
     </Exec>
     <Error Condition="'$(OmniGhostEmbeddedOffsetsExitCode)'!='0'" Code="OGOFF001" Text="Falha ao gerar os recursos de offsets embutidos. Consulta a janela Saída."/>
   </Target>
+  <!-- Each real build verifies the official MemProcFS/LeechCore releases.
+       The manager only replaces the local stack when the published release
+       asset changed; installation is staged, hash-checked and rollback-safe. -->
+  <Target Name="EnsureOmniGhostDmaDependencies" BeforeTargets="PrepareForBuild"
+          Condition="'$(DesignTimeBuild)'!='true' And '$(OmniGhostSkipDmaDependencyCheck)'!='true'">
+    <Message Importance="High" Text="[OmniGhost DMA] A verificar MemProcFS/LeechCore oficiais..."/>
+    <Exec Command="&quot;%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe&quot; -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\tools\Update-DmaDependencies.ps1&quot; -EnsureLatest" IgnoreExitCode="true">
+      <Output TaskParameter="ExitCode" PropertyName="OmniGhostDmaDependencyExitCode"/>
+    </Exec>
+    <Error Condition="'$(OmniGhostDmaDependencyExitCode)'!='0'" Code="OGDMA001" Text="Não foi possível verificar/atualizar a stack DMA oficial. A build foi interrompida para não compilar com dependências incompletas."/>
+  </Target>
   <Target Name="BuildOmniGhostEmbeddedRuntime" BeforeTargets="ClCompile;ResourceCompile" Condition="'$(DesignTimeBuild)'!='true'">
     <Message Importance="High" Text="[OmniGhost Runtime] Generating single-process native dependency bundle..."/>
     <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; generate-embedded-runtime &quot;$(MSBuildProjectDirectory)&quot; &quot;$(VCInstallDir)Redist\MSVC\$(VCToolsVersion)\x64&quot; &quot;$(Configuration)&quot;" IgnoreExitCode="true">
@@ -345,8 +356,6 @@
     <ClCompile Include="Fivem\game\game_setup.cpp"/>
     <ClCompile Include="Fivem\game\offsets.cpp"/>
     <ClCompile Include="Fivem\playerInfo\PedData.cpp"/>
-    <ClCompile Include="Fivem\object_esp\object_esp.cpp"/>
-    <ClCompile Include="Fivem\object_esp\object_esp_renderer.cpp"/>
     <ClCompile Include="Cs2\cs2_aim.cpp"/>
     <ClCompile Include="Cs2\cs2_esp.cpp"/>
     <ClCompile Include="Cs2\cs2_game.cpp"/>
@@ -375,7 +384,6 @@
     <ClCompile Include="src\window\pages\fortnite\FortniteVisualsPage.cpp"/>
     <ClCompile Include="src\window\pages\fortnite\FortniteStatusPage.cpp"/>
     <ClCompile Include="src\window\pages\fortnite\FortniteAimPage.cpp"/>
-    <ClCompile Include="src\window\pages\FivemObjectESPPage.cpp"/>
     <ClCompile Include="src\window\pages\unified_stubs.cpp"/>
 
     <ClCompile Include="ImGui\imgui.cpp"/>

@@ -1,3 +1,27 @@
+## OmniGhost 1.1.1
+
+Released: 19/09/2026
+Channel: stable
+Tag: v1.1.1
+
+### OMNIGHOST Launcher
+
+#### :rocket: Melhorado
+
+- O GitHub Actions passa a compilar, executar testes, fazer análise estática, gerar SBOM, validar o ZIP e publicar primeiro como draft.
+- Centralizadas várias etiquetas portuguesas de configuração, mira e visuais, com auditoria para impedir nova dívida de tradução.
+
+#### :wrench: Corrigido
+
+- Sincronizada a versão 3.0.0 no executável, recursos e fonte de versão, com rollover de 2.9.9 para 3.0.0.
+- Corrigida a limpeza das cópias temporárias OmniGhost.zip e OmniGhost-Release sem esconder erros de ficheiros bloqueados.
+
+#### :lock: Segurança
+
+- A configuração Publish passa a empacotar e publicar automaticamente no GitHub, mantendo obrigatórios a tag correspondente, o source limpo e a validação dos artefactos; Release e Tester permanecem estritamente locais.
+
+---
+
 ## OmniGhost 1.1.0
 
 Released: 19/09/2026

@@ -1,25 +1,35 @@
 {
-  "updated_at": "2026-09-09T19:30:00.000000Z",
+  "updated_at": "2026-09-19T20:27:48.316355Z",
   "architecture": "win-x64",
-  "source": "updated-from-local-libs",
-  "compatibility": "PROJECT_USED_IMPORTS_VERIFIED_AGAINST_RECOVERED_RUNTIME_EXPORTS",
+  "source": "user-supplied official LeechCore/MemProcFS archives",
+  "compatibility": "LEECHCORE_BINARY_IDENTICAL_BETWEEN_PACKAGES",
   "memprocfs": {
-    "asset": "MemProcFS_files_and_binaries-win_x64-latest",
-    "detected_version": "5.17.9.238",
+    "asset": "MemProcFS_files_and_binaries_v5.18.11-win_x64-20260914.zip",
+    "detected_version": "5.18.11.250",
     "sha256": {
-      "vmm.dll": "0395118f326ff32202d5214bc14d413f4ea9c858d08154846a5157176b0fbc9a",
-      "vmm.lib": "b8b045f7042360fb0f9f38eab90671b24f6a25a2b9c05494bd0254b715eab875",
-      "vmmdll.h": "67505accb79422a8c77787a558cb7562a8f24a799a8746756f6f49280da8a468"
+      "vmm.dll": "5b7ce682b8066bd90e217a4b081a81ba485226f8007056f35ea64dd118890fb5",
+      "vmm.lib": "674efd238a307b6dbc73c5301deff2f3b034bbcc3ebf9e5c9544ab334dd83be1",
+      "vmmdll.h": "8f789e237bb92a84c8f84763f17aa1d9c2df3bea8224dfaa503ca8f531c9d8f2"
     }
   },
   "leechcore": {
-    "asset": "LeechCore_files_and_binaries_v2.23.3-win_x64-20260816",
-    "detected_version": "2.22.12.98",
+    "asset": "LeechCore_files_and_binaries_v2.23.3-win_x64-20260820.zip",
+    "detected_version": "2.23.3.103",
     "header_source": "LeechCore standalone package",
     "sha256": {
       "leechcore.dll": "2a05a3ce187cd3ac69b788a5a6e56774acc80c168ac3041ff3bce028e8dd5116",
       "leechcore.lib": "de1259b698736a83c13f9731f7b823278e0b35df648f5a17552ae6490fb9b562",
       "leechcore.h": "d3dd1553cd3dc57e620722e6d4456e9aaa819a97066119c921db43aac1c3f6e3"
     }
+  },
+  "d3xx": {
+    "application_library": {
+      "FTD3XXWU.dll_version": "1.4.0.1",
+      "FTD3XX.dll_version": "1.3.0.10",
+      "FTD3XXWU.dll_sha256": "c507cb40f188740c4a7ba3aae4f848a305192b9b7c9e8e9264b1d66335824bfa",
+      "FTD3XX.dll_sha256": "3c0fc158fd4aa604c526d58ed8274ae830d53e69e01210cc5b5fa54ec5a9b7c0"
+    },
+    "recommended_windows_driver_package": "1.4.0.6",
+    "note": "The FTDI 1.4.0.6 number is the Windows WinUSB driver package; the current application library is FTD3XXWU.dll 1.4.0.1."
   }
 }

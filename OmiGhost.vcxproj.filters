@@ -408,15 +408,6 @@
     <ClCompile Include="src\launcher\game_adapter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\window\pages\FivemObjectESPPage.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="Fivem\object_esp\object_esp.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="Fivem\object_esp\object_esp_renderer.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="Warzone\warzone_aim.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

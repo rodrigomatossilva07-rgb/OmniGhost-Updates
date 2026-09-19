@@ -12,11 +12,17 @@
 #include <algorithm>
 #include <chrono>
 #include <cstring>
+#include <cwchar>
+#include <cwctype>
+#include <exception>
 #include <iostream>
 #include <sstream>
 #include <string>
 #include <thread>
 #include <vector>
+
+#include <SetupAPI.h>
+#include <winver.h>
 
 namespace
 {
@@ -48,6 +54,218 @@ std::string HexOf(uint64_t value)
 	std::ostringstream ss;
 	ss << "0x" << std::hex << value;
 	return ss.str();
+}
+
+std::string FileVersionString(const std::filesystem::path& file)
+{
+    DWORD ignored = 0;
+    const DWORD bytes = GetFileVersionInfoSizeW(file.c_str(), &ignored);
+    if (!bytes)
+        return "unknown";
+    std::vector<BYTE> data(bytes);
+    if (!GetFileVersionInfoW(file.c_str(), 0, bytes, data.data()))
+        return "unknown";
+    VS_FIXEDFILEINFO* info = nullptr;
+    UINT infoBytes = 0;
+    if (!VerQueryValueW(data.data(), L"\\", reinterpret_cast<LPVOID*>(&info), &infoBytes) ||
+        !info || infoBytes < static_cast<UINT>(sizeof(VS_FIXEDFILEINFO)))
+        return "unknown";
+    std::ostringstream out;
+    out << HIWORD(info->dwFileVersionMS) << '.' << LOWORD(info->dwFileVersionMS) << '.'
+        << HIWORD(info->dwFileVersionLS) << '.' << LOWORD(info->dwFileVersionLS);
+    return out.str();
+}
+
+std::filesystem::path ModulePath(HMODULE module)
+{
+    if (!module)
+        return {};
+    std::wstring buffer(32768, L'\0');
+    const DWORD len = GetModuleFileNameW(module, buffer.data(), static_cast<DWORD>(buffer.size()));
+    if (!len || static_cast<size_t>(len) >= buffer.size())
+        return {};
+    buffer.resize(len);
+    return std::filesystem::path(buffer);
+}
+
+std::wstring QueryRegistryString(HKEY key, const wchar_t* name)
+{
+    DWORD type = 0, bytes = 0;
+    if (RegQueryValueExW(key, name, nullptr, &type, nullptr, &bytes) != ERROR_SUCCESS ||
+        (type != REG_SZ && type != REG_EXPAND_SZ) || bytes < static_cast<DWORD>(sizeof(wchar_t)))
+        return {};
+    std::vector<wchar_t> buffer(bytes / sizeof(wchar_t) + 1, L'\0');
+    if (RegQueryValueExW(key, name, nullptr, &type, reinterpret_cast<LPBYTE>(buffer.data()), &bytes) != ERROR_SUCCESS)
+        return {};
+    return std::wstring(buffer.data());
+}
+
+bool ContainsInsensitive(std::wstring text, std::wstring needle)
+{
+    const auto upper = [](wchar_t ch) noexcept {
+        return static_cast<wchar_t>(std::towupper(static_cast<wint_t>(ch)));
+    };
+    std::transform(text.begin(), text.end(), text.begin(), upper);
+    std::transform(needle.begin(), needle.end(), needle.begin(), upper);
+    return text.find(needle) != std::wstring::npos;
+}
+
+struct FtdiDriverInfo
+{
+    bool found = false;
+    std::wstring description;
+    std::wstring version;
+    std::wstring provider;
+    std::wstring infPath;
+};
+
+FtdiDriverInfo QueryInstalledFtdiD3xxDriver()
+{
+    FtdiDriverInfo result;
+    HDEVINFO devices = SetupDiGetClassDevsW(nullptr, nullptr, nullptr, DIGCF_PRESENT | DIGCF_ALLCLASSES);
+    if (devices == INVALID_HANDLE_VALUE)
+        return result;
+    SP_DEVINFO_DATA deviceInfo{};
+    deviceInfo.cbSize = static_cast<DWORD>(sizeof(deviceInfo));
+    for (DWORD index = 0; SetupDiEnumDeviceInfo(devices, index, &deviceInfo); ++index) {
+        wchar_t description[512]{};
+        DWORD propertyType = 0;
+        (void)SetupDiGetDeviceRegistryPropertyW(devices, &deviceInfo, SPDRP_DEVICEDESC,
+            &propertyType, reinterpret_cast<PBYTE>(description), static_cast<DWORD>(sizeof(description)), nullptr);
+        DWORD required = 0;
+        (void)SetupDiGetDeviceRegistryPropertyW(devices, &deviceInfo, SPDRP_HARDWAREID,
+            &propertyType, nullptr, 0, &required);
+        std::vector<BYTE> hwidBytes(required + sizeof(wchar_t), 0);
+        if (required) {
+            (void)SetupDiGetDeviceRegistryPropertyW(devices, &deviceInfo, SPDRP_HARDWAREID,
+                &propertyType, hwidBytes.data(), static_cast<DWORD>(hwidBytes.size()), nullptr);
+        }
+        std::wstring hwids;
+        if (required) {
+            const wchar_t* cursor = reinterpret_cast<const wchar_t*>(hwidBytes.data());
+            while (*cursor) {
+                if (!hwids.empty()) hwids += L';';
+                hwids += cursor;
+                cursor += std::wcslen(cursor) + 1;
+            }
+        }
+        const bool looksLikeFt60x =
+            ContainsInsensitive(description, L"FT600") || ContainsInsensitive(description, L"FT601") ||
+            ContainsInsensitive(description, L"FT60") || ContainsInsensitive(description, L"D3XX") ||
+            ContainsInsensitive(hwids, L"VID_0403&PID_601E") ||
+            ContainsInsensitive(hwids, L"VID_0403&PID_601F");
+        if (!looksLikeFt60x)
+            continue;
+        HKEY driverKey = SetupDiOpenDevRegKey(devices, &deviceInfo, DICS_FLAG_GLOBAL, 0, DIREG_DRV, KEY_QUERY_VALUE);
+        if (driverKey == INVALID_HANDLE_VALUE)
+            continue;
+        result.found = true;
+        result.description = description;
+        result.version = QueryRegistryString(driverKey, L"DriverVersion");
+        result.provider = QueryRegistryString(driverKey, L"ProviderName");
+        result.infPath = QueryRegistryString(driverKey, L"InfPath");
+        RegCloseKey(driverKey);
+        break;
+    }
+    SetupDiDestroyDeviceInfoList(devices);
+    return result;
+}
+
+void LogFtdiDiagnostics()
+{
+    const wchar_t* names[] = { L"FTD3XXWU.dll", L"FTD3XX.dll" };
+    for (const wchar_t* name : names) {
+        const HMODULE module = GetModuleHandleW(name);
+        if (!module)
+            continue;
+        const auto path = ModulePath(module);
+        const std::string version = path.empty() ? "unknown" : FileVersionString(path);
+        std::cout << "[DMA][FTDI] module=" << Narrow(name) << " version=" << version
+            << " path=" << Narrow(path.wstring()) << "\n";
+        OmniGhost::SessionLog::Write(OmniGhost::SessionLog::Severity::Info,
+            OmniGhost::SessionLog::Subsystem::DMA, "FTDI application library loaded",
+            {{"module", Narrow(name)}, {"version", version}, {"path", Narrow(path.wstring())}});
+    }
+    const FtdiDriverInfo driver = QueryInstalledFtdiD3xxDriver();
+    if (driver.found) {
+        std::cout << "[DMA][FTDI] installed_driver=" << Narrow(driver.version)
+            << " provider=" << Narrow(driver.provider)
+            << " device=" << Narrow(driver.description)
+            << " inf=" << Narrow(driver.infPath) << "\n";
+        OmniGhost::SessionLog::Write(OmniGhost::SessionLog::Severity::Info,
+            OmniGhost::SessionLog::Subsystem::DMA, "FTDI D3XX installed driver",
+            {{"version", Narrow(driver.version)}, {"provider", Narrow(driver.provider)},
+             {"device", Narrow(driver.description)}, {"inf", Narrow(driver.infPath)}});
+    } else {
+        std::cout << "[DMA][FTDI] installed D3XX/FT60x driver version could not be resolved via SetupAPI\n";
+        OmniGhost::SessionLog::Write(OmniGhost::SessionLog::Severity::Warning,
+            OmniGhost::SessionLog::Subsystem::DMA, "FTDI D3XX installed driver not resolved");
+    }
+}
+
+ULONG64 ReadEnvironmentU64(const wchar_t* name, ULONG64 fallback)
+{
+    wchar_t buffer[64]{};
+    const DWORD len = GetEnvironmentVariableW(name, buffer, static_cast<DWORD>(std::size(buffer)));
+    if (!len || len >= static_cast<DWORD>(std::size(buffer)))
+        return fallback;
+    wchar_t* end = nullptr;
+    const unsigned long long value = std::wcstoull(buffer, &end, 10);
+    return (end && end != buffer && *end == L'\0') ? static_cast<ULONG64>(value) : fallback;
+}
+
+bool EnvironmentFlagEnabled(const wchar_t* name)
+{
+    wchar_t buffer[16]{};
+    const DWORD len = GetEnvironmentVariableW(name, buffer, static_cast<DWORD>(std::size(buffer)));
+    if (!len || len >= static_cast<DWORD>(std::size(buffer)))
+        return false;
+    return _wcsicmp(buffer, L"1") == 0 || _wcsicmp(buffer, L"true") == 0 ||
+        _wcsicmp(buffer, L"yes") == 0 || _wcsicmp(buffer, L"on") == 0;
+}
+
+void ConfigureVmmLowLatencyRefresh(VMM_HANDLE handle)
+{
+    if (!handle)
+        return;
+    ULONG64 enabled = 0, tickMs = 0, partialTicks = 0, totalTicks = 0;
+    const bool haveEnabled = VMMDLL_ConfigGet(handle, VMMDLL_OPT_CONFIG_IS_REFRESH_ENABLED, &enabled) != FALSE;
+    const bool haveTick = VMMDLL_ConfigGet(handle, VMMDLL_OPT_CONFIG_TICK_PERIOD, &tickMs) != FALSE && tickMs != 0;
+    const bool havePartial = VMMDLL_ConfigGet(handle, VMMDLL_OPT_CONFIG_PROCCACHE_TICKS_PARTIAL, &partialTicks) != FALSE;
+    const bool haveTotal = VMMDLL_ConfigGet(handle, VMMDLL_OPT_CONFIG_PROCCACHE_TICKS_TOTAL, &totalTicks) != FALSE;
+
+    // The upstream full/MEDIUM process refresh is ~15 s. Move only that
+    // expensive refresh out to 60 s; keep Memory/TLB/FAST refreshes enabled.
+    constexpr ULONG64 kDefaultMediumRefreshMs = 60000;
+    ULONG64 targetMs = ReadEnvironmentU64(L"OMNIGHOST_VMM_MEDIUM_REFRESH_MS", kDefaultMediumRefreshMs);
+    bool changed = false;
+    ULONG64 appliedTicks = totalTicks;
+    if (haveTick && targetMs != 0) {
+        targetMs = std::clamp<ULONG64>(targetMs, 15000, 600000);
+        appliedTicks = std::max<ULONG64>(1, (targetMs + tickMs - 1) / tickMs);
+        changed = VMMDLL_ConfigSet(handle, VMMDLL_OPT_CONFIG_PROCCACHE_TICKS_TOTAL, appliedTicks) != FALSE;
+    }
+    const ULONG64 oldTotalMs = (haveTick && haveTotal) ? totalTicks * tickMs : 0;
+    const ULONG64 newTotalMs = (haveTick && changed) ? appliedTicks * tickMs : oldTotalMs;
+    const ULONG64 partialMs = (haveTick && havePartial) ? partialTicks * tickMs : 0;
+    std::cout << "[VMM][RefreshPolicy] enabled=" << (haveEnabled ? enabled : 0)
+        << " tick_ms=" << (haveTick ? tickMs : 0)
+        << " partial_ticks=" << (havePartial ? partialTicks : 0)
+        << " partial_ms=" << partialMs
+        << " medium_ticks_before=" << (haveTotal ? totalTicks : 0)
+        << " medium_ms_before=" << oldTotalMs
+        << " medium_ticks_after=" << (changed ? appliedTicks : totalTicks)
+        << " medium_ms_after=" << newTotalMs
+        << " changed=" << (changed ? "YES" : "NO")
+        << (targetMs == 0 ? " mode=UPSTREAM_DEFAULT" : " mode=LOW_LATENCY") << "\n";
+    OmniGhost::SessionLog::Write(OmniGhost::SessionLog::Severity::Info,
+        OmniGhost::SessionLog::Subsystem::VMM, "refresh policy configured",
+        {{"enabled", haveEnabled ? std::to_string(enabled) : "unknown"},
+         {"tick_ms", haveTick ? std::to_string(tickMs) : "unknown"},
+         {"partial_ms", havePartial && haveTick ? std::to_string(partialMs) : "unknown"},
+         {"medium_ms_before", haveTotal && haveTick ? std::to_string(oldTotalMs) : "unknown"},
+         {"medium_ms_after", haveTotal && haveTick ? std::to_string(newTotalMs) : "unknown"},
+         {"changed", changed ? "yes" : "no"}});
 }
 
 // Loads one private-runtime library from its absolute path only. Never searches
@@ -85,14 +303,14 @@ bool Memory::EnsureRuntimeDependencies()
 	//    manifest owns them (portable Publish builds).
 	// 2) Otherwise accept a side-by-side copy under NativeRuntime/libs or next
 	//    to the executable (dev machines with vendor drivers installed).
-	// 3) If nothing is present, do NOT hard-fail here ÔÇö LeechCore loads the
+	// 3) If nothing is present, do NOT hard-fail here - LeechCore loads the
 	//    FTDI DLL only when the FPGA device is opened. A missing bridge is
 	//    reported as a warning so static-VMM / PnP-only probes can continue.
 	auto ftdiOk = false;
 	std::string ftdiDetail;
 	const wchar_t* const kFtdiCandidates[] = {
-		L"libs/FTD3XX.dll",
-		L"libs/FTD3XXWU.dll",
+		L"libs/FTD3XXWU.dll", // WinUSB D3XX 1.4 preferred
+		L"libs/FTD3XX.dll",   // legacy WDF fallback
 	};
 	for (const wchar_t* relative : kFtdiCandidates) {
 		if (ValidatePrivateRuntimeFile(relative, error)) {
@@ -126,7 +344,7 @@ bool Memory::EnsureRuntimeDependencies()
 		// Soft-fail: integrity still OK for session bootstrap; FPGA open will
 		// surface a real device error if the driver is truly unavailable.
 		ftdiDetail = "FTD3XX/FTD3XXWU absent from private runtime and side-by-side paths "
-			"(EXTERNAL_FTD3XXWU_ON_FPGA_OPEN ÔÇö deferred to device open)";
+			"(EXTERNAL_FTD3XXWU_ON_FPGA_OPEN - deferred to device open)";
 		std::cout << "[DMA][Init] FTDI bridge not pre-validated: " << ftdiDetail << "\n";
 	} else {
 		std::cout << "[DMA][Init] FTDI bridge: " << ftdiDetail << "\n";
@@ -333,7 +551,6 @@ static bool PreloadFtdiFromPath(const std::filesystem::path& file) noexcept
 
 static bool PreloadAllFtdiBridges() noexcept
 {
-	bool any = false;
 	namespace fs = std::filesystem;
 	const fs::path roots[] = {
 		OmniGhost::Paths::NativeRuntime() / L"libs",
@@ -341,14 +558,16 @@ static bool PreloadAllFtdiBridges() noexcept
 		OmniGhost::Paths::InstallDirectory() / L"third_party" / L"dma_stack" / L"bin",
 		OmniGhost::Paths::InstallDirectory(),
 	};
-	const wchar_t* names[] = { L"FTD3XX.dll", L"FTD3XXWU.dll" };
+	// LeechCore 2.22+ prefers the WinUSB bridge. Keep the old WDF DLL as fallback.
 	for (const auto& root : roots) {
-		for (const wchar_t* name : names) {
-			if (PreloadFtdiFromPath(root / name))
-				any = true;
-		}
+		if (PreloadFtdiFromPath(root / L"FTD3XXWU.dll"))
+			return true;
 	}
-	return any;
+	for (const auto& root : roots) {
+		if (PreloadFtdiFromPath(root / L"FTD3XX.dll"))
+			return true;
+	}
+	return false;
 }
 
 static bool HasFtdiBridge() noexcept
@@ -362,6 +581,9 @@ static bool HasFtdiBridge() noexcept
 	(void)MaterializePrivateRuntimeFile(L"libs/FTD3XX.dll", err);
 	(void)MaterializePrivateRuntimeFile(L"libs/FTD3XXWU.dll", err);
 
+	if (GetModuleHandleW(L"FTD3XXWU.dll") || GetModuleHandleW(L"FTD3XX.dll"))
+		return true;
+
 	bool any = false;
 	const fs::path roots[] = {
 		OmniGhost::Paths::NativeRuntime() / L"libs",
@@ -369,15 +591,16 @@ static bool HasFtdiBridge() noexcept
 		OmniGhost::Paths::InstallDirectory() / L"third_party" / L"dma_stack" / L"bin",
 		OmniGhost::Paths::InstallDirectory(),
 	};
-	const wchar_t* names[] = { L"FTD3XX.dll", L"FTD3XXWU.dll" };
 	for (const auto& root : roots) {
-		for (const wchar_t* name : names) {
-			if (PreloadFtdiFromPath(root / name))
-				any = true;
+		if (PreloadFtdiFromPath(root / L"FTD3XXWU.dll")) { any = true; break; }
+	}
+	if (!any) {
+		for (const auto& root : roots) {
+			if (PreloadFtdiFromPath(root / L"FTD3XX.dll")) { any = true; break; }
 		}
 	}
-	if (ValidatePrivateRuntimeFile(L"libs/FTD3XX.dll", err) ||
-	    ValidatePrivateRuntimeFile(L"libs/FTD3XXWU.dll", err))
+	if (ValidatePrivateRuntimeFile(L"libs/FTD3XXWU.dll", err) ||
+	    ValidatePrivateRuntimeFile(L"libs/FTD3XX.dll", err))
 		any = true;
 	return any;
 }
@@ -465,6 +688,8 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 #if defined(OMNIGHOST_DISABLE_VMM_SYMBOLS)
 				args.push_back("-disable-symbols");
 #endif
+			if (EnvironmentFlagEnabled(L"OMNIGHOST_VMM_NOREFRESH"))
+				args.push_back("-norefresh"); // diagnostic A/B only
 			if (useMmap && !mmapPath.empty()) {
 				args.push_back("-memmap");
 				args.push_back(mmapPath.c_str());
@@ -488,6 +713,7 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 #else
 				<< "ENABLED"
 #endif
+				<< " refresh=" << (EnvironmentFlagEnabled(L"OMNIGHOST_VMM_NOREFRESH") ? "DISABLED_DIAGNOSTIC" : "ENABLED_TUNED")
 				<< (useMmap && !mmapPath.empty() ? " memmap=YES" : " memmap=NO") << "\n";
 			OmniGhost::SessionLog::Write(OmniGhost::SessionLog::Severity::Info,
 				OmniGhost::SessionLog::Subsystem::DMA, "FPGA open attempt",
@@ -540,6 +766,13 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 		PreloadAllFtdiBridges();
 		if (!HasFtdiBridge()) {
 			std::cout << "[DMA][Init] WARN: FTD3XX not pre-validated — still trying open like UC base\n";
+		}
+		try {
+			LogFtdiDiagnostics();
+		} catch (const std::exception& ex) {
+			std::cout << "[DMA][FTDI] diagnostics skipped: " << ex.what() << "\n";
+		} catch (...) {
+			std::cout << "[DMA][FTDI] diagnostics skipped: unknown error\n";
 		}
 
 		// Exact match with working UC base: only fpga://algo=0, no extended flags
@@ -624,6 +857,11 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 		vmmOpenCount_.fetch_add(1, std::memory_order_relaxed);
 		sessionGeneration_.fetch_add(1, std::memory_order_acq_rel);
 		InvalidateScatterHandles("vmm session opened");
+
+		if (!EnvironmentFlagEnabled(L"OMNIGHOST_VMM_NOREFRESH"))
+			ConfigureVmmLowLatencyRefresh(vHandle);
+		else
+			std::cout << "[VMM][RefreshPolicy] mode=NOREFRESH_DIAGNOSTIC (background refresh disabled at initialization)\n";
 
 		ULONG64 major = 0, minor = 0, revision = 0;
 		(void)VMMDLL_ConfigGet(vHandle, VMMDLL_OPT_CONFIG_VMM_VERSION_MAJOR, &major);

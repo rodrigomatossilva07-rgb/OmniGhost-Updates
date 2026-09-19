@@ -96,7 +96,7 @@ Assert-ManifestHash $versions.leechcore.sha256.'leechcore.dll' 'libs\leechcore.d
 # expected and must not make the *next* build fail validation. Only source-tree
 # duplicates outside known generated/output roots are considered suspicious.
 $duplicates = @()
-$ignoredGeneratedRoots = @('build\', 'x64\', '.cache\', 'artifacts\', 'dist\', 'out\', 'libs\')
+$ignoredGeneratedRoots = @('build\', 'x64\', '.cache\', 'artifacts\', 'dist\', 'out\', 'libs\', 'third_party\dma_stack\bin\')
 foreach ($name in @('vmm.dll','leechcore.dll')) {
     foreach ($file in Get-ChildItem -LiteralPath $ProjectDir -Recurse -File -Filter $name -ErrorAction SilentlyContinue) {
         $relative = $file.FullName.Substring($ProjectDir.Length).TrimStart('\')

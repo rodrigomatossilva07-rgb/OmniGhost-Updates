@@ -353,12 +353,17 @@ if (Test-Path -LiteralPath $VersionPath -PathType Leaf) {
 }
 $MemProcFSVersion = 'unknown'
 $LeechCoreVersion = 'unknown'
-$DependencyVersionPath = Join-Path $ProjectDir 'versions.json'
-if (Test-Path -LiteralPath $DependencyVersionPath -PathType Leaf) {
+$DependencyVersionCandidates = @(
+    (Join-Path $ProjectDir 'third_party\dma_stack\versions.json'),
+    (Join-Path $ProjectDir 'versions.json')
+)
+$DependencyVersionPath = $DependencyVersionCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+if ($DependencyVersionPath) {
     try {
         $DependencyVersions = [IO.File]::ReadAllText($DependencyVersionPath) | ConvertFrom-Json
         if ($DependencyVersions.memprocfs.detected_version) { $MemProcFSVersion = [string]$DependencyVersions.memprocfs.detected_version }
         if ($DependencyVersions.leechcore.detected_version) { $LeechCoreVersion = [string]$DependencyVersions.leechcore.detected_version }
+        Write-Host "[BuildMetadata] dependency manifest=$DependencyVersionPath memprocfs=$MemProcFSVersion leechcore=$LeechCoreVersion"
     } catch {
         Write-Warning "Could not read dependency versions: $($_.Exception.Message)"
     }

@@ -11,7 +11,6 @@
 #include "../../DMALibrary/Memory/Memory.h"
 #include "../../Fivem/aimbot/aim_type.h"
 #include "../../Fivem/game/game.h"
-#include "../../Fivem/object_esp/object_esp.h"
 #include "../../Fortnite/fortnite_game.h"
 #include "../../Rust/rust_game.h"
 #include "../../Rust/rust_esp.h"
@@ -178,9 +177,6 @@ bool StartFiveM() {
         }
         OmniGhost::OffsetAuto::MarkLiveValid(ActiveGame::FiveM, "Build FiveM confirmada na tabela validada");
         FiveM::ESP::InitializeContainers();
-        if (!object_esp::GetObjectESPManager().Initialize()) {
-            std::cerr << "[FiveM][ObjectESP] Inicializacao indisponivel; a sessao continua sem Object ESP.\n";
-        }
         if (!aim_type::IsConnected()) makcu_wrapper::MakcuInitialize("");
         return true;
     } catch (const std::exception& ex) {
@@ -241,14 +237,12 @@ IGameAdapter* FindGameAdapter(::Launcher::GameId game) noexcept {
         Capability::Menu | Capability::ReadOnlyMemory | Capability::Overlay | Capability::Radar },
         StartFiveM, [] {
             FiveM::ESP::StopAcquisition();
-            object_esp::GetObjectESPManager().Shutdown();
             mem.InvalidateProcess();
         }, FiveMStatus,
         [] { 
             try {
                 if (!g_validExecutable.empty()) {
                     FiveM::ESP::RunESP();
-                    object_esp::GetObjectESPManager().Update();
                 }
             } catch (const std::exception& ex) {
                 std::cerr << "[FiveM] CRASH em Tick: " << ex.what() << std::endl;
