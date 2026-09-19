@@ -2081,26 +2081,46 @@ static void RunFrameWithConfig(const Config& frame_config) {
     // string stays empty briefly (common when INSERT was opened in the lobby).
     static bool was_in_match = false;
     static int zero_player_frames = 0;
-    static int match_probe_cooldown = 0;
-
-    // Lightweight probe: if map string is blank but local pawn + view matrix
-    // look live, treat as in-match so ESP recovers without restarting the menu.
-    // Do NOT require HP > 0 — when you die the pawn still exists and ESP must
-    // keep drawing other players during the death/spectate window.
-    if (!runtime.in_match && match_probe_cooldown <= 0) {
-        match_probe_cooldown = 15; // every ~15 frames
+    // Map refresh is the primary match signal. Some builds briefly expose an
+    // empty map string after loading, so retain a deliberately strict and slow
+    // fallback: a local pawn alone is also present in lobby, but a live entity
+    // page with multiple controllers is not. This avoids activating the full
+    // pipeline in lobby while still recovering automatically in a real match.
+    static uint64_t next_match_fallback_ms = 0;
+    if (!runtime.in_match && map_now_ms >= next_match_fallback_ms && !DmaCooldownActive()) {
+        next_match_fallback_ms = map_now_ms + 1000u;
         uintptr_t probe_pawn = 0;
-        if (QReadT(client + offsets.dwLocalPlayerPawn, probe_pawn) && IsUserPointer(probe_pawn)) {
-            int hp = 0;
-            QReadT(probe_pawn + offsets.m_iHealth, hp);
-            // Accept any readable pawn with a valid view matrix (alive or dead)
-            if (hp >= 0 && hp <= 200 && ProbeViewMatrix(nullptr)) {
+        uintptr_t entity_root = 0;
+        uintptr_t entity_page = 0;
+        if (QReadT(client + offsets.dwLocalPlayerPawn, probe_pawn, "CS2.MatchProbe") &&
+            QReadT(client + offsets.dwEntityList, entity_root, "CS2.MatchProbe") &&
+            IsUserPointer(probe_pawn) && IsUserPointer(entity_root) &&
+            QReadT(entity_root + kEntityPageTableOffset, entity_page, "CS2.MatchProbe") &&
+            IsUserPointer(entity_page)) {
+            uintptr_t controllers[4]{};
+            int controllerCount = 0;
+            EnsureScatter();
+            if (g_scatter_full) {
+                mem.SetDmaCallTag("CS2.MatchProbe");
+                for (int i = 1; i <= 4; ++i)
+                    mem.AddScatterReadRequest(g_scatter_full,
+                        entity_page + static_cast<uintptr_t>(i) * kEntityIdentityStride,
+                        &controllers[i - 1], sizeof(uintptr_t));
+                const auto probeBegin = std::chrono::steady_clock::now();
+                mem.ExecuteReadScatter(g_scatter_full);
+                NotePossibleDeviceStall(OmniGhost::Gameplay::TimeMs(probeBegin));
+            } else {
+                for (int i = 1; i <= 4; ++i)
+                    QReadT(entity_page + static_cast<uintptr_t>(i) * kEntityIdentityStride,
+                           controllers[i - 1], "CS2.MatchProbe");
+            }
+            for (const uintptr_t controller : controllers)
+                controllerCount += IsUserPointer(controller) ? 1 : 0;
+            if (controllerCount >= 2) {
                 runtime.in_match = true;
                 runtime.local_pawn = probe_pawn;
             }
         }
-    } else if (match_probe_cooldown > 0) {
-        --match_probe_cooldown;
     }
 
     // Entering a match (from lobby or after map change) → force entity list re-acquire.
@@ -3535,7 +3555,7 @@ void EnsureAcquisitionStarted() {
             // The FPGA cannot make a 4 ms QRead when an entity scan is already
             // in flight.  Sharing it caused queues of 50–900 ms in telemetry,
             // which is much worse visually than reusing the last valid matrix.
-            if (canRead && !DmaCooldownActive() && !g_acq_busy.load(std::memory_order_acquire)) {
+            if (canRead && in_match && !DmaCooldownActive() && !g_acq_busy.load(std::memory_order_acquire)) {
                 std::unique_lock<std::mutex> gate(g_dma_read_gate, std::try_to_lock);
                 if (gate.owns_lock()) {
                     const auto cameraReadBegin = std::chrono::steady_clock::now();
