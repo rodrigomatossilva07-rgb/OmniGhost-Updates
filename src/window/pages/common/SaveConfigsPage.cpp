@@ -390,8 +390,18 @@ void DrawSaveConfigs()
 
         float name_x = row.x + 2.0f;
         if (cfg.favorite) {
-            dl->AddText(ImVec2(name_x, row.y + 9.0f),
-                CyberTheme::U32(CyberTheme::Colors.Gold), "★");
+            // Draw the star ourselves so it cannot turn into '?' on fonts
+            // without the Unicode star glyph.
+            ImVec2 points[10];
+            constexpr float pi = 3.14159265f;
+            const ImVec2 center(name_x + 7.0f, row.y + 18.0f);
+            for (int point = 0; point < 10; ++point) {
+                const float radius = (point & 1) ? 3.1f : 7.0f;
+                const float angle = -pi * 0.5f + pi * static_cast<float>(point) / 5.0f;
+                points[point] = ImVec2(center.x + std::cos(angle) * radius,
+                                       center.y + std::sin(angle) * radius);
+            }
+            dl->AddConvexPolyFilled(points, 10, CyberTheme::U32(CyberTheme::Colors.Gold));
             name_x += 18.0f;
         }
         dl->AddText(ImVec2(name_x, row.y + 10.0f),

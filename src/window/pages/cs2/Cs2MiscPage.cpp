@@ -36,20 +36,8 @@ void DrawCs2Misc()
     if (CS2::config.telemetry_enabled && !prev) {
         char blob[384];
         std::snprintf(blob, sizeof(blob),
-            "esp=%d
-skeleton=%d
-box=%d
-health=%d
-armor=%d
-name=%d
-weapon=%d
-"
-            "radar=%d
-aim=%d
-trigger=%d
-bomb=%d
-spectators=%d
-perf_mode=%d",
+            "esp=%d\nskeleton=%d\nbox=%d\nhealth=%d\narmor=%d\nname=%d\nweapon=%d\n"
+            "radar=%d\naim=%d\ntrigger=%d\nbomb=%d\nspectators=%d\nperf_mode=%d",
             CS2::config.esp_enabled ? 1 : 0,
             CS2::config.skeleton ? 1 : 0,
             (CS2::config.box || CS2::config.box_corner) ? 1 : 0,

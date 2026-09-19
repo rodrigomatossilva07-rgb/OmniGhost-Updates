@@ -280,21 +280,6 @@ void DrawConfigs(Overlay* self)
         CyberWidgets::EndCard();
         CyberWidgets::EndCardRow();
 
-        CyberWidgets::CardGap();
-        CyberWidgets::BeginCard(app_settings::T("CONFIGURAÇÃO E PERFIL", "CONFIGURATION AND PROFILE"));
-        CyberWidgets::KeyValueRow(app_settings::T("Perfil atual", "Current profile"), config_manager::CurrentGameProfileName());
-        if (CyberWidgets::Button("DEFAULT", CyberWidgets::ButtonStyle::Secondary, ImVec2(110, 34)))
-            config_manager::ApplyGameProfile(config_manager::GameProfile::Default);
-        ImGui::SameLine();
-        if (CyberWidgets::Button("MINIMAL", CyberWidgets::ButtonStyle::Secondary, ImVec2(110, 34)))
-            config_manager::ApplyGameProfile(config_manager::GameProfile::Minimal);
-        ImGui::SameLine();
-        if (CyberWidgets::Button("VISUAL", CyberWidgets::ButtonStyle::Secondary, ImVec2(110, 34)))
-            config_manager::ApplyGameProfile(config_manager::GameProfile::Visual);
-        ImGui::SameLine();
-        if (CyberWidgets::Button(app_settings::T("GUARDAR ATUAL", "SAVE CURRENT"), CyberWidgets::ButtonStyle::Primary, ImVec2(150, 34)))
-            config_manager::SaveCustomGameProfile();
-        CyberWidgets::EndCard();
     } else if (settingsTab == 1) {
         CyberWidgets::BeginCard(app_settings::T("APARÊNCIA", "APPEARANCE"));
         CyberWidgets::SliderFloat(app_settings::T("Escurecimento do fundo", "Background darkness"), &app_settings::config.black_level, 0.f, 100.f, "%.0f%%");

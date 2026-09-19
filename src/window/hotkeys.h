@@ -93,4 +93,15 @@ namespace Hotkeys {
     void RegisterCallback(Action action, HotkeyCallback callback);
     void UnregisterCallback(Action action);
 
+    // Per-feature toggle keys.  These are intentionally independent from the
+    // fixed application shortcuts above: a feature only gets a key after the
+    // user captures one on its own toggle row.
+    void RegisterFeatureToggle(const std::string& id, bool* value);
+    bool BeginFeatureCapture(const std::string& id);
+    void SetFeatureKey(const std::string& id, int vk_code);
+    bool IsCapturingFeature(const std::string& id);
+    int FeatureKey(const std::string& id);
+    std::string SerializeFeatureToggles();
+    bool DeserializeFeatureToggle(const std::string& key, const std::string& value);
+
 } // namespace Hotkeys

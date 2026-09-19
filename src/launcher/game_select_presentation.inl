@@ -379,7 +379,7 @@ void DrawFooter(ImDrawList* draw, ImVec2 display) {
         if (dhover) {
             ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
             if (ImGui::IsMouseClicked(0))
-                ShellExecuteA(nullptr, "open", "https://discord.gg/j6P9GyNF", nullptr, nullptr, SW_SHOWNORMAL);
+                ShellExecuteA(nullptr, "open", "https://discord.gg/WJuVGckQ", nullptr, nullptr, SW_SHOWNORMAL);
         }
     }
 

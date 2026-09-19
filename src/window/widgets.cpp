@@ -4,6 +4,7 @@
 #include "fonts.h"
 #include "animations.h"
 #include "localization.h"
+#include "hotkeys.h"
 #include "hardware_monitor.h"
 #include "config_history.h"
 #include "../config/app_settings.h"
@@ -528,7 +529,10 @@ namespace CyberWidgets {
         const ImVec2 pos = ImGui::GetCursorScreenPos();
         const float width = WidgetWidth();
         const float row_height = 36.0f;
-        const float field_width = std::clamp(width * 0.48f, 96.0f, 168.0f);
+        // Keep selection fields close enough to their labels.  The old
+        // 48%-wide right-aligned field made short display settings look
+        // detached on compact cards.
+        const float field_width = std::clamp(width * 0.60f, 96.0f, 220.0f);
         const ImVec2 field_pos(pos.x + width - field_width, pos.y + 2.0f);
         const ImVec2 field_end(pos.x + width, pos.y + row_height - 2.0f);
 
@@ -718,6 +722,22 @@ namespace CyberWidgets {
 
         const bool clicked = ImGui::InvisibleButton("##toggle", ImVec2(width, row_height));
         const bool hovered = ImGui::IsItemHovered();
+        const std::string feature_id = std::string(window->Name) + "|" + (history_id.empty() ? label : history_id);
+        Hotkeys::RegisterFeatureToggle(feature_id, value);
+        if (hovered && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Right))
+            Hotkeys::BeginFeatureCapture(feature_id);
+
+        if (Hotkeys::IsCapturingFeature(feature_id)) {
+            for (int vk = 1; vk < 256; ++vk) {
+                if (!(GetAsyncKeyState(vk) & 1)) continue;
+                if (vk == VK_ESCAPE) {
+                    // Escape clears an existing assignment as requested.
+                    Hotkeys::SetFeatureKey(feature_id, 0);
+                } else
+                    Hotkeys::SetFeatureKey(feature_id, vk);
+                break;
+            }
+        }
         ApplyCursorForItem(true);
         DrawFocusRing(CyberTheme::Metrics::ControlRounding);
         if (clicked)
@@ -740,6 +760,19 @@ namespace CyberWidgets {
             hovered ? IM_COL32(238, 239, 244, 255)
                     : ImGui::ColorConvertFloat4ToU32(CyberTheme::Colors.Text),
             display);
+
+        const int feature_key = Hotkeys::FeatureKey(feature_id);
+        const bool capture = Hotkeys::IsCapturingFeature(feature_id);
+        if (feature_key > 0 || capture) {
+            const bool blink = capture && std::fmod(ImGui::GetTime(), 0.8) < 0.4;
+            const std::string key_text = capture ? (blink ? "(...)" : "     ")
+                : (std::string("(") + Hotkeys::GetKeyName(feature_key) + ")");
+            const float label_w = ImGui::CalcTextSize(display).x;
+            dl->AddText(ImVec2(row_pos.x + label_w + 9.0f, text_y),
+                capture ? ImGui::ColorConvertFloat4ToU32(CyberTheme::Colors.Gold)
+                        : ImGui::ColorConvertFloat4ToU32(CyberTheme::Colors.TextDisabled),
+                key_text.c_str());
+        }
 
         // Align every switch to the same right edge so the column looks centered/clean.
         const float far_x = row_pos.x + width - track_width - CyberTheme::Px(4.0f);

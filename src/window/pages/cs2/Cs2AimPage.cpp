@@ -11,7 +11,7 @@
 
 namespace {
 
-const char* VkName(int vk) {
+[[maybe_unused]] const char* VkName(int vk) {
     if (vk <= 0) return "-";
     switch (vk) {
     case 1: return "Mouse Esquerdo";
@@ -28,7 +28,7 @@ const char* VkName(int vk) {
     return buf;
 }
 
-bool HotkeyCaptureButton(const char* id, int* vk) {
+[[maybe_unused]] bool HotkeyCaptureButton(const char* id, int* vk) {
     static int* capturing = nullptr;
     static float blink = 0.f;
     static double ignore_until = 0.0;
@@ -80,10 +80,8 @@ void DrawCs2Aim() {
     CyberWidgets::BeginCard("ASSISTENCIA DE MIRA", left);
     CyberWidgets::ToggleSwitch("Ativar mira", &CS2::config.aim_enabled);
     if (CS2::config.aim_enabled) {
-        // 1) Activation Key
-        ImGui::TextUnformatted("Activation Key");
-        ImGui::SameLine(160.f);
-        HotkeyCaptureButton("cs2aim1", &CS2::config.aim_bind);
+        // Feature keys are assigned directly on a toggle (double right-click),
+        // never through a separate capture row in this page.
         if (CS2::config.aim_bind <= 0)
             CS2::config.aim_bind = 0x02;
         CS2::config.aim_bind2 = 0;
@@ -128,7 +126,7 @@ void DrawCs2Aim() {
         CyberWidgets::KeyValueRow("Diagnostico", CS2_Aim::DebugStatus());
         CyberWidgets::KeyValueRow("Entrada", aim_type::StatusText());
     } else {
-        CyberWidgets::TextLine("Ativa a mira para configurar tecla, smooth, ponto e humanizacao.",
+        CyberWidgets::TextLine("Ativa a mira para configurar smooth, ponto e humanizacao.",
                                CyberWidgets::TextTone::Secondary);
     }
     CyberWidgets::EndCard();
@@ -139,11 +137,6 @@ void DrawCs2Aim() {
     if (CS2::config.trigger_enabled) {
         CyberWidgets::TextLine(Loc::Tr("aim.trigger_hint2"), CyberWidgets::TextTone::Secondary);
         CyberWidgets::ToggleSwitch(Loc::Tr("aim.trigger_always"), &CS2::config.trigger_always_on);
-        if (!CS2::config.trigger_always_on) {
-            ImGui::TextUnformatted(Loc::Tr("aim.trigger_key"));
-            ImGui::SameLine(140.f);
-            HotkeyCaptureButton("cs2trigger", &CS2::config.trigger_bind);
-        }
         CyberWidgets::ToggleSwitch(Loc::Tr("aim.trigger_head"), &CS2::config.trigger_head_only);
         CyberWidgets::ToggleSwitch(Loc::Tr("vis.team_check"), &CS2::config.trigger_team_check);
         float delay_ms = static_cast<float>(CS2::config.trigger_delay_ms);
@@ -152,4 +145,3 @@ void DrawCs2Aim() {
     }
     CyberWidgets::EndCard();
 }
-

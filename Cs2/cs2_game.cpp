@@ -27,6 +27,7 @@
 #include <unordered_map>
 #include <vector>
 #include <atomic>
+#include <mutex>
 #include <thread>
 #include "makcu/makcu_wrapper.h"
 #include "../Fivem/aimbot/aim_type.h"
@@ -74,7 +75,7 @@ OmniGhost::Gameplay::SnapshotExchange<Runtime, 4> g_runtime_snapshots;
 
 // Multi-rate acquisition profile (render still every overlay frame)
 namespace {
-constexpr int CAMERA_INTERVAL_MS = 4;
+constexpr int CAMERA_INTERVAL_MS = 8;
 constexpr int MOTION_INTERVAL_MS = 8;       // smoother player movement on ESP
 constexpr int BONES_INTERVAL_MS = 12;       // fluid skeleton without flooding DMA
 constexpr int FULL_SCAN_INTERVAL_MS = 12;   // health / spotted / core identity
@@ -265,6 +266,9 @@ struct Cs2PhaseTiming {
 static Cs2PhaseTiming g_phase{};
 static std::atomic<int> g_pressure_level{0}; // 0=NORMAL 1=MODERATE 2=HIGH 3=RECOVERY
 static std::atomic_bool g_acq_busy{false}; // full scan holds data plane priority over camera motion
+// Some DMA stacks stall when a matrix read overlaps an entity/bone scan.
+// Keep the last complete camera state rather than racing two physical reads.
+static std::mutex g_dma_read_gate;
 // After a slow VMM/FPGA call, back off heavy phases so the device can recover.
 // Vendor-side pauses (~0.5–1.5s every ~10–15s on some stacks) cannot be removed
 // from MemProcFS/LeechCore; we avoid stacking more DMA on top of them.
@@ -284,12 +288,6 @@ static void NotePossibleDeviceStall(float duration_ms) {
            !g_dma_cooldown_until_ms.compare_exchange_weak(cur, until, std::memory_order_relaxed)) {
     }
 }
-
-static bool DmaCooldownActive() {
-    return GetTickCount64() < g_dma_cooldown_until_ms.load(std::memory_order_relaxed);
-}
-
-
 
 struct ScopedPhase {
     float* target;
@@ -1831,7 +1829,10 @@ void UpdateBombStateThrottled() {
     static uint64_t next_update_ms = 0;
     const uint64_t now = GetTickCount64();
     if (now < next_update_ms) return;
-    next_update_ms = now + 50u;
+    // Before a plant, the C4 pointer is static/absent. Polling it at 20 Hz
+    // was an unnecessary sequential DMA read during every round. Once a bomb
+    // is confirmed planted, keep the timer responsive at 50 ms.
+    next_update_ms = now + (runtime.bomb.planted ? 50u : 250u);
     UpdateBombState();
 }
 
@@ -2119,7 +2120,18 @@ static void RunFrameWithConfig(const Config& frame_config) {
         return;
     }
 
-    if (!ProbeViewMatrix(runtime.view_matrix)) {
+    // The camera lane already owns the high-rate view-matrix sampling. Reuse
+    // its recent immutable snapshot instead of issuing a duplicate QRead in
+    // every full player scan. Fall back only when that lane has no usable data.
+    bool haveView = false;
+    if (const auto camera = g_camera_snapshots.Acquire(); camera && camera->timestamp_ms) {
+        const uint64_t now = GetTickCount64();
+        if (now >= camera->timestamp_ms && now - camera->timestamp_ms <= 100u) {
+            std::memcpy(runtime.view_matrix, camera->view_matrix, sizeof(runtime.view_matrix));
+            haveView = true;
+        }
+    }
+    if (!haveView && !ProbeViewMatrix(runtime.view_matrix)) {
         if ((runtime.frames % 180) == 1)
             std::cout << "[CS2] ViewMatrix fail (fails=" << runtime.read_fails << ")" << std::endl;
         return;
@@ -3476,8 +3488,14 @@ void EnsureAcquisitionStarted() {
             const uintptr_t client_base = runtime_view ? runtime_view->client_base : 0;
             const bool in_match = runtime_view && runtime_view->in_match;
             const bool canRead = ready && offsets.loaded && client_base && offsets.dwViewMatrix;
-            if (canRead && QRead(client_base + offsets.dwViewMatrix, matrix, sizeof(matrix)))
-                PublishCameraSnapshot(matrix);
+            // The FPGA cannot make a 4 ms QRead when an entity scan is already
+            // in flight.  Sharing it caused queues of 50–900 ms in telemetry,
+            // which is much worse visually than reusing the last valid matrix.
+            if (canRead && !g_acq_busy.load(std::memory_order_acquire)) {
+                std::unique_lock<std::mutex> gate(g_dma_read_gate, std::try_to_lock);
+                if (gate.owns_lock() && QRead(client_base + offsets.dwViewMatrix, matrix, sizeof(matrix)))
+                    PublishCameraSnapshot(matrix);
+            }
             // Keep the view matrix on its own very fast lane, but never make
             // one DMA read per player every 2 ms.  That old pattern could
             // starve the regular entity scan and made even boxes/bars hitch.
@@ -3543,7 +3561,12 @@ void EnsureAcquisitionStarted() {
                 }
             }
             // Keep camera/motion snappy — view matrix must stay fluid for ESP.
-            const int cadence = in_match ? CAMERA_INTERVAL_MS : 12;
+            int cadence = in_match ? CAMERA_INTERVAL_MS : 12;
+            const int pressure = g_pressure_level.load(std::memory_order_relaxed);
+            if (in_match && pressure >= 2)
+                cadence = 16;
+            else if (in_match && pressure == 1)
+                cadence = 12;
             scheduler.Wait(std::chrono::milliseconds(cadence));
         }
     });
@@ -3552,6 +3575,16 @@ void EnsureAcquisitionStarted() {
         while (!g_acquisition_stop.load(std::memory_order_acquire)) {
             const auto acquire_begin = std::chrono::steady_clock::now();
             try {
+                // A 300 ms+ device stall is a board/driver queue event. Do
+                // not immediately start another heavy scan: retain the last
+                // published immutable snapshot and give the DMA transport a
+                // short recovery window.
+                const uint64_t now = GetTickCount64();
+                const uint64_t coolUntil = g_dma_cooldown_until_ms.load(std::memory_order_acquire);
+                if (now < coolUntil) {
+                    scheduler.Wait(std::chrono::milliseconds((std::min)(20ull, coolUntil - now)));
+                    continue;
+                }
                 g_phase = Cs2PhaseTiming{};
                 g_phase.scan_id = g_scan_id.fetch_add(1, std::memory_order_relaxed) + 1;
                 mem.ResetThreadDmaWaitUs();
@@ -3560,6 +3593,7 @@ void EnsureAcquisitionStarted() {
                 mem.SetDmaCallTag("CS2.Acquire");
                 g_acq_busy.store(true, std::memory_order_release);
                 auto frame_config = g_config_snapshots.Acquire();
+                std::scoped_lock dmaGate(g_dma_read_gate);
                 RunFrameWithConfig(*frame_config);
                 g_acq_busy.store(false, std::memory_order_release);
                 runtime.acquisition_ms = OmniGhost::Gameplay::TimeMs(acquire_begin);

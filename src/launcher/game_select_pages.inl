@@ -20,10 +20,6 @@ void EndControlPage() {
 void DrawPageHeading(const char* title, const char* subtitle) {
     // Shared page signature: it keeps every area of the launcher recognisably
     // OmniGhost without introducing a separate visual language per page.
-    ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(
-        CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.66f)),
-        "OMNI // CONTROL CENTER");
-    ImGui::Dummy(ImVec2(0.f, S(3.f)));
     if (ImFont* font = CyberFonts::GetTitleFont()) ImGui::PushFont(font);
     ImGui::TextColored(CyberTheme::Colors.Text, "%s", title);
     if (CyberFonts::GetTitleFont()) ImGui::PopFont();
@@ -133,31 +129,39 @@ void DrawMarketplace(ImVec2 display) {
     const bool twoColumns = available >= S(760.f);
     const float cardWidth = twoColumns ? (available - gap) * .5f : available;
 
-    CyberWidgets::BeginCard("CATÁLOGO OFICIAL", cardWidth);
-    CyberWidgets::Badge("EM PREPARAÇÃO", CyberWidgets::TextTone::Warning);
+    CyberWidgets::BeginCard("TEMAS E VISUAIS", cardWidth);
+    CyberWidgets::Badge("EM BREVE", CyberWidgets::TextTone::Info);
     ImGui::Dummy(ImVec2(0.f, S(7.f)));
-    CyberWidgets::TextLine("Conteúdo validado e compatível com a tua versão do OmniGhost.",
+    CyberWidgets::TextLine("Temas para o launcher, menus, cores, layouts e packs visuais de ESP.",
                            CyberWidgets::TextTone::Primary);
-    CyberWidgets::TextLine("O catálogo será disponibilizado quando o serviço remoto estiver pronto.",
+    CyberWidgets::TextLine("Itens opcionais: o acesso aos jogos continua associado à conta/plano.",
                            CyberWidgets::TextTone::Secondary);
     CyberWidgets::EndCard();
 
     if (twoColumns) ImGui::SameLine(0.f, gap);
-    CyberWidgets::BeginCard("PERFIS", cardWidth);
+    CyberWidgets::BeginCard("PRESETS", cardWidth);
     CyberWidgets::Badge("LOCAL PRIMEIRO", CyberWidgets::TextTone::Secondary);
     ImGui::Dummy(ImVec2(0.f, S(7.f)));
-    CyberWidgets::TextLine("Os teus perfis permanecem locais e privados por agora.",
+    CyberWidgets::TextLine("Configs prontas por jogo: limpo, detalhado ou leve para PCs menos potentes.",
                            CyberWidgets::TextTone::Primary);
-    CyberWidgets::TextLine("A partilha só será ativada com revisão, autoria e controlo de versões.",
+    CyberWidgets::TextLine("Aplicação com um clique; podes sempre ajustar e guardar a tua versão.",
                            CyberWidgets::TextTone::Secondary);
     CyberWidgets::EndCard();
 
     ImGui::Dummy(ImVec2(0.f, gap));
-    CyberWidgets::BeginCard("LANÇAMENTO CONTROLADO", 0.f);
-    CyberWidgets::HealthRow("Serviço de catálogo", "Ainda não configurado", CyberWidgets::HealthStatus::Warning);
-    CyberWidgets::HealthRow("Instalação automática", "Desativada até existir assinatura de conteúdo", CyberWidgets::HealthStatus::Warning);
-    CyberWidgets::TextLine("Esta área não descarrega nem executa conteúdo externo nesta fase.",
+    CyberWidgets::BeginCard("OS MEUS ITENS", 0.f);
+    CyberWidgets::HealthRow("Biblioteca", "Ainda não existem itens desbloqueados", CyberWidgets::HealthStatus::Warning);
+    CyberWidgets::TextLine("Quando o catálogo estiver disponível, os teus temas e presets aparecerão aqui.",
                            CyberWidgets::TextTone::Secondary);
+    CyberWidgets::EndCard();
+
+    ImGui::Dummy(ImVec2(0.f, gap));
+    CyberWidgets::BeginCard("CRIADORES DA COMUNIDADE", 0.f);
+    CyberWidgets::TextLine("Podes enviar ideias e temas para revisão antes de serem publicados no Marketplace.",
+                           CyberWidgets::TextTone::Primary);
+    CyberWidgets::TextLine("Serão aceites apenas pacotes de tema e imagens válidas; executáveis e scripts nunca são aceites.",
+                           CyberWidgets::TextTone::Secondary);
+    CyberWidgets::HealthRow("Envio de ficheiros", "A aguardar serviço seguro de revisão", CyberWidgets::HealthStatus::Warning);
     CyberWidgets::EndCard();
 
     EndControlPage();

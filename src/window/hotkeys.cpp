@@ -3,10 +3,13 @@
 #include "theme.h"
 #include "localization.h"
 #include "../config/app_settings.h"
+#include "../../Fivem/aimbot/aim_type.h"
 #include <array>
 #include <algorithm>
 #include <fstream>
 #include <sstream>
+#include <cstdint>
+#include <cstring>
 
 namespace Hotkeys {
 
@@ -18,6 +21,28 @@ namespace Hotkeys {
         bool g_initialized = false;
         bool g_capturing = false;
         Action g_capture_action = Action::Count;
+        struct FeatureToggle {
+            bool* value = nullptr;
+            int vk_code = 0;
+            bool was_down = false;
+        };
+        std::unordered_map<std::string, FeatureToggle> g_feature_toggles;
+        std::string g_feature_capture;
+
+        bool FeatureKeyDown(int vk)
+        {
+            if (vk <= 0) return false;
+            // IsDown includes the input devices configured by the user; the
+            // Windows state keeps ordinary primary-PC keyboard use working.
+            return (GetAsyncKeyState(vk) & 0x8000) != 0 || aim_type::IsDown(vk);
+        }
+
+        std::string HexId(const std::string& id)
+        {
+            std::ostringstream out;
+            out << std::hex << std::hash<std::string>{}(id);
+            return out.str();
+        }
     }
 
     void Initialize() {
@@ -60,6 +85,14 @@ namespace Hotkeys {
             bool modifiers_ok = (current_modifiers & hk.modifiers) == hk.modifiers;
             
             g_curr_state[i] = { vk_down ? hk.vk_code : 0, vk_down && modifiers_ok ? current_modifiers : 0 };
+        }
+
+        for (auto& [id, feature] : g_feature_toggles) {
+            if (!feature.value || feature.vk_code <= 0) continue;
+            const bool down = FeatureKeyDown(feature.vk_code);
+            if (down && !feature.was_down)
+                *feature.value = !*feature.value;
+            feature.was_down = down;
         }
         
         // Check for presses and trigger callbacks
@@ -338,6 +371,68 @@ namespace Hotkeys {
 
     void UnregisterCallback(Action action) {
         g_callbacks.erase(action);
+    }
+
+    void RegisterFeatureToggle(const std::string& id, bool* value)
+    {
+        if (id.empty() || !value) return;
+        auto& feature = g_feature_toggles[id];
+        feature.value = value;
+        const std::string pending = "#pending:" + HexId(id);
+        if (const auto it = g_feature_toggles.find(pending); it != g_feature_toggles.end()) {
+            feature.vk_code = it->second.vk_code;
+            g_feature_toggles.erase(it);
+        }
+    }
+
+    bool BeginFeatureCapture(const std::string& id)
+    {
+        if (id.empty()) return false;
+        g_feature_capture = id;
+        return true;
+    }
+
+    void SetFeatureKey(const std::string& id, int vk_code)
+    {
+        auto it = g_feature_toggles.find(id);
+        if (it == g_feature_toggles.end()) return;
+        it->second.vk_code = (vk_code > 0 && vk_code < 256) ? vk_code : 0;
+        it->second.was_down = false;
+        g_feature_capture.clear();
+    }
+
+    bool IsCapturingFeature(const std::string& id)
+    {
+        return !id.empty() && g_feature_capture == id;
+    }
+
+    int FeatureKey(const std::string& id)
+    {
+        const auto it = g_feature_toggles.find(id);
+        return it == g_feature_toggles.end() ? 0 : it->second.vk_code;
+    }
+
+    std::string SerializeFeatureToggles()
+    {
+        std::ostringstream out;
+        for (const auto& [id, feature] : g_feature_toggles) {
+            if (feature.vk_code > 0)
+                out << "hotkey.feature." << (id.rfind("#pending:", 0) == 0 ? id.substr(9) : HexId(id)) << "=" << feature.vk_code << "\n";
+        }
+        return out.str();
+    }
+
+    bool DeserializeFeatureToggle(const std::string& key, const std::string& value)
+    {
+        constexpr const char* prefix = "hotkey.feature.";
+        if (key.rfind(prefix, 0) != 0) return false;
+        const int vk = std::atoi(value.c_str());
+        if (vk <= 0 || vk > 255) return true;
+        const std::string savedHash = key.substr(std::strlen(prefix));
+        // Widgets register after a config loads; keep the saved hash in a
+        // placeholder until its matching row is rendered.
+        g_feature_toggles["#pending:" + savedHash].vk_code = vk;
+        return true;
     }
 
     void DrawHotkeyConfig() {
