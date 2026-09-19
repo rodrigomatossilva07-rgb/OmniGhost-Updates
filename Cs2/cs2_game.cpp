@@ -80,6 +80,7 @@ constexpr int MOTION_INTERVAL_MS = 8;       // smoother player movement on ESP
 constexpr int BONES_INTERVAL_MS = 12;       // fluid skeleton without flooding DMA
 constexpr int FULL_SCAN_INTERVAL_MS = 12;   // health / spotted / core identity
 constexpr int ARMOR_INTERVAL_MS = 50;
+constexpr int LOCAL_HEALTH_INTERVAL_MS = 60;
 constexpr int WEAPON_INTERVAL_MS = 100;
 constexpr int ENTITY_LIST_INTERVAL_MS = 150;
 // Player names are static for a round.  Keeping them out of the hot DMA path
@@ -2155,6 +2156,11 @@ static void RunFrameWithConfig(const Config& frame_config) {
     const uint64_t localNowMs = GetTickCount64();
     const bool refreshLocalBootstrap = !IsUserPointer(runtime.local_pawn) ||
         !s_lastLocalBootstrapMs || localNowMs - s_lastLocalBootstrapMs >= 250u;
+    static uint64_t s_lastLocalHealthMs = 0;
+    const uint64_t healthInterval = runtime.local_health > 0
+        ? static_cast<uint64_t>(LOCAL_HEALTH_INTERVAL_MS) : 250u;
+    const bool refreshLocalHealth = !s_lastLocalHealthMs ||
+        localNowMs - s_lastLocalHealthMs >= healthInterval;
     uintptr_t localPawn = runtime.local_pawn;
     uintptr_t localController = runtime.local_controller;
     int sampled_health = runtime.local_health;
@@ -2170,11 +2176,12 @@ static void RunFrameWithConfig(const Config& frame_config) {
         s_lastLocalBootstrapMs = localNowMs;
     }
     if (g_scatter_full) {
-        if (IsUserPointer(localPawn) && offsets.m_iHealth) {
+        if (refreshLocalHealth && IsUserPointer(localPawn) && offsets.m_iHealth) {
             mem.SetDmaCallTag("CS2.LocalHealth");
             mem.AddScatterReadRequest(g_scatter_full, localPawn + offsets.m_iHealth,
                                       &sampled_health, sizeof(sampled_health));
             mem.ExecuteReadScatter(g_scatter_full);
+            s_lastLocalHealthMs = localNowMs;
         }
     } else {
         if (refreshLocalBootstrap) {
@@ -2183,8 +2190,10 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 QReadT(client + offsets.dwLocalPlayerController, localController, "CS2.LocalController");
             s_lastLocalBootstrapMs = localNowMs;
         }
-        if (IsUserPointer(localPawn) && offsets.m_iHealth)
+        if (refreshLocalHealth && IsUserPointer(localPawn) && offsets.m_iHealth) {
             QReadT(localPawn + offsets.m_iHealth, sampled_health, "CS2.LocalHP");
+            s_lastLocalHealthMs = localNowMs;
+        }
     }
     runtime.local_pawn = IsUserPointer(localPawn) ? localPawn : 0;
     if (IsUserPointer(localController))

@@ -200,7 +200,7 @@
        A real Publish is deliberately excluded: Publish-Build cleans only after
        GitHub has confirmed the public Latest release. -->
   <Target Name="CleanupVerifiedLocalBuildWorkspace" AfterTargets="ValidateOmniGhostSingleExeRuntime"
-          Condition="'$(DesignTimeBuild)'!='true' And ( '$(Configuration)'=='Release' Or '$(Configuration)'=='Tester' Or ( '$(Configuration)'=='Publish' And '$(OmniGhostSkipRemotePublish)'=='true' )">
+          Condition="'$(DesignTimeBuild)'!='true' And ( '$(Configuration)'=='Release' Or '$(Configuration)'=='Tester' Or ( '$(Configuration)'=='Publish' And '$(OmniGhostSkipRemotePublish)'=='true' ) )">
     <Message Importance="High" Text="[OmniGhost Build] Build validada; a limpar .cache, artifacts e build."/>
     <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; cleanup-verified-build &quot;$(MSBuildProjectDirectory)&quot;" IgnoreExitCode="true">
       <Output TaskParameter="ExitCode" PropertyName="OmniGhostLocalCleanupExitCode"/>

@@ -147,9 +147,9 @@ void DrawMarketplace(ImVec2 display) {
     CyberWidgets::BeginCard("TEMAS E VISUAIS", 0.f);
     CyberWidgets::Badge("INCLUÍDOS", CyberWidgets::TextTone::Success);
     ImGui::Dummy(ImVec2(0.f, S(7.f)));
-    CyberWidgets::TextLine("Estilos prontos para o launcher e menus. Aplicam-se já e ficam guardados nas definições.",
+    CyberWidgets::TextLine("O mesmo estilo é aplicado ao launcher, menus dos jogos e janelas do overlay.",
                            CyberWidgets::TextTone::Primary);
-    CyberWidgets::TextLine("São cosméticos: não mudam o acesso aos jogos, ao DMA ou às funcionalidades.",
+    CyberWidgets::TextLine("Para trocar depois, volta aqui e escolhe outro estilo — ou usa Padrão OmniGhost.",
                            CyberWidgets::TextTone::Secondary);
     CyberWidgets::EndCard();
 
@@ -160,6 +160,7 @@ void DrawMarketplace(ImVec2 display) {
         CyberTheme::AccentPreset accent;
     };
     static constexpr MarketplaceStyle styles[] = {
+        { "Padrão OmniGhost", "O visual original escuro com o acento Cyber do OmniGhost.", CyberTheme::ThemeMode::Dark, CyberTheme::AccentPreset::Cyber },
         { "Obsidian Gold", "Escuro, elegante e com o dourado clássico do OmniGhost.", CyberTheme::ThemeMode::Dark, CyberTheme::AccentPreset::Gold },
         { "Neon Azure", "Escuro, limpo e frio, com destaque azul elétrico.", CyberTheme::ThemeMode::Dark, CyberTheme::AccentPreset::Blue },
         { "Violet Pulse", "Escuro com identidade roxa para um painel mais expressivo.", CyberTheme::ThemeMode::Dark, CyberTheme::AccentPreset::Purple },
@@ -172,13 +173,56 @@ void DrawMarketplace(ImVec2 display) {
         const auto& style = styles[i];
         ImGui::PushID(i);
         CyberWidgets::BeginCard(style.title, cardWidth);
+        const bool isActive = CyberTheme::GetThemeMode() == style.mode &&
+            CyberTheme::GetAccentPreset() == style.accent;
+        if (isActive) CyberWidgets::Badge("EM USO", CyberWidgets::TextTone::Success);
+        // A compact, data-only preview of the pack.  It mirrors the launcher
+        // composition (sidebar, cards and primary action) without loading an
+        // external image or allocating textures per frame.
+        const auto& accents = CyberTheme::GetAccentPresets();
+        const int accentIndex = static_cast<int>(style.accent);
+        const ImVec4 accent = accentIndex >= 0 && accentIndex < static_cast<int>(accents.size())
+            ? accents[accentIndex].base : CyberTheme::Colors.Gold;
+        const ImU32 accentU32 = ImGui::ColorConvertFloat4ToU32(accent);
+        const ImU32 accentSoft = CyberTheme::WithAlpha(accent, 0.24f);
+        const ImVec2 previewMin = ImGui::GetCursorScreenPos();
+        const float previewWidth = ImGui::GetContentRegionAvail().x;
+        const float previewHeight = S(92.f);
+        const ImVec2 previewMax(previewMin.x + previewWidth, previewMin.y + previewHeight);
+        ImDrawList* previewDraw = ImGui::GetWindowDrawList();
+        previewDraw->AddRectFilled(previewMin, previewMax, IM_COL32(9, 11, 16, 255), S(7.f));
+        previewDraw->AddRect(previewMin, previewMax, accentSoft, S(7.f), 0, S(1.f));
+        const float sidebar = (std::min)(S(68.f), previewWidth * 0.25f);
+        previewDraw->AddRectFilled(previewMin, ImVec2(previewMin.x + sidebar, previewMax.y), IM_COL32(15, 18, 25, 255), S(7.f));
+        previewDraw->AddRectFilled(ImVec2(previewMin.x + S(9.f), previewMin.y + S(12.f)),
+                                   ImVec2(previewMin.x + sidebar - S(9.f), previewMin.y + S(19.f)), accentU32, S(2.f));
+        for (int item = 0; item < 3; ++item) {
+            const float y = previewMin.y + S(31.f + item * 16.f);
+            previewDraw->AddRectFilled(ImVec2(previewMin.x + S(10.f), y),
+                                       ImVec2(previewMin.x + sidebar - S(14.f), y + S(5.f)),
+                                       item == 0 ? accentSoft : IM_COL32(55, 60, 70, 180), S(2.f));
+        }
+        const float contentLeft = previewMin.x + sidebar + S(11.f);
+        previewDraw->AddRectFilled(ImVec2(contentLeft, previewMin.y + S(12.f)),
+                                   ImVec2(previewMax.x - S(12.f), previewMin.y + S(18.f)), IM_COL32(215, 219, 227, 230), S(2.f));
+        previewDraw->AddRectFilled(ImVec2(contentLeft, previewMin.y + S(29.f)),
+                                   ImVec2(previewMax.x - S(12.f), previewMin.y + S(58.f)), IM_COL32(23, 27, 36, 255), S(4.f));
+        previewDraw->AddRectFilled(ImVec2(contentLeft, previewMin.y + S(65.f)),
+                                   ImVec2(contentLeft + S(72.f), previewMin.y + S(79.f)), accentU32, S(4.f));
+        ImGui::Dummy(ImVec2(previewWidth, previewHeight + S(9.f)));
         CyberWidgets::TextLine(style.description, CyberWidgets::TextTone::Secondary);
         ImGui::Dummy(ImVec2(0.f, S(10.f)));
-        if (CyberWidgets::Button("APLICAR ESTILO", CyberWidgets::ButtonStyle::Primary,
-                                 ImVec2(S(150.f), S(32.f)))) {
+        if (CyberWidgets::Button(isActive ? "ESTILO ATUAL" : "USAR ESTE ESTILO",
+                                 isActive ? CyberWidgets::ButtonStyle::Secondary : CyberWidgets::ButtonStyle::Primary,
+                                 ImVec2(S(160.f), S(32.f)), !isActive)) {
             CyberTheme::SetThemeMode(style.mode);
             CyberTheme::SetAccentPreset(style.accent);
-            CyberWidgets::Notify("Estilo aplicado e guardado nas definições.", CyberWidgets::ToastType::Success);
+            std::string saveError;
+            if (app_settings::SaveGlobal(&saveError))
+                CyberWidgets::Notify("Estilo aplicado globalmente e guardado.", CyberWidgets::ToastType::Success);
+            else
+                CyberWidgets::Notify(saveError.empty() ? "O estilo foi aplicado, mas não foi possível guardar." : saveError.c_str(),
+                                     CyberWidgets::ToastType::Warning);
         }
         CyberWidgets::EndCard();
         ImGui::PopID();
@@ -209,15 +253,21 @@ void DrawMarketplace(ImVec2 display) {
     CyberWidgets::BeginCard("CRIADORES DA COMUNIDADE", 0.f);
     CyberWidgets::TextLine("Podes enviar ideias e temas para revisão antes de serem publicados no Marketplace.",
                            CyberWidgets::TextTone::Primary);
-    CyberWidgets::TextLine("Os packs descarregados usam apenas o formato .ogtheme; executáveis, scripts e ZIPs não são aceites.",
+    CyberWidgets::TextLine("Depois de baixar um pack .ogtheme do catálogo, importa-o aqui para o usar globalmente.",
                            CyberWidgets::TextTone::Secondary);
-    if (CyberWidgets::Button("IMPORTAR PACK .OGTHEME", CyberWidgets::ButtonStyle::Secondary,
+    if (CyberWidgets::Button("IMPORTAR E USAR PACK", CyberWidgets::ButtonStyle::Secondary,
                              ImVec2(S(205.f), S(32.f)))) {
         std::filesystem::path path;
         if (MarketplaceThemeFileDialog(path)) {
             std::string error;
-            if (CyberTheme::ImportTheme(path, &error))
-                CyberWidgets::Notify("Pack de tema validado e aplicado.", CyberWidgets::ToastType::Success);
+            if (CyberTheme::ImportTheme(path, &error)) {
+                std::string saveError;
+                if (app_settings::SaveGlobal(&saveError))
+                    CyberWidgets::Notify("Pack aplicado globalmente e guardado.", CyberWidgets::ToastType::Success);
+                else
+                    CyberWidgets::Notify(saveError.empty() ? "Pack aplicado, mas não foi possível guardar." : saveError.c_str(),
+                                         CyberWidgets::ToastType::Warning);
+            }
             else
                 CyberWidgets::Notify(error.empty() ? "Não foi possível validar este pack de tema." : error.c_str(),
                                      CyberWidgets::ToastType::Error);
