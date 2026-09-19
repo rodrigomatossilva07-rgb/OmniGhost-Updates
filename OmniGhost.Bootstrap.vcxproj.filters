@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Bootstrap"><UniqueIdentifier>{37C72451-DB75-4754-B0A9-E9492975601B}</UniqueIdentifier></Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="bootstrap\launcher_main.cpp"><Filter>Bootstrap</Filter></ClCompile>
+    <ResourceCompile Include="bootstrap\launcher.rc"><Filter>Bootstrap</Filter></ResourceCompile>
+  </ItemGroup>
+</Project>

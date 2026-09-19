@@ -89,30 +89,30 @@ jobs:
       - name: Build local Release binary and inspect PE
         shell: pwsh
         run: |
-          msbuild OmiGhost.vcxproj /m `
+          msbuild OmniGhost.Bootstrap.vcxproj /m `
             /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v145
           ./tools/Validate-PeRuntime.ps1 `
             -Executable ./build/OmniGhost.exe `
             -OutputDirectory ./artifacts/validation/pe-release `
-            -RequireSingleExeDirectory
+            -RequireSingleExeDirectory -RequireSelfContainedHost
           ./tools/Validate-EmbeddedOffsets.ps1 `
             -ProjectDir . `
-            -Executable ./build/OmniGhost.exe `
+            -Executable ./.cache/bootstrap/payload/x64/Release/OmniGhostCore.exe `
             -Configuration Release -Platform x64
 
       - name: Build customer binary
         shell: pwsh
         run: |
-          msbuild OmiGhost.vcxproj /m `
+          msbuild OmniGhost.Bootstrap.vcxproj /m `
             /p:Configuration=Publish /p:Platform=x64 /p:PlatformToolset=v145 `
             /p:OmniGhostSkipPackaging=true /p:OmniGhostSkipRemotePublish=true
           ./tools/Validate-PeRuntime.ps1 `
             -Executable ./build/Publish/OmniGhost.exe `
             -OutputDirectory ./artifacts/validation/pe-publish `
-            -RequireSingleExeDirectory
+            -RequireSingleExeDirectory -RequireSelfContainedHost
           ./tools/Validate-EmbeddedOffsets.ps1 `
             -ProjectDir . `
-            -Executable ./build/Publish/OmniGhost.exe `
+            -Executable ./.cache/bootstrap/payload/x64/Publish/OmniGhostCore.exe `
             -Configuration Publish -Platform x64
 
       - name: Run MSVC static analysis
@@ -161,7 +161,9 @@ jobs:
           name: private-symbols-${{ steps.version.outputs.version }}
           if-no-files-found: error
           retention-days: 90
-          path: .cache/symbols/Publish/OmniGhost.pdb
+          path: |
+            .cache/symbols/Publish/OmniGhostCore.pdb
+            .cache/symbols/bootstrap/Publish/OmniGhost.pdb
 
       - name: Upload engineering validation reports
         if: always()

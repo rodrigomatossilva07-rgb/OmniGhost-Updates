@@ -75,11 +75,10 @@ namespace Gameplay::SpectatorList {
         return spectators_;
     }
 
-    std::vector<SpectatorInfo> SpectatorManager::GetSpectatorsWatchingMe() const {
-        // Would need local player ID
+    std::vector<SpectatorInfo> SpectatorManager::GetSpectatorsWatchingMe(uint64_t local_player_id) const {
         std::vector<SpectatorInfo> result;
         for (const auto& spec : spectators_) {
-            // if (spec.target_id == local_player_id) result.push_back(spec);
+            if (spec.target_id == local_player_id) result.push_back(spec);
         }
         return result;
     }
@@ -99,12 +98,12 @@ namespace Gameplay::SpectatorList {
         return false;
     }
 
-    bool SpectatorManager::IsBeingWatched() const {
-        return !GetSpectatorsWatchingMe().empty();
+    bool SpectatorManager::IsBeingWatched(uint64_t local_player_id) const {
+        return !GetSpectatorsWatchingMe(local_player_id).empty();
     }
 
-    int SpectatorManager::GetSpectatorsWatchingMeCount() const {
-        return (int)GetSpectatorsWatchingMe().size();
+    int SpectatorManager::GetSpectatorsWatchingMeCount(uint64_t local_player_id) const {
+        return (int)GetSpectatorsWatchingMe(local_player_id).size();
     }
 
     void SpectatorManager::DrawHUD(ImDrawList* draw_list) {

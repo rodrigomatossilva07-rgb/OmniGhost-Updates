@@ -1,6 +1,6 @@
 #include "cs2_radar.h"
-#include "../cs2_game.h"
-#include "config/cs2_config.h"
+#include "cs2_game.h"
+#include "cs2_config.h"
 #include "../src/platform/runtime_bootstrap.h"
 #include "../src/platform/embedded_resources.h"
 

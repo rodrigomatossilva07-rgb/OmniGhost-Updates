@@ -1,79 +1,11 @@
 #pragma once
 
 #include "../../ImGui/imgui.h"
+
 #include <cstdint>
 #include <string>
-#include <vector>
-#include <chrono>
-#include <filesystem>
 
 namespace esp {
-
-    enum class ESPSubTab : int {
-        Main = 0,
-        Colors = 1,
-        Advanced = 2,
-        Filters = 3,
-        Profiles = 4
-    };
-
-    enum class ColorProfile : int {
-        Custom = 0,
-        Competitive = 1,
-        Streamer = 2,
-        Stealth = 3,
-        HighContrast = 4,
-        ColorBlind = 5
-    };
-
-    enum class ColorBlindMode : int {
-        None = 0,
-        Protanopia = 1,
-        Deuteranopia = 2,
-        Tritanopia = 3
-    };
-
-    struct ColorScheme {
-        std::string name;
-        ImU32 color_visible = IM_COL32(0, 255, 0, 255);
-        ImU32 color_invisible = IM_COL32(255, 55, 55, 255);
-        ImU32 color_dead = IM_COL32(255, 50, 50, 255);
-        ImU32 color_knocked = IM_COL32(255, 165, 0, 255);
-        ImU32 color_team = IM_COL32(0, 150, 255, 255);
-        ImU32 color_skeleton = IM_COL32(255, 255, 255, 220);
-        ImU32 color_skeleton_points = IM_COL32(255, 200, 50, 255);
-        ImU32 color_weapon = IM_COL32(200, 200, 255, 255);
-        ImU32 color_box_2d = IM_COL32(255, 255, 255, 220);
-        ImU32 color_corner_box = IM_COL32(0, 200, 255, 255);
-        ImU32 color_snaplines = IM_COL32(255, 255, 255, 120);
-        ImU32 color_name = IM_COL32(255, 255, 255, 255);
-        ImU32 color_id = IM_COL32(180, 180, 180, 255);
-        ImU32 color_distance = IM_COL32(200, 200, 100, 255);
-        ImU32 color_npc = IM_COL32(150, 100, 255, 255);
-        ImU32 color_head_circle = IM_COL32(255, 255, 255, 230);
-        ImU32 color_health = IM_COL32(65, 220, 90, 255);
-        ImU32 color_armor = IM_COL32(70, 150, 255, 255);
-        ImU32 color_trail = IM_COL32(212, 175, 55, 210);
-        ImU32 color_halo = IM_COL32(255, 226, 138, 230);
-        ImU32 color_fun_effects = IM_COL32(255, 184, 46, 242);
-        ImU32 color_look_direction = IM_COL32(212, 175, 55, 220);
-        bool rgb_mode = false;
-        
-        // Per-entity colors
-        ImU32 color_player = IM_COL32(0, 255, 100, 255);
-        ImU32 color_npc_entity = IM_COL32(150, 100, 255, 255);
-        ImU32 color_vehicle = IM_COL32(255, 200, 50, 255);
-        ImU32 color_loot = IM_COL32(255, 255, 0, 255);
-        ImU32 color_special = IM_COL32(255, 0, 255, 255);
-    };
-
-    struct ServerProfile {
-        std::string server_ip;
-        std::string server_name;
-        std::string profile_data; // Base64 encoded config
-        std::chrono::system_clock::time_point last_used;
-        bool auto_apply = true;
-    };
 
     struct Config {
         // All features start OFF until the user enables them or loads a config.
@@ -89,14 +21,11 @@ namespace esp {
         bool team_check = false; // when true: hide friends from ESP
 
         bool skeleton = false;
-        bool skeleton_chams = false; // Filled skeleton with transparency
-        float skeleton_chams_alpha = 0.3f;
         bool joints = false; // yellow joint dots on skeleton
         bool head_circle = false;
         bool health_bar = false;
         bool armor_bar = false;
         bool weapon_name = false;
-        bool weapon_icon = false;
         bool box_2d = false;
         bool corner_box = false;
         bool filled_box = false;
@@ -105,12 +34,6 @@ namespace esp {
         bool player_name = false;
         bool player_id = false;
         bool npc_esp = false;
-        bool show_velocity = false;        // Velocity vectors
-        bool show_aim_direction = false;   // Where player is looking
-        bool show_reload_indicator = false;
-        bool show_platform = false;        // Steam/Epic/Console
-        bool show_rank = false;
-        bool show_kd_ratio = false;
         bool trails = false;
         bool head_halo = false;
         bool look_direction = false; // Eye Line
@@ -132,11 +55,6 @@ namespace esp {
         float box_thickness = 1.8f;
         float eye_line_thickness = 1.6f;
         bool radar_enabled = false;
-        bool radar_3d = false;              // 3D radar with height
-        bool radar_show_names = false;
-        bool radar_show_distance = false;
-        bool radar_rotate_with_player = true;
-        float radar_height_scale = 0.5f;    // Z-axis compression
         float radar_range = 100.0f;
         float radar_size = 110.0f;
         float radar_pos_x = 0.88f; // fraction of screen
@@ -148,13 +66,6 @@ namespace esp {
         bool waypoint_line = true;      // arrows around crosshair
         bool square_radar = false;       // old corner minimap (off by default)
         float triangle_radar_radius = 80.f; // base; scales with aim FOV
-
-        // Color system
-        ColorProfile color_profile = ColorProfile::Custom;
-        ColorBlindMode color_blind_mode = ColorBlindMode::None;
-        std::vector<ServerProfile> server_profiles;
-        bool auto_save_config = true;
-        int config_version = 3;
 
         ImU32 color_visible = IM_COL32(0, 255, 0, 255);
         ImU32 color_invisible = IM_COL32(255, 55, 55, 255);
@@ -178,22 +89,10 @@ namespace esp {
         ImU32 color_halo = IM_COL32(255, 226, 138, 230);
         ImU32 color_fun_effects = IM_COL32(255, 184, 46, 242);
         ImU32 color_look_direction = IM_COL32(212, 175, 55, 220);
-        
-        // Per-entity colors
-        ImU32 color_player = IM_COL32(0, 255, 100, 255);
-        ImU32 color_npc_entity = IM_COL32(150, 100, 255, 255);
-        ImU32 color_vehicle = IM_COL32(255, 200, 50, 255);
-        ImU32 color_loot = IM_COL32(255, 255, 0, 255);
-        ImU32 color_special = IM_COL32(255, 0, 255, 255);
 
         bool rgb_mode = false;
         int snapline_pos = 0;
         int circle_type = 0;
-        
-        // UI State
-        ESPSubTab current_sub_tab = ESPSubTab::Main;
-        std::string search_filter;
-        bool show_advanced = false;
     };
 
 } // namespace esp
@@ -319,8 +218,6 @@ namespace vehicle_esp {
         bool ignore_occupied = false;
         bool lock_status = true;
         bool show_speed = false;
-        bool show_gear = false;
-        bool show_engine = false;
 
         float max_distance = 200.0f;
 
@@ -332,8 +229,6 @@ namespace vehicle_esp {
         ImU32 color_locked = IM_COL32(255, 50, 50, 255);
         ImU32 color_occupants = IM_COL32(100, 200, 255, 255);
         ImU32 color_name = IM_COL32(255, 255, 255, 255);
-        ImU32 color_gear = IM_COL32(255, 220, 120, 220);
-        ImU32 color_engine = IM_COL32(180, 255, 180, 220);
 
         bool rgb_mode = false;
         int snapline_pos = 0;

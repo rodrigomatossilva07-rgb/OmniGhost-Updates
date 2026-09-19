@@ -15,8 +15,6 @@ namespace vehicle_esp {
         bool lock_state_known = false;
         bool occupied = false;
         bool valid = false;
-        int8_t gear = 0;
-        float engine_hp = 0.f;
     };
 
     extern Config config;

@@ -14,7 +14,6 @@
 #include "launcher/application_transitions.h"
 #include "launcher/game_launch_service.h"
 #include "launcher/game_adapter_registry.h"
-#include "launcher/game_adapter.h"
 #include "licensing/license_service.h"
 #include "updater/update_service.h"
 #include "updater/updater_mode.h"
@@ -24,8 +23,8 @@
 #include "../Fivem/aimbot/aimbot.h"
 #include "../Fivem/friends/friends.h"
 #include "../Cs2/cs2_game.h"
-#include "../Cs2/esp/cs2_esp.h"
-#include "../Cs2/aimbot/cs2_aim.h"
+#include "../Cs2/cs2_esp.h"
+#include "../Cs2/cs2_aim.h"
 #include "../Warzone/warzone_game.h"
 #include "../Valorant/valorant_game.h"
 #include "../Fortnite/fortnite_game.h"
@@ -620,11 +619,11 @@ while (application.shouldRun && !authenticated) {
     const bool game_present_before_attach =
         OmniGhost::GameLaunch::IsProcessPresent(selected);
 
-    // Initialize the game using the session manager (supports multi-game)
+    // Initialize the game using the adapter
     OmniGhost::SessionLog::Write(
         OmniGhost::SessionLog::Severity::Info,
         OmniGhost::SessionLog::Subsystem::Adapter,
-        "StartGameSession begin",
+        "StartGameAdapter begin",
         {{"game", selectedDefinition ? selectedDefinition->id : "unknown"}});
 
     OmniGhost::Launcher::AdapterStartResult startResult;
@@ -632,7 +631,7 @@ while (application.shouldRun && !authenticated) {
         startResult = { false, { OmniGhost::Launcher::AdapterErrorCode::AttachFailed,
             "Jogo não encontrado. Está aberto?" } };
     } else {
-        startResult = OmniGhost::Launcher::GameSessionManager::Instance().StartSession(selected);
+        startResult = OmniGhost::Launcher::StartGameAdapter(selected);
     }
     if (!startResult.succeeded) {
         // Use centralized adapter error model for consistent messaging
@@ -765,7 +764,7 @@ while (application.shouldRun && !authenticated) {
     });
 
 
-int process_miss_frames = 0;
+    int process_miss_frames = 0;
     // DMA name lookups can fail transiently while FiveM changes process state or
     // the hardware session is being refreshed.  A single missed lookup must not
     // be interpreted as the game closing.
@@ -776,22 +775,22 @@ int process_miss_frames = 0;
     ULONGLONG next_offset_probe = GetTickCount64() + 5000;
     bool return_to_launcher = false;
     bool return_requested_by_user = false;
-
     while (application.shouldRun && !return_to_launcher) {
         application.StartRender();
         if (!application.shouldRun)
             break;
 
-        // Game session update and process monitoring
-        OmniGhost::Launcher::GameSessionManager::Instance().TickActive();
+// Game session update and process monitoring
+    if (adapter) {
+        // Update game logic, ESP, and aim through adapter
+        adapter->Tick();
         
         // Process alive checking and session management
-        ::Launcher::GameId activeGame = OmniGhost::Launcher::GameSessionManager::Instance().GetActiveGame();
         bool shouldReturnToLauncher = false;
         std::string terminationReason;
         
-        switch (activeGame) {
-            case ::Launcher::GameId::CS2: {
+        switch (g_activeGame) {
+            case ActiveGame::CS2: {
                 static uint64_t last_alive_check = 0;
                 const auto cs2_snapshot = CS2::AcquireRuntimeSnapshot();
                 const uint64_t frames = cs2_snapshot ? cs2_snapshot->frames : 0;
@@ -809,7 +808,7 @@ int process_miss_frames = 0;
                 }
                 break;
             }
-            case ::Launcher::GameId::Warzone: {
+            case ActiveGame::Warzone: {
                 static uint64_t last_alive_wz = 0;
                 if (Warzone::runtime.frames - last_alive_wz >= 90) {
                     last_alive_wz = Warzone::runtime.frames;
@@ -820,7 +819,7 @@ int process_miss_frames = 0;
                 }
                 break;
             }
-            case ::Launcher::GameId::Valorant: {
+            case ActiveGame::Valorant: {
                 static ULONGLONG last_alive_valorant = 0;
                 const ULONGLONG now = GetTickCount64();
                 if (now - last_alive_valorant >= 750) {
@@ -839,7 +838,7 @@ int process_miss_frames = 0;
                 }
                 break;
             }
-            case ::Launcher::GameId::Fortnite: {
+            case ActiveGame::Fortnite: {
                 static ULONGLONG last_alive_fn = 0;
                 const ULONGLONG now_fn = GetTickCount64();
                 if (now_fn - last_alive_fn >= 750) {
@@ -856,52 +855,51 @@ int process_miss_frames = 0;
                 }
                 break;
             }
-            case ::Launcher::GameId::FiveM: {
+            case ActiveGame::FiveM: {
                 // Do not conflate a transient DMA/PID lookup miss with the game
                 // exiting.  FiveM can expose GTAProcess under several names.
                 const ULONGLONG now = GetTickCount64();
                 if (now >= fivem_next_alive_check) {
                     fivem_next_alive_check = now + 1000;
-                    DWORD pid = 0;
-                    if (!g_validExecutable.empty())
-                        pid = mem.GetPidFromName(g_validExecutable);
-                    if (!pid)
-                        pid = mem.GetPidFromName("GTAProcess.exe");
-                    // Also try common FiveM names if specific exe gone
-                    if (!pid) {
-                        const char* alts[] = {
-                            "FiveM_GTAProcess.exe", "FiveM_b3258_GTAProcess.exe",
-                            "FiveM_b3407_GTAProcess.exe", "FiveM_b3570_GTAProcess.exe", nullptr
-                        };
-                        for (int i = 0; alts[i]; ++i) {
-                            pid = mem.GetPidFromName(alts[i]);
-                            if (pid) break;
+                        DWORD pid = 0;
+                        if (!g_validExecutable.empty())
+                            pid = mem.GetPidFromName(g_validExecutable);
+                        if (!pid)
+                            pid = mem.GetPidFromName("GTAProcess.exe");
+                        // Also try common FiveM names if specific exe gone
+                        if (!pid) {
+                            const char* alts[] = {
+                                "FiveM_GTAProcess.exe", "FiveM_b3258_GTAProcess.exe",
+                                "FiveM_b3407_GTAProcess.exe", "FiveM_b3570_GTAProcess.exe", nullptr
+                            };
+                            for (int i = 0; alts[i]; ++i) {
+                                pid = mem.GetPidFromName(alts[i]);
+                                if (pid) break;
+                            }
                         }
-                    }
-                    
-                    const bool localProcessAlive = IsLocalFiveMProcessRunning();
-                    if (pid || localProcessAlive) {
-                        fivem_presence_confirmed = true;
-                        fivem_missing_since = 0;
-                        process_miss_frames = 0;
-                    } else if (fivem_presence_confirmed) {
-                        if (fivem_missing_since == 0) {
-                            fivem_missing_since = now;
-                            std::cout << "[FiveM] DMA e processo local não confirmaram FiveM; a confirmar antes de encerrar a sessão." << std::endl;
+                        const bool localProcessAlive = IsLocalFiveMProcessRunning();
+                        if (pid || localProcessAlive) {
+                            fivem_presence_confirmed = true;
+                            fivem_missing_since = 0;
+                            process_miss_frames = 0;
+                        } else if (fivem_presence_confirmed) {
+                            if (fivem_missing_since == 0) {
+                                fivem_missing_since = now;
+                                std::cout << "[FiveM] DMA e processo local não confirmaram FiveM; a confirmar antes de encerrar a sessão." << std::endl;
+                            }
+                            // Keep the session alive through VMM/FPGA refreshes. A return is
+                            // permitted only after a continuous, independently confirmed miss.
+                            if (now - fivem_missing_since >= 20000) {
+                                shouldReturnToLauncher = true;
+                                terminationReason = "Processo FiveM/GTA terminou";
+                            }
+                        } else {
+                            // The adapter attached successfully, but this machine may be the
+                            // controller rather than the game PC. Never infer an exit merely
+                            // because neither local Toolhelp nor a transient DMA lookup has
+                            // observed the remote executable yet.
+                            fivem_missing_since = 0;
                         }
-                        // Keep the session alive through VMM/FPGA refreshes. A return is
-                        // permitted only after a continuous, independently confirmed miss.
-                        if (now - fivem_missing_since >= 20000) {
-                            shouldReturnToLauncher = true;
-                            terminationReason = "Processo FiveM/GTA terminou";
-                        }
-                    } else {
-                        // The adapter attached successfully, but this machine may be the
-                        // controller rather than the game PC. Never infer an exit merely
-                        // because neither local Toolhelp nor a transient DMA lookup has
-                        // observed the remote executable yet.
-                        fivem_missing_since = 0;
-                    }
                 }
                 break;
             }
@@ -910,32 +908,32 @@ int process_miss_frames = 0;
         }
         
         if (shouldReturnToLauncher) {
-            std::cout << "[" << (activeGame == ::Launcher::GameId::CS2 ? "CS2" :
-                                  activeGame == ::Launcher::GameId::Warzone ? "Warzone" :
-                                  activeGame == ::Launcher::GameId::Valorant ? "Valorant" :
-                                  activeGame == ::Launcher::GameId::Fortnite ? "Fortnite" :
-                                  activeGame == ::Launcher::GameId::Rust ? "Rust" : "FiveM") 
+            std::cout << "[" << (g_activeGame == ActiveGame::CS2 ? "CS2" :
+                                  g_activeGame == ActiveGame::Warzone ? "Warzone" :
+                                  g_activeGame == ActiveGame::Valorant ? "Valorant" :
+                                  g_activeGame == ActiveGame::Fortnite ? "Fortnite" :
+                                  g_activeGame == ActiveGame::Rust ? "Rust" : "FiveM") 
                       << "] " << terminationReason << " — a voltar ao launcher." << std::endl;
-            OmniGhost::Launcher::GameSessionManager::Instance().EndSession(activeGame);
             return_to_launcher = true;
         }
-        
+    }
+
         // A recent API timestamp alone cannot prove compatibility. While a
         // session is active, probe real pointers periodically and quarantine
         // the adapter only after repeated failures (transient reads are ignored).
         const ULONGLONG probe_now = GetTickCount64();
         if (probe_now >= next_offset_probe &&
-            activeGame == ::Launcher::GameId::CS2) {
+            g_activeGame == ActiveGame::CS2) {
             next_offset_probe = probe_now + 5000;
             bool can_probe = false;
-            if (activeGame == ::Launcher::GameId::CS2) {
+            if (g_activeGame == ActiveGame::CS2) {
                 const auto cs2_snapshot = CS2::AcquireRuntimeSnapshot();
                 can_probe = CS2::ready && cs2_snapshot && cs2_snapshot->local_pawn != 0;
             }
             if (can_probe) {
-                if (OmniGhost::OffsetAuto::ValidateLive(ActiveGame::CS2)) {
+                if (OmniGhost::OffsetAuto::ValidateLive(g_activeGame)) {
                     offset_probe_failures = 0;
-                    OmniGhost::OffsetAuto::MarkLiveValid(ActiveGame::CS2);
+                    OmniGhost::OffsetAuto::MarkLiveValid(g_activeGame);
                 } else if (++offset_probe_failures >= 3) {
                     // Diagnostic only — keep the menu/session open.
                     const std::string reason = "Os offsets falharam três validações consecutivas no jogo em execução.";
@@ -944,7 +942,7 @@ int process_miss_frames = 0;
                 }
             }
         }
-        
+
         application.Render();
         application.EndRender();
         if (application.ConsumeReturnToLauncherRequest()) {
@@ -955,28 +953,29 @@ int process_miss_frames = 0;
         if (update_service.ShouldExitForUpdate())
             application.shouldRun = false;
     }
-    
-    // Exactly one owner tears the active adapter down. Late process-loss,
-    // menu-exit and application-exit observations cannot double-close it.
-    if (application.shouldRun && return_to_launcher) {
-        OmniGhost::UI::EndGameSessionWithTransition(application, shutdownCoordinator,
-            shutdownGeneration, return_requested_by_user);
-    } else {
-        (void)shutdownCoordinator.EndSession(shutdownGeneration, "application-exit");
-    }
-    
-    if (application.shouldRun) {
-        (void)startupState.Transition(OmniGhost::Startup::State::Running,
-                                      OmniGhost::Startup::State::Ready);
-    }
-    
-    if (!application.shouldRun) {
-        Launcher::RecordGameSession(
-            selected, Launcher::SessionResult::Completed,
-            "Sessão encerrada pelo utilizador.");
-        break; // user quit
-    }
-    if (return_to_launcher) {
+
+
+        // Exactly one owner tears the active adapter down. Late process-loss,
+        // menu-exit and application-exit observations cannot double-close it.
+        if (application.shouldRun && return_to_launcher) {
+            OmniGhost::UI::EndGameSessionWithTransition(application, shutdownCoordinator,
+                shutdownGeneration, return_requested_by_user);
+        } else {
+            (void)shutdownCoordinator.EndSession(shutdownGeneration, "application-exit");
+        }
+
+        if (application.shouldRun) {
+            (void)startupState.Transition(OmniGhost::Startup::State::Running,
+                                         OmniGhost::Startup::State::Ready);
+        }
+
+        if (!application.shouldRun) {
+            Launcher::RecordGameSession(
+                selected, Launcher::SessionResult::Completed,
+                "Sessão encerrada pelo utilizador.");
+            break; // user quit
+        }
+        if (return_to_launcher) {
             Launcher::RecordGameSession(
                 selected,
                 return_requested_by_user

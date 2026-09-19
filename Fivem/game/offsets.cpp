@@ -46,15 +46,14 @@ static bool g_offsetsLoaded = false;
 
 static const BuildOffsets kSeedBuildOffsets[] = {
     // build, world, replay, viewport, camera, playerInfo, boneList, boneMatrix, health, pos,
-    // object_pool, net_mgr, blip, waypoint, aim_cped, ped_pool, veh_pool, framecount, ped_vis,
-    // supports_visibility, supports_objects, supports_waypoint, supports_vehicle_pool, supports_names, supports_pickups, supports_aim_assist
-    { 2802, 0x1F5B820, 0x1F5B820, 0x1FBC100, 0x0,       0x10A8, 0x0,    0x60,   0x280, 0x90, 0,0,0,0,0,0,0,0,0x147C, false,false,false,false,false,false,false },
-    { 2944, 0x257BEA0, 0x1F42068, 0x1FEAAC0, 0x0,       0x10A8, 0x0,    0x60,   0x280, 0x90, 0,0,0,0,0,0,0,0,0x147C, false,false,false,false,false,false,false },
-    { 3095, 0x2593320, 0x1FBD4F0, 0x201DBA0, 0x201ED50, 0x10A8, 0x410,  0x60,   0x280, 0x90, 0,0,0,0,0,0,0,0,0x147C, false,false,false,false,false,false,false },
+    // object_pool, net_mgr, blip, waypoint, aim_cped, ped_pool, veh_pool, framecount, ped_vis
+    { 2802, 0x1F5B820, 0x1F5B820, 0x1FBC100, 0x0,       0x10A8, 0x0,    0x60,   0x280, 0x90, 0,0,0,0,0,0,0,0,0x147C },
+    { 2944, 0x257BEA0, 0x1F42068, 0x1FEAAC0, 0x0,       0x10A8, 0x0,    0x60,   0x280, 0x90, 0,0,0,0,0,0,0,0,0x147C },
+    { 3095, 0x2593320, 0x1FBD4F0, 0x201DBA0, 0x201ED50, 0x10A8, 0x410,  0x60,   0x280, 0x90, 0,0,0,0,0,0,0,0,0x147C },
     { 3258, 0x25B14B0, 0x1FBD4F0, 0x201DBA0, 0x201E7D0, 0x10A8, 0x410,  0x60,   0x280, 0x90,
-      0x25BFDE8, 0x1E63C68, 0x2023400, 0x2EE0288, 0x202C8D0, 0x25B1758, 0x2F23F78, 0x5719A3, 0x147C, true,true,true,true,true,false,true },
-    { 3751, 0x2603908, 0x1FC38A8, 0x206C060, 0x206CC40, 0x10A8, 0x12B8, 0x12B8, 0x280, 0x90, 0,0,0,0,0,0,0,0,0x147C, true,true,true,true,true,false,true },
-    { 3788, 0x26068E0, 0x1FC68A8, 0x206F060, 0x206FC40, 0x10A8, 0x12B8, 0x12B8, 0x280, 0x90, 0,0,0,0,0,0,0,0,0x147C, true,true,true,true,true,false,true },
+      0x25BFDE8, 0x1E63C68, 0x2023400, 0x2EE0288, 0x202C8D0, 0x25B1758, 0x2F23F78, 0x5719A3, 0x147C },
+    { 3751, 0x2603908, 0x1FC38A8, 0x206C060, 0x206CC40, 0x10A8, 0x12B8, 0x12B8, 0x280, 0x90, 0,0,0,0,0,0,0,0,0x147C },
+    { 3788, 0x26068E0, 0x1FC68A8, 0x206F060, 0x206FC40, 0x10A8, 0x12B8, 0x12B8, 0x280, 0x90, 0,0,0,0,0,0,0,0,0x147C },
 };
 
 static uintptr_t ParseHexU64(const std::string& s) {
@@ -97,15 +96,6 @@ static uintptr_t JsonHexField(const std::string& obj, const char* key) {
     std::string v;
     if (!ExtractJsonStringValue(obj, key, v)) return 0;
     return ParseHexU64(v);
-}
-
-static bool JsonBoolField(const std::string& obj, const char* key) {
-    std::string v;
-    if (!ExtractJsonStringValue(obj, key, v)) return false;
-    // Support "true"/"false", "1"/"0", "yes"/"no"
-    std::string lower = v;
-    for (char& c : lower) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    return lower == "true" || lower == "1" || lower == "yes";
 }
 
 static bool ReadEntireFile(const std::string& path, std::string& out) {
@@ -230,14 +220,6 @@ int LoadOffsetsFromJsonImpl(const char* explicit_path) {
             bo.framecount_last_visible_offset = JsonHexField(obj, "framecount_last_visible");
             const uintptr_t vis = JsonHexField(obj, "ped_visibility");
             bo.ped_visibility_offset = vis ? vis : 0x147C;
-            // Parse capability flags
-            bo.supports_visibility = JsonBoolField(obj, "supports_visibility");
-            bo.supports_objects = JsonBoolField(obj, "supports_objects");
-            bo.supports_waypoint = JsonBoolField(obj, "supports_waypoint");
-            bo.supports_vehicle_pool = JsonBoolField(obj, "supports_vehicle_pool");
-            bo.supports_names = JsonBoolField(obj, "supports_names");
-            bo.supports_pickups = JsonBoolField(obj, "supports_pickups");
-            bo.supports_aim_assist = JsonBoolField(obj, "supports_aim_assist");
             if (bo.world_offset && bo.viewport_offset)
                 g_buildOffsets.push_back(bo);
             i = j;
@@ -315,49 +297,6 @@ const BuildOffsets* GetOffsetsForBuild(int build)
 bool IsBuildSupported()
 {
     return GetOffsetsForBuild(offset::buildVersion) != nullptr;
-}
-
-// Capability check functions
-bool SupportsVisibility()
-{
-    const BuildOffsets* bo = GetOffsetsForBuild(offset::buildVersion);
-    return bo && bo->supports_visibility;
-}
-
-bool SupportsObjects()
-{
-    const BuildOffsets* bo = GetOffsetsForBuild(offset::buildVersion);
-    return bo && bo->supports_objects;
-}
-
-bool SupportsWaypoint()
-{
-    const BuildOffsets* bo = GetOffsetsForBuild(offset::buildVersion);
-    return bo && bo->supports_waypoint;
-}
-
-bool SupportsVehiclePool()
-{
-    const BuildOffsets* bo = GetOffsetsForBuild(offset::buildVersion);
-    return bo && bo->supports_vehicle_pool;
-}
-
-bool SupportsNames()
-{
-    const BuildOffsets* bo = GetOffsetsForBuild(offset::buildVersion);
-    return bo && bo->supports_names;
-}
-
-bool SupportsPickups()
-{
-    const BuildOffsets* bo = GetOffsetsForBuild(offset::buildVersion);
-    return bo && bo->supports_pickups;
-}
-
-bool SupportsAimAssist()
-{
-    const BuildOffsets* bo = GetOffsetsForBuild(offset::buildVersion);
-    return bo && bo->supports_aim_assist;
 }
 
 bool SoftProbeLobbyOffsets() {

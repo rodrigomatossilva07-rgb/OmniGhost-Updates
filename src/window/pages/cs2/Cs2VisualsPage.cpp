@@ -1,6 +1,6 @@
 #include "../../widgets.h"
 #include "../../theme.h"
-#include "Cs2/config/cs2_config.h"
+#include "cs2_config.h"
 #include "../../localization.h"
 #include "../../../launcher/launcher_assets.h"
 #include "gameplay/esp_fx.h"
@@ -221,28 +221,28 @@ void DrawCs2Visuals() {
 
     ImGui::BeginChild("##cs2_esp_features_scroll", ImVec2(featuresWidth, columnHeight), false,
         ImGuiWindowFlags_AlwaysVerticalScrollbar);
-    CyberWidgets::BeginCard("FUNÇÕES ESP");
-    CyberWidgets::ToggleSwitch("Ativar ESP", &CS2::config.esp_enabled);
-    CyberWidgets::ToggleSwitch("Modo RGB", &CS2::config.rgb_mode);
+    CyberWidgets::BeginCard(Loc::Tr("vis.configs"));
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.enable"), &CS2::config.esp_enabled);
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.rgb_mode"), &CS2::config.rgb_mode);
     CyberWidgets::Separator();
-    CyberWidgets::ToggleSwitch("ESP do próprio jogador", &CS2::config.self_esp);
-    CyberWidgets::ToggleSwitch("Mostrar bots", &CS2::config.show_bots);
-    CyberWidgets::ToggleSwitch("Apenas alvos visíveis", &CS2::config.visible_check);
-    CyberWidgets::ToggleSwitch("Ocultar equipa", &CS2::config.team_check);
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.self_esp"), &CS2::config.self_esp);
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.show_bots"), &CS2::config.show_bots);
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.visible_check"), &CS2::config.visible_check);
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.team_check"), &CS2::config.team_check);
     CyberWidgets::Separator();
-    CyberWidgets::SectionTitle("ELEMENTOS");
-    CyberWidgets::ToggleSwitch("Esqueleto", &CS2::config.skeleton);
-    CyberWidgets::ToggleSwitch("Articulações", &CS2::config.skeleton_joints);
-    CyberWidgets::ToggleSwitch("Ponto na cabeça", &CS2::config.head_dot);
-    CyberWidgets::ToggleSwitch("Vida", &CS2::config.health_bar);
-    CyberWidgets::ToggleSwitch("Armadura", &CS2::config.armor_bar);
-    CyberWidgets::ToggleSwitch("Nome", &CS2::config.name);
-    CyberWidgets::ToggleSwitch("Distância", &CS2::config.distance);
-    CyberWidgets::ToggleSwitch("Arma", &CS2::config.weapon_icons);
-    CyberWidgets::ToggleSwitch("Caixa", &CS2::config.box);
-    CyberWidgets::ToggleSwitch("Caixa de cantos", &CS2::config.box_corner);
-    CyberWidgets::ToggleSwitch("Linhas guia", &CS2::config.snaplines);
-    CyberWidgets::ToggleSwitch("Auréola na cabeça", &CS2::config.head_halo);
+    CyberWidgets::SectionTitle(Loc::Tr("vis.elements"));
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.skeleton"), &CS2::config.skeleton);
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.joints"), &CS2::config.skeleton_joints);
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.head_circle"), &CS2::config.head_dot);
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.health_bar"), &CS2::config.health_bar);
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.armor_bar"), &CS2::config.armor_bar);
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.name"), &CS2::config.name);
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.distance"), &CS2::config.distance);
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.weapon_icons"), &CS2::config.weapon_icons);
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.box_2d"), &CS2::config.box);
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.corner"), &CS2::config.box_corner);
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.snaplines"), &CS2::config.snaplines);
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.head_halo"), &CS2::config.head_halo);
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.chinese_hat"), &CS2::config.chinese_hat);
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.angel_wings"), &CS2::config.angel_wings);
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.devil_horns"), &CS2::config.devil_horns);
@@ -251,17 +251,17 @@ void DrawCs2Visuals() {
         CyberWidgets::ToggleSwitch(Loc::Tr("vis.fun_rainbow"), &CS2::config.fun_effects_rainbow);
         CyberWidgets::SliderFloat(Loc::Tr("vis.fun_size"), &CS2::config.fun_effects_scale, 0.5f, 2.5f, "%.2f");
     }
-    CyberWidgets::ToggleSwitch("Rastros", &CS2::config.trails);
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.trails"), &CS2::config.trails);
     if (CS2::config.trails)
-        CyberWidgets::ToggleSwitch("Rastros arco-íris", &CS2::config.rainbow_trails);
-    CyberWidgets::ToggleSwitch("Eye Line", &CS2::config.look_direction);
-    CyberWidgets::SliderFloat("Distância máxima", &CS2::config.max_distance, 20.f, 500.f, "%.0f m");
-    CyberWidgets::SectionTitle("ESPESSURA");
-    CyberWidgets::SliderFloat("Esqueleto##th", &CS2::config.skeleton_thickness, 0.5f, 6.f, "%.1f");
-    CyberWidgets::SliderFloat("Linhas guia##th", &CS2::config.snapline_thickness, 0.5f, 6.f, "%.1f");
-    CyberWidgets::SliderFloat("Círculo cabeça", &CS2::config.head_circle_thickness, 0.5f, 6.f, "%.1f");
-    CyberWidgets::SliderFloat("Caixa##th", &CS2::config.box_thickness, 0.5f, 6.f, "%.1f");
-    CyberWidgets::SliderFloat("Eye Line##th", &CS2::config.eye_line_thickness, 0.5f, 6.f, "%.1f");
+        CyberWidgets::ToggleSwitch(Loc::Tr("vis.fun_rainbow"), &CS2::config.rainbow_trails);
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.eye_line"), &CS2::config.look_direction);
+    CyberWidgets::SliderFloat(Loc::Tr("vis.max_dist"), &CS2::config.max_distance, 20.f, 500.f, "%.0f m");
+    CyberWidgets::SectionTitle(Loc::Tr("vis.thickness"));
+    CyberWidgets::SliderFloat(Loc::Tr("vis.skeleton"), &CS2::config.skeleton_thickness, 0.5f, 6.f, "%.1f");
+    CyberWidgets::SliderFloat(Loc::Tr("vis.snaplines"), &CS2::config.snapline_thickness, 0.5f, 6.f, "%.1f");
+    CyberWidgets::SliderFloat(Loc::Tr("vis.head_circle"), &CS2::config.head_circle_thickness, 0.5f, 6.f, "%.1f");
+    CyberWidgets::SliderFloat(Loc::Tr("vis.box_2d"), &CS2::config.box_thickness, 0.5f, 6.f, "%.1f");
+    CyberWidgets::SliderFloat(Loc::Tr("vis.eye_line"), &CS2::config.eye_line_thickness, 0.5f, 6.f, "%.1f");
     if (CS2::config.trails)
         CyberWidgets::SliderFloat("Rastro##th", &CS2::config.trail_thickness, 1.f, 8.f, "%.1f");
     if (CS2::config.chinese_hat)

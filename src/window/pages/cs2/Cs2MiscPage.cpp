@@ -1,6 +1,6 @@
 #include "../../widgets.h"
-#include "Cs2/cs2_game.h"
-#include "Cs2/config/cs2_config.h"
+#include "cs2_game.h"
+#include "cs2_config.h"
 #include "../../localization.h"
 #include "imgui.h"
 

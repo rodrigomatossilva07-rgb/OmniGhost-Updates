@@ -97,14 +97,14 @@ namespace Gameplay::SpectatorList {
         
         // Get spectators
         const std::vector<SpectatorInfo>& GetSpectators() const { return spectators_; }
-        std::vector<SpectatorInfo> GetSpectatorsWatchingMe() const;
+        std::vector<SpectatorInfo> GetSpectatorsWatchingMe(uint64_t local_player_id) const;
         std::vector<SpectatorInfo> GetSpectatorsByTeam(int team) const;
         
         // Check specific
         bool IsSpectatedBy(uint64_t id) const;
-        bool IsBeingWatched() const;
+        bool IsBeingWatched(uint64_t local_player_id) const;
         int GetSpectatorCount() const { return (int)spectators_.size(); }
-        int GetSpectatorsWatchingMeCount() const;
+        int GetSpectatorsWatchingMeCount(uint64_t local_player_id) const;
         
         // UI
         void DrawHUD(ImDrawList* draw_list);

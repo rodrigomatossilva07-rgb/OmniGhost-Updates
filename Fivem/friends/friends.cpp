@@ -47,15 +47,10 @@ namespace friends {
     bool IsFriendPed(uintptr_t ped) {
         if (!ped) return false;
         using namespace FiveM;
-        const auto snap = FiveM::ESP::AcquireSnapshot();
-        if (!snap) return false;
-        for (int i = 0; i < snap->count; ++i) {
-            if (snap->entities[i].ped == ped) {
-                uint32_t netId = snap->entities[i].network_id;
-                return IsFriend(netId);
-            }
-        }
-        return false;
+        uintptr_t pinfo = mem.Read<uintptr_t>(ped + offset::playerInfo);
+        if (!pinfo) return false;
+        uint32_t netId = mem.Read<uint32_t>(pinfo + offset::playerInfo_netId);
+        return IsFriend(netId);
     }
 
     void AddFriend(const std::string& name, uint32_t id, bool prox) {
@@ -80,36 +75,46 @@ namespace friends {
         using namespace FiveM;
         player_list.clear();
 
-        if (!offset::localplayer)
+        if (!offset::localplayer || FiveM::ESP::validPeds.empty())
             return;
 
-        const auto snap = FiveM::ESP::AcquireSnapshot();
-        if (!snap || snap->count == 0)
-            return;
+        Vec3 localPos = mem.Read<Vec3>(offset::localplayer + offset::playerPosition);
 
-        Vec3 localPos = snap->localPos;
-        if (localPos.IsZero()) return;
-
-        for (int i = 0; i < snap->count; ++i) {
-            const auto& ef = snap->entities[static_cast<size_t>(i)];
-            uintptr_t ped = ef.ped;
+        for (size_t i = 0; i < FiveM::ESP::validPeds.size(); ++i) {
+            uintptr_t ped = FiveM::ESP::validPeds[i];
             if (!ped || ped == offset::localplayer) continue;
-            if (!ef.valid) continue;
 
-            uint32_t netId = ef.network_id;
-            if (netId == 0) continue;
+            uintptr_t pinfo = mem.Read<uintptr_t>(ped + offset::playerInfo);
+            if (!pinfo) continue;
 
-            float dist = ef.position.IsZero() ? 0.f : ef.position.distance_to(localPos);
+            uint32_t netId = mem.Read<uint32_t>(pinfo + offset::playerInfo_netId);
 
-            float hp = ef.health;
-            float maxHp = ef.max_health;
+            Vec3 pos = (i < FiveM::ESP::positions.size()) ? FiveM::ESP::positions[i] : Vec3{};
+            float dist = pos.IsZero() ? 0.f : pos.distance_to(localPos);
+
+            float hp = mem.Read<float>(ped + offset::playerHealth);
+            float maxHp = mem.Read<float>(ped + 0x284);
             if (maxHp < 1.f) maxHp = 200.f;
             float hpPct = (std::max)(0.f, (std::min)(100.f, (hp / maxHp) * 100.f));
 
             char nameBuf[64]{};
-            // Name should come from name cache (populated by acquisition)
-            // For now, use a placeholder
-            snprintf(nameBuf, sizeof(nameBuf), "Jogador_%u", netId);
+            // try CPlayerInfo+0xFC name
+            char raw[32]{};
+            mem.Read(pinfo + offset::playerInfo_name, raw, 31);
+            raw[31] = 0;
+            bool nameOk = raw[0] && (unsigned char)raw[0] >= 32 && (unsigned char)raw[0] < 127;
+            if (!nameOk) {
+                uintptr_t sp = mem.Read<uintptr_t>(pinfo + offset::playerInfo_name);
+                if (sp > 0x10000) {
+                    memset(raw, 0, sizeof(raw));
+                    mem.Read(sp, raw, 31);
+                    nameOk = raw[0] != 0;
+                }
+            }
+            if (nameOk)
+                snprintf(nameBuf, sizeof(nameBuf), "%s", raw);
+            else
+                snprintf(nameBuf, sizeof(nameBuf), "Jogador_%u", netId);
 
             player_list.push_back({ nameBuf, netId, dist, hpPct, ped });
         }

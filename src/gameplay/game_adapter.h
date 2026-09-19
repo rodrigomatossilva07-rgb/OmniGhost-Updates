@@ -14,6 +14,24 @@
 
 namespace Gameplay::GameAdapter {
 
+    // Vec3 for adapter
+    struct Vec3 {
+        float x = 0, y = 0, z = 0;
+        Vec3() = default;
+        Vec3(float x_, float y_, float z_) : x(x_), y(y_), z(z_) {}
+        Vec3 operator+(const Vec3& o) const { return Vec3(x + o.x, y + o.y, z + o.z); }
+        Vec3 operator-(const Vec3& o) const { return Vec3(x - o.x, y - o.y, z - o.z); }
+        Vec3 operator*(float s) const { return Vec3(x * s, y * s, z * s); }
+        float Length() const { return sqrtf(x*x + y*y + z*z); }
+        float Length2D() const { return sqrtf(x*x + y*y); }
+    };
+    
+    struct Vec2 {
+        float x = 0, y = 0;
+        Vec2() = default;
+        Vec2(float x_, float y_) : x(x_), y(y_) {}
+    };
+
     // Game identification
     enum class GameType : int {
         Unknown = 0,
@@ -248,22 +266,4 @@ namespace Gameplay::GameAdapter {
         std::atomic<bool> monitoring_ = false;
     };
     
-    // Vec3 for adapter
-    struct Vec3 {
-        float x = 0, y = 0, z = 0;
-        Vec3() = default;
-        Vec3(float x_, float y_, float z_) : x(x_), y(y_), z(z_) {}
-        Vec3 operator+(const Vec3& o) const { return Vec3(x + o.x, y + o.y, z + o.z); }
-        Vec3 operator-(const Vec3& o) const { return Vec3(x - o.x, y - o.y, z - o.z); }
-        Vec3 operator*(float s) const { return Vec3(x * s, y * s, z * s); }
-        float Length() const { return sqrtf(x*x + y*y + z*z); }
-        float Length2D() const { return sqrtf(x*x + y*y); }
-    };
-    
-    struct Vec2 {
-        float x = 0, y = 0;
-        Vec2() = default;
-        Vec2(float x_, float y_) : x(x_), y(y_) {}
-    };
-
 } // namespace Gameplay::GameAdapter

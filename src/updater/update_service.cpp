@@ -208,8 +208,13 @@ std::string ExactUserMessage(const std::string& stage, const std::string& detail
         return "O Windows não conseguiu validar a ligação segura. Confirma a data, a hora e os certificados do sistema.";
     if (ContainsNetworkCode(detail, 12180) || ContainsNetworkCode(detail, 12167))
         return "A configuração automática de rede falhou. Verifica as definições de proxy do Windows.";
-    if (Contains(detail, "HTTP 404"))
-        return "A versão foi encontrada, mas falta um dos ficheiros necessários na publicação.";
+    if (Contains(detail, "HTTP 404") ||
+        Contains(detail, "nenhuma versão estável publicada") ||
+        Contains(detail, "não contém um asset update.json"))
+        return "Ainda não existe update.json público no GitHub (repo OmniGhost-Updates). "
+               "Confirma: (1) gh auth login no PC de build; (2) repositório OmniGhost-Updates público; "
+               "(3) Build Publish|x64 até aparecer 'Versão X publicada com sucesso' e a URL do manifesto. "
+               "Sem esse passo o launcher não consegue procurar atualizações.";
     if (Contains(detail, "HTTP 403"))
         return "O servidor recusou temporariamente o pedido. Tenta novamente mais tarde.";
     if (Contains(detail, "HTTP 429"))
@@ -217,7 +222,9 @@ std::string ExactUserMessage(const std::string& stage, const std::string& detail
     if (Contains(detail, "HTTP 5"))
         return "O serviço de atualizações está temporariamente indisponível. Tenta novamente mais tarde.";
     if (stage == "release-resolution")
-        return "Não foi possível confirmar qual é a versão pública mais recente. Tenta novamente quando a ligação estiver estável.";
+        return "Não foi possível confirmar a versão pública mais recente. Se o repositório OmniGhost-Updates "
+               "ainda não tem Releases com update.json, faz Publish|x64 no Visual Studio (com gh autenticado). "
+               "Se já publicaste, verifica a ligação e tenta novamente.";
     if (stage == "manifest")
         return "A informação da nova versão foi descarregada, mas não passou na validação de segurança.";
     if (stage == "signature")

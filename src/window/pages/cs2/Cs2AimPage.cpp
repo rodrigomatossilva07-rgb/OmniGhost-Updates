@@ -1,8 +1,8 @@
 #include "../../widgets.h"
 #include "../../theme.h"
 #include "../../localization.h"
-#include "Cs2/config/cs2_config.h"
-#include "Cs2/aimbot/cs2_aim.h"
+#include "cs2_config.h"
+#include "cs2_aim.h"
 #include "aimbot/aim_type.h"
 #include "imgui.h"
 #include <Windows.h>
@@ -93,7 +93,11 @@ void DrawCs2Aim() {
         CyberWidgets::SliderFloat("Smooth", &CS2::config.aim_smooth, 0.f, 100.f, "%.0f");
         CS2::config.aim_smooth = std::clamp(CS2::config.aim_smooth, 0.f, 100.f);
 
-        // 3) Aim Point — fixed only
+        // 3) FOV Size
+        CyberWidgets::SliderFloat("FOV Size", &CS2::config.aim_fov, 10.f, 500.f, "%.0f px");
+        CS2::config.aim_fov = std::clamp(CS2::config.aim_fov, 1.f, 500.f);
+
+        // 4) Aim Point — fixed only
         CS2::config.aim_auto_bone = false;
         static const char* kPoints[] = { "Head", "Neck", "Chest", "Stomach" };
         int point = CS2::config.aim_bone;
@@ -102,10 +106,17 @@ void DrawCs2Aim() {
         if (CyberWidgets::Combo("Aim Point", &point, kPoints, 4))
             CS2::config.aim_bone = point;
 
-        // 4) Humanization 0..100
+        // 5) Humanization 0..100
         CyberWidgets::SliderFloat("Humanization", &CS2::config.aim_humanization, 0.f, 100.f, "%.0f");
         CS2::config.aim_humanization = std::clamp(CS2::config.aim_humanization, 0.f, 100.f);
         CS2::config.aim_humanize = CS2::config.aim_humanization > 0.5f;
+
+        // 6) Dynamic FOV
+        CyberWidgets::ToggleSwitch("Dynamic FOV", &CS2::config.aim_dynamic_fov);
+        if (CS2::config.aim_dynamic_fov) {
+            CyberWidgets::SliderFloat("Min FOV", &CS2::config.aim_fov_min, 5.f, 200.f, "%.0f px");
+            CS2::config.aim_fov_min = std::clamp(CS2::config.aim_fov_min, 1.f, 200.f);
+        }
 
         CyberWidgets::Separator();
         CyberWidgets::KeyValueRow("Diagnostico", CS2_Aim::DebugStatus());

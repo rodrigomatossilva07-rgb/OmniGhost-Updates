@@ -1,0 +1,6 @@
+#include <windows.h>
+
+1 RT_MANIFEST "../resources/app.manifest"
+101 ICON "../resources/OmniGhost.ico"
+
+#include "bootstrap_payload.rc2"

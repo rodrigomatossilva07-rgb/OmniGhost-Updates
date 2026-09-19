@@ -39,8 +39,8 @@ struct AimResult {
 
 class UnifiedAimbot {
 public:
-    UnifiedAimbot() = default;
-    ~UnifiedAimbot() = default;
+    UnifiedAimbot();
+    ~UnifiedAimbot();
 
     void SetConfig(const UnifiedConfig& config) { config_ = config; }
     const UnifiedConfig& GetConfig() const { return config_; }
@@ -51,32 +51,26 @@ public:
     bool CanFire() const { return state_.can_fire; }
     uint64_t GetCurrentTarget() const { return state_.current_target; }
 
-    AimResult Update(const AimContext&) { return {}; }
-    void ForceTarget(uint64_t) {}
-    void CancelTarget() {}
-    void ApplyProfile(const std::string&) {}
-    void SaveProfile(const std::string&) {}
-    void LoadProfile(const std::string&) {}
-    std::vector<std::string> GetAvailableProfiles() const { return {}; }
-    void OnShotFired() {}
-    void OnWeaponReload() {}
-    void OnWeaponSwap() {}
-    void UpdateMovementAssist(float) {}
-    const char* GetDebugStatus() const { return state_.debug; }
-    void DrawDebug(ImDrawList*) {}
+    AimResult Update(const AimContext&);
+    void ForceTarget(uint64_t);
+    void CancelTarget();
+    void ApplyProfile(const std::string&);
+    void SaveProfile(const std::string&);
+    void LoadProfile(const std::string&);
+    std::vector<std::string> GetAvailableProfiles() const;
+    void OnShotFired();
+    void OnWeaponReload();
+    void OnWeaponSwap();
+    void UpdateMovementAssist(float);
+    const char* GetDebugStatus() const;
+    void DrawDebug(ImDrawList*);
 
 private:
     UnifiedConfig config_{};
     UnifiedState state_{};
 };
 
-inline UnifiedAimbot& GetUnifiedAimbot() {
-    static UnifiedAimbot instance;
-    return instance;
-}
-
-inline std::unique_ptr<UnifiedAimbot> CreateAimbotForGame(const char*) {
-    return std::make_unique<UnifiedAimbot>();
-}
+UnifiedAimbot& GetUnifiedAimbot();
+std::unique_ptr<UnifiedAimbot> CreateAimbotForGame(const char*);
 
 } // namespace Gameplay::UnifiedAim

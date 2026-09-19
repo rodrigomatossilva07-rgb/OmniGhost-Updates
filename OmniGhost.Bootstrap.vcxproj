@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Release|x64"><Configuration>Release</Configuration><Platform>x64</Platform></ProjectConfiguration>
+    <ProjectConfiguration Include="Publish|x64"><Configuration>Publish</Configuration><Platform>x64</Platform></ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{1B71A6F7-067B-4DB5-9FE6-899E5855A317}</ProjectGuid>
+    <RootNamespace>OmniGhostBootstrap</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion>
+    <ProjectName>OmniGhost</ProjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props"/>
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <PlatformToolset>v145</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props"/>
+  <PropertyGroup>
+    <OutDir Condition="'$(Configuration)'=='Release'">$(ProjectDir)build\</OutDir>
+    <OutDir Condition="'$(Configuration)'=='Publish'">$(ProjectDir)build\Publish\</OutDir>
+    <IntDir>$(ProjectDir).cache\bootstrap\intermediate\$(Platform)\$(Configuration)\</IntDir>
+    <TargetName>OmniGhost</TargetName>
+    <GenerateManifest>false</GenerateManifest>
+    <CorePayloadPath>$(ProjectDir).cache\bootstrap\payload\$(Platform)\$(Configuration)\OmniGhostCore.exe</CorePayloadPath>
+    <BootstrapGeneratedDir>$(ProjectDir).cache\generated\bootstrap\$(Configuration)\$(Platform)</BootstrapGeneratedDir>
+    <BootstrapVcRuntimeRoot Condition="'$(VCToolsRedistDir)'!=''">$(VCToolsRedistDir)x64</BootstrapVcRuntimeRoot>
+    <BootstrapVcRuntimeRoot Condition="'$(BootstrapVcRuntimeRoot)'==''">$(VCInstallDir)Redist\MSVC\$(VCToolsVersion)\x64</BootstrapVcRuntimeRoot>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <WarningLevel>Level4</WarningLevel>
+      <TreatWarningAsError>true</TreatWarningAsError>
+      <SDLCheck>true</SDLCheck>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <BufferSecurityCheck>true</BufferSecurityCheck>
+      <ControlFlowGuard>Guard</ControlFlowGuard>
+      <CETCompat>true</CETCompat>
+      <PreprocessorDefinitions>NDEBUG;NOMINMAX;WIN32_LEAN_AND_MEAN;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(BootstrapGeneratedDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalOptions>/utf-8 /permissive- /Zc:__cplusplus /guard:cf /guard:ehcont /FS %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ResourceCompile>
+      <AdditionalIncludeDirectories>$(BootstrapGeneratedDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <AdditionalDependencies>bcrypt.lib;shell32.lib;user32.lib;kernel32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <ProgramDatabaseFile>$(ProjectDir).cache\symbols\bootstrap\$(Configuration)\OmniGhost.pdb</ProgramDatabaseFile>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <ControlFlowGuard>Guard</ControlFlowGuard>
+      <DataExecutionPrevention>true</DataExecutionPrevention>
+      <RandomizedBaseAddress>true</RandomizedBaseAddress>
+      <HighEntropyVA>true</HighEntropyVA>
+      <LargeAddressAware>true</LargeAddressAware>
+      <AdditionalOptions>/CETCOMPAT /Brepro %(AdditionalOptions)</AdditionalOptions>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="bootstrap\launcher_main.cpp"/>
+    <ResourceCompile Include="bootstrap\launcher.rc"/>
+  </ItemGroup>
+
+  <Target Name="CleanOmniGhostBootstrapOutput" BeforeTargets="PrepareForBuild" Condition="'$(DesignTimeBuild)'!='true'">
+    <RemoveDir Directories="$(OutDir)" Condition="Exists('$(OutDir)')"/>
+    <MakeDir Directories="$(OutDir)"/>
+    <MakeDir Directories="$(ProjectDir).cache\symbols\bootstrap\$(Configuration)"/>
+  </Target>
+
+  <Target Name="BuildOmniGhostCorePayload" BeforeTargets="ClCompile;ResourceCompile" Condition="'$(DesignTimeBuild)'!='true'">
+    <Message Importance="High" Text="[OmniGhost Bootstrap] Building private OmniGhostCore payload..."/>
+    <MSBuild Projects="$(ProjectDir)OmiGhost.vcxproj"
+             Targets="Build"
+             Properties="Configuration=$(Configuration);Platform=$(Platform);OmniGhostPayloadBuild=true;OmniGhostSkipRemotePublish=true;OmniGhostCleanRuntimeOutput=true"
+             BuildInParallel="false"/>
+    <Error Condition="!Exists('$(CorePayloadPath)')" Code="OGBOOT001" Text="A payload OmniGhostCore.exe não foi produzida."/>
+    <Exec Command="powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(ProjectDir)tools\Build-BootstrapPayload.ps1&quot; -ProjectDir &quot;$(ProjectDir).&quot; -CoreExecutable &quot;$(CorePayloadPath)&quot; -VcToolsRedistDir &quot;$(BootstrapVcRuntimeRoot)&quot; -Configuration &quot;$(Configuration)&quot; -Platform &quot;$(Platform)&quot;" IgnoreExitCode="true">
+      <Output TaskParameter="ExitCode" PropertyName="OmniGhostBootstrapPayloadExitCode"/>
+    </Exec>
+    <Error Condition="'$(OmniGhostBootstrapPayloadExitCode)'!='0'" Code="OGBOOT002" Text="Falha ao gerar o bundle embedded do bootstrap."/>
+  </Target>
+
+  <Target Name="ValidateOmniGhostBootstrap" AfterTargets="Build" Condition="'$(DesignTimeBuild)'!='true'">
+    <ItemGroup>
+      <OmniGhostUnexpectedBootstrapOutput Include="$(OutDir)**\*" Exclude="$(TargetPath)"/>
+    </ItemGroup>
+    <Error Condition="!Exists('$(TargetPath)')" Code="OGBOOT003" Text="A build não produziu o OmniGhost.exe final."/>
+    <Error Condition="'@(OmniGhostUnexpectedBootstrapOutput)'!=''" Code="OGBOOT004" Text="A pasta final contém ficheiros além do OmniGhost.exe: @(OmniGhostUnexpectedBootstrapOutput)."/>
+    <Exec Command="powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(ProjectDir)tools\Validate-PeRuntime.ps1&quot; -Executable &quot;$(TargetPath)&quot; -RequireSingleExeDirectory -RequireSelfContainedHost" IgnoreExitCode="true">
+      <Output TaskParameter="ExitCode" PropertyName="OmniGhostBootstrapPeValidationExitCode"/>
+    </Exec>
+    <Error Condition="'$(OmniGhostBootstrapPeValidationExitCode)'!='0'" Code="OGBOOT005" Text="O OmniGhost.exe final ainda possui dependências de runtime não permitidas."/>
+    <Message Importance="High" Text="[OmniGhost Bootstrap] PASS: single-file self-contained host validated."/>
+  </Target>
+
+  <Target Name="PublishOmniGhostBootstrap" AfterTargets="ValidateOmniGhostBootstrap" Condition="'$(Configuration)'=='Publish' And '$(DesignTimeBuild)'!='true' And '$(OmniGhostSkipRemotePublish)'!='true'">
+    <Exec Command="&quot;$(ProjectDir)tools\Run-OmniGhostPowerShell.cmd&quot; publish-build &quot;$(ProjectDir)&quot; &quot;$(OutDir).&quot;" IgnoreExitCode="true">
+      <Output TaskParameter="ExitCode" PropertyName="OmniGhostBootstrapPublishExitCode"/>
+    </Exec>
+    <Error Condition="'$(OmniGhostBootstrapPublishExitCode)'!='0'" Code="OGBOOT006" Text="O bootstrap compilou, mas a publicação falhou."/>
+  </Target>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets"/>
+</Project>

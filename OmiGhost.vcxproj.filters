@@ -252,8 +252,8 @@
     <ClCompile Include="Fivem\playerInfo\PedData.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-<ClCompile Include="Cs2\weapons\cs2_weapon_icons.cpp">
-      <Filter>Source Files\Cs2</Filter>
+    <ClCompile Include="Cs2\cs2_weapon_icons.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\auth\local_auth_service.cpp">
       <Filter>Source Files</Filter>
@@ -346,9 +346,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\window\layout.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="src\window\menu_draw_stubs.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\window\pages\common\AimPage.cpp">
@@ -570,19 +567,19 @@
     <ClCompile Include="src\launcher\updates_page.cpp">
       <Filter>Source Files\launcher</Filter>
     </ClCompile>
-    <ClCompile Include="Cs2\aimbot\cs2_aim.cpp">
+    <ClCompile Include="Cs2\cs2_game.cpp">
       <Filter>Source Files\Cs2</Filter>
     </ClCompile>
-    <ClCompile Include="Cs2\esp\cs2_esp.cpp">
+    <ClCompile Include="Cs2\cs2_config_io.cpp">
       <Filter>Source Files\Cs2</Filter>
     </ClCompile>
-    <ClCompile Include="Cs2\radar\cs2_radar.cpp">
+    <ClCompile Include="Cs2\cs2_esp.cpp">
       <Filter>Source Files\Cs2</Filter>
     </ClCompile>
-    <ClCompile Include="Cs2\config\cs2_config_io.cpp">
+    <ClCompile Include="Cs2\cs2_aim.cpp">
       <Filter>Source Files\Cs2</Filter>
     </ClCompile>
-    <ClCompile Include="Cs2\weapons\cs2_weapon_icons.cpp">
+    <ClCompile Include="Cs2\cs2_radar.cpp">
       <Filter>Source Files\Cs2</Filter>
     </ClCompile>
     <ClCompile Include="src\launcher\license_page.cpp">

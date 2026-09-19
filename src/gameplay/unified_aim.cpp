@@ -245,10 +245,6 @@ namespace Gameplay::UnifiedAim {
             if (!IsKeyPressed(safety.aim_key)) return false;
         }
         
-        // Would check reload/weapon swap from context
-        // if (safety.disable_on_reload && context.reloading) return false;
-        // if (safety.disable_on_weapon_swap && context.weapon_swapping) return false;
-        
         return true;
     }
     

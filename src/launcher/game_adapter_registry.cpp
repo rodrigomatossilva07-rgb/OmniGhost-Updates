@@ -6,8 +6,8 @@
 #include "../platform/offset_auto.h"
 #include "../config/config_manager.h"
 #include "../../Cs2/cs2_game.h"
-#include "../../Cs2/esp/cs2_esp.h"
-#include "../../Cs2/aimbot/cs2_aim.h"
+#include "../../Cs2/cs2_esp.h"
+#include "../../Cs2/cs2_aim.h"
 #include "../../DMALibrary/Memory/Memory.h"
 #include "../../Fivem/aimbot/aim_type.h"
 #include "../../Fivem/game/game.h"
@@ -45,13 +45,11 @@ public:
                         IsAliveOperation isAlive = [] { return false; },
                         ValidateOffsetsOperation validateOffsets = [] { return true; },
                         TerminationReasonOperation terminationReason = [] { return "Processo terminado"; },
-                        GameIdOperation gameId = [] { return ActiveGame::FiveM; },
-                        BoolOperation rebind = [] { return false; })
+                        GameIdOperation gameId = [] { return ActiveGame::FiveM; })
         : descriptor_(descriptor), attach_(std::move(attach)), shutdown_(std::move(shutdown)),
           status_(std::move(status)), tick_(std::move(tick)),
           isAlive_(std::move(isAlive)), validateOffsets_(std::move(validateOffsets)),
-          terminationReason_(std::move(terminationReason)), gameId_(std::move(gameId)),
-          rebind_(std::move(rebind)) {}
+          terminationReason_(std::move(terminationReason)), gameId_(std::move(gameId)) {}
 
     bool Attach() override {
         attached_ = attach_ && attach_();
@@ -100,9 +98,6 @@ public:
     bool ValidateLiveOffsets() override {
         return validateOffsets_ ? validateOffsets_() : true;
     }
-    bool Rebind() override {
-        return rebind_ ? rebind_() : false;
-    }
     std::string_view GetTerminationReason() const noexcept override {
         return terminationReason_ ? terminationReason_() : "Processo terminado";
     }
@@ -122,7 +117,6 @@ private:
     ValidateOffsetsOperation validateOffsets_;
     TerminationReasonOperation terminationReason_;
     GameIdOperation gameId_;
-    BoolOperation rebind_;
     bool attached_ = false;
     OmniGhost::Launcher::AdapterError lastError_{};
 };
@@ -241,34 +235,6 @@ bool RustValidateOffsetsAdapter() { return Rust::ValidateOffsets(); }
 std::string_view RustTerminationReasonAdapter() { return "Processo Rust terminou"; }
 ActiveGame RustGameIdAdapter() { return ActiveGame::Rust; }
 
-// Rebind functions for multi-game support
-bool FivemRebind() {
-    std::string executable = OmniGhost::GameContext::Instance().GetValidExecutable();
-    if (executable.empty())
-        executable = "GTAProcess.exe";
-    return mem.Rebind(executable, true, false) || mem.Rebind("GTAProcess.exe", true, false);
-}
-
-bool Cs2Rebind() {
-    return CS2::ReinitDma();
-}
-
-bool WarzoneRebind() {
-    return Warzone::ReinitDma();
-}
-
-bool ValorantRebind() {
-    return Valorant::ReinitDma();
-}
-
-bool FortniteRebind() {
-    return Fortnite::ReinitDma();
-}
-
-bool RustRebindAdapter() {
-    return Rust::ReinitDma();
-}
-
 IGameAdapter* FindGameAdapter(::Launcher::GameId game) noexcept {
     using Capability = AdapterCapability;
     static FunctionGameAdapter fivem({ ::Launcher::GameId::FiveM, "FiveM", AdapterMaturity::Stable,
@@ -290,7 +256,7 @@ IGameAdapter* FindGameAdapter(::Launcher::GameId game) noexcept {
                 std::cerr << "[FiveM] CRASH desconhecido em Tick" << std::endl;
             }
         },
-        FivemIsAlive, FivemValidateOffsets, FivemTerminationReason, FivemGameId, FivemRebind);
+        FivemIsAlive, FivemValidateOffsets, FivemTerminationReason, FivemGameId);
     static FunctionGameAdapter cs2({ ::Launcher::GameId::CS2, "Counter-Strike 2", AdapterMaturity::Stable,
         Capability::Menu | Capability::ReadOnlyMemory | Capability::Overlay | Capability::Radar },
         StartCs2, [] { CS2::Shutdown(); CS2::ready = false; },
@@ -313,7 +279,7 @@ IGameAdapter* FindGameAdapter(::Launcher::GameId game) noexcept {
                 std::cerr << "[CS2] CRASH desconhecido em Tick" << std::endl;
             }
         },
-        Cs2IsAlive, Cs2ValidateOffsets, Cs2TerminationReason, Cs2GameId, Cs2Rebind);
+        Cs2IsAlive, Cs2ValidateOffsets, Cs2TerminationReason, Cs2GameId);
     static FunctionGameAdapter warzone({ ::Launcher::GameId::Warzone, "Call of Duty: Warzone", AdapterMaturity::Beta,
         Capability::Menu | Capability::ReadOnlyMemory },
         StartWarzone, [] { Warzone::Shutdown(); },
@@ -323,7 +289,7 @@ IGameAdapter* FindGameAdapter(::Launcher::GameId game) noexcept {
                 Warzone::RunFrame();
             }
         },
-        WarzoneIsAlive, WarzoneValidateOffsets, WarzoneTerminationReason, WarzoneGameId, WarzoneRebind);
+        WarzoneIsAlive, WarzoneValidateOffsets, WarzoneTerminationReason, WarzoneGameId);
     static FunctionGameAdapter valorant({ ::Launcher::GameId::Valorant, "Valorant", AdapterMaturity::Beta,
         Capability::Menu | Capability::ReadOnlyMemory | Capability::Overlay },
         StartValorant, [] { Valorant::Detach(); },
@@ -333,7 +299,7 @@ IGameAdapter* FindGameAdapter(::Launcher::GameId game) noexcept {
             Valorant::DrawESP();
             Valorant::RunAim();
         },
-        ValorantIsAlive, ValorantValidateOffsets, ValorantTerminationReason, ValorantGameId, ValorantRebind);
+        ValorantIsAlive, ValorantValidateOffsets, ValorantTerminationReason, ValorantGameId);
     static FunctionGameAdapter fortnite({ ::Launcher::GameId::Fortnite, "Fortnite", AdapterMaturity::Beta,
         Capability::Menu | Capability::ReadOnlyMemory | Capability::Overlay },
         StartFortnite, [] { Fortnite::Detach(); },
@@ -343,7 +309,7 @@ IGameAdapter* FindGameAdapter(::Launcher::GameId game) noexcept {
             Fortnite::DrawESP();
             Fortnite::RunAim();
         },
-        FortniteIsAlive, FortniteValidateOffsets, FortniteTerminationReason, FortniteGameId, FortniteRebind);
+        FortniteIsAlive, FortniteValidateOffsets, FortniteTerminationReason, FortniteGameId);
 
     static FunctionGameAdapter rust({ ::Launcher::GameId::Rust, "Rust", AdapterMaturity::Beta,
         Capability::Menu | Capability::ReadOnlyMemory | Capability::Overlay },
@@ -354,7 +320,7 @@ IGameAdapter* FindGameAdapter(::Launcher::GameId game) noexcept {
                 Rust::RunFrame();
             }
         },
-        RustIsAliveAdapter, RustValidateOffsetsAdapter, RustTerminationReasonAdapter, RustGameIdAdapter, RustRebindAdapter);
+        RustIsAliveAdapter, RustValidateOffsetsAdapter, RustTerminationReasonAdapter, RustGameIdAdapter);
 
     switch (game) {
     case ::Launcher::GameId::FiveM: return &fivem;

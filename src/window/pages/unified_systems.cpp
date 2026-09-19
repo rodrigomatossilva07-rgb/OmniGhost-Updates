@@ -1,7 +1,7 @@
 #include "../widgets.h"
 #include "../theme.h"
 #include "../localization.h"
-#include "global_search.h"
+#include "../global_search.h"
 #include "gameplay/unified_aim.h"
 #include "gameplay/sound_esp.h"
 #include "gameplay/spectator_list.h"
@@ -17,7 +17,7 @@
 #include "gameplay/offset_manager.h"
 #include "gameplay/resolution.h"
 #include "gameplay/game_adapter.h"
-#include "../config/app_settings.h"
+#include "../../config/app_settings.h"
 #include <memory>
 #include <string>
 #include <vector>

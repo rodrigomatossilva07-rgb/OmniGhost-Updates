@@ -85,7 +85,6 @@ void DrawBackground(
     // Rain is a peripheral brand texture, never the foreground.  Keeping it
     // inside this narrow range also makes the visual stable across monitors.
     const float rainOpacity = std::clamp(app_settings::DigitalRainOpacity(), 0.02f, 0.04f);
-    DigitalRain::SetQualityFromEffectLevel(static_cast<int>(app_settings::config.digital_rain_level));
     DigitalRain::Draw(
         draw,
         ImVec2(0.0f, header),
@@ -238,7 +237,7 @@ void DrawHeader(ImDrawList* draw, ImVec2 display) {
         const auto update = OmniGhost::Update::UpdateService::Instance().GetSnapshot();
         DrawStatusChip(draw, statusX, S(15.f), Loc::Tr("launcher.dma"),
             dma.deviceOpen ? Loc::Tr("launcher.connected")
-                           : (dma.deviceDetected ? "Detetado" : "Não detetado"),
+                           : (dma.deviceDetected ? Loc::Tr("launcher.device_detected") : Loc::Tr("launcher.device_not_detected")),
             (dma.deviceOpen || dma.deviceDetected) ? C_GREEN() : C_MUTED(), statusRight);
         DrawStatusChip(draw, statusX, S(15.f), Loc::Tr("launcher.input"), InputDeviceName(),
             InputDeviceConnected() ? C_GREEN() : C_MUTED(), statusRight);

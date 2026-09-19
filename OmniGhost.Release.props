@@ -16,8 +16,6 @@
       <RandomizedBaseAddress>true</RandomizedBaseAddress>
       <HighEntropyVA>true</HighEntropyVA>
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
-      <GenerateMapFile>true</GenerateMapFile>
-      <MapExports>true</MapExports>
       <AdditionalOptions>/CETCOMPAT /Brepro %(AdditionalOptions)</AdditionalOptions>
     </Link>
   </ItemDefinitionGroup>

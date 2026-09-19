@@ -8,7 +8,6 @@
 #include <functional>
 #include <memory>
 #include <set>
-#include <atomic>
 #include "math/math.h"
 #include "game/offsets.h"
 #include "../../DMALibrary/Memory/Memory.h"
@@ -18,78 +17,6 @@ namespace object_esp {
 
 // Forward declarations
 class ObjectRenderer;
-
-// Diagnostic Counters (moved from cpp to header for use in ScanProgress)
-struct DiagnosticCounters {
-    std::atomic<int> pool_slots{0};
-    std::atomic<int> occupied_slots{0};
-    std::atomic<int> entity_ptrs_valid{0};
-    std::atomic<int> valid_entities{0};
-    std::atomic<int> valid_model_info{0};
-    std::atomic<int> valid_hashes{0};
-    std::atomic<int> valid_positions{0};
-    std::atomic<int> within_distance{0};
-    std::atomic<int> accepted_objects{0};
-    
-    void Reset() {
-        pool_slots = occupied_slots = entity_ptrs_valid = valid_entities = 0;
-        valid_model_info = valid_hashes = valid_positions = within_distance = accepted_objects = 0;
-    }
-    
-    // Make movable for std::optional
-    DiagnosticCounters() = default;
-    DiagnosticCounters(const DiagnosticCounters&) = delete;
-    DiagnosticCounters& operator=(const DiagnosticCounters&) = delete;
-    DiagnosticCounters(DiagnosticCounters&& other) noexcept {
-        pool_slots.store(other.pool_slots.load());
-        occupied_slots.store(other.occupied_slots.load());
-        entity_ptrs_valid.store(other.entity_ptrs_valid.load());
-        valid_entities.store(other.valid_entities.load());
-        valid_model_info.store(other.valid_model_info.load());
-        valid_hashes.store(other.valid_hashes.load());
-        valid_positions.store(other.valid_positions.load());
-        within_distance.store(other.within_distance.load());
-        accepted_objects.store(other.accepted_objects.load());
-    }
-    DiagnosticCounters& operator=(DiagnosticCounters&& other) noexcept {
-        if (this != &other) {
-            pool_slots.store(other.pool_slots.load());
-            occupied_slots.store(other.occupied_slots.load());
-            entity_ptrs_valid.store(other.entity_ptrs_valid.load());
-            valid_entities.store(other.valid_entities.load());
-            valid_model_info.store(other.valid_model_info.load());
-            valid_hashes.store(other.valid_hashes.load());
-            valid_positions.store(other.valid_positions.load());
-            within_distance.store(other.within_distance.load());
-            accepted_objects.store(other.accepted_objects.load());
-        }
-        return *this;
-    }
-};
-
-// Helper functions for memory reading
-inline bool ReadU64Safe(uintptr_t addr, uintptr_t& out) {
-    out = 0;
-    if (!addr) return false;
-    return mem.Read(addr, &out, sizeof(out)) && out > 0x10000ULL && out < 0x00007FFFFFFFFFFFULL;
-}
-
-inline bool ReadVec3Safe(uintptr_t addr, Vec3& out) {
-    out = {};
-    if (!addr) return false;
-    return mem.Read(addr, &out, sizeof(out));
-}
-
-inline bool LooksFinite(const Vec3& v) {
-    return std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z)
-        && std::fabs(v.x) < 50000.f && std::fabs(v.y) < 50000.f && std::fabs(v.z) < 50000.f;
-}
-
-inline std::string HashToModelLabel(uint32_t hash) {
-    char buf[32];
-    std::snprintf(buf, sizeof(buf), "0x%08X", hash);
-    return buf;
-}
 
 // Object entity representation
 struct ObjectEntity {
@@ -119,7 +46,6 @@ struct ScanResult {
     std::vector<Vec3> sample_positions; // First few positions
     ObjectCategory category = ObjectCategory::Other;
     bool is_custom = false;
-    uintptr_t entity_address = 0; // Store entity address for tracking
     
     ScanResult() = default;
     ScanResult(const std::string& m, uint32_t h) : model(m), hash(h) {}
@@ -187,9 +113,6 @@ public:
     const InspectorData* GetInspectorData() const { return inspector_open_ ? &inspector_data_ : nullptr; }
     bool IsInspectorOpen() const { return inspector_open_; }
     
-    // Custom display name
-    void SetCustomDisplayName(const std::string& model, const std::string& display_name);
-    
     // Categories
     void SetCategoryFilter(ObjectCategory cat) { current_filter_ = cat; }
     ObjectCategory GetCategoryFilter() const { return current_filter_; }
@@ -240,25 +163,6 @@ private:
     std::string selected_model_;
     Stats stats_;
     
-    // Incremental scanning state
-    struct ScanProgress {
-        uint32_t current_index = 0;
-        uint32_t total_slots = 0;
-        uintptr_t pool_address = 0;
-        uintptr_t items_address = 0;
-        uintptr_t flags_address = 0;
-        uint32_t pool_size = 0;
-        uint32_t item_size = 0;
-        uintptr_t flags_address_ptr = 0;
-        uint32_t total_slots_total = 0;
-        Vec3 local_position{};
-        float max_radius_sq = 0;
-        std::unordered_map<uint32_t, ScanResult> by_hash;
-        DiagnosticCounters diagnostics;
-        bool pool_validated = false;
-    };
-    std::optional<ScanProgress> scan_progress_;
-    
     // All scanner work runs on the existing FiveM frame sequence after ESP has
     // published its read-only snapshot. This avoids a worker reading mutable
     // frame containers concurrently with the adapter/UI lifecycle.
@@ -266,17 +170,11 @@ private:
     mutable std::mutex data_mutex_;
 
     // Internal methods
-    bool ValidatePoolPointer(uintptr_t pool_ptr, uintptr_t& out_pool);
-    bool ResolvePoolAddress(uintptr_t& out_pool);
-    bool ValidatePoolStructure(uintptr_t pool, uintptr_t& items, uintptr_t& flags, uint32_t& size, uint32_t& itemSize);
     void PerformScan();
-    void PerformScanIncremental();
-    void PerformScanSinglePass();
     void UpdateTrackedObjects();
     void PruneStaleObjects();
     void ApplyDistanceCulling();
     void ApplyFrustumCulling();
-    void ApplyDiagnosticMode();
     
     // Config persistence
     void SaveWhitelistToDisk();

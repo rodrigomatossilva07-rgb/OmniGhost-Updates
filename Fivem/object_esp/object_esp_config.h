@@ -63,7 +63,7 @@ struct WhitelistEntry {
     bool show_distance = true;
     bool show_category = false;
     bool show_box = false;
-    bool show_marker = true;
+    bool show_marker = false;
     ImU32 color = IM_COL32(255, 255, 0, 255); // Default yellow
     bool is_custom = false;      // Whether this is a custom server object
     
@@ -148,8 +148,6 @@ struct Config {
     float scan_radius = 500.0f;
     int scan_interval_ms = 5000; // Time between auto-scans
     bool auto_scan = false;
-    bool auto_scan_enabled = false;
-    int auto_scan_interval_seconds = 30;
     
     // Rendering settings
     float max_distance = 300.0f;
@@ -172,6 +170,10 @@ struct Config {
     bool distance_culling = true;
     bool frustum_culling = true;
     
+    // Scanner
+    bool auto_scan_enabled = false;
+    int auto_scan_interval_seconds = 30;
+    
     // UI state (not persisted)
     bool show_scanner = true;
     bool show_whitelist = true;
@@ -186,9 +188,6 @@ struct Config {
     
     // Categories
     bool category_visible[static_cast<int>(ObjectCategory::Count)] = {true};
-    
-    // Custom object display name overrides
-    std::unordered_map<std::string, std::string> custom_display_names;
     
     Config() {
         // Initialize category visibility

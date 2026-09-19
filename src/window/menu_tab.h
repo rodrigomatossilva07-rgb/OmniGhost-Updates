@@ -16,7 +16,6 @@ enum class MenuTab : int {
     TAB_CS2_MISC,
     TAB_CS2_RADAR,
     TAB_CS2_CONFIGS,
-    TAB_CS2_GRENADE_HELPER,
     // Warzone-specific runtime pages
     TAB_WARZONE_AIM = 300,
     TAB_WARZONE_VISUALS,
@@ -76,7 +75,6 @@ void DrawCs2Visuals();
 void DrawCs2Aim();
 void DrawCs2Misc();
 void DrawCs2Radar();
-void DrawCs2GrenadeHelper();
 
 // Warzone pages
 void DrawWarzoneAim();

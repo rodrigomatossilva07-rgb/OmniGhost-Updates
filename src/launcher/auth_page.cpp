@@ -415,8 +415,10 @@ bool AuthPasswordField(const char* id, char* buffer, std::size_t bufferSize,
     DrawAuthFocusTransition(focusId, position, width, height);
     const ImVec2 eyeMin(position.x + width - S(38.f), position.y + S(3.f));
     ImGui::SetCursorScreenPos(eyeMin);
+    ImGui::PushID("eye"); // Unique ID per field to avoid conflicts
     const bool clicked = ImGui::InvisibleButton("##eye", ImVec2(S(32.f), height - S(6.f)));
     if (clicked) *reveal = !*reveal;
+    ImGui::PopID();
     const bool hovered = ImGui::IsItemHovered();
     const ImVec2 center(eyeMin.x + S(16.f), eyeMin.y + (height - S(6.f)) * 0.5f);
     ImDrawList* draw = ImGui::GetWindowDrawList();
@@ -919,7 +921,6 @@ bool Draw() {
         // Rain belongs to the authentication card itself. Keep it deliberately
         // faint and sparse so fields and branding remain the visual hierarchy.
         draw->PushClipRect(windowPos, Add(windowPos, ImVec2(width, height)), true);
-        DigitalRain::SetQualityFromEffectLevel(static_cast<int>(app_settings::config.digital_rain_level));
         DigitalRain::Draw(draw, windowPos, ImVec2(width, height), true,
             performance.effective, 0.0f, 0.58f, 0.28f, animation, false, false);
         draw->PopClipRect();

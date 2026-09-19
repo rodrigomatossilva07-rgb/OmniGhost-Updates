@@ -96,15 +96,6 @@ namespace FiveM {
         uintptr_t vehicle_pool_offset = 0;
         uintptr_t framecount_last_visible_offset = 0;
         uintptr_t ped_visibility_offset = 0x147C;
-
-        // Capability flags — true if this build supports the feature
-        bool supports_visibility = false;
-        bool supports_objects = false;
-        bool supports_waypoint = false;
-        bool supports_vehicle_pool = false;
-        bool supports_names = false;
-        bool supports_pickups = false;
-        bool supports_aim_assist = false;
     };
 
     // Load / reload builds from data/fivem_offsets.json (or embedded snapshot).
@@ -119,15 +110,6 @@ namespace FiveM {
 
     // Returns config for build if present in the JSON table; nullptr otherwise.
     const BuildOffsets* GetOffsetsForBuild(int build);
-
-    // Capability checks
-    bool SupportsVisibility();
-    bool SupportsObjects();
-    bool SupportsWaypoint();
-    bool SupportsVehiclePool();
-    bool SupportsNames();
-    bool SupportsPickups();
-    bool SupportsAimAssist();
 
     /*
     * OFFSET REFERENCE GUIDE:

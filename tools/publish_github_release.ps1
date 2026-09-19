@@ -181,6 +181,84 @@ function Get-ReleaseView {
     return $Result.Output | ConvertFrom-Json
 }
 
+
+function Test-PublicUpdateManifest {
+    param(
+        [Parameter(Mandatory = $true)][string]$Repository,
+        [Parameter(Mandatory = $true)][string]$ExpectedVersion
+    )
+    $PublicUrl = "https://github.com/$Repository/releases/latest/download/update.json"
+    Write-Gh "A verificar URL pública do manifesto: $PublicUrl"
+    try {
+        $resp = Invoke-WebRequest -Uri $PublicUrl -Method Get -UseBasicParsing -TimeoutSec 45
+    } catch {
+        $msg = [string]$_.Exception.Message
+        throw ("Publish falhou na verificação pública do update.json.`nURL: {0}`nDetalhe: {1}`n" +
+            "Causas comuns: repo privado, release draft, ou asset update.json em falta." -f $PublicUrl, $msg)
+    }
+    if ([int]$resp.StatusCode -ne 200) {
+        throw ("URL pública do update.json devolveu HTTP {0}: {1}" -f $resp.StatusCode, $PublicUrl)
+    }
+    $body = [string]$resp.Content
+    if ([string]::IsNullOrWhiteSpace($body)) {
+        throw ("update.json público está vazio: {0}" -f $PublicUrl)
+    }
+    try {
+        $json = $body | ConvertFrom-Json
+    } catch {
+        throw ("update.json público não é JSON válido: {0}" -f $_.Exception.Message)
+    }
+    # StrictMode-safe property reads (PSCustomObject may omit members)
+    $verStr = $null
+    $props = @()
+    if ($null -ne $json -and $json.PSObject) {
+        $props = @($json.PSObject.Properties.Name)
+    }
+    if ($props -contains 'version') {
+        $rawVer = $json.version
+        if ($rawVer -is [string]) {
+            $verStr = $rawVer
+        } elseif ($null -ne $rawVer -and $rawVer.PSObject -and (@($rawVer.PSObject.Properties.Name) -contains 'original')) {
+            $verStr = [string]$rawVer.original
+        } else {
+            $verStr = [string]$rawVer
+        }
+    }
+    if ([string]::IsNullOrWhiteSpace($verStr)) {
+        throw ("update.json público sem version legível. Props=[{0}] bytes={1}" -f ($props -join ','), $body.Length)
+    }
+    if (-not [string]::IsNullOrWhiteSpace($ExpectedVersion) -and $verStr -ne $ExpectedVersion) {
+        Write-Warning ("Manifesto público version={0} difere de ExpectedVersion={1}" -f $verStr, $ExpectedVersion)
+    }
+    $byteLen = $body.Length
+    if ($resp.RawContentLength -gt 0) { $byteLen = [int64]$resp.RawContentLength }
+    Write-Gh ("Manifesto público OK: version={0} bytes={1}" -f $verStr, $byteLen)
+    return $PublicUrl
+}
+
+function Assert-UpdatesRepositoryPublic {
+    param(
+        [Parameter(Mandatory = $true)][string]$Gh,
+        [Parameter(Mandatory = $true)][string]$Repository
+    )
+    $Result = Invoke-GhCapture -Gh $Gh -Arguments @(
+        'api', "repos/$Repository", '--jq', '.private'
+    )
+    if ($Result.ExitCode -ne 0) {
+        Write-Warning ("Não foi possível consultar visibilidade de {0}: {1}" -f $Repository, $Result.Output)
+        return
+    }
+    $flag = ([string]$Result.Output).Trim().ToLowerInvariant()
+    if ($flag -eq 'true') {
+        throw @"
+O repositório $Repository está PRIVADO.
+O launcher OmniGhost descarrega update.json sem autenticação GitHub; com repo privado o cliente recebe sempre HTTP 404.
+Torna o repositório OmniGhost-Updates público (Settings → Danger zone → Change visibility → Public) e volta a executar Publish|x64.
+"@
+    }
+    Write-Gh "Repositório $Repository está público (verificação OK)."
+}
+
 function Set-AndConfirmLatestRelease {
     param(
         [Parameter(Mandatory = $true)][string]$Gh,
@@ -323,6 +401,7 @@ if ($AuthResult.ExitCode -ne 0) {
     throw "GitHub CLI sem autenticação válida. Executa 'gh auth login'. Detalhes: $($AuthResult.Output)"
 }
 Write-Gh 'Autenticação válida.'
+Assert-UpdatesRepositoryPublic -Gh $Gh -Repository $Repository
 
 if ($ValidateOnly) {
     Write-Gh 'Preflight concluído: configuração, autenticação e assets locais estão válidos.'
@@ -429,6 +508,10 @@ else {
 
 Write-Gh 'Assets enviados.'
 Write-Gh 'Release validada com sucesso.'
+if (-not $Draft) {
+    $publicManifestUrl = Test-PublicUpdateManifest -Repository $Repository -ExpectedVersion $Version
+    Write-Gh "URL pública confirmada: $publicManifestUrl"
+}
 if ($Draft) {
     Write-Gh 'Release em modo draft — revê e publica manualmente no GitHub.'
 }

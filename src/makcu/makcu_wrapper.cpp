@@ -431,9 +431,4 @@ namespace makcu_wrapper {
         default: return "Desconhecido";
         }
     }
-
-    std::string GetPort() {
-        std::lock_guard<std::mutex> lock(diag_mutex);
-        return std::string(g_state.port);
-    }
 }

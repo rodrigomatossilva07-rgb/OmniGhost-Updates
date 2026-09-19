@@ -189,17 +189,7 @@ void ObjectRenderer::RenderObject(const TrackedInstance& obj, const Matrix& view
         std::string info;
         
         if (entry_config.show_name) {
-            // Use custom display name if set, otherwise fall back to model name
-            std::string display_name = entry_config.display_name;
-            if (display_name.empty() || display_name == entry_config.model) {
-                // Check config for custom display name override
-                auto& manager = object_esp::GetObjectESPManager();
-                auto it = manager.GetMutableConfig().custom_display_names.find(entry_config.model);
-                if (it != manager.GetMutableConfig().custom_display_names.end()) {
-                    display_name = it->second;
-                }
-            }
-            info = display_name;
+            info = entry_config.display_name;
         }
         
         if (entry_config.show_distance) {

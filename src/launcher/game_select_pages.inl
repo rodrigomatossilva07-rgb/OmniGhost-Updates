@@ -20,6 +20,9 @@ void EndControlPage() {
 void DrawPageHeading(const char* title, const char* subtitle) {
     // Shared page signature: it keeps every area of the launcher recognisably
     // OmniGhost without introducing a separate visual language per page.
+    ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(
+        CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.66f)),
+        "OMNI // CONTROL CENTER");
     ImGui::Dummy(ImVec2(0.f, S(3.f)));
     if (ImFont* font = CyberFonts::GetTitleFont()) ImGui::PushFont(font);
     ImGui::TextColored(CyberTheme::Colors.Text, "%s", title);
@@ -71,11 +74,11 @@ void DrawHome(ImVec2 display) {
     CyberWidgets::EndCard();
 
     if (two) ImGui::SameLine(0.f, gap);
-    CyberWidgets::BeginCard("ESTADO DO SISTEMA", systemWidth);
+    CyberWidgets::BeginCard(Loc::Tr("launcher.system_health"), systemWidth);
     const auto dma = mem.GetDiagnosticsSnapshot();
     const auto update = OmniGhost::Update::UpdateService::Instance().GetSnapshot();
     CyberWidgets::HealthRow("DMA", dma.deviceOpen ? Loc::Tr("launcher.connected")
-        : (dma.deviceDetected ? "Detetado" : "Não detetado"),
+        : (dma.deviceDetected ? Loc::Tr("launcher.device_detected") : Loc::Tr("launcher.device_not_detected")),
         dma.deviceOpen ? CyberWidgets::HealthStatus::Ok : CyberWidgets::HealthStatus::Warning);
     std::string input = std::string(InputDeviceName()) + " · " +
         (InputDeviceConnected() ? Loc::Tr("launcher.connected") : Loc::Tr("launcher.standby"));
@@ -103,7 +106,7 @@ void DrawHome(ImVec2 display) {
     CyberWidgets::EndCard();
 
     if (two) ImGui::SameLine(0.f, gap);
-    CyberWidgets::BeginCard("BIBLIOTECA", two ? (available - gap) * .5f : available);
+    CyberWidgets::BeginCard(Loc::Tr("launcher.games"), two ? (available - gap) * .5f : available);
     std::size_t homeGameCount = 0;
     const GameDefinition* homeGames = Games(homeGameCount);
     std::size_t availableGames = 0;
@@ -111,10 +114,10 @@ void DrawHome(ImVec2 display) {
         if (!homeGames[i].coming_soon) ++availableGames;
     }
     const std::string availableSummary = std::to_string(availableGames) + " produtos disponíveis";
-    CyberWidgets::KeyValueRow("Catálogo", availableSummary.c_str());
-    CyberWidgets::KeyValueRow("Estado", "Pronto para explorar");
-    CyberWidgets::TextLine("Escolhe um produto para ver o respetivo estado e as ações disponíveis.", CyberWidgets::TextTone::Secondary);
-    if (CyberWidgets::Button("Abrir biblioteca", CyberWidgets::ButtonStyle::Secondary, ImVec2(S(165.f), S(33.f))))
+CyberWidgets::KeyValueRow(Loc::Tr("launcher.games"), availableSummary.c_str());
+    CyberWidgets::KeyValueRow(Loc::Tr("launcher.status"), Loc::Tr("launcher.ready_to_explore"));
+    CyberWidgets::TextLine(Loc::Tr("launcher.empty_desc"), CyberWidgets::TextTone::Secondary);
+    if (CyberWidgets::Button(Loc::Tr("launcher.continue_last"), CyberWidgets::ButtonStyle::Secondary, ImVec2(S(165.f), S(33.f))))
         ChangeNavigation(static_cast<int>(NavPage::Library));
     CyberWidgets::EndCard();
 
@@ -272,7 +275,7 @@ void DrawDiagnostics(ImVec2 display) {
                             rendererOk ? Loc::Tr("launcher.renderer_ready") : Loc::Tr("launcher.renderer_unavailable"),
                             rendererOk ? CyberWidgets::HealthStatus::Ok : CyberWidgets::HealthStatus::Error);
     CyberWidgets::HealthRow("DMA", dma.deviceOpen ? Loc::Tr("launcher.connected")
-                                                    : (dma.deviceDetected ? "Detetado" : "Não detetado"),
+                                                    : (dma.deviceDetected ? Loc::Tr("launcher.device_detected") : Loc::Tr("launcher.device_not_detected")),
                             dma.deviceOpen ? (dma.dependencyIntegrityOk ? CyberWidgets::HealthStatus::Ok : CyberWidgets::HealthStatus::Warning)
                                            : CyberWidgets::HealthStatus::Warning);
     CyberWidgets::HealthRow(Loc::Tr("launcher.input"), InputDeviceConnected() ? InputDeviceName() : Loc::Tr("launcher.standby"),
@@ -660,21 +663,21 @@ void DrawSettings(ImVec2 display) {
             accessActive ? (remote ? "SESSÃO KEYAUTH ATIVA" : "ACESSO LOCAL ATIVO") : "AÇÃO NECESSÁRIA",
             accessActive ? CyberWidgets::TextTone::Success : CyberWidgets::TextTone::Warning);
         ImGui::Dummy(ImVec2(0, S(6.f)));
-        CyberWidgets::KeyValueRow("Modo", remote ? "KeyAuth" : "Compatibilidade local");
+        CyberWidgets::KeyValueRow("Modo", remote ? Loc::Tr("launcher.remote_auth") : Loc::Tr("launcher.local_compat"));
         CyberWidgets::KeyValueRow("Estado", remote
-            ? (license.remoteAuthenticated ? "Autenticado" : "Sem sessão")
+            ? (license.remoteAuthenticated ? Loc::Tr("launcher.authenticated") : Loc::Tr("launcher.no_session"))
             : OmniGhost::Licensing::StateLabel(license.localState));
-        CyberWidgets::KeyValueRow("Armazenamento", remote ? "Sessão remota" : (license.protectedStorage
-            ? "Protegido por Windows DPAPI" : "Ainda não inicializado"));
+        CyberWidgets::KeyValueRow("Armazenamento", remote ? Loc::Tr("launcher.remote_session") : (license.protectedStorage
+            ? Loc::Tr("launcher.protected_storage") : Loc::Tr("launcher.unprotected_missing")));
         std::size_t grantedGames = 0;
         for (std::size_t index = 0; index < gameCount; ++index) {
             if (!gameList[index].coming_soon && OmniGhost::Licensing::HasGameAccess(gameList[index].id))
                 ++grantedGames;
         }
         const std::string coverage = accessActive
-            ? std::to_string(grantedGames) + " de " + std::to_string(integratedGames) + " jogos autorizados"
-            : "Nenhum jogo autorizado";
-        CyberWidgets::KeyValueRow("Cobertura", coverage.c_str());
+            ? std::to_string(grantedGames) + " de " + std::to_string(integratedGames) + " " + std::string(Loc::Tr("launcher.games")) + " " + std::string(Loc::Tr("launcher.coverage"))
+            : std::string(Loc::Tr("launcher.no_key")) + " " + std::string(Loc::Tr("launcher.games")) + " " + std::string(Loc::Tr("launcher.coverage"));
+        CyberWidgets::KeyValueRow(Loc::Tr("launcher.coverage"), coverage.c_str());
         CyberWidgets::TextLine(remote
             ? "A sessão KeyAuth controla o acesso aos jogos desta instalação."
             : "A conta e a licença são independentes. O acesso é revisto imediatamente após cada alteração.",
@@ -805,8 +808,8 @@ void DrawSettings(ImVec2 display) {
         CyberWidgets::EndCard();
         CyberWidgets::CardGap();
         CyberWidgets::BeginCard("Cobertura da interface", 0.f);
-        CyberWidgets::HealthRow("Launcher e biblioteca", "Traduzido", CyberWidgets::HealthStatus::Ok);
-        CyberWidgets::HealthRow("Definições e diagnóstico", "Traduzido", CyberWidgets::HealthStatus::Ok);
+        CyberWidgets::HealthRow("Launcher e biblioteca", Loc::Tr("launcher.device_detected"), CyberWidgets::HealthStatus::Ok);
+        CyberWidgets::HealthRow("Definições e diagnóstico", Loc::Tr("launcher.device_detected"), CyberWidgets::HealthStatus::Ok);
         CyberWidgets::TextLine("Os nomes próprios de jogos, dispositivos e tecnologias mantêm a designação oficial.", CyberWidgets::TextTone::Secondary);
         CyberWidgets::EndCard();
         break;
@@ -834,10 +837,10 @@ void DrawSettings(ImVec2 display) {
                 PushToast("Não foi possível criar diagnostico.txt", C_RED(), ToastAction::None, nullptr);
             }
         }
-        CyberWidgets::HealthRow("Sistema operativo", "Incluído no relatório", CyberWidgets::HealthStatus::Ok);
-        CyberWidgets::HealthRow("Renderizador e janela", "Incluído no relatório", CyberWidgets::HealthStatus::Ok);
-        CyberWidgets::HealthRow("DMA, input e offsets", "Incluído no relatório", CyberWidgets::HealthStatus::Ok);
-        CyberWidgets::HealthRow("Atualizador, build e sessão", "Incluído no relatório", CyberWidgets::HealthStatus::Ok);
+        CyberWidgets::HealthRow("Sistema operativo", Loc::Tr("launcher.create_diagnostics"), CyberWidgets::HealthStatus::Ok);
+        CyberWidgets::HealthRow("Renderizador e janela", Loc::Tr("launcher.create_diagnostics"), CyberWidgets::HealthStatus::Ok);
+        CyberWidgets::HealthRow("DMA, input e offsets", Loc::Tr("launcher.create_diagnostics"), CyberWidgets::HealthStatus::Ok);
+        CyberWidgets::HealthRow("Atualizador, build e sessão", Loc::Tr("launcher.create_diagnostics"), CyberWidgets::HealthStatus::Ok);
         CyberWidgets::EndCard();
         break;
     }

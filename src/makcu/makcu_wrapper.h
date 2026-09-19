@@ -95,7 +95,6 @@ namespace makcu_wrapper {
     // Connection status
     bool IsConnected();
     std::string GetConnectionStatus();
-    std::string GetPort();
 
     // Serial button packets seen since connect (0 = stream not confirmed yet)
     uint64_t PacketsReceived();

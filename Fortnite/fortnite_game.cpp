@@ -819,10 +819,4 @@ const char* StatusText() {
     return runtime.status.c_str();
 }
 
-bool ReinitDma() {
-    std::cout << "[Fortnite] Reinit DMA" << std::endl;
-    Detach();
-    return Attach();
-}
-
 } // namespace Fortnite

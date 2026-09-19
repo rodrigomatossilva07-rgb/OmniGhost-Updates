@@ -285,7 +285,6 @@
     <ClCompile Include="src\window\InputDevicesCard.cpp"/>
     <ClCompile Include="src\window\localization.cpp"/>
     <ClCompile Include="src\window\layout.cpp"/>
-    <ClCompile Include="src\window\menu_draw_stubs.cpp"/>
     <ClCompile Include="src\window\pages\common\AimPage.cpp"/>
     <ClCompile Include="src\window\pages\common\ConfigsPage.cpp"/>
     <ClCompile Include="src\window\pages\common\FriendsPage.cpp"/>
@@ -295,7 +294,6 @@
     <ClCompile Include="src\window\pages\common\VehiclesPage.cpp"/>
     <ClCompile Include="src\window\pages\common\VisualsPage.cpp"/>
     <ClCompile Include="src\window\pages\cs2\Cs2AimPage.cpp"/>
-    <ClCompile Include="src\window\pages\cs2\Cs2GrenadeHelperPage.cpp"/>
     <ClCompile Include="src\window\pages\cs2\Cs2MiscPage.cpp"/>
     <ClCompile Include="src\window\pages\cs2\Cs2VisualsPage.cpp"/>
     <ClCompile Include="src\window\pages\cs2\Cs2RadarPage.cpp"/>
@@ -308,6 +306,8 @@
     <ClCompile Include="src\gameplay\sound_esp.cpp"/>
     <ClCompile Include="src\gameplay\smooth_curves.cpp"/>
     <ClCompile Include="src\gameplay\dma_telemetry_log.cpp"/>
+    <ClCompile Include="src\gameplay\unified_stub.cpp"/>
+    <ClCompile Include="src\gameplay\gameplay_stubs.cpp"/>
     <ClCompile Include="src\window\onboarding.cpp"/>
     <ClCompile Include="src\window\performance_manager.cpp"/>
     <ClCompile Include="src\window\performance_mode.cpp"/>
@@ -320,10 +320,9 @@
     <ClCompile Include="src\launcher\game_adapter.cpp"/>
     <ClCompile Include="src\auth\local_auth_service.cpp"/>
     <ClCompile Include="src\launcher\auth_page.cpp"/>
-    <ClCompile Include="src\window\widgets.cpp"/>
+<ClCompile Include="src\window\widgets.cpp"/>
 <ClCompile Include="src\window\window.cpp"/>
-      <ClCompile Include="src\window\window_runtime.cpp"/>
-      <ClCompile Include="src\window\pages\FivemObjectESPPage.cpp"/>
+  <ClCompile Include="src\window\window_runtime.cpp"/>
     <ClCompile Include="Fivem\aimbot\aim_type.cpp"/>
     <ClCompile Include="Fivem\aimbot\aimbot.cpp"/>
     <ClCompile Include="Fivem\esp\esp.cpp"/>
@@ -337,15 +336,12 @@
     <ClCompile Include="Fivem\playerInfo\PedData.cpp"/>
     <ClCompile Include="Fivem\object_esp\object_esp.cpp"/>
     <ClCompile Include="Fivem\object_esp\object_esp_renderer.cpp"/>
-    <ClCompile Include="Cs2\aimbot\cs2_aim.cpp"/>
-    <ClCompile Include="Cs2\esp\cs2_esp.cpp"/>
-    <ClCompile Include="Cs2\grenade\cs2_grenade_types.cpp"/>
-    <ClCompile Include="Cs2\grenade\cs2_grenade_predictor.cpp"/>
-    <ClCompile Include="Cs2\grenade\cs2_grenade_helper.cpp"/>
+    <ClCompile Include="Cs2\cs2_aim.cpp"/>
+    <ClCompile Include="Cs2\cs2_esp.cpp"/>
     <ClCompile Include="Cs2\cs2_game.cpp"/>
-    <ClCompile Include="Cs2\radar\cs2_radar.cpp"/>
-    <ClCompile Include="Cs2\config\cs2_config_io.cpp"/>
-    <ClCompile Include="Cs2\weapons\cs2_weapon_icons.cpp"/>
+    <ClCompile Include="Cs2\cs2_radar.cpp"/>
+    <ClCompile Include="Cs2\cs2_config_io.cpp"/>
+    <ClCompile Include="Cs2\cs2_weapon_icons.cpp"/>
     <ClCompile Include="Warzone\warzone_game.cpp"/>
     <ClCompile Include="Warzone\warzone_decrypt.cpp"/>
     <ClCompile Include="Warzone\warzone_aim.cpp"/>
@@ -362,6 +358,14 @@
     <ClCompile Include="Rust\rust_aim.cpp"/>
     <ClCompile Include="src\window\pages\rust\RustVisualsPage.cpp"/>
     <ClCompile Include="src\window\pages\rust\RustAimPage.cpp"/>
+    <ClCompile Include="src\window\pages\valorant\ValorantVisualsPage.cpp"/>
+    <ClCompile Include="src\window\pages\valorant\ValorantStatusPage.cpp"/>
+    <ClCompile Include="src\window\pages\valorant\ValorantAimPage.cpp"/>
+    <ClCompile Include="src\window\pages\fortnite\FortniteVisualsPage.cpp"/>
+    <ClCompile Include="src\window\pages\fortnite\FortniteStatusPage.cpp"/>
+    <ClCompile Include="src\window\pages\fortnite\FortniteAimPage.cpp"/>
+    <ClCompile Include="src\window\pages\FivemObjectESPPage.cpp"/>
+    <ClCompile Include="src\window\pages\unified_stubs.cpp"/>
 
     <ClCompile Include="ImGui\imgui.cpp"/>
     <ClCompile Include="ImGui\imgui_demo.cpp"/>

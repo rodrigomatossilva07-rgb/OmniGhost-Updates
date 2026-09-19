@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <string>
 #include <vector>
-#include "config/cs2_config.h"
+#include "cs2_config.h"
 #include "gameplay/snapshot_exchange.h"
 
 namespace CS2 {
@@ -71,18 +71,6 @@ struct Offsets {
     uintptr_t m_AttributeManager = 0x1200;
     uintptr_t m_Item = 0x50;
     uintptr_t m_iItemDefinitionIndex = 0x1BA;
-    // Grenade-related offsets (C_BaseCSGrenadeProjectile / CBaseCSGrenade)
-    uintptr_t m_vInitialVelocity = 0x170;      // Initial velocity vector
-    uintptr_t m_vVelocity = 0x17C;             // Current velocity
-    uintptr_t m_flThrowTime = 0x1018;          // Time when thrown
-    uintptr_t m_flThrowStrength = 0x101C;      // Throw strength (0.0 - 1.0)
-    uintptr_t m_bPinPulled = 0x1020;           // Pin pulled state
-    uintptr_t m_bIsLive = 0x1024;              // Projectile is live
-    uintptr_t m_hThrower = 0x1028;             // Handle to thrower
-    uintptr_t m_flDetonateTime = 0x102C;       // Detonation time
-    uintptr_t m_nBounceCount = 0x1030;         // Bounce count
-    uintptr_t m_vLastBouncePosition = 0x1034;  // Last bounce position
-    uintptr_t m_vLastBounceVelocity = 0x1040;  // Last bounce velocity
     bool loaded = false;
 
     bool Validate(std::string* reason = nullptr) const noexcept;

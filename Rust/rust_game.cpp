@@ -307,11 +307,5 @@ std::vector<Player> SnapshotPlayers() {
     return Entities::Players();
 }
 
-bool ReinitDma() {
-    std::cout << "[Rust] Reinit DMA" << std::endl;
-    Shutdown();
-    return Attach();
-}
-
 } // namespace Rust
 

@@ -150,7 +150,7 @@ jobs:
       - name: Build Publish
         shell: cmd
         run: |
-          msbuild OmiGhost.vcxproj /p:Configuration=Publish /p:Platform=x64 /t:Rebuild /v:m
+          msbuild OmniGhost.Bootstrap.vcxproj /p:Configuration=Publish /p:Platform=x64 /t:Rebuild /v:m /p:OmniGhostSkipPackaging=true /p:OmniGhostSkipRemotePublish=true
 
       - name: Sign Binary with Azure SignTool
         uses: azure/signtool@v1
@@ -187,17 +187,17 @@ jobs:
       - name: Build Release
         shell: cmd
         run: |
-          msbuild OmiGhost.vcxproj /p:Configuration=Release /p:Platform=x64 /t:Rebuild /v:m
+          msbuild OmniGhost.Bootstrap.vcxproj /p:Configuration=Release /p:Platform=x64 /t:Rebuild /v:m
 
       - name: Build Publish
         shell: cmd
         run: |
-          msbuild OmiGhost.vcxproj /p:Configuration=Publish /p:Platform=x64 /t:Rebuild /v:m
+          msbuild OmniGhost.Bootstrap.vcxproj /p:Configuration=Publish /p:Platform=x64 /t:Rebuild /v:m /p:OmniGhostSkipPackaging=true /p:OmniGhostSkipRemotePublish=true
 
       - name: Verify Binary Hardening
         shell: cmd
         run: |
-          dumpbin /headers build/Release/OmniGhost.exe | findstr /C:"Dynamic base" /C:"NX compat" /C:"Guard CF" /C:"SafeSEH"
+          dumpbin /headers build/OmniGhost.exe | findstr /C:"Dynamic base" /C:"NX compat" /C:"Guard CF" /C:"SafeSEH"
           dumpbin /headers build/Publish/OmniGhost.exe | findstr /C:"Dynamic base" /C:"NX compat" /C:"Guard CF" /C:"SafeSEH"
 
       - name: Upload Artifacts

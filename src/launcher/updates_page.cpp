@@ -8,6 +8,7 @@
 #include "../window/theme.h"
 #include "../window/ui_format.h"
 #include "../window/widgets.h"
+#include "../window/localization.h"
 #include "../updater/update_service.h"
 
 #include <Windows.h>
@@ -724,7 +725,7 @@ namespace LauncherUpdates {
                 ImGuiCol_Text,
                 ToVec4(C_GOLD));
 
-            ImGui::TextUnformatted("Mais recente");
+            ImGui::TextUnformatted(Loc::Tr("launcher.latest"));
 
             ImGui::PopStyleColor();
 
