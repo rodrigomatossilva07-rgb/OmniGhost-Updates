@@ -1937,6 +1937,51 @@ static void RunFrameWithConfig(const Config& frame_config) {
     if (!ready || !offsets.loaded || !runtime.client_base)
         return;
 
+    // CS2 Diversos → Telemetria: mirror into the shared DMA telemetry logger.
+    OmniGhost::Gameplay::DmaTelemetry::SetEnabled(frame_config.telemetry_enabled);
+    if (frame_config.telemetry_enabled) {
+        static uint64_t s_cfgBits = 0;
+        uint64_t bits = 0;
+        auto bit = [&](bool v, int i) { if (v) bits |= (1ull << i); };
+        bit(frame_config.esp_enabled, 0);
+        bit(frame_config.skeleton, 1);
+        bit(frame_config.box || frame_config.box_corner, 2);
+        bit(frame_config.health_bar, 3);
+        bit(frame_config.armor_bar, 4);
+        bit(frame_config.weapon_icons, 5);
+        bit(frame_config.radar_2d || frame_config.webradar_enabled, 6);
+        bit(frame_config.aim_enabled, 7);
+        bit(frame_config.trigger_enabled, 8);
+        bit(frame_config.bomb_timer, 9);
+        bit(frame_config.spectator_list, 10);
+        bit(frame_config.performance_mode, 11);
+        bit(frame_config.trails, 12);
+        bit(frame_config.head_halo || frame_config.chinese_hat, 13);
+        if (bits != s_cfgBits) {
+            s_cfgBits = bits;
+            char blob[320];
+            std::snprintf(blob, sizeof(blob),
+                "esp=%d\nskeleton=%d\nbox=%d\nhealth=%d\narmor=%d\nweapon=%d\n"
+                "radar=%d\naim=%d\ntrigger=%d\nbomb=%d\nspectators=%d\nperf_mode=%d\n"
+                "trails=%d\nhalo_hat=%d",
+                frame_config.esp_enabled ? 1 : 0,
+                frame_config.skeleton ? 1 : 0,
+                (frame_config.box || frame_config.box_corner) ? 1 : 0,
+                frame_config.health_bar ? 1 : 0,
+                frame_config.armor_bar ? 1 : 0,
+                frame_config.weapon_icons ? 1 : 0,
+                (frame_config.radar_2d || frame_config.webradar_enabled) ? 1 : 0,
+                frame_config.aim_enabled ? 1 : 0,
+                frame_config.trigger_enabled ? 1 : 0,
+                frame_config.bomb_timer ? 1 : 0,
+                frame_config.spectator_list ? 1 : 0,
+                frame_config.performance_mode ? 1 : 0,
+                frame_config.trails ? 1 : 0,
+                (frame_config.head_halo || frame_config.chinese_hat) ? 1 : 0);
+            OmniGhost::Gameplay::DmaTelemetry::LogConfigChanged("CS2", blob);
+        }
+    }
+
     const auto _frameWallBegin = std::chrono::steady_clock::now();
     ++runtime.frames;
     runtime.fps = g_presentation_fps.load(std::memory_order_relaxed);

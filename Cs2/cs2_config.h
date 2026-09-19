@@ -74,6 +74,7 @@ struct Config {
     bool bone_draw_arms = true;
     bool bone_draw_legs = true;
     bool performance_mode = false;
+    bool telemetry_enabled = false; // PERF/SPIKE lines -> logs.txt (active features only)
     bool vsync = false;
     bool show_makcu_status = true;
 
