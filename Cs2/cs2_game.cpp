@@ -2075,7 +2075,9 @@ static void RunFrameWithConfig(const Config& frame_config) {
                       << " (ESP auto-recover, config intact)" << std::endl;
     }
 
-    runtime.in_match = IsPlayableMapName(runtime.map_name);
+    const bool map_reports_match = IsPlayableMapName(runtime.map_name);
+    runtime.in_match = map_reports_match;
+    int entity_probe_controller_count = 0;
 
     // Detect lobby → match and match → match transitions even when the map
     // string stays empty briefly (common when INSERT was opened in the lobby).
@@ -2116,6 +2118,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
             }
             for (const uintptr_t controller : controllers)
                 controllerCount += IsUserPointer(controller) ? 1 : 0;
+            entity_probe_controller_count = controllerCount;
             if (controllerCount >= 2) {
                 runtime.in_match = true;
                 runtime.local_pawn = probe_pawn;
@@ -2133,7 +2136,10 @@ static void RunFrameWithConfig(const Config& frame_config) {
         g_cached_entity_root = 0;
         zero_player_frames = 0;
         makcu_wrapper::ForceClearButtons();
-        std::cout << "[CS2] Entrada em partida — a revalidar entity list" << std::endl;
+        const char* match_source = map_reports_match ? "mapa" : "probe de entidades";
+        std::cout << "[CS2] Entrada em partida (" << match_source
+                  << ", controllers=" << entity_probe_controller_count
+                  << ") — a revalidar entity list" << std::endl;
     }
     // Leaving a match → drop avatar cache (memory + %LocalAppData%/OmniGhost/cache/cs2/avatars).
     if (was_in_match && !runtime.in_match) {
@@ -3546,6 +3552,7 @@ void EnsureAcquisitionStarted() {
         mem.SetDmaLane("camera");
         OmniGhost::Gameplay::FixedRateScheduler scheduler;
         float matrix[16]{};
+        uint64_t next_camera_ms = 0;
         uint64_t next_motion_ms = 0;
         while (!g_acquisition_stop.load(std::memory_order_acquire)) {
             const auto runtime_view = g_runtime_snapshots.Acquire();
@@ -3555,7 +3562,17 @@ void EnsureAcquisitionStarted() {
             // The FPGA cannot make a 4 ms QRead when an entity scan is already
             // in flight.  Sharing it caused queues of 50–900 ms in telemetry,
             // which is much worse visually than reusing the last valid matrix.
-            if (canRead && in_match && !DmaCooldownActive() && !g_acq_busy.load(std::memory_order_acquire)) {
+            const uint64_t camera_now_ms = GetTickCount64();
+            const int camera_pressure = g_pressure_level.load(std::memory_order_relaxed);
+            // The renderer interpolates published snapshots, therefore it does
+            // not need a physical matrix transfer on every scheduler wake-up.
+            // 12 ms (about 83 Hz) is visually smooth while cutting the most
+            // expensive/stall-prone DMA read almost in half versus the old 8 ms.
+            const int camera_period_ms = camera_pressure >= 2 ? 24 :
+                (camera_pressure == 1 ? 16 : 12);
+            if (canRead && in_match && camera_now_ms >= next_camera_ms &&
+                !DmaCooldownActive() && !g_acq_busy.load(std::memory_order_acquire)) {
+                next_camera_ms = camera_now_ms + static_cast<uint64_t>(camera_period_ms);
                 std::unique_lock<std::mutex> gate(g_dma_read_gate, std::try_to_lock);
                 if (gate.owns_lock()) {
                     const auto cameraReadBegin = std::chrono::steady_clock::now();
