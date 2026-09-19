@@ -141,7 +141,7 @@ void DrawMarketplace(ImVec2 display) {
 
     const float gap = S(14.f);
     const float available = ImGui::GetContentRegionAvail().x;
-    const bool twoColumns = available >= S(760.f);
+    const bool twoColumns = available >= S(680.f);
     const float cardWidth = twoColumns ? (available - gap) * .5f : available;
 
     CyberWidgets::BeginCard("TEMAS E VISUAIS", 0.f);
@@ -161,7 +161,7 @@ void DrawMarketplace(ImVec2 display) {
     };
     static constexpr MarketplaceStyle styles[] = {
         { "Padrão OmniGhost", "O visual original escuro com o acento Cyber do OmniGhost.", CyberTheme::ThemeMode::Dark, CyberTheme::AccentPreset::Cyber },
-        { "Obsidian Gold", "Escuro, elegante e com o dourado clássico do OmniGhost.", CyberTheme::ThemeMode::Dark, CyberTheme::AccentPreset::Gold },
+        { "Obsidian Gold", "Escuro profundo com um acento âmbar mais quente e destacado.", CyberTheme::ThemeMode::Dark, CyberTheme::AccentPreset::Orange },
         { "Neon Azure", "Escuro, limpo e frio, com destaque azul elétrico.", CyberTheme::ThemeMode::Dark, CyberTheme::AccentPreset::Blue },
         { "Violet Pulse", "Escuro com identidade roxa para um painel mais expressivo.", CyberTheme::ThemeMode::Dark, CyberTheme::AccentPreset::Purple },
         { "Matrix Signal", "Escuro, verde e focado em leitura rápida de estado.", CyberTheme::ThemeMode::Dark, CyberTheme::AccentPreset::Matrix },
@@ -171,8 +171,10 @@ void DrawMarketplace(ImVec2 display) {
 
     for (int i = 0; i < static_cast<int>(std::size(styles)); ++i) {
         const auto& style = styles[i];
+        if (twoColumns && (i % 2) == 0)
+            CyberWidgets::BeginCardRow(2);
         ImGui::PushID(i);
-        CyberWidgets::BeginCard(style.title, cardWidth);
+        CyberWidgets::BeginCard(style.title, twoColumns ? CyberWidgets::CardRowHalfWidth() : cardWidth);
         const bool isActive = CyberTheme::GetThemeMode() == style.mode &&
             CyberTheme::GetAccentPreset() == style.accent;
         if (isActive) CyberWidgets::Badge("EM USO", CyberWidgets::TextTone::Success);
@@ -226,10 +228,24 @@ void DrawMarketplace(ImVec2 display) {
         }
         CyberWidgets::EndCard();
         ImGui::PopID();
-        if (twoColumns && (i % 2) == 0)
-            ImGui::SameLine(0.f, gap);
-        else if (i + 1 < static_cast<int>(std::size(styles)))
+        if (twoColumns) {
+            if ((i % 2) == 0) {
+                if (i + 1 == static_cast<int>(std::size(styles))) {
+                    CyberWidgets::NextCardColumn();
+                    ImGui::Dummy(ImVec2(0.f, 0.f));
+                    CyberWidgets::EndCardRow();
+                    ImGui::Dummy(ImVec2(0.f, gap));
+                } else {
+                    CyberWidgets::NextCardColumn();
+                }
+            } else {
+                CyberWidgets::EndCardRow();
+                if (i + 1 < static_cast<int>(std::size(styles)))
+                    ImGui::Dummy(ImVec2(0.f, gap));
+            }
+        } else if (i + 1 < static_cast<int>(std::size(styles))) {
             ImGui::Dummy(ImVec2(0.f, gap));
+        }
     }
 
     ImGui::Dummy(ImVec2(0.f, gap));

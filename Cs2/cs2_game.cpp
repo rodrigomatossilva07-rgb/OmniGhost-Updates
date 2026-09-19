@@ -193,12 +193,21 @@ std::string ExeDir() {
     return fs::path(buf).parent_path().string();
 }
 
+// A transport pause must stop the current producer from immediately queuing
+// more physical reads. Definitions live below the shared DMA state.
+static bool DmaCooldownActive();
+static void NotePossibleDeviceStall(float duration_ms);
+
 // Quiet read — avoids flooding log with "[!] Failed to read Memory"
 bool QRead(uintptr_t addr, void* buf, size_t size, const char* tag = "QRead") {
     if (!addr || !buf || !size || !mem.vHandle) return false;
     if (addr < 0x10000) return false;
+    if (DmaCooldownActive()) return false;
     mem.SetDmaCallTag(tag);
-    if (!mem.Read(addr, buf, size)) {
+    const auto begin = std::chrono::steady_clock::now();
+    const bool ok = mem.Read(addr, buf, size);
+    NotePossibleDeviceStall(OmniGhost::Gameplay::TimeMs(begin));
+    if (!ok) {
         ++runtime.read_fails;
         return false;
     }
@@ -278,13 +287,19 @@ static std::mutex g_dma_read_gate;
 static std::atomic<uint64_t> g_dma_cooldown_until_ms{0};
 static std::atomic<float> g_last_slow_dma_ms{0.f};
 
+static bool DmaCooldownActive() {
+    return GetTickCount64() < g_dma_cooldown_until_ms.load(std::memory_order_acquire);
+}
+
 static void NotePossibleDeviceStall(float duration_ms) {
     // Only true device hangs (~300ms+). Normal scans on 35T/75T often sit at
     // 20–120ms — treating those as stalls froze ESP (bones skipped, sleeps).
     if (!(duration_ms >= 300.f)) return;
     g_last_slow_dma_ms.store(duration_ms, std::memory_order_relaxed);
-    // Short cool-down only; never long enough to make motion look stuck.
-    const uint64_t cool = static_cast<uint64_t>((std::max)(20.f, (std::min)(80.f, duration_ms * 0.08f)));
+    // Give the board/driver queue a real chance to drain. The renderer keeps
+    // immutable snapshots during this short interval, so this reduces repeated
+    // 0.8–1.0 s pauses without blocking overlay presentation.
+    const uint64_t cool = static_cast<uint64_t>((std::max)(40.f, (std::min)(150.f, duration_ms * 0.15f)));
     const uint64_t until = GetTickCount64() + cool;
     uint64_t cur = g_dma_cooldown_until_ms.load(std::memory_order_relaxed);
     while (until > cur &&
@@ -2155,7 +2170,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
     static uint64_t s_lastLocalBootstrapMs = 0;
     const uint64_t localNowMs = GetTickCount64();
     const bool refreshLocalBootstrap = !IsUserPointer(runtime.local_pawn) ||
-        !s_lastLocalBootstrapMs || localNowMs - s_lastLocalBootstrapMs >= 250u;
+        !s_lastLocalBootstrapMs || localNowMs - s_lastLocalBootstrapMs >= 750u;
     static uint64_t s_lastLocalHealthMs = 0;
     const uint64_t healthInterval = runtime.local_health > 0
         ? static_cast<uint64_t>(LOCAL_HEALTH_INTERVAL_MS) : 250u;
@@ -2489,6 +2504,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
                         need_scoped, frame_config.smoke_flash, need_yaw, false,
                         need_spotted);
     g_phase.positions_ms = OmniGhost::Gameplay::TimeMs(_posBegin);
+    NotePossibleDeviceStall(g_phase.positions_ms);
 
     struct CachedArmor { int value = 0; uint64_t last_refresh_ms = 0; };
     static std::unordered_map<uintptr_t, CachedArmor> armorCache;
@@ -2631,7 +2647,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
                                           &boneBases[c], sizeof(uintptr_t));
         }
         mem.ExecuteReadScatter(g_scatter_full);
-            g_phase.core_scatter_ms = OmniGhost::Gameplay::TimeMs(_coreBegin);
+        g_phase.core_scatter_ms = OmniGhost::Gameplay::TimeMs(_coreBegin);
+        NotePossibleDeviceStall(g_phase.core_scatter_ms);
         mem.SetDmaCallTag("CS2.Bones");
 if (need_bones) {
             ScopedPhase _phBones(&g_phase.bones_ms);
@@ -3518,10 +3535,14 @@ void EnsureAcquisitionStarted() {
             // The FPGA cannot make a 4 ms QRead when an entity scan is already
             // in flight.  Sharing it caused queues of 50–900 ms in telemetry,
             // which is much worse visually than reusing the last valid matrix.
-            if (canRead && !g_acq_busy.load(std::memory_order_acquire)) {
+            if (canRead && !DmaCooldownActive() && !g_acq_busy.load(std::memory_order_acquire)) {
                 std::unique_lock<std::mutex> gate(g_dma_read_gate, std::try_to_lock);
-                if (gate.owns_lock() && QRead(client_base + offsets.dwViewMatrix, matrix, sizeof(matrix)))
-                    PublishCameraSnapshot(matrix);
+                if (gate.owns_lock()) {
+                    const auto cameraReadBegin = std::chrono::steady_clock::now();
+                    if (QRead(client_base + offsets.dwViewMatrix, matrix, sizeof(matrix)))
+                        PublishCameraSnapshot(matrix);
+                    NotePossibleDeviceStall(OmniGhost::Gameplay::TimeMs(cameraReadBegin));
+                }
             }
             // Keep the view matrix on its own very fast lane, but never make
             // one DMA read per player every 2 ms.  That old pattern could
@@ -3530,18 +3551,26 @@ void EnsureAcquisitionStarted() {
             // runs every overlay frame.
             const uint64_t now_ms = GetTickCount64();
             const auto frame_config = g_config_snapshots.Acquire();
+            const auto current = g_runtime_snapshots.Acquire();
             const bool needs_motion = frame_config->esp_enabled &&
                 (frame_config->box || frame_config->box_corner || frame_config->health_bar ||
                  frame_config->armor_bar || frame_config->skeleton || frame_config->trails ||
                  frame_config->head_halo || frame_config->look_direction || frame_config->chinese_hat ||
                  frame_config->angel_wings || frame_config->devil_horns || frame_config->floating_crown);
-            if (canRead && in_match && needs_motion && now_ms >= next_motion_ms
+            // The full snapshot already contains a coherent position set. Do
+            // not re-read every origin immediately after it publishes: that
+            // duplicate scatter was a large source of queue pressure.
+            const uint64_t snapshotAgeMs = current && current->snapshot_timestamp_ms &&
+                now_ms >= current->snapshot_timestamp_ms
+                ? now_ms - current->snapshot_timestamp_ms : UINT64_MAX;
+            const bool motionSnapshotNeeded = snapshotAgeMs >= 18u;
+            if (canRead && in_match && current && needs_motion && motionSnapshotNeeded && now_ms >= next_motion_ms
+                && !DmaCooldownActive()
                 && !g_acq_busy.load(std::memory_order_acquire)) {
                 // Slightly slower motion when skeleton is off — boxes/bars stay smooth
                 // with far less DMA pressure (main source of intermittent freezes).
                 const int motionPeriod = frame_config->skeleton ? MOTION_INTERVAL_MS : 16;
                 next_motion_ms = now_ms + motionPeriod;
-                const auto current = g_runtime_snapshots.Acquire();
                 MotionSnapshot motion{};
                 // One scatter round-trip for all origins instead of N sequential DMA reads.
                 struct MotItem { uintptr_t pawn; uintptr_t scene; float pos[3]; };
@@ -3562,7 +3591,9 @@ void EnsureAcquisitionStarted() {
                                 items[i].scene + offsets.m_vecAbsOrigin,
                                 items[i].pos, sizeof(items[i].pos));
                         mem.SetDmaCallTag("CS2.MotionOrigins");
+                        const auto motionReadBegin = std::chrono::steady_clock::now();
                         mem.ExecuteReadScatter(g_scatter_motion);
+                        NotePossibleDeviceStall(OmniGhost::Gameplay::TimeMs(motionReadBegin));
                     } else {
                         for (int i = 0; i < n; ++i)
                             QRead(items[i].scene + offsets.m_vecAbsOrigin,
