@@ -189,50 +189,86 @@ function Test-PublicUpdateManifest {
     )
     $PublicUrl = "https://github.com/$Repository/releases/latest/download/update.json"
     Write-Gh "A verificar URL pública do manifesto: $PublicUrl"
+
+    # Prefer WebClient.DownloadString — always returns a .NET string (UTF-8),
+    # avoiding PS 5.1 Invoke-WebRequest returning [byte[]] / Object[] that
+    # stringifies as "123 10 32 ..." under ConvertFrom-Json.
+    $body = $null
     try {
-        $resp = Invoke-WebRequest -Uri $PublicUrl -Method Get -UseBasicParsing -TimeoutSec 45
+        $wc = New-Object System.Net.WebClient
+        $wc.Headers.Add('User-Agent', 'OmniGhost-Publish/1.0')
+        $wc.Encoding = [System.Text.Encoding]::UTF8
+        $body = $wc.DownloadString($PublicUrl)
+        $wc.Dispose()
     } catch {
-        $msg = [string]$_.Exception.Message
-        throw ("Publish falhou na verificação pública do update.json.`nURL: {0}`nDetalhe: {1}`n" +
-            "Causas comuns: repo privado, release draft, ou asset update.json em falta." -f $PublicUrl, $msg)
+        # Fallback: Invoke-WebRequest with explicit UTF-8 decode
+        try {
+            $resp = Invoke-WebRequest -Uri $PublicUrl -Method Get -UseBasicParsing -TimeoutSec 45
+            if ([int]$resp.StatusCode -ne 200) {
+                throw ("HTTP {0}" -f $resp.StatusCode)
+            }
+            $raw = $resp.Content
+            if ($raw -is [string]) {
+                $body = $raw
+            } elseif ($raw -is [byte[]]) {
+                $body = [System.Text.Encoding]::UTF8.GetString($raw)
+            } elseif ($raw -is [System.Collections.IEnumerable]) {
+                $list = New-Object System.Collections.Generic.List[byte]
+                foreach ($item in $raw) {
+                    $list.Add([byte]$item)
+                }
+                $body = [System.Text.Encoding]::UTF8.GetString($list.ToArray())
+            } else {
+                $body = [string]$raw
+            }
+        } catch {
+            throw ("Publish falhou na verificação pública do update.json.`nURL: {0}`nDetalhe: {1}" -f $PublicUrl, $_.Exception.Message)
+        }
     }
-    if ([int]$resp.StatusCode -ne 200) {
-        throw ("URL pública do update.json devolveu HTTP {0}: {1}" -f $resp.StatusCode, $PublicUrl)
-    }
-    $body = [string]$resp.Content
+
     if ([string]::IsNullOrWhiteSpace($body)) {
         throw ("update.json público está vazio: {0}" -f $PublicUrl)
     }
+    if ($body.Length -gt 0 -and [int][char]$body[0] -eq 0xFEFF) {
+        $body = $body.Substring(1)
+    }
+    # Guard: never pass a "byte dump" string to ConvertFrom-Json
+    if ($body -match '^\s*\d{1,3}(\s+\d{1,3}){8,}') {
+        throw ("Resposta pública não parece texto JSON (possível descodificação errada). URL: {0} len={1}" -f $PublicUrl, $body.Length)
+    }
+
     try {
         $json = $body | ConvertFrom-Json
     } catch {
-        throw ("update.json público não é JSON válido: {0}" -f $_.Exception.Message)
+        $preview = ($body -replace '[\r\n]+', ' ').Trim()
+        if ($preview.Length -gt 100) { $preview = $preview.Substring(0, 100) + '...' }
+        throw ("update.json público não é JSON válido ({0}). Preview: {1}" -f $_.Exception.Message, $preview)
     }
-    # StrictMode-safe property reads (PSCustomObject may omit members)
+
     $verStr = $null
     $props = @()
-    if ($null -ne $json -and $json.PSObject) {
-        $props = @($json.PSObject.Properties.Name)
+    if ($null -ne $json -and $null -ne $json.PSObject) {
+        $props = @($json.PSObject.Properties | ForEach-Object { $_.Name })
     }
     if ($props -contains 'version') {
         $rawVer = $json.version
         if ($rawVer -is [string]) {
             $verStr = $rawVer
-        } elseif ($null -ne $rawVer -and $rawVer.PSObject -and (@($rawVer.PSObject.Properties.Name) -contains 'original')) {
+        } elseif ($null -ne $rawVer -and $null -ne $rawVer.PSObject -and
+                  (@($rawVer.PSObject.Properties | ForEach-Object { $_.Name }) -contains 'original')) {
             $verStr = [string]$rawVer.original
         } else {
             $verStr = [string]$rawVer
         }
     }
     if ([string]::IsNullOrWhiteSpace($verStr)) {
-        throw ("update.json público sem version legível. Props=[{0}] bytes={1}" -f ($props -join ','), $body.Length)
+        throw ("update.json público sem version legível. Props=[{0}] len={1}" -f ($props -join ','), $body.Length)
     }
     if (-not [string]::IsNullOrWhiteSpace($ExpectedVersion) -and $verStr -ne $ExpectedVersion) {
         Write-Warning ("Manifesto público version={0} difere de ExpectedVersion={1}" -f $verStr, $ExpectedVersion)
     }
-    $byteLen = $body.Length
-    if ($resp.RawContentLength -gt 0) { $byteLen = [int64]$resp.RawContentLength }
-    Write-Gh ("Manifesto público OK: version={0} bytes={1}" -f $verStr, $byteLen)
+
+    Write-Gh ("Manifesto público OK: version={0} bytes={1}" -f $verStr, $body.Length)
     return $PublicUrl
 }
 

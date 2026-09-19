@@ -265,6 +265,27 @@ struct Cs2PhaseTiming {
 static Cs2PhaseTiming g_phase{};
 static std::atomic<int> g_pressure_level{0}; // 0=NORMAL 1=MODERATE 2=HIGH 3=RECOVERY
 static std::atomic_bool g_acq_busy{false}; // full scan holds data plane priority over camera motion
+// After a slow VMM/FPGA call, back off heavy phases so the device can recover.
+// Vendor-side pauses (~0.5–1.5s every ~10–15s on some stacks) cannot be removed
+// from MemProcFS/LeechCore; we avoid stacking more DMA on top of them.
+static std::atomic<uint64_t> g_dma_cooldown_until_ms{0};
+static std::atomic<float> g_last_slow_dma_ms{0.f};
+
+static void NotePossibleDeviceStall(float duration_ms) {
+    if (!(duration_ms >= 80.f)) return;
+    g_last_slow_dma_ms.store(duration_ms, std::memory_order_relaxed);
+    const uint64_t cool = static_cast<uint64_t>((std::max)(40.f, (std::min)(400.f, duration_ms * 0.35f)));
+    const uint64_t until = GetTickCount64() + cool;
+    uint64_t cur = g_dma_cooldown_until_ms.load(std::memory_order_relaxed);
+    while (until > cur &&
+           !g_dma_cooldown_until_ms.compare_exchange_weak(cur, until, std::memory_order_relaxed)) {
+    }
+}
+
+static bool DmaCooldownActive() {
+    return GetTickCount64() < g_dma_cooldown_until_ms.load(std::memory_order_relaxed);
+}
+
 
 
 struct ScopedPhase {
@@ -1082,9 +1103,31 @@ void RefreshMapName() {
     uintptr_t globals = 0;
     uintptr_t map_address = 0;
     char raw[128]{};
-    if (!QReadT(runtime.client_base + offsets.dwGlobalVars, globals) || !IsUserPointer(globals) ||
-        !QReadT(globals + kGlobalVarsCurrentMap, map_address) || !IsUserPointer(map_address) ||
-        !QRead(map_address, raw, sizeof(raw) - 1)) {
+    mem.SetDmaCallTag("CS2.MapRefresh");
+    EnsureScatter();
+    bool mapOk = false;
+    if (g_scatter_full) {
+        mem.AddScatterReadRequest(g_scatter_full, runtime.client_base + offsets.dwGlobalVars,
+                                  &globals, sizeof(globals));
+        mem.ExecuteReadScatter(g_scatter_full);
+        if (IsUserPointer(globals)) {
+            mem.AddScatterReadRequest(g_scatter_full, globals + kGlobalVarsCurrentMap,
+                                      &map_address, sizeof(map_address));
+            mem.ExecuteReadScatter(g_scatter_full);
+            if (IsUserPointer(map_address)) {
+                mem.AddScatterReadRequest(g_scatter_full, map_address, raw, sizeof(raw) - 1);
+                mem.ExecuteReadScatter(g_scatter_full);
+                mapOk = true;
+            }
+        }
+    } else {
+        mapOk = QReadT(runtime.client_base + offsets.dwGlobalVars, globals, "CS2.MapRefresh") &&
+                IsUserPointer(globals) &&
+                QReadT(globals + kGlobalVarsCurrentMap, map_address, "CS2.MapRefresh") &&
+                IsUserPointer(map_address) &&
+                QRead(map_address, raw, sizeof(raw) - 1, "CS2.MapRefresh");
+    }
+    if (!mapOk) {
         runtime.map_name[0] = '\0';
         return;
     }
@@ -1118,13 +1161,24 @@ void RefreshMapName() {
 // Probe whether a candidate list_entry looks like a live controller table.
 static bool ProbeListEntry(uintptr_t entry, uintptr_t stride) {
     if (!IsUserPointer(entry)) return false;
-    // Controllers live at list_entry + (i+1)*stride — probe slots 1..4
-    int hits = 0;
-    for (int i = 1; i <= 4; ++i) {
-        uintptr_t ctrl = 0;
-        if (QReadT(entry + static_cast<uintptr_t>(i) * stride, ctrl) && IsUserPointer(ctrl))
-            ++hits;
+    // Controllers live at list_entry + (i+1)*stride — probe slots 1..4 in one scatter.
+    uintptr_t ctrls[4]{};
+    EnsureScatter();
+    if (g_scatter_full) {
+        mem.SetDmaCallTag("CS2.ProbeListEntry");
+        for (int i = 1; i <= 4; ++i)
+            mem.AddScatterReadRequest(g_scatter_full,
+                entry + static_cast<uintptr_t>(i) * stride, &ctrls[i - 1], sizeof(uintptr_t));
+        const auto t0 = std::chrono::steady_clock::now();
+        mem.ExecuteReadScatter(g_scatter_full);
+        NotePossibleDeviceStall(OmniGhost::Gameplay::TimeMs(t0));
+    } else {
+        for (int i = 1; i <= 4; ++i)
+            QReadT(entry + static_cast<uintptr_t>(i) * stride, ctrls[i - 1], "CS2.ProbeListEntry");
     }
+    int hits = 0;
+    for (int i = 0; i < 4; ++i)
+        if (IsUserPointer(ctrls[i])) ++hits;
     return hits >= 1;
 }
 
@@ -1174,12 +1228,25 @@ static bool RefreshEntityListEntry() {
     uintptr_t best_entry = 0;
     uintptr_t best_stride = g_controller_stride ? g_controller_stride : kEntityIdentityStride;
 
-    for (uintptr_t pageOff : kPageOffs) {
-        uintptr_t entry = 0;
-        if (!QReadT(root + pageOff, entry) || !IsUserPointer(entry))
+    // One scatter for all candidate page pointers, then probe only valid ones.
+    uintptr_t pageEntries[sizeof(kPageOffs) / sizeof(kPageOffs[0])]{};
+    EnsureScatter();
+    if (g_scatter_full) {
+        mem.SetDmaCallTag("CS2.EntityPages");
+        for (size_t pi = 0; pi < sizeof(kPageOffs) / sizeof(kPageOffs[0]); ++pi)
+            mem.AddScatterReadRequest(g_scatter_full, root + kPageOffs[pi],
+                                      &pageEntries[pi], sizeof(uintptr_t));
+        const auto tPages = std::chrono::steady_clock::now();
+        mem.ExecuteReadScatter(g_scatter_full);
+        NotePossibleDeviceStall(OmniGhost::Gameplay::TimeMs(tPages));
+    } else {
+        for (size_t pi = 0; pi < sizeof(kPageOffs) / sizeof(kPageOffs[0]); ++pi)
+            QReadT(root + kPageOffs[pi], pageEntries[pi], "CS2.EntityPages");
+    }
+    for (size_t pi = 0; pi < sizeof(kPageOffs) / sizeof(kPageOffs[0]); ++pi) {
+        const uintptr_t entry = pageEntries[pi];
+        if (!IsUserPointer(entry))
             continue;
-
-        // Prefer an entry that actually yields controller pointers.
         if (ProbeListEntry(entry, kEntityIdentityStride)) {
             best_entry = entry;
             best_stride = kEntityIdentityStride;
@@ -1190,7 +1257,6 @@ static bool RefreshEntityListEntry() {
             best_stride = kLegacyEntityIdentityStride;
             break;
         }
-        // Keep first valid pointer as fallback (warmup / empty slots)
         if (!best_entry)
             best_entry = entry;
     }
@@ -1206,7 +1272,7 @@ static bool RefreshEntityListEntry() {
         g_pawn_stride = best_stride;
         // Full multi-page/dual-stride validation is intentionally rare.
         // The cheap primary-page pointer confirmation runs between these probes.
-        s_nextFullProbeMs = nowMs + 1500u;
+        s_nextFullProbeMs = nowMs + 4500u;
         return true;
     }
 
@@ -1223,7 +1289,7 @@ static bool RefreshEntityListEntry() {
             g_pawn_stride = best_stride;
             g_pending_entity_list = 0;
             g_entity_list_confirmations = 0;
-            s_nextFullProbeMs = nowMs + 1500u;
+            s_nextFullProbeMs = nowMs + 4500u;
             return true;
         }
         return runtime.entity_list_entry != 0;
@@ -1237,7 +1303,7 @@ static bool RefreshEntityListEntry() {
     g_pawn_stride = best_stride;
     g_pending_entity_list = 0;
     g_entity_list_confirmations = 0;
-    s_nextFullProbeMs = nowMs + 1500u;
+    s_nextFullProbeMs = nowMs + 4500u;
     return true;
 }
 
@@ -1599,29 +1665,49 @@ void UpdateBombState() {
         return;
 
     // CS2 has exposed dwPlantedC4 in both forms across builds: either the
-    // C_PlantedC4 pointer itself, or a pointer to a one-entry list.  The old
-    // reader required a count at offset -8, which is not part of the current
-    // direct-pointer layout and made a planted bomb look absent.
+    // C_PlantedC4 pointer itself, or a pointer to a one-entry list.
+    // Prefer one scatter batch for all bomb fields to avoid 10+ sequential QReads
+    // which show up as micro-stutters on 35T/75T during planted C4.
+    mem.SetDmaCallTag("CS2.Bomb");
     uintptr_t candidate = 0;
-    if (!QReadT(runtime.client_base + offsets.dwPlantedC4, candidate) || !IsUserPointer(candidate))
+    if (!QReadT(runtime.client_base + offsets.dwPlantedC4, candidate, "CS2.Bomb.Ptr") ||
+        !IsUserPointer(candidate))
         return;
 
     uintptr_t entity = 0;
     uint8_t ticking = 0;
-    if (offsets.m_bBombTicking)
-        QReadT(candidate + offsets.m_bBombTicking, ticking);
-    if (ticking) {
-        entity = candidate;
+    uintptr_t list_entity = 0;
+    uint8_t list_ticking = 0;
+
+    EnsureScatter();
+    if (g_scatter_full && offsets.m_bBombTicking) {
+        mem.AddScatterReadRequest(g_scatter_full, candidate + offsets.m_bBombTicking,
+                                  &ticking, sizeof(ticking));
+        mem.AddScatterReadRequest(g_scatter_full, candidate, &list_entity, sizeof(list_entity));
+        mem.ExecuteReadScatter(g_scatter_full);
+        if (ticking) {
+            entity = candidate;
+        } else if (IsUserPointer(list_entity)) {
+            mem.AddScatterReadRequest(g_scatter_full, list_entity + offsets.m_bBombTicking,
+                                      &list_ticking, sizeof(list_ticking));
+            mem.ExecuteReadScatter(g_scatter_full);
+            ticking = list_ticking;
+            entity = list_entity;
+        }
     } else {
-        // Compatibility for older list-backed offset dumps.
-        uintptr_t list_entity = 0;
-        if (!QReadT(candidate, list_entity) || !IsUserPointer(list_entity))
-            return;
         if (offsets.m_bBombTicking)
-            QReadT(list_entity + offsets.m_bBombTicking, ticking);
-        entity = list_entity;
+            QReadT(candidate + offsets.m_bBombTicking, ticking, "CS2.Bomb.Tick");
+        if (ticking) {
+            entity = candidate;
+        } else {
+            if (!QReadT(candidate, list_entity, "CS2.Bomb.List") || !IsUserPointer(list_entity))
+                return;
+            if (offsets.m_bBombTicking)
+                QReadT(list_entity + offsets.m_bBombTicking, ticking, "CS2.Bomb.ListTick");
+            entity = list_entity;
+        }
     }
-    if (!ticking)
+    if (!ticking || !IsUserPointer(entity))
         return;
 
     float absolute_blow_time = 0.f;
@@ -1629,32 +1715,85 @@ void UpdateBombState() {
     float timer_length = 0.f;
     uint8_t defused = 0;
     uint8_t defusing = 0;
-    if (offsets.m_flC4Blow)
-        QReadT(entity + offsets.m_flC4Blow, absolute_blow_time);
-    if (offsets.m_flTimerLength)
-        QReadT(entity + offsets.m_flTimerLength, timer_length);
-    if (offsets.m_bBombDefused)
-        QReadT(entity + offsets.m_bBombDefused, defused);
-    if (offsets.m_bBeingDefused)
-        QReadT(entity + offsets.m_bBeingDefused, defusing);
-    if (offsets.m_flDefuseCountDown)
-        QReadT(entity + offsets.m_flDefuseCountDown, absolute_defuse_time);
-    if (offsets.m_hBombDefuser)
-        QReadT(entity + offsets.m_hBombDefuser, runtime.bomb.defuser_handle);
+    uintptr_t globals = 0;
+    uintptr_t scene = 0;
+    float cur_slots[4]{};
+    constexpr uintptr_t kCurOff[4] = {
+        kGlobalVarsCurrentTime, (uintptr_t)0x2C, (uintptr_t)0x34, (uintptr_t)0x38
+    };
+
+    EnsureScatter();
+    if (g_scatter_full) {
+        if (offsets.m_flC4Blow)
+            mem.AddScatterReadRequest(g_scatter_full, entity + offsets.m_flC4Blow,
+                                      &absolute_blow_time, sizeof(absolute_blow_time));
+        if (offsets.m_flTimerLength)
+            mem.AddScatterReadRequest(g_scatter_full, entity + offsets.m_flTimerLength,
+                                      &timer_length, sizeof(timer_length));
+        if (offsets.m_bBombDefused)
+            mem.AddScatterReadRequest(g_scatter_full, entity + offsets.m_bBombDefused,
+                                      &defused, sizeof(defused));
+        if (offsets.m_bBeingDefused)
+            mem.AddScatterReadRequest(g_scatter_full, entity + offsets.m_bBeingDefused,
+                                      &defusing, sizeof(defusing));
+        if (offsets.m_flDefuseCountDown)
+            mem.AddScatterReadRequest(g_scatter_full, entity + offsets.m_flDefuseCountDown,
+                                      &absolute_defuse_time, sizeof(absolute_defuse_time));
+        if (offsets.m_hBombDefuser)
+            mem.AddScatterReadRequest(g_scatter_full, entity + offsets.m_hBombDefuser,
+                                      &runtime.bomb.defuser_handle, sizeof(runtime.bomb.defuser_handle));
+        if (offsets.m_pGameSceneNode)
+            mem.AddScatterReadRequest(g_scatter_full, entity + offsets.m_pGameSceneNode,
+                                      &scene, sizeof(scene));
+        if (offsets.dwGlobalVars)
+            mem.AddScatterReadRequest(g_scatter_full, runtime.client_base + offsets.dwGlobalVars,
+                                      &globals, sizeof(globals));
+        mem.ExecuteReadScatter(g_scatter_full);
+
+        if (IsUserPointer(globals)) {
+            for (int i = 0; i < 4; ++i)
+                mem.AddScatterReadRequest(g_scatter_full, globals + kCurOff[i],
+                                          &cur_slots[i], sizeof(float));
+            mem.ExecuteReadScatter(g_scatter_full);
+        }
+        if (IsUserPointer(scene) && offsets.m_vecAbsOrigin) {
+            mem.AddScatterReadRequest(g_scatter_full, scene + offsets.m_vecAbsOrigin,
+                                      runtime.bomb.pos, sizeof(runtime.bomb.pos));
+            mem.ExecuteReadScatter(g_scatter_full);
+        }
+    } else {
+        if (offsets.m_flC4Blow)
+            QReadT(entity + offsets.m_flC4Blow, absolute_blow_time, "CS2.Bomb.Blow");
+        if (offsets.m_flTimerLength)
+            QReadT(entity + offsets.m_flTimerLength, timer_length, "CS2.Bomb.Timer");
+        if (offsets.m_bBombDefused)
+            QReadT(entity + offsets.m_bBombDefused, defused, "CS2.Bomb.Defused");
+        if (offsets.m_bBeingDefused)
+            QReadT(entity + offsets.m_bBeingDefused, defusing, "CS2.Bomb.Defusing");
+        if (offsets.m_flDefuseCountDown)
+            QReadT(entity + offsets.m_flDefuseCountDown, absolute_defuse_time, "CS2.Bomb.DefuseCD");
+        if (offsets.m_hBombDefuser)
+            QReadT(entity + offsets.m_hBombDefuser, runtime.bomb.defuser_handle, "CS2.Bomb.Defuser");
+        if (offsets.dwGlobalVars)
+            QReadT(runtime.client_base + offsets.dwGlobalVars, globals, "CS2.Bomb.Globals");
+        if (IsUserPointer(globals)) {
+            for (int i = 0; i < 4; ++i)
+                QReadT(globals + kCurOff[i], cur_slots[i], "CS2.Bomb.CurTime");
+        }
+        if (offsets.m_pGameSceneNode &&
+            QReadT(entity + offsets.m_pGameSceneNode, scene, "CS2.Bomb.Scene") &&
+            IsUserPointer(scene))
+            QRead(scene + offsets.m_vecAbsOrigin, runtime.bomb.pos, sizeof(runtime.bomb.pos), "CS2.Bomb.Pos");
+    }
 
     float current_time = 0.f;
-    uintptr_t globals = 0;
     bool have_time = false;
-    if (offsets.dwGlobalVars &&
-        QReadT(runtime.client_base + offsets.dwGlobalVars, globals) && IsUserPointer(globals)) {
-        // Try common curtime slots used across recent CS2 builds
-        for (uintptr_t off : {kGlobalVarsCurrentTime, (uintptr_t)0x2C, (uintptr_t)0x34, (uintptr_t)0x38}) {
-            float t = 0.f;
-            if (QReadT(globals + off, t) && std::isfinite(t) && t > 1.f && t < 1.0e7f) {
-                current_time = t;
-                have_time = true;
-                break;
-            }
+    for (int i = 0; i < 4; ++i) {
+        const float t = cur_slots[i];
+        if (std::isfinite(t) && t > 1.f && t < 1.0e7f) {
+            current_time = t;
+            have_time = true;
+            break;
         }
     }
 
@@ -1683,10 +1822,6 @@ void UpdateBombState() {
     runtime.bomb.defuse_time = defuse;
     runtime.bomb.defused = defused != 0;
     runtime.bomb.defusing = defusing != 0 && defuse > 0.05f;
-
-    uintptr_t scene = 0;
-    if (QReadT(entity + offsets.m_pGameSceneNode, scene) && IsUserPointer(scene))
-        QRead(scene + offsets.m_vecAbsOrigin, runtime.bomb.pos, sizeof(runtime.bomb.pos));
 }
 
 void UpdateBombStateThrottled() {
@@ -1845,7 +1980,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
     if (map_now_ms >= next_map_refresh_ms) {
         mem.SetDmaCallTag("CS2.MapRefresh");
         RefreshMapName();
-        next_map_refresh_ms = map_now_ms + (runtime.in_match ? 2500u : 200u);
+        next_map_refresh_ms = map_now_ms + (runtime.in_match ? 5000u : 400u);
     }
 
     // Match transition: map changed → force entity-list re-acquire so ESP
@@ -1948,26 +2083,38 @@ static void RunFrameWithConfig(const Config& frame_config) {
     // Keep the last validated team so TEAM_INTERVAL_MS is effective.
     runtime.local_view_yaw = 0.f;
     std::memset(runtime.local_pos, 0, sizeof(runtime.local_pos));
+    // Single scatter for local pawn + controller + health (was 3 sequential QReads).
+    mem.SetDmaCallTag("CS2.LocalBootstrap");
     uintptr_t localPawn = 0;
-    if (QReadT(client + offsets.dwLocalPlayerPawn, localPawn) && IsUserPointer(localPawn))
-        runtime.local_pawn = localPawn;
-    else
-        runtime.local_pawn = 0;
-    if (offsets.dwLocalPlayerController) {
-        uintptr_t localController = 0;
-        if (QReadT(client + offsets.dwLocalPlayerController, localController) && IsUserPointer(localController))
-            runtime.local_controller = localController;
+    uintptr_t localController = 0;
+    int sampled_health = runtime.local_health;
+    EnsureScatter();
+    if (g_scatter_full) {
+        mem.AddScatterReadRequest(g_scatter_full, client + offsets.dwLocalPlayerPawn,
+                                  &localPawn, sizeof(localPawn));
+        if (offsets.dwLocalPlayerController)
+            mem.AddScatterReadRequest(g_scatter_full, client + offsets.dwLocalPlayerController,
+                                      &localController, sizeof(localController));
+        mem.ExecuteReadScatter(g_scatter_full);
+        if (IsUserPointer(localPawn) && offsets.m_iHealth) {
+            mem.AddScatterReadRequest(g_scatter_full, localPawn + offsets.m_iHealth,
+                                      &sampled_health, sizeof(sampled_health));
+            mem.ExecuteReadScatter(g_scatter_full);
+        }
+    } else {
+        QReadT(client + offsets.dwLocalPlayerPawn, localPawn, "CS2.LocalPawn");
+        if (offsets.dwLocalPlayerController)
+            QReadT(client + offsets.dwLocalPlayerController, localController, "CS2.LocalController");
+        if (IsUserPointer(localPawn) && offsets.m_iHealth)
+            QReadT(localPawn + offsets.m_iHealth, sampled_health, "CS2.LocalHP");
     }
-
-    // This is the only per-frame player-state read retained while dead.  It
-    // makes death-mode self-healing at round respawn without keeping the ESP
-    // acquisition lanes alive.
+    runtime.local_pawn = IsUserPointer(localPawn) ? localPawn : 0;
+    if (IsUserPointer(localController))
+        runtime.local_controller = localController;
+    // A failed DMA read must not be reinterpreted as HP=0.  Keep the last
+    // validated value and only enter death-mode on a successful 0-HP read.
     if (runtime.local_pawn) {
-        int sampled_health = runtime.local_health;
-        // A failed DMA read must not be reinterpreted as HP=0.  Keep the last
-        // validated value and only enter death-mode on a successful 0-HP read.
-        if (QReadT(runtime.local_pawn + offsets.m_iHealth, sampled_health) &&
-            sampled_health >= 0 && sampled_health <= 200)
+        if (sampled_health >= 0 && sampled_health <= 200)
             runtime.local_health = sampled_health;
     } else {
         runtime.local_health = 0;
@@ -2444,7 +2591,13 @@ if (need_bones) {
                 for (int j = i + 1; j < candN; ++j)
                     if (cand[j].distSq < cand[i].distSq)
                         std::swap(cand[i], cand[j]);
-            const int maxBoneReadsPerScan = frame_config.performance_mode ? 8 : 14;
+            // Cap bone DMA under pressure / post-stall cooldown so the FPGA recovers.
+            const int pressure = g_pressure_level.load(std::memory_order_relaxed);
+            int maxBoneReadsPerScan = frame_config.performance_mode ? 8 : 14;
+            if (DmaCooldownActive()) maxBoneReadsPerScan = 0; // reuse cached poses this scan
+            else if (pressure >= 3) maxBoneReadsPerScan = 6;
+            else if (pressure == 2) maxBoneReadsPerScan = 8;
+            else if (pressure == 1) maxBoneReadsPerScan = (std::min)(maxBoneReadsPerScan, 10);
             const int take = candN < maxBoneReadsPerScan ? candN : maxBoneReadsPerScan;
             g_phase.bones_players = take;
             bool queuedBoneReads = false;
@@ -2939,16 +3092,28 @@ if (need_bones) {
             const uintptr_t weapon_ent = weaponEntities[c];
             uint16_t def = weaponDefinitions[c];
             if (weaponRefreshDue[c] && (def == 0 || def >= 6000) && IsUserPointer(weapon_ent)) {
-                const uintptr_t fallbacks[] = {
+                // Schema-drift fallback: 3 candidates in one scatter (was 3 QReads).
+                const uintptr_t fallbacks[3] = {
                     weapon_ent + 0x11A8 + 0x50 + 0x1BA,
                     weapon_ent + 0x1BA,
                     weapon_ent + 0x16F0,
                 };
+                uint16_t candidates[3]{};
+                EnsureScatter();
+                if (g_scatter_full) {
+                    mem.SetDmaCallTag("CS2.WeaponDefFallback");
+                    for (int fi = 0; fi < 3; ++fi)
+                        mem.AddScatterReadRequest(g_scatter_full, fallbacks[fi],
+                                                  &candidates[fi], sizeof(uint16_t));
+                    mem.ExecuteReadScatter(g_scatter_full);
+                } else {
+                    for (int fi = 0; fi < 3; ++fi)
+                        QReadT(fallbacks[fi], candidates[fi], "CS2.WeaponDefFallback");
+                }
                 def = 0;
-                for (uintptr_t addr : fallbacks) {
-                    uint16_t candidate = 0;
-                    if (QReadT(addr, candidate) && candidate > 0 && candidate < 6000) {
-                        def = candidate;
+                for (int fi = 0; fi < 3; ++fi) {
+                    if (candidates[fi] > 0 && candidates[fi] < 6000) {
+                        def = candidates[fi];
                         break;
                     }
                 }
@@ -3328,7 +3493,11 @@ void EnsureAcquisitionStarted() {
                     PublishMotionSnapshot(motion);
                 }
             }
-            const int cadence = in_match ? CAMERA_INTERVAL_MS : 12;
+            int cadence = in_match ? CAMERA_INTERVAL_MS : 12;
+            if (DmaCooldownActive())
+                cadence = (std::max)(cadence, 12);
+            else if (g_pressure_level.load(std::memory_order_relaxed) >= 2)
+                cadence = (std::max)(cadence, 8);
             scheduler.Wait(std::chrono::milliseconds(cadence));
         }
     });
@@ -3340,6 +3509,14 @@ void EnsureAcquisitionStarted() {
                 g_phase = Cs2PhaseTiming{};
                 g_phase.scan_id = g_scan_id.fetch_add(1, std::memory_order_relaxed) + 1;
                 mem.ResetThreadDmaWaitUs();
+                // If the previous scan stalled the device, take a short breath before
+                // issuing another full payload of scatters.
+                if (DmaCooldownActive()) {
+                    const uint64_t left = g_dma_cooldown_until_ms.load(std::memory_order_relaxed)
+                        - GetTickCount64();
+                    if (left > 0 && left < 500)
+                        std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<int>(left)));
+                }
                 mem.SetDmaScanId(g_phase.scan_id);
                 mem.SetDmaLane("full");
                 mem.SetDmaCallTag("CS2.Acquire");
@@ -3363,6 +3540,7 @@ void EnsureAcquisitionStarted() {
                         PublishMotionSnapshot(empty);
                     }
                     g_phase.lock_wait_ms = static_cast<float>(mem.ConsumeThreadDmaWaitUs()) / 1000.f;
+                    NotePossibleDeviceStall(runtime.acquisition_ms);
                     OmniGhost::Gameplay::DmaTelemetry::ObserveAcquire(
                         tel, runtime.acquisition_ms, activeSample, g_phase.scan_id);
                     tel.entities.store(runtime.player_count, std::memory_order_relaxed);
@@ -3489,6 +3667,8 @@ void EnsureAcquisitionStarted() {
                 if (level >= 3) delayMs = (std::max)(delayMs, 40);
                 else if (level == 2) delayMs = (std::max)(delayMs, 32);
                 else if (level == 1) delayMs = (std::max)(delayMs, 24);
+                if (DmaCooldownActive())
+                    delayMs = (std::max)(delayMs, 48);
             }
             const auto waitBegin = std::chrono::steady_clock::now();
             scheduler.Wait(std::chrono::milliseconds(delayMs));
