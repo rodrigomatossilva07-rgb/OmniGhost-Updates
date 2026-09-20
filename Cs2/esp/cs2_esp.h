@@ -6,6 +6,6 @@ namespace CS2::ESP {
 
 // Presentation-only player ESP. It never performs DMA reads; all data comes
 // from the acquisition snapshot published by cs2_game.
-void DrawPlayers(const Runtime& runtime, const Config& config);
+void DrawPlayers(const Runtime& runtime, const Config& settings);
 
 } // namespace CS2::ESP

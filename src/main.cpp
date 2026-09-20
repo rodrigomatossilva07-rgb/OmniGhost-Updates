@@ -412,8 +412,9 @@ while (application.shouldRun && !authenticated) {
         CyberWidgets::Notify(("OmniGhost atualizado para " + version).c_str(),
             CyberWidgets::ToastType::Success);
     }
-    if (app_settings::config.update_auto_check)
-        update_service.CheckAsync(false);
+    // A launch session always verifies the installed client before the library
+    // can be used. The UI blocks navigation until this check resolves.
+    update_service.CheckAsync(true);
 
     auto& changelog_service = Launcher::ChangelogService::Instance();
     changelog_service.Initialize();

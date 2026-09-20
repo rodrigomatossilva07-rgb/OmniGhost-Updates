@@ -25,31 +25,81 @@ ImU32 Color(const float color[4]) {
                     static_cast<int>(color[2] * 255.f), static_cast<int>(color[3] * 255.f));
 }
 
+ImU32 RgbColor() {
+    const float t = static_cast<float>(ImGui::GetTime()) * .35f;
+    const auto channel = [t](float phase) {
+        return static_cast<int>((std::sin(t + phase) * .5f + .5f) * 255.f);
+    };
+    return IM_COL32(channel(0.f), channel(2.094f), channel(4.188f), 255);
+}
+
+void DrawCornerBox(ImDrawList* draw, const ImVec2& min, const ImVec2& max, ImU32 color, float thickness) {
+    const float w = max.x - min.x, h = max.y - min.y;
+    const float lx = w * .25f, ly = h * .20f;
+    draw->AddLine(min, ImVec2(min.x + lx, min.y), color, thickness);
+    draw->AddLine(min, ImVec2(min.x, min.y + ly), color, thickness);
+    draw->AddLine(ImVec2(max.x - lx, min.y), ImVec2(max.x, min.y), color, thickness);
+    draw->AddLine(ImVec2(max.x, min.y), ImVec2(max.x, min.y + ly), color, thickness);
+    draw->AddLine(ImVec2(min.x, max.y - ly), ImVec2(min.x, max.y), color, thickness);
+    draw->AddLine(ImVec2(min.x, max.y), ImVec2(min.x + lx, max.y), color, thickness);
+    draw->AddLine(ImVec2(max.x - lx, max.y), max, color, thickness);
+    draw->AddLine(ImVec2(max.x, max.y - ly), max, color, thickness);
+}
+
+void DrawVerticalBar(ImDrawList* draw, float x, float top, float bottom, float fraction, ImU32 color) {
+    constexpr float kWidth = 4.f;
+    fraction = std::clamp(fraction, 0.f, 1.f);
+    draw->AddRectFilled(ImVec2(x - 1.f, top - 1.f), ImVec2(x + kWidth + 1.f, bottom + 1.f), IM_COL32(0, 0, 0, 180));
+    draw->AddRectFilled(ImVec2(x, top), ImVec2(x + kWidth, bottom), IM_COL32(18, 18, 18, 235));
+    const float filledTop = bottom - (bottom - top) * fraction;
+    draw->AddRectFilled(ImVec2(x, filledTop), ImVec2(x + kWidth, bottom), color);
+}
+
 } // namespace
 
 namespace CS2::ESP {
 
-void DrawPlayers(const Runtime& runtime, const Config& config) {
-    if (!config.esp_enabled || !config.box || !runtime.in_match) return;
+void DrawPlayers(const Runtime& snapshot, const Config& settings) {
+    if (!settings.esp_enabled || !snapshot.in_match) return;
 
     ImDrawList* draw = ImGui::GetBackgroundDrawList();
-    for (const Player& player : runtime.players) {
-        if (!player.alive || player.is_local || player.team == runtime.local_team) continue;
+    const bool hideTeam = settings.team_check;
+    const bool useVisibilityColors = settings.visibility_colors && settings.visible_check;
+    const float maxDistance = settings.max_distance;
+    const ImU32 rgbColor = settings.rgb_mode ? RgbColor() : 0;
+    for (const Player& player : snapshot.players) {
+        if (!player.alive || player.is_local) continue;
+        if (hideTeam && player.team == snapshot.local_team) continue;
+        if (!std::isfinite(player.distance) || (maxDistance > 0.f && player.distance > maxDistance)) continue;
+        if (!std::isfinite(player.pos[0]) || !std::isfinite(player.pos[1]) || !std::isfinite(player.pos[2])) continue;
 
         ImVec2 feet{}, head{};
-        if (!WorldToScreen(player.pos, runtime.view_matrix, feet)) continue;
+        if (!WorldToScreen(player.pos, snapshot.view_matrix, feet)) continue;
         float headWorld[3] = { player.pos[0], player.pos[1], player.pos[2] + 72.f };
-        if (!WorldToScreen(headWorld, runtime.view_matrix, head)) continue;
+        if (!WorldToScreen(headWorld, snapshot.view_matrix, head)) continue;
 
         const float height = feet.y - head.y;
         if (!std::isfinite(height) || height < 8.f || height > 4000.f) continue;
         const float width = height * 0.60f;
         const ImVec2 min(feet.x - width * .5f, head.y - height * .08f);
         const ImVec2 max(feet.x + width * .5f, min.y + height * 1.09f);
-        const float thickness = (std::max)(0.5f, config.box_thickness);
-        draw->AddRect(ImVec2(min.x - 1.f, min.y - 1.f), ImVec2(max.x + 1.f, max.y + 1.f),
-                      IM_COL32(0, 0, 0, 150), 0.f, 0, thickness + 1.f);
-        draw->AddRect(min, max, Color(config.col_box), 0.f, 0, thickness);
+        const float thickness = std::clamp(settings.box_thickness, 0.5f, 5.f);
+        if (settings.box || settings.box_corner) {
+            draw->AddRect(ImVec2(min.x - 1.f, min.y - 1.f), ImVec2(max.x + 1.f, max.y + 1.f),
+                          IM_COL32(0, 0, 0, 150), 0.f, 0, thickness + 1.f);
+            const float* elementColor = settings.box_corner ? settings.col_box_corner : settings.col_box;
+            const ImU32 color = settings.rgb_mode ? rgbColor
+                : useVisibilityColors ? Color(player.spotted ? settings.col_visible : settings.col_occluded)
+                : Color(player.team == snapshot.local_team ? settings.col_team : elementColor);
+            if (settings.box_corner)
+                DrawCornerBox(draw, min, max, color, thickness);
+            else
+                draw->AddRect(min, max, color, 0.f, 0, thickness);
+        }
+        if (settings.health_bar)
+            DrawVerticalBar(draw, min.x - 7.f, min.y, max.y, static_cast<float>(player.health) / 100.f, Color(settings.col_health));
+        if (settings.armor_bar)
+            DrawVerticalBar(draw, max.x + 3.f, min.y, max.y, static_cast<float>(player.armor) / 100.f, Color(settings.col_armor));
     }
 }
 
