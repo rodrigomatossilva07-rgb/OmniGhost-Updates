@@ -2507,7 +2507,11 @@ static void RunFrameWithConfig(const Config& frame_config) {
     requested.armor = frame_config.esp_enabled && frame_config.armor_bar;
     requested.visibility = frame_config.esp_enabled && frame_config.visibility_colors && frame_config.visible_check;
     requested.aim = frame_config.aim_enabled || frame_config.trigger_enabled;
-    requested.prediction = frame_config.aim_enabled && frame_config.aim_prediction;
+    // Velocity is derived from the already-batched origin snapshots. Keep it
+    // available to presentation while ESP is active so rendering can bridge
+    // the short gap between acquisition frames without another DMA transfer.
+    requested.prediction = (frame_config.aim_enabled && frame_config.aim_prediction) ||
+        frame_config.esp_enabled;
     const auto fields = requested.RequiredFields();
 
     const bool need_armor = OmniGhost::Gameplay::EspCore::Has(

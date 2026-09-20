@@ -4,6 +4,8 @@
 #include "../config/cs2_config.h"
 #include "../../ImGui/imgui.h"
 
+#include <Windows.h>
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -58,13 +60,20 @@ void DrawVerticalBar(ImDrawList* draw, float x, float top, float bottom, float f
 }
 
 void DrawSkeleton(ImDrawList* draw, const CS2::Player& player, const float viewMatrix[16],
+                  const float positionOffset[3],
                   ImU32 color, ImU32 jointColor, float thickness, bool joints) {
     if (!player.full_bones_ok) return;
 
     std::array<ImVec2, CS2::kBoneSlotCount> points{};
     std::array<bool, CS2::kBoneSlotCount> valid{};
-    for (std::size_t index = 0; index < CS2::kBoneSlotCount; ++index)
-        valid[index] = WorldToScreen(player.bones[index], viewMatrix, points[index]);
+    for (std::size_t index = 0; index < CS2::kBoneSlotCount; ++index) {
+        const float predictedBone[3] = {
+            player.bones[index][0] + positionOffset[0],
+            player.bones[index][1] + positionOffset[1],
+            player.bones[index][2] + positionOffset[2]
+        };
+        valid[index] = WorldToScreen(predictedBone, viewMatrix, points[index]);
+    }
 
     constexpr std::pair<CS2::BoneSlot, CS2::BoneSlot> kLinks[] = {
         {CS2::BoneSlot::Head, CS2::BoneSlot::Neck}, {CS2::BoneSlot::Neck, CS2::BoneSlot::SpineUpper},
@@ -122,6 +131,10 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
         }
         return false;
     };
+    const uint64_t nowMs = GetTickCount64();
+    const uint64_t snapshotAgeMs = snapshot.snapshot_timestamp_ms && nowMs >= snapshot.snapshot_timestamp_ms
+        ? (std::min)(nowMs - snapshot.snapshot_timestamp_ms, uint64_t{28}) : 0;
+    const float predictionSeconds = static_cast<float>(snapshotAgeMs) / 1000.f;
     for (const Player& player : snapshot.players) {
         if (!player.alive || player.is_local) continue;
         if (diedSinceSnapshot(player.pawn)) continue;
@@ -129,9 +142,17 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
         if (!std::isfinite(player.distance) || (maxDistance > 0.f && player.distance > maxDistance)) continue;
         if (!std::isfinite(player.pos[0]) || !std::isfinite(player.pos[1]) || !std::isfinite(player.pos[2])) continue;
 
+        const float positionOffset[3] = {
+            std::isfinite(player.velocity[0]) ? player.velocity[0] * predictionSeconds : 0.f,
+            std::isfinite(player.velocity[1]) ? player.velocity[1] * predictionSeconds : 0.f,
+            std::isfinite(player.velocity[2]) ? player.velocity[2] * predictionSeconds : 0.f
+        };
+        const float predictedPosition[3] = {
+            player.pos[0] + positionOffset[0], player.pos[1] + positionOffset[1], player.pos[2] + positionOffset[2]
+        };
         ImVec2 feet{}, head{};
-        if (!WorldToScreen(player.pos, viewMatrix, feet)) continue;
-        float headWorld[3] = { player.pos[0], player.pos[1], player.pos[2] + 72.f };
+        if (!WorldToScreen(predictedPosition, viewMatrix, feet)) continue;
+        float headWorld[3] = { predictedPosition[0], predictedPosition[1], predictedPosition[2] + 72.f };
         if (!WorldToScreen(headWorld, viewMatrix, head)) continue;
 
         const float height = feet.y - head.y;
@@ -160,7 +181,7 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
             const ImU32 skeletonColor = settings.rgb_mode ? rgbColor
                 : useVisibilityColors ? Color(player.spotted ? settings.col_visible : settings.col_occluded)
                 : Color(settings.col_skeleton);
-            DrawSkeleton(draw, player, viewMatrix, skeletonColor, Color(settings.col_joints),
+            DrawSkeleton(draw, player, viewMatrix, positionOffset, skeletonColor, Color(settings.col_joints),
                          std::clamp(settings.skeleton_thickness, .5f, 4.f), settings.skeleton_joints);
         }
     }
