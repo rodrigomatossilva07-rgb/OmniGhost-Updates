@@ -747,6 +747,15 @@ bool DrawGameCard(ImDrawList* draw, ImVec2 min, ImVec2 max,
     }
     draw->AddText(ImVec2(card_min.x + S(20.f), card_max.y - S(66.f)), WithAlpha(C_MUTED2(), alpha), historyLine);
 
+    const SteamGameUpdateCheck::Status steamStatus = SteamGameUpdateCheck::Get(game.launch_id);
+    if (steamStatus.state == SteamGameUpdateCheck::State::OffsetsOutdated) {
+        draw->AddText(ImVec2(card_min.x + S(20.f), card_max.y - S(49.f)),
+            WithAlpha(C_GOLD(), alpha), "JOGO ATUALIZADO · ATUALIZA OS OFFSETS");
+    } else if (steamStatus.state == SteamGameUpdateCheck::State::Checking) {
+        draw->AddText(ImVec2(card_min.x + S(20.f), card_max.y - S(49.f)),
+            WithAlpha(C_MUTED2(), alpha), "A verificar atualização Steam…");
+    }
+
     const char* status = CardStateLabel(runtime.state);
     const ImU32 status_color = CardStateColor(runtime.state);
     const ImVec2 status_size = ImGui::CalcTextSize(status);
@@ -827,6 +836,10 @@ bool DrawGameCard(ImDrawList* draw, ImVec2 min, ImVec2 max,
         ImGui::TextUnformatted(game.name);
         ImGui::Separator();
         ImGui::TextColored(ImColor(status_color), "%s", status);
+        if (steamStatus.state == SteamGameUpdateCheck::State::OffsetsOutdated) {
+            ImGui::Spacing();
+            ImGui::TextColored(ImColor(C_GOLD()), "Jogo atualizado: atualiza os offsets antes de usar.");
+        }
         ImGui::PushTextWrapPos(ImGui::GetFontSize() * 28.f);
         ImGui::TextWrapped("%s", CardStateDescription(runtime.state));
         if (!history.detail.empty()) {
@@ -850,6 +863,7 @@ bool DrawGameCard(ImDrawList* draw, ImVec2 min, ImVec2 max,
 }
 
 void DrawLibrary(ImDrawList* draw, ImVec2 display, float delta) {
+    SteamGameUpdateCheck::StartForLibrary();
     const float top = S(78.f);
     const float side_margin = S(24.f);
     const float content_max_w = (std::min)(display.x - side_margin * 2.f, S(1240.f));

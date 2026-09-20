@@ -64,6 +64,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\launcher\changelog_service.cpp">
+        <Filter>Source Files\launcher</Filter>
+      </ClCompile>
+    <ClCompile Include="src\launcher\steam_game_update_check.cpp">
       <Filter>Source Files\launcher</Filter>
     </ClCompile>
     <ClCompile Include="src\updater\github_release_resolver.cpp">
@@ -459,6 +462,9 @@
       <Filter>Header Files\licensing</Filter>
     </ClInclude>
     <ClInclude Include="src\launcher\game_select_session.inl">
+        <Filter>Header Files</Filter>
+      </ClInclude>
+    <ClInclude Include="src\launcher\steam_game_update_check.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\launcher\game_select_presentation.inl">
