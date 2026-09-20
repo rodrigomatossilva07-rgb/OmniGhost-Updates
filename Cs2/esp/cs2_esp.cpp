@@ -319,18 +319,18 @@ const char* ProjectileIcon(CS2::ProjectileKind kind) {
     }
 }
 
-float ProjectileFlightSeconds(CS2::ProjectileKind kind) {
-    // This is only the in-flight projection horizon. World-effect timers use
-    // their respective live entities once a smoke or inferno has activated.
+CS2::Trajectory::GrenadePhysics ProjectilePhysics(CS2::ProjectileKind kind) {
+    CS2::Trajectory::GrenadePhysics physics{};
     switch (kind) {
     case CS2::ProjectileKind::Flash:
-    case CS2::ProjectileKind::HE: return 1.5f;
-    case CS2::ProjectileKind::Smoke: return 3.0f;
+    case CS2::ProjectileKind::HE: physics.detonate_seconds=1.5f; physics.restitution=.45f; break;
+    case CS2::ProjectileKind::Smoke: physics.detonate_seconds=3.f; physics.restitution=.36f; physics.surface_friction=.64f; break;
     case CS2::ProjectileKind::Molotov:
-    case CS2::ProjectileKind::Incendiary: return 2.0f;
-    case CS2::ProjectileKind::Decoy: return 2.0f;
-    default: return 0.f;
+    case CS2::ProjectileKind::Incendiary: physics.detonate_seconds=2.f; physics.restitution=.30f; physics.surface_friction=.58f; break;
+    case CS2::ProjectileKind::Decoy: physics.detonate_seconds=2.f; physics.restitution=.42f; break;
+    default: break;
     }
+    return physics;
 }
 
 struct CachedProjectilePath {
@@ -383,9 +383,10 @@ void DrawProjectilePath(ImDrawList* draw, const CS2::Projectile& projectile,
         cached.sample_timestamp_ms = projectile.sample_timestamp_ms;
         const CS2::Trajectory::Vec3 origin{ projectile.pos[0], projectile.pos[1], projectile.pos[2] };
         const CS2::Trajectory::Vec3 velocity{ projectile.velocity[0], projectile.velocity[1], projectile.velocity[2] };
+        const auto physics = ProjectilePhysics(projectile.kind);
         cached.result = world && world->Ready()
-            ? CS2::Trajectory::SimulateGrenade(*world, origin, velocity, ProjectileFlightSeconds(projectile.kind))
-            : CS2::Trajectory::SimulateBallistic(origin, velocity, ProjectileFlightSeconds(projectile.kind));
+            ? CS2::Trajectory::SimulateGrenade(*world, origin, velocity, physics)
+            : CS2::Trajectory::SimulateBallistic(origin, velocity, physics);
     }
     ImVec2 previous{};
     bool have_previous = false;
@@ -410,6 +411,11 @@ void DrawProjectilePath(ImDrawList* draw, const CS2::Projectile& projectile,
         draw->AddText(ImVec2(impact_screen.x - size.x * .5f, impact_screen.y + 8.f), color, time);
     }
     DrawProjectedEffectRadius(draw, cached.result.impact, ProjectileEffectRadius(projectile.kind), view_matrix, color);
+    for (const auto& bounce : cached.result.bounces) {
+        const float world_bounce[3]{ bounce.x, bounce.y, bounce.z };
+        ImVec2 bounce_screen{};
+        if (WorldToScreen(world_bounce, view_matrix, bounce_screen)) draw->AddCircleFilled(bounce_screen, 3.25f, color, 10);
+    }
     if (paths.size() > 64) {
         for (auto it = paths.begin(); it != paths.end();) {
             if (it->second.sample_timestamp_ms + 1000 < projectile.sample_timestamp_ms)
