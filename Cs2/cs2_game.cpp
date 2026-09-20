@@ -2897,7 +2897,15 @@ if (need_bones) {
                     else if (distSq > midUnits * midUnits) interval = 32;
                     else if (distSq > nearUnits * nearUnits) interval = 24;
                 }
+                const int pressure = g_pressure_level.load(std::memory_order_relaxed);
                 if (frame_config.performance_mode) interval = (std::max)(interval, uint64_t{32});
+                // Under transport pressure, reuse the translated last-good
+                // skeleton.  It is smoother than blocking the camera behind
+                // a large bone scatter and is refreshed again immediately
+                // once the lane recovers.
+                if (pressure >= 3) interval = (std::max)(interval, uint64_t{140});
+                else if (pressure == 2) interval = (std::max)(interval, uint64_t{72});
+                else if (pressure == 1) interval = (std::max)(interval, uint64_t{36});
                 const auto it = s_lastBoneMs.find(resolved_pawns[c]);
                 if (it != s_lastBoneMs.end() && scan_now_ms - it->second < interval)
                     continue;
@@ -2914,8 +2922,9 @@ if (need_bones) {
             // under sustained pressure — never stop bone updates (looks "frozen").
             const int pressure = g_pressure_level.load(std::memory_order_relaxed);
             int maxBoneReadsPerScan = frame_config.performance_mode ? 10 : 16;
-            if (pressure >= 3) maxBoneReadsPerScan = 10;
-            else if (pressure == 2) maxBoneReadsPerScan = 12;
+            if (pressure >= 3) maxBoneReadsPerScan = 2;
+            else if (pressure == 2) maxBoneReadsPerScan = 4;
+            else if (pressure == 1) maxBoneReadsPerScan = 7;
             const int take = candN < maxBoneReadsPerScan ? candN : maxBoneReadsPerScan;
             g_phase.bones_players = take;
             bool queuedBoneReads = false;
@@ -3429,10 +3438,13 @@ if (need_bones) {
             // Schema probing is optional visual metadata.  It must not be
             // allowed to contend with core ESP reads every second when an
             // offset is incompatible or a weapon pointer is transient.
-            const bool fallbackDue = cachedWeapon == weaponStateCache.end() ||
+            const int fallbackPressure = g_pressure_level.load(std::memory_order_relaxed);
+            const uint64_t fallbackInterval = fallbackPressure >= 2 ? 30000u :
+                (fallbackPressure == 1 ? 20000u : static_cast<uint64_t>(WEAPON_FALLBACK_INTERVAL_MS));
+            const bool fallbackDue = fallbackPressure == 0 && (cachedWeapon == weaponStateCache.end() ||
                 !cachedWeapon->second.last_fallback_ms ||
                 scan_now_ms - cachedWeapon->second.last_fallback_ms >=
-                    static_cast<uint64_t>(WEAPON_FALLBACK_INTERVAL_MS);
+                    fallbackInterval);
             if (weaponRefreshDue[c] && fallbackDue && (def == 0 || def >= 6000) && IsUserPointer(weapon_ent)) {
                 // Schema-drift fallback: 3 candidates in one scatter (was 3 QReads).
                 const uintptr_t fallbacks[3] = {
