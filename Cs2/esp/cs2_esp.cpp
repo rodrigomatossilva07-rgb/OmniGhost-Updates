@@ -194,6 +194,54 @@ void DrawExtras(ImDrawList* draw, const CS2::Player& player, const ImVec2& head,
     }
 }
 
+void DrawSoundEsp(ImDrawList* draw, const CS2::Player& player, const ImVec2& feet,
+                  const CS2::Config& settings, ImU32 rgb) {
+    if (!settings.sound_esp || !player.pawn) return;
+
+    struct Ripple {
+        uint64_t shot_ms = 0;
+        ImVec2 position{};
+        uint64_t last_seen_ms = 0;
+    };
+    static std::unordered_map<uintptr_t, Ripple> ripples;
+
+    const uint64_t now = GetTickCount64();
+    auto& ripple = ripples[player.pawn];
+    ripple.last_seen_ms = now;
+    if (player.last_shot_ms > ripple.shot_ms) {
+        ripple.shot_ms = player.last_shot_ms;
+        ripple.position = feet;
+    }
+
+    constexpr float kLifetimeMs = 680.f;
+    if (!ripple.shot_ms || now < ripple.shot_ms ||
+        static_cast<float>(now - ripple.shot_ms) > kLifetimeMs)
+        return;
+
+    const float progress = static_cast<float>(now - ripple.shot_ms) / kLifetimeMs;
+    const ImU32 base = EffectColor(settings, settings.col_fun_effects, rgb);
+    for (int ring = 0; ring < 3; ++ring) {
+        const float phase = progress - static_cast<float>(ring) * .18f;
+        if (phase < 0.f || phase > 1.f) continue;
+        const float alpha = (1.f - phase) * .82f;
+        const float radius = 10.f + phase * 42.f;
+        const ImU32 color = (base & 0x00FFFFFFu) |
+            (static_cast<ImU32>(std::clamp(alpha * 255.f, 0.f, 255.f)) << 24);
+        draw->AddCircle(ripple.position, radius, color, 28, 1.5f);
+    }
+
+    // A pawn can disappear after a disconnect or map change. Keep this tiny
+    // presentation cache bounded even if that happens mid-animation.
+    if (ripples.size() > 96) {
+        for (auto it = ripples.begin(); it != ripples.end();) {
+            if (now - it->second.last_seen_ms > 5000)
+                it = ripples.erase(it);
+            else
+                ++it;
+        }
+    }
+}
+
 void DrawPlayerFlags(ImDrawList* draw, const CS2::Player& player, const ImVec2& min,
                      const CS2::Config& settings, ImU32 rgb) {
     if (!settings.player_flags) return;
@@ -317,6 +365,7 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
         if (settings.health_value) { char hp[16]{}; std::snprintf(hp, sizeof(hp), "%d", player.health); DrawOutlinedText(draw, ImVec2(min.x - 25.f, min.y), Color(settings.col_health), hp, settings); }
         if (settings.armor_value && player.armor > 0) { char ap[16]{}; std::snprintf(ap, sizeof(ap), "%d", player.armor); DrawOutlinedText(draw, ImVec2(max.x + 8.f, min.y), Color(settings.col_armor), ap, settings); }
         DrawExtras(draw, player, head, feet, min, max, settings, rgbColor);
+        DrawSoundEsp(draw, player, feet, settings, rgbColor);
         DrawPlayerFlags(draw, player, min, settings, rgbColor);
     }
 }
