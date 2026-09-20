@@ -1409,7 +1409,9 @@ static ProjectileKind ClassifyProjectile(const char* name) {
 // low-index portion only while Projectile ESP is enabled, then batch each
 // stage so this never creates one DMA round-trip per object.
 static void CollectProjectiles(const Config& frame_config) {
-    if (!frame_config.esp_enabled || !frame_config.projectile_esp || !runtime.in_match) {
+    const bool needs_projectiles = frame_config.projectile_esp || frame_config.grenade_trail ||
+        frame_config.projectile_timers;
+    if (!frame_config.esp_enabled || !needs_projectiles || !runtime.in_match) {
         runtime.projectiles.clear();
         runtime.projectile_pages = runtime.projectile_entities = runtime.projectile_name_ptrs = 0;
         runtime.projectile_classified = runtime.projectile_scenes = 0;

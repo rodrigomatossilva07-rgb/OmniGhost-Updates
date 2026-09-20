@@ -16,7 +16,9 @@ void DrawCs2Misc()
     ToggleSwitch(Loc::Tr("cs2.misc.spectators"), &CS2::config.spectator_list);
     ToggleSwitch(Loc::Tr("cs2.misc.bomb_timer"), &CS2::config.bomb_timer);
     ToggleSwitch(Loc::Tr("cs2.misc.hit_marker"), &CS2::config.hit_marker);
-    ToggleSwitch("Rasto de granadas", &CS2::config.grenade_trail);
+    ToggleSwitch("Trajetoria de granadas", &CS2::config.grenade_trail);
+    if (CS2::config.grenade_trail)
+        TextLine("Mostra linha, impacto e tempo previsto para flash, HE, smoke, molotov e decoy.", TextTone::Secondary);
     ToggleSwitch("Ondas de disparo (Sound ESP)", &CS2::config.sound_esp);
     ToggleSwitch("Pulso de passos (Footstep ESP)", &CS2::config.footstep_esp);
     ToggleSwitch("Granadas em voo (Projectile ESP)", &CS2::config.projectile_esp);

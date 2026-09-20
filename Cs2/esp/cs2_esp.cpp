@@ -384,15 +384,16 @@ void DrawProjectilePath(ImDrawList* draw, const CS2::Projectile& projectile,
 
 void DrawProjectiles(ImDrawList* draw, const CS2::Runtime& snapshot,
                      const CS2::Config& settings, const float* view_matrix, ImU32 rgb) {
-    if (!settings.projectile_esp || !view_matrix) return;
+    if ((!settings.projectile_esp && !settings.grenade_trail) || !view_matrix) return;
     const ImU32 color = EffectColor(settings, settings.col_fun_effects, rgb);
     for (const auto& projectile : snapshot.projectiles) {
-        ImVec2 screen{};
-        if (!WorldToScreen(projectile.pos, view_matrix, screen)) continue;
         const char* label = ProjectileLabel(projectile.kind);
         const char* icon = ProjectileIcon(projectile.kind);
         if (!*label || !*icon) continue;
         if (settings.grenade_trail) DrawProjectilePath(draw, projectile, view_matrix, color);
+        if (!settings.projectile_esp) continue;
+        ImVec2 screen{};
+        if (!WorldToScreen(projectile.pos, view_matrix, screen)) continue;
         draw->AddCircleFilled(screen, 10.f, (color & 0x00FFFFFFu) | 0x55000000u, 16);
         draw->AddCircle(screen, 10.f, color, 16, 1.25f);
         const ImVec2 icon_size = ImGui::CalcTextSize(icon);
