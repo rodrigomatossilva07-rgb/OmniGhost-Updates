@@ -338,6 +338,42 @@ struct CachedProjectilePath {
     CS2::Trajectory::TrajectoryResult result{};
 };
 
+float ProjectileEffectRadius(CS2::ProjectileKind kind) {
+    // Preview radii are deliberately conservative visual guides, not damage
+    // guarantees. They are drawn only for a trajectory that already has a
+    // collision-geometry impact prediction.
+    switch (kind) {
+    case CS2::ProjectileKind::Flash: return 750.f;
+    case CS2::ProjectileKind::HE: return 350.f;
+    case CS2::ProjectileKind::Smoke: return 144.f;
+    case CS2::ProjectileKind::Molotov:
+    case CS2::ProjectileKind::Incendiary: return 160.f;
+    case CS2::ProjectileKind::Decoy: return 128.f;
+    default: return 0.f;
+    }
+}
+
+void DrawProjectedEffectRadius(ImDrawList* draw, CS2::Trajectory::Vec3 center,
+                               float radius, const float* view_matrix, ImU32 color) {
+    if (radius <= 0.f) return;
+    constexpr int segments = 24;
+    ImVec2 previous{};
+    bool have_previous = false;
+    for (int i = 0; i <= segments; ++i) {
+        const float angle = (static_cast<float>(i) / segments) * 6.283185307f;
+        const float point[3]{ center.x + std::cos(angle) * radius,
+                              center.y + std::sin(angle) * radius, center.z + 2.f };
+        ImVec2 screen{};
+        if (WorldToScreen(point, view_matrix, screen)) {
+            if (have_previous) draw->AddLine(previous, screen, color, 1.15f);
+            previous = screen;
+            have_previous = true;
+        } else {
+            have_previous = false;
+        }
+    }
+}
+
 void DrawProjectilePath(ImDrawList* draw, const CS2::Projectile& projectile,
                         const float* view_matrix, ImU32 color) {
     static std::unordered_map<uintptr_t, CachedProjectilePath> paths;
@@ -373,6 +409,7 @@ void DrawProjectilePath(ImDrawList* draw, const CS2::Projectile& projectile,
         const ImVec2 size = ImGui::CalcTextSize(time);
         draw->AddText(ImVec2(impact_screen.x - size.x * .5f, impact_screen.y + 8.f), color, time);
     }
+    DrawProjectedEffectRadius(draw, cached.result.impact, ProjectileEffectRadius(projectile.kind), view_matrix, color);
     if (paths.size() > 64) {
         for (auto it = paths.begin(); it != paths.end();) {
             if (it->second.sample_timestamp_ms + 1000 < projectile.sample_timestamp_ms)
