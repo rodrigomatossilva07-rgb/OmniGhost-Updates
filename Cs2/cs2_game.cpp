@@ -10,6 +10,7 @@
 #include "globals.h"
 #include "gameplay/esp_core.h"
 #include "gameplay/frame_pipeline.h"
+#include "trajectory/cs2_map_collision_cache.h"
 
 #include <Windows.h>
 #include <TlHelp32.h>
@@ -2274,6 +2275,11 @@ static void RunFrameWithConfig(const Config& frame_config) {
     // during load and would leave LMB stuck ("mira sozinho").
     if (std::strncmp(previous_map, runtime.map_name, sizeof(previous_map)) != 0) {
         std::memcpy(previous_map, runtime.map_name, sizeof(previous_map));
+        if (runtime.map_name[0]) {
+            auto& collision = Trajectory::CollisionCache();
+            if (!collision.LoadForMap(runtime.map_name))
+                std::cout << "[CS2] Colisão do mapa indisponível: " << collision.Error() << std::endl;
+        }
         g_pending_entity_list = 0;
         g_entity_list_confirmations = 0;
         runtime.entity_list_entry = 0;
