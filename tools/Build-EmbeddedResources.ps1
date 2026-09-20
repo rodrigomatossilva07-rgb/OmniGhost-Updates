@@ -103,13 +103,16 @@ $entries = New-Object 'Collections.Generic.List[string]'
 $enum = New-Object 'Collections.Generic.List[string]'
 $totalOriginal = [uint64]0; $totalStored = [uint64]0
 $totalInputBytes = [uint64]0
+$collisionItemCount = 0
 foreach ($item in $items) {
     $source = [IO.Path]::GetFullPath((Join-Path $ProjectDir ([string]$item.source)))
     if (Test-Path -LiteralPath $source -PathType Leaf) {
         $totalInputBytes += [uint64]([IO.FileInfo]$source).Length
     }
+    if (([string]$item.logicalName).StartsWith('cs2/collision/', [StringComparison]::OrdinalIgnoreCase)) { $collisionItemCount++ }
 }
 $processedInputBytes = [uint64]0
+$processedCollisionItems = 0
 
 foreach ($item in $items) {
     $id = [int]$item.id; $name = [string]$item.name; $logical = ([string]$item.logicalName).Replace('\','/')
@@ -158,8 +161,11 @@ foreach ($item in $items) {
     $totalOriginal += [uint64]$raw.Length; $totalStored += [uint64]$payload.Length
     $processedInputBytes += [uint64]$raw.Length
     $percent = if ($totalInputBytes -gt 0) { [math]::Min(100, [math]::Floor(($processedInputBytes * 100.0) / $totalInputBytes)) } else { 100 }
-    Write-Progress -Activity 'Embedding executable resources' -Status "${percent}% - $logical" -PercentComplete $percent
-    Write-Host "[EmbeddedResources] [$percent%] $logical mode=$(if($compression -eq 1){'PACKBITS'}else{'NONE'}) original=$($raw.Length) stored=$($payload.Length)"
+    $isCollision = $logical.StartsWith('cs2/collision/', [StringComparison]::OrdinalIgnoreCase)
+    if ($isCollision) { $processedCollisionItems++ }
+    $mapProgress = if ($isCollision) { " map $processedCollisionItems/$collisionItemCount" } else { '' }
+    Write-Progress -Activity 'Embedding executable resources' -Status "${percent}%$mapProgress - $logical" -PercentComplete $percent
+    Write-Host "[EmbeddedResources] [$percent%$mapProgress] $logical mode=$(if($compression -eq 1){'PACKBITS'}else{'NONE'}) original=$($raw.Length) stored=$($payload.Length)"
 }
 Write-Progress -Activity 'Embedding executable resources' -Completed
 

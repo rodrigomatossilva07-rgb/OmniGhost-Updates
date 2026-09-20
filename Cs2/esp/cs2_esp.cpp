@@ -2,6 +2,8 @@
 
 #include "../cs2_game.h"
 #include "../config/cs2_config.h"
+#include "../trajectory/cs2_grenade_simulator.h"
+#include "../trajectory/cs2_map_collision_cache.h"
 #include "../../ImGui/imgui.h"
 
 #include <Windows.h>
@@ -316,6 +318,60 @@ const char* ProjectileIcon(CS2::ProjectileKind kind) {
     }
 }
 
+float ProjectileFlightSeconds(CS2::ProjectileKind kind) {
+    // This is only the in-flight projection horizon. World-effect timers use
+    // their respective live entities once a smoke or inferno has activated.
+    switch (kind) {
+    case CS2::ProjectileKind::Flash:
+    case CS2::ProjectileKind::HE: return 1.5f;
+    case CS2::ProjectileKind::Smoke: return 3.0f;
+    case CS2::ProjectileKind::Molotov:
+    case CS2::ProjectileKind::Incendiary: return 2.0f;
+    case CS2::ProjectileKind::Decoy: return 2.0f;
+    default: return 0.f;
+    }
+}
+
+struct CachedProjectilePath {
+    uint64_t sample_timestamp_ms{};
+    CS2::Trajectory::TrajectoryResult result{};
+};
+
+void DrawProjectilePath(ImDrawList* draw, const CS2::Projectile& projectile,
+                        const float* view_matrix, ImU32 color) {
+    static std::unordered_map<uintptr_t, CachedProjectilePath> paths;
+    auto world = CS2::Trajectory::CollisionCache().WorldSnapshot();
+    if (!world || !world->Ready()) return;
+    auto& cached = paths[projectile.entity];
+    if (cached.sample_timestamp_ms != projectile.sample_timestamp_ms) {
+        cached.sample_timestamp_ms = projectile.sample_timestamp_ms;
+        cached.result = CS2::Trajectory::SimulateGrenade(*world,
+            { projectile.pos[0], projectile.pos[1], projectile.pos[2] },
+            { projectile.velocity[0], projectile.velocity[1], projectile.velocity[2] },
+            ProjectileFlightSeconds(projectile.kind));
+    }
+    ImVec2 previous{};
+    bool have_previous = false;
+    for (const auto& point : cached.result.points) {
+        const float world_point[3]{ point.x, point.y, point.z };
+        ImVec2 screen{};
+        if (WorldToScreen(world_point, view_matrix, screen)) {
+            if (have_previous) draw->AddLine(previous, screen, color, 1.5f);
+            previous = screen;
+            have_previous = true;
+        } else {
+            have_previous = false;
+        }
+    }
+    if (paths.size() > 64) {
+        for (auto it = paths.begin(); it != paths.end();) {
+            if (it->second.sample_timestamp_ms + 1000 < projectile.sample_timestamp_ms)
+                it = paths.erase(it);
+            else ++it;
+        }
+    }
+}
+
 void DrawProjectiles(ImDrawList* draw, const CS2::Runtime& snapshot,
                      const CS2::Config& settings, const float* view_matrix, ImU32 rgb) {
     if (!settings.projectile_esp || !view_matrix) return;
@@ -326,6 +382,7 @@ void DrawProjectiles(ImDrawList* draw, const CS2::Runtime& snapshot,
         const char* label = ProjectileLabel(projectile.kind);
         const char* icon = ProjectileIcon(projectile.kind);
         if (!*label || !*icon) continue;
+        if (settings.grenade_trail) DrawProjectilePath(draw, projectile, view_matrix, color);
         draw->AddCircleFilled(screen, 10.f, (color & 0x00FFFFFFu) | 0x55000000u, 16);
         draw->AddCircle(screen, 10.f, color, 16, 1.25f);
         const ImVec2 icon_size = ImGui::CalcTextSize(icon);
