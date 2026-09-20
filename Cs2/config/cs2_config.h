@@ -9,6 +9,9 @@ struct Config {
     bool box = true, box_corner = false, skeleton = true, skeleton_joints = false;
     bool health_bar = true, armor_bar = false, name = true, distance = true, team_check = true, show_bots = true;
     bool head_dot = false, weapon_name = false, trails = false, rgb_mode = false, head_halo = false, look_direction = false;
+    bool box_fill = false, health_value = false, armor_value = false, text_outline = true;
+    int box_style = 0, snapline_position = 2; // normal, dynamic, rounded, corner / top, center, bottom
+    float box_rounding = 0.f, text_outline_thickness = 1.f;
     bool chinese_hat = false, angel_wings = false, devil_horns = false, floating_crown = false;
     bool fun_effects_rainbow = true, hit_marker = false, rainbow_trails = true, snaplines = false;
     float chinese_hat_scale = 1.f, fun_effects_scale = 1.f, trail_duration = .8f, trail_thickness = 2.f;
@@ -51,6 +54,7 @@ struct Config {
     float col_fun_effects[4] = {1.f,.72f,.18f,.95f}, col_look[4] = {.83f,.69f,.22f,.86f};
     float col_head[4] = {.95f,.85f,.35f,1.f}, col_distance[4] = {.85f,.85f,.9f,1.f};
     float col_visible[4] = {.27f,.9f,.37f,1.f}, col_occluded[4] = {.9f,.25f,.25f,1.f};
+    float col_box_fill[4] = {.9f,.25f,.25f,.16f}, col_text_outline[4] = {0.f,0.f,0.f,1.f};
 
 
     bool aim_enabled = false;

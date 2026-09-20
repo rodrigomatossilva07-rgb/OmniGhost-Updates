@@ -107,19 +107,32 @@ ImU32 EffectColor(const CS2::Config& settings, const float color[4], ImU32 rgb) 
     return settings.rgb_mode ? rgb : Color(color);
 }
 
+void DrawOutlinedText(ImDrawList* draw, ImVec2 pos, ImU32 color, const char* text, const CS2::Config& settings) {
+    if (!text || !*text) return;
+    if (settings.text_outline) {
+        const ImU32 outline = Color(settings.col_text_outline);
+        const float t = std::clamp(settings.text_outline_thickness, .5f, 2.f);
+        for (int x = -1; x <= 1; ++x) for (int y = -1; y <= 1; ++y)
+            if (x || y) draw->AddText(ImVec2(pos.x + x * t, pos.y + y * t), outline, text);
+    }
+    draw->AddText(pos, color, text);
+}
+
 void DrawExtras(ImDrawList* draw, const CS2::Player& player, const ImVec2& head, const ImVec2& feet,
                 const ImVec2& min, const ImVec2& max, const CS2::Config& settings, ImU32 rgb) {
     const float height = max.y - min.y;
     const float scale = std::clamp(height / 180.f, .45f, 2.2f);
-    if (settings.snaplines)
-        draw->AddLine(ImVec2(ImGui::GetIO().DisplaySize.x * .5f, ImGui::GetIO().DisplaySize.y), feet,
+    if (settings.snaplines) {
+        const float y = settings.snapline_position == 0 ? 0.f : settings.snapline_position == 1 ? ImGui::GetIO().DisplaySize.y * .5f : ImGui::GetIO().DisplaySize.y;
+        draw->AddLine(ImVec2(ImGui::GetIO().DisplaySize.x * .5f, y), feet,
                       EffectColor(settings, settings.col_snaplines, rgb), std::clamp(settings.snapline_thickness, .5f, 5.f));
+    }
     if (settings.head_dot)
         draw->AddCircle(head, 10.f * scale, EffectColor(settings, settings.col_head, rgb), 20,
                         std::clamp(settings.head_circle_thickness, .5f, 5.f));
     if (settings.weapon_name && player.weapon[0]) {
         const ImVec2 text = ImGui::CalcTextSize(player.weapon);
-        draw->AddText(ImVec2((min.x + max.x - text.x) * .5f, max.y + 4.f), EffectColor(settings, settings.col_weapon, rgb), player.weapon);
+        DrawOutlinedText(draw, ImVec2((min.x + max.x - text.x) * .5f, max.y + 4.f), EffectColor(settings, settings.col_weapon, rgb), player.weapon, settings);
     }
     if (settings.head_halo) {
         ImVec2 halo[17]{};
@@ -247,10 +260,12 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
             const ImU32 color = settings.rgb_mode ? rgbColor
                 : useVisibilityColors ? Color(player.spotted ? settings.col_visible : settings.col_occluded)
                 : Color(player.team == snapshot.local_team ? settings.col_team : elementColor);
-            if (settings.box_corner)
+            if (settings.box_fill)
+                draw->AddRectFilled(min, max, Color(settings.col_box_fill), std::clamp(settings.box_rounding, 0.f, 18.f));
+            if (settings.box_corner || settings.box_style == 3)
                 DrawCornerBox(draw, min, max, color, thickness);
             else
-                draw->AddRect(min, max, color, 0.f, 0, thickness);
+                draw->AddRect(min, max, color, std::clamp(settings.box_rounding, 0.f, 18.f), 0, thickness);
         }
         if (settings.health_bar)
             DrawVerticalBar(draw, min.x - 7.f, min.y, max.y, static_cast<float>(player.health) / 100.f, Color(settings.col_health));
@@ -263,6 +278,22 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
             DrawSkeleton(draw, player, viewMatrix, positionOffset, skeletonColor, Color(settings.col_joints),
                          std::clamp(settings.skeleton_thickness, .5f, 4.f), settings.skeleton_joints);
         }
+        if (settings.name && player.name[0]) {
+            const ImVec2 size = ImGui::CalcTextSize(player.name);
+            DrawOutlinedText(draw, ImVec2((min.x + max.x - size.x) * .5f, min.y - 16.f), Color(settings.col_name), player.name, settings);
+        }
+        if (settings.distance) {
+            char distance[32]{}; std::snprintf(distance, sizeof(distance), "%.0f m", player.distance);
+            const ImVec2 size = ImGui::CalcTextSize(distance);
+            DrawOutlinedText(draw, ImVec2((min.x + max.x - size.x) * .5f, max.y + (settings.weapon_name ? 20.f : 4.f)), Color(settings.col_distance), distance, settings);
+        }
+        if (settings.weapon_ammo && player.ammo_clip >= 0) {
+            char ammo[32]{}; std::snprintf(ammo, sizeof(ammo), "%d/%d", player.ammo_clip, (std::max)(0, player.ammo_reserve));
+            const ImVec2 size = ImGui::CalcTextSize(ammo);
+            DrawOutlinedText(draw, ImVec2((min.x + max.x - size.x) * .5f, max.y + 20.f), Color(settings.col_weapon), ammo, settings);
+        }
+        if (settings.health_value) { char hp[16]{}; std::snprintf(hp, sizeof(hp), "%d", player.health); DrawOutlinedText(draw, ImVec2(min.x - 25.f, min.y), Color(settings.col_health), hp, settings); }
+        if (settings.armor_value && player.armor > 0) { char ap[16]{}; std::snprintf(ap, sizeof(ap), "%d", player.armor); DrawOutlinedText(draw, ImVec2(max.x + 8.f, min.y), Color(settings.col_armor), ap, settings); }
         DrawExtras(draw, player, head, feet, min, max, settings, rgbColor);
     }
 }

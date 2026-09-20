@@ -177,7 +177,9 @@ void DrawCs2Visuals() {
     CyberWidgets::ToggleSwitch("Esqueleto", &CS2::config.skeleton); CyberWidgets::ToggleSwitch("Articulações", &CS2::config.skeleton_joints);
     CyberWidgets::ToggleSwitch("Círculo na cabeça", &CS2::config.head_dot); CyberWidgets::ToggleSwitch("Barra de vida", &CS2::config.health_bar);
     CyberWidgets::ToggleSwitch("Barra de armadura", &CS2::config.armor_bar); CyberWidgets::ToggleSwitch("Nome da arma", &CS2::config.weapon_name);
-    PreviewToggle("Distância", &previewSettings.distance); CyberWidgets::ToggleSwitch("Caixa 2D", &CS2::config.box);
+    CyberWidgets::ToggleSwitch("Munição", &CS2::config.weapon_ammo); CyberWidgets::ToggleSwitch("Nome", &CS2::config.name);
+    CyberWidgets::ToggleSwitch("Distância", &CS2::config.distance); CyberWidgets::ToggleSwitch("Valor de vida", &CS2::config.health_value);
+    CyberWidgets::ToggleSwitch("Valor de armadura", &CS2::config.armor_value); CyberWidgets::ToggleSwitch("Caixa 2D", &CS2::config.box);
     CyberWidgets::ToggleSwitch("Caixa de cantos", &CS2::config.box_corner); CyberWidgets::ToggleSwitch("Linhas guia", &CS2::config.snaplines);
     CyberWidgets::ToggleSwitch("Halo na cabeça", &CS2::config.head_halo); CyberWidgets::ToggleSwitch("Chapéu chinês", &CS2::config.chinese_hat);
     CyberWidgets::ToggleSwitch("Asas de anjo", &CS2::config.angel_wings); CyberWidgets::ToggleSwitch("Chifres de demónio", &CS2::config.devil_horns);
@@ -185,6 +187,10 @@ void DrawCs2Visuals() {
     CyberWidgets::ToggleSwitch("Eye Line", &CS2::config.look_direction);
     CyberWidgets::SectionTitle("ESPESSURA");
     CyberWidgets::SliderFloat("Caixa", &CS2::config.box_thickness, .5f, 4.f, "%.1f");
+    CyberWidgets::ToggleSwitch("Preenchimento da caixa", &CS2::config.box_fill);
+    CyberWidgets::SliderFloat("Arredondamento", &CS2::config.box_rounding, 0.f, 18.f, "%.0f");
+    CyberWidgets::ToggleSwitch("Outline de texto", &CS2::config.text_outline);
+    CyberWidgets::SliderFloat("Espessura outline", &CS2::config.text_outline_thickness, .5f, 2.f, "%.1f");
     CyberWidgets::SliderFloat("Círculo cabeça", &CS2::config.head_circle_thickness, .5f, 4.f, "%.1f");
     CyberWidgets::SliderFloat("Linhas guia", &CS2::config.snapline_thickness, .5f, 4.f, "%.1f");
     CyberWidgets::SliderFloat("Eye Line", &CS2::config.eye_line_thickness, .5f, 4.f, "%.1f");
@@ -220,6 +226,8 @@ void DrawCs2Visuals() {
     ImGui::EndDisabled();
     ImGui::ColorEdit4("Caixa 2D", CS2::config.col_box, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     ImGui::ColorEdit4("Caixa de cantos", CS2::config.col_box_corner, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
+    ImGui::ColorEdit4("Preenchimento", CS2::config.col_box_fill, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
+    ImGui::ColorEdit4("Outline de texto", CS2::config.col_text_outline, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     ImGui::BeginDisabled(!CS2::config.snaplines);
     ImGui::ColorEdit4("Linhas guia", CS2::config.col_snaplines, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     ImGui::EndDisabled();

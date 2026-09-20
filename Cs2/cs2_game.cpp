@@ -2509,6 +2509,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
     requested.armor = frame_config.esp_enabled && frame_config.armor_bar;
     requested.visibility = frame_config.esp_enabled && frame_config.visibility_colors && frame_config.visible_check;
     requested.weapon = frame_config.esp_enabled && frame_config.weapon_name;
+    requested.name = frame_config.esp_enabled && frame_config.name;
+    requested.distance = frame_config.esp_enabled && frame_config.distance;
     requested.snapline = frame_config.esp_enabled && frame_config.snaplines;
     requested.trail = frame_config.esp_enabled && frame_config.trails;
     requested.halo = frame_config.esp_enabled && frame_config.head_halo;
