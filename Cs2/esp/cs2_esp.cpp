@@ -242,6 +242,56 @@ void DrawSoundEsp(ImDrawList* draw, const CS2::Player& player, const ImVec2& fee
     }
 }
 
+void DrawFootstepEsp(ImDrawList* draw, const CS2::Player& player, const ImVec2& feet,
+                     const CS2::Config& settings, ImU32 rgb) {
+    if (!settings.footstep_esp || !player.pawn) return;
+
+    struct Pulse {
+        uint64_t began_ms = 0;
+        uint64_t last_step_ms = 0;
+        uint64_t last_seen_ms = 0;
+        ImVec2 position{};
+    };
+    static std::unordered_map<uintptr_t, Pulse> pulses;
+
+    const uint64_t now = GetTickCount64();
+    auto& pulse = pulses[player.pawn];
+    pulse.last_seen_ms = now;
+    // The data collector treats every speed above stationary jitter as motion,
+    // so this includes slow and silent walking as requested.
+    if (player.is_moving && (now - pulse.last_step_ms >= 260)) {
+        pulse.began_ms = now;
+        pulse.last_step_ms = now;
+        pulse.position = feet;
+    }
+
+    constexpr float kLifetimeMs = 560.f;
+    if (!pulse.began_ms || now < pulse.began_ms ||
+        static_cast<float>(now - pulse.began_ms) > kLifetimeMs)
+        return;
+
+    const float progress = static_cast<float>(now - pulse.began_ms) / kLifetimeMs;
+    const ImU32 base = EffectColor(settings, settings.col_fun_effects, rgb);
+    for (int ring = 0; ring < 2; ++ring) {
+        const float phase = progress - static_cast<float>(ring) * .24f;
+        if (phase < 0.f || phase > 1.f) continue;
+        const float alpha = (1.f - phase) * .66f;
+        const float radius = 8.f + phase * 34.f;
+        const ImU32 color = (base & 0x00FFFFFFu) |
+            (static_cast<ImU32>(std::clamp(alpha * 255.f, 0.f, 255.f)) << 24);
+        draw->AddCircle(pulse.position, radius, color, 24, 1.25f);
+    }
+
+    if (pulses.size() > 96) {
+        for (auto it = pulses.begin(); it != pulses.end();) {
+            if (now - it->second.last_seen_ms > 5000)
+                it = pulses.erase(it);
+            else
+                ++it;
+        }
+    }
+}
+
 void DrawPlayerFlags(ImDrawList* draw, const CS2::Player& player, const ImVec2& min,
                      const CS2::Config& settings, ImU32 rgb) {
     if (!settings.player_flags) return;
@@ -366,6 +416,7 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
         if (settings.armor_value && player.armor > 0) { char ap[16]{}; std::snprintf(ap, sizeof(ap), "%d", player.armor); DrawOutlinedText(draw, ImVec2(max.x + 8.f, min.y), Color(settings.col_armor), ap, settings); }
         DrawExtras(draw, player, head, feet, min, max, settings, rgbColor);
         DrawSoundEsp(draw, player, feet, settings, rgbColor);
+        DrawFootstepEsp(draw, player, feet, settings, rgbColor);
         DrawPlayerFlags(draw, player, min, settings, rgbColor);
     }
 }

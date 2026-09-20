@@ -18,6 +18,7 @@ void DrawCs2Misc()
     ToggleSwitch(Loc::Tr("cs2.misc.hit_marker"), &CS2::config.hit_marker);
     ToggleSwitch("Rasto de granadas", &CS2::config.grenade_trail);
     ToggleSwitch("Ondas de disparo (Sound ESP)", &CS2::config.sound_esp);
+    ToggleSwitch("Pulso de passos (Footstep ESP)", &CS2::config.footstep_esp);
     Separator();
     TextLine("PLAYER FLAGS", TextTone::Primary);
     ToggleSwitch("Indicadores de jogadores", &CS2::config.player_flags);

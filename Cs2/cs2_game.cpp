@@ -2954,11 +2954,6 @@ if (need_bones) {
             p.is_flashed = std::isfinite(cf.flash) && cf.flash > 0.05f;
         if (p.is_local)
             p.is_scoped = runtime.local_scoped;
-            {
-                const float sp = std::sqrt(p.velocity[0]*p.velocity[0] + p.velocity[1]*p.velocity[1]);
-                p.move_speed = sp;
-                p.is_moving = sp > 80.f; // walk threshold; silent-walk usually lower
-            }
 
         p.pos[0] = positions[c][0];
         p.pos[1] = positions[c][1];
@@ -2985,6 +2980,14 @@ if (need_bones) {
                 }
             }
             current_positions[pawn] = { p.pos[0], p.pos[1], p.pos[2] };
+        }
+        {
+            const float speed = std::sqrt(p.velocity[0] * p.velocity[0] +
+                                          p.velocity[1] * p.velocity[1]);
+            p.move_speed = std::isfinite(speed) ? speed : 0.f;
+            // Keep the threshold deliberately below CS2 silent-walk speed.
+            // It only rejects stationary-position noise, never quiet movement.
+            p.is_moving = p.move_speed > 5.f;
         }
 
         // Reject distant entities before name sanitising, skeleton validation
