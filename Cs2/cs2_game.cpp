@@ -1414,6 +1414,7 @@ static void CollectProjectiles(const Config& frame_config) {
     static uint64_t next_scan_ms = 0;
     static uint64_t next_telemetry_ms = 0;
     static size_t page_window = 0;
+    static std::unordered_map<uintptr_t, Projectile> recent_projectiles;
     const uint64_t now = GetTickCount64();
     if (now < next_scan_ms) return;
     // World-entity discovery is optional and must never starve player/camera
@@ -1534,6 +1535,23 @@ static void CollectProjectiles(const Config& frame_config) {
         std::memcpy(projectile.velocity, velocities[i].data(), sizeof(projectile.velocity));
         projectile.sample_timestamp_ms = now;
         runtime.projectiles.push_back(projectile);
+        recent_projectiles[projectile.entity] = projectile;
+    }
+
+    // DMA can briefly return an incomplete entity page while a grenade is in
+    // flight. Keep the last confirmed sample for a short, fixed grace period
+    // so the overlay does not blink, but never retain stale world objects.
+    constexpr uint64_t kProjectileGraceMs = 220;
+    for (auto it = recent_projectiles.begin(); it != recent_projectiles.end();) {
+        const bool current = std::any_of(runtime.projectiles.begin(), runtime.projectiles.end(),
+            [&](const Projectile& item) { return item.entity == it->first; });
+        if (now - it->second.sample_timestamp_ms > kProjectileGraceMs) {
+            it = recent_projectiles.erase(it);
+            continue;
+        }
+        if (!current && runtime.projectiles.size() < 32)
+            runtime.projectiles.push_back(it->second);
+        ++it;
     }
 
     if (now >= next_telemetry_ms) {
