@@ -24,7 +24,8 @@ struct Config {
     float bomb_window_x = -1.f;
     float bomb_window_y = 338.f;
     bool smoke_flash = false, scope_check = false, sound_esp = false, footstep_esp = false;
-    bool player_flags = false, weapon_ammo = false, dropped_weapons = false, projectile_timers = false, grenade_trail = false;
+    bool player_flags = false, flag_blind = true, flag_scoped = true, flag_defusing = true, flag_kit = true, flag_money = true;
+    bool weapon_ammo = false, dropped_weapons = false, projectile_timers = false, grenade_trail = false;
     bool radar_2d = false;
     bool webradar_enabled = false;
     int webradar_port = 8080;
@@ -55,6 +56,7 @@ struct Config {
     float col_head[4] = {.95f,.85f,.35f,1.f}, col_distance[4] = {.85f,.85f,.9f,1.f};
     float col_visible[4] = {.27f,.9f,.37f,1.f}, col_occluded[4] = {.9f,.25f,.25f,1.f};
     float col_box_fill[4] = {.9f,.25f,.25f,.16f}, col_text_outline[4] = {0.f,0.f,0.f,1.f};
+    float col_flags[4] = {.95f,.85f,.35f,1.f};
 
 
     bool aim_enabled = false;

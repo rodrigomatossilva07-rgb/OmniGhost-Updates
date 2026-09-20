@@ -17,6 +17,16 @@ void DrawCs2Misc()
     ToggleSwitch(Loc::Tr("cs2.misc.bomb_timer"), &CS2::config.bomb_timer);
     ToggleSwitch(Loc::Tr("cs2.misc.hit_marker"), &CS2::config.hit_marker);
     ToggleSwitch("Rasto de granadas", &CS2::config.grenade_trail);
+    Separator();
+    TextLine("PLAYER FLAGS", TextTone::Primary);
+    ToggleSwitch("Indicadores de jogadores", &CS2::config.player_flags);
+    ImGui::BeginDisabled(!CS2::config.player_flags);
+    ToggleSwitch("Blind", &CS2::config.flag_blind);
+    ToggleSwitch("Scoped", &CS2::config.flag_scoped);
+    ToggleSwitch("Defusing", &CS2::config.flag_defusing);
+    ToggleSwitch("Kit", &CS2::config.flag_kit);
+    ToggleSwitch("Dinheiro", &CS2::config.flag_money);
+    ImGui::EndDisabled();
     if (CS2::config.bomb_timer) {
         TextLine("Com o menu aberto, arrasta as janelas de bomba e espectadores para guardar a posicao.", TextTone::Secondary);
     }

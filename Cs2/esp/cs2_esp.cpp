@@ -194,6 +194,28 @@ void DrawExtras(ImDrawList* draw, const CS2::Player& player, const ImVec2& head,
     }
 }
 
+void DrawPlayerFlags(ImDrawList* draw, const CS2::Player& player, const ImVec2& min,
+                     const CS2::Config& settings, ImU32 rgb) {
+    if (!settings.player_flags) return;
+    const ImU32 color = EffectColor(settings, settings.col_flags, rgb);
+    float y = min.y;
+    const float x = min.x - 8.f;
+    const auto add = [&](const char* label) {
+        const ImVec2 size = ImGui::CalcTextSize(label);
+        DrawOutlinedText(draw, ImVec2(x - size.x, y), color, label, settings);
+        y += size.y + 1.f;
+    };
+    if (settings.flag_blind && player.is_flashed) add("BLIND");
+    if (settings.flag_scoped && player.is_scoped) add("SCOPED");
+    if (settings.flag_defusing && player.is_defusing) add("DEFUSING");
+    if (settings.flag_kit && player.has_defuser) add("KIT");
+    if (settings.flag_money && player.money >= 0) {
+        char money[24]{};
+        std::snprintf(money, sizeof(money), "$%d", player.money);
+        add(money);
+    }
+}
+
 } // namespace
 
 namespace CS2::ESP {
@@ -295,6 +317,7 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
         if (settings.health_value) { char hp[16]{}; std::snprintf(hp, sizeof(hp), "%d", player.health); DrawOutlinedText(draw, ImVec2(min.x - 25.f, min.y), Color(settings.col_health), hp, settings); }
         if (settings.armor_value && player.armor > 0) { char ap[16]{}; std::snprintf(ap, sizeof(ap), "%d", player.armor); DrawOutlinedText(draw, ImVec2(max.x + 8.f, min.y), Color(settings.col_armor), ap, settings); }
         DrawExtras(draw, player, head, feet, min, max, settings, rgbColor);
+        DrawPlayerFlags(draw, player, min, settings, rgbColor);
     }
 }
 

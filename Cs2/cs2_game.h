@@ -73,8 +73,9 @@ struct Offsets {
     uintptr_t m_iItemDefinitionIndex = 0x1BA;
     uintptr_t m_iClip1 = 0x18D0;            // C_BasePlayerWeapon (schema may override)
     uintptr_t m_pReserveAmmo = 0x18D8;      // optional
-    uintptr_t m_iAccount = 0x8F0;           // CCSPlayerController
-    uintptr_t m_bIsDefusing = 0x1C9A;       // C_CSPlayerPawn optional
+    uintptr_t m_pInGameMoneyServices = 0x810; // CCSPlayerController
+    uintptr_t m_iAccount = 0x40;             // CCSPlayerController_InGameMoneyServices
+    uintptr_t m_bIsDefusing = 0x1C7A;        // C_CSPlayerPawn
     bool loaded = false;
 
     bool Validate(std::string* reason = nullptr) const noexcept;

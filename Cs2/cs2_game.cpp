@@ -405,10 +405,15 @@ void LoadSchemaOffsets(const std::string& schema) {
     JsonClassU64(schema, "CBasePlayerController", "m_steamID", offsets.m_steamID);
     JsonClassU64(schema, "CCSPlayerController", "m_sSanitizedPlayerName", offsets.m_sSanitizedPlayerName);
     JsonClassU64(schema, "CCSPlayerController", "m_bPawnIsAlive", offsets.m_bPawnIsAlive);
+    JsonClassU64(schema, "CCSPlayerController", "m_pInGameMoneyServices", offsets.m_pInGameMoneyServices);
+    JsonClassU64(schema, "CCSPlayerController_InGameMoneyServices", "m_iAccount", offsets.m_iAccount);
     JsonClassU64(schema, "C_CSPlayerPawn", "m_ArmorValue", offsets.m_ArmorValue);
     JsonClassU64(schema, "C_CSPlayerPawn", "m_angEyeAngles", offsets.m_angEyeAngles);
     JsonClassU64(schema, "C_CSPlayerPawn", "m_iIDEntIndex", offsets.m_iIDEntIndex);
     JsonClassU64(schema, "C_CSPlayerPawn", "m_iShotsFired", offsets.m_iShotsFired);
+    JsonClassU64(schema, "C_CSPlayerPawn", "m_bIsDefusing", offsets.m_bIsDefusing);
+    JsonClassU64(schema, "C_CSPlayerPawn", "m_bIsScoped", offsets.m_bIsScoped);
+    JsonClassU64(schema, "C_CSPlayerPawn", "m_flFlashDuration", offsets.m_flFlashDuration);
     JsonClassU64(schema, "C_CSPlayerPawn", "m_aimPunchAngle", offsets.m_aimPunchAngle);
     JsonClassU64(schema, "CGameSceneNode", "m_vecAbsOrigin", offsets.m_vecAbsOrigin);
     JsonClassU64(schema, "CGameSceneNode", "m_vecVelocity", offsets.m_vecVelocity);
@@ -2541,7 +2546,10 @@ static void RunFrameWithConfig(const Config& frame_config) {
     // 20-slot pose is acquired only for the rendered skeleton or body trigger.
     const bool need_full_bones = requested.skeleton ||
         (frame_config.trigger_enabled && !frame_config.trigger_head_only);
-    const bool need_scoped = frame_config.trigger_scoped_only;
+    const bool flagsEnabled = frame_config.player_flags;
+    const bool need_scoped = frame_config.trigger_scoped_only ||
+        (flagsEnabled && frame_config.flag_scoped);
+    const bool need_flash = flagsEnabled && frame_config.flag_blind;
 
     const uint64_t scan_now_ms = GetTickCount64();
     PawnCoreFields core[kMaxSlots]{};
@@ -2551,7 +2559,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
     mem.SetDmaCallTag("CS2.PawnCore");
     const auto _posBegin = std::chrono::steady_clock::now();
     ScatterReadPawnCore(resolved_pawns, core, candidate_count, false,
-                        need_scoped, false, need_yaw, false,
+                        need_scoped, need_flash, need_yaw, false,
                         need_spotted);
     g_phase.positions_ms = OmniGhost::Gameplay::TimeMs(_posBegin);
     NotePossibleDeviceStall(g_phase.positions_ms);
@@ -2942,6 +2950,8 @@ if (need_bones) {
         // These per-player fields arrive in the core scatter above.
         if (need_scoped)
             p.is_scoped = cf.scoped != 0;
+        if (need_flash)
+            p.is_flashed = std::isfinite(cf.flash) && cf.flash > 0.05f;
         if (p.is_local)
             p.is_scoped = runtime.local_scoped;
             {
@@ -3325,14 +3335,19 @@ if (need_bones) {
             }
         }
 
-        // Player flags / sound: controller money, item services, shots fired.
+        // Player flags / sound: only request fields whose individual marker is on.
         if ((frame_config.player_flags || frame_config.sound_esp) && IsUserPointer(p.controller)) {
-            if (frame_config.player_flags && offsets.m_iAccount) {
+            if (frame_config.player_flags && frame_config.flag_money &&
+                offsets.m_pInGameMoneyServices && offsets.m_iAccount) {
+                uintptr_t money_svc = 0;
                 int money = -1;
-                if (QReadT(p.controller + offsets.m_iAccount, money, "CS2.Money") && money >= 0 && money < 100000)
+                if (QReadT(p.controller + offsets.m_pInGameMoneyServices, money_svc, "CS2.MoneySvc") &&
+                    IsUserPointer(money_svc) &&
+                    QReadT(money_svc + offsets.m_iAccount, money, "CS2.Money") &&
+                    money >= 0 && money < 100000)
                     p.money = money;
             }
-            if (frame_config.player_flags && offsets.m_pItemServices && offsets.m_bHasDefuser && IsUserPointer(p.pawn)) {
+            if (frame_config.player_flags && frame_config.flag_kit && offsets.m_pItemServices && offsets.m_bHasDefuser && IsUserPointer(p.pawn)) {
                 uintptr_t item_svc = 0;
                 if (QReadT(p.pawn + offsets.m_pItemServices, item_svc, "CS2.ItemSvc") && IsUserPointer(item_svc)) {
                     uint8_t kit = 0;
@@ -3340,7 +3355,7 @@ if (need_bones) {
                         p.has_defuser = kit != 0;
                 }
             }
-            if (offsets.m_bIsDefusing && IsUserPointer(p.pawn)) {
+            if (frame_config.player_flags && frame_config.flag_defusing && offsets.m_bIsDefusing && IsUserPointer(p.pawn)) {
                 uint8_t defu = 0;
                 if (QReadT(p.pawn + offsets.m_bIsDefusing, defu, "CS2.IsDefusing"))
                     p.is_defusing = defu != 0;
