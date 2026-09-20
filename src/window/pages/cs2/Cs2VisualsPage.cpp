@@ -1,4 +1,5 @@
 #include "../../widgets.h"
+#include "../../theme.h"
 #include "config/cs2_config.h"
 #include "imgui.h"
 
