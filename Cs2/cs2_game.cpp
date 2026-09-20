@@ -18,6 +18,7 @@
 #include <sstream>
 #include <iostream>
 #include <filesystem>
+#include <future>
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -2314,11 +2315,6 @@ static void RunFrameWithConfig(const Config& frame_config) {
     // during load and would leave LMB stuck ("mira sozinho").
     if (std::strncmp(previous_map, runtime.map_name, sizeof(previous_map)) != 0) {
         std::memcpy(previous_map, runtime.map_name, sizeof(previous_map));
-        if (runtime.map_name[0]) {
-            auto& collision = Trajectory::CollisionCache();
-            if (!collision.LoadForMap(runtime.map_name))
-                std::cout << "[CS2] Colisão do mapa indisponível: " << collision.Error() << std::endl;
-        }
         g_pending_entity_list = 0;
         g_entity_list_confirmations = 0;
         runtime.entity_list_entry = 0;
@@ -2336,6 +2332,23 @@ static void RunFrameWithConfig(const Config& frame_config) {
         if (runtime.map_name[0])
             std::cout << "[CS2] Mapa: " << runtime.map_name
                       << " (ESP auto-recover, config intact)" << std::endl;
+    }
+
+    // Map collision is needed only by grenade trajectory. Build its BVH off
+    // the acquisition thread, so enabling the visual or changing map never
+    // holds up camera/player snapshots.
+    static std::future<void> collision_load;
+    if (collision_load.valid() && collision_load.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) {
+        try { collision_load.get(); }
+        catch (...) { std::cout << "[CS2] Falha ao preparar colisão do mapa." << std::endl; }
+    }
+    auto& collision = Trajectory::CollisionCache();
+    if (frame_config.grenade_trail && runtime.map_name[0] && !collision.IsLoadedFor(runtime.map_name) && !collision_load.valid()) {
+        const std::string requested_map = runtime.map_name;
+        collision_load = std::async(std::launch::async, [requested_map] {
+            try { (void)Trajectory::CollisionCache().LoadForMap(requested_map.c_str()); }
+            catch (...) { }
+        });
     }
 
     const bool map_reports_match = IsPlayableMapName(runtime.map_name);

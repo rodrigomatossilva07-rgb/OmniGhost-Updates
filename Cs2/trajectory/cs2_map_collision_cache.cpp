@@ -19,7 +19,15 @@ bool MapCollisionCache::LoadForMap(const char* mapName) {
     auto built = std::make_shared<CollisionBvh>();
     if(!built->Build(loaded)){std::unique_lock write_lock(mutex);error="Não foi possível construir BVH";return false;}
     std::unique_lock write_lock(mutex);
-    map=next; error.clear(); mesh=std::move(loaded); world=std::move(built); return true;
+    // CollisionBvh owns its compact copy of the triangles. Do not retain a
+    // second complete mesh after construction; large maps otherwise cost
+    // hundreds of MiB while the trajectory feature is enabled.
+    map=next; error.clear(); world=std::move(built); return true;
+}
+bool MapCollisionCache::IsLoadedFor(const char* mapName) const {
+    const std::string next = Normalize(mapName);
+    std::shared_lock lock(mutex);
+    return !next.empty() && next == map && world && world->Ready();
 }
 std::shared_ptr<const CollisionBvh> MapCollisionCache::WorldSnapshot() const { std::shared_lock lock(mutex); return world; }
 MapCollisionCache& CollisionCache(){static MapCollisionCache cache;return cache;}
