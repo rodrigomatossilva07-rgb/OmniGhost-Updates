@@ -7,7 +7,7 @@ bool MapCollisionCache::LoadForMap(const char* mapName) {
     const std::string next=Normalize(mapName); if(next.empty()){error="Mapa atual indisponível";return false;}
     if(next==map && world.Ready()) return true;
     map=next; error.clear(); world={}; mesh={};
-    const auto path=OmniGhost::Paths::InstallDirectory()/L"data"/L"cs2-collision"/(std::filesystem::path(map).wstring()+L".tri");
+    const auto path=OmniGhost::Paths::InstallDirectory()/L"Cs2"/L"collision"/(std::filesystem::path(map).wstring()+L".tri");
     if(!LoadTriFile(path,mesh)){error=mesh.error;return false;}
     if(!world.Build(mesh)){error="Não foi possível construir BVH";return false;} return true;
 }
