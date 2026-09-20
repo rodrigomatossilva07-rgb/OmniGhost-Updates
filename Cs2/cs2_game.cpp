@@ -2503,9 +2503,16 @@ static void RunFrameWithConfig(const Config& frame_config) {
     requested.box = frame_config.esp_enabled && frame_config.box;
     requested.corner_box = frame_config.esp_enabled && frame_config.box_corner;
     requested.skeleton = frame_config.esp_enabled && frame_config.skeleton;
+    requested.head = frame_config.esp_enabled && (frame_config.head_dot || frame_config.head_halo ||
+        frame_config.chinese_hat || frame_config.angel_wings || frame_config.devil_horns || frame_config.floating_crown);
     requested.health = frame_config.esp_enabled && frame_config.health_bar;
     requested.armor = frame_config.esp_enabled && frame_config.armor_bar;
     requested.visibility = frame_config.esp_enabled && frame_config.visibility_colors && frame_config.visible_check;
+    requested.weapon = frame_config.esp_enabled && frame_config.weapon_name;
+    requested.snapline = frame_config.esp_enabled && frame_config.snaplines;
+    requested.trail = frame_config.esp_enabled && frame_config.trails;
+    requested.halo = frame_config.esp_enabled && frame_config.head_halo;
+    requested.look_direction = frame_config.esp_enabled && frame_config.look_direction;
     requested.aim = frame_config.aim_enabled || frame_config.trigger_enabled;
     // Velocity is derived from the already-batched origin snapshots. Keep it
     // available to presentation while ESP is active so rendering can bridge

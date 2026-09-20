@@ -95,6 +95,35 @@ void DrawPreview(float width, float height) {
         drawBar(min.x - 7.f, .72f, ConfigColor(CS2::config.col_health));
     if (CS2::config.esp_enabled && CS2::config.armor_bar)
         drawBar(max.x + 3.f, .48f, ConfigColor(CS2::config.col_armor));
+    if (CS2::config.esp_enabled && CS2::config.snaplines)
+        draw->AddLine(ImVec2(origin.x + width * .5f, end.y), ImVec2(center.x, max.y), ConfigColor(CS2::config.col_snaplines), 1.5f);
+    if (CS2::config.esp_enabled && CS2::config.head_dot)
+        draw->AddCircle(ImVec2(center.x, min.y + 13.f), 10.f, ConfigColor(CS2::config.col_head), 18, CS2::config.head_circle_thickness);
+    if (CS2::config.esp_enabled && CS2::config.head_halo)
+        draw->AddCircle(ImVec2(center.x, min.y - 2.f), 12.f, ConfigColor(CS2::config.col_halo), 18, 1.7f);
+    if (CS2::config.esp_enabled && CS2::config.chinese_hat) {
+        const ImVec2 a(center.x, min.y - 32.f), b(center.x - 28.f, min.y - 4.f), c(center.x + 28.f, min.y - 4.f);
+        draw->AddTriangle(a, b, c, ConfigColor(CS2::config.col_fun_effects), 1.8f);
+    }
+    if (CS2::config.esp_enabled && CS2::config.angel_wings) {
+        const ImU32 c = ConfigColor(CS2::config.col_fun_effects);
+        draw->AddBezierCubic(ImVec2(center.x - 8.f, min.y + 42.f), ImVec2(center.x - 56.f, min.y + 15.f), ImVec2(center.x - 55.f, min.y + 115.f), ImVec2(center.x - 20.f, min.y + 128.f), c, 1.8f);
+        draw->AddBezierCubic(ImVec2(center.x + 8.f, min.y + 42.f), ImVec2(center.x + 56.f, min.y + 15.f), ImVec2(center.x + 55.f, min.y + 115.f), ImVec2(center.x + 20.f, min.y + 128.f), c, 1.8f);
+    }
+    if (CS2::config.esp_enabled && CS2::config.devil_horns) {
+        const ImU32 c = ConfigColor(CS2::config.col_fun_effects);
+        draw->AddLine(ImVec2(center.x - 5.f, min.y + 4.f), ImVec2(center.x - 23.f, min.y - 24.f), c, 2.f);
+        draw->AddLine(ImVec2(center.x + 5.f, min.y + 4.f), ImVec2(center.x + 23.f, min.y - 24.f), c, 2.f);
+    }
+    if (CS2::config.esp_enabled && CS2::config.floating_crown) {
+        const ImU32 c = ConfigColor(CS2::config.col_fun_effects);
+        const ImVec2 crown[] = {{center.x-20.f,min.y-32.f},{center.x-10.f,min.y-46.f},{center.x,min.y-36.f},{center.x+10.f,min.y-46.f},{center.x+20.f,min.y-32.f}};
+        draw->AddPolyline(crown, 5, c, false, 1.8f); draw->AddLine(crown[0], crown[4], c, 1.8f);
+    }
+    if (CS2::config.esp_enabled && CS2::config.look_direction)
+        draw->AddLine(ImVec2(center.x, min.y + 13.f), ImVec2(center.x + 46.f, min.y + 13.f), ConfigColor(CS2::config.col_look), CS2::config.eye_line_thickness);
+    if (CS2::config.esp_enabled && CS2::config.weapon_name)
+        draw->AddText(ImVec2(center.x - 24.f, max.y + 5.f), ConfigColor(CS2::config.col_weapon), "AK-47");
     if (CS2::config.esp_enabled && CS2::config.skeleton) {
         const ImU32 skeletonColor = ConfigColor(CS2::config.col_skeleton);
         const ImU32 jointColor = ConfigColor(CS2::config.col_joints);
@@ -146,16 +175,19 @@ void DrawCs2Visuals() {
     CyberWidgets::Separator();
     CyberWidgets::SectionTitle("ELEMENTOS");
     CyberWidgets::ToggleSwitch("Esqueleto", &CS2::config.skeleton); CyberWidgets::ToggleSwitch("Articulações", &CS2::config.skeleton_joints);
-    PreviewToggle("Círculo na cabeça", &previewSettings.headCircle); CyberWidgets::ToggleSwitch("Barra de vida", &CS2::config.health_bar);
-    CyberWidgets::ToggleSwitch("Barra de armadura", &CS2::config.armor_bar); PreviewToggle("Nome da arma", &previewSettings.weapon);
+    CyberWidgets::ToggleSwitch("Círculo na cabeça", &CS2::config.head_dot); CyberWidgets::ToggleSwitch("Barra de vida", &CS2::config.health_bar);
+    CyberWidgets::ToggleSwitch("Barra de armadura", &CS2::config.armor_bar); CyberWidgets::ToggleSwitch("Nome da arma", &CS2::config.weapon_name);
     PreviewToggle("Distância", &previewSettings.distance); CyberWidgets::ToggleSwitch("Caixa 2D", &CS2::config.box);
-    CyberWidgets::ToggleSwitch("Caixa de cantos", &CS2::config.box_corner); PreviewToggle("Linhas guia", &previewSettings.snaplines);
-    PreviewToggle("Halo na cabeça", &previewSettings.halo); PreviewToggle("Chapéu chinês", &previewSettings.hat);
-    PreviewToggle("Asas de anjo", &previewSettings.wings); PreviewToggle("Chifres de demónio", &previewSettings.horns);
-    PreviewToggle("Coroa flutuante", &previewSettings.crown); PreviewToggle("Marcador de acerto", &previewSettings.hitMarker);
-    PreviewToggle("Rastros", &previewSettings.trails); PreviewToggle("Eye Line", &previewSettings.eyeLine);
+    CyberWidgets::ToggleSwitch("Caixa de cantos", &CS2::config.box_corner); CyberWidgets::ToggleSwitch("Linhas guia", &CS2::config.snaplines);
+    CyberWidgets::ToggleSwitch("Halo na cabeça", &CS2::config.head_halo); CyberWidgets::ToggleSwitch("Chapéu chinês", &CS2::config.chinese_hat);
+    CyberWidgets::ToggleSwitch("Asas de anjo", &CS2::config.angel_wings); CyberWidgets::ToggleSwitch("Chifres de demónio", &CS2::config.devil_horns);
+    CyberWidgets::ToggleSwitch("Coroa flutuante", &CS2::config.floating_crown); CyberWidgets::ToggleSwitch("Rastros", &CS2::config.trails);
+    CyberWidgets::ToggleSwitch("Eye Line", &CS2::config.look_direction);
     CyberWidgets::SectionTitle("ESPESSURA");
     CyberWidgets::SliderFloat("Caixa", &CS2::config.box_thickness, .5f, 4.f, "%.1f");
+    CyberWidgets::SliderFloat("Círculo cabeça", &CS2::config.head_circle_thickness, .5f, 4.f, "%.1f");
+    CyberWidgets::SliderFloat("Linhas guia", &CS2::config.snapline_thickness, .5f, 4.f, "%.1f");
+    CyberWidgets::SliderFloat("Eye Line", &CS2::config.eye_line_thickness, .5f, 4.f, "%.1f");
     CyberWidgets::SliderFloat("Distância máxima", &CS2::config.max_distance, 20.f, 500.f, "%.0f m");
     ImGui::EndDisabled();
     CyberWidgets::EndCard();
@@ -183,13 +215,28 @@ void DrawCs2Visuals() {
     ImGui::BeginDisabled(!CS2::config.skeleton || !CS2::config.skeleton_joints);
     ImGui::ColorEdit4("Articulações", CS2::config.col_joints, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     ImGui::EndDisabled();
-    ImGui::BeginDisabled(!previewSettings.headCircle);
+    ImGui::BeginDisabled(!CS2::config.head_dot);
     ImGui::ColorEdit4("Círculo na cabeça", CS2::config.col_head, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     ImGui::EndDisabled();
     ImGui::ColorEdit4("Caixa 2D", CS2::config.col_box, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     ImGui::ColorEdit4("Caixa de cantos", CS2::config.col_box_corner, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
-    ImGui::BeginDisabled(!previewSettings.snaplines);
+    ImGui::BeginDisabled(!CS2::config.snaplines);
     ImGui::ColorEdit4("Linhas guia", CS2::config.col_snaplines, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
+    ImGui::EndDisabled();
+    ImGui::BeginDisabled(!CS2::config.weapon_name);
+    ImGui::ColorEdit4("Arma", CS2::config.col_weapon, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
+    ImGui::EndDisabled();
+    ImGui::BeginDisabled(!CS2::config.head_halo);
+    ImGui::ColorEdit4("Halo", CS2::config.col_halo, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
+    ImGui::EndDisabled();
+    ImGui::BeginDisabled(!CS2::config.trails);
+    ImGui::ColorEdit4("Rastros", CS2::config.col_trail, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
+    ImGui::EndDisabled();
+    ImGui::BeginDisabled(!CS2::config.look_direction);
+    ImGui::ColorEdit4("Eye Line", CS2::config.col_look, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
+    ImGui::EndDisabled();
+    ImGui::BeginDisabled(!CS2::config.chinese_hat && !CS2::config.angel_wings && !CS2::config.devil_horns && !CS2::config.floating_crown);
+    ImGui::ColorEdit4("Efeitos", CS2::config.col_fun_effects, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     ImGui::EndDisabled();
     CyberWidgets::Separator();
     CyberWidgets::SectionTitle("INFORMAÇÃO");

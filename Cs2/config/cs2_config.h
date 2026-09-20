@@ -8,7 +8,7 @@ struct Config {
     bool esp_enabled = false, self_esp = false, visibility_colors = true, visible_check = false;
     bool box = true, box_corner = false, skeleton = true, skeleton_joints = false;
     bool health_bar = true, armor_bar = false, name = true, distance = true, team_check = true, show_bots = true;
-    bool head_dot = false, trails = false, rgb_mode = false, head_halo = false, look_direction = false;
+    bool head_dot = false, weapon_name = false, trails = false, rgb_mode = false, head_halo = false, look_direction = false;
     bool chinese_hat = false, angel_wings = false, devil_horns = false, floating_crown = false;
     bool fun_effects_rainbow = true, hit_marker = false, rainbow_trails = true, snaplines = false;
     float chinese_hat_scale = 1.f, fun_effects_scale = 1.f, trail_duration = .8f, trail_thickness = 2.f;

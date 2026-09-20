@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <unordered_map>
 #include <utility>
 
 namespace {
@@ -102,6 +103,84 @@ void DrawSkeleton(ImDrawList* draw, const CS2::Player& player, const float viewM
     }
 }
 
+ImU32 EffectColor(const CS2::Config& settings, const float color[4], ImU32 rgb) {
+    return settings.rgb_mode ? rgb : Color(color);
+}
+
+void DrawExtras(ImDrawList* draw, const CS2::Player& player, const ImVec2& head, const ImVec2& feet,
+                const ImVec2& min, const ImVec2& max, const CS2::Config& settings, ImU32 rgb) {
+    const float height = max.y - min.y;
+    const float scale = std::clamp(height / 180.f, .45f, 2.2f);
+    if (settings.snaplines)
+        draw->AddLine(ImVec2(ImGui::GetIO().DisplaySize.x * .5f, ImGui::GetIO().DisplaySize.y), feet,
+                      EffectColor(settings, settings.col_snaplines, rgb), std::clamp(settings.snapline_thickness, .5f, 5.f));
+    if (settings.head_dot)
+        draw->AddCircle(head, 10.f * scale, EffectColor(settings, settings.col_head, rgb), 20,
+                        std::clamp(settings.head_circle_thickness, .5f, 5.f));
+    if (settings.weapon_name && player.weapon[0]) {
+        const ImVec2 text = ImGui::CalcTextSize(player.weapon);
+        draw->AddText(ImVec2((min.x + max.x - text.x) * .5f, max.y + 4.f), EffectColor(settings, settings.col_weapon, rgb), player.weapon);
+    }
+    if (settings.head_halo) {
+        ImVec2 halo[17]{};
+        for (int index = 0; index <= 16; ++index) {
+            const float angle = index * 6.28318530718f / 16.f;
+            halo[index] = ImVec2(head.x + std::cos(angle) * 17.f * scale,
+                head.y - 13.f * scale + std::sin(angle) * 5.f * scale);
+        }
+        draw->AddPolyline(halo, 17, EffectColor(settings, settings.col_halo, rgb), true, 2.f);
+    }
+    const ImU32 fx = EffectColor(settings, settings.col_fun_effects, rgb);
+    if (settings.chinese_hat) {
+        const float s = std::clamp(settings.chinese_hat_scale, .4f, 2.5f) * scale;
+        const ImVec2 a(head.x, head.y - 38.f * s), b(head.x - 28.f * s, head.y - 9.f * s), c(head.x + 28.f * s, head.y - 9.f * s);
+        draw->AddTriangle(a, b, c, fx, 1.8f); draw->AddLine(b, c, fx, 1.8f);
+    }
+    if (settings.angel_wings) {
+        const float s = std::clamp(settings.fun_effects_scale, .5f, 2.5f) * scale;
+        for (int side : {-1, 1}) {
+            const float x = head.x + side * 10.f * s;
+            draw->AddBezierCubic(ImVec2(x, head.y + 12.f * s), ImVec2(x + side * 35.f * s, head.y - 8.f * s),
+                ImVec2(x + side * 42.f * s, head.y + 42.f * s), ImVec2(x + side * 20.f * s, head.y + 60.f * s), fx, 1.8f);
+        }
+    }
+    if (settings.devil_horns) {
+        for (int side : {-1, 1}) {
+            const float s = scale;
+            draw->AddBezierCubic(ImVec2(head.x + side * 6.f * s, head.y - 6.f * s), ImVec2(head.x + side * 27.f * s, head.y - 28.f * s),
+                ImVec2(head.x + side * 24.f * s, head.y - 41.f * s), ImVec2(head.x + side * 12.f * s, head.y - 33.f * s), fx, 2.f);
+        }
+    }
+    if (settings.floating_crown) {
+        const float y = head.y - (35.f + std::sin(static_cast<float>(ImGui::GetTime()) * 2.f) * 3.f) * scale;
+        const float s = scale;
+        const ImVec2 points[] = {{head.x - 22.f*s,y}, {head.x - 12.f*s,y - 13.f*s}, {head.x,y - 3.f*s},
+            {head.x + 12.f*s,y - 13.f*s}, {head.x + 22.f*s,y}, {head.x + 18.f*s,y + 7.f*s}, {head.x - 18.f*s,y + 7.f*s}};
+        draw->AddPolyline(points, 7, fx, true, 1.8f);
+    }
+    if (settings.look_direction) {
+        const float angle = player.view_yaw * 0.0174532925f;
+        const float length = std::clamp(settings.look_direction_length, 20.f, 180.f) * scale;
+        const ImVec2 end(head.x + std::cos(angle) * length, head.y + std::sin(angle) * length);
+        draw->AddLine(head, end, EffectColor(settings, settings.col_look, rgb), std::clamp(settings.eye_line_thickness, .5f, 5.f));
+    }
+    if (settings.trails) {
+        struct Point { ImVec2 pos; double time; };
+        static std::unordered_map<uintptr_t, std::vector<Point>> history;
+        auto& points = history[player.pawn];
+        const double now = ImGui::GetTime();
+        if (points.empty() || now - points.back().time > .04) points.push_back({feet, now});
+        const double duration = std::clamp(static_cast<double>(settings.trail_duration), .2, 2.5);
+        while (!points.empty() && now - points.front().time > duration) points.erase(points.begin());
+        for (size_t i = 1; i < points.size(); ++i) {
+            const float fade = static_cast<float>(1.0 - (now - points[i].time) / duration);
+            ImU32 color = EffectColor(settings, settings.col_trail, rgb);
+            color = (color & 0x00FFFFFFu) | (static_cast<ImU32>(std::clamp(fade, 0.f, 1.f) * 220.f) << 24);
+            draw->AddLine(points[i - 1].pos, points[i].pos, color, std::clamp(settings.trail_thickness, 1.f, 7.f));
+        }
+    }
+}
+
 } // namespace
 
 namespace CS2::ESP {
@@ -184,6 +263,7 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
             DrawSkeleton(draw, player, viewMatrix, positionOffset, skeletonColor, Color(settings.col_joints),
                          std::clamp(settings.skeleton_thickness, .5f, 4.f), settings.skeleton_joints);
         }
+        DrawExtras(draw, player, head, feet, min, max, settings, rgbColor);
     }
 }
 
