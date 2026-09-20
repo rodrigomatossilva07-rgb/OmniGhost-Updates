@@ -1521,9 +1521,6 @@ static void CollectProjectiles(const Config& frame_config) {
     runtime.projectiles.clear();
     runtime.projectiles.reserve(16);
     for (size_t i = 0; i < kSlots && runtime.projectiles.size() < 32; ++i) {
-        const float speed = std::sqrt(velocities[i][0] * velocities[i][0] +
-                                      velocities[i][1] * velocities[i][1] +
-                                      velocities[i][2] * velocities[i][2]);
         // A number of valid Source 2 projectile classes expose velocity from a
         // different component. Classification + a sane world position are
         // sufficient for ESP; rejecting a zero/invalid velocity hid them all.
