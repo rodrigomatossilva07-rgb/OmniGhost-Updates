@@ -1,0 +1,5 @@
+#include "cs2_grenade_simulator.h"
+#include <cmath>
+namespace CS2::Trajectory { namespace { Vec3 Add(Vec3 a,Vec3 b){return{a.x+b.x,a.y+b.y,a.z+b.z};} Vec3 Mul(Vec3 a,float s){return{a.x*s,a.y*s,a.z*s};} float Dot(Vec3 a,Vec3 b){return a.x*b.x+a.y*b.y+a.z*b.z;} }
+TrajectoryResult SimulateGrenade(const CollisionBvh& world,Vec3 pos,Vec3 vel,float detonate,float gravity){TrajectoryResult out{}; constexpr float dt=1.f/64.f; out.points.push_back(pos); for(int step=0;step<1024&&out.elapsed<detonate;++step){vel.z-=gravity*dt;Vec3 next=Add(pos,Mul(vel,dt));auto hit=world.TraceRay(pos,next);if(hit.hit){pos=hit.position;float along=Dot(vel,hit.normal);vel=Add(vel,Mul(hit.normal,-1.45f*along));vel=Mul(vel,0.72f);out.hit=true;out.impact=pos;if(std::sqrt(Dot(vel,vel))<30.f)break;}else pos=next;out.elapsed+=dt;if(step%2==0)out.points.push_back(pos);}if(!out.hit)out.impact=pos;return out;}
+}
