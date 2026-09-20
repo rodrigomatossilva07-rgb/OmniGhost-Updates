@@ -378,14 +378,14 @@ void DrawProjectilePath(ImDrawList* draw, const CS2::Projectile& projectile,
                         const float* view_matrix, ImU32 color) {
     static std::unordered_map<uintptr_t, CachedProjectilePath> paths;
     auto world = CS2::Trajectory::CollisionCache().WorldSnapshot();
-    if (!world || !world->Ready()) return;
     auto& cached = paths[projectile.entity];
     if (cached.sample_timestamp_ms != projectile.sample_timestamp_ms) {
         cached.sample_timestamp_ms = projectile.sample_timestamp_ms;
-        cached.result = CS2::Trajectory::SimulateGrenade(*world,
-            { projectile.pos[0], projectile.pos[1], projectile.pos[2] },
-            { projectile.velocity[0], projectile.velocity[1], projectile.velocity[2] },
-            ProjectileFlightSeconds(projectile.kind));
+        const CS2::Trajectory::Vec3 origin{ projectile.pos[0], projectile.pos[1], projectile.pos[2] };
+        const CS2::Trajectory::Vec3 velocity{ projectile.velocity[0], projectile.velocity[1], projectile.velocity[2] };
+        cached.result = world && world->Ready()
+            ? CS2::Trajectory::SimulateGrenade(*world, origin, velocity, ProjectileFlightSeconds(projectile.kind))
+            : CS2::Trajectory::SimulateBallistic(origin, velocity, ProjectileFlightSeconds(projectile.kind));
     }
     ImVec2 previous{};
     bool have_previous = false;
