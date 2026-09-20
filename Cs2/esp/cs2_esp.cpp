@@ -391,7 +391,7 @@ void DrawProjectiles(ImDrawList* draw, const CS2::Runtime& snapshot,
         const char* icon = ProjectileIcon(projectile.kind);
         if (!*label || !*icon) continue;
         if (settings.grenade_trail) DrawProjectilePath(draw, projectile, view_matrix, color);
-        if (settings.projectile_timers && projectile.world_effect_active) {
+        if ((settings.projectile_esp || settings.projectile_timers) && projectile.world_effect_active) {
             ImVec2 effect_screen{};
             if (WorldToScreen(projectile.pos, view_matrix, effect_screen)) {
                 char timer[32]{};

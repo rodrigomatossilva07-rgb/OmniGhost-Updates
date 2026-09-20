@@ -1412,6 +1412,9 @@ static ProjectileKind ClassifyProjectile(const char* name) {
 static void CollectProjectiles(const Config& frame_config) {
     const bool needs_projectiles = frame_config.projectile_esp || frame_config.grenade_trail ||
         frame_config.projectile_timers;
+    // World timers belong to Projectile ESP. Keep the persisted timer flag as
+    // a compatibility override for older saved configurations.
+    const bool wants_world_timers = frame_config.projectile_esp || frame_config.projectile_timers;
     if (!frame_config.esp_enabled || !needs_projectiles || !runtime.in_match) {
         runtime.projectiles.clear();
         runtime.projectile_pages = runtime.projectile_entities = runtime.projectile_name_ptrs = 0;
@@ -1511,10 +1514,10 @@ static void CollectProjectiles(const Config& frame_config) {
             if (kinds[i] == ProjectileKind::Molotov && offsets.m_bIsIncGrenade)
                 mem.AddScatterReadRequest(g_scatter_full, entities[i] + offsets.m_bIsIncGrenade,
                     &incendiary[i], sizeof(uint8_t));
-            if (frame_config.projectile_timers && kinds[i] == ProjectileKind::Smoke && offsets.m_bDidSmokeEffect)
+            if (wants_world_timers && kinds[i] == ProjectileKind::Smoke && offsets.m_bDidSmokeEffect)
                 mem.AddScatterReadRequest(g_scatter_full, entities[i] + offsets.m_bDidSmokeEffect,
                     &smoke_active[i], sizeof(uint8_t));
-            if (frame_config.projectile_timers && kinds[i] == ProjectileKind::Molotov && offsets.m_nFireLifetime)
+            if (wants_world_timers && kinds[i] == ProjectileKind::Molotov && offsets.m_nFireLifetime)
                 mem.AddScatterReadRequest(g_scatter_full, entities[i] + offsets.m_nFireLifetime,
                     &fire_lifetime[i], sizeof(float));
         }
@@ -1550,12 +1553,16 @@ static void CollectProjectiles(const Config& frame_config) {
             ? ProjectileKind::Incendiary : kinds[i];
         std::memcpy(projectile.pos, positions[i].data(), sizeof(projectile.pos));
         std::memcpy(projectile.velocity, velocities[i].data(), sizeof(projectile.velocity));
-        if (frame_config.projectile_timers) {
+        if (wants_world_timers) {
             const bool smoke = projectile.kind == ProjectileKind::Smoke && smoke_active[i] != 0;
             const bool fire = std::strstr(names[i].data(), "inferno") != nullptr;
-            if (smoke || fire) {
-                const float duration = smoke ? 18.f :
-                    (std::isfinite(fire_lifetime[i]) && fire_lifetime[i] >= .5f && fire_lifetime[i] <= 30.f ? fire_lifetime[i] : 7.f);
+            const float speed_sq = projectile.velocity[0] * projectile.velocity[0] +
+                projectile.velocity[1] * projectile.velocity[1] + projectile.velocity[2] * projectile.velocity[2];
+            const bool decoy = projectile.kind == ProjectileKind::Decoy && std::isfinite(speed_sq) && speed_sq < 625.f;
+            if (smoke || fire || decoy) {
+                const float duration = smoke ? 18.f : fire
+                    ? (std::isfinite(fire_lifetime[i]) && fire_lifetime[i] >= .5f && fire_lifetime[i] <= 30.f ? fire_lifetime[i] : 7.f)
+                    : 15.f;
                 auto [it, inserted] = active_effect_started_ms.emplace(projectile.entity, now);
                 if (inserted) it->second = now;
                 projectile.world_effect_active = now - it->second < static_cast<uint64_t>(duration * 1000.f);

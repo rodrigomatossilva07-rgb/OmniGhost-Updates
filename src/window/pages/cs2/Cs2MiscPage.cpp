@@ -22,7 +22,8 @@ void DrawCs2Misc()
     ToggleSwitch("Ondas de disparo (Sound ESP)", &CS2::config.sound_esp);
     ToggleSwitch("Pulso de passos (Footstep ESP)", &CS2::config.footstep_esp);
     ToggleSwitch("Granadas em voo (Projectile ESP)", &CS2::config.projectile_esp);
-    ToggleSwitch("Timers de smoke e molotov", &CS2::config.projectile_timers);
+    if (CS2::config.projectile_esp)
+        TextLine("Inclui timers de smoke, molotov e decoy ativos no mundo.", TextTone::Secondary);
     if (CS2::config.projectile_esp) {
         const auto snapshot = CS2::AcquireRuntimeSnapshot();
         if (snapshot) {
