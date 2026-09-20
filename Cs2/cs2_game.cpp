@@ -1524,8 +1524,10 @@ static void CollectProjectiles(const Config& frame_config) {
         const float speed = std::sqrt(velocities[i][0] * velocities[i][0] +
                                       velocities[i][1] * velocities[i][1] +
                                       velocities[i][2] * velocities[i][2]);
-        if (kinds[i] == ProjectileKind::None || !IsFinitePosition(positions[i].data()) ||
-            !std::isfinite(speed) || speed < 12.f)
+        // A number of valid Source 2 projectile classes expose velocity from a
+        // different component. Classification + a sane world position are
+        // sufficient for ESP; rejecting a zero/invalid velocity hid them all.
+        if (kinds[i] == ProjectileKind::None || !IsFinitePosition(positions[i].data()))
             continue;
         Projectile projectile{};
         projectile.entity = entities[i];
@@ -2629,7 +2631,9 @@ static void RunFrameWithConfig(const Config& frame_config) {
         collected = cachedControllerCount;
     } else {
         collected = CollectControllers(runtime.entity_list_entry, g_controller_stride, controllers, kMaxSlots);
-        nextControllerRefreshMs = controllerNowMs + (recoveryPressure >= 1 ? 180u : 75u);
+        // Controller metadata changes only on joins/spawns. A 250 ms normal
+        // cache prevents a broad list scatter from dominating the DMA lane.
+        nextControllerRefreshMs = controllerNowMs + (recoveryPressure >= 1 ? 350u : 250u);
         if (collected > 0) {
             std::memcpy(cachedControllers, controllers, sizeof(controllers));
             cachedControllerCount = collected;
@@ -2997,7 +3001,7 @@ if (need_bones) {
             const int pressure = g_pressure_level.load(std::memory_order_relaxed);
             // Skeletons are the heaviest optional payload. Limit the normal
             // lane too; cached reliable bones are rendered between refreshes.
-            int maxBoneReadsPerScan = frame_config.performance_mode ? 2 : 4;
+            int maxBoneReadsPerScan = frame_config.performance_mode ? 1 : 2;
             if (pressure >= 3) maxBoneReadsPerScan = 0;
             else if (pressure == 2) maxBoneReadsPerScan = 4;
             else if (pressure == 1) maxBoneReadsPerScan = 7;
@@ -3947,8 +3951,8 @@ void EnsureAcquisitionStarted() {
             // 16 ms is already display-rate smooth with interpolation and
             // leaves the transport room for the entity lane.
             // 500 Hz when healthy; back off only under measured DMA pressure.
-            const int camera_period_ms = camera_pressure >= 2 ? 16 :
-                (camera_pressure == 1 ? 6 : CAMERA_INTERVAL_MS);
+            const int camera_period_ms = camera_pressure >= 2 ? 50 :
+                (camera_pressure == 1 ? 33 : 20);
             if (canRead && in_match && camera_now_ms >= next_camera_ms &&
                 !DmaCooldownActive() && !g_acq_busy.load(std::memory_order_acquire)) {
                 next_camera_ms = camera_now_ms + static_cast<uint64_t>(camera_period_ms);
