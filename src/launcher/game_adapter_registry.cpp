@@ -6,8 +6,8 @@
 #include "../platform/offset_auto.h"
 #include "../config/config_manager.h"
 #include "../../Cs2/cs2_game.h"
-#include "../../Cs2/cs2_esp.h"
-#include "../../Cs2/cs2_aim.h"
+#include "../../Cs2/aimbot/cs2_aim.h"
+#include "../../Cs2/esp/cs2_esp.h"
 #include "../../DMALibrary/Memory/Memory.h"
 #include "../../Fivem/aimbot/aim_type.h"
 #include "../../Fivem/game/game.h"
@@ -263,7 +263,7 @@ IGameAdapter* FindGameAdapter(::Launcher::GameId game) noexcept {
                     CS2::EnsureAcquisitionStarted();
                     auto snapshot = CS2::AcquireRuntimeSnapshot();
                     if (snapshot) {
-                        CS2_ESP::Draw(*snapshot, CS2::config);
+                        CS2::ESP::DrawPlayers(*snapshot, CS2::config);
                         CS2_Aim::Run(*snapshot, CS2::config);
                     }
                 }

@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <string>
 #include <vector>
-#include "cs2_config.h"
+#include "config/cs2_config.h"
 #include "gameplay/snapshot_exchange.h"
 
 namespace CS2 {
@@ -71,6 +71,10 @@ struct Offsets {
     uintptr_t m_AttributeManager = 0x1200;
     uintptr_t m_Item = 0x50;
     uintptr_t m_iItemDefinitionIndex = 0x1BA;
+    uintptr_t m_iClip1 = 0x18D0;            // C_BasePlayerWeapon (schema may override)
+    uintptr_t m_pReserveAmmo = 0x18D8;      // optional
+    uintptr_t m_iAccount = 0x8F0;           // CCSPlayerController
+    uintptr_t m_bIsDefusing = 0x1C9A;       // C_CSPlayerPawn optional
     bool loaded = false;
 
     bool Validate(std::string* reason = nullptr) const noexcept;
@@ -122,6 +126,16 @@ struct Player {
     bool spotted = true; // m_bSpotted (EntitySpottedState_t)
     int ent_index = 0;
     uint64_t steam_id = 0;
+    // Extended status (flags / ammo / movement)
+    int ammo_clip = -1;
+    int ammo_reserve = -1;
+    int money = -1;
+    bool has_defuser = false;
+    bool is_defusing = false;
+    bool is_moving = false;
+    float move_speed = 0.f;
+    uint64_t last_shot_ms = 0;
+    int shots_fired = 0;
 };
 
 struct BombState {

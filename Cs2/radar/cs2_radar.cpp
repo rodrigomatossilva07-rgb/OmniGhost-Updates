@@ -1,6 +1,6 @@
 #include "cs2_radar.h"
 #include "cs2_game.h"
-#include "cs2_config.h"
+#include "../config/cs2_config.h"
 #include "../src/platform/runtime_bootstrap.h"
 #include "../src/platform/embedded_resources.h"
 
@@ -118,17 +118,33 @@ std::string ResolveWebRoot() {
         "Cs2/data/webradar",
         "../Cs2/radar_webapp",
         "../../Cs2/radar_webapp",
+        "../../../Cs2/radar_webapp",
     };
-    fs::path bases[] = { fs::path(exe), fs::path(exe).parent_path(), fs::current_path() };
+    std::vector<fs::path> bases;
+    bases.push_back(fs::path(exe));
+    bases.push_back(fs::path(exe).parent_path());
+    bases.push_back(fs::current_path());
+    // Walk up from the EXE looking for a source tree with radar_webapp.
+    {
+        fs::path walk = fs::path(exe);
+        for (int i = 0; i < 8 && !walk.empty(); ++i) {
+            bases.push_back(walk);
+            if (fs::exists(walk / "OmiGhost.vcxproj") || fs::exists(walk / "OmniGhost.sln"))
+                bases.push_back(walk);
+            walk = walk.parent_path();
+        }
+    }
     for (const auto& base : bases) {
         for (const char* rel : candidates) {
             fs::path p = base / rel;
+            std::error_code ec;
             if (LooksLikeWebRoot(p))
-                return fs::absolute(p).string();
+                return fs::absolute(p, ec).string();
         }
     }
-    // Last resort: project-typical absolute relative from workdir
     fs::path fallback = fs::path(exe) / "radar_webapp";
+    std::cout << "[WebRadar] web root not found near EXE; fallback=" << fallback
+              << " (embed cs2/webradar/* or copy radar_webapp next to OmniGhost.exe)\n";
     return fallback.string();
 }
 
@@ -502,6 +518,13 @@ bool Start(int port) {
     g_server_thread = std::thread(ServerLoop);
     std::cout << "[WebRadar] listening on 0.0.0.0:" << port
               << " root=" << g_web_root << "\n";
+    {
+        std::error_code ec;
+        const bool hasIndex = fs::exists(fs::path(g_web_root) / "index.html", ec);
+        if (!hasIndex)
+            std::cout << "[WebRadar] AVISO: index.html em falta em " << g_web_root
+                      << " — UI usa recursos embutidos cs2/webradar/ se existirem.\n";
+    }
     return true;
 }
 

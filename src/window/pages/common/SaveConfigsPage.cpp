@@ -3,7 +3,7 @@
 #include "../../localization.h"
 #include "../../../globals.h"
 #include "config/app_settings.h"
-#include "Cs2/cs2_config.h"
+#include "Cs2/config/cs2_config.h"
 #include "Warzone/warzone_config.h"
 #include "Valorant/valorant_config.h"
 #include "esp/esp.h"
@@ -52,12 +52,6 @@ VisualPreviewState CurrentVisualState() {
     VisualPreviewState value{};
     switch (g_activeGame) {
     case ActiveGame::CS2:
-        value.enabled = CS2::config.esp_enabled;
-        value.box = CS2::config.box || CS2::config.box_corner;
-        value.skeleton = CS2::config.skeleton;
-        value.health = CS2::config.health_bar;
-        value.name = CS2::config.name;
-        value.distance = CS2::config.distance;
         value.radar = CS2::config.radar_2d;
         break;
     case ActiveGame::Warzone:

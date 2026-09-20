@@ -3,55 +3,25 @@
 namespace CS2 {
 
 struct Config {
-    // Safe defaults: everything OFF on first run
-    bool esp_enabled = false;
-    bool self_esp = false;      // draw local player
-    // Spotted-state based visibility (m_entitySpottedState + m_bSpotted)
-    bool visibility_colors = true;
-    bool visible_check = false;
-    bool box = true;
-    bool box_corner = false;
-    bool skeleton = true;
-    bool skeleton_joints = false; // joint dots like reference ESP
-    bool health_bar = true;
-    bool armor_bar = false;
-    bool name = true;
-    bool distance = true;
-    bool team_check = true;
-    bool show_bots = true;
-    bool head_dot = false;
-    bool trails = false;
-    bool rgb_mode = false;
-    bool head_halo = false;
-    bool look_direction = false; // Eye Line
-    bool chinese_hat = false;
-    float chinese_hat_scale = 1.0f;
-    bool angel_wings = false;
-    bool devil_horns = false;
-    bool floating_crown = false;
-    bool fun_effects_rainbow = true;
-    float fun_effects_scale = 1.0f;
-    bool hit_marker = false;
-    bool rainbow_trails = true;
-    float trail_duration = 0.80f;
-    float trail_thickness = 2.0f;
-    float look_direction_length = 90.f;
-    float skeleton_thickness = 1.85f;
-    float snapline_thickness = 1.5f;
-    float head_circle_thickness = 1.5f;
-    float box_thickness = 1.8f;
-    float eye_line_thickness = 1.6f;
-    bool snaplines = false;
+    // Legacy visual preferences are retained for backwards-compatible config files.
+    // They have no renderer or menu in CS2.
+    bool esp_enabled = false, self_esp = false, visibility_colors = true, visible_check = false;
+    bool box = true, box_corner = false, skeleton = true, skeleton_joints = false;
+    bool health_bar = true, armor_bar = false, name = true, distance = true, team_check = true, show_bots = true;
+    bool head_dot = false, trails = false, rgb_mode = false, head_halo = false, look_direction = false;
+    bool chinese_hat = false, angel_wings = false, devil_horns = false, floating_crown = false;
+    bool fun_effects_rainbow = true, hit_marker = false, rainbow_trails = true, snaplines = false;
+    float chinese_hat_scale = 1.f, fun_effects_scale = 1.f, trail_duration = .8f, trail_thickness = 2.f;
+    float look_direction_length = 90.f, skeleton_thickness = 1.85f, snapline_thickness = 1.5f;
+    float head_circle_thickness = 1.5f, box_thickness = 1.8f, eye_line_thickness = 1.6f;
     bool bomb_timer = false;
     bool spectator_list = false;
     float spectator_window_x = -1.f;
     float spectator_window_y = 40.f;
     float bomb_window_x = -1.f;
     float bomb_window_y = 338.f;
-    bool smoke_flash = false;
-    bool scope_check = false;
-    bool sound_esp = false;
-    bool grenade_trail = false;
+    bool smoke_flash = false, scope_check = false, sound_esp = false, footstep_esp = false;
+    bool player_flags = false, weapon_ammo = false, dropped_weapons = false, projectile_timers = false, grenade_trail = false;
     bool radar_2d = false;
     bool webradar_enabled = false;
     int webradar_port = 8080;
@@ -59,45 +29,29 @@ struct Config {
     float radar_2d_x = 18.f;
     float radar_2d_y = 18.f;
     float radar_2d_size = 160.f;
-    bool skeleton_lod = true;
-    float max_distance = 300.f;
-    float skeleton_lod_distance = 70.f; // more aggressive default
-    bool weapon_icons = false;
-    bool offscreen_arrows = false;
-    bool highlight_aim_target = false;
-    bool c4_carrier = false;
-    bool distance_feet = false; // m by default
+    bool skeleton_lod = true, weapon_icons = false, offscreen_arrows = false, highlight_aim_target = false;
+    bool c4_carrier = false, distance_feet = false, bone_draw_arms = true, bone_draw_legs = true;
+    float max_distance = 300.f, skeleton_lod_distance = 70.f;
     bool hotkey_overlay = false;
     bool panic_key_enabled = true;
     int panic_key = 0x23; // END
     bool stream_proof = false;
-    bool bone_draw_arms = true;
-    bool bone_draw_legs = true;
     bool performance_mode = false;
     bool telemetry_enabled = false; // PERF/SPIKE lines -> logs.txt (active features only)
     bool vsync = false;
     bool show_makcu_status = true;
 
-    float col_enemy[4]    = { 0.90f, 0.25f, 0.25f, 1.f };
-    float col_team[4]     = { 0.25f, 0.75f, 0.95f, 1.f };
-    float col_skeleton[4] = { 0.95f, 0.85f, 0.35f, 1.f };
-    float col_box[4]      = { 0.90f, 0.25f, 0.25f, 1.f };
-    float col_box_corner[4] = { 0.00f, 0.78f, 1.00f, 1.f };
-    float col_name[4]     = { 1.f, 1.f, 1.f, 1.f };
-    float col_weapon[4]   = { 0.85f, 0.85f, 0.90f, 1.f };
-    float col_target[4]   = { 1.f, 0.85f, 0.15f, 1.f };
-    float col_joints[4]   = { 0.27f, 0.90f, 0.37f, 1.f };
-    float col_health[4]   = { 0.25f, 0.86f, 0.35f, 1.f };
-    float col_armor[4]    = { 0.27f, 0.59f, 1.00f, 1.f };
-    float col_snaplines[4]= { 0.83f, 0.69f, 0.22f, 0.55f };
-    float col_trail[4]    = { 0.83f, 0.69f, 0.22f, 0.82f };
-    float col_halo[4]     = { 1.00f, 0.89f, 0.54f, 0.90f };
-    float col_fun_effects[4] = { 1.00f, 0.72f, 0.18f, 0.95f };
-    float col_look[4]     = { 0.83f, 0.69f, 0.22f, 0.86f };
-    float col_head[4]     = { 0.95f, 0.85f, 0.35f, 1.f };
-    float col_distance[4] = { 0.85f, 0.85f, 0.90f, 1.f };
-    float col_visible[4]  = { 0.27f, 0.90f, 0.37f, 1.f };
-    float col_occluded[4] = { 0.90f, 0.25f, 0.25f, 1.f };
+    float col_enemy[4] = {.9f,.25f,.25f,1.f}, col_team[4] = {.25f,.75f,.95f,1.f};
+    float col_skeleton[4] = {.95f,.85f,.35f,1.f}, col_box[4] = {.9f,.25f,.25f,1.f};
+    float col_box_corner[4] = {0.f,.78f,1.f,1.f}, col_name[4] = {1.f,1.f,1.f,1.f};
+    float col_weapon[4] = {.85f,.85f,.9f,1.f}, col_target[4] = {1.f,.85f,.15f,1.f};
+    float col_joints[4] = {.27f,.9f,.37f,1.f}, col_health[4] = {.25f,.86f,.35f,1.f};
+    float col_armor[4] = {.27f,.59f,1.f,1.f}, col_snaplines[4] = {.83f,.69f,.22f,.55f};
+    float col_trail[4] = {.83f,.69f,.22f,.82f}, col_halo[4] = {1.f,.89f,.54f,.9f};
+    float col_fun_effects[4] = {1.f,.72f,.18f,.95f}, col_look[4] = {.83f,.69f,.22f,.86f};
+    float col_head[4] = {.95f,.85f,.35f,1.f}, col_distance[4] = {.85f,.85f,.9f,1.f};
+    float col_visible[4] = {.27f,.9f,.37f,1.f}, col_occluded[4] = {.9f,.25f,.25f,1.f};
+
 
     bool aim_enabled = false;
     bool aim_draw_fov = true;
@@ -186,12 +140,6 @@ inline void ApplyLegitProfile(Config& c) {
     c.aim_switch_cooldown_ms = 120.f;
     c.trigger_enabled = false;
     c.aim_draw_fov = true;
-    c.esp_enabled = true;
-    c.box = true;
-    c.skeleton = true;
-    c.health_bar = true;
-    c.name = true;
-    c.distance = true;
     c.team_check = true;
     c.skeleton_lod = true;
     c.skeleton_lod_distance = 60.f;
@@ -224,15 +172,6 @@ inline void ApplyRageProfile(Config& c) {
     c.trigger_delay_ms = 10;
     c.trigger_head_only = false;
     c.aim_draw_fov = true;
-    c.esp_enabled = true;
-    c.box = true;
-    c.skeleton = true;
-    c.health_bar = true;
-    c.armor_bar = true;
-    c.name = true;
-    c.distance = true;
-    c.weapon_icons = true;
-    c.snaplines = true;
     c.team_check = true;
     c.skeleton_lod = false;
     c.max_entities = 48;

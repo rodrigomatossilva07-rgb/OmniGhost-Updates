@@ -600,7 +600,6 @@ void HandlePanic(CS2::Config& cfg) {
     if (down && !was_down) {
         cfg.aim_enabled = false;
         cfg.trigger_enabled = false;
-        cfg.esp_enabled = false;
         cfg.radar_2d = false;
         cfg.bomb_timer = false;
         MessageBeep(MB_OK);
@@ -754,7 +753,7 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
         g_active_target_idx = -1;
         g_paid_aim.Reset();
         if (g_target_diag.hidden)
-            std::snprintf(g_debug, sizeof(g_debug), "sem alvo: invisivel=%d fov=%d", g_target_diag.hidden, g_target_diag.fov);
+            std::snprintf(g_debug, sizeof(g_debug), "sem alvo: filt_vis=%d fov=%d", g_target_diag.hidden, g_target_diag.fov);
         else if (g_target_diag.fov)
             std::snprintf(g_debug, sizeof(g_debug), "sem alvo: fora FOV=%d", g_target_diag.fov);
         else if (g_target_diag.distance)
@@ -801,7 +800,7 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
                             if (p.is_local) continue;
                             if (cfg.trigger_team_check && p.team == rt.local_team) continue;
                             if (!p.alive || p.health <= 0) continue;
-                            if (!p.spotted) continue; // never fire at an unspotted target through cover
+                            if (cfg.aim_visibility_check && !p.spotted) continue; // optional: block unspotted through cover
                             if (p.ent_index == idEnt || p.ent_index == (idEnt & 0x7FFF)) {
                                 if (cfg.trigger_head_only) {
                                     float sx, sy;
@@ -826,7 +825,7 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
                         if (p.is_local) continue;
                         if (cfg.trigger_team_check && p.team == rt.local_team) continue;
                         if (!p.alive || p.health <= 0) continue;
-                        if (!p.spotted) continue; // screen proximity alone is not visibility
+                        if (cfg.aim_visibility_check && !p.spotted) continue;
                         auto testPoint = [&](const float* w) {
                             float sx = 0.f, sy = 0.f;
                             if (!W2S(w, rt.view_matrix, sx, sy)) return false;

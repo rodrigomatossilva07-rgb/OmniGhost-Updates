@@ -1,6 +1,6 @@
 #include "../../widgets.h"
 #include "cs2_game.h"
-#include "cs2_config.h"
+#include "config/cs2_config.h"
 #include "../../localization.h"
 #include "imgui.h"
 #include "gameplay/dma_telemetry_log.h"
@@ -16,8 +16,6 @@ void DrawCs2Misc()
     ToggleSwitch(Loc::Tr("cs2.misc.spectators"), &CS2::config.spectator_list);
     ToggleSwitch(Loc::Tr("cs2.misc.bomb_timer"), &CS2::config.bomb_timer);
     ToggleSwitch(Loc::Tr("cs2.misc.hit_marker"), &CS2::config.hit_marker);
-    ToggleSwitch("Indicador de portador da C4", &CS2::config.c4_carrier);
-    ToggleSwitch("Estado de flash nos jogadores", &CS2::config.smoke_flash);
     ToggleSwitch("Rasto de granadas", &CS2::config.grenade_trail);
     if (CS2::config.bomb_timer) {
         TextLine("Com o menu aberto, arrasta as janelas de bomba e espectadores para guardar a posicao.", TextTone::Secondary);
@@ -36,15 +34,7 @@ void DrawCs2Misc()
     if (CS2::config.telemetry_enabled && !prev) {
         char blob[384];
         std::snprintf(blob, sizeof(blob),
-            "esp=%d\nskeleton=%d\nbox=%d\nhealth=%d\narmor=%d\nname=%d\nweapon=%d\n"
             "radar=%d\naim=%d\ntrigger=%d\nbomb=%d\nspectators=%d\nperf_mode=%d",
-            CS2::config.esp_enabled ? 1 : 0,
-            CS2::config.skeleton ? 1 : 0,
-            (CS2::config.box || CS2::config.box_corner) ? 1 : 0,
-            CS2::config.health_bar ? 1 : 0,
-            CS2::config.armor_bar ? 1 : 0,
-            CS2::config.name ? 1 : 0,
-            CS2::config.weapon_icons ? 1 : 0,
             (CS2::config.radar_2d || CS2::config.webradar_enabled) ? 1 : 0,
             CS2::config.aim_enabled ? 1 : 0,
             CS2::config.trigger_enabled ? 1 : 0,

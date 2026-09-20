@@ -1,12 +1,11 @@
 #include "cs2_game.h"
-#include "cs2_radar.h"
+#include "radar/cs2_radar.h"
 #include "platform/session_log.h"
 #include "../src/platform/offset_auto.h"
 #include "../src/platform/app_paths.h"
 #include "../src/platform/embedded_offsets.h"
-#include "cs2_esp.h"
-#include "cs2_aim.h"
-#include "cs2_weapons.h"
+#include "aimbot/cs2_aim.h"
+#include "weapons/cs2_weapons.h"
 #include "Memory/Memory.h"
 #include "globals.h"
 #include "gameplay/esp_core.h"
@@ -78,21 +77,23 @@ namespace {
 // The renderer interpolates immutable snapshots.  A sustainable DMA cadence is
 // smoother in practice than flooding the FT601 queue and periodically freezing
 // for a full transport timeout.
-// Keep the physical transport close to the proven FiveM cadence.  Presentation
-// interpolation runs at overlay FPS, so pushing 80+ scans/sec only queues the
-// FT601 and makes the ESP less smooth when a scan is delayed.
-constexpr int CAMERA_INTERVAL_MS = 20;
-constexpr int MOTION_INTERVAL_MS = 20;
-constexpr int BONES_INTERVAL_MS = 20;
-constexpr int FULL_SCAN_INTERVAL_MS = 20;
+// DMA low-latency profile (CS2-DMA-style tiers):
+//  - CameraWorker ~500 Hz view matrix (decoupled from entity scan)
+//  - High-frequency: positions / health every full scan
+//  - Mid: bones ~12 ms, armor ~50 ms, weapons ~100 ms
+//  - Low: names / team metadata 0.5–1 s (cuts redundant DMA >80%)
+// Presentation interpolates between snapshots at overlay FPS.
+constexpr int CAMERA_INTERVAL_MS = 2;       // CameraWorker target (~500 Hz)
+constexpr int MOTION_INTERVAL_MS = 8;       // origin lane between full scans
+constexpr int BONES_INTERVAL_MS = 12;       // skeleton tier
+constexpr int FULL_SCAN_INTERVAL_MS = 12;   // health / spotted / core identity
 constexpr int ARMOR_INTERVAL_MS = 50;
-constexpr int LOCAL_HEALTH_INTERVAL_MS = 100;
-constexpr int WEAPON_INTERVAL_MS = 180;
-constexpr int WEAPON_FALLBACK_INTERVAL_MS = 1200;
+constexpr int LOCAL_HEALTH_INTERVAL_MS = 50;
+constexpr int WEAPON_INTERVAL_MS = 100;
+constexpr int WEAPON_FALLBACK_INTERVAL_MS = 10000;
 constexpr int ENTITY_LIST_INTERVAL_MS = 150;
-// Player names are static for a round.  Keeping them out of the hot DMA path
-// avoids a second expensive controller scatter every second.
-constexpr int NAME_INTERVAL_MS = 3000;
+constexpr int NAME_INTERVAL_MS = 1000;      // low-frequency identity
+constexpr int BONE_RELIABILITY_HOLD_MS = 150; // last-good skeleton anti-flicker
 constexpr int TEAM_INTERVAL_MS = 500;
 }
 
@@ -366,7 +367,6 @@ bool NeedsPlayerScan(const Config& frame_config) {
         || frame_config.radar_2d
         || frame_config.webradar_enabled
         || frame_config.spectator_list
-        || frame_config.offscreen_arrows
         || frame_config.bomb_timer
         || frame_config.hotkey_overlay;
 }
@@ -1122,7 +1122,9 @@ bool IsPlayableMapName(const char* map) {
 
 void RefreshMapName() {
     if (!offsets.dwGlobalVars) {
-        runtime.map_name[0] = '\0';
+        // Keep the last confirmed map during a transient offset/read failure.
+        // Clearing it here deactivates the whole ESP for a frame after a DMA
+        // timeout and looks exactly like a visual hitch.
         return;
     }
 
@@ -1154,7 +1156,8 @@ void RefreshMapName() {
                 QRead(map_address, raw, sizeof(raw) - 1, "CS2.MapRefresh");
     }
     if (!mapOk) {
-        runtime.map_name[0] = '\0';
+        // The map is stable for an entire match.  A failed maintenance probe
+        // must never invalidate an otherwise good live snapshot.
         return;
     }
 
@@ -1969,41 +1972,23 @@ static void RunFrameWithConfig(const Config& frame_config) {
         static uint64_t s_cfgBits = 0;
         uint64_t bits = 0;
         auto bit = [&](bool v, int i) { if (v) bits |= (1ull << i); };
-        bit(frame_config.esp_enabled, 0);
-        bit(frame_config.skeleton, 1);
-        bit(frame_config.box || frame_config.box_corner, 2);
-        bit(frame_config.health_bar, 3);
-        bit(frame_config.armor_bar, 4);
-        bit(frame_config.weapon_icons, 5);
-        bit(frame_config.radar_2d || frame_config.webradar_enabled, 6);
-        bit(frame_config.aim_enabled, 7);
-        bit(frame_config.trigger_enabled, 8);
-        bit(frame_config.bomb_timer, 9);
-        bit(frame_config.spectator_list, 10);
-        bit(frame_config.performance_mode, 11);
-        bit(frame_config.trails, 12);
-        bit(frame_config.head_halo || frame_config.chinese_hat, 13);
+        bit(frame_config.radar_2d || frame_config.webradar_enabled, 0);
+        bit(frame_config.aim_enabled, 1);
+        bit(frame_config.trigger_enabled, 2);
+        bit(frame_config.bomb_timer, 3);
+        bit(frame_config.spectator_list, 4);
+        bit(frame_config.performance_mode, 5);
         if (bits != s_cfgBits) {
             s_cfgBits = bits;
             char blob[320];
             std::snprintf(blob, sizeof(blob),
-                "esp=%d\nskeleton=%d\nbox=%d\nhealth=%d\narmor=%d\nweapon=%d\n"
-                "radar=%d\naim=%d\ntrigger=%d\nbomb=%d\nspectators=%d\nperf_mode=%d\n"
-                "trails=%d\nhalo_hat=%d",
-                frame_config.esp_enabled ? 1 : 0,
-                frame_config.skeleton ? 1 : 0,
-                (frame_config.box || frame_config.box_corner) ? 1 : 0,
-                frame_config.health_bar ? 1 : 0,
-                frame_config.armor_bar ? 1 : 0,
-                frame_config.weapon_icons ? 1 : 0,
+                "radar=%d\naim=%d\ntrigger=%d\nbomb=%d\nspectators=%d\nperf_mode=%d",
                 (frame_config.radar_2d || frame_config.webradar_enabled) ? 1 : 0,
                 frame_config.aim_enabled ? 1 : 0,
                 frame_config.trigger_enabled ? 1 : 0,
                 frame_config.bomb_timer ? 1 : 0,
                 frame_config.spectator_list ? 1 : 0,
-                frame_config.performance_mode ? 1 : 0,
-                frame_config.trails ? 1 : 0,
-                (frame_config.head_halo || frame_config.chinese_hat) ? 1 : 0);
+                frame_config.performance_mode ? 1 : 0);
             OmniGhost::Gameplay::DmaTelemetry::LogConfigChanged("CS2", blob);
         }
     }
@@ -2060,7 +2045,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
         // confirmed match reuse its valid name for a longer period.
         const int pressure = g_pressure_level.load(std::memory_order_relaxed);
         next_map_refresh_ms = map_now_ms + (runtime.in_match
-            ? (pressure >= 2 ? 60000u : 30000u)
+            ? (pressure >= 2 ? 180000u : 120000u)
             : 1000u);
     }
 
@@ -2158,7 +2143,6 @@ static void RunFrameWithConfig(const Config& frame_config) {
     // Leaving a match → drop avatar cache (memory + %LocalAppData%/OmniGhost/cache/cs2/avatars).
     if (was_in_match && !runtime.in_match) {
         std::cout << "[CS2] Saída de partida — a limpar cache de avatares\n";
-        CS2_ESP::ClearAvatarCache();
     }
     was_in_match = runtime.in_match;
 
@@ -2168,13 +2152,23 @@ static void RunFrameWithConfig(const Config& frame_config) {
         return;
     }
 
-    // CRITICAL: with ESP/Aim/Radar all OFF, do almost zero DMA work.
+    // On-demand: no active features → zero entity DMA (pipeline sleeps).
+    // Web radar / bomb still handled above or in this branch only if needed.
     if (!NeedsPlayerScan(frame_config)) {
         zero_player_frames = 0;
+        runtime.players.clear();
+        runtime.player_count = 0;
+        runtime.enemy_count = 0;
+        runtime.controller_count = 0;
+        runtime.pawn_count = 0;
         if (frame_config.bomb_timer && (runtime.frames % 2) == 0)
             UpdateBombStateThrottled();
         else if (!frame_config.bomb_timer)
             runtime.bomb = BombState{};
+        {
+            ScopedPhase _phPub(&g_phase.publish_ms);
+            PublishRuntimeSnapshot();
+        }
         return;
     }
 
@@ -2214,7 +2208,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
     static uint64_t s_lastLocalHealthMs = 0;
     const int localPressure = g_pressure_level.load(std::memory_order_relaxed);
     const uint64_t healthInterval = runtime.local_health > 0
-        ? static_cast<uint64_t>(localPressure >= 2 ? 200 : LOCAL_HEALTH_INTERVAL_MS) : 300u;
+        ? static_cast<uint64_t>(localPressure >= 2 ? 500 : 300) : 500u;
     const bool refreshLocalHealth = !s_lastLocalHealthMs ||
         localNowMs - s_lastLocalHealthMs >= healthInterval;
     uintptr_t localPawn = runtime.local_pawn;
@@ -2495,22 +2489,9 @@ static void RunFrameWithConfig(const Config& frame_config) {
 
     // ── Phase 3: scatter health / team / armor / scene for candidates ────
     OmniGhost::Gameplay::EspCore::FeatureSet requested{};
-    requested.box = frame_config.box;
-    requested.corner_box = frame_config.box_corner;
-    requested.skeleton = frame_config.skeleton;
-    requested.head = frame_config.head_dot;
-    requested.health = frame_config.health_bar;
-    requested.armor = frame_config.armor_bar;
-    requested.snapline = frame_config.snaplines;
-    requested.name = frame_config.name || frame_config.spectator_list || frame_config.bomb_timer;
-    requested.weapon = frame_config.weapon_icons;
-    requested.distance = frame_config.distance;
+    // Player data is now acquired only for aim, trigger, radar, and match widgets.
     requested.aim = frame_config.aim_enabled || frame_config.trigger_enabled;
     requested.prediction = frame_config.aim_enabled && frame_config.aim_prediction;
-    requested.trail = frame_config.trails;
-    requested.halo = frame_config.head_halo || frame_config.chinese_hat ||
-        frame_config.devil_horns || frame_config.floating_crown;
-    requested.look_direction = frame_config.look_direction || frame_config.angel_wings;
     const auto fields = requested.RequiredFields();
 
     const bool need_armor = OmniGhost::Gameplay::EspCore::Has(
@@ -2529,20 +2510,18 @@ static void RunFrameWithConfig(const Config& frame_config) {
         fields, OmniGhost::Gameplay::EspCore::DataField::Skeleton);
     // Aim and visual effects need only the upper-body aim anchors. A complete
     // 20-slot pose is acquired only for the rendered skeleton or body trigger.
-    const bool need_full_bones = frame_config.skeleton ||
-        (frame_config.trigger_enabled && !frame_config.trigger_head_only);
-    const bool need_scoped = frame_config.scope_check || frame_config.trigger_scoped_only;
+    const bool need_full_bones = frame_config.trigger_enabled && !frame_config.trigger_head_only;
+    const bool need_scoped = frame_config.trigger_scoped_only;
 
     const uint64_t scan_now_ms = GetTickCount64();
     PawnCoreFields core[kMaxSlots]{};
-    const bool need_spotted = frame_config.visible_check || frame_config.visibility_colors ||
-        (frame_config.aim_enabled && frame_config.aim_visibility_check) ||
+    const bool need_spotted = (frame_config.aim_enabled && frame_config.aim_visibility_check) ||
         (frame_config.trigger_enabled && frame_config.aim_visibility_check);
     // Health/team/scene stay on the full cadence; slower fields are cached below.
     mem.SetDmaCallTag("CS2.PawnCore");
     const auto _posBegin = std::chrono::steady_clock::now();
     ScatterReadPawnCore(resolved_pawns, core, candidate_count, false,
-                        need_scoped, frame_config.smoke_flash, need_yaw, false,
+                        need_scoped, false, need_yaw, false,
                         need_spotted);
     g_phase.positions_ms = OmniGhost::Gameplay::TimeMs(_posBegin);
     NotePossibleDeviceStall(g_phase.positions_ms);
@@ -2921,8 +2900,11 @@ if (need_bones) {
             p.is_scoped = cf.scoped != 0;
         if (p.is_local)
             p.is_scoped = runtime.local_scoped;
-        if (frame_config.smoke_flash)
-            p.is_flashed = cf.flash > 0.15f;
+            {
+                const float sp = std::sqrt(p.velocity[0]*p.velocity[0] + p.velocity[1]*p.velocity[1]);
+                p.move_speed = sp;
+                p.is_moving = sp > 80.f; // walk threshold; silent-walk usually lower
+            }
 
         p.pos[0] = positions[c][0];
         p.pos[1] = positions[c][1];
@@ -3219,7 +3201,7 @@ if (need_bones) {
                 // Keep a verified pose through short scene-node/bone-buffer
                 // outages.  The fast origin lane translates this cached pose
                 // each render, so it stays attached instead of blinking out.
-                scan_now_ms - cached->second.last_valid_ms <= 1200u) {
+                scan_now_ms - cached->second.last_valid_ms <= static_cast<uint64_t>(BONE_RELIABILITY_HOLD_MS)) {
                 std::memcpy(p.bones, cached->second.joints, sizeof(p.bones));
                 const float cached_shift[3] = {
                     p.pos[0] - cached->second.origin[0],
@@ -3247,9 +3229,13 @@ if (need_bones) {
             const uintptr_t weapon_ent = weaponEntities[c];
             uint16_t def = weaponDefinitions[c];
             auto cachedWeapon = weaponStateCache.find(p.pawn);
+            // Schema probing is optional visual metadata.  It must not be
+            // allowed to contend with core ESP reads every second when an
+            // offset is incompatible or a weapon pointer is transient.
             const bool fallbackDue = cachedWeapon == weaponStateCache.end() ||
                 !cachedWeapon->second.last_fallback_ms ||
-                scan_now_ms - cachedWeapon->second.last_fallback_ms >= WEAPON_FALLBACK_INTERVAL_MS;
+                scan_now_ms - cachedWeapon->second.last_fallback_ms >=
+                    static_cast<uint64_t>(WEAPON_FALLBACK_INTERVAL_MS);
             if (weaponRefreshDue[c] && fallbackDue && (def == 0 || def >= 6000) && IsUserPointer(weapon_ent)) {
                 // Schema-drift fallback: 3 candidates in one scatter (was 3 QReads).
                 const uintptr_t fallbacks[3] = {
@@ -3283,6 +3269,48 @@ if (need_bones) {
             if (def > 0 && def < 6000) {
                 p.weapon_def = def;
                 if (weaponRefreshDue[c]) weaponStateCache[p.pawn].definition = def;
+            }
+            // Weapon ammo (clip/reserve) when feature on and offsets present.
+            if (frame_config.weapon_ammo && IsUserPointer(weapon_ent) && offsets.m_iClip1) {
+                int clip = -1, reserve = -1;
+                QReadT(weapon_ent + offsets.m_iClip1, clip, "CS2.AmmoClip");
+                if (offsets.m_pReserveAmmo)
+                    QReadT(weapon_ent + offsets.m_pReserveAmmo, reserve, "CS2.AmmoReserve");
+                if (clip >= 0 && clip < 500) p.ammo_clip = clip;
+                if (reserve >= 0 && reserve < 500) p.ammo_reserve = reserve;
+            }
+        }
+
+        // Player flags / sound: controller money, item services, shots fired.
+        if ((frame_config.player_flags || frame_config.sound_esp) && IsUserPointer(p.controller)) {
+            if (frame_config.player_flags && offsets.m_iAccount) {
+                int money = -1;
+                if (QReadT(p.controller + offsets.m_iAccount, money, "CS2.Money") && money >= 0 && money < 100000)
+                    p.money = money;
+            }
+            if (frame_config.player_flags && offsets.m_pItemServices && offsets.m_bHasDefuser && IsUserPointer(p.pawn)) {
+                uintptr_t item_svc = 0;
+                if (QReadT(p.pawn + offsets.m_pItemServices, item_svc, "CS2.ItemSvc") && IsUserPointer(item_svc)) {
+                    uint8_t kit = 0;
+                    if (QReadT(item_svc + offsets.m_bHasDefuser, kit, "CS2.HasDefuser"))
+                        p.has_defuser = kit != 0;
+                }
+            }
+            if (offsets.m_bIsDefusing && IsUserPointer(p.pawn)) {
+                uint8_t defu = 0;
+                if (QReadT(p.pawn + offsets.m_bIsDefusing, defu, "CS2.IsDefusing"))
+                    p.is_defusing = defu != 0;
+            }
+        }
+        if (frame_config.sound_esp && offsets.m_iShotsFired && IsUserPointer(p.pawn)) {
+            static std::unordered_map<uintptr_t, int> s_prevShots;
+            int shots = 0;
+            if (QReadT(p.pawn + offsets.m_iShotsFired, shots, "CS2.ShotsFired") && shots >= 0) {
+                const int prev = s_prevShots[p.pawn];
+                if (shots > prev)
+                    p.last_shot_ms = scan_now_ms;
+                s_prevShots[p.pawn] = shots;
+                p.shots_fired = shots;
             }
         }
 
@@ -3599,8 +3627,9 @@ void EnsureAcquisitionStarted() {
             // not need a physical matrix transfer on every scheduler wake-up.
             // 16 ms is already display-rate smooth with interpolation and
             // leaves the transport room for the entity lane.
-            const int camera_period_ms = camera_pressure >= 2 ? 36 :
-                (camera_pressure == 1 ? 24 : CAMERA_INTERVAL_MS);
+            // 500 Hz when healthy; back off only under measured DMA pressure.
+            const int camera_period_ms = camera_pressure >= 2 ? 16 :
+                (camera_pressure == 1 ? 6 : CAMERA_INTERVAL_MS);
             if (canRead && in_match && camera_now_ms >= next_camera_ms &&
                 !DmaCooldownActive() && !g_acq_busy.load(std::memory_order_acquire)) {
                 next_camera_ms = camera_now_ms + static_cast<uint64_t>(camera_period_ms);
@@ -3620,11 +3649,7 @@ void EnsureAcquisitionStarted() {
             const uint64_t now_ms = GetTickCount64();
             const auto frame_config = g_config_snapshots.Acquire();
             const auto current = g_runtime_snapshots.Acquire();
-            const bool needs_motion = frame_config->esp_enabled &&
-                (frame_config->box || frame_config->box_corner || frame_config->health_bar ||
-                 frame_config->armor_bar || frame_config->skeleton || frame_config->trails ||
-                 frame_config->head_halo || frame_config->look_direction || frame_config->chinese_hat ||
-                 frame_config->angel_wings || frame_config->devil_horns || frame_config->floating_crown);
+            const bool needs_motion = false;
             // The full snapshot already contains a coherent position set. Do
             // not re-read every origin immediately after it publishes: that
             // duplicate scatter was a large source of queue pressure.
@@ -3637,9 +3662,7 @@ void EnsureAcquisitionStarted() {
                 && !g_acq_busy.load(std::memory_order_acquire)) {
                 // Slightly slower motion when skeleton is off — boxes/bars stay smooth
                 // with far less DMA pressure (main source of intermittent freezes).
-                const int motionPeriod = frame_config->skeleton
-                    ? (camera_pressure >= 2 ? 28 : MOTION_INTERVAL_MS)
-                    : (camera_pressure >= 1 ? 36 : 28);
+                const int motionPeriod = camera_pressure >= 2 ? 16 : MOTION_INTERVAL_MS;
                 next_motion_ms = now_ms + motionPeriod;
                 MotionSnapshot motion{};
                 // One scatter round-trip for all origins instead of N sequential DMA reads.
@@ -3846,12 +3869,17 @@ void EnsureAcquisitionStarted() {
             int delayMs = runtime.in_match ? FULL_SCAN_INTERVAL_MS : 16;
             try {
                 auto cfgLease = g_config_snapshots.Acquire();
-                if (cfgLease && runtime.in_match) {
+                if (cfgLease) {
+                    if (!NeedsPlayerScan(*cfgLease))
+                        delayMs = 50; // on-demand sleep: zero wasted transfers
+                    else if (runtime.in_match) {
                     if (!cfgLease->skeleton && !cfgLease->aim_enabled)
                         delayMs = (std::max)(delayMs, cfgLease->performance_mode ? 28 : 24);
                     else if (cfgLease->skeleton && !cfgLease->aim_enabled)
                         delayMs = (std::max)(delayMs, cfgLease->performance_mode ? 24 : 20);
+                    }
                 }
+
             } catch (...) {
                 std::cerr << "[CS2] acquisition config snapshot failed with unknown exception" << std::endl;
             }

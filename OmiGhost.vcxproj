@@ -316,8 +316,8 @@
     <ClCompile Include="src\window\pages\common\VehiclesPage.cpp"/>
     <ClCompile Include="src\window\pages\common\VisualsPage.cpp"/>
     <ClCompile Include="src\window\pages\cs2\Cs2AimPage.cpp"/>
-    <ClCompile Include="src\window\pages\cs2\Cs2MiscPage.cpp"/>
     <ClCompile Include="src\window\pages\cs2\Cs2VisualsPage.cpp"/>
+    <ClCompile Include="src\window\pages\cs2\Cs2MiscPage.cpp"/>
     <ClCompile Include="src\window\pages\cs2\Cs2RadarPage.cpp"/>
     <ClCompile Include="src\window\pages\warzone\WarzoneAimPage.cpp"/>
     <ClCompile Include="src\window\pages\warzone\WarzoneVisualsPage.cpp"/>
@@ -356,12 +356,12 @@
     <ClCompile Include="Fivem\game\game_setup.cpp"/>
     <ClCompile Include="Fivem\game\offsets.cpp"/>
     <ClCompile Include="Fivem\playerInfo\PedData.cpp"/>
-    <ClCompile Include="Cs2\cs2_aim.cpp"/>
-    <ClCompile Include="Cs2\cs2_esp.cpp"/>
+    <ClCompile Include="Cs2\aimbot\cs2_aim.cpp"/>
+    <ClCompile Include="Cs2\esp\cs2_esp.cpp"/>
     <ClCompile Include="Cs2\cs2_game.cpp"/>
-    <ClCompile Include="Cs2\cs2_radar.cpp"/>
-    <ClCompile Include="Cs2\cs2_config_io.cpp"/>
-    <ClCompile Include="Cs2\cs2_weapon_icons.cpp"/>
+    <ClCompile Include="Cs2\radar\cs2_radar.cpp"/>
+    <ClCompile Include="Cs2\config\cs2_config_io.cpp"/>
+    <ClCompile Include="Cs2\weapons\cs2_weapon_icons.cpp"/>
     <ClCompile Include="Warzone\warzone_game.cpp"/>
     <ClCompile Include="Warzone\warzone_decrypt.cpp"/>
     <ClCompile Include="Warzone\warzone_aim.cpp"/>
