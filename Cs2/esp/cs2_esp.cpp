@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdio>
 #include <unordered_map>
 #include <utility>
 
@@ -362,6 +363,15 @@ void DrawProjectilePath(ImDrawList* draw, const CS2::Projectile& projectile,
         } else {
             have_previous = false;
         }
+    }
+    const float impact[3]{ cached.result.impact.x, cached.result.impact.y, cached.result.impact.z };
+    ImVec2 impact_screen{};
+    if (WorldToScreen(impact, view_matrix, impact_screen)) {
+        draw->AddCircle(impact_screen, 6.f, color, 16, 1.5f);
+        char time[32]{};
+        std::snprintf(time, sizeof(time), "Impact %.1fs", cached.result.elapsed);
+        const ImVec2 size = ImGui::CalcTextSize(time);
+        draw->AddText(ImVec2(impact_screen.x - size.x * .5f, impact_screen.y + 8.f), color, time);
     }
     if (paths.size() > 64) {
         for (auto it = paths.begin(); it != paths.end();) {
