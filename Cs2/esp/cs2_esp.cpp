@@ -5,7 +5,9 @@
 #include "../../ImGui/imgui.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <utility>
 
 namespace {
 
@@ -55,6 +57,42 @@ void DrawVerticalBar(ImDrawList* draw, float x, float top, float bottom, float f
     draw->AddRectFilled(ImVec2(x, filledTop), ImVec2(x + kWidth, bottom), color);
 }
 
+void DrawSkeleton(ImDrawList* draw, const CS2::Player& player, const CS2::Runtime& snapshot,
+                  ImU32 color, ImU32 jointColor, float thickness, bool joints) {
+    if (!player.full_bones_ok) return;
+
+    std::array<ImVec2, CS2::kBoneSlotCount> points{};
+    std::array<bool, CS2::kBoneSlotCount> valid{};
+    for (std::size_t index = 0; index < CS2::kBoneSlotCount; ++index)
+        valid[index] = WorldToScreen(player.bones[index], snapshot.view_matrix, points[index]);
+
+    constexpr std::pair<CS2::BoneSlot, CS2::BoneSlot> kLinks[] = {
+        {CS2::BoneSlot::Head, CS2::BoneSlot::Neck}, {CS2::BoneSlot::Neck, CS2::BoneSlot::SpineUpper},
+        {CS2::BoneSlot::SpineUpper, CS2::BoneSlot::SpineMiddle}, {CS2::BoneSlot::SpineMiddle, CS2::BoneSlot::SpineLower},
+        {CS2::BoneSlot::SpineLower, CS2::BoneSlot::Pelvis},
+        {CS2::BoneSlot::Neck, CS2::BoneSlot::ClavicleLeft}, {CS2::BoneSlot::ClavicleLeft, CS2::BoneSlot::ShoulderLeft},
+        {CS2::BoneSlot::ShoulderLeft, CS2::BoneSlot::ElbowLeft}, {CS2::BoneSlot::ElbowLeft, CS2::BoneSlot::HandLeft},
+        {CS2::BoneSlot::Neck, CS2::BoneSlot::ClavicleRight}, {CS2::BoneSlot::ClavicleRight, CS2::BoneSlot::ShoulderRight},
+        {CS2::BoneSlot::ShoulderRight, CS2::BoneSlot::ElbowRight}, {CS2::BoneSlot::ElbowRight, CS2::BoneSlot::HandRight},
+        {CS2::BoneSlot::Pelvis, CS2::BoneSlot::HipLeft}, {CS2::BoneSlot::HipLeft, CS2::BoneSlot::KneeLeft},
+        {CS2::BoneSlot::KneeLeft, CS2::BoneSlot::AnkleLeft}, {CS2::BoneSlot::Pelvis, CS2::BoneSlot::HipRight},
+        {CS2::BoneSlot::HipRight, CS2::BoneSlot::KneeRight}, {CS2::BoneSlot::KneeRight, CS2::BoneSlot::AnkleRight},
+    };
+    for (const auto& [from, to] : kLinks) {
+        const auto a = static_cast<std::size_t>(from), b = static_cast<std::size_t>(to);
+        if (!valid[a] || !valid[b]) continue;
+        draw->AddLine(points[a], points[b], IM_COL32(0, 0, 0, 195), thickness + 1.4f);
+        draw->AddLine(points[a], points[b], color, thickness);
+    }
+    if (joints) {
+        for (std::size_t index = 0; index < CS2::kBoneSlotCount; ++index) {
+            if (!valid[index]) continue;
+            draw->AddCircleFilled(points[index], 2.3f, IM_COL32(0, 0, 0, 195), 8);
+            draw->AddCircleFilled(points[index], 1.4f, jointColor, 8);
+        }
+    }
+}
+
 } // namespace
 
 namespace CS2::ESP {
@@ -100,6 +138,13 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
             DrawVerticalBar(draw, min.x - 7.f, min.y, max.y, static_cast<float>(player.health) / 100.f, Color(settings.col_health));
         if (settings.armor_bar)
             DrawVerticalBar(draw, max.x + 3.f, min.y, max.y, static_cast<float>(player.armor) / 100.f, Color(settings.col_armor));
+        if (settings.skeleton) {
+            const ImU32 skeletonColor = settings.rgb_mode ? rgbColor
+                : useVisibilityColors ? Color(player.spotted ? settings.col_visible : settings.col_occluded)
+                : Color(settings.col_skeleton);
+            DrawSkeleton(draw, player, snapshot, skeletonColor, Color(settings.col_joints),
+                         std::clamp(settings.skeleton_thickness, .5f, 4.f), settings.skeleton_joints);
+        }
     }
 }
 

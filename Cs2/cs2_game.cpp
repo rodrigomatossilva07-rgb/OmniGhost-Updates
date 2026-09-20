@@ -2489,7 +2489,15 @@ static void RunFrameWithConfig(const Config& frame_config) {
 
     // ── Phase 3: scatter health / team / armor / scene for candidates ────
     OmniGhost::Gameplay::EspCore::FeatureSet requested{};
-    // Player data is now acquired only for aim, trigger, radar, and match widgets.
+    // Declare every active visual explicitly. The collector can then keep the
+    // lightweight box/bar path free of bone reads, while a requested skeleton
+    // receives one coherent full-pose snapshot.
+    requested.box = frame_config.esp_enabled && frame_config.box;
+    requested.corner_box = frame_config.esp_enabled && frame_config.box_corner;
+    requested.skeleton = frame_config.esp_enabled && frame_config.skeleton;
+    requested.health = frame_config.esp_enabled && frame_config.health_bar;
+    requested.armor = frame_config.esp_enabled && frame_config.armor_bar;
+    requested.visibility = frame_config.esp_enabled && frame_config.visibility_colors && frame_config.visible_check;
     requested.aim = frame_config.aim_enabled || frame_config.trigger_enabled;
     requested.prediction = frame_config.aim_enabled && frame_config.aim_prediction;
     const auto fields = requested.RequiredFields();
@@ -2510,7 +2518,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
         fields, OmniGhost::Gameplay::EspCore::DataField::Skeleton);
     // Aim and visual effects need only the upper-body aim anchors. A complete
     // 20-slot pose is acquired only for the rendered skeleton or body trigger.
-    const bool need_full_bones = frame_config.trigger_enabled && !frame_config.trigger_head_only;
+    const bool need_full_bones = requested.skeleton ||
+        (frame_config.trigger_enabled && !frame_config.trigger_head_only);
     const bool need_scoped = frame_config.trigger_scoped_only;
 
     const uint64_t scan_now_ms = GetTickCount64();

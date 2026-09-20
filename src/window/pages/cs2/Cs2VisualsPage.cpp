@@ -1,5 +1,6 @@
 #include "../../widgets.h"
 #include "../../theme.h"
+#include "../../../launcher/launcher_assets.h"
 #include "config/cs2_config.h"
 #include "imgui.h"
 
@@ -49,12 +50,22 @@ void DrawPreview(float width, float height) {
 
     draw->AddRectFilled(origin, end, IM_COL32(8, 10, 12, 255), 8.f);
     draw->AddRect(origin, end, IM_COL32(199, 165, 43, 105), 8.f);
-    draw->AddCircleFilled(ImVec2(center.x, bodyTop + 20.f), 16.f, IM_COL32(42, 47, 52, 255), 24);
-    draw->AddLine(ImVec2(center.x, bodyTop + 38.f), ImVec2(center.x, bodyBottom - 20.f), IM_COL32(50, 56, 62, 255), 18.f);
-    draw->AddLine(ImVec2(center.x, bodyTop + 72.f), ImVec2(center.x - halfWidth * 1.25f, bodyTop + 150.f), IM_COL32(50, 56, 62, 255), 11.f);
-    draw->AddLine(ImVec2(center.x, bodyTop + 72.f), ImVec2(center.x + halfWidth * 1.25f, bodyTop + 150.f), IM_COL32(50, 56, 62, 255), 11.f);
-    draw->AddLine(ImVec2(center.x, bodyBottom - 30.f), ImVec2(center.x - halfWidth * .65f, bodyBottom), IM_COL32(50, 56, 62, 255), 13.f);
-    draw->AddLine(ImVec2(center.x, bodyBottom - 30.f), ImVec2(center.x + halfWidth * .65f, bodyBottom), IM_COL32(50, 56, 62, 255), 13.f);
+    const LauncherAssets::Texture portrait = LauncherAssets::FiveMEspPreview();
+    if (portrait) {
+        const float aspect = static_cast<float>(portrait.width) / static_cast<float>(portrait.height);
+        const float portraitHeight = height - 20.f;
+        const float portraitWidth = (std::min)(portraitHeight * aspect, width - 12.f);
+        draw->AddImage(portrait.id, ImVec2(center.x - portraitWidth * .5f, origin.y + 10.f),
+            ImVec2(center.x + portraitWidth * .5f, end.y - 10.f), ImVec2(0.f, 0.f), ImVec2(1.f, 1.f),
+            IM_COL32(255, 255, 255, 235));
+    } else {
+        draw->AddCircleFilled(ImVec2(center.x, bodyTop + 20.f), 16.f, IM_COL32(42, 47, 52, 255), 24);
+        draw->AddLine(ImVec2(center.x, bodyTop + 38.f), ImVec2(center.x, bodyBottom - 20.f), IM_COL32(50, 56, 62, 255), 18.f);
+        draw->AddLine(ImVec2(center.x, bodyTop + 72.f), ImVec2(center.x - halfWidth * 1.25f, bodyTop + 150.f), IM_COL32(50, 56, 62, 255), 11.f);
+        draw->AddLine(ImVec2(center.x, bodyTop + 72.f), ImVec2(center.x + halfWidth * 1.25f, bodyTop + 150.f), IM_COL32(50, 56, 62, 255), 11.f);
+        draw->AddLine(ImVec2(center.x, bodyBottom - 30.f), ImVec2(center.x - halfWidth * .65f, bodyBottom), IM_COL32(50, 56, 62, 255), 13.f);
+        draw->AddLine(ImVec2(center.x, bodyBottom - 30.f), ImVec2(center.x + halfWidth * .65f, bodyBottom), IM_COL32(50, 56, 62, 255), 13.f);
+    }
     if (CS2::config.esp_enabled && (CS2::config.box || CS2::config.box_corner)) {
         const float thickness = std::clamp(CS2::config.box_thickness, .5f, 5.f);
         const ImU32 color = PreviewBoxColor();
@@ -84,6 +95,27 @@ void DrawPreview(float width, float height) {
         drawBar(min.x - 7.f, .72f, ConfigColor(CS2::config.col_health));
     if (CS2::config.esp_enabled && CS2::config.armor_bar)
         drawBar(max.x + 3.f, .48f, ConfigColor(CS2::config.col_armor));
+    if (CS2::config.esp_enabled && CS2::config.skeleton) {
+        const ImU32 skeletonColor = ConfigColor(CS2::config.col_skeleton);
+        const ImU32 jointColor = ConfigColor(CS2::config.col_joints);
+        const ImVec2 head(center.x, min.y + 12.f), neck(center.x, min.y + 30.f), chest(center.x, min.y + 68.f);
+        const ImVec2 stomach(center.x, min.y + 104.f), pelvis(center.x, min.y + 139.f);
+        const ImVec2 lShoulder(center.x - halfWidth * .65f, min.y + 48.f), rShoulder(center.x + halfWidth * .65f, min.y + 48.f);
+        const ImVec2 lElbow(center.x - halfWidth * 1.05f, min.y + 84.f), rElbow(center.x + halfWidth * 1.05f, min.y + 84.f);
+        const ImVec2 lHand(center.x - halfWidth * 1.18f, min.y + 119.f), rHand(center.x + halfWidth * 1.18f, min.y + 119.f);
+        const ImVec2 lHip(center.x - halfWidth * .38f, min.y + 144.f), rHip(center.x + halfWidth * .38f, min.y + 144.f);
+        const ImVec2 lKnee(center.x - halfWidth * .48f, min.y + 194.f), rKnee(center.x + halfWidth * .48f, min.y + 194.f);
+        const ImVec2 lFoot(center.x - halfWidth * .52f, max.y), rFoot(center.x + halfWidth * .52f, max.y);
+        const auto bone = [&](ImVec2 a, ImVec2 b) { draw->AddLine(a, b, skeletonColor, 1.5f); };
+        bone(head, neck); bone(neck, chest); bone(chest, stomach); bone(stomach, pelvis);
+        bone(neck, lShoulder); bone(lShoulder, lElbow); bone(lElbow, lHand);
+        bone(neck, rShoulder); bone(rShoulder, rElbow); bone(rElbow, rHand);
+        bone(pelvis, lHip); bone(lHip, lKnee); bone(lKnee, lFoot);
+        bone(pelvis, rHip); bone(rHip, rKnee); bone(rKnee, rFoot);
+        if (CS2::config.skeleton_joints)
+            for (const ImVec2 point : {head, neck, chest, stomach, pelvis, lShoulder, lElbow, lHand, rShoulder, rElbow, rHand, lHip, lKnee, lFoot, rHip, rKnee, rFoot})
+                draw->AddCircleFilled(point, 2.f, jointColor, 8);
+    }
     draw->AddText(ImVec2(origin.x + 12.f, origin.y + 12.f), IM_COL32(215, 215, 210, 210), "PRÉ-VISUALIZAÇÃO ESP");
     ImGui::Dummy(ImVec2(width, height));
 }
@@ -113,7 +145,7 @@ void DrawCs2Visuals() {
     CyberWidgets::ToggleSwitch("Ocultar equipa", &CS2::config.team_check);
     CyberWidgets::Separator();
     CyberWidgets::SectionTitle("ELEMENTOS");
-    PreviewToggle("Esqueleto", &previewSettings.skeleton); PreviewToggle("Articulações", &previewSettings.joints);
+    CyberWidgets::ToggleSwitch("Esqueleto", &CS2::config.skeleton); CyberWidgets::ToggleSwitch("Articulações", &CS2::config.skeleton_joints);
     PreviewToggle("Círculo na cabeça", &previewSettings.headCircle); CyberWidgets::ToggleSwitch("Barra de vida", &CS2::config.health_bar);
     CyberWidgets::ToggleSwitch("Barra de armadura", &CS2::config.armor_bar); PreviewToggle("Nome da arma", &previewSettings.weapon);
     PreviewToggle("Distância", &previewSettings.distance); CyberWidgets::ToggleSwitch("Caixa 2D", &CS2::config.box);
@@ -145,10 +177,10 @@ void DrawCs2Visuals() {
     ImGui::EndDisabled();
     CyberWidgets::Separator();
     CyberWidgets::SectionTitle("DESENHO");
-    ImGui::BeginDisabled(!previewSettings.skeleton);
+    ImGui::BeginDisabled(!CS2::config.skeleton);
     ImGui::ColorEdit4("Esqueleto", CS2::config.col_skeleton, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     ImGui::EndDisabled();
-    ImGui::BeginDisabled(!previewSettings.joints);
+    ImGui::BeginDisabled(!CS2::config.skeleton || !CS2::config.skeleton_joints);
     ImGui::ColorEdit4("Articulações", CS2::config.col_joints, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     ImGui::EndDisabled();
     ImGui::BeginDisabled(!previewSettings.headCircle);
