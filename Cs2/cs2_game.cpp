@@ -1383,11 +1383,17 @@ static uintptr_t ResolveEntityByHandle(uint32_t handle, uintptr_t stride) {
 
 static ProjectileKind ClassifyProjectile(const char* name) {
     if (!name || !*name) return ProjectileKind::None;
-    if (std::strstr(name, "FlashbangProjectile")) return ProjectileKind::Flash;
-    if (std::strstr(name, "SmokeGrenadeProjectile")) return ProjectileKind::Smoke;
-    if (std::strstr(name, "HEGrenadeProjectile")) return ProjectileKind::HE;
-    if (std::strstr(name, "MolotovProjectile")) return ProjectileKind::Molotov;
-    if (std::strstr(name, "DecoyProjectile")) return ProjectileKind::Decoy;
+    char lower[64]{};
+    std::snprintf(lower, sizeof(lower), "%s", name);
+    for (char& ch : lower) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+    const auto has = [&](const char* token) { return std::strstr(lower, token) != nullptr; };
+    // Source 2 builds have used both designer-name and schema-name forms.
+    if (has("flashbang") || has("flash_projectile")) return ProjectileKind::Flash;
+    if (has("smokegrenade") || has("smoke_projectile")) return ProjectileKind::Smoke;
+    if (has("hegrenade") || has("fraggrenade") || has("he_projectile")) return ProjectileKind::HE;
+    if (has("incgrenade") || has("incendiary")) return ProjectileKind::Incendiary;
+    if (has("molotov") || has("firebomb")) return ProjectileKind::Molotov;
+    if (has("decoy")) return ProjectileKind::Decoy;
     return ProjectileKind::None;
 }
 
@@ -2597,6 +2603,16 @@ static void RunFrameWithConfig(const Config& frame_config) {
 
     // Prefer the confirmed Source 2 stride (0x70). Fall back to 0x78 only if
     // the primary layout returns no controllers at all.
+    const int recoveryPressure = g_pressure_level.load(std::memory_order_relaxed);
+    // Controllers are metadata, not presentation-critical. During recovery,
+    // retain the last coherent player set instead of triggering a wide list
+    // scatter that can prolong a transport stall.
+    if (recoveryPressure >= 2 && !last_good_players.empty()) {
+        runtime.players = last_good_players;
+        runtime.player_count = static_cast<int>(runtime.players.size());
+        runtime.controller_count = 0;
+        return;
+    }
     int collected = CollectControllers(runtime.entity_list_entry, g_controller_stride, controllers, kMaxSlots);
     if (collected == 0) {
         const uintptr_t alternate = (g_controller_stride == kEntityIdentityStride)
@@ -2959,7 +2975,7 @@ if (need_bones) {
             // under sustained pressure — never stop bone updates (looks "frozen").
             const int pressure = g_pressure_level.load(std::memory_order_relaxed);
             int maxBoneReadsPerScan = frame_config.performance_mode ? 10 : 16;
-            if (pressure >= 3) maxBoneReadsPerScan = 2;
+            if (pressure >= 3) maxBoneReadsPerScan = 0;
             else if (pressure == 2) maxBoneReadsPerScan = 4;
             else if (pressure == 1) maxBoneReadsPerScan = 7;
             const int take = candN < maxBoneReadsPerScan ? candN : maxBoneReadsPerScan;
@@ -3787,7 +3803,8 @@ if (need_bones) {
         zero_player_frames = 0;
     }
 
-    if (runtime.in_match && frame_config.bomb_timer)
+    if (runtime.in_match && frame_config.bomb_timer &&
+        g_pressure_level.load(std::memory_order_relaxed) < 2)
         UpdateBombStateThrottled();
     else
         runtime.bomb = BombState{};
