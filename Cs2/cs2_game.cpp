@@ -3788,8 +3788,24 @@ void EnsureAcquisitionStarted() {
                 mem.SetDmaCallTag("CS2.Acquire");
                 g_acq_busy.store(true, std::memory_order_release);
                 auto frame_config = g_config_snapshots.Acquire();
-                std::scoped_lock dmaGate(g_dma_read_gate);
-                RunFrameWithConfig(*frame_config);
+                {
+                    std::scoped_lock dmaGate(g_dma_read_gate);
+                    RunFrameWithConfig(*frame_config);
+                    // A full scan can include bone validation and briefly hold the
+                    // DMA gate. Stamp the newest view matrix immediately before
+                    // releasing that gate so the presentation never has to wait
+                    // for the camera worker's next scheduler wake-up after a
+                    // heavy player pass. This is one 64-byte read per full scan,
+                    // not a per-entity transfer.
+                    if (runtime.in_match && runtime.client_base && offsets.dwViewMatrix) {
+                        float matrix[16]{};
+                        mem.SetDmaLane("camera");
+                        mem.SetDmaCallTag("CS2.CameraCatchup");
+                        if (QRead(runtime.client_base + offsets.dwViewMatrix, matrix, sizeof(matrix)))
+                            PublishCameraSnapshot(matrix);
+                        mem.SetDmaLane("full");
+                    }
+                }
                 g_acq_busy.store(false, std::memory_order_release);
                 runtime.acquisition_ms = OmniGhost::Gameplay::TimeMs(acquire_begin);
                 {
