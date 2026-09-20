@@ -205,6 +205,19 @@ struct CameraSnapshot {
 };
 using CameraSnapshotLease = OmniGhost::Gameplay::SnapshotExchange<CameraSnapshot>::ReadLease;
 
+// A tiny, high-priority life-state lane. It is published immediately after
+// the existing core health scatter, before optional bones and metadata.
+struct LivenessSample {
+    uintptr_t pawn = 0;
+    bool alive = false;
+};
+struct LivenessSnapshot {
+    std::array<LivenessSample, 64> players{};
+    uint32_t count = 0;
+    uint64_t timestamp_ms = 0;
+};
+using LivenessSnapshotLease = OmniGhost::Gameplay::SnapshotExchange<LivenessSnapshot>::ReadLease;
+
 // Lightweight motion lane used only to keep the visual anchored between full
 // entity/bone scans.  Fixed storage avoids allocations in the fast thread.
 struct MotionSample {
@@ -236,6 +249,7 @@ void StopAcquisition();
 void SubmitAcquisitionConfig(const Config& next) noexcept;
 [[nodiscard]] RuntimeSnapshotLease AcquireRuntimeSnapshot();
 [[nodiscard]] CameraSnapshotLease AcquireCameraSnapshot();
+[[nodiscard]] LivenessSnapshotLease AcquireLivenessSnapshot();
 [[nodiscard]] MotionSnapshotLease AcquireMotionSnapshot();
 [[nodiscard]] bool AcquisitionRunning() noexcept;
 void SetPresentationFps(float fps) noexcept;

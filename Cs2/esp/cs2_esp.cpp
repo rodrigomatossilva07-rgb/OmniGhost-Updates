@@ -111,8 +111,20 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
     const auto camera = AcquireCameraSnapshot();
     const float* viewMatrix = camera && camera->timestamp_ms
         ? camera->view_matrix : snapshot.view_matrix;
+    const auto liveness = AcquireLivenessSnapshot();
+    const auto diedSinceSnapshot = [&](uintptr_t pawn) {
+        if (!liveness || liveness->timestamp_ms <= snapshot.snapshot_timestamp_ms || !pawn)
+            return false;
+        for (uint32_t index = 0; index < liveness->count; ++index) {
+            const LivenessSample& sample = liveness->players[index];
+            if (sample.pawn == pawn)
+                return !sample.alive;
+        }
+        return false;
+    };
     for (const Player& player : snapshot.players) {
         if (!player.alive || player.is_local) continue;
+        if (diedSinceSnapshot(player.pawn)) continue;
         if (hideTeam && player.team == snapshot.local_team) continue;
         if (!std::isfinite(player.distance) || (maxDistance > 0.f && player.distance > maxDistance)) continue;
         if (!std::isfinite(player.pos[0]) || !std::isfinite(player.pos[1]) || !std::isfinite(player.pos[2])) continue;

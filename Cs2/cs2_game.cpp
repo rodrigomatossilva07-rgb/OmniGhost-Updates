@@ -98,6 +98,7 @@ constexpr int TEAM_INTERVAL_MS = 500;
 }
 
 OmniGhost::Gameplay::SnapshotExchange<CameraSnapshot> g_camera_snapshots;
+OmniGhost::Gameplay::SnapshotExchange<LivenessSnapshot> g_liveness_snapshots;
 OmniGhost::Gameplay::SnapshotExchange<MotionSnapshot> g_motion_snapshots;
 OmniGhost::Gameplay::SnapshotExchange<Config> g_config_snapshots;
 std::atomic_bool g_acquisition_stop{false};
@@ -135,6 +136,13 @@ void PublishCameraSnapshot(const float* matrix) {
     std::memcpy(slot.value->view_matrix, matrix, sizeof(slot.value->view_matrix));
     slot.value->timestamp_ms = GetTickCount64();
     g_camera_snapshots.Publish(slot.index);
+}
+
+void PublishLivenessSnapshot(const LivenessSnapshot& liveness) {
+    auto slot = g_liveness_snapshots.TryBeginWrite();
+    if (!slot) return;
+    *slot.value = liveness;
+    g_liveness_snapshots.Publish(slot.index);
 }
 
 void PublishMotionSnapshot(const MotionSnapshot& motion) {
@@ -2535,6 +2543,20 @@ static void RunFrameWithConfig(const Config& frame_config) {
     g_phase.positions_ms = OmniGhost::Gameplay::TimeMs(_posBegin);
     NotePossibleDeviceStall(g_phase.positions_ms);
 
+    // Deathmatch can transition dead → respawning before the optional bone
+    // reads finish. Publish health immediately so presentation can hide a dead
+    // pawn without waiting for the complete entity snapshot.
+    LivenessSnapshot liveness{};
+    liveness.timestamp_ms = GetTickCount64();
+    for (int c = 0; c < candidate_count &&
+         liveness.count < static_cast<uint32_t>(liveness.players.size()); ++c) {
+        auto& sample = liveness.players[liveness.count++];
+        sample.pawn = resolved_pawns[c];
+        sample.alive = core[c].health > 0 && core[c].health <= 200 &&
+            IsPlayableTeam(static_cast<int>(core[c].team));
+    }
+    PublishLivenessSnapshot(liveness);
+
     struct CachedArmor { int value = 0; uint64_t last_refresh_ms = 0; };
     static std::unordered_map<uintptr_t, CachedArmor> armorCache;
     if (need_armor && candidate_count > 0) {
@@ -3935,6 +3957,10 @@ RuntimeSnapshotLease AcquireRuntimeSnapshot() {
 
 CameraSnapshotLease AcquireCameraSnapshot() {
     return g_camera_snapshots.Acquire();
+}
+
+LivenessSnapshotLease AcquireLivenessSnapshot() {
+    return g_liveness_snapshots.Acquire();
 }
 
 MotionSnapshotLease AcquireMotionSnapshot() {
