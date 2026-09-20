@@ -83,7 +83,10 @@ namespace {
 //  - Mid: bones ~12 ms, armor ~50 ms, weapons ~100 ms
 //  - Low: names / team metadata 0.5–1 s (cuts redundant DMA >80%)
 // Presentation interpolates between snapshots at overlay FPS.
-constexpr int CAMERA_INTERVAL_MS = 2;       // CameraWorker target (~500 Hz)
+// A physical DMA view-matrix read at 500 Hz saturated the FT601 queue on
+// slower transfers. 60 Hz keeps mouse-look smooth through interpolation while
+// leaving capacity for the entity lane.
+constexpr int CAMERA_INTERVAL_MS = 16;
 constexpr int MOTION_INTERVAL_MS = 8;       // origin lane between full scans
 constexpr int BONES_INTERVAL_MS = 12;       // skeleton tier
 constexpr int FULL_SCAN_INTERVAL_MS = 12;   // health / spotted / core identity
@@ -1507,7 +1510,10 @@ static void CollectProjectiles(const Config& frame_config) {
         if (!IsUserPointer(scenes[i])) continue;
         mem.AddScatterReadRequest(g_scatter_full, scenes[i] + offsets.m_vecAbsOrigin,
             positions[i].data(), sizeof(float) * 3);
-        mem.AddScatterReadRequest(g_scatter_full, scenes[i] + offsets.m_vecVelocity,
+        // Origin belongs to the scene node, while velocity is a C_BaseEntity
+        // field. Reading it from the scene made the final in-flight filter
+        // reject otherwise recognised grenades.
+        mem.AddScatterReadRequest(g_scatter_full, entities[i] + offsets.m_vecVelocity,
             velocities[i].data(), sizeof(float) * 3);
     }
     mem.ExecuteReadScatter(g_scatter_full);
@@ -2600,6 +2606,9 @@ static void RunFrameWithConfig(const Config& frame_config) {
     constexpr int kMaxSlots = 64;
 
     uintptr_t controllers[kMaxSlots]{};
+    static uintptr_t cachedControllers[kMaxSlots]{};
+    static int cachedControllerCount = 0;
+    static uint64_t nextControllerRefreshMs = 0;
 
     // Prefer the confirmed Source 2 stride (0x70). Fall back to 0x78 only if
     // the primary layout returns no controllers at all.
@@ -2613,7 +2622,19 @@ static void RunFrameWithConfig(const Config& frame_config) {
         runtime.controller_count = 0;
         return;
     }
-    int collected = CollectControllers(runtime.entity_list_entry, g_controller_stride, controllers, kMaxSlots);
+    const uint64_t controllerNowMs = GetTickCount64();
+    int collected = 0;
+    if (cachedControllerCount > 0 && controllerNowMs < nextControllerRefreshMs) {
+        std::memcpy(controllers, cachedControllers, sizeof(controllers));
+        collected = cachedControllerCount;
+    } else {
+        collected = CollectControllers(runtime.entity_list_entry, g_controller_stride, controllers, kMaxSlots);
+        nextControllerRefreshMs = controllerNowMs + (recoveryPressure >= 1 ? 180u : 75u);
+        if (collected > 0) {
+            std::memcpy(cachedControllers, controllers, sizeof(controllers));
+            cachedControllerCount = collected;
+        }
+    }
     if (collected == 0) {
         const uintptr_t alternate = (g_controller_stride == kEntityIdentityStride)
             ? kLegacyEntityIdentityStride : kEntityIdentityStride;
@@ -2974,7 +2995,9 @@ if (need_bones) {
             // Prefer fluid poses: keep reading bones every scan. Only mild caps
             // under sustained pressure — never stop bone updates (looks "frozen").
             const int pressure = g_pressure_level.load(std::memory_order_relaxed);
-            int maxBoneReadsPerScan = frame_config.performance_mode ? 10 : 16;
+            // Skeletons are the heaviest optional payload. Limit the normal
+            // lane too; cached reliable bones are rendered between refreshes.
+            int maxBoneReadsPerScan = frame_config.performance_mode ? 2 : 4;
             if (pressure >= 3) maxBoneReadsPerScan = 0;
             else if (pressure == 2) maxBoneReadsPerScan = 4;
             else if (pressure == 1) maxBoneReadsPerScan = 7;
