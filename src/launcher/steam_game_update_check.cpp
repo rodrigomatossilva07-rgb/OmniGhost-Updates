@@ -48,8 +48,17 @@ std::size_t IndexFor(GameId game) {
 std::uint64_t FileTimestamp(const GameQuery& query) {
     const fs::path path = OmniGhost::Paths::InstallDirectory() / L"data" / query.offsetsFile;
     std::error_code error;
-    if (!fs::is_regular_file(path, error)) return 0;
-    const auto writeTime = fs::last_write_time(path, error);
+    fs::path reference = path;
+    // Release builds package offsets as resources. In that configuration there
+    // is deliberately no plaintext data/<game>_offsets.json beside the EXE;
+    // use the installed launcher binary as the timestamp of the embedded set
+    // instead of treating the offsets as missing on every library open.
+    if (!fs::is_regular_file(reference, error)) {
+        error.clear();
+        reference = OmniGhost::Paths::Executable();
+    }
+    if (!fs::is_regular_file(reference, error)) return 0;
+    const auto writeTime = fs::last_write_time(reference, error);
     if (error) return 0;
     const auto systemTime = std::chrono::time_point_cast<std::chrono::seconds>(
         writeTime - fs::file_time_type::clock::now() + std::chrono::system_clock::now());
