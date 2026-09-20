@@ -292,6 +292,49 @@ void DrawFootstepEsp(ImDrawList* draw, const CS2::Player& player, const ImVec2& 
     }
 }
 
+const char* ProjectileLabel(CS2::ProjectileKind kind) {
+    switch (kind) {
+    case CS2::ProjectileKind::Flash: return "Flash";
+    case CS2::ProjectileKind::Smoke: return "Smoke";
+    case CS2::ProjectileKind::HE: return "HE Grenade";
+    case CS2::ProjectileKind::Molotov: return "Molotov";
+    case CS2::ProjectileKind::Incendiary: return "Incendiary";
+    case CS2::ProjectileKind::Decoy: return "Decoy";
+    default: return "";
+    }
+}
+
+const char* ProjectileIcon(CS2::ProjectileKind kind) {
+    switch (kind) {
+    case CS2::ProjectileKind::Flash: return "FL";
+    case CS2::ProjectileKind::Smoke: return "SM";
+    case CS2::ProjectileKind::HE: return "HE";
+    case CS2::ProjectileKind::Molotov: return "MO";
+    case CS2::ProjectileKind::Incendiary: return "IN";
+    case CS2::ProjectileKind::Decoy: return "DE";
+    default: return "";
+    }
+}
+
+void DrawProjectiles(ImDrawList* draw, const CS2::Runtime& snapshot,
+                     const CS2::Config& settings, const float* view_matrix, ImU32 rgb) {
+    if (!settings.projectile_esp || !view_matrix) return;
+    const ImU32 color = EffectColor(settings, settings.col_fun_effects, rgb);
+    for (const auto& projectile : snapshot.projectiles) {
+        ImVec2 screen{};
+        if (!WorldToScreen(projectile.pos, view_matrix, screen)) continue;
+        const char* label = ProjectileLabel(projectile.kind);
+        const char* icon = ProjectileIcon(projectile.kind);
+        if (!*label || !*icon) continue;
+        draw->AddCircleFilled(screen, 10.f, (color & 0x00FFFFFFu) | 0x55000000u, 16);
+        draw->AddCircle(screen, 10.f, color, 16, 1.25f);
+        const ImVec2 icon_size = ImGui::CalcTextSize(icon);
+        DrawOutlinedText(draw, ImVec2(screen.x - icon_size.x * .5f, screen.y - icon_size.y * .5f), color, icon, settings);
+        const ImVec2 label_size = ImGui::CalcTextSize(label);
+        DrawOutlinedText(draw, ImVec2(screen.x - label_size.x * .5f, screen.y + 13.f), color, label, settings);
+    }
+}
+
 void DrawPlayerFlags(ImDrawList* draw, const CS2::Player& player, const ImVec2& min,
                      const CS2::Config& settings, ImU32 rgb) {
     if (!settings.player_flags) return;
@@ -419,6 +462,7 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
         DrawFootstepEsp(draw, player, feet, settings, rgbColor);
         DrawPlayerFlags(draw, player, min, settings, rgbColor);
     }
+    DrawProjectiles(draw, snapshot, settings, viewMatrix, rgbColor);
 }
 
 } // namespace CS2::ESP

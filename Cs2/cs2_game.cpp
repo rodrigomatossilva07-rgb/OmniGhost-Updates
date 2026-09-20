@@ -414,6 +414,7 @@ void LoadSchemaOffsets(const std::string& schema) {
     JsonClassU64(schema, "C_CSPlayerPawn", "m_bIsDefusing", offsets.m_bIsDefusing);
     JsonClassU64(schema, "C_CSPlayerPawn", "m_bIsScoped", offsets.m_bIsScoped);
     JsonClassU64(schema, "C_CSPlayerPawn", "m_flFlashDuration", offsets.m_flFlashDuration);
+    JsonClassU64(schema, "C_MolotovProjectile", "m_bIsIncGrenade", offsets.m_bIsIncGrenade);
     JsonClassU64(schema, "C_CSPlayerPawn", "m_aimPunchAngle", offsets.m_aimPunchAngle);
     JsonClassU64(schema, "CGameSceneNode", "m_vecAbsOrigin", offsets.m_vecAbsOrigin);
     JsonClassU64(schema, "CGameSceneNode", "m_vecVelocity", offsets.m_vecVelocity);
@@ -1378,6 +1379,139 @@ static uintptr_t ResolveEntityByHandle(uint32_t handle, uintptr_t stride) {
     if (!QReadT(chunk + stride * parts.index, entity) || !IsUserPointer(entity))
         return 0;
     return entity;
+}
+
+static ProjectileKind ClassifyProjectile(const char* name) {
+    if (!name || !*name) return ProjectileKind::None;
+    if (std::strstr(name, "FlashbangProjectile")) return ProjectileKind::Flash;
+    if (std::strstr(name, "SmokeGrenadeProjectile")) return ProjectileKind::Smoke;
+    if (std::strstr(name, "HEGrenadeProjectile")) return ProjectileKind::HE;
+    if (std::strstr(name, "MolotovProjectile")) return ProjectileKind::Molotov;
+    if (std::strstr(name, "DecoyProjectile")) return ProjectileKind::Decoy;
+    return ProjectileKind::None;
+}
+
+// Projectile entities are outside the controller table. Scan their compact
+// low-index portion only while Projectile ESP is enabled, then batch each
+// stage so this never creates one DMA round-trip per object.
+static void CollectProjectiles(const Config& frame_config) {
+    if (!frame_config.esp_enabled || !frame_config.projectile_esp || !runtime.in_match) {
+        runtime.projectiles.clear();
+        return;
+    }
+
+    static uint64_t next_scan_ms = 0;
+    const uint64_t now = GetTickCount64();
+    if (now < next_scan_ms) return;
+    next_scan_ms = now + 90; // projectiles need responsiveness, not per-frame DMA
+
+    constexpr size_t kPages = 4;
+    constexpr size_t kSlotsPerPage = 0x200;
+    constexpr size_t kSlots = kPages * kSlotsPerPage;
+    std::array<uintptr_t, kPages> pages{};
+    std::array<uintptr_t, kSlots> entities{};
+    std::array<uintptr_t, kSlots> identities{};
+    std::array<uintptr_t, kSlots> name_ptrs{};
+    std::array<std::array<char, 48>, kSlots> names{};
+
+    uintptr_t root = g_cached_entity_root;
+    if (!IsUserPointer(root) &&
+        (!QReadT(runtime.client_base + offsets.dwEntityList, root) || !IsUserPointer(root))) {
+        runtime.projectiles.clear();
+        return;
+    }
+    g_cached_entity_root = root;
+
+    EnsureScatter();
+    if (!g_scatter_full) { runtime.projectiles.clear(); return; }
+    mem.SetDmaCallTag("CS2.Projectiles.Pages");
+    for (size_t page = 0; page < kPages; ++page)
+        mem.AddScatterReadRequest(g_scatter_full,
+            root + kEntityPageTableOffset + sizeof(uintptr_t) * page,
+            &pages[page], sizeof(uintptr_t));
+    mem.ExecuteReadScatter(g_scatter_full);
+
+    mem.SetDmaCallTag("CS2.Projectiles.Entities");
+    for (size_t page = 0; page < kPages; ++page) {
+        if (!IsUserPointer(pages[page])) continue;
+        for (size_t slot = 0; slot < kSlotsPerPage; ++slot) {
+            const size_t index = page * kSlotsPerPage + slot;
+            mem.AddScatterReadRequest(g_scatter_full,
+                pages[page] + kEntityIdentityStride * slot,
+                &entities[index], sizeof(uintptr_t));
+        }
+    }
+    mem.ExecuteReadScatter(g_scatter_full);
+
+    mem.SetDmaCallTag("CS2.Projectiles.Identity");
+    for (size_t i = 0; i < kSlots; ++i) {
+        if (IsUserPointer(entities[i]))
+            mem.AddScatterReadRequest(g_scatter_full, entities[i] + 0x10,
+                &identities[i], sizeof(uintptr_t)); // CEntityInstance::m_pEntity
+    }
+    mem.ExecuteReadScatter(g_scatter_full);
+
+    mem.SetDmaCallTag("CS2.Projectiles.Names");
+    for (size_t i = 0; i < kSlots; ++i) {
+        if (IsUserPointer(identities[i]))
+            mem.AddScatterReadRequest(g_scatter_full, identities[i] + 0x20,
+                &name_ptrs[i], sizeof(uintptr_t)); // CEntityIdentity::m_designerName
+    }
+    mem.ExecuteReadScatter(g_scatter_full);
+
+    mem.SetDmaCallTag("CS2.Projectiles.NameText");
+    for (size_t i = 0; i < kSlots; ++i) {
+        if (IsUserPointer(name_ptrs[i]))
+            mem.AddScatterReadRequest(g_scatter_full, name_ptrs[i], names[i].data(), names[i].size() - 1);
+    }
+    mem.ExecuteReadScatter(g_scatter_full);
+
+    std::array<uintptr_t, kSlots> scenes{};
+    std::array<uint8_t, kSlots> incendiary{};
+    std::array<ProjectileKind, kSlots> kinds{};
+    mem.SetDmaCallTag("CS2.Projectiles.Scene");
+    for (size_t i = 0; i < kSlots; ++i) {
+        kinds[i] = ClassifyProjectile(names[i].data());
+        if (kinds[i] != ProjectileKind::None) {
+            mem.AddScatterReadRequest(g_scatter_full, entities[i] + offsets.m_pGameSceneNode,
+                &scenes[i], sizeof(uintptr_t));
+            if (kinds[i] == ProjectileKind::Molotov && offsets.m_bIsIncGrenade)
+                mem.AddScatterReadRequest(g_scatter_full, entities[i] + offsets.m_bIsIncGrenade,
+                    &incendiary[i], sizeof(uint8_t));
+        }
+    }
+    mem.ExecuteReadScatter(g_scatter_full);
+
+    std::array<std::array<float, 3>, kSlots> positions{};
+    std::array<std::array<float, 3>, kSlots> velocities{};
+    mem.SetDmaCallTag("CS2.Projectiles.Motion");
+    for (size_t i = 0; i < kSlots; ++i) {
+        if (!IsUserPointer(scenes[i])) continue;
+        mem.AddScatterReadRequest(g_scatter_full, scenes[i] + offsets.m_vecAbsOrigin,
+            positions[i].data(), sizeof(float) * 3);
+        mem.AddScatterReadRequest(g_scatter_full, scenes[i] + offsets.m_vecVelocity,
+            velocities[i].data(), sizeof(float) * 3);
+    }
+    mem.ExecuteReadScatter(g_scatter_full);
+
+    runtime.projectiles.clear();
+    runtime.projectiles.reserve(16);
+    for (size_t i = 0; i < kSlots && runtime.projectiles.size() < 32; ++i) {
+        const float speed = std::sqrt(velocities[i][0] * velocities[i][0] +
+                                      velocities[i][1] * velocities[i][1] +
+                                      velocities[i][2] * velocities[i][2]);
+        if (kinds[i] == ProjectileKind::None || !IsFinitePosition(positions[i].data()) ||
+            !std::isfinite(speed) || speed < 12.f)
+            continue;
+        Projectile projectile{};
+        projectile.entity = entities[i];
+        projectile.kind = (kinds[i] == ProjectileKind::Molotov && incendiary[i])
+            ? ProjectileKind::Incendiary : kinds[i];
+        std::memcpy(projectile.pos, positions[i].data(), sizeof(projectile.pos));
+        std::memcpy(projectile.velocity, velocities[i].data(), sizeof(projectile.velocity));
+        projectile.sample_timestamp_ms = now;
+        runtime.projectiles.push_back(projectile);
+    }
 }
 
 static bool LooksLikePawn(uintptr_t pawn) {
@@ -3587,6 +3721,8 @@ if (need_bones) {
             }
         }
     }
+
+    CollectProjectiles(frame_config);
 
     // Snapshot successful scans for the hold-over path above.
     if (!runtime.players.empty()) {

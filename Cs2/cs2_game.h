@@ -76,6 +76,7 @@ struct Offsets {
     uintptr_t m_pInGameMoneyServices = 0x810; // CCSPlayerController
     uintptr_t m_iAccount = 0x40;             // CCSPlayerController_InGameMoneyServices
     uintptr_t m_bIsDefusing = 0x1C7A;        // C_CSPlayerPawn
+    uintptr_t m_bIsIncGrenade = 0x1260;      // C_MolotovProjectile
     bool loaded = false;
 
     bool Validate(std::string* reason = nullptr) const noexcept;
@@ -151,6 +152,16 @@ struct BombState {
     uint64_t sample_timestamp_ms = 0;
 };
 
+enum class ProjectileKind : uint8_t { None, Flash, Smoke, HE, Molotov, Incendiary, Decoy };
+
+struct Projectile {
+    uintptr_t entity = 0;
+    ProjectileKind kind = ProjectileKind::None;
+    float pos[3]{};
+    float velocity[3]{};
+    uint64_t sample_timestamp_ms = 0;
+};
+
 struct Runtime {
     uintptr_t client_base = 0;
     uintptr_t engine_base = 0;
@@ -175,6 +186,7 @@ struct Runtime {
     uintptr_t controller_stride = 0x70;
     uintptr_t pawn_stride = 0x70;
     BombState bomb{};
+    std::vector<Projectile> projectiles;
     int player_count = 0;
     int enemy_count = 0;
     int controller_count = 0;
