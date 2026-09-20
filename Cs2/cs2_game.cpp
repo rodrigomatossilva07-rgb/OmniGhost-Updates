@@ -1401,6 +1401,8 @@ static void CollectProjectiles(const Config& frame_config) {
     }
 
     static uint64_t next_scan_ms = 0;
+    static uint64_t next_telemetry_ms = 0;
+    static size_t page_window = 0;
     const uint64_t now = GetTickCount64();
     if (now < next_scan_ms) return;
     // World-entity discovery is optional and must never starve player/camera
@@ -1409,11 +1411,13 @@ static void CollectProjectiles(const Config& frame_config) {
         next_scan_ms = now + 800;
         return;
     }
-    next_scan_ms = now + 350;
+    next_scan_ms = now + 180;
 
-    constexpr size_t kPages = 1;
+    constexpr size_t kPages = 2;
     constexpr size_t kSlotsPerPage = 0x200;
     constexpr size_t kSlots = kPages * kSlotsPerPage;
+    constexpr size_t kPageWindows = 2;
+    const size_t first_page = (page_window++ % kPageWindows) * kPages;
     std::array<uintptr_t, kPages> pages{};
     std::array<uintptr_t, kSlots> entities{};
     std::array<uintptr_t, kSlots> identities{};
@@ -1433,7 +1437,7 @@ static void CollectProjectiles(const Config& frame_config) {
     mem.SetDmaCallTag("CS2.Projectiles.Pages");
     for (size_t page = 0; page < kPages; ++page)
         mem.AddScatterReadRequest(g_scatter_full,
-            root + kEntityPageTableOffset + sizeof(uintptr_t) * page,
+            root + kEntityPageTableOffset + sizeof(uintptr_t) * (first_page + page),
             &pages[page], sizeof(uintptr_t));
     mem.ExecuteReadScatter(g_scatter_full);
 
@@ -1517,6 +1521,31 @@ static void CollectProjectiles(const Config& frame_config) {
         std::memcpy(projectile.velocity, velocities[i].data(), sizeof(projectile.velocity));
         projectile.sample_timestamp_ms = now;
         runtime.projectiles.push_back(projectile);
+    }
+
+    if (now >= next_telemetry_ms) {
+        next_telemetry_ms = now + 2000;
+        size_t validPages = 0, validEntities = 0, validIdentities = 0, validNames = 0;
+        size_t classified = 0, validScenes = 0;
+        for (size_t i = 0; i < kPages; ++i) if (IsUserPointer(pages[i])) ++validPages;
+        for (size_t i = 0; i < kSlots; ++i) {
+            if (IsUserPointer(entities[i])) ++validEntities;
+            if (IsUserPointer(identities[i])) ++validIdentities;
+            if (IsUserPointer(name_ptrs[i])) ++validNames;
+            if (kinds[i] != ProjectileKind::None) ++classified;
+            if (IsUserPointer(scenes[i])) ++validScenes;
+        }
+        OmniGhost::SessionLog::Write(OmniGhost::SessionLog::Severity::Info,
+            OmniGhost::SessionLog::Subsystem::DMA, "CS2 Projectile ESP scan", {
+                {"pages", std::to_string(validPages) + "/" + std::to_string(kPages), false},
+                {"page_window", std::to_string(first_page), false},
+                {"entities", std::to_string(validEntities), false},
+                {"identities", std::to_string(validIdentities), false},
+                {"name_ptrs", std::to_string(validNames), false},
+                {"classified", std::to_string(classified), false},
+                {"scenes", std::to_string(validScenes), false},
+                {"visible", std::to_string(runtime.projectiles.size()), false},
+            });
     }
 }
 
@@ -3989,20 +4018,10 @@ void EnsureAcquisitionStarted() {
                 {
                     std::scoped_lock dmaGate(g_dma_read_gate);
                     RunFrameWithConfig(*frame_config);
-                    // A full scan can include bone validation and briefly hold the
-                    // DMA gate. Stamp the newest view matrix immediately before
-                    // releasing that gate so the presentation never has to wait
-                    // for the camera worker's next scheduler wake-up after a
-                    // heavy player pass. This is one 64-byte read per full scan,
-                    // not a per-entity transfer.
-                    if (runtime.in_match && runtime.client_base && offsets.dwViewMatrix) {
-                        float matrix[16]{};
-                        mem.SetDmaLane("camera");
-                        mem.SetDmaCallTag("CS2.CameraCatchup");
-                        if (QRead(runtime.client_base + offsets.dwViewMatrix, matrix, sizeof(matrix)))
-                            PublishCameraSnapshot(matrix);
-                        mem.SetDmaLane("full");
-                    }
+                    // Keep full scans and the camera lane isolated. A catch-up
+                    // read here inherited transport stalls and delayed snapshot
+                    // publication; the renderer instead retains its immutable
+                    // camera snapshot until the worker refreshes after release.
                 }
                 g_acq_busy.store(false, std::memory_order_release);
                 runtime.acquisition_ms = OmniGhost::Gameplay::TimeMs(acquire_begin);
