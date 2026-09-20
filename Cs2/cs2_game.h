@@ -77,6 +77,12 @@ struct Offsets {
     uintptr_t m_iAccount = 0x40;             // CCSPlayerController_InGameMoneyServices
     uintptr_t m_bIsDefusing = 0x1C7A;        // C_CSPlayerPawn
     uintptr_t m_bIsIncGrenade = 0x1260;      // C_MolotovProjectile
+    // World-effect timers. Zero means the active schema dump has not supplied
+    // the field yet, and the feature stays disabled rather than guessing.
+    uintptr_t m_bDidSmokeEffect = 0;
+    uintptr_t m_nSmokeEffectTickBegin = 0;
+    uintptr_t m_nFireEffectTickBegin = 0;
+    uintptr_t m_nFireLifetime = 0;
     bool loaded = false;
 
     bool Validate(std::string* reason = nullptr) const noexcept;

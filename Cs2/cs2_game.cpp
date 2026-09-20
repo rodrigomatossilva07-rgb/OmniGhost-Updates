@@ -419,6 +419,10 @@ void LoadSchemaOffsets(const std::string& schema) {
     JsonClassU64(schema, "C_CSPlayerPawn", "m_bIsScoped", offsets.m_bIsScoped);
     JsonClassU64(schema, "C_CSPlayerPawn", "m_flFlashDuration", offsets.m_flFlashDuration);
     JsonClassU64(schema, "C_MolotovProjectile", "m_bIsIncGrenade", offsets.m_bIsIncGrenade);
+    JsonClassU64(schema, "CSmokeGrenadeProjectile", "m_bDidSmokeEffect", offsets.m_bDidSmokeEffect);
+    JsonClassU64(schema, "CSmokeGrenadeProjectile", "m_nSmokeEffectTickBegin", offsets.m_nSmokeEffectTickBegin);
+    JsonClassU64(schema, "CInferno", "m_nFireEffectTickBegin", offsets.m_nFireEffectTickBegin);
+    JsonClassU64(schema, "CInferno", "m_nFireLifetime", offsets.m_nFireLifetime);
     JsonClassU64(schema, "C_CSPlayerPawn", "m_aimPunchAngle", offsets.m_aimPunchAngle);
     JsonClassU64(schema, "CGameSceneNode", "m_vecAbsOrigin", offsets.m_vecAbsOrigin);
     JsonClassU64(schema, "CGameSceneNode", "m_vecVelocity", offsets.m_vecVelocity);
