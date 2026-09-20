@@ -2355,6 +2355,10 @@ static void RunFrameWithConfig(const Config& frame_config) {
     // safely before the shared world is reclaimed.
     if (!frame_config.grenade_trail && !collision_load.valid())
         collision.Clear();
+    runtime.trajectory_collision_loading = collision_load.valid();
+    runtime.trajectory_collision_ready = frame_config.grenade_trail &&
+        collision.IsLoadedFor(runtime.map_name);
+    std::snprintf(runtime.trajectory_collision_map, sizeof(runtime.trajectory_collision_map), "%s", runtime.map_name);
 
     const bool map_reports_match = IsPlayableMapName(runtime.map_name);
     runtime.in_match = map_reports_match;

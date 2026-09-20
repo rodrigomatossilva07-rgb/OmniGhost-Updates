@@ -203,6 +203,9 @@ struct Runtime {
     int projectile_classified = 0;
     int projectile_scenes = 0;
     uint64_t projectile_scan_timestamp_ms = 0;
+    bool trajectory_collision_loading = false;
+    bool trajectory_collision_ready = false;
+    char trajectory_collision_map[64]{};
     int player_count = 0;
     int enemy_count = 0;
     int controller_count = 0;
