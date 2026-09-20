@@ -7,6 +7,7 @@
 #include "../aimbot/aimbot.h"
 #include <iostream>
 #include <unordered_set>
+#include <shared_mutex>
 
 // Global cache manager instance
 PedCacheManager g_pedCacheManager;
@@ -21,17 +22,24 @@ PedCacheManager::~PedCacheManager() {
 }
 
 void PedCacheManager::initialize() {
+    std::unique_lock lock(mutex_);
     lastSlowUpdate = std::chrono::steady_clock::now();
 }
 
 void PedCacheManager::update() {
     auto now = std::chrono::steady_clock::now();
-
-    // Check if it's time for slow cache update
-    if (now - lastSlowUpdate >= SLOW_CACHE_INTERVAL) {
-        slowCache();
-        lastSlowUpdate = now;
+    bool runSlow = false;
+    {
+        std::unique_lock lock(mutex_);
+        if (now - lastSlowUpdate >= SLOW_CACHE_INTERVAL) {
+            // Reserve this interval while protected.  The DMA work itself is
+            // performed by slowCache, which owns the same cache lock.
+            lastSlowUpdate = now;
+            runSlow = true;
+        }
     }
+    if (runSlow)
+        slowCache();
 }
 
 void PedCacheManager::slowCache() {
@@ -39,11 +47,14 @@ void PedCacheManager::slowCache() {
     static std::vector<uintptr_t> pedIds;
     static std::vector<float> healthValues;
     static std::vector<uintptr_t> playerInfoValues;
-    pedIds.clear();
-    pedIds.reserve(pedCache.size());
-    for (auto& [pedId, pedData] : pedCache) {
-        if (pedData.isValid)
-            pedIds.push_back(pedId);
+    {
+        std::shared_lock lock(mutex_);
+        pedIds.clear();
+        pedIds.reserve(pedCache.size());
+        for (const auto& [pedId, pedData] : pedCache) {
+            if (pedData.isValid)
+                pedIds.push_back(pedId);
+        }
     }
 
     if (!pedIds.empty()) {
@@ -60,6 +71,9 @@ void PedCacheManager::slowCache() {
         mem.ExecuteReadScatter(handle);
         mem.CloseScatterHandle(handle);
 
+        // DMA completed without holding the cache mutex.  Publishing fields is
+        // intentionally short so render/aim never waits behind an I/O stall.
+        std::unique_lock lock(mutex_);
         for (size_t i = 0; i < pedIds.size(); ++i) {
             auto it = pedCache.find(pedIds[i]);
             if (it != pedCache.end()) {
@@ -67,10 +81,11 @@ void PedCacheManager::slowCache() {
                 it->second.playerInfo = playerInfoValues[i];
             }
         }
-
+        cleanupUnlocked();
+        return;
     }
-
-    cleanup();
+    std::unique_lock lock(mutex_);
+    cleanupUnlocked();
 }
 
 void PedCacheManager::fastCache(const std::vector<uintptr_t>& validPeds,
@@ -86,21 +101,24 @@ void PedCacheManager::fastCache(const std::vector<uintptr_t>& validPeds,
     newcomers.clear();
     newcomers.reserve(8);
 
-    for (size_t i = 0; i < validPeds.size() && i < positions.size(); ++i) {
-        uintptr_t pedId = validPeds[i];
-        present.insert(pedId);
-        auto it = pedCache.find(pedId);
-        if (it != pedCache.end()) {
-            it->second.position_origin = positions[i];
-            it->second.lastUpdate = now;
-            it->second.isValid = true;
-        } else {
-            PedData pd{};
-            pd.position_origin = positions[i];
-            pd.lastUpdate = now;
-            pd.isValid = true;
-            pedCache.emplace(pedId, pd);
-            newcomers.push_back(pedId);
+    {
+        std::unique_lock lock(mutex_);
+        for (size_t i = 0; i < validPeds.size() && i < positions.size(); ++i) {
+            uintptr_t pedId = validPeds[i];
+            present.insert(pedId);
+            auto it = pedCache.find(pedId);
+            if (it != pedCache.end()) {
+                it->second.position_origin = positions[i];
+                it->second.lastUpdate = now;
+                it->second.isValid = true;
+            } else {
+                PedData pd{};
+                pd.position_origin = positions[i];
+                pd.lastUpdate = now;
+                pd.isValid = true;
+                pedCache.emplace(pedId, pd);
+                newcomers.push_back(pedId);
+            }
         }
     }
 
@@ -118,6 +136,7 @@ void PedCacheManager::fastCache(const std::vector<uintptr_t>& validPeds,
         }
         mem.ExecuteReadScatter(handle);
         mem.CloseScatterHandle(handle);
+        std::unique_lock lock(mutex_);
         for (size_t i = 0; i < newcomers.size(); ++i) {
             auto it = pedCache.find(newcomers[i]);
             if (it != pedCache.end()) {
@@ -128,6 +147,7 @@ void PedCacheManager::fastCache(const std::vector<uintptr_t>& validPeds,
     }
 
     // Invalidate stale entries without nested loops
+    std::unique_lock lock(mutex_);
     for (auto& [pedId, pedData] : pedCache) {
         if (present.find(pedId) != present.end())
             continue;
@@ -137,6 +157,7 @@ void PedCacheManager::fastCache(const std::vector<uintptr_t>& validPeds,
 }
 
 void PedCacheManager::manualCache() {
+    std::unique_lock lock(mutex_);
     // Full reinitialization - rare operation
     // Clear all cache data
     pedCache.clear();
@@ -147,6 +168,7 @@ void PedCacheManager::manualCache() {
 }
 
 bool PedCacheManager::getPedData(uintptr_t pedId, PedData& outData) const {
+    std::shared_lock lock(mutex_);
     auto it = pedCache.find(pedId);
     if (it != pedCache.end() && it->second.isValid) {
         outData = it->second;
@@ -156,6 +178,7 @@ bool PedCacheManager::getPedData(uintptr_t pedId, PedData& outData) const {
 }
 
 std::vector<uintptr_t> PedCacheManager::getValidPedIds() const {
+    std::shared_lock lock(mutex_);
     std::vector<uintptr_t> validIds;
     validIds.reserve(pedCache.size());
 
@@ -169,10 +192,12 @@ std::vector<uintptr_t> PedCacheManager::getValidPedIds() const {
 }
 
 size_t PedCacheManager::getCacheSize() const {
+    std::shared_lock lock(mutex_);
     return pedCache.size();
 }
 
 void PedCacheManager::updatePedPosition(uintptr_t pedId, const Vec3& position) {
+    std::unique_lock lock(mutex_);
     auto& pedData = pedCache[pedId];
     pedData.position_origin = position;
     pedData.lastUpdate = std::chrono::steady_clock::now();
@@ -180,6 +205,7 @@ void PedCacheManager::updatePedPosition(uintptr_t pedId, const Vec3& position) {
 }
 
 void PedCacheManager::updatePedHealth(uintptr_t pedId, float health) {
+    std::unique_lock lock(mutex_);
     auto it = pedCache.find(pedId);
     if (it != pedCache.end()) {
         it->second.health = health;
@@ -188,14 +214,21 @@ void PedCacheManager::updatePedHealth(uintptr_t pedId, float health) {
 }
 
 void PedCacheManager::removePed(uintptr_t pedId) {
+    std::unique_lock lock(mutex_);
     pedCache.erase(pedId);
 }
 
 void PedCacheManager::clearCache() {
+    std::unique_lock lock(mutex_);
     pedCache.clear();
 }
 
 void PedCacheManager::cleanup() {
+    std::unique_lock lock(mutex_);
+    cleanupUnlocked();
+}
+
+void PedCacheManager::cleanupUnlocked() {
     // Remove invalid or old entries
     auto now = std::chrono::steady_clock::now();
 

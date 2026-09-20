@@ -112,16 +112,21 @@ bool ContainsInsensitive(std::wstring text, std::wstring needle)
 
 struct FtdiDriverInfo
 {
-    bool found = false;
+    bool devicePresent = false;
+    bool driverFound = false;
+    bool isWinUsbD3xx = false;
+    bool isLegacyWdfD3xx = false;
     std::wstring description;
+    std::wstring instanceId;
     std::wstring version;
     std::wstring provider;
-    std::wstring infPath;
+    std::wstring publishedInf;
 };
 
 FtdiDriverInfo QueryInstalledFtdiD3xxDriver()
 {
     FtdiDriverInfo result;
+    int bestScore = -1;
     HDEVINFO devices = SetupDiGetClassDevsW(nullptr, nullptr, nullptr, DIGCF_PRESENT | DIGCF_ALLCLASSES);
     if (devices == INVALID_HANDLE_VALUE)
         return result;
@@ -156,16 +161,45 @@ FtdiDriverInfo QueryInstalledFtdiD3xxDriver()
             ContainsInsensitive(hwids, L"VID_0403&PID_601F");
         if (!looksLikeFt60x)
             continue;
-        HKEY driverKey = SetupDiOpenDevRegKey(devices, &deviceInfo, DICS_FLAG_GLOBAL, 0, DIREG_DRV, KEY_QUERY_VALUE);
-        if (driverKey == INVALID_HANDLE_VALUE)
-            continue;
-        result.found = true;
-        result.description = description;
-        result.version = QueryRegistryString(driverKey, L"DriverVersion");
-        result.provider = QueryRegistryString(driverKey, L"ProviderName");
-        result.infPath = QueryRegistryString(driverKey, L"InfPath");
-        RegCloseKey(driverKey);
-        break;
+        // A FT601 can sit below a Microsoft USB composite parent carrying the
+        // same VID/PID.  Do not stop at the first match: prefer the actual
+        // FTDI D3XX function node and retain a generic parent only as evidence
+        // that the physical device is present.
+        FtdiDriverInfo candidate;
+        candidate.devicePresent = true;
+        candidate.description = description;
+        wchar_t instanceId[512]{};
+        if (SetupDiGetDeviceInstanceIdW(devices, &deviceInfo, instanceId,
+                static_cast<DWORD>(std::size(instanceId)), nullptr))
+            candidate.instanceId = instanceId;
+
+        HKEY driverKey = SetupDiOpenDevRegKey(devices, &deviceInfo,
+            DICS_FLAG_GLOBAL, 0, DIREG_DRV, KEY_QUERY_VALUE);
+        if (driverKey != INVALID_HANDLE_VALUE) {
+            candidate.version = QueryRegistryString(driverKey, L"DriverVersion");
+            candidate.provider = QueryRegistryString(driverKey, L"ProviderName");
+            candidate.publishedInf = QueryRegistryString(driverKey, L"InfPath");
+            candidate.driverFound = !candidate.version.empty() || !candidate.provider.empty() ||
+                !candidate.publishedInf.empty();
+            RegCloseKey(driverKey);
+        }
+
+        const bool ftdiProvider = ContainsInsensitive(candidate.provider, L"FTDI");
+        const bool winUsbInf = ContainsInsensitive(candidate.publishedInf, L"FTD3XXWU.INF");
+        const bool legacyInf = ContainsInsensitive(candidate.publishedInf, L"FTDIBUS3.INF");
+        candidate.isWinUsbD3xx = ftdiProvider && winUsbInf;
+        candidate.isLegacyWdfD3xx = ftdiProvider && legacyInf;
+
+        int score = 10; // physical FT60x/VID-PID match only
+        if (candidate.driverFound) score += 5;
+        if (ftdiProvider) score += 40;
+        if (winUsbInf || legacyInf) score += 100;
+        if (ContainsInsensitive(candidate.description, L"FTDI FT60") ||
+            ContainsInsensitive(candidate.description, L"D3XX")) score += 20;
+        if (score > bestScore) {
+            bestScore = score;
+            result = std::move(candidate);
+        }
     }
     SetupDiDestroyDeviceInfoList(devices);
     return result;
@@ -187,15 +221,32 @@ void LogFtdiDiagnostics()
             {{"module", Narrow(name)}, {"version", version}, {"path", Narrow(path.wstring())}});
     }
     const FtdiDriverInfo driver = QueryInstalledFtdiD3xxDriver();
-    if (driver.found) {
-        std::cout << "[DMA][FTDI] installed_driver=" << Narrow(driver.version)
+    if (driver.devicePresent && driver.isWinUsbD3xx) {
+        std::cout << "[DMA][FTDI] driver_generation=WINUSB installed_driver=" << Narrow(driver.version)
             << " provider=" << Narrow(driver.provider)
             << " device=" << Narrow(driver.description)
-            << " inf=" << Narrow(driver.infPath) << "\n";
+            << " inf=" << Narrow(driver.publishedInf) << "\n";
         OmniGhost::SessionLog::Write(OmniGhost::SessionLog::Severity::Info,
-            OmniGhost::SessionLog::Subsystem::DMA, "FTDI D3XX installed driver",
+            OmniGhost::SessionLog::Subsystem::DMA, "FTDI D3XX WinUSB driver detected",
             {{"version", Narrow(driver.version)}, {"provider", Narrow(driver.provider)},
-             {"device", Narrow(driver.description)}, {"inf", Narrow(driver.infPath)}});
+             {"device", Narrow(driver.description)}, {"inf", Narrow(driver.publishedInf)}});
+    } else if (driver.devicePresent && driver.isLegacyWdfD3xx) {
+        std::cout << "[DMA][FTDI] driver_generation=WDF legacy_driver=" << Narrow(driver.version)
+            << " provider=" << Narrow(driver.provider) << " inf=" << Narrow(driver.publishedInf) << "\n";
+        OmniGhost::SessionLog::Write(OmniGhost::SessionLog::Severity::Warning,
+            OmniGhost::SessionLog::Subsystem::DMA, "FTDI legacy WDF D3XX driver detected",
+            {{"version", Narrow(driver.version)}, {"provider", Narrow(driver.provider)},
+             {"device", Narrow(driver.description)}, {"inf", Narrow(driver.publishedInf)}});
+    } else if (driver.devicePresent) {
+        // This is intentionally not treated as a D3XX driver.  A Microsoft
+        // composite parent is not enough evidence to offer or perform update.
+        std::cout << "[DMA][FTDI] FT60x present but D3XX function node unresolved; provider="
+            << Narrow(driver.provider) << " device=" << Narrow(driver.description)
+            << " inf=" << Narrow(driver.publishedInf) << "\n";
+        OmniGhost::SessionLog::Write(OmniGhost::SessionLog::Severity::Warning,
+            OmniGhost::SessionLog::Subsystem::DMA, "FT60x present but D3XX driver node unresolved",
+            {{"provider", Narrow(driver.provider)}, {"device", Narrow(driver.description)},
+             {"instance_id", Narrow(driver.instanceId)}, {"inf", Narrow(driver.publishedInf)}});
     } else {
         std::cout << "[DMA][FTDI] installed D3XX/FT60x driver version could not be resolved via SetupAPI\n";
         OmniGhost::SessionLog::Write(OmniGhost::SessionLog::Severity::Warning,

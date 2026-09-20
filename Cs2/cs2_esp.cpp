@@ -237,8 +237,9 @@ ImU32 Col(const float* c, float aMul = 1.f) {
 bool W2S(const float* world, const float* vm, float& sx, float& sy);
 
 // The acquisition lane already validates and caches complete snapshots.  The
-// renderer deliberately presents the newest complete sample: blending it here
-// made the ESP visibly trail a running player and a fast camera turn.
+// presentation lane deliberately has its own temporal state so a 40–60 Hz DMA
+// stream can be drawn smoothly at the overlay frame rate without ever reading
+// DMA from ImGui.
 static float g_presentViewMatrix[16]{};
 static uint64_t g_viewSnapshotMs = 0;
 static bool g_havePresentationView = false;
@@ -257,44 +258,118 @@ void UpdatePresentationViewMatrix(const CS2::Runtime& rt, const float* latestMat
     g_havePresentationView = true;
 }
 
-CS2::Player SmoothPlayerForPresentation(const CS2::Player& raw,
-                                        const CS2::MotionSnapshot* motion) {
-    CS2::Player output = raw;
-    if (!motion || !raw.pawn) return output;
+struct PresentationState {
+    float source_pos[3]{};
+    float presented_pos[3]{};
+    float velocity[3]{};
+    uint64_t source_timestamp_ms = 0;
+    uint64_t last_seen_frame = 0;
+    bool initialized = false;
+};
 
-    for (uint32_t i = 0; i < motion->count; ++i) {
-        const auto& sample = motion->players[i];
-        if (sample.pawn != raw.pawn) continue;
-        const float dx = sample.pos[0] - raw.pos[0];
-        const float dy = sample.pos[1] - raw.pos[1];
-        const float dz = sample.pos[2] - raw.pos[2];
-        // Never apply a stale/recycled scene node as a visual teleport.
-        if (!std::isfinite(dx) || !std::isfinite(dy) || !std::isfinite(dz) ||
-            dx * dx + dy * dy + dz * dz > 192.f * 192.f)
-            return output;
-        output.pos[0] += dx; output.pos[1] += dy; output.pos[2] += dz;
-        output.head[0] += dx; output.head[1] += dy; output.head[2] += dz;
-        // Translate the FULL joint set from the last validated pose. This keeps
-        // every bone (arms/legs/spine) without re-reading the 32-joint buffer
-        // on the motion lane — visual parity, far less DMA.
-        if (output.bones_ok) {
-            if (output.full_bones_ok) {
-                for (std::size_t bone = 0; bone < CS2::kBoneSlotCount; ++bone) {
-                    output.bones[bone][0] += dx;
-                    output.bones[bone][1] += dy;
-                    output.bones[bone][2] += dz;
-                }
-            } else {
-                static constexpr std::size_t kCompactSlots[] = {0, 1, 2, 4};
-                for (const std::size_t bone : kCompactSlots) {
-                    output.bones[bone][0] += dx;
-                    output.bones[bone][1] += dy;
-                    output.bones[bone][2] += dz;
-                }
+static std::unordered_map<uintptr_t, PresentationState> g_playerPresentation;
+static uint64_t g_presentationFrame = 0;
+
+static bool FinitePosition(const float pos[3]) {
+    return std::isfinite(pos[0]) && std::isfinite(pos[1]) && std::isfinite(pos[2]) &&
+        std::fabs(pos[0]) < 100000.f && std::fabs(pos[1]) < 100000.f && std::fabs(pos[2]) < 100000.f;
+}
+
+static void TranslatePresentationPose(CS2::Player& output, float dx, float dy, float dz) {
+    output.pos[0] += dx; output.pos[1] += dy; output.pos[2] += dz;
+    output.head[0] += dx; output.head[1] += dy; output.head[2] += dz;
+    if (!output.bones_ok) return;
+    const std::size_t count = output.full_bones_ok ? CS2::kBoneSlotCount : 5;
+    for (std::size_t bone = 0; bone < count; ++bone) {
+        output.bones[bone][0] += dx;
+        output.bones[bone][1] += dy;
+        output.bones[bone][2] += dz;
+    }
+}
+
+CS2::Player SmoothPlayerForPresentation(const CS2::Player& raw,
+                                        const CS2::MotionSnapshot* motion,
+                                        uint64_t runtimeTimestampMs) {
+    CS2::Player output = raw;
+    if (!raw.pawn || !FinitePosition(raw.pos)) return output;
+
+    float source[3] = { raw.pos[0], raw.pos[1], raw.pos[2] };
+    uint64_t sourceTimestamp = runtimeTimestampMs;
+    // Motion is a producer-owned, scatter-read position sample.  It is used
+    // only when newer than the complete pose snapshot, never as a separate
+    // render-time DMA fallback.
+    if (motion && motion->timestamp_ms >= sourceTimestamp) {
+        for (uint32_t i = 0; i < motion->count; ++i) {
+            const auto& sample = motion->players[i];
+            if (sample.pawn == raw.pawn && FinitePosition(sample.pos)) {
+                std::memcpy(source, sample.pos, sizeof(source));
+                sourceTimestamp = motion->timestamp_ms;
+                break;
             }
         }
+    }
+
+    if (g_playerPresentation.bucket_count() < 128)
+        g_playerPresentation.reserve(128);
+    PresentationState& state = g_playerPresentation[raw.pawn];
+    state.last_seen_frame = g_presentationFrame;
+
+    const uint64_t now = GetTickCount64();
+    if (!state.initialized || !state.source_timestamp_ms || sourceTimestamp < state.source_timestamp_ms) {
+        std::memcpy(state.source_pos, source, sizeof(source));
+        std::memcpy(state.presented_pos, source, sizeof(source));
+        std::memset(state.velocity, 0, sizeof(state.velocity));
+        state.source_timestamp_ms = sourceTimestamp;
+        state.initialized = true;
         return output;
     }
+
+    if (sourceTimestamp > state.source_timestamp_ms) {
+        const float dt = std::clamp(static_cast<float>(sourceTimestamp - state.source_timestamp_ms) / 1000.f,
+                                    .001f, .250f);
+        const float dx = source[0] - state.source_pos[0];
+        const float dy = source[1] - state.source_pos[1];
+        const float dz = source[2] - state.source_pos[2];
+        const float distanceSq = dx * dx + dy * dy + dz * dz;
+        // Pawn reuse, respawn and bad samples reset immediately rather than
+        // dragging a skeleton across the map.
+        if (!std::isfinite(distanceSq) || distanceSq > 384.f * 384.f) {
+            std::memcpy(state.presented_pos, source, sizeof(source));
+            std::memset(state.velocity, 0, sizeof(state.velocity));
+        } else {
+            state.velocity[0] = dx / dt;
+            state.velocity[1] = dy / dt;
+            state.velocity[2] = dz / dt;
+            const float speedSq = state.velocity[0] * state.velocity[0] +
+                state.velocity[1] * state.velocity[1] + state.velocity[2] * state.velocity[2];
+            if (!std::isfinite(speedSq) || speedSq > 2600.f * 2600.f)
+                std::memset(state.velocity, 0, sizeof(state.velocity));
+        }
+        std::memcpy(state.source_pos, source, sizeof(source));
+        state.source_timestamp_ms = sourceTimestamp;
+    }
+
+    // Only extrapolate for a small controlled window.  A stalled DMA producer
+    // freezes gracefully at the final predicted point instead of drifting.
+    const float sourceAge = state.source_timestamp_ms && now >= state.source_timestamp_ms
+        ? std::min(static_cast<float>(now - state.source_timestamp_ms) / 1000.f, .040f) : 0.f;
+    float target[3] = {
+        state.source_pos[0] + state.velocity[0] * sourceAge,
+        state.source_pos[1] + state.velocity[1] * sourceAge,
+        state.source_pos[2] + state.velocity[2] * sourceAge
+    };
+    const float renderDt = std::clamp(ImGui::GetIO().DeltaTime, .001f, .050f);
+    const float speedSq = state.velocity[0] * state.velocity[0] +
+        state.velocity[1] * state.velocity[1] + state.velocity[2] * state.velocity[2];
+    const float tau = speedSq > 9.f ? .010f : .018f;
+    const float alpha = 1.f - std::exp(-renderDt / tau);
+    for (int axis = 0; axis < 3; ++axis)
+        state.presented_pos[axis] += (target[axis] - state.presented_pos[axis]) * alpha;
+
+    TranslatePresentationPose(output,
+        state.presented_pos[0] - raw.pos[0],
+        state.presented_pos[1] - raw.pos[1],
+        state.presented_pos[2] - raw.pos[2]);
     return output;
 }
 
@@ -967,6 +1042,7 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
     const auto fastCamera = CS2::AcquireCameraSnapshot();
     const auto motionLease = CS2::AcquireMotionSnapshot();
     const CS2::MotionSnapshot* motionPtr = motionLease ? &*motionLease : nullptr;
+    ++g_presentationFrame;
     // The camera lane runs independently at ~4 ms.  Position/bone snapshots
     // can remain coherent and heavier, while rapid mouse turns are projected
     // with the freshest available matrix for this exact render frame.
@@ -989,7 +1065,18 @@ void Draw(const CS2::Runtime& rt, const CS2::Config& cfg) {
     std::array<CS2::Player, 64> presentedPlayers{};
     const std::size_t presentedCount = (std::min)(frame.players.size(), presentedPlayers.size());
     for (std::size_t i = 0; i < presentedCount; ++i)
-        presentedPlayers[i] = SmoothPlayerForPresentation(frame.players[i], motionPtr);
+        presentedPlayers[i] = SmoothPlayerForPresentation(
+            frame.players[i], motionPtr, frame.snapshot_timestamp_ms);
+    // Bound visual state across map changes and player/pawn reuse.  This is
+    // presentation-only and never affects the immutable acquisition snapshot.
+    if ((g_presentationFrame % 240u) == 0u) {
+        for (auto it = g_playerPresentation.begin(); it != g_playerPresentation.end();) {
+            if (g_presentationFrame > it->second.last_seen_frame + 180u)
+                it = g_playerPresentation.erase(it);
+            else
+                ++it;
+        }
+    }
 
     if (g_overlay_instance && g_overlay_instance->device)
         PumpAvatarUploads(g_overlay_instance->device, 1);

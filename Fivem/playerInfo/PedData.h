@@ -4,6 +4,7 @@
 #include <vector>
 #include <chrono>
 #include <cstdint>
+#include <shared_mutex>
 #include "math/math.h"
 
 // Define the structure for storing ped data
@@ -19,10 +20,13 @@ struct PedData {
     }
 };
 
-// Single-threaded cache manager class
+// The producer owns writes while ESP/aim consume snapshots on the presentation
+// thread.  Keep this cache internally synchronized; callers never receive a
+// reference into the map.
 class PedCacheManager {
 private:
     std::unordered_map<uintptr_t, PedData> pedCache;
+    mutable std::shared_mutex mutex_;
 
     // Cache timing
     std::chrono::steady_clock::time_point lastSlowUpdate;
@@ -31,6 +35,7 @@ private:
 
     // Internal cache methods
     void slowCache();
+    void cleanupUnlocked();
 
 public:
     PedCacheManager();

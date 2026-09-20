@@ -1,6 +1,7 @@
 # Visual Studio and local build state
 .vs/
 .cache/
+.temp/
 build/
 artifacts/
 *.user

@@ -49,7 +49,6 @@ void DrawEspPreviewPanel(float panelWidth, float panelHeight, bool previewVisibl
     constexpr ImU32 kBlack = IM_COL32(5, 5, 5, 255);
     constexpr ImU32 kGunmetal = IM_COL32(27, 29, 29, 255);
     constexpr ImU32 kText = IM_COL32(216, 216, 210, 255);
-    constexpr ImU32 kActive = IM_COL32(40, 244, 91, 255);
 
     // Layered, clipped HUD surface. All decoration is intentionally subtle so
     // the configured ESP colours remain the main visual information.
@@ -93,8 +92,11 @@ void DrawEspPreviewPanel(float panelWidth, float panelHeight, bool previewVisibl
     const ImVec2 l_an = pt(-.39f, .950f), r_an = pt(.39f, .950f);
     const ImVec2 l_ft = pt(-.52f, 1.f), r_ft = pt(.52f, 1.f);
 
-    const ImU32 sk = previewVisible ? kActive : PreviewColor(esp::config.color_skeleton, false);
-    const ImU32 jt = previewVisible ? kActive : PreviewColor(esp::config.color_skeleton_points, false);
+    // The preview must mirror the selected colours.  It previously substituted
+    // a hard-coded green whenever its sample actor was "visible", even when
+    // visibility colours were disabled and the user selected white.
+    const ImU32 sk = PreviewColor(esp::config.color_skeleton, previewVisible);
+    const ImU32 jt = PreviewColor(esp::config.color_skeleton_points, previewVisible);
 
 
     // The provided operator image remains beneath the overlay. The preview is
@@ -307,7 +309,8 @@ void DrawEspPreviewPanel(float panelWidth, float panelHeight, bool previewVisibl
             color, 2.f);
     };
     if (esp::config.health_bar)
-        meter(boxMin.x - 15.f, head.y - 4.f, l_ft.y, 0.72f, kActive);
+        meter(boxMin.x - 15.f, head.y - 4.f, l_ft.y, 0.72f,
+            PreviewColor(esp::config.color_health, previewVisible));
     if (esp::config.armor_bar)
         meter(boxMax.x + 11.f, head.y - 4.f, r_ft.y, 0.55f, IM_COL32(67, 171, 243, 255));
 

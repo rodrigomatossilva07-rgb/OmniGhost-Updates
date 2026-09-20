@@ -154,45 +154,10 @@ namespace aimbot {
         }
     }
 
-    // Read the bone matrix once per hitbox resolve. The old code re-read the
-    // matrix for every bone (head/neck/hip), so a frame could mix several DMA
-    // snapshots. That is especially visible on distant players as aim jitter.
-    static Vec3 GetBoneWorldWithMatrix(uintptr_t ped, const Matrix& boneMatrix, int boneIndex) {
-        using namespace FiveM;
-        if (!ped)
-            return {};
-
-        Vector3 localOff = mem.Read<Vector3>(
-            ped + esp::BONE_ARRAY_BASE +
-            esp::BONE_SIZE * static_cast<uintptr_t>(boneIndex));
-
-        if (!std::isfinite(localOff.x) || !std::isfinite(localOff.y) || !std::isfinite(localOff.z))
-            return {};
-
-        // Local bone offsets should be model-sized, not hundreds/thousands of units.
-        if (fabsf(localOff.x) > 20.f || fabsf(localOff.y) > 20.f || fabsf(localOff.z) > 20.f)
-            return {};
-
-        DirectX::SimpleMath::Vector3 v(localOff.x, localOff.y, localOff.z);
-        DirectX::SimpleMath::Vector3 w = DirectX::XMVector3Transform(v, boneMatrix);
-        Vec3 result(w.x, w.y, w.z);
-
-        if (!IsFiniteVec3(result))
-            return {};
-
-        return result;
-    }
-
     static Vec3 ResolveHitboxWorld(uintptr_t ped, Hitbox hb) {
         using namespace FiveM;
         if (!ped)
             return {};
-
-        // Prefer the frame's scatter-batched skeleton: matrix + bone offsets were
-        // captured together, so this avoids mixing DMA snapshots. Fall back to a
-        // single live matrix snapshot only when the prepared frame is unavailable.
-        Matrix boneMatrix{};
-        bool haveBoneMatrix = false;
 
         auto bone = [&](int index) -> Vec3 {
             Vec3 prepared{};
@@ -201,13 +166,7 @@ namespace aimbot {
                 IsFiniteVec3(prepared)) {
                 return prepared;
             }
-
-            if (!haveBoneMatrix) {
-                boneMatrix = mem.Read<Matrix>(ped + esp::BONE_MATRIX_OFFSET);
-                haveBoneMatrix = true;
-            }
-
-            return GetBoneWorldWithMatrix(ped, boneMatrix, index);
+            return {};
         };
 
         switch (hb) {
@@ -276,13 +235,9 @@ namespace aimbot {
     static bool IsPedInVehicle(uintptr_t ped) {
         using namespace FiveM;
         if (!ped) return false;
-        uintptr_t veh = mem.Read<uintptr_t>(ped + offset::pedVehicle);
-        if (veh > 0x10000ULL && veh < 0x7FFFFFFFFFFFULL) {
-            uint8_t probe = 0;
-            if (mem.Read(veh, &probe, 1))
-                return true;
-        }
-        return false;
+        uintptr_t veh = 0;
+        return esp::try_get_prepared_vehicle(ped, veh) &&
+            veh > 0x10000ULL && veh < 0x7FFFFFFFFFFFULL;
     }
 
     static bool IsVisibleForAim(uintptr_t ped) {
@@ -348,29 +303,13 @@ namespace aimbot {
         out = {};
         using namespace FiveM;
 
-        // Always resolve localplayer + matrix live if cache is cold
-        // (do not depend solely on ESP frame cache — aim must work alone)
-        if (!offset::viewport)
+        // Aim consumes the same immutable acquisition generation as ESP.  Do
+        // not issue fallback DMA reads here; a cold frame simply means no aim.
+        if (!ESP::FrameCacheValid() || !offset::localplayer)
             return false;
-        if (!offset::localplayer && offset::world) {
-            uintptr_t lp = mem.Read<uintptr_t>(offset::world + 0x8);
-            if (lp) offset::localplayer = lp;
-        }
-        if (!offset::localplayer)
-            return false;
-
-        // Use a live camera matrix for acquisition too. This keeps the FOV test
-        // aligned with the actual crosshair at the moment RMB is pressed.
-        Matrix view_matrix =
-            mem.Read<Matrix>(offset::viewport + 0x24C);
-        Vec3 localPos = ESP::FrameCacheValid()
-            ? ESP::GetFrameLocalPos()
-            : mem.Read<Vec3>(offset::localplayer + offset::playerPosition);
-        if (localPos.IsZero()) {
-            localPos = mem.Read<Vec3>(offset::localplayer + 0x90);
-            if (localPos.IsZero())
-                return false;
-        }
+        const Matrix view_matrix = ESP::GetFrameViewMatrix();
+        const Vec3 localPos = ESP::GetFrameLocalPos();
+        if (localPos.IsZero()) return false;
 
         ImVec2 display = ImGui::GetIO().DisplaySize;
         if (display.x < 1.f || display.y < 1.f) return false;
@@ -419,15 +358,7 @@ namespace aimbot {
                     IsFiniteVec3(positions[i])) {
                     world = positions[i];
                     world.z += (config.hitbox == Hitbox::Head) ? 0.85f : 0.55f;
-                } else {
-                    Vec3 origin = mem.Read<Vec3>(ped + offset::playerPosition);
-                    if (origin.IsZero())
-                        origin = mem.Read<Vec3>(ped + 0x90);
-                    if (origin.IsZero() || !IsFiniteVec3(origin))
-                        continue;
-                    world = origin;
-                    world.z += (config.hitbox == Hitbox::Head) ? 0.85f : 0.55f;
-                }
+                } else continue;
             } else if (i < positions.size() && !positions[i].IsZero() &&
                        IsFiniteVec3(positions[i])) {
                 // Reject a bone that is implausibly far from the entity origin.
@@ -717,15 +648,9 @@ namespace aimbot {
     static bool RefreshTargetPose(TargetInfo& tgt) {
         using namespace FiveM;
 
-        if (!tgt.ped || !offset::viewport || !offset::localplayer)
+        if (!tgt.ped || !offset::localplayer || !ESP::FrameCacheValid())
             return false;
-
-        // Continuous aim must use the newest camera matrix available. The ESP
-        // frame cache is perfect for drawing, but it was captured earlier in the
-        // frame; feeding that older matrix back into mouse control adds another
-        // frame of phase delay and can turn a held aim into an oscillation.
-        const Matrix view_matrix =
-            mem.Read<Matrix>(offset::viewport + 0x24C);
+        const Matrix view_matrix = ESP::GetFrameViewMatrix();
 
         float health = 0.f;
         PedData pd{};
@@ -737,6 +662,8 @@ namespace aimbot {
             if (age > std::chrono::milliseconds(80))
                 havePd = false;
         }
+        if (!havePd && !esp::try_get_prepared_health(tgt.ped, health))
+            return false;
 
         // Locked aim only uses a CURRENT bone sample. If this read fails, this
         // frame sends no movement at all.
@@ -746,13 +673,8 @@ namespace aimbot {
 
         Vec3 origin{};
         if (!esp::try_get_prepared_origin(tgt.ped, origin) ||
-            origin.IsZero() ||
-            !IsFiniteVec3(origin)) {
-
-            origin = mem.Read<Vec3>(tgt.ped + offset::playerPosition);
-            if (origin.IsZero())
-                origin = mem.Read<Vec3>(tgt.ped + 0x90);
-        }
+            origin.IsZero() || !IsFiniteVec3(origin))
+            return false;
 
         if (origin.IsZero() || !IsFiniteVec3(origin))
             return false;
@@ -762,12 +684,7 @@ namespace aimbot {
         if (!std::isfinite(boneOffset) || boneOffset > 4.5f)
             return false;
 
-        Vec3 localPos = ESP::FrameCacheValid()
-            ? ESP::GetFrameLocalPos()
-            : mem.Read<Vec3>(offset::localplayer + offset::playerPosition);
-
-        if (localPos.IsZero())
-            localPos = mem.Read<Vec3>(offset::localplayer + 0x90);
+        Vec3 localPos = ESP::GetFrameLocalPos();
 
         if (localPos.IsZero() || !IsFiniteVec3(localPos))
             return false;
@@ -807,30 +724,8 @@ namespace aimbot {
         }
 
         Vec3 vel{};
-        if (config.velocity_prediction || !havePd) {
-            auto h = mem.CreateScatterHandle();
-            float liveHp = health;
-
-            mem.AddScatterReadRequest(
-                h,
-                tgt.ped + offset::pedVelocity,
-                &vel,
-                sizeof(Vec3));
-
-            if (!havePd) {
-                mem.AddScatterReadRequest(
-                    h,
-                    tgt.ped + offset::playerHealth,
-                    &liveHp,
-                    sizeof(float));
-            }
-
-            mem.ExecuteReadScatter(h);
-            mem.CloseScatterHandle(h);
-
-            if (!havePd)
-                health = liveHp;
-        }
+        if (config.velocity_prediction)
+            ESP::try_get_prepared_velocity(tgt.ped, vel);
 
         if (!std::isfinite(health) || health <= 1.f || health > 500.f)
             return false;

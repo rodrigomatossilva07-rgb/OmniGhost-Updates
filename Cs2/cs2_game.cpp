@@ -75,13 +75,20 @@ OmniGhost::Gameplay::SnapshotExchange<Runtime, 4> g_runtime_snapshots;
 
 // Multi-rate acquisition profile (render still every overlay frame)
 namespace {
-constexpr int CAMERA_INTERVAL_MS = 8;
-constexpr int MOTION_INTERVAL_MS = 8;       // smoother player movement on ESP
-constexpr int BONES_INTERVAL_MS = 12;       // fluid skeleton without flooding DMA
-constexpr int FULL_SCAN_INTERVAL_MS = 12;   // health / spotted / core identity
+// The renderer interpolates immutable snapshots.  A sustainable DMA cadence is
+// smoother in practice than flooding the FT601 queue and periodically freezing
+// for a full transport timeout.
+// Keep the physical transport close to the proven FiveM cadence.  Presentation
+// interpolation runs at overlay FPS, so pushing 80+ scans/sec only queues the
+// FT601 and makes the ESP less smooth when a scan is delayed.
+constexpr int CAMERA_INTERVAL_MS = 20;
+constexpr int MOTION_INTERVAL_MS = 20;
+constexpr int BONES_INTERVAL_MS = 20;
+constexpr int FULL_SCAN_INTERVAL_MS = 20;
 constexpr int ARMOR_INTERVAL_MS = 50;
-constexpr int LOCAL_HEALTH_INTERVAL_MS = 60;
-constexpr int WEAPON_INTERVAL_MS = 100;
+constexpr int LOCAL_HEALTH_INTERVAL_MS = 100;
+constexpr int WEAPON_INTERVAL_MS = 180;
+constexpr int WEAPON_FALLBACK_INTERVAL_MS = 1200;
 constexpr int ENTITY_LIST_INTERVAL_MS = 150;
 // Player names are static for a round.  Keeping them out of the hot DMA path
 // avoids a second expensive controller scatter every second.
@@ -2047,7 +2054,14 @@ static void RunFrameWithConfig(const Config& frame_config) {
     if (map_now_ms >= next_map_refresh_ms) {
         mem.SetDmaCallTag("CS2.MapRefresh");
         RefreshMapName();
-        next_map_refresh_ms = map_now_ms + (runtime.in_match ? 5000u : 400u);
+        // The map normally changes only on a transition.  Re-reading it every
+        // few seconds was an expensive synchronous probe that could queue
+        // behind player reads.  Keep lobby detection responsive, but let a
+        // confirmed match reuse its valid name for a longer period.
+        const int pressure = g_pressure_level.load(std::memory_order_relaxed);
+        next_map_refresh_ms = map_now_ms + (runtime.in_match
+            ? (pressure >= 2 ? 60000u : 30000u)
+            : 1000u);
     }
 
     // Match transition: map changed → force entity-list re-acquire so ESP
@@ -2090,7 +2104,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
     // pipeline in lobby while still recovering automatically in a real match.
     static uint64_t next_match_fallback_ms = 0;
     if (!runtime.in_match && map_now_ms >= next_match_fallback_ms && !DmaCooldownActive()) {
-        next_match_fallback_ms = map_now_ms + 1000u;
+        next_match_fallback_ms = map_now_ms + 2500u;
         uintptr_t probe_pawn = 0;
         uintptr_t entity_root = 0;
         uintptr_t entity_page = 0;
@@ -2198,8 +2212,9 @@ static void RunFrameWithConfig(const Config& frame_config) {
     const bool refreshLocalBootstrap = !IsUserPointer(runtime.local_pawn) ||
         !s_lastLocalBootstrapMs || localNowMs - s_lastLocalBootstrapMs >= 750u;
     static uint64_t s_lastLocalHealthMs = 0;
+    const int localPressure = g_pressure_level.load(std::memory_order_relaxed);
     const uint64_t healthInterval = runtime.local_health > 0
-        ? static_cast<uint64_t>(LOCAL_HEALTH_INTERVAL_MS) : 250u;
+        ? static_cast<uint64_t>(localPressure >= 2 ? 200 : LOCAL_HEALTH_INTERVAL_MS) : 300u;
     const bool refreshLocalHealth = !s_lastLocalHealthMs ||
         localNowMs - s_lastLocalHealthMs >= healthInterval;
     uintptr_t localPawn = runtime.local_pawn;
@@ -2613,6 +2628,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
         uintptr_t entity = 0;
         uint16_t definition = 0;
         uint64_t last_refresh_ms = 0;
+        uint64_t last_fallback_ms = 0;
     };
     static std::unordered_map<uintptr_t, CachedWeaponState> weaponStateCache;
     if (armorCache.bucket_count() < 128) armorCache.reserve(128);
@@ -2800,9 +2816,12 @@ if (need_bones) {
 
             for (int c = 0; c < candidate_count; ++c) {
                 if (!weaponRefreshDue[c]) continue;
+                const auto previous = weaponStateCache.find(resolved_pawns[c]);
+                const uint64_t lastFallback = previous != weaponStateCache.end()
+                    ? previous->second.last_fallback_ms : 0;
                 weaponStateCache[resolved_pawns[c]] = {
                     weaponServices[c], weaponHandles[c], weaponEntities[c],
-                    weaponDefinitions[c], scan_now_ms
+                    weaponDefinitions[c], scan_now_ms, lastFallback
                 };
             }
         }
@@ -2848,7 +2867,12 @@ if (need_bones) {
                         QReadT(primary, def);
                     }
                     weaponDefinitions[c] = def;
-                    weaponStateCache[resolved_pawns[c]] = {services, handle, entity, def, scan_now_ms};
+                    const auto previous = weaponStateCache.find(resolved_pawns[c]);
+                    const uint64_t lastFallback = previous != weaponStateCache.end()
+                        ? previous->second.last_fallback_ms : 0;
+                    weaponStateCache[resolved_pawns[c]] = {
+                        services, handle, entity, def, scan_now_ms, lastFallback
+                    };
                     weaponRefreshDue[c] = true;
                 }
             }
@@ -3222,7 +3246,11 @@ if (need_bones) {
         if (need_weapons) {
             const uintptr_t weapon_ent = weaponEntities[c];
             uint16_t def = weaponDefinitions[c];
-            if (weaponRefreshDue[c] && (def == 0 || def >= 6000) && IsUserPointer(weapon_ent)) {
+            auto cachedWeapon = weaponStateCache.find(p.pawn);
+            const bool fallbackDue = cachedWeapon == weaponStateCache.end() ||
+                !cachedWeapon->second.last_fallback_ms ||
+                scan_now_ms - cachedWeapon->second.last_fallback_ms >= WEAPON_FALLBACK_INTERVAL_MS;
+            if (weaponRefreshDue[c] && fallbackDue && (def == 0 || def >= 6000) && IsUserPointer(weapon_ent)) {
                 // Schema-drift fallback: 3 candidates in one scatter (was 3 QReads).
                 const uintptr_t fallbacks[3] = {
                     weapon_ent + 0x11A8 + 0x50 + 0x1BA,
@@ -3248,6 +3276,9 @@ if (need_bones) {
                         break;
                     }
                 }
+                auto refreshedWeapon = weaponStateCache.find(p.pawn);
+                if (refreshedWeapon != weaponStateCache.end())
+                    refreshedWeapon->second.last_fallback_ms = scan_now_ms;
             }
             if (def > 0 && def < 6000) {
                 p.weapon_def = def;
@@ -3566,10 +3597,10 @@ void EnsureAcquisitionStarted() {
             const int camera_pressure = g_pressure_level.load(std::memory_order_relaxed);
             // The renderer interpolates published snapshots, therefore it does
             // not need a physical matrix transfer on every scheduler wake-up.
-            // 12 ms (about 83 Hz) is visually smooth while cutting the most
-            // expensive/stall-prone DMA read almost in half versus the old 8 ms.
-            const int camera_period_ms = camera_pressure >= 2 ? 24 :
-                (camera_pressure == 1 ? 16 : 12);
+            // 16 ms is already display-rate smooth with interpolation and
+            // leaves the transport room for the entity lane.
+            const int camera_period_ms = camera_pressure >= 2 ? 36 :
+                (camera_pressure == 1 ? 24 : CAMERA_INTERVAL_MS);
             if (canRead && in_match && camera_now_ms >= next_camera_ms &&
                 !DmaCooldownActive() && !g_acq_busy.load(std::memory_order_acquire)) {
                 next_camera_ms = camera_now_ms + static_cast<uint64_t>(camera_period_ms);
@@ -3606,7 +3637,9 @@ void EnsureAcquisitionStarted() {
                 && !g_acq_busy.load(std::memory_order_acquire)) {
                 // Slightly slower motion when skeleton is off — boxes/bars stay smooth
                 // with far less DMA pressure (main source of intermittent freezes).
-                const int motionPeriod = frame_config->skeleton ? MOTION_INTERVAL_MS : 16;
+                const int motionPeriod = frame_config->skeleton
+                    ? (camera_pressure >= 2 ? 28 : MOTION_INTERVAL_MS)
+                    : (camera_pressure >= 1 ? 36 : 28);
                 next_motion_ms = now_ms + motionPeriod;
                 MotionSnapshot motion{};
                 // One scatter round-trip for all origins instead of N sequential DMA reads.

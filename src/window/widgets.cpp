@@ -529,10 +529,10 @@ namespace CyberWidgets {
         const ImVec2 pos = ImGui::GetCursorScreenPos();
         const float width = WidgetWidth();
         const float row_height = 36.0f;
-        // Keep selection fields close enough to their labels.  The old
-        // 48%-wide right-aligned field made short display settings look
-        // detached on compact cards.
-        const float field_width = std::clamp(width * 0.60f, 96.0f, 220.0f);
+        // Selection fields need to begin nearer the label on wide settings
+        // cards.  A wider field moves its left edge left while preserving a
+        // consistent right edge and gives long monitor names enough room.
+        const float field_width = std::clamp(width * 0.72f, 120.0f, 310.0f);
         const ImVec2 field_pos(pos.x + width - field_width, pos.y + 2.0f);
         const ImVec2 field_end(pos.x + width, pos.y + row_height - 2.0f);
 

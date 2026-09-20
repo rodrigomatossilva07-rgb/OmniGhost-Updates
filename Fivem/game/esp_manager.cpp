@@ -181,6 +181,12 @@ namespace FiveM {
                                 || esp::config.angel_wings || esp::config.devil_horns || esp::config.floating_crown
                                 || esp::config.head_halo || esp::config.look_direction || aimbot::config.aimbot_enabled)
                                 boneMask = 0xFFFFu;
+                            // Boxes and bars use head/feet anchors.  Prepare
+                            // those three bones in the producer instead of
+                            // letting DrawEspExtras fall back to live DMA.
+                            if (esp::config.box_2d || esp::config.corner_box || esp::config.snaplines ||
+                                esp::config.health_bar || esp::config.armor_bar)
+                                boneMask |= 0x0007u;
                             if (boneMask)
                                 esp::prepare_skeleton_frame(s_acquireValidPeds, s_acquirePositions, boneMask);
                             if (esp::config.enabled || aimbot::config.aimbot_enabled || aimbot::config.trigger_enabled)
@@ -262,6 +268,7 @@ namespace FiveM {
                 mem.CloseScatterHandle(s_acqScatter);
                 s_acqScatter = nullptr;
             }
+            FiveM::Visibility::Shutdown();
             s_acquisitionRunning.store(false, std::memory_order_release);
             s_acquireRawPeds.clear();
             s_acquireValidPeds.clear();
@@ -360,6 +367,26 @@ namespace FiveM {
                     presentation.position = presentation.position + delta * alpha;
                 }
                 positions[static_cast<size_t>(i)] = presentation.position;
+            }
+
+            // Ped pointers change throughout a long FiveM session.  Keep the
+            // presentation cache bounded instead of retaining an entry for
+            // every ped that has ever streamed in.  This is deliberately an
+            // infrequent, bounded cleanup outside the render hot path.
+            if (s_presentation.size() > static_cast<size_t>(MAX_PEDS * 2)) {
+                int removed = 0;
+                for (auto it = s_presentation.begin(); it != s_presentation.end() && removed < MAX_PEDS;) {
+                    bool stillPresent = false;
+                    for (const uintptr_t ped : validPeds) {
+                        if (ped == it->first) { stillPresent = true; break; }
+                    }
+                    if (!stillPresent) {
+                        it = s_presentation.erase(it);
+                        ++removed;
+                    } else {
+                        ++it;
+                    }
+                }
             }
 
 

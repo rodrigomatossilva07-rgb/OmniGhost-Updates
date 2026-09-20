@@ -3,6 +3,7 @@
 #include <vector>
 #include <unordered_map>
 #include <chrono>
+#include <shared_mutex>
 #include "../../DMALibrary/Memory/Memory.h"
 #include "offsets.h"
 
@@ -17,6 +18,16 @@ namespace FiveM {
         inline std::unordered_map<uintptr_t, VisibilitySample>& Cache() {
             static std::unordered_map<uintptr_t, VisibilitySample> cache;
             return cache;
+        }
+
+        inline VMMDLL_SCATTER_HANDLE& ScatterHandle() {
+            static VMMDLL_SCATTER_HANDLE handle = nullptr;
+            return handle;
+        }
+
+        inline std::shared_mutex& CacheMutex() {
+            static std::shared_mutex mutex;
+            return mutex;
         }
 
         // oPedVisibility is a last-visible frame byte, not a boolean flag.
@@ -35,8 +46,9 @@ namespace FiveM {
         inline bool IsPedVisible(uintptr_t ped) {
             if (!ped) return true;
 
-            auto& cache = Cache();
             const auto now = std::chrono::steady_clock::now();
+            std::shared_lock lock(CacheMutex());
+            const auto& cache = Cache();
             const auto cached = cache.find(ped);
             // Short TTL so wall enter/exit recolors almost immediately
             if (cached != cache.end() &&
@@ -65,7 +77,7 @@ namespace FiveM {
                 return;
 
             std::vector<uint8_t> lastVisibleFrames(peds.size(), currentFrame);
-            static VMMDLL_SCATTER_HANDLE visHandle = nullptr;
+            auto& visHandle = ScatterHandle();
             if (!visHandle && mem.vHandle)
                 visHandle = mem.CreateScatterHandle();
             if (!visHandle) return;
@@ -78,8 +90,9 @@ namespace FiveM {
             }
             mem.ExecuteReadScatter(visHandle);
 
-            auto& cache = Cache();
             const auto now = std::chrono::steady_clock::now();
+            std::unique_lock lock(CacheMutex());
+            auto& cache = Cache();
             for (size_t i = 0; i < peds.size(); ++i) {
                 const bool visible = peds[i] &&
                     IsRecentlyVisible(currentFrame, lastVisibleFrames[i]);
@@ -95,7 +108,20 @@ namespace FiveM {
         }
 
         inline void ClearCache() {
+            std::unique_lock lock(CacheMutex());
             Cache().clear();
+        }
+
+        // Called after the producer thread has stopped.  The visibility lane
+        // owns this scatter handle, so closing it here prevents a stale VMM
+        // handle from surviving a detach/re-attach or a game restart.
+        inline void Shutdown() {
+            auto& visHandle = ScatterHandle();
+            if (visHandle) {
+                mem.CloseScatterHandle(visHandle);
+                visHandle = nullptr;
+            }
+            ClearCache();
         }
     }
 }

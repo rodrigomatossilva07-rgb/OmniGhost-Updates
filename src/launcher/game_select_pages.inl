@@ -141,7 +141,9 @@ void DrawMarketplace(ImVec2 display) {
 
     const float gap = S(14.f);
     const float available = ImGui::GetContentRegionAvail().x;
-    const bool twoColumns = available >= S(680.f);
+    // Keep the catalogue compact even at high UI scales: a single very wide
+    // theme card is harder to scan than two portrait-oriented cards.
+    const bool twoColumns = available >= S(460.f);
     const float cardWidth = twoColumns ? (available - gap) * .5f : available;
 
     CyberWidgets::BeginCard("TEMAS E VISUAIS", 0.f);
@@ -189,36 +191,36 @@ void DrawMarketplace(ImVec2 display) {
         const ImU32 accentSoft = CyberTheme::WithAlpha(accent, 0.24f);
         const ImVec2 previewMin = ImGui::GetCursorScreenPos();
         const float previewWidth = ImGui::GetContentRegionAvail().x;
-        // Marketplace cards are intentionally compact: two fit on a normal
-        // launcher row without turning the catalogue into a long scroll.
-        const float previewHeight = S(46.f);
+        // Prefer a taller preview over a stretched horizontal strip so each
+        // theme remains recognisable in the two-column catalogue.
+        const float previewHeight = S(96.f);
         const ImVec2 previewMax(previewMin.x + previewWidth, previewMin.y + previewHeight);
         ImDrawList* previewDraw = ImGui::GetWindowDrawList();
         previewDraw->AddRectFilled(previewMin, previewMax, IM_COL32(9, 11, 16, 255), S(7.f));
         previewDraw->AddRect(previewMin, previewMax, accentSoft, S(7.f), 0, S(1.f));
-        const float sidebar = (std::min)(S(36.f), previewWidth * 0.20f);
+        const float sidebar = (std::min)(S(62.f), previewWidth * 0.24f);
         previewDraw->AddRectFilled(previewMin, ImVec2(previewMin.x + sidebar, previewMax.y), IM_COL32(15, 18, 25, 255), S(7.f));
-        previewDraw->AddRectFilled(ImVec2(previewMin.x + S(6.f), previewMin.y + S(7.f)),
-                                   ImVec2(previewMin.x + sidebar - S(6.f), previewMin.y + S(11.f)), accentU32, S(2.f));
-        for (int item = 0; item < 2; ++item) {
-            const float y = previewMin.y + S(18.f + item * 10.f);
+        previewDraw->AddRectFilled(ImVec2(previewMin.x + S(9.f), previewMin.y + S(12.f)),
+                                   ImVec2(previewMin.x + sidebar - S(9.f), previewMin.y + S(19.f)), accentU32, S(2.f));
+        for (int item = 0; item < 3; ++item) {
+            const float y = previewMin.y + S(31.f + item * 16.f);
             previewDraw->AddRectFilled(ImVec2(previewMin.x + S(10.f), y),
-                                       ImVec2(previewMin.x + sidebar - S(8.f), y + S(3.f)),
+                                       ImVec2(previewMin.x + sidebar - S(14.f), y + S(5.f)),
                                        item == 0 ? accentSoft : IM_COL32(55, 60, 70, 180), S(2.f));
         }
-        const float contentLeft = previewMin.x + sidebar + S(7.f);
-        previewDraw->AddRectFilled(ImVec2(contentLeft, previewMin.y + S(7.f)),
-                                   ImVec2(previewMax.x - S(8.f), previewMin.y + S(10.f)), IM_COL32(215, 219, 227, 230), S(2.f));
-        previewDraw->AddRectFilled(ImVec2(contentLeft, previewMin.y + S(16.f)),
-                                   ImVec2(previewMax.x - S(8.f), previewMin.y + S(31.f)), IM_COL32(23, 27, 36, 255), S(3.f));
-        previewDraw->AddRectFilled(ImVec2(contentLeft, previewMin.y + S(35.f)),
-                                   ImVec2(contentLeft + S(42.f), previewMin.y + S(41.f)), accentU32, S(3.f));
-        ImGui::Dummy(ImVec2(previewWidth, previewHeight + S(5.f)));
+        const float contentLeft = previewMin.x + sidebar + S(11.f);
+        previewDraw->AddRectFilled(ImVec2(contentLeft, previewMin.y + S(12.f)),
+                                   ImVec2(previewMax.x - S(12.f), previewMin.y + S(18.f)), IM_COL32(215, 219, 227, 230), S(2.f));
+        previewDraw->AddRectFilled(ImVec2(contentLeft, previewMin.y + S(29.f)),
+                                   ImVec2(previewMax.x - S(12.f), previewMin.y + S(58.f)), IM_COL32(23, 27, 36, 255), S(4.f));
+        previewDraw->AddRectFilled(ImVec2(contentLeft, previewMin.y + S(65.f)),
+                                   ImVec2(contentLeft + S(72.f), previewMin.y + S(79.f)), accentU32, S(4.f));
+        ImGui::Dummy(ImVec2(previewWidth, previewHeight + S(9.f)));
         CyberWidgets::TextLine(style.description, CyberWidgets::TextTone::Secondary);
-        ImGui::Dummy(ImVec2(0.f, S(5.f)));
-        if (CyberWidgets::Button(isActive ? "ESTILO ATUAL" : "USAR ESTE ESTILO",
-                                 isActive ? CyberWidgets::ButtonStyle::Secondary : CyberWidgets::ButtonStyle::Primary,
-                                 ImVec2(S(145.f), S(28.f)), !isActive)) {
+        ImGui::Dummy(ImVec2(0.f, S(6.f)));
+        if (!isActive && CyberWidgets::Button("USAR ESTE ESTILO",
+                                 CyberWidgets::ButtonStyle::Primary,
+                                 ImVec2(S(145.f), S(28.f)))) {
             CyberTheme::SetThemeMode(style.mode);
             CyberTheme::SetAccentPreset(style.accent);
             std::string saveError;
