@@ -1,3 +1,38 @@
+## OmniGhost 1.1.7
+
+Released: 20/09/2026
+Channel: stable
+Tag: v1.1.7
+
+### OMNIGHOST Launcher
+
+#### :rocket: Melhorado
+
+- O GitHub Actions passa a compilar, executar testes, fazer análise estática, gerar SBOM, validar o ZIP e publicar primeiro como draft.
+- Centralizadas várias etiquetas portuguesas de configuração, mira e visuais, com auditoria para impedir nova dívida de tradução.
+
+#### :wrench: Corrigido
+
+- Sincronizada a versão 3.0.0 no executável, recursos e fonte de versão, com rollover de 2.9.9 para 3.0.0.
+- Corrigida a limpeza das cópias temporárias OmniGhost.zip e OmniGhost-Release sem esconder erros de ficheiros bloqueados.
+
+#### :lock: Segurança
+
+- A configuração Publish passa a empacotar e publicar automaticamente no GitHub, mantendo obrigatórios a tag correspondente, o source limpo e a validação dos artefactos; Release e Tester permanecem estritamente locais.
+
+### Outras alterações
+
+#### :sparkles: Adicionado
+
+- Add CS2 skeleton ESP preview.
+
+#### :zap: Desempenho
+
+- Hide dead CS2 players before full snapshot.
+- Use fast camera snapshots for CS2 ESP.
+
+---
+
 ## OmniGhost 1.1.6
 
 Released: 20/09/2026
