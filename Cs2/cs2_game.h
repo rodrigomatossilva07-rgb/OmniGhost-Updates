@@ -187,6 +187,14 @@ struct Runtime {
     uintptr_t pawn_stride = 0x70;
     BombState bomb{};
     std::vector<Projectile> projectiles;
+    // Projectile ESP diagnostics, exposed in the Misc page so discovery can be
+    // validated without needing to inspect a support log.
+    int projectile_pages = 0;
+    int projectile_entities = 0;
+    int projectile_name_ptrs = 0;
+    int projectile_classified = 0;
+    int projectile_scenes = 0;
+    uint64_t projectile_scan_timestamp_ms = 0;
     int player_count = 0;
     int enemy_count = 0;
     int controller_count = 0;

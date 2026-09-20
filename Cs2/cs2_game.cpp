@@ -1397,6 +1397,8 @@ static ProjectileKind ClassifyProjectile(const char* name) {
 static void CollectProjectiles(const Config& frame_config) {
     if (!frame_config.esp_enabled || !frame_config.projectile_esp || !runtime.in_match) {
         runtime.projectiles.clear();
+        runtime.projectile_pages = runtime.projectile_entities = runtime.projectile_name_ptrs = 0;
+        runtime.projectile_classified = runtime.projectile_scenes = 0;
         return;
     }
 
@@ -1535,6 +1537,12 @@ static void CollectProjectiles(const Config& frame_config) {
             if (kinds[i] != ProjectileKind::None) ++classified;
             if (IsUserPointer(scenes[i])) ++validScenes;
         }
+        runtime.projectile_pages = static_cast<int>(validPages);
+        runtime.projectile_entities = static_cast<int>(validEntities);
+        runtime.projectile_name_ptrs = static_cast<int>(validNames);
+        runtime.projectile_classified = static_cast<int>(classified);
+        runtime.projectile_scenes = static_cast<int>(validScenes);
+        runtime.projectile_scan_timestamp_ms = now;
         OmniGhost::SessionLog::Write(OmniGhost::SessionLog::Severity::Info,
             OmniGhost::SessionLog::Subsystem::DMA, "CS2 Projectile ESP scan", {
                 {"pages", std::to_string(validPages) + "/" + std::to_string(kPages), false},
