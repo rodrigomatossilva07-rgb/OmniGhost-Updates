@@ -1402,6 +1402,7 @@ static ProjectileKind ClassifyProjectile(const char* name) {
     if (has("incgrenade") || has("incendiary")) return ProjectileKind::Incendiary;
     if (has("molotov") || has("firebomb")) return ProjectileKind::Molotov;
     if (has("decoy")) return ProjectileKind::Decoy;
+    if (has("inferno")) return ProjectileKind::Molotov;
     return ProjectileKind::None;
 }
 
@@ -1422,6 +1423,7 @@ static void CollectProjectiles(const Config& frame_config) {
     static uint64_t next_telemetry_ms = 0;
     static size_t page_window = 0;
     static std::unordered_map<uintptr_t, Projectile> recent_projectiles;
+    static std::unordered_map<uintptr_t, uint64_t> active_effect_started_ms;
     const uint64_t now = GetTickCount64();
     if (now < next_scan_ms) return;
     // World-entity discovery is optional and must never starve player/camera
@@ -1497,6 +1499,8 @@ static void CollectProjectiles(const Config& frame_config) {
 
     std::array<uintptr_t, kSlots> scenes{};
     std::array<uint8_t, kSlots> incendiary{};
+    std::array<uint8_t, kSlots> smoke_active{};
+    std::array<float, kSlots> fire_lifetime{};
     std::array<ProjectileKind, kSlots> kinds{};
     mem.SetDmaCallTag("CS2.Projectiles.Scene");
     for (size_t i = 0; i < kSlots; ++i) {
@@ -1507,6 +1511,12 @@ static void CollectProjectiles(const Config& frame_config) {
             if (kinds[i] == ProjectileKind::Molotov && offsets.m_bIsIncGrenade)
                 mem.AddScatterReadRequest(g_scatter_full, entities[i] + offsets.m_bIsIncGrenade,
                     &incendiary[i], sizeof(uint8_t));
+            if (frame_config.projectile_timers && kinds[i] == ProjectileKind::Smoke && offsets.m_bDidSmokeEffect)
+                mem.AddScatterReadRequest(g_scatter_full, entities[i] + offsets.m_bDidSmokeEffect,
+                    &smoke_active[i], sizeof(uint8_t));
+            if (frame_config.projectile_timers && kinds[i] == ProjectileKind::Molotov && offsets.m_nFireLifetime)
+                mem.AddScatterReadRequest(g_scatter_full, entities[i] + offsets.m_nFireLifetime,
+                    &fire_lifetime[i], sizeof(float));
         }
     }
     mem.ExecuteReadScatter(g_scatter_full);
@@ -1540,6 +1550,19 @@ static void CollectProjectiles(const Config& frame_config) {
             ? ProjectileKind::Incendiary : kinds[i];
         std::memcpy(projectile.pos, positions[i].data(), sizeof(projectile.pos));
         std::memcpy(projectile.velocity, velocities[i].data(), sizeof(projectile.velocity));
+        if (frame_config.projectile_timers) {
+            const bool smoke = projectile.kind == ProjectileKind::Smoke && smoke_active[i] != 0;
+            const bool fire = std::strstr(names[i].data(), "inferno") != nullptr;
+            if (smoke || fire) {
+                const float duration = smoke ? 18.f :
+                    (std::isfinite(fire_lifetime[i]) && fire_lifetime[i] >= .5f && fire_lifetime[i] <= 30.f ? fire_lifetime[i] : 7.f);
+                auto [it, inserted] = active_effect_started_ms.emplace(projectile.entity, now);
+                if (inserted) it->second = now;
+                projectile.world_effect_active = now - it->second < static_cast<uint64_t>(duration * 1000.f);
+                projectile.world_effect_seconds_left = projectile.world_effect_active
+                    ? duration - static_cast<float>(now - it->second) / 1000.f : 0.f;
+            }
+        }
         projectile.sample_timestamp_ms = now;
         runtime.projectiles.push_back(projectile);
         recent_projectiles[projectile.entity] = projectile;
@@ -1549,6 +1572,9 @@ static void CollectProjectiles(const Config& frame_config) {
     // flight. Keep the last confirmed sample for a short, fixed grace period
     // so the overlay does not blink, but never retain stale world objects.
     constexpr uint64_t kProjectileGraceMs = 220;
+    for (auto it = active_effect_started_ms.begin(); it != active_effect_started_ms.end();) {
+        if (now - it->second > 20000) it = active_effect_started_ms.erase(it); else ++it;
+    }
     for (auto it = recent_projectiles.begin(); it != recent_projectiles.end();) {
         const bool current = std::any_of(runtime.projectiles.begin(), runtime.projectiles.end(),
             [&](const Projectile& item) { return item.entity == it->first; });

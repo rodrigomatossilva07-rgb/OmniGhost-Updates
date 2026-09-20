@@ -384,13 +384,21 @@ void DrawProjectilePath(ImDrawList* draw, const CS2::Projectile& projectile,
 
 void DrawProjectiles(ImDrawList* draw, const CS2::Runtime& snapshot,
                      const CS2::Config& settings, const float* view_matrix, ImU32 rgb) {
-    if ((!settings.projectile_esp && !settings.grenade_trail) || !view_matrix) return;
+    if ((!settings.projectile_esp && !settings.grenade_trail && !settings.projectile_timers) || !view_matrix) return;
     const ImU32 color = EffectColor(settings, settings.col_fun_effects, rgb);
     for (const auto& projectile : snapshot.projectiles) {
         const char* label = ProjectileLabel(projectile.kind);
         const char* icon = ProjectileIcon(projectile.kind);
         if (!*label || !*icon) continue;
         if (settings.grenade_trail) DrawProjectilePath(draw, projectile, view_matrix, color);
+        if (settings.projectile_timers && projectile.world_effect_active) {
+            ImVec2 effect_screen{};
+            if (WorldToScreen(projectile.pos, view_matrix, effect_screen)) {
+                char timer[32]{};
+                std::snprintf(timer, sizeof(timer), "%.1fs", projectile.world_effect_seconds_left);
+                DrawOutlinedText(draw, ImVec2(effect_screen.x + 12.f, effect_screen.y - 7.f), color, timer, settings);
+            }
+        }
         if (!settings.projectile_esp) continue;
         ImVec2 screen{};
         if (!WorldToScreen(projectile.pos, view_matrix, screen)) continue;

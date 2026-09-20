@@ -165,6 +165,8 @@ struct Projectile {
     ProjectileKind kind = ProjectileKind::None;
     float pos[3]{};
     float velocity[3]{};
+    bool world_effect_active = false;
+    float world_effect_seconds_left = 0.f;
     uint64_t sample_timestamp_ms = 0;
 };
 
