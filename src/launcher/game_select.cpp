@@ -155,6 +155,7 @@ std::future<OmniGhost::OffsetAuto::Result> g_offset_refresh;
 GameId g_offset_refresh_game = GameId::None;
 bool g_offset_refresh_pending = false;
 std::future<void> g_startup_offset_checks;
+bool g_library_update_check_requested = false;
 
 void ChangeNavigation(int page);
 void PushToast(const char* text, ImU32 color, ToastAction action, const char* action_label);
@@ -192,6 +193,7 @@ void Reset(EntryReason reason) {
     g_license_feedback.clear();
     g_license_feedback_success = false;
     g_settings_page = app_settings::SettingsPage::General;
+    g_library_update_check_requested = false;
     LoadLauncherState();
     switch (app_settings::config.start_behavior) {
     case app_settings::StartBehavior::Library:
@@ -272,35 +274,13 @@ bool Draw() {
 
     DrawBackground(background, display, performance.effective);
 
-    // A newer client must be installed before any launcher page can be used.
-    // Network errors remain actionable through the updater panel rather than
-    // incorrectly locking a customer out of their installed version.
-    const auto update = OmniGhost::Update::UpdateService::Instance().GetSnapshot();
-    const bool updateGate = update.status == OmniGhost::Update::Status::Checking ||
-        update.status == OmniGhost::Update::Status::Available ||
-        update.status == OmniGhost::Update::Status::Downloading ||
-        update.status == OmniGhost::Update::Status::Ready ||
-        update.status == OmniGhost::Update::Status::Installing;
-    if (updateGate) {
-        foreground->AddRectFilled(ImVec2(0.f, 0.f), display, IM_COL32(5, 6, 10, 235));
-        const char* message = update.status == OmniGhost::Update::Status::Checking
-            ? "A verificar a versão do cliente…"
-            : "Atualização necessária para abrir a biblioteca.";
-        const ImVec2 textSize = ImGui::CalcTextSize(message);
-        foreground->AddText(ImVec2((display.x - textSize.x) * .5f, display.y * .38f),
-            CyberTheme::U32(CyberTheme::Colors.Text), message);
-        ImGui::SetNextWindowPos(ImVec2(0.f, 0.f));
-        ImGui::SetNextWindowSize(display);
-        ImGui::Begin("##update_gate", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
-            ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoSavedSettings);
-        ImGui::End();
-        OmniGhost::UpdateUI::Draw();
-        return false;
-    }
-
     if (g_nav == static_cast<int>(NavPage::Home)) {
         DrawHome(display);
     } else if (g_nav == static_cast<int>(NavPage::Library)) {
+        if (!g_library_update_check_requested) {
+            OmniGhost::Update::UpdateService::Instance().CheckAsync(true);
+            g_library_update_check_requested = true;
+        }
         ImGui::SetNextWindowPos(ImVec2(0, 0));
         ImGui::SetNextWindowSize(display);
         ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0));

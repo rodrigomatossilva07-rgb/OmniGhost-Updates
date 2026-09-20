@@ -617,7 +617,10 @@ void UpdateService::RunCheck(bool force) {
     MarkChecked();
     const bool belowMinimumSupported =
         installed->Compare(manifest.minimumSupportedVersion) < 0;
-    const bool mandatory = manifest.mandatory || belowMinimumSupported;
+    // The launcher only permits the newest published client. A newer version
+    // is therefore always treated as mandatory, even when the manifest marks
+    // it as optional for other distribution channels.
+    const bool mandatory = true;
     std::string mandatoryReason;
     if (mandatory) {
         if (!manifest.mandatoryReason.empty()) {
@@ -627,7 +630,7 @@ void UpdateService::RunCheck(bool force) {
                 " está abaixo da versão mínima suportada " +
                 manifest.minimumSupportedVersion.original + ".";
         } else {
-            mandatoryReason = "Esta versão foi marcada como obrigatória pelo editor.";
+            mandatoryReason = "É necessário instalar a versão mais recente para continuar.";
         }
     }
 
@@ -1062,10 +1065,8 @@ void UpdateService::Cancel() {
 }
 bool UpdateService::BlocksGameLaunch() const {
     const Snapshot value = GetSnapshot();
-    if (!value.mandatory)
-        return false;
-
     switch (value.status) {
+    case Status::Checking:
     case Status::Available:
     case Status::Downloading:
     case Status::Ready:
