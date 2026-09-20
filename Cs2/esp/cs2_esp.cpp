@@ -57,14 +57,14 @@ void DrawVerticalBar(ImDrawList* draw, float x, float top, float bottom, float f
     draw->AddRectFilled(ImVec2(x, filledTop), ImVec2(x + kWidth, bottom), color);
 }
 
-void DrawSkeleton(ImDrawList* draw, const CS2::Player& player, const CS2::Runtime& snapshot,
+void DrawSkeleton(ImDrawList* draw, const CS2::Player& player, const float viewMatrix[16],
                   ImU32 color, ImU32 jointColor, float thickness, bool joints) {
     if (!player.full_bones_ok) return;
 
     std::array<ImVec2, CS2::kBoneSlotCount> points{};
     std::array<bool, CS2::kBoneSlotCount> valid{};
     for (std::size_t index = 0; index < CS2::kBoneSlotCount; ++index)
-        valid[index] = WorldToScreen(player.bones[index], snapshot.view_matrix, points[index]);
+        valid[index] = WorldToScreen(player.bones[index], viewMatrix, points[index]);
 
     constexpr std::pair<CS2::BoneSlot, CS2::BoneSlot> kLinks[] = {
         {CS2::BoneSlot::Head, CS2::BoneSlot::Neck}, {CS2::BoneSlot::Neck, CS2::BoneSlot::SpineUpper},
@@ -105,6 +105,12 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
     const bool useVisibilityColors = settings.visibility_colors && settings.visible_check;
     const float maxDistance = settings.max_distance;
     const ImU32 rgbColor = settings.rgb_mode ? RgbColor() : 0;
+    // The entity snapshot is intentionally lower-rate and coherent. The view
+    // matrix has its own fast lane, so use its newest published value here to
+    // keep ESP attached while the local player turns the camera.
+    const auto camera = AcquireCameraSnapshot();
+    const float* viewMatrix = camera && camera->timestamp_ms
+        ? camera->view_matrix : snapshot.view_matrix;
     for (const Player& player : snapshot.players) {
         if (!player.alive || player.is_local) continue;
         if (hideTeam && player.team == snapshot.local_team) continue;
@@ -112,9 +118,9 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
         if (!std::isfinite(player.pos[0]) || !std::isfinite(player.pos[1]) || !std::isfinite(player.pos[2])) continue;
 
         ImVec2 feet{}, head{};
-        if (!WorldToScreen(player.pos, snapshot.view_matrix, feet)) continue;
+        if (!WorldToScreen(player.pos, viewMatrix, feet)) continue;
         float headWorld[3] = { player.pos[0], player.pos[1], player.pos[2] + 72.f };
-        if (!WorldToScreen(headWorld, snapshot.view_matrix, head)) continue;
+        if (!WorldToScreen(headWorld, viewMatrix, head)) continue;
 
         const float height = feet.y - head.y;
         if (!std::isfinite(height) || height < 8.f || height > 4000.f) continue;
@@ -142,7 +148,7 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
             const ImU32 skeletonColor = settings.rgb_mode ? rgbColor
                 : useVisibilityColors ? Color(player.spotted ? settings.col_visible : settings.col_occluded)
                 : Color(settings.col_skeleton);
-            DrawSkeleton(draw, player, snapshot, skeletonColor, Color(settings.col_joints),
+            DrawSkeleton(draw, player, viewMatrix, skeletonColor, Color(settings.col_joints),
                          std::clamp(settings.skeleton_thickness, .5f, 4.f), settings.skeleton_joints);
         }
     }
