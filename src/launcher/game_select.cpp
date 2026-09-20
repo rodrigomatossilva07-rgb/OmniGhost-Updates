@@ -3,6 +3,7 @@
 #include "launcher_assets.h"
 #include "changelog_service.h"
 #include "steam_game_update_check.h"
+#include "epic_game_update_check.h"
 #include "updates_page.h"
 #include "license_page.h"
 #include "launcher_status.h"

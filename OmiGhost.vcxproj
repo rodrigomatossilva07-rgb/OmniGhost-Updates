@@ -241,9 +241,11 @@
     <ClCompile Include="src\kmbox\kmbox_net.cpp"/>
     <ClCompile Include="src\launcher\changelog_service.cpp"/>
     <ClCompile Include="src\launcher\steam_game_update_check.cpp"/>
+    <ClCompile Include="src\launcher\epic_game_update_check.cpp"/>
     <ClCompile Include="src\launcher\game_select.cpp"/>
     <ClInclude Include="src\launcher\game_select_session.inl"/>
     <ClInclude Include="src\launcher\steam_game_update_check.h"/>
+    <ClInclude Include="src\launcher\epic_game_update_check.h"/>
     <ClInclude Include="src\launcher\game_select_presentation.inl"/>
     <ClInclude Include="src\launcher\game_select_pages.inl"/>
     <ClInclude Include="src\launcher\game_select_modals.inl"/>
