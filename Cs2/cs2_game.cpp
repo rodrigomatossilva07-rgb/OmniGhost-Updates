@@ -2350,6 +2350,11 @@ static void RunFrameWithConfig(const Config& frame_config) {
             catch (...) { }
         });
     }
+    // A BVH can be sizeable on workshop and large competitive maps. Release it
+    // once trajectory is disabled; any renderer holding a snapshot finishes
+    // safely before the shared world is reclaimed.
+    if (!frame_config.grenade_trail && !collision_load.valid())
+        collision.Clear();
 
     const bool map_reports_match = IsPlayableMapName(runtime.map_name);
     runtime.in_match = map_reports_match;

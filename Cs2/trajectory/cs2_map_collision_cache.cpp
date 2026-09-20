@@ -29,6 +29,10 @@ bool MapCollisionCache::IsLoadedFor(const char* mapName) const {
     std::shared_lock lock(mutex);
     return !next.empty() && next == map && world && world->Ready();
 }
+void MapCollisionCache::Clear() {
+    std::unique_lock lock(mutex);
+    map.clear(); error.clear(); world.reset();
+}
 std::shared_ptr<const CollisionBvh> MapCollisionCache::WorldSnapshot() const { std::shared_lock lock(mutex); return world; }
 MapCollisionCache& CollisionCache(){static MapCollisionCache cache;return cache;}
 }
