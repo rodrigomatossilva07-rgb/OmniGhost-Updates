@@ -1,4 +1,6 @@
 #pragma once
+#include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -7,6 +9,8 @@ struct Vec3 { float x{}, y{}, z{}; };
 struct Triangle { Vec3 a{}, b{}, c{}; };
 struct CollisionMesh { std::vector<Triangle> triangles; std::filesystem::path source; bool loaded{}; std::string error; };
 bool LoadTriFile(const std::filesystem::path& path, CollisionMesh& output);
+bool LoadTriBytes(const std::uint8_t* bytes, std::size_t size,
+                  const std::filesystem::path& source, CollisionMesh& output);
 struct RayHit { bool hit{}; float fraction{1.f}; Vec3 position{}; Vec3 normal{}; };
 class CollisionBvh {
 public:

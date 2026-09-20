@@ -2,18 +2,28 @@
 #include <cmath>
 #include <fstream>
 #include <algorithm>
+#include <cstring>
+#include <limits>
 #include <numeric>
 namespace CS2::Trajectory {
-bool LoadTriFile(const std::filesystem::path& path, CollisionMesh& output) {
-    output = {}; output.source = path; std::error_code ec; const auto bytes = std::filesystem::file_size(path, ec);
+bool LoadTriBytes(const std::uint8_t* bytes, std::size_t size, const std::filesystem::path& source, CollisionMesh& output) {
+    output = {}; output.source = source;
     constexpr std::uintmax_t record = sizeof(float) * 9;
-    if (ec || !bytes || bytes % record) { output.error = "Ficheiro .tri inválido"; return false; }
-    const auto count = bytes / record; if (count > 20'000'000) { output.error = "Mapa demasiado grande"; return false; }
-    std::ifstream in(path, std::ios::binary); if (!in) { output.error = "Não foi possível abrir o .tri"; return false; }
-    output.triangles.resize(static_cast<size_t>(count)); in.read(reinterpret_cast<char*>(output.triangles.data()), static_cast<std::streamsize>(bytes));
-    if (!in) { output = {}; output.source = path; output.error = "Leitura incompleta"; return false; }
-    for (const auto& t : output.triangles) { const auto* v = reinterpret_cast<const float*>(&t); for (int i=0;i<9;++i) if (!std::isfinite(v[i])) { output = {}; output.source = path; output.error = "Coordenadas inválidas"; return false; } }
+    if (!bytes || !size || size % record) { output.error = "Ficheiro .tri inválido"; return false; }
+    const auto count = size / record; if (count > 20'000'000) { output.error = "Mapa demasiado grande"; return false; }
+    output.triangles.resize(static_cast<size_t>(count));
+    std::memcpy(output.triangles.data(), bytes, size);
+    for (const auto& t : output.triangles) { const auto* v = reinterpret_cast<const float*>(&t); for (int i=0;i<9;++i) if (!std::isfinite(v[i])) { output = {}; output.source = source; output.error = "Coordenadas inválidas"; return false; } }
     output.loaded = true; return true;
+}
+bool LoadTriFile(const std::filesystem::path& path, CollisionMesh& output) {
+    output = {}; output.source = path; std::error_code ec; const auto size = std::filesystem::file_size(path, ec);
+    if (ec || !size || size > static_cast<std::uintmax_t>((std::numeric_limits<std::size_t>::max)())) { output.error = "Ficheiro .tri inválido"; return false; }
+    std::ifstream in(path, std::ios::binary); if (!in) { output.error = "Não foi possível abrir o .tri"; return false; }
+    std::vector<std::uint8_t> bytes(static_cast<std::size_t>(size));
+    in.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+    if (!in) { output = {}; output.source = path; output.error = "Leitura incompleta"; return false; }
+    return LoadTriBytes(bytes.data(), bytes.size(), path, output);
 }
 
 namespace { using CS2::Trajectory::Vec3; using CS2::Trajectory::Triangle;

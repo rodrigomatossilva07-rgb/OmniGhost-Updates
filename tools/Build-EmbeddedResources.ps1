@@ -72,6 +72,13 @@ foreach ($tree in @($manifest.trees)) {
     if (-not $treeRoot.StartsWith($ProjectDir, [StringComparison]::OrdinalIgnoreCase) -or
         -not (Test-Path -LiteralPath $treeRoot -PathType Container)) { throw "Invalid resource tree: $treeRoot" }
     $treeFiles = @(Get-ChildItem -LiteralPath $treeRoot -Recurse -File | Sort-Object FullName)
+    $extensions = @()
+    if ($tree.PSObject.Properties.Name -contains 'extensions') {
+        $extensions = @($tree.extensions | ForEach-Object { ([string]$_).ToLowerInvariant() })
+    }
+    if ($extensions.Count -gt 0) {
+        $treeFiles = @($treeFiles | Where-Object { $extensions -contains $_.Extension.ToLowerInvariant() })
+    }
     $index = 0
     foreach ($file in $treeFiles) {
         $relative = $file.FullName.Substring($treeRoot.TrimEnd('\').Length).TrimStart('\','/').Replace('\','/')
@@ -95,6 +102,14 @@ $seenIds = @{}; $seenNames = @{}; $rc = New-Object 'Collections.Generic.List[str
 $entries = New-Object 'Collections.Generic.List[string]'
 $enum = New-Object 'Collections.Generic.List[string]'
 $totalOriginal = [uint64]0; $totalStored = [uint64]0
+$totalInputBytes = [uint64]0
+foreach ($item in $items) {
+    $source = [IO.Path]::GetFullPath((Join-Path $ProjectDir ([string]$item.source)))
+    if (Test-Path -LiteralPath $source -PathType Leaf) {
+        $totalInputBytes += [uint64]([IO.FileInfo]$source).Length
+    }
+}
+$processedInputBytes = [uint64]0
 
 foreach ($item in $items) {
     $id = [int]$item.id; $name = [string]$item.name; $logical = ([string]$item.logicalName).Replace('\','/')
@@ -105,7 +120,9 @@ foreach ($item in $items) {
     $source = [IO.Path]::GetFullPath((Join-Path $ProjectDir ([string]$item.source)))
     if (-not $source.StartsWith($ProjectDir, [StringComparison]::OrdinalIgnoreCase) -or -not (Test-Path -LiteralPath $source -PathType Leaf)) { throw "Invalid or missing source: $source" }
     $raw = [IO.File]::ReadAllBytes($source)
-    if ($raw.Length -eq 0 -or $raw.Length -gt 64MB) { throw "Invalid resource size: $logical" }
+    # Blob lengths and Windows PE resources are uint32-based.  The former 64 MiB
+    # policy was artificial and rejected several valid CS2 collision meshes.
+    if ($raw.Length -eq 0) { throw "Invalid resource size: $logical" }
     if ([string]$item.type -eq 'json') {
         try {
             $jsonBytes = $raw
@@ -117,9 +134,15 @@ foreach ($item in $items) {
             throw "Invalid JSON resource ${logical}: $($_.Exception.Message)"
         }
     }
-    $packed = Compress-PackBits $raw
     $compression = [byte]0; $payload = $raw
-    if ($packed.Length -lt $raw.Length) { $compression = 1; $payload = $packed }
+    # Collision meshes are dense float streams. PackBits cannot shrink them and
+    # doing a byte-by-byte trial on hundreds of MiB would make the build appear
+    # stuck. Keep those resources raw; other resources still use compression
+    # whenever it materially saves space.
+    if ([IO.Path]::GetExtension($source).ToLowerInvariant() -ne '.tri') {
+        $packed = Compress-PackBits $raw
+        if ($packed.Length -lt $raw.Length) { $compression = 1; $payload = $packed }
+    }
     $sha = [Security.Cryptography.SHA256]::Create()
     try { $digest = $sha.ComputeHash($raw) } finally { $sha.Dispose() }
     $blob = New-Object 'Collections.Generic.List[byte]'
@@ -133,8 +156,12 @@ foreach ($item in $items) {
     $enum.Add(('    {0} = {1},' -f $name,$id))
     $entries.Add(('    EmbeddedResourceDescriptor{{EmbeddedResourceId::{0}, "{1}", {2}u, {3}u, {4}}},' -f $name,(Escape-Cpp $logical),$raw.Length,$payload.Length,([string]([bool]$item.mandatory)).ToLowerInvariant()))
     $totalOriginal += [uint64]$raw.Length; $totalStored += [uint64]$payload.Length
-    Write-Host "[EmbeddedResources] $logical mode=$(if($compression -eq 1){'PACKBITS'}else{'NONE'}) original=$($raw.Length) stored=$($payload.Length)"
+    $processedInputBytes += [uint64]$raw.Length
+    $percent = if ($totalInputBytes -gt 0) { [math]::Min(100, [math]::Floor(($processedInputBytes * 100.0) / $totalInputBytes)) } else { 100 }
+    Write-Progress -Activity 'Embedding executable resources' -Status "${percent}% - $logical" -PercentComplete $percent
+    Write-Host "[EmbeddedResources] [$percent%] $logical mode=$(if($compression -eq 1){'PACKBITS'}else{'NONE'}) original=$($raw.Length) stored=$($payload.Length)"
 }
+Write-Progress -Activity 'Embedding executable resources' -Completed
 
 $header = @(
     '#pragma once', '#include <array>', '#include <cstddef>', '#include <cstdint>',

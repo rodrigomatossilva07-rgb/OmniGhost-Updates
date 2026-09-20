@@ -21,6 +21,7 @@
   ],
   "trees": [
     { "namePrefix": "Cs2Weapon", "idStart": 10000, "logicalPrefix": "cs2/weapons", "source": "Cs2/data/weapons", "mandatory": true },
-    { "namePrefix": "Cs2WebRadar", "idStart": 20000, "logicalPrefix": "cs2/webradar", "source": "Cs2/radar_webapp", "mandatory": true }
+    { "namePrefix": "Cs2WebRadar", "idStart": 20000, "logicalPrefix": "cs2/webradar", "source": "Cs2/radar_webapp", "mandatory": true },
+    { "namePrefix": "Cs2Collision", "idStart": 30000, "logicalPrefix": "cs2/collision", "source": "Cs2/collision", "extensions": [ ".tri" ], "mandatory": true }
   ]
 }
