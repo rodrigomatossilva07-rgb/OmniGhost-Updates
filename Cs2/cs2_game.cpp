@@ -1403,9 +1403,15 @@ static void CollectProjectiles(const Config& frame_config) {
     static uint64_t next_scan_ms = 0;
     const uint64_t now = GetTickCount64();
     if (now < next_scan_ms) return;
-    next_scan_ms = now + 90; // projectiles need responsiveness, not per-frame DMA
+    // World-entity discovery is optional and must never starve player/camera
+    // traffic. Back off hard while the DMA lane reports pressure.
+    if (g_pressure_level.load(std::memory_order_relaxed) >= 1) {
+        next_scan_ms = now + 800;
+        return;
+    }
+    next_scan_ms = now + 350;
 
-    constexpr size_t kPages = 4;
+    constexpr size_t kPages = 1;
     constexpr size_t kSlotsPerPage = 0x200;
     constexpr size_t kSlots = kPages * kSlotsPerPage;
     std::array<uintptr_t, kPages> pages{};
@@ -3472,9 +3478,31 @@ if (need_bones) {
             }
         }
 
+        // Player flags are presentation data. Cache the slow state instead of
+        // issuing 3–5 small DMA reads for every player on every ESP pass.
+        struct FlagCache {
+            int money = -1;
+            bool kit = false;
+            bool defusing = false;
+            int shots = 0;
+            uint64_t next_slow_ms = 0;
+            uint64_t next_defuse_ms = 0;
+            uint64_t next_shot_ms = 0;
+        };
+        static std::unordered_map<uintptr_t, FlagCache> flag_cache;
+        auto& cached_flags = flag_cache[p.pawn];
+        p.money = cached_flags.money;
+        p.has_defuser = cached_flags.kit;
+        p.is_defusing = cached_flags.defusing;
+
         // Player flags / sound: only request fields whose individual marker is on.
         if ((frame_config.player_flags || frame_config.sound_esp) && IsUserPointer(p.controller)) {
-            if (frame_config.player_flags && frame_config.flag_money &&
+            const bool refresh_slow = frame_config.player_flags &&
+                (frame_config.flag_money || frame_config.flag_kit) &&
+                scan_now_ms >= cached_flags.next_slow_ms;
+            if (refresh_slow)
+                cached_flags.next_slow_ms = scan_now_ms + 700;
+            if (refresh_slow && frame_config.flag_money &&
                 offsets.m_pInGameMoneyServices && offsets.m_iAccount) {
                 uintptr_t money_svc = 0;
                 int money = -1;
@@ -3482,23 +3510,27 @@ if (need_bones) {
                     IsUserPointer(money_svc) &&
                     QReadT(money_svc + offsets.m_iAccount, money, "CS2.Money") &&
                     money >= 0 && money < 100000)
-                    p.money = money;
+                    p.money = cached_flags.money = money;
             }
-            if (frame_config.player_flags && frame_config.flag_kit && offsets.m_pItemServices && offsets.m_bHasDefuser && IsUserPointer(p.pawn)) {
+            if (refresh_slow && frame_config.flag_kit && offsets.m_pItemServices && offsets.m_bHasDefuser && IsUserPointer(p.pawn)) {
                 uintptr_t item_svc = 0;
                 if (QReadT(p.pawn + offsets.m_pItemServices, item_svc, "CS2.ItemSvc") && IsUserPointer(item_svc)) {
                     uint8_t kit = 0;
                     if (QReadT(item_svc + offsets.m_bHasDefuser, kit, "CS2.HasDefuser"))
-                        p.has_defuser = kit != 0;
+                        p.has_defuser = cached_flags.kit = kit != 0;
                 }
             }
-            if (frame_config.player_flags && frame_config.flag_defusing && offsets.m_bIsDefusing && IsUserPointer(p.pawn)) {
+            if (frame_config.player_flags && frame_config.flag_defusing && offsets.m_bIsDefusing &&
+                IsUserPointer(p.pawn) && scan_now_ms >= cached_flags.next_defuse_ms) {
+                cached_flags.next_defuse_ms = scan_now_ms + 120;
                 uint8_t defu = 0;
                 if (QReadT(p.pawn + offsets.m_bIsDefusing, defu, "CS2.IsDefusing"))
-                    p.is_defusing = defu != 0;
+                    p.is_defusing = cached_flags.defusing = defu != 0;
             }
         }
-        if (frame_config.sound_esp && offsets.m_iShotsFired && IsUserPointer(p.pawn)) {
+        if (frame_config.sound_esp && offsets.m_iShotsFired && IsUserPointer(p.pawn) &&
+            scan_now_ms >= cached_flags.next_shot_ms) {
+            cached_flags.next_shot_ms = scan_now_ms + 45;
             static std::unordered_map<uintptr_t, int> s_prevShots;
             int shots = 0;
             if (QReadT(p.pawn + offsets.m_iShotsFired, shots, "CS2.ShotsFired") && shots >= 0) {
