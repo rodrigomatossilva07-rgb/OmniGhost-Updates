@@ -548,7 +548,9 @@ void DrawPlayerFlags(ImDrawList* draw, const CS2::Player& player, const ImVec2& 
 void DrawDroppedWeapons(ImDrawList* draw, const CS2::Runtime& snapshot,
                         const CS2::Config& settings, const float* viewMatrix) {
     if (!settings.dropped_weapons || !viewMatrix) return;
-    constexpr float kMaxDistanceUnits = 500.f * 39.37f;
+    // World loot is useful only nearby and is deliberately constrained so it
+    // never clutters the screen with objects from the other side of the map.
+    constexpr float kMaxDistanceUnits = 50.f * 39.37f;
     for (const auto& weapon : snapshot.dropped_weapons) {
         const float dx = weapon.pos[0] - snapshot.local_pos[0];
         const float dy = weapon.pos[1] - snapshot.local_pos[1];

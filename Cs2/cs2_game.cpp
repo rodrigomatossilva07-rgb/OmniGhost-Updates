@@ -2954,10 +2954,10 @@ static void RunFrameWithConfig(const Config& frame_config) {
     requested.skeleton = frame_config.esp_enabled && frame_config.skeleton;
     requested.head = frame_config.esp_enabled && (frame_config.head_dot || frame_config.head_halo ||
         frame_config.chinese_hat || frame_config.angel_wings || frame_config.devil_horns || frame_config.floating_crown);
-    requested.health = frame_config.esp_enabled && frame_config.health_bar;
-    requested.armor = frame_config.esp_enabled && frame_config.armor_bar;
+    requested.health = frame_config.esp_enabled && (frame_config.health_bar || frame_config.health_value);
+    requested.armor = frame_config.esp_enabled && (frame_config.armor_bar || frame_config.armor_value);
     requested.visibility = frame_config.esp_enabled && frame_config.visibility_colors && frame_config.visible_check;
-    requested.weapon = frame_config.esp_enabled && frame_config.weapon_name;
+    requested.weapon = frame_config.esp_enabled && (frame_config.weapon_name || frame_config.weapon_ammo);
     requested.name = frame_config.esp_enabled && frame_config.name;
     requested.distance = frame_config.esp_enabled && frame_config.distance;
     requested.snapline = frame_config.esp_enabled && frame_config.snaplines;
