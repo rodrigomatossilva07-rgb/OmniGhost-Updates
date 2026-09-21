@@ -85,6 +85,11 @@ void DrawCs2Misc()
     }
     if (CS2::config.telemetry_enabled) {
         TextLine("Estado: a gravar (PERF ~1/s em partida, SPIKE se aquisicao >= 50 ms).", TextTone::Secondary);
+        const int pressure = CS2::DmaPressureLevel();
+        const char* budget = pressure == 0 ? "normal" : pressure == 1 ? "opcionais reduzidas" :
+            pressure == 2 ? "metadados em cache" : "recuperacao";
+        TextLineF(TextTone::Secondary, "Orcamento DMA: %s%s", budget,
+            CS2::LastSlowDmaMs() >= 300.f ? " (ultimo pico protegido)" : "");
         TextLine("Ficheiro: %%LOCALAPPDATA%%\\OmniGhost\\logs\\logs.txt", TextTone::Secondary);
     } else {
         TextLine("Estado: desligada.", TextTone::Secondary);

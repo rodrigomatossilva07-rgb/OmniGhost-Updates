@@ -295,6 +295,9 @@ void SubmitAcquisitionConfig(const Config& next) noexcept;
 [[nodiscard]] LivenessSnapshotLease AcquireLivenessSnapshot();
 [[nodiscard]] MotionSnapshotLease AcquireMotionSnapshot();
 [[nodiscard]] bool AcquisitionRunning() noexcept;
+// 0 normal, 1 reduced optional work, 2 cached metadata, 3 recovery.
+[[nodiscard]] int DmaPressureLevel() noexcept;
+[[nodiscard]] float LastSlowDmaMs() noexcept;
 void SetPresentationFps(float fps) noexcept;
 void Shutdown();
 const char* StatusLine();

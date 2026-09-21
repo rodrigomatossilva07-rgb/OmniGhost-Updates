@@ -3010,6 +3010,12 @@ static void RunFrameWithConfig(const Config& frame_config) {
     const bool need_scoped = frame_config.trigger_scoped_only ||
         (flagsEnabled && frame_config.flag_scoped);
     const bool need_flash = flagsEnabled && frame_config.flag_blind;
+    // Core fields (life/team/origin) and the camera are never optional. All
+    // metadata below obeys this frame budget so a slow DMA device degrades
+    // features in a deterministic order instead of delaying the whole ESP.
+    const int optional_pressure = g_pressure_level.load(std::memory_order_relaxed);
+    const bool allow_weapon_phase = optional_pressure < 2 && !DmaCooldownActive();
+    const bool allow_auxiliary_phase = optional_pressure == 0 && !DmaCooldownActive();
 
     const uint64_t scan_now_ms = GetTickCount64();
     PawnCoreFields core[kMaxSlots]{};
@@ -3261,7 +3267,7 @@ if (need_bones) {
             if (queuedBoneReads)
                 mem.ExecuteReadScatter(g_scatter_full);
         }
-        if (need_weapons) {
+        if (need_weapons && allow_weapon_phase) {
             bool queuedServices = false;
             for (int c = 0; c < candidate_count; ++c) {
                 auto cached = weaponStateCache.find(resolved_pawns[c]);
@@ -3353,7 +3359,7 @@ if (need_bones) {
                 IsUserPointer(boneBases[c]))
                 QRead(boneBases[c], boneSnapshots[c],
                       need_full_bones ? kBoneReadBytes : kCompactBoneReadBytes);
-            if (need_weapons) {
+            if (need_weapons && allow_weapon_phase) {
                 auto cached = weaponStateCache.find(resolved_pawns[c]);
                 const uint64_t weaponInterval = resolved_pawns[c] == runtime.local_pawn ? 50u : static_cast<uint64_t>(WEAPON_INTERVAL_MS);
                 if (cached != weaponStateCache.end() &&
@@ -3753,7 +3759,7 @@ if (need_bones) {
         // Active weapon → item definition index → white icon code / name.
         // The normal chain is already batch-read; singles remain only as a
         // schema-drift fallback when the primary definition slot is invalid.
-        if (need_weapons) {
+        if (need_weapons && allow_weapon_phase) {
             const uintptr_t weapon_ent = weaponEntities[c];
             uint16_t def = weaponDefinitions[c];
             auto cachedWeapon = weaponStateCache.find(p.pawn);
@@ -3830,7 +3836,7 @@ if (need_bones) {
         p.is_defusing = cached_flags.defusing;
 
         // Player flags / sound: only request fields whose individual marker is on.
-        if ((frame_config.player_flags || frame_config.sound_esp) && IsUserPointer(p.controller)) {
+        if (allow_auxiliary_phase && (frame_config.player_flags || frame_config.sound_esp) && IsUserPointer(p.controller)) {
             const bool refresh_slow = frame_config.player_flags &&
                 (frame_config.flag_money || frame_config.flag_kit) &&
                 scan_now_ms >= cached_flags.next_slow_ms;
@@ -3862,7 +3868,7 @@ if (need_bones) {
                     p.is_defusing = cached_flags.defusing = defu != 0;
             }
         }
-        if (frame_config.sound_esp && offsets.m_iShotsFired && IsUserPointer(p.pawn) &&
+        if (allow_auxiliary_phase && frame_config.sound_esp && offsets.m_iShotsFired && IsUserPointer(p.pawn) &&
             scan_now_ms >= cached_flags.next_shot_ms) {
             cached_flags.next_shot_ms = scan_now_ms + 45;
             static std::unordered_map<uintptr_t, int> s_prevShots;
@@ -4515,6 +4521,14 @@ bool AcquisitionRunning() noexcept {
 void SetPresentationFps(float fps) noexcept {
     if (std::isfinite(fps) && fps >= 0.f)
         g_presentation_fps.store(fps, std::memory_order_relaxed);
+}
+
+int DmaPressureLevel() noexcept {
+    return g_pressure_level.load(std::memory_order_relaxed);
+}
+
+float LastSlowDmaMs() noexcept {
+    return g_last_slow_dma_ms.load(std::memory_order_relaxed);
 }
 
 
