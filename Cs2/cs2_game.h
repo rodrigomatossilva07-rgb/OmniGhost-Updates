@@ -167,7 +167,17 @@ struct Projectile {
     float velocity[3]{};
     bool world_effect_active = false;
     float world_effect_seconds_left = 0.f;
+    uint64_t world_effect_expires_ms = 0;
     uint64_t sample_timestamp_ms = 0;
+};
+
+struct DroppedWeapon {
+    uintptr_t entity = 0;
+    float pos[3]{};
+    int item_definition = 0;
+    int ammo_clip = -1;
+    uint64_t sample_timestamp_ms = 0;
+    char name[48]{};
 };
 
 struct Runtime {
@@ -195,6 +205,7 @@ struct Runtime {
     uintptr_t pawn_stride = 0x70;
     BombState bomb{};
     std::vector<Projectile> projectiles;
+    std::vector<DroppedWeapon> dropped_weapons;
     // Projectile ESP diagnostics, exposed in the Misc page so discovery can be
     // validated without needing to inspect a support log.
     int projectile_pages = 0;

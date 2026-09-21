@@ -5,6 +5,7 @@
 #include "../trajectory/cs2_grenade_simulator.h"
 #include "../trajectory/cs2_map_collision_cache.h"
 #include "../../ImGui/imgui.h"
+#include "../../src/config/app_settings.h"
 
 #include <Windows.h>
 
@@ -12,6 +13,7 @@
 #include <array>
 #include <cmath>
 #include <cstdio>
+#include <functional>
 #include <unordered_map>
 #include <utility>
 
@@ -245,54 +247,133 @@ void DrawSoundEsp(ImDrawList* draw, const CS2::Player& player, const ImVec2& fee
     }
 }
 
+void DrawFootprint(ImDrawList* draw, const ImVec2& center, float angle, float scale, ImU32 color) {
+    // A compact vector shoe-print: sole + heel.  It intentionally needs no
+    // texture upload and therefore costs no GPU/resource work per step.
+    const auto ellipse = [&](ImVec2 c, float rx, float ry) {
+        constexpr int kSegments = 12;
+        ImVec2 points[kSegments];
+        const float cs = std::cos(angle), sn = std::sin(angle);
+        for (int i = 0; i < kSegments; ++i) {
+            const float a = (6.283185307f * i) / kSegments;
+            const float x = std::cos(a) * rx, y = std::sin(a) * ry;
+            points[i] = ImVec2(c.x + x * cs - y * sn, c.y + x * sn + y * cs);
+        }
+        draw->AddConvexPolyFilled(points, kSegments, color);
+    };
+    const float cs = std::cos(angle), sn = std::sin(angle);
+    const auto offset = [&](float x, float y) {
+        return ImVec2(center.x + x * cs - y * sn, center.y + x * sn + y * cs);
+    };
+    ellipse(offset(0.f, -5.5f * scale), 4.1f * scale, 8.6f * scale);
+    ellipse(offset(0.f, 6.6f * scale), 3.3f * scale, 4.5f * scale);
+}
+
 void DrawFootstepEsp(ImDrawList* draw, const CS2::Player& player, const ImVec2& feet,
-                     const CS2::Config& settings, ImU32 rgb) {
+                     const CS2::Config& settings, ImU32 /*rgb*/) {
     if (!settings.footstep_esp || !player.pawn) return;
 
-    struct Pulse {
+    struct Step {
         uint64_t began_ms = 0;
+        ImVec2 position{};
+        bool left = false;
+    };
+    struct FootprintHistory {
         uint64_t last_step_ms = 0;
         uint64_t last_seen_ms = 0;
-        ImVec2 position{};
+        bool next_left = false;
+        std::vector<Step> steps;
     };
-    static std::unordered_map<uintptr_t, Pulse> pulses;
+    static std::unordered_map<uintptr_t, FootprintHistory> footprints;
 
     const uint64_t now = GetTickCount64();
-    auto& pulse = pulses[player.pawn];
-    pulse.last_seen_ms = now;
+    auto& history = footprints[player.pawn];
+    history.last_seen_ms = now;
     // The data collector treats every speed above stationary jitter as motion,
     // so this includes slow and silent walking as requested.
-    if (player.is_moving && (now - pulse.last_step_ms >= 260)) {
-        pulse.began_ms = now;
-        pulse.last_step_ms = now;
-        pulse.position = feet;
+    if (player.is_moving && (now - history.last_step_ms >= 245)) {
+        history.last_step_ms = now;
+        history.next_left = !history.next_left;
+        history.steps.push_back({now, feet, history.next_left});
     }
 
-    constexpr float kLifetimeMs = 560.f;
-    if (!pulse.began_ms || now < pulse.began_ms ||
-        static_cast<float>(now - pulse.began_ms) > kLifetimeMs)
-        return;
-
-    const float progress = static_cast<float>(now - pulse.began_ms) / kLifetimeMs;
-    const ImU32 base = EffectColor(settings, settings.col_fun_effects, rgb);
-    for (int ring = 0; ring < 2; ++ring) {
-        const float phase = progress - static_cast<float>(ring) * .24f;
-        if (phase < 0.f || phase > 1.f) continue;
-        const float alpha = (1.f - phase) * .66f;
-        const float radius = 8.f + phase * 34.f;
-        const ImU32 color = (base & 0x00FFFFFFu) |
-            (static_cast<ImU32>(std::clamp(alpha * 255.f, 0.f, 255.f)) << 24);
-        draw->AddCircle(pulse.position, radius, color, 24, 1.25f);
+    constexpr float kLifetimeMs = 1000.f;
+    while (!history.steps.empty() && now - history.steps.front().began_ms > kLifetimeMs)
+        history.steps.erase(history.steps.begin());
+    for (const Step& step : history.steps) {
+        const float age = static_cast<float>(now - step.began_ms) / kLifetimeMs;
+        const float fade = (1.f - age) * (1.f - age); // smooth one-second fade
+        const ImU32 gold = IM_COL32(218, 165, 32, static_cast<int>(fade * 238.f));
+        const float angle = player.view_yaw * 0.0174532925f + (step.left ? -.16f : .16f);
+        DrawFootprint(draw, step.position, angle, 1.f + age * .10f, gold);
     }
 
-    if (pulses.size() > 96) {
-        for (auto it = pulses.begin(); it != pulses.end();) {
+    if (footprints.size() > 64) {
+        for (auto it = footprints.begin(); it != footprints.end();) {
             if (now - it->second.last_seen_ms > 5000)
-                it = pulses.erase(it);
+                it = footprints.erase(it);
             else
                 ++it;
         }
     }
+}
+
+void DrawPersistentWindow(const char* id, const char* title, float& x, float& y,
+                          const ImVec2& fallback, const std::function<void()>& content) {
+    const bool movable = app_settings::menu_open;
+    if (!std::isfinite(x) || !std::isfinite(y) || x < 0.f || y < 0.f) {
+        x = fallback.x;
+        y = fallback.y;
+    }
+    ImGui::SetNextWindowPos(ImVec2(x, y), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowBgAlpha(.88f);
+    ImGuiWindowFlags flags = ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse |
+        ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing;
+    if (!movable) flags |= ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoInputs;
+    if (ImGui::Begin(id, nullptr, flags)) {
+        ImGui::TextUnformatted(title);
+        ImGui::Separator();
+        content();
+        if (movable) {
+            const ImVec2 pos = ImGui::GetWindowPos();
+            x = pos.x;
+            y = pos.y;
+        }
+    }
+    ImGui::End();
+}
+
+void DrawBombTimerWindow(const CS2::Runtime& snapshot, const CS2::Config& settings) {
+    if (!settings.bomb_timer || !snapshot.bomb.planted) return;
+    auto& mutableSettings = const_cast<CS2::Config&>(settings);
+    const auto& bomb = snapshot.bomb;
+    DrawPersistentWindow("##cs2_bomb_timer", "BOMBA", mutableSettings.bomb_window_x,
+        mutableSettings.bomb_window_y, ImVec2(30.f, 338.f), [&] {
+            const uint64_t now = GetTickCount64();
+            const float age = bomb.sample_timestamp_ms && now >= bomb.sample_timestamp_ms
+                ? std::min(static_cast<float>(now - bomb.sample_timestamp_ms) / 1000.f, .50f) : 0.f;
+            const float left = std::max(0.f, bomb.blow_time - age);
+            ImGui::Text("Explosao: %.1fs", left);
+            if (bomb.defusing)
+                ImGui::TextColored(ImVec4(.32f, .82f, 1.f, 1.f), "Defuse: %.1fs", std::max(0.f, bomb.defuse_time - age));
+            else
+                ImGui::TextDisabled("Sem defuse ativo");
+            ImGui::ProgressBar(std::clamp(left / 40.f, 0.f, 1.f), ImVec2(170.f, 7.f));
+        });
+}
+
+void DrawSpectatorWindow(const CS2::Runtime& snapshot, const CS2::Config& settings) {
+    if (!settings.spectator_list) return;
+    auto& mutableSettings = const_cast<CS2::Config&>(settings);
+    DrawPersistentWindow("##cs2_spectators", "ESPECTADORES", mutableSettings.spectator_window_x,
+        mutableSettings.spectator_window_y, ImVec2(30.f, 40.f), [&] {
+            if (snapshot.spectators.empty()) {
+                ImGui::TextDisabled("Ninguem a observar");
+                return;
+            }
+            for (const auto& spectator : snapshot.spectators)
+                ImGui::BulletText("%s", spectator.name[0] ? spectator.name : "Jogador");
+        });
 }
 
 const char* ProjectileLabel(CS2::ProjectileKind kind) {
@@ -401,21 +482,6 @@ void DrawProjectilePath(ImDrawList* draw, const CS2::Projectile& projectile,
             have_previous = false;
         }
     }
-    const float impact[3]{ cached.result.impact.x, cached.result.impact.y, cached.result.impact.z };
-    ImVec2 impact_screen{};
-    if (WorldToScreen(impact, view_matrix, impact_screen)) {
-        draw->AddCircle(impact_screen, 6.f, color, 16, 1.5f);
-        char time[32]{};
-        std::snprintf(time, sizeof(time), "Impact %.1fs", cached.result.elapsed);
-        const ImVec2 size = ImGui::CalcTextSize(time);
-        draw->AddText(ImVec2(impact_screen.x - size.x * .5f, impact_screen.y + 8.f), color, time);
-    }
-    DrawProjectedEffectRadius(draw, cached.result.impact, ProjectileEffectRadius(projectile.kind), view_matrix, color);
-    for (const auto& bounce : cached.result.bounces) {
-        const float world_bounce[3]{ bounce.x, bounce.y, bounce.z };
-        ImVec2 bounce_screen{};
-        if (WorldToScreen(world_bounce, view_matrix, bounce_screen)) draw->AddCircleFilled(bounce_screen, 3.25f, color, 10);
-    }
     if (paths.size() > 64) {
         for (auto it = paths.begin(); it != paths.end();) {
             if (it->second.sample_timestamp_ms + 1000 < projectile.sample_timestamp_ms)
@@ -427,30 +493,33 @@ void DrawProjectilePath(ImDrawList* draw, const CS2::Projectile& projectile,
 
 void DrawProjectiles(ImDrawList* draw, const CS2::Runtime& snapshot,
                      const CS2::Config& settings, const float* view_matrix, ImU32 rgb) {
-    if ((!settings.projectile_esp && !settings.grenade_trail && !settings.projectile_timers) || !view_matrix) return;
+    if ((!settings.grenade_trail && !settings.projectile_timers) || !view_matrix) return;
     const ImU32 color = EffectColor(settings, settings.col_fun_effects, rgb);
     for (const auto& projectile : snapshot.projectiles) {
         const char* label = ProjectileLabel(projectile.kind);
         const char* icon = ProjectileIcon(projectile.kind);
         if (!*label || !*icon) continue;
-        if (settings.grenade_trail) DrawProjectilePath(draw, projectile, view_matrix, color);
-        if ((settings.projectile_esp || settings.projectile_timers) && projectile.world_effect_active) {
+        // A held grenade is attached close to its owner. Once thrown it moves
+        // away from every player, so hide the planning line immediately rather
+        // than leaving a second line following the projectile in flight.
+        const float dx = projectile.pos[0] - snapshot.local_pos[0];
+        const float dy = projectile.pos[1] - snapshot.local_pos[1];
+        const float dz = projectile.pos[2] - snapshot.local_pos[2];
+        const bool held_by_local = dx * dx + dy * dy + dz * dz < 160.f * 160.f;
+        if (settings.grenade_trail && held_by_local) DrawProjectilePath(draw, projectile, view_matrix, color);
+        if ((settings.grenade_trail || settings.projectile_timers) && projectile.world_effect_active) {
             ImVec2 effect_screen{};
             if (WorldToScreen(projectile.pos, view_matrix, effect_screen)) {
                 char timer[32]{};
-                std::snprintf(timer, sizeof(timer), "%.1fs", projectile.world_effect_seconds_left);
+                const uint64_t now = GetTickCount64();
+                const float remaining = projectile.world_effect_expires_ms > now
+                    ? static_cast<float>(projectile.world_effect_expires_ms - now) / 1000.f : 0.f;
+                std::snprintf(timer, sizeof(timer), "%.1fs", remaining);
                 DrawOutlinedText(draw, ImVec2(effect_screen.x + 12.f, effect_screen.y - 7.f), color, timer, settings);
+                DrawProjectedEffectRadius(draw, { projectile.pos[0], projectile.pos[1], projectile.pos[2] },
+                    ProjectileEffectRadius(projectile.kind), view_matrix, color);
             }
         }
-        if (!settings.projectile_esp) continue;
-        ImVec2 screen{};
-        if (!WorldToScreen(projectile.pos, view_matrix, screen)) continue;
-        draw->AddCircleFilled(screen, 10.f, (color & 0x00FFFFFFu) | 0x55000000u, 16);
-        draw->AddCircle(screen, 10.f, color, 16, 1.25f);
-        const ImVec2 icon_size = ImGui::CalcTextSize(icon);
-        DrawOutlinedText(draw, ImVec2(screen.x - icon_size.x * .5f, screen.y - icon_size.y * .5f), color, icon, settings);
-        const ImVec2 label_size = ImGui::CalcTextSize(label);
-        DrawOutlinedText(draw, ImVec2(screen.x - label_size.x * .5f, screen.y + 13.f), color, label, settings);
     }
 }
 
@@ -476,11 +545,47 @@ void DrawPlayerFlags(ImDrawList* draw, const CS2::Player& player, const ImVec2& 
     }
 }
 
+void DrawDroppedWeapons(ImDrawList* draw, const CS2::Runtime& snapshot,
+                        const CS2::Config& settings, const float* viewMatrix) {
+    if (!settings.dropped_weapons || !viewMatrix) return;
+    constexpr float kMaxDistanceUnits = 500.f * 39.37f;
+    for (const auto& weapon : snapshot.dropped_weapons) {
+        const float dx = weapon.pos[0] - snapshot.local_pos[0];
+        const float dy = weapon.pos[1] - snapshot.local_pos[1];
+        const float dz = weapon.pos[2] - snapshot.local_pos[2];
+        if (dx * dx + dy * dy + dz * dz > kMaxDistanceUnits * kMaxDistanceUnits) continue;
+        ImVec2 screen{};
+        if (!WorldToScreen(weapon.pos, viewMatrix, screen)) continue;
+        const ImU32 color = Color(settings.col_weapon);
+        char label[96]{};
+        if (settings.dropped_weapon_ammo && weapon.ammo_clip >= 0)
+            std::snprintf(label, sizeof(label), "%s  %d", weapon.name, weapon.ammo_clip);
+        else
+            std::snprintf(label, sizeof(label), "%s", weapon.name);
+        const ImVec2 text = ImGui::CalcTextSize(label);
+        const float iconOffset = settings.dropped_weapon_icons ? 10.f : 0.f;
+        if (settings.dropped_weapon_icons) {
+            // Small vector icon avoids depending on a particular icon-font
+            // glyph/version while making world weapons recognisable at a glance.
+            draw->AddRectFilled(ImVec2(screen.x - text.x * .5f - 11.f, screen.y - 1.f),
+                ImVec2(screen.x - text.x * .5f - 3.f, screen.y + 5.f), color, 1.f);
+        }
+        DrawOutlinedText(draw, ImVec2(screen.x - text.x * .5f + iconOffset * .15f, screen.y - 12.f), color, label, settings);
+    }
+}
+
 } // namespace
 
 namespace CS2::ESP {
 
 void DrawPlayers(const Runtime& snapshot, const Config& settings) {
+    // Widgets are independent from the player ESP master switch. This makes
+    // them visible/movable in a live match even when the user only wants C4
+    // or spectator information.
+    if (snapshot.in_match) {
+        DrawBombTimerWindow(snapshot, settings);
+        DrawSpectatorWindow(snapshot, settings);
+    }
     if (!settings.esp_enabled || !snapshot.in_match) return;
 
     ImDrawList* draw = ImGui::GetBackgroundDrawList();
@@ -581,6 +686,7 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
         DrawFootstepEsp(draw, player, feet, settings, rgbColor);
         DrawPlayerFlags(draw, player, min, settings, rgbColor);
     }
+    DrawDroppedWeapons(draw, snapshot, settings, viewMatrix);
     DrawProjectiles(draw, snapshot, settings, viewMatrix, rgbColor);
 }
 

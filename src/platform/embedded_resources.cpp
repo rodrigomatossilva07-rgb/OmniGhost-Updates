@@ -5,6 +5,7 @@
 #endif
 #include <Windows.h>
 #include <bcrypt.h>
+#include <compressapi.h>
 
 #include <algorithm>
 #include <array>
@@ -15,6 +16,7 @@
 #include <unordered_set>
 
 #pragma comment(lib, "bcrypt.lib")
+#pragma comment(lib, "cabinet.lib")
 
 namespace OmniGhost {
 namespace {
@@ -83,6 +85,19 @@ bool DecompressPackBits(EmbeddedByteView input, std::size_t expected,
     return output.size() == expected;
 }
 
+bool DecompressLzms(EmbeddedByteView input, std::size_t expected,
+                    std::vector<std::uint8_t>& output) {
+    DECOMPRESSOR_HANDLE handle = nullptr;
+    if (!CreateDecompressor(COMPRESS_ALGORITHM_LZMS, nullptr, &handle)) return false;
+    output.assign(expected, 0);
+    SIZE_T written = 0;
+    const bool ok = Decompress(handle, input.data(), input.size(), output.data(), output.size(), &written) &&
+        written == expected;
+    CloseDecompressor(handle);
+    if (!ok) output.clear();
+    return ok;
+}
+
 bool EqualLogicalName(std::string_view left, std::string_view right) noexcept {
     if (left.size() != right.size()) return false;
     for (std::size_t i = 0; i < left.size(); ++i) {
@@ -142,7 +157,8 @@ bool ParseEmbeddedResourceBlob(EmbeddedByteView blob, std::vector<std::uint8_t>&
     }
     diagnostics.headerValid = true;
     const auto compression = static_cast<EmbeddedCompression>(blob.data()[8]);
-    if (compression != EmbeddedCompression::None && compression != EmbeddedCompression::PackBits) {
+    if (compression != EmbeddedCompression::None && compression != EmbeddedCompression::PackBits &&
+        compression != EmbeddedCompression::Lzms) {
         diagnostics.error = "unsupported compression mode"; return false;
     }
     const std::size_t originalSize = Read32(blob, 12);
@@ -158,8 +174,10 @@ bool ParseEmbeddedResourceBlob(EmbeddedByteView blob, std::vector<std::uint8_t>&
         if (compression == EmbeddedCompression::None) {
             if (storedSize != originalSize) { diagnostics.error = "raw size mismatch"; return false; }
             output.assign(payload.begin(), payload.end());
-        } else if (!DecompressPackBits(payload, originalSize, output)) {
+        } else if (compression == EmbeddedCompression::PackBits && !DecompressPackBits(payload, originalSize, output)) {
             diagnostics.error = "corrupt compressed payload"; return false;
+        } else if (compression == EmbeddedCompression::Lzms && !DecompressLzms(payload, originalSize, output)) {
+            diagnostics.error = "corrupt LZMS payload"; return false;
         }
     } catch (const std::bad_alloc&) {
         diagnostics.error = "allocation failed"; return false;

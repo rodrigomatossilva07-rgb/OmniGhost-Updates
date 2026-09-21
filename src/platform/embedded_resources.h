@@ -30,7 +30,7 @@ private:
     std::size_t size_ = 0;
 };
 
-enum class EmbeddedCompression : std::uint8_t { None = 0, PackBits = 1 };
+enum class EmbeddedCompression : std::uint8_t { None = 0, PackBits = 1, Lzms = 2 };
 
 struct EmbeddedResourceDiagnostics {
     bool found = false;

@@ -30,19 +30,18 @@ void DrawCs2Misc()
         }
     }
     ToggleSwitch("Ondas de disparo (Sound ESP)", &CS2::config.sound_esp);
-    ToggleSwitch("Pulso de passos (Footstep ESP)", &CS2::config.footstep_esp);
-    ToggleSwitch("Granadas em voo (Projectile ESP)", &CS2::config.projectile_esp);
-    if (CS2::config.projectile_esp)
-        TextLine("Inclui timers de smoke, molotov e decoy ativos no mundo.", TextTone::Secondary);
-    if (CS2::config.projectile_esp) {
-        const auto snapshot = CS2::AcquireRuntimeSnapshot();
-        if (snapshot) {
-            CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary,
-                "Diagnóstico: páginas %d | entidades %d | nomes %d | granadas %d | cenas %d | visíveis %d",
-                snapshot->projectile_pages, snapshot->projectile_entities,
-                snapshot->projectile_name_ptrs, snapshot->projectile_classified,
-                snapshot->projectile_scenes, static_cast<int>(snapshot->projectiles.size()));
-        }
+    ToggleSwitch("Passos dourados (Footstep ESP)", &CS2::config.footstep_esp);
+    if (CS2::config.footstep_esp)
+        TextLine("Pegadas douradas no solo: desaparecem suavemente apos 1 segundo.", TextTone::Secondary);
+    ToggleSwitch("Armas largadas", &CS2::config.dropped_weapons);
+    if (CS2::config.dropped_weapons) {
+        TextLine("Filtros de armas largadas", TextTone::Secondary);
+        ToggleSwitch("Pistolas", &CS2::config.dropped_weapon_pistols);
+        ToggleSwitch("SMGs", &CS2::config.dropped_weapon_smgs);
+        ToggleSwitch("Rifles", &CS2::config.dropped_weapon_rifles);
+        ToggleSwitch("Pesadas", &CS2::config.dropped_weapon_heavy);
+        ToggleSwitch("Icone", &CS2::config.dropped_weapon_icons);
+        ToggleSwitch("Municao", &CS2::config.dropped_weapon_ammo);
     }
     Separator();
     TextLine("PLAYER FLAGS", TextTone::Primary);

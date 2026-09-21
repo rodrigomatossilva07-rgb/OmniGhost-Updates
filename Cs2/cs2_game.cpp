@@ -1396,6 +1396,9 @@ static ProjectileKind ClassifyProjectile(const char* name) {
     std::snprintf(lower, sizeof(lower), "%s", name);
     for (char& ch : lower) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
     const auto has = [&](const char* token) { return std::strstr(lower, token) != nullptr; };
+    // Inventory/held weapons share grenade words in their designer name. They
+    // are attached to a player scene node, not in-flight projectiles.
+    if (has("weapon_") || (!has("projectile") && !has("inferno"))) return ProjectileKind::None;
     // Source 2 builds have used both designer-name and schema-name forms.
     if (has("flashbang") || has("flash_projectile")) return ProjectileKind::Flash;
     if (has("smokegrenade") || has("smoke_projectile")) return ProjectileKind::Smoke;
@@ -1407,15 +1410,139 @@ static ProjectileKind ClassifyProjectile(const char* name) {
     return ProjectileKind::None;
 }
 
+static bool IsDroppedWeaponClass(const char* name) {
+    if (!name || !*name) return false;
+    // Designer names cover both C_WeaponAK47 and weapon_ak47 forms. Exclude
+    // attached weapons by requiring a world-scene position later in the pass.
+    char lower[64]{};
+    std::snprintf(lower, sizeof(lower), "%s", name);
+    for (char& ch : lower) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+    return std::strstr(lower, "weapon_") != nullptr ||
+        (std::strstr(lower, "c_weapon") != nullptr && std::strstr(lower, "grenade") == nullptr);
+}
+
+static bool DroppedWeaponAllowed(const char* name, const Config& c) {
+    char lower[64]{};
+    std::snprintf(lower, sizeof(lower), "%s", name ? name : "");
+    for (char& ch : lower) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+    const auto has = [&](const char* token) { return std::strstr(lower, token) != nullptr; };
+    if (has("glock") || has("usp") || has("p2000") || has("p250") || has("deagle") ||
+        has("revolver") || has("tec9") || has("fiveseven") || has("cz75") || has("elite"))
+        return c.dropped_weapon_pistols;
+    if (has("mac10") || has("mp9") || has("mp7") || has("mp5") || has("ump") || has("p90") || has("bizon"))
+        return c.dropped_weapon_smgs;
+    if (has("nova") || has("xm") || has("mag7") || has("sawed") || has("m249") || has("negev"))
+        return c.dropped_weapon_heavy;
+    return c.dropped_weapon_rifles;
+}
+
+static void FormatDroppedWeaponName(const char* source, char (&out)[48]) {
+    std::snprintf(out, sizeof(out), "%s", source && *source ? source : "Arma");
+    for (char* p = out; *p; ++p) {
+        if (*p == '_') *p = ' ';
+    }
+    const char* prefixes[] = { "weapon ", "c weapon ", "c ", "item " };
+    for (const char* prefix : prefixes) {
+        const size_t len = std::strlen(prefix);
+        if (_strnicmp(out, prefix, len) == 0) {
+            std::memmove(out, out + len, std::strlen(out + len) + 1);
+            break;
+        }
+    }
+}
+
+// Low-priority, bounded world-item pass. It is never called unless the user
+// enables dropped weapons; discovery is cached and refreshes at 4 Hz, leaving
+// the camera/player lanes untouched between passes.
+static void CollectDroppedWeapons(const Config& frame_config) {
+    if (!frame_config.esp_enabled || !frame_config.dropped_weapons || !runtime.in_match) {
+        runtime.dropped_weapons.clear();
+        return;
+    }
+    static uint64_t next_scan_ms = 0;
+    static std::unordered_map<uintptr_t, std::array<char, 48>> class_cache;
+    const uint64_t now = GetTickCount64();
+    if (now < next_scan_ms || g_pressure_level.load(std::memory_order_relaxed) >= 1) return;
+    next_scan_ms = now + 250;
+
+    constexpr size_t kPages = 2, kSlotsPerPage = 0x200, kSlots = kPages * kSlotsPerPage;
+    std::array<uintptr_t, kPages> pages{};
+    std::array<uintptr_t, kSlots> entities{}, identities{}, name_ptrs{}, scenes{};
+    std::array<std::array<char, 48>, kSlots> names{};
+    std::array<std::array<float, 3>, kSlots> positions{};
+    std::array<int, kSlots> definitions{};
+    std::array<int, kSlots> ammo{};
+    uintptr_t root = g_cached_entity_root;
+    if (!IsUserPointer(root) && (!QReadT(runtime.client_base + offsets.dwEntityList, root) || !IsUserPointer(root))) return;
+    g_cached_entity_root = root;
+    EnsureScatter();
+    if (!g_scatter_full) return;
+
+    mem.SetDmaCallTag("CS2.DroppedWeapons.Pages");
+    for (size_t page = 0; page < kPages; ++page)
+        mem.AddScatterReadRequest(g_scatter_full, root + kEntityPageTableOffset + sizeof(uintptr_t) * page, &pages[page], sizeof(uintptr_t));
+    mem.ExecuteReadScatter(g_scatter_full);
+    mem.SetDmaCallTag("CS2.DroppedWeapons.Entities");
+    for (size_t page = 0; page < kPages; ++page) if (IsUserPointer(pages[page]))
+        for (size_t slot = 0; slot < kSlotsPerPage; ++slot)
+            mem.AddScatterReadRequest(g_scatter_full, pages[page] + kEntityIdentityStride * slot,
+                &entities[page * kSlotsPerPage + slot], sizeof(uintptr_t));
+    mem.ExecuteReadScatter(g_scatter_full);
+    mem.SetDmaCallTag("CS2.DroppedWeapons.Identity");
+    for (size_t i = 0; i < kSlots; ++i) if (IsUserPointer(entities[i]))
+        mem.AddScatterReadRequest(g_scatter_full, entities[i] + 0x10, &identities[i], sizeof(uintptr_t));
+    mem.ExecuteReadScatter(g_scatter_full);
+    mem.SetDmaCallTag("CS2.DroppedWeapons.Names");
+    for (size_t i = 0; i < kSlots; ++i) {
+        const auto cached = class_cache.find(identities[i]);
+        if (cached != class_cache.end()) names[i] = cached->second;
+        else if (IsUserPointer(identities[i]))
+            mem.AddScatterReadRequest(g_scatter_full, identities[i] + 0x20, &name_ptrs[i], sizeof(uintptr_t));
+    }
+    mem.ExecuteReadScatter(g_scatter_full);
+    mem.SetDmaCallTag("CS2.DroppedWeapons.NameText");
+    for (size_t i = 0; i < kSlots; ++i) if (IsUserPointer(name_ptrs[i]))
+        mem.AddScatterReadRequest(g_scatter_full, name_ptrs[i], names[i].data(), names[i].size() - 1);
+    mem.ExecuteReadScatter(g_scatter_full);
+
+    mem.SetDmaCallTag("CS2.DroppedWeapons.Data");
+    for (size_t i = 0; i < kSlots; ++i) {
+        if (!IsDroppedWeaponClass(names[i].data()) || !DroppedWeaponAllowed(names[i].data(), frame_config)) continue;
+        class_cache.emplace(identities[i], names[i]);
+        mem.AddScatterReadRequest(g_scatter_full, entities[i] + offsets.m_pGameSceneNode, &scenes[i], sizeof(uintptr_t));
+        if (offsets.m_iClip1) mem.AddScatterReadRequest(g_scatter_full, entities[i] + offsets.m_iClip1, &ammo[i], sizeof(int));
+        if (offsets.m_AttributeManager && offsets.m_Item && offsets.m_iItemDefinitionIndex)
+            mem.AddScatterReadRequest(g_scatter_full, entities[i] + offsets.m_AttributeManager + offsets.m_Item + offsets.m_iItemDefinitionIndex,
+                &definitions[i], sizeof(int));
+    }
+    mem.ExecuteReadScatter(g_scatter_full);
+    mem.SetDmaCallTag("CS2.DroppedWeapons.Positions");
+    for (size_t i = 0; i < kSlots; ++i) if (IsUserPointer(scenes[i]))
+        mem.AddScatterReadRequest(g_scatter_full, scenes[i] + offsets.m_vecAbsOrigin, positions[i].data(), sizeof(float) * 3);
+    mem.ExecuteReadScatter(g_scatter_full);
+
+    runtime.dropped_weapons.clear();
+    runtime.dropped_weapons.reserve(16);
+    for (size_t i = 0; i < kSlots && runtime.dropped_weapons.size() < 24; ++i) {
+        if (!IsDroppedWeaponClass(names[i].data()) || !IsFinitePosition(positions[i].data())) continue;
+        DroppedWeapon weapon{};
+        weapon.entity = entities[i]; weapon.item_definition = definitions[i]; weapon.ammo_clip = ammo[i]; weapon.sample_timestamp_ms = now;
+        std::memcpy(weapon.pos, positions[i].data(), sizeof(weapon.pos));
+        FormatDroppedWeaponName(names[i].data(), weapon.name);
+        runtime.dropped_weapons.push_back(weapon);
+    }
+    if (class_cache.size() > 2048) class_cache.clear();
+}
+
 // Projectile entities are outside the controller table. Scan their compact
 // low-index portion only while Projectile ESP is enabled, then batch each
 // stage so this never creates one DMA round-trip per object.
 static void CollectProjectiles(const Config& frame_config) {
-    const bool needs_projectiles = frame_config.projectile_esp || frame_config.grenade_trail ||
-        frame_config.projectile_timers;
-    // World timers belong to Projectile ESP. Keep the persisted timer flag as
-    // a compatibility override for older saved configurations.
-    const bool wants_world_timers = frame_config.projectile_esp || frame_config.projectile_timers;
+    // Projectile ESP was removed. Never scan the global entity pages merely
+    // for a held-trajectory preview; this used to create the expensive
+    // Pages/Identity/Names/Motion DMA traffic visible in logs.txt.
+    const bool needs_projectiles = frame_config.projectile_timers;
+    const bool wants_world_timers = frame_config.projectile_timers;
     if (!frame_config.esp_enabled || !needs_projectiles || !runtime.in_match) {
         runtime.projectiles.clear();
         runtime.projectile_pages = runtime.projectile_entities = runtime.projectile_name_ptrs = 0;
@@ -1425,9 +1552,10 @@ static void CollectProjectiles(const Config& frame_config) {
 
     static uint64_t next_scan_ms = 0;
     static uint64_t next_telemetry_ms = 0;
-    static size_t page_window = 0;
     static std::unordered_map<uintptr_t, Projectile> recent_projectiles;
     static std::unordered_map<uintptr_t, uint64_t> active_effect_started_ms;
+    struct CachedProjectileClass { ProjectileKind kind; bool inferno; };
+    static std::unordered_map<uintptr_t, CachedProjectileClass> class_cache;
     const uint64_t now = GetTickCount64();
     if (now < next_scan_ms) return;
     // World-entity discovery is optional and must never starve player/camera
@@ -1436,18 +1564,19 @@ static void CollectProjectiles(const Config& frame_config) {
         next_scan_ms = now + 800;
         return;
     }
-    next_scan_ms = now + 180;
+    next_scan_ms = now + 75;
 
     constexpr size_t kPages = 2;
     constexpr size_t kSlotsPerPage = 0x200;
     constexpr size_t kSlots = kPages * kSlotsPerPage;
-    constexpr size_t kPageWindows = 2;
-    const size_t first_page = (page_window++ % kPageWindows) * kPages;
+    const size_t first_page = 0;
     std::array<uintptr_t, kPages> pages{};
     std::array<uintptr_t, kSlots> entities{};
     std::array<uintptr_t, kSlots> identities{};
     std::array<uintptr_t, kSlots> name_ptrs{};
     std::array<std::array<char, 48>, kSlots> names{};
+    std::array<ProjectileKind, kSlots> kinds{};
+    std::array<bool, kSlots> infernos{};
 
     uintptr_t root = g_cached_entity_root;
     if (!IsUserPointer(root) &&
@@ -1488,7 +1617,11 @@ static void CollectProjectiles(const Config& frame_config) {
 
     mem.SetDmaCallTag("CS2.Projectiles.Names");
     for (size_t i = 0; i < kSlots; ++i) {
-        if (IsUserPointer(identities[i]))
+        const auto known = class_cache.find(identities[i]);
+        if (known != class_cache.end()) {
+            kinds[i] = known->second.kind;
+            infernos[i] = known->second.inferno;
+        } else if (IsUserPointer(identities[i]))
             mem.AddScatterReadRequest(g_scatter_full, identities[i] + 0x20,
                 &name_ptrs[i], sizeof(uintptr_t)); // CEntityIdentity::m_designerName
     }
@@ -1505,10 +1638,16 @@ static void CollectProjectiles(const Config& frame_config) {
     std::array<uint8_t, kSlots> incendiary{};
     std::array<uint8_t, kSlots> smoke_active{};
     std::array<float, kSlots> fire_lifetime{};
-    std::array<ProjectileKind, kSlots> kinds{};
     mem.SetDmaCallTag("CS2.Projectiles.Scene");
     for (size_t i = 0; i < kSlots; ++i) {
-        kinds[i] = ClassifyProjectile(names[i].data());
+        if (IsUserPointer(name_ptrs[i]) && class_cache.find(identities[i]) == class_cache.end()) {
+            kinds[i] = ClassifyProjectile(names[i].data());
+            char lower_name[48]{};
+            std::snprintf(lower_name, sizeof(lower_name), "%s", names[i].data());
+            for (char& ch : lower_name) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+            infernos[i] = std::strstr(lower_name, "inferno") != nullptr;
+            class_cache.emplace(identities[i], CachedProjectileClass{ kinds[i], infernos[i] });
+        }
         if (kinds[i] != ProjectileKind::None) {
             mem.AddScatterReadRequest(g_scatter_full, entities[i] + offsets.m_pGameSceneNode,
                 &scenes[i], sizeof(uintptr_t));
@@ -1556,7 +1695,7 @@ static void CollectProjectiles(const Config& frame_config) {
         std::memcpy(projectile.velocity, velocities[i].data(), sizeof(projectile.velocity));
         if (wants_world_timers) {
             const bool smoke = projectile.kind == ProjectileKind::Smoke && smoke_active[i] != 0;
-            const bool fire = std::strstr(names[i].data(), "inferno") != nullptr;
+            const bool fire = infernos[i];
             const float speed_sq = projectile.velocity[0] * projectile.velocity[0] +
                 projectile.velocity[1] * projectile.velocity[1] + projectile.velocity[2] * projectile.velocity[2];
             const bool decoy = projectile.kind == ProjectileKind::Decoy && std::isfinite(speed_sq) && speed_sq < 625.f;
@@ -1569,6 +1708,7 @@ static void CollectProjectiles(const Config& frame_config) {
                 projectile.world_effect_active = now - it->second < static_cast<uint64_t>(duration * 1000.f);
                 projectile.world_effect_seconds_left = projectile.world_effect_active
                     ? duration - static_cast<float>(now - it->second) / 1000.f : 0.f;
+                projectile.world_effect_expires_ms = it->second + static_cast<uint64_t>(duration * 1000.f);
             }
         }
         projectile.sample_timestamp_ms = now;
@@ -1583,6 +1723,7 @@ static void CollectProjectiles(const Config& frame_config) {
     for (auto it = active_effect_started_ms.begin(); it != active_effect_started_ms.end();) {
         if (now - it->second > 20000) it = active_effect_started_ms.erase(it); else ++it;
     }
+    if (class_cache.size() > 2048) class_cache.clear();
     for (auto it = recent_projectiles.begin(); it != recent_projectiles.end();) {
         const bool current = std::any_of(runtime.projectiles.begin(), runtime.projectiles.end(),
             [&](const Projectile& item) { return item.entity == it->first; });
@@ -1595,7 +1736,7 @@ static void CollectProjectiles(const Config& frame_config) {
         ++it;
     }
 
-    if (now >= next_telemetry_ms) {
+    if (frame_config.telemetry_enabled && now >= next_telemetry_ms) {
         next_telemetry_ms = now + 2000;
         size_t validPages = 0, validEntities = 0, validIdentities = 0, validNames = 0;
         size_t classified = 0, validScenes = 0;
@@ -2347,7 +2488,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
         const std::string requested_map = runtime.map_name;
         collision_load = std::async(std::launch::async, [requested_map] {
             try { (void)Trajectory::CollisionCache().LoadForMap(requested_map.c_str()); }
-            catch (...) { }
+            catch (...) { std::cout << "[CS2] Exceção ao preparar colisão do mapa." << std::endl; }
         });
     }
     // A BVH can be sizeable on workshop and large competitive maps. Release it
@@ -3930,6 +4071,7 @@ if (need_bones) {
     }
 
     CollectProjectiles(frame_config);
+    CollectDroppedWeapons(frame_config);
 
     // Snapshot successful scans for the hold-over path above.
     if (!runtime.players.empty()) {
