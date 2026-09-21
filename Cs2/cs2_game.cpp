@@ -371,10 +371,21 @@ constexpr EntityHandleParts DecodeEntityHandle(uint32_t handle) noexcept {
 static_assert(DecodeEntityHandle(0x201u).page == 1u);
 static_assert(DecodeEntityHandle(0x201u).index == 1u);
 
+// The master ESP toggle alone must not keep the player pipeline alive. Every
+// listed element maps to an actual player visual/read path below.
+static bool HasEnabledPlayerVisuals(const Config& c) {
+    if (!c.esp_enabled) return false;
+    return c.box || c.box_corner || c.skeleton || c.health_bar || c.armor_bar ||
+        c.health_value || c.armor_value || c.name || c.distance || c.head_dot ||
+        c.weapon_name || c.weapon_ammo || c.snaplines || c.trails || c.head_halo ||
+        c.look_direction || c.chinese_hat || c.angel_wings || c.devil_horns ||
+        c.floating_crown || c.player_flags || c.sound_esp || c.footstep_esp;
+}
+
 // True only when some feature actually needs the player list this frame.
 // With everything OFF this is false → RunFrame is nearly free (target 130+ FPS).
 bool NeedsPlayerScan(const Config& frame_config) {
-    return frame_config.esp_enabled
+    return HasEnabledPlayerVisuals(frame_config)
         || frame_config.aim_enabled
         || frame_config.trigger_enabled
         || frame_config.radar_2d
@@ -2595,6 +2606,11 @@ static void RunFrameWithConfig(const Config& frame_config) {
             UpdateBombStateThrottled();
         else if (!frame_config.bomb_timer)
             runtime.bomb = BombState{};
+        // World-only visuals deliberately bypass the player pipeline. They
+        // retain their own rate/pressure gates and do not wake controller,
+        // pawn, bone or weapon acquisition when no player ESP is enabled.
+        CollectProjectiles(frame_config);
+        CollectDroppedWeapons(frame_config);
         {
             ScopedPhase _phPub(&g_phase.publish_ms);
             PublishRuntimeSnapshot();
