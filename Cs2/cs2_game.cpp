@@ -1452,25 +1452,30 @@ static void FormatDroppedWeaponName(const char* source, char (&out)[48]) {
 }
 
 // Low-priority, bounded world-item pass. It is never called unless the user
-// enables dropped weapons; discovery is cached and refreshes at 4 Hz, leaving
-// the camera/player lanes untouched between passes.
+// enables dropped weapons; discovery alternates entity pages so the camera
+// and player lanes stay independent from world-loot work.
 static void CollectDroppedWeapons(const Config& frame_config) {
     if (!frame_config.esp_enabled || !frame_config.dropped_weapons || !runtime.in_match) {
         runtime.dropped_weapons.clear();
         return;
     }
     static uint64_t next_scan_ms = 0;
+    static size_t next_page = 0;
     static std::unordered_map<uintptr_t, std::array<char, 48>> class_cache;
     const uint64_t now = GetTickCount64();
-    if (now < next_scan_ms || g_pressure_level.load(std::memory_order_relaxed) >= 1) return;
-    next_scan_ms = now + 250;
+    if (now < next_scan_ms) return;
+    if (g_pressure_level.load(std::memory_order_relaxed) >= 1) {
+        next_scan_ms = now + 900;
+        return;
+    }
+    next_scan_ms = now + 550;
 
-    constexpr size_t kPages = 2, kSlotsPerPage = 0x200, kSlots = kPages * kSlotsPerPage;
+    constexpr size_t kPages = 1, kSlotsPerPage = 0x200, kSlots = kPages * kSlotsPerPage;
+    const size_t first_page = next_page++ % 2;
     std::array<uintptr_t, kPages> pages{};
     std::array<uintptr_t, kSlots> entities{}, identities{}, name_ptrs{}, scenes{};
     std::array<std::array<char, 48>, kSlots> names{};
     std::array<std::array<float, 3>, kSlots> positions{};
-    std::array<int, kSlots> definitions{};
     std::array<int, kSlots> ammo{};
     uintptr_t root = g_cached_entity_root;
     if (!IsUserPointer(root) && (!QReadT(runtime.client_base + offsets.dwEntityList, root) || !IsUserPointer(root))) return;
@@ -1480,7 +1485,7 @@ static void CollectDroppedWeapons(const Config& frame_config) {
 
     mem.SetDmaCallTag("CS2.DroppedWeapons.Pages");
     for (size_t page = 0; page < kPages; ++page)
-        mem.AddScatterReadRequest(g_scatter_full, root + kEntityPageTableOffset + sizeof(uintptr_t) * page, &pages[page], sizeof(uintptr_t));
+        mem.AddScatterReadRequest(g_scatter_full, root + kEntityPageTableOffset + sizeof(uintptr_t) * (first_page + page), &pages[page], sizeof(uintptr_t));
     mem.ExecuteReadScatter(g_scatter_full);
     mem.SetDmaCallTag("CS2.DroppedWeapons.Entities");
     for (size_t page = 0; page < kPages; ++page) if (IsUserPointer(pages[page]))
@@ -1510,10 +1515,8 @@ static void CollectDroppedWeapons(const Config& frame_config) {
         if (!IsDroppedWeaponClass(names[i].data()) || !DroppedWeaponAllowed(names[i].data(), frame_config)) continue;
         class_cache.emplace(identities[i], names[i]);
         mem.AddScatterReadRequest(g_scatter_full, entities[i] + offsets.m_pGameSceneNode, &scenes[i], sizeof(uintptr_t));
-        if (offsets.m_iClip1) mem.AddScatterReadRequest(g_scatter_full, entities[i] + offsets.m_iClip1, &ammo[i], sizeof(int));
-        if (offsets.m_AttributeManager && offsets.m_Item && offsets.m_iItemDefinitionIndex)
-            mem.AddScatterReadRequest(g_scatter_full, entities[i] + offsets.m_AttributeManager + offsets.m_Item + offsets.m_iItemDefinitionIndex,
-                &definitions[i], sizeof(int));
+        if (frame_config.dropped_weapon_ammo && offsets.m_iClip1)
+            mem.AddScatterReadRequest(g_scatter_full, entities[i] + offsets.m_iClip1, &ammo[i], sizeof(int));
     }
     mem.ExecuteReadScatter(g_scatter_full);
     mem.SetDmaCallTag("CS2.DroppedWeapons.Positions");
@@ -1526,7 +1529,7 @@ static void CollectDroppedWeapons(const Config& frame_config) {
     for (size_t i = 0; i < kSlots && runtime.dropped_weapons.size() < 24; ++i) {
         if (!IsDroppedWeaponClass(names[i].data()) || !IsFinitePosition(positions[i].data())) continue;
         DroppedWeapon weapon{};
-        weapon.entity = entities[i]; weapon.item_definition = definitions[i]; weapon.ammo_clip = ammo[i]; weapon.sample_timestamp_ms = now;
+        weapon.entity = entities[i]; weapon.ammo_clip = ammo[i]; weapon.sample_timestamp_ms = now;
         std::memcpy(weapon.pos, positions[i].data(), sizeof(weapon.pos));
         FormatDroppedWeaponName(names[i].data(), weapon.name);
         runtime.dropped_weapons.push_back(weapon);
