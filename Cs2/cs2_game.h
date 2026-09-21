@@ -298,6 +298,9 @@ void SubmitAcquisitionConfig(const Config& next) noexcept;
 // 0 normal, 1 reduced optional work, 2 cached metadata, 3 recovery.
 [[nodiscard]] int DmaPressureLevel() noexcept;
 [[nodiscard]] float LastSlowDmaMs() noexcept;
+[[nodiscard]] float LastWeaponPhaseMs() noexcept;
+[[nodiscard]] float LastAmmoPhaseMs() noexcept;
+[[nodiscard]] float LastFlagsPhaseMs() noexcept;
 void SetPresentationFps(float fps) noexcept;
 void Shutdown();
 const char* StatusLine();

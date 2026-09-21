@@ -284,6 +284,8 @@ struct Cs2PhaseTiming {
     float positions_ms = 0.f;
     float bones_ms = 0.f;
     float weapon_ms = 0.f;
+    float ammo_ms = 0.f;
+    float flags_ms = 0.f;
     float spectator_ms = 0.f;
     float bomb_ms = 0.f;
     float publish_ms = 0.f;
@@ -307,6 +309,11 @@ static std::mutex g_dma_read_gate;
 // from MemProcFS/LeechCore; we avoid stacking more DMA on top of them.
 static std::atomic<uint64_t> g_dma_cooldown_until_ms{0};
 static std::atomic<float> g_last_slow_dma_ms{0.f};
+// Latest optional-lane cost, surfaced in the menu so a user can see which
+// feature is being shed before core ESP ever loses priority.
+static std::atomic<float> g_last_weapon_ms{0.f};
+static std::atomic<float> g_last_ammo_ms{0.f};
+static std::atomic<float> g_last_flags_ms{0.f};
 
 static bool DmaCooldownActive() {
     return GetTickCount64() < g_dma_cooldown_until_ms.load(std::memory_order_acquire);
@@ -3268,6 +3275,7 @@ if (need_bones) {
                 mem.ExecuteReadScatter(g_scatter_full);
         }
         if (need_weapons && allow_weapon_phase) {
+            ScopedPhase _phWeapon(&g_phase.weapon_ms);
             bool queuedServices = false;
             for (int c = 0; c < candidate_count; ++c) {
                 auto cached = weaponStateCache.find(resolved_pawns[c]);
@@ -3360,6 +3368,7 @@ if (need_bones) {
                 QRead(boneBases[c], boneSnapshots[c],
                       need_full_bones ? kBoneReadBytes : kCompactBoneReadBytes);
             if (need_weapons && allow_weapon_phase) {
+                ScopedPhase _phWeapon(&g_phase.weapon_ms);
                 auto cached = weaponStateCache.find(resolved_pawns[c]);
                 const uint64_t weaponInterval = resolved_pawns[c] == runtime.local_pawn ? 50u : static_cast<uint64_t>(WEAPON_INTERVAL_MS);
                 if (cached != weaponStateCache.end() &&
@@ -3386,6 +3395,141 @@ if (need_bones) {
             }
         }
     }
+
+    // Optional metadata is deliberately gathered in two bounded scatter passes.
+    // This replaces the old per-player QRead chains (money service -> money,
+    // item service -> kit, plus independent shot/ammo reads) which multiplied
+    // PCIe round trips precisely when many enemies were on screen.
+    int ammoClip[kMaxSlots];
+    int ammoReserve[kMaxSlots];
+    std::fill(std::begin(ammoClip), std::end(ammoClip), -1);
+    std::fill(std::begin(ammoReserve), std::end(ammoReserve), -1);
+    if (need_weapons && allow_weapon_phase && frame_config.weapon_ammo) {
+        ScopedPhase _phAmmo(&g_phase.ammo_ms);
+        bool queued = false;
+        mem.SetDmaCallTag("CS2.AmmoBatch");
+        for (int c = 0; c < candidate_count; ++c) {
+            if (!IsUserPointer(weaponEntities[c])) continue;
+            if (offsets.m_iClip1) {
+                mem.AddScatterReadRequest(g_scatter_full, weaponEntities[c] + offsets.m_iClip1,
+                    &ammoClip[c], sizeof(ammoClip[c]));
+                queued = true;
+            }
+            if (offsets.m_pReserveAmmo) {
+                mem.AddScatterReadRequest(g_scatter_full, weaponEntities[c] + offsets.m_pReserveAmmo,
+                    &ammoReserve[c], sizeof(ammoReserve[c]));
+                queued = true;
+            }
+        }
+        if (queued) mem.ExecuteReadScatter(g_scatter_full);
+    }
+
+    struct FlagCache {
+        int money = -1;
+        bool kit = false;
+        bool defusing = false;
+        int shots = 0;
+        uint64_t last_shot_ms = 0;
+        uint64_t next_slow_ms = 0;
+        uint64_t next_defuse_ms = 0;
+        uint64_t next_shot_ms = 0;
+        uint64_t last_seen_ms = 0;
+    };
+    static std::unordered_map<uintptr_t, FlagCache> flag_cache;
+    if (flag_cache.bucket_count() < 128) flag_cache.reserve(128);
+    uintptr_t moneyServices[kMaxSlots]{};
+    uintptr_t itemServices[kMaxSlots]{};
+    int moneyValues[kMaxSlots]{};
+    uint8_t kitValues[kMaxSlots]{};
+    uint8_t defuseValues[kMaxSlots]{};
+    int shotValues[kMaxSlots]{};
+    bool readMoney[kMaxSlots]{};
+    bool readKit[kMaxSlots]{};
+    bool readDefuse[kMaxSlots]{};
+    bool readShots[kMaxSlots]{};
+    if (allow_auxiliary_phase && (frame_config.player_flags || frame_config.sound_esp)) {
+        ScopedPhase _phFlags(&g_phase.flags_ms);
+        bool queuedFirst = false;
+        mem.SetDmaCallTag("CS2.FlagsBatch");
+        for (int c = 0; c < candidate_count; ++c) {
+            const uintptr_t pawn = resolved_pawns[c];
+            auto& cache = flag_cache[pawn];
+            cache.last_seen_ms = scan_now_ms;
+            const uintptr_t controller = controllers[slot_index[c]];
+            const bool slowDue = frame_config.player_flags &&
+                (frame_config.flag_money || frame_config.flag_kit) && scan_now_ms >= cache.next_slow_ms;
+            if (slowDue) cache.next_slow_ms = scan_now_ms + 700;
+            if (slowDue && frame_config.flag_money && IsUserPointer(controller) &&
+                offsets.m_pInGameMoneyServices && offsets.m_iAccount) {
+                readMoney[c] = true;
+                mem.AddScatterReadRequest(g_scatter_full, controller + offsets.m_pInGameMoneyServices,
+                    &moneyServices[c], sizeof(moneyServices[c]));
+                queuedFirst = true;
+            }
+            if (slowDue && frame_config.flag_kit && offsets.m_pItemServices && offsets.m_bHasDefuser) {
+                readKit[c] = true;
+                mem.AddScatterReadRequest(g_scatter_full, pawn + offsets.m_pItemServices,
+                    &itemServices[c], sizeof(itemServices[c]));
+                queuedFirst = true;
+            }
+            if (frame_config.player_flags && frame_config.flag_defusing && offsets.m_bIsDefusing &&
+                scan_now_ms >= cache.next_defuse_ms) {
+                cache.next_defuse_ms = scan_now_ms + 120;
+                readDefuse[c] = true;
+                mem.AddScatterReadRequest(g_scatter_full, pawn + offsets.m_bIsDefusing,
+                    &defuseValues[c], sizeof(defuseValues[c]));
+                queuedFirst = true;
+            }
+            if (frame_config.sound_esp && offsets.m_iShotsFired && scan_now_ms >= cache.next_shot_ms) {
+                cache.next_shot_ms = scan_now_ms + 45;
+                readShots[c] = true;
+                mem.AddScatterReadRequest(g_scatter_full, pawn + offsets.m_iShotsFired,
+                    &shotValues[c], sizeof(shotValues[c]));
+                queuedFirst = true;
+            }
+        }
+        if (queuedFirst) mem.ExecuteReadScatter(g_scatter_full);
+        bool queuedSecond = false;
+        for (int c = 0; c < candidate_count; ++c) {
+            if (readMoney[c] && IsUserPointer(moneyServices[c])) {
+                mem.AddScatterReadRequest(g_scatter_full, moneyServices[c] + offsets.m_iAccount,
+                    &moneyValues[c], sizeof(moneyValues[c]));
+                queuedSecond = true;
+            }
+            if (readKit[c] && IsUserPointer(itemServices[c])) {
+                mem.AddScatterReadRequest(g_scatter_full, itemServices[c] + offsets.m_bHasDefuser,
+                    &kitValues[c], sizeof(kitValues[c]));
+                queuedSecond = true;
+            }
+        }
+        if (queuedSecond) mem.ExecuteReadScatter(g_scatter_full);
+        for (int c = 0; c < candidate_count; ++c) {
+            auto& cache = flag_cache[resolved_pawns[c]];
+            if (readMoney[c] && moneyValues[c] >= 0 && moneyValues[c] < 100000) cache.money = moneyValues[c];
+            if (readKit[c]) cache.kit = kitValues[c] != 0;
+            if (readDefuse[c]) cache.defusing = defuseValues[c] != 0;
+            if (readShots[c] && shotValues[c] >= 0) {
+                if (shotValues[c] > cache.shots) cache.last_shot_ms = scan_now_ms;
+                cache.shots = shotValues[c];
+            }
+        }
+        // Keep a bounded, incremental cleanup policy. A long deathmatch must
+        // not retain old controller/pawn keys or slowly raise scan costs.
+        if ((runtime.frames % 32u) == 0u) {
+            int removed = 0;
+            for (auto it = flag_cache.begin(); it != flag_cache.end() && removed < 4;) {
+                if (scan_now_ms - it->second.last_seen_ms > 30000u) {
+                    it = flag_cache.erase(it);
+                    ++removed;
+                } else {
+                    ++it;
+                }
+            }
+        }
+    }
+    g_last_weapon_ms.store(g_phase.weapon_ms, std::memory_order_relaxed);
+    g_last_ammo_ms.store(g_phase.ammo_ms, std::memory_order_relaxed);
+    g_last_flags_ms.store(g_phase.flags_ms, std::memory_order_relaxed);
 
     static std::unordered_map<uintptr_t, std::array<float, 3>> previous_positions;
     if (previous_positions.bucket_count() < 128) previous_positions.reserve(128);
@@ -3807,80 +3951,21 @@ if (need_bones) {
                 p.weapon_def = def;
                 if (weaponRefreshDue[c]) weaponStateCache[p.pawn].definition = def;
             }
-            // Weapon ammo (clip/reserve) when feature on and offsets present.
-            if (frame_config.weapon_ammo && IsUserPointer(weapon_ent) && offsets.m_iClip1) {
-                int clip = -1, reserve = -1;
-                QReadT(weapon_ent + offsets.m_iClip1, clip, "CS2.AmmoClip");
-                if (offsets.m_pReserveAmmo)
-                    QReadT(weapon_ent + offsets.m_pReserveAmmo, reserve, "CS2.AmmoReserve");
-                if (clip >= 0 && clip < 500) p.ammo_clip = clip;
-                if (reserve >= 0 && reserve < 500) p.ammo_reserve = reserve;
+            // Values were gathered in the bounded AmmoBatch before assembly.
+            if (frame_config.weapon_ammo) {
+                if (ammoClip[c] >= 0 && ammoClip[c] < 500) p.ammo_clip = ammoClip[c];
+                if (ammoReserve[c] >= 0 && ammoReserve[c] < 500) p.ammo_reserve = ammoReserve[c];
             }
         }
 
-        // Player flags are presentation data. Cache the slow state instead of
-        // issuing 3–5 small DMA reads for every player on every ESP pass.
-        struct FlagCache {
-            int money = -1;
-            bool kit = false;
-            bool defusing = false;
-            int shots = 0;
-            uint64_t next_slow_ms = 0;
-            uint64_t next_defuse_ms = 0;
-            uint64_t next_shot_ms = 0;
-        };
-        static std::unordered_map<uintptr_t, FlagCache> flag_cache;
+        // Player flags and shot state were acquired in FlagsBatch.  Assembly
+        // reads only the cache, so it never stalls the render snapshot.
         auto& cached_flags = flag_cache[p.pawn];
         p.money = cached_flags.money;
         p.has_defuser = cached_flags.kit;
         p.is_defusing = cached_flags.defusing;
-
-        // Player flags / sound: only request fields whose individual marker is on.
-        if (allow_auxiliary_phase && (frame_config.player_flags || frame_config.sound_esp) && IsUserPointer(p.controller)) {
-            const bool refresh_slow = frame_config.player_flags &&
-                (frame_config.flag_money || frame_config.flag_kit) &&
-                scan_now_ms >= cached_flags.next_slow_ms;
-            if (refresh_slow)
-                cached_flags.next_slow_ms = scan_now_ms + 700;
-            if (refresh_slow && frame_config.flag_money &&
-                offsets.m_pInGameMoneyServices && offsets.m_iAccount) {
-                uintptr_t money_svc = 0;
-                int money = -1;
-                if (QReadT(p.controller + offsets.m_pInGameMoneyServices, money_svc, "CS2.MoneySvc") &&
-                    IsUserPointer(money_svc) &&
-                    QReadT(money_svc + offsets.m_iAccount, money, "CS2.Money") &&
-                    money >= 0 && money < 100000)
-                    p.money = cached_flags.money = money;
-            }
-            if (refresh_slow && frame_config.flag_kit && offsets.m_pItemServices && offsets.m_bHasDefuser && IsUserPointer(p.pawn)) {
-                uintptr_t item_svc = 0;
-                if (QReadT(p.pawn + offsets.m_pItemServices, item_svc, "CS2.ItemSvc") && IsUserPointer(item_svc)) {
-                    uint8_t kit = 0;
-                    if (QReadT(item_svc + offsets.m_bHasDefuser, kit, "CS2.HasDefuser"))
-                        p.has_defuser = cached_flags.kit = kit != 0;
-                }
-            }
-            if (frame_config.player_flags && frame_config.flag_defusing && offsets.m_bIsDefusing &&
-                IsUserPointer(p.pawn) && scan_now_ms >= cached_flags.next_defuse_ms) {
-                cached_flags.next_defuse_ms = scan_now_ms + 120;
-                uint8_t defu = 0;
-                if (QReadT(p.pawn + offsets.m_bIsDefusing, defu, "CS2.IsDefusing"))
-                    p.is_defusing = cached_flags.defusing = defu != 0;
-            }
-        }
-        if (allow_auxiliary_phase && frame_config.sound_esp && offsets.m_iShotsFired && IsUserPointer(p.pawn) &&
-            scan_now_ms >= cached_flags.next_shot_ms) {
-            cached_flags.next_shot_ms = scan_now_ms + 45;
-            static std::unordered_map<uintptr_t, int> s_prevShots;
-            int shots = 0;
-            if (QReadT(p.pawn + offsets.m_iShotsFired, shots, "CS2.ShotsFired") && shots >= 0) {
-                const int prev = s_prevShots[p.pawn];
-                if (shots > prev)
-                    p.last_shot_ms = scan_now_ms;
-                s_prevShots[p.pawn] = shots;
-                p.shots_fired = shots;
-            }
-        }
+        p.last_shot_ms = cached_flags.last_shot_ms;
+        p.shots_fired = cached_flags.shots;
 
         if (!p.is_local && p.team != runtime.local_team)
             ++runtime.enemy_count;
@@ -4150,7 +4235,8 @@ if (need_bones) {
         const float wall = OmniGhost::Gameplay::TimeMs(_frameWallBegin);
         const float accounted = g_phase.webradar_ms + g_phase.entity_ms + g_phase.local_ms
             + g_phase.core_scatter_ms + g_phase.positions_ms + g_phase.bones_ms
-            + g_phase.weapon_ms + g_phase.spectator_ms + g_phase.bomb_ms
+            + g_phase.weapon_ms + g_phase.ammo_ms + g_phase.flags_ms
+            + g_phase.spectator_ms + g_phase.bomb_ms
             + g_phase.publish_ms + g_phase.cleanup_ms;
         g_phase.other_ms = (std::max)(0.f, wall - accounted);
     }
@@ -4529,6 +4615,18 @@ int DmaPressureLevel() noexcept {
 
 float LastSlowDmaMs() noexcept {
     return g_last_slow_dma_ms.load(std::memory_order_relaxed);
+}
+
+float LastWeaponPhaseMs() noexcept {
+    return g_last_weapon_ms.load(std::memory_order_relaxed);
+}
+
+float LastAmmoPhaseMs() noexcept {
+    return g_last_ammo_ms.load(std::memory_order_relaxed);
+}
+
+float LastFlagsPhaseMs() noexcept {
+    return g_last_flags_ms.load(std::memory_order_relaxed);
 }
 
 
