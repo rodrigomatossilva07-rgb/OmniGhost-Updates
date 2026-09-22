@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)][string]$ProjectDir,
     [Parameter(Mandatory = $true)][string]$DumpPath,
@@ -28,7 +28,7 @@ $stage = Join-Path ([IO.Path]::GetTempPath()) ('OmniGhost-Crash-' + [guid]::NewG
 try {
     [IO.Directory]::CreateDirectory($stage) | Out-Null
     Copy-Item -LiteralPath $DumpPath -Destination (Join-Path $stage $dump.Name) -Force
-    $version = ([IO.File]::ReadAllText((Join-Path $ProjectDir 'version.txt'))).Trim()
+    $version = ([IO.File]::ReadAllText((Join-Path $ProjectDir 'config\release\version.txt'))).Trim()
     $metadata = [ordered]@{
         schema = 1
         appVersion = $version

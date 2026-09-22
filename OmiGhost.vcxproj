@@ -1,4 +1,4 @@
-﻿<?xml version='1.0' encoding='UTF-8'?>
+<?xml version='1.0' encoding='UTF-8'?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" DefaultTargets="Build">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Release|x64">
@@ -40,9 +40,9 @@
 <ImportGroup Label="Shared"/>
 <ImportGroup Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform"/>
-    <Import Project="$(ProjectDir)OmniGhost.Common.props"/>
-    <Import Project="$(ProjectDir)OmniGhost.Release.props" Condition="'$(Configuration)'=='Release' Or '$(Configuration)'=='Publish'"/>
-    <Import Project="$(ProjectDir)OmniGhost.Publish.props" Condition="'$(Configuration)'=='Publish'"/>
+    <Import Project="$(ProjectDir)config\build\OmniGhost.Common.props"/>
+    <Import Project="$(ProjectDir)config\build\OmniGhost.Release.props" Condition="'$(Configuration)'=='Release' Or '$(Configuration)'=='Publish'"/>
+    <Import Project="$(ProjectDir)config\build\OmniGhost.Publish.props" Condition="'$(Configuration)'=='Publish'"/>
 </ImportGroup>
   <PropertyGroup Label="UserMacros"/>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -82,8 +82,8 @@
     <OmniGhostRootResource Include="$(ProjectDir)resources\OmniGhost.ico;$(ProjectDir)resources\OmniGhost.png"/>
     <OmniGhostGameResource Include="$(ProjectDir)resources\games\**\*.png;$(ProjectDir)resources\games\**\*.jpg;$(ProjectDir)resources\games\**\*.jpeg;$(ProjectDir)resources\games\**\*.webp"/>
     <OmniGhostProjectData Include="$(ProjectDir)data\**\*" Exclude="$(ProjectDir)data\*offsets.json;$(ProjectDir)data\offsets.json;$(ProjectDir)data\fortnite_offsets\**\*;$(ProjectDir)data\**\*offsets*.json"/>
-    <OmniGhostCs2Data Include="$(ProjectDir)Cs2\data\weapons\**\*;$(ProjectDir)Cs2\data\webradar\**\*" Exclude="$(ProjectDir)Cs2\data\offsets.json"/>
-    <OmniGhostValorantData Include="$(ProjectDir)Valorant\data\**\*" Exclude="$(ProjectDir)Valorant\data\*offsets*.json"/>
+    <OmniGhostCs2Data Include="$(ProjectDir)src\games\Cs2\data\weapons\**\*;$(ProjectDir)src\games\Cs2\data\webradar\**\*" Exclude="$(ProjectDir)src\games\Cs2\data\offsets.json"/>
+    <OmniGhostValorantData Include="$(ProjectDir)src\games\Valorant\data\**\*" Exclude="$(ProjectDir)src\games\Valorant\data\*offsets*.json"/>
   </ItemGroup>
   <Target Name="BuildOmniGhostEmbeddedOffsets" BeforeTargets="ResourceCompile" Condition="'$(DesignTimeBuild)'!='true'">
     <Message Importance="High" Text="[OmniGhost Offsets] Generating embedded offset resources..."/>
@@ -154,7 +154,7 @@
     <Copy SourceFiles="@(OmniGhostDmaRuntimeLibrary)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true"/>
     <Copy SourceFiles="@(OmniGhostCustomRuntimeLibrary)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" Condition="'@(OmniGhostCustomRuntimeLibrary)'!=''"/>
     <Copy SourceFiles="@(OmniGhostVcRuntimeLibrary)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" Condition="'$(Configuration)'=='Release' And '@(OmniGhostVcRuntimeLibrary)'!=''"/>
-    <Copy SourceFiles="$(ProjectDir)versions.json" DestinationFiles="$(OutDir)data\runtime\dma_stack_versions.json" SkipUnchangedFiles="true"/>
+    <Copy SourceFiles="$(ProjectDir)config\release\versions.json" DestinationFiles="$(OutDir)data\runtime\dma_stack_versions.json" SkipUnchangedFiles="true"/>
     <Copy SourceFiles="@(OmniGhostDmaPlugin)" DestinationFiles="@(OmniGhostDmaPlugin-&gt;'$(OutDir)plugins\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" Condition="'@(OmniGhostDmaPlugin)'!=''"/>
     <Copy SourceFiles="@(OmniGhostRootResource)" DestinationFolder="$(OutDir)resources" SkipUnchangedFiles="true" Condition="'@(OmniGhostRootResource)'!=''"/>
     <Copy SourceFiles="@(OmniGhostGameResource)" DestinationFiles="@(OmniGhostGameResource-&gt;'$(OutDir)resources\games\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" Condition="'@(OmniGhostGameResource)'!=''"/>
@@ -169,7 +169,6 @@
     </ItemGroup>
     <Error Condition="!Exists('%(OmniGhostRuntimeDestination.Identity)')" Code="OGDLL002" Text="A DLL de runtime não foi copiada para junto do executável: %(OmniGhostRuntimeDestination.Filename)%(OmniGhostRuntimeDestination.Extension)"/>
     <Error Condition="!Exists('$(OutDir)data\runtime\dma_stack_versions.json')" Code="OGDLL007" Text="O manifest de versões da stack DMA não foi copiado para data\runtime."/>
-    <Error Condition="Exists('$(OutDir)data\fortnite_offsets.json')" Code="OGOFF002" Text="Release não pode distribuir data\fortnite_offsets.json; o snapshot deve estar embutido no EXE."/>
     <Error Condition="Exists('$(OutDir)data\warzone_offsets.json')" Code="OGOFF003" Text="Release não pode distribuir data\warzone_offsets.json; o snapshot deve estar embutido no EXE."/>
     <Error Condition="Exists('$(OutDir)data\cs2_offsets.json')" Code="OGOFF004" Text="Release não pode distribuir plaintext cs2 offsets; devem estar embutidos."/>
     <Error Condition="Exists('$(OutDir)data\fivem_offsets.json')" Code="OGOFF006" Text="Release não pode distribuir plaintext fivem offsets; devem estar embutidos."/>
@@ -338,48 +337,44 @@
 <ClCompile Include="src\window\widgets.cpp"/>
 <ClCompile Include="src\window\window.cpp"/>
   <ClCompile Include="src\window\window_runtime.cpp"/>
-    <ClCompile Include="Fivem\aimbot\aim_type.cpp"/>
-    <ClCompile Include="Fivem\aimbot\aimbot.cpp"/>
-    <ClCompile Include="Fivem\esp\esp.cpp"/>
-    <ClCompile Include="Fivem\esp\esp_bone_cache.cpp"/>
-    <ClCompile Include="Fivem\esp\vehicle_esp.cpp"/>
-    <ClCompile Include="Fivem\friends\friends.cpp"/>
-    <ClCompile Include="Fivem\game\esp_manager.cpp"/>
-    <ClCompile Include="Fivem\game\game.cpp"/>
-    <ClCompile Include="Fivem\game\game_setup.cpp"/>
-    <ClCompile Include="Fivem\game\offsets.cpp"/>
-    <ClCompile Include="Fivem\playerInfo\PedData.cpp"/>
-    <ClCompile Include="Cs2\aimbot\cs2_aim.cpp"/>
-    <ClCompile Include="Cs2\esp\cs2_esp.cpp"/>
-    <ClCompile Include="Cs2\cs2_game.cpp"/>
-    <ClCompile Include="Cs2\trajectory\cs2_collision_mesh.cpp"/>
-    <ClCompile Include="Cs2\trajectory\cs2_map_collision_cache.cpp"/>
-    <ClCompile Include="Cs2\trajectory\cs2_grenade_simulator.cpp"/>
-    <ClCompile Include="Cs2\radar\cs2_radar.cpp"/>
-    <ClCompile Include="Cs2\config\cs2_config_io.cpp"/>
-    <ClCompile Include="Cs2\weapons\cs2_weapon_icons.cpp"/>
-    <ClCompile Include="Warzone\warzone_game.cpp"/>
-    <ClCompile Include="Warzone\warzone_decrypt.cpp"/>
-    <ClCompile Include="Warzone\warzone_aim.cpp"/>
-    <ClCompile Include="Warzone\warzone_esp.cpp"/>
-    <ClCompile Include="Valorant\valorant_game.cpp"/>
-    <ClCompile Include="Valorant\valorant_esp.cpp"/>
-    <ClCompile Include="Valorant\valorant_aim.cpp"/>
-    <ClCompile Include="Fortnite\fortnite_game.cpp"/>
-    <ClCompile Include="Rust\rust_game.cpp"/>
-    <ClCompile Include="Rust\rust_dtb.cpp"/>
-    <ClCompile Include="Rust\rust_decrypt.cpp"/>
-    <ClCompile Include="Rust\rust_entities.cpp"/>
-    <ClCompile Include="Rust\rust_esp.cpp"/>
-    <ClCompile Include="Rust\rust_aim.cpp"/>
+    <ClCompile Include="src\games\Fivem\aimbot\aim_type.cpp"/>
+    <ClCompile Include="src\games\Fivem\aimbot\aimbot.cpp"/>
+    <ClCompile Include="src\games\Fivem\esp\esp.cpp"/>
+    <ClCompile Include="src\games\Fivem\esp\esp_bone_cache.cpp"/>
+    <ClCompile Include="src\games\Fivem\esp\vehicle_esp.cpp"/>
+    <ClCompile Include="src\games\Fivem\friends\friends.cpp"/>
+    <ClCompile Include="src\games\Fivem\game\esp_manager.cpp"/>
+    <ClCompile Include="src\games\Fivem\game\game.cpp"/>
+    <ClCompile Include="src\games\Fivem\game\game_setup.cpp"/>
+    <ClCompile Include="src\games\Fivem\game\offsets.cpp"/>
+    <ClCompile Include="src\games\Fivem\playerInfo\PedData.cpp"/>
+    <ClCompile Include="src\games\Cs2\aimbot\cs2_aim.cpp"/>
+    <ClCompile Include="src\games\Cs2\esp\cs2_esp.cpp"/>
+    <ClCompile Include="src\games\Cs2\cs2_game.cpp"/>
+    <ClCompile Include="src\games\Cs2\trajectory\cs2_collision_mesh.cpp"/>
+    <ClCompile Include="src\games\Cs2\trajectory\cs2_map_collision_cache.cpp"/>
+    <ClCompile Include="src\games\Cs2\trajectory\cs2_grenade_simulator.cpp"/>
+    <ClCompile Include="src\games\Cs2\radar\cs2_radar.cpp"/>
+    <ClCompile Include="src\games\Cs2\config\cs2_config_io.cpp"/>
+    <ClCompile Include="src\games\Cs2\weapons\cs2_weapon_icons.cpp"/>
+    <ClCompile Include="src\games\Warzone\warzone_game.cpp"/>
+    <ClCompile Include="src\games\Warzone\warzone_decrypt.cpp"/>
+    <ClCompile Include="src\games\Warzone\warzone_aim.cpp"/>
+    <ClCompile Include="src\games\Warzone\warzone_esp.cpp"/>
+    <ClCompile Include="src\games\Valorant\valorant_game.cpp"/>
+    <ClCompile Include="src\games\Valorant\valorant_esp.cpp"/>
+    <ClCompile Include="src\games\Valorant\valorant_aim.cpp"/>
+    <ClCompile Include="src\games\Rust\rust_game.cpp"/>
+    <ClCompile Include="src\games\Rust\rust_dtb.cpp"/>
+    <ClCompile Include="src\games\Rust\rust_decrypt.cpp"/>
+    <ClCompile Include="src\games\Rust\rust_entities.cpp"/>
+    <ClCompile Include="src\games\Rust\rust_esp.cpp"/>
+    <ClCompile Include="src\games\Rust\rust_aim.cpp"/>
     <ClCompile Include="src\window\pages\rust\RustVisualsPage.cpp"/>
     <ClCompile Include="src\window\pages\rust\RustAimPage.cpp"/>
     <ClCompile Include="src\window\pages\valorant\ValorantVisualsPage.cpp"/>
     <ClCompile Include="src\window\pages\valorant\ValorantStatusPage.cpp"/>
     <ClCompile Include="src\window\pages\valorant\ValorantAimPage.cpp"/>
-    <ClCompile Include="src\window\pages\fortnite\FortniteVisualsPage.cpp"/>
-    <ClCompile Include="src\window\pages\fortnite\FortniteStatusPage.cpp"/>
-    <ClCompile Include="src\window\pages\fortnite\FortniteAimPage.cpp"/>
     <ClCompile Include="src\window\pages\unified_stubs.cpp"/>
 
     <ClCompile Include="ImGui\imgui.cpp"/>

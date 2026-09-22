@@ -25,8 +25,8 @@ if ($Configuration) {
 Set-StrictMode -Version Latest
 
 $ProjectDir = [IO.Path]::GetFullPath((Join-Path $ProjectDir '.'))
-$versionPath = Join-Path $ProjectDir 'version.txt'
-$configPath = Join-Path $ProjectDir 'release-publish.json'
+$versionPath = Join-Path $ProjectDir 'config\release\version.txt'
+$configPath = Join-Path $ProjectDir 'config\release\release-publish.json'
 $pendingPath = Join-Path $ProjectDir 'artifacts\version-backup\pending-version.json'
 $lockPath = Join-Path $ProjectDir 'artifacts\.version-build.lock'
 
@@ -34,7 +34,7 @@ if (-not (Test-Path -LiteralPath $versionPath -PathType Leaf)) {
     throw "version.txt nao encontrado: $versionPath"
 }
 if (-not (Test-Path -LiteralPath $configPath -PathType Leaf)) {
-    throw "release-publish.json nao encontrado: $configPath"
+    throw "config\release\release-publish.json nao encontrado: $configPath"
 }
 
 $version = ([IO.File]::ReadAllText($versionPath)).Trim()
@@ -48,7 +48,7 @@ $publishConfig = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
 $repositoryProperty = $publishConfig.PSObject.Properties['repository']
 $repository = if ($null -eq $repositoryProperty) { '' } else { ([string]$repositoryProperty.Value).Trim() }
 if ($repository -notmatch '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$') {
-    throw 'Repositorio de publicacao invalido em release-publish.json.'
+    throw 'Repositorio de publicacao invalido em config\release\release-publish.json.'
 }
 Write-Host "[OmniGhost Version] Publish repository=$repository"
 if ($ValidateOnly) {

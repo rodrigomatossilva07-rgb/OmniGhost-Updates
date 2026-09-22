@@ -4,7 +4,7 @@
 #endif
 #include "cs2_aim.h"
 #include "Memory/Memory.h"
-#include "../Fivem/aimbot/aim_type.h"
+#include "src/games/Fivem/aimbot/aim_type.h"
 #include "gameplay/aim_controller.h"
 #include "gameplay/smooth_curves.h"
 #include "gameplay/prediction.h"

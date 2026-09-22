@@ -1,5 +1,5 @@
 #include "../../widgets.h"
-#include "../../Valorant/valorant_game.h"
+#include "src/games/Valorant/valorant_game.h"
 #include "imgui.h"
 
 void DrawValorantStatus()

@@ -171,7 +171,7 @@ bool Attach() {
             LoadOffsetsJson(p.string().c_str());
         }
         LoadOffsetsJson("data/valorant_offsets.json");
-        LoadOffsetsJson("Valorant/data/valorant_offsets.json");
+        LoadOffsetsJson("src/games/Valorant/data/valorant_offsets.json");
     }
 #endif
 

@@ -9,7 +9,7 @@ Set-StrictMode -Version Latest
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $ProjectDir = [IO.Path]::GetFullPath($ProjectDir)
 $ReleaseDirectory = [IO.Path]::GetFullPath($ReleaseDirectory)
-$config = Get-Content -LiteralPath (Join-Path $ProjectDir 'release-publish.json') -Raw | ConvertFrom-Json
+$config = Get-Content -LiteralPath (Join-Path $ProjectDir 'config\release\release-publish.json') -Raw | ConvertFrom-Json
 $thumb = ([string]$config.signingCertificateThumbprint -replace '\s','').ToUpperInvariant()
 $subject = [string]$config.expectedPublisherSubject
 if ($config.requireAuthenticode -eq $true -and ($thumb -notmatch '^[0-9A-F]{40}$' -or [string]::IsNullOrWhiteSpace($subject))) {

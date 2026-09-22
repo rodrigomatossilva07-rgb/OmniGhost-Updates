@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [Parameter(Mandatory=$false)]
     [string]$ProjectDir = (Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)),
@@ -56,17 +56,17 @@ $staging = Join-Path ([IO.Path]::GetTempPath()) ('OmniGhost-Diagnostics-' + [gui
 [IO.Directory]::CreateDirectory($staging) | Out-Null
 try {
     foreach ($relative in @(
-        'version.txt',
+        'config\release\version.txt',
         'docs\validation-summary.json',
         'docs\SBOM.json',
         'docs\roadmap-status.json',
-        'versions.json',
+        'config\release\versions.json',
         'third_party\dma_stack\managed-files.json'
     )) {
         Copy-WhitelistedFile $relative $staging
     }
 
-    $versionFile = Join-Path $ProjectDir 'version.txt'
+    $versionFile = Join-Path $ProjectDir 'config\release\version.txt'
     $projectVersion = 'unknown'
     if (Test-Path -LiteralPath $versionFile -PathType Leaf) {
         $projectVersion = (Get-Content -LiteralPath $versionFile -Raw).Trim()

@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [Parameter(Mandatory=$false)]
     [string]$ProjectDir = (Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path))
@@ -43,8 +43,8 @@ function Assert-ManifestHash([object]$Expected, [string]$Relative) {
 
 # Essential project/runtime inputs only. No test-suite requirements.
 foreach ($file in @(
-    'OmiGhost.vcxproj','OmniGhost.Common.props','OmniGhost.Release.props',
-    'versions.json',
+    'OmiGhost.vcxproj','config\build\OmniGhost.Common.props','config\build\OmniGhost.Release.props',
+    'config\release\versions.json',
     'src\runtime\cloudflared\cloudflared.exe','THIRD_PARTY_NOTICES.txt',
     'resources\OmniGhost.ico',
     'resources\resource.h','resources\embedded-resources.json',
@@ -87,7 +87,7 @@ if ($markdown.Count -gt 0) {
     Pass 'No Markdown source files.'
 }
 
-$versions = Read-Utf8Text (Join-Path $ProjectDir 'versions.json') | ConvertFrom-Json
+$versions = Read-Utf8Text (Join-Path $ProjectDir 'config\release\versions.json') | ConvertFrom-Json
 Assert-ManifestHash $versions.memprocfs.sha256.'vmm.dll' 'libs\vmm.dll'
 Assert-ManifestHash $versions.leechcore.sha256.'leechcore.dll' 'libs\leechcore.dll'
 
@@ -126,8 +126,8 @@ Forbid-Text $project 'ProjectConfiguration Include="Debug\|x64"' 'Debug build co
 Forbid-Text $project 'ProjectConfiguration Include="Diagnostics\|x64"' 'Diagnostics build configuration removed.'
 Forbid-Text $project 'OmniGhost\.Tester\.props' 'Tester policy import removed.'
 Require-Text $project 'OmniGhost\.Publish\.props' 'Publish policy is imported only by Publish builds.'
-$common = Read-Utf8Text (Join-Path $ProjectDir 'OmniGhost.Common.props')
-$release = Read-Utf8Text (Join-Path $ProjectDir 'OmniGhost.Release.props')
+$common = Read-Utf8Text (Join-Path $ProjectDir 'config\build\OmniGhost.Common.props')
+$release = Read-Utf8Text (Join-Path $ProjectDir 'config\build\OmniGhost.Release.props')
 $runtimeBootstrap = Read-Utf8Text (Join-Path $ProjectDir 'src\platform\runtime_bootstrap.cpp')
 
 # These are regular expressions, so literal Windows path separators must be escaped.
@@ -162,11 +162,11 @@ $patternProjectData = @'
 '@
 Require-Text $project $patternProjectData 'Customer builds exclude every plaintext offsets JSON from runtime data copy.'
 $patternCs2 = @'
-<OmniGhostCs2Data[^>]+Exclude="\$\(ProjectDir\)Cs2\\data\\offsets\.json"
+<OmniGhostCs2Data[^>]+Exclude="\$\(ProjectDir\)src\\games\\Cs2\\data\\offsets\.json"
 '@
 Require-Text $project $patternCs2 'CS2 runtime assets exclude the plaintext offsets snapshot.'
 $patternValorant = @'
-<OmniGhostValorantData[^>]+Exclude="\$\(ProjectDir\)Valorant\\data\\\*offsets\*\.json"
+<OmniGhostValorantData[^>]+Exclude="\$\(ProjectDir\)src\\games\\Valorant\\data\\\*offsets\*\.json"
 '@
 Require-Text $project $patternValorant 'Valorant runtime assets exclude plaintext offset snapshots.'
 Require-Text $project "Exists\('\$\(OutDir\)data\\fortnite_offsets\.json'\)" 'Release fails closed if a Fortnite offset JSON reaches runtime output.'
@@ -219,7 +219,7 @@ Require-Text $publishBuild 'build\\Publish' 'Publisher accepts only the isolated
 Require-Text $publishBuild 'publish_github_release\.ps1' 'Publish orchestrator owns the remote upload call.'
 Require-Text $publishBuild 'publish_github_release\.ps1' 'Explicit publisher delegates the authenticated GitHub operation.'
 
-$publishConfig = Read-Utf8Text (Join-Path $ProjectDir 'release-publish.json') | ConvertFrom-Json
+$publishConfig = Read-Utf8Text (Join-Path $ProjectDir 'config\release\release-publish.json') | ConvertFrom-Json
 if ($publishConfig.publishAfterBuild -ne $true) { Fail 'Publish must publish automatically after a successful build.' }
 Pass 'Publish automatically enters the guarded publication pipeline.'
 if ($publishConfig.requireExplicitPublishCommand -ne $false -or $publishConfig.requireConfirmation -ne $false) {
@@ -242,7 +242,7 @@ if ([int]$publishConfig.certificateRotationWarningDays -lt 30) { Fail 'Certifica
 Pass 'Certificate expiry/rotation policy is configured.'
 if ($publishConfig.PSObject.Properties.Name -contains 'deleteLocalReleaseAfterUpload') { Fail 'Use cleanWorkspaceAfterVerifiedPublish rather than the legacy cleanup setting.' }
 Pass 'No legacy automatic cleanup setting is exposed.'
-if ($publishConfig.defaultMandatory -ne $false) { Fail 'release-publish.json must default to optional updates; mandatory releases are explicit.' }
+if ($publishConfig.defaultMandatory -ne $false) { Fail 'config\release\release-publish.json must default to optional updates; mandatory releases are explicit.' }
 Pass 'Update policy defaults to optional; mandatory releases require an explicit policy change.'
 
 $commercialValidator = Read-Utf8Text (Join-Path $ProjectDir 'tools\Validate-CommercialRelease.ps1')

@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
     [string]$ProjectDir,
@@ -19,7 +19,7 @@ $SbomPath = [IO.Path]::GetFullPath($SbomPath)
 
 foreach ($required in @(
     (Join-Path $ProjectDir 'THIRD_PARTY_NOTICES.txt'),
-    (Join-Path $ProjectDir 'versions.json'),
+    (Join-Path $ProjectDir 'config\release\versions.json'),
     $SbomPath
 )) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
@@ -28,7 +28,7 @@ foreach ($required in @(
 }
 
 $sbom = Get-Content -LiteralPath $SbomPath -Raw | ConvertFrom-Json
-$version = [IO.File]::ReadAllText((Join-Path $ProjectDir 'version.txt')).Trim()
+$version = [IO.File]::ReadAllText((Join-Path $ProjectDir 'config\release\version.txt')).Trim()
 if ([string]$sbom.bomFormat -cne 'CycloneDX' -or [string]$sbom.specVersion -cne '1.5') {
     throw 'O SBOM não é CycloneDX 1.5.'
 }
@@ -74,7 +74,7 @@ if ($forbidden.Count -gt 0) {
     throw "O runtime contém ficheiros de desenvolvimento/segredos proibidos: $($forbidden[0].FullName)"
 }
 
-$offsetText = Get-Content -LiteralPath (Join-Path $ProjectDir 'Fivem\game\offsets.cpp') -Raw
+$offsetText = Get-Content -LiteralPath (Join-Path $ProjectDir 'src\games\Fivem\game\offsets.cpp') -Raw
 if ($offsetText -match '(?i)placeholder|provisional|unverified') {
     throw 'Os offsets FiveM de release ainda contêm marcadores não validados.'
 }

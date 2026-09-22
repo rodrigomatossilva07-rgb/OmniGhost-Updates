@@ -1,6 +1,6 @@
 #include "imgui.h"
-#include "../../../Rust/rust_config.h"
-#include "../../../Rust/rust_game.h"
+#include "src/games/Rust/rust_config.h"
+#include "src/games/Rust/rust_game.h"
 #include "../../widgets.h"
 
 void DrawRustVisuals() {

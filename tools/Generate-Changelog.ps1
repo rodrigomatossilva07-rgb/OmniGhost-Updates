@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
     [string]$ProjectDir,
@@ -23,7 +23,7 @@ if (-not $OutputDir) {
     $OutputDir = Join-Path $ProjectDir 'artifacts\release'
 }
 $OutputDir = [System.IO.Path]::GetFullPath((Join-Path $OutputDir '.'))
-$OverridePath = Join-Path $ProjectDir 'release-notes.override.json'
+$OverridePath = Join-Path $ProjectDir 'config\release\release-notes.override.json'
 if ([string]::IsNullOrWhiteSpace($HistoryPath)) {
     $HistoryPath = Join-Path $ProjectDir 'artifacts\changelog-history.json'
 }
@@ -359,7 +359,7 @@ if ($Version -notmatch '^(0|[1-9]\d*)\.[0-9]\.[0-9]$') {
 
 New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null
 
-$PublishConfigPath = Join-Path $ProjectDir 'release-publish.json'
+$PublishConfigPath = Join-Path $ProjectDir 'config\release\release-publish.json'
 if (Test-Path -LiteralPath $PublishConfigPath -PathType Leaf) {
     $PublishConfig = Read-JsonUtf8 -Path $PublishConfigPath
     $ConfiguredRepository = [string](Get-PropertyValue -Object $PublishConfig -Name 'repository' -Default '')
@@ -431,7 +431,7 @@ if (Test-Path -LiteralPath $OverridePath -PathType Leaf) {
         Write-ChangelogLog "Override carregado: $OverridePath"
     }
     catch {
-        throw "Falha ao ler release-notes.override.json: $($_.Exception.Message)"
+        throw "Falha ao ler config\release\release-notes.override.json: $($_.Exception.Message)"
     }
 }
 

@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [Parameter(Mandatory=$true)][string]$ProjectDir,
     [Parameter(Mandatory=$true)][string]$Configuration
@@ -11,7 +11,7 @@ if ($Configuration -notin @('Release','Publish')) {
 }
 
 if ($Configuration -eq 'Publish') {
-    $publish = Get-Content -LiteralPath (Join-Path $ProjectDir 'release-publish.json') -Raw | ConvertFrom-Json
+    $publish = Get-Content -LiteralPath (Join-Path $ProjectDir 'config\release\release-publish.json') -Raw | ConvertFrom-Json
     if ($publish.releaseChannel -cne 'stable') {
         throw 'Publish must retain the stable updater protocol channel.'
     }

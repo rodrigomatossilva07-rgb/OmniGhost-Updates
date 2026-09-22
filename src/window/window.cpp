@@ -1,4 +1,4 @@
-﻿#include "window.hpp"
+#include "window.hpp"
 
 #include "fonts.h"
 #include "menu_tab.h"
@@ -21,9 +21,9 @@
 #include "../platform/monitor_utils.h"
 #include "../platform/text_encoding.h"
 #include "game/esp_manager.h"
-#include "../../Cs2/cs2_game.h"
-#include "../../Warzone/warzone_game.h"
-#include "../../Valorant/valorant_game.h"
+#include "src/games/Cs2/cs2_game.h"
+#include "src/games/Warzone/warzone_game.h"
+#include "src/games/Valorant/valorant_game.h"
 #include <shellapi.h>
 #ifndef UI_PREVIEW
 #include "../launcher/launcher_assets.h"

@@ -14,8 +14,8 @@
 #include "../../../licensing/license_service.h"
 #include "platform/monitor_utils.h"
 #include "Memory/Memory.h"
-#include "Cs2/cs2_game.h"
-#include "Fivem/game/game_setup.h"
+#include "src/games/Cs2/cs2_game.h"
+#include "src/games/Fivem/game/game_setup.h"
 #include "config/config_manager.h"
 #include <algorithm>
 #include <cmath>

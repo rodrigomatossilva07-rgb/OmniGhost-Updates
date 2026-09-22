@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
     [string]$ProjectDir,
@@ -32,7 +32,7 @@ if (-not $LogFile) {
 }
 $LogFile = [System.IO.Path]::GetFullPath($LogFile)
 
-$VersionFile = Join-Path $ProjectDir 'version.txt'
+$VersionFile = Join-Path $ProjectDir 'config\release\version.txt'
 $ManifestPath = Join-Path $ProjectDir 'artifacts\update.json'
 $ArtifactOutputDir = Join-Path $ProjectDir 'artifacts\release'
 $ZipName = 'OmniGhost.zip'
@@ -338,7 +338,7 @@ try {
             throw "Plaintext offset snapshot leaked into customer package: $plaintextOffset"
         }
     }
-    Write-ReleaseLog 'Snapshots Fortnite/Warzone confirmados como embedded-only no pacote.'
+    Write-ReleaseLog 'Snapshots src/games/Fortnite/Warzone confirmados como embedded-only no pacote.'
 
     Write-ReleaseLog 'Runtime comercial single-EXE validado; dependências estão embutidas.'
 
@@ -347,14 +347,14 @@ try {
         throw 'O OmniGhost.exe não ficou na raiz do pacote.'
     }
 
-    $PublishConfigPath = Join-Path $ProjectDir 'release-publish.json'
+    $PublishConfigPath = Join-Path $ProjectDir 'config\release\release-publish.json'
     $PublishSettings = $null
     if (Test-Path -LiteralPath $PublishConfigPath -PathType Leaf) {
         $PublishSettings = Get-Content -LiteralPath $PublishConfigPath -Raw | ConvertFrom-Json
     }
 
     if ($Commercial) {
-        if ($null -eq $PublishSettings) { throw 'release-publish.json é obrigatório para packaging Commercial.' }
+        if ($null -eq $PublishSettings) { throw 'config\release\release-publish.json é obrigatório para packaging Commercial.' }
         if ($PublishSettings.requireAuthenticode -ne $true -or $PublishSettings.requireManifestSignature -ne $true) {
             throw 'Packaging Commercial exige requireAuthenticode=true e requireManifestSignature=true.'
         }
@@ -436,17 +436,17 @@ try {
         Copy-Item -LiteralPath $InstallManifestSignaturePath -Destination $ArtifactInstallManifestSignature -Force
     }
 
-    # Release policy comes from release-publish.json, never from a stale update.json.
+    # Release policy comes from config\release\release-publish.json, never from a stale update.json.
     # This prevents an old mandatory flag/channel from silently leaking into a new package.
     $MinimumSupportedVersion = if ($null -ne $PublishSettings -and $PublishSettings.minimumSupportedVersion) { [string]$PublishSettings.minimumSupportedVersion } else { '1.0.0' }
     $Mandatory = if ($null -ne $PublishSettings -and $null -ne $PublishSettings.defaultMandatory) { [bool]$PublishSettings.defaultMandatory } else { $false }
     $MandatoryReason = if ($null -ne $PublishSettings -and $PublishSettings.mandatoryReason) { [string]$PublishSettings.mandatoryReason } else { '' }
     $Channel = if ($null -ne $PublishSettings -and $PublishSettings.releaseChannel) { [string]$PublishSettings.releaseChannel } else { 'stable' }
     $AppId = if ($null -ne $PublishSettings -and $PublishSettings.appId) { [string]$PublishSettings.appId } else { 'com.omnighost.launcher' }
-    if ($Channel -notin @('stable','beta','development')) { throw "releaseChannel inválido em release-publish.json: '$Channel'." }
-    if ([string]::IsNullOrWhiteSpace($AppId)) { throw 'appId não pode estar vazio em release-publish.json.' }
+    if ($Channel -notin @('stable','beta','development')) { throw "releaseChannel inválido em config\release\release-publish.json: '$Channel'." }
+    if ([string]::IsNullOrWhiteSpace($AppId)) { throw 'appId não pode estar vazio em config\release\release-publish.json.' }
     if ($MinimumSupportedVersion -notmatch '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$') {
-        throw "minimumSupportedVersion inválida em release-publish.json: '$MinimumSupportedVersion'."
+        throw "minimumSupportedVersion inválida em config\release\release-publish.json: '$MinimumSupportedVersion'."
     }
     if ($Mandatory -and [string]::IsNullOrWhiteSpace($MandatoryReason)) {
         $MandatoryReason = 'Esta versão é necessária para manter compatibilidade e suporte.'

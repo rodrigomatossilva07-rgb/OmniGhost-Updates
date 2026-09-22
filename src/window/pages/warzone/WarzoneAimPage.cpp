@@ -2,8 +2,8 @@
 #include "../../theme.h"
 #include "../../InputDevicesCard.h"
 #include "imgui.h"
-#include "../../Warzone/warzone_game.h"
-#include "../../Warzone/warzone_aim.h"
+#include "src/games/Warzone/warzone_game.h"
+#include "src/games/Warzone/warzone_aim.h"
 #include "aimbot/aim_type.h"
 #include <Windows.h>
 #include <cstdio>

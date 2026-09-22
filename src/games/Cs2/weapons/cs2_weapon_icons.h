@@ -4,7 +4,7 @@
 
 namespace CS2_WeaponIcons {
 
-// Load PNG icons from Cs2/data/weapons/ (or data/weapons next to exe).
+// Load PNG icons from src/games/Cs2/data/weapons/ (or data/weapons next to exe).
 // Safe to call multiple times; no-ops if already loaded.
 void EnsureLoaded(ID3D11Device* device);
 

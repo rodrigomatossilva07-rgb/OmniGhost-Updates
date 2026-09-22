@@ -1,6 +1,6 @@
 #include "../../widgets.h"
 #include "../../InputDevicesCard.h"
-#include "../../Valorant/valorant_config.h"
+#include "src/games/Valorant/valorant_config.h"
 #include "imgui.h"
 
 void DrawValorantAim()

@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [Parameter(Mandatory=$false)]
     [string]$ProjectDir = (Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)),
@@ -56,29 +56,29 @@ if (Test-Path -LiteralPath $GitMarker) {
 # This keeps Diagnostics meaningful and allows deterministic timestamps when a
 # customer/developer builds an extracted source package.
 $SourceMetadata = $null
-$SourceMetadataPath = Join-Path $ProjectDir 'SOURCE_BUILD_METADATA.json'
+$SourceMetadataPath = Join-Path $ProjectDir 'config\release\SOURCE_BUILD_METADATA.json'
 if (Test-Path -LiteralPath $SourceMetadataPath -PathType Leaf) {
     try {
         $SourceMetadata = [IO.File]::ReadAllText($SourceMetadataPath) | ConvertFrom-Json
         Write-Host "[BuildMetadata] source package metadata detected."
     } catch {
-        Write-Warning "Invalid SOURCE_BUILD_METADATA.json: $($_.Exception.Message)"
+        Write-Warning "Invalid config\release\SOURCE_BUILD_METADATA.json: $($_.Exception.Message)"
     }
 }
 
-# Compatibility fallback for older source snapshots that predate SOURCE_BUILD_METADATA.json.
-# A stable fingerprint of SOURCE_PACKAGE_MANIFEST.json gives Diagnostics a concrete
+# Compatibility fallback for older source snapshots that predate config\release\SOURCE_BUILD_METADATA.json.
+# A stable fingerprint of config\release\SOURCE_PACKAGE_MANIFEST.json gives Diagnostics a concrete
 # source identity instead of "unknown" without pretending it is a Git commit.
 $SourcePackageManifest = $null
 $SourcePackageFingerprint = ''
-$SourcePackageManifestPath = Join-Path $ProjectDir 'SOURCE_PACKAGE_MANIFEST.json'
+$SourcePackageManifestPath = Join-Path $ProjectDir 'config\release\SOURCE_PACKAGE_MANIFEST.json'
 if (Test-Path -LiteralPath $SourcePackageManifestPath -PathType Leaf) {
     try {
         $SourcePackageManifest = [IO.File]::ReadAllText($SourcePackageManifestPath) | ConvertFrom-Json
         $SourcePackageFingerprint = Get-OmniGhostSha256 -LiteralPath $SourcePackageManifestPath
         Write-Host "[BuildMetadata] legacy source package manifest detected; using stable source fingerprint fallback."
     } catch {
-        Write-Warning "Invalid SOURCE_PACKAGE_MANIFEST.json: $($_.Exception.Message)"
+        Write-Warning "Invalid config\release\SOURCE_PACKAGE_MANIFEST.json: $($_.Exception.Message)"
     }
 }
 
@@ -346,7 +346,7 @@ if ([string]::IsNullOrWhiteSpace($Configuration)) { $Configuration = if ($env:Co
 if ([string]::IsNullOrWhiteSpace($Architecture)) { $Architecture = 'x64' }
 if ([string]::IsNullOrWhiteSpace($ReleaseChannel)) { $ReleaseChannel = 'stable' }
 $AppVersion = 'unknown'
-$VersionPath = Join-Path $ProjectDir 'version.txt'
+$VersionPath = Join-Path $ProjectDir 'config\release\version.txt'
 if (Test-Path -LiteralPath $VersionPath -PathType Leaf) {
     $CandidateVersion = ([IO.File]::ReadAllText($VersionPath)).Trim()
     if ($CandidateVersion -match '^\d+\.\d+\.\d+$') { $AppVersion = $CandidateVersion }
@@ -355,7 +355,7 @@ $MemProcFSVersion = 'unknown'
 $LeechCoreVersion = 'unknown'
 $DependencyVersionCandidates = @(
     (Join-Path $ProjectDir 'third_party\dma_stack\versions.json'),
-    (Join-Path $ProjectDir 'versions.json')
+    (Join-Path $ProjectDir 'config\release\versions.json')
 )
 $DependencyVersionPath = $DependencyVersionCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
 if ($DependencyVersionPath) {

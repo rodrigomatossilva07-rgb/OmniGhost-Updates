@@ -10,9 +10,9 @@
 #include "config/config_manager.h"
 #include "window_instance_guard.h"
 #include "unique_handle.h"
-#include "../../Fivem/friends/friends.h"
-#include "../../Fivem/aimbot/aim_type.h"
-#include "../../Fivem/aimbot/aimbot.h"
+#include "src/games/Fivem/friends/friends.h"
+#include "src/games/Fivem/aimbot/aim_type.h"
+#include "src/games/Fivem/aimbot/aimbot.h"
 #include "launcher/auth_page.h"
 #include <thread>
 #include <iostream>

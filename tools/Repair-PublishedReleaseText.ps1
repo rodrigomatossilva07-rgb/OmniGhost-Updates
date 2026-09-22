@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [string]$ProjectDir,
     [string]$Version,
@@ -155,9 +155,9 @@ function Invoke-Gh {
     }
 }
 
-$VersionFile = Join-Path $ProjectDir 'version.txt'
+$VersionFile = Join-Path $ProjectDir 'config\release\version.txt'
 $HistoryPath = Join-Path $ProjectDir 'artifacts\changelog-history.json'
-$ConfigPath = Join-Path $ProjectDir 'release-publish.json'
+$ConfigPath = Join-Path $ProjectDir 'config\release\release-publish.json'
 $OutputDir = Join-Path $ProjectDir 'artifacts\repair-published-release'
 
 if (-not (Test-Path -LiteralPath $VersionFile -PathType Leaf)) {

@@ -2,7 +2,7 @@
 
 #include "../../DMALibrary/Memory/Memory.h"
 #include "../makcu/makcu_wrapper.h"
-#include "../../Fivem/aimbot/aim_type.h"
+#include "src/games/Fivem/aimbot/aim_type.h"
 #include "watchdog.h"
 
 #include <iostream>

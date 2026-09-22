@@ -2,7 +2,7 @@
 #include "valorant_aim.h"
 #include "valorant_game.h"
 #include "../src/makcu/makcu_wrapper.h"
-#include "../Fivem/aimbot/aim_type.h"
+#include "src/games/Fivem/aimbot/aim_type.h"
 #include "../ImGui/imgui.h"
 #include "gameplay/unified_aim.h"
 #include <memory>

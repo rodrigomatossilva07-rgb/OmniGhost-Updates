@@ -3,7 +3,7 @@
 #include "theme.h"
 #include "localization.h"
 #include "../config/app_settings.h"
-#include "../../Fivem/aimbot/aim_type.h"
+#include "src/games/Fivem/aimbot/aim_type.h"
 #include <array>
 #include <algorithm>
 #include <fstream>

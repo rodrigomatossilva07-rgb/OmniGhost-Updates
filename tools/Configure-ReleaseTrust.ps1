@@ -52,7 +52,7 @@ $utf8 = New-Object System.Text.UTF8Encoding($false)
 $headerPath = Join-Path $ProjectDir 'src\updater\release_trust.h'
 [IO.File]::WriteAllText($headerPath, $header.TrimStart() + [Environment]::NewLine, $utf8)
 
-$configPath = Join-Path $ProjectDir 'release-publish.json'
+$configPath = Join-Path $ProjectDir 'config\release\release-publish.json'
 if (Test-Path -LiteralPath $configPath) {
     $config = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
     $config.signingCertificateThumbprint = $thumb

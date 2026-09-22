@@ -3,9 +3,9 @@
 #include "../../localization.h"
 #include "../../../globals.h"
 #include "config/app_settings.h"
-#include "Cs2/config/cs2_config.h"
-#include "Warzone/warzone_config.h"
-#include "Valorant/valorant_config.h"
+#include "src/games/Cs2/config/cs2_config.h"
+#include "src/games/Warzone/warzone_config.h"
+#include "src/games/Valorant/valorant_config.h"
 #include "esp/esp.h"
 #ifdef UI_PREVIEW
 #include "preview/preview_runtime.h"

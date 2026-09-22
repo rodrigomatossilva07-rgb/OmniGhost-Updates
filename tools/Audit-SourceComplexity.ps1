@@ -11,8 +11,8 @@ $ceilings = [ordered]@{
     'src/launcher/game_select.cpp' = 2836
     'src/launcher/updates_page.cpp' = 2050
     'DMALibrary/Memory/Memory.cpp' = 2404
-    'Fivem/esp/esp.cpp' = 2495
-    'Cs2/cs2_game.cpp' = 2200
+    'src/games/Fivem/esp/esp.cpp' = 2495
+    'src/games/Cs2/cs2_game.cpp' = 2200
 }
 $rows = @()
 foreach ($relative in $ceilings.Keys) {

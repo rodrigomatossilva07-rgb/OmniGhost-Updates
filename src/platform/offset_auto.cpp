@@ -1,10 +1,10 @@
 #include "offset_auto.h"
 
 #include "cheatoffsets_api.h"
-#include "../../Cs2/cs2_game.h"
-#include "../../Warzone/warzone_game.h"
-#include "../../Valorant/valorant_game.h"
-#include "../../Fivem/game/offsets.h"
+#include "src/games/Cs2/cs2_game.h"
+#include "src/games/Warzone/warzone_game.h"
+#include "src/games/Valorant/valorant_game.h"
+#include "src/games/Fivem/game/offsets.h"
 #include "app_paths.h"
 
 #include <array>

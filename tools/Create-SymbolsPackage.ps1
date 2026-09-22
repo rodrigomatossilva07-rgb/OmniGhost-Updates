@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [string]$ProjectDir = (Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)),
     [ValidateSet('Release','Publish','Diagnostics')][string]$Configuration = 'Publish',
@@ -8,7 +8,7 @@ param(
 $ErrorActionPreference = "Stop"
 $ProjectDir = [IO.Path]::GetFullPath($ProjectDir)
 if (-not $OutputDir) { $OutputDir = Join-Path $ProjectDir ".cache\symbols\$Configuration" }
-$versionPath = Join-Path $ProjectDir 'version.txt'
+$versionPath = Join-Path $ProjectDir 'config\release\version.txt'
 $version = if (Test-Path -LiteralPath $versionPath -PathType Leaf) {
     ([IO.File]::ReadAllText($versionPath)).Trim()
 } else {

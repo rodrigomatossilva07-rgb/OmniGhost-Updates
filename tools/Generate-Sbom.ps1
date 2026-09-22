@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
     [string]$ProjectDir,
@@ -16,7 +16,7 @@ Set-StrictMode -Version Latest
 $ProjectDir = [IO.Path]::GetFullPath((Join-Path $ProjectDir '.'))
 $RuntimeDir = [IO.Path]::GetFullPath((Join-Path $RuntimeDir '.'))
 $OutputPath = [IO.Path]::GetFullPath($OutputPath)
-$versionPath = Join-Path $ProjectDir 'version.txt'
+$versionPath = Join-Path $ProjectDir 'config\release\version.txt'
 
 if (-not (Test-Path -LiteralPath $RuntimeDir -PathType Container)) {
     throw "Pasta runtime em falta para gerar o SBOM: $RuntimeDir"

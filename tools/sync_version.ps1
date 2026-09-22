@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
     [string]$ProjectDir
@@ -8,7 +8,7 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 $ProjectDir = [System.IO.Path]::GetFullPath($ProjectDir)
-$VersionFile = Join-Path $ProjectDir 'version.txt'
+$VersionFile = Join-Path $ProjectDir 'config\release\version.txt'
 $HeaderFile = Join-Path $ProjectDir 'src\app_version.h'
 $ResourceFile = Join-Path $ProjectDir 'resources\app.rc'
 $Utf8NoBom = New-Object System.Text.UTF8Encoding -ArgumentList $false

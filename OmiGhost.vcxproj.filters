@@ -225,40 +225,40 @@
     <ClCompile Include="src\updater\wininet_fallback.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Fivem\aimbot\aim_type.cpp">
+    <ClCompile Include="src\games\Fivem\aimbot\aim_type.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Fivem\aimbot\aimbot.cpp">
+    <ClCompile Include="src\games\Fivem\aimbot\aimbot.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Fivem\esp\esp.cpp">
+    <ClCompile Include="src\games\Fivem\esp\esp.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Fivem\esp\esp_bone_cache.cpp">
+    <ClCompile Include="src\games\Fivem\esp\esp_bone_cache.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Fivem\esp\vehicle_esp.cpp">
+    <ClCompile Include="src\games\Fivem\esp\vehicle_esp.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Fivem\friends\friends.cpp">
+    <ClCompile Include="src\games\Fivem\friends\friends.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Fivem\game\esp_manager.cpp">
+    <ClCompile Include="src\games\Fivem\game\esp_manager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Fivem\game\game.cpp">
+    <ClCompile Include="src\games\Fivem\game\game.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Fivem\game\game_setup.cpp">
+    <ClCompile Include="src\games\Fivem\game\game_setup.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Fivem\game\offsets.cpp">
+    <ClCompile Include="src\games\Fivem\game\offsets.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Fivem\playerInfo\PedData.cpp">
+    <ClCompile Include="src\games\Fivem\playerInfo\PedData.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Cs2\weapons\cs2_weapon_icons.cpp">
+    <ClCompile Include="src\games\Cs2\weapons\cs2_weapon_icons.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\auth\local_auth_service.cpp">
@@ -414,22 +414,19 @@
     <ClCompile Include="src\launcher\game_adapter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Warzone\warzone_aim.cpp">
+    <ClCompile Include="src\games\Warzone\warzone_aim.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Warzone\warzone_esp.cpp">
+    <ClCompile Include="src\games\Warzone\warzone_esp.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Valorant\valorant_game.cpp">
+    <ClCompile Include="src\games\Valorant\valorant_game.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Valorant\valorant_esp.cpp">
+    <ClCompile Include="src\games\Valorant\valorant_esp.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Valorant\valorant_aim.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="Fortnite\fortnite_game.cpp">
+    <ClCompile Include="src\games\Valorant\valorant_aim.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="DMALibrary\Memory\MemoryLifecycle.cpp">
@@ -547,10 +544,10 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Warzone\warzone_game.cpp">
+    <ClCompile Include="src\games\Warzone\warzone_game.cpp">
       <Filter>Source Files\Warzone</Filter>
     </ClCompile>
-    <ClCompile Include="Warzone\warzone_decrypt.cpp">
+    <ClCompile Include="src\games\Warzone\warzone_decrypt.cpp">
       <Filter>Source Files\Warzone</Filter>
     </ClCompile>
   </ItemGroup>
@@ -570,19 +567,19 @@
     <ClCompile Include="src\launcher\updates_page.cpp">
       <Filter>Source Files\launcher</Filter>
     </ClCompile>
-    <ClCompile Include="Cs2\cs2_game.cpp">
+    <ClCompile Include="src\games\Cs2\cs2_game.cpp">
       <Filter>Source Files\Cs2</Filter>
     </ClCompile>
-    <ClCompile Include="Cs2\config\cs2_config_io.cpp">
+    <ClCompile Include="src\games\Cs2\config\cs2_config_io.cpp">
       <Filter>Source Files\Cs2</Filter>
     </ClCompile>
-    <ClCompile Include="Cs2\aimbot\cs2_aim.cpp">
+    <ClCompile Include="src\games\Cs2\aimbot\cs2_aim.cpp">
       <Filter>Source Files\Cs2</Filter>
     </ClCompile>
-    <ClCompile Include="Cs2\esp\cs2_esp.cpp">
+    <ClCompile Include="src\games\Cs2\esp\cs2_esp.cpp">
       <Filter>Source Files\Cs2</Filter>
     </ClCompile>
-    <ClCompile Include="Cs2\radar\cs2_radar.cpp">
+    <ClCompile Include="src\games\Cs2\radar\cs2_radar.cpp">
       <Filter>Source Files\Cs2</Filter>
     </ClCompile>
     <ClCompile Include="src\launcher\license_page.cpp">

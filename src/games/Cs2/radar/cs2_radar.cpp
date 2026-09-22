@@ -112,13 +112,13 @@ std::string ResolveWebRoot() {
     const std::string exe = ExeDir();
     const char* candidates[] = {
         "radar_webapp",
-        "Cs2/radar_webapp",
+        "src/games/Cs2/radar_webapp",
         "cs2/radar_webapp",
         "data/webradar",
-        "Cs2/data/webradar",
-        "../Cs2/radar_webapp",
-        "../../Cs2/radar_webapp",
-        "../../../Cs2/radar_webapp",
+        "src/games/Cs2/data/webradar",
+        "../src/games/Cs2/radar_webapp",
+        "../../src/games/Cs2/radar_webapp",
+        "../../../src/games/Cs2/radar_webapp",
     };
     std::vector<fs::path> bases;
     bases.push_back(fs::path(exe));

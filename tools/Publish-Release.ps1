@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [Parameter(Mandatory=$false)]
     [string]$ProjectDir = (Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)),
@@ -11,12 +11,12 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $ProjectDir = [IO.Path]::GetFullPath($ProjectDir)
-$configPath = Join-Path $ProjectDir 'release-publish.json'
+$configPath = Join-Path $ProjectDir 'config\release\release-publish.json'
 if (-not (Test-Path -LiteralPath $configPath -PathType Leaf)) { throw "Missing $configPath" }
 $config = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
 
 if ($config.enabled -ne $true) {
-    throw 'Publication is disabled in release-publish.json. No remote changes were made.'
+    throw 'Publication is disabled in config\release\release-publish.json. No remote changes were made.'
 }
 $phrase = if ($config.confirmationPhrase) { [string]$config.confirmationPhrase } else { 'PUBLISH OMNIGHOST' }
 if ($config.requireConfirmation -eq $true -and $Confirm -cne $phrase) {

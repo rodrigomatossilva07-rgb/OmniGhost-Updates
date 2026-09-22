@@ -1,7 +1,7 @@
 #include "../../widgets.h"
 #include "../../theme.h"
 #include "imgui.h"
-#include "../../Warzone/warzone_game.h"
+#include "src/games/Warzone/warzone_game.h"
 
 namespace {
 bool g_group_teams = true;

@@ -31,7 +31,7 @@
 #include <mutex>
 #include <thread>
 #include "makcu/makcu_wrapper.h"
-#include "../Fivem/aimbot/aim_type.h"
+#include "src/games/Fivem/aimbot/aim_type.h"
 #include "gameplay/dma_telemetry_log.h"
 
 namespace fs = std::filesystem;
@@ -509,7 +509,7 @@ bool ResolveDataPath(std::string& out_dir) {
     };
     const char* candidates[] = {
         "data",
-        "Cs2/data",
+        "src/games/Cs2/data",
         "CS2/data",
         "build/data",
         "artifacts/OmniGhost-win-x64/data",

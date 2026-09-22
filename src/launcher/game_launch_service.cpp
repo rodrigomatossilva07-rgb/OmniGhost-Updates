@@ -4,12 +4,12 @@
 #include "../globals.h"
 #include "../platform/offset_auto.h"
 #include "../../DMALibrary/Memory/Memory.h"
-#include "../../Fivem/game/game.h"
-#include "../../Fivem/aimbot/aim_type.h"
-#include "../../Cs2/cs2_game.h"
-#include "../../Warzone/warzone_game.h"
-#include "../../Valorant/valorant_game.h"
-#include "../../Fortnite/fortnite_game.h"
+#include "src/games/Fivem/game/game.h"
+#include "src/games/Fivem/aimbot/aim_type.h"
+#include "src/games/Cs2/cs2_game.h"
+#include "src/games/Warzone/warzone_game.h"
+#include "src/games/Valorant/valorant_game.h"
+#include "src/games/Fortnite/fortnite_game.h"
 
 #include <algorithm>
 #include <cctype>

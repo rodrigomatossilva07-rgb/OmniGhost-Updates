@@ -1,5 +1,5 @@
 #include "imgui.h"
-#include "../../../Rust/rust_config.h"
+#include "src/games/Rust/rust_config.h"
 #include "../../widgets.h"
 
 void DrawRustAim() {

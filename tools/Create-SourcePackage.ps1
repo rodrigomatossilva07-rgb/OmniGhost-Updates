@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [Parameter(Mandatory=$false)]
     [string]$ProjectDir = (Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)),
@@ -32,9 +32,9 @@ if (Test-Path -LiteralPath $OutputPath) { Remove-Item -LiteralPath $OutputPath -
 $allowedRootFiles = @(
     '.clang-format', '.editorconfig', '.gitattributes', '.gitignore',
     'OmiGhost.slnx', 'OmiGhost.vcxproj', 'OmiGhost.vcxproj.filters',
-    'OmniGhost.Common.props', 'OmniGhost.Release.props',
-    'README.txt', 'THIRD_PARTY_NOTICES.txt', 'version.txt',
-    'release-notes.override.json', 'release-publish.json'
+    'config\build\OmniGhost.Common.props', 'config\build\OmniGhost.Release.props',
+    'README.txt', 'THIRD_PARTY_NOTICES.txt', 'config\release\version.txt',
+    'config\release\release-notes.override.json', 'config\release\release-publish.json'
 )
 $allowedRoots = @(
     'Cs2', 'DMALibrary', 'Fivem', 'ImGui', 'Utils',
@@ -94,7 +94,7 @@ try {
         })
     }
 
-    $versionPath = Join-Path $ProjectDir 'version.txt'
+    $versionPath = Join-Path $ProjectDir 'config\release\version.txt'
     $version = if (Test-Path -LiteralPath $versionPath -PathType Leaf) { (Get-Content -LiteralPath $versionPath -Raw).Trim() } else { 'unknown' }
 
     # Preserve build provenance without shipping the .git directory.
@@ -141,14 +141,14 @@ try {
     }
     $sourceMetadataJson = ($sourceMetadataObject | ConvertTo-Json -Depth 4) + [Environment]::NewLine
     $sourceMetadataBytes = (New-Object Text.UTF8Encoding($false)).GetBytes($sourceMetadataJson)
-    $sourceMetadataEntry = $zip.CreateEntry('SOURCE_BUILD_METADATA.json', [IO.Compression.CompressionLevel]::Optimal)
+    $sourceMetadataEntry = $zip.CreateEntry('config\release\SOURCE_BUILD_METADATA.json', [IO.Compression.CompressionLevel]::Optimal)
     $sourceStream = $sourceMetadataEntry.Open()
     try { $sourceStream.Write($sourceMetadataBytes, 0, $sourceMetadataBytes.Length) } finally { $sourceStream.Dispose() }
     $sourceHashAlgorithm = [Security.Cryptography.SHA256]::Create()
     try {
         $sourceMetadataHash = ([BitConverter]::ToString($sourceHashAlgorithm.ComputeHash($sourceMetadataBytes))).Replace('-','').ToLowerInvariant()
     } finally { $sourceHashAlgorithm.Dispose() }
-    $manifestEntries.Add([ordered]@{ path='SOURCE_BUILD_METADATA.json'; size=[int64]$sourceMetadataBytes.Length; sha256=$sourceMetadataHash })
+    $manifestEntries.Add([ordered]@{ path='config\release\SOURCE_BUILD_METADATA.json'; size=[int64]$sourceMetadataBytes.Length; sha256=$sourceMetadataHash })
 
     $manifest = [ordered]@{
         schemaVersion = 1
@@ -158,7 +158,7 @@ try {
         fileCount = $manifestEntries.Count
         files = $manifestEntries
     } | ConvertTo-Json -Depth 6
-    $manifestEntry = $zip.CreateEntry('SOURCE_PACKAGE_MANIFEST.json', [IO.Compression.CompressionLevel]::Optimal)
+    $manifestEntry = $zip.CreateEntry('config\release\SOURCE_PACKAGE_MANIFEST.json', [IO.Compression.CompressionLevel]::Optimal)
     $stream = $manifestEntry.Open()
     try {
         $writer = New-Object IO.StreamWriter($stream, (New-Object Text.UTF8Encoding($false)))
@@ -172,4 +172,4 @@ finally {
 $item = Get-Item -LiteralPath $OutputPath
 $sha = (Get-FileHash -Algorithm SHA256 -LiteralPath $OutputPath).Hash.ToLowerInvariant()
 Write-Host "Source package: $OutputPath" -ForegroundColor Green
-Write-Host "Files: $($manifestEntries.Count) + SOURCE_PACKAGE_MANIFEST.json Size: $($item.Length) SHA256: $sha"
+Write-Host "Files: $($manifestEntries.Count) + config\release\SOURCE_PACKAGE_MANIFEST.json Size: $($item.Length) SHA256: $sha"

@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
     [string]$ProjectDir,
@@ -24,7 +24,7 @@ if (-not $InternalConfirmed) { throw 'Direct publication is blocked. Use tools\P
 
 $ProjectDir = [System.IO.Path]::GetFullPath((Join-Path $ProjectDir '.'))
 $ReleaseDirectory = [System.IO.Path]::GetFullPath((Join-Path $ReleaseDirectory '.'))
-$ConfigPath = Join-Path $ProjectDir 'release-publish.json'
+$ConfigPath = Join-Path $ProjectDir 'config\release\release-publish.json'
 $Tag = "v$Version"
 
 function Write-Gh {
@@ -384,7 +384,7 @@ if ($Version -notmatch '^(0|[1-9]\d*)\.[0-9]\.[0-9]$') {
     throw "Versão inválida para publicação: '$Version'."
 }
 if (-not (Test-Path -LiteralPath $ConfigPath -PathType Leaf)) {
-    Write-Gh 'release-publish.json ausente — publicação ignorada.'
+    Write-Gh 'config\release\release-publish.json ausente — publicação ignorada.'
     return
 }
 

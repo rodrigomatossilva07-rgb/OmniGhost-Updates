@@ -13,7 +13,7 @@ Set-StrictMode -Version Latest
 $ProjectDir = [IO.Path]::GetFullPath($ProjectDir)
 $ResourcesDir = Join-Path $ProjectDir 'resources'
 $GamesDir = Join-Path $ResourcesDir 'games'
-$RadarWebAppDir = Join-Path $ProjectDir 'Cs2\radar_webapp'
+$RadarWebAppDir = Join-Path $ProjectDir 'src\games\Cs2\radar_webapp'
 $CacheDir = Join-Path $ProjectDir ".cache\compressed\$Configuration"
 $LogFile = Join-Path $CacheDir "compression.log"
 

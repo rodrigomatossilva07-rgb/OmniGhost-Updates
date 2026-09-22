@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [Parameter(Mandatory = $false)]
     [string]$ProjectDir,
@@ -15,9 +15,9 @@ if ([string]::IsNullOrWhiteSpace($ProjectDir)) {
 }
 $ProjectDir = [System.IO.Path]::GetFullPath((Join-Path $ProjectDir '.'))
 
-$ConfigPath = Join-Path $ProjectDir 'release-publish.json'
+$ConfigPath = Join-Path $ProjectDir 'config\release\release-publish.json'
 if (-not (Test-Path -LiteralPath $ConfigPath -PathType Leaf)) {
-    throw "release-publish.json não encontrado: $ConfigPath"
+    throw "config\release\release-publish.json não encontrado: $ConfigPath"
 }
 $Config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
 $Repository = if ($Config.repository) {
@@ -27,7 +27,7 @@ $Repository = if ($Config.repository) {
 }
 
 if ([string]::IsNullOrWhiteSpace($Tag)) {
-    $VersionPath = Join-Path $ProjectDir 'version.txt'
+    $VersionPath = Join-Path $ProjectDir 'config\release\version.txt'
     if (-not (Test-Path -LiteralPath $VersionPath -PathType Leaf)) {
         throw "version.txt não encontrado: $VersionPath"
     }

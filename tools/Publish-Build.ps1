@@ -27,8 +27,8 @@ $BuildDir = [IO.Path]::GetFullPath((Join-Path $BuildDir '.'))
 # release assets live in artifacts\release and are never removed here.
 try {
 
-$configPath = Join-Path $ProjectDir 'release-publish.json'
-$versionPath = Join-Path $ProjectDir 'version.txt'
+$configPath = Join-Path $ProjectDir 'config\release\release-publish.json'
+$versionPath = Join-Path $ProjectDir 'config\release\version.txt'
 $metadataPath = Join-Path $ProjectDir '.cache\generated\Publish\x64\build-metadata.json'
 
 foreach ($requiredPath in @($configPath, $versionPath, $metadataPath)) {
@@ -39,7 +39,7 @@ foreach ($requiredPath in @($configPath, $versionPath, $metadataPath)) {
 
 $config = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
 if ($config.enabled -ne $true) {
-    throw 'A publicação está desativada em release-publish.json.'
+    throw 'A publicação está desativada em config\release\release-publish.json.'
 }
 if ($config.publishAfterBuild -ne $true -or
     $config.requireExplicitPublishCommand -ne $false -or

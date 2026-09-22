@@ -158,8 +158,8 @@
     "cam_direction": "0x3D0"
   },
   "source_files": [
-    "Fivem/game/offsets.h",
-    "Fivem/game/offsets.cpp",
-    "Fivem/game/game_setup.cpp"
+    "src/games/Fivem/game/offsets.h",
+    "src/games/Fivem/game/offsets.cpp",
+    "src/games/Fivem/game/game_setup.cpp"
   ]
 }
