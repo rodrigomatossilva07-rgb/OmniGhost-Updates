@@ -28,9 +28,8 @@ $msbuildPath = if ($msbuild.PSObject.Properties.Name -contains 'Path') { $msbuil
 if (-not $msbuildPath) { throw 'MSBuild path could not be resolved.' }
 
 $profiles = @(
-    @{ Name = 'Tester';  Exe = 'build\Tester\OmniGhost.exe'; External = $true },
-    @{ Name = 'Release'; Exe = 'build\OmniGhost.exe';        External = $false },
-    @{ Name = 'Publish'; Exe = 'build\Publish\OmniGhost.exe'; External = $false }
+    @{ Name = 'Release'; Exe = 'build\OmniGhost.exe' },
+    @{ Name = 'Publish'; Exe = 'build\Publish\OmniGhost.exe' }
 )
 
 foreach ($profile in $profiles) {
@@ -47,17 +46,9 @@ foreach ($profile in $profiles) {
     & (Join-Path $ProjectDir 'tools\Validate-DistributionBuild.ps1') -ProjectDir $ProjectDir -Configuration $name
     if ($LASTEXITCODE -ne 0) { throw "[BuildMatrix] $name distribution validation failed." }
 
-    if ($profile.External) {
-        $offsets = Join-Path $ProjectDir 'data\cs2_offsets.json'
-        if (-not (Test-Path -LiteralPath $offsets -PathType Leaf)) {
-            throw '[BuildMatrix] Tester requires the canonical external data\cs2_offsets.json.'
-        }
-        Write-Host '[BuildMatrix] Tester: canonical external offsets present.'
-    } else {
-        & (Join-Path $ProjectDir 'tools\Validate-EmbeddedOffsets.ps1') `
-            -ProjectDir $ProjectDir -Executable $exe -Configuration $name -Platform $Platform
-        if ($LASTEXITCODE -ne 0) { throw "[BuildMatrix] $name embedded-offset validation failed." }
-    }
+    & (Join-Path $ProjectDir 'tools\Validate-EmbeddedOffsets.ps1') `
+        -ProjectDir $ProjectDir -Executable $exe -Configuration $name -Platform $Platform
+    if ($LASTEXITCODE -ne 0) { throw "[BuildMatrix] $name embedded-offset validation failed." }
 }
 
-Write-Host '[BuildMatrix] PASS: Tester external offsets, Release embedded resources and Publish final resources are valid.'
+Write-Host '[BuildMatrix] PASS: Release and Publish embedded resources are valid.'

@@ -1,7 +1,7 @@
 ﻿[CmdletBinding()]
 param(
     [string]$ProjectDir = (Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)),
-    [ValidateSet('Release','Publish','Tester','Diagnostics')][string]$Configuration = 'Publish',
+    [ValidateSet('Release','Publish','Diagnostics')][string]$Configuration = 'Publish',
     [string]$OutputDir,
     [string]$Destination
 )

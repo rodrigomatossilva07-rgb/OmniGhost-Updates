@@ -309,8 +309,6 @@ void UpdateService::Initialize(Configuration configuration, std::unique_ptr<IHtt
 bool UpdateService::ApplyUserPreferences(Channel channel, bool automaticDownload, bool installOnExit) {
 #if defined(OMNIGHOST_PUBLISH_BUILD)
     channel = Channel::Stable;
-#elif defined(OMNIGHOST_TESTER_BUILD)
-    channel = Channel::Development;
 #endif
     if (busy_.load(std::memory_order_acquire))
         return false;

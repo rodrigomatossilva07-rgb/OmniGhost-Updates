@@ -25,7 +25,7 @@ public:
     ResourceCounter& operator=(const ResourceCounter&) = delete;
 
     void StartSession(std::string_view sessionName) noexcept {
-#if defined(OMNIGHOST_TESTER_BUILD) || defined(OMNIGHOST_PRIVATE_STATIC_VMM)
+#if defined(OMNIGHOST_PRIVATE_STATIC_VMM)
         sessionName_ = sessionName;
         before_ = Capture();
         enabled_ = true;
@@ -42,7 +42,7 @@ public:
     }
 
     void EndSession() noexcept {
-#if defined(OMNIGHOST_TESTER_BUILD) || defined(OMNIGHOST_PRIVATE_STATIC_VMM)
+#if defined(OMNIGHOST_PRIVATE_STATIC_VMM)
         if (!enabled_) return;
         after_ = Capture();
         enabled_ = false;

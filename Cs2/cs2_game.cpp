@@ -89,7 +89,6 @@ namespace {
 // slower transfers. 60 Hz keeps mouse-look smooth through interpolation while
 // leaving capacity for the entity lane.
 constexpr int CAMERA_INTERVAL_MS = 16;
-constexpr int MOTION_INTERVAL_MS = 8;       // origin lane between full scans
 constexpr int BONES_INTERVAL_MS = 12;       // skeleton tier
 constexpr int FULL_SCAN_INTERVAL_MS = 12;   // health / spotted / core identity
 constexpr int ARMOR_INTERVAL_MS = 50;
@@ -351,10 +350,6 @@ uintptr_t g_cached_entity_root = 0; // refreshed once per frame when scanning
 
 void EnsureScatter() {
     g_scatter_full.Ensure();
-}
-
-void EnsureMotionScatter() {
-    g_scatter_motion.Ensure();
 }
 
 void DestroyScatter() {
@@ -4270,7 +4265,6 @@ void EnsureAcquisitionStarted() {
         OmniGhost::Gameplay::FixedRateScheduler scheduler;
         float matrix[16]{};
         uint64_t next_camera_ms = 0;
-        uint64_t next_motion_ms = 0;
         while (!g_acquisition_stop.load(std::memory_order_acquire)) {
             const auto runtime_view = g_runtime_snapshots.Acquire();
             const uintptr_t client_base = runtime_view ? runtime_view->client_base : 0;
@@ -4299,77 +4293,10 @@ void EnsureAcquisitionStarted() {
                     NotePossibleDeviceStall(OmniGhost::Gameplay::TimeMs(cameraReadBegin));
                 }
             }
-            // Keep the view matrix on its own very fast lane, but never make
-            // one DMA read per player every 2 ms.  That old pattern could
-            // starve the regular entity scan and made even boxes/bars hitch.
-            // Player motion is sampled at MOTION_INTERVAL_MS; rendering still
-            // runs every overlay frame.
-            const uint64_t now_ms = GetTickCount64();
-            const auto frame_config = g_config_snapshots.Acquire();
-            const auto current = g_runtime_snapshots.Acquire();
-            const bool needs_motion = false;
-            // The full snapshot already contains a coherent position set. Do
-            // not re-read every origin immediately after it publishes: that
-            // duplicate scatter was a large source of queue pressure.
-            const uint64_t snapshotAgeMs = current && current->snapshot_timestamp_ms &&
-                now_ms >= current->snapshot_timestamp_ms
-                ? now_ms - current->snapshot_timestamp_ms : UINT64_MAX;
-            const bool motionSnapshotNeeded = snapshotAgeMs >= 18u;
-            if (canRead && in_match && current && needs_motion && motionSnapshotNeeded && now_ms >= next_motion_ms
-                && !DmaCooldownActive()
-                && !g_acq_busy.load(std::memory_order_acquire)) {
-                // Slightly slower motion when skeleton is off — boxes/bars stay smooth
-                // with far less DMA pressure (main source of intermittent freezes).
-                const int motionPeriod = camera_pressure >= 2 ? 16 : MOTION_INTERVAL_MS;
-                next_motion_ms = now_ms + motionPeriod;
-                MotionSnapshot motion{};
-                // One scatter round-trip for all origins instead of N sequential DMA reads.
-                struct MotItem { uintptr_t pawn; uintptr_t scene; float pos[3]; };
-                MotItem items[32]{};
-                int n = 0;
-                for (const auto& player : current->players) {
-                    if (n >= 32 || !player.pawn || !IsUserPointer(player.scene))
-                        continue;
-                    items[n].pawn = player.pawn;
-                    items[n].scene = player.scene;
-                    ++n;
-                }
-                if (n > 0) {
-                    EnsureMotionScatter();
-                    if (g_scatter_motion) {
-                        for (int i = 0; i < n; ++i)
-                            mem.AddScatterReadRequest(g_scatter_motion,
-                                items[i].scene + offsets.m_vecAbsOrigin,
-                                items[i].pos, sizeof(items[i].pos));
-                        mem.SetDmaCallTag("CS2.MotionOrigins");
-                        const auto motionReadBegin = std::chrono::steady_clock::now();
-                        mem.ExecuteReadScatter(g_scatter_motion);
-                        NotePossibleDeviceStall(OmniGhost::Gameplay::TimeMs(motionReadBegin));
-                    } else {
-                        for (int i = 0; i < n; ++i)
-                            QRead(items[i].scene + offsets.m_vecAbsOrigin,
-                                  items[i].pos, sizeof(items[i].pos));
-                    }
-                    for (int i = 0; i < n; ++i) {
-                        if (!std::isfinite(items[i].pos[0]) || !std::isfinite(items[i].pos[1]) ||
-                            !std::isfinite(items[i].pos[2]))
-                            continue;
-                        if (motion.count >= motion.players.size()) break;
-                        auto& sample = motion.players[motion.count];
-                        sample = {};
-                        sample.pawn = items[i].pawn;
-                        sample.pos[0] = items[i].pos[0];
-                        sample.pos[1] = items[i].pos[1];
-                        sample.pos[2] = items[i].pos[2];
-                        ++motion.count;
-                    }
-                }
-                if (motion.count) {
-                    motion.timestamp_ms = GetTickCount64();
-                    PublishMotionSnapshot(motion);
-                }
-            }
-            // Keep camera/motion snappy — view matrix must stay fluid for ESP.
+            // The full scan already publishes coherent player positions. Keep this
+            // worker dedicated to the matrix instead of acquiring snapshots for the
+            // retired motion lane on every wake-up.
+            // Keep the camera snappy — the matrix must stay fluid for ESP.
             int cadence = in_match ? CAMERA_INTERVAL_MS : 12;
             const int pressure = g_pressure_level.load(std::memory_order_relaxed);
             if (in_match && pressure >= 2)

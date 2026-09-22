@@ -17,7 +17,7 @@
 namespace OmniGhost::OffsetSource {
 namespace {
 
-// Minimal JSON → EmbeddedOffsets-compatible snapshot for Tester external files.
+// Minimal JSON → EmbeddedOffsets-compatible snapshot for development external files.
 // Accepts the same nested hex-string layout as tools/Build-EmbeddedOffsets.ps1.
 bool ReadFileUtf8(const std::string& path, std::string& out) {
     std::ifstream in(path, std::ios::binary);

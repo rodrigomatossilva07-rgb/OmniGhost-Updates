@@ -120,11 +120,11 @@ Pass 'Canonical DMA runtime is authoritative; libs is an allowed fallback bundle
 
 $project = Read-Utf8Text (Join-Path $ProjectDir 'OmiGhost.vcxproj')
 Require-Text $project 'ProjectConfiguration Include="Release\|x64"' 'Release|x64 configuration exists.'
-Require-Text $project 'ProjectConfiguration Include="Tester\|x64"' 'Tester|x64 configuration exists.'
 Require-Text $project 'ProjectConfiguration Include="Publish\|x64"' 'Publish|x64 configuration exists.'
+Forbid-Text $project 'ProjectConfiguration Include="Tester\|x64"' 'Tester build configuration removed.'
 Forbid-Text $project 'ProjectConfiguration Include="Debug\|x64"' 'Debug build configuration removed.'
 Forbid-Text $project 'ProjectConfiguration Include="Diagnostics\|x64"' 'Diagnostics build configuration removed.'
-Require-Text $project 'OmniGhost\.Tester\.props' 'Tester policy is imported only by Tester builds.'
+Forbid-Text $project 'OmniGhost\.Tester\.props' 'Tester policy import removed.'
 Require-Text $project 'OmniGhost\.Publish\.props' 'Publish policy is imported only by Publish builds.'
 $common = Read-Utf8Text (Join-Path $ProjectDir 'OmniGhost.Common.props')
 $release = Read-Utf8Text (Join-Path $ProjectDir 'OmniGhost.Release.props')
@@ -161,10 +161,6 @@ $patternProjectData = @'
 <OmniGhostProjectData\s+Include="\$\(ProjectDir\)data\\\*\*\\\*"\s+Exclude="[^"]*\*offsets\.json[^"]*;[^"]*offsets\.json[^"]*"
 '@
 Require-Text $project $patternProjectData 'Customer builds exclude every plaintext offsets JSON from runtime data copy.'
-$patternDevOffset = @'
-<OmniGhostDevOffsetData[^>]+Condition="'\$\((?:Configuration)\)'=='Tester'"
-'@
-Require-Text $project $patternDevOffset 'External plaintext offset snapshots are restricted to Tester builds.'
 $patternCs2 = @'
 <OmniGhostCs2Data[^>]+Exclude="\$\(ProjectDir\)Cs2\\data\\offsets\.json"
 '@
@@ -173,22 +169,10 @@ $patternValorant = @'
 <OmniGhostValorantData[^>]+Exclude="\$\(ProjectDir\)Valorant\\data\\\*offsets\*\.json"
 '@
 Require-Text $project $patternValorant 'Valorant runtime assets exclude plaintext offset snapshots.'
-$pattern1 = @'
-'\$\(Configuration\)'!='Tester'\s+And\s+Exists\('\$\(OutDir\)data\\fortnite_offsets\.json'\)
-'@
-$pattern2 = @'
-'\$\(Configuration\)'!='Tester'\s+And\s+Exists\('\$\(OutDir\)data\\warzone_offsets\.json'\)
-'@
-$pattern3 = @'
-'\$\(Configuration\)'!='Tester'\s+And\s+Exists\('\$\(OutDir\)data\\offsets\.json'\)
-'@
-$pattern4 = @'
-'\$\(Configuration\)'!='Tester'\s+And\s+Exists\('\$\(OutDir\)data\\valorant_offsets\.json'\)
-'@
-Require-Text $project $pattern1 'Release/Publish fail closed if a Fortnite offset JSON reaches runtime output.'
-Require-Text $project $pattern2 'Release/Publish fail closed if a Warzone offset JSON reaches runtime output.'
-Require-Text $project $pattern3 'Release/Publish fail closed if a generic offset JSON reaches runtime output.'
-Require-Text $project $pattern4 'Release/Publish fail closed if a Valorant offset JSON reaches runtime output.'
+Require-Text $project "Exists\('\$\(OutDir\)data\\fortnite_offsets\.json'\)" 'Release fails closed if a Fortnite offset JSON reaches runtime output.'
+Require-Text $project "Exists\('\$\(OutDir\)data\\warzone_offsets\.json'\)" 'Release fails closed if a Warzone offset JSON reaches runtime output.'
+Require-Text $project "Exists\('\$\(OutDir\)data\\offsets\.json'\)" 'Release fails closed if a generic offset JSON reaches runtime output.'
+Require-Text $project "Exists\('\$\(OutDir\)data\\valorant_offsets\.json'\)" 'Release fails closed if a Valorant offset JSON reaches runtime output.'
 
 # Build-hardening settings live in imported property sheets, not necessarily in the .vcxproj itself.
 Require-Text $common '<WarningLevel>Level4</WarningLevel>' 'Level4 warnings enabled.'
@@ -205,14 +189,10 @@ $patternOutDir = @'
 <OutDir Condition="'\$\(OutDir\)'==''">\$\(ProjectDir\)build\\</OutDir>
 '@
 Require-Text $common $patternOutDir 'build/ is the default runtime output directory.'
-$patternConfigTester = @'
-\$\(Configuration\)'=='Tester'.*build\\Tester
-'@
 $patternConfigPublish = @'
 \$\(Configuration\)'=='Publish'.*build\\Publish
 '@
-Require-Text $common $patternConfigTester 'Tester output is isolated from customer builds.'
-Require-Text $common $patternConfigPublish 'Publish output is isolated from local/tester builds.'
+Require-Text $common $patternConfigPublish 'Publish output is isolated from local Release builds.'
 Require-Text $common '<IntDir>\$\(ProjectDir\)\.cache\\intermediate' 'Intermediates moved out of build/.'
 Require-Text $common '\.cache\\generated' 'Generated headers moved out of build/.'
 Require-Text $common '\.cache\\symbols' 'PDB output moved out of build/.'

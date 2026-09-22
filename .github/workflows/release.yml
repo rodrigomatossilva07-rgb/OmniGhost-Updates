@@ -62,7 +62,7 @@ jobs:
         run: |
           ./tools/Test-GeneratedResourceConcurrency.ps1 -ProjectDir .
 
-      - name: Verify Tester, Release and Publish build profiles
+      - name: Verify Release and Publish build profiles
         shell: pwsh
         run: |
           ./tools/Verify-BuildMatrix.ps1 -ProjectDir . -Platform x64
@@ -192,19 +192,19 @@ jobs:
       - name: Configure MSBuild
         uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce # v2
 
-      - name: Build Tester configuration for integration test
+      - name: Build Release configuration for integration test
         shell: pwsh
         run: |
           msbuild OmiGhost.vcxproj /m `
-            /p:Configuration=Tester /p:Platform=x64 /p:PlatformToolset=v145 `
+            /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v145 `
             /p:OmniGhostSkipPackaging=true /p:OmniGhostSkipRemotePublish=true
 
       - name: Run single-process single-HWND integration test
         if: env.OMNIGHOST_DMA_DEVICE != '' && env.OMNIGHOST_TEST_GAME != ''
         shell: pwsh
         run: |
-          $exe = "./build/Tester/OmniGhost.exe"
-          if (-not (Test-Path -LiteralPath $exe)) { throw "Tester binary not found at $exe" }
+          $exe = "./build/OmniGhost.exe"
+          if (-not (Test-Path -LiteralPath $exe)) { throw "Release binary not found at $exe" }
           
           # Launch the game process (if not already running)
           $gameProcess = Start-Process -FilePath $env:OMNIGHOST_TEST_GAME -PassThru
@@ -223,7 +223,7 @@ jobs:
             Write-Host "[Integration] Game PID: $($gameProcess.Id), HWND: $hwnd"
             
             # Run integration test with DMA device
-            & "./build/Tester/OmniGhost.exe" --integration-test `
+            & "./build/OmniGhost.exe" --integration-test `
               --dma-device $env:OMNIGHOST_DMA_DEVICE `
               --target-pid $gameProcess.Id `
               --target-hwnd $hwnd `

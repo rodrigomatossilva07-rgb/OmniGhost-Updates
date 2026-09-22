@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <deque>
 #include <cstdio>
 #include <functional>
 #include <unordered_map>
@@ -184,12 +185,12 @@ void DrawExtras(ImDrawList* draw, const CS2::Player& player, const ImVec2& head,
     }
     if (settings.trails) {
         struct Point { ImVec2 pos; double time; };
-        static std::unordered_map<uintptr_t, std::vector<Point>> history;
+        static std::unordered_map<uintptr_t, std::deque<Point>> history;
         auto& points = history[player.pawn];
         const double now = ImGui::GetTime();
         if (points.empty() || now - points.back().time > .04) points.push_back({feet, now});
         const double duration = std::clamp(static_cast<double>(settings.trail_duration), .2, 2.5);
-        while (!points.empty() && now - points.front().time > duration) points.erase(points.begin());
+        while (!points.empty() && now - points.front().time > duration) points.pop_front();
         for (size_t i = 1; i < points.size(); ++i) {
             const float fade = static_cast<float>(1.0 - (now - points[i].time) / duration);
             ImU32 color = EffectColor(settings, settings.col_trail, rgb);
@@ -282,7 +283,7 @@ void DrawFootstepEsp(ImDrawList* draw, const CS2::Player& player, const ImVec2& 
         uint64_t last_step_ms = 0;
         uint64_t last_seen_ms = 0;
         bool next_left = false;
-        std::vector<Step> steps;
+        std::deque<Step> steps;
     };
     static std::unordered_map<uintptr_t, FootprintHistory> footprints;
 
@@ -299,7 +300,7 @@ void DrawFootstepEsp(ImDrawList* draw, const CS2::Player& player, const ImVec2& 
 
     constexpr float kLifetimeMs = 1000.f;
     while (!history.steps.empty() && now - history.steps.front().began_ms > kLifetimeMs)
-        history.steps.erase(history.steps.begin());
+        history.steps.pop_front();
     for (const Step& step : history.steps) {
         const float age = static_cast<float>(now - step.began_ms) / kLifetimeMs;
         const float fade = (1.f - age) * (1.f - age); // smooth one-second fade

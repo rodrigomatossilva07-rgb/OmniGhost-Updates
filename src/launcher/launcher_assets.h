@@ -16,7 +16,7 @@ struct Texture {
     explicit operator bool() const { return id != nullptr; }
 };
 
-// Release decodes validated embedded PNG bytes directly in memory. Tester may
+// Release decodes validated embedded PNG bytes directly in memory. Development builds may
 // explicitly prefer source files for rapid asset iteration.
 void Initialize(ID3D11Device* device);
 void Shutdown();

@@ -5,10 +5,6 @@
       <Configuration>Release</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
-    <ProjectConfiguration Include="Tester|x64">
-      <Configuration>Tester</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
     <ProjectConfiguration Include="Publish|x64">
       <Configuration>Publish</Configuration>
       <Platform>x64</Platform>
@@ -32,11 +28,6 @@
     <UseDebugLibraries>false</UseDebugLibraries>
     <WholeProgramOptimization>true</WholeProgramOptimization>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)'=='Tester'" Label="Configuration">
-    <UseDebugLibraries>false</UseDebugLibraries>
-    <WholeProgramOptimization>true</WholeProgramOptimization>
-    <OmniGhostTesterBuild>true</OmniGhostTesterBuild>
-  </PropertyGroup>
 <PropertyGroup Condition="'$(Configuration)'=='Publish'" Label="Configuration">
     <!-- PRIVATE DEVELOPMENT BUILD - NOT FOR DISTRIBUTION.
          Publish is the owner's private GitHub update channel. -->
@@ -50,17 +41,13 @@
 <ImportGroup Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform"/>
     <Import Project="$(ProjectDir)OmniGhost.Common.props"/>
-    <Import Project="$(ProjectDir)OmniGhost.Release.props" Condition="'$(Configuration)'=='Release' Or '$(Configuration)'=='Tester' Or '$(Configuration)'=='Publish'"/>
-    <Import Project="$(ProjectDir)OmniGhost.Tester.props" Condition="'$(Configuration)'=='Tester'"/>
+    <Import Project="$(ProjectDir)OmniGhost.Release.props" Condition="'$(Configuration)'=='Release' Or '$(Configuration)'=='Publish'"/>
     <Import Project="$(ProjectDir)OmniGhost.Publish.props" Condition="'$(Configuration)'=='Publish'"/>
 </ImportGroup>
   <PropertyGroup Label="UserMacros"/>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <!-- Release is an optimized local build and never publishes remotely. -->
     <OmniGhostReleaseChannel Condition="'$(OmniGhostReleaseChannel)'==''">stable</OmniGhostReleaseChannel>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Tester|x64'">
-    <OmniGhostReleaseChannel>development</OmniGhostReleaseChannel>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Publish|x64'">
     <!-- Keep the stable protocol channel for updater compatibility, while the
@@ -95,7 +82,6 @@
     <OmniGhostRootResource Include="$(ProjectDir)resources\OmniGhost.ico;$(ProjectDir)resources\OmniGhost.png"/>
     <OmniGhostGameResource Include="$(ProjectDir)resources\games\**\*.png;$(ProjectDir)resources\games\**\*.jpg;$(ProjectDir)resources\games\**\*.jpeg;$(ProjectDir)resources\games\**\*.webp"/>
     <OmniGhostProjectData Include="$(ProjectDir)data\**\*" Exclude="$(ProjectDir)data\*offsets.json;$(ProjectDir)data\offsets.json;$(ProjectDir)data\fortnite_offsets\**\*;$(ProjectDir)data\**\*offsets*.json"/>
-    <OmniGhostDevOffsetData Include="$(ProjectDir)data\fortnite_offsets.json;$(ProjectDir)data\warzone_offsets.json;$(ProjectDir)data\cs2_offsets.json;$(ProjectDir)data\fivem_offsets.json;$(ProjectDir)data\apex_offsets.json;$(ProjectDir)Valorant\data\valorant_offsets.json" Condition="'$(Configuration)'=='Tester'"/>
     <OmniGhostCs2Data Include="$(ProjectDir)Cs2\data\weapons\**\*;$(ProjectDir)Cs2\data\webradar\**\*" Exclude="$(ProjectDir)Cs2\data\offsets.json"/>
     <OmniGhostValorantData Include="$(ProjectDir)Valorant\data\**\*" Exclude="$(ProjectDir)Valorant\data\*offsets*.json"/>
   </ItemGroup>
@@ -140,7 +126,7 @@
     <RemoveDir Directories="$(OutDir)" Condition="Exists('$(OutDir)')"/>
     <MakeDir Directories="$(OutDir)"/>
   </Target>
-  <Target Name="CopyOmniGhostRuntimeLibraries" AfterTargets="Build" Condition="'$(Configuration)'=='Tester'">
+  <Target Name="CopyOmniGhostRuntimeLibraries" AfterTargets="Build" Condition="'$(Configuration)'=='Release'">
     <!-- If Visual Studio exposes its redistributable directory, include those DLLs
          app-local too. This is optional: libs\ is the supported local fallback, so a
          missing/empty VCToolsRedistDir must never make a valid build fail. -->
@@ -151,7 +137,7 @@
     </ItemGroup>
     <Error Condition="'@(OmniGhostLibRuntimeLibrary)'==''" Code="OGLIB001" Text="A pasta libs não contém DLLs. Coloca a pasta libs na raiz do OmniGhost antes de compilar."/>
     <!-- A project-owned third_party bundle is optional. The validated local
-         libs\ bundle is the supported fallback and is enough for Tester. -->
+         libs\ bundle is the supported fallback for local Release builds. -->
     <Error Condition="!Exists('$(ProjectDir)libs\vmm.dll') And !Exists('$(ProjectDir)third_party\dma_stack\bin\vmm.dll')" Code="OGDLL001" Text="Nenhuma cópia de vmm.dll foi encontrada em libs\ ou third_party\dma_stack\bin\."/>
     <Error Condition="!Exists('$(ProjectDir)libs\leechcore.dll') And !Exists('$(ProjectDir)third_party\dma_stack\bin\leechcore.dll')" Code="OGDLL001" Text="Nenhuma cópia de leechcore.dll foi encontrada em libs\ ou third_party\dma_stack\bin\."/>
     <MakeDir Directories="$(OutDir)data;$(OutDir)data\runtime;$(OutDir)resources"/>
@@ -169,7 +155,6 @@
     <Copy SourceFiles="@(OmniGhostRootResource)" DestinationFolder="$(OutDir)resources" SkipUnchangedFiles="true" Condition="'@(OmniGhostRootResource)'!=''"/>
     <Copy SourceFiles="@(OmniGhostGameResource)" DestinationFiles="@(OmniGhostGameResource-&gt;'$(OutDir)resources\games\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" Condition="'@(OmniGhostGameResource)'!=''"/>
     <Copy SourceFiles="@(OmniGhostProjectData)" DestinationFiles="@(OmniGhostProjectData-&gt;'$(OutDir)data\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" Condition="'@(OmniGhostProjectData)'!=''"/>
-    <Copy SourceFiles="@(OmniGhostDevOffsetData)" DestinationFolder="$(OutDir)data" SkipUnchangedFiles="true" Condition="'$(Configuration)'=='Tester' And '@(OmniGhostDevOffsetData)'!=''"/>
     <Copy SourceFiles="@(OmniGhostCs2Data)" DestinationFiles="@(OmniGhostCs2Data-&gt;'$(OutDir)data\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" Condition="'@(OmniGhostCs2Data)'!=''"/>
     <Copy SourceFiles="@(OmniGhostValorantData)" DestinationFiles="@(OmniGhostValorantData-&gt;'$(OutDir)data\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" Condition="'@(OmniGhostValorantData)'!=''"/>
     <ItemGroup>
@@ -180,13 +165,13 @@
     </ItemGroup>
     <Error Condition="!Exists('%(OmniGhostRuntimeDestination.Identity)')" Code="OGDLL002" Text="A DLL de runtime não foi copiada para junto do executável: %(OmniGhostRuntimeDestination.Filename)%(OmniGhostRuntimeDestination.Extension)"/>
     <Error Condition="!Exists('$(OutDir)data\runtime\dma_stack_versions.json')" Code="OGDLL007" Text="O manifest de versões da stack DMA não foi copiado para data\runtime."/>
-    <Error Condition="'$(Configuration)'!='Tester' And Exists('$(OutDir)data\fortnite_offsets.json')" Code="OGOFF002" Text="Release/Publish não podem distribuir data\fortnite_offsets.json; o snapshot deve estar embutido no EXE."/>
-    <Error Condition="'$(Configuration)'!='Tester' And Exists('$(OutDir)data\warzone_offsets.json')" Code="OGOFF003" Text="Release/Publish não podem distribuir data\warzone_offsets.json; o snapshot deve estar embutido no EXE."/>
-    <Error Condition="'$(Configuration)'!='Tester' And Exists('$(OutDir)data\cs2_offsets.json')" Code="OGOFF004" Text="Release/Publish cannot ship plaintext cs2 offsets; must be embedded."/>
-    <Error Condition="'$(Configuration)'!='Tester' And Exists('$(OutDir)data\fivem_offsets.json')" Code="OGOFF006" Text="Release/Publish cannot ship plaintext fivem offsets; must be embedded."/>
-    <Error Condition="'$(Configuration)'!='Tester' And Exists('$(OutDir)data\apex_offsets.json')" Code="OGOFF007" Text="Release/Publish cannot ship plaintext apex offsets; must be embedded."/>
-    <Error Condition="'$(Configuration)'!='Tester' And Exists('$(OutDir)data\offsets.json')" Code="OGOFF008" Text="Release/Publish cannot ship plaintext offsets.json; must be embedded."/>
-    <Error Condition="'$(Configuration)'!='Tester' And Exists('$(OutDir)data\valorant_offsets.json')" Code="OGOFF009" Text="Release/Publish cannot ship plaintext Valorant offsets; use compiled defaults until its embedded loader is available."/>
+    <Error Condition="Exists('$(OutDir)data\fortnite_offsets.json')" Code="OGOFF002" Text="Release não pode distribuir data\fortnite_offsets.json; o snapshot deve estar embutido no EXE."/>
+    <Error Condition="Exists('$(OutDir)data\warzone_offsets.json')" Code="OGOFF003" Text="Release não pode distribuir data\warzone_offsets.json; o snapshot deve estar embutido no EXE."/>
+    <Error Condition="Exists('$(OutDir)data\cs2_offsets.json')" Code="OGOFF004" Text="Release não pode distribuir plaintext cs2 offsets; devem estar embutidos."/>
+    <Error Condition="Exists('$(OutDir)data\fivem_offsets.json')" Code="OGOFF006" Text="Release não pode distribuir plaintext fivem offsets; devem estar embutidos."/>
+    <Error Condition="Exists('$(OutDir)data\apex_offsets.json')" Code="OGOFF007" Text="Release não pode distribuir data\apex_offsets.json; o snapshot deve estar embutido no EXE."/>
+    <Error Condition="Exists('$(OutDir)data\offsets.json')" Code="OGOFF008" Text="Release não pode distribuir plaintext offsets.json; devem estar embutidos."/>
+    <Error Condition="Exists('$(OutDir)data\valorant_offsets.json')" Code="OGOFF009" Text="Release não pode distribuir plaintext Valorant offsets; devem estar embutidos."/>
 
     <Message Importance="High" Text="[OmniGhost Runtime] DLLs de libs\ sincronizadas para build\; runtimes canónicos validados e copiados."/>
   </Target>
@@ -198,7 +183,7 @@
     <Error Condition="'@(OmniGhostUnexpectedCustomerRuntime)'!=''" Code="OGRUN003" Text="A build comercial contém ficheiros externos inesperados: @(OmniGhostUnexpectedCustomerRuntime)."/>
     <Message Importance="High" Text="[OmniGhost Runtime] Single-EXE distribution validated; no private OmniGhost.exe is installed or relaunched."/>
   </Target>
-  <!-- Publish é a única configuração que pode alterar o GitHub. Release e Tester
+  <!-- Publish é a única configuração que pode alterar o GitHub. Release
        nunca alcançam este target. Tag, source limpo e artefactos válidos continuam obrigatórios. -->
   <Target Name="PublishOmniGhostRelease" AfterTargets="ValidateOmniGhostSingleExeRuntime" Condition="'$(Configuration)'=='Publish' And '$(DesignTimeBuild)'!='true' And '$(OmniGhostSkipRemotePublish)'!='true'">
     <Message Importance="High" Text="[OmniGhost Publish] A validar, empacotar e publicar a versão no GitHub."/>
@@ -211,7 +196,7 @@
        A real Publish is deliberately excluded: Publish-Build cleans only after
        GitHub has confirmed the public Latest release. -->
   <Target Name="CleanupVerifiedLocalBuildWorkspace" AfterTargets="ValidateOmniGhostSingleExeRuntime"
-          Condition="'$(DesignTimeBuild)'!='true' And ( '$(Configuration)'=='Release' Or '$(Configuration)'=='Tester' Or ( '$(Configuration)'=='Publish' And '$(OmniGhostSkipRemotePublish)'=='true' ) )">
+          Condition="'$(DesignTimeBuild)'!='true' And ( '$(Configuration)'=='Release' Or ( '$(Configuration)'=='Publish' And '$(OmniGhostSkipRemotePublish)'=='true' ) )">
     <Message Importance="High" Text="[OmniGhost Build] Build validada; a limpar .cache, artifacts e build."/>
     <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; cleanup-verified-build &quot;$(MSBuildProjectDirectory)&quot;" IgnoreExitCode="true">
       <Output TaskParameter="ExitCode" PropertyName="OmniGhostLocalCleanupExitCode"/>
@@ -219,7 +204,7 @@
     <Warning Condition="'$(OmniGhostLocalCleanupExitCode)'!='0'" Text="A build foi validada, mas a limpeza local não terminou completamente. Fecha processos que estejam a usar o output e volta a compilar."/>
   </Target>
   <Target Name="ValidateOmniGhostPlatform" BeforeTargets="PrepareForBuild">
-    <Error Condition="'$(Platform)'!='x64'" Code="OGPLAT001" Text="OmniGhost suporta apenas x64. Seleciona Release, Tester ou Publish em x64."/>
+    <Error Condition="'$(Platform)'!='x64'" Code="OGPLAT001" Text="OmniGhost suporta apenas Release ou Publish em x64."/>
   </Target>
   <ItemGroup>
     <ClInclude Include="src\auth\keyauth_gateway.h"/>

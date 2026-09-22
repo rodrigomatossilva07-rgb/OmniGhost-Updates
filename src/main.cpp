@@ -388,8 +388,6 @@ while (application.shouldRun && !authenticated) {
     OmniGhost::Update::Configuration update_configuration{};
 #if defined(OMNIGHOST_PUBLISH_BUILD)
     update_configuration.channel = OmniGhost::Update::Channel::Stable;
-#elif defined(OMNIGHOST_TESTER_BUILD)
-    update_configuration.channel = OmniGhost::Update::Channel::Development;
 #else
     update_configuration.channel = app_settings::config.update_channel == app_settings::UpdateChannel::Beta
         ? OmniGhost::Update::Channel::Beta

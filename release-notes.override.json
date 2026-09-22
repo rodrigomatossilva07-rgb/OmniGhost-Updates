@@ -1,7 +1,7 @@
 ﻿{
   "version": "auto",
   "title": "OmniGhost",
-  "summary": "Esta versão corrige o versionamento e separa a publicação automática de Publish das builds locais Release e Tester.",
+  "summary": "Esta versão corrige o versionamento e separa a publicação automática de Publish da build local Release.",
   "hideCommits": [
     "chore: bump version",
     "build: update version",
@@ -16,7 +16,7 @@
     {
       "module": "core",
       "type": "security",
-      "text": "A configuração Publish passa a empacotar e publicar automaticamente no GitHub, mantendo obrigatórios a tag correspondente, o source limpo e a validação dos artefactos; Release e Tester permanecem estritamente locais."
+      "text": "A configuração Publish passa a empacotar e publicar automaticamente no GitHub, mantendo obrigatórios a tag correspondente, o source limpo e a validação dos artefactos; Release permanece estritamente local."
     },
     {
       "module": "core",

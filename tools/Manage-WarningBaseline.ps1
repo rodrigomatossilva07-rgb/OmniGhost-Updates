@@ -22,7 +22,7 @@ function Get-CompilerWarnings {
     $tempLog = [IO.Path]::GetTempFileName()
     try {
         $result = msbuild $ProjectFile `
-            /p:Configuration=Tester `
+            /p:Configuration=Release `
             /p:Platform=x64 `
             /p:OmniGhostNewWarningsAsErrors=true `
             /p:OmniGhostNewWarningsAsErrorsBaseline=$baselineFile `

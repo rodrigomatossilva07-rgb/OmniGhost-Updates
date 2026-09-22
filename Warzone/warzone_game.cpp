@@ -207,7 +207,7 @@ bool LoadOffsetsFromJson(const char* path) {
         std::cout << "[OFFSETS] activation_allowed=FALSE error=" << diag.error << "\n";
 #if defined(OMNIGHOST_DEV_EXTERNAL_OFFSETS)
         if ((!path || !path[0]) && LoadOffsetsFromExternalJson(nullptr)) {
-            std::cout << "[OFFSETS] tester_external_fallback=PASS\n";
+            std::cout << "[OFFSETS] development_external_fallback=PASS\n";
             return true;
         }
 #endif

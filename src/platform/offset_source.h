@@ -18,7 +18,7 @@
 //
 //   RUNTIME:
 //     Release  -> EmbeddedOffsets::Load only (no plaintext JSON beside the EXE)
-//     Tester   -> OMNIGHOST_DEV_EXTERNAL_OFFSETS: try data/*.json first, then embedded
+//     Development builds -> OMNIGHOST_DEV_EXTERNAL_OFFSETS: try data/*.json first, then embedded
 //
 // Game adapters must call OffsetSource::LoadSnapshot + apply keys into their
 // Offsets structs. Do not keep a second authoritative table of RVAs in .cpp/.h
@@ -47,7 +47,7 @@ struct LoadResult {
 [[nodiscard]] const char* GameSlug(GameId id) noexcept;
 [[nodiscard]] const char* CanonicalJsonName(GameId id) noexcept;
 
-// Candidate paths for Tester/dev external load (never used as silent Release fallback).
+// Candidate paths for explicit development external load (never used as silent Release fallback).
 [[nodiscard]] std::vector<std::string> ExternalJsonCandidates(GameId id);
 
 // Loads the snapshot for a game according to build policy.

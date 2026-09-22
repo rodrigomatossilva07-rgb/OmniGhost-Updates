@@ -231,8 +231,8 @@ Result EnsureOffsets(ActiveGame game, bool force_refresh) {
             const std::string external = (data / L"warzone_offsets.json").string();
             Warzone::LoadOffsetsFromJson(external.c_str());
             if (HasCriticalOffsets(game)) {
-                MarkLiveValid(game, "Warzone: offsets externos atualizados (Tester)");
-                g_status = "Warzone: offsets externos atualizados (Tester)";
+                MarkLiveValid(game, "Warzone: offsets externos atualizados (desenvolvimento)");
+                g_status = "Warzone: offsets externos atualizados (desenvolvimento)";
                 return Result::Ok;
             }
         }

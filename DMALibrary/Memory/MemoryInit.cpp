@@ -402,7 +402,7 @@ bool Memory::EnsureRuntimeDependencies()
 	}
 
 #if !defined(OMNIGHOST_PRIVATE_STATIC_VMM)
-	// Release/Tester delay-load leechcore.dll + vmm.dll. Load them explicitly by
+	// Release builds delay-load leechcore.dll + vmm.dll. Load them explicitly by
 	// absolute path from the validated private runtime so the delay-load thunk
 	// can never resolve a same-named DLL from an untrusted directory.
 	const wchar_t* const kRequired[] = { L"libs/leechcore.dll", L"libs/vmm.dll" };

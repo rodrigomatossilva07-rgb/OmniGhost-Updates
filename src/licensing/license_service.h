@@ -35,7 +35,7 @@ struct Snapshot {
 [[nodiscard]] bool EnsureInteractive(); // compatibility: non-interactive status check
 [[nodiscard]] bool ActivateLocalKey(std::string_view key, std::string* userMessage = nullptr);
 // Temporary local bootstrap used while the commercial provider is not connected.
-// It is currently available in Release, Tester and Publish at the project owner's
+// It is currently available in Release and Publish at the project owner's
 // explicit request. Remove this API together with its UI before customer rollout.
 [[nodiscard]] bool CreateTemporaryLocalLicense(std::string* userMessage = nullptr);
 // KeyAuth account and activation flows. UI code calls these service functions;

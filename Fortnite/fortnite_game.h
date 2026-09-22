@@ -171,7 +171,7 @@ extern Config config;
 extern Offsets offsets;
 extern Runtime runtime;
 
-// Loads offsets from data/fortnite_offsets.json (Tester) or embedded RCDATA (Release).
+// Loads offsets from embedded RCDATA in Release builds.
 // Edit ONLY data/fortnite_offsets.json to update after a game patch, then rebuild Release.
 bool LoadOffsetsFromJson(const char* path = nullptr);
 bool ReloadOffsets();

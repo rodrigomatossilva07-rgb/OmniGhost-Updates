@@ -275,7 +275,6 @@ namespace {
         {"launcher.stable", {"Estável", "Stable", "Stable", "Stable", "Stable", "Stable"}},
         {"launcher.development", {"Desenvolvimento", "Development", "Development", "Development", "Development", "Development"}},
         {"launcher.stable_publish_locked", {"Estável (fixo na compilação Publish)", "Stable (locked by Publish build)", "Stable (locked by Publish build)", "Stable (locked by Publish build)", "Stable (locked by Publish build)", "Stable (locked by Publish build)"}},
-        {"launcher.development_tester_locked", {"Desenvolvimento (fixo na compilação Tester)", "Development (locked by Tester build)", "Development (locked by Tester build)", "Development (locked by Tester build)", "Development (locked by Tester build)", "Development (locked by Tester build)"}},
         {"launcher.auto_check", {"Procurar atualizaçães automaticamente", "Auto-check", "Auto-check", "Auto-check", "Auto-check", "Auto-check"}},
         {"launcher.auto_download", {"Transferir atualizaçães automaticamente", "Auto-download", "Auto-download", "Auto-download", "Auto-download", "Auto-download"}},
         {"launcher.install_on_exit", {"Instalar ao sair", "Install on exit", "Install on exit", "Install on exit", "Install on exit", "Install on exit"}},

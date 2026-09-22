@@ -6,18 +6,8 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $ProjectDir = [IO.Path]::GetFullPath($ProjectDir)
-if ($Configuration -notin @('Release','Tester','Publish')) {
+if ($Configuration -notin @('Release','Publish')) {
     throw "Unknown OmniGhost build configuration: $Configuration"
-}
-
-if ($Configuration -eq 'Tester') {
-    $policy = Get-Content -LiteralPath (Join-Path $ProjectDir 'OmniGhost.Tester.props') -Raw
-    if ($policy -notmatch 'OMNIGHOST_TESTER_BUILD=1' -or
-        $policy -notmatch 'OMNIGHOST_REQUIRE_LOCAL_LICENSE=1') {
-        throw 'Tester must be visibly identified and protected by the local-license gate.'
-    }
-    Write-Host '[OmniGhost Distribution] Tester: internal development channel + local licence.'
-    exit 0
 }
 
 if ($Configuration -eq 'Publish') {

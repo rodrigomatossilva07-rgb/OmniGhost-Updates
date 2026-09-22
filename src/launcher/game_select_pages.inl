@@ -584,8 +584,6 @@ bool SettingsFileDialog(bool save, std::filesystem::path& selected) {
 void ApplyUpdaterSettings() {
 #if defined(OMNIGHOST_PUBLISH_BUILD)
     const auto channel = OmniGhost::Update::Channel::Stable;
-#elif defined(OMNIGHOST_TESTER_BUILD)
-    const auto channel = OmniGhost::Update::Channel::Development;
 #else
     const auto channel = app_settings::config.update_channel == app_settings::UpdateChannel::Beta
         ? OmniGhost::Update::Channel::Beta : OmniGhost::Update::Channel::Stable;
@@ -911,8 +909,6 @@ void DrawSettings(ImVec2 display) {
         CyberWidgets::BeginCard(Loc::Tr("launcher.updates"), 0.f);
 #if defined(OMNIGHOST_PUBLISH_BUILD)
         CyberWidgets::KeyValueRow(Loc::Tr("launcher.release_channel"), Loc::Tr("launcher.stable_publish_locked"));
-#elif defined(OMNIGHOST_TESTER_BUILD)
-        CyberWidgets::KeyValueRow(Loc::Tr("launcher.release_channel"), Loc::Tr("launcher.development_tester_locked"));
 #else
         const char* channels[] = {Loc::Tr("launcher.stable"), "Beta"};
         int channel = static_cast<int>(app_settings::config.update_channel);

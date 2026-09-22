@@ -2,7 +2,6 @@
 <Project ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <OutDir Condition="'$(Configuration)'=='Release'">$(ProjectDir)build\</OutDir>
-    <OutDir Condition="'$(Configuration)'=='Tester'">$(ProjectDir)build\Tester\</OutDir>
     <OutDir Condition="'$(Configuration)'=='Publish'">$(ProjectDir)build\Publish\</OutDir>
     <OutDir Condition="'$(OutDir)'==''">$(ProjectDir)build\</OutDir>
     <IntDir>$(ProjectDir).cache\intermediate\$(Platform)\$(Configuration)\</IntDir>

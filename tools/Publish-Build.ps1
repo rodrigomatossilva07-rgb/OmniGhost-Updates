@@ -44,7 +44,7 @@ if ($config.enabled -ne $true) {
 if ($config.publishAfterBuild -ne $true -or
     $config.requireExplicitPublishCommand -ne $false -or
     $config.requireConfirmation -ne $false) {
-    throw 'Política inválida: Publish deve publicar automaticamente, sem afetar Release ou Tester.'
+    throw 'Política inválida: Publish deve publicar automaticamente, sem afetar Release.'
 }
 if (-not $ExplicitConfirmed) {
     throw 'Publicação direta bloqueada. O pedido tem de vir do target Publish ou do wrapper de recuperação autorizado.'

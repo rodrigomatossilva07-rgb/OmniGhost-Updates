@@ -160,7 +160,7 @@ bool Attach() {
         return false;
     }
 
-    // Tester may override compiled values from source JSON. Customer builds do
+    // Development builds may override compiled values from source JSON. Customer builds do
     // not probe data/ and therefore never depend on or recreate that directory.
 #if defined(OMNIGHOST_DEV_EXTERNAL_OFFSETS)
     {
