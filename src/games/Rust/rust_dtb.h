@@ -14,8 +14,8 @@ struct Result {
 };
 
 // Ensures GameAssembly.dll is resolvable for the bound process.
-// Prefers Memory::FixCr3() (already integrated in DMALibrary), then
-// explicit module resolution. Safe to call multiple times.
+// Process bind runs the integrated DTB/CR3 resolution once, then resolves
+// GameAssembly.dll without repeating the potentially slow hardware pass.
 Result EnsureGameAssembly(const char* process_name = "RustClient.exe");
 
 } // namespace Dtb

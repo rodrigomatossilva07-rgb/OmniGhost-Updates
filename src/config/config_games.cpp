@@ -1,8 +1,8 @@
 #include "config_games.h"
 #include "config_core.h"
-#include "../Cs2/cs2_game.h"
-#include "../Warzone/warzone_game.h"
-#include "../Valorant/valorant_game.h"
+#include "../src/games/Cs2/cs2_game.h"
+#include "../src/games/Warzone/warzone_game.h"
+#include "../src/games/Valorant/valorant_game.h"
 #include <cstring>
 #include <iterator>
 

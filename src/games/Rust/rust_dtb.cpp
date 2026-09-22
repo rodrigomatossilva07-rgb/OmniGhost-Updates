@@ -23,17 +23,7 @@ Result EnsureGameAssembly(const char* process_name) {
         return r;
     }
 
-    // Explicit FixCr3 pass (idempotent when already applied).
-    const bool cr3_ok = mem.FixCr3();
-    std::cout << "[Rust][DTB] FixCr3 result=" << (cr3_ok ? "OK" : "FAIL/WAIT")
-              << " attach=" << mem.LastAttachResultName() << "\n";
-
     uintptr_t ga = static_cast<uintptr_t>(mem.GetBaseDaddy("GameAssembly.dll"));
-    if (!ga || ga < 0x10000) {
-        // One more FixCr3 + retry
-        mem.FixCr3();
-        ga = static_cast<uintptr_t>(mem.GetBaseDaddy("GameAssembly.dll"));
-    }
 
     r.attempts = 1;
     r.game_assembly = ga;

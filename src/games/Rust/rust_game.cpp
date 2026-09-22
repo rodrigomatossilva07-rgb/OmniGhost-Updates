@@ -220,12 +220,6 @@ bool Attach() {
     std::snprintf(status, sizeof(status), "%s", runtime.status);
     auto dtb = Dtb::EnsureGameAssembly(kProc);
     if (!dtb.ok || !dtb.game_assembly) {
-        // Segundo intento: bind explicito como o CS2 faz com cs2.exe
-        if (mem.Init(kProc, false, false)) {
-            dtb = Dtb::EnsureGameAssembly(kProc);
-        }
-    }
-    if (!dtb.ok || !dtb.game_assembly) {
         std::snprintf(runtime.status, sizeof(runtime.status), "%s",
             dtb.detail.empty() ? "DTB/GameAssembly falhou" : dtb.detail.c_str());
         std::snprintf(status, sizeof(status), "%s", runtime.status);
@@ -244,9 +238,6 @@ bool Attach() {
     Decrypt::chain.count = offsets.bufferSize;
 
     std::cout << "[Rust] GameAssembly=0x" << std::hex << runtime.game_assembly << std::dec << "\n";
-    std::cout << "[Rust] decrypt probe: " << Decrypt::ProbeEntityChainStatus() << "\n";
-
-    Entities::Refresh();
     runtime.ready = true;
     ready = true;
     std::snprintf(runtime.status, sizeof(runtime.status), "Online | players=%d", runtime.player_count);
@@ -281,12 +272,6 @@ const char* StatusText() {
 
 void RunFrame() {
     if (!runtime.attached) {
-        static ULONGLONG last = 0;
-        const ULONGLONG now = GetTickCount64();
-        if (now - last > 2500) {
-            last = now;
-            Attach();
-        }
         return;
     }
     if (!IsAlive()) {
@@ -296,7 +281,12 @@ void RunFrame() {
         return;
     }
     ++runtime.frames;
-    Entities::Refresh();
+    static ULONGLONG last_refresh = 0;
+    const ULONGLONG now = GetTickCount64();
+    if (now - last_refresh >= 200) {
+        last_refresh = now;
+        Entities::Refresh();
+    }
     ESP::Draw(runtime, config);
     Aim::Run(runtime, config);
     std::snprintf(runtime.status, sizeof(runtime.status), "Online | players=%d | GA=ok", runtime.player_count);
@@ -308,4 +298,3 @@ std::vector<Player> SnapshotPlayers() {
 }
 
 } // namespace Rust
-

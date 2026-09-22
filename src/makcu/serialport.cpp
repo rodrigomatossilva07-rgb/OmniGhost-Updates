@@ -1,4 +1,4 @@
-﻿#include "serialport.h"
+#include "serialport.h"
 #include "../platform/thread_utils.h"
 #include "../platform/text_encoding.h"
 #include <iostream>

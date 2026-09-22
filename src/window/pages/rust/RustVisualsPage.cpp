@@ -35,9 +35,5 @@ void DrawRustSystem() {
     ImGui::Text("Frames: %llu", (unsigned long long)Rust::runtime.frames);
     if (ImGui::Button("Recarregar offsets"))
         Rust::LoadOffsetsFromJson(nullptr);
-    ImGui::SameLine();
-    if (ImGui::Button("Reattach")) {
-        Rust::Shutdown();
-        Rust::Attach();
-    }
+    ImGui::TextDisabled("Para voltar a anexar, regressa ao launcher e abre Rust novamente.");
 }

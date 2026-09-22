@@ -1,4 +1,4 @@
-﻿#include "localization.h"
+#include "localization.h"
 #include "../config/app_settings.h"
 
 #include <cstring>

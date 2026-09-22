@@ -193,7 +193,7 @@ bool LoadOffsetsFromJson(const char* path) {
         OmniGhost::EmbeddedOffsets::Game::Warzone, snapshot, diag);
 
     std::cout << "[OFFSETS] storage=EMBEDDED\n"
-              << "[OFFSETS] game=src\games\Warzone\n"
+              << "[OFFSETS] game=Warzone\n"
               << "[OFFSETS] resource=" << (diag.resourceFound ? "FOUND" : "MISSING") << "\n"
               << "[OFFSETS] resource_size=" << diag.resourceSize << "\n"
               << "[OFFSETS] header=" << (diag.headerValid ? "PASS" : "FAIL") << "\n"

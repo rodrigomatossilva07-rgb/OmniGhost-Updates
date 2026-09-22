@@ -199,7 +199,7 @@ bool Refresh() {
     runtime.entity_count = static_cast<int>(count);
 
     if (arr && count) {
-        const uint32_t maxN = (std::min)(count, 4096u);
+        const uint32_t maxN = (std::min)(count, 256u);
         for (uint32_t i = 0; i < maxN; ++i) {
             uint64_t ent = 0;
             if (!Rd(arr + static_cast<uintptr_t>(i) * 8ull, ent) || !ent)

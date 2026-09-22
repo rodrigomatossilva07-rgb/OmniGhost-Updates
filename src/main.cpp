@@ -529,6 +529,7 @@ while (application.shouldRun && !authenticated) {
         case Launcher::GameId::Warzone: pending_game = ActiveGame::Warzone; break;
         case Launcher::GameId::Valorant: pending_game = ActiveGame::Valorant; break;
         case Launcher::GameId::Fortnite: pending_game = ActiveGame::Fortnite; break;
+        case Launcher::GameId::Rust: pending_game = ActiveGame::Rust; break;
         case Launcher::GameId::FiveM: pending_game = ActiveGame::FiveM; break;
         default: pending_game = ActiveGame::FiveM; break;
     }
@@ -627,6 +628,33 @@ while (application.shouldRun && !authenticated) {
     if (!game_present_before_attach) {
         startResult = { false, { OmniGhost::Launcher::AdapterErrorCode::AttachFailed,
             "Jogo não encontrado. Está aberto?" } };
+    } else if (selected == Launcher::GameId::Rust) {
+        std::atomic<bool> attachFinished{false};
+        std::jthread attachWorker([&](std::stop_token) {
+            startResult = OmniGhost::Launcher::StartGameAdapter(selected);
+            attachFinished.store(true, std::memory_order_release);
+        });
+        while (application.shouldRun && !attachFinished.load(std::memory_order_acquire)) {
+            application.StartRender();
+            const ImVec2 ds = ImGui::GetIO().DisplaySize;
+            ImGui::SetNextWindowPos(ImVec2(0, 0));
+            ImGui::SetNextWindowSize(ds);
+            ImGui::Begin("##rust_attach", nullptr,
+                ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
+                ImGuiWindowFlags_NoSavedSettings);
+            ImGui::GetWindowDrawList()->AddRectFilled(
+                ImVec2(0, 0), ds, IM_COL32(8, 8, 10, 245));
+            const char* title = "A ligar ao Rust";
+            const ImVec2 size = ImGui::CalcTextSize(title);
+            ImGui::SetCursorPos(ImVec2((ds.x - size.x) * .5f, ds.y * .42f));
+            ImGui::TextUnformatted(title);
+            ImGui::SetCursorPosX(ds.x * .5f - 120.f);
+            ImGui::TextDisabled("A verificar DMA e GameAssembly...");
+            ImGui::End();
+            application.EndRender();
+            std::this_thread::sleep_for(std::chrono::milliseconds(16));
+        }
+        if (attachWorker.joinable()) attachWorker.join();
     } else {
         startResult = OmniGhost::Launcher::StartGameAdapter(selected);
     }
