@@ -117,10 +117,17 @@ static uint32_t ReadPeSizeOfImage(uintptr_t module_base) {
     return size_of_image;
 }
 
-// cheatoffsets decrypt_world: rotl64(encoded - sub, rol) ^ xor_key
+// Current dump: world = encoded * mul + add (uint64 modular arithmetic).
+// Legacy: rotl64(encoded - sub, rol) ^ xor_key when mul/add are zero.
 static uintptr_t DecryptGWorld(uint64_t encoded) {
     if (!offsets.gworld_encoded)
         return static_cast<uintptr_t>(encoded);
+    if (offsets.gworld_mul != 0) {
+        const uint64_t world =
+            offsets.gworld_mul * encoded + offsets.gworld_add;
+        return static_cast<uintptr_t>(world);
+    }
+    // Legacy rot_xor path
     const uint64_t v = encoded - offsets.gworld_sub;
     const uint32_t r = offsets.gworld_rol & 63u;
     const uint64_t rotated = (v << r) | (v >> ((64u - r) & 63u));
@@ -507,20 +514,23 @@ bool LoadOffsetsFromJson(const char* path) {
     set({"globals.GNames", "engine.GNames", "GNames"}, next.gnames);
     set({"globals.ProcessEvent", "engine.ProcessEvent", "ProcessEvent"}, next.process_event);
 
-    // GWorld crypto (encoded by default when dump provides keys)
+    // GWorld crypto (mul_add preferred; rot_xor legacy)
     {
-        std::uint64_t sub = 0, xor_key = 0, rol = 0;
+        std::uint64_t mul = 0, add = 0, sub = 0, xor_key = 0, rol = 0;
+        if (TryGetAny(loaded.snapshot, {"gworld_crypto.world_mul", "engine.world_mul", "Engine.world_mul"}, mul) && mul)
+            next.gworld_mul = mul;
+        if (TryGetAny(loaded.snapshot, {"gworld_crypto.world_add", "engine.world_add", "Engine.world_add"}, add))
+            next.gworld_add = add;
         if (TryGetAny(loaded.snapshot, {"gworld_crypto.sub", "gworld_crypto.sub_decimal"}, sub) && sub)
             next.gworld_sub = sub;
         if (TryGetAny(loaded.snapshot, {"gworld_crypto.xor_key"}, xor_key) && xor_key)
             next.gworld_xor = xor_key;
         if (TryGetAny(loaded.snapshot, {"gworld_crypto.rol_amt"}, rol) && rol)
             next.gworld_rol = static_cast<uint32_t>(rol);
-        // Presence of crypto block => encoded; note field is boolean-ish in JSON
         std::uint64_t enc_flag = 0;
         if (TryGetAny(loaded.snapshot, {"gworld_crypto.encoded"}, enc_flag))
             next.gworld_encoded = (enc_flag != 0);
-        else if (sub || xor_key)
+        else if (mul || sub || xor_key)
             next.gworld_encoded = true;
     }
 
@@ -564,9 +574,37 @@ bool LoadOffsetsFromJson(const char* path) {
         // Prefer explicit absolute fields from previous layout if JSON has MinimalViewInfo only as relative 0
     }
     // Keep proven absolute PCM camera fields when present as full offsets in prior seeds
-    set({"GameStateBase.PlayerArray", "AGameStateBase.PlayerArray"}, next.game_state_player_array);
-    set({"FortPawn.CurrentWeapon", "AFortPawn.CurrentWeapon"}, next.fort_pawn_current_weapon);
-    set({"FortPlayerStateAthena.TeamIndex", "AFortPlayerStateAthena.TeamIndex"}, next.fort_ps_team_index);
+    set({"GameStateBase.PlayerArray", "AGameStateBase.PlayerArray",
+         "agame_state_base.PlayerArray", "dump_structs.agame_state_base.PlayerArray"},
+        next.game_state_player_array);
+    set({"FortPawn.CurrentWeapon", "AFortPawn.CurrentWeapon",
+         "afort_pawn.CurrentWeapon", "dump_structs.afort_pawn.CurrentWeapon"},
+        next.fort_pawn_current_weapon);
+    set({"FortPlayerStateAthena.TeamIndex", "AFortPlayerStateAthena.TeamIndex",
+         "afort_player_state_athena.TeamIndex", "dump_structs.afort_player_state_athena.TeamIndex"},
+        next.fort_ps_team_index);
+
+    // dump_structs paths: update data/fortnite_offsets.json only after patches
+    set({"dump_structs.uworld.PersistentLevel", "uworld.PersistentLevel"}, next.world_persistent_level);
+    set({"dump_structs.uworld.GameState", "uworld.GameState"}, next.world_game_state);
+    set({"dump_structs.uworld.Levels", "uworld.Levels"}, next.world_levels);
+    set({"dump_structs.uworld.OwningGameInstance", "uworld.OwningGameInstance"}, next.world_owning_game_instance);
+    set({"dump_structs.ugame_instance.LocalPlayers", "ugame_instance.LocalPlayers"}, next.gi_local_players);
+    set({"dump_structs.aplayer_controller.AcknowledgedPawn", "aplayer_controller.AcknowledgedPawn"}, next.pc_acknowledged_pawn);
+    set({"dump_structs.aplayer_controller.PlayerCameraManager", "aplayer_controller.PlayerCameraManager"}, next.pc_player_camera_manager);
+    set({"dump_structs.aactor.RootComponent", "aactor.RootComponent"}, next.actor_root_component);
+    set({"dump_structs.uscene_component.RelativeLocation", "uscene_component.RelativeLocation"}, next.scene_relative_location);
+    set({"dump_structs.uscene_component.RelativeRotation", "uscene_component.RelativeRotation"}, next.scene_relative_rotation);
+    set({"dump_structs.uscene_component.ComponentVelocity", "uscene_component.ComponentVelocity"}, next.scene_component_velocity);
+    set({"dump_structs.acharacter.Mesh", "acharacter.Mesh"}, next.character_mesh);
+    set({"dump_structs.apawn.PlayerState", "apawn.PlayerState"}, next.pawn_player_state);
+    set({"dump_structs.apawn.Controller", "apawn.Controller"}, next.pawn_controller);
+    set({"dump_structs.aplayer_camera_manager.CameraCachePrivate", "aplayer_camera_manager.CameraCachePrivate"}, next.pcm_camera_cache_private);
+    if (next.pcm_camera_cache_private) {
+        next.pcm_cam_location = next.pcm_camera_cache_private + 0x10;
+        next.pcm_cam_rotation = next.pcm_camera_cache_private + 0x28;
+        next.pcm_cam_fov = next.pcm_camera_cache_private + 0x40;
+    }
 
     // Static string pointers for build/cl — store into thread-local buffers
     static char build_buf[32] = {};
@@ -588,8 +626,17 @@ bool LoadOffsetsFromJson(const char* path) {
     std::cout << "[Fortnite] offsets loaded storage=" << loaded.storage
               << " GWorld=0x" << std::hex << offsets.gworld
               << " encoded=" << (offsets.gworld_encoded ? "YES" : "NO")
-              << " GEngine=0x" << offsets.gengine
+              << " mul=0x" << offsets.gworld_mul
+              << " add=0x" << offsets.gworld_add
+              << " GS=0x" << offsets.world_game_state
+              << " GI=0x" << offsets.world_owning_game_instance
+              << " Team=0x" << offsets.fort_ps_team_index
+              << " Weapon=0x" << offsets.fort_pawn_current_weapon
               << " build=" << offsets.build << "-CL-" << offsets.cl << std::dec << "\n";
+    if (loaded.from_external_json)
+        std::cout << "[Fortnite] source=data/fortnite_offsets.json (edit JSON only)\n";
+    else
+        std::cout << "[Fortnite] source=embedded — edit data/fortnite_offsets.json + rebuild Publish\n";
     return true;
 }
 

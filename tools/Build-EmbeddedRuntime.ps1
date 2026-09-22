@@ -45,11 +45,6 @@ function Add-RuntimeFile([string]$Source, [string]$Relative) {
     if ([string]::IsNullOrWhiteSpace($relativePath) -or $relativePath.Contains('../')) {
         throw "Invalid embedded runtime path: $Relative"
     }
-    # MemProcFS supports pdbcrust as its local PDB backend. Shipping the private
-    # Microsoft dbghelp/symsrv pair as well only duplicates the same optional
-    # capability; crash dumps use the Windows System32 dbghelp explicitly.
-    if ($relativePath -ieq 'libs/dbghelp.dll') { return }
-    if ($relativePath -ieq 'libs/symsrv.dll') { return }
     # In the explicitly private prototype these two libraries are linked from
     # their preserved upstream source trees. Do not leave dead DLL resources in
     # the PE and do not materialize them at runtime.
@@ -162,9 +157,6 @@ foreach ($file in Get-ChildItem -LiteralPath (Join-Path $ProjectDir 'libs') -Fil
 # Add cloudflared and vcruntime to embedded list
 if ($files.ContainsKey('libs/cloudflared.exe')) { $embeddedList += 'libs/cloudflared.exe' }
 if ($files.ContainsKey('libs/vcruntime140.dll')) { $embeddedList += 'libs/vcruntime140.dll' }
-# Explicit skips
-$skippedList += 'libs/dbghelp.dll (explicit skip)'
-$skippedList += 'libs/symsrv.dll (explicit skip)'
 if ($privateStatic) {
     $skippedList += 'libs/vmm.dll (privateStatic skip)'
     $skippedList += 'libs/leechcore.dll (privateStatic skip)'

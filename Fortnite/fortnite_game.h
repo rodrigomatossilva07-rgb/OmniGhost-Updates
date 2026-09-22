@@ -39,19 +39,25 @@ struct Config {
     float col_local[4] = {0.2f, 0.9f, 1.f, 1.f};
 };
 
-// cheatoffsets.com/g/fortnite — GWorld is ENCODED (see gworld_crypto).
-// Decrypt: rotl64(encoded - sub, rol) ^ xor_key. Fallback: GEngine -> Viewport -> World.
+// GWorld is ENCODED (see gworld_crypto in data/fortnite_offsets.json).
+// Decrypt (current dump): world = encoded * world_mul + world_add (uint64 wrap).
+// Legacy dumps may still use rotl64(encoded - sub, rol) ^ xor_key.
+// Fallback: GEngine -> Viewport -> World.
 struct Offsets {
-    uintptr_t gworld = 0x1A73C8B0;   // encoded slot RVA
-    uintptr_t gnames = 0x1A5EF440;
-    uintptr_t gengine = 0x1A73E298;
-    uintptr_t process_event = 0x00133316;
+    uintptr_t gworld = 0x1B2C5BA0;   // encoded slot RVA
+    uintptr_t gnames = 0;
+    uintptr_t gengine = 0;
+    uintptr_t process_event = 0;
 
-    // GWorld crypto (cheatoffsets decrypt_world)
+    // GWorld crypto
     bool gworld_encoded = true;
-    uint64_t gworld_sub = 25199075ULL;       // 0x01807C63
-    uint32_t gworld_rol = 13;
-    uint64_t gworld_xor = 0x30A8E859ULL;
+    // Method: "mul_add" (current) or "rot_xor" (legacy)
+    uint64_t gworld_mul = 0x6501B96661E130DDULL;
+    uint64_t gworld_add = 0x79D95BD19230E74DULL;
+    // Legacy rot_xor fields (kept for older JSON snapshots)
+    uint64_t gworld_sub = 0;
+    uint32_t gworld_rol = 0;
+    uint64_t gworld_xor = 0;
 
     uintptr_t engine_game_viewport = 0xB70;
 
@@ -60,11 +66,11 @@ struct Offsets {
 
     uintptr_t world_persistent_level = 0x38;
     uintptr_t world_net_driver = 0x40;
-    uintptr_t world_game_state = 0x1C8;
-    uintptr_t world_levels = 0x1E0;
-    uintptr_t world_owning_game_instance = 0x240;
+    uintptr_t world_game_state = 0x1C0;
+    uintptr_t world_levels = 0x1D8;
+    uintptr_t world_owning_game_instance = 0x238;
 
-    uintptr_t level_actor_cluster = 0xE8;
+    uintptr_t level_actor_cluster = 0x88;
     uintptr_t level_world_settings = 0x2C0;
     uintptr_t level_actors = 0x28;
 
@@ -94,10 +100,10 @@ struct Offsets {
     uintptr_t pcm_cam_fov = 0x15D0;
 
     uintptr_t game_state_player_array = 0x288;
-    uintptr_t fort_pawn_current_weapon = 0x998;
-    uintptr_t fort_ps_team_index = 0xF31;
+    uintptr_t fort_pawn_current_weapon = 0x9D0;
+    uintptr_t fort_ps_team_index = 0xF69;
 
-    const char* build = "cheatoffsets";
+    const char* build = "user-dump-2026-09-22";
     const char* cl = "";
 };
 
@@ -171,7 +177,7 @@ extern Config config;
 extern Offsets offsets;
 extern Runtime runtime;
 
-// Loads offsets from embedded RCDATA in Release builds.
+// Loads offsets from data/fortnite_offsets.json (Tester) or embedded RCDATA (Release).
 // Edit ONLY data/fortnite_offsets.json to update after a game patch, then rebuild Release.
 bool LoadOffsetsFromJson(const char* path = nullptr);
 bool ReloadOffsets();

@@ -112,7 +112,21 @@ foreach ($item in $items) {
     }
 }
 if ($null -eq ('OmniGhostLzms' -as [type])) {
-    Add-Type -TypeDefinition @'
+    # Add-Type invokes the C# compiler, which treats every LIB entry as a
+    # compiler search path. A partially initialized VS environment can leave
+    # relative entries such as "lib\um\x64" there; those are warnings-as-errors
+    # even though this P/Invoke-only helper does not link against them.
+    $originalProcessLib = [Environment]::GetEnvironmentVariable('LIB', 'Process')
+    $validLibPaths = @(
+        $originalProcessLib -split ';' | Where-Object {
+            -not [string]::IsNullOrWhiteSpace($_) -and
+            [IO.Path]::IsPathRooted($_) -and
+            (Test-Path -LiteralPath $_ -PathType Container)
+        }
+    )
+    [Environment]::SetEnvironmentVariable('LIB', ($validLibPaths -join ';'), 'Process')
+    try {
+        Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
 public static class OmniGhostLzms {
@@ -136,6 +150,10 @@ public static class OmniGhostLzms {
     }
 }
 '@
+    }
+    finally {
+        [Environment]::SetEnvironmentVariable('LIB', $originalProcessLib, 'Process')
+    }
 }
 function Compress-Lzms([byte[]]$InputBytes) { return [OmniGhostLzms]::CompressBytes($InputBytes) }
 $processedCollisionBytes = [uint64]0

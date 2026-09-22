@@ -32,7 +32,20 @@ foreach ($entry in $required) {
 }
 
 if (-not ('OmniGhost.NativeResourceValidation' -as [type])) {
-    Add-Type -TypeDefinition @'
+    # Add-Type uses the process LIB search path. Ignore relative or absent
+    # entries inherited from an incomplete Visual Studio environment, then
+    # restore the original environment immediately after compilation.
+    $originalProcessLib = [Environment]::GetEnvironmentVariable('LIB', 'Process')
+    $validLibPaths = @(
+        $originalProcessLib -split ';' | Where-Object {
+            -not [string]::IsNullOrWhiteSpace($_) -and
+            [IO.Path]::IsPathRooted($_) -and
+            (Test-Path -LiteralPath $_ -PathType Container)
+        }
+    )
+    [Environment]::SetEnvironmentVariable('LIB', ($validLibPaths -join ';'), 'Process')
+    try {
+        Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
 public static class NativeResourceValidation {
@@ -46,6 +59,10 @@ public static class NativeResourceValidation {
     public static extern uint SizeofResource(IntPtr module, IntPtr resource);
 }
 '@
+    }
+    finally {
+        [Environment]::SetEnvironmentVariable('LIB', $originalProcessLib, 'Process')
+    }
 }
 
 $module = [NativeResourceValidation]::LoadLibraryEx($Executable, [IntPtr]::Zero, 0x00000002)

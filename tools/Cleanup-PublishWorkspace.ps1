@@ -9,7 +9,9 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 $ProjectDir = [IO.Path]::GetFullPath((Join-Path $ProjectDir '.'))
-$targets = @('.cache', 'artifacts', 'build')
+# Keep the successful executable available in build/. Generated state, reports
+# and transient diagnostics are disposable after a validated build.
+$targets = @('.cache', 'artifacts', 'logs', '.temp')
 $failed = $false
 
 if ($Retry) {
