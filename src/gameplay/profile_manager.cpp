@@ -575,14 +575,6 @@ namespace Gameplay::ProfileManager {
         pm.SetSetting(fivem_legit, "esp_enabled", SettingValue{SettingValue::Type::Bool, .bool_val = true});
         fivem_legit->tags = {"legit", "fivem", "roleplay"};
         
-        // Rust Legit
-        auto* rust_legit = pm.CreateProfile("Rust Legit", GameType::Rust, ProfileType::Legit);
-        rust_legit->description = "Legitimate Rust settings";
-        pm.SetSetting(rust_legit, "aim_fov", SettingValue{SettingValue::Type::Float, .float_val = 4.0f});
-        pm.SetSetting(rust_legit, "aim_smooth", SettingValue{SettingValue::Type::Float, .float_val = 12.0f});
-        pm.SetSetting(rust_legit, "esp_enabled", SettingValue{SettingValue::Type::Bool, .bool_val = true});
-        rust_legit->tags = {"legit", "rust", "survival"};
-        
         // Warzone Legit
         auto* wz_legit = pm.CreateProfile("Warzone Legit", GameType::Warzone, ProfileType::Legit);
         wz_legit->description = "Legitimate Warzone settings";
@@ -596,7 +588,6 @@ namespace Gameplay::ProfileManager {
         switch (game) {
             case GameType::FiveM: return "FiveM";
             case GameType::CS2: return "Counter-Strike 2";
-            case GameType::Rust: return "Rust";
             case GameType::Warzone: return "Warzone";
             case GameType::Valorant: return "Valorant";
             case GameType::Fortnite: return "Fortnite";

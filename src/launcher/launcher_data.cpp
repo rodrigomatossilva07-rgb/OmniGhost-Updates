@@ -21,7 +21,8 @@ namespace fs = std::filesystem;
 namespace Launcher {
 namespace {
 
-constexpr unsigned kLauncherStateSchema = 2;
+constexpr unsigned kLauncherStateSchema = 3;
+constexpr std::size_t kRecentSessionLimit = 4;
 
 constexpr GameDefinition kGames[] = {
     {
@@ -58,8 +59,8 @@ constexpr GameDefinition kGames[] = {
         "resources/games/rust/logo.png",
         "resources/games/rust/banner.png",
         "Beta",
-        false,
         true,
+        false,
         { 40, 28, 22 }, { 18, 12, 10 }, { 212, 175, 55 },
         "R", "launcher.game.rust.tagline"
     },
@@ -130,6 +131,7 @@ constexpr std::array<UpdateDefinition, 0> kUpdates{};
 
 std::unordered_set<std::string> g_read_updates;
 std::unordered_map<int, GameHistory> g_game_history;
+std::unordered_map<int, std::chrono::steady_clock::time_point> g_active_sessions;
 GameId g_last_played = GameId::None;
 bool g_state_loaded = false;
 
@@ -187,6 +189,12 @@ void SaveLauncherState() {
                      << static_cast<int>(history.lastResult) << '|'
                      << SanitizeStateText(history.detail) << '\n';
             }
+            if (history.sessionCount || history.totalActiveSeconds)
+                file << "time=" << gameId << '|' << history.sessionCount << '|'
+                     << history.totalActiveSeconds << '|' << history.lastSessionSeconds << '\n';
+            for (const auto& session : history.recentSessions)
+                file << "session=" << gameId << '|' << session.endedUnix << '|'
+                     << session.activeSeconds << '|' << static_cast<int>(session.result) << '\n';
         }
         file.flush();
         if (!file) {
@@ -284,6 +292,7 @@ const char* SessionResultLabel(SessionResult result) {
 void LoadLauncherState() {
     g_read_updates.clear();
     g_game_history.clear();
+    g_active_sessions.clear();
     g_last_played = GameId::None;
 
     std::ifstream file(StatePath());
@@ -344,6 +353,35 @@ void LoadLauncherState() {
                 history.lastResult = SessionResult::None;
             }
             history.detail = detail;
+            continue;
+        }
+        if (line.rfind("time=", 0) == 0 || line.rfind("session=", 0) == 0) {
+            const bool isSession = line.rfind("session=", 0) == 0;
+            std::istringstream stream(line.substr(isSession ? 8 : 5));
+            std::string gameId, first, second, third;
+            if (!std::getline(stream, gameId, '|') ||
+                !std::getline(stream, first, '|') ||
+                !std::getline(stream, second, '|') ||
+                !std::getline(stream, third)) continue;
+            const GameId id = ParseGameId(gameId);
+            if (id == GameId::None) continue;
+            try {
+                const auto a = std::stoull(first);
+                const auto b = std::stoull(second);
+                const auto c = std::stoull(third);
+                GameHistory& history = g_game_history[static_cast<int>(id)];
+                if (isSession) {
+                    if (history.recentSessions.size() < kRecentSessionLimit &&
+                        c <= static_cast<unsigned>(SessionResult::GameNotFound))
+                        history.recentSessions.push_back({a, b, static_cast<SessionResult>(c)});
+                } else {
+                    history.sessionCount = static_cast<std::uint32_t>((std::min)(a, static_cast<unsigned long long>(UINT32_MAX)));
+                    history.totalActiveSeconds = b;
+                    history.lastSessionSeconds = c;
+                }
+            } catch (...) {
+                // Ignore a damaged entry while retaining the rest of the state.
+            }
         }
     }
     // Unknown newer schemas keep recognized keys but are never rewritten just
@@ -424,9 +462,49 @@ void RecordGameSession(GameId id, SessionResult result, const std::string& detai
     SaveLauncherState();
 }
 
+void BeginTimedGameSession(GameId id) {
+    if (id == GameId::None) return;
+    if (!g_state_loaded) LoadLauncherState();
+    g_active_sessions[static_cast<int>(id)] = std::chrono::steady_clock::now();
+}
+
+void EndTimedGameSession(GameId id, SessionResult result, const std::string& detail) {
+    if (id == GameId::None) return;
+    if (!g_state_loaded) LoadLauncherState();
+    const auto it = g_active_sessions.find(static_cast<int>(id));
+    if (it != g_active_sessions.end()) {
+        const auto elapsed = std::chrono::steady_clock::now() - it->second;
+        const auto seconds = (std::max<std::int64_t>)(0,
+            std::chrono::duration_cast<std::chrono::seconds>(elapsed).count());
+        GameHistory& history = g_game_history[static_cast<int>(id)];
+        history.lastSessionSeconds = static_cast<std::uint64_t>(seconds);
+        history.totalActiveSeconds += history.lastSessionSeconds;
+        if (history.sessionCount < UINT32_MAX) ++history.sessionCount;
+        history.recentSessions.insert(history.recentSessions.begin(),
+            {UnixNow(), history.lastSessionSeconds, result});
+        if (history.recentSessions.size() > kRecentSessionLimit)
+            history.recentSessions.resize(kRecentSessionLimit);
+        g_active_sessions.erase(it);
+    }
+    RecordGameSession(id, result, detail);
+}
+
 GameId LastPlayedGame() {
     if (!g_state_loaded) LoadLauncherState();
     return app_settings::config.remember_last_game ? g_last_played : GameId::None;
+}
+
+GameId MostRecentHistoryGame() {
+    if (!g_state_loaded) LoadLauncherState();
+    GameId mostRecent = GameId::None;
+    std::uint64_t latest = 0;
+    for (const auto& [key, history] : g_game_history) {
+        if (history.lastUsedUnix > latest && FindGame(static_cast<GameId>(key))) {
+            latest = history.lastUsedUnix;
+            mostRecent = static_cast<GameId>(key);
+        }
+    }
+    return mostRecent;
 }
 
 void ForgetLastPlayedGame() {

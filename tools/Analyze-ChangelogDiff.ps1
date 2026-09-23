@@ -110,7 +110,7 @@ try {
                     type = 'object'; additionalProperties = $false
                     required = @('id', 'name', 'changes')
                     properties = [ordered]@{
-                        id = @{ type = 'string'; enum = @('core','fivem','cs2','rust','warzone','valorant','apex','other') }
+                        id = @{ type = 'string'; enum = @('core','fivem','cs2','warzone','valorant','apex','other') }
                         name = @{ type = 'string'; minLength = 1; maxLength = 100 }
                         changes = [ordered]@{
                             type = 'array'; maxItems = 30
@@ -176,7 +176,7 @@ $($diffBuilder.ToString())
     $allow = @{}
     foreach ($path in $analyzedChanged) { $allow[(Normalize-Path $path).ToLowerInvariant()] = $true }
     $validTypes = @('added','improved','fixed','performance','compatibility','security','removed','breaking','maintenance')
-    $validIds = @('core','fivem','cs2','rust','warzone','valorant','apex','other')
+    $validIds = @('core','fivem','cs2','warzone','valorant','apex','other')
     foreach ($module in @($analysis.modules)) {
         if ($validIds -notcontains [string]$module.id) { throw "Módulo inválido: $($module.id)" }
         foreach ($change in @($module.changes)) {

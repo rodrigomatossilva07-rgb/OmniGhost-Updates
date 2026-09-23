@@ -26,6 +26,45 @@ void DrawLauncherModals(ImDrawList* draw, ImVec2 display) {
         return;
     }
 
+    if (g_history_game != GameId::None) {
+        const GameDefinition* game = FindGame(g_history_game);
+        if (!game) {
+            g_history_game = GameId::None;
+            return;
+        }
+        const GameHistory history = GetGameHistory(g_history_game);
+        CyberWidgets::OpenModal("##launcher_session_history");
+        if (!CyberWidgets::BeginModal("##launcher_session_history", "Histórico de sessões", S(500.f)))
+            return;
+        CyberWidgets::TextLine(game->name, CyberWidgets::TextTone::Primary);
+        const std::string total = FormatActiveDuration(history.totalActiveSeconds);
+        const std::string last = FormatActiveDuration(history.lastSessionSeconds);
+        CyberWidgets::KeyValueRow("Sessões com menu ativo", std::to_string(history.sessionCount).c_str());
+        CyberWidgets::KeyValueRow("Tempo total", total.c_str());
+        if (history.sessionCount)
+            CyberWidgets::KeyValueRow("Última sessão", last.c_str());
+        ImGui::Separator();
+        if (history.recentSessions.empty()) {
+            CyberWidgets::TextLine("As próximas sessões concluídas aparecerão aqui.",
+                CyberWidgets::TextTone::Secondary);
+        } else {
+            for (const auto& session : history.recentSessions) {
+                const std::string when = FormatLastUsed(session.endedUnix);
+                const std::string duration = FormatActiveDuration(session.activeSeconds);
+                CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary,
+                    "%s · %s · %s", when.c_str(), duration.c_str(),
+                    SessionResultDisplay(session.result));
+            }
+        }
+        if (CyberWidgets::Button("Fechar", CyberWidgets::ButtonStyle::Secondary,
+                ImVec2(S(105.f), S(34.f))) || ImGui::IsKeyPressed(ImGuiKey_Escape, false)) {
+            g_history_game = GameId::None;
+            ImGui::CloseCurrentPopup();
+        }
+        CyberWidgets::EndModal();
+        return;
+    }
+
     if (g_help_game == GameId::None)
         return;
 

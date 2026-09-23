@@ -56,6 +56,9 @@ void DrawHome(ImVec2 display) {
             CyberWidgets::TextLine("PERFIL LOCAL · SESSÃO PROTEGIDA", CyberWidgets::TextTone::Secondary);
             CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, "Última sessão · %s · %s",
                 SessionResultDisplay(history.lastResult), FormatLastUsed(history.lastUsedUnix).c_str());
+            CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary,
+                "%u sessões · %s de menu ativo", history.sessionCount,
+                FormatActiveDuration(history.totalActiveSeconds).c_str());
             ImGui::Dummy(ImVec2(0, S(8.f)));
             if (IsReadyState(runtime->state)) {
                 if (CyberWidgets::GoldButton(Loc::Tr("launcher.action.continue"), ImVec2(S(150.f), S(34.f))))
@@ -65,7 +68,10 @@ void DrawHome(ImVec2 display) {
             }
         }
     } else {
-        CyberWidgets::EmptyState(Loc::Tr("launcher.last_session"), Loc::Tr("launcher.no_history"));
+        CyberWidgets::EmptyState(Loc::Tr("launcher.last_session"),
+            MostRecentHistoryGame() == GameId::None
+                ? "Abre um menu para começar o teu histórico de sessões."
+                : "Ativa 'Recordar o último jogo' para continuar daqui.");
     }
     CyberWidgets::EndCard();
 
@@ -87,13 +93,19 @@ void DrawHome(ImVec2 display) {
 
     ImGui::Dummy(ImVec2(0, gap));
     CyberWidgets::BeginCard("ATIVIDADE RECENTE", two ? (available - gap) * .5f : available);
-    if (last != GameId::None) {
-        const GameDefinition* game = FindGame(last);
-        const GameHistory history = GetGameHistory(last);
+    const GameId recent = MostRecentHistoryGame();
+    if (recent != GameId::None) {
+        const GameDefinition* game = FindGame(recent);
+        const GameHistory history = GetGameHistory(recent);
         CyberWidgets::KeyValueRow(Loc::Tr("launcher.game"), game ? game->name : "—");
         CyberWidgets::KeyValueRow(Loc::Tr("launcher.result"), SessionResultDisplay(history.lastResult));
         const std::string when = FormatLastUsed(history.lastUsedUnix);
         CyberWidgets::KeyValueRow(Loc::Tr("launcher.when"), when.c_str());
+        const std::string totalTime = FormatActiveDuration(history.totalActiveSeconds);
+        const std::string lastTime = FormatActiveDuration(history.lastSessionSeconds);
+        CyberWidgets::KeyValueRow("Tempo total", totalTime.c_str());
+        if (history.sessionCount)
+            CyberWidgets::KeyValueRow("Última duração", lastTime.c_str());
         if (!history.detail.empty())
             CyberWidgets::TextLine(history.detail.c_str(), CyberWidgets::TextTone::Secondary);
     } else {
@@ -507,6 +519,19 @@ void DrawDiagnostics(ImVec2 display) {
         CyberWidgets::KeyValueRow(Loc::Tr("launcher.offsets"), HasRequiredOffsets(game) ? Loc::Tr("launcher.status.ready") : Loc::Tr("launcher.missing"));
         const GameHistory history = GetGameHistory(game.launch_id);
         CyberWidgets::KeyValueRow(Loc::Tr("launcher.last_session"), SessionResultDisplay(history.lastResult));
+        const std::string totalTime = FormatActiveDuration(history.totalActiveSeconds);
+        const std::string lastTime = FormatActiveDuration(history.lastSessionSeconds);
+        CyberWidgets::KeyValueRow("Sessões com menu ativo", std::to_string(history.sessionCount).c_str());
+        CyberWidgets::KeyValueRow("Tempo total", totalTime.c_str());
+        if (history.sessionCount)
+            CyberWidgets::KeyValueRow("Última duração", lastTime.c_str());
+        for (const auto& session : history.recentSessions) {
+            const std::string when = FormatLastUsed(session.endedUnix);
+            const std::string duration = FormatActiveDuration(session.activeSeconds);
+            CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary,
+                "%s · %s · %s", when.c_str(), duration.c_str(),
+                SessionResultDisplay(session.result));
+        }
         if (!history.detail.empty()) CyberWidgets::TextLine(history.detail.c_str(), CyberWidgets::TextTone::Secondary);
         CyberWidgets::EndCard();
         if (focused) ImGui::PopStyleColor();

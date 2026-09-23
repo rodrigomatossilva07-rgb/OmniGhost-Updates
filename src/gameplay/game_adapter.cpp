@@ -103,9 +103,6 @@ namespace Gameplay::GameAdapter {
                 } else if (name == "fivem.exe" || name == "fivem_gta.exe") {
                     CloseHandle(snapshot);
                     return GameType::FiveM;
-                } else if (name == "rustclient.exe" || name == "rust.exe") {
-                    CloseHandle(snapshot);
-                    return GameType::Rust;
                 } else if (name == "warzone.exe" || name == "modernwarfare.exe") {
                     CloseHandle(snapshot);
                     return GameType::Warzone;
@@ -196,7 +193,6 @@ namespace Gameplay::GameAdapter {
                 
                 if (name == "cs2.exe") available.push_back(GameType::CS2);
                 else if (name == "fivem.exe" || name == "fivem_gta.exe") available.push_back(GameType::FiveM);
-                else if (name == "rustclient.exe" || name == "rust.exe") available.push_back(GameType::Rust);
                 else if (name == "warzone.exe" || name == "modernwarfare.exe") available.push_back(GameType::Warzone);
                 else if (name == "valorant.exe" || name == "valorant-win64-shipping.exe") available.push_back(GameType::Valorant);
                 else if (name == "fortniteclient-win64-shipping.exe") available.push_back(GameType::Fortnite);
@@ -256,21 +252,10 @@ namespace Gameplay::GameAdapter {
     }
 
     bool GameLauncher::IsGameRunning(GameType game) const {
-        const char* process_names[] = {
-            [GameType::CS2] = "cs2.exe",
-            [GameType::FiveM] = "fivem.exe",
-            [GameType::Rust] = "rustclient.exe",
-            [GameType::Warzone] = "warzone.exe",
-            [GameType::Valorant] = "valorant.exe",
-            [GameType::Fortnite] = "fortniteclient-win64-shipping.exe",
-            [GameType::Apex] = "r5apex.exe"
-        };
-        
         const char* target = nullptr;
         switch (game) {
             case GameType::CS2: target = "cs2.exe"; break;
             case GameType::FiveM: target = "fivem.exe"; break;
-            case GameType::Rust: target = "rustclient.exe"; break;
             case GameType::Warzone: target = "warzone.exe"; break;
             case GameType::Valorant: target = "valorant.exe"; break;
             case GameType::Fortnite: target = "fortniteclient-win64-shipping.exe"; break;
@@ -306,7 +291,6 @@ namespace Gameplay::GameAdapter {
         switch (game) {
             case GameType::CS2: target = "cs2.exe"; break;
             case GameType::FiveM: target = "fivem.exe"; break;
-            case GameType::Rust: target = "rustclient.exe"; break;
             case GameType::Warzone: target = "warzone.exe"; break;
             case GameType::Valorant: target = "valorant.exe"; break;
             case GameType::Fortnite: target = "fortniteclient-win64-shipping.exe"; break;

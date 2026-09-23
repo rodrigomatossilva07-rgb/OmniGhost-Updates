@@ -159,7 +159,7 @@ private:
 	mutable std::mutex scatterMutex_;
 	mutable std::unordered_map<VMMDLL_SCATTER_HANDLE, ScatterGeneration> scatterHandles_;
 
-	// Operation lifecycle. Cancellation is owned by Memory so Rust/other callers do not
+	// Operation lifecycle. Cancellation is owned by Memory so callers do not
 	// have to expose their globals inside Memory.cpp.
 	std::atomic_bool cancelRequested_{ false };
 	std::atomic<uint64_t> cancelEpoch_{ 0 };

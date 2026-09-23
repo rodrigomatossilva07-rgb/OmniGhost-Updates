@@ -23,7 +23,6 @@ namespace Onboarding {
     namespace {
         Step g_current_step = Step::Welcome;
         bool g_active = false;
-        bool g_completed = false;
         std::vector<WizardStep> g_steps;
         
         void InitSteps() {
@@ -87,7 +86,6 @@ namespace Onboarding {
 
     void Initialize() {
         if (g_steps.empty()) InitSteps();
-        g_completed = app_settings::config.onboarding_completed;
     }
 
     void Shutdown() {
@@ -95,11 +93,12 @@ namespace Onboarding {
     }
 
     bool ShouldRunOnboarding() {
-        return !g_completed && !app_settings::config.onboarding_completed;
+        return !app_settings::config.onboarding_completed ||
+            !app_settings::config.license_accepted;
     }
 
     void Start() {
-        if (g_completed) return;
+        if (!ShouldRunOnboarding()) return;
         g_active = true;
         g_current_step = Step::Welcome;
     }
@@ -168,10 +167,15 @@ namespace Onboarding {
             CyberWidgets::Notify("Accept the License Agreement before finishing setup", CyberWidgets::ToastType::Warning);
             return;
         }
-        g_active = false;
-        g_completed = true;
         app_settings::config.onboarding_completed = true;
-        app_settings::SaveGlobal(nullptr);
+        std::string save_error;
+        if (!app_settings::SaveGlobal(&save_error)) {
+            app_settings::config.onboarding_completed = false;
+            CyberWidgets::Notify(save_error.empty() ? "Could not save setup. Please try again."
+                : save_error.c_str(), CyberWidgets::ToastType::Error);
+            return;
+        }
+        g_active = false;
         CyberWidgets::Notify("Onboarding completed!", CyberWidgets::ToastType::Success);
     }
 
@@ -440,14 +444,13 @@ namespace Onboarding {
                 }
             }
             
+            if (!g_active)
+                ImGui::CloseCurrentPopup();
             ImGui::EndPopup();
         }
         ImGui::PopStyleVar(3);
         ImGui::PopStyleColor(3);
         
-        if (!g_active) {
-            ImGui::CloseCurrentPopup();
-        }
     }
 
     void DrawStepContent(const WizardStep& step) {
@@ -545,17 +548,16 @@ namespace Onboarding {
     }
 
     void SetCompleted(bool completed) {
-        g_completed = completed;
-        app_settings::config.onboarding_completed = completed;
+        app_settings::config.onboarding_completed = completed &&
+            app_settings::config.license_accepted;
         app_settings::SaveGlobal(nullptr);
     }
 
     bool IsCompleted() {
-        return g_completed || app_settings::config.onboarding_completed;
+        return !ShouldRunOnboarding();
     }
 
     void Reset() {
-        g_completed = false;
         g_active = false;
         g_current_step = Step::Welcome;
         app_settings::config.onboarding_completed = false;

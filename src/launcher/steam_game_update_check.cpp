@@ -19,9 +19,8 @@ namespace fs = std::filesystem;
 using Clock = std::chrono::steady_clock;
 
 struct GameQuery { GameId game; unsigned appId; const wchar_t* offsetsFile; };
-constexpr std::array<GameQuery, 3> kGames{{
+constexpr std::array<GameQuery, 2> kGames{{
     {GameId::CS2, 730, L"cs2_offsets.json"},
-    {GameId::Rust, 252490, L"rust_offsets.json"},
     {GameId::Warzone, 1938090, L"warzone_offsets.json"},
 }};
 

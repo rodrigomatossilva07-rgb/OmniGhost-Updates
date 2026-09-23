@@ -11,7 +11,6 @@ namespace Gameplay::ProfileManager {
     enum class GameType : int {
         FiveM = 0,
         CS2 = 1,
-        Rust = 2,
         Warzone = 3,
         Valorant = 4,
         Fortnite = 5,

@@ -30,6 +30,7 @@
 #include "../window/InputDevicesCard.h"
 #include "../platform/monitor_utils.h"
 #include "../window/window.hpp"
+#include "../window/onboarding.h"
 #include "../globals.h"
 #include "../auth/local_auth_service.h"
 #include "../licensing/license_service.h"
@@ -131,6 +132,7 @@ std::vector<GameRuntime> g_games;
 GameId g_selected = GameId::None;
 GameId g_detail_game = GameId::None;
 GameId g_help_game = GameId::None;
+GameId g_history_game = GameId::None;
 GameId g_reset_settings_game = GameId::None;
 GameId g_card_menu_game = GameId::None;
 float g_time = 0.f;
@@ -183,6 +185,7 @@ void Reset(EntryReason reason) {
     g_keyboard_active = false;
     g_profile_menu_open = false;
     g_help_game = GameId::None;
+    g_history_game = GameId::None;
     g_reset_settings_game = GameId::None;
     g_card_menu_game = GameId::None;
     // Let the UI transition settle before the first remote process inventory.
@@ -250,6 +253,7 @@ void Reset(EntryReason reason) {
 }
 
 bool Draw() {
+    const bool onboardingRequired = Onboarding::ShouldRunOnboarding();
     float delta = ImGui::GetIO().DeltaTime;
     if (delta > .05f) delta = .05f;
     g_time += delta;
@@ -268,6 +272,7 @@ bool Draw() {
 
     if (GetAsyncKeyState(VK_ESCAPE) & 1) {
         if (g_help_game != GameId::None) g_help_game = GameId::None;
+        else if (g_history_game != GameId::None) g_history_game = GameId::None;
         else if (g_reset_settings_game != GameId::None) g_reset_settings_game = GameId::None;
         else if (g_card_menu_game != GameId::None) g_card_menu_game = GameId::None;
         else if (g_profile_menu_open) g_profile_menu_open = false;
@@ -347,6 +352,19 @@ bool Draw() {
     DrawFooter(foreground, display);
     OmniGhost::UpdateUI::Draw();
     DrawLauncherModals(foreground, display);
+    if (onboardingRequired && !Onboarding::IsActive())
+        Onboarding::Start();
+    Onboarding::DrawWizard();
+    if (onboardingRequired) {
+        g_selected = GameId::None;
+        for (GameRuntime& game : g_games) {
+            if (game.state == CardState::Launching) {
+                game.state = ResolveRuntimeState(game);
+                game.launch_timer = 0.f;
+            }
+        }
+        return false;
+    }
     return launch_ready && g_selected != GameId::None;
 }
 

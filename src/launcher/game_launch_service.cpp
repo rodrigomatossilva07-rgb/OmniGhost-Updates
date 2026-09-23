@@ -75,9 +75,6 @@ bool IsProcessPresent(::Launcher::GameId selected) {
                mem.GetPidFromName("FortniteClient-Win64-Shipping_EAC_EOS.exe") != 0 ||
                mem.GetPidFromName("Fortnite.exe") != 0;
     case ::Launcher::GameId::FiveM: return !FindFiveMProcessViaDma().empty();
-    case ::Launcher::GameId::Rust:
-        return mem.GetPidFromName("RustClient.exe") != 0 ||
-               mem.GetPidFromName("Rust.exe") != 0;
     default: return false;
     }
 }

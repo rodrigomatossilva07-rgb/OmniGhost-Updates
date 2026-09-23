@@ -608,6 +608,7 @@ void DrawCardContextMenu(const GameDefinition& game, ImVec2 anchor) {
     struct MenuAction { const char* label; int action; };
     const GameHistory history = GetGameHistory(game.launch_id);
     const MenuAction actions[] = {
+        {"Histórico de sessões", 5},
         {Loc::Tr("launcher.action.diagnostics"), 0},
         {Loc::Tr("launcher.action.refresh_offsets"), 1},
         {Loc::Tr("launcher.action.reset_settings"), 2},
@@ -625,6 +626,9 @@ void DrawCardContextMenu(const GameDefinition& game, ImVec2 anchor) {
             ImGui::CloseCurrentPopup();
 
             switch (item.action) {
+            case 5:
+                g_history_game = game.launch_id;
+                break;
             case 0:
                 g_detail_game = game.launch_id;
                 ChangeNavigation(static_cast<int>(NavPage::Diagnostics));
@@ -737,15 +741,21 @@ bool DrawGameCard(ImDrawList* draw, ImVec2 min, ImVec2 max,
     draw->AddText(ImVec2(card_min.x + S(20.f), art_max.y + S(38.f)), WithAlpha(C_MUTED(), alpha), Loc::Tr(game.description));
 
     const GameHistory history = GetGameHistory(game.launch_id);
-    std::string used = FormatLastUsed(history.lastUsedUnix);
     char historyLine[180]{};
-    if (history.lastUsedUnix) {
-        std::snprintf(historyLine, sizeof(historyLine), "Última sessão: %s  ·  %s",
-            SessionResultDisplay(history.lastResult), used.c_str());
+    if (history.sessionCount) {
+        std::snprintf(historyLine, sizeof(historyLine), "%u %s  ·  %s de menu ativo",
+            history.sessionCount, history.sessionCount == 1 ? "sessão" : "sessões",
+            FormatActiveDuration(history.totalActiveSeconds).c_str());
+    } else if (history.lastUsedUnix) {
+        std::snprintf(historyLine, sizeof(historyLine), "Última tentativa: %s",
+            SessionResultDisplay(history.lastResult));
     } else {
-        std::snprintf(historyLine, sizeof(historyLine), "%s", Loc::Tr("launcher.no_history"));
+        std::snprintf(historyLine, sizeof(historyLine), "0 sessões  ·  0s de menu ativo");
     }
+    draw->PushClipRect(ImVec2(card_min.x + S(16.f), card_max.y - S(70.f)),
+        ImVec2(card_max.x - S(16.f), card_max.y - S(49.f)), true);
     draw->AddText(ImVec2(card_min.x + S(20.f), card_max.y - S(66.f)), WithAlpha(C_MUTED2(), alpha), historyLine);
+    draw->PopClipRect();
 
     const SteamGameUpdateCheck::Status steamStatus = SteamGameUpdateCheck::Get(game.launch_id);
     const EpicGameUpdateCheck::Status epicStatus = EpicGameUpdateCheck::Get(game.launch_id);

@@ -708,8 +708,6 @@ namespace Gameplay::UnifiedAim {
             aimbot->current_bone_mapping_ = Gameplay::BoneSystem::GetGameMapping("FiveM");
         } else if (strcmp(game_name, "CS2") == 0) {
             aimbot->current_bone_mapping_ = Gameplay::BoneSystem::GetGameMapping("CS2");
-        } else if (strcmp(game_name, "Rust") == 0) {
-            aimbot->current_bone_mapping_ = Gameplay::BoneSystem::GetGameMapping("Rust");
         } else if (strcmp(game_name, "Warzone") == 0) {
             aimbot->current_bone_mapping_ = Gameplay::BoneSystem::GetGameMapping("Warzone");
         } else if (strcmp(game_name, "Valorant") == 0) {

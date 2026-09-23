@@ -6,6 +6,7 @@
 #include "app_version.h"
 #include "window/window.hpp"
 #include "window/theme.h"
+#include "window/onboarding.h"
 #include "config/app_settings.h"
 #include "config/config_manager.h"
 #include "launcher/game_select.h"
@@ -495,6 +496,11 @@ while (application.shouldRun && !authenticated) {
         continue;
     }
 
+    if (application.shouldRun && Onboarding::ShouldRunOnboarding() &&
+        selected != Launcher::GameId::None) {
+        nextLauncherEntry = Launcher::EntryReason::Normal;
+        continue;
+    }
     if (!application.shouldRun || selected == Launcher::GameId::None) {
         (void)shutdownCoordinator.ShutdownAll(
             update_service.ShouldExitForUpdate() ? "update-restart" : "launcher-exit");
@@ -529,7 +535,6 @@ while (application.shouldRun && !authenticated) {
         case Launcher::GameId::Warzone: pending_game = ActiveGame::Warzone; break;
         case Launcher::GameId::Valorant: pending_game = ActiveGame::Valorant; break;
         case Launcher::GameId::Fortnite: pending_game = ActiveGame::Fortnite; break;
-        case Launcher::GameId::Rust: pending_game = ActiveGame::Rust; break;
         case Launcher::GameId::FiveM: pending_game = ActiveGame::FiveM; break;
         default: pending_game = ActiveGame::FiveM; break;
     }
@@ -628,33 +633,6 @@ while (application.shouldRun && !authenticated) {
     if (!game_present_before_attach) {
         startResult = { false, { OmniGhost::Launcher::AdapterErrorCode::AttachFailed,
             "Jogo não encontrado. Está aberto?" } };
-    } else if (selected == Launcher::GameId::Rust) {
-        std::atomic<bool> attachFinished{false};
-        std::jthread attachWorker([&](std::stop_token) {
-            startResult = OmniGhost::Launcher::StartGameAdapter(selected);
-            attachFinished.store(true, std::memory_order_release);
-        });
-        while (application.shouldRun && !attachFinished.load(std::memory_order_acquire)) {
-            application.StartRender();
-            const ImVec2 ds = ImGui::GetIO().DisplaySize;
-            ImGui::SetNextWindowPos(ImVec2(0, 0));
-            ImGui::SetNextWindowSize(ds);
-            ImGui::Begin("##rust_attach", nullptr,
-                ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
-                ImGuiWindowFlags_NoSavedSettings);
-            ImGui::GetWindowDrawList()->AddRectFilled(
-                ImVec2(0, 0), ds, IM_COL32(8, 8, 10, 245));
-            const char* title = "A ligar ao Rust";
-            const ImVec2 size = ImGui::CalcTextSize(title);
-            ImGui::SetCursorPos(ImVec2((ds.x - size.x) * .5f, ds.y * .42f));
-            ImGui::TextUnformatted(title);
-            ImGui::SetCursorPosX(ds.x * .5f - 120.f);
-            ImGui::TextDisabled("A verificar DMA e GameAssembly...");
-            ImGui::End();
-            application.EndRender();
-            std::this_thread::sleep_for(std::chrono::milliseconds(16));
-        }
-        if (attachWorker.joinable()) attachWorker.join();
     } else {
         startResult = OmniGhost::Launcher::StartGameAdapter(selected);
     }
@@ -768,6 +746,7 @@ while (application.shouldRun && !authenticated) {
     // Attached OK — fall into game session; on process death re-enter launcher
     // Mesmo comportamento para todos os jogos: menu normal
     app_settings::menu_open = true;
+    Launcher::BeginTimedGameSession(selected);
     application.RenderMenu = false;
 
     const std::uint64_t shutdownGeneration = shutdownCoordinator.BeginSession([&] {
@@ -778,8 +757,6 @@ while (application.shouldRun && !authenticated) {
             Warzone::Shutdown();
         } else if (g_activeGame == ActiveGame::Valorant) {
             Valorant::Detach();
-        } else if (g_activeGame == ActiveGame::Rust) {
-            /* Rust tick handled by adapter */
         } else if (g_activeGame == ActiveGame::Fortnite) {
             Fortnite::Detach();
         } else if (g_activeGame == ActiveGame::FiveM) {
@@ -937,7 +914,7 @@ while (application.shouldRun && !authenticated) {
                                   g_activeGame == ActiveGame::Warzone ? "Warzone" :
                                   g_activeGame == ActiveGame::Valorant ? "Valorant" :
                                   g_activeGame == ActiveGame::Fortnite ? "Fortnite" :
-                                  g_activeGame == ActiveGame::Rust ? "Rust" : "FiveM") 
+                                  "FiveM")
                       << "] " << terminationReason << " — a voltar ao launcher." << std::endl;
             return_to_launcher = true;
         }
@@ -995,13 +972,13 @@ while (application.shouldRun && !authenticated) {
         }
 
         if (!application.shouldRun) {
-            Launcher::RecordGameSession(
+            Launcher::EndTimedGameSession(
                 selected, Launcher::SessionResult::Completed,
                 "Sessão encerrada pelo utilizador.");
             break; // user quit
         }
         if (return_to_launcher) {
-            Launcher::RecordGameSession(
+            Launcher::EndTimedGameSession(
                 selected,
                 return_requested_by_user
                     ? Launcher::SessionResult::Completed

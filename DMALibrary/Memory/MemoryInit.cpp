@@ -1262,7 +1262,7 @@ bool Memory::FixCr3()
 	};
 
 	auto resolve_validation_base = [&]() -> uintptr_t {
-		// 1) Process image (cod.exe, cs2.exe, RustClient.exe, ...)
+		// 1) Process image (cod.exe, cs2.exe, ...)
 		const std::string& proc = current_process.process_name;
 		if (!proc.empty()) {
 			if (uintptr_t b = resolve_module_base(proc.c_str())) return b;

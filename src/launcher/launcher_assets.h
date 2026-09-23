@@ -22,7 +22,6 @@ void Initialize(ID3D11Device* device);
 void Shutdown();
 Texture Logo(Launcher::GameId game);
 Texture Banner(Launcher::GameId game);
-Texture RustEspPreview();
 Texture FiveMEspPreview();
 Texture ProfileAvatar();
 bool IsLoaded(Launcher::GameId game, bool banner = false);

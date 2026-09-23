@@ -12,7 +12,7 @@ namespace {
 namespace fs = std::filesystem;
 using Clock = std::chrono::steady_clock;
 struct GameManifest { GameId game; const char* appName; };
-constexpr std::array<GameManifest, 2> kGames{{ {GameId::Fortnite, "Fortnite"}, {GameId::Rust, "Rust"} }};
+constexpr std::array<GameManifest, 1> kGames{{ {GameId::Fortnite, "Fortnite"} }};
 struct SharedState { std::mutex mutex; std::array<Status, kGames.size()> status{}; std::atomic_bool checking{false}; Clock::time_point lastStart{}; };
 SharedState& Shared() { static SharedState state; return state; }
 bool ContainsApp(std::string_view text, std::string_view appName) {

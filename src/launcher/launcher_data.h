@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace Launcher {
 
@@ -46,6 +47,15 @@ struct GameHistory {
     std::uint64_t lastUsedUnix = 0;
     SessionResult lastResult = SessionResult::None;
     std::string detail;
+    std::uint64_t totalActiveSeconds = 0;
+    std::uint64_t lastSessionSeconds = 0;
+    std::uint32_t sessionCount = 0;
+    struct Session {
+        std::uint64_t endedUnix = 0;
+        std::uint64_t activeSeconds = 0;
+        SessionResult result = SessionResult::None;
+    };
+    std::vector<Session> recentSessions;
 };
 
 struct RgbColor {
@@ -116,7 +126,10 @@ void SetFavorite(GameId id, bool favorite);
 GameHistory GetGameHistory(GameId id);
 void MarkGameUsed(GameId id);
 void RecordGameSession(GameId id, SessionResult result, const std::string& detail = {});
+void BeginTimedGameSession(GameId id);
+void EndTimedGameSession(GameId id, SessionResult result, const std::string& detail = {});
 GameId LastPlayedGame();
+GameId MostRecentHistoryGame();
 void ForgetLastPlayedGame();
 
 } // namespace Launcher

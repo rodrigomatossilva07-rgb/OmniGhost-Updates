@@ -37,7 +37,6 @@ namespace Gameplay::GameAdapter {
         Unknown = 0,
         FiveM = 1,
         CS2 = 2,
-        Rust = 3,
         Warzone = 4,
         Valorant = 5,
         Fortnite = 6,

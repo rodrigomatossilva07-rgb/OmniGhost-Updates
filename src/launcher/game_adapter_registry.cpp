@@ -12,9 +12,6 @@
 #include "src/games/Fivem/aimbot/aim_type.h"
 #include "src/games/Fivem/game/game.h"
 #include "src/games/Fortnite/fortnite_game.h"
-#include "src/games/Rust/rust_game.h"
-#include "src/games/Rust/rust_esp.h"
-#include "src/games/Rust/rust_aim.h"
 #include "src/games/Valorant/valorant_game.h"
 #include "src/games/Valorant/valorant_esp.h"
 #include "src/games/Valorant/valorant_aim.h"
@@ -221,15 +218,6 @@ bool FortniteValidateOffsets() { return Fortnite::ValidateLiveOffsets(); }
 std::string_view FortniteTerminationReason() { return "Processo Fortnite terminou"; }
 ActiveGame FortniteGameId() { return ActiveGame::Fortnite; }
 
-bool StartRustAdapter() {
-    g_activeGame = ActiveGame::Rust;
-    OmniGhost::GameContext::Instance().SetActiveGame(ActiveGame::Rust);
-    return Rust::Attach();
-}
-bool RustIsAliveAdapter() { return Rust::IsAlive(); }
-bool RustValidateOffsetsAdapter() { return Rust::ValidateOffsets(); }
-std::string_view RustTerminationReasonAdapter() { return "Processo Rust terminou"; }
-ActiveGame RustGameIdAdapter() { return ActiveGame::Rust; }
 
 IGameAdapter* FindGameAdapter(::Launcher::GameId game) noexcept {
     using Capability = AdapterCapability;
@@ -305,24 +293,12 @@ IGameAdapter* FindGameAdapter(::Launcher::GameId game) noexcept {
         },
         FortniteIsAlive, FortniteValidateOffsets, FortniteTerminationReason, FortniteGameId);
 
-    static FunctionGameAdapter rust({ ::Launcher::GameId::Rust, "Rust", AdapterMaturity::Beta,
-        Capability::Menu | Capability::ReadOnlyMemory | Capability::Overlay },
-        StartRustAdapter, [] { Rust::Shutdown(); Rust::ready = false; },
-        [] { return std::string_view(Rust::StatusText()); },
-        [] {
-            if (Rust::ready) {
-                Rust::RunFrame();
-            }
-        },
-        RustIsAliveAdapter, RustValidateOffsetsAdapter, RustTerminationReasonAdapter, RustGameIdAdapter);
-
     switch (game) {
     case ::Launcher::GameId::FiveM: return &fivem;
     case ::Launcher::GameId::CS2: return &cs2;
     case ::Launcher::GameId::Warzone: return &warzone;
     case ::Launcher::GameId::Valorant: return &valorant;
     case ::Launcher::GameId::Fortnite: return &fortnite;
-    case ::Launcher::GameId::Rust: return &rust;
     default: return nullptr;
     }
 }

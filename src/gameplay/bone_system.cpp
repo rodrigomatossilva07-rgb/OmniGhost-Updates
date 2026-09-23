@@ -146,15 +146,6 @@ namespace Gameplay::BoneSystem {
                 }
             },
             {
-                "Rust",
-                GameBoneMapping{
-                    "Rust",
-                    {49, 48, -1, -1, -1, 47, 46, 45, 44, 43, 29, 30, 31, 32, 33, 23, 24, 25, 26, 27, 34, 35, 36, 37, 38, 39, 40, 41, 42, 15, 16, 17, 18, 19, 20, 21, -1, 1, 49, -1, -1, -1, -1},
-                    {true, true, false, false, false, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, false, true, true, false, false, false, false},
-                    49, 48, 47, 1, 15, 16
-                }
-            },
-            {
                 "Warzone",
                 GameBoneMapping{
                     "Warzone",

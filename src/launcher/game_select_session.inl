@@ -438,6 +438,19 @@ std::string FormatLastUsed(std::uint64_t unixSeconds) {
     return UiFormat::DateTimeLocal(static_cast<std::time_t>(unixSeconds));
 }
 
+std::string FormatActiveDuration(std::uint64_t seconds) {
+    const auto hours = seconds / 3600;
+    const auto minutes = (seconds % 3600) / 60;
+    const auto rest = seconds % 60;
+    char text[64]{};
+    if (hours) std::snprintf(text, sizeof(text), "%lluh %02llum",
+        static_cast<unsigned long long>(hours), static_cast<unsigned long long>(minutes));
+    else if (minutes) std::snprintf(text, sizeof(text), "%llum %02llus",
+        static_cast<unsigned long long>(minutes), static_cast<unsigned long long>(rest));
+    else std::snprintf(text, sizeof(text), "%llus", static_cast<unsigned long long>(rest));
+    return text;
+}
+
 const char* CardStateLabel(CardState state) {
     switch (state) {
     case CardState::Running: return Loc::Tr("launcher.status.running");

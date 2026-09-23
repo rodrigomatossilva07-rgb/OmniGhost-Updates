@@ -49,9 +49,6 @@ enum class MenuTab : int {
     TAB_FORTNITE_AIM,
     TAB_FORTNITE_STATUS,
 
-    TAB_RUST_VISUALS = 800,
-    TAB_RUST_AIM,
-    TAB_RUST_SYSTEM
 };
 
 // FiveM pages
@@ -85,9 +82,6 @@ void DrawValorantVisuals();
 void DrawValorantAim();
 void DrawValorantStatus();
 void DrawFortniteVisuals();
-void DrawRustVisuals();
-void DrawRustAim();
-void DrawRustSystem();
 void DrawFortniteAim();
 void DrawFortniteStatus();
 

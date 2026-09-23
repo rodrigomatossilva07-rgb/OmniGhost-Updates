@@ -620,21 +620,30 @@ void DrawProfileManager() {
     BeginCard("Gerenciador de Perfis");
     
     // Game selector
-    const char* games[] = {"FiveM", "CS2", "Rust", "Warzone", "Valorant", "Fortnite", "Apex"};
+    const char* games[] = {"FiveM", "CS2", "Warzone", "Valorant", "Fortnite", "Apex"};
+    const Gameplay::ProfileManager::GameType gameTypes[] = {
+        Gameplay::ProfileManager::GameType::FiveM,
+        Gameplay::ProfileManager::GameType::CS2,
+        Gameplay::ProfileManager::GameType::Warzone,
+        Gameplay::ProfileManager::GameType::Valorant,
+        Gameplay::ProfileManager::GameType::Fortnite,
+        Gameplay::ProfileManager::GameType::Apex
+    };
     static int game_sel = 1; // CS2
-    Combo("Jogo", &game_sel, games, 7);
+    Combo("Jogo", &game_sel, games, 6);
+    const auto selectedGame = gameTypes[game_sel];
     
-    auto profiles = pm.GetProfiles(static_cast<Gameplay::ProfileManager::GameType>(game_sel));
+    auto profiles = pm.GetProfiles(selectedGame);
     
     if (profiles.empty()) {
         TextLine("Nenhum perfil para este jogo", TextTone::Secondary);
     } else {
         for (auto* profile : profiles) {
             ImGui::PushID(profile->id.c_str());
-            bool is_active = pm.GetActiveProfile(static_cast<Gameplay::ProfileManager::GameType>(game_sel)) == profile;
+            bool is_active = pm.GetActiveProfile(selectedGame) == profile;
             
             if (ImGui::Selectable(profile->name.c_str(), is_active, ImGuiSelectableFlags_SpanAllColumns)) {
-                pm.SetActiveProfile(static_cast<Gameplay::ProfileManager::GameType>(game_sel), profile->id);
+                pm.SetActiveProfile(selectedGame, profile->id);
             }
             
             ImGui::SameLine();
@@ -765,7 +774,7 @@ void DrawGameAdapter() {
     
     // Current game
     Gameplay::GameAdapter::GameType current = manager.GetCurrentGame();
-    const char* game_names[] = {"Desconhecido", "FiveM", "CS2", "Rust", "Warzone", "Valorant", "Fortnite", "Apex"};
+    const char* game_names[] = {"Desconhecido", "FiveM", "CS2", "Indisponível", "Warzone", "Valorant", "Fortnite", "Apex"};
     const char* current_name = (current >= 0 && current < 8) ? game_names[static_cast<int>(current)] : "Nenhum";
     
     TextLineF(TextTone::Primary, "Jogo Atual: %s", current_name);

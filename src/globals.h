@@ -14,8 +14,7 @@ enum class ActiveGame : int {
     Warzone = 3,
     Valorant = 4,
     Fortnite = 5,
-    Apex = 6,
-    Rust = 7
+    Apex = 6
 };
 
 class GameContext {
@@ -77,7 +76,6 @@ public:
             case ActiveGame::CS2: return "cs2_";
             case ActiveGame::Warzone: return "warzone_";
             case ActiveGame::Valorant: return "valorant_";
-            case ActiveGame::Rust: return "rust_";
             default: return "fivem_";
         }
     }
