@@ -13,8 +13,6 @@
     { "name": "GameRustBanner", "id": 409, "logicalName": "resources/games/rust/banner.png", "source": "resources/games/rust/banner.png", "type": "image", "mandatory": true },
     { "name": "GameRustEspPreview", "id": 410, "logicalName": "resources/games/rust/esp_preview.png", "source": "resources/games/rust/esp_preview.png", "type": "image", "mandatory": true },
     { "name": "GameRustLogo", "id": 411, "logicalName": "resources/games/rust/logo.png", "source": "resources/games/rust/logo.png", "type": "image", "mandatory": true },
-    { "name": "GameValorantBanner", "id": 412, "logicalName": "resources/games/valorant/banner.png", "source": "resources/games/valorant/banner.png", "type": "image", "mandatory": true },
-    { "name": "GameValorantLogo", "id": 413, "logicalName": "resources/games/valorant/logo.png", "source": "resources/games/valorant/logo.png", "type": "image", "mandatory": true },
     { "name": "GameWarzoneBanner", "id": 414, "logicalName": "resources/games/warzone/banner.png", "source": "resources/games/warzone/banner.png", "type": "image", "mandatory": true },
     { "name": "GameWarzoneLogo", "id": 415, "logicalName": "resources/games/warzone/logo.png", "source": "resources/games/warzone/logo.png", "type": "image", "mandatory": true },
     { "name": "DmaStackVersions", "id": 416, "logicalName": "runtime/dma_stack_versions.json", "source": "config/release/versions.json", "type": "json", "mandatory": true },

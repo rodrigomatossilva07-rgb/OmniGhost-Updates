@@ -93,12 +93,6 @@ std::filesystem::path RequiredDataPath(GameId id) {
 #else
         return {};
 #endif
-    case GameId::Valorant:
-#if defined(OMNIGHOST_DEV_EXTERNAL_OFFSETS)
-        return root / L"data" / L"valorant_offsets.json";
-#else
-        return {}; // Current compiled defaults; no plaintext customer snapshot.
-#endif
     case GameId::Apex:
 #if defined(OMNIGHOST_DEV_EXTERNAL_OFFSETS)
         return root / L"data" / L"apex_offsets.json";
@@ -152,7 +146,6 @@ bool LocalProcessRunning(std::initializer_list<const wchar_t*> names) {
 enum RemoteGameMask : std::uint32_t {
     RemoteCs2      = 1u << 0,
     RemoteWarzone  = 1u << 2,
-    RemoteValorant = 1u << 3,
     RemoteFortnite = 1u << 4,
     RemoteFiveM    = 1u << 5,
 };
@@ -166,7 +159,6 @@ bool RemoteGameRunning(GameId id) noexcept {
     switch (id) {
     case GameId::CS2: bit = RemoteCs2; break;
     case GameId::Warzone: bit = RemoteWarzone; break;
-    case GameId::Valorant: bit = RemoteValorant; break;
     case GameId::Fortnite: bit = RemoteFortnite; break;
     case GameId::FiveM: bit = RemoteFiveM; break;
     default: return false;
@@ -210,7 +202,6 @@ void PollRemoteProcessScan(double now) {
         };
         if (present({"cs2.exe"})) mask |= RemoteCs2;
         if (present({"cod.exe"})) mask |= RemoteWarzone;
-        if (present({"VALORANT-Win64-Shipping.exe", "VALORANT.exe"})) mask |= RemoteValorant;
         if (present({"FortniteClient-Win64-Shipping.exe", "Fortnite.exe"})) mask |= RemoteFortnite;
         if (present({"FiveM_GTAProcess.exe", "FiveM_b3258_GTAProcess.exe",
                      "FiveM_b3407_GTAProcess.exe", "FiveM_b3570_GTAProcess.exe",
@@ -231,10 +222,6 @@ bool DetectRunning(GameId id) {
         return LocalProcessRunning({L"cs2.exe"}) || RemoteGameRunning(id);
     case GameId::Warzone:
         return Warzone::ready || LocalProcessRunning({L"cod.exe"}) || RemoteGameRunning(id);
-    case GameId::Valorant:
-        return Valorant::runtime.attached ||
-               LocalProcessRunning({L"VALORANT-Win64-Shipping.exe", L"VALORANT.exe"}) ||
-               RemoteGameRunning(id);
     case GameId::Fortnite:
         return Fortnite::runtime.attached ||
                LocalProcessRunning({L"FortniteClient-Win64-Shipping.exe", L"Fortnite.exe"}) ||
@@ -283,7 +270,6 @@ bool AdapterAttached(GameId id) {
     switch (id) {
     case GameId::CS2: return CS2::ready;
     case GameId::Warzone: return Warzone::ready;
-    case GameId::Valorant: return Valorant::runtime.attached;
     case GameId::Fortnite: return Fortnite::runtime.attached;
     case GameId::FiveM:
         return g_activeGame == ActiveGame::FiveM && mem.GetDiagnosticsSnapshot().processInitialized;
@@ -404,7 +390,6 @@ ActiveGame ToActiveGame(GameId id) {
     switch (id) {
     case GameId::CS2: return ActiveGame::CS2;
     case GameId::Warzone: return ActiveGame::Warzone;
-    case GameId::Valorant: return ActiveGame::Valorant;
     case GameId::Fortnite: return ActiveGame::Fortnite;
     case GameId::Apex: return ActiveGame::Apex;
     case GameId::FiveM:

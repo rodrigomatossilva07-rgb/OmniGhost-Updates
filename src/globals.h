@@ -12,7 +12,6 @@ enum class ActiveGame : int {
     FiveM = 0,
     CS2 = 1,
     Warzone = 3,
-    Valorant = 4,
     Fortnite = 5,
     Apex = 6
 };
@@ -75,7 +74,6 @@ public:
         switch (game) {
             case ActiveGame::CS2: return "cs2_";
             case ActiveGame::Warzone: return "warzone_";
-            case ActiveGame::Valorant: return "valorant_";
             default: return "fivem_";
         }
     }
@@ -84,7 +82,6 @@ public:
         switch (game) {
             case ActiveGame::CS2: return "cs2";
             case ActiveGame::Warzone: return "warzone";
-            case ActiveGame::Valorant: return "valorant";
             default: return "fivem";
         }
     }

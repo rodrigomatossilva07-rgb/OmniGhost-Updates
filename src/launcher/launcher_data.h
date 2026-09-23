@@ -12,7 +12,6 @@ enum class GameId : int {
     None = 0,
     FiveM = 1,
     CS2 = 2,
-    Valorant = 3,
     Fortnite = 4,
     Rust = 5,
     Warzone = 6,

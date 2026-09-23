@@ -291,7 +291,6 @@ function Get-ModuleInfo {
         '^(fivem|gta|gtav)$' { return @{ id = 'fivem'; name = 'FiveM' } }
         '^(cs2|counter-?strike)$' { return @{ id = 'cs2'; name = 'Counter-Strike 2' } }
         '^(warzone|cod|mw)$' { return @{ id = 'warzone'; name = 'Warzone' } }
-        '^(valorant|val)$' { return @{ id = 'valorant'; name = 'Valorant' } }
         '^(apex)$' { return @{ id = 'apex'; name = 'Apex Legends' } }
         default { return @{ id = 'other'; name = 'Outras alterações' } }
     }
@@ -567,7 +566,7 @@ if (-not [string]::IsNullOrWhiteSpace($SemanticAnalysisPath) -and
     try {
         $Semantic = Read-JsonUtf8 -Path $SemanticAnalysisPath
         $AllowedSemanticTypes = @('added','improved','fixed','performance','compatibility','security','removed','breaking','maintenance')
-        $AllowedModuleIds = @('core','fivem','cs2','warzone','valorant','apex','other')
+        $AllowedModuleIds = @('core','fivem','cs2','warzone','apex','other')
         $SemanticChanges = @()
         foreach ($SemanticModule in @($Semantic.modules)) {
             $ModuleId = [string]$SemanticModule.id
@@ -735,7 +734,6 @@ foreach ($Change in $AllChanges) {
 }
 
 $Modules = @()
-foreach ($ModuleId in @('core', 'fivem', 'cs2', 'warzone', 'valorant', 'apex', 'other')) {
     if ($ModulesById.ContainsKey($ModuleId)) {
         $Modules += $ModulesById[$ModuleId]
     }

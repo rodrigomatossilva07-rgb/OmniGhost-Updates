@@ -12,7 +12,6 @@ namespace Gameplay::ProfileManager {
         FiveM = 0,
         CS2 = 1,
         Warzone = 3,
-        Valorant = 4,
         Fortnite = 5,
         Apex = 6,
         Custom = 99

@@ -516,7 +516,7 @@ bool HasGameAccess(std::string_view productId) {
     // compatibility key. New products must be added deliberately or returned
     // by the future remote entitlement provider.
     constexpr std::array<std::string_view, 7> kLegacyProducts{
-        "fivem", "cs2", "rust", "warzone", "valorant", "apex", "fortnite"
+        "fivem", "cs2", "rust", "warzone", "apex", "fortnite"
     };
     if (std::find(kLegacyProducts.begin(), kLegacyProducts.end(), productId) == kLegacyProducts.end())
         return false;
@@ -549,7 +549,7 @@ bool HasAnyGameAccess() {
     LicenseProtection::RunIntegrityChecks();
     if (IsRemoteAuthenticated()) {
         constexpr std::array<std::string_view, 7> kProducts{
-            "fivem", "cs2", "rust", "warzone", "valorant", "apex", "fortnite"
+            "fivem", "cs2", "rust", "warzone", "apex", "fortnite"
         };
         return std::any_of(kProducts.begin(), kProducts.end(), RemoteEntitlementGrants);
     }

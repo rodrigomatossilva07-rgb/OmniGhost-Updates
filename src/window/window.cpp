@@ -23,7 +23,6 @@
 #include "game/esp_manager.h"
 #include "src/games/Cs2/cs2_game.h"
 #include "src/games/Warzone/warzone_game.h"
-#include "src/games/Valorant/valorant_game.h"
 #include <shellapi.h>
 #ifndef UI_PREVIEW
 #include "../launcher/launcher_assets.h"
@@ -62,9 +61,6 @@ namespace {
         case MenuTab::TAB_WARZONE_WORLD:    return { "MUNDO WARZONE", "Objetos e informação" };
         case MenuTab::TAB_WARZONE_PLAYERS:  return { "JOGADORES WARZONE", "Lista e prioridades" };
         case MenuTab::TAB_WARZONE_MISC:     return { "EXTRAS WARZONE", "Sistema e utilidades" };
-        case MenuTab::TAB_VALORANT_VISUALS: return { "VISUAIS VALORANT", "ESP e informação de jogadores" };
-        case MenuTab::TAB_VALORANT_AIM:     return { "MIRA VALORANT", "Alvo e assistência" };
-        case MenuTab::TAB_VALORANT_STATUS:  return { "SISTEMA VALORANT", "Ligação e diagnóstico" };
         case MenuTab::TAB_FORTNITE_VISUALS: return { "VISUAIS FORTNITE", "ESP e informação" };
         case MenuTab::TAB_FORTNITE_AIM:     return { "MIRA FORTNITE", "Alvo e assistência" };
         case MenuTab::TAB_FORTNITE_STATUS:  return { "SISTEMA FORTNITE", "Ligação e diagnóstico" };
@@ -122,9 +118,6 @@ namespace {
         case MenuTab::TAB_WARZONE_WORLD:    DrawWarzoneWorld(); break;
         case MenuTab::TAB_WARZONE_PLAYERS:  DrawWarzonePlayers(); break;
         case MenuTab::TAB_WARZONE_MISC:     DrawWarzoneMisc(); break;
-        case MenuTab::TAB_VALORANT_VISUALS:  DrawValorantVisuals(); break;
-        case MenuTab::TAB_VALORANT_AIM:      DrawValorantAim(); break;
-        case MenuTab::TAB_VALORANT_STATUS:   DrawValorantStatus(); break;
         case MenuTab::TAB_FORTNITE_VISUALS:  DrawFortniteVisuals(); break;
         case MenuTab::TAB_FORTNITE_AIM:      DrawFortniteAim(); break;
         case MenuTab::TAB_FORTNITE_STATUS:   DrawFortniteStatus(); break;
@@ -259,7 +252,6 @@ bool Overlay::CreateImGui()
 static MenuTab DefaultTabForGame(OmniGhost::ActiveGame game) {
     if (game == OmniGhost::ActiveGame::CS2) return MenuTab::TAB_CS2_VISUALS;
     if (game == OmniGhost::ActiveGame::Warzone) return MenuTab::TAB_WARZONE_AIM;
-    if (game == OmniGhost::ActiveGame::Valorant) return MenuTab::TAB_VALORANT_VISUALS;
     if (game == OmniGhost::ActiveGame::Fortnite) return MenuTab::TAB_FORTNITE_VISUALS;
     return MenuTab::TAB_VISUALS;
 }
@@ -430,11 +422,6 @@ const PerformanceMode::State performance = PerformanceMode::Update(
             connected = Warzone::ready;
             build = "Warzone · BETA";
             players = static_cast<int>(Warzone::runtime.players.size());
-            break;
-        case OmniGhost::ActiveGame::Valorant:
-            connected = Valorant::runtime.attached;
-            build = "Valorant · BETA";
-            players = static_cast<int>(Valorant::runtime.players.size());
             break;
         case OmniGhost::ActiveGame::FiveM:
         default:

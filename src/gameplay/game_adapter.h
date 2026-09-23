@@ -38,7 +38,6 @@ namespace Gameplay::GameAdapter {
         FiveM = 1,
         CS2 = 2,
         Warzone = 4,
-        Valorant = 5,
         Fortnite = 6,
         Apex = 7,
         Custom = 99

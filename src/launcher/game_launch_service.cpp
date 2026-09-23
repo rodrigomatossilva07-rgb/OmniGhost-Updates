@@ -8,7 +8,6 @@
 #include "src/games/Fivem/aimbot/aim_type.h"
 #include "src/games/Cs2/cs2_game.h"
 #include "src/games/Warzone/warzone_game.h"
-#include "src/games/Valorant/valorant_game.h"
 #include "src/games/Fortnite/fortnite_game.h"
 
 #include <algorithm>
@@ -67,9 +66,6 @@ bool IsProcessPresent(::Launcher::GameId selected) {
     case ::Launcher::GameId::Warzone:
         return mem.GetPidFromName("cod.exe") != 0 ||
                mem.GetPidFromName("ModernWarfare.exe") != 0;
-    case ::Launcher::GameId::Valorant:
-        return mem.GetPidFromName("VALORANT-Win64-Shipping.exe") != 0 ||
-               mem.GetPidFromName("VALORANT.exe") != 0;
     case ::Launcher::GameId::Fortnite:
         return mem.GetPidFromName("FortniteClient-Win64-Shipping.exe") != 0 ||
                mem.GetPidFromName("FortniteClient-Win64-Shipping_EAC_EOS.exe") != 0 ||

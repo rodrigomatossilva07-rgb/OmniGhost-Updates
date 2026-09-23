@@ -31,7 +31,6 @@ const char* ActiveGameTelemetryName() {
     case ActiveGame::CS2: return "CS2";
     case ActiveGame::FiveM: return "FiveM";
     case ActiveGame::Warzone: return "Warzone";
-    case ActiveGame::Valorant: return "Valorant";
     case ActiveGame::Fortnite: return "Fortnite";
     default: return "OmniGhost";
     }

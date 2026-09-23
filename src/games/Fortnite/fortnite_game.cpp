@@ -184,15 +184,165 @@ static std::string Hex(uintptr_t v) {
     return o.str();
 }
 
+// Read only the replicated GameState player list. This data is diagnostic at
+// this stage; the Fortnite ESP and aim paths do not consume runtime.players.
+static void ResolvePlayers() {
+    runtime.players.clear();
+    runtime.player_array_ok = false;
+    runtime.player_data_ok = false;
+    runtime.player_array_count = 0;
+    runtime.player_array_capacity = 0;
+    runtime.players_without_pawn = 0;
+    runtime.players_dying = 0;
+    runtime.players_out_of_range = 0;
+    runtime.players_same_team = 0;
+    runtime.players_invalid = 0;
+    runtime.players_local = 0;
+
+    if (!runtime.world) {
+        runtime.player_array_status = "A aguardar World";
+        return;
+    }
+    uintptr_t game_state = 0;
+    if (!ReadU64(runtime.world + offsets.world_game_state, game_state) ||
+        !IsCanonicalUserPtr(game_state)) {
+        runtime.player_array_status = "GameState indisponível (lobby ou offset inválido)";
+        return;
+    }
+
+    // UE TArray: data pointer, Num and Max. Reject corrupt headers before
+    // allocating or reading a potentially unbounded region over DMA.
+    const uintptr_t array_addr = game_state + offsets.game_state_player_array;
+    uintptr_t data = 0;
+    int32_t count = 0, capacity = 0;
+    if (!ReadU64(array_addr, data) ||
+        !ReadI32(array_addr + 8, count) ||
+        !ReadI32(array_addr + 12, capacity) ||
+        count < 0 || count > 256 || capacity < count || capacity > 512 ||
+        (count > 0 && !IsCanonicalUserPtr(data))) {
+        runtime.player_array_status = "PlayerArray: cabeçalho inválido";
+        return;
+    }
+    runtime.player_array_ok = true;
+    runtime.player_array_count = count;
+    runtime.player_array_capacity = capacity;
+    if (count == 0) {
+        runtime.player_data_ok = true;
+        runtime.player_array_status = "PlayerArray válida, sem jogadores (lobby)";
+        return;
+    }
+
+    std::vector<uintptr_t> states(static_cast<size_t>(count));
+    if (!mem.Read(data, states.data(), states.size() * sizeof(uintptr_t))) {
+        runtime.player_array_status = "PlayerArray: falha ao ler entradas";
+        return;
+    }
+    runtime.player_data_ok = true;
+    if (!runtime.local_pawn_ok && !runtime.camera_ok) {
+        runtime.player_array_status = "PlayerArray OK; a aguardar posição local/câmara";
+        return;
+    }
+
+    uintptr_t local_state = 0;
+    uint8_t local_team = 0;
+    const bool have_local_state = runtime.player_controller &&
+        ReadU64(runtime.player_controller + offsets.controller_player_state, local_state) &&
+        IsCanonicalUserPtr(local_state);
+    const bool have_local_team = have_local_state &&
+        mem.Read(local_state + offsets.fort_ps_team_index, &local_team, sizeof(local_team));
+    const double max_cm = static_cast<double>(config.max_distance) * 100.0;
+
+    for (const uintptr_t state : states) {
+        if (!IsCanonicalUserPtr(state)) {
+            ++runtime.players_invalid;
+            continue;
+        }
+        if (have_local_state && state == local_state) {
+            ++runtime.players_local;
+            continue;
+        }
+        uintptr_t pawn = 0;
+        if (!ReadU64(state + offsets.player_state_pawn_private, pawn) ||
+            !IsCanonicalUserPtr(pawn)) {
+            ++runtime.players_without_pawn;
+            continue;
+        }
+        if (runtime.local_pawn_ok && pawn == runtime.local_pawn) {
+            ++runtime.players_local;
+            continue;
+        }
+        uintptr_t pawn_state = 0;
+        if (!ReadU64(pawn + offsets.pawn_player_state, pawn_state) || pawn_state != state) {
+            ++runtime.players_invalid;
+            continue;
+        }
+        float health = 0.f;
+        if (!ReadFloat(state + offsets.fort_ps_current_health, health) || !std::isfinite(health)) {
+            ++runtime.players_invalid;
+            continue;
+        }
+        if (health <= 0.f) {
+            ++runtime.players_dying;
+            continue;
+        }
+        uintptr_t root = 0;
+        FVectorD position{};
+        if (!ReadU64(pawn + offsets.actor_root_component, root) ||
+            !IsCanonicalUserPtr(root) ||
+            !ReadFVectorD(root + offsets.scene_relative_location, position) ||
+            std::abs(position.x) > 1e8 || std::abs(position.y) > 1e8 ||
+            std::abs(position.z) > 1e8) {
+            ++runtime.players_invalid;
+            continue;
+        }
+        const FVectorD& origin = runtime.local_pawn_ok ? runtime.local_pos : runtime.cam_loc;
+        const double dx = position.x - origin.x;
+        const double dy = position.y - origin.y;
+        const double dz = position.z - origin.z;
+        const double distance_cm = std::sqrt(dx * dx + dy * dy + dz * dz);
+        if (!std::isfinite(distance_cm)) {
+            ++runtime.players_invalid;
+            continue;
+        }
+        if (distance_cm > max_cm) {
+            ++runtime.players_out_of_range;
+            continue;
+        }
+        uint8_t team = 0;
+        const bool team_known = mem.Read(state + offsets.fort_ps_team_index, &team, sizeof(team));
+        if (config.team_check && have_local_team && team_known && team == local_team) {
+            ++runtime.players_same_team;
+            continue;
+        }
+        Runtime::Player player{};
+        player.player_state = state;
+        player.pawn = pawn;
+        player.position = position;
+        player.distance_m = static_cast<float>(distance_cm / 100.0);
+        player.team_index = team;
+        player.team_known = team_known;
+        runtime.players.push_back(player);
+    }
+    if (!runtime.players.empty())
+        runtime.player_array_status = "PlayerArray OK | jogadores filtrados disponíveis";
+    else if (runtime.players_invalid > count / 2)
+        runtime.player_array_status = "PlayerArray legível; muitas entradas inválidas (verificar offsets)";
+    else
+        runtime.player_array_status = "PlayerArray válida; nenhum jogador passou os filtros";
+}
+
 void FlushDiagnosticsToLog() {
 #if !defined(OMNIGHOST_VERBOSE_OFFSET_DIAGNOSTICS)
     // Throttle identical SUMMARY lines (Tick resolves every frame).
     static std::string last_status;
     static ULONGLONG last_ts = 0;
     const ULONGLONG now = GetTickCount64();
-    if (runtime.status == last_status && (now - last_ts) < 2000)
+    const std::string summary = runtime.status + " | " + runtime.player_array_status +
+        " | " + std::to_string(runtime.player_array_count) + "/" +
+        std::to_string(runtime.players.size());
+    if (summary == last_status && (now - last_ts) < 2000)
         return;
-    last_status = runtime.status;
+    last_status = summary;
     last_ts = now;
     // SessionLog owns the only logs.txt sink. Customer builds intentionally log
     // outcomes rather than addresses/RVAs or the full offset table.
@@ -202,6 +352,10 @@ void FlushDiagnosticsToLog() {
               << " camera=" << (runtime.camera_ok ? "PASS" : "FAIL")
               << " local_pawn=" << (runtime.local_pawn_ok ? "PASS" : "WAIT")
               << " w2s=" << (runtime.w2s_ok ? "PASS" : "FAIL")
+              << " player_array=" << (runtime.player_array_ok ? "PASS" : "FAIL")
+              << " entries=" << runtime.player_array_count
+              << " selected=" << runtime.players.size()
+              << " player_status=\"" << runtime.player_array_status << "\""
               << " status=\"" << runtime.status << "\"\n";
 #else
     std::ostringstream o;
@@ -252,6 +406,10 @@ void FlushDiagnosticsToLog() {
           << " screen=" << runtime.screen_x << "," << runtime.screen_y
           << " dist=" << runtime.distance_to_cam << "\n";
     }
+    o << "[PLAYERS] PlayerArray = " << (runtime.player_array_ok ? "PASS" : "FAIL")
+      << " count=" << runtime.player_array_count
+      << " selected=" << runtime.players.size()
+      << " reason=" << runtime.player_array_status << "\n";
     o << "[STATUS] " << runtime.status << "\n";
     o << "================================================================\n";
 
@@ -595,6 +753,9 @@ bool LoadOffsetsFromJson(const char* path) {
         next.pc_spectator_pawn);
     set({"Controller.Pawn", "AController.Pawn", "apawn.Controller",
          "acontroller.Pawn", "dump_structs.acontroller.Pawn"}, next.controller_pawn);
+    set({"Controller.PlayerState", "AController.PlayerState",
+         "acontroller.PlayerState", "dump_structs.acontroller.PlayerState"},
+        next.controller_player_state);
     set({"Controller.Character", "AController.Character",
          "acontroller.Character", "dump_structs.acontroller.Character"}, next.controller_character);
     set({"PlayerCameraManager.ViewTarget", "APlayerCameraManager.ViewTarget",
@@ -621,6 +782,12 @@ bool LoadOffsetsFromJson(const char* path) {
     set({"GameStateBase.PlayerArray", "AGameStateBase.PlayerArray",
          "agame_state_base.PlayerArray", "dump_structs.agame_state_base.PlayerArray"},
         next.game_state_player_array);
+    set({"PlayerState.PawnPrivate", "APlayerState.PawnPrivate",
+         "aplayer_state.PawnPrivate", "dump_structs.aplayer_state.PawnPrivate"},
+        next.player_state_pawn_private);
+    set({"FortPlayerState.CurrentHealth", "AFortPlayerState.CurrentHealth",
+         "afort_player_state.CurrentHealth", "dump_structs.afort_player_state.CurrentHealth"},
+        next.fort_ps_current_health);
     set({"FortPawn.CurrentWeapon", "AFortPawn.CurrentWeapon",
          "afort_pawn.CurrentWeapon", "dump_structs.afort_pawn.CurrentWeapon"},
         next.fort_pawn_current_weapon);
@@ -767,6 +934,8 @@ bool Attach() {
     }
 
     ResolveLocalChain();
+
+    ResolvePlayers();
     FlushDiagnosticsToLog();
     g_logged_once = true;
     return true;
@@ -811,6 +980,12 @@ void Tick() {
 
     // Resolve every frame (lightweight pointer chain)
     ResolveLocalChain();
+    static ULONGLONG last_player_scan = 0;
+    const ULONGLONG scan_now = GetTickCount64();
+    if (scan_now - last_player_scan >= 250) {
+        ResolvePlayers();
+        last_player_scan = scan_now;
+    }
 
     // W2S using overlay display size. In lobby without a pawn we still project
     // local_pos (camera origin) so the pipeline is not "disconnected".
@@ -829,7 +1004,7 @@ void Tick() {
     // Re-log every ~5s if still failing, or once when recovered
     static ULONGLONG last_log = 0;
     const ULONGLONG now = GetTickCount64();
-    if (!g_logged_once || (now - last_log > 5000 && !runtime.chain_ok)) {
+    if (!g_logged_once || (now - last_log > 5000 && (!runtime.chain_ok || !runtime.player_array_ok))) {
         FlushDiagnosticsToLog();
         g_logged_once = true;
         last_log = now;

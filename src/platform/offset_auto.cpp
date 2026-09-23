@@ -3,7 +3,6 @@
 #include "cheatoffsets_api.h"
 #include "src/games/Cs2/cs2_game.h"
 #include "src/games/Warzone/warzone_game.h"
-#include "src/games/Valorant/valorant_game.h"
 #include "src/games/Fivem/game/offsets.h"
 #include "app_paths.h"
 
@@ -128,8 +127,6 @@ bool SoftProbeLive(ActiveGame game) {
         return CS2::ready && CS2::ValidateLiveOffsets();
     case ActiveGame::Warzone:
         return Warzone::ready && Warzone::SoftProbeLobbyOffsets();
-    case ActiveGame::Valorant:
-        return Valorant::runtime.attached && Valorant::SoftProbeLobbyOffsets();
     case ActiveGame::FiveM:
         return FiveM::SoftProbeLobbyOffsets();
     case ActiveGame::Apex:
@@ -145,8 +142,6 @@ const char* SoftProbeFailReason(ActiveGame game) {
         return "Offsets CS2 inválidos no lobby (entity list / view matrix). Atualiza os offsets.";
     case ActiveGame::Warzone:
         return "Offsets Warzone inválidos (view_matrix / módulo). Atualiza os offsets.";
-    case ActiveGame::Valorant:
-        return "Offsets Valorant inválidos (UWorld RVA). Atualiza os offsets.";
     case ActiveGame::FiveM:
         return "Offsets FiveM inválidos (world pointer / build). Verifica a build do servidor.";
     default:

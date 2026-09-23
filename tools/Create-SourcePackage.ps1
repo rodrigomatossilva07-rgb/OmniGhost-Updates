@@ -38,7 +38,7 @@ $allowedRootFiles = @(
 )
 $allowedRoots = @(
     'Cs2', 'DMALibrary', 'Fivem', 'ImGui', 'Utils',
-    'Valorant', 'Warzone', 'data', 'docs', 'libs', 'resources', 'runtime', 'src',
+    'Warzone', 'data', 'docs', 'libs', 'resources', 'runtime', 'src',
     'third_party', 'tools'
 )
 $excludedDirectoryNames = @('.vs', '.cache', 'build', 'artifacts', '.temp', 'logs', 'x64')

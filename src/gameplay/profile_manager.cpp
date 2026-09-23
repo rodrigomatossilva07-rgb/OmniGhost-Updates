@@ -589,7 +589,6 @@ namespace Gameplay::ProfileManager {
             case GameType::FiveM: return "FiveM";
             case GameType::CS2: return "Counter-Strike 2";
             case GameType::Warzone: return "Warzone";
-            case GameType::Valorant: return "Valorant";
             case GameType::Fortnite: return "Fortnite";
             case GameType::Apex: return "Apex Legends";
             default: return "Unknown";

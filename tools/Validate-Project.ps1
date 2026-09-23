@@ -165,14 +165,9 @@ $patternCs2 = @'
 <OmniGhostCs2Data[^>]+Exclude="\$\(ProjectDir\)src\\games\\Cs2\\data\\offsets\.json"
 '@
 Require-Text $project $patternCs2 'CS2 runtime assets exclude the plaintext offsets snapshot.'
-$patternValorant = @'
-<OmniGhostValorantData[^>]+Exclude="\$\(ProjectDir\)src\\games\\Valorant\\data\\\*offsets\*\.json"
-'@
-Require-Text $project $patternValorant 'Valorant runtime assets exclude plaintext offset snapshots.'
 Require-Text $project "Exists\('\$\(OutDir\)data\\fortnite_offsets\.json'\)" 'Release fails closed if a Fortnite offset JSON reaches runtime output.'
 Require-Text $project "Exists\('\$\(OutDir\)data\\warzone_offsets\.json'\)" 'Release fails closed if a Warzone offset JSON reaches runtime output.'
 Require-Text $project "Exists\('\$\(OutDir\)data\\offsets\.json'\)" 'Release fails closed if a generic offset JSON reaches runtime output.'
-Require-Text $project "Exists\('\$\(OutDir\)data\\valorant_offsets\.json'\)" 'Release fails closed if a Valorant offset JSON reaches runtime output.'
 
 # Build-hardening settings live in imported property sheets, not necessarily in the .vcxproj itself.
 Require-Text $common '<WarningLevel>Level4</WarningLevel>' 'Level4 warnings enabled.'

@@ -12,9 +12,6 @@
 #include "src/games/Fivem/aimbot/aim_type.h"
 #include "src/games/Fivem/game/game.h"
 #include "src/games/Fortnite/fortnite_game.h"
-#include "src/games/Valorant/valorant_game.h"
-#include "src/games/Valorant/valorant_esp.h"
-#include "src/games/Valorant/valorant_aim.h"
 #include "src/games/Warzone/warzone_game.h"
 #include "imgui.h"
 
@@ -138,11 +135,6 @@ bool StartWarzone() {
     return false;
 }
 
-bool StartValorant() {
-    g_activeGame = ActiveGame::Valorant;
-    return Valorant::Attach();
-}
-
 bool StartFortnite() {
     g_activeGame = ActiveGame::Fortnite;
     return Fortnite::Attach();
@@ -208,10 +200,6 @@ bool WarzoneValidateOffsets() { return Warzone::ValidateLiveOffsets(); }
 std::string_view WarzoneTerminationReason() { return "Processo Warzone terminou"; }
 ActiveGame WarzoneGameId() { return ActiveGame::Warzone; }
 
-bool ValorantIsAlive() { return Valorant::IsGameProcessAlive(); }
-bool ValorantValidateOffsets() { return Valorant::ValidateLiveOffsets(); }
-std::string_view ValorantTerminationReason() { return "Processo Valorant terminou"; }
-ActiveGame ValorantGameId() { return ActiveGame::Valorant; }
 
 bool FortniteIsAlive() { return Fortnite::IsGameProcessAlive(); }
 bool FortniteValidateOffsets() { return Fortnite::ValidateLiveOffsets(); }
@@ -272,16 +260,6 @@ IGameAdapter* FindGameAdapter(::Launcher::GameId game) noexcept {
             }
         },
         WarzoneIsAlive, WarzoneValidateOffsets, WarzoneTerminationReason, WarzoneGameId);
-    static FunctionGameAdapter valorant({ ::Launcher::GameId::Valorant, "Valorant", AdapterMaturity::Beta,
-        Capability::Menu | Capability::ReadOnlyMemory | Capability::Overlay },
-        StartValorant, [] { Valorant::Detach(); },
-        [] { return std::string_view(Valorant::StatusText()); },
-        [] { 
-            Valorant::Tick();
-            Valorant::DrawESP();
-            Valorant::RunAim();
-        },
-        ValorantIsAlive, ValorantValidateOffsets, ValorantTerminationReason, ValorantGameId);
     static FunctionGameAdapter fortnite({ ::Launcher::GameId::Fortnite, "Fortnite", AdapterMaturity::Beta,
         Capability::Menu | Capability::ReadOnlyMemory | Capability::Overlay },
         StartFortnite, [] { Fortnite::Detach(); },
@@ -297,7 +275,6 @@ IGameAdapter* FindGameAdapter(::Launcher::GameId game) noexcept {
     case ::Launcher::GameId::FiveM: return &fivem;
     case ::Launcher::GameId::CS2: return &cs2;
     case ::Launcher::GameId::Warzone: return &warzone;
-    case ::Launcher::GameId::Valorant: return &valorant;
     case ::Launcher::GameId::Fortnite: return &fortnite;
     default: return nullptr;
     }

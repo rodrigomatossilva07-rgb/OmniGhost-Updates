@@ -23,10 +23,6 @@ enum class MenuTab : int {
     TAB_WARZONE_WORLD,
     TAB_WARZONE_PLAYERS,
     TAB_WARZONE_MISC,
-    // Valorant-specific runtime pages
-    TAB_VALORANT_VISUALS = 400,
-    TAB_VALORANT_AIM,
-    TAB_VALORANT_STATUS,
     
     // New unified system pages (shared across games)
     TAB_UNIFIED_AIM = 600,
@@ -77,10 +73,6 @@ void DrawWarzoneWorld();
 void DrawWarzonePlayers();
 void DrawWarzoneMisc();
 
-// Valorant pages
-void DrawValorantVisuals();
-void DrawValorantAim();
-void DrawValorantStatus();
 void DrawFortniteVisuals();
 void DrawFortniteAim();
 void DrawFortniteStatus();

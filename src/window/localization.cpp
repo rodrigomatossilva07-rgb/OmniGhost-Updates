@@ -301,8 +301,6 @@ namespace {
         {"launcher.game.rust.tagline", {"EM BREVE", "COMING SOON", "BALD VERFÜGBAR", "PRÓXIMAMENTE", "BIENTÔT", "PROSSIMAMENTE"}},
         {"launcher.game.warzone.description", {"Call of Duty: Warzone - DMA Premium", "Call of Duty: Warzone - Premium DMA", "Call of Duty: Warzone - Premium DMA", "Call of Duty: Warzone - Premium DMA", "Call of Duty: Warzone - Premium DMA", "Call of Duty: Warzone - Premium DMA"}},
         {"launcher.game.warzone.tagline", {"DMA PREMIUM", "DMA PREMIUM", "DMA PREMIUM", "DMA PREMIUM", "DMA PREMIUM", "DMA PREMIUM"}},
-        {"launcher.game.valorant.description", {"Valorant - DMA Premium", "Valorant - Premium DMA", "Valorant - Premium DMA", "Valorant - Premium DMA", "Valorant - Premium DMA", "Valorant - Premium DMA"}},
-        {"launcher.game.valorant.tagline", {"DMA PREMIUM", "DMA PREMIUM", "DMA PREMIUM", "DMA PREMIUM", "DMA PREMIUM", "DMA PREMIUM"}},
         {"launcher.game.apex.description", {"Apex Legends - DMA Premium", "Apex Legends - Premium DMA", "Apex Legends - Premium DMA", "Apex Legends - Premium DMA", "Apex Legends - Premium DMA", "Apex Legends - Premium DMA"}},
         {"launcher.game.apex.tagline", {"DMA PREMIUM", "DMA PREMIUM", "DMA PREMIUM", "DMA PREMIUM", "DMA PREMIUM", "DMA PREMIUM"}},
         {"launcher.game.fortnite.description", {"Fortnite - DMA Premium", "Fortnite - Premium DMA", "Fortnite - Premium DMA", "Fortnite - Premium DMA", "Fortnite - Premium DMA", "Fortnite - Premium DMA"}},

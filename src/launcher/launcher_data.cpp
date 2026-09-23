@@ -81,19 +81,6 @@ constexpr GameDefinition kGames[] = {
         "launcher.game.warzone.tagline"
     },
     {
-        GameId::Valorant,
-        "valorant",
-        "Valorant",
-        "launcher.game.valorant.description",
-        "resources/games/valorant/logo.png",
-        "resources/games/valorant/banner.png",
-        "0.1.0",
-        false,
-        true,
-        { 28, 6, 10 }, { 8, 2, 4 }, { 255, 70, 85 },
-        "V", "launcher.game.valorant.tagline"
-    },
-    {
         GameId::Apex,
         "apex",
         "Apex Legends",
@@ -124,7 +111,8 @@ constexpr GameDefinition kGames[] = {
     }
 };
 
-static_assert(std::size(kGames) == static_cast<std::size_t>(GameId::Count) - 1,
+// Historical numeric IDs remain stable for saved launcher session data.
+static_assert(std::size(kGames) == static_cast<std::size_t>(GameId::Count) - 2,
               "GameId and launcher catalogue must be updated together");
 
 constexpr std::array<UpdateDefinition, 0> kUpdates{};

@@ -158,37 +158,6 @@ void WarzoneCryptoProvider::InstallAntiTamper() const noexcept {
 }
 
 // ============================================================
-// Valorant Crypto Provider
-// ============================================================
-
-void ValorantCryptoProvider::DecryptOffsets(std::span<uint8_t> data) const noexcept {
-    static constexpr uint8_t key[32] = {0x56, 0x41, 0x4C, 0x4F, 0x52, 0x41, 0x4E, 0x54,
-                                         0x5F, 0x4B, 0x45, 0x59, 0x5F, 0x31, 0x32, 0x33,
-                                         0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x30, 0x41,
-                                         0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49};
-    
-    for (size_t i = 0; i < data.size(); ++i) {
-        data[i] ^= key[i % 32];
-    }
-}
-
-void ValorantCryptoProvider::EncryptOffsets(std::span<uint8_t> data) const noexcept {
-    DecryptOffsets(data);
-}
-
-bool ValorantCryptoProvider::VerifyIntegrity() const noexcept {
-    return true;
-}
-
-std::array<uint8_t, 32> ValorantCryptoProvider::DeriveKey(std::string_view context) const noexcept {
-    return DeriveKeyFromContext(context, "Valorant_Salt_v1");
-}
-
-void ValorantCryptoProvider::InstallAntiTamper() const noexcept {
-    // Valorant-specific anti-tamper (Vanguard aware)
-}
-
-// ============================================================
 // Fortnite Crypto Provider
 // ============================================================
 

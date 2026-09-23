@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <string>
 #include <cmath>
+#include <vector>
 
 // Fortnite LocalPlayer-only ESP (lobby test) — read-only.
 // Target: 42.00-CL-57316517 via GEngine plain pointer (no decrypt).
@@ -84,6 +85,7 @@ struct Offsets {
     uintptr_t pc_player_camera_manager = 0x328;
     uintptr_t pc_spectator_pawn = 0x640;   // APlayerController::SpectatorPawn
     uintptr_t controller_pawn = 0x2B0;     // AController::Pawn
+    uintptr_t controller_player_state = 0x278; // AController::PlayerState
     uintptr_t controller_character = 0x2C0; // AController::Character
     uintptr_t pcm_view_target = 0x300;     // APlayerCameraManager::ViewTarget (TViewTarget)
     // TViewTarget.Target is at +0x0 inside ViewTarget
@@ -105,6 +107,8 @@ struct Offsets {
     uintptr_t pcm_cam_fov = 0x15D0;
 
     uintptr_t game_state_player_array = 0x288;
+    uintptr_t player_state_pawn_private = 0x2E8;
+    uintptr_t fort_ps_current_health = 0xD0C;
     uintptr_t fort_pawn_current_weapon = 0x9D0;
     uintptr_t fort_ps_team_index = 0xF69;
 
@@ -176,6 +180,27 @@ struct Runtime {
     std::string last_fail;
 
     ChainDiag d_engine{}, d_viewport{}, d_world{}, d_gi{}, d_lp{}, d_pc{}, d_pcm{};
+
+    struct Player {
+        uintptr_t player_state = 0;
+        uintptr_t pawn = 0;
+        FVectorD position{};
+        float distance_m = 0.f;
+        uint8_t team_index = 0;
+        bool team_known = false;
+    };
+    std::vector<Player> players;
+    bool player_array_ok = false;
+    bool player_data_ok = false;
+    int32_t player_array_count = 0;
+    int32_t player_array_capacity = 0;
+    int32_t players_without_pawn = 0;
+    int32_t players_dying = 0;
+    int32_t players_out_of_range = 0;
+    int32_t players_same_team = 0;
+    int32_t players_invalid = 0;
+    int32_t players_local = 0;
+    std::string player_array_status = "A aguardar GameState";
 };
 
 extern Config config;

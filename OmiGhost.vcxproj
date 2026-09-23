@@ -83,7 +83,6 @@
     <OmniGhostGameResource Include="$(ProjectDir)resources\games\**\*.png;$(ProjectDir)resources\games\**\*.jpg;$(ProjectDir)resources\games\**\*.jpeg;$(ProjectDir)resources\games\**\*.webp"/>
     <OmniGhostProjectData Include="$(ProjectDir)data\**\*" Exclude="$(ProjectDir)data\*offsets.json;$(ProjectDir)data\offsets.json;$(ProjectDir)data\fortnite_offsets\**\*;$(ProjectDir)data\**\*offsets*.json"/>
     <OmniGhostCs2Data Include="$(ProjectDir)src\games\Cs2\data\weapons\**\*;$(ProjectDir)src\games\Cs2\data\webradar\**\*" Exclude="$(ProjectDir)src\games\Cs2\data\offsets.json"/>
-    <OmniGhostValorantData Include="$(ProjectDir)src\games\Valorant\data\**\*" Exclude="$(ProjectDir)src\games\Valorant\data\*offsets*.json"/>
   </ItemGroup>
   <Target Name="BuildOmniGhostEmbeddedOffsets" BeforeTargets="ResourceCompile" Condition="'$(DesignTimeBuild)'!='true'">
     <Message Importance="High" Text="[OmniGhost Offsets] Generating embedded offset resources..."/>
@@ -160,7 +159,6 @@
     <Copy SourceFiles="@(OmniGhostGameResource)" DestinationFiles="@(OmniGhostGameResource-&gt;'$(OutDir)resources\games\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" Condition="'@(OmniGhostGameResource)'!=''"/>
     <Copy SourceFiles="@(OmniGhostProjectData)" DestinationFiles="@(OmniGhostProjectData-&gt;'$(OutDir)data\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" Condition="'@(OmniGhostProjectData)'!=''"/>
     <Copy SourceFiles="@(OmniGhostCs2Data)" DestinationFiles="@(OmniGhostCs2Data-&gt;'$(OutDir)data\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" Condition="'@(OmniGhostCs2Data)'!=''"/>
-    <Copy SourceFiles="@(OmniGhostValorantData)" DestinationFiles="@(OmniGhostValorantData-&gt;'$(OutDir)data\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" Condition="'@(OmniGhostValorantData)'!=''"/>
     <ItemGroup>
       <OmniGhostRuntimeDestination Include="@(OmniGhostLibRuntimeLibrary-&gt;'$(OutDir)%(Filename)%(Extension)')"/>
       <OmniGhostRuntimeDestination Include="@(OmniGhostDmaRuntimeLibrary-&gt;'$(OutDir)%(Filename)%(Extension)')"/>
@@ -175,7 +173,6 @@
     <Error Condition="Exists('$(OutDir)data\fivem_offsets.json')" Code="OGOFF006" Text="Release não pode distribuir plaintext fivem offsets; devem estar embutidos."/>
     <Error Condition="Exists('$(OutDir)data\apex_offsets.json')" Code="OGOFF007" Text="Release não pode distribuir data\apex_offsets.json; o snapshot deve estar embutido no EXE."/>
     <Error Condition="Exists('$(OutDir)data\offsets.json')" Code="OGOFF008" Text="Release não pode distribuir plaintext offsets.json; devem estar embutidos."/>
-    <Error Condition="Exists('$(OutDir)data\valorant_offsets.json')" Code="OGOFF009" Text="Release não pode distribuir plaintext Valorant offsets; devem estar embutidos."/>
 
     <Message Importance="High" Text="[OmniGhost Runtime] DLLs de libs\ sincronizadas para build\; runtimes canónicos validados e copiados."/>
   </Target>
@@ -362,13 +359,7 @@
     <ClCompile Include="src\games\Warzone\warzone_decrypt.cpp"/>
     <ClCompile Include="src\games\Warzone\warzone_aim.cpp"/>
     <ClCompile Include="src\games\Warzone\warzone_esp.cpp"/>
-    <ClCompile Include="src\games\Valorant\valorant_game.cpp"/>
-    <ClCompile Include="src\games\Valorant\valorant_esp.cpp"/>
-    <ClCompile Include="src\games\Valorant\valorant_aim.cpp"/>
     <ClCompile Include="src\games\Fortnite\fortnite_game.cpp"/>
-    <ClCompile Include="src\window\pages\valorant\ValorantVisualsPage.cpp"/>
-    <ClCompile Include="src\window\pages\valorant\ValorantStatusPage.cpp"/>
-    <ClCompile Include="src\window\pages\valorant\ValorantAimPage.cpp"/>
     <ClCompile Include="src\window\pages\fortnite\FortniteVisualsPage.cpp"/>
     <ClCompile Include="src\window\pages\fortnite\FortniteStatusPage.cpp"/>
     <ClCompile Include="src\window\pages\fortnite\FortniteAimPage.cpp"/>

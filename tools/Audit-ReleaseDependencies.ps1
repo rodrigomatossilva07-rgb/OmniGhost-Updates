@@ -80,14 +80,14 @@ if ($offsetText -match '(?i)placeholder|provisional|unverified') {
 }
 
 $gameCatalog = Get-Content -LiteralPath (Join-Path $ProjectDir 'src\launcher\launcher_data.cpp') -Raw
-foreach ($game in @('Warzone', 'Valorant')) {
+foreach ($game in @('Warzone')) {
     $pattern = "GameId::$game,[\s\S]{0,700}?false,\s*true,"
     if ($gameCatalog -notmatch $pattern) {
         throw "$game deixou de estar marcado explicitamente como Beta no catálogo."
     }
 }
 
-$ownSourceRoots = @('src', 'Cs2', 'Fivem', 'Warzone', 'Valorant', 'DMALibrary')
+$ownSourceRoots = @('src', 'Cs2', 'Fivem', 'Warzone', 'DMALibrary')
 foreach ($rootName in $ownSourceRoots) {
     $root = Join-Path $ProjectDir $rootName
     if (-not (Test-Path -LiteralPath $root -PathType Container)) { continue }

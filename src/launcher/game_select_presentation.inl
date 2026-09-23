@@ -527,7 +527,6 @@ float OpticalLogoScale(GameId id) {
     case GameId::FiveM: return 0.72f;
     case GameId::CS2: return 0.88f;
     case GameId::Warzone: return 0.72f;
-    case GameId::Valorant: return 0.72f;
     case GameId::Apex: return 0.66f;
     case GameId::Fortnite: return 0.84f;
     default: return 0.72f;

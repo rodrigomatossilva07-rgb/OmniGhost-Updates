@@ -26,10 +26,7 @@
 #include "src/games/Cs2/cs2_game.h"
 #include "src/games/Cs2/aimbot/cs2_aim.h"
 #include "src/games/Warzone/warzone_game.h"
-#include "src/games/Valorant/valorant_game.h"
 #include "src/games/Fortnite/fortnite_game.h"
-#include "src/games/Valorant/valorant_esp.h"
-#include "src/games/Valorant/valorant_aim.h"
 #include "platform/offset_auto.h"
 #include "src/games/Fivem/game/offsets.h"
 #include "platform/app_paths.h"
@@ -533,7 +530,6 @@ while (application.shouldRun && !authenticated) {
     switch (selected) {
         case Launcher::GameId::CS2: pending_game = ActiveGame::CS2; break;
         case Launcher::GameId::Warzone: pending_game = ActiveGame::Warzone; break;
-        case Launcher::GameId::Valorant: pending_game = ActiveGame::Valorant; break;
         case Launcher::GameId::Fortnite: pending_game = ActiveGame::Fortnite; break;
         case Launcher::GameId::FiveM: pending_game = ActiveGame::FiveM; break;
         default: pending_game = ActiveGame::FiveM; break;
@@ -716,7 +712,7 @@ while (application.shouldRun && !authenticated) {
 // Soft-probe is diagnostic only — never block menu entry or force return to launcher.
 // User preference: open the game menu even when offsets look outdated.
     if (adapter && (OmniGhost::OffsetAuto::SupportsAutomaticRefresh(pending_game) ||
-        pending_game == ActiveGame::Valorant || pending_game == ActiveGame::FiveM ||
+        pending_game == ActiveGame::FiveM ||
         pending_game == ActiveGame::CS2 ||
         pending_game == ActiveGame::Warzone || pending_game == ActiveGame::Fortnite)) {
         const bool probe_ok = OmniGhost::OffsetAuto::SoftProbeLive(pending_game);
@@ -755,8 +751,6 @@ while (application.shouldRun && !authenticated) {
             CS2::ready = false;
         } else if (g_activeGame == ActiveGame::Warzone) {
             Warzone::Shutdown();
-        } else if (g_activeGame == ActiveGame::Valorant) {
-            Valorant::Detach();
         } else if (g_activeGame == ActiveGame::Fortnite) {
             Fortnite::Detach();
         } else if (g_activeGame == ActiveGame::FiveM) {
@@ -817,25 +811,6 @@ while (application.shouldRun && !authenticated) {
                     if (Warzone::runtime.module_base && !Warzone::IsGameProcessAlive()) {
                         shouldReturnToLauncher = true;
                         terminationReason = "Processo Warzone terminou";
-                    }
-                }
-                break;
-            }
-            case ActiveGame::Valorant: {
-                static ULONGLONG last_alive_valorant = 0;
-                const ULONGLONG now = GetTickCount64();
-                if (now - last_alive_valorant >= 750) {
-                    last_alive_valorant = now;
-                    DWORD pid = mem.GetPidFromName("VALORANT-Win64-Shipping.exe");
-                    if (!pid) pid = mem.GetPidFromName("VALORANT.exe");
-                    if (!pid) {
-                        ++process_miss_frames;
-                        if (process_miss_frames >= 2) {
-                            shouldReturnToLauncher = true;
-                            terminationReason = "Processo Valorant terminou";
-                        }
-                    } else {
-                        process_miss_frames = 0;
                     }
                 }
                 break;
@@ -912,7 +887,6 @@ while (application.shouldRun && !authenticated) {
         if (shouldReturnToLauncher) {
             std::cout << "[" << (g_activeGame == ActiveGame::CS2 ? "CS2" :
                                   g_activeGame == ActiveGame::Warzone ? "Warzone" :
-                                  g_activeGame == ActiveGame::Valorant ? "Valorant" :
                                   g_activeGame == ActiveGame::Fortnite ? "Fortnite" :
                                   "FiveM")
                       << "] " << terminationReason << " — a voltar ao launcher." << std::endl;

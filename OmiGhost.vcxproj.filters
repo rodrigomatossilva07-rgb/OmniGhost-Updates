@@ -420,15 +420,6 @@
     <ClCompile Include="src\games\Warzone\warzone_esp.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\games\Valorant\valorant_game.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="src\games\Valorant\valorant_esp.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="src\games\Valorant\valorant_aim.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="DMALibrary\Memory\MemoryLifecycle.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

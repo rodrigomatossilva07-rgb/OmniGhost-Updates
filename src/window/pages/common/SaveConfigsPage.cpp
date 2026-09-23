@@ -5,7 +5,6 @@
 #include "config/app_settings.h"
 #include "src/games/Cs2/config/cs2_config.h"
 #include "src/games/Warzone/warzone_config.h"
-#include "src/games/Valorant/valorant_config.h"
 #include "esp/esp.h"
 #ifdef UI_PREVIEW
 #include "preview/preview_runtime.h"
@@ -22,7 +21,6 @@ const char* ActiveGameName() {
     switch (g_activeGame) {
     case ActiveGame::CS2: return "Counter-Strike 2";
     case ActiveGame::Warzone: return "Warzone";
-    case ActiveGame::Valorant: return "Valorant";
     default: return "FiveM";
     }
 }
@@ -63,15 +61,6 @@ VisualPreviewState CurrentVisualState() {
         value.distance = Warzone::config.distance;
         value.radar = Warzone::config.radar_2d;
         break;
-    case ActiveGame::Valorant:
-        value.enabled = Valorant::config.esp_enabled;
-        value.box = Valorant::config.box || Valorant::config.box_corner;
-        value.skeleton = Valorant::config.skeleton;
-        value.health = Valorant::config.health_bar;
-        value.name = Valorant::config.name;
-        value.distance = Valorant::config.distance;
-        value.radar = false;
-        break;
     default:
         value.enabled = esp::config.enabled;
         value.box = esp::config.box_2d || esp::config.corner_box;
@@ -107,16 +96,6 @@ AimPreviewState CurrentAimState() {
         value.prediction = Warzone::config.aim_prediction;
         value.aim_key = Warzone::config.aim_bind;
         value.max_dist = Warzone::config.aim_max_dist;
-        break;
-    case ActiveGame::Valorant:
-        value.enabled = Valorant::config.aim_enabled;
-        value.fov = Valorant::config.aim_fov;
-        value.smooth = Valorant::config.aim_smooth;
-        value.bone = Valorant::config.aim_bone;
-        value.rcs = false;
-        value.prediction = Valorant::config.aim_prediction;
-        value.aim_key = Valorant::config.aim_bind;
-        value.max_dist = Valorant::config.aim_max_dist;
         break;
     default:
         // FiveM uses aimbot from aimbot.cpp

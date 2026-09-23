@@ -106,9 +106,6 @@ namespace Gameplay::GameAdapter {
                 } else if (name == "warzone.exe" || name == "modernwarfare.exe") {
                     CloseHandle(snapshot);
                     return GameType::Warzone;
-                } else if (name == "valorant.exe" || name == "valorant-win64-shipping.exe") {
-                    CloseHandle(snapshot);
-                    return GameType::Valorant;
                 } else if (name == "fortniteclient-win64-shipping.exe") {
                     CloseHandle(snapshot);
                     return GameType::Fortnite;
@@ -194,7 +191,6 @@ namespace Gameplay::GameAdapter {
                 if (name == "cs2.exe") available.push_back(GameType::CS2);
                 else if (name == "fivem.exe" || name == "fivem_gta.exe") available.push_back(GameType::FiveM);
                 else if (name == "warzone.exe" || name == "modernwarfare.exe") available.push_back(GameType::Warzone);
-                else if (name == "valorant.exe" || name == "valorant-win64-shipping.exe") available.push_back(GameType::Valorant);
                 else if (name == "fortniteclient-win64-shipping.exe") available.push_back(GameType::Fortnite);
                 else if (name == "r5apex.exe") available.push_back(GameType::Apex);
             } while (Process32NextW(snapshot, &entry));
@@ -257,7 +253,6 @@ namespace Gameplay::GameAdapter {
             case GameType::CS2: target = "cs2.exe"; break;
             case GameType::FiveM: target = "fivem.exe"; break;
             case GameType::Warzone: target = "warzone.exe"; break;
-            case GameType::Valorant: target = "valorant.exe"; break;
             case GameType::Fortnite: target = "fortniteclient-win64-shipping.exe"; break;
             case GameType::Apex: target = "r5apex.exe"; break;
             default: return false;
@@ -292,7 +287,6 @@ namespace Gameplay::GameAdapter {
             case GameType::CS2: target = "cs2.exe"; break;
             case GameType::FiveM: target = "fivem.exe"; break;
             case GameType::Warzone: target = "warzone.exe"; break;
-            case GameType::Valorant: target = "valorant.exe"; break;
             case GameType::Fortnite: target = "fortniteclient-win64-shipping.exe"; break;
             case GameType::Apex: target = "r5apex.exe"; break;
             default: return false;
