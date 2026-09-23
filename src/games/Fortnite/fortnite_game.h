@@ -82,6 +82,11 @@ struct Offsets {
     uintptr_t pc_acknowledged_pawn = 0x318;
     uintptr_t pc_my_hud = 0x320;
     uintptr_t pc_player_camera_manager = 0x328;
+    uintptr_t pc_spectator_pawn = 0x640;   // APlayerController::SpectatorPawn
+    uintptr_t controller_pawn = 0x2B0;     // AController::Pawn
+    uintptr_t controller_character = 0x2C0; // AController::Character
+    uintptr_t pcm_view_target = 0x300;     // APlayerCameraManager::ViewTarget (TViewTarget)
+    // TViewTarget.Target is at +0x0 inside ViewTarget
 
     uintptr_t pawn_player_state = 0x290;
     uintptr_t pawn_controller = 0x2A0;

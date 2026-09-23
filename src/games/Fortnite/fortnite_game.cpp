@@ -453,45 +453,79 @@ static void ResolveLocalChain() {
         return;
     }
 
-    // AcknowledgedPawn — may be null in lobby
+    // Local pawn resolution — AcknowledgedPawn is often null in lobby.
+    // Try several UE paths so lobby / spectate still yield a usable actor.
+    auto try_pawn = [&](uintptr_t addr, const char* tag) -> uintptr_t {
+        uintptr_t p = 0;
+        if (!addr || !ReadU64(addr, p) || !IsCanonicalUserPtr(p))
+            return 0;
+        (void)tag;
+        return p;
+    };
+
     uintptr_t pawn = 0;
-    const bool pawn_read = ReadU64(runtime.player_controller + offsets.pc_acknowledged_pawn, pawn);
-    if (!pawn_read || !IsCanonicalUserPtr(pawn)) {
+    const char* pawn_source = "none";
+    if ((pawn = try_pawn(runtime.player_controller + offsets.pc_acknowledged_pawn, "AcknowledgedPawn")))
+        pawn_source = "AcknowledgedPawn";
+    else if (offsets.controller_pawn &&
+             (pawn = try_pawn(runtime.player_controller + offsets.controller_pawn, "Controller.Pawn")))
+        pawn_source = "Controller.Pawn";
+    else if (offsets.controller_character &&
+             (pawn = try_pawn(runtime.player_controller + offsets.controller_character, "Controller.Character")))
+        pawn_source = "Controller.Character";
+    else if (offsets.pc_spectator_pawn &&
+             (pawn = try_pawn(runtime.player_controller + offsets.pc_spectator_pawn, "SpectatorPawn")))
+        pawn_source = "SpectatorPawn";
+    else if (offsets.pcm_view_target && runtime.camera_manager) {
+        // TViewTarget.Target at ViewTarget+0
+        if ((pawn = try_pawn(runtime.camera_manager + offsets.pcm_view_target, "ViewTarget.Target")))
+            pawn_source = "ViewTarget";
+    }
+
+    runtime.chain_ok = true;
+
+    if (!pawn) {
+        // Lobby without possessed pawn: still drive W2S from the camera so the
+        // overlay is not "disconnected". Marker sits at the camera origin.
         runtime.local_pawn = 0;
         runtime.local_pawn_ok = false;
-        runtime.chain_ok = true;
-        runtime.status = "CHAIN OK | LOCAL PAWN: NOT SPAWNED";
+        runtime.root_component = 0;
+        runtime.local_pos = cam_loc;
+        runtime.distance_to_cam = 0.f;
+        runtime.status = "CHAIN OK | CAMERA OK | LOCAL PAWN: LOBBY (sem pawn)";
         return;
     }
+
     runtime.local_pawn = pawn;
 
     uintptr_t root = 0;
     if (!ReadU64(pawn + offsets.actor_root_component, root) || !IsCanonicalUserPtr(root)) {
         runtime.local_pawn_ok = false;
-        runtime.chain_ok = true;
-        runtime.status = "CHAIN OK | RootComponent FAIL";
+        runtime.root_component = 0;
+        runtime.local_pos = cam_loc;
+        runtime.distance_to_cam = 0.f;
+        runtime.status = std::string("CHAIN OK | CAMERA OK | RootComponent FAIL (") + pawn_source + ")";
         return;
     }
     runtime.root_component = root;
 
     FVectorD pos{};
-    if (!ReadFVectorD(root + offsets.scene_relative_location, pos)) {
+    if (!ReadFVectorD(root + offsets.scene_relative_location, pos) || !pos.finite()) {
         runtime.local_pawn_ok = false;
-        runtime.chain_ok = true;
-        runtime.status = "CHAIN OK | LocalPos FAIL";
+        runtime.local_pos = cam_loc;
+        runtime.distance_to_cam = 0.f;
+        runtime.status = std::string("CHAIN OK | CAMERA OK | LocalPos FAIL (") + pawn_source + ")";
         return;
     }
     runtime.local_pos = pos;
     runtime.local_pawn_ok = true;
-    runtime.chain_ok = true;
 
-    // Distance to camera
     const double dx = pos.x - cam_loc.x;
     const double dy = pos.y - cam_loc.y;
     const double dz = pos.z - cam_loc.z;
     runtime.distance_to_cam = static_cast<float>(std::sqrt(dx * dx + dy * dy + dz * dz));
 
-    runtime.status = "CHAIN OK | LOCAL PAWN OK | CAMERA OK";
+    runtime.status = std::string("CHAIN OK | LOCAL PAWN OK (") + pawn_source + ") | CAMERA OK";
 }
 
 bool LoadOffsetsFromJson(const char* path) {
@@ -556,6 +590,16 @@ bool LoadOffsetsFromJson(const char* path) {
     set({"PlayerController.AcknowledgedPawn", "APlayerController.AcknowledgedPawn"}, next.pc_acknowledged_pawn);
     set({"PlayerController.MyHUD", "APlayerController.MyHUD"}, next.pc_my_hud);
     set({"PlayerController.PlayerCameraManager", "APlayerController.PlayerCameraManager"}, next.pc_player_camera_manager);
+    set({"PlayerController.SpectatorPawn", "APlayerController.SpectatorPawn",
+         "aplayer_controller.SpectatorPawn", "dump_structs.aplayer_controller.SpectatorPawn"},
+        next.pc_spectator_pawn);
+    set({"Controller.Pawn", "AController.Pawn", "apawn.Controller",
+         "acontroller.Pawn", "dump_structs.acontroller.Pawn"}, next.controller_pawn);
+    set({"Controller.Character", "AController.Character",
+         "acontroller.Character", "dump_structs.acontroller.Character"}, next.controller_character);
+    set({"PlayerCameraManager.ViewTarget", "APlayerCameraManager.ViewTarget",
+         "aplayer_camera_manager.ViewTarget", "dump_structs.aplayer_camera_manager.ViewTarget"},
+        next.pcm_view_target);
 
     set({"Pawn.PlayerState", "APawn.PlayerState"}, next.pawn_player_state);
     set({"Pawn.Controller", "APawn.Controller"}, next.pawn_controller);
@@ -768,9 +812,10 @@ void Tick() {
     // Resolve every frame (lightweight pointer chain)
     ResolveLocalChain();
 
-    // W2S using overlay display size
+    // W2S using overlay display size. In lobby without a pawn we still project
+    // local_pos (camera origin) so the pipeline is not "disconnected".
     runtime.w2s_ok = false;
-    if (runtime.local_pawn_ok && runtime.camera_ok) {
+    if (runtime.camera_ok && runtime.local_pos.finite()) {
         const ImGuiIO& io = ImGui::GetIO();
         float sx = 0.f, sy = 0.f;
         if (WorldToScreen(runtime.local_pos, runtime.cam_loc, runtime.cam_rot, runtime.cam_fov,
@@ -837,8 +882,8 @@ void DrawESP() {
         }
     }
 
-    // Local player screen marker
-    if (runtime.local_pawn_ok && runtime.w2s_ok && config.show_local_marker) {
+    // Local / camera screen marker (pawn when available; camera origin in lobby)
+    if (runtime.w2s_ok && config.show_local_marker) {
         const ImU32 col = IM_COL32(
             (int)(config.col_local[0] * 255),
             (int)(config.col_local[1] * 255),
@@ -847,7 +892,8 @@ void DrawESP() {
         const ImVec2 p(runtime.screen_x, runtime.screen_y);
         dl->AddCircleFilled(p, 5.f, col, 12);
         dl->AddCircle(p, 8.f, col, 12, 1.5f);
-        dl->AddText(ImVec2(p.x + 10.f, p.y - 10.f), col, "LOCAL PLAYER");
+        dl->AddText(ImVec2(p.x + 10.f, p.y - 10.f), col,
+                    runtime.local_pawn_ok ? "LOCAL PLAYER" : "CAMERA (lobby)");
         if (config.show_local_coords) {
             char buf[128];
             std::snprintf(buf, sizeof(buf), "%.0f %.0f %.0f | %.0fm",

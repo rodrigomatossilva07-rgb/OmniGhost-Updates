@@ -20,13 +20,18 @@ void DrawFortniteStatus() {
     CyberWidgets::EndCard();
 
     if (!Fortnite::runtime.attached)
-        CyberWidgets::InlineMessage("Use the launcher to attach to Fortnite.", CyberWidgets::TextTone::Info);
+        CyberWidgets::InlineMessage("Usa o launcher para ligar ao Fortnite.", CyberWidgets::TextTone::Info);
     else if (!Fortnite::runtime.chain_ok)
-        CyberWidgets::InlineMessage("Waiting for a valid local-player chain.", CyberWidgets::TextTone::Warning);
+        CyberWidgets::InlineMessage("A aguardar cadeia local valida (World/GI/PC).", CyberWidgets::TextTone::Warning);
     else if (!Fortnite::runtime.camera_ok)
-        CyberWidgets::InlineMessage("Waiting for stable camera data.", CyberWidgets::TextTone::Warning);
+        CyberWidgets::InlineMessage("A aguardar dados estaveis da camera.", CyberWidgets::TextTone::Warning);
     else if (!Fortnite::runtime.local_pawn_ok)
-        CyberWidgets::InlineMessage("The local pawn is not available yet.", CyberWidgets::TextTone::Warning);
+        CyberWidgets::InlineMessage(
+            "Sem Local Pawn (normal no lobby). Entra numa partida para spawnar o pawn. "
+            "Camera/W2S usam a origem da camera no lobby.",
+            CyberWidgets::TextTone::Info);
+    else if (!Fortnite::runtime.w2s_ok)
+        CyberWidgets::InlineMessage("Pawn OK — a aguardar projecao World-to-Screen.", CyberWidgets::TextTone::Warning);
     else
-        CyberWidgets::InlineMessage("Attach chain is ready.", CyberWidgets::TextTone::Success);
+        CyberWidgets::InlineMessage("Cadeia OK: Local Pawn + Camera + W2S.", CyberWidgets::TextTone::Success);
 }
