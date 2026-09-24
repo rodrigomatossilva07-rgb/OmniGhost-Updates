@@ -1,0 +1,21 @@
+# Bloqueios para venda do FiveM e CS2
+
+Estado em 2026-09-24: **não publicar como produto com LOS geométrico**. Este documento regista as evidências verificáveis e os testes de aceitação ainda necessários; não certifica que o produto está pronto para venda.
+
+## Visibilidade
+
+- **FiveM:** `src/games/Fivem/game/visibility.h` lê por DMA o byte `CPed + ped_visible_flag` (`0x147C` nas seis builds da tabela) e aplica provisoriamente `0/4/36 = ocluído`, outros valores = visível. A regra e o próprio offset ainda exigem validação em jogo com hardware DMA por build. Leituras ausentes permanecem desconhecidas. É uma flag de memória do CPed, não LOS geométrico.
+- **CS2:** `src/games/Cs2/trajectory/cs2_visibility.h` já testa vários pontos sobre uma BVH, mas os 25 ficheiros `.tri` incluídos em `src/games/Cs2/collision` têm 128–134 bytes e não cumprem sequer o formato binário de 9 floats por triângulo. O teste de release rejeita estes ficheiros. É necessário obter geometria autorizada, converter para o formato esperado, validar coordenadas e cobertura por mapa, e voltar a validar após atualizações. Uma BVH estática não contempla portas, objetos móveis ou fumo.
+- **Aceitação:** no FiveM, testar ped atrás de parede e em campo aberto, vários peds simultâneos, mudança de servidor, cores desligadas, filtro visível do aim e impacto no FPS; registar valor cru da flag e build. No CS2, testar alvos atrás de parede, parcialmente expostos, em alturas diferentes e com objetos móveis. O resultado desconhecido deve ser distinto de visível e oculto.
+
+## Publicação e operação
+
+- **Gate de publicação:** o workflow exige runner Windows com etiquetas `dma` e `signing`, certificado de assinatura instalado e acesso ao dispositivo DMA. A variável de repositório `OMNIGHOST_TEST_GAME` deve conter o nome de um processo FiveM já em execução, por exemplo `FiveM_b3258_GTAProcess.exe`, com janela no próprio runner. O teste extrai o ZIP comercial assinado e executa nele o modo `--integration-test`, que faz leituras DMA reais de world, viewport, CPed local e flag de visibilidade; uma falha impede o job `publish`. Este teste cobre apenas a build selecionada nessa execução, não substitui a matriz manual em todas as builds.
+- **Assinatura:** executar `tools/Configure-ReleaseTrust.ps1` no ambiente de assinatura com o thumbprint do certificado RSA de code signing e guardar no repositório apenas `src/updater/release_trust.h` com a parte pública e os metadados de `config/release/release-publish.json`. A chave privada permanece no certificate store do runner. Sem esta configuração o packaging Commercial falha intencionalmente. O pacote e os manifestos são verificados por `tools/Validate-CommercialRelease.ps1` antes da publicação.
+- **Webhook antigo:** a integração Discord foi removida, o secret `DISCORD_WEBHOOK_URL` foi eliminado do repositório GitHub e a API do Discord confirmou a eliminação do webhook antigo com HTTP 204. A URL ainda pode constar do histórico Git, mas já não é utilizável.
+
+- Compilar Release e Publish, executar `Validate-Project.ps1`, `Test-ReleaseEngineering.ps1`, `Audit-SourceComplexity.ps1` e `Test-ReleaseReadiness.ps1`, e verificar o pacote final numa máquina Windows limpa.
+- Confirmar a publicação GitHub, a assinatura e a instalação de atualização de ponta a ponta, incluindo rollback ou recuperação de falhas. Não publicar chaves privadas nem credenciais de serviço.
+- Confirmar que cada build FiveM/CS2 anunciada funciona em sessão real: descoberta do processo, offsets, ESP, visibilidade, autenticação, renovação/expiração, perda de rede e revogação. Manter uma janela de suporte e uma política explícita para incompatibilidades temporárias após atualizações.
+- Rever as licenças e obrigações de redistribuição dos binários MemProcFS/LeechCore e outros componentes indicados em `THIRD_PARTY_NOTICES.txt` e `docs/SBOM.json`; confirmar direitos de utilização e distribuição de qualquer geometria de jogo antes de a incluir no pacote.
+- Definir termos de venda, prazo e alcance de cada chave, política de reembolso, privacidade dos dados de conta/telemetria e canal de suporte. Obter revisão jurídica apropriada antes de vender software e redistribuir conteúdo de terceiros.

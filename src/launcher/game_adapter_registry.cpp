@@ -11,6 +11,8 @@
 #include "../../DMALibrary/Memory/Memory.h"
 #include "src/games/Fivem/aimbot/aim_type.h"
 #include "src/games/Fivem/game/game.h"
+#include "src/games/Fivem/game/offset_auto.h"
+#include "src/games/Fivem/game/offsets.h"
 #include "src/games/Fortnite/fortnite_game.h"
 #include "src/games/Warzone/warzone_game.h"
 #include "imgui.h"
@@ -164,7 +166,13 @@ bool StartFiveM() {
             std::cerr << "[FiveM] " << reason << '\n';
             return false;
         }
-        OmniGhost::OffsetAuto::MarkLiveValid(ActiveGame::FiveM, "Build FiveM confirmada na tabela validada");
+        if (!FiveM::OffsetAuto::PointersLookValid() || !FiveM::SoftProbeLobbyOffsets()) {
+            constexpr std::string_view reason = "Os ponteiros FiveM não passaram a verificação de leitura DMA.";
+            OmniGhost::OffsetAuto::MarkOutdated(ActiveGame::FiveM, std::string(reason));
+            std::cerr << "[FiveM] " << reason << '\n';
+            return false;
+        }
+        OmniGhost::OffsetAuto::MarkLiveValid(ActiveGame::FiveM, "Build e leitura DMA FiveM confirmadas");
         FiveM::ESP::InitializeContainers();
         if (!aim_type::IsConnected()) makcu_wrapper::MakcuInitialize("");
         return true;
@@ -186,7 +194,10 @@ bool FivemIsAlive() {
     if (OmniGhost::GameContext::Instance().GetValidExecutable().empty()) return false;
     return !::OmniGhost::GameLaunch::FindFiveMProcessViaDma().empty();
 }
-bool FivemValidateOffsets() { return true; }
+bool FivemValidateOffsets() {
+    return FiveM::IsBuildSupported() && FiveM::OffsetAuto::PointersLookValid() &&
+        FiveM::SoftProbeLobbyOffsets();
+}
 std::string_view FivemTerminationReason() { return "Processo FiveM/GTA terminou"; }
 ActiveGame FivemGameId() { return ActiveGame::FiveM; }
 

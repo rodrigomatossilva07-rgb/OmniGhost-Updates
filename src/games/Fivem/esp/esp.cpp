@@ -1,4 +1,5 @@
 #include "esp.h"
+#include "prepared_esp_data.h"
 #include "math/math.h"
 #include "../game/game.h"
 #include "../../ImGui/imgui.h"
@@ -217,23 +218,6 @@ struct PreparedSkeletonFrame {
 static PreparedSkeletonFrame g_prepared_skeleton;
 static std::shared_mutex g_prepared_skeleton_mutex;
 static std::atomic<uint32_t> g_prepared_sequence{ 0 };
-
-struct PreparedEspData {
-    uintptr_t ped = 0;
-    Vec3 origin{};
-    float health = 0.0f;
-    float max_health = 200.0f;
-    float armor = 0.0f;
-    float armor_alt_1 = 0.0f;
-    float armor_alt_2 = 0.0f;
-    uintptr_t player_info = 0;
-    uint32_t network_id = 0;
-    uintptr_t weapon_manager = 0;
-    uintptr_t weapon_info = 0;
-    uint32_t weapon_hash = 0;
-    uintptr_t vehicle = 0;
-    bool valid = false;
-};
 
 struct PreparedEspFrame {
     std::vector<PreparedEspData> entries;
@@ -921,7 +905,13 @@ static ImU32 EspRGB() {
 static bool EspPedVisible(uintptr_t ped) {
     if (!ped || (!esp::config.visibility_colors && !esp::config.visible_check))
         return true;
+    if (const auto* prepared = FindPreparedEsp(ped); prepared && prepared->visibility_known)
+        return prepared->visible;
     return FiveM::Visibility::IsPedVisible(ped);
+}
+static bool EspPedVisibilityKnown(uintptr_t ped) {
+    const auto* prepared = FindPreparedEsp(ped);
+    return (prepared && prepared->visibility_known) || FiveM::Visibility::IsPedVisibilityKnown(ped);
 }
 
 // Per-frame flags — avoid repeated DMA from EspPedColor / skeleton / hat paths.
@@ -990,15 +980,14 @@ static bool EspPedIsFriend(uintptr_t ped, bool allowDirectRead) {
 }
 
 static ImU32 EspPedColor(uintptr_t ped, ImU32 configured, bool visible) {
-    if (esp::config.rgb_mode)
-        return EspRGB();
-    // Dead players: always red when shown
-    if (EspPedIsDead(ped))
-        return esp::config.color_dead ? esp::config.color_dead : IM_COL32(255, 50, 50, 255);
     // Colouring requests visibility acquisition itself. The separate
     // visible_check option filters hidden players and must not gate colours.
-    if (esp::config.visibility_colors)
+    if (esp::config.visibility_colors && EspPedVisibilityKnown(ped))
         return visible ? esp::config.color_visible : esp::config.color_invisible;
+    if (esp::config.rgb_mode)
+        return EspRGB();
+    if (EspPedIsDead(ped))
+        return esp::config.color_dead ? esp::config.color_dead : IM_COL32(255, 50, 50, 255);
     // Colour rendering can call this several times for the same entity. Never
     // perform a fresh DMA read here; reuse the player-info batch for the frame.
     if (EspPedIsFriend(ped, false))
@@ -1369,6 +1358,15 @@ void esp::prepare_esp_frame(const std::vector<uintptr_t>& peds,
     next.frame = g_prepared_sequence.fetch_add(1, std::memory_order_relaxed) + 1;
     next.timestamp = std::chrono::steady_clock::now();
     const auto publish = [&](PreparedEspFrame&& frame) {
+        for (auto& entry : frame.entries) {
+            PedData pedData;
+            if (!g_pedCacheManager.getPedData(entry.ped, pedData)) continue;
+            entry.visibility_known = pedData.visibility_known &&
+                std::chrono::steady_clock::now() - pedData.visibility_updated <
+                    std::chrono::milliseconds(80);
+            entry.visible = entry.visibility_known && pedData.visible;
+            entry.visibility_flag = pedData.visibility_flag;
+        }
         std::unique_lock lock(g_prepared_esp_mutex);
         g_prepared_esp = std::move(frame);
     };
@@ -2598,8 +2596,9 @@ void esp::DrawPlayerRadar(const Matrix& /*view_matrix*/, uintptr_t localplayer) 
             float ny = (-localY / range) * R;
             nx = std::clamp(nx, -R + 5.f, R - 5.f);
             ny = std::clamp(ny, -R + 5.f, R - 5.f);
-            ImU32 col = EspPedColor(ped, config.color_visible, visible);
-            if (friends::IsFriendPed(ped)) col = friends::config.friend_color;
+            ImU32 col = EspPedColor(ped, config.color_box_2d, visible);
+            if (!config.visibility_colors && friends::IsFriendPed(ped))
+                col = friends::config.friend_color;
             dl->AddCircleFilled(ImVec2(cx + nx, cy + ny), 3.0f, col, 10);
         }
     }
@@ -2709,8 +2708,9 @@ void esp::DrawPlayerRadar(const Matrix& /*view_matrix*/, uintptr_t localplayer) 
         ImVec2 a(ix - nx * size * 0.6f + tx * size * 0.7f, iy - ny * size * 0.6f + ty * size * 0.7f);
         ImVec2 b(ix - nx * size * 0.6f - tx * size * 0.7f, iy - ny * size * 0.6f - ty * size * 0.7f);
 
-        ImU32 col = EspPedColor(ped, config.color_visible, visible);
-        if (friends::IsFriendPed(ped)) col = friends::config.friend_color;
+        ImU32 col = EspPedColor(ped, config.color_box_2d, visible);
+        if (!config.visibility_colors && friends::IsFriendPed(ped))
+            col = friends::config.friend_color;
 
         dl->AddTriangleFilled(tip, a, b, col);
         dl->AddTriangle(tip, a, b, IM_COL32(0, 0, 0, 160), 1.0f);

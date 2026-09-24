@@ -21,6 +21,7 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'Hashing.ps1')
 
 if (-not $InternalConfirmed) { throw 'Direct publication is blocked. Use tools\Publish-Release.ps1 with the explicit -Confirm phrase.' }
+if (-not $ValidateOnly) { throw 'Publicação direta desativada: a release deve passar pelo workflow com teste DMA e assinatura comercial.' }
 
 $ProjectDir = [System.IO.Path]::GetFullPath((Join-Path $ProjectDir '.'))
 $ReleaseDirectory = [System.IO.Path]::GetFullPath((Join-Path $ReleaseDirectory '.'))
@@ -557,25 +558,5 @@ else {
 Write-Gh "URL: $($View.url)"
 
 Write-Gh "Artefactos locais preservados em: $ReleaseDirectory"
-
-# Discord #updates — only after a successful non-draft publish; webhook from env/secret only
-if (-not $Draft) {
-    $NotifyScript = Join-Path $PSScriptRoot 'Notify-DiscordRelease.ps1'
-    if (Test-Path -LiteralPath $NotifyScript -PathType Leaf) {
-        try {
-            & $NotifyScript -ProjectDir $ProjectDir -Version $Version -ReleaseDir $ReleaseDirectory
-        }
-        catch {
-            $Safe = [string]$_.Exception.Message -replace 'https://discord(?:app)?\.com/api/webhooks/\S+', '[webhook redacted]'
-            Write-Warning "Discord notification failed (release still published): $Safe"
-        }
-    }
-    else {
-        Write-Gh 'Notify-DiscordRelease.ps1 not found — Discord step skipped.'
-    }
-}
-else {
-    Write-Gh 'Draft release — Discord notification skipped.'
-}
 
 return

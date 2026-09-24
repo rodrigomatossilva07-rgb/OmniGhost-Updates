@@ -26,7 +26,6 @@ uintptr_t playerHealth = 0x280;
 uintptr_t playerPosition = 0x90;
 uintptr_t base = 0;
 int buildVersion = 0;
-uintptr_t framecountlastvisible = 0;
 uintptr_t pedVisibilityOffset = 0;
 uintptr_t blip_list = 0;
 uintptr_t aim_cped = 0;
@@ -46,14 +45,14 @@ static bool g_offsetsLoaded = false;
 
 static const BuildOffsets kSeedBuildOffsets[] = {
     // build, world, replay, viewport, camera, playerInfo, boneList, boneMatrix, health, pos,
-    // object_pool, net_mgr, blip, waypoint, aim_cped, ped_pool, veh_pool, framecount, ped_vis
-    { 2802, 0x1F5B820, 0x1F5B820, 0x1FBC100, 0x0,       0x10A8, 0x0,    0x60,   0x280, 0x90, 0,0,0,0,0,0,0,0,0x147C },
-    { 2944, 0x257BEA0, 0x1F42068, 0x1FEAAC0, 0x0,       0x10A8, 0x0,    0x60,   0x280, 0x90, 0,0,0,0,0,0,0,0,0x147C },
-    { 3095, 0x2593320, 0x1FBD4F0, 0x201DBA0, 0x201ED50, 0x10A8, 0x410,  0x60,   0x280, 0x90, 0,0,0,0,0,0,0,0,0x147C },
+    // object_pool, net_mgr, blip, waypoint, aim_cped, ped_pool, veh_pool, ped_visible_flag
+    { 2802, 0x1F5B820, 0x1F5B820, 0x1FBC100, 0x0,       0x10A8, 0x0,    0x60,   0x280, 0x90, 0,0,0,0,0,0,0,0x147C },
+    { 2944, 0x257BEA0, 0x1F42068, 0x1FEAAC0, 0x0,       0x10A8, 0x0,    0x60,   0x280, 0x90, 0,0,0,0,0,0,0,0x147C },
+    { 3095, 0x2593320, 0x1FBD4F0, 0x201DBA0, 0x201ED50, 0x10A8, 0x410,  0x60,   0x280, 0x90, 0,0,0,0,0,0,0,0x147C },
     { 3258, 0x25B14B0, 0x1FBD4F0, 0x201DBA0, 0x201E7D0, 0x10A8, 0x410,  0x60,   0x280, 0x90,
-      0x25BFDE8, 0x1E63C68, 0x2023400, 0x2EE0288, 0x202C8D0, 0x25B1758, 0x2F23F78, 0x5719A3, 0x147C },
-    { 3751, 0x2603908, 0x1FC38A8, 0x206C060, 0x206CC40, 0x10A8, 0x12B8, 0x12B8, 0x280, 0x90, 0,0,0,0,0,0,0,0,0x147C },
-    { 3788, 0x26068E0, 0x1FC68A8, 0x206F060, 0x206FC40, 0x10A8, 0x12B8, 0x12B8, 0x280, 0x90, 0,0,0,0,0,0,0,0,0x147C },
+      0x25BFDE8, 0x1E63C68, 0x2023400, 0x2EE0288, 0x202C8D0, 0x25B1758, 0x2F23F78, 0x147C },
+    { 3751, 0x2603908, 0x1FC38A8, 0x206C060, 0x206CC40, 0x10A8, 0x12B8, 0x12B8, 0x280, 0x90, 0,0,0,0,0,0,0x147C },
+    { 3788, 0x26068E0, 0x1FC68A8, 0x206F060, 0x206FC40, 0x10A8, 0x12B8, 0x12B8, 0x280, 0x90, 0,0,0,0,0,0,0,0x147C },
 };
 
 static uintptr_t ParseHexU64(const std::string& s) {
@@ -217,9 +216,9 @@ int LoadOffsetsFromJsonImpl(const char* explicit_path) {
             bo.aim_cped_offset = JsonHexField(obj, "aim_cped");
             bo.ped_pool_offset = JsonHexField(obj, "ped_pool");
             bo.vehicle_pool_offset = JsonHexField(obj, "vehicle_pool");
-            bo.framecount_last_visible_offset = JsonHexField(obj, "framecount_last_visible");
-            const uintptr_t vis = JsonHexField(obj, "ped_visibility");
-            bo.ped_visibility_offset = vis ? vis : 0x147C;
+            bo.ped_visibility_offset = JsonHexField(obj, "ped_visible_flag");
+            if (!bo.ped_visibility_offset)
+                bo.ped_visibility_offset = JsonHexField(obj, "ped_visibility");
             if (bo.world_offset && bo.viewport_offset)
                 g_buildOffsets.push_back(bo);
             i = j;
@@ -308,14 +307,19 @@ bool SoftProbeLobbyOffsets() {
         std::cout << "[FiveM] SoftProbe: module base=0\n";
         return false;
     }
-    if (!world) {
-        std::cout << "[FiveM] SoftProbe: world=0 (build offsets mismatch?)\n";
+    if (!world || !viewport) {
+        std::cout << "[FiveM] SoftProbe: world/viewport missing (build offsets mismatch?)\n";
         return false;
     }
-    const bool world_ok = world >= 0x10000ULL && world < 0x00007FFFFFFFFFFFULL;
-    uintptr_t probe = 0;
-    const bool readable = world_ok && mem.Read(world, &probe, sizeof(probe));
-    const bool ok = world_ok && readable;
+    const auto looksPointer = [](uintptr_t value) {
+        return value >= 0x10000ULL && value < 0x00007FFFFFFFFFFFULL;
+    };
+    uintptr_t worldProbe = 0;
+    uintptr_t viewportProbe = 0;
+    const bool readable = looksPointer(world) && looksPointer(viewport) &&
+        mem.Read(world, &worldProbe, sizeof(worldProbe)) &&
+        mem.Read(viewport, &viewportProbe, sizeof(viewportProbe));
+    const bool ok = readable;
     std::cout << "[FiveM] SoftProbe world=0x" << std::hex << world << std::dec
               << " read=" << (readable ? "OK" : "FAIL")
               << " => " << (ok ? "PASS" : "FAIL") << std::endl;

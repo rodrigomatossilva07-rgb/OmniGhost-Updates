@@ -2,7 +2,8 @@
 param(
     [Parameter(Mandatory=$true)][string]$Executable,
     [Parameter(Mandatory=$false)][string]$OutputDirectory = '',
-    [switch]$RequireSingleExeDirectory
+    [switch]$RequireSingleExeDirectory,
+    [switch]$RequireSelfContainedHost
 )
 
 $ErrorActionPreference = 'Stop'
@@ -47,11 +48,24 @@ if ($RequireSingleExeDirectory) {
         if (Test-Path -LiteralPath (Join-Path $directory $legacy)) { throw "Legacy output directory exists: $legacy" }
     }
 }
+if ($RequireSelfContainedHost) {
+    $externalRuntime = @($dlls | Where-Object {
+        $_ -match '^(vcruntime|msvcp|concrt|ucrtbase|api-ms-win-crt|vmm|leechcore).*\.dll$'
+    })
+    if ($externalRuntime.Count -gt 0) {
+        throw ('Bootstrap host imports an external runtime: ' + ($externalRuntime -join ', '))
+    }
+}
+
+$sha = [Security.Cryptography.SHA256]::Create()
+$stream = [IO.File]::OpenRead($Executable)
+try { $sha256 = ([BitConverter]::ToString($sha.ComputeHash($stream))).Replace('-', '').ToLowerInvariant() }
+finally { $stream.Dispose(); $sha.Dispose() }
 
 $report = [ordered]@{
     schemaVersion = 1
     executable = $Executable
-    sha256 = (Get-FileHash -LiteralPath $Executable -Algorithm SHA256).Hash.ToLowerInvariant()
+    sha256 = $sha256
     importedDlls = $dlls
     singleExeDirectory = [bool]$RequireSingleExeDirectory
 }

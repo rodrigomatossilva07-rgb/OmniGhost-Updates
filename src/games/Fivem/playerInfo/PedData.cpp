@@ -213,6 +213,29 @@ void PedCacheManager::updatePedHealth(uintptr_t pedId, float health) {
     }
 }
 
+void PedCacheManager::updatePedVisibilities(const std::vector<uintptr_t>& peds,
+    const std::vector<uint8_t>& flags, uint8_t unreadFlag,
+    std::chrono::steady_clock::time_point sampledAt) {
+    std::unique_lock lock(mutex_);
+    for (size_t i = 0; i < peds.size() && i < flags.size(); ++i) {
+        const auto it = pedCache.find(peds[i]);
+        if (it == pedCache.end() || !it->second.isValid) continue;
+        auto& data = it->second;
+        data.visibility_flag = flags[i];
+        data.visibility_known = flags[i] != unreadFlag;
+        data.visible = data.visibility_known && PedVisibilityFlagMeansVisible(flags[i]);
+        data.visibility_updated = sampledAt;
+    }
+}
+
+void PedCacheManager::clearPedVisibilities() {
+    std::unique_lock lock(mutex_);
+    for (auto& [ped, data] : pedCache) {
+        data.visible = false;
+        data.visibility_known = false;
+    }
+}
+
 void PedCacheManager::removePed(uintptr_t pedId) {
     std::unique_lock lock(mutex_);
     pedCache.erase(pedId);

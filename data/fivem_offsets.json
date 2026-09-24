@@ -1,6 +1,7 @@
 {
   "schema_version": "0x2",
   "game": "fivem",
+  "ped_visible_flag_note": "0x147C is the existing CPed visibility byte for all listed builds. The 0/4/36 mapping is provisional until live DMA validation per build; this is not geometric LOS.",
   "module": "GTAProcess.exe",
   "note": "Module RVAs are relative to game base. Field offsets are relative to ped/entity. Source of truth for FiveM::offset runtime \u2014 update this file for new builds.",
   "default_build": "0xCB2",
@@ -22,8 +23,7 @@
       "aim_cped": "0x0",
       "ped_pool": "0x0",
       "vehicle_pool": "0x0",
-      "framecount_last_visible": "0x0",
-      "ped_visibility": "0x147C"
+      "ped_visible_flag": "0x147C"
     },
     "2944": {
       "world": "0x257BEA0",
@@ -42,8 +42,7 @@
       "aim_cped": "0x0",
       "ped_pool": "0x0",
       "vehicle_pool": "0x0",
-      "framecount_last_visible": "0x0",
-      "ped_visibility": "0x147C"
+      "ped_visible_flag": "0x147C"
     },
     "3095": {
       "world": "0x2593320",
@@ -62,8 +61,7 @@
       "aim_cped": "0x0",
       "ped_pool": "0x0",
       "vehicle_pool": "0x0",
-      "framecount_last_visible": "0x0",
-      "ped_visibility": "0x147C"
+      "ped_visible_flag": "0x147C"
     },
     "3258": {
       "world": "0x25B14B0",
@@ -82,8 +80,7 @@
       "aim_cped": "0x202C8D0",
       "ped_pool": "0x25B1758",
       "vehicle_pool": "0x2F23F78",
-      "framecount_last_visible": "0x5719A3",
-      "ped_visibility": "0x147C",
+      "ped_visible_flag": "0x147C",
       "pickup_mgr": "0x25B1470",
       "global_ptr": "0x1F73578",
       "sky_settings": "0x2721250",
@@ -108,8 +105,7 @@
       "aim_cped": "0x0",
       "ped_pool": "0x0",
       "vehicle_pool": "0x0",
-      "framecount_last_visible": "0x0",
-      "ped_visibility": "0x147C"
+      "ped_visible_flag": "0x147C"
     },
     "3788": {
       "world": "0x26068E0",
@@ -128,8 +124,7 @@
       "aim_cped": "0x0",
       "ped_pool": "0x0",
       "vehicle_pool": "0x0",
-      "framecount_last_visible": "0x0",
-      "ped_visibility": "0x147C"
+      "ped_visible_flag": "0x147C"
     }
   },
   "shared_fields": {

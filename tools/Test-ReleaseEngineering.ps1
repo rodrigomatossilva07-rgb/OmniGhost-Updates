@@ -49,6 +49,7 @@ Assert ($policy.requireConfirmation -eq $false) 'Publish must remain non-interac
 Assert ($policy.requireCleanReproducibleBuild -eq $true) 'Clean reproducible source must be required.'
 Assert ($policy.requireTagRelease -eq $true) 'A matching release tag must be required.'
 Assert ($policy.allowDeterministicSourceSnapshot -eq $true) 'Deterministic source snapshot publication must be explicitly enabled for this extracted project.'
+Assert ($policy.requireAuthenticode -eq $true -and $policy.requireManifestSignature -eq $true) 'Commercial release signatures must be mandatory.'
 
 $project = [IO.File]::ReadAllText((Join-Path $ProjectDir 'OmiGhost.vcxproj'))
 Assert ($project -match 'PublishOmniGhostRelease') 'Publish remote target is missing.'
@@ -60,7 +61,13 @@ Assert ($project -notmatch "'\$\(Configuration\)'=='Release'.*publish-build") 'R
 $workflow = [IO.File]::ReadAllText((Join-Path $ProjectDir '.github\workflows\release.yml'))
 Assert ($workflow -match "tags:\s*[\r\n]+\s+- 'v\*'") 'Workflow is not tag-driven.'
 Assert ($workflow -match 'environment:\s*production') 'Production approval environment is missing.'
-Assert ($workflow -match 'OmniGhost\.Tests\.vcxproj') 'Workflow does not build tests.'
+Assert ($workflow -match 'Test-ReleaseReadiness\.ps1') 'Workflow does not test release source and FiveM metadata.'
+Assert ($workflow -match 'needs:\s*\[build_test_package, hardware_integration_test\]') 'Publication does not require the DMA integration job.'
+Assert ($workflow -match 'Mode Commercial') 'Release workflow does not package a signed commercial build.'
+Assert ($workflow -match 'Validate-CommercialRelease\.ps1') 'Commercial signatures are not validated in the workflow.'
+Assert ($workflow -notmatch 'DISCORD_WEBHOOK_URL|Notify-DiscordRelease') 'Removed Discord webhook is still referenced by the workflow.'
+Assert ($workflow -notmatch '(?m)^\s*if:\s*env\.OMNIGHOST_TEST_GAME') 'DMA test must not be skipped when configuration is missing.'
+Assert ($workflow -match 'lfs:\s*true') 'Release checkout does not fetch Git LFS assets.'
 Assert ($workflow -match 'RunCodeAnalysis=true') 'Workflow does not execute MSVC static analysis.'
 Assert ($workflow -match 'Validate-ReleaseArtifacts\.ps1') 'Workflow does not validate the final ZIP.'
 Assert ($workflow -match 'SBOM\.cdx\.json') 'Workflow does not publish the SBOM.'

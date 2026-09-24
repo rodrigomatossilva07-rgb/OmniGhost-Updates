@@ -7,6 +7,11 @@
 #include <shared_mutex>
 #include "math/math.h"
 
+// Provisional CPed byte mapping. Requires live per-build validation.
+inline constexpr bool PedVisibilityFlagMeansVisible(uint8_t flag) noexcept {
+    return flag != 0 && flag != 4 && flag != 36;
+}
+
 // Define the structure for storing ped data
 struct PedData {
     float health;
@@ -14,6 +19,10 @@ struct PedData {
     uintptr_t playerInfo;
     std::chrono::steady_clock::time_point lastUpdate;
     bool isValid;
+    bool visible = false;
+    bool visibility_known = false;
+    uint8_t visibility_flag = 0;
+    std::chrono::steady_clock::time_point visibility_updated{};
 
     PedData() : health(0.0f), position_origin{}, playerInfo(0),
         lastUpdate(std::chrono::steady_clock::now()), isValid(false) {
@@ -61,6 +70,10 @@ public:
     // Writer methods
     void updatePedPosition(uintptr_t pedId, const Vec3& position);
     void updatePedHealth(uintptr_t pedId, float health);
+    void updatePedVisibilities(const std::vector<uintptr_t>& peds,
+        const std::vector<uint8_t>& flags, uint8_t unreadFlag,
+        std::chrono::steady_clock::time_point sampledAt);
+    void clearPedVisibilities();
     void removePed(uintptr_t pedId);
     void clearCache();
 

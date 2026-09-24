@@ -1,30 +1,6 @@
 // This implementation fragment is included by game_select.cpp inside Launcher's private namespace.
 // It is separated by responsibility to keep the launcher coordinator reviewable.
 
-void StartLicenseOperation(bool createTemporary, std::string key = {}) {
-    if (g_license_operation_pending)
-        return;
-    g_license_operation_pending = true;
-    g_license_feedback_success = false;
-    g_license_feedback = createTemporary ? "A criar licença local..." : "A validar licença...";
-    g_license_operation = std::async(std::launch::async,
-        [createTemporary, key = std::move(key)]() mutable {
-            LicenseOperationResult result;
-            try {
-                result.success = createTemporary
-                    ? OmniGhost::Licensing::CreateTemporaryLocalLicense(&result.message)
-                    : OmniGhost::Licensing::ActivateLocalKey(key, &result.message);
-            } catch (const std::exception& error) {
-                result.message = std::string("A operação da licença falhou: ") + error.what();
-            } catch (...) {
-                result.message = "A operação da licença falhou inesperadamente.";
-            }
-            if (!key.empty())
-                SecureZeroMemory(key.data(), key.size());
-            return result;
-        });
-}
-
 void StartRemoteLicenseUpgrade(std::string key) {
     if (g_license_operation_pending)
         return;

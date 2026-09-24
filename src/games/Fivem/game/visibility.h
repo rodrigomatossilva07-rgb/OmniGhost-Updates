@@ -1,127 +1,80 @@
 #pragma once
+#include <chrono>
 #include <cstdint>
 #include <vector>
-#include <unordered_map>
-#include <chrono>
-#include <shared_mutex>
 #include "../../DMALibrary/Memory/Memory.h"
+#include "../playerInfo/PedData.h"
 #include "offsets.h"
 
-namespace FiveM {
-    namespace Visibility {
+namespace FiveM::Visibility {
 
-        struct VisibilitySample {
-            bool visible = true;
-            std::chrono::steady_clock::time_point updated{};
-        };
+static_assert(!PedVisibilityFlagMeansVisible(0) &&
+              !PedVisibilityFlagMeansVisible(4) &&
+              !PedVisibilityFlagMeansVisible(36) &&
+              PedVisibilityFlagMeansVisible(1));
 
-        inline std::unordered_map<uintptr_t, VisibilitySample>& Cache() {
-            static std::unordered_map<uintptr_t, VisibilitySample> cache;
-            return cache;
-        }
+inline VMMDLL_SCATTER_HANDLE& ScatterHandle() {
+    static VMMDLL_SCATTER_HANDLE handle = nullptr;
+    return handle;
+}
 
-        inline VMMDLL_SCATTER_HANDLE& ScatterHandle() {
-            static VMMDLL_SCATTER_HANDLE handle = nullptr;
-            return handle;
-        }
+inline bool IsPedVisibilityKnown(uintptr_t ped) {
+    PedData data;
+    return ped && offset::pedVisibilityOffset &&
+        g_pedCacheManager.getPedData(ped, data) && data.visibility_known &&
+        std::chrono::steady_clock::now() - data.visibility_updated <
+            std::chrono::milliseconds(80);
+}
 
-        inline std::shared_mutex& CacheMutex() {
-            static std::shared_mutex mutex;
-            return mutex;
-        }
+inline bool IsPedVisible(uintptr_t ped) {
+    PedData data;
+    return ped && offset::pedVisibilityOffset &&
+        g_pedCacheManager.getPedData(ped, data) && data.visibility_known &&
+        std::chrono::steady_clock::now() - data.visibility_updated <
+            std::chrono::milliseconds(80) && data.visible;
+}
 
-        // oPedVisibility is a last-visible frame byte, not a boolean flag.
-        // The subtraction is intentionally uint8_t so wrap-around at 255 is safe.
-        inline constexpr bool IsRecentlyVisible(uint8_t currentFrame, uint8_t lastVisibleFrame) {
-            // Game visibility frame counter ticks every render frame.
-            // Allow a small window so brief stalls don't flicker red.
-            const uint8_t age = static_cast<uint8_t>(currentFrame - lastVisibleFrame);
-            return age <= 5;
-        }
-
-        static_assert(IsRecentlyVisible(1, 255), "visibility frame wrap must be supported");
-        static_assert(IsRecentlyVisible(10, 5), "age==5 still counts as recently visible");
-        static_assert(!IsRecentlyVisible(12, 5), "stale visibility samples must be rejected");
-
-        inline bool IsPedVisible(uintptr_t ped) {
-            if (!ped) return true;
-
-            const auto now = std::chrono::steady_clock::now();
-            std::shared_lock lock(CacheMutex());
-            const auto& cache = Cache();
-            const auto cached = cache.find(ped);
-            // Short TTL so wall enter/exit recolors almost immediately
-            if (cached != cache.end() &&
-                now - cached->second.updated < std::chrono::milliseconds(8)) {
-                return cached->second.visible;
-            }
-
-            // Cache miss on the presentation thread: do NOT issue DMA here.
-            // Producer BatchCheckVisibility stamps the cache every acquisition.
-            // Fail-open keeps ESP drawing instead of flickering everyone hidden.
-            if (cached != cache.end())
-                return cached->second.visible;
-            return true;
-        }
-
-        inline void BatchCheckVisibility(const std::vector<uintptr_t>& peds,
-                                         std::vector<bool>& visibilityResults) {
-            visibilityResults.assign(peds.size(), true);
-            if (peds.empty() || !offset::framecountlastvisible ||
-                !offset::pedVisibilityOffset) {
-                return;
-            }
-
-            uint8_t currentFrame = 0;
-            if (!mem.Read(offset::framecountlastvisible, &currentFrame, sizeof(currentFrame)))
-                return;
-
-            std::vector<uint8_t> lastVisibleFrames(peds.size(), currentFrame);
-            auto& visHandle = ScatterHandle();
-            if (!visHandle && mem.vHandle)
-                visHandle = mem.CreateScatterHandle();
-            if (!visHandle) return;
-            for (size_t i = 0; i < peds.size(); ++i) {
-                if (peds[i]) {
-                    mem.AddScatterReadRequest(visHandle,
-                        peds[i] + offset::pedVisibilityOffset,
-                        &lastVisibleFrames[i], sizeof(uint8_t));
-                }
-            }
-            mem.ExecuteReadScatter(visHandle);
-
-            const auto now = std::chrono::steady_clock::now();
-            std::unique_lock lock(CacheMutex());
-            auto& cache = Cache();
-            for (size_t i = 0; i < peds.size(); ++i) {
-                const bool visible = peds[i] &&
-                    IsRecentlyVisible(currentFrame, lastVisibleFrames[i]);
-                visibilityResults[i] = visible;
-                if (peds[i]) cache[peds[i]] = { visible, now };
-            }
-            // Producer-stamped generation: render must not re-DMA within same gen
-            static std::atomic<uint64_t> s_visGen{0};
-            s_visGen.fetch_add(1, std::memory_order_relaxed);
-
-            if (cache.size() > 512)
-                cache.clear();
-        }
-
-        inline void ClearCache() {
-            std::unique_lock lock(CacheMutex());
-            Cache().clear();
-        }
-
-        // Called after the producer thread has stopped.  The visibility lane
-        // owns this scatter handle, so closing it here prevents a stale VMM
-        // handle from surviving a detach/re-attach or a game restart.
-        inline void Shutdown() {
-            auto& visHandle = ScatterHandle();
-            if (visHandle) {
-                mem.CloseScatterHandle(visHandle);
-                visHandle = nullptr;
-            }
-            ClearCache();
-        }
+// Called only from the acquisition thread, at its ~16-24 ms cadence.
+inline void BatchCheckVisibility(const std::vector<uintptr_t>& peds,
+                                 std::vector<bool>& visibilityResults) {
+    visibilityResults.assign(peds.size(), false);
+    if (peds.empty() || !offset::pedVisibilityOffset) {
+        g_pedCacheManager.clearPedVisibilities();
+        return;
     }
+
+    // Unchanged slots signal a failed scatter read. 0xFF is treated as
+    // unknown if it is ever a genuine flag value, rather than guessing visible.
+    constexpr uint8_t unreadFlag = 0xFF;
+    std::vector<uint8_t> flags(peds.size(), unreadFlag);
+    auto& handle = ScatterHandle();
+    if (!handle && mem.vHandle)
+        handle = mem.CreateScatterHandle();
+    if (!handle) {
+        g_pedCacheManager.clearPedVisibilities();
+        return;
+    }
+    for (size_t i = 0; i < peds.size(); ++i) {
+        if (peds[i])
+            mem.AddScatterReadRequest(handle, peds[i] + offset::pedVisibilityOffset,
+                                      &flags[i], sizeof(uint8_t));
+    }
+    mem.ExecuteReadScatter(handle);
+    const auto now = std::chrono::steady_clock::now();
+    g_pedCacheManager.updatePedVisibilities(peds, flags, unreadFlag, now);
+    for (size_t i = 0; i < peds.size(); ++i)
+        visibilityResults[i] = peds[i] && flags[i] != unreadFlag && PedVisibilityFlagMeansVisible(flags[i]);
+}
+
+inline void ClearCache() { g_pedCacheManager.clearPedVisibilities(); }
+
+// Called only after the acquisition thread has stopped.
+inline void Shutdown() {
+    auto& handle = ScatterHandle();
+    if (handle) {
+        mem.CloseScatterHandle(handle);
+        handle = nullptr;
+    }
+    ClearCache();
+}
 }

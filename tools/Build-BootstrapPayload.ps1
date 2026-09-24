@@ -79,7 +79,10 @@ $rcOutput = Join-Path $generatedDir 'bootstrap_payload.rc2'
 $headerOutput = Join-Path $generatedDir 'bootstrap_payload_manifest.h'
 
 function Get-Sha256Hex([string]$Path) {
-    return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToUpperInvariant()
+    $stream = [IO.File]::OpenRead($Path)
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try { return ([BitConverter]::ToString($sha.ComputeHash($stream))).Replace('-', '') }
+    finally { $sha.Dispose(); $stream.Dispose() }
 }
 
 $entries = New-Object System.Collections.Generic.List[object]

@@ -78,9 +78,6 @@
     <ClCompile Include="ImGui\imgui.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="ImGui\imgui_demo.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="ImGui\imgui_draw.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -273,9 +270,6 @@
     <ClCompile Include="src\launcher\auth_page.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\tests\auth_launcher_transition_test.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="src\config\config_core.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -446,9 +440,6 @@
     <ClInclude Include="src\updater\wininet_fallback.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\launcher\license_page.h">
-      <Filter>Header Files\launcher</Filter>
-    </ClInclude>
     <ClInclude Include="src\licensing\license_service.h">
       <Filter>Header Files\licensing</Filter>
     </ClInclude>
@@ -572,9 +563,6 @@
     </ClCompile>
     <ClCompile Include="src\games\Cs2\radar\cs2_radar.cpp">
       <Filter>Source Files\Cs2</Filter>
-    </ClCompile>
-    <ClCompile Include="src\launcher\license_page.cpp">
-      <Filter>Source Files\launcher</Filter>
     </ClCompile>
     <ClCompile Include="src\licensing\license_service.cpp">
       <Filter>Source Files\licensing</Filter>

@@ -52,8 +52,8 @@ if (-not $ExplicitConfirmed) {
 if ([string]$config.releaseChannel -cne 'stable') {
     throw 'A configuração Publish apenas pode publicar no canal stable.'
 }
-if (($config.requireAuthenticode -eq $true) -xor ($config.requireManifestSignature -eq $true)) {
-    throw 'Authenticode e assinatura do manifesto devem ser ativados ou desativados em conjunto.'
+if ($config.requireAuthenticode -ne $true -or $config.requireManifestSignature -ne $true) {
+    throw 'Publish requer Authenticode e assinatura do manifesto.'
 }
 
 $version = ([IO.File]::ReadAllText($versionPath)).Trim()
@@ -159,49 +159,9 @@ if ([string]::IsNullOrWhiteSpace($ReleaseDirectory)) {
 }
 $ReleaseDirectory = [IO.Path]::GetFullPath((Join-Path $ReleaseDirectory '.'))
 
-if ($script:SkipRemoteUpload) {
-    Write-Host '[OmniGhost Publish] Packaging local concluído. Upload GitHub omitido (tag/source não elegíveis para release remoto).'
-    Write-Host ("[OmniGhost Publish] Para publicar no GitHub: git tag v{0} && git push --tags, depois rebuild Publish." -f $version)
-}
-else {
-    $operationMessage = if ($ValidateOnly) {
-        '[OmniGhost Publish] A validar autenticação e assets sem alterar o GitHub...'
-    } else {
-        '[OmniGhost Publish] A enviar e validar a Release no GitHub...'
-    }
-    Write-Host $operationMessage
-
-    & (Join-Path $ProjectDir 'tools\publish_github_release.ps1') `
-        -ProjectDir $ProjectDir `
-        -Version $version `
-        -ReleaseDirectory $ReleaseDirectory `
-        -InternalConfirmed `
-        -ValidateOnly:$ValidateOnly
-
-    if ($LASTEXITCODE -ne 0) { throw "A publicação terminou com o código $LASTEXITCODE." }
-
-    $completionMessage = if ($ValidateOnly) {
-        '[OmniGhost Publish] Preflight concluído. Nenhuma alteração remota foi efetuada.'
-    } else {
-        "[OmniGhost Publish] Versão $version publicada com sucesso."
-    }
-    Write-Host $completionMessage
-
-    # Only a fully public, latest release may discard local build outputs.
-    # A failed upload, preflight, draft, or skipped remote upload deliberately
-    # leaves every artifact intact for diagnosis and retry.
-    if (-not $ValidateOnly -and -not $script:SkipRemoteUpload -and $config.draft -ne $true -and
-        $config.cleanWorkspaceAfterVerifiedPublish -eq $true) {
-        $workspaceCleanup = Join-Path $ProjectDir 'tools\Cleanup-PublishWorkspace.ps1'
-        if (-not (Test-Path -LiteralPath $workspaceCleanup -PathType Leaf)) {
-            throw "Limpeza pós-publicação configurada, mas o script não existe: $workspaceCleanup"
-        }
-        & $workspaceCleanup -ProjectDir $ProjectDir
-        if ($LASTEXITCODE -ne 0) {
-            Write-Warning "A Release já foi publicada, mas a limpeza pós-publicação terminou com o código $LASTEXITCODE."
-        }
-    }
-}
+& (Join-Path $ProjectDir 'tools\Validate-CommercialRelease.ps1') `
+    -ProjectDir $ProjectDir -ReleaseDirectory $ReleaseDirectory -Version $version
+Write-Host '[OmniGhost Publish] Pacote comercial local validado. A publicação remota depende do workflow com teste DMA obrigatório.'
 }
 finally {
     $cleanupScript = Join-Path $ProjectDir 'tools\Cleanup-ReleaseCopies.ps1'

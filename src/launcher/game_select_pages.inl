@@ -805,8 +805,7 @@ void DrawSettings(ImVec2 display) {
         break;
     case app_settings::SettingsPage::Licenses: {
         const auto license = OmniGhost::Licensing::GetSnapshot();
-        const bool remote = license.remoteServiceConfigured;
-        const bool accessActive = remote ? license.remoteAuthenticated : license.localLicenseValid;
+        const bool accessActive = license.remoteAuthenticated;
         std::size_t gameCount = 0;
         const GameDefinition* gameList = Games(gameCount);
         std::size_t integratedGames = 0;
@@ -819,15 +818,12 @@ void DrawSettings(ImVec2 display) {
         const float licenseColumnWidth = CyberWidgets::CardRowHalfWidth();
         CyberWidgets::BeginCard("Estado da licença", licenseColumnWidth);
         CyberWidgets::Badge(
-            accessActive ? (remote ? "SESSÃO KEYAUTH ATIVA" : "ACESSO LOCAL ATIVO") : "AÇÃO NECESSÁRIA",
+            accessActive ? "SESSÃO KEYAUTH ATIVA" : "AÇÃO NECESSÁRIA",
             accessActive ? CyberWidgets::TextTone::Success : CyberWidgets::TextTone::Warning);
         ImGui::Dummy(ImVec2(0, S(6.f)));
-        CyberWidgets::KeyValueRow("Modo", remote ? Loc::Tr("launcher.remote_auth") : Loc::Tr("launcher.local_compat"));
-        CyberWidgets::KeyValueRow("Estado", remote
-            ? (license.remoteAuthenticated ? Loc::Tr("launcher.authenticated") : Loc::Tr("launcher.no_session"))
-            : OmniGhost::Licensing::StateLabel(license.localState));
-        CyberWidgets::KeyValueRow("Armazenamento", remote ? Loc::Tr("launcher.remote_session") : (license.protectedStorage
-            ? Loc::Tr("launcher.protected_storage") : Loc::Tr("launcher.unprotected_missing")));
+        CyberWidgets::KeyValueRow("Modo", Loc::Tr("launcher.remote_auth"));
+        CyberWidgets::KeyValueRow("Estado", license.remoteAuthenticated ? Loc::Tr("launcher.authenticated") : Loc::Tr("launcher.no_session"));
+        CyberWidgets::KeyValueRow("Armazenamento", Loc::Tr("launcher.remote_session"));
         std::size_t grantedGames = 0;
         for (std::size_t index = 0; index < gameCount; ++index) {
             if (!gameList[index].coming_soon && OmniGhost::Licensing::HasGameAccess(gameList[index].id))
@@ -837,9 +833,7 @@ void DrawSettings(ImVec2 display) {
             ? std::to_string(grantedGames) + " de " + std::to_string(integratedGames) + " " + std::string(Loc::Tr("launcher.games")) + " " + std::string(Loc::Tr("launcher.coverage"))
             : std::string(Loc::Tr("launcher.no_key")) + " " + std::string(Loc::Tr("launcher.games")) + " " + std::string(Loc::Tr("launcher.coverage"));
         CyberWidgets::KeyValueRow(Loc::Tr("launcher.coverage"), coverage.c_str());
-        CyberWidgets::TextLine(remote
-            ? "A sessão KeyAuth controla o acesso aos jogos desta instalação."
-            : "A conta e a licença são independentes. O acesso é revisto imediatamente após cada alteração.",
+        CyberWidgets::TextLine("A sessão KeyAuth controla o acesso aos jogos desta instalação.",
             CyberWidgets::TextTone::Secondary);
         CyberWidgets::EndCard();
 
@@ -860,8 +854,8 @@ void DrawSettings(ImVec2 display) {
         CyberWidgets::EndCard();
         CyberWidgets::EndCardRow();
 
-        CyberWidgets::BeginCard(remote ? "Licenciamento KeyAuth" : "Ativação local", 0.f);
-        if (remote) {
+        CyberWidgets::BeginCard("Licenciamento KeyAuth", 0.f);
+        {
             CyberWidgets::InlineMessage(license.remoteAuthenticated
                 ? "A sessão KeyAuth está ativa. Cada subscrição da conta desbloqueia apenas os produtos respetivos."
                 : "Inicia sessão, cria uma conta ou ativa uma key na página de autenticação para desbloquear os jogos.",
@@ -893,34 +887,6 @@ void DrawSettings(ImVec2 display) {
                     "A key é associada à conta KeyAuth atual; os acessos existentes mantêm-se.",
                     CyberWidgets::TextTone::Secondary);
             }
-        } else if (!license.localLicenseValid) {
-            CyberWidgets::TextLine(
-                "Introduz uma licença válida ou cria temporariamente o acesso local desta instalação.",
-                CyberWidgets::TextTone::Secondary);
-            ImGui::Dummy(ImVec2(0, S(8.f)));
-            const bool enter = CyberWidgets::InputField("##settings_license_key", g_license_input,
-                sizeof(g_license_input), "Licença", ImGuiInputTextFlags_Password | ImGuiInputTextFlags_EnterReturnsTrue,
-                -1.f, true);
-            ImGui::BeginDisabled(g_license_operation_pending);
-            if (CyberWidgets::GoldButton(
-                    g_license_operation_pending ? "A processar...##validate_license" : "Validar licença",
-                    ImVec2(S(155.f), S(34.f))) || (enter && !g_license_operation_pending)) {
-                std::string key(g_license_input);
-                SecureZeroMemory(g_license_input, sizeof(g_license_input));
-                StartLicenseOperation(false, std::move(key));
-            }
-            ImGui::SameLine(0.f, S(10.f));
-            if (CyberWidgets::GhostButton("Criar Licença##temporary_license", ImVec2(S(155.f), S(34.f)))) {
-                StartLicenseOperation(true);
-            }
-            ImGui::EndDisabled();
-            CyberWidgets::TextLine(
-                "Ferramenta temporária do proprietário. Remover antes da distribuição final a clientes.",
-                CyberWidgets::TextTone::Warning);
-        } else {
-            CyberWidgets::InlineMessage(
-                "Licença local ativa. Todos os jogos integrados estão autorizados nesta instalação.",
-                CyberWidgets::TextTone::Success);
         }
         if (!g_license_feedback.empty()) {
             ImGui::Dummy(ImVec2(0, S(7.f)));
@@ -1079,21 +1045,19 @@ void DrawSettings(ImVec2 display) {
 void DrawAccount(ImVec2 display) {
     BeginControlPage("##launcher_account", display);
     DrawPageHeading(Loc::Tr("launcher.account"), Loc::Tr("launcher.account.subtitle"));
-    const auto& auth = OmniGhost::Auth::LocalAuthService::Instance();
     const auto license = OmniGhost::Licensing::GetSnapshot();
 
-    const bool remote = license.remoteServiceConfigured;
-    const std::string identity = remote ? license.remoteUsername : MaskEmail(auth.CurrentEmail());
-    const bool accessActive = remote ? license.remoteAuthenticated : license.localLicenseValid;
+    const std::string identity = license.remoteUsername;
+    const bool accessActive = license.remoteAuthenticated;
     CyberWidgets::BeginCardRow(2);
     const float columnWidth = CyberWidgets::CardRowHalfWidth();
     CyberWidgets::BeginCard(Loc::Tr("launcher.profile"), columnWidth);
     CyberWidgets::Badge("SESSÃO PRIVADA", CyberWidgets::TextTone::Success);
     ImGui::Dummy(ImVec2(0, S(7.f)));
-    CyberWidgets::KeyValueRow(remote ? "Utilizador" : Loc::Tr("launcher.email"), identity.empty() ? "—" : identity.c_str());
-    CyberWidgets::KeyValueRow(Loc::Tr("launcher.authentication"), remote ? "KeyAuth" : Loc::Tr("launcher.local_dpapi"));
-    CyberWidgets::KeyValueRow(Loc::Tr("launcher.remember_me"), remote ? "Sessão atual" : (auth.RememberMe() ? Loc::Tr("launcher.enabled") : Loc::Tr("launcher.disabled")));
-    CyberWidgets::TextLine(remote ? "As credenciais não são guardadas pelo launcher." : "O endereço completo não é exposto nesta interface.", CyberWidgets::TextTone::Secondary);
+    CyberWidgets::KeyValueRow("Utilizador", identity.empty() ? "—" : identity.c_str());
+    CyberWidgets::KeyValueRow(Loc::Tr("launcher.authentication"), "KeyAuth");
+    CyberWidgets::KeyValueRow(Loc::Tr("launcher.remember_me"), "Sessão atual");
+    CyberWidgets::TextLine("O acesso aos jogos depende da sessão KeyAuth.", CyberWidgets::TextTone::Secondary);
     CyberWidgets::EndCard();
 
     CyberWidgets::NextCardColumn();
@@ -1101,11 +1065,9 @@ void DrawAccount(ImVec2 display) {
     CyberWidgets::Badge(accessActive ? "ACESSO ATIVO" : "AÇÃO NECESSÁRIA",
         accessActive ? CyberWidgets::TextTone::Success : CyberWidgets::TextTone::Warning);
     ImGui::Dummy(ImVec2(0, S(7.f)));
-    CyberWidgets::KeyValueRow(Loc::Tr("launcher.state"), remote
-        ? (license.remoteAuthenticated ? "Sessão KeyAuth válida" : "Sem sessão KeyAuth")
-        : OmniGhost::Licensing::StateLabel(license.localState));
-    CyberWidgets::KeyValueRow(Loc::Tr("launcher.storage"), remote ? "KeyAuth" : (license.protectedStorage ? "Windows DPAPI" : Loc::Tr("launcher.unprotected_missing")));
-    CyberWidgets::TextLine(remote ? "O acesso aos jogos depende da sessão KeyAuth atual." : Loc::Tr("launcher.license_separate"), CyberWidgets::TextTone::Secondary);
+    CyberWidgets::KeyValueRow(Loc::Tr("launcher.state"), license.remoteAuthenticated ? "Sessão KeyAuth válida" : "Sem sessão KeyAuth");
+    CyberWidgets::KeyValueRow(Loc::Tr("launcher.storage"), "KeyAuth");
+    CyberWidgets::TextLine("O acesso aos jogos depende da sessão KeyAuth atual.", CyberWidgets::TextTone::Secondary);
     CyberWidgets::EndCard();
     CyberWidgets::EndCardRow();
 

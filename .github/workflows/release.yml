@@ -20,7 +20,7 @@ env:
 jobs:
   build_test_package:
     name: Build, test and validate
-    runs-on: windows-2025
+    runs-on: [self-hosted, windows, dma, signing]
     timeout-minutes: 75
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -29,17 +29,18 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
+          lfs: true
 
       - name: Validate version and tag
         id: version
         shell: pwsh
         run: |
-          $version = (Get-Content -LiteralPath version.txt -Raw).Trim()
+          $version = (Get-Content -LiteralPath config/release/version.txt -Raw).Trim()
           if ($version -notmatch '^(0|[1-9]\d*)\.[0-9]\.[0-9]$') {
             throw "Invalid OmniGhost version '$version'. MINOR and PATCH must be 0..9."
           }
           if ('${{ github.ref_type }}' -eq 'tag' -and '${{ github.ref_name }}' -cne "v$version") {
-            throw "Tag '${{ github.ref_name }}' does not match version.txt (v$version)."
+            throw "Tag '${{ github.ref_name }}' does not match config/release/version.txt (v$version)."
           }
           if (git status --porcelain --untracked-files=normal) {
             throw 'Checkout is not clean before the release build.'
@@ -57,6 +58,10 @@ jobs:
           ./tools/Audit-UiLocalization.ps1 -ProjectDir . -ReportPath artifacts/validation/localization.json
           ./tools/Audit-SourceComplexity.ps1 -ProjectDir .
 
+      - name: Test release source and FiveM offset metadata
+        shell: pwsh
+        run: ./tools/Test-ReleaseReadiness.ps1 -ProjectDir .
+
       - name: Stress deterministic resource generators
         shell: pwsh
         run: |
@@ -66,14 +71,6 @@ jobs:
         shell: pwsh
         run: |
           ./tools/Verify-BuildMatrix.ps1 -ProjectDir . -Platform x64
-
-      - name: Run authentication regression tests
-        shell: pwsh
-        run: |
-          msbuild tests/OmniGhost.AuthRegressionTests.vcxproj /m `
-            /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v145
-          & ./.cache/tests/auth/OmniGhost.AuthRegressionTests.exe
-          if ($LASTEXITCODE -ne 0) { throw "Authentication regression tests failed: $LASTEXITCODE" }
 
       - name: Analyse release diff semantically
         shell: pwsh
@@ -129,8 +126,16 @@ jobs:
           ./tools/Package-Release.ps1 `
             -ProjectDir . `
             -BuildDir ./build/Publish `
-            -Mode Publish `
+            -Mode Commercial `
             -SemanticAnalysisPath ./artifacts/semantic-analysis.json
+
+      - name: Validate commercial signatures
+        shell: pwsh
+        run: |
+          ./tools/Validate-CommercialRelease.ps1 `
+            -ProjectDir . `
+            -ReleaseDirectory ./artifacts/release `
+            -Version '${{ steps.version.outputs.version }}'
 
       - name: Validate final release assets
         shell: pwsh
@@ -149,6 +154,7 @@ jobs:
           path: |
             artifacts/release/OmniGhost.zip
             artifacts/release/update.json
+            artifacts/release/update.json.sig
             artifacts/release/install-manifest.sha256
             artifacts/release/SBOM.cdx.json
             artifacts/release/changelog.json
@@ -175,75 +181,66 @@ jobs:
           path: artifacts/validation
 
   hardware_integration_test:
-    name: Hardware Integration Test (Single Process / Single HWND)
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    name: DMA test of signed customer package
     needs: build_test_package
-    runs-on: [self-hosted, windows, dma]
+    runs-on: [self-hosted, windows, dma, signing]
     timeout-minutes: 30
     env:
-      OMNIGHOST_DMA_DEVICE: ${{ vars.OMNIGHOST_DMA_DEVICE }}
       OMNIGHOST_TEST_GAME: ${{ vars.OMNIGHOST_TEST_GAME }}
     steps:
       - name: Checkout exact source
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
+          lfs: true
 
-      - name: Configure MSBuild
-        uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce # v2
-
-      - name: Build Release configuration for integration test
+      - name: Require hardware test configuration
         shell: pwsh
         run: |
-          msbuild OmiGhost.vcxproj /m `
-            /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v145 `
-            /p:OmniGhostSkipPackaging=true /p:OmniGhostSkipRemotePublish=true
+          if ([string]::IsNullOrWhiteSpace($env:OMNIGHOST_TEST_GAME)) {
+            throw 'OMNIGHOST_TEST_GAME must name a running FiveM_b<build>_GTAProcess.exe on the DMA runner.'
+          }
+
+      - name: Download signed customer package
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: omnighost-release-${{ needs.build_test_package.outputs.version }}
+          path: artifacts/release
+
+      - name: Validate signed customer package
+        shell: pwsh
+        run: |
+          ./tools/Validate-ReleaseArtifacts.ps1 -ProjectDir . -ReleaseDirectory ./artifacts/release `
+            -Version '${{ needs.build_test_package.outputs.version }}'
+          ./tools/Validate-CommercialRelease.ps1 -ProjectDir . -ReleaseDirectory ./artifacts/release `
+            -Version '${{ needs.build_test_package.outputs.version }}'
 
       - name: Run single-process single-HWND integration test
-        if: env.OMNIGHOST_DMA_DEVICE != '' && env.OMNIGHOST_TEST_GAME != ''
         shell: pwsh
         run: |
-          $exe = "./build/OmniGhost.exe"
-          if (-not (Test-Path -LiteralPath $exe)) { throw "Release binary not found at $exe" }
-          
-          # Launch the game process (if not already running)
-          $gameProcess = Start-Process -FilePath $env:OMNIGHOST_TEST_GAME -PassThru
-          if (-not $gameProcess) { throw "Failed to start test game: $env:OMNIGHOST_TEST_GAME" }
-          
-          try {
-            # Wait for game window to appear
-            $hwnd = $null
-            for ($i = 0; $i -lt 30; $i++) {
-              $hwnd = (Get-Process -Id $gameProcess.Id).MainWindowHandle
-              if ($hwnd -ne 0 -and $hwnd -ne [IntPtr]::Zero) { break }
-              Start-Sleep -Seconds 1
-            }
-            if ($hwnd -eq 0 -or $hwnd -eq [IntPtr]::Zero) { throw "Game HWND not found within 30 seconds" }
-            
-            Write-Host "[Integration] Game PID: $($gameProcess.Id), HWND: $hwnd"
-            
-            # Run integration test with DMA device
-            & "./build/OmniGhost.exe" --integration-test `
-              --dma-device $env:OMNIGHOST_DMA_DEVICE `
-              --target-pid $gameProcess.Id `
-              --target-hwnd $hwnd `
-              --timeout 60
-            
-            if ($LASTEXITCODE -ne 0) { throw "Integration test failed with exit code $LASTEXITCODE" }
-            
-            Write-Host "[Integration] Single-process single-HWND test PASSED"
-          } finally {
-            if ($gameProcess -and -not $gameProcess.HasExited) {
-              Stop-Process -Id $gameProcess.Id -Force -ErrorAction SilentlyContinue
-            }
-          }
-        if: env.OMNIGHOST_DMA_DEVICE != '' && env.OMNIGHOST_TEST_GAME != ''
+          $testDir = Join-Path $env:RUNNER_TEMP ('omnighost-dma-' + [guid]::NewGuid().ToString('N'))
+          Expand-Archive -LiteralPath ./artifacts/release/OmniGhost.zip -DestinationPath $testDir
+          $exe = Join-Path $testDir 'OmniGhost.exe'
+          if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) { throw 'Signed customer executable missing from ZIP.' }
+
+          $name = [IO.Path]::GetFileNameWithoutExtension($env:OMNIGHOST_TEST_GAME)
+          if ($name -notmatch '^FiveM_b[0-9]+_GTAProcess$') { throw 'Expected a FiveM build process name.' }
+          $gameProcess = Get-Process -Name $name -ErrorAction SilentlyContinue |
+            Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero } | Select-Object -First 1
+          if (-not $gameProcess) { throw "Running FiveM process with HWND not found: $name" }
+          $hwndValue = [uint64]$gameProcess.MainWindowHandle.ToInt64()
+          & $exe --integration-test `
+            --target-exe "$name.exe" `
+            --target-pid $gameProcess.Id `
+            --target-hwnd "$hwndValue"
+          if ($LASTEXITCODE -ne 0) { throw "DMA integration test failed with exit code $LASTEXITCODE" }
+          Write-Host '[Integration] DMA reads of FiveM process and CPed visibility flag passed.'
 
   publish:
     name: Publish approved tag
     if: github.event_name == 'push' && github.ref_type == 'tag'
-    needs: build_test_package
-    runs-on: windows-2025
+    needs: [build_test_package, hardware_integration_test]
+    runs-on: [self-hosted, windows, dma, signing]
     timeout-minutes: 20
     environment: production
     permissions:
@@ -253,6 +250,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
+          lfs: true
 
       - name: Download validated assets
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
@@ -264,9 +262,10 @@ jobs:
         id: version
         shell: pwsh
         run: |
-          $version = (Get-Content -LiteralPath version.txt -Raw).Trim()
+          $version = (Get-Content -LiteralPath config/release/version.txt -Raw).Trim()
           if ('${{ github.ref_name }}' -cne "v$version") { throw 'Tag/version mismatch.' }
           ./tools/Validate-ReleaseArtifacts.ps1 -ProjectDir . -ReleaseDirectory ./artifacts/release -Version $version
+          ./tools/Validate-CommercialRelease.ps1 -ProjectDir . -ReleaseDirectory ./artifacts/release -Version $version
           "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
       - name: Create draft, upload every asset, then publish
@@ -282,21 +281,20 @@ jobs:
           $repo = $env:RELEASE_REPOSITORY
           gh release view $tag --repo $repo *> $null
           if ($LASTEXITCODE -eq 0) {
-            Write-Host "Release $tag already exists in $repo; the local Publish build already completed the upload."
-            "published=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-            exit 0
+            throw "Release $tag already exists in $repo; refusing to treat a prior upload as validated by this workflow."
           }
           gh release create $tag --repo $repo --target $env:RELEASE_TARGET_BRANCH --draft --title "OmniGhost $tag" `
             --notes-file artifacts/release/release-notes.md `
             artifacts/release/OmniGhost.zip `
             artifacts/release/update.json `
+            artifacts/release/update.json.sig `
             artifacts/release/install-manifest.sha256 `
             artifacts/release/SBOM.cdx.json `
             artifacts/release/changelog.json `
             artifacts/release/release-meta.json
           if ($LASTEXITCODE -ne 0) { throw 'Could not create the complete draft release.' }
           $view = gh release view $tag --repo $repo --json isDraft,assets | ConvertFrom-Json
-          $expected = @('OmniGhost.zip','update.json','install-manifest.sha256','SBOM.cdx.json','changelog.json','release-meta.json')
+          $expected = @('OmniGhost.zip','update.json','update.json.sig','install-manifest.sha256','SBOM.cdx.json','changelog.json','release-meta.json')
           $actual = @($view.assets | ForEach-Object name)
           foreach ($asset in $expected) {
             if ($asset -notin $actual) { throw "Draft release is incomplete: $asset missing." }
@@ -304,18 +302,3 @@ jobs:
           gh release edit $tag --repo $repo --draft=false --latest
           if ($LASTEXITCODE -ne 0) { throw 'Assets were uploaded, but the draft could not be published.' }
           "published=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-
-      - name: Notify Discord from the same changelog
-        if: steps.publish_release.outputs.published == 'true'
-        shell: pwsh
-        env:
-          # Add DISCORD_WEBHOOK_URL as a GitHub repository secret:
-          # Settings > Secrets and variables > Actions > New repository secret
-          # Name: DISCORD_WEBHOOK_URL
-          # Value: https://discord.com/api/webhooks/1541133282173919262/O4GhDc75-fk-aLJ0_hRd5wftisicHHVBw_Ome0o9CoB8k-MQgTjeqLIE62ODnE-YCxHY
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-        run: |
-          ./tools/Notify-DiscordRelease.ps1 `
-            -ProjectDir . `
-            -Version '${{ steps.version.outputs.version }}' `
-            -ReleaseDir ./artifacts/release

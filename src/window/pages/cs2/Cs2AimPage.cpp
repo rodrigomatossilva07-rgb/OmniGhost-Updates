@@ -88,7 +88,7 @@ void DrawCs2Aim() {
         CS2::config.aim_bind3 = 0;
 
         // 2) Smooth 0..100
-        CyberWidgets::SliderFloat("Smooth", &CS2::config.aim_smooth, 0.f, 100.f, "%.0f");
+        CyberWidgets::SliderFloat(Loc::Tr("aim.smooth"), &CS2::config.aim_smooth, 0.f, 100.f, "%.0f");
         CS2::config.aim_smooth = std::clamp(CS2::config.aim_smooth, 0.f, 100.f);
 
         // 3) FOV Size

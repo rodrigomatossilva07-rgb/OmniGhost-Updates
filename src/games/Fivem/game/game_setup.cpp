@@ -32,7 +32,6 @@ void ApplyBuildExtras(uintptr_t game_base, int build) {
     const BuildOffsets* bo = GetOffsetsForBuild(build);
     if (!bo) {
         object_pool = network_player_mgr = blip_list = waypoint = aim_cped = 0;
-        framecountlastvisible = 0;
         return;
     }
     // All module RVAs come from data/fivem_offsets.json via BuildOffsets.
@@ -42,9 +41,7 @@ void ApplyBuildExtras(uintptr_t game_base, int build) {
     object_pool = bo->object_pool_offset ? game_base + bo->object_pool_offset : 0;
     waypoint = bo->waypoint_offset ? game_base + bo->waypoint_offset : 0;
     bullet = 0;
-    pedVisibilityOffset = bo->ped_visibility_offset ? bo->ped_visibility_offset : 0x147C;
-    framecountlastvisible = bo->framecount_last_visible_offset
-        ? game_base + bo->framecount_last_visible_offset : 0;
+    pedVisibilityOffset = bo->ped_visibility_offset;
     // Prefer JSON field offsets when present (also set from build_offset in Setup).
     if (bo->boneList_offset) boneList = bo->boneList_offset;
     if (bo->boneMatrix_offset) boneMatrix = bo->boneMatrix_offset;
@@ -73,7 +70,7 @@ void Setup() {
     // the previous FiveM session.
     world = replay = viewport = camera = localplayer = 0;
     base = 0;
-    framecountlastvisible = pedVisibilityOffset = blip_list = aim_cped = bullet = 0;
+    pedVisibilityOffset = blip_list = aim_cped = bullet = 0;
     network_player_mgr = object_pool = waypoint = 0;
 
     auto game_base = mem.GetBaseDaddy(OmniGhost::GameContext::Instance().GetValidExecutable());

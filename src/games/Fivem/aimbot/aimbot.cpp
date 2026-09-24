@@ -232,20 +232,9 @@ namespace aimbot {
         }
     }
 
-    static bool IsPedInVehicle(uintptr_t ped) {
-        using namespace FiveM;
-        if (!ped) return false;
-        uintptr_t veh = 0;
-        return esp::try_get_prepared_vehicle(ped, veh) &&
-            veh > 0x10000ULL && veh < 0x7FFFFFFFFFFFULL;
-    }
-
     static bool IsVisibleForAim(uintptr_t ped) {
         using namespace FiveM;
         if (!config.visible_check)
-            return true;
-        // Peds in vehicles treated as visible (occlusion unreliable via DMA only)
-        if (IsPedInVehicle(ped))
             return true;
         return FiveM::Visibility::IsPedVisible(ped);
     }

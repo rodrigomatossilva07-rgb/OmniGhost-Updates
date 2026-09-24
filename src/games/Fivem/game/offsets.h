@@ -19,7 +19,6 @@ namespace FiveM {
         const uintptr_t playerArmor = 0x150C;
         const uintptr_t playerMaxHealth = 0x284;
         const uintptr_t pedVehicle = 0x0D10;   // CPed -> CVehicle* (live probe b3258 in-vehicle)
-        const uintptr_t visibleFlag = 0x147C;
         const uintptr_t playerInfo_wanted = 0x8E8; // on CPlayerInfo
         const uintptr_t playerInfo_name   = 0x100; // CPlayerInfo+name (cheatoffsets 3258/3751/3788)
 
@@ -59,9 +58,6 @@ namespace FiveM {
         const uintptr_t b3258_waypoint         = 0x2EE0288;
         const uintptr_t b3258_globalPtr        = 0x1F73578;
         const uintptr_t b3258_skySettings      = 0x2721250;
-        const uintptr_t b3258_framecountlastvisible = 0x5719A3;
-
-        extern uintptr_t framecountlastvisible;
         extern uintptr_t pedVisibilityOffset;
         extern uintptr_t blip_list;
         extern uintptr_t aim_cped;
@@ -73,7 +69,7 @@ namespace FiveM {
 
     // Structure to hold offset configurations for different builds.
     // Module RVAs (world/replay/object_pool/...) are relative to game base.
-    // Field offsets (playerInfo/bone/health/position/ped_visibility) are relative to entity.
+    // Field offsets (playerInfo/bone/health/position/ped_visible_flag) are relative to entity.
     // Populated from data/fivem_offsets.json (source of truth).
     struct BuildOffsets {
         int build = 0;
@@ -94,8 +90,7 @@ namespace FiveM {
         uintptr_t aim_cped_offset = 0;
         uintptr_t ped_pool_offset = 0;
         uintptr_t vehicle_pool_offset = 0;
-        uintptr_t framecount_last_visible_offset = 0;
-        uintptr_t ped_visibility_offset = 0x147C;
+        uintptr_t ped_visibility_offset = 0;
     };
 
     // Load / reload builds from data/fivem_offsets.json (or embedded snapshot).

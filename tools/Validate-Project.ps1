@@ -53,7 +53,7 @@ foreach ($file in @(
     'src\platform\runtime_bootstrap.cpp','src\platform\runtime_bootstrap.h',
     'tools\Build-EmbeddedOffsets.ps1','tools\Build-EmbeddedRuntime.ps1','tools\Build-EmbeddedResources.ps1','tools\Verify-BuildMatrix.ps1',
     'data\fortnite_offsets.json','data\warzone_offsets.json',
-    'src\licensing\license_service.cpp','src\launcher\license_page.cpp'
+    'src\licensing\license_service.cpp'
 )) { Require-File $file }
 
 $cloudflaredPath = Join-Path $ProjectDir 'src\runtime\cloudflared\cloudflared.exe'
@@ -134,7 +134,6 @@ $runtimeBootstrap = Read-Utf8Text (Join-Path $ProjectDir 'src\platform\runtime_b
 Require-Text $project 'libs\\\*\.dll' 'Canonical DMA runtime configured.'
 Require-Text $project 'libs\\\*\.dll' 'Local libs source bundle configured.'
 Require-Text $project 'src\\licensing\\license_service\.cpp' 'Licensing service is part of the build.'
-Require-Text $project 'src\\launcher\\license_page\.cpp' 'Licensing page is part of the build.'
 Require-Text $project 'CleanOmniGhostRuntimeOutput' 'Release runtime output is cleaned before build.'
 Require-Text $project 'data\\runtime\\dma_stack_versions\.json' 'Dependency manifest is kept under data/runtime, not build root.'
 Forbid-Text $project 'dma_stack_managed-files\.json" DestinationFiles="\$\(OutDir\)' 'Development managed-files manifest is not copied to build root.'
@@ -211,8 +210,9 @@ Require-Text $publishWrapper 'Publish-Build\.ps1' 'Manual retry reuses the Publi
 $publishBuild = Read-Utf8Text (Join-Path $ProjectDir 'tools\Publish-Build.ps1')
 Require-Text $publishBuild "metadata\.configuration -cne 'Publish'" 'Publisher rejects outputs not produced by Publish.'
 Require-Text $publishBuild 'build\\Publish' 'Publisher accepts only the isolated Publish output.'
-Require-Text $publishBuild 'publish_github_release\.ps1' 'Publish orchestrator owns the remote upload call.'
-Require-Text $publishBuild 'publish_github_release\.ps1' 'Explicit publisher delegates the authenticated GitHub operation.'
+Require-Text $publishBuild 'Validate-CommercialRelease\.ps1' 'Publish build validates its signed local package.'
+$directPublisher = Read-Utf8Text (Join-Path $ProjectDir 'tools\publish_github_release.ps1')
+Require-Text $directPublisher 'if \(-not \$ValidateOnly\)' 'Direct publication cannot bypass the DMA workflow.'
 
 $publishConfig = Read-Utf8Text (Join-Path $ProjectDir 'config\release\release-publish.json') | ConvertFrom-Json
 if ($publishConfig.publishAfterBuild -ne $true) { Fail 'Publish must publish automatically after a successful build.' }
@@ -255,7 +255,7 @@ Require-Text $symbolsPackager '\.cache\\symbols\\\$Configuration' 'Private symbo
 $license = Read-Utf8Text (Join-Path $ProjectDir 'src\licensing\license_service.cpp')
 Require-Text $license 'CryptProtectData' 'Local license cache uses Windows DPAPI.'
 Require-Text $license 'CryptUnprotectData' 'Local license cache can be restored with Windows DPAPI.'
-Require-Text $license 'kLocalVerifierSha256' 'Local license uses a verifier hash instead of plaintext verifier.'
+Require-Text $license 'RemoteEntitlementGrants' 'Game access is checked against remote entitlements.'
 
 
 $runner = Read-Utf8Text (Join-Path $ProjectDir 'tools\Run-OmniGhostPowerShell.cmd')

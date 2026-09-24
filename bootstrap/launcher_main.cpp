@@ -278,6 +278,15 @@ std::wstring BuildChildCommandLine(const std::wstring& corePath) {
     return command;
 }
 
+bool IsIntegrationTestInvocation() {
+    int argc = 0;
+    wchar_t** argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+    if (!argv) return false;
+    const bool result = argc > 1 && _wcsicmp(argv[1], L"--integration-test") == 0;
+    LocalFree(argv);
+    return result;
+}
+
 } // namespace
 
 int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
@@ -341,11 +350,13 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
     // instance, loader error) while still getting out of the way for a normal
     // long-running UI process. This keeps double-click failures observable and
     // preserves the core's duplicate-instance exit code.
-    const DWORD startupWait = WaitForSingleObject(process.hProcess, 5000);
+    const bool integrationTest = IsIntegrationTestInvocation();
+    const DWORD startupWait = WaitForSingleObject(process.hProcess, integrationTest ? INFINITE : 5000);
     if (startupWait == WAIT_OBJECT_0) {
         DWORD exitCode = ERROR_GEN_FAILURE;
         if (!GetExitCodeProcess(process.hProcess, &exitCode)) exitCode = GetLastError();
         CloseHandle(process.hProcess);
+        if (integrationTest) return static_cast<int>(exitCode);
 
         wchar_t hexCode[32]{};
         swprintf_s(hexCode, L"0x%08lX", static_cast<unsigned long>(exitCode));

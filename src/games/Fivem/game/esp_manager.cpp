@@ -721,24 +721,8 @@ namespace FiveM {
             const float maxDist = esp::config.max_esp_distance;
             const float maxDistSq = (maxDist > 0.f) ? (maxDist * maxDist) : 0.f;
 
-            // Prime visibility, visual data and only the bone anchors required
-            // by the enabled features. Every consumer shares these batches.
-            static std::vector<bool> frameVisibility;
-            const bool hasEspDrawing = (esp::config.enabled &&
-                (esp::config.skeleton || esp::config.head_circle || esp::config.trails ||
-                 esp::config.head_halo || esp::config.look_direction || esp::config.chinese_hat ||
-                 esp::config.angel_wings || esp::config.devil_horns || esp::config.floating_crown || esp::has_extra_visuals())) ||
-                esp::config.triangle_radar || esp::config.square_radar ||
-                esp::config.radar_enabled;
-            const bool needsEspVisibility = hasEspDrawing &&
-                (esp::config.visibility_colors || esp::config.visible_check);
-            // Visibility stamped on acquisition thread — no DMA here.
-            if (needsEspVisibility || aimbot::config.visible_check) {
-                frameVisibility.resize(validPeds.size(), true);
-                for (size_t i = 0; i < validPeds.size(); ++i)
-                    frameVisibility[i] = FiveM::Visibility::IsPedVisible(validPeds[i]);
-            }
-
+            // Visibility is already attached to each ped on the acquisition
+            // thread; render and aim only read the published PedData snapshot.
             uint16_t boneMask = 0;
             if (esp::config.enabled && esp::config.skeleton) {
                 boneMask = 0x01FFu;

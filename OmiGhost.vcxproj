@@ -44,6 +44,10 @@
     <Import Project="$(ProjectDir)config\build\OmniGhost.Release.props" Condition="'$(Configuration)'=='Release' Or '$(Configuration)'=='Publish'"/>
     <Import Project="$(ProjectDir)config\build\OmniGhost.Publish.props" Condition="'$(Configuration)'=='Publish'"/>
 </ImportGroup>
+  <PropertyGroup Condition="'$(OmniGhostPayloadBuild)'=='true'">
+    <OutDir>$(ProjectDir).cache\bootstrap\payload\$(Platform)\$(Configuration)\</OutDir>
+    <TargetName>OmniGhostCore</TargetName>
+  </PropertyGroup>
   <PropertyGroup Label="UserMacros"/>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <!-- Release is an optimized local build and never publishes remotely. -->
@@ -176,7 +180,7 @@
 
     <Message Importance="High" Text="[OmniGhost Runtime] DLLs de libs\ sincronizadas para build\; runtimes canónicos validados e copiados."/>
   </Target>
-  <Target Name="ValidateOmniGhostSingleExeRuntime" AfterTargets="Build" Condition="'$(Configuration)'=='Release' Or '$(Configuration)'=='Publish'">
+  <Target Name="ValidateOmniGhostSingleExeRuntime" AfterTargets="Build" Condition="'$(OmniGhostPayloadBuild)'!='true' And ( '$(Configuration)'=='Release' Or '$(Configuration)'=='Publish' )">
     <ItemGroup>
       <OmniGhostUnexpectedCustomerRuntime Include="$(OutDir)**\*" Exclude="$(OutDir)OmniGhost.exe"/>
     </ItemGroup>
@@ -197,7 +201,7 @@
        A real Publish is deliberately excluded: Publish-Build cleans only after
        GitHub has confirmed the public Latest release. -->
   <Target Name="CleanupVerifiedLocalBuildWorkspace" AfterTargets="ValidateOmniGhostSingleExeRuntime"
-          Condition="'$(DesignTimeBuild)'!='true' And ( '$(Configuration)'=='Release' Or ( '$(Configuration)'=='Publish' And '$(OmniGhostSkipRemotePublish)'=='true' ) )">
+          Condition="'$(DesignTimeBuild)'!='true' And '$(OmniGhostPayloadBuild)'!='true' And ( '$(Configuration)'=='Release' Or ( '$(Configuration)'=='Publish' And '$(OmniGhostSkipRemotePublish)'=='true' ) )">
     <Message Importance="High" Text="[OmniGhost Build] Build validada; a manter build e limpar .cache, artifacts, logs e .temp."/>
     <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; cleanup-verified-build &quot;$(MSBuildProjectDirectory)&quot;" IgnoreExitCode="true">
       <Output TaskParameter="ExitCode" PropertyName="OmniGhostLocalCleanupExitCode"/>
@@ -210,7 +214,6 @@
   <ItemGroup>
     <ClInclude Include="src\auth\keyauth_gateway.h"/>
     <ClCompile Include="src\main.cpp"/>
-    <ClCompile Include="src\tests\auth_launcher_transition_test.cpp"/>
     <ClCompile Include="src\config\app_settings.cpp"/>
     <ClCompile Include="src\config\config_manager.cpp"/>
     <ClCompile Include="src\config\config_core.cpp"/>
@@ -235,7 +238,6 @@
     <ClInclude Include="src\launcher\game_select_presentation.inl"/>
     <ClInclude Include="src\launcher\game_select_pages.inl"/>
     <ClInclude Include="src\launcher\game_select_modals.inl"/>
-    <ClCompile Include="src\launcher\license_page.cpp"/>
     <ClCompile Include="src\launcher\launcher_assets.cpp"/>
     <ClCompile Include="src\launcher\launcher_data.cpp"/>
     <ClCompile Include="src\launcher\launcher_status.cpp"/>
@@ -366,7 +368,6 @@
     <ClCompile Include="src\window\pages\unified_stubs.cpp"/>
 
     <ClCompile Include="ImGui\imgui.cpp"/>
-    <ClCompile Include="ImGui\imgui_demo.cpp"/>
     <ClCompile Include="ImGui\imgui_draw.cpp"/>
     <ClCompile Include="ImGui\imgui_impl_dx11.cpp"/>
     <ClCompile Include="ImGui\imgui_impl_win32.cpp"/>
@@ -439,7 +440,6 @@
     <ClInclude Include="src\platform\radar_access.h"/>
     <ClInclude Include="src\platform\support_error.h"/>
     <ClInclude Include="src\licensing\license_service.h"/>
-    <ClInclude Include="src\launcher\license_page.h"/>
   </ItemGroup>
   <Target Name="ValidateOmniGhostProjectLayout" BeforeTargets="PrepareForBuild" DependsOnTargets="CleanOmniGhostRuntimeOutput">
     <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; validate-project &quot;$(MSBuildProjectDirectory)&quot;" IgnoreExitCode="true">

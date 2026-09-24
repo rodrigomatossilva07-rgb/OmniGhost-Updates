@@ -53,6 +53,7 @@
 #include <cfloat>
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
 #include <cwchar>
 #include <future>
 #include <iostream>
@@ -60,7 +61,7 @@
 #include <string>
 #include <thread>
 
-#if defined(OMNIGHOST_PUBLISH_BUILD) && !defined(OMNIGHOST_KEYAUTH_ENABLED) && !defined(OMNIGHOST_SKIP_KEYAUTH)
+#if defined(OMNIGHOST_PUBLISH_BUILD) && (!defined(OMNIGHOST_KEYAUTH_ENABLED) || defined(OMNIGHOST_SKIP_KEYAUTH))
 #error Publish builds must retain a configured entitlement provider.
 #endif
 
@@ -99,7 +100,59 @@ bool IsLocalFiveMProcessRunning() noexcept {
     return found;
 }
 
+// CI hardware gate: read the selected FiveM process through the normal DMA
+// backend. No game memory is written and no interactive launcher is created.
+int RunDmaIntegrationTest(int argc, wchar_t** argv) {
+    std::wstring executable;
+    unsigned long expectedPid = 0;
+    unsigned long long expectedHwnd = 0;
+    for (int i = 2; i + 1 < argc; i += 2) {
+        const std::wstring key = argv[i];
+        const std::wstring value = argv[i + 1];
+        if (key == L"--target-exe") executable = value;
+        else if (key == L"--target-pid") expectedPid = std::wcstoul(value.c_str(), nullptr, 10);
+        else if (key == L"--target-hwnd") expectedHwnd = std::wcstoull(value.c_str(), nullptr, 10);
+        else return 2;
+    }
+    const auto marker = executable.find(L"FiveM_b");
+    const auto suffix = executable.find(L"_GTAProcess.exe");
+    if (marker != 0 || suffix == std::wstring::npos || suffix <= 7 ||
+        expectedPid == 0 || expectedHwnd == 0) return 2;
+    const int build = std::wcstol(executable.c_str() + 7, nullptr, 10);
+    if (build <= 0) return 2;
+    DWORD windowPid = 0;
+    GetWindowThreadProcessId(reinterpret_cast<HWND>(static_cast<uintptr_t>(expectedHwnd)), &windowPid);
+    if (windowPid != expectedPid) return 3;
+    if (FiveM::LoadOffsetsFromJson(nullptr) <= 0) return 4;
+    const auto* offsets = FiveM::GetOffsetsForBuild(build);
+    if (!offsets || !offsets->world_offset || !offsets->viewport_offset ||
+        !offsets->ped_visibility_offset) return 5;
+    std::string processName;
+    processName.reserve(executable.size());
+    for (const wchar_t character : executable) {
+        if (character > 0x7f) return 2;
+        processName.push_back(static_cast<char>(character));
+    }
+    if (OmniGhost::RuntimeBootstrap::Prepare() == OmniGhost::RuntimeBootstrap::Result::Failed) return 6;
+    if (!mem.Init(processName, true, false)) return 6;
+    if (mem.GetPidFromName(processName) != expectedPid) return 7;
+    const uintptr_t base = mem.GetBaseDaddy(processName);
+    uintptr_t world = 0, viewport = 0, localPed = 0;
+    if (!base || !mem.Read(base + offsets->world_offset, &world, sizeof(world)) ||
+        !mem.Read(base + offsets->viewport_offset, &viewport, sizeof(viewport)) ||
+        world < 0x10000 || viewport < 0x10000 ||
+        !mem.Read(world + 0x8, &localPed, sizeof(localPed)) || localPed < 0x10000) return 8;
+    unsigned char visibleFlag = 0;
+    if (!mem.Read(localPed + offsets->ped_visibility_offset, &visibleFlag, sizeof(visibleFlag))) return 9;
+    std::clog << "[DMA integration] build=" << build << " pid=" << expectedPid
+              << " world/viewport/localPed/visibilityFlag read OK, flag="
+              << static_cast<unsigned>(visibleFlag) << '\n';
+    return 0;
+}
+
 int RunOmniGhost(int argc, wchar_t** argv) {
+    if (argc > 1 && argv && _wcsicmp(argv[1], L"--integration-test") == 0)
+        return RunDmaIntegrationTest(argc, argv);
     OmniGhost::Startup::StateMachine startupState;
     (void)startupState.Transition(OmniGhost::Startup::State::Boot,
                             OmniGhost::Startup::State::CheckingInstance);
@@ -296,8 +349,8 @@ int RunOmniGhost(int argc, wchar_t** argv) {
     (void)shutdownCoordinator.Register(
         OmniGhost::Platform::ShutdownComponent::Ui, 100,
         [&application] { application.Shutdown(); });
-    // The app is now visibly alive. Waiting for a user to enter a local license or
-    // account must not be interpreted by the updater/crash recovery as startup failure.
+    // The app is now visibly alive. Waiting for KeyAuth sign-in must not be
+    // interpreted by the updater/crash recovery as startup failure.
     OmniGhost::CrashHandler::MarkStartupComplete();
     OmniGhost::SessionLog::Write(
         OmniGhost::SessionLog::Severity::Info,
