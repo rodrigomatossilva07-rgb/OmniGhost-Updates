@@ -995,10 +995,9 @@ static ImU32 EspPedColor(uintptr_t ped, ImU32 configured, bool visible) {
     // Dead players: always red when shown
     if (EspPedIsDead(ped))
         return esp::config.color_dead ? esp::config.color_dead : IM_COL32(255, 50, 50, 255);
-    // Only tint by LoS when the user explicitly enabled visibility colouring.
-    // If visible_check is off, IsPedVisible is forced true and would paint
-    // every ped with color_visible (default green) — ignore that path.
-    if (esp::config.visibility_colors && esp::config.visible_check)
+    // Colouring requests visibility acquisition itself. The separate
+    // visible_check option filters hidden players and must not gate colours.
+    if (esp::config.visibility_colors)
         return visible ? esp::config.color_visible : esp::config.color_invisible;
     // Colour rendering can call this several times for the same entity. Never
     // perform a fresh DMA read here; reuse the player-info batch for the frame.

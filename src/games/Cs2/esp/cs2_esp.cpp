@@ -593,7 +593,7 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
 
     ImDrawList* draw = ImGui::GetBackgroundDrawList();
     const bool hideTeam = settings.team_check;
-    const bool useVisibilityColors = settings.visibility_colors && settings.visible_check;
+    const bool useVisibilityColors = settings.visibility_colors;
     const float maxDistance = settings.max_distance;
     const ImU32 rgbColor = settings.rgb_mode ? RgbColor() : 0;
     // The entity snapshot is intentionally lower-rate and coherent. The view
@@ -648,7 +648,7 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
                           IM_COL32(0, 0, 0, 150), 0.f, 0, thickness + 1.f);
             const float* elementColor = settings.box_corner ? settings.col_box_corner : settings.col_box;
             const ImU32 color = settings.rgb_mode ? rgbColor
-                : useVisibilityColors ? Color(player.spotted ? settings.col_visible : settings.col_occluded)
+                : useVisibilityColors && player.visibility_known ? Color(player.visible ? settings.col_visible : settings.col_occluded)
                 : Color(player.team == snapshot.local_team ? settings.col_team : elementColor);
             if (settings.box_fill)
                 draw->AddRectFilled(min, max, Color(settings.col_box_fill), std::clamp(settings.box_rounding, 0.f, 18.f));
@@ -663,7 +663,7 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
             DrawVerticalBar(draw, max.x + 3.f, min.y, max.y, static_cast<float>(player.armor) / 100.f, Color(settings.col_armor));
         if (settings.skeleton) {
             const ImU32 skeletonColor = settings.rgb_mode ? rgbColor
-                : useVisibilityColors ? Color(player.spotted ? settings.col_visible : settings.col_occluded)
+                : useVisibilityColors && player.visibility_known ? Color(player.visible ? settings.col_visible : settings.col_occluded)
                 : Color(settings.col_skeleton);
             DrawSkeleton(draw, player, viewMatrix, positionOffset, skeletonColor, Color(settings.col_joints),
                          std::clamp(settings.skeleton_thickness, .5f, 4.f), settings.skeleton_joints);

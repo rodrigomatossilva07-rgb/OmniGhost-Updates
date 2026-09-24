@@ -734,6 +734,7 @@ foreach ($Change in $AllChanges) {
 }
 
 $Modules = @()
+foreach ($ModuleId in @('core', 'fivem', 'cs2', 'warzone', 'apex', 'other')) {
     if ($ModulesById.ContainsKey($ModuleId)) {
         $Modules += $ModulesById[$ModuleId]
     }

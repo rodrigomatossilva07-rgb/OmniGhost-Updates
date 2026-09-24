@@ -11,6 +11,7 @@
 #include "gameplay/esp_core.h"
 #include "gameplay/frame_pipeline.h"
 #include "trajectory/cs2_map_collision_cache.h"
+#include "trajectory/cs2_visibility.h"
 
 #include <Windows.h>
 #include <TlHelp32.h>
@@ -2491,26 +2492,33 @@ static void RunFrameWithConfig(const Config& frame_config) {
                       << " (ESP auto-recover, config intact)" << std::endl;
     }
 
-    // Map collision is needed only by grenade trajectory. Build its BVH off
+    // Map collision supports grenade trajectory and player LOS. Build its BVH off
     // the acquisition thread, so enabling the visual or changing map never
     // holds up camera/player snapshots.
     static std::future<void> collision_load;
+    static std::string collision_attempt_map;
+    static uint64_t collision_retry_at = 0;
     if (collision_load.valid() && collision_load.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) {
         try { collision_load.get(); }
         catch (...) { std::cout << "[CS2] Falha ao preparar colisão do mapa." << std::endl; }
     }
     auto& collision = Trajectory::CollisionCache();
-    if (frame_config.grenade_trail && runtime.map_name[0] && !collision.IsLoadedFor(runtime.map_name) && !collision_load.valid()) {
+    const bool needs_collision = frame_config.grenade_trail ||
+        (frame_config.esp_enabled && frame_config.visibility_colors);
+    if (needs_collision && runtime.map_name[0] && !collision.IsLoadedFor(runtime.map_name) && !collision_load.valid() &&
+        (collision_attempt_map != runtime.map_name || GetTickCount64() >= collision_retry_at)) {
         const std::string requested_map = runtime.map_name;
+        collision_attempt_map = requested_map;
+        collision_retry_at = GetTickCount64() + 5000;
         collision_load = std::async(std::launch::async, [requested_map] {
             try { (void)Trajectory::CollisionCache().LoadForMap(requested_map.c_str()); }
             catch (...) { std::cout << "[CS2] Exceção ao preparar colisão do mapa." << std::endl; }
         });
     }
     // A BVH can be sizeable on workshop and large competitive maps. Release it
-    // once trajectory is disabled; any renderer holding a snapshot finishes
+    // once both consumers are disabled; any renderer holding a snapshot finishes
     // safely before the shared world is reclaimed.
-    if (!frame_config.grenade_trail && !collision_load.valid())
+    if (!needs_collision && !collision_load.valid())
         collision.Clear();
     runtime.trajectory_collision_loading = collision_load.valid();
     runtime.trajectory_collision_ready = frame_config.grenade_trail &&
@@ -2974,7 +2982,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
         frame_config.chinese_hat || frame_config.angel_wings || frame_config.devil_horns || frame_config.floating_crown);
     requested.health = frame_config.esp_enabled && (frame_config.health_bar || frame_config.health_value);
     requested.armor = frame_config.esp_enabled && (frame_config.armor_bar || frame_config.armor_value);
-    requested.visibility = frame_config.esp_enabled && frame_config.visibility_colors && frame_config.visible_check;
+    requested.visibility = frame_config.esp_enabled && frame_config.visibility_colors;
     requested.weapon = frame_config.esp_enabled && (frame_config.weapon_name || frame_config.weapon_ammo);
     requested.name = frame_config.esp_enabled && frame_config.name;
     requested.distance = frame_config.esp_enabled && frame_config.distance;
@@ -3002,11 +3010,11 @@ static void RunFrameWithConfig(const Config& frame_config) {
             fields, OmniGhost::Gameplay::EspCore::DataField::Facing);
     const bool track_velocity = OmniGhost::Gameplay::EspCore::Has(
         fields, OmniGhost::Gameplay::EspCore::DataField::Velocity);
-    const bool need_bones = OmniGhost::Gameplay::EspCore::Has(
+    const bool need_bones = requested.visibility || OmniGhost::Gameplay::EspCore::Has(
         fields, OmniGhost::Gameplay::EspCore::DataField::Skeleton);
     // Aim and visual effects need only the upper-body aim anchors. A complete
     // 20-slot pose is acquired only for the rendered skeleton or body trigger.
-    const bool need_full_bones = requested.skeleton ||
+    const bool need_full_bones = requested.visibility || requested.skeleton ||
         (frame_config.trigger_enabled && !frame_config.trigger_head_only);
     const bool flagsEnabled = frame_config.player_flags;
     const bool need_scoped = frame_config.trigger_scoped_only ||
@@ -4025,6 +4033,29 @@ if (need_bones) {
                 ++runtime.pawn_count;
             }
         }
+    }
+
+    // Compute once per acquisition, including retained players, so render never
+    // performs DMA or repeats raycasts. Never reuse a result from another map.
+    const auto losWorld = requested.visibility && collision.IsLoadedFor(runtime.map_name)
+        ? collision.WorldSnapshot() : nullptr;
+    const auto losOrigin = Visibility::CameraOrigin(runtime.view_matrix);
+    for (auto& player : runtime.players) {
+        player.visibility_known = false;
+        player.visible = false;
+        if (!losWorld || !losOrigin || !player.alive || player.is_local || !player.full_bones_ok) continue;
+        if (frame_config.team_check && player.team == runtime.local_team) continue;
+        if (frame_config.max_distance > 0.f && player.distance > frame_config.max_distance) continue;
+        constexpr BoneSlot slots[] = {BoneSlot::Head, BoneSlot::Neck, BoneSlot::SpineUpper,
+            BoneSlot::Pelvis, BoneSlot::HandLeft, BoneSlot::HandRight};
+        std::array<Trajectory::Vec3, 6> points{};
+        for (size_t i = 0; i < points.size(); ++i) {
+            const auto& bone = player.bones[static_cast<size_t>(slots[i])];
+            points[i] = {bone[0], bone[1], bone[2]};
+        }
+        const auto result = Visibility::CheckPoints(losWorld.get(), *losOrigin, points);
+        player.visibility_known = result.has_value();
+        player.visible = result.value_or(false);
     }
 
     // Camera projection is published by the dedicated high-rate camera lane.

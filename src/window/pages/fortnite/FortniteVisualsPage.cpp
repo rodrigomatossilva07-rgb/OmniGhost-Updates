@@ -1,6 +1,7 @@
 #include "../../widgets.h"
 #include "../../theme.h"
 #include "../../../games/Cs2/config/cs2_config.h"
+#include "../../../launcher/launcher_assets.h"
 #include "imgui.h"
 
 #include <algorithm>
@@ -38,13 +39,24 @@ void DrawPreview(float width, float height) {
         const float x = origin.x + width * i / 5.f;
         draw->AddLine(ImVec2(x, origin.y), ImVec2(x, end.y), IM_COL32(255, 255, 255, 9));
     }
-    const ImU32 body = IM_COL32(44, 49, 56, 255);
-    draw->AddCircleFilled(ImVec2(cx, top + 25.f * scale), 16.f * scale, body, 24);
-    draw->AddLine(ImVec2(cx, top + 45.f * scale), ImVec2(cx, bottom - 65.f * scale), body, 23.f * scale);
-    draw->AddLine(ImVec2(cx, top + 78.f * scale), ImVec2(cx - 58.f * scale, top + 155.f * scale), body, 12.f * scale);
-    draw->AddLine(ImVec2(cx, top + 78.f * scale), ImVec2(cx + 58.f * scale, top + 155.f * scale), body, 12.f * scale);
-    draw->AddLine(ImVec2(cx, bottom - 67.f * scale), ImVec2(cx - 32.f * scale, bottom), body, 14.f * scale);
-    draw->AddLine(ImVec2(cx, bottom - 67.f * scale), ImVec2(cx + 32.f * scale, bottom), body, 14.f * scale);
+    const LauncherAssets::Texture portrait = LauncherAssets::FiveMEspPreview();
+    if (portrait) {
+        const float aspect = static_cast<float>(portrait.width) / static_cast<float>(portrait.height);
+        const float portraitHeight = height - 20.f;
+        const float portraitWidth = (std::min)(portraitHeight * aspect, width - 12.f);
+        draw->AddImage(portrait.id,
+            ImVec2(cx - portraitWidth * .5f, origin.y + 10.f),
+            ImVec2(cx + portraitWidth * .5f, end.y - 10.f),
+            ImVec2(0.f, 0.f), ImVec2(1.f, 1.f), IM_COL32(255, 255, 255, 235));
+    } else {
+        const ImU32 body = IM_COL32(44, 49, 56, 255);
+        draw->AddCircleFilled(ImVec2(cx, top + 25.f * scale), 16.f * scale, body, 24);
+        draw->AddLine(ImVec2(cx, top + 45.f * scale), ImVec2(cx, bottom - 65.f * scale), body, 23.f * scale);
+        draw->AddLine(ImVec2(cx, top + 78.f * scale), ImVec2(cx - 58.f * scale, top + 155.f * scale), body, 12.f * scale);
+        draw->AddLine(ImVec2(cx, top + 78.f * scale), ImVec2(cx + 58.f * scale, top + 155.f * scale), body, 12.f * scale);
+        draw->AddLine(ImVec2(cx, bottom - 67.f * scale), ImVec2(cx - 32.f * scale, bottom), body, 14.f * scale);
+        draw->AddLine(ImVec2(cx, bottom - 67.f * scale), ImVec2(cx + 32.f * scale, bottom), body, 14.f * scale);
+    }
     if (preview.esp_enabled) {
         ImU32 box = Color(preview.box_corner ? preview.col_box_corner : preview.col_box);
         if (preview.visibility_colors && preview.visible_check) box = Color(preview.col_visible);
@@ -131,7 +143,6 @@ void DrawFortniteVisuals() {
     ImGui::BeginChild("##fn_visual_features", ImVec2(columnWidth, height), false, ImGuiWindowFlags_AlwaysVerticalScrollbar);
     CyberWidgets::BeginCard("ESP DE JOGADORES");
     CyberWidgets::ToggleSwitch("Ativar pré-visualização", &preview.esp_enabled);
-    CyberWidgets::InlineMessage("Controlos de demonstração: não alteram o ESP do jogo.", CyberWidgets::TextTone::Info);
     CyberWidgets::Separator();
     CyberWidgets::SectionTitle("FILTROS");
     CyberWidgets::ToggleSwitch("ESP próprio", &preview.self_esp);
