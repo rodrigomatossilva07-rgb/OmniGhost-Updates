@@ -147,9 +147,10 @@ exit /b %ERRORLEVEL%
 set "CONFIGURATION=%~3"
 set "ARCHITECTURE=%~4"
 set "RELEASE_CHANNEL=%~5"
+set "WINDOWS_SDK_VERSION=%~6"
 if not defined ARCHITECTURE set "ARCHITECTURE=x64"
 if not defined RELEASE_CHANNEL set "RELEASE_CHANNEL=stable"
-"%PS_EXE%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%SCRIPT%" -ProjectDir "%PROJECT_DIR%" -Configuration "%CONFIGURATION%" -Architecture "%ARCHITECTURE%" -ReleaseChannel "%RELEASE_CHANNEL%"
+"%PS_EXE%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%SCRIPT%" -ProjectDir "%PROJECT_DIR%" -Configuration "%CONFIGURATION%" -Architecture "%ARCHITECTURE%" -ReleaseChannel "%RELEASE_CHANNEL%" -WindowsSdkVersion "%WINDOWS_SDK_VERSION%"
 exit /b %ERRORLEVEL%
 
 :repair_latest

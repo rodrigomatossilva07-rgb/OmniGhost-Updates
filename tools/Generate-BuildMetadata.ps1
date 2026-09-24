@@ -11,7 +11,9 @@ param(
     [Parameter(Mandatory=$false)]
     [string]$Architecture = "x64",
     [Parameter(Mandatory=$false)]
-    [string]$ReleaseChannel = "stable"
+    [string]$ReleaseChannel = "stable",
+    [Parameter(Mandatory=$false)]
+    [string]$WindowsSdkVersion = ""
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
@@ -177,8 +179,9 @@ function Invoke-GitWithTimeout {
     $stdout = Join-Path $env:TEMP ("omni-git-out-{0}.txt" -f [Guid]::NewGuid().ToString('N'))
     $stderr = Join-Path $env:TEMP ("omni-git-err-{0}.txt" -f [Guid]::NewGuid().ToString('N'))
     try {
-        $argList = @('-C', $ProjectDir) + $Arguments
-        $proc = Start-Process -FilePath $Git.Source -ArgumentList $argList `
+        # Start-Process joins ArgumentList into one command line on Windows PowerShell
+        # 5.1. Passing `-C $ProjectDir` therefore splits paths containing spaces.
+        $proc = Start-Process -FilePath $Git.Source -WorkingDirectory $ProjectDir -ArgumentList $Arguments `
             -NoNewWindow -PassThru `
             -RedirectStandardOutput $stdout -RedirectStandardError $stderr
         $finished = $proc.WaitForExit($TimeoutSeconds * 1000)
@@ -223,8 +226,8 @@ if ($null -ne $Git) {
     # working trees is a common Visual Studio "freeze" during metadata generation.
     Write-Host "[BuildMetadata] checking git dirty state (timeout 12s)..."
     $status = Invoke-GitWithTimeout -Arguments @('status','--porcelain','-uno','--ignore-submodules','--','.') -TimeoutSeconds 12
-    if ($status.TimedOut) {
-        Write-Warning "[BuildMetadata] git status timed out; treating tree as dirty for safety."
+    if ($status.TimedOut -or $status.ExitCode -ne 0) {
+        Write-Warning "[BuildMetadata] git status failed or timed out; treating tree as dirty for safety."
         $Dirty = $true
     } else {
         $Dirty = @($status.Output | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }).Count -gt 0
@@ -238,8 +241,8 @@ if ($SourcePackageDirty) {
 Write-Host "[BuildMetadata] provenance=$SourceProvenance commit=$CommitShort dirty=$Dirty"
 
 $SourceDateEpoch = 0L
-$HasSourceDateEpoch = [long]::TryParse($env:SOURCE_DATE_EPOCH, [ref]$SourceDateEpoch) -and $SourceDateEpoch -gt 0
-if (-not $HasSourceDateEpoch -and $null -ne $Git) {
+$HasSourceDateEpoch = $false
+if ($null -ne $Git) {
     $epochResult = Invoke-GitWithTimeout -Arguments @('show','-s','--format=%ct','HEAD') -TimeoutSeconds 8
     if (-not $epochResult.TimedOut -and $epochResult.Output.Count -gt 0) {
         $CommitEpoch = 0L
@@ -248,6 +251,9 @@ if (-not $HasSourceDateEpoch -and $null -ne $Git) {
             $HasSourceDateEpoch = $true
         }
     }
+}
+if (-not $HasSourceDateEpoch -and $null -eq $Git) {
+    $HasSourceDateEpoch = [long]::TryParse($env:SOURCE_DATE_EPOCH, [ref]$SourceDateEpoch) -and $SourceDateEpoch -gt 0
 }
 if (-not $HasSourceDateEpoch -and $null -ne $SourceMetadata -and $SourceMetadata.source_date_epoch) {
     $PackagedEpoch = 0L
@@ -324,7 +330,9 @@ if ([string]::IsNullOrWhiteSpace($ToolchainVersion)) { $ToolchainVersion = 'unkn
 if ([string]::IsNullOrWhiteSpace($CompilerVersion)) { $CompilerVersion = 'unknown' }
 
 Write-Host "[BuildMetadata] resolving Windows SDK..."
-$WindowsSdkVersion = if ($env:WindowsSDKVersion) { $env:WindowsSDKVersion.TrimEnd('\') } else { '' }
+if ([string]::IsNullOrWhiteSpace($WindowsSdkVersion)) {
+    $WindowsSdkVersion = if ($env:WindowsSDKVersion) { $env:WindowsSDKVersion.TrimEnd('\') } else { '' }
+}
 if ([string]::IsNullOrWhiteSpace($WindowsSdkVersion)) {
     try {
         $KitsRoot = (Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows Kits\Installed Roots' -ErrorAction Stop).KitsRoot10

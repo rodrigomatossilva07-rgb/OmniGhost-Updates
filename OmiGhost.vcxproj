@@ -467,7 +467,7 @@
     <Error Condition="'$(OmniGhostDistributionValidationExitCode)'!='0'" Code="OGDIST001" Text="A configuração de distribuição $(Configuration) não cumpre a política de segurança."/>
   </Target>
   <Target Name="GenerateOmniGhostBuildMetadata" BeforeTargets="ClCompile">
-    <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; generate-build-metadata &quot;$(MSBuildProjectDirectory)&quot; &quot;$(Configuration)&quot; &quot;$(Platform)&quot; &quot;$(OmniGhostReleaseChannel)&quot;" IgnoreExitCode="true">
+    <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; generate-build-metadata &quot;$(MSBuildProjectDirectory)&quot; &quot;$(Configuration)&quot; &quot;$(Platform)&quot; &quot;$(OmniGhostReleaseChannel)&quot; &quot;$(WindowsTargetPlatformVersion)&quot;" IgnoreExitCode="true">
       <Output TaskParameter="ExitCode" PropertyName="OmniGhostBuildMetadataExitCode"/>
     </Exec>
     <Error Condition="'$(OmniGhostBuildMetadataExitCode)'!='0'" Code="OGBLD001" Text="Falha ao gerar os metadados de build do OmniGhost."/>
