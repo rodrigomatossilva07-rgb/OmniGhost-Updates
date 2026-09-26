@@ -34,7 +34,7 @@ secrets.*
 
 # Local user/runtime state
 logs/
-config/
+/config/
 !/config/
 /config/*
 !/config/msix/
