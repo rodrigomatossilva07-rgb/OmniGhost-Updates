@@ -12,7 +12,7 @@
     "memprocfs":  {
                       "sha256":  {
                                      "vmm.dll":  "5b7ce682b8066bd90e217a4b081a81ba485226f8007056f35ea64dd118890fb5",
-                                     "vmmdll.h":  "8f789e237bb92a84c8f84763f17aa1d9c2df3bea8224dfaa503ca8f531c9d8f2",
+                                     "vmmdll.h":  "0a44905d0b868da5dfb80fb25e7356db42c0abff437d02b41ca04ff40035d54f",
                                      "vmm.lib":  "674efd238a307b6dbc73c5301deff2f3b034bbcc3ebf9e5c9544ab334dd83be1"
                                  },
                       "detected_version":  "5.18.11.250",
