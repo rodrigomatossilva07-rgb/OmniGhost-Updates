@@ -209,12 +209,21 @@
   </Target>
   <!-- The private OmniGhostCore payload is embedded in the bootstrap and must not be signed separately. -->
   <Target Name="SignOmniGhostLocalRelease" AfterTargets="ValidateOmniGhostSingleExeRuntime"
+          DependsOnTargets="VerifyOmniGhostReproducibility"
           Condition="('$(Configuration)'=='Release' Or '$(Configuration)'=='Publish') And '$(DesignTimeBuild)'!='true' And '$(OmniGhostPayloadBuild)'!='true' And '$(OmniGhostSkipReleaseSigning)'!='true'">
     <Message Importance="High" Text="[OmniGhost Release] A assinar e verificar $(TargetPath)."/>
     <Exec Command="powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\tools\Sign-AuthenticodeFile.ps1&quot; -Path &quot;$(TargetPath)&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
       <Output TaskParameter="ExitCode" PropertyName="OmniGhostReleaseSigningExitCode"/>
     </Exec>
     <Error Condition="'$(OmniGhostReleaseSigningExitCode)'!='0'" Code="OGREL001" Text="Release compilou, mas a assinatura ou verificação do OmniGhost.exe falhou. Consulta a primeira mensagem [SIGN]/[VERIFY]."/>
+  </Target>
+  <Target Name="VerifyOmniGhostReproducibility" AfterTargets="ValidateOmniGhostSingleExeRuntime"
+          Condition="'$(Configuration)'=='Publish' And '$(DesignTimeBuild)'!='true' And '$(OmniGhostPayloadBuild)'!='true' And '$(OmniGhostReproducibilityPass)'!='true' And '$(OmniGhostSkipRemotePublish)'!='true'">
+    <Message Importance="High" Text="[OmniGhost Repro] A executar uma segunda build isolada e comparar o executável byte-for-byte."/>
+    <Exec Command="powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(ProjectDir)tools\Verify-ReproducibleBuild.ps1&quot; -ProjectDir &quot;$(ProjectDir).&quot; -PrimaryExecutable &quot;$(TargetPath)&quot; -MSBuildPath &quot;$(MSBuildToolsPath)MSBuild.exe&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
+      <Output TaskParameter="ExitCode" PropertyName="OmniGhostReproducibilityExitCode"/>
+    </Exec>
+    <Error Condition="'$(OmniGhostReproducibilityExitCode)'!='0'" Code="OGREPRO001" Text="A segunda build independente não corresponde byte-for-byte à build Publish principal."/>
   </Target>
   <Target Name="BuildOmniGhostMsix" AfterTargets="SignOmniGhostLocalRelease;ValidateOmniGhostSingleExeRuntime" DependsOnTargets="SignOmniGhostLocalRelease"
           Condition="'$(GenerateMsixPackage)'=='true' And '$(DesignTimeBuild)'!='true' And '$(OmniGhostPayloadBuild)'!='true' And ( '$(Configuration)'=='Release' Or '$(Configuration)'=='Publish' )">
@@ -226,7 +235,7 @@
   </Target>
   <!-- Publish é a única configuração que pode alterar o GitHub. Release
        nunca alcançam este target. Tag, source limpo e artefactos válidos continuam obrigatórios. -->
-  <Target Name="PublishOmniGhostRelease" AfterTargets="ValidateOmniGhostSingleExeRuntime" Condition="'$(Configuration)'=='Publish' And '$(DesignTimeBuild)'!='true' And '$(OmniGhostSkipRemotePublish)'!='true'">
+  <Target Name="PublishOmniGhostRelease" AfterTargets="ValidateOmniGhostSingleExeRuntime" DependsOnTargets="VerifyOmniGhostReproducibility;SignOmniGhostLocalRelease;BuildOmniGhostMsix" Condition="'$(Configuration)'=='Publish' And '$(DesignTimeBuild)'!='true' And '$(OmniGhostSkipRemotePublish)'!='true'">
     <Message Importance="High" Text="[OmniGhost Publish] A validar, empacotar e publicar a versão no GitHub."/>
     <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; publish-build &quot;$(MSBuildProjectDirectory)&quot; &quot;$(OutDir).&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
       <Output TaskParameter="ExitCode" PropertyName="OmniGhostPublishExitCode"/>
