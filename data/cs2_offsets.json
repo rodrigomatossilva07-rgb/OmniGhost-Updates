@@ -1,31 +1,31 @@
 {
   "schema_version": 1,
   "game": "cs2",
-  "build": "cs2-dumper-2026-09-23",
-  "cl": "",
+  "build": "cs2-dumper-14185",
+  "cl": "14185",
   "module": "client.dll",
-  "source": "a2x/cs2-dumper output.zip 2026-09-23",
-  "generated_at": "2026-09-23",
+  "source": "a2x/cs2-dumper output.zip supplied 2026-09-26",
+  "generated_at": "2026-09-26T19:33:39Z",
   "client.dll": {
-    "dwCSGOInput": "0x2570A80",
-    "dwEntityList": "0x2710038",
-    "dwGameEntitySystem": "0x2710038",
+    "dwCSGOInput": "0x2575BB0",
+    "dwEntityList": "0x27151A8",
+    "dwGameEntitySystem": "0x27151A8",
     "dwGameEntitySystem_highestEntityIndex": "0x2120",
-    "dwGameRules": "0x255AA88",
-    "dwGlobalVars": "0x2226F08",
-    "dwGlowManager": "0x25577A0",
-    "dwLocalPlayerController": "0x25324D8",
-    "dwLocalPlayerPawn": "0x255B598",
-    "dwPlantedC4": "0x24C3D28",
-    "dwPrediction": "0x255B4A0",
-    "dwViewAngles": "0x2571108",
-    "dwViewMatrix": "0x25608E0",
-    "dwViewRender": "0x25611A0",
-    "dwWeaponC4": "0x24BF400"
+    "dwGameRules": "0x255C8D8",
+    "dwGlobalVars": "0x222BF88",
+    "dwGlowManager": "0x255C8F0",
+    "dwLocalPlayerController": "0x2537628",
+    "dwLocalPlayerPawn": "0x25606D8",
+    "dwPlantedC4": "0x24C9290",
+    "dwPrediction": "0x25605E0",
+    "dwViewAngles": "0x2576238",
+    "dwViewMatrix": "0x2565A20",
+    "dwViewRender": "0x25662E0",
+    "dwWeaponC4": "0x24C4550"
   },
   "engine2.dll": {
-    "dwBuildNumber": "0x61C1EC",
-    "dwNetworkGameClient": "0x91A150",
+    "dwBuildNumber": "0x61D1E8",
+    "dwNetworkGameClient": "0x91B1C0",
     "dwNetworkGameClient_clientTickCount": "0x398",
     "dwNetworkGameClient_deltaTick": "0x24C",
     "dwNetworkGameClient_isBackgroundMap": "0x2C143F",
@@ -33,8 +33,8 @@
     "dwNetworkGameClient_maxClients": "0x240",
     "dwNetworkGameClient_serverTickCount": "0x24C",
     "dwNetworkGameClient_signOnState": "0x230",
-    "dwWindowHeight": "0x91E4DC",
-    "dwWindowWidth": "0x91E4D8"
+    "dwWindowHeight": "0x91F544",
+    "dwWindowWidth": "0x91F540"
   },
   "inputsystem.dll": {
     "dwInputSystem": "0x46BC0"
@@ -97,7 +97,8 @@
       "m_iPawnHealth": "0x938",
       "m_iPawnArmor": "0x93C",
       "m_bPawnHasDefuser": "0x940",
-      "m_sSanitizedPlayerName": "0x878"
+      "m_sSanitizedPlayerName": "0x878",
+      "m_pInGameMoneyServices": "0x818"
     },
     "CBasePlayerController": {
       "m_hPawn": "0x6BC",
@@ -127,13 +128,20 @@
       "m_iItemDefinitionIndex": "0x1BA"
     },
     "C_BasePlayerWeapon": {
-      "m_iClip1": "0x1928"
+      "m_iClip1": "0x1928",
+      "m_pReserveAmmo": "0x1930"
     },
     "CCSPlayerController_InGameMoneyServices": {
       "m_iAccount": "0x40"
     },
     "C_EconEntity": {
       "m_AttributeManager": "0x1290"
+    },
+    "CCSPlayer_ItemServices": {
+      "m_bHasDefuser": "0x48"
+    },
+    "C_MolotovProjectile": {
+      "m_bIsIncGrenade": "0x1348"
     }
   }
 }

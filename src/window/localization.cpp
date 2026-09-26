@@ -138,7 +138,7 @@ namespace {
         {"launcher.auto_performance", {"Desempenho automático", "Auto performance", "Auto performance", "Auto performance", "Auto performance", "Auto performance"}},
         {"launcher.ui_scale", {"Escala da interface", "UI scale", "UI scale", "UI scale", "UI scale", "UI scale"}},
         {"launcher.effect.off", {"Desligado", "Off", "Off", "Off", "Off", "Off"}},
-        {"launcher.effect.subtle", {"Subtil", "Subtle", "Subtle", "Subtle", "Subtle", "Subtle"}},
+        {"launcher.effect.subtle", {"Desempenho", "Performance", "Performance", "Performance", "Performance", "Performance"}},
         {"launcher.effect.full", {"Completo", "Full", "Full", "Full", "Full", "Full"}},
         {"launcher.email", {"Email", "Email", "Email", "Email", "Email", "Email"}},
         {"launcher.authentication", {"Autenticação", "Authentication", "Authentication", "Authentication", "Authentication", "Authentication"}},

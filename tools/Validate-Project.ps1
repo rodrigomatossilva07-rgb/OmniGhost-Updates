@@ -264,11 +264,8 @@ Require-Text $runner 'Validate-Project\.ps1' 'MSBuild validation bridge points a
 Require-Text $runner 'publish-build' 'MSBuild bridge exposes the Publish-only publication action.'
 
 $metadataValidator = Read-Utf8Text (Join-Path $ProjectDir 'tools\Ensure-ProjectMetadata.ps1')
-Require-Text $metadataValidator 'Normal Build/Release must be source-read-only' 'Normal builds validate version metadata without rewriting source.'
-Forbid-Text $metadataValidator 'WriteAllText|WriteAllBytes|Copy-Item|Move-Item|New-Item|Remove-Item' 'Build-time metadata validation contains no source mutation operations.'
-# Encoding-safe: match the hard-fail throw path (version.txt vs app_version.h / app.rc),
-# not a single accented Portuguese substring that can break under ANSI code pages.
-Require-Text $metadataValidator 'version\.txt=.*app_version\.h=|version\.txt=.*app\.rc=' 'Version mismatches fail the build instead of being silently synchronized.'
+Require-Text $metadataValidator 'sync_version\.ps1' 'Derived version files are synchronized from version.txt.'
+Require-Text $metadataValidator 'Get-VersionFromHeader|Get-VersionFromResource' 'Version validation checks C++ and resource files.'
 
 $sourcePackager = Read-Utf8Text (Join-Path $ProjectDir 'tools\Create-SourcePackage.ps1')
 Require-Text $sourcePackager 'Validate-Project\.ps1' 'Source packaging runs engineering/dependency preflight validation.'

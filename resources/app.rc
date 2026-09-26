@@ -1,3 +1,4 @@
+#ifndef OMNIGHOST_VERSION_RESOURCE_ONLY
 #include "resource.h"
 #include "embedded_offsets.rc2"
 #include "embedded_runtime.rc2"
@@ -5,11 +6,12 @@
 
 IDI_OMNIGHOST_ICON ICON "OmniGhost.ico"
 1 24 "app.manifest"
+#endif
 
 #ifndef OMNIGHOST_VERSION_MAJOR
 #define OMNIGHOST_VERSION_MAJOR 1
 #define OMNIGHOST_VERSION_MINOR 3
-#define OMNIGHOST_VERSION_PATCH 6
+#define OMNIGHOST_VERSION_PATCH 7
 #define OMNIGHOST_VERSION_REVISION 0
 #endif
 #define OMNIGHOST_STRINGIZE_INNER(value) #value

@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
     [string]$ProjectDir,
@@ -15,7 +15,8 @@ param(
     [string]$SemanticAnalysisPath,
 
     [switch]$PublishBuild,
-    [switch]$Commercial
+    [switch]$Commercial,
+    [switch]$AllowMissingTag
 )
 
 $ErrorActionPreference = 'Stop'
@@ -27,6 +28,9 @@ Set-StrictMode -Version Latest
 
 $ProjectDir = [System.IO.Path]::GetFullPath((Join-Path $ProjectDir '.'))
 $BuildDir = [System.IO.Path]::GetFullPath((Join-Path $BuildDir '.'))
+if ($Commercial) {
+    & (Join-Path $PSScriptRoot 'Test-CommercialPreflight.ps1') -ProjectDir $ProjectDir -AllowMissingTag:$AllowMissingTag
+}
 if (-not $LogFile) {
     $LogFile = Join-Path $ProjectDir 'artifacts\release-build.log'
 }
@@ -325,6 +329,11 @@ try {
         }
         Copy-Item -LiteralPath $Source -Destination (Join-Path $StageDir $Name) -Force
     }
+    $NoticeSource = Join-Path $ProjectDir 'THIRD_PARTY_NOTICES.txt'
+    if (-not (Test-Path -LiteralPath $NoticeSource -PathType Leaf)) {
+        throw 'THIRD_PARTY_NOTICES.txt está em falta; não criar pacote sem avisos de dependências.'
+    }
+    Copy-Item -LiteralPath $NoticeSource -Destination (Join-Path $StageDir 'THIRD_PARTY_NOTICES.txt') -Force
 
     $UnexpectedRuntime = @(Get-ChildItem -LiteralPath $BuildDir -Recurse -Force | Where-Object {
         -not $_.PSIsContainer -and $_.FullName -ne (Join-Path $BuildDir 'OmniGhost.exe')
@@ -367,7 +376,13 @@ try {
         if ($SigningThumbprint -notmatch '^[0-9A-F]{40}$' -or [string]::IsNullOrWhiteSpace($ExpectedPublisher)) {
             throw 'Trust comercial não configurado. Executa tools\Configure-ReleaseTrust.ps1 no ambiente de assinatura.'
         }
-        $TimestampUrl = if ($PublishSettings.timestampUrl) { [string]$PublishSettings.timestampUrl } else { 'http://timestamp.digicert.com' }
+        if ([string]::IsNullOrWhiteSpace($env:OMNIGHOST_SIGNING_THUMBPRINT)) {
+            throw 'Define OMNIGHOST_SIGNING_THUMBPRINT no ambiente de Publish.'
+        }
+        if (($env:OMNIGHOST_SIGNING_THUMBPRINT -replace '\s','').ToUpperInvariant() -ne $SigningThumbprint) {
+            throw 'OMNIGHOST_SIGNING_THUMBPRINT difere do certificado público configurado para o cliente.'
+        }
+        $TimestampUrl = if ($PublishSettings.timestampUrl) { [string]$PublishSettings.timestampUrl } else { 'https://timestamp.digicert.com' }
         Write-ReleaseLog 'A assinar a cópia staged de OmniGhost.exe com Authenticode...'
         & (Join-Path $ProjectDir 'tools\Sign-AuthenticodeFile.ps1') -Path $StagedExecutable -CertificateThumbprint $SigningThumbprint -TimestampUrl $TimestampUrl
         if ($LASTEXITCODE -ne 0) { throw 'Authenticode signing failed.' }
@@ -403,6 +418,13 @@ try {
         Remove-Item -LiteralPath $InstallManifestSignaturePath -Force -ErrorAction SilentlyContinue
     }
 
+    # The client verifies these files beside OmniGhost.exe at startup. Keep the
+    # canonical sidecar copies for release auditing, and include them in the ZIP.
+    Copy-Item -LiteralPath $InstallManifestPath -Destination (Join-Path $StageDir 'install-manifest.sha256') -Force
+    if ($Commercial) {
+        Copy-Item -LiteralPath $InstallManifestSignaturePath -Destination (Join-Path $StageDir 'install-manifest.sha256.sig') -Force
+    }
+
     $ForbiddenFiles = Get-ChildItem -LiteralPath $StageDir -Recurse -Force -File -ErrorAction SilentlyContinue |
         Where-Object { $_.Extension.ToLowerInvariant() -in @('.pdb', '.obj', '.tlog', '.idb', '.ilk', '.exp') }
     $ForbiddenDirectories = Get-ChildItem -LiteralPath $StageDir -Recurse -Force -Directory -ErrorAction SilentlyContinue |
@@ -426,7 +448,8 @@ try {
     Write-ReleaseLog "ZIP criado: $Size bytes; SHA-256: $Sha256"
 
     # Publish the signed inventory beside the ZIP. The client ZIP intentionally
-    # contains only OmniGhost.exe; package SHA-256 + Authenticode authenticate it.
+    # contains OmniGhost.exe and the dependency notices; package SHA-256 and
+    # Authenticode authenticate the executable and the signed inventory.
     $ArtifactInstallManifest = Join-Path $ArtifactOutputDir 'install-manifest.sha256'
     $ArtifactInstallManifestSignature = Join-Path $ArtifactOutputDir 'install-manifest.sha256.sig'
     $ArtifactSbom = Join-Path $ArtifactOutputDir 'SBOM.cdx.json'
@@ -549,6 +572,20 @@ try {
     }
     Write-ReleaseLog 'Changelog e notas validados.'
 
+    # Hash only completed release assets. The executable was signed before ZIP creation.
+    # SHA256SUMS.txt deliberately excludes itself to avoid a circular hash.
+    $SumNames = @('OmniGhost.zip','update.json','install-manifest.sha256',
+        'SBOM.cdx.json','changelog.json','release-notes.md','release-meta.json')
+    if ($Commercial) { $SumNames += @('update.json.sig','install-manifest.sha256.sig') }
+    $SumLines = foreach ($name in ($SumNames | Sort-Object)) {
+        $path = Join-Path $ArtifactOutputDir $name
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "[HASH] Artefacto em falta: $name" }
+        "{0}  {1}" -f (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash, $name
+    }
+    $ArtifactSums = Join-Path $ArtifactOutputDir 'SHA256SUMS.txt'
+    [IO.File]::WriteAllLines($ArtifactSums, [string[]]$SumLines, $Utf8NoBom)
+    Write-ReleaseLog "[HASH] SHA256SUMS.txt gerado após assinatura: $($SumNames.Count) artefactos."
+
     $ReleaseZip = Join-Path $ReleaseOutputDir $ZipName
     $ReleaseManifest = Join-Path $ReleaseOutputDir 'update.json'
     $ReleaseManifestSignature = Join-Path $ReleaseOutputDir 'update.json.sig'
@@ -557,6 +594,7 @@ try {
     $ReleaseChangelog = Join-Path $ReleaseOutputDir 'changelog.json'
     $ReleaseNotes = Join-Path $ReleaseOutputDir 'release-notes.md'
     $ReleaseSbom = Join-Path $ReleaseOutputDir 'SBOM.cdx.json'
+    $ReleaseSums = Join-Path $ReleaseOutputDir 'SHA256SUMS.txt'
 
     Copy-Item -LiteralPath $ArtifactZip -Destination $ReleaseZip -Force
     Copy-Item -LiteralPath $ArtifactManifest -Destination $ReleaseManifest -Force
@@ -570,6 +608,7 @@ try {
     Copy-Item -LiteralPath $ChangelogSource -Destination $ReleaseChangelog -Force
     Copy-Item -LiteralPath $NotesSource -Destination $ReleaseNotes -Force
     Copy-Item -LiteralPath $ArtifactSbom -Destination $ReleaseSbom -Force
+    Copy-Item -LiteralPath $ArtifactSums -Destination $ReleaseSums -Force
 
     Assert-CopyMatches -Source $ArtifactZip -Destination $ReleaseZip
     Assert-CopyMatches -Source $ArtifactManifest -Destination $ReleaseManifest
@@ -583,6 +622,7 @@ try {
     Assert-CopyMatches -Source $ChangelogSource -Destination $ReleaseChangelog
     Assert-CopyMatches -Source $NotesSource -Destination $ReleaseNotes
     Assert-CopyMatches -Source $ArtifactSbom -Destination $ReleaseSbom
+    Assert-CopyMatches -Source $ArtifactSums -Destination $ReleaseSums
     Write-ReleaseLog "Artefactos copiados e validados em: $ReleaseOutputDir"
 
     if ($Commercial) {

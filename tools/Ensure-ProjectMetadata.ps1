@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
     [string]$ProjectDir
@@ -11,6 +11,7 @@ $ProjectDir = [System.IO.Path]::GetFullPath((Join-Path $ProjectDir '.'))
 $VersionFile = Join-Path $ProjectDir 'config\release\version.txt'
 $HeaderFile = Join-Path $ProjectDir 'src\app_version.h'
 $ResourceFile = Join-Path $ProjectDir 'resources\app.rc'
+$ManifestFile = Join-Path $ProjectDir 'resources\app.manifest'
 $IconFile = Join-Path $ProjectDir 'resources\OmniGhost.ico'
 
 function Write-MetadataLog {
@@ -64,11 +65,12 @@ function Get-VersionFromResource {
     return $Detected
 }
 
-# Normal Build/Release must be source-read-only. Missing or divergent version/resource
-# files are engineering errors; they are never repaired, bumped or rewritten here.
+# version.txt is authoritative. Generated source version files are synchronized
+# from it before compilation; Publish will later reject an uncommitted change.
 Require-SourceFile -Path $VersionFile -DisplayName 'version.txt'
 Require-SourceFile -Path $HeaderFile -DisplayName 'src\app_version.h'
 Require-SourceFile -Path $ResourceFile -DisplayName 'resources\app.rc'
+Require-SourceFile -Path $ManifestFile -DisplayName 'resources\app.manifest'
 Require-SourceFile -Path $IconFile -DisplayName 'resources\OmniGhost.ico'
 
 $Version = ([System.IO.File]::ReadAllText($VersionFile)).Trim()
@@ -78,7 +80,10 @@ if (-not (Test-VersionFormat -Version $Version)) {
 
 $HeaderVersion = Get-VersionFromHeader
 $ResourceVersion = Get-VersionFromResource
-if (($HeaderVersion -ne $Version) -or ($ResourceVersion -ne $Version)) {
+$ManifestText = [IO.File]::ReadAllText($ManifestFile)
+$ManifestMatch = [regex]::Match($ManifestText, '(?s)<assemblyIdentity\b[^>]*\bversion="(?<version>[^"]+)"')
+$ManifestVersion = if ($ManifestMatch.Success) { $ManifestMatch.Groups['version'].Value } else { '' }
+if (($HeaderVersion -ne $Version) -or ($ResourceVersion -ne $Version) -or ($ManifestVersion -ne "$Version.0")) {
     Write-MetadataLog "Versões dessincronizadas (version.txt=$Version, app_version.h=$HeaderVersion, app.rc=$ResourceVersion). A sincronizar a partir de version.txt…"
     $SyncScript = Join-Path $ProjectDir 'tools\sync_version.ps1'
     if (-not (Test-Path -LiteralPath $SyncScript -PathType Leaf)) {
@@ -90,7 +95,10 @@ if (($HeaderVersion -ne $Version) -or ($ResourceVersion -ne $Version)) {
     }
     $HeaderVersion = Get-VersionFromHeader
     $ResourceVersion = Get-VersionFromResource
-    if (($HeaderVersion -ne $Version) -or ($ResourceVersion -ne $Version)) {
+    $ManifestText = [IO.File]::ReadAllText($ManifestFile)
+    $ManifestMatch = [regex]::Match($ManifestText, '(?s)<assemblyIdentity\b[^>]*\bversion="(?<version>[^"]+)"')
+    $ManifestVersion = if ($ManifestMatch.Success) { $ManifestMatch.Groups['version'].Value } else { '' }
+    if (($HeaderVersion -ne $Version) -or ($ResourceVersion -ne $Version) -or ($ManifestVersion -ne "$Version.0")) {
         throw "Após sincronização ainda há divergência: version.txt=$Version, app_version.h=$HeaderVersion, app.rc=$ResourceVersion."
     }
     Write-MetadataLog "Versão sincronizada com sucesso: $Version"

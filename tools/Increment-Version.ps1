@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
     [string]$ProjectDir,
@@ -13,6 +13,7 @@ $ProjectDir = [System.IO.Path]::GetFullPath((Join-Path $ProjectDir '.'))
 $VersionFile = Join-Path $ProjectDir 'config\release\version.txt'
 $HeaderFile = Join-Path $ProjectDir 'src\app_version.h'
 $ResourceFile = Join-Path $ProjectDir 'resources\app.rc'
+$ManifestFile = Join-Path $ProjectDir 'resources\app.manifest'
 $BackupDir = Join-Path $ProjectDir 'artifacts\version-backup'
 $StateFile = Join-Path $BackupDir 'pending-version.json'
 $LockFile = Join-Path $ProjectDir 'artifacts\.version-build.lock'
@@ -95,6 +96,7 @@ function Restore-Backups {
     $VersionBackup = Join-Path $BackupDir 'version.txt.bak'
     $HeaderBackup = Join-Path $BackupDir 'app_version.h.bak'
     $ResourceBackup = Join-Path $BackupDir 'app.rc.bak'
+    $ManifestBackup = Join-Path $BackupDir 'app.manifest.bak'
 
     if (Test-Path -LiteralPath $VersionBackup -PathType Leaf) {
         Copy-Item -LiteralPath $VersionBackup -Destination $VersionFile -Force
@@ -104,6 +106,9 @@ function Restore-Backups {
     }
     if (Test-Path -LiteralPath $ResourceBackup -PathType Leaf) {
         Copy-Item -LiteralPath $ResourceBackup -Destination $ResourceFile -Force
+    }
+    if (Test-Path -LiteralPath $ManifestBackup -PathType Leaf) {
+        Copy-Item -LiteralPath $ManifestBackup -Destination $ManifestFile -Force
     }
 }
 
@@ -176,6 +181,7 @@ try {
     Copy-Item -LiteralPath $VersionFile -Destination (Join-Path $BackupDir 'version.txt.bak') -Force
     Copy-Item -LiteralPath $HeaderFile -Destination (Join-Path $BackupDir 'app_version.h.bak') -Force
     Copy-Item -LiteralPath $ResourceFile -Destination (Join-Path $BackupDir 'app.rc.bak') -Force
+    Copy-Item -LiteralPath $ManifestFile -Destination (Join-Path $BackupDir 'app.manifest.bak') -Force
     Write-VersionLog 'Backup criado.'
 
     $State = [ordered]@{
@@ -192,16 +198,7 @@ try {
     Invoke-VersionSync
     Write-VersionLog "Recursos internos atualizados para $Next"
 
-    # Commit version bump to keep git tree clean for Publish validation
-    try {
-        $git = Get-Command git -ErrorAction Stop
-        & $git.Source -C $ProjectDir add -A
-        & $git.Source -C $ProjectDir -c "user.name=OmniGhost Build" -c "user.email=build@omnighost.local" commit -m "chore: prepare version $Next"
-        Write-VersionLog "Version bump committed to git"
-    }
-    catch {
-        Write-Warning "Could not commit version bump (git may not be available or no changes): $($_.Exception.Message)"
-    }
+    Write-VersionLog 'Versão preparada. Revê as alterações e cria o commit com a tua identidade Git antes de Publish.'
 
     return
 }

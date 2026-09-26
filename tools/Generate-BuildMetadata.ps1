@@ -1,7 +1,7 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [Parameter(Mandatory=$false)]
-    [string]$ProjectDir = (Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)),
+    [string]$ProjectDir = '',
     [Parameter(Mandatory=$false)]
     [string]$OutputPath = "",
     [Parameter(Mandatory=$false)]
@@ -19,7 +19,13 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'Hashing.ps1')
 
+if ([string]::IsNullOrWhiteSpace($ProjectDir)) {
+    $ProjectDir = Split-Path -Parent $PSScriptRoot
+}
 $ProjectDir = [IO.Path]::GetFullPath($ProjectDir)
+if ([string]::IsNullOrWhiteSpace($Configuration)) {
+    $Configuration = if ([string]::IsNullOrWhiteSpace($env:Configuration)) { 'Release' } else { $env:Configuration }
+}
 if ([string]::IsNullOrWhiteSpace($OutputPath)) {
     $Configuration = ($Configuration -replace '[^A-Za-z0-9_.-]', '_')
     $Platform = ($Architecture -replace '[^A-Za-z0-9_.-]', '_')
@@ -95,7 +101,7 @@ if (Test-Path -LiteralPath $SourcePackageManifestPath -PathType Leaf) {
 #   - Skip hashing under heavy/generated trees even on Publish
 #   - Emit progress so the build log does not appear stuck
 $SourcePackageDirty = $false
-if ($null -ne $SourcePackageManifest -and $null -ne $SourcePackageManifest.files) {
+if ($null -eq $Git -and $null -ne $SourcePackageManifest -and $null -ne $SourcePackageManifest.files) {
     $ProjectRootPrefix = $ProjectDir.TrimEnd('\') + '\'
     $Entries = @($SourcePackageManifest.files)
     $TotalEntries = $Entries.Count
@@ -176,38 +182,42 @@ function Invoke-GitWithTimeout {
     )
     if ($null -eq $Git) { return @{ TimedOut = $false; ExitCode = -1; Output = @() } }
 
-    $stdout = Join-Path $env:TEMP ("omni-git-out-{0}.txt" -f [Guid]::NewGuid().ToString('N'))
-    $stderr = Join-Path $env:TEMP ("omni-git-err-{0}.txt" -f [Guid]::NewGuid().ToString('N'))
+    $proc = $null
     try {
-        # Start-Process joins ArgumentList into one command line on Windows PowerShell
-        # 5.1. Passing `-C $ProjectDir` therefore splits paths containing spaces.
-        $proc = Start-Process -FilePath $Git.Source -WorkingDirectory $ProjectDir -ArgumentList $Arguments `
-            -NoNewWindow -PassThru `
-            -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+        # Windows PowerShell 5.1 can return a blank ExitCode from Start-Process
+        # -PassThru even after WaitForExit. Use the .NET Process API directly.
+        $start = New-Object System.Diagnostics.ProcessStartInfo
+        $start.FileName = $Git.Source
+        $start.Arguments = ($Arguments -join ' ')
+        $start.WorkingDirectory = $ProjectDir
+        $start.UseShellExecute = $false
+        $start.CreateNoWindow = $true
+        $start.RedirectStandardOutput = $true
+        $start.RedirectStandardError = $true
+        $proc = New-Object System.Diagnostics.Process
+        $proc.StartInfo = $start
+        if (-not $proc.Start()) { return @{ TimedOut = $false; ExitCode = -1; Output = @() } }
+        $stdout = $proc.StandardOutput.ReadToEndAsync()
+        $stderr = $proc.StandardError.ReadToEndAsync()
         $finished = $proc.WaitForExit($TimeoutSeconds * 1000)
         if (-not $finished) {
-            try { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue } catch {}
+            try { $proc.Kill() } catch {}
             try { $proc.WaitForExit(2000) } catch {}
             return @{ TimedOut = $true; ExitCode = -1; Output = @() }
         }
-        $output = @()
-        if (Test-Path -LiteralPath $stdout) {
-            $output = @(Get-Content -LiteralPath $stdout -ErrorAction SilentlyContinue)
-        }
-        return @{ TimedOut = $false; ExitCode = $proc.ExitCode; Output = $output }
+        $output = @($stdout.GetAwaiter().GetResult() -split "`r?`n" | Where-Object { $_ -ne '' })
+        $null = $stderr.GetAwaiter().GetResult()
+        return @{ TimedOut = $false; ExitCode = [int]$proc.ExitCode; Output = $output }
     } catch {
         return @{ TimedOut = $false; ExitCode = -1; Output = @() }
     } finally {
-        Remove-Item -LiteralPath $stdout, $stderr -Force -ErrorAction SilentlyContinue
+        if ($null -ne $proc) { $proc.Dispose() }
     }
 }
 
 Write-Host "[BuildMetadata] resolving source provenance..."
 $SourceProvenance = 'local-untracked'
-$Commit = if ($env:GITHUB_SHA) {
-    $SourceProvenance = 'github'
-    [string]$env:GITHUB_SHA
-} elseif ($null -ne $Git) {
+$Commit = if ($null -ne $Git) {
     $SourceProvenance = 'git'
     Get-GitValue @('rev-parse','HEAD') 'unknown'
 } elseif ($null -ne $SourceMetadata -and $SourceMetadata.commit_id -and [string]$SourceMetadata.commit_id -ne 'unknown') {
@@ -219,18 +229,27 @@ $Commit = if ($env:GITHUB_SHA) {
 } else {
     'untracked-source'
 }
+if ($null -ne $Git -and $Commit -match '^[0-9a-fA-F]{40}$' -and $env:GITHUB_SHA -and
+    $Commit -cne [string]$env:GITHUB_SHA) {
+    throw "GITHUB_SHA não coincide com git rev-parse HEAD. Git=$Commit; GitHub=$env:GITHUB_SHA"
+}
+if ($Configuration -eq 'Publish' -and $null -ne $Git -and $Commit -notmatch '^[0-9a-fA-F]{40}$') {
+    throw "Não foi possível obter commit_id real. Confirma Git e executa: git init; git add .; git commit -m 'Preparar release'."
+}
 if ($Commit.Length -gt 12) { $CommitShort = $Commit.Substring(0,12) } else { $CommitShort = $Commit }
 $Dirty = $false
+$DirtyFiles = @()
 if ($null -ne $Git) {
-    # Prefer a cheap porcelain status (tracked files only). Full `git diff` on large
-    # working trees is a common Visual Studio "freeze" during metadata generation.
+    # Include untracked files: they can change the source used for a release.
     Write-Host "[BuildMetadata] checking git dirty state (timeout 12s)..."
-    $status = Invoke-GitWithTimeout -Arguments @('status','--porcelain','-uno','--ignore-submodules','--','.') -TimeoutSeconds 12
+    $status = Invoke-GitWithTimeout -Arguments @('status','--porcelain','--untracked-files=normal','--ignore-submodules') -TimeoutSeconds 12
     if ($status.TimedOut -or $status.ExitCode -ne 0) {
         Write-Warning "[BuildMetadata] git status failed or timed out; treating tree as dirty for safety."
         $Dirty = $true
+        $DirtyFiles = @('git status unavailable')
     } else {
-        $Dirty = @($status.Output | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }).Count -gt 0
+        $DirtyFiles = @($status.Output | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+        $Dirty = $DirtyFiles.Count -gt 0
     }
 } elseif ($null -ne $SourceMetadata -and $null -ne $SourceMetadata.dirty) {
     $Dirty = [bool]$SourceMetadata.dirty
@@ -239,6 +258,9 @@ if ($SourcePackageDirty) {
     $Dirty = $true
 }
 Write-Host "[BuildMetadata] provenance=$SourceProvenance commit=$CommitShort dirty=$Dirty"
+if ($DirtyFiles.Count -gt 0) {
+    foreach ($item in $DirtyFiles) { Write-Host "[BuildMetadata] changed: $item" }
+}
 
 $SourceDateEpoch = 0L
 $HasSourceDateEpoch = $false
@@ -269,7 +291,7 @@ if (-not $HasSourceDateEpoch -and $null -ne $SourcePackageManifest -and $SourceP
         $HasSourceDateEpoch = $SourceDateEpoch -gt 0
     } catch {}
 }
-$Reproducible = $HasSourceDateEpoch -and -not $Dirty
+$Reproducible = $false
 if ($HasSourceDateEpoch) {
     # Use a stable source timestamp so /Brepro builds do not change only because
     # the same source was compiled at a different wall-clock time.
@@ -295,7 +317,7 @@ try {
 } catch {}
 # Prefer environment / PATH. Avoid vswhere on normal incremental builds — it can
 # stall for a long time on some developer machines with many VS installs.
-if ([string]::IsNullOrWhiteSpace($CompilerPath) -and $Configuration -eq 'Publish') {
+if ([string]::IsNullOrWhiteSpace($CompilerPath)) {
     try {
         Write-Host "[BuildMetadata] locating cl.exe via vswhere (Publish only)..."
         $VsWhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
@@ -318,7 +340,7 @@ if ([string]::IsNullOrWhiteSpace($CompilerPath) -and $Configuration -eq 'Publish
 if (-not [string]::IsNullOrWhiteSpace($CompilerPath)) {
     try {
         $Info = [Diagnostics.FileVersionInfo]::GetVersionInfo($CompilerPath)
-        $CompilerVersion = if ($Info.ProductVersion) { [string]$Info.ProductVersion } else { [string]$Info.FileVersion }
+        $CompilerVersion = if ($Info.FileVersion) { [string]$Info.FileVersion } else { [string]$Info.ProductVersion }
         if ([string]::IsNullOrWhiteSpace($ToolchainVersion)) {
             $normalizedCompilerPath = $CompilerPath.Replace('/', '\')
             $match = [regex]::Match($normalizedCompilerPath, '\\VC\\Tools\\MSVC\\([^\\]+)\\', [Text.RegularExpressions.RegexOptions]::IgnoreCase)
@@ -332,6 +354,18 @@ if ([string]::IsNullOrWhiteSpace($CompilerVersion)) { $CompilerVersion = 'unknow
 Write-Host "[BuildMetadata] resolving Windows SDK..."
 if ([string]::IsNullOrWhiteSpace($WindowsSdkVersion)) {
     $WindowsSdkVersion = if ($env:WindowsSDKVersion) { $env:WindowsSDKVersion.TrimEnd('\') } else { '' }
+}
+if ([string]::IsNullOrWhiteSpace($WindowsSdkVersion)) {
+    $projectFile = Join-Path $ProjectDir 'OmiGhost.vcxproj'
+    if (Test-Path -LiteralPath $projectFile -PathType Leaf) {
+        $projectText = [IO.File]::ReadAllText($projectFile)
+        $sdkMatch = [regex]::Match($projectText, '<WindowsTargetPlatformVersion>(10\.0\.\d+\.0)</WindowsTargetPlatformVersion>')
+        if ($sdkMatch.Success) {
+            $candidate = $sdkMatch.Groups[1].Value
+            $includePath = Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10\Include\$candidate"
+            if (Test-Path -LiteralPath $includePath -PathType Container) { $WindowsSdkVersion = $candidate }
+        }
+    }
 }
 if ([string]::IsNullOrWhiteSpace($WindowsSdkVersion)) {
     try {
@@ -350,6 +384,13 @@ if ([string]::IsNullOrWhiteSpace($WindowsSdkVersion)) {
 }
 if ([string]::IsNullOrWhiteSpace($WindowsSdkVersion)) { $WindowsSdkVersion = 'unknown' }
 Write-Host "[BuildMetadata] toolchain=$ToolchainVersion compiler=$CompilerVersion sdk=$WindowsSdkVersion"
+$ReproducibilityPrerequisitesMet = $HasSourceDateEpoch -and -not $Dirty -and
+    $Commit -notin @('unknown','untracked-source') -and
+    $ToolchainVersion -ne 'unknown' -and $CompilerVersion -ne 'unknown' -and
+    $WindowsSdkVersion -ne 'unknown'
+# Deterministic inputs do not prove byte-for-byte reproducibility. This field
+# remains false until a separate independent rebuild comparison is recorded.
+$Reproducible = $false
 if ([string]::IsNullOrWhiteSpace($Configuration)) { $Configuration = if ($env:Configuration) { $env:Configuration } else { 'unknown' } }
 if ([string]::IsNullOrWhiteSpace($Architecture)) { $Architecture = 'x64' }
 if ([string]::IsNullOrWhiteSpace($ReleaseChannel)) { $ReleaseChannel = 'stable' }
@@ -405,17 +446,25 @@ $NormalizedContent = $Content.TrimStart([char[]]"`r`n")
 [IO.File]::WriteAllText($OutputPath, $NormalizedContent + [Environment]::NewLine, $Utf8NoBom)
 $Metadata = [ordered]@{
     schema = 1
+    schemaVersion = 1
     app_version = $AppVersion
+    version = $AppVersion
     build_id = $BuildId
     commit_id = $Commit
     source_provenance = $SourceProvenance
     dirty = [bool]$Dirty
+    dirty_files = @($DirtyFiles)
     build_utc = $BuildUtc
+    generatedUtc = [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ')
     reproducible = [bool]$Reproducible
+    reproducibility_prerequisites_met = [bool]$ReproducibilityPrerequisitesMet
     architecture = $Architecture
     configuration = $Configuration
     release_channel = $ReleaseChannel
     source_date_epoch = if ($HasSourceDateEpoch) { $SourceDateEpoch } else { $null }
+    vc_tools_version = $ToolchainVersion
+    compiler_version = $CompilerVersion
+    windows_sdk_version = $WindowsSdkVersion
     toolchain = [ordered]@{
         vc_tools_version = $ToolchainVersion
         compiler_version = $CompilerVersion

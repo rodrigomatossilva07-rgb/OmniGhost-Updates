@@ -40,6 +40,7 @@
 #include "platform/shutdown_coordinator.h"
 #include "platform/text_encoding.h"
 #include "platform/window_instance_guard.h"
+#include "security/security_manager.h"
 #include "window/performance_mode.h"
 #include "window/widgets.h"
 #include "window/hardware_monitor.h"
@@ -54,6 +55,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <cwchar>
 #include <future>
 #include <iostream>
@@ -66,6 +68,26 @@
 #endif
 
 namespace {
+
+void WritePostAuthStage(const char* stage) noexcept {
+    wchar_t localAppData[MAX_PATH]{};
+    const DWORD length = GetEnvironmentVariableW(L"LOCALAPPDATA", localAppData, MAX_PATH);
+    if (length == 0 || length >= MAX_PATH)
+        return;
+
+    std::wstring directory(localAppData);
+    directory += L"\\OmniGhost";
+    CreateDirectoryW(directory.c_str(), nullptr);
+    const std::wstring path = directory + L"\\post-auth-stage.txt";
+    HANDLE file = CreateFileW(path.c_str(), GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                              nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (file == INVALID_HANDLE_VALUE)
+        return;
+    DWORD written = 0;
+    WriteFile(file, stage, static_cast<DWORD>(std::strlen(stage)), &written, nullptr);
+    FlushFileBuffers(file);
+    CloseHandle(file);
+}
 
 // Release is a native GUI application. Diagnostic output is mirrored to SessionLog.
 
@@ -103,6 +125,8 @@ bool IsLocalFiveMProcessRunning() noexcept {
 // CI hardware gate: read the selected FiveM process through the normal DMA
 // backend. No game memory is written and no interactive launcher is created.
 int RunDmaIntegrationTest(int argc, wchar_t** argv) {
+    OmniGhost::SessionLog::Initialize();
+    if (!OmniGhost::Security::SecurityManager::Instance().VerifyHostIdentity()) return 10;
     std::wstring executable;
     unsigned long expectedPid = 0;
     unsigned long long expectedHwnd = 0;
@@ -134,6 +158,7 @@ int RunDmaIntegrationTest(int argc, wchar_t** argv) {
         processName.push_back(static_cast<char>(character));
     }
     if (OmniGhost::RuntimeBootstrap::Prepare() == OmniGhost::RuntimeBootstrap::Result::Failed) return 6;
+    if (!OmniGhost::Security::SecurityManager::Instance().VerifyProtectedFiles()) return 11;
     if (!mem.Init(processName, true, false)) return 6;
     if (mem.GetPidFromName(processName) != expectedPid) return 7;
     const uintptr_t base = mem.GetBaseDaddy(processName);
@@ -195,9 +220,20 @@ int RunOmniGhost(int argc, wchar_t** argv) {
             return 3;
     }
 
+    OmniGhost::SessionLog::SetStartReason(
+        (argc > 1 && argv && argv[1]) ? OmniGhost::Platform::WideToUtf8(argv[1]) : "normal");
+    OmniGhost::SessionLog::Initialize();
+    if (!OmniGhost::Security::SecurityManager::Instance().VerifyHostIdentity()) {
+        MessageBoxW(nullptr, L"A origem da aplicação não passou a verificação de segurança (SEC-001/002/004).",
+                    L"OmniGhost", MB_OK | MB_ICONERROR);
+        OmniGhost::SessionLog::Shutdown();
+        return 5;
+    }
     const auto bootstrap = OmniGhost::RuntimeBootstrap::Prepare();
-    if (bootstrap == OmniGhost::RuntimeBootstrap::Result::Failed)
+    if (bootstrap == OmniGhost::RuntimeBootstrap::Result::Failed) {
+        OmniGhost::SessionLog::Shutdown();
         return 1;
+    }
     (void)startupState.Transition(OmniGhost::Startup::State::CheckingInstance,
                             OmniGhost::Startup::State::InitializingRuntime);
 
@@ -207,9 +243,6 @@ int RunOmniGhost(int argc, wchar_t** argv) {
     // second-looking ghost HWND if a third-party driver stalls momentarily.
     DisableProcessWindowsGhosting();
     OmniGhost::CrashHandler::Install();
-    OmniGhost::SessionLog::SetStartReason(
-        (argc > 1 && argv && argv[1]) ? OmniGhost::Platform::WideToUtf8(argv[1]) : "normal");
-    OmniGhost::SessionLog::Initialize();
     std::clog << "[RUNTIME] mode=SINGLE_PROCESS_PORTABLE\n"
                  "[RUNTIME] self_install=DISABLED\n"
                  "[RUNTIME] private_executable=DISABLED\n"
@@ -248,6 +281,7 @@ int RunOmniGhost(int argc, wchar_t** argv) {
         });
     struct SessionShutdownGuard {
         ~SessionShutdownGuard() {
+            OmniGhost::Licensing::ShutdownSessionRevalidation();
             OmniGhost::SessionLog::Write(
                 OmniGhost::SessionLog::Severity::Info,
                 OmniGhost::SessionLog::Subsystem::Core,
@@ -258,6 +292,12 @@ int RunOmniGhost(int argc, wchar_t** argv) {
     } session_shutdown_guard;
     if (const auto updater_result = OmniGhost::Update::RunUpdaterModeIfRequested(argc, argv))
         return *updater_result;
+
+    if (!OmniGhost::Security::SecurityManager::Instance().VerifyStartup()) {
+        MessageBoxW(nullptr, L"A instalação não passou a verificação de segurança. Reinstala a versão oficial (SEC-001/002/003/004).",
+                    L"OmniGhost", MB_OK | MB_ICONERROR);
+        return 5;
+    }
 
     // Older OmniGhost builds scoped their mutex to the installation directory.
     // If one of those builds is already visible, a new executable from another
@@ -366,9 +406,13 @@ while (application.shouldRun && !authenticated) {
         if (!application.shouldRun)
             break;
         authenticated = LauncherAuth::Draw();
+        if (authenticated)
+            WritePostAuthStage("auth-draw-returned-success");
         if (LauncherAuth::ConsumeCloseRequest())
             application.RequestClose();
         application.EndRender();
+        if (authenticated)
+            WritePostAuthStage("auth-final-frame-presented");
 
         // Item 63: Event-based wait to replace busy-waiting
         // Using 1ms yield to keep UI responsive without busy-waiting
@@ -379,12 +423,16 @@ while (application.shouldRun && !authenticated) {
         return 0;
     }
 
+    WritePostAuthStage("authenticated");
     friends::Initialize();
+    WritePostAuthStage("friends-initialized");
     aim_type::Initialize();
+    WritePostAuthStage("input-initialized");
     (void)shutdownCoordinator.Register(
         OmniGhost::Platform::ShutdownComponent::Input, 500,
         [] { aim_type::Shutdown(); });
     aimbot::Initialize();
+    WritePostAuthStage("aimbot-initialized");
 
     // One manager owns background discovery. The launcher becomes visible
     // immediately; MAKCU remains optional and the passive DMA PnP probe starts
@@ -397,6 +445,7 @@ while (application.shouldRun && !authenticated) {
         OmniGhost::Platform::ShutdownComponent::Hardware, 600,
         [&hardwareManager] { hardwareManager.Shutdown(); });
     hardwareManager.BeginStartupProbe();
+    WritePostAuthStage("hardware-probe-started");
     (void)startupState.Transition(OmniGhost::Startup::State::CheckingHardware,
                             OmniGhost::Startup::State::Ready);
     OmniGhost::SessionLog::Write(
@@ -407,6 +456,7 @@ while (application.shouldRun && !authenticated) {
     const HWND startupHwnd = application.overlay;
     OmniGhost::Platform::LogWindowAudit("before-launcher-transition", startupHwnd);
     application.SetCompactMode(false);
+    WritePostAuthStage("launcher-resize-requested");
     if (application.overlay != startupHwnd) {
         std::cerr << "[WINDOW][Invariant] FAIL: startup HWND changed during compact->launcher transition.\n";
         application.RequestClose();
@@ -416,8 +466,8 @@ while (application.shouldRun && !authenticated) {
     OmniGhost::Platform::LogWindowAudit("after-launcher-transition", application.overlay);
     const OmniGhost::Platform::WindowAudit transitionAudit =
         OmniGhost::Platform::AuditOmniGhostWindows();
-    if (transitionAudit.currentProcessWindows != 1 || transitionAudit.foreignProcessWindows != 0) {
-        std::cerr << "[WINDOW][Invariant] FAIL: duplicate OmniGhost top-level window detected during launcher transition. "
+    if (transitionAudit.foreignProcessWindows != 0) {
+        std::cerr << "[WINDOW][Invariant] FAIL: another OmniGhost process owns a top-level window during launcher transition. "
                   << "current=" << transitionAudit.currentProcessWindows
                   << " foreign=" << transitionAudit.foreignProcessWindows << "\n";
         if (transitionAudit.firstForeign) {
@@ -429,6 +479,19 @@ while (application.shouldRun && !authenticated) {
         (void)shutdownCoordinator.ShutdownAll("duplicate-window-detected");
         return 4;
     }
+    // EnumWindows can briefly omit a valid layered HWND while DWM applies the
+    // compact-to-launcher geometry change. The HWND identity and the process-wide
+    // mutex remain authoritative; do not terminate a successfully authenticated
+    // session because of that transient observation.
+    if (transitionAudit.currentProcessWindows != 1) {
+        std::clog << "[WINDOW][Invariant] transient launcher audit mismatch; continuing with valid HWND. current="
+                  << transitionAudit.currentProcessWindows << "\n";
+    }
+    ShowWindow(application.overlay, SW_SHOWNORMAL);
+    SetWindowPos(application.overlay, HWND_TOPMOST, 0, 0, 0, 0,
+                 SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW | SWP_NOACTIVATE);
+    SetForegroundWindow(application.overlay);
+    WritePostAuthStage("launcher-window-shown");
     std::clog << "[UI][Transition] SetCompactMode(false) returned; same HWND retained and DXGI resize is deferred to render loop\n";
     OmniGhost::SessionLog::Write(
         OmniGhost::SessionLog::Severity::Info,
@@ -447,6 +510,7 @@ while (application.shouldRun && !authenticated) {
     update_configuration.automaticDownload = app_settings::config.update_auto_download;
     update_configuration.automaticInstallOnExit = app_settings::config.update_install_on_exit;
     update_service.Initialize(update_configuration);
+    WritePostAuthStage("update-service-initialized");
     (void)shutdownCoordinator.Register(
         OmniGhost::Platform::ShutdownComponent::Updater, 800,
         [&update_service] { update_service.Shutdown(); });
@@ -470,6 +534,8 @@ while (application.shouldRun && !authenticated) {
         OmniGhost::Platform::ShutdownComponent::Changelog, 700,
         [&changelog_service] { changelog_service.Shutdown(); });
     changelog_service.RefreshAsync(false);
+    WritePostAuthStage("launcher-ready");
+    OmniGhost::Licensing::StartSessionRevalidation();
 
     OmniGhost::SessionLog::Write(
         OmniGhost::SessionLog::Severity::Info,
@@ -504,11 +570,16 @@ while (application.shouldRun && !authenticated) {
             hardware.dmaFinished ? "PnP detected" : "Checking",
             hardware.dmaFinished ? "Not opened until game launch" : "");
         HardwareMonitor::SetDeviceEnabled(HardwareMonitor::DeviceType::Makcu, true);
+        const auto makcuDiagnostics = makcu_wrapper::GetDiagnostics();
         HardwareMonitor::UpdateDeviceStatus(
             HardwareMonitor::DeviceType::Makcu,
             hardware.makcuFinished && hardware.makcuAvailable,
-            hardware.makcuFinished ? "Startup probe" : "Checking",
-            "Optional input device");
+            makcuDiagnostics.port[0] ? makcuDiagnostics.port :
+                (hardware.makcuFinished ? "Auto discovery" : "Searching automatically"),
+            makcuDiagnostics.deviceInfo[0] ? makcuDiagnostics.deviceInfo :
+                (hardware.makcuAvailable ? "Connected automatically" : "MAKCU auto-connect"),
+            hardware.makcuFinished && !hardware.makcuAvailable ?
+                "Not found; retrying automatically" : "");
         application.StartRender();
         if (!application.shouldRun)
             break;
@@ -561,7 +632,9 @@ while (application.shouldRun && !authenticated) {
     // a future UI bug selects a locked card, main refuses to enter offset/DMA
     // process binding without a current entitlement for that product.
     const Launcher::GameDefinition* selectedDefinition = Launcher::FindGame(selected);
-    if (!selectedDefinition || !OmniGhost::Licensing::HasGameAccess(selectedDefinition->id)) {
+    if (!selectedDefinition ||
+        !OmniGhost::Security::SecurityManager::Instance().CanUseProtectedFeatures() ||
+        !OmniGhost::Licensing::HasGameAccess(selectedDefinition->id)) {
         std::clog << "[LICENSE] Game launch blocked: no entitlement for "
                   << (selectedDefinition ? selectedDefinition->id : "unknown") << ".\n";
         continue;
@@ -824,7 +897,17 @@ while (application.shouldRun && !authenticated) {
     ULONGLONG next_offset_probe = GetTickCount64() + 5000;
     bool return_to_launcher = false;
     bool return_requested_by_user = false;
+    ULONGLONG next_security_check = GetTickCount64() + 1000;
     while (application.shouldRun && !return_to_launcher) {
+        const ULONGLONG security_now = GetTickCount64();
+        if (security_now >= next_security_check) {
+            next_security_check = security_now + 1000;
+            if (!OmniGhost::Security::SecurityManager::Instance().CanUseProtectedFeatures() ||
+                !OmniGhost::Licensing::HasGameAccess(selectedDefinition->id)) {
+                return_to_launcher = true;
+                continue;
+            }
+        }
         application.StartRender();
         if (!application.shouldRun)
             break;

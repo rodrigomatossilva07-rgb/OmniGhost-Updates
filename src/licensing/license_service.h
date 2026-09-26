@@ -24,6 +24,8 @@ struct Snapshot {
 [[nodiscard]] OmniGhost::Auth::LicenseResult ActivateKey(std::string_view licenseKey);
 [[nodiscard]] OmniGhost::Auth::LicenseResult Upgrade(std::string_view username, std::string_view licenseKey);
 void LogoutRemote() noexcept;
+void StartSessionRevalidation();
+void ShutdownSessionRevalidation() noexcept;
 [[nodiscard]] bool IsRemoteConfigured() noexcept;
 // Remember-me for KeyAuth login: credentials are DPAPI-protected under Configs/.
 [[nodiscard]] bool SaveRememberedRemoteCredentials(std::string_view username, std::string_view password);

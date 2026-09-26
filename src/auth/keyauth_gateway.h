@@ -62,6 +62,9 @@ public:
         return {LicenseStatus::NotConfigured, "O serviço de autenticação não está configurado.", "auth.not_configured", {}};
     }
     virtual void Logout() noexcept {}
+    virtual LicenseResult CheckSession(std::stop_token) {
+        return {LicenseStatus::NotConfigured, "Revalidação indisponível.", "auth.recheck_unavailable", {}};
+    }
     [[nodiscard]] virtual std::string CurrentUsername() const { return {}; }
     // Product identifiers returned from the remote account. They are data from
     // the licensing provider, never values chosen by the launcher UI.
@@ -86,6 +89,7 @@ public:
     LicenseResult Upgrade(std::string_view username, std::string_view licenseKey,
                           std::stop_token stopToken = {});
     void Logout() noexcept;
+    LicenseResult Revalidate(std::stop_token stopToken = {});
     [[nodiscard]] bool IsAuthenticated() const noexcept;
     [[nodiscard]] bool IsConfigured() const noexcept;
     [[nodiscard]] std::string CurrentUsername() const;
@@ -105,6 +109,9 @@ private:
     std::string offlineHardwareId_;
     std::chrono::steady_clock::time_point offlineExpiresAt_{};
     bool authenticated_{};
+    std::chrono::steady_clock::time_point lastRemoteValidation_{};
+    std::string currentUsername_;
+    std::vector<RemoteEntitlement> currentEntitlements_;
 
     LicenseResult CompleteRemoteOperation(LicenseResult result);
 };

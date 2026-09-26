@@ -174,7 +174,9 @@ bool VerifyAuthenticode(const std::filesystem::path& file,
     if (result != ERROR_SUCCESS) {
         data.dwStateAction = WTD_STATEACTION_CLOSE;
         WinVerifyTrust(nullptr, &policy, &data);
-        error = "A assinatura digital do executável não é válida ou não pertence a uma cadeia confiável.";
+        error = (result == CRYPT_E_REVOCATION_OFFLINE || result == CERT_E_REVOCATION_FAILURE)
+            ? "A verificação de revogação está indisponível (trust.revocation_offline)."
+            : "A assinatura digital do executável não é válida ou não pertence a uma cadeia confiável.";
         return false;
     }
 

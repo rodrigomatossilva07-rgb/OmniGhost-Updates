@@ -4,6 +4,7 @@
 .temp/
 build/
 artifacts/
+publish/
 *.user
 *.suo
 *.VC.db
@@ -29,10 +30,15 @@ third_party/upstream/
 *.pem
 *.cer.local
 secrets/
+secrets.*
 
 # Local user/runtime state
 logs/
 config/
+!/config/
+/config/*
+!/config/msix/
+!/config/msix/**
 !src/games/Cs2/config/
 !src/games/Cs2/config/**
 cache/

@@ -17,6 +17,16 @@ LeechCore
   Upstream: https://github.com/ufrisk/LeechCore
   Declared repository license: GNU General Public License v3.0 (GPL-3.0).
 
+CS2 WebRadar frontend
+  Upstream: https://github.com/clauadv/cs2_webradar
+  Declared source license in the imported notice: GPL-3.0.
+  The local notice is src/games/Cs2/radar_webapp/NOTICE.txt.
+
+Tiny PNG Output in the bundled KeyAuth static library
+  Upstream: https://www.nayuki.io/page/tiny-png-output
+  The local header declares LGPL-3.0-or-later. The binary contains TinyPngOut.
+  Distribution obligations for static linking remain to be resolved.
+
 cloudflared
   Upstream: https://github.com/cloudflare/cloudflared
   Version bundled: 2026.8.2 (Windows x64).
@@ -34,20 +44,8 @@ Dear ImGui and other bundled components
   Keep the license/notice information supplied with the corresponding upstream
   source or asset. Do not infer one license for every third-party file.
 
-Project dependency inventory
-----------------------------
-The canonical MemProcFS/LeechCore binary/version manifest is:
-  third_party/dma_stack/versions.json
-
-The source-tree dependency inventory is:
-  docs/SBOM.json
-
-Every Publish package also contains a build-specific CycloneDX inventory:
-  data/SBOM.cdx.json
-and publishes the same file as the Release asset SBOM.cdx.json.
-
-CS2 WebRadar notice files remain next to the corresponding frontend assets as
-NOTICE.txt.
+The source-tree audit is in docs/DEPENDENCY_LICENSE_AUDIT.md. A Publish package
+also generates a build-specific CycloneDX SBOM.
 
 This file records upstream declarations for engineering/compliance tracking; it
 is not legal advice and does not replace a distribution-specific license review.

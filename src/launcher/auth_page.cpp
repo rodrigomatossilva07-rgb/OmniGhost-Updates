@@ -35,6 +35,23 @@
 namespace LauncherAuth {
 namespace {
 
+void WriteAuthStage(const char* stage) noexcept {
+    wchar_t localAppData[MAX_PATH]{};
+    const DWORD length = GetEnvironmentVariableW(L"LOCALAPPDATA", localAppData, MAX_PATH);
+    if (length == 0 || length >= MAX_PATH) return;
+    std::wstring directory(localAppData);
+    directory += L"\\OmniGhost";
+    CreateDirectoryW(directory.c_str(), nullptr);
+    const std::wstring path = directory + L"\\post-auth-stage.txt";
+    HANDLE file = CreateFileW(path.c_str(), GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                              nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (file == INVALID_HANDLE_VALUE) return;
+    DWORD written = 0;
+    WriteFile(file, stage, static_cast<DWORD>(std::strlen(stage)), &written, nullptr);
+    FlushFileBuffers(file);
+    CloseHandle(file);
+}
+
 float S(float value) { return CyberTheme::Px(value); }
 ImVec2 Add(const ImVec2& left, const ImVec2& right) { return {left.x + right.x, left.y + right.y}; }
 ImVec2 Sub(const ImVec2& left, const ImVec2& right) { return {left.x - right.x, left.y - right.y}; }
@@ -170,6 +187,7 @@ void StartRemoteOperation(RemoteOperation operation, std::string username,
     if (g_remote_operation_pending)
         return;
     g_remote_operation_pending = true;
+    WriteAuthStage("auth-operation-started");
     g_error.clear();
     g_remote_operation = std::async(std::launch::async,
         [operation, username = std::move(username), password = std::move(password), licenseKey = std::move(licenseKey)]() mutable {
@@ -194,6 +212,7 @@ void StartRemoteOperation(RemoteOperation operation, std::string username,
                     outcome.completion = Completion::Login;
                     break;
                 }
+                WriteAuthStage(result.Ok() ? "auth-service-success" : "auth-service-rejected");
                 outcome.success = result.Ok();
                 outcome.message = std::move(result.userMessage);
             } catch (...) {
@@ -214,6 +233,7 @@ void PollRemoteOperation() {
     g_remote_operation_pending = false;
     try {
         RemoteOperationResult result = g_remote_operation.get();
+        WriteAuthStage(result.success ? "auth-result-success" : "auth-result-failure");
         const bool automatic = g_auto_login_attempt;
         if (result.success) {
             g_auto_login_attempt = false;
@@ -286,6 +306,17 @@ bool AuthPrimaryButton(const char* label, const ImVec2& size) {
     draw->AddRect(position, end,
         CyberTheme::WithAlpha(CyberTheme::Colors.GoldHover, 0.20f + hover * 0.10f),
         CyberTheme::Metrics::ControlRounding, 0, S(1.f));
+    if (hover > 0.01f && app_settings::MotionEnabled() &&
+        app_settings::config.animation_intensity == app_settings::EffectLevel::Full) {
+        const float phase = std::fmod(static_cast<float>(ImGui::GetTime()) * 0.62f, 1.0f);
+        const float sheenX = position.x - S(42.f) + (size.x + S(84.f)) * phase;
+        draw->PushClipRect(position, end, true);
+        draw->AddRectFilledMultiColor(
+            ImVec2(sheenX - S(30.f), position.y), ImVec2(sheenX + S(30.f), end.y),
+            IM_COL32(255, 255, 255, 0), IM_COL32(255, 248, 211, static_cast<int>(22 * hover)),
+            IM_COL32(255, 248, 211, static_cast<int>(22 * hover)), IM_COL32(255, 255, 255, 0));
+        draw->PopClipRect();
+    }
     if (held)
         draw->AddRectFilled(position, end, CyberTheme::SafeShadowU32(14), CyberTheme::Metrics::ControlRounding);
     const ImVec2 textSize = ImGui::CalcTextSize(label);
@@ -633,9 +664,10 @@ void DrawLogin() {
     }
     ImGui::EndGroup();
     DrawFeedback(contentWidth);
-    ImGui::Dummy(ImVec2(0, S(2.f)));
-    const std::string back = std::string("<- ") + text.back;
-    if (DrawTextAction(back.c_str())) {
+    ImGui::Dummy(ImVec2(0, S(3.f)));
+    CenterCursor(contentWidth);
+    const std::string back = std::string("<  ") + text.back;
+    if (CyberWidgets::GhostButton(back.c_str(), ImVec2(contentWidth, S(34.f)))) {
         SecureClear(g_password, sizeof(g_password));
         SetScreen(Screen::Landing);
     }
@@ -866,6 +898,7 @@ bool Draw() {
             g_completion_time = 0.0f;
         } else if (g_completion == Completion::Preparing &&
                    g_completion_time >= preparingDuration) {
+            WriteAuthStage("auth-ui-complete");
             g_authenticated = true;
         }
     }
@@ -879,6 +912,24 @@ bool Draw() {
     background->AddRectFilled(ImVec2(0, 0), display, IM_COL32(3, 3, 4, 255));
     CyberTheme::DrawSubtleNoise(background, ImVec2(0, 0), display, 0.012f, 0x41555448u, 180);
     const PerformanceMode::State performance = PerformanceMode::Current();
+    if (app_settings::DigitalRainDensity() > 0.0f)
+        DigitalRain::DrawGoldMotif(background, ImVec2(0, 0), display,
+            performance.effective, app_settings::AnimationScale(),
+            0.72f);
+
+    // A crisp frame anchors the decorative network to the actual application
+    // boundary. Corner accents remain clearly visible even on dark monitors.
+    const float frameInset = S(1.5f);
+    const ImVec2 frameMin(frameInset, frameInset);
+    const ImVec2 frameMax(display.x - frameInset, display.y - frameInset);
+    const ImU32 frame = CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.34f);
+    const ImU32 accent = CyberTheme::WithAlpha(CyberTheme::Colors.GoldHover, 0.68f);
+    background->AddRect(frameMin, frameMax, frame, S(20.f), 0, S(1.15f));
+    const float corner = S(66.f);
+    background->AddLine(Add(frameMin, ImVec2(S(20.f), 0)), Add(frameMin, ImVec2(corner, 0)), accent, S(1.5f));
+    background->AddLine(Add(frameMin, ImVec2(0, S(20.f))), Add(frameMin, ImVec2(0, corner)), accent, S(1.5f));
+    background->AddLine(ImVec2(frameMax.x - corner, frameMax.y), ImVec2(frameMax.x - S(20.f), frameMax.y), accent, S(1.5f));
+    background->AddLine(ImVec2(frameMax.x, frameMax.y - corner), ImVec2(frameMax.x, frameMax.y - S(20.f)), accent, S(1.5f));
 
     const float desiredWidth = S(468.f);
     const float desiredHeight =
@@ -933,7 +984,8 @@ bool Draw() {
     if (!g_startup_preparing)
         DrawLanguageSelector(windowPos, width);
 
-    ImGui::SetCursorScreenPos(ImVec2(windowPos.x + S(24.f), windowPos.y + S(19.f)));
+    const float pageSlide = animation > 0.f ? (1.f - eased) * S(12.f) : 0.f;
+    ImGui::SetCursorScreenPos(ImVec2(windowPos.x + S(24.f) + pageSlide, windowPos.y + S(19.f)));
     ImGui::PushStyleVar(ImGuiStyleVar_Alpha, (std::max)(0.06f, eased));
     if (g_startup_preparing) {
         DrawStartupPreparation(draw, windowPos, width, height);

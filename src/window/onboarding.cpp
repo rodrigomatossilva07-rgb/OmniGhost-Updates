@@ -6,6 +6,7 @@
 #include "localization.h"
 #include "hardware_monitor.h"
 #include "hotkeys.h"
+#include "animations.h"
 #include "../config/app_settings.h"
 #include "../platform/app_paths.h"
 #include "../platform/embedded_resources.h"
@@ -196,33 +197,54 @@ namespace Onboarding {
         void DrawStepIndicator(Step current, const ImVec2& origin, float width) {
             static const char* labels[] = { "WELCOME", "LICENSE", "HARDWARE" };
             ImDrawList* dl = ImGui::GetWindowDrawList();
-            const int active = static_cast<int>(current);
+            const int active = (std::min)(static_cast<int>(current), 2);
             const float segment = width / 3.0f;
 
+            dl->AddRectFilled(origin, ImVec2(origin.x + width, origin.y + 52.0f),
+                CyberTheme::WithAlpha(CyberTheme::Colors.Card, 0.72f), CyberTheme::Radius::Sm);
+            dl->AddRect(origin, ImVec2(origin.x + width, origin.y + 52.0f),
+                CyberTheme::WithAlpha(CyberTheme::Colors.Border, 0.58f), CyberTheme::Radius::Sm);
+
             for (int index = 0; index < 3; ++index) {
-                const float x = origin.x + segment * index + 7.0f;
+                const float x = origin.x + segment * (index + 0.5f);
                 const bool complete = index < active;
                 const bool isCurrent = index == active;
                 const ImVec4 tone = complete || isCurrent ? CyberTheme::Colors.Gold : CyberTheme::Colors.TextDisabled;
-                const ImVec2 dot(x, origin.y + 7.0f);
+                const ImVec2 dot(x, origin.y + 17.0f);
 
                 if (index > 0) {
                     const ImU32 lineColor = index <= active
                         ? CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.72f)
                         : CyberTheme::WithAlpha(CyberTheme::Colors.Border, 0.85f);
-                    dl->AddLine(ImVec2(x - segment + 16.0f, dot.y), ImVec2(x - 13.0f, dot.y), lineColor, 1.0f);
+                    dl->AddLine(ImVec2(x - segment + 14.0f, dot.y), ImVec2(x - 14.0f, dot.y), lineColor, 1.5f);
                 }
 
                 if (isCurrent) {
-                    dl->AddCircleFilled(dot, 8.0f, CyberTheme::WithAlpha(CyberTheme::Colors.GoldGlow, 0.22f));
-                    dl->AddCircleFilled(dot, 4.0f, CyberTheme::U32(CyberTheme::Colors.Gold));
+                    float halo = 12.0f;
+                    float haloAlpha = 0.24f;
+                    if (app_settings::MotionEnabled() &&
+                        app_settings::config.animation_intensity == app_settings::EffectLevel::Full) {
+                        const float pulse = 0.5f + 0.5f * std::sin(static_cast<float>(ImGui::GetTime()) * 2.8f);
+                        halo += pulse * 4.0f;
+                        haloAlpha += pulse * 0.10f;
+                    }
+                    dl->AddCircleFilled(dot, halo, CyberTheme::WithAlpha(CyberTheme::Colors.GoldGlow, haloAlpha));
+                    dl->AddCircleFilled(dot, 8.0f, CyberTheme::U32(CyberTheme::Colors.Gold));
                 } else {
-                    dl->AddCircleFilled(dot, 4.0f, complete
+                    dl->AddCircleFilled(dot, 8.0f, complete
                         ? CyberTheme::U32(CyberTheme::Colors.Gold)
                         : CyberTheme::WithAlpha(CyberTheme::Colors.PanelHover, 0.95f));
                     if (complete) DrawCheck(dl, dot, CyberTheme::U32(CyberTheme::Colors.Background));
                 }
-                dl->AddText(ImVec2(x + 12.0f, origin.y), CyberTheme::U32(tone), labels[index]);
+                if (!complete) {
+                    const std::string number = std::to_string(index + 1);
+                    const ImVec2 numberSize = ImGui::CalcTextSize(number.c_str());
+                    dl->AddText(ImVec2(dot.x - numberSize.x * 0.5f, dot.y - numberSize.y * 0.5f),
+                        isCurrent ? CyberTheme::U32(CyberTheme::Colors.Background)
+                                  : CyberTheme::U32(CyberTheme::Colors.TextDisabled), number.c_str());
+                }
+                const ImVec2 labelSize = ImGui::CalcTextSize(labels[index]);
+                dl->AddText(ImVec2(x - labelSize.x * 0.5f, origin.y + 32.0f), CyberTheme::U32(tone), labels[index]);
             }
         }
 
@@ -254,17 +276,24 @@ namespace Onboarding {
             ImDrawList* dl = ImGui::GetWindowDrawList();
             const ImVec2 pos = ImGui::GetCursorScreenPos();
             const float width = ImGui::GetContentRegionAvail().x;
-            constexpr float height = 59.0f;
+            constexpr float height = 63.0f;
             ImGui::InvisibleButton(id, ImVec2(width, height));
             const bool hovered = ImGui::IsItemHovered();
-            const ImVec4 surface = hovered ? CyberTheme::Colors.CardHover : CyberTheme::Colors.Card;
-            const ImU32 accent = CyberTheme::WithAlpha(CyberTheme::Colors.Gold, hovered ? 0.82f : 0.54f);
+            const ImGuiID hoverId = ImGui::GetItemID();
+            CyberAnimations::SetHover(hoverId, hovered, 11.0f);
+            const float hover = CyberAnimations::GetHover(hoverId);
+            const ImVec4 surface = CyberTheme::Mix(CyberTheme::Colors.Card, CyberTheme::Colors.CardHover, hover);
+            const ImU32 accent = CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.54f + 0.28f * hover);
             dl->AddRectFilled(pos, ImVec2(pos.x + width, pos.y + height), CyberTheme::U32(surface), CyberTheme::Radius::Sm);
-            dl->AddRect(pos, ImVec2(pos.x + width, pos.y + height), CyberTheme::WithAlpha(CyberTheme::Colors.Border, hovered ? 1.0f : 0.65f), CyberTheme::Radius::Sm);
+            dl->AddRect(pos, ImVec2(pos.x + width, pos.y + height),
+                CyberTheme::WithAlpha(CyberTheme::Colors.Border, 0.65f + 0.35f * hover), CyberTheme::Radius::Sm);
+            if (hover > 0.01f)
+                dl->AddCircleFilled(ImVec2(pos.x + 27.0f, pos.y + height * 0.5f),
+                    14.0f + 3.0f * hover, CyberTheme::WithAlpha(CyberTheme::Colors.GoldGlow, 0.14f * hover), 20);
             dl->AddLine(ImVec2(pos.x, pos.y + 10.0f), ImVec2(pos.x, pos.y + height - 10.0f), accent, 1.5f);
             DrawFeatureGlyph(dl, ImVec2(pos.x + 27.0f, pos.y + height * 0.5f), icon, accent);
-            dl->AddText(ImVec2(pos.x + 52.0f, pos.y + 11.0f), CyberTheme::U32(CyberTheme::Colors.Text), title);
-            dl->AddText(ImVec2(pos.x + 52.0f, pos.y + 31.0f), CyberTheme::U32(CyberTheme::Colors.TextDisabled), description);
+            dl->AddText(ImVec2(pos.x + 56.0f, pos.y + 13.0f), CyberTheme::U32(CyberTheme::Colors.Text), title);
+            dl->AddText(ImVec2(pos.x + 56.0f, pos.y + 35.0f), CyberTheme::U32(CyberTheme::Colors.TextDisabled), description);
             ImGui::Dummy(ImVec2(0.0f, 7.0f));
         }
 
@@ -373,7 +402,8 @@ namespace Onboarding {
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, CyberTheme::Radius::Lg);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
         
-        if (ImGui::BeginPopupModal("##onboarding_wizard", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove)) {
+        if (ImGui::BeginPopupModal("##onboarding_wizard", nullptr,
+            ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove)) {
             ImDrawList* dl = ImGui::GetWindowDrawList();
             ImVec2 win_pos = ImGui::GetWindowPos();
             ImVec2 win_size = ImGui::GetWindowSize();
@@ -381,7 +411,7 @@ namespace Onboarding {
                 ImVec2(win_pos.x + win_size.x * 0.72f, win_pos.y + 16.0f), 220.0f, 0.045f);
             CyberTheme::DrawSubtleNoise(dl, win_pos, ImVec2(win_pos.x + win_size.x, win_pos.y + win_size.y), 0.015f);
 
-            ImGui::SetCursorPos(ImVec2(kContentInset, 22.0f));
+            ImGui::SetCursorPos(ImVec2(kContentInset, 20.0f));
             DrawStepIndicator(g_current_step, ImGui::GetCursorScreenPos(), win_size.x - kContentInset * 2.0f);
 
             const float logo_space = BrandAssets::GetLogoTexture() ? 57.0f : 0.0f;
@@ -389,13 +419,13 @@ namespace Onboarding {
                 const float scale = std::min(42.0f / static_cast<float>(BrandAssets::GetLogoWidth()),
                                              42.0f / static_cast<float>(BrandAssets::GetLogoHeight()));
                 const ImVec2 logo_size(BrandAssets::GetLogoWidth() * scale, BrandAssets::GetLogoHeight() * scale);
-                ImGui::SetCursorPos(ImVec2(kContentInset, 64.0f));
+                ImGui::SetCursorPos(ImVec2(kContentInset, 88.0f));
                 ImGui::Image(BrandAssets::GetLogoTexture(), logo_size);
             }
 
-            ImGui::SetCursorPos(ImVec2(kContentInset + logo_space, 64.0f));
+            ImGui::SetCursorPos(ImVec2(kContentInset + logo_space, 88.0f));
             ImGui::TextColored(CyberTheme::Colors.Gold, "OMNIGHOST  /  SETUP");
-            ImGui::SetCursorPos(ImVec2(kContentInset + logo_space, 84.0f));
+            ImGui::SetCursorPos(ImVec2(kContentInset + logo_space, 108.0f));
             ImFont* title_font = CyberFonts::GetTitleFont();
             if (title_font) {
                 ImGui::PushFont(title_font);
@@ -404,18 +434,18 @@ namespace Onboarding {
             if (title_font) {
                 ImGui::PopFont();
             }
-            ImGui::SetCursorPos(ImVec2(kContentInset + logo_space, 117.0f));
+            ImGui::SetCursorPos(ImVec2(kContentInset + logo_space, 141.0f));
             ImGui::PushTextWrapPos(win_pos.x + win_size.x - kContentInset);
             ImGui::TextColored(CyberTheme::Colors.TextDisabled, "%s", step.description.c_str());
             ImGui::PopTextWrapPos();
 
-            ImGui::SetCursorPos(ImVec2(kContentInset, 153.0f));
+            ImGui::SetCursorPos(ImVec2(kContentInset, 176.0f));
             dl->AddLine(ImGui::GetCursorScreenPos(), ImVec2(win_pos.x + win_size.x - 28.0f, ImGui::GetCursorScreenPos().y),
                 CyberTheme::WithAlpha(CyberTheme::Colors.Border, 0.75f));
 
-            ImGui::SetCursorPos(ImVec2(kContentInset, 169.0f));
+            ImGui::SetCursorPos(ImVec2(kContentInset, 193.0f));
             const float footer_height = 70.0f;
-            ImGui::BeginChild("##onboarding_content", ImVec2(win_size.x - kContentInset * 2.0f, win_size.y - 169.0f - footer_height), false);
+            ImGui::BeginChild("##onboarding_content", ImVec2(win_size.x - kContentInset * 2.0f, win_size.y - 193.0f - footer_height), false);
             DrawStepContent(step);
             ImGui::EndChild();
 
@@ -456,7 +486,9 @@ namespace Onboarding {
     void DrawStepContent(const WizardStep& step) {
         switch (step.id) {
             case Step::Welcome: {
-                ImGui::TextColored(CyberTheme::Colors.Gold, "DMA SYSTEM  /  HARDWARE ACCELERATED");
+                ImGui::TextColored(CyberTheme::Colors.Gold, "YOUR OMNIGHOST WORKSPACE");
+                ImGui::SameLine();
+                ImGui::TextColored(CyberTheme::Colors.TextDisabled, "  /  QUICK SETUP");
                 ImGui::Dummy(ImVec2(0.0f, 10.0f));
                 DrawFeatureCard("##feature_realtime", "Real-time workspace", "Clear controls and live system feedback", 0);
                 DrawFeatureCard("##feature_input", "Precision input", "Compatible with supported external devices", 1);
@@ -468,7 +500,7 @@ namespace Onboarding {
                 ImDrawList* dl = ImGui::GetWindowDrawList();
                 const ImVec2 card_pos = ImGui::GetCursorScreenPos();
                 const float width = ImGui::GetContentRegionAvail().x;
-                constexpr float card_height = 132.0f;
+                constexpr float card_height = 144.0f;
                 dl->AddRectFilled(card_pos, ImVec2(card_pos.x + width, card_pos.y + card_height),
                     CyberTheme::U32(CyberTheme::Colors.Card), CyberTheme::Radius::Sm);
                 dl->AddRect(card_pos, ImVec2(card_pos.x + width, card_pos.y + card_height),
@@ -482,17 +514,12 @@ namespace Onboarding {
                 dl->AddText(ImVec2(card_pos.x + 52.0f, card_pos.y + 62.0f),
                     CyberTheme::U32(CyberTheme::Colors.TextDisabled), "Opens in your default PDF viewer.");
 
-                ImGui::SetCursorPos(ImVec2(14.0f, 90.0f));
-                if (CyberWidgets::Button("View Agreement ->", CyberWidgets::ButtonStyle::Secondary,
-                    ImVec2(150.0f, 30.0f))) {
+                ImGui::SetCursorPos(ImVec2(14.0f, 96.0f));
+                if (CyberWidgets::Button("Open License Agreement", CyberWidgets::ButtonStyle::Secondary,
+                    ImVec2(202.0f, 34.0f))) {
                     OpenLicenseAgreement();
                 }
-                ImGui::SameLine();
-                if (CyberWidgets::Button("License Agreement ->", CyberWidgets::ButtonStyle::Ghost,
-                    ImVec2(166.0f, 30.0f))) {
-                    OpenLicenseAgreement();
-                }
-                ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 16.0f);
+                ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 14.0f);
 
                 const ImVec2 accept_pos = ImGui::GetCursorScreenPos();
                 constexpr float accept_height = 46.0f;
@@ -516,7 +543,9 @@ namespace Onboarding {
                 break;
             }
             case Step::HardwareDetection: {
-                ImGui::TextColored(CyberTheme::Colors.TextDisabled, "Hardware status  /  scanning connected interfaces");
+                ImGui::TextColored(CyberTheme::Colors.Gold, "CONNECTED DEVICES");
+                ImGui::SameLine();
+                ImGui::TextColored(CyberTheme::Colors.TextDisabled, "  /  LIVE DETECTION");
                 ImGui::Dummy(ImVec2(0.0f, 10.0f));
                 HardwareMonitor::Update();
                 const auto& dma = HardwareMonitor::GetDeviceStatus(HardwareMonitor::DeviceType::DMA);
@@ -524,7 +553,10 @@ namespace Onboarding {
                 DrawHardwareRow("DMA / FPGA", "Primary hardware interface", dma, false);
                 DrawHardwareRow("MAKCU", "External input controller", makcu, true);
                 const int detected = (dma.connected ? 1 : 0) + (makcu.connected ? 1 : 0);
-                ImGui::TextColored(CyberTheme::Colors.TextDisabled, "%d device%s detected. Detection runs in the background.", detected, detected == 1 ? "" : "s");
+                const ImVec4 summaryColor = detected > 0 ? CyberTheme::Colors.Success : CyberTheme::Colors.TextDisabled;
+                ImGui::TextColored(summaryColor, "%d device%s detected", detected, detected == 1 ? "" : "s");
+                ImGui::SameLine();
+                ImGui::TextColored(CyberTheme::Colors.TextDisabled, "  •  Detection continues safely in the background");
                 break;
             }
             case Step::Complete: {

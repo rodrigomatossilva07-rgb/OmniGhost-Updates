@@ -57,6 +57,11 @@ try {
     if (-not $auth.SignerCertificate) { throw 'Packaged OmniGhost.exe does not expose a signer certificate.' }
     if (($auth.SignerCertificate.Thumbprint -replace '\s','').ToUpperInvariant() -ne $thumb) { throw 'Packaged OmniGhost.exe signer thumbprint does not match the trusted publisher.' }
     if ([string]$auth.SignerCertificate.Subject -ne $subject) { throw 'Packaged OmniGhost.exe signer subject does not match expectedPublisherSubject.' }
+    if (-not $auth.TimeStamperCertificate) { throw 'Packaged OmniGhost.exe is missing an RFC3161 timestamp.' }
+    $signTool = 'C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\signtool.exe'
+    if (-not (Test-Path -LiteralPath $signTool -PathType Leaf)) { throw "Required SignTool is missing: $signTool" }
+    & $signTool verify /pa /tw /v $exe
+    if ($LASTEXITCODE -ne 0) { throw "Packaged OmniGhost.exe failed SignTool verification ($LASTEXITCODE)." }
 
     # Ensure this executable was actually compiled after release_trust.h was configured.
     # A stale executable can still be signed after the fact, but would not enforce
@@ -79,6 +84,16 @@ try {
     if (-not (Test-Path -LiteralPath $installManifest -PathType Leaf) -or -not (Test-Path -LiteralPath $installSig -PathType Leaf)) {
         throw 'Commercial runtime is missing the signed installation integrity manifest.'
     }
+    $sidecarManifest = Join-Path $ReleaseDirectory 'install-manifest.sha256'
+    $sidecarSig = Join-Path $ReleaseDirectory 'install-manifest.sha256.sig'
+    if (-not (Test-Path -LiteralPath $sidecarManifest -PathType Leaf) -or
+        -not (Test-Path -LiteralPath $sidecarSig -PathType Leaf) -or
+        (Get-FileHash -LiteralPath $installManifest -Algorithm SHA256).Hash -ine
+            (Get-FileHash -LiteralPath $sidecarManifest -Algorithm SHA256).Hash -or
+        (Get-FileHash -LiteralPath $installSig -Algorithm SHA256).Hash -ine
+            (Get-FileHash -LiteralPath $sidecarSig -Algorithm SHA256).Hash) {
+        throw 'Install manifest sidecars do not match the customer ZIP.'
+    }
     $installRsa = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPublicKey($cert)
     if ($null -eq $installRsa) { throw 'Configured certificate is not RSA.' }
     try {
@@ -88,5 +103,37 @@ try {
             throw 'Detached install-manifest.sha256 signature is invalid.'
         }
     } finally { if ($installRsa -is [IDisposable]) { $installRsa.Dispose() } }
+
+    $listed = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
+    $root = [IO.Path]::GetFullPath($temp).TrimEnd('\') + '\'
+    foreach ($line in [IO.File]::ReadAllLines($installManifest)) {
+        if ([string]::IsNullOrWhiteSpace($line)) { continue }
+        $parts = $line.Split([char]9)
+        if ($parts.Count -ne 3 -or $parts[0] -notmatch '^[0-9a-fA-F]{64}$' -or $parts[1] -notmatch '^[0-9]+$') {
+            throw 'Invalid entry in signed install manifest.'
+        }
+        $relative = $parts[2].Replace('/', '\')
+        if ([IO.Path]::IsPathRooted($relative) -or $relative.Split('\') -contains '..' -or
+            $relative.Split('\') -contains '.' -or -not $listed.Add($relative)) {
+            throw "Unsafe or duplicate path in signed install manifest: $relative"
+        }
+        $target = [IO.Path]::GetFullPath((Join-Path $temp $relative))
+        if (-not $target.StartsWith($root, [StringComparison]::OrdinalIgnoreCase) -or
+            -not (Test-Path -LiteralPath $target -PathType Leaf)) {
+            throw "Missing or escaping file in signed install manifest: $relative"
+        }
+        $item = Get-Item -LiteralPath $target
+        if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
+            [uint64]$item.Length -ne [uint64]$parts[1] -or
+            (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash -ine $parts[0]) {
+            throw "Runtime file differs from signed install manifest: $relative"
+        }
+    }
+    if (-not $listed.Contains('OmniGhost.exe')) { throw 'Signed install manifest omits OmniGhost.exe.' }
+    foreach ($file in Get-ChildItem -LiteralPath $temp -Recurse -File) {
+        $relative = $file.FullName.Substring($root.Length).Replace('/', '\')
+        if ($relative -in @('install-manifest.sha256','install-manifest.sha256.sig')) { continue }
+        if (-not $listed.Contains($relative)) { throw "Unlisted customer runtime file: $relative" }
+    }
 } finally { Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue }
 Write-Host '[OmniGhost Commercial] Authenticode, compiled publisher trust, update/install manifest signatures, version, size and SHA-256 validated.'

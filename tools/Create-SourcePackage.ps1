@@ -46,6 +46,7 @@ $excludedExtensions = @('.user', '.suo', '.ipch', '.obj', '.pdb', '.ilk', '.tlog
 $allowedMarkdown = @() # Source delivery intentionally carries no loose Markdown documentation.
 
 function Test-IncludedFile([System.IO.FileInfo]$File, [string]$Relative) {
+    if ($Relative -in @('config\release\SOURCE_BUILD_METADATA.json', 'config\release\SOURCE_PACKAGE_MANIFEST.json')) { return $false }
     if ($excludedExtensions -contains $File.Extension.ToLowerInvariant()) { return $false }
     $segments = $Relative -split '[\\/]'
     if (@($segments | Where-Object { $excludedDirectoryNames -contains $_ }).Count -gt 0) { return $false }
@@ -98,7 +99,7 @@ try {
     $version = if (Test-Path -LiteralPath $versionPath -PathType Leaf) { (Get-Content -LiteralPath $versionPath -Raw).Trim() } else { 'unknown' }
 
     # Preserve build provenance without shipping the .git directory.
-    $commit = if ($env:GITHUB_SHA) { [string]$env:GITHUB_SHA } else { 'unknown' }
+    $commit = 'unknown'
     $sourceEpoch = $null
     $dirty = $false
     if (Test-Path -LiteralPath (Join-Path $ProjectDir '.git')) {
@@ -109,9 +110,9 @@ try {
             $epochText = (& $git.Source -C $ProjectDir show -s --format=%ct HEAD 2>$null | Select-Object -First 1)
             $epochValue = 0L
             if ([long]::TryParse([string]$epochText, [ref]$epochValue) -and $epochValue -gt 0) { $sourceEpoch = $epochValue }
-            & $git.Source -C $ProjectDir diff --quiet --ignore-submodules HEAD -- . 2>$null
-            $dirty = ($LASTEXITCODE -ne 0)
-        } catch {}
+            $status = @(& $git.Source -C $ProjectDir status --porcelain --untracked-files=normal --ignore-submodules)
+            $dirty = ($LASTEXITCODE -ne 0 -or $status.Count -gt 0)
+        } catch { $dirty = $true }
     }
     if ($null -eq $sourceEpoch -and $env:SOURCE_DATE_EPOCH) {
         $epochValue = 0L

@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
     [string]$ProjectDir
@@ -11,6 +11,7 @@ $ProjectDir = [System.IO.Path]::GetFullPath($ProjectDir)
 $VersionFile = Join-Path $ProjectDir 'config\release\version.txt'
 $HeaderFile = Join-Path $ProjectDir 'src\app_version.h'
 $ResourceFile = Join-Path $ProjectDir 'resources\app.rc'
+$ManifestFile = Join-Path $ProjectDir 'resources\app.manifest'
 $Utf8NoBom = New-Object System.Text.UTF8Encoding -ArgumentList $false
 
 if (-not (Test-Path -LiteralPath $VersionFile -PathType Leaf)) {
@@ -62,5 +63,14 @@ if ($UpdatedResource -ceq $Resource -and $Resource -notmatch "OMNIGHOST_VERSION_
     throw "Não foi possível localizar as definições de versão em $ResourceFile"
 }
 Write-IfChanged -Path $ResourceFile -Content $UpdatedResource
+
+$Manifest = [System.IO.File]::ReadAllText($ManifestFile)
+$ManifestVersion = "$Version.0"
+$ManifestPattern = '(?s)(<assemblyIdentity\b[^>]*\bversion=")[^"]+("[^>]*>)'
+$UpdatedManifest = [regex]::Replace($Manifest, $ManifestPattern, ('${1}' + $ManifestVersion + '${2}'), 1)
+if ($UpdatedManifest -ceq $Manifest -and $Manifest -notmatch ('\bversion="' + [regex]::Escape($ManifestVersion) + '"')) {
+    throw "Não foi possível localizar assemblyIdentity em $ManifestFile"
+}
+Write-IfChanged -Path $ManifestFile -Content $UpdatedManifest
 
 Write-Host "[OmniGhost] Versão preparada: $Version"

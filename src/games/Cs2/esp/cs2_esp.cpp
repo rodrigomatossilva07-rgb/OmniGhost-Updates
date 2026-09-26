@@ -82,18 +82,19 @@ void DrawSkeleton(ImDrawList* draw, const CS2::Player& player, const float viewM
         valid[index] = WorldToScreen(predictedBone, viewMatrix, points[index]);
     }
 
+    // Compact reference-style rig: exactly 13 visible segments.
     constexpr std::pair<CS2::BoneSlot, CS2::BoneSlot> kLinks[] = {
         {CS2::BoneSlot::Head, CS2::BoneSlot::Neck}, {CS2::BoneSlot::Neck, CS2::BoneSlot::SpineUpper},
-        {CS2::BoneSlot::SpineUpper, CS2::BoneSlot::SpineMiddle}, {CS2::BoneSlot::SpineMiddle, CS2::BoneSlot::SpineLower},
-        {CS2::BoneSlot::SpineLower, CS2::BoneSlot::Pelvis},
-        {CS2::BoneSlot::Neck, CS2::BoneSlot::ClavicleLeft}, {CS2::BoneSlot::ClavicleLeft, CS2::BoneSlot::ShoulderLeft},
+        {CS2::BoneSlot::SpineUpper, CS2::BoneSlot::Pelvis},
+        {CS2::BoneSlot::Neck, CS2::BoneSlot::ShoulderLeft},
         {CS2::BoneSlot::ShoulderLeft, CS2::BoneSlot::ElbowLeft}, {CS2::BoneSlot::ElbowLeft, CS2::BoneSlot::HandLeft},
-        {CS2::BoneSlot::Neck, CS2::BoneSlot::ClavicleRight}, {CS2::BoneSlot::ClavicleRight, CS2::BoneSlot::ShoulderRight},
+        {CS2::BoneSlot::Neck, CS2::BoneSlot::ShoulderRight},
         {CS2::BoneSlot::ShoulderRight, CS2::BoneSlot::ElbowRight}, {CS2::BoneSlot::ElbowRight, CS2::BoneSlot::HandRight},
-        {CS2::BoneSlot::Pelvis, CS2::BoneSlot::HipLeft}, {CS2::BoneSlot::HipLeft, CS2::BoneSlot::KneeLeft},
-        {CS2::BoneSlot::KneeLeft, CS2::BoneSlot::AnkleLeft}, {CS2::BoneSlot::Pelvis, CS2::BoneSlot::HipRight},
-        {CS2::BoneSlot::HipRight, CS2::BoneSlot::KneeRight}, {CS2::BoneSlot::KneeRight, CS2::BoneSlot::AnkleRight},
+        {CS2::BoneSlot::Pelvis, CS2::BoneSlot::KneeLeft}, {CS2::BoneSlot::KneeLeft, CS2::BoneSlot::AnkleLeft},
+        {CS2::BoneSlot::Pelvis, CS2::BoneSlot::KneeRight}, {CS2::BoneSlot::KneeRight, CS2::BoneSlot::AnkleRight},
     };
+    static_assert(sizeof(kLinks) / sizeof(kLinks[0]) == 13,
+        "CS2 skeleton must have exactly 13 segments");
     for (const auto& [from, to] : kLinks) {
         const auto a = static_cast<std::size_t>(from), b = static_cast<std::size_t>(to);
         if (!valid[a] || !valid[b]) continue;
@@ -101,7 +102,13 @@ void DrawSkeleton(ImDrawList* draw, const CS2::Player& player, const float viewM
         draw->AddLine(points[a], points[b], color, thickness);
     }
     if (joints) {
+        std::array<bool, CS2::kBoneSlotCount> used{};
+        for (const auto& [from, to] : kLinks) {
+            used[static_cast<std::size_t>(from)] = true;
+            used[static_cast<std::size_t>(to)] = true;
+        }
         for (std::size_t index = 0; index < CS2::kBoneSlotCount; ++index) {
+            if (!used[index]) continue;
             if (!valid[index]) continue;
             draw->AddCircleFilled(points[index], 2.3f, IM_COL32(0, 0, 0, 195), 8);
             draw->AddCircleFilled(points[index], 1.4f, jointColor, 8);

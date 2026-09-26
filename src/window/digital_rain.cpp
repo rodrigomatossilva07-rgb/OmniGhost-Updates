@@ -680,6 +680,75 @@ void Draw(
     }
 }
 
+void DrawGoldMotif(ImDrawList* dl, const ImVec2& position, const ImVec2& size,
+                   bool performance_mode, float motion_scale, float opacity,
+                   float quiet_left_width) {
+    if (!dl || size.x < 120.0f || size.y < 100.0f || opacity <= 0.0f) return;
+    const float left = std::clamp(quiet_left_width, 0.0f, size.x * 0.65f);
+    const float width = size.x - left;
+    const float time = static_cast<float>(ImGui::GetTime()) * std::clamp(motion_scale, 0.0f, 2.0f);
+    const float strength = std::clamp(opacity, 0.0f, 1.0f);
+    auto gold = [strength](int alpha) {
+        return IM_COL32(232, 185, 77, static_cast<int>(alpha * strength));
+    };
+    dl->PushClipRect(ImVec2(position.x + left, position.y),
+                     ImVec2(position.x + size.x, position.y + size.y), true);
+
+    // Stable individual phases make the network drift rather than jitter.
+    constexpr int columns = 6;
+    constexpr int rows = 5;
+    ImVec2 nodes[columns * rows];
+    for (int row = 0; row < rows; ++row) {
+        for (int col = 0; col < columns; ++col) {
+            const int index = row * columns + col;
+            const float phase = static_cast<float>(index * 37 % 29) * 0.47f;
+            const float baseX = (static_cast<float>(col) + 0.22f) / (columns - 0.55f);
+            const float baseY = (static_cast<float>(row) + 0.20f) / (rows - 0.55f);
+            nodes[index] = ImVec2(
+                position.x + left + width * baseX +
+                    std::sin(time * 0.19f + phase) * width * 0.018f,
+                position.y + size.y * baseY +
+                    std::cos(time * 0.16f + phase * 1.3f) * size.y * 0.026f);
+        }
+    }
+    for (int row = 0; row < rows; ++row) {
+        for (int col = 0; col < columns; ++col) {
+            const int index = row * columns + col;
+            const ImVec2& point = nodes[index];
+            if (col + 1 < columns) dl->AddLine(point, nodes[index + 1], gold(23), 1.0f);
+            if (row + 1 < rows) dl->AddLine(point, nodes[index + columns], gold(20), 1.0f);
+            if (row + 1 < rows && col + 1 < columns && (row + col) % 2 == 0)
+                dl->AddLine(point, nodes[index + columns + 1], gold(17), 1.0f);
+            dl->AddCircleFilled(point, performance_mode ? 1.0f : 1.45f, gold(73), 8);
+            if (!performance_mode && (index % 7 == 0))
+                dl->AddCircleFilled(point, 3.5f, gold(12), 10);
+        }
+    }
+
+    // A restrained flowing gold ribbon echoes the second reference image.
+    if (!performance_mode) {
+        constexpr int segments = 44;
+        for (int band = 0; band < 3; ++band) {
+            const float offset = static_cast<float>(band - 1) * size.y * 0.022f;
+            ImVec2 previous;
+            for (int step = 0; step <= segments; ++step) {
+                const float u = static_cast<float>(step) / segments;
+                const float x = position.x + left + width * (0.27f + u * 0.66f);
+                const float envelope = std::sin(u * 3.14159265f);
+                const float y = position.y + size.y * (0.69f - 0.10f * u) + offset +
+                    envelope * size.y * 0.057f * std::sin(u * 10.0f - time * 0.38f + band * 0.25f);
+                const ImVec2 current(x, y);
+                if (step > 0) {
+                    dl->AddLine(previous, current, gold(8), 7.0f);
+                    dl->AddLine(previous, current, gold(band == 1 ? 55 : 31), band == 1 ? 1.6f : 1.0f);
+                }
+                previous = current;
+            }
+        }
+    }
+    dl->PopClipRect();
+}
+
 // Dynamic performance scaling
 void SetDynamicDensity(float density_scale) noexcept {
     g_dynamicDensity = std::clamp(density_scale, 0.0f, 1.0f);

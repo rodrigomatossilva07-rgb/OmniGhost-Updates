@@ -617,6 +617,14 @@ bool ValidatePrivateRuntimeFile(std::wstring_view relativePath, std::wstring& er
     }
     const fs::path file = PrivateRuntimePath(relativePath);
     std::error_code ec;
+    const DWORD fileAttributes = GetFileAttributesW(file.c_str());
+    const DWORD directoryAttributes = GetFileAttributesW(file.parent_path().c_str());
+    if (fileAttributes == INVALID_FILE_ATTRIBUTES || directoryAttributes == INVALID_FILE_ATTRIBUTES ||
+        (fileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0 ||
+        (directoryAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0) {
+        error = L"O caminho do runtime privado não é um ficheiro/diretório normal.";
+        return false;
+    }
     if (!fs::is_regular_file(file, ec) || ec || fs::file_size(file, ec) != expected->size) {
         error = L"O ficheiro do runtime privado está em falta ou tem tamanho inválido.";
         return false;
@@ -831,7 +839,6 @@ void RegisterFileOrigin(const std::string& relativePath, FileOrigin origin) noex
 }
 
 } // namespace OmniGhost::RuntimeBootstrap
-
 
 
 

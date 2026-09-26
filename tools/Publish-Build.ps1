@@ -1,7 +1,7 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [Parameter(Mandatory = $false)]
-    [string]$ProjectDir = (Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)),
+    [string]$ProjectDir = '',
 
     [Parameter(Mandatory = $false)]
     [string]$BuildDir = '',
@@ -17,6 +17,7 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
+if ([string]::IsNullOrWhiteSpace($ProjectDir)) { $ProjectDir = Split-Path -Parent $PSScriptRoot }
 $ProjectDir = [IO.Path]::GetFullPath((Join-Path $ProjectDir '.'))
 if ([string]::IsNullOrWhiteSpace($BuildDir)) {
     $BuildDir = Join-Path $ProjectDir 'build\Publish'
@@ -36,6 +37,8 @@ foreach ($requiredPath in @($configPath, $versionPath, $metadataPath)) {
         throw "Ficheiro obrigatório em falta para Publish: $requiredPath"
     }
 }
+
+& (Join-Path $PSScriptRoot 'Test-CommercialPreflight.ps1') -ProjectDir $ProjectDir -AllowMissingTag
 
 $config = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
 if ($config.enabled -ne $true) {
@@ -75,45 +78,14 @@ if ($config.requireTagRelease -eq $true -or $config.requireCleanReproducibleBuil
         $status = @(& $git.Source -C $ProjectDir status --porcelain --untracked-files=normal)
         if ($LASTEXITCODE -ne 0) { throw 'Não foi possível validar o estado Git.' }
         if ($config.requireCleanReproducibleBuild -eq $true -and $status.Count -gt 0) {
-            Write-Warning '[OmniGhost Publish] Source sujo (alterações por commit). A tag aponta ao HEAD commit; ficheiros não commitados não entram no GitHub.'
+            throw ("Release validation failed: working tree dirty. Faz commit das alterações antes de Publish:`n" + ($status -join "`n"))
         }
         $expectedTag = "v$version"
         $headTags = @(& $git.Source -C $ProjectDir tag --points-at HEAD)
         if ($LASTEXITCODE -ne 0) {
             throw 'Não foi possível listar tags Git no HEAD.'
         }
-        if ($config.requireTagRelease -eq $true -and $expectedTag -notin $headTags) {
-            # Tag must follow version.txt. Create it on HEAD when missing so a
-            # manual Publish can still upload to GitHub without a pre-made tag.
-            $existingTagCommit = @(& $git.Source -C $ProjectDir rev-parse -q --verify ("refs/tags/{0}" -f $expectedTag) 2>$null)
-            if ($LASTEXITCODE -eq 0 -and $existingTagCommit) {
-                # Tag exists on another commit (e.g., from a previous failed build).
-                # Since version.txt has already been incremented by Prepare-PublishVersion,
-                # we can safely move the local tag to HEAD.
-                Write-Host ("[OmniGhost Publish] Tag {0} existe noutro commit; a mover para HEAD atual..." -f $expectedTag)
-                & $git.Source -C $ProjectDir tag -d $expectedTag
-                if ($LASTEXITCODE -ne 0) {
-                    throw ("Falha ao remover a tag local antiga {0}." -f $expectedTag)
-                }
-            }
-            Write-Host ("[OmniGhost Publish] A criar tag {0} a partir de version.txt no HEAD..." -f $expectedTag)
-            & $git.Source -C $ProjectDir tag -a $expectedTag -m ("OmniGhost {0}" -f $version)
-            if ($LASTEXITCODE -ne 0) {
-                throw ("Falha ao criar a tag local {0}." -f $expectedTag)
-            }
-            $pushOk = $false
-            try {
-                & $git.Source -C $ProjectDir push origin $expectedTag 2>&1 | Out-Host
-                if ($LASTEXITCODE -eq 0) { $pushOk = $true }
-            } catch {
-                $pushOk = $false
-            }
-            if (-not $pushOk) {
-                Write-Warning ("[OmniGhost Publish] Tag {0} criada localmente, mas o push para origin falhou. A release GitHub pode ainda funcionar se o gh criar a tag." -f $expectedTag)
-            } else {
-                Write-Host ("[OmniGhost Publish] Tag {0} enviada para origin." -f $expectedTag)
-            }
-        }
+        # A new tag is created only after package and signatures pass below.
     }
 }
 
@@ -135,7 +107,7 @@ if ($usingApprovedSourceSnapshot -and
 }
 if ($config.requireCleanReproducibleBuild -eq $true -and -not $usingApprovedSourceSnapshot -and
     ($metadata.reproducible -ne $true -or $metadata.dirty -eq $true)) {
-    Write-Warning '[OmniGhost Publish] Metadados não comprovam build limpa/reproduzível; a publicação GitHub continua na mesma.'
+    throw 'Release validation failed: metadata indica árvore dirty ou build não reproduzível. Consulta dirty_files em build-metadata.json.'
 }
 
 $expectedBuildDir = [IO.Path]::GetFullPath((Join-Path $ProjectDir 'build\Publish'))
@@ -150,7 +122,7 @@ if (-not (Test-Path -LiteralPath $executablePath -PathType Leaf)) {
 if (-not $SkipPackaging) {
     $mode = if ($config.requireAuthenticode -eq $true) { 'Commercial' } else { 'Publish' }
     Write-Host "[OmniGhost Publish] Packaging da versão $version (modo $mode)..."
-    & (Join-Path $ProjectDir 'tools\Package-Release.ps1') -ProjectDir $ProjectDir -BuildDir $BuildDir -Mode $mode
+    & (Join-Path $ProjectDir 'tools\Package-Release.ps1') -ProjectDir $ProjectDir -BuildDir $BuildDir -Mode Commercial -AllowMissingTag
     if ($LASTEXITCODE -ne 0) { throw "O packaging terminou com o código $LASTEXITCODE." }
 }
 
@@ -161,7 +133,24 @@ $ReleaseDirectory = [IO.Path]::GetFullPath((Join-Path $ReleaseDirectory '.'))
 
 & (Join-Path $ProjectDir 'tools\Validate-CommercialRelease.ps1') `
     -ProjectDir $ProjectDir -ReleaseDirectory $ReleaseDirectory -Version $version
+& (Join-Path $ProjectDir 'tools\Validate-ReleaseArtifacts.ps1') `
+    -ProjectDir $ProjectDir -ReleaseDirectory $ReleaseDirectory -Version $version
 Write-Host '[OmniGhost Publish] Pacote comercial local validado. A publicação remota depende do workflow com teste DMA obrigatório.'
+if (-not $ValidateOnly -and -not $SkipRemoteUpload -and -not $usingApprovedSourceSnapshot) {
+    $git = Get-Command git -ErrorAction Stop
+    $tag = "v$version"
+    $headTags = @(& $git.Source -C $ProjectDir tag --points-at HEAD)
+    if ($LASTEXITCODE -ne 0) { throw 'Não foi possível verificar as tags no HEAD após o packaging.' }
+    if ($tag -notin $headTags) {
+        & $git.Source -C $ProjectDir tag -a $tag -m "OmniGhost $version"
+        if ($LASTEXITCODE -ne 0) { throw "Falha ao criar a tag local $tag." }
+    }
+    & $git.Source -C $ProjectDir push origin $tag
+    if ($LASTEXITCODE -ne 0) {
+        throw "O pacote local foi validado, mas o push da tag $tag falhou. Corrige a ligação/autenticação e repete Publish; não movas a tag."
+    }
+    Write-Host "[OmniGhost Publish] Tag $tag enviada. O workflow GitHub publica apenas após os testes obrigatórios de DMA."
+}
 }
 finally {
     $cleanupScript = Join-Path $ProjectDir 'tools\Cleanup-ReleaseCopies.ps1'

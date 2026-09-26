@@ -88,6 +88,12 @@ void Draw(
     bool edge_only = false,
     bool draw_constellations = true);
 
+// Gold moving mesh and flowing ribbon shared by launcher and in-game menus.
+// Draw behind controls; motion_scale=0 leaves a static composition.
+void DrawGoldMotif(ImDrawList* dl, const ImVec2& position, const ImVec2& size,
+                   bool performance_mode, float motion_scale,
+                   float opacity = 1.0f, float quiet_left_width = 0.0f);
+
 // Dynamic performance scaling - called from PerformanceManager
 void SetDynamicDensity(float density_scale) noexcept;
 void SetDynamicMotionScale(float motion_scale) noexcept;

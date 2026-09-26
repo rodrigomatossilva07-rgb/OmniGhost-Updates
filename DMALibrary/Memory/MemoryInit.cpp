@@ -285,10 +285,24 @@ void ConfigureVmmLowLatencyRefresh(VMM_HANDLE handle)
     const bool havePartial = VMMDLL_ConfigGet(handle, VMMDLL_OPT_CONFIG_PROCCACHE_TICKS_PARTIAL, &partialTicks) != FALSE;
     const bool haveTotal = VMMDLL_ConfigGet(handle, VMMDLL_OPT_CONFIG_PROCCACHE_TICKS_TOTAL, &totalTicks) != FALSE;
 
-    // The upstream full/MEDIUM process refresh is ~15 s. Move only that
-    // expensive refresh out to 60 s; keep Memory/TLB/FAST refreshes enabled.
-    constexpr ULONG64 kDefaultMediumRefreshMs = 60000;
+    // Process-cache refreshes stop the synchronous read path while MemProcFS
+    // rebuilds process metadata.  On an otherwise healthy FPGA that presented
+    // as a 0.6-0.8 s ESP freeze every ~13-15 s.  CS2 keeps a bound PID and
+    // resolves live entity pointers itself, so process metadata does not need
+    // a five-second cadence.  Memory/TLB/FAST refreshes remain enabled.
+    constexpr ULONG64 kDefaultPartialRefreshMs = 60000;
+    constexpr ULONG64 kDefaultMediumRefreshMs = 300000;
+    ULONG64 partialTargetMs = ReadEnvironmentU64(
+        L"OMNIGHOST_VMM_PARTIAL_REFRESH_MS", kDefaultPartialRefreshMs);
     ULONG64 targetMs = ReadEnvironmentU64(L"OMNIGHOST_VMM_MEDIUM_REFRESH_MS", kDefaultMediumRefreshMs);
+    bool partialChanged = false;
+    ULONG64 appliedPartialTicks = partialTicks;
+    if (haveTick && partialTargetMs != 0) {
+        partialTargetMs = std::clamp<ULONG64>(partialTargetMs, 5000, 300000);
+        appliedPartialTicks = std::max<ULONG64>(1, (partialTargetMs + tickMs - 1) / tickMs);
+        partialChanged = VMMDLL_ConfigSet(
+            handle, VMMDLL_OPT_CONFIG_PROCCACHE_TICKS_PARTIAL, appliedPartialTicks) != FALSE;
+    }
     bool changed = false;
     ULONG64 appliedTicks = totalTicks;
     if (haveTick && targetMs != 0) {
@@ -298,16 +312,19 @@ void ConfigureVmmLowLatencyRefresh(VMM_HANDLE handle)
     }
     const ULONG64 oldTotalMs = (haveTick && haveTotal) ? totalTicks * tickMs : 0;
     const ULONG64 newTotalMs = (haveTick && changed) ? appliedTicks * tickMs : oldTotalMs;
-    const ULONG64 partialMs = (haveTick && havePartial) ? partialTicks * tickMs : 0;
+    const ULONG64 oldPartialMs = (haveTick && havePartial) ? partialTicks * tickMs : 0;
+    const ULONG64 partialMs = (haveTick && partialChanged)
+        ? appliedPartialTicks * tickMs : oldPartialMs;
     std::cout << "[VMM][RefreshPolicy] enabled=" << (haveEnabled ? enabled : 0)
         << " tick_ms=" << (haveTick ? tickMs : 0)
-        << " partial_ticks=" << (havePartial ? partialTicks : 0)
+        << " partial_ticks_before=" << (havePartial ? partialTicks : 0)
+        << " partial_ticks_after=" << (partialChanged ? appliedPartialTicks : partialTicks)
         << " partial_ms=" << partialMs
         << " medium_ticks_before=" << (haveTotal ? totalTicks : 0)
         << " medium_ms_before=" << oldTotalMs
         << " medium_ticks_after=" << (changed ? appliedTicks : totalTicks)
         << " medium_ms_after=" << newTotalMs
-        << " changed=" << (changed ? "YES" : "NO")
+        << " changed=" << ((changed || partialChanged) ? "YES" : "NO")
         << (targetMs == 0 ? " mode=UPSTREAM_DEFAULT" : " mode=LOW_LATENCY") << "\n";
     OmniGhost::SessionLog::Write(OmniGhost::SessionLog::Severity::Info,
         OmniGhost::SessionLog::Subsystem::VMM, "refresh policy configured",
@@ -316,7 +333,7 @@ void ConfigureVmmLowLatencyRefresh(VMM_HANDLE handle)
          {"partial_ms", havePartial && haveTick ? std::to_string(partialMs) : "unknown"},
          {"medium_ms_before", haveTotal && haveTick ? std::to_string(oldTotalMs) : "unknown"},
          {"medium_ms_after", haveTotal && haveTick ? std::to_string(newTotalMs) : "unknown"},
-         {"changed", changed ? "yes" : "no"}});
+         {"changed", (changed || partialChanged) ? "yes" : "no"}});
 }
 
 // Loads one private-runtime library from its absolute path only. Never searches

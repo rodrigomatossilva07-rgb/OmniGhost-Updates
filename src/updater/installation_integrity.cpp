@@ -6,6 +6,7 @@
 #include <fstream>
 #include <iterator>
 #include <sstream>
+#include <unordered_set>
 
 namespace OmniGhost::Update {
 namespace fs = std::filesystem;
@@ -87,6 +88,8 @@ IntegrityReport VerifyInstallationFiles(const fs::path& installDirectory, std::s
     std::istringstream input(manifestBytes);
     std::string line;
     std::size_t lineNumber = 0;
+    std::unordered_set<std::string> seenPaths;
+    bool executableListed = false;
     while (std::getline(input, line)) {
         ++lineNumber;
         if (!line.empty() && line.back() == '\r') line.pop_back();
@@ -114,10 +117,21 @@ IntegrityReport VerifyInstallationFiles(const fs::path& installDirectory, std::s
             report.message = "install-manifest.sha256 contém um caminho inseguro.";
             return report;
         }
+        if (!seenPaths.insert(relativeUtf8).second) {
+            report.status = IntegrityStatus::Error;
+            report.message = "install-manifest.sha256 contém um caminho repetido.";
+            return report;
+        }
+        if (relativeUtf8 == "OmniGhost.exe") executableListed = true;
 
         ++report.checkedFiles;
         const fs::path file = installDirectory / relative;
         std::error_code ec;
+        if (fs::is_symlink(file, ec) || ec) {
+            ++report.failedFiles;
+            if (report.issues.size() < maximumIssues) report.issues.push_back({relativeUtf8, "reparse"});
+            continue;
+        }
         if (!fs::exists(file, ec) || !fs::is_regular_file(file, ec)) {
             ++report.failedFiles;
             if (report.issues.size() < maximumIssues) report.issues.push_back({relativeUtf8, "missing"});
@@ -144,6 +158,11 @@ IntegrityReport VerifyInstallationFiles(const fs::path& installDirectory, std::s
     if (report.checkedFiles == 0) {
         report.status = IntegrityStatus::Error;
         report.message = "install-manifest.sha256 está vazio.";
+        return report;
+    }
+    if (ReleaseTrust::Configured && !executableListed) {
+        report.status = IntegrityStatus::Error;
+        report.message = "O manifesto assinado não inclui OmniGhost.exe.";
         return report;
     }
 

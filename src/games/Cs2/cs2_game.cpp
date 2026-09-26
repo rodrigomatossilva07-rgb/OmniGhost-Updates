@@ -90,7 +90,7 @@ namespace {
 // slower transfers. 60 Hz keeps mouse-look smooth through interpolation while
 // leaving capacity for the entity lane.
 constexpr int CAMERA_INTERVAL_MS = 16;
-constexpr int BONES_INTERVAL_MS = 12;       // skeleton tier
+constexpr int BONES_INTERVAL_MS = 20;       // stable 50 Hz skeleton tier
 constexpr int FULL_SCAN_INTERVAL_MS = 12;   // health / spotted / core identity
 constexpr int ARMOR_INTERVAL_MS = 50;
 constexpr int LOCAL_HEALTH_INTERVAL_MS = 50;
@@ -98,7 +98,7 @@ constexpr int WEAPON_INTERVAL_MS = 100;
 constexpr int WEAPON_FALLBACK_INTERVAL_MS = 10000;
 constexpr int ENTITY_LIST_INTERVAL_MS = 150;
 constexpr int NAME_INTERVAL_MS = 1000;      // low-frequency identity
-constexpr int BONE_RELIABILITY_HOLD_MS = 150; // last-good skeleton anti-flicker
+constexpr int BONE_RELIABILITY_HOLD_MS = 260; // bridge fair-scheduler/transport gaps
 constexpr int TEAM_INTERVAL_MS = 500;
 }
 
@@ -416,7 +416,7 @@ void LoadSchemaOffsets(const std::string& schema) {
     JsonClassU64(schema, "C_BasePlayerPawn", "m_vOldOrigin", offsets.m_vOldOrigin);
     JsonClassU64(schema, "CCSPlayerController", "m_hPlayerPawn", offsets.m_hPlayerPawn);
     JsonClassU64(schema, "CCSPlayerController", "m_hObserverPawn", offsets.m_hObserverPawn);
-    JsonClassU64(schema, "C_CSPlayerPawn", "m_pObserverServices", offsets.m_pObserverServices);
+    JsonClassU64(schema, "C_BasePlayerPawn", "m_pObserverServices", offsets.m_pObserverServices);
     JsonClassU64(schema, "CPlayer_ObserverServices", "m_hObserverTarget", offsets.m_hObserverTarget);
     JsonClassU64(schema, "CCSPlayerController", "m_iPawnHealth", offsets.m_iPawnHealth);
     JsonClassU64(schema, "CCSPlayerController", "m_iPawnArmor", offsets.m_iPawnArmor);
@@ -432,7 +432,7 @@ void LoadSchemaOffsets(const std::string& schema) {
     JsonClassU64(schema, "C_CSPlayerPawn", "m_iShotsFired", offsets.m_iShotsFired);
     JsonClassU64(schema, "C_CSPlayerPawn", "m_bIsDefusing", offsets.m_bIsDefusing);
     JsonClassU64(schema, "C_CSPlayerPawn", "m_bIsScoped", offsets.m_bIsScoped);
-    JsonClassU64(schema, "C_CSPlayerPawn", "m_flFlashDuration", offsets.m_flFlashDuration);
+    JsonClassU64(schema, "C_CSPlayerPawnBase", "m_flFlashDuration", offsets.m_flFlashDuration);
     JsonClassU64(schema, "C_MolotovProjectile", "m_bIsIncGrenade", offsets.m_bIsIncGrenade);
     JsonClassU64(schema, "CSmokeGrenadeProjectile", "m_bDidSmokeEffect", offsets.m_bDidSmokeEffect);
     JsonClassU64(schema, "CSmokeGrenadeProjectile", "m_nSmokeEffectTickBegin", offsets.m_nSmokeEffectTickBegin);
@@ -684,6 +684,7 @@ bool LoadEmbeddedOffsets() {
                   << diagnostics.error << '\n';
         return false;
     }
+    offsets = Offsets{};
     auto read = [&](const char* path, uintptr_t& value, bool required = true) {
         std::uint64_t loaded = 0;
         const bool ok = snapshot.TryGet(path, loaded) && loaded != 0;
@@ -699,6 +700,60 @@ bool LoadEmbeddedOffsets() {
     read("client.dll.dwGlobalVars", offsets.dwGlobalVars, false);
     read("client.dll.dwPlantedC4", offsets.dwPlantedC4, false);
     read("engine2.dll.dwBuildNumber", offsets.dwBuildNumber, false);
+
+    // Release builds use the embedded snapshot exclusively. Previously only
+    // module globals were restored here, leaving pawn/controller fields at
+    // stale header defaults even though the current schema was embedded.
+    read("schemas.C_BaseEntity.m_iHealth", offsets.m_iHealth, false);
+    read("schemas.C_BaseEntity.m_iTeamNum", offsets.m_iTeamNum, false);
+    read("schemas.C_BaseEntity.m_pGameSceneNode", offsets.m_pGameSceneNode, false);
+    read("schemas.C_BaseEntity.m_fFlags", offsets.m_fFlags, false);
+    read("schemas.C_BasePlayerPawn.m_vOldOrigin", offsets.m_vOldOrigin, false);
+    read("schemas.CCSPlayerController.m_hPlayerPawn", offsets.m_hPlayerPawn, false);
+    read("schemas.CCSPlayerController.m_hObserverPawn", offsets.m_hObserverPawn, false);
+    read("schemas.C_BasePlayerPawn.m_pObserverServices", offsets.m_pObserverServices, false);
+    read("schemas.CPlayer_ObserverServices.m_hObserverTarget", offsets.m_hObserverTarget, false);
+    read("schemas.CCSPlayerController.m_iPawnHealth", offsets.m_iPawnHealth, false);
+    read("schemas.CCSPlayerController.m_iPawnArmor", offsets.m_iPawnArmor, false);
+    read("schemas.CBasePlayerController.m_iszPlayerName", offsets.m_iszPlayerName, false);
+    read("schemas.CBasePlayerController.m_steamID", offsets.m_steamID, false);
+    read("schemas.CCSPlayerController.m_sSanitizedPlayerName", offsets.m_sSanitizedPlayerName, false);
+    read("schemas.CCSPlayerController.m_bPawnIsAlive", offsets.m_bPawnIsAlive, false);
+    read("schemas.CCSPlayerController.m_pInGameMoneyServices", offsets.m_pInGameMoneyServices, false);
+    read("schemas.CCSPlayerController_InGameMoneyServices.m_iAccount", offsets.m_iAccount, false);
+    read("schemas.C_CSPlayerPawn.m_ArmorValue", offsets.m_ArmorValue, false);
+    read("schemas.C_CSPlayerPawn.m_angEyeAngles", offsets.m_angEyeAngles, false);
+    read("schemas.C_CSPlayerPawn.m_iIDEntIndex", offsets.m_iIDEntIndex, false);
+    read("schemas.C_CSPlayerPawn.m_iShotsFired", offsets.m_iShotsFired, false);
+    read("schemas.C_CSPlayerPawn.m_bIsDefusing", offsets.m_bIsDefusing, false);
+    read("schemas.C_CSPlayerPawn.m_bIsScoped", offsets.m_bIsScoped, false);
+    read("schemas.C_CSPlayerPawnBase.m_flFlashDuration", offsets.m_flFlashDuration, false);
+    read("schemas.CGameSceneNode.m_vecAbsOrigin", offsets.m_vecAbsOrigin, false);
+    read("schemas.CGameSceneNode.m_vecVelocity", offsets.m_vecVelocity, false);
+    read("schemas.CGameSceneNode.m_bDormant", offsets.m_bDormant, false);
+    read("schemas.CSkeletonInstance.m_modelState", offsets.m_modelState, false);
+    uintptr_t boneArrayInModelState = 0x80;
+    read("schemas.CModelState.m_boneArray", boneArrayInModelState, false);
+    offsets.BoneArray = offsets.m_modelState + boneArrayInModelState;
+    read("schemas.C_PlantedC4.m_bBombTicking", offsets.m_bBombTicking, false);
+    read("schemas.C_PlantedC4.m_flC4Blow", offsets.m_flC4Blow, false);
+    read("schemas.C_PlantedC4.m_flTimerLength", offsets.m_flTimerLength, false);
+    read("schemas.C_PlantedC4.m_bBombDefused", offsets.m_bBombDefused, false);
+    read("schemas.C_PlantedC4.m_bBeingDefused", offsets.m_bBeingDefused, false);
+    read("schemas.C_PlantedC4.m_flDefuseCountDown", offsets.m_flDefuseCountDown, false);
+    read("schemas.C_PlantedC4.m_hBombDefuser", offsets.m_hBombDefuser, false);
+    read("schemas.C_BasePlayerPawn.m_pWeaponServices", offsets.m_pWeaponServices, false);
+    read("schemas.C_BasePlayerPawn.m_pItemServices", offsets.m_pItemServices, false);
+    read("schemas.CCSPlayer_ItemServices.m_bHasDefuser", offsets.m_bHasDefuser, false);
+    read("schemas.CPlayer_WeaponServices.m_hActiveWeapon", offsets.m_hActiveWeapon, false);
+    read("schemas.C_EconEntity.m_AttributeManager", offsets.m_AttributeManager, false);
+    read("schemas.C_AttributeContainer.m_Item", offsets.m_Item, false);
+    read("schemas.C_EconItemView.m_iItemDefinitionIndex", offsets.m_iItemDefinitionIndex, false);
+    read("schemas.C_BasePlayerWeapon.m_iClip1", offsets.m_iClip1, false);
+    read("schemas.C_BasePlayerWeapon.m_pReserveAmmo", offsets.m_pReserveAmmo, false);
+    read("schemas.C_CSPlayerPawn.m_entitySpottedState", offsets.m_entitySpottedState, false);
+    read("schemas.EntitySpottedState_t.m_bSpotted", offsets.m_bSpotted, false);
+    read("schemas.C_MolotovProjectile.m_bIsIncGrenade", offsets.m_bIsIncGrenade, false);
     std::string validation_error;
     offsets.loaded = required && offsets.Validate(&validation_error);
     if (offsets.loaded) {
@@ -2914,6 +2969,21 @@ static void RunFrameWithConfig(const Config& frame_config) {
     runtime.controller_stride = g_controller_stride;
     runtime.controller_count = collected;
 
+    // The Source 2 controller array is sparse, but every later stage only
+    // needs valid controller pointers. Compact it once so a four-player match
+    // does not enqueue 64 pawn-handle/page requests on every acquisition scan.
+    // This preserves controller/pawn pairing through slot_index while cutting
+    // thousands of redundant scatter requests per second.
+    int controller_span = 0;
+    for (int i = 0; i < kMaxSlots; ++i) {
+        if (!IsUserPointer(controllers[i])) continue;
+        controllers[controller_span++] = controllers[i];
+    }
+    for (int i = controller_span; i < kMaxSlots; ++i)
+        controllers[i] = 0;
+    collected = controller_span;
+    runtime.controller_count = collected;
+
     // While dead, do not enter the entity, position, bone, weapon, visibility
     // or aim acquisition stages.  Spectators and bomb state remain available
     // through their small dedicated paths; a positive local HP next frame
@@ -2923,7 +2993,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
         runtime.player_count = 0;
         runtime.pawn_count = 0;
         runtime.enemy_count = 0;
-        UpdateSpectatorsWhileDead(frame_config, controllers, kMaxSlots);
+        UpdateSpectatorsWhileDead(frame_config, controllers, collected);
         if (frame_config.bomb_timer)
             UpdateBombStateThrottled();
         else
@@ -2937,29 +3007,29 @@ static void RunFrameWithConfig(const Config& frame_config) {
 
     // ── Phase 1: scatter all pawn handles in one DMA round-trip ──────────
     uint32_t handles[kMaxSlots]{};
-    ScatterReadPawnHandles(controllers, handles, kMaxSlots);
+    ScatterReadPawnHandles(controllers, handles, collected);
 
     // ── Phase 2: resolve handles → pawn pointers (root cached this frame) ─
     int handle_nonzero = 0;
-    for (int i = 0; i < kMaxSlots; ++i)
+    for (int i = 0; i < collected; ++i)
         if (handles[i]) ++handle_nonzero;
     uintptr_t resolved_by_slot[kMaxSlots]{};
     int resolve_ok = ScatterResolvePawnHandles(
-        handles, resolved_by_slot, kMaxSlots,
+        handles, resolved_by_slot, collected,
         g_pawn_stride ? g_pawn_stride : kEntityIdentityStride);
     // If the calibrated stride stopped resolving entirely after an update,
     // retry the alternate layout once as a recovery path.
     if (resolve_ok == 0 && handle_nonzero > 0) {
         const uintptr_t alternate = g_pawn_stride == kEntityIdentityStride
             ? kLegacyEntityIdentityStride : kEntityIdentityStride;
-        resolve_ok = ScatterResolvePawnHandles(handles, resolved_by_slot, kMaxSlots, alternate);
+        resolve_ok = ScatterResolvePawnHandles(handles, resolved_by_slot, collected, alternate);
         if (resolve_ok > 0) g_pawn_stride = alternate;
     }
 
     uintptr_t resolved_pawns[kMaxSlots]{};
     int slot_index[kMaxSlots]{};
     int candidate_count = 0;
-    for (int i = 0; i < kMaxSlots && candidate_count < kMax; ++i) {
+    for (int i = 0; i < collected && candidate_count < kMax; ++i) {
         if (!controllers[i] || !handles[i]) continue;
         uintptr_t pawn = resolved_by_slot[i];
         if (!pawn) continue;
@@ -3087,14 +3157,19 @@ static void RunFrameWithConfig(const Config& frame_config) {
     // name acquisition. Spectators are resolved later from controllers through
     // their own lightweight observer path.
     int eligible_count = 0;
+    // The local pawn has a dedicated snapshot and must never enter the remote
+    // player pipeline: at most five enemies, or the other nine players when
+    // team filtering is disabled.
+    const int remote_player_limit = frame_config.team_check ? 5 : 9;
     for (int c = 0; c < candidate_count; ++c) {
         const bool is_local = resolved_pawns[c] == runtime.local_pawn ||
             controllers[slot_index[c]] == runtime.local_controller;
         const bool alive = core[c].health > 0 && core[c].health <= 200 &&
             IsPlayableTeam(static_cast<int>(core[c].team));
-        const bool hidden_teammate = frame_config.team_check && !is_local &&
+        const bool hidden_teammate = frame_config.team_check &&
             static_cast<int>(core[c].team) == runtime.local_team;
-        if (!alive || hidden_teammate) continue;
+        if (!alive || is_local || hidden_teammate) continue;
+        if (eligible_count >= remote_player_limit) break;
         if (eligible_count != c) {
             resolved_pawns[eligible_count] = resolved_pawns[c];
             slot_index[eligible_count] = slot_index[c];
@@ -3259,15 +3334,18 @@ if (need_bones) {
             const int pressure = g_pressure_level.load(std::memory_order_relaxed);
             // Skeletons are the heaviest optional payload. Limit the normal
             // lane too; cached reliable bones are rendered between refreshes.
-            int maxBoneReadsPerScan = frame_config.performance_mode ? 1 : 2;
-            if (pressure >= 3) maxBoneReadsPerScan = 0;
-            else if (pressure == 2) maxBoneReadsPerScan = 4;
-            else if (pressure == 1) maxBoneReadsPerScan = 7;
+            int maxBoneReadsPerScan = frame_config.performance_mode
+                ? (std::min)(candN, 3) : candN;
+            if (pressure >= 3) maxBoneReadsPerScan = (std::min)(candN, 1);
+            else if (pressure == 2) maxBoneReadsPerScan = (std::min)(candN, 3);
+            else if (pressure == 1) maxBoneReadsPerScan = (std::min)(candN, 5);
             const int take = candN < maxBoneReadsPerScan ? candN : maxBoneReadsPerScan;
             g_phase.bones_players = take;
             bool queuedBoneReads = false;
+            static unsigned s_boneRoundRobin = 0;
+            const int start = candN > 0 ? static_cast<int>(s_boneRoundRobin % candN) : 0;
             for (int i = 0; i < take; ++i) {
-                const int c = cand[i].c;
+                const int c = cand[(start + i) % candN].c;
                 boneReadEligible[c] = true;
                 s_lastBoneMs[resolved_pawns[c]] = scan_now_ms;
                 mem.AddScatterReadRequest(g_scatter_full, boneBases[c], boneSnapshots[c],
@@ -3276,6 +3354,9 @@ if (need_bones) {
             }
             if (queuedBoneReads)
                 mem.ExecuteReadScatter(g_scatter_full);
+            if (candN > 0 && take > 0)
+                s_boneRoundRobin = (s_boneRoundRobin + static_cast<unsigned>(take)) %
+                    static_cast<unsigned>(candN);
         }
         if (need_weapons && allow_weapon_phase) {
             ScopedPhase _phWeapon(&g_phase.weapon_ms);
@@ -3995,44 +4076,16 @@ if (need_bones) {
         }
         const bool present = std::any_of(runtime.players.begin(), runtime.players.end(),
             [&](const Player& player) { return player.pawn == it->first; });
-        if (!present && runtime.players.size() < static_cast<std::size_t>(kMax)) {
+        const std::size_t remoteLimit = static_cast<std::size_t>(frame_config.team_check ? 5 : 9);
+        const bool allowedTeam = !frame_config.team_check ||
+            it->second.player.team != runtime.local_team;
+        if (!present && !it->second.player.is_local && allowedTeam &&
+            runtime.players.size() < remoteLimit) {
             runtime.players.push_back(it->second.player);
             if (!it->second.player.is_local && it->second.player.team != runtime.local_team)
                 ++runtime.enemy_count;
         }
         ++it;
-    }
-
-    // Safety net: inject local pawn if handle resolution missed it entirely.
-    if (runtime.local_pawn && IsUserPointer(runtime.local_pawn)) {
-        bool have_local = false;
-        for (const auto& existing : runtime.players) {
-            if (existing.pawn == runtime.local_pawn || existing.is_local) {
-                have_local = true;
-                break;
-            }
-        }
-        if (!have_local) {
-            Player local{};
-            local.pawn = runtime.local_pawn;
-            local.controller = runtime.local_controller;
-            local.is_local = true;
-            local.alive = true;
-            QReadT(runtime.local_pawn + offsets.m_iHealth, local.health);
-            QReadT(runtime.local_pawn + offsets.m_ArmorValue, local.armor);
-            QReadT(runtime.local_pawn + offsets.m_iTeamNum, local.team);
-            if (local.team == 0)
-                local.team = runtime.local_team;
-            local.pos[0] = runtime.local_pos[0];
-            local.pos[1] = runtime.local_pos[1];
-            local.pos[2] = runtime.local_pos[2];
-            local.view_yaw = runtime.local_view_yaw;
-            std::snprintf(local.name, sizeof(local.name), "Local");
-            if (local.health > 0 && local.health <= 200 && IsPlayableTeam(local.team)) {
-                runtime.players.push_back(local);
-                ++runtime.pawn_count;
-            }
-        }
     }
 
     // Compute once per acquisition, including retained players, so render never
@@ -4111,7 +4164,7 @@ if (need_bones) {
                                         cached_target != runtime.spectator_target;
         if (!refresh_spectators) {
             runtime.spectators = cached_spectators;
-        } else for (int i = 0; i < kMaxSlots; ++i) {
+        } else for (int i = 0; i < collected; ++i) {
             const uintptr_t controller = controllers[i];
             if (!IsUserPointer(controller) || controller == runtime.local_controller)
                 continue;

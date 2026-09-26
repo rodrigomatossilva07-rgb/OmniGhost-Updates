@@ -96,6 +96,10 @@ void DrawBackground(
         rainDensity,
         app_settings::AnimationScale(),
         false);
+    if (rainDensity > 0.0f)
+        DigitalRain::DrawGoldMotif(draw, ImVec2(0.0f, header),
+            ImVec2(display.x, display.y - header - footer), performance_mode,
+            app_settings::AnimationScale(), 0.65f);
 
     // Quiet technical grid: hierarchy comes from spacing and surfaces, not glow.
     const float grid = S(performance_mode ? 118.0f : 94.0f);

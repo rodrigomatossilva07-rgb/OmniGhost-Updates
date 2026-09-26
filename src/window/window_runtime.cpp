@@ -313,6 +313,12 @@ void Overlay::ApplyPendingResize() {
     std::clog << "[UI][Resize] applying deferred swap-chain resize "
               << width << "x" << height << "\n";
 
+    // ResizeBuffers requires every direct and indirect reference to the old
+    // back buffer to be released. Releasing our RTV is not enough while it is
+    // still bound to the output-merger stage; that produced DXGI_ERROR_INVALID_CALL
+    // exactly on the authentication -> launcher resize and stopped the UI.
+    device_context->OMSetRenderTargets(0, nullptr, nullptr);
+    device_context->Flush();
     CleanupRenderTarget();
     const HRESULT result = swap_chain->ResizeBuffers(
         0, width, height, DXGI_FORMAT_UNKNOWN, 0);
@@ -321,14 +327,17 @@ void Overlay::ApplyPendingResize() {
         CreateRenderTarget();
         std::clog << "[UI][Resize] deferred ResizeBuffers PASS\n";
     } else {
-        // ResizeBuffers failure must not leave the application with a permanently
-        // missing render target. The old swap-chain buffers may still be usable.
+        // ResizeBuffers failure must not terminate a successfully authenticated
+        // session. The old swap-chain buffers remain valid when ResizeBuffers
+        // fails, so rebuild their RTV and keep rendering while logging the error.
         CreateRenderTarget();
         std::cerr << "[UI][Resize] deferred ResizeBuffers FAIL hr=0x"
                   << std::hex << static_cast<unsigned long>(result) << std::dec << "\n";
         if (!render_target_view) {
-            std::cerr << "[UI][Resize] render target recovery failed; stopping UI safely.\n";
-            shouldRun = false;
+            std::cerr << "[UI][Resize] render target recovery is pending; the next display refresh will retry.\n";
+            pending_resize_width_ = width;
+            pending_resize_height_ = height;
+            resize_pending_ = true;
         }
     }
 }

@@ -7,6 +7,7 @@
 
 #include <iostream>
 #include <atomic>
+#include <cstdio>
 #include <functional>
 #include <memory>
 #include <thread>
@@ -108,19 +109,23 @@ void Manager::BeginStartupProbe() {
     std::clog << "[STARTUP][Hardware] stage=CheckingMakcu mode=MOCK optional=YES\n";
     return;
 #else
+    // Discovery/connection is isolated from the render thread. The MAKCU
+    // implementation validates the device protocol before reporting success,
+    // so opening the launcher is enough to obtain a working input device.
     state_.makcuAvailable = makcu_wrapper::IsConnected();
     state_.makcuFinished = state_.makcuAvailable;
     stageStarted_ = std::chrono::steady_clock::now();
-    std::clog << "[STARTUP][Hardware] stage=CheckingMakcu optional=YES timeout_ms="
-              << timeouts_.makcuTimeout.count() << "\n";
-
-    if (state_.makcuFinished) {
-        StartDmaProbeLocked();
-        return;
+    nextMakcuRetry_ = stageStarted_ + 5s;
+    if (!state_.makcuAvailable) {
+        makcuTask_ = ProbeTask::Start([] {
+            makcu_wrapper::MakcuInitialize("");
+            return makcu_wrapper::IsConnected();
+        });
     }
-    makcuTask_ = ProbeTask::Start([] {
-        return aim_type::Connect(aim_type::DeviceType::Makcu);
-    });
+    std::clog << "[STARTUP][Hardware] stage=CheckingMakcu optional=YES auto_connect=YES already_connected="
+              << (state_.makcuAvailable ? "YES" : "NO") << "\n";
+    if (state_.makcuAvailable)
+        StartDmaProbeLocked();
 #endif
 }
 
@@ -168,6 +173,20 @@ void Manager::Poll() {
     }
 #endif
 
+    // Publish an asynchronously-established connection on the UI thread and
+    // make MAKCU the active input device without requiring a button click.
+    if (makcu_wrapper::IsConnected()) {
+        state_.makcuAvailable = true;
+        state_.makcuFinished = true;
+        aim_type::config.makcu_connected = true;
+        aim_type::config.makcu_enabled = true;
+        aim_type::config.active = aim_type::DeviceType::Makcu;
+        const auto diagnostics = makcu_wrapper::GetDiagnostics();
+        if (diagnostics.port[0])
+            std::snprintf(aim_type::config.makcu_com,
+                sizeof(aim_type::config.makcu_com), "%s", diagnostics.port);
+    }
+
     if (state_.stage == ProbeStage::CheckingMakcu) {
         if (makcuTask_ && makcuTask_->Ready()) {
             state_.makcuAvailable = makcuTask_->Result();
@@ -206,6 +225,22 @@ void Manager::Poll() {
             std::clog << "[STARTUP][Hardware] dma="
                       << (state_.dmaAvailable ? "PRESENT_PNP" : "NOT_DETECTED")
                       << " complete=YES note=PnP_is_diagnostic_only\n";
+    }
+
+    // Support devices connected after the launcher opens. Retries are bounded,
+    // asynchronous and never block rendering or DMA discovery.
+    if (state_.stage == ProbeStage::Complete && !makcu_wrapper::IsConnected()) {
+        if (makcuTask_ && makcuTask_->Ready())
+            makcuTask_.reset();
+        if (!makcuTask_ && now >= nextMakcuRetry_) {
+            state_.makcuFinished = false;
+            nextMakcuRetry_ = now + 5s;
+            makcuTask_ = ProbeTask::Start([] {
+                makcu_wrapper::MakcuInitialize("");
+                return makcu_wrapper::IsConnected();
+            });
+            std::clog << "[Hardware] MAKCU automatic rediscovery started\n";
+        }
     }
 }
 

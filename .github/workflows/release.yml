@@ -22,6 +22,8 @@ jobs:
     name: Build, test and validate
     runs-on: [self-hosted, windows, dma, signing]
     timeout-minutes: 75
+    env:
+      OMNIGHOST_SIGNING_THUMBPRINT: ${{ vars.OMNIGHOST_SIGNING_THUMBPRINT }}
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
@@ -71,6 +73,14 @@ jobs:
         shell: pwsh
         run: |
           ./tools/Verify-BuildMatrix.ps1 -ProjectDir . -Platform x64
+
+      - name: Test license session revalidation
+        shell: pwsh
+        run: |
+          msbuild tests/OmniGhost.SecurityTests.vcxproj /m `
+            /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v145
+          & ./.cache/tests/Release/x64/OmniGhost.SecurityTests.exe
+          if ($LASTEXITCODE -ne 0) { throw 'Security gateway tests failed.' }
 
       - name: Analyse release diff semantically
         shell: pwsh
@@ -145,6 +155,13 @@ jobs:
             -ReleaseDirectory ./artifacts/release `
             -Version '${{ steps.version.outputs.version }}'
 
+      - name: Reject modified signed files
+        shell: pwsh
+        run: |
+          ./tools/Test-SignedReleaseTampering.ps1 `
+            -ProjectDir . `
+            -ReleaseDirectory ./artifacts/release
+
       - name: Upload validated release assets
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -156,10 +173,12 @@ jobs:
             artifacts/release/update.json
             artifacts/release/update.json.sig
             artifacts/release/install-manifest.sha256
+            artifacts/release/install-manifest.sha256.sig
             artifacts/release/SBOM.cdx.json
             artifacts/release/changelog.json
             artifacts/release/release-notes.md
             artifacts/release/release-meta.json
+            artifacts/release/SHA256SUMS.txt
 
       - name: Upload private symbols
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -289,12 +308,14 @@ jobs:
             artifacts/release/update.json `
             artifacts/release/update.json.sig `
             artifacts/release/install-manifest.sha256 `
+            artifacts/release/install-manifest.sha256.sig `
             artifacts/release/SBOM.cdx.json `
             artifacts/release/changelog.json `
-            artifacts/release/release-meta.json
+            artifacts/release/release-meta.json `
+            artifacts/release/SHA256SUMS.txt
           if ($LASTEXITCODE -ne 0) { throw 'Could not create the complete draft release.' }
           $view = gh release view $tag --repo $repo --json isDraft,assets | ConvertFrom-Json
-          $expected = @('OmniGhost.zip','update.json','update.json.sig','install-manifest.sha256','SBOM.cdx.json','changelog.json','release-meta.json')
+          $expected = @('OmniGhost.zip','update.json','update.json.sig','install-manifest.sha256','install-manifest.sha256.sig','SBOM.cdx.json','changelog.json','release-meta.json','SHA256SUMS.txt')
           $actual = @($view.assets | ForEach-Object name)
           foreach ($asset in $expected) {
             if ($asset -notin $actual) { throw "Draft release is incomplete: $asset missing." }

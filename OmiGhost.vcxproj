@@ -53,6 +53,18 @@
     <!-- Release is an optimized local build and never publishes remotely. -->
     <OmniGhostReleaseChannel Condition="'$(OmniGhostReleaseChannel)'==''">stable</OmniGhostReleaseChannel>
   </PropertyGroup>
+  <PropertyGroup Condition="('$(Configuration)'=='Release' Or '$(Configuration)'=='Publish') And '$(Platform)'=='x64' And '$(OmniGhostPayloadBuild)'!='true'">
+    <GenerateMsixPackage Condition="'$(GenerateMsixPackage)'==''">true</GenerateMsixPackage>
+    <AppxPackageSigningEnabled Condition="'$(AppxPackageSigningEnabled)'==''">true</AppxPackageSigningEnabled>
+    <PackageCertificateThumbprint Condition="'$(PackageCertificateThumbprint)'==''">$(OMNIGHOST_MSIX_CERT_THUMBPRINT)</PackageCertificateThumbprint>
+    <PackageIdentityName Condition="'$(PackageIdentityName)'==''">Omnighost</PackageIdentityName>
+    <PackagePublisher Condition="'$(PackagePublisher)'==''">CN=Omnighost Development</PackagePublisher>
+    <PublisherDisplayName Condition="'$(PublisherDisplayName)'==''">Omnighost</PublisherDisplayName>
+    <MsixOutputDirectory Condition="'$(MsixOutputDirectory)'==''">$(ProjectDir)publish\msix</MsixOutputDirectory>
+    <GenerateAppInstallerFile>false</GenerateAppInstallerFile>
+    <AppxBundle>Never</AppxBundle>
+    <AppxBundlePlatforms>x64</AppxBundlePlatforms>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Publish|x64'">
     <!-- Keep the stable protocol channel for updater compatibility, while the
          binary itself remains a private, non-distributable source build. -->
@@ -90,7 +102,7 @@
   </ItemGroup>
   <Target Name="BuildOmniGhostEmbeddedOffsets" BeforeTargets="ResourceCompile" Condition="'$(DesignTimeBuild)'!='true'">
     <Message Importance="High" Text="[OmniGhost Offsets] Generating embedded offset resources..."/>
-    <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; generate-embedded-offsets &quot;$(MSBuildProjectDirectory)&quot; &quot;$(Configuration)&quot;" IgnoreExitCode="true">
+    <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; generate-embedded-offsets &quot;$(MSBuildProjectDirectory)&quot; &quot;$(Configuration)&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
       <Output TaskParameter="ExitCode" PropertyName="OmniGhostEmbeddedOffsetsExitCode"/>
     </Exec>
     <Error Condition="'$(OmniGhostEmbeddedOffsetsExitCode)'!='0'" Code="OGOFF001" Text="Falha ao gerar os recursos de offsets embutidos. Consulta a janela Saída."/>
@@ -101,18 +113,18 @@
   <Target Name="EnsureOmniGhostDmaDependencies" BeforeTargets="PrepareForBuild"
           Condition="'$(DesignTimeBuild)'!='true' And '$(OmniGhostSkipDmaDependencyCheck)'!='true'">
     <Message Importance="High" Text="[OmniGhost DMA] A verificar MemProcFS/LeechCore oficiais..."/>
-    <Exec Command="&quot;%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe&quot; -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\tools\Update-DmaDependencies.ps1&quot; -EnsureLatest" IgnoreExitCode="true">
+    <Exec Command="&quot;%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe&quot; -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\tools\Update-DmaDependencies.ps1&quot; -EnsureLatest" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
       <Output TaskParameter="ExitCode" PropertyName="OmniGhostDmaDependencyExitCode"/>
     </Exec>
     <Error Condition="'$(OmniGhostDmaDependencyExitCode)'!='0'" Code="OGDMA001" Text="Não foi possível verificar/atualizar a stack DMA oficial. A build foi interrompida para não compilar com dependências incompletas."/>
   </Target>
   <Target Name="BuildOmniGhostEmbeddedRuntime" BeforeTargets="ClCompile;ResourceCompile" Condition="'$(DesignTimeBuild)'!='true'">
     <Message Importance="High" Text="[OmniGhost Runtime] Generating single-process native dependency bundle..."/>
-    <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; generate-embedded-runtime &quot;$(MSBuildProjectDirectory)&quot; &quot;$(VCInstallDir)Redist\MSVC\$(VCToolsVersion)\x64&quot; &quot;$(Configuration)&quot;" IgnoreExitCode="true">
+    <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; generate-embedded-runtime &quot;$(MSBuildProjectDirectory)&quot; &quot;$(VCInstallDir)Redist\MSVC\$(VCToolsVersion)\x64&quot; &quot;$(Configuration)&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
       <Output TaskParameter="ExitCode" PropertyName="OmniGhostEmbeddedRuntimeExitCode"/>
     </Exec>
     <Error Condition="'$(OmniGhostEmbeddedRuntimeExitCode)'!='0'" Code="OGRUN001" Text="Falha ao gerar o runtime auto-instalável. Consulta a janela Saída."/>
-    <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; validate-embedded-runtime &quot;$(MSBuildProjectDirectory)&quot; &quot;$(Configuration)&quot; &quot;$(Platform)&quot;" IgnoreExitCode="true" Condition="'$(Configuration)'!='PrivateStatic'">
+    <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; validate-embedded-runtime &quot;$(MSBuildProjectDirectory)&quot; &quot;$(Configuration)&quot; &quot;$(Platform)&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true" Condition="'$(Configuration)'!='PrivateStatic'">
       <Output TaskParameter="ExitCode" PropertyName="OmniGhostEmbeddedRuntimeValidationExitCode"/>
     </Exec>
     <Error Condition="'$(OmniGhostEmbeddedRuntimeValidationExitCode)'!='0' And '$(Configuration)'!='PrivateStatic'" Code="OGRUN002" Text="O runtime embedded está incompleto: vmm.dll/leechcore.dll não foram incorporados ao EXE."/>
@@ -120,7 +132,7 @@
 
   <Target Name="BuildOmniGhostEmbeddedResources" BeforeTargets="ClCompile;ResourceCompile" Condition="'$(DesignTimeBuild)'!='true'">
     <Message Importance="High" Text="[OmniGhost Resources] Validating and generating embedded runtime resources..."/>
-    <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; generate-embedded-resources &quot;$(MSBuildProjectDirectory)&quot; &quot;$(Configuration)&quot;" IgnoreExitCode="true">
+    <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; generate-embedded-resources &quot;$(MSBuildProjectDirectory)&quot; &quot;$(Configuration)&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
       <Output TaskParameter="ExitCode" PropertyName="OmniGhostEmbeddedResourcesExitCode"/>
     </Exec>
     <Error Condition="'$(OmniGhostEmbeddedResourcesExitCode)'!='0'" Code="OGRES001" Text="Falha ao gerar os recursos embedded. Consulta a janela Saída."/>
@@ -188,11 +200,35 @@
     <Error Condition="'@(OmniGhostUnexpectedCustomerRuntime)'!=''" Code="OGRUN003" Text="A build comercial contém ficheiros externos inesperados: @(OmniGhostUnexpectedCustomerRuntime)."/>
     <Message Importance="High" Text="[OmniGhost Runtime] Single-EXE distribution validated; no private OmniGhost.exe is installed or relaunched."/>
   </Target>
+  <Target Name="ValidateOmniGhostReleaseSigning" BeforeTargets="PrepareForBuild"
+          Condition="('$(Configuration)'=='Release' Or '$(Configuration)'=='Publish') And '$(DesignTimeBuild)'!='true' And '$(OmniGhostPayloadBuild)'!='true' And '$(OmniGhostSkipReleaseSigning)'!='true'">
+    <Exec Command="powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\tools\Sign-AuthenticodeFile.ps1&quot; -PreflightOnly" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
+      <Output TaskParameter="ExitCode" PropertyName="OmniGhostReleaseSigningPreflightExitCode"/>
+    </Exec>
+    <Error Condition="'$(OmniGhostReleaseSigningPreflightExitCode)'!='0'" Code="OGREL000" Text="Pré-verificação da assinatura Release falhou antes de compilar. Consulta a primeira mensagem [SIGN]."/>
+  </Target>
+  <!-- The private OmniGhostCore payload is embedded in the bootstrap and must not be signed separately. -->
+  <Target Name="SignOmniGhostLocalRelease" AfterTargets="ValidateOmniGhostSingleExeRuntime"
+          Condition="('$(Configuration)'=='Release' Or '$(Configuration)'=='Publish') And '$(DesignTimeBuild)'!='true' And '$(OmniGhostPayloadBuild)'!='true' And '$(OmniGhostSkipReleaseSigning)'!='true'">
+    <Message Importance="High" Text="[OmniGhost Release] A assinar e verificar $(TargetPath)."/>
+    <Exec Command="powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\tools\Sign-AuthenticodeFile.ps1&quot; -Path &quot;$(TargetPath)&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
+      <Output TaskParameter="ExitCode" PropertyName="OmniGhostReleaseSigningExitCode"/>
+    </Exec>
+    <Error Condition="'$(OmniGhostReleaseSigningExitCode)'!='0'" Code="OGREL001" Text="Release compilou, mas a assinatura ou verificação do OmniGhost.exe falhou. Consulta a primeira mensagem [SIGN]/[VERIFY]."/>
+  </Target>
+  <Target Name="BuildOmniGhostMsix" AfterTargets="SignOmniGhostLocalRelease;ValidateOmniGhostSingleExeRuntime" DependsOnTargets="SignOmniGhostLocalRelease"
+          Condition="'$(GenerateMsixPackage)'=='true' And '$(DesignTimeBuild)'!='true' And '$(OmniGhostPayloadBuild)'!='true' And ( '$(Configuration)'=='Release' Or '$(Configuration)'=='Publish' )">
+    <Message Importance="High" Text="[OmniGhost MSIX] A criar e assinar publish\msix\Omnighost.msix."/>
+    <Exec Command="powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(ProjectDir)tools\Build-MsixPackage.ps1&quot; -ProjectDir &quot;$(ProjectDir).&quot; -Executable &quot;$(TargetPath)&quot; -Configuration &quot;$(Configuration)&quot; -Platform &quot;$(Platform)&quot; -PackageIdentityName &quot;$(PackageIdentityName)&quot; -PackagePublisher &quot;$(PackagePublisher)&quot; -PublisherDisplayName &quot;$(PublisherDisplayName)&quot; -SigningEnabled &quot;$(AppxPackageSigningEnabled)&quot; -CertificateThumbprint &quot;$(PackageCertificateThumbprint)&quot; -OutputDirectory &quot;$(MsixOutputDirectory)&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
+      <Output TaskParameter="ExitCode" PropertyName="OmniGhostMsixExitCode"/>
+    </Exec>
+    <Error Condition="'$(OmniGhostMsixExitCode)'!='0'" Code="OGMSIX001" Text="Falha ao criar/assinar o MSIX. Consulta a primeira mensagem [MSIX]."/>
+  </Target>
   <!-- Publish é a única configuração que pode alterar o GitHub. Release
        nunca alcançam este target. Tag, source limpo e artefactos válidos continuam obrigatórios. -->
   <Target Name="PublishOmniGhostRelease" AfterTargets="ValidateOmniGhostSingleExeRuntime" Condition="'$(Configuration)'=='Publish' And '$(DesignTimeBuild)'!='true' And '$(OmniGhostSkipRemotePublish)'!='true'">
     <Message Importance="High" Text="[OmniGhost Publish] A validar, empacotar e publicar a versão no GitHub."/>
-    <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; publish-build &quot;$(MSBuildProjectDirectory)&quot; &quot;$(OutDir).&quot;" IgnoreExitCode="true">
+    <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; publish-build &quot;$(MSBuildProjectDirectory)&quot; &quot;$(OutDir).&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
       <Output TaskParameter="ExitCode" PropertyName="OmniGhostPublishExitCode"/>
     </Exec>
     <Error Condition="'$(OmniGhostPublishExitCode)'!='0'" Code="OGPUB001" Text="A build Publish compilou, mas o pipeline de publicação falhou. Consulta a janela Saída e a primeira causa reportada; o upload para o GitHub pode ainda não ter começado. Release nunca publica remotamente."/>
@@ -201,9 +237,9 @@
        A real Publish is deliberately excluded: Publish-Build cleans only after
        GitHub has confirmed the public Latest release. -->
   <Target Name="CleanupVerifiedLocalBuildWorkspace" AfterTargets="ValidateOmniGhostSingleExeRuntime"
-          Condition="'$(DesignTimeBuild)'!='true' And '$(OmniGhostPayloadBuild)'!='true' And ( '$(Configuration)'=='Release' Or ( '$(Configuration)'=='Publish' And '$(OmniGhostSkipRemotePublish)'=='true' ) )">
+          Condition="'$(DesignTimeBuild)'!='true' And '$(OmniGhostPayloadBuild)'!='true' And '$(OmniGhostSkipPackaging)'!='true' And ( '$(Configuration)'=='Release' Or ( '$(Configuration)'=='Publish' And '$(OmniGhostSkipRemotePublish)'=='true' ) )">
     <Message Importance="High" Text="[OmniGhost Build] Build validada; a manter build e limpar .cache, artifacts, logs e .temp."/>
-    <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; cleanup-verified-build &quot;$(MSBuildProjectDirectory)&quot;" IgnoreExitCode="true">
+    <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; cleanup-verified-build &quot;$(MSBuildProjectDirectory)&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
       <Output TaskParameter="ExitCode" PropertyName="OmniGhostLocalCleanupExitCode"/>
     </Exec>
     <Warning Condition="'$(OmniGhostLocalCleanupExitCode)'!='0'" Text="A build foi validada, mas a limpeza local não terminou completamente. Fecha processos que estejam a usar o output e volta a compilar."/>
@@ -213,6 +249,7 @@
   </Target>
   <ItemGroup>
     <ClInclude Include="src\auth\keyauth_gateway.h"/>
+    <ClInclude Include="src\security\security_manager.h"/>
     <ClCompile Include="src\main.cpp"/>
     <ClCompile Include="src\config\app_settings.cpp"/>
     <ClCompile Include="src\config\config_manager.cpp"/>
@@ -226,6 +263,7 @@
     <ClCompile Include="src\config\config_profiles.cpp"/>
     <ClCompile Include="src\config\config_legacy.cpp"/>
     <ClCompile Include="src\licensing\license_service.cpp"/>
+    <ClCompile Include="src\security\security_manager.cpp"/>
     <ClCompile Include="src\ferrum\ferrum_device.cpp"/>
     <ClCompile Include="src\kmbox\kmbox_net.cpp"/>
     <ClCompile Include="src\launcher\changelog_service.cpp"/>
@@ -391,7 +429,7 @@
     <ResourceCompile Include="resources\app.rc"/>
   </ItemGroup>
   <Target Name="ValidateOmniGhostEmbeddedOffsets" AfterTargets="Link" Condition="'$(DesignTimeBuild)'!='true'">
-    <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; validate-embedded-offsets &quot;$(MSBuildProjectDirectory)&quot; &quot;$(TargetPath)&quot; &quot;$(Configuration)&quot; &quot;$(Platform)&quot;" IgnoreExitCode="true">
+    <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; validate-embedded-offsets &quot;$(MSBuildProjectDirectory)&quot; &quot;$(TargetPath)&quot; &quot;$(Configuration)&quot; &quot;$(Platform)&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
       <Output TaskParameter="ExitCode" PropertyName="OmniGhostEmbeddedOffsetsValidationExitCode"/>
     </Exec>
     <Error Condition="'$(OmniGhostEmbeddedOffsetsValidationExitCode)'!='0'" Code="OGOFF002" Text="O executável não contém todos os snapshots de offsets embedded obrigatórios."/>
@@ -442,32 +480,32 @@
     <ClInclude Include="src\licensing\license_service.h"/>
   </ItemGroup>
   <Target Name="ValidateOmniGhostProjectLayout" BeforeTargets="PrepareForBuild" DependsOnTargets="CleanOmniGhostRuntimeOutput">
-    <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; validate-project &quot;$(MSBuildProjectDirectory)&quot;" IgnoreExitCode="true">
+    <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; validate-project &quot;$(MSBuildProjectDirectory)&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
       <Output TaskParameter="ExitCode" PropertyName="OmniGhostProjectValidationExitCode"/>
     </Exec>
     <Error Condition="'$(OmniGhostProjectValidationExitCode)'!='0'" Code="OGENG001" Text="Falha na validação de engenharia/dependências do projeto. Consulta a janela Saída e procura a primeira linha [FAIL] para ver a causa exata."/>
   </Target>
   <Target Name="ValidateOmniGhostPublishVersion" BeforeTargets="ValidateOmniGhostProjectLayout" Condition="'$(Configuration)'=='Publish' And '$(DesignTimeBuild)'!='true' And '$(OmniGhostSkipRemotePublish)'!='true' And '$(OmniGhostSkipVersionAdvance)'!='true'">
-    <Message Importance="High" Text="[OmniGhost Publish] A confirmar a versão atual no GitHub e a preparar a próxima versão quando necessário."/>
-    <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; prepare-publish-version &quot;$(MSBuildProjectDirectory)&quot;" IgnoreExitCode="true">
+    <Message Importance="High" Text="[OmniGhost Publish] A validar a única versão de origem antes da compilação."/>
+    <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; prepare-publish-version &quot;$(MSBuildProjectDirectory)&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
       <Output TaskParameter="ExitCode" PropertyName="OmniGhostPreparePublishVersionExitCode"/>
     </Exec>
-    <Error Condition="'$(OmniGhostPreparePublishVersionExitCode)'!='0'" Code="OGVER002" Text="Não foi possível determinar/preparar a próxima versão Publish. Consulta a primeira mensagem [OmniGhost Version]."/>
+    <Error Condition="'$(OmniGhostPreparePublishVersionExitCode)'!='0'" Code="OGVER002" Text="Pré-validação Publish falhou. Consulta todas as linhas [ERROR] no log de Release validation."/>
   </Target>
   <Target Name="EnsureOmniGhostMetadata" BeforeTargets="PrepareForBuild">
-    <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; ensure-metadata &quot;$(MSBuildProjectDirectory)&quot;" IgnoreExitCode="true">
+    <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; ensure-metadata &quot;$(MSBuildProjectDirectory)&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
       <Output TaskParameter="ExitCode" PropertyName="OmniGhostMetadataExitCode"/>
     </Exec>
     <Error Condition="'$(OmniGhostMetadataExitCode)'!='0'" Code="OGVER001" Text="Falha ao validar os metadados e a versão do OmniGhost."/>
   </Target>
   <Target Name="ValidateOmniGhostDistributionBuild" BeforeTargets="PrepareForBuild" Condition="'$(Configuration)'!='PrivateStatic'">
-    <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; validate-distribution &quot;$(MSBuildProjectDirectory)&quot; &quot;$(Configuration)&quot;" IgnoreExitCode="true">
+    <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; validate-distribution &quot;$(MSBuildProjectDirectory)&quot; &quot;$(Configuration)&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
       <Output TaskParameter="ExitCode" PropertyName="OmniGhostDistributionValidationExitCode"/>
     </Exec>
     <Error Condition="'$(OmniGhostDistributionValidationExitCode)'!='0'" Code="OGDIST001" Text="A configuração de distribuição $(Configuration) não cumpre a política de segurança."/>
   </Target>
   <Target Name="GenerateOmniGhostBuildMetadata" BeforeTargets="ClCompile">
-    <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; generate-build-metadata &quot;$(MSBuildProjectDirectory)&quot; &quot;$(Configuration)&quot; &quot;$(Platform)&quot; &quot;$(OmniGhostReleaseChannel)&quot; &quot;$(WindowsTargetPlatformVersion)&quot;" IgnoreExitCode="true">
+    <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; generate-build-metadata &quot;$(MSBuildProjectDirectory)&quot; &quot;$(Configuration)&quot; &quot;$(Platform)&quot; &quot;$(OmniGhostReleaseChannel)&quot; &quot;$(WindowsTargetPlatformVersion)&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
       <Output TaskParameter="ExitCode" PropertyName="OmniGhostBuildMetadataExitCode"/>
     </Exec>
     <Error Condition="'$(OmniGhostBuildMetadataExitCode)'!='0'" Code="OGBLD001" Text="Falha ao gerar os metadados de build do OmniGhost."/>

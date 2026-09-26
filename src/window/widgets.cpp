@@ -161,6 +161,8 @@ namespace CyberWidgets {
             const ImVec2 end(pos.x + size.x, pos.y + size.y);
             const float disabledAlpha = interactive ? 1.0f : 0.48f;
             const ImVec4 semantic = SemanticColor(style);
+            const bool fullMotion = app_settings::MotionEnabled() &&
+                app_settings::config.animation_intensity == app_settings::EffectLevel::Full;
 
             if (style == ButtonStyle::Primary) {
                 const ImVec4 bg = Mix(semantic, CyberTheme::Colors.GoldHover, hover * 0.72f);
@@ -198,6 +200,23 @@ namespace CyberWidgets {
                     WithAlpha(hovered ? CyberTheme::Colors.Gold : CyberTheme::Colors.Border,
                               (hovered ? 0.28f : 0.50f) * disabledAlpha),
                     CyberTheme::Metrics::ControlRounding, 0, 1.0f);
+            }
+
+            // Full mode adds a restrained travelling highlight. Subtle keeps the
+            // colour/elevation interpolation above; Off is completely static.
+            if (fullMotion && hover > 0.01f) {
+                const float phase = std::fmod(static_cast<float>(ImGui::GetTime()) * 0.72f, 1.0f);
+                const float sheenX = pos.x - CyberTheme::Px(38.0f) +
+                    (size.x + CyberTheme::Px(76.0f)) * phase;
+                dl->PushClipRect(pos, end, true);
+                dl->AddRectFilledMultiColor(
+                    ImVec2(sheenX - CyberTheme::Px(25.0f), pos.y),
+                    ImVec2(sheenX + CyberTheme::Px(25.0f), end.y),
+                    IM_COL32(255, 255, 255, 0),
+                    IM_COL32(255, 247, 205, static_cast<int>(18.0f * hover * disabledAlpha)),
+                    IM_COL32(255, 247, 205, static_cast<int>(18.0f * hover * disabledAlpha)),
+                    IM_COL32(255, 255, 255, 0));
+                dl->PopClipRect();
             }
 
             const ImU32 textColor = style == ButtonStyle::Primary
@@ -309,6 +328,13 @@ namespace CyberWidgets {
         const float knob_radius = 8.0f;
         const float knob_x = track_pos.x + 11.0f + progress * (track_width - 22.0f);
         const ImVec2 knob(knob_x, track_pos.y + track_height * 0.5f);
+        const bool fullMotion = app_settings::MotionEnabled() &&
+            app_settings::config.animation_intensity == app_settings::EffectLevel::Full;
+        if (fullMotion && *value) {
+            const float pulse = 0.5f + 0.5f * std::sin(static_cast<float>(ImGui::GetTime()) * 3.2f);
+            dl->AddCircleFilled(knob, knob_radius + 3.0f + pulse * 2.0f,
+                WithAlpha(CyberTheme::Colors.GoldGlow, 0.10f + pulse * 0.09f), 20);
+        }
         dl->AddCircleFilled(ImVec2(knob.x, knob.y + 1.0f), knob_radius,
             CyberTheme::SafeShadowU32(25), 18);
         dl->AddCircleFilled(knob, knob_radius, IM_COL32(250, 250, 252, 255), 18);
@@ -366,6 +392,8 @@ namespace CyberWidgets {
 
         const float transition = CyberAnimations::GetHover(id);
         ImDrawList* dl = ImGui::GetWindowDrawList();
+        const bool fullMotion = app_settings::MotionEnabled() &&
+            app_settings::config.animation_intensity == app_settings::EffectLevel::Full;
         if (transition > 0.01f) {
             const ImVec4 tint = active
                 ? Mix(CyberTheme::Colors.Background,
@@ -378,6 +406,13 @@ namespace CyberWidgets {
         }
 
         if (active) {
+            if (fullMotion) {
+                const float pulse = 0.5f + 0.5f * std::sin(
+                    static_cast<float>(ImGui::GetTime()) * 2.1f + static_cast<float>(id & 7u));
+                dl->AddRectFilled(pos, ImVec2(pos.x + size.x, pos.y + size.y),
+                    WithAlpha(CyberTheme::Colors.GoldGlow, 0.025f + pulse * 0.035f),
+                    CyberTheme::Metrics::ControlRounding);
+            }
             dl->AddRect(pos, ImVec2(pos.x + size.x, pos.y + size.y),
                 WithAlpha(CyberTheme::Colors.Gold, 0.46f),
                 CyberTheme::Metrics::ControlRounding, 0, 1.0f);
@@ -509,6 +544,14 @@ namespace CyberWidgets {
                 ImGui::ColorConvertFloat4ToU32(CyberTheme::Colors.Gold), 2.5f);
 
         const ImVec2 knob(pos.x + width * fraction, track_y + 2.5f);
+        const bool fullMotion = app_settings::MotionEnabled() &&
+            app_settings::config.animation_intensity == app_settings::EffectLevel::Full;
+        if (fullMotion && (hovered || active) && fraction > 0.02f) {
+            const float phase = std::fmod(static_cast<float>(ImGui::GetTime()) * 0.85f, 1.0f);
+            const float glintX = pos.x + width * fraction * phase;
+            dl->AddCircleFilled(ImVec2(glintX, track_y + 2.5f), 4.0f,
+                WithAlpha(CyberTheme::Colors.GoldHover, active ? 0.36f : 0.20f), 14);
+        }
         if (hovered || active)
             dl->AddCircleFilled(knob, 9.0f,
                 WithAlpha(CyberTheme::Colors.GoldGlow, 0.42f), 20);

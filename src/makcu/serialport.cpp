@@ -8,6 +8,7 @@
 #include <string>
 #include <cstring>
 #include <chrono>
+#include <cctype>
 
 #ifdef _WIN32
 #include <setupapi.h>
@@ -788,15 +789,26 @@ namespace makcu {
         for (DWORD i = 0; SetupDiEnumDeviceInfo(deviceInfoSet, i, &deviceInfoData); i++) {
             char description[256] = { 0 };
             char portName[256] = { 0 };
+            char hardwareIds[512] = { 0 };
 
             if (SetupDiGetDeviceRegistryPropertyA(deviceInfoSet, &deviceInfoData,
                 SPDRP_DEVICEDESC, nullptr,
                 reinterpret_cast<BYTE*>(description),
                 sizeof(description), nullptr)) {
                 std::string desc(description);
+                SetupDiGetDeviceRegistryPropertyA(deviceInfoSet, &deviceInfoData,
+                    SPDRP_HARDWAREID, nullptr,
+                    reinterpret_cast<BYTE*>(hardwareIds), sizeof(hardwareIds), nullptr);
+                std::string identity = desc + " " + hardwareIds;
+                std::transform(identity.begin(), identity.end(), identity.begin(),
+                    [](unsigned char ch) { return static_cast<char>(std::toupper(ch)); });
+                const bool makcuIdentity =
+                    identity.find("VID_1A86&PID_55D3") != std::string::npos ||
+                    identity.find("CH343") != std::string::npos ||
+                    identity.find("USB-SERIAL CH340") != std::string::npos ||
+                    identity.find("USB-ENHANCED-SERIAL") != std::string::npos;
 
-                if (desc.find("USB-Enhanced-SERIAL CH343") != std::string::npos ||
-                    desc.find("USB-SERIAL CH340") != std::string::npos) {
+                if (makcuIdentity) {
 
                     HKEY hDeviceKey = SetupDiOpenDevRegKey(deviceInfoSet, &deviceInfoData,
                         DICS_FLAG_GLOBAL, 0,

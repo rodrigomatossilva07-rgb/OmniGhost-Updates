@@ -24,6 +24,7 @@ public:
     LicenseResult Upgrade(std::string_view username, std::string_view licenseKey,
                           std::stop_token stopToken) override;
     void Logout() noexcept override;
+    LicenseResult CheckSession(std::stop_token stopToken) override;
     [[nodiscard]] std::string CurrentUsername() const override;
     [[nodiscard]] std::vector<RemoteEntitlement> CurrentEntitlements() const override;
     [[nodiscard]] bool IsConfigured() const noexcept override;

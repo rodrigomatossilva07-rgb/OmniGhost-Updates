@@ -31,12 +31,17 @@ LicenseResult LicenseGateway::Authenticate(std::string_view licenseKey,
     LicenseResult remote = provider_
         ? provider_->Authenticate(licenseKey, hardwareId, stopToken)
         : Result(LicenseStatus::NotConfigured, "O serviço de licenças ainda não está configurado.", "auth.not_configured");
+    const std::string remoteUsername = remote.Ok() && provider_ ? provider_->CurrentUsername() : std::string{};
+    const auto remoteEntitlements = remote.Ok() && provider_ ? provider_->CurrentEntitlements() : std::vector<RemoteEntitlement>{};
 
     std::scoped_lock lock(mutex_);
     if (remote.Ok()) {
         consecutiveFailures_ = 0;
         lockedUntil_ = {};
         authenticated_ = true;
+        lastRemoteValidation_ = std::chrono::steady_clock::now();
+        currentUsername_ = remoteUsername;
+        currentEntitlements_ = remoteEntitlements;
         offlineHardwareId_ = std::string(hardwareId);
         offlineExpiresAt_ = now + std::chrono::hours(24);
         return remote;
@@ -54,6 +59,8 @@ LicenseResult LicenseGateway::Authenticate(std::string_view licenseKey,
     }
 
     authenticated_ = false;
+    currentUsername_.clear();
+    currentEntitlements_.clear();
     if (!transient && remote.status != LicenseStatus::Cancelled &&
         remote.status != LicenseStatus::NotConfigured) {
         if (++consecutiveFailures_ >= kMaximumFailures) {
@@ -69,19 +76,54 @@ void LicenseGateway::Logout() noexcept {
         provider_->Logout();
     std::scoped_lock lock(mutex_);
     authenticated_ = false;
+    currentUsername_.clear();
+    currentEntitlements_.clear();
 }
 
 bool LicenseGateway::IsAuthenticated() const noexcept {
     std::scoped_lock lock(mutex_);
-    return authenticated_;
+    return authenticated_ &&
+        std::chrono::steady_clock::now() - lastRemoteValidation_ <= std::chrono::minutes(20);
+}
+
+LicenseResult LicenseGateway::Revalidate(std::stop_token stopToken) {
+    if (stopToken.stop_requested())
+        return Result(LicenseStatus::Cancelled, "Revalidação cancelada.", "auth.cancelled");
+    {
+        std::scoped_lock lock(mutex_);
+        if (!authenticated_)
+            return Result(LicenseStatus::Invalid, "Sessão não iniciada.", "auth.session_missing");
+    }
+    const auto result = provider_ ? provider_->CheckSession(stopToken)
+        : Result(LicenseStatus::NotConfigured, "Revalidação indisponível.", "auth.not_configured");
+    const std::string remoteUsername = result.Ok() && provider_ ? provider_->CurrentUsername() : std::string{};
+    const auto remoteEntitlements = result.Ok() && provider_ ? provider_->CurrentEntitlements() : std::vector<RemoteEntitlement>{};
+    std::scoped_lock lock(mutex_);
+    if (result.Ok()) {
+        lastRemoteValidation_ = std::chrono::steady_clock::now();
+        currentUsername_ = remoteUsername;
+        currentEntitlements_ = remoteEntitlements;
+    } else if (result.status != LicenseStatus::Timeout &&
+               result.status != LicenseStatus::Unavailable &&
+               result.status != LicenseStatus::Cancelled) {
+        authenticated_ = false;
+        currentUsername_.clear();
+        currentEntitlements_.clear();
+    }
+    return result;
 }
 
 LicenseResult LicenseGateway::CompleteRemoteOperation(LicenseResult result) {
+    const std::string username = result.Ok() && provider_ ? provider_->CurrentUsername() : std::string{};
+    const auto entitlements = result.Ok() && provider_ ? provider_->CurrentEntitlements() : std::vector<RemoteEntitlement>{};
     std::scoped_lock lock(mutex_);
     authenticated_ = result.Ok();
+    currentUsername_ = username;
+    currentEntitlements_ = entitlements;
     if (result.Ok()) {
         consecutiveFailures_ = 0;
         lockedUntil_ = {};
+        lastRemoteValidation_ = std::chrono::steady_clock::now();
     }
     return result;
 }
@@ -130,11 +172,13 @@ bool LicenseGateway::IsConfigured() const noexcept {
 }
 
 std::string LicenseGateway::CurrentUsername() const {
-    return provider_ ? provider_->CurrentUsername() : std::string{};
+    std::scoped_lock lock(mutex_);
+    return currentUsername_;
 }
 
 std::vector<RemoteEntitlement> LicenseGateway::CurrentEntitlements() const {
-    return provider_ ? provider_->CurrentEntitlements() : std::vector<RemoteEntitlement>{};
+    std::scoped_lock lock(mutex_);
+    return currentEntitlements_;
 }
 
 void LicenseGateway::SetOfflineGrantForTesting(

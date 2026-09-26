@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)][string]$ProjectDir,
     [Parameter(Mandatory = $true)][string]$ReleaseDirectory,
@@ -17,7 +17,7 @@ if ($Version -notmatch '^(0|[1-9]\d*)\.[0-9]\.[0-9]$') {
 
 $required = @(
     'OmniGhost.zip', 'update.json', 'install-manifest.sha256',
-    'SBOM.cdx.json', 'changelog.json', 'release-notes.md', 'release-meta.json'
+    'SBOM.cdx.json', 'changelog.json', 'release-notes.md', 'release-meta.json', 'SHA256SUMS.txt'
 )
 foreach ($name in $required) {
     $path = Join-Path $ReleaseDirectory $name
@@ -25,6 +25,23 @@ foreach ($name in $required) {
         throw "Artefacto obrigatório ausente ou vazio: $name"
     }
 }
+
+$sumsPath = Join-Path $ReleaseDirectory 'SHA256SUMS.txt'
+$expectedNames = @('OmniGhost.zip','update.json','update.json.sig',
+    'install-manifest.sha256','install-manifest.sha256.sig',
+    'SBOM.cdx.json','changelog.json','release-notes.md','release-meta.json')
+$seen = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
+foreach ($line in [IO.File]::ReadAllLines($sumsPath)) {
+    if ($line -cnotmatch '^([0-9A-F]{64})  ([A-Za-z0-9._-]+)$') { throw 'SHA256SUMS.txt contém uma linha inválida.' }
+    $name = $Matches[2]
+    if ($name -notin $expectedNames -or -not $seen.Add($name)) { throw "SHA256SUMS.txt contém um artefacto inesperado ou repetido: $name" }
+    $actual = (Get-FileHash -LiteralPath (Join-Path $ReleaseDirectory $name) -Algorithm SHA256).Hash
+    if ($actual -cne $Matches[1]) { throw "[HASH] SHA-256 incorreto: $name" }
+}
+foreach ($name in $expectedNames) {
+    if (-not $seen.Contains($name)) { throw "SHA256SUMS.txt omite: $name" }
+}
+Write-Host "[HASH] SHA256SUMS.txt validado: $($seen.Count) artefactos."
 
 $zipPath = Join-Path $ReleaseDirectory 'OmniGhost.zip'
 $manifest = Get-Content -LiteralPath (Join-Path $ReleaseDirectory 'update.json') -Raw | ConvertFrom-Json

@@ -99,19 +99,27 @@ namespace makcu_wrapper {
         if (device->isConnected())
             device->disconnect();
 
-        std::string target_port = port;
-        if (target_port.empty()) {
-            target_port = makcu::Device::findFirstDevice();
-            if (target_port.empty())
-                return;
+        std::vector<std::string> candidates;
+        if (!port.empty()) {
+            candidates.push_back(port);
+        } else {
+            for (const auto& found : makcu::Device::findDevices())
+                candidates.push_back(found.port);
         }
-        {
-            std::lock_guard<std::mutex> lock(diag_mutex);
-            std::snprintf(g_state.port, sizeof(g_state.port), "%s", target_port.c_str());
-        }
+        if (candidates.empty()) return;
 
-        if (!device->connect(target_port))
-            return;
+        std::string target_port;
+        for (const auto& candidate : candidates) {
+            {
+                std::lock_guard<std::mutex> lock(diag_mutex);
+                std::snprintf(g_state.port, sizeof(g_state.port), "%s", candidate.c_str());
+            }
+            if (device->connect(candidate)) {
+                target_port = candidate;
+                break;
+            }
+        }
+        if (target_port.empty()) return;
 
         connected = true;
         device->enableHighPerformanceMode(true);

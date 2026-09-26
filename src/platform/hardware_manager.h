@@ -25,7 +25,7 @@ struct State {
 };
 
 struct TimeoutConfig {
-    std::chrono::milliseconds makcuTimeout{2500};
+    std::chrono::milliseconds makcuTimeout{6500};
     std::chrono::milliseconds dmaTimeout{2000};
 };
 
@@ -57,6 +57,7 @@ private:
     std::shared_ptr<ProbeTask> makcuTask_;
     std::shared_ptr<ProbeTask> dmaTask_;
     std::chrono::steady_clock::time_point stageStarted_{};
+    std::chrono::steady_clock::time_point nextMakcuRetry_{};
     TimeoutConfig timeouts_{};
 };
 

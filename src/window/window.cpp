@@ -92,6 +92,27 @@ namespace {
         dl->AddText(ImVec2(pos.x + CyberTheme::Px(16.0f), pos.y + CyberTheme::Px(28.0f)),
             CyberTheme::U32(CyberTheme::Colors.TextDisabled), page.description);
 
+        if (app_settings::MotionEnabled()) {
+            const float sweep = std::fmod(static_cast<float>(ImGui::GetTime()) * 0.18f, 1.0f);
+            const float sweepX = pos.x + CyberTheme::Px(18.f) +
+                (headingWidth - CyberTheme::Px(72.f)) * sweep;
+            dl->PushClipRect(pos, end, true);
+            dl->AddLine(ImVec2(sweepX, end.y - 1.f),
+                ImVec2(sweepX + CyberTheme::Px(44.f), end.y - 1.f),
+                CyberTheme::WithAlpha(CyberTheme::Colors.GoldHover, 0.16f), CyberTheme::Px(1.f));
+            dl->PopClipRect();
+
+            if (app_settings::config.animation_intensity == app_settings::EffectLevel::Full) {
+                const float breathe = 0.5f + 0.5f * std::sin(
+                    static_cast<float>(ImGui::GetTime()) * 1.75f);
+                dl->AddCircleFilled(
+                    ImVec2(end.x - CyberTheme::Px(34.0f), pos.y + headingHeight * 0.5f),
+                    CyberTheme::Px(18.0f + breathe * 6.0f),
+                    CyberTheme::WithAlpha(CyberTheme::Colors.GoldGlow,
+                        0.025f + breathe * 0.035f), 24);
+            }
+        }
+
         ImGui::Dummy(ImVec2(headingWidth, headingHeight + CyberTheme::Metrics::GridGap));
     }
 
@@ -378,6 +399,10 @@ const PerformanceMode::State performance = PerformanceMode::Update(
         rainDensity,
         app_settings::AnimationScale(),
         false);
+    if (rainDensity > 0.0f && (app_settings::menu_open || RenderMenu))
+        DigitalRain::DrawGoldMotif(draw_list, window_pos, window_size,
+            performance.effective, app_settings::AnimationScale(),
+            0.65f, CyberTheme::Metrics::SidebarWidth);
 
     // Static structure stays deliberately quiet; gold is an accent, not a frame.
     DrawTechGrid(draw_list, window_pos, window_size, performance.effective);

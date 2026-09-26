@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Release|x64"><Configuration>Release</Configuration><Platform>x64</Platform></ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{C47319FD-5A16-4C1F-8203-EF6D02F8A604}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>OmniGhostSecurityTests</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType><UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset><CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <PropertyGroup>
+    <OutDir>$(MSBuildProjectDirectory)\..\.cache\tests\$(Configuration)\$(Platform)\</OutDir>
+    <IntDir>$(MSBuildProjectDirectory)\..\.cache\tests\intermediate\$(Configuration)\$(Platform)\</IntDir>
+    <TargetName>OmniGhost.SecurityTests</TargetName>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile><LanguageStandard>stdcpp20</LanguageStandard><WarningLevel>Level4</WarningLevel></ClCompile>
+    <Link><SubSystem>Console</SubSystem></Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="..\src\auth\keyauth_gateway.cpp" />
+    <ClCompile Include="security_gateway_test.cpp" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

@@ -1,10 +1,13 @@
 #include "widgets.h"
 #include "theme.h"
 #include "fonts.h"
+#include "animations.h"
+#include "../config/app_settings.h"
 #include "../ImGui/imgui_internal.h"
 
 #include <algorithm>
 #include <cfloat>
+#include <cmath>
 #include <vector>
 #include <cstdio>
 
@@ -103,13 +106,21 @@ namespace CyberWidgets {
         const ImVec2 a = card.start;
         const ImVec2 b(card.start.x + card.width, end_cursor.y - 2.0f);
 
+        const ImVec2 mouse = ImGui::GetIO().MousePos;
+        const bool hovered = mouse.x >= a.x && mouse.x <= b.x && mouse.y >= a.y && mouse.y <= b.y;
+        const ImGuiID hoverId = card.window->GetID("##card_surface_hover");
+        CyberAnimations::SetHover(hoverId, hovered, 10.0f);
+        const float hover = CyberAnimations::GetHover(hoverId);
+        const bool fullMotion = app_settings::MotionEnabled() &&
+            app_settings::config.animation_intensity == app_settings::EffectLevel::Full;
+
         dl->ChannelsSetCurrent(0);
 
         // Soft elevation instead of a second framed window.
         dl->AddRectFilled(
-            ImVec2(a.x + 1.0f, a.y + 3.0f),
-            ImVec2(b.x + 1.0f, b.y + 4.0f),
-            CyberTheme::SafeShadowU32(24), CyberTheme::Metrics::CardRounding + 1.0f);
+            ImVec2(a.x + 1.0f, a.y + 3.0f - hover),
+            ImVec2(b.x + 1.0f, b.y + 4.0f + hover),
+            CyberTheme::SafeShadowU32(static_cast<int>(24 + 14 * hover)), CyberTheme::Metrics::CardRounding + 1.0f);
         dl->AddRectFilled(
             ImVec2(a.x + 2.0f, a.y + 2.0f),
             ImVec2(b.x + 2.0f, b.y + 3.0f),
@@ -124,6 +135,31 @@ namespace CyberWidgets {
             CyberTheme::Metrics::CardRounding, ImDrawFlags_RoundCornersTop);
         dl->AddRect(a, b, CyberTheme::WithAlpha(CyberTheme::Colors.Border, 0.62f),
             CyberTheme::Metrics::CardRounding, 0, 1.0f);
+        if (hover > 0.01f) {
+            dl->AddRect(a, b, CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.28f * hover),
+                CyberTheme::Metrics::CardRounding, 0, 1.0f + 0.35f * hover);
+            dl->AddRectFilledMultiColor(
+                ImVec2(a.x + CyberTheme::Px(18.f), a.y + 1.f),
+                ImVec2(a.x + CyberTheme::Px(18.f) + card.width * 0.34f * hover, a.y + 2.f),
+                CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.0f),
+                CyberTheme::WithAlpha(CyberTheme::Colors.GoldHover, 0.42f * hover),
+                CyberTheme::WithAlpha(CyberTheme::Colors.GoldHover, 0.42f * hover),
+                CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.0f));
+            if (fullMotion) {
+                const float phase = std::fmod(static_cast<float>(ImGui::GetTime()) * 0.48f, 1.0f);
+                const float sheenX = a.x - CyberTheme::Px(52.f) +
+                    (card.width + CyberTheme::Px(104.f)) * phase;
+                dl->PushClipRect(a, b, true);
+                dl->AddRectFilledMultiColor(
+                    ImVec2(sheenX - CyberTheme::Px(34.f), a.y),
+                    ImVec2(sheenX + CyberTheme::Px(34.f), b.y),
+                    IM_COL32(255, 255, 255, 0),
+                    IM_COL32(224, 188, 70, static_cast<int>(9.f * hover)),
+                    IM_COL32(224, 188, 70, static_cast<int>(9.f * hover)),
+                    IM_COL32(255, 255, 255, 0));
+                dl->PopClipRect();
+            }
+        }
         dl->AddLine(
             ImVec2(a.x + CyberTheme::Metrics::CardPadding,
                    a.y + CyberTheme::Metrics::CardHeaderHeight),
@@ -153,12 +189,6 @@ namespace CyberWidgets {
                 dl->AddText(ImVec2(titleX, a.y + 12.0f),
                     CyberTheme::U32(CyberTheme::Colors.Text), card.title, titleEnd);
 
-            // Soft hover outline only
-            const ImVec2 mouse = ImGui::GetIO().MousePos;
-            if (mouse.x >= a.x && mouse.x <= b.x && mouse.y >= a.y && mouse.y <= b.y) {
-                dl->AddRect(a, b, CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.22f),
-                    CyberTheme::Metrics::CardRounding, 0, 1.0f);
-            }
         }
         dl->ChannelsMerge();
 

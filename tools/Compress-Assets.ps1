@@ -1,4 +1,4 @@
-# Asset Compression Build Script
+﻿# Asset Compression Build Script
 # Compresses images and other assets for embedded resources
 
 param(

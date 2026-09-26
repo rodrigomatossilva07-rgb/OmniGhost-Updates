@@ -776,12 +776,9 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
     if (std::fabs(aim_output_x) > 0.001f || std::fabs(aim_output_y) > 0.001f)
         MoveMouse(aim_output_x, aim_output_y);
 
-    bool local_scoped = false;
-    if (cfg.trigger_scoped_only || cfg.scope_check) {
-        for (const auto& p : rt.players) {
-            if (p.is_local) { local_scoped = p.is_scoped; break; }
-        }
-    }
+    // Local state has a dedicated acquisition lane and is intentionally absent
+    // from the capped remote-player list.
+    const bool local_scoped = rt.local_scoped;
 
     if (cfg.trigger_enabled) {
         static auto lastShot = std::chrono::steady_clock::now();

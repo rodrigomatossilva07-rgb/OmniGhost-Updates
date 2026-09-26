@@ -1,5 +1,7 @@
 @echo off
 setlocal EnableExtensions DisableDelayedExpansion
+rem MSBuild and both PowerShell engines must agree on UTF-8 for accented logs.
+chcp 65001 >nul
 
 if "%~1"=="" goto :usage
 if "%~2"=="" goto :usage
@@ -45,20 +47,17 @@ if defined OMNIGHOST_POWERSHELL (
     if exist "%OMNIGHOST_POWERSHELL%" set "PS_EXE=%OMNIGHOST_POWERSHELL%"
 )
 
-rem Windows PowerShell 5.1 is the compatibility baseline on Windows.
-if not defined PS_EXE (
-    if exist "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" (
-        set "PS_EXE=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
-    )
-)
-
-rem PowerShell 7+ fallback for systems where Windows PowerShell is unavailable.
+rem Prefer PowerShell 7's consistent UTF-8 output where available.
 if not defined PS_EXE (
     if exist "%ProgramFiles%\PowerShell\7\pwsh.exe" set "PS_EXE=%ProgramFiles%\PowerShell\7\pwsh.exe"
 )
 
 if not defined PS_EXE (
     for /f "delims=" %%P in ('where pwsh.exe 2^>nul') do if not defined PS_EXE set "PS_EXE=%%P"
+)
+
+if not defined PS_EXE (
+    if exist "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" set "PS_EXE=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
 )
 
 if not defined PS_EXE (
@@ -203,7 +202,7 @@ exit /b %ERRORLEVEL%
 echo Usage:
 echo   Run-OmniGhostPowerShell.cmd validate-project PROJECT_DIR
 echo   Run-OmniGhostPowerShell.cmd ensure-metadata PROJECT_DIR
-echo   Run-OmniGhostPowerShell.cmd generate-build-metadata PROJECT_DIR [CONFIGURATION] [ARCHITECTURE] [RELEASE_CHANNEL]
+echo   Run-OmniGhostPowerShell.cmd generate-build-metadata PROJECT_DIR [CONFIGURATION] [ARCHITECTURE] [RELEASE_CHANNEL] [WINDOWS_SDK_VERSION]
 echo   Run-OmniGhostPowerShell.cmd generate-embedded-offsets PROJECT_DIR
 echo   Run-OmniGhostPowerShell.cmd generate-embedded-runtime PROJECT_DIR
 echo   Run-OmniGhostPowerShell.cmd validate-embedded-offsets PROJECT_DIR EXECUTABLE

@@ -6,6 +6,8 @@
 #endif
 
 #include <algorithm>
+#include <charconv>
+#include <chrono>
 #include <cctype>
 #include <cwctype>
 #include <cstring>
@@ -28,10 +30,41 @@ LicenseStatus StatusForMessage(std::string_view message) {
         return static_cast<char>(std::tolower(value));
     });
     if (normalized.find("expired") != std::string::npos) return LicenseStatus::Expired;
+    if (normalized.find("timeout") != std::string::npos || normalized.find("timed out") != std::string::npos)
+        return LicenseStatus::Timeout;
+    if (normalized.find("network") != std::string::npos || normalized.find("connection") != std::string::npos ||
+        normalized.find("unavailable") != std::string::npos || normalized.find("could not connect") != std::string::npos ||
+        normalized.find("failed to connect") != std::string::npos || normalized.find("unable to connect") != std::string::npos)
+        return LicenseStatus::Unavailable;
     if (normalized.find("hwid") != std::string::npos) return LicenseStatus::HwidMismatch;
     if (normalized.find("banned") != std::string::npos || normalized.find("revoked") != std::string::npos)
         return LicenseStatus::Revoked;
     return LicenseStatus::Invalid;
+}
+
+std::string SafeExpiryRemaining(std::string_view expiry) noexcept {
+    // KeyAuth returns subscription expiry as Unix seconds. Its bundled
+    // expiry_remaining implementation feeds unchecked data to strftime; the
+    // Windows CRT fail-fasts the entire process for an invalid tm value.
+    long long epochSeconds = 0;
+    const auto parsed = std::from_chars(expiry.data(), expiry.data() + expiry.size(), epochSeconds);
+    if (parsed.ec != std::errc{} || parsed.ptr != expiry.data() + expiry.size() || epochSeconds <= 0)
+        return {};
+
+    const auto nowSeconds = std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count();
+    const long long remaining = epochSeconds - nowSeconds;
+    if (remaining <= 0)
+        return "Expirado";
+
+    const long long days = remaining / 86400;
+    if (days > 0)
+        return std::to_string(days) + (days == 1 ? " dia" : " dias");
+    const long long hours = remaining / 3600;
+    if (hours > 0)
+        return std::to_string(hours) + (hours == 1 ? " hora" : " horas");
+    const long long minutes = (std::max)(1LL, remaining / 60);
+    return std::to_string(minutes) + (minutes == 1 ? " minuto" : " minutos");
 }
 
 #if defined(OMNIGHOST_KEYAUTH_ENABLED) && !defined(OMNIGHOST_SKIP_KEYAUTH)
@@ -273,7 +306,31 @@ LicenseResult KeyAuthRemoteLicenseProvider::Upgrade(std::string_view username, s
 
 void KeyAuthRemoteLicenseProvider::Logout() noexcept {
     std::scoped_lock lock(mutex_);
+#if defined(OMNIGHOST_KEYAUTH_ENABLED) && !defined(OMNIGHOST_SKIP_KEYAUTH)
+    if (initialized_) {
+        try { impl_->api.logout(); } catch (...) { /* Local denial still applies. */ }
+    }
+#endif
     username_.clear();
+}
+
+LicenseResult KeyAuthRemoteLicenseProvider::CheckSession(std::stop_token stopToken) {
+    std::scoped_lock lock(mutex_);
+    if (stopToken.stop_requested())
+        return MakeResult(LicenseStatus::Cancelled, "Revalidação cancelada.", "keyauth.cancelled");
+    if (!initialized_)
+        return MakeResult(LicenseStatus::Invalid, "Sessão KeyAuth não iniciada.", "keyauth.session_missing");
+#if defined(OMNIGHOST_KEYAUTH_ENABLED) && !defined(OMNIGHOST_SKIP_KEYAUTH)
+    try {
+        impl_->api.check();
+        return ResponseResult();
+    } catch (...) {
+        return MakeResult(LicenseStatus::Unavailable, "Serviço KeyAuth temporariamente indisponível.",
+                          "keyauth.recheck_unavailable");
+    }
+#else
+    return MakeResult(LicenseStatus::NotConfigured, "KeyAuth não configurado.", "keyauth.not_configured");
+#endif
 }
 
 std::string KeyAuthRemoteLicenseProvider::CurrentUsername() const {
@@ -289,7 +346,7 @@ std::vector<RemoteEntitlement> KeyAuthRemoteLicenseProvider::CurrentEntitlements
     for (const auto& subscription : impl_->api.user_data.subscriptions) {
         if (!subscription.name.empty()) {
             result.push_back({subscription.name, subscription.expiry,
-                              KeyAuth::api::expiry_remaining(subscription.expiry)});
+                              SafeExpiryRemaining(subscription.expiry)});
         }
     }
 #endif

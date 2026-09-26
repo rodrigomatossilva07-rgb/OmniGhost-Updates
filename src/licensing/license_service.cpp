@@ -2,12 +2,15 @@
 #include "../auth/keyauth_remote_provider.h"
 #include "../platform/app_paths.h"
 #include "../platform/scope_exit.h"
+#include "../security/security_manager.h"
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <Windows.h>
 #include <wincrypt.h>
 #include <algorithm>
+#include <chrono>
+#include <condition_variable>
 #include <cctype>
 #include <cstdint>
 #include <cstring>
@@ -15,6 +18,7 @@
 #include <iterator>
 #include <memory>
 #include <mutex>
+#include <thread>
 #include <utility>
 #pragma comment(lib, "crypt32.lib")
 
@@ -26,6 +30,56 @@ OmniGhost::Auth::LicenseGateway& RemoteGateway() {
     static OmniGhost::Auth::LicenseGateway gateway(
         std::make_shared<OmniGhost::Auth::KeyAuthRemoteLicenseProvider>());
     return gateway;
+}
+std::mutex& RevalidatorMutex() {
+    static std::mutex mutex;
+    return mutex;
+}
+std::jthread& RevalidatorThread() {
+    static std::jthread worker;
+    return worker;
+}
+void StopRevalidator() {
+    std::scoped_lock lock(RevalidatorMutex());
+    auto& worker = RevalidatorThread();
+    if (worker.joinable()) {
+        worker.request_stop();
+        worker.join();
+    }
+}
+void StartRevalidator() {
+    // Construct the gateway before the worker so the worker is destroyed first.
+    auto& gateway = RemoteGateway();
+    std::scoped_lock lock(RevalidatorMutex());
+    auto& worker = RevalidatorThread();
+    if (worker.joinable()) return;
+    worker = std::jthread([&gateway](std::stop_token stop) {
+        std::mutex waitMutex;
+        std::condition_variable_any wake;
+        std::unique_lock waitLock(waitMutex);
+        bool degraded = false;
+        while (!stop.stop_requested()) {
+            if (wake.wait_for(waitLock, stop, std::chrono::minutes(15), [] { return false; })) break;
+            if (stop.stop_requested()) break;
+            waitLock.unlock();
+            const auto result = gateway.Revalidate(stop);
+            if (stop.stop_requested() || result.status == OmniGhost::Auth::LicenseStatus::Cancelled)
+                break;
+            if (!result.Ok()) {
+                degraded = true;
+                OmniGhost::Security::SecurityManager::Instance().Record(
+                    result.status == OmniGhost::Auth::LicenseStatus::Timeout ||
+                    result.status == OmniGhost::Auth::LicenseStatus::Unavailable
+                        ? OmniGhost::Security::EventId::SessionUnavailable
+                        : OmniGhost::Security::EventId::SessionInvalid);
+            } else if (degraded) {
+                degraded = false;
+                OmniGhost::Security::SecurityManager::Instance().Record(
+                    OmniGhost::Security::EventId::SessionRestored);
+            }
+            waitLock.lock();
+        }
+    });
 }
 void ApplyRemoteState(Snapshot& snapshot) {
     auto& gateway = RemoteGateway();
@@ -137,16 +191,20 @@ OmniGhost::Auth::LicenseResult Upgrade(std::string_view username, std::string_vi
     return RemoteGateway().Upgrade(username, licenseKey);
 }
 void LogoutRemote() noexcept {
+    StopRevalidator();
     RemoteGateway().Logout();
     ClearRememberedRemoteCredentials();
     Refresh();
 }
+void StartSessionRevalidation() { StartRevalidator(); }
+void ShutdownSessionRevalidation() noexcept { StopRevalidator(); }
 bool IsRemoteConfigured() noexcept { return RemoteGateway().IsConfigured(); }
 bool IsRemoteAuthenticated() noexcept { return RemoteGateway().IsAuthenticated(); }
 std::string RemoteUsername() { return RemoteGateway().CurrentUsername(); }
 bool HasGameAccess(std::string_view productId) {
     constexpr std::string_view kProducts[]{"fivem", "cs2", "rust", "warzone", "apex", "fortnite"};
     return std::find(std::begin(kProducts), std::end(kProducts), productId) != std::end(kProducts) &&
+           OmniGhost::Security::SecurityManager::Instance().CanUseProtectedFeatures() &&
            IsRemoteAuthenticated() && RemoteEntitlementGrants(productId);
 }
 std::string GameAccessDuration(std::string_view productId) {

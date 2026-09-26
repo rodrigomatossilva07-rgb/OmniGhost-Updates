@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)][string]$ProjectDir,
     [int]$MaximumDirectLiterals = 281,
