@@ -42,9 +42,12 @@ try {
     $primaryHash = (Get-FileHash -LiteralPath $PrimaryExecutable -Algorithm SHA256).Hash.ToLowerInvariant()
     $secondHash = (Get-FileHash -LiteralPath $secondExecutable -Algorithm SHA256).Hash.ToLowerInvariant()
     if ($primaryHash -cne $secondHash) {
-        throw "Independent rebuild differs byte-for-byte. primary=$primaryHash independent=$secondHash"
+        $diagnosticsDir = Join-Path $ProjectDir '.cache\repro-diagnostics'
+        [IO.Directory]::CreateDirectory($diagnosticsDir) | Out-Null
+        Copy-Item -LiteralPath $PrimaryExecutable -Destination (Join-Path $diagnosticsDir 'primary.exe') -Force
+        Copy-Item -LiteralPath $secondExecutable -Destination (Join-Path $diagnosticsDir 'independent.exe') -Force
+        throw "Independent rebuild differs byte-for-byte. primary=$primaryHash independent=$secondHash diagnostics=$diagnosticsDir"
     }
-
     $metadata = Get-Content -LiteralPath $metadataPath -Raw | ConvertFrom-Json
     if ([string]$metadata.commit_id -cne $commit -or $metadata.dirty -eq $true -or
         $metadata.reproducibility_prerequisites_met -ne $true) {

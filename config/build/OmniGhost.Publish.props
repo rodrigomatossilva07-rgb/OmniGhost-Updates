@@ -12,6 +12,11 @@
       <PreprocessorDefinitions>OMNIGHOST_PUBLISH_BUILD=1;OMNIGHOST_KEYAUTH_ENABLED=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <!-- /Brepro also has to be applied while compiling: linker /Brepro alone
+           cannot remove checkout-specific paths already stored in .obj files.
+           Map every checkout root to the same virtual source directory so the
+           normal build and the detached verification worktree are identical. -->
+      <AdditionalOptions>/Brepro &quot;/pathmap:$(MSBuildProjectDirectory)=X:\OmniGhost&quot; %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>OMNIGHOST_PUBLISH_BUILD=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
