@@ -16,7 +16,7 @@
            cannot remove checkout-specific paths already stored in .obj files.
            Map every checkout root to the same virtual source directory so the
            normal build and the detached verification worktree are identical. -->
-      <AdditionalOptions>/Brepro &quot;/pathmap:$(MSBuildProjectDirectory)=X:\OmniGhost&quot; %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/experimental:deterministic /Brepro &quot;/pathmap:$(MSBuildProjectDirectory)=X:\OmniGhost&quot; %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>OMNIGHOST_PUBLISH_BUILD=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>

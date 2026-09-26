@@ -58,6 +58,12 @@ private:
 
 	}
 
+	// Publish builds use MSVC deterministic mode, where __TIME__ is deliberately
+	// unavailable. A stable non-zero key keeps the strings obfuscated while
+	// allowing two independent builds of the same source to be byte-identical.
+#if defined(OMNIGHOST_PUBLISH_BUILD)
+	static constexpr auto XOR_KEY = static_cast<value_type>(0x5A3D);
+#else
 	static constexpr auto XOR_KEY = static_cast<value_type>(
 		const_atoi(__TIME__[7]) +
 		const_atoi(__TIME__[6]) * 10 +
@@ -66,6 +72,7 @@ private:
 		const_atoi(__TIME__[1]) * 3600 +
 		const_atoi(__TIME__[0]) * 36000
 		);
+#endif
 
 	static ALWAYS_INLINE constexpr auto crypt(value_type c, size_t i)
 	{

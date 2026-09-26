@@ -130,7 +130,11 @@ namespace skc
 	};
 }
 
+#if defined(OMNIGHOST_PUBLISH_BUILD)
+#define skCrypt(str) skCrypt_key(str, '5', '7')
+#else
 #define skCrypt(str) skCrypt_key(str, __TIME__[4], __TIME__[7])
+#endif
 #define skCrypt_key(str, key1, key2) []() { \
 			constexpr static auto crypted = skc::skCrypter \
 				<sizeof(str) / sizeof(str[0]), key1, key2, skc::clean_type<decltype(str[0])>>((skc::clean_type<decltype(str[0])>*)str); \

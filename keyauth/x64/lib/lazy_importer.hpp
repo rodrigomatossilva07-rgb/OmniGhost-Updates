@@ -67,8 +67,13 @@
 #define LAZY_IMPORTER_STRINGIZE(x) #x
 #define LAZY_IMPORTER_STRINGIZE_EXPAND(x) LAZY_IMPORTER_STRINGIZE(x)
 
+#if defined(OMNIGHOST_PUBLISH_BUILD)
+#define LAZY_IMPORTER_KHASH(str) ::li::detail::khash(str, \
+    ::li::detail::khash_impl( "OmniGhostPublish" LAZY_IMPORTER_STRINGIZE_EXPAND(__LINE__) LAZY_IMPORTER_STRINGIZE_EXPAND(__COUNTER__), 2166136261 ))
+#else
 #define LAZY_IMPORTER_KHASH(str) ::li::detail::khash(str, \
     ::li::detail::khash_impl( __TIME__ __DATE__ LAZY_IMPORTER_STRINGIZE_EXPAND(__LINE__) LAZY_IMPORTER_STRINGIZE_EXPAND(__COUNTER__), 2166136261 ))
+#endif
 
 namespace li { namespace detail {
 
