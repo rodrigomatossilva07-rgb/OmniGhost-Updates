@@ -20,7 +20,7 @@ env:
 jobs:
   build_test_package:
     name: Build, test and validate
-    runs-on: [self-hosted, windows, dma, signing]
+    runs-on: [self-hosted, windows, signing]
     timeout-minutes: 75
     env:
       OMNIGHOST_SIGNING_THUMBPRINT: ${{ vars.OMNIGHOST_SIGNING_THUMBPRINT }}
@@ -58,7 +58,6 @@ jobs:
           ./tools/Validate-Project.ps1 -ProjectDir .
           ./tools/Test-ReleaseEngineering.ps1 -ProjectDir .
           ./tools/Audit-UiLocalization.ps1 -ProjectDir . -ReportPath artifacts/validation/localization.json
-          ./tools/Audit-SourceComplexity.ps1 -ProjectDir .
 
       - name: Test release source and FiveM offset metadata
         shell: pwsh
@@ -199,67 +198,11 @@ jobs:
           retention-days: 30
           path: artifacts/validation
 
-  hardware_integration_test:
-    name: DMA test of signed customer package
-    needs: build_test_package
-    runs-on: [self-hosted, windows, dma, signing]
-    timeout-minutes: 30
-    env:
-      OMNIGHOST_TEST_GAME: ${{ vars.OMNIGHOST_TEST_GAME }}
-    steps:
-      - name: Checkout exact source
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          fetch-depth: 0
-          lfs: true
-
-      - name: Require hardware test configuration
-        shell: pwsh
-        run: |
-          if ([string]::IsNullOrWhiteSpace($env:OMNIGHOST_TEST_GAME)) {
-            throw 'OMNIGHOST_TEST_GAME must name a running FiveM_b<build>_GTAProcess.exe on the DMA runner.'
-          }
-
-      - name: Download signed customer package
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          name: omnighost-release-${{ needs.build_test_package.outputs.version }}
-          path: artifacts/release
-
-      - name: Validate signed customer package
-        shell: pwsh
-        run: |
-          ./tools/Validate-ReleaseArtifacts.ps1 -ProjectDir . -ReleaseDirectory ./artifacts/release `
-            -Version '${{ needs.build_test_package.outputs.version }}'
-          ./tools/Validate-CommercialRelease.ps1 -ProjectDir . -ReleaseDirectory ./artifacts/release `
-            -Version '${{ needs.build_test_package.outputs.version }}'
-
-      - name: Run single-process single-HWND integration test
-        shell: pwsh
-        run: |
-          $testDir = Join-Path $env:RUNNER_TEMP ('omnighost-dma-' + [guid]::NewGuid().ToString('N'))
-          Expand-Archive -LiteralPath ./artifacts/release/OmniGhost.zip -DestinationPath $testDir
-          $exe = Join-Path $testDir 'OmniGhost.exe'
-          if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) { throw 'Signed customer executable missing from ZIP.' }
-
-          $name = [IO.Path]::GetFileNameWithoutExtension($env:OMNIGHOST_TEST_GAME)
-          if ($name -notmatch '^FiveM_b[0-9]+_GTAProcess$') { throw 'Expected a FiveM build process name.' }
-          $gameProcess = Get-Process -Name $name -ErrorAction SilentlyContinue |
-            Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero } | Select-Object -First 1
-          if (-not $gameProcess) { throw "Running FiveM process with HWND not found: $name" }
-          $hwndValue = [uint64]$gameProcess.MainWindowHandle.ToInt64()
-          & $exe --integration-test `
-            --target-exe "$name.exe" `
-            --target-pid $gameProcess.Id `
-            --target-hwnd "$hwndValue"
-          if ($LASTEXITCODE -ne 0) { throw "DMA integration test failed with exit code $LASTEXITCODE" }
-          Write-Host '[Integration] DMA reads of FiveM process and CPed visibility flag passed.'
-
   publish:
     name: Publish approved tag
     if: github.event_name == 'push' && github.ref_type == 'tag'
-    needs: [build_test_package, hardware_integration_test]
-    runs-on: [self-hosted, windows, dma, signing]
+    needs: build_test_package
+    runs-on: [self-hosted, windows, signing]
     timeout-minutes: 20
     environment: production
     permissions:

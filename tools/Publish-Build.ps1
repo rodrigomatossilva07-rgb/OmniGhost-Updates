@@ -135,7 +135,7 @@ $ReleaseDirectory = [IO.Path]::GetFullPath((Join-Path $ReleaseDirectory '.'))
     -ProjectDir $ProjectDir -ReleaseDirectory $ReleaseDirectory -Version $version
 & (Join-Path $ProjectDir 'tools\Validate-ReleaseArtifacts.ps1') `
     -ProjectDir $ProjectDir -ReleaseDirectory $ReleaseDirectory -Version $version
-Write-Host '[OmniGhost Publish] Pacote comercial local validado. A publicação remota depende do workflow com teste DMA obrigatório.'
+Write-Host '[OmniGhost Publish] Pacote comercial local validado. A publicação remota depende do workflow de build, assinatura e integridade.'
 if (-not $ValidateOnly -and -not $SkipRemoteUpload -and -not $usingApprovedSourceSnapshot) {
     $git = Get-Command git -ErrorAction Stop
     $tag = "v$version"
@@ -149,7 +149,7 @@ if (-not $ValidateOnly -and -not $SkipRemoteUpload -and -not $usingApprovedSourc
     if ($LASTEXITCODE -ne 0) {
         throw "O pacote local foi validado, mas o push da tag $tag falhou. Corrige a ligação/autenticação e repete Publish; não movas a tag."
     }
-    Write-Host "[OmniGhost Publish] Tag $tag enviada. O workflow GitHub publica apenas após os testes obrigatórios de DMA."
+    Write-Host "[OmniGhost Publish] Tag $tag enviada. O workflow GitHub publica após validar build, assinatura e artefactos."
 }
 }
 finally {
