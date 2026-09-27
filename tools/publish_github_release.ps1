@@ -21,7 +21,6 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'Hashing.ps1')
 
 if (-not $InternalConfirmed) { throw 'Direct publication is blocked. Use tools\Publish-Release.ps1 with the explicit -Confirm phrase.' }
-if (-not $ValidateOnly) { throw 'Publicação direta desativada: a release deve passar pelo workflow de build, assinatura e integridade.' }
 
 $ProjectDir = [System.IO.Path]::GetFullPath((Join-Path $ProjectDir '.'))
 $ReleaseDirectory = [System.IO.Path]::GetFullPath((Join-Path $ReleaseDirectory '.'))
@@ -91,7 +90,9 @@ function Get-RequiredAssets {
         'install-manifest.sha256',
         'SBOM.cdx.json',
         'changelog.json',
-        'release-notes.md'
+        'release-notes.md',
+        'release-meta.json',
+        'SHA256SUMS.txt'
     )
     if ($RequireSignatures) {
         $assets += 'update.json.sig'

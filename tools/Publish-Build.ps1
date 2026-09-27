@@ -149,7 +149,13 @@ if (-not $ValidateOnly -and -not $SkipRemoteUpload -and -not $usingApprovedSourc
     if ($LASTEXITCODE -ne 0) {
         throw "O pacote local foi validado, mas o push da tag $tag falhou. Corrige a ligação/autenticação e repete Publish; não movas a tag."
     }
-    Write-Host "[OmniGhost Publish] Tag $tag enviada. O workflow GitHub publica após validar build, assinatura e artefactos."
+    Write-Host "[OmniGhost Publish] Tag $tag enviada. A publicar diretamente os artefactos locais já validados."
+    & (Join-Path $ProjectDir 'tools\publish_github_release.ps1') `
+        -ProjectDir $ProjectDir -Version $version -ReleaseDirectory $ReleaseDirectory -InternalConfirmed
+    if ($LASTEXITCODE -ne 0) {
+        throw "A tag $tag foi enviada, mas o upload da Release para o GitHub falhou com código $LASTEXITCODE."
+    }
+    Write-Host "[OmniGhost Publish] Release $tag publicada e confirmada no GitHub."
 }
 }
 finally {

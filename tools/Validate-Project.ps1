@@ -212,7 +212,7 @@ Require-Text $publishBuild "metadata\.configuration -cne 'Publish'" 'Publisher r
 Require-Text $publishBuild 'build\\Publish' 'Publisher accepts only the isolated Publish output.'
 Require-Text $publishBuild 'Validate-CommercialRelease\.ps1' 'Publish build validates its signed local package.'
 $directPublisher = Read-Utf8Text (Join-Path $ProjectDir 'tools\publish_github_release.ps1')
-Require-Text $directPublisher 'if \(-not \$ValidateOnly\)' 'Direct publication cannot bypass the validated release workflow.'
+Require-Text $publishBuild 'publish_github_release\.ps1' 'Publish uploads validated local artifacts directly after packaging.'
 
 $publishConfig = Read-Utf8Text (Join-Path $ProjectDir 'config\release\release-publish.json') | ConvertFrom-Json
 if ($publishConfig.publishAfterBuild -ne $true) { Fail 'Publish must publish automatically after a successful build.' }

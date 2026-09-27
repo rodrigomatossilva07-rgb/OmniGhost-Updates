@@ -52,6 +52,7 @@ Assert ($policy.allowDeterministicSourceSnapshot -eq $true) 'Deterministic sourc
 Assert ($policy.requireAuthenticode -eq $true -and $policy.requireManifestSignature -eq $true) 'Commercial release signatures must be mandatory.'
 
 $project = [IO.File]::ReadAllText((Join-Path $ProjectDir 'OmiGhost.vcxproj'))
+$publishBuild = [IO.File]::ReadAllText((Join-Path $ProjectDir 'tools\Publish-Build.ps1'))
 Assert ($project -match 'PublishOmniGhostRelease') 'Publish remote target is missing.'
 Assert ($project -match 'prepare-publish-version') 'Publish version preparation target is missing.'
 Assert ($project -match 'OmniGhostSkipVersionAdvance') 'Publish version preparation cannot be disabled for CI/preflight.'
@@ -59,13 +60,14 @@ Assert ($project -match "'\$\(Configuration\)'=='Publish'.*OmniGhostSkipRemotePu
 Assert ($project -notmatch "'\$\(Configuration\)'=='Release'.*publish-build") 'Release invokes remote publication.'
 
 $workflow = [IO.File]::ReadAllText((Join-Path $ProjectDir '.github\workflows\release.yml'))
-Assert ($workflow -match "tags:\s*[\r\n]+\s+- 'v\*'") 'Workflow is not tag-driven.'
+Assert ($workflow -match 'workflow_dispatch:') 'Manual recovery workflow is unavailable.'
 Assert ($workflow -match 'environment:\s*production') 'Production approval environment is missing.'
 Assert ($workflow -match 'needs:\s*build_test_package') 'Publication does not require the validated build/package job.'
 Assert ($workflow -match 'Mode Commercial') 'Release workflow does not package a signed commercial build.'
 Assert ($workflow -match 'Validate-CommercialRelease\.ps1') 'Commercial signatures are not validated in the workflow.'
 Assert ($workflow -notmatch 'DISCORD_WEBHOOK_URL|Notify-DiscordRelease') 'Removed Discord webhook is still referenced by the workflow.'
 Assert ($workflow -notmatch 'hardware_integration_test|OMNIGHOST_TEST_GAME') 'Obsolete mandatory DMA release gate is still configured.'
+Assert ($publishBuild -match 'publish_github_release\.ps1') 'Publish build does not upload its validated local artifacts directly.'
 Assert ($workflow -match 'lfs:\s*true') 'Release checkout does not fetch Git LFS assets.'
 Assert ($workflow -match 'Validate-ReleaseArtifacts\.ps1') 'Workflow does not validate the final ZIP.'
 Assert ($workflow -match 'SBOM\.cdx\.json') 'Workflow does not publish the SBOM.'

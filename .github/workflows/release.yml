@@ -1,9 +1,6 @@
 name: Build, test and release OmniGhost
 
 on:
-  push:
-    tags:
-      - 'v*'
   workflow_dispatch:
 
 permissions:
@@ -127,7 +124,7 @@ jobs:
 
   publish:
     name: Publish approved tag
-    if: github.event_name == 'push' && github.ref_type == 'tag'
+    if: github.ref_type == 'tag'
     needs: build_test_package
     runs-on: [self-hosted, windows, signing]
     timeout-minutes: 20

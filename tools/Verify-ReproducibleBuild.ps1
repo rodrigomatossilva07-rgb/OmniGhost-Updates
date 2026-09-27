@@ -12,6 +12,17 @@ $PrimaryExecutable = [IO.Path]::GetFullPath($PrimaryExecutable)
 $MSBuildPath = [IO.Path]::GetFullPath($MSBuildPath)
 $metadataPath = Join-Path $ProjectDir '.cache\generated\Publish\x64\build-metadata.json'
 
+function Get-Sha256([string]$LiteralPath) {
+    $stream = [IO.File]::OpenRead($LiteralPath)
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try {
+        return ([BitConverter]::ToString($sha.ComputeHash($stream))).Replace('-','').ToLowerInvariant()
+    } finally {
+        $sha.Dispose()
+        $stream.Dispose()
+    }
+}
+
 if (-not (Test-Path -LiteralPath $PrimaryExecutable -PathType Leaf)) { throw "Primary unsigned executable missing: $PrimaryExecutable" }
 if (-not (Test-Path -LiteralPath $MSBuildPath -PathType Leaf)) { throw "MSBuild missing: $MSBuildPath" }
 if (-not (Test-Path -LiteralPath $metadataPath -PathType Leaf)) { throw "Publish metadata missing: $metadataPath" }
@@ -39,8 +50,8 @@ try {
 
     $secondExecutable = Join-Path $reproRoot 'build\Publish\OmniGhost.exe'
     if (-not (Test-Path -LiteralPath $secondExecutable -PathType Leaf)) { throw 'Independent rebuild did not produce OmniGhost.exe.' }
-    $primaryHash = (Get-FileHash -LiteralPath $PrimaryExecutable -Algorithm SHA256).Hash.ToLowerInvariant()
-    $secondHash = (Get-FileHash -LiteralPath $secondExecutable -Algorithm SHA256).Hash.ToLowerInvariant()
+    $primaryHash = Get-Sha256 -LiteralPath $PrimaryExecutable
+    $secondHash = Get-Sha256 -LiteralPath $secondExecutable
     if ($primaryHash -cne $secondHash) {
         $diagnosticsDir = Join-Path $ProjectDir '.cache\repro-diagnostics'
         [IO.Directory]::CreateDirectory($diagnosticsDir) | Out-Null
