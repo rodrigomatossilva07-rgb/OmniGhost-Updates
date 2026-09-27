@@ -57,11 +57,25 @@ try {
     if (-not $auth.SignerCertificate) { throw 'Packaged OmniGhost.exe does not expose a signer certificate.' }
     if (($auth.SignerCertificate.Thumbprint -replace '\s','').ToUpperInvariant() -ne $thumb) { throw 'Packaged OmniGhost.exe signer thumbprint does not match the trusted publisher.' }
     if ([string]$auth.SignerCertificate.Subject -ne $subject) { throw 'Packaged OmniGhost.exe signer subject does not match expectedPublisherSubject.' }
-    if (-not $auth.TimeStamperCertificate) { throw 'Packaged OmniGhost.exe is missing an RFC3161 timestamp.' }
+    # A public timestamp authority cannot provide meaningful long-term trust to
+    # the local self-signed development identity. Sign-AuthenticodeFile.ps1
+    # deliberately omits /tr for that identity. Production certificates still
+    # fail closed unless an RFC3161 countersignature is present.
+    $isSelfSignedDevelopment =
+        ([string]$auth.SignerCertificate.Subject -ceq [string]$auth.SignerCertificate.Issuer)
+    if (-not $isSelfSignedDevelopment -and -not $auth.TimeStamperCertificate) {
+        throw 'Packaged OmniGhost.exe is missing an RFC3161 timestamp.'
+    }
     $signTool = 'C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\signtool.exe'
     if (-not (Test-Path -LiteralPath $signTool -PathType Leaf)) { throw "Required SignTool is missing: $signTool" }
-    & $signTool verify /pa /tw /v $exe
+    $verifyArguments = @('verify','/pa','/v')
+    if (-not $isSelfSignedDevelopment) { $verifyArguments += '/tw' }
+    $verifyArguments += $exe
+    & $signTool @verifyArguments
     if ($LASTEXITCODE -ne 0) { throw "Packaged OmniGhost.exe failed SignTool verification ($LASTEXITCODE)." }
+    if ($isSelfSignedDevelopment) {
+        Write-Warning '[OmniGhost Commercial] Development certificate is self-signed; RFC3161 is intentionally not required. This package is not publicly trusted on customer computers.'
+    }
 
     # Ensure this executable was actually compiled after release_trust.h was configured.
     # A stale executable can still be signed after the fact, but would not enforce
