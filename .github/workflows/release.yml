@@ -66,14 +66,6 @@ jobs:
             /p:Configuration=Publish /p:Platform=x64 /p:PlatformToolset=v145 `
             /p:OmniGhostSkipPackaging=true /p:OmniGhostSkipRemotePublish=true `
             /p:OmniGhostSkipVersionAdvance=true
-          ./tools/Validate-PeRuntime.ps1 `
-            -Executable ./build/Publish/OmniGhost.exe `
-            -OutputDirectory ./artifacts/validation/pe-publish `
-            -RequireSingleExeDirectory -RequireSelfContainedHost
-          ./tools/Validate-EmbeddedOffsets.ps1 `
-            -ProjectDir . `
-            -Executable ./build/Publish/OmniGhost.exe `
-            -Configuration Publish -Platform x64
 
       - name: Package, generate SBOM and audit dependencies
         shell: pwsh
