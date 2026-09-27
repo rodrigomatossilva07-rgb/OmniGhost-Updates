@@ -18,6 +18,7 @@
 *.json5 text eol=lf
 *.md text eol=lf
 *.txt text eol=lf
+LICENSE text eol=lf
 *.py text eol=lf
 # KeyAuth ships curl build metadata for upstream builds. It is not compiled by
 # OmniGhost, but keeping it in LF avoids Git conversion noise during Publish.
