@@ -543,6 +543,9 @@ try {
                 ProjectDir = $ProjectDir
                 Version = $Version
                 OutputDir = $ArtifactOutputDir
+                # Publishing must not modify tracked source files. The release
+                # changelog and notes live in the validated artifact directory.
+                SkipRootChangelog = $true
             }
             if (-not [string]::IsNullOrWhiteSpace($SemanticAnalysisPath) -and
                 (Test-Path -LiteralPath $SemanticAnalysisPath -PathType Leaf)) {
