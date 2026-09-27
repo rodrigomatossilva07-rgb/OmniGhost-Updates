@@ -218,7 +218,7 @@
     <Error Condition="'$(OmniGhostReleaseSigningExitCode)'!='0'" Code="OGREL001" Text="Release compilou, mas a assinatura ou verificação do OmniGhost.exe falhou. Consulta a primeira mensagem [SIGN]/[VERIFY]."/>
   </Target>
   <Target Name="VerifyOmniGhostReproducibility" AfterTargets="ValidateOmniGhostSingleExeRuntime"
-          Condition="'$(Configuration)'=='Publish' And '$(DesignTimeBuild)'!='true' And '$(OmniGhostPayloadBuild)'!='true' And '$(OmniGhostReproducibilityPass)'!='true' And '$(OmniGhostSkipRemotePublish)'!='true'">
+          Condition="'$(Configuration)'=='Publish' And '$(DesignTimeBuild)'!='true' And '$(OmniGhostPayloadBuild)'!='true' And '$(OmniGhostReproducibilityPass)'!='true'">
     <Message Importance="High" Text="[OmniGhost Repro] A executar uma segunda build isolada e comparar o executável byte-for-byte."/>
     <Exec Command="powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(ProjectDir)tools\Verify-ReproducibleBuild.ps1&quot; -ProjectDir &quot;$(ProjectDir).&quot; -PrimaryExecutable &quot;$(TargetPath)&quot; -MSBuildPath &quot;$(MSBuildToolsPath)\MSBuild.exe&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
       <Output TaskParameter="ExitCode" PropertyName="OmniGhostReproducibilityExitCode"/>
