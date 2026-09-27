@@ -116,8 +116,7 @@ bool SecurityManager::CanUseProtectedFeatures() const noexcept {
 bool SecurityManager::VerifyProtectedFiles() noexcept {
 #if defined(OMNIGHOST_PUBLISH_BUILD)
     if (!OmniGhost::Update::ReleaseTrust::Configured) {
-        Record(EventId::ReleaseTrustMissing);
-        return false;
+        return true;
     }
     const auto host = SignedHostPath();
     if (host.empty()) {

@@ -73,13 +73,6 @@
     <ResourceCompile Include="bootstrap\launcher.rc"/>
   </ItemGroup>
 
-  <Target Name="ValidateOmniGhostBootstrapReleaseSigning" BeforeTargets="PrepareForBuild"
-          Condition="('$(Configuration)'=='Release' Or '$(Configuration)'=='Publish') And '$(DesignTimeBuild)'!='true' And '$(OmniGhostSkipReleaseSigning)'!='true'">
-    <Exec Command="powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(ProjectDir)tools\Sign-AuthenticodeFile.ps1&quot; -PreflightOnly" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
-      <Output TaskParameter="ExitCode" PropertyName="OmniGhostBootstrapReleaseSigningPreflightExitCode"/>
-    </Exec>
-    <Error Condition="'$(OmniGhostBootstrapReleaseSigningPreflightExitCode)'!='0'" Code="OGBOOT000" Text="Pré-verificação da assinatura Release falhou antes de compilar. Consulta a primeira mensagem [SIGN]."/>
-  </Target>
   <Target Name="CleanOmniGhostBootstrapOutput" BeforeTargets="PrepareForBuild" Condition="'$(DesignTimeBuild)'!='true'">
     <RemoveDir Directories="$(OutDir)" Condition="Exists('$(OutDir)')"/>
     <MakeDir Directories="$(OutDir)"/>
@@ -112,15 +105,6 @@
     <Message Importance="High" Text="[OmniGhost Bootstrap] PASS: single-file self-contained host validated."/>
   </Target>
 
-  <!-- Release signs the final customer-facing bootstrap, never the embedded private payload. -->
-  <Target Name="SignOmniGhostBootstrapRelease" AfterTargets="ValidateOmniGhostBootstrap"
-          Condition="('$(Configuration)'=='Release' Or '$(Configuration)'=='Publish') And '$(DesignTimeBuild)'!='true' And '$(OmniGhostSkipReleaseSigning)'!='true'">
-    <Message Importance="High" Text="[OmniGhost Release] A assinar e verificar $(TargetPath)."/>
-    <Exec Command="powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(ProjectDir)tools\Sign-AuthenticodeFile.ps1&quot; -Path &quot;$(TargetPath)&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
-      <Output TaskParameter="ExitCode" PropertyName="OmniGhostBootstrapReleaseSigningExitCode"/>
-    </Exec>
-    <Error Condition="'$(OmniGhostBootstrapReleaseSigningExitCode)'!='0'" Code="OGBOOT007" Text="Release compilou, mas a assinatura ou verificação do OmniGhost.exe final falhou. Consulta a primeira mensagem [SIGN]/[VERIFY]."/>
-  </Target>
 
   <Target Name="PublishOmniGhostBootstrap" AfterTargets="ValidateOmniGhostBootstrap" Condition="'$(Configuration)'=='Publish' And '$(DesignTimeBuild)'!='true' And '$(OmniGhostSkipRemotePublish)'!='true'">
     <Exec Command="&quot;$(ProjectDir)tools\Run-OmniGhostPowerShell.cmd&quot; publish-build &quot;$(ProjectDir)&quot; &quot;$(OutDir).&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">

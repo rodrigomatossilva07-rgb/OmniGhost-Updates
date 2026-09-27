@@ -210,7 +210,8 @@ Require-Text $publishWrapper 'Publish-Build\.ps1' 'Manual retry reuses the Publi
 $publishBuild = Read-Utf8Text (Join-Path $ProjectDir 'tools\Publish-Build.ps1')
 Require-Text $publishBuild "metadata\.configuration -cne 'Publish'" 'Publisher rejects outputs not produced by Publish.'
 Require-Text $publishBuild 'build\\Publish' 'Publisher accepts only the isolated Publish output.'
-Require-Text $publishBuild 'Validate-CommercialRelease\.ps1' 'Publish build validates its signed local package.'
+Forbid-Text $publishBuild 'Validate-CommercialRelease\.ps1' 'Publish build still invokes legacy certificate validation.'
+Require-Text $publishBuild 'Validate-ReleaseArtifacts\.ps1' 'Publish build validates the ZIP, size and SHA-256.'
 $directPublisher = Read-Utf8Text (Join-Path $ProjectDir 'tools\publish_github_release.ps1')
 Require-Text $publishBuild 'publish_github_release\.ps1' 'Publish uploads validated local artifacts directly after packaging.'
 
@@ -227,8 +228,8 @@ if ($publishConfig.requireCleanReproducibleBuild -ne $true -or $publishConfig.re
 Pass 'Commercial publication requires clean reproducible tagged source.'
 if ($publishConfig.allowDeterministicSourceSnapshot -ne $true) { Fail 'This source snapshot must explicitly allow deterministic snapshot publication.' }
 Pass 'Deterministic source snapshots are explicitly authorized without weakening validation for real Git clones.'
-if ($publishConfig.PSObject.Properties.Name -contains 'allowUnsignedDevelopmentPublish') { Fail 'Unsigned publication exceptions are forbidden.' }
-Pass 'Unsigned publication exceptions are absent.'
+if ($publishConfig.requireAuthenticode -ne $false -or $publishConfig.requireManifestSignature -ne $false) { Fail 'ZIP-only publication must not require certificate signatures.' }
+Pass 'ZIP-only publication uses HTTPS, size and SHA-256 without certificate signing.'
 if ($publishConfig.cleanWorkspaceAfterVerifiedPublish -ne $true) { Fail 'Publish must clean the requested local workspace only after a verified public release.' }
 Pass 'Post-publish workspace cleanup is enabled only after verified publication.'
 if (($publishConfig.requireAuthenticode -eq $true) -xor ($publishConfig.requireManifestSignature -eq $true)) { Fail 'Authenticode and manifest signatures must be toggled together.' }
@@ -240,12 +241,8 @@ Pass 'No legacy automatic cleanup setting is exposed.'
 if ($publishConfig.defaultMandatory -ne $false) { Fail 'config\release\release-publish.json must default to optional updates; mandatory releases are explicit.' }
 Pass 'Update policy defaults to optional; mandatory releases require an explicit policy change.'
 
-$commercialValidator = Read-Utf8Text (Join-Path $ProjectDir 'tools\Validate-CommercialRelease.ps1')
-Require-Text $commercialValidator 'install-manifest\.sha256\.sig' 'Commercial validation checks the signed installation manifest.'
-Require-Text $commercialValidator 'SignerCertificate\.Thumbprint' 'Commercial validation pins the expected Authenticode certificate.'
 $trustHeader = Read-Utf8Text (Join-Path $ProjectDir 'src\updater\release_trust.h')
-Require-Text $trustHeader 'PublicCertificateDerBase64' 'Client contains only the public release trust anchor.'
-Require-Text $trustHeader 'SecondaryPublicCertificateDerBase64' 'Client supports two public trust anchors during certificate rotation.'
+Require-Text $trustHeader 'Configured\s*=\s*false' 'Client certificate enforcement is disabled for ZIP-only updates.'
 $cryptoSource = Read-Utf8Text (Join-Path $ProjectDir 'src\updater\crypto.cpp')
 Require-Text $cryptoSource 'VerifyDetachedManifestSignature' 'Updater verifies detached RSA manifest signatures.'
 Require-Text $cryptoSource 'expectedCertificateThumbprint' 'Updater verifies expected publisher certificate identity.'

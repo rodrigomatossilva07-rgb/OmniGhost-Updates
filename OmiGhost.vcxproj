@@ -54,16 +54,10 @@
     <OmniGhostReleaseChannel Condition="'$(OmniGhostReleaseChannel)'==''">stable</OmniGhostReleaseChannel>
   </PropertyGroup>
   <PropertyGroup Condition="('$(Configuration)'=='Release' Or '$(Configuration)'=='Publish') And '$(Platform)'=='x64' And '$(OmniGhostPayloadBuild)'!='true'">
-    <GenerateMsixPackage Condition="'$(GenerateMsixPackage)'==''">true</GenerateMsixPackage>
-    <AppxPackageSigningEnabled Condition="'$(AppxPackageSigningEnabled)'==''">true</AppxPackageSigningEnabled>
-    <PackageCertificateThumbprint Condition="'$(PackageCertificateThumbprint)'==''">$(OMNIGHOST_MSIX_CERT_THUMBPRINT)</PackageCertificateThumbprint>
-    <PackageIdentityName Condition="'$(PackageIdentityName)'==''">Omnighost</PackageIdentityName>
-    <PackagePublisher Condition="'$(PackagePublisher)'==''">CN=Omnighost Development</PackagePublisher>
-    <PublisherDisplayName Condition="'$(PublisherDisplayName)'==''">Omnighost</PublisherDisplayName>
-    <MsixOutputDirectory Condition="'$(MsixOutputDirectory)'==''">$(ProjectDir)publish\msix</MsixOutputDirectory>
-    <GenerateAppInstallerFile>false</GenerateAppInstallerFile>
-    <AppxBundle>Never</AppxBundle>
-    <AppxBundlePlatforms>x64</AppxBundlePlatforms>
+    <!-- Distribution is ZIP-only. MSIX necessarily requires a package
+         signature, so it is intentionally not generated. -->
+    <GenerateMsixPackage>false</GenerateMsixPackage>
+    <AppxPackageSigningEnabled>false</AppxPackageSigningEnabled>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Publish|x64'">
     <!-- Keep the stable protocol channel for updater compatibility, while the
@@ -200,23 +194,6 @@
     <Error Condition="'@(OmniGhostUnexpectedCustomerRuntime)'!=''" Code="OGRUN003" Text="A build comercial contém ficheiros externos inesperados: @(OmniGhostUnexpectedCustomerRuntime)."/>
     <Message Importance="High" Text="[OmniGhost Runtime] Single-EXE distribution validated; no private OmniGhost.exe is installed or relaunched."/>
   </Target>
-  <Target Name="ValidateOmniGhostReleaseSigning" BeforeTargets="PrepareForBuild"
-          Condition="('$(Configuration)'=='Release' Or '$(Configuration)'=='Publish') And '$(DesignTimeBuild)'!='true' And '$(OmniGhostPayloadBuild)'!='true' And '$(OmniGhostSkipReleaseSigning)'!='true'">
-    <Exec Command="powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\tools\Sign-AuthenticodeFile.ps1&quot; -PreflightOnly" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
-      <Output TaskParameter="ExitCode" PropertyName="OmniGhostReleaseSigningPreflightExitCode"/>
-    </Exec>
-    <Error Condition="'$(OmniGhostReleaseSigningPreflightExitCode)'!='0'" Code="OGREL000" Text="Pré-verificação da assinatura Release falhou antes de compilar. Consulta a primeira mensagem [SIGN]."/>
-  </Target>
-  <!-- The private OmniGhostCore payload is embedded in the bootstrap and must not be signed separately. -->
-  <Target Name="SignOmniGhostLocalRelease" AfterTargets="ValidateOmniGhostSingleExeRuntime"
-          DependsOnTargets="VerifyOmniGhostReproducibility"
-          Condition="('$(Configuration)'=='Release' Or '$(Configuration)'=='Publish') And '$(DesignTimeBuild)'!='true' And '$(OmniGhostPayloadBuild)'!='true' And '$(OmniGhostSkipReleaseSigning)'!='true'">
-    <Message Importance="High" Text="[OmniGhost Release] A assinar e verificar $(TargetPath)."/>
-    <Exec Command="powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\tools\Sign-AuthenticodeFile.ps1&quot; -Path &quot;$(TargetPath)&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
-      <Output TaskParameter="ExitCode" PropertyName="OmniGhostReleaseSigningExitCode"/>
-    </Exec>
-    <Error Condition="'$(OmniGhostReleaseSigningExitCode)'!='0'" Code="OGREL001" Text="Release compilou, mas a assinatura ou verificação do OmniGhost.exe falhou. Consulta a primeira mensagem [SIGN]/[VERIFY]."/>
-  </Target>
   <Target Name="VerifyOmniGhostReproducibility" AfterTargets="ValidateOmniGhostSingleExeRuntime"
           Condition="'$(Configuration)'=='Publish' And '$(DesignTimeBuild)'!='true' And '$(OmniGhostPayloadBuild)'!='true' And '$(OmniGhostReproducibilityPass)'!='true'">
     <Message Importance="High" Text="[OmniGhost Repro] A executar uma segunda build isolada e comparar o executável byte-for-byte."/>
@@ -225,17 +202,9 @@
     </Exec>
     <Error Condition="'$(OmniGhostReproducibilityExitCode)'!='0'" Code="OGREPRO001" Text="A segunda build independente não corresponde byte-for-byte à build Publish principal."/>
   </Target>
-  <Target Name="BuildOmniGhostMsix" AfterTargets="SignOmniGhostLocalRelease;ValidateOmniGhostSingleExeRuntime" DependsOnTargets="SignOmniGhostLocalRelease"
-          Condition="'$(GenerateMsixPackage)'=='true' And '$(OmniGhostSkipPackaging)'!='true' And '$(DesignTimeBuild)'!='true' And '$(OmniGhostPayloadBuild)'!='true' And ( '$(Configuration)'=='Release' Or '$(Configuration)'=='Publish' )">
-    <Message Importance="High" Text="[OmniGhost MSIX] A criar e assinar publish\msix\Omnighost.msix."/>
-    <Exec Command="powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(ProjectDir)tools\Build-MsixPackage.ps1&quot; -ProjectDir &quot;$(ProjectDir).&quot; -Executable &quot;$(TargetPath)&quot; -Configuration &quot;$(Configuration)&quot; -Platform &quot;$(Platform)&quot; -PackageIdentityName &quot;$(PackageIdentityName)&quot; -PackagePublisher &quot;$(PackagePublisher)&quot; -PublisherDisplayName &quot;$(PublisherDisplayName)&quot; -SigningEnabled &quot;$(AppxPackageSigningEnabled)&quot; -CertificateThumbprint &quot;$(PackageCertificateThumbprint)&quot; -OutputDirectory &quot;$(MsixOutputDirectory)&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
-      <Output TaskParameter="ExitCode" PropertyName="OmniGhostMsixExitCode"/>
-    </Exec>
-    <Error Condition="'$(OmniGhostMsixExitCode)'!='0'" Code="OGMSIX001" Text="Falha ao criar/assinar o MSIX. Consulta a primeira mensagem [MSIX]."/>
-  </Target>
   <!-- Publish é a única configuração que pode alterar o GitHub. Release
        nunca alcançam este target. Tag, source limpo e artefactos válidos continuam obrigatórios. -->
-  <Target Name="PublishOmniGhostRelease" AfterTargets="ValidateOmniGhostSingleExeRuntime" DependsOnTargets="VerifyOmniGhostReproducibility;SignOmniGhostLocalRelease;BuildOmniGhostMsix" Condition="'$(Configuration)'=='Publish' And '$(DesignTimeBuild)'!='true' And '$(OmniGhostSkipRemotePublish)'!='true'">
+  <Target Name="PublishOmniGhostRelease" AfterTargets="ValidateOmniGhostSingleExeRuntime" DependsOnTargets="VerifyOmniGhostReproducibility" Condition="'$(Configuration)'=='Publish' And '$(DesignTimeBuild)'!='true' And '$(OmniGhostSkipRemotePublish)'!='true'">
     <Message Importance="High" Text="[OmniGhost Publish] A validar, empacotar e publicar a versão no GitHub."/>
     <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; publish-build &quot;$(MSBuildProjectDirectory)&quot; &quot;$(OutDir).&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
       <Output TaskParameter="ExitCode" PropertyName="OmniGhostPublishExitCode"/>

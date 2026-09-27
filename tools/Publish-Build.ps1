@@ -55,9 +55,6 @@ if (-not $ExplicitConfirmed) {
 if ([string]$config.releaseChannel -cne 'stable') {
     throw 'A configuração Publish apenas pode publicar no canal stable.'
 }
-if ($config.requireAuthenticode -ne $true -or $config.requireManifestSignature -ne $true) {
-    throw 'Publish requer Authenticode e assinatura do manifesto.'
-}
 
 $version = ([IO.File]::ReadAllText($versionPath)).Trim()
 if ($version -notmatch '^(0|[1-9]\d*)\.[0-9]\.[0-9]$') {
@@ -120,9 +117,9 @@ if (-not (Test-Path -LiteralPath $executablePath -PathType Leaf)) {
 }
 
 if (-not $SkipPackaging) {
-    $mode = if ($config.requireAuthenticode -eq $true) { 'Commercial' } else { 'Publish' }
+    $mode = 'Publish'
     Write-Host "[OmniGhost Publish] Packaging da versão $version (modo $mode)..."
-    & (Join-Path $ProjectDir 'tools\Package-Release.ps1') -ProjectDir $ProjectDir -BuildDir $BuildDir -Mode Commercial -AllowMissingTag
+    & (Join-Path $ProjectDir 'tools\Package-Release.ps1') -ProjectDir $ProjectDir -BuildDir $BuildDir -Mode Publish -AllowMissingTag
     if ($LASTEXITCODE -ne 0) { throw "O packaging terminou com o código $LASTEXITCODE." }
 }
 
@@ -131,8 +128,6 @@ if ([string]::IsNullOrWhiteSpace($ReleaseDirectory)) {
 }
 $ReleaseDirectory = [IO.Path]::GetFullPath((Join-Path $ReleaseDirectory '.'))
 
-& (Join-Path $ProjectDir 'tools\Validate-CommercialRelease.ps1') `
-    -ProjectDir $ProjectDir -ReleaseDirectory $ReleaseDirectory -Version $version
 & (Join-Path $ProjectDir 'tools\Validate-ReleaseArtifacts.ps1') `
     -ProjectDir $ProjectDir -ReleaseDirectory $ReleaseDirectory -Version $version
 Write-Host '[OmniGhost Publish] Pacote comercial local validado. A publicação remota depende do workflow de build, assinatura e integridade.'

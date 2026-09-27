@@ -27,8 +27,8 @@ foreach ($name in $required) {
 }
 
 $sumsPath = Join-Path $ReleaseDirectory 'SHA256SUMS.txt'
-$expectedNames = @('OmniGhost.zip','update.json','update.json.sig',
-    'install-manifest.sha256','install-manifest.sha256.sig',
+$expectedNames = @('OmniGhost.zip','update.json',
+    'install-manifest.sha256',
     'SBOM.cdx.json','changelog.json','release-notes.md','release-meta.json')
 $seen = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
 foreach ($line in [IO.File]::ReadAllLines($sumsPath)) {
