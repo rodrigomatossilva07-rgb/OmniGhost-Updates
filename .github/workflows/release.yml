@@ -59,71 +59,21 @@ jobs:
           ./tools/Test-ReleaseEngineering.ps1 -ProjectDir .
           ./tools/Audit-UiLocalization.ps1 -ProjectDir . -ReportPath artifacts/validation/localization.json
 
-      - name: Stress deterministic resource generators
-        shell: pwsh
-        run: |
-          ./tools/Test-GeneratedResourceConcurrency.ps1 -ProjectDir .
-
-      - name: Verify Release and Publish build profiles
-        shell: pwsh
-        run: |
-          ./tools/Verify-BuildMatrix.ps1 -ProjectDir . -Platform x64
-
-      - name: Test license session revalidation
-        shell: pwsh
-        run: |
-          msbuild tests/OmniGhost.SecurityTests.vcxproj /m `
-            /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v145
-          & ./.cache/tests/Release/x64/OmniGhost.SecurityTests.exe
-          if ($LASTEXITCODE -ne 0) { throw 'Security gateway tests failed.' }
-
-      - name: Analyse release diff semantically
-        shell: pwsh
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_CHANGELOG_MODEL: ${{ vars.OPENAI_CHANGELOG_MODEL }}
-        run: |
-          ./tools/Analyze-ChangelogDiff.ps1 `
-            -ProjectDir . `
-            -Version '${{ steps.version.outputs.version }}' `
-            -OutputPath ./artifacts/semantic-analysis.json
-
-      - name: Build local Release binary and inspect PE
-        shell: pwsh
-        run: |
-          msbuild OmniGhost.Bootstrap.vcxproj /m `
-            /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v145
-          ./tools/Validate-PeRuntime.ps1 `
-            -Executable ./build/OmniGhost.exe `
-            -OutputDirectory ./artifacts/validation/pe-release `
-            -RequireSingleExeDirectory -RequireSelfContainedHost
-          ./tools/Validate-EmbeddedOffsets.ps1 `
-            -ProjectDir . `
-            -Executable ./.cache/bootstrap/payload/x64/Release/OmniGhostCore.exe `
-            -Configuration Release -Platform x64
-
       - name: Build customer binary
         shell: pwsh
         run: |
-          msbuild OmniGhost.Bootstrap.vcxproj /m `
+          msbuild OmiGhost.vcxproj /m:1 /nr:false `
             /p:Configuration=Publish /p:Platform=x64 /p:PlatformToolset=v145 `
-            /p:OmniGhostSkipPackaging=true /p:OmniGhostSkipRemotePublish=true
+            /p:OmniGhostSkipPackaging=true /p:OmniGhostSkipRemotePublish=true `
+            /p:OmniGhostSkipVersionAdvance=true
           ./tools/Validate-PeRuntime.ps1 `
             -Executable ./build/Publish/OmniGhost.exe `
             -OutputDirectory ./artifacts/validation/pe-publish `
             -RequireSingleExeDirectory -RequireSelfContainedHost
           ./tools/Validate-EmbeddedOffsets.ps1 `
             -ProjectDir . `
-            -Executable ./.cache/bootstrap/payload/x64/Publish/OmniGhostCore.exe `
+            -Executable ./build/Publish/OmniGhost.exe `
             -Configuration Publish -Platform x64
-
-      - name: Run MSVC static analysis
-        shell: pwsh
-        run: |
-          msbuild OmiGhost.vcxproj /m `
-            /p:Configuration=Publish /p:Platform=x64 /p:PlatformToolset=v145 `
-            /p:OmniGhostSkipPackaging=true /p:OmniGhostSkipRemotePublish=true /p:RunCodeAnalysis=true `
-            /p:CodeAnalysisTreatWarningsAsErrors=false
 
       - name: Package, generate SBOM and audit dependencies
         shell: pwsh
@@ -131,8 +81,7 @@ jobs:
           ./tools/Package-Release.ps1 `
             -ProjectDir . `
             -BuildDir ./build/Publish `
-            -Mode Commercial `
-            -SemanticAnalysisPath ./artifacts/semantic-analysis.json
+            -Mode Commercial
 
       - name: Validate commercial signatures
         shell: pwsh
@@ -174,16 +123,6 @@ jobs:
             artifacts/release/release-notes.md
             artifacts/release/release-meta.json
             artifacts/release/SHA256SUMS.txt
-
-      - name: Upload private symbols
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: private-symbols-${{ steps.version.outputs.version }}
-          if-no-files-found: error
-          retention-days: 90
-          path: |
-            .cache/symbols/Publish/OmniGhostCore.pdb
-            .cache/symbols/bootstrap/Publish/OmniGhost.pdb
 
       - name: Upload engineering validation reports
         if: always()

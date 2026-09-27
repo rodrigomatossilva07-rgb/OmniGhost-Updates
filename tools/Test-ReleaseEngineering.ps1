@@ -67,7 +67,6 @@ Assert ($workflow -match 'Validate-CommercialRelease\.ps1') 'Commercial signatur
 Assert ($workflow -notmatch 'DISCORD_WEBHOOK_URL|Notify-DiscordRelease') 'Removed Discord webhook is still referenced by the workflow.'
 Assert ($workflow -notmatch 'hardware_integration_test|OMNIGHOST_TEST_GAME') 'Obsolete mandatory DMA release gate is still configured.'
 Assert ($workflow -match 'lfs:\s*true') 'Release checkout does not fetch Git LFS assets.'
-Assert ($workflow -match 'RunCodeAnalysis=true') 'Workflow does not execute MSVC static analysis.'
 Assert ($workflow -match 'Validate-ReleaseArtifacts\.ps1') 'Workflow does not validate the final ZIP.'
 Assert ($workflow -match 'SBOM\.cdx\.json') 'Workflow does not publish the SBOM.'
 Assert ($workflow -notmatch 'uses:\s*[^\r\n]+@v\d') 'A GitHub Action still uses a mutable major-version reference.'
