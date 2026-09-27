@@ -226,7 +226,7 @@
     <Error Condition="'$(OmniGhostReproducibilityExitCode)'!='0'" Code="OGREPRO001" Text="A segunda build independente não corresponde byte-for-byte à build Publish principal."/>
   </Target>
   <Target Name="BuildOmniGhostMsix" AfterTargets="SignOmniGhostLocalRelease;ValidateOmniGhostSingleExeRuntime" DependsOnTargets="SignOmniGhostLocalRelease"
-          Condition="'$(GenerateMsixPackage)'=='true' And '$(DesignTimeBuild)'!='true' And '$(OmniGhostPayloadBuild)'!='true' And ( '$(Configuration)'=='Release' Or '$(Configuration)'=='Publish' )">
+          Condition="'$(GenerateMsixPackage)'=='true' And '$(OmniGhostSkipPackaging)'!='true' And '$(DesignTimeBuild)'!='true' And '$(OmniGhostPayloadBuild)'!='true' And ( '$(Configuration)'=='Release' Or '$(Configuration)'=='Publish' )">
     <Message Importance="High" Text="[OmniGhost MSIX] A criar e assinar publish\msix\Omnighost.msix."/>
     <Exec Command="powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(ProjectDir)tools\Build-MsixPackage.ps1&quot; -ProjectDir &quot;$(ProjectDir).&quot; -Executable &quot;$(TargetPath)&quot; -Configuration &quot;$(Configuration)&quot; -Platform &quot;$(Platform)&quot; -PackageIdentityName &quot;$(PackageIdentityName)&quot; -PackagePublisher &quot;$(PackagePublisher)&quot; -PublisherDisplayName &quot;$(PublisherDisplayName)&quot; -SigningEnabled &quot;$(AppxPackageSigningEnabled)&quot; -CertificateThumbprint &quot;$(PackageCertificateThumbprint)&quot; -OutputDirectory &quot;$(MsixOutputDirectory)&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
       <Output TaskParameter="ExitCode" PropertyName="OmniGhostMsixExitCode"/>

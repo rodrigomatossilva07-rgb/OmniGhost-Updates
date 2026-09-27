@@ -12,6 +12,7 @@
       <PreprocessorDefinitions>OMNIGHOST_PUBLISH_BUILD=1;OMNIGHOST_KEYAUTH_ENABLED=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <DebugInformationFormat>None</DebugInformationFormat>
       <!-- /Brepro also has to be applied while compiling: linker /Brepro alone
            cannot remove checkout-specific paths already stored in .obj files.
            Map every checkout root to the same virtual source directory so the
@@ -23,6 +24,11 @@
     </ResourceCompile>
     <Link>
       <SuppressStartupBanner>true</SuppressStartupBanner>
+      <!-- OmniGhost.Common enables linker symbols for local Release diagnostics.
+           Override that item metadata here (a PropertyGroup value is not enough)
+           so Publish never embeds a checkout-specific PDB path/GUID. -->
+      <GenerateDebugInformation>false</GenerateDebugInformation>
+      <ProgramDatabaseFile></ProgramDatabaseFile>
       <AllowIsolation>false</AllowIsolation>
       <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
       <TerminalServerAware>true</TerminalServerAware>
