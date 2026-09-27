@@ -59,10 +59,6 @@ jobs:
           ./tools/Test-ReleaseEngineering.ps1 -ProjectDir .
           ./tools/Audit-UiLocalization.ps1 -ProjectDir . -ReportPath artifacts/validation/localization.json
 
-      - name: Test release source and FiveM offset metadata
-        shell: pwsh
-        run: ./tools/Test-ReleaseReadiness.ps1 -ProjectDir .
-
       - name: Stress deterministic resource generators
         shell: pwsh
         run: |

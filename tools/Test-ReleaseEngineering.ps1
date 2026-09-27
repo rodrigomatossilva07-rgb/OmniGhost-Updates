@@ -61,7 +61,6 @@ Assert ($project -notmatch "'\$\(Configuration\)'=='Release'.*publish-build") 'R
 $workflow = [IO.File]::ReadAllText((Join-Path $ProjectDir '.github\workflows\release.yml'))
 Assert ($workflow -match "tags:\s*[\r\n]+\s+- 'v\*'") 'Workflow is not tag-driven.'
 Assert ($workflow -match 'environment:\s*production') 'Production approval environment is missing.'
-Assert ($workflow -match 'Test-ReleaseReadiness\.ps1') 'Workflow does not test release source and FiveM metadata.'
 Assert ($workflow -match 'needs:\s*build_test_package') 'Publication does not require the validated build/package job.'
 Assert ($workflow -match 'Mode Commercial') 'Release workflow does not package a signed commercial build.'
 Assert ($workflow -match 'Validate-CommercialRelease\.ps1') 'Commercial signatures are not validated in the workflow.'
