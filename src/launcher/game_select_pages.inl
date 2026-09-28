@@ -159,7 +159,7 @@ void DrawMarketplace(ImVec2 display) {
     };
     static constexpr MarketplaceStyle styles[] = {
         { "Padrão OmniGhost", "Técnico, equilibrado e com a identidade original.", CyberTheme::ThemeMode::Dark, CyberTheme::AccentPreset::Cyber, CyberTheme::VisualStyle::Omni },
-        { "Obsidian Gold", "Painéis rectos, densos e acabamento âmbar premium.", CyberTheme::ThemeMode::Dark, CyberTheme::AccentPreset::Orange, CyberTheme::VisualStyle::Obsidian },
+		{ "Obsidian Ember", "Painéis rectos, densos e acabamento laranja incandescente.", CyberTheme::ThemeMode::Dark, CyberTheme::AccentPreset::Orange, CyberTheme::VisualStyle::Obsidian },
         { "Neon Azure", "Interface leve, arredondada e profundidade azul.", CyberTheme::ThemeMode::Dark, CyberTheme::AccentPreset::Blue, CyberTheme::VisualStyle::Azure },
         { "Violet Pulse", "Cartões suaves, espaços amplos e movimento orgânico.", CyberTheme::ThemeMode::Dark, CyberTheme::AccentPreset::Purple, CyberTheme::VisualStyle::Violet },
         { "Matrix Signal", "Terminal angular, compacto e grelha digital.", CyberTheme::ThemeMode::Dark, CyberTheme::AccentPreset::Matrix, CyberTheme::VisualStyle::Matrix },
@@ -231,11 +231,17 @@ void DrawMarketplace(ImVec2 display) {
     CyberWidgets::TextLine("O launcher não aceita importações locais: apenas temas revistos e publicados podem ser aplicados.",
                            CyberWidgets::TextTone::Secondary);
     ImGui::Dummy(ImVec2(0.f, S(8.f)));
+	static bool openThemeGuide = false;
     if (CyberWidgets::Button("COMO CRIAR UM TEMA", CyberWidgets::ButtonStyle::Primary,
-                             ImVec2(S(205.f), S(34.f))))
-        ImGui::OpenPopup("CRIAR TEMA DA COMUNIDADE");
-    CyberWidgets::HealthRow("Catálogo online", "A aguardar serviço seguro de revisão e distribuição", CyberWidgets::HealthStatus::Warning);
+							 ImVec2(S(205.f), S(34.f))))
+		openThemeGuide = true;
     CyberWidgets::EndCard();
+	// BeginCard owns an ImGui ID scope. Open the modal only after leaving that
+	// scope so OpenPopup and BeginPopupModal resolve exactly the same popup ID.
+	if (openThemeGuide) {
+		ImGui::OpenPopup("CRIAR TEMA DA COMUNIDADE");
+		openThemeGuide = false;
+	}
 
     ImGui::SetNextWindowSize(ImVec2(S(650.f), S(520.f)), ImGuiCond_Appearing);
     if (ImGui::BeginPopupModal("CRIAR TEMA DA COMUNIDADE", nullptr,

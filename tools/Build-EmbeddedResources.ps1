@@ -211,7 +211,13 @@ foreach ($item in $items) {
         $mapProgress = " mapa $processedCollisionItems/$collisionItemCount"
         Write-Progress -Activity 'Embedding CS2 collision maps' -Status "${percent}%$mapProgress - $logical" -PercentComplete $percent
         $mode = if($compression -eq 2){'LZMS'}elseif($compression -eq 1){'PACKBITS'}else{'NONE'}
-        Write-Host "[EmbeddedResources] [$percent%$mapProgress] $logical mode=$mode original=$($raw.Length) stored=$($payload.Length)"
+		$verboseResources = $env:OMNIGHOST_VERBOSE_BUILD -eq '1'
+		$progressMilestone = $processedCollisionItems -eq 1 -or
+			$processedCollisionItems -eq $collisionItemCount -or
+			($processedCollisionItems % 6) -eq 0
+		if ($verboseResources -or $progressMilestone) {
+			Write-Host "[EmbeddedResources] [$percent%$mapProgress] $logical mode=$mode original=$($raw.Length) stored=$($payload.Length)"
+		}
     }
 }
 Write-Progress -Activity 'Embedding CS2 collision maps' -Completed

@@ -8,7 +8,12 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'Hashing.ps1')
 $ProjectDir = [IO.Path]::GetFullPath($ProjectDir)
 
-function Pass([string]$Message) { Write-Host "[PASS] $Message" -ForegroundColor Green }
+$script:PassCount = 0
+$script:VerbosePasses = $env:OMNIGHOST_VERBOSE_VALIDATION -eq '1'
+function Pass([string]$Message) {
+    $script:PassCount++
+    if ($script:VerbosePasses) { Write-Host "  [OK] $Message" -ForegroundColor DarkGreen }
+}
 function Fail([string]$Message) { throw "[FAIL] $Message" }
 function Require-File([string]$Relative) {
     $path = Join-Path $ProjectDir $Relative
@@ -312,4 +317,7 @@ Forbid-Text $configCore $patternInstallDir 'Config core no longer depends on ver
 Pass 'Engineering documentation is intentionally non-blocking for compilation.'
 
 Write-Host ''
-Write-Host 'OmniGhost project validation: PASS' -ForegroundColor Green
+Write-Host ("[OmniGhost Validation] OK - {0} verificacoes concluidas" -f $script:PassCount) -ForegroundColor Green
+if (-not $script:VerbosePasses) {
+    Write-Host '  Detalhes ocultos para manter o output legivel. Define OMNIGHOST_VERBOSE_VALIDATION=1 para os mostrar.' -ForegroundColor DarkGray
+}
