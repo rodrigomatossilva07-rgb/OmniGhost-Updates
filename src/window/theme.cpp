@@ -13,6 +13,7 @@ namespace CyberTheme {
     bool g_reduced_motion = false;
     ThemeMode g_theme_mode = ThemeMode::Dark;
     AccentPreset g_accent_preset = AccentPreset::Cyber;
+    VisualStyle g_visual_style = VisualStyle::Omni;
     ImVec4 g_custom_accent = ImVec4(0.83f, 0.69f, 0.22f, 1.0f);
 
     ImVec4 Mix(const ImVec4& a, const ImVec4& b, float amount) {
@@ -160,6 +161,83 @@ namespace CyberTheme {
             Colors.Panel = Colors.Surface;
             Colors.PanelHover = Colors.CardHover;
         }
+
+        void ApplyVisualIdentity() {
+            const float s = g_ui_scale;
+            float windowRounding = 14.f;
+            float cardRounding = 10.f;
+            float controlRounding = 8.f;
+            float sidebarWidth = 210.f;
+            float gridGap = 12.f;
+            float cardPadding = 14.f;
+
+            if (!g_high_contrast && g_theme_mode != ThemeMode::Light) {
+                switch (g_visual_style) {
+                case VisualStyle::Obsidian:
+                    Colors.Background = ImVec4(.018f, .014f, .012f, 1.f);
+                    Colors.Surface = ImVec4(.040f, .029f, .021f, 1.f);
+                    Colors.Card = ImVec4(.070f, .045f, .026f, 1.f);
+                    Colors.CardHover = ImVec4(.105f, .066f, .032f, 1.f);
+                    windowRounding = 4.f; cardRounding = 3.f; controlRounding = 3.f;
+                    sidebarWidth = 232.f; gridGap = 10.f;
+                    break;
+                case VisualStyle::Azure:
+                    Colors.Background = ImVec4(.020f, .036f, .065f, 1.f);
+                    Colors.Surface = ImVec4(.028f, .060f, .105f, 1.f);
+                    Colors.Card = ImVec4(.038f, .082f, .142f, 1.f);
+                    Colors.CardHover = ImVec4(.055f, .120f, .200f, 1.f);
+                    windowRounding = 18.f; cardRounding = 15.f; controlRounding = 12.f;
+                    sidebarWidth = 194.f; gridGap = 16.f;
+                    break;
+                case VisualStyle::Violet:
+                    Colors.Background = ImVec4(.030f, .018f, .060f, 1.f);
+                    Colors.Surface = ImVec4(.060f, .030f, .105f, 1.f);
+                    Colors.Card = ImVec4(.088f, .044f, .145f, 1.f);
+                    Colors.CardHover = ImVec4(.130f, .066f, .205f, 1.f);
+                    windowRounding = 22.f; cardRounding = 18.f; controlRounding = 18.f;
+                    sidebarWidth = 220.f; cardPadding = 18.f;
+                    break;
+                case VisualStyle::Matrix:
+                    Colors.Background = ImVec4(.006f, .025f, .014f, 1.f);
+                    Colors.Surface = ImVec4(.010f, .050f, .025f, 1.f);
+                    Colors.Card = ImVec4(.014f, .074f, .034f, 1.f);
+                    Colors.CardHover = ImVec4(.020f, .112f, .048f, 1.f);
+                    windowRounding = 0.f; cardRounding = 0.f; controlRounding = 0.f;
+                    sidebarWidth = 238.f; gridGap = 8.f; cardPadding = 12.f;
+                    break;
+                case VisualStyle::Crimson:
+                    Colors.Background = ImVec4(.040f, .008f, .012f, 1.f);
+                    Colors.Surface = ImVec4(.073f, .014f, .020f, 1.f);
+                    Colors.Card = ImVec4(.105f, .022f, .030f, 1.f);
+                    Colors.CardHover = ImVec4(.160f, .032f, .042f, 1.f);
+                    windowRounding = 8.f; cardRounding = 6.f; controlRounding = 2.f;
+                    sidebarWidth = 204.f;
+                    break;
+                case VisualStyle::Arctic:
+                    Colors.Background = ImVec4(.012f, .040f, .046f, 1.f);
+                    Colors.Surface = ImVec4(.018f, .070f, .078f, 1.f);
+                    Colors.Card = ImVec4(.024f, .096f, .105f, 1.f);
+                    Colors.CardHover = ImVec4(.032f, .135f, .145f, 1.f);
+                    windowRounding = 12.f; cardRounding = 12.f; controlRounding = 6.f;
+                    sidebarWidth = 184.f; gridGap = 14.f;
+                    break;
+                case VisualStyle::Omni:
+                default:
+                    break;
+                }
+                Colors.Panel = Colors.Surface;
+                Colors.PanelHover = Colors.CardHover;
+                Colors.Border = Mix(Colors.CardHover, Colors.Gold, .30f);
+                Colors.Border.w = .42f;
+            }
+
+            Metrics::WindowRounding = windowRounding * s;
+            Metrics::CardRounding = cardRounding * s;
+            Metrics::ControlRounding = controlRounding * s;
+            Metrics::SidebarWidth = sidebarWidth * s;
+            Metrics::GridGap = gridGap * s;
+            Metrics::CardPadding = cardPadding * s;
+        }
     }
 
     void SetHighContrast(bool enabled) {
@@ -255,6 +333,7 @@ namespace CyberTheme {
         g_reduced_motion = app_settings::config.reduce_motion;
         g_theme_mode = static_cast<ThemeMode>(app_settings::config.theme_mode);
         g_accent_preset = static_cast<AccentPreset>(app_settings::config.accent_preset);
+        g_visual_style = static_cast<VisualStyle>(std::clamp(app_settings::config.visual_style, 0, 6));
         g_custom_accent = ImGui::ColorConvertU32ToFloat4(app_settings::config.color_primary);
         g_custom_accent.w = 1.0f;
         Colors = {};
@@ -281,6 +360,7 @@ namespace CyberTheme {
         } else {
             ApplyDarkPalette(accent, accentHover, accentGlow);
         }
+        ApplyVisualIdentity();
 
         ImGuiStyle& style = ImGui::GetStyle();
         style.WindowPadding = ImVec2(Spacing::Md, Spacing::Sm + Px(2.0f));
@@ -386,6 +466,17 @@ namespace CyberTheme {
         return g_accent_preset;
     }
 
+    void SetVisualStyle(VisualStyle style) {
+        g_visual_style = style;
+        app_settings::config.visual_style = static_cast<int>(style);
+        if (ImGui::GetCurrentContext())
+            ApplyTheme();
+    }
+
+    VisualStyle GetVisualStyle() {
+        return g_visual_style;
+    }
+
     void SetCustomAccent(const ImVec4& color) {
         g_custom_accent = color;
         g_custom_accent.w = 1.0f;
@@ -408,6 +499,7 @@ namespace CyberTheme {
         ThemeExportData data;
         data.mode = g_theme_mode;
         data.accent = g_accent_preset;
+        data.visual_style = g_visual_style;
         data.custom_accent = g_custom_accent;
         data.ui_scale = g_ui_scale;
         data.high_contrast = g_high_contrast;
@@ -419,6 +511,7 @@ namespace CyberTheme {
         out << "  \"schema_version\": " << data.schema_version << ",\n";
         out << "  \"theme_mode\": " << static_cast<int>(data.mode) << ",\n";
         out << "  \"accent_preset\": " << static_cast<int>(data.accent) << ",\n";
+        out << "  \"visual_style\": " << static_cast<int>(data.visual_style) << ",\n";
         out << "  \"custom_accent\": { \"r\": " << data.custom_accent.x << ", \"g\": " << data.custom_accent.y << ", \"b\": " << data.custom_accent.z << ", \"a\": " << data.custom_accent.w << " },\n";
         out << "  \"ui_scale\": " << data.ui_scale << ",\n";
         out << "  \"high_contrast\": " << (data.high_contrast ? "true" : "false") << ",\n";
@@ -453,6 +546,9 @@ namespace CyberTheme {
                 } else if (line.find("accent_preset") != std::string::npos) {
                     size_t pos = line.find(":");
                     if (pos != std::string::npos) { data.accent = static_cast<AccentPreset>(std::stoi(line.substr(pos + 1))); sawAccent = true; }
+                } else if (line.find("visual_style") != std::string::npos) {
+                    size_t pos = line.find(":");
+                    if (pos != std::string::npos) data.visual_style = static_cast<VisualStyle>(std::stoi(line.substr(pos + 1)));
                 } else if (line.find("custom_accent") != std::string::npos) {
                     size_t r = line.find("\"r\":");
                     size_t g = line.find("\"g\":");
@@ -474,6 +570,7 @@ namespace CyberTheme {
 
             const int mode = static_cast<int>(data.mode);
             const int accent = static_cast<int>(data.accent);
+            const int visualStyle = static_cast<int>(data.visual_style);
             const bool validAccent = (accent >= static_cast<int>(AccentPreset::Cyber) &&
                                       accent <= static_cast<int>(AccentPreset::Pink)) ||
                                      data.accent == AccentPreset::Custom;
@@ -481,7 +578,7 @@ namespace CyberTheme {
                 return std::isfinite(value) && value >= 0.0f && value <= 1.0f;
             };
             if (!sawSchema || !sawMode || !sawAccent || !sawScale || data.schema_version != 1 || mode < static_cast<int>(ThemeMode::Dark) ||
-                mode > static_cast<int>(ThemeMode::System) || !validAccent ||
+                mode > static_cast<int>(ThemeMode::System) || !validAccent || visualStyle < 0 || visualStyle > 6 ||
                 !finiteUnit(data.custom_accent.x) || !finiteUnit(data.custom_accent.y) ||
                 !finiteUnit(data.custom_accent.z) || !finiteUnit(data.custom_accent.w) ||
                 !std::isfinite(data.ui_scale) || data.ui_scale < 0.75f || data.ui_scale > 1.50f) {
@@ -491,6 +588,7 @@ namespace CyberTheme {
 
             g_theme_mode = data.mode;
             g_accent_preset = data.accent;
+            g_visual_style = data.visual_style;
             g_custom_accent = data.custom_accent;
             g_high_contrast = data.high_contrast;
             g_reduced_motion = data.reduced_motion;
@@ -499,6 +597,7 @@ namespace CyberTheme {
 
             app_settings::config.theme_mode = static_cast<int>(g_theme_mode);
             app_settings::config.accent_preset = static_cast<int>(g_accent_preset);
+            app_settings::config.visual_style = static_cast<int>(g_visual_style);
             app_settings::config.high_contrast = g_high_contrast;
             app_settings::config.reduce_motion = g_reduced_motion;
             app_settings::config.ui_scale = g_ui_scale;

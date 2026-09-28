@@ -127,6 +127,7 @@ struct Config {
         // Theme
         int theme_mode = 0; // 0=Dark, 1=Light, 2=System
         int accent_preset = 0; // CyberTheme::AccentPreset
+        int visual_style = 0; // CyberTheme::VisualStyle
 
         // Aura modes (legacy/advanced visual)
         bool aura_50 = false;

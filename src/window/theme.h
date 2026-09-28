@@ -27,6 +27,16 @@ namespace CyberTheme {
         Custom = 99
     };
 
+    enum class VisualStyle : int {
+        Omni = 0,
+        Obsidian,
+        Azure,
+        Violet,
+        Matrix,
+        Crimson,
+        Arctic
+    };
+
     struct AccentColor {
         ImVec4 base;
         ImVec4 hover;
@@ -120,6 +130,7 @@ namespace CyberTheme {
     extern ColorPalette Colors;
     extern ThemeMode g_theme_mode;
     extern AccentPreset g_accent_preset;
+    extern VisualStyle g_visual_style;
     extern ImVec4 g_custom_accent;
 
     void Initialize();
@@ -144,6 +155,8 @@ namespace CyberTheme {
     ThemeMode GetThemeMode();
     void SetAccentPreset(AccentPreset preset);
     AccentPreset GetAccentPreset();
+    void SetVisualStyle(VisualStyle style);
+    VisualStyle GetVisualStyle();
     void SetCustomAccent(const ImVec4& color);
     const ImVec4& GetCustomAccent();
     const std::vector<AccentColor>& GetAccentPresets();
@@ -152,6 +165,7 @@ namespace CyberTheme {
     struct ThemeExportData {
         ThemeMode mode = ThemeMode::Dark;
         AccentPreset accent = AccentPreset::Cyber;
+        VisualStyle visual_style = VisualStyle::Omni;
         ImVec4 custom_accent = ImVec4(0.83f, 0.69f, 0.22f, 1.0f);
         float ui_scale = 1.0f;
         bool high_contrast = false;

@@ -146,6 +146,7 @@ namespace app_settings {
             value.hotkey_vehicle = ClampValue(value.hotkey_vehicle, 0, 255, "hotkey_vehicle", wasClamped);
             value.theme_mode = ClampValue(value.theme_mode, 0, 2, "theme_mode", wasClamped);
             value.accent_preset = ClampValue(value.accent_preset, 0, 99, "accent_preset", wasClamped);
+            value.visual_style = ClampValue(value.visual_style, 0, 6, "visual_style", wasClamped);
             value.overlay_position_mode = ClampValue(value.overlay_position_mode, 0, 3, "overlay_position_mode", wasClamped);
             value.overlay_scale = ClampValue(value.overlay_scale, 0.5f, 2.0f, "overlay_scale", wasClamped);
             value.overlay_custom_rect.left = ClampValue(value.overlay_custom_rect.left, static_cast<decltype(value.overlay_custom_rect.left)>(-10000), static_cast<decltype(value.overlay_custom_rect.left)>(10000), "overlay_custom_rect.left", wasClamped);
@@ -184,6 +185,7 @@ namespace app_settings {
             out << "appearance.high_contrast=" << (value.high_contrast ? 1 : 0) << '\n';
             out << "appearance.theme_mode=" << value.theme_mode << '\n';
             out << "appearance.accent_preset=" << value.accent_preset << '\n';
+            out << "appearance.visual_style=" << value.visual_style << '\n';
             out << "appearance.accent=" << value.color_primary << '\n';
             out << "appearance.secondary=" << value.color_secondary << '\n';
             out << "appearance.particles=" << (value.particles ? 1 : 0) << '\n';
@@ -253,6 +255,7 @@ namespace app_settings {
                 else if (key == "appearance.high_contrast") parsed.high_contrast = ParseBool(value, parsed.high_contrast);
                 else if (key == "appearance.theme_mode") parsed.theme_mode = ParseInt(value, parsed.theme_mode);
                 else if (key == "appearance.accent_preset") parsed.accent_preset = ParseInt(value, parsed.accent_preset);
+                else if (key == "appearance.visual_style") parsed.visual_style = ParseInt(value, parsed.visual_style);
                 else if (key == "appearance.accent") parsed.color_primary = ParseU32(value, parsed.color_primary);
                 else if (key == "appearance.secondary") parsed.color_secondary = ParseU32(value, parsed.color_secondary);
                 else if (key == "appearance.particles") parsed.particles = ParseBool(value, parsed.particles);
@@ -452,6 +455,7 @@ namespace app_settings {
             config.high_contrast = defaults.high_contrast;
             config.theme_mode = defaults.theme_mode;
             config.accent_preset = defaults.accent_preset;
+            config.visual_style = defaults.visual_style;
             break;
         case SettingsPage::Overlay:
             config.black_background = defaults.black_background;

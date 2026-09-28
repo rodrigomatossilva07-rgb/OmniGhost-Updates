@@ -81,6 +81,52 @@ void DrawBackground(
         ImVec2(display.x, display.y - footer), performance_mode ? 0.010f : 0.018f,
         0x4F474C41u, performance_mode ? 150 : 330);
 
+    // Each marketplace theme owns a motion signature, not only a colour.
+    // Reduced-motion and performance mode keep every signature static/cheap.
+    const bool animateTheme = !performance_mode && app_settings::MotionEnabled();
+    const float motion = animateTheme ? g_time : 0.f;
+    switch (CyberTheme::GetVisualStyle()) {
+    case CyberTheme::VisualStyle::Azure:
+    case CyberTheme::VisualStyle::Arctic: {
+        for (int i = 0; i < 5; ++i) {
+            const float phase = std::fmod(motion * (.035f + i * .006f) + i * .21f, 1.f);
+            const float x = display.x * phase;
+            const float y = header + S(70.f + i * 105.f);
+            draw->AddCircle(ImVec2(x, y), S(28.f + i * 7.f),
+                CyberTheme::WithAlpha(CyberTheme::Colors.Gold, .035f), 28, S(1.f));
+        }
+        break;
+    }
+    case CyberTheme::VisualStyle::Violet: {
+        const float pulse = .5f + .5f * std::sin(motion * .8f);
+        CyberTheme::DrawRadialAccent(draw, ImVec2(display.x * .72f, display.y * .38f),
+            S(210.f + pulse * 35.f), .055f);
+        break;
+    }
+    case CyberTheme::VisualStyle::Matrix: {
+        const float step = S(32.f);
+        const float offset = std::fmod(motion * S(8.f), step);
+        for (float x = -step + offset; x < display.x; x += step)
+            draw->AddLine(ImVec2(x, header), ImVec2(x, display.y - footer),
+                CyberTheme::WithAlpha(CyberTheme::Colors.Gold, .025f), S(1.f));
+        break;
+    }
+    case CyberTheme::VisualStyle::Crimson: {
+        const float sweep = std::fmod(motion * S(85.f), display.x + S(240.f)) - S(120.f);
+        draw->AddLine(ImVec2(sweep, header), ImVec2(sweep + S(180.f), display.y - footer),
+            CyberTheme::WithAlpha(CyberTheme::Colors.Gold, .075f), S(2.f));
+        break;
+    }
+    case CyberTheme::VisualStyle::Obsidian:
+        for (float y = header + S(48.f); y < display.y - footer; y += S(72.f))
+            draw->AddLine(ImVec2(S(24.f), y), ImVec2(display.x - S(24.f), y),
+                CyberTheme::WithAlpha(CyberTheme::Colors.Gold, .018f), S(1.f));
+        break;
+    case CyberTheme::VisualStyle::Omni:
+    default:
+        break;
+    }
+
     const float rainDensity = app_settings::DigitalRainDensity();
     // Rain is a peripheral brand texture, never the foreground.  Keeping it
     // inside this narrow range also makes the visual stable across monitors.

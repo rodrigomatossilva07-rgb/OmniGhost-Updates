@@ -151,12 +151,10 @@ void DrawMarketplace(ImVec2 display) {
     BeginControlPage("##launcher_marketplace", display);
     DrawPageHeading(Loc::Tr("launcher.marketplace"), Loc::Tr("launcher.marketplace.subtitle"));
 
-    const float gap = S(14.f);
+    const float gap = S(10.f);
     const float available = ImGui::GetContentRegionAvail().x;
-    // Keep the catalogue compact even at high UI scales: a single very wide
-    // theme card is harder to scan than two portrait-oriented cards.
-    const bool twoColumns = available >= S(460.f);
-    const float cardWidth = twoColumns ? (available - gap) * .5f : available;
+    const int columns = available >= S(1180.f) ? 4 : (available >= S(760.f) ? 3 : (available >= S(430.f) ? 2 : 1));
+    const float cardWidth = (available - gap * static_cast<float>(columns - 1)) / static_cast<float>(columns);
 
     CyberWidgets::BeginCard("TEMAS E VISUAIS", 0.f);
     CyberWidgets::Badge("INCLUÍDOS", CyberWidgets::TextTone::Success);
@@ -172,96 +170,64 @@ void DrawMarketplace(ImVec2 display) {
         const char* description;
         CyberTheme::ThemeMode mode;
         CyberTheme::AccentPreset accent;
+        CyberTheme::VisualStyle visual;
     };
     static constexpr MarketplaceStyle styles[] = {
-        { "Padrão OmniGhost", "O visual original escuro com o acento Cyber do OmniGhost.", CyberTheme::ThemeMode::Dark, CyberTheme::AccentPreset::Cyber },
-        { "Obsidian Gold", "Escuro profundo com um acento âmbar mais quente e destacado.", CyberTheme::ThemeMode::Dark, CyberTheme::AccentPreset::Orange },
-        { "Neon Azure", "Escuro, limpo e frio, com destaque azul elétrico.", CyberTheme::ThemeMode::Dark, CyberTheme::AccentPreset::Blue },
-        { "Violet Pulse", "Escuro com identidade roxa para um painel mais expressivo.", CyberTheme::ThemeMode::Dark, CyberTheme::AccentPreset::Purple },
-        { "Matrix Signal", "Escuro, verde e focado em leitura rápida de estado.", CyberTheme::ThemeMode::Dark, CyberTheme::AccentPreset::Matrix },
-        { "Crimson Focus", "Escuro de alto contraste com detalhes vermelhos.", CyberTheme::ThemeMode::Dark, CyberTheme::AccentPreset::Red },
-        { "Arctic Teal", "Escuro e sereno, com uma paleta azul-esverdeada.", CyberTheme::ThemeMode::Dark, CyberTheme::AccentPreset::Teal },
+        { "Padrão OmniGhost", "Técnico, equilibrado e com a identidade original.", CyberTheme::ThemeMode::Dark, CyberTheme::AccentPreset::Cyber, CyberTheme::VisualStyle::Omni },
+        { "Obsidian Gold", "Painéis rectos, densos e acabamento âmbar premium.", CyberTheme::ThemeMode::Dark, CyberTheme::AccentPreset::Orange, CyberTheme::VisualStyle::Obsidian },
+        { "Neon Azure", "Interface leve, arredondada e profundidade azul.", CyberTheme::ThemeMode::Dark, CyberTheme::AccentPreset::Blue, CyberTheme::VisualStyle::Azure },
+        { "Violet Pulse", "Cartões suaves, espaços amplos e movimento orgânico.", CyberTheme::ThemeMode::Dark, CyberTheme::AccentPreset::Purple, CyberTheme::VisualStyle::Violet },
+        { "Matrix Signal", "Terminal angular, compacto e grelha digital.", CyberTheme::ThemeMode::Dark, CyberTheme::AccentPreset::Matrix, CyberTheme::VisualStyle::Matrix },
+        { "Crimson Focus", "Controlos afiados e superfícies vermelhas intensas.", CyberTheme::ThemeMode::Dark, CyberTheme::AccentPreset::Red, CyberTheme::VisualStyle::Crimson },
+        { "Arctic Teal", "Layout aberto, frio e minimalista em vidro teal.", CyberTheme::ThemeMode::Dark, CyberTheme::AccentPreset::Teal, CyberTheme::VisualStyle::Arctic },
     };
 
     for (int i = 0; i < static_cast<int>(std::size(styles)); ++i) {
         const auto& style = styles[i];
-        if (twoColumns && (i % 2) == 0)
-            CyberWidgets::BeginCardRow(2);
         ImGui::PushID(i);
-        CyberWidgets::BeginCard(style.title, twoColumns ? CyberWidgets::CardRowHalfWidth() : cardWidth);
         const bool isActive = CyberTheme::GetThemeMode() == style.mode &&
-            CyberTheme::GetAccentPreset() == style.accent;
-        if (isActive) CyberWidgets::Badge("EM USO", CyberWidgets::TextTone::Success);
-        // A compact, data-only preview of the pack.  It mirrors the launcher
-        // composition (sidebar, cards and primary action) without loading an
-        // external image or allocating textures per frame.
+            CyberTheme::GetAccentPreset() == style.accent &&
+            CyberTheme::GetVisualStyle() == style.visual;
         const auto& accents = CyberTheme::GetAccentPresets();
         const int accentIndex = static_cast<int>(style.accent);
         const ImVec4 accent = accentIndex >= 0 && accentIndex < static_cast<int>(accents.size())
             ? accents[accentIndex].base : CyberTheme::Colors.Gold;
         const ImU32 accentU32 = ImGui::ColorConvertFloat4ToU32(accent);
-        const ImU32 accentSoft = CyberTheme::WithAlpha(accent, 0.24f);
-        const ImVec2 previewMin = ImGui::GetCursorScreenPos();
-        const float previewWidth = ImGui::GetContentRegionAvail().x;
-        // Prefer a taller preview over a stretched horizontal strip so each
-        // theme remains recognisable in the two-column catalogue.
-        const float previewHeight = S(96.f);
-        const ImVec2 previewMax(previewMin.x + previewWidth, previewMin.y + previewHeight);
-        ImDrawList* previewDraw = ImGui::GetWindowDrawList();
-        previewDraw->AddRectFilled(previewMin, previewMax, IM_COL32(9, 11, 16, 255), S(7.f));
-        previewDraw->AddRect(previewMin, previewMax, accentSoft, S(7.f), 0, S(1.f));
-        const float sidebar = (std::min)(S(62.f), previewWidth * 0.24f);
-        previewDraw->AddRectFilled(previewMin, ImVec2(previewMin.x + sidebar, previewMax.y), IM_COL32(15, 18, 25, 255), S(7.f));
-        previewDraw->AddRectFilled(ImVec2(previewMin.x + S(9.f), previewMin.y + S(12.f)),
-                                   ImVec2(previewMin.x + sidebar - S(9.f), previewMin.y + S(19.f)), accentU32, S(2.f));
-        for (int item = 0; item < 3; ++item) {
-            const float y = previewMin.y + S(31.f + item * 16.f);
-            previewDraw->AddRectFilled(ImVec2(previewMin.x + S(10.f), y),
-                                       ImVec2(previewMin.x + sidebar - S(14.f), y + S(5.f)),
-                                       item == 0 ? accentSoft : IM_COL32(55, 60, 70, 180), S(2.f));
-        }
-        const float contentLeft = previewMin.x + sidebar + S(11.f);
-        previewDraw->AddRectFilled(ImVec2(contentLeft, previewMin.y + S(12.f)),
-                                   ImVec2(previewMax.x - S(12.f), previewMin.y + S(18.f)), IM_COL32(215, 219, 227, 230), S(2.f));
-        previewDraw->AddRectFilled(ImVec2(contentLeft, previewMin.y + S(29.f)),
-                                   ImVec2(previewMax.x - S(12.f), previewMin.y + S(58.f)), IM_COL32(23, 27, 36, 255), S(4.f));
-        previewDraw->AddRectFilled(ImVec2(contentLeft, previewMin.y + S(65.f)),
-                                   ImVec2(contentLeft + S(72.f), previewMin.y + S(79.f)), accentU32, S(4.f));
-        ImGui::Dummy(ImVec2(previewWidth, previewHeight + S(9.f)));
-        CyberWidgets::TextLine(style.description, CyberWidgets::TextTone::Secondary);
-        ImGui::Dummy(ImVec2(0.f, S(6.f)));
-        if (!isActive && CyberWidgets::Button("USAR ESTE ESTILO",
-                                 CyberWidgets::ButtonStyle::Primary,
-                                 ImVec2(S(145.f), S(28.f)))) {
+        const ImVec2 min = ImGui::GetCursorScreenPos();
+        const float height = S(92.f);
+        ImGui::InvisibleButton("##theme", ImVec2(cardWidth, height));
+        const bool hovered = ImGui::IsItemHovered();
+        const bool clicked = ImGui::IsItemClicked();
+        const ImVec2 max(min.x + cardWidth, min.y + height);
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        const float rounding = style.visual == CyberTheme::VisualStyle::Matrix ? 0.f : S(style.visual == CyberTheme::VisualStyle::Violet ? 14.f : 7.f);
+        dl->AddRectFilled(min, max, hovered ? C_CARD_TOP(252) : C_CARD(246), rounding);
+        dl->AddRect(min, max, CyberTheme::WithAlpha(accent, isActive ? .82f : (hovered ? .55f : .24f)), rounding, 0, S(isActive ? 2.f : 1.f));
+        dl->AddRectFilled(ImVec2(min.x, min.y), ImVec2(min.x + S(5.f), max.y), accentU32, rounding, ImDrawFlags_RoundCornersLeft);
+        dl->AddText(ImVec2(min.x + S(15.f), min.y + S(11.f)), C_TEXT(), style.title);
+        dl->AddText(ImVec2(min.x + S(15.f), min.y + S(35.f)), C_MUTED(), isActive ? "ATIVO" : "APLICAR");
+        const float miniatureX = max.x - S(76.f);
+        dl->AddRectFilled(ImVec2(miniatureX, min.y + S(13.f)), ImVec2(max.x - S(12.f), max.y - S(13.f)), C_BG(235), S(4.f));
+        dl->AddRectFilled(ImVec2(miniatureX + S(6.f), min.y + S(20.f)), ImVec2(miniatureX + S(19.f), max.y - S(20.f)), CyberTheme::WithAlpha(accent, .38f), S(2.f));
+        dl->AddRectFilled(ImVec2(miniatureX + S(25.f), min.y + S(20.f)), ImVec2(max.x - S(18.f), min.y + S(27.f)), accentU32, S(2.f));
+        dl->AddRectFilled(ImVec2(miniatureX + S(25.f), min.y + S(34.f)), ImVec2(max.x - S(18.f), max.y - S(20.f)), C_PANEL(), S(3.f));
+        if (hovered) ImGui::SetTooltip("%s", style.description);
+        if (!isActive && clicked) {
             CyberTheme::SetThemeMode(style.mode);
             CyberTheme::SetAccentPreset(style.accent);
+            CyberTheme::SetVisualStyle(style.visual);
             std::string saveError;
             if (app_settings::SaveGlobal(&saveError))
-                CyberWidgets::Notify("Estilo aplicado globalmente e guardado.", CyberWidgets::ToastType::Success);
+                CyberWidgets::Notify("Tema completo aplicado e guardado.", CyberWidgets::ToastType::Success);
             else
-                CyberWidgets::Notify(saveError.empty() ? "O estilo foi aplicado, mas não foi possível guardar." : saveError.c_str(),
+                CyberWidgets::Notify(saveError.empty() ? "O tema foi aplicado, mas não foi possível guardar." : saveError.c_str(),
                                      CyberWidgets::ToastType::Warning);
         }
-        CyberWidgets::EndCard();
         ImGui::PopID();
-        if (twoColumns) {
-            if ((i % 2) == 0) {
-                if (i + 1 == static_cast<int>(std::size(styles))) {
-                    CyberWidgets::NextCardColumn();
-                    ImGui::Dummy(ImVec2(0.f, 0.f));
-                    CyberWidgets::EndCardRow();
-                    ImGui::Dummy(ImVec2(0.f, gap));
-                } else {
-                    CyberWidgets::NextCardColumn();
-                }
-            } else {
-                CyberWidgets::EndCardRow();
-                if (i + 1 < static_cast<int>(std::size(styles)))
-                    ImGui::Dummy(ImVec2(0.f, gap));
-            }
-        } else if (i + 1 < static_cast<int>(std::size(styles))) {
+        if ((i % columns) != columns - 1 && i + 1 < static_cast<int>(std::size(styles)))
+            ImGui::SameLine(0.f, gap);
+        else if (i + 1 < static_cast<int>(std::size(styles)))
             ImGui::Dummy(ImVec2(0.f, gap));
-        }
     }
 
     ImGui::Dummy(ImVec2(0.f, gap));
