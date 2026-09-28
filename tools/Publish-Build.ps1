@@ -151,6 +151,17 @@ if (-not $ValidateOnly -and -not $SkipRemoteUpload -and -not $usingApprovedSourc
         throw "A tag $tag foi enviada, mas o upload da Release para o GitHub falhou com código $LASTEXITCODE."
     }
     Write-Host "[OmniGhost Publish] Release $tag publicada e confirmada no GitHub."
+
+    # A published tag is immutable. Prepare the next source version only after
+    # GitHub confirms this release, ensuring the following Publish can never
+    # accidentally try to reuse the tag that was just published.
+    & (Join-Path $ProjectDir 'tools\Increment-Version.ps1') -ProjectDir $ProjectDir
+    if ($LASTEXITCODE -ne 0) {
+        throw "A release $tag foi publicada, mas não foi possível preparar a próxima versão de origem."
+    }
+    Remove-Item -LiteralPath (Join-Path $ProjectDir 'artifacts\version-backup\pending-version.json') -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath (Join-Path $ProjectDir 'artifacts\.version-build.lock') -Force -ErrorAction SilentlyContinue
+    Write-Host '[OmniGhost Publish] Próxima versão preparada. Faz commit dos ficheiros de versão antes da próxima Publish.'
 }
 }
 finally {
