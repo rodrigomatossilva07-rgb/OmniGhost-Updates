@@ -71,17 +71,6 @@ void DrawSkeleton(ImDrawList* draw, const CS2::Player& player, const float viewM
                   ImU32 color, ImU32 jointColor, float thickness, bool joints) {
     if (!player.full_bones_ok) return;
 
-    std::array<ImVec2, CS2::kBoneSlotCount> points{};
-    std::array<bool, CS2::kBoneSlotCount> valid{};
-    for (std::size_t index = 0; index < CS2::kBoneSlotCount; ++index) {
-        const float predictedBone[3] = {
-            player.bones[index][0] + positionOffset[0],
-            player.bones[index][1] + positionOffset[1],
-            player.bones[index][2] + positionOffset[2]
-        };
-        valid[index] = WorldToScreen(predictedBone, viewMatrix, points[index]);
-    }
-
     // Compact reference-style rig: exactly 13 visible segments.
     constexpr std::pair<CS2::BoneSlot, CS2::BoneSlot> kLinks[] = {
         {CS2::BoneSlot::Head, CS2::BoneSlot::Neck}, {CS2::BoneSlot::Neck, CS2::BoneSlot::SpineUpper},
@@ -95,6 +84,22 @@ void DrawSkeleton(ImDrawList* draw, const CS2::Player& player, const float viewM
     };
     static_assert(sizeof(kLinks) / sizeof(kLinks[0]) == 13,
         "CS2 skeleton must have exactly 13 segments");
+    std::array<bool, CS2::kBoneSlotCount> used{};
+    for (const auto& [from, to] : kLinks) {
+        used[static_cast<std::size_t>(from)] = true;
+        used[static_cast<std::size_t>(to)] = true;
+    }
+    std::array<ImVec2, CS2::kBoneSlotCount> points{};
+    std::array<bool, CS2::kBoneSlotCount> valid{};
+    for (std::size_t index = 0; index < CS2::kBoneSlotCount; ++index) {
+        if (!used[index]) continue;
+        const float predictedBone[3] = {
+            player.bones[index][0] + positionOffset[0],
+            player.bones[index][1] + positionOffset[1],
+            player.bones[index][2] + positionOffset[2]
+        };
+        valid[index] = WorldToScreen(predictedBone, viewMatrix, points[index]);
+    }
     for (const auto& [from, to] : kLinks) {
         const auto a = static_cast<std::size_t>(from), b = static_cast<std::size_t>(to);
         if (!valid[a] || !valid[b]) continue;
@@ -102,11 +107,6 @@ void DrawSkeleton(ImDrawList* draw, const CS2::Player& player, const float viewM
         draw->AddLine(points[a], points[b], color, thickness);
     }
     if (joints) {
-        std::array<bool, CS2::kBoneSlotCount> used{};
-        for (const auto& [from, to] : kLinks) {
-            used[static_cast<std::size_t>(from)] = true;
-            used[static_cast<std::size_t>(to)] = true;
-        }
         for (std::size_t index = 0; index < CS2::kBoneSlotCount; ++index) {
             if (!used[index]) continue;
             if (!valid[index]) continue;
@@ -125,8 +125,10 @@ void DrawOutlinedText(ImDrawList* draw, ImVec2 pos, ImU32 color, const char* tex
     if (settings.text_outline) {
         const ImU32 outline = Color(settings.col_text_outline);
         const float t = std::clamp(settings.text_outline_thickness, .5f, 2.f);
-        for (int x = -1; x <= 1; ++x) for (int y = -1; y <= 1; ++y)
-            if (x || y) draw->AddText(ImVec2(pos.x + x * t, pos.y + y * t), outline, text);
+        draw->AddText(ImVec2(pos.x - t, pos.y), outline, text);
+        draw->AddText(ImVec2(pos.x + t, pos.y), outline, text);
+        draw->AddText(ImVec2(pos.x, pos.y - t), outline, text);
+        draw->AddText(ImVec2(pos.x, pos.y + t), outline, text);
     }
     draw->AddText(pos, color, text);
 }
@@ -424,6 +426,7 @@ CS2::Trajectory::GrenadePhysics ProjectilePhysics(CS2::ProjectileKind kind) {
 
 struct CachedProjectilePath {
     uint64_t sample_timestamp_ms{};
+    uint64_t last_simulation_ms{};
     CS2::Trajectory::TrajectoryResult result{};
 };
 
@@ -468,8 +471,12 @@ void DrawProjectilePath(ImDrawList* draw, const CS2::Projectile& projectile,
     static std::unordered_map<uintptr_t, CachedProjectilePath> paths;
     auto world = CS2::Trajectory::CollisionCache().WorldSnapshot();
     auto& cached = paths[projectile.entity];
-    if (cached.sample_timestamp_ms != projectile.sample_timestamp_ms) {
+    const uint64_t now = GetTickCount64();
+    const bool sampleChanged = cached.sample_timestamp_ms != projectile.sample_timestamp_ms;
+    if ((sampleChanged || cached.result.points.empty()) &&
+        (!cached.last_simulation_ms || now - cached.last_simulation_ms >= 40u)) {
         cached.sample_timestamp_ms = projectile.sample_timestamp_ms;
+        cached.last_simulation_ms = now;
         const CS2::Trajectory::Vec3 origin{ projectile.pos[0], projectile.pos[1], projectile.pos[2] };
         const CS2::Trajectory::Vec3 velocity{ projectile.velocity[0], projectile.velocity[1], projectile.velocity[2] };
         const auto physics = ProjectilePhysics(projectile.kind);

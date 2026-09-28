@@ -5,7 +5,7 @@ namespace CS2 {
 struct Config {
     // Legacy visual preferences are retained for backwards-compatible config files.
     // They have no renderer or menu in CS2.
-    bool esp_enabled = false, self_esp = false, visibility_colors = true, visible_check = false;
+    bool esp_enabled = false, self_esp = false, visibility_colors = false, visible_check = false;
     bool box = true, box_corner = false, skeleton = true, skeleton_joints = false;
     bool health_bar = true, armor_bar = false, name = true, distance = true, team_check = true, show_bots = true;
     bool head_dot = false, weapon_name = false, trails = false, rgb_mode = false, head_halo = false, look_direction = false;

@@ -738,9 +738,9 @@ while (application.shouldRun && !authenticated) {
         }
     }
 
-    // Preserve process visibility before Attach()/Init changes the active DMA
-    // process context. A failed attach must not turn an already observed game
-    // into the misleading "game not found" diagnosis.
+    // This inventory is diagnostic only. Remote process enumeration can miss a
+    // just-started process or briefly fail while the VMM context is changing;
+    // the adapter owns the authoritative attach/retry logic.
     const bool game_present_before_attach =
         OmniGhost::GameLaunch::IsProcessPresent(selected);
 
@@ -749,15 +749,11 @@ while (application.shouldRun && !authenticated) {
         OmniGhost::SessionLog::Severity::Info,
         OmniGhost::SessionLog::Subsystem::Adapter,
         "StartGameAdapter begin",
-        {{"game", selectedDefinition ? selectedDefinition->id : "unknown"}});
+        {{"game", selectedDefinition ? selectedDefinition->id : "unknown"},
+         {"preflight_process_visible", game_present_before_attach ? "yes" : "no"}});
 
-    OmniGhost::Launcher::AdapterStartResult startResult;
-    if (!game_present_before_attach) {
-        startResult = { false, { OmniGhost::Launcher::AdapterErrorCode::AttachFailed,
-            "Jogo não encontrado. Está aberto?" } };
-    } else {
-        startResult = OmniGhost::Launcher::StartGameAdapter(selected);
-    }
+    const OmniGhost::Launcher::AdapterStartResult startResult =
+        OmniGhost::Launcher::StartGameAdapter(selected);
     if (!startResult.succeeded) {
         // Use centralized adapter error model for consistent messaging
         const std::string_view errorMessage =

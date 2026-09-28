@@ -81,6 +81,7 @@ Memory::DiagnosticsSnapshot Memory::GetDiagnosticsSnapshot() const noexcept
 		};
 		snapshot.vmmLatencyP50Ms = percentile(50, 100);
 		snapshot.vmmLatencyP95Ms = percentile(95, 100);
+		snapshot.vmmLatencyP99Ms = percentile(99, 100);
 	}
 	snapshot.readFailureCount = readFailureCount_.load(std::memory_order_relaxed);
 	snapshot.blockedDataCalls = blockedDataCalls_.load(std::memory_order_relaxed);

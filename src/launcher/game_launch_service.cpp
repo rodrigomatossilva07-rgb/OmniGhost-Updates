@@ -57,8 +57,9 @@ bool IsProcessPresent(::Launcher::GameId selected) {
     // This is a preflight only: open the DMA device without binding it to a
     // game process, then look for the selected executable.  It prevents a
     // wrong menu from changing the global DMA process context.
-    if (!mem.GetDiagnosticsSnapshot().deviceOpen &&
-        !mem.Init(std::string(), true, false))
+    // Trust the live handle rather than a diagnostics snapshot that may lag a
+    // reset/reinitialization by one sample.
+    if (!mem.vHandle && !mem.Init(std::string(), true, false))
         return false;
     switch (selected) {
     case ::Launcher::GameId::CS2:

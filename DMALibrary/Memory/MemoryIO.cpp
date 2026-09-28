@@ -128,6 +128,7 @@ thread_local const char* t_dmaTag = "untagged";
 thread_local const char* t_dmaLane = "unknown";
 thread_local uint64_t t_dmaScanId = 0;
 thread_local uint64_t t_dmaWaitUs = 0;
+thread_local uint64_t t_lastDmaWaitUs = 0;
 
 struct TagAccum {
     const char* tag = "none";
@@ -216,7 +217,7 @@ void LogSlowDma(const char* op, double duration_ms, int requests = 0) {
         t_dmaTag ? t_dmaTag : "null",
         op ? op : "?",
         duration_ms,
-        static_cast<double>(t_dmaWaitUs) / 1000.0,
+        static_cast<double>(t_lastDmaWaitUs) / 1000.0,
         duration_ms,
         requests,
         static_cast<unsigned long>(GetCurrentThreadId()));
@@ -261,7 +262,7 @@ void Memory::SetDmaLane(const char* lane) noexcept { t_dmaLane = lane ? lane : "
 const char* Memory::GetDmaCallTag() noexcept {
     return t_dmaTag ? t_dmaTag : "untagged";
 }
-void Memory::ResetThreadDmaWaitUs() noexcept { t_dmaWaitUs = 0; }
+void Memory::ResetThreadDmaWaitUs() noexcept { t_dmaWaitUs = 0; t_lastDmaWaitUs = 0; }
 uint64_t Memory::ConsumeThreadDmaWaitUs() noexcept {
     const uint64_t v = t_dmaWaitUs;
     t_dmaWaitUs = 0;
@@ -271,7 +272,6 @@ uint64_t Memory::ConsumeThreadDmaWaitUs() noexcept {
 bool Memory::Read(uintptr_t address, void* buffer, size_t size) const
 {
 	WarnIfDmaOnRenderThread("Read");
-	const auto t0 = std::chrono::steady_clock::now();
 	DataCallLease dataLease(this);
 	if (!dataLease) {
 		// Maintenance blocked the data plane — count as wait.
@@ -283,21 +283,31 @@ bool Memory::Read(uintptr_t address, void* buffer, size_t size) const
 	readRequestCount_.fetch_add(1, std::memory_order_relaxed);
 	if (size > static_cast<size_t>(MAXDWORD))
 		return false;
+	// Serialize only the physical transfer. In particular, do not make a CS2
+	// entity scan own the transport while it performs CPU-side processing.
+	const auto lockBegin = std::chrono::steady_clock::now();
+	std::unique_lock<std::mutex> dmaReadLock(dmaReadMutex_);
+	t_lastDmaWaitUs = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
+		std::chrono::steady_clock::now() - lockBegin).count());
+	t_dmaWaitUs += t_lastDmaWaitUs;
+	const auto transferBegin = std::chrono::steady_clock::now();
 	const DWORD byteCount = static_cast<DWORD>(size);
 	DWORD read_size = 0;
 	const bool ok1 = VMMDLL_MemReadEx(this->vHandle, current_process.PID, address, static_cast<PBYTE>(buffer), byteCount, &read_size, VMMDLL_FLAG_NOCACHE)
 		&& read_size == byteCount;
-	const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+	bool ok = ok1;
+	if (!ok) {
+		// Fallback: cached read (sometimes works when NOCACHE fails mid DTB fix)
+		read_size = 0;
+		ok = VMMDLL_MemReadEx(this->vHandle, current_process.PID, address,
+			static_cast<PBYTE>(buffer), byteCount, &read_size, 0) && read_size == byteCount;
+	}
+	dmaReadLock.unlock();
+	const double ms = std::chrono::duration<double, std::milli>(
+		std::chrono::steady_clock::now() - transferBegin).count();
 	NoteDmaCall("Read", ms);
 	LogSlowDma("Read", ms, 1);
-	if (ok1)
-		return true;
-
-	// Fallback: cached read (sometimes works when NOCACHE fails mid DTB fix)
-	read_size = 0;
-	if (VMMDLL_MemReadEx(this->vHandle, current_process.PID, address, static_cast<PBYTE>(buffer), byteCount, &read_size, 0)
-		&& read_size == byteCount)
-		return true;
+	if (ok) return true;
 
 	const unsigned fail_count = readFailureCount_.fetch_add(1, std::memory_order_relaxed) + 1;
 	if ((fail_count % 200) == 1)
@@ -305,8 +315,44 @@ bool Memory::Read(uintptr_t address, void* buffer, size_t size) const
 	return false;
 }
 
+bool Memory::TryRead(uintptr_t address, void* buffer, size_t size, bool& attempted) const
+{
+	attempted = false;
+	WarnIfDmaOnRenderThread("TryRead");
+	DataCallLease dataLease(this);
+	if (!dataLease || !this->vHandle || !buffer || size > static_cast<size_t>(MAXDWORD))
+		return false;
+	std::unique_lock<std::mutex> dmaReadLock(dmaReadMutex_, std::try_to_lock);
+	if (!dmaReadLock.owns_lock())
+		return false;
+	t_lastDmaWaitUs = 0;
+	attempted = true;
+	const auto t0 = std::chrono::steady_clock::now();
+	readRequestCount_.fetch_add(1, std::memory_order_relaxed);
+	const DWORD byteCount = static_cast<DWORD>(size);
+	DWORD readSize = 0;
+	bool ok = VMMDLL_MemReadEx(this->vHandle, current_process.PID, address,
+		static_cast<PBYTE>(buffer), byteCount, &readSize, VMMDLL_FLAG_NOCACHE)
+		&& readSize == byteCount;
+	if (!ok) {
+		readSize = 0;
+		ok = VMMDLL_MemReadEx(this->vHandle, current_process.PID, address,
+			static_cast<PBYTE>(buffer), byteCount, &readSize, 0)
+			&& readSize == byteCount;
+	}
+	dmaReadLock.unlock();
+	const double ms = std::chrono::duration<double, std::milli>(
+		std::chrono::steady_clock::now() - t0).count();
+	NoteDmaCall("TryRead", ms);
+	LogSlowDma("TryRead", ms, 1);
+	if (!ok)
+		readFailureCount_.fetch_add(1, std::memory_order_relaxed);
+	return ok;
+}
+
 bool Memory::ReadWithCount(uintptr_t address, void* buffer, size_t size, size_t& bytesRead) const
 {
+	WarnIfDmaOnRenderThread("ReadWithCount");
 	bytesRead = 0;
 	DataCallLease dataLease(this);
 	if (!dataLease || !this->vHandle || !buffer)
@@ -314,6 +360,11 @@ bool Memory::ReadWithCount(uintptr_t address, void* buffer, size_t size, size_t&
 	readRequestCount_.fetch_add(1, std::memory_order_relaxed);
 	if (size > static_cast<size_t>(MAXDWORD))
 		return false;
+	const auto lockBegin = std::chrono::steady_clock::now();
+	std::unique_lock<std::mutex> dmaReadLock(dmaReadMutex_);
+	t_lastDmaWaitUs = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
+		std::chrono::steady_clock::now() - lockBegin).count());
+	t_dmaWaitUs += t_lastDmaWaitUs;
 
 	const DWORD byteCount = static_cast<DWORD>(size);
 	DWORD readSize = 0;
@@ -333,11 +384,17 @@ bool Memory::ReadWithCount(uintptr_t address, void* buffer, size_t size, size_t&
 
 bool Memory::Read(uintptr_t address, void* buffer, size_t size, int pid) const
 {
+	WarnIfDmaOnRenderThread("ReadPid");
 	DataCallLease dataLease(this);
 	if (!dataLease || !this->vHandle)
 		return false;
 	if (size > static_cast<size_t>(MAXDWORD))
 		return false;
+	const auto lockBegin = std::chrono::steady_clock::now();
+	std::unique_lock<std::mutex> dmaReadLock(dmaReadMutex_);
+	t_lastDmaWaitUs = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
+		std::chrono::steady_clock::now() - lockBegin).count());
+	t_dmaWaitUs += t_lastDmaWaitUs;
 	const DWORD byteCount = static_cast<DWORD>(size);
 	DWORD read_size = 0;
 	if (!VMMDLL_MemReadEx(this->vHandle, pid, address, static_cast<PBYTE>(buffer), byteCount, &read_size, VMMDLL_FLAG_NOCACHE))
@@ -470,7 +527,6 @@ void Memory::AddScatterWriteRequest(VMMDLL_SCATTER_HANDLE handle, uint64_t addre
 void Memory::ExecuteReadScatter(VMMDLL_SCATTER_HANDLE handle, int pid)
 {
 	WarnIfDmaOnRenderThread("ExecuteReadScatter");
-	const auto t0 = std::chrono::steady_clock::now();
 	DataCallLease dataLease(this);
 	if (!dataLease) {
 		t_dmaWaitUs += 500;
@@ -478,23 +534,28 @@ void Memory::ExecuteReadScatter(VMMDLL_SCATTER_HANDLE handle, int pid)
 	}
 	if (!ScatterHandleIsCurrent(handle))
 		return;
+	// Scatter preparation remains concurrent; only execution touches the
+	// shared physical DMA transport.
+	const auto lockBegin = std::chrono::steady_clock::now();
+	std::unique_lock<std::mutex> dmaReadLock(dmaReadMutex_);
+	t_lastDmaWaitUs = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
+		std::chrono::steady_clock::now() - lockBegin).count());
+	t_dmaWaitUs += t_lastDmaWaitUs;
+	const auto transferBegin = std::chrono::steady_clock::now();
 	if (pid == 0)
 		pid = current_process.PID;
 	scatterReadBatchCount_.fetch_add(1, std::memory_order_relaxed);
 	OMNIGHOST_VMM_TIMING("Scatter_ExecuteRead");
 
-	if (!VMMDLL_Scatter_ExecuteRead(handle))
-	{
-		LOG("[-] Failed to Execute Scatter Read\n");
-	}
-	const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+	const bool executeOk = VMMDLL_Scatter_ExecuteRead(handle) != FALSE;
+	//Clear after using it
+	const bool clearOk = VMMDLL_Scatter_Clear(handle, pid, VMMDLL_FLAG_NOCACHE) != FALSE;
+	dmaReadLock.unlock();
+	const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - transferBegin).count();
 	NoteDmaCall("Scatter", ms);
 	LogSlowDma("Scatter", ms, 0);
-	//Clear after using it
-	if (!VMMDLL_Scatter_Clear(handle, pid, VMMDLL_FLAG_NOCACHE))
-	{
-		LOG("[-] Failed to clear Scatter\n");
-	}
+	if (!executeOk) LOG("[-] Failed to Execute Scatter Read\n");
+	if (!clearOk) LOG("[-] Failed to clear Scatter\n");
 }
 
 void Memory::ExecuteWriteScatter(VMMDLL_SCATTER_HANDLE handle, int pid)

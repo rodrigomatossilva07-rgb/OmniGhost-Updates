@@ -151,6 +151,10 @@ private:
 	mutable std::atomic<uint32_t> activeDataCalls_{ 0 };
 	mutable std::atomic<uint32_t> activeScatterHandles_{ 0 };
 	mutable std::atomic<uint64_t> blockedDataCalls_{ 0 };
+	// MemProcFS/LeechCore data transfers share one physical transport. Keep the
+	// critical section at the actual transfer boundary so callers can continue
+	// doing CPU-side preparation and validation concurrently.
+	mutable std::mutex dmaReadMutex_;
 	struct ScatterGeneration final
 	{
 		uint64_t session = 0;
@@ -293,6 +297,7 @@ public:
 		uint64_t vmmLatencyAverageMs = 0;
 		uint64_t vmmLatencyP50Ms = 0;
 		uint64_t vmmLatencyP95Ms = 0;
+		uint64_t vmmLatencyP99Ms = 0;
 		uint64_t readFailureCount = 0;
 		uint64_t blockedDataCalls = 0;
 		uint32_t activeDataCalls = 0;
@@ -608,6 +613,9 @@ public:
 	* @return true if successful, false if not.
 	*/
 	bool Read(uintptr_t address, void* buffer, size_t size) const;
+	// Non-blocking transport read for latency-sensitive consumers such as the
+	// camera lane. `attempted` is true only after the physical DMA gate was won.
+	bool TryRead(uintptr_t address, void* buffer, size_t size, bool& attempted) const;
 	bool Read(uintptr_t address, void* buffer, size_t size, int pid) const;
 	// Diagnostic variant used by runtime probes. Reports the exact number of bytes
 	// returned by the successful/final VMM read attempt; never writes target memory.

@@ -329,7 +329,7 @@ void RefreshFromMemory() noexcept {
         s.vmm_avg_ms.store(static_cast<float>(snap.vmmLatencyAverageMs), std::memory_order_relaxed);
         s.vmm_p50_ms.store(static_cast<float>(snap.vmmLatencyP50Ms), std::memory_order_relaxed);
         s.vmm_p95_ms.store(static_cast<float>(snap.vmmLatencyP95Ms), std::memory_order_relaxed);
-        s.vmm_p99_ms.store(static_cast<float>(snap.vmmLatencyP95Ms), std::memory_order_relaxed);
+        s.vmm_p99_ms.store(static_cast<float>(snap.vmmLatencyP99Ms), std::memory_order_relaxed);
         s.vmm_max_ms.store(static_cast<float>(snap.maxVmmLatencyMs), std::memory_order_relaxed);
         s.read_fails.store(snap.readFailureCount, std::memory_order_relaxed);
         s.dma_open.store(snap.deviceOpen, std::memory_order_relaxed);
@@ -386,13 +386,13 @@ void LogSessionSummary(std::string_view tag) {
     std::snprintf(buf, sizeof(buf),
         "SESSION_SUMMARY\n"
         "acquire_avg_ms=%.2f\nacquire_p50_ms=%.2f\nacquire_p95_ms=%.2f\nacquire_p99_ms=%.2f\nacquire_max_ms=%.2f\n"
-        "dma_avg_ms=%.2f\ndma_p95_ms=%.2f\ndma_max_ms=%.2f\n"
+        "dma_avg_ms=%.2f\ndma_p95_ms=%.2f\ndma_p99_ms=%.2f\ndma_max_ms=%.2f\n"
         "render_avg_ms=%.2f\nrender_p95_ms=%.2f\nrender_max_ms=%.2f\n"
         "snapshot_drops=%llu\nread_fails=%llu\nspikes=%llu\n"
         "suppressed_20=%llu\nsuppressed_50=%llu\nsuppressed_100=%llu",
         s.acquire_ms.load(), s.acquire_p50_ms.load(), s.acquire_p95_ms.load(),
         s.acquire_p99_ms.load(), s.acquire_max_ms.load(),
-        s.vmm_avg_ms.load(), s.vmm_p95_ms.load(), s.vmm_max_ms.load(),
+        s.vmm_avg_ms.load(), s.vmm_p95_ms.load(), s.vmm_p99_ms.load(), s.vmm_max_ms.load(),
         s.render_ms.load(), s.render_p95_ms.load(), s.render_max_ms.load(),
         static_cast<unsigned long long>(s.snapshot_drops.load()),
         static_cast<unsigned long long>(s.read_fails.load()),

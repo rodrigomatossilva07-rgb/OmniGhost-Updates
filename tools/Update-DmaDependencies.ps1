@@ -39,6 +39,7 @@ $Staging = Join-Path $Root "third_party\dma_stack.staging"
 $Backup = Join-Path $Root "third_party\dma_stack.backup"
 $LogDir = Join-Path $Root "logs"
 $TempRoot = Join-Path $Root ".temp\dma_update"
+$FailedRoot = Join-Path $TempRoot "failed"
 $MaxArchiveEntries = 10000
 $MaxExpandedBytes = 2GB
 
@@ -206,10 +207,19 @@ function Install-FromExtracts([string]$MemProcDir, [string]$LeechCoreDir, [strin
     Write-Log "LeechCore LIB SHA256 MemProcFS=$mpfsLibHash"
     Write-Log "LeechCore LIB SHA256 Standalone=$lcLibHash"
 
-    if ($mpfsDllHash -ne $lcDllHash -or $mpfsLibHash -ne $lcLibHash) {
-        throw "COMPATIBILITY CHECK FAILED: MemProcFS and standalone LeechCore binaries differ."
+    # Official MemProcFS and standalone LeechCore releases may package DLLs
+    # produced by separate builds (different signatures/build metadata), so a
+    # byte-for-byte DLL comparison rejects otherwise compatible official
+    # releases. The import library is the ABI contract used by this project:
+    # require it to be identical, then keep the LeechCore DLL bundled with
+    # MemProcFS so vmm.dll and leechcore.dll always come from the same runtime.
+    if (-not $mpfsLibHash -or -not $lcLibHash -or $mpfsLibHash -ne $lcLibHash) {
+        throw "COMPATIBILITY CHECK FAILED: MemProcFS and standalone LeechCore import libraries differ."
     }
-    Write-Log "COMPATIBILITY = VERIFIED_BY_IDENTICAL_BINARIES"
+    if ($mpfsDllHash -ne $lcDllHash) {
+        Write-Log "LeechCore DLL packages differ; using the MemProcFS-bundled DLL paired with vmm.dll."
+    }
+    Write-Log "COMPATIBILITY = VERIFIED_BY_IDENTICAL_IMPORT_LIBRARY"
 
     Copy-Item (Find-File $MemProcDir "vmmdll.h") (Join-Path $Destination "include\vmmdll.h") -Force
     Copy-Item (Find-File $LeechCoreDir "leechcore.h") (Join-Path $Destination "include\leechcore.h") -Force
@@ -243,7 +253,7 @@ function Install-FromExtracts([string]$MemProcDir, [string]$LeechCoreDir, [strin
         updated_at = (Get-Date).ToUniversalTime().ToString("o")
         architecture = "win-x64"
         source = "Update-DmaDependencies.ps1"
-        compatibility = "VERIFIED_BY_IDENTICAL_BINARIES"
+        compatibility = "VERIFIED_BY_IDENTICAL_IMPORT_LIBRARY"
         memprocfs = @{
             asset = (Split-Path -Leaf $MemProcFSZip)
             detected_version = (Get-PeFileVersion (Join-Path $Destination "bin\vmm.dll"))
@@ -257,6 +267,11 @@ function Install-FromExtracts([string]$MemProcDir, [string]$LeechCoreDir, [strin
             asset = (Split-Path -Leaf $LeechCoreZip)
             detected_version = (Get-PeFileVersion (Join-Path $Destination "bin\leechcore.dll"))
             header_source = "LeechCore standalone package"
+            runtime_source = "MemProcFS bundle (paired with vmm.dll)"
+            standalone_dll = @{
+                detected_version = (Get-PeFileVersion $lcDll)
+                sha256 = $lcDllHash
+            }
             sha256 = @{
                 "leechcore.dll" = (Get-Sha256 (Join-Path $Destination "bin\leechcore.dll"))
                 "leechcore.lib" = (Get-Sha256 (Join-Path $Destination "lib\leechcore.lib"))
@@ -381,8 +396,9 @@ function Invoke-Rollback {
     if (-not (Test-Path -LiteralPath $Backup -PathType Container)) {
         throw "No rollback backup exists at $Backup"
     }
-    $failed = Join-Path $Root ("third_party\dma_stack.failed-{0:yyyyMMdd-HHmmss}" -f (Get-Date))
-    if (Test-Path -LiteralPath $Stack) { Rename-Item -LiteralPath $Stack -NewName (Split-Path -Leaf $failed) }
+    New-Item -ItemType Directory -Force -Path $FailedRoot | Out-Null
+    $failed = Join-Path $FailedRoot ("dma_stack.rollback-{0:yyyyMMdd-HHmmss}" -f (Get-Date))
+    if (Test-Path -LiteralPath $Stack) { Move-Item -LiteralPath $Stack -Destination $failed }
     Rename-Item -LiteralPath $Backup -NewName "dma_stack"
     Remove-LegacyManagedCopies
     Invoke-Validate
@@ -483,6 +499,7 @@ $work = Join-Path $TempRoot ([guid]::NewGuid().ToString("N"))
 $mpExt = Join-Path $work "memprocfs"
 $lcExt = Join-Path $work "leechcore"
 New-Item -ItemType Directory -Force -Path $work | Out-Null
+$installedNewStack = $false
 
 try {
     Write-Log "Extracting MemProcFS into isolated staging..."
@@ -508,6 +525,7 @@ try {
         Write-Log "Backup created: $Backup"
     }
     Rename-Item -LiteralPath $Staging -NewName "dma_stack"
+    $installedNewStack = $true
     Write-Log "Canonical stack installed: $Stack"
 
     Remove-LegacyManagedCopies
@@ -533,11 +551,15 @@ try {
     Write-Log "Dependencies updated successfully."
 } catch {
     Write-Log "ERROR: $_"
-    if (Test-Path -LiteralPath $Stack) {
-        $failed = Join-Path $Root ("third_party\dma_stack.failed-{0:yyyyMMdd-HHmmss}" -f (Get-Date))
-        Rename-Item -LiteralPath $Stack -NewName (Split-Path -Leaf $failed) -ErrorAction SilentlyContinue
+    # Only quarantine $Stack when this invocation already swapped staging into
+    # place. A validation/extraction failure before the swap must leave the
+    # previously active canonical stack untouched.
+    if ($installedNewStack -and (Test-Path -LiteralPath $Stack)) {
+        New-Item -ItemType Directory -Force -Path $FailedRoot | Out-Null
+        $failed = Join-Path $FailedRoot ("dma_stack.failed-{0:yyyyMMdd-HHmmss}" -f (Get-Date))
+        Move-Item -LiteralPath $Stack -Destination $failed -ErrorAction SilentlyContinue
     }
-    if (Test-Path -LiteralPath $Backup) {
+    if ($installedNewStack -and (Test-Path -LiteralPath $Backup)) {
         Rename-Item -LiteralPath $Backup -NewName "dma_stack" -ErrorAction SilentlyContinue
         Write-Log "Rollback restored previous canonical stack."
     }
