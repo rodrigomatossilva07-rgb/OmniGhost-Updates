@@ -74,6 +74,24 @@ function Get-Sha256([string]$Path) {
     }
 }
 
+function Get-NormalizedTextSha256([string]$Path) {
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $null }
+
+    # Git may materialize tracked headers with CRLF or LF depending on the
+    # checkout configuration. Hash their logical UTF-8/LF representation so
+    # an independent reproducibility checkout validates the same source text.
+    $text = [System.IO.File]::ReadAllText($Path)
+    $normalized = $text.Replace("`r`n", "`n").Replace("`r", "`n")
+    $utf8 = New-Object System.Text.UTF8Encoding($false)
+    $bytes = $utf8.GetBytes($normalized)
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        return ([BitConverter]::ToString($sha.ComputeHash($bytes))).Replace('-', '').ToLowerInvariant()
+    } finally {
+        $sha.Dispose()
+    }
+}
+
 function Test-PeX64([string]$Path) {
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $false }
     $stream = [System.IO.File]::Open($Path, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
@@ -254,13 +272,14 @@ function Install-FromExtracts([string]$MemProcDir, [string]$LeechCoreDir, [strin
         architecture = "win-x64"
         source = "Update-DmaDependencies.ps1"
         compatibility = "VERIFIED_BY_IDENTICAL_IMPORT_LIBRARY"
+        text_hash_normalization = "UTF-8/LF"
         memprocfs = @{
             asset = (Split-Path -Leaf $MemProcFSZip)
             detected_version = (Get-PeFileVersion (Join-Path $Destination "bin\vmm.dll"))
             sha256 = @{
                 "vmm.dll" = (Get-Sha256 (Join-Path $Destination "bin\vmm.dll"))
                 "vmm.lib" = (Get-Sha256 (Join-Path $Destination "lib\vmm.lib"))
-                "vmmdll.h" = (Get-Sha256 (Join-Path $Destination "include\vmmdll.h"))
+                "vmmdll.h" = (Get-NormalizedTextSha256 (Join-Path $Destination "include\vmmdll.h"))
             }
         }
         leechcore = @{
@@ -275,7 +294,7 @@ function Install-FromExtracts([string]$MemProcDir, [string]$LeechCoreDir, [strin
             sha256 = @{
                 "leechcore.dll" = (Get-Sha256 (Join-Path $Destination "bin\leechcore.dll"))
                 "leechcore.lib" = (Get-Sha256 (Join-Path $Destination "lib\leechcore.lib"))
-                "leechcore.h" = (Get-Sha256 (Join-Path $Destination "include\leechcore.h"))
+                "leechcore.h" = (Get-NormalizedTextSha256 (Join-Path $Destination "include\leechcore.h"))
             }
         }
         d3xx = @{
@@ -311,9 +330,9 @@ function Remove-LegacyManagedCopies {
     }
 }
 
-function Assert-ManifestHash([object]$Expected, [string]$Path, [string]$Label) {
+function Assert-ManifestHash([object]$Expected, [string]$Path, [string]$Label, [switch]$NormalizeText) {
     if (-not $Expected) { throw "INVALID: manifest hash missing for $Label" }
-    $actual = Get-Sha256 $Path
+    $actual = if ($NormalizeText) { Get-NormalizedTextSha256 $Path } else { Get-Sha256 $Path }
     if ($actual -ne ([string]$Expected).ToLowerInvariant()) {
         throw "INVALID: $Label hash mismatch. expected=$Expected actual=$actual"
     }
@@ -340,10 +359,10 @@ function Invoke-Validate {
     $manifest = Get-Content -LiteralPath (Join-Path $Stack "versions.json") -Raw | ConvertFrom-Json
     Assert-ManifestHash $manifest.memprocfs.sha256.'vmm.dll' (Join-Path $Stack "bin\vmm.dll") "vmm.dll"
     Assert-ManifestHash $manifest.memprocfs.sha256.'vmm.lib' (Join-Path $Stack "lib\vmm.lib") "vmm.lib"
-    Assert-ManifestHash $manifest.memprocfs.sha256.'vmmdll.h' (Join-Path $Stack "include\vmmdll.h") "vmmdll.h"
+    Assert-ManifestHash $manifest.memprocfs.sha256.'vmmdll.h' (Join-Path $Stack "include\vmmdll.h") "vmmdll.h" -NormalizeText
     Assert-ManifestHash $manifest.leechcore.sha256.'leechcore.dll' (Join-Path $Stack "bin\leechcore.dll") "leechcore.dll"
     Assert-ManifestHash $manifest.leechcore.sha256.'leechcore.lib' (Join-Path $Stack "lib\leechcore.lib") "leechcore.lib"
-    Assert-ManifestHash $manifest.leechcore.sha256.'leechcore.h' (Join-Path $Stack "include\leechcore.h") "leechcore.h"
+    Assert-ManifestHash $manifest.leechcore.sha256.'leechcore.h' (Join-Path $Stack "include\leechcore.h") "leechcore.h" -NormalizeText
 
     $legacyManaged = @(
         "DMALibrary\libs\vmmdll.h","DMALibrary\libs\leechcore.h","DMALibrary\libs\vmm.lib","DMALibrary\libs\leechcore.lib",
