@@ -1709,8 +1709,6 @@ static uintptr_t ResolvePawnFromHandle(uint32_t handle, uintptr_t expected_local
     if (preferred) {
         if (expected_local_pawn && preferred == expected_local_pawn)
             return preferred;
-        if (LooksLikePawn(preferred))
-            return preferred;
         // Still accept a valid pointer — main loop filters by health/team.
         if (IsUserPointer(preferred))
             return preferred;
@@ -1719,10 +1717,6 @@ static uintptr_t ResolvePawnFromHandle(uint32_t handle, uintptr_t expected_local
     const uintptr_t alt = ResolveEntityByHandle(handle, alternate);
     if (alt) {
         if (expected_local_pawn && alt == expected_local_pawn) {
-            g_pawn_stride = alternate;
-            return alt;
-        }
-        if (LooksLikePawn(alt)) {
             g_pawn_stride = alternate;
             return alt;
         }
@@ -4252,13 +4246,12 @@ static void RunFrameWithConfig(const Config& frame_config) {
             }
         }
 
-        // Player flags and shot state were acquired in FlagsBatch.  Assembly
+        // Player flags were acquired in FlagsBatch. Assembly
         // reads only the cache, so it never stalls the render snapshot.
         auto& cached_flags = flag_cache[p.pawn];
         p.money = cached_flags.money;
         p.has_defuser = cached_flags.kit;
         p.is_defusing = cached_flags.defusing;
-        p.shots_fired = cached_flags.shots;
 
         if (!p.is_local && p.team != runtime.local_team)
             ++runtime.enemy_count;
