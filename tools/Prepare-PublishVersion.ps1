@@ -23,5 +23,7 @@ if ([string]$config.repository -notmatch '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$') {
 }
 Write-Host "[OmniGhost Version] Versão de origem: $version; tag esperada: v$version. A build não altera a versão nem o Git."
 if (-not $ValidateOnly) {
+	& (Join-Path $PSScriptRoot 'Finalize-VersionCommit.ps1') -ProjectDir $ProjectDir
+	if ($LASTEXITCODE -ne 0) { throw 'Não foi possível finalizar o incremento automático da versão.' }
     & (Join-Path $PSScriptRoot 'Test-CommercialPreflight.ps1') -ProjectDir $ProjectDir -AllowMissingTag -SourceOnly
 }

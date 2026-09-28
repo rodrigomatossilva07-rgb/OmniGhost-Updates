@@ -159,9 +159,14 @@ if (-not $ValidateOnly -and -not $SkipRemoteUpload -and -not $usingApprovedSourc
     if ($LASTEXITCODE -ne 0) {
         throw "A release $tag foi publicada, mas não foi possível preparar a próxima versão de origem."
     }
+
+	& (Join-Path $ProjectDir 'tools\Finalize-VersionCommit.ps1') -ProjectDir $ProjectDir
+	if ($LASTEXITCODE -ne 0) {
+		throw "A release $tag foi publicada, mas o commit automático da versão seguinte falhou."
+	}
     Remove-Item -LiteralPath (Join-Path $ProjectDir 'artifacts\version-backup\pending-version.json') -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath (Join-Path $ProjectDir 'artifacts\.version-build.lock') -Force -ErrorAction SilentlyContinue
-    Write-Host '[OmniGhost Publish] Próxima versão preparada. Faz commit dos ficheiros de versão antes da próxima Publish.'
+	Write-Host '[OmniGhost Publish] Próxima versão preparada; a árvore de trabalho permanece limpa para a próxima Publish.'
 }
 }
 finally {

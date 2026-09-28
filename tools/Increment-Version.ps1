@@ -198,7 +198,7 @@ try {
     Invoke-VersionSync
     Write-VersionLog "Recursos internos atualizados para $Next"
 
-    Write-VersionLog 'Versão preparada. Revê as alterações e cria o commit com a tua identidade Git antes de Publish.'
+	Write-VersionLog 'Versão preparada. O orquestrador Publish irá guardar estes ficheiros num commit local automático.'
 
     return
 }
