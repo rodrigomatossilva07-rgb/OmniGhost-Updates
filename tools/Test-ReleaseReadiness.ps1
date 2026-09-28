@@ -39,4 +39,9 @@ foreach ($build in $offsets.builds.PSObject.Properties) {
         }
     }
 }
-Write-Host "[PASS] Release readiness: versão $version, licença local ausente e $(@($offsets.builds.PSObject.Properties).Count) builds FiveM verificados."
+$collisionFiles = @(Get-ChildItem -LiteralPath (Join-Path $ProjectDir 'src\games\Cs2\collision') -Filter '*.tri' -File)
+$invalidCollisionFiles = @($collisionFiles | Where-Object { $_.Length -lt 36000 -or $_.Length % 36 -ne 0 })
+if ($collisionFiles.Count -eq 0 -or $invalidCollisionFiles.Count -gt 0) {
+    throw "Colisão CS2 incompleta: $($invalidCollisionFiles.Count) de $($collisionFiles.Count) mapas têm ficheiros .tri inválidos ou com menos de 1000 triângulos. Não publicar LOS CS2 como geométrico."
+}
+Write-Host "[PASS] Release readiness: versão $version, licença local ausente, $(@($offsets.builds.PSObject.Properties).Count) builds FiveM e $($collisionFiles.Count) mapas CS2 verificados."

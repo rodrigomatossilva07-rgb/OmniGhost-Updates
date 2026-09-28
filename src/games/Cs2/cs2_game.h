@@ -125,7 +125,7 @@ struct Player {
     bool bones_ok = false;          // at least head/neck/chest/stomach are valid
     bool full_bones_ok = false;     // complete 20-slot pose is valid for skeleton/body trigger
     bool spotted = true; // m_bSpotted (EntitySpottedState_t)
-    bool visibility_known = false; // True when the spotted-state was acquired.
+    bool visibility_known = false; // Static map LOS, independent of radar spotting.
     bool visible = false;
     int ent_index = 0;
     uint64_t steam_id = 0;

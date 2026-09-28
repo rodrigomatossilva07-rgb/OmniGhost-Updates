@@ -102,6 +102,63 @@ $seenIds = @{}; $seenNames = @{}; $rc = New-Object 'Collections.Generic.List[str
 $entries = New-Object 'Collections.Generic.List[string]'
 $enum = New-Object 'Collections.Generic.List[string]'
 $totalOriginal = [uint64]0; $totalStored = [uint64]0
+$collisionItemCount = 0
+$totalCollisionBytes = [uint64]0
+foreach ($item in $items) {
+    $source = [IO.Path]::GetFullPath((Join-Path $ProjectDir ([string]$item.source)))
+    if (([string]$item.logicalName).StartsWith('cs2/collision/', [StringComparison]::OrdinalIgnoreCase)) {
+        $collisionItemCount++
+        if (Test-Path -LiteralPath $source -PathType Leaf) { $totalCollisionBytes += [uint64]([IO.FileInfo]$source).Length }
+    }
+}
+if ($null -eq ('OmniGhostLzms' -as [type])) {
+    # Add-Type invokes the C# compiler, which treats every LIB entry as a
+    # compiler search path. A partially initialized VS environment can leave
+    # relative entries such as "lib\um\x64" there; those are warnings-as-errors
+    # even though this P/Invoke-only helper does not link against them.
+    $originalProcessLib = [Environment]::GetEnvironmentVariable('LIB', 'Process')
+    $validLibPaths = @(
+        $originalProcessLib -split ';' | Where-Object {
+            -not [string]::IsNullOrWhiteSpace($_) -and
+            [IO.Path]::IsPathRooted($_) -and
+            (Test-Path -LiteralPath $_ -PathType Container)
+        }
+    )
+    [Environment]::SetEnvironmentVariable('LIB', ($validLibPaths -join ';'), 'Process')
+    try {
+        Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class OmniGhostLzms {
+    const uint Lzms = 5;
+    [DllImport("cabinet.dll", SetLastError=true)] static extern bool CreateCompressor(uint algorithm, IntPtr alloc, out IntPtr handle);
+    [DllImport("cabinet.dll", SetLastError=true)] static extern bool CloseCompressor(IntPtr handle);
+    [DllImport("cabinet.dll", SetLastError=true)] static extern bool Compress(IntPtr handle, byte[] source, UIntPtr sourceSize, byte[] destination, UIntPtr destinationSize, out UIntPtr needed);
+    public static byte[] CompressBytes(byte[] source) {
+        IntPtr handle;
+        if (!CreateCompressor(Lzms, IntPtr.Zero, out handle)) throw new InvalidOperationException("CreateCompressor failed");
+        try {
+            ulong initial = (ulong)source.Length + Math.Max(65536UL, (ulong)source.Length / 100UL);
+            byte[] destination = new byte[checked((int)initial)]; UIntPtr needed;
+            if (!Compress(handle, source, (UIntPtr)source.Length, destination, (UIntPtr)destination.Length, out needed)) {
+                destination = new byte[checked((int)needed.ToUInt64())];
+                if (!Compress(handle, source, (UIntPtr)source.Length, destination, (UIntPtr)destination.Length, out needed))
+                    throw new InvalidOperationException("Compress failed");
+            }
+            Array.Resize(ref destination, checked((int)needed.ToUInt64())); return destination;
+        } finally { CloseCompressor(handle); }
+    }
+}
+'@
+    }
+    finally {
+        [Environment]::SetEnvironmentVariable('LIB', $originalProcessLib, 'Process')
+    }
+}
+function Compress-Lzms([byte[]]$InputBytes) { return [OmniGhostLzms]::CompressBytes($InputBytes) }
+$processedCollisionBytes = [uint64]0
+$processedCollisionItems = 0
+
 foreach ($item in $items) {
     $id = [int]$item.id; $name = [string]$item.name; $logical = ([string]$item.logicalName).Replace('\','/')
     if ($id -lt 300 -or $id -gt 65535) { throw "Resource id out of range 300..65535: $id" }
@@ -111,6 +168,8 @@ foreach ($item in $items) {
     $source = [IO.Path]::GetFullPath((Join-Path $ProjectDir ([string]$item.source)))
     if (-not $source.StartsWith($ProjectDir, [StringComparison]::OrdinalIgnoreCase) -or -not (Test-Path -LiteralPath $source -PathType Leaf)) { throw "Invalid or missing source: $source" }
     $raw = [IO.File]::ReadAllBytes($source)
+    # Blob lengths and Windows PE resources are uint32-based.  The former 64 MiB
+    # policy was artificial and rejected several valid CS2 collision meshes.
     if ($raw.Length -eq 0) { throw "Invalid resource size: $logical" }
     if ([string]$item.type -eq 'json') {
         try {
@@ -124,8 +183,13 @@ foreach ($item in $items) {
         }
     }
     $compression = [byte]0; $payload = $raw
-    $packed = Compress-PackBits $raw
-    if ($packed.Length -lt $raw.Length) { $compression = 1; $payload = $packed }
+    if ([IO.Path]::GetExtension($source).ToLowerInvariant() -eq '.tri') {
+        $lzms = Compress-Lzms $raw
+        if ($lzms.Length -lt $raw.Length) { $compression = 2; $payload = $lzms }
+    } else {
+        $packed = Compress-PackBits $raw
+        if ($packed.Length -lt $raw.Length) { $compression = 1; $payload = $packed }
+    }
     $sha = [Security.Cryptography.SHA256]::Create()
     try { $digest = $sha.ComputeHash($raw) } finally { $sha.Dispose() }
     $blob = New-Object 'Collections.Generic.List[byte]'
@@ -139,7 +203,24 @@ foreach ($item in $items) {
     $enum.Add(('    {0} = {1},' -f $name,$id))
     $entries.Add(('    EmbeddedResourceDescriptor{{EmbeddedResourceId::{0}, "{1}", {2}u, {3}u, {4}}},' -f $name,(Escape-Cpp $logical),$raw.Length,$payload.Length,([string]([bool]$item.mandatory)).ToLowerInvariant()))
     $totalOriginal += [uint64]$raw.Length; $totalStored += [uint64]$payload.Length
+    $isCollision = $logical.StartsWith('cs2/collision/', [StringComparison]::OrdinalIgnoreCase)
+    if ($isCollision) {
+        $processedCollisionItems++
+        $processedCollisionBytes += [uint64]$raw.Length
+        $percent = if ($totalCollisionBytes -gt 0) { [math]::Min(100, [math]::Floor(($processedCollisionBytes * 100.0) / $totalCollisionBytes)) } else { 100 }
+        $mapProgress = " mapa $processedCollisionItems/$collisionItemCount"
+        Write-Progress -Activity 'Embedding CS2 collision maps' -Status "${percent}%$mapProgress - $logical" -PercentComplete $percent
+        $mode = if($compression -eq 2){'LZMS'}elseif($compression -eq 1){'PACKBITS'}else{'NONE'}
+		$verboseResources = $env:OMNIGHOST_VERBOSE_BUILD -eq '1'
+		$progressMilestone = $processedCollisionItems -eq 1 -or
+			$processedCollisionItems -eq $collisionItemCount -or
+			($processedCollisionItems % 6) -eq 0
+		if ($verboseResources -or $progressMilestone) {
+			Write-Host "[EmbeddedResources] [$percent%$mapProgress] $logical mode=$mode original=$($raw.Length) stored=$($payload.Length)"
+		}
+    }
 }
+Write-Progress -Activity 'Embedding CS2 collision maps' -Completed
 
 $header = @(
     '#pragma once', '#include <array>', '#include <cstddef>', '#include <cstdint>',

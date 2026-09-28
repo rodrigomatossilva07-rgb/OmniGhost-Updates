@@ -10,6 +10,8 @@
 #include "globals.h"
 #include "gameplay/esp_core.h"
 #include "gameplay/frame_pipeline.h"
+#include "trajectory/cs2_map_collision_cache.h"
+#include "trajectory/cs2_visibility.h"
 
 #include <Windows.h>
 #include <TlHelp32.h>
@@ -17,6 +19,7 @@
 #include <sstream>
 #include <iostream>
 #include <filesystem>
+#include <future>
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -2411,6 +2414,33 @@ static void RunFrameWithConfig(const Config& frame_config) {
                       << " (ESP auto-recover, config intact)" << std::endl;
     }
 
+    // Visibility colours use the static collision mesh of the active map.
+    // Build the BVH away from the acquisition thread so loading/changing maps
+    // cannot hold up camera or player snapshots.
+    static std::future<void> collision_load;
+    static std::string collision_attempt_map;
+    static uint64_t collision_retry_at = 0;
+    if (collision_load.valid() &&
+        collision_load.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) {
+        try { collision_load.get(); }
+        catch (...) { std::cout << "[CS2] Falha ao preparar colisão do mapa." << std::endl; }
+    }
+    auto& collision = Trajectory::CollisionCache();
+    const bool needs_collision = frame_config.esp_enabled && frame_config.visibility_colors;
+    if (needs_collision && runtime.map_name[0] &&
+        !collision.IsLoadedFor(runtime.map_name) && !collision_load.valid() &&
+        (collision_attempt_map != runtime.map_name || map_now_ms >= collision_retry_at)) {
+        const std::string requested_map = runtime.map_name;
+        collision_attempt_map = requested_map;
+        collision_retry_at = map_now_ms + 5000u;
+        collision_load = std::async(std::launch::async, [requested_map] {
+            try { (void)Trajectory::CollisionCache().LoadForMap(requested_map.c_str()); }
+            catch (...) { std::cout << "[CS2] Exceção ao preparar colisão do mapa." << std::endl; }
+        });
+    }
+    if (!needs_collision && !collision_load.valid())
+        collision.Clear();
+
     const bool map_reports_match = IsPlayableMapName(runtime.map_name);
     runtime.in_match = map_reports_match;
     int entity_probe_controller_count = 0;
@@ -3021,7 +3051,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
             fields, OmniGhost::Gameplay::EspCore::DataField::Facing);
     const bool track_velocity = OmniGhost::Gameplay::EspCore::Has(
         fields, OmniGhost::Gameplay::EspCore::DataField::Velocity);
-    const bool need_bones = OmniGhost::Gameplay::EspCore::Has(
+    const bool need_bones = requested.visibility || OmniGhost::Gameplay::EspCore::Has(
         fields, OmniGhost::Gameplay::EspCore::DataField::Skeleton);
     // Aim and visual effects need only the upper-body aim anchors. A complete
     // 20-slot pose is acquired only for the rendered skeleton or body trigger.
@@ -4290,11 +4320,70 @@ static void RunFrameWithConfig(const Config& frame_config) {
         ++it;
     }
 
-    // Visibility colours now use the lightweight spotted-state already read in
-    // the hot player batch. This avoids embedded map geometry and CPU raycasts.
+    // Static-map LOS is independent of m_bSpotted. The latter can stay set by
+    // radar/team information and incorrectly paint an occluded enemy green.
+    // Raycasts are CPU-only, happen after DMA, and are cached independently.
+    struct CachedVisibility {
+        bool known = false;
+        bool visible = false;
+        uint64_t next_refresh_ms = 0;
+        uint64_t last_seen_ms = 0;
+    };
+    static std::unordered_map<uintptr_t, CachedVisibility> visibilityCache;
+    if (visibilityCache.bucket_count() < 128) visibilityCache.reserve(128);
+    static std::string visibilityCacheMap;
+    if (visibilityCacheMap != runtime.map_name) {
+        visibilityCache.clear();
+        visibilityCacheMap = runtime.map_name;
+    }
+    const auto losWorld = requested.visibility && collision.IsLoadedFor(runtime.map_name)
+        ? collision.WorldSnapshot() : nullptr;
+    const auto losOrigin = Visibility::CameraOrigin(runtime.view_matrix);
     for (auto& player : runtime.players) {
-        player.visibility_known = requested.visibility && player.alive && !player.is_local;
-        player.visible = player.visibility_known && player.spotted;
+        player.visibility_known = false;
+        player.visible = false;
+        if (!losWorld || !losOrigin || !player.alive || player.is_local || !player.bones_ok)
+            continue;
+        if (frame_config.team_check && player.team == runtime.local_team)
+            continue;
+        if (frame_config.max_distance > 0.f && player.distance > frame_config.max_distance)
+            continue;
+
+        auto& cached = visibilityCache[player.pawn];
+        cached.last_seen_ms = scan_now_ms;
+        if (scan_now_ms < cached.next_refresh_ms) {
+            player.visibility_known = cached.known;
+            player.visible = cached.visible;
+            continue;
+        }
+
+        constexpr BoneSlot slots[] = {BoneSlot::Head, BoneSlot::Neck,
+            BoneSlot::SpineUpper, BoneSlot::SpineLower};
+        std::array<Trajectory::Vec3, 4> points{};
+        for (size_t i = 0; i < points.size(); ++i) {
+            const auto& bone = player.bones[static_cast<size_t>(slots[i])];
+            points[i] = {bone[0], bone[1], bone[2]};
+        }
+        const auto result = Visibility::CheckPoints(losWorld.get(), *losOrigin, points);
+        player.visibility_known = result.has_value();
+        player.visible = result.value_or(false);
+        cached.known = player.visibility_known;
+        cached.visible = player.visible;
+        cached.next_refresh_ms = scan_now_ms + 100u;
+    }
+    if (!requested.visibility)
+        visibilityCache.clear();
+    else if ((runtime.frames % 64u) == 0u) {
+        int removed = 0;
+        for (auto it = visibilityCache.begin();
+             it != visibilityCache.end() && removed < 4;) {
+            if (scan_now_ms - it->second.last_seen_ms > 5000u) {
+                it = visibilityCache.erase(it);
+                ++removed;
+            } else {
+                ++it;
+            }
+        }
     }
 
     // Camera projection is published by the dedicated high-rate camera lane.
