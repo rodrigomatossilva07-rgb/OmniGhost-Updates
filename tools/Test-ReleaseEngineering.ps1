@@ -53,6 +53,7 @@ Assert ($policy.requireAuthenticode -eq $false -and $policy.requireManifestSigna
 
 $project = [IO.File]::ReadAllText((Join-Path $ProjectDir 'OmiGhost.vcxproj'))
 $publishBuild = [IO.File]::ReadAllText((Join-Path $ProjectDir 'tools\Publish-Build.ps1'))
+$prepareVersion = [IO.File]::ReadAllText((Join-Path $ProjectDir 'tools\Prepare-PublishVersion.ps1'))
 Assert ($project -match 'PublishOmniGhostRelease') 'Publish remote target is missing.'
 Assert ($project -match 'prepare-publish-version') 'Publish version preparation target is missing.'
 Assert ($project -match 'OmniGhostSkipVersionAdvance') 'Publish version preparation cannot be disabled for CI/preflight.'
@@ -69,6 +70,9 @@ Assert ($workflow -notmatch 'DISCORD_WEBHOOK_URL|Notify-DiscordRelease') 'Remove
 Assert ($workflow -notmatch 'hardware_integration_test|OMNIGHOST_TEST_GAME') 'Obsolete mandatory DMA release gate is still configured.'
 Assert ($publishBuild -match 'publish_github_release\.ps1') 'Publish build does not upload its validated local artifacts directly.'
 Assert ($publishBuild -match 'Finalize-VersionCommit\.ps1') 'Publish does not finalize the mechanical next-version commit.'
+Assert ($prepareVersion -match 'rev-list -n 1.*currentTag') 'Publish preparation does not detect a version tag owned by another commit.'
+Assert ($prepareVersion -match 'Increment-Version\.ps1') 'Publish preparation does not advance automatically past an occupied tag.'
+Assert ($prepareVersion -match 'maximumAdvances') 'Automatic version selection has no bounded safety limit.'
 Assert ($workflow -match 'lfs:\s*true') 'Release checkout does not fetch Git LFS assets.'
 Assert ($workflow -match 'Validate-ReleaseArtifacts\.ps1') 'Workflow does not validate the final ZIP.'
 Assert ($workflow -match 'SBOM\.cdx\.json') 'Workflow does not publish the SBOM.'
