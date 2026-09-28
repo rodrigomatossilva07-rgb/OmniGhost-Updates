@@ -10,8 +10,6 @@
 #include "globals.h"
 #include "gameplay/esp_core.h"
 #include "gameplay/frame_pipeline.h"
-#include "trajectory/cs2_map_collision_cache.h"
-#include "trajectory/cs2_visibility.h"
 
 #include <Windows.h>
 #include <TlHelp32.h>
@@ -19,7 +17,6 @@
 #include <sstream>
 #include <iostream>
 #include <filesystem>
-#include <future>
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -398,7 +395,7 @@ static bool HasEnabledPlayerVisuals(const Config& c) {
         c.health_value || c.armor_value || c.name || c.distance || c.head_dot ||
         c.weapon_name || c.weapon_ammo || c.snaplines || c.trails || c.head_halo ||
         c.look_direction || c.chinese_hat || c.angel_wings || c.devil_horns ||
-        c.floating_crown || c.player_flags || c.sound_esp || c.footstep_esp;
+        c.floating_crown || c.player_flags || c.footstep_esp;
 }
 
 // True only when some feature actually needs the player list this frame.
@@ -449,11 +446,6 @@ void LoadSchemaOffsets(const std::string& schema) {
     JsonClassU64(schema, "C_CSPlayerPawn", "m_bIsDefusing", offsets.m_bIsDefusing);
     JsonClassU64(schema, "C_CSPlayerPawn", "m_bIsScoped", offsets.m_bIsScoped);
     JsonClassU64(schema, "C_CSPlayerPawnBase", "m_flFlashDuration", offsets.m_flFlashDuration);
-    JsonClassU64(schema, "C_MolotovProjectile", "m_bIsIncGrenade", offsets.m_bIsIncGrenade);
-    JsonClassU64(schema, "CSmokeGrenadeProjectile", "m_bDidSmokeEffect", offsets.m_bDidSmokeEffect);
-    JsonClassU64(schema, "CSmokeGrenadeProjectile", "m_nSmokeEffectTickBegin", offsets.m_nSmokeEffectTickBegin);
-    JsonClassU64(schema, "CInferno", "m_nFireEffectTickBegin", offsets.m_nFireEffectTickBegin);
-    JsonClassU64(schema, "CInferno", "m_nFireLifetime", offsets.m_nFireLifetime);
     JsonClassU64(schema, "C_CSPlayerPawn", "m_aimPunchAngle", offsets.m_aimPunchAngle);
     JsonClassU64(schema, "CGameSceneNode", "m_vecAbsOrigin", offsets.m_vecAbsOrigin);
     JsonClassU64(schema, "CGameSceneNode", "m_vecVelocity", offsets.m_vecVelocity);
@@ -769,7 +761,6 @@ bool LoadEmbeddedOffsets() {
     read("schemas.C_BasePlayerWeapon.m_pReserveAmmo", offsets.m_pReserveAmmo, false);
     read("schemas.C_CSPlayerPawn.m_entitySpottedState", offsets.m_entitySpottedState, false);
     read("schemas.EntitySpottedState_t.m_bSpotted", offsets.m_bSpotted, false);
-    read("schemas.C_MolotovProjectile.m_bIsIncGrenade", offsets.m_bIsIncGrenade, false);
     std::string validation_error;
     offsets.loaded = required && offsets.Validate(&validation_error);
     if (offsets.loaded) {
@@ -1506,26 +1497,6 @@ static uintptr_t ResolveEntityByHandle(uint32_t handle, uintptr_t stride) {
     return entity;
 }
 
-static ProjectileKind ClassifyProjectile(const char* name) {
-    if (!name || !*name) return ProjectileKind::None;
-    char lower[64]{};
-    std::snprintf(lower, sizeof(lower), "%s", name);
-    for (char& ch : lower) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
-    const auto has = [&](const char* token) { return std::strstr(lower, token) != nullptr; };
-    // Inventory/held weapons share grenade words in their designer name. They
-    // are attached to a player scene node, not in-flight projectiles.
-    if (has("weapon_") || (!has("projectile") && !has("inferno"))) return ProjectileKind::None;
-    // Source 2 builds have used both designer-name and schema-name forms.
-    if (has("flashbang") || has("flash_projectile")) return ProjectileKind::Flash;
-    if (has("smokegrenade") || has("smoke_projectile")) return ProjectileKind::Smoke;
-    if (has("hegrenade") || has("fraggrenade") || has("he_projectile")) return ProjectileKind::HE;
-    if (has("incgrenade") || has("incendiary")) return ProjectileKind::Incendiary;
-    if (has("molotov") || has("firebomb")) return ProjectileKind::Molotov;
-    if (has("decoy")) return ProjectileKind::Decoy;
-    if (has("inferno")) return ProjectileKind::Molotov;
-    return ProjectileKind::None;
-}
-
 static bool IsDroppedWeaponClass(const char* name) {
     if (!name || !*name) return false;
     // Designer names cover both C_WeaponAK47 and weapon_ak47 forms. Exclude
@@ -1660,267 +1631,6 @@ static void CollectDroppedWeapons(const Config& frame_config) {
     }
 }
 
-// Projectile entities are outside the controller table. Scan their compact
-// low-index portion only while Projectile ESP is enabled, then batch each
-// stage so this never creates one DMA round-trip per object.
-static void CollectProjectiles(const Config& frame_config) {
-    // Projectile ESP was removed. Never scan the global entity pages merely
-    // for a held-trajectory preview; this used to create the expensive
-    // Pages/Identity/Names/Motion DMA traffic visible in logs.txt.
-    const bool needs_projectiles = frame_config.projectile_timers;
-    const bool wants_world_timers = frame_config.projectile_timers;
-    if (!frame_config.esp_enabled || !needs_projectiles || !runtime.in_match) {
-        runtime.projectiles.clear();
-        runtime.projectile_pages = runtime.projectile_entities = runtime.projectile_name_ptrs = 0;
-        runtime.projectile_classified = runtime.projectile_scenes = 0;
-        return;
-    }
-
-    static uint64_t next_scan_ms = 0;
-    static uint64_t next_telemetry_ms = 0;
-    static std::unordered_map<uintptr_t, Projectile> recent_projectiles;
-    static std::unordered_map<uintptr_t, uint64_t> active_effect_started_ms;
-    struct CachedProjectileClass { ProjectileKind kind; bool inferno; };
-    static std::unordered_map<uintptr_t, CachedProjectileClass> class_cache;
-    if (recent_projectiles.bucket_count() < 256) recent_projectiles.reserve(256);
-    if (active_effect_started_ms.bucket_count() < 256) active_effect_started_ms.reserve(256);
-    if (class_cache.bucket_count() < 2048) class_cache.reserve(2048);
-    const uint64_t now = GetTickCount64();
-    if (now < next_scan_ms) return;
-    // World-entity discovery is optional and must never starve player/camera
-    // traffic. Back off hard while the DMA lane reports pressure.
-    if (g_pressure_level.load(std::memory_order_relaxed) >= 1) {
-        next_scan_ms = now + 800;
-        return;
-    }
-    next_scan_ms = now + 75;
-
-    constexpr size_t kPages = 2;
-    constexpr size_t kSlotsPerPage = 0x200;
-    constexpr size_t kSlots = kPages * kSlotsPerPage;
-    const size_t first_page = 0;
-    std::array<uintptr_t, kPages> pages{};
-    std::array<uintptr_t, kSlots> entities{};
-    std::array<uintptr_t, kSlots> identities{};
-    std::array<uintptr_t, kSlots> name_ptrs{};
-    std::array<std::array<char, 48>, kSlots> names{};
-    std::array<ProjectileKind, kSlots> kinds{};
-    std::array<bool, kSlots> infernos{};
-
-    uintptr_t root = g_cached_entity_root;
-    if (!IsUserPointer(root) &&
-        (!QReadT(runtime.client_base + offsets.dwEntityList, root) || !IsUserPointer(root))) {
-        runtime.projectiles.clear();
-        return;
-    }
-    g_cached_entity_root = root;
-
-    EnsureScatter();
-    if (!g_scatter_full) { runtime.projectiles.clear(); return; }
-    mem.SetDmaCallTag("CS2.Projectiles.Pages");
-    for (size_t page = 0; page < kPages; ++page)
-        mem.AddScatterReadRequest(g_scatter_full,
-            root + kEntityPageTableOffset + sizeof(uintptr_t) * (first_page + page),
-            &pages[page], sizeof(uintptr_t));
-    mem.ExecuteReadScatter(g_scatter_full);
-
-    mem.SetDmaCallTag("CS2.Projectiles.Entities");
-    for (size_t page = 0; page < kPages; ++page) {
-        if (!IsUserPointer(pages[page])) continue;
-        for (size_t slot = 0; slot < kSlotsPerPage; ++slot) {
-            const size_t index = page * kSlotsPerPage + slot;
-            mem.AddScatterReadRequest(g_scatter_full,
-                pages[page] + kEntityIdentityStride * slot,
-                &entities[index], sizeof(uintptr_t));
-        }
-    }
-    mem.ExecuteReadScatter(g_scatter_full);
-
-    mem.SetDmaCallTag("CS2.Projectiles.Identity");
-    for (size_t i = 0; i < kSlots; ++i) {
-        if (IsUserPointer(entities[i]))
-            mem.AddScatterReadRequest(g_scatter_full, entities[i] + 0x10,
-                &identities[i], sizeof(uintptr_t)); // CEntityInstance::m_pEntity
-    }
-    mem.ExecuteReadScatter(g_scatter_full);
-
-    mem.SetDmaCallTag("CS2.Projectiles.Names");
-    for (size_t i = 0; i < kSlots; ++i) {
-        const auto known = class_cache.find(identities[i]);
-        if (known != class_cache.end()) {
-            kinds[i] = known->second.kind;
-            infernos[i] = known->second.inferno;
-        } else if (IsUserPointer(identities[i]))
-            mem.AddScatterReadRequest(g_scatter_full, identities[i] + 0x20,
-                &name_ptrs[i], sizeof(uintptr_t)); // CEntityIdentity::m_designerName
-    }
-    mem.ExecuteReadScatter(g_scatter_full);
-
-    mem.SetDmaCallTag("CS2.Projectiles.NameText");
-    for (size_t i = 0; i < kSlots; ++i) {
-        if (IsUserPointer(name_ptrs[i]))
-            mem.AddScatterReadRequest(g_scatter_full, name_ptrs[i], names[i].data(), names[i].size() - 1);
-    }
-    mem.ExecuteReadScatter(g_scatter_full);
-
-    std::array<uintptr_t, kSlots> scenes{};
-    std::array<uint8_t, kSlots> incendiary{};
-    std::array<uint8_t, kSlots> smoke_active{};
-    std::array<float, kSlots> fire_lifetime{};
-    mem.SetDmaCallTag("CS2.Projectiles.Scene");
-    for (size_t i = 0; i < kSlots; ++i) {
-        if (IsUserPointer(name_ptrs[i]) && class_cache.find(identities[i]) == class_cache.end()) {
-            kinds[i] = ClassifyProjectile(names[i].data());
-            char lower_name[48]{};
-            std::snprintf(lower_name, sizeof(lower_name), "%s", names[i].data());
-            for (char& ch : lower_name) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
-            infernos[i] = std::strstr(lower_name, "inferno") != nullptr;
-            class_cache.emplace(identities[i], CachedProjectileClass{ kinds[i], infernos[i] });
-        }
-        if (kinds[i] != ProjectileKind::None) {
-            mem.AddScatterReadRequest(g_scatter_full, entities[i] + offsets.m_pGameSceneNode,
-                &scenes[i], sizeof(uintptr_t));
-            if (kinds[i] == ProjectileKind::Molotov && offsets.m_bIsIncGrenade)
-                mem.AddScatterReadRequest(g_scatter_full, entities[i] + offsets.m_bIsIncGrenade,
-                    &incendiary[i], sizeof(uint8_t));
-            if (wants_world_timers && kinds[i] == ProjectileKind::Smoke && offsets.m_bDidSmokeEffect)
-                mem.AddScatterReadRequest(g_scatter_full, entities[i] + offsets.m_bDidSmokeEffect,
-                    &smoke_active[i], sizeof(uint8_t));
-            if (wants_world_timers && kinds[i] == ProjectileKind::Molotov && offsets.m_nFireLifetime)
-                mem.AddScatterReadRequest(g_scatter_full, entities[i] + offsets.m_nFireLifetime,
-                    &fire_lifetime[i], sizeof(float));
-        }
-    }
-    mem.ExecuteReadScatter(g_scatter_full);
-
-    std::array<std::array<float, 3>, kSlots> positions{};
-    std::array<std::array<float, 3>, kSlots> velocities{};
-    mem.SetDmaCallTag("CS2.Projectiles.Motion");
-    for (size_t i = 0; i < kSlots; ++i) {
-        if (!IsUserPointer(scenes[i])) continue;
-        mem.AddScatterReadRequest(g_scatter_full, scenes[i] + offsets.m_vecAbsOrigin,
-            positions[i].data(), sizeof(float) * 3);
-        // Origin belongs to the scene node, while velocity is a C_BaseEntity
-        // field. Reading it from the scene made the final in-flight filter
-        // reject otherwise recognised grenades.
-        mem.AddScatterReadRequest(g_scatter_full, entities[i] + offsets.m_vecVelocity,
-            velocities[i].data(), sizeof(float) * 3);
-    }
-    mem.ExecuteReadScatter(g_scatter_full);
-
-    runtime.projectiles.clear();
-    runtime.projectiles.reserve(16);
-    for (size_t i = 0; i < kSlots && runtime.projectiles.size() < 32; ++i) {
-        // A number of valid Source 2 projectile classes expose velocity from a
-        // different component. Classification + a sane world position are
-        // sufficient for ESP; rejecting a zero/invalid velocity hid them all.
-        if (kinds[i] == ProjectileKind::None || !IsFinitePosition(positions[i].data()))
-            continue;
-        Projectile projectile{};
-        projectile.entity = entities[i];
-        projectile.kind = (kinds[i] == ProjectileKind::Molotov && incendiary[i])
-            ? ProjectileKind::Incendiary : kinds[i];
-        std::memcpy(projectile.pos, positions[i].data(), sizeof(projectile.pos));
-        std::memcpy(projectile.velocity, velocities[i].data(), sizeof(projectile.velocity));
-        if (wants_world_timers) {
-            const bool smoke = projectile.kind == ProjectileKind::Smoke && smoke_active[i] != 0;
-            const bool fire = infernos[i];
-            const float speed_sq = projectile.velocity[0] * projectile.velocity[0] +
-                projectile.velocity[1] * projectile.velocity[1] + projectile.velocity[2] * projectile.velocity[2];
-            const bool decoy = projectile.kind == ProjectileKind::Decoy && std::isfinite(speed_sq) && speed_sq < 625.f;
-            if (smoke || fire || decoy) {
-                const float duration = smoke ? 18.f : fire
-                    ? (std::isfinite(fire_lifetime[i]) && fire_lifetime[i] >= .5f && fire_lifetime[i] <= 30.f ? fire_lifetime[i] : 7.f)
-                    : 15.f;
-                auto [it, inserted] = active_effect_started_ms.emplace(projectile.entity, now);
-                if (inserted) it->second = now;
-                projectile.world_effect_active = now - it->second < static_cast<uint64_t>(duration * 1000.f);
-                projectile.world_effect_seconds_left = projectile.world_effect_active
-                    ? duration - static_cast<float>(now - it->second) / 1000.f : 0.f;
-                projectile.world_effect_expires_ms = it->second + static_cast<uint64_t>(duration * 1000.f);
-            }
-        }
-        projectile.sample_timestamp_ms = now;
-        runtime.projectiles.push_back(projectile);
-        recent_projectiles[projectile.entity] = projectile;
-    }
-
-    // DMA can briefly return an incomplete entity page while a grenade is in
-    // flight. Keep the last confirmed sample for a short, fixed grace period
-    // so the overlay does not blink, but never retain stale world objects.
-    constexpr uint64_t kProjectileGraceMs = 220;
-    for (auto it = active_effect_started_ms.begin(); it != active_effect_started_ms.end();) {
-        if (now - it->second > 20000) it = active_effect_started_ms.erase(it); else ++it;
-    }
-    if (class_cache.size() > 2048) {
-        int removed = 0;
-        for (auto it = class_cache.begin(); it != class_cache.end() && removed < 32;) {
-            it = class_cache.erase(it);
-            ++removed;
-        }
-    }
-    for (auto it = recent_projectiles.begin(); it != recent_projectiles.end();) {
-        const bool current = std::any_of(runtime.projectiles.begin(), runtime.projectiles.end(),
-            [&](const Projectile& item) { return item.entity == it->first; });
-        if (now - it->second.sample_timestamp_ms > kProjectileGraceMs) {
-            it = recent_projectiles.erase(it);
-            continue;
-        }
-        if (!current && runtime.projectiles.size() < 32)
-            runtime.projectiles.push_back(it->second);
-        ++it;
-    }
-
-    if (frame_config.telemetry_enabled && now >= next_telemetry_ms) {
-        next_telemetry_ms = now + 2000;
-        size_t validPages = 0, validEntities = 0, validIdentities = 0, validNames = 0;
-        size_t classified = 0, validScenes = 0;
-        for (size_t i = 0; i < kPages; ++i) if (IsUserPointer(pages[i])) ++validPages;
-        for (size_t i = 0; i < kSlots; ++i) {
-            if (IsUserPointer(entities[i])) ++validEntities;
-            if (IsUserPointer(identities[i])) ++validIdentities;
-            if (IsUserPointer(name_ptrs[i])) ++validNames;
-            if (kinds[i] != ProjectileKind::None) ++classified;
-            if (IsUserPointer(scenes[i])) ++validScenes;
-        }
-        runtime.projectile_pages = static_cast<int>(validPages);
-        runtime.projectile_entities = static_cast<int>(validEntities);
-        runtime.projectile_name_ptrs = static_cast<int>(validNames);
-        runtime.projectile_classified = static_cast<int>(classified);
-        runtime.projectile_scenes = static_cast<int>(validScenes);
-        runtime.projectile_scan_timestamp_ms = now;
-        OmniGhost::SessionLog::Write(OmniGhost::SessionLog::Severity::Info,
-            OmniGhost::SessionLog::Subsystem::DMA, "CS2 Projectile ESP scan", {
-                {"pages", std::to_string(validPages) + "/" + std::to_string(kPages), false},
-                {"page_window", std::to_string(first_page), false},
-                {"entities", std::to_string(validEntities), false},
-                {"identities", std::to_string(validIdentities), false},
-                {"name_ptrs", std::to_string(validNames), false},
-                {"classified", std::to_string(classified), false},
-                {"scenes", std::to_string(validScenes), false},
-                {"visible", std::to_string(runtime.projectiles.size()), false},
-            });
-    }
-}
-
-static bool LooksLikePawn(uintptr_t pawn) {
-    if (!IsUserPointer(pawn)) return false;
-    int health = 0;
-    // m_iTeamNum is uint8 in Source 2 — read 1 byte to avoid adjacent garbage.
-    uint8_t team = 0;
-    if (!QReadT(pawn + offsets.m_iHealth, health))
-        return false;
-    // Alive pawns: 1..200. Allow 0 for recently dead bodies still in list.
-    if (health < 0 || health > 500)
-        return false;
-    if (!QReadT(pawn + offsets.m_iTeamNum, team))
-        return false;
-    if (team > 5)
-        return false;
-    return true;
-}
-
-// Calibrate identity stride once using local controller handle → local pawn.
 static void CalibratePawnStride(uintptr_t local_controller, uintptr_t local_pawn) {
     static bool calibrated = false;
     static uintptr_t last_local_pawn = 0;
@@ -2687,39 +2397,6 @@ static void RunFrameWithConfig(const Config& frame_config) {
                       << " (ESP auto-recover, config intact)" << std::endl;
     }
 
-    // Map collision supports grenade trajectory and player LOS. Build its BVH off
-    // the acquisition thread, so enabling the visual or changing map never
-    // holds up camera/player snapshots.
-    static std::future<void> collision_load;
-    static std::string collision_attempt_map;
-    static uint64_t collision_retry_at = 0;
-    if (collision_load.valid() && collision_load.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) {
-        try { collision_load.get(); }
-        catch (...) { std::cout << "[CS2] Falha ao preparar colisão do mapa." << std::endl; }
-    }
-    auto& collision = Trajectory::CollisionCache();
-    const bool needs_collision = frame_config.grenade_trail ||
-        (frame_config.esp_enabled && frame_config.visibility_colors);
-    if (needs_collision && runtime.map_name[0] && !collision.IsLoadedFor(runtime.map_name) && !collision_load.valid() &&
-        (collision_attempt_map != runtime.map_name || GetTickCount64() >= collision_retry_at)) {
-        const std::string requested_map = runtime.map_name;
-        collision_attempt_map = requested_map;
-        collision_retry_at = GetTickCount64() + 5000;
-        collision_load = std::async(std::launch::async, [requested_map] {
-            try { (void)Trajectory::CollisionCache().LoadForMap(requested_map.c_str()); }
-            catch (...) { std::cout << "[CS2] Exceção ao preparar colisão do mapa." << std::endl; }
-        });
-    }
-    // A BVH can be sizeable on workshop and large competitive maps. Release it
-    // once both consumers are disabled; any renderer holding a snapshot finishes
-    // safely before the shared world is reclaimed.
-    if (!needs_collision && !collision_load.valid())
-        collision.Clear();
-    runtime.trajectory_collision_loading = collision_load.valid();
-    runtime.trajectory_collision_ready = frame_config.grenade_trail &&
-        collision.IsLoadedFor(runtime.map_name);
-    std::snprintf(runtime.trajectory_collision_map, sizeof(runtime.trajectory_collision_map), "%s", runtime.map_name);
-
     const bool map_reports_match = IsPlayableMapName(runtime.map_name);
     runtime.in_match = map_reports_match;
     int entity_probe_controller_count = 0;
@@ -2817,7 +2494,6 @@ static void RunFrameWithConfig(const Config& frame_config) {
         // World-only visuals deliberately bypass the player pipeline. They
         // retain their own rate/pressure gates and do not wake controller,
         // pawn, bone or weapon acquisition when no player ESP is enabled.
-        CollectProjectiles(frame_config);
         CollectDroppedWeapons(frame_config);
         {
             ScopedPhase _phPub(&g_phase.publish_ms);
@@ -3331,7 +3007,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
             fields, OmniGhost::Gameplay::EspCore::DataField::Facing);
     const bool track_velocity = OmniGhost::Gameplay::EspCore::Has(
         fields, OmniGhost::Gameplay::EspCore::DataField::Velocity);
-    const bool need_bones = requested.visibility || OmniGhost::Gameplay::EspCore::Has(
+    const bool need_bones = OmniGhost::Gameplay::EspCore::Has(
         fields, OmniGhost::Gameplay::EspCore::DataField::Skeleton);
     // Aim and visual effects need only the upper-body aim anchors. A complete
     // 20-slot pose is acquired only for the rendered skeleton or body trigger.
@@ -3395,6 +3071,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
     }
     PawnCoreFields core[kMaxSlots]{};
     const bool need_spotted = (frame_config.aim_enabled && frame_config.aim_visibility_check) ||
+        (frame_config.esp_enabled && frame_config.visibility_colors) ||
         (frame_config.trigger_enabled && frame_config.aim_visibility_check);
     // Health/team/scene stay on the full cadence. Armor is only four bytes per
     // pawn, so include it here instead of paying for a separate round-trip.
@@ -4013,11 +3690,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
         int money = -1;
         bool kit = false;
         bool defusing = false;
-        int shots = 0;
-        uint64_t last_shot_ms = 0;
         uint64_t next_slow_ms = 0;
         uint64_t next_defuse_ms = 0;
-        uint64_t next_shot_ms = 0;
         uint64_t last_seen_ms = 0;
     };
     static std::unordered_map<uintptr_t, FlagCache> flag_cache;
@@ -4027,12 +3701,10 @@ static void RunFrameWithConfig(const Config& frame_config) {
     int moneyValues[kMaxSlots]{};
     uint8_t kitValues[kMaxSlots]{};
     uint8_t defuseValues[kMaxSlots]{};
-    int shotValues[kMaxSlots]{};
     bool readMoney[kMaxSlots]{};
     bool readKit[kMaxSlots]{};
     bool readDefuse[kMaxSlots]{};
-    bool readShots[kMaxSlots]{};
-    if (allow_auxiliary_phase && (frame_config.player_flags || frame_config.sound_esp)) {
+    if (allow_auxiliary_phase && frame_config.player_flags) {
         ScopedPhase _phFlags(&g_phase.flags_ms);
         bool queuedFirst = false;
         for (int c = 0; c < candidate_count; ++c) {
@@ -4064,13 +3736,6 @@ static void RunFrameWithConfig(const Config& frame_config) {
                     &defuseValues[c], sizeof(defuseValues[c]));
                 queuedFirst = true;
             }
-            if (frame_config.sound_esp && offsets.m_iShotsFired && scan_now_ms >= cache.next_shot_ms) {
-                cache.next_shot_ms = scan_now_ms + 45;
-                readShots[c] = true;
-                mem.AddScatterReadRequest(g_scatter_full, pawn + offsets.m_iShotsFired,
-                    &shotValues[c], sizeof(shotValues[c]));
-                queuedFirst = true;
-            }
         }
         if (queuedFirst) {
             mem.SetDmaCallTag("CS2.FlagsPointers");
@@ -4098,10 +3763,6 @@ static void RunFrameWithConfig(const Config& frame_config) {
             if (readMoney[c] && moneyValues[c] >= 0 && moneyValues[c] < 100000) cache.money = moneyValues[c];
             if (readKit[c]) cache.kit = kitValues[c] != 0;
             if (readDefuse[c]) cache.defusing = defuseValues[c] != 0;
-            if (readShots[c] && shotValues[c] >= 0) {
-                if (shotValues[c] > cache.shots) cache.last_shot_ms = scan_now_ms;
-                cache.shots = shotValues[c];
-            }
         }
         // Keep a bounded, incremental cleanup policy. A long deathmatch must
         // not retain old controller/pawn keys or slowly raise scan costs.
@@ -4569,7 +4230,6 @@ static void RunFrameWithConfig(const Config& frame_config) {
         p.money = cached_flags.money;
         p.has_defuser = cached_flags.kit;
         p.is_defusing = cached_flags.defusing;
-        p.last_shot_ms = cached_flags.last_shot_ms;
         p.shots_fired = cached_flags.shots;
 
         if (!p.is_local && p.team != runtime.local_team)
@@ -4609,69 +4269,11 @@ static void RunFrameWithConfig(const Config& frame_config) {
         ++it;
     }
 
-    // Raycasts are CPU-only and run after all player DMA batches have released
-    // the transport lock. Cache them independently from the acquisition rate:
-    // visibility colors do not need 30-60 complete BVH traces per second.
-    struct CachedVisibility {
-        bool known = false;
-        bool visible = false;
-        uint64_t next_refresh_ms = 0;
-        uint64_t last_seen_ms = 0;
-    };
-    static std::unordered_map<uintptr_t, CachedVisibility> visibilityCache;
-    if (visibilityCache.bucket_count() < 128) visibilityCache.reserve(128);
-    static std::string visibilityCacheMap;
-    if (visibilityCacheMap != runtime.map_name) {
-        visibilityCache.clear();
-        visibilityCacheMap = runtime.map_name;
-    }
-    const auto losWorld = requested.visibility && collision.IsLoadedFor(runtime.map_name)
-        ? collision.WorldSnapshot() : nullptr;
-    const auto losOrigin = Visibility::CameraOrigin(runtime.view_matrix);
+    // Visibility colours now use the lightweight spotted-state already read in
+    // the hot player batch. This avoids embedded map geometry and CPU raycasts.
     for (auto& player : runtime.players) {
-        player.visibility_known = false;
-        player.visible = false;
-        if (!losWorld || !losOrigin || !player.alive || player.is_local || !player.bones_ok) continue;
-        if (frame_config.team_check && player.team == runtime.local_team) continue;
-        if (frame_config.max_distance > 0.f && player.distance > frame_config.max_distance) continue;
-
-        auto& cached = visibilityCache[player.pawn];
-        cached.last_seen_ms = scan_now_ms;
-        if (scan_now_ms < cached.next_refresh_ms) {
-            player.visibility_known = cached.known;
-            player.visible = cached.visible;
-            continue;
-        }
-
-        // Compact upper-body bones are sufficient for LOS colors. Full hand
-        // and leg poses remain exclusive to skeleton/body-trigger features.
-        constexpr BoneSlot slots[] = {BoneSlot::Head, BoneSlot::Neck,
-            BoneSlot::SpineUpper, BoneSlot::SpineLower};
-        std::array<Trajectory::Vec3, 4> points{};
-        for (size_t i = 0; i < points.size(); ++i) {
-            const auto& bone = player.bones[static_cast<size_t>(slots[i])];
-            points[i] = {bone[0], bone[1], bone[2]};
-        }
-        const auto result = Visibility::CheckPoints(losWorld.get(), *losOrigin, points);
-        player.visibility_known = result.has_value();
-        player.visible = result.value_or(false);
-        cached.known = player.visibility_known;
-        cached.visible = player.visible;
-        cached.next_refresh_ms = scan_now_ms + 100u;
-    }
-    if (!requested.visibility)
-        visibilityCache.clear();
-    else if ((runtime.frames % 64u) == 0u) {
-        int removed = 0;
-        for (auto it = visibilityCache.begin();
-             it != visibilityCache.end() && removed < 4;) {
-            if (scan_now_ms - it->second.last_seen_ms > 5000u) {
-                it = visibilityCache.erase(it);
-                ++removed;
-            } else {
-                ++it;
-            }
-        }
+        player.visibility_known = requested.visibility && player.alive && !player.is_local;
+        player.visible = player.visibility_known && player.spotted;
     }
 
     // Camera projection is published by the dedicated high-rate camera lane.
@@ -4825,7 +4427,6 @@ static void RunFrameWithConfig(const Config& frame_config) {
         }
     }
 
-    CollectProjectiles(frame_config);
     CollectDroppedWeapons(frame_config);
 
     // Snapshot successful scans for the hold-over path above.
@@ -4922,7 +4523,7 @@ void EnsureAcquisitionStarted() {
             const bool canRead = ready && offsets.loaded && client_base && offsets.dwViewMatrix;
             const uint64_t camera_now_ms = GetTickCount64();
             const int camera_pressure = g_pressure_level.load(std::memory_order_relaxed);
-            // Pressure sheds metadata/weapons/visibility/bones first. The view
+            // Pressure sheds metadata/weapons/bones first. The view
             // matrix stays at 16 ms through normal, moderate and high pressure;
             // only the extreme recovery state relaxes it slightly to 25 ms.
             const int camera_period_ms = camera_pressure >= 3 ? 25 : CAMERA_INTERVAL_MS;

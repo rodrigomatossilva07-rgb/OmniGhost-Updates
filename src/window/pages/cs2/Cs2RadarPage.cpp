@@ -12,16 +12,6 @@
 
 namespace {
 
-bool CompactToggle(const char* id, const char* label, bool* value, float width) {
-    ImGui::PushID(id);
-    ImGui::BeginChild("##compact_toggle", ImVec2(width, CyberTheme::Metrics::RowHeight), false,
-                      ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
-    const bool changed = CyberWidgets::ToggleSwitch(label, value);
-    ImGui::EndChild();
-    ImGui::PopID();
-    return changed;
-}
-
 void CopyToClipboard(const std::string& text) {
     if (!OpenClipboard(nullptr)) return;
     EmptyClipboard();
@@ -44,8 +34,7 @@ void DrawCs2Radar() {
 
     ImGui::BeginGroup();
     CyberWidgets::BeginCard("RADAR 2D", left);
-    const float controlWidth = (std::min)(left * 0.62f, 310.f);
-    CompactToggle("radar2d", "Ativar radar 2D", &CS2::config.radar_2d, controlWidth);
+    CyberWidgets::ToggleSwitch("Ativar Radar 2D", &CS2::config.radar_2d);
     if (CS2::config.radar_2d) {
         if (ImGui::Button("Pequeno")) CS2::config.radar_2d_size = 160.f;
         ImGui::SameLine();

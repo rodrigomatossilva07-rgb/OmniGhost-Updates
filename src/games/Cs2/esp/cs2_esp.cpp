@@ -2,8 +2,6 @@
 
 #include "../cs2_game.h"
 #include "../config/cs2_config.h"
-#include "../trajectory/cs2_grenade_simulator.h"
-#include "../trajectory/cs2_map_collision_cache.h"
 #include "../../ImGui/imgui.h"
 #include "../../src/config/app_settings.h"
 
@@ -209,54 +207,6 @@ void DrawExtras(ImDrawList* draw, const CS2::Player& player, const ImVec2& head,
     }
 }
 
-void DrawSoundEsp(ImDrawList* draw, const CS2::Player& player, const ImVec2& feet,
-                  const CS2::Config& settings, ImU32 rgb) {
-    if (!settings.sound_esp || !player.pawn) return;
-
-    struct Ripple {
-        uint64_t shot_ms = 0;
-        ImVec2 position{};
-        uint64_t last_seen_ms = 0;
-    };
-    static std::unordered_map<uintptr_t, Ripple> ripples;
-
-    const uint64_t now = GetTickCount64();
-    auto& ripple = ripples[player.pawn];
-    ripple.last_seen_ms = now;
-    if (player.last_shot_ms > ripple.shot_ms) {
-        ripple.shot_ms = player.last_shot_ms;
-        ripple.position = feet;
-    }
-
-    constexpr float kLifetimeMs = 680.f;
-    if (!ripple.shot_ms || now < ripple.shot_ms ||
-        static_cast<float>(now - ripple.shot_ms) > kLifetimeMs)
-        return;
-
-    const float progress = static_cast<float>(now - ripple.shot_ms) / kLifetimeMs;
-    const ImU32 base = EffectColor(settings, settings.col_fun_effects, rgb);
-    for (int ring = 0; ring < 3; ++ring) {
-        const float phase = progress - static_cast<float>(ring) * .18f;
-        if (phase < 0.f || phase > 1.f) continue;
-        const float alpha = (1.f - phase) * .82f;
-        const float radius = 10.f + phase * 42.f;
-        const ImU32 color = (base & 0x00FFFFFFu) |
-            (static_cast<ImU32>(std::clamp(alpha * 255.f, 0.f, 255.f)) << 24);
-        draw->AddCircle(ripple.position, radius, color, 28, 1.5f);
-    }
-
-    // A pawn can disappear after a disconnect or map change. Keep this tiny
-    // presentation cache bounded even if that happens mid-animation.
-    if (ripples.size() > 96) {
-        for (auto it = ripples.begin(); it != ripples.end();) {
-            if (now - it->second.last_seen_ms > 5000)
-                it = ripples.erase(it);
-            else
-                ++it;
-        }
-    }
-}
-
 void DrawFootprint(ImDrawList* draw, const ImVec2& center, float angle, float scale, ImU32 color) {
     // A compact vector shoe-print: sole + heel.  It intentionally needs no
     // texture upload and therefore costs no GPU/resource work per step.
@@ -384,158 +334,6 @@ void DrawSpectatorWindow(const CS2::Runtime& snapshot, const CS2::Config& settin
             for (const auto& spectator : snapshot.spectators)
                 ImGui::BulletText("%s", spectator.name[0] ? spectator.name : "Jogador");
         });
-}
-
-const char* ProjectileLabel(CS2::ProjectileKind kind) {
-    switch (kind) {
-    case CS2::ProjectileKind::Flash: return "Flash";
-    case CS2::ProjectileKind::Smoke: return "Smoke";
-    case CS2::ProjectileKind::HE: return "HE Grenade";
-    case CS2::ProjectileKind::Molotov: return "Molotov";
-    case CS2::ProjectileKind::Incendiary: return "Incendiary";
-    case CS2::ProjectileKind::Decoy: return "Decoy";
-    default: return "";
-    }
-}
-
-const char* ProjectileIcon(CS2::ProjectileKind kind) {
-    switch (kind) {
-    case CS2::ProjectileKind::Flash: return "FL";
-    case CS2::ProjectileKind::Smoke: return "SM";
-    case CS2::ProjectileKind::HE: return "HE";
-    case CS2::ProjectileKind::Molotov: return "MO";
-    case CS2::ProjectileKind::Incendiary: return "IN";
-    case CS2::ProjectileKind::Decoy: return "DE";
-    default: return "";
-    }
-}
-
-CS2::Trajectory::GrenadePhysics ProjectilePhysics(CS2::ProjectileKind kind) {
-    CS2::Trajectory::GrenadePhysics physics{};
-    switch (kind) {
-    case CS2::ProjectileKind::Flash:
-    case CS2::ProjectileKind::HE: physics.detonate_seconds=1.5f; physics.restitution=.45f; break;
-    case CS2::ProjectileKind::Smoke: physics.detonate_seconds=3.f; physics.restitution=.36f; physics.surface_friction=.64f; break;
-    case CS2::ProjectileKind::Molotov:
-    case CS2::ProjectileKind::Incendiary: physics.detonate_seconds=2.f; physics.restitution=.30f; physics.surface_friction=.58f; break;
-    case CS2::ProjectileKind::Decoy: physics.detonate_seconds=2.f; physics.restitution=.42f; break;
-    default: break;
-    }
-    return physics;
-}
-
-struct CachedProjectilePath {
-    uint64_t sample_timestamp_ms{};
-    uint64_t last_simulation_ms{};
-    CS2::Trajectory::TrajectoryResult result{};
-};
-
-float ProjectileEffectRadius(CS2::ProjectileKind kind) {
-    // Preview radii are deliberately conservative visual guides, not damage
-    // guarantees. They are drawn only for a trajectory that already has a
-    // collision-geometry impact prediction.
-    switch (kind) {
-    case CS2::ProjectileKind::Flash: return 750.f;
-    case CS2::ProjectileKind::HE: return 350.f;
-    case CS2::ProjectileKind::Smoke: return 144.f;
-    case CS2::ProjectileKind::Molotov:
-    case CS2::ProjectileKind::Incendiary: return 160.f;
-    case CS2::ProjectileKind::Decoy: return 128.f;
-    default: return 0.f;
-    }
-}
-
-void DrawProjectedEffectRadius(ImDrawList* draw, CS2::Trajectory::Vec3 center,
-                               float radius, const float* view_matrix, ImU32 color) {
-    if (radius <= 0.f) return;
-    constexpr int segments = 24;
-    ImVec2 previous{};
-    bool have_previous = false;
-    for (int i = 0; i <= segments; ++i) {
-        const float angle = (static_cast<float>(i) / segments) * 6.283185307f;
-        const float point[3]{ center.x + std::cos(angle) * radius,
-                              center.y + std::sin(angle) * radius, center.z + 2.f };
-        ImVec2 screen{};
-        if (WorldToScreen(point, view_matrix, screen)) {
-            if (have_previous) draw->AddLine(previous, screen, color, 1.15f);
-            previous = screen;
-            have_previous = true;
-        } else {
-            have_previous = false;
-        }
-    }
-}
-
-void DrawProjectilePath(ImDrawList* draw, const CS2::Projectile& projectile,
-                        const float* view_matrix, ImU32 color) {
-    static std::unordered_map<uintptr_t, CachedProjectilePath> paths;
-    auto world = CS2::Trajectory::CollisionCache().WorldSnapshot();
-    auto& cached = paths[projectile.entity];
-    const uint64_t now = GetTickCount64();
-    const bool sampleChanged = cached.sample_timestamp_ms != projectile.sample_timestamp_ms;
-    if ((sampleChanged || cached.result.points.empty()) &&
-        (!cached.last_simulation_ms || now - cached.last_simulation_ms >= 40u)) {
-        cached.sample_timestamp_ms = projectile.sample_timestamp_ms;
-        cached.last_simulation_ms = now;
-        const CS2::Trajectory::Vec3 origin{ projectile.pos[0], projectile.pos[1], projectile.pos[2] };
-        const CS2::Trajectory::Vec3 velocity{ projectile.velocity[0], projectile.velocity[1], projectile.velocity[2] };
-        const auto physics = ProjectilePhysics(projectile.kind);
-        cached.result = world && world->Ready()
-            ? CS2::Trajectory::SimulateGrenade(*world, origin, velocity, physics)
-            : CS2::Trajectory::SimulateBallistic(origin, velocity, physics);
-    }
-    ImVec2 previous{};
-    bool have_previous = false;
-    for (const auto& point : cached.result.points) {
-        const float world_point[3]{ point.x, point.y, point.z };
-        ImVec2 screen{};
-        if (WorldToScreen(world_point, view_matrix, screen)) {
-            if (have_previous) draw->AddLine(previous, screen, color, 1.5f);
-            previous = screen;
-            have_previous = true;
-        } else {
-            have_previous = false;
-        }
-    }
-    if (paths.size() > 64) {
-        for (auto it = paths.begin(); it != paths.end();) {
-            if (it->second.sample_timestamp_ms + 1000 < projectile.sample_timestamp_ms)
-                it = paths.erase(it);
-            else ++it;
-        }
-    }
-}
-
-void DrawProjectiles(ImDrawList* draw, const CS2::Runtime& snapshot,
-                     const CS2::Config& settings, const float* view_matrix, ImU32 rgb) {
-    if ((!settings.grenade_trail && !settings.projectile_timers) || !view_matrix) return;
-    const ImU32 color = EffectColor(settings, settings.col_fun_effects, rgb);
-    for (const auto& projectile : snapshot.projectiles) {
-        const char* label = ProjectileLabel(projectile.kind);
-        const char* icon = ProjectileIcon(projectile.kind);
-        if (!*label || !*icon) continue;
-        // A held grenade is attached close to its owner. Once thrown it moves
-        // away from every player, so hide the planning line immediately rather
-        // than leaving a second line following the projectile in flight.
-        const float dx = projectile.pos[0] - snapshot.local_pos[0];
-        const float dy = projectile.pos[1] - snapshot.local_pos[1];
-        const float dz = projectile.pos[2] - snapshot.local_pos[2];
-        const bool held_by_local = dx * dx + dy * dy + dz * dz < 160.f * 160.f;
-        if (settings.grenade_trail && held_by_local) DrawProjectilePath(draw, projectile, view_matrix, color);
-        if ((settings.grenade_trail || settings.projectile_timers) && projectile.world_effect_active) {
-            ImVec2 effect_screen{};
-            if (WorldToScreen(projectile.pos, view_matrix, effect_screen)) {
-                char timer[32]{};
-                const uint64_t now = GetTickCount64();
-                const float remaining = projectile.world_effect_expires_ms > now
-                    ? static_cast<float>(projectile.world_effect_expires_ms - now) / 1000.f : 0.f;
-                std::snprintf(timer, sizeof(timer), "%.1fs", remaining);
-                DrawOutlinedText(draw, ImVec2(effect_screen.x + 12.f, effect_screen.y - 7.f), color, timer, settings);
-                DrawProjectedEffectRadius(draw, { projectile.pos[0], projectile.pos[1], projectile.pos[2] },
-                    ProjectileEffectRadius(projectile.kind), view_matrix, color);
-            }
-        }
-    }
 }
 
 void DrawPlayerFlags(ImDrawList* draw, const CS2::Player& player, const ImVec2& min,
@@ -699,12 +497,10 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
         if (settings.health_value) { char hp[16]{}; std::snprintf(hp, sizeof(hp), "%d", player.health); DrawOutlinedText(draw, ImVec2(min.x - 25.f, min.y), Color(settings.col_health), hp, settings); }
         if (settings.armor_value && player.armor > 0) { char ap[16]{}; std::snprintf(ap, sizeof(ap), "%d", player.armor); DrawOutlinedText(draw, ImVec2(max.x + 8.f, min.y), Color(settings.col_armor), ap, settings); }
         DrawExtras(draw, player, head, feet, min, max, settings, rgbColor);
-        DrawSoundEsp(draw, player, feet, settings, rgbColor);
         DrawFootstepEsp(draw, player, feet, settings, rgbColor);
         DrawPlayerFlags(draw, player, min, settings, rgbColor);
     }
     DrawDroppedWeapons(draw, snapshot, settings, viewMatrix);
-    DrawProjectiles(draw, snapshot, settings, viewMatrix, rgbColor);
 }
 
 } // namespace CS2::ESP

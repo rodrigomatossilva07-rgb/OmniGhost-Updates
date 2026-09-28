@@ -16,20 +16,6 @@ void DrawCs2Misc()
     ToggleSwitch(Loc::Tr("cs2.misc.spectators"), &CS2::config.spectator_list);
     ToggleSwitch(Loc::Tr("cs2.misc.bomb_timer"), &CS2::config.bomb_timer);
     ToggleSwitch(Loc::Tr("cs2.misc.hit_marker"), &CS2::config.hit_marker);
-    ToggleSwitch("Trajetoria de granadas", &CS2::config.grenade_trail);
-    if (CS2::config.grenade_trail) {
-        TextLine("Mostra linha, impacto, raio do efeito e tempo previsto para flash, HE, smoke, molotov e decoy.", TextTone::Secondary);
-        const auto snapshot = CS2::AcquireRuntimeSnapshot();
-        if (snapshot) {
-            if (snapshot->trajectory_collision_loading)
-                TextLine("Geometria do mapa: a carregar em segundo plano...", TextTone::Secondary);
-            else if (snapshot->trajectory_collision_ready)
-                TextLineF(TextTone::Secondary, "Geometria do mapa: pronta (%s).", snapshot->trajectory_collision_map);
-            else
-                TextLineF(TextTone::Secondary, "Geometria do mapa: indisponível para %s.", snapshot->trajectory_collision_map[0] ? snapshot->trajectory_collision_map : "este mapa");
-        }
-    }
-    ToggleSwitch("Ondas de disparo (Sound ESP)", &CS2::config.sound_esp);
     ToggleSwitch("Passos dourados (Footstep ESP)", &CS2::config.footstep_esp);
     if (CS2::config.footstep_esp)
         TextLine("Pegadas douradas no solo: desaparecem suavemente apos 1 segundo.", TextTone::Secondary);

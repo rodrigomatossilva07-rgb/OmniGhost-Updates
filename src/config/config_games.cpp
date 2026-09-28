@@ -126,7 +126,6 @@ void SerializeCS2(std::ostringstream& o) {
     WBool(o, "cs2.visibility_colors", c.visibility_colors);
     WBool(o, "cs2.visible_check", c.visible_check);
     WBool(o, "cs2.scope_check", c.scope_check);
-    WBool(o, "cs2.sound_esp", c.sound_esp);
     WBool(o, "cs2.footstep_esp", c.footstep_esp);
     WBool(o, "cs2.player_flags", c.player_flags);
     WBool(o, "cs2.flag_blind", c.flag_blind);
@@ -142,8 +141,6 @@ void SerializeCS2(std::ostringstream& o) {
     WBool(o, "cs2.dropped_weapon_heavy", c.dropped_weapon_heavy);
     WBool(o, "cs2.dropped_weapon_icons", c.dropped_weapon_icons);
     WBool(o, "cs2.dropped_weapon_ammo", c.dropped_weapon_ammo);
-    WBool(o, "cs2.projectile_timers", c.projectile_timers);
-    WBool(o, "cs2.grenade_trail", c.grenade_trail);
     WFloat(o, "cs2.radar_2d_x", c.radar_2d_x);
     WFloat(o, "cs2.radar_2d_y", c.radar_2d_y);
     WFloat(o, "cs2.radar_2d_size", c.radar_2d_size);
@@ -312,7 +309,6 @@ bool DeserializeCS2(const std::string& key, const std::string& val) {
     if (bi("cs2.visibility_colors")) { c.visibility_colors = toB(); return true; }
     if (bi("cs2.visible_check")) { c.visible_check = toB(); return true; }
     if (bi("cs2.scope_check")) { c.scope_check = toB(); return true; }
-    if (bi("cs2.sound_esp")) { c.sound_esp = toB(); return true; }
     if (bi("cs2.footstep_esp")) { c.footstep_esp = toB(); return true; }
     if (bi("cs2.player_flags")) { c.player_flags = toB(); return true; }
     if (bi("cs2.flag_blind")) { c.flag_blind = toB(); return true; }
@@ -328,8 +324,6 @@ bool DeserializeCS2(const std::string& key, const std::string& val) {
     if (bi("cs2.dropped_weapon_heavy")) { c.dropped_weapon_heavy = toB(); return true; }
     if (bi("cs2.dropped_weapon_icons")) { c.dropped_weapon_icons = toB(); return true; }
     if (bi("cs2.dropped_weapon_ammo")) { c.dropped_weapon_ammo = toB(); return true; }
-    if (bi("cs2.projectile_timers")) { c.projectile_timers = toB(); return true; }
-    if (bi("cs2.grenade_trail")) { c.grenade_trail = toB(); return true; }
     if (bi("cs2.radar_2d_x")) { c.radar_2d_x = toF(); return true; }
     if (bi("cs2.radar_2d_y")) { c.radar_2d_y = toF(); return true; }
     if (bi("cs2.radar_2d_size")) { c.radar_2d_size = toF(); return true; }

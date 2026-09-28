@@ -76,13 +76,6 @@ struct Offsets {
     uintptr_t m_pInGameMoneyServices = 0x810; // CCSPlayerController
     uintptr_t m_iAccount = 0x40;             // CCSPlayerController_InGameMoneyServices
     uintptr_t m_bIsDefusing = 0x1C7A;        // C_CSPlayerPawn
-    uintptr_t m_bIsIncGrenade = 0x1260;      // C_MolotovProjectile
-    // World-effect timers. Zero means the active schema dump has not supplied
-    // the field yet, and the feature stays disabled rather than guessing.
-    uintptr_t m_bDidSmokeEffect = 0;
-    uintptr_t m_nSmokeEffectTickBegin = 0;
-    uintptr_t m_nFireEffectTickBegin = 0;
-    uintptr_t m_nFireLifetime = 0;
     bool loaded = false;
 
     bool Validate(std::string* reason = nullptr) const noexcept;
@@ -132,7 +125,7 @@ struct Player {
     bool bones_ok = false;          // at least head/neck/chest/stomach are valid
     bool full_bones_ok = false;     // complete 20-slot pose is valid for skeleton/body trigger
     bool spotted = true; // m_bSpotted (EntitySpottedState_t)
-    bool visibility_known = false; // Static map LOS, independent of radar spotting.
+    bool visibility_known = false; // True when the spotted-state was acquired.
     bool visible = false;
     int ent_index = 0;
     uint64_t steam_id = 0;
@@ -144,8 +137,6 @@ struct Player {
     bool is_defusing = false;
     bool is_moving = false;
     float move_speed = 0.f;
-    uint64_t last_shot_ms = 0;
-    int shots_fired = 0;
 };
 
 struct BombState {
@@ -157,19 +148,6 @@ struct BombState {
     uint32_t defuser_handle = 0;
     char defuser_name[64]{};
     float pos[3]{};
-    uint64_t sample_timestamp_ms = 0;
-};
-
-enum class ProjectileKind : uint8_t { None, Flash, Smoke, HE, Molotov, Incendiary, Decoy };
-
-struct Projectile {
-    uintptr_t entity = 0;
-    ProjectileKind kind = ProjectileKind::None;
-    float pos[3]{};
-    float velocity[3]{};
-    bool world_effect_active = false;
-    float world_effect_seconds_left = 0.f;
-    uint64_t world_effect_expires_ms = 0;
     uint64_t sample_timestamp_ms = 0;
 };
 
@@ -206,19 +184,7 @@ struct Runtime {
     uintptr_t controller_stride = 0x70;
     uintptr_t pawn_stride = 0x70;
     BombState bomb{};
-    std::vector<Projectile> projectiles;
     std::vector<DroppedWeapon> dropped_weapons;
-    // Projectile ESP diagnostics, exposed in the Misc page so discovery can be
-    // validated without needing to inspect a support log.
-    int projectile_pages = 0;
-    int projectile_entities = 0;
-    int projectile_name_ptrs = 0;
-    int projectile_classified = 0;
-    int projectile_scenes = 0;
-    uint64_t projectile_scan_timestamp_ms = 0;
-    bool trajectory_collision_loading = false;
-    bool trajectory_collision_ready = false;
-    char trajectory_collision_map[64]{};
     int player_count = 0;
     int enemy_count = 0;
     int controller_count = 0;

@@ -23,9 +23,9 @@ struct Config {
     float spectator_window_y = 40.f;
     float bomb_window_x = -1.f;
     float bomb_window_y = 338.f;
-    bool smoke_flash = false, scope_check = false, sound_esp = false, footstep_esp = false;
+    bool smoke_flash = false, scope_check = false, footstep_esp = false;
     bool player_flags = false, flag_blind = true, flag_scoped = true, flag_defusing = true, flag_kit = true, flag_money = true;
-    bool weapon_ammo = false, dropped_weapons = false, projectile_timers = false, grenade_trail = false;
+    bool weapon_ammo = false, dropped_weapons = false;
     // World weapons are deliberately category-filtered: the acquisition lane
     // can skip classes the player does not want instead of treating every
     // dropped entity as a candidate.
