@@ -29,7 +29,28 @@ if (-not (Test-Path -LiteralPath $metadataPath -PathType Leaf)) { throw "Publish
 
 $git = (Get-Command git -ErrorAction Stop).Source
 $status = @(& $git -C $ProjectDir status --porcelain --untracked-files=normal --ignore-submodules)
-if ($LASTEXITCODE -ne 0 -or $status.Count -ne 0) { throw 'Independent rebuild requires a clean Git worktree.' }
+if ($LASTEXITCODE -ne 0) { throw 'Independent rebuild could not inspect the Git worktree.' }
+
+# Documentation is explicitly excluded from the compiler and release payload.
+# Editing/removing it while Visual Studio is open cannot alter the executable,
+# so it must not invalidate a byte-for-byte rebuild. Every source, config,
+# resource, dependency or unknown path remains fail-closed.
+$materialChanges = New-Object System.Collections.Generic.List[string]
+foreach ($entry in $status) {
+    $line = [string]$entry
+    $path = if ($line.Length -gt 3) { $line.Substring(3).Trim() } else { '' }
+    if ($path -match ' -> ') { $path = ($path -split ' -> ')[-1].Trim() }
+    $normalized = $path.Replace('\', '/')
+    $documentationOnly = $normalized -match '^(docs/.*\.(md|markdown)|[^/]+\.(md|markdown))$'
+    if (-not $documentationOnly) { $materialChanges.Add($line) }
+}
+if ($materialChanges.Count -gt 0) {
+    throw ("Independent rebuild requires all material Git files to be clean:`n        " +
+        ($materialChanges -join "`n        "))
+}
+if ($status.Count -gt 0) {
+    Write-Host '[OmniGhost Repro] Alterações apenas em documentação não compilada; comparação binária autorizada.'
+}
 $commit = (& $git -C $ProjectDir rev-parse HEAD).Trim()
 if ($LASTEXITCODE -ne 0 -or $commit -notmatch '^[0-9a-f]{40}$') { throw 'Could not resolve HEAD for independent rebuild.' }
 
