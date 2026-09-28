@@ -19,8 +19,6 @@ Runtime runtime{};
 
 static const char* kProcessCandidates[] = {
     "FortniteClient-Win64-Shipping.exe",
-    "FortniteClient-Win64-Shipping_EAC_EOS.exe",
-    "Fortnite.exe",
 };
 
 static bool g_logged_once = false;
