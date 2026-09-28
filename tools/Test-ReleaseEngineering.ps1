@@ -70,6 +70,7 @@ Assert ($workflow -notmatch 'DISCORD_WEBHOOK_URL|Notify-DiscordRelease') 'Remove
 Assert ($workflow -notmatch 'hardware_integration_test|OMNIGHOST_TEST_GAME') 'Obsolete mandatory DMA release gate is still configured.'
 Assert ($publishBuild -match 'publish_github_release\.ps1') 'Publish build does not upload its validated local artifacts directly.'
 Assert ($publishBuild -match 'Finalize-VersionCommit\.ps1') 'Publish does not finalize the mechanical next-version commit.'
+Assert ($prepareVersion -match 'tag --list.*currentTag') 'Publish preparation does not test tag existence safely on Windows PowerShell 5.1.'
 Assert ($prepareVersion -match 'rev-list -n 1.*currentTag') 'Publish preparation does not detect a version tag owned by another commit.'
 Assert ($prepareVersion -match 'Increment-Version\.ps1') 'Publish preparation does not advance automatically past an occupied tag.'
 Assert ($prepareVersion -match 'maximumAdvances') 'Automatic version selection has no bounded safety limit.'

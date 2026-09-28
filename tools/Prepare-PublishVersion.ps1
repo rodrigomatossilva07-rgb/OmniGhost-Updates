@@ -35,9 +35,20 @@ if (-not $ValidateOnly) {
 		if ($LASTEXITCODE -ne 0 -or $head -notmatch '^[0-9a-fA-F]{40}$') {
 			throw 'Não foi possível determinar o commit atual antes de preparar a versão Publish.'
 		}
-		$tagCommit = @(& $git.Source -C $ProjectDir rev-list -n 1 $currentTag 2>$null)
-		$tagExists = $LASTEXITCODE -eq 0 -and $tagCommit.Count -gt 0 -and
-			([string]$tagCommit[0]).Trim() -match '^[0-9a-fA-F]{40}$'
+		# Windows PowerShell 5.1 promotes Git stderr to NativeCommandError even
+		# when it is redirected. `tag --list` is silent for a missing tag, so only
+		# ask rev-list to resolve a name that Git has already confirmed exists.
+		$matchingTags = @(& $git.Source -C $ProjectDir tag --list $currentTag)
+		if ($LASTEXITCODE -ne 0) { throw "Não foi possível consultar a tag $currentTag." }
+		$tagExists = $matchingTags.Count -gt 0
+		$tagCommit = @()
+		if ($tagExists) {
+			$tagCommit = @(& $git.Source -C $ProjectDir rev-list -n 1 $currentTag)
+			if ($LASTEXITCODE -ne 0 -or $tagCommit.Count -eq 0 -or
+				([string]$tagCommit[0]).Trim() -notmatch '^[0-9a-fA-F]{40}$') {
+				throw "A tag $currentTag existe, mas o commit associado não pôde ser validado."
+			}
+		}
 		if (-not $tagExists -or ([string]$tagCommit[0]).Trim() -ceq $head) {
 			break
 		}
