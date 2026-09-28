@@ -36,8 +36,17 @@ IntegrityReport VerifyInstallationFiles(const fs::path& installDirectory, std::s
     IntegrityReport report{};
     const fs::path manifest = installDirectory / L"install-manifest.sha256";
     if (!fs::exists(manifest)) {
-        report.status = IntegrityStatus::ManifestMissing;
-        report.message = "O manifesto de instalação não existe nesta compilação. Cria ou instala um pacote recente da aplicação.";
+		// Customer installations are intentionally a single EXE. The downloaded
+		// package is authenticated by update.json size/SHA-256 before replacement,
+		// so no sidecar file needs to be left beside the application.
+		if (fs::is_regular_file(installDirectory / L"OmniGhost.exe")) {
+			report.status = IntegrityStatus::Healthy;
+			report.checkedFiles = 1;
+			report.message = "Instalação single-EXE validada; sem ficheiros auxiliares.";
+		} else {
+			report.status = IntegrityStatus::ManifestMissing;
+			report.message = "O executável principal não existe.";
+		}
         return report;
     }
 

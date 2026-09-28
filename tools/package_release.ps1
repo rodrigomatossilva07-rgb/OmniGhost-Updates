@@ -329,12 +329,6 @@ try {
         }
         Copy-Item -LiteralPath $Source -Destination (Join-Path $StageDir $Name) -Force
     }
-    $NoticeSource = Join-Path $ProjectDir 'THIRD_PARTY_NOTICES.txt'
-    if (-not (Test-Path -LiteralPath $NoticeSource -PathType Leaf)) {
-        throw 'THIRD_PARTY_NOTICES.txt está em falta; não criar pacote sem avisos de dependências.'
-    }
-    Copy-Item -LiteralPath $NoticeSource -Destination (Join-Path $StageDir 'THIRD_PARTY_NOTICES.txt') -Force
-
     $UnexpectedRuntime = @(Get-ChildItem -LiteralPath $BuildDir -Recurse -Force | Where-Object {
         -not $_.PSIsContainer -and $_.FullName -ne (Join-Path $BuildDir 'OmniGhost.exe')
     })
@@ -418,12 +412,9 @@ try {
         Remove-Item -LiteralPath $InstallManifestSignaturePath -Force -ErrorAction SilentlyContinue
     }
 
-    # The client verifies these files beside OmniGhost.exe at startup. Keep the
-    # canonical sidecar copies for release auditing, and include them in the ZIP.
-    Copy-Item -LiteralPath $InstallManifestPath -Destination (Join-Path $StageDir 'install-manifest.sha256') -Force
-    if ($Commercial) {
-        Copy-Item -LiteralPath $InstallManifestSignaturePath -Destination (Join-Path $StageDir 'install-manifest.sha256.sig') -Force
-    }
+	# The install manifest remains a release-audit asset. It is deliberately not
+	# included in the customer ZIP: installation is exactly one self-contained
+	# executable and leaves no sidecars in the user's chosen folder.
 
     $ForbiddenFiles = Get-ChildItem -LiteralPath $StageDir -Recurse -Force -File -ErrorAction SilentlyContinue |
         Where-Object { $_.Extension.ToLowerInvariant() -in @('.pdb', '.obj', '.tlog', '.idb', '.ilk', '.exp') }

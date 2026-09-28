@@ -61,7 +61,9 @@ if ([int64]$package[0].size -ne $actualSize -or [string]$package[0].sha256 -cne 
 $archive = [IO.Compression.ZipFile]::OpenRead($zipPath)
 try {
     $names = @($archive.Entries | ForEach-Object { $_.FullName.Replace('\','/') })
-    if ('OmniGhost.exe' -notin $names) { throw 'OmniGhost.exe não existe na raiz do ZIP.' }
+	if ($names.Count -ne 1 -or $names[0] -cne 'OmniGhost.exe') {
+		throw 'O ZIP de cliente tem de conter exclusivamente OmniGhost.exe na raiz.'
+	}
     $forbidden = @($names | Where-Object {
         $_ -match '(^|/)(fortnite_offsets|warzone_offsets)\.json$' -or
         $_ -match '\.(pdb|obj|ilk|tlog|pfx|p12|pem|key)$' -or

@@ -183,7 +183,7 @@ std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
         return reject(20, "mutex", "Já existe outro processo de atualização em execução.");
     const auto args = Arguments(argc, argv);
     const wchar_t* required[] = { L"--pid", L"--package", L"--target", L"--executable", L"--version",
-        L"--backup", L"--sha256", L"--size" };
+		L"--sha256", L"--size" };
     for (const wchar_t* name : required) {
         if (!args.contains(name) || args.at(name).empty())
             return reject(21, "arguments", "Falta um argumento obrigatório no pedido de atualização.");
@@ -199,7 +199,7 @@ std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
         std::cerr << "[Updater] Invalid PID or size argument: unknown exception\n";
         return reject(21, "arguments", "PID ou tamanho do pacote inválido.");
     }
-    const fs::path package = args.at(L"--package"), target = args.at(L"--target"), backup = args.at(L"--backup");
+	const fs::path package = args.at(L"--package"), target = args.at(L"--target");
     const fs::path executableName = args.at(L"--executable");
     const auto targetVersionValue = NarrowAscii(args.at(L"--version"));
     const auto expectedHashValue = NarrowAscii(args.at(L"--sha256"));
@@ -221,10 +221,10 @@ std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
             return reject(21, "arguments", "O endereço das notas da atualização é inválido.");
         notesUrl = *value;
     }
-    if (!AbsoluteSafe(package) || !AbsoluteSafe(target) || !AbsoluteSafe(backup) || executableName.is_absolute() ||
+	if (!AbsoluteSafe(package) || !AbsoluteSafe(target) || executableName.is_absolute() ||
         executableName.has_parent_path() || _wcsicmp(executableName.c_str(), MainExecutable) != 0 ||
-        _wcsicmp(package.extension().c_str(), L".zip") != 0 || target == backup || !fs::exists(target / executableName) ||
-        !Descendant(package, Paths::Updates()) || !Descendant(backup.parent_path(), Paths::Backups()) ||
+		_wcsicmp(package.extension().c_str(), L".zip") != 0 || !fs::exists(target / executableName) ||
+		!Descendant(package, Paths::Updates()) ||
         !SemVersion::Parse(targetVersion) || expectedSize == 0 || expectedHash.size() != 64)
         return reject(22, "arguments", "Os caminhos ou metadados do pedido de atualização não são seguros/válidos.");
 
@@ -292,24 +292,13 @@ std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
         RecordHealth("new-executable-authenticode-verified", Version, targetVersion, expectedHash, "verified");
     }
 
-    InstallOptions install{staging, target, backup, executableName.wstring()};
-    const InstallResult installed = InstallWithRollback(install);
+	InstallOptions install{staging, target, executableName.wstring()};
+	const InstallResult installed = InstallSingleExecutable(install);
     if (!installed.success) {
         WriteLog(log, LogLevel::Error, Version, targetVersion, "install", installed.error);
         RecordHealth("install-failed", Version, targetVersion, expectedHash, {},
-            installed.rolledBack ? "success" : "not-completed", installed.error);
-        if (installed.rolledBack) {
-            std::wstring relaunchToken;
-            std::string relaunchError;
-            DWORD restoredPid{};
-            if (RandomTokenHex(32, relaunchToken, relaunchError)) {
-                const std::wstring rollbackArguments = L"--rollback-restored --failed-version " +
-                    Quote(Platform::Utf8ToWide(targetVersion)) + L" --rollback-stage installation";
-                (void)StartApplication(target / executableName, package.parent_path() / L"rollback-confirm.txt",
-                    relaunchToken, rollbackArguments, restoredPid, relaunchError);
-            }
-        }
-        return installed.rolledBack ? 25 : 26;
+			"disabled-single-exe", installed.error);
+		return 26;
     }
     RecordHealth("installed-awaiting-restart", Version, targetVersion, expectedHash, {}, {},
         "files installed; awaiting startup confirmation");
@@ -370,7 +359,6 @@ std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
     }
 
     fs::remove(package, cleanupError); fs::remove_all(staging, cleanupError); fs::remove(confirmation, cleanupError);
-    PruneBackups(backup.parent_path(), configuration.backupsToKeep);
     WriteLog(log, LogLevel::Info, targetVersion, targetVersion, "complete", "Atualização concluída e arranque confirmado.");
     RecordHealth("complete", targetVersion, targetVersion, expectedHash, {}, "not-required",
         "update completed and startup confirmed");

@@ -70,7 +70,6 @@ struct Configuration {
     std::string secondaryManifestPublicCertificateDerBase64 = ReleaseTrust::SecondaryPublicCertificateDerBase64;
     int updaterExitTimeoutSeconds = 30;
     int startupConfirmationSeconds = 30;
-    int backupsToKeep = 3;
 };
 
 struct Snapshot {

@@ -958,10 +958,9 @@ bool UpdateService::InstallPreparedUpdate() {
         }
         RecordHealth("authenticode-verified", version, expectedHash, "verified");
     }
-    const fs::path backup = Paths::Backups() / fs::path(version + "-" + std::to_string(GetTickCount64()));
     std::wostringstream arguments; arguments << L"--apply-update --pid " << GetCurrentProcessId() << L" --package " << Quote(downloadedPackage_)
         << L" --target " << Quote(Paths::InstallDirectory()) << L" --executable " << Quote(OmniGhost::MainExecutable)
-        << L" --version \"" << Platform::Utf8ToWide(version) << L"\" --backup " << Quote(backup)
+		<< L" --version \"" << Platform::Utf8ToWide(version) << L"\""
         << L" --sha256 \"" << Platform::Utf8ToWide(expectedHash) << L"\" --size " << expectedSize
         << L" --timeout " << config_.updaterExitTimeoutSeconds
         << L" --from-version \"" << Platform::Utf8ToWide(OmniGhost::Version) << L"\"";

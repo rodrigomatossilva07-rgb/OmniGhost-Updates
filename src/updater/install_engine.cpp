@@ -113,37 +113,12 @@ bool Descendant(const fs::path& child, const fs::path& parent) {
     return true;
 }
 std::wstring Quote(const fs::path& path) { std::wstring value = path.wstring(); std::wstring result = L"\""; for (wchar_t c : value) { if (c == L'\"') result += L'\\'; result += c; } return result + L"\""; }
-bool CopyTree(const fs::path& source, const fs::path& destination, bool skipProtected, std::string& error) {
-    std::error_code ec; fs::create_directories(destination, ec);
-    for (fs::recursive_directory_iterator it(source, fs::directory_options::skip_permission_denied, ec), end; it != end; it.increment(ec)) {
-        if (ec) { error = "Falha ao percorrer ficheiros: " + ec.message(); return false; }
-        const fs::path relative = fs::relative(it->path(), source, ec);
-        if (ec || !SafeArchiveRelative(relative)) { error = "Foi encontrado um caminho inseguro."; return false; }
-        if (skipProtected && Paths::IsProtectedInstallPath(relative)) { if (it->is_directory()) it.disable_recursion_pending(); continue; }
-        const fs::path target = destination / relative;
-        if (it->is_symlink(ec) || it->is_other(ec)) { error = "Links e ficheiros especiais não são permitidos."; return false; }
-        if (it->is_directory(ec)) fs::create_directories(target, ec);
-        else if (it->is_regular_file(ec)) { fs::create_directories(target.parent_path(), ec); fs::copy_file(it->path(), target, fs::copy_options::overwrite_existing, ec); }
-        if (ec) { error = "Falha ao copiar " + relative.string() + ": " + ec.message(); return false; }
-    }
-    return true;
-}
 std::uint64_t TreeSize(const fs::path& path) {
     std::uint64_t total = 0; std::error_code ec;
     for (fs::recursive_directory_iterator it(path, fs::directory_options::skip_permission_denied, ec), end; it != end; it.increment(ec))
         if (!ec && it->is_regular_file(ec)) total += it->file_size(ec);
     return total;
 }
-bool RemoveManaged(const fs::path& target, std::string& error) {
-    std::error_code ec;
-    for (fs::directory_iterator it(target, fs::directory_options::skip_permission_denied, ec), end; it != end; it.increment(ec)) {
-        if (ec) { error = ec.message(); return false; }
-        const fs::path relative = it->path().filename(); if (Paths::IsProtectedInstallPath(relative)) continue;
-        fs::remove_all(it->path(), ec); if (ec) { error = "Não foi possível remover " + relative.string() + ": " + ec.message(); return false; }
-    }
-    return true;
-}
-
 bool ContainsOnlyExecutable(const fs::path& root, const std::wstring& executableName) {
     std::error_code ec;
     std::size_t files = 0;
@@ -360,65 +335,33 @@ bool HasEnoughDiskSpace(const fs::path& path, std::uint64_t requiredBytes, std::
     return true;
 }
 
-bool RollbackInstallation(const InstallOptions& options, std::string& error) {
-    if (!fs::exists(options.backup)) { error = "O backup necessário para rollback não existe."; return false; }
-    if (ContainsOnlyExecutable(options.backup, options.executableName)) {
-        std::error_code ec;
-        fs::copy_file(options.backup / options.executableName,
-            options.target / options.executableName, fs::copy_options::overwrite_existing, ec);
-        if (ec) error = "Não foi possível restaurar o executável: " + ec.message();
-        return !ec;
-    }
-    if (!RemoveManaged(options.target, error)) return false;
-    return CopyTree(options.backup, options.target, false, error);
-}
-
-InstallResult InstallWithRollback(const InstallOptions& options) {
-    InstallResult result{}; std::string error;
+InstallResult InstallSingleExecutable(const InstallOptions& options) {
+	InstallResult result{};
     auto failInjected = [&](const char* stage) { return options.failureInjector && options.failureInjector(stage); };
     if (!SafeArchiveRelative(fs::path(options.executableName)) || !fs::exists(options.staging / options.executableName)) { result.error = "O pacote não contém o executável principal."; return result; }
     const bool singleExecutable = ContainsOnlyExecutable(options.staging, options.executableName);
-    const std::uint64_t required = (singleExecutable
-        ? TreeSize(options.staging) * 2
-        : TreeSize(options.target) + TreeSize(options.staging)) + 64ull * 1024ull * 1024ull;
+	// The install directory may be the Desktop or another shared user folder.
+	// Never interpret neighbouring files as application-owned content. Updates
+	// are single-file only and may replace exactly OmniGhost.exe.
+	if (!singleExecutable) {
+		result.error = "O pacote de atualização contém ficheiros adicionais; apenas OmniGhost.exe é permitido.";
+		return result;
+	}
+	const std::uint64_t required = TreeSize(options.staging) + 64ull * 1024ull * 1024ull;
     if (!HasEnoughDiskSpace(options.target, required, result.error)) return result;
-    std::error_code ec; fs::remove_all(options.backup, ec); fs::create_directories(options.backup, ec);
-    if (singleExecutable) {
-        fs::copy_file(options.target / options.executableName,
-            options.backup / options.executableName, fs::copy_options::overwrite_existing, ec);
-    } else if (!ec) {
-        (void)CopyTree(options.target, options.backup, true, error);
-    }
-    if (ec || !error.empty() || failInjected("backup")) { result.error = error.empty() ? "Falha simulada no backup." : error; return result; }
-    if (singleExecutable) {
-        if (failInjected("replace")) {
-            result.error = "Falha simulada ao substituir ficheiros.";
-            result.rolledBack = RollbackInstallation(options, error);
-            return result;
-        }
-        fs::copy_file(options.staging / options.executableName,
-            options.target / options.executableName, fs::copy_options::overwrite_existing, ec);
-        if (ec || failInjected("copy")) {
-            result.error = ec ? "Falha ao instalar o novo executável: " + ec.message() : "Falha simulada ao copiar.";
-            result.rolledBack = RollbackInstallation(options, error);
-            return result;
-        }
-        result.success = true;
-        return result;
-    }
-    if (!RemoveManaged(options.target, error) || failInjected("replace")) {
-        result.error = error.empty() ? "Falha ao substituir ficheiros." : error; result.rolledBack = RollbackInstallation(options, error); return result;
-    }
-    if (!CopyTree(options.staging, options.target, true, error) || failInjected("copy") || !fs::exists(options.target / options.executableName)) {
-        result.error = error.empty() ? "Falha ao instalar os novos ficheiros." : error; result.rolledBack = RollbackInstallation(options, error); return result;
-    }
-    result.success = true; return result;
+	if (failInjected("replace") || failInjected("copy")) {
+		result.error = "Falha simulada ao substituir o executável.";
+		return result;
+	}
+	std::error_code ec;
+	fs::copy_file(options.staging / options.executableName,
+		options.target / options.executableName, fs::copy_options::overwrite_existing, ec);
+	if (ec) {
+		result.error = "Falha ao instalar o novo executável: " + ec.message();
+		return result;
+	}
+	result.success = true;
+	return result;
 }
 
-void PruneBackups(const fs::path& backupRoot, int backupsToKeep) {
-    std::error_code ec; std::vector<fs::directory_entry> backups;
-    for (const auto& entry : fs::directory_iterator(backupRoot, fs::directory_options::skip_permission_denied, ec)) if (entry.is_directory(ec)) backups.push_back(entry);
-    std::sort(backups.begin(), backups.end(), [](const auto& a, const auto& b) { std::error_code ea, eb; return a.last_write_time(ea) > b.last_write_time(eb); });
-    for (std::size_t i = static_cast<std::size_t>((std::max)(backupsToKeep, 1)); i < backups.size(); ++i) fs::remove_all(backups[i].path(), ec);
-}
 }

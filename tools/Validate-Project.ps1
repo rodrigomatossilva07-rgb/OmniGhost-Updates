@@ -203,6 +203,11 @@ Forbid-Text $releasePackager 'publish_github_release\.ps1' 'Package phase contai
 Forbid-Text $releasePackager 'SkipPublish' 'Package phase does not expose a legacy publish toggle.'
 Require-Text $releasePackager 'install-manifest\.sha256' 'Runtime packages contain an installation integrity manifest.'
 Require-Text $releasePackager 'install-manifest\.sha256\.sig' 'Commercial runtime packages sign the local integrity manifest.'
+Forbid-Text $releasePackager "StageDir 'THIRD_PARTY_NOTICES\.txt'" 'Customer ZIP does not install dependency-notice sidecars.'
+Forbid-Text $releasePackager "StageDir 'install-manifest\.sha256'" 'Customer ZIP does not install integrity-manifest sidecars.'
+$installEngine = Read-Utf8Text (Join-Path $ProjectDir 'src\updater\install_engine.cpp')
+Require-Text $installEngine 'ContainsOnlyExecutable\(options\.staging' 'Updater requires a strictly single-executable package.'
+Forbid-Text $installEngine 'RemoveManaged\(' 'Updater cannot delete neighbouring files from the executable directory.'
 Require-Text $releasePackager '\.cache\\generated\\Publish\\x64\\build-metadata\.json' 'Commercial packaging validates generated Publish x64 build provenance metadata.'
 Require-Text $releasePackager 'Commercial package requires a clean reproducible source build' 'Commercial packaging rejects dirty/non-reproducible source builds.'
 Require-Text $releasePackager 'vc_tools_version' 'Commercial packaging requires captured MSVC toolchain metadata.'
