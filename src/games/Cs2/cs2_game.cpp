@@ -109,9 +109,29 @@ std::atomic<float> g_presentation_fps{0.f};
 std::atomic<uint64_t> g_last_snapshot_publish_ms{0};
 std::atomic<uint64_t> g_runtime_snapshot_drops{0};
 std::atomic<float> g_acquisition_hz{0.f};
+std::atomic<uint64_t> g_camera_deadline_ms{0};
+std::atomic_bool g_camera_pending{false};
 std::thread g_acquisition_thread;
 std::thread g_camera_thread;
 OmniGhost::Gameplay::PipelineTelemetry g_pipeline_metrics;
+
+// Optional DMA lanes yield briefly when the non-blocking camera lane is due.
+// This never holds the transport lock and is bounded to three milliseconds.
+void GiveCameraPriorityBeforeOptionalDma() {
+    const uint64_t now = GetTickCount64();
+    const uint64_t deadline = g_camera_deadline_ms.load(std::memory_order_acquire);
+    if (!g_camera_pending.load(std::memory_order_acquire) &&
+        deadline != 0 && now + 3u < deadline)
+        return;
+    for (int retry = 0; retry < 3; ++retry) {
+        if (!g_camera_pending.load(std::memory_order_acquire)) {
+            const uint64_t refreshed = g_camera_deadline_ms.load(std::memory_order_acquire);
+            if (refreshed == 0 || GetTickCount64() + 3u < refreshed)
+                break;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+}
 
 void PublishRuntimeSnapshot() {
     const uint64_t now = GetTickCount64();
@@ -3282,6 +3302,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
             }
         }
         if (queuedCoreMetadata) {
+            GiveCameraPriorityBeforeOptionalDma();
             mem.SetDmaCallTag("CS2.Metadata");
             mem.ExecuteReadScatter(g_scatter_full);
         }
@@ -3317,6 +3338,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
             }
         }
         if (queuedSanitizedPointers) {
+            GiveCameraPriorityBeforeOptionalDma();
             mem.SetDmaCallTag("CS2.NameFallbackPointers");
             mem.ExecuteReadScatter(g_scatter_full);
         }
@@ -3328,6 +3350,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
             queuedSanitizedText = true;
         }
         if (queuedSanitizedText) {
+            GiveCameraPriorityBeforeOptionalDma();
             mem.SetDmaCallTag("CS2.NameFallbackText");
             mem.ExecuteReadScatter(g_scatter_full);
         }
@@ -3416,24 +3439,19 @@ static void RunFrameWithConfig(const Config& frame_config) {
             // Skeletons are the heaviest optional payload. Limit the normal
             // lane too; cached reliable bones are rendered between refreshes.
             int maxBoneReadsPerScan = frame_config.performance_mode
-                ? (std::min)(candN, 3) : (std::min)(candN, 5);
-            if (pressure >= 3) maxBoneReadsPerScan = (std::min)(candN, 1);
-            else if (pressure == 2) maxBoneReadsPerScan = (std::min)(candN, 3);
-            else if (pressure == 1) maxBoneReadsPerScan = (std::min)(candN, 5);
+                ? (std::min)(candN, 1) : (std::min)(candN, 2);
+            if (pressure >= 1) maxBoneReadsPerScan = (std::min)(candN, 1);
             const int take = candN < maxBoneReadsPerScan ? candN : maxBoneReadsPerScan;
             g_phase.bones_players = take;
-            bool queuedBoneReads = false;
             static unsigned s_boneRoundRobin = 0;
             const int start = candN > 0 ? static_cast<int>(s_boneRoundRobin % candN) : 0;
             for (int i = 0; i < take; ++i) {
                 const int c = cand[(start + i) % candN].c;
                 boneReadEligible[c] = true;
                 s_lastBoneMs[resolved_pawns[c]] = scan_now_ms;
+                GiveCameraPriorityBeforeOptionalDma();
                 mem.AddScatterReadRequest(g_scatter_full, boneBases[c], boneSnapshots[c],
                                           need_full_bones ? kBoneReadBytes : kCompactBoneReadBytes);
-                queuedBoneReads = true;
-            }
-            if (queuedBoneReads) {
                 mem.SetDmaCallTag("CS2.Bones");
                 mem.ExecuteReadScatter(g_scatter_full);
             }
@@ -3441,6 +3459,9 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 s_boneRoundRobin = (s_boneRoundRobin + static_cast<unsigned>(take)) %
                     static_cast<unsigned>(candN);
         }
+        if (need_bones)
+            OmniGhost::Gameplay::DmaTelemetry::ObserveBones(
+                OmniGhost::Gameplay::DmaTelemetry::CS2(), g_phase.bones_ms);
         if (need_weapons && allow_weapon_phase) {
             ScopedPhase _phWeapon(&g_phase.weapon_ms);
             bool queuedServices = false;
@@ -3475,6 +3496,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 }
             }
             if (queuedServices) {
+                GiveCameraPriorityBeforeOptionalDma();
                 mem.SetDmaCallTag("CS2.WeaponServices");
                 mem.ExecuteReadScatter(g_scatter_full);
             }
@@ -3509,6 +3531,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 queuedHandles = true;
             }
             if (queuedHandles) {
+                GiveCameraPriorityBeforeOptionalDma();
                 mem.SetDmaCallTag("CS2.WeaponHandles");
                 mem.ExecuteReadScatter(g_scatter_full);
             }
@@ -3531,6 +3554,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
                     ammoReserve[c] = -1;
                 }
             }
+            GiveCameraPriorityBeforeOptionalDma();
             ScatterResolvePawnHandles(weaponHandlesToResolve, resolvedWeapons, candidate_count,
                 g_pawn_stride ? g_pawn_stride : kEntityIdentityStride);
             for (int c = 0; c < candidate_count; ++c)
@@ -3556,6 +3580,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 queuedDefinitions = true;
             }
             if (queuedDefinitions) {
+                GiveCameraPriorityBeforeOptionalDma();
                 mem.SetDmaCallTag("CS2.WeaponDefinitions");
                 mem.ExecuteReadScatter(g_scatter_full);
             }
@@ -3605,6 +3630,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 queuedDefinitionFallbacks = true;
             }
             if (queuedDefinitionFallbacks) {
+                GiveCameraPriorityBeforeOptionalDma();
                 mem.SetDmaCallTag("CS2.WeaponDefinitionFallbacks");
                 mem.ExecuteReadScatter(g_scatter_full);
             }
@@ -3738,6 +3764,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
             }
         }
         if (queuedFirst) {
+            GiveCameraPriorityBeforeOptionalDma();
             mem.SetDmaCallTag("CS2.FlagsPointers");
             mem.ExecuteReadScatter(g_scatter_full);
         }
@@ -3755,6 +3782,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
             }
         }
         if (queuedSecond) {
+            GiveCameraPriorityBeforeOptionalDma();
             mem.SetDmaCallTag("CS2.FlagsValues");
             mem.ExecuteReadScatter(g_scatter_full);
         }
@@ -4507,6 +4535,8 @@ void EnsureAcquisitionStarted() {
         return;
 
     g_acquisition_stop.store(false, std::memory_order_release);
+    g_camera_pending.store(false, std::memory_order_release);
+    g_camera_deadline_ms.store(0, std::memory_order_release);
     PublishRuntimeSnapshot();
     // Camera and origins are latency-critical for visual attachment while
     // turning or moving.  Bones remain in the validated full scan; this small
@@ -4516,6 +4546,7 @@ void EnsureAcquisitionStarted() {
         OmniGhost::Gameplay::FixedRateScheduler scheduler;
         float matrix[16]{};
         uint64_t next_camera_ms = 0;
+        uint64_t consecutive_busy = 0;
         while (!g_acquisition_stop.load(std::memory_order_acquire)) {
             const auto runtime_view = g_runtime_snapshots.Acquire();
             const uintptr_t client_base = runtime_view ? runtime_view->client_base : 0;
@@ -4527,7 +4558,10 @@ void EnsureAcquisitionStarted() {
             // matrix stays at 16 ms through normal, moderate and high pressure;
             // only the extreme recovery state relaxes it slightly to 25 ms.
             const int camera_period_ms = camera_pressure >= 3 ? 25 : CAMERA_INTERVAL_MS;
+            g_camera_deadline_ms.store(next_camera_ms, std::memory_order_release);
+            int wait_ms = in_match ? CAMERA_INTERVAL_MS : 20;
             if (canRead && in_match && camera_now_ms >= next_camera_ms) {
+				g_camera_pending.store(true, std::memory_order_release);
 				auto& camera_tel = OmniGhost::Gameplay::DmaTelemetry::CS2();
 				// This is intentionally a bypass, not a skip: it quantifies how
 				// often the old shared-cooldown policy would have frozen the matrix.
@@ -4535,27 +4569,45 @@ void EnsureAcquisitionStarted() {
 					camera_tel.camera_cooldown_bypasses.fetch_add(1, std::memory_order_relaxed);
                 bool attempted = false;
 				const auto camera_read_begin = std::chrono::steady_clock::now();
-                if (QTryRead(client_base + offsets.dwViewMatrix, matrix, sizeof(matrix),
-                             attempted, "CS2.Camera"))
+                const bool read_ok = QTryRead(client_base + offsets.dwViewMatrix, matrix, sizeof(matrix),
+                                              attempted, "CS2.Camera");
+                if (read_ok)
                     PublishCameraSnapshot(matrix);
                 if (attempted) {
+					if (read_ok && consecutive_busy > 0)
+						camera_tel.camera_busy_retry_success.fetch_add(1, std::memory_order_relaxed);
+					consecutive_busy = 0;
 					OmniGhost::Gameplay::DmaTelemetry::ObserveCameraRead(
 						camera_tel,
 						OmniGhost::Gameplay::TimeMs(camera_read_begin));
-                    next_camera_ms = camera_now_ms + static_cast<uint64_t>(camera_period_ms);
+                    next_camera_ms = GetTickCount64() + static_cast<uint64_t>(camera_period_ms);
+					g_camera_deadline_ms.store(next_camera_ms, std::memory_order_release);
+					g_camera_pending.store(false, std::memory_order_release);
+					wait_ms = camera_period_ms;
                 }
 				else {
+					++consecutive_busy;
 					camera_tel.camera_busy_skips.fetch_add(
 						1, std::memory_order_relaxed);
+					auto observed = camera_tel.camera_consecutive_busy_max.load(std::memory_order_relaxed);
+					while (observed < consecutive_busy &&
+					       !camera_tel.camera_consecutive_busy_max.compare_exchange_weak(
+						   observed, consecutive_busy, std::memory_order_relaxed)) {}
+					// Keep the pending flag raised so optional full-scan lanes yield.
+					wait_ms = 1;
 				}
             }
+            else if (!in_match || !canRead) {
+				g_camera_pending.store(false, std::memory_order_release);
+				consecutive_busy = 0;
+			}
             // The full scan already publishes coherent player positions. Keep this
             // worker dedicated to the matrix instead of acquiring snapshots for the
             // retired motion lane on every wake-up.
             // Keep the camera snappy — the matrix must stay fluid for ESP.
-            const int cadence = in_match ? CAMERA_INTERVAL_MS : 20;
-            scheduler.Wait(std::chrono::milliseconds(cadence));
+            scheduler.Wait(std::chrono::milliseconds(wait_ms));
         }
+		g_camera_pending.store(false, std::memory_order_release);
     });
     g_acquisition_thread = std::thread([] {
         OmniGhost::Gameplay::FixedRateScheduler scheduler;
@@ -4768,6 +4820,8 @@ void StopAcquisition() {
         g_camera_thread.join();
     if (g_acquisition_thread.joinable())
         g_acquisition_thread.join();
+    g_camera_pending.store(false, std::memory_order_release);
+    g_camera_deadline_ms.store(0, std::memory_order_release);
     g_acquisition_running.store(false, std::memory_order_release);
 }
 

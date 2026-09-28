@@ -656,17 +656,19 @@ void Overlay::EndRender() {
         app_settings::config.vsync ? 1U : 0U,
         0U
     );
-	if (frame_render_timing_active_ && OmniGhost::GameContext::Instance().IsInSession()) {
+	if (frame_render_timing_active_) {
 		const float frameMs = std::chrono::duration<float, std::milli>(
 			std::chrono::steady_clock::now() - frame_render_begin_).count();
 		switch (OmniGhost::GameContext::Instance().GetActiveGame()) {
 		case OmniGhost::ActiveGame::CS2:
-			OmniGhost::Gameplay::DmaTelemetry::ObserveRender(
-				OmniGhost::Gameplay::DmaTelemetry::CS2(), frameMs);
+			if (auto& sample = OmniGhost::Gameplay::DmaTelemetry::CS2();
+				sample.active.load(std::memory_order_relaxed))
+				OmniGhost::Gameplay::DmaTelemetry::ObserveRender(sample, frameMs);
 			break;
 		case OmniGhost::ActiveGame::FiveM:
-			OmniGhost::Gameplay::DmaTelemetry::ObserveRender(
-				OmniGhost::Gameplay::DmaTelemetry::FiveM(), frameMs);
+			if (auto& sample = OmniGhost::Gameplay::DmaTelemetry::FiveM();
+				sample.active.load(std::memory_order_relaxed))
+				OmniGhost::Gameplay::DmaTelemetry::ObserveRender(sample, frameMs);
 			break;
 		default:
 			break;

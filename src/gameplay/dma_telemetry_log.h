@@ -49,6 +49,8 @@ struct Sample {
 	std::atomic<float> camera_read_p99_ms{0.f};
 	std::atomic<float> camera_read_max_ms{0.f};
 	std::atomic<std::uint64_t> camera_busy_skips{0};
+	std::atomic<std::uint64_t> camera_busy_retry_success{0};
+	std::atomic<std::uint64_t> camera_consecutive_busy_max{0};
 	std::atomic<std::uint64_t> camera_cooldown_skips{0};
 	std::atomic<std::uint64_t> camera_cooldown_bypasses{0};
 	std::atomic<int> pressure_level{0};
@@ -67,6 +69,9 @@ struct Sample {
     std::atomic<int> objects{0};
     std::atomic<int> bones_players{0};
     std::atomic<int> bones_batches_s{0};
+    std::atomic<float> bones_p95_ms{0.f};
+    std::atomic<float> bones_p99_ms{0.f};
+    std::atomic<float> bones_max_ms{0.f};
     std::atomic<int> reads_s{0};
     std::atomic<int> scatter_s{0};
     std::atomic<std::uint64_t> snapshot_drops{0};
@@ -91,6 +96,7 @@ void ObserveAcquire(Sample& s, float work_ms, bool activeSample, uint64_t scan_i
 void ObserveRender(Sample& s, float ms) noexcept;
 void ObserveCameraAge(Sample& s, float age_ms) noexcept;
 void ObserveCameraRead(Sample& s, float read_ms) noexcept;
+void ObserveBones(Sample& s, float bones_ms) noexcept;
 void ObserveSchedulerWait(Sample& s, float wait_ms) noexcept;
 
 // Pull Memory diagnostics into rates (reads_s / scatter_s / vmm_*).

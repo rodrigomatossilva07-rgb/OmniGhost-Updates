@@ -108,6 +108,7 @@ Ring g_acqF{}, g_acqC{};
 Ring g_renderF{}, g_renderC{};
 Ring g_dmaExec{};
 Ring g_cameraAgeC{}, g_cameraReadC{};
+Ring g_bonesC{};
 
 std::atomic<float> g_lastAcqF{0.f}, g_lastAcqC{0.f};
 
@@ -154,7 +155,7 @@ const char* IdleName(int r) {
 }
 
 void WritePerf(std::string_view tag, Sample& s) {
-    char buf[1400]{};
+    char buf[1800]{};
     std::snprintf(buf, sizeof(buf),
         "PERF\n"
         "active=%d\nalive=%d\npid=%u\nidle_reason=%s\n\n"
@@ -168,9 +169,10 @@ void WritePerf(std::string_view tag, Sample& s) {
 		"camera_age_ms=%.1f\ncamera_age_avg_ms=%.1f\ncamera_age_p50_ms=%.1f\n"
 		"camera_age_p95_ms=%.1f\ncamera_age_p99_ms=%.1f\ncamera_age_max_ms=%.1f\n"
 		"camera_read_p95_ms=%.2f\ncamera_read_p99_ms=%.2f\ncamera_read_max_ms=%.2f\n"
-		"camera_busy_skips=%llu\ncamera_cooldown_skips=%llu\ncamera_cooldown_bypasses=%llu\n"
+		"camera_busy_skips=%llu\ncamera_busy_retry_success=%llu\ncamera_consecutive_busy_max=%llu\n"
+		"camera_cooldown_skips=%llu\ncamera_cooldown_bypasses=%llu\n"
 		"pressure_level=%d\ncooldown_remaining_ms=%llu\nmotion_age_ms=%.1f\n"
-        "bones_players=%d\n"
+        "bones_players=%d\nbones_p95_ms=%.2f\nbones_p99_ms=%.2f\nbones_max_ms=%.2f\n"
         "render_avg_ms=%.2f\nrender_p95_ms=%.2f\nrender_max_ms=%.2f\n\n"
         "suppressed_spikes_20=%llu\nsuppressed_spikes_50=%llu\nsuppressed_spikes_100=%llu",
         s.active.load() ? 1 : 0,
@@ -206,12 +208,17 @@ void WritePerf(std::string_view tag, Sample& s) {
 		s.camera_read_p99_ms.load(),
 		s.camera_read_max_ms.load(),
 		static_cast<unsigned long long>(s.camera_busy_skips.load()),
+		static_cast<unsigned long long>(s.camera_busy_retry_success.load()),
+		static_cast<unsigned long long>(s.camera_consecutive_busy_max.load()),
 		static_cast<unsigned long long>(s.camera_cooldown_skips.load()),
 		static_cast<unsigned long long>(s.camera_cooldown_bypasses.load()),
 		s.pressure_level.load(),
 		static_cast<unsigned long long>(s.cooldown_remaining_ms.load()),
         s.motion_age_ms.load(),
         s.bones_players.load(),
+        s.bones_p95_ms.load(),
+        s.bones_p99_ms.load(),
+        s.bones_max_ms.load(),
         s.render_ms.load(),
         s.render_p95_ms.load(),
         s.render_max_ms.load(),
@@ -221,6 +228,12 @@ void WritePerf(std::string_view tag, Sample& s) {
     // Resource footprint (leak detection)
     DWORD handleCount = 0;
     GetProcessHandleCount(GetCurrentProcess(), &handleCount);
+    static DWORD previousHandleCount = 0;
+    const long handleDelta = previousHandleCount
+        ? static_cast<long>(handleCount) - static_cast<long>(previousHandleCount) : 0;
+    previousHandleCount = handleCount;
+    const DWORD gdiObjects = GetGuiResources(GetCurrentProcess(), GR_GDIOBJECTS);
+    const DWORD userObjects = GetGuiResources(GetCurrentProcess(), GR_USEROBJECTS);
     PROCESS_MEMORY_COUNTERS_EX pmc{};
     pmc.cb = sizeof(pmc);
     SIZE_T working = 0, priv = 0;
@@ -229,11 +242,15 @@ void WritePerf(std::string_view tag, Sample& s) {
         priv = pmc.PrivateUsage;
     }
     const auto memSnap = mem.GetDiagnosticsSnapshot();
-    char res[384]{};
+    char res[512]{};
     std::snprintf(res, sizeof(res),
-        "\nprocess_handles=%lu\nprocess_threads=%d\nworking_set_mb=%.1f\nprivate_mb=%.1f"
+		"\nprocess_handles=%lu\nprocess_handles_delta=%ld\ngdi_objects=%lu\nuser_objects=%lu"
+		"\nprocess_threads=%d\nworking_set_mb=%.1f\nprivate_mb=%.1f"
 		"\nscatter_handles_live=%u\nnon_scatter_handles=%lu\nscatter_created=%llu\nscatter_destroyed=%llu",
         static_cast<unsigned long>(handleCount),
+		static_cast<long>(handleDelta),
+		static_cast<unsigned long>(gdiObjects),
+		static_cast<unsigned long>(userObjects),
         CountProcessThreadsCached(),
         working / (1024.0 * 1024.0),
         priv / (1024.0 * 1024.0),
@@ -340,6 +357,15 @@ void ObserveCameraRead(Sample& s, float read_ms) noexcept {
 	s.camera_read_max_ms.store(st.max, std::memory_order_relaxed);
 }
 
+void ObserveBones(Sample& s, float bones_ms) noexcept {
+    if (bones_ms < 0.f || &s != &g_cs2) return;
+    g_bonesC.Push(bones_ms);
+    const auto st = g_bonesC.Stats();
+    s.bones_p95_ms.store(st.p95, std::memory_order_relaxed);
+    s.bones_p99_ms.store(st.p99, std::memory_order_relaxed);
+    s.bones_max_ms.store(st.max, std::memory_order_relaxed);
+}
+
 void ObserveSchedulerWait(Sample& s, float wait_ms) noexcept {
     if (wait_ms < 0.f) return;
     const float old = s.scheduler_wait_ms.load(std::memory_order_relaxed);
@@ -423,7 +449,7 @@ void LogConfigChanged(std::string_view tag, std::string_view config_blob) {
 
 void LogSessionSummary(std::string_view tag) {
     Sample& s = (tag == "FIVEM") ? g_fivem : g_cs2;
-    char buf[900]{};
+    char buf[1100]{};
     std::snprintf(buf, sizeof(buf),
         "SESSION_SUMMARY\n"
         "acquire_avg_ms=%.2f\nacquire_p50_ms=%.2f\nacquire_p95_ms=%.2f\nacquire_p99_ms=%.2f\nacquire_max_ms=%.2f\n"
@@ -431,7 +457,9 @@ void LogSessionSummary(std::string_view tag) {
         "render_avg_ms=%.2f\nrender_p95_ms=%.2f\nrender_max_ms=%.2f\n"
 		"camera_age_avg_ms=%.1f\ncamera_age_p50_ms=%.1f\ncamera_age_p95_ms=%.1f\ncamera_age_p99_ms=%.1f\ncamera_age_max_ms=%.1f\n"
 		"camera_read_p95_ms=%.2f\ncamera_read_p99_ms=%.2f\ncamera_read_max_ms=%.2f\n"
-		"camera_busy_skips=%llu\ncamera_cooldown_skips=%llu\ncamera_cooldown_bypasses=%llu\n"
+		"camera_busy_skips=%llu\ncamera_busy_retry_success=%llu\ncamera_consecutive_busy_max=%llu\n"
+		"camera_cooldown_skips=%llu\ncamera_cooldown_bypasses=%llu\n"
+		"bones_p95_ms=%.2f\nbones_p99_ms=%.2f\nbones_max_ms=%.2f\n"
         "snapshot_drops=%llu\nread_fails=%llu\nspikes=%llu\n"
         "suppressed_20=%llu\nsuppressed_50=%llu\nsuppressed_100=%llu",
         s.acquire_ms.load(), s.acquire_p50_ms.load(), s.acquire_p95_ms.load(),
@@ -442,8 +470,11 @@ void LogSessionSummary(std::string_view tag) {
 		s.camera_age_p99_ms.load(), s.camera_age_max_ms.load(),
 		s.camera_read_p95_ms.load(), s.camera_read_p99_ms.load(), s.camera_read_max_ms.load(),
 		static_cast<unsigned long long>(s.camera_busy_skips.load()),
+		static_cast<unsigned long long>(s.camera_busy_retry_success.load()),
+		static_cast<unsigned long long>(s.camera_consecutive_busy_max.load()),
 		static_cast<unsigned long long>(s.camera_cooldown_skips.load()),
 		static_cast<unsigned long long>(s.camera_cooldown_bypasses.load()),
+        s.bones_p95_ms.load(), s.bones_p99_ms.load(), s.bones_max_ms.load(),
         static_cast<unsigned long long>(s.snapshot_drops.load()),
         static_cast<unsigned long long>(s.read_fails.load()),
         static_cast<unsigned long long>(s.acquisition_spikes.load()),
