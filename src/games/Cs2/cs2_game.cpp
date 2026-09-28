@@ -88,10 +88,10 @@ namespace {
 //  - Mid: near bones ~24 ms, controllers ~250 ms, weapons ~100-150 ms
 //  - Low: team / names at 0.5 s / 1 s
 // Presentation interpolates between snapshots at overlay FPS.
-// A physical DMA view-matrix read at 500 Hz saturated the FT601 queue on
-// slower transfers. 50 Hz keeps mouse-look smooth through interpolation while
-// leaving capacity for the entity lane.
-constexpr int CAMERA_INTERVAL_MS = 20;
+// The camera owns the highest-priority non-blocking lane. 16 ms keeps the
+// physical matrix close to display cadence without returning to the 8-12 ms
+// rates that previously saturated slower FT601 transports.
+constexpr int CAMERA_INTERVAL_MS = 16;
 constexpr int BONES_INTERVAL_MS = 24;       // near skeleton tier (~42 Hz)
 constexpr int FULL_SCAN_INTERVAL_MS = 18;   // position / HP / core identity
 constexpr int WEAPON_INTERVAL_MS = 200;
@@ -217,14 +217,14 @@ std::string ExeDir() {
 
 // A transport pause must stop the current producer from immediately queuing
 // more physical reads. Definitions live below the shared DMA state.
-static bool DmaCooldownActive();
+static bool HeavyDmaCooldownActive();
 static void NotePossibleDeviceStall(float duration_ms);
 
 // Quiet read — avoids flooding log with "[!] Failed to read Memory"
 bool QRead(uintptr_t addr, void* buf, size_t size, const char* tag = "QRead") {
     if (!addr || !buf || !size || !mem.vHandle) return false;
     if (addr < 0x10000) return false;
-    if (DmaCooldownActive()) return false;
+    if (HeavyDmaCooldownActive()) return false;
     mem.SetDmaCallTag(tag);
     const auto begin = std::chrono::steady_clock::now();
     const bool ok = mem.Read(addr, buf, size);
@@ -241,7 +241,9 @@ bool QRead(uintptr_t addr, void* buf, size_t size, const char* tag = "QRead") {
 bool QTryRead(uintptr_t addr, void* buf, size_t size, bool& attempted,
               const char* tag = "QTryRead") {
     attempted = false;
-    if (!addr || !buf || !size || !mem.vHandle || addr < 0x10000 || DmaCooldownActive())
+    // Heavy-lane cooldown is deliberately ignored here. TryRead owns the
+    // camera lane and returns immediately when the physical transport is busy.
+    if (!addr || !buf || !size || !mem.vHandle || addr < 0x10000)
         return false;
     mem.SetDmaCallTag(tag);
     const auto begin = std::chrono::steady_clock::now();
@@ -321,7 +323,7 @@ static std::atomic<int> g_pressure_level{0}; // 0=NORMAL 1=MODERATE 2=HIGH 3=REC
 // After a slow VMM/FPGA call, back off heavy phases so the device can recover.
 // Vendor-side pauses (~0.5–1.5s every ~10–15s on some stacks) cannot be removed
 // from MemProcFS/LeechCore; we avoid stacking more DMA on top of them.
-static std::atomic<uint64_t> g_dma_cooldown_until_ms{0};
+static std::atomic<uint64_t> g_heavy_dma_cooldown_until_ms{0};
 static std::atomic<float> g_last_slow_dma_ms{0.f};
 // Latest optional-lane cost, surfaced in the menu so a user can see which
 // feature is being shed before core ESP ever loses priority.
@@ -329,8 +331,8 @@ static std::atomic<float> g_last_weapon_ms{0.f};
 static std::atomic<float> g_last_ammo_ms{0.f};
 static std::atomic<float> g_last_flags_ms{0.f};
 
-static bool DmaCooldownActive() {
-    return GetTickCount64() < g_dma_cooldown_until_ms.load(std::memory_order_acquire);
+static bool HeavyDmaCooldownActive() {
+    return GetTickCount64() < g_heavy_dma_cooldown_until_ms.load(std::memory_order_acquire);
 }
 
 static void NotePossibleDeviceStall(float duration_ms) {
@@ -343,9 +345,9 @@ static void NotePossibleDeviceStall(float duration_ms) {
     // 0.8–1.0 s pauses without blocking overlay presentation.
     const uint64_t cool = static_cast<uint64_t>((std::max)(40.f, (std::min)(150.f, duration_ms * 0.15f)));
     const uint64_t until = GetTickCount64() + cool;
-    uint64_t cur = g_dma_cooldown_until_ms.load(std::memory_order_relaxed);
+    uint64_t cur = g_heavy_dma_cooldown_until_ms.load(std::memory_order_relaxed);
     while (until > cur &&
-           !g_dma_cooldown_until_ms.compare_exchange_weak(cur, until, std::memory_order_relaxed)) {
+           !g_heavy_dma_cooldown_until_ms.compare_exchange_weak(cur, until, std::memory_order_relaxed)) {
     }
 }
 
@@ -2732,7 +2734,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
     // page with multiple controllers is not. This avoids activating the full
     // pipeline in lobby while still recovering automatically in a real match.
     static uint64_t next_match_fallback_ms = 0;
-    if (!runtime.in_match && map_now_ms >= next_match_fallback_ms && !DmaCooldownActive()) {
+    if (!runtime.in_match && map_now_ms >= next_match_fallback_ms && !HeavyDmaCooldownActive()) {
         next_match_fallback_ms = map_now_ms + 2500u;
         uintptr_t probe_pawn = 0;
         uintptr_t entity_root = 0;
@@ -3345,8 +3347,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
     const int optional_pressure = g_pressure_level.load(std::memory_order_relaxed);
     // Weapon name/ammo is a low-priority metadata lane. Any measured pressure
     // suppresses refreshes and keeps the last valid cache for presentation.
-    const bool allow_weapon_phase = optional_pressure == 0 && !DmaCooldownActive();
-    const bool allow_auxiliary_phase = optional_pressure == 0 && !DmaCooldownActive();
+    const bool allow_weapon_phase = optional_pressure == 0 && !HeavyDmaCooldownActive();
+    const bool allow_auxiliary_phase = optional_pressure == 0 && !HeavyDmaCooldownActive();
 
     const uint64_t scan_now_ms = GetTickCount64();
     struct CachedSceneBone {
@@ -4920,14 +4922,11 @@ void EnsureAcquisitionStarted() {
             const bool canRead = ready && offsets.loaded && client_base && offsets.dwViewMatrix;
             const uint64_t camera_now_ms = GetTickCount64();
             const int camera_pressure = g_pressure_level.load(std::memory_order_relaxed);
-            // The renderer interpolates published snapshots, therefore it does
-            // not need a physical matrix transfer on every scheduler wake-up.
-            // Start with a measured 20 ms physical cadence. Once camera_age_ms
-            // is stable this can be tested at 16 ms independently.
-            const int camera_period_ms = camera_pressure >= 2 ? 50 :
-                (camera_pressure == 1 ? 33 : 20);
-            if (canRead && in_match && camera_now_ms >= next_camera_ms &&
-                !DmaCooldownActive()) {
+            // Pressure sheds metadata/weapons/visibility/bones first. The view
+            // matrix stays at 16 ms through normal, moderate and high pressure;
+            // only the extreme recovery state relaxes it slightly to 25 ms.
+            const int camera_period_ms = camera_pressure >= 3 ? 25 : CAMERA_INTERVAL_MS;
+            if (canRead && in_match && camera_now_ms >= next_camera_ms) {
                 bool attempted = false;
                 if (QTryRead(client_base + offsets.dwViewMatrix, matrix, sizeof(matrix),
                              attempted, "CS2.Camera"))
@@ -4954,7 +4953,7 @@ void EnsureAcquisitionStarted() {
                 // published immutable snapshot and give the DMA transport a
                 // short recovery window.
                 const uint64_t now = GetTickCount64();
-                const uint64_t coolUntil = g_dma_cooldown_until_ms.load(std::memory_order_acquire);
+                const uint64_t coolUntil = g_heavy_dma_cooldown_until_ms.load(std::memory_order_acquire);
                 if (now < coolUntil) {
                     scheduler.Wait(std::chrono::milliseconds((std::min)(20ull, coolUntil - now)));
                     continue;

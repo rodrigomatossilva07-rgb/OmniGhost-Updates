@@ -290,7 +290,11 @@ void ConfigureVmmLowLatencyRefresh(VMM_HANDLE handle)
     // as a 0.6-0.8 s ESP freeze every ~13-15 s.  CS2 keeps a bound PID and
     // resolves live entity pointers itself, so process metadata does not need
     // a five-second cadence.  Memory/TLB/FAST refreshes remain enabled.
-    constexpr ULONG64 kDefaultPartialRefreshMs = 60000;
+    // Diagnostic A/B default: move the partial process-cache refresh from
+    // roughly one minute to five minutes. Override at runtime with
+    // OMNIGHOST_VMM_PARTIAL_REFRESH_MS (for example 60000 to restore the old
+    // cadence). Refresh stays enabled; this is never a permanent -norefresh.
+    constexpr ULONG64 kDefaultPartialRefreshMs = 300000;
     constexpr ULONG64 kDefaultMediumRefreshMs = 300000;
     ULONG64 partialTargetMs = ReadEnvironmentU64(
         L"OMNIGHOST_VMM_PARTIAL_REFRESH_MS", kDefaultPartialRefreshMs);
