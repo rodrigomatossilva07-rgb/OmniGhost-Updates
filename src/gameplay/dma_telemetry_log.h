@@ -40,6 +40,19 @@ struct Sample {
     std::atomic<float> snapshot_interval_ms{0.f};
     std::atomic<float> snapshot_hz{0.f};
     std::atomic<float> camera_age_ms{0.f};
+	std::atomic<float> camera_age_avg_ms{0.f};
+	std::atomic<float> camera_age_p50_ms{0.f};
+	std::atomic<float> camera_age_p95_ms{0.f};
+	std::atomic<float> camera_age_p99_ms{0.f};
+	std::atomic<float> camera_age_max_ms{0.f};
+	std::atomic<float> camera_read_p95_ms{0.f};
+	std::atomic<float> camera_read_p99_ms{0.f};
+	std::atomic<float> camera_read_max_ms{0.f};
+	std::atomic<std::uint64_t> camera_busy_skips{0};
+	std::atomic<std::uint64_t> camera_cooldown_skips{0};
+	std::atomic<std::uint64_t> camera_cooldown_bypasses{0};
+	std::atomic<int> pressure_level{0};
+	std::atomic<std::uint64_t> cooldown_remaining_ms{0};
     std::atomic<float> motion_age_ms{0.f};
     std::atomic<float> state_age_ms{0.f};
     std::atomic<float> target_lane_age_ms{0.f};
@@ -76,6 +89,8 @@ struct Sample {
 // activeSample=false → idle/dead/menu: never enters percentiles or SPIKE logs.
 void ObserveAcquire(Sample& s, float work_ms, bool activeSample, uint64_t scan_id = 0) noexcept;
 void ObserveRender(Sample& s, float ms) noexcept;
+void ObserveCameraAge(Sample& s, float age_ms) noexcept;
+void ObserveCameraRead(Sample& s, float read_ms) noexcept;
 void ObserveSchedulerWait(Sample& s, float wait_ms) noexcept;
 
 // Pull Memory diagnostics into rates (reads_s / scatter_s / vmm_*).

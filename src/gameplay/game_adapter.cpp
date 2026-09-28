@@ -229,6 +229,12 @@ namespace Gameplay::GameAdapter {
         if (!ShellExecuteExW(&sei)) {
             return false;
         }
+		// SEE_MASK_NOCLOSEPROCESS transfers ownership of hProcess to us.
+		// The launcher only needs process discovery below, not this native handle.
+		if (sei.hProcess) {
+			CloseHandle(sei.hProcess);
+			sei.hProcess = nullptr;
+		}
         
         if (config.wait_for_attach) {
             // Wait for process to be ready
@@ -346,7 +352,10 @@ namespace Gameplay::GameAdapter {
         sei.lpFile = wurl.c_str();
         sei.nShow = SW_SHOW;
         
-        return ShellExecuteExW(&sei);
+		const bool launched = ShellExecuteExW(&sei) != FALSE;
+		if (sei.hProcess)
+			CloseHandle(sei.hProcess);
+		return launched;
     }
 
     bool GameLauncher::IsSteamRunning() const {

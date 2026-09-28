@@ -107,6 +107,7 @@ struct Ring {
 Ring g_acqF{}, g_acqC{};
 Ring g_renderF{}, g_renderC{};
 Ring g_dmaExec{};
+Ring g_cameraAgeC{}, g_cameraReadC{};
 
 std::atomic<float> g_lastAcqF{0.f}, g_lastAcqC{0.f};
 
@@ -164,7 +165,11 @@ void WritePerf(std::string_view tag, Sample& s) {
         "acquire_avg_ms=%.2f\nacquire_p50_ms=%.2f\nacquire_p95_ms=%.2f\nacquire_p99_ms=%.2f\nacquire_max_ms=%.2f\n"
         "scheduler_wait_ms=%.2f\n\n"
         "snapshot_age_ms=%.1f\nsnapshot_hz=%.1f\nsnapshot_interval_ms=%.1f\nsnapshot_drops=%llu\n\n"
-        "camera_age_ms=%.1f\nmotion_age_ms=%.1f\n"
+		"camera_age_ms=%.1f\ncamera_age_avg_ms=%.1f\ncamera_age_p50_ms=%.1f\n"
+		"camera_age_p95_ms=%.1f\ncamera_age_p99_ms=%.1f\ncamera_age_max_ms=%.1f\n"
+		"camera_read_p95_ms=%.2f\ncamera_read_p99_ms=%.2f\ncamera_read_max_ms=%.2f\n"
+		"camera_busy_skips=%llu\ncamera_cooldown_skips=%llu\ncamera_cooldown_bypasses=%llu\n"
+		"pressure_level=%d\ncooldown_remaining_ms=%llu\nmotion_age_ms=%.1f\n"
         "bones_players=%d\n"
         "render_avg_ms=%.2f\nrender_p95_ms=%.2f\nrender_max_ms=%.2f\n\n"
         "suppressed_spikes_20=%llu\nsuppressed_spikes_50=%llu\nsuppressed_spikes_100=%llu",
@@ -192,6 +197,19 @@ void WritePerf(std::string_view tag, Sample& s) {
         s.snapshot_interval_ms.load(),
         static_cast<unsigned long long>(s.snapshot_drops.load()),
         s.camera_age_ms.load(),
+		s.camera_age_avg_ms.load(),
+		s.camera_age_p50_ms.load(),
+		s.camera_age_p95_ms.load(),
+		s.camera_age_p99_ms.load(),
+		s.camera_age_max_ms.load(),
+		s.camera_read_p95_ms.load(),
+		s.camera_read_p99_ms.load(),
+		s.camera_read_max_ms.load(),
+		static_cast<unsigned long long>(s.camera_busy_skips.load()),
+		static_cast<unsigned long long>(s.camera_cooldown_skips.load()),
+		static_cast<unsigned long long>(s.camera_cooldown_bypasses.load()),
+		s.pressure_level.load(),
+		static_cast<unsigned long long>(s.cooldown_remaining_ms.load()),
         s.motion_age_ms.load(),
         s.bones_players.load(),
         s.render_ms.load(),
@@ -211,15 +229,17 @@ void WritePerf(std::string_view tag, Sample& s) {
         priv = pmc.PrivateUsage;
     }
     const auto memSnap = mem.GetDiagnosticsSnapshot();
-    char res[320]{};
+    char res[384]{};
     std::snprintf(res, sizeof(res),
         "\nprocess_handles=%lu\nprocess_threads=%d\nworking_set_mb=%.1f\nprivate_mb=%.1f"
-        "\nscatter_handles_live=%u\nscatter_created=%llu\nscatter_destroyed=%llu",
+		"\nscatter_handles_live=%u\nnon_scatter_handles=%lu\nscatter_created=%llu\nscatter_destroyed=%llu",
         static_cast<unsigned long>(handleCount),
         CountProcessThreadsCached(),
         working / (1024.0 * 1024.0),
         priv / (1024.0 * 1024.0),
         static_cast<unsigned>(memSnap.scatterHandlesLive),
+		static_cast<unsigned long>(handleCount >= memSnap.scatterHandlesLive
+			? handleCount - memSnap.scatterHandlesLive : 0),
         static_cast<unsigned long long>(memSnap.scatterHandlesCreated),
         static_cast<unsigned long long>(memSnap.scatterHandlesDestroyed));
     std::string full = buf;
@@ -297,6 +317,27 @@ void ObserveRender(Sample& s, float ms) noexcept {
     s.render_ms.store(st.avg, std::memory_order_relaxed);
     s.render_p95_ms.store(st.p95, std::memory_order_relaxed);
     s.render_max_ms.store(st.max, std::memory_order_relaxed);
+}
+
+void ObserveCameraAge(Sample& s, float age_ms) noexcept {
+	if (age_ms < 0.f || &s != &g_cs2) return;
+	g_cameraAgeC.Push(age_ms);
+	const auto st = g_cameraAgeC.Stats();
+	s.camera_age_ms.store(age_ms, std::memory_order_relaxed);
+	s.camera_age_avg_ms.store(st.avg, std::memory_order_relaxed);
+	s.camera_age_p50_ms.store(st.p50, std::memory_order_relaxed);
+	s.camera_age_p95_ms.store(st.p95, std::memory_order_relaxed);
+	s.camera_age_p99_ms.store(st.p99, std::memory_order_relaxed);
+	s.camera_age_max_ms.store(st.max, std::memory_order_relaxed);
+}
+
+void ObserveCameraRead(Sample& s, float read_ms) noexcept {
+	if (read_ms < 0.f || &s != &g_cs2) return;
+	g_cameraReadC.Push(read_ms);
+	const auto st = g_cameraReadC.Stats();
+	s.camera_read_p95_ms.store(st.p95, std::memory_order_relaxed);
+	s.camera_read_p99_ms.store(st.p99, std::memory_order_relaxed);
+	s.camera_read_max_ms.store(st.max, std::memory_order_relaxed);
 }
 
 void ObserveSchedulerWait(Sample& s, float wait_ms) noexcept {
@@ -382,18 +423,27 @@ void LogConfigChanged(std::string_view tag, std::string_view config_blob) {
 
 void LogSessionSummary(std::string_view tag) {
     Sample& s = (tag == "FIVEM") ? g_fivem : g_cs2;
-    char buf[640]{};
+    char buf[900]{};
     std::snprintf(buf, sizeof(buf),
         "SESSION_SUMMARY\n"
         "acquire_avg_ms=%.2f\nacquire_p50_ms=%.2f\nacquire_p95_ms=%.2f\nacquire_p99_ms=%.2f\nacquire_max_ms=%.2f\n"
         "dma_avg_ms=%.2f\ndma_p95_ms=%.2f\ndma_p99_ms=%.2f\ndma_max_ms=%.2f\n"
         "render_avg_ms=%.2f\nrender_p95_ms=%.2f\nrender_max_ms=%.2f\n"
+		"camera_age_avg_ms=%.1f\ncamera_age_p50_ms=%.1f\ncamera_age_p95_ms=%.1f\ncamera_age_p99_ms=%.1f\ncamera_age_max_ms=%.1f\n"
+		"camera_read_p95_ms=%.2f\ncamera_read_p99_ms=%.2f\ncamera_read_max_ms=%.2f\n"
+		"camera_busy_skips=%llu\ncamera_cooldown_skips=%llu\ncamera_cooldown_bypasses=%llu\n"
         "snapshot_drops=%llu\nread_fails=%llu\nspikes=%llu\n"
         "suppressed_20=%llu\nsuppressed_50=%llu\nsuppressed_100=%llu",
         s.acquire_ms.load(), s.acquire_p50_ms.load(), s.acquire_p95_ms.load(),
         s.acquire_p99_ms.load(), s.acquire_max_ms.load(),
         s.vmm_avg_ms.load(), s.vmm_p95_ms.load(), s.vmm_p99_ms.load(), s.vmm_max_ms.load(),
         s.render_ms.load(), s.render_p95_ms.load(), s.render_max_ms.load(),
+		s.camera_age_avg_ms.load(), s.camera_age_p50_ms.load(), s.camera_age_p95_ms.load(),
+		s.camera_age_p99_ms.load(), s.camera_age_max_ms.load(),
+		s.camera_read_p95_ms.load(), s.camera_read_p99_ms.load(), s.camera_read_max_ms.load(),
+		static_cast<unsigned long long>(s.camera_busy_skips.load()),
+		static_cast<unsigned long long>(s.camera_cooldown_skips.load()),
+		static_cast<unsigned long long>(s.camera_cooldown_bypasses.load()),
         static_cast<unsigned long long>(s.snapshot_drops.load()),
         static_cast<unsigned long long>(s.read_fails.load()),
         static_cast<unsigned long long>(s.acquisition_spikes.load()),

@@ -508,6 +508,13 @@ void Memory::AddScatterReadRequest(VMMDLL_SCATTER_HANDLE handle, uint64_t addres
 	{
 		LOG("[!] Failed to prepare scatter read at 0x%p\n", address);
 	}
+	else
+	{
+		std::scoped_lock lock(scatterMutex_);
+		const auto found = scatterHandles_.find(handle);
+		if (found != scatterHandles_.end())
+			++found->second.preparedRequests;
+	}
 }
 
 void Memory::AddScatterWriteRequest(VMMDLL_SCATTER_HANDLE handle, uint64_t address, void* buffer, size_t size)
@@ -534,6 +541,15 @@ void Memory::ExecuteReadScatter(VMMDLL_SCATTER_HANDLE handle, int pid)
 	}
 	if (!ScatterHandleIsCurrent(handle))
 		return;
+	uint32_t preparedRequests = 0;
+	{
+		std::scoped_lock lock(scatterMutex_);
+		const auto found = scatterHandles_.find(handle);
+		if (found != scatterHandles_.end()) {
+			preparedRequests = found->second.preparedRequests;
+			found->second.preparedRequests = 0;
+		}
+	}
 	// Scatter preparation remains concurrent; only execution touches the
 	// shared physical DMA transport.
 	const auto lockBegin = std::chrono::steady_clock::now();
@@ -553,7 +569,7 @@ void Memory::ExecuteReadScatter(VMMDLL_SCATTER_HANDLE handle, int pid)
 	dmaReadLock.unlock();
 	const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - transferBegin).count();
 	NoteDmaCall("Scatter", ms);
-	LogSlowDma("Scatter", ms, 0);
+	LogSlowDma("Scatter", ms, static_cast<int>(preparedRequests));
 	if (!executeOk) LOG("[-] Failed to Execute Scatter Read\n");
 	if (!clearOk) LOG("[-] Failed to clear Scatter\n");
 }

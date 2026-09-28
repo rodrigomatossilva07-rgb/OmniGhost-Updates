@@ -4927,13 +4927,26 @@ void EnsureAcquisitionStarted() {
             // only the extreme recovery state relaxes it slightly to 25 ms.
             const int camera_period_ms = camera_pressure >= 3 ? 25 : CAMERA_INTERVAL_MS;
             if (canRead && in_match && camera_now_ms >= next_camera_ms) {
+				auto& camera_tel = OmniGhost::Gameplay::DmaTelemetry::CS2();
+				// This is intentionally a bypass, not a skip: it quantifies how
+				// often the old shared-cooldown policy would have frozen the matrix.
+				if (HeavyDmaCooldownActive())
+					camera_tel.camera_cooldown_bypasses.fetch_add(1, std::memory_order_relaxed);
                 bool attempted = false;
+				const auto camera_read_begin = std::chrono::steady_clock::now();
                 if (QTryRead(client_base + offsets.dwViewMatrix, matrix, sizeof(matrix),
                              attempted, "CS2.Camera"))
                     PublishCameraSnapshot(matrix);
                 if (attempted) {
+					OmniGhost::Gameplay::DmaTelemetry::ObserveCameraRead(
+						camera_tel,
+						OmniGhost::Gameplay::TimeMs(camera_read_begin));
                     next_camera_ms = camera_now_ms + static_cast<uint64_t>(camera_period_ms);
                 }
+				else {
+					camera_tel.camera_busy_skips.fetch_add(
+						1, std::memory_order_relaxed);
+				}
             }
             // The full scan already publishes coherent player positions. Keep this
             // worker dedicated to the matrix instead of acquiring snapshots for the
@@ -4992,11 +5005,19 @@ void EnsureAcquisitionStarted() {
                     tel.process_connected.store(runtime.client_base != 0, std::memory_order_relaxed);
                     tel.snapshot_hz.store(g_acquisition_hz.load(std::memory_order_relaxed), std::memory_order_relaxed);
                     tel.bones_players.store(g_phase.bones_players, std::memory_order_relaxed);
+					tel.pressure_level.store(
+						g_pressure_level.load(std::memory_order_relaxed), std::memory_order_relaxed);
+					{
+						const uint64_t now_ms = GetTickCount64();
+						const uint64_t cool_until = g_heavy_dma_cooldown_until_ms.load(std::memory_order_acquire);
+						tel.cooldown_remaining_ms.store(
+							cool_until > now_ms ? cool_until - now_ms : 0, std::memory_order_relaxed);
+					}
                     {
                         const auto cam = g_camera_snapshots.Acquire();
                         if (cam) {
                             const float age = static_cast<float>(GetTickCount64() - cam->timestamp_ms);
-                            tel.camera_age_ms.store(age, std::memory_order_relaxed);
+							OmniGhost::Gameplay::DmaTelemetry::ObserveCameraAge(tel, age);
                         }
                         const auto mot = g_motion_snapshots.Acquire();
                         if (mot) {
@@ -5246,17 +5267,29 @@ void Shutdown() {
 }
 
 bool IsGameProcessAlive() {
+	// Process liveness is control-plane state, not frame state. Repeated
+	// VMMDLL_PidGetFromName calls at the old every-eight-scans cadence can cause
+	// needless native-resource churn in some MemProcFS builds. Cache the probe
+	// for one second; shutdown detection remains responsive without polling VMM
+	// dozens of times per second.
+	static std::mutex liveness_mutex;
+	static uint64_t next_probe_ms = 0;
+	static bool last_result = true;
+	const uint64_t now_ms = GetTickCount64();
+	std::scoped_lock lock(liveness_mutex);
+	if (now_ms < next_probe_ms)
+		return last_result;
+	next_probe_ms = now_ms + 1000;
+
     // Prefer DMA remote PID (second PC). Fall back to local Toolhelp.
     DWORD pid = 0;
     if (mem.vHandle) {
         pid = mem.GetPidFromName("cs2.exe");
-        if (!pid) pid = mem.GetPidFromName("CS2.exe");
     }
     if (!pid)
         pid = FindProcessIdByName("cs2.exe");
-    if (!pid)
-        pid = FindProcessIdByName("CS2.exe");
-    return pid != 0;
+	last_result = pid != 0;
+	return last_result;
 }
 
 const char* StatusLine() {

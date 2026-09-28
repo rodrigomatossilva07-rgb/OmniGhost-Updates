@@ -159,6 +159,7 @@ private:
 	{
 		uint64_t session = 0;
 		uint64_t process = 0;
+		uint32_t preparedRequests = 0;
 	};
 	mutable std::mutex scatterMutex_;
 	mutable std::unordered_map<VMMDLL_SCATTER_HANDLE, ScatterGeneration> scatterHandles_;

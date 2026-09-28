@@ -13,6 +13,8 @@
 #include "../updater/update_service.h"
 #include "../launcher/launcher_assets.h"
 #include "../platform/offset_auto.h"
+#include "../gameplay/dma_telemetry_log.h"
+#include "../globals.h"
 
 #include <dwmapi.h>
 #include <algorithm>
@@ -443,6 +445,7 @@ void Overlay::CleanupRenderTarget() {
 }
 
 void Overlay::StartRender() {
+	frame_render_timing_active_ = false;
     if (!shouldRun || !imgui_initialized_) {
         return;
     }
@@ -477,6 +480,8 @@ void Overlay::StartRender() {
     ApplyPendingResize();
     if (!shouldRun || !render_target_view)
         return;
+	frame_render_begin_ = std::chrono::steady_clock::now();
+	frame_render_timing_active_ = true;
 
     // In game, ESC only closes the menu. In launcher mode we intentionally do
     // not consume the key here so the launcher can use ESC for navigation.
@@ -651,6 +656,23 @@ void Overlay::EndRender() {
         app_settings::config.vsync ? 1U : 0U,
         0U
     );
+	if (frame_render_timing_active_ && OmniGhost::GameContext::Instance().IsInSession()) {
+		const float frameMs = std::chrono::duration<float, std::milli>(
+			std::chrono::steady_clock::now() - frame_render_begin_).count();
+		switch (OmniGhost::GameContext::Instance().GetActiveGame()) {
+		case OmniGhost::ActiveGame::CS2:
+			OmniGhost::Gameplay::DmaTelemetry::ObserveRender(
+				OmniGhost::Gameplay::DmaTelemetry::CS2(), frameMs);
+			break;
+		case OmniGhost::ActiveGame::FiveM:
+			OmniGhost::Gameplay::DmaTelemetry::ObserveRender(
+				OmniGhost::Gameplay::DmaTelemetry::FiveM(), frameMs);
+			break;
+		default:
+			break;
+		}
+	}
+	frame_render_timing_active_ = false;
     if (!window_visible_ && SUCCEEDED(presentResult) && overlay) {
         ShowWindow(overlay, SW_SHOW);
         SetForegroundWindow(overlay);

@@ -76,4 +76,6 @@ private:
     // rendered frame. This prevents Windows/DWM from briefly presenting an
     // unpainted black surface that looks like a second startup window.
     bool window_visible_ = false;
+	std::chrono::steady_clock::time_point frame_render_begin_{};
+	bool frame_render_timing_active_ = false;
 };

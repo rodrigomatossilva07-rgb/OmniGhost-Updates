@@ -456,7 +456,6 @@ namespace FiveM {
             OmniGhost::Gameplay::PipelineTelemetry::Smooth(s_pipelineMetrics.render_ms, renderMs);
             {
                 auto& tel = OmniGhost::Gameplay::DmaTelemetry::FiveM();
-                OmniGhost::Gameplay::DmaTelemetry::ObserveRender(tel, renderMs);
                 tel.entities.store(static_cast<int>(validPeds.size()), std::memory_order_relaxed);
                 tel.snapshot_drops.store(s_snapshotDrops.load(std::memory_order_relaxed), std::memory_order_relaxed);
             }
