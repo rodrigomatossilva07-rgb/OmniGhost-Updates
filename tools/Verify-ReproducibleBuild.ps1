@@ -54,7 +54,11 @@ if ($status.Count -gt 0) {
 $commit = (& $git -C $ProjectDir rev-parse HEAD).Trim()
 if ($LASTEXITCODE -ne 0 -or $commit -notmatch '^[0-9a-f]{40}$') { throw 'Could not resolve HEAD for independent rebuild.' }
 
-$reproRoot = Join-Path ([IO.Path]::GetTempPath()) ('omnighost-repro-' + [Guid]::NewGuid().ToString('N'))
+# MSBuild warns when IntDir/OutDir live below the Windows temporary directory
+# (MSB8029). Keep the disposable worktree beside the project instead, while
+# still using a unique detached checkout for the byte-for-byte verification.
+$reproParent = Split-Path -Parent $ProjectDir
+$reproRoot = Join-Path $reproParent ('.omnighost-repro-' + [Guid]::NewGuid().ToString('N'))
 $worktreeAdded = $false
 try {
     & $git -C $ProjectDir worktree add --detach $reproRoot $commit

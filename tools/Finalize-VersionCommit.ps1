@@ -32,7 +32,10 @@ if ($header -notmatch ('Version\[\]\s*=\s*"' + [regex]::Escape($version) + '"') 
     $resource -notmatch "OMNIGHOST_VERSION_PATCH\s+$($parts[2])" -or
     $manifest -notmatch ('version="' + [regex]::Escape($version) + '\.0"')) { return }
 
-& $git.Source -C $ProjectDir add -- @versionFiles
+# config/release is intentionally ignored because it may also contain private
+# publication material. Force-add only this explicit allowlist; no directory or
+# wildcard is ever staged.
+& $git.Source -C $ProjectDir add -f -- @versionFiles
 if ($LASTEXITCODE -ne 0) { throw 'Falha ao preparar os ficheiros oficiais de versão.' }
 $identityArgs = @()
 $userName = ([string](& $git.Source -C $ProjectDir config user.name 2>$null)).Trim()

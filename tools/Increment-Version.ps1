@@ -192,7 +192,9 @@ try {
     }
     Write-TextAtomic -Path $StateFile -Text (($State | ConvertTo-Json -Depth 4) + [Environment]::NewLine)
 
-    Write-TextAtomic -Path $VersionFile -Text ($Next + [Environment]::NewLine)
+	# .gitattributes requires LF for text files. Writing CRLF here produced a
+	# noisy Git warning during every automatic post-Publish commit.
+	Write-TextAtomic -Path $VersionFile -Text ($Next + "`n")
     Write-VersionLog "version.txt atualizado para $Next"
 
     Invoke-VersionSync
