@@ -132,21 +132,6 @@ CyberWidgets::KeyValueRow(Loc::Tr("launcher.games"), availableSummary.c_str());
     EndControlPage();
 }
 
-bool MarketplaceThemeFileDialog(std::filesystem::path& selected) {
-    wchar_t path[MAX_PATH]{};
-    OPENFILENAMEW dialog{};
-    dialog.lStructSize = sizeof(dialog);
-    dialog.hwndOwner = g_overlay_instance ? g_overlay_instance->overlay : nullptr;
-    dialog.lpstrFilter = L"Pacotes de tema OmniGhost (*.ogtheme)\0*.ogtheme\0\0";
-    dialog.lpstrFile = path;
-    dialog.nMaxFile = MAX_PATH;
-    dialog.lpstrDefExt = L"ogtheme";
-    dialog.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
-    if (!GetOpenFileNameW(&dialog)) return false;
-    selected = path;
-    return true;
-}
-
 void DrawMarketplace(ImVec2 display) {
     BeginControlPage("##launcher_marketplace", display);
     DrawPageHeading(Loc::Tr("launcher.marketplace"), Loc::Tr("launcher.marketplace.subtitle"));
@@ -231,48 +216,57 @@ void DrawMarketplace(ImVec2 display) {
     }
 
     ImGui::Dummy(ImVec2(0.f, gap));
-    CyberWidgets::BeginCard("PRESETS", cardWidth);
-    CyberWidgets::Badge("EM PREPARAÇÃO", CyberWidgets::TextTone::Info);
-    ImGui::Dummy(ImVec2(0.f, S(7.f)));
-    CyberWidgets::TextLine("Configs prontas por jogo: limpo, detalhado ou leve para PCs menos potentes.",
-                           CyberWidgets::TextTone::Primary);
-    CyberWidgets::TextLine("Aplicação com um clique; podes sempre ajustar e guardar a tua versão.",
-                           CyberWidgets::TextTone::Secondary);
-    CyberWidgets::EndCard();
-
-    ImGui::Dummy(ImVec2(0.f, gap));
     CyberWidgets::BeginCard("OS MEUS ITENS", 0.f);
     CyberWidgets::HealthRow("Biblioteca", "Ainda não existem itens desbloqueados", CyberWidgets::HealthStatus::Warning);
-    CyberWidgets::TextLine("Quando o catálogo estiver disponível, os teus temas e presets aparecerão aqui.",
+    CyberWidgets::TextLine("Os temas da comunidade aprovados e associados à tua conta aparecerão aqui.",
                            CyberWidgets::TextTone::Secondary);
     CyberWidgets::EndCard();
 
     ImGui::Dummy(ImVec2(0.f, gap));
     CyberWidgets::BeginCard("CRIADORES DA COMUNIDADE", 0.f);
-    CyberWidgets::TextLine("Podes enviar ideias e temas para revisão antes de serem publicados no Marketplace.",
+    CyberWidgets::Badge("REVISÃO OBRIGATÓRIA", CyberWidgets::TextTone::Warning);
+    ImGui::Dummy(ImVec2(0.f, S(6.f)));
+    CyberWidgets::TextLine("Cria um pack .ogtheme e envia-o para avaliação antes de poder entrar no Marketplace.",
                            CyberWidgets::TextTone::Primary);
-    CyberWidgets::TextLine("Depois de baixar um pack .ogtheme do catálogo, importa-o aqui para o usar globalmente.",
+    CyberWidgets::TextLine("O launcher não aceita importações locais: apenas temas revistos e publicados podem ser aplicados.",
                            CyberWidgets::TextTone::Secondary);
-    if (CyberWidgets::Button("IMPORTAR E USAR PACK", CyberWidgets::ButtonStyle::Secondary,
-                             ImVec2(S(205.f), S(32.f)))) {
-        std::filesystem::path path;
-        if (MarketplaceThemeFileDialog(path)) {
-            std::string error;
-            if (CyberTheme::ImportTheme(path, &error)) {
-                std::string saveError;
-                if (app_settings::SaveGlobal(&saveError))
-                    CyberWidgets::Notify("Pack aplicado globalmente e guardado.", CyberWidgets::ToastType::Success);
-                else
-                    CyberWidgets::Notify(saveError.empty() ? "Pack aplicado, mas não foi possível guardar." : saveError.c_str(),
-                                         CyberWidgets::ToastType::Warning);
-            }
-            else
-                CyberWidgets::Notify(error.empty() ? "Não foi possível validar este pack de tema." : error.c_str(),
-                                     CyberWidgets::ToastType::Error);
-        }
-    }
+    ImGui::Dummy(ImVec2(0.f, S(8.f)));
+    if (CyberWidgets::Button("COMO CRIAR UM TEMA", CyberWidgets::ButtonStyle::Primary,
+                             ImVec2(S(205.f), S(34.f))))
+        ImGui::OpenPopup("CRIAR TEMA DA COMUNIDADE");
     CyberWidgets::HealthRow("Catálogo online", "A aguardar serviço seguro de revisão e distribuição", CyberWidgets::HealthStatus::Warning);
     CyberWidgets::EndCard();
+
+    ImGui::SetNextWindowSize(ImVec2(S(650.f), S(520.f)), ImGuiCond_Appearing);
+    if (ImGui::BeginPopupModal("CRIAR TEMA DA COMUNIDADE", nullptr,
+            ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings)) {
+        CyberWidgets::Badge("GUIA .OGTHEME", CyberWidgets::TextTone::Info);
+        ImGui::Dummy(ImVec2(0.f, S(8.f)));
+        CyberWidgets::TextLine("1. Cria um ficheiro de texto UTF-8 e muda a extensão para .ogtheme.", CyberWidgets::TextTone::Primary);
+        CyberWidgets::TextLine("2. Usa apenas os campos visuais suportados no exemplo abaixo.", CyberWidgets::TextTone::Primary);
+        CyberWidgets::TextLine("3. Envia o ficheiro e uma captura do tema ao suporte OmniGhost para revisão.", CyberWidgets::TextTone::Primary);
+        CyberWidgets::TextLine("4. Só depois da aprovação o tema poderá ser publicado e associado às contas.", CyberWidgets::TextTone::Primary);
+        ImGui::Dummy(ImVec2(0.f, S(10.f)));
+        static char example[] =
+            "{\n"
+            "  \"schema_version\": 1,\n"
+            "  \"theme_mode\": 0,\n"
+            "  \"accent_preset\": 99,\n"
+            "  \"visual_style\": 0,\n"
+            "  \"custom_accent\": { \"r\": 0.20, \"g\": 0.65, \"b\": 1.00, \"a\": 1.00 },\n"
+            "  \"ui_scale\": 1.0,\n"
+            "  \"high_contrast\": false,\n"
+            "  \"reduced_motion\": false\n"
+            "}";
+        ImGui::InputTextMultiline("##ogtheme_example", example, sizeof(example),
+            ImVec2(-1.f, S(205.f)), ImGuiInputTextFlags_ReadOnly);
+        if (CyberWidgets::Button("COPIAR EXEMPLO", CyberWidgets::ButtonStyle::Secondary, ImVec2(S(160.f), S(34.f))))
+            CyberWidgets::CopyToClipboard(example, "Exemplo .ogtheme copiado.");
+        ImGui::SameLine();
+        if (CyberWidgets::Button("FECHAR", CyberWidgets::ButtonStyle::Ghost, ImVec2(S(110.f), S(34.f))))
+            ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
+    }
 
     EndControlPage();
 }
@@ -283,9 +277,19 @@ const char* DiagnosticsGameName(GameId id) {
 }
 
 GameId DiagnosticsGameId() {
-    if (g_detail_game != GameId::None) return g_detail_game;
-    if (g_selected != GameId::None) return g_selected;
-    return LastPlayedGame();
+    const auto licensed = [](GameId id) {
+        const GameDefinition* game = FindGame(id);
+        return game && OmniGhost::Licensing::HasGameAccess(game->id);
+    };
+    if (g_detail_game != GameId::None && licensed(g_detail_game)) return g_detail_game;
+    if (g_selected != GameId::None && licensed(g_selected)) return g_selected;
+    const GameId last = LastPlayedGame();
+    if (last != GameId::None && licensed(last)) return last;
+    for (const GameRuntime& runtime : g_games) {
+        if (runtime.definition && OmniGhost::Licensing::HasGameAccess(runtime.definition->id))
+            return runtime.definition->launch_id;
+    }
+    return GameId::None;
 }
 
 CyberWidgets::HealthStatus BuildHealthStatus() {
@@ -432,23 +436,6 @@ void DrawDiagnostics(ImVec2 display) {
     CyberWidgets::EndCard();
 
     ImGui::Dummy(ImVec2(0, S(14.f)));
-    if (ImGui::CollapsingHeader("DETALHES TÉCNICOS", ImGuiTreeNodeFlags_None)) {
-    CyberWidgets::BeginCard(Loc::Tr("launcher.build_metadata"), 0.f);
-    CyberWidgets::KeyValueRow(Loc::Tr("launcher.build_id"), OmniGhost::BuildInfo::BuildId);
-    CyberWidgets::KeyValueRow(Loc::Tr("launcher.commit_source"), OmniGhost::BuildInfo::CommitId);
-    CyberWidgets::KeyValueRow(Loc::Tr("launcher.source_provenance"), OmniGhost::BuildInfo::SourceProvenance);
-    const std::string buildTime = UiFormat::DateTime(OmniGhost::BuildInfo::BuildUtc);
-    CyberWidgets::KeyValueRow(Loc::Tr("launcher.build_utc"), buildTime.c_str());
-    CyberWidgets::KeyValueRow(Loc::Tr("launcher.msvc_tools"), OmniGhost::BuildInfo::ToolchainVersion);
-    CyberWidgets::KeyValueRow(Loc::Tr("launcher.compiler"), OmniGhost::BuildInfo::CompilerVersion);
-    CyberWidgets::KeyValueRow("Windows SDK", OmniGhost::BuildInfo::WindowsSdkVersion);
-    CyberWidgets::KeyValueRow(Loc::Tr("launcher.release_channel"), LocalizedChannelLabel(OmniGhost::BuildInfo::ReleaseChannel));
-    CyberWidgets::KeyValueRow(Loc::Tr("launcher.reproducible"),
-                              OmniGhost::BuildInfo::Reproducible ? Loc::Tr("launcher.yes") : Loc::Tr("launcher.no"));
-    CyberWidgets::EndCard();
-    }
-
-    ImGui::Dummy(ImVec2(0, S(14.f)));
     CyberWidgets::BeginCard(Loc::Tr("launcher.installation"), 0.f);
     CyberWidgets::KeyValueRow(Loc::Tr("launcher.integrity"),
         update.integrityStatus == OmniGhost::Update::IntegrityStatus::Healthy ? Loc::Tr("launcher.integrity_verified") :
@@ -475,6 +462,7 @@ void DrawDiagnostics(ImVec2 display) {
     for (GameRuntime& runtime : g_games) {
         if (!runtime.definition) continue;
         const GameDefinition& game = *runtime.definition;
+        if (!OmniGhost::Licensing::HasGameAccess(game.id)) continue;
         ImGui::PushID(static_cast<int>(game.launch_id));
         const bool focused = g_detail_game == game.launch_id;
         if (focused)

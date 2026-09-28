@@ -174,7 +174,6 @@ namespace CyberTheme {
     };
 
     bool ExportTheme(const std::filesystem::path& path, std::string* error = nullptr);
-    bool ImportTheme(const std::filesystem::path& path, std::string* error = nullptr);
     std::string SerializeTheme();
     bool DeserializeTheme(const std::string& json, std::string* error = nullptr);
 

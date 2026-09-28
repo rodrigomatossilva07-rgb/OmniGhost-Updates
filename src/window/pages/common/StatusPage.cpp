@@ -61,33 +61,8 @@ void DrawFiveMStatus()
               aim_type::config.kmbox_net_connected ? HealthStatus::Ok : HealthStatus::Warning);
     HealthRow("Ferrum", aim_type::config.ferrum_connected ? "Ligado" : "Desligado",
               aim_type::config.ferrum_connected ? HealthStatus::Ok : HealthStatus::Warning);
-    Separator();
-    TextLine("Configurações técnicas ficam disponíveis em Definições > Avançado.",
-             TextTone::Secondary);
     EndCard();
     EndCardRow();
-
-    bool technical = app_settings::config.show_advanced;
-#ifdef _DEBUG
-    technical = true;
-#endif
-#ifdef OMNIGHOST_DIAGNOSTICS
-    technical = true;
-#endif
-    if (technical) {
-        CardGap();
-        BeginCard("DETALHES TÉCNICOS", 0.f);
-        TextLine("Informação de diagnóstico destinada a utilizadores avançados.", TextTone::Warning);
-        char value[64]{};
-        std::snprintf(value, sizeof(value), "0x%llX", static_cast<unsigned long long>(world)); KeyValueRow("world", value);
-        std::snprintf(value, sizeof(value), "0x%llX", static_cast<unsigned long long>(viewport)); KeyValueRow("viewport", value);
-        std::snprintf(value, sizeof(value), "0x%llX", static_cast<unsigned long long>(localplayer)); KeyValueRow("localplayer", value);
-        std::snprintf(value, sizeof(value), "0x%llX", static_cast<unsigned long long>(base)); KeyValueRow("DMA base", value);
-        char build[32]{};
-        std::snprintf(build, sizeof(build), "b%d", buildVersion);
-        KeyValueRow("Build do jogo", build);
-        EndCard();
-    }
 #else
     BeginCard("SYS // 06   SISTEMA", 0.f);
     TextLine("Página de estado disponível no runtime Windows com DMA.", TextTone::Secondary);

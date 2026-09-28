@@ -632,37 +632,6 @@ namespace CyberTheme {
         }
     }
 
-    bool ImportTheme(const std::filesystem::path& path, std::string* error) {
-        try {
-            std::error_code ec;
-            if (!std::filesystem::exists(path, ec)) {
-                if (error) *error = "Theme file does not exist";
-                return false;
-            }
-            if (!std::filesystem::is_regular_file(path, ec) || ec ||
-                path.extension() != ".ogtheme") {
-                if (error) *error = "Only regular .ogtheme files are accepted";
-                return false;
-            }
-            const auto size = std::filesystem::file_size(path, ec);
-            if (ec || size == 0 || size > 64u * 1024u) {
-                if (error) *error = "Theme pack must be between 1 byte and 64 KiB";
-                return false;
-            }
-            std::ifstream file(path);
-            if (!file) {
-                if (error) *error = "Failed to open theme file";
-                return false;
-            }
-            std::stringstream buffer;
-            buffer << file.rdbuf();
-            return DeserializeTheme(buffer.str(), error);
-        } catch (const std::exception& e) {
-            if (error) *error = std::string("Import failed: ") + e.what();
-            return false;
-        }
-    }
-
     void DrawSubtleNoise(
         ImDrawList* draw,
         const ImVec2& min,
