@@ -2,6 +2,7 @@
 
 #include "../cs2_game.h"
 #include "../config/cs2_config.h"
+#include "gameplay/dma_telemetry_log.h"
 #include "../../ImGui/imgui.h"
 #include "../../src/config/app_settings.h"
 
@@ -431,7 +432,13 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
     const float predictionSeconds = static_cast<float>(snapshotAgeMs) / 1000.f;
     for (const Player& player : snapshot.players) {
         if (!player.alive || player.is_local) continue;
-        if (diedSinceSnapshot(player.pawn)) continue;
+        if (diedSinceSnapshot(player.pawn)) {
+            const float hideMs = liveness && nowMs >= liveness->timestamp_ms
+                ? static_cast<float>(nowMs - liveness->timestamp_ms) : 0.f;
+            OmniGhost::Gameplay::DmaTelemetry::CS2().death_to_hide_ms.store(
+                hideMs, std::memory_order_relaxed);
+            continue;
+        }
         if (hideTeam && player.team == snapshot.local_team) continue;
         if (!std::isfinite(player.distance) || (maxDistance > 0.f && player.distance > maxDistance)) continue;
         if (!std::isfinite(player.pos[0]) || !std::isfinite(player.pos[1]) || !std::isfinite(player.pos[2])) continue;

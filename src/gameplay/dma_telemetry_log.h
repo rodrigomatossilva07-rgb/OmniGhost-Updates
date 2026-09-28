@@ -55,6 +55,9 @@ struct Sample {
 	std::atomic<std::uint64_t> camera_cooldown_bypasses{0};
 	std::atomic<int> pressure_level{0};
 	std::atomic<std::uint64_t> cooldown_remaining_ms{0};
+    std::atomic<float> death_to_hide_ms{0.f};
+    std::atomic<std::uint64_t> recent_player_reinsertions{0};
+    std::atomic<std::uint64_t> last_good_age_ms{0};
     std::atomic<float> motion_age_ms{0.f};
     std::atomic<float> state_age_ms{0.f};
     std::atomic<float> target_lane_age_ms{0.f};

@@ -1903,7 +1903,9 @@ static int ScatterResolvePawnHandles(const uint32_t* handles, uintptr_t* pawns,
 
 // Core pawn fields in one scatter: health, team, armor, scene node.
 struct PawnCoreFields {
-    int health = 0;
+    // -1 means the scatter did not produce a trustworthy value. Zero is a
+    // distinct, confirmed dead state and must never enter dropout grace.
+    int health = -1;
     uint8_t team = 0;
     int armor = 0;
     uintptr_t scene = 0;
@@ -2357,6 +2359,67 @@ static void RunFrameWithConfig(const Config& frame_config) {
     if (recent_players.bucket_count() < 128) recent_players.reserve(128);
     if (bone_cache.bucket_count() < 128) bone_cache.reserve(128);
     if (s_stickyBoneLayout.bucket_count() < 128) s_stickyBoneLayout.reserve(128);
+    // Recovery may freeze expensive topology/metadata work, but it must never
+    // freeze death detection. Probe only the already-known pawn health fields,
+    // publish them immediately, and remove confirmed deaths from every cache
+    // that can republish a player. Sentinel values remain unknown/read-failed
+    // and deliberately retain the short dropout grace period.
+    const auto refresh_cached_liveness = [&](uint64_t now_ms) {
+        if (last_good_players.empty() || !offsets.m_iHealth)
+            return false;
+        EnsureScatter();
+        if (!g_scatter_full)
+            return false;
+
+        constexpr int kUnknownHealth = (std::numeric_limits<int>::min)();
+        std::array<int, 64> health{};
+        health.fill(kUnknownHealth);
+        const size_t count = (std::min)(last_good_players.size(), health.size());
+        size_t queued = 0;
+        for (size_t i = 0; i < count; ++i) {
+            if (!IsUserPointer(last_good_players[i].pawn))
+                continue;
+            mem.AddScatterReadRequest(g_scatter_full,
+                last_good_players[i].pawn + offsets.m_iHealth,
+                &health[i], sizeof(health[i]));
+            ++queued;
+        }
+        if (!queued)
+            return false;
+
+        mem.SetDmaCallTag("CS2.LivenessRecovery");
+        mem.ExecuteReadScatter(g_scatter_full);
+        LivenessSnapshot liveness{};
+        liveness.timestamp_ms = GetTickCount64();
+        std::array<uintptr_t, 64> confirmed_dead{};
+        size_t dead_count = 0;
+        for (size_t i = 0; i < count; ++i) {
+            // Values left at the sentinel are failed/unknown, not deaths.
+            if (health[i] == kUnknownHealth || health[i] < 0 || health[i] > 200)
+                continue;
+            auto& sample = liveness.players[liveness.count++];
+            sample.pawn = last_good_players[i].pawn;
+            sample.alive = health[i] > 0;
+            if (!sample.alive)
+                confirmed_dead[dead_count++] = sample.pawn;
+        }
+        if (liveness.count)
+            PublishLivenessSnapshot(liveness);
+
+        for (size_t i = 0; i < dead_count; ++i) {
+            const uintptr_t pawn = confirmed_dead[i];
+            last_good_players.erase(std::remove_if(last_good_players.begin(),
+                last_good_players.end(), [pawn](const Player& p) { return p.pawn == pawn; }),
+                last_good_players.end());
+            recent_players.erase(pawn);
+            bone_cache.erase(pawn);
+            s_stickyBoneLayout.erase(pawn);
+        }
+        auto& telemetry = OmniGhost::Gameplay::DmaTelemetry::CS2();
+        telemetry.last_good_age_ms.store(last_good_ms && now_ms >= last_good_ms
+            ? now_ms - last_good_ms : 0u, std::memory_order_relaxed);
+        return true;
+    };
     runtime.player_count = 0;
     runtime.enemy_count = 0;
     mem.SetDmaCallTag("CS2.Controllers");
@@ -2774,10 +2837,16 @@ static void RunFrameWithConfig(const Config& frame_config) {
         runtime.local_has_defuser = false;
     }
 
+    const int preTopologyPressure = g_pressure_level.load(std::memory_order_relaxed);
+    bool recoveryLivenessFresh = false;
+    if (preTopologyPressure >= 2)
+        recoveryLivenessFresh = refresh_cached_liveness(GetTickCount64());
     if (!RefreshEntityListEntry()) {
         // Hold last-good ESP/aim targets briefly so the overlay does not blink
         // off when ListEntry is transiently null after map/round changes.
         const uint64_t now_ms = GetTickCount64();
+        if (!recoveryLivenessFresh)
+            (void)refresh_cached_liveness(now_ms);
         if (!last_good_players.empty() && now_ms - last_good_ms <= 50u) {
             runtime.players = last_good_players;
             runtime.player_count = static_cast<int>(runtime.players.size());
@@ -2809,6 +2878,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
     // retain the last coherent player set instead of triggering a wide list
     // scatter that can prolong a transport stall.
     if (recoveryPressure >= 2 && !last_good_players.empty()) {
+        if (!recoveryLivenessFresh)
+            (void)refresh_cached_liveness(GetTickCount64());
         runtime.players = last_good_players;
         runtime.player_count = static_cast<int>(runtime.players.size());
         runtime.controller_count = 0;
@@ -3161,14 +3232,29 @@ static void RunFrameWithConfig(const Config& frame_config) {
     // pawn without waiting for the complete entity snapshot.
     LivenessSnapshot liveness{};
     liveness.timestamp_ms = GetTickCount64();
+    std::array<uintptr_t, 64> confirmedDead{};
+    size_t confirmedDeadCount = 0;
     for (int c = 0; c < candidate_count &&
          liveness.count < static_cast<uint32_t>(liveness.players.size()); ++c) {
+        if (core[c].health < 0 || core[c].health > 200)
+            continue; // failed/unknown read: retain grace, never call it death
         auto& sample = liveness.players[liveness.count++];
         sample.pawn = resolved_pawns[c];
-        sample.alive = core[c].health > 0 && core[c].health <= 200 &&
-            IsPlayableTeam(static_cast<int>(core[c].team));
+        sample.alive = core[c].health > 0;
+        if (!sample.alive)
+            confirmedDead[confirmedDeadCount++] = sample.pawn;
     }
     PublishLivenessSnapshot(liveness);
+    for (size_t i = 0; i < confirmedDeadCount; ++i) {
+        const uintptr_t pawn = confirmedDead[i];
+        recent_players.erase(pawn);
+        bone_cache.erase(pawn);
+        s_stickyBoneLayout.erase(pawn);
+        sceneBoneCache.erase(pawn);
+        last_good_players.erase(std::remove_if(last_good_players.begin(),
+            last_good_players.end(), [pawn](const Player& p) { return p.pawn == pawn; }),
+            last_good_players.end());
+    }
 
     int validCoreSamples = 0;
     for (int c = 0; c < candidate_count; ++c)
@@ -3257,6 +3343,10 @@ static void RunFrameWithConfig(const Config& frame_config) {
     if (nameCache.bucket_count() < 128) nameCache.reserve(128);
     if (boneFallbackPending.bucket_count() < 128) boneFallbackPending.reserve(128);
     if (weaponStateCache.bucket_count() < 128) weaponStateCache.reserve(128);
+    for (size_t i = 0; i < confirmedDeadCount; ++i) {
+        boneFallbackPending.erase(confirmedDead[i]);
+        weaponStateCache.erase(confirmedDead[i]);
+    }
     // Incremental cache maintenance: budget a few erases per scan (never full-map sweep).
     {
         ScopedPhase _phCleanup(&g_phase.cleanup_ms);
@@ -3746,6 +3836,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
     };
     static std::unordered_map<uintptr_t, FlagCache> flag_cache;
     if (flag_cache.bucket_count() < 128) flag_cache.reserve(128);
+    for (size_t i = 0; i < confirmedDeadCount; ++i)
+        flag_cache.erase(confirmedDead[i]);
     uintptr_t moneyServices[kMaxSlots]{};
     uintptr_t itemServices[kMaxSlots]{};
     int moneyValues[kMaxSlots]{};
@@ -4314,6 +4406,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
         if (!present && !it->second.player.is_local && allowedTeam &&
             runtime.players.size() < remoteLimit) {
             runtime.players.push_back(it->second.player);
+            OmniGhost::Gameplay::DmaTelemetry::CS2().recent_player_reinsertions.fetch_add(
+                1, std::memory_order_relaxed);
             if (!it->second.player.is_local && it->second.player.team != runtime.local_team)
                 ++runtime.enemy_count;
         }
@@ -4331,6 +4425,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
     };
     static std::unordered_map<uintptr_t, CachedVisibility> visibilityCache;
     if (visibilityCache.bucket_count() < 128) visibilityCache.reserve(128);
+    for (size_t i = 0; i < confirmedDeadCount; ++i)
+        visibilityCache.erase(confirmedDead[i]);
     static std::string visibilityCacheMap;
     if (visibilityCacheMap != runtime.map_name) {
         visibilityCache.clear();
@@ -4543,8 +4639,16 @@ static void RunFrameWithConfig(const Config& frame_config) {
     if (!runtime.players.empty()) {
         last_good_players = runtime.players;
         last_good_ms = scan_now_ms;
+        OmniGhost::Gameplay::DmaTelemetry::CS2().last_good_age_ms.store(
+            0, std::memory_order_relaxed);
     } else if (!last_good_players.empty() && scan_now_ms - last_good_ms > 100u) {
         last_good_players.clear();
+        OmniGhost::Gameplay::DmaTelemetry::CS2().last_good_age_ms.store(
+            0, std::memory_order_relaxed);
+    } else {
+        OmniGhost::Gameplay::DmaTelemetry::CS2().last_good_age_ms.store(
+            last_good_ms && scan_now_ms >= last_good_ms ? scan_now_ms - last_good_ms : 0u,
+            std::memory_order_relaxed);
     }
 
     // Periodic diagnostics when controllers exist but pawns do not —

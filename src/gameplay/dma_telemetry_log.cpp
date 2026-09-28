@@ -155,7 +155,7 @@ const char* IdleName(int r) {
 }
 
 void WritePerf(std::string_view tag, Sample& s) {
-    char buf[1800]{};
+    char buf[2048]{};
     std::snprintf(buf, sizeof(buf),
         "PERF\n"
         "active=%d\nalive=%d\npid=%u\nidle_reason=%s\n\n"
@@ -171,7 +171,8 @@ void WritePerf(std::string_view tag, Sample& s) {
 		"camera_read_p95_ms=%.2f\ncamera_read_p99_ms=%.2f\ncamera_read_max_ms=%.2f\n"
 		"camera_busy_skips=%llu\ncamera_busy_retry_success=%llu\ncamera_consecutive_busy_max=%llu\n"
 		"camera_cooldown_skips=%llu\ncamera_cooldown_bypasses=%llu\n"
-		"pressure_level=%d\ncooldown_remaining_ms=%llu\nmotion_age_ms=%.1f\n"
+		"pressure_level=%d\ncooldown_remaining_ms=%llu\ndeath_to_hide_ms=%.1f\n"
+        "recent_player_reinsertions=%llu\nlast_good_age_ms=%llu\nmotion_age_ms=%.1f\n"
         "bones_players=%d\nbones_p95_ms=%.2f\nbones_p99_ms=%.2f\nbones_max_ms=%.2f\n"
         "render_avg_ms=%.2f\nrender_p95_ms=%.2f\nrender_max_ms=%.2f\n\n"
         "suppressed_spikes_20=%llu\nsuppressed_spikes_50=%llu\nsuppressed_spikes_100=%llu",
@@ -214,6 +215,9 @@ void WritePerf(std::string_view tag, Sample& s) {
 		static_cast<unsigned long long>(s.camera_cooldown_bypasses.load()),
 		s.pressure_level.load(),
 		static_cast<unsigned long long>(s.cooldown_remaining_ms.load()),
+        s.death_to_hide_ms.load(),
+        static_cast<unsigned long long>(s.recent_player_reinsertions.load()),
+        static_cast<unsigned long long>(s.last_good_age_ms.load()),
         s.motion_age_ms.load(),
         s.bones_players.load(),
         s.bones_p95_ms.load(),
@@ -449,7 +453,7 @@ void LogConfigChanged(std::string_view tag, std::string_view config_blob) {
 
 void LogSessionSummary(std::string_view tag) {
     Sample& s = (tag == "FIVEM") ? g_fivem : g_cs2;
-    char buf[1100]{};
+    char buf[1400]{};
     std::snprintf(buf, sizeof(buf),
         "SESSION_SUMMARY\n"
         "acquire_avg_ms=%.2f\nacquire_p50_ms=%.2f\nacquire_p95_ms=%.2f\nacquire_p99_ms=%.2f\nacquire_max_ms=%.2f\n"
@@ -460,6 +464,7 @@ void LogSessionSummary(std::string_view tag) {
 		"camera_busy_skips=%llu\ncamera_busy_retry_success=%llu\ncamera_consecutive_busy_max=%llu\n"
 		"camera_cooldown_skips=%llu\ncamera_cooldown_bypasses=%llu\n"
 		"bones_p95_ms=%.2f\nbones_p99_ms=%.2f\nbones_max_ms=%.2f\n"
+        "death_to_hide_ms=%.1f\nrecent_player_reinsertions=%llu\nlast_good_age_ms=%llu\n"
         "snapshot_drops=%llu\nread_fails=%llu\nspikes=%llu\n"
         "suppressed_20=%llu\nsuppressed_50=%llu\nsuppressed_100=%llu",
         s.acquire_ms.load(), s.acquire_p50_ms.load(), s.acquire_p95_ms.load(),
@@ -475,6 +480,9 @@ void LogSessionSummary(std::string_view tag) {
 		static_cast<unsigned long long>(s.camera_cooldown_skips.load()),
 		static_cast<unsigned long long>(s.camera_cooldown_bypasses.load()),
         s.bones_p95_ms.load(), s.bones_p99_ms.load(), s.bones_max_ms.load(),
+        s.death_to_hide_ms.load(),
+        static_cast<unsigned long long>(s.recent_player_reinsertions.load()),
+        static_cast<unsigned long long>(s.last_good_age_ms.load()),
         static_cast<unsigned long long>(s.snapshot_drops.load()),
         static_cast<unsigned long long>(s.read_fails.load()),
         static_cast<unsigned long long>(s.acquisition_spikes.load()),
