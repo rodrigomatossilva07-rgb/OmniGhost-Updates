@@ -449,6 +449,7 @@ void LoadSchemaOffsets(const std::string& schema) {
     JsonClassU64(schema, "C_BaseEntity", "m_iTeamNum", offsets.m_iTeamNum);
     JsonClassU64(schema, "C_BaseEntity", "m_pGameSceneNode", offsets.m_pGameSceneNode);
     JsonClassU64(schema, "C_BaseEntity", "m_fFlags", offsets.m_fFlags);
+    JsonClassU64(schema, "C_BaseEntity", "m_vecVelocity", offsets.m_vecVelocity);
     JsonClassU64(schema, "C_BasePlayerPawn", "m_vOldOrigin", offsets.m_vOldOrigin);
     JsonClassU64(schema, "CCSPlayerController", "m_hPlayerPawn", offsets.m_hPlayerPawn);
     JsonClassU64(schema, "CCSPlayerController", "m_hObserverPawn", offsets.m_hObserverPawn);
@@ -471,7 +472,6 @@ void LoadSchemaOffsets(const std::string& schema) {
     JsonClassU64(schema, "C_CSPlayerPawnBase", "m_flFlashDuration", offsets.m_flFlashDuration);
     JsonClassU64(schema, "C_CSPlayerPawn", "m_aimPunchAngle", offsets.m_aimPunchAngle);
     JsonClassU64(schema, "CGameSceneNode", "m_vecAbsOrigin", offsets.m_vecAbsOrigin);
-    JsonClassU64(schema, "CGameSceneNode", "m_vecVelocity", offsets.m_vecVelocity);
     JsonClassU64(schema, "CGameSceneNode", "m_bDormant", offsets.m_bDormant);
     JsonClassU64(schema, "CSkeletonInstance", "m_modelState", offsets.m_modelState);
     JsonClassU64(schema, "C_PlantedC4", "m_bBombTicking", offsets.m_bBombTicking);
@@ -739,6 +739,7 @@ bool LoadEmbeddedOffsets() {
     read("schemas.C_BaseEntity.m_iTeamNum", offsets.m_iTeamNum, false);
     read("schemas.C_BaseEntity.m_pGameSceneNode", offsets.m_pGameSceneNode, false);
     read("schemas.C_BaseEntity.m_fFlags", offsets.m_fFlags, false);
+    read("schemas.C_BaseEntity.m_vecVelocity", offsets.m_vecVelocity, false);
     read("schemas.C_BasePlayerPawn.m_vOldOrigin", offsets.m_vOldOrigin, false);
     read("schemas.CCSPlayerController.m_hPlayerPawn", offsets.m_hPlayerPawn, false);
     read("schemas.CCSPlayerController.m_hObserverPawn", offsets.m_hObserverPawn, false);
@@ -760,7 +761,6 @@ bool LoadEmbeddedOffsets() {
     read("schemas.C_CSPlayerPawn.m_bIsScoped", offsets.m_bIsScoped, false);
     read("schemas.C_CSPlayerPawnBase.m_flFlashDuration", offsets.m_flFlashDuration, false);
     read("schemas.CGameSceneNode.m_vecAbsOrigin", offsets.m_vecAbsOrigin, false);
-    read("schemas.CGameSceneNode.m_vecVelocity", offsets.m_vecVelocity, false);
     read("schemas.CGameSceneNode.m_bDormant", offsets.m_bDormant, false);
     read("schemas.CSkeletonInstance.m_modelState", offsets.m_modelState, false);
     uintptr_t boneArrayInModelState = 0x80;

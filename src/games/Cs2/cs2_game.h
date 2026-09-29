@@ -23,59 +23,59 @@ struct Offsets {
     uintptr_t m_iTeamNum = 0x3E7;
     uintptr_t m_pGameSceneNode = 0x330;
     uintptr_t m_fFlags = 0x3F4;
-    uintptr_t m_vOldOrigin = 0x13B8;
-    uintptr_t m_hPlayerPawn = 0x914;
-    uintptr_t m_hObserverPawn = 0x918;
-    uintptr_t m_pObserverServices = 0x1220; // C_CSPlayerPawn → CPlayer_ObserverServices*
+    uintptr_t m_vOldOrigin = 0x14A4;
+    uintptr_t m_hPlayerPawn = 0x92C;
+    uintptr_t m_hObserverPawn = 0x930;
+    uintptr_t m_pObserverServices = 0x1308; // C_CSPlayerPawn → CPlayer_ObserverServices*
     uintptr_t m_hObserverTarget = 0x4C;   // CPlayer_ObserverServices
-    uintptr_t m_iPawnHealth = 0x920;
-    uintptr_t m_iPawnArmor = 0x924;
-    uintptr_t m_iszPlayerName = 0x6F4;
-    uintptr_t m_sSanitizedPlayerName = 0x868;
-    uintptr_t m_steamID = 0x780;
-    uintptr_t m_bPawnIsAlive = 0x91C;
-    // C_CSPlayerPawn fields for build 14174
-    uintptr_t m_ArmorValue = 0x1CA4;
-    uintptr_t m_angEyeAngles = 0x3350;
-    uintptr_t m_iIDEntIndex = 0x342C;
+    uintptr_t m_iPawnHealth = 0x938;
+    uintptr_t m_iPawnArmor = 0x93C;
+    uintptr_t m_iszPlayerName = 0x6FC;
+    uintptr_t m_sSanitizedPlayerName = 0x878;
+    uintptr_t m_steamID = 0x788;
+    uintptr_t m_bPawnIsAlive = 0x934;
+    // C_CSPlayerPawn fields for build 14186
+    uintptr_t m_ArmorValue = 0x1ECC;
+    uintptr_t m_angEyeAngles = 0x35F0;
+    uintptr_t m_iIDEntIndex = 0x36CC;
     uintptr_t m_vecAbsOrigin = 0xC8;
-    uintptr_t m_vecVelocity = 0x1D8;
+    uintptr_t m_vecVelocity = 0x430;
     uintptr_t m_bDormant = 0x103;
     uintptr_t m_modelState = 0x140;
     uintptr_t BoneArray = 0x1C0;
-    uintptr_t m_pClippingWeapon = 0x13A0;
-    uintptr_t m_bIsScoped = 0x1C78;
-    // EntitySpottedState_t on C_CSPlayerPawn (cheatoffsets ~2026-08)
-    uintptr_t m_entitySpottedState = 0x1C60;
+    uintptr_t m_pClippingWeapon = 0; // absent from the current schema
+    uintptr_t m_bIsScoped = 0x1EA0;
+    // EntitySpottedState_t on C_CSPlayerPawn
+    uintptr_t m_entitySpottedState = 0x1E88;
     uintptr_t m_bSpotted = 0x8; // within EntitySpottedState_t
-    uintptr_t m_flFlashDuration = 0x1428;
-    // Optional recoil fields. They are refreshed from the schema dump when
-    // available; zero keeps RCS disabled safely on incompatible builds.
-    uintptr_t m_iShotsFired = 0;
+    uintptr_t m_flFlashDuration = 0x1510;
+    // Recoil fields. Shots is present in build 14186; the legacy direct punch
+    // angle stays zero because current schemas expose a services component.
+    uintptr_t m_iShotsFired = 0x1EB4;
     uintptr_t m_aimPunchAngle = 0;
     // Current CS2 builds expose aim punch through a pawn component. Keep the
     // legacy direct angle for compatibility with older offset dumps.
-    // C_PlantedC4 fields for build 14174
-    uintptr_t m_bBombTicking = 0x11A0;
-    uintptr_t m_flC4Blow = 0x11D0;
-    uintptr_t m_flTimerLength = 0x11D8;
-    uintptr_t m_bBombDefused = 0x11F4;
-    uintptr_t m_bBeingDefused = 0x11DC;
-    uintptr_t m_flDefuseCountDown = 0x11F0;
-    uintptr_t m_hBombDefuser = 0x11F8;
+    // C_PlantedC4 fields for build 14186
+    uintptr_t m_bBombTicking = 0x1288;
+    uintptr_t m_flC4Blow = 0x12B8;
+    uintptr_t m_flTimerLength = 0x12C0;
+    uintptr_t m_bBombDefused = 0x12DC;
+    uintptr_t m_bBeingDefused = 0x12C4;
+    uintptr_t m_flDefuseCountDown = 0x12D8;
+    uintptr_t m_hBombDefuser = 0x12E0;
     // Weapon chain
-    uintptr_t m_pWeaponServices = 0x1208;
-    uintptr_t m_pItemServices = 0x1210;
+    uintptr_t m_pWeaponServices = 0x12F0;
+    uintptr_t m_pItemServices = 0x12F8;
     uintptr_t m_bHasDefuser = 0x48;
     uintptr_t m_hActiveWeapon = 0x60;
-    uintptr_t m_AttributeManager = 0x1200;
+    uintptr_t m_AttributeManager = 0x1290;
     uintptr_t m_Item = 0x50;
     uintptr_t m_iItemDefinitionIndex = 0x1BA;
-    uintptr_t m_iClip1 = 0x18D0;            // C_BasePlayerWeapon (schema may override)
-    uintptr_t m_pReserveAmmo = 0x18D8;      // optional
-    uintptr_t m_pInGameMoneyServices = 0x810; // CCSPlayerController
+    uintptr_t m_iClip1 = 0x1928;            // C_BasePlayerWeapon (schema may override)
+    uintptr_t m_pReserveAmmo = 0x1930;      // optional
+    uintptr_t m_pInGameMoneyServices = 0x818; // CCSPlayerController
     uintptr_t m_iAccount = 0x40;             // CCSPlayerController_InGameMoneyServices
-    uintptr_t m_bIsDefusing = 0x1C7A;        // C_CSPlayerPawn
+    uintptr_t m_bIsDefusing = 0x1EA2;        // C_CSPlayerPawn
     bool loaded = false;
 
     bool Validate(std::string* reason = nullptr) const noexcept;

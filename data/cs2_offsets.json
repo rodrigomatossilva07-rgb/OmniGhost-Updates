@@ -1,15 +1,15 @@
 {
   "schema_version": 1,
   "game": "cs2",
-  "build": "cs2-dumper-14185",
-  "cl": "14185",
+  "build": "cs2-dumper-14186",
+  "cl": "14186",
   "module": "client.dll",
-  "source": "a2x/cs2-dumper output.zip supplied 2026-09-26",
-  "generated_at": "2026-09-26T19:33:39Z",
+  "source": "a2x/cs2-dumper output.zip supplied 2026-09-29",
+  "generated_at": "2026-09-29T14:54:52Z",
   "client.dll": {
     "dwCSGOInput": "0x2575BB0",
-    "dwEntityList": "0x27151A8",
-    "dwGameEntitySystem": "0x27151A8",
+    "dwEntityList": "0x27151E8",
+    "dwGameEntitySystem": "0x27151E8",
     "dwGameEntitySystem_highestEntityIndex": "0x2120",
     "dwGameRules": "0x255C8D8",
     "dwGlobalVars": "0x222BF88",
@@ -52,7 +52,8 @@
       "m_iMaxHealth": "0x348",
       "m_lifeState": "0x354",
       "m_iTeamNum": "0x3E7",
-      "m_fFlags": "0x3F4"
+      "m_fFlags": "0x3F4",
+      "m_vecVelocity": "0x430"
     },
     "CGameSceneNode": {
       "m_vecAbsOrigin": "0xC8",
@@ -72,8 +73,8 @@
     "C_BasePlayerPawn": {
       "m_vOldOrigin": "0x14A4",
       "m_pWeaponServices": "0x12F0",
-      "m_pObserverServices": "0x1308",
-      "m_vecViewOffset": "0xF60"
+      "m_pItemServices": "0x12F8",
+      "m_pObserverServices": "0x1308"
     },
     "C_CSPlayerPawnBase": {
       "m_flFlashDuration": "0x1510"
@@ -139,9 +140,6 @@
     },
     "CCSPlayer_ItemServices": {
       "m_bHasDefuser": "0x48"
-    },
-    "C_MolotovProjectile": {
-      "m_bIsIncGrenade": "0x1348"
     }
   }
 }
