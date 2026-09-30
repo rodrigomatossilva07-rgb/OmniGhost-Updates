@@ -55,7 +55,6 @@ void ApplyVisualProfileForActiveGame() {
     case ActiveGame::CS2:
         CS2::config.skeleton = true;
         CS2::config.distance = true;
-        CS2::config.weapon_icons = true;
         CS2::config.radar_2d = true;
         CS2::config.radar_2d_size = 180.f;
         break;

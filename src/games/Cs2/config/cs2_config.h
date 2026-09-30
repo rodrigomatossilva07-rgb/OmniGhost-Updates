@@ -23,7 +23,7 @@ struct Config {
     float spectator_window_y = 40.f;
     float bomb_window_x = -1.f;
     float bomb_window_y = 338.f;
-    bool smoke_flash = false, scope_check = false, footstep_esp = false;
+    bool scope_check = false, footstep_esp = false;
     bool player_flags = false, flag_blind = true, flag_scoped = true, flag_defusing = true, flag_kit = true, flag_money = true;
     bool weapon_ammo = false, dropped_weapons = false;
     // World weapons are deliberately category-filtered: the acquisition lane
@@ -39,8 +39,7 @@ struct Config {
     float radar_2d_x = 18.f;
     float radar_2d_y = 18.f;
     float radar_2d_size = 160.f;
-    bool skeleton_lod = true, weapon_icons = false, offscreen_arrows = false, highlight_aim_target = false;
-    bool c4_carrier = false, distance_feet = false, bone_draw_arms = true, bone_draw_legs = true;
+    bool skeleton_lod = true, distance_feet = false, bone_draw_arms = true, bone_draw_legs = true;
     float max_distance = 300.f, skeleton_lod_distance = 70.f;
     bool hotkey_overlay = false;
     bool panic_key_enabled = true;
@@ -67,7 +66,6 @@ struct Config {
 
     bool aim_enabled = false;
     bool aim_draw_fov = true;
-    bool sniper_crosshair = false;
     bool aim_fov_rgb = false;
     int aim_fov_style = 0; // 0 circle 1 square 2 cross
     bool aim_dynamic_fov = false;
@@ -156,7 +154,6 @@ inline void ApplyLegitProfile(Config& c) {
     c.skeleton_lod = true;
     c.skeleton_lod_distance = 60.f;
     c.max_entities = 24;
-    c.highlight_aim_target = false;
 }
 
 inline void ApplyRageProfile(Config& c) {
@@ -187,8 +184,6 @@ inline void ApplyRageProfile(Config& c) {
     c.team_check = true;
     c.skeleton_lod = false;
     c.max_entities = 48;
-    c.highlight_aim_target = false;
-    c.offscreen_arrows = true;
 }
 
 bool SaveConfig(const char* name = "cs2_default");

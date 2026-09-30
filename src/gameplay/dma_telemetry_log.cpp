@@ -109,6 +109,7 @@ Ring g_renderF{}, g_renderC{};
 Ring g_dmaExec{};
 Ring g_cameraAgeC{}, g_cameraReadC{};
 Ring g_bonesC{};
+Ring g_positionAgeC{}, g_bonesAgeC{}, g_cameraPositionDeltaC{}, g_predictionC{};
 
 std::atomic<float> g_lastAcqF{0.f}, g_lastAcqC{0.f};
 
@@ -155,7 +156,7 @@ const char* IdleName(int r) {
 }
 
 void WritePerf(std::string_view tag, Sample& s) {
-    char buf[2048]{};
+    char buf[3072]{};
     std::snprintf(buf, sizeof(buf),
         "PERF\n"
         "active=%d\nalive=%d\npid=%u\nidle_reason=%s\n\n"
@@ -173,6 +174,11 @@ void WritePerf(std::string_view tag, Sample& s) {
 		"camera_cooldown_skips=%llu\ncamera_cooldown_bypasses=%llu\n"
 		"pressure_level=%d\ncooldown_remaining_ms=%llu\ndeath_to_hide_ms=%.1f\n"
         "recent_player_reinsertions=%llu\nlast_good_age_ms=%llu\nmotion_age_ms=%.1f\n"
+		"position_age_ms=%.1f\nposition_age_avg_ms=%.1f\nposition_age_p95_ms=%.1f\nposition_age_p99_ms=%.1f\nposition_age_max_ms=%.1f\n"
+		"bones_age_ms=%.1f\nbones_age_avg_ms=%.1f\nbones_age_p95_ms=%.1f\nbones_age_p99_ms=%.1f\nbones_age_max_ms=%.1f\n"
+		"camera_position_delta_ms=%.1f\ncamera_position_delta_p95_ms=%.1f\ncamera_position_delta_p99_ms=%.1f\ncamera_position_delta_max_ms=%.1f\n"
+		"prediction_ms=%.1f\nprediction_p95_ms=%.1f\nprediction_p99_ms=%.1f\nprediction_max_ms=%.1f\n"
+		"cached_bones_used=%llu\ncached_bones_age_max_ms=%.1f\n"
         "bones_players=%d\nbones_p95_ms=%.2f\nbones_p99_ms=%.2f\nbones_max_ms=%.2f\n"
         "render_avg_ms=%.2f\nrender_p95_ms=%.2f\nrender_max_ms=%.2f\n\n"
         "suppressed_spikes_20=%llu\nsuppressed_spikes_50=%llu\nsuppressed_spikes_100=%llu",
@@ -219,6 +225,15 @@ void WritePerf(std::string_view tag, Sample& s) {
         static_cast<unsigned long long>(s.recent_player_reinsertions.load()),
         static_cast<unsigned long long>(s.last_good_age_ms.load()),
         s.motion_age_ms.load(),
+		s.position_age_ms.load(), s.position_age_avg_ms.load(), s.position_age_p95_ms.load(),
+		s.position_age_p99_ms.load(), s.position_age_max_ms.load(),
+		s.bones_age_ms.load(), s.bones_age_avg_ms.load(), s.bones_age_p95_ms.load(),
+		s.bones_age_p99_ms.load(), s.bones_age_max_ms.load(),
+		s.camera_position_delta_ms.load(), s.camera_position_delta_p95_ms.load(),
+		s.camera_position_delta_p99_ms.load(), s.camera_position_delta_max_ms.load(),
+		s.prediction_ms.load(), s.prediction_p95_ms.load(), s.prediction_p99_ms.load(),
+		s.prediction_max_ms.load(),
+		static_cast<unsigned long long>(s.cached_bones_used.load()), s.cached_bones_age_max_ms.load(),
         s.bones_players.load(),
         s.bones_p95_ms.load(),
         s.bones_p99_ms.load(),
@@ -368,6 +383,44 @@ void ObserveBones(Sample& s, float bones_ms) noexcept {
     s.bones_p95_ms.store(st.p95, std::memory_order_relaxed);
     s.bones_p99_ms.store(st.p99, std::memory_order_relaxed);
     s.bones_max_ms.store(st.max, std::memory_order_relaxed);
+}
+
+void ObservePresentationTiming(Sample& s, float positionAgeMs, float bonesAgeMs,
+    float cameraPositionDeltaMs, float predictionMs) noexcept {
+    if (&s != &g_cs2) return;
+    auto publish = [](Ring& ring, float value, std::atomic<float>& last,
+                      std::atomic<float>& avg, std::atomic<float>& p95,
+                      std::atomic<float>& p99, std::atomic<float>& max) {
+        if (!std::isfinite(value) || value < 0.f) return;
+        ring.Push(value);
+        const auto st = ring.Stats();
+        last.store(value, std::memory_order_relaxed);
+        avg.store(st.avg, std::memory_order_relaxed);
+        p95.store(st.p95, std::memory_order_relaxed);
+        p99.store(st.p99, std::memory_order_relaxed);
+        max.store(st.max, std::memory_order_relaxed);
+    };
+    publish(g_positionAgeC, positionAgeMs, s.position_age_ms, s.position_age_avg_ms,
+        s.position_age_p95_ms, s.position_age_p99_ms, s.position_age_max_ms);
+    publish(g_bonesAgeC, bonesAgeMs, s.bones_age_ms, s.bones_age_avg_ms,
+        s.bones_age_p95_ms, s.bones_age_p99_ms, s.bones_age_max_ms);
+    // Camera delta and prediction do not currently need an average in the log.
+    auto publishTail = [](Ring& ring, float value, std::atomic<float>& last,
+                          std::atomic<float>& p95, std::atomic<float>& p99,
+                          std::atomic<float>& max) {
+        if (!std::isfinite(value) || value < 0.f) return;
+        ring.Push(value);
+        const auto st = ring.Stats();
+        last.store(value, std::memory_order_relaxed);
+        p95.store(st.p95, std::memory_order_relaxed);
+        p99.store(st.p99, std::memory_order_relaxed);
+        max.store(st.max, std::memory_order_relaxed);
+    };
+    publishTail(g_cameraPositionDeltaC, cameraPositionDeltaMs, s.camera_position_delta_ms,
+        s.camera_position_delta_p95_ms, s.camera_position_delta_p99_ms,
+        s.camera_position_delta_max_ms);
+    publishTail(g_predictionC, predictionMs, s.prediction_ms, s.prediction_p95_ms,
+        s.prediction_p99_ms, s.prediction_max_ms);
 }
 
 void ObserveSchedulerWait(Sample& s, float wait_ms) noexcept {

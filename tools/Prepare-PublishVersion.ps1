@@ -23,10 +23,34 @@ if ([string]$config.repository -notmatch '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$') {
 }
 Write-Host "[OmniGhost Version] Versão de origem: $version; tag esperada: v$version."
 if (-not $ValidateOnly) {
+	# Publish is the explicit approval point for local source changes. Capture
+	# only already tracked files before metadata/reproducibility checks so a
+	# normal edit never leaves the pipeline failing merely because it was not
+	# committed manually. New/untracked files stay deliberately out of release.
+	$git = Get-Command git -ErrorAction Stop
+	$status = @(& $git.Source -C $ProjectDir status --porcelain --untracked-files=normal --ignore-submodules)
+	if ($LASTEXITCODE -ne 0) { throw 'Não foi possível consultar o estado Git antes da Publish.' }
+	$untracked = @($status | Where-Object { ([string]$_).StartsWith('?? ') })
+	if ($untracked.Count -gt 0) {
+		throw ("Existem ficheiros novos não rastreados; reveja-os antes de Publish:`n        " + ($untracked -join "`n        "))
+	}
+	$trackedChanges = @($status | Where-Object { -not ([string]$_).StartsWith('?? ') })
+	if ($trackedChanges.Count -gt 0) {
+		& $git.Source -C $ProjectDir add -u -- .
+		if ($LASTEXITCODE -ne 0) { throw 'Não foi possível preparar as alterações rastreadas para Publish.' }
+		$identityArgs = @()
+		$userName = ([string](& $git.Source -C $ProjectDir config user.name 2>$null)).Trim()
+		$userEmail = ([string](& $git.Source -C $ProjectDir config user.email 2>$null)).Trim()
+		if ([string]::IsNullOrWhiteSpace($userName)) { $identityArgs += @('-c', 'user.name=OmniGhost Publish') }
+		if ([string]::IsNullOrWhiteSpace($userEmail)) { $identityArgs += @('-c', 'user.email=publish@omnighost.local') }
+		& $git.Source -C $ProjectDir @identityArgs commit -m "chore(publish): capture tracked source changes"
+		if ($LASTEXITCODE -ne 0) { throw 'Não foi possível guardar automaticamente as alterações rastreadas para Publish.' }
+		Write-Host '[OmniGhost Publish] Alterações rastreadas guardadas automaticamente num commit local.'
+	}
+
 	& (Join-Path $PSScriptRoot 'Finalize-VersionCommit.ps1') -ProjectDir $ProjectDir
 	if ($LASTEXITCODE -ne 0) { throw 'Não foi possível finalizar o incremento automático da versão.' }
 
-	$git = Get-Command git -ErrorAction Stop
 	$maximumAdvances = 100
 	for ($advance = 0; $advance -lt $maximumAdvances; $advance++) {
 		$currentVersion = [IO.File]::ReadAllText($versionPath).Trim()

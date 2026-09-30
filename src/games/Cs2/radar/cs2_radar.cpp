@@ -25,6 +25,7 @@
 #pragma comment(lib, "iphlpapi.lib")
 
 namespace CS2::WebRadar {
+std::string BuildLiveJson(const Runtime& rt);
 namespace {
 
 namespace fs = std::filesystem;
@@ -39,6 +40,9 @@ std::string g_public_url;
 std::string g_cloudflare_status;
 std::string g_web_root;
 std::string g_live_json = "{\"m_map\":\"unknown\",\"m_round_phase\":\"warmup\",\"m_players\":[],\"m_bomb\":null}";
+Runtime g_pending_runtime{};
+bool g_pending_runtime_valid = false;
+ULONGLONG g_next_json_refresh = 0;
 std::thread g_server_thread;
 HANDLE g_cf_proc = nullptr;
 std::thread g_cf_reader;
@@ -360,6 +364,26 @@ void HandleClient(SOCKET client) {
 
 void ServerLoop() {
     while (g_running.load()) {
+        const ULONGLONG now = GetTickCount64();
+        if (now >= g_next_json_refresh) {
+            Runtime snapshot{};
+            bool haveSnapshot = false;
+            {
+                std::lock_guard<std::mutex> lock(g_mu);
+                if (g_pending_runtime_valid) {
+                    snapshot = g_pending_runtime;
+                    haveSnapshot = true;
+                }
+            }
+            if (haveSnapshot) {
+                std::string json = BuildLiveJson(snapshot);
+                std::lock_guard<std::mutex> lock(g_mu);
+                g_live_json = std::move(json);
+                g_next_json_refresh = now + (snapshot.in_match ? 33u : 500u);
+            } else {
+                g_next_json_refresh = now + 100u;
+            }
+        }
         SOCKET listenSock = INVALID_SOCKET;
         {
             std::lock_guard<std::mutex> lock(g_mu);
@@ -416,9 +440,8 @@ std::wstring FindCloudflared() {
 
 } // namespace
 
-std::string BuildLiveJson() {
+std::string BuildLiveJson(const Runtime& rt) {
     std::ostringstream ss;
-    const auto& rt = CS2::runtime;
     std::string map = rt.map_name[0] ? rt.map_name : "unknown";
     // Strip path / extension
     {
@@ -471,6 +494,13 @@ std::string BuildLiveJson() {
     return ss.str();
 }
 
+std::string BuildLiveJson() {
+    std::lock_guard<std::mutex> lock(g_mu);
+    if (!g_pending_runtime_valid)
+        return "{\"m_map\":\"unknown\",\"m_observed_idx\":-1,\"m_round_phase\":\"warmup\",\"m_players\":[],\"m_bomb\":null}";
+    return BuildLiveJson(g_pending_runtime);
+}
+
 bool Start(int port) {
     if (g_running.load()) {
         if (port == g_port) return true;
@@ -513,6 +543,8 @@ bool Start(int port) {
         g_web_root = ResolveWebRoot();
         g_public_url.clear();
         g_cloudflare_status.clear();
+        g_pending_runtime_valid = false;
+        g_next_json_refresh = 0;
     }
     g_running.store(true);
     g_server_thread = std::thread(ServerLoop);
@@ -539,28 +571,28 @@ void Stop() {
     }
     if (g_server_thread.joinable())
         g_server_thread.join();
+    {
+        std::lock_guard<std::mutex> lock(g_mu);
+        g_pending_runtime_valid = false;
+        g_next_json_refresh = 0;
+    }
     StopCloudflare();
 }
 
 bool IsRunning() noexcept { return g_running.load(); }
 int Port() noexcept { return g_port; }
 
-void Tick() {
+void SubmitSnapshot(const Runtime& snapshot) {
     if (!g_running.load()) return;
     static ULONGLONG nextSnapshot = 0;
     const ULONGLONG now = GetTickCount64();
     if (now < nextSnapshot) return;
-    nextSnapshot = now + (CS2::runtime.in_match ? 33 : 500);
-
-    std::string snapshot;
-    if (CS2::runtime.in_match) {
-        snapshot = BuildLiveJson();
-    } else {
-        snapshot = "{\"m_map\":\"unknown\",\"m_observed_idx\":-1,"
-                   "\"m_round_phase\":\"warmup\",\"m_players\":[],\"m_bomb\":null}";
-    }
+    nextSnapshot = now + (snapshot.in_match ? 33 : 500);
+    // Only copy the immutable acquisition state here. JSON formatting and its
+    // allocations run in ServerLoop, never in the DMA acquisition thread.
     std::lock_guard<std::mutex> lock(g_mu);
-    g_live_json = std::move(snapshot);
+    g_pending_runtime = snapshot;
+    g_pending_runtime_valid = true;
 }
 
 std::string LocalIp() { return DetectLanIp(); }

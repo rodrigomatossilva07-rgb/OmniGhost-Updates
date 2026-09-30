@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cctype>
 #include <mutex>
+#include <utility>
 namespace CS2::Trajectory {
 namespace { std::string Normalize(const char* text) { std::string value=text?text:""; const auto slash=value.find_last_of("/\\"); if(slash!=std::string::npos)value.erase(0,slash+1); const auto dot=value.find('.'); if(dot!=std::string::npos)value.erase(dot); std::transform(value.begin(),value.end(),value.begin(),[](unsigned char c){return static_cast<char>(std::tolower(c));}); return value; } }
 bool MapCollisionCache::LoadForMap(const char* mapName) {
@@ -18,7 +19,7 @@ bool MapCollisionCache::LoadForMap(const char* mapName) {
         std::unique_lock write_lock(mutex); error = bytes ? loaded.error : "Colisão do mapa não está embutida no executável"; return false;
     }
     auto built = std::make_shared<CollisionBvh>();
-    if(!built->Build(loaded)){std::unique_lock write_lock(mutex);error="Não foi possível construir BVH";return false;}
+    if(!built->Build(std::move(loaded))){std::unique_lock write_lock(mutex);error="Não foi possível construir BVH";return false;}
     std::unique_lock write_lock(mutex);
     // CollisionBvh owns its compact copy of the triangles. Do not retain a
     // second complete mesh after construction; large maps otherwise cost

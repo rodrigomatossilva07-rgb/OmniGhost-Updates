@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstring>
 #include <deque>
 #include <cstdio>
 #include <functional>
@@ -133,7 +134,8 @@ void DrawOutlinedText(ImDrawList* draw, ImVec2 pos, ImU32 color, const char* tex
 }
 
 void DrawExtras(ImDrawList* draw, const CS2::Player& player, const ImVec2& head, const ImVec2& feet,
-                const ImVec2& min, const ImVec2& max, const CS2::Config& settings, ImU32 rgb) {
+                const ImVec2& min, const ImVec2& max, const float* viewMatrix,
+                const float predictedPosition[3], const CS2::Config& settings, ImU32 rgb) {
     const float height = max.y - min.y;
     const float scale = std::clamp(height / 180.f, .45f, 2.2f);
     if (settings.snaplines) {
@@ -187,23 +189,36 @@ void DrawExtras(ImDrawList* draw, const CS2::Player& player, const ImVec2& head,
     }
     if (settings.look_direction) {
         const float angle = player.view_yaw * 0.0174532925f;
-        const float length = std::clamp(settings.look_direction_length, 20.f, 180.f) * scale;
-        const ImVec2 end(head.x + std::cos(angle) * length, head.y + std::sin(angle) * length);
-        draw->AddLine(head, end, EffectColor(settings, settings.col_look, rgb), std::clamp(settings.eye_line_thickness, .5f, 5.f));
+        const float length = std::clamp(settings.look_direction_length, 20.f, 180.f);
+        const float endWorld[3] = { predictedPosition[0] + std::cos(angle) * length,
+                                    predictedPosition[1] + std::sin(angle) * length,
+                                    predictedPosition[2] + 64.f };
+        ImVec2 end{};
+        if (WorldToScreen(endWorld, viewMatrix, end))
+            draw->AddLine(head, end, EffectColor(settings, settings.col_look, rgb),
+                          std::clamp(settings.eye_line_thickness, .5f, 5.f));
     }
     if (settings.trails) {
-        struct Point { ImVec2 pos; double time; };
+        struct Point { float world[3]{}; double time = 0.; };
         static std::unordered_map<uintptr_t, std::deque<Point>> history;
         auto& points = history[player.pawn];
         const double now = ImGui::GetTime();
-        if (points.empty() || now - points.back().time > .04) points.push_back({feet, now});
+        if (points.empty() || now - points.back().time > .04) {
+            Point point{};
+            std::memcpy(point.world, predictedPosition, sizeof(point.world));
+            point.time = now;
+            points.push_back(point);
+        }
         const double duration = std::clamp(static_cast<double>(settings.trail_duration), .2, 2.5);
         while (!points.empty() && now - points.front().time > duration) points.pop_front();
         for (size_t i = 1; i < points.size(); ++i) {
             const float fade = static_cast<float>(1.0 - (now - points[i].time) / duration);
             ImU32 color = EffectColor(settings, settings.col_trail, rgb);
             color = (color & 0x00FFFFFFu) | (static_cast<ImU32>(std::clamp(fade, 0.f, 1.f) * 220.f) << 24);
-            draw->AddLine(points[i - 1].pos, points[i].pos, color, std::clamp(settings.trail_thickness, 1.f, 7.f));
+            ImVec2 from{}, to{};
+            if (WorldToScreen(points[i - 1].world, viewMatrix, from) &&
+                WorldToScreen(points[i].world, viewMatrix, to))
+                draw->AddLine(from, to, color, std::clamp(settings.trail_thickness, 1.f, 7.f));
         }
     }
 }
@@ -230,13 +245,13 @@ void DrawFootprint(ImDrawList* draw, const ImVec2& center, float angle, float sc
     ellipse(offset(0.f, 6.6f * scale), 3.3f * scale, 4.5f * scale);
 }
 
-void DrawFootstepEsp(ImDrawList* draw, const CS2::Player& player, const ImVec2& feet,
-                     const CS2::Config& settings, ImU32 /*rgb*/) {
+void DrawFootstepEsp(ImDrawList* draw, const CS2::Player& player, const float position[3],
+                     const float* viewMatrix, const CS2::Config& settings, ImU32 /*rgb*/) {
     if (!settings.footstep_esp || !player.pawn) return;
 
     struct Step {
         uint64_t began_ms = 0;
-        ImVec2 position{};
+        float position[3]{};
         bool left = false;
     };
     struct FootprintHistory {
@@ -255,7 +270,11 @@ void DrawFootstepEsp(ImDrawList* draw, const CS2::Player& player, const ImVec2& 
     if (player.is_moving && (now - history.last_step_ms >= 245)) {
         history.last_step_ms = now;
         history.next_left = !history.next_left;
-        history.steps.push_back({now, feet, history.next_left});
+        Step step{};
+        step.began_ms = now;
+        std::memcpy(step.position, position, sizeof(step.position));
+        step.left = history.next_left;
+        history.steps.push_back(step);
     }
 
     constexpr float kLifetimeMs = 1000.f;
@@ -265,8 +284,10 @@ void DrawFootstepEsp(ImDrawList* draw, const CS2::Player& player, const ImVec2& 
         const float age = static_cast<float>(now - step.began_ms) / kLifetimeMs;
         const float fade = (1.f - age) * (1.f - age); // smooth one-second fade
         const ImU32 gold = IM_COL32(218, 165, 32, static_cast<int>(fade * 238.f));
+        ImVec2 projected{};
+        if (!WorldToScreen(step.position, viewMatrix, projected)) continue;
         const float angle = player.view_yaw * 0.0174532925f + (step.left ? -.16f : .16f);
-        DrawFootprint(draw, step.position, angle, 1.f + age * .10f, gold);
+        DrawFootprint(draw, projected, angle, 1.f + age * .10f, gold);
     }
 
     if (footprints.size() > 64) {
@@ -409,15 +430,9 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
     const bool useVisibilityColors = settings.visibility_colors;
     const float maxDistance = settings.max_distance;
     const ImU32 rgbColor = settings.rgb_mode ? RgbColor() : 0;
-    // The entity snapshot is intentionally lower-rate and coherent. The view
-    // matrix has its own fast lane, so use its newest published value here to
-    // keep ESP attached while the local player turns the camera.
-    const auto camera = AcquireCameraSnapshot();
-    const float* viewMatrix = camera && camera->timestamp_ms
-        ? camera->view_matrix : snapshot.view_matrix;
     const auto liveness = AcquireLivenessSnapshot();
     const auto diedSinceSnapshot = [&](uintptr_t pawn) {
-        if (!liveness || liveness->timestamp_ms <= snapshot.snapshot_timestamp_ms || !pawn)
+        if (!liveness || !pawn)
             return false;
         for (uint32_t index = 0; index < liveness->count; ++index) {
             const LivenessSample& sample = liveness->players[index];
@@ -427,9 +442,6 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
         return false;
     };
     const uint64_t nowMs = GetTickCount64();
-    const uint64_t snapshotAgeMs = snapshot.snapshot_timestamp_ms && nowMs >= snapshot.snapshot_timestamp_ms
-        ? (std::min)(nowMs - snapshot.snapshot_timestamp_ms, uint64_t{28}) : 0;
-    const float predictionSeconds = static_cast<float>(snapshotAgeMs) / 1000.f;
     for (const Player& player : snapshot.players) {
         if (!player.alive || player.is_local) continue;
         if (diedSinceSnapshot(player.pawn)) {
@@ -443,6 +455,29 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
         if (!std::isfinite(player.distance) || (maxDistance > 0.f && player.distance > maxDistance)) continue;
         if (!std::isfinite(player.pos[0]) || !std::isfinite(player.pos[1]) || !std::isfinite(player.pos[2])) continue;
 
+        const uint64_t positionSampleMs = player.position_sample_ms
+            ? player.position_sample_ms : snapshot.snapshot_timestamp_ms;
+        const uint64_t positionAgeMs = positionSampleMs && nowMs >= positionSampleMs
+            ? (std::min)(nowMs - positionSampleMs, uint64_t{20}) : 0;
+        const float predictionSeconds = static_cast<float>(positionAgeMs) / 1000.f;
+        const CameraSnapshot camera = SelectCameraSnapshot(positionSampleMs);
+        const float* viewMatrix = camera.timestamp_ms ? camera.view_matrix : snapshot.view_matrix;
+        const uint64_t cameraDelta = camera.timestamp_ms > positionSampleMs
+            ? camera.timestamp_ms - positionSampleMs : positionSampleMs - camera.timestamp_ms;
+        float bonesAge = 0.f;
+        if (player.bones_sample_ms && nowMs >= player.bones_sample_ms) {
+            bonesAge = static_cast<float>(nowMs - player.bones_sample_ms);
+            auto& timing = OmniGhost::Gameplay::DmaTelemetry::CS2();
+            if (player.bones_sample_ms < player.position_sample_ms) {
+                timing.cached_bones_used.fetch_add(1, std::memory_order_relaxed);
+                float oldMax = timing.cached_bones_age_max_ms.load(std::memory_order_relaxed);
+                while (bonesAge > oldMax && !timing.cached_bones_age_max_ms.compare_exchange_weak(
+                    oldMax, bonesAge, std::memory_order_relaxed)) {}
+            }
+        }
+        OmniGhost::Gameplay::DmaTelemetry::ObservePresentationTiming(
+            OmniGhost::Gameplay::DmaTelemetry::CS2(), static_cast<float>(positionAgeMs), bonesAge,
+            static_cast<float>(cameraDelta), static_cast<float>(positionAgeMs));
         const float positionOffset[3] = {
             std::isfinite(player.velocity[0]) ? player.velocity[0] * predictionSeconds : 0.f,
             std::isfinite(player.velocity[1]) ? player.velocity[1] * predictionSeconds : 0.f,
@@ -454,6 +489,12 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
         ImVec2 feet{}, head{};
         if (!WorldToScreen(predictedPosition, viewMatrix, feet)) continue;
         float headWorld[3] = { predictedPosition[0], predictedPosition[1], predictedPosition[2] + 72.f };
+        if (player.bones_ok && player.bones_sample_ms && nowMs >= player.bones_sample_ms &&
+            nowMs - player.bones_sample_ms <= 90u) {
+            headWorld[0] = player.bones[static_cast<size_t>(BoneSlot::Head)][0] + positionOffset[0];
+            headWorld[1] = player.bones[static_cast<size_t>(BoneSlot::Head)][1] + positionOffset[1];
+            headWorld[2] = player.bones[static_cast<size_t>(BoneSlot::Head)][2] + positionOffset[2];
+        }
         if (!WorldToScreen(headWorld, viewMatrix, head)) continue;
 
         const float height = feet.y - head.y;
@@ -503,11 +544,13 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
         }
         if (settings.health_value) { char hp[16]{}; std::snprintf(hp, sizeof(hp), "%d", player.health); DrawOutlinedText(draw, ImVec2(min.x - 25.f, min.y), Color(settings.col_health), hp, settings); }
         if (settings.armor_value && player.armor > 0) { char ap[16]{}; std::snprintf(ap, sizeof(ap), "%d", player.armor); DrawOutlinedText(draw, ImVec2(max.x + 8.f, min.y), Color(settings.col_armor), ap, settings); }
-        DrawExtras(draw, player, head, feet, min, max, settings, rgbColor);
-        DrawFootstepEsp(draw, player, feet, settings, rgbColor);
+        DrawExtras(draw, player, head, feet, min, max, viewMatrix, predictedPosition, settings, rgbColor);
+        DrawFootstepEsp(draw, player, predictedPosition, viewMatrix, settings, rgbColor);
         DrawPlayerFlags(draw, player, min, settings, rgbColor);
     }
-    DrawDroppedWeapons(draw, snapshot, settings, viewMatrix);
+    const auto newestCamera = AcquireCameraSnapshot();
+    DrawDroppedWeapons(draw, snapshot, settings,
+        newestCamera && newestCamera->timestamp_ms ? newestCamera->view_matrix : snapshot.view_matrix);
 }
 
 } // namespace CS2::ESP

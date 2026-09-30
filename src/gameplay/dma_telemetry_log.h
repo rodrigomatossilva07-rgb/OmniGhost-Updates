@@ -58,6 +58,26 @@ struct Sample {
     std::atomic<float> death_to_hide_ms{0.f};
     std::atomic<std::uint64_t> recent_player_reinsertions{0};
     std::atomic<std::uint64_t> last_good_age_ms{0};
+    std::atomic<float> position_age_ms{0.f};
+    std::atomic<float> position_age_avg_ms{0.f};
+    std::atomic<float> position_age_p95_ms{0.f};
+    std::atomic<float> position_age_p99_ms{0.f};
+    std::atomic<float> position_age_max_ms{0.f};
+    std::atomic<float> bones_age_ms{0.f};
+    std::atomic<float> bones_age_avg_ms{0.f};
+    std::atomic<float> bones_age_p95_ms{0.f};
+    std::atomic<float> bones_age_p99_ms{0.f};
+    std::atomic<float> bones_age_max_ms{0.f};
+    std::atomic<float> camera_position_delta_ms{0.f};
+    std::atomic<float> camera_position_delta_p95_ms{0.f};
+    std::atomic<float> camera_position_delta_p99_ms{0.f};
+    std::atomic<float> camera_position_delta_max_ms{0.f};
+    std::atomic<float> prediction_ms{0.f};
+    std::atomic<float> prediction_p95_ms{0.f};
+    std::atomic<float> prediction_p99_ms{0.f};
+    std::atomic<float> prediction_max_ms{0.f};
+    std::atomic<std::uint64_t> cached_bones_used{0};
+    std::atomic<float> cached_bones_age_max_ms{0.f};
     std::atomic<float> motion_age_ms{0.f};
     std::atomic<float> state_age_ms{0.f};
     std::atomic<float> target_lane_age_ms{0.f};
@@ -100,6 +120,10 @@ void ObserveRender(Sample& s, float ms) noexcept;
 void ObserveCameraAge(Sample& s, float age_ms) noexcept;
 void ObserveCameraRead(Sample& s, float read_ms) noexcept;
 void ObserveBones(Sample& s, float bones_ms) noexcept;
+// Presentation timing is sampled by the renderer for every player it draws.
+// These windows make temporal skew visible instead of relying on one last value.
+void ObservePresentationTiming(Sample& s, float position_age_ms, float bones_age_ms,
+    float camera_position_delta_ms, float prediction_ms) noexcept;
 void ObserveSchedulerWait(Sample& s, float wait_ms) noexcept;
 
 // Pull Memory diagnostics into rates (reads_s / scatter_s / vmm_*).

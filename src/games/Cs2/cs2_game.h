@@ -109,6 +109,10 @@ struct Player {
     bool is_spectator = false;
     float pos[3]{};
     float velocity[3]{};
+    // Acquisition timestamps, not publish timestamps. Presentation uses these
+    // to keep prediction and camera selection tied to the same world sample.
+    uint64_t position_sample_ms = 0;
+    uint64_t bones_sample_ms = 0;
     float view_yaw = 0.f;
     float head[3]{};
     char name[64]{};
@@ -229,19 +233,6 @@ struct LivenessSnapshot {
 };
 using LivenessSnapshotLease = OmniGhost::Gameplay::SnapshotExchange<LivenessSnapshot>::ReadLease;
 
-// Lightweight motion lane used only to keep the visual anchored between full
-// entity/bone scans.  Fixed storage avoids allocations in the fast thread.
-struct MotionSample {
-    uintptr_t pawn = 0;
-    float pos[3]{};
-};
-struct MotionSnapshot {
-    std::array<MotionSample, 64> players{};
-    uint32_t count = 0;
-    uint64_t timestamp_ms = 0;
-};
-using MotionSnapshotLease = OmniGhost::Gameplay::SnapshotExchange<MotionSnapshot>::ReadLease;
-
 extern Offsets offsets;
 extern Config config;
 extern Runtime runtime;
@@ -260,8 +251,8 @@ void StopAcquisition();
 void SubmitAcquisitionConfig(const Config& next) noexcept;
 [[nodiscard]] RuntimeSnapshotLease AcquireRuntimeSnapshot();
 [[nodiscard]] CameraSnapshotLease AcquireCameraSnapshot();
+[[nodiscard]] CameraSnapshot SelectCameraSnapshot(uint64_t world_sample_ms);
 [[nodiscard]] LivenessSnapshotLease AcquireLivenessSnapshot();
-[[nodiscard]] MotionSnapshotLease AcquireMotionSnapshot();
 [[nodiscard]] bool AcquisitionRunning() noexcept;
 // 0 normal, 1 reduced optional work, 2 cached metadata, 3 recovery.
 [[nodiscard]] int DmaPressureLevel() noexcept;

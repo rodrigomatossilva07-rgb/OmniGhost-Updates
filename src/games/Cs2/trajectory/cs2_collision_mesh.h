@@ -14,7 +14,7 @@ bool LoadTriBytes(const std::uint8_t* bytes, std::size_t size,
 struct RayHit { bool hit{}; float fraction{1.f}; Vec3 position{}; Vec3 normal{}; };
 class CollisionBvh {
 public:
-    bool Build(const CollisionMesh& mesh);
+    bool Build(CollisionMesh&& mesh);
     RayHit TraceRay(Vec3 from, Vec3 to) const;
     [[nodiscard]] bool Ready() const noexcept { return !nodes.empty(); }
 private:
