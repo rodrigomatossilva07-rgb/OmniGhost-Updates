@@ -168,6 +168,16 @@ foreach ($item in $items) {
     $source = [IO.Path]::GetFullPath((Join-Path $ProjectDir ([string]$item.source)))
     if (-not $source.StartsWith($ProjectDir, [StringComparison]::OrdinalIgnoreCase) -or -not (Test-Path -LiteralPath $source -PathType Leaf)) { throw "Invalid or missing source: $source" }
     $raw = [IO.File]::ReadAllBytes($source)
+    # Git worktrees may materialize web text with different line endings.
+    # Embed canonical UTF-8/LF bytes so independent Publish builds have
+    # identical resource payloads regardless of checkout settings.
+    $textExtensions = @('.js', '.css', '.html', '.svg', '.json', '.txt', '.xml')
+    if ([IO.Path]::GetExtension($source).ToLowerInvariant() -in $textExtensions) {
+        $utf8Strict = New-Object Text.UTF8Encoding($false, $true)
+        $text = $utf8Strict.GetString($raw)
+        $text = $text.Replace("`r`n", "`n").Replace("`r", "`n")
+        $raw = $utf8Strict.GetBytes($text)
+    }
     # Blob lengths and Windows PE resources are uint32-based.  The former 64 MiB
     # policy was artificial and rejected several valid CS2 collision meshes.
     if ($raw.Length -eq 0) { throw "Invalid resource size: $logical" }
