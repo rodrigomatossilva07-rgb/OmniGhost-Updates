@@ -14,6 +14,7 @@ publish/
 third_party/upstream/
 
 # Compiler and diagnostic output
+*.zip
 *.obj
 *.pdb
 *.ilk
