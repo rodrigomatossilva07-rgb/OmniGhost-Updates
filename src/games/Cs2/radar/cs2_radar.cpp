@@ -486,7 +486,7 @@ std::string BuildLiveJson(const RadarSnapshot& rt) {
            << "\"m_health\":" << p.health << ','
            << "\"m_armor\":" << p.armor << ','
            << "\"m_is_local\":" << (p.is_local ? "true" : "false") << ','
-           << "\"m_flashed\":" << (p.is_flashed ? "true" : "false") << ','
+           << "\"m_flashed\":" << (p.flashed ? "true" : "false") << ','
            << "\"m_has_bomb\":false,"
            << "\"m_color\":" << (p.team == 3 ? 1 : 0) << ','
            << "\"m_eye_angle\":" << p.view_yaw << ','

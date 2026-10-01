@@ -125,8 +125,6 @@ std::thread g_acquisition_thread;
 std::thread g_camera_thread;
 OmniGhost::Gameplay::PipelineTelemetry g_pipeline_metrics;
 
-void ResetSessionState(const char* reason);
-
 struct VisibilityTarget {
     uintptr_t pawn = 0;
     std::array<Trajectory::Vec3, 4> points{};
