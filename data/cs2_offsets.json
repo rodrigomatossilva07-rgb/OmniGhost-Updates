@@ -1,31 +1,31 @@
 {
   "schema_version": 1,
   "game": "cs2",
-  "build": "cs2-dumper-14186",
-  "cl": "14186",
+  "build": "cs2-dumper-14188",
+  "cl": "14188",
   "module": "client.dll",
-  "source": "a2x/cs2-dumper output.zip supplied 2026-09-29",
-  "generated_at": "2026-09-29T14:54:52Z",
+  "source": "a2x/cs2-dumper output.zip supplied 2026-10-01",
+  "generated_at": "2026-10-01T21:07:18Z",
   "client.dll": {
-    "dwCSGOInput": "0x2575BB0",
-    "dwEntityList": "0x27151E8",
-    "dwGameEntitySystem": "0x27151E8",
+    "dwCSGOInput": "0x2576160",
+    "dwEntityList": "0x2715828",
+    "dwGameEntitySystem": "0x2715828",
     "dwGameEntitySystem_highestEntityIndex": "0x2120",
-    "dwGameRules": "0x255C8D8",
-    "dwGlobalVars": "0x222BF88",
-    "dwGlowManager": "0x255C8F0",
-    "dwLocalPlayerController": "0x2537628",
-    "dwLocalPlayerPawn": "0x25606D8",
-    "dwPlantedC4": "0x24C9290",
-    "dwPrediction": "0x25605E0",
-    "dwViewAngles": "0x2576238",
-    "dwViewMatrix": "0x2565A20",
-    "dwViewRender": "0x25662E0",
-    "dwWeaponC4": "0x24C4550"
+    "dwGameRules": "0x255CE50",
+    "dwGlobalVars": "0x222BE98",
+    "dwGlowManager": "0x255CE60",
+    "dwLocalPlayerController": "0x2538008",
+    "dwLocalPlayerPawn": "0x2560698",
+    "dwPlantedC4": "0x24C88D0",
+    "dwPrediction": "0x25605A0",
+    "dwViewAngles": "0x25767E8",
+    "dwViewMatrix": "0x2566910",
+    "dwViewRender": "0x2565D20",
+    "dwWeaponC4": "0x24C4A90"
   },
   "engine2.dll": {
-    "dwBuildNumber": "0x61D1E8",
-    "dwNetworkGameClient": "0x91B1C0",
+    "dwBuildNumber": "0x61CFE8",
+    "dwNetworkGameClient": "0x91AFC0",
     "dwNetworkGameClient_clientTickCount": "0x398",
     "dwNetworkGameClient_deltaTick": "0x24C",
     "dwNetworkGameClient_isBackgroundMap": "0x2C143F",
@@ -33,8 +33,8 @@
     "dwNetworkGameClient_maxClients": "0x240",
     "dwNetworkGameClient_serverTickCount": "0x24C",
     "dwNetworkGameClient_signOnState": "0x230",
-    "dwWindowHeight": "0x91F544",
-    "dwWindowWidth": "0x91F540"
+    "dwWindowHeight": "0x91F334",
+    "dwWindowWidth": "0x91F330"
   },
   "inputsystem.dll": {
     "dwInputSystem": "0x46BC0"
@@ -43,7 +43,7 @@
     "dwGameTypes": "0x1B0FD0"
   },
   "soundsystem.dll": {
-    "dwSoundSystem": "0x535340"
+    "dwSoundSystem": "0x535350"
   },
   "schemas": {
     "C_BaseEntity": {
