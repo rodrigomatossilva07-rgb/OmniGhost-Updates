@@ -9,7 +9,9 @@ bool SaveConfig(const char* name) {
     const std::string requested = (name && *name)
         ? std::string(name)
         : std::string("cs2_default");
-    return config_manager::SaveToFile(requested);
+    const std::string normalized = requested.rfind("cs2_", 0) == 0
+        ? requested : "cs2_" + requested;
+    return config_manager::SaveToFile(normalized);
 }
 
 bool LoadConfig(const char* name) {

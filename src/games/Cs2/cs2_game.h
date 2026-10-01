@@ -113,6 +113,8 @@ struct Player {
     // to keep prediction and camera selection tied to the same world sample.
     uint64_t position_sample_ms = 0;
     uint64_t bones_sample_ms = 0;
+    uint64_t bone_pose_sample_ms = 0;
+    uint64_t bone_origin_sample_ms = 0;
     float view_yaw = 0.f;
     float head[3]{};
     char name[64]{};
@@ -177,6 +179,7 @@ struct Runtime {
     float local_vel[3]{};
     float local_angles[3]{};
     float local_view_yaw = 0.f;
+    int local_weapon_definition = 0;
     bool local_scoped = false;
     bool local_has_defuser = false;
     int local_crosshair_entity = 0;
@@ -200,6 +203,10 @@ struct Runtime {
     uint64_t frames = 0;
     uint64_t read_fails = 0;
     uint64_t snapshot_timestamp_ms = 0;
+    uint64_t session_generation = 0;
+    // Midpoint of the core world acquisition; unlike snapshot_timestamp_ms,
+    // this is not delayed by post-processing or optional lanes.
+    uint64_t world_sample_ms = 0;
     uint64_t snapshot_drops = 0;
     float acquisition_hz = 0.f;
     float acquisition_ms = 0.f;
@@ -225,11 +232,16 @@ using CameraSnapshotLease = OmniGhost::Gameplay::SnapshotExchange<CameraSnapshot
 struct LivenessSample {
     uintptr_t pawn = 0;
     bool alive = false;
+    // A pointer may be recycled. Consumers must never apply a death from an
+    // older session/sample to a newer pawn state.
+    uint64_t sample_ms = 0;
+    uint64_t generation = 0;
 };
 struct LivenessSnapshot {
     std::array<LivenessSample, 64> players{};
     uint32_t count = 0;
     uint64_t timestamp_ms = 0;
+    uint64_t generation = 0;
 };
 using LivenessSnapshotLease = OmniGhost::Gameplay::SnapshotExchange<LivenessSnapshot>::ReadLease;
 

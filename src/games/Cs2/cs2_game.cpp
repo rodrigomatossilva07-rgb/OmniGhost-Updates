@@ -23,6 +23,7 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <condition_variable>
 #include <cctype>
 #include <cmath>
 #include <cstring>
@@ -116,9 +117,108 @@ std::atomic<uint64_t> g_runtime_snapshot_drops{0};
 std::atomic<float> g_acquisition_hz{0.f};
 std::atomic<uint64_t> g_camera_deadline_ms{0};
 std::atomic_bool g_camera_pending{false};
+std::atomic<uint64_t> g_session_generation{1};
+std::mutex g_process_liveness_mutex;
+uint64_t g_process_liveness_next_probe_ms = 0;
+bool g_process_liveness_last_result = true;
 std::thread g_acquisition_thread;
 std::thread g_camera_thread;
 OmniGhost::Gameplay::PipelineTelemetry g_pipeline_metrics;
+
+void ResetSessionState(const char* reason);
+
+struct VisibilityTarget {
+    uintptr_t pawn = 0;
+    std::array<Trajectory::Vec3, 4> points{};
+};
+struct VisibilityResult {
+    uint64_t generation = 0;
+    uint64_t checked_ms = 0;
+    bool known = false;
+    bool visible = false;
+};
+class VisibilityWorker {
+public:
+    ~VisibilityWorker() { Stop(); }
+    void Submit(std::shared_ptr<const Trajectory::CollisionBvh> world,
+                Trajectory::Vec3 origin, std::vector<VisibilityTarget> targets,
+                uint64_t generation) {
+        std::lock_guard lock(mu_);
+        if (!thread_.joinable()) thread_ = std::thread([this] { Run(); });
+        job_ = {std::move(world), origin, std::move(targets), generation};
+        pending_ = true;
+        cv_.notify_one();
+    }
+    VisibilityResult Get(uintptr_t pawn, uint64_t generation) const {
+        std::lock_guard lock(mu_);
+        const auto it = results_.find(pawn);
+        return it != results_.end() && it->second.generation == generation
+            ? it->second : VisibilityResult{};
+    }
+    void Reset() {
+        std::lock_guard lock(mu_);
+        pending_ = false;
+        job_ = {};
+        results_.clear();
+    }
+    void Stop() {
+        {
+            std::lock_guard lock(mu_);
+            stop_ = true;
+            pending_ = false;
+            job_ = {};
+        }
+        cv_.notify_one();
+        if (thread_.joinable()) thread_.join();
+        std::lock_guard lock(mu_);
+        results_.clear();
+        stop_ = false;
+    }
+private:
+    struct Job {
+        std::shared_ptr<const Trajectory::CollisionBvh> world;
+        Trajectory::Vec3 origin{};
+        std::vector<VisibilityTarget> targets;
+        uint64_t generation = 0;
+    };
+    void Run() {
+        for (;;) {
+            Job work;
+            {
+                std::unique_lock lock(mu_);
+                cv_.wait(lock, [this] { return stop_ || pending_; });
+                if (stop_) return;
+                work = std::move(job_);
+                pending_ = false;
+            }
+            const auto begin = std::chrono::steady_clock::now();
+            std::vector<std::pair<uintptr_t, VisibilityResult>> complete;
+            complete.reserve(work.targets.size());
+            for (const auto& target : work.targets) {
+                const auto visible = Visibility::CheckPoints(work.world.get(), work.origin, target.points);
+                complete.push_back({target.pawn, {work.generation, GetTickCount64(),
+                    visible.has_value(), visible.value_or(false)}});
+            }
+            auto& metrics = OmniGhost::Gameplay::DmaTelemetry::CS2();
+            metrics.visibility_ms.store(OmniGhost::Gameplay::TimeMs(begin), std::memory_order_relaxed);
+            metrics.visibility_players_tested.store(static_cast<int>(work.targets.size()), std::memory_order_relaxed);
+            metrics.visibility_rays.store(static_cast<int>(work.targets.size() * 4u), std::memory_order_relaxed);
+            {
+                std::lock_guard lock(mu_);
+                if (!stop_ && work.generation == g_session_generation.load(std::memory_order_acquire))
+                    for (const auto& [pawn, result] : complete) results_[pawn] = result;
+            }
+        }
+    }
+    mutable std::mutex mu_;
+    std::condition_variable cv_;
+    std::thread thread_;
+    bool stop_ = false;
+    bool pending_ = false;
+    Job job_{};
+    std::unordered_map<uintptr_t, VisibilityResult> results_;
+};
+VisibilityWorker g_visibility_worker;
 
 // Optional DMA lanes yield briefly when the non-blocking camera lane is due.
 // This never holds the transport lock and is bounded to three milliseconds.
@@ -144,6 +244,7 @@ void PublishRuntimeSnapshot() {
     if (previous != 0 && now > previous)
         g_acquisition_hz.store(1000.0f / static_cast<float>(now - previous), std::memory_order_relaxed);
     runtime.snapshot_timestamp_ms = now;
+    runtime.session_generation = g_session_generation.load(std::memory_order_acquire);
     runtime.read_fails = g_read_fails.load(std::memory_order_relaxed);
     runtime.acquisition_hz = g_acquisition_hz.load(std::memory_order_relaxed);
     runtime.snapshot_interval_ms = previous && now > previous ? static_cast<float>(now - previous) : 0.f;
@@ -158,12 +259,12 @@ void PublishRuntimeSnapshot() {
     WebRadar::SubmitSnapshot(*slot.value);
 }
 
-void PublishCameraSnapshot(const float* matrix) {
+void PublishCameraSnapshot(const float* matrix, uint64_t sample_ms = 0) {
     if (!matrix) return;
     auto slot = g_camera_snapshots.TryBeginWrite();
     if (!slot) return;
     std::memcpy(slot.value->view_matrix, matrix, sizeof(slot.value->view_matrix));
-    slot.value->timestamp_ms = GetTickCount64();
+    slot.value->timestamp_ms = sample_ms ? sample_ms : GetTickCount64();
     {
         std::scoped_lock lock(g_camera_history_mutex);
         g_camera_history[g_camera_history_next] = *slot.value;
@@ -328,6 +429,7 @@ struct Cs2PhaseTiming {
     float weapon_ms = 0.f;
     float ammo_ms = 0.f;
     float flags_ms = 0.f;
+    float visibility_ms = 0.f;
     float spectator_ms = 0.f;
     float bomb_ms = 0.f;
     float publish_ms = 0.f;
@@ -339,6 +441,8 @@ struct Cs2PhaseTiming {
     int bomb_refresh = 0;
     int cache_cleanup = 0;
     int bones_players = 0;
+    int visibility_players_tested = 0;
+    int visibility_rays = 0;
 };
 static Cs2PhaseTiming g_phase{};
 static std::atomic<int> g_pressure_level{0}; // 0=NORMAL 1=MODERATE 2=HIGH 3=RECOVERY
@@ -393,6 +497,11 @@ void EnsureScatter() {
 void DestroyScatter() {
     g_scatter_full.Reset();
     g_cached_entity_root = 0;
+    {
+        std::scoped_lock lock(g_process_liveness_mutex);
+        g_process_liveness_next_probe_ms = 0;
+        g_process_liveness_last_result = false;
+    }
 }
 
 struct EntityHandleParts {
@@ -1210,6 +1319,32 @@ uint64_t g_entity_list_next_validation_ms = 0;
 uint64_t g_entity_list_next_full_probe_ms = 0;
 bool g_entity_list_force_refresh = true;
 
+// One authoritative reset boundary for detach, shutdown and map changes.
+// Local hot-path caches observe this monotonically increasing generation and
+// clear lazily on their next access, avoiding a stop-the-world map sweep.
+void ResetSessionState(const char* reason) {
+    g_session_generation.fetch_add(1, std::memory_order_acq_rel);
+    g_visibility_worker.Reset();
+    g_pressure_level.store(0, std::memory_order_relaxed);
+    g_camera_deadline_ms.store(0, std::memory_order_relaxed);
+    g_camera_pending.store(false, std::memory_order_relaxed);
+    g_last_snapshot_publish_ms.store(0, std::memory_order_relaxed);
+    g_runtime_snapshot_drops.store(0, std::memory_order_relaxed);
+    g_acquisition_hz.store(0.f, std::memory_order_relaxed);
+    {
+        std::scoped_lock lock(g_camera_history_mutex);
+        g_camera_history = {};
+        g_camera_history_next = 0;
+    }
+    g_pending_entity_list = 0;
+    g_entity_list_confirmations = 0;
+    g_entity_list_next_validation_ms = 0;
+    g_entity_list_next_full_probe_ms = 0;
+    g_entity_list_force_refresh = true;
+    g_cached_entity_root = 0;
+    if (reason) std::cout << "[CS2] Reset de sessao: " << reason << std::endl;
+}
+
 bool IsPlayableTeam(int team) {
     return team == 2 || team == 3;
 }
@@ -1600,54 +1735,73 @@ static void CollectDroppedWeapons(const Config& frame_config) {
     GiveCameraPriorityBeforeOptionalDma();
     mem.ExecuteReadScatter(g_scatter_full);
     mem.SetDmaCallTag("CS2.DroppedWeapons.Entities");
+    bool queuedEntities = false;
     for (size_t page = 0; page < kPages; ++page) if (IsUserPointer(pages[page]))
         for (size_t slot = 0; slot < kSlotsPerPage; ++slot)
-            mem.AddScatterReadRequest(g_scatter_full, pages[page] + kEntityIdentityStride * slot,
-                &entities[page * kSlotsPerPage + slot], sizeof(uintptr_t));
+            { mem.AddScatterReadRequest(g_scatter_full, pages[page] + kEntityIdentityStride * slot,
+                &entities[page * kSlotsPerPage + slot], sizeof(uintptr_t)); queuedEntities = true; }
+    if (!queuedEntities) { runtime.dropped_weapons.clear(); return; }
     GiveCameraPriorityBeforeOptionalDma();
     mem.ExecuteReadScatter(g_scatter_full);
     mem.SetDmaCallTag("CS2.DroppedWeapons.Identity");
+    bool queuedIdentity = false;
     for (size_t i = 0; i < kSlots; ++i) if (IsUserPointer(entities[i]))
-        mem.AddScatterReadRequest(g_scatter_full, entities[i] + 0x10, &identities[i], sizeof(uintptr_t));
+        { mem.AddScatterReadRequest(g_scatter_full, entities[i] + 0x10, &identities[i], sizeof(uintptr_t)); queuedIdentity = true; }
+    if (!queuedIdentity) { runtime.dropped_weapons.clear(); return; }
     GiveCameraPriorityBeforeOptionalDma();
     mem.ExecuteReadScatter(g_scatter_full);
     mem.SetDmaCallTag("CS2.DroppedWeapons.Names");
+    bool queuedNames = false;
     for (size_t i = 0; i < kSlots; ++i) {
         const auto cached = class_cache.find(identities[i]);
         if (cached != class_cache.end()) names[i] = cached->second;
         else if (IsUserPointer(identities[i]))
-            mem.AddScatterReadRequest(g_scatter_full, identities[i] + 0x20, &name_ptrs[i], sizeof(uintptr_t));
+            { mem.AddScatterReadRequest(g_scatter_full, identities[i] + 0x20, &name_ptrs[i], sizeof(uintptr_t)); queuedNames = true; }
     }
-    GiveCameraPriorityBeforeOptionalDma();
-    mem.ExecuteReadScatter(g_scatter_full);
+    if (queuedNames) {
+        GiveCameraPriorityBeforeOptionalDma();
+        mem.ExecuteReadScatter(g_scatter_full);
+    }
     mem.SetDmaCallTag("CS2.DroppedWeapons.NameText");
+    bool queuedNameText = false;
     for (size_t i = 0; i < kSlots; ++i) if (IsUserPointer(name_ptrs[i]))
-        mem.AddScatterReadRequest(g_scatter_full, name_ptrs[i], names[i].data(), names[i].size() - 1);
-    GiveCameraPriorityBeforeOptionalDma();
-    mem.ExecuteReadScatter(g_scatter_full);
+        { mem.AddScatterReadRequest(g_scatter_full, name_ptrs[i], names[i].data(), names[i].size() - 1); queuedNameText = true; }
+    if (queuedNameText) {
+        GiveCameraPriorityBeforeOptionalDma();
+        mem.ExecuteReadScatter(g_scatter_full);
+    }
 
     mem.SetDmaCallTag("CS2.DroppedWeapons.Data");
+    bool queuedData = false;
     for (size_t i = 0; i < kSlots; ++i) {
         if (!IsDroppedWeaponClass(names[i].data()) || !DroppedWeaponAllowed(names[i].data(), frame_config)) continue;
         class_cache.emplace(identities[i], names[i]);
         mem.AddScatterReadRequest(g_scatter_full, entities[i] + offsets.m_pGameSceneNode, &scenes[i], sizeof(uintptr_t));
+        queuedData = true;
         if (frame_config.dropped_weapon_ammo && offsets.m_iClip1)
             mem.AddScatterReadRequest(g_scatter_full, entities[i] + offsets.m_iClip1, &ammo[i], sizeof(int));
     }
+    if (!queuedData) { runtime.dropped_weapons.clear(); return; }
     GiveCameraPriorityBeforeOptionalDma();
     mem.ExecuteReadScatter(g_scatter_full);
     mem.SetDmaCallTag("CS2.DroppedWeapons.Positions");
+    bool queuedPositions = false;
     for (size_t i = 0; i < kSlots; ++i) if (IsUserPointer(scenes[i]))
-        mem.AddScatterReadRequest(g_scatter_full, scenes[i] + offsets.m_vecAbsOrigin, positions[i].data(), sizeof(float) * 3);
+        { mem.AddScatterReadRequest(g_scatter_full, scenes[i] + offsets.m_vecAbsOrigin, positions[i].data(), sizeof(float) * 3); queuedPositions = true; }
+    if (!queuedPositions) { runtime.dropped_weapons.clear(); return; }
     GiveCameraPriorityBeforeOptionalDma();
+    const uint64_t positionReadBeginMs = GetTickCount64();
     mem.ExecuteReadScatter(g_scatter_full);
+    const uint64_t positionReadEndMs = GetTickCount64();
+    const uint64_t positionSampleMs = positionReadBeginMs +
+        (positionReadEndMs - positionReadBeginMs) / 2u;
 
     runtime.dropped_weapons.clear();
     runtime.dropped_weapons.reserve(16);
     for (size_t i = 0; i < kSlots && runtime.dropped_weapons.size() < 24; ++i) {
         if (!IsDroppedWeaponClass(names[i].data()) || !IsFinitePosition(positions[i].data())) continue;
         DroppedWeapon weapon{};
-        weapon.entity = entities[i]; weapon.ammo_clip = ammo[i]; weapon.sample_timestamp_ms = now;
+        weapon.entity = entities[i]; weapon.ammo_clip = ammo[i]; weapon.sample_timestamp_ms = positionSampleMs;
         std::memcpy(weapon.pos, positions[i].data(), sizeof(weapon.pos));
         FormatDroppedWeaponName(names[i].data(), weapon.name);
         runtime.dropped_weapons.push_back(weapon);
@@ -1736,6 +1890,79 @@ static uintptr_t ResolvePawnFromHandle(uint32_t handle, uintptr_t expected_local
         }
     }
     return 0;
+}
+
+static void UpdateLocalWeaponDefinitionThrottled() {
+    static uint64_t next_update_ms = 0;
+    static uintptr_t cached_pawn = 0;
+    static uintptr_t cached_services = 0;
+    static uint32_t cached_handle = 0;
+    static uintptr_t cached_entity = 0;
+    static uint16_t cached_definition = 0;
+    const uint64_t now = GetTickCount64();
+    if (now < next_update_ms || !IsUserPointer(runtime.local_pawn) || !offsets.m_pWeaponServices || !offsets.m_hActiveWeapon)
+        return;
+    if (cached_pawn != runtime.local_pawn) {
+        cached_pawn = runtime.local_pawn;
+        cached_services = 0;
+        cached_handle = 0;
+        cached_entity = 0;
+        cached_definition = 0;
+        runtime.local_weapon_definition = 0;
+    }
+    GiveCameraPriorityBeforeOptionalDma();
+    uintptr_t services = cached_services;
+    uint32_t handle = 0;
+    bool sampled = false;
+    EnsureScatter();
+    if (g_scatter_full) {
+        mem.AddScatterReadRequest(g_scatter_full, runtime.local_pawn + offsets.m_pWeaponServices,
+                                  &services, sizeof(services));
+        if (IsUserPointer(cached_services))
+            mem.AddScatterReadRequest(g_scatter_full, cached_services + offsets.m_hActiveWeapon,
+                                      &handle, sizeof(handle));
+        mem.SetDmaCallTag("CS2.LocalWeaponState");
+        mem.ExecuteReadScatter(g_scatter_full);
+        // A newly discovered services pointer becomes usable on the next
+        // throttled update; never create a dependent QRead in this lane.
+        if (!handle && IsUserPointer(services) && services != cached_services) {
+            cached_services = services;
+            next_update_ms = now + 40u;
+            return;
+        }
+        sampled = true;
+    } else {
+        sampled = QReadT(runtime.local_pawn + offsets.m_pWeaponServices, services);
+        if (sampled && IsUserPointer(services))
+            sampled = QReadT(services + offsets.m_hActiveWeapon, handle);
+    }
+    if (!sampled || !IsUserPointer(services) || !handle || handle == 0xFFFFFFFF) {
+        if (sampled) runtime.local_weapon_definition = 0;
+        next_update_ms = now + 50u;
+        return;
+    }
+    cached_services = services;
+    if (handle == cached_handle && cached_definition) {
+        runtime.local_weapon_definition = cached_definition;
+        next_update_ms = now + 150u;
+        return;
+    }
+    const uintptr_t entity = ResolveEntityByHandle(handle, g_pawn_stride ? g_pawn_stride : kEntityIdentityStride);
+    uint16_t definition = 0;
+    if (IsUserPointer(entity) && QReadT(entity + offsets.m_AttributeManager + offsets.m_Item +
+        offsets.m_iItemDefinitionIndex, definition) && definition > 0 && definition < 6000) {
+        cached_handle = handle;
+        cached_entity = entity;
+        cached_definition = definition;
+        runtime.local_weapon_definition = definition;
+        next_update_ms = now + 150u;
+    } else {
+        cached_handle = handle;
+        cached_entity = 0;
+        cached_definition = 0;
+        runtime.local_weapon_definition = 0;
+        next_update_ms = now + 50u;
+    }
 }
 
 static uint32_t ReadPawnHandle(uintptr_t controller) {
@@ -2052,9 +2279,10 @@ static void ScatterReadPawnCore(const uintptr_t* pawns, const uintptr_t* control
 }
 
 void UpdateBombState() {
-    runtime.bomb = BombState{};
-    if (!offsets.dwPlantedC4)
+    if (!offsets.dwPlantedC4) {
+        runtime.bomb = BombState{};
         return;
+    }
 
     // CS2 has exposed dwPlantedC4 in both forms across builds: either the
     // C_PlantedC4 pointer itself, or a pointer to a one-entry list.
@@ -2062,9 +2290,12 @@ void UpdateBombState() {
     // which show up as micro-stutters on 35T/75T during planted C4.
     mem.SetDmaCallTag("CS2.Bomb");
     uintptr_t candidate = 0;
-    if (!QReadT(runtime.client_base + offsets.dwPlantedC4, candidate, "CS2.Bomb.Ptr") ||
-        !IsUserPointer(candidate))
+    if (!QReadT(runtime.client_base + offsets.dwPlantedC4, candidate, "CS2.Bomb.Ptr"))
         return;
+    if (!IsUserPointer(candidate)) {
+        runtime.bomb = BombState{}; // confirmed absent
+        return;
+    }
 
     uintptr_t entity = 0;
     uint8_t ticking = 0;
@@ -2076,12 +2307,14 @@ void UpdateBombState() {
         mem.AddScatterReadRequest(g_scatter_full, candidate + offsets.m_bBombTicking,
                                   &ticking, sizeof(ticking));
         mem.AddScatterReadRequest(g_scatter_full, candidate, &list_entity, sizeof(list_entity));
+        GiveCameraPriorityBeforeOptionalDma();
         mem.ExecuteReadScatter(g_scatter_full);
         if (ticking) {
             entity = candidate;
         } else if (IsUserPointer(list_entity)) {
             mem.AddScatterReadRequest(g_scatter_full, list_entity + offsets.m_bBombTicking,
                                       &list_ticking, sizeof(list_ticking));
+            GiveCameraPriorityBeforeOptionalDma();
             mem.ExecuteReadScatter(g_scatter_full);
             ticking = list_ticking;
             entity = list_entity;
@@ -2099,8 +2332,14 @@ void UpdateBombState() {
             entity = list_entity;
         }
     }
-    if (!ticking || !IsUserPointer(entity))
+    if (!ticking || !IsUserPointer(entity)) {
+        // A valid ticking=false is authoritative. An unresolved list pointer
+        // can be a transport failure and must not clear a planted timer.
+        if (entity && ticking == 0) runtime.bomb = BombState{};
         return;
+    }
+
+    BombState next = runtime.bomb;
 
     float absolute_blow_time = 0.f;
     float absolute_defuse_time = 0.f;
@@ -2133,24 +2372,27 @@ void UpdateBombState() {
                                       &absolute_defuse_time, sizeof(absolute_defuse_time));
         if (offsets.m_hBombDefuser)
             mem.AddScatterReadRequest(g_scatter_full, entity + offsets.m_hBombDefuser,
-                                      &runtime.bomb.defuser_handle, sizeof(runtime.bomb.defuser_handle));
+                                      &next.defuser_handle, sizeof(next.defuser_handle));
         if (offsets.m_pGameSceneNode)
             mem.AddScatterReadRequest(g_scatter_full, entity + offsets.m_pGameSceneNode,
                                       &scene, sizeof(scene));
         if (offsets.dwGlobalVars)
             mem.AddScatterReadRequest(g_scatter_full, runtime.client_base + offsets.dwGlobalVars,
                                       &globals, sizeof(globals));
+        GiveCameraPriorityBeforeOptionalDma();
         mem.ExecuteReadScatter(g_scatter_full);
 
         if (IsUserPointer(globals)) {
             for (int i = 0; i < 4; ++i)
                 mem.AddScatterReadRequest(g_scatter_full, globals + kCurOff[i],
                                           &cur_slots[i], sizeof(float));
+            GiveCameraPriorityBeforeOptionalDma();
             mem.ExecuteReadScatter(g_scatter_full);
         }
         if (IsUserPointer(scene) && offsets.m_vecAbsOrigin) {
             mem.AddScatterReadRequest(g_scatter_full, scene + offsets.m_vecAbsOrigin,
-                                      runtime.bomb.pos, sizeof(runtime.bomb.pos));
+                                      next.pos, sizeof(next.pos));
+            GiveCameraPriorityBeforeOptionalDma();
             mem.ExecuteReadScatter(g_scatter_full);
         }
     } else {
@@ -2165,7 +2407,7 @@ void UpdateBombState() {
         if (offsets.m_flDefuseCountDown)
             QReadT(entity + offsets.m_flDefuseCountDown, absolute_defuse_time, "CS2.Bomb.DefuseCD");
         if (offsets.m_hBombDefuser)
-            QReadT(entity + offsets.m_hBombDefuser, runtime.bomb.defuser_handle, "CS2.Bomb.Defuser");
+            QReadT(entity + offsets.m_hBombDefuser, next.defuser_handle, "CS2.Bomb.Defuser");
         if (offsets.dwGlobalVars)
             QReadT(runtime.client_base + offsets.dwGlobalVars, globals, "CS2.Bomb.Globals");
         if (IsUserPointer(globals)) {
@@ -2175,7 +2417,7 @@ void UpdateBombState() {
         if (offsets.m_pGameSceneNode &&
             QReadT(entity + offsets.m_pGameSceneNode, scene, "CS2.Bomb.Scene") &&
             IsUserPointer(scene))
-            QRead(scene + offsets.m_vecAbsOrigin, runtime.bomb.pos, sizeof(runtime.bomb.pos), "CS2.Bomb.Pos");
+            QRead(scene + offsets.m_vecAbsOrigin, next.pos, sizeof(next.pos), "CS2.Bomb.Pos");
     }
 
     float current_time = 0.f;
@@ -2208,12 +2450,13 @@ void UpdateBombState() {
     if (!std::isfinite(defuse) || defuse < 0.f || defuse > 15.f)
         defuse = 0.f;
 
-    runtime.bomb.planted = true;
-    runtime.bomb.sample_timestamp_ms = GetTickCount64();
-    runtime.bomb.blow_time = blow;
-    runtime.bomb.defuse_time = defuse;
-    runtime.bomb.defused = defused != 0;
-    runtime.bomb.defusing = defusing != 0 && defuse > 0.05f;
+    next.planted = true;
+    next.sample_timestamp_ms = GetTickCount64();
+    next.blow_time = blow;
+    next.defuse_time = defuse;
+    next.defused = defused != 0;
+    next.defusing = defusing != 0 && defuse > 0.05f;
+    runtime.bomb = next;
 }
 
 void UpdateBombStateThrottled() {
@@ -2233,6 +2476,9 @@ void UpdateBombStateThrottled() {
 // paused.  The normal scan resumes automatically as soon as local HP is back.
 static void UpdateSpectatorsWhileDead(const Config& frame_config,
                                       const uintptr_t* controllers, int count) {
+    // This path is optional UI state; never begin its observer-handle chain
+    // while the high-priority camera read is due.
+    GiveCameraPriorityBeforeOptionalDma();
     runtime.spectators.clear();
     runtime.spectator_count = 0;
     runtime.spectator_target = runtime.local_pawn;
@@ -2363,7 +2609,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
     const uintptr_t client = runtime.client_base;
     // Keep last-good player snapshot when entity list briefly fails (prevents
     // ESP/aim going empty for 1–2 frames on ListEntry null flicker).
-    static std::vector<Player> last_good_players;
+    struct RecoveryIdentity { uintptr_t pawn = 0; uintptr_t controller = 0; };
+    static std::vector<RecoveryIdentity> last_good_players;
     static uint64_t last_good_ms = 0;
     struct RecentPlayer {
         Player player{};
@@ -2379,6 +2626,13 @@ static void RunFrameWithConfig(const Config& frame_config) {
     static std::unordered_map<uintptr_t, CachedBones> bone_cache;
     static std::unordered_map<uintptr_t, uint8_t> s_stickyBoneLayout; // 0/1 once validated
     static std::unordered_map<uintptr_t, uint64_t> s_lastBoneMs;
+    static uint64_t recoveryCacheGeneration = 0;
+    if (recoveryCacheGeneration != g_session_generation.load(std::memory_order_acquire)) {
+        last_good_players.clear(); last_good_ms = 0;
+        recent_players.clear(); bone_cache.clear();
+        s_stickyBoneLayout.clear(); s_lastBoneMs.clear();
+        recoveryCacheGeneration = g_session_generation.load(std::memory_order_relaxed);
+    }
     if (recent_players.bucket_count() < 128) recent_players.reserve(128);
     if (bone_cache.bucket_count() < 128) bone_cache.reserve(128);
     if (s_stickyBoneLayout.bucket_count() < 128) s_stickyBoneLayout.reserve(128);
@@ -2397,7 +2651,9 @@ static void RunFrameWithConfig(const Config& frame_config) {
 
         constexpr int kUnknownHealth = (std::numeric_limits<int>::min)();
         std::array<int, 64> health{};
+        std::array<uint8_t, 64> controller_alive{};
         health.fill(kUnknownHealth);
+        controller_alive.fill(0xFF);
         const size_t count = (std::min)(last_good_players.size(), health.size());
         size_t queued = 0;
         for (size_t i = 0; i < count; ++i) {
@@ -2406,6 +2662,10 @@ static void RunFrameWithConfig(const Config& frame_config) {
             mem.AddScatterReadRequest(g_scatter_full,
                 last_good_players[i].pawn + offsets.m_iHealth,
                 &health[i], sizeof(health[i]));
+            if (offsets.m_bPawnIsAlive && IsUserPointer(last_good_players[i].controller))
+                mem.AddScatterReadRequest(g_scatter_full,
+                    last_good_players[i].controller + offsets.m_bPawnIsAlive,
+                    &controller_alive[i], sizeof(controller_alive[i]));
             ++queued;
         }
         if (!queued)
@@ -2415,15 +2675,21 @@ static void RunFrameWithConfig(const Config& frame_config) {
         mem.ExecuteReadScatter(g_scatter_full);
         LivenessSnapshot liveness{};
         liveness.timestamp_ms = GetTickCount64();
+        liveness.generation = g_session_generation.load(std::memory_order_acquire);
         std::array<uintptr_t, 64> confirmed_dead{};
         size_t dead_count = 0;
         for (size_t i = 0; i < count; ++i) {
             // Values left at the sentinel are failed/unknown, not deaths.
-            if (health[i] == kUnknownHealth || health[i] < 0 || health[i] > 200)
+            const bool healthKnown = health[i] != kUnknownHealth && health[i] >= 0 && health[i] <= 200;
+            const bool controllerKnown = controller_alive[i] == 0 || controller_alive[i] == 1;
+            if (!healthKnown && !controllerKnown)
                 continue;
             auto& sample = liveness.players[liveness.count++];
             sample.pawn = last_good_players[i].pawn;
-            sample.alive = health[i] > 0;
+            sample.sample_ms = liveness.timestamp_ms;
+            sample.generation = liveness.generation;
+            sample.alive = !(healthKnown && health[i] <= 0) &&
+                !(controllerKnown && controller_alive[i] == 0);
             if (!sample.alive)
                 confirmed_dead[dead_count++] = sample.pawn;
         }
@@ -2433,11 +2699,12 @@ static void RunFrameWithConfig(const Config& frame_config) {
         for (size_t i = 0; i < dead_count; ++i) {
             const uintptr_t pawn = confirmed_dead[i];
             last_good_players.erase(std::remove_if(last_good_players.begin(),
-                last_good_players.end(), [pawn](const Player& p) { return p.pawn == pawn; }),
+                last_good_players.end(), [pawn](const RecoveryIdentity& p) { return p.pawn == pawn; }),
                 last_good_players.end());
             recent_players.erase(pawn);
             bone_cache.erase(pawn);
             s_stickyBoneLayout.erase(pawn);
+            s_lastBoneMs.erase(pawn);
         }
         auto& telemetry = OmniGhost::Gameplay::DmaTelemetry::CS2();
         telemetry.last_good_age_ms.store(last_good_ms && now_ms >= last_good_ms
@@ -2468,8 +2735,11 @@ static void RunFrameWithConfig(const Config& frame_config) {
         // behind player reads.  Keep lobby detection responsive, but let a
         // confirmed match reuse its valid name for a longer period.
         const int pressure = g_pressure_level.load(std::memory_order_relaxed);
+        // Keep a cheap safety probe during a match. Session/topology changes
+        // force an immediate refresh elsewhere, while this catches missed
+        // transitions without retaining a collision world for minutes.
         next_map_refresh_ms = map_now_ms + (runtime.in_match
-            ? (pressure >= 2 ? 180000u : 120000u)
+            ? (pressure >= 2 ? 60000u : 30000u)
             : 1000u);
     }
 
@@ -2478,6 +2748,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
     // Also force-clear Makcu button mask — release packets are often lost
     // during load and would leave LMB stuck ("mira sozinho").
     if (std::strncmp(previous_map, runtime.map_name, sizeof(previous_map)) != 0) {
+        ResetSessionState("map-change");
         std::memcpy(previous_map, runtime.map_name, sizeof(previous_map));
         g_pending_entity_list = 0;
         g_entity_list_confirmations = 0;
@@ -2490,6 +2761,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
         recent_players.clear();
         bone_cache.clear();
         s_stickyBoneLayout.clear();
+        s_lastBoneMs.clear();
         runtime.players.clear();
         runtime.player_count = 0;
         runtime.pawn_count = 0;
@@ -2643,7 +2915,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
         // coherent matrix is preferable to scheduling another synchronous
         // QRead.  The render keeps one consistent camera state until the fast
         // camera lane catches up again instead of amplifying the stall.
-        if (now >= camera->timestamp_ms && now - camera->timestamp_ms <= 2000u) {
+        if (now >= camera->timestamp_ms && now - camera->timestamp_ms <= 120u) {
             std::memcpy(runtime.view_matrix, camera->view_matrix, sizeof(runtime.view_matrix));
             haveView = true;
         }
@@ -2657,8 +2929,9 @@ static void RunFrameWithConfig(const Config& frame_config) {
     runtime.players.reserve(64);
 
     // Keep the last validated team so TEAM_INTERVAL_MS is effective.
-    runtime.local_view_yaw = 0.f;
-    std::memset(runtime.local_pos, 0, sizeof(runtime.local_pos));
+    // Preserve the last valid yaw on a transient read failure.
+    // Preserve the last valid local origin. A transient DMA failure must not
+    // make every range calculation originate from world zero.
     // The local pawn/controller pointers rarely change while alive.  Refresh
     // them at a controlled cadence. Health joins the main local-state scatter
     // whenever the cached pawn is valid.
@@ -2680,7 +2953,6 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 mem.AddScatterReadRequest(g_scatter_full, client + offsets.dwLocalPlayerController,
                                           &localController, sizeof(localController));
             queuedLocalIdentity = true;
-            s_lastLocalBootstrapMs = localNowMs;
         }
         if (queuedLocalIdentity)
             mem.ExecuteReadScatter(g_scatter_full);
@@ -2689,10 +2961,11 @@ static void RunFrameWithConfig(const Config& frame_config) {
             QReadT(client + offsets.dwLocalPlayerPawn, localPawn, "CS2.LocalPawn");
             if (offsets.dwLocalPlayerController)
                 QReadT(client + offsets.dwLocalPlayerController, localController, "CS2.LocalController");
-            s_lastLocalBootstrapMs = localNowMs;
         }
     }
     runtime.local_pawn = IsUserPointer(localPawn) ? localPawn : 0;
+    if (refreshLocalBootstrap && runtime.local_pawn)
+        s_lastLocalBootstrapMs = localNowMs;
     if (refreshLocalBootstrap)
         runtime.local_controller = IsUserPointer(localController) ? localController : 0;
     else if (IsUserPointer(localController))
@@ -2717,18 +2990,23 @@ static void RunFrameWithConfig(const Config& frame_config) {
             static uintptr_t cached_local_scene = 0;
             static uintptr_t cached_local_item_services = 0;
             static uintptr_t cached_local_pawn = 0;
-            static uint64_t cached_local_metadata_until_ms = 0;
+            static uint64_t cached_local_scene_until_ms = 0;
+            static uint64_t cached_local_item_services_until_ms = 0;
             if (cached_local_pawn != runtime.local_pawn) {
                 cached_local_pawn = runtime.local_pawn;
                 cached_local_scene = 0;
                 cached_local_item_services = 0;
-                cached_local_metadata_until_ms = 0;
+                cached_local_scene_until_ms = 0;
+                cached_local_item_services_until_ms = 0;
             }
-            const bool refreshLocalMetadata = localNowMs >= cached_local_metadata_until_ms ||
+            const bool refreshLocalSceneMetadata = localNowMs >= cached_local_scene_until_ms ||
                 !IsUserPointer(cached_local_scene);
+            const bool refreshLocalItemServices = localNowMs >= cached_local_item_services_until_ms ||
+                !IsUserPointer(cached_local_item_services);
             scene = cached_local_scene;
             item_services = cached_local_item_services;
             float view_angles[2]{};
+            float local_position_sample[3] = { runtime.local_pos[0], runtime.local_pos[1], runtime.local_pos[2] };
             bool scoped = runtime.local_scoped;
             int crosshair = 0;
             int shots = runtime.local_shots_fired;
@@ -2742,7 +3020,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 if (refreshTeam)
                     mem.AddScatterReadRequest(g_scatter_full, runtime.local_pawn + offsets.m_iTeamNum,
                                               &team8, sizeof(team8));
-                if (refreshLocalMetadata)
+                if (refreshLocalSceneMetadata)
                     mem.AddScatterReadRequest(g_scatter_full, runtime.local_pawn + offsets.m_pGameSceneNode,
                                               &scene, sizeof(scene));
                 mem.AddScatterReadRequest(g_scatter_full, runtime.local_pawn + offsets.m_vecVelocity,
@@ -2756,7 +3034,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 if (offsets.m_bIsScoped)
                     mem.AddScatterReadRequest(g_scatter_full, runtime.local_pawn + offsets.m_bIsScoped,
                                               &scoped, sizeof(scoped));
-                if (refreshLocalMetadata && offsets.m_pItemServices && offsets.m_bHasDefuser)
+                if (refreshLocalItemServices && offsets.m_pItemServices && offsets.m_bHasDefuser)
                     mem.AddScatterReadRequest(g_scatter_full, runtime.local_pawn + offsets.m_pItemServices,
                                               &item_services, sizeof(item_services));
                 if (frame_config.trigger_enabled && frame_config.trigger_use_ident && offsets.m_iIDEntIndex)
@@ -2771,11 +3049,11 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 if (IsUserPointer(cached_local_scene))
                     mem.AddScatterReadRequest(g_scatter_full,
                         cached_local_scene + offsets.m_vecAbsOrigin,
-                        runtime.local_pos, sizeof(runtime.local_pos));
+                        local_position_sample, sizeof(local_position_sample));
                 else
                     mem.AddScatterReadRequest(g_scatter_full,
                         runtime.local_pawn + offsets.m_vOldOrigin,
-                        runtime.local_pos, sizeof(runtime.local_pos));
+                        local_position_sample, sizeof(local_position_sample));
                 if (IsUserPointer(cached_local_item_services) && offsets.m_bHasDefuser)
                     mem.AddScatterReadRequest(g_scatter_full,
                         cached_local_item_services + offsets.m_bHasDefuser,
@@ -2830,17 +3108,23 @@ static void RunFrameWithConfig(const Config& frame_config) {
             cached_local_scene = IsUserPointer(scene) ? scene : cached_local_scene;
             cached_local_item_services = IsUserPointer(item_services)
                 ? item_services : cached_local_item_services;
-            if (refreshLocalMetadata && IsUserPointer(cached_local_scene))
-                cached_local_metadata_until_ms = localNowMs + 750u;
+            if (refreshLocalSceneMetadata)
+                cached_local_scene_until_ms = localNowMs + (IsUserPointer(scene) ? 750u : 50u);
+            if (refreshLocalItemServices)
+                cached_local_item_services_until_ms = localNowMs +
+                    (IsUserPointer(item_services) ? 750u : 50u);
             if (!g_scatter_full) {
                 runtime.local_has_defuser = false;
                 if (IsUserPointer(scene))
-                    QRead(scene + offsets.m_vecAbsOrigin, runtime.local_pos, sizeof(runtime.local_pos));
+                    QRead(scene + offsets.m_vecAbsOrigin, local_position_sample, sizeof(local_position_sample));
                 else
-                    QRead(runtime.local_pawn + offsets.m_vOldOrigin, runtime.local_pos, sizeof(runtime.local_pos));
+                    QRead(runtime.local_pawn + offsets.m_vOldOrigin, local_position_sample, sizeof(local_position_sample));
                 if (IsUserPointer(item_services) && offsets.m_bHasDefuser)
                     QReadT(item_services + offsets.m_bHasDefuser, runtime.local_has_defuser);
             }
+
+            if (IsFinitePosition(local_position_sample))
+                std::memcpy(runtime.local_pos, local_position_sample, sizeof(runtime.local_pos));
 
             if (frame_config.hit_marker && offsets.m_iShotsFired && shots >= 0 && shots < 256) {
                 static int previous_shots = -1;
@@ -2850,6 +3134,45 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 runtime.local_shots_fired = shots;
             }
         } else {
+            // Death must not turn local-state acquisition off for the whole
+            // bootstrap TTL. A tiny, throttled liveness lane detects respawn
+            // promptly without paying for movement, item or trigger fields.
+            static uint64_t nextDeadLocalLivenessMs = 0;
+            const uint64_t deadNowMs = GetTickCount64();
+            if (deadNowMs >= nextDeadLocalLivenessMs) {
+                int respawnHealth = runtime.local_health;
+                uint8_t controllerAlive = 0xFF;
+                bool readAttempted = false;
+                EnsureScatter();
+                if (g_scatter_full) {
+                    if (offsets.m_iHealth) {
+                        mem.AddScatterReadRequest(g_scatter_full,
+                            runtime.local_pawn + offsets.m_iHealth,
+                            &respawnHealth, sizeof(respawnHealth));
+                        readAttempted = true;
+                    }
+                    if (IsUserPointer(runtime.local_controller) && offsets.m_bPawnIsAlive) {
+                        mem.AddScatterReadRequest(g_scatter_full,
+                            runtime.local_controller + offsets.m_bPawnIsAlive,
+                            &controllerAlive, sizeof(controllerAlive));
+                        readAttempted = true;
+                    }
+                    if (readAttempted) {
+                        mem.SetDmaCallTag("CS2.LocalRespawnLiveness");
+                        mem.ExecuteReadScatter(g_scatter_full);
+                    }
+                } else if (offsets.m_iHealth) {
+                    readAttempted = QReadT(runtime.local_pawn + offsets.m_iHealth, respawnHealth);
+                }
+                if (controllerAlive == 0)
+                    runtime.local_health = 0;
+                else if (readAttempted && respawnHealth >= 0 && respawnHealth <= 200)
+                    runtime.local_health = respawnHealth;
+                // An unknown controller flag never forces a false respawn.
+                // The next pass enters the normal lane as soon as the health
+                // sample becomes positive.
+                nextDeadLocalLivenessMs = deadNowMs + 80u;
+            }
             runtime.local_crosshair_entity = 0;
             runtime.local_has_defuser = false;
             runtime.local_scoped = false;
@@ -2871,20 +3194,16 @@ static void RunFrameWithConfig(const Config& frame_config) {
         const uint64_t now_ms = GetTickCount64();
         if (!recoveryLivenessFresh)
             (void)refresh_cached_liveness(now_ms);
-        if (!last_good_players.empty() && now_ms - last_good_ms <= 50u) {
-            runtime.players = last_good_players;
-            runtime.player_count = static_cast<int>(runtime.players.size());
-        }
+        // Never republish stale world positions on a topology miss. The
+        // renderer keeps its already-published snapshot while the next scan
+        // reacquires health/origin/velocity from the live entity list.
         return;
     }
 
     int kMax = frame_config.max_entities > 0 ? frame_config.max_entities : 32;
     if (kMax > 64) kMax = 64;
-    if (frame_config.auto_entity_cap) {
-        if (runtime.fps > 1.f && runtime.fps < 40.f) kMax = (std::min)(kMax, 16);
-        else if (runtime.fps < 55.f) kMax = (std::min)(kMax, 24);
-        else if (runtime.fps > 90.f) kMax = (std::min)(kMax, 48);
-    }
+    // Renderer FPS must never decide who exists in the acquisition snapshot.
+    // Optional lanes have their own DMA-pressure budgets.
     runtime.entity_cap_used = kMax;
     constexpr int kMaxSlots = 64;
 
@@ -2998,6 +3317,11 @@ static void RunFrameWithConfig(const Config& frame_config) {
         uint64_t last_seen_ms = 0;
     };
     static std::unordered_map<uintptr_t, CachedControllerPawn> controllerPawnCache;
+    static uint64_t controllerPawnCacheGeneration = 0;
+    if (controllerPawnCacheGeneration != g_session_generation.load(std::memory_order_acquire)) {
+        controllerPawnCache.clear();
+        controllerPawnCacheGeneration = g_session_generation.load(std::memory_order_relaxed);
+    }
     if (controllerPawnCache.bucket_count() < 128) controllerPawnCache.reserve(128);
     uintptr_t controllersDue[kMaxSlots]{};
     uint32_t refreshedHandles[kMaxSlots]{};
@@ -3087,7 +3411,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
     uintptr_t resolved_pawns[kMaxSlots]{};
     int slot_index[kMaxSlots]{};
     int candidate_count = 0;
-    for (int i = 0; i < collected && candidate_count < kMax; ++i) {
+    for (int i = 0; i < collected && candidate_count < kMaxSlots; ++i) {
         if (!controllers[i] || !handles[i]) continue;
         uintptr_t pawn = resolved_by_slot[i];
         if (!pawn) continue;
@@ -3171,6 +3495,11 @@ static void RunFrameWithConfig(const Config& frame_config) {
         uint64_t last_seen_ms = 0;
     };
     static std::unordered_map<uintptr_t, CachedSceneBone> sceneBoneCache;
+    static uint64_t sceneBoneCacheGeneration = 0;
+    if (sceneBoneCacheGeneration != g_session_generation.load(std::memory_order_acquire)) {
+        sceneBoneCache.clear();
+        sceneBoneCacheGeneration = g_session_generation.load(std::memory_order_relaxed);
+    }
     if (sceneBoneCache.bucket_count() < 128) sceneBoneCache.reserve(128);
     uintptr_t cachedScenes[kMaxSlots]{};
     uint8_t cachedTeams[kMaxSlots]{};
@@ -3205,18 +3534,21 @@ static void RunFrameWithConfig(const Config& frame_config) {
     for (int c = 0; c < candidate_count; ++c)
         candidateControllers[c] = controllers[slot_index[c]];
     const bool need_spotted = (frame_config.aim_enabled && frame_config.aim_visibility_check) ||
-        (frame_config.esp_enabled && frame_config.visibility_colors) ||
         (frame_config.trigger_enabled && frame_config.aim_visibility_check);
     // Health/team/scene stay on the full cadence. Armor is only four bytes per
     // pawn, so include it here instead of paying for a separate round-trip.
     mem.SetDmaCallTag("CS2.PawnCore");
     const auto _posBegin = std::chrono::steady_clock::now();
+    const uint64_t position_read_begin_ms = GetTickCount64();
     ScatterReadPawnCore(resolved_pawns, candidateControllers, core, candidate_count, need_armor,
                         need_scoped, need_flash, need_yaw, false,
                         need_spotted, cachedTeams, refreshTeams,
                         cachedArmors, refreshArmors,
                         cachedScenes, refreshScenes, positions, track_velocity);
-    const uint64_t position_sample_ms = GetTickCount64();
+    const uint64_t position_read_end_ms = GetTickCount64();
+    const uint64_t position_sample_ms = position_read_begin_ms +
+        (position_read_end_ms - position_read_begin_ms) / 2u;
+    runtime.world_sample_ms = position_sample_ms;
     g_phase.positions_ms = OmniGhost::Gameplay::TimeMs(_posBegin);
     NotePossibleDeviceStall(g_phase.positions_ms);
     for (int c = 0; c < candidate_count; ++c) {
@@ -3252,6 +3584,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
     // pawn without waiting for the complete entity snapshot.
     LivenessSnapshot liveness{};
     liveness.timestamp_ms = GetTickCount64();
+    liveness.generation = g_session_generation.load(std::memory_order_acquire);
     std::array<uintptr_t, 64> confirmedDead{};
     size_t confirmedDeadCount = 0;
     for (int c = 0; c < candidate_count &&
@@ -3265,6 +3598,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
             continue; // both reads failed: retain grace, never call it death
         auto& sample = liveness.players[liveness.count++];
         sample.pawn = resolved_pawns[c];
+        sample.sample_ms = position_sample_ms;
+        sample.generation = liveness.generation;
         sample.alive = !dead;
         if (dead)
             confirmedDead[confirmedDeadCount++] = sample.pawn;
@@ -3276,8 +3611,9 @@ static void RunFrameWithConfig(const Config& frame_config) {
         bone_cache.erase(pawn);
         s_stickyBoneLayout.erase(pawn);
         sceneBoneCache.erase(pawn);
+        s_lastBoneMs.erase(pawn);
         last_good_players.erase(std::remove_if(last_good_players.begin(),
-            last_good_players.end(), [pawn](const Player& p) { return p.pawn == pawn; }),
+            last_good_players.end(), [pawn](const RecoveryIdentity& p) { return p.pawn == pawn; }),
             last_good_players.end());
     }
 
@@ -3300,9 +3636,6 @@ static void RunFrameWithConfig(const Config& frame_config) {
     // their own lightweight observer path.
     int eligible_count = 0;
     // The local pawn has a dedicated snapshot and must never enter the remote
-    // player pipeline: at most five enemies, or the other nine players when
-    // team filtering is disabled.
-    const int remote_player_limit = frame_config.team_check ? 5 : 9;
     for (int c = 0; c < candidate_count; ++c) {
         const bool is_local = resolved_pawns[c] == runtime.local_pawn ||
             controllers[slot_index[c]] == runtime.local_controller;
@@ -3325,7 +3658,6 @@ static void RunFrameWithConfig(const Config& frame_config) {
         if (!IsFinitePosition(positions[c]) ||
             (frame_config.max_distance > 1.f && distance_sq > max_units * max_units))
             continue;
-        if (eligible_count >= remote_player_limit) break;
         if (eligible_count != c) {
             resolved_pawns[eligible_count] = resolved_pawns[c];
             slot_index[eligible_count] = slot_index[c];
@@ -3355,6 +3687,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
         uint64_t next_fallback_ms = 0;
     };
     static std::unordered_map<uintptr_t, CachedName> nameCache;
+    static uint64_t metadataCacheGeneration = 0;
     uintptr_t boneBases[kMaxSlots]{};
     bool boneReadEligible[kMaxSlots]{};
     uint64_t boneReadSampleMs[kMaxSlots]{};
@@ -3381,6 +3714,12 @@ static void RunFrameWithConfig(const Config& frame_config) {
         uint64_t last_fallback_ms = 0;
     };
     static std::unordered_map<uintptr_t, CachedWeaponState> weaponStateCache;
+    if (metadataCacheGeneration != g_session_generation.load(std::memory_order_acquire)) {
+        nameCache.clear();
+        boneFallbackPending.clear();
+        weaponStateCache.clear();
+        metadataCacheGeneration = g_session_generation.load(std::memory_order_relaxed);
+    }
     if (nameCache.bucket_count() < 128) nameCache.reserve(128);
     if (boneFallbackPending.bucket_count() < 128) boneFallbackPending.reserve(128);
     if (weaponStateCache.bucket_count() < 128) weaponStateCache.reserve(128);
@@ -3540,7 +3879,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
             //  - distance-tiered refresh (near more often, far less)
             //  - hard budget of fresh bone DMAs per scan; others keep translated cache
             //  - still draw ALL slots (kBoneSlotCount) every frame from cache/pose
-            struct BoneCand { int c; float distSq; uint64_t interval; };
+            struct BoneCand { int c; float distSq; uint64_t interval; uint64_t overdueMs; };
             BoneCand cand[kMaxSlots]{};
             int candN = 0;
             const CameraSnapshot boneLodCamera = SelectCameraSnapshot(position_sample_ms);
@@ -3581,13 +3920,22 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 if (it != s_lastBoneMs.end() && scan_now_ms - it->second < interval)
                     continue;
                 if (candN < kMaxSlots) {
-                    cand[candN++] = { c, distSq, interval };
+                    const uint64_t last = it == s_lastBoneMs.end() ? 0u : it->second;
+                    const uint64_t overdue = last ? scan_now_ms - last :
+                        (std::numeric_limits<uint64_t>::max)() / 2u;
+                    cand[candN++] = { c, distSq, interval, overdue };
                 }
             }
-            // Nearest first within budget
+            // Prefer the nearest pose, but make starvation explicit: a pawn
+            // that has waited several intervals outranks a marginally nearer
+            // candidate instead of depending on controller-list ordering.
             for (int i = 0; i < candN; ++i)
                 for (int j = i + 1; j < candN; ++j)
-                    if (cand[j].distSq < cand[i].distSq)
+                    if ((cand[j].overdueMs / (std::max)(uint64_t{1}, cand[j].interval) >
+                         cand[i].overdueMs / (std::max)(uint64_t{1}, cand[i].interval)) ||
+                        (cand[j].overdueMs / (std::max)(uint64_t{1}, cand[j].interval) ==
+                         cand[i].overdueMs / (std::max)(uint64_t{1}, cand[i].interval) &&
+                         cand[j].distSq < cand[i].distSq))
                         std::swap(cand[i], cand[j]);
             // Prefer fluid poses: keep reading bones every scan. Only mild caps
             // under sustained pressure — never stop bone updates (looks "frozen").
@@ -3599,21 +3947,27 @@ static void RunFrameWithConfig(const Config& frame_config) {
             if (pressure >= 1) maxBoneReadsPerScan = (std::min)(candN, 1);
             const int take = candN < maxBoneReadsPerScan ? candN : maxBoneReadsPerScan;
             g_phase.bones_players = take;
-            static unsigned s_boneRoundRobin = 0;
-            const int start = candN > 0 ? static_cast<int>(s_boneRoundRobin % candN) : 0;
-            for (int i = 0; i < take; ++i) {
-                const int c = cand[(start + i) % candN].c;
-                boneReadEligible[c] = true;
+            const bool healthyBoneLane = pressure == 0 && !frame_config.performance_mode &&
+                OmniGhost::Gameplay::DmaTelemetry::CS2().bones_p95_ms.load(std::memory_order_relaxed) < 8.f;
+            const int microBatch = healthyBoneLane ? 2 : 1;
+            for (int first = 0; first < take; first += microBatch) {
+                const int count = (std::min)(microBatch, take - first);
                 GiveCameraPriorityBeforeOptionalDma();
-                mem.AddScatterReadRequest(g_scatter_full, boneBases[c], boneSnapshots[c],
-                                          need_full_bones ? kBoneReadBytes : kCompactBoneReadBytes);
+                for (int j = 0; j < count; ++j) {
+                    const int c = cand[first + j].c;
+                    boneReadEligible[c] = true;
+                    mem.AddScatterReadRequest(g_scatter_full, boneBases[c], boneSnapshots[c],
+                                              need_full_bones ? kBoneReadBytes : kCompactBoneReadBytes);
+                }
                 mem.SetDmaCallTag("CS2.Bones");
+                const uint64_t bone_read_begin_ms = GetTickCount64();
                 mem.ExecuteReadScatter(g_scatter_full);
-                boneReadSampleMs[c] = GetTickCount64();
+                const uint64_t bone_read_end_ms = GetTickCount64();
+                const uint64_t sampleMs = bone_read_begin_ms +
+                    (bone_read_end_ms - bone_read_begin_ms) / 2u;
+                for (int j = 0; j < count; ++j)
+                    boneReadSampleMs[cand[first + j].c] = sampleMs;
             }
-            if (candN > 0 && take > 0)
-                s_boneRoundRobin = (s_boneRoundRobin + static_cast<unsigned>(take)) %
-                    static_cast<unsigned>(candN);
         }
         if (need_bones)
             OmniGhost::Gameplay::DmaTelemetry::ObserveBones(
@@ -3877,6 +4231,11 @@ static void RunFrameWithConfig(const Config& frame_config) {
         uint64_t last_seen_ms = 0;
     };
     static std::unordered_map<uintptr_t, FlagCache> flag_cache;
+    static uint64_t flagCacheGeneration = 0;
+    if (flagCacheGeneration != g_session_generation.load(std::memory_order_acquire)) {
+        flag_cache.clear();
+        flagCacheGeneration = g_session_generation.load(std::memory_order_relaxed);
+    }
     if (flag_cache.bucket_count() < 128) flag_cache.reserve(128);
     for (size_t i = 0; i < confirmedDeadCount; ++i)
         flag_cache.erase(confirmedDead[i]);
@@ -3984,20 +4343,24 @@ static void RunFrameWithConfig(const Config& frame_config) {
             }
             return false;
         };
-        static uint64_t nextBoneFallbackMs = 0;
+        // Recovery is per pawn. A corrupt layout on one player must not hold
+        // every other player hostage for half a second.
+        static std::unordered_map<uintptr_t, uint64_t> nextBoneFallbackMs;
+        if (nextBoneFallbackMs.bucket_count() < 128) nextBoneFallbackMs.reserve(128);
         int fallbackIndex = -1;
-        if (scan_now_ms >= nextBoneFallbackMs) {
-            for (int c = 0; c < candidate_count; ++c) {
-                if (!boneReadEligible[c]) continue;
-                if (boneFallbackPending[resolved_pawns[c]] ||
-                    !rawBoneBufferLooksValid(c, boneSnapshots[c])) {
+        for (int c = 0; c < candidate_count; ++c) {
+            if (!boneReadEligible[c]) continue;
+            const auto pending = boneFallbackPending.find(resolved_pawns[c]);
+            const bool needsFallback = (pending != boneFallbackPending.end() && pending->second) ||
+                !rawBoneBufferLooksValid(c, boneSnapshots[c]);
+            const auto retry = nextBoneFallbackMs.find(resolved_pawns[c]);
+            if (needsFallback && (retry == nextBoneFallbackMs.end() || scan_now_ms >= retry->second)) {
                     fallbackIndex = c;
                     break;
-                }
             }
         }
         if (fallbackIndex >= 0 && IsUserPointer(core[fallbackIndex].scene)) {
-            nextBoneFallbackMs = scan_now_ms + 500u;
+            nextBoneFallbackMs[resolved_pawns[fallbackIndex]] = scan_now_ms + 500u;
             constexpr uintptr_t fallbackOffsets[] = {0x1D0, 0x160, 0x1C0};
             constexpr size_t kFallbackCount = 3;
             uintptr_t fallbackBases[kFallbackCount]{};
@@ -4007,6 +4370,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
                         core[fallbackIndex].scene + fallbackOffsets[fi],
                         &fallbackBases[fi], sizeof(uintptr_t));
             }
+            GiveCameraPriorityBeforeOptionalDma();
             mem.SetDmaCallTag("CS2.BoneFallbackPointers");
             mem.ExecuteReadScatter(g_scatter_full);
             BoneJointSnapshot fallbackSnapshots[kFallbackCount][kBoneJointReadCount]{};
@@ -4019,6 +4383,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 queuedFallbackData = true;
             }
             if (queuedFallbackData) {
+                GiveCameraPriorityBeforeOptionalDma();
                 mem.SetDmaCallTag("CS2.BoneFallbackData");
                 mem.ExecuteReadScatter(g_scatter_full);
                 for (size_t fi = 0; fi < kFallbackCount; ++fi) {
@@ -4350,6 +4715,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 cached.last_valid_ms = scan_now_ms;
                 cached.full_pose = p.full_bones_ok;
                 p.bones_sample_ms = boneReadSampleMs[c] ? boneReadSampleMs[c] : scan_now_ms;
+                p.bone_pose_sample_ms = p.bones_sample_ms;
+                p.bone_origin_sample_ms = p.bones_sample_ms;
                 s_lastBoneMs[p.pawn] = p.bones_sample_ms;
             }
         }
@@ -4378,6 +4745,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 p.bones_ok = true;
                 p.full_bones_ok = cached->second.full_pose;
                 p.bones_sample_ms = cached->second.last_valid_ms;
+                p.bone_pose_sample_ms = cached->second.last_valid_ms;
+                p.bone_origin_sample_ms = p.position_sample_ms;
             }
         }
         if (!p.bones_ok) {
@@ -4436,11 +4805,10 @@ static void RunFrameWithConfig(const Config& frame_config) {
         }
         const bool present = std::any_of(runtime.players.begin(), runtime.players.end(),
             [&](const Player& player) { return player.pawn == it->first; });
-        const std::size_t remoteLimit = static_cast<std::size_t>(frame_config.team_check ? 5 : 9);
         const bool allowedTeam = !frame_config.team_check ||
             it->second.player.team != runtime.local_team;
         if (!present && !it->second.player.is_local && allowedTeam &&
-            runtime.players.size() < remoteLimit) {
+            runtime.players.size() < static_cast<std::size_t>(kMaxSlots)) {
             runtime.players.push_back(it->second.player);
             OmniGhost::Gameplay::DmaTelemetry::CS2().recent_player_reinsertions.fetch_add(
                 1, std::memory_order_relaxed);
@@ -4450,29 +4818,16 @@ static void RunFrameWithConfig(const Config& frame_config) {
         ++it;
     }
 
-    // Static-map LOS is independent of m_bSpotted. The latter can stay set by
-    // radar/team information and incorrectly paint an occluded enemy green.
-    // Raycasts are CPU-only, happen after DMA, and are cached independently.
-    struct CachedVisibility {
-        bool known = false;
-        bool visible = false;
-        uint64_t next_refresh_ms = 0;
-        uint64_t last_seen_ms = 0;
-    };
-    static std::unordered_map<uintptr_t, CachedVisibility> visibilityCache;
-    if (visibilityCache.bucket_count() < 128) visibilityCache.reserve(128);
-    for (size_t i = 0; i < confirmedDeadCount; ++i)
-        visibilityCache.erase(confirmedDead[i]);
-    static std::string visibilityCacheMap;
-    if (visibilityCacheMap != runtime.map_name) {
-        visibilityCache.clear();
-        visibilityCacheMap = runtime.map_name;
-    }
+    // Only consume previously completed LOS results here. The worker owns
+    // raycasts, so a large collision BVH cannot delay snapshot publication.
     const auto losWorld = requested.visibility && collision.IsLoadedFor(runtime.map_name)
         ? collision.WorldSnapshot() : nullptr;
     const CameraSnapshot visibilityCamera = SelectCameraSnapshot(position_sample_ms);
     const auto losOrigin = Visibility::CameraOrigin(visibilityCamera.timestamp_ms
         ? visibilityCamera.view_matrix : runtime.view_matrix);
+    std::vector<VisibilityTarget> visibilityDue;
+    visibilityDue.reserve(runtime.players.size());
+    const uint64_t visibilityGeneration = g_session_generation.load(std::memory_order_acquire);
     for (auto& player : runtime.players) {
         player.visibility_known = false;
         player.visible = false;
@@ -4483,42 +4838,30 @@ static void RunFrameWithConfig(const Config& frame_config) {
         if (frame_config.max_distance > 0.f && player.distance > frame_config.max_distance)
             continue;
 
-        auto& cached = visibilityCache[player.pawn];
-        cached.last_seen_ms = scan_now_ms;
-        if (scan_now_ms < cached.next_refresh_ms) {
+        const auto cached = g_visibility_worker.Get(player.pawn, visibilityGeneration);
+        if (cached.checked_ms && scan_now_ms >= cached.checked_ms &&
+            scan_now_ms - cached.checked_ms <= 250u) {
             player.visibility_known = cached.known;
             player.visible = cached.visible;
-            continue;
         }
+        if (cached.checked_ms && scan_now_ms >= cached.checked_ms &&
+            scan_now_ms - cached.checked_ms < 100u)
+            continue;
 
         constexpr BoneSlot slots[] = {BoneSlot::Head, BoneSlot::Neck,
             BoneSlot::SpineUpper, BoneSlot::SpineLower};
-        std::array<Trajectory::Vec3, 4> points{};
-        for (size_t i = 0; i < points.size(); ++i) {
+        VisibilityTarget target{};
+        target.pawn = player.pawn;
+        for (size_t i = 0; i < target.points.size(); ++i) {
             const auto& bone = player.bones[static_cast<size_t>(slots[i])];
-            points[i] = {bone[0], bone[1], bone[2]};
+            target.points[i] = {bone[0], bone[1], bone[2]};
         }
-        const auto result = Visibility::CheckPoints(losWorld.get(), *losOrigin, points);
-        player.visibility_known = result.has_value();
-        player.visible = result.value_or(false);
-        cached.known = player.visibility_known;
-        cached.visible = player.visible;
-        cached.next_refresh_ms = scan_now_ms + 100u;
+        visibilityDue.push_back(target);
     }
-    if (!requested.visibility)
-        visibilityCache.clear();
-    else if ((runtime.frames % 64u) == 0u) {
-        int removed = 0;
-        for (auto it = visibilityCache.begin();
-             it != visibilityCache.end() && removed < 4;) {
-            if (scan_now_ms - it->second.last_seen_ms > 5000u) {
-                it = visibilityCache.erase(it);
-                ++removed;
-            } else {
-                ++it;
-            }
-        }
-    }
+    if (losWorld && losOrigin && !visibilityDue.empty())
+        g_visibility_worker.Submit(losWorld, *losOrigin, std::move(visibilityDue), visibilityGeneration);
+    else if (!requested.visibility)
+        g_visibility_worker.Reset();
 
     // Camera projection is published by the dedicated high-rate camera lane.
     // Avoid a redundant DMA view-matrix round-trip and the old temporary vector
@@ -4653,6 +4996,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
     else
         runtime.bomb = BombState{};
 
+    UpdateLocalWeaponDefinitionThrottled();
+
     if (runtime.bomb.defusing && runtime.bomb.defuser_handle) {
         const uintptr_t defuser = ResolveEntityByHandle(runtime.bomb.defuser_handle,
             g_pawn_stride ? g_pawn_stride : kEntityIdentityStride);
@@ -4668,7 +5013,10 @@ static void RunFrameWithConfig(const Config& frame_config) {
 
     // Snapshot successful scans for the hold-over path above.
     if (!runtime.players.empty()) {
-        last_good_players = runtime.players;
+        last_good_players.clear();
+        last_good_players.reserve(runtime.players.size());
+        for (const auto& player : runtime.players)
+            last_good_players.push_back({player.pawn, player.controller});
         last_good_ms = scan_now_ms;
         OmniGhost::Gameplay::DmaTelemetry::CS2().last_good_age_ms.store(
             0, std::memory_order_relaxed);
@@ -4727,7 +5075,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
         const float accounted = g_phase.webradar_ms + g_phase.entity_ms + g_phase.local_ms
             + g_phase.core_scatter_ms + g_phase.positions_ms + g_phase.bones_ms
             + g_phase.weapon_ms + g_phase.ammo_ms + g_phase.flags_ms
-            + g_phase.spectator_ms + g_phase.bomb_ms
+            + g_phase.spectator_ms + g_phase.bomb_ms + g_phase.visibility_ms
             + g_phase.publish_ms + g_phase.cleanup_ms;
         g_phase.other_ms = (std::max)(0.f, wall - accounted);
     }
@@ -4786,10 +5134,13 @@ void EnsureAcquisitionStarted() {
 					camera_tel.camera_cooldown_bypasses.fetch_add(1, std::memory_order_relaxed);
                 bool attempted = false;
 				const auto camera_read_begin = std::chrono::steady_clock::now();
-                const bool read_ok = QTryRead(client_base + offsets.dwViewMatrix, matrix, sizeof(matrix),
+				const uint64_t camera_read_begin_ms = GetTickCount64();
+				const bool read_ok = QTryRead(client_base + offsets.dwViewMatrix, matrix, sizeof(matrix),
                                               attempted, "CS2.Camera");
-                if (read_ok)
-                    PublishCameraSnapshot(matrix);
+				const uint64_t camera_read_end_ms = GetTickCount64();
+				if (read_ok)
+					PublishCameraSnapshot(matrix, camera_read_begin_ms +
+						(camera_read_end_ms - camera_read_begin_ms) / 2u);
                 if (attempted) {
 					if (read_ok && consecutive_busy > 0)
 						camera_tel.camera_busy_retry_success.fetch_add(1, std::memory_order_relaxed);
@@ -4797,7 +5148,12 @@ void EnsureAcquisitionStarted() {
 					OmniGhost::Gameplay::DmaTelemetry::ObserveCameraRead(
 						camera_tel,
 						OmniGhost::Gameplay::TimeMs(camera_read_begin));
-                    next_camera_ms = GetTickCount64() + static_cast<uint64_t>(camera_period_ms);
+                    // Keep a stable cadence relative to the previous deadline,
+                    // not relative to the variable-duration DMA read.
+                    next_camera_ms += static_cast<uint64_t>(camera_period_ms);
+                    const uint64_t after_read_ms = GetTickCount64();
+                    if (next_camera_ms <= after_read_ms)
+                        next_camera_ms = after_read_ms + static_cast<uint64_t>(camera_period_ms);
 					g_camera_deadline_ms.store(next_camera_ms, std::memory_order_release);
 					g_camera_pending.store(false, std::memory_order_release);
 					wait_ms = camera_period_ms;
@@ -4886,8 +5242,15 @@ void EnsureAcquisitionStarted() {
                         }
                         const auto rt = g_runtime_snapshots.Acquire();
                         if (rt) {
-                            const float age = static_cast<float>(GetTickCount64() - rt->snapshot_timestamp_ms);
-                            tel.snapshot_age_ms.store(age, std::memory_order_relaxed);
+                            const uint64_t nowMs = GetTickCount64();
+                            const float snapshotAge = static_cast<float>(nowMs - rt->snapshot_timestamp_ms);
+                            const uint64_t worldSample = rt->world_sample_ms ? rt->world_sample_ms : rt->snapshot_timestamp_ms;
+                            const float worldAge = static_cast<float>(nowMs - worldSample);
+                            const float publishDelay = rt->snapshot_timestamp_ms >= worldSample
+                                ? static_cast<float>(rt->snapshot_timestamp_ms - worldSample) : 0.f;
+                            tel.snapshot_age_ms.store(snapshotAge, std::memory_order_relaxed);
+                            tel.world_age_ms.store(worldAge, std::memory_order_relaxed);
+                            tel.publish_delay_ms.store(publishDelay, std::memory_order_relaxed);
                         }
                     }
                     tel.snapshot_interval_ms.store(
@@ -4949,7 +5312,8 @@ void EnsureAcquisitionStarted() {
                     ScopedPhase _phPub(&g_phase.publish_ms);
                     PublishRuntimeSnapshot();
                 }
-                g_phase.other_ms = static_cast<float>(mem.ConsumeThreadDmaWaitUs()) / 1000.f;
+                // lock_wait_ms is captured once above. Do not overwrite the
+                // residual CPU attribution with a second, unrelated counter read.
             } catch (const std::exception& ex) {
                 std::cerr << "[CS2] acquisition exception: " << ex.what() << std::endl;
             } catch (...) {
@@ -5126,8 +5490,10 @@ bool ReinitDma() {
 
 void Shutdown() {
     StopAcquisition();
+    g_visibility_worker.Stop();
     WebRadar::Stop();
     DestroyScatter();
+    ResetSessionState("shutdown");
     g_pending_entity_list = 0;
     g_entity_list_confirmations = 0;
     g_entity_list_next_validation_ms = 0;
@@ -5148,14 +5514,11 @@ bool IsGameProcessAlive() {
 	// needless native-resource churn in some MemProcFS builds. Cache the probe
 	// for one second; shutdown detection remains responsive without polling VMM
 	// dozens of times per second.
-	static std::mutex liveness_mutex;
-	static uint64_t next_probe_ms = 0;
-	static bool last_result = true;
 	const uint64_t now_ms = GetTickCount64();
-	std::scoped_lock lock(liveness_mutex);
-	if (now_ms < next_probe_ms)
-		return last_result;
-	next_probe_ms = now_ms + 1000;
+	std::scoped_lock lock(g_process_liveness_mutex);
+	if (now_ms < g_process_liveness_next_probe_ms)
+		return g_process_liveness_last_result;
+	g_process_liveness_next_probe_ms = now_ms + 1000;
 
     // Prefer DMA remote PID (second PC). Fall back to local Toolhelp.
     DWORD pid = 0;
@@ -5164,8 +5527,8 @@ bool IsGameProcessAlive() {
     }
     if (!pid)
         pid = FindProcessIdByName("cs2.exe");
-	last_result = pid != 0;
-	return last_result;
+	g_process_liveness_last_result = pid != 0;
+	return g_process_liveness_last_result;
 }
 
 const char* StatusLine() {

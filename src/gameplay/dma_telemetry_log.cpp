@@ -166,7 +166,7 @@ void WritePerf(std::string_view tag, Sample& s) {
         "read_fails=%llu\n\n"
         "acquire_avg_ms=%.2f\nacquire_p50_ms=%.2f\nacquire_p95_ms=%.2f\nacquire_p99_ms=%.2f\nacquire_max_ms=%.2f\n"
         "scheduler_wait_ms=%.2f\n\n"
-        "snapshot_age_ms=%.1f\nsnapshot_hz=%.1f\nsnapshot_interval_ms=%.1f\nsnapshot_drops=%llu\n\n"
+        "snapshot_age_ms=%.1f\nworld_age_ms=%.1f\npublish_delay_ms=%.1f\nsnapshot_hz=%.1f\nsnapshot_interval_ms=%.1f\nsnapshot_drops=%llu\nvisibility_ms=%.2f\nvisibility_players_tested=%d\nvisibility_rays=%d\n\n"
 		"camera_age_ms=%.1f\ncamera_age_avg_ms=%.1f\ncamera_age_p50_ms=%.1f\n"
 		"camera_age_p95_ms=%.1f\ncamera_age_p99_ms=%.1f\ncamera_age_max_ms=%.1f\n"
 		"camera_read_p95_ms=%.2f\ncamera_read_p99_ms=%.2f\ncamera_read_max_ms=%.2f\n"
@@ -202,9 +202,14 @@ void WritePerf(std::string_view tag, Sample& s) {
         s.acquire_max_ms.load(),
         s.scheduler_wait_ms.load(),
         s.snapshot_age_ms.load(),
+        s.world_age_ms.load(),
+        s.publish_delay_ms.load(),
         s.snapshot_hz.load(),
         s.snapshot_interval_ms.load(),
         static_cast<unsigned long long>(s.snapshot_drops.load()),
+        s.visibility_ms.load(),
+        s.visibility_players_tested.load(),
+        s.visibility_rays.load(),
         s.camera_age_ms.load(),
 		s.camera_age_avg_ms.load(),
 		s.camera_age_p50_ms.load(),
@@ -558,7 +563,7 @@ void LogSpikeBreakdown(std::string_view tag, const SpikeBreakdown& b) noexcept {
         return;
     s_last = now;
     const float accounted = b.webradar_ms + b.entity_ms + b.local_ms + b.core_scatter_ms
-        + b.positions_ms + b.bones_ms + b.weapon_ms + b.spectator_ms + b.bomb_ms
+        + b.positions_ms + b.bones_ms + b.weapon_ms + b.visibility_ms + b.spectator_ms + b.bomb_ms
         + b.publish_ms + b.cleanup_ms;
     const float unaccounted = (std::max)(0.f, b.total_ms - accounted);
     char buf[900]{};
@@ -568,25 +573,25 @@ void LogSpikeBreakdown(std::string_view tag, const SpikeBreakdown& b) noexcept {
         "total_ms=%.2f\n"
         "webradar_ms=%.2f\nentity_ms=%.2f\nlocal_ms=%.2f\n"
         "core_scatter_ms=%.2f\npositions_ms=%.2f\nbones_ms=%.2f\n"
-        "weapon_ms=%.2f\nspectator_ms=%.2f\nbomb_ms=%.2f\n"
+        "weapon_ms=%.2f\nvisibility_ms=%.2f\nspectator_ms=%.2f\nbomb_ms=%.2f\n"
         "publish_ms=%.2f\ncleanup_ms=%.2f\nother_ms=%.2f\nlock_wait_ms=%.2f\n"
         "unaccounted_ms=%.2f\n"
         "qread_calls=%d\nqread_total_ms=%.2f\nqread_max_ms=%.2f\n"
         "scatter_calls=%d\nscatter_total_ms=%.2f\nscatter_max_ms=%.2f\n"
         "top_tag=%s\ntop_tag_ms=%.2f\ntop2_tag=%s\ntop2_tag_ms=%.2f\ntop3_tag=%s\ntop3_tag_ms=%.2f\n"
-        "players=%d\nbones_players=%d\n"
+        "players=%d\nbones_players=%d\nvisibility_players_tested=%d\nvisibility_rays=%d\n"
         "entity_full_probe=%d\nspectator_refresh=%d\nbomb_refresh=%d\ncache_cleanup=%d",
         static_cast<unsigned long long>(b.scan_id),
         b.total_ms, b.webradar_ms, b.entity_ms, b.local_ms,
         b.core_scatter_ms, b.positions_ms, b.bones_ms,
-        b.weapon_ms, b.spectator_ms, b.bomb_ms,
+        b.weapon_ms, b.visibility_ms, b.spectator_ms, b.bomb_ms,
         b.publish_ms, b.cleanup_ms, b.other_ms, b.lock_wait_ms, unaccounted,
         b.qread_calls, b.qread_total_ms, b.qread_max_ms,
         b.scatter_calls, b.scatter_total_ms, b.scatter_max_ms,
         b.top_tag ? b.top_tag : "none", b.top_tag_ms,
         b.top2_tag ? b.top2_tag : "none", b.top2_tag_ms,
         b.top3_tag ? b.top3_tag : "none", b.top3_tag_ms,
-        b.players, b.bones_players,
+        b.players, b.bones_players, b.visibility_players_tested, b.visibility_rays,
         b.entity_full_probe, b.spectator_refresh, b.bomb_refresh, b.cache_cleanup);
     EmitWarn(tag, buf);
 }

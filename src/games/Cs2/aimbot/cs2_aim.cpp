@@ -15,6 +15,7 @@
 #include <chrono>
 #include <cstdio>
 #include <array>
+#include <string>
 #include <unordered_map>
 #include <utility>
 
@@ -303,7 +304,16 @@ void ApplyRobustPrediction(float point[3], const CS2::Player& player,
     if (!cfg.aim_prediction || !player.pawn) return;
     EnsureMotionHistoryCapacity();
 
-    const uint64_t sample_ms = rt.snapshot_timestamp_ms ? rt.snapshot_timestamp_ms : now_ms;
+    const uint64_t sample_ms = player.position_sample_ms ? player.position_sample_ms :
+        (rt.snapshot_timestamp_ms ? rt.snapshot_timestamp_ms : now_ms);
+    if (g_motion_history.size() > 96) {
+        for (auto it = g_motion_history.begin(); it != g_motion_history.end();) {
+            if (!it->second.sample_ms || now_ms - it->second.sample_ms > 5000u)
+                it = g_motion_history.erase(it);
+            else
+                ++it;
+        }
+    }
     auto& history = g_motion_history[player.pawn];
     std::array<float, 3> raw_velocity{ player.velocity[0], player.velocity[1], player.velocity[2] };
     std::array<float, 3> filtered_velocity = raw_velocity;
@@ -358,6 +368,8 @@ TargetCandidate SelectTarget(const CS2::Runtime& rt, const CS2::Config& cfg, flo
     TargetCandidate incumbent{};
     g_target_diag = {};
     const uint64_t now_ms = GetTickCount64();
+    const auto camera = CS2::SelectCameraSnapshot(rt.world_sample_ms ? rt.world_sample_ms : rt.snapshot_timestamp_ms);
+    const float* cameraMatrix = camera.timestamp_ms ? camera.view_matrix : rt.view_matrix;
 
     for (std::size_t i = 0; i < rt.players.size(); ++i) {
         const auto& player = rt.players[i];
@@ -378,7 +390,7 @@ TargetCandidate SelectTarget(const CS2::Runtime& rt, const CS2::Config& cfg, flo
         ApplyRobustPrediction(point, player, rt, cfg, now_ms);
 
         float sx = 0.f, sy = 0.f;
-        if (!W2S(point, rt.view_matrix, sx, sy)) { ++g_target_diag.projection; continue; }
+        if (!W2S(point, cameraMatrix, sx, sy)) { ++g_target_diag.projection; continue; }
         const float dx = sx - cx;
         const float dy = sy - cy;
         const float screen = std::sqrt(dx * dx + dy * dy);
@@ -614,7 +626,15 @@ int ActiveTargetIndex() { return g_active_target_idx; }
 const char* DebugStatus() { return g_debug; }
 
 void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
-    CS2::Config& cfg = const_cast<CS2::Config&>(cfg_in);
+    static std::string motion_map;
+    const std::string current_map = rt.map_name;
+    if (current_map != motion_map) {
+        g_motion_history.clear();
+        motion_map = current_map;
+    }
+    // Input configuration belongs to the UI/snapshot owner. The aim update
+    // may adapt its own decisions, but must never mutate shared UI state.
+    CS2::Config cfg = cfg_in;
     HandlePanic(cfg);
 
     InitializeHumanizer();
@@ -639,13 +659,7 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
         return;
     }
 
-    int local_weapon_definition = 0;
-    for (const auto& player : rt.players) {
-        if (player.is_local) {
-            local_weapon_definition = player.weapon_def;
-            break;
-        }
-    }
+    const int local_weapon_definition = rt.local_weapon_definition;
 
     // A zero definition means the weapon-chain read was unavailable for this
     // snapshot.  Do not turn that transient read failure into a permanent aim
@@ -668,6 +682,13 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
 
     const float cx = ds.x * 0.5f;
     const float cy = ds.y * 0.5f;
+    // One temporally coherent camera for every projection performed by this
+    // update. Do not re-lock camera history per target or mix rt.view_matrix
+    // with a newer camera sample in the trigger/retention paths.
+    const auto updateCamera = CS2::SelectCameraSnapshot(
+        rt.world_sample_ms ? rt.world_sample_ms : rt.snapshot_timestamp_ms);
+    const float* updateViewMatrix = updateCamera.timestamp_ms
+        ? updateCamera.view_matrix : rt.view_matrix;
     const bool aim_key_down = cfg.aim_enabled && AimKeyDown(cfg);
     TargetCandidate target{};
     float aim_output_x = 0.f;
@@ -704,7 +725,7 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
                     int bone = std::clamp(cfg.aim_bone, 0, 3);
                     PickBone(held, bone, point);
                     float sx = 0.f, sy = 0.f;
-                    if (held.alive && held.health > 0 && W2S(point, rt.view_matrix, sx, sy)) {
+                    if (held.alive && held.health > 0 && W2S(point, updateViewMatrix, sx, sy)) {
                         target.index = static_cast<int>(i);
                         target.pawn = held.pawn;
                         target.error_x = sx - cx;
@@ -727,7 +748,8 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
         g_last_target_idx = target.index;
 
         // Single controller: smooth strength + independent humanization.
-        CS2::config.aim_auto_bone = false;
+        // Keep this adaptation local; shared UI configuration is immutable here.
+        cfg.aim_auto_bone = false;
         const int boneFixed = std::clamp(cfg.aim_bone, 0, 3);
         (void)boneFixed;
         const float dt = ImGui::GetIO().DeltaTime;
@@ -801,7 +823,7 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
                             if (p.ent_index == idEnt || p.ent_index == (idEnt & 0x7FFF)) {
                                 if (cfg.trigger_head_only) {
                                     float sx, sy;
-                                    if (W2S(p.head, rt.view_matrix, sx, sy)) {
+                                    if (W2S(p.head, updateViewMatrix, sx, sy)) {
                                         const float d = std::sqrt((sx - cx) * (sx - cx) + (sy - cy) * (sy - cy));
                                         if (d < 16.f) { hit = true; hitPawn = p.pawn; }
                                     }
@@ -825,7 +847,7 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
                         if (cfg.aim_visibility_check && !p.spotted) continue;
                         auto testPoint = [&](const float* w) {
                             float sx = 0.f, sy = 0.f;
-                            if (!W2S(w, rt.view_matrix, sx, sy)) return false;
+                            if (!W2S(w, updateViewMatrix, sx, sy)) return false;
                             const float d = std::sqrt((sx - cx) * (sx - cx) + (sy - cy) * (sy - cy));
                             return d < triggerFov;
                         };

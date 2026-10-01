@@ -49,14 +49,13 @@ inline std::optional<bool> CheckPoints(const Trajectory::CollisionBvh* world,
                                       Vec3 origin, std::span<const Vec3> points) {
     if (!world || !world->Ready() || !Finite(origin) || points.empty()) return std::nullopt;
     bool tested = false;
-    bool invalid = false;
     for (const auto point : points) {
-        if (!Finite(point)) { invalid = true; continue; }
+        if (!Finite(point)) continue;
         const float dx = point.x - origin.x, dy = point.y - origin.y, dz = point.z - origin.z;
-        if (dx * dx + dy * dy + dz * dz < .0001f) { invalid = true; continue; }
+        if (dx * dx + dy * dy + dz * dz < .0001f) continue;
         tested = true;
         if (!world->TraceRay(origin, point).hit) return true;
     }
-    return tested && !invalid ? std::optional<bool>(false) : std::nullopt;
+    return tested ? std::optional<bool>(false) : std::nullopt;
 }
 }

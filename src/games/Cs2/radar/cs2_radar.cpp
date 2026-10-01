@@ -5,6 +5,7 @@
 #include "../src/platform/embedded_resources.h"
 
 #include <Windows.h>
+#include <bcrypt.h>
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <iphlpapi.h>
@@ -18,29 +19,45 @@
 #include <sstream>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 #include <iostream>
 
 #pragma comment(lib, "Ws2_32.lib")
 #pragma comment(lib, "iphlpapi.lib")
+#pragma comment(lib, "bcrypt.lib")
 
 namespace CS2::WebRadar {
+struct RadarPlayer {
+    int ent_index = 0, team = 0, health = 0, armor = 0;
+    bool is_local = false, flashed = false;
+    float view_yaw = 0.f, pos[3]{};
+    char name[64]{};
+};
+struct RadarSnapshot {
+    bool in_match = false;
+    char map_name[64]{};
+    BombState bomb{};
+    std::vector<RadarPlayer> players;
+};
 std::string BuildLiveJson(const Runtime& rt);
+std::string BuildLiveJson(const RadarSnapshot& rt);
 namespace {
 
 namespace fs = std::filesystem;
 
 std::atomic<bool> g_running{false};
 std::atomic<bool> g_wsa{false};
+std::mutex g_wsa_mu;
 SOCKET g_listen = INVALID_SOCKET;
-int g_port = 8080;
+std::atomic<int> g_port{8080};
 std::mutex g_mu;
 std::string g_token;
 std::string g_public_url;
 std::string g_cloudflare_status;
 std::string g_web_root;
 std::string g_live_json = "{\"m_map\":\"unknown\",\"m_round_phase\":\"warmup\",\"m_players\":[],\"m_bomb\":null}";
-Runtime g_pending_runtime{};
+RadarSnapshot g_pending_runtime{};
 bool g_pending_runtime_valid = false;
 ULONGLONG g_next_json_refresh = 0;
 std::thread g_server_thread;
@@ -49,6 +66,8 @@ std::thread g_cf_reader;
 std::atomic<bool> g_cf_stop{false};
 
 bool EnsureWsa() {
+    if (g_wsa.load()) return true;
+    std::lock_guard<std::mutex> lock(g_wsa_mu);
     if (g_wsa.load()) return true;
     WSADATA wsa{};
     if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
@@ -59,15 +78,8 @@ bool EnsureWsa() {
 
 std::string RandomToken() {
     unsigned char bytes[16]{};
-    // Prefer Windows system RNG without CryptoAPI headers.
-    LARGE_INTEGER qpc{};
-    QueryPerformanceCounter(&qpc);
-    unsigned seed = static_cast<unsigned>(GetTickCount() ^ static_cast<unsigned>(qpc.QuadPart) ^
-                                          static_cast<unsigned>(GetCurrentProcessId() << 16));
-    for (int i = 0; i < 16; ++i) {
-        seed = seed * 1664525u + 1013904223u + static_cast<unsigned>(i * 97);
-        bytes[i] = static_cast<unsigned char>((seed >> 16) & 0xFF);
-    }
+    if (BCryptGenRandom(nullptr, bytes, sizeof(bytes), BCRYPT_USE_SYSTEM_PREFERRED_RNG) != 0)
+        return {}; // start fails closed rather than exposing an unauthenticated API
     static const char* hex = "0123456789abcdef";
     std::string out(32, '0');
     for (int i = 0; i < 16; ++i) {
@@ -204,20 +216,20 @@ void SendAll(SOCKET s, const char* data, int len) {
 }
 
 void SendResponse(SOCKET s, int code, const char* statusText, const std::string& body,
-                  const char* contentType, bool noCache = true) {
+                  const char* contentType, bool noCache = true, bool sendBody = true) {
     char header[512];
     std::snprintf(header, sizeof(header),
         "HTTP/1.1 %d %s\r\n"
         "Content-Type: %s\r\n"
         "Content-Length: %zu\r\n"
-        "Access-Control-Allow-Origin: *\r\n"
+        "Access-Control-Allow-Origin: http://127.0.0.1\r\n"
         "Access-Control-Allow-Headers: Authorization, Content-Type\r\n"
         "%s"
         "Connection: close\r\n\r\n",
         code, statusText, contentType, body.size(),
         noCache ? "Cache-Control: no-store\r\n" : "Cache-Control: public, max-age=60\r\n");
     SendAll(s, header, static_cast<int>(std::strlen(header)));
-    if (!body.empty())
+    if (sendBody && !body.empty())
         SendAll(s, body.data(), static_cast<int>(body.size()));
 }
 
@@ -283,15 +295,12 @@ void HandleClient(SOCKET client) {
 
     const bool isApi = pure.rfind("/api/", 0) == 0;
     if (isApi && !TokenOk(req)) {
-        // Soft-auth: still allow if no Authorization (local LAN convenience) when token only in hash
-        // Browser polling sends Authorization from hash; first load of index does not need token.
+        SendResponse(client, 401, "Unauthorized", "token required", "text/plain");
+        closesocket(client);
+        return;
     }
 
     if (method == "GET" && (pure == "/api/live" || pure == "/api/state")) {
-        if (!TokenOk(req) && req.find("Authorization:") == std::string::npos &&
-            req.find("authorization:") == std::string::npos) {
-            // Allow unauthenticated local polling for LAN ease; token still in URL hash for browsers.
-        }
         const std::string json = LiveJsonSnapshot();
         SendResponse(client, 200, "OK", json, "application/json; charset=utf-8");
         closesocket(client);
@@ -313,7 +322,7 @@ void HandleClient(SOCKET client) {
             "HTTP/1.1 200 OK\r\n"
             "Content-Type: text/event-stream\r\n"
             "Cache-Control: no-store\r\n"
-            "Access-Control-Allow-Origin: *\r\n"
+            "Access-Control-Allow-Origin: http://127.0.0.1\r\n"
             "Connection: close\r\n"
             "Content-Length: %zu\r\n\r\n", body.size());
         SendAll(client, header, static_cast<int>(std::strlen(header)));
@@ -357,8 +366,7 @@ void HandleClient(SOCKET client) {
             return;
         }
     }
-    if (method == "HEAD") body.clear();
-    SendResponse(client, 200, "OK", body, MimeType(file.string()).c_str(), false);
+    SendResponse(client, 200, "OK", body, MimeType(file.string()).c_str(), false, method != "HEAD");
     closesocket(client);
 }
 
@@ -366,7 +374,7 @@ void ServerLoop() {
     while (g_running.load()) {
         const ULONGLONG now = GetTickCount64();
         if (now >= g_next_json_refresh) {
-            Runtime snapshot{};
+            RadarSnapshot snapshot{};
             bool haveSnapshot = false;
             {
                 std::lock_guard<std::mutex> lock(g_mu);
@@ -379,7 +387,9 @@ void ServerLoop() {
                 std::string json = BuildLiveJson(snapshot);
                 std::lock_guard<std::mutex> lock(g_mu);
                 g_live_json = std::move(json);
-                g_next_json_refresh = now + (snapshot.in_match ? 33u : 500u);
+                // Match the normal browser polling cadence (~15 Hz). Building
+                // JSON twice as often only adds allocations and lock traffic.
+                g_next_json_refresh = now + (snapshot.in_match ? 67u : 500u);
             } else {
                 g_next_json_refresh = now + 100u;
             }
@@ -398,9 +408,17 @@ void ServerLoop() {
             Sleep(5);
             continue;
         }
-        u_long blocking = 0;
-        ioctlsocket(client, FIONBIO, &blocking);
-        DWORD timeout = 750;
+        // Do not let a client that connected but never sent a request stall
+        // the sole server loop. Process only immediately readable clients.
+        fd_set readable{};
+        FD_ZERO(&readable);
+        FD_SET(client, &readable);
+        timeval readyNow{};
+        if (select(0, &readable, nullptr, nullptr, &readyNow) <= 0) {
+            closesocket(client);
+            continue;
+        }
+        DWORD timeout = 100;
         setsockopt(client, SOL_SOCKET, SO_RCVTIMEO,
                    reinterpret_cast<const char*>(&timeout), sizeof(timeout));
         setsockopt(client, SOL_SOCKET, SO_SNDTIMEO,
@@ -440,7 +458,7 @@ std::wstring FindCloudflared() {
 
 } // namespace
 
-std::string BuildLiveJson(const Runtime& rt) {
+std::string BuildLiveJson(const RadarSnapshot& rt) {
     std::ostringstream ss;
     std::string map = rt.map_name[0] ? rt.map_name : "unknown";
     // Strip path / extension
@@ -494,6 +512,25 @@ std::string BuildLiveJson(const Runtime& rt) {
     return ss.str();
 }
 
+std::string BuildLiveJson(const Runtime& rt) {
+    RadarSnapshot compact{};
+    compact.in_match = rt.in_match;
+    std::memcpy(compact.map_name, rt.map_name, sizeof(compact.map_name));
+    compact.bomb = rt.bomb;
+    compact.players.reserve(rt.players.size());
+    for (const auto& player : rt.players) {
+        RadarPlayer out{};
+        out.ent_index = player.ent_index; out.team = player.team;
+        out.health = player.health; out.armor = player.armor;
+        out.is_local = player.is_local; out.flashed = player.is_flashed;
+        out.view_yaw = player.view_yaw;
+        std::memcpy(out.pos, player.pos, sizeof(out.pos));
+        std::memcpy(out.name, player.name, sizeof(out.name));
+        compact.players.push_back(out);
+    }
+    return BuildLiveJson(compact);
+}
+
 std::string BuildLiveJson() {
     std::lock_guard<std::mutex> lock(g_mu);
     if (!g_pending_runtime_valid)
@@ -503,7 +540,7 @@ std::string BuildLiveJson() {
 
 bool Start(int port) {
     if (g_running.load()) {
-        if (port == g_port) return true;
+        if (port == g_port.load()) return true;
         Stop();
     }
     if (!EnsureWsa()) {
@@ -520,7 +557,9 @@ bool Start(int port) {
 
     sockaddr_in addr{};
     addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    // Localhost by default: LAN/public sharing requires an explicit future
+    // opt-in instead of exposing player data to every network interface.
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     addr.sin_port = htons(static_cast<u_short>(port));
     if (bind(s, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) != 0) {
         std::cout << "[WebRadar] bind failed port=" << port << " err=" << WSAGetLastError() << "\n";
@@ -535,11 +574,13 @@ bool Start(int port) {
     u_long nb = 1;
     ioctlsocket(s, FIONBIO, &nb);
 
+    const std::string token = RandomToken();
+    if (token.empty()) { closesocket(s); return false; }
     {
         std::lock_guard<std::mutex> lock(g_mu);
         g_listen = s;
-        g_port = port;
-        if (g_token.empty()) g_token = RandomToken();
+        g_port.store(port);
+        if (g_token.empty()) g_token = token;
         g_web_root = ResolveWebRoot();
         g_public_url.clear();
         g_cloudflare_status.clear();
@@ -548,7 +589,7 @@ bool Start(int port) {
     }
     g_running.store(true);
     g_server_thread = std::thread(ServerLoop);
-    std::cout << "[WebRadar] listening on 0.0.0.0:" << port
+    std::cout << "[WebRadar] listening on 127.0.0.1:" << port
               << " root=" << g_web_root << "\n";
     {
         std::error_code ec;
@@ -577,10 +618,15 @@ void Stop() {
         g_next_json_refresh = 0;
     }
     StopCloudflare();
+    {
+        std::lock_guard<std::mutex> lock(g_wsa_mu);
+        if (g_wsa.exchange(false))
+            WSACleanup();
+    }
 }
 
 bool IsRunning() noexcept { return g_running.load(); }
-int Port() noexcept { return g_port; }
+int Port() noexcept { return g_port.load(); }
 
 void SubmitSnapshot(const Runtime& snapshot) {
     if (!g_running.load()) return;
@@ -588,10 +634,42 @@ void SubmitSnapshot(const Runtime& snapshot) {
     const ULONGLONG now = GetTickCount64();
     if (now < nextSnapshot) return;
     nextSnapshot = now + (snapshot.in_match ? 33 : 500);
-    // Only copy the immutable acquisition state here. JSON formatting and its
-    // allocations run in ServerLoop, never in the DMA acquisition thread.
+    // The radar consumes a deliberately small DTO. Copying a Runtime here
+    // used to copy every skeleton/bone vector while holding the server mutex.
+    // JSON formatting and allocations remain in ServerLoop.
+    RadarSnapshot compact{};
+    compact.in_match = snapshot.in_match;
+    std::memcpy(compact.map_name, snapshot.map_name, sizeof(compact.map_name));
+    compact.bomb = snapshot.bomb;
+    compact.players.reserve(snapshot.players.size() + (snapshot.local_pawn ? 1u : 0u));
+    // The acquisition pipeline intentionally excludes the local pawn from
+    // remote ESP players. Add a compact local marker explicitly so radar
+    // clients always have an anchor for rotation/follow behaviour.
+    if (snapshot.local_pawn) {
+        RadarPlayer local{};
+        local.team = snapshot.local_team;
+        local.health = snapshot.local_health;
+        local.is_local = true;
+        local.view_yaw = snapshot.local_view_yaw;
+        std::memcpy(local.pos, snapshot.local_pos, sizeof(local.pos));
+        std::snprintf(local.name, sizeof(local.name), "Local");
+        compact.players.push_back(local);
+    }
+    for (const auto& player : snapshot.players) {
+        RadarPlayer out{};
+        out.ent_index = player.ent_index;
+        out.team = player.team;
+        out.health = player.health;
+        out.armor = player.armor;
+        out.is_local = player.is_local;
+        out.flashed = player.is_flashed;
+        out.view_yaw = player.view_yaw;
+        std::memcpy(out.pos, player.pos, sizeof(out.pos));
+        std::memcpy(out.name, player.name, sizeof(out.name));
+        compact.players.push_back(out);
+    }
     std::lock_guard<std::mutex> lock(g_mu);
-    g_pending_runtime = snapshot;
+    g_pending_runtime = std::move(compact);
     g_pending_runtime_valid = true;
 }
 
@@ -605,7 +683,7 @@ std::string AccessToken() {
 std::string LocalUrl() {
     std::lock_guard<std::mutex> lock(g_mu);
     std::ostringstream ss;
-    ss << "http://" << DetectLanIp() << ":" << g_port;
+    ss << "http://127.0.0.1:" << g_port.load();
     if (!g_token.empty()) ss << "/#" << g_token;
     return ss.str();
 }
@@ -633,9 +711,9 @@ bool StartCloudflare() {
     g_cf_stop.store(true);
     if (g_cf_reader.joinable())
         g_cf_reader.join();
-    if (g_cf_proc) {
-        CloseHandle(g_cf_proc);
-        g_cf_proc = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(g_mu);
+        if (g_cf_proc) { CloseHandle(g_cf_proc); g_cf_proc = nullptr; }
     }
     g_cf_stop.store(false);
     {
@@ -647,7 +725,7 @@ bool StartCloudflare() {
     const std::wstring exe = FindCloudflared();
     wchar_t cmd[512]{};
     std::swprintf(cmd, 512, L"\"%s\" tunnel --no-autoupdate --url http://127.0.0.1:%d",
-                  exe.c_str(), g_port);
+                  exe.c_str(), g_port.load());
 
     SECURITY_ATTRIBUTES sa{ sizeof(sa), nullptr, TRUE };
     HANDLE rd = nullptr, wr = nullptr;
@@ -678,7 +756,10 @@ bool StartCloudflare() {
     }
     CloseHandle(wr);
     CloseHandle(pi.hThread);
-    g_cf_proc = pi.hProcess;
+    {
+        std::lock_guard<std::mutex> lock(g_mu);
+        g_cf_proc = pi.hProcess;
+    }
 
     // Pipe parsing belongs off the render thread. Keep draining after finding
     // the URL so cloudflared cannot block on a full output pipe.
@@ -736,11 +817,9 @@ bool StartCloudflare() {
 
 void StopCloudflare() {
     g_cf_stop.store(true);
-    if (g_cf_proc) {
-        TerminateProcess(g_cf_proc, 0);
-        CloseHandle(g_cf_proc);
-        g_cf_proc = nullptr;
-    }
+    HANDLE process = nullptr;
+    { std::lock_guard<std::mutex> lock(g_mu); process = g_cf_proc; g_cf_proc = nullptr; }
+    if (process) { TerminateProcess(process, 0); CloseHandle(process); }
     if (g_cf_reader.joinable())
         g_cf_reader.join();
     std::lock_guard<std::mutex> lock(g_mu);
@@ -749,6 +828,7 @@ void StopCloudflare() {
 }
 
 bool CloudflareRunning() noexcept {
+    std::lock_guard<std::mutex> lock(g_mu);
     if (!g_cf_proc) return false;
     DWORD code = 0;
     if (GetExitCodeProcess(g_cf_proc, &code) && code == STILL_ACTIVE)

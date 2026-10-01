@@ -11,8 +11,8 @@ public:
     bool IsLoadedFor(const char* mapName) const;
     void Clear();
     std::shared_ptr<const CollisionBvh> WorldSnapshot() const;
-    const std::string& Map() const noexcept { return map; }
-    const std::string& Error() const noexcept { return error; }
+    std::string Map() const;
+    std::string Error() const;
 private:
     std::string map, error;
     std::shared_ptr<CollisionBvh> world;

@@ -135,7 +135,8 @@ void DrawOutlinedText(ImDrawList* draw, ImVec2 pos, ImU32 color, const char* tex
 
 void DrawExtras(ImDrawList* draw, const CS2::Player& player, const ImVec2& head, const ImVec2& feet,
                 const ImVec2& min, const ImVec2& max, const float* viewMatrix,
-                const float predictedPosition[3], const CS2::Config& settings, ImU32 rgb) {
+                const float predictedPosition[3], const CS2::Config& settings, ImU32 rgb,
+                uint64_t sessionGeneration) {
     const float height = max.y - min.y;
     const float scale = std::clamp(height / 180.f, .45f, 2.2f);
     if (settings.snaplines) {
@@ -199,13 +200,24 @@ void DrawExtras(ImDrawList* draw, const CS2::Player& player, const ImVec2& head,
                           std::clamp(settings.eye_line_thickness, .5f, 5.f));
     }
     if (settings.trails) {
-        struct Point { float world[3]{}; double time = 0.; };
+        struct Point { float world[3]{}; uint64_t sample_ms = 0; double time = 0.; };
         static std::unordered_map<uintptr_t, std::deque<Point>> history;
+        static double nextPrune = 0.;
+        static uint64_t historyGeneration = 0;
+        if (historyGeneration != sessionGeneration) {
+            history.clear();
+            nextPrune = 0.;
+            historyGeneration = sessionGeneration;
+        }
         auto& points = history[player.pawn];
         const double now = ImGui::GetTime();
-        if (points.empty() || now - points.back().time > .04) {
+        // A trail represents acquired world samples, not overlay frames.  Do
+        // not manufacture duplicate points while acquisition is unchanged.
+        if (player.position_sample_ms &&
+            (points.empty() || points.back().sample_ms != player.position_sample_ms)) {
             Point point{};
-            std::memcpy(point.world, predictedPosition, sizeof(point.world));
+            std::memcpy(point.world, player.pos, sizeof(point.world));
+            point.sample_ms = player.position_sample_ms;
             point.time = now;
             points.push_back(point);
         }
@@ -219,6 +231,15 @@ void DrawExtras(ImDrawList* draw, const CS2::Player& player, const ImVec2& head,
             if (WorldToScreen(points[i - 1].world, viewMatrix, from) &&
                 WorldToScreen(points[i].world, viewMatrix, to))
                 draw->AddLine(from, to, color, std::clamp(settings.trail_thickness, 1.f, 7.f));
+        }
+        if (now >= nextPrune) {
+            nextPrune = now + 1.0;
+            for (auto it = history.begin(); it != history.end();) {
+                if (it->second.empty() || now - it->second.back().time > duration * 2.0)
+                    it = history.erase(it);
+                else
+                    ++it;
+            }
         }
     }
 }
@@ -246,12 +267,14 @@ void DrawFootprint(ImDrawList* draw, const ImVec2& center, float angle, float sc
 }
 
 void DrawFootstepEsp(ImDrawList* draw, const CS2::Player& player, const float position[3],
-                     const float* viewMatrix, const CS2::Config& settings, ImU32 /*rgb*/) {
+                     const float* viewMatrix, const CS2::Config& settings, ImU32 /*rgb*/,
+                     uint64_t sessionGeneration) {
     if (!settings.footstep_esp || !player.pawn) return;
 
     struct Step {
         uint64_t began_ms = 0;
         float position[3]{};
+        float yaw = 0.f;
         bool left = false;
     };
     struct FootprintHistory {
@@ -261,6 +284,11 @@ void DrawFootstepEsp(ImDrawList* draw, const CS2::Player& player, const float po
         std::deque<Step> steps;
     };
     static std::unordered_map<uintptr_t, FootprintHistory> footprints;
+    static uint64_t footprintsGeneration = 0;
+    if (footprintsGeneration != sessionGeneration) {
+        footprints.clear();
+        footprintsGeneration = sessionGeneration;
+    }
 
     const uint64_t now = GetTickCount64();
     auto& history = footprints[player.pawn];
@@ -273,6 +301,7 @@ void DrawFootstepEsp(ImDrawList* draw, const CS2::Player& player, const float po
         Step step{};
         step.began_ms = now;
         std::memcpy(step.position, position, sizeof(step.position));
+        step.yaw = player.view_yaw;
         step.left = history.next_left;
         history.steps.push_back(step);
     }
@@ -286,11 +315,22 @@ void DrawFootstepEsp(ImDrawList* draw, const CS2::Player& player, const float po
         const ImU32 gold = IM_COL32(218, 165, 32, static_cast<int>(fade * 238.f));
         ImVec2 projected{};
         if (!WorldToScreen(step.position, viewMatrix, projected)) continue;
-        const float angle = player.view_yaw * 0.0174532925f + (step.left ? -.16f : .16f);
-        DrawFootprint(draw, projected, angle, 1.f + age * .10f, gold);
+        // A world yaw cannot be used directly as a screen-space angle while
+        // the camera rotates. Project a short world-space forward vector.
+        const float yaw = step.yaw * 0.0174532925f;
+        const float forward[3] = {step.position[0] + std::cos(yaw) * 18.f,
+                                  step.position[1] + std::sin(yaw) * 18.f,
+                                  step.position[2]};
+        ImVec2 forwardScreen{};
+        const float angle = WorldToScreen(forward, viewMatrix, forwardScreen)
+            ? std::atan2(forwardScreen.y - projected.y, forwardScreen.x - projected.x)
+            : 0.f;
+        DrawFootprint(draw, projected, angle + (step.left ? -.16f : .16f), 1.f + age * .10f, gold);
     }
 
-    if (footprints.size() > 64) {
+    static uint64_t nextFootprintPruneMs = 0;
+    if (now >= nextFootprintPruneMs) {
+        nextFootprintPruneMs = now + 1000;
         for (auto it = footprints.begin(); it != footprints.end();) {
             if (now - it->second.last_seen_ms > 5000)
                 it = footprints.erase(it);
@@ -327,10 +367,11 @@ void DrawPersistentWindow(const char* id, const char* title, float& x, float& y,
 
 void DrawBombTimerWindow(const CS2::Runtime& snapshot, const CS2::Config& settings) {
     if (!settings.bomb_timer || !snapshot.bomb.planted) return;
-    auto& mutableSettings = const_cast<CS2::Config&>(settings);
+    // Window placement is render-thread UI state, not mutable gameplay config.
+    static float x = -1.f, y = -1.f;
+    if (x < 0.f || y < 0.f) { x = settings.bomb_window_x; y = settings.bomb_window_y; }
     const auto& bomb = snapshot.bomb;
-    DrawPersistentWindow("##cs2_bomb_timer", "BOMBA", mutableSettings.bomb_window_x,
-        mutableSettings.bomb_window_y, ImVec2(30.f, 338.f), [&] {
+    DrawPersistentWindow("##cs2_bomb_timer", "BOMBA", x, y, ImVec2(30.f, 338.f), [&] {
             const uint64_t now = GetTickCount64();
             const float age = bomb.sample_timestamp_ms && now >= bomb.sample_timestamp_ms
                 ? std::min(static_cast<float>(now - bomb.sample_timestamp_ms) / 1000.f, .50f) : 0.f;
@@ -346,9 +387,9 @@ void DrawBombTimerWindow(const CS2::Runtime& snapshot, const CS2::Config& settin
 
 void DrawSpectatorWindow(const CS2::Runtime& snapshot, const CS2::Config& settings) {
     if (!settings.spectator_list) return;
-    auto& mutableSettings = const_cast<CS2::Config&>(settings);
-    DrawPersistentWindow("##cs2_spectators", "ESPECTADORES", mutableSettings.spectator_window_x,
-        mutableSettings.spectator_window_y, ImVec2(30.f, 40.f), [&] {
+    static float x = -1.f, y = -1.f;
+    if (x < 0.f || y < 0.f) { x = settings.spectator_window_x; y = settings.spectator_window_y; }
+    DrawPersistentWindow("##cs2_spectators", "ESPECTADORES", x, y, ImVec2(30.f, 40.f), [&] {
             if (snapshot.spectators.empty()) {
                 ImGui::TextDisabled("Ninguem a observar");
                 return;
@@ -386,13 +427,20 @@ void DrawDroppedWeapons(ImDrawList* draw, const CS2::Runtime& snapshot,
     // World loot is useful only nearby and is deliberately constrained so it
     // never clutters the screen with objects from the other side of the map.
     constexpr float kMaxDistanceUnits = 50.f * 39.37f;
+    // A discovery batch has one spatial sample. Choose its coherent camera
+    // once instead of locking the camera history for every world item.
+    const uint64_t sampleMs = snapshot.dropped_weapons.empty() ? 0u
+        : snapshot.dropped_weapons.front().sample_timestamp_ms;
+    const auto weaponCamera = CS2::SelectCameraSnapshot(sampleMs);
+    const float* weaponMatrix = weaponCamera.timestamp_ms
+        ? weaponCamera.view_matrix : viewMatrix;
     for (const auto& weapon : snapshot.dropped_weapons) {
         const float dx = weapon.pos[0] - snapshot.local_pos[0];
         const float dy = weapon.pos[1] - snapshot.local_pos[1];
         const float dz = weapon.pos[2] - snapshot.local_pos[2];
         if (dx * dx + dy * dy + dz * dz > kMaxDistanceUnits * kMaxDistanceUnits) continue;
         ImVec2 screen{};
-        if (!WorldToScreen(weapon.pos, viewMatrix, screen)) continue;
+        if (!WorldToScreen(weapon.pos, weaponMatrix, screen)) continue;
         const ImU32 color = Color(settings.col_weapon);
         char label[96]{};
         if (settings.dropped_weapon_ammo && weapon.ammo_clip >= 0)
@@ -430,18 +478,24 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
     const bool useVisibilityColors = settings.visibility_colors;
     const float maxDistance = settings.max_distance;
     const ImU32 rgbColor = settings.rgb_mode ? RgbColor() : 0;
+    const uint64_t framePositionSampleMs = snapshot.world_sample_ms
+        ? snapshot.world_sample_ms : snapshot.snapshot_timestamp_ms;
     const auto liveness = AcquireLivenessSnapshot();
     const auto diedSinceSnapshot = [&](uintptr_t pawn) {
         if (!liveness || !pawn)
             return false;
         for (uint32_t index = 0; index < liveness->count; ++index) {
             const LivenessSample& sample = liveness->players[index];
-            if (sample.pawn == pawn)
+            if (sample.pawn == pawn && sample.sample_ms >= framePositionSampleMs)
                 return !sample.alive;
         }
         return false;
     };
     const uint64_t nowMs = GetTickCount64();
+    // Runtime snapshots are produced from one core scatter, so one coherent
+    // camera selection covers the whole frame and avoids mutex contention per player.
+    const CameraSnapshot frameCamera = SelectCameraSnapshot(framePositionSampleMs);
+    const float* frameViewMatrix = frameCamera.timestamp_ms ? frameCamera.view_matrix : snapshot.view_matrix;
     for (const Player& player : snapshot.players) {
         if (!player.alive || player.is_local) continue;
         if (diedSinceSnapshot(player.pawn)) {
@@ -457,13 +511,16 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
 
         const uint64_t positionSampleMs = player.position_sample_ms
             ? player.position_sample_ms : snapshot.snapshot_timestamp_ms;
-        const uint64_t positionAgeMs = positionSampleMs && nowMs >= positionSampleMs
-            ? (std::min)(nowMs - positionSampleMs, uint64_t{20}) : 0;
+        const uint64_t rawPositionAgeMs = positionSampleMs && nowMs >= positionSampleMs
+            ? nowMs - positionSampleMs : 0;
+        const float velocityMagnitude = std::sqrt(player.velocity[0] * player.velocity[0] +
+            player.velocity[1] * player.velocity[1] + player.velocity[2] * player.velocity[2]);
+        const uint64_t predictionCapMs = velocityMagnitude > 0.01f && velocityMagnitude < 2500.f ? 45u : 20u;
+        const uint64_t positionAgeMs = (std::min)(rawPositionAgeMs, predictionCapMs);
         const float predictionSeconds = static_cast<float>(positionAgeMs) / 1000.f;
-        const CameraSnapshot camera = SelectCameraSnapshot(positionSampleMs);
-        const float* viewMatrix = camera.timestamp_ms ? camera.view_matrix : snapshot.view_matrix;
-        const uint64_t cameraDelta = camera.timestamp_ms > positionSampleMs
-            ? camera.timestamp_ms - positionSampleMs : positionSampleMs - camera.timestamp_ms;
+        const float* viewMatrix = frameViewMatrix;
+        const uint64_t cameraDelta = frameCamera.timestamp_ms > positionSampleMs
+            ? frameCamera.timestamp_ms - positionSampleMs : positionSampleMs - frameCamera.timestamp_ms;
         float bonesAge = 0.f;
         if (player.bones_sample_ms && nowMs >= player.bones_sample_ms) {
             bonesAge = static_cast<float>(nowMs - player.bones_sample_ms);
@@ -483,17 +540,26 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
             std::isfinite(player.velocity[1]) ? player.velocity[1] * predictionSeconds : 0.f,
             std::isfinite(player.velocity[2]) ? player.velocity[2] * predictionSeconds : 0.f
         };
+        const uint64_t boneOriginAgeMs = player.bone_origin_sample_ms && nowMs >= player.bone_origin_sample_ms
+            ? (std::min)(nowMs - player.bone_origin_sample_ms, uint64_t{20}) : positionAgeMs;
+        const float bonePredictionSeconds = static_cast<float>(boneOriginAgeMs) / 1000.f;
+        const float boneOffset[3] = {
+            player.velocity[0] * bonePredictionSeconds, player.velocity[1] * bonePredictionSeconds,
+            player.velocity[2] * bonePredictionSeconds
+        };
         const float predictedPosition[3] = {
             player.pos[0] + positionOffset[0], player.pos[1] + positionOffset[1], player.pos[2] + positionOffset[2]
         };
         ImVec2 feet{}, head{};
         if (!WorldToScreen(predictedPosition, viewMatrix, feet)) continue;
         float headWorld[3] = { predictedPosition[0], predictedPosition[1], predictedPosition[2] + 72.f };
-        if (player.bones_ok && player.bones_sample_ms && nowMs >= player.bones_sample_ms &&
-            nowMs - player.bones_sample_ms <= 90u) {
-            headWorld[0] = player.bones[static_cast<size_t>(BoneSlot::Head)][0] + positionOffset[0];
-            headWorld[1] = player.bones[static_cast<size_t>(BoneSlot::Head)][1] + positionOffset[1];
-            headWorld[2] = player.bones[static_cast<size_t>(BoneSlot::Head)][2] + positionOffset[2];
+        // Keep the same head anchor for the entire validated bone lifetime;
+        // switching abruptly at an arbitrary 90 ms threshold causes box pops.
+        if (player.bones_ok && player.bone_pose_sample_ms && nowMs >= player.bone_pose_sample_ms &&
+            nowMs - player.bone_pose_sample_ms <= 180u) {
+            headWorld[0] = player.bones[static_cast<size_t>(BoneSlot::Head)][0] + boneOffset[0];
+            headWorld[1] = player.bones[static_cast<size_t>(BoneSlot::Head)][1] + boneOffset[1];
+            headWorld[2] = player.bones[static_cast<size_t>(BoneSlot::Head)][2] + boneOffset[2];
         }
         if (!WorldToScreen(headWorld, viewMatrix, head)) continue;
 
@@ -502,6 +568,13 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
         const float width = height * 0.60f;
         const ImVec2 min(feet.x - width * .5f, head.y - height * .08f);
         const ImVec2 max(feet.x + width * .5f, min.y + height * 1.09f);
+        // Do not turn valid-but-distant projections into dozens of text and
+        // line commands. Keep a margin for entities entering the viewport.
+        const ImVec2 viewport = ImGui::GetIO().DisplaySize;
+        constexpr float kViewportMargin = 240.f;
+        if (max.x < -kViewportMargin || min.x > viewport.x + kViewportMargin ||
+            max.y < -kViewportMargin || min.y > viewport.y + kViewportMargin)
+            continue;
         const float thickness = std::clamp(settings.box_thickness, 0.5f, 5.f);
         if (settings.box || settings.box_corner) {
             draw->AddRect(ImVec2(min.x - 1.f, min.y - 1.f), ImVec2(max.x + 1.f, max.y + 1.f),
@@ -525,7 +598,7 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
             const ImU32 skeletonColor = settings.rgb_mode ? rgbColor
                 : useVisibilityColors && player.visibility_known ? Color(player.visible ? settings.col_visible : settings.col_occluded)
                 : Color(settings.col_skeleton);
-            DrawSkeleton(draw, player, viewMatrix, positionOffset, skeletonColor, Color(settings.col_joints),
+            DrawSkeleton(draw, player, viewMatrix, boneOffset, skeletonColor, Color(settings.col_joints),
                          std::clamp(settings.skeleton_thickness, .5f, 4.f), settings.skeleton_joints);
         }
         if (settings.name && player.name[0]) {
@@ -544,13 +617,13 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
         }
         if (settings.health_value) { char hp[16]{}; std::snprintf(hp, sizeof(hp), "%d", player.health); DrawOutlinedText(draw, ImVec2(min.x - 25.f, min.y), Color(settings.col_health), hp, settings); }
         if (settings.armor_value && player.armor > 0) { char ap[16]{}; std::snprintf(ap, sizeof(ap), "%d", player.armor); DrawOutlinedText(draw, ImVec2(max.x + 8.f, min.y), Color(settings.col_armor), ap, settings); }
-        DrawExtras(draw, player, head, feet, min, max, viewMatrix, predictedPosition, settings, rgbColor);
-        DrawFootstepEsp(draw, player, predictedPosition, viewMatrix, settings, rgbColor);
+        DrawExtras(draw, player, head, feet, min, max, viewMatrix, predictedPosition, settings,
+                   rgbColor, snapshot.session_generation);
+        DrawFootstepEsp(draw, player, player.pos, viewMatrix, settings, rgbColor,
+                        snapshot.session_generation);
         DrawPlayerFlags(draw, player, min, settings, rgbColor);
     }
-    const auto newestCamera = AcquireCameraSnapshot();
-    DrawDroppedWeapons(draw, snapshot, settings,
-        newestCamera && newestCamera->timestamp_ms ? newestCamera->view_matrix : snapshot.view_matrix);
+    DrawDroppedWeapons(draw, snapshot, settings, frameViewMatrix);
 }
 
 } // namespace CS2::ESP

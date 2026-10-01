@@ -2,7 +2,6 @@
 #include <cmath>
 #include <fstream>
 #include <algorithm>
-#include <array>
 #include <cstring>
 #include <limits>
 #include <numeric>
@@ -35,5 +34,22 @@ bool Box(Vec3 o, Vec3 d, Vec3 mn, Vec3 mx, float best){ float lo=0,hi=best; cons
 bool Tri(Vec3 o,Vec3 d,const Triangle&t,float& u,Vec3&n){auto e1=Sub(t.b,t.a),e2=Sub(t.c,t.a),p=Cross(d,e2);float det=Dot(e1,p);if(std::fabs(det)<1e-7f)return false;float inv=1/det;auto q=Sub(o,t.a);float a=Dot(q,p)*inv;if(a<0||a>1)return false;auto r=Cross(q,e1);float b=Dot(d,r)*inv;if(b<0||a+b>1)return false;float v=Dot(e2,r)*inv;if(v<0||v>u)return false;u=v;n=Cross(e1,e2);float l=std::sqrt(Dot(n,n));if(l>0){n.x/=l;n.y/=l;n.z/=l;}return true;}}
 bool CollisionBvh::Build(CollisionMesh&& mesh){triangles=std::move(mesh.triangles);indices.resize(triangles.size());std::iota(indices.begin(),indices.end(),0);nodes.clear();if(triangles.empty())return false;BuildNode(0,(unsigned)indices.size());return true;}
 unsigned CollisionBvh::BuildNode(unsigned begin,unsigned end){Node n{};n.min={INFINITY,INFINITY,INFINITY};n.max={-INFINITY,-INFINITY,-INFINITY};for(unsigned i=begin;i<end;++i){const auto&t=triangles[indices[i]];for(auto p:{t.a,t.b,t.c}){n.min.x=(std::min)(n.min.x,p.x);n.min.y=(std::min)(n.min.y,p.y);n.min.z=(std::min)(n.min.z,p.z);n.max.x=(std::max)(n.max.x,p.x);n.max.y=(std::max)(n.max.y,p.y);n.max.z=(std::max)(n.max.z,p.z);}}unsigned id=(unsigned)nodes.size();nodes.push_back(n);if(end-begin<=12){nodes[id].begin=begin;nodes[id].count=end-begin;return id;}int axis=0;auto span=Sub(n.max,n.min);if(span.y>span.x)axis=1;if((&span.x)[2]>(&span.x)[axis])axis=2;unsigned mid=(begin+end)/2;std::nth_element(indices.begin()+begin,indices.begin()+mid,indices.begin()+end,[&](unsigned a,unsigned b){return ((&triangles[a].a.x)[axis]+(&triangles[a].b.x)[axis]+(&triangles[a].c.x)[axis])<((&triangles[b].a.x)[axis]+(&triangles[b].b.x)[axis]+(&triangles[b].c.x)[axis]);});nodes[id].left=BuildNode(begin,mid);nodes[id].right=BuildNode(mid,end);return id;}
-RayHit CollisionBvh::TraceRay(Vec3 from,Vec3 to)const{RayHit out{};if(nodes.empty())return out;Vec3 d=Sub(to,from);std::array<unsigned,128> stack{};size_t top=0;stack[top++]=0;while(top){auto id=stack[--top];const auto&n=nodes[id];if(!Box(from,d,n.min,n.max,out.fraction))continue;if(n.count)for(unsigned i=0;i<n.count;++i){float f=out.fraction;Vec3 normal{};if(Tri(from,d,triangles[indices[n.begin+i]],f,normal)){out={true,f,{from.x+d.x*f,from.y+d.y*f,from.z+d.z*f},normal};}}else if(top+2<=stack.size()){stack[top++]=n.left;stack[top++]=n.right;}}return out;}
+RayHit CollisionBvh::TraceRay(Vec3 from,Vec3 to)const{
+    RayHit out{};
+    if(nodes.empty())return out;
+    Vec3 d=Sub(to,from);
+    // A fixed stack silently used to turn a deep BVH traversal into a false
+    // collision. Keep storage per-thread and reusable, but never drop nodes.
+    thread_local std::vector<unsigned> stack;
+    stack.clear();
+    stack.push_back(0);
+    while(!stack.empty()){
+        const auto id=stack.back(); stack.pop_back();
+        const auto&n=nodes[id];
+        if(!Box(from,d,n.min,n.max,out.fraction))continue;
+        if(n.count)for(unsigned i=0;i<n.count;++i){float f=out.fraction;Vec3 normal{};if(Tri(from,d,triangles[indices[n.begin+i]],f,normal)){out={true,f,{from.x+d.x*f,from.y+d.y*f,from.z+d.z*f},normal};}}
+        else { stack.push_back(n.left); stack.push_back(n.right); }
+    }
+    return out;
+}
 }

@@ -34,6 +34,7 @@ struct IconPixels {
 std::unordered_map<int, IconTex> g_icons;
 std::unordered_map<int, IconPixels> g_cpu_icons;
 std::unordered_map<int, std::future<IconPixels>> g_pending_icons;
+std::unordered_map<int, uint64_t> g_failed_icons_until_ms;
 bool g_attempted = false;
 ID3D11Device* g_device = nullptr;
 
@@ -298,6 +299,9 @@ IconPixels DecodeOne(int def) {
 }
 
 void RequestOne(int def) {
+    const uint64_t now = GetTickCount64();
+    if (const auto failed = g_failed_icons_until_ms.find(def);
+        failed != g_failed_icons_until_ms.end() && now < failed->second) return;
     if (def <= 0 || !StemFromDef(def) || g_icons.count(def) || g_cpu_icons.count(def) ||
         g_pending_icons.count(def)) return;
     // Cap background decode concurrency. A newly requested definition that
@@ -324,17 +328,28 @@ void PumpUploads(ID3D11Device* device, int max_uploads) {
         IconPixels pixels = it->second.get();
         const int def = it->first;
         it = g_pending_icons.erase(it);
-        if (pixels.valid()) g_cpu_icons[def] = std::move(pixels);
+        if (pixels.valid())
+            g_cpu_icons[def] = std::move(pixels);
+        else
+            g_failed_icons_until_ms[def] = GetTickCount64() + 5000;
     }
 
     int uploaded = 0;
-    for (auto& [def, pixels] : g_cpu_icons) {
-        if (uploaded >= max_uploads) break;
-        if (g_icons.count(def) || !pixels.valid()) continue;
+    for (auto it = g_cpu_icons.begin(); it != g_cpu_icons.end() && uploaded < max_uploads;) {
+        const int def = it->first;
+        auto& pixels = it->second;
+        if (g_icons.count(def) || !pixels.valid()) { ++it; continue; }
         IconTex tex{};
         if (CreateSrv(device, pixels.rgba.data(), pixels.w, pixels.h, tex)) {
             g_icons[def] = tex;
             ++uploaded;
+            // Texture dimensions live in IconTex; retaining the RGBA buffer
+            // after a successful GPU upload only wastes process memory.
+            it = g_cpu_icons.erase(it);
+        } else {
+            // A failed resource/device upload should not retry every frame.
+            g_failed_icons_until_ms[def] = GetTickCount64() + 5000;
+            it = g_cpu_icons.erase(it);
         }
     }
 }
@@ -391,9 +406,11 @@ void Shutdown() {
         if (kv.second.srv) kv.second.srv->Release();
     }
     g_icons.clear();
-    // Pending futures are allowed to finish during orderly shutdown; no render frame is blocked.
+    // std::async futures may wait in their destructors; this is shutdown work,
+    // never something performed from an ordinary render frame.
     g_pending_icons.clear();
     g_cpu_icons.clear();
+    g_failed_icons_until_ms.clear();
     g_attempted = false;
     g_device = nullptr;
 }

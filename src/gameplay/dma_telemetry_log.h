@@ -37,6 +37,11 @@ struct Sample {
     std::atomic<float> render_p95_ms{0.f};
     std::atomic<float> render_max_ms{0.f};
     std::atomic<float> snapshot_age_ms{0.f};
+    std::atomic<float> world_age_ms{0.f};
+    std::atomic<float> publish_delay_ms{0.f};
+    std::atomic<float> visibility_ms{0.f};
+    std::atomic<int> visibility_players_tested{0};
+    std::atomic<int> visibility_rays{0};
     std::atomic<float> snapshot_interval_ms{0.f};
     std::atomic<float> snapshot_hz{0.f};
     std::atomic<float> camera_age_ms{0.f};
@@ -140,6 +145,7 @@ struct SpikeBreakdown {
     float positions_ms = 0.f;
     float bones_ms = 0.f;
     float weapon_ms = 0.f;
+    float visibility_ms = 0.f;
     float spectator_ms = 0.f;
     float bomb_ms = 0.f;
     float publish_ms = 0.f;
@@ -148,6 +154,8 @@ struct SpikeBreakdown {
     float lock_wait_ms = 0.f;
     int players = 0;
     int bones_players = 0;
+    int visibility_players_tested = 0;
+    int visibility_rays = 0;
     int entity_full_probe = 0;
     int spectator_refresh = 0;
     int bomb_refresh = 0;
