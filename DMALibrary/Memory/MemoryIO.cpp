@@ -10,6 +10,7 @@
 #include <vector>
 #include <cstdio>
 #include <cstring>
+#include <limits>
 
 
 namespace OmniGhost::MemoryCounters {
@@ -58,12 +59,17 @@ uint64_t Memory::FindSignature(const char* signature, uint64_t range_start, uint
 	if (PID == 0)
 		PID = current_process.PID;
 
-	std::vector<uint8_t> buffer(range_end - range_start);
-	if (buffer.size() > static_cast<size_t>(MAXDWORD))
+	const uint64_t rangeSize = range_end - range_start;
+	if (rangeSize > static_cast<uint64_t>(MAXDWORD) ||
+		rangeSize > static_cast<uint64_t>((std::numeric_limits<size_t>::max)()))
 		return 0;
+	std::vector<uint8_t> buffer(static_cast<size_t>(rangeSize));
 	const DWORD bufferSize = static_cast<DWORD>(buffer.size());
-	if (!VMMDLL_MemReadEx(this->vHandle, PID, range_start, buffer.data(), bufferSize, 0,
-		VMMDLL_FLAG_NOCACHE | VMMDLL_FLAG_ZEROPAD_ON_FAIL))
+	std::unique_lock<std::mutex> dmaReadLock(dmaReadMutex_);
+	const bool readOk = VMMDLL_MemReadEx(this->vHandle, PID, range_start, buffer.data(), bufferSize, 0,
+		VMMDLL_FLAG_NOCACHE | VMMDLL_FLAG_ZEROPAD_ON_FAIL) != FALSE;
+	dmaReadLock.unlock();
+	if (!readOk)
 		return 0;
 
 	const char* pat = signature;
@@ -112,6 +118,7 @@ bool Memory::Write(uintptr_t address, void* buffer, size_t size, int pid) const
 	if (size > static_cast<size_t>(MAXDWORD))
 		return false;
 	const DWORD byteCount = static_cast<DWORD>(size);
+	std::unique_lock<std::mutex> dmaReadLock(dmaReadMutex_);
 	if (!VMMDLL_MemWrite(this->vHandle, pid, address, static_cast<PBYTE>(buffer), byteCount))
 	{
 		LOG("[!] Failed to write Memory at 0x%p\n", address);
@@ -410,7 +417,9 @@ VMMDLL_SCATTER_HANDLE Memory::CreateScatterHandle() const
 	DataCallLease dataLease(this);
 	if (!dataLease || !this->vHandle)
 		return nullptr;
+	std::unique_lock<std::mutex> dmaReadLock(dmaReadMutex_);
 	const VMMDLL_SCATTER_HANDLE ScatterHandle = VMMDLL_Scatter_Initialize(this->vHandle, current_process.PID, VMMDLL_FLAG_NOCACHE);
+	dmaReadLock.unlock();
 	if (!ScatterHandle) {
 		LOG("[!] Failed to create scatter handle\n");
 		return nullptr;
@@ -426,7 +435,9 @@ VMMDLL_SCATTER_HANDLE Memory::CreateScatterHandle(int pid) const
 	DataCallLease dataLease(this);
 	if (!dataLease || !this->vHandle)
 		return nullptr;
+	std::unique_lock<std::mutex> dmaReadLock(dmaReadMutex_);
 	const VMMDLL_SCATTER_HANDLE ScatterHandle = VMMDLL_Scatter_Initialize(this->vHandle, pid, VMMDLL_FLAG_NOCACHE);
+	dmaReadLock.unlock();
 	if (!ScatterHandle) {
 		LOG("[!] Failed to create scatter handle\n");
 		return nullptr;
@@ -470,8 +481,13 @@ void Memory::InvalidateScatterHandles(const char* reason) noexcept
 	}
 	for (const auto& [handle, generation] : stale) {
 		(void)generation;
-		if (handle)
+		if (handle) {
 			VMMDLL_Scatter_CloseHandle(handle);
+			OmniGhost::MemoryCounters::ScatterHandlesDestroyed.fetch_add(1, std::memory_order_relaxed);
+			uint32_t live = OmniGhost::MemoryCounters::ScatterHandlesLive.load(std::memory_order_relaxed);
+			while (live > 0 && !OmniGhost::MemoryCounters::ScatterHandlesLive.compare_exchange_weak(
+				live, live - 1, std::memory_order_relaxed)) {}
+		}
 	}
 	if (!stale.empty())
 		std::clog << "[DMA][SCATTER] invalidated=" << stale.size()
@@ -581,6 +597,7 @@ void Memory::ExecuteWriteScatter(VMMDLL_SCATTER_HANDLE handle, int pid)
 		return;
 	if (pid == 0)
 		pid = current_process.PID;
+	std::unique_lock<std::mutex> dmaReadLock(dmaReadMutex_);
 
 	if (!VMMDLL_Scatter_Execute(handle))
 	{

@@ -7,9 +7,9 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <limits>
 #include <mutex>
 #include <string>
-#include <vector>
 #include <Windows.h>
 #include <psapi.h>
 #include <tlhelp32.h>
@@ -68,25 +68,14 @@ struct Ring {
         std::lock_guard<std::mutex> lock(mu);
         WindowStats s{};
         if (count <= 0) return s;
-        std::vector<float> sorted;
-        sorted.reserve(static_cast<size_t>(count));
-        for (int i = 0; i < count; ++i)
-            sorted.push_back(data[static_cast<size_t>(i)]);
-        // Ring may not be 0..count if wrapped — reconstruct properly
-        sorted.clear();
-        if (count < kWindow) {
-            for (int i = 0; i < count; ++i)
-                sorted.push_back(data[static_cast<size_t>(i)]);
-        } else {
-            for (int i = 0; i < kWindow; ++i)
-                sorted.push_back(data[static_cast<size_t>((write + i) % kWindow)]);
-        }
-        std::sort(sorted.begin(), sorted.end());
-        const int n = static_cast<int>(sorted.size());
+        std::array<float, kWindow> sorted{};
+        std::copy_n(data.begin(), count, sorted.begin());
+        s.last = data[static_cast<size_t>((write + kWindow - 1) % kWindow)];
+        std::sort(sorted.begin(), sorted.begin() + count);
+        const int n = count;
         s.samples = n;
-        s.last = sorted.back(); // approximate; real last pushed separately
         double sum = 0.0;
-        for (float v : sorted) sum += v;
+        for (int i = 0; i < n; ++i) sum += sorted[static_cast<size_t>(i)];
         s.avg = static_cast<float>(sum / n);
         auto at = [&](float q) -> float {
             const int idx = std::clamp(static_cast<int>(std::ceil(q * n) - 1), 0, n - 1);
@@ -95,7 +84,7 @@ struct Ring {
         s.p50 = at(0.50f);
         s.p95 = at(0.95f);
         s.p99 = at(0.99f);
-        s.max = sorted.back();
+        s.max = sorted[static_cast<size_t>(n - 1)];
         // Enforce ordering
         s.p95 = (std::max)(s.p95, s.p50);
         s.p99 = (std::max)(s.p99, s.p95);
@@ -165,7 +154,7 @@ void WritePerf(std::string_view tag, Sample& s) {
         "dma_avg_ms=%.2f\ndma_p50_ms=%.2f\ndma_p95_ms=%.2f\ndma_p99_ms=%.2f\ndma_max_ms=%.2f\n"
         "read_fails=%llu\n\n"
         "acquire_avg_ms=%.2f\nacquire_p50_ms=%.2f\nacquire_p95_ms=%.2f\nacquire_p99_ms=%.2f\nacquire_max_ms=%.2f\n"
-        "scheduler_wait_ms=%.2f\n\n"
+        "scheduler_wait_ms=%.2f\npressure_window_p95_ms=%.2f\n\n"
         "snapshot_age_ms=%.1f\nworld_age_ms=%.1f\npublish_delay_ms=%.1f\nsnapshot_hz=%.1f\nsnapshot_interval_ms=%.1f\nsnapshot_drops=%llu\nvisibility_ms=%.2f\nvisibility_players_tested=%d\nvisibility_rays=%d\n\n"
 		"camera_age_ms=%.1f\ncamera_age_avg_ms=%.1f\ncamera_age_p50_ms=%.1f\n"
 		"camera_age_p95_ms=%.1f\ncamera_age_p99_ms=%.1f\ncamera_age_max_ms=%.1f\n"
@@ -201,6 +190,7 @@ void WritePerf(std::string_view tag, Sample& s) {
         s.acquire_p99_ms.load(),
         s.acquire_max_ms.load(),
         s.scheduler_wait_ms.load(),
+        s.pressure_window_p95_ms.load(),
         s.snapshot_age_ms.load(),
         s.world_age_ms.load(),
         s.publish_delay_ms.load(),
@@ -354,6 +344,13 @@ void ObserveRender(Sample& s, float ms) noexcept {
     if (ms < 0.f) return;
     Ring& ring = (&s == &g_cs2) ? g_renderC : g_renderF;
     ring.Push(ms);
+    static std::atomic<uint64_t> nextCs2StatsMs{0}, nextFivemStatsMs{0};
+    auto& nextStatsMs = (&s == &g_cs2) ? nextCs2StatsMs : nextFivemStatsMs;
+    const uint64_t now = GetTickCount64();
+    uint64_t next = nextStatsMs.load(std::memory_order_relaxed);
+    if (now < next || !nextStatsMs.compare_exchange_strong(
+            next, now + 100u, std::memory_order_relaxed))
+        return;
     auto st = ring.Stats();
     s.render_ms.store(st.avg, std::memory_order_relaxed);
     s.render_p95_ms.store(st.p95, std::memory_order_relaxed);
@@ -393,39 +390,39 @@ void ObserveBones(Sample& s, float bones_ms) noexcept {
 void ObservePresentationTiming(Sample& s, float positionAgeMs, float bonesAgeMs,
     float cameraPositionDeltaMs, float predictionMs) noexcept {
     if (&s != &g_cs2) return;
-    auto publish = [](Ring& ring, float value, std::atomic<float>& last,
-                      std::atomic<float>& avg, std::atomic<float>& p95,
-                      std::atomic<float>& p99, std::atomic<float>& max) {
+    auto sample = [](Ring& ring, float value, std::atomic<float>& last) {
         if (!std::isfinite(value) || value < 0.f) return;
         ring.Push(value);
-        const auto st = ring.Stats();
         last.store(value, std::memory_order_relaxed);
-        avg.store(st.avg, std::memory_order_relaxed);
-        p95.store(st.p95, std::memory_order_relaxed);
-        p99.store(st.p99, std::memory_order_relaxed);
-        max.store(st.max, std::memory_order_relaxed);
     };
-    publish(g_positionAgeC, positionAgeMs, s.position_age_ms, s.position_age_avg_ms,
-        s.position_age_p95_ms, s.position_age_p99_ms, s.position_age_max_ms);
-    publish(g_bonesAgeC, bonesAgeMs, s.bones_age_ms, s.bones_age_avg_ms,
-        s.bones_age_p95_ms, s.bones_age_p99_ms, s.bones_age_max_ms);
-    // Camera delta and prediction do not currently need an average in the log.
-    auto publishTail = [](Ring& ring, float value, std::atomic<float>& last,
-                          std::atomic<float>& p95, std::atomic<float>& p99,
-                          std::atomic<float>& max) {
-        if (!std::isfinite(value) || value < 0.f) return;
-        ring.Push(value);
-        const auto st = ring.Stats();
-        last.store(value, std::memory_order_relaxed);
-        p95.store(st.p95, std::memory_order_relaxed);
-        p99.store(st.p99, std::memory_order_relaxed);
-        max.store(st.max, std::memory_order_relaxed);
-    };
-    publishTail(g_cameraPositionDeltaC, cameraPositionDeltaMs, s.camera_position_delta_ms,
-        s.camera_position_delta_p95_ms, s.camera_position_delta_p99_ms,
-        s.camera_position_delta_max_ms);
-    publishTail(g_predictionC, predictionMs, s.prediction_ms, s.prediction_p95_ms,
-        s.prediction_p99_ms, s.prediction_max_ms);
+    sample(g_positionAgeC, positionAgeMs, s.position_age_ms);
+    sample(g_bonesAgeC, bonesAgeMs, s.bones_age_ms);
+    sample(g_cameraPositionDeltaC, cameraPositionDeltaMs, s.camera_position_delta_ms);
+    sample(g_predictionC, predictionMs, s.prediction_ms);
+    static std::atomic<uint64_t> nextStatsMs{0};
+    const uint64_t now = GetTickCount64();
+    uint64_t next = nextStatsMs.load(std::memory_order_relaxed);
+    if (now < next || !nextStatsMs.compare_exchange_strong(
+            next, now + 100u, std::memory_order_relaxed))
+        return;
+    const auto positions = g_positionAgeC.Stats();
+    s.position_age_avg_ms.store(positions.avg, std::memory_order_relaxed);
+    s.position_age_p95_ms.store(positions.p95, std::memory_order_relaxed);
+    s.position_age_p99_ms.store(positions.p99, std::memory_order_relaxed);
+    s.position_age_max_ms.store(positions.max, std::memory_order_relaxed);
+    const auto bones = g_bonesAgeC.Stats();
+    s.bones_age_avg_ms.store(bones.avg, std::memory_order_relaxed);
+    s.bones_age_p95_ms.store(bones.p95, std::memory_order_relaxed);
+    s.bones_age_p99_ms.store(bones.p99, std::memory_order_relaxed);
+    s.bones_age_max_ms.store(bones.max, std::memory_order_relaxed);
+    const auto delta = g_cameraPositionDeltaC.Stats();
+    s.camera_position_delta_p95_ms.store(delta.p95, std::memory_order_relaxed);
+    s.camera_position_delta_p99_ms.store(delta.p99, std::memory_order_relaxed);
+    s.camera_position_delta_max_ms.store(delta.max, std::memory_order_relaxed);
+    const auto prediction = g_predictionC.Stats();
+    s.prediction_p95_ms.store(prediction.p95, std::memory_order_relaxed);
+    s.prediction_p99_ms.store(prediction.p99, std::memory_order_relaxed);
+    s.prediction_max_ms.store(prediction.max, std::memory_order_relaxed);
 }
 
 void ObserveSchedulerWait(Sample& s, float wait_ms) noexcept {
@@ -447,8 +444,13 @@ void RefreshFromMemory() noexcept {
 
     const uint64_t reads = snap.readRequestCount;
     const uint64_t scat = snap.scatterReadBatchCount;
-    const int reads_s = static_cast<int>((reads - g_prevReads) / dt);
-    const int scat_s = static_cast<int>((scat - g_prevScatter) / dt);
+    const auto rate = [dt](uint64_t current, uint64_t previous) -> int {
+        if (current < previous) return 0; // device/session counters restarted
+        const double value = static_cast<double>(current - previous) / dt;
+        return static_cast<int>((std::min)(value, static_cast<double>((std::numeric_limits<int>::max)())));
+    };
+    const int reads_s = rate(reads, g_prevReads);
+    const int scat_s = rate(scat, g_prevScatter);
     g_prevReads = reads;
     g_prevScatter = scat;
 
@@ -485,13 +487,17 @@ void Tick(std::string_view tag) {
             now - last < std::chrono::seconds(5))
             return;
         last = now;
-        char status[192]{};
+        DWORD handleCount = 0;
+        GetProcessHandleCount(GetCurrentProcess(), &handleCount);
+        char status[256]{};
         std::snprintf(status, sizeof(status),
-                      "STATUS process=%s pid=%u dma=%s active=0 idle_reason=%s",
+                      "STATUS process=%s pid=%u dma=%s active=0 idle_reason=%s handles=%lu scatter_handles_live=%u",
                       sample->process_connected.load() ? "connected" : "waiting",
                       sample->process_id.load(),
                       sample->dma_open.load() ? "open" : "closed",
-                      IdleName(sample->idle_reason.load()));
+                      IdleName(sample->idle_reason.load()),
+                      static_cast<unsigned long>(handleCount),
+                      OmniGhost::MemoryCounters::GetScatterHandlesLive());
         Emit(tag, status);
         return;
     }
@@ -563,7 +569,8 @@ void LogSpikeBreakdown(std::string_view tag, const SpikeBreakdown& b) noexcept {
         return;
     s_last = now;
     const float accounted = b.webradar_ms + b.entity_ms + b.local_ms + b.core_scatter_ms
-        + b.positions_ms + b.bones_ms + b.weapon_ms + b.visibility_ms + b.spectator_ms + b.bomb_ms
+        + b.positions_ms + b.bones_ms + b.weapon_ms + b.ammo_ms + b.flags_ms
+        + b.visibility_ms + b.spectator_ms + b.bomb_ms
         + b.publish_ms + b.cleanup_ms;
     const float unaccounted = (std::max)(0.f, b.total_ms - accounted);
     char buf[900]{};
@@ -573,7 +580,7 @@ void LogSpikeBreakdown(std::string_view tag, const SpikeBreakdown& b) noexcept {
         "total_ms=%.2f\n"
         "webradar_ms=%.2f\nentity_ms=%.2f\nlocal_ms=%.2f\n"
         "core_scatter_ms=%.2f\npositions_ms=%.2f\nbones_ms=%.2f\n"
-        "weapon_ms=%.2f\nvisibility_ms=%.2f\nspectator_ms=%.2f\nbomb_ms=%.2f\n"
+        "weapon_ms=%.2f\nammo_ms=%.2f\nflags_ms=%.2f\nvisibility_ms=%.2f\nspectator_ms=%.2f\nbomb_ms=%.2f\n"
         "publish_ms=%.2f\ncleanup_ms=%.2f\nother_ms=%.2f\nlock_wait_ms=%.2f\n"
         "unaccounted_ms=%.2f\n"
         "qread_calls=%d\nqread_total_ms=%.2f\nqread_max_ms=%.2f\n"
@@ -584,7 +591,7 @@ void LogSpikeBreakdown(std::string_view tag, const SpikeBreakdown& b) noexcept {
         static_cast<unsigned long long>(b.scan_id),
         b.total_ms, b.webradar_ms, b.entity_ms, b.local_ms,
         b.core_scatter_ms, b.positions_ms, b.bones_ms,
-        b.weapon_ms, b.visibility_ms, b.spectator_ms, b.bomb_ms,
+        b.weapon_ms, b.ammo_ms, b.flags_ms, b.visibility_ms, b.spectator_ms, b.bomb_ms,
         b.publish_ms, b.cleanup_ms, b.other_ms, b.lock_wait_ms, unaccounted,
         b.qread_calls, b.qread_total_ms, b.qread_max_ms,
         b.scatter_calls, b.scatter_total_ms, b.scatter_max_ms,

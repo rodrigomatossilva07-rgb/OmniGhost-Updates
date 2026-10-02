@@ -637,10 +637,13 @@ void SubmitSnapshot(const Runtime& snapshot) {
     // The radar consumes a deliberately small DTO. Copying a Runtime here
     // used to copy every skeleton/bone vector while holding the server mutex.
     // JSON formatting and allocations remain in ServerLoop.
-    RadarSnapshot compact{};
+    // Reuse the acquisition thread's previous DTO buffer. Swapping it with
+    // the pending snapshot avoids allocating a new player vector every tick.
+    static thread_local RadarSnapshot compact;
     compact.in_match = snapshot.in_match;
     std::memcpy(compact.map_name, snapshot.map_name, sizeof(compact.map_name));
     compact.bomb = snapshot.bomb;
+    compact.players.clear();
     compact.players.reserve(snapshot.players.size() + (snapshot.local_pawn ? 1u : 0u));
     // The acquisition pipeline intentionally excludes the local pawn from
     // remote ESP players. Add a compact local marker explicitly so radar
@@ -669,7 +672,7 @@ void SubmitSnapshot(const Runtime& snapshot) {
         compact.players.push_back(out);
     }
     std::lock_guard<std::mutex> lock(g_mu);
-    g_pending_runtime = std::move(compact);
+    std::swap(g_pending_runtime, compact);
     g_pending_runtime_valid = true;
 }
 

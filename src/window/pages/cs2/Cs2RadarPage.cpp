@@ -47,30 +47,13 @@ void DrawCs2Radar() {
 
     CyberWidgets::CardGap(gap);
     CyberWidgets::BeginCard("WEB RADAR", left);
-    const bool was = CS2::config.webradar_enabled;
-
     CyberWidgets::ToggleSwitch("Ativar Web Radar", &CS2::config.webradar_enabled);
-    if (CS2::config.webradar_enabled != was && CS2::config.webradar_enabled) {
-        if (CS2::WebRadar::Start(CS2::config.webradar_port))
-            CyberWidgets::Notify("Web Radar a escutar", CyberWidgets::ToastType::Success);
-        else
-            CyberWidgets::Notify("Falha ao abrir porto HTTP", CyberWidgets::ToastType::Error);
-    }
-    if (CS2::config.webradar_enabled != was && !CS2::config.webradar_enabled) {
-        CS2::WebRadar::Stop();
-    }
 
     if (CS2::config.webradar_enabled) {
         int port = CS2::config.webradar_port;
         ImGui::SetNextItemWidth((std::min)(left * 0.50f, 260.f));
         if (ImGui::SliderInt("Porta", &port, 1024, 65535)) {
             CS2::config.webradar_port = port;
-        }
-        if (ImGui::IsItemDeactivatedAfterEdit()) {
-            if (CS2::WebRadar::IsRunning() && CS2::WebRadar::Port() != port) {
-                CS2::WebRadar::Stop();
-                CS2::WebRadar::Start(port);
-            }
         }
 
         const bool online = CS2::WebRadar::IsRunning();
@@ -81,14 +64,6 @@ void DrawCs2Radar() {
         bool cf = CS2::config.webradar_cloudflare;
         if (CyberWidgets::ToggleSwitch("Ativar túnel Cloudflare", &cf)) {
             CS2::config.webradar_cloudflare = cf;
-            if (cf) {
-                if (CS2::WebRadar::StartCloudflare())
-                    CyberWidgets::Notify("Tunel Cloudflare a iniciar", CyberWidgets::ToastType::Info);
-                else
-                    CyberWidgets::Notify("cloudflared nao encontrado / falhou", CyberWidgets::ToastType::Error);
-            } else {
-                CS2::WebRadar::StopCloudflare();
-            }
         }
         const std::string pub = CS2::WebRadar::PublicUrl();
         if (!pub.empty()) {

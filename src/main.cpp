@@ -919,19 +919,21 @@ while (application.shouldRun && !authenticated) {
         
         switch (g_activeGame) {
             case ActiveGame::CS2: {
-                static uint64_t last_alive_check = 0;
-                const auto cs2_snapshot = CS2::AcquireRuntimeSnapshot();
-                const uint64_t frames = cs2_snapshot ? cs2_snapshot->frames : 0;
-                if (frames - last_alive_check >= 8) {
-                    last_alive_check = frames;
+                static ULONGLONG next_alive_check_ms = 0;
+                static ULONGLONG missing_since_ms = 0;
+                const ULONGLONG now_ms = GetTickCount64();
+                if (now_ms >= next_alive_check_ms) {
+                    next_alive_check_ms = now_ms + 1000u;
                     if (!CS2::IsGameProcessAlive()) {
-                        ++process_miss_frames;
-                        if (process_miss_frames >= 1) {
+                        if (!missing_since_ms) missing_since_ms = now_ms;
+                        // A failed MemProcFS PID lookup is not proof that the
+                        // game closed; tolerate short transport refreshes.
+                        if (now_ms - missing_since_ms >= 3000u) {
                             shouldReturnToLauncher = true;
                             terminationReason = "Processo cs2.exe terminou";
                         }
                     } else {
-                        process_miss_frames = 0;
+                        missing_since_ms = 0;
                     }
                 }
                 break;

@@ -481,24 +481,30 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
     const uint64_t framePositionSampleMs = snapshot.world_sample_ms
         ? snapshot.world_sample_ms : snapshot.snapshot_timestamp_ms;
     const auto liveness = AcquireLivenessSnapshot();
-    const auto diedSinceSnapshot = [&](uintptr_t pawn) {
-        if (!liveness || !pawn)
+    const auto diedSinceSnapshot = [&](const Player& player) {
+        if (!liveness || !player.pawn)
             return false;
         for (uint32_t index = 0; index < liveness->count; ++index) {
             const LivenessSample& sample = liveness->players[index];
-            if (sample.pawn == pawn && sample.sample_ms >= framePositionSampleMs)
+            if (sample.pawn == player.pawn &&
+                sample.generation == snapshot.session_generation &&
+                sample.sample_ms >= (player.position_sample_ms ? player.position_sample_ms : framePositionSampleMs))
                 return !sample.alive;
         }
         return false;
     };
     const uint64_t nowMs = GetTickCount64();
+    const uint64_t worldSampleMs = snapshot.world_sample_ms
+        ? snapshot.world_sample_ms : snapshot.snapshot_timestamp_ms;
+    if (!worldSampleMs || nowMs < worldSampleMs || nowMs - worldSampleMs > 150u)
+        return; // an outage must not project a long-dead world as live ESP
     // Runtime snapshots are produced from one core scatter, so one coherent
     // camera selection covers the whole frame and avoids mutex contention per player.
     const CameraSnapshot frameCamera = SelectCameraSnapshot(framePositionSampleMs);
     const float* frameViewMatrix = frameCamera.timestamp_ms ? frameCamera.view_matrix : snapshot.view_matrix;
     for (const Player& player : snapshot.players) {
         if (!player.alive || player.is_local) continue;
-        if (diedSinceSnapshot(player.pawn)) {
+        if (diedSinceSnapshot(player)) {
             const float hideMs = liveness && nowMs >= liveness->timestamp_ms
                 ? static_cast<float>(nowMs - liveness->timestamp_ms) : 0.f;
             OmniGhost::Gameplay::DmaTelemetry::CS2().death_to_hide_ms.store(

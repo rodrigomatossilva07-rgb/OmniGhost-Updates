@@ -33,6 +33,7 @@ struct Sample {
     std::atomic<float> acquire_p95_ms{0.f};
     std::atomic<float> acquire_p99_ms{0.f};
     std::atomic<float> acquire_max_ms{0.f};
+    std::atomic<float> pressure_window_p95_ms{0.f};
     std::atomic<float> render_ms{0.f};
     std::atomic<float> render_p95_ms{0.f};
     std::atomic<float> render_max_ms{0.f};
@@ -145,6 +146,8 @@ struct SpikeBreakdown {
     float positions_ms = 0.f;
     float bones_ms = 0.f;
     float weapon_ms = 0.f;
+    float ammo_ms = 0.f;
+    float flags_ms = 0.f;
     float visibility_ms = 0.f;
     float spectator_ms = 0.f;
     float bomb_ms = 0.f;

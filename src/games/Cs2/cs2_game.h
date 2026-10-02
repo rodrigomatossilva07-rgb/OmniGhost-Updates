@@ -184,6 +184,8 @@ struct Runtime {
     bool local_has_defuser = false;
     int local_crosshair_entity = 0;
     int local_shots_fired = 0;
+    float local_aim_punch[2]{};
+    uint64_t local_aim_sample_ms = 0;
     uint64_t local_last_shot_ms = 0;
     float view_matrix[16]{};
     char map_name[64]{};

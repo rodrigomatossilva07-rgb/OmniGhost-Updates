@@ -3,7 +3,6 @@
 #define NOMINMAX
 #endif
 #include "cs2_aim.h"
-#include "Memory/Memory.h"
 #include "src/games/Fivem/aimbot/aim_type.h"
 #include "gameplay/aim_controller.h"
 #include "gameplay/smooth_curves.h"
@@ -363,13 +362,12 @@ void ApplyRobustPrediction(float point[3], const CS2::Player& player,
     for (int axis = 0; axis < 3; ++axis) point[axis] += displacement[axis];
 }
 
-TargetCandidate SelectTarget(const CS2::Runtime& rt, const CS2::Config& cfg, float cx, float cy) {
+TargetCandidate SelectTarget(const CS2::Runtime& rt, const CS2::Config& cfg,
+                             float cx, float cy, const float* cameraMatrix) {
     TargetCandidate best{};
     TargetCandidate incumbent{};
     g_target_diag = {};
     const uint64_t now_ms = GetTickCount64();
-    const auto camera = CS2::SelectCameraSnapshot(rt.world_sample_ms ? rt.world_sample_ms : rt.snapshot_timestamp_ms);
-    const float* cameraMatrix = camera.timestamp_ms ? camera.view_matrix : rt.view_matrix;
 
     for (std::size_t i = 0; i < rt.players.size(); ++i) {
         const auto& player = rt.players[i];
@@ -561,10 +559,13 @@ std::pair<float, float> CalculateRCS(const CS2::Runtime& rt, const CS2::Config& 
     if (!cfg.aim_rcs_auto && !cfg.aim_rcs_standalone) return {};
     if (!rt.local_pawn) return {};
 
-    int shots_fired = 0;
-    if (CS2::offsets.m_iShotsFired) {
-        mem.Read(rt.local_pawn + CS2::offsets.m_iShotsFired, &shots_fired, sizeof(shots_fired));
-    }
+    // The aim update runs on the presentation thread. It must never wait for
+    // DMA; recoil samples are acquired with the local state scatter instead.
+    const uint64_t nowMs = GetTickCount64();
+    if (!rt.local_aim_sample_ms || nowMs < rt.local_aim_sample_ms ||
+        nowMs - rt.local_aim_sample_ms > 100u)
+        return {};
+    const int shots_fired = rt.local_shots_fired;
 
     if (shots_fired <= 1) {
         g_shots_fired = 0;
@@ -588,11 +589,8 @@ std::pair<float, float> CalculateRCS(const CS2::Runtime& rt, const CS2::Config& 
     if (pattern.length == 0) return {};
 
     int idx = std::clamp(g_shots_fired - 1, 0, pattern.length - 1);
-    float punch_x = 0.f, punch_y = 0.f;
-    if (CS2::offsets.m_aimPunchAngle) {
-        mem.Read(rt.local_pawn + CS2::offsets.m_aimPunchAngle, &punch_x, sizeof(punch_x));
-        mem.Read(rt.local_pawn + CS2::offsets.m_aimPunchAngle + 4, &punch_y, sizeof(punch_y));
-    }
+    const float punch_x = rt.local_aim_punch[0];
+    const float punch_y = rt.local_aim_punch[1];
 
     float pattern_x = pattern.offsets[idx].first * pattern.scale * cfg.aim_rcs_x;
     float pattern_y = pattern.offsets[idx].second * pattern.scale * cfg.aim_rcs_y;
@@ -693,7 +691,7 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
     TargetCandidate target{};
     float aim_output_x = 0.f;
     float aim_output_y = 0.f;
-    if (aim_key_down) target = SelectTarget(rt, cfg, cx, cy);
+    if (aim_key_down) target = SelectTarget(rt, cfg, cx, cy, updateViewMatrix);
 
     if (!aim_key_down) {
         g_active_target_idx = -1;

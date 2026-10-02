@@ -3,6 +3,7 @@
 #include <memory>
 #include <shared_mutex>
 #include <string>
+#include <cstdint>
 namespace CS2::Trajectory {
 class MapCollisionCache {
 public:
@@ -17,6 +18,7 @@ private:
     std::string map, error;
     std::shared_ptr<CollisionBvh> world;
     mutable std::shared_mutex mutex;
+    std::uint64_t generation = 0;
 };
 MapCollisionCache& CollisionCache();
 }
