@@ -879,9 +879,9 @@ while (application.shouldRun && !authenticated) {
         ImDrawList* draw = ImGui::GetWindowDrawList();
         draw->AddRectFilled(ImVec2(0, 0), ds,
             CyberTheme::U32(CyberTheme::Colors.Background));
-        const float width = (std::min)(600.f, ds.x - 48.f);
-        const ImVec2 cardMin((ds.x - width) * .5f, ds.y * .38f);
-        const ImVec2 cardMax(cardMin.x + width, cardMin.y + 170.f);
+        const float progressCardWidth = (std::min)(600.f, ds.x - 48.f);
+        const ImVec2 cardMin((ds.x - progressCardWidth) * .5f, ds.y * .38f);
+        const ImVec2 cardMax(cardMin.x + progressCardWidth, cardMin.y + 170.f);
         draw->AddRectFilled(cardMin, cardMax,
             CyberTheme::U32(CyberTheme::Colors.Card), 14.f);
         draw->AddRect(cardMin, cardMax,
@@ -945,10 +945,12 @@ while (application.shouldRun && !authenticated) {
                 ImDrawList* draw = ImGui::GetWindowDrawList();
                 draw->AddRectFilled(ImVec2(0, 0), ds,
                     CyberTheme::U32(CyberTheme::Colors.Background));
-                const float width = (std::min)(680.f, ds.x - 48.f);
-                const float height = (std::min)(410.f, ds.y - 48.f);
-                const ImVec2 cardMin((ds.x - width) * .5f, (ds.y - height) * .5f);
-                const ImVec2 cardMax(cardMin.x + width, cardMin.y + height);
+                const float errorCardWidth = (std::min)(680.f, ds.x - 48.f);
+                const float errorCardHeight = (std::min)(410.f, ds.y - 48.f);
+                const ImVec2 cardMin((ds.x - errorCardWidth) * .5f,
+                                     (ds.y - errorCardHeight) * .5f);
+                const ImVec2 cardMax(cardMin.x + errorCardWidth,
+                                     cardMin.y + errorCardHeight);
                 draw->AddRectFilled(cardMin, cardMax,
                     CyberTheme::U32(CyberTheme::Colors.Card), 14.f);
                 draw->AddRect(cardMin, cardMax,
