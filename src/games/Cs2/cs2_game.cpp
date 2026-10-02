@@ -5243,7 +5243,6 @@ void EnsureAcquisitionStarted() {
                 }
                 if (WebRadar::IsRunning() &&
                     g_web_radar_desired_cloudflare.load(std::memory_order_relaxed)) {
-                    const uint64_t now = GetTickCount64();
                     if (!WebRadar::CloudflareRunning() && now >= nextCloudflareAttemptMs) {
                         WebRadar::StartCloudflare();
                         nextCloudflareAttemptMs = now + 5000u;
