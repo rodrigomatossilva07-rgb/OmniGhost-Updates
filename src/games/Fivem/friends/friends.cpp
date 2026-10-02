@@ -4,6 +4,7 @@
 #include "../game/game.h"
 #include "../game/offsets.h"
 #include "../game/esp_manager.h"
+#include "../esp/esp.h"
 #include "../playerInfo/PedData.h"
 #include "math/math.h"
 #include <Memory/Memory.h>
