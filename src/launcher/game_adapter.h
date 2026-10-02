@@ -4,6 +4,7 @@
 #include "../globals.h"
 
 #include <cstdint>
+#include <string>
 #include <string_view>
 
 namespace OmniGhost::Launcher {
@@ -35,6 +36,14 @@ enum class AdapterErrorCode : std::uint8_t {
     None,
     UnsupportedGame,
     AttachFailed,
+    DeviceOpenFailed,
+    ProcessNotFound,
+    ProcessBindFailed,
+    ModuleNotFound,
+    OffsetsMissing,
+    UnsupportedBuild,
+    GameDataUnverified,
+    UnexpectedException,
     ValidationFailed,
     InitializationFailed,
     Cancelled,
@@ -42,7 +51,8 @@ enum class AdapterErrorCode : std::uint8_t {
 
 struct AdapterError {
     AdapterErrorCode code = AdapterErrorCode::None;
-    std::string_view detail{};
+    // Own the failure text: adapters often construct it in a local string.
+    std::string detail{};
     [[nodiscard]] constexpr explicit operator bool() const noexcept {
         return code != AdapterErrorCode::None;
     }
@@ -86,7 +96,7 @@ public:
     // Short, user-safe status text. It must not expose offsets or credentials.
     [[nodiscard]] virtual std::string_view GetStatus() const noexcept = 0;
     [[nodiscard]] virtual AdapterDescriptor GetDescriptor() const noexcept = 0;
-    [[nodiscard]] virtual AdapterError GetLastError() const noexcept = 0;
+    [[nodiscard]] virtual AdapterError GetLastError() const = 0;
 
     // Check if the game process is still running. Return false when the process
     // has terminated or become unreachable. The launcher uses this to decide

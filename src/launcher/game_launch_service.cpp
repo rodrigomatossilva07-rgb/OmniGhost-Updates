@@ -12,7 +12,9 @@
 
 #include <algorithm>
 #include <cctype>
+#include <exception>
 #include <iostream>
+#include <initializer_list>
 
 namespace OmniGhost::GameLaunch {
 
@@ -32,48 +34,97 @@ std::string FindFiveMProcessViaDma() {
             return name;
         }
     }
-    PVMMDLL_PROCESS_INFORMATION info = nullptr;
-    DWORD total = 0;
-    if (!VMMDLL_ProcessGetInformationAll(mem.vHandle, &info, &total) || !info) {
+    const auto processes = mem.GetProcessNames();
+    if (processes.empty()) {
         std::cerr << "[FiveM] Falha a listar processos via DMA.\n";
         return {};
     }
-    VmmOwned<VMMDLL_PROCESS_INFORMATION> processInfo(info);
-    for (DWORD i = 0; i < total; ++i) {
-        const char* name = info[i].szNameLong;
-        if (!name || !name[0]) continue;
-        std::string lower = name;
+    for (const auto& name : processes) {
+        const size_t separator = name.find_last_of("\\/");
+        const std::string executable = separator == std::string::npos
+            ? name : name.substr(separator + 1);
+        std::string lower = executable;
         std::transform(lower.begin(), lower.end(), lower.begin(),
             [](unsigned char value) { return static_cast<char>(std::tolower(value)); });
         if (lower.find("gtaprocess") != std::string::npos) {
-            std::cout << "[FiveM] Processo remoto (scan): " << name << '\n';
-            return name;
+            std::cout << "[FiveM] Processo remoto (scan): " << executable << '\n';
+            return executable;
         }
     }
     return {};
 }
 
-bool IsProcessPresent(::Launcher::GameId selected) {
+ProcessProbeResult ProbeProcess(::Launcher::GameId selected) {
+    try {
     // This is a preflight only: open the DMA device without binding it to a
     // game process, then look for the selected executable.  It prevents a
     // wrong menu from changing the global DMA process context.
     // Trust the live handle rather than a diagnostics snapshot that may lag a
     // reset/reinitialization by one sample.
     if (!mem.vHandle && !mem.Init(std::string(), true, false))
-        return false;
+        return {ProcessProbeState::DeviceUnavailable, {}};
+    const auto tryPidNames = [&](std::initializer_list<const char*> names) -> ProcessProbeResult {
+        for (const char* name : names)
+            if (mem.GetPidFromName(name) != 0)
+                return {ProcessProbeState::Found, name};
+        return {ProcessProbeState::InventoryUnavailable, {}};
+    };
+    ProcessProbeResult direct{};
     switch (selected) {
-    case ::Launcher::GameId::CS2:
-        return mem.GetPidFromName("cs2.exe") != 0 || mem.GetPidFromName("CS2.exe") != 0;
-    case ::Launcher::GameId::Warzone:
-        return mem.GetPidFromName("cod.exe") != 0 ||
-               mem.GetPidFromName("ModernWarfare.exe") != 0;
+    case ::Launcher::GameId::CS2: direct = tryPidNames({"cs2.exe"}); break;
+    case ::Launcher::GameId::Warzone: direct = tryPidNames({"cod.exe", "ModernWarfare.exe"}); break;
     case ::Launcher::GameId::Fortnite:
-        return mem.GetPidFromName("FortniteClient-Win64-Shipping.exe") != 0 ||
-               mem.GetPidFromName("FortniteClient-Win64-Shipping_EAC_EOS.exe") != 0 ||
-               mem.GetPidFromName("Fortnite.exe") != 0;
-    case ::Launcher::GameId::FiveM: return !FindFiveMProcessViaDma().empty();
-    default: return false;
+        direct = tryPidNames({"FortniteClient-Win64-Shipping.exe",
+            "FortniteClient-Win64-Shipping_EAC_EOS.exe", "Fortnite.exe"});
+        break;
+    case ::Launcher::GameId::FiveM:
+        direct = tryPidNames({"FiveM_GTAProcess.exe", "FiveM_b3258_GTAProcess.exe",
+            "FiveM_b3407_GTAProcess.exe", "FiveM_b3570_GTAProcess.exe", "GTAProcess.exe"});
+        break;
+    default: break;
     }
+    if (direct.state == ProcessProbeState::Found)
+        return direct;
+    const auto processes = mem.GetProcessNames();
+    if (processes.empty())
+        return {ProcessProbeState::InventoryUnavailable, {}};
+    for (const auto& process : processes) {
+        const size_t separator = process.find_last_of("\\/");
+        const std::string processBase = separator == std::string::npos
+            ? process : process.substr(separator + 1);
+        const auto matches = [&](const char* name) { return _stricmp(processBase.c_str(), name) == 0; };
+        bool found = false;
+        switch (selected) {
+        case ::Launcher::GameId::CS2: found = matches("cs2.exe"); break;
+        case ::Launcher::GameId::Warzone:
+            found = matches("cod.exe") || matches("ModernWarfare.exe"); break;
+        case ::Launcher::GameId::Fortnite:
+            found = matches("FortniteClient-Win64-Shipping.exe") ||
+                matches("FortniteClient-Win64-Shipping_EAC_EOS.exe") || matches("Fortnite.exe"); break;
+        case ::Launcher::GameId::FiveM: {
+            std::string lower = processBase;
+            std::transform(lower.begin(), lower.end(), lower.begin(),
+                [](unsigned char value) { return static_cast<char>(std::tolower(value)); });
+            found = lower.find("gtaprocess") != std::string::npos;
+            break;
+        }
+        default: break;
+        }
+        if (found)
+            return {ProcessProbeState::Found, processBase};
+    }
+    return {ProcessProbeState::NotFound, {}};
+    } catch (const std::exception& ex) {
+        std::cerr << "[LAUNCHER] Process preflight failed: " << ex.what() << '\n';
+    } catch (...) {
+        std::cerr << "[LAUNCHER] Process preflight failed unexpectedly.\n";
+    }
+    return {mem.GetDiagnosticsSnapshot().deviceOpen
+        ? ProcessProbeState::InventoryUnavailable : ProcessProbeState::DeviceUnavailable, {}};
+}
+
+bool IsProcessPresent(::Launcher::GameId selected) {
+    return ProbeProcess(selected).state == ProcessProbeState::Found;
 }
 
 bool Initialize(::Launcher::GameId selected) {

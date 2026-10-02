@@ -37,6 +37,7 @@
 #include "platform/thread_utils.h"
 #include "platform/unique_handle.h"
 #include "platform/session_log.h"
+#include "platform/support_error.h"
 #include "platform/shutdown_coordinator.h"
 #include "platform/text_encoding.h"
 #include "platform/window_instance_guard.h"
@@ -68,6 +69,103 @@
 #endif
 
 namespace {
+
+struct LaunchIssue {
+    OmniGhost::Support::ErrorCode code;
+    const char* title;
+    const char* explanation;
+    const char* action;
+    Launcher::SessionResult result;
+};
+
+LaunchIssue DiagnoseLaunchFailure(
+    const OmniGhost::GameLaunch::ProcessProbeResult& probe,
+    const Memory::DiagnosticsSnapshot& dma,
+    ActiveGame game,
+    OmniGhost::Launcher::AdapterErrorCode adapterError) {
+    using Code = OmniGhost::Support::ErrorCode;
+    using Result = Launcher::SessionResult;
+    using Probe = OmniGhost::GameLaunch::ProcessProbeState;
+    if (!dma.dependencyIntegrityOk)
+        return {Code::RuntimeDependenciesInvalid, "Componentes DMA inválidos",
+            "Os componentes de leitura não passaram na verificação de integridade.",
+            "Reinstala ou repara os componentes oficiais e tenta novamente.", Result::LaunchFailed};
+    if (!dma.deviceOpen)
+        return dma.deviceDetected
+            ? LaunchIssue{Code::DmaOpenFailed, "DMA detetado, mas indisponível",
+                "O dispositivo aparece no sistema, mas não foi possível abrir uma sessão de leitura.",
+                "Confirma a ligação, reinicia o dispositivo e verifica a sua configuração.", Result::DeviceMissing}
+            : LaunchIssue{Code::DmaUnavailable, "DMA não detetado",
+                "Não foi encontrado um dispositivo DMA pronto para iniciar a sessão.",
+                "Confirma a alimentação, a ligação e os componentes do dispositivo.", Result::DeviceMissing};
+    using Adapter = OmniGhost::Launcher::AdapterErrorCode;
+    if (adapterError == Adapter::UnsupportedGame)
+        return {Code::GameAdapterUnavailable, "Jogo indisponível",
+            "Esta versão do OmniGhost não inclui um adapter funcional para o jogo selecionado.",
+            "Verifica se há uma atualização da aplicação.", Result::LaunchFailed};
+    if (adapterError == Adapter::Cancelled)
+        return {Code::LaunchCancelled, "Arranque interrompido",
+            "A preparação do menu foi cancelada antes de terminar.",
+            "Volta ao launcher e tenta novamente quando estiveres pronto.", Result::LaunchFailed};
+    if (adapterError == Adapter::DeviceOpenFailed)
+        return {Code::DmaOpenFailed, "Sessão DMA não iniciada",
+            "O dispositivo foi detetado, mas a sessão de leitura necessária não ficou operacional.",
+            "Confirma a ligação, o firmware e os componentes DMA; depois volta a tentar.", Result::DeviceMissing};
+    if (adapterError == Adapter::ProcessNotFound)
+        return probe.state == Probe::NotFound
+            ? LaunchIssue{Code::GameNotFound, "Jogo não encontrado",
+                "A lista de processos foi consultada e o jogo selecionado não apareceu.",
+                "Confirma que está aberto no PC ligado ao DMA.", Result::GameNotFound}
+            : LaunchIssue{Code::ProcessInventoryUnavailable, "Processo não confirmado",
+                "O adapter não conseguiu confirmar o processo. Isto não prova que o jogo esteja fechado.",
+                "Confirma a comunicação DMA e tenta novamente.", Result::LaunchFailed};
+    if (adapterError == Adapter::ProcessBindFailed)
+        return {Code::MemoryReadUnavailable, "Jogo encontrado, leitura indisponível",
+            "O processo foi encontrado, mas o DMA não conseguiu validar a memória necessária para o menu.",
+            "Confirma o firmware e o acesso à memória; depois volta a tentar.", Result::LaunchFailed};
+    if (adapterError == Adapter::ModuleNotFound)
+        return {Code::GameModuleUnavailable, "Módulo do jogo indisponível",
+            "O processo foi ligado, mas um módulo necessário ainda não apareceu ou não pôde ser lido.",
+            "Espera pelo menu principal do jogo e tenta novamente. Se persistir, verifica a leitura DMA.", Result::LaunchFailed};
+    if (adapterError == Adapter::OffsetsMissing || adapterError == Adapter::UnsupportedBuild)
+        return {Code::OffsetsUnsupported, "Versão ou offsets não suportados",
+            "Os offsets necessários faltam ou a versão detetada do jogo não tem suporte validado.",
+            "Procura uma atualização dos offsets antes de tentar novamente.", Result::OffsetsFailed};
+    if (adapterError == Adapter::GameDataUnverified)
+        return {Code::GameDataUnverified, "Dados do jogo não confirmados",
+            "Os dados lidos não passaram na validação. Isto pode ser leitura DMA ou offsets; a causa ainda não é certa.",
+            "Confirma o acesso à memória e verifica se há offsets atualizados.", Result::LaunchFailed};
+    if (adapterError == Adapter::UnexpectedException)
+        return {Code::GameInitializationFailed, "Falha inesperada no arranque",
+            "O adapter encontrou uma exceção antes de abrir o menu.",
+            "Consulta os logs para o detalhe técnico e volta a tentar.", Result::LaunchFailed};
+    if (dma.processInitialized) {
+        const auto compatibility = OmniGhost::OffsetAuto::Compatibility(game);
+        if (compatibility.state == OmniGhost::OffsetAuto::CompatibilityState::Unsupported ||
+            !OmniGhost::OffsetAuto::HasCriticalOffsets(game))
+            return {Code::OffsetsUnsupported, "Versão do jogo não validada",
+                "O processo foi ligado, mas os dados necessários não passaram na validação desta versão.",
+                "Verifica se há offsets atualizados nos Diagnósticos antes de tentar novamente.", Result::OffsetsFailed};
+        if (adapterError == OmniGhost::Launcher::AdapterErrorCode::InitializationFailed)
+            return {Code::GameInitializationFailed, "Menu não inicializado",
+                "A leitura do processo foi iniciada, mas um componente do menu falhou ao arrancar.",
+                "Volta a tentar e consulta os logs se o problema continuar.", Result::LaunchFailed};
+        return {Code::GameDataUnverified, "Dados do jogo não confirmados",
+            "O processo foi ligado, mas a verificação dos dados do jogo falhou. Isto não confirma offsets desatualizados.",
+            "Confirma a leitura DMA e o estado do jogo; se persistir, consulta os logs.", Result::LaunchFailed};
+    }
+    if (probe.state == Probe::NotFound)
+        return {Code::GameNotFound, "Jogo não encontrado",
+            "A lista de processos do PC do jogo foi consultada, mas o executável selecionado não apareceu.",
+            "Confirma que escolheste o jogo certo e que está aberto no PC ligado ao DMA.", Result::GameNotFound};
+    if (probe.state == Probe::Found)
+        return {Code::MemoryReadUnavailable, "Jogo encontrado, leitura indisponível",
+            "O executável foi detetado no PC do jogo, mas o DMA não conseguiu validar a memória do processo.",
+            "Confirma que o firmware e o acesso à memória estão ativos. Depois volta a tentar.", Result::LaunchFailed};
+    return {Code::ProcessInventoryUnavailable, "Deteção do jogo inconclusiva",
+        "O DMA abriu, mas não foi possível confirmar a lista de processos. Não há prova de que o jogo esteja fechado.",
+        "Confirma a leitura DMA e tenta novamente. Se persistir, consulta os logs.", Result::LaunchFailed};
+}
 
 void WritePostAuthStage(const char* stage) noexcept {
     wchar_t localAppData[MAX_PATH]{};
@@ -738,22 +836,76 @@ while (application.shouldRun && !authenticated) {
         }
     }
 
-    // This inventory is diagnostic only. Remote process enumeration can miss a
-    // just-started process or briefly fail while the VMM context is changing;
-    // the adapter owns the authoritative attach/retry logic.
-    const bool game_present_before_attach =
-        OmniGhost::GameLaunch::IsProcessPresent(selected);
-
-    // Initialize the game using the adapter
-    OmniGhost::SessionLog::Write(
-        OmniGhost::SessionLog::Severity::Info,
-        OmniGhost::SessionLog::Subsystem::Adapter,
-        "StartGameAdapter begin",
-        {{"game", selectedDefinition ? selectedDefinition->id : "unknown"},
-         {"preflight_process_visible", game_present_before_attach ? "yes" : "no"}});
-
-    const OmniGhost::Launcher::AdapterStartResult startResult =
-        OmniGhost::Launcher::StartGameAdapter(selected);
+    // Process enumeration and some adapters can wait on VMM/FPGA for seconds.
+    // Keep the UI responsive and do not read mutable adapter status cross-thread.
+    struct LaunchWork {
+        OmniGhost::GameLaunch::ProcessProbeResult probe{};
+        OmniGhost::Launcher::AdapterStartResult result{};
+    } launchWork;
+    std::atomic<int> launchPhase{0}; // 0 = process preflight, 1 = adapter attach
+    std::atomic_bool launchFinished{false};
+    mem.ClearCancel();
+    std::jthread launchWorker([&](std::stop_token) {
+        try {
+            launchWork.probe = OmniGhost::GameLaunch::ProbeProcess(selected);
+            OmniGhost::SessionLog::Write(
+                OmniGhost::SessionLog::Severity::Info,
+                OmniGhost::SessionLog::Subsystem::Adapter,
+                "StartGameAdapter begin",
+                {{"game", selectedDefinition ? selectedDefinition->id : "unknown"},
+                 {"preflight_process_visible",
+                  launchWork.probe.state == OmniGhost::GameLaunch::ProcessProbeState::Found ? "yes" : "no"}});
+            launchPhase.store(1, std::memory_order_release);
+            launchWork.result = OmniGhost::Launcher::StartGameAdapter(selected);
+        } catch (const std::exception& ex) {
+            launchWork.result = {false,
+                {OmniGhost::Launcher::AdapterErrorCode::UnexpectedException, ex.what()}};
+        } catch (...) {
+            launchWork.result = {false,
+                {OmniGhost::Launcher::AdapterErrorCode::UnexpectedException, "unknown startup exception"}};
+        }
+        launchFinished.store(true, std::memory_order_release);
+    });
+    while (application.shouldRun && !launchFinished.load(std::memory_order_acquire)) {
+        application.StartRender();
+        if (!application.shouldRun)
+            break;
+        const ImVec2 ds = ImGui::GetIO().DisplaySize;
+        ImGui::SetNextWindowPos(ImVec2(0, 0));
+        ImGui::SetNextWindowSize(ds);
+        ImGui::Begin("##game_launch_progress", nullptr,
+            ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
+            ImGuiWindowFlags_NoSavedSettings);
+        ImDrawList* draw = ImGui::GetWindowDrawList();
+        draw->AddRectFilled(ImVec2(0, 0), ds,
+            CyberTheme::U32(CyberTheme::Colors.Background));
+        const float width = (std::min)(600.f, ds.x - 48.f);
+        const ImVec2 cardMin((ds.x - width) * .5f, ds.y * .38f);
+        const ImVec2 cardMax(cardMin.x + width, cardMin.y + 170.f);
+        draw->AddRectFilled(cardMin, cardMax,
+            CyberTheme::U32(CyberTheme::Colors.Card), 14.f);
+        draw->AddRect(cardMin, cardMax,
+            CyberTheme::U32(CyberTheme::Colors.Border), 14.f);
+        CyberWidgets::DrawSpinner(draw, ImVec2(cardMin.x + 35.f, cardMin.y + 44.f), 12.f);
+        ImGui::SetCursorScreenPos(ImVec2(cardMin.x + 63.f, cardMin.y + 27.f));
+        ImGui::TextUnformatted("A preparar o menu");
+        ImGui::SetCursorScreenPos(ImVec2(cardMin.x + 25.f, cardMin.y + 82.f));
+        ImGui::PushTextWrapPos(cardMax.x - 25.f);
+        ImGui::TextWrapped("%s", launchPhase.load(std::memory_order_acquire) == 0
+            ? "A verificar a ligação DMA e a procurar o processo no PC do jogo..."
+            : "Jogo encontrado ou pesquisa concluída. A validar memória, módulos e dados do jogo...");
+        ImGui::PopTextWrapPos();
+        ImGui::End();
+        application.EndRender();
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    if (!application.shouldRun)
+        mem.RequestCancel();
+    if (launchWorker.joinable()) launchWorker.join();
+    if (!application.shouldRun)
+        break;
+    const auto& processProbe = launchWork.probe;
+    const auto& startResult = launchWork.result;
     if (!startResult.succeeded) {
         // Use centralized adapter error model for consistent messaging
         const std::string_view errorMessage =
@@ -765,58 +917,75 @@ while (application.shouldRun && !authenticated) {
              {{"code", std::to_string(static_cast<int>(startResult.error.code))},
              {"message", std::string(errorMessage)},
              {"detail", std::string(startResult.error.detail)}});
-        std::string detail = startResult.error.detail.empty()
-            ? std::string(errorMessage)
-            : std::string(startResult.error.detail);
+        const auto dmaAfterAttach = mem.GetDiagnosticsSnapshot();
+        const LaunchIssue issue = DiagnoseLaunchFailure(
+            processProbe, dmaAfterAttach, pending_game, startResult.error.code);
+        const std::string detail = std::string(OmniGhost::Support::Code(issue.code)) +
+            " | " + issue.title + " | " + issue.explanation;
+        OmniGhost::SessionLog::Write(
+            OmniGhost::SessionLog::Severity::Error,
+            OmniGhost::SessionLog::Subsystem::Adapter,
+            "Launch failure classified",
+            {{"support_code", std::string(OmniGhost::Support::Code(issue.code))},
+             {"probe_state", std::to_string(static_cast<int>(processProbe.state))},
+             {"device_open", dmaAfterAttach.deviceOpen ? "yes" : "no"},
+             {"process_bound", dmaAfterAttach.processInitialized ? "yes" : "no"}});
 
         {
-            const DWORD err_until = GetTickCount() + 5500;
-            while (application.shouldRun && GetTickCount() < err_until) {
+            const ULONGLONG errUntil = GetTickCount64() + 30000;
+            bool dismissed = false;
+            while (application.shouldRun && !dismissed && GetTickCount64() < errUntil) {
                 application.StartRender();
                 const ImVec2 ds = ImGui::GetIO().DisplaySize;
                 ImGui::SetNextWindowPos(ImVec2(0, 0));
                 ImGui::SetNextWindowSize(ds);
-                ImGui::Begin("##attach_fail", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove);
-                ImGui::GetWindowDrawList()->AddRectFilled(ImVec2(0, 0), ds, IM_COL32(12, 8, 8, 245));
-                const float contentWidth = (std::min)(620.f, ds.x * .72f);
-                ImGui::SetCursorPosY(ds.y * .32f);
-                ImGui::SetCursorPosX((ds.x - contentWidth) * .5f);
-                ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + contentWidth);
-                ImGui::TextWrapped(
-                    "%s\n\n"
-                    "Abre o jogo no PC principal e tenta novamente.\n\n"
-                    "A voltar ao launcher...",
-                    detail.c_str());
+                ImGui::Begin("##attach_fail", nullptr,
+                    ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
+                    ImGuiWindowFlags_NoSavedSettings);
+                ImDrawList* draw = ImGui::GetWindowDrawList();
+                draw->AddRectFilled(ImVec2(0, 0), ds,
+                    CyberTheme::U32(CyberTheme::Colors.Background));
+                const float width = (std::min)(680.f, ds.x - 48.f);
+                const float height = (std::min)(410.f, ds.y - 48.f);
+                const ImVec2 cardMin((ds.x - width) * .5f, (ds.y - height) * .5f);
+                const ImVec2 cardMax(cardMin.x + width, cardMin.y + height);
+                draw->AddRectFilled(cardMin, cardMax,
+                    CyberTheme::U32(CyberTheme::Colors.Card), 14.f);
+                draw->AddRect(cardMin, cardMax,
+                    CyberTheme::U32(CyberTheme::Colors.Border), 14.f);
+                draw->AddRectFilled(cardMin, ImVec2(cardMin.x + 5.f, cardMax.y),
+                    CyberTheme::U32(CyberTheme::Colors.Error), 14.f);
+                const float left = cardMin.x + 34.f;
+                ImGui::SetCursorScreenPos(ImVec2(left, cardMin.y + 28.f));
+                ImGui::TextColored(CyberTheme::Colors.Error, "OMNIGHOST  /  DIAGNÓSTICO DE ARRANQUE");
+                ImGui::SetCursorScreenPos(ImVec2(left, cardMin.y + 66.f));
+                ImGui::TextUnformatted(issue.title);
+                ImGui::SetCursorScreenPos(ImVec2(left, cardMin.y + 112.f));
+                ImGui::PushTextWrapPos(cardMax.x - 34.f);
+                ImGui::TextWrapped("%s", issue.explanation);
+                ImGui::SetCursorScreenPos(ImVec2(left, cardMin.y + 185.f));
+                ImGui::TextDisabled("O que fazer");
+                ImGui::SetCursorScreenPos(ImVec2(left, cardMin.y + 212.f));
+                ImGui::TextWrapped("%s", issue.action);
                 ImGui::PopTextWrapPos();
+                ImGui::SetCursorScreenPos(ImVec2(left, cardMax.y - 83.f));
+                ImGui::TextDisabled("Código de suporte: %s",
+                    OmniGhost::Support::Code(issue.code).data());
+                ImGui::SetCursorScreenPos(ImVec2(left, cardMax.y - 53.f));
+                dismissed = ImGui::Button("Voltar ao launcher", ImVec2(180.f, 34.f)) ||
+                    ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+                ImGui::SameLine();
+                const ULONGLONG countdownNow = GetTickCount64();
+                const ULONGLONG remainingMs = errUntil > countdownNow
+                    ? errUntil - countdownNow : 0;
+                ImGui::TextDisabled("Regresso automático em %llu s",
+                    static_cast<unsigned long long>(remainingMs / 1000 + 1));
                 ImGui::End();
                 application.EndRender();
             }
         }
         
-        // Map adapter error to session result for telemetry
-        Launcher::SessionResult sessionResult = game_present_before_attach
-            ? Launcher::SessionResult::LaunchFailed
-            : Launcher::SessionResult::GameNotFound;
-        if (game_present_before_attach) switch (startResult.error.code) {
-            case OmniGhost::Launcher::AdapterErrorCode::UnsupportedGame:
-                sessionResult = Launcher::SessionResult::LaunchFailed;
-                break;
-            case OmniGhost::Launcher::AdapterErrorCode::AttachFailed:
-                sessionResult = Launcher::SessionResult::DeviceMissing;
-                break;
-            case OmniGhost::Launcher::AdapterErrorCode::ValidationFailed:
-            case OmniGhost::Launcher::AdapterErrorCode::InitializationFailed:
-                sessionResult = Launcher::SessionResult::OffsetsFailed;
-                break;
-            case OmniGhost::Launcher::AdapterErrorCode::Cancelled:
-                sessionResult = Launcher::SessionResult::LaunchFailed;
-                break;
-            default:
-                sessionResult = Launcher::SessionResult::LaunchFailed;
-                break;
-        }
-        
-        Launcher::RecordGameSession(selected, sessionResult, detail);
+        Launcher::RecordGameSession(selected, issue.result, detail);
         (void)startupState.Transition(OmniGhost::Startup::State::StartingGame,
                                       OmniGhost::Startup::State::Ready);
         continue; // back to launcher

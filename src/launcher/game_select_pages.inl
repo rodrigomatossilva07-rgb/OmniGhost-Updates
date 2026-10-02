@@ -350,6 +350,11 @@ std::string BuildDiagnosticsText() {
         : (dma.deviceDetected ? "detetado" : "não detetado"))
         << " | processo=" << (dma.processInitialized ? Loc::Tr("launcher.attached") : Loc::Tr("launcher.not_attached"))
         << " | dependências=" << (dma.dependencyIntegrityOk ? "OK" : Loc::Tr("launcher.attention")) << "\n";
+    if (game) {
+        const GameHistory history = GetGameHistory(gameId);
+        if (!history.detail.empty())
+            out << "Último diagnóstico de arranque: " << history.detail << "\n";
+    }
     out << Loc::Tr("launcher.input") << ": " << InputDeviceName() << " | "
         << (InputDeviceConnected() ? Loc::Tr("launcher.connected") : Loc::Tr("launcher.standby")) << "\n";
     out << Loc::Tr("launcher.active_game") << ": " << DiagnosticsGameName(gameId) << "\n";
@@ -402,6 +407,9 @@ void DrawDiagnostics(ImVec2 display) {
                                                     : (dma.deviceDetected ? Loc::Tr("launcher.device_detected") : Loc::Tr("launcher.device_not_detected")),
                             dma.deviceOpen ? (dma.dependencyIntegrityOk ? CyberWidgets::HealthStatus::Ok : CyberWidgets::HealthStatus::Warning)
                                            : CyberWidgets::HealthStatus::Warning);
+    CyberWidgets::HealthRow("Leitura do processo",
+                            dma.processInitialized ? "Validada nesta sessão" : "Ainda não validada",
+                            dma.processInitialized ? CyberWidgets::HealthStatus::Ok : CyberWidgets::HealthStatus::Warning);
     CyberWidgets::HealthRow(Loc::Tr("launcher.input"), InputDeviceConnected() ? InputDeviceName() : Loc::Tr("launcher.standby"),
                             InputDeviceConnected() ? CyberWidgets::HealthStatus::Ok : CyberWidgets::HealthStatus::Warning);
     CyberWidgets::HealthRow(Loc::Tr("launcher.active_game"), DiagnosticsGameName(gameId),

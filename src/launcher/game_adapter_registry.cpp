@@ -33,6 +33,7 @@ public:
     using ValidateOffsetsOperation = std::function<bool()>;
     using TerminationReasonOperation = std::function<std::string_view()>;
     using GameIdOperation = std::function<ActiveGame()>;
+    using FailureOperation = std::function<AdapterErrorCode()>;
 
     FunctionGameAdapter(OmniGhost::Launcher::AdapterDescriptor descriptor,
                         BoolOperation attach, VoidOperation shutdown, StatusOperation status,
@@ -40,35 +41,67 @@ public:
                         IsAliveOperation isAlive = [] { return false; },
                         ValidateOffsetsOperation validateOffsets = [] { return true; },
                         TerminationReasonOperation terminationReason = [] { return "Processo terminado"; },
-                        GameIdOperation gameId = [] { return ActiveGame::FiveM; })
+                        GameIdOperation gameId = [] { return ActiveGame::FiveM; },
+                        FailureOperation failure = [] { return AdapterErrorCode::AttachFailed; })
         : descriptor_(descriptor), attach_(std::move(attach)), shutdown_(std::move(shutdown)),
           status_(std::move(status)), tick_(std::move(tick)),
           isAlive_(std::move(isAlive)), validateOffsets_(std::move(validateOffsets)),
-          terminationReason_(std::move(terminationReason)), gameId_(std::move(gameId)) {}
+          terminationReason_(std::move(terminationReason)), gameId_(std::move(gameId)),
+          failure_(std::move(failure)) {}
 
     bool Attach() override {
-        attached_ = attach_ && attach_();
+        try {
+            attached_ = attach_ && attach_();
+        } catch (const std::exception& ex) {
+            attached_ = false;
+            lastError_ = { AdapterErrorCode::UnexpectedException, ex.what() };
+            return false;
+        } catch (...) {
+            attached_ = false;
+            lastError_ = { AdapterErrorCode::UnexpectedException, "unknown attach exception" };
+            return false;
+        }
         if (attached_) {
             lastError_ = {};
         } else {
             std::string detail;
-            if (status_) {
-                const auto st = status_();
-                if (!st.empty())
-                    detail.assign(st.data(), st.size());
+            try {
+                if (status_) {
+                    const auto st = status_();
+                    if (!st.empty())
+                        detail.assign(st.data(), st.size());
+                }
+            } catch (...) {
+                detail = "status unavailable";
             }
-            lastError_ = { OmniGhost::Launcher::AdapterErrorCode::AttachFailed, std::move(detail) };
+            lastError_ = { failure_ ? failure_() : AdapterErrorCode::AttachFailed, std::move(detail) };
         }
         return attached_;
     }
 
     bool Validate() override {
-        if (!attached_) lastError_ = { OmniGhost::Launcher::AdapterErrorCode::ValidationFailed, {} };
-        return attached_;
+        try {
+            if (!attached_) lastError_ = { AdapterErrorCode::ValidationFailed, {} };
+            return attached_;
+        } catch (const std::exception& ex) {
+            lastError_ = { AdapterErrorCode::UnexpectedException, ex.what() };
+            return false;
+        } catch (...) {
+            lastError_ = { AdapterErrorCode::UnexpectedException, "unknown validation exception" };
+            return false;
+        }
     }
     bool Initialize() override {
-        if (!attached_) lastError_ = { OmniGhost::Launcher::AdapterErrorCode::InitializationFailed, {} };
-        return attached_;
+        try {
+            if (!attached_) lastError_ = { AdapterErrorCode::InitializationFailed, {} };
+            return attached_;
+        } catch (const std::exception& ex) {
+            lastError_ = { AdapterErrorCode::UnexpectedException, ex.what() };
+            return false;
+        } catch (...) {
+            lastError_ = { AdapterErrorCode::UnexpectedException, "unknown initialization exception" };
+            return false;
+        }
     }
     void Tick() override {
         tick_();
@@ -85,7 +118,11 @@ public:
         attached_ = false;
     }
     std::string_view GetStatus() const noexcept override {
-        return status_ ? status_() : std::string_view{};
+        try {
+            return status_ ? status_() : std::string_view{};
+        } catch (...) {
+            return "Estado do adapter indisponível";
+        }
     }
     bool IsGameProcessAlive() const override {
         return isAlive_ ? isAlive_() : false;
@@ -100,7 +137,7 @@ public:
         return gameId_ ? gameId_() : ActiveGame::FiveM;
     }
     OmniGhost::Launcher::AdapterDescriptor GetDescriptor() const noexcept override { return descriptor_; }
-    OmniGhost::Launcher::AdapterError GetLastError() const noexcept override { return lastError_; }
+    OmniGhost::Launcher::AdapterError GetLastError() const override { return lastError_; }
 
 private:
     OmniGhost::Launcher::AdapterDescriptor descriptor_;
@@ -112,19 +149,63 @@ private:
     ValidateOffsetsOperation validateOffsets_;
     TerminationReasonOperation terminationReason_;
     GameIdOperation gameId_;
+    FailureOperation failure_;
     bool attached_ = false;
     OmniGhost::Launcher::AdapterError lastError_{};
 };
 
+thread_local AdapterErrorCode s_fiveMStartFailure = AdapterErrorCode::AttachFailed;
+thread_local bool s_cs2StartException = false;
+
+AdapterErrorCode Cs2StartFailure() {
+    if (s_cs2StartException)
+        return AdapterErrorCode::UnexpectedException;
+    const std::string& text = CS2::status;
+    if (text.find("DMA offline") != std::string::npos ||
+        text.find("inicializar DMA") != std::string::npos)
+        return AdapterErrorCode::DeviceOpenFailed;
+    if (text.find("Offsets") != std::string::npos ||
+        text.find("offsets") != std::string::npos)
+        return AdapterErrorCode::OffsetsMissing;
+    if (text.find("client.dll") != std::string::npos)
+        return AdapterErrorCode::ModuleNotFound;
+    if (text.find("Falha ao anexar") != std::string::npos)
+        return AdapterErrorCode::ProcessBindFailed;
+    if (text.find("processo") != std::string::npos ||
+        text.find("cs2.exe") != std::string::npos)
+        return AdapterErrorCode::ProcessNotFound;
+    return AdapterErrorCode::AttachFailed;
+}
+
+AdapterErrorCode FortniteStartFailure() {
+    const char* statusText = Fortnite::StatusText();
+    const std::string text = statusText ? statusText : "";
+    if (text.find("Offsets") != std::string::npos)
+        return AdapterErrorCode::OffsetsMissing;
+    if (text.find("DMA/FPGA") != std::string::npos)
+        return AdapterErrorCode::DeviceOpenFailed;
+    if (text.find("nao encontrado") != std::string::npos)
+        return AdapterErrorCode::ProcessNotFound;
+    if (text.find("Base do modulo") != std::string::npos)
+        return AdapterErrorCode::ModuleNotFound;
+    if (text.find("Memoria") != std::string::npos ||
+        text.find("memoria") != std::string::npos)
+        return AdapterErrorCode::ProcessBindFailed;
+    return AdapterErrorCode::AttachFailed;
+}
+
 bool StartCs2() {
     try {
+        s_cs2StartException = false;
         g_activeGame = ActiveGame::CS2;
         config_manager::ActivateCurrentGameConfig();
         return CS2::Attach();
     } catch (const std::exception& ex) {
+        s_cs2StartException = true;
         std::cerr << "[CS2] CRASH em StartCs2: " << ex.what() << std::endl;
         return false;
     } catch (...) {
+        s_cs2StartException = true;
         std::cerr << "[CS2] CRASH desconhecido em StartCs2" << std::endl;
         return false;
     }
@@ -144,31 +225,36 @@ bool StartFortnite() {
 
 bool StartFiveM() {
     try {
+        s_fiveMStartFailure = AdapterErrorCode::AttachFailed;
         OmniGhost::GameContext::Instance().SetActiveGame(ActiveGame::FiveM);
         if (!mem.Init(std::string(), true, false)) {
+            s_fiveMStartFailure = AdapterErrorCode::DeviceOpenFailed;
             std::cerr << "[FiveM] Falha a abrir o dispositivo DMA/FPGA.\n";
             return false;
         }
         std::string executable = OmniGhost::GameLaunch::FindFiveMProcessViaDma();
         OmniGhost::GameContext::Instance().SetValidExecutable(executable);
         if (executable.empty()) {
+            s_fiveMStartFailure = AdapterErrorCode::ProcessNotFound;
             std::cerr << "[FiveM] Processo GTAProcess nao encontrado no PC do jogo.\n";
             return false;
         }
         if (!mem.Init(executable, true, false)) {
+            s_fiveMStartFailure = AdapterErrorCode::ProcessBindFailed;
             std::cerr << "[FiveM] Falha ao anexar DMA a " << executable << ".\n";
             return false;
         }
         FiveM::Setup();
         if (!FiveM::IsBuildSupported()) {
+            s_fiveMStartFailure = AdapterErrorCode::UnsupportedBuild;
             constexpr std::string_view reason = "Build FiveM não suportada pela tabela validada do OmniGhost.";
-            OmniGhost::OffsetAuto::MarkOutdated(ActiveGame::FiveM, std::string(reason));
+            OmniGhost::OffsetAuto::MarkUnsupported(ActiveGame::FiveM, std::string(reason));
             std::cerr << "[FiveM] " << reason << '\n';
             return false;
         }
         if (!FiveM::OffsetAuto::PointersLookValid() || !FiveM::SoftProbeLobbyOffsets()) {
-            constexpr std::string_view reason = "Os ponteiros FiveM não passaram a verificação de leitura DMA.";
-            OmniGhost::OffsetAuto::MarkOutdated(ActiveGame::FiveM, std::string(reason));
+            s_fiveMStartFailure = AdapterErrorCode::GameDataUnverified;
+            constexpr std::string_view reason = "Não foi possível validar os ponteiros FiveM; a leitura DMA ou os offsets podem estar indisponíveis.";
             std::cerr << "[FiveM] " << reason << '\n';
             return false;
         }
@@ -177,16 +263,19 @@ bool StartFiveM() {
         if (!aim_type::IsConnected()) makcu_wrapper::MakcuInitialize("");
         return true;
     } catch (const std::exception& ex) {
+        s_fiveMStartFailure = AdapterErrorCode::UnexpectedException;
         std::cerr << "[FiveM] CRASH em StartFiveM: " << ex.what() << std::endl;
         return false;
     } catch (...) {
+        s_fiveMStartFailure = AdapterErrorCode::UnexpectedException;
         std::cerr << "[FiveM] CRASH desconhecido em StartFiveM" << std::endl;
         return false;
     }
 }
 
 std::string_view FiveMStatus() noexcept {
-    return OmniGhost::GameContext::Instance().GetValidExecutable().empty() ? "FiveM não ligado" : "FiveM ligado";
+    return OmniGhost::GameContext::Instance().HasValidExecutable()
+        ? "FiveM ligado" : "FiveM não ligado";
 }
 
 // Static functions for adapter operations to avoid lambda/std::function issues
@@ -237,7 +326,8 @@ IGameAdapter* FindGameAdapter(::Launcher::GameId game) noexcept {
                 std::cerr << "[FiveM] CRASH desconhecido em Tick" << std::endl;
             }
         },
-        FivemIsAlive, FivemValidateOffsets, FivemTerminationReason, FivemGameId);
+        FivemIsAlive, FivemValidateOffsets, FivemTerminationReason, FivemGameId,
+        [] { return s_fiveMStartFailure; });
     static FunctionGameAdapter cs2({ ::Launcher::GameId::CS2, "Counter-Strike 2", AdapterMaturity::Stable,
         Capability::Menu | Capability::ReadOnlyMemory | Capability::Overlay | Capability::Radar },
         StartCs2, [] { CS2::Shutdown(); CS2::ready = false; },
@@ -260,7 +350,8 @@ IGameAdapter* FindGameAdapter(::Launcher::GameId game) noexcept {
                 std::cerr << "[CS2] CRASH desconhecido em Tick" << std::endl;
             }
         },
-        Cs2IsAlive, Cs2ValidateOffsets, Cs2TerminationReason, Cs2GameId);
+        Cs2IsAlive, Cs2ValidateOffsets, Cs2TerminationReason, Cs2GameId,
+        Cs2StartFailure);
     static FunctionGameAdapter warzone({ ::Launcher::GameId::Warzone, "Call of Duty: Warzone", AdapterMaturity::Beta,
         Capability::Menu | Capability::ReadOnlyMemory },
         StartWarzone, [] { Warzone::Shutdown(); },
@@ -280,7 +371,8 @@ IGameAdapter* FindGameAdapter(::Launcher::GameId game) noexcept {
             Fortnite::DrawESP();
             Fortnite::RunAim();
         },
-        FortniteIsAlive, FortniteValidateOffsets, FortniteTerminationReason, FortniteGameId);
+        FortniteIsAlive, FortniteValidateOffsets, FortniteTerminationReason, FortniteGameId,
+        FortniteStartFailure);
 
     switch (game) {
     case ::Launcher::GameId::FiveM: return &fivem;
