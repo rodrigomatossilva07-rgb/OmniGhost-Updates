@@ -14,6 +14,7 @@ struct PreparedEspData {
     float armor_alt_2 = 0.0f;
     uintptr_t player_info = 0;
     uint32_t network_id = 0;
+    char player_name[48]{};
     uintptr_t weapon_manager = 0;
     uintptr_t weapon_info = 0;
     uint32_t weapon_hash = 0;

@@ -17,6 +17,8 @@ namespace friends {
     bool IsFriend(uint32_t id);
     bool IsFriendPed(uintptr_t ped);
     bool HasFriends();
+    void RequestPlayerList() noexcept;
+    bool PlayerListRequestedRecently() noexcept;
     void AddFriend(const std::string& name, uint32_t id, bool prox = false);
     void RemoveFriend(uint32_t id);
     void AddClosestAsFriend();

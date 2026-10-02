@@ -66,6 +66,11 @@ namespace aimbot {
     static uintptr_t locked_target = 0;
     static std::chrono::steady_clock::time_point lock_start{};
     static std::chrono::steady_clock::time_point last_trigger{};
+    static bool trigger_pressed = false;
+    static std::chrono::steady_clock::time_point trigger_release_at{};
+    static uintptr_t trigger_target = 0;
+    static std::chrono::steady_clock::time_point trigger_target_entered{};
+    static float trigger_target_delay = 0.f;
     static bool beeped_for_lock = false;
     static std::mt19937 rng{ std::random_device{}() };
 
@@ -128,6 +133,12 @@ namespace aimbot {
     }
 
     void Initialize() {
+        if (trigger_pressed) aim_type::LeftClickRelease();
+        trigger_pressed = false;
+        trigger_release_at = {};
+        trigger_target = 0;
+        trigger_target_entered = {};
+        trigger_target_delay = 0.f;
         tracking_active = false;
         locked_target = 0;
         current_target = {};
@@ -136,6 +147,14 @@ namespace aimbot {
     }
 
     void ResetTrackingState() {
+        if (trigger_pressed) {
+            aim_type::LeftClickRelease();
+            trigger_pressed = false;
+            trigger_release_at = {};
+        }
+        trigger_target = 0;
+        trigger_target_entered = {};
+        trigger_target_delay = 0.f;
         tracking_active = false;
         locked_target = 0;
         current_target = {};
@@ -288,7 +307,8 @@ namespace aimbot {
     }
 
 
-    bool FindBestTarget(TargetInfo& out, float fov_px, float max_dist) {
+    static bool FindBestTargetForHitbox(TargetInfo& out, float fov_px,
+                                        float max_dist, Hitbox selectedHitbox) {
         out = {};
         using namespace FiveM;
 
@@ -319,14 +339,21 @@ namespace aimbot {
         const auto& positions = *posPtr;
         if (peds.empty())
             return false;
+        const bool skipFriends = friends::config.ignore_aim && friends::HasFriends();
 
         for (size_t i = 0; i < peds.size(); ++i) {
             uintptr_t ped = peds[i];
             if (!ped || ped == offset::localplayer)
                 continue;
 
-            if (friends::config.ignore_aim && friends::IsFriendPed(ped))
-                continue;
+            if (skipFriends) {
+                uint32_t networkId = 0;
+                // Unknown identity is not a reason to risk targeting a friend.
+                // The prepared metadata lane retries without DMA in this loop.
+                if (!esp::try_get_prepared_network_id(ped, networkId) ||
+                    friends::IsFriend(networkId))
+                    continue;
+            }
 
             // GTA/FiveM: alive peds typically 1..200 (some builds ~100–200 full)
             float health = 0.f;
@@ -337,7 +364,7 @@ namespace aimbot {
             if (health <= 1.f || health > 500.f)
                 continue;
 
-            Vec3 world = ResolveHitboxWorld(ped, config.hitbox);
+            Vec3 world = ResolveHitboxWorld(ped, selectedHitbox);
             const bool haveBone = !world.IsZero() && IsFiniteVec3(world);
 
             if (!haveBone) {
@@ -346,7 +373,7 @@ namespace aimbot {
                 if (i < positions.size() && !positions[i].IsZero() &&
                     IsFiniteVec3(positions[i])) {
                     world = positions[i];
-                    world.z += (config.hitbox == Hitbox::Head) ? 0.85f : 0.55f;
+                    world.z += (selectedHitbox == Hitbox::Head) ? 0.85f : 0.55f;
                 } else continue;
             } else if (i < positions.size() && !positions[i].IsZero() &&
                        IsFiniteVec3(positions[i])) {
@@ -397,6 +424,10 @@ namespace aimbot {
 
         out = best;
         return best.valid;
+    }
+
+    bool FindBestTarget(TargetInfo& out, float fov_px, float max_dist) {
+        return FindBestTargetForHitbox(out, fov_px, max_dist, config.hitbox);
     }
 
     void HumanizedMove(float dx, float dy) {
@@ -647,8 +678,9 @@ namespace aimbot {
 
         if (havePd) {
             health = pd.health;
-            const auto age = std::chrono::steady_clock::now() - pd.lastUpdate;
-            if (age > std::chrono::milliseconds(80))
+            const auto age = std::chrono::steady_clock::now() - pd.health_updated;
+            if (pd.health_updated.time_since_epoch().count() == 0 ||
+                age > std::chrono::milliseconds(80))
                 havePd = false;
         }
         if (!havePd && !esp::try_get_prepared_health(tgt.ped, health))
@@ -864,25 +896,32 @@ namespace aimbot {
     }
 
     static void RunTriggerLogic() {
-        if (!config.trigger_enabled)
-            return;
-
-        const bool active = config.trigger_always_on || config.trigger_bind <= 0 ||
-            BindDown(config.trigger_bind);
-        static uintptr_t triggerTarget = 0;
-        static std::chrono::steady_clock::time_point targetEntered{};
-        static float targetDelay = 0.f;
-        if (!active) {
-            triggerTarget = 0;
+        const auto triggerNow = std::chrono::steady_clock::now();
+        if (trigger_pressed) {
+            if (!config.trigger_enabled || triggerNow >= trigger_release_at) {
+                aim_type::LeftClickRelease();
+                trigger_pressed = false;
+            } else {
+                return;
+            }
+        }
+        if (!config.trigger_enabled) {
+            trigger_target = 0;
             return;
         }
 
-        const Hitbox savedHb = config.hitbox;
+        const bool active = config.trigger_always_on || config.trigger_bind <= 0 ||
+            BindDown(config.trigger_bind);
+        if (!active) {
+            trigger_target = 0;
+            return;
+        }
+
         TargetInfo tgt{};
         bool found = false;
         if (config.trigger_head_only) {
-            config.hitbox = Hitbox::Head;
-            found = FindBestTarget(tgt, config.trigger_fov, config.max_distance);
+            found = FindBestTargetForHitbox(tgt, config.trigger_fov,
+                                            config.max_distance, Hitbox::Head);
         } else {
             // Body mode is independent of the configured aimbot bone. Check
             // every major anatomical region and keep the one actually closest
@@ -891,9 +930,9 @@ namespace aimbot {
                 Hitbox::Head, Hitbox::Neck, Hitbox::Torso, Hitbox::Pelvis, Hitbox::Legs
             };
             for (const Hitbox hitbox : hitboxes) {
-                config.hitbox = hitbox;
                 TargetInfo candidate{};
-                if (!FindBestTarget(candidate, config.trigger_fov, config.max_distance))
+                if (!FindBestTargetForHitbox(candidate, config.trigger_fov,
+                                             config.max_distance, hitbox))
                     continue;
                 if (!found || candidate.crosshair_dist < tgt.crosshair_dist) {
                     tgt = candidate;
@@ -901,9 +940,8 @@ namespace aimbot {
                 }
             }
         }
-        config.hitbox = savedHb;
         if (!found) {
-            triggerTarget = 0;
+            trigger_target = 0;
             return;
         }
         // Share the trigger target with visual feedback such as the 0.5 s hit
@@ -911,22 +949,24 @@ namespace aimbot {
         current_target = tgt;
 
         auto now = std::chrono::steady_clock::now();
-        if (tgt.ped != triggerTarget) {
-            triggerTarget = tgt.ped;
-            targetEntered = now;
-            targetDelay = (std::max)(config.trigger_delay, 0.f);
+        if (tgt.ped != trigger_target) {
+            trigger_target = tgt.ped;
+            trigger_target_entered = now;
+            trigger_target_delay = (std::max)(config.trigger_delay, 0.f);
             if (config.trigger_random_extra > 0.f) {
                 std::uniform_real_distribution<float> randomDelay(0.f, config.trigger_random_extra);
-                targetDelay += randomDelay(rng);
+                trigger_target_delay += randomDelay(rng);
             }
         }
-        const float reactionElapsed = std::chrono::duration<float>(now - targetEntered).count();
+        const float reactionElapsed = std::chrono::duration<float>(now - trigger_target_entered).count();
         const float shotElapsed = std::chrono::duration<float>(now - last_trigger).count();
-        if (reactionElapsed < targetDelay || shotElapsed < .06f)
+        if (reactionElapsed < trigger_target_delay || shotElapsed < .06f)
             return;
 
         last_trigger = now;
         aim_type::LeftClick();
+        trigger_pressed = true;
+        trigger_release_at = now + std::chrono::milliseconds(20);
     }
 
     void DrawFOV() {

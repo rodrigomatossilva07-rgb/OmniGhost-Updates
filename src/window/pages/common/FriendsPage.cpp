@@ -11,7 +11,17 @@
 
 void DrawFriends()
 {
-    friends::UpdatePlayerList();
+#ifndef UI_PREVIEW
+    friends::RequestPlayerList();
+#endif
+    // The live FiveM list performs identity/name DMA. Do not repeat that
+    // pointer chain at the UI frame rate while this page is open.
+    static double nextPlayerListRefresh = 0.0;
+    const double now = ImGui::GetTime();
+    if (now >= nextPlayerListRefresh) {
+        nextPlayerListRefresh = now + 0.25;
+        friends::UpdatePlayerList();
+    }
 
     const float full = CyberWidgets::CardContentWidth();
     const float gap = CyberTheme::Spacing::Sm;

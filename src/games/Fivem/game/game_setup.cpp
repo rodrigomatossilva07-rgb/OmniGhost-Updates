@@ -1,4 +1,5 @@
 #include "game_setup.h"
+#include "esp_manager.h"
 #include "offsets.h"
 #include "../../DMALibrary/Memory/Memory.h"
 #include "globals.h"
@@ -144,6 +145,9 @@ void InitializePedCache() {
 
 bool ReinitDma() {
     std::cout << "[FiveM] Reinit DMA (process + world pointers)" << std::endl;
+    // The acquisition producer owns long-lived scatter handles. Stop and
+    // release them before invalidating the VMM process/device generation.
+    ESP::StopAcquisition();
     mem.InvalidateProcess();
     std::string exe = OmniGhost::GameContext::Instance().GetValidExecutable();
     if (exe.empty())

@@ -43,10 +43,31 @@ inline void BatchCheckVisibility(const std::vector<uintptr_t>& peds,
         return;
     }
 
+    // Newly streamed peds are due immediately. Stable peds reuse the recent
+    // result instead of consuming a DMA request on every 20 ms core scan.
+    static std::vector<uintptr_t> duePeds;
+    static std::vector<size_t> dueIndices;
+    duePeds.clear();
+    dueIndices.clear();
+    const auto now = std::chrono::steady_clock::now();
+    for (size_t i = 0; i < peds.size(); ++i) {
+        if (!peds[i]) continue;
+        PedData cached;
+        if (g_pedCacheManager.getPedData(peds[i], cached) && cached.visibility_known &&
+            now - cached.visibility_updated < std::chrono::milliseconds(60)) {
+            visibilityResults[i] = cached.visible;
+        } else {
+            duePeds.push_back(peds[i]);
+            dueIndices.push_back(i);
+        }
+    }
+    if (duePeds.empty()) return;
+
     // Unchanged slots signal a failed scatter read. 0xFF is treated as
     // unknown if it is ever a genuine flag value, rather than guessing visible.
     constexpr uint8_t unreadFlag = 0xFF;
-    std::vector<uint8_t> flags(peds.size(), unreadFlag);
+    static std::vector<uint8_t> flags; // acquisition thread only
+    flags.assign(duePeds.size(), unreadFlag);
     auto& handle = ScatterHandle();
     if (!handle && mem.vHandle)
         handle = mem.CreateScatterHandle();
@@ -54,16 +75,22 @@ inline void BatchCheckVisibility(const std::vector<uintptr_t>& peds,
         g_pedCacheManager.clearPedVisibilities();
         return;
     }
-    for (size_t i = 0; i < peds.size(); ++i) {
-        if (peds[i])
-            mem.AddScatterReadRequest(handle, peds[i] + offset::pedVisibilityOffset,
+    bool queued = false;
+    for (size_t i = 0; i < duePeds.size(); ++i) {
+        if (duePeds[i]) {
+            mem.AddScatterReadRequest(handle, duePeds[i] + offset::pedVisibilityOffset,
                                       &flags[i], sizeof(uint8_t));
+            queued = true;
+        }
     }
+    if (!queued) return;
+    mem.SetDmaCallTag("FiveM.VisibilityFlags");
     mem.ExecuteReadScatter(handle);
-    const auto now = std::chrono::steady_clock::now();
-    g_pedCacheManager.updatePedVisibilities(peds, flags, unreadFlag, now);
-    for (size_t i = 0; i < peds.size(); ++i)
-        visibilityResults[i] = peds[i] && flags[i] != unreadFlag && PedVisibilityFlagMeansVisible(flags[i]);
+    g_pedCacheManager.updatePedVisibilities(duePeds, flags, unreadFlag,
+                                             std::chrono::steady_clock::now());
+    for (size_t i = 0; i < duePeds.size(); ++i)
+        visibilityResults[dueIndices[i]] = flags[i] != unreadFlag &&
+            PedVisibilityFlagMeansVisible(flags[i]);
 }
 
 inline void ClearCache() { g_pedCacheManager.clearPedVisibilities(); }

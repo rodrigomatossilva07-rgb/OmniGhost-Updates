@@ -18,6 +18,7 @@ struct PedData {
     Vec3 position_origin;
     uintptr_t playerInfo;
     std::chrono::steady_clock::time_point lastUpdate;
+    std::chrono::steady_clock::time_point health_updated{};
     bool isValid;
     bool visible = false;
     bool visibility_known = false;

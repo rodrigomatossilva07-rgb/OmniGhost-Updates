@@ -23,9 +23,11 @@
 #include <cstring>
 #include <chrono>
 #include <shared_mutex>
+#include <mutex>
 #include <atomic>
 
 #include "gameplay/esp_optimizer.h"
+#include "gameplay/snapshot_exchange.h"
 
 // Initialize global instances
 esp::ESPStats esp::esp_stats;
@@ -227,6 +229,17 @@ struct PreparedEspFrame {
 };
 static PreparedEspFrame g_prepared_esp;
 static std::shared_mutex g_prepared_esp_mutex;
+static std::mutex g_preparedBoneScatterMutex;
+static VMMDLL_SCATTER_HANDLE g_preparedBoneScatter = nullptr;
+static VMMDLL_SCATTER_HANDLE g_preparedEspScatters[3]{}; // acquisition producer only
+static std::chrono::steady_clock::time_point g_lastPrepScatter{};
+static std::unordered_map<uintptr_t, PreparedEspData> g_stickyPrep;
+struct PreparedNameCacheEntry {
+    char name[48]{};
+    std::chrono::steady_clock::time_point sampledAt{};
+};
+static std::unordered_map<uintptr_t, PreparedNameCacheEntry> g_preparedNameCache;
+static std::vector<uint8_t> g_nameDueBuffer; // acquisition producer only
 
 static const esp::BatchSkeletonData* FindPreparedSkeleton(uintptr_t ped) {
     // Return a thread-local copy.  The producer may publish the next frame as
@@ -262,7 +275,7 @@ static const PreparedEspData* FindPreparedEsp(uintptr_t ped) {
     thread_local PreparedEspData copy{};
     std::shared_lock lock(g_prepared_esp_mutex);
     if (g_prepared_esp.timestamp.time_since_epoch().count() == 0 ||
-        std::chrono::steady_clock::now() - g_prepared_esp.timestamp > std::chrono::milliseconds(80))
+        std::chrono::steady_clock::now() - g_prepared_esp.timestamp > std::chrono::milliseconds(120))
         return nullptr;
     const auto it = g_prepared_esp.index.find(ped);
     if (it == g_prepared_esp.index.end() || it->second >= g_prepared_esp.entries.size())
@@ -291,6 +304,21 @@ bool esp::try_get_prepared_origin(uintptr_t ped, Vec3& out) {
     }
     out = {};
     return false;
+}
+
+bool esp::try_get_prepared_network_id(uintptr_t ped, uint32_t& out) {
+    const PreparedEspData* data = FindPreparedEsp(ped);
+    out = data ? data->network_id : 0;
+    return out != 0;
+}
+
+bool esp::try_get_prepared_player_name(uintptr_t ped, char* out, size_t outSize) {
+    if (!out || outSize == 0) return false;
+    out[0] = '\0';
+    const PreparedEspData* data = FindPreparedEsp(ped);
+    if (!data || !data->player_name[0]) return false;
+    std::snprintf(out, outSize, "%s", data->player_name);
+    return true;
 }
 
 bool esp::try_get_prepared_health(uintptr_t ped, float& out) {
@@ -349,8 +377,12 @@ void esp::batch_read_skeleton_data(const std::vector<uintptr_t>& peds,
     // Define which bones we need for skeleton
     static constexpr std::array<int, 9> skeleton_bones = { 0, 1, 2, 3, 4, 5, 6, 7, 8 };
 
-    // Create single scatter handle for ALL reads
-    auto handle = mem.CreateScatterHandle();
+    // Reuse one prepared handle across batches; VMMDLL_Scatter_Clear is called
+    // by ExecuteReadScatter. Legacy callers are serialized with the producer.
+    std::scoped_lock scatterLock(g_preparedBoneScatterMutex);
+    if (!g_preparedBoneScatter && mem.vHandle)
+        g_preparedBoneScatter = mem.CreateScatterHandle();
+    auto handle = g_preparedBoneScatter;
     if (!handle) {
         for (auto& data : out_data) data.valid = false;
         return;
@@ -382,7 +414,6 @@ void esp::batch_read_skeleton_data(const std::vector<uintptr_t>& peds,
 
     // Execute ALL reads in one operation
     mem.ExecuteReadScatter(handle);
-    mem.CloseScatterHandle(handle);
 
     // Mark valid entries
     for (auto& data : out_data) {
@@ -444,8 +475,12 @@ void esp::render_batch_skeletons(const std::vector<BatchSkeletonData>& skeleton_
 
     for (const auto& data : skeleton_data) {
         if (!data.valid) continue;
-        if (esp::config.team_check && friends::IsFriendPed(data.ped))
-            continue;
+        if (esp::config.team_check) {
+            uint32_t networkId = 0;
+            if (esp::try_get_prepared_network_id(data.ped, networkId) &&
+                friends::IsFriend(networkId))
+                continue;
+        }
 
         // Transform all bones for this ped
         std::vector<Vec3> world_positions(9);
@@ -648,8 +683,12 @@ void esp::render_batch_head_circles(const std::vector<BatchHeadData>& head_data,
 
     for (const auto& data : head_data) {
         if (!data.valid) continue;
-        if (esp::config.team_check && friends::IsFriendPed(data.ped))
-            continue;
+        if (esp::config.team_check) {
+            uint32_t networkId = 0;
+            if (esp::try_get_prepared_network_id(data.ped, networkId) &&
+                friends::IsFriend(networkId))
+                continue;
+        }
 
         // Transform head bone to world space
         DirectX::SimpleMath::Vector3 boneVec(
@@ -972,11 +1011,11 @@ static bool EspPedIsDead(uintptr_t ped, float* outHealth = nullptr) {
     return flags.dead;
 }
 
-static bool EspPedIsFriend(uintptr_t ped, bool allowDirectRead) {
+static bool EspPedIsFriend(uintptr_t ped) {
     const PreparedEspData* prepared = FindPreparedEsp(ped);
     if (prepared)
         return prepared->network_id != 0 && friends::IsFriend(prepared->network_id);
-    return allowDirectRead && friends::IsFriendPed(ped);
+    return false;
 }
 
 static ImU32 EspPedColor(uintptr_t ped, ImU32 configured, bool visible) {
@@ -990,7 +1029,7 @@ static ImU32 EspPedColor(uintptr_t ped, ImU32 configured, bool visible) {
         return esp::config.color_dead ? esp::config.color_dead : IM_COL32(255, 50, 50, 255);
     // Colour rendering can call this several times for the same entity. Never
     // perform a fresh DMA read here; reuse the player-info batch for the frame.
-    if (EspPedIsFriend(ped, false))
+    if (EspPedIsFriend(ped))
         return esp::config.color_team;
     if (esp::config.npc_esp) {
         const PreparedEspData* prepared = FindPreparedEsp(ped);
@@ -1341,18 +1380,21 @@ static void DrawMotionVisuals(uintptr_t ped, Matrix viewport, const PedData* cac
 }
 
 
-static bool AnyEspExtrasEnabled() {
-    const auto& c = esp::config;
+static bool AnyEspExtrasEnabled(const esp::Config& c) {
     return c.box_2d || c.corner_box || c.snaplines || c.health_bar || c.armor_bar
         || c.weapon_name || c.distance || c.player_name || c.player_id || c.hit_marker;
 }
+
+static bool AnyEspExtrasEnabled() { return AnyEspExtrasEnabled(esp::config); }
 
 bool esp::has_extra_visuals() {
     return AnyEspExtrasEnabled();
 }
 
 void esp::prepare_esp_frame(const std::vector<uintptr_t>& peds,
-                            const std::vector<Vec3>& origins) {
+                            const std::vector<Vec3>& origins,
+                            const Config& frameConfig,
+                            const aimbot::Config& aimConfig) {
     PreparedEspFrame next;
     // This executes on the acquisition thread: never call ImGui from here.
     next.frame = g_prepared_sequence.fetch_add(1, std::memory_order_relaxed) + 1;
@@ -1371,16 +1413,17 @@ void esp::prepare_esp_frame(const std::vector<uintptr_t>& peds,
         g_prepared_esp = std::move(frame);
     };
     // Medium-rate identity/combat fields (~40 Hz). Origins update every call.
-    static auto s_lastPrepScatter = std::chrono::steady_clock::time_point{};
-    static std::unordered_map<uintptr_t, PreparedEspData> s_stickyPrep;
     const auto nowPrep = std::chrono::steady_clock::now();
-    const bool doScatter = s_lastPrepScatter.time_since_epoch().count() == 0 ||
-        (nowPrep - s_lastPrepScatter) >= std::chrono::milliseconds(25);
+    const bool doScatter = g_lastPrepScatter.time_since_epoch().count() == 0 ||
+        (nowPrep - g_lastPrepScatter) >= std::chrono::milliseconds(25);
 
-    const bool needs_motion_origin = config.trails || config.head_halo || config.look_direction ||
-        config.chinese_hat || config.angel_wings || config.devil_horns || config.floating_crown;
-    if (peds.empty() || (!AnyEspExtrasEnabled() && !needs_motion_origin &&
-        !aimbot::config.aimbot_enabled && !aimbot::config.trigger_enabled)) {
+    const bool needs_motion_origin = frameConfig.trails || frameConfig.head_halo || frameConfig.look_direction ||
+        frameConfig.chinese_hat || frameConfig.angel_wings || frameConfig.devil_horns || frameConfig.floating_crown;
+    const bool radarNeedsIdentity = frameConfig.radar_enabled &&
+        (frameConfig.team_check || friends::HasFriends());
+    if (peds.empty() || (!AnyEspExtrasEnabled(frameConfig) && !needs_motion_origin &&
+        !radarNeedsIdentity &&
+        !aimConfig.aimbot_enabled && !aimConfig.trigger_enabled)) {
         publish(std::move(next));
         return;
     }
@@ -1398,8 +1441,9 @@ void esp::prepare_esp_frame(const std::vector<uintptr_t>& peds,
     // Trails only need the positions already collected by the game manager.
     // Stop here instead of issuing a health/identity DMA batch for a cosmetic
     // feature that does not consume those fields.
-    if (!AnyEspExtrasEnabled() && !aimbot::config.aimbot_enabled &&
-        !aimbot::config.trigger_enabled) {
+    if (!AnyEspExtrasEnabled(frameConfig) && !radarNeedsIdentity &&
+        !aimConfig.aimbot_enabled &&
+        !aimConfig.trigger_enabled) {
         publish(std::move(next));
         return;
     }
@@ -1407,8 +1451,8 @@ void esp::prepare_esp_frame(const std::vector<uintptr_t>& peds,
     // Reuse medium-rate sticky fields when within 25ms window (positions always fresh).
     if (!doScatter) {
         for (auto& data : next.entries) {
-            auto it = s_stickyPrep.find(data.ped);
-            if (it == s_stickyPrep.end()) continue;
+            auto it = g_stickyPrep.find(data.ped);
+            if (it == g_stickyPrep.end()) continue;
             const Vec3 originKeep = data.origin;
             const uintptr_t pedKeep = data.ped;
             data = it->second;
@@ -1419,29 +1463,29 @@ void esp::prepare_esp_frame(const std::vector<uintptr_t>& peds,
         publish(std::move(next));
         return;
     }
-    s_lastPrepScatter = nowPrep;
+    g_lastPrepScatter = nowPrep;
 
     using namespace FiveM;
     OmniGhost::Gameplay::EspCore::FeatureSet requested{};
-    requested.box = config.box_2d;
-    requested.corner_box = config.corner_box;
-    requested.skeleton = config.skeleton;
-    requested.head = config.head_circle;
-    requested.health = config.health_bar;
-    requested.armor = config.armor_bar;
-    requested.snapline = config.snaplines;
-    requested.name = config.player_name || config.player_id || config.npc_esp ||
-        config.team_check || friends::HasFriends();
-    requested.weapon = config.weapon_name;
-    requested.distance = config.distance;
+    requested.box = frameConfig.box_2d;
+    requested.corner_box = frameConfig.corner_box;
+    requested.skeleton = frameConfig.skeleton;
+    requested.head = frameConfig.head_circle;
+    requested.health = frameConfig.health_bar;
+    requested.armor = frameConfig.armor_bar;
+    requested.snapline = frameConfig.snaplines;
+    requested.name = frameConfig.player_name || frameConfig.player_id || frameConfig.npc_esp ||
+        frameConfig.team_check || friends::HasFriends();
+    requested.weapon = frameConfig.weapon_name;
+    requested.distance = frameConfig.distance;
     // Vehicle-exception field for aim; ESP colour/filter uses Visibility::Batch.
-    requested.visibility = aimbot::config.visible_check ||
-        esp::config.visible_check || esp::config.visibility_colors;
-    requested.aim = aimbot::config.aimbot_enabled || aimbot::config.trigger_enabled;
-    requested.prediction = aimbot::config.velocity_prediction;
-    requested.trail = config.trails;
-    requested.halo = config.head_halo;
-    requested.look_direction = config.look_direction;
+    requested.visibility = aimConfig.visible_check ||
+        frameConfig.visible_check || frameConfig.visibility_colors;
+    requested.aim = aimConfig.aimbot_enabled || aimConfig.trigger_enabled;
+    requested.prediction = aimConfig.velocity_prediction;
+    requested.trail = frameConfig.trails;
+    requested.halo = frameConfig.head_halo;
+    requested.look_direction = frameConfig.look_direction;
     const auto fields = requested.RequiredFields();
 
     const bool need_armor = OmniGhost::Gameplay::EspCore::Has(
@@ -1453,7 +1497,9 @@ void esp::prepare_esp_frame(const std::vector<uintptr_t>& peds,
     const bool need_vehicle = OmniGhost::Gameplay::EspCore::Has(
         fields, OmniGhost::Gameplay::EspCore::DataField::Visibility);
 
-    auto first = mem.CreateScatterHandle();
+    if (!g_preparedEspScatters[0] && mem.vHandle)
+        g_preparedEspScatters[0] = mem.CreateScatterHandle();
+    auto first = g_preparedEspScatters[0];
     if (!first) {
         next.frame = 0;
         publish(std::move(next));
@@ -1483,45 +1529,89 @@ void esp::prepare_esp_frame(const std::vector<uintptr_t>& peds,
             mem.AddScatterReadRequest(first, data.ped + offset::pedVehicle,
                 &data.vehicle, sizeof(data.vehicle));
     }
+    mem.SetDmaCallTag("FiveM.EspCore");
     mem.ExecuteReadScatter(first);
-    mem.CloseScatterHandle(first);
 
     if (need_identity || need_weapon) {
-        auto second = mem.CreateScatterHandle();
+        if (!g_preparedEspScatters[1] && mem.vHandle)
+            g_preparedEspScatters[1] = mem.CreateScatterHandle();
+        auto second = g_preparedEspScatters[1];
         if (second) {
-            for (auto& data : next.entries) {
-                if (need_identity && data.player_info)
+            bool queued = false;
+            auto& nameDue = g_nameDueBuffer;
+            nameDue.assign(next.entries.size(), 0);
+            for (size_t i = 0; i < next.entries.size(); ++i) {
+                auto& data = next.entries[i];
+                if (need_identity && data.player_info) {
                     mem.AddScatterReadRequest(second,
                         data.player_info + offset::playerInfo_netId,
                         &data.network_id, sizeof(data.network_id));
-                if (need_weapon && data.weapon_manager)
+                    queued = true;
+                    if (frameConfig.player_name) {
+                        const auto cached = g_preparedNameCache.find(data.player_info);
+                        if (cached != g_preparedNameCache.end() &&
+                            nowPrep - cached->second.sampledAt < std::chrono::seconds(1)) {
+                            std::memcpy(data.player_name, cached->second.name,
+                                        sizeof(data.player_name));
+                        } else {
+                            mem.AddScatterReadRequest(second,
+                                data.player_info + offset::playerInfo_name,
+                                data.player_name, sizeof(data.player_name) - 1);
+                            nameDue[i] = 1;
+                        }
+                    }
+                }
+                if (need_weapon && data.weapon_manager) {
                     mem.AddScatterReadRequest(second,
                         data.weapon_manager + offset::weaponMgr_currentWeapon,
                         &data.weapon_info, sizeof(data.weapon_info));
+                    queued = true;
+                }
             }
-            mem.ExecuteReadScatter(second);
-            mem.CloseScatterHandle(second);
+            if (queued) {
+                mem.SetDmaCallTag("FiveM.EspMetadataPointers");
+                mem.ExecuteReadScatter(second);
+                for (size_t i = 0; i < next.entries.size(); ++i) {
+                    if (!nameDue[i]) continue;
+                    auto& data = next.entries[i];
+                    if (!IsPlausiblePlayerName(data.player_name))
+                        data.player_name[0] = '\0';
+                    PreparedNameCacheEntry cached{};
+                    std::memcpy(cached.name, data.player_name, sizeof(cached.name));
+                    cached.sampledAt = nowPrep;
+                    g_preparedNameCache[data.player_info] = cached;
+                }
+                if (g_preparedNameCache.size() > 512)
+                    g_preparedNameCache.clear();
+            }
         }
     }
 
     if (need_weapon) {
-        auto third = mem.CreateScatterHandle();
+        if (!g_preparedEspScatters[2] && mem.vHandle)
+            g_preparedEspScatters[2] = mem.CreateScatterHandle();
+        auto third = g_preparedEspScatters[2];
         if (third) {
+            bool queued = false;
             for (auto& data : next.entries) {
-                if (data.weapon_info)
+                if (data.weapon_info) {
                     mem.AddScatterReadRequest(third,
                         data.weapon_info + offset::weaponInfo_hash,
                         &data.weapon_hash, sizeof(data.weapon_hash));
+                    queued = true;
+                }
             }
-            mem.ExecuteReadScatter(third);
-            mem.CloseScatterHandle(third);
+            if (queued) {
+                mem.SetDmaCallTag("FiveM.EspWeaponHashes");
+                mem.ExecuteReadScatter(third);
+            }
         }
     }
 
     // Persist medium-rate fields for the 25ms sticky window
-    s_stickyPrep.clear();
+    g_stickyPrep.clear();
     for (const auto& data : next.entries)
-        if (data.ped) s_stickyPrep[data.ped] = data;
+        if (data.ped) g_stickyPrep[data.ped] = data;
     publish(std::move(next));
 }
 
@@ -1766,8 +1856,11 @@ static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer,
             char nbuf[64]{};
             const uintptr_t pinfo = prepared_esp->player_info;
             const uint32_t netId = prepared_esp->network_id;
-            ReadPlayerDisplayName(ped, pinfo, netId, false,
-                nbuf, sizeof(nbuf));
+            if (esp::config.player_name && IsPlausiblePlayerName(prepared_esp->player_name))
+                snprintf(nbuf, sizeof(nbuf), "%s", prepared_esp->player_name);
+            else
+                ReadPlayerDisplayName(ped, pinfo, netId, false,
+                    nbuf, sizeof(nbuf));
             char line[96]{};
             if (esp::config.player_name && esp::config.player_id && netId)
                 snprintf(line, sizeof(line), "%s [%u]", nbuf, netId);
@@ -1951,7 +2044,7 @@ void esp::render_esp_for_ped(uintptr_t ped, Matrix viewport, uintptr_t localplay
     if (!config.enabled) return;
     if (!config.self_esp && IsLocalPlayerPed(ped, localplayer)) return;
     // Team check = hide friends from ESP when enabled
-    if (config.team_check && EspPedIsFriend(ped, true))
+    if (config.team_check && EspPedIsFriend(ped))
         return;
     // Dead: never draw skeleton/hat/etc unless "Mostrar mortos"
     if (EspPedIsDead(ped) && !config.show_dead)
@@ -1974,7 +2067,7 @@ void esp::render_esp_for_ped(uintptr_t ped, Matrix viewport, uintptr_t localplay
 void esp::render_esp_for_ped_cached(uintptr_t ped, Matrix viewport, uintptr_t localplayer, const PedData& cached_ped_data) {
     if (!config.enabled) return;
     if (!config.self_esp && IsLocalPlayerPed(ped, localplayer)) return;
-    if (config.team_check && EspPedIsFriend(ped, true))
+    if (config.team_check && EspPedIsFriend(ped))
         return;
     if (EspPedIsDead(ped) && !config.show_dead)
         return;
@@ -2017,7 +2110,8 @@ void esp::draw_head_circle(uintptr_t ped, Matrix viewport, uintptr_t localplayer
     if (!draw_list) return;
 
     const BatchSkeletonData* prepared = FindPreparedSkeleton(ped);
-    Vec3 origin = prepared ? prepared->origin : Vec3{};
+    const PreparedEspData* core = FindPreparedEsp(ped);
+    Vec3 origin = prepared ? prepared->origin : (core ? core->origin : Vec3{});
     if (origin.IsZero()) return;
 
     Vec3 head_world_pos = prepared
@@ -2597,7 +2691,7 @@ void esp::DrawPlayerRadar(const Matrix& /*view_matrix*/, uintptr_t localplayer) 
             nx = std::clamp(nx, -R + 5.f, R - 5.f);
             ny = std::clamp(ny, -R + 5.f, R - 5.f);
             ImU32 col = EspPedColor(ped, config.color_box_2d, visible);
-            if (!config.visibility_colors && friends::IsFriendPed(ped))
+            if (!config.visibility_colors && EspPedIsFriend(ped))
                 col = friends::config.friend_color;
             dl->AddCircleFilled(ImVec2(cx + nx, cy + ny), 3.0f, col, 10);
         }
@@ -2653,7 +2747,7 @@ void esp::DrawPlayerRadar(const Matrix& /*view_matrix*/, uintptr_t localplayer) 
     for (size_t i = 0; i < FiveM::ESP::validPeds.size(); ++i) {
         uintptr_t ped = FiveM::ESP::validPeds[i];
         if (!ped || ped == localplayer) continue;
-        if (config.team_check && friends::IsFriendPed(ped)) continue;
+        if (config.team_check && EspPedIsFriend(ped)) continue;
         const bool visible = EspPedVisible(ped);
         if (config.visible_check && !visible) continue;
 
@@ -2709,7 +2803,7 @@ void esp::DrawPlayerRadar(const Matrix& /*view_matrix*/, uintptr_t localplayer) 
         ImVec2 b(ix - nx * size * 0.6f - tx * size * 0.7f, iy - ny * size * 0.6f - ty * size * 0.7f);
 
         ImU32 col = EspPedColor(ped, config.color_box_2d, visible);
-        if (!config.visibility_colors && friends::IsFriendPed(ped))
+        if (!config.visibility_colors && EspPedIsFriend(ped))
             col = friends::config.friend_color;
 
         dl->AddTriangleFilled(tip, a, b, col);
@@ -2911,20 +3005,136 @@ bool esp::get_use_cache() { return use_cache; }
 
 
 
+namespace {
+struct WaypointBlipSnapshot {
+    Vec3 localPos{};
+    float waypointX = 0.f;
+    float waypointY = 0.f;
+    bool waypointValid = false;
+    std::array<Vec3, 64> blips{};
+    int blipCount = 0;
+    std::chrono::steady_clock::time_point sampledAt{};
+};
+OmniGhost::Gameplay::SnapshotExchange<WaypointBlipSnapshot> g_waypointBlips;
+VMMDLL_SCATTER_HANDLE g_waypointScatter = nullptr; // acquisition producer only
+std::chrono::steady_clock::time_point g_lastWaypointRead{};
+}
+
+void esp::PrepareWaypointAndBlips(const Config& frameConfig, const Vec3& localPos) {
+    const auto now = std::chrono::steady_clock::now();
+    if (g_lastWaypointRead.time_since_epoch().count() != 0 &&
+        now - g_lastWaypointRead < std::chrono::milliseconds(200)) return;
+    g_lastWaypointRead = now;
+    WaypointBlipSnapshot next{};
+    next.localPos = localPos;
+    if (frameConfig.radar_enabled &&
+        (frameConfig.waypoint_line || frameConfig.blip_esp) && !localPos.IsZero()) {
+        if (!g_waypointScatter && mem.vHandle)
+            g_waypointScatter = mem.CreateScatterHandle();
+        if (g_waypointScatter) {
+            float waypoint[2]{};
+            std::array<uintptr_t, 64> entries{};
+            bool queued = false;
+            if (frameConfig.waypoint_line && FiveM::offset::waypoint) {
+                mem.AddScatterReadRequest(g_waypointScatter, FiveM::offset::waypoint,
+                    waypoint, sizeof(waypoint));
+                queued = true;
+            }
+            if (frameConfig.blip_esp && FiveM::offset::blip_list) {
+                for (size_t i = 0; i < entries.size(); ++i) {
+                    mem.AddScatterReadRequest(g_waypointScatter,
+                        FiveM::offset::blip_list + i * sizeof(uintptr_t),
+                        &entries[i], sizeof(uintptr_t));
+                }
+                queued = true;
+            }
+            if (queued) mem.ExecuteReadScatter(g_waypointScatter);
+            next.waypointX = waypoint[0];
+            next.waypointY = waypoint[1];
+            next.waypointValid = frameConfig.waypoint_line && FiveM::offset::waypoint &&
+                std::isfinite(waypoint[0]) && std::isfinite(waypoint[1]) &&
+                waypoint[0] > -5000.f && waypoint[0] < 9000.f &&
+                waypoint[1] > -5000.f && waypoint[1] < 9000.f;
+            std::array<Vec3, 64> primary{}, fallback{};
+            bool queuedPositions = false;
+            for (size_t i = 0; i < entries.size(); ++i) {
+                if (entries[i] <= 0x10000u || entries[i] >= 0x7FFFFFFFFFFFULL) continue;
+                mem.AddScatterReadRequest(g_waypointScatter, entries[i] + 0x10,
+                    &primary[i], sizeof(Vec3));
+                mem.AddScatterReadRequest(g_waypointScatter, entries[i] + 0x8,
+                    &fallback[i], sizeof(Vec3));
+                queuedPositions = true;
+            }
+            if (queuedPositions) mem.ExecuteReadScatter(g_waypointScatter);
+            for (size_t i = 0; i < entries.size(); ++i) {
+                const Vec3& pos = primary[i].IsZero() ? fallback[i] : primary[i];
+                if (pos.IsZero() || !std::isfinite(pos.x) || !std::isfinite(pos.y) ||
+                    !std::isfinite(pos.z) || pos.x < -5000.f || pos.x > 9000.f) continue;
+                next.blips[static_cast<size_t>(next.blipCount++)] = pos;
+            }
+        }
+    }
+    next.sampledAt = std::chrono::steady_clock::now();
+    if (auto slot = g_waypointBlips.TryBeginWrite()) {
+        *slot.value = next;
+        g_waypointBlips.Publish(slot.index);
+    }
+}
+
+void esp::ShutdownWaypointAndBlips() {
+    if (g_waypointScatter) {
+        mem.CloseScatterHandle(g_waypointScatter);
+        g_waypointScatter = nullptr;
+    }
+    g_lastWaypointRead = {};
+    if (auto slot = g_waypointBlips.TryBeginWrite()) {
+        *slot.value = WaypointBlipSnapshot{};
+        g_waypointBlips.Publish(slot.index);
+    }
+}
+
+void esp::ShutdownPreparedFrames() {
+    g_stickyPrep.clear();
+    g_preparedNameCache.clear();
+    g_nameDueBuffer.clear();
+    g_lastPrepScatter = {};
+    {
+        std::scoped_lock lock(g_preparedBoneScatterMutex);
+        if (g_preparedBoneScatter) {
+            mem.CloseScatterHandle(g_preparedBoneScatter);
+            g_preparedBoneScatter = nullptr;
+        }
+    }
+    for (auto& handle : g_preparedEspScatters) {
+        if (handle) {
+            mem.CloseScatterHandle(handle);
+            handle = nullptr;
+        }
+    }
+    {
+        std::unique_lock lock(g_prepared_skeleton_mutex);
+        g_prepared_skeleton = PreparedSkeletonFrame{};
+    }
+    {
+        std::unique_lock lock(g_prepared_esp_mutex);
+        g_prepared_esp = PreparedEspFrame{};
+    }
+}
+
 void esp::DrawWaypointAndBlips(const Matrix& view, uintptr_t localplayer) {
     if (!localplayer) return;
-    using namespace FiveM;
     ImDrawList* dl = ImGui::GetForegroundDrawList();
     if (!dl) return;
-
-    Vec3 localPos = mem.Read<Vec3>(localplayer + offset::playerPosition);
-    if (localPos.IsZero()) localPos = mem.Read<Vec3>(localplayer + 0x90);
+    const auto snapshot = g_waypointBlips.Acquire();
+    if (!snapshot || snapshot->sampledAt.time_since_epoch().count() == 0 ||
+        std::chrono::steady_clock::now() - snapshot->sampledAt > std::chrono::milliseconds(500))
+        return;
+    const Vec3 localPos = snapshot->localPos;
 
     // Waypoint (module static -> Vec3-ish or blip coords). Common layout: waypoint pointer holds coords.
-    if (config.waypoint_line && offset::waypoint) {
-        // Try reading a Vec3 directly from resolved waypoint address (build-dependent)
-        float wx = mem.Read<float>(offset::waypoint + 0x0);
-        float wy = mem.Read<float>(offset::waypoint + 0x4);
+    if (config.waypoint_line && snapshot->waypointValid) {
+        const float wx = snapshot->waypointX;
+        const float wy = snapshot->waypointY;
         // Z intentionally follows localPos.z; only waypoint X/Y are consumed.
         // Sanity: GTA map bounds roughly -4000..8000
         if (wx > -5000.f && wx < 9000.f && wy > -5000.f && wy < 9000.f) {
@@ -2944,16 +3154,9 @@ void esp::DrawWaypointAndBlips(const Matrix& view, uintptr_t localplayer) {
     }
 
     // Blip list: many builds store array of blip ptrs. Soft attempt — skip if invalid.
-    if (offset::blip_list && config.blip_esp) {
-        // Read first N candidate blip entries (soft). Structure varies; we only draw if W2S succeeds.
-        for (int i = 0; i < 64; ++i) {
-            uintptr_t entry = mem.Read<uintptr_t>(offset::blip_list + (uintptr_t)i * 8);
-            if (!entry || entry < 0x10000) continue;
-            // Common: position at +0x10 or +0x8 as Vec3
-            Vec3 pos = mem.Read<Vec3>(entry + 0x10);
-            if (pos.IsZero()) pos = mem.Read<Vec3>(entry + 0x8);
-            if (pos.IsZero()) continue;
-            if (pos.x < -5000.f || pos.x > 9000.f) continue;
+    if (config.blip_esp) {
+        for (int i = 0; i < snapshot->blipCount; ++i) {
+            const Vec3& pos = snapshot->blips[static_cast<size_t>(i)];
             Vec2 sp;
             if (!pos.world_to_screen(view, sp)) continue;
             dl->AddCircleFilled(ImVec2(sp.x, sp.y), 3.f, IM_COL32(100, 180, 255, 200), 8);

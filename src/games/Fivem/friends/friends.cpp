@@ -13,6 +13,7 @@
 #include <mutex>
 #include <string>
 #include <chrono>
+#include <atomic>
 
 namespace friends {
 
@@ -26,8 +27,20 @@ namespace friends {
     }
     std::vector<PlayerEntry> player_list;
     std::mutex list_mutex;
+    static std::atomic<ULONGLONG> s_playerListRequestedMs{0};
+
+    void RequestPlayerList() noexcept {
+        s_playerListRequestedMs.store(GetTickCount64(), std::memory_order_release);
+    }
+
+    bool PlayerListRequestedRecently() noexcept {
+        const ULONGLONG requested = s_playerListRequestedMs.load(std::memory_order_acquire);
+        const ULONGLONG now = GetTickCount64();
+        return requested != 0 && now >= requested && now - requested <= 500;
+    }
 
     void Initialize() {
+        s_playerListRequestedMs.store(0, std::memory_order_release);
         friend_list.clear();
         s_friendIds.clear();
         player_list.clear();
@@ -75,45 +88,28 @@ namespace friends {
         using namespace FiveM;
         player_list.clear();
 
-        if (!offset::localplayer || FiveM::ESP::validPeds.empty())
+        if (!FiveM::ESP::FrameCacheValid() || FiveM::ESP::validPeds.empty())
             return;
 
-        Vec3 localPos = mem.Read<Vec3>(offset::localplayer + offset::playerPosition);
+        const Vec3 localPos = FiveM::ESP::GetFrameLocalPos();
+        if (localPos.IsZero()) return;
 
         for (size_t i = 0; i < FiveM::ESP::validPeds.size(); ++i) {
             uintptr_t ped = FiveM::ESP::validPeds[i];
             if (!ped || ped == offset::localplayer) continue;
 
-            uintptr_t pinfo = mem.Read<uintptr_t>(ped + offset::playerInfo);
-            if (!pinfo) continue;
-
-            uint32_t netId = mem.Read<uint32_t>(pinfo + offset::playerInfo_netId);
+            uint32_t netId = 0;
+            if (!esp::try_get_prepared_network_id(ped, netId)) continue;
 
             Vec3 pos = (i < FiveM::ESP::positions.size()) ? FiveM::ESP::positions[i] : Vec3{};
             float dist = pos.IsZero() ? 0.f : pos.distance_to(localPos);
 
-            float hp = mem.Read<float>(ped + offset::playerHealth);
-            float maxHp = mem.Read<float>(ped + 0x284);
-            if (maxHp < 1.f) maxHp = 200.f;
-            float hpPct = (std::max)(0.f, (std::min)(100.f, (hp / maxHp) * 100.f));
+            float hp = 0.f;
+            const float hpPct = esp::try_get_prepared_health(ped, hp)
+                ? (std::max)(0.f, (std::min)(100.f, hp * 0.5f)) : 0.f;
 
             char nameBuf[64]{};
-            // try CPlayerInfo+0xFC name
-            char raw[32]{};
-            mem.Read(pinfo + offset::playerInfo_name, raw, 31);
-            raw[31] = 0;
-            bool nameOk = raw[0] && (unsigned char)raw[0] >= 32 && (unsigned char)raw[0] < 127;
-            if (!nameOk) {
-                uintptr_t sp = mem.Read<uintptr_t>(pinfo + offset::playerInfo_name);
-                if (sp > 0x10000) {
-                    memset(raw, 0, sizeof(raw));
-                    mem.Read(sp, raw, 31);
-                    nameOk = raw[0] != 0;
-                }
-            }
-            if (nameOk)
-                snprintf(nameBuf, sizeof(nameBuf), "%s", raw);
-            else
+            if (!esp::try_get_prepared_player_name(ped, nameBuf, sizeof(nameBuf)))
                 snprintf(nameBuf, sizeof(nameBuf), "Jogador_%u", netId);
 
             player_list.push_back({ nameBuf, netId, dist, hpPct, ped });

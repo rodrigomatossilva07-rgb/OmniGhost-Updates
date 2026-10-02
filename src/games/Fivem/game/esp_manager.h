@@ -22,6 +22,7 @@ namespace FiveM {
         void InitializeContainers();
         void RunESP(); // Presentation loop; acquisition is asynchronous
         void StopAcquisition();
+        bool RemoteProcessRecentlySeen() noexcept;
 
         // Data collection and rendering functions
         void collectFrameData(uintptr_t localPlayer, const Vec3& localPos); // acquisition thread only

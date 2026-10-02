@@ -972,24 +972,9 @@ while (application.shouldRun && !authenticated) {
                 const ULONGLONG now = GetTickCount64();
                 if (now >= fivem_next_alive_check) {
                     fivem_next_alive_check = now + 1000;
-                        DWORD pid = 0;
-                        if (!g_validExecutable.empty())
-                            pid = mem.GetPidFromName(g_validExecutable);
-                        if (!pid)
-                            pid = mem.GetPidFromName("GTAProcess.exe");
-                        // Also try common FiveM names if specific exe gone
-                        if (!pid) {
-                            const char* alts[] = {
-                                "FiveM_GTAProcess.exe", "FiveM_b3258_GTAProcess.exe",
-                                "FiveM_b3407_GTAProcess.exe", "FiveM_b3570_GTAProcess.exe", nullptr
-                            };
-                            for (int i = 0; alts[i]; ++i) {
-                                pid = mem.GetPidFromName(alts[i]);
-                                if (pid) break;
-                            }
-                        }
+                        const bool remoteProcessAlive = FiveM::ESP::RemoteProcessRecentlySeen();
                         const bool localProcessAlive = IsLocalFiveMProcessRunning();
-                        if (pid || localProcessAlive) {
+                        if (remoteProcessAlive || localProcessAlive) {
                             fivem_presence_confirmed = true;
                             fivem_missing_since = 0;
                             process_miss_frames = 0;

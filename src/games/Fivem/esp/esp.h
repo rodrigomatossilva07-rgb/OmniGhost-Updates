@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <cstddef>
 #include <unordered_map>
 #include <chrono>
 #include <atomic>
@@ -9,6 +10,8 @@
 #include "ui/ui_models.h"
 #include "../../ImGui/imgui.h"
 #include "../playerInfo/PedData.h"
+
+namespace aimbot { struct Config; }
 
 namespace esp {
     // Bone chain (cheatoffsets): ped + bone_matrix → +skel_o1 → matrices @ stride, trans @ +0xC
@@ -143,10 +146,16 @@ namespace esp {
         std::vector<BatchSkeletonData>& out_data, uint16_t bone_mask = 0x01FFu);
     void prepare_skeleton_frame(const std::vector<uintptr_t>& peds,
         const std::vector<Vec3>& origins, uint16_t bone_mask = 0x01FFu);
-    void prepare_esp_frame(const std::vector<uintptr_t>& peds, const std::vector<Vec3>& origins);
+    void prepare_esp_frame(const std::vector<uintptr_t>& peds, const std::vector<Vec3>& origins,
+        const Config& frameConfig, const aimbot::Config& aimConfig);
+    void PrepareWaypointAndBlips(const Config& frameConfig, const Vec3& localPos);
+    void ShutdownWaypointAndBlips();
+    void ShutdownPreparedFrames();
     bool has_extra_visuals();
     bool try_get_prepared_bone_position(uintptr_t ped, int bone_index, Vec3& out);
     bool try_get_prepared_origin(uintptr_t ped, Vec3& out);
+    bool try_get_prepared_network_id(uintptr_t ped, uint32_t& out);
+    bool try_get_prepared_player_name(uintptr_t ped, char* out, size_t outSize);
     bool try_get_prepared_health(uintptr_t ped, float& out);
     bool try_get_prepared_vehicle(uintptr_t ped, uintptr_t& out);
     void render_batch_skeletons(const std::vector<BatchSkeletonData>& skeleton_data, Matrix viewport, uintptr_t localplayer);

@@ -8,6 +8,8 @@
 #include <iostream>
 #include <unordered_set>
 #include <shared_mutex>
+#include <cmath>
+#include <limits>
 
 // Global cache manager instance
 PedCacheManager g_pedCacheManager;
@@ -43,10 +45,11 @@ void PedCacheManager::update() {
 }
 
 void PedCacheManager::slowCache() {
-    // Light pass: health + playerInfo (cheap scatter, runs at SLOW_CACHE_INTERVAL)
+    // The acquisition pipeline already resolves playerInfo for classification.
+    // This cache's consumers use health/position only; avoid a duplicate DMA
+    // request for every ped on every slow-cache refresh.
     static std::vector<uintptr_t> pedIds;
     static std::vector<float> healthValues;
-    static std::vector<uintptr_t> playerInfoValues;
     {
         std::shared_lock lock(mutex_);
         pedIds.clear();
@@ -58,27 +61,29 @@ void PedCacheManager::slowCache() {
     }
 
     if (!pedIds.empty()) {
-        healthValues.resize(pedIds.size());
-        playerInfoValues.resize(pedIds.size());
+        healthValues.assign(pedIds.size(), std::numeric_limits<float>::quiet_NaN());
 
         auto handle = mem.CreateScatterHandle();
+        if (!handle) return;
         for (size_t i = 0; i < pedIds.size(); ++i) {
             mem.AddScatterReadRequest(handle, pedIds[i] + FiveM::offset::playerHealth,
                 &healthValues[i], sizeof(float));
-            mem.AddScatterReadRequest(handle, pedIds[i] + FiveM::offset::playerInfo,
-                &playerInfoValues[i], sizeof(uintptr_t));
         }
+        const auto readBegin = std::chrono::steady_clock::now();
         mem.ExecuteReadScatter(handle);
+        const auto readEnd = std::chrono::steady_clock::now();
         mem.CloseScatterHandle(handle);
 
         // DMA completed without holding the cache mutex.  Publishing fields is
         // intentionally short so render/aim never waits behind an I/O stall.
         std::unique_lock lock(mutex_);
+        const auto sampledAt = readBegin + (readEnd - readBegin) / 2;
         for (size_t i = 0; i < pedIds.size(); ++i) {
             auto it = pedCache.find(pedIds[i]);
-            if (it != pedCache.end()) {
+            if (it != pedCache.end() && std::isfinite(healthValues[i]) &&
+                healthValues[i] >= 0.f && healthValues[i] < 1000.f) {
                 it->second.health = healthValues[i];
-                it->second.playerInfo = playerInfoValues[i];
+                it->second.health_updated = sampledAt;
             }
         }
         cleanupUnlocked();
@@ -124,24 +129,27 @@ void PedCacheManager::fastCache(const std::vector<uintptr_t>& validPeds,
 
     if (!newcomers.empty()) {
         static std::vector<float> hp;
-        static std::vector<uintptr_t> info;
-        hp.resize(newcomers.size());
-        info.resize(newcomers.size());
+        hp.assign(newcomers.size(), std::numeric_limits<float>::quiet_NaN());
         auto handle = mem.CreateScatterHandle();
-        for (size_t i = 0; i < newcomers.size(); ++i) {
-            mem.AddScatterReadRequest(handle, newcomers[i] + FiveM::offset::playerHealth,
-                &hp[i], sizeof(float));
-            mem.AddScatterReadRequest(handle, newcomers[i] + FiveM::offset::playerInfo,
-                &info[i], sizeof(uintptr_t));
+        auto sampledAt = std::chrono::steady_clock::time_point{};
+        if (handle) {
+            for (size_t i = 0; i < newcomers.size(); ++i) {
+                mem.AddScatterReadRequest(handle, newcomers[i] + FiveM::offset::playerHealth,
+                    &hp[i], sizeof(float));
+            }
+            const auto readBegin = std::chrono::steady_clock::now();
+            mem.ExecuteReadScatter(handle);
+            const auto readEnd = std::chrono::steady_clock::now();
+            sampledAt = readBegin + (readEnd - readBegin) / 2;
+            mem.CloseScatterHandle(handle);
         }
-        mem.ExecuteReadScatter(handle);
-        mem.CloseScatterHandle(handle);
         std::unique_lock lock(mutex_);
         for (size_t i = 0; i < newcomers.size(); ++i) {
             auto it = pedCache.find(newcomers[i]);
-            if (it != pedCache.end()) {
+            if (it != pedCache.end() && std::isfinite(hp[i]) &&
+                hp[i] >= 0.f && hp[i] < 1000.f) {
                 it->second.health = hp[i];
-                it->second.playerInfo = info[i];
+                it->second.health_updated = sampledAt;
             }
         }
     }
@@ -209,7 +217,7 @@ void PedCacheManager::updatePedHealth(uintptr_t pedId, float health) {
     auto it = pedCache.find(pedId);
     if (it != pedCache.end()) {
         it->second.health = health;
-        it->second.lastUpdate = std::chrono::steady_clock::now();
+        it->second.health_updated = std::chrono::steady_clock::now();
     }
 }
 

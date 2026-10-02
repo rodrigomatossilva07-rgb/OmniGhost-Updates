@@ -10,6 +10,7 @@
 #include <chrono>
 #include <unordered_map>
 #include <unordered_set>
+#include <mutex>
 
 namespace vehicle_esp {
 
@@ -26,6 +27,14 @@ namespace vehicle_esp {
 
     // Cached entity matrices from last Collect (for oriented 3D boxes)
     static std::unordered_map<uintptr_t, Matrix> g_matrices;
+    static Matrix g_vehicleViewMatrix{};
+    static std::chrono::steady_clock::time_point g_vehicleSampleTime{};
+    static std::mutex g_vehicleMutex;
+    static VMMDLL_SCATTER_HANDLE g_vehicleScatter = nullptr; // acquisition producer only
+    struct GearState { int8_t gear = 0; float engine = 0.f; std::chrono::steady_clock::time_point seen{}; };
+    static std::unordered_map<uintptr_t, GearState> g_gearCache;
+    static std::chrono::steady_clock::time_point g_lastGearRefresh{};
+    static std::unordered_map<uintptr_t, std::pair<Vec3, float>> g_speedHistory;
 
     static ImU32 GetRGBColor() {
         float t = (float)ImGui::GetTime();
@@ -60,49 +69,76 @@ namespace vehicle_esp {
         }
     }
 
-    void Collect(bool force) {
+    void Collect(const Config& frameConfig, const std::vector<uintptr_t>& peds,
+                 uintptr_t localPlayer, bool force) {
         static auto s_lastPose = std::chrono::steady_clock::time_point{};
-        static auto s_lastDiscovery = std::chrono::steady_clock::time_point{};
         auto nowc = std::chrono::steady_clock::now();
-        // Pose/matrix refresh ~30 Hz for smooth vehicle ESP; list discovery slower.
+        // Optional vehicle discovery is a low-rate acquisition lane.  It must
+        // never execute in the ImGui presentation thread.
         if (!force && s_lastPose.time_since_epoch().count() != 0 &&
-            nowc - s_lastPose < std::chrono::milliseconds(33))
+            nowc - s_lastPose < std::chrono::milliseconds(100))
             return;
         s_lastPose = nowc;
-        const bool rediscover = force || s_lastDiscovery.time_since_epoch().count() == 0 ||
-            (nowc - s_lastDiscovery) >= std::chrono::milliseconds(100);
-        if (rediscover)
-            s_lastDiscovery = nowc;
-        vehicles.clear();
-        g_matrices.clear();
+        std::vector<VehicleData> nextVehicles;
+        std::unordered_map<uintptr_t, Matrix> nextMatrices;
+        std::chrono::steady_clock::time_point positionSampleTime{};
+        const auto publish = [&] (const Matrix& view) {
+            std::scoped_lock lock(g_vehicleMutex);
+            vehicles.swap(nextVehicles);
+            g_matrices.swap(nextMatrices);
+            g_vehicleViewMatrix = view;
+            g_vehicleSampleTime = positionSampleTime.time_since_epoch().count()
+                ? positionSampleTime : std::chrono::steady_clock::now();
+        };
+        Matrix view_matrix{};
         // ESP draw gated in Render(); force=true lets lock/repair work with toggle off
-        if (!force && !config.enabled) return;
+        if (!force && !frameConfig.enabled) { publish(view_matrix); return; }
 
         using namespace FiveM;
 
-        if (!offset::replay || !offset::viewport || !offset::localplayer)
+        if (!offset::world || !offset::replay || !offset::viewport) {
+            publish(view_matrix);
             return;
+        }
 
-        auto handle = mem.CreateScatterHandle();
+        if (!g_vehicleScatter && mem.vHandle)
+            g_vehicleScatter = mem.CreateScatterHandle();
+        auto handle = g_vehicleScatter;
+        if (!handle) { publish(view_matrix); return; }
 
-        Matrix view_matrix{};
         Vec3 localPos{};
+        uintptr_t freshLocalPlayer = 0;
         uintptr_t vehicle_interface = 0;
         uintptr_t vehicle_interface_alt = 0;
 
         mem.AddScatterReadRequest(handle, offset::viewport + 0x24C, &view_matrix, sizeof(Matrix));
-        mem.AddScatterReadRequest(handle, offset::localplayer + offset::playerPosition, &localPos, sizeof(Vec3));
+        mem.AddScatterReadRequest(handle, offset::world + 0x8,
+            &freshLocalPlayer, sizeof(freshLocalPlayer));
+        if (IsValidPtr(localPlayer))
+            mem.AddScatterReadRequest(handle, localPlayer + offset::playerPosition,
+                &localPos, sizeof(Vec3));
         // Normal CReplayInterface layout uses +0x10.  The supplied b3258 dump
         // also advertises +0xD10, so probe it as a fallback and validate the
         // resulting list rather than trusting either blindly.
         mem.AddScatterReadRequest(handle, offset::replay + 0x10, &vehicle_interface, sizeof(uintptr_t));
         mem.AddScatterReadRequest(handle, offset::replay + 0xD10, &vehicle_interface_alt, sizeof(uintptr_t));
+        mem.SetDmaCallTag("FiveM.VehicleRoots");
         mem.ExecuteReadScatter(handle);
+        if (IsValidPtr(freshLocalPlayer) && freshLocalPlayer != localPlayer) {
+            mem.AddScatterReadRequest(handle, freshLocalPlayer + offset::playerPosition,
+                &localPos, sizeof(Vec3));
+            mem.SetDmaCallTag("FiveM.VehicleLocalPosition");
+            mem.ExecuteReadScatter(handle);
+        }
+        if (localPos.IsZero()) {
+            publish(view_matrix);
+            return;
+        }
 
         if (!IsValidPtr(vehicle_interface) && IsValidPtr(vehicle_interface_alt))
             vehicle_interface = vehicle_interface_alt;
         if (!IsValidPtr(vehicle_interface)) {
-            mem.CloseScatterHandle(handle);
+            publish(view_matrix);
             return;
         }
 
@@ -114,6 +150,7 @@ namespace vehicle_esp {
             mem.AddScatterReadRequest(handle, vehicle_interface_alt + VEHICLE_LIST_OFFSET, &vehicleListBaseAlt, sizeof(uintptr_t));
             mem.AddScatterReadRequest(handle, vehicle_interface_alt + VEHICLE_COUNT_OFFSET, &vehicleCountAlt, sizeof(int));
         }
+        mem.SetDmaCallTag("FiveM.VehicleListPointer");
         mem.ExecuteReadScatter(handle);
 
         auto validList = [](uintptr_t list, int count) {
@@ -125,7 +162,7 @@ namespace vehicle_esp {
             vehicleCount = vehicleCountAlt;
         }
         if (!IsValidPtr(vehicleListBase)) {
-            mem.CloseScatterHandle(handle);
+            publish(view_matrix);
             return;
         }
 
@@ -135,6 +172,7 @@ namespace vehicle_esp {
         for (int i = 0; i < listCount; ++i)
             mem.AddScatterReadRequest(handle, vehicleListBase + (uintptr_t)i * VEHICLE_ENTRY_STRIDE,
                                       &rawPtrs[i], sizeof(uintptr_t));
+        mem.SetDmaCallTag("FiveM.VehicleEntities");
         mem.ExecuteReadScatter(handle);
 
         std::vector<uintptr_t> valid;
@@ -145,7 +183,7 @@ namespace vehicle_esp {
         }
 
         if (valid.empty()) {
-            mem.CloseScatterHandle(handle);
+            publish(view_matrix);
             return;
         }
 
@@ -154,9 +192,9 @@ namespace vehicle_esp {
         std::vector<uint32_t> lockState(valid.size(), UINT32_MAX);
         std::vector<uintptr_t> driverPrimary(valid.size(), 0), driverFallback(valid.size(), 0);
 
-        const bool needMatrix = config.box_3d;
-        const bool needLock = config.lock_status;
-        const bool needOccupied = config.ignore_occupied || config.show_occupants;
+        const bool needMatrix = frameConfig.box_3d;
+        const bool needLock = frameConfig.lock_status;
+        const bool needOccupied = frameConfig.ignore_occupied || frameConfig.show_occupants;
         for (size_t i = 0; i < valid.size(); ++i) {
             mem.AddScatterReadRequest(handle, valid[i] + VEHICLE_POSITION_OFFSET, &positions[i], sizeof(Vec3));
             if (needMatrix)
@@ -173,18 +211,48 @@ namespace vehicle_esp {
                                               &driverFallback[i], sizeof(uintptr_t));
             }
         }
+        mem.SetDmaCallTag("FiveM.VehicleCore");
+        const auto coreReadBegin = std::chrono::steady_clock::now();
         mem.ExecuteReadScatter(handle);
+        const auto coreReadEnd = std::chrono::steady_clock::now();
+        positionSampleTime = coreReadBegin + (coreReadEnd - coreReadBegin) / 2;
+
+        const bool refreshGear = g_lastGearRefresh.time_since_epoch().count() == 0 ||
+            nowc - g_lastGearRefresh >= std::chrono::milliseconds(250);
+        if (refreshGear) {
+            std::vector<int8_t> gears(valid.size());
+            std::vector<float> engines(valid.size());
+            std::vector<bool> requested(valid.size(), false);
+            int queued = 0;
+            for (size_t i = 0; i < valid.size() && queued < 40; ++i) {
+                if (positions[i].IsZero() || positions[i].distance_to(localPos) > frameConfig.max_distance)
+                    continue;
+                mem.AddScatterReadRequest(handle, valid[i] + offset::vehicleGear,
+                    &gears[i], sizeof(gears[i]));
+                mem.AddScatterReadRequest(handle, valid[i] + offset::vehicleEngineHp,
+                    &engines[i], sizeof(engines[i]));
+                requested[i] = true;
+                ++queued;
+            }
+            if (queued) {
+                mem.SetDmaCallTag("FiveM.VehicleGear");
+                mem.ExecuteReadScatter(handle);
+            }
+            for (size_t i = 0; i < valid.size(); ++i)
+                if (requested[i]) g_gearCache[valid[i]] = GearState{gears[i], engines[i], nowc};
+            g_lastGearRefresh = nowc;
+        }
 
         // Only walk ped->vehicle when occupied filtering/labels are needed.
         std::vector<uintptr_t> pedVehicles;
-        if (needOccupied && !FiveM::ESP::validPeds.empty()) {
-            pedVehicles.assign(FiveM::ESP::validPeds.size(), 0);
-            for (size_t i = 0; i < FiveM::ESP::validPeds.size(); ++i)
-                mem.AddScatterReadRequest(handle, FiveM::ESP::validPeds[i] + offset::pedVehicle,
+        if (needOccupied && !peds.empty()) {
+            pedVehicles.assign(peds.size(), 0);
+            for (size_t i = 0; i < peds.size(); ++i)
+                mem.AddScatterReadRequest(handle, peds[i] + offset::pedVehicle,
                                           &pedVehicles[i], sizeof(uintptr_t));
+            mem.SetDmaCallTag("FiveM.VehicleOccupancy");
             mem.ExecuteReadScatter(handle);
         }
-        mem.CloseScatterHandle(handle);
 
         std::unordered_set<uintptr_t> occupiedVehicles;
         occupiedVehicles.reserve(pedVehicles.size() * 2 + valid.size());
@@ -200,12 +268,12 @@ namespace vehicle_esp {
                 continue;
 
             float dist = positions[i].distance_to(localPos);
-            if (dist > config.max_distance || dist < 0.1f)
+            if (dist > frameConfig.max_distance || dist < 0.1f)
                 continue;
 
             bool occupied = occupiedVehicles.find(valid[i]) != occupiedVehicles.end();
 
-            if (config.ignore_occupied && occupied)
+            if (frameConfig.ignore_occupied && occupied)
                 continue;
 
             const bool lockKnown = lockState[i] <= 10u;
@@ -218,9 +286,20 @@ namespace vehicle_esp {
             vd.locked = locked;
             vd.lock_state_known = lockKnown;
             vd.occupied = occupied;
+            if (const auto gear = g_gearCache.find(valid[i]); gear != g_gearCache.end()) {
+                vd.gear = gear->second.gear;
+                vd.engine_health = gear->second.engine;
+            }
             vd.valid = true;
-            vehicles.push_back(vd);
-            g_matrices[valid[i]] = matrices[i];
+            nextVehicles.push_back(vd);
+            if (needMatrix) nextMatrices[valid[i]] = matrices[i];
+        }
+        publish(view_matrix);
+        if (g_gearCache.size() > 256) {
+            for (auto it = g_gearCache.begin(); it != g_gearCache.end();) {
+                if (nowc - it->second.seen > std::chrono::seconds(10)) it = g_gearCache.erase(it);
+                else ++it;
+            }
         }
     }
 
@@ -296,8 +375,35 @@ namespace vehicle_esp {
     }
 
     void Render() {
-        if (!config.enabled || vehicles.empty())
+        if (!config.enabled) return;
+
+        std::vector<VehicleData> frameVehicles;
+        std::unordered_map<uintptr_t, Matrix> frameMatrices;
+        Matrix vehicleView{};
+        std::chrono::steady_clock::time_point vehicleSampleTime{};
+        {
+            std::scoped_lock lock(g_vehicleMutex);
+            frameVehicles = vehicles;
+            frameMatrices = g_matrices;
+            vehicleView = g_vehicleViewMatrix;
+            vehicleSampleTime = g_vehicleSampleTime;
+        }
+        if (frameVehicles.empty()) return;
+        if (vehicleSampleTime.time_since_epoch().count() == 0 ||
+            std::chrono::steady_clock::now() - vehicleSampleTime > std::chrono::milliseconds(200))
             return;
+        static double lastSpeedPrune = 0.0;
+        const double renderNow = ImGui::GetTime();
+        if (g_speedHistory.size() > 128 || renderNow - lastSpeedPrune >= 5.0) {
+            lastSpeedPrune = renderNow;
+            std::unordered_set<uintptr_t> present;
+            present.reserve(frameVehicles.size() * 2);
+            for (const auto& vehicle : frameVehicles) present.insert(vehicle.address);
+            for (auto it = g_speedHistory.begin(); it != g_speedHistory.end();) {
+                if (present.find(it->first) == present.end()) it = g_speedHistory.erase(it);
+                else ++it;
+            }
+        }
 
         using namespace FiveM;
 
@@ -305,8 +411,7 @@ namespace vehicle_esp {
         if (FiveM::ESP::FrameCacheValid()) {
             view_matrix = FiveM::ESP::GetFrameViewMatrix();
         } else {
-            // Fallback only when the player ESP frame did not publish a matrix.
-            mem.Read(offset::viewport + 0x24C, &view_matrix, sizeof(Matrix));
+            view_matrix = vehicleView;
         }
 
         ImDrawList* dl = ImGui::GetForegroundDrawList();
@@ -319,7 +424,7 @@ namespace vehicle_esp {
 
         uintptr_t nearestAddr = 0;
         float nearestD = 1e9f;
-        for (const auto& v : vehicles) {
+        for (const auto& v : frameVehicles) {
             if (v.valid && v.distance < nearestD) {
                 nearestD = v.distance;
                 nearestAddr = v.address;
@@ -328,8 +433,8 @@ namespace vehicle_esp {
 
         // Draw closest vehicles first; hard-cap GPU/line work under load.
         std::vector<const VehicleData*> drawList;
-        drawList.reserve(vehicles.size());
-        for (const auto& v : vehicles)
+        drawList.reserve(frameVehicles.size());
+        for (const auto& v : frameVehicles)
             if (v.valid) drawList.push_back(&v);
         std::sort(drawList.begin(), drawList.end(),
             [](const VehicleData* a, const VehicleData* b) { return a->distance < b->distance; });
@@ -350,8 +455,8 @@ namespace vehicle_esp {
                 useBox = IM_COL32(255, 220, 50, 255);
 
             if (config.box_3d) {
-                auto it = g_matrices.find(v.address);
-                if (it != g_matrices.end()) {
+                auto it = frameMatrices.find(v.address);
+                if (it != frameMatrices.end()) {
                     DrawOrientedBox3D(dl, it->second, view_matrix, useBox, v.address == nearestAddr ? 2.4f : 1.6f);
                 } else {
                     // Fallback: simple screen box scaled by distance but clamped
@@ -388,18 +493,17 @@ namespace vehicle_esp {
 
             if (config.show_speed) {
                 // Speed from inter-frame position delta (no fragile velocity offset)
-                static std::unordered_map<uintptr_t, std::pair<Vec3, float>> s_prev; // pos, last time
                 float now = (float)ImGui::GetTime();
                 float speedKmh = 0.f;
-                auto it = s_prev.find(v.address);
-                if (it != s_prev.end()) {
+                auto it = g_speedHistory.find(v.address);
+                if (it != g_speedHistory.end()) {
                     float dt = now - it->second.second;
                     if (dt > 0.02f && dt < 1.0f) {
                         float meters = v.position.distance_to(it->second.first);
                         speedKmh = (meters / dt) * 3.6f;
                     }
                 }
-                s_prev[v.address] = { v.position, now };
+                g_speedHistory[v.address] = { v.position, now };
                 if (speedKmh > 0.5f) {
                     char buf[32];
                     snprintf(buf, sizeof(buf), "%.0f km/h", speedKmh);
@@ -428,30 +532,21 @@ namespace vehicle_esp {
                 textY += ts.y + 2.f;
             }
 
-            // Gear / engine: medium-rate cache (not per-frame DMA)
+            // Gear / engine are acquired in the low-rate vehicle lane.
             {
-                struct GearCache { int8_t gear = 0; float eng = 0.f; double t = 0.0; };
-                static std::unordered_map<uintptr_t, GearCache> s_gear;
-                const double nowG = ImGui::GetTime();
-                GearCache& gc = s_gear[v.address];
-                if (nowG - gc.t > 0.080) {
-                    gc.gear = mem.Read<int8_t>(v.address + FiveM::offset::vehicleGear);
-                    gc.eng = mem.Read<float>(v.address + FiveM::offset::vehicleEngineHp);
-                    gc.t = nowG;
-                }
                 char buf[48];
-                if (gc.gear >= -1 && gc.gear <= 8) {
-                    snprintf(buf, sizeof(buf), "G%d", (int)gc.gear);
+                if (v.gear >= -1 && v.gear <= 8) {
+                    snprintf(buf, sizeof(buf), "G%d", (int)v.gear);
                     ImVec2 ts = ImGui::CalcTextSize(buf);
                     dl->AddText(ImVec2(screenPos.x - ts.x * 0.5f, textY),
                         IM_COL32(255, 220, 120, 220), buf);
                     textY += ts.y + 2.f;
                 }
-                if (gc.eng > 1.f && gc.eng <= 1000.f) {
-                    snprintf(buf, sizeof(buf), "Motor %.0f", gc.eng);
+                if (v.engine_health > 1.f && v.engine_health <= 1000.f) {
+                    snprintf(buf, sizeof(buf), "Motor %.0f", v.engine_health);
                     ImVec2 ts = ImGui::CalcTextSize(buf);
                     dl->AddText(ImVec2(screenPos.x - ts.x * 0.5f, textY),
-                        gc.eng < 300.f ? IM_COL32(255, 80, 80, 220) : IM_COL32(180, 255, 180, 220), buf);
+                        v.engine_health < 300.f ? IM_COL32(255, 80, 80, 220) : IM_COL32(180, 255, 180, 220), buf);
                     textY += ts.y + 2.f;
                 }
             }
@@ -459,8 +554,22 @@ namespace vehicle_esp {
     }
 
     void Run() {
-        Collect();
         Render();
+    }
+
+    void Shutdown() {
+        if (g_vehicleScatter) {
+            mem.CloseScatterHandle(g_vehicleScatter);
+            g_vehicleScatter = nullptr;
+        }
+        std::scoped_lock lock(g_vehicleMutex);
+        vehicles.clear();
+        g_matrices.clear();
+        g_vehicleViewMatrix = {};
+        g_vehicleSampleTime = {};
+        g_gearCache.clear();
+        g_lastGearRefresh = {};
+        g_speedHistory.clear();
     }
 
 } // namespace vehicle_esp

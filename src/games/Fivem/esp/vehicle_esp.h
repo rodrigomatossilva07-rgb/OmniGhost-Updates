@@ -14,14 +14,18 @@ namespace vehicle_esp {
         bool locked = false;
         bool lock_state_known = false;
         bool occupied = false;
+        int8_t gear = 0;
+        float engine_health = 0.f;
         bool valid = false;
     };
 
     extern Config config;
     extern std::vector<VehicleData> vehicles;
 
-    void Collect(bool force = false);
+    void Collect(const Config& frameConfig, const std::vector<uintptr_t>& peds,
+                 uintptr_t localPlayer, bool force = false);
     void Render();
     void Run();
+    void Shutdown();
 
 } // namespace vehicle_esp
