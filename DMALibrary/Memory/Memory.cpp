@@ -170,16 +170,9 @@ bool Memory::ProbeDevicePresence()
 
 DWORD Memory::GetPidFromName(std::string process_name)
 {
-	if (!this->vHandle || process_name.empty())
-		return 0;
-	DataCallLease dataLease(this);
-	if (!dataLease)
-		return 0;
-	OMNIGHOST_VMM_TIMING("PidGetFromName");
-	DWORD pid = 0;
-	if (!VMMDLL_PidGetFromName(this->vHandle, const_cast<LPSTR>(process_name.c_str()), &pid))
-		return 0;
-	return pid;
+	// PidGetFromName may select a terminated instance after a quick restart.
+	const auto pids = GetPidListFromName(std::move(process_name));
+	return pids.empty() ? 0 : static_cast<DWORD>(pids.front());
 }
 
 std::vector<std::string> Memory::GetProcessNames()
@@ -199,6 +192,10 @@ std::vector<std::string> Memory::GetProcessNames()
 	VmmOwned<VMMDLL_PROCESS_INFORMATION> owned(raw);
 	names.reserve(total);
 	for (DWORD index = 0; index < total; ++index) {
+		// ProcessGetInformationAll includes terminated processes. Only a live
+		// EPROCESS (dwState == 0) may drive launcher presence badges.
+		if (raw[index].dwState != 0)
+			continue;
 		const char* name = raw[index].szNameLong[0] ? raw[index].szNameLong : raw[index].szName;
 		if (name && *name)
 			names.emplace_back(name);
@@ -222,6 +219,8 @@ std::vector<int> Memory::GetPidListFromName(std::string process_name)
 		return pids;
 	VmmOwned<VMMDLL_PROCESS_INFORMATION> owned(raw);
 	for (DWORD index = 0; index < total; ++index) {
+		if (raw[index].dwState != 0)
+			continue;
 		if (_stricmp(raw[index].szNameLong, process_name.c_str()) == 0 ||
 			_stricmp(raw[index].szName, process_name.c_str()) == 0)
 			pids.push_back(static_cast<int>(raw[index].dwPID));

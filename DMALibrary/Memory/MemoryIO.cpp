@@ -266,6 +266,41 @@ void Memory::ResetScanDmaStats() noexcept {
 }
 
 void Memory::SetDmaLane(const char* lane) noexcept { t_dmaLane = lane ? lane : "unknown"; }
+
+namespace {
+thread_local int t_dmaPriority = Memory::DmaPri::Position; // core world by default
+
+// Acquire dmaReadMutex according to the caller's priority band.
+// Camera/Position block immediately. Bones/Health yield moderately.
+// Weapon/Name/Metadata yield aggressively so higher lanes interleave.
+static void AcquireDmaTransportLock(std::unique_lock<std::mutex>& lock, std::mutex& mu) {
+	const int pri = t_dmaPriority;
+	if (pri >= Memory::DmaPri::Position) {
+		lock = std::unique_lock<std::mutex>(mu); // blocking
+		return;
+	}
+	int maxSpins = 24;
+	if (pri <= Memory::DmaPri::OtherMetadata)
+		maxSpins = 96;
+	else if (pri <= Memory::DmaPri::WeaponNameTeam)
+		maxSpins = 64;
+	else if (pri <= Memory::DmaPri::Bones)
+		maxSpins = 40;
+	lock = std::unique_lock<std::mutex>(mu, std::defer_lock);
+	for (int spin = 0; spin < maxSpins; ++spin) {
+		if (lock.try_lock())
+			return;
+		std::this_thread::yield();
+	}
+	lock.lock(); // final blocking wait after cooperative yields
+}
+}
+void Memory::SetDmaPriority(int priority) noexcept {
+	if (priority < 0) priority = 0;
+	if (priority > 100) priority = 100;
+	t_dmaPriority = priority;
+}
+int Memory::GetDmaPriority() noexcept { return t_dmaPriority; }
 const char* Memory::GetDmaCallTag() noexcept {
     return t_dmaTag ? t_dmaTag : "untagged";
 }
@@ -293,7 +328,8 @@ bool Memory::Read(uintptr_t address, void* buffer, size_t size) const
 	// Serialize only the physical transfer. In particular, do not make a CS2
 	// entity scan own the transport while it performs CPU-side processing.
 	const auto lockBegin = std::chrono::steady_clock::now();
-	std::unique_lock<std::mutex> dmaReadLock(dmaReadMutex_);
+	std::unique_lock<std::mutex> dmaReadLock(dmaReadMutex_, std::defer_lock);
+	AcquireDmaTransportLock(dmaReadLock, dmaReadMutex_);
 	t_lastDmaWaitUs = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
 		std::chrono::steady_clock::now() - lockBegin).count());
 	t_dmaWaitUs += t_lastDmaWaitUs;
@@ -567,9 +603,11 @@ void Memory::ExecuteReadScatter(VMMDLL_SCATTER_HANDLE handle, int pid)
 		}
 	}
 	// Scatter preparation remains concurrent; only execution touches the
-	// shared physical DMA transport.
+	// shared physical DMA transport. Optional-priority lanes try-lock and
+	// yield so a camera thread can acquire the mutex between micro-batches.
 	const auto lockBegin = std::chrono::steady_clock::now();
-	std::unique_lock<std::mutex> dmaReadLock(dmaReadMutex_);
+	std::unique_lock<std::mutex> dmaReadLock(dmaReadMutex_, std::defer_lock);
+	AcquireDmaTransportLock(dmaReadLock, dmaReadMutex_);
 	t_lastDmaWaitUs = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
 		std::chrono::steady_clock::now() - lockBegin).count());
 	t_dmaWaitUs += t_lastDmaWaitUs;

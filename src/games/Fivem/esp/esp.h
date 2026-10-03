@@ -63,6 +63,9 @@ namespace esp {
         float health;
         uint16_t bone_mask;
         bool valid;
+        std::chrono::steady_clock::time_point pose_sample{};
+        std::chrono::steady_clock::time_point origin_sample{};
+        uint64_t session_generation = 0;
 
         BatchSkeletonData() : ped(0), health(0.0f), bone_mask(0), valid(false) {}
     };

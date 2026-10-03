@@ -126,11 +126,21 @@ enum RemoteGameMask : std::uint32_t {
     RemoteFiveM    = 1u << 5,
 };
 
-std::future<std::uint32_t> g_remote_process_scan;
+struct RemoteProcessScanResult {
+    std::uint64_t generation = 0;
+    std::uint32_t mask = 0;
+};
+std::future<RemoteProcessScanResult> g_remote_process_scan;
 std::uint32_t g_remote_process_mask = 0;
+std::uint64_t g_remote_process_generation = 0;
+double g_remote_process_scanned_at = 0.0;
 double g_next_remote_process_scan = 0.0;
 
 bool RemoteGameRunning(GameId id) noexcept {
+    if (!mem.GetDiagnosticsSnapshot().deviceOpen ||
+        g_remote_process_scanned_at <= 0.0 ||
+        ImGui::GetTime() - g_remote_process_scanned_at > 8.0)
+        return false;
     std::uint32_t bit = 0;
     switch (id) {
     case GameId::CS2: bit = RemoteCs2; break;
@@ -148,13 +158,19 @@ void PollRemoteProcessScan(double now) {
         if (g_remote_process_scan.wait_for(0ms) != std::future_status::ready)
             return;
         try {
-            g_remote_process_mask = g_remote_process_scan.get();
+            const auto result = g_remote_process_scan.get();
+            if (result.generation == g_remote_process_generation) {
+                g_remote_process_mask = result.mask;
+                g_remote_process_scanned_at = now;
+            }
         } catch (const std::exception& error) {
             std::cerr << "[LAUNCHER] Remote process scan failed: " << error.what() << "\n";
             g_remote_process_mask = 0;
+            g_remote_process_scanned_at = 0.0;
         } catch (...) {
             std::cerr << "[LAUNCHER] Remote process scan failed with an unknown error.\n";
             g_remote_process_mask = 0;
+            g_remote_process_scanned_at = 0.0;
         }
     }
     if (now < g_next_remote_process_scan)
@@ -162,52 +178,52 @@ void PollRemoteProcessScan(double now) {
     g_next_remote_process_scan = now + 6.0;
     if (!mem.GetDiagnosticsSnapshot().deviceOpen) {
         g_remote_process_mask = 0;
+        g_remote_process_scanned_at = 0.0;
         return;
     }
     // VMM process enumeration can wait on the FPGA. It must never run on the
     // ImGui/Win32 message thread, otherwise a normal refresh looks like a hang.
-    g_remote_process_scan = std::async(std::launch::async, [] {
+    const std::uint64_t generation = g_remote_process_generation;
+    g_remote_process_scan = std::async(std::launch::async, [generation] {
         std::uint32_t mask = 0;
         const std::vector<std::string> processes = mem.GetProcessNames();
         auto present = [&processes](std::initializer_list<const char*> names) {
             for (const std::string& process : processes) {
+                const std::size_t slash = process.find_last_of("\\/");
+                const std::string base = slash == std::string::npos
+                    ? process : process.substr(slash + 1);
                 for (const char* name : names)
-                    if (name && _stricmp(process.c_str(), name) == 0) return true;
+                    if (name && _stricmp(base.c_str(), name) == 0) return true;
             }
             return false;
         };
         if (present({"cs2.exe"})) mask |= RemoteCs2;
-        if (present({"cod.exe"})) mask |= RemoteWarzone;
-        if (present({"FortniteClient-Win64-Shipping.exe", "Fortnite.exe"})) mask |= RemoteFortnite;
+        if (present({"cod.exe", "ModernWarfare.exe", "iw8_ship.exe"})) mask |= RemoteWarzone;
+        if (present({"FortniteClient-Win64-Shipping.exe", "FortniteClient-Win64-Shipping_EAC_EOS.exe", "Fortnite.exe"})) mask |= RemoteFortnite;
         if (present({"FiveM_GTAProcess.exe", "FiveM_b3258_GTAProcess.exe",
                      "FiveM_b3407_GTAProcess.exe", "FiveM_b3570_GTAProcess.exe",
                      "GTAProcess.exe"})) mask |= RemoteFiveM;
-        return mask;
+        return RemoteProcessScanResult{generation, mask};
     });
 }
 
 bool DetectRunning(GameId id) {
-    // Prefer explicit adapter state, then check actual process presence. The
-    // process check works locally and, when a DMA session is already open, on
-    // the remote game PC as well. The launcher never opens DMA just to populate
-    // this badge.
+    // When DMA is open, the target PC is authoritative. A process running on
+    // the controller PC must not make a remote game appear present.
+    const bool remoteTarget = mem.GetDiagnosticsSnapshot().deviceOpen;
     switch (id) {
     case GameId::CS2:
         // `CS2::ready` can describe an earlier successful attachment. Only a
         // current cs2.exe process is allowed to produce the Running badge.
-        return LocalProcessRunning({L"cs2.exe"}) || RemoteGameRunning(id);
+        return remoteTarget ? RemoteGameRunning(id) : LocalProcessRunning({L"cs2.exe"});
     case GameId::Warzone:
-        return Warzone::ready || LocalProcessRunning({L"cod.exe"}) || RemoteGameRunning(id);
+        return remoteTarget ? RemoteGameRunning(id) : LocalProcessRunning({L"cod.exe", L"ModernWarfare.exe", L"iw8_ship.exe"});
     case GameId::Fortnite:
-        return Fortnite::runtime.attached ||
-               LocalProcessRunning({L"FortniteClient-Win64-Shipping.exe", L"Fortnite.exe"}) ||
-               RemoteGameRunning(id);
+        return remoteTarget ? RemoteGameRunning(id) :
+            LocalProcessRunning({L"FortniteClient-Win64-Shipping.exe", L"FortniteClient-Win64-Shipping_EAC_EOS.exe", L"Fortnite.exe"});
     case GameId::FiveM: {
-        const auto dma = mem.GetDiagnosticsSnapshot();
-        if (g_activeGame == ActiveGame::FiveM && dma.processInitialized)
-            return true;
-        return LocalProcessRunning({L"FiveM_GTAProcess.exe", L"GTAProcess.exe"}) ||
-               RemoteGameRunning(id);
+        return remoteTarget ? RemoteGameRunning(id) :
+            LocalProcessRunning({L"FiveM_GTAProcess.exe", L"GTAProcess.exe"});
     }
     default: return false;
     }

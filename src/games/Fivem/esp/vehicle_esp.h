@@ -17,6 +17,7 @@ namespace vehicle_esp {
         int8_t gear = 0;
         float engine_health = 0.f;
         bool valid = false;
+        uint64_t sample_ms = 0; // acquisition midpoint for camera coherence
     };
 
     extern Config config;

@@ -325,6 +325,25 @@ public:
 	static void SetDmaCallTag(const char* tag) noexcept;
 	static void SetDmaScanId(uint64_t id) noexcept;
 	static void SetDmaLane(const char* lane) noexcept;
+	// Transport priority ladder (higher = more urgent). RENDER never uses DMA —
+	// it always draws the last published snapshot.
+	//
+	//   CAMERA   100  high frequency, blocking lock
+	//   POSITION  80  high frequency core world
+	//   BONES     60  medium/high, cooperative yields
+	//   HEALTH    50  medium (usually batched with position)
+	//   WEAPON/NAME/TEAM  30  low
+	//   OTHER_METADATA    10  very low (flags, dropped, spectators, …)
+	struct DmaPri {
+		static constexpr int OtherMetadata = 10;
+		static constexpr int WeaponNameTeam = 30;
+		static constexpr int Health = 50;
+		static constexpr int Bones = 60;
+		static constexpr int Position = 80;
+		static constexpr int Camera = 100;
+	};
+	static void SetDmaPriority(int priority) noexcept;
+	[[nodiscard]] static int GetDmaPriority() noexcept;
 	// Per-scan DMA accumulators (thread-local; reset when scan_id changes).
 	struct ScanDmaStats {
 		uint64_t scan_id = 0;

@@ -215,16 +215,19 @@ struct PreparedSkeletonFrame {
     std::vector<esp::BatchSkeletonData> entries;
     std::unordered_map<uintptr_t, size_t> index;
     uint32_t frame = 0;
+    uint64_t session_generation = 0;
     std::chrono::steady_clock::time_point timestamp{};
 };
 static PreparedSkeletonFrame g_prepared_skeleton;
 static std::shared_mutex g_prepared_skeleton_mutex;
 static std::atomic<uint32_t> g_prepared_sequence{ 0 };
+static std::atomic<uint64_t> g_prepared_session_generation{ 1 };
 
 struct PreparedEspFrame {
     std::vector<PreparedEspData> entries;
     std::unordered_map<uintptr_t, size_t> index;
     uint32_t frame = 0;
+    uint64_t session_generation = 0;
     std::chrono::steady_clock::time_point timestamp{};
 };
 static PreparedEspFrame g_prepared_esp;
@@ -247,8 +250,13 @@ static const esp::BatchSkeletonData* FindPreparedSkeleton(uintptr_t ped) {
     // vector would still be a race.
     thread_local esp::BatchSkeletonData copy{};
     std::shared_lock lock(g_prepared_skeleton_mutex);
+    // Visual hard limit: do not serve skeleton older than 120 ms. Session
+    // generation invalidates after detach / PID / map change.
     if (g_prepared_skeleton.timestamp.time_since_epoch().count() == 0 ||
-        std::chrono::steady_clock::now() - g_prepared_skeleton.timestamp > std::chrono::milliseconds(80))
+        g_prepared_skeleton.session_generation !=
+            g_prepared_session_generation.load(std::memory_order_acquire) ||
+        std::chrono::steady_clock::now() - g_prepared_skeleton.timestamp >
+            std::chrono::milliseconds(120))
         return nullptr;
     const auto it = g_prepared_skeleton.index.find(ped);
     if (it == g_prepared_skeleton.index.end() || it->second >= g_prepared_skeleton.entries.size())
@@ -275,7 +283,10 @@ static const PreparedEspData* FindPreparedEsp(uintptr_t ped) {
     thread_local PreparedEspData copy{};
     std::shared_lock lock(g_prepared_esp_mutex);
     if (g_prepared_esp.timestamp.time_since_epoch().count() == 0 ||
-        std::chrono::steady_clock::now() - g_prepared_esp.timestamp > std::chrono::milliseconds(120))
+        g_prepared_esp.session_generation !=
+            g_prepared_session_generation.load(std::memory_order_acquire) ||
+        std::chrono::steady_clock::now() - g_prepared_esp.timestamp >
+            std::chrono::milliseconds(120))
         return nullptr;
     const auto it = g_prepared_esp.index.find(ped);
     if (it == g_prepared_esp.index.end() || it->second >= g_prepared_esp.entries.size())
@@ -437,6 +448,7 @@ void esp::prepare_skeleton_frame(const std::vector<uintptr_t>& peds,
     // This executes on the acquisition thread: never call ImGui from here.
     next.frame = g_prepared_sequence.fetch_add(1, std::memory_order_relaxed) + 1;
     next.timestamp = std::chrono::steady_clock::now();
+    next.session_generation = g_prepared_session_generation.load(std::memory_order_acquire);
     if (peds.empty()) {
         std::unique_lock lock(g_prepared_skeleton_mutex);
         g_prepared_skeleton = std::move(next);
@@ -447,8 +459,12 @@ void esp::prepare_skeleton_frame(const std::vector<uintptr_t>& peds,
     // must keep using the previously published immutable frame meanwhile.
     batch_read_skeleton_data(peds, next.entries, bone_mask);
     next.index.reserve(peds.size() * 2);
+    const auto sampleNow = next.timestamp;
     for (size_t i = 0; i < next.entries.size(); ++i) {
         next.entries[i].origin = i < origins.size() ? origins[i] : Vec3{};
+        next.entries[i].pose_sample = sampleNow;
+        next.entries[i].origin_sample = sampleNow;
+        next.entries[i].session_generation = next.session_generation;
         next.index[next.entries[i].ped] = i;
     }
     std::unique_lock lock(g_prepared_skeleton_mutex);
@@ -470,8 +486,8 @@ void esp::render_batch_skeletons(const std::vector<BatchSkeletonData>& skeleton_
         { 7, 8 }             // torso
     };
 
-    // Pre-calculate local player position for distance calculations
-    Vec3 local_pos = mem.Read<Vec3>(localplayer + 0x90);
+    // Local position must come from the acquisition snapshot — never DMA here.
+    (void)localplayer;
 
     for (const auto& data : skeleton_data) {
         if (!data.valid) continue;
@@ -2210,8 +2226,16 @@ void esp::draw_skeleton(uintptr_t ped, Matrix viewport, uintptr_t localplayer) {
         uint32_t lastFrame = 0;
     };
     static std::unordered_map<uintptr_t, SkelSmooth> s_smooth;
+    static uint64_t s_smoothGeneration = 0;
     static uint32_t s_frameId = 0;
     static uint32_t s_lastBump = 0;
+    {
+        const uint64_t gen = g_prepared_session_generation.load(std::memory_order_acquire);
+        if (gen != s_smoothGeneration) {
+            s_smooth.clear();
+            s_smoothGeneration = gen;
+        }
+    }
     // Bump frame id once per ImGui frame
     {
         uint32_t f = (uint32_t)ImGui::GetFrameCount();
@@ -2729,6 +2753,14 @@ void esp::DrawPlayerRadar(const Matrix& /*view_matrix*/, uintptr_t localplayer) 
     // Smooth triangle ring positions (stops flicker)
     struct TriSm { float ix, iy; bool init; uint32_t lastF; };
     static std::unordered_map<uintptr_t, TriSm> s_tri;
+    static uint64_t s_triGeneration = 0;
+    {
+        const uint64_t gen = g_prepared_session_generation.load(std::memory_order_acquire);
+        if (gen != s_triGeneration) {
+            s_tri.clear();
+            s_triGeneration = gen;
+        }
+    }
     static uint32_t s_triBump = 0;
     const uint32_t frame = (uint32_t)ImGui::GetFrameCount();
     if (frame != s_triBump) {
@@ -3097,7 +3129,10 @@ void esp::ShutdownPreparedFrames() {
     g_stickyPrep.clear();
     g_preparedNameCache.clear();
     g_nameDueBuffer.clear();
+    g_proj_cache.clear();
+    g_nameCache.clear();
     g_lastPrepScatter = {};
+    g_prepared_session_generation.fetch_add(1, std::memory_order_acq_rel);
     {
         std::scoped_lock lock(g_preparedBoneScatterMutex);
         if (g_preparedBoneScatter) {

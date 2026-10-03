@@ -125,10 +125,14 @@ void DrawOutlinedText(ImDrawList* draw, ImVec2 pos, ImU32 color, const char* tex
     if (settings.text_outline) {
         const ImU32 outline = Color(settings.col_text_outline);
         const float t = std::clamp(settings.text_outline_thickness, .5f, 2.f);
-        draw->AddText(ImVec2(pos.x - t, pos.y), outline, text);
-        draw->AddText(ImVec2(pos.x + t, pos.y), outline, text);
-        draw->AddText(ImVec2(pos.x, pos.y - t), outline, text);
-        draw->AddText(ImVec2(pos.x, pos.y + t), outline, text);
+        // Two diagonal offsets read as a full outline at ESP scale and cut
+        // AddText volume in half vs 4-cardinal expansion.
+        draw->AddText(ImVec2(pos.x - t, pos.y - t), outline, text);
+        draw->AddText(ImVec2(pos.x + t, pos.y + t), outline, text);
+        if (t >= 1.25f) {
+            draw->AddText(ImVec2(pos.x + t, pos.y - t), outline, text);
+            draw->AddText(ImVec2(pos.x - t, pos.y + t), outline, text);
+        }
     }
     draw->AddText(pos, color, text);
 }
@@ -429,16 +433,21 @@ void DrawDroppedWeapons(ImDrawList* draw, const CS2::Runtime& snapshot,
     constexpr float kMaxDistanceUnits = 50.f * 39.37f;
     // A discovery batch has one spatial sample. Choose its coherent camera
     // once instead of locking the camera history for every world item.
-    const uint64_t sampleMs = snapshot.dropped_weapons.empty() ? 0u
-        : snapshot.dropped_weapons.front().sample_timestamp_ms;
-    const auto weaponCamera = CS2::SelectCameraSnapshot(sampleMs);
-    const float* weaponMatrix = weaponCamera.timestamp_ms
-        ? weaponCamera.view_matrix : viewMatrix;
+    // Group items sharing the same acquisition sample so camera is selected
+    // once per temporal cohort, not once per item.
+    uint64_t activeSampleMs = 0;
+    const float* weaponMatrix = viewMatrix;
+    CameraSnapshot weaponCamera{};
     for (const auto& weapon : snapshot.dropped_weapons) {
         const float dx = weapon.pos[0] - snapshot.local_pos[0];
         const float dy = weapon.pos[1] - snapshot.local_pos[1];
         const float dz = weapon.pos[2] - snapshot.local_pos[2];
         if (dx * dx + dy * dy + dz * dz > kMaxDistanceUnits * kMaxDistanceUnits) continue;
+        if (weapon.sample_timestamp_ms && weapon.sample_timestamp_ms != activeSampleMs) {
+            activeSampleMs = weapon.sample_timestamp_ms;
+            weaponCamera = CS2::SelectCameraSnapshot(activeSampleMs);
+            weaponMatrix = weaponCamera.timestamp_ms ? weaponCamera.view_matrix : viewMatrix;
+        }
         ImVec2 screen{};
         if (!WorldToScreen(weapon.pos, weaponMatrix, screen)) continue;
         const ImU32 color = Color(settings.col_weapon);
@@ -500,8 +509,21 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
         return; // an outage must not project a long-dead world as live ESP
     // Runtime snapshots are produced from one core scatter, so one coherent
     // camera selection covers the whole frame and avoids mutex contention per player.
+    // Presentation must never use runtime.view_matrix for W2S when a coherent
+    // camera history sample exists. Fall back only to the latest camera lease;
+    // never to the (possibly older) matrix embedded in the world snapshot.
     const CameraSnapshot frameCamera = SelectCameraSnapshot(framePositionSampleMs);
-    const float* frameViewMatrix = frameCamera.timestamp_ms ? frameCamera.view_matrix : snapshot.view_matrix;
+    CameraSnapshotLease liveCameraLease;
+    const float* frameViewMatrix = nullptr;
+    if (frameCamera.timestamp_ms)
+        frameViewMatrix = frameCamera.view_matrix;
+    else {
+        liveCameraLease = AcquireCameraSnapshot();
+        if (liveCameraLease && liveCameraLease->timestamp_ms)
+            frameViewMatrix = liveCameraLease->view_matrix;
+    }
+    if (!frameViewMatrix)
+        return; // no temporally coherent camera — skip frame rather than jitter
     for (const Player& player : snapshot.players) {
         if (!player.alive || player.is_local) continue;
         if (diedSinceSnapshot(player)) {
@@ -516,13 +538,19 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
         if (!std::isfinite(player.pos[0]) || !std::isfinite(player.pos[1]) || !std::isfinite(player.pos[2])) continue;
 
         const uint64_t positionSampleMs = player.position_sample_ms
-            ? player.position_sample_ms : snapshot.snapshot_timestamp_ms;
+            ? player.position_sample_ms : snapshot.world_sample_ms
+                ? snapshot.world_sample_ms : snapshot.snapshot_timestamp_ms;
         const uint64_t rawPositionAgeMs = positionSampleMs && nowMs >= positionSampleMs
             ? nowMs - positionSampleMs : 0;
         const float velocityMagnitude = std::sqrt(player.velocity[0] * player.velocity[0] +
             player.velocity[1] * player.velocity[1] + player.velocity[2] * player.velocity[2]);
-        const uint64_t predictionCapMs = velocityMagnitude > 0.01f && velocityMagnitude < 2500.f ? 45u : 20u;
-        const uint64_t positionAgeMs = (std::min)(rawPositionAgeMs, predictionCapMs);
+        // Hard prediction cap: never extrapolate more than ~35 ms. If the sample
+        // is older than that, present the last known position without lag masking.
+        constexpr uint64_t kMaxPredictionMs = 35u;
+        const uint64_t predictionCapMs = velocityMagnitude > 0.01f && velocityMagnitude < 2500.f
+            ? kMaxPredictionMs : 20u;
+        const bool sampleTooOld = rawPositionAgeMs > 80u;
+        const uint64_t positionAgeMs = sampleTooOld ? 0u : (std::min)(rawPositionAgeMs, predictionCapMs);
         const float predictionSeconds = static_cast<float>(positionAgeMs) / 1000.f;
         const float* viewMatrix = frameViewMatrix;
         const uint64_t cameraDelta = frameCamera.timestamp_ms > positionSampleMs
@@ -558,19 +586,40 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
         };
         ImVec2 feet{}, head{};
         if (!WorldToScreen(predictedPosition, viewMatrix, feet)) continue;
+        // Visual bone age hard limit: after this, do not draw skeleton and do
+        // not pin the box head to a stale joint (fallback hull height is used).
+        constexpr uint64_t kBonesVisualMaxAgeMs = 120u;
+        const bool bonesFresh = player.bones_ok && player.bone_pose_sample_ms &&
+            nowMs >= player.bone_pose_sample_ms &&
+            (nowMs - player.bone_pose_sample_ms) <= kBonesVisualMaxAgeMs;
         float headWorld[3] = { predictedPosition[0], predictedPosition[1], predictedPosition[2] + 72.f };
-        // Keep the same head anchor for the entire validated bone lifetime;
-        // switching abruptly at an arbitrary 90 ms threshold causes box pops.
-        if (player.bones_ok && player.bone_pose_sample_ms && nowMs >= player.bone_pose_sample_ms &&
-            nowMs - player.bone_pose_sample_ms <= 180u) {
+        if (bonesFresh) {
             headWorld[0] = player.bones[static_cast<size_t>(BoneSlot::Head)][0] + boneOffset[0];
             headWorld[1] = player.bones[static_cast<size_t>(BoneSlot::Head)][1] + boneOffset[1];
             headWorld[2] = player.bones[static_cast<size_t>(BoneSlot::Head)][2] + boneOffset[2];
         }
         if (!WorldToScreen(headWorld, viewMatrix, head)) continue;
 
-        const float height = feet.y - head.y;
+        float height = feet.y - head.y;
         if (!std::isfinite(height) || height < 8.f || height > 4000.f) continue;
+        // Box height hysteresis per pawn: blend toward the new height so
+        // head-bone ↔ fallback transitions do not pop the rectangle.
+        {
+            static std::unordered_map<uintptr_t, float> s_boxHeightSmooth;
+            static uint64_t s_boxHeightGen = 0;
+            if (s_boxHeightGen != snapshot.session_generation) {
+                s_boxHeightSmooth.clear();
+                s_boxHeightGen = snapshot.session_generation;
+            }
+            auto it = s_boxHeightSmooth.find(player.pawn);
+            if (it == s_boxHeightSmooth.end()) {
+                s_boxHeightSmooth.emplace(player.pawn, height);
+            } else {
+                const float alpha = bonesFresh ? 0.45f : 0.25f;
+                it->second = it->second + (height - it->second) * alpha;
+                height = it->second;
+            }
+        }
         const float width = height * 0.60f;
         const ImVec2 min(feet.x - width * .5f, head.y - height * .08f);
         const ImVec2 max(feet.x + width * .5f, min.y + height * 1.09f);
@@ -600,7 +649,7 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
             DrawVerticalBar(draw, min.x - 7.f, min.y, max.y, static_cast<float>(player.health) / 100.f, Color(settings.col_health));
         if (settings.armor_bar)
             DrawVerticalBar(draw, max.x + 3.f, min.y, max.y, static_cast<float>(player.armor) / 100.f, Color(settings.col_armor));
-        if (settings.skeleton) {
+        if (settings.skeleton && bonesFresh && player.full_bones_ok) {
             const ImU32 skeletonColor = settings.rgb_mode ? rgbColor
                 : useVisibilityColors && player.visibility_known ? Color(player.visible ? settings.col_visible : settings.col_occluded)
                 : Color(settings.col_skeleton);

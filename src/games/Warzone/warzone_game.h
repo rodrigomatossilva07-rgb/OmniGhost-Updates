@@ -98,6 +98,7 @@ struct Player {
     bool alive = false;
     // 0=stand 1=crouch 2=prone (CoD-style). Aim/ESP head height follows this live.
     int stance = 0;
+    uint64_t position_sample_ms = 0;
 };
 
 struct Runtime {
@@ -121,6 +122,12 @@ struct Runtime {
     bool decrypt_ok = false;
     uint64_t last_bind_attempt_ms = 0;
     int bind_fail_count = 0;
+    // Acquisition timestamps (wall clock ms). Presentation should prefer these
+    // over the moment the Runtime was published.
+    uint64_t camera_sample_ms = 0;
+    uint64_t world_sample_ms = 0;
+    uint64_t snapshot_timestamp_ms = 0;
+    uint64_t session_generation = 1;
     char status[192] = "Warzone idle";
     char decrypt_detail[160] = "";
 };

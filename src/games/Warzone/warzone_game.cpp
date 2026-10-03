@@ -1,4 +1,10 @@
 #include "warzone_game.h"
+#include "gameplay/dma_telemetry_log.h"
+#include "gameplay/snapshot_exchange.h"
+#include "platform/resource_tracker.h"
+#include <thread>
+#include <atomic>
+#include <mutex>
 #include "warzone_aim.h"
 #include "warzone_esp.h"
 #include "warzone_decrypt.h"
@@ -27,6 +33,9 @@ Config config{};
 bool ready = false;
 std::string status = "Warzone idle";
 std::atomic_bool backend_busy{false};
+
+// Defined later; acquisition thread calls this each core tick.
+void AcquisitionTick();
 
 namespace {
 
@@ -58,6 +67,131 @@ bool LooksLikeMatrix(const float* m) {
         if (std::fabs(m[i]) > 1e-6f) ++finite;
     }
     return finite >= 6;
+}
+
+// ── Camera / Core pipeline (CS2-style) ──────────────────────────────────
+struct CameraSnapshot {
+    float view_matrix[16]{};
+    uint64_t sample_ms = 0;
+    bool ok = false;
+};
+
+OmniGhost::Gameplay::SnapshotExchange<Runtime, 4> g_runtime_snapshots;
+OmniGhost::Gameplay::SnapshotExchange<CameraSnapshot, 3> g_camera_snapshots;
+
+std::atomic_bool g_pipeline_stop{false};
+std::atomic_bool g_pipeline_running{false};
+std::thread g_camera_thread;
+std::thread g_acquisition_thread;
+std::atomic_bool g_camera_pending{false};
+std::atomic<uint64_t> g_camera_deadline_ms{0};
+std::atomic<int> g_pressure_level{0};
+
+void PublishRuntimeSnapshot(Runtime& rt) {
+    rt.snapshot_timestamp_ms = GetTickCount64();
+    auto slot = g_runtime_snapshots.TryBeginWrite();
+    if (!slot) return;
+    *slot.value = rt;
+    g_runtime_snapshots.Publish(slot.index);
+}
+
+void CameraLoop() {
+    mem.SetDmaLane("warzone-camera");
+    mem.SetDmaPriority(Memory::DmaPri::Camera);
+    VMMDLL_SCATTER_HANDLE camScatter = nullptr;
+    uint64_t nextCameraMs = 0;
+    constexpr uint64_t kPeriodMs = 16;
+    while (!g_pipeline_stop.load(std::memory_order_acquire)) {
+        const uint64_t now = GetTickCount64();
+        g_camera_deadline_ms.store(nextCameraMs, std::memory_order_release);
+        if (!ready || !runtime.module_base || !offsets.view_matrix || !offsets.loaded) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(25));
+            continue;
+        }
+        if (now < nextCameraMs) {
+            const uint64_t residual = nextCameraMs - now;
+            std::this_thread::sleep_for(std::chrono::milliseconds(
+                residual > 8 ? 8 : static_cast<int>(residual)));
+            continue;
+        }
+        g_camera_pending.store(true, std::memory_order_release);
+        float vm[16]{};
+        bool ok = false;
+        if (!camScatter && mem.vHandle)
+            camScatter = mem.CreateScatterHandle();
+        if (camScatter) {
+            mem.AddScatterReadRequest(camScatter,
+                runtime.module_base + offsets.view_matrix, vm, sizeof(vm));
+            mem.SetDmaCallTag("Warzone.Camera");
+            mem.ExecuteReadScatter(camScatter);
+            ok = LooksLikeMatrix(vm);
+        } else {
+            ok = mem.Read(runtime.module_base + offsets.view_matrix, vm, sizeof(vm))
+                && LooksLikeMatrix(vm);
+        }
+        if (ok) {
+            auto slot = g_camera_snapshots.TryBeginWrite();
+            if (slot) {
+                std::memcpy(slot.value->view_matrix, vm, sizeof(vm));
+                slot.value->sample_ms = GetTickCount64();
+                slot.value->ok = true;
+                g_camera_snapshots.Publish(slot.index);
+            }
+        }
+        g_camera_pending.store(false, std::memory_order_release);
+        const int pressure = g_pressure_level.load(std::memory_order_relaxed);
+        nextCameraMs = GetTickCount64() + (pressure >= 3 ? 25ull : kPeriodMs);
+    }
+    if (camScatter) {
+        mem.CloseScatterHandle(camScatter);
+        camScatter = nullptr;
+    }
+}
+
+void AcquisitionLoop() {
+    mem.SetDmaLane("warzone-core");
+    mem.SetDmaPriority(Memory::DmaPri::Position);
+    while (!g_pipeline_stop.load(std::memory_order_acquire)) {
+        if (!ready) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            continue;
+        }
+        const auto t0 = std::chrono::steady_clock::now();
+        try { AcquisitionTick(); } catch (...) {}
+        const float ms = std::chrono::duration<float, std::milli>(
+            std::chrono::steady_clock::now() - t0).count();
+        int level = g_pressure_level.load(std::memory_order_relaxed);
+        int demanded = 0;
+        if (ms > 80.f) demanded = 3;
+        else if (ms > 45.f) demanded = 2;
+        else if (ms > 28.f) demanded = 1;
+        if (demanded > level) level = demanded;
+        else if (demanded < level) level = (std::max)(0, level - 1);
+        g_pressure_level.store(level, std::memory_order_relaxed);
+        int delayMs = 16;
+        if (level >= 3) delayMs = 40;
+        else if (level == 2) delayMs = 28;
+        else if (level == 1) delayMs = 22;
+        std::this_thread::sleep_for(std::chrono::milliseconds(delayMs));
+    }
+}
+
+void EnsurePipelineStarted() {
+    bool expected = false;
+    if (!g_pipeline_running.compare_exchange_strong(expected, true))
+        return;
+    g_pipeline_stop.store(false, std::memory_order_release);
+    OmniGhost::Platform::ResourceTracker::Instance().SetBaseline();
+    g_camera_thread = std::thread(CameraLoop);
+    g_acquisition_thread = std::thread(AcquisitionLoop);
+}
+
+void StopPipeline() {
+    g_pipeline_stop.store(true, std::memory_order_release);
+    if (g_camera_thread.joinable()) g_camera_thread.join();
+    if (g_acquisition_thread.joinable()) g_acquisition_thread.join();
+    g_pipeline_running.store(false, std::memory_order_release);
+    g_camera_pending.store(false, std::memory_order_release);
 }
 
 } // namespace
@@ -473,7 +607,7 @@ bool ValidateLiveOffsets() {
     return SoftProbeLobbyOffsets();
 }
 
-void RunFrame() {
+void AcquisitionTick() {
     if (!ready) return;
     ++runtime.frames;
 
@@ -549,6 +683,7 @@ void RunFrame() {
         if (matrix_read_ok && LooksLikeMatrix(vm)) {
             std::memcpy(runtime.view_matrix, vm, sizeof(vm));
             runtime.matrix_ok = true;
+            runtime.camera_sample_ms = GetTickCount64();
         }
     }
 
@@ -709,6 +844,7 @@ void RunFrame() {
                     s_cached_local_pos[1] = pl.pos[1];
                     s_cached_local_pos[2] = pl.pos[2];
                 }
+                pl.position_sample_ms = now_ms;
                 s_cached_players.push_back(pl);
             }
 
@@ -735,6 +871,27 @@ void RunFrame() {
     runtime.players = s_cached_players;
     runtime.player_count = (int)runtime.players.size();
     runtime.list_ok = runtime.player_count > 0;
+    // World sample is the enum time when the list was last rebuilt; between
+    // enums positions are held so presentation can age them correctly.
+    if (need_enum)
+        runtime.world_sample_ms = now_ms;
+    else if (!runtime.world_sample_ms)
+        runtime.world_sample_ms = now_ms;
+    runtime.snapshot_timestamp_ms = now_ms;
+    for (auto& pl : runtime.players) {
+        if (!pl.position_sample_ms)
+            pl.position_sample_ms = runtime.world_sample_ms;
+    }
+    if (OmniGhost::Gameplay::DmaTelemetry::IsEnabled()) {
+        auto& tel = OmniGhost::Gameplay::DmaTelemetry::Warzone(); // shared sample channel for now
+        // Prefer dedicated Warzone sample when available; CS2() is a stable sink.
+        if (runtime.camera_sample_ms)
+            OmniGhost::Gameplay::DmaTelemetry::ObserveCameraAge(tel,
+                static_cast<float>(now_ms > runtime.camera_sample_ms ? now_ms - runtime.camera_sample_ms : 0));
+        tel.world_age_ms.store(runtime.world_sample_ms && now_ms > runtime.world_sample_ms
+            ? static_cast<float>(now_ms - runtime.world_sample_ms) : 0.f, std::memory_order_relaxed);
+        tel.entities.store(runtime.player_count, std::memory_order_relaxed);
+    }
 
     // Count name_array candidates for diagnostics only (never as verified players)
     int name_candidates = 0;
@@ -765,6 +922,8 @@ void RunFrame() {
         s_dec_ok = false;
         s_cached_players.clear();
         s_last_enum_ms = 0;
+        ++runtime.session_generation;
+        runtime.world_sample_ms = 0;
         std::cout << "[Warzone] Entrada em partida — a revalidar client_info/lista\n";
     } else if (phase == MatchLifecycle::Phase::LeftMatch) {
         std::cout << "[Warzone] Saida de partida / lobby\n";
@@ -825,13 +984,61 @@ void RunFrame() {
         }
     }
 
-    // Draw / aim only when we have matrix + players
-    Warzone_ESP::Draw(runtime, config);
-    Warzone_Aim::Run(runtime, config);
+    // Prefer latest camera snapshot for matrix_ok / view_matrix coherence.
+    if (auto cam = g_camera_snapshots.Acquire()) {
+        if (cam->ok) {
+            std::memcpy(runtime.view_matrix, cam->view_matrix, sizeof(runtime.view_matrix));
+            runtime.camera_sample_ms = cam->sample_ms;
+            runtime.matrix_ok = true;
+        }
+    }
+    PublishRuntimeSnapshot(runtime);
+    if (OmniGhost::Gameplay::DmaTelemetry::IsEnabled()) {
+        auto& tel = OmniGhost::Gameplay::DmaTelemetry::Warzone();
+        tel.active.store(runtime.in_game && runtime.player_count > 0, std::memory_order_relaxed);
+        tel.entities.store(runtime.player_count, std::memory_order_relaxed);
+        tel.pressure_level.store(g_pressure_level.load(std::memory_order_relaxed),
+            std::memory_order_relaxed);
+        if (runtime.camera_sample_ms) {
+            const uint64_t now = GetTickCount64();
+            OmniGhost::Gameplay::DmaTelemetry::ObserveCameraAge(tel,
+                static_cast<float>(now > runtime.camera_sample_ms ? now - runtime.camera_sample_ms : 0));
+        }
+        if (runtime.world_sample_ms) {
+            const uint64_t now = GetTickCount64();
+            tel.world_age_ms.store(
+                now > runtime.world_sample_ms ? static_cast<float>(now - runtime.world_sample_ms) : 0.f,
+                std::memory_order_relaxed);
+        }
+        OmniGhost::Gameplay::DmaTelemetry::Tick("WARZONE");
+    }
+}
+
+void RunFrame() {
+    if (!ready) return;
+    EnsurePipelineStarted();
+    // Presentation only — never DMA here.
+    Runtime drawRt{};
+    if (auto lease = g_runtime_snapshots.Acquire())
+        drawRt = *lease;
+    else
+        drawRt = runtime;
+    if (auto cam = g_camera_snapshots.Acquire()) {
+        if (cam->ok) {
+            std::memcpy(drawRt.view_matrix, cam->view_matrix, sizeof(drawRt.view_matrix));
+            drawRt.camera_sample_ms = cam->sample_ms;
+            drawRt.matrix_ok = true;
+        }
+    }
+    // Keep global runtime for UI status lines.
+    runtime = drawRt;
+    Warzone_ESP::Draw(drawRt, config);
+    Warzone_Aim::Run(drawRt, config);
 }
 
 void Shutdown() {
     ready = false;
+    StopPipeline();
     runtime = {};
     status = "Warzone parado";
 }

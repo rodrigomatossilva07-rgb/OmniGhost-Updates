@@ -113,12 +113,20 @@ struct Sample {
     std::atomic<std::uint32_t> process_id{0};
     std::atomic_bool process_connected{false};
     std::atomic_bool dma_open{false};
+    // Process resource snapshot (updated from ResourceTracker on Tick).
+    std::atomic<std::uint64_t> process_handles{0};
+    std::atomic<std::int64_t> process_handles_delta{0};
+    std::atomic<std::uint32_t> process_threads{0};
+    std::atomic<float> working_set_mb{0.f};
+    std::atomic<float> private_mb{0.f};
+    std::atomic<std::uint32_t> scatter_handles_live{0};
     std::atomic_bool active{false}; // gameplay acquisition samples only when true
     std::atomic<int> idle_reason{0}; // 0=none,1=dead,2=not_in_match,3=menu,4=esp_off,5=no_local
 };
 
 [[nodiscard]] Sample& FiveM();
 [[nodiscard]] Sample& CS2();
+[[nodiscard]] Sample& Warzone();
 
 // activeSample=false → idle/dead/menu: never enters percentiles or SPIKE logs.
 void ObserveAcquire(Sample& s, float work_ms, bool activeSample, uint64_t scan_id = 0) noexcept;

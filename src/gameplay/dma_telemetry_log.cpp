@@ -50,6 +50,7 @@ constexpr float kSpikeCriticalMs = 500.f;
 std::atomic_bool g_enabled{false};
 Sample g_fivem{};
 Sample g_cs2{};
+Sample g_warzone{};
 
 struct Ring {
     std::array<float, kWindow> data{};
@@ -290,6 +291,7 @@ bool IsEnabled() noexcept {
 
 Sample& FiveM() { return g_fivem; }
 Sample& CS2() { return g_cs2; }
+Sample& Warzone() { return g_warzone; }
 
 void ObserveAcquire(Sample& s, float work_ms, bool activeSample, uint64_t scan_id) noexcept {
     if (work_ms < 0.f) return;
@@ -471,22 +473,46 @@ void RefreshFromMemory() noexcept {
     fill(g_fivem);
 }
 
+static void ObserveProcessResources(Sample& s) noexcept {
+    try {
+        const auto snap = OmniGhost::Platform::ResourceTracker::Instance().TakeSnapshot();
+        static thread_local uint64_t prevHandles = 0;
+        const int64_t delta = prevHandles
+            ? static_cast<int64_t>(snap.handleCount) - static_cast<int64_t>(prevHandles)
+            : 0;
+        prevHandles = snap.handleCount;
+        s.process_handles.store(snap.handleCount, std::memory_order_relaxed);
+        s.process_handles_delta.store(delta, std::memory_order_relaxed);
+        s.process_threads.store(snap.threadCount, std::memory_order_relaxed);
+        s.working_set_mb.store(static_cast<float>(snap.memoryBytes) / (1024.f * 1024.f),
+            std::memory_order_relaxed);
+        // private_mb approximated from same working set when PMC private not split
+        s.private_mb.store(static_cast<float>(snap.memoryBytes) / (1024.f * 1024.f),
+            std::memory_order_relaxed);
+        const auto memSnap = mem.GetDiagnosticsSnapshot();
+        s.scatter_handles_live.store(memSnap.scatterHandlesLive, std::memory_order_relaxed);
+    } catch (...) {}
+}
+
 void Tick(std::string_view tag) {
     if (!IsEnabled()) return;
     static std::mutex mu;
-    static std::chrono::steady_clock::time_point lastF{}, lastC{};
+    static std::chrono::steady_clock::time_point lastF{}, lastC{}, lastW{};
     std::lock_guard<std::mutex> lock(mu);
     RefreshFromMemory();
     const auto now = std::chrono::steady_clock::now();
-    Sample* sample = (tag == "FIVEM") ? &g_fivem : &g_cs2;
-    auto& last = (tag == "FIVEM") ? lastF : lastC;
+    Sample* sample = &g_cs2;
+    std::chrono::steady_clock::time_point* last = &lastC;
+    if (tag == "FIVEM") { sample = &g_fivem; last = &lastF; }
+    else if (tag == "WARZONE" || tag == "WZ") { sample = &g_warzone; last = &lastW; }
+    ObserveProcessResources(*sample);
     // PERF once/sec only while active gameplay for CS2/FiveM samples
     if (!sample->active.load(std::memory_order_relaxed)) {
         // Still emit a light STATUS at most every 5s when idle so logs show state
-        if (last.time_since_epoch().count() != 0 &&
-            now - last < std::chrono::seconds(5))
+        if (last->time_since_epoch().count() != 0 &&
+            now - *last < std::chrono::seconds(5))
             return;
-        last = now;
+        *last = now;
         DWORD handleCount = 0;
         GetProcessHandleCount(GetCurrentProcess(), &handleCount);
         char status[256]{};
@@ -501,10 +527,10 @@ void Tick(std::string_view tag) {
         Emit(tag, status);
         return;
     }
-    if (last.time_since_epoch().count() != 0 &&
-        now - last < std::chrono::seconds(1))
+    if (last->time_since_epoch().count() != 0 &&
+        now - *last < std::chrono::seconds(1))
         return;
-    last = now;
+    *last = now;
     WritePerf(tag, *sample);
 }
 

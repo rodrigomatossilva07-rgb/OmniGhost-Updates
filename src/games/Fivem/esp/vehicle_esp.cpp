@@ -291,6 +291,10 @@ namespace vehicle_esp {
                 vd.engine_health = gear->second.engine;
             }
             vd.valid = true;
+            // Same sample cohort as the view matrix published below — render
+            // prefers FrameCache camera when valid (ped ESP coherent).
+            vd.sample_ms = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now().time_since_epoch()).count());
             nextVehicles.push_back(vd);
             if (needMatrix) nextMatrices[valid[i]] = matrices[i];
         }
@@ -407,6 +411,8 @@ namespace vehicle_esp {
 
         using namespace FiveM;
 
+        // Prefer the same camera the ped ESP frame used so vehicles and
+        // players share one temporal cohort when both are on-screen.
         Matrix view_matrix{};
         if (FiveM::ESP::FrameCacheValid()) {
             view_matrix = FiveM::ESP::GetFrameViewMatrix();

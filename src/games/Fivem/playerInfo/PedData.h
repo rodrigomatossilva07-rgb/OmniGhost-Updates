@@ -16,9 +16,11 @@ inline constexpr bool PedVisibilityFlagMeansVisible(uint8_t flag) noexcept {
 struct PedData {
     float health;
     Vec3 position_origin;
+    Vec3 velocity{};
     uintptr_t playerInfo;
     std::chrono::steady_clock::time_point lastUpdate;
     std::chrono::steady_clock::time_point health_updated{};
+    std::chrono::steady_clock::time_point velocity_updated{};
     bool isValid;
     bool visible = false;
     bool visibility_known = false;
@@ -60,6 +62,11 @@ public:
     // Cache access methods
     void fastCache(const std::vector<uintptr_t>& validPeds,
         const std::vector<Vec3>& positions);
+    // Core-world path: positions + velocity + health already sampled together.
+    void fastCacheCore(const std::vector<uintptr_t>& validPeds,
+        const std::vector<Vec3>& positions,
+        const std::vector<Vec3>& velocities,
+        const std::vector<float>& healths);
 
     void manualCache(); // Full reinitialization
 

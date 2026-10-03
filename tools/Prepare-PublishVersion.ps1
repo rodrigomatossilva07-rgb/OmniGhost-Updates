@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [string]$ProjectDir = '',
     [string]$Configuration = '',
@@ -24,15 +24,42 @@ if ([string]$config.repository -notmatch '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$') {
 Write-Host "[OmniGhost Version] Versão de origem: $version; tag esperada: v$version."
 if (-not $ValidateOnly) {
 	# Publish is the explicit approval point for local source changes. Capture
-	# only already tracked files before metadata/reproducibility checks so a
-	# normal edit never leaves the pipeline failing merely because it was not
-	# committed manually. New/untracked files stay deliberately out of release.
+	# tracked edits and auto-accept new non-archive files so intentional source
+	# additions (headers, helpers) never block the pipeline. ZIP/archive dumps
+	# stay out of release tracking.
 	$git = Get-Command git -ErrorAction Stop
 	$status = @(& $git.Source -C $ProjectDir status --porcelain --untracked-files=normal --ignore-submodules)
 	if ($LASTEXITCODE -ne 0) { throw 'Não foi possível consultar o estado Git antes da Publish.' }
 	$untracked = @($status | Where-Object { ([string]$_).StartsWith('?? ') })
 	if ($untracked.Count -gt 0) {
-		throw ("Existem ficheiros novos não rastreados; reveja-os antes de Publish:`n        " + ($untracked -join "`n        "))
+		$archiveExt = @('.zip', '.7z', '.rar', '.tar', '.gz', '.tgz', '.bz2', '.xz')
+		$toAdd = @()
+		$ignoredArchives = @()
+		foreach ($line in $untracked) {
+			$pathPart = ([string]$line).Substring(3).Trim()
+			if ([string]::IsNullOrWhiteSpace($pathPart)) { continue }
+			# Porcelain may quote paths; strip surrounding quotes.
+			if ($pathPart.StartsWith('"') -and $pathPart.EndsWith('"') -and $pathPart.Length -ge 2) {
+				$pathPart = $pathPart.Substring(1, $pathPart.Length - 2)
+			}
+			$ext = [IO.Path]::GetExtension($pathPart).ToLowerInvariant()
+			if ($archiveExt -contains $ext) {
+				$ignoredArchives += $pathPart
+				continue
+			}
+			$toAdd += $pathPart
+		}
+		if ($ignoredArchives.Count -gt 0) {
+			Write-Host ('[OmniGhost Publish] A ignorar ficheiros arquivo não rastreados: ' + ($ignoredArchives -join ', '))
+		}
+		if ($toAdd.Count -gt 0) {
+			Write-Host ('[OmniGhost Publish] A aceitar ficheiros novos: ' + ($toAdd -join ', '))
+			& $git.Source -C $ProjectDir add -- $toAdd
+			if ($LASTEXITCODE -ne 0) { throw 'Não foi possível adicionar ficheiros novos ao índice Git antes da Publish.' }
+			# Refresh status so tracked-change commit includes the new files.
+			$status = @(& $git.Source -C $ProjectDir status --porcelain --untracked-files=normal --ignore-submodules)
+			if ($LASTEXITCODE -ne 0) { throw 'Não foi possível reconsultar o estado Git após aceitar ficheiros novos.' }
+		}
 	}
 	$trackedChanges = @($status | Where-Object { -not ([string]$_).StartsWith('?? ') })
 	if ($trackedChanges.Count -gt 0) {

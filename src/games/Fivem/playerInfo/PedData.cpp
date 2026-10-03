@@ -45,18 +45,21 @@ void PedCacheManager::update() {
 }
 
 void PedCacheManager::slowCache() {
-    // The acquisition pipeline already resolves playerInfo for classification.
-    // This cache's consumers use health/position only; avoid a duplicate DMA
-    // request for every ped on every slow-cache refresh.
+    // Core acquisition already samples health with positions. Only request a
+    // health scatter for peds whose core sample is missing or older than 250 ms.
     static std::vector<uintptr_t> pedIds;
     static std::vector<float> healthValues;
     {
         std::shared_lock lock(mutex_);
         pedIds.clear();
         pedIds.reserve(pedCache.size());
+        const auto now = std::chrono::steady_clock::now();
         for (const auto& [pedId, pedData] : pedCache) {
-            if (pedData.isValid)
-                pedIds.push_back(pedId);
+            if (!pedData.isValid) continue;
+            if (pedData.health_updated.time_since_epoch().count() != 0 &&
+                now - pedData.health_updated < std::chrono::milliseconds(250))
+                continue; // core sample is fresh — no duplicate DMA
+            pedIds.push_back(pedId);
         }
     }
 
@@ -95,74 +98,67 @@ void PedCacheManager::slowCache() {
 
 void PedCacheManager::fastCache(const std::vector<uintptr_t>& validPeds,
     const std::vector<Vec3>& positions) {
-    auto now = std::chrono::steady_clock::now();
+    // Legacy entry point: positions only. Health/velocity come exclusively from
+    // the core acquisition path via fastCacheCore — no duplicate DMA here.
+    static const std::vector<Vec3> kEmptyVel;
+    static const std::vector<float> kEmptyHp;
+    fastCacheCore(validPeds, positions, kEmptyVel, kEmptyHp);
+}
 
-    // O(1) membership for this frame (avoids O(n*m) scan below)
+void PedCacheManager::fastCacheCore(const std::vector<uintptr_t>& validPeds,
+    const std::vector<Vec3>& positions,
+    const std::vector<Vec3>& velocities,
+    const std::vector<float>& healths) {
+    auto now = std::chrono::steady_clock::now();
     static std::unordered_set<uintptr_t> present;
     present.clear();
     present.reserve(validPeds.size() * 2 + 16);
-
-    static std::vector<uintptr_t> newcomers;
-    newcomers.clear();
-    newcomers.reserve(8);
-
-    {
-        std::unique_lock lock(mutex_);
-        for (size_t i = 0; i < validPeds.size() && i < positions.size(); ++i) {
-            uintptr_t pedId = validPeds[i];
-            present.insert(pedId);
-            auto it = pedCache.find(pedId);
-            if (it != pedCache.end()) {
-                it->second.position_origin = positions[i];
-                it->second.lastUpdate = now;
-                it->second.isValid = true;
-            } else {
-                PedData pd{};
-                pd.position_origin = positions[i];
-                pd.lastUpdate = now;
-                pd.isValid = true;
-                pedCache.emplace(pedId, pd);
-                newcomers.push_back(pedId);
-            }
-        }
-    }
-
-    if (!newcomers.empty()) {
-        static std::vector<float> hp;
-        hp.assign(newcomers.size(), std::numeric_limits<float>::quiet_NaN());
-        auto handle = mem.CreateScatterHandle();
-        auto sampledAt = std::chrono::steady_clock::time_point{};
-        if (handle) {
-            for (size_t i = 0; i < newcomers.size(); ++i) {
-                mem.AddScatterReadRequest(handle, newcomers[i] + FiveM::offset::playerHealth,
-                    &hp[i], sizeof(float));
-            }
-            const auto readBegin = std::chrono::steady_clock::now();
-            mem.ExecuteReadScatter(handle);
-            const auto readEnd = std::chrono::steady_clock::now();
-            sampledAt = readBegin + (readEnd - readBegin) / 2;
-            mem.CloseScatterHandle(handle);
-        }
-        std::unique_lock lock(mutex_);
-        for (size_t i = 0; i < newcomers.size(); ++i) {
-            auto it = pedCache.find(newcomers[i]);
-            if (it != pedCache.end() && std::isfinite(hp[i]) &&
-                hp[i] >= 0.f && hp[i] < 1000.f) {
-                it->second.health = hp[i];
-                it->second.health_updated = sampledAt;
-            }
-        }
-    }
-
-    // Invalidate stale entries without nested loops
     std::unique_lock lock(mutex_);
-    for (auto& [pedId, pedData] : pedCache) {
-        if (present.find(pedId) != present.end())
-            continue;
-        if (now - pedData.lastUpdate > std::chrono::seconds(5))
-            pedData.isValid = false;
+    for (size_t i = 0; i < validPeds.size() && i < positions.size(); ++i) {
+        const uintptr_t pedId = validPeds[i];
+        present.insert(pedId);
+        auto it = pedCache.find(pedId);
+        if (it == pedCache.end()) {
+            PedData pd{};
+            pd.position_origin = positions[i];
+            pd.lastUpdate = now;
+            pd.isValid = true;
+            if (i < velocities.size()) {
+                pd.velocity = velocities[i];
+                pd.velocity_updated = now;
+            }
+            if (i < healths.size() && std::isfinite(healths[i]) &&
+                healths[i] >= 0.f && healths[i] < 1000.f) {
+                pd.health = healths[i];
+                pd.health_updated = now;
+            }
+            pedCache.emplace(pedId, std::move(pd));
+        } else {
+            it->second.position_origin = positions[i];
+            it->second.lastUpdate = now;
+            it->second.isValid = true;
+            if (i < velocities.size()) {
+                it->second.velocity = velocities[i];
+                it->second.velocity_updated = now;
+            }
+            if (i < healths.size() && std::isfinite(healths[i]) &&
+                healths[i] >= 0.f && healths[i] < 1000.f) {
+                it->second.health = healths[i];
+                it->second.health_updated = now;
+            }
+        }
+    }
+    // Invalidate peds not in this core sample
+    for (auto it = pedCache.begin(); it != pedCache.end();) {
+        if (!present.count(it->first)) {
+            it->second.isValid = false;
+            ++it;
+        } else {
+            ++it;
+        }
     }
 }
+
 
 void PedCacheManager::manualCache() {
     std::unique_lock lock(mutex_);

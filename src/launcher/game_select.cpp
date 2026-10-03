@@ -186,6 +186,9 @@ void Reset(EntryReason reason) {
     g_history_game = GameId::None;
     g_reset_settings_game = GameId::None;
     g_card_menu_game = GameId::None;
+    ++g_remote_process_generation;
+    g_remote_process_mask = 0;
+    g_remote_process_scanned_at = 0.0;
     // Let the UI transition settle before the first remote process inventory.
     // This avoids hitting the FPGA again in the same instant that startup
     // finishes opening the device.

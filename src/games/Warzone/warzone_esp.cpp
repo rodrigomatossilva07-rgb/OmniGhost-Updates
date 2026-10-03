@@ -3,6 +3,7 @@
 #include "../src/gameplay/esp_core.h"
 #include "gameplay/esp_optimizer.h"
 #include "imgui.h"
+#include <Windows.h>
 #include <cmath>
 #include <cstdio>
 
@@ -30,6 +31,13 @@ ImU32 Col4(const float c[4]) {
 void Draw(const Warzone::Runtime& rt, const Warzone::Config& cfg) {
     if (!cfg.esp_enabled) return;
     if (!rt.matrix_ok && rt.players.empty()) return;
+    // Soft age gate: if world/camera samples are extremely stale, skip draw
+    // rather than project with a frozen matrix against a dead list.
+    const uint64_t now = GetTickCount64();
+    if (rt.camera_sample_ms && now > rt.camera_sample_ms && (now - rt.camera_sample_ms) > 250u)
+        return;
+    if (rt.world_sample_ms && now > rt.world_sample_ms && (now - rt.world_sample_ms) > 400u)
+        return;
     ImDrawList* dl = ImGui::GetBackgroundDrawList();
     if (!dl) return;
 
