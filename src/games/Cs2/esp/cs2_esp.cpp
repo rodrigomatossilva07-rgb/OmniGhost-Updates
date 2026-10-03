@@ -437,7 +437,7 @@ void DrawDroppedWeapons(ImDrawList* draw, const CS2::Runtime& snapshot,
     // once per temporal cohort, not once per item.
     uint64_t activeSampleMs = 0;
     const float* weaponMatrix = viewMatrix;
-    CameraSnapshot weaponCamera{};
+    CS2::CameraSnapshot weaponCamera{};
     for (const auto& weapon : snapshot.dropped_weapons) {
         const float dx = weapon.pos[0] - snapshot.local_pos[0];
         const float dy = weapon.pos[1] - snapshot.local_pos[1];
@@ -445,7 +445,7 @@ void DrawDroppedWeapons(ImDrawList* draw, const CS2::Runtime& snapshot,
         if (dx * dx + dy * dy + dz * dz > kMaxDistanceUnits * kMaxDistanceUnits) continue;
         if (weapon.sample_timestamp_ms && weapon.sample_timestamp_ms != activeSampleMs) {
             activeSampleMs = weapon.sample_timestamp_ms;
-            weaponCamera = CS2::SelectCameraSnapshot(activeSampleMs);
+            weaponCamera = __CS2__CS2::SelectCameraSnapshot(activeSampleMs);
             weaponMatrix = weaponCamera.timestamp_ms ? weaponCamera.view_matrix : viewMatrix;
         }
         ImVec2 screen{};
@@ -489,7 +489,7 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
     const ImU32 rgbColor = settings.rgb_mode ? RgbColor() : 0;
     const uint64_t framePositionSampleMs = snapshot.world_sample_ms
         ? snapshot.world_sample_ms : snapshot.snapshot_timestamp_ms;
-    const auto liveness = AcquireLivenessSnapshot();
+    const auto liveness = CS2::AcquireLivenessSnapshot();
     const auto diedSinceSnapshot = [&](const Player& player) {
         if (!liveness || !player.pawn)
             return false;
@@ -512,13 +512,13 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
     // Presentation must never use runtime.view_matrix for W2S when a coherent
     // camera history sample exists. Fall back only to the latest camera lease;
     // never to the (possibly older) matrix embedded in the world snapshot.
-    const CameraSnapshot frameCamera = SelectCameraSnapshot(framePositionSampleMs);
-    CameraSnapshotLease liveCameraLease;
+    const CS2::CameraSnapshot frameCamera = __CS2__CS2::SelectCameraSnapshot(framePositionSampleMs);
+    CS2::CameraSnapshotLease liveCameraLease;
     const float* frameViewMatrix = nullptr;
     if (frameCamera.timestamp_ms)
         frameViewMatrix = frameCamera.view_matrix;
     else {
-        liveCameraLease = AcquireCameraSnapshot();
+        liveCameraLease = __CS2__CS2::AcquireCameraSnapshot();
         if (liveCameraLease && liveCameraLease->timestamp_ms)
             frameViewMatrix = liveCameraLease->view_matrix;
     }

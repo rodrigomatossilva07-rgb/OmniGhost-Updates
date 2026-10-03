@@ -877,7 +877,7 @@ namespace FiveM {
                     const float posAge = (std::max)(0.f, worldAgeMs);
                     const float bonesAge = esp::config.skeleton ? posAge : 0.f;
                     OmniGhost::Gameplay::DmaTelemetry::ObservePresentationTiming(
-                        tel, posAge, bonesAge, 0.f);
+                        tel, posAge, bonesAge, 0.f, 0.f);
                 }
                 tel.world_age_ms.store((std::max)(0.f, worldAgeMs), std::memory_order_relaxed);
                 tel.publish_delay_ms.store(publishDelayMs, std::memory_order_relaxed);

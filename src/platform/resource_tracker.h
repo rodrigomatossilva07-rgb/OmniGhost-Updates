@@ -30,7 +30,7 @@ public:
     }
 
     // Take a snapshot of current resource usage
-    Snapshot TakeSnapshot() noexcept;
+    Snapshot TakeSnapshot() const noexcept;
 
     // Record a baseline for comparison
     void SetBaseline() noexcept {
@@ -75,6 +75,8 @@ public:
     [[nodiscard]] Snapshot GetCurrentSnapshot() const noexcept {
         return TakeSnapshot();
     }
+
+    // Mutable cache not required; TakeSnapshot is pure observation.
 
 private:
     ResourceTracker() = default;

@@ -247,336 +247,6 @@ VisibilityWorker g_visibility_worker;
 // camera deadline is due. We spin-yield until the camera worker clears the
 // pending flag or a short wall-clock cap elapses — never Sleep() here (a 1 ms
 // sleep on Windows can consume a full ~15.6 ms scheduler tick).
-void GiveCameraPriorityBeforeOptionalDma() {
-    const uint64_t deadline = g_camera_deadline_ms.load(std::memory_order_acquire);
-    const bool pending = g_camera_pending.load(std::memory_order_acquire);
-    const uint64_t now = GetTickCount64();
-    // Far from the deadline and no pending camera read → proceed immediately.
-    if (!pending && (deadline == 0 || now + 2u < deadline))
-        return;
-
-    // Cooperative yield until the camera lane clears or a hard wall-clock
-    // budget elapses. Between optional micro-batches the caller invokes this
-    // again so a long scatter never monopolises the transport without giving
-    // the camera thread a chance to run once the dmaReadMutex is released.
-    constexpr int kMaxYieldSpins = 96;
-    const auto t0 = std::chrono::steady_clock::now();
-    constexpr auto kMaxWait = std::chrono::microseconds(1500);
-    for (int spin = 0; spin < kMaxYieldSpins; ++spin) {
-        if (!g_camera_pending.load(std::memory_order_acquire)) {
-            const uint64_t d = g_camera_deadline_ms.load(std::memory_order_acquire);
-            const uint64_t n = GetTickCount64();
-            if (d == 0 || n + 1u < d)
-                return;
-        }
-        if (std::chrono::steady_clock::now() - t0 >= kMaxWait)
-            return;
-        std::this_thread::yield();
-    }
-}
-
-// True when optional DMA should pause before starting another micro-batch
-// because the camera deadline is imminent or a camera read is in flight.
-static bool OptionalDmaShouldYieldToCamera() noexcept {
-    if (g_camera_pending.load(std::memory_order_acquire))
-        return true;
-    const uint64_t deadline = g_camera_deadline_ms.load(std::memory_order_acquire);
-    if (deadline == 0)
-        return false;
-    const uint64_t now = GetTickCount64();
-    return now + 3u >= deadline;
-}
-
-static void CollectDroppedWeapons(const Config& frame_config);
-static uintptr_t ResolveEntityByHandle(uint32_t handle, uintptr_t stride);
-static bool HeavyDmaCooldownActive();
-bool IsUserPointer(uintptr_t value);
-static void UpdateBombStateThrottled();
-static void UpdateLocalWeaponDefinitionThrottled();
-
-// ── Optional enrichment worker ───────────────────────────────────────────
-// Core acquisition publishes position/health/velocity/liveness then returns.
-// This worker refreshes bones, names, weapons, flags and dropped items using
-// the already-published player list so the next core scan is never blocked.
-static void RunOptionalEnrichment(const Config& frame_config) {
-    if (!runtime.in_match || runtime.players.empty())
-        return;
-    const uint64_t jobGen = g_session_generation.load(std::memory_order_acquire);
-    const int pressure = g_pressure_level.load(std::memory_order_relaxed);
-    if (pressure >= 3)
-        return; // recovery: keep last optional data, core already published
-
-    OmniGhost::Gameplay::OptionalPhaseBudget budget;
-    {
-        float budgetMs = frame_config.performance_mode ? 4.f : 6.f;
-        if (pressure == 2) budgetMs = 3.5f;
-        else if (pressure == 1) budgetMs = 4.5f;
-        budget.Reset(budgetMs);
-    }
-
-    g_scatter_optional.Ensure();
-    if (!g_scatter_optional)
-        return;
-
-    const uint64_t nowMs = GetTickCount64();
-    OmniGhost::Gameplay::EspCore::FeatureSet requested{};
-    requested.box = frame_config.esp_enabled && frame_config.box;
-    requested.skeleton = frame_config.esp_enabled && frame_config.skeleton;
-    requested.head = frame_config.esp_enabled && (frame_config.head_dot || frame_config.head_halo);
-    requested.visibility = frame_config.esp_enabled && frame_config.visibility_colors;
-    requested.weapon = frame_config.esp_enabled && (frame_config.weapon_name || frame_config.weapon_ammo);
-    requested.name = frame_config.esp_enabled && frame_config.name;
-    requested.aim = frame_config.aim_enabled || frame_config.trigger_enabled;
-    const auto fields = requested.RequiredFields();
-    const bool need_bones = requested.visibility || OmniGhost::Gameplay::EspCore::Has(
-        fields, OmniGhost::Gameplay::EspCore::DataField::Skeleton);
-    const bool need_full_bones = requested.skeleton ||
-        (frame_config.trigger_enabled && !frame_config.trigger_head_only);
-    const bool need_names = requested.name || frame_config.radar_2d;
-    const bool need_weapons = requested.weapon;
-    const bool allow_weapon = pressure == 0 && !HeavyDmaCooldownActive();
-
-    // Snapshot player pointers we will enrich. Core may publish a new list
-    // concurrently; we only write fields for pawns still present at merge time.
-    struct Target {
-        uintptr_t pawn = 0;
-        uintptr_t controller = 0;
-        uintptr_t scene = 0;
-        float pos[3]{};
-        size_t runtime_index = 0;
-    };
-    std::vector<Target> targets;
-    targets.reserve(runtime.players.size());
-    for (size_t i = 0; i < runtime.players.size(); ++i) {
-        const auto& p = runtime.players[i];
-        if (!IsUserPointer(p.pawn) || !p.alive) continue;
-        Target t;
-        t.pawn = p.pawn;
-        t.controller = p.controller;
-        t.scene = p.scene;
-        t.pos[0] = p.pos[0]; t.pos[1] = p.pos[1]; t.pos[2] = p.pos[2];
-        t.runtime_index = i;
-        targets.push_back(t);
-    }
-    if (targets.empty())
-        return;
-
-    // ── Bones micro-batches ────────────────────────────────────────────
-    if (need_bones && !!budget.Remaining() && pressure < 2) {
-        mem.SetDmaPriority(Memory::DmaPri::Bones);
-        ScopedPhase _phBones(&g_phase.bones_ms);
-        constexpr int kBatch = 8;
-        constexpr int kJointCount = 28;
-        struct BoneJointSnapshot { float x, y, z, scale; char pad[0x10]; };
-        static_assert(sizeof(BoneJointSnapshot) == 32, "BoneJointSnapshot");
-
-        for (size_t base = 0; base < targets.size() && !!budget.Remaining(); base += kBatch) {
-            if (g_optional_stop.load(std::memory_order_acquire)) return;
-            if (jobGen != g_session_generation.load(std::memory_order_acquire)) return;
-            if (OptionalDmaShouldYieldToCamera()) {
-                GiveCameraPriorityBeforeOptionalDma();
-                if (OptionalDmaShouldYieldToCamera())
-                    break; // defer remaining bone batches to next optional job
-            }
-            GiveCameraPriorityBeforeOptionalDma();
-            const size_t end = (std::min)(targets.size(), base + static_cast<size_t>(kBatch));
-            uintptr_t boneBases[kBatch]{};
-            BoneJointSnapshot joints[kBatch][kJointCount]{};
-            bool eligible[kBatch]{};
-            int queued = 0;
-            for (size_t i = base; i < end; ++i) {
-                const size_t bi = i - base;
-                uintptr_t scene = targets[i].scene;
-                if (!IsUserPointer(scene)) {
-                    // Try live scene pointer from pawn.
-                    QReadT(targets[i].pawn + offsets.m_pGameSceneNode, scene, "CS2.Opt.Scene");
-                    targets[i].scene = IsUserPointer(scene) ? scene : 0;
-                }
-                if (!IsUserPointer(targets[i].scene)) continue;
-                uintptr_t boneBase = 0;
-                if (!QReadT(targets[i].scene + offsets.BoneArray, boneBase, "CS2.Opt.BoneBase") ||
-                    !IsUserPointer(boneBase))
-                    continue;
-                boneBases[bi] = boneBase;
-                eligible[bi] = true;
-                mem.AddScatterReadRequest(g_scatter_optional, boneBase,
-                    joints[bi], sizeof(BoneJointSnapshot) * (need_full_bones ? kJointCount : 8));
-                ++queued;
-            }
-            if (queued > 0) {
-                GiveCameraPriorityBeforeOptionalDma();
-                mem.SetDmaCallTag("CS2.Optional.Bones");
-                mem.ExecuteReadScatter(g_scatter_optional);
-                const uint64_t sampleMs = GetTickCount64();
-                for (size_t i = base; i < end; ++i) {
-                    const size_t bi = i - base;
-                    if (!eligible[bi]) continue;
-                    const size_t ri = targets[i].runtime_index;
-                    if (ri >= runtime.players.size() || runtime.players[ri].pawn != targets[i].pawn)
-                        continue;
-                    auto& p = runtime.players[ri];
-                    // Compact upper-body mapping (head/neck/chest/stomach indices
-                    // depend on layout; use sticky when known).
-                    const int layout = 1; // prefer current layout indices
-                    static constexpr int kIdx[4] = {6, 5, 4, 2}; // head neck chest stomach common
-                    bool any = false;
-                    for (int s = 0; s < 4; ++s) {
-                        const auto& j = joints[bi][kIdx[s]];
-                        if (!std::isfinite(j.x) || !std::isfinite(j.y) || !std::isfinite(j.z))
-                            continue;
-                        p.bones[s == 3 ? 4 : s][0] = j.x;
-                        p.bones[s == 3 ? 4 : s][1] = j.y;
-                        p.bones[s == 3 ? 4 : s][2] = j.z;
-                        any = true;
-                    }
-                    if (need_full_bones) {
-                        // Map extended slots conservatively from joint stream.
-                        static constexpr int kFullMap[] = {
-                            6,5,4,3,2,0,  // head..pelvis approx
-                            8,9,10,11,    // left arm
-                            13,14,15,16,  // right arm
-                            22,23,24,     // left leg
-                            25,26,27      // right leg
-                        };
-                        for (size_t b = 0; b < kBoneSlotCount && b < sizeof(kFullMap)/sizeof(kFullMap[0]); ++b) {
-                            const auto& j = joints[bi][kFullMap[b]];
-                            if (!std::isfinite(j.x)) continue;
-                            p.bones[b][0] = j.x; p.bones[b][1] = j.y; p.bones[b][2] = j.z;
-                        }
-                        p.full_bones_ok = true;
-                    }
-                    if (any) {
-                        p.bones_ok = true;
-                        p.head[0] = p.bones[0][0];
-                        p.head[1] = p.bones[0][1];
-                        p.head[2] = p.bones[0][2];
-                        p.bones_sample_ms = sampleMs;
-                        p.bone_pose_sample_ms = sampleMs;
-                        p.bone_origin_sample_ms = sampleMs;
-                        p.bone_base = boneBases[bi];
-                        ++g_phase.bones_players;
-                    }
-                }
-            } // approx per micro-batch
-        }
-    }
-
-    // ── Names (low rate) ───────────────────────────────────────────────
-    if (need_names && !!budget.Remaining() && pressure < 2) {
-        mem.SetDmaPriority(Memory::DmaPri::WeaponNameTeam);
-        for (size_t i = 0; i < targets.size() && !!budget.Remaining(); ++i) {
-            if (!IsUserPointer(targets[i].controller)) continue;
-            const size_t ri = targets[i].runtime_index;
-            if (ri >= runtime.players.size() || runtime.players[ri].pawn != targets[i].pawn)
-                continue;
-            if (runtime.players[ri].name[0]) continue; // keep existing
-            GiveCameraPriorityBeforeOptionalDma();
-            char name[64]{};
-            if (QRead(targets[i].controller + offsets.m_iszPlayerName, name, sizeof(name) - 1, "CS2.Opt.Name")
-                && name[0]) {
-                std::snprintf(runtime.players[ri].name, sizeof(runtime.players[ri].name), "%s", name);
-            }
-        }
-    }
-
-    // ── Weapons (pressure 0 only) ──────────────────────────────────────
-    if (need_weapons && allow_weapon && !!budget.Remaining()) {
-        mem.SetDmaPriority(Memory::DmaPri::WeaponNameTeam);
-        ScopedPhase _phWeapon(&g_phase.weapon_ms);
-        for (size_t i = 0; i < targets.size() && !!budget.Remaining(); ++i) {
-            const size_t ri = targets[i].runtime_index;
-            if (ri >= runtime.players.size() || runtime.players[ri].pawn != targets[i].pawn)
-                continue;
-            GiveCameraPriorityBeforeOptionalDma();
-            uintptr_t services = 0;
-            if (!QReadT(targets[i].pawn + offsets.m_pWeaponServices, services, "CS2.Opt.WepSvc") ||
-                !IsUserPointer(services))
-                continue;
-            uint32_t handle = 0;
-            if (!QReadT(services + offsets.m_hActiveWeapon, handle, "CS2.Opt.WepH") || !handle)
-                continue;
-            uintptr_t weapon = ResolveEntityByHandle(handle, g_pawn_stride ? g_pawn_stride : 0x70);
-            if (!IsUserPointer(weapon)) continue;
-            uint16_t def = 0;
-            if (offsets.m_AttributeManager && offsets.m_Item && offsets.m_iItemDefinitionIndex) {
-                uintptr_t attr = weapon + offsets.m_AttributeManager;
-                QReadT(attr + offsets.m_Item + offsets.m_iItemDefinitionIndex, def, "CS2.Opt.Def");
-            }
-            if (def > 0 && def < 6000) {
-                runtime.players[ri].weapon_def = def;
-                const char* nm = CS2_Weapons::NameFromDefIndex(static_cast<int>(def));
-                if (nm)
-                    std::snprintf(runtime.players[ri].weapon, sizeof(runtime.players[ri].weapon), "%s", nm);
-            }
-            if (frame_config.weapon_ammo && offsets.m_iClip1) {
-                int clip = -1;
-                if (QReadT(weapon + offsets.m_iClip1, clip, "CS2.Opt.Clip") && clip >= 0 && clip < 500)
-                    runtime.players[ri].ammo_clip = clip;
-            }
-        }
-    }
-
-    // ── Dropped weapons (own budget slice) ─────────────────────────────
-    if (frame_config.dropped_weapons && !!budget.Remaining() && pressure < 1) {
-        mem.SetDmaPriority(Memory::DmaPri::OtherMetadata);
-        GiveCameraPriorityBeforeOptionalDma();
-        CollectDroppedWeapons(frame_config);
-    }
-
-    if (jobGen != g_session_generation.load(std::memory_order_acquire))
-        return;
-    if (g_publish_runtime_this_scan)
-        PublishRuntimeSnapshot();
-}
-
-static void OptionalWorkerLoop() {
-    while (!g_optional_stop.load(std::memory_order_acquire)) {
-        Config jobConfig{};
-        {
-            std::unique_lock lock(g_optional_mu);
-            g_optional_cv.wait_for(lock, std::chrono::milliseconds(50), [] {
-                return g_optional_pending.load(std::memory_order_acquire) ||
-                    g_optional_stop.load(std::memory_order_acquire);
-            });
-            if (g_optional_stop.load(std::memory_order_acquire))
-                break;
-            if (!g_optional_pending.load(std::memory_order_acquire))
-                continue;
-            jobConfig = g_optional_config;
-            g_optional_pending.store(false, std::memory_order_release);
-        }
-        g_optional_busy.store(true, std::memory_order_release);
-        try {
-            mem.SetDmaLane("optional");
-            mem.SetDmaPriority(Memory::DmaPri::Bones);
-            mem.SetDmaCallTag("CS2.Optional");
-            RunOptionalEnrichment(jobConfig);
-        } catch (...) {
-            // Never kill the worker on a single bad scan.
-        }
-        g_optional_busy.store(false, std::memory_order_release);
-        mem.SetDmaLane("full");
-                mem.SetDmaPriority(Memory::DmaPri::Position);
-    }
-}
-
-static void QueueOptionalEnrichment(const Config& frame_config) {
-    if (g_optional_stop.load(std::memory_order_acquire))
-        return;
-    // If previous optional still runs, skip this cycle — core already published
-    // and presentation has positions/health. Avoid stacking optional DMA.
-    if (g_optional_busy.load(std::memory_order_acquire) ||
-        g_optional_pending.load(std::memory_order_acquire))
-        return;
-    {
-        std::lock_guard lock(g_optional_mu);
-        g_optional_config = frame_config;
-        g_optional_job_generation.store(
-            g_session_generation.load(std::memory_order_relaxed), std::memory_order_relaxed);
-        g_optional_pending.store(true, std::memory_order_release);
-    }
-    g_optional_cv.notify_one();
-}
 
 void PublishRuntimeSnapshot() {
     const uint64_t now = GetTickCount64();
@@ -2875,6 +2545,331 @@ void UpdateBombStateThrottled() {
     next_update_ms = now + (runtime.bomb.planted ? 50u : 250u);
     UpdateBombState();
 }
+
+void GiveCameraPriorityBeforeOptionalDma() {
+    const uint64_t deadline = g_camera_deadline_ms.load(std::memory_order_acquire);
+    const bool pending = g_camera_pending.load(std::memory_order_acquire);
+    const uint64_t now = GetTickCount64();
+    // Far from the deadline and no pending camera read → proceed immediately.
+    if (!pending && (deadline == 0 || now + 2u < deadline))
+        return;
+
+    // Cooperative yield until the camera lane clears or a hard wall-clock
+    // budget elapses. Between optional micro-batches the caller invokes this
+    // again so a long scatter never monopolises the transport without giving
+    // the camera thread a chance to run once the dmaReadMutex is released.
+    constexpr int kMaxYieldSpins = 96;
+    const auto t0 = std::chrono::steady_clock::now();
+    constexpr auto kMaxWait = std::chrono::microseconds(1500);
+    for (int spin = 0; spin < kMaxYieldSpins; ++spin) {
+        if (!g_camera_pending.load(std::memory_order_acquire)) {
+            const uint64_t d = g_camera_deadline_ms.load(std::memory_order_acquire);
+            const uint64_t n = GetTickCount64();
+            if (d == 0 || n + 1u < d)
+                return;
+        }
+        if (std::chrono::steady_clock::now() - t0 >= kMaxWait)
+            return;
+        std::this_thread::yield();
+    }
+}
+
+// True when optional DMA should pause before starting another micro-batch
+// because the camera deadline is imminent or a camera read is in flight.
+static bool OptionalDmaShouldYieldToCamera() noexcept {
+    if (g_camera_pending.load(std::memory_order_acquire))
+        return true;
+    const uint64_t deadline = g_camera_deadline_ms.load(std::memory_order_acquire);
+    if (deadline == 0)
+        return false;
+    const uint64_t now = GetTickCount64();
+    return now + 3u >= deadline;
+}
+
+// ── Optional enrichment worker ───────────────────────────────────────────
+// Core acquisition publishes position/health/velocity/liveness then returns.
+// This worker refreshes bones, names, weapons, flags and dropped items using
+// the already-published player list so the next core scan is never blocked.
+static void RunOptionalEnrichment(const Config& frame_config) {
+    if (!runtime.in_match || runtime.players.empty())
+        return;
+    const uint64_t jobGen = g_session_generation.load(std::memory_order_acquire);
+    const int pressure = g_pressure_level.load(std::memory_order_relaxed);
+    if (pressure >= 3)
+        return; // recovery: keep last optional data, core already published
+
+    OmniGhost::Gameplay::OptionalPhaseBudget budget;
+    {
+        float budgetMs = frame_config.performance_mode ? 4.f : 6.f;
+        if (pressure == 2) budgetMs = 3.5f;
+        else if (pressure == 1) budgetMs = 4.5f;
+        budget.Reset(budgetMs);
+    }
+
+    g_scatter_optional.Ensure();
+    if (!g_scatter_optional)
+        return;
+
+    const uint64_t nowMs = GetTickCount64();
+    OmniGhost::Gameplay::EspCore::FeatureSet requested{};
+    requested.box = frame_config.esp_enabled && frame_config.box;
+    requested.skeleton = frame_config.esp_enabled && frame_config.skeleton;
+    requested.head = frame_config.esp_enabled && (frame_config.head_dot || frame_config.head_halo);
+    requested.visibility = frame_config.esp_enabled && frame_config.visibility_colors;
+    requested.weapon = frame_config.esp_enabled && (frame_config.weapon_name || frame_config.weapon_ammo);
+    requested.name = frame_config.esp_enabled && frame_config.name;
+    requested.aim = frame_config.aim_enabled || frame_config.trigger_enabled;
+    const auto fields = requested.RequiredFields();
+    const bool need_bones = requested.visibility || OmniGhost::Gameplay::EspCore::Has(
+        fields, OmniGhost::Gameplay::EspCore::DataField::Skeleton);
+    const bool need_full_bones = requested.skeleton ||
+        (frame_config.trigger_enabled && !frame_config.trigger_head_only);
+    const bool need_names = requested.name || frame_config.radar_2d;
+    const bool need_weapons = requested.weapon;
+    const bool allow_weapon = pressure == 0 && !HeavyDmaCooldownActive();
+
+    // Snapshot player pointers we will enrich. Core may publish a new list
+    // concurrently; we only write fields for pawns still present at merge time.
+    struct Target {
+        uintptr_t pawn = 0;
+        uintptr_t controller = 0;
+        uintptr_t scene = 0;
+        float pos[3]{};
+        size_t runtime_index = 0;
+    };
+    std::vector<Target> targets;
+    targets.reserve(runtime.players.size());
+    for (size_t i = 0; i < runtime.players.size(); ++i) {
+        const auto& p = runtime.players[i];
+        if (!IsUserPointer(p.pawn) || !p.alive) continue;
+        Target t;
+        t.pawn = p.pawn;
+        t.controller = p.controller;
+        t.scene = p.scene;
+        t.pos[0] = p.pos[0]; t.pos[1] = p.pos[1]; t.pos[2] = p.pos[2];
+        t.runtime_index = i;
+        targets.push_back(t);
+    }
+    if (targets.empty())
+        return;
+
+    // ── Bones micro-batches ────────────────────────────────────────────
+    if (need_bones && !!budget.Remaining() && pressure < 2) {
+        mem.SetDmaPriority(Memory::DmaPri::Bones);
+        ScopedPhase _phBones(&g_phase.bones_ms);
+        constexpr int kBatch = 8;
+        constexpr int kJointCount = 28;
+        struct BoneJointSnapshot { float x, y, z, scale; char pad[0x10]; };
+        static_assert(sizeof(BoneJointSnapshot) == 32, "BoneJointSnapshot");
+
+        for (size_t base = 0; base < targets.size() && !!budget.Remaining(); base += kBatch) {
+            if (g_optional_stop.load(std::memory_order_acquire)) return;
+            if (jobGen != g_session_generation.load(std::memory_order_acquire)) return;
+            if (OptionalDmaShouldYieldToCamera()) {
+                GiveCameraPriorityBeforeOptionalDma();
+                if (OptionalDmaShouldYieldToCamera())
+                    break; // defer remaining bone batches to next optional job
+            }
+            GiveCameraPriorityBeforeOptionalDma();
+            const size_t end = (std::min)(targets.size(), base + static_cast<size_t>(kBatch));
+            uintptr_t boneBases[kBatch]{};
+            BoneJointSnapshot joints[kBatch][kJointCount]{};
+            bool eligible[kBatch]{};
+            int queued = 0;
+            for (size_t i = base; i < end; ++i) {
+                const size_t bi = i - base;
+                uintptr_t scene = targets[i].scene;
+                if (!IsUserPointer(scene)) {
+                    // Try live scene pointer from pawn.
+                    QReadT(targets[i].pawn + offsets.m_pGameSceneNode, scene, "CS2.Opt.Scene");
+                    targets[i].scene = IsUserPointer(scene) ? scene : 0;
+                }
+                if (!IsUserPointer(targets[i].scene)) continue;
+                uintptr_t boneBase = 0;
+                if (!QReadT(targets[i].scene + offsets.BoneArray, boneBase, "CS2.Opt.BoneBase") ||
+                    !IsUserPointer(boneBase))
+                    continue;
+                boneBases[bi] = boneBase;
+                eligible[bi] = true;
+                mem.AddScatterReadRequest(g_scatter_optional, boneBase,
+                    joints[bi], sizeof(BoneJointSnapshot) * (need_full_bones ? kJointCount : 8));
+                ++queued;
+            }
+            if (queued > 0) {
+                GiveCameraPriorityBeforeOptionalDma();
+                mem.SetDmaCallTag("CS2.Optional.Bones");
+                mem.ExecuteReadScatter(g_scatter_optional);
+                const uint64_t sampleMs = GetTickCount64();
+                for (size_t i = base; i < end; ++i) {
+                    const size_t bi = i - base;
+                    if (!eligible[bi]) continue;
+                    const size_t ri = targets[i].runtime_index;
+                    if (ri >= runtime.players.size() || runtime.players[ri].pawn != targets[i].pawn)
+                        continue;
+                    auto& p = runtime.players[ri];
+                    // Compact upper-body mapping (head/neck/chest/stomach indices
+                    // depend on layout; use sticky when known).
+                    const int layout = 1; // prefer current layout indices
+                    static constexpr int kIdx[4] = {6, 5, 4, 2}; // head neck chest stomach common
+                    bool any = false;
+                    for (int s = 0; s < 4; ++s) {
+                        const auto& j = joints[bi][kIdx[s]];
+                        if (!std::isfinite(j.x) || !std::isfinite(j.y) || !std::isfinite(j.z))
+                            continue;
+                        p.bones[s == 3 ? 4 : s][0] = j.x;
+                        p.bones[s == 3 ? 4 : s][1] = j.y;
+                        p.bones[s == 3 ? 4 : s][2] = j.z;
+                        any = true;
+                    }
+                    if (need_full_bones) {
+                        // Map extended slots conservatively from joint stream.
+                        static constexpr int kFullMap[] = {
+                            6,5,4,3,2,0,  // head..pelvis approx
+                            8,9,10,11,    // left arm
+                            13,14,15,16,  // right arm
+                            22,23,24,     // left leg
+                            25,26,27      // right leg
+                        };
+                        for (size_t b = 0; b < kBoneSlotCount && b < sizeof(kFullMap)/sizeof(kFullMap[0]); ++b) {
+                            const auto& j = joints[bi][kFullMap[b]];
+                            if (!std::isfinite(j.x)) continue;
+                            p.bones[b][0] = j.x; p.bones[b][1] = j.y; p.bones[b][2] = j.z;
+                        }
+                        p.full_bones_ok = true;
+                    }
+                    if (any) {
+                        p.bones_ok = true;
+                        p.head[0] = p.bones[0][0];
+                        p.head[1] = p.bones[0][1];
+                        p.head[2] = p.bones[0][2];
+                        p.bones_sample_ms = sampleMs;
+                        p.bone_pose_sample_ms = sampleMs;
+                        p.bone_origin_sample_ms = sampleMs;
+                        p.bone_base = boneBases[bi];
+                        ++g_phase.bones_players;
+                    }
+                }
+            } // approx per micro-batch
+        }
+    }
+
+    // ── Names (low rate) ───────────────────────────────────────────────
+    if (need_names && !!budget.Remaining() && pressure < 2) {
+        mem.SetDmaPriority(Memory::DmaPri::WeaponNameTeam);
+        for (size_t i = 0; i < targets.size() && !!budget.Remaining(); ++i) {
+            if (!IsUserPointer(targets[i].controller)) continue;
+            const size_t ri = targets[i].runtime_index;
+            if (ri >= runtime.players.size() || runtime.players[ri].pawn != targets[i].pawn)
+                continue;
+            if (runtime.players[ri].name[0]) continue; // keep existing
+            GiveCameraPriorityBeforeOptionalDma();
+            char name[64]{};
+            if (QRead(targets[i].controller + offsets.m_iszPlayerName, name, sizeof(name) - 1, "CS2.Opt.Name")
+                && name[0]) {
+                std::snprintf(runtime.players[ri].name, sizeof(runtime.players[ri].name), "%s", name);
+            }
+        }
+    }
+
+    // ── Weapons (pressure 0 only) ──────────────────────────────────────
+    if (need_weapons && allow_weapon && !!budget.Remaining()) {
+        mem.SetDmaPriority(Memory::DmaPri::WeaponNameTeam);
+        ScopedPhase _phWeapon(&g_phase.weapon_ms);
+        for (size_t i = 0; i < targets.size() && !!budget.Remaining(); ++i) {
+            const size_t ri = targets[i].runtime_index;
+            if (ri >= runtime.players.size() || runtime.players[ri].pawn != targets[i].pawn)
+                continue;
+            GiveCameraPriorityBeforeOptionalDma();
+            uintptr_t services = 0;
+            if (!QReadT(targets[i].pawn + offsets.m_pWeaponServices, services, "CS2.Opt.WepSvc") ||
+                !IsUserPointer(services))
+                continue;
+            uint32_t handle = 0;
+            if (!QReadT(services + offsets.m_hActiveWeapon, handle, "CS2.Opt.WepH") || !handle)
+                continue;
+            uintptr_t weapon = ResolveEntityByHandle(handle, g_pawn_stride ? g_pawn_stride : 0x70);
+            if (!IsUserPointer(weapon)) continue;
+            uint16_t def = 0;
+            if (offsets.m_AttributeManager && offsets.m_Item && offsets.m_iItemDefinitionIndex) {
+                uintptr_t attr = weapon + offsets.m_AttributeManager;
+                QReadT(attr + offsets.m_Item + offsets.m_iItemDefinitionIndex, def, "CS2.Opt.Def");
+            }
+            if (def > 0 && def < 6000) {
+                runtime.players[ri].weapon_def = def;
+                const char* nm = CS2_Weapons::NameFromDefIndex(static_cast<int>(def));
+                if (nm)
+                    std::snprintf(runtime.players[ri].weapon, sizeof(runtime.players[ri].weapon), "%s", nm);
+            }
+            if (frame_config.weapon_ammo && offsets.m_iClip1) {
+                int clip = -1;
+                if (QReadT(weapon + offsets.m_iClip1, clip, "CS2.Opt.Clip") && clip >= 0 && clip < 500)
+                    runtime.players[ri].ammo_clip = clip;
+            }
+        }
+    }
+
+    // ── Dropped weapons (own budget slice) ─────────────────────────────
+    if (frame_config.dropped_weapons && !!budget.Remaining() && pressure < 1) {
+        mem.SetDmaPriority(Memory::DmaPri::OtherMetadata);
+        GiveCameraPriorityBeforeOptionalDma();
+        CollectDroppedWeapons(frame_config);
+    }
+
+    if (jobGen != g_session_generation.load(std::memory_order_acquire))
+        return;
+    if (g_publish_runtime_this_scan)
+        PublishRuntimeSnapshot();
+}
+
+static void OptionalWorkerLoop() {
+    while (!g_optional_stop.load(std::memory_order_acquire)) {
+        Config jobConfig{};
+        {
+            std::unique_lock lock(g_optional_mu);
+            g_optional_cv.wait_for(lock, std::chrono::milliseconds(50), [] {
+                return g_optional_pending.load(std::memory_order_acquire) ||
+                    g_optional_stop.load(std::memory_order_acquire);
+            });
+            if (g_optional_stop.load(std::memory_order_acquire))
+                break;
+            if (!g_optional_pending.load(std::memory_order_acquire))
+                continue;
+            jobConfig = g_optional_config;
+            g_optional_pending.store(false, std::memory_order_release);
+        }
+        g_optional_busy.store(true, std::memory_order_release);
+        try {
+            mem.SetDmaLane("optional");
+            mem.SetDmaPriority(Memory::DmaPri::Bones);
+            mem.SetDmaCallTag("CS2.Optional");
+            RunOptionalEnrichment(jobConfig);
+        } catch (...) {
+            // Never kill the worker on a single bad scan.
+        }
+        g_optional_busy.store(false, std::memory_order_release);
+        mem.SetDmaLane("full");
+                mem.SetDmaPriority(Memory::DmaPri::Position);
+    }
+}
+
+static void QueueOptionalEnrichment(const Config& frame_config) {
+    if (g_optional_stop.load(std::memory_order_acquire))
+        return;
+    // If previous optional still runs, skip this cycle — core already published
+    // and presentation has positions/health. Avoid stacking optional DMA.
+    if (g_optional_busy.load(std::memory_order_acquire) ||
+        g_optional_pending.load(std::memory_order_acquire))
+        return;
+    {
+        std::lock_guard lock(g_optional_mu);
+        g_optional_config = frame_config;
+        g_optional_job_generation.store(
+            g_session_generation.load(std::memory_order_relaxed), std::memory_order_relaxed);
+        g_optional_pending.store(true, std::memory_order_release);
+    }
+    g_optional_cv.notify_one();
+}
+
 
 // Death-mode is deliberately a separate, low-frequency path.  It never reads
 // player transforms, bones, weapons or aim data; it only follows observer
@@ -6470,4 +6465,5 @@ bool ValidateLiveOffsets() {
     return SoftProbeLobbyOffsets();
 }
 
+} // (balance fix)
 } // namespace CS2

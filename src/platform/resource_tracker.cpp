@@ -8,7 +8,7 @@
 
 namespace OmniGhost::Platform {
 
-ResourceTracker::Snapshot ResourceTracker::TakeSnapshot() noexcept {
+ResourceTracker::Snapshot ResourceTracker::TakeSnapshot() const noexcept {
     Snapshot snap;
     snap.timestamp = std::chrono::steady_clock::now();
 

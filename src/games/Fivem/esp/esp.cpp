@@ -580,7 +580,7 @@ void esp::render_batch_skeletons(const std::vector<BatchSkeletonData>& skeleton_
 
         // Draw head indicator
         if (on_screen[0]) {
-            float distance = local_pos.distance_to(world_positions[0]);
+            float distance = FiveM::ESP::GetFrameLocalPos().distance_to(world_positions[0]);
             float distance_factor = 50.0f / distance;
             if (distance_factor < 0.2f) distance_factor = 0.2f;
             if (distance_factor > 2.0f) distance_factor = 2.0f;
