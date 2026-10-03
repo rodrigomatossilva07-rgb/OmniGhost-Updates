@@ -512,7 +512,10 @@ static void ObserveProcessResources(Sample& s) noexcept {
             std::memory_order_relaxed);
         const auto memSnap = mem.GetDiagnosticsSnapshot();
         s.scatter_handles_live.store(memSnap.scatterHandlesLive, std::memory_order_relaxed);
-    } catch (...) {}
+    } catch (...) {
+        // ResourceTracker may throw if the process is gone; silently ignore —
+        // telemetry is best-effort and the next tick will retry.
+    }
 }
 
 void Tick(std::string_view tag) {
