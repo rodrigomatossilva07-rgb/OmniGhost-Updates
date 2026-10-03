@@ -401,7 +401,10 @@ namespace FiveM {
                         vehicle_esp::Collect(job.vehicleConfig, job.peds,
                             job.localPos, vehicleCamera);
                     }
+                } catch (const std::exception& ex) {
+                    std::cerr << "[FiveM] Optional ESP job failed: " << ex.what() << '\n';
                 } catch (...) {
+                    std::cerr << "[FiveM] Optional ESP job failed: unknown exception\n";
                 }
                 mem.SetDmaLane("fivem");
                 mem.SetDmaPriority(Memory::DmaPri::Position);

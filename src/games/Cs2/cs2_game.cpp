@@ -1382,7 +1382,11 @@ void ResetSessionState(const char* reason) {
             // Non-blocking poll first; if still running, wait briefly then abandon.
             if (g_collision_load.wait_for(std::chrono::milliseconds(50)) == std::future_status::ready)
                 g_collision_load.get();
-        } catch (...) {}
+        } catch (const std::exception& ex) {
+            std::cerr << "[CS2] Collision load failed during session reset: " << ex.what() << '\n';
+        } catch (...) {
+            std::cerr << "[CS2] Collision load failed during session reset: unknown exception\n";
+        }
     }
     g_collision_attempt_map.clear();
     g_collision_retry_at.store(0, std::memory_order_relaxed);
@@ -6577,7 +6581,13 @@ void Shutdown() {
     // Explicit shutdown boundary: never leave an async future to block during
     // static destruction after the owning game session has gone away.
     if (g_collision_load.valid()) {
-        try { g_collision_load.get(); } catch (...) {}
+        try {
+            g_collision_load.get();
+        } catch (const std::exception& ex) {
+            std::cerr << "[CS2] Collision load failed during shutdown: " << ex.what() << '\n';
+        } catch (...) {
+            std::cerr << "[CS2] Collision load failed during shutdown: unknown exception\n";
+        }
     }
     g_pending_entity_list = 0;
     g_entity_list_confirmations = 0;

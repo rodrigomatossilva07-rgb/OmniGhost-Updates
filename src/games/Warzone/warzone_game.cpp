@@ -195,7 +195,13 @@ void AcquisitionLoop() {
             continue;
         }
         const auto t0 = std::chrono::steady_clock::now();
-        try { AcquisitionTick(); } catch (...) {}
+        try {
+            AcquisitionTick();
+        } catch (const std::exception& ex) {
+            std::cerr << "[Warzone] Acquisition failed: " << ex.what() << '\n';
+        } catch (...) {
+            std::cerr << "[Warzone] Acquisition failed: unknown exception\n";
+        }
         const float ms = std::chrono::duration<float, std::milli>(
             std::chrono::steady_clock::now() - t0).count();
         OmniGhost::Gameplay::DmaTelemetry::ObserveAcquire(
