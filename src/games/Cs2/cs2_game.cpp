@@ -1797,7 +1797,7 @@ static void CollectDroppedWeapons(const Config& frame_config) {
     mem.SetDmaCallTag("CS2.DroppedWeapons.Pages");
     for (size_t page = 0; page < kPages; ++page)
         mem.AddScatterReadRequest(g_scatter_full, root + kEntityPageTableOffset + sizeof(uintptr_t) * (first_page + page), &pages[page], sizeof(uintptr_t));
-    GiveCameraPriorityBeforeOptionalDma();
+    CS2::GiveCameraPriorityBeforeOptionalDma();
     mem.ExecuteReadScatter(g_scatter_full);
     mem.SetDmaCallTag("CS2.DroppedWeapons.Entities");
     bool queuedEntities = false;
@@ -1806,14 +1806,14 @@ static void CollectDroppedWeapons(const Config& frame_config) {
             { mem.AddScatterReadRequest(g_scatter_full, pages[page] + kEntityIdentityStride * slot,
                 &entities[page * kSlotsPerPage + slot], sizeof(uintptr_t)); queuedEntities = true; }
     if (!queuedEntities) { publishCachedWeapons(); return; }
-    GiveCameraPriorityBeforeOptionalDma();
+    CS2::GiveCameraPriorityBeforeOptionalDma();
     mem.ExecuteReadScatter(g_scatter_full);
     mem.SetDmaCallTag("CS2.DroppedWeapons.Identity");
     bool queuedIdentity = false;
     for (size_t i = 0; i < kSlots; ++i) if (IsUserPointer(entities[i]))
         { mem.AddScatterReadRequest(g_scatter_full, entities[i] + 0x10, &identities[i], sizeof(uintptr_t)); queuedIdentity = true; }
     if (!queuedIdentity) { publishCachedWeapons(); return; }
-    GiveCameraPriorityBeforeOptionalDma();
+    CS2::GiveCameraPriorityBeforeOptionalDma();
     mem.ExecuteReadScatter(g_scatter_full);
     mem.SetDmaCallTag("CS2.DroppedWeapons.Names");
     bool queuedNames = false;
@@ -1827,7 +1827,7 @@ static void CollectDroppedWeapons(const Config& frame_config) {
             { mem.AddScatterReadRequest(g_scatter_full, identities[i] + 0x20, &name_ptrs[i], sizeof(uintptr_t)); queuedNames = true; }
     }
     if (queuedNames) {
-        GiveCameraPriorityBeforeOptionalDma();
+        CS2::GiveCameraPriorityBeforeOptionalDma();
         mem.ExecuteReadScatter(g_scatter_full);
     }
     mem.SetDmaCallTag("CS2.DroppedWeapons.NameText");
@@ -1835,7 +1835,7 @@ static void CollectDroppedWeapons(const Config& frame_config) {
     for (size_t i = 0; i < kSlots; ++i) if (IsUserPointer(name_ptrs[i]))
         { mem.AddScatterReadRequest(g_scatter_full, name_ptrs[i], names[i].data(), names[i].size() - 1); queuedNameText = true; }
     if (queuedNameText) {
-        GiveCameraPriorityBeforeOptionalDma();
+        CS2::GiveCameraPriorityBeforeOptionalDma();
         mem.ExecuteReadScatter(g_scatter_full);
     }
 
@@ -1850,14 +1850,14 @@ static void CollectDroppedWeapons(const Config& frame_config) {
             mem.AddScatterReadRequest(g_scatter_full, entities[i] + offsets.m_iClip1, &ammo[i], sizeof(int));
     }
     if (!queuedData) { publishCachedWeapons(); return; }
-    GiveCameraPriorityBeforeOptionalDma();
+    CS2::GiveCameraPriorityBeforeOptionalDma();
     mem.ExecuteReadScatter(g_scatter_full);
     mem.SetDmaCallTag("CS2.DroppedWeapons.Positions");
     bool queuedPositions = false;
     for (size_t i = 0; i < kSlots; ++i) if (IsUserPointer(scenes[i]))
         { mem.AddScatterReadRequest(g_scatter_full, scenes[i] + offsets.m_vecAbsOrigin, positions[i].data(), sizeof(float) * 3); queuedPositions = true; }
     if (!queuedPositions) { publishCachedWeapons(); return; }
-    GiveCameraPriorityBeforeOptionalDma();
+    CS2::GiveCameraPriorityBeforeOptionalDma();
     const uint64_t positionReadBeginMs = GetTickCount64();
     mem.ExecuteReadScatter(g_scatter_full);
     const uint64_t positionReadEndMs = GetTickCount64();
@@ -1978,7 +1978,7 @@ static void UpdateLocalWeaponDefinitionThrottled() {
         cached_definition = 0;
         runtime.local_weapon_definition = 0;
     }
-    GiveCameraPriorityBeforeOptionalDma();
+    CS2::GiveCameraPriorityBeforeOptionalDma();
     uintptr_t services = cached_services;
     uint32_t handle = 0;
     bool sampled = false;
@@ -2180,7 +2180,7 @@ static int ScatterResolvePawnHandles(const uint32_t* handles, uintptr_t* pawns,
         queuedChunkPointers = true;
     }
     if (queuedChunkPointers) {
-        if (optionalLane) GiveCameraPriorityBeforeOptionalDma();
+        if (optionalLane) CS2::GiveCameraPriorityBeforeOptionalDma();
         mem.SetDmaCallTag("CS2.ResolveHandles.Pages");
         mem.ExecuteReadScatter(g_scatter_full);
         for (int page = 0; page < kMaxPages; ++page)
@@ -2198,7 +2198,7 @@ static int ScatterResolvePawnHandles(const uint32_t* handles, uintptr_t* pawns,
         queuedEntityPointers = true;
     }
     if (queuedEntityPointers) {
-        if (optionalLane) GiveCameraPriorityBeforeOptionalDma();
+        if (optionalLane) CS2::GiveCameraPriorityBeforeOptionalDma();
         mem.SetDmaCallTag("CS2.ResolveHandles.Entities");
         mem.ExecuteReadScatter(g_scatter_full);
     }
@@ -2383,14 +2383,14 @@ void UpdateBombState() {
         mem.AddScatterReadRequest(g_scatter_full, candidate + offsets.m_bBombTicking,
                                   &ticking, sizeof(ticking));
         mem.AddScatterReadRequest(g_scatter_full, candidate, &list_entity, sizeof(list_entity));
-        GiveCameraPriorityBeforeOptionalDma();
+        CS2::GiveCameraPriorityBeforeOptionalDma();
         mem.ExecuteReadScatter(g_scatter_full);
         if (ticking) {
             entity = candidate;
         } else if (IsUserPointer(list_entity)) {
             mem.AddScatterReadRequest(g_scatter_full, list_entity + offsets.m_bBombTicking,
                                       &list_ticking, sizeof(list_ticking));
-            GiveCameraPriorityBeforeOptionalDma();
+            CS2::GiveCameraPriorityBeforeOptionalDma();
             mem.ExecuteReadScatter(g_scatter_full);
             ticking = list_ticking;
             entity = list_entity;
@@ -2455,20 +2455,20 @@ void UpdateBombState() {
         if (offsets.dwGlobalVars)
             mem.AddScatterReadRequest(g_scatter_full, runtime.client_base + offsets.dwGlobalVars,
                                       &globals, sizeof(globals));
-        GiveCameraPriorityBeforeOptionalDma();
+        CS2::GiveCameraPriorityBeforeOptionalDma();
         mem.ExecuteReadScatter(g_scatter_full);
 
         if (IsUserPointer(globals)) {
             for (int i = 0; i < 4; ++i)
                 mem.AddScatterReadRequest(g_scatter_full, globals + kCurOff[i],
                                           &cur_slots[i], sizeof(float));
-            GiveCameraPriorityBeforeOptionalDma();
+            CS2::GiveCameraPriorityBeforeOptionalDma();
             mem.ExecuteReadScatter(g_scatter_full);
         }
         if (IsUserPointer(scene) && offsets.m_vecAbsOrigin) {
             mem.AddScatterReadRequest(g_scatter_full, scene + offsets.m_vecAbsOrigin,
                                       next.pos, sizeof(next.pos));
-            GiveCameraPriorityBeforeOptionalDma();
+            CS2::GiveCameraPriorityBeforeOptionalDma();
             mem.ExecuteReadScatter(g_scatter_full);
         }
     } else {
@@ -2610,7 +2610,6 @@ static void RunOptionalEnrichment(const Config& frame_config) {
     if (!g_scatter_optional)
         return;
 
-    const uint64_t nowMs = GetTickCount64();
     OmniGhost::Gameplay::EspCore::FeatureSet requested{};
     requested.box = frame_config.esp_enabled && frame_config.box;
     requested.skeleton = frame_config.esp_enabled && frame_config.skeleton;
@@ -2666,11 +2665,11 @@ static void RunOptionalEnrichment(const Config& frame_config) {
             if (g_optional_stop.load(std::memory_order_acquire)) return;
             if (jobGen != g_session_generation.load(std::memory_order_acquire)) return;
             if (OptionalDmaShouldYieldToCamera()) {
-                GiveCameraPriorityBeforeOptionalDma();
+                CS2::GiveCameraPriorityBeforeOptionalDma();
                 if (OptionalDmaShouldYieldToCamera())
                     break; // defer remaining bone batches to next optional job
             }
-            GiveCameraPriorityBeforeOptionalDma();
+            CS2::GiveCameraPriorityBeforeOptionalDma();
             const size_t end = (std::min)(targets.size(), base + static_cast<size_t>(kBatch));
             uintptr_t boneBases[kBatch]{};
             BoneJointSnapshot joints[kBatch][kJointCount]{};
@@ -2696,7 +2695,7 @@ static void RunOptionalEnrichment(const Config& frame_config) {
                 ++queued;
             }
             if (queued > 0) {
-                GiveCameraPriorityBeforeOptionalDma();
+                CS2::GiveCameraPriorityBeforeOptionalDma();
                 mem.SetDmaCallTag("CS2.Optional.Bones");
                 mem.ExecuteReadScatter(g_scatter_optional);
                 const uint64_t sampleMs = GetTickCount64();
@@ -2709,7 +2708,6 @@ static void RunOptionalEnrichment(const Config& frame_config) {
                     auto& p = runtime.players[ri];
                     // Compact upper-body mapping (head/neck/chest/stomach indices
                     // depend on layout; use sticky when known).
-                    const int layout = 1; // prefer current layout indices
                     static constexpr int kIdx[4] = {6, 5, 4, 2}; // head neck chest stomach common
                     bool any = false;
                     for (int s = 0; s < 4; ++s) {
@@ -2762,7 +2760,7 @@ static void RunOptionalEnrichment(const Config& frame_config) {
             if (ri >= runtime.players.size() || runtime.players[ri].pawn != targets[i].pawn)
                 continue;
             if (runtime.players[ri].name[0]) continue; // keep existing
-            GiveCameraPriorityBeforeOptionalDma();
+            CS2::GiveCameraPriorityBeforeOptionalDma();
             char name[64]{};
             if (QRead(targets[i].controller + offsets.m_iszPlayerName, name, sizeof(name) - 1, "CS2.Opt.Name")
                 && name[0]) {
@@ -2779,7 +2777,7 @@ static void RunOptionalEnrichment(const Config& frame_config) {
             const size_t ri = targets[i].runtime_index;
             if (ri >= runtime.players.size() || runtime.players[ri].pawn != targets[i].pawn)
                 continue;
-            GiveCameraPriorityBeforeOptionalDma();
+            CS2::GiveCameraPriorityBeforeOptionalDma();
             uintptr_t services = 0;
             if (!QReadT(targets[i].pawn + offsets.m_pWeaponServices, services, "CS2.Opt.WepSvc") ||
                 !IsUserPointer(services))
@@ -2811,7 +2809,7 @@ static void RunOptionalEnrichment(const Config& frame_config) {
     // ── Dropped weapons (own budget slice) ─────────────────────────────
     if (frame_config.dropped_weapons && !!budget.Remaining() && pressure < 1) {
         mem.SetDmaPriority(Memory::DmaPri::OtherMetadata);
-        GiveCameraPriorityBeforeOptionalDma();
+        CS2::GiveCameraPriorityBeforeOptionalDma();
         CollectDroppedWeapons(frame_config);
     }
 
@@ -2913,7 +2911,7 @@ static void UpdateSpectators(const Config& frame_config,
         return; // no cached target for this pawn; shed optional DMA entirely
     // The target and list are one optional 500 ms lane; do not read the
     // observer pointer chain on every 18 ms core scan while dead.
-    GiveCameraPriorityBeforeOptionalDma();
+    CS2::GiveCameraPriorityBeforeOptionalDma();
     ScopedPhase _phSpectators(&g_phase.spectator_ms);
     g_phase.spectator_refresh = 1;
     if (localDead) {
@@ -2948,7 +2946,7 @@ static void UpdateSpectators(const Config& frame_config,
         queuedObservers = true;
     }
     if (queuedObservers) {
-        GiveCameraPriorityBeforeOptionalDma();
+        CS2::GiveCameraPriorityBeforeOptionalDma();
         mem.SetDmaCallTag("CS2.Spectators.Handles");
         mem.ExecuteReadScatter(g_scatter_full);
     }
@@ -2967,7 +2965,7 @@ static void UpdateSpectators(const Config& frame_config,
         queuedServices = true;
     }
     if (queuedServices) {
-        GiveCameraPriorityBeforeOptionalDma();
+        CS2::GiveCameraPriorityBeforeOptionalDma();
         mem.SetDmaCallTag("CS2.Spectators.Services");
         mem.ExecuteReadScatter(g_scatter_full);
     }
@@ -2981,7 +2979,7 @@ static void UpdateSpectators(const Config& frame_config,
         queuedTargets = true;
     }
     if (queuedTargets) {
-        GiveCameraPriorityBeforeOptionalDma();
+        CS2::GiveCameraPriorityBeforeOptionalDma();
         mem.SetDmaCallTag("CS2.Spectators.Targets");
         mem.ExecuteReadScatter(g_scatter_full);
     }
@@ -3009,7 +3007,7 @@ static void UpdateSpectators(const Config& frame_config,
         queuedIdentity = true;
     }
     if (queuedIdentity) {
-        GiveCameraPriorityBeforeOptionalDma();
+        CS2::GiveCameraPriorityBeforeOptionalDma();
         mem.SetDmaCallTag("CS2.Spectators.Identity");
         mem.ExecuteReadScatter(g_scatter_full);
     }
@@ -4536,7 +4534,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
             }
         }
         if (queuedCoreMetadata) {
-            GiveCameraPriorityBeforeOptionalDma();
+            CS2::GiveCameraPriorityBeforeOptionalDma();
             mem.SetDmaCallTag("CS2.Metadata");
             mem.ExecuteReadScatter(g_scatter_full);
         }
@@ -4572,7 +4570,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
             }
         }
         if (queuedSanitizedPointers) {
-            GiveCameraPriorityBeforeOptionalDma();
+            CS2::GiveCameraPriorityBeforeOptionalDma();
             mem.SetDmaCallTag("CS2.NameFallbackPointers");
             mem.ExecuteReadScatter(g_scatter_full);
         }
@@ -4584,7 +4582,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
             queuedSanitizedText = true;
         }
         if (queuedSanitizedText) {
-            GiveCameraPriorityBeforeOptionalDma();
+            CS2::GiveCameraPriorityBeforeOptionalDma();
             mem.SetDmaCallTag("CS2.NameFallbackText");
             mem.ExecuteReadScatter(g_scatter_full);
         }
@@ -4701,7 +4699,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
             const int microBatch = healthyBoneLane ? 2 : 1;
             for (int first = 0; first < take; first += microBatch) {
                 const int count = (std::min)(microBatch, take - first);
-                GiveCameraPriorityBeforeOptionalDma();
+                CS2::GiveCameraPriorityBeforeOptionalDma();
                 for (int j = 0; j < count; ++j) {
                     const int c = cand[first + j].c;
                     boneReadEligible[c] = true;
@@ -4755,7 +4753,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 }
             }
             if (queuedServices) {
-                GiveCameraPriorityBeforeOptionalDma();
+                CS2::GiveCameraPriorityBeforeOptionalDma();
                 mem.SetDmaCallTag("CS2.WeaponServices");
                 mem.ExecuteReadScatter(g_scatter_full);
             }
@@ -4790,7 +4788,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 queuedHandles = true;
             }
             if (queuedHandles) {
-                GiveCameraPriorityBeforeOptionalDma();
+                CS2::GiveCameraPriorityBeforeOptionalDma();
                 mem.SetDmaCallTag("CS2.WeaponHandles");
                 mem.ExecuteReadScatter(g_scatter_full);
             }
@@ -4813,7 +4811,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
                     ammoReserve[c] = -1;
                 }
             }
-            GiveCameraPriorityBeforeOptionalDma();
+            CS2::GiveCameraPriorityBeforeOptionalDma();
             ScatterResolvePawnHandles(weaponHandlesToResolve, resolvedWeapons, candidate_count,
                 g_pawn_stride ? g_pawn_stride : kEntityIdentityStride);
             for (int c = 0; c < candidate_count; ++c)
@@ -4839,7 +4837,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 queuedDefinitions = true;
             }
             if (queuedDefinitions) {
-                GiveCameraPriorityBeforeOptionalDma();
+                CS2::GiveCameraPriorityBeforeOptionalDma();
                 mem.SetDmaCallTag("CS2.WeaponDefinitions");
                 mem.ExecuteReadScatter(g_scatter_full);
             }
@@ -4889,7 +4887,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 queuedDefinitionFallbacks = true;
             }
             if (queuedDefinitionFallbacks) {
-                GiveCameraPriorityBeforeOptionalDma();
+                CS2::GiveCameraPriorityBeforeOptionalDma();
                 mem.SetDmaCallTag("CS2.WeaponDefinitionFallbacks");
                 mem.ExecuteReadScatter(g_scatter_full);
             }
@@ -5030,7 +5028,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
             }
         }
         if (queuedFirst) {
-            GiveCameraPriorityBeforeOptionalDma();
+            CS2::GiveCameraPriorityBeforeOptionalDma();
             mem.SetDmaCallTag("CS2.FlagsPointers");
             mem.ExecuteReadScatter(g_scatter_full);
         }
@@ -5048,7 +5046,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
             }
         }
         if (queuedSecond) {
-            GiveCameraPriorityBeforeOptionalDma();
+            CS2::GiveCameraPriorityBeforeOptionalDma();
             mem.SetDmaCallTag("CS2.FlagsValues");
             mem.ExecuteReadScatter(g_scatter_full);
         }
@@ -5119,7 +5117,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
                         core[fallbackIndex].scene + fallbackOffsets[fi],
                         &fallbackBases[fi], sizeof(uintptr_t));
             }
-            GiveCameraPriorityBeforeOptionalDma();
+            CS2::GiveCameraPriorityBeforeOptionalDma();
             mem.SetDmaCallTag("CS2.BoneFallbackPointers");
             mem.ExecuteReadScatter(g_scatter_full);
             BoneJointSnapshot fallbackSnapshots[kFallbackCount][kBoneJointReadCount]{};
@@ -5132,7 +5130,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 queuedFallbackData = true;
             }
             if (queuedFallbackData) {
-                GiveCameraPriorityBeforeOptionalDma();
+                CS2::GiveCameraPriorityBeforeOptionalDma();
                 mem.SetDmaCallTag("CS2.BoneFallbackData");
                 mem.ExecuteReadScatter(g_scatter_full);
                 for (size_t fi = 0; fi < kFallbackCount; ++fi) {
@@ -5690,7 +5688,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
         }
         if (scan_now_ms >= nextDefuserResolveMs &&
             g_pressure_level.load(std::memory_order_relaxed) < 2) {
-            GiveCameraPriorityBeforeOptionalDma();
+            CS2::GiveCameraPriorityBeforeOptionalDma();
             cachedDefuserPawn = ResolveEntityByHandle(runtime.bomb.defuser_handle,
                 g_pawn_stride ? g_pawn_stride : kEntityIdentityStride);
             nextDefuserResolveMs = scan_now_ms + (cachedDefuserPawn ? 500u : 100u);
@@ -6465,5 +6463,4 @@ bool ValidateLiveOffsets() {
     return SoftProbeLobbyOffsets();
 }
 
-} // (balance fix)
 } // namespace CS2

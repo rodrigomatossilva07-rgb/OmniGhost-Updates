@@ -285,4 +285,7 @@ bool ReinitDma();
 // True while cs2.exe is still visible to the DMA / local process list.
 bool IsGameProcessAlive();
 
+// Camera priority helper for optional DMA lanes.
+void GiveCameraPriorityBeforeOptionalDma();
+
 } // namespace CS2

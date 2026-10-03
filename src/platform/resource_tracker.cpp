@@ -12,9 +12,6 @@ ResourceTracker::Snapshot ResourceTracker::TakeSnapshot() const noexcept {
     Snapshot snap;
     snap.timestamp = std::chrono::steady_clock::now();
 
-    // Get current process handle
-    HANDLE hProcess = GetCurrentProcess();
-
     // Thread count
     HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
     if (snapshot != INVALID_HANDLE_VALUE) {
@@ -68,7 +65,6 @@ void ResourceTracker::LogUsage(std::string_view context) noexcept {
             {"user_objects", std::to_string(snap.userObjects), false},
             {"context", std::string(context), false}
         });
-    }
 
     // Also log delta if baseline exists
     if (auto delta = GetDelta()) {
@@ -83,19 +79,18 @@ void ResourceTracker::LogUsage(std::string_view context) noexcept {
                 {"gdi_delta", std::to_string(delta->gdiDelta), false},
                 {"user_delta", std::to_string(delta->userDelta), false},
                 {"has_leak", delta->hasLeak ? "true" : "false", false}
-            );
+            });
 
-            if (delta->hasLeak) {
-                SessionLog::Write(
-                    SessionLog::Severity::Warning,
-                    SessionLog::Subsystem::Core,
-                    "Potential resource leak detected",
-                    {
-                        {"thread_delta", std::to_string(delta->threadDelta), false},
-                        {"handle_delta", std::to_string(delta->handleDelta), false},
-                        {"memory_delta_mb", std::to_string(delta->memoryDelta / (1024 * 1024)), false}
-                    });
-            }
+        if (delta->hasLeak) {
+            SessionLog::Write(
+                SessionLog::Severity::Warning,
+                SessionLog::Subsystem::Core,
+                "Potential resource leak detected",
+                {
+                    {"thread_delta", std::to_string(delta->threadDelta), false},
+                    {"handle_delta", std::to_string(delta->handleDelta), false},
+                    {"memory_delta_mb", std::to_string(delta->memoryDelta / (1024 * 1024)), false}
+                });
         }
     }
 }

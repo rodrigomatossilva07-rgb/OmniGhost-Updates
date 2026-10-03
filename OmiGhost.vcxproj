@@ -279,6 +279,7 @@
     </ClCompile>
 <ClCompile Include="src\platform\session_log.cpp"/>
 <ClCompile Include="src\platform\screenshot.cpp"/>
+<ClCompile Include="src\platform\resource_tracker.cpp"/>
         <ClCompile Include="src\platform\shutdown_coordinator.cpp"/>
     <ClCompile Include="src\platform\window_instance_guard.cpp"/>
     <ClCompile Include="src\platform\diagnostics_package.cpp"/>

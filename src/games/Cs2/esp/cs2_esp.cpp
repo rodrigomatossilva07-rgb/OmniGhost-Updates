@@ -445,7 +445,7 @@ void DrawDroppedWeapons(ImDrawList* draw, const CS2::Runtime& snapshot,
         if (dx * dx + dy * dy + dz * dz > kMaxDistanceUnits * kMaxDistanceUnits) continue;
         if (weapon.sample_timestamp_ms && weapon.sample_timestamp_ms != activeSampleMs) {
             activeSampleMs = weapon.sample_timestamp_ms;
-            weaponCamera = __CS2__CS2::SelectCameraSnapshot(activeSampleMs);
+            weaponCamera = CS2::SelectCameraSnapshot(activeSampleMs);
             weaponMatrix = weaponCamera.timestamp_ms ? weaponCamera.view_matrix : viewMatrix;
         }
         ImVec2 screen{};
@@ -512,13 +512,13 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
     // Presentation must never use runtime.view_matrix for W2S when a coherent
     // camera history sample exists. Fall back only to the latest camera lease;
     // never to the (possibly older) matrix embedded in the world snapshot.
-    const CS2::CameraSnapshot frameCamera = __CS2__CS2::SelectCameraSnapshot(framePositionSampleMs);
+    const CS2::CameraSnapshot frameCamera = CS2::SelectCameraSnapshot(framePositionSampleMs);
     CS2::CameraSnapshotLease liveCameraLease;
     const float* frameViewMatrix = nullptr;
     if (frameCamera.timestamp_ms)
         frameViewMatrix = frameCamera.view_matrix;
     else {
-        liveCameraLease = __CS2__CS2::AcquireCameraSnapshot();
+        liveCameraLease = CS2::AcquireCameraSnapshot();
         if (liveCameraLease && liveCameraLease->timestamp_ms)
             frameViewMatrix = liveCameraLease->view_matrix;
     }
