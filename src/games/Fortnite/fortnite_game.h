@@ -175,6 +175,13 @@ struct Runtime {
     float screen_y = 0.f;
     float distance_to_cam = 0.f;
 
+    // Acquisition timestamps (monotonic ms). camera_sample_ms is the midpoint
+    // of the camera-fields read; world_sample_ms is the midpoint of the player
+    // position scatter. Presentation/age gating must use these, not publish time.
+    uint64_t camera_sample_ms = 0;
+    uint64_t world_sample_ms = 0;
+    uint64_t snapshot_timestamp_ms = 0;
+
     std::string process_name = "FortniteClient-Win64-Shipping.exe";
     std::string status = "idle";
     std::string last_fail;

@@ -8,7 +8,7 @@ namespace CS2::Trajectory {
 class MapCollisionCache {
 public:
     // mapName accepts "de_mirage", "maps/de_mirage.vpk" or resource paths.
-    bool LoadForMap(const char* mapName);
+    bool LoadForMap(const char* mapName, const std::atomic_bool* cancel = nullptr);
     bool IsLoadedFor(const char* mapName) const;
     void Clear();
     std::shared_ptr<const CollisionBvh> WorldSnapshot() const;

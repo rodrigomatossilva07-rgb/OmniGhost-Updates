@@ -771,7 +771,8 @@ public:
 	 * \param handle 
 	 * \param pid 
 	 */
-	void ExecuteReadScatter(VMMDLL_SCATTER_HANDLE handle, int pid = 0);
+	// False means no requests were prepared or the transport/clear failed.
+	bool ExecuteReadScatter(VMMDLL_SCATTER_HANDLE handle, int pid = 0);
 	void ExecuteWriteScatter(VMMDLL_SCATTER_HANDLE handle, int pid = 0);
 
 	/*the FPGA handle — always explicit nullptr until Init succeeds*/

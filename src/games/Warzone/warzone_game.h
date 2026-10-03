@@ -122,12 +122,13 @@ struct Runtime {
     bool decrypt_ok = false;
     uint64_t last_bind_attempt_ms = 0;
     int bind_fail_count = 0;
-    // Acquisition timestamps (wall clock ms). Presentation should prefer these
+    // Acquisition timestamps (GetTickCount64 monotonic ms). Presentation prefers these
     // over the moment the Runtime was published.
     uint64_t camera_sample_ms = 0;
     uint64_t world_sample_ms = 0;
     uint64_t snapshot_timestamp_ms = 0;
     uint64_t session_generation = 1;
+    uint64_t pipeline_epoch = 0; // invalidates snapshots across detach/reattach
     char status[192] = "Warzone idle";
     char decrypt_detail[160] = "";
 };
@@ -135,7 +136,7 @@ struct Runtime {
 extern Offsets offsets;
 extern Runtime runtime;
 extern Config config;
-extern bool ready;
+extern std::atomic_bool ready;
 extern std::string status;
 extern std::atomic_bool backend_busy;
 

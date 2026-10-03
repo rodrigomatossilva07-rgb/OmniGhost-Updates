@@ -26,6 +26,7 @@ struct PedData {
     bool visibility_known = false;
     uint8_t visibility_flag = 0;
     std::chrono::steady_clock::time_point visibility_updated{};
+    uint64_t entry_generation = 0; // P0-2: pointer reuse safety
 
     PedData() : health(0.0f), position_origin{}, playerInfo(0),
         lastUpdate(std::chrono::steady_clock::now()), isValid(false) {
@@ -39,6 +40,7 @@ class PedCacheManager {
 private:
     std::unordered_map<uintptr_t, PedData> pedCache;
     mutable std::shared_mutex mutex_;
+    std::atomic<uint64_t> currentGeneration{1}; // P0-2: pointer reuse safety
 
     // Cache timing
     std::chrono::steady_clock::time_point lastSlowUpdate;
@@ -67,6 +69,9 @@ public:
         const std::vector<Vec3>& positions,
         const std::vector<Vec3>& velocities,
         const std::vector<float>& healths);
+
+    // P0-2: Set current session generation for pointer reuse validation
+    void setCurrentGeneration(uint64_t generation) { currentGeneration.store(generation, std::memory_order_release); }
 
     void manualCache(); // Full reinitialization
 

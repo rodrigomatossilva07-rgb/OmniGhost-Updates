@@ -4,6 +4,7 @@
 #include "platform/resource_tracker.h"
 #include <thread>
 #include <atomic>
+#include <array>
 #include <mutex>
 #include "warzone_aim.h"
 #include "warzone_esp.h"
@@ -30,7 +31,7 @@ namespace Warzone {
 Offsets offsets{};
 Runtime runtime{};
 Config config{};
-bool ready = false;
+std::atomic_bool ready{false};
 std::string status = "Warzone idle";
 std::atomic_bool backend_busy{false};
 
@@ -73,14 +74,26 @@ bool LooksLikeMatrix(const float* m) {
 struct CameraSnapshot {
     float view_matrix[16]{};
     uint64_t sample_ms = 0;
+    uintptr_t module_base = 0;
     bool ok = false;
+    std::array<std::array<float, 16>, 12> history{};
+    std::array<uint64_t, 12> history_ms{};
+    unsigned history_count = 0;
 };
 
 OmniGhost::Gameplay::SnapshotExchange<Runtime, 4> g_runtime_snapshots;
 OmniGhost::Gameplay::SnapshotExchange<CameraSnapshot, 3> g_camera_snapshots;
 
+// P1 fix: exclusive ownership — the acquisition thread writes ONLY
+// g_acq_runtime; the render thread writes ONLY the public `runtime` global
+// (merged from leases). No cross-thread shared struct anymore.
+static Runtime g_acq_runtime{};
+// module_base handoff for the camera lane (acq thread publishes, camera reads).
+static std::atomic<uintptr_t> g_wz_module_base{0};
+
 std::atomic_bool g_pipeline_stop{false};
 std::atomic_bool g_pipeline_running{false};
+std::atomic<uint64_t> g_pipeline_epoch{1};
 std::thread g_camera_thread;
 std::thread g_acquisition_thread;
 std::atomic_bool g_camera_pending{false};
@@ -89,6 +102,7 @@ std::atomic<int> g_pressure_level{0};
 
 void PublishRuntimeSnapshot(Runtime& rt) {
     rt.snapshot_timestamp_ms = GetTickCount64();
+    rt.pipeline_epoch = g_pipeline_epoch.load(std::memory_order_acquire);
     auto slot = g_runtime_snapshots.TryBeginWrite();
     if (!slot) return;
     *slot.value = rt;
@@ -99,12 +113,22 @@ void CameraLoop() {
     mem.SetDmaLane("warzone-camera");
     mem.SetDmaPriority(Memory::DmaPri::Camera);
     VMMDLL_SCATTER_HANDLE camScatter = nullptr;
-    uint64_t nextCameraMs = 0;
+    uint64_t nextCameraMs = 0; // anchored deadline (no drift)
+    std::array<std::array<float, 16>, 12> history{};
+    std::array<uint64_t, 12> historyMs{};
+    unsigned historyCount = 0;
+    unsigned historyNext = 0;
+    uintptr_t historyModuleBase = 0;
     constexpr uint64_t kPeriodMs = 16;
     while (!g_pipeline_stop.load(std::memory_order_acquire)) {
         const uint64_t now = GetTickCount64();
         g_camera_deadline_ms.store(nextCameraMs, std::memory_order_release);
-        if (!ready || !runtime.module_base || !offsets.view_matrix || !offsets.loaded) {
+        const uintptr_t moduleBase = g_wz_module_base.load(std::memory_order_acquire);
+        if (moduleBase != historyModuleBase) {
+            historyCount = historyNext = 0;
+            historyModuleBase = moduleBase;
+        }
+        if (!ready || !moduleBase || !offsets.view_matrix || !offsets.loaded) {
             std::this_thread::sleep_for(std::chrono::milliseconds(25));
             continue;
         }
@@ -117,30 +141,43 @@ void CameraLoop() {
         g_camera_pending.store(true, std::memory_order_release);
         float vm[16]{};
         bool ok = false;
+        const uint64_t cameraBeginMs = GetTickCount64();
         if (!camScatter && mem.vHandle)
             camScatter = mem.CreateScatterHandle();
         if (camScatter) {
             mem.AddScatterReadRequest(camScatter,
-                runtime.module_base + offsets.view_matrix, vm, sizeof(vm));
+                moduleBase + offsets.view_matrix, vm, sizeof(vm));
             mem.SetDmaCallTag("Warzone.Camera");
-            mem.ExecuteReadScatter(camScatter);
-            ok = LooksLikeMatrix(vm);
+            ok = mem.ExecuteReadScatter(camScatter) && LooksLikeMatrix(vm);
         } else {
-            ok = mem.Read(runtime.module_base + offsets.view_matrix, vm, sizeof(vm))
+            ok = mem.Read(moduleBase + offsets.view_matrix, vm, sizeof(vm))
                 && LooksLikeMatrix(vm);
         }
+        const uint64_t cameraEndMs = GetTickCount64();
+        OmniGhost::Gameplay::DmaTelemetry::ObserveCameraRead(
+            OmniGhost::Gameplay::DmaTelemetry::Warzone(),
+            static_cast<float>(cameraEndMs - cameraBeginMs));
         if (ok) {
-            auto slot = g_camera_snapshots.TryBeginWrite();
-            if (slot) {
+            const uint64_t sampleMs = cameraBeginMs + (cameraEndMs - cameraBeginMs) / 2u;
+            std::memcpy(history[historyNext].data(), vm, sizeof(vm));
+            historyMs[historyNext] = sampleMs;
+            historyNext = (historyNext + 1u) % static_cast<unsigned>(history.size());
+            historyCount = (std::min)(historyCount + 1u, static_cast<unsigned>(history.size()));
+            if (auto slot = g_camera_snapshots.TryBeginWrite()) {
                 std::memcpy(slot.value->view_matrix, vm, sizeof(vm));
-                slot.value->sample_ms = GetTickCount64();
+                slot.value->sample_ms = sampleMs;
+                slot.value->module_base = moduleBase;
                 slot.value->ok = true;
+                slot.value->history = history;
+                slot.value->history_ms = historyMs;
+                slot.value->history_count = historyCount;
                 g_camera_snapshots.Publish(slot.index);
             }
         }
         g_camera_pending.store(false, std::memory_order_release);
-        const int pressure = g_pressure_level.load(std::memory_order_relaxed);
-        nextCameraMs = GetTickCount64() + (pressure >= 3 ? 25ull : kPeriodMs);
+        nextCameraMs += kPeriodMs; // anchored: stable cadence, no drift
+        if (nextCameraMs <= GetTickCount64())
+            nextCameraMs = GetTickCount64() + 1u; // retry promptly after an overrun
     }
     if (camScatter) {
         mem.CloseScatterHandle(camScatter);
@@ -151,6 +188,7 @@ void CameraLoop() {
 void AcquisitionLoop() {
     mem.SetDmaLane("warzone-core");
     mem.SetDmaPriority(Memory::DmaPri::Position);
+    uint64_t scanId = 0;
     while (!g_pipeline_stop.load(std::memory_order_acquire)) {
         if (!ready) {
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
@@ -160,6 +198,9 @@ void AcquisitionLoop() {
         try { AcquisitionTick(); } catch (...) {}
         const float ms = std::chrono::duration<float, std::milli>(
             std::chrono::steady_clock::now() - t0).count();
+        OmniGhost::Gameplay::DmaTelemetry::ObserveAcquire(
+            OmniGhost::Gameplay::DmaTelemetry::Warzone(), ms,
+            g_acq_runtime.in_game && g_acq_runtime.player_count > 0, ++scanId);
         int level = g_pressure_level.load(std::memory_order_relaxed);
         int demanded = 0;
         if (ms > 80.f) demanded = 3;
@@ -182,6 +223,10 @@ void EnsurePipelineStarted() {
         return;
     g_pipeline_stop.store(false, std::memory_order_release);
     OmniGhost::Platform::ResourceTracker::Instance().SetBaseline();
+    // Seed the acquisition-owned runtime before any worker touches it, and
+    // hand the module context to the camera lane.
+    g_acq_runtime = runtime;
+    g_wz_module_base.store(g_acq_runtime.module_base, std::memory_order_release);
     g_camera_thread = std::thread(CameraLoop);
     g_acquisition_thread = std::thread(AcquisitionLoop);
 }
@@ -190,6 +235,9 @@ void StopPipeline() {
     g_pipeline_stop.store(true, std::memory_order_release);
     if (g_camera_thread.joinable()) g_camera_thread.join();
     if (g_acquisition_thread.joinable()) g_acquisition_thread.join();
+    g_pipeline_epoch.fetch_add(1, std::memory_order_acq_rel);
+    g_camera_snapshots.ResetProducerThread();
+    g_runtime_snapshots.ResetProducerThread();
     g_pipeline_running.store(false, std::memory_order_release);
     g_camera_pending.store(false, std::memory_order_release);
 }
@@ -609,15 +657,15 @@ bool ValidateLiveOffsets() {
 
 void AcquisitionTick() {
     if (!ready) return;
-    ++runtime.frames;
+    ++g_acq_runtime.frames;
 
     // Retry bind only on cooldown. FixCr3 + procinfo costs ~3s; never spam every 60 frames.
     // Cooldown grows with consecutive failures so the menu stays responsive.
-    if (!runtime.module_base) {
+    if (!g_acq_runtime.module_base) {
         const uint64_t now = GetTickCount64();
-        const uint64_t cooldown_ms = 4000ull + (uint64_t)(std::min)(runtime.bind_fail_count, 8) * 1500ull;
-        const bool cooldown_ok = (runtime.last_bind_attempt_ms == 0) ||
-            (now - runtime.last_bind_attempt_ms >= cooldown_ms);
+        const uint64_t cooldown_ms = 4000ull + (uint64_t)(std::min)(g_acq_runtime.bind_fail_count, 8) * 1500ull;
+        const bool cooldown_ok = (g_acq_runtime.last_bind_attempt_ms == 0) ||
+            (now - g_acq_runtime.last_bind_attempt_ms >= cooldown_ms);
 
         if (cooldown_ok) {
             DWORD pid = mem.GetPidFromName("cod.exe");
@@ -625,42 +673,45 @@ void AcquisitionTick() {
             if (!pid) pid = mem.GetPidFromName("ModernWarfare.exe");
 
             if (!pid) {
-                std::snprintf(runtime.status, sizeof(runtime.status),
+                std::snprintf(g_acq_runtime.status, sizeof(g_acq_runtime.status),
                     "wait: cod.exe nao encontrado");
             } else {
-                runtime.last_bind_attempt_ms = now;
+                g_acq_runtime.last_bind_attempt_ms = now;
                 const bool ok = mem.Init("cod.exe", false, false) ||
                                 mem.Init("COD.exe", false, false);
                 if (ok) {
-                    runtime.module_base = mem.GetBaseDaddy("cod.exe");
-                    if (!runtime.module_base) runtime.module_base = mem.GetBaseDaddy("COD.exe");
-                    if (!runtime.module_base) runtime.module_base = mem.GetBaseDaddy("ModernWarfare.exe");
-                    runtime.bind_fail_count = 0;
+                    g_acq_runtime.module_base = mem.GetBaseDaddy("cod.exe");
+                    if (!g_acq_runtime.module_base) g_acq_runtime.module_base = mem.GetBaseDaddy("COD.exe");
+                    if (!g_acq_runtime.module_base) g_acq_runtime.module_base = mem.GetBaseDaddy("ModernWarfare.exe");
+                    g_acq_runtime.bind_fail_count = 0;
+                    // Hand the new context to the camera lane.
+                    g_wz_module_base.store(g_acq_runtime.module_base,
+                        std::memory_order_release);
                     std::cout << "[Warzone] Process bind late base=0x" << std::hex
-                              << runtime.module_base << std::dec << std::endl;
+                              << g_acq_runtime.module_base << std::dec << std::endl;
                     if (!offsets.loaded)
                         LoadOffsetsFromJson(nullptr);
                 } else {
-                    ++runtime.bind_fail_count;
-                    std::snprintf(runtime.status, sizeof(runtime.status),
+                    ++g_acq_runtime.bind_fail_count;
+                    std::snprintf(g_acq_runtime.status, sizeof(g_acq_runtime.status),
                         "PID %u ok, CR3/MZ fail (tentativa %d, cooldown %llus)",
-                        (unsigned)pid, runtime.bind_fail_count,
+                        (unsigned)pid, g_acq_runtime.bind_fail_count,
                         (unsigned long long)(cooldown_ms / 1000ull));
-                    std::cout << "[Warzone] " << runtime.status << std::endl;
+                    std::cout << "[Warzone] " << g_acq_runtime.status << std::endl;
                 }
             }
         }
     }
 
-    if (!runtime.module_base || !offsets.loaded) {
-        if (runtime.module_base == 0 && runtime.status[0] == '\0') {
-            std::snprintf(runtime.status, sizeof(runtime.status),
+    if (!g_acq_runtime.module_base || !offsets.loaded) {
+        if (g_acq_runtime.module_base == 0 && g_acq_runtime.status[0] == '\0') {
+            std::snprintf(g_acq_runtime.status, sizeof(g_acq_runtime.status),
                 "wait module/offsets base=0x%llX off=%d",
-                (unsigned long long)runtime.module_base, offsets.loaded ? 1 : 0);
+                (unsigned long long)g_acq_runtime.module_base, offsets.loaded ? 1 : 0);
         }
-        runtime.in_game = false;
-        runtime.matrix_ok = false;
-        runtime.list_ok = false;
+        g_acq_runtime.in_game = false;
+        g_acq_runtime.matrix_ok = false;
+        g_acq_runtime.list_ok = false;
         return;
     }
 
@@ -674,18 +725,19 @@ void AcquisitionTick() {
     static int s_cached_local_index = -1;
     static int s_cached_local_team = 0;
     static float s_cached_local_pos[3]{};
+    static uint64_t s_cached_world_sample_ms = 0;
 
-    runtime.matrix_ok = false;
-    bool matrix_read_ok = false;
-    if (offsets.view_matrix) {
-        float vm[16]{};
-        matrix_read_ok = mem.Read(runtime.module_base + offsets.view_matrix, vm, sizeof(vm));
-        if (matrix_read_ok && LooksLikeMatrix(vm)) {
-            std::memcpy(runtime.view_matrix, vm, sizeof(vm));
-            runtime.matrix_ok = true;
-            runtime.camera_sample_ms = GetTickCount64();
-        }
+    g_acq_runtime.matrix_ok = false;
+    // Camera lane owns view-matrix sampling. Reuse its published snapshot
+    // instead of issuing a duplicate DMA read every acquisition cycle.
+    if (auto cam = g_camera_snapshots.Acquire(); cam && cam->ok &&
+        cam->module_base == g_acq_runtime.module_base && cam->sample_ms &&
+        GetTickCount64() >= cam->sample_ms && GetTickCount64() - cam->sample_ms <= 100u) {
+        std::memcpy(g_acq_runtime.view_matrix, cam->view_matrix, sizeof(g_acq_runtime.view_matrix));
+        g_acq_runtime.matrix_ok = true;
+        g_acq_runtime.camera_sample_ms = cam->sample_ms;
     }
+    const bool matrix_read_ok = g_acq_runtime.matrix_ok;
 
     const uint64_t now_ms = GetTickCount64();
     // Lobby: refresh every 250ms. In-match with clients: every 50ms (~20Hz).
@@ -695,7 +747,7 @@ void AcquisitionTick() {
     if (need_enum) {
         s_last_enum_ms = now_ms;
         s_dec = {};
-        s_dec_ok = RunDecrypt(runtime.module_base, s_dec);
+        s_dec_ok = RunDecrypt(g_acq_runtime.module_base, s_dec);
         s_cached_players.clear();
 
         if (s_dec_ok && (s_dec.client_base_ok || s_dec.name_array_ok)) {
@@ -766,8 +818,12 @@ void AcquisitionTick() {
                         mem.AddScatterReadRequest(h2, player + ppos, &direct_pos[i * 3], sizeof(float) * 3);
                     }
                 }
-                mem.ExecuteReadScatter(h2);
+                const uint64_t positionBeginMs = GetTickCount64();
+                const bool positionReadOk = mem.ExecuteReadScatter(h2);
+                const uint64_t positionEndMs = GetTickCount64();
                 mem.CloseScatterHandle(h2);
+                if (positionReadOk)
+                    s_cached_world_sample_ms = positionBeginMs + (positionEndMs - positionBeginMs) / 2u;
                 for (int i = 0; i < max_slots; ++i) {
                     const bool ptr_ok = poss[i].pos_ptr > 0x10000ULL && poss[i].pos_ptr < 0x00007FFFFFFFFFFFULL;
                     if (!ptr_ok) {
@@ -792,7 +848,7 @@ void AcquisitionTick() {
                     }
                 }
                 // Verified players require client_base + plausible position.
-                // Name alone must NEVER enter runtime.players.
+                // Name alone must NEVER enter g_acq_runtime.players.
                 if (!s_dec.client_base_ok) continue;
                 // valid flag is authoritative when non-zero; still accept strong positions
                 // if the flag layout drifts on a future build.
@@ -831,7 +887,8 @@ void AcquisitionTick() {
                 else
                     pl.health = 0.f; // never invent 100 HP
                 pl.valid = true;
-                pl.alive = (names[i].alive != 0) || (pl.health > 0.f);
+                // Do not let one stale positive source override confirmed zero HP.
+                pl.alive = pl.health > 0.f && names[i].alive != 0;
                 pl.downed = pl.alive && pl.health > 0.f && pl.health <= 30.f;
                 pl.is_local = (s_dec.local_index >= 0 && i == s_dec.local_index);
                 if (nm[0]) std::strncpy(pl.name, nm, sizeof(pl.name) - 1);
@@ -844,7 +901,7 @@ void AcquisitionTick() {
                     s_cached_local_pos[1] = pl.pos[1];
                     s_cached_local_pos[2] = pl.pos[2];
                 }
-                pl.position_sample_ms = now_ms;
+                pl.position_sample_ms = s_cached_world_sample_ms;
                 s_cached_players.push_back(pl);
             }
 
@@ -862,93 +919,112 @@ void AcquisitionTick() {
     }
 
     // Publish cached list every frame (no DMA)
-    runtime.decrypt_ok = s_dec_ok;
-    runtime.decrypt_needed = !s_dec.client_base_ok;
-    std::snprintf(runtime.decrypt_detail, sizeof(runtime.decrypt_detail), "%s", s_dec.detail);
-    runtime.local_index = s_cached_local_index;
-    runtime.local_team = s_cached_local_team;
-    std::memcpy(runtime.local_pos, s_cached_local_pos, sizeof(runtime.local_pos));
-    runtime.players = s_cached_players;
-    runtime.player_count = (int)runtime.players.size();
-    runtime.list_ok = runtime.player_count > 0;
-    // World sample is the enum time when the list was last rebuilt; between
-    // enums positions are held so presentation can age them correctly.
-    if (need_enum)
-        runtime.world_sample_ms = now_ms;
-    else if (!runtime.world_sample_ms)
-        runtime.world_sample_ms = now_ms;
-    runtime.snapshot_timestamp_ms = now_ms;
-    for (auto& pl : runtime.players) {
+    g_acq_runtime.decrypt_ok = s_dec_ok;
+    g_acq_runtime.decrypt_needed = !s_dec.client_base_ok;
+    std::snprintf(g_acq_runtime.decrypt_detail, sizeof(g_acq_runtime.decrypt_detail), "%s", s_dec.detail);
+    g_acq_runtime.local_index = s_cached_local_index;
+    g_acq_runtime.local_team = s_cached_local_team;
+    std::memcpy(g_acq_runtime.local_pos, s_cached_local_pos, sizeof(g_acq_runtime.local_pos));
+    g_acq_runtime.players = s_cached_players;
+    g_acq_runtime.player_count = (int)g_acq_runtime.players.size();
+    g_acq_runtime.list_ok = g_acq_runtime.player_count > 0;
+    // World sample is the midpoint of the last successful position scatter;
+    // between enumerations positions retain their original age.
+    g_acq_runtime.world_sample_ms = s_cached_world_sample_ms;
+    g_acq_runtime.snapshot_timestamp_ms = GetTickCount64();
+    for (auto& pl : g_acq_runtime.players) {
         if (!pl.position_sample_ms)
-            pl.position_sample_ms = runtime.world_sample_ms;
+            pl.position_sample_ms = g_acq_runtime.world_sample_ms;
     }
     if (OmniGhost::Gameplay::DmaTelemetry::IsEnabled()) {
-        auto& tel = OmniGhost::Gameplay::DmaTelemetry::Warzone(); // shared sample channel for now
-        // Prefer dedicated Warzone sample when available; CS2() is a stable sink.
-        if (runtime.camera_sample_ms)
+        auto& tel = OmniGhost::Gameplay::DmaTelemetry::Warzone();
+        const uint64_t metricNowMs = GetTickCount64();
+        if (g_acq_runtime.camera_sample_ms)
             OmniGhost::Gameplay::DmaTelemetry::ObserveCameraAge(tel,
-                static_cast<float>(now_ms > runtime.camera_sample_ms ? now_ms - runtime.camera_sample_ms : 0));
-        tel.world_age_ms.store(runtime.world_sample_ms && now_ms > runtime.world_sample_ms
-            ? static_cast<float>(now_ms - runtime.world_sample_ms) : 0.f, std::memory_order_relaxed);
-        tel.entities.store(runtime.player_count, std::memory_order_relaxed);
+                static_cast<float>(metricNowMs > g_acq_runtime.camera_sample_ms ? metricNowMs - g_acq_runtime.camera_sample_ms : 0));
+        tel.world_age_ms.store(g_acq_runtime.world_sample_ms && metricNowMs > g_acq_runtime.world_sample_ms
+            ? static_cast<float>(metricNowMs - g_acq_runtime.world_sample_ms) : 0.f, std::memory_order_relaxed);
+        tel.entities.store(g_acq_runtime.player_count, std::memory_order_relaxed);
     }
 
     // Count name_array candidates for diagnostics only (never as verified players)
-    int name_candidates = 0;
+    static int name_candidates = 0;
+    static uint64_t nextNameProbeMs = 0;
+    static uintptr_t probedNameBase = 0;
     if (s_dec.name_array_ok && s_dec.name_array_base && !s_dec.client_base_ok) {
-        const uintptr_t nsize = offsets.name_entry_size ? offsets.name_entry_size : 0xD0;
-        const uintptr_t npos  = offsets.name_array_pos ? offsets.name_array_pos : 0x3038;
-        const uintptr_t nname = offsets.name_entry_name ? offsets.name_entry_name : 0x10;
-        for (int i = 0; i < 64; ++i) {
-            char nm[32]{};
-            mem.Read(s_dec.name_array_base + npos + (uintptr_t)i * nsize + nname, nm, 31);
-            if (nm[0] >= 32 && nm[0] <= 126) ++name_candidates;
+        const uint64_t probeNowMs = GetTickCount64();
+        if (probeNowMs >= nextNameProbeMs || probedNameBase != s_dec.name_array_base) {
+            nextNameProbeMs = probeNowMs + 1000u;
+            probedNameBase = s_dec.name_array_base;
+            const uintptr_t nsize = offsets.name_entry_size ? offsets.name_entry_size : 0xD0;
+            const uintptr_t npos  = offsets.name_array_pos ? offsets.name_array_pos : 0x3038;
+            const uintptr_t nname = offsets.name_entry_name ? offsets.name_entry_name : 0x10;
+            std::array<std::array<char, 32>, 64> namesProbe{};
+            auto nameHandle = mem.CreateScatterHandle();
+            if (nameHandle) {
+                for (int i = 0; i < 64; ++i)
+                    mem.AddScatterReadRequest(nameHandle,
+                        s_dec.name_array_base + npos + (uintptr_t)i * nsize + nname,
+                        namesProbe[i].data(), 31);
+                mem.SetDmaPriority(Memory::DmaPri::OtherMetadata);
+                const bool probeOk = mem.ExecuteReadScatter(nameHandle);
+                mem.SetDmaPriority(Memory::DmaPri::Position);
+                mem.CloseScatterHandle(nameHandle);
+                if (probeOk) {
+                    name_candidates = 0;
+                    for (const auto& nm : namesProbe)
+                        if (nm[0] >= 32 && nm[0] <= 126) ++name_candidates;
+                }
+            }
         }
+    } else {
+        name_candidates = 0;
+        probedNameBase = 0;
     }
 
     // Lobby → match lifecycle (always probing; never treat lobby as terminal failure)
     static MatchLifecycle::State s_match{};
-    const bool has_world = runtime.module_base != 0 && runtime.matrix_ok;
-    const bool has_local = s_cached_local_index >= 0 || runtime.local_index >= 0;
+    const bool has_world = g_acq_runtime.module_base != 0 && g_acq_runtime.matrix_ok;
+    const bool has_local = s_cached_local_index >= 0 || g_acq_runtime.local_index >= 0;
     const auto phase = MatchLifecycle::Update(
-        s_match, has_world, has_local, runtime.player_count, runtime.module_base);
-    runtime.in_game = (phase == MatchLifecycle::Phase::InMatch
+        s_match, has_world, has_local, g_acq_runtime.player_count, g_acq_runtime.module_base);
+    g_acq_runtime.in_game = (phase == MatchLifecycle::Phase::InMatch
         || phase == MatchLifecycle::Phase::EnteredMatch
         || phase == MatchLifecycle::Phase::WaitingEntities
-        || (runtime.matrix_ok && s_dec.client_base_ok));
+        || (g_acq_runtime.matrix_ok && s_dec.client_base_ok));
 
     if (phase == MatchLifecycle::Phase::EnteredMatch) {
         // Clear decrypt/player cache so the next enum rebuilds for the new match
         s_dec_ok = false;
         s_cached_players.clear();
         s_last_enum_ms = 0;
-        ++runtime.session_generation;
-        runtime.world_sample_ms = 0;
+        ++g_acq_runtime.session_generation;
+        g_acq_runtime.world_sample_ms = 0;
         std::cout << "[Warzone] Entrada em partida — a revalidar client_info/lista\n";
     } else if (phase == MatchLifecycle::Phase::LeftMatch) {
         std::cout << "[Warzone] Saida de partida / lobby\n";
     }
 
     if (!matrix_read_ok) {
-        std::snprintf(runtime.status, sizeof(runtime.status),
+        std::snprintf(g_acq_runtime.status, sizeof(g_acq_runtime.status),
             "Lobby / a aguardar | Matrix FAIL");
-    } else if (!runtime.matrix_ok) {
-        std::snprintf(runtime.status, sizeof(runtime.status),
+    } else if (!g_acq_runtime.matrix_ok) {
+        std::snprintf(g_acq_runtime.status, sizeof(g_acq_runtime.status),
             "Lobby / a aguardar partida (matrix invalid)");
-    } else if (s_dec.client_base_ok && runtime.list_ok) {
-        std::snprintf(runtime.status, sizeof(runtime.status),
-            "Em jogo | Players %d verified", runtime.player_count);
+    } else if (s_dec.client_base_ok && g_acq_runtime.list_ok) {
+        std::snprintf(g_acq_runtime.status, sizeof(g_acq_runtime.status),
+            "Em jogo | Players %d verified", g_acq_runtime.player_count);
     } else if (s_dec.client_base_ok) {
-        std::snprintf(runtime.status, sizeof(runtime.status),
+        std::snprintf(g_acq_runtime.status, sizeof(g_acq_runtime.status),
             "Em partida — a resolver lista | Players 0");
     } else if (s_dec.client_info_ok) {
-        std::snprintf(runtime.status, sizeof(runtime.status),
+        std::snprintf(g_acq_runtime.status, sizeof(g_acq_runtime.status),
             "Lobby / a aguardar | ClientBase FAIL | Names %d", name_candidates);
     } else if (std::strstr(s_dec.detail, "NULL_ENC")) {
-        std::snprintf(runtime.status, sizeof(runtime.status),
+        std::snprintf(g_acq_runtime.status, sizeof(g_acq_runtime.status),
             "Lobby / a aguardar partida (NULL_ENC / pos-patch?)");
     } else {
-        std::snprintf(runtime.status, sizeof(runtime.status),
+        std::snprintf(g_acq_runtime.status, sizeof(g_acq_runtime.status),
             "Lobby / a aguardar | ClientInfo FAIL | Names %d", name_candidates);
     }
 
@@ -960,54 +1036,56 @@ void AcquisitionTick() {
         static uint64_t last_probe_log_ms = 0;
 
         const uint64_t now = GetTickCount64();
-        const bool changed = runtime.matrix_ok != last_matrix_ok ||
-            runtime.list_ok != last_list_ok ||
-            runtime.player_count != last_players;
+        const bool changed = g_acq_runtime.matrix_ok != last_matrix_ok ||
+            g_acq_runtime.list_ok != last_list_ok ||
+            g_acq_runtime.player_count != last_players;
         const bool periodic = last_probe_log_ms == 0 || now - last_probe_log_ms >= 5000;
 
         if (changed || periodic) {
-            std::clog << "[DEBUG][Warzone] runtime_probe frame=" << runtime.frames
-                      << " base=0x" << std::hex << runtime.module_base
+            std::clog << "[DEBUG][Warzone] runtime_probe frame=" << g_acq_runtime.frames
+                      << " base=0x" << std::hex << g_acq_runtime.module_base
                       << " ci=0x" << s_dec.client_info
                       << " cb=0x" << s_dec.client_base
                       << " na=0x" << s_dec.name_array_base << std::dec
-                      << " matrix=" << (runtime.matrix_ok ? "OK" : "FAIL")
-                      << " list=" << (runtime.list_ok ? "OK" : "0")
-                      << " players=" << runtime.player_count
-                      << " idx=" << runtime.local_index
-                      << " decrypt=" << runtime.decrypt_detail
+                      << " matrix=" << (g_acq_runtime.matrix_ok ? "OK" : "FAIL")
+                      << " list=" << (g_acq_runtime.list_ok ? "OK" : "0")
+                      << " players=" << g_acq_runtime.player_count
+                      << " idx=" << g_acq_runtime.local_index
+                      << " decrypt=" << g_acq_runtime.decrypt_detail
                       << std::endl;
             last_probe_log_ms = now;
-            last_matrix_ok = runtime.matrix_ok;
-            last_list_ok = runtime.list_ok;
-            last_players = runtime.player_count;
+            last_matrix_ok = g_acq_runtime.matrix_ok;
+            last_list_ok = g_acq_runtime.list_ok;
+            last_players = g_acq_runtime.player_count;
         }
     }
 
     // Prefer latest camera snapshot for matrix_ok / view_matrix coherence.
     if (auto cam = g_camera_snapshots.Acquire()) {
-        if (cam->ok) {
-            std::memcpy(runtime.view_matrix, cam->view_matrix, sizeof(runtime.view_matrix));
-            runtime.camera_sample_ms = cam->sample_ms;
-            runtime.matrix_ok = true;
+        const uint64_t cameraNowMs = GetTickCount64();
+        if (cam->ok && cam->module_base == g_acq_runtime.module_base && cam->sample_ms &&
+            cameraNowMs >= cam->sample_ms && cameraNowMs - cam->sample_ms <= 100u) {
+            std::memcpy(g_acq_runtime.view_matrix, cam->view_matrix, sizeof(g_acq_runtime.view_matrix));
+            g_acq_runtime.camera_sample_ms = cam->sample_ms;
+            g_acq_runtime.matrix_ok = true;
         }
     }
-    PublishRuntimeSnapshot(runtime);
+    PublishRuntimeSnapshot(g_acq_runtime);
     if (OmniGhost::Gameplay::DmaTelemetry::IsEnabled()) {
         auto& tel = OmniGhost::Gameplay::DmaTelemetry::Warzone();
-        tel.active.store(runtime.in_game && runtime.player_count > 0, std::memory_order_relaxed);
-        tel.entities.store(runtime.player_count, std::memory_order_relaxed);
+        tel.active.store(g_acq_runtime.in_game && g_acq_runtime.player_count > 0, std::memory_order_relaxed);
+        tel.entities.store(g_acq_runtime.player_count, std::memory_order_relaxed);
         tel.pressure_level.store(g_pressure_level.load(std::memory_order_relaxed),
             std::memory_order_relaxed);
-        if (runtime.camera_sample_ms) {
+        if (g_acq_runtime.camera_sample_ms) {
             const uint64_t now = GetTickCount64();
             OmniGhost::Gameplay::DmaTelemetry::ObserveCameraAge(tel,
-                static_cast<float>(now > runtime.camera_sample_ms ? now - runtime.camera_sample_ms : 0));
+                static_cast<float>(now > g_acq_runtime.camera_sample_ms ? now - g_acq_runtime.camera_sample_ms : 0));
         }
-        if (runtime.world_sample_ms) {
+        if (g_acq_runtime.world_sample_ms) {
             const uint64_t now = GetTickCount64();
             tel.world_age_ms.store(
-                now > runtime.world_sample_ms ? static_cast<float>(now - runtime.world_sample_ms) : 0.f,
+                now > g_acq_runtime.world_sample_ms ? static_cast<float>(now - g_acq_runtime.world_sample_ms) : 0.f,
                 std::memory_order_relaxed);
         }
         OmniGhost::Gameplay::DmaTelemetry::Tick("WARZONE");
@@ -1017,23 +1095,54 @@ void AcquisitionTick() {
 void RunFrame() {
     if (!ready) return;
     EnsurePipelineStarted();
-    // Presentation only — never DMA here.
-    Runtime drawRt{};
-    if (auto lease = g_runtime_snapshots.Acquire())
-        drawRt = *lease;
-    else
-        drawRt = runtime;
+    // Presentation only — never DMA here, never read the acquisition-owned
+    // runtime. The render thread holds the last published snapshot locally
+    // (single-writer: only this thread ever assigns the public `runtime`).
+    static Runtime presentation{};
+    const uint64_t epoch = g_pipeline_epoch.load(std::memory_order_acquire);
+    if (presentation.pipeline_epoch != epoch) {
+        presentation = {};
+        presentation.pipeline_epoch = epoch;
+    }
+    if (auto lease = g_runtime_snapshots.Acquire(); lease && lease->pipeline_epoch == epoch)
+        presentation = *lease;
     if (auto cam = g_camera_snapshots.Acquire()) {
-        if (cam->ok) {
-            std::memcpy(drawRt.view_matrix, cam->view_matrix, sizeof(drawRt.view_matrix));
-            drawRt.camera_sample_ms = cam->sample_ms;
-            drawRt.matrix_ok = true;
+        const uint64_t nowMs = GetTickCount64();
+        if (cam->ok && cam->module_base == presentation.module_base &&
+            cam->sample_ms && nowMs >= cam->sample_ms && nowMs - cam->sample_ms <= 100u) {
+            const float* selectedMatrix = cam->view_matrix;
+            uint64_t selectedMs = cam->sample_ms;
+            if (presentation.world_sample_ms && cam->sample_ms > presentation.world_sample_ms + 40u) {
+                const uint64_t target = presentation.world_sample_ms + 30u;
+                uint64_t bestDelta = UINT64_MAX;
+                for (unsigned i = 0; i < cam->history_count; ++i) {
+                    const uint64_t sample = cam->history_ms[i];
+                    if (!sample || nowMs < sample || nowMs - sample > 80u)
+                        continue;
+                    const uint64_t delta = sample > target ? sample - target : target - sample;
+                    if (delta < bestDelta) {
+                        bestDelta = delta;
+                        selectedMatrix = cam->history[i].data();
+                        selectedMs = sample;
+                    }
+                }
+            }
+            std::memcpy(presentation.view_matrix, selectedMatrix, sizeof(presentation.view_matrix));
+            presentation.camera_sample_ms = selectedMs;
+            presentation.matrix_ok = true;
+            if (presentation.world_sample_ms) {
+                const uint64_t delta = selectedMs > presentation.world_sample_ms
+                    ? selectedMs - presentation.world_sample_ms
+                    : presentation.world_sample_ms - selectedMs;
+                OmniGhost::Gameplay::DmaTelemetry::Warzone().camera_position_delta_ms.store(
+                    static_cast<float>(delta), std::memory_order_relaxed);
+            }
         }
     }
-    // Keep global runtime for UI status lines.
-    runtime = drawRt;
-    Warzone_ESP::Draw(drawRt, config);
-    Warzone_Aim::Run(drawRt, config);
+    // Publish the merged presentation state for UI status lines/pages.
+    runtime = presentation;
+    Warzone_ESP::Draw(presentation, config);
+    Warzone_Aim::Run(presentation, config);
 }
 
 void Shutdown() {

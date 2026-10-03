@@ -24,7 +24,8 @@ namespace vehicle_esp {
     extern std::vector<VehicleData> vehicles;
 
     void Collect(const Config& frameConfig, const std::vector<uintptr_t>& peds,
-                 uintptr_t localPlayer, bool force = false);
+                 const Vec3& localPos,
+                 const Matrix& cameraMatrix, bool force = false);
     void Render();
     void Run();
     void Shutdown();

@@ -503,6 +503,48 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
         return false;
     };
     const uint64_t nowMs = GetTickCount64();
+    // Render-thread-only history: last frame actually drawn, keyed by pawn
+    // within one session generation. A death is measured only once.
+    static uint64_t measuredGeneration = 0;
+    static uint64_t nextDeathPruneMs = 0;
+    static std::unordered_map<uintptr_t, uint64_t> lastDrawnMs;
+    static std::unordered_map<uintptr_t, uint64_t> measuredDeathMs;
+    if (measuredGeneration != snapshot.session_generation) {
+        lastDrawnMs.clear();
+        measuredDeathMs.clear();
+        measuredGeneration = snapshot.session_generation;
+        nextDeathPruneMs = 0;
+    }
+    if (nowMs >= nextDeathPruneMs) {
+        nextDeathPruneMs = nowMs + 2000u;
+        for (auto it = lastDrawnMs.begin(); it != lastDrawnMs.end();) {
+            if (nowMs > it->second && nowMs - it->second > 10000u) it = lastDrawnMs.erase(it);
+            else ++it;
+        }
+        for (auto it = measuredDeathMs.begin(); it != measuredDeathMs.end();) {
+            if (nowMs > it->second && nowMs - it->second > 10000u) it = measuredDeathMs.erase(it);
+            else ++it;
+        }
+    }
+    if (liveness) {
+        for (uint32_t i = 0; i < liveness->count; ++i) {
+            const auto& dead = liveness->players[i];
+            if (dead.alive || !dead.pawn || dead.generation != measuredGeneration)
+                continue;
+            const auto newer = std::find_if(snapshot.players.begin(), snapshot.players.end(),
+                [&](const Player& p) { return p.pawn == dead.pawn && p.position_sample_ms > dead.sample_ms; });
+            if (newer != snapshot.players.end())
+                continue;
+            const auto drawn = lastDrawnMs.find(dead.pawn);
+            if (drawn == lastDrawnMs.end() || !measuredDeathMs.emplace(dead.pawn, dead.sample_ms).second)
+                continue;
+            const float hideMs = drawn->second > dead.sample_ms
+                ? static_cast<float>(drawn->second - dead.sample_ms) : 0.f;
+            OmniGhost::Gameplay::DmaTelemetry::CS2().death_to_hide_ms.store(
+                hideMs, std::memory_order_relaxed);
+            lastDrawnMs.erase(drawn);
+        }
+    }
     const uint64_t worldSampleMs = snapshot.world_sample_ms
         ? snapshot.world_sample_ms : snapshot.snapshot_timestamp_ms;
     if (!worldSampleMs || nowMs < worldSampleMs || nowMs - worldSampleMs > 150u)
@@ -527,12 +569,9 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
     for (const Player& player : snapshot.players) {
         if (!player.alive || player.is_local) continue;
         if (diedSinceSnapshot(player)) {
-            const float hideMs = liveness && nowMs >= liveness->timestamp_ms
-                ? static_cast<float>(nowMs - liveness->timestamp_ms) : 0.f;
-            OmniGhost::Gameplay::DmaTelemetry::CS2().death_to_hide_ms.store(
-                hideMs, std::memory_order_relaxed);
             continue;
         }
+        measuredDeathMs.erase(player.pawn);
         if (hideTeam && player.team == snapshot.local_team) continue;
         if (!std::isfinite(player.distance) || (maxDistance > 0.f && player.distance > maxDistance)) continue;
         if (!std::isfinite(player.pos[0]) || !std::isfinite(player.pos[1]) || !std::isfinite(player.pos[2])) continue;
@@ -677,6 +716,7 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
         DrawFootstepEsp(draw, player, player.pos, viewMatrix, settings, rgbColor,
                         snapshot.session_generation);
         DrawPlayerFlags(draw, player, min, settings, rgbColor);
+        lastDrawnMs[player.pawn] = nowMs;
     }
     DrawDroppedWeapons(draw, snapshot, settings, frameViewMatrix);
 }

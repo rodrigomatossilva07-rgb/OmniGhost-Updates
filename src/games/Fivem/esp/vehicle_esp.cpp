@@ -70,7 +70,8 @@ namespace vehicle_esp {
     }
 
     void Collect(const Config& frameConfig, const std::vector<uintptr_t>& peds,
-                 uintptr_t localPlayer, bool force) {
+                 const Vec3& frameLocalPos,
+                 const Matrix& cameraMatrix, bool force) {
         static auto s_lastPose = std::chrono::steady_clock::time_point{};
         auto nowc = std::chrono::steady_clock::now();
         // Optional vehicle discovery is a low-rate acquisition lane.  It must
@@ -90,13 +91,13 @@ namespace vehicle_esp {
             g_vehicleSampleTime = positionSampleTime.time_since_epoch().count()
                 ? positionSampleTime : std::chrono::steady_clock::now();
         };
-        Matrix view_matrix{};
+        Matrix view_matrix = cameraMatrix;
         // ESP draw gated in Render(); force=true lets lock/repair work with toggle off
         if (!force && !frameConfig.enabled) { publish(view_matrix); return; }
 
         using namespace FiveM;
 
-        if (!offset::world || !offset::replay || !offset::viewport) {
+        if (!offset::replay) {
             publish(view_matrix);
             return;
         }
@@ -106,17 +107,10 @@ namespace vehicle_esp {
         auto handle = g_vehicleScatter;
         if (!handle) { publish(view_matrix); return; }
 
-        Vec3 localPos{};
-        uintptr_t freshLocalPlayer = 0;
+        const Vec3 localPos = frameLocalPos;
         uintptr_t vehicle_interface = 0;
         uintptr_t vehicle_interface_alt = 0;
 
-        mem.AddScatterReadRequest(handle, offset::viewport + 0x24C, &view_matrix, sizeof(Matrix));
-        mem.AddScatterReadRequest(handle, offset::world + 0x8,
-            &freshLocalPlayer, sizeof(freshLocalPlayer));
-        if (IsValidPtr(localPlayer))
-            mem.AddScatterReadRequest(handle, localPlayer + offset::playerPosition,
-                &localPos, sizeof(Vec3));
         // Normal CReplayInterface layout uses +0x10.  The supplied b3258 dump
         // also advertises +0xD10, so probe it as a fallback and validate the
         // resulting list rather than trusting either blindly.
@@ -124,12 +118,6 @@ namespace vehicle_esp {
         mem.AddScatterReadRequest(handle, offset::replay + 0xD10, &vehicle_interface_alt, sizeof(uintptr_t));
         mem.SetDmaCallTag("FiveM.VehicleRoots");
         mem.ExecuteReadScatter(handle);
-        if (IsValidPtr(freshLocalPlayer) && freshLocalPlayer != localPlayer) {
-            mem.AddScatterReadRequest(handle, freshLocalPlayer + offset::playerPosition,
-                &localPos, sizeof(Vec3));
-            mem.SetDmaCallTag("FiveM.VehicleLocalPosition");
-            mem.ExecuteReadScatter(handle);
-        }
         if (localPos.IsZero()) {
             publish(view_matrix);
             return;

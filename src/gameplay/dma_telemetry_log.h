@@ -36,6 +36,7 @@ struct Sample {
     std::atomic<float> pressure_window_p95_ms{0.f};
     std::atomic<float> render_ms{0.f};
     std::atomic<float> render_p95_ms{0.f};
+    std::atomic<float> render_p99_ms{0.f};
     std::atomic<float> render_max_ms{0.f};
     std::atomic<float> snapshot_age_ms{0.f};
     std::atomic<float> world_age_ms{0.f};
@@ -127,6 +128,7 @@ struct Sample {
 [[nodiscard]] Sample& FiveM();
 [[nodiscard]] Sample& CS2();
 [[nodiscard]] Sample& Warzone();
+[[nodiscard]] Sample& Fortnite();
 
 // activeSample=false → idle/dead/menu: never enters percentiles or SPIKE logs.
 void ObserveAcquire(Sample& s, float work_ms, bool activeSample, uint64_t scan_id = 0) noexcept;

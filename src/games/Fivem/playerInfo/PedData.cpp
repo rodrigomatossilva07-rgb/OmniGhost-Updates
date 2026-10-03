@@ -113,6 +113,7 @@ void PedCacheManager::fastCacheCore(const std::vector<uintptr_t>& validPeds,
     static std::unordered_set<uintptr_t> present;
     present.clear();
     present.reserve(validPeds.size() * 2 + 16);
+    const uint64_t gen = currentGeneration.load(std::memory_order_acquire);
     std::unique_lock lock(mutex_);
     for (size_t i = 0; i < validPeds.size() && i < positions.size(); ++i) {
         const uintptr_t pedId = validPeds[i];
@@ -123,6 +124,7 @@ void PedCacheManager::fastCacheCore(const std::vector<uintptr_t>& validPeds,
             pd.position_origin = positions[i];
             pd.lastUpdate = now;
             pd.isValid = true;
+            pd.entry_generation = gen;
             if (i < velocities.size()) {
                 pd.velocity = velocities[i];
                 pd.velocity_updated = now;
@@ -134,6 +136,12 @@ void PedCacheManager::fastCacheCore(const std::vector<uintptr_t>& validPeds,
             }
             pedCache.emplace(pedId, std::move(pd));
         } else {
+            // P0-2: Pointer reuse check — if generation mismatches, the ped pointer
+            // was recycled and this is a different entity now.
+            if (it->second.entry_generation != gen) {
+                it->second = PedData{};
+                it->second.entry_generation = gen;
+            }
             it->second.position_origin = positions[i];
             it->second.lastUpdate = now;
             it->second.isValid = true;
@@ -173,8 +181,10 @@ void PedCacheManager::manualCache() {
 
 bool PedCacheManager::getPedData(uintptr_t pedId, PedData& outData) const {
     std::shared_lock lock(mutex_);
-    auto it = pedCache.find(pedId);
-    if (it != pedCache.end() && it->second.isValid) {
+    const auto it = pedCache.find(pedId);
+    const uint64_t gen = currentGeneration.load(std::memory_order_acquire);
+    if (it != pedCache.end() && it->second.isValid &&
+        it->second.entry_generation == gen) {
         outData = it->second;
         return true;
     }

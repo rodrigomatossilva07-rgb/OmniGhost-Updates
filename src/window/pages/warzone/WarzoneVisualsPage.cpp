@@ -1,15 +1,112 @@
 #include "../../widgets.h"
 #include "../../theme.h"
 #include "imgui.h"
-#include "src/games/Warzone/warzone_game.h"
+#include "src/games/Warzone/warzone_config.h"
+#include "../common/EspPreview.h"
+
+namespace {
+
+// ============================================================
+// WARZONE CONFIG ADAPTER FOR UNIFIED PREVIEW
+// ============================================================
+
+struct WarzonePreviewAdapter : EspPreview::IConfigAdapter {
+    const EspPreview::PreviewConfig& GetPreviewConfig() const override {
+        static EspPreview::PreviewConfig cfg;
+        // Map Warzone config to unified preview config
+        cfg.esp_enabled = Warzone::config.esp_enabled;
+        cfg.box = Warzone::config.box;
+        cfg.box_corner = Warzone::config.box_corner;
+        cfg.box_fill = false; // Warzone doesn't have box_fill
+        cfg.box_thickness = 1.8f; // Warzone doesn't have thickness config
+        cfg.box_rounding = 0.f;
+
+        cfg.skeleton = Warzone::config.skeleton;
+        cfg.skeleton_joints = false; // Warzone doesn't have joints
+        cfg.skeleton_thickness = 1.8f;
+
+        cfg.head_dot = Warzone::config.head_dot;
+        cfg.head_halo = false; // Warzone doesn't have halo
+        cfg.head_circle_thickness = 1.5f;
+
+        cfg.health_bar = Warzone::config.health_bar;
+        cfg.armor_bar = false; // Warzone doesn't have armor bar
+        cfg.health_value = false;
+        cfg.armor_value = false;
+
+        cfg.name = Warzone::config.name;
+        cfg.distance = Warzone::config.distance;
+        cfg.weapon_name = false; // Warzone doesn't have weapon name
+        cfg.weapon_ammo = false;
+        cfg.text_outline = true;
+        cfg.text_outline_thickness = 1.f;
+
+        cfg.snaplines = Warzone::config.snaplines;
+        cfg.snapline_position = 2; // bottom
+        cfg.snapline_thickness = 1.5f;
+
+        cfg.look_direction = false;
+        cfg.eye_line_thickness = 1.6f;
+        cfg.look_direction_length = 90.f;
+
+        cfg.chinese_hat = false;
+        cfg.angel_wings = false;
+        cfg.devil_horns = false;
+        cfg.floating_crown = false;
+        cfg.trails = false;
+        cfg.chinese_hat_scale = 1.f;
+        cfg.fun_effects_scale = 1.f;
+
+        // Colors - map Warzone colors to unified
+        for (int i = 0; i < 4; ++i) {
+            cfg.col_box[i] = Warzone::config.col_enemy[i];
+            cfg.col_box_corner[i] = Warzone::config.col_enemy[i];
+            cfg.col_box_fill[i] = Warzone::config.col_enemy[i];
+            cfg.col_skeleton[i] = Warzone::config.col_enemy[i];
+            cfg.col_joints[i] = Warzone::config.col_enemy[i];
+            cfg.col_head[i] = Warzone::config.col_enemy[i];
+            cfg.col_halo[i] = Warzone::config.col_enemy[i];
+            cfg.col_health[i] = Warzone::config.col_enemy[i];
+            cfg.col_armor[i] = Warzone::config.col_enemy[i];
+            cfg.col_name[i] = Warzone::config.col_enemy[i];
+            cfg.col_distance[i] = Warzone::config.col_enemy[i];
+            cfg.col_weapon[i] = Warzone::config.col_enemy[i];
+            cfg.col_snaplines[i] = Warzone::config.col_enemy[i];
+            cfg.col_trail[i] = Warzone::config.col_enemy[i];
+            cfg.col_fun_effects[i] = Warzone::config.col_enemy[i];
+            cfg.col_look[i] = Warzone::config.col_enemy[i];
+            cfg.col_text_outline[i] = 0.f; // black
+            cfg.col_visible[i] = Warzone::config.col_enemy[i];
+            cfg.col_occluded[i] = Warzone::config.col_enemy[i];
+            cfg.col_team[i] = Warzone::config.col_team[i];
+        }
+
+        cfg.rgb_mode = false;
+        cfg.visibility_colors = false;
+        cfg.visible_check = false;
+        cfg.team_check = Warzone::config.team_check;
+
+        return cfg;
+    }
+
+    ImU32 GetBoxColor(bool rgbMode, bool visibilityColors, bool visibleCheck) const override {
+        // Warzone uses single enemy color
+        return EspPreview::ToImU32(Warzone::config.col_enemy);
+    }
+};
+
+static WarzonePreviewAdapter g_warzoneAdapter;
+
+} // namespace
 
 void DrawWarzoneVisuals() {
     const float full = ImGui::GetContentRegionAvail().x;
     const float gap = CyberTheme::Metrics::GridGap;
-    const float preview = (std::max)(250.f, full * .30f);
-    const float controls = full - preview - gap;
+    const float previewWidth = std::clamp(full * 0.30f, CyberTheme::Px(250.f), CyberTheme::Px(310.f));
+    const float controlsWidth = full - previewWidth - gap;
 
-    ImGui::BeginChild("##wz_visual_controls", ImVec2(controls, 0), false,
+    // ---- CONTROLS COLUMN ----
+    ImGui::BeginChild("##wz_visual_controls", ImVec2(controlsWidth, 0), false,
         ImGuiWindowFlags_AlwaysVerticalScrollbar);
     CyberWidgets::BeginCard("FUNÇÕES ESP");
     CyberWidgets::ToggleSwitch("Ativar ESP", &Warzone::config.esp_enabled);
@@ -29,24 +126,20 @@ void DrawWarzoneVisuals() {
     ImGui::SliderInt("Distância máxima", &Warzone::config.max_distance, 50, 800, "%d m");
     CyberWidgets::EndCard();
     ImGui::EndChild();
+
     ImGui::SameLine(0.f, gap);
 
-    ImGui::BeginChild("##wz_visual_preview", ImVec2(preview, 0), false);
+    // ---- PREVIEW + COLORS COLUMN ----
+    ImGui::BeginChild("##wz_visual_preview", ImVec2(previewWidth, 0), false);
     CyberWidgets::BeginCard("PRÉ-VISUALIZAÇÃO DO ESP");
-    const ImVec2 o = ImGui::GetCursorScreenPos();
-    const ImVec2 e(o.x + preview - 24.f, o.y + 430.f);
-    auto* dl = ImGui::GetWindowDrawList();
-    dl->AddRectFilled(o, e, IM_COL32(8, 8, 12, 240), 10.f);
-    dl->AddRect(o, e, IM_COL32(212, 175, 55, 42), 10.f);
-    const float cx = (o.x + e.x) * .5f, top = o.y + 55.f, bottom = e.y - 40.f, h = bottom - top, hw = h * .18f;
-    const ImU32 enemy = IM_COL32((int)(Warzone::config.col_enemy[0]*255), (int)(Warzone::config.col_enemy[1]*255), (int)(Warzone::config.col_enemy[2]*255), 255);
-    dl->AddCircleFilled(ImVec2(cx, top + h*.10f), h*.06f, IM_COL32(62,64,70,235));
-    dl->AddRectFilled(ImVec2(cx-h*.11f,top+h*.18f),ImVec2(cx+h*.11f,top+h*.54f),IM_COL32(48,50,56,235),8.f);
-    if (Warzone::config.box) dl->AddRect(ImVec2(cx-hw,top),ImVec2(cx+hw,bottom),enemy,0,0,1.5f);
-    if (Warzone::config.health_bar) { dl->AddRectFilled(ImVec2(cx-hw-7,top),ImVec2(cx-hw-3,bottom),IM_COL32(25,25,28,220)); dl->AddRectFilled(ImVec2(cx-hw-7,top+h*.25f),ImVec2(cx-hw-3,bottom),IM_COL32(70,220,95,255)); }
-    if (Warzone::config.skeleton) { const ImVec2 a(cx,top+h*.1f), b(cx,top+h*.34f), c(cx,top+h*.55f); dl->AddLine(a,b,IM_COL32(242,215,80,255),1.7f); dl->AddLine(b,c,IM_COL32(242,215,80,255),1.7f); dl->AddLine(b,ImVec2(cx-hw,top+h*.48f),IM_COL32(242,215,80,255),1.7f); dl->AddLine(b,ImVec2(cx+hw,top+h*.48f),IM_COL32(242,215,80,255),1.7f); }
-    if (Warzone::config.name || Warzone::config.distance) dl->AddText(ImVec2(cx-38,top-20),IM_COL32(235,235,238,240),"Jogador  |  24m");
-    ImGui::Dummy(ImVec2(preview - 24.f, 430.f));
+
+    const float panelHeight = 430.f;
+
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    const ImVec2 origin = ImGui::GetCursorScreenPos();
+
+    EspPreview::DrawPreview(dl, origin, previewWidth - CyberTheme::Metrics::CardPadding * 2.f, panelHeight, g_warzoneAdapter, "PRÉ-VISUALIZAÇÃO ESP");
+
     CyberWidgets::EndCard();
     CyberWidgets::CardGap();
     CyberWidgets::BeginCard("CORES / ESTADO");

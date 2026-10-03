@@ -286,6 +286,7 @@ bool ReinitDma();
 bool IsGameProcessAlive();
 
 // Camera priority helper for optional DMA lanes.
-void GiveCameraPriorityBeforeOptionalDma();
+// Returns false when camera is still busy after the wait budget — skip the batch.
+bool GiveCameraPriorityBeforeOptionalDma();
 
 } // namespace CS2

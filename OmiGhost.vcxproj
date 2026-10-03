@@ -324,6 +324,7 @@
     <ClCompile Include="src\window\pages\common\StatusPage.cpp"/>
     <ClCompile Include="src\window\pages\common\VehiclesPage.cpp"/>
     <ClCompile Include="src\window\pages\common\VisualsPage.cpp"/>
+    <ClCompile Include="src\window\pages\common\EspPreview.cpp"/>
     <ClCompile Include="src\window\pages\cs2\Cs2AimPage.cpp"/>
     <ClCompile Include="src\window\pages\cs2\Cs2VisualsPage.cpp"/>
     <ClCompile Include="src\window\pages\cs2\Cs2MiscPage.cpp"/>
@@ -381,6 +382,7 @@
     <ClCompile Include="src\window\pages\fortnite\FortniteVisualsPage.cpp"/>
     <ClCompile Include="src\window\pages\fortnite\FortniteStatusPage.cpp"/>
     <ClCompile Include="src\window\pages\fortnite\FortniteAimPage.cpp"/>
+    <ClCompile Include="src\window\pages\fivem\FivemVisualsPage.cpp"/>
     <ClCompile Include="src\window\pages\unified_stubs.cpp"/>
 
     <ClCompile Include="ImGui\imgui.cpp"/>

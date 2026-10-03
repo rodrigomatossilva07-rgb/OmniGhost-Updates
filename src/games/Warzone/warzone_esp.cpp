@@ -47,7 +47,7 @@ void Draw(const Warzone::Runtime& rt, const Warzone::Config& cfg) {
 
     for (int i = 0; i < (int)rt.players.size(); ++i) {
         const auto& p = rt.players[i];
-        if (!p.valid || p.is_local) continue;
+        if (!p.valid || !p.alive || p.is_local) continue;
         if (cfg.ignore_downed && p.downed) continue;
         if (cfg.ignore_ai && p.ai) continue;
         if (cfg.team_check && rt.local_team != 0 && p.team == rt.local_team) continue;

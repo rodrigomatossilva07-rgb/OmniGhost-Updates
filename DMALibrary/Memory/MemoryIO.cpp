@@ -583,16 +583,16 @@ void Memory::AddScatterWriteRequest(VMMDLL_SCATTER_HANDLE handle, uint64_t addre
 	}
 }
 
-void Memory::ExecuteReadScatter(VMMDLL_SCATTER_HANDLE handle, int pid)
+bool Memory::ExecuteReadScatter(VMMDLL_SCATTER_HANDLE handle, int pid)
 {
 	WarnIfDmaOnRenderThread("ExecuteReadScatter");
 	DataCallLease dataLease(this);
 	if (!dataLease) {
 		t_dmaWaitUs += 500;
-		return;
+		return false;
 	}
 	if (!ScatterHandleIsCurrent(handle))
-		return;
+		return false;
 	uint32_t preparedRequests = 0;
 	{
 		std::scoped_lock lock(scatterMutex_);
@@ -602,6 +602,8 @@ void Memory::ExecuteReadScatter(VMMDLL_SCATTER_HANDLE handle, int pid)
 			found->second.preparedRequests = 0;
 		}
 	}
+	if (preparedRequests == 0)
+		return false;
 	// Scatter preparation remains concurrent; only execution touches the
 	// shared physical DMA transport. Optional-priority lanes try-lock and
 	// yield so a camera thread can acquire the mutex between micro-batches.
@@ -626,6 +628,7 @@ void Memory::ExecuteReadScatter(VMMDLL_SCATTER_HANDLE handle, int pid)
 	LogSlowDma("Scatter", ms, static_cast<int>(preparedRequests));
 	if (!executeOk) LOG("[-] Failed to Execute Scatter Read\n");
 	if (!clearOk) LOG("[-] Failed to clear Scatter\n");
+	return executeOk && clearOk;
 }
 
 void Memory::ExecuteWriteScatter(VMMDLL_SCATTER_HANDLE handle, int pid)

@@ -6,7 +6,7 @@
 #include <utility>
 namespace CS2::Trajectory {
 namespace { std::string Normalize(const char* text) { std::string value=text?text:""; const auto slash=value.find_last_of("/\\"); if(slash!=std::string::npos)value.erase(0,slash+1); const auto dot=value.find('.'); if(dot!=std::string::npos)value.erase(dot); std::transform(value.begin(),value.end(),value.begin(),[](unsigned char c){return static_cast<char>(std::tolower(c));}); return value; } }
-bool MapCollisionCache::LoadForMap(const char* mapName) {
+bool MapCollisionCache::LoadForMap(const char* mapName, const std::atomic_bool* cancel) {
     const std::string next=Normalize(mapName); if(next.empty()){std::unique_lock write_lock(mutex);error="Mapa atual indisponível";return false;}
     std::uint64_t requestedGeneration = 0;
     {
@@ -14,12 +14,14 @@ bool MapCollisionCache::LoadForMap(const char* mapName) {
         if(next==map && world && world->Ready()) return true;
         requestedGeneration = generation;
     }
+    if (cancel && cancel->load(std::memory_order_acquire)) return false;
     const std::string logicalName = "cs2/collision/" + next + ".tri";
     auto bytes = OmniGhost::LoadEmbeddedResource(logicalName);
+    if (cancel && cancel->load(std::memory_order_acquire)) return false;
     CollisionMesh loaded;
-    if (!bytes || !LoadTriBytes(bytes ? bytes->data() : nullptr, bytes ? bytes->size() : 0, std::filesystem::path(logicalName), loaded)) {
+    if (!bytes || !LoadTriBytes(bytes ? bytes->data() : nullptr, bytes ? bytes->size() : 0, std::filesystem::path(logicalName), loaded, cancel)) {
         std::unique_lock write_lock(mutex);
-        if (requestedGeneration == generation)
+        if (requestedGeneration == generation && !(cancel && cancel->load(std::memory_order_acquire)))
             error = bytes ? loaded.error : "Colisão do mapa não está embutida no executável";
         return false;
     }
@@ -28,13 +30,13 @@ bool MapCollisionCache::LoadForMap(const char* mapName) {
         if (requestedGeneration != generation) return false;
     }
     auto built = std::make_shared<CollisionBvh>();
-    if(!built->Build(std::move(loaded))){
+    if(!built->Build(std::move(loaded), cancel)){
         std::unique_lock write_lock(mutex);
-        if (requestedGeneration == generation) error="Não foi possível construir BVH";
+        if (requestedGeneration == generation && !(cancel && cancel->load(std::memory_order_acquire))) error="Não foi possível construir BVH";
         return false;
     }
     std::unique_lock write_lock(mutex);
-    if (requestedGeneration != generation) return false;
+    if (requestedGeneration != generation || (cancel && cancel->load(std::memory_order_acquire))) return false;
     // CollisionBvh owns its compact copy of the triangles. Do not retain a
     // second complete mesh after construction; large maps otherwise cost
     // hundreds of MiB while the trajectory feature is enabled.

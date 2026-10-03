@@ -2,174 +2,141 @@
 #include "../../theme.h"
 #include "../../../launcher/launcher_assets.h"
 #include "config/cs2_config.h"
+#include "../common/EspPreview.h"
 #include "imgui.h"
 
 #include <algorithm>
-#include <cmath>
 
 namespace {
 
-// These switches reproduce the FiveM ESP layout without advertising features
-// that have not been connected to the CS2 renderer yet.
-struct EspMenuPreview {
-    bool selfEsp = false, bots = true, dead = false, knocked = false;
-    bool skeleton = true, joints = false, headCircle = false;
-    bool health = true, armor = false, weapon = false, distance = true;
-    bool snaplines = false, halo = false, hat = false, wings = false, horns = false, crown = false;
-    bool hitMarker = false, trails = false, eyeLine = false;
+// ============================================================
+// CS2 CONFIG ADAPTER FOR UNIFIED PREVIEW
+// ============================================================
+
+struct Cs2PreviewAdapter : EspPreview::IConfigAdapter {
+    const EspPreview::PreviewConfig& GetPreviewConfig() const override {
+        static EspPreview::PreviewConfig cfg;
+        // Map CS2 config to unified preview config
+        cfg.esp_enabled = CS2::config.esp_enabled;
+        cfg.box = CS2::config.box;
+        cfg.box_corner = CS2::config.box_corner;
+        cfg.box_fill = CS2::config.box_fill;
+        cfg.box_thickness = CS2::config.box_thickness;
+        cfg.box_rounding = CS2::config.box_rounding;
+
+        cfg.skeleton = CS2::config.skeleton;
+        cfg.skeleton_joints = CS2::config.skeleton_joints;
+        cfg.skeleton_thickness = CS2::config.skeleton_thickness;
+
+        cfg.head_dot = CS2::config.head_dot;
+        cfg.head_halo = CS2::config.head_halo;
+        cfg.head_circle_thickness = CS2::config.head_circle_thickness;
+
+        cfg.health_bar = CS2::config.health_bar;
+        cfg.armor_bar = CS2::config.armor_bar;
+        cfg.health_value = CS2::config.health_value;
+        cfg.armor_value = CS2::config.armor_value;
+
+        cfg.name = CS2::config.name;
+        cfg.distance = CS2::config.distance;
+        cfg.weapon_name = CS2::config.weapon_name;
+        cfg.weapon_ammo = CS2::config.weapon_ammo;
+        cfg.text_outline = CS2::config.text_outline;
+        cfg.text_outline_thickness = CS2::config.text_outline_thickness;
+
+        cfg.snaplines = CS2::config.snaplines;
+        cfg.snapline_position = CS2::config.snapline_position;
+        cfg.snapline_thickness = CS2::config.snapline_thickness;
+
+        cfg.look_direction = CS2::config.look_direction;
+        cfg.eye_line_thickness = CS2::config.eye_line_thickness;
+        cfg.look_direction_length = CS2::config.look_direction_length;
+
+        cfg.chinese_hat = CS2::config.chinese_hat;
+        cfg.angel_wings = CS2::config.angel_wings;
+        cfg.devil_horns = CS2::config.devil_horns;
+        cfg.floating_crown = CS2::config.floating_crown;
+        cfg.trails = CS2::config.trails;
+        cfg.chinese_hat_scale = CS2::config.chinese_hat_scale;
+        cfg.fun_effects_scale = CS2::config.fun_effects_scale;
+
+        // Colors
+        for (int i = 0; i < 4; ++i) {
+            cfg.col_box[i] = CS2::config.col_box[i];
+            cfg.col_box_corner[i] = CS2::config.col_box_corner[i];
+            cfg.col_box_fill[i] = CS2::config.col_box_fill[i];
+            cfg.col_skeleton[i] = CS2::config.col_skeleton[i];
+            cfg.col_joints[i] = CS2::config.col_joints[i];
+            cfg.col_head[i] = CS2::config.col_head[i];
+            cfg.col_halo[i] = CS2::config.col_halo[i];
+            cfg.col_health[i] = CS2::config.col_health[i];
+            cfg.col_armor[i] = CS2::config.col_armor[i];
+            cfg.col_name[i] = CS2::config.col_name[i];
+            cfg.col_distance[i] = CS2::config.col_distance[i];
+            cfg.col_weapon[i] = CS2::config.col_weapon[i];
+            cfg.col_snaplines[i] = CS2::config.col_snaplines[i];
+            cfg.col_trail[i] = CS2::config.col_trail[i];
+            cfg.col_fun_effects[i] = CS2::config.col_fun_effects[i];
+            cfg.col_look[i] = CS2::config.col_look[i];
+            cfg.col_text_outline[i] = CS2::config.col_text_outline[i];
+            cfg.col_visible[i] = CS2::config.col_visible[i];
+            cfg.col_occluded[i] = CS2::config.col_occluded[i];
+            cfg.col_team[i] = CS2::config.col_team[i];
+        }
+
+        cfg.rgb_mode = CS2::config.rgb_mode;
+        cfg.visibility_colors = CS2::config.visibility_colors;
+        cfg.visible_check = CS2::config.visible_check;
+        cfg.team_check = CS2::config.team_check;
+
+        return cfg;
+    }
+
+    ImU32 GetBoxColor(bool rgbMode, bool visibilityColors, bool visibleCheck) const override {
+        if (rgbMode) {
+            float time = static_cast<float>(ImGui::GetTime()) * 0.35f;
+            auto channel = [time](float phase) {
+                return static_cast<int>((std::sin(time + phase) * 0.5f + 0.5f) * 255.f);
+            };
+            return IM_COL32(channel(0.f), channel(2.094f), channel(4.188f), 255);
+        }
+        if (visibilityColors && visibleCheck)
+            return EspPreview::ToImU32(CS2::config.col_visible);
+        return EspPreview::ToImU32(CS2::config.box_corner ? CS2::config.col_box_corner : CS2::config.col_box);
+    }
 };
 
-ImU32 ConfigColor(const float color[4]) {
-    return IM_COL32(static_cast<int>(color[0] * 255.f), static_cast<int>(color[1] * 255.f),
-        static_cast<int>(color[2] * 255.f), static_cast<int>(color[3] * 255.f));
+static Cs2PreviewAdapter g_cs2Adapter;
+
+// Preview-only toggles (not connected to real config)
+static bool previewSelfEsp = false;
+static bool previewBots = true;
+static bool previewDead = false;
+static bool previewKnocked = false;
+
+void PreviewToggle(const char* label, bool* value) {
+    CyberWidgets::ToggleSwitch(label, value);
 }
-
-ImU32 PreviewBoxColor() {
-    if (CS2::config.rgb_mode) {
-        const float time = static_cast<float>(ImGui::GetTime()) * .35f;
-        const auto channel = [time](float phase) {
-            return static_cast<int>((std::sin(time + phase) * .5f + .5f) * 255.f);
-        };
-        return IM_COL32(channel(0.f), channel(2.094f), channel(4.188f), 255);
-    }
-    if (CS2::config.visibility_colors && CS2::config.visible_check)
-        return ConfigColor(CS2::config.col_visible);
-    return ConfigColor(CS2::config.box_corner ? CS2::config.col_box_corner : CS2::config.col_box);
-}
-
-void DrawPreview(float width, float height) {
-    ImDrawList* draw = ImGui::GetWindowDrawList();
-    const ImVec2 origin = ImGui::GetCursorScreenPos();
-    const ImVec2 end(origin.x + width, origin.y + height);
-    const ImVec2 center(origin.x + width * .5f, origin.y + height * .53f);
-    const float bodyTop = center.y - height * .30f;
-    const float bodyBottom = center.y + height * .30f;
-    const float halfWidth = (std::min)(width * .19f, height * .14f);
-    const ImVec2 min(center.x - halfWidth, bodyTop);
-    const ImVec2 max(center.x + halfWidth, bodyBottom);
-
-    draw->AddRectFilled(origin, end, IM_COL32(8, 10, 12, 255), 8.f);
-    draw->AddRect(origin, end, IM_COL32(199, 165, 43, 105), 8.f);
-    const LauncherAssets::Texture portrait = LauncherAssets::FiveMEspPreview();
-    if (portrait) {
-        const float aspect = static_cast<float>(portrait.width) / static_cast<float>(portrait.height);
-        const float portraitHeight = height - 20.f;
-        const float portraitWidth = (std::min)(portraitHeight * aspect, width - 12.f);
-        draw->AddImage(portrait.id, ImVec2(center.x - portraitWidth * .5f, origin.y + 10.f),
-            ImVec2(center.x + portraitWidth * .5f, end.y - 10.f), ImVec2(0.f, 0.f), ImVec2(1.f, 1.f),
-            IM_COL32(255, 255, 255, 235));
-    } else {
-        draw->AddCircleFilled(ImVec2(center.x, bodyTop + 20.f), 16.f, IM_COL32(42, 47, 52, 255), 24);
-        draw->AddLine(ImVec2(center.x, bodyTop + 38.f), ImVec2(center.x, bodyBottom - 20.f), IM_COL32(50, 56, 62, 255), 18.f);
-        draw->AddLine(ImVec2(center.x, bodyTop + 72.f), ImVec2(center.x - halfWidth * 1.25f, bodyTop + 150.f), IM_COL32(50, 56, 62, 255), 11.f);
-        draw->AddLine(ImVec2(center.x, bodyTop + 72.f), ImVec2(center.x + halfWidth * 1.25f, bodyTop + 150.f), IM_COL32(50, 56, 62, 255), 11.f);
-        draw->AddLine(ImVec2(center.x, bodyBottom - 30.f), ImVec2(center.x - halfWidth * .65f, bodyBottom), IM_COL32(50, 56, 62, 255), 13.f);
-        draw->AddLine(ImVec2(center.x, bodyBottom - 30.f), ImVec2(center.x + halfWidth * .65f, bodyBottom), IM_COL32(50, 56, 62, 255), 13.f);
-    }
-    if (CS2::config.esp_enabled && (CS2::config.box || CS2::config.box_corner)) {
-        const float thickness = std::clamp(CS2::config.box_thickness, .5f, 5.f);
-        const ImU32 color = PreviewBoxColor();
-        draw->AddRect(ImVec2(min.x - 1.f, min.y - 1.f), ImVec2(max.x + 1.f, max.y + 1.f), IM_COL32(0, 0, 0, 190), 0.f, 0, thickness + 1.f);
-        if (CS2::config.box_corner) {
-            const float horizontal = (max.x - min.x) * .25f;
-            const float vertical = (max.y - min.y) * .20f;
-            draw->AddLine(min, ImVec2(min.x + horizontal, min.y), color, thickness);
-            draw->AddLine(min, ImVec2(min.x, min.y + vertical), color, thickness);
-            draw->AddLine(ImVec2(max.x - horizontal, min.y), ImVec2(max.x, min.y), color, thickness);
-            draw->AddLine(ImVec2(max.x, min.y), ImVec2(max.x, min.y + vertical), color, thickness);
-            draw->AddLine(ImVec2(min.x, max.y - vertical), ImVec2(min.x, max.y), color, thickness);
-            draw->AddLine(ImVec2(min.x, max.y), ImVec2(min.x + horizontal, max.y), color, thickness);
-            draw->AddLine(ImVec2(max.x - horizontal, max.y), max, color, thickness);
-            draw->AddLine(ImVec2(max.x, max.y - vertical), max, color, thickness);
-        } else {
-            draw->AddRect(min, max, color, 0.f, 0, thickness);
-        }
-    }
-    const auto drawBar = [&](float x, float fraction, ImU32 color) {
-        const float top = min.y, bottom = max.y;
-        draw->AddRectFilled(ImVec2(x - 1.f, top - 1.f), ImVec2(x + 5.f, bottom + 1.f), IM_COL32(0, 0, 0, 190));
-        draw->AddRectFilled(ImVec2(x, top), ImVec2(x + 4.f, bottom), IM_COL32(18, 18, 18, 235));
-        draw->AddRectFilled(ImVec2(x, bottom - (bottom - top) * fraction), ImVec2(x + 4.f, bottom), color);
-    };
-    if (CS2::config.esp_enabled && CS2::config.health_bar)
-        drawBar(min.x - 7.f, .72f, ConfigColor(CS2::config.col_health));
-    if (CS2::config.esp_enabled && CS2::config.armor_bar)
-        drawBar(max.x + 3.f, .48f, ConfigColor(CS2::config.col_armor));
-    if (CS2::config.esp_enabled && CS2::config.snaplines)
-        draw->AddLine(ImVec2(origin.x + width * .5f, end.y), ImVec2(center.x, max.y), ConfigColor(CS2::config.col_snaplines), 1.5f);
-    if (CS2::config.esp_enabled && CS2::config.head_dot)
-        draw->AddCircle(ImVec2(center.x, min.y + 13.f), 10.f, ConfigColor(CS2::config.col_head), 18, CS2::config.head_circle_thickness);
-    if (CS2::config.esp_enabled && CS2::config.head_halo)
-        draw->AddCircle(ImVec2(center.x, min.y - 2.f), 12.f, ConfigColor(CS2::config.col_halo), 18, 1.7f);
-    if (CS2::config.esp_enabled && CS2::config.chinese_hat) {
-        const ImVec2 a(center.x, min.y - 32.f), b(center.x - 28.f, min.y - 4.f), c(center.x + 28.f, min.y - 4.f);
-        draw->AddTriangle(a, b, c, ConfigColor(CS2::config.col_fun_effects), 1.8f);
-    }
-    if (CS2::config.esp_enabled && CS2::config.angel_wings) {
-        const ImU32 c = ConfigColor(CS2::config.col_fun_effects);
-        draw->AddBezierCubic(ImVec2(center.x - 8.f, min.y + 42.f), ImVec2(center.x - 56.f, min.y + 15.f), ImVec2(center.x - 55.f, min.y + 115.f), ImVec2(center.x - 20.f, min.y + 128.f), c, 1.8f);
-        draw->AddBezierCubic(ImVec2(center.x + 8.f, min.y + 42.f), ImVec2(center.x + 56.f, min.y + 15.f), ImVec2(center.x + 55.f, min.y + 115.f), ImVec2(center.x + 20.f, min.y + 128.f), c, 1.8f);
-    }
-    if (CS2::config.esp_enabled && CS2::config.devil_horns) {
-        const ImU32 c = ConfigColor(CS2::config.col_fun_effects);
-        draw->AddLine(ImVec2(center.x - 5.f, min.y + 4.f), ImVec2(center.x - 23.f, min.y - 24.f), c, 2.f);
-        draw->AddLine(ImVec2(center.x + 5.f, min.y + 4.f), ImVec2(center.x + 23.f, min.y - 24.f), c, 2.f);
-    }
-    if (CS2::config.esp_enabled && CS2::config.floating_crown) {
-        const ImU32 c = ConfigColor(CS2::config.col_fun_effects);
-        const ImVec2 crown[] = {{center.x-20.f,min.y-32.f},{center.x-10.f,min.y-46.f},{center.x,min.y-36.f},{center.x+10.f,min.y-46.f},{center.x+20.f,min.y-32.f}};
-        draw->AddPolyline(crown, 5, c, false, 1.8f); draw->AddLine(crown[0], crown[4], c, 1.8f);
-    }
-    if (CS2::config.esp_enabled && CS2::config.look_direction)
-        draw->AddLine(ImVec2(center.x, min.y + 13.f), ImVec2(center.x + 46.f, min.y + 13.f), ConfigColor(CS2::config.col_look), CS2::config.eye_line_thickness);
-    if (CS2::config.esp_enabled && CS2::config.weapon_name)
-        draw->AddText(ImVec2(center.x - 24.f, max.y + 5.f), ConfigColor(CS2::config.col_weapon), "AK-47");
-    if (CS2::config.esp_enabled && CS2::config.skeleton) {
-        const ImU32 skeletonColor = ConfigColor(CS2::config.col_skeleton);
-        const ImU32 jointColor = ConfigColor(CS2::config.col_joints);
-        const ImVec2 head(center.x, min.y + 12.f), neck(center.x, min.y + 30.f), chest(center.x, min.y + 68.f);
-        const ImVec2 stomach(center.x, min.y + 104.f), pelvis(center.x, min.y + 139.f);
-        const ImVec2 lShoulder(center.x - halfWidth * .65f, min.y + 48.f), rShoulder(center.x + halfWidth * .65f, min.y + 48.f);
-        const ImVec2 lElbow(center.x - halfWidth * 1.05f, min.y + 84.f), rElbow(center.x + halfWidth * 1.05f, min.y + 84.f);
-        const ImVec2 lHand(center.x - halfWidth * 1.18f, min.y + 119.f), rHand(center.x + halfWidth * 1.18f, min.y + 119.f);
-        const ImVec2 lHip(center.x - halfWidth * .38f, min.y + 144.f), rHip(center.x + halfWidth * .38f, min.y + 144.f);
-        const ImVec2 lKnee(center.x - halfWidth * .48f, min.y + 194.f), rKnee(center.x + halfWidth * .48f, min.y + 194.f);
-        const ImVec2 lFoot(center.x - halfWidth * .52f, max.y), rFoot(center.x + halfWidth * .52f, max.y);
-        const auto bone = [&](ImVec2 a, ImVec2 b) { draw->AddLine(a, b, skeletonColor, 1.5f); };
-        bone(head, neck); bone(neck, chest); bone(chest, stomach); bone(stomach, pelvis);
-        bone(neck, lShoulder); bone(lShoulder, lElbow); bone(lElbow, lHand);
-        bone(neck, rShoulder); bone(rShoulder, rElbow); bone(rElbow, rHand);
-        bone(pelvis, lHip); bone(lHip, lKnee); bone(lKnee, lFoot);
-        bone(pelvis, rHip); bone(rHip, rKnee); bone(rKnee, rFoot);
-        if (CS2::config.skeleton_joints)
-            for (const ImVec2 point : {head, neck, chest, stomach, pelvis, lShoulder, lElbow, lHand, rShoulder, rElbow, rHand, lHip, lKnee, lFoot, rHip, rKnee, rFoot})
-                draw->AddCircleFilled(point, 2.f, jointColor, 8);
-    }
-    draw->AddText(ImVec2(origin.x + 12.f, origin.y + 12.f), IM_COL32(215, 215, 210, 210), "PRÉ-VISUALIZAÇÃO ESP");
-    ImGui::Dummy(ImVec2(width, height));
-}
-
-void PreviewToggle(const char* label, bool* value) { CyberWidgets::ToggleSwitch(label, value); }
 
 } // namespace
 
 void DrawCs2Visuals() {
-    static EspMenuPreview previewSettings{};
     const float full = ImGui::GetContentRegionAvail().x;
     const float height = (std::max)(CyberTheme::Px(410.f), ImGui::GetContentRegionAvail().y);
     const float gap = CyberTheme::Metrics::GridGap;
-    const float previewWidth = std::clamp(full * .31f, CyberTheme::Px(250.f), CyberTheme::Px(310.f));
+    const float previewWidth = std::clamp(full * 0.31f, CyberTheme::Px(250.f), CyberTheme::Px(310.f));
     const float settingsWidth = (std::max)(CyberTheme::Px(220.f), full - previewWidth - gap * 2.f);
-    const float featuresWidth = settingsWidth * .5f;
+    const float featuresWidth = settingsWidth * 0.5f;
     const float colorsWidth = settingsWidth - featuresWidth;
 
+    // ---- FEATURES COLUMN ----
     ImGui::BeginChild("##cs2_esp_features", ImVec2(featuresWidth, height), false, ImGuiWindowFlags_AlwaysVerticalScrollbar);
     CyberWidgets::BeginCard("ESP DE JOGADORES");
     CyberWidgets::ToggleSwitch("Ativar ESP", &CS2::config.esp_enabled);
     CyberWidgets::Separator();
     ImGui::BeginDisabled(!CS2::config.esp_enabled);
-    PreviewToggle("ESP próprio", &previewSettings.selfEsp); PreviewToggle("Jogadores bot", &previewSettings.bots);
-    PreviewToggle("Mostrar mortos", &previewSettings.dead); PreviewToggle("Mostrar caídos", &previewSettings.knocked);
+    PreviewToggle("ESP próprio", &previewSelfEsp); PreviewToggle("Jogadores bot", &previewBots);
+    PreviewToggle("Mostrar mortos", &previewDead); PreviewToggle("Mostrar caídos", &previewKnocked);
     CyberWidgets::ToggleSwitch("Verificação de visibilidade", &CS2::config.visible_check);
     CyberWidgets::ToggleSwitch("Ocultar equipa", &CS2::config.team_check);
     CyberWidgets::Separator();
@@ -186,20 +153,22 @@ void DrawCs2Visuals() {
     CyberWidgets::ToggleSwitch("Coroa flutuante", &CS2::config.floating_crown); CyberWidgets::ToggleSwitch("Rastros", &CS2::config.trails);
     CyberWidgets::ToggleSwitch("Eye Line", &CS2::config.look_direction);
     CyberWidgets::SectionTitle("ESPESSURA");
-    CyberWidgets::SliderFloat("Caixa", &CS2::config.box_thickness, .5f, 4.f, "%.1f");
+    CyberWidgets::SliderFloat("Caixa", &CS2::config.box_thickness, 0.5f, 4.f, "%.1f");
     CyberWidgets::ToggleSwitch("Preenchimento da caixa", &CS2::config.box_fill);
     CyberWidgets::SliderFloat("Arredondamento", &CS2::config.box_rounding, 0.f, 18.f, "%.0f");
     CyberWidgets::ToggleSwitch("Outline de texto", &CS2::config.text_outline);
-    CyberWidgets::SliderFloat("Espessura outline", &CS2::config.text_outline_thickness, .5f, 2.f, "%.1f");
-    CyberWidgets::SliderFloat("Círculo cabeça", &CS2::config.head_circle_thickness, .5f, 4.f, "%.1f");
-    CyberWidgets::SliderFloat("Linhas guia", &CS2::config.snapline_thickness, .5f, 4.f, "%.1f");
-    CyberWidgets::SliderFloat("Eye Line", &CS2::config.eye_line_thickness, .5f, 4.f, "%.1f");
+    CyberWidgets::SliderFloat("Espessura outline", &CS2::config.text_outline_thickness, 0.5f, 2.f, "%.1f");
+    CyberWidgets::SliderFloat("Círculo cabeça", &CS2::config.head_circle_thickness, 0.5f, 4.f, "%.1f");
+    CyberWidgets::SliderFloat("Linhas guia", &CS2::config.snapline_thickness, 0.5f, 4.f, "%.1f");
+    CyberWidgets::SliderFloat("Eye Line", &CS2::config.eye_line_thickness, 0.5f, 4.f, "%.1f");
     CyberWidgets::SliderFloat("Distância máxima", &CS2::config.max_distance, 20.f, 500.f, "%.0f m");
     ImGui::EndDisabled();
     CyberWidgets::EndCard();
     ImGui::EndChild();
 
     ImGui::SameLine(0.f, gap);
+
+    // ---- COLORS COLUMN ----
     ImGui::BeginChild("##cs2_esp_colors", ImVec2(colorsWidth, height), false, ImGuiWindowFlags_AlwaysVerticalScrollbar);
     CyberWidgets::BeginCard("PERSONALIZAÇÃO");
     ImGui::BeginDisabled(!CS2::config.esp_enabled);
@@ -254,10 +223,10 @@ void DrawCs2Visuals() {
     ImGui::BeginDisabled(!CS2::config.armor_bar);
     ImGui::ColorEdit4("Armadura", CS2::config.col_armor, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     ImGui::EndDisabled();
-    ImGui::BeginDisabled(!previewSettings.distance);
+    ImGui::BeginDisabled(!CS2::config.distance);
     ImGui::ColorEdit4("Distância", CS2::config.col_distance, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     ImGui::EndDisabled();
-    ImGui::BeginDisabled(!previewSettings.weapon);
+    ImGui::BeginDisabled(!CS2::config.weapon_name);
     ImGui::ColorEdit4("Arma", CS2::config.col_weapon, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     ImGui::EndDisabled();
     ImGui::EndDisabled();
@@ -265,10 +234,18 @@ void DrawCs2Visuals() {
     ImGui::EndChild();
 
     ImGui::SameLine(0.f, gap);
+
+    // ---- PREVIEW PANEL ----
     ImGui::BeginGroup();
     CyberWidgets::BeginCard("PRÉ-VISUALIZAÇÃO", previewWidth);
     const float panelHeight = (std::max)(CyberTheme::Px(300.f), height - CyberTheme::Metrics::CardHeaderHeight - CyberTheme::Metrics::CardPadding * 2.f - CyberTheme::Px(12.f));
-    DrawPreview((std::max)(CyberTheme::Px(180.f), previewWidth - CyberTheme::Metrics::CardPadding * 2.f), panelHeight);
+    const float drawWidth = (std::max)(CyberTheme::Px(180.f), previewWidth - CyberTheme::Metrics::CardPadding * 2.f);
+
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    const ImVec2 origin = ImGui::GetCursorScreenPos();
+
+    EspPreview::DrawPreview(dl, origin, drawWidth, panelHeight, g_cs2Adapter, "PRÉ-VISUALIZAÇÃO ESP");
+
     CyberWidgets::EndCard();
     ImGui::EndGroup();
 }

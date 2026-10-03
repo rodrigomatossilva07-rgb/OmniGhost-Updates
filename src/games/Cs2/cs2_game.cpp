@@ -138,6 +138,47 @@ std::condition_variable g_optional_cv;
 Config g_optional_config{};
 std::atomic<uint64_t> g_optional_job_generation{0};
 
+// ── Optional enrichment pipeline (P0 fix: strict single-producer) ─────────
+// The optional worker never touches the global `runtime` and never publishes
+// g_runtime_snapshots. It consumes an immutable job snapshot taken by the
+// acquisition thread and publishes OptionalResults on its OWN exchange.
+// The acquisition thread merges results at the start of the next scan into
+// its own caches (bone_cache / recent_players) and is therefore the only
+// writer of runtime.players and the only producer of g_runtime_snapshots.
+struct OptionalTarget {
+    uintptr_t pawn = 0;
+    uintptr_t controller = 0;
+    uintptr_t scene = 0;
+    bool has_name = false;
+};
+struct OptionalBoneResult {
+    uintptr_t pawn = 0;
+    uintptr_t bone_base = 0;
+    float bones[kBoneSlotCount][3]{};
+    uint64_t sample_ms = 0; // midpoint of the bone scatter execute (real read time)
+    bool bones_ok = false;
+    bool full_bones_ok = false;
+};
+struct OptionalNameResult { uintptr_t pawn = 0; char name[64]{}; };
+struct OptionalWeaponResult { uintptr_t pawn = 0; int weapon_def = 0; char weapon[32]{}; int ammo_clip = -1; };
+struct OptionalResults {
+    uint64_t generation = 0;
+    std::array<OptionalBoneResult, 64> bones{};
+    std::array<OptionalNameResult, 64> names{};
+    std::array<OptionalWeaponResult, 64> weapons{};
+    uint32_t name_count = 0, weapon_count = 0;
+    uint32_t bone_count = 0;
+    float bones_ms = 0.f;
+    float weapon_ms = 0.f;
+    std::vector<DroppedWeapon> dropped_weapons;
+    bool dropped_weapons_valid = false;
+};
+OmniGhost::Gameplay::SnapshotExchange<OptionalResults, 3> g_optional_results; // producer: optional thread only
+std::vector<OptionalTarget> g_optional_targets; // written under g_optional_mu by acquisition
+bool g_optional_in_match = false;
+bool g_optional_dropped_only = false;
+uintptr_t g_optional_client_base = 0;
+
 std::atomic_bool g_web_radar_control_stop{false};
 std::atomic_bool g_web_radar_desired_enabled{false};
 std::atomic_bool g_web_radar_desired_cloudflare{false};
@@ -1357,7 +1398,6 @@ void ResetSessionState(const char* reason) {
     g_entity_list_next_full_probe_ms = 0;
     g_entity_list_force_refresh = true;
     g_cached_entity_root = 0;
-    g_collision_cancel.store(false, std::memory_order_release);
     if (reason) std::cout << "[CS2] Reset de sessao: " << reason
                           << " gen=" << g_session_generation.load(std::memory_order_relaxed) << std::endl;
 }
@@ -1718,12 +1758,15 @@ static void FormatDroppedWeaponName(const char* source, char (&out)[48]) {
 // Low-priority, bounded world-item pass. It is never called unless the user
 // enables dropped weapons; discovery alternates entity pages so the camera
 // and player lanes stay independent from world-loot work.
-static void CollectDroppedWeapons(const Config& frame_config) {
+// Runs ONLY on the optional worker thread (single-threaded static caches,
+// g_scatter_optional exclusive, output vector instead of global runtime).
+static void CollectDroppedWeapons(const Config& frame_config, bool in_match,
+                                  uintptr_t client_base, std::vector<DroppedWeapon>& out) {
     struct CachedDroppedWeapon { DroppedWeapon weapon{}; uint64_t last_seen_ms = 0; };
     static std::unordered_map<uintptr_t, CachedDroppedWeapon> weapon_cache;
-    if (!frame_config.esp_enabled || !frame_config.dropped_weapons || !runtime.in_match) {
+    if (!frame_config.esp_enabled || !frame_config.dropped_weapons || !in_match) {
         weapon_cache.clear();
-        runtime.dropped_weapons.clear();
+        out.clear();
         return;
     }
     static uint64_t next_scan_ms = 0;
@@ -1744,14 +1787,14 @@ static void CollectDroppedWeapons(const Config& frame_config) {
     if (class_cache.bucket_count() < 2048) class_cache.reserve(2048);
     const uint64_t now = GetTickCount64();
     const auto publishCachedWeapons = [&] {
-        runtime.dropped_weapons.clear();
+        out.clear();
         for (auto it = weapon_cache.begin(); it != weapon_cache.end();) {
             if (now < it->second.last_seen_ms || now - it->second.last_seen_ms > 1800u) {
                 it = weapon_cache.erase(it);
                 continue;
             }
-            if (runtime.dropped_weapons.size() < 24u)
-                runtime.dropped_weapons.push_back(it->second.weapon);
+            if (out.size() < 24u)
+                out.push_back(it->second.weapon);
             ++it;
         }
     };
@@ -1783,38 +1826,38 @@ static void CollectDroppedWeapons(const Config& frame_config) {
     std::array<std::array<float, 3>, kSlots> positions{};
     std::array<int, kSlots> ammo{};
     uintptr_t root = g_cached_entity_root;
-    if (!IsUserPointer(root) && (!QReadT(runtime.client_base + offsets.dwEntityList, root) || !IsUserPointer(root))) {
+    if (!IsUserPointer(root) && (!QReadT(client_base + offsets.dwEntityList, root) || !IsUserPointer(root))) {
         publishCachedWeapons();
         return;
     }
     g_cached_entity_root = root;
-    EnsureScatter();
-    if (!g_scatter_full) {
+    g_scatter_optional.Ensure();
+    if (!g_scatter_optional) {
         publishCachedWeapons();
         return;
     }
 
     mem.SetDmaCallTag("CS2.DroppedWeapons.Pages");
     for (size_t page = 0; page < kPages; ++page)
-        mem.AddScatterReadRequest(g_scatter_full, root + kEntityPageTableOffset + sizeof(uintptr_t) * (first_page + page), &pages[page], sizeof(uintptr_t));
+        mem.AddScatterReadRequest(g_scatter_optional, root + kEntityPageTableOffset + sizeof(uintptr_t) * (first_page + page), &pages[page], sizeof(uintptr_t));
     CS2::GiveCameraPriorityBeforeOptionalDma();
-    mem.ExecuteReadScatter(g_scatter_full);
+    mem.ExecuteReadScatter(g_scatter_optional);
     mem.SetDmaCallTag("CS2.DroppedWeapons.Entities");
     bool queuedEntities = false;
     for (size_t page = 0; page < kPages; ++page) if (IsUserPointer(pages[page]))
         for (size_t slot = 0; slot < kSlotsPerPage; ++slot)
-            { mem.AddScatterReadRequest(g_scatter_full, pages[page] + kEntityIdentityStride * slot,
+            { mem.AddScatterReadRequest(g_scatter_optional, pages[page] + kEntityIdentityStride * slot,
                 &entities[page * kSlotsPerPage + slot], sizeof(uintptr_t)); queuedEntities = true; }
     if (!queuedEntities) { publishCachedWeapons(); return; }
     CS2::GiveCameraPriorityBeforeOptionalDma();
-    mem.ExecuteReadScatter(g_scatter_full);
+    mem.ExecuteReadScatter(g_scatter_optional);
     mem.SetDmaCallTag("CS2.DroppedWeapons.Identity");
     bool queuedIdentity = false;
     for (size_t i = 0; i < kSlots; ++i) if (IsUserPointer(entities[i]))
-        { mem.AddScatterReadRequest(g_scatter_full, entities[i] + 0x10, &identities[i], sizeof(uintptr_t)); queuedIdentity = true; }
+        { mem.AddScatterReadRequest(g_scatter_optional, entities[i] + 0x10, &identities[i], sizeof(uintptr_t)); queuedIdentity = true; }
     if (!queuedIdentity) { publishCachedWeapons(); return; }
     CS2::GiveCameraPriorityBeforeOptionalDma();
-    mem.ExecuteReadScatter(g_scatter_full);
+    mem.ExecuteReadScatter(g_scatter_optional);
     mem.SetDmaCallTag("CS2.DroppedWeapons.Names");
     bool queuedNames = false;
     for (size_t i = 0; i < kSlots; ++i) {
@@ -1824,19 +1867,19 @@ static void CollectDroppedWeapons(const Config& frame_config) {
             cached->second.last_seen_ms = now;
         }
         else if (IsUserPointer(identities[i]))
-            { mem.AddScatterReadRequest(g_scatter_full, identities[i] + 0x20, &name_ptrs[i], sizeof(uintptr_t)); queuedNames = true; }
+            { mem.AddScatterReadRequest(g_scatter_optional, identities[i] + 0x20, &name_ptrs[i], sizeof(uintptr_t)); queuedNames = true; }
     }
     if (queuedNames) {
         CS2::GiveCameraPriorityBeforeOptionalDma();
-        mem.ExecuteReadScatter(g_scatter_full);
+        mem.ExecuteReadScatter(g_scatter_optional);
     }
     mem.SetDmaCallTag("CS2.DroppedWeapons.NameText");
     bool queuedNameText = false;
     for (size_t i = 0; i < kSlots; ++i) if (IsUserPointer(name_ptrs[i]))
-        { mem.AddScatterReadRequest(g_scatter_full, name_ptrs[i], names[i].data(), names[i].size() - 1); queuedNameText = true; }
+        { mem.AddScatterReadRequest(g_scatter_optional, name_ptrs[i], names[i].data(), names[i].size() - 1); queuedNameText = true; }
     if (queuedNameText) {
         CS2::GiveCameraPriorityBeforeOptionalDma();
-        mem.ExecuteReadScatter(g_scatter_full);
+        mem.ExecuteReadScatter(g_scatter_optional);
     }
 
     mem.SetDmaCallTag("CS2.DroppedWeapons.Data");
@@ -1844,22 +1887,22 @@ static void CollectDroppedWeapons(const Config& frame_config) {
     for (size_t i = 0; i < kSlots; ++i) {
         if (!IsDroppedWeaponClass(names[i].data()) || !DroppedWeaponAllowed(names[i].data(), frame_config)) continue;
         class_cache.insert_or_assign(identities[i], CachedClassName{names[i], now});
-        mem.AddScatterReadRequest(g_scatter_full, entities[i] + offsets.m_pGameSceneNode, &scenes[i], sizeof(uintptr_t));
+        mem.AddScatterReadRequest(g_scatter_optional, entities[i] + offsets.m_pGameSceneNode, &scenes[i], sizeof(uintptr_t));
         queuedData = true;
         if (frame_config.dropped_weapon_ammo && offsets.m_iClip1)
-            mem.AddScatterReadRequest(g_scatter_full, entities[i] + offsets.m_iClip1, &ammo[i], sizeof(int));
+            mem.AddScatterReadRequest(g_scatter_optional, entities[i] + offsets.m_iClip1, &ammo[i], sizeof(int));
     }
     if (!queuedData) { publishCachedWeapons(); return; }
     CS2::GiveCameraPriorityBeforeOptionalDma();
-    mem.ExecuteReadScatter(g_scatter_full);
+    mem.ExecuteReadScatter(g_scatter_optional);
     mem.SetDmaCallTag("CS2.DroppedWeapons.Positions");
     bool queuedPositions = false;
     for (size_t i = 0; i < kSlots; ++i) if (IsUserPointer(scenes[i]))
-        { mem.AddScatterReadRequest(g_scatter_full, scenes[i] + offsets.m_vecAbsOrigin, positions[i].data(), sizeof(float) * 3); queuedPositions = true; }
+        { mem.AddScatterReadRequest(g_scatter_optional, scenes[i] + offsets.m_vecAbsOrigin, positions[i].data(), sizeof(float) * 3); queuedPositions = true; }
     if (!queuedPositions) { publishCachedWeapons(); return; }
     CS2::GiveCameraPriorityBeforeOptionalDma();
     const uint64_t positionReadBeginMs = GetTickCount64();
-    mem.ExecuteReadScatter(g_scatter_full);
+    mem.ExecuteReadScatter(g_scatter_optional);
     const uint64_t positionReadEndMs = GetTickCount64();
     const uint64_t positionSampleMs = positionReadBeginMs +
         (positionReadEndMs - positionReadBeginMs) / 2u;
@@ -2546,13 +2589,15 @@ void UpdateBombStateThrottled() {
     UpdateBombState();
 }
 
-void GiveCameraPriorityBeforeOptionalDma() {
+// Returns false when the camera lane is still busy after the wait budget —
+// callers should skip/abandon this optional batch so the camera keeps priority.
+bool GiveCameraPriorityBeforeOptionalDma() {
     const uint64_t deadline = g_camera_deadline_ms.load(std::memory_order_acquire);
     const bool pending = g_camera_pending.load(std::memory_order_acquire);
     const uint64_t now = GetTickCount64();
     // Far from the deadline and no pending camera read → proceed immediately.
     if (!pending && (deadline == 0 || now + 2u < deadline))
-        return;
+        return true;
 
     // Cooperative yield until the camera lane clears or a hard wall-clock
     // budget elapses. Between optional micro-batches the caller invokes this
@@ -2566,12 +2611,15 @@ void GiveCameraPriorityBeforeOptionalDma() {
             const uint64_t d = g_camera_deadline_ms.load(std::memory_order_acquire);
             const uint64_t n = GetTickCount64();
             if (d == 0 || n + 1u < d)
-                return;
+                return true;
         }
         if (std::chrono::steady_clock::now() - t0 >= kMaxWait)
-            return;
+            return false; // P0-7: report timeout so optional worker can abort
         std::this_thread::yield();
     }
+    // After 96 spins, if camera is still pending we should abort the
+    // current optional batch instead of monopolising the transport.
+    return false;
 }
 
 // True when optional DMA should pause before starting another micro-batch
@@ -2590,13 +2638,20 @@ static bool OptionalDmaShouldYieldToCamera() noexcept {
 // Core acquisition publishes position/health/velocity/liveness then returns.
 // This worker refreshes bones, names, weapons, flags and dropped items using
 // the already-published player list so the next core scan is never blocked.
-static void RunOptionalEnrichment(const Config& frame_config) {
-    if (!runtime.in_match || runtime.players.empty())
+static void RunOptionalEnrichment(const Config& frame_config,
+                                  std::vector<OptionalTarget> targets,
+                                  const bool in_match, const uintptr_t client_base,
+                                  const bool dropped_only, const uint64_t jobGen) {
+    if (dropped_only ? !in_match : (!in_match || targets.empty()))
         return;
-    const uint64_t jobGen = g_session_generation.load(std::memory_order_acquire);
     const int pressure = g_pressure_level.load(std::memory_order_relaxed);
     if (pressure >= 3)
         return; // recovery: keep last optional data, core already published
+
+    // Sole producer of g_optional_results. All deltas are local until the
+    // final publish; the acquisition thread merges them into its own caches.
+    OptionalResults results{};
+    results.generation = jobGen;
 
     OmniGhost::Gameplay::OptionalPhaseBudget budget;
     {
@@ -2627,35 +2682,28 @@ static void RunOptionalEnrichment(const Config& frame_config) {
     const bool need_weapons = requested.weapon;
     const bool allow_weapon = pressure == 0 && !HeavyDmaCooldownActive();
 
-    // Snapshot player pointers we will enrich. Core may publish a new list
-    // concurrently; we only write fields for pawns still present at merge time.
-    struct Target {
-        uintptr_t pawn = 0;
-        uintptr_t controller = 0;
-        uintptr_t scene = 0;
-        float pos[3]{};
-        size_t runtime_index = 0;
-    };
-    std::vector<Target> targets;
-    targets.reserve(runtime.players.size());
-    for (size_t i = 0; i < runtime.players.size(); ++i) {
-        const auto& p = runtime.players[i];
-        if (!IsUserPointer(p.pawn) || !p.alive) continue;
-        Target t;
-        t.pawn = p.pawn;
-        t.controller = p.controller;
-        t.scene = p.scene;
-        t.pos[0] = p.pos[0]; t.pos[1] = p.pos[1]; t.pos[2] = p.pos[2];
-        t.runtime_index = i;
-        targets.push_back(t);
-    }
-    if (targets.empty())
+    // The job snapshot was captured by the acquisition thread at queue time;
+    // no reads from the global runtime.player list happen on this thread.
+    if (dropped_only) {
+        if (frame_config.dropped_weapons) {
+            mem.SetDmaPriority(Memory::DmaPri::OtherMetadata);
+            CS2::GiveCameraPriorityBeforeOptionalDma();
+            CollectDroppedWeapons(frame_config, in_match, client_base, results.dropped_weapons);
+            results.dropped_weapons_valid = true;
+        }
+        if (jobGen != g_session_generation.load(std::memory_order_acquire))
+            return;
+        if (auto slot = g_optional_results.TryBeginWrite()) {
+            *slot.value = std::move(results);
+            g_optional_results.Publish(slot.index);
+        }
         return;
+    }
 
     // ── Bones micro-batches ────────────────────────────────────────────
     if (need_bones && !!budget.Remaining() && pressure < 2) {
         mem.SetDmaPriority(Memory::DmaPri::Bones);
-        ScopedPhase _phBones(&g_phase.bones_ms);
+        const auto bonesPhaseBegin = std::chrono::steady_clock::now();
         constexpr int kBatch = 8;
         constexpr int kJointCount = 28;
         struct BoneJointSnapshot { float x, y, z, scale; char pad[0x10]; };
@@ -2665,11 +2713,13 @@ static void RunOptionalEnrichment(const Config& frame_config) {
             if (g_optional_stop.load(std::memory_order_acquire)) return;
             if (jobGen != g_session_generation.load(std::memory_order_acquire)) return;
             if (OptionalDmaShouldYieldToCamera()) {
-                CS2::GiveCameraPriorityBeforeOptionalDma();
+                if (!CS2::GiveCameraPriorityBeforeOptionalDma())
+                    break; // camera still busy after timeout — defer remaining batches
                 if (OptionalDmaShouldYieldToCamera())
                     break; // defer remaining bone batches to next optional job
             }
-            CS2::GiveCameraPriorityBeforeOptionalDma();
+            if (!CS2::GiveCameraPriorityBeforeOptionalDma())
+                break; // camera still busy — defer remaining bone batches
             const size_t end = (std::min)(targets.size(), base + static_cast<size_t>(kBatch));
             uintptr_t boneBases[kBatch]{};
             BoneJointSnapshot joints[kBatch][kJointCount]{};
@@ -2697,15 +2747,20 @@ static void RunOptionalEnrichment(const Config& frame_config) {
             if (queued > 0) {
                 CS2::GiveCameraPriorityBeforeOptionalDma();
                 mem.SetDmaCallTag("CS2.Optional.Bones");
+                const uint64_t bone_read_begin_ms = GetTickCount64();
                 mem.ExecuteReadScatter(g_scatter_optional);
-                const uint64_t sampleMs = GetTickCount64();
+                const uint64_t bone_read_end_ms = GetTickCount64();
+                // Midpoint of the actual scatter execute — this is the real
+                // acquisition instant used for bones_age in presentation.
+                const uint64_t sampleMs = bone_read_begin_ms +
+                    (bone_read_end_ms - bone_read_begin_ms) / 2u;
                 for (size_t i = base; i < end; ++i) {
                     const size_t bi = i - base;
                     if (!eligible[bi]) continue;
-                    const size_t ri = targets[i].runtime_index;
-                    if (ri >= runtime.players.size() || runtime.players[ri].pawn != targets[i].pawn)
-                        continue;
-                    auto& p = runtime.players[ri];
+                    if (results.bone_count >= results.bones.size()) break;
+                    OptionalBoneResult& r = results.bones[results.bone_count];
+                    r.pawn = targets[i].pawn;
+                    r.bone_base = boneBases[bi];
                     // Compact upper-body mapping (head/neck/chest/stomach indices
                     // depend on layout; use sticky when known).
                     static constexpr int kIdx[4] = {6, 5, 4, 2}; // head neck chest stomach common
@@ -2714,9 +2769,9 @@ static void RunOptionalEnrichment(const Config& frame_config) {
                         const auto& j = joints[bi][kIdx[s]];
                         if (!std::isfinite(j.x) || !std::isfinite(j.y) || !std::isfinite(j.z))
                             continue;
-                        p.bones[s == 3 ? 4 : s][0] = j.x;
-                        p.bones[s == 3 ? 4 : s][1] = j.y;
-                        p.bones[s == 3 ? 4 : s][2] = j.z;
+                        r.bones[s == 3 ? 4 : s][0] = j.x;
+                        r.bones[s == 3 ? 4 : s][1] = j.y;
+                        r.bones[s == 3 ? 4 : s][2] = j.z;
                         any = true;
                     }
                     if (need_full_bones) {
@@ -2731,24 +2786,19 @@ static void RunOptionalEnrichment(const Config& frame_config) {
                         for (size_t b = 0; b < kBoneSlotCount && b < sizeof(kFullMap)/sizeof(kFullMap[0]); ++b) {
                             const auto& j = joints[bi][kFullMap[b]];
                             if (!std::isfinite(j.x)) continue;
-                            p.bones[b][0] = j.x; p.bones[b][1] = j.y; p.bones[b][2] = j.z;
+                            r.bones[b][0] = j.x; r.bones[b][1] = j.y; r.bones[b][2] = j.z;
                         }
-                        p.full_bones_ok = true;
+                        r.full_bones_ok = true;
                     }
                     if (any) {
-                        p.bones_ok = true;
-                        p.head[0] = p.bones[0][0];
-                        p.head[1] = p.bones[0][1];
-                        p.head[2] = p.bones[0][2];
-                        p.bones_sample_ms = sampleMs;
-                        p.bone_pose_sample_ms = sampleMs;
-                        p.bone_origin_sample_ms = sampleMs;
-                        p.bone_base = boneBases[bi];
-                        ++g_phase.bones_players;
+                        r.bones_ok = true;
+                        r.sample_ms = sampleMs;
+                        ++results.bone_count;
                     }
                 }
             } // approx per micro-batch
         }
+        results.bones_ms = OmniGhost::Gameplay::TimeMs(bonesPhaseBegin);
     }
 
     // ── Names (low rate) ───────────────────────────────────────────────
@@ -2756,15 +2806,15 @@ static void RunOptionalEnrichment(const Config& frame_config) {
         mem.SetDmaPriority(Memory::DmaPri::WeaponNameTeam);
         for (size_t i = 0; i < targets.size() && !!budget.Remaining(); ++i) {
             if (!IsUserPointer(targets[i].controller)) continue;
-            const size_t ri = targets[i].runtime_index;
-            if (ri >= runtime.players.size() || runtime.players[ri].pawn != targets[i].pawn)
-                continue;
-            if (runtime.players[ri].name[0]) continue; // keep existing
-            CS2::GiveCameraPriorityBeforeOptionalDma();
+            if (targets[i].has_name) continue; // job snapshot already has a name
+            if (!CS2::GiveCameraPriorityBeforeOptionalDma())
+                break; // camera still busy — abort names pass
             char name[64]{};
             if (QRead(targets[i].controller + offsets.m_iszPlayerName, name, sizeof(name) - 1, "CS2.Opt.Name")
-                && name[0]) {
-                std::snprintf(runtime.players[ri].name, sizeof(runtime.players[ri].name), "%s", name);
+                && name[0] && results.name_count < results.names.size()) {
+                auto& r = results.names[results.name_count++];
+                r.pawn = targets[i].pawn;
+                std::snprintf(r.name, sizeof(r.name), "%s", name);
             }
         }
     }
@@ -2772,12 +2822,10 @@ static void RunOptionalEnrichment(const Config& frame_config) {
     // ── Weapons (pressure 0 only) ──────────────────────────────────────
     if (need_weapons && allow_weapon && !!budget.Remaining()) {
         mem.SetDmaPriority(Memory::DmaPri::WeaponNameTeam);
-        ScopedPhase _phWeapon(&g_phase.weapon_ms);
+        const auto weaponPhaseBegin = std::chrono::steady_clock::now();
         for (size_t i = 0; i < targets.size() && !!budget.Remaining(); ++i) {
-            const size_t ri = targets[i].runtime_index;
-            if (ri >= runtime.players.size() || runtime.players[ri].pawn != targets[i].pawn)
-                continue;
-            CS2::GiveCameraPriorityBeforeOptionalDma();
+            if (!CS2::GiveCameraPriorityBeforeOptionalDma())
+                break; // camera still busy after timeout — abort weapons pass
             uintptr_t services = 0;
             if (!QReadT(targets[i].pawn + offsets.m_pWeaponServices, services, "CS2.Opt.WepSvc") ||
                 !IsUserPointer(services))
@@ -2792,36 +2840,50 @@ static void RunOptionalEnrichment(const Config& frame_config) {
                 uintptr_t attr = weapon + offsets.m_AttributeManager;
                 QReadT(attr + offsets.m_Item + offsets.m_iItemDefinitionIndex, def, "CS2.Opt.Def");
             }
-            if (def > 0 && def < 6000) {
-                runtime.players[ri].weapon_def = def;
-                const char* nm = CS2_Weapons::NameFromDefIndex(static_cast<int>(def));
-                if (nm)
-                    std::snprintf(runtime.players[ri].weapon, sizeof(runtime.players[ri].weapon), "%s", nm);
-            }
-            if (frame_config.weapon_ammo && offsets.m_iClip1) {
-                int clip = -1;
-                if (QReadT(weapon + offsets.m_iClip1, clip, "CS2.Opt.Clip") && clip >= 0 && clip < 500)
-                    runtime.players[ri].ammo_clip = clip;
+            int clip = -1;
+            const bool haveClip = frame_config.weapon_ammo && offsets.m_iClip1 &&
+                QReadT(weapon + offsets.m_iClip1, clip, "CS2.Opt.Clip") && clip >= 0 && clip < 500;
+            const bool haveDef = def > 0 && def < 6000;
+            if ((haveDef || haveClip) && results.weapon_count < results.weapons.size()) {
+                auto& r = results.weapons[results.weapon_count++];
+                r.pawn = targets[i].pawn;
+                if (haveDef) {
+                    r.weapon_def = def;
+                    const char* nm = CS2_Weapons::NameFromDefIndex(static_cast<int>(def));
+                    if (nm)
+                        std::snprintf(r.weapon, sizeof(r.weapon), "%s", nm);
+                }
+                if (haveClip)
+                    r.ammo_clip = clip;
             }
         }
+        results.weapon_ms = OmniGhost::Gameplay::TimeMs(weaponPhaseBegin);
     }
 
     // ── Dropped weapons (own budget slice) ─────────────────────────────
     if (frame_config.dropped_weapons && !!budget.Remaining() && pressure < 1) {
         mem.SetDmaPriority(Memory::DmaPri::OtherMetadata);
         CS2::GiveCameraPriorityBeforeOptionalDma();
-        CollectDroppedWeapons(frame_config);
+        CollectDroppedWeapons(frame_config, in_match, client_base, results.dropped_weapons);
+        results.dropped_weapons_valid = true;
     }
 
     if (jobGen != g_session_generation.load(std::memory_order_acquire))
         return;
-    if (g_publish_runtime_this_scan)
-        PublishRuntimeSnapshot();
+    // Publish deltas; the acquisition thread merges and owns the runtime publish.
+    if (auto slot = g_optional_results.TryBeginWrite()) {
+        *slot.value = std::move(results);
+        g_optional_results.Publish(slot.index);
+    }
 }
 
 static void OptionalWorkerLoop() {
     while (!g_optional_stop.load(std::memory_order_acquire)) {
         Config jobConfig{};
+        std::vector<OptionalTarget> jobTargets;
+        bool jobInMatch = false, jobDroppedOnly = false;
+        uintptr_t jobClientBase = 0;
+        uint64_t jobGeneration = 0;
         {
             std::unique_lock lock(g_optional_mu);
             g_optional_cv.wait_for(lock, std::chrono::milliseconds(50), [] {
@@ -2833,6 +2895,11 @@ static void OptionalWorkerLoop() {
             if (!g_optional_pending.load(std::memory_order_acquire))
                 continue;
             jobConfig = g_optional_config;
+            jobTargets.swap(g_optional_targets); // steal payload; no extra alloc
+            jobInMatch = g_optional_in_match;
+            jobDroppedOnly = g_optional_dropped_only;
+            jobClientBase = g_optional_client_base;
+            jobGeneration = g_optional_job_generation.load(std::memory_order_acquire);
             g_optional_pending.store(false, std::memory_order_release);
         }
         g_optional_busy.store(true, std::memory_order_release);
@@ -2840,7 +2907,8 @@ static void OptionalWorkerLoop() {
             mem.SetDmaLane("optional");
             mem.SetDmaPriority(Memory::DmaPri::Bones);
             mem.SetDmaCallTag("CS2.Optional");
-            RunOptionalEnrichment(jobConfig);
+            RunOptionalEnrichment(jobConfig, std::move(jobTargets), jobInMatch,
+                                  jobClientBase, jobDroppedOnly, jobGeneration);
         } catch (...) {
             // Never kill the worker on a single bad scan.
         }
@@ -2861,6 +2929,40 @@ static void QueueOptionalEnrichment(const Config& frame_config) {
     {
         std::lock_guard lock(g_optional_mu);
         g_optional_config = frame_config;
+        // Immutable job payload: acquisition thread owns runtime.players, so
+        // the optional worker receives copies and never dereferences runtime.
+        g_optional_in_match = runtime.in_match;
+        g_optional_client_base = runtime.client_base;
+        g_optional_dropped_only = false;
+        g_optional_targets.clear();
+        g_optional_targets.reserve((std::min)(runtime.players.size(), size_t{64}));
+        for (const auto& p : runtime.players) {
+            if (!IsUserPointer(p.pawn) || !p.alive) continue;
+            if (g_optional_targets.size() >= 64) break;
+            g_optional_targets.push_back({p.pawn, p.controller, p.scene, p.name[0] != 0});
+        }
+        g_optional_job_generation.store(
+            g_session_generation.load(std::memory_order_relaxed), std::memory_order_relaxed);
+        g_optional_pending.store(true, std::memory_order_release);
+    }
+    g_optional_cv.notify_one();
+}
+
+// Dropped-item discovery must run even when player scanning is disabled
+// (on-demand branch). Queues a metadata-only optional job with no pawns.
+static void QueueOptionalDroppedOnly(const Config& frame_config) {
+    if (g_optional_stop.load(std::memory_order_acquire))
+        return;
+    if (g_optional_busy.load(std::memory_order_acquire) ||
+        g_optional_pending.load(std::memory_order_acquire))
+        return;
+    {
+        std::lock_guard lock(g_optional_mu);
+        g_optional_config = frame_config;
+        g_optional_in_match = runtime.in_match;
+        g_optional_client_base = runtime.client_base;
+        g_optional_dropped_only = true;
+        g_optional_targets.clear();
         g_optional_job_generation.store(
             g_session_generation.load(std::memory_order_relaxed), std::memory_order_relaxed);
         g_optional_pending.store(true, std::memory_order_release);
@@ -3087,6 +3189,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
     ++runtime.frames;
     runtime.fps = g_presentation_fps.load(std::memory_order_relaxed);
 
+    const uint64_t currentGen = g_session_generation.load(std::memory_order_acquire);
     const uintptr_t client = runtime.client_base;
     // Keep last-good player snapshot when entity list briefly fails (prevents
     // ESP/aim going empty for 1–2 frames on ListEntry null flicker).
@@ -3096,12 +3199,15 @@ static void RunFrameWithConfig(const Config& frame_config) {
     struct RecentPlayer {
         Player player{};
         uint64_t last_seen_ms = 0;
+        uint64_t entry_generation = 0;
+        bool confirmed_dead = false; // P0-3: never reinsert after confirmed death
     };
     struct CachedBones {
         float joints[kBoneSlotCount][3]{};
         float origin[3]{};
         uint64_t last_valid_ms = 0;
         bool full_pose = false;
+        uint64_t entry_generation = 0;
     };
     static std::unordered_map<uintptr_t, RecentPlayer> recent_players;
     static std::unordered_map<uintptr_t, CachedBones> bone_cache;
@@ -3118,6 +3224,64 @@ static void RunFrameWithConfig(const Config& frame_config) {
     if (bone_cache.bucket_count() < 128) bone_cache.reserve(128);
     if (s_stickyBoneLayout.bucket_count() < 128) s_stickyBoneLayout.reserve(128);
     if (s_lastBoneMs.bucket_count() < 128) s_lastBoneMs.reserve(128);
+
+    // ── Merge optional enrichment results (P0 single-writer invariant) ───
+    // The optional worker is the sole producer of g_optional_results and never
+    // touches `runtime`. Draining here keeps THIS thread the only writer of
+    // runtime.players and the only producer of g_runtime_snapshots.
+    const auto drainOptionalResults = [&](uint64_t generation) {
+        auto opt = g_optional_results.Acquire();
+        if (!opt || opt->generation != generation)
+            return;
+        const uint64_t mergeNowMs = GetTickCount64();
+        // Attribute the optional worker's phase timings to this scan.
+        g_phase.bones_ms += opt->bones_ms;
+        g_phase.weapon_ms += opt->weapon_ms;
+        g_phase.bones_players += static_cast<int>(opt->bone_count);
+
+        for (uint32_t i = 0; i < opt->bone_count && i < opt->bones.size(); ++i) {
+            const OptionalBoneResult& r = opt->bones[i];
+            if (!IsUserPointer(r.pawn) || !r.bones_ok || !r.sample_ms) continue;
+            CachedBones& cb = bone_cache[r.pawn];
+            if (cb.entry_generation != generation) { cb = CachedBones{}; cb.entry_generation = generation; }
+            std::memcpy(cb.joints, r.bones, sizeof(cb.joints));
+            cb.last_valid_ms = r.sample_ms;
+            cb.full_pose = r.full_bones_ok;
+            cb.origin[0] = r.bones[0][0];
+            cb.origin[1] = r.bones[0][1];
+            cb.origin[2] = r.bones[0][2];
+        }
+        for (uint32_t i = 0; i < opt->name_count && i < opt->names.size(); ++i) {
+            const OptionalNameResult& r = opt->names[i];
+            if (!IsUserPointer(r.pawn) || !r.name[0]) continue;
+            RecentPlayer& rp = recent_players[r.pawn];
+            if (rp.entry_generation != generation) {
+                rp = RecentPlayer{};
+                rp.player.pawn = r.pawn;
+                rp.entry_generation = generation;
+            }
+            rp.last_seen_ms = mergeNowMs;
+            std::snprintf(rp.player.name, sizeof(rp.player.name), "%s", r.name);
+        }
+        for (uint32_t i = 0; i < opt->weapon_count && i < opt->weapons.size(); ++i) {
+            const OptionalWeaponResult& r = opt->weapons[i];
+            if (!IsUserPointer(r.pawn) || (r.weapon_def <= 0 && r.ammo_clip < 0)) continue;
+            RecentPlayer& rp = recent_players[r.pawn];
+            if (rp.entry_generation != generation) {
+                rp = RecentPlayer{};
+                rp.player.pawn = r.pawn;
+                rp.entry_generation = generation;
+            }
+            rp.last_seen_ms = mergeNowMs;
+            if (r.weapon_def > 0) rp.player.weapon_def = r.weapon_def;
+            if (r.weapon[0])
+                std::snprintf(rp.player.weapon, sizeof(rp.player.weapon), "%s", r.weapon);
+            if (r.ammo_clip >= 0) rp.player.ammo_clip = r.ammo_clip;
+        }
+        if (opt->dropped_weapons_valid)
+            runtime.dropped_weapons = opt->dropped_weapons;
+    };
+    drainOptionalResults(currentGen);
     // Recovery may freeze expensive topology/metadata work, but it must never
     // freeze death detection. Probe only the already-known pawn health fields,
     // publish them immediately, and remove confirmed deaths from every cache
@@ -3275,7 +3439,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
         g_collision_load = std::async(std::launch::async, [requested_map] {
             if (g_collision_cancel.load(std::memory_order_acquire))
                 return;
-            try { (void)Trajectory::CollisionCache().LoadForMap(requested_map.c_str()); }
+            try { (void)Trajectory::CollisionCache().LoadForMap(requested_map.c_str(), &g_collision_cancel); }
             catch (...) { std::cout << "[CS2] Exceção ao preparar colisão do mapa." << std::endl; }
         });
     }
@@ -3379,7 +3543,14 @@ static void RunFrameWithConfig(const Config& frame_config) {
         // World-only visuals deliberately bypass the player pipeline. They
         // retain their own rate/pressure gates and do not wake controller,
         // pawn, bone or weapon acquisition when no player ESP is enabled.
-        CollectDroppedWeapons(frame_config);
+        // Discovery runs on the optional worker (single-threaded static
+        // caches + own scatter handle); results merge on the next scan.
+        QueueOptionalDroppedOnly(frame_config);
+
+        // Merge any pending optional results so dropped items still refresh
+        // while no player scan is active (this branch returns before the
+        // normal merge point below).
+        drainOptionalResults(currentGen);
         return;
     }
 
@@ -3899,6 +4070,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
         uintptr_t pawn = 0;
         uint64_t last_update_ms = 0;
         uint64_t last_seen_ms = 0;
+        uint64_t entry_generation = 0;
     };
     static std::unordered_map<uintptr_t, CachedControllerPawn> controllerPawnCache;
     static uint64_t controllerPawnCacheGeneration = 0;
@@ -3912,7 +4084,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
     bool anyHandleDue = false;
     for (int i = 0; i < collected; ++i) {
         auto cached = controllerPawnCache.find(controllers[i]);
-        if (cached != controllerPawnCache.end()) {
+        if (cached != controllerPawnCache.end() && cached->second.entry_generation == currentGen) {
             cached->second.last_seen_ms = controllerNowMs;
             handles[i] = cached->second.handle;
             resolved_by_slot[i] = cached->second.pawn;
@@ -3932,6 +4104,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
     for (int i = 0; i < collected; ++i) {
         if (!controllersDue[i]) continue;
         auto& cached = controllerPawnCache.try_emplace(controllers[i]).first->second;
+        cached.entry_generation = currentGen;
         cached.last_seen_ms = controllerNowMs;
         const uint32_t fresh = refreshedHandles[i];
         if (!fresh || fresh == 0xFFFFFFFFu) continue;
@@ -3963,6 +4136,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
     for (int i = 0; i < collected; ++i) {
         if (!handlesToResolve[i]) continue;
         auto& cached = controllerPawnCache.try_emplace(controllers[i]).first->second;
+        cached.entry_generation = currentGen;
         if (IsUserPointer(newlyResolved[i])) {
             cached.handle = handlesToResolve[i];
             cached.pawn = newlyResolved[i];
@@ -4077,6 +4251,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
         uint64_t team_expires_ms = 0;
         uint64_t armor_expires_ms = 0;
         uint64_t last_seen_ms = 0;
+        uint64_t entry_generation = 0;
     };
     static std::unordered_map<uintptr_t, CachedSceneBone> sceneBoneCache;
     static uint64_t sceneBoneCacheGeneration = 0;
@@ -4096,7 +4271,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
         positions[c][0] = positions[c][1] = positions[c][2] =
             std::numeric_limits<float>::quiet_NaN();
         const auto cached = sceneBoneCache.find(resolved_pawns[c]);
-        if (cached != sceneBoneCache.end()) {
+        if (cached != sceneBoneCache.end() && cached->second.entry_generation == currentGen) {
             cachedScenes[c] = cached->second.scene;
             cachedTeams[c] = cached->second.team;
             cachedArmors[c] = cached->second.armor;
@@ -4137,6 +4312,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
     NotePossibleDeviceStall(g_phase.positions_ms);
     for (int c = 0; c < candidate_count; ++c) {
         auto& cached = sceneBoneCache[resolved_pawns[c]];
+        cached.entry_generation = currentGen;
         cached.last_seen_ms = scan_now_ms;
         if (IsPlayableTeam(static_cast<int>(core[c].team))) {
             cached.team = core[c].team;
@@ -4191,7 +4367,10 @@ static void RunFrameWithConfig(const Config& frame_config) {
     PublishLivenessSnapshot(liveness);
     for (size_t i = 0; i < confirmedDeadCount; ++i) {
         const uintptr_t pawn = confirmedDead[i];
-        recent_players.erase(pawn);
+        // P0-3: Mark as confirmed dead instead of just erasing — prevents
+        // reinsertion if the pointer is reused before grace expiry.
+        if (auto it = recent_players.find(pawn); it != recent_players.end())
+            it->second.confirmed_dead = true;
         bone_cache.erase(pawn);
         s_stickyBoneLayout.erase(pawn);
         sceneBoneCache.erase(pawn);
@@ -4309,6 +4488,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
             // Carry last-good bones from cache so skeleton does not blink off
             // between optional refreshes — presentation enforces visual age cap.
             if (auto bit = bone_cache.find(pawn); bit != bone_cache.end() &&
+                bit->second.entry_generation == currentGen &&
                 bit->second.last_valid_ms) {
                 std::memcpy(corePlayer.bones, bit->second.joints, sizeof(corePlayer.bones));
                 corePlayer.bones_ok = true;
@@ -4320,7 +4500,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 corePlayer.head[1] = corePlayer.bones[0][1];
                 corePlayer.head[2] = corePlayer.bones[0][2];
             }
-            if (auto rit = recent_players.find(pawn); rit != recent_players.end()) {
+            if (auto rit = recent_players.find(pawn); rit != recent_players.end() &&
+                rit->second.entry_generation == currentGen) {
                 if (rit->second.player.name[0])
                     std::snprintf(corePlayer.name, sizeof(corePlayer.name), "%s",
                         rit->second.player.name);
@@ -4423,6 +4604,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
         uintptr_t sanitized_address = 0;
         uint64_t last_refresh_ms = 0;
         uint64_t next_fallback_ms = 0;
+        uint64_t entry_generation = 0;
     };
     static std::unordered_map<uintptr_t, CachedName> nameCache;
     static uint64_t metadataCacheGeneration = 0;
@@ -4450,6 +4632,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
         uint64_t services_refresh_ms = 0;
         uint64_t last_refresh_ms = 0; // active-handle refresh
         uint64_t last_fallback_ms = 0;
+        uint64_t entry_generation = 0;
     };
     static std::unordered_map<uintptr_t, CachedWeaponState> weaponStateCache;
     if (metadataCacheGeneration != g_session_generation.load(std::memory_order_acquire)) {
@@ -4510,7 +4693,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 const int controllerSlot = slot_index[c];
                 const uintptr_t controller = controllers[controllerSlot];
                 const auto cached = nameCache.find(controller);
-                if (cached != nameCache.end() && cached->second.text[0] &&
+                if (cached != nameCache.end() && cached->second.entry_generation == currentGen &&
+                    cached->second.text[0] &&
                     scan_now_ms - cached->second.last_refresh_ms < static_cast<uint64_t>(NAME_INTERVAL_MS)) {
                     std::memcpy(playerNames[c], cached->second.text.data(),
                                 sizeof(playerNames[c]));
@@ -4590,6 +4774,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
             if (!need_names || !nameNeedsRefresh[c]) continue;
             const uintptr_t controller = controllers[slot_index[c]];
             auto& cachedName = nameCache[controller];
+            cachedName.entry_generation = currentGen;
             playerNames[c][sizeof(playerNames[c]) - 1] = '\0';
             for (char* ch = playerNames[c]; *ch; ++ch) {
                 if (static_cast<unsigned char>(*ch) < 0x20 ||
@@ -4726,7 +4911,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
             bool serviceRefreshSucceeded[kMaxSlots]{};
             for (int c = 0; c < candidate_count; ++c) {
                 auto cached = weaponStateCache.find(resolved_pawns[c]);
-                if (cached != weaponStateCache.end()) {
+                if (cached != weaponStateCache.end() && cached->second.entry_generation == currentGen) {
                     weaponServices[c] = cached->second.services;
                     weaponHandles[c] = cached->second.handle;
                     weaponEntities[c] = cached->second.entity;
@@ -4850,6 +5035,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 const uint64_t previousServicesRefresh = previous != weaponStateCache.end()
                     ? previous->second.services_refresh_ms : 0;
                 auto& state = weaponStateCache[resolved_pawns[c]];
+                state.entry_generation = currentGen;
                 state.services = weaponServices[c];
                 state.handle = weaponHandles[c];
                 state.entity = weaponEntities[c];
@@ -4894,6 +5080,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
             for (int c = 0; c < candidate_count; ++c) {
                 if (!definitionFallbackDue[c]) continue;
                 auto& state = weaponStateCache[resolved_pawns[c]];
+                state.entry_generation = currentGen;
                 state.last_fallback_ms = scan_now_ms;
                 for (int fi = 0; fi < 3; ++fi) {
                     const uint16_t candidate = definitionFallbacks[c][fi];
@@ -4976,6 +5163,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
         uint64_t next_slow_ms = 0;
         uint64_t next_defuse_ms = 0;
         uint64_t last_seen_ms = 0;
+        uint64_t entry_generation = 0;
     };
     static std::unordered_map<uintptr_t, FlagCache> flag_cache;
     static uint64_t flagCacheGeneration = 0;
@@ -5000,6 +5188,10 @@ static void RunFrameWithConfig(const Config& frame_config) {
         for (int c = 0; c < candidate_count; ++c) {
             const uintptr_t pawn = resolved_pawns[c];
             auto& cache = flag_cache[pawn];
+            if (cache.entry_generation != currentGen) {
+                cache = FlagCache{}; // Reset stale entry
+                cache.entry_generation = currentGen;
+            }
             cache.last_seen_ms = scan_now_ms;
             const uintptr_t controller = controllers[slot_index[c]];
             const bool slowDue = frame_config.player_flags &&
@@ -5052,6 +5244,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
         }
         for (int c = 0; c < candidate_count; ++c) {
             auto& cache = flag_cache[resolved_pawns[c]];
+            cache.entry_generation = currentGen;
             if (readMoney[c] && moneyValues[c] >= 0 && moneyValues[c] < 100000) cache.money = moneyValues[c];
             if (readKit[c]) cache.kit = kitValues[c] != 0;
             if (readDefuse[c]) cache.defusing = defuseValues[c] != 0;
@@ -5457,6 +5650,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
             }
             if (acquired_real_bones) {
                 auto& cached = bone_cache[p.pawn];
+                cached.entry_generation = currentGen;
                 std::memcpy(cached.joints, p.bones, sizeof(p.bones));
                 std::memcpy(cached.origin, p.pos, sizeof(cached.origin));
                 cached.last_valid_ms = scan_now_ms;
@@ -5470,6 +5664,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
         if (!p.bones_ok) {
             const auto cached = bone_cache.find(p.pawn);
             if (cached != bone_cache.end() &&
+                cached->second.entry_generation == currentGen &&
                 // A scatter/bone-base miss is normally transient.  Preserve
                 // the last anatomical pose long enough to bridge it, while
                 // translating it by the current origin so it never freezes in
@@ -5541,10 +5736,23 @@ static void RunFrameWithConfig(const Config& frame_config) {
     // were removed above and can never be reinserted from this cache.
     constexpr uint64_t kPlayerDropoutGraceMs = 60;
     for (const auto& player : runtime.players) {
-        if (IsUserPointer(player.pawn))
-            recent_players[player.pawn] = {player, scan_now_ms};
+        if (IsUserPointer(player.pawn)) {
+            // P0-3: Skip confirmed dead players entirely — never repopulate
+            // a player that was already confirmed dead in this session.
+            auto it = recent_players.find(player.pawn);
+            if (it != recent_players.end() && it->second.confirmed_dead) {
+                continue; // Don't overwrite the confirmed_dead entry
+            }
+            recent_players[player.pawn] = {player, scan_now_ms, currentGen};
+        }
     }
     for (auto it = recent_players.begin(); it != recent_players.end();) {
+        // P0-3: Confirmed dead players are immune to grace reinsertion
+        if (it->second.confirmed_dead) {
+            bone_cache.erase(it->first);
+            it = recent_players.erase(it);
+            continue;
+        }
         if (scan_now_ms - it->second.last_seen_ms > kPlayerDropoutGraceMs) {
             bone_cache.erase(it->first);
             it = recent_players.erase(it);
@@ -5555,6 +5763,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
         const bool allowedTeam = !frame_config.team_check ||
             it->second.player.team != runtime.local_team;
         if (!present && !it->second.player.is_local && allowedTeam &&
+            !it->second.confirmed_dead && // P0-3: Double-check
             runtime.players.size() < static_cast<std::size_t>(kMaxSlots)) {
             runtime.players.push_back(it->second.player);
             OmniGhost::Gameplay::DmaTelemetry::CS2().recent_player_reinsertions.fetch_add(
@@ -5701,7 +5910,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
         }
     }
 
-    CollectDroppedWeapons(frame_config);
+    CollectDroppedWeapons(frame_config, runtime.in_match, runtime.client_base,
+                          runtime.dropped_weapons);
 
     // EntityCacheHub policy: periodic prune by last_seen so maps cannot grow
     // across long sessions. Generation mismatch already clears on session
@@ -5869,6 +6079,10 @@ void EnsureAcquisitionStarted() {
     });
     g_camera_pending.store(false, std::memory_order_release);
     g_camera_deadline_ms.store(0, std::memory_order_release);
+    // Legitimate producer handoff: this init publish happens on the calling
+    // thread BEFORE the acquisition worker exists. Rebind so the worker
+    // remains the only producer from here on.
+    g_runtime_snapshots.ResetProducerThread();
     PublishRuntimeSnapshot();
     // Camera and origins are latency-critical for visual attachment while
     // turning or moving.  Bones remain in the validated full scan; this small
@@ -6244,9 +6458,12 @@ CameraSnapshot SelectCameraSnapshot(uint64_t world_sample_ms) {
     for (const auto& candidate : g_camera_history) {
         if (!candidate.timestamp_ms)
             continue;
-        const uint64_t delta = candidate.timestamp_ms > world_sample_ms
-            ? candidate.timestamp_ms - world_sample_ms
-            : world_sample_ms - candidate.timestamp_ms;
+        // P0-5: Never select a camera NEWER than the world sample — that
+        // would present a predicted position against an old camera matrix,
+        // causing micro-jitter during fast pans.
+        if (candidate.timestamp_ms > world_sample_ms)
+            continue;
+        const uint64_t delta = world_sample_ms - candidate.timestamp_ms;
         if (delta < best_delta) {
             best = candidate;
             best_delta = delta;
@@ -6323,6 +6540,11 @@ void Shutdown() {
     WebRadar::Stop();
     DestroyScatter();
     ResetSessionState("shutdown");
+    // Explicit shutdown boundary: never leave an async future to block during
+    // static destruction after the owning game session has gone away.
+    if (g_collision_load.valid()) {
+        try { g_collision_load.get(); } catch (...) {}
+    }
     g_pending_entity_list = 0;
     g_entity_list_confirmations = 0;
     g_entity_list_next_validation_ms = 0;
@@ -6333,6 +6555,9 @@ void Shutdown() {
     ready = false;
     g_read_fails.store(0, std::memory_order_relaxed);
     runtime = Runtime{};
+    // Handoff: acquisition threads are joined above; publish the cleared
+    // runtime from this thread without tripping the single-producer guard.
+    g_runtime_snapshots.ResetProducerThread();
     PublishRuntimeSnapshot();
     status = "Shutdown";
 }

@@ -52,6 +52,7 @@ std::atomic_bool g_enabled{false};
 Sample g_fivem{};
 Sample g_cs2{};
 Sample g_warzone{};
+Sample g_fortnite{};
 
 struct Ring {
     std::array<float, kWindow> data{};
@@ -95,17 +96,18 @@ struct Ring {
     }
 };
 
-Ring g_acqF{}, g_acqC{};
-Ring g_renderF{}, g_renderC{};
+Ring g_acqF{}, g_acqC{}, g_acqW{}, g_acqFortnite{};
+Ring g_renderF{}, g_renderC{}, g_renderW{}, g_renderFortnite{};
 Ring g_dmaExec{};
-Ring g_cameraAgeC{}, g_cameraReadC{};
+Ring g_cameraAgeC{}, g_cameraAgeW{}, g_cameraAgeFortnite{};
+Ring g_cameraReadC{}, g_cameraReadF{}, g_cameraReadW{}, g_cameraReadFortnite{};
 Ring g_bonesC{};
 Ring g_positionAgeC{}, g_bonesAgeC{}, g_cameraPositionDeltaC{}, g_predictionC{};
 
-std::atomic<float> g_lastAcqF{0.f}, g_lastAcqC{0.f};
+std::atomic<float> g_lastAcqF{0.f}, g_lastAcqC{0.f}, g_lastAcqW{0.f}, g_lastAcqFortnite{0.f};
 
-std::chrono::steady_clock::time_point g_lastSpikeWarn{};
-std::chrono::steady_clock::time_point g_lastSpikeSevere{};
+std::atomic<uint64_t> g_lastSpikeWarnMs{0};
+std::atomic<uint64_t> g_lastSpikeSevereMs{0};
 
 uint64_t g_prevReads = 0;
 uint64_t g_prevScatter = 0;
@@ -171,7 +173,7 @@ void WritePerf(std::string_view tag, Sample& s) {
 		"prediction_ms=%.1f\nprediction_p95_ms=%.1f\nprediction_p99_ms=%.1f\nprediction_max_ms=%.1f\n"
 		"cached_bones_used=%llu\ncached_bones_age_max_ms=%.1f\n"
         "bones_players=%d\nbones_p95_ms=%.2f\nbones_p99_ms=%.2f\nbones_max_ms=%.2f\n"
-        "render_avg_ms=%.2f\nrender_p95_ms=%.2f\nrender_max_ms=%.2f\n\n"
+        "render_avg_ms=%.2f\nrender_p95_ms=%.2f\nrender_p99_ms=%.2f\nrender_max_ms=%.2f\n\n"
         "suppressed_spikes_20=%llu\nsuppressed_spikes_50=%llu\nsuppressed_spikes_100=%llu",
         s.active.load() ? 1 : 0,
         s.process_connected.load() ? 1 : 0,
@@ -237,6 +239,7 @@ void WritePerf(std::string_view tag, Sample& s) {
         s.bones_max_ms.load(),
         s.render_ms.load(),
         s.render_p95_ms.load(),
+        s.render_p99_ms.load(),
         s.render_max_ms.load(),
         static_cast<unsigned long long>(s.suppressed_spikes_20.load()),
         static_cast<unsigned long long>(s.suppressed_spikes_50.load()),
@@ -293,6 +296,7 @@ bool IsEnabled() noexcept {
 Sample& FiveM() { return g_fivem; }
 Sample& CS2() { return g_cs2; }
 Sample& Warzone() { return g_warzone; }
+Sample& Fortnite() { return g_fortnite; }
 
 void ObserveAcquire(Sample& s, float work_ms, bool activeSample, uint64_t scan_id) noexcept {
     if (work_ms < 0.f) return;
@@ -304,15 +308,26 @@ void ObserveAcquire(Sample& s, float work_ms, bool activeSample, uint64_t scan_i
     s.idle_reason.store(0, std::memory_order_relaxed);
 
     const bool isCs2 = (&s == &g_cs2);
-    Ring& ring = isCs2 ? g_acqC : g_acqF;
+    const bool isWarzone = (&s == &g_warzone);
+    const bool isFortnite = (&s == &g_fortnite);
+    Ring& ring = isCs2 ? g_acqC : isWarzone ? g_acqW : isFortnite ? g_acqFortnite : g_acqF;
     ring.Push(work_ms);
     if (isCs2) g_lastAcqC.store(work_ms, std::memory_order_relaxed);
+    else if (isWarzone) g_lastAcqW.store(work_ms, std::memory_order_relaxed);
+    else if (isFortnite) g_lastAcqFortnite.store(work_ms, std::memory_order_relaxed);
     else g_lastAcqF.store(work_ms, std::memory_order_relaxed);
     PublishAcquireStats(s, ring, work_ms);
 
     // Rate-limited spike reporting (never on idle)
     if (!IsEnabled()) return;
-    const auto now = std::chrono::steady_clock::now();
+    const uint64_t nowMs = GetTickCount64();
+    const auto claimSpikeWindow = [&](std::atomic<uint64_t>& last, uint64_t intervalMs) {
+        uint64_t previous = last.load(std::memory_order_relaxed);
+        for (;;) {
+            if (previous && (nowMs < previous || nowMs - previous < intervalMs)) return false;
+            if (last.compare_exchange_weak(previous, nowMs, std::memory_order_relaxed)) return true;
+        }
+    };
     if (work_ms < 20.f) return;
     if (work_ms < 50.f) {
         s.suppressed_spikes_20.fetch_add(1, std::memory_order_relaxed);
@@ -320,18 +335,15 @@ void ObserveAcquire(Sample& s, float work_ms, bool activeSample, uint64_t scan_i
     }
     if (work_ms < 100.f) {
         s.suppressed_spikes_50.fetch_add(1, std::memory_order_relaxed);
-        if (now - g_lastSpikeWarn < std::chrono::milliseconds(500))
+        if (!claimSpikeWindow(g_lastSpikeWarnMs, 500u))
             return;
-        g_lastSpikeWarn = now;
     } else if (work_ms < kSpikeSevereMs) {
         s.suppressed_spikes_100.fetch_add(1, std::memory_order_relaxed);
-        if (now - g_lastSpikeWarn < std::chrono::milliseconds(500))
+        if (!claimSpikeWindow(g_lastSpikeWarnMs, 500u))
             return;
-        g_lastSpikeWarn = now;
     } else if (work_ms < kSpikeCriticalMs) {
-        if (now - g_lastSpikeSevere < std::chrono::milliseconds(250))
+        if (!claimSpikeWindow(g_lastSpikeSevereMs, 250u))
             return;
-        g_lastSpikeSevere = now;
     }
 
     s.acquisition_spikes.fetch_add(1, std::memory_order_relaxed);
@@ -340,15 +352,17 @@ void ObserveAcquire(Sample& s, float work_ms, bool activeSample, uint64_t scan_i
                   "SPIKE\nscan_id=%llu\ntotal_ms=%.2f\nplayers=%d\nreads_s=%d\nscatter_s=%d",
                   static_cast<unsigned long long>(scan_id),
                   work_ms, s.entities.load(), s.reads_s.load(), s.scatter_s.load());
-    EmitWarn(isCs2 ? "CS2" : "FIVEM", buf);
+    EmitWarn(isCs2 ? "CS2" : isWarzone ? "WARZONE" : isFortnite ? "FORTNITE" : "FIVEM", buf);
 }
 
 void ObserveRender(Sample& s, float ms) noexcept {
     if (ms < 0.f) return;
-    Ring& ring = (&s == &g_cs2) ? g_renderC : g_renderF;
+    Ring& ring = (&s == &g_cs2) ? g_renderC : (&s == &g_warzone) ? g_renderW
+        : (&s == &g_fortnite) ? g_renderFortnite : g_renderF;
     ring.Push(ms);
-    static std::atomic<uint64_t> nextCs2StatsMs{0}, nextFivemStatsMs{0};
-    auto& nextStatsMs = (&s == &g_cs2) ? nextCs2StatsMs : nextFivemStatsMs;
+    static std::atomic<uint64_t> nextCs2StatsMs{0}, nextFivemStatsMs{0}, nextWarzoneStatsMs{0}, nextFortniteStatsMs{0};
+    auto& nextStatsMs = (&s == &g_cs2) ? nextCs2StatsMs : (&s == &g_warzone) ? nextWarzoneStatsMs
+        : (&s == &g_fortnite) ? nextFortniteStatsMs : nextFivemStatsMs;
     const uint64_t now = GetTickCount64();
     uint64_t next = nextStatsMs.load(std::memory_order_relaxed);
     if (now < next || !nextStatsMs.compare_exchange_strong(
@@ -357,13 +371,15 @@ void ObserveRender(Sample& s, float ms) noexcept {
     auto st = ring.Stats();
     s.render_ms.store(st.avg, std::memory_order_relaxed);
     s.render_p95_ms.store(st.p95, std::memory_order_relaxed);
+    s.render_p99_ms.store(st.p99, std::memory_order_relaxed);
     s.render_max_ms.store(st.max, std::memory_order_relaxed);
 }
 
 void ObserveCameraAge(Sample& s, float age_ms) noexcept {
-	if (age_ms < 0.f || &s != &g_cs2) return;
-	g_cameraAgeC.Push(age_ms);
-	const auto st = g_cameraAgeC.Stats();
+	if (age_ms < 0.f || (&s != &g_cs2 && &s != &g_warzone && &s != &g_fortnite)) return;
+	Ring& ring = (&s == &g_cs2) ? g_cameraAgeC : (&s == &g_warzone) ? g_cameraAgeW : g_cameraAgeFortnite;
+	ring.Push(age_ms);
+	const auto st = ring.Stats();
 	s.camera_age_ms.store(age_ms, std::memory_order_relaxed);
 	s.camera_age_avg_ms.store(st.avg, std::memory_order_relaxed);
 	s.camera_age_p50_ms.store(st.p50, std::memory_order_relaxed);
@@ -373,9 +389,11 @@ void ObserveCameraAge(Sample& s, float age_ms) noexcept {
 }
 
 void ObserveCameraRead(Sample& s, float read_ms) noexcept {
-	if (read_ms < 0.f || &s != &g_cs2) return;
-	g_cameraReadC.Push(read_ms);
-	const auto st = g_cameraReadC.Stats();
+	if (read_ms < 0.f) return;
+	Ring& ring = (&s == &g_cs2) ? g_cameraReadC : (&s == &g_warzone) ? g_cameraReadW
+	    : (&s == &g_fortnite) ? g_cameraReadFortnite : g_cameraReadF;
+	ring.Push(read_ms);
+	const auto st = ring.Stats();
 	s.camera_read_p95_ms.store(st.p95, std::memory_order_relaxed);
 	s.camera_read_p99_ms.store(st.p99, std::memory_order_relaxed);
 	s.camera_read_max_ms.store(st.max, std::memory_order_relaxed);
@@ -472,6 +490,8 @@ void RefreshFromMemory() noexcept {
     };
     fill(g_cs2);
     fill(g_fivem);
+    fill(g_warzone);
+    fill(g_fortnite);
 }
 
 static void ObserveProcessResources(Sample& s) noexcept {
@@ -498,7 +518,7 @@ static void ObserveProcessResources(Sample& s) noexcept {
 void Tick(std::string_view tag) {
     if (!IsEnabled()) return;
     static std::mutex mu;
-    static std::chrono::steady_clock::time_point lastF{}, lastC{}, lastW{};
+    static std::chrono::steady_clock::time_point lastF{}, lastC{}, lastW{}, lastFortnite{};
     std::lock_guard<std::mutex> lock(mu);
     RefreshFromMemory();
     const auto now = std::chrono::steady_clock::now();
@@ -506,6 +526,7 @@ void Tick(std::string_view tag) {
     std::chrono::steady_clock::time_point* last = &lastC;
     if (tag == "FIVEM") { sample = &g_fivem; last = &lastF; }
     else if (tag == "WARZONE" || tag == "WZ") { sample = &g_warzone; last = &lastW; }
+    else if (tag == "FORTNITE") { sample = &g_fortnite; last = &lastFortnite; }
     ObserveProcessResources(*sample);
     // PERF once/sec only while active gameplay for CS2/FiveM samples
     if (!sample->active.load(std::memory_order_relaxed)) {
@@ -543,13 +564,15 @@ void LogConfigChanged(std::string_view tag, std::string_view config_blob) {
 }
 
 void LogSessionSummary(std::string_view tag) {
-    Sample& s = (tag == "FIVEM") ? g_fivem : g_cs2;
+    Sample& s = (tag == "FIVEM") ? g_fivem
+        : (tag == "WARZONE" || tag == "WZ") ? g_warzone
+        : (tag == "FORTNITE") ? g_fortnite : g_cs2;
     char buf[1400]{};
     std::snprintf(buf, sizeof(buf),
         "SESSION_SUMMARY\n"
         "acquire_avg_ms=%.2f\nacquire_p50_ms=%.2f\nacquire_p95_ms=%.2f\nacquire_p99_ms=%.2f\nacquire_max_ms=%.2f\n"
         "dma_avg_ms=%.2f\ndma_p95_ms=%.2f\ndma_p99_ms=%.2f\ndma_max_ms=%.2f\n"
-        "render_avg_ms=%.2f\nrender_p95_ms=%.2f\nrender_max_ms=%.2f\n"
+        "render_avg_ms=%.2f\nrender_p95_ms=%.2f\nrender_p99_ms=%.2f\nrender_max_ms=%.2f\n"
 		"camera_age_avg_ms=%.1f\ncamera_age_p50_ms=%.1f\ncamera_age_p95_ms=%.1f\ncamera_age_p99_ms=%.1f\ncamera_age_max_ms=%.1f\n"
 		"camera_read_p95_ms=%.2f\ncamera_read_p99_ms=%.2f\ncamera_read_max_ms=%.2f\n"
 		"camera_busy_skips=%llu\ncamera_busy_retry_success=%llu\ncamera_consecutive_busy_max=%llu\n"
@@ -561,7 +584,7 @@ void LogSessionSummary(std::string_view tag) {
         s.acquire_ms.load(), s.acquire_p50_ms.load(), s.acquire_p95_ms.load(),
         s.acquire_p99_ms.load(), s.acquire_max_ms.load(),
         s.vmm_avg_ms.load(), s.vmm_p95_ms.load(), s.vmm_p99_ms.load(), s.vmm_max_ms.load(),
-        s.render_ms.load(), s.render_p95_ms.load(), s.render_max_ms.load(),
+        s.render_ms.load(), s.render_p95_ms.load(), s.render_p99_ms.load(), s.render_max_ms.load(),
 		s.camera_age_avg_ms.load(), s.camera_age_p50_ms.load(), s.camera_age_p95_ms.load(),
 		s.camera_age_p99_ms.load(), s.camera_age_max_ms.load(),
 		s.camera_read_p95_ms.load(), s.camera_read_p99_ms.load(), s.camera_read_max_ms.load(),

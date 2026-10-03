@@ -424,11 +424,23 @@ void esp::batch_read_skeleton_data(const std::vector<uintptr_t>& peds,
     }
 
     // Execute ALL reads in one operation
-    mem.ExecuteReadScatter(handle);
+    const bool readOk = mem.ExecuteReadScatter(handle);
 
-    // Mark valid entries
+    // A transport success alone does not prove every individual range was
+    // returned. Keep invalid/zeroed poses out of the prepared frame.
     for (auto& data : out_data) {
-        data.valid = true;
+        const float matrixEnergy = std::fabs(data.bone_matrix._11) +
+            std::fabs(data.bone_matrix._22) + std::fabs(data.bone_matrix._33);
+        bool hasBone = false;
+        for (int boneId : skeleton_bones) {
+            if ((bone_mask & (uint16_t(1u) << static_cast<unsigned>(boneId))) == 0)
+                continue;
+            const auto& b = data.bone_offsets[boneId];
+            if (std::isfinite(b.x) && std::isfinite(b.y) && std::isfinite(b.z) &&
+                (std::fabs(b.x) + std::fabs(b.y) + std::fabs(b.z)) > 0.001f)
+                hasBone = true;
+        }
+        data.valid = readOk && std::isfinite(matrixEnergy) && matrixEnergy > 0.001f && hasBone;
     }
 
     // Update stats
@@ -677,12 +689,16 @@ void esp::batch_read_head_data(const std::vector<uintptr_t>& peds, std::vector<B
     }
 
     // Execute ALL reads in one operation
-    mem.ExecuteReadScatter(handle);
+    const bool readOk = mem.ExecuteReadScatter(handle);
     mem.CloseScatterHandle(handle);
 
     // Mark valid entries
     for (auto& data : out_data) {
-        data.valid = true;
+        const float matrixEnergy = std::fabs(data.bone_matrix._11) +
+            std::fabs(data.bone_matrix._22) + std::fabs(data.bone_matrix._33);
+        data.valid = readOk && std::isfinite(matrixEnergy) && matrixEnergy > 0.001f &&
+            std::isfinite(data.head_offset.x) && std::isfinite(data.head_offset.y) &&
+            std::isfinite(data.head_offset.z);
     }
 
     // Update stats
@@ -1409,6 +1425,7 @@ bool esp::has_extra_visuals() {
 
 void esp::prepare_esp_frame(const std::vector<uintptr_t>& peds,
                             const std::vector<Vec3>& origins,
+                            const std::vector<float>& coreHealths,
                             const Config& frameConfig,
                             const aimbot::Config& aimConfig) {
     PreparedEspFrame next;
@@ -1450,6 +1467,9 @@ void esp::prepare_esp_frame(const std::vector<uintptr_t>& peds,
         next.entries[i] = {};
         next.entries[i].ped = peds[i];
         next.entries[i].origin = i < origins.size() ? origins[i] : Vec3{};
+        if (i < coreHealths.size() && std::isfinite(coreHealths[i]) &&
+            coreHealths[i] >= 0.f && coreHealths[i] < 1000.f)
+            next.entries[i].health = coreHealths[i];
         next.entries[i].valid = peds[i] != 0 && !next.entries[i].origin.IsZero();
         next.index[peds[i]] = i;
     }
@@ -1521,10 +1541,13 @@ void esp::prepare_esp_frame(const std::vector<uintptr_t>& peds,
         publish(std::move(next));
         return;
     }
-    for (auto& data : next.entries) {
+    for (size_t i = 0; i < next.entries.size(); ++i) {
+        auto& data = next.entries[i];
         if (!data.ped) continue;
-        mem.AddScatterReadRequest(first, data.ped + offset::playerHealth,
-            &data.health, sizeof(data.health));
+        if (i >= coreHealths.size() || !std::isfinite(coreHealths[i]) ||
+            coreHealths[i] < 0.f || coreHealths[i] >= 1000.f)
+            mem.AddScatterReadRequest(first, data.ped + offset::playerHealth,
+                &data.health, sizeof(data.health));
         mem.AddScatterReadRequest(first, data.ped + 0x284,
             &data.max_health, sizeof(data.max_health));
         if (need_armor) {

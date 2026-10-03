@@ -59,7 +59,7 @@ std::string g_web_root;
 std::string g_live_json = "{\"m_map\":\"unknown\",\"m_round_phase\":\"warmup\",\"m_players\":[],\"m_bomb\":null}";
 RadarSnapshot g_pending_runtime{};
 bool g_pending_runtime_valid = false;
-ULONGLONG g_next_json_refresh = 0;
+std::atomic<ULONGLONG> g_next_json_refresh{0};
 std::thread g_server_thread;
 HANDLE g_cf_proc = nullptr;
 std::thread g_cf_reader;
@@ -633,7 +633,9 @@ void SubmitSnapshot(const Runtime& snapshot) {
     static ULONGLONG nextSnapshot = 0;
     const ULONGLONG now = GetTickCount64();
     if (now < nextSnapshot) return;
-    nextSnapshot = now + (snapshot.in_match ? 33 : 500);
+    // Match the server JSON refresh and browser polling cadence. Intermediate
+    // realtime snapshots would only be replaced before any client sees them.
+    nextSnapshot = now + (snapshot.in_match ? 67 : 500);
     // The radar consumes a deliberately small DTO. Copying a Runtime here
     // used to copy every skeleton/bone vector while holding the server mutex.
     // JSON formatting and allocations remain in ServerLoop.

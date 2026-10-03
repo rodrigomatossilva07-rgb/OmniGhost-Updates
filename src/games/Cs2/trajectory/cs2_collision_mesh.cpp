@@ -7,14 +7,22 @@
 #include <numeric>
 #include <utility>
 namespace CS2::Trajectory {
-bool LoadTriBytes(const std::uint8_t* bytes, std::size_t size, const std::filesystem::path& source, CollisionMesh& output) {
+bool LoadTriBytes(const std::uint8_t* bytes, std::size_t size, const std::filesystem::path& source, CollisionMesh& output, const std::atomic_bool* cancel) {
     output = {}; output.source = source;
     constexpr std::uintmax_t record = sizeof(float) * 9;
     if (!bytes || !size || size % record) { output.error = "Ficheiro .tri inválido"; return false; }
     const auto count = size / record; if (count > 20'000'000) { output.error = "Mapa demasiado grande"; return false; }
     output.triangles.resize(static_cast<size_t>(count));
     std::memcpy(output.triangles.data(), bytes, size);
-    for (const auto& t : output.triangles) { const auto* v = reinterpret_cast<const float*>(&t); for (int i=0;i<9;++i) if (!std::isfinite(v[i])) { output = {}; output.source = source; output.error = "Coordenadas inválidas"; return false; } }
+    for (std::size_t index = 0; index < output.triangles.size(); ++index) {
+        if ((index & 4095u) == 0 && cancel && cancel->load(std::memory_order_acquire)) {
+            output = {}; output.source = source; output.error = "Carregamento cancelado"; return false;
+        }
+        const auto* v = reinterpret_cast<const float*>(&output.triangles[index]);
+        for (int i = 0; i < 9; ++i) if (!std::isfinite(v[i])) {
+            output = {}; output.source = source; output.error = "Coordenadas inválidas"; return false;
+        }
+    }
     output.loaded = true; return true;
 }
 bool LoadTriFile(const std::filesystem::path& path, CollisionMesh& output) {
@@ -28,12 +36,60 @@ bool LoadTriFile(const std::filesystem::path& path, CollisionMesh& output) {
 }
 
 namespace { using CS2::Trajectory::Vec3; using CS2::Trajectory::Triangle;
+struct BuildCancelled {};
 Vec3 Sub(Vec3 a, Vec3 b){return {a.x-b.x,a.y-b.y,a.z-b.z};} Vec3 Cross(Vec3 a,Vec3 b){return {a.y*b.z-a.z*b.y,a.z*b.x-a.x*b.z,a.x*b.y-a.y*b.x};}
 float Dot(Vec3 a,Vec3 b){return a.x*b.x+a.y*b.y+a.z*b.z;}
 bool Box(Vec3 o, Vec3 d, Vec3 mn, Vec3 mx, float best){ float lo=0,hi=best; const float* a=&o.x;const float* b=&d.x;const float* l=&mn.x;const float* h=&mx.x; for(int i=0;i<3;++i){if(std::fabs(b[i])<1e-7f){if(a[i]<l[i]||a[i]>h[i])return false;}else{float x=(l[i]-a[i])/b[i],y=(h[i]-a[i])/b[i];if(x>y)std::swap(x,y);lo=(std::max)(lo,x);hi=(std::min)(hi,y);if(lo>hi)return false;}}return true;}
 bool Tri(Vec3 o,Vec3 d,const Triangle&t,float& u,Vec3&n){auto e1=Sub(t.b,t.a),e2=Sub(t.c,t.a),p=Cross(d,e2);float det=Dot(e1,p);if(std::fabs(det)<1e-7f)return false;float inv=1/det;auto q=Sub(o,t.a);float a=Dot(q,p)*inv;if(a<0||a>1)return false;auto r=Cross(q,e1);float b=Dot(d,r)*inv;if(b<0||a+b>1)return false;float v=Dot(e2,r)*inv;if(v<0||v>u)return false;u=v;n=Cross(e1,e2);float l=std::sqrt(Dot(n,n));if(l>0){n.x/=l;n.y/=l;n.z/=l;}return true;}}
-bool CollisionBvh::Build(CollisionMesh&& mesh){triangles=std::move(mesh.triangles);indices.resize(triangles.size());std::iota(indices.begin(),indices.end(),0);nodes.clear();if(triangles.empty())return false;BuildNode(0,(unsigned)indices.size());return true;}
-unsigned CollisionBvh::BuildNode(unsigned begin,unsigned end){Node n{};n.min={INFINITY,INFINITY,INFINITY};n.max={-INFINITY,-INFINITY,-INFINITY};for(unsigned i=begin;i<end;++i){const auto&t=triangles[indices[i]];for(auto p:{t.a,t.b,t.c}){n.min.x=(std::min)(n.min.x,p.x);n.min.y=(std::min)(n.min.y,p.y);n.min.z=(std::min)(n.min.z,p.z);n.max.x=(std::max)(n.max.x,p.x);n.max.y=(std::max)(n.max.y,p.y);n.max.z=(std::max)(n.max.z,p.z);}}unsigned id=(unsigned)nodes.size();nodes.push_back(n);if(end-begin<=12){nodes[id].begin=begin;nodes[id].count=end-begin;return id;}int axis=0;auto span=Sub(n.max,n.min);if(span.y>span.x)axis=1;if((&span.x)[2]>(&span.x)[axis])axis=2;unsigned mid=(begin+end)/2;std::nth_element(indices.begin()+begin,indices.begin()+mid,indices.begin()+end,[&](unsigned a,unsigned b){return ((&triangles[a].a.x)[axis]+(&triangles[a].b.x)[axis]+(&triangles[a].c.x)[axis])<((&triangles[b].a.x)[axis]+(&triangles[b].b.x)[axis]+(&triangles[b].c.x)[axis]);});nodes[id].left=BuildNode(begin,mid);nodes[id].right=BuildNode(mid,end);return id;}
+bool CollisionBvh::Build(CollisionMesh&& mesh, const std::atomic_bool* cancel){
+    triangles = std::move(mesh.triangles);
+    indices.resize(triangles.size());
+    std::iota(indices.begin(), indices.end(), 0);
+    nodes.clear();
+    if (triangles.empty() || (cancel && cancel->load(std::memory_order_acquire))) return false;
+    buildCancel = cancel;
+    try { BuildNode(0, static_cast<unsigned>(indices.size())); }
+    catch (const BuildCancelled&) { nodes.clear(); indices.clear(); triangles.clear(); buildCancel = nullptr; return false; }
+    buildCancel = nullptr;
+    return true;
+}
+unsigned CollisionBvh::BuildNode(unsigned begin, unsigned end) {
+    if (buildCancel && buildCancel->load(std::memory_order_acquire)) throw BuildCancelled{};
+    Node n{};
+    n.min = {INFINITY, INFINITY, INFINITY};
+    n.max = {-INFINITY, -INFINITY, -INFINITY};
+    for (unsigned i = begin; i < end; ++i) {
+        if ((i & 4095u) == 0 && buildCancel && buildCancel->load(std::memory_order_acquire))
+            throw BuildCancelled{};
+        const auto& t = triangles[indices[i]];
+        for (auto p : {t.a, t.b, t.c}) {
+            n.min.x = (std::min)(n.min.x, p.x); n.min.y = (std::min)(n.min.y, p.y); n.min.z = (std::min)(n.min.z, p.z);
+            n.max.x = (std::max)(n.max.x, p.x); n.max.y = (std::max)(n.max.y, p.y); n.max.z = (std::max)(n.max.z, p.z);
+        }
+    }
+    const unsigned id = static_cast<unsigned>(nodes.size());
+    nodes.push_back(n);
+    if (end - begin <= 12) {
+        nodes[id].begin = begin;
+        nodes[id].count = end - begin;
+        return id;
+    }
+    int axis = 0;
+    const auto span = Sub(n.max, n.min);
+    if (span.y > span.x) axis = 1;
+    if ((&span.x)[2] > (&span.x)[axis]) axis = 2;
+    const unsigned mid = (begin + end) / 2;
+    std::nth_element(indices.begin() + begin, indices.begin() + mid, indices.begin() + end,
+        [&](unsigned a, unsigned b) {
+            return ((&triangles[a].a.x)[axis] + (&triangles[a].b.x)[axis] + (&triangles[a].c.x)[axis]) <
+                   ((&triangles[b].a.x)[axis] + (&triangles[b].b.x)[axis] + (&triangles[b].c.x)[axis]);
+        });
+    const unsigned left = BuildNode(begin, mid);
+    const unsigned right = BuildNode(mid, end);
+    nodes[id].left = left;
+    nodes[id].right = right;
+    return id;
+}
 RayHit CollisionBvh::TraceRay(Vec3 from,Vec3 to)const{
     RayHit out{};
     if(nodes.empty())return out;
