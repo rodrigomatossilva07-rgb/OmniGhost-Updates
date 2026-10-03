@@ -44,5 +44,8 @@ namespace FiveM {
         bool try_get_prepared_velocity(uintptr_t ped, Vec3& out);
         bool try_get_prepared_health(uintptr_t ped, float& out);
         bool try_get_prepared_bone_position(uintptr_t ped, int bone, Vec3& out);
+        
+        // Session generation for cache invalidation
+        std::atomic<uint64_t>& GetSessionGeneration();
     }
 }

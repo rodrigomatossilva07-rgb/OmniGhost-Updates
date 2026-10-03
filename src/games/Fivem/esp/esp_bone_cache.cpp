@@ -14,12 +14,12 @@ Matrix esp::BoneCache::get_bone_matrix(uintptr_t ped, bool force_refresh) {
     if (!force_refresh && it != cached_bone_data.end() && it->second.is_valid) {
         auto age = now - it->second.last_update;
         if (age < CACHE_VALIDITY_MS) {
-            esp_stats.cache_hits.fetch_add(1, std::memory_order_relaxed);
+            esp_stats.add_hit();
             return it->second.bone_matrix;
         }
     }
 
-    esp_stats.cache_misses.fetch_add(1, std::memory_order_relaxed);
+    esp_stats.add_miss();
     esp_stats.memory_reads.fetch_add(1, std::memory_order_relaxed);
 
     Matrix bone_matrix{};
@@ -67,13 +67,13 @@ Vec3 esp::BoneCache::get_bone_position(uintptr_t ped, int bone_position, bool fo
         if (!force_refresh && it != cached_bone_data.end() && it->second.is_valid) {
             auto age = now - it->second.last_update;
             if (age < CACHE_VALIDITY_MS) {
-                esp_stats.cache_hits.fetch_add(1, std::memory_order_relaxed);
+                esp_stats.add_hit();
                 return it->second.head_position;
             }
         }
     }
 
-    esp_stats.cache_misses.fetch_add(1, std::memory_order_relaxed);
+    esp_stats.add_miss();
     esp_stats.memory_reads.fetch_add(1, std::memory_order_relaxed);
 
     Matrix bone_matrix = get_bone_matrix(ped, force_refresh);
@@ -116,9 +116,14 @@ void esp::BoneCache::cleanup_old_entries() {
         return;
     }
 
+    // P3-1: Use configurable validity from esp::config
+    auto maxAge = std::chrono::milliseconds(esp::config.bone_cache_validity_ms * 2);
+    
     for (auto it = cached_bone_data.begin(); it != cached_bone_data.end(); ) {
         auto age = now - it->second.last_update;
-        if (age > std::chrono::seconds(10)) {
+        // P0-3: Align cleanup TTL with CACHE_VALIDITY_MS (8ms) — remove entries
+        // older than 2x validity (16ms) to prevent zombie accumulation.
+        if (age > maxAge) {
             it = cached_bone_data.erase(it);
         }
         else {
@@ -135,6 +140,7 @@ bool esp::BoneCache::is_data_valid(uintptr_t ped) const {
 
     auto now = std::chrono::steady_clock::now();
     auto age = now - it->second.last_update;
-    return it->second.is_valid && age < CACHE_VALIDITY_MS;
+    // P3-1: Use configurable validity from esp::config
+    return it->second.is_valid && age < std::chrono::milliseconds(esp::config.bone_cache_validity_ms);
 }
 

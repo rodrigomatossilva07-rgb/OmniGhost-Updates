@@ -101,16 +101,17 @@ constexpr int WEAPON_INTERVAL_MS = 200;
 constexpr int WEAPON_FALLBACK_INTERVAL_MS = 10000;
 constexpr int ENTITY_LIST_INTERVAL_MS = 250;
 constexpr int NAME_INTERVAL_MS = 1000;      // low-frequency identity
-constexpr int BONE_RELIABILITY_HOLD_MS = 120; // cache hold; ESP visual hard-cap is 120 ms
+constexpr int BONE_RELIABILITY_HOLD_MS = 50; // cache hold; reduced from 120 to improve bones_age_p95
 constexpr int TEAM_INTERVAL_MS = 500;
 }
 
 OmniGhost::Gameplay::SnapshotExchange<CameraSnapshot> g_camera_snapshots;
 OmniGhost::Gameplay::SnapshotExchange<LivenessSnapshot> g_liveness_snapshots;
 OmniGhost::Gameplay::SnapshotExchange<Config> g_config_snapshots;
+// Lock-free ring buffer for camera history (single producer: camera thread).
+// Atomic index avoids mutex in 16ms hot path.
 std::array<CameraSnapshot, 6> g_camera_history{};
-std::mutex g_camera_history_mutex;
-size_t g_camera_history_next = 0;
+std::atomic<size_t> g_camera_history_next{0};
 std::atomic_bool g_acquisition_stop{false};
 std::atomic_bool g_acquisition_running{false};
 std::atomic<float> g_presentation_fps{0.f};
@@ -170,11 +171,15 @@ struct OptionalResults {
     uint32_t bone_count = 0;
     float bones_ms = 0.f;
     float weapon_ms = 0.f;
+    float dropped_ms = 0.f;        // P2-8: dropped weapons timing
+    float budget_left_ms = 0.f;    // P2-8: optional budget remaining
     std::vector<DroppedWeapon> dropped_weapons;
     bool dropped_weapons_valid = false;
 };
 OmniGhost::Gameplay::SnapshotExchange<OptionalResults, 3> g_optional_results; // producer: optional thread only
-std::vector<OptionalTarget> g_optional_targets; // written under g_optional_mu by acquisition
+// P2-4: Single-producer, single-consumer via std::swap() under g_optional_mu.
+// Acquisition writes under mutex; optional thread reads via swap() (ownership transfer).
+std::vector<OptionalTarget> g_optional_targets;
 bool g_optional_in_match = false;
 bool g_optional_dropped_only = false;
 uintptr_t g_optional_client_base = 0;
@@ -316,11 +321,9 @@ void PublishCameraSnapshot(const float* matrix, uint64_t sample_ms = 0) {
     if (!slot) return;
     std::memcpy(slot.value->view_matrix, matrix, sizeof(slot.value->view_matrix));
     slot.value->timestamp_ms = sample_ms ? sample_ms : GetTickCount64();
-    {
-        std::scoped_lock lock(g_camera_history_mutex);
-        g_camera_history[g_camera_history_next] = *slot.value;
-        g_camera_history_next = (g_camera_history_next + 1) % g_camera_history.size();
-    }
+    // P0-7: Lock-free ring buffer update (single producer).
+    const size_t idx = g_camera_history_next.fetch_add(1, std::memory_order_relaxed) % g_camera_history.size();
+    g_camera_history[idx] = *slot.value;
     g_camera_snapshots.Publish(slot.index);
 }
 
@@ -412,12 +415,15 @@ bool QRead(uintptr_t addr, void* buf, size_t size, const char* tag = "QRead") {
 
 // Camera-only non-blocking read. A busy transport is not a read failure and
 // does not consume the camera cadence; the worker retries on its next wake-up.
+// Respects HeavyDmaCooldownActive to maintain temporal consistency with core.
 bool QTryRead(uintptr_t addr, void* buf, size_t size, bool& attempted,
               const char* tag = "QTryRead") {
     attempted = false;
-    // Heavy-lane cooldown is deliberately ignored here. TryRead owns the
-    // camera lane and returns immediately when the physical transport is busy.
     if (!addr || !buf || !size || !mem.vHandle || addr < 0x10000)
+        return false;
+    // P0-5: Respect heavy-lane cooldown to avoid camera/core temporal skew.
+    // Return attempted=false so camera thread yields and retries next cycle.
+    if (HeavyDmaCooldownActive())
         return false;
     mem.SetDmaCallTag(tag);
     const auto begin = std::chrono::steady_clock::now();
@@ -1387,11 +1393,8 @@ void ResetSessionState(const char* reason) {
     g_last_snapshot_publish_ms.store(0, std::memory_order_relaxed);
     g_runtime_snapshot_drops.store(0, std::memory_order_relaxed);
     g_acquisition_hz.store(0.f, std::memory_order_relaxed);
-    {
-        std::scoped_lock lock(g_camera_history_mutex);
-        g_camera_history = {};
-        g_camera_history_next = 0;
-    }
+    g_camera_history = {};
+    g_camera_history_next.store(0, std::memory_order_relaxed);
     g_pending_entity_list = 0;
     g_entity_list_confirmations = 0;
     g_entity_list_next_validation_ms = 0;
@@ -1447,6 +1450,20 @@ void RefreshMapName() {
         return;
     }
 
+    // P1-8: Cache map name with 30s TTL — map changes once per match.
+    static std::string cachedMapName;
+    static uint64_t cachedMapNameMs = 0;
+    const uint64_t nowMs = GetTickCount64();
+    constexpr uint64_t kMapNameTtlMs = 30000;
+    if (!cachedMapName.empty() && nowMs < cachedMapNameMs + kMapNameTtlMs) {
+        // Use cached name, update runtime
+        if (cachedMapName.size() >= sizeof(runtime.map_name))
+            cachedMapName.resize(sizeof(runtime.map_name) - 1);
+        std::memset(runtime.map_name, 0, sizeof(runtime.map_name));
+        std::memcpy(runtime.map_name, cachedMapName.data(), cachedMapName.size());
+        return;
+    }
+
     uintptr_t globals = 0;
     uintptr_t map_address = 0;
     char raw[128]{};
@@ -1490,6 +1507,8 @@ void RefreshMapName() {
     if (lower.find("background") != std::string::npos ||
         lower.find("mainmenu") != std::string::npos) {
         runtime.map_name[0] = '\0';
+        cachedMapName.clear();
+        cachedMapNameMs = nowMs;
         return;
     }
     if (const size_t slash = clean.find_last_of('/'); slash != std::string::npos)
@@ -1504,6 +1523,10 @@ void RefreshMapName() {
         clean.resize(sizeof(runtime.map_name) - 1);
     std::memset(runtime.map_name, 0, sizeof(runtime.map_name));
     std::memcpy(runtime.map_name, clean.data(), clean.size());
+
+    // Update cache
+    cachedMapName = clean;
+    cachedMapNameMs = nowMs;
 }
 
 // Probe whether a candidate list_entry looks like a live controller table.
@@ -2152,11 +2175,11 @@ static void ScatterReadPawnHandles(const uintptr_t* controllers, uint32_t* handl
 }
 
 // Resolve all Source 2 handles in two DMA round-trips: one for the unique page
-// pointers and one for the entity pointers. The old path resolved and validated
-// every pawn with several synchronous reads, which scaled very poorly in a full
-// lobby. Health/team validation already happens in the following core scatter.
+// pointers and one for the entity pointers. Tries both strides in one call
+// to avoid double round-trips when stride is uncertain.
 static int ScatterResolvePawnHandles(const uint32_t* handles, uintptr_t* pawns,
                                      int count, uintptr_t stride,
+                                     uintptr_t alternate_stride,
                                      bool optionalLane = false) {
     if (!handles || !pawns || count <= 0) return 0;
     std::fill(pawns, pawns + count, 0);
@@ -2230,6 +2253,7 @@ static int ScatterResolvePawnHandles(const uint32_t* handles, uintptr_t* pawns,
             if (IsUserPointer(chunks[page])) cachedChunks[page] = chunks[page];
     }
 
+    // Try primary stride first
     bool queuedEntityPointers = false;
     for (int i = 0; i < count; ++i) {
         const EntityHandleParts parts = DecodeEntityHandle(handles[i]);
@@ -2246,10 +2270,39 @@ static int ScatterResolvePawnHandles(const uint32_t* handles, uintptr_t* pawns,
         mem.ExecuteReadScatter(g_scatter_full);
     }
 
+    // Check if primary stride resolved enough; if not, try alternate stride
     int resolved = 0;
     for (int i = 0; i < count; ++i) {
-        if (IsUserPointer(pawns[i])) ++resolved;
-        else pawns[i] = 0;
+        if (IsUserPointer(pawns[i])) {
+            ++resolved;
+        } else {
+            pawns[i] = 0;
+        }
+    }
+
+    // If primary stride failed for many, try alternate in same function
+    if (alternate_stride && alternate_stride != stride && resolved < count / 2) {
+        std::fill(pawns, pawns + count, 0);
+        queuedEntityPointers = false;
+        for (int i = 0; i < count; ++i) {
+            const EntityHandleParts parts = DecodeEntityHandle(handles[i]);
+            if (!parts.valid) continue;
+            const int page = static_cast<int>(parts.page);
+            if (page < 0 || page >= kMaxPages || !IsUserPointer(chunks[page])) continue;
+            mem.AddScatterReadRequest(g_scatter_full, chunks[page] + alternate_stride * parts.index,
+                                      &pawns[i], sizeof(uintptr_t));
+            queuedEntityPointers = true;
+        }
+        if (queuedEntityPointers) {
+            if (optionalLane) CS2::GiveCameraPriorityBeforeOptionalDma();
+            mem.SetDmaCallTag("CS2.ResolveHandles.Entities.Alt");
+            mem.ExecuteReadScatter(g_scatter_full);
+        }
+        resolved = 0;
+        for (int i = 0; i < count; ++i) {
+            if (IsUserPointer(pawns[i])) ++resolved;
+            else pawns[i] = 0;
+        }
     }
     return resolved;
 }
@@ -2284,50 +2337,11 @@ static void ScatterReadPawnCore(const uintptr_t* pawns, const uintptr_t* control
                                 float (*positions)[3], bool need_velocity) {
     if (!pawns || !fields || count <= 0) return;
     EnsureScatter();
+    // P1-5: Remove QRead fallback — if scatter handle unavailable, treat as frame drop
+    // to avoid 10+ QReads/player causing massive frame spikes.
     if (!g_scatter_full) {
         for (int i = 0; i < count; ++i) {
-            if (!pawns[i]) continue;
-            QReadT(pawns[i] + offsets.m_iHealth, fields[i].health);
-            if (controllers && IsUserPointer(controllers[i]) && offsets.m_bPawnIsAlive)
-                QReadT(controllers[i] + offsets.m_bPawnIsAlive, fields[i].controller_alive);
-            {
-                uint8_t sp = 1;
-                if (need_spotted && offsets.m_entitySpottedState)
-                    QReadT(pawns[i] + offsets.m_entitySpottedState + offsets.m_bSpotted, sp);
-                fields[i].spotted = (sp != 0);
-            }
-            fields[i].team = cached_teams ? cached_teams[i] : 0;
-            if (!IsPlayableTeam(static_cast<int>(fields[i].team)) ||
-                (refresh_teams && refresh_teams[i]))
-                QReadT(pawns[i] + offsets.m_iTeamNum, fields[i].team);
-            fields[i].armor = cached_armors ? cached_armors[i] : 0;
-            if (need_armor && (!cached_armors || (refresh_armors && refresh_armors[i])))
-                QReadT(pawns[i] + offsets.m_ArmorValue, fields[i].armor);
-            fields[i].scene = cached_scenes ? cached_scenes[i] : 0;
-            if (!IsUserPointer(fields[i].scene) || (refresh_scenes && refresh_scenes[i])) {
-                uintptr_t refreshedScene = 0;
-                if (QReadT(pawns[i] + offsets.m_pGameSceneNode, refreshedScene) &&
-                    IsUserPointer(refreshedScene))
-                    fields[i].scene = refreshedScene;
-            }
-            if (positions) {
-                if (IsUserPointer(fields[i].scene))
-                    QRead(fields[i].scene + offsets.m_vecAbsOrigin, positions[i], sizeof(float) * 3);
-                else
-                    QRead(pawns[i] + offsets.m_vOldOrigin, positions[i], sizeof(float) * 3);
-            }
-            if (need_velocity && offsets.m_vecVelocity)
-                QRead(pawns[i] + offsets.m_vecVelocity, fields[i].velocity,
-                      sizeof(fields[i].velocity));
-            if (need_scoped && offsets.m_bIsScoped)
-                QReadT(pawns[i] + offsets.m_bIsScoped, fields[i].scoped);
-            if (need_flash && offsets.m_flFlashDuration)
-                QReadT(pawns[i] + offsets.m_flFlashDuration, fields[i].flash);
-            if (need_yaw)
-                QRead(pawns[i] + offsets.m_angEyeAngles, fields[i].eye_angles,
-                      sizeof(fields[i].eye_angles));
-            if (need_weapons && offsets.m_pWeaponServices)
-                QReadT(pawns[i] + offsets.m_pWeaponServices, fields[i].weapon_services);
+            fields[i] = PawnCoreFields{}; // mark as unread
         }
         return;
     }
@@ -2864,9 +2878,14 @@ static void RunOptionalEnrichment(const Config& frame_config,
     if (frame_config.dropped_weapons && !!budget.Remaining() && pressure < 1) {
         mem.SetDmaPriority(Memory::DmaPri::OtherMetadata);
         CS2::GiveCameraPriorityBeforeOptionalDma();
+        const auto droppedPhaseBegin = std::chrono::steady_clock::now();
         CollectDroppedWeapons(frame_config, in_match, client_base, results.dropped_weapons);
         results.dropped_weapons_valid = true;
+        results.dropped_ms = OmniGhost::Gameplay::TimeMs(droppedPhaseBegin);
     }
+
+    // P2-8: Track optional budget left for telemetry correlation.
+    results.budget_left_ms = budget.Remaining();
 
     if (jobGen != g_session_generation.load(std::memory_order_acquire))
         return;
@@ -3053,10 +3072,13 @@ static void UpdateSpectators(const Config& frame_config,
         mem.ExecuteReadScatter(g_scatter_full);
     }
     uintptr_t observerPawns[kSpectatorSlots]{};
-    if (queuedObservers)
+    if (queuedObservers) {
+        const uintptr_t primaryStride = g_pawn_stride ? g_pawn_stride : kEntityIdentityStride;
+        const uintptr_t alternateStride = (primaryStride == kEntityIdentityStride)
+            ? kLegacyEntityIdentityStride : kEntityIdentityStride;
         ScatterResolvePawnHandles(observerHandles, observerPawns,
-            spectatorControllerCount,
-            g_pawn_stride ? g_pawn_stride : kEntityIdentityStride, true);
+            spectatorControllerCount, primaryStride, alternateStride, true);
+    }
     uintptr_t observerServices[kSpectatorSlots]{};
     bool queuedServices = false;
     for (int i = 0; i < spectatorControllerCount; ++i) {
@@ -3086,10 +3108,13 @@ static void UpdateSpectators(const Config& frame_config,
         mem.ExecuteReadScatter(g_scatter_full);
     }
     uintptr_t targetPawns[kSpectatorSlots]{};
-    if (queuedTargets)
+    if (queuedTargets) {
+        const uintptr_t primaryStride = g_pawn_stride ? g_pawn_stride : kEntityIdentityStride;
+        const uintptr_t alternateStride = (primaryStride == kEntityIdentityStride)
+            ? kLegacyEntityIdentityStride : kEntityIdentityStride;
         ScatterResolvePawnHandles(targetHandles, targetPawns,
-            spectatorControllerCount,
-            g_pawn_stride ? g_pawn_stride : kEntityIdentityStride, true);
+            spectatorControllerCount, primaryStride, alternateStride, true);
+    }
 
     char spectatorNames[kSpectatorSlots][64]{};
     uint64_t spectatorSteamIds[kSpectatorSlots]{};
@@ -3237,6 +3262,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
         // Attribute the optional worker's phase timings to this scan.
         g_phase.bones_ms += opt->bones_ms;
         g_phase.weapon_ms += opt->weapon_ms;
+        g_phase.optional_budget_left_ms = opt->budget_left_ms; // P2-8: track optional budget
         g_phase.bones_players += static_cast<int>(opt->bone_count);
 
         for (uint32_t i = 0; i < opt->bone_count && i < opt->bones.size(); ++i) {
@@ -3280,6 +3306,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
         }
         if (opt->dropped_weapons_valid)
             runtime.dropped_weapons = opt->dropped_weapons;
+            runtime.dropped_weapons.reserve(24);
     };
     drainOptionalResults(currentGen);
     // Recovery may freeze expensive topology/metadata work, but it must never
@@ -4122,15 +4149,14 @@ static void RunFrameWithConfig(const Config& frame_config) {
     uintptr_t newlyResolved[kMaxSlots]{};
     int newlyResolvedCount = 0;
     if (anyHandleChanged) {
+        const uintptr_t primaryStride = g_pawn_stride ? g_pawn_stride : kEntityIdentityStride;
+        const uintptr_t alternateStride = (primaryStride == kEntityIdentityStride)
+            ? kLegacyEntityIdentityStride : kEntityIdentityStride;
         newlyResolvedCount = ScatterResolvePawnHandles(
             handlesToResolve, newlyResolved, collected,
-            g_pawn_stride ? g_pawn_stride : kEntityIdentityStride);
-        if (newlyResolvedCount == 0) {
-            const uintptr_t alternate = g_pawn_stride == kEntityIdentityStride
-                ? kLegacyEntityIdentityStride : kEntityIdentityStride;
-            newlyResolvedCount = ScatterResolvePawnHandles(
-                handlesToResolve, newlyResolved, collected, alternate);
-            if (newlyResolvedCount > 0) g_pawn_stride = alternate;
+            primaryStride, alternateStride);
+        if (newlyResolvedCount > 0 && g_pawn_stride != primaryStride) {
+            g_pawn_stride = primaryStride;
         }
     }
     for (int i = 0; i < collected; ++i) {
@@ -4997,8 +5023,13 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 }
             }
             CS2::GiveCameraPriorityBeforeOptionalDma();
-            ScatterResolvePawnHandles(weaponHandlesToResolve, resolvedWeapons, candidate_count,
-                g_pawn_stride ? g_pawn_stride : kEntityIdentityStride);
+            {
+                const uintptr_t primaryStride = g_pawn_stride ? g_pawn_stride : kEntityIdentityStride;
+                const uintptr_t alternateStride = (primaryStride == kEntityIdentityStride)
+                    ? kLegacyEntityIdentityStride : kEntityIdentityStride;
+                ScatterResolvePawnHandles(weaponHandlesToResolve, resolvedWeapons, candidate_count,
+                    primaryStride, alternateStride);
+            }
             for (int c = 0; c < candidate_count; ++c)
                 if (weaponChanged[c]) weaponEntities[c] = resolvedWeapons[c];
 
@@ -5814,9 +5845,10 @@ static void RunFrameWithConfig(const Config& frame_config) {
         }
         visibilityDue.push_back(target);
     }
-    if (losWorld && losOrigin && !visibilityDue.empty())
+    if (losWorld && losOrigin && !visibilityDue.empty()) {
+        ScopedPhase phaseVisSubmit(&g_phase.visibility_submit_ms);
         g_visibility_worker.Submit(losWorld, *losOrigin, std::move(visibilityDue), visibilityGeneration);
-    else if (!requested.visibility)
+    } else if (!requested.visibility)
         g_visibility_worker.Reset();
 
     // Camera projection is published by the dedicated high-rate camera lane.
@@ -6454,8 +6486,10 @@ LivenessSnapshotLease AcquireLivenessSnapshot() {
 CameraSnapshot SelectCameraSnapshot(uint64_t world_sample_ms) {
     CameraSnapshot best{};
     uint64_t best_delta = (std::numeric_limits<uint64_t>::max)();
-    std::scoped_lock lock(g_camera_history_mutex);
-    for (const auto& candidate : g_camera_history) {
+    // P0-7: Lock-free read of ring buffer (single writer, relaxed ordering OK).
+    const size_t count = g_camera_history.size();
+    for (size_t i = 0; i < count; ++i) {
+        const CameraSnapshot& candidate = g_camera_history[i];
         if (!candidate.timestamp_ms)
             continue;
         // P0-5: Never select a camera NEWER than the world sample — that

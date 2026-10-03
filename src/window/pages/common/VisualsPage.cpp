@@ -117,7 +117,7 @@ struct FivemPreviewAdapter : EspPreview::IConfigAdapter {
         }
         if (visibilityColors && visibleCheck)
             return esp::config.color_visible;
-        return esp::config.box_corner ? esp::config.color_corner_box : esp::config.color_box_2d;
+        return esp::config.corner_box ? esp::config.color_corner_box : esp::config.color_box_2d;
     }
 };
 
@@ -292,4 +292,4 @@ void DrawVisuals()
     ImGui::EndGroup();
 }
 
-} // namespace
+// namespace

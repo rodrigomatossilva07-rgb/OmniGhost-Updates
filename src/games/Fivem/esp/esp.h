@@ -25,6 +25,29 @@ namespace esp {
     const uintptr_t BONE_SIZE          = 0x10;
     const float MAX_ESP_DISTANCE = 200.0f;
 
+    // P1-3: LOD bone selection - reduces DMA bandwidth by reading only
+    // bones needed for the visual features at a given distance.
+    enum class SkeletonLOD : uint8_t {
+        Full = 0,    // All 9 bones (head, spine, limbs) - close range
+        High = 1,    // 5 bones (head, neck, shoulders, pelvis) - medium
+        Medium = 2,  // 3 bones (head, neck, pelvis) - far
+        Low = 3      // 1 bone (head only) - very far / minimal
+    };
+
+    // Distance thresholds for LOD transitions (meters)
+    inline constexpr float LOD_DIST_FULL = 30.0f;
+    inline constexpr float LOD_DIST_HIGH = 80.0f;
+    inline constexpr float LOD_DIST_MEDIUM = 150.0f;
+
+    // Compute bone mask for a given LOD level
+    uint16_t ComputeSkeletonBoneMask(SkeletonLOD lod);
+    // Compute LOD from distance to local player
+    SkeletonLOD ComputeSkeletonLOD(float distance);
+    // Compute combined bone mask for all peds based on their distances
+    uint16_t ComputeCombinedBoneMask(const std::vector<uintptr_t>& peds,
+                                     const std::vector<Vec3>& positions,
+                                     const Vec3& localPos);
+
     // ESP Mode Configuration - Simple two modes
     enum class ESPMode {
         HEAD_CIRCLE = 0,  // Your existing head circle ESP
@@ -213,8 +236,8 @@ namespace esp {
 
     // Performance monitoring
     struct ESPStats {
-        std::atomic<int> cache_hits{0};
-        std::atomic<int> cache_misses{0};
+        // P3-3: Combined counter for atomic hit ratio (high 32=hits, low 32=misses)
+        std::atomic<uint64_t> cache_combined{0};
         std::atomic<int> memory_reads{0};
         std::atomic<int> batch_reads{0};
         std::chrono::steady_clock::time_point last_reset;
@@ -222,16 +245,23 @@ namespace esp {
         ESPStats() : last_reset(std::chrono::steady_clock::now()) {}
 
         void reset() {
-            cache_hits.store(0, std::memory_order_relaxed);
-            cache_misses.store(0, std::memory_order_relaxed);
+            cache_combined.store(0, std::memory_order_relaxed);
             memory_reads.store(0, std::memory_order_relaxed);
             batch_reads.store(0, std::memory_order_relaxed);
             last_reset = std::chrono::steady_clock::now();
         }
 
+        void add_hit() {
+            cache_combined.fetch_add(1ull << 32, std::memory_order_relaxed);
+        }
+        void add_miss() {
+            cache_combined.fetch_add(1ull, std::memory_order_relaxed);
+        }
+
         double get_hit_ratio() const {
-            const int hits = cache_hits.load(std::memory_order_relaxed);
-            const int misses = cache_misses.load(std::memory_order_relaxed);
+            const uint64_t combined = cache_combined.load(std::memory_order_relaxed);
+            const int hits = static_cast<int>(combined >> 32);
+            const int misses = static_cast<int>(combined & 0xFFFFFFFFu);
             const int total = hits + misses;
             return total > 0 ? static_cast<double>(hits) / total : 0.0;
         }

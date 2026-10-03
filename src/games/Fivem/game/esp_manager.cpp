@@ -79,6 +79,7 @@ namespace FiveM {
         static OmniGhost::Gameplay::SnapshotExchange<AcquisitionOptions> s_optionSnapshots;
         static std::atomic<uint64_t> s_snapshotDrops{0};
         static VMMDLL_SCATTER_HANDLE s_acqScatter = nullptr;
+        static VMMDLL_SCATTER_HANDLE g_preparedBoneScatter = nullptr;
         static std::vector<uintptr_t> s_acquireRawPeds;
         static std::vector<uintptr_t> s_acquireValidPeds;
         static std::vector<Vec3> s_acquirePositions;
@@ -118,11 +119,12 @@ namespace FiveM {
             vehicle_esp::Config vehicleConfig{};
             bool friendsListRequested = false;
             int pressure = 0;
+            uint64_t sessionGeneration = 0; // P0-2: validate job belongs to current session
         };
         static OptionalJob s_optionalJob;
         static std::atomic<ULONGLONG> s_livenessLastSeenMs{0};
         static uint64_t s_acquisitionGeneration = 0;
-        static std::atomic<uint64_t> s_sessionGeneration{1};
+        std::atomic<uint64_t> s_sessionGeneration{1};
         static OmniGhost::Gameplay::PipelineTelemetry s_pipelineMetrics;
 
         struct PresentationState {
@@ -163,6 +165,7 @@ namespace FiveM {
         bool FrameCacheValid() { return s_frameCacheValid; }
         const Matrix& GetFrameViewMatrix() { return s_viewMatrix; }
         const Vec3& GetFrameLocalPos() { return s_localPos; }
+        std::atomic<uint64_t>& GetSessionGeneration() { return s_sessionGeneration; }
 
         static void PublishAcquisitionSnapshot(uintptr_t localPlayer, bool cacheValid,
                                                float acquireMs) {
@@ -219,16 +222,32 @@ namespace FiveM {
             // Independent high-rate view-matrix lane. Never blocks on entity
             // or bone work; optional DMA must yield via GiveCameraPriority.
             constexpr int kCameraIntervalMs = 16;
-            uint64_t nextCameraMs = 0;
+            using Clock = std::chrono::steady_clock;
+            auto nextCameraTime = Clock::now();
             VMMDLL_SCATTER_HANDLE camScatter = nullptr;
             std::array<Matrix, 12> cameraHistory{};
             std::array<std::chrono::steady_clock::time_point, 12> cameraTimes{};
             unsigned cameraHistoryCount = 0;
             unsigned cameraHistoryNext = 0;
             uintptr_t historyViewport = 0;
+            uint64_t lastKnownSessionGen = 0;
             while (!s_cameraStop.load(std::memory_order_acquire)) {
-                const uint64_t now = GetTickCount64();
-                s_cameraDeadlineMs.store(nextCameraMs, std::memory_order_release);
+                const auto now = Clock::now();
+                (void)std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+                s_cameraDeadlineMs.store(static_cast<uint64_t>(nextCameraTime.time_since_epoch().count() / 1000000), std::memory_order_release);
+                const uint64_t currentSessionGen = s_sessionGeneration.load(std::memory_order_acquire);
+                
+                // Session generation changed (map change, detach, reattach) — reset all state
+                if (currentSessionGen != lastKnownSessionGen) {
+                    cameraHistoryCount = cameraHistoryNext = 0;
+                    historyViewport = 0;
+                    lastKnownSessionGen = currentSessionGen;
+                    if (camScatter) {
+                        mem.CloseScatterHandle(camScatter);
+                        camScatter = nullptr;
+                    }
+                }
+                
                 if (historyViewport != offset::viewport) {
                     cameraHistoryCount = cameraHistoryNext = 0;
                     historyViewport = offset::viewport;
@@ -236,25 +255,22 @@ namespace FiveM {
                 if (!offset::viewport || !mem.vHandle) {
                     // Residual only — never a fixed 20 ms that stacks with
                     // acquisition pressure sleeps.
-                    const uint64_t idleTarget = now + 50u;
-                    const uint64_t residual = idleTarget > GetTickCount64()
-                        ? idleTarget - GetTickCount64() : 1u;
-                    std::this_thread::sleep_for(std::chrono::milliseconds(
-                        residual > 25 ? 25 : static_cast<int>(residual)));
+                    const auto idleTarget = now + std::chrono::milliseconds(50);
+                    const auto residual = idleTarget > now ? idleTarget - now : std::chrono::milliseconds(1);
+                    std::this_thread::sleep_for(residual > std::chrono::milliseconds(25) ? std::chrono::milliseconds(25) : residual);
                     continue;
                 }
-                if (now < nextCameraMs) {
-                    const uint64_t residual = nextCameraMs - now;
+                if (now < nextCameraTime) {
+                    const auto residual = nextCameraTime - now;
                     // Sleep only the residual to the deadline (cap 8 ms slices
                     // so stop/pressure can be observed promptly).
-                    std::this_thread::sleep_for(std::chrono::milliseconds(
-                        residual > 8 ? 8 : static_cast<int>(residual)));
+                    std::this_thread::sleep_for(residual > std::chrono::milliseconds(8) ? std::chrono::milliseconds(8) : residual);
                     continue;
                 }
                 s_cameraPending.store(true, std::memory_order_release);
                 Matrix matrix{};
                 bool ok = false;
-                const uint64_t cameraBeginMs = GetTickCount64();
+                const auto cameraBegin = now;
                 if (!camScatter)
                     camScatter = mem.CreateScatterHandle();
                 if (camScatter) {
@@ -269,13 +285,12 @@ namespace FiveM {
                 const float finalEnergy = std::fabs(matrix._11) +
                     std::fabs(matrix._22) + std::fabs(matrix._33);
                 ok = ok && std::isfinite(finalEnergy) && finalEnergy > 0.001f;
-                const uint64_t cameraEndMs = GetTickCount64();
+                const auto cameraEnd = Clock::now();
                 OmniGhost::Gameplay::DmaTelemetry::ObserveCameraRead(
                     OmniGhost::Gameplay::DmaTelemetry::FiveM(),
-                    static_cast<float>(cameraEndMs - cameraBeginMs));
+                    std::chrono::duration<float, std::milli>(cameraEnd - cameraBegin).count());
                 if (ok) {
-                    const auto sampleTime = std::chrono::steady_clock::now() -
-                        std::chrono::milliseconds((cameraEndMs - cameraBeginMs) / 2u);
+                    const auto sampleTime = cameraBegin + (cameraEnd - cameraBegin) / 2;
                     cameraHistory[cameraHistoryNext] = matrix;
                     cameraTimes[cameraHistoryNext] = sampleTime;
                     cameraHistoryNext = (cameraHistoryNext + 1u) % static_cast<unsigned>(cameraHistory.size());
@@ -285,7 +300,7 @@ namespace FiveM {
                     if (slot) {
                         slot.value->viewMatrix = matrix;
                         slot.value->sampleTime = sampleTime;
-                        slot.value->sampleMs = cameraBeginMs + (cameraEndMs - cameraBeginMs) / 2u;
+                        slot.value->sampleMs = std::chrono::duration_cast<std::chrono::milliseconds>(sampleTime.time_since_epoch()).count();
                         slot.value->sessionGeneration = s_sessionGeneration.load(std::memory_order_acquire);
                         slot.value->historyMatrices = cameraHistory;
                         slot.value->historyTimes = cameraTimes;
@@ -295,9 +310,9 @@ namespace FiveM {
                 }
                 s_cameraPending.store(false, std::memory_order_release);
                 // Anchor cadence to the previous deadline, not read completion.
-                nextCameraMs += static_cast<uint64_t>(kCameraIntervalMs);
-                if (nextCameraMs <= GetTickCount64())
-                    nextCameraMs = GetTickCount64() + 1u;
+                nextCameraTime += std::chrono::milliseconds(kCameraIntervalMs);
+                if (nextCameraTime <= Clock::now())
+                    nextCameraTime = Clock::now() + std::chrono::milliseconds(1);
             }
             if (camScatter) {
                 mem.CloseScatterHandle(camScatter);
@@ -315,7 +330,8 @@ namespace FiveM {
                 OptionalJob job{};
                 {
                     std::unique_lock lock(s_optionalMu);
-                    s_optionalCv.wait_for(lock, std::chrono::milliseconds(40), [] {
+                    // P2-3: Wait indefinitely for work — no spurious 40ms wakeups.
+                    s_optionalCv.wait(lock, [] {
                         return s_optionalPending.load(std::memory_order_acquire) ||
                             s_optionalStop.load(std::memory_order_acquire);
                     });
@@ -326,6 +342,11 @@ namespace FiveM {
                     job = std::move(s_optionalJob);
                     s_optionalPending.store(false, std::memory_order_release);
                 }
+                // P0-2: Validate job belongs to current session generation
+                const uint64_t currentGen = s_sessionGeneration.load(std::memory_order_acquire);
+                if (job.sessionGeneration != currentGen)
+                    continue; // stale job from previous map/session — drop
+                
                 s_optionalBusy.store(true, std::memory_order_release);
                 try {
                     mem.SetDmaLane("fivem-optional");
@@ -336,7 +357,12 @@ namespace FiveM {
                     auto elapsed = [&] {
                         return OmniGhost::Gameplay::TimeMs(t0);
                     };
-                    if (!job.peds.empty() && pressure < 2) {
+                    // P0-2: Check generation before each DMA phase
+                    auto checkGen = [&]() -> bool {
+                        return s_sessionGeneration.load(std::memory_order_acquire) == currentGen;
+                    };
+                    
+                    if (!job.peds.empty() && pressure < 2 && checkGen()) {
                         const bool needVis = job.espConfig.visibility_colors ||
                             job.espConfig.visible_check || job.aimConfig.visible_check;
                         if (needVis) {
@@ -355,17 +381,17 @@ namespace FiveM {
                                 job.espConfig, job.aimConfig);
                         }
                     }
-                    if (job.boneMask && !job.peds.empty() && pressure < 2 && elapsed() < kBudgetMs) {
+                    if (job.boneMask && !job.peds.empty() && pressure < 2 && elapsed() < kBudgetMs && checkGen()) {
                         mem.SetDmaPriority(Memory::DmaPri::Bones);
                         GiveCameraPriorityBeforeOptionalDma();
                         esp::prepare_skeleton_frame(job.peds, job.positions, job.boneMask);
                     }
-                    if (elapsed() < kBudgetMs && pressure < 1) {
+                    if (elapsed() < kBudgetMs && pressure < 1 && checkGen()) {
                         mem.SetDmaPriority(Memory::DmaPri::OtherMetadata);
                         GiveCameraPriorityBeforeOptionalDma();
                         esp::PrepareWaypointAndBlips(job.espConfig, job.localPos);
                     }
-                    if (elapsed() < kBudgetMs && pressure < 2) {
+                    if (elapsed() < kBudgetMs && pressure < 2 && checkGen()) {
                         mem.SetDmaPriority(Memory::DmaPri::OtherMetadata);
                         GiveCameraPriorityBeforeOptionalDma();
                         Matrix vehicleCamera{};
@@ -391,6 +417,7 @@ namespace FiveM {
                 return; // drop — core already published; avoid stacking
             {
                 std::lock_guard lock(s_optionalMu);
+                job.sessionGeneration = s_sessionGeneration.load(std::memory_order_acquire);
                 s_optionalJob = std::move(job);
                 s_optionalPending.store(true, std::memory_order_release);
             }
@@ -483,12 +510,14 @@ namespace FiveM {
                         cacheValid = lastGoodViewMs != 0 && lastGoodLocalPosMs != 0 &&
                             cacheNowMs >= lastGoodViewMs && cacheNowMs - lastGoodViewMs <= 100u &&
                             cacheNowMs >= lastGoodLocalPosMs && cacheNowMs - lastGoodLocalPosMs <= 100u;
+                        const uint64_t scatterEndMs = GetTickCount64();
+                        (void)scatterEndMs;
+                        s_acquireWorldSampleTime = std::chrono::steady_clock::now(); // P2-9: always record scatter timestamp
                         if (!cacheValid) {
                             s_acquireValidPeds.clear();
                             s_acquirePositions.clear();
                     s_acquireVelocities.clear();
                     s_acquireHealths.clear();
-                            s_acquireWorldSampleTime = {};
                         } else {
                         collectFrameData(localPlayer, s_acquireLocalPos);
                         // Core identity cache only — visibility / prepared ESP /
@@ -501,8 +530,10 @@ namespace FiveM {
                             uint16_t boneMask = 0;
                             if (espOptions.skeleton || espOptions.head_circle || espOptions.chinese_hat
                                 || espOptions.angel_wings || espOptions.devil_horns || espOptions.floating_crown
-                                || espOptions.head_halo || espOptions.look_direction || aimOptions.aimbot_enabled)
-                                boneMask = 0xFFFFu;
+                                || espOptions.head_halo || espOptions.look_direction || aimOptions.aimbot_enabled) {
+                                // P1-3: Compute LOD-based bone mask from distances
+                                boneMask = esp::ComputeCombinedBoneMask(s_acquireValidPeds, s_acquirePositions, s_acquireLocalPos);
+                            }
                             if (espOptions.box_2d || espOptions.corner_box || espOptions.snaplines ||
                                 espOptions.health_bar || espOptions.armor_bar)
                                 boneMask |= 0x0007u;
@@ -666,6 +697,9 @@ namespace FiveM {
             // on the caller thread. Transfer ownership before workers start.
             s_snapshots.ResetProducerThread();
             s_cameraSnapshots.ResetProducerThread();
+            // P1-7: Pre-create scatter handles to avoid lazy init on hot path.
+            if (!g_preparedBoneScatter && mem.vHandle)
+                g_preparedBoneScatter = mem.CreateScatterHandle();
             s_acquisitionStop.store(false, std::memory_order_release);
             s_cameraStop.store(false, std::memory_order_release);
             s_livenessStop.store(false, std::memory_order_release);

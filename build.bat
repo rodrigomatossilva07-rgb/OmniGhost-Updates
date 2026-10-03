@@ -1,0 +1,2 @@
+@echo off
+"C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe" "C:\Users\Rodrigo Silva\Downloads\OmniGhost\OmiGhost.vcxproj" /p:Configuration=Publish /p:Platform=x64 /v:m 2>&1

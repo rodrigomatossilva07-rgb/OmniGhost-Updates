@@ -29,6 +29,8 @@ namespace esp {
         bool box_2d = false;
         bool corner_box = false;
         bool filled_box = false;
+        bool box_fill = false;      // alias for filled_box
+        float box_rounding = 0.f;
         bool snaplines = false;
         bool distance = false;
         bool player_name = false;
@@ -61,11 +63,17 @@ namespace esp {
         float radar_pos_y = 0.78f;
         bool skeleton_lod = true;
         float max_esp_distance = 150.0f; // 0..500 m — DMA + draw cutoff (0 = nobody)
+        // P3-1: Bone cache validity (ms) — aligns with acquisition cadence.
+        int bone_cache_validity_ms = 8;
+        int skeleton_cache_validity_ms = 10;
         bool triangle_radar = false;
         bool blip_esp = false;
         bool waypoint_line = true;      // arrows around crosshair
         bool square_radar = false;       // old corner minimap (off by default)
         float triangle_radar_radius = 80.f; // base; scales with aim FOV
+        bool health_value = false;
+        bool armor_value = false;
+        bool weapon_ammo = false;
 
         ImU32 color_visible = IM_COL32(0, 255, 0, 255);
         ImU32 color_invisible = IM_COL32(255, 55, 55, 255);

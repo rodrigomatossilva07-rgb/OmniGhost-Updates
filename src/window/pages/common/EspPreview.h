@@ -137,7 +137,7 @@ struct TextStack {
     TextStack(float startY, float cx) : y(startY), centerX(cx) {}
 
     // Draw centered text with optional outline
-    void DrawText(ImDrawList* dl, const char* text, ImU32 col, bool outline = false, ImU32 outlineCol = 0, float outlineThick = 1.f) {
+    void DrawTextCentered(ImDrawList* dl, const char* text, ImU32 col, bool outline = false, ImU32 outlineCol = 0, float outlineThick = 1.f) {
         ImVec2 sz = ImGui::CalcTextSize(text);
         float x = centerX - sz.x * 0.5f;
         ImVec2 pos(x, y);

@@ -108,7 +108,7 @@ struct FivemPreviewAdapter : EspPreview::IConfigAdapter {
         }
         if (visibilityColors && visibleCheck)
             return esp::config.color_visible;
-        return esp::config.box_corner ? esp::config.color_corner_box : esp::config.color_box_2d;
+        return esp::config.corner_box ? esp::config.color_corner_box : esp::config.color_box_2d;
     }
 };
 
@@ -119,13 +119,13 @@ static FivemPreviewAdapter g_fivemAdapter;
 void DrawFivemVisuals() {
     const float full = ImGui::GetContentRegionAvail().x;
     const float gap = CyberTheme::Metrics::GridGap;
-    const float height = (std::max)(CyberTheme::Px(440.f), ImGui::GetContentRegionAvail().y);
+    const float childHeight = (std::max)(CyberTheme::Px(440.f), ImGui::GetContentRegionAvail().y);
     const bool stacked = full < CyberTheme::Px(850.f);
     const float previewWidth = stacked ? full : std::clamp(full * 0.30f, CyberTheme::Px(250.f), CyberTheme::Px(310.f));
     const float columnWidth = stacked ? full : (full - previewWidth - 2.f * gap) * 0.5f;
 
     // ---- FEATURES COLUMN ----
-    ImGui::BeginChild("##fm_visual_features", ImVec2(columnWidth, height), false, ImGuiWindowFlags_AlwaysVerticalScrollbar);
+    ImGui::BeginChild("##fm_visual_features", ImVec2(columnWidth, childHeight), false, ImGuiWindowFlags_AlwaysVerticalScrollbar);
     CyberWidgets::BeginCard("ESP DE JOGADORES");
     CyberWidgets::ToggleSwitch("Ativar ESP", &esp::config.enabled);
     CyberWidgets::Separator();
@@ -178,7 +178,7 @@ void DrawFivemVisuals() {
     if (!stacked) ImGui::SameLine(0.f, gap);
 
     // ---- COLORS COLUMN ----
-    ImGui::BeginChild("##fm_visual_colors", ImVec2(columnWidth, height), false, ImGuiWindowFlags_AlwaysVerticalScrollbar);
+    ImGui::BeginChild("##fm_visual_colors", ImVec2(columnWidth, childHeight), false, ImGuiWindowFlags_AlwaysVerticalScrollbar);
     CyberWidgets::BeginCard("PERSONALIZAÇÃO");
     CyberWidgets::ToggleSwitch("Modo RGB", &esp::config.rgb_mode);
     CyberWidgets::ToggleSwitch("Cores por visibilidade", &esp::config.visibility_colors);
@@ -217,10 +217,10 @@ void DrawFivemVisuals() {
     if (!stacked) ImGui::SameLine(0.f, gap);
 
     // ---- PREVIEW PANEL ----
-    ImGui::BeginChild("##fm_visual_preview", ImVec2(previewWidth, height), false);
+    ImGui::BeginChild("##fm_visual_preview", ImVec2(previewWidth, childHeight), false);
     CyberWidgets::BeginCard("PRÉ-VISUALIZAÇÃO", previewWidth);
 
-    const float panelHeight = (std::max)(CyberTheme::Px(300.f), height - CyberTheme::Metrics::CardHeaderHeight - CyberTheme::Metrics::CardPadding * 2.f);
+    const float panelHeight = (std::max)(CyberTheme::Px(300.f), childHeight - CyberTheme::Metrics::CardHeaderHeight - CyberTheme::Metrics::CardPadding * 2.f);
     const float drawWidth = (std::max)(CyberTheme::Px(180.f), previewWidth - CyberTheme::Metrics::CardPadding * 2.f);
 
     ImDrawList* dl = ImGui::GetWindowDrawList();

@@ -2,6 +2,7 @@
 #include "../../theme.h"
 #include "imgui.h"
 #include "src/games/Warzone/warzone_config.h"
+#include "src/games/Warzone/warzone_game.h"
 #include "../common/EspPreview.h"
 
 namespace {
@@ -90,6 +91,9 @@ struct WarzonePreviewAdapter : EspPreview::IConfigAdapter {
     }
 
     ImU32 GetBoxColor(bool rgbMode, bool visibilityColors, bool visibleCheck) const override {
+        (void)rgbMode;
+        (void)visibilityColors;
+        (void)visibleCheck;
         // Warzone uses single enemy color
         return EspPreview::ToImU32(Warzone::config.col_enemy);
     }

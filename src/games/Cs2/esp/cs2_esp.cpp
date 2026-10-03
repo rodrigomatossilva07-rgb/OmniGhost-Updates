@@ -294,7 +294,9 @@ void DrawFootstepEsp(ImDrawList* draw, const CS2::Player& player, const float po
         footprintsGeneration = sessionGeneration;
     }
 
-    const uint64_t now = GetTickCount64();
+    // P1-10: Use ImGui::GetTime() (monotonic) instead of GetTickCount64() (wall clock)
+    // to avoid step timing issues after NTP time adjustments.
+    const uint64_t now = static_cast<uint64_t>(ImGui::GetTime() * 1000.0);
     auto& history = footprints[player.pawn];
     history.last_seen_ms = now;
     // The data collector treats every speed above stationary jitter as motion,

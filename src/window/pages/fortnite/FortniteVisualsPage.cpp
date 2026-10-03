@@ -1,7 +1,7 @@
 #include "../../widgets.h"
 #include "../../theme.h"
 #include "../../../launcher/launcher_assets.h"
-#include "config/fortnite_config.h"
+#include "src/games/Fortnite/fortnite_game.h"
 #include "../common/EspPreview.h"
 #include "imgui.h"
 

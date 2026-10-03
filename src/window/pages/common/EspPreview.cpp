@@ -554,12 +554,12 @@ void DrawPlayerName(ImDrawList* dl, TextStack& stack, const PlayerGeometry& g, c
 
     float oldY = stack.y;
     stack.y = topY;
-    stack.DrawText(dl, name, col, outline, outlineCol, outlineThick);
+    stack.DrawTextCentered(dl, name, col, outline, outlineCol, outlineThick);
     stack.y = oldY;
 }
 
 void DrawWeaponName(ImDrawList* dl, TextStack& stack, const char* name, ImU32 col, bool outline, ImU32 outlineCol, float outlineThick) {
-    stack.DrawText(dl, name, col, outline, outlineCol, outlineThick);
+    stack.DrawTextCentered(dl, name, col, outline, outlineCol, outlineThick);
 }
 
 void DrawAmmo(ImDrawList* dl, TextStack& stack, const char* label, float fraction, ImU32 col, ImU32 bgCol, bool outline, ImU32 outlineCol, float outlineThick) {
@@ -567,7 +567,7 @@ void DrawAmmo(ImDrawList* dl, TextStack& stack, const char* label, float fractio
 }
 
 void DrawDistance(ImDrawList* dl, TextStack& stack, const char* text, ImU32 col, bool outline, ImU32 outlineCol, float outlineThick) {
-    stack.DrawText(dl, text, col, outline, outlineCol, outlineThick);
+    stack.DrawTextCentered(dl, text, col, outline, outlineCol, outlineThick);
 }
 
 // ============================================================

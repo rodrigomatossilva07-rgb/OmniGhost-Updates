@@ -11,19 +11,53 @@
 namespace Fortnite {
 
 struct Config {
+    // Core ESP
     bool esp_enabled = true;
     bool show_local_marker = true;
     bool show_local_coords = true;
     bool show_camera_debug = true;
     bool show_debug_panel = true;
     bool box = false;
+    bool box_corner = false;
+    bool box_fill = false;
+    float box_thickness = 1.8f;
+    float box_rounding = 0.f;
     bool skeleton = false;
+    bool skeleton_joints = false;
+    float skeleton_thickness = 1.8f;
+    bool head_dot = false;
+    bool head_halo = false;
+    float head_circle_thickness = 1.6f;
+    bool health_bar = false;
+    bool armor_bar = false;
+    bool health_value = false;
+    bool armor_value = false;
     bool name = true;
     bool distance = true;
-    bool health_bar = false;
+    bool weapon_name = false;
+    bool weapon_ammo = false;
+    bool text_outline = true;
+    float text_outline_thickness = 1.f;
     bool snaplines = false;
+    int snapline_position = 2; // 0=top, 1=center, 2=bottom
+    float snapline_thickness = 1.5f;
+    bool look_direction = false;
+    float eye_line_thickness = 1.6f;
+    float look_direction_length = 90.f;
+    bool chinese_hat = false;
+    bool angel_wings = false;
+    bool devil_horns = false;
+    bool floating_crown = false;
+    bool trails = false;
+    float chinese_hat_scale = 1.f;
+    float fun_effects_scale = 1.f;
+    bool show_bots = false;
+    bool visible_check = false;
     bool team_check = true;
     bool self_esp = true;
+    bool hit_marker = false;
+
+    // Aim
     bool aim_enabled = false;
     bool aim_visible_only = true;
     bool predict = false;
@@ -32,12 +66,34 @@ struct Config {
     float max_distance = 300.f;
     float bullet_velocity = 80000.f;
     bool show_fps = true;
+
+    // Colors (RGBA 0-1)
     float col_enemy[4] = {1.f, 0.25f, 0.25f, 1.f};
     float col_team[4] = {0.25f, 0.85f, 0.35f, 1.f};
     float col_box[4] = {1.f, 1.f, 1.f, 0.9f};
-    float col_skeleton[4] = {1.f, 1.f, 1.f, 0.85f};
+    float col_box_corner[4] = {0.f, 0.78f, 1.f, 1.f};
+    float col_box_fill[4] = {1.f, 0.25f, 0.25f, 0.16f};
+    float col_skeleton[4] = {0.95f, 0.85f, 0.35f, 1.f};
+    float col_joints[4] = {0.27f, 0.9f, 0.37f, 1.f};
+    float col_head[4] = {0.95f, 0.85f, 0.35f, 1.f};
+    float col_halo[4] = {1.f, 0.89f, 0.54f, 0.9f};
+    float col_health[4] = {0.25f, 0.86f, 0.35f, 1.f};
+    float col_armor[4] = {0.27f, 0.59f, 1.f, 1.f};
     float col_name[4] = {1.f, 1.f, 1.f, 1.f};
     float col_local[4] = {0.2f, 0.9f, 1.f, 1.f};
+    float col_distance[4] = {0.85f, 0.85f, 0.9f, 1.f};
+    float col_weapon[4] = {0.85f, 0.85f, 0.9f, 1.f};
+    float col_snaplines[4] = {0.83f, 0.69f, 0.22f, 0.55f};
+    float col_trail[4] = {0.83f, 0.69f, 0.22f, 0.82f};
+    float col_fun_effects[4] = {1.f, 0.72f, 0.18f, 0.95f};
+    float col_look[4] = {0.83f, 0.69f, 0.22f, 0.86f};
+    float col_text_outline[4] = {0.f, 0.f, 0.f, 1.f};
+    float col_visible[4] = {0.27f, 0.9f, 0.37f, 1.f};
+    float col_occluded[4] = {0.9f, 0.25f, 0.25f, 1.f};
+
+    // RGB/Visibility modes
+    bool rgb_mode = false;
+    bool visibility_colors = false;
 };
 
 // GWorld is ENCODED (see gworld_crypto in data/fortnite_offsets.json).
