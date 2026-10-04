@@ -61,7 +61,7 @@ struct FeatureSet {
         if (box || corner_box || skeleton || head || health || armor || snapline ||
             distance || trail || halo || look_direction || aim || name || weapon)
             fields |= DataField::Position;
-        if (skeleton || aim || halo || look_direction)
+        if (skeleton || head || aim || halo || look_direction)
             fields |= DataField::Skeleton;
         if (health || aim) fields |= DataField::Health;
         if (armor) fields |= DataField::Armor;

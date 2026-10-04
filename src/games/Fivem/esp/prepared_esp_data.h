@@ -24,6 +24,17 @@ struct PreparedEspData {
     bool visibility_known = false;
     uint8_t visibility_flag = 0;
     bool valid = false;
+
+    // Bone data for skeleton/head ESP (unified acquisition)
+    Matrix bone_matrix{};
+    std::array<Vector3, 9> bone_offsets{}; // 0=head, 1=neck, 2=spine1, 3=spine2, 4=pelvis, 5=l_shoulder, 6=l_elbow, 7=r_shoulder, 8=r_elbow
+    uint16_t bone_mask = 0;
+    bool bones_ok = false;
+    uint64_t bones_sample_ms = 0; // acquisition midpoint timestamp
+
+    // Temporal coherence: acquisition timestamps for camera/world coherence
+    uint64_t world_sample_ms = 0;       // midpoint of position/health scatter
+    uint64_t camera_sample_ms = 0;      // selected camera sample time for this entity
 };
 
 // P2-7: Frame-level render config snapshot — render reads this instead of global esp::config.

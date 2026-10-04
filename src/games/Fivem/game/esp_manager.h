@@ -2,6 +2,7 @@
 #include <vector>
 #include <chrono>
 #include "math/math.h"
+#include "gameplay/snapshot_exchange.h"
 
 namespace FiveM {
     namespace ESP {
@@ -34,7 +35,7 @@ namespace FiveM {
         // Performance monitoring
         void printPerformanceStats();
 
-        // Shared 1×/frame DMA cache (ESP + aim + radar)
+        // Shared 1x/frame DMA cache (ESP + aim + radar)
         bool FrameCacheValid();
         const Matrix& GetFrameViewMatrix();
         const Vec3& GetFrameLocalPos();
@@ -44,6 +45,37 @@ namespace FiveM {
         bool try_get_prepared_velocity(uintptr_t ped, Vec3& out);
         bool try_get_prepared_health(uintptr_t ped, float& out);
         bool try_get_prepared_bone_position(uintptr_t ped, int bone, Vec3& out);
+        
+        // Session generation for cache invalidation
+        std::atomic<uint64_t>& GetSessionGeneration();
+
+        // Camera snapshot access for temporal coherence (opaque handle)
+        struct CameraSnapshotHandle {
+            const Matrix* viewMatrix = nullptr;
+            uint64_t sampleMs = 0;
+            uint64_t sessionGeneration = 0;
+            const std::array<Matrix, 12>* historyMatrices = nullptr;
+            const std::array<uint64_t, 12>* historyTimesMs = nullptr;
+            unsigned historyCount = 0;
+            bool valid() const { return viewMatrix != nullptr; }
+        };
+        [[nodiscard]] CameraSnapshotHandle AcquireCameraSnapshot();
+        
+        // Liveness (health-only) snapshot for fast death detection (opaque handle)
+        struct LivenessSample {
+            uintptr_t ped = 0;
+            bool alive = false;
+            uint64_t sample_ms = 0;
+            uint64_t generation = 0;
+        };
+        struct LivenessSnapshotHandle {
+            const LivenessSample* players = nullptr;
+            uint32_t count = 0;
+            uint64_t timestamp_ms = 0;
+            uint64_t generation = 0;
+            bool valid() const { return players != nullptr && count > 0; }
+        };
+        [[nodiscard]] LivenessSnapshotHandle AcquireLivenessSnapshot();
         
         // Session generation for cache invalidation
         std::atomic<uint64_t>& GetSessionGeneration();
