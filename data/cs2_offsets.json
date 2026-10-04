@@ -4,8 +4,8 @@
   "build": "cs2-dumper-14188",
   "cl": "14188",
   "module": "client.dll",
-  "source": "a2x/cs2-dumper output.zip supplied 2026-10-02 (build 14188)",
-  "generated_at": "2026-10-02T23:10:07Z",
+  "source": "a2x/cs2-dumper output.zip supplied 2026-10-04 (build 14188; 83 dumped values unchanged; m_boneArray absent from dump)",
+  "generated_at": "2026-10-04T18:11:14Z",
   "client.dll": {
     "dwCSGOInput": "0x2576150",
     "dwEntityList": "0x2715818",

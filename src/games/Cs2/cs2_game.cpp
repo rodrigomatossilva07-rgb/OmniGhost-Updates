@@ -163,7 +163,7 @@ struct OptionalBoneResult {
     bool bones_ok = false;
     bool full_bones_ok = false;
 };
-struct OptionalNameResult { uintptr_t pawn = 0; char name[64]{}; };
+struct OptionalNameResult { uintptr_t pawn = 0; uintptr_t controller = 0; char name[64]{}; };
 struct OptionalWeaponResult { uintptr_t pawn = 0; int weapon_def = 0; char weapon[32]{}; int ammo_clip = -1; };
 struct OptionalResults {
     uint64_t generation = 0;
@@ -1442,11 +1442,14 @@ bool InsideExpandedFrustum(const float* pos, const float* vm) {
 bool IsPlayableMapName(const char* map) {
     if (!map || !*map) return false;
     const std::string name(map);
-    // Competitive, casual, arms race, danger zone, deathmatch, workshop.
-    return name.rfind("de_", 0) == 0 || name.rfind("cs_", 0) == 0 ||
-           name.rfind("ar_", 0) == 0 || name.rfind("dz_", 0) == 0 ||
-           name.rfind("gd_", 0) == 0 || name.rfind("gm_", 0) == 0 ||
-           name.rfind("workshop_", 0) == 0;
+    // RefreshMapName already excludes background/main-menu maps. Community
+    // maps need not use Valve's de_/cs_/workshop_ prefixes; rejecting them
+    // here can switch a live match back to lobby and clear the ESP.
+    return name != "lobby" && name != "none" && name != "mainmenu";
+}
+
+bool IsBotPlayerName(const char* name) {
+    return name && (_strnicmp(name, "BOT ", 4) == 0 || _stricmp(name, "BOT") == 0);
 }
 
 void RefreshMapName() {
@@ -2699,7 +2702,9 @@ static void RunOptionalEnrichment(const Config& frame_config,
         fields, OmniGhost::Gameplay::EspCore::DataField::Skeleton);
     const bool need_full_bones = requested.skeleton ||
         (frame_config.trigger_enabled && !frame_config.trigger_head_only);
-    const bool need_names = requested.name || frame_config.radar_2d;
+    const bool need_names = requested.name || frame_config.radar_2d ||
+        (frame_config.esp_enabled && !frame_config.show_bots) ||
+        (frame_config.aim_enabled && frame_config.aim_ignore_bots);
     const bool need_weapons = requested.weapon;
     const bool allow_weapon = pressure == 0 && !HeavyDmaCooldownActive();
 
@@ -2835,6 +2840,7 @@ static void RunOptionalEnrichment(const Config& frame_config,
                 && name[0] && results.name_count < results.names.size()) {
                 auto& r = results.names[results.name_count++];
                 r.pawn = targets[i].pawn;
+                r.controller = targets[i].controller;
                 std::snprintf(r.name, sizeof(r.name), "%s", name);
             }
         }
@@ -3286,7 +3292,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
         }
         for (uint32_t i = 0; i < opt->name_count && i < opt->names.size(); ++i) {
             const OptionalNameResult& r = opt->names[i];
-            if (!IsUserPointer(r.pawn) || !r.name[0]) continue;
+            if (!IsUserPointer(r.pawn) || !IsUserPointer(r.controller) || !r.name[0]) continue;
             RecentPlayer& rp = recent_players[r.pawn];
             if (rp.entry_generation != generation) {
                 rp = RecentPlayer{};
@@ -3294,7 +3300,9 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 rp.entry_generation = generation;
             }
             rp.last_seen_ms = mergeNowMs;
+            rp.player.controller = r.controller;
             std::snprintf(rp.player.name, sizeof(rp.player.name), "%s", r.name);
+            rp.player.is_bot = IsBotPlayerName(r.name);
         }
         for (uint32_t i = 0; i < opt->weapon_count && i < opt->weapons.size(); ++i) {
             const OptionalWeaponResult& r = opt->weapons[i];
@@ -4536,9 +4544,13 @@ static void RunFrameWithConfig(const Config& frame_config) {
             }
             if (auto rit = recent_players.find(pawn); rit != recent_players.end() &&
                 rit->second.entry_generation == currentGen) {
-                if (rit->second.player.name[0])
+                const bool sameController = rit->second.player.controller == controller;
+                if (sameController && rit->second.player.name[0]) {
                     std::snprintf(corePlayer.name, sizeof(corePlayer.name), "%s",
                         rit->second.player.name);
+                    corePlayer.is_bot = rit->second.player.is_bot;
+                    rit->second.last_seen_ms = scan_now_ms;
+                }
                 if (rit->second.player.weapon[0])
                     std::snprintf(corePlayer.weapon, sizeof(corePlayer.weapon), "%s",
                         rit->second.player.weapon);
@@ -4547,6 +4559,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 corePlayer.visibility_known = rit->second.player.visibility_known;
                 corePlayer.visible = rit->second.player.visible;
             }
+            if (!frame_config.show_bots && corePlayer.is_bot)
+                continue;
             if (!corePlayer.is_local && corePlayer.team != runtime.local_team)
                 ++runtime.enemy_count;
             runtime.players.push_back(corePlayer);
