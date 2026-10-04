@@ -9,9 +9,11 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 $ProjectDir = [IO.Path]::GetFullPath((Join-Path $ProjectDir '.'))
-# Keep the successful executable available in build/. Generated state, reports
-# and transient diagnostics are disposable after a validated build.
-$targets = @('.cache', 'artifacts', 'logs', '.temp')
+# Keep the successful executable available in build/. The shared .cache tree
+# must survive local cleanup: another Release/Publish build can be generating
+# embedded resources there concurrently. Removing it mid-build invalidates
+# resource paths even when the generator itself holds its per-output lock.
+$targets = @('artifacts', 'logs', '.temp')
 $failed = $false
 
 if ($Retry) {

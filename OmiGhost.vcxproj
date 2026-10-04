@@ -216,7 +216,7 @@
        GitHub has confirmed the public Latest release. -->
   <Target Name="CleanupVerifiedLocalBuildWorkspace" AfterTargets="ValidateOmniGhostSingleExeRuntime"
           Condition="'$(DesignTimeBuild)'!='true' And '$(OmniGhostPayloadBuild)'!='true' And '$(OmniGhostSkipPackaging)'!='true' And ( '$(Configuration)'=='Release' Or ( '$(Configuration)'=='Publish' And '$(OmniGhostSkipRemotePublish)'=='true' ) )">
-    <Message Importance="High" Text="[OmniGhost Build] Build validada; a manter build e limpar .cache, artifacts, logs e .temp."/>
+    <Message Importance="High" Text="[OmniGhost Build] Build validada; a manter build e .cache partilhada, limpando artifacts, logs e .temp."/>
     <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; cleanup-verified-build &quot;$(MSBuildProjectDirectory)&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
       <Output TaskParameter="ExitCode" PropertyName="OmniGhostLocalCleanupExitCode"/>
     </Exec>
