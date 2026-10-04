@@ -167,10 +167,10 @@ struct UnifiedSample {
                     std::memory_order_relaxed);
     }
 
-    void RecordFrame(float frame_ms) noexcept {
-        Smooth(frame_avg_ms, frame_ms);
+    void RecordFrame(float sample_ms) noexcept {
+        Smooth(frame_avg_ms, sample_ms);
         float peak = frame_max_ms.load(std::memory_order_relaxed);
-        peak = (std::max)(frame_ms, peak * .985f);
+        peak = (std::max)(sample_ms, peak * .985f);
         frame_max_ms.store(peak, std::memory_order_relaxed);
     }
 };

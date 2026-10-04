@@ -11,6 +11,7 @@
 #include "gameplay/esp_core.h"
 #include "gameplay/entity_cache_hub.h"
 #include "gameplay/frame_pipeline.h"
+#include "gameplay/scoped_phase.h"
 #include "trajectory/cs2_map_collision_cache.h"
 #include "trajectory/cs2_visibility.h"
 
@@ -41,6 +42,8 @@
 namespace fs = std::filesystem;
 
 namespace CS2 {
+
+using OmniGhost::Gameplay::ScopedPhase;
 
 Offsets offsets;
 Config config;
@@ -285,9 +288,9 @@ private:
         }
     }
     mutable std::shared_mutex mu_;
-    std::condition_variable cv_;
+    std::condition_variable_any cv_;
     std::thread thread_;
-    bool stop_ = false;
+    std::atomic_bool stop_{false};
     bool pending_ = false;
     Job job_{};
     std::unordered_map<uintptr_t, VisibilityResult> results_;
@@ -555,7 +558,6 @@ static void NotePossibleDeviceStall(float duration_ms) {
     }
 }
 
-#include "gameplay/scoped_phase.h"
 
 
 uintptr_t g_cached_entity_root = 0; // refreshed once per frame when scanning
@@ -579,6 +581,11 @@ struct EntityHandleParts {
     uintptr_t index = 0;
     bool valid = false;
 };
+
+constexpr uint32_t kEntityHandlePageMask = 0x7FFFu;
+constexpr uint32_t kEntityHandleIndexMask = 0x1FFu;
+constexpr int kEntityHandlePageShift = 9;
+constexpr uintptr_t kBoneArrayOffsetDefault = 0x80;
 
 constexpr EntityHandleParts DecodeEntityHandle(uint32_t handle) noexcept {
     return { static_cast<uintptr_t>((handle & kEntityHandlePageMask) >> kEntityHandlePageShift),
@@ -1365,9 +1372,6 @@ constexpr uintptr_t kGlobalVarsCurrentTime = 0x30;
 constexpr uintptr_t kGlobalVarsCurrentMap = 0x180;
 
 // Handle decoding constants (Source 2 CEntityIdentity)
-constexpr uint32_t kEntityHandlePageMask = 0x7FFFu;
-constexpr uint32_t kEntityHandleIndexMask = 0x1FFu;
-constexpr int kEntityHandlePageShift = 9;
 
 // Name array default offsets (fallback when schema offsets missing)
 constexpr uintptr_t kNameEntrySizeDefault = 0xD0;
@@ -1378,7 +1382,6 @@ constexpr uintptr_t kNameEntryArmorDefault = 0x98;
 constexpr uintptr_t kNameEntryAliveDefault = 0x78;
 
 // Bone array offset within model state (fallback)
-constexpr uintptr_t kBoneArrayOffsetDefault = 0x80;
 
 // Player structure default offsets (fallback)
 constexpr uintptr_t kPlayerSizeDefault = 0x2808;
@@ -2715,12 +2718,8 @@ static void RunOptionalEnrichment(const Config& frame_config,
     if (dropped_only ? !in_match : (!in_match || targets.empty()))
         return;
     const int pressure = g_pressure_level.load(std::memory_order_relaxed);
-    // P1-2: At pressure 3 (recovery), still run critical bone updates for
-    // nearest players with a minimal budget, instead of stopping entirely.
     const bool isRecovery = pressure >= 3;
-    if (isRecovery) {
-        // Check if any critical features need bones
-        // Sole producer of g_optional_results. All deltas are local until the
+    // Sole producer of g_optional_results. All deltas are local until the
     // final publish; the acquisition thread merges them into its own caches.
     OptionalResults results{};
     results.generation = jobGen;
@@ -4373,36 +4372,15 @@ static void RunFrameWithConfig(const Config& frame_config) {
 
     const bool need_armor = OmniGhost::Gameplay::EspCore::Has(
         fields, OmniGhost::Gameplay::EspCore::DataField::Armor);
-    const bool need_names = OmniGhost::Gameplay::EspCore::Has(
-        fields, OmniGhost::Gameplay::EspCore::DataField::Name) ||
-        (frame_config.esp_enabled && !frame_config.show_bots);
-    const bool need_weapons = OmniGhost::Gameplay::EspCore::Has(
-        fields, OmniGhost::Gameplay::EspCore::DataField::Weapon) ||
-        frame_config.aim_enabled || frame_config.trigger_enabled;
     const bool need_yaw = frame_config.radar_2d ||
         OmniGhost::Gameplay::EspCore::Has(
             fields, OmniGhost::Gameplay::EspCore::DataField::Facing);
     const bool track_velocity = OmniGhost::Gameplay::EspCore::Has(
         fields, OmniGhost::Gameplay::EspCore::DataField::Velocity);
-    const bool need_bones = OmniGhost::Gameplay::EspCore::Has(
-        fields, OmniGhost::Gameplay::EspCore::DataField::Skeleton);
-    const bool need_visibility_bones = requested.visibility; // compact bones for visibility raycasting
-    // Aim and visual effects need only the upper-body aim anchors. A complete
-    // 20-slot pose is acquired only for the rendered skeleton or body trigger.
-    const bool need_full_bones = requested.skeleton ||
-        (frame_config.trigger_enabled && !frame_config.trigger_head_only);
     const bool flagsEnabled = false; // retired player flags
     const bool need_scoped = frame_config.trigger_scoped_only ||
         (flagsEnabled && frame_config.flag_scoped);
     const bool need_flash = flagsEnabled && frame_config.flag_blind;
-    // Core fields (life/team/origin) and the camera are never optional. All
-    // metadata below obeys this frame budget so a slow DMA device degrades
-    // features in a deterministic order instead of delaying the whole ESP.
-    const int optional_pressure = g_pressure_level.load(std::memory_order_relaxed);
-    // Weapon name/ammo is a low-priority metadata lane. Any measured pressure
-    // suppresses refreshes and keeps the last valid cache for presentation.
-    const bool allow_weapon_phase = optional_pressure == 0 && !HeavyDmaCooldownActive();
-    const bool allow_auxiliary_phase = optional_pressure == 0 && !HeavyDmaCooldownActive();
 
     const uint64_t scan_now_ms = GetTickCount64();
     struct CachedSceneBone {
@@ -4753,6 +4731,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
         g_phase.optional_budget_left_ms = 0.f;
     }
     return; // core path done — optional worker continues enrichment
+}
 
 void RunFrame() {
     RunFrameWithConfig(config);

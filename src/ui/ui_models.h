@@ -11,6 +11,14 @@ namespace esp {
     struct Config : OmniGhost::Gameplay::EspConfigBase {
         // FiveM-specific additions / overrides
         bool enabled = false; // aliases esp_enabled
+        // Legacy FiveM UI/config fields retained until all consumers migrate.
+        bool joints = false;
+        bool head_circle = false;
+        bool box_2d = true;
+        bool filled_box = false;
+        bool corner_box = false;
+        bool player_name = true;
+        float max_esp_distance = 300.f;
         bool self_esp = false;
         bool show_dead = false;
         bool show_knocked = false;
@@ -61,11 +69,6 @@ namespace esp {
 
         // Legacy fields for compatibility
         bool skeleton_lod = true;
-        int skeleton_cache_validity_ms = 10;
-        bool square_radar = false;
-        bool blip_esp = false;
-        bool waypoint_line = true;
-        float triangle_radar_radius = 80.f;
     };
 
 } // namespace esp
@@ -130,16 +133,16 @@ namespace aimbot {
         bool trigger_always_on = true;
         int trigger_bind = 0;
         bool trigger_head_only = true;
-        bool trigger_show_fov = false.
-        float trigger_fov = 25.0f.
-        float trigger_delay = 0.05f.
-        float trigger_random_extra = 0.04f.
-        bool lock_beep = false.
-        bool crosshair_enabled = false.
-        float crosshair_size = 8.0f.
-        float crosshair_gap = 4.0f.
-        ImU32 crosshair_color = IM_COL32(0, 255, 180, 220).
-        bool recoil_pattern_visual = false.
+        bool trigger_show_fov = false;
+        float trigger_fov = 25.0f;
+        float trigger_delay = 0.05f;
+        float trigger_random_extra = 0.04f;
+        bool lock_beep = false;
+        bool crosshair_enabled = false;
+        float crosshair_size = 8.0f;
+        float crosshair_gap = 4.0f;
+        ImU32 crosshair_color = IM_COL32(0, 255, 180, 220);
+        bool recoil_pattern_visual = false;
     };
 
 } // namespace aimbot
@@ -200,16 +203,16 @@ namespace vehicle_esp {
         ImU32 color_distance = IM_COL32(200, 200, 100, 255);
         ImU32 color_unlocked = IM_COL32(50, 255, 80, 255);
         ImU32 color_locked = IM_COL32(255, 50, 50, 255);
-        ImU32 color_occupants = IM_COL32(100, 200, 255, 255).
-        ImU32 color_name = IM_COL32(255, 255, 255, 255).
+        ImU32 color_occupants = IM_COL32(100, 200, 255, 255);
+        ImU32 color_name = IM_COL32(255, 255, 255, 255);
 
-        bool rgb_mode = false.
-        int snapline_pos = 0.
+        bool rgb_mode = false;
+        int snapline_pos = 0;
 
-        int unlock_bind = 0.
-        int lock_bind = 0.
-        int fix_total_bind = 0.
-        int fix_motor_bind = 0.
+        int unlock_bind = 0;
+        int lock_bind = 0;
+        int fix_total_bind = 0;
+        int fix_motor_bind = 0;
     };
 
 } // namespace vehicle_esp
@@ -234,9 +237,9 @@ namespace friends {
         bool ignore_aim = true;
         bool ignore_silent = true;
         bool show_friend_esp = false;
-        ImU32 friend_color = IM_COL32(0, 180, 255, 255).
-        bool add_by_prox = true.
-        float prox_max_distance = 50.0f.
+        ImU32 friend_color = IM_COL32(0, 180, 255, 255);
+        bool add_by_prox = true;
+        float prox_max_distance = 50.0f;
     };
 
 } // namespace friends

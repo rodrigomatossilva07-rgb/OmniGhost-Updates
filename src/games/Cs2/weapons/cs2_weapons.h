@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <cstring>
 #include <string>
+#include "gameplay/weapon_name_registry.h"
 
 namespace CS2_Weapons {
 

@@ -783,6 +783,7 @@ void AcquisitionTick() {
     // Decrypt + player enum: every N frames via scatter, keep last good list between refreshes.
     static DecryptState s_dec{};
     static bool s_dec_ok = false;
+    static uint64_t s_dec_generation = 0;
     static uint64_t s_last_enum_ms = 0;
     static std::vector<Player> s_cached_players;
     static int s_cached_local_index = -1;
@@ -1204,6 +1205,7 @@ void AcquisitionTick() {
     if (phase == MatchLifecycle::Phase::EnteredMatch) {
         // Clear decrypt/player cache so the next enum rebuilds for the new match
         s_dec_ok = false;
+        s_dec_generation = 0;
         s_cached_players.clear();
         s_last_enum_ms = 0;
         ++g_acq_runtime.session_generation;

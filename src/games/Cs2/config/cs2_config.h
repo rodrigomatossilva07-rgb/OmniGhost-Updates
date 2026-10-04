@@ -6,6 +6,8 @@ namespace CS2 {
 
 struct Config : OmniGhost::Gameplay::EspConfigBase {
     // CS2-specific additions
+    int box_style = 0;
+    bool vsync = false;
     bool self_esp = false;
     bool show_bots = true;
     bool scope_check = false;

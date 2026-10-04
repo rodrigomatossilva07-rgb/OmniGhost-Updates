@@ -99,17 +99,9 @@ bool WeaponNameRegistry::LoadFromJson(const std::string& path) {
 }
 
 bool WeaponNameRegistry::LoadFromEmbedded() {
-    // Try to load from embedded resource
-    OmniGhost::EmbeddedOffsets::Snapshot snapshot;
-    OmniGhost::EmbeddedOffsets::Diagnostics diag;
-    if (OmniGhost::EmbeddedOffsets::Load(OmniGhost::EmbeddedOffsets::Game::CS2, snapshot, diag)) {
-        auto it = snapshot.data.find("weapons.json");
-        if (it != snapshot.data.end()) {
-            std::string content(it->second.begin(), it->second.end());
-            // Use same parser
-            return true;
-        }
-    }
+    // EmbeddedOffsets contains schema offsets, not the weapons.json catalog.
+    // The CS2-specific definition table remains the fallback when the JSON
+    // catalog is unavailable; do not report a successful empty registry.
     return false;
 }
 

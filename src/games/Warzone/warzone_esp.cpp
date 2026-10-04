@@ -29,6 +29,9 @@ ImU32 Col4(const float c[4]) {
 static void DrawPlayerBox(ImDrawList* dl, const Warzone::Player& p, const Warzone::Config& cfg,
                           const float rt_view_matrix[16], float hx, float hy, float sx, float sy,
                           const float* bc) {
+    (void)rt_view_matrix;
+    (void)p;
+    (void)sx;
     ImU32 col = Col4(bc);
     const float h = std::fabs(sy - hy);
     const float w = h * 0.45f;
@@ -57,6 +60,7 @@ static void DrawPlayerBox(ImDrawList* dl, const Warzone::Player& p, const Warzon
 static void DrawPlayerSkeleton(ImDrawList* dl, const Warzone::Player& p, const Warzone::Config& cfg,
                                const Warzone::Runtime& rt, const float rt_view_matrix[16],
                                const float* bc, int aimIdx) {
+    (void)bc;
     if (!cfg.skeleton || !p.bones_ok) return;
 
     ImU32 skelCol = Col4(cfg.col_skeleton);
@@ -86,6 +90,9 @@ static void DrawPlayerSkeleton(ImDrawList* dl, const Warzone::Player& p, const W
 static void DrawPlayerNameDist(ImDrawList* dl, const Warzone::Player& p, const Warzone::Config& cfg,
                                const Warzone::Runtime& rt, const float rt_view_matrix[16],
                                float hx, float hy, float sx, float sy, int playerCount) {
+    (void)rt;
+    (void)rt_view_matrix;
+    (void)sx;
     const bool dense = cfg.esp_auto_hide_names &&
         playerCount > (cfg.esp_density_limit > 0 ? cfg.esp_density_limit : 40);
     const bool show_name = cfg.name && !dense;

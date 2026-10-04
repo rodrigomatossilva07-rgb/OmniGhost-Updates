@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include "frame_pipeline.h"
 
 namespace OmniGhost::Gameplay {
 
