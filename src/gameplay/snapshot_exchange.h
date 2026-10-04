@@ -11,14 +11,64 @@
 
 namespace OmniGhost::Gameplay {
 
-// Single-producer/multi-consumer snapshot exchange. The producer writes only
-// into an unpublished, unpinned slot; readers pin the currently published slot.
-// Publication is one release/acquire atomic and never takes a mutex.
+/**
+ * @brief Single-Producer / Multi-Consumer Lock-Free Snapshot Exchange
+ *
+ * THREADING MODEL:
+ * ----------------
+ * This class implements a lock-free snapshot exchange with the following guarantees:
+ *
+ * 1. SINGLE PRODUCER: Only ONE thread may call TryBeginWrite() and Publish().
+ *    The producer thread is registered on first use (debug builds assert on violation).
+ *    Legitimate producer handoff (e.g., main thread init → worker thread) requires
+ *    calling ResetProducerThread() while no other producer is active.
+ *
+ * 2. MULTI CONSUMER: Any number of threads may call Acquire() simultaneously.
+ *    Each Acquire() returns a ReadLease that pins the current snapshot.
+ *    ReadLease destructor automatically unpins (reference counting).
+ *
+ * 3. SLOT COUNT: Minimum 3 slots (enforced by static_assert).
+ *    - Slot 0: Published snapshot (readers may hold)
+ *    - Slot 1: Next snapshot being written (producer owns)
+ *    - Slot 2: Spare/previous snapshot (readers may still hold)
+ *    This prevents a slow renderer from blocking the acquisition thread.
+ *
+ * 4. MEMORY ORDERING:
+ *    - Publish(): release store to published_ + generation increment (release)
+ *    - Acquire(): acquire load of published_, then acquire fence via reader count
+ *    - This ensures snapshot writes are visible to readers after Acquire() returns.
+ *
+ * 5. ABA PROTECTION: Generation counter increments on each Publish().
+ *    Consumers can track Generation() to detect missed snapshots.
+ *
+ * 6. NON-BLOCKING: TryBeginWrite() never waits. Returns empty if no free slot.
+ *    Acquire() spin-locks briefly on publication race (typically 1 iteration).
+ *
+ * USAGE PATTERNS:
+ * --------------
+ * Producer (acquisition thread):
+ *     auto slot = exchange.TryBeginWrite();
+ *     if (slot) {
+ *         *slot.value = new_snapshot;
+ *         exchange.Publish(slot.index);
+ *     }
+ *
+ * Consumer (render thread):
+ *     if (auto lease = exchange.Acquire()) {
+ *         use(*lease);  // immutable snapshot
+ *     }  // auto-unpin on lease destruction
+ *
+ * Producer handoff (initialization):
+ *     // Main thread publishes initial snapshot
+ *     exchange.ResetProducerThread();  // allow worker to become producer
+ *     // Worker thread now owns production
+ */
 template <typename T, std::size_t SlotCount = 3>
 class SnapshotExchange final {
     static_assert(SlotCount >= 3, "Three slots prevent a slow renderer from blocking acquisition");
 
 public:
+    // ... rest of class unchanged
     class ReadLease final {
     public:
         ReadLease() = default;

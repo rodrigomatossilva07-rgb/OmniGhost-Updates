@@ -513,7 +513,8 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
         if (!WorldToScreen(predictedPosition, viewMatrix, feet)) continue;
         // Visual bone age hard limit: after this, do not draw skeleton and do
         // not pin the box head to a stale joint (fallback hull height is used).
-        constexpr uint64_t kBonesVisualMaxAgeMs = 160u;
+        // Shared with acquisition (kBoneVisualMaxAgeMs in cs2_game.h).
+        constexpr uint64_t kBonesVisualMaxAgeMs = CS2::kBoneVisualMaxAgeMs;
         const bool bonesFresh = player.bones_ok && player.bone_pose_sample_ms &&
             nowMs >= player.bone_pose_sample_ms &&
             (nowMs - player.bone_pose_sample_ms) <= kBonesVisualMaxAgeMs;

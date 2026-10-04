@@ -90,21 +90,29 @@ unsigned CollisionBvh::BuildNode(unsigned begin, unsigned end) {
     nodes[id].right = right;
     return id;
 }
-RayHit CollisionBvh::TraceRay(Vec3 from,Vec3 to)const{
+RayHit CollisionBvh::TraceRay(Vec3 from, Vec3 to, const std::atomic_bool* cancel) const {
     RayHit out{};
-    if(nodes.empty())return out;
-    Vec3 d=Sub(to,from);
+    if (nodes.empty()) return out;
+    Vec3 d = Sub(to, from);
     // A fixed stack silently used to turn a deep BVH traversal into a false
     // collision. Keep storage per-thread and reusable, but never drop nodes.
     thread_local std::vector<unsigned> stack;
     stack.clear();
     stack.push_back(0);
-    while(!stack.empty()){
-        const auto id=stack.back(); stack.pop_back();
-        const auto&n=nodes[id];
-        if(!Box(from,d,n.min,n.max,out.fraction))continue;
-        if(n.count)for(unsigned i=0;i<n.count;++i){float f=out.fraction;Vec3 normal{};if(Tri(from,d,triangles[indices[n.begin+i]],f,normal)){out={true,f,{from.x+d.x*f,from.y+d.y*f,from.z+d.z*f},normal};}}
-        else { stack.push_back(n.left); stack.push_back(n.right); }
+    unsigned nodesTraversed = 0;
+    while (!stack.empty()) {
+        // Check cancellation every 64 nodes to avoid overhead
+        if ((++nodesTraversed & 63u) == 0u && cancel && cancel->load(std::memory_order_acquire))
+            return out;
+        const auto id = stack.back(); stack.pop_back();
+        const auto& n = nodes[id];
+        if (!Box(from, d, n.min, n.max, out.fraction)) continue;
+        if (n.count) for (unsigned i = 0; i < n.count; ++i) {
+            float f = out.fraction; Vec3 normal{};
+            if (Tri(from, d, triangles[indices[n.begin + i]], f, normal)) {
+                out = { true, f, { from.x + d.x * f, from.y + d.y * f, from.z + d.z * f }, normal };
+            }
+        } else { stack.push_back(n.left); stack.push_back(n.right); }
     }
     return out;
 }

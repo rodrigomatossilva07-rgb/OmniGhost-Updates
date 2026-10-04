@@ -1,30 +1,14 @@
 #pragma once
 
+#include "gameplay/esp_config_base.h"
+
 namespace Warzone {
 
-struct Config {
-    // ESP
-    bool esp_enabled = false;
-    bool team_check = true;
-    bool name = true;
-    bool distance = true;
-    bool box = true;
-    bool box_corner = false;
-    bool skeleton = false;
-    bool health_bar = true;
-    bool armor_bar = true;
-    bool snaplines = false;
-    bool head_dot = false;
+struct Config : OmniGhost::Gameplay::EspConfigBase {
+    // Warzone-specific additions
     bool ignore_downed = true;
     bool ignore_ai = true;
-    int max_distance = 400;
-
-    float col_enemy[4] = { 0.95f, 0.25f, 0.20f, 1.f };
-    float col_team[4]  = { 0.25f, 0.85f, 0.35f, 1.f };
-    float col_target[4] = { 1.f, 0.85f, 0.20f, 1.f };
-    float col_fov[4] = { 0.83f, 0.69f, 0.22f, 0.45f };
-    float col_skeleton[4] = { 0.83f, 0.69f, 0.22f, 1.f };
-    float col_armor[4] = { 0.27f, 0.59f, 1.f, 1.f };
+    int max_distance = 400; // overridden from base 300
 
     // Aim
     bool aim_enabled = false;
@@ -54,15 +38,13 @@ struct Config {
     bool radar_2d = false;
     float radar_size = 160.f;
 
-    // Misc / product features (better-than-Blurred)
-    bool performance_mode = false;
+    // Misc / product features
     bool radar_only_mode = false;     // ESP+aim off, radar on — teammate share
     int  esp_density_limit = 40;      // hide long labels when players > limit
     bool esp_auto_hide_names = true;  // density: prefer box/hp over name spam
     char scenario_preset[32] = "custom"; // stream|ranked|hotdrop|radar_only|visuals|custom
 
     // Visual-only menu state for the Warzone player list and miscellaneous pages.
-    // These fields are persisted with the rest of the Warzone profile.
     bool player_list_enabled = false;
     bool misc_airstrike_alert = false;
     bool misc_top250_alert = false;

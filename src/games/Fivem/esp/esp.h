@@ -115,9 +115,12 @@ namespace esp {
         std::unordered_map<uintptr_t, CachedBoneData> cached_bone_data;
         // Reuse data within one 120 Hz acquisition interval. A zero duration
         // made every lookup a guaranteed miss and defeated the cache entirely.
-        static constexpr std::chrono::milliseconds CACHE_VALIDITY_MS{ 8 };
         static constexpr std::chrono::seconds CLEANUP_INTERVAL{ 2 }; // Cleanup every 2 seconds
         std::chrono::steady_clock::time_point last_cleanup;
+
+        static std::chrono::milliseconds GetCacheValidity() {
+            return std::chrono::milliseconds(esp::config.skeleton_cache_validity_ms);
+        }
 
     public:
         BoneCache() : last_cleanup(std::chrono::steady_clock::now()) {}
@@ -235,9 +238,15 @@ namespace esp {
     size_t get_skeleton_cache_size();
     void clear_skeleton_cache();
 
+    // Name cache management
+    void ClearNameCache();
+
     // Performance monitoring
     struct ESPStats {
         // P3-3: Combined counter for atomic hit ratio (high 32=hits, low 32=misses)
+        // Bit layout: [63:32] = hits (uint32), [31:0] = misses (uint32)
+        // This allows atomic read of both counters without locking.
+        // Usage: hits = combined >> 32; misses = combined & 0xFFFFFFFFu
         std::atomic<uint64_t> cache_combined{0};
         std::atomic<int> memory_reads{0};
         std::atomic<int> batch_reads{0};

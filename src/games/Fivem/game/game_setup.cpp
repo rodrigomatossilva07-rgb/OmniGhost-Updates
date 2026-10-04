@@ -4,6 +4,7 @@
 #include "../../DMALibrary/Memory/Memory.h"
 #include "globals.h"
 #include "../playerInfo/PedData.h"
+#include "gameplay/weapon_name_registry.h"
 #include <cmath>
 #include <iostream>
 
@@ -130,6 +131,12 @@ void Setup() {
             std::cout << "[FiveM] LocalPlayer health probe OK" << std::endl;
         else
             std::cout << "[FiveM] LocalPlayer health probe soft-fail (lobby / loading?)" << std::endl;
+
+        // Initialize shared weapon name registry
+        if (!OmniGhost::Gameplay::WeaponNameRegistry::Instance().LoadFromJson("data/weapons.json")) {
+            std::cout << "[FiveM] Warning: Failed to load data/weapons.json, using fallback map" << std::endl;
+        }
+
         WriteStatusLog("ok");
     }
 }

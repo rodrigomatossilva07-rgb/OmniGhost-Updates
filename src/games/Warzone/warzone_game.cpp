@@ -35,6 +35,21 @@ std::atomic_bool ready{false};
 std::string status = "Warzone idle";
 std::atomic_bool backend_busy{false};
 
+// Warzone name array default offsets (fallback when schema offsets missing)
+constexpr uintptr_t kWZNameEntrySizeDefault = 0xD0;
+constexpr uintptr_t kWZNameArrayPosDefault = 0x3038;
+constexpr uintptr_t kWZNameEntryNameDefault = 0x10;
+constexpr uintptr_t kWZNameEntryHealthDefault = 0x90;
+constexpr uintptr_t kWZNameEntryArmorDefault = 0x98;
+constexpr uintptr_t kWZNameEntryAliveDefault = 0x78;
+constexpr uintptr_t kWZPlayerSizeDefault = 0x2808;
+constexpr uintptr_t kWZPlayerPosDataDefault = 0x80;
+constexpr uintptr_t kWZPlayerPosDefault = 0xEB0;
+constexpr uintptr_t kWZPlayerStanceDefault = 0x19D0;
+constexpr uintptr_t kWZPlayerArmorDefault = 0x13F8;
+constexpr uintptr_t kWZPlayerValidDefault = 0x13FC;
+constexpr uintptr_t kWZPlayerTeamDefault = 0xB0;
+
 // Defined later; acquisition thread calls this each core tick.
 void AcquisitionTick();
 
@@ -794,18 +809,23 @@ void AcquisitionTick() {
 
     if (need_enum) {
         s_last_enum_ms = now_ms;
-        s_dec = {};
-        s_dec_ok = RunDecrypt(g_acq_runtime.module_base, s_dec);
+        // P2-7: Only re-run decrypt if state is invalid or session generation changed
+        const uint64_t currentGen = g_pipeline_epoch.load(std::memory_order_acquire);
+        if (!s_dec_ok || s_dec_generation != currentGen) {
+            s_dec = {};
+            s_dec_ok = RunDecrypt(g_acq_runtime.module_base, s_dec);
+            s_dec_generation = currentGen;
+        }
         s_cached_players.clear();
 
         if (s_dec_ok && (s_dec.client_base_ok || s_dec.name_array_ok)) {
             const int max_slots = s_dec.client_base_ok ? 120 : 64;
-            const uintptr_t nsize = offsets.name_entry_size ? offsets.name_entry_size : 0xD0;
-            const uintptr_t npos  = offsets.name_array_pos ? offsets.name_array_pos : 0x3038;
-            const uintptr_t nname = offsets.name_entry_name ? offsets.name_entry_name : 0x10;
-            const uintptr_t nhealth = offsets.name_entry_health ? offsets.name_entry_health : 0x90;
-            const uintptr_t nalive = offsets.name_entry_alive ? offsets.name_entry_alive : 0x78;
-            const uintptr_t psize = offsets.player_size ? offsets.player_size : 0x2808;
+            const uintptr_t nsize = offsets.name_entry_size ? offsets.name_entry_size : kWZNameEntrySizeDefault;
+            const uintptr_t npos  = offsets.name_array_pos ? offsets.name_array_pos : kWZNameArrayPosDefault;
+            const uintptr_t nname = offsets.name_entry_name ? offsets.name_entry_name : kWZNameEntryNameDefault;
+            const uintptr_t nhealth = offsets.name_entry_health ? offsets.name_entry_health : kWZNameEntryHealthDefault;
+            const uintptr_t nalive = offsets.name_entry_alive ? offsets.name_entry_alive : kWZNameEntryAliveDefault;
+            const uintptr_t psize = offsets.player_size ? offsets.player_size : kWZPlayerSizeDefault;
 
             // Phase 1: scatter-read name entries (names + health + armor + alive)
             struct NameSlot {
@@ -830,8 +850,8 @@ void AcquisitionTick() {
             }
 
             // Phase 2: scatter-read player valid/team/pos/armor when client_base is up.
-            // pos at player+0xEB0 may be either float3 or a pointer to a data block
-            // (actual floats at ptr + pos_data/0x80). We read both layouts in two passes.
+            // pos at player+kWZPlayerPosDefault may be either float3 or a pointer to a data block
+            // (actual floats at ptr + pos_data/kWZPlayerPosDataDefault). We read both layouts in two passes.
             struct PosSlot {
                 int valid = 0;
                 int team = 0;
@@ -842,12 +862,12 @@ void AcquisitionTick() {
             };
             std::vector<PosSlot> poss(max_slots);
             if (s_dec.client_base_ok && s_dec.client_base) {
-                const uintptr_t pvalid = offsets.player_valid ? offsets.player_valid : 0x13FC;
-                const uintptr_t pteam  = offsets.player_team  ? offsets.player_team  : 0xB0;
-                const uintptr_t ppos   = offsets.player_pos   ? offsets.player_pos   : 0xEB0;
-                const uintptr_t pdata  = offsets.player_pos_data ? offsets.player_pos_data : 0x80;
-                const uintptr_t pstance = offsets.player_stance ? offsets.player_stance : 0x19D0;
-                const uintptr_t parmor = offsets.player_armor ? offsets.player_armor : 0x13F8;
+                const uintptr_t pvalid = offsets.player_valid ? offsets.player_valid : kWZPlayerValidDefault;
+                const uintptr_t pteam  = offsets.player_team  ? offsets.player_team  : kWZPlayerTeamDefault;
+                const uintptr_t ppos   = offsets.player_pos   ? offsets.player_pos   : kWZPlayerPosDefault;
+                const uintptr_t pdata  = offsets.player_pos_data ? offsets.player_pos_data : kWZPlayerPosDataDefault;
+                const uintptr_t pstance = offsets.player_stance ? offsets.player_stance : kWZPlayerStanceDefault;
+                const uintptr_t parmor = offsets.player_armor ? offsets.player_armor : kWZPlayerArmorDefault;
                 auto h = mem.CreateScatterHandle();
                 for (int i = 0; i < max_slots; ++i) {
                     uintptr_t player = s_dec.client_base + (uintptr_t)i * psize;
@@ -978,31 +998,118 @@ void AcquisitionTick() {
             s_cached_local_index = s_dec.local_index;
 
             // Phase 3: Bone acquisition for skeleton ESP (only when skeleton is enabled in config)
-            // Read bones for all valid players in a single scatter pass
-            if (!s_cached_players.empty() && offsets.bone_array_base && offsets.bone_array_stride) {
+            // Read bones in micro-batches with camera priority and pressure awareness
+            if (!s_cached_players.empty() && offsets.bone_array_base && offsets.bone_array_stride && config.skeleton) {
                 const uint64_t bonesBeginMs = GetTickCount64();
+                
+                // LOD bone indices - matches FiveM LOD structure
+                // Full (0-30m): all 31 bones
+                // High (30-80m): 13 bones (head, neck, spine, shoulders, pelvis)
+                // Medium (80-150m): 7 bones (head, neck, spine, pelvis)
+                // Low (150m+): 1 bone (head only)
+                static constexpr int kLodFullBones[] = {
+                    7, 6, 5, 4, 3, 2,  // head, neck, spine upper/mid/lower, pelvis
+                    13, 14, 15, 16, 17,  // left arm
+                    18, 19, 20, 21, 22,  // right arm
+                    23, 24, 25, 26,      // left leg
+                    27, 28, 29, 30       // right leg
+                };
+                static constexpr int kLodHighBones[] = {
+                    7, 6, 5, 4, 3, 2,  // head, neck, spine upper/mid/lower, pelvis
+                    13, 14, 18, 19     // clavicles, shoulders
+                };
+                static constexpr int kLodMedBones[] = {
+                    7, 6, 5, 4, 3, 2  // head, neck, spine upper/mid/lower, pelvis
+                };
+                static constexpr int kLodLowBones[] = {
+                    7  // head only
+                };
+
+                // Automatic LOD thresholds (meters) - hardcoded, not user-configurable
+                constexpr float kLodFullDist = 30.f;
+                constexpr float kLodHighDist = 80.f;
+                constexpr float kLodMedDist = 150.f;
+
+                auto ComputeBoneMask = [&](float distanceM) -> const int* {
+                    if (distanceM <= kLodFullDist) return kLodFullBones;
+                    if (distanceM <= kLodHighDist) return kLodHighBones;
+                    if (distanceM <= kLodMedDist) return kLodMedBones;
+                    return kLodLowBones;
+                };
+
+                // P1-3: Micro-batch bone acquisition (8 players per batch) with camera priority
+                constexpr int kBoneBatchSize = 8;
                 auto boneHandle = mem.CreateScatterHandle();
                 if (boneHandle) {
-                    // Collect bone base addresses for all valid players
-                    for (auto& pl : s_cached_players) {
-                        if (!pl.valid) continue;
-                        uintptr_t boneBase = pl.address + offsets.bone_base_pos;
-                        if (boneBase) {
-                            // Read all bones for this player (up to kMaxBones)
-                            for (int b = 0; b < Player::kMaxBones; ++b) {
-                                uintptr_t boneAddr = boneBase + offsets.bone_array_base + static_cast<uintptr_t>(b) * offsets.bone_array_stride;
-                                mem.AddScatterReadRequest(boneHandle, boneAddr, pl.bones[b], sizeof(float) * 3);
+                    size_t batchStart = 0;
+                    while (batchStart < s_cached_players.size()) {
+                        // Check camera priority before each batch
+                        if (g_camera_pending.load(std::memory_order_acquire)) {
+                            const uint64_t deadline = g_camera_deadline_ms.load(std::memory_order_acquire);
+                            const uint64_t now = GetTickCount64();
+                            if (deadline != 0 && now + 2u >= deadline) break; // defer remaining
+                        }
+                        // Pressure check - skip if high pressure
+                        if (g_pressure_level.load(std::memory_order_relaxed) >= 3) break;
+
+                        const size_t batchEnd = (std::min)(s_cached_players.size(), batchStart + kBoneBatchSize);
+                        bool batchHasRequests = false;
+
+                        for (size_t i = batchStart; i < batchEnd; ++i) {
+                            auto& pl = s_cached_players[i];
+                            if (!pl.valid) continue;
+                            uintptr_t boneBase = pl.address + offsets.bone_base_pos;
+                            if (!boneBase) continue;
+
+                            // Determine LOD based on distance (automatic)
+                            const int* lodBones = ComputeBoneMask(pl.distance);
+                            int lodBoneCount = 0;
+                            if (pl.distance <= kLodFullDist) lodBoneCount = 31;
+                            else if (pl.distance <= kLodHighDist) lodBoneCount = 13;
+                            else if (pl.distance <= kLodMedDist) lodBoneCount = 7;
+                            else lodBoneCount = 1;
+
+                            for (int b = 0; b < lodBoneCount; ++b) {
+                                int boneIdx = lodBones[b];
+                                uintptr_t boneAddr = boneBase + offsets.bone_array_base + static_cast<uintptr_t>(boneIdx) * offsets.bone_array_stride;
+                                mem.AddScatterReadRequest(boneHandle, boneAddr, pl.bones[boneIdx], sizeof(float) * 3);
+                                batchHasRequests = true;
                             }
                         }
+
+                        if (batchHasRequests) {
+                            mem.SetDmaCallTag("Warzone.Bones");
+                            const uint64_t batchBeginMs = GetTickCount64();
+                            const bool batchOk = mem.ExecuteReadScatter(boneHandle);
+                            const uint64_t batchEndMs = GetTickCount64();
+                            const uint64_t batchSampleMs = batchBeginMs + (batchEndMs - batchBeginMs) / 2u;
+                            
+                            if (batchOk) {
+                                // Validate bones for this batch
+                                for (size_t i = batchStart; i < batchEnd; ++i) {
+                                    auto& pl = s_cached_players[i];
+                                    if (!pl.valid) continue;
+                                    bool hasHead = std::isfinite(pl.bones[offsets.bone_head][0]) && 
+                                                   std::isfinite(pl.bones[offsets.bone_head][1]) && 
+                                                   std::isfinite(pl.bones[offsets.bone_head][2]);
+                                    bool hasSpine = std::isfinite(pl.bones[offsets.bone_spine_upper][0]) && 
+                                                    std::isfinite(pl.bones[offsets.bone_spine_upper][1]) && 
+                                                    std::isfinite(pl.bones[offsets.bone_spine_upper][2]);
+                                    pl.bones_ok = hasHead && hasSpine;
+                                    pl.bones_sample_ms = batchSampleMs;
+                                }
+                            }
+                        }
+                        batchStart = batchEnd;
                     }
-                    mem.SetDmaCallTag("Warzone.Bones");
-                    const bool bonesReadOk = mem.ExecuteReadScatter(boneHandle);
                     mem.CloseScatterHandle(boneHandle);
-                    if (bonesReadOk) {
-                        const uint64_t bonesEndMs = GetTickCount64();
-                        const uint64_t bonesSampleMs = bonesBeginMs + (bonesEndMs - bonesBeginMs) / 2u;
-                        for (auto& pl : s_cached_players) {
-                            if (!pl.valid) continue;
+                    
+                    // Backfill sample time for any players not processed
+                    const uint64_t bonesEndMs = GetTickCount64();
+                    const uint64_t bonesSampleMs = bonesBeginMs + (bonesEndMs - bonesBeginMs) / 2u;
+                    for (auto& pl : s_cached_players) {
+                        if (!pl.valid) continue;
+                        if (pl.bones_sample_ms == 0) {
                             // Validate at least head and spine bones are finite
                             bool hasHead = std::isfinite(pl.bones[offsets.bone_head][0]) && 
                                            std::isfinite(pl.bones[offsets.bone_head][1]) && 

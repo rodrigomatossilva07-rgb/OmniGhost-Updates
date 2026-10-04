@@ -1,4 +1,5 @@
 #include "gameplay/dma_telemetry_log.h"
+#include "gameplay/unified_telemetry.h"
 #include "platform/session_log.h"
 #include "platform/resource_tracker.h"
 #include "../../DMALibrary/Memory/Memory.h"
@@ -14,7 +15,6 @@
 #include <Windows.h>
 #include <psapi.h>
 #include <tlhelp32.h>
-
 
 namespace {
 int CountProcessThreadsCached() {
@@ -37,9 +37,10 @@ int CountProcessThreadsCached() {
     }
     CloseHandle(snap);
     cached = n;
-    return cached;
+    return n;
 }
 } // namespace
+
 namespace OmniGhost::Gameplay::DmaTelemetry {
 namespace {
 
@@ -48,12 +49,7 @@ constexpr float kSpikeWarnMs = 50.f;
 constexpr float kSpikeSevereMs = 200.f;
 constexpr float kSpikeCriticalMs = 500.f;
 
-std::atomic_bool g_enabled{false};
-Sample g_fivem{};
-Sample g_cs2{};
-Sample g_warzone{};
-Sample g_fortnite{};
-
+// Local ring buffers for per-game spike detection (kept here for backward compat)
 struct Ring {
     std::array<float, kWindow> data{};
     int count = 0;
@@ -66,52 +62,29 @@ struct Ring {
         write = (write + 1) % kWindow;
         if (count < kWindow) ++count;
     }
-
-    WindowStats Stats() {
-        std::lock_guard<std::mutex> lock(mu);
-        WindowStats s{};
-        if (count <= 0) return s;
-        std::array<float, kWindow> sorted{};
-        std::copy_n(data.begin(), count, sorted.begin());
-        s.last = data[static_cast<size_t>((write + kWindow - 1) % kWindow)];
-        std::sort(sorted.begin(), sorted.begin() + count);
-        const int n = count;
-        s.samples = n;
-        double sum = 0.0;
-        for (int i = 0; i < n; ++i) sum += sorted[static_cast<size_t>(i)];
-        s.avg = static_cast<float>(sum / n);
-        auto at = [&](float q) -> float {
-            const int idx = std::clamp(static_cast<int>(std::ceil(q * n) - 1), 0, n - 1);
-            return sorted[static_cast<size_t>(idx)];
-        };
-        s.p50 = at(0.50f);
-        s.p95 = at(0.95f);
-        s.p99 = at(0.99f);
-        s.max = sorted[static_cast<size_t>(n - 1)];
-        // Enforce ordering
-        s.p95 = (std::max)(s.p95, s.p50);
-        s.p99 = (std::max)(s.p99, s.p95);
-        s.max = (std::max)(s.max, s.p99);
-        return s;
-    }
 };
 
 Ring g_acqF{}, g_acqC{}, g_acqW{}, g_acqFortnite{};
 Ring g_renderF{}, g_renderC{}, g_renderW{}, g_renderFortnite{};
-Ring g_dmaExec{};
 Ring g_cameraAgeC{}, g_cameraAgeW{}, g_cameraAgeFortnite{};
 Ring g_cameraReadC{}, g_cameraReadF{}, g_cameraReadW{}, g_cameraReadFortnite{};
 Ring g_bonesC{};
 Ring g_positionAgeC{}, g_bonesAgeC{}, g_cameraPositionDeltaC{}, g_predictionC{};
 
 std::atomic<float> g_lastAcqF{0.f}, g_lastAcqC{0.f}, g_lastAcqW{0.f}, g_lastAcqFortnite{0.f};
-
 std::atomic<uint64_t> g_lastSpikeWarnMs{0};
 std::atomic<uint64_t> g_lastSpikeSevereMs{0};
 
-uint64_t g_prevReads = 0;
-uint64_t g_prevScatter = 0;
-std::chrono::steady_clock::time_point g_prevMemSample{};
+const char* IdleName(int r) {
+    switch (r) {
+    case 1: return "dead";
+    case 2: return "not_in_match";
+    case 3: return "menu";
+    case 4: return "esp_disabled";
+    case 5: return "no_local_player";
+    default: return "none";
+    }
+}
 
 void Emit(std::string_view tag, std::string_view body) {
     std::string msg;
@@ -128,13 +101,33 @@ void EmitWarn(std::string_view tag, std::string_view body) {
 }
 
 void PublishAcquireStats(Sample& s, Ring& ring, float last) {
-    auto st = ring.Stats();
-    st.last = last;
-    s.acquire_ms.store(st.avg, std::memory_order_relaxed);
-    s.acquire_p50_ms.store(st.p50, std::memory_order_relaxed);
-    s.acquire_p95_ms.store(st.p95, std::memory_order_relaxed);
-    s.acquire_p99_ms.store(st.p99, std::memory_order_relaxed);
-    s.acquire_max_ms.store(st.max, std::memory_order_relaxed);
+    std::lock_guard<std::mutex> lock(ring.mu);
+    if (ring.count <= 0) return;
+    std::array<float, kWindow> sorted{};
+    std::copy_n(ring.data.begin(), ring.count, sorted.begin());
+    float last_val = ring.data[static_cast<size_t>((ring.write + kWindow - 1) % kWindow)];
+    std::sort(sorted.begin(), sorted.begin() + ring.count);
+    const int n = ring.count;
+    double sum = 0.0;
+    for (int i = 0; i < n; ++i) sum += sorted[static_cast<size_t>(i)];
+    float avg = static_cast<float>(sum / n);
+    auto at = [&](float q) -> float {
+        const int idx = std::clamp(static_cast<int>(std::ceil(q * n) - 1), 0, n - 1);
+        return sorted[static_cast<size_t>(idx)];
+    };
+    float p50 = at(0.50f);
+    float p95 = at(0.95f);
+    float p99 = at(0.99f);
+    float max_v = sorted[n - 1];
+    p95 = (std::max)(p95, p50);
+    p99 = (std::max)(p99, p95);
+    float max_v = (std::max)(max_v, p99);
+
+    s.acquire_ms.store(last_val, std::memory_order_relaxed);
+    s.acquire_p50_ms.store(at(0.50f), std::memory_order_relaxed);
+    s.acquire_p95_ms.store(at(0.95f), std::memory_order_relaxed);
+    s.acquire_p99_ms.store(at(0.99f), std::memory_order_relaxed);
+    s.acquire_max_ms.store(max_v, std::memory_order_relaxed);
 }
 
 const char* IdleName(int r) {
@@ -146,6 +139,20 @@ const char* IdleName(int r) {
     case 5: return "no_local_player";
     default: return "none";
     }
+}
+
+void Emit(std::string_view tag, std::string_view body) {
+    std::string msg;
+    msg.reserve(body.size() + 16);
+    msg.append("[").append(tag).append("] ").append(body);
+    SessionLog::Write(SessionLog::Severity::Info, SessionLog::Subsystem::Adapter, msg);
+}
+
+void EmitWarn(std::string_view tag, std::string_view body) {
+    std::string msg;
+    msg.reserve(body.size() + 16);
+    msg.append("[").append(tag).append("] ").append(body);
+    SessionLog::Write(SessionLog::Severity::Warning, SessionLog::Subsystem::Adapter, msg);
 }
 
 void WritePerf(std::string_view tag, Sample& s) {
@@ -160,18 +167,18 @@ void WritePerf(std::string_view tag, Sample& s) {
         "acquire_avg_ms=%.2f\nacquire_p50_ms=%.2f\nacquire_p95_ms=%.2f\nacquire_p99_ms=%.2f\nacquire_max_ms=%.2f\n"
         "scheduler_wait_ms=%.2f\npressure_window_p95_ms=%.2f\n\n"
         "snapshot_age_ms=%.1f\nworld_age_ms=%.1f\npublish_delay_ms=%.1f\nsnapshot_hz=%.1f\nsnapshot_interval_ms=%.1f\nsnapshot_drops=%llu\nvisibility_ms=%.2f\nvisibility_players_tested=%d\nvisibility_rays=%d\n\n"
-		"camera_age_ms=%.1f\ncamera_age_avg_ms=%.1f\ncamera_age_p50_ms=%.1f\n"
-		"camera_age_p95_ms=%.1f\ncamera_age_p99_ms=%.1f\ncamera_age_max_ms=%.1f\n"
-		"camera_read_p95_ms=%.2f\ncamera_read_p99_ms=%.2f\ncamera_read_max_ms=%.2f\n"
-		"camera_busy_skips=%llu\ncamera_busy_retry_success=%llu\ncamera_consecutive_busy_max=%llu\n"
-		"camera_cooldown_skips=%llu\ncamera_cooldown_bypasses=%llu\n"
-		"pressure_level=%d\ncooldown_remaining_ms=%llu\ndeath_to_hide_ms=%.1f\n"
+        "camera_age_ms=%.1f\ncamera_age_avg_ms=%.1f\ncamera_age_p50_ms=%.1f\n"
+        "camera_age_p95_ms=%.1f\ncamera_age_p99_ms=%.1f\ncamera_age_max_ms=%.1f\n"
+        "camera_read_p95_ms=%.2f\ncamera_read_p99_ms=%.2f\ncamera_read_max_ms=%.2f\n"
+        "camera_busy_skips=%llu\ncamera_busy_retry_success=%llu\ncamera_consecutive_busy_max=%llu\n"
+        "camera_cooldown_skips=%llu\ncamera_cooldown_bypasses=%llu\n"
+        "pressure_level=%d\ncooldown_remaining_ms=%llu\ndeath_to_hide_ms=%.1f\n"
         "recent_player_reinsertions=%llu\nlast_good_age_ms=%llu\nmotion_age_ms=%.1f\n"
-		"position_age_ms=%.1f\nposition_age_avg_ms=%.1f\nposition_age_p95_ms=%.1f\nposition_age_p99_ms=%.1f\nposition_age_max_ms=%.1f\n"
-		"bones_age_ms=%.1f\nbones_age_avg_ms=%.1f\nbones_age_p95_ms=%.1f\nbones_age_p99_ms=%.1f\nbones_age_max_ms=%.1f\n"
-		"camera_position_delta_ms=%.1f\ncamera_position_delta_p95_ms=%.1f\ncamera_position_delta_p99_ms=%.1f\ncamera_position_delta_max_ms=%.1f\n"
-		"prediction_ms=%.1f\nprediction_p95_ms=%.1f\nprediction_p99_ms=%.1f\nprediction_max_ms=%.1f\n"
-		"cached_bones_used=%llu\ncached_bones_age_max_ms=%.1f\n"
+        "position_age_ms=%.1f\nposition_age_avg_ms=%.1f\nposition_age_p95_ms=%.1f\nposition_age_p99_ms=%.1f\nposition_age_max_ms=%.1f\n"
+        "bones_age_ms=%.1f\nbones_age_avg_ms=%.1f\nbones_age_p95_ms=%.1f\nbones_age_p99_ms=%.1f\nbones_age_max_ms=%.1f\n"
+        "camera_position_delta_ms=%.1f\ncamera_position_delta_p95_ms=%.1f\ncamera_position_delta_p99_ms=%.1f\ncamera_position_delta_max_ms=%.1f\n"
+        "prediction_ms=%.1f\nprediction_p95_ms=%.1f\nprediction_p99_ms=%.1f\nprediction_max_ms=%.1f\n"
+        "cached_bones_used=%llu\ncached_bones_age_max_ms=%.1f\n"
         "bones_players=%d\nbones_p95_ms=%.2f\nbones_p99_ms=%.2f\nbones_max_ms=%.2f\n"
         "render_avg_ms=%.2f\nrender_p95_ms=%.2f\nrender_p99_ms=%.2f\nrender_max_ms=%.2f\n\n"
         "suppressed_spikes_20=%llu\nsuppressed_spikes_50=%llu\nsuppressed_spikes_100=%llu",
@@ -188,7 +195,7 @@ void WritePerf(std::string_view tag, Sample& s) {
         s.vmm_p99_ms.load(),
         s.vmm_max_ms.load(),
         static_cast<unsigned long long>(s.read_fails.load()),
-        s.acquire_ms.load(),
+        s.acquire_avg_ms.load(),
         s.acquire_p50_ms.load(),
         s.acquire_p95_ms.load(),
         s.acquire_p99_ms.load(),
@@ -205,34 +212,34 @@ void WritePerf(std::string_view tag, Sample& s) {
         s.visibility_players_tested.load(),
         s.visibility_rays.load(),
         s.camera_age_ms.load(),
-		s.camera_age_avg_ms.load(),
-		s.camera_age_p50_ms.load(),
-		s.camera_age_p95_ms.load(),
-		s.camera_age_p99_ms.load(),
-		s.camera_age_max_ms.load(),
-		s.camera_read_p95_ms.load(),
-		s.camera_read_p99_ms.load(),
-		s.camera_read_max_ms.load(),
-		static_cast<unsigned long long>(s.camera_busy_skips.load()),
-		static_cast<unsigned long long>(s.camera_busy_retry_success.load()),
-		static_cast<unsigned long long>(s.camera_consecutive_busy_max.load()),
-		static_cast<unsigned long long>(s.camera_cooldown_skips.load()),
-		static_cast<unsigned long long>(s.camera_cooldown_bypasses.load()),
-		s.pressure_level.load(),
-		static_cast<unsigned long long>(s.cooldown_remaining_ms.load()),
+        s.camera_age_avg_ms.load(),
+        s.camera_age_p50_ms.load(),
+        s.camera_age_p95_ms.load(),
+        s.camera_age_p99_ms.load(),
+        s.camera_age_max_ms.load(),
+        s.camera_read_p95_ms.load(),
+        s.camera_read_p99_ms.load(),
+        s.camera_read_max_ms.load(),
+        static_cast<unsigned long long>(s.camera_busy_skips.load()),
+        static_cast<unsigned long long>(s.camera_busy_retry_success.load()),
+        static_cast<unsigned long long>(s.camera_consecutive_busy_max.load()),
+        static_cast<unsigned long long>(s.camera_cooldown_skips.load()),
+        static_cast<unsigned long long>(s.camera_cooldown_bypasses.load()),
+        s.pressure_level.load(),
+        static_cast<unsigned long long>(s.cooldown_remaining_ms.load()),
         s.death_to_hide_ms.load(),
         static_cast<unsigned long long>(s.recent_player_reinsertions.load()),
         static_cast<unsigned long long>(s.last_good_age_ms.load()),
         s.motion_age_ms.load(),
-		s.position_age_ms.load(), s.position_age_avg_ms.load(), s.position_age_p95_ms.load(),
-		s.position_age_p99_ms.load(), s.position_age_max_ms.load(),
-		s.bones_age_ms.load(), s.bones_age_avg_ms.load(), s.bones_age_p95_ms.load(),
-		s.bones_age_p99_ms.load(), s.bones_age_max_ms.load(),
-		s.camera_position_delta_ms.load(), s.camera_position_delta_p95_ms.load(),
-		s.camera_position_delta_p99_ms.load(), s.camera_position_delta_max_ms.load(),
-		s.prediction_ms.load(), s.prediction_p95_ms.load(), s.prediction_p99_ms.load(),
-		s.prediction_max_ms.load(),
-		static_cast<unsigned long long>(s.cached_bones_used.load()), s.cached_bones_age_max_ms.load(),
+        s.position_age_ms.load(), s.position_age_avg_ms.load(), s.position_age_p95_ms.load(),
+        s.position_age_p99_ms.load(), s.position_age_max_ms.load(),
+        s.bones_age_ms.load(), s.bones_age_avg_ms.load(), s.bones_age_p95_ms.load(),
+        s.bones_age_p99_ms.load(), s.bones_age_max_ms.load(),
+        s.camera_position_delta_ms.load(), s.camera_position_delta_p95_ms.load(),
+        s.camera_position_delta_p99_ms.load(), s.camera_position_delta_max_ms.load(),
+        s.prediction_ms.load(), s.prediction_p95_ms.load(), s.prediction_p99_ms.load(),
+        s.prediction_max_ms.load(),
+        static_cast<unsigned long long>(s.cached_bones_used.load()), s.cached_bones_age_max_ms.load(),
         s.bones_players.load(),
         s.bones_p95_ms.load(),
         s.bones_p99_ms.load(),
@@ -263,19 +270,19 @@ void WritePerf(std::string_view tag, Sample& s) {
     const auto memSnap = mem.GetDiagnosticsSnapshot();
     char res[512]{};
     std::snprintf(res, sizeof(res),
-		"\nprocess_handles=%lu\nprocess_handles_delta=%ld\ngdi_objects=%lu\nuser_objects=%lu"
-		"\nprocess_threads=%d\nworking_set_mb=%.1f\nprivate_mb=%.1f"
-		"\nscatter_handles_live=%u\nnon_scatter_handles=%lu\nscatter_created=%llu\nscatter_destroyed=%llu",
+        "\nprocess_handles=%lu\nprocess_handles_delta=%ld\ngdi_objects=%lu\nuser_objects=%lu"
+        "\nprocess_threads=%d\nworking_set_mb=%.1f\nprivate_mb=%.1f"
+        "\nscatter_handles_live=%u\nnon_scatter_handles=%lu\nscatter_created=%llu\nscatter_destroyed=%llu",
         static_cast<unsigned long>(handleCount),
-		static_cast<long>(handleDelta),
-		static_cast<unsigned long>(gdiObjects),
-		static_cast<unsigned long>(userObjects),
+        static_cast<long>(handleDelta),
+        static_cast<unsigned long>(gdiObjects),
+        static_cast<unsigned long>(userObjects),
         CountProcessThreadsCached(),
         working / (1024.0 * 1024.0),
         priv / (1024.0 * 1024.0),
         static_cast<unsigned>(memSnap.scatterHandlesLive),
-		static_cast<unsigned long>(handleCount >= memSnap.scatterHandlesLive
-			? handleCount - memSnap.scatterHandlesLive : 0),
+        static_cast<unsigned long>(handleCount >= memSnap.scatterHandlesLive
+            ? handleCount - memSnap.scatterHandlesLive : 0),
         static_cast<unsigned long long>(memSnap.scatterHandlesCreated),
         static_cast<unsigned long long>(memSnap.scatterHandlesDestroyed));
     std::string full = buf;
@@ -286,11 +293,11 @@ void WritePerf(std::string_view tag, Sample& s) {
 } // namespace
 
 void SetEnabled(bool enabled) noexcept {
-    g_enabled.store(enabled, std::memory_order_release);
+    Telemetry::SetEnabled(enabled);
 }
 
 bool IsEnabled() noexcept {
-    return g_enabled.load(std::memory_order_acquire);
+    return Telemetry::IsEnabled();
 }
 
 Sample& FiveM() { return g_fivem; }
@@ -317,6 +324,11 @@ void ObserveAcquire(Sample& s, float work_ms, bool activeSample, uint64_t scan_i
     else if (isFortnite) g_lastAcqFortnite.store(work_ms, std::memory_order_relaxed);
     else g_lastAcqF.store(work_ms, std::memory_order_relaxed);
     PublishAcquireStats(s, ring, work_ms);
+
+    // Also forward to unified telemetry
+    Telemetry::ObserveAcquire(
+        isCs2 ? Telemetry::CS2() : isWarzone ? Telemetry::Warzone() : isFortnite ? Telemetry::Fortnite() : Telemetry::FiveM(),
+        work_ms, activeSample, scan_id);
 
     // Rate-limited spike reporting (never on idle)
     if (!IsEnabled()) return;
@@ -373,30 +385,46 @@ void ObserveRender(Sample& s, float ms) noexcept {
     s.render_p95_ms.store(st.p95, std::memory_order_relaxed);
     s.render_p99_ms.store(st.p99, std::memory_order_relaxed);
     s.render_max_ms.store(st.max, std::memory_order_relaxed);
+
+    // Also forward to unified
+    Telemetry::ObserveRender(
+        (&s == &g_cs2) ? Telemetry::CS2() : (&s == &g_warzone) ? Telemetry::Warzone()
+        : (&s == &g_fortnite) ? Telemetry::Fortnite() : Telemetry::FiveM(),
+        ms);
 }
 
 void ObserveCameraAge(Sample& s, float age_ms) noexcept {
-	if (age_ms < 0.f || (&s != &g_cs2 && &s != &g_warzone && &s != &g_fortnite)) return;
-	Ring& ring = (&s == &g_cs2) ? g_cameraAgeC : (&s == &g_warzone) ? g_cameraAgeW : g_cameraAgeFortnite;
-	ring.Push(age_ms);
-	const auto st = ring.Stats();
-	s.camera_age_ms.store(age_ms, std::memory_order_relaxed);
-	s.camera_age_avg_ms.store(st.avg, std::memory_order_relaxed);
-	s.camera_age_p50_ms.store(st.p50, std::memory_order_relaxed);
-	s.camera_age_p95_ms.store(st.p95, std::memory_order_relaxed);
-	s.camera_age_p99_ms.store(st.p99, std::memory_order_relaxed);
-	s.camera_age_max_ms.store(st.max, std::memory_order_relaxed);
+    if (age_ms < 0.f || (&s != &g_cs2 && &s != &g_warzone && &s != &g_fortnite)) return;
+    Ring& ring = (&s == &g_cs2) ? g_cameraAgeC : (&s == &g_warzone) ? g_cameraAgeW : g_cameraAgeFortnite;
+    ring.Push(age_ms);
+    const auto st = ring.Stats();
+    s.camera_age_ms.store(age_ms, std::memory_order_relaxed);
+    s.camera_age_avg_ms.store(st.avg, std::memory_order_relaxed);
+    s.camera_age_p50_ms.store(st.p50, std::memory_order_relaxed);
+    s.camera_age_p95_ms.store(st.p95, std::memory_order_relaxed);
+    s.camera_age_p99_ms.store(st.p99, std::memory_order_relaxed);
+    s.camera_age_max_ms.store(st.max, std::memory_order_relaxed);
+
+    Telemetry::ObserveCameraAge(
+        (&s == &g_cs2) ? Telemetry::CS2() : (&s == &g_warzone) ? Telemetry::Warzone()
+        : (&s == &g_fortnite) ? Telemetry::Fortnite() : Telemetry::FiveM(),
+        age_ms);
 }
 
 void ObserveCameraRead(Sample& s, float read_ms) noexcept {
-	if (read_ms < 0.f) return;
-	Ring& ring = (&s == &g_cs2) ? g_cameraReadC : (&s == &g_warzone) ? g_cameraReadW
-	    : (&s == &g_fortnite) ? g_cameraReadFortnite : g_cameraReadF;
-	ring.Push(read_ms);
-	const auto st = ring.Stats();
-	s.camera_read_p95_ms.store(st.p95, std::memory_order_relaxed);
-	s.camera_read_p99_ms.store(st.p99, std::memory_order_relaxed);
-	s.camera_read_max_ms.store(st.max, std::memory_order_relaxed);
+    if (read_ms < 0.f) return;
+    Ring& ring = (&s == &g_cs2) ? g_cameraReadC : (&s == &g_warzone) ? g_cameraReadW
+        : (&s == &g_fortnite) ? g_cameraReadFortnite : g_cameraReadF;
+    ring.Push(read_ms);
+    const auto st = ring.Stats();
+    s.camera_read_p95_ms.store(st.p95, std::memory_order_relaxed);
+    s.camera_read_p99_ms.store(st.p99, std::memory_order_relaxed);
+    s.camera_read_max_ms.store(st.max, std::memory_order_relaxed);
+
+    Telemetry::ObserveCameraRead(
+        (&s == &g_cs2) ? Telemetry::CS2() : (&s == &g_warzone) ? Telemetry::Warzone()
+        : (&s == &g_fortnite) ? Telemetry::Fortnite() : Telemetry::FiveM(),
+        read_ms);
 }
 
 void ObserveBones(Sample& s, float bones_ms) noexcept {
@@ -406,6 +434,8 @@ void ObserveBones(Sample& s, float bones_ms) noexcept {
     s.bones_p95_ms.store(st.p95, std::memory_order_relaxed);
     s.bones_p99_ms.store(st.p99, std::memory_order_relaxed);
     s.bones_max_ms.store(st.max, std::memory_order_relaxed);
+
+    Telemetry::ObserveBones(Telemetry::CS2(), bones_ms);
 }
 
 void ObservePresentationTiming(Sample& s, float positionAgeMs, float bonesAgeMs,
@@ -444,6 +474,9 @@ void ObservePresentationTiming(Sample& s, float positionAgeMs, float bonesAgeMs,
     s.prediction_p95_ms.store(prediction.p95, std::memory_order_relaxed);
     s.prediction_p99_ms.store(prediction.p99, std::memory_order_relaxed);
     s.prediction_max_ms.store(prediction.max, std::memory_order_relaxed);
+
+    Telemetry::ObservePresentationTiming(Telemetry::CS2(), positionAgeMs, bonesAgeMs,
+        cameraPositionDeltaMs, predictionMs);
 }
 
 void ObserveSchedulerWait(Sample& s, float wait_ms) noexcept {
@@ -451,12 +484,18 @@ void ObserveSchedulerWait(Sample& s, float wait_ms) noexcept {
     const float old = s.scheduler_wait_ms.load(std::memory_order_relaxed);
     s.scheduler_wait_ms.store(old <= 0.f ? wait_ms : old + (wait_ms - old) * 0.15f,
                               std::memory_order_relaxed);
+
+    Telemetry::ObserveSchedulerWait(
+        (&s == &g_cs2) ? Telemetry::CS2() : (&s == &g_warzone) ? Telemetry::Warzone()
+        : (&s == &g_fortnite) ? Telemetry::Fortnite() : Telemetry::FiveM(),
+        wait_ms);
 }
 
 void RefreshFromMemory() noexcept {
     const auto snap = mem.GetDiagnosticsSnapshot();
     const auto now = std::chrono::steady_clock::now();
     double dt = 1.0;
+    static std::chrono::steady_clock::time_point g_prevMemSample{};
     if (g_prevMemSample.time_since_epoch().count() != 0) {
         dt = std::chrono::duration<double>(now - g_prevMemSample).count();
         if (dt < 0.05) dt = 0.05;
@@ -492,6 +531,8 @@ void RefreshFromMemory() noexcept {
     fill(g_fivem);
     fill(g_warzone);
     fill(g_fortnite);
+
+    Telemetry::RefreshFromMemory();
 }
 
 static void ObserveProcessResources(Sample& s) noexcept {
@@ -507,14 +548,12 @@ static void ObserveProcessResources(Sample& s) noexcept {
         s.process_threads.store(snap.threadCount, std::memory_order_relaxed);
         s.working_set_mb.store(static_cast<float>(snap.memoryBytes) / (1024.f * 1024.f),
             std::memory_order_relaxed);
-        // private_mb approximated from same working set when PMC private not split
         s.private_mb.store(static_cast<float>(snap.memoryBytes) / (1024.f * 1024.f),
             std::memory_order_relaxed);
         const auto memSnap = mem.GetDiagnosticsSnapshot();
         s.scatter_handles_live.store(memSnap.scatterHandlesLive, std::memory_order_relaxed);
     } catch (...) {
-        // ResourceTracker may throw if the process is gone; silently ignore —
-        // telemetry is best-effort and the next tick will retry.
+        // ResourceTracker may throw if the process is gone; silently ignore
     }
 }
 
@@ -531,9 +570,7 @@ void Tick(std::string_view tag) {
     else if (tag == "WARZONE" || tag == "WZ") { sample = &g_warzone; last = &lastW; }
     else if (tag == "FORTNITE") { sample = &g_fortnite; last = &lastFortnite; }
     ObserveProcessResources(*sample);
-    // PERF once/sec only while active gameplay for CS2/FiveM samples
     if (!sample->active.load(std::memory_order_relaxed)) {
-        // Still emit a light STATUS at most every 5s when idle so logs show state
         if (last->time_since_epoch().count() != 0 &&
             now - *last < std::chrono::seconds(5))
             return;
@@ -564,6 +601,7 @@ void LogConfigChanged(std::string_view tag, std::string_view config_blob) {
     std::string body = "CONFIG_CHANGED\n";
     body.append(config_blob);
     Emit(tag, body);
+    Telemetry::LogConfigChanged(tag, config_blob);
 }
 
 void LogSessionSummary(std::string_view tag) {
@@ -576,11 +614,11 @@ void LogSessionSummary(std::string_view tag) {
         "acquire_avg_ms=%.2f\nacquire_p50_ms=%.2f\nacquire_p95_ms=%.2f\nacquire_p99_ms=%.2f\nacquire_max_ms=%.2f\n"
         "dma_avg_ms=%.2f\ndma_p95_ms=%.2f\ndma_p99_ms=%.2f\ndma_max_ms=%.2f\n"
         "render_avg_ms=%.2f\nrender_p95_ms=%.2f\nrender_p99_ms=%.2f\nrender_max_ms=%.2f\n"
-		"camera_age_avg_ms=%.1f\ncamera_age_p50_ms=%.1f\ncamera_age_p95_ms=%.1f\ncamera_age_p99_ms=%.1f\ncamera_age_max_ms=%.1f\n"
-		"camera_read_p95_ms=%.2f\ncamera_read_p99_ms=%.2f\ncamera_read_max_ms=%.2f\n"
-		"camera_busy_skips=%llu\ncamera_busy_retry_success=%llu\ncamera_consecutive_busy_max=%llu\n"
-		"camera_cooldown_skips=%llu\ncamera_cooldown_bypasses=%llu\n"
-		"bones_p95_ms=%.2f\nbones_p99_ms=%.2f\nbones_max_ms=%.2f\n"
+        "camera_age_avg_ms=%.1f\ncamera_age_p50_ms=%.1f\ncamera_age_p95_ms=%.1f\ncamera_age_p99_ms=%.1f\ncamera_age_max_ms=%.1f\n"
+        "camera_read_p95_ms=%.2f\ncamera_read_p99_ms=%.2f\ncamera_read_max_ms=%.2f\n"
+        "camera_busy_skips=%llu\ncamera_busy_retry_success=%llu\ncamera_consecutive_busy_max=%llu\n"
+        "camera_cooldown_skips=%llu\ncamera_cooldown_bypasses=%llu\n"
+        "bones_p95_ms=%.2f\nbones_p99_ms=%.2f\nbones_max_ms=%.2f\n"
         "death_to_hide_ms=%.1f\nrecent_player_reinsertions=%llu\nlast_good_age_ms=%llu\n"
         "snapshot_drops=%llu\nread_fails=%llu\nspikes=%llu\n"
         "suppressed_20=%llu\nsuppressed_50=%llu\nsuppressed_100=%llu",
@@ -588,14 +626,14 @@ void LogSessionSummary(std::string_view tag) {
         s.acquire_p99_ms.load(), s.acquire_max_ms.load(),
         s.vmm_avg_ms.load(), s.vmm_p95_ms.load(), s.vmm_p99_ms.load(), s.vmm_max_ms.load(),
         s.render_ms.load(), s.render_p95_ms.load(), s.render_p99_ms.load(), s.render_max_ms.load(),
-		s.camera_age_avg_ms.load(), s.camera_age_p50_ms.load(), s.camera_age_p95_ms.load(),
-		s.camera_age_p99_ms.load(), s.camera_age_max_ms.load(),
-		s.camera_read_p95_ms.load(), s.camera_read_p99_ms.load(), s.camera_read_max_ms.load(),
-		static_cast<unsigned long long>(s.camera_busy_skips.load()),
-		static_cast<unsigned long long>(s.camera_busy_retry_success.load()),
-		static_cast<unsigned long long>(s.camera_consecutive_busy_max.load()),
-		static_cast<unsigned long long>(s.camera_cooldown_skips.load()),
-		static_cast<unsigned long long>(s.camera_cooldown_bypasses.load()),
+        s.camera_age_avg_ms.load(), s.camera_age_p50_ms.load(), s.camera_age_p95_ms.load(),
+        s.camera_age_p99_ms.load(), s.camera_age_max_ms.load(),
+        s.camera_read_p95_ms.load(), s.camera_read_p99_ms.load(), s.camera_read_max_ms.load(),
+        static_cast<unsigned long long>(s.camera_busy_skips.load()),
+        static_cast<unsigned long long>(s.camera_busy_retry_success.load()),
+        static_cast<unsigned long long>(s.camera_consecutive_busy_max.load()),
+        static_cast<unsigned long long>(s.camera_cooldown_skips.load()),
+        static_cast<unsigned long long>(s.camera_cooldown_bypasses.load()),
         s.bones_p95_ms.load(), s.bones_p99_ms.load(), s.bones_max_ms.load(),
         s.death_to_hide_ms.load(),
         static_cast<unsigned long long>(s.recent_player_reinsertions.load()),
@@ -607,6 +645,7 @@ void LogSessionSummary(std::string_view tag) {
         static_cast<unsigned long long>(s.suppressed_spikes_50.load()),
         static_cast<unsigned long long>(s.suppressed_spikes_100.load()));
     Emit(tag, buf);
+    Telemetry::LogSessionSummary(tag);
 }
 
 void LogSpikeBreakdown(std::string_view tag, const SpikeBreakdown& b) noexcept {
@@ -614,7 +653,6 @@ void LogSpikeBreakdown(std::string_view tag, const SpikeBreakdown& b) noexcept {
     if (b.total_ms < 50.f) return;
     static std::chrono::steady_clock::time_point s_last{};
     const auto now = std::chrono::steady_clock::now();
-    // At most one breakdown per 500ms (severe) / 250ms (critical)
     const auto minGap = b.total_ms >= 200.f
         ? std::chrono::milliseconds(250)
         : std::chrono::milliseconds(500);
@@ -654,6 +692,7 @@ void LogSpikeBreakdown(std::string_view tag, const SpikeBreakdown& b) noexcept {
         b.players, b.bones_players, b.visibility_players_tested, b.visibility_rays,
         b.entity_full_probe, b.spectator_refresh, b.bomb_refresh, b.cache_cleanup);
     EmitWarn(tag, buf);
+    Telemetry::LogSpikeBreakdown(tag, b);
 }
 
 } // namespace OmniGhost::Gameplay::DmaTelemetry

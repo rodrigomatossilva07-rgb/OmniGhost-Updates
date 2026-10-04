@@ -46,8 +46,9 @@ inline std::optional<Vec3> CameraOrigin(const float* matrix) {
 // Static map geometry only: moving doors/props and smoke are not in the mesh.
 // Unknown is distinct from occluded. One exposed point is enough to be visible.
 inline std::optional<bool> CheckPoints(const Trajectory::CollisionBvh* world,
-                                      Vec3 origin, std::span<const Vec3> points,
-                                      int* raysTested = nullptr) {
+                                       Vec3 origin, std::span<const Vec3> points,
+                                       int* raysTested = nullptr,
+                                       const std::atomic_bool* cancel = nullptr) {
     if (raysTested) *raysTested = 0;
     if (!world || !world->Ready() || !Finite(origin) || points.empty()) return std::nullopt;
     bool tested = false;
@@ -57,8 +58,9 @@ inline std::optional<bool> CheckPoints(const Trajectory::CollisionBvh* world,
         if (dx * dx + dy * dy + dz * dz < .0001f) continue;
         tested = true;
         if (raysTested) ++*raysTested;
-        if (!world->TraceRay(origin, point).hit) return true;
+        if (!world->TraceRay(origin, point, cancel).hit) return true;
     }
     return tested ? std::optional<bool>(false) : std::nullopt;
 }
-}
+
+} // namespace CS2::Visibility

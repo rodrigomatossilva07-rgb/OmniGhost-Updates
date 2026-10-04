@@ -92,6 +92,14 @@ enum class BoneSlot : std::size_t {
 inline constexpr std::size_t kBoneSlotCount =
     static_cast<std::size_t>(BoneSlot::Count);
 
+// Shared constants to ensure consistency between acquisition and presentation.
+// Bone visual max age: bones older than this are not rendered (prevents stale skeleton).
+inline constexpr uint64_t kBoneVisualMaxAgeMs = 160u;
+
+// Bone reliability hold: how long to keep a bone pose after a successful read
+// before considering it unreliable. Must match kBoneVisualMaxAgeMs.
+inline constexpr int kBoneReliabilityHoldMs = static_cast<int>(kBoneVisualMaxAgeMs);
+
 struct Player {
     uintptr_t controller = 0;
     uintptr_t pawn = 0;

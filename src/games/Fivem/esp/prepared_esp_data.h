@@ -27,7 +27,13 @@ struct PreparedEspData {
 
     // Bone data for skeleton/head ESP (unified acquisition)
     Matrix bone_matrix{};
-    std::array<Vector3, 9> bone_offsets{}; // 0=head, 1=neck, 2=spine1, 3=spine2, 4=pelvis, 5=l_shoulder, 6=l_elbow, 7=r_shoulder, 8=r_elbow
+    // P2-5: Expanded from 9 to 20 slots for full skeleton support
+    // 0=head, 1=neck, 2=spine_upper, 3=spine_mid, 4=spine_lower, 5=pelvis,
+    // 6=clavicle_l, 7=shoulder_l, 8=elbow_l, 9=hand_l,
+    // 10=clavicle_r, 11=shoulder_r, 12=elbow_r, 13=hand_r,
+    // 14=hip_l, 15=knee_l, 16=ankle_l,
+    // 17=hip_r, 18=knee_r, 19=ankle_r
+    std::array<Vector3, 20> bone_offsets{};
     uint16_t bone_mask = 0;
     bool bones_ok = false;
     uint64_t bones_sample_ms = 0; // acquisition midpoint timestamp

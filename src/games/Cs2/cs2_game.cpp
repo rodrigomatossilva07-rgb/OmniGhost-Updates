@@ -98,13 +98,13 @@ constexpr int CAMERA_INTERVAL_MS = 16;
 constexpr int BONES_INTERVAL_MS = 24;       // near skeleton tier (~42 Hz)
 constexpr int FULL_SCAN_INTERVAL_MS = 18;   // position / HP / core identity
 constexpr int WEAPON_INTERVAL_MS = 200;
-constexpr int WEAPON_FALLBACK_INTERVAL_MS = 10000;
+constexpr int WEAPON_FALLBACK_INTERVAL_MS = 3000;
 constexpr int ENTITY_LIST_INTERVAL_MS = 250;
 constexpr int NAME_INTERVAL_MS = 1000;      // low-frequency identity
 // Bridge occasional missed bone reads without retaining an obsolete pose indefinitely.
 // This must match the renderer's visual age ceiling; 50 ms was shorter than
 // far-player LOD and could make skeletons blink between otherwise valid reads.
-constexpr int BONE_RELIABILITY_HOLD_MS = 160;
+constexpr int BONE_RELIABILITY_HOLD_MS = kBoneReliabilityHoldMs;
 constexpr int TEAM_INTERVAL_MS = 500;
 }
 
@@ -113,7 +113,7 @@ OmniGhost::Gameplay::SnapshotExchange<LivenessSnapshot> g_liveness_snapshots;
 OmniGhost::Gameplay::SnapshotExchange<Config> g_config_snapshots;
 // Lock-free ring buffer for camera history (single producer: camera thread).
 // Atomic index avoids mutex in 16ms hot path.
-std::array<CameraSnapshot, 6> g_camera_history{};
+std::array<CameraSnapshot, 10> g_camera_history{};
 std::atomic<size_t> g_camera_history_next{0};
 std::atomic_bool g_acquisition_stop{false};
 std::atomic_bool g_acquisition_running{false};
@@ -211,34 +211,34 @@ public:
     void Submit(std::shared_ptr<const Trajectory::CollisionBvh> world,
                 Trajectory::Vec3 origin, std::vector<VisibilityTarget> targets,
                 uint64_t generation) {
-        std::lock_guard lock(mu_);
+        std::unique_lock lock(mu_);
         if (!thread_.joinable()) thread_ = std::thread([this] { Run(); });
         job_ = {std::move(world), origin, std::move(targets), generation};
         pending_ = true;
         cv_.notify_one();
     }
     VisibilityResult Get(uintptr_t pawn, uint64_t generation) const {
-        std::lock_guard lock(mu_);
+        std::shared_lock lock(mu_);
         const auto it = results_.find(pawn);
         return it != results_.end() && it->second.generation == generation
             ? it->second : VisibilityResult{};
     }
     void Reset() {
-        std::lock_guard lock(mu_);
+        std::unique_lock lock(mu_);
         pending_ = false;
         job_ = {};
         results_.clear();
     }
     void Stop() {
         {
-            std::lock_guard lock(mu_);
+            std::unique_lock lock(mu_);
             stop_ = true;
             pending_ = false;
             job_ = {};
         }
         cv_.notify_one();
         if (thread_.joinable()) thread_.join();
-        std::lock_guard lock(mu_);
+        std::unique_lock lock(mu_);
         results_.clear();
         stop_ = false;
     }
@@ -268,7 +268,7 @@ private:
                     break; // release the old map BVH promptly on map/session change
                 int targetRays = 0;
                 const auto visible = Visibility::CheckPoints(
-                    work.world.get(), work.origin, target.points, &targetRays);
+                    work.world.get(), work.origin, target.points, &targetRays, &stop_);
                 raysTested += targetRays;
                 complete.push_back({target.pawn, {work.generation, GetTickCount64(),
                     visible.has_value(), visible.value_or(false)}});
@@ -278,13 +278,13 @@ private:
             metrics.visibility_players_tested.store(static_cast<int>(work.targets.size()), std::memory_order_relaxed);
             metrics.visibility_rays.store(raysTested, std::memory_order_relaxed);
             {
-                std::lock_guard lock(mu_);
+                std::unique_lock lock(mu_);
                 if (!stop_ && work.generation == g_session_generation.load(std::memory_order_acquire))
                     for (const auto& [pawn, result] : complete) results_[pawn] = result;
             }
         }
     }
-    mutable std::mutex mu_;
+    mutable std::shared_mutex mu_;
     std::condition_variable cv_;
     std::thread thread_;
     bool stop_ = false;
@@ -463,7 +463,10 @@ public:
     ScatterHandleOwner& operator=(const ScatterHandleOwner&) = delete;
 
     void Ensure() {
-        if (!handle_ && mem.vHandle) handle_ = mem.CreateScatterHandle();
+        if (!handle_ && mem.vHandle) {
+            handle_ = mem.CreateScatterHandle();
+            if (!handle_) std::cerr << "[CS2] Failed to create scatter handle — falling back to QRead\n";
+        }
     }
     void Reset() {
         if (!handle_) return;
@@ -552,15 +555,7 @@ static void NotePossibleDeviceStall(float duration_ms) {
     }
 }
 
-struct ScopedPhase {
-    float* target;
-    std::chrono::steady_clock::time_point t0;
-    explicit ScopedPhase(float* out) : target(out), t0(std::chrono::steady_clock::now()) {}
-    ~ScopedPhase() {
-        if (target)
-            *target = OmniGhost::Gameplay::TimeMs(t0);
-    }
-};
+#include "gameplay/scoped_phase.h"
 
 
 uintptr_t g_cached_entity_root = 0; // refreshed once per frame when scanning
@@ -586,8 +581,8 @@ struct EntityHandleParts {
 };
 
 constexpr EntityHandleParts DecodeEntityHandle(uint32_t handle) noexcept {
-    return { static_cast<uintptr_t>((handle & 0x7FFFu) >> 9),
-             static_cast<uintptr_t>(handle & 0x1FFu),
+    return { static_cast<uintptr_t>((handle & kEntityHandlePageMask) >> kEntityHandlePageShift),
+             static_cast<uintptr_t>(handle & kEntityHandleIndexMask),
              handle != 0 && handle != 0xFFFFFFFFu };
 }
 
@@ -947,7 +942,7 @@ bool LoadEmbeddedOffsets() {
     read("schemas.CGameSceneNode.m_vecAbsOrigin", offsets.m_vecAbsOrigin, false);
     read("schemas.CGameSceneNode.m_bDormant", offsets.m_bDormant, false);
     read("schemas.CSkeletonInstance.m_modelState", offsets.m_modelState, false);
-    uintptr_t boneArrayInModelState = 0x80;
+    uintptr_t boneArrayInModelState = kBoneArrayOffsetDefault;
     read("schemas.CModelState.m_boneArray", boneArrayInModelState, false);
     offsets.BoneArray = offsets.m_modelState + boneArrayInModelState;
     read("schemas.C_PlantedC4.m_bBombTicking", offsets.m_bBombTicking, false);
@@ -1305,6 +1300,14 @@ bool Attach() {
               << "  LPP=0x" << offsets.dwLocalPlayerPawn
               << std::dec << std::endl;
 
+    // Initialize shared weapon name registry (used by both CS2 and FiveM)
+    if (!OmniGhost::Gameplay::WeaponNameRegistry::Instance().LoadFromJson("data/weapons.json")) {
+        std::cout << "[CS2] Warning: Failed to load data/weapons.json, trying embedded resource..." << std::endl;
+        if (!OmniGhost::Gameplay::WeaponNameRegistry::Instance().LoadFromEmbedded()) {
+            std::cout << "[CS2] Warning: Weapon name registry not loaded, using fallback maps" << std::endl;
+        }
+    }
+
     if (runtime.engine_base && offsets.dwBuildNumber)
         QReadT(runtime.engine_base + offsets.dwBuildNumber, runtime.build_number);
 
@@ -1360,6 +1363,31 @@ constexpr uintptr_t kEntityPageSize = 0x200;
 constexpr uintptr_t kEntityPageTableOffset = 0x10;
 constexpr uintptr_t kGlobalVarsCurrentTime = 0x30;
 constexpr uintptr_t kGlobalVarsCurrentMap = 0x180;
+
+// Handle decoding constants (Source 2 CEntityIdentity)
+constexpr uint32_t kEntityHandlePageMask = 0x7FFFu;
+constexpr uint32_t kEntityHandleIndexMask = 0x1FFu;
+constexpr int kEntityHandlePageShift = 9;
+
+// Name array default offsets (fallback when schema offsets missing)
+constexpr uintptr_t kNameEntrySizeDefault = 0xD0;
+constexpr uintptr_t kNameArrayPosDefault = 0x3038;
+constexpr uintptr_t kNameEntryNameDefault = 0x10;
+constexpr uintptr_t kNameEntryHealthDefault = 0x90;
+constexpr uintptr_t kNameEntryArmorDefault = 0x98;
+constexpr uintptr_t kNameEntryAliveDefault = 0x78;
+
+// Bone array offset within model state (fallback)
+constexpr uintptr_t kBoneArrayOffsetDefault = 0x80;
+
+// Player structure default offsets (fallback)
+constexpr uintptr_t kPlayerSizeDefault = 0x2808;
+constexpr uintptr_t kPlayerPosDataDefault = 0x80;
+constexpr uintptr_t kPlayerPosDefault = 0xEB0;
+constexpr uintptr_t kPlayerStanceDefault = 0x19D0;
+constexpr uintptr_t kPlayerArmorDefault = 0x13F8;
+constexpr uintptr_t kPlayerValidDefault = 0x13FC;
+constexpr uintptr_t kPlayerTeamDefault = 0xB0;
 
 uintptr_t g_pending_entity_list = 0;
 int g_entity_list_confirmations = 0;
@@ -1861,11 +1889,11 @@ static void CollectDroppedWeapons(const Config& frame_config, bool in_match,
     }
     next_scan_ms = now + 250;
 
-    constexpr size_t kPages = 1, kSlotsPerPage = 0x200, kSlots = kPages * kSlotsPerPage;
+    constexpr size_t kPages = 4, kSlotsPerPage = kEntityPageSize, kSlots = kPages * kSlotsPerPage;
     // World entities are not guaranteed to occupy either of the first two
-    // entity pages (especially on community servers). Rotate a bounded page
-    // on each optional pass; the cache bridges the complete sweep.
-    const size_t first_page = next_page++ % 8;
+    // entity pages (especially on community servers). Scan 4 pages per batch
+    // to complete full sweep in 2 passes (500ms) instead of 8 passes (2s).
+    const size_t first_page = (next_page += kPages) % 8;
     std::array<uintptr_t, kPages> pages{};
     std::array<uintptr_t, kSlots> entities{}, identities{}, name_ptrs{}, scenes{};
     std::array<std::array<char, 48>, kSlots> names{};
@@ -2687,19 +2715,22 @@ static void RunOptionalEnrichment(const Config& frame_config,
     if (dropped_only ? !in_match : (!in_match || targets.empty()))
         return;
     const int pressure = g_pressure_level.load(std::memory_order_relaxed);
-    if (pressure >= 3)
-        return; // recovery: keep last optional data, core already published
-
-    // Sole producer of g_optional_results. All deltas are local until the
+    // P1-2: At pressure 3 (recovery), still run critical bone updates for
+    // nearest players with a minimal budget, instead of stopping entirely.
+    const bool isRecovery = pressure >= 3;
+    if (isRecovery) {
+        // Check if any critical features need bones
+        // Sole producer of g_optional_results. All deltas are local until the
     // final publish; the acquisition thread merges them into its own caches.
     OptionalResults results{};
     results.generation = jobGen;
 
     OmniGhost::Gameplay::OptionalPhaseBudget budget;
     {
-        float budgetMs = frame_config.performance_mode ? 4.f : 6.f;
-        if (pressure == 2) budgetMs = 3.5f;
-        else if (pressure == 1) budgetMs = 4.5f;
+        float budgetMs = frame_config.optional_lane_budget_ms > 0.f ? frame_config.optional_lane_budget_ms : (frame_config.performance_mode ? 4.f : 6.f);
+        if (isRecovery) budgetMs = 2.f; // P1-2: minimal budget for critical bones only
+        else if (pressure == 2) budgetMs = budgetMs * 0.58f; // 3.5/6
+        else if (pressure == 1) budgetMs = budgetMs * 0.75f; // 4.5/6
         budget.Reset(budgetMs);
     }
 
@@ -2794,6 +2825,8 @@ static void RunOptionalEnrichment(const Config& frame_config,
                 const uint64_t bone_read_begin_ms = GetTickCount64();
                 mem.ExecuteReadScatter(g_scatter_optional);
                 const uint64_t bone_read_end_ms = GetTickCount64();
+                // P0-3: Check generation immediately after DMA to avoid processing stale data
+                if (jobGen != g_session_generation.load(std::memory_order_acquire)) return;
                 // Midpoint of the actual scatter execute — this is the real
                 // acquisition instant used for bones_age in presentation.
                 const uint64_t sampleMs = bone_read_begin_ms +
@@ -2863,6 +2896,8 @@ static void RunOptionalEnrichment(const Config& frame_config,
     if (need_names && !!budget.Remaining() && pressure < 2) {
         mem.SetDmaPriority(Memory::DmaPri::WeaponNameTeam);
         for (size_t i = 0; i < targets.size() && !!budget.Remaining(); ++i) {
+            // P0-3: Check generation before each name read
+            if (jobGen != g_session_generation.load(std::memory_order_acquire)) return;
             if (!IsUserPointer(targets[i].controller)) continue;
             if (targets[i].has_name) continue; // job snapshot already has a name
             if (!CS2::GiveCameraPriorityBeforeOptionalDma())
@@ -2870,6 +2905,8 @@ static void RunOptionalEnrichment(const Config& frame_config,
             char name[64]{};
             if (QRead(targets[i].controller + offsets.m_iszPlayerName, name, sizeof(name) - 1, "CS2.Opt.Name")
                 && name[0] && results.name_count < results.names.size()) {
+                // P0-3: Verify generation still valid after DMA read
+                if (jobGen != g_session_generation.load(std::memory_order_acquire)) return;
                 auto& r = results.names[results.name_count++];
                 r.pawn = targets[i].pawn;
                 r.controller = targets[i].controller;
@@ -2882,8 +2919,12 @@ static void RunOptionalEnrichment(const Config& frame_config,
     if (frame_config.dropped_weapons && pressure < 1) {
         mem.SetDmaPriority(Memory::DmaPri::OtherMetadata);
         if (CS2::GiveCameraPriorityBeforeOptionalDma()) {
+            // P0-3: Check generation before dropped weapons scan
+            if (jobGen != g_session_generation.load(std::memory_order_acquire)) return;
             const auto droppedPhaseBegin = std::chrono::steady_clock::now();
             CollectDroppedWeapons(frame_config, in_match, client_base, results.dropped_weapons);
+            // P0-3: Verify generation after dropped weapons scan
+            if (jobGen != g_session_generation.load(std::memory_order_acquire)) return;
             results.dropped_weapons_valid = true;
             results.dropped_ms = OmniGhost::Gameplay::TimeMs(droppedPhaseBegin);
         }
@@ -2893,38 +2934,87 @@ static void RunOptionalEnrichment(const Config& frame_config,
     if (need_weapons && allow_weapon && !!budget.Remaining()) {
         mem.SetDmaPriority(Memory::DmaPri::WeaponNameTeam);
         const auto weaponPhaseBegin = std::chrono::steady_clock::now();
-        for (size_t i = 0; i < targets.size() && !!budget.Remaining(); ++i) {
-            if (!CS2::GiveCameraPriorityBeforeOptionalDma())
-                break; // camera still busy after timeout — abort weapons pass
-            uintptr_t services = 0;
-            if (!QReadT(targets[i].pawn + offsets.m_pWeaponServices, services, "CS2.Opt.WepSvc") ||
-                !IsUserPointer(services))
-                continue;
-            uint32_t handle = 0;
-            if (!QReadT(services + offsets.m_hActiveWeapon, handle, "CS2.Opt.WepH") || !handle)
-                continue;
-            uintptr_t weapon = ResolveEntityByHandle(handle, g_pawn_stride ? g_pawn_stride : 0x70);
-            if (!IsUserPointer(weapon)) continue;
-            uint16_t def = 0;
-            if (offsets.m_AttributeManager && offsets.m_Item && offsets.m_iItemDefinitionIndex) {
-                uintptr_t attr = weapon + offsets.m_AttributeManager;
-                QReadT(attr + offsets.m_Item + offsets.m_iItemDefinitionIndex, def, "CS2.Opt.Def");
+        
+        // P1-4: Batch weapon metadata reads using scatter to reduce round-trips
+        // Phase 1: Read weapon services for all targets in one scatter
+        std::vector<uintptr_t> weaponServices(targets.size(), 0);
+        {
+            auto h = mem.CreateScatterHandle();
+            if (h) {
+                for (size_t i = 0; i < targets.size(); ++i) {
+                    mem.AddScatterReadRequest(h, targets[i].pawn + offsets.m_pWeaponServices,
+                                              &weaponServices[i], sizeof(uintptr_t));
+                }
+                mem.ExecuteReadScatter(h);
+                mem.CloseScatterHandle(h);
             }
-            int clip = -1;
-            const bool haveClip = frame_config.weapon_ammo && offsets.m_iClip1 &&
-                QReadT(weapon + offsets.m_iClip1, clip, "CS2.Opt.Clip") && clip >= 0 && clip < 500;
-            const bool haveDef = def > 0 && def < 6000;
+        }
+        if (jobGen != g_session_generation.load(std::memory_order_acquire)) return;
+
+        // Phase 2: Read weapon handles for valid services
+        std::vector<uint32_t> weaponHandles(targets.size(), 0);
+        {
+            auto h = mem.CreateScatterHandle();
+            if (h) {
+                for (size_t i = 0; i < targets.size(); ++i) {
+                    if (!IsUserPointer(weaponServices[i])) continue;
+                    mem.AddScatterReadRequest(h, weaponServices[i] + offsets.m_hActiveWeapon,
+                                              &weaponHandles[i], sizeof(uint32_t));
+                }
+                mem.ExecuteReadScatter(h);
+                mem.CloseScatterHandle(h);
+            }
+        }
+        if (jobGen != g_session_generation.load(std::memory_order_acquire)) return;
+
+        // Phase 3: Resolve weapon entity handles in batch
+        std::vector<uintptr_t> weaponEntities(targets.size(), 0);
+        {
+            const uintptr_t primaryStride = g_pawn_stride ? g_pawn_stride : 0x70;
+            const uintptr_t alternateStride = (primaryStride == 0x70) ? 0x78 : 0x70;
+            CS2::ScatterResolvePawnHandles(weaponHandles.data(), weaponEntities.data(),
+                static_cast<int>(targets.size()), primaryStride, alternateStride);
+        }
+        if (jobGen != g_session_generation.load(std::memory_order_acquire)) return;
+
+        // Phase 4: Read definitions and ammo in batch
+        std::vector<uint16_t> weaponDefs(targets.size(), 0);
+        std::vector<int> weaponClips(targets.size(), -1);
+        {
+            auto h = mem.CreateScatterHandle();
+            if (h) {
+                for (size_t i = 0; i < targets.size(); ++i) {
+                    if (!IsUserPointer(weaponEntities[i])) continue;
+                    uintptr_t attr = weaponEntities[i] + offsets.m_AttributeManager;
+                    mem.AddScatterReadRequest(h, attr + offsets.m_Item + offsets.m_iItemDefinitionIndex,
+                                              &weaponDefs[i], sizeof(uint16_t));
+                    if (frame_config.weapon_ammo && offsets.m_iClip1) {
+                        mem.AddScatterReadRequest(h, weaponEntities[i] + offsets.m_iClip1,
+                                                  &weaponClips[i], sizeof(int));
+                    }
+                }
+                mem.ExecuteReadScatter(h);
+                mem.CloseScatterHandle(h);
+            }
+        }
+        if (jobGen != g_session_generation.load(std::memory_order_acquire)) return;
+
+        // Collect results
+        for (size_t i = 0; i < targets.size() && !!budget.Remaining(); ++i) {
+            if (!IsUserPointer(weaponEntities[i])) continue;
+            const bool haveDef = weaponDefs[i] > 0 && weaponDefs[i] < 6000;
+            const bool haveClip = frame_config.weapon_ammo && weaponClips[i] >= 0 && weaponClips[i] < 500;
             if ((haveDef || haveClip) && results.weapon_count < results.weapons.size()) {
                 auto& r = results.weapons[results.weapon_count++];
                 r.pawn = targets[i].pawn;
                 if (haveDef) {
-                    r.weapon_def = def;
-                    const char* nm = CS2_Weapons::NameFromDefIndex(static_cast<int>(def));
+                    r.weapon_def = weaponDefs[i];
+                    const char* nm = CS2_Weapons::NameFromDefIndex(static_cast<int>(weaponDefs[i]));
                     if (nm)
                         std::snprintf(r.weapon, sizeof(r.weapon), "%s", nm);
                 }
                 if (haveClip)
-                    r.ammo_clip = clip;
+                    r.ammo_clip = weaponClips[i];
             }
         }
         results.weapon_ms = OmniGhost::Gameplay::TimeMs(weaponPhaseBegin);
@@ -3008,7 +3098,7 @@ static void QueueOptionalEnrichment(const Config& frame_config) {
                                           {p.pos[0], p.pos[1], p.pos[2]}, p.name[0] != 0});
         }
         g_optional_job_generation.store(
-            g_session_generation.load(std::memory_order_relaxed), std::memory_order_relaxed);
+            g_session_generation.load(std::memory_order_relaxed), std::memory_order_release);
         g_optional_pending.store(true, std::memory_order_release);
     }
     g_optional_cv.notify_one();
@@ -3030,7 +3120,7 @@ static void QueueOptionalDroppedOnly(const Config& frame_config) {
         g_optional_dropped_only = true;
         g_optional_targets.clear();
         g_optional_job_generation.store(
-            g_session_generation.load(std::memory_order_relaxed), std::memory_order_relaxed);
+            g_session_generation.load(std::memory_order_relaxed), std::memory_order_release);
         g_optional_pending.store(true, std::memory_order_release);
     }
     g_optional_cv.notify_one();
@@ -4294,8 +4384,9 @@ static void RunFrameWithConfig(const Config& frame_config) {
             fields, OmniGhost::Gameplay::EspCore::DataField::Facing);
     const bool track_velocity = OmniGhost::Gameplay::EspCore::Has(
         fields, OmniGhost::Gameplay::EspCore::DataField::Velocity);
-    const bool need_bones = requested.visibility || OmniGhost::Gameplay::EspCore::Has(
+    const bool need_bones = OmniGhost::Gameplay::EspCore::Has(
         fields, OmniGhost::Gameplay::EspCore::DataField::Skeleton);
+    const bool need_visibility_bones = requested.visibility; // compact bones for visibility raycasting
     // Aim and visual effects need only the upper-body aim anchors. A complete
     // 20-slot pose is acquired only for the rendered skeleton or body trigger.
     const bool need_full_bones = requested.skeleton ||
@@ -4663,1460 +4754,6 @@ static void RunFrameWithConfig(const Config& frame_config) {
     }
     return; // core path done — optional worker continues enrichment
 
-    // [legacy inline optional kept below for reference / dead code until
-    //  removed in a follow-up; unreachable after return]
-    // Optional-lane wall-clock budget. Bones / weapons / flags / names share
-    // this budget so they cannot stretch world_age. Remainder is deferred to
-    // the next scan with explicit starvation priority.
-    OmniGhost::Gameplay::OptionalPhaseBudget optionalBudget;
-    {
-        const int pressure = g_pressure_level.load(std::memory_order_relaxed);
-        float budgetMs = frame_config.performance_mode ? 4.f : 6.f;
-        if (pressure >= 3) budgetMs = 2.5f;
-        else if (pressure == 2) budgetMs = 3.5f;
-        else if (pressure == 1) budgetMs = 4.5f;
-        optionalBudget.Reset(budgetMs);
-    }
-
-    // ── Phase 4: slow metadata + cached bone buffers ────────────────────
-    struct BoneJointSnapshot { float x, y, z, scale; char pad[0x10]; };
-    static_assert(sizeof(BoneJointSnapshot) == 32, "BoneJointSnapshot size");
-    // Highest joint index used by either layout is 27 → read 28 joints only.
-    constexpr int kBoneJointReadCount = 28;
-    constexpr int kCompactJointReadCount = 8; // contains both known layouts' head/neck/chest/stomach
-    constexpr size_t kBoneReadBytes = sizeof(BoneJointSnapshot) * kBoneJointReadCount;
-    constexpr size_t kCompactBoneReadBytes = sizeof(BoneJointSnapshot) * kCompactJointReadCount;
-    char playerNames[kMaxSlots][64]{};
-    bool nameNeedsRefresh[kMaxSlots]{};
-    struct CachedName {
-        std::array<char, 64> text{};
-        uintptr_t sanitized_address = 0;
-        uint64_t last_refresh_ms = 0;
-        uint64_t next_fallback_ms = 0;
-        uint64_t entry_generation = 0;
-    };
-    static std::unordered_map<uintptr_t, CachedName> nameCache;
-    static uint64_t metadataCacheGeneration = 0;
-    uintptr_t boneBases[kMaxSlots]{};
-    bool boneReadEligible[kMaxSlots]{};
-    uint64_t boneReadSampleMs[kMaxSlots]{};
-    BoneJointSnapshot boneSnapshots[kMaxSlots][kBoneJointReadCount]{};
-    static std::unordered_map<uintptr_t, bool> boneFallbackPending;
-    uintptr_t weaponServices[kMaxSlots]{};
-    uint32_t weaponHandles[kMaxSlots]{};
-    uintptr_t weaponEntities[kMaxSlots]{};
-    uint16_t weaponDefinitions[kMaxSlots]{};
-    bool weaponRefreshDue[kMaxSlots]{};
-    int ammoClip[kMaxSlots];
-    int ammoReserve[kMaxSlots];
-    std::fill(std::begin(ammoClip), std::end(ammoClip), -1);
-    std::fill(std::begin(ammoReserve), std::end(ammoReserve), -1);
-    struct CachedWeaponState {
-        uintptr_t services = 0;
-        uint32_t handle = 0;
-        uintptr_t entity = 0;
-        uint16_t definition = 0;
-        int ammo_clip = -1;
-        int ammo_reserve = -1;
-        uint64_t services_refresh_ms = 0;
-        uint64_t last_refresh_ms = 0; // active-handle refresh
-        uint64_t last_fallback_ms = 0;
-        uint64_t entry_generation = 0;
-    };
-    static std::unordered_map<uintptr_t, CachedWeaponState> weaponStateCache;
-    if (metadataCacheGeneration != g_session_generation.load(std::memory_order_acquire)) {
-        nameCache.clear();
-        boneFallbackPending.clear();
-        weaponStateCache.clear();
-        metadataCacheGeneration = g_session_generation.load(std::memory_order_relaxed);
-    }
-    if (nameCache.bucket_count() < 128) nameCache.reserve(128);
-    if (boneFallbackPending.bucket_count() < 128) boneFallbackPending.reserve(128);
-    if (weaponStateCache.bucket_count() < 128) weaponStateCache.reserve(128);
-    for (size_t i = 0; i < confirmedDeadCount; ++i) {
-        boneFallbackPending.erase(confirmedDead[i]);
-        weaponStateCache.erase(confirmedDead[i]);
-    }
-    // Incremental cache maintenance: budget a few erases per scan (never full-map sweep).
-    {
-        ScopedPhase _phCleanup(&g_phase.cleanup_ms);
-        constexpr int kBudget = 4;
-        int erased = 0;
-        auto prune = [&](auto& cache) {
-            for (auto it = cache.begin(); it != cache.end() && erased < kBudget;) {
-                if (scan_now_ms - it->second.last_refresh_ms > 30000u) {
-                    it = cache.erase(it);
-                    ++erased;
-                    g_phase.cache_cleanup = 1;
-                } else {
-                    ++it;
-                }
-            }
-        };
-        if ((runtime.frames % 32u) == 0u) {
-            prune(nameCache);
-            if (erased < kBudget) prune(weaponStateCache);
-            int sceneErased = 0;
-            for (auto it = sceneBoneCache.begin();
-                 it != sceneBoneCache.end() && sceneErased < kBudget;) {
-                if (scan_now_ms - it->second.last_seen_ms > 30000u) {
-                    it = sceneBoneCache.erase(it);
-                    ++sceneErased;
-                    g_phase.cache_cleanup = 1;
-                } else {
-                    ++it;
-                }
-            }
-        }
-    }
-    const auto _coreBegin = std::chrono::steady_clock::now();
-    EnsureScatter();
-    if (g_scatter_full && candidate_count > 0) {
-        bool queuedCoreMetadata = false;
-        bool boneBaseRefresh[kMaxSlots]{};
-        for (int c = 0; c < candidate_count; ++c) {
-            const uintptr_t scene = core[c].scene;
-            auto& sceneCache = sceneBoneCache[resolved_pawns[c]];
-            boneBases[c] = sceneCache.bone_base;
-            if (need_names) {
-                const int controllerSlot = slot_index[c];
-                const uintptr_t controller = controllers[controllerSlot];
-                const auto cached = nameCache.find(controller);
-                if (cached != nameCache.end() && cached->second.entry_generation == currentGen &&
-                    cached->second.text[0] &&
-                    scan_now_ms - cached->second.last_refresh_ms < static_cast<uint64_t>(NAME_INTERVAL_MS)) {
-                    std::memcpy(playerNames[c], cached->second.text.data(),
-                                sizeof(playerNames[c]));
-                } else if (controller) {
-                    nameNeedsRefresh[c] = true;
-                    mem.AddScatterReadRequest(g_scatter_full,
-                        controller + offsets.m_iszPlayerName,
-                        playerNames[c], sizeof(playerNames[c]) - 1);
-                    queuedCoreMetadata = true;
-                }
-            }
-            if (need_bones && IsUserPointer(scene) &&
-                (!IsUserPointer(boneBases[c]) || scan_now_ms >= sceneCache.bone_expires_ms)) {
-                boneBaseRefresh[c] = true;
-                boneBases[c] = 0;
-                const uintptr_t boneOffset = sceneCache.bone_offset
-                    ? sceneCache.bone_offset : offsets.BoneArray;
-                mem.AddScatterReadRequest(g_scatter_full, scene + boneOffset,
-                                          &boneBases[c], sizeof(uintptr_t));
-                queuedCoreMetadata = true;
-            }
-        }
-        if (queuedCoreMetadata) {
-            CS2::GiveCameraPriorityBeforeOptionalDma();
-            mem.SetDmaCallTag("CS2.Metadata");
-            mem.ExecuteReadScatter(g_scatter_full);
-        }
-        for (int c = 0; c < candidate_count; ++c) {
-            if (!boneBaseRefresh[c]) continue;
-            auto& cached = sceneBoneCache[resolved_pawns[c]];
-            if (IsUserPointer(boneBases[c])) {
-                cached.bone_base = boneBases[c];
-                if (!cached.bone_offset) cached.bone_offset = offsets.BoneArray;
-                cached.bone_expires_ms = scan_now_ms + 500u;
-            } else {
-                cached.bone_base = 0;
-                cached.bone_expires_ms = 0;
-            }
-        }
-        // Resolve the sanitized-name fallback only in the slow name lane. The
-        // Player assembly below consumes these buffers and never performs DMA.
-        uintptr_t sanitizedNames[kMaxSlots]{};
-        bool sanitizedFallbackDue[kMaxSlots]{};
-        bool queuedSanitizedPointers = false;
-        for (int c = 0; c < candidate_count; ++c) {
-            if (!need_names || !nameNeedsRefresh[c] || playerNames[c][0]) continue;
-            const uintptr_t controller = controllers[slot_index[c]];
-            auto& cachedName = nameCache[controller];
-            if (scan_now_ms < cachedName.next_fallback_ms) continue;
-            sanitizedFallbackDue[c] = true;
-            sanitizedNames[c] = cachedName.sanitized_address;
-            if (!IsUserPointer(sanitizedNames[c]) && IsUserPointer(controller)) {
-                mem.AddScatterReadRequest(g_scatter_full,
-                    controller + offsets.m_sSanitizedPlayerName,
-                    &sanitizedNames[c], sizeof(uintptr_t));
-                queuedSanitizedPointers = true;
-            }
-        }
-        if (queuedSanitizedPointers) {
-            CS2::GiveCameraPriorityBeforeOptionalDma();
-            mem.SetDmaCallTag("CS2.NameFallbackPointers");
-            mem.ExecuteReadScatter(g_scatter_full);
-        }
-        bool queuedSanitizedText = false;
-        for (int c = 0; c < candidate_count; ++c) {
-            if (!sanitizedFallbackDue[c] || !IsUserPointer(sanitizedNames[c])) continue;
-            mem.AddScatterReadRequest(g_scatter_full, sanitizedNames[c],
-                                      playerNames[c], sizeof(playerNames[c]) - 1);
-            queuedSanitizedText = true;
-        }
-        if (queuedSanitizedText) {
-            CS2::GiveCameraPriorityBeforeOptionalDma();
-            mem.SetDmaCallTag("CS2.NameFallbackText");
-            mem.ExecuteReadScatter(g_scatter_full);
-        }
-        for (int c = 0; c < candidate_count; ++c) {
-            if (!need_names || !nameNeedsRefresh[c]) continue;
-            const uintptr_t controller = controllers[slot_index[c]];
-            auto& cachedName = nameCache[controller];
-            cachedName.entry_generation = currentGen;
-            playerNames[c][sizeof(playerNames[c]) - 1] = '\0';
-            for (char* ch = playerNames[c]; *ch; ++ch) {
-                if (static_cast<unsigned char>(*ch) < 0x20 ||
-                    static_cast<unsigned char>(*ch) > 0x7E)
-                    *ch = '?';
-            }
-            if (IsUserPointer(sanitizedNames[c]))
-                cachedName.sanitized_address = sanitizedNames[c];
-            if (!playerNames[c][0]) {
-                std::snprintf(playerNames[c], sizeof(playerNames[c]),
-                              "Jogador_%d", slot_index[c] + 1);
-                cachedName.next_fallback_ms = scan_now_ms + 1500u;
-            } else {
-                cachedName.next_fallback_ms = 0;
-            }
-            std::memcpy(cachedName.text.data(), playerNames[c], cachedName.text.size());
-            cachedName.last_refresh_ms = scan_now_ms;
-        }
-        g_phase.core_scatter_ms = OmniGhost::Gameplay::TimeMs(_coreBegin);
-        NotePossibleDeviceStall(g_phase.core_scatter_ms);
-        if (need_bones) {
-            ScopedPhase _phBones(&g_phase.bones_ms);
-            // Community-proven approach for external DMA skeletons:
-            //  - one scatter of a tight joint window (not 64× full arrays every frame)
-            //  - distance-tiered refresh (near more often, far less)
-            //  - hard budget of fresh bone DMAs per scan; others keep translated cache
-            //  - still draw ALL slots (kBoneSlotCount) every frame from cache/pose
-            struct BoneCand { int c; float distSq; uint64_t interval; uint64_t overdueMs; };
-            BoneCand cand[kMaxSlots]{};
-            int candN = 0;
-            const CameraSnapshot boneLodCamera = SelectCameraSnapshot(position_sample_ms);
-            const float* boneLodMatrix = boneLodCamera.timestamp_ms
-                ? boneLodCamera.view_matrix : runtime.view_matrix;
-            const float lx = runtime.local_pos[0], ly = runtime.local_pos[1], lz = runtime.local_pos[2];
-            for (int c = 0; c < candidate_count; ++c) {
-                if (!IsUserPointer(boneBases[c])) continue;
-                const float* pos = positions[c];
-                if (!std::isfinite(pos[0]) || !std::isfinite(pos[1]) || !std::isfinite(pos[2]))
-                    continue;
-                const float dx = pos[0] - lx, dy = pos[1] - ly, dz = pos[2] - lz;
-                const float distSq = dx * dx + dy * dy + dz * dz;
-                // LOD intervals (ms): close / mid / far — visual still full skeleton
-                if (!frame_config.aim_enabled && !frame_config.trigger_enabled &&
-                    frame_config.skeleton_lod && !InsideExpandedFrustum(pos, boneLodMatrix))
-                    continue;
-                uint64_t interval = static_cast<uint64_t>(BONES_INTERVAL_MS);
-                if (frame_config.skeleton_lod) {
-                    const float lodMeters = std::clamp(frame_config.skeleton_lod_distance, 20.f, 250.f);
-                    const float farUnits = lodMeters * 39.37f;
-                    const float midUnits = farUnits * 0.55f;
-                    const float nearUnits = farUnits * 0.30f;
-                    if (distSq > farUnits * farUnits) interval = 50;
-                    else if (distSq > midUnits * midUnits) interval = 32;
-                    else if (distSq > nearUnits * nearUnits) interval = 24;
-                }
-                const int pressure = g_pressure_level.load(std::memory_order_relaxed);
-                if (frame_config.performance_mode) interval = (std::max)(interval, uint64_t{32});
-                // Under transport pressure, reuse the translated last-good
-                // skeleton.  It is smoother than blocking the camera behind
-                // a large bone scatter and is refreshed again immediately
-                // once the lane recovers.
-                if (pressure >= 3) interval = (std::max)(interval, uint64_t{140});
-                else if (pressure == 2) interval = (std::max)(interval, uint64_t{72});
-                else if (pressure == 1) interval = (std::max)(interval, uint64_t{36});
-                const auto it = s_lastBoneMs.find(resolved_pawns[c]);
-                if (it != s_lastBoneMs.end() && scan_now_ms - it->second < interval)
-                    continue;
-                if (candN < kMaxSlots) {
-                    const uint64_t last = it == s_lastBoneMs.end() ? 0u : it->second;
-                    const uint64_t overdue = last ? scan_now_ms - last :
-                        (std::numeric_limits<uint64_t>::max)() / 2u;
-                    cand[candN++] = { c, distSq, interval, overdue };
-                }
-            }
-            // Prefer the nearest pose, but make starvation explicit: a pawn
-            // that has waited several intervals outranks a marginally nearer
-            // candidate instead of depending on controller-list ordering.
-            for (int i = 0; i < candN; ++i)
-                for (int j = i + 1; j < candN; ++j)
-                    if ((cand[j].overdueMs / (std::max)(uint64_t{1}, cand[j].interval) >
-                         cand[i].overdueMs / (std::max)(uint64_t{1}, cand[i].interval)) ||
-                        (cand[j].overdueMs / (std::max)(uint64_t{1}, cand[j].interval) ==
-                         cand[i].overdueMs / (std::max)(uint64_t{1}, cand[i].interval) &&
-                         cand[j].distSq < cand[i].distSq))
-                        std::swap(cand[i], cand[j]);
-            // Prefer fluid poses: keep reading bones every scan. Only mild caps
-            // under sustained pressure — never stop bone updates (looks "frozen").
-            // Hard wall-clock budget: if optional time is exhausted, skip remaining
-            // bone candidates this scan (starvation sort already prioritised them).
-            const int pressure = g_pressure_level.load(std::memory_order_relaxed);
-            // Skeletons are the heaviest optional payload. Limit the normal
-            // lane too; cached reliable bones are rendered between refreshes.
-            int maxBoneReadsPerScan = frame_config.performance_mode
-                ? (std::min)(candN, 1) : (std::min)(candN, 2);
-            if (pressure >= 1) maxBoneReadsPerScan = (std::min)(candN, 1);
-            if (!optionalBudget.Remaining()) {
-                g_phase.bones_skipped_budget = candN;
-                maxBoneReadsPerScan = 0;
-            } else if (optionalBudget.LeftMs() < 1.5f) {
-                maxBoneReadsPerScan = (std::min)(maxBoneReadsPerScan, 1);
-            }
-            const int take = candN < maxBoneReadsPerScan ? candN : maxBoneReadsPerScan;
-            g_phase.bones_players = take;
-            g_phase.optional_budget_left_ms = optionalBudget.LeftMs();
-            const bool healthyBoneLane = pressure == 0 && !frame_config.performance_mode &&
-                OmniGhost::Gameplay::DmaTelemetry::CS2().bones_p95_ms.load(std::memory_order_relaxed) < 8.f;
-            const int microBatch = healthyBoneLane ? 2 : 1;
-            for (int first = 0; first < take; first += microBatch) {
-                const int count = (std::min)(microBatch, take - first);
-                CS2::GiveCameraPriorityBeforeOptionalDma();
-                for (int j = 0; j < count; ++j) {
-                    const int c = cand[first + j].c;
-                    boneReadEligible[c] = true;
-                    mem.AddScatterReadRequest(g_scatter_full, boneBases[c], boneSnapshots[c],
-                                              need_full_bones ? kBoneReadBytes : kCompactBoneReadBytes);
-                }
-                mem.SetDmaCallTag("CS2.Bones");
-                const uint64_t bone_read_begin_ms = GetTickCount64();
-                mem.ExecuteReadScatter(g_scatter_full);
-                const uint64_t bone_read_end_ms = GetTickCount64();
-                const uint64_t sampleMs = bone_read_begin_ms +
-                    (bone_read_end_ms - bone_read_begin_ms) / 2u;
-                for (int j = 0; j < count; ++j)
-                    boneReadSampleMs[cand[first + j].c] = sampleMs;
-            }
-        }
-        if (need_bones)
-            OmniGhost::Gameplay::DmaTelemetry::ObserveBones(
-                OmniGhost::Gameplay::DmaTelemetry::CS2(), g_phase.bones_ms);
-        if (need_weapons && allow_weapon_phase) {
-            ScopedPhase _phWeapon(&g_phase.weapon_ms);
-            bool queuedServices = false;
-            bool serviceRefresh[kMaxSlots]{};
-            bool serviceRefreshSucceeded[kMaxSlots]{};
-            for (int c = 0; c < candidate_count; ++c) {
-                auto cached = weaponStateCache.find(resolved_pawns[c]);
-                if (cached != weaponStateCache.end() && cached->second.entry_generation == currentGen) {
-                    weaponServices[c] = cached->second.services;
-                    weaponHandles[c] = cached->second.handle;
-                    weaponEntities[c] = cached->second.entity;
-                    weaponDefinitions[c] = cached->second.definition;
-                    ammoClip[c] = cached->second.ammo_clip;
-                    ammoReserve[c] = cached->second.ammo_reserve;
-                }
-                const uint64_t handleInterval = resolved_pawns[c] == runtime.local_pawn ? 100u : 150u;
-                weaponRefreshDue[c] = cached == weaponStateCache.end() ||
-                    !cached->second.last_refresh_ms ||
-                    scan_now_ms - cached->second.last_refresh_ms >= handleInterval;
-                serviceRefresh[c] = cached == weaponStateCache.end() ||
-                    !IsUserPointer(weaponServices[c]) ||
-                    !cached->second.services_refresh_ms ||
-                    scan_now_ms - cached->second.services_refresh_ms >= 1000u;
-                // Services is pawn metadata, not weapon-switch state. Refresh it
-                // slowly and keep it out of the normal active-handle pass.
-                if (serviceRefresh[c] && offsets.m_pWeaponServices) {
-                    weaponServices[c] = 0;
-                    mem.AddScatterReadRequest(g_scatter_full,
-                        resolved_pawns[c] + offsets.m_pWeaponServices,
-                        &weaponServices[c], sizeof(uintptr_t));
-                    queuedServices = true;
-                }
-            }
-            if (queuedServices) {
-                CS2::GiveCameraPriorityBeforeOptionalDma();
-                mem.SetDmaCallTag("CS2.WeaponServices");
-                mem.ExecuteReadScatter(g_scatter_full);
-            }
-            for (int c = 0; c < candidate_count; ++c) {
-                serviceRefreshSucceeded[c] = serviceRefresh[c] &&
-                    IsUserPointer(weaponServices[c]);
-                if (!serviceRefresh[c] || IsUserPointer(weaponServices[c])) continue;
-                const auto previous = weaponStateCache.find(resolved_pawns[c]);
-                if (previous != weaponStateCache.end())
-                    weaponServices[c] = previous->second.services;
-            }
-
-            bool queuedHandles = false;
-            for (int c = 0; c < candidate_count; ++c) {
-                if (!weaponRefreshDue[c] || !IsUserPointer(weaponServices[c])) continue;
-                mem.AddScatterReadRequest(g_scatter_full,
-                    weaponServices[c] + offsets.m_hActiveWeapon,
-                    &weaponHandles[c], sizeof(uint32_t));
-                // The already-resolved entity can share the normal handle
-                // refresh. If the handle changed these values are discarded and
-                // replaced in the changed-weapon pass below.
-                if (frame_config.weapon_ammo && IsUserPointer(weaponEntities[c])) {
-                    if (offsets.m_iClip1)
-                        mem.AddScatterReadRequest(g_scatter_full,
-                            weaponEntities[c] + offsets.m_iClip1,
-                            &ammoClip[c], sizeof(ammoClip[c]));
-                    if (offsets.m_pReserveAmmo)
-                        mem.AddScatterReadRequest(g_scatter_full,
-                            weaponEntities[c] + offsets.m_pReserveAmmo,
-                            &ammoReserve[c], sizeof(ammoReserve[c]));
-                }
-                queuedHandles = true;
-            }
-            if (queuedHandles) {
-                CS2::GiveCameraPriorityBeforeOptionalDma();
-                mem.SetDmaCallTag("CS2.WeaponHandles");
-                mem.ExecuteReadScatter(g_scatter_full);
-            }
-
-            // Resolve only new/changed handles. An unchanged handle immediately
-            // reuses entity and definition from the per-pawn cache.
-            uint32_t weaponHandlesToResolve[kMaxSlots]{};
-            uintptr_t resolvedWeapons[kMaxSlots]{};
-            bool weaponChanged[kMaxSlots]{};
-            for (int c = 0; c < candidate_count; ++c) {
-                if (!weaponRefreshDue[c]) continue;
-                const auto previous = weaponStateCache.find(resolved_pawns[c]);
-                weaponChanged[c] = previous == weaponStateCache.end() ||
-                    previous->second.handle != weaponHandles[c] ||
-                    !IsUserPointer(previous->second.entity);
-                if (weaponChanged[c]) {
-                    weaponHandlesToResolve[c] = weaponHandles[c];
-                    weaponDefinitions[c] = 0;
-                    ammoClip[c] = -1;
-                    ammoReserve[c] = -1;
-                }
-            }
-            CS2::GiveCameraPriorityBeforeOptionalDma();
-            {
-                const uintptr_t primaryStride = g_pawn_stride ? g_pawn_stride : kEntityIdentityStride;
-                const uintptr_t alternateStride = (primaryStride == kEntityIdentityStride)
-                    ? kLegacyEntityIdentityStride : kEntityIdentityStride;
-                ScatterResolvePawnHandles(weaponHandlesToResolve, resolvedWeapons, candidate_count,
-                    primaryStride, alternateStride);
-            }
-            for (int c = 0; c < candidate_count; ++c)
-                if (weaponChanged[c]) weaponEntities[c] = resolvedWeapons[c];
-
-            bool queuedDefinitions = false;
-            for (int c = 0; c < candidate_count; ++c) {
-                if (!weaponChanged[c] || !IsUserPointer(weaponEntities[c])) continue;
-                const uintptr_t primary = weaponEntities[c] + offsets.m_AttributeManager +
-                                          offsets.m_Item + offsets.m_iItemDefinitionIndex;
-                mem.AddScatterReadRequest(g_scatter_full, primary, &weaponDefinitions[c],
-                                          sizeof(uint16_t));
-                if (frame_config.weapon_ammo) {
-                    if (offsets.m_iClip1)
-                        mem.AddScatterReadRequest(g_scatter_full,
-                            weaponEntities[c] + offsets.m_iClip1,
-                            &ammoClip[c], sizeof(ammoClip[c]));
-                    if (offsets.m_pReserveAmmo)
-                        mem.AddScatterReadRequest(g_scatter_full,
-                            weaponEntities[c] + offsets.m_pReserveAmmo,
-                            &ammoReserve[c], sizeof(ammoReserve[c]));
-                }
-                queuedDefinitions = true;
-            }
-            if (queuedDefinitions) {
-                CS2::GiveCameraPriorityBeforeOptionalDma();
-                mem.SetDmaCallTag("CS2.WeaponDefinitions");
-                mem.ExecuteReadScatter(g_scatter_full);
-            }
-
-            for (int c = 0; c < candidate_count; ++c) {
-                if (!weaponRefreshDue[c]) continue;
-                const auto previous = weaponStateCache.find(resolved_pawns[c]);
-                const uint64_t lastFallback = previous != weaponStateCache.end()
-                    ? previous->second.last_fallback_ms : 0;
-                const uint64_t previousServicesRefresh = previous != weaponStateCache.end()
-                    ? previous->second.services_refresh_ms : 0;
-                auto& state = weaponStateCache[resolved_pawns[c]];
-                state.entry_generation = currentGen;
-                state.services = weaponServices[c];
-                state.handle = weaponHandles[c];
-                state.entity = weaponEntities[c];
-                state.definition = weaponDefinitions[c];
-                state.ammo_clip = ammoClip[c];
-                state.ammo_reserve = ammoReserve[c];
-                state.services_refresh_ms = serviceRefreshSucceeded[c]
-                    ? scan_now_ms : previousServicesRefresh;
-                state.last_refresh_ms = scan_now_ms;
-                state.last_fallback_ms = lastFallback;
-            }
-            // Schema alternatives are a separate throttled acquisition batch;
-            // Player assembly never probes weapon memory.
-            uint16_t definitionFallbacks[kMaxSlots][3]{};
-            bool definitionFallbackDue[kMaxSlots]{};
-            bool queuedDefinitionFallbacks = false;
-            for (int c = 0; c < candidate_count; ++c) {
-                if (!weaponRefreshDue[c] || !IsUserPointer(weaponEntities[c]) ||
-                    (weaponDefinitions[c] > 0 && weaponDefinitions[c] < 6000))
-                    continue;
-                auto& state = weaponStateCache[resolved_pawns[c]];
-                if (state.last_fallback_ms &&
-                    scan_now_ms - state.last_fallback_ms <
-                        static_cast<uint64_t>(WEAPON_FALLBACK_INTERVAL_MS))
-                    continue;
-                const uintptr_t addresses[3] = {
-                    weaponEntities[c] + 0x11A8 + 0x50 + 0x1BA,
-                    weaponEntities[c] + 0x1BA,
-                    weaponEntities[c] + 0x16F0,
-                };
-                definitionFallbackDue[c] = true;
-                for (int fi = 0; fi < 3; ++fi)
-                    mem.AddScatterReadRequest(g_scatter_full, addresses[fi],
-                        &definitionFallbacks[c][fi], sizeof(uint16_t));
-                queuedDefinitionFallbacks = true;
-            }
-            if (queuedDefinitionFallbacks) {
-                CS2::GiveCameraPriorityBeforeOptionalDma();
-                mem.SetDmaCallTag("CS2.WeaponDefinitionFallbacks");
-                mem.ExecuteReadScatter(g_scatter_full);
-            }
-            for (int c = 0; c < candidate_count; ++c) {
-                if (!definitionFallbackDue[c]) continue;
-                auto& state = weaponStateCache[resolved_pawns[c]];
-                state.entry_generation = currentGen;
-                state.last_fallback_ms = scan_now_ms;
-                for (int fi = 0; fi < 3; ++fi) {
-                    const uint16_t candidate = definitionFallbacks[c][fi];
-                    if (candidate > 0 && candidate < 6000) {
-                        weaponDefinitions[c] = candidate;
-                        state.definition = candidate;
-                        break;
-                    }
-                }
-            }
-        }
-    } else {
-        for (int c = 0; c < candidate_count; ++c) {
-            if (IsUserPointer(core[c].scene))
-                QRead(core[c].scene + offsets.m_vecAbsOrigin, positions[c], sizeof(float) * 3);
-            else
-                QRead(resolved_pawns[c] + offsets.m_vOldOrigin, positions[c], sizeof(float) * 3);
-            const int controllerSlot = slot_index[c];
-            if (need_names && controllers[controllerSlot]) {
-                const uintptr_t controller = controllers[controllerSlot];
-                const auto cached = nameCache.find(controller);
-                if (cached != nameCache.end() && cached->second.text[0] &&
-                    scan_now_ms - cached->second.last_refresh_ms < static_cast<uint64_t>(NAME_INTERVAL_MS)) {
-                    std::memcpy(playerNames[c], cached->second.text.data(),
-                                sizeof(playerNames[c]));
-                } else {
-                    nameNeedsRefresh[c] = true;
-                    QRead(controller + offsets.m_iszPlayerName,
-                          playerNames[c], sizeof(playerNames[c]) - 1);
-                }
-            }
-            boneReadEligible[c] = need_bones;
-            if (boneReadEligible[c] && IsUserPointer(core[c].scene) &&
-                QReadT(core[c].scene + offsets.BoneArray, boneBases[c]) &&
-                IsUserPointer(boneBases[c]))
-                QRead(boneBases[c], boneSnapshots[c],
-                      need_full_bones ? kBoneReadBytes : kCompactBoneReadBytes);
-            if (need_weapons && allow_weapon_phase) {
-                ScopedPhase _phWeapon(&g_phase.weapon_ms);
-                auto cached = weaponStateCache.find(resolved_pawns[c]);
-                const uint64_t weaponInterval = resolved_pawns[c] == runtime.local_pawn ? 50u : static_cast<uint64_t>(WEAPON_INTERVAL_MS);
-                if (cached != weaponStateCache.end() &&
-                    scan_now_ms - cached->second.last_refresh_ms < weaponInterval) {
-                    weaponDefinitions[c] = cached->second.definition;
-                } else {
-                    uintptr_t services = 0; uint32_t handle = 0; uintptr_t entity = 0; uint16_t def = 0;
-                    if (QReadT(resolved_pawns[c] + offsets.m_pWeaponServices, services) && IsUserPointer(services))
-                        QReadT(services + offsets.m_hActiveWeapon, handle);
-                    if (handle) entity = ResolveEntityByHandle(handle, g_pawn_stride ? g_pawn_stride : kEntityIdentityStride);
-                    if (IsUserPointer(entity)) {
-                        const uintptr_t primary = entity + offsets.m_AttributeManager + offsets.m_Item + offsets.m_iItemDefinitionIndex;
-                        QReadT(primary, def);
-                    }
-                    weaponDefinitions[c] = def;
-                    const auto previous = weaponStateCache.find(resolved_pawns[c]);
-                    const uint64_t lastFallback = previous != weaponStateCache.end()
-                        ? previous->second.last_fallback_ms : 0;
-                    auto& state = weaponStateCache[resolved_pawns[c]];
-                    state.services = services;
-                    state.handle = handle;
-                    state.entity = entity;
-                    state.definition = def;
-                    state.ammo_clip = -1;
-                    state.ammo_reserve = -1;
-                    state.services_refresh_ms = IsUserPointer(services) ? scan_now_ms : 0;
-                    state.last_refresh_ms = scan_now_ms;
-                    state.last_fallback_ms = lastFallback;
-                    weaponRefreshDue[c] = true;
-                }
-            }
-        }
-    }
-
-    // Optional player metadata replaces the old per-player QRead chains
-    // (money service -> money, item service -> kit, and independent shot reads).
-    struct FlagCache {
-        int money = -1;
-        bool kit = false;
-        bool defusing = false;
-        uint64_t next_slow_ms = 0;
-        uint64_t next_defuse_ms = 0;
-        uint64_t last_seen_ms = 0;
-        uint64_t entry_generation = 0;
-    };
-    static std::unordered_map<uintptr_t, FlagCache> flag_cache;
-    static uint64_t flagCacheGeneration = 0;
-    if (flagCacheGeneration != g_session_generation.load(std::memory_order_acquire)) {
-        flag_cache.clear();
-        flagCacheGeneration = g_session_generation.load(std::memory_order_relaxed);
-    }
-    if (flag_cache.bucket_count() < 128) flag_cache.reserve(128);
-    for (size_t i = 0; i < confirmedDeadCount; ++i)
-        flag_cache.erase(confirmedDead[i]);
-    uintptr_t moneyServices[kMaxSlots]{};
-    uintptr_t itemServices[kMaxSlots]{};
-    int moneyValues[kMaxSlots]{};
-    uint8_t kitValues[kMaxSlots]{};
-    uint8_t defuseValues[kMaxSlots]{};
-    bool readMoney[kMaxSlots]{};
-    bool readKit[kMaxSlots]{};
-    bool readDefuse[kMaxSlots]{};
-    if (false && allow_auxiliary_phase && frame_config.player_flags) {
-        ScopedPhase _phFlags(&g_phase.flags_ms);
-        bool queuedFirst = false;
-        for (int c = 0; c < candidate_count; ++c) {
-            const uintptr_t pawn = resolved_pawns[c];
-            auto& cache = flag_cache[pawn];
-            if (cache.entry_generation != currentGen) {
-                cache = FlagCache{}; // Reset stale entry
-                cache.entry_generation = currentGen;
-            }
-            cache.last_seen_ms = scan_now_ms;
-            const uintptr_t controller = controllers[slot_index[c]];
-            const bool slowDue = frame_config.player_flags &&
-                (frame_config.flag_money || frame_config.flag_kit) && scan_now_ms >= cache.next_slow_ms;
-            if (slowDue) cache.next_slow_ms = scan_now_ms + 700;
-            if (slowDue && frame_config.flag_money && IsUserPointer(controller) &&
-                offsets.m_pInGameMoneyServices && offsets.m_iAccount) {
-                readMoney[c] = true;
-                mem.AddScatterReadRequest(g_scatter_full, controller + offsets.m_pInGameMoneyServices,
-                    &moneyServices[c], sizeof(moneyServices[c]));
-                queuedFirst = true;
-            }
-            if (slowDue && frame_config.flag_kit && offsets.m_pItemServices && offsets.m_bHasDefuser) {
-                readKit[c] = true;
-                mem.AddScatterReadRequest(g_scatter_full, pawn + offsets.m_pItemServices,
-                    &itemServices[c], sizeof(itemServices[c]));
-                queuedFirst = true;
-            }
-            if (frame_config.player_flags && frame_config.flag_defusing && offsets.m_bIsDefusing &&
-                scan_now_ms >= cache.next_defuse_ms) {
-                cache.next_defuse_ms = scan_now_ms + 120;
-                readDefuse[c] = true;
-                mem.AddScatterReadRequest(g_scatter_full, pawn + offsets.m_bIsDefusing,
-                    &defuseValues[c], sizeof(defuseValues[c]));
-                queuedFirst = true;
-            }
-        }
-        if (queuedFirst) {
-            CS2::GiveCameraPriorityBeforeOptionalDma();
-            mem.SetDmaCallTag("CS2.FlagsPointers");
-            mem.ExecuteReadScatter(g_scatter_full);
-        }
-        bool queuedSecond = false;
-        for (int c = 0; c < candidate_count; ++c) {
-            if (readMoney[c] && IsUserPointer(moneyServices[c])) {
-                mem.AddScatterReadRequest(g_scatter_full, moneyServices[c] + offsets.m_iAccount,
-                    &moneyValues[c], sizeof(moneyValues[c]));
-                queuedSecond = true;
-            }
-            if (readKit[c] && IsUserPointer(itemServices[c])) {
-                mem.AddScatterReadRequest(g_scatter_full, itemServices[c] + offsets.m_bHasDefuser,
-                    &kitValues[c], sizeof(kitValues[c]));
-                queuedSecond = true;
-            }
-        }
-        if (queuedSecond) {
-            CS2::GiveCameraPriorityBeforeOptionalDma();
-            mem.SetDmaCallTag("CS2.FlagsValues");
-            mem.ExecuteReadScatter(g_scatter_full);
-        }
-        for (int c = 0; c < candidate_count; ++c) {
-            auto& cache = flag_cache[resolved_pawns[c]];
-            cache.entry_generation = currentGen;
-            if (readMoney[c] && moneyValues[c] >= 0 && moneyValues[c] < 100000) cache.money = moneyValues[c];
-            if (readKit[c]) cache.kit = kitValues[c] != 0;
-            if (readDefuse[c]) cache.defusing = defuseValues[c] != 0;
-        }
-        // Keep a bounded, incremental cleanup policy. A long deathmatch must
-        // not retain old controller/pawn keys or slowly raise scan costs.
-        if ((runtime.frames % 32u) == 0u) {
-            int removed = 0;
-            for (auto it = flag_cache.begin(); it != flag_cache.end() && removed < 4;) {
-                if (scan_now_ms - it->second.last_seen_ms > 30000u) {
-                    it = flag_cache.erase(it);
-                    ++removed;
-                } else {
-                    ++it;
-                }
-            }
-        }
-    }
-
-    // Dedicated, throttled bone-layout recovery. This is the final player DMA
-    // phase; assembly below only validates and consumes the acquired buffers.
-    if (need_bones && g_scatter_full) {
-        auto rawBoneBufferLooksValid = [&](int c, const BoneJointSnapshot* joints) {
-            if (!joints || !std::isfinite(positions[c][0]) ||
-                !std::isfinite(positions[c][1]) || !std::isfinite(positions[c][2]))
-                return false;
-            for (int headIndex : {6, 7}) {
-                const auto& head = joints[headIndex];
-                if (!std::isfinite(head.x) || !std::isfinite(head.y) || !std::isfinite(head.z))
-                    continue;
-                const float dx = head.x - positions[c][0];
-                const float dy = head.y - positions[c][1];
-                const float dz = head.z - positions[c][2];
-                if (dx * dx + dy * dy < 80.f * 80.f && dz > 15.f && dz < 120.f)
-                    return true;
-            }
-            return false;
-        };
-        // Recovery is per pawn. A corrupt layout on one player must not hold
-        // every other player hostage for half a second.
-        static std::unordered_map<uintptr_t, uint64_t> nextBoneFallbackMs;
-        if (nextBoneFallbackMs.bucket_count() < 128) nextBoneFallbackMs.reserve(128);
-        int fallbackIndex = -1;
-        for (int c = 0; c < candidate_count; ++c) {
-            if (!boneReadEligible[c]) continue;
-            const auto pending = boneFallbackPending.find(resolved_pawns[c]);
-            const bool needsFallback = (pending != boneFallbackPending.end() && pending->second) ||
-                !rawBoneBufferLooksValid(c, boneSnapshots[c]);
-            const auto retry = nextBoneFallbackMs.find(resolved_pawns[c]);
-            if (needsFallback && (retry == nextBoneFallbackMs.end() || scan_now_ms >= retry->second)) {
-                    fallbackIndex = c;
-                    break;
-            }
-        }
-        if (fallbackIndex >= 0 && IsUserPointer(core[fallbackIndex].scene)) {
-            nextBoneFallbackMs[resolved_pawns[fallbackIndex]] = scan_now_ms + 500u;
-            constexpr uintptr_t fallbackOffsets[] = {0x1D0, 0x160, 0x1C0};
-            constexpr size_t kFallbackCount = 3;
-            uintptr_t fallbackBases[kFallbackCount]{};
-            for (size_t fi = 0; fi < kFallbackCount; ++fi) {
-                if (fallbackOffsets[fi] != offsets.BoneArray)
-                    mem.AddScatterReadRequest(g_scatter_full,
-                        core[fallbackIndex].scene + fallbackOffsets[fi],
-                        &fallbackBases[fi], sizeof(uintptr_t));
-            }
-            CS2::GiveCameraPriorityBeforeOptionalDma();
-            mem.SetDmaCallTag("CS2.BoneFallbackPointers");
-            mem.ExecuteReadScatter(g_scatter_full);
-            BoneJointSnapshot fallbackSnapshots[kFallbackCount][kBoneJointReadCount]{};
-            bool queuedFallbackData = false;
-            for (size_t fi = 0; fi < kFallbackCount; ++fi) {
-                if (!IsUserPointer(fallbackBases[fi])) continue;
-                mem.AddScatterReadRequest(g_scatter_full, fallbackBases[fi],
-                    fallbackSnapshots[fi], need_full_bones
-                        ? kBoneReadBytes : kCompactBoneReadBytes);
-                queuedFallbackData = true;
-            }
-            if (queuedFallbackData) {
-                CS2::GiveCameraPriorityBeforeOptionalDma();
-                mem.SetDmaCallTag("CS2.BoneFallbackData");
-                mem.ExecuteReadScatter(g_scatter_full);
-                for (size_t fi = 0; fi < kFallbackCount; ++fi) {
-                    if (!IsUserPointer(fallbackBases[fi]) ||
-                        !rawBoneBufferLooksValid(fallbackIndex, fallbackSnapshots[fi]))
-                        continue;
-                    boneBases[fallbackIndex] = fallbackBases[fi];
-                    std::memcpy(boneSnapshots[fallbackIndex], fallbackSnapshots[fi],
-                                sizeof(boneSnapshots[fallbackIndex]));
-                    auto& recovered = sceneBoneCache[resolved_pawns[fallbackIndex]];
-                    recovered.bone_base = fallbackBases[fi];
-                    recovered.bone_offset = fallbackOffsets[fi];
-                    recovered.bone_expires_ms = scan_now_ms + 500u;
-                    boneFallbackPending[resolved_pawns[fallbackIndex]] = false;
-                    break;
-                }
-            }
-        }
-    }
-    g_last_weapon_ms.store(g_phase.weapon_ms, std::memory_order_relaxed);
-    g_last_ammo_ms.store(g_phase.ammo_ms, std::memory_order_relaxed);
-    g_last_flags_ms.store(g_phase.flags_ms, std::memory_order_relaxed);
-
-    static int zero_pawn_diag_frames = 0;
-
-    int processed = 0;
-    for (int c = 0; c < candidate_count; ++c) {
-        if (processed >= kMax) break;
-        const int i = slot_index[c];
-        const uintptr_t controller = controllers[i];
-        const uintptr_t pawn = resolved_pawns[c];
-        const uint32_t pawnHandle = handles[i];
-        const PawnCoreFields& cf = core[c];
-
-        Player p{};
-        p.controller = controller;
-        p.pawn = pawn;
-        p.ent_index = static_cast<int>(pawnHandle & 0x7FFF);
-        p.health = cf.health;
-        p.armor = cf.armor;
-        p.team = static_cast<int>(cf.team);
-        p.spotted = cf.spotted;
-
-        if (p.health <= 0 || p.health > 200)
-            continue;
-        if (!IsPlayableTeam(p.team))
-            continue;
-        p.alive = true;
-        p.is_local = pawn == runtime.local_pawn || controller == runtime.local_controller;
-
-        // These per-player fields arrive in the core scatter above.
-        if (need_scoped)
-            p.is_scoped = cf.scoped != 0;
-        if (need_flash)
-            p.is_flashed = std::isfinite(cf.flash) && cf.flash > 0.05f;
-        if (p.is_local)
-            p.is_scoped = runtime.local_scoped;
-
-        p.pos[0] = positions[c][0];
-        p.pos[1] = positions[c][1];
-        p.pos[2] = positions[c][2];
-        p.position_sample_ms = position_sample_ms;
-        if (!IsFinitePosition(p.pos)) {
-            controllerPawnCache.erase(controller);
-            auto cached = sceneBoneCache.find(pawn);
-            if (cached != sceneBoneCache.end()) {
-                cached->second.scene = 0;
-                cached->second.bone_base = 0;
-                cached->second.scene_expires_ms = 0;
-                cached->second.bone_expires_ms = 0;
-            }
-            continue;
-        }
-
-        const uintptr_t scene = IsUserPointer(cf.scene) ? cf.scene : 0;
-        p.scene = scene;
-
-        if (need_yaw || p.is_local) {
-            if (std::isfinite(cf.eye_angles[1]))
-                p.view_yaw = cf.eye_angles[1];
-            if (p.is_local)
-                p.view_yaw = runtime.local_view_yaw;
-        }
-
-        if (track_velocity) {
-            for (int axis = 0; axis < 3; ++axis) {
-                const float velocity = cf.velocity[axis];
-                p.velocity[axis] = std::isfinite(velocity) && std::fabs(velocity) < 5000.f
-                    ? velocity : 0.f;
-            }
-        }
-        {
-            const float speed = std::sqrt(p.velocity[0] * p.velocity[0] +
-                                          p.velocity[1] * p.velocity[1]);
-            p.move_speed = std::isfinite(speed) ? speed : 0.f;
-            // Keep the threshold deliberately below CS2 silent-walk speed.
-            // It only rejects stationary-position noise, never quiet movement.
-            p.is_moving = p.move_speed > 5.f;
-        }
-
-        // Reject distant entities before name sanitising, skeleton validation
-        // and weapon formatting.  The squared comparison avoids a sqrt for
-        // entities that cannot contribute to this frame at all.
-        const float dx = p.pos[0] - runtime.local_pos[0];
-        const float dy = p.pos[1] - runtime.local_pos[1];
-        const float dz = p.pos[2] - runtime.local_pos[2];
-        const float distanceSq = dx * dx + dy * dy + dz * dz;
-        const float maxDistanceUnits = frame_config.max_distance * 39.37f;
-        if (!p.is_local && frame_config.max_distance > 1.f &&
-            distanceSq > maxDistanceUnits * maxDistanceUnits)
-            continue;
-        p.distance = std::sqrt((std::max)(distanceSq, 0.f)) / 39.37f;
-
-        if (need_names) {
-            char nameBuf[64]{};
-            std::memcpy(nameBuf, playerNames[c], sizeof(nameBuf));
-            nameBuf[sizeof(nameBuf) - 1] = '\0';
-            for (char* ch = nameBuf; *ch; ++ch) {
-                if (static_cast<unsigned char>(*ch) < 0x20 || static_cast<unsigned char>(*ch) > 0x7E)
-                    *ch = '?';
-            }
-            if (!nameBuf[0]) {
-                std::snprintf(nameBuf, sizeof(nameBuf), "Jogador_%d", p.ent_index);
-            }
-            // A missing name is not evidence of a bot: it can be a transient
-            // metadata read failure. Source bots use the BOT name prefix.
-            if (_strnicmp(nameBuf, "BOT ", 4) == 0 ||
-                _stricmp(nameBuf, "BOT") == 0)
-                p.is_bot = true;
-            std::memcpy(p.name, nameBuf, sizeof(p.name));
-        } else {
-            std::snprintf(p.name, sizeof(p.name), "P%d", p.ent_index);
-        }
-        if (!frame_config.show_bots && p.is_bot)
-            continue;
-
-        // Current Source 2 player rig: pelvis=0, spine=2/3/4,
-        // neck=5, head=6, arms=8..15 and legs=22..27.
-        // One contiguous 32-joint snapshot per player. Distance never removes
-        // bones, so the visual quality stays identical under load.
-        if (scene && need_bones && boneReadEligible[c]) {
-            auto try_compact_bones = [&](const BoneJointSnapshot* joints) -> bool {
-                if (!joints) return false;
-                // Both verified layouts keep the aim-relevant joints in the first
-                // eight entries. Score just those anchors so aim/effects avoid the
-                // 28-joint DMA payload when a full visual skeleton is not needed.
-                static constexpr int kCurrentCompact[4] = {6, 5, 4, 2};
-                static constexpr int kReferenceCompact[4] = {7, 6, 4, 3};
-                auto score = [&](const int* idx, float out[4][3]) -> float {
-                    for (int b = 0; b < 4; ++b) {
-                        const int id = idx[b];
-                        if (id < 0 || id >= kCompactJointReadCount) return -1.f;
-                        out[b][0] = joints[id].x; out[b][1] = joints[id].y; out[b][2] = joints[id].z;
-                        if (!std::isfinite(out[b][0]) || !std::isfinite(out[b][1]) || !std::isfinite(out[b][2]))
-                            return -1.f;
-                    }
-                    const float headDz = out[0][2] - p.pos[2];
-                    if (headDz < 20.f || headDz > 110.f) return -1.f;
-                    const float hx = out[0][0] - p.pos[0], hy = out[0][1] - p.pos[1];
-                    if (hx * hx + hy * hy > 80.f * 80.f) return -1.f;
-                    // Normal standing/crouched ordering: head >= neck >= chest >= stomach.
-                    if (out[0][2] + 4.f < out[1][2] || out[1][2] + 8.f < out[2][2] ||
-                        out[2][2] + 12.f < out[3][2]) return -1.f;
-                    return 100.f - std::fabs(headDz - 70.f);
-                };
-                float cur[4][3]{}, ref[4][3]{};
-                const float curScore = score(kCurrentCompact, cur);
-                const float refScore = score(kReferenceCompact, ref);
-                if (curScore < 0.f && refScore < 0.f) return false;
-                const bool useCurrent = curScore >= refScore;
-                const float (*best)[3] = useCurrent ? cur : ref;
-                std::memcpy(p.bones[0], best[0], sizeof(p.bones[0]));
-                std::memcpy(p.bones[1], best[1], sizeof(p.bones[1]));
-                std::memcpy(p.bones[2], best[2], sizeof(p.bones[2]));
-                std::memcpy(p.bones[4], best[3], sizeof(p.bones[4]));
-                std::memcpy(p.head, best[0], sizeof(p.head));
-                p.bone_layout = useCurrent ? 1u : 0u;
-                p.bones_ok = true;
-                p.full_bones_ok = false;
-                s_stickyBoneLayout[p.pawn] = p.bone_layout;
-                return true;
-            };
-
-            auto try_bones = [&](const BoneJointSnapshot* joints) -> bool {
-                if (!joints) return false;
-                // CS2 / Source 2 bone indices.  The arm chains end at 10/15;
-                // 11/16 are hand/finger auxiliaries and using them as a hand
-                // makes the pose bend or stretch as the weapon animates.
-                // Keep the public four-slot layout, duplicating the shoulder
-                // at the clavicle slot so every rendered limb is anatomical.
-                // L leg: upper=22, lower=23, ankle=24; R=25..27.
-                // Two verified Source 2 layouts are seen in the wild.  The
-                // first is the current CS2 rig; the second is the contiguous
-                // layout used by the reference DMA implementation.  Score both
-                // against the current pawn and retain only an anatomical pose.
-                static constexpr int kCurrentIdx[kBoneSlotCount] = {
-                    6, 5, 4, 3, 2, 0,
-                    8, 8, 9, 10,
-                    13, 13, 14, 15,
-                    22, 23, 24,
-                    25, 26, 27
-                };
-                static constexpr int kReferenceIdx[kBoneSlotCount] = {
-                    7, 6, 4, 3, 3, 1,
-                    6, 9, 10, 11,
-                    6, 13, 14, 15,
-                    17, 18, 19,
-                    20, 21, 22
-                };
-                auto skeleton_score = [&](float bones[kBoneSlotCount][3]) -> float {
-                    // Prefer coherent head-above-pelvis torso length and arm/leg span.
-                    const float* h = bones[0];
-                    const float* pel = bones[5];
-                    const float torso = std::sqrt(
-                        (h[0]-pel[0])*(h[0]-pel[0]) + (h[1]-pel[1])*(h[1]-pel[1]) + (h[2]-pel[2])*(h[2]-pel[2]));
-                    // The bone buffer is valid for crouching, jumping and
-                    // uncommon agent animations too.  Keep the corruption
-                    // guard broad enough that a genuine pose is not dropped
-                    // for one frame merely because an arm/leg is compressed.
-                    if (!(torso > 10.f && torso < 190.f)) return -1.f;
-                    if (h[2] < p.pos[2] + 5.f) return -1.f;
-                    float score = 100.f - std::fabs(torso - 55.f);
-                    // Arms should be lateral to spine
-                    auto seg = [&](int a, int b) {
-                        float dx = bones[a][0]-bones[b][0], dy = bones[a][1]-bones[b][1], dz = bones[a][2]-bones[b][2];
-                        return std::sqrt(dx*dx+dy*dy+dz*dz);
-                    };
-                    const float armL = seg(7, 9), armR = seg(11, 13);
-                    const float legL = seg(14, 16), legR = seg(17, 19);
-                    const float shoulderWidth = seg(7, 11);
-                    // Animated agents, crouching and weapon-holding poses vary
-                    // substantially. Reject only clearly corrupt segments;
-                    // narrow human-pose assumptions were discarding real bones.
-                    if (!(armL > 1.f && armL < 150.f && armR > 1.f && armR < 150.f)) return -1.f;
-                    if (!(legL > 2.f && legL < 180.f && legR > 2.f && legR < 180.f)) return -1.f;
-                    if (!(shoulderWidth > .2f && shoulderWidth < 150.f)) return -1.f;
-                    if (!(bones[0][2] > bones[5][2] + 8.f)) return -1.f;
-                    for (std::size_t i = 0; i < kBoneSlotCount; ++i) {
-                        const float ox = bones[i][0] - p.pos[0];
-                        const float oy = bones[i][1] - p.pos[1];
-                        const float oz = bones[i][2] - p.pos[2];
-                        if (ox * ox + oy * oy > 260.f * 260.f || oz < -100.f || oz > 220.f)
-                            return -1.f;
-                    }
-                    score += 44.f;
-                    const float horiz = std::sqrt((h[0]-p.pos[0])*(h[0]-p.pos[0]) + (h[1]-p.pos[1])*(h[1]-p.pos[1]));
-                    if (horiz > 60.f) score -= 40.f;
-                    return score;
-                };
-
-                float tmp[kBoneSlotCount][3]{};
-                float best[kBoneSlotCount][3]{};
-                float bestScore = -1.f;
-                uint8_t bestLayout = 0;
-
-                // Sticky layout: once a pawn's rig is known, skip dual scoring.
-                const auto stickyIt = s_stickyBoneLayout.find(p.pawn);
-                const bool haveSticky = stickyIt != s_stickyBoneLayout.end();
-                const uint8_t stickyLayout = haveSticky ? stickyIt->second : 0;
-
-                auto score_layout = [&](const int* indices, uint8_t layoutId) {
-                    bool finite = true;
-                    for (std::size_t b = 0; b < kBoneSlotCount; ++b) {
-                        const int id = indices[b];
-                        if (id < 0 || id >= kBoneJointReadCount) { finite = false; break; }
-                        tmp[b][0] = joints[id].x;
-                        tmp[b][1] = joints[id].y;
-                        tmp[b][2] = joints[id].z;
-                        finite = finite && std::isfinite(tmp[b][0]) && std::isfinite(tmp[b][1]) &&
-                                 std::isfinite(tmp[b][2]);
-                    }
-                    const float score = finite ? skeleton_score(tmp) : -1.f;
-                    if (score > bestScore) {
-                        bestScore = score;
-                        bestLayout = layoutId;
-                        std::memcpy(best, tmp, sizeof(best));
-                    }
-                };
-
-                if (haveSticky) {
-                    // 0 = reference (CS2-DMA first historically), 1 = current
-                    score_layout(stickyLayout == 0 ? kReferenceIdx : kCurrentIdx, stickyLayout);
-                    if (bestScore < 0.f) {
-                        // Sticky failed (model change) — re-probe both once
-                        score_layout(kReferenceIdx, 0);
-                        score_layout(kCurrentIdx, 1);
-                    }
-                } else {
-                    score_layout(kReferenceIdx, 0);
-                    score_layout(kCurrentIdx, 1);
-                }
-                if (bestScore < 0.f) return false;
-
-                for (std::size_t b = 0; b < kBoneSlotCount; ++b) {
-                    p.bones[b][0] = best[b][0];
-                    p.bones[b][1] = best[b][1];
-                    p.bones[b][2] = best[b][2];
-                }
-                p.head[0] = best[0][0]; p.head[1] = best[0][1]; p.head[2] = best[0][2];
-                p.bone_layout = bestLayout;
-                p.full_bones_ok = true;
-                s_stickyBoneLayout[p.pawn] = bestLayout;
-                return true;
-            };
-
-            bool acquired_real_bones = false;
-            // Primary: acquire either a compact upper-body pose or the complete
-            // skeleton depending on the features that are actually enabled.
-            const bool primary_ok = IsUserPointer(boneBases[c]) &&
-                (need_full_bones ? try_bones(boneSnapshots[c]) : try_compact_bones(boneSnapshots[c]));
-            if (primary_ok) {
-                p.bones_ok = true;
-                p.bone_base = boneBases[c];
-                acquired_real_bones = true;
-                boneFallbackPending[p.pawn] = false;
-            } else {
-                auto cached = sceneBoneCache.find(p.pawn);
-                if (cached != sceneBoneCache.end()) {
-                    cached->second.bone_base = 0;
-                    cached->second.bone_expires_ms = 0;
-                }
-                // The next scan's dedicated recovery lane probes alternatives.
-                boneFallbackPending[p.pawn] = true;
-            }
-            if (acquired_real_bones) {
-                auto& cached = bone_cache[p.pawn];
-                cached.entry_generation = currentGen;
-                std::memcpy(cached.joints, p.bones, sizeof(p.bones));
-                std::memcpy(cached.origin, p.pos, sizeof(cached.origin));
-                cached.last_valid_ms = scan_now_ms;
-                cached.full_pose = p.full_bones_ok;
-                p.bones_sample_ms = boneReadSampleMs[c] ? boneReadSampleMs[c] : scan_now_ms;
-                p.bone_pose_sample_ms = p.bones_sample_ms;
-                p.bone_origin_sample_ms = p.bones_sample_ms;
-                s_lastBoneMs[p.pawn] = p.bones_sample_ms;
-            }
-        }
-        if (!p.bones_ok) {
-            const auto cached = bone_cache.find(p.pawn);
-            if (cached != bone_cache.end() &&
-                cached->second.entry_generation == currentGen &&
-                // A scatter/bone-base miss is normally transient.  Preserve
-                // the last anatomical pose long enough to bridge it, while
-                // translating it by the current origin so it never freezes in
-                // world space or visibly pops out for a single bad read.
-                // Keep a verified pose through short scene-node/bone-buffer
-                // outages.  The fast origin lane translates this cached pose
-                // each render, so it stays attached instead of blinking out.
-                scan_now_ms - cached->second.last_valid_ms <=
-                    static_cast<uint64_t>(BONE_RELIABILITY_HOLD_MS)) {
-                std::memcpy(p.bones, cached->second.joints, sizeof(p.bones));
-                const float cached_shift[3] = {
-                    p.pos[0] - cached->second.origin[0],
-                    p.pos[1] - cached->second.origin[1],
-                    p.pos[2] - cached->second.origin[2]
-                };
-                for (std::size_t bone = 0; bone < kBoneSlotCount; ++bone)
-                    for (int axis = 0; axis < 3; ++axis)
-                        p.bones[bone][axis] += cached_shift[axis];
-                std::memcpy(p.head, p.bones[0], sizeof(p.head));
-                p.bones_ok = true;
-                p.full_bones_ok = cached->second.full_pose;
-                p.bones_sample_ms = cached->second.last_valid_ms;
-                p.bone_pose_sample_ms = cached->second.last_valid_ms;
-                p.bone_origin_sample_ms = p.position_sample_ms;
-            }
-        }
-        if (!p.bones_ok) {
-            p.head[0] = p.pos[0];
-            p.head[1] = p.pos[1];
-            p.head[2] = p.pos[2] + 72.f;
-        }
-
-        // Active weapon → item definition index → white icon code / name.
-        // The normal chain is already batch-read; singles remain only as a
-        // schema-drift fallback when the primary definition slot is invalid.
-        if (need_weapons && allow_weapon_phase) {
-            const uint16_t def = weaponDefinitions[c];
-            if (def > 0 && def < 6000) {
-                p.weapon_def = def;
-            }
-            // Ammo shares the periodic active-handle scatter. On a weapon
-            // switch it shares the definition scatter for the new entity.
-            if (frame_config.weapon_ammo) {
-                if (ammoClip[c] >= 0 && ammoClip[c] < 500) p.ammo_clip = ammoClip[c];
-                if (ammoReserve[c] >= 0 && ammoReserve[c] < 500) p.ammo_reserve = ammoReserve[c];
-            }
-        }
-
-        // Player flags were acquired in FlagsBatch. Assembly
-        // reads only the cache, so it never stalls the render snapshot.
-        auto& cached_flags = flag_cache[p.pawn];
-        p.money = cached_flags.money;
-        p.has_defuser = cached_flags.kit;
-        p.is_defusing = cached_flags.defusing;
-
-        if (!p.is_local && p.team != runtime.local_team)
-            ++runtime.enemy_count;
-
-        runtime.players.push_back(p);
-        ++processed;
-    }
-
-    // Retain a fully validated pawn for a short wall-clock grace period when
-    // only its individual controller/pawn read drops out. Time-based expiry is
-    // stable regardless of acquisition rate or presentation FPS.
-    // A controller/list flicker must not immediately purge the validated bone
-    // cache.  This is wall-clock based, so it remains stable at any FPS.
-    // Only unknown/controller-dropout state receives grace. Confirmed deaths
-    // were removed above and can never be reinserted from this cache.
-    constexpr uint64_t kPlayerDropoutGraceMs = 60;
-    for (const auto& player : runtime.players) {
-        if (IsUserPointer(player.pawn)) {
-            // P0-3: Skip confirmed dead players entirely — never repopulate
-            // a player that was already confirmed dead in this session.
-            auto it = recent_players.find(player.pawn);
-            if (it != recent_players.end() && it->second.confirmed_dead) {
-                continue; // Don't overwrite the confirmed_dead entry
-            }
-            recent_players[player.pawn] = {player, scan_now_ms, currentGen};
-        }
-    }
-    for (auto it = recent_players.begin(); it != recent_players.end();) {
-        // P0-3: Confirmed dead players are immune to grace reinsertion
-        if (it->second.confirmed_dead) {
-            bone_cache.erase(it->first);
-            it = recent_players.erase(it);
-            continue;
-        }
-        if (scan_now_ms - it->second.last_seen_ms > kPlayerDropoutGraceMs) {
-            bone_cache.erase(it->first);
-            it = recent_players.erase(it);
-            continue;
-        }
-        const bool present = std::any_of(runtime.players.begin(), runtime.players.end(),
-            [&](const Player& player) { return player.pawn == it->first; });
-        const bool allowedTeam = !frame_config.team_check ||
-            it->second.player.team != runtime.local_team;
-        if (!present && !it->second.player.is_local && allowedTeam &&
-            !it->second.confirmed_dead && // P0-3: Double-check
-            runtime.players.size() < static_cast<std::size_t>(kMaxSlots)) {
-            runtime.players.push_back(it->second.player);
-            OmniGhost::Gameplay::DmaTelemetry::CS2().recent_player_reinsertions.fetch_add(
-                1, std::memory_order_relaxed);
-            if (!it->second.player.is_local && it->second.player.team != runtime.local_team)
-                ++runtime.enemy_count;
-        }
-        ++it;
-    }
-
-    // Only consume previously completed LOS results here. The worker owns
-    // raycasts, so a large collision BVH cannot delay snapshot publication.
-    const auto losWorld = requested.visibility && collision.IsLoadedFor(runtime.map_name)
-        ? collision.WorldSnapshot() : nullptr;
-    const CameraSnapshot visibilityCamera = SelectCameraSnapshot(position_sample_ms);
-    const auto losOrigin = Visibility::CameraOrigin(visibilityCamera.timestamp_ms
-        ? visibilityCamera.view_matrix : runtime.view_matrix);
-    std::vector<VisibilityTarget> visibilityDue;
-    visibilityDue.reserve(runtime.players.size());
-    const uint64_t visibilityGeneration = g_session_generation.load(std::memory_order_acquire);
-    for (auto& player : runtime.players) {
-        player.visibility_known = false;
-        player.visible = false;
-        if (!losWorld || !losOrigin || !player.alive || player.is_local || !player.bones_ok)
-            continue;
-        if (frame_config.team_check && player.team == runtime.local_team)
-            continue;
-        if (frame_config.max_distance > 0.f && player.distance > frame_config.max_distance)
-            continue;
-
-        const auto cached = g_visibility_worker.Get(player.pawn, visibilityGeneration);
-        if (cached.checked_ms && scan_now_ms >= cached.checked_ms &&
-            scan_now_ms - cached.checked_ms <= 250u) {
-            player.visibility_known = cached.known;
-            player.visible = cached.visible;
-        }
-        if (cached.checked_ms && scan_now_ms >= cached.checked_ms &&
-            scan_now_ms - cached.checked_ms < 100u)
-            continue;
-
-        constexpr BoneSlot slots[] = {BoneSlot::Head, BoneSlot::Neck,
-            BoneSlot::SpineUpper, BoneSlot::SpineLower};
-        VisibilityTarget target{};
-        target.pawn = player.pawn;
-        for (size_t i = 0; i < target.points.size(); ++i) {
-            const auto& bone = player.bones[static_cast<size_t>(slots[i])];
-            target.points[i] = {bone[0], bone[1], bone[2]};
-        }
-        visibilityDue.push_back(target);
-    }
-    if (losWorld && losOrigin && !visibilityDue.empty()) {
-        ScopedPhase phaseVisSubmit(&g_phase.visibility_submit_ms);
-        g_visibility_worker.Submit(losWorld, *losOrigin, std::move(visibilityDue), visibilityGeneration);
-    } else if (!requested.visibility)
-        g_visibility_worker.Reset();
-
-    // Camera projection is published by the dedicated high-rate camera lane.
-    // Avoid a redundant DMA view-matrix round-trip and the old temporary vector
-    // whose position delta was always zero because positions were not re-read.
-
-    // Keep match flag from map name (set at top of RunFrame). If map string
-    // briefly blanks but we still have pawns, stay in-match for one frame.
-    if (!runtime.in_match && (runtime.pawn_count > 0 || !runtime.players.empty()))
-        runtime.in_match = true;
-    runtime.player_count = static_cast<int>(runtime.players.size());
-
-    // One spectator pipeline/cache is shared by alive and dead local states.
-    UpdateSpectators(frame_config, controllers, collected);
-    for (const auto& live : runtime.players) {
-        if (live.pawn == runtime.spectator_target) {
-            std::snprintf(runtime.spectator_target_name,
-                sizeof(runtime.spectator_target_name), "%s", live.name);
-            break;
-        }
-    }
-
-    // Recovery only when the list is truly broken.
-    // Death / spectate often drops drawn players briefly — do NOT wipe the
-    // entity list on that (was causing ESP to vanish for 1–2s after dying).
-    // Only recover if pawns fail to resolve while many controllers exist.
-    const bool stuck_handles =
-        runtime.in_match && runtime.controller_count > 4 && runtime.pawn_count == 0;
-    // Empty player list alone is normal while dead if filters exclude everyone —
-    // require a much longer stretch before forcing a full re-acquire.
-    const bool stuck_empty =
-        runtime.in_match && runtime.player_count == 0 && runtime.controller_count > 2
-        && runtime.pawn_count == 0;
-    if (stuck_handles || stuck_empty) {
-        if (++zero_player_frames >= 240) { // ~4s at 60fps — death safe
-            g_pending_entity_list = 0;
-            g_entity_list_confirmations = 0;
-            runtime.entity_list_entry = 0;
-            runtime.entity_list_addr = 0;
-            g_cached_entity_root = 0;
-            g_entity_list_next_validation_ms = 0;
-            g_entity_list_next_full_probe_ms = 0;
-            g_entity_list_force_refresh = true;
-            g_controller_stride = kEntityIdentityStride;
-            g_pawn_stride = kEntityIdentityStride;
-            zero_player_frames = 0;
-            std::cout << "[CS2] ESP recover — refresh entity list"
-                      << " (players=" << runtime.player_count
-                      << " controllers=" << runtime.controller_count
-                      << " pawns=" << runtime.pawn_count << ")" << std::endl;
-        }
-    } else {
-        zero_player_frames = 0;
-    }
-
-    if (!runtime.in_match || !frame_config.bomb_timer)
-        runtime.bomb = BombState{};
-    else if (g_pressure_level.load(std::memory_order_relaxed) < 2)
-        UpdateBombStateThrottled();
-    // Pressure is an unknown sample, not proof that an active bomb vanished.
-
-    if (g_pressure_level.load(std::memory_order_relaxed) < 2)
-        UpdateLocalWeaponDefinitionThrottled();
-
-    if (runtime.bomb.defusing && runtime.bomb.defuser_handle) {
-        static uint64_t cachedDefuserGeneration = 0;
-        static uint32_t cachedDefuserHandle = 0;
-        static uintptr_t cachedDefuserPawn = 0;
-        static uint64_t nextDefuserResolveMs = 0;
-        const uint64_t generation = g_session_generation.load(std::memory_order_acquire);
-        if (cachedDefuserGeneration != generation ||
-            cachedDefuserHandle != runtime.bomb.defuser_handle) {
-            cachedDefuserGeneration = generation;
-            cachedDefuserHandle = runtime.bomb.defuser_handle;
-            cachedDefuserPawn = 0;
-            nextDefuserResolveMs = 0;
-            runtime.bomb.defuser_name[0] = '\0';
-        }
-        if (scan_now_ms >= nextDefuserResolveMs &&
-            g_pressure_level.load(std::memory_order_relaxed) < 2) {
-            CS2::GiveCameraPriorityBeforeOptionalDma();
-            cachedDefuserPawn = ResolveEntityByHandle(runtime.bomb.defuser_handle,
-                g_pawn_stride ? g_pawn_stride : kEntityIdentityStride);
-            nextDefuserResolveMs = scan_now_ms + (cachedDefuserPawn ? 500u : 100u);
-        }
-        for (const auto& player : runtime.players) {
-            if (player.pawn == cachedDefuserPawn && player.name[0]) {
-                std::snprintf(runtime.bomb.defuser_name, sizeof(runtime.bomb.defuser_name), "%s", player.name);
-                break;
-            }
-        }
-    }
-
-    CollectDroppedWeapons(frame_config, runtime.in_match, runtime.client_base,
-                          runtime.dropped_weapons);
-
-    // EntityCacheHub policy: periodic prune by last_seen so maps cannot grow
-    // across long sessions. Generation mismatch already clears on session
-    // boundary; this is the TTL path for in-session pointer reuse safety.
-    {
-        ScopedPhase _phPrune(&g_phase.cache_prune_ms);
-        constexpr uint64_t kGraceMs = 5000;
-        auto pruneLastSeen = [&](auto& map, auto getter) {
-            for (auto it = map.begin(); it != map.end();) {
-                const uint64_t last = getter(it->second);
-                if (last && scan_now_ms > last && (scan_now_ms - last) > kGraceMs)
-                    it = map.erase(it);
-                else
-                    ++it;
-            }
-        };
-        pruneLastSeen(recent_players, [](const RecentPlayer& e) { return e.last_seen_ms; });
-        pruneLastSeen(bone_cache, [](const CachedBones& e) { return e.last_valid_ms; });
-        pruneLastSeen(controllerPawnCache, [](const CachedControllerPawn& e) { return e.last_seen_ms; });
-        pruneLastSeen(sceneBoneCache, [](const CachedSceneBone& e) {
-            return e.scene_expires_ms ? e.scene_expires_ms : e.bone_expires_ms;
-        });
-        pruneLastSeen(nameCache, [](const CachedName& e) { return e.last_refresh_ms; });
-        pruneLastSeen(weaponStateCache, [](const CachedWeaponState& e) { return e.last_refresh_ms; });
-        pruneLastSeen(flag_cache, [](const FlagCache& e) { return e.last_seen_ms; });
-        for (auto it = s_stickyBoneLayout.begin(); it != s_stickyBoneLayout.end();) {
-            const bool present = std::any_of(runtime.players.begin(), runtime.players.end(),
-                [&](const Player& p) { return p.pawn == it->first; });
-            if (!present) it = s_stickyBoneLayout.erase(it); else ++it;
-        }
-        for (auto it = s_lastBoneMs.begin(); it != s_lastBoneMs.end();) {
-            const bool present = std::any_of(runtime.players.begin(), runtime.players.end(),
-                [&](const Player& p) { return p.pawn == it->first; });
-            if (!present) it = s_lastBoneMs.erase(it); else ++it;
-        }
-    }
-
-    // Snapshot successful scans for the hold-over path above.
-    if (!runtime.players.empty()) {
-        last_good_players.clear();
-        last_good_players.reserve(runtime.players.size());
-        for (const auto& player : runtime.players)
-            last_good_players.push_back({player.pawn, player.controller});
-        last_good_ms = scan_now_ms;
-        OmniGhost::Gameplay::DmaTelemetry::CS2().last_good_age_ms.store(
-            0, std::memory_order_relaxed);
-    } else if (!last_good_players.empty() && scan_now_ms - last_good_ms > 100u) {
-        last_good_players.clear();
-        OmniGhost::Gameplay::DmaTelemetry::CS2().last_good_age_ms.store(
-            0, std::memory_order_relaxed);
-    } else {
-        OmniGhost::Gameplay::DmaTelemetry::CS2().last_good_age_ms.store(
-            last_good_ms && scan_now_ms >= last_good_ms ? scan_now_ms - last_good_ms : 0u,
-            std::memory_order_relaxed);
-    }
-
-    // Periodic diagnostics when controllers exist but pawns do not —
-    // usually wrong m_hPlayerPawn / stride after a game update.
-    if (runtime.controller_count > 0 && runtime.pawn_count == 0)
-        ++zero_pawn_diag_frames;
-    else
-        zero_pawn_diag_frames = 0;
-
-    if ((runtime.frames % 120) == 1 && runtime.controller_count > 0 && runtime.pawn_count == 0) {
-        std::cout << "[CS2] WARN: " << runtime.controller_count
-                  << " controllers, 0 pawns | handles=" << handle_nonzero
-                  << " resolved=" << resolve_ok
-                  << " stride=0x" << std::hex << g_controller_stride
-                  << " pawnStride=0x" << g_pawn_stride
-                  << " m_hPlayerPawn=0x" << offsets.m_hPlayerPawn
-                  << " localPawn=0x" << runtime.local_pawn
-                  << " localCtrl=0x" << runtime.local_controller
-                  << std::dec
-                  << " fails=" << runtime.read_fails << std::endl;
-
-        // Dump first 3 controller handles for offline analysis.
-        int dumped = 0;
-        for (int i = 0; i < kMaxSlots && dumped < 3; ++i) {
-            if (!controllers[i]) continue;
-            uint32_t h = ReadPawnHandle(controllers[i]);
-            uintptr_t r70 = h ? ResolveEntityByHandle(h, kEntityIdentityStride) : 0;
-            uintptr_t r78 = h ? ResolveEntityByHandle(h, kLegacyEntityIdentityStride) : 0;
-            int alive = 0;
-            QReadT(controllers[i] + offsets.m_bPawnIsAlive, alive);
-            std::cout << "  ctrl[" << i << "]=0x" << std::hex << controllers[i]
-                      << " handle=0x" << h
-                      << " alive=" << std::dec << alive
-                      << " r70=0x" << std::hex << r70
-                      << " r78=0x" << r78 << std::dec << std::endl;
-            ++dumped;
-        }
-    }
-
-    // Presentation (ESP / Aim) stays in main.cpp — calling them here too
-    // doubled DMA + mouse work every frame and tanked FPS / aim pull.
-    // Residual wall time not covered by named phases (unaccounted attribution).
-    {
-        const float wall = OmniGhost::Gameplay::TimeMs(_frameWallBegin);
-        const float accounted = g_phase.webradar_ms + g_phase.entity_ms + g_phase.local_ms
-            + g_phase.core_scatter_ms + g_phase.positions_ms + g_phase.bones_ms
-            + g_phase.weapon_ms + g_phase.ammo_ms + g_phase.flags_ms
-            + g_phase.spectator_ms + g_phase.bomb_ms + g_phase.visibility_ms
-            + g_phase.publish_ms + g_phase.early_publish_ms + g_phase.json_ms
-            + g_phase.cache_prune_ms + g_phase.vector_copy_ms
-            + g_phase.visibility_submit_ms + g_phase.cleanup_ms;
-        g_phase.other_ms = (std::max)(0.f, wall - accounted);
-    }
-
-}
-
 void RunFrame() {
     RunFrameWithConfig(config);
 }
@@ -6204,7 +4841,11 @@ void EnsureAcquisitionStarted() {
             // Pressure sheds metadata/weapons/bones first. The view
             // matrix stays at 16 ms through normal, moderate and high pressure;
             // only the extreme recovery state relaxes it slightly to 25 ms.
-            const int camera_period_ms = camera_pressure >= 3 ? 25 : CAMERA_INTERVAL_MS;
+            // P2-4: Dynamic camera interval based on camera-position temporal delta
+            int camera_period_ms = camera_pressure >= 3 ? 25 : CAMERA_INTERVAL_MS;
+            const float camPosDelta = OmniGhost::Gameplay::DmaTelemetry::CS2().camera_position_delta_p95_ms.load(std::memory_order_relaxed);
+            if (camPosDelta > 8.f) camera_period_ms = std::max(camera_period_ms, 20); // delta too high, slow down slightly to let position catch up
+            else if (camPosDelta < 2.f && camera_pressure == 0) camera_period_ms = std::min(camera_period_ms, 12); // tight sync, can run faster
             g_camera_deadline_ms.store(next_camera_ms, std::memory_order_release);
             int wait_ms = in_match ? CAMERA_INTERVAL_MS : 20;
             bool busyRetry = false;

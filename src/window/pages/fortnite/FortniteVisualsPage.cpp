@@ -127,7 +127,9 @@ void DrawFortniteVisuals() {
     ImGui::TextWrapped("[AVISO] ESP do Fortnite: Apenas jogador local (teste de lobby). Funcionalidades de outros jogadores NAO IMPLEMENTADAS.");
     ImGui::PopStyleColor();
     ImGui::Separator();
-    CyberWidgets::ToggleSwitch("Ativar pré-visualização", &Fortnite::config.esp_enabled);
+    
+#ifdef FORTNITE_ESP_IMPL
+    CyberWidgets::ToggleSwitch("Ativar ESP", &Fortnite::config.esp_enabled);
     CyberWidgets::Separator();
     CyberWidgets::SectionTitle("FILTROS");
     CyberWidgets::ToggleSwitch("ESP próprio", &Fortnite::config.self_esp);
@@ -169,6 +171,12 @@ void DrawFortniteVisuals() {
     CyberWidgets::SliderFloat("Distância máxima", &Fortnite::config.max_distance, 20.f, 500.f, "%.0f m");
     CyberWidgets::ToggleSwitch("Outline de texto", &Fortnite::config.text_outline);
     CyberWidgets::SliderFloat("Espessura outline", &Fortnite::config.text_outline_thickness, 0.5f, 2.f, "%.1f");
+#else
+    CyberWidgets::ToggleSwitch("Ativar pré-visualização", &Fortnite::config.esp_enabled);
+    ImGui::Separator();
+    ImGui::TextDisabled("Funcionalidades ESP não implementadas.");
+    ImGui::TextDisabled("Defina FORTNITE_ESP_IMPL no build para ativar quando pronto.");
+#endif
     CyberWidgets::EndCard();
     ImGui::EndChild();
 
@@ -177,6 +185,8 @@ void DrawFortniteVisuals() {
     // ---- COLORS COLUMN ----
     ImGui::BeginChild("##fn_visual_colors", ImVec2(columnWidth, height), false, ImGuiWindowFlags_AlwaysVerticalScrollbar);
     CyberWidgets::BeginCard("PERSONALIZAÇÃO");
+    
+#ifdef FORTNITE_ESP_IMPL
     CyberWidgets::ToggleSwitch("Modo RGB", &Fortnite::config.rgb_mode);
     CyberWidgets::ToggleSwitch("Cores por visibilidade", &Fortnite::config.visibility_colors);
     CyberWidgets::SectionTitle("JOGADORES");
@@ -206,6 +216,10 @@ void DrawFortniteVisuals() {
     ImGui::ColorEdit4("Rastros", Fortnite::config.col_trail, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     ImGui::ColorEdit4("Eye Line", Fortnite::config.col_look, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     ImGui::ColorEdit4("Outros efeitos", Fortnite::config.col_fun_effects, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
+#else
+    ImGui::TextDisabled("Cores disponíveis quando ESP estiver implementado.");
+    ImGui::TextDisabled("Defina FORTNITE_ESP_IMPL no build para ativar.");
+#endif
     CyberWidgets::EndCard();
     ImGui::EndChild();
 

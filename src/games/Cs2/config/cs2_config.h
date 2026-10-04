@@ -1,37 +1,34 @@
 #pragma once
 
+#include "gameplay/esp_config_base.h"
+
 namespace CS2 {
 
-struct Config {
-    // Legacy visual preferences are retained for backwards-compatible config files.
-    // They have no renderer or menu in CS2.
-    bool esp_enabled = false, self_esp = false, visibility_colors = false, visible_check = false;
-    bool box = true, box_corner = false, skeleton = true, skeleton_joints = false;
-    bool health_bar = true, armor_bar = false, name = true, distance = true, team_check = true, show_bots = true;
-    bool head_dot = false, weapon_name = false, trails = false, rgb_mode = false, head_halo = false, look_direction = false;
-    bool box_fill = false, health_value = false, armor_value = false, text_outline = true;
-    int box_style = 0, snapline_position = 2; // normal, dynamic, rounded, corner / top, center, bottom
-    float box_rounding = 0.f, text_outline_thickness = 1.f;
-    bool chinese_hat = false, angel_wings = false, devil_horns = false, floating_crown = false;
-    bool fun_effects_rainbow = true, hit_marker = false, rainbow_trails = true, snaplines = false;
-    float chinese_hat_scale = 1.f, fun_effects_scale = 1.f, trail_duration = .8f, trail_thickness = 2.f;
-    float look_direction_length = 90.f, skeleton_thickness = 1.85f, snapline_thickness = 1.5f;
-    float head_circle_thickness = 1.5f, box_thickness = 1.8f, eye_line_thickness = 1.6f;
+struct Config : OmniGhost::Gameplay::EspConfigBase {
+    // CS2-specific additions
+    bool self_esp = false;
+    bool show_bots = true;
+    bool scope_check = false;
+    bool footstep_esp = false;
+    bool player_flags = false;
+    bool flag_blind = true;
+    bool flag_scoped = true;
+    bool flag_defusing = true;
+    bool flag_kit = true;
+    bool flag_money = true;
     bool bomb_timer = false;
     bool spectator_list = false;
     float spectator_window_x = -1.f;
     float spectator_window_y = 40.f;
     float bomb_window_x = -1.f;
     float bomb_window_y = 338.f;
-    bool scope_check = false, footstep_esp = false;
-    bool player_flags = false, flag_blind = true, flag_scoped = true, flag_defusing = true, flag_kit = true, flag_money = true;
-    bool weapon_ammo = false, dropped_weapons = false;
-    // World weapons are deliberately category-filtered: the acquisition lane
-    // can skip classes the player does not want instead of treating every
-    // dropped entity as a candidate.
-    bool dropped_weapon_pistols = true, dropped_weapon_smgs = true;
-    bool dropped_weapon_rifles = true, dropped_weapon_heavy = true;
-    bool dropped_weapon_icons = true, dropped_weapon_ammo = false;
+    bool dropped_weapons = false;
+    bool dropped_weapon_pistols = true;
+    bool dropped_weapon_smgs = true;
+    bool dropped_weapon_rifles = true;
+    bool dropped_weapon_heavy = true;
+    bool dropped_weapon_icons = true;
+    bool dropped_weapon_ammo = false;
     bool radar_2d = false;
     bool webradar_enabled = false;
     int webradar_port = 8080;
@@ -39,31 +36,18 @@ struct Config {
     float radar_2d_x = 18.f;
     float radar_2d_y = 18.f;
     float radar_2d_size = 160.f;
-    bool skeleton_lod = true, distance_feet = false, bone_draw_arms = true, bone_draw_legs = true;
-    float max_distance = 300.f, skeleton_lod_distance = 70.f;
     bool hotkey_overlay = false;
     bool panic_key_enabled = true;
     int panic_key = 0x23; // END
     bool stream_proof = false;
-    bool performance_mode = false;
-    bool telemetry_enabled = false; // PERF/SPIKE lines -> logs.txt (active features only)
-    bool vsync = false;
     bool show_makcu_status = true;
+    int max_entities = 32;
+    bool auto_entity_cap = true;
+    bool show_fps = true;
+    bool auto_dump_on_mismatch = true;
+    char server_config_key[64] = {};
 
-    float col_enemy[4] = {.9f,.25f,.25f,1.f}, col_team[4] = {.25f,.75f,.95f,1.f};
-    float col_skeleton[4] = {.95f,.85f,.35f,1.f}, col_box[4] = {.9f,.25f,.25f,1.f};
-    float col_box_corner[4] = {0.f,.78f,1.f,1.f}, col_name[4] = {1.f,1.f,1.f,1.f};
-    float col_weapon[4] = {.85f,.85f,.9f,1.f}, col_target[4] = {1.f,.85f,.15f,1.f};
-    float col_joints[4] = {.27f,.9f,.37f,1.f}, col_health[4] = {.25f,.86f,.35f,1.f};
-    float col_armor[4] = {.27f,.59f,1.f,1.f}, col_snaplines[4] = {.83f,.69f,.22f,.55f};
-    float col_trail[4] = {.83f,.69f,.22f,.82f}, col_halo[4] = {1.f,.89f,.54f,.9f};
-    float col_fun_effects[4] = {1.f,.72f,.18f,.95f}, col_look[4] = {.83f,.69f,.22f,.86f};
-    float col_head[4] = {.95f,.85f,.35f,1.f}, col_distance[4] = {.85f,.85f,.9f,1.f};
-    float col_visible[4] = {.27f,.9f,.37f,1.f}, col_occluded[4] = {.9f,.25f,.25f,1.f};
-    float col_box_fill[4] = {.9f,.25f,.25f,.16f}, col_text_outline[4] = {0.f,0.f,0.f,1.f};
-    float col_flags[4] = {.95f,.85f,.35f,1.f};
-
-
+    // Aim
     bool aim_enabled = false;
     bool aim_draw_fov = true;
     bool aim_fov_rgb = false;
@@ -105,6 +89,7 @@ struct Config {
     float aim_rcs_y = 1.f;              // vertical strength multiplier
     float col_fov[4] = { 0.83f, 0.69f, 0.22f, 0.45f };
 
+    // Trigger
     bool trigger_enabled = false;
     bool trigger_always_on = true;
     int trigger_bind = 0x12; // ALT
@@ -116,15 +101,11 @@ struct Config {
 
     int profile = 0; // 0 custom, 1 legit, 2 rage
 
-    int max_entities = 32;
-    bool auto_entity_cap = true;
-
-    bool show_fps = true;
-    bool auto_dump_on_mismatch = true;
-    char server_config_key[64] = {};
+    // Config persistence
+    bool SaveConfig(const char* name = "cs2_default");
+    bool LoadConfig(const char* name = "cs2_default");
+    bool SelfTestOffsets();
 };
-
-extern Config config;
 
 inline void ApplyLegitProfile(Config& c) {
     c.profile = 1;
@@ -186,8 +167,6 @@ inline void ApplyRageProfile(Config& c) {
     c.max_entities = 48;
 }
 
-bool SaveConfig(const char* name = "cs2_default");
-bool LoadConfig(const char* name = "cs2_default");
-bool SelfTestOffsets();
+extern Config config;
 
 } // namespace CS2

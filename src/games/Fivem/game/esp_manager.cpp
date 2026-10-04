@@ -792,6 +792,7 @@ namespace FiveM {
             esp::ShutdownPreparedFrames();
             vehicle_esp::Shutdown();
             g_pedCacheManager.clearCache();
+            esp::ClearNameCache(); // Clear name cache on session change
             s_acquisitionRunning.store(false, std::memory_order_release);
             s_acquireRawPeds.clear();
             s_acquireValidPeds.clear();

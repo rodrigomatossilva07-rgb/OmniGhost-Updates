@@ -1,11 +1,17 @@
 #pragma once
 #include <cstdint>
 #include <cstring>
+#include <string>
 
 namespace CS2_Weapons {
 
 // Common CS2 weapon definition indexes (item definition index).
 inline const char* NameFromDefIndex(int def) {
+    // First try the shared registry
+    if (const char* sharedName = OmniGhost::Gameplay::WeaponNameRegistry::Instance().GetWeaponName(static_cast<uint32_t>(def))) {
+        return sharedName;
+    }
+    // Fallback to local switch for CS2-specific definitions
     switch (def) {
     case 1: return "Desert Eagle";
     case 2: return "Dual Berettas";

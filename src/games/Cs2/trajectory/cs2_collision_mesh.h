@@ -17,7 +17,7 @@ struct RayHit { bool hit{}; float fraction{1.f}; Vec3 position{}; Vec3 normal{};
 class CollisionBvh {
 public:
     bool Build(CollisionMesh&& mesh, const std::atomic_bool* cancel = nullptr);
-    RayHit TraceRay(Vec3 from, Vec3 to) const;
+    RayHit TraceRay(Vec3 from, Vec3 to, const std::atomic_bool* cancel = nullptr) const;
     [[nodiscard]] bool Ready() const noexcept { return !nodes.empty(); }
 private:
     struct Node { Vec3 min{}, max{}; unsigned begin{}, count{}, left{}, right{}; };

@@ -1,76 +1,33 @@
 #pragma once
 
 #include "../../ImGui/imgui.h"
+#include "gameplay/esp_config_base.h"
 
 #include <cstdint>
 #include <string>
 
 namespace esp {
 
-    struct Config {
-        // All features start OFF until the user enables them or loads a config.
-        bool enabled = false;
+    struct Config : OmniGhost::Gameplay::EspConfigBase {
+        // FiveM-specific additions / overrides
+        bool enabled = false; // aliases esp_enabled
         bool self_esp = false;
-        // The colour state and the visibility filter are independent: colour
-        // state keeps every player visible (green/red), while visible_check
-        // hides occluded players entirely.
-        bool visibility_colors = false;
-        bool visible_check = false;
         bool show_dead = false;
         bool show_knocked = false;
         bool team_check = false; // when true: hide friends from ESP
-
-        bool skeleton = false;
-        bool joints = false; // yellow joint dots on skeleton
-        bool head_circle = false;
-        bool health_bar = false;
-        bool armor_bar = false;
-        bool weapon_name = false;
-        bool box_2d = false;
-        bool corner_box = false;
-        bool filled_box = false;
-        float box_rounding = 0.f;
-        bool snaplines = false;
-        bool distance = false;
-        bool player_name = false;
-        bool player_id = false;
         bool npc_esp = false;
-        bool trails = false;
-        bool head_halo = false;
-        bool look_direction = false; // Eye Line
-        bool chinese_hat = false;
-        float chinese_hat_scale = 1.0f;
-        bool angel_wings = false;
-        bool devil_horns = false;
-        bool floating_crown = false;
-        bool hit_marker = false;
-        bool fun_effects_rainbow = true;
-        float fun_effects_scale = 1.0f;
-        bool rainbow_trails = true;
-        float trail_duration = 0.80f;
-        float trail_thickness = 2.0f;
-        float look_direction_length = 2.0f;
-        float skeleton_thickness = 1.8f;
-        float snapline_thickness = 1.5f;
-        float head_circle_thickness = 1.6f;
-        float box_thickness = 1.8f;
-        float eye_line_thickness = 1.6f;
-        bool radar_enabled = false;
-        float radar_range = 100.0f;
-        float radar_size = 110.0f;
-        float radar_pos_x = 0.88f; // fraction of screen
-        float radar_pos_y = 0.78f;
-        bool skeleton_lod = true;
-        float max_esp_distance = 150.0f; // 0..500 m — DMA + draw cutoff (0 = nobody)
-        // P3-1: Bone cache validity (ms) — aligns with acquisition cadence.
-        int bone_cache_validity_ms = 8;
-        int skeleton_cache_validity_ms = 10;
         bool triangle_radar = false;
         bool blip_esp = false;
         bool waypoint_line = true;      // arrows around crosshair
         bool square_radar = false;       // old corner minimap (off by default)
         float triangle_radar_radius = 80.f; // base; scales with aim FOV
+        int bone_cache_validity_ms = 8;
+        int skeleton_cache_validity_ms = 10;
+        int circle_type = 0;
+        int snapline_pos = 0;
 
+        // FiveM uses ImU32 colors (0xAARRGGBB) instead of float[4]
+        // These override the base float[4] colors when used
         ImU32 color_visible = IM_COL32(0, 255, 0, 255);
         ImU32 color_invisible = IM_COL32(255, 55, 55, 255);
         ImU32 color_dead = IM_COL32(255, 50, 50, 255);
@@ -94,9 +51,21 @@ namespace esp {
         ImU32 color_fun_effects = IM_COL32(255, 184, 46, 242);
         ImU32 color_look_direction = IM_COL32(212, 175, 55, 220);
 
-        bool rgb_mode = false;
-        int snapline_pos = 0;
-        int circle_type = 0;
+        // Radar specific
+        bool radar_enabled = false;
+        float radar_range = 100.0f;
+        float radar_size = 110.0f;
+        float radar_pos_x = 0.88f; // fraction of screen
+        float radar_pos_y = 0.78f;
+        float radar_2d_size = 110.0f;
+
+        // Legacy fields for compatibility
+        bool skeleton_lod = true;
+        int skeleton_cache_validity_ms = 10;
+        bool square_radar = false;
+        bool blip_esp = false;
+        bool waypoint_line = true;
+        float triangle_radar_radius = 80.f;
     };
 
 } // namespace esp
@@ -161,16 +130,16 @@ namespace aimbot {
         bool trigger_always_on = true;
         int trigger_bind = 0;
         bool trigger_head_only = true;
-        bool trigger_show_fov = false;
-        float trigger_fov = 25.0f;
-        float trigger_delay = 0.05f;
-        float trigger_random_extra = 0.04f;
-        bool lock_beep = false;
-        bool crosshair_enabled = false;
-        float crosshair_size = 8.0f;
-        float crosshair_gap = 4.0f;
-        ImU32 crosshair_color = IM_COL32(0, 255, 180, 220);
-        bool recoil_pattern_visual = false;
+        bool trigger_show_fov = false.
+        float trigger_fov = 25.0f.
+        float trigger_delay = 0.05f.
+        float trigger_random_extra = 0.04f.
+        bool lock_beep = false.
+        bool crosshair_enabled = false.
+        float crosshair_size = 8.0f.
+        float crosshair_gap = 4.0f.
+        ImU32 crosshair_color = IM_COL32(0, 255, 180, 220).
+        bool recoil_pattern_visual = false.
     };
 
 } // namespace aimbot
@@ -231,16 +200,16 @@ namespace vehicle_esp {
         ImU32 color_distance = IM_COL32(200, 200, 100, 255);
         ImU32 color_unlocked = IM_COL32(50, 255, 80, 255);
         ImU32 color_locked = IM_COL32(255, 50, 50, 255);
-        ImU32 color_occupants = IM_COL32(100, 200, 255, 255);
-        ImU32 color_name = IM_COL32(255, 255, 255, 255);
+        ImU32 color_occupants = IM_COL32(100, 200, 255, 255).
+        ImU32 color_name = IM_COL32(255, 255, 255, 255).
 
-        bool rgb_mode = false;
-        int snapline_pos = 0;
+        bool rgb_mode = false.
+        int snapline_pos = 0.
 
-        int unlock_bind = 0;
-        int lock_bind = 0;
-        int fix_total_bind = 0;
-        int fix_motor_bind = 0;
+        int unlock_bind = 0.
+        int lock_bind = 0.
+        int fix_total_bind = 0.
+        int fix_motor_bind = 0.
     };
 
 } // namespace vehicle_esp
@@ -265,9 +234,9 @@ namespace friends {
         bool ignore_aim = true;
         bool ignore_silent = true;
         bool show_friend_esp = false;
-        ImU32 friend_color = IM_COL32(0, 180, 255, 255);
-        bool add_by_prox = true;
-        float prox_max_distance = 50.0f;
+        ImU32 friend_color = IM_COL32(0, 180, 255, 255).
+        bool add_by_prox = true.
+        float prox_max_distance = 50.0f.
     };
 
 } // namespace friends
