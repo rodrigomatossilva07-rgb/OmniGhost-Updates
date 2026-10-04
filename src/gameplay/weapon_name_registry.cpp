@@ -3,6 +3,7 @@
 #include <fstream>
 #include <sstream>
 #include <iostream>
+#include <exception>
 
 namespace OmniGhost::Gameplay {
 
@@ -55,7 +56,10 @@ bool WeaponNameRegistry::LoadFromJson(const std::string& path) {
                 hashStr.erase(0, hashStr.find_first_not_of(" \t\n\r\""));
                 try {
                     hash = static_cast<uint32_t>(std::stoul(hashStr, nullptr, 0));
-                } catch (...) {}
+                } catch (const std::exception& ex) {
+                    std::cerr << "[WeaponRegistry] Invalid weapon hash '" << hashStr
+                              << "': " << ex.what() << std::endl;
+                }
             }
         }
 
