@@ -31,7 +31,7 @@ struct WarzonePreviewAdapter : EspPreview::IConfigAdapter {
         cfg.head_circle_thickness = 1.5f;
 
         cfg.health_bar = Warzone::config.health_bar;
-        cfg.armor_bar = false; // Warzone doesn't have armor bar
+        cfg.armor_bar = Warzone::config.armor_bar;
         cfg.health_value = false;
         cfg.armor_value = false;
 
@@ -63,7 +63,7 @@ struct WarzonePreviewAdapter : EspPreview::IConfigAdapter {
             cfg.col_box[i] = Warzone::config.col_enemy[i];
             cfg.col_box_corner[i] = Warzone::config.col_enemy[i];
             cfg.col_box_fill[i] = Warzone::config.col_enemy[i];
-            cfg.col_skeleton[i] = Warzone::config.col_enemy[i];
+            cfg.col_skeleton[i] = Warzone::config.col_skeleton[i];
             cfg.col_joints[i] = Warzone::config.col_enemy[i];
             cfg.col_head[i] = Warzone::config.col_enemy[i];
             cfg.col_halo[i] = Warzone::config.col_enemy[i];
@@ -122,6 +122,7 @@ void DrawWarzoneVisuals() {
     CyberWidgets::ToggleSwitch("Esqueleto", &Warzone::config.skeleton);
     CyberWidgets::ToggleSwitch("Ponto na cabeça", &Warzone::config.head_dot);
     CyberWidgets::ToggleSwitch("Vida", &Warzone::config.health_bar);
+    CyberWidgets::ToggleSwitch("Armadura", &Warzone::config.armor_bar);
     CyberWidgets::ToggleSwitch("Nome", &Warzone::config.name);
     CyberWidgets::ToggleSwitch("Distância", &Warzone::config.distance);
     CyberWidgets::ToggleSwitch("Caixa", &Warzone::config.box);
@@ -150,6 +151,8 @@ void DrawWarzoneVisuals() {
     ImGui::ColorEdit4("Inimigo", Warzone::config.col_enemy, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     ImGui::ColorEdit4("Equipa", Warzone::config.col_team, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     ImGui::ColorEdit4("Alvo", Warzone::config.col_target, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
+    ImGui::ColorEdit4("Esqueleto", Warzone::config.col_skeleton, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
+    ImGui::ColorEdit4("Armadura", Warzone::config.col_armor, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     ImGui::Text("Jogadores: %d · matriz: %s · lista: %s",
         Warzone::runtime.player_count,
         Warzone::runtime.matrix_ok ? "OK" : "—",

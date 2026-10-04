@@ -80,13 +80,11 @@ struct PreparedRenderConfig {
     float box_thickness = 1.0f;
     float snapline_thickness = 1.0f;
     int snapline_pos = 0;
-    bool box_fill = false;
+    bool filled_box = false;
     float box_rounding = 0.0f;
     bool health_value = false;
     bool armor_value = false;
     bool skeleton_lod = false;
-    bool weapon_ammo = false;
-    uint32_t player_flags = 0;
     bool footstep_esp = false;
     bool hit_marker = false;
 };

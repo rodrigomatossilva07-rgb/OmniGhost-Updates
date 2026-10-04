@@ -29,7 +29,6 @@ namespace esp {
         bool box_2d = false;
         bool corner_box = false;
         bool filled_box = false;
-        bool box_fill = false;      // alias for filled_box
         float box_rounding = 0.f;
         bool snaplines = false;
         bool distance = false;
@@ -71,9 +70,6 @@ namespace esp {
         bool waypoint_line = true;      // arrows around crosshair
         bool square_radar = false;       // old corner minimap (off by default)
         float triangle_radar_radius = 80.f; // base; scales with aim FOV
-        bool health_value = false;
-        bool armor_value = false;
-        bool weapon_ammo = false;
 
         ImU32 color_visible = IM_COL32(0, 255, 0, 255);
         ImU32 color_invisible = IM_COL32(255, 55, 55, 255);

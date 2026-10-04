@@ -53,20 +53,49 @@ struct Offsets {
     uintptr_t player_team = 0;
     uintptr_t player_stance = 0;
     uintptr_t player_health = 0;
+    uintptr_t player_armor = 0;
     uintptr_t player_weapon_index = 0;
 
     // bone
     uintptr_t bone_base_pos = 0;
     uintptr_t bone_size = 0;
     uintptr_t bone_offset = 0;
+    // Bone array: base + index * stride, each entry is float3
+    uintptr_t bone_array_base = 0;
+    uintptr_t bone_array_stride = 0;
     int bone_head = 7;
     int bone_chest = 5;
+    // Unified bone indices (Gameplay::BoneSystem::BoneId mapping)
+    int bone_neck = 6;
+    int bone_spine_upper = 5;
+    int bone_spine_mid = 4;
+    int bone_spine_lower = 3;
+    int bone_pelvis = 2;
+    int bone_l_clavicle = 13;
+    int bone_l_shoulder = 14;
+    int bone_l_elbow = 15;
+    int bone_l_wrist = 16;
+    int bone_l_hand = 17;
+    int bone_r_clavicle = 18;
+    int bone_r_shoulder = 19;
+    int bone_r_elbow = 20;
+    int bone_r_wrist = 21;
+    int bone_r_hand = 22;
+    int bone_l_hip = 23;
+    int bone_l_knee = 24;
+    int bone_l_ankle = 25;
+    int bone_l_foot = 26;
+    int bone_r_hip = 27;
+    int bone_r_knee = 28;
+    int bone_r_ankle = 29;
+    int bone_r_foot = 30;
 
     // name_array entry
     uintptr_t name_array_pos = 0;
     uintptr_t name_entry_size = 0;
     uintptr_t name_entry_name = 0;
     uintptr_t name_entry_health = 0;
+    uintptr_t name_entry_armor = 0;
     uintptr_t name_entry_alive = 0;
 
     // legacy aliases kept for LoadOffsets compatibility
@@ -89,6 +118,7 @@ struct Player {
     char name[64]{};
     float distance = 0.f;
     float health = 100.f;
+    float armor = 0.f;
     int team = 0;
     int index = -1;
     bool downed = false;
@@ -99,6 +129,11 @@ struct Player {
     // 0=stand 1=crouch 2=prone (CoD-style). Aim/ESP head height follows this live.
     int stance = 0;
     uint64_t position_sample_ms = 0;
+    // Bone data for skeleton ESP
+    static constexpr int kMaxBones = 31; // Head(0) to R_Foot(30)
+    float bones[kMaxBones][3]{};
+    bool bones_ok = false;
+    uint64_t bones_sample_ms = 0;
 };
 
 struct Runtime {

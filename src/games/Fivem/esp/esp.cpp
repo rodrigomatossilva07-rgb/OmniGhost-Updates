@@ -1586,10 +1586,8 @@ void esp::prepare_esp_frame(const std::vector<uintptr_t>& peds,
     next.renderConfig.box_thickness = frameConfig.box_thickness;
     next.renderConfig.snapline_thickness = frameConfig.snapline_thickness;
     next.renderConfig.snapline_pos = frameConfig.snapline_pos;
-    next.renderConfig.box_fill = frameConfig.box_fill;
+    next.renderConfig.filled_box = frameConfig.filled_box;
     next.renderConfig.box_rounding = frameConfig.box_rounding;
-    next.renderConfig.health_value = frameConfig.health_value;
-    next.renderConfig.armor_value = frameConfig.armor_value;
     next.renderConfig.skeleton_lod = frameConfig.skeleton_lod;
 
     const auto publish = [&](PreparedEspFrame&& frame) {
@@ -1873,10 +1871,10 @@ static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer,
     const PreparedRenderConfig* rcfg = FindPreparedRenderConfig();
     if (!rcfg) return;
     if (!rcfg->box_2d && !rcfg->corner_box && !rcfg->skeleton && !rcfg->health_bar && !rcfg->armor_bar &&
-        !rcfg->health_value && !rcfg->armor_value && !rcfg->player_name && !rcfg->distance && !rcfg->head_circle &&
-        !rcfg->weapon_name && !rcfg->weapon_ammo && !rcfg->snaplines && !rcfg->trails && !rcfg->head_halo &&
+        !rcfg->player_name && !rcfg->distance && !rcfg->head_circle &&
+        !rcfg->weapon_name && !rcfg->snaplines && !rcfg->trails && !rcfg->head_halo &&
         !rcfg->look_direction && !rcfg->chinese_hat && !rcfg->angel_wings && !rcfg->devil_horns &&
-        !rcfg->floating_crown && !rcfg->player_flags && !rcfg->footstep_esp)
+        !rcfg->floating_crown && !rcfg->footstep_esp)
         return;
     using namespace FiveM;
     ImDrawList* dl = ImGui::GetForegroundDrawList();
@@ -2030,7 +2028,10 @@ static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer,
     }
 
     if (rcfg->box_2d) {
-        // filled_box removed from product
+        // Filled box (if enabled)
+        if (rcfg->filled_box) {
+            dl->AddRectFilled(boxMin, boxMax, IM_COL32(0, 0, 0, 80));
+        }
         // Outer dark outline + main stroke for a more solid box
         dl->AddRect(ImVec2(boxMin.x - 1.f, boxMin.y - 1.f),
                     ImVec2(boxMax.x + 1.f, boxMax.y + 1.f),

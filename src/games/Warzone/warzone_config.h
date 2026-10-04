@@ -12,6 +12,7 @@ struct Config {
     bool box_corner = false;
     bool skeleton = false;
     bool health_bar = true;
+    bool armor_bar = true;
     bool snaplines = false;
     bool head_dot = false;
     bool ignore_downed = true;
@@ -22,6 +23,8 @@ struct Config {
     float col_team[4]  = { 0.25f, 0.85f, 0.35f, 1.f };
     float col_target[4] = { 1.f, 0.85f, 0.20f, 1.f };
     float col_fov[4] = { 0.83f, 0.69f, 0.22f, 0.45f };
+    float col_skeleton[4] = { 0.83f, 0.69f, 0.22f, 1.f };
+    float col_armor[4] = { 0.27f, 0.59f, 1.f, 1.f };
 
     // Aim
     bool aim_enabled = false;

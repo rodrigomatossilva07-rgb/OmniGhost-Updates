@@ -308,18 +308,45 @@ bool PopulateFromEmbedded(const OmniGhost::EmbeddedOffsets::Snapshot& snapshot) 
     required &= get("player.team", next.player_team, true);
     get("player.stance", next.player_stance);
     required &= get("player.health", next.player_health, true);
+    get("player.armor", next.player_armor);
     get("player.weapon_index", next.player_weapon_index);
 
     required &= get("bone.base_pos", next.bone_base_pos, true);
     required &= get("bone.size", next.bone_size, true);
     required &= get("bone.offset", next.bone_offset, true);
+    required &= get("bone.array_base", next.bone_array_base, true);
+    required &= get("bone.array_stride", next.bone_array_stride, true);
     getInt("bone.head", next.bone_head);
     getInt("bone.chest", next.bone_chest);
+    getInt("bone.neck", next.bone_neck);
+    getInt("bone.spine_upper", next.bone_spine_upper);
+    getInt("bone.spine_mid", next.bone_spine_mid);
+    getInt("bone.spine_lower", next.bone_spine_lower);
+    getInt("bone.pelvis", next.bone_pelvis);
+    getInt("bone.l_clavicle", next.bone_l_clavicle);
+    getInt("bone.l_shoulder", next.bone_l_shoulder);
+    getInt("bone.l_elbow", next.bone_l_elbow);
+    getInt("bone.l_wrist", next.bone_l_wrist);
+    getInt("bone.l_hand", next.bone_l_hand);
+    getInt("bone.r_clavicle", next.bone_r_clavicle);
+    getInt("bone.r_shoulder", next.bone_r_shoulder);
+    getInt("bone.r_elbow", next.bone_r_elbow);
+    getInt("bone.r_wrist", next.bone_r_wrist);
+    getInt("bone.r_hand", next.bone_r_hand);
+    getInt("bone.l_hip", next.bone_l_hip);
+    getInt("bone.l_knee", next.bone_l_knee);
+    getInt("bone.l_ankle", next.bone_l_ankle);
+    getInt("bone.l_foot", next.bone_l_foot);
+    getInt("bone.r_hip", next.bone_r_hip);
+    getInt("bone.r_knee", next.bone_r_knee);
+    getInt("bone.r_ankle", next.bone_r_ankle);
+    getInt("bone.r_foot", next.bone_r_foot);
 
     required &= get("name_array.pos", next.name_array_pos, true);
     required &= get("name_array.size", next.name_entry_size, true);
     required &= get("name_array.entry_name", next.name_entry_name, true);
     required &= get("name_array.entry_health", next.name_entry_health, true);
+    required &= get("name_array.entry_armor", next.name_entry_armor, true);
     required &= get("name_array.entry_alive", next.name_entry_alive, true);
 
     next.client_info = next.client_info_enc;
@@ -356,8 +383,23 @@ bool LoadOffsetsFromExternalJson(const char* path) {
     grab("bone_enc", next.bone_enc); grab("bone_key", next.bone_key);
     grab("stub_client_info", next.stub_client_info); grab("stub_client_base", next.stub_client_base); grab("stub_bone_base", next.stub_bone_base);
     grab("index", next.local_index_off); grab("index_pos", next.local_index_pos); grab("visible_client_bits", next.visible_client_bits); grab("recoil", next.recoil);
-    grab("entry_name", next.name_entry_name); grab("entry_health", next.name_entry_health); grab("entry_alive", next.name_entry_alive);
-    grab("pos_data", next.player_pos_data); grab("weapon_index", next.player_weapon_index); grab("base_pos", next.bone_base_pos);
+    grab("entry_name", next.name_entry_name); grab("entry_health", next.name_entry_health); grab("entry_armor", next.name_entry_armor); grab("entry_alive", next.name_entry_alive);
+    grab("pos_data", next.player_pos_data); grab("weapon_index", next.player_weapon_index); grab("base_pos", next.bone_base_pos); grab("player_armor", next.player_armor);
+    grab("bone_array_base", next.bone_array_base); grab("bone_array_stride", next.bone_array_stride);
+    grab("bone_head", next.bone_head); grab("bone_chest", next.bone_chest);
+    grab("bone_neck", next.bone_neck); grab("bone_spine_upper", next.bone_spine_upper);
+    grab("bone_spine_mid", next.bone_spine_mid); grab("bone_spine_lower", next.bone_spine_lower);
+    grab("bone_pelvis", next.bone_pelvis);
+    grab("bone_l_clavicle", next.bone_l_clavicle); grab("bone_l_shoulder", next.bone_l_shoulder);
+    grab("bone_l_elbow", next.bone_l_elbow); grab("bone_l_wrist", next.bone_l_wrist);
+    grab("bone_l_hand", next.bone_l_hand);
+    grab("bone_r_clavicle", next.bone_r_clavicle); grab("bone_r_shoulder", next.bone_r_shoulder);
+    grab("bone_r_elbow", next.bone_r_elbow); grab("bone_r_wrist", next.bone_r_wrist);
+    grab("bone_r_hand", next.bone_r_hand);
+    grab("bone_l_hip", next.bone_l_hip); grab("bone_l_knee", next.bone_l_knee);
+    grab("bone_l_ankle", next.bone_l_ankle); grab("bone_l_foot", next.bone_l_foot);
+    grab("bone_r_hip", next.bone_r_hip); grab("bone_r_knee", next.bone_r_knee);
+    grab("bone_r_ankle", next.bone_r_ankle); grab("bone_r_foot", next.bone_r_foot);
     next.loaded = next.view_matrix != 0 && next.name_array != 0 && next.client_info_enc != 0 && next.camera_base != 0;
     if (!next.loaded) return false;
     std::snprintf(next.source, sizeof(next.source), "external-dev");
@@ -765,26 +807,29 @@ void AcquisitionTick() {
             const uintptr_t nalive = offsets.name_entry_alive ? offsets.name_entry_alive : 0x78;
             const uintptr_t psize = offsets.player_size ? offsets.player_size : 0x2808;
 
-            // Phase 1: scatter-read name entries (names + health + alive)
+            // Phase 1: scatter-read name entries (names + health + armor + alive)
             struct NameSlot {
                 char name[64]{};
                 int health = 0;
+                int armor = 0;
                 int alive = 0;
             };
             std::vector<NameSlot> names(max_slots);
+            const uintptr_t narmor = offsets.name_entry_armor ? offsets.name_entry_armor : 0x98;
             if (s_dec.name_array_ok && s_dec.name_array_base) {
                 auto h = mem.CreateScatterHandle();
                 for (int i = 0; i < max_slots; ++i) {
                     uintptr_t entry = s_dec.name_array_base + npos + (uintptr_t)i * nsize;
                     mem.AddScatterReadRequest(h, entry + nname, names[i].name, 32);
                     mem.AddScatterReadRequest(h, entry + nhealth, &names[i].health, sizeof(int));
+                    mem.AddScatterReadRequest(h, entry + narmor, &names[i].armor, sizeof(int));
                     mem.AddScatterReadRequest(h, entry + nalive, &names[i].alive, sizeof(int));
                 }
                 mem.ExecuteReadScatter(h);
                 mem.CloseScatterHandle(h);
             }
 
-            // Phase 2: scatter-read player valid/team/pos when client_base is up.
+            // Phase 2: scatter-read player valid/team/pos/armor when client_base is up.
             // pos at player+0xEB0 may be either float3 or a pointer to a data block
             // (actual floats at ptr + pos_data/0x80). We read both layouts in two passes.
             struct PosSlot {
@@ -793,6 +838,7 @@ void AcquisitionTick() {
                 int stance = 0; // 0 stand, 1 crouch, 2 prone
                 float pos[3]{};
                 uintptr_t pos_ptr = 0;
+                int armor = 0;
             };
             std::vector<PosSlot> poss(max_slots);
             if (s_dec.client_base_ok && s_dec.client_base) {
@@ -801,12 +847,14 @@ void AcquisitionTick() {
                 const uintptr_t ppos   = offsets.player_pos   ? offsets.player_pos   : 0xEB0;
                 const uintptr_t pdata  = offsets.player_pos_data ? offsets.player_pos_data : 0x80;
                 const uintptr_t pstance = offsets.player_stance ? offsets.player_stance : 0x19D0;
+                const uintptr_t parmor = offsets.player_armor ? offsets.player_armor : 0x13F8;
                 auto h = mem.CreateScatterHandle();
                 for (int i = 0; i < max_slots; ++i) {
                     uintptr_t player = s_dec.client_base + (uintptr_t)i * psize;
                     mem.AddScatterReadRequest(h, player + pvalid, &poss[i].valid, sizeof(int));
                     mem.AddScatterReadRequest(h, player + pteam,  &poss[i].team,  sizeof(int));
                     mem.AddScatterReadRequest(h, player + pstance, &poss[i].stance, sizeof(int));
+                    mem.AddScatterReadRequest(h, player + parmor, &poss[i].armor, sizeof(int));
                     // First attempt: treat as pointer (common for this build)
                     mem.AddScatterReadRequest(h, player + ppos,   &poss[i].pos_ptr, sizeof(uintptr_t));
                 }
@@ -892,6 +940,13 @@ void AcquisitionTick() {
                     pl.health = (float)names[i].health;
                 else
                     pl.health = 0.f; // never invent 100 HP
+                // Armor: prefer name_array, fall back to player struct
+                int armor_val = 0;
+                if (names[i].armor > 0 && names[i].armor <= 300)
+                    armor_val = names[i].armor;
+                else if (poss[i].armor > 0 && poss[i].armor <= 300)
+                    armor_val = poss[i].armor;
+                pl.armor = (float)armor_val;
                 pl.valid = true;
                 // Do not let one stale positive source override confirmed zero HP.
                 pl.alive = pl.health > 0.f && names[i].alive != 0;
@@ -921,6 +976,46 @@ void AcquisitionTick() {
                 }
             }
             s_cached_local_index = s_dec.local_index;
+
+            // Phase 3: Bone acquisition for skeleton ESP (only when skeleton is enabled in config)
+            // Read bones for all valid players in a single scatter pass
+            if (!s_cached_players.empty() && offsets.bone_array_base && offsets.bone_array_stride) {
+                const uint64_t bonesBeginMs = GetTickCount64();
+                auto boneHandle = mem.CreateScatterHandle();
+                if (boneHandle) {
+                    // Collect bone base addresses for all valid players
+                    for (auto& pl : s_cached_players) {
+                        if (!pl.valid) continue;
+                        uintptr_t boneBase = pl.address + offsets.bone_base_pos;
+                        if (boneBase) {
+                            // Read all bones for this player (up to kMaxBones)
+                            for (int b = 0; b < Player::kMaxBones; ++b) {
+                                uintptr_t boneAddr = boneBase + offsets.bone_array_base + static_cast<uintptr_t>(b) * offsets.bone_array_stride;
+                                mem.AddScatterReadRequest(boneHandle, boneAddr, pl.bones[b], sizeof(float) * 3);
+                            }
+                        }
+                    }
+                    mem.SetDmaCallTag("Warzone.Bones");
+                    const bool bonesReadOk = mem.ExecuteReadScatter(boneHandle);
+                    mem.CloseScatterHandle(boneHandle);
+                    if (bonesReadOk) {
+                        const uint64_t bonesEndMs = GetTickCount64();
+                        const uint64_t bonesSampleMs = bonesBeginMs + (bonesEndMs - bonesBeginMs) / 2u;
+                        for (auto& pl : s_cached_players) {
+                            if (!pl.valid) continue;
+                            // Validate at least head and spine bones are finite
+                            bool hasHead = std::isfinite(pl.bones[offsets.bone_head][0]) && 
+                                           std::isfinite(pl.bones[offsets.bone_head][1]) && 
+                                           std::isfinite(pl.bones[offsets.bone_head][2]);
+                            bool hasSpine = std::isfinite(pl.bones[offsets.bone_spine_upper][0]) && 
+                                            std::isfinite(pl.bones[offsets.bone_spine_upper][1]) && 
+                                            std::isfinite(pl.bones[offsets.bone_spine_upper][2]);
+                            pl.bones_ok = hasHead && hasSpine;
+                            pl.bones_sample_ms = bonesSampleMs;
+                        }
+                    }
+                }
+            }
         }
     }
 

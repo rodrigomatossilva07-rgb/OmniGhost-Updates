@@ -110,7 +110,6 @@ static Cs2PreviewAdapter g_cs2Adapter;
 
 // Preview-only toggles (not connected to real config)
 static bool previewSelfEsp = false;
-static bool previewBots = true;
 static bool previewDead = false;
 static bool previewKnocked = false;
 
@@ -135,7 +134,7 @@ void DrawCs2Visuals() {
     CyberWidgets::ToggleSwitch("Ativar ESP", &CS2::config.esp_enabled);
     CyberWidgets::Separator();
     ImGui::BeginDisabled(!CS2::config.esp_enabled);
-    PreviewToggle("ESP próprio", &previewSelfEsp); PreviewToggle("Jogadores bot", &previewBots);
+    PreviewToggle("ESP próprio", &previewSelfEsp); CyberWidgets::ToggleSwitch("Mostrar bots", &CS2::config.show_bots);
     PreviewToggle("Mostrar mortos", &previewDead); PreviewToggle("Mostrar caídos", &previewKnocked);
     CyberWidgets::ToggleSwitch("Verificação de visibilidade", &CS2::config.visible_check);
     CyberWidgets::ToggleSwitch("Ocultar equipa", &CS2::config.team_check);
@@ -212,7 +211,7 @@ void DrawCs2Visuals() {
     ImGui::BeginDisabled(!CS2::config.look_direction);
     ImGui::ColorEdit4("Eye Line", CS2::config.col_look, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     ImGui::EndDisabled();
-    ImGui::BeginDisabled(!CS2::config.chinese_hat && !CS2::config.angel_wings && !CS2::config.devil_horns && !CS2::config.floating_crown);
+    ImGui::BeginDisabled(!CS2::config.chinese_hat || !CS2::config.angel_wings || !CS2::config.devil_horns || !CS2::config.floating_crown);
     ImGui::ColorEdit4("Efeitos", CS2::config.col_fun_effects, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     ImGui::EndDisabled();
     CyberWidgets::Separator();

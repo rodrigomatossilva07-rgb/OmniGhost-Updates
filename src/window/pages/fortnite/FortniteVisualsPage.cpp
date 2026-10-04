@@ -122,6 +122,11 @@ void DrawFortniteVisuals() {
     // ---- FEATURES COLUMN ----
     ImGui::BeginChild("##fn_visual_features", ImVec2(columnWidth, height), false, ImGuiWindowFlags_AlwaysVerticalScrollbar);
     CyberWidgets::BeginCard("ESP DE JOGADORES");
+    // WARNING: Fortnite ESP is currently local-player only (lobby test)
+    ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 180, 0, 255));
+    ImGui::TextWrapped("[AVISO] ESP do Fortnite: Apenas jogador local (teste de lobby). Funcionalidades de outros jogadores NAO IMPLEMENTADAS.");
+    ImGui::PopStyleColor();
+    ImGui::Separator();
     CyberWidgets::ToggleSwitch("Ativar pré-visualização", &Fortnite::config.esp_enabled);
     CyberWidgets::Separator();
     CyberWidgets::SectionTitle("FILTROS");

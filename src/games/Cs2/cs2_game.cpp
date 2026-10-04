@@ -101,7 +101,10 @@ constexpr int WEAPON_INTERVAL_MS = 200;
 constexpr int WEAPON_FALLBACK_INTERVAL_MS = 10000;
 constexpr int ENTITY_LIST_INTERVAL_MS = 250;
 constexpr int NAME_INTERVAL_MS = 1000;      // low-frequency identity
-constexpr int BONE_RELIABILITY_HOLD_MS = 50; // cache hold; reduced from 120 to improve bones_age_p95
+// Bridge occasional missed bone reads without retaining an obsolete pose indefinitely.
+// This must match the renderer's visual age ceiling; 50 ms was shorter than
+// far-player LOD and could make skeletons blink between otherwise valid reads.
+constexpr int BONE_RELIABILITY_HOLD_MS = 160;
 constexpr int TEAM_INTERVAL_MS = 500;
 }
 
@@ -4241,7 +4244,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
     const bool need_armor = OmniGhost::Gameplay::EspCore::Has(
         fields, OmniGhost::Gameplay::EspCore::DataField::Armor);
     const bool need_names = OmniGhost::Gameplay::EspCore::Has(
-        fields, OmniGhost::Gameplay::EspCore::DataField::Name);
+        fields, OmniGhost::Gameplay::EspCore::DataField::Name) ||
+        (frame_config.esp_enabled && !frame_config.show_bots);
     const bool need_weapons = OmniGhost::Gameplay::EspCore::Has(
         fields, OmniGhost::Gameplay::EspCore::DataField::Weapon) ||
         frame_config.aim_enabled || frame_config.trigger_enabled;
@@ -5482,18 +5486,18 @@ static void RunFrameWithConfig(const Config& frame_config) {
             }
             if (!nameBuf[0]) {
                 std::snprintf(nameBuf, sizeof(nameBuf), "Jogador_%d", p.ent_index);
-                p.is_bot = true;
             }
-            if (_strnicmp(nameBuf, "BOT", 3) == 0 ||
-                _strnicmp(nameBuf, "Player_", 7) == 0 ||
-                _strnicmp(nameBuf, "Jogador_", 8) == 0)
+            // A missing name is not evidence of a bot: it can be a transient
+            // metadata read failure. Source bots use the BOT name prefix.
+            if (_strnicmp(nameBuf, "BOT ", 4) == 0 ||
+                _stricmp(nameBuf, "BOT") == 0)
                 p.is_bot = true;
-            if (!frame_config.show_bots && p.is_bot)
-                continue;
             std::memcpy(p.name, nameBuf, sizeof(p.name));
         } else {
             std::snprintf(p.name, sizeof(p.name), "P%d", p.ent_index);
         }
+        if (!frame_config.show_bots && p.is_bot)
+            continue;
 
         // Current Source 2 player rig: pelvis=0, spine=2/3/4,
         // neck=5, head=6, arms=8..15 and legs=22..27.
@@ -5707,8 +5711,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 // Keep a verified pose through short scene-node/bone-buffer
                 // outages.  The fast origin lane translates this cached pose
                 // each render, so it stays attached instead of blinking out.
-                scan_now_ms - cached->second.last_valid_ms <= static_cast<uint64_t>(
-                    g_pressure_level.load(std::memory_order_relaxed) >= 2 ? 180 : BONE_RELIABILITY_HOLD_MS)) {
+                scan_now_ms - cached->second.last_valid_ms <=
+                    static_cast<uint64_t>(BONE_RELIABILITY_HOLD_MS)) {
                 std::memcpy(p.bones, cached->second.joints, sizeof(p.bones));
                 const float cached_shift[3] = {
                     p.pos[0] - cached->second.origin[0],

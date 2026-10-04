@@ -77,6 +77,71 @@ void Draw(const Warzone::Runtime& rt, const Warzone::Config& cfg) {
             dl->AddRectFilled(ImVec2(x0 - 5.f, sy), ImVec2(x0 - 2.f, hy), IM_COL32(40,40,40,180));
             dl->AddRectFilled(ImVec2(x0 - 5.f, sy - h * t), ImVec2(x0 - 2.f, sy), IM_COL32(65,220,90,220));
         }
+        if (cfg.health_bar) {
+            const float t = std::clamp(p.health / 100.f, 0.f, 1.f);
+            dl->AddRectFilled(ImVec2(x0 - 5.f, sy), ImVec2(x0 - 2.f, hy), IM_COL32(40,40,40,180));
+            dl->AddRectFilled(ImVec2(x0 - 5.f, sy - h * t), ImVec2(x0 - 2.f, sy), IM_COL32(65,220,90,220));
+        }
+        if (cfg.armor_bar && p.armor > 0.f) {
+            const float t = std::clamp(p.armor / 100.f, 0.f, 1.f);
+            ImU32 armorCol = Col4(cfg.col_armor);
+            dl->AddRectFilled(ImVec2(x1 + 2.f, sy), ImVec2(x1 + 5.f, hy), IM_COL32(40,40,40,180));
+            dl->AddRectFilled(ImVec2(x1 + 2.f, sy - h * t), ImVec2(x1 + 5.f, sy), armorCol);
+        }
+        
+        // Skeleton ESP
+        if (cfg.skeleton && p.bones_ok) {
+            ImU32 skelCol = Col4(cfg.col_skeleton);
+            if (i == aimIdx) skelCol = Col4(cfg.col_target);
+            else if (cfg.team_check && rt.local_team != 0 && p.team == rt.local_team) skelCol = Col4(cfg.col_team);
+            
+            // Bone connections for a standard humanoid skeleton
+            // Using Warzone bone indices: head=7, neck=6, spine_upper=5, spine_mid=4, spine_lower=3, pelvis=2
+            // l_clavicle=13, l_shoulder=14, l_elbow=15, l_wrist=16, l_hand=17
+            // r_clavicle=18, r_shoulder=19, r_elbow=20, r_wrist=21, r_hand=22
+            // l_hip=23, l_knee=24, l_ankle=25, l_foot=26
+            // r_hip=27, r_knee=28, r_ankle=29, r_foot=30
+            struct BoneLink { int from, to; };
+            static const BoneLink links[] = {
+                // Spine
+                {7, 6},   // head -> neck
+                {6, 5},   // neck -> spine_upper
+                {5, 4},   // spine_upper -> spine_mid
+                {4, 3},   // spine_mid -> spine_lower
+                {3, 2},   // spine_lower -> pelvis
+                // Left arm
+                {6, 13},  // neck -> l_clavicle
+                {13, 14}, // l_clavicle -> l_shoulder
+                {14, 15}, // l_shoulder -> l_elbow
+                {15, 16}, // l_elbow -> l_wrist
+                {16, 17}, // l_wrist -> l_hand
+                // Right arm
+                {6, 18},  // neck -> r_clavicle
+                {18, 19}, // r_clavicle -> r_shoulder
+                {19, 20}, // r_shoulder -> r_elbow
+                {20, 21}, // r_elbow -> r_wrist
+                {21, 22}, // r_wrist -> r_hand
+                // Left leg
+                {2, 23},  // pelvis -> l_hip
+                {23, 24}, // l_hip -> l_knee
+                {24, 25}, // l_knee -> l_ankle
+                {25, 26}, // l_ankle -> l_foot
+                // Right leg
+                {2, 27},  // pelvis -> r_hip
+                {27, 28}, // r_hip -> r_knee
+                {28, 29}, // r_knee -> r_ankle
+                {29, 30}, // r_ankle -> r_foot
+            };
+            
+            for (const auto& link : links) {
+                float bx1, by1, bx2, by2;
+                if (W2S(p.bones[link.from], rt.view_matrix, bx1, by1) &&
+                    W2S(p.bones[link.to], rt.view_matrix, bx2, by2)) {
+                    dl->AddLine(ImVec2(bx1, by1), ImVec2(bx2, by2), skelCol, 1.5f);
+                }
+            }
+        }
+        
         // Density control: with many entities, prefer box/HP over name spam
         const bool dense = cfg.esp_auto_hide_names &&
             (int)rt.players.size() > (cfg.esp_density_limit > 0 ? cfg.esp_density_limit : 40);

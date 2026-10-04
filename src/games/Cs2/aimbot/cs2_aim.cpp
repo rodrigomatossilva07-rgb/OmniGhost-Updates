@@ -191,12 +191,7 @@ bool KeyDown(int vk) {
 }
 
 bool AimKeyDown(const CS2::Config& cfg) {
-    bool down = false;
-    if (cfg.aim_bind > 0)
-        down = KeyDown(cfg.aim_bind);
-    if (!down && cfg.aim_bind2 > 0)
-        down = KeyDown(cfg.aim_bind2);
-    return down;
+    return cfg.aim_enabled && cfg.aim_bind > 0 && KeyDown(cfg.aim_bind);
 }
 
 bool IsFirearm(int definition) {
@@ -639,6 +634,7 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
 
     const bool playable = rt.in_match || !rt.players.empty();
     if (!playable) {
+        AimKeyDown(CS2::Config{});
         g_active_target_idx = -1;
         g_target_pawn = 0;
         g_paid_aim.Reset();
@@ -649,6 +645,7 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
         return;
     }
     if (!cfg.aim_enabled && !cfg.trigger_enabled && !cfg.aim_rcs_standalone) {
+        AimKeyDown(cfg);
         g_active_target_idx = -1;
         g_target_pawn = 0;
         g_paid_aim.Reset();
@@ -687,7 +684,7 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
         rt.world_sample_ms ? rt.world_sample_ms : rt.snapshot_timestamp_ms);
     const float* updateViewMatrix = updateCamera.timestamp_ms
         ? updateCamera.view_matrix : rt.view_matrix;
-    const bool aim_key_down = cfg.aim_enabled && AimKeyDown(cfg);
+    const bool aim_key_down = AimKeyDown(cfg);
     TargetCandidate target{};
     float aim_output_x = 0.f;
     float aim_output_y = 0.f;

@@ -569,7 +569,7 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
     if (!frameViewMatrix)
         return; // no temporally coherent camera — skip frame rather than jitter
     for (const Player& player : snapshot.players) {
-        if (!player.alive || player.is_local) continue;
+        if (!player.alive || player.is_local || (!settings.show_bots && player.is_bot)) continue;
         if (diedSinceSnapshot(player)) {
             continue;
         }
@@ -629,7 +629,7 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
         if (!WorldToScreen(predictedPosition, viewMatrix, feet)) continue;
         // Visual bone age hard limit: after this, do not draw skeleton and do
         // not pin the box head to a stale joint (fallback hull height is used).
-        constexpr uint64_t kBonesVisualMaxAgeMs = 120u;
+        constexpr uint64_t kBonesVisualMaxAgeMs = 160u;
         const bool bonesFresh = player.bones_ok && player.bone_pose_sample_ms &&
             nowMs >= player.bone_pose_sample_ms &&
             (nowMs - player.bone_pose_sample_ms) <= kBonesVisualMaxAgeMs;
@@ -706,7 +706,7 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
             const ImVec2 size = ImGui::CalcTextSize(distance);
             DrawOutlinedText(draw, ImVec2((min.x + max.x - size.x) * .5f, max.y + (settings.weapon_name ? 20.f : 4.f)), Color(settings.col_distance), distance, settings);
         }
-        if (settings.weapon_ammo && player.ammo_clip >= 0) {
+        if (settings.weapon_ammo && settings.weapon_name && player.ammo_clip >= 0) {
             char ammo[32]{}; std::snprintf(ammo, sizeof(ammo), "%d/%d", player.ammo_clip, (std::max)(0, player.ammo_reserve));
             const ImVec2 size = ImGui::CalcTextSize(ammo);
             DrawOutlinedText(draw, ImVec2((min.x + max.x - size.x) * .5f, max.y + 20.f), Color(settings.col_weapon), ammo, settings);

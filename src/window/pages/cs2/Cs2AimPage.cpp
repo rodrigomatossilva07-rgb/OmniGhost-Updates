@@ -11,7 +11,7 @@
 
 namespace {
 
-[[maybe_unused]] const char* VkName(int vk) {
+const char* VkName(int vk) {
     if (vk <= 0) return "-";
     switch (vk) {
     case 1: return "Mouse Esquerdo";
@@ -28,7 +28,7 @@ namespace {
     return buf;
 }
 
-[[maybe_unused]] bool HotkeyCaptureButton(const char* id, int* vk) {
+bool HotkeyCaptureButton(const char* id, int* vk) {
     static int* capturing = nullptr;
     static float blink = 0.f;
     static double ignore_until = 0.0;
@@ -53,21 +53,24 @@ namespace {
             ignore_until = ImGui::GetTime() + 0.28;
         }
     }
+    bool changed = false;
     if (isCap && ImGui::GetTime() >= ignore_until) {
+        if (GetAsyncKeyState(VK_ESCAPE) & 0x8000) {
+            *vk = 0;
+            capturing = nullptr;
+            changed = true;
+        }
         for (int vkScan = 1; vkScan < 256 && capturing; ++vkScan) {
             if (GetAsyncKeyState(vkScan) & 0x8000) {
                 *vk = vkScan;
                 capturing = nullptr;
+                changed = true;
                 break;
             }
         }
-        if (GetAsyncKeyState(VK_ESCAPE) & 0x8000) {
-            *vk = 0;
-            capturing = nullptr;
-        }
     }
     ImGui::PopID();
-    return false;
+    return changed;
 }
 
 } // namespace
@@ -80,12 +83,10 @@ void DrawCs2Aim() {
     CyberWidgets::BeginCard("ASSISTENCIA DE MIRA", left);
     CyberWidgets::ToggleSwitch("Ativar mira", &CS2::config.aim_enabled);
     if (CS2::config.aim_enabled) {
-        // Feature keys are assigned directly on a toggle (double right-click),
-        // never through a separate capture row in this page.
-        if (CS2::config.aim_bind <= 0)
-            CS2::config.aim_bind = 0x02;
-        CS2::config.aim_bind2 = 0;
-        CS2::config.aim_bind3 = 0;
+        CyberWidgets::TextLine("Tecla de ativacao", CyberWidgets::TextTone::Secondary);
+        HotkeyCaptureButton("##cs2_aim_bind", &CS2::config.aim_bind);
+        CyberWidgets::TextLine("Ativa enquanto mantiveres a tecla premida; ao largar, desativa.",
+                               CyberWidgets::TextTone::Secondary);
 
         // 2) Smooth 0..100
         CyberWidgets::SliderFloat(Loc::Tr("aim.smooth"), &CS2::config.aim_smooth, 0.f, 100.f, "%.0f");
