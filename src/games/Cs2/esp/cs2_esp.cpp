@@ -248,104 +248,6 @@ void DrawExtras(ImDrawList* draw, const CS2::Player& player, const ImVec2& head,
     }
 }
 
-void DrawFootprint(ImDrawList* draw, const ImVec2& center, float angle, float scale, ImU32 color) {
-    // A compact vector shoe-print: sole + heel.  It intentionally needs no
-    // texture upload and therefore costs no GPU/resource work per step.
-    const auto ellipse = [&](ImVec2 c, float rx, float ry) {
-        constexpr int kSegments = 12;
-        ImVec2 points[kSegments];
-        const float cs = std::cos(angle), sn = std::sin(angle);
-        for (int i = 0; i < kSegments; ++i) {
-            const float a = (6.283185307f * i) / kSegments;
-            const float x = std::cos(a) * rx, y = std::sin(a) * ry;
-            points[i] = ImVec2(c.x + x * cs - y * sn, c.y + x * sn + y * cs);
-        }
-        draw->AddConvexPolyFilled(points, kSegments, color);
-    };
-    const float cs = std::cos(angle), sn = std::sin(angle);
-    const auto offset = [&](float x, float y) {
-        return ImVec2(center.x + x * cs - y * sn, center.y + x * sn + y * cs);
-    };
-    ellipse(offset(0.f, -5.5f * scale), 4.1f * scale, 8.6f * scale);
-    ellipse(offset(0.f, 6.6f * scale), 3.3f * scale, 4.5f * scale);
-}
-
-void DrawFootstepEsp(ImDrawList* draw, const CS2::Player& player, const float position[3],
-                     const float* viewMatrix, const CS2::Config& settings, ImU32 /*rgb*/,
-                     uint64_t sessionGeneration) {
-    if (!settings.footstep_esp || !player.pawn) return;
-
-    struct Step {
-        uint64_t began_ms = 0;
-        float position[3]{};
-        float yaw = 0.f;
-        bool left = false;
-    };
-    struct FootprintHistory {
-        uint64_t last_step_ms = 0;
-        uint64_t last_seen_ms = 0;
-        bool next_left = false;
-        std::deque<Step> steps;
-    };
-    static std::unordered_map<uintptr_t, FootprintHistory> footprints;
-    static uint64_t footprintsGeneration = 0;
-    if (footprintsGeneration != sessionGeneration) {
-        footprints.clear();
-        footprintsGeneration = sessionGeneration;
-    }
-
-    // P1-10: Use ImGui::GetTime() (monotonic) instead of GetTickCount64() (wall clock)
-    // to avoid step timing issues after NTP time adjustments.
-    const uint64_t now = static_cast<uint64_t>(ImGui::GetTime() * 1000.0);
-    auto& history = footprints[player.pawn];
-    history.last_seen_ms = now;
-    // The data collector treats every speed above stationary jitter as motion,
-    // so this includes slow and silent walking as requested.
-    if (player.is_moving && (now - history.last_step_ms >= 245)) {
-        history.last_step_ms = now;
-        history.next_left = !history.next_left;
-        Step step{};
-        step.began_ms = now;
-        std::memcpy(step.position, position, sizeof(step.position));
-        step.yaw = player.view_yaw;
-        step.left = history.next_left;
-        history.steps.push_back(step);
-    }
-
-    constexpr float kLifetimeMs = 1000.f;
-    while (!history.steps.empty() && now - history.steps.front().began_ms > kLifetimeMs)
-        history.steps.pop_front();
-    for (const Step& step : history.steps) {
-        const float age = static_cast<float>(now - step.began_ms) / kLifetimeMs;
-        const float fade = (1.f - age) * (1.f - age); // smooth one-second fade
-        const ImU32 gold = IM_COL32(218, 165, 32, static_cast<int>(fade * 238.f));
-        ImVec2 projected{};
-        if (!WorldToScreen(step.position, viewMatrix, projected)) continue;
-        // A world yaw cannot be used directly as a screen-space angle while
-        // the camera rotates. Project a short world-space forward vector.
-        const float yaw = step.yaw * 0.0174532925f;
-        const float forward[3] = {step.position[0] + std::cos(yaw) * 18.f,
-                                  step.position[1] + std::sin(yaw) * 18.f,
-                                  step.position[2]};
-        ImVec2 forwardScreen{};
-        const float angle = WorldToScreen(forward, viewMatrix, forwardScreen)
-            ? std::atan2(forwardScreen.y - projected.y, forwardScreen.x - projected.x)
-            : 0.f;
-        DrawFootprint(draw, projected, angle + (step.left ? -.16f : .16f), 1.f + age * .10f, gold);
-    }
-
-    static uint64_t nextFootprintPruneMs = 0;
-    if (now >= nextFootprintPruneMs) {
-        nextFootprintPruneMs = now + 1000;
-        for (auto it = footprints.begin(); it != footprints.end();) {
-            if (now - it->second.last_seen_ms > 5000)
-                it = footprints.erase(it);
-            else
-                ++it;
-        }
-    }
-}
-
 void DrawPersistentWindow(const char* id, const char* title, float& x, float& y,
                           const ImVec2& fallback, const std::function<void()>& content) {
     const bool movable = app_settings::menu_open;
@@ -372,12 +274,16 @@ void DrawPersistentWindow(const char* id, const char* title, float& x, float& y,
 }
 
 void DrawBombTimerWindow(const CS2::Runtime& snapshot, const CS2::Config& settings) {
-    if (!settings.bomb_timer || !snapshot.bomb.planted) return;
+    if (!settings.bomb_timer) return;
     // Window placement is render-thread UI state, not mutable gameplay config.
     static float x = -1.f, y = -1.f;
     if (x < 0.f || y < 0.f) { x = settings.bomb_window_x; y = settings.bomb_window_y; }
     const auto& bomb = snapshot.bomb;
     DrawPersistentWindow("##cs2_bomb_timer", "BOMBA", x, y, ImVec2(30.f, 338.f), [&] {
+            if (!bomb.planted) {
+                ImGui::TextDisabled("Sem bomba plantada");
+                return;
+            }
             const uint64_t now = GetTickCount64();
             const float age = bomb.sample_timestamp_ms && now >= bomb.sample_timestamp_ms
                 ? std::min(static_cast<float>(now - bomb.sample_timestamp_ms) / 1000.f, .50f) : 0.f;
@@ -403,28 +309,6 @@ void DrawSpectatorWindow(const CS2::Runtime& snapshot, const CS2::Config& settin
             for (const auto& spectator : snapshot.spectators)
                 ImGui::BulletText("%s", spectator.name[0] ? spectator.name : "Jogador");
         });
-}
-
-void DrawPlayerFlags(ImDrawList* draw, const CS2::Player& player, const ImVec2& min,
-                     const CS2::Config& settings, ImU32 rgb) {
-    if (!settings.player_flags) return;
-    const ImU32 color = EffectColor(settings, settings.col_flags, rgb);
-    float y = min.y;
-    const float x = min.x - 8.f;
-    const auto add = [&](const char* label) {
-        const ImVec2 size = ImGui::CalcTextSize(label);
-        DrawOutlinedText(draw, ImVec2(x - size.x, y), color, label, settings);
-        y += size.y + 1.f;
-    };
-    if (settings.flag_blind && player.is_flashed) add("BLIND");
-    if (settings.flag_scoped && player.is_scoped) add("SCOPED");
-    if (settings.flag_defusing && player.is_defusing) add("DEFUSING");
-    if (settings.flag_kit && player.has_defuser) add("KIT");
-    if (settings.flag_money && player.money >= 0) {
-        char money[24]{};
-        std::snprintf(money, sizeof(money), "$%d", player.money);
-        add(money);
-    }
 }
 
 void DrawDroppedWeapons(ImDrawList* draw, const CS2::Runtime& snapshot,
@@ -675,16 +559,18 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
         if (settings.box || settings.box_corner) {
             draw->AddRect(ImVec2(min.x - 1.f, min.y - 1.f), ImVec2(max.x + 1.f, max.y + 1.f),
                           IM_COL32(0, 0, 0, 150), 0.f, 0, thickness + 1.f);
-            const float* elementColor = settings.box_corner ? settings.col_box_corner : settings.col_box;
-            const ImU32 color = settings.rgb_mode ? rgbColor
-                : useVisibilityColors && player.visibility_known ? Color(player.visible ? settings.col_visible : settings.col_occluded)
-                : Color(player.team == snapshot.local_team ? settings.col_team : elementColor);
+            const auto boxColor = [&](const float* configured) {
+                return settings.rgb_mode ? rgbColor
+                    : useVisibilityColors && player.visibility_known ? Color(player.visible ? settings.col_visible : settings.col_occluded)
+                    : Color(player.team == snapshot.local_team ? settings.col_team : configured);
+            };
             if (settings.box_fill)
                 draw->AddRectFilled(min, max, Color(settings.col_box_fill), std::clamp(settings.box_rounding, 0.f, 18.f));
+            if (settings.box)
+                draw->AddRect(min, max, boxColor(settings.col_box),
+                              std::clamp(settings.box_rounding, 0.f, 18.f), 0, thickness);
             if (settings.box_corner || settings.box_style == 3)
-                DrawCornerBox(draw, min, max, color, thickness);
-            else
-                draw->AddRect(min, max, color, std::clamp(settings.box_rounding, 0.f, 18.f), 0, thickness);
+                DrawCornerBox(draw, min, max, boxColor(settings.col_box_corner), thickness);
         }
         if (settings.health_bar)
             DrawVerticalBar(draw, min.x - 7.f, min.y, max.y, static_cast<float>(player.health) / 100.f, Color(settings.col_health));
@@ -715,9 +601,6 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
         if (settings.armor_value && player.armor > 0) { char ap[16]{}; std::snprintf(ap, sizeof(ap), "%d", player.armor); DrawOutlinedText(draw, ImVec2(max.x + 8.f, min.y), Color(settings.col_armor), ap, settings); }
         DrawExtras(draw, player, head, feet, min, max, viewMatrix, predictedPosition, settings,
                    rgbColor, snapshot.session_generation);
-        DrawFootstepEsp(draw, player, player.pos, viewMatrix, settings, rgbColor,
-                        snapshot.session_generation);
-        DrawPlayerFlags(draw, player, min, settings, rgbColor);
         lastDrawnMs[player.pawn] = nowMs;
     }
     DrawDroppedWeapons(draw, snapshot, settings, frameViewMatrix);

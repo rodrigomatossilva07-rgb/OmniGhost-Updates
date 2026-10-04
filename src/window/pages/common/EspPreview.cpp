@@ -14,7 +14,7 @@ PlayerGeometry BuildGeometry(const ImVec2& origin, float width, float height) {
     const float imageH = (std::min)(height * 0.70f, width * 0.60f / aspect);
     const float imageW = imageH * aspect;
     const float imageX = origin.x + (width - imageW) * 0.5f;
-    const float imageY = origin.y + height * 0.13f;
+    const float imageY = origin.y + (height - imageH) * 0.5f;
     const auto point = [&](float x, float y) { return ImVec2(imageX + imageW * x, imageY + imageH * y); };
 
     // Landmarks measured on the shared transparent operator portrait. Every overlay
@@ -66,7 +66,7 @@ void DrawCharacterTexture(ImDrawList* dl, const ImVec2& origin, float width, flo
     const float aspect = static_cast<float>(portrait.width) / static_cast<float>(portrait.height);
     const float portraitHeight = (std::min)(height * 0.70f, width * 0.60f / aspect);
     const float portraitWidth = portraitHeight * aspect;
-    const float top = origin.y + height * 0.13f;
+    const float top = origin.y + (height - portraitHeight) * 0.5f;
     const float centerX = origin.x + width * 0.5f;
     dl->AddImage(portrait.id,
         ImVec2(centerX - portraitWidth * 0.5f, top),
@@ -583,7 +583,8 @@ void DrawPreview(ImDrawList* dl, const ImVec2& origin, float width, float height
         // Still draw background + label
         DrawBackground(dl, origin, width, height);
         DrawCharacterTexture(dl, origin, width, height);
-        dl->AddText(ImVec2(origin.x + 12.f, origin.y + 12.f), IM_COL32(215, 215, 210, 210), previewLabel);
+        if (previewLabel && *previewLabel)
+            dl->AddText(ImVec2(origin.x + 12.f, origin.y + 12.f), IM_COL32(215, 215, 210, 210), previewLabel);
         ImGui::Dummy(ImVec2(width, height));
         return;
     }
@@ -593,6 +594,9 @@ void DrawPreview(ImDrawList* dl, const ImVec2& origin, float width, float height
 
     // Resolve colors
     ImU32 boxCol = adapter.GetBoxColor(cfg.rgb_mode, cfg.visibility_colors, cfg.visible_check);
+    const bool sharedBoxColor = cfg.rgb_mode || (cfg.visibility_colors && cfg.visible_check);
+    const ImU32 fullBoxCol = sharedBoxColor ? boxCol : ToImU32(cfg.col_box);
+    const ImU32 cornerBoxCol = sharedBoxColor ? boxCol : ToImU32(cfg.col_box_corner);
     ImU32 skeletonCol = ToImU32(cfg.col_skeleton);
     ImU32 jointsCol = ToImU32(cfg.col_joints);
     ImU32 headCol = ToImU32(cfg.col_head);
@@ -621,8 +625,9 @@ void DrawPreview(ImDrawList* dl, const ImVec2& origin, float width, float height
     DrawCharacterTexture(dl, origin, width, height);
 
     // 4. Boxes
-    if (cfg.box) DrawBox2D(dl, g, boxCol, cfg.box_thickness, cfg.box_rounding, cfg.box_fill, ToImU32(cfg.col_box_fill));
-    if (cfg.box_corner) DrawCornerBox(dl, g, boxCol, cfg.box_thickness);
+    const float previewBoxThickness = (std::max)(cfg.box_thickness, 2.f);
+    if (cfg.box) DrawBox2D(dl, g, fullBoxCol, previewBoxThickness, cfg.box_rounding, cfg.box_fill, ToImU32(cfg.col_box_fill));
+    if (cfg.box_corner) DrawCornerBox(dl, g, cornerBoxCol, previewBoxThickness);
 
     // 5. Skeleton
     if (cfg.skeleton) DrawSkeleton(dl, g, skeletonCol, cfg.skeleton_thickness);
@@ -657,7 +662,8 @@ void DrawPreview(ImDrawList* dl, const ImVec2& origin, float width, float height
     if (cfg.distance) DrawDistance(dl, stack, "18m", distCol, cfg.text_outline, outlineTextCol, cfg.text_outline_thickness);
 
     // Preview label
-    dl->AddText(ImVec2(origin.x + 12.f, origin.y + 12.f), IM_COL32(215, 215, 210, 210), previewLabel);
+    if (previewLabel && *previewLabel)
+        dl->AddText(ImVec2(origin.x + 12.f, origin.y + 12.f), IM_COL32(215, 215, 210, 210), previewLabel);
     dl->PopClipRect();
 
     ImGui::Dummy(ImVec2(width, height));

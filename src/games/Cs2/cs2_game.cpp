@@ -153,12 +153,14 @@ struct OptionalTarget {
     uintptr_t pawn = 0;
     uintptr_t controller = 0;
     uintptr_t scene = 0;
+    float origin[3]{};
     bool has_name = false;
 };
 struct OptionalBoneResult {
     uintptr_t pawn = 0;
     uintptr_t bone_base = 0;
     float bones[kBoneSlotCount][3]{};
+    float origin[3]{};
     uint64_t sample_ms = 0; // midpoint of the bone scatter execute (real read time)
     bool bones_ok = false;
     bool full_bones_ok = false;
@@ -600,7 +602,7 @@ static bool HasEnabledPlayerVisuals(const Config& c) {
         c.health_value || c.armor_value || c.name || c.distance || c.head_dot ||
         c.weapon_name || c.weapon_ammo || c.snaplines || c.trails || c.head_halo ||
         c.look_direction || c.chinese_hat || c.angel_wings || c.devil_horns ||
-        c.floating_crown || c.player_flags || c.footstep_esp;
+        c.floating_crown;
 }
 
 // True only when some feature actually needs the player list this frame.
@@ -1755,7 +1757,15 @@ static bool IsDroppedWeaponClass(const char* name) {
     std::snprintf(lower, sizeof(lower), "%s", name);
     for (char& ch : lower) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
     return std::strstr(lower, "weapon_") != nullptr ||
-        (std::strstr(lower, "c_weapon") != nullptr && std::strstr(lower, "grenade") == nullptr);
+        (std::strstr(lower, "c_weapon") != nullptr && std::strstr(lower, "grenade") == nullptr) ||
+        // Several current Source 2 weapon entities omit "Weapon" entirely.
+        std::strstr(lower, "c_ak47") != nullptr || std::strstr(lower, "c_deagle") != nullptr ||
+        std::strstr(lower, "c_awp") != nullptr || std::strstr(lower, "c_m4a1") != nullptr ||
+        std::strstr(lower, "c_glock") != nullptr || std::strstr(lower, "c_usp") != nullptr ||
+        std::strstr(lower, "c_p250") != nullptr || std::strstr(lower, "c_mp9") != nullptr ||
+        std::strstr(lower, "c_mac10") != nullptr || std::strstr(lower, "c_famas") != nullptr ||
+        std::strstr(lower, "c_galilar") != nullptr || std::strstr(lower, "c_ssg08") != nullptr ||
+        std::strstr(lower, "c_aug") != nullptr || std::strstr(lower, "c_sg556") != nullptr;
 }
 
 static bool DroppedWeaponAllowed(const char* name, const Config& c) {
@@ -1822,7 +1832,7 @@ static void CollectDroppedWeapons(const Config& frame_config, bool in_match,
     const auto publishCachedWeapons = [&] {
         out.clear();
         for (auto it = weapon_cache.begin(); it != weapon_cache.end();) {
-            if (now < it->second.last_seen_ms || now - it->second.last_seen_ms > 1800u) {
+            if (now < it->second.last_seen_ms || now - it->second.last_seen_ms > 3000u) {
                 it = weapon_cache.erase(it);
                 continue;
             }
@@ -1849,10 +1859,13 @@ static void CollectDroppedWeapons(const Config& frame_config, bool in_match,
         publishCachedWeapons();
         return;
     }
-    next_scan_ms = now + 550;
+    next_scan_ms = now + 250;
 
     constexpr size_t kPages = 1, kSlotsPerPage = 0x200, kSlots = kPages * kSlotsPerPage;
-    const size_t first_page = next_page++ % 2;
+    // World entities are not guaranteed to occupy either of the first two
+    // entity pages (especially on community servers). Rotate a bounded page
+    // on each optional pass; the cache bridges the complete sweep.
+    const size_t first_page = next_page++ % 8;
     std::array<uintptr_t, kPages> pages{};
     std::array<uintptr_t, kSlots> entities{}, identities{}, name_ptrs{}, scenes{};
     std::array<std::array<char, 48>, kSlots> names{};
@@ -2323,6 +2336,7 @@ struct PawnCoreFields {
     // distinct, confirmed dead state and must never enter dropout grace.
     int health = -1;
     uint8_t controller_alive = 0xFF; // 0xFF = read unknown
+    uint64_t controller_steam_id = UINT64_MAX; // unread != bot (zero)
     uint8_t team = 0;
     int armor = 0;
     uintptr_t scene = 0;
@@ -2362,6 +2376,7 @@ static void ScatterReadPawnCore(const uintptr_t* pawns, const uintptr_t* control
         fields[i] = {};
         fields[i].health = -1;
         fields[i].controller_alive = 0xFF;
+        fields[i].controller_steam_id = UINT64_MAX;
         fields[i].team = cached_teams ? cached_teams[i] : 0;
         fields[i].armor = cached_armors ? cached_armors[i] : 0;
         fields[i].scene = cachedScene;
@@ -2372,6 +2387,9 @@ static void ScatterReadPawnCore(const uintptr_t* pawns, const uintptr_t* control
         if (controllers && IsUserPointer(controllers[i]) && offsets.m_bPawnIsAlive)
             mem.AddScatterReadRequest(g_scatter_full, controllers[i] + offsets.m_bPawnIsAlive,
                                       &fields[i].controller_alive, sizeof(uint8_t));
+        if (controllers && IsUserPointer(controllers[i]) && offsets.m_steamID)
+            mem.AddScatterReadRequest(g_scatter_full, controllers[i] + offsets.m_steamID,
+                                      &fields[i].controller_steam_id, sizeof(uint64_t));
         if (!IsPlayableTeam(static_cast<int>(fields[i].team)) ||
             (refresh_teams && refresh_teams[i]))
             mem.AddScatterReadRequest(g_scatter_full, pawns[i] + offsets.m_iTeamNum,
@@ -2787,6 +2805,7 @@ static void RunOptionalEnrichment(const Config& frame_config,
                     OptionalBoneResult& r = results.bones[results.bone_count];
                     r.pawn = targets[i].pawn;
                     r.bone_base = boneBases[bi];
+                    std::memcpy(r.origin, targets[i].origin, sizeof(r.origin));
                     // Compact upper-body mapping (head/neck/chest/stomach indices
                     // depend on layout; use sticky when known).
                     static constexpr int kIdx[4] = {6, 5, 4, 2}; // head neck chest stomach common
@@ -2800,6 +2819,7 @@ static void RunOptionalEnrichment(const Config& frame_config,
                         r.bones[s == 3 ? 4 : s][2] = j.z;
                         any = true;
                     }
+                    bool completePose = false;
                     if (need_full_bones) {
                         // Map extended slots conservatively from joint stream.
                         static constexpr int kFullMap[] = {
@@ -2809,14 +2829,26 @@ static void RunOptionalEnrichment(const Config& frame_config,
                             22,23,24,     // left leg
                             25,26,27      // right leg
                         };
+                        completePose = true;
                         for (size_t b = 0; b < kBoneSlotCount && b < sizeof(kFullMap)/sizeof(kFullMap[0]); ++b) {
                             const auto& j = joints[bi][kFullMap[b]];
-                            if (!std::isfinite(j.x)) continue;
+                            if (!std::isfinite(j.x) || !std::isfinite(j.y) || !std::isfinite(j.z)) {
+                                completePose = false;
+                                break;
+                            }
                             r.bones[b][0] = j.x; r.bones[b][1] = j.y; r.bones[b][2] = j.z;
                         }
-                        r.full_bones_ok = true;
+                        if (completePose) {
+                            const float dx = r.bones[0][0] - r.bones[5][0];
+                            const float dy = r.bones[0][1] - r.bones[5][1];
+                            const float dz = r.bones[0][2] - r.bones[5][2];
+                            const float torsoSq = dx * dx + dy * dy + dz * dz;
+                            completePose = torsoSq > 100.f && torsoSq < 36100.f &&
+                                r.bones[0][2] > r.origin[2] + 5.f;
+                        }
+                        r.full_bones_ok = completePose;
                     }
-                    if (any) {
+                    if (any && (!need_full_bones || completePose)) {
                         r.bones_ok = true;
                         r.sample_ms = sampleMs;
                         ++results.bone_count;
@@ -2843,6 +2875,17 @@ static void RunOptionalEnrichment(const Config& frame_config,
                 r.controller = targets[i].controller;
                 std::snprintf(r.name, sizeof(r.name), "%s", name);
             }
+        }
+    }
+
+    // Item discovery must not starve behind per-player weapon metadata.
+    if (frame_config.dropped_weapons && pressure < 1) {
+        mem.SetDmaPriority(Memory::DmaPri::OtherMetadata);
+        if (CS2::GiveCameraPriorityBeforeOptionalDma()) {
+            const auto droppedPhaseBegin = std::chrono::steady_clock::now();
+            CollectDroppedWeapons(frame_config, in_match, client_base, results.dropped_weapons);
+            results.dropped_weapons_valid = true;
+            results.dropped_ms = OmniGhost::Gameplay::TimeMs(droppedPhaseBegin);
         }
     }
 
@@ -2885,16 +2928,6 @@ static void RunOptionalEnrichment(const Config& frame_config,
             }
         }
         results.weapon_ms = OmniGhost::Gameplay::TimeMs(weaponPhaseBegin);
-    }
-
-    // ── Dropped weapons (own budget slice) ─────────────────────────────
-    if (frame_config.dropped_weapons && !!budget.Remaining() && pressure < 1) {
-        mem.SetDmaPriority(Memory::DmaPri::OtherMetadata);
-        CS2::GiveCameraPriorityBeforeOptionalDma();
-        const auto droppedPhaseBegin = std::chrono::steady_clock::now();
-        CollectDroppedWeapons(frame_config, in_match, client_base, results.dropped_weapons);
-        results.dropped_weapons_valid = true;
-        results.dropped_ms = OmniGhost::Gameplay::TimeMs(droppedPhaseBegin);
     }
 
     // P2-8: Track optional budget left for telemetry correlation.
@@ -2971,7 +3004,8 @@ static void QueueOptionalEnrichment(const Config& frame_config) {
         for (const auto& p : runtime.players) {
             if (!IsUserPointer(p.pawn) || !p.alive) continue;
             if (g_optional_targets.size() >= 64) break;
-            g_optional_targets.push_back({p.pawn, p.controller, p.scene, p.name[0] != 0});
+            g_optional_targets.push_back({p.pawn, p.controller, p.scene,
+                                          {p.pos[0], p.pos[1], p.pos[2]}, p.name[0] != 0});
         }
         g_optional_job_generation.store(
             g_session_generation.load(std::memory_order_relaxed), std::memory_order_relaxed);
@@ -3286,9 +3320,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
             std::memcpy(cb.joints, r.bones, sizeof(cb.joints));
             cb.last_valid_ms = r.sample_ms;
             cb.full_pose = r.full_bones_ok;
-            cb.origin[0] = r.bones[0][0];
-            cb.origin[1] = r.bones[0][1];
-            cb.origin[2] = r.bones[0][2];
+            std::memcpy(cb.origin, r.origin, sizeof(cb.origin));
         }
         for (uint32_t i = 0; i < opt->name_count && i < opt->names.size(); ++i) {
             const OptionalNameResult& r = opt->names[i];
@@ -3743,7 +3775,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 if (frame_config.trigger_enabled && frame_config.trigger_use_ident && offsets.m_iIDEntIndex)
                     mem.AddScatterReadRequest(g_scatter_full, runtime.local_pawn + offsets.m_iIDEntIndex,
                                               &crosshair, sizeof(crosshair));
-                if ((frame_config.hit_marker || needRcsState) && offsets.m_iShotsFired)
+                if (needRcsState && offsets.m_iShotsFired)
                     mem.AddScatterReadRequest(g_scatter_full, runtime.local_pawn + offsets.m_iShotsFired,
                                               &shots, sizeof(shots));
                 if (needRcsState && offsets.m_aimPunchAngle)
@@ -3806,7 +3838,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
                         mem.AddScatterReadRequest(g_scatter_full,
                             runtime.local_pawn + offsets.m_iIDEntIndex,
                             &crosshair, sizeof(crosshair));
-                    if ((frame_config.hit_marker || needRcsState) && offsets.m_iShotsFired)
+                    if (needRcsState && offsets.m_iShotsFired)
                         mem.AddScatterReadRequest(g_scatter_full,
                             runtime.local_pawn + offsets.m_iShotsFired,
                             &shots, sizeof(shots));
@@ -3846,7 +3878,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
                         if (frame_config.trigger_enabled && frame_config.trigger_use_ident && offsets.m_iIDEntIndex)
                             mem.AddScatterReadRequest(h, runtime.local_pawn + offsets.m_iIDEntIndex,
                                 &crosshair, sizeof(crosshair));
-                        if ((frame_config.hit_marker || needRcsState) && offsets.m_iShotsFired)
+                        if (needRcsState && offsets.m_iShotsFired)
                             mem.AddScatterReadRequest(h, runtime.local_pawn + offsets.m_iShotsFired,
                                 &shots, sizeof(shots));
                         if (needRcsState && offsets.m_aimPunchAngle)
@@ -3914,7 +3946,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
             if (IsFinitePosition(local_position_sample))
                 std::memcpy(runtime.local_pos, local_position_sample, sizeof(runtime.local_pos));
 
-            if ((frame_config.hit_marker || needRcsState) && offsets.m_iShotsFired && shots >= 0 && shots < 256) {
+            if (needRcsState && offsets.m_iShotsFired && shots >= 0 && shots < 256) {
                 static int previous_shots = -1;
                 if (previous_shots >= 0 && shots > previous_shots)
                     runtime.local_last_shot_ms = GetTickCount64();
@@ -4268,7 +4300,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
     // 20-slot pose is acquired only for the rendered skeleton or body trigger.
     const bool need_full_bones = requested.skeleton ||
         (frame_config.trigger_enabled && !frame_config.trigger_head_only);
-    const bool flagsEnabled = frame_config.player_flags;
+    const bool flagsEnabled = false; // retired player flags
     const bool need_scoped = frame_config.trigger_scoped_only ||
         (flagsEnabled && frame_config.flag_scoped);
     const bool need_flash = flagsEnabled && frame_config.flag_blind;
@@ -4507,6 +4539,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
             corePlayer.armor = core[c].armor;
             corePlayer.team = static_cast<int>(core[c].team);
             corePlayer.alive = true;
+            corePlayer.is_bot = core[c].controller_steam_id == 0;
             corePlayer.is_local = pawn == runtime.local_pawn ||
                 controller == runtime.local_controller;
             corePlayer.pos[0] = positions[c][0];
@@ -4533,11 +4566,19 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 bit->second.entry_generation == currentGen &&
                 bit->second.last_valid_ms) {
                 std::memcpy(corePlayer.bones, bit->second.joints, sizeof(corePlayer.bones));
+                const float cachedShift[3] = {
+                    corePlayer.pos[0] - bit->second.origin[0],
+                    corePlayer.pos[1] - bit->second.origin[1],
+                    corePlayer.pos[2] - bit->second.origin[2]
+                };
+                for (std::size_t bone = 0; bone < kBoneSlotCount; ++bone)
+                    for (int axis = 0; axis < 3; ++axis)
+                        corePlayer.bones[bone][axis] += cachedShift[axis];
                 corePlayer.bones_ok = true;
                 corePlayer.full_bones_ok = bit->second.full_pose;
                 corePlayer.bones_sample_ms = bit->second.last_valid_ms;
                 corePlayer.bone_pose_sample_ms = bit->second.last_valid_ms;
-                corePlayer.bone_origin_sample_ms = bit->second.last_valid_ms;
+                corePlayer.bone_origin_sample_ms = corePlayer.position_sample_ms;
                 corePlayer.head[0] = corePlayer.bones[0][0];
                 corePlayer.head[1] = corePlayer.bones[0][1];
                 corePlayer.head[2] = corePlayer.bones[0][2];
@@ -4548,7 +4589,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 if (sameController && rit->second.player.name[0]) {
                     std::snprintf(corePlayer.name, sizeof(corePlayer.name), "%s",
                         rit->second.player.name);
-                    corePlayer.is_bot = rit->second.player.is_bot;
+                    corePlayer.is_bot = corePlayer.is_bot || rit->second.player.is_bot;
                     rit->second.last_seen_ms = scan_now_ms;
                 }
                 if (rit->second.player.weapon[0])
@@ -4559,8 +4600,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 corePlayer.visibility_known = rit->second.player.visibility_known;
                 corePlayer.visible = rit->second.player.visible;
             }
-            if (!frame_config.show_bots && corePlayer.is_bot)
-                continue;
+            // Keep bots in the acquisition snapshot: the optional identity
+            // worker must see them before the renderer can filter them.
             if (!corePlayer.is_local && corePlayer.team != runtime.local_team)
                 ++runtime.enemy_count;
             runtime.players.push_back(corePlayer);
@@ -5235,7 +5276,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
     bool readMoney[kMaxSlots]{};
     bool readKit[kMaxSlots]{};
     bool readDefuse[kMaxSlots]{};
-    if (allow_auxiliary_phase && frame_config.player_flags) {
+    if (false && allow_auxiliary_phase && frame_config.player_flags) {
         ScopedPhase _phFlags(&g_phase.flags_ms);
         bool queuedFirst = false;
         for (int c = 0; c < candidate_count; ++c) {

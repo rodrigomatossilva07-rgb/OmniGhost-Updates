@@ -110,8 +110,6 @@ static Cs2PreviewAdapter g_cs2Adapter;
 
 // Preview-only toggles (not connected to real config)
 static bool previewSelfEsp = false;
-static bool previewDead = false;
-static bool previewKnocked = false;
 
 void PreviewToggle(const char* label, bool* value) {
     CyberWidgets::ToggleSwitch(label, value);
@@ -135,7 +133,6 @@ void DrawCs2Visuals() {
     CyberWidgets::Separator();
     ImGui::BeginDisabled(!CS2::config.esp_enabled);
     PreviewToggle("ESP próprio", &previewSelfEsp); CyberWidgets::ToggleSwitch("Mostrar bots", &CS2::config.show_bots);
-    PreviewToggle("Mostrar mortos", &previewDead); PreviewToggle("Mostrar caídos", &previewKnocked);
     CyberWidgets::ToggleSwitch("Verificação de visibilidade", &CS2::config.visible_check);
     CyberWidgets::ToggleSwitch("Ocultar equipa", &CS2::config.team_check);
     CyberWidgets::Separator();
@@ -236,14 +233,14 @@ void DrawCs2Visuals() {
 
     // ---- PREVIEW PANEL ----
     ImGui::BeginGroup();
-    CyberWidgets::BeginCard("PRÉ-VISUALIZAÇÃO", previewWidth);
+    CyberWidgets::BeginCard("", previewWidth);
     const float panelHeight = (std::max)(CyberTheme::Px(300.f), height - CyberTheme::Metrics::CardHeaderHeight - CyberTheme::Metrics::CardPadding * 2.f - CyberTheme::Px(12.f));
     const float drawWidth = (std::max)(CyberTheme::Px(180.f), previewWidth - CyberTheme::Metrics::CardPadding * 2.f);
 
     ImDrawList* dl = ImGui::GetWindowDrawList();
     const ImVec2 origin = ImGui::GetCursorScreenPos();
 
-    EspPreview::DrawPreview(dl, origin, drawWidth, panelHeight, g_cs2Adapter, "PRÉ-VISUALIZAÇÃO ESP");
+    EspPreview::DrawPreview(dl, origin, drawWidth, panelHeight, g_cs2Adapter, "");
 
     CyberWidgets::EndCard();
     ImGui::EndGroup();
