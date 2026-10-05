@@ -102,6 +102,7 @@ namespace CyberWidgets {
             { "nav.aim",     MenuTab::TAB_CS2_AIM,     CyberIcons::DrawAimIcon },
             { "nav.misc",    MenuTab::TAB_CS2_MISC,    CyberIcons::DrawWrenchIcon },
             { "nav.radar",   MenuTab::TAB_CS2_RADAR,   CyberIcons::DrawRadarIcon },
+            { "nav.status",  MenuTab::TAB_CS2_STATUS,  CyberIcons::DrawStatusIcon },
             { "nav.configs", MenuTab::TAB_CONFIGS,     CyberIcons::DrawSettingsIcon },
             { "nav.save",    MenuTab::TAB_SAVECONFIG,  CyberIcons::DrawSaveIcon },
         };

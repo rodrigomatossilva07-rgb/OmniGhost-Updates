@@ -178,7 +178,8 @@ namespace esp {
         const std::vector<Vec3>& origins, uint16_t bone_mask = 0x01FFu);
     void prepare_esp_frame(const std::vector<uintptr_t>& peds, const std::vector<Vec3>& origins,
         const std::vector<float>& coreHealths,
-        const Config& frameConfig, const aimbot::Config& aimConfig);
+        const Config& frameConfig, const aimbot::Config& aimConfig,
+        const std::vector<bool>* visibilityResults = nullptr);
     void PrepareWaypointAndBlips(const Config& frameConfig, const Vec3& localPos);
     void ShutdownWaypointAndBlips();
     void ShutdownPreparedFrames();

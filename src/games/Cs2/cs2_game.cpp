@@ -2775,15 +2775,24 @@ static void RunOptionalEnrichment(const Config& frame_config,
     }
 
     // ── Bones micro-batches ────────────────────────────────────────────
-    if (need_bones && !!budget.Remaining() && pressure < 2) {
+    if (need_bones && !!budget.Remaining() && pressure < 3) {
         mem.SetDmaPriority(Memory::DmaPri::Bones);
         const auto bonesPhaseBegin = std::chrono::steady_clock::now();
-        constexpr int kBatch = 8;
+        // Optional work must yield between small batches; pressure 2 still
+        // refreshes one pose at a time instead of letting every skeleton age out.
+        constexpr int kBatch = 2;
         constexpr int kJointCount = 28;
         struct BoneJointSnapshot { float x, y, z, scale; char pad[0x10]; };
         static_assert(sizeof(BoneJointSnapshot) == 32, "BoneJointSnapshot");
 
-        for (size_t base = 0; base < targets.size() && !!budget.Remaining(); base += kBatch) {
+        if (pressure >= 2 && targets.size() > 1) {
+            static size_t recoveryCursor = 0; // optional worker is the sole caller
+            recoveryCursor %= targets.size();
+            std::rotate(targets.begin(), targets.begin() + recoveryCursor, targets.end());
+            ++recoveryCursor;
+        }
+
+        for (size_t base = 0; base < targets.size() && !!budget.Remaining();) {
             if (g_optional_stop.load(std::memory_order_acquire)) return;
             if (jobGen != g_session_generation.load(std::memory_order_acquire)) return;
             if (OptionalDmaShouldYieldToCamera()) {
@@ -2794,7 +2803,7 @@ static void RunOptionalEnrichment(const Config& frame_config,
             }
             if (!CS2::GiveCameraPriorityBeforeOptionalDma())
                 break; // camera still busy — defer remaining bone batches
-            const size_t end = (std::min)(targets.size(), base + static_cast<size_t>(kBatch));
+            const size_t end = (std::min)(targets.size(), base + static_cast<size_t>(pressure >= 2 ? 1 : kBatch));
             uintptr_t boneBases[kBatch]{};
             BoneJointSnapshot joints[kBatch][kJointCount]{};
             bool eligible[kBatch]{};
@@ -2835,16 +2844,26 @@ static void RunOptionalEnrichment(const Config& frame_config,
                     if (!eligible[bi]) continue;
                     if (results.bone_count >= results.bones.size()) break;
                     OptionalBoneResult& r = results.bones[results.bone_count];
+                    r = OptionalBoneResult{}; // rejected candidate must not contaminate the next slot
                     r.pawn = targets[i].pawn;
                     r.bone_base = boneBases[bi];
                     std::memcpy(r.origin, targets[i].origin, sizeof(r.origin));
+                    const auto validJoint = [&](const BoneJointSnapshot& j) {
+                        if (!std::isfinite(j.x) || !std::isfinite(j.y) || !std::isfinite(j.z))
+                            return false;
+                        const float dx = j.x - r.origin[0];
+                        const float dy = j.y - r.origin[1];
+                        const float dz = j.z - r.origin[2];
+                        return dx * dx + dy * dy < 180.f * 180.f &&
+                            dz > -50.f && dz < 200.f;
+                    };
                     // Compact upper-body mapping (head/neck/chest/stomach indices
                     // depend on layout; use sticky when known).
                     static constexpr int kIdx[4] = {6, 5, 4, 2}; // head neck chest stomach common
                     bool any = false;
                     for (int s = 0; s < 4; ++s) {
                         const auto& j = joints[bi][kIdx[s]];
-                        if (!std::isfinite(j.x) || !std::isfinite(j.y) || !std::isfinite(j.z))
+                        if (!validJoint(j))
                             continue;
                         r.bones[s == 3 ? 4 : s][0] = j.x;
                         r.bones[s == 3 ? 4 : s][1] = j.y;
@@ -2864,18 +2883,25 @@ static void RunOptionalEnrichment(const Config& frame_config,
                         completePose = true;
                         for (size_t b = 0; b < kBoneSlotCount && b < sizeof(kFullMap)/sizeof(kFullMap[0]); ++b) {
                             const auto& j = joints[bi][kFullMap[b]];
-                            if (!std::isfinite(j.x) || !std::isfinite(j.y) || !std::isfinite(j.z)) {
-                                completePose = false;
-                                break;
-                            }
+                            if (!validJoint(j)) continue; // renderer omits that segment
                             r.bones[b][0] = j.x; r.bones[b][1] = j.y; r.bones[b][2] = j.z;
                         }
+                        // A pose is drawable only when the torso has coherent
+                        // joints. A corrupt limb cannot invalidate the torso or
+                        // turn into a long line from the head.
+                        for (size_t b : {size_t{0}, size_t{1}, size_t{2}, size_t{5}})
+                            if (r.bones[b][0] == 0.f && r.bones[b][1] == 0.f && r.bones[b][2] == 0.f)
+                                completePose = false;
                         if (completePose) {
                             const float dx = r.bones[0][0] - r.bones[5][0];
                             const float dy = r.bones[0][1] - r.bones[5][1];
                             const float dz = r.bones[0][2] - r.bones[5][2];
                             const float torsoSq = dx * dx + dy * dy + dz * dz;
-                            completePose = torsoSq > 100.f && torsoSq < 36100.f &&
+                            const float hnX = r.bones[0][0] - r.bones[1][0];
+                            const float hnY = r.bones[0][1] - r.bones[1][1];
+                            const float hnZ = r.bones[0][2] - r.bones[1][2];
+                            completePose = torsoSq > 100.f && torsoSq < 140.f * 140.f &&
+                                hnX * hnX + hnY * hnY + hnZ * hnZ < 55.f * 55.f &&
                                 r.bones[0][2] > r.origin[2] + 5.f;
                         }
                         r.full_bones_ok = completePose;
@@ -2887,6 +2913,7 @@ static void RunOptionalEnrichment(const Config& frame_config,
                     }
                 }
             } // approx per micro-batch
+            base = end;
         }
         results.bones_ms = OmniGhost::Gameplay::TimeMs(bonesPhaseBegin);
     }

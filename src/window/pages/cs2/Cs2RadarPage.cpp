@@ -3,11 +3,13 @@
 #include "config/cs2_config.h"
 #include "cs2_game.h"
 #include "radar/cs2_radar.h"
+#include "platform/offset_auto.h"
 #include "imgui.h"
 #include <Windows.h>
 #include <shellapi.h>
 #include <algorithm>
 #include <cstdio>
+#include <cmath>
 #include <string>
 
 namespace {
@@ -111,4 +113,99 @@ void DrawCs2Radar() {
     CyberWidgets::KeyValueRow("Cloudflare", line);
     CyberWidgets::EndCard();
     ImGui::EndGroup();
+}
+
+void DrawCs2Status() {
+    using namespace CyberWidgets;
+    const auto world = CS2::AcquireRuntimeSnapshot();
+    const auto camera = CS2::AcquireCameraSnapshot();
+    const auto compatibility = OmniGhost::OffsetAuto::Compatibility(ActiveGame::CS2);
+    const uint64_t now = GetTickCount64();
+    const bool worker = CS2::AcquisitionRunning();
+    const bool worldFresh = worker && world && world->snapshot_timestamp_ms &&
+        now >= world->snapshot_timestamp_ms && now - world->snapshot_timestamp_ms < 1000;
+    const bool attached = worldFresh && world->client_base != 0;
+    bool matrixValid = false;
+    if (camera && camera->timestamp_ms) {
+        int nonzero = 0;
+        matrixValid = true;
+        for (float value : camera->view_matrix) {
+            if (!std::isfinite(value)) { matrixValid = false; break; }
+            if (std::fabs(value) > 0.00001f) ++nonzero;
+        }
+        matrixValid = matrixValid && nonzero >= 4;
+    }
+    const bool cameraFresh = attached && matrixValid &&
+        now >= camera->timestamp_ms && now - camera->timestamp_ms < 250;
+    const bool offsetsOk = attached &&
+        compatibility.state == OmniGhost::OffsetAuto::CompatibilityState::Ready;
+
+    BeginCardRow();
+    const float half = CardRowHalfWidth();
+    BeginCard("SISTEMA CS2", half);
+    HealthRow("Aquisição", worker ? "Ativa" : "Parada",
+        worker ? HealthStatus::Ok : HealthStatus::Warning);
+    HealthRow("Leitura do jogo", attached ? "Dados recentes" : "Sem dados recentes",
+        attached ? HealthStatus::Ok : HealthStatus::Warning);
+    HealthRow("Offsets", offsetsOk ? "Validados no jogo" :
+        compatibility.state == OmniGhost::OffsetAuto::CompatibilityState::Outdated ?
+        "Incompatíveis" : "Por validar",
+        offsetsOk ? HealthStatus::Ok :
+        compatibility.state == OmniGhost::OffsetAuto::CompatibilityState::Outdated ?
+        HealthStatus::Error : HealthStatus::Warning);
+    HealthRow("ViewMatrix", cameraFresh ? "Atual" : "Indisponível ou antiga",
+        cameraFresh ? HealthStatus::Ok : HealthStatus::Warning);
+    HealthRow("EntityList", attached && world->entity_list_addr ? "Resolvida" : "A aguardar",
+        attached && world->entity_list_addr ? HealthStatus::Ok : HealthStatus::Warning);
+    EndCard();
+
+    NextCardColumn();
+    BeginCard("PARTIDA", half);
+    HealthRow("Estado", attached && world->in_match ? "Em partida" : "Fora da partida",
+        attached && world->in_match ? HealthStatus::Ok : HealthStatus::Warning);
+    HealthRow("Jogador local", attached && world->local_pawn ? "Detetado" : "A aguardar",
+        attached && world->local_pawn ? HealthStatus::Ok : HealthStatus::Warning);
+    char value[96]{};
+    std::snprintf(value, sizeof(value), "%d", attached ? world->player_count : 0);
+    KeyValueRow("Jogadores remotos", value);
+    KeyValueRow("Mapa", attached && world->map_name[0] ? world->map_name : "-");
+    EndCard();
+    EndCardRow();
+
+    CardGap();
+    BeginCard("FRESCURA DOS DADOS");
+    if (worldFresh) {
+        std::snprintf(value, sizeof(value), "%llu ms",
+            static_cast<unsigned long long>(now - world->snapshot_timestamp_ms));
+        KeyValueRow("Snapshot do mundo", value);
+        if (world->world_sample_ms && now >= world->world_sample_ms) {
+            std::snprintf(value, sizeof(value), "%llu ms",
+                static_cast<unsigned long long>(now - world->world_sample_ms));
+            KeyValueRow("Amostra do mundo", value);
+        }
+        std::snprintf(value, sizeof(value), "%.1f Hz", world->acquisition_hz);
+        KeyValueRow("Aquisição", value);
+        std::snprintf(value, sizeof(value), "%llu",
+            static_cast<unsigned long long>(world->read_fails));
+        KeyValueRow("Falhas de leitura", value);
+        std::snprintf(value, sizeof(value), "%d", CS2::DmaPressureLevel());
+        KeyValueRow("Pressão DMA", value);
+    } else {
+        TextLine("Sem snapshot recente; entra no jogo e aguarda a aquisição.", TextTone::Secondary);
+    }
+    if (camera && camera->timestamp_ms && now >= camera->timestamp_ms) {
+        std::snprintf(value, sizeof(value), "%llu ms",
+            static_cast<unsigned long long>(now - camera->timestamp_ms));
+        KeyValueRow("Amostra da câmara", value);
+    }
+    EndCard();
+
+    if (!compatibility.detail.empty()) {
+        CardGap();
+        BeginCard("COMPATIBILIDADE");
+        TextLine(compatibility.detail.c_str(),
+            compatibility.state == OmniGhost::OffsetAuto::CompatibilityState::Outdated ?
+            TextTone::Warning : TextTone::Secondary);
+        EndCard();
+    }
 }

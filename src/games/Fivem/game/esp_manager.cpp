@@ -412,10 +412,10 @@ namespace FiveM {
                     if (!job.peds.empty() && pressure < 2 && checkGen()) {
                         const bool needVis = job.espConfig.visibility_colors ||
                             job.espConfig.visible_check || job.aimConfig.visible_check;
+                        std::vector<bool> prodVis; // Local per-job visibility results
                         if (needVis) {
                             mem.SetDmaPriority(Memory::DmaPri::OtherMetadata);
                             GiveCameraPriorityBeforeOptionalDma();
-                            static std::vector<bool> prodVis;
                             FiveM::Visibility::BatchCheckVisibility(job.peds, prodVis);
                         }
                         if (job.friendsListRequested || job.espConfig.enabled ||
@@ -424,8 +424,10 @@ namespace FiveM {
                              (job.espConfig.team_check || friends::HasFriends()))) {
                             mem.SetDmaPriority(Memory::DmaPri::WeaponNameTeam);
                             GiveCameraPriorityBeforeOptionalDma();
+                            // Pass visibility results directly to prepare_esp_frame for immediate
+                            // integration into PreparedEspData, bypassing cache timing issues.
                             esp::prepare_esp_frame(job.peds, job.positions, job.healths,
-                                job.espConfig, job.aimConfig);
+                                job.espConfig, job.aimConfig, needVis ? &prodVis : nullptr);
                         }
                     }
                     if (job.boneMask && !job.peds.empty() && pressure < 2 && elapsed() < kBudgetMs && checkGen()) {

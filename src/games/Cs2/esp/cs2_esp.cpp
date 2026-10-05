@@ -68,7 +68,7 @@ void DrawVerticalBar(ImDrawList* draw, float x, float top, float bottom, float f
 
 void DrawSkeleton(ImDrawList* draw, const CS2::Player& player, const float viewMatrix[16],
                   const float positionOffset[3],
-                  ImU32 color, ImU32 jointColor, float thickness, bool joints) {
+                  ImU32 color, ImU32 jointColor, float thickness, bool joints, float bodyHeightPx) {
     if (!player.full_bones_ok) return;
 
     // Compact reference-style rig: exactly 13 visible segments.
@@ -91,8 +91,13 @@ void DrawSkeleton(ImDrawList* draw, const CS2::Player& player, const float viewM
     }
     std::array<ImVec2, CS2::kBoneSlotCount> points{};
     std::array<bool, CS2::kBoneSlotCount> valid{};
+    std::array<bool, CS2::kBoneSlotCount> drawn{};
     for (std::size_t index = 0; index < CS2::kBoneSlotCount; ++index) {
         if (!used[index]) continue;
+        const float* bone = player.bones[index];
+        if (!std::isfinite(bone[0]) || !std::isfinite(bone[1]) || !std::isfinite(bone[2]) ||
+            (bone[0] == 0.f && bone[1] == 0.f && bone[2] == 0.f))
+            continue;
         const float predictedBone[3] = {
             player.bones[index][0] + positionOffset[0],
             player.bones[index][1] + positionOffset[1],
@@ -103,13 +108,25 @@ void DrawSkeleton(ImDrawList* draw, const CS2::Player& player, const float viewM
     for (const auto& [from, to] : kLinks) {
         const auto a = static_cast<std::size_t>(from), b = static_cast<std::size_t>(to);
         if (!valid[a] || !valid[b]) continue;
+        const float dx = player.bones[a][0] - player.bones[b][0];
+        const float dy = player.bones[a][1] - player.bones[b][1];
+        const float dz = player.bones[a][2] - player.bones[b][2];
+        const float maxWorldLength = from == CS2::BoneSlot::Head ? 55.f : 100.f;
+        if (dx * dx + dy * dy + dz * dz > maxWorldLength * maxWorldLength)
+            continue;
+        const float sx = points[a].x - points[b].x;
+        const float sy = points[a].y - points[b].y;
+        const float maxScreenLength = (std::max)(50.f, bodyHeightPx * 0.9f);
+        if (sx * sx + sy * sy > maxScreenLength * maxScreenLength)
+            continue;
+        drawn[a] = drawn[b] = true;
         draw->AddLine(points[a], points[b], IM_COL32(0, 0, 0, 195), thickness + 1.4f);
         draw->AddLine(points[a], points[b], color, thickness);
     }
     if (joints) {
         for (std::size_t index = 0; index < CS2::kBoneSlotCount; ++index) {
             if (!used[index]) continue;
-            if (!valid[index]) continue;
+            if (!drawn[index]) continue;
             draw->AddCircleFilled(points[index], 2.3f, IM_COL32(0, 0, 0, 195), 8);
             draw->AddCircleFilled(points[index], 1.4f, jointColor, 8);
         }
@@ -518,8 +535,14 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
         const bool bonesFresh = player.bones_ok && player.bone_pose_sample_ms &&
             nowMs >= player.bone_pose_sample_ms &&
             (nowMs - player.bone_pose_sample_ms) <= kBonesVisualMaxAgeMs;
+        const float headDx = player.bones[static_cast<size_t>(BoneSlot::Head)][0] - player.pos[0];
+        const float headDy = player.bones[static_cast<size_t>(BoneSlot::Head)][1] - player.pos[1];
+        const float headDz = player.bones[static_cast<size_t>(BoneSlot::Head)][2] - player.pos[2];
+        const bool headPlausible = std::isfinite(headDx) && std::isfinite(headDy) &&
+            std::isfinite(headDz) && headDx * headDx + headDy * headDy < 100.f * 100.f &&
+            headDz > 5.f && headDz < 160.f;
         float headWorld[3] = { predictedPosition[0], predictedPosition[1], predictedPosition[2] + 72.f };
-        if (bonesFresh) {
+        if (bonesFresh && headPlausible) {
             headWorld[0] = player.bones[static_cast<size_t>(BoneSlot::Head)][0] + boneOffset[0];
             headWorld[1] = player.bones[static_cast<size_t>(BoneSlot::Head)][1] + boneOffset[1];
             headWorld[2] = player.bones[static_cast<size_t>(BoneSlot::Head)][2] + boneOffset[2];
@@ -577,12 +600,12 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
             DrawVerticalBar(draw, min.x - 7.f, min.y, max.y, static_cast<float>(player.health) / 100.f, Color(settings.col_health));
         if (settings.armor_bar)
             DrawVerticalBar(draw, max.x + 3.f, min.y, max.y, static_cast<float>(player.armor) / 100.f, Color(settings.col_armor));
-        if (settings.skeleton && bonesFresh && player.full_bones_ok) {
+        if (settings.skeleton && bonesFresh && headPlausible && player.full_bones_ok) {
             const ImU32 skeletonColor = settings.rgb_mode ? rgbColor
                 : useVisibilityColors && player.visibility_known ? Color(player.visible ? settings.col_visible : settings.col_occluded)
                 : Color(settings.col_skeleton);
             DrawSkeleton(draw, player, viewMatrix, boneOffset, skeletonColor, Color(settings.col_joints),
-                         std::clamp(settings.skeleton_thickness, .5f, 4.f), settings.skeleton_joints);
+                         std::clamp(settings.skeleton_thickness, .5f, 4.f), settings.skeleton_joints, height);
         }
         if (settings.name && player.name[0]) {
             const ImVec2 size = ImGui::CalcTextSize(player.name);

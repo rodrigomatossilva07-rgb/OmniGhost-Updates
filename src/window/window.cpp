@@ -55,6 +55,7 @@ namespace {
         case MenuTab::TAB_CS2_VISUALS:      return { "VISUAIS CS2", "ESP de jogadores" };
         case MenuTab::TAB_CS2_AIM:          return { "MIRA CS2", "Perfis e assistência de mira" };
         case MenuTab::TAB_CS2_MISC:         return { "DIVERSOS CS2", "Widgets, bomba e utilitários" };
+        case MenuTab::TAB_CS2_STATUS:       return { Loc::Tr("nav.status"), app_settings::T("Ligação, offsets e estado em tempo real", "Connection, offsets and live status") };
         case MenuTab::TAB_WARZONE_AIM:      return { "MIRA WARZONE", "Alvo, precisão e suavidade" };
         case MenuTab::TAB_WARZONE_VISUALS:  return { "VISUAIS WARZONE", "ESP de jogadores" };
         case MenuTab::TAB_WARZONE_RADAR:    return { "RADAR WARZONE", "Posições e orientação" };
@@ -133,6 +134,7 @@ namespace {
         case MenuTab::TAB_CS2_AIM:     DrawCs2Aim(); break;
         case MenuTab::TAB_CS2_MISC:    DrawCs2Misc(); break;
         case MenuTab::TAB_CS2_RADAR:   DrawCs2Radar(); break;
+        case MenuTab::TAB_CS2_STATUS:  DrawCs2Status(); break;
         case MenuTab::TAB_WARZONE_AIM:      DrawWarzoneAim(); break;
         case MenuTab::TAB_WARZONE_VISUALS:  DrawWarzoneVisuals(); break;
         case MenuTab::TAB_WARZONE_RADAR:    DrawWarzoneRadar(); break;

@@ -1588,7 +1588,8 @@ void esp::prepare_esp_frame(const std::vector<uintptr_t>& peds,
                             const std::vector<Vec3>& origins,
                             const std::vector<float>& coreHealths,
                             const Config& frameConfig,
-                            const aimbot::Config& aimConfig) {
+                            const aimbot::Config& aimConfig,
+                            const std::vector<bool>* visibilityResults) {
     PreparedEspFrame next;
     // This executes on the acquisition thread: never call ImGui from here.
     next.frame = g_prepared_sequence.fetch_add(1, std::memory_order_relaxed) + 1;
@@ -1651,14 +1652,27 @@ void esp::prepare_esp_frame(const std::vector<uintptr_t>& peds,
     next.renderConfig.skeleton_lod = frameConfig.skeleton_lod;
 
     const auto publish = [&](PreparedEspFrame&& frame) {
-        for (auto& entry : frame.entries) {
-            PedData pedData;
-            if (!g_pedCacheManager.getPedData(entry.ped, pedData)) continue;
-            entry.visibility_known = pedData.visibility_known &&
-                std::chrono::steady_clock::now() - pedData.visibility_updated <
-                    std::chrono::milliseconds(80);
-            entry.visible = entry.visibility_known && pedData.visible;
-            entry.visibility_flag = pedData.visibility_flag;
+        // Use direct visibility results if provided (from optional thread DMA),
+        // otherwise fall back to cache lookup.
+        if (visibilityResults && visibilityResults->size() == frame.entries.size()) {
+            for (size_t i = 0; i < frame.entries.size(); ++i) {
+                auto& entry = frame.entries[i];
+                if (!entry.ped) continue;
+                entry.visibility_known = true;
+                entry.visible = (*visibilityResults)[i];
+                entry.visibility_flag = entry.visible ? 1 : 0;
+            }
+        } else {
+            // Fallback: read from cache (for backward compatibility / early returns)
+            for (auto& entry : frame.entries) {
+                PedData pedData;
+                if (!g_pedCacheManager.getPedData(entry.ped, pedData)) continue;
+                entry.visibility_known = pedData.visibility_known &&
+                    std::chrono::steady_clock::now() - pedData.visibility_updated <
+                        std::chrono::milliseconds(80);
+                entry.visible = entry.visibility_known && pedData.visible;
+                entry.visibility_flag = pedData.visibility_flag;
+            }
         }
         std::unique_lock lock(g_prepared_esp_mutex);
         g_prepared_esp = std::move(frame);
