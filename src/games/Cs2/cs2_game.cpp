@@ -14,6 +14,9 @@
 #include "gameplay/scoped_phase.h"
 #include "trajectory/cs2_map_collision_cache.h"
 #include "trajectory/cs2_visibility.h"
+#include "gameplay/unified_esp.h"
+#include "gameplay/unified_optional_thread.h"
+#include "unified_adapter.h"
 
 #include <Windows.h>
 #include <TlHelp32.h>
@@ -102,7 +105,8 @@ constexpr int BONES_INTERVAL_MS = 24;       // near skeleton tier (~42 Hz)
 constexpr int FULL_SCAN_INTERVAL_MS = 18;   // position / HP / core identity
 constexpr int WEAPON_INTERVAL_MS = 200;
 constexpr int WEAPON_FALLBACK_INTERVAL_MS = 3000;
-constexpr int ENTITY_LIST_INTERVAL_MS = 250;
+constexpr int ENTITY_LIST_INTERVAL_MS = 1000;  // increased from 250ms - entity list is very stable
+constexpr int ENTITY_LIST_FULL_PROBE_INTERVAL_MS = 15000;  // increased from 4500ms - full page scan very stable
 constexpr int NAME_INTERVAL_MS = 1000;      // low-frequency identity
 // Bridge occasional missed bone reads without retaining an obsolete pose indefinitely.
 // This must match the renderer's visual age ceiling; 50 ms was shorter than
@@ -170,15 +174,24 @@ struct OptionalBoneResult {
 };
 struct OptionalNameResult { uintptr_t pawn = 0; uintptr_t controller = 0; char name[64]{}; };
 struct OptionalWeaponResult { uintptr_t pawn = 0; int weapon_def = 0; char weapon[32]{}; int ammo_clip = -1; };
+struct OptionalVisibilityResult {
+    uintptr_t pawn = 0;
+    bool visible = false;
+    bool known = false;
+    uint64_t checked_ms = 0;
+};
 struct OptionalResults {
     uint64_t generation = 0;
     std::array<OptionalBoneResult, 64> bones{};
     std::array<OptionalNameResult, 64> names{};
     std::array<OptionalWeaponResult, 64> weapons{};
+    std::array<OptionalVisibilityResult, 64> visibility{};
     uint32_t name_count = 0, weapon_count = 0;
     uint32_t bone_count = 0;
+    uint32_t visibility_count = 0;
     float bones_ms = 0.f;
     float weapon_ms = 0.f;
+    float visibility_ms = 0.f;
     float dropped_ms = 0.f;        // P2-8: dropped weapons timing
     float budget_left_ms = 0.f;    // P2-8: optional budget remaining
     std::vector<DroppedWeapon> dropped_weapons;
@@ -1709,7 +1722,7 @@ static bool RefreshEntityListEntry() {
         // Full multi-page/dual-stride validation is intentionally rare.
         // The cheap primary-page pointer confirmation runs between these probes.
         g_entity_list_next_validation_ms = nowMs + ENTITY_LIST_INTERVAL_MS;
-        g_entity_list_next_full_probe_ms = nowMs + 4500u;
+        g_entity_list_next_full_probe_ms = nowMs + ENTITY_LIST_FULL_PROBE_INTERVAL_MS;
         g_entity_list_force_refresh = false;
         return true;
     }
@@ -1728,7 +1741,7 @@ static bool RefreshEntityListEntry() {
             g_pending_entity_list = 0;
             g_entity_list_confirmations = 0;
             g_entity_list_next_validation_ms = nowMs + ENTITY_LIST_INTERVAL_MS;
-            g_entity_list_next_full_probe_ms = nowMs + 4500u;
+            g_entity_list_next_full_probe_ms = nowMs + ENTITY_LIST_FULL_PROBE_INTERVAL_MS;
             g_entity_list_force_refresh = false;
             return true;
         }
@@ -1744,7 +1757,7 @@ static bool RefreshEntityListEntry() {
     g_pending_entity_list = 0;
     g_entity_list_confirmations = 0;
     g_entity_list_next_validation_ms = nowMs + ENTITY_LIST_INTERVAL_MS;
-    g_entity_list_next_full_probe_ms = nowMs + 4500u;
+    g_entity_list_next_full_probe_ms = nowMs + ENTITY_LIST_FULL_PROBE_INTERVAL_MS;
     g_entity_list_force_refresh = false;
     return true;
 }
@@ -2373,6 +2386,7 @@ struct PawnCoreFields {
     uintptr_t scene = 0;
     float velocity[3]{};
     bool spotted = true;
+    bool spotted_known = false;
     uint8_t scoped = 0;
     float flash = 0.f;
     float eye_angles[2]{};
@@ -2382,14 +2396,18 @@ struct PawnCoreFields {
 static void ScatterReadPawnCore(const uintptr_t* pawns, const uintptr_t* controllers,
                                 PawnCoreFields* fields, int count,
                                 bool need_armor, bool need_scoped, bool need_flash,
-                                 bool need_yaw, bool need_weapons, bool need_spotted,
+                                 bool need_yaw, bool need_weapon_services, bool need_spotted,
                                  const uint8_t* cached_teams,
                                  const bool* refresh_teams,
                                  const int* cached_armors,
                                  const bool* refresh_armors,
                                 const uintptr_t* cached_scenes,
                                 const bool* refresh_scenes,
-                                float (*positions)[3], bool need_velocity) {
+                                float (*positions)[3], bool need_velocity,
+                                const uintptr_t* cached_weapon_services,
+                                const bool* refresh_weapon_services,
+                                const bool* cached_spotted,
+                                const bool* refresh_spotted) {
     if (!pawns || !fields || count <= 0) return;
     EnsureScatter();
     // P1-5: Remove QRead fallback — if scatter handle unavailable, treat as frame drop
@@ -2404,6 +2422,8 @@ static void ScatterReadPawnCore(const uintptr_t* pawns, const uintptr_t* control
     if (count > 128) count = 128;
     for (int i = 0; i < count; ++i) {
         const uintptr_t cachedScene = cached_scenes ? cached_scenes[i] : 0;
+        const uintptr_t cachedWepSvc = cached_weapon_services ? cached_weapon_services[i] : 0;
+        const bool cachedSpot = cached_spotted ? cached_spotted[i] : true;
         fields[i] = {};
         fields[i].health = -1;
         fields[i].controller_alive = 0xFF;
@@ -2411,6 +2431,8 @@ static void ScatterReadPawnCore(const uintptr_t* pawns, const uintptr_t* control
         fields[i].team = cached_teams ? cached_teams[i] : 0;
         fields[i].armor = cached_armors ? cached_armors[i] : 0;
         fields[i].scene = cachedScene;
+        fields[i].weapon_services = cachedWepSvc;
+        fields[i].spotted = cachedSpot;
         spotted_buf[i] = 1;
         if (!pawns[i]) continue;
         mem.AddScatterReadRequest(g_scatter_full, pawns[i] + offsets.m_iHealth,
@@ -2435,6 +2457,23 @@ static void ScatterReadPawnCore(const uintptr_t* pawns, const uintptr_t* control
             mem.AddScatterReadRequest(g_scatter_full, pawns[i] + offsets.m_pGameSceneNode,
                                       &fields[i].scene, sizeof(uintptr_t));
         }
+        // Weapon services: cache the pointer (stable across rounds, long TTL)
+        if (need_weapon_services && (!cached_weapon_services || (refresh_weapon_services && refresh_weapon_services[i]))) {
+            fields[i].weapon_services = 0;
+            mem.AddScatterReadRequest(g_scatter_full, pawns[i] + offsets.m_pWeaponServices,
+                                      &fields[i].weapon_services, sizeof(uintptr_t));
+        }
+        // Spotted: entity spotted state changes frequently, shorter TTL
+        if (need_spotted && offsets.m_entitySpottedState && (!cached_spotted || (refresh_spotted && refresh_spotted[i]))) {
+            spotted_buf[i] = 0xFF;
+            mem.AddScatterReadRequest(g_scatter_full,
+                pawns[i] + offsets.m_entitySpottedState + offsets.m_bSpotted,
+                &spotted_buf[i], sizeof(uint8_t));
+        } else if (need_spotted) {
+            spotted_buf[i] = cachedSpot ? 1 : 0;
+        } else {
+            spotted_buf[i] = 1;
+        }
         if (positions) {
             if (IsUserPointer(cachedScene))
                 mem.AddScatterReadRequest(g_scatter_full, cachedScene + offsets.m_vecAbsOrigin,
@@ -2446,12 +2485,6 @@ static void ScatterReadPawnCore(const uintptr_t* pawns, const uintptr_t* control
         if (need_velocity && offsets.m_vecVelocity)
             mem.AddScatterReadRequest(g_scatter_full, pawns[i] + offsets.m_vecVelocity,
                                       fields[i].velocity, sizeof(fields[i].velocity));
-        if (need_spotted && offsets.m_entitySpottedState)
-            mem.AddScatterReadRequest(g_scatter_full,
-                pawns[i] + offsets.m_entitySpottedState + offsets.m_bSpotted,
-                &spotted_buf[i], sizeof(uint8_t));
-        else
-            spotted_buf[i] = 1;
         if (need_scoped && offsets.m_bIsScoped)
             mem.AddScatterReadRequest(g_scatter_full, pawns[i] + offsets.m_bIsScoped,
                                       &fields[i].scoped, sizeof(fields[i].scoped));
@@ -2461,9 +2494,6 @@ static void ScatterReadPawnCore(const uintptr_t* pawns, const uintptr_t* control
         if (need_yaw)
             mem.AddScatterReadRequest(g_scatter_full, pawns[i] + offsets.m_angEyeAngles,
                                       fields[i].eye_angles, sizeof(fields[i].eye_angles));
-        if (need_weapons && offsets.m_pWeaponServices)
-            mem.AddScatterReadRequest(g_scatter_full, pawns[i] + offsets.m_pWeaponServices,
-                                      &fields[i].weapon_services, sizeof(uintptr_t));
     }
     mem.ExecuteReadScatter(g_scatter_full);
     for (int i = 0; i < count; ++i)
@@ -2737,23 +2767,93 @@ static void RunOptionalEnrichment(const Config& frame_config,
     if (!g_scatter_optional)
         return;
 
-    OmniGhost::Gameplay::EspCore::FeatureSet requested{};
-    requested.box = frame_config.esp_enabled && frame_config.box;
-    requested.skeleton = frame_config.esp_enabled && frame_config.skeleton;
-    requested.head = frame_config.esp_enabled && (frame_config.head_dot || frame_config.head_halo);
-    requested.visibility = frame_config.esp_enabled && frame_config.visibility_colors;
-    requested.weapon = frame_config.esp_enabled && (frame_config.weapon_name || frame_config.weapon_ammo);
-    requested.name = frame_config.esp_enabled && frame_config.name;
-    requested.aim = frame_config.aim_enabled || frame_config.trigger_enabled;
-    const auto fields = requested.RequiredFields();
-    const bool need_bones = requested.visibility || OmniGhost::Gameplay::EspCore::Has(
-        fields, OmniGhost::Gameplay::EspCore::DataField::Skeleton);
-    const bool need_full_bones = requested.skeleton ||
+    OmniGhost::Gameplay::UnifiedConfig::CS2Config unifiedConfig;
+    unifiedConfig = CS2::UnifiedConfigAdapter::Get();
+    // Update with frame-specific values
+    unifiedConfig.esp_enabled = frame_config.esp_enabled;
+    unifiedConfig.box = frame_config.box;
+    unifiedConfig.skeleton = frame_config.skeleton;
+    unifiedConfig.head_dot = frame_config.head_dot;
+    unifiedConfig.head_halo = frame_config.head_halo;
+    unifiedConfig.chinese_hat = frame_config.chinese_hat;
+    unifiedConfig.angel_wings = frame_config.angel_wings;
+    unifiedConfig.devil_horns = frame_config.devil_horns;
+    unifiedConfig.floating_crown = frame_config.floating_crown;
+    unifiedConfig.health_bar = frame_config.health_bar;
+    unifiedConfig.armor_bar = frame_config.armor_bar;
+    unifiedConfig.health_value = frame_config.health_value;
+    unifiedConfig.armor_value = frame_config.armor_value;
+    unifiedConfig.visibility_colors = frame_config.visibility_colors;
+    unifiedConfig.visible_check = frame_config.visible_check;
+    unifiedConfig.weapon_name = frame_config.weapon_name;
+    unifiedConfig.weapon_ammo = frame_config.weapon_ammo;
+    unifiedConfig.name = frame_config.name;
+    unifiedConfig.distance = frame_config.distance;
+    unifiedConfig.snaplines = frame_config.snaplines;
+    unifiedConfig.trails = frame_config.trails;
+    unifiedConfig.head_halo = frame_config.head_halo;
+    unifiedConfig.look_direction = frame_config.look_direction;
+    unifiedConfig.chinese_hat = frame_config.chinese_hat;
+    unifiedConfig.angel_wings = frame_config.angel_wings;
+    unifiedConfig.devil_horns = frame_config.devil_horns;
+    unifiedConfig.floating_crown = frame_config.floating_crown;
+    unifiedConfig.rgb_mode = frame_config.rgb_mode;
+    unifiedConfig.visibility_colors = frame_config.visibility_colors;
+    unifiedConfig.visible_check = frame_config.visible_check;
+    unifiedConfig.team_check = frame_config.team_check;
+    unifiedConfig.show_bots = frame_config.show_bots;
+    unifiedConfig.max_distance = frame_config.max_distance;
+    unifiedConfig.optional_lane_budget_ms = frame_config.optional_lane_budget_ms;
+    unifiedConfig.performance_mode = frame_config.performance_mode;
+    unifiedConfig.aim_enabled = frame_config.aim_enabled;
+    unifiedConfig.trigger_enabled = frame_config.trigger_enabled;
+    unifiedConfig.aim_visibility_check = frame_config.aim_visibility_check;
+    unifiedConfig.trigger_head_only = frame_config.trigger_head_only;
+    unifiedConfig.trigger_scoped_only = frame_config.trigger_scoped_only;
+    unifiedConfig.aim_prediction = frame_config.aim_prediction;
+    unifiedConfig.radar_2d = frame_config.radar_2d;
+    unifiedConfig.webradar_enabled = frame_config.webradar_enabled;
+    unifiedConfig.dropped_weapons = frame_config.dropped_weapons;
+    unifiedConfig.radar_2d = frame_config.radar_2d;
+    unifiedConfig.webradar_enabled = frame_config.webradar_enabled;
+    unifiedConfig.performance_mode = frame_config.performance_mode;
+    
+    // Copy colors
+    for (int i = 0; i < 4; ++i) {
+        unifiedConfig.col_box[i] = frame_config.col_box[i];
+        unifiedConfig.col_box_corner[i] = frame_config.col_box_corner[i];
+        unifiedConfig.col_box_fill[i] = frame_config.col_box_fill[i];
+        unifiedConfig.col_skeleton[i] = frame_config.col_skeleton[i];
+        unifiedConfig.col_joints[i] = frame_config.col_joints[i];
+        unifiedConfig.col_head[i] = frame_config.col_head[i];
+        unifiedConfig.col_halo[i] = frame_config.col_halo[i];
+        unifiedConfig.col_health[i] = frame_config.col_health[i];
+        unifiedConfig.col_armor[i] = frame_config.col_armor[i];
+        unifiedConfig.col_name[i] = frame_config.col_name[i];
+        unifiedConfig.col_distance[i] = frame_config.col_distance[i];
+        unifiedConfig.col_weapon[i] = frame_config.col_weapon[i];
+        unifiedConfig.col_snaplines[i] = frame_config.col_snaplines[i];
+        unifiedConfig.col_trail[i] = frame_config.col_trail[i];
+        unifiedConfig.col_fun_effects[i] = frame_config.col_fun_effects[i];
+        unifiedConfig.col_look[i] = frame_config.col_look[i];
+        unifiedConfig.col_text_outline[i] = frame_config.col_text_outline[i];
+        unifiedConfig.col_visible[i] = frame_config.col_visible[i];
+        unifiedConfig.col_occluded[i] = frame_config.col_occluded[i];
+        unifiedConfig.col_team[i] = frame_config.col_team[i];
+        unifiedConfig.col_target[i] = frame_config.col_target[i];
+    }
+    
+    // Use unified FeatureFlags for RequiredFields
+    const auto unifiedFlags = unifiedConfig.GetFeatureFlags();
+    const auto fields = unifiedFlags.RequiredFields();
+    const bool need_bones = OmniGhost::Gameplay::UnifiedESP::Has(
+        fields, OmniGhost::Gameplay::UnifiedESP::DataField::Skeleton);
+    const bool need_full_bones = frame_config.skeleton ||
         (frame_config.trigger_enabled && !frame_config.trigger_head_only);
-    const bool need_names = requested.name || frame_config.radar_2d ||
+    const bool need_names = frame_config.name || frame_config.radar_2d ||
         (frame_config.esp_enabled && !frame_config.show_bots) ||
         (frame_config.aim_enabled && frame_config.aim_ignore_bots);
-    const bool need_weapons = requested.weapon;
+    const bool need_weapons = frame_config.weapon_name || frame_config.weapon_ammo;
     const bool allow_weapon = pressure == 0 && !HeavyDmaCooldownActive();
 
     // The job snapshot was captured by the acquisition thread at queue time;
@@ -3048,6 +3148,64 @@ static void RunOptionalEnrichment(const Config& frame_config,
 
     // P2-8: Track optional budget left for telemetry correlation.
     results.budget_left_ms = budget.Remaining();
+
+    // ── Visibility (raycast against static map collision) ───────────────
+    if (requested.visibility && !!budget.Remaining() && pressure < 2) {
+        // Get collision world for this map
+        auto& collision = Trajectory::CollisionCache();
+        if (collision.IsLoadedFor(runtime.map_name)) {
+            // Get camera origin for raycasting
+            Trajectory::Vec3 cameraOrigin{};
+            if (auto cam = g_camera_snapshots.Acquire(); cam && cam->timestamp_ms != 0) {
+                cameraOrigin = Trajectory::Vec3(cam->view_matrix[12], cam->view_matrix[13], cam->view_matrix[14]);
+            } else if (targets.empty()) {
+                cameraOrigin = Trajectory::Vec3(0, 0, 0);
+            } else {
+                // Fallback: use first target's origin as rough camera position
+                cameraOrigin = Trajectory::Vec3(targets[0].origin[0], targets[0].origin[1], targets[0].origin[2]);
+            }
+
+            // Prepare visibility targets - use head + body points for each pawn
+            std::vector<VisibilityTarget> visTargets;
+            visTargets.reserve(targets.size());
+            for (const auto& t : targets) {
+                VisibilityTarget vt{};
+                vt.pawn = t.pawn;
+                // Point 0: head (origin + ~70 units up)
+                vt.points[0] = Trajectory::Vec3(t.origin[0], t.origin[1], t.origin[2] + 70.f);
+                // Point 1: chest
+                vt.points[1] = Trajectory::Vec3(t.origin[0], t.origin[1], t.origin[2] + 40.f);
+                // Point 2: pelvis
+                vt.points[2] = Trajectory::Vec3(t.origin[0], t.origin[1], t.origin[2] + 10.f);
+                // Point 3: feet
+                vt.points[3] = Trajectory::Vec3(t.origin[0], t.origin[1], t.origin[2] - 10.f);
+                visTargets.push_back(vt);
+            }
+
+            if (!visTargets.empty()) {
+                mem.SetDmaPriority(Memory::DmaPri::OtherMetadata);
+                CS2::GiveCameraPriorityBeforeOptionalDma();
+                const auto visPhaseBegin = std::chrono::steady_clock::now();
+                // Submit to visibility worker (async)
+                g_visibility_worker.Submit(
+                    collision.WorldSnapshot(), cameraOrigin, std::move(visTargets), jobGen);
+                // Note: visibility worker runs async; results will be queried on next optional job
+                // For now, we query any already-completed results from previous submissions
+                for (const auto& t : targets) {
+                    if (!IsUserPointer(t.pawn)) continue;
+                    auto visResult = g_visibility_worker.Get(t.pawn, jobGen);
+                    if (visResult.known && results.visibility_count < results.visibility.size()) {
+                        auto& r = results.visibility[results.visibility_count++];
+                        r.pawn = t.pawn;
+                        r.visible = visResult.visible;
+                        r.known = true;
+                        r.checked_ms = visResult.checked_ms;
+                    }
+                }
+                results.visibility_ms = OmniGhost::Gameplay::TimeMs(visPhaseBegin);
+            }
+        }
+    }
 
     if (jobGen != g_session_generation.load(std::memory_order_acquire))
         return;
@@ -3466,6 +3624,20 @@ static void RunFrameWithConfig(const Config& frame_config) {
             if (r.weapon[0])
                 std::snprintf(rp.player.weapon, sizeof(rp.player.weapon), "%s", r.weapon);
             if (r.ammo_clip >= 0) rp.player.ammo_clip = r.ammo_clip;
+        }
+        // Merge visibility results from optional worker
+        for (uint32_t i = 0; i < opt->visibility_count && i < opt->visibility.size(); ++i) {
+            const OptionalVisibilityResult& r = opt->visibility[i];
+            if (!IsUserPointer(r.pawn) || !r.known) continue;
+            RecentPlayer& rp = recent_players[r.pawn];
+            if (rp.entry_generation != generation) {
+                rp = RecentPlayer{};
+                rp.player.pawn = r.pawn;
+                rp.entry_generation = generation;
+            }
+            rp.last_seen_ms = mergeNowMs;
+            rp.player.visibility_known = true;
+            rp.player.visible = r.visible;
         }
         if (opt->dropped_weapons_valid)
             runtime.dropped_weapons = opt->dropped_weapons;
@@ -4370,40 +4542,18 @@ static void RunFrameWithConfig(const Config& frame_config) {
     runtime.pawn_stride = g_pawn_stride;
 
     // ── Phase 3: scatter health / team / armor / scene for candidates ────
-    OmniGhost::Gameplay::EspCore::FeatureSet requested{};
-    // Declare every active visual explicitly. The collector can then keep the
-    // lightweight box/bar path free of bone reads, while a requested skeleton
-    // receives one coherent full-pose snapshot.
-    requested.box = frame_config.esp_enabled && frame_config.box;
-    requested.corner_box = frame_config.esp_enabled && frame_config.box_corner;
-    requested.skeleton = frame_config.esp_enabled && frame_config.skeleton;
-    requested.head = frame_config.esp_enabled && (frame_config.head_dot || frame_config.head_halo ||
-        frame_config.chinese_hat || frame_config.angel_wings || frame_config.devil_horns || frame_config.floating_crown);
-    requested.health = frame_config.esp_enabled && (frame_config.health_bar || frame_config.health_value);
-    requested.armor = frame_config.esp_enabled && (frame_config.armor_bar || frame_config.armor_value);
-    requested.visibility = frame_config.esp_enabled && frame_config.visibility_colors;
-    requested.weapon = frame_config.esp_enabled && (frame_config.weapon_name || frame_config.weapon_ammo);
-    requested.name = frame_config.esp_enabled && frame_config.name;
-    requested.distance = frame_config.esp_enabled && frame_config.distance;
-    requested.snapline = frame_config.esp_enabled && frame_config.snaplines;
-    requested.trail = frame_config.esp_enabled && frame_config.trails;
-    requested.halo = frame_config.esp_enabled && frame_config.head_halo;
-    requested.look_direction = frame_config.esp_enabled && frame_config.look_direction;
-    requested.aim = frame_config.aim_enabled || frame_config.trigger_enabled;
-    // Velocity is derived from the already-batched origin snapshots. Keep it
-    // available to presentation while ESP is active so rendering can bridge
-    // the short gap between acquisition frames without another DMA transfer.
-    requested.prediction = (frame_config.aim_enabled && frame_config.aim_prediction) ||
-        frame_config.esp_enabled;
-    const auto fields = requested.RequiredFields();
+    // Use unified FeatureFlags for RequiredFields
+    CS2::UnifiedConfigAdapter::SyncToUnified(frame_config);
+    const auto unifiedFlags = CS2::UnifiedConfigAdapter::GetFeatureFlags();
+    const auto fields = unifiedFlags.RequiredFields();
 
-    const bool need_armor = OmniGhost::Gameplay::EspCore::Has(
-        fields, OmniGhost::Gameplay::EspCore::DataField::Armor);
+    const bool need_armor = OmniGhost::Gameplay::UnifiedESP::Has(
+        fields, OmniGhost::Gameplay::UnifiedESP::DataField::Armor);
     const bool need_yaw = frame_config.radar_2d ||
-        OmniGhost::Gameplay::EspCore::Has(
-            fields, OmniGhost::Gameplay::EspCore::DataField::Facing);
-    const bool track_velocity = OmniGhost::Gameplay::EspCore::Has(
-        fields, OmniGhost::Gameplay::EspCore::DataField::Velocity);
+        OmniGhost::Gameplay::UnifiedESP::Has(
+            fields, OmniGhost::Gameplay::UnifiedESP::DataField::Facing);
+    const bool track_velocity = OmniGhost::Gameplay::UnifiedESP::Has(
+        fields, OmniGhost::Gameplay::UnifiedESP::DataField::Velocity);
     const bool flagsEnabled = false; // retired player flags
     const bool need_scoped = frame_config.trigger_scoped_only ||
         (flagsEnabled && frame_config.flag_scoped);
@@ -4416,10 +4566,15 @@ static void RunFrameWithConfig(const Config& frame_config) {
         uintptr_t bone_offset = 0;
         uint8_t team = 0;
         int armor = 0;
+        uintptr_t weapon_services = 0;
+        bool spotted = true;
+        bool spotted_known = false;
         uint64_t scene_expires_ms = 0;
         uint64_t bone_expires_ms = 0;
         uint64_t team_expires_ms = 0;
         uint64_t armor_expires_ms = 0;
+        uint64_t weapon_services_expires_ms = 0;
+        uint64_t spotted_expires_ms = 0;
         uint64_t last_seen_ms = 0;
         uint64_t entry_generation = 0;
     };
@@ -4433,9 +4588,13 @@ static void RunFrameWithConfig(const Config& frame_config) {
     uintptr_t cachedScenes[kMaxSlots]{};
     uint8_t cachedTeams[kMaxSlots]{};
     int cachedArmors[kMaxSlots]{};
+    uintptr_t cachedWeaponServices[kMaxSlots]{};
+    bool cachedSpotted[kMaxSlots]{};
     bool refreshScenes[kMaxSlots]{};
     bool refreshTeams[kMaxSlots]{};
     bool refreshArmors[kMaxSlots]{};
+    bool refreshWeaponServices[kMaxSlots]{};
+    bool refreshSpotted[kMaxSlots]{};
     float positions[kMaxSlots][3]{};
     for (int c = 0; c < candidate_count; ++c) {
         positions[c][0] = positions[c][1] = positions[c][2] =
@@ -4445,6 +4604,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
             cachedScenes[c] = cached->second.scene;
             cachedTeams[c] = cached->second.team;
             cachedArmors[c] = cached->second.armor;
+            cachedWeaponServices[c] = cached->second.weapon_services;
+            cachedSpotted[c] = cached->second.spotted;
             cached->second.last_seen_ms = scan_now_ms;
             refreshScenes[c] = !IsUserPointer(cached->second.scene) ||
                 scan_now_ms >= cached->second.scene_expires_ms;
@@ -4452,28 +4613,38 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 scan_now_ms >= cached->second.team_expires_ms;
             refreshArmors[c] = need_armor &&
                 scan_now_ms >= cached->second.armor_expires_ms;
+            refreshWeaponServices[c] = scan_now_ms >= cached->second.weapon_services_expires_ms;
+            refreshSpotted[c] = !cached->second.spotted_known ||
+                scan_now_ms >= cached->second.spotted_expires_ms;
         } else {
             refreshScenes[c] = true;
             refreshTeams[c] = true;
             refreshArmors[c] = need_armor;
+            refreshWeaponServices[c] = true;
+            refreshSpotted[c] = true;
         }
     }
     PawnCoreFields core[kMaxSlots]{};
     uintptr_t candidateControllers[kMaxSlots]{};
     for (int c = 0; c < candidate_count; ++c)
         candidateControllers[c] = controllers[slot_index[c]];
+    const bool need_weapon = OmniGhost::Gameplay::EspCore::Has(
+        fields, OmniGhost::Gameplay::EspCore::DataField::Weapon);
     const bool need_spotted = (frame_config.aim_enabled && frame_config.aim_visibility_check) ||
         (frame_config.trigger_enabled && frame_config.aim_visibility_check);
+    const bool need_weapon_services = need_weapon || need_spotted;
     // Health/team/scene stay on the full cadence. Armor is only four bytes per
     // pawn, so include it here instead of paying for a separate round-trip.
     mem.SetDmaCallTag("CS2.PawnCore");
     const auto _posBegin = std::chrono::steady_clock::now();
     const uint64_t position_read_begin_ms = GetTickCount64();
     ScatterReadPawnCore(resolved_pawns, candidateControllers, core, candidate_count, need_armor,
-                        need_scoped, need_flash, need_yaw, false,
+                        need_scoped, need_flash, need_yaw, need_weapon_services,
                         need_spotted, cachedTeams, refreshTeams,
                         cachedArmors, refreshArmors,
-                        cachedScenes, refreshScenes, positions, track_velocity);
+                        cachedScenes, refreshScenes, positions, track_velocity,
+                        cachedWeaponServices, refreshWeaponServices,
+                        cachedSpotted, refreshSpotted);
     const uint64_t position_read_end_ms = GetTickCount64();
     const uint64_t position_sample_ms = position_read_begin_ms +
         (position_read_end_ms - position_read_begin_ms) / 2u;
@@ -4506,6 +4677,20 @@ static void RunFrameWithConfig(const Config& frame_config) {
             cached.scene_expires_ms = scan_now_ms + 500u;
         } else {
             core[c].scene = cached.scene;
+        }
+        // Cache weapon_services (stable pointer, long TTL)
+        if (need_weapon_services && refreshWeaponServices[c] && IsUserPointer(core[c].weapon_services)) {
+            cached.weapon_services = core[c].weapon_services;
+            cached.weapon_services_expires_ms = scan_now_ms + 500u;
+        }
+        // Cache spotted (changes frequently, shorter TTL)
+        if (need_spotted && refreshSpotted[c] && core[c].spotted_known) {
+            cached.spotted = core[c].spotted;
+            cached.spotted_known = true;
+            cached.spotted_expires_ms = scan_now_ms + 75u;
+        } else if (need_spotted) {
+            core[c].spotted = cached.spotted;
+            core[c].spotted_known = cached.spotted_known;
         }
     }
 

@@ -134,6 +134,8 @@ struct Player {
     float bones[kMaxBones][3]{};
     bool bones_ok = false;
     uint64_t bones_sample_ms = 0;
+    // LOD bone mask: which bones were actually read (1 bit per bone, 31 bits fit in uint32_t)
+    uint32_t bones_mask = 0;
 };
 
 struct Runtime {

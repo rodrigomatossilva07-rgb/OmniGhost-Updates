@@ -416,7 +416,20 @@ namespace FiveM {
                         if (needVis) {
                             mem.SetDmaPriority(Memory::DmaPri::OtherMetadata);
                             GiveCameraPriorityBeforeOptionalDma();
-                            FiveM::Visibility::BatchCheckVisibility(job.peds, prodVis);
+                            
+                            // Get camera matrix for frustum culling
+                            Matrix viewMatrix{};
+                            if (auto cam = s_cameraSnapshots.Acquire(); cam &&
+                                cam->sessionGeneration == s_sessionGeneration.load(std::memory_order_acquire)) {
+                                viewMatrix = cam->viewMatrix;
+                            }
+                            
+                            // Distance LOD + Frustum culling + Budget awareness
+                            const float maxVisDist = job.espConfig.max_esp_distance > 0.f 
+                                ? job.espConfig.max_esp_distance : 200.f;
+                            FiveM::Visibility::BatchCheckVisibility(
+                                job.peds, job.positions, job.localPos, 
+                                &viewMatrix, maxVisDist, prodVis);
                         }
                         if (job.friendsListRequested || job.espConfig.enabled ||
                             job.aimConfig.aimbot_enabled || job.aimConfig.trigger_enabled ||

@@ -1038,8 +1038,9 @@ void AcquisitionTick() {
                     return kLodLowBones;
                 };
 
-                // P1-3: Micro-batch bone acquisition (8 players per batch) with camera priority
-                constexpr int kBoneBatchSize = 8;
+                // P1-3: Micro-batch bone acquisition (4 players per batch) with camera priority DURING execution
+                // Reduced batch size + yield between players allows camera to run mid-batch
+                constexpr int kBoneBatchSize = 4;
                 auto boneHandle = mem.CreateScatterHandle();
                 if (boneHandle) {
                     size_t batchStart = 0;
@@ -1062,20 +1063,25 @@ void AcquisitionTick() {
                             uintptr_t boneBase = pl.address + offsets.bone_base_pos;
                             if (!boneBase) continue;
 
-                            // Determine LOD based on distance (automatic)
+                            // Determine LOD based on distance (automatic) and build bone mask
                             const int* lodBones = ComputeBoneMask(pl.distance);
                             int lodBoneCount = 0;
-                            if (pl.distance <= kLodFullDist) lodBoneCount = 31;
-                            else if (pl.distance <= kLodHighDist) lodBoneCount = 13;
-                            else if (pl.distance <= kLodMedDist) lodBoneCount = 7;
-                            else lodBoneCount = 1;
+                            uint32_t boneMask = 0;
+                            if (pl.distance <= kLodFullDist) { lodBoneCount = 31; boneMask = 0x7FFFFFFFu; }
+                            else if (pl.distance <= kLodHighDist) { lodBoneCount = 13; }
+                            else if (pl.distance <= kLodMedDist) { lodBoneCount = 7; }
+                            else { lodBoneCount = 1; }
 
+                            // Build bone mask for this player's LOD
                             for (int b = 0; b < lodBoneCount; ++b) {
                                 int boneIdx = lodBones[b];
+                                boneMask |= (1u << boneIdx);
                                 uintptr_t boneAddr = boneBase + offsets.bone_array_base + static_cast<uintptr_t>(boneIdx) * offsets.bone_array_stride;
                                 mem.AddScatterReadRequest(boneHandle, boneAddr, pl.bones[boneIdx], sizeof(float) * 3);
                                 batchHasRequests = true;
                             }
+                            // Store the bone mask so render knows which bones are valid
+                            pl.bones_mask = boneMask;
                         }
 
                         if (batchHasRequests) {
@@ -1084,6 +1090,18 @@ void AcquisitionTick() {
                             const bool batchOk = mem.ExecuteReadScatter(boneHandle);
                             const uint64_t batchEndMs = GetTickCount64();
                             const uint64_t batchSampleMs = batchBeginMs + (batchEndMs - batchBeginMs) / 2u;
+                            
+                            // Check camera priority AFTER each batch execution (camera can now run)
+                            if (g_camera_pending.load(std::memory_order_acquire)) {
+                                const uint64_t deadline = g_camera_deadline_ms.load(std::memory_order_acquire);
+                                const uint64_t now = GetTickCount64();
+                                if (deadline != 0 && now + 2u >= deadline) {
+                                    // Camera needs priority, yield and retry next iteration
+                                    batchStart = batchEnd;
+                                    std::this_thread::yield();
+                                    continue;
+                                }
+                            }
                             
                             if (batchOk) {
                                 // Validate bones for this batch
@@ -1102,6 +1120,11 @@ void AcquisitionTick() {
                             }
                         }
                         batchStart = batchEnd;
+                        
+                        // Yield between batches to give camera a chance to run
+                        if (batchStart < s_cached_players.size()) {
+                            std::this_thread::yield();
+                        }
                     }
                     mem.CloseScatterHandle(boneHandle);
                     
@@ -1120,6 +1143,13 @@ void AcquisitionTick() {
                                             std::isfinite(pl.bones[offsets.bone_spine_upper][2]);
                             pl.bones_ok = hasHead && hasSpine;
                             pl.bones_sample_ms = bonesSampleMs;
+                            // Also backfill bone mask based on distance if not set
+                            if (pl.bones_mask == 0) {
+                                if (pl.distance <= kLodFullDist) pl.bones_mask = 0x7FFFFFFFu;
+                                else if (pl.distance <= kLodHighDist) pl.bones_mask = (1u<<7)|(1u<<6)|(1u<<5)|(1u<<4)|(1u<<3)|(1u<<2)|(1u<<13)|(1u<<14)|(1u<<18)|(1u<<19);
+                                else if (pl.distance <= kLodMedDist) pl.bones_mask = (1u<<7)|(1u<<6)|(1u<<5)|(1u<<4)|(1u<<3)|(1u<<2);
+                                else pl.bones_mask = (1u<<7);
+                            }
                         }
                     }
                 }

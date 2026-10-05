@@ -79,6 +79,10 @@ static void DrawPlayerSkeleton(ImDrawList* dl, const Warzone::Player& p, const W
     };
 
     for (const auto& link : links) {
+        // Only draw link if both bones are in the LOD mask
+        if ((p.bones_mask & (1u << link.from)) == 0) continue;
+        if ((p.bones_mask & (1u << link.to)) == 0) continue;
+        
         float bx1, by1, bx2, by2;
         if (W2S(p.bones[link.from], rt_view_matrix, bx1, by1) &&
             W2S(p.bones[link.to], rt_view_matrix, bx2, by2)) {
