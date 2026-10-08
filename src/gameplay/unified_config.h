@@ -495,7 +495,6 @@ public:
     bool trails = false, hit_marker = false;
     float box_thickness = 1.8f, box_rounding = 0.f, skeleton_thickness = 1.8f;
     float head_circle_thickness = 1.6f; 
-    float snapline_thickness = 1.5f;
     float max_distance = 300.f;
     bool rgb_mode = false, visibility_colors = false;
     bool dropped_weapons = false;

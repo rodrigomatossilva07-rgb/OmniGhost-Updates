@@ -20,6 +20,7 @@ enum class DataField : uint32_t {
     Vehicle      = 1u << 9,  // Vehicle info (FiveM)
     Bomb         = 1u << 10, // C4/bomb state (CS2)
     DroppedItem  = 1u << 11, // World items (CS2/Warzone)
+    Armor        = 1u << 12, // Optional armor read, separate from core health
 };
 
 constexpr DataField operator|(DataField a, DataField b) noexcept {
@@ -115,6 +116,8 @@ struct FeatureFlags {
         // Health/Armor
         if (health_bar || armor_bar || health_value || armor_value || aim_enabled)
             fields |= DataField::Health;
+        if (armor_bar || armor_value)
+            fields |= DataField::Armor;
         
         // Name/Identity
         if (name || player_name || player_id || npc_esp || show_bots || 

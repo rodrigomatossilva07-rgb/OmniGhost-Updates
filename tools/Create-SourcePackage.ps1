@@ -41,7 +41,8 @@ $allowedRoots = @(
     'Warzone', 'data', 'docs', 'libs', 'resources', 'runtime', 'src',
     'third_party', 'tools'
 )
-$excludedDirectoryNames = @('.vs', '.cache', 'build', 'artifacts', '.temp', 'logs', 'x64')
+$excludedDirectoryNames = @('.vs', '.cache', 'build', 'artifacts', '.temp', 'logs', 'x64',
+    'dma_stack.backup', 'dma_stack.staging')
 $excludedExtensions = @('.user', '.suo', '.ipch', '.obj', '.pdb', '.ilk', '.tlog', '.lastbuildstate', '.idb', '.iobj', '.ipdb', '.exp')
 $allowedMarkdown = @() # Source delivery intentionally carries no loose Markdown documentation.
 

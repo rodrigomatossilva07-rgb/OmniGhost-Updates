@@ -3150,8 +3150,9 @@ static void RunOptionalEnrichment(const Config& frame_config,
     results.budget_left_ms = budget.Remaining();
 
     // ── Visibility (raycast against static map collision) ───────────────
-    const auto unifiedFlags = unifiedConfig.GetFeatureFlags();
-    if (unifiedFlags.visibility && !!budget.Remaining() && pressure < 2) {
+    if (OmniGhost::Gameplay::UnifiedESP::Has(
+            fields, OmniGhost::Gameplay::UnifiedESP::DataField::Visibility) &&
+        !!budget.Remaining() && pressure < 2) {
         // Get collision world for this map
         auto& collision = Trajectory::CollisionCache();
         if (collision.IsLoadedFor(runtime.map_name)) {
@@ -4629,8 +4630,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
     uintptr_t candidateControllers[kMaxSlots]{};
     for (int c = 0; c < candidate_count; ++c)
         candidateControllers[c] = controllers[slot_index[c]];
-    const bool need_weapon = OmniGhost::Gameplay::EspCore::Has(
-        fields, OmniGhost::Gameplay::EspCore::DataField::Weapon);
+    const bool need_weapon = OmniGhost::Gameplay::UnifiedESP::Has(
+        fields, OmniGhost::Gameplay::UnifiedESP::DataField::Weapon);
     const bool need_spotted = (frame_config.aim_enabled && frame_config.aim_visibility_check) ||
         (frame_config.trigger_enabled && frame_config.aim_visibility_check);
     const bool need_weapon_services = need_weapon || need_spotted;

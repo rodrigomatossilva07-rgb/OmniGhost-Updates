@@ -101,7 +101,13 @@ Assert-ManifestHash $versions.leechcore.sha256.'leechcore.dll' 'libs\leechcore.d
 # expected and must not make the *next* build fail validation. Only source-tree
 # duplicates outside known generated/output roots are considered suspicious.
 $duplicates = @()
-$ignoredGeneratedRoots = @('build\', 'x64\', '.cache\', '.temp\', 'artifacts\', 'dist\', 'out\', 'libs\', 'third_party\dma_stack\bin\')
+$ignoredGeneratedRoots = @(
+    'build\', 'x64\', '.cache\', '.temp\', 'artifacts\', 'dist\', 'out\', 'libs\',
+    'third_party\dma_stack\bin\',
+    # Update-DmaDependencies.ps1 creates these while swapping the canonical stack.
+    # They are rollback/staging copies, never build inputs.
+    'third_party\dma_stack.backup\', 'third_party\dma_stack.staging\'
+)
 foreach ($name in @('vmm.dll','leechcore.dll')) {
     foreach ($file in Get-ChildItem -LiteralPath $ProjectDir -Recurse -File -Filter $name -ErrorAction SilentlyContinue) {
         $relative = $file.FullName.Substring($ProjectDir.Length).TrimStart('\')

@@ -98,17 +98,6 @@ protected:
     virtual void DoWork(OptionalJob&& job, OptionalResult& result) = 0;
 
 private:
-    // Member variables
-    std::thread thread_;
-    std::mutex mutex_;
-    std::condition_variable cv_;
-    std::atomic<bool> stop_{false};
-    std::atomic<bool> busy_{false};
-    std::atomic<bool> pending_{false};
-    std::atomic<bool> result_ready_{false};
-    OptionalJob job_;
-    OptionalResult result_;
-
     void WorkerLoop() {
         while (!stop_.load(std::memory_order_acquire)) {
             OptionalJob job;
@@ -183,7 +172,7 @@ inline bool ShouldYieldToCamera(std::atomic<uint64_t>& camera_deadline, std::ato
 class ScatterHandle {
 public:
     ScatterHandle() = default;
-    ~ScatterHandle() { Reset(); }
+    ~ScatterHandle() = default;
     ScatterHandle(const ScatterHandle&) = delete;
     ScatterHandle& operator=(const ScatterHandle&) = delete;
     
