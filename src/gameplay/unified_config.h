@@ -495,9 +495,16 @@ public:
     bool trails = false, hit_marker = false;
     float box_thickness = 1.8f, box_rounding = 0.f, skeleton_thickness = 1.8f;
     float head_circle_thickness = 1.6f; 
-    float snapline_thickness = 1.5f, eye_line_thickness = 1.6f;
+    float snapline_thickness = 1.5f;
     float max_distance = 300.f;
     bool rgb_mode = false, visibility_colors = false;
+    bool dropped_weapons = false;
+    bool dropped_weapon_pistols = true;
+    bool dropped_weapon_smgs = true;
+    bool dropped_weapon_rifles = true;
+    bool dropped_weapon_heavy = true;
+    bool dropped_weapon_icons = true;
+    bool dropped_weapon_ammo = false;
 
     std::array<float, 4> col_enemy = {1, 0.25f, 0.25f, 1};
     std::array<float, 4> col_team = {0.25f, 0.85f, 0.35f, 1};

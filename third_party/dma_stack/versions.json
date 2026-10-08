@@ -1,38 +1,38 @@
 ﻿{
-    "architecture":  "win-x64",
-    "source":  "Update-DmaDependencies.ps1",
-    "compatibility":  "VERIFIED_BY_IDENTICAL_IMPORT_LIBRARY",
+    "updated_at":  "2026-10-05T21:34:21.1414773Z",
     "text_hash_normalization":  "UTF-8/LF",
-    "d3xx":  {
-                 "application_library":  {
-                                             "FTD3XXWU.dll_version":  "1.4.0.1",
-                                             "FTD3XX.dll_version":  "1.3.0.10"
-                                         },
-                 "note":  "FTD3XXWU.dll is the application library; the installed Windows D3XX kernel/WinUSB driver has its own version."
-             },
-    "memprocfs":  {
-                      "sha256":  {
-                                     "vmm.dll":  "5b7ce682b8066bd90e217a4b081a81ba485226f8007056f35ea64dd118890fb5",
-                                     "vmmdll.h":  "0a44905d0b868da5dfb80fb25e7356db42c0abff437d02b41ca04ff40035d54f",
-                                     "vmm.lib":  "674efd238a307b6dbc73c5301deff2f3b034bbcc3ebf9e5c9544ab334dd83be1"
-                                 },
-                      "detected_version":  "5.18.11.250",
-                      "asset":  "MemProcFS_files_and_binaries-win_x64-latest.zip"
-                  },
+    "source":  "Update-DmaDependencies.ps1",
+    "architecture":  "win-x64",
     "leechcore":  {
-                      "detected_version":  "2.23.3.103",
+                      "detected_version":  "2.23.4.104",
                       "runtime_source":  "MemProcFS bundle (paired with vmm.dll)",
                       "sha256":  {
-                                     "leechcore.dll":  "2a05a3ce187cd3ac69b788a5a6e56774acc80c168ac3041ff3bce028e8dd5116",
+                                     "leechcore.dll":  "87b69a036772e58d6d9297982f6029d02ea0dbaf98c91f366e3fbb28f6045673",
                                      "leechcore.h":  "d3dd1553cd3dc57e620722e6d4456e9aaa819a97066119c921db43aac1c3f6e3",
                                      "leechcore.lib":  "de1259b698736a83c13f9731f7b823278e0b35df648f5a17552ae6490fb9b562"
                                  },
-                      "asset":  "LeechCore_files_and_binaries_v2.23.4-win_x64-20260928.zip",
+                      "asset":  "LeechCore_files_and_binaries_v2.23.4-win_x64-20261005.zip",
                       "header_source":  "LeechCore standalone package",
                       "standalone_dll":  {
                                              "sha256":  "87b69a036772e58d6d9297982f6029d02ea0dbaf98c91f366e3fbb28f6045673",
                                              "detected_version":  "2.23.4.104"
                                          }
                   },
-    "updated_at":  "2026-09-27T23:08:08.9890558Z"
+    "memprocfs":  {
+                      "sha256":  {
+                                     "vmm.dll":  "1bfa5e308f18b61d38f9471aad5d2801410cae608e3e274242e7e788838a12df",
+                                     "vmmdll.h":  "0a44905d0b868da5dfb80fb25e7356db42c0abff437d02b41ca04ff40035d54f",
+                                     "vmm.lib":  "c44e701eaa80a95432b56c5603fc2da36c6d26fbbc0ddeb9cadc9256c81a68cf"
+                                 },
+                      "detected_version":  "5.19.0.251",
+                      "asset":  "MemProcFS_files_and_binaries-win_x64-latest.zip"
+                  },
+    "compatibility":  "VERIFIED_BY_IDENTICAL_IMPORT_LIBRARY",
+    "d3xx":  {
+                 "application_library":  {
+                                             "FTD3XXWU.dll_version":  "1.4.0.1",
+                                             "FTD3XX.dll_version":  "1.3.0.10"
+                                         },
+                 "note":  "FTD3XXWU.dll is the application library; the installed Windows D3XX kernel/WinUSB driver has its own version."
+             }
 }

@@ -3150,7 +3150,8 @@ static void RunOptionalEnrichment(const Config& frame_config,
     results.budget_left_ms = budget.Remaining();
 
     // ── Visibility (raycast against static map collision) ───────────────
-    if (requested.visibility && !!budget.Remaining() && pressure < 2) {
+    const auto unifiedFlags = unifiedConfig.GetFeatureFlags();
+    if (unifiedFlags.visibility && !!budget.Remaining() && pressure < 2) {
         // Get collision world for this map
         auto& collision = Trajectory::CollisionCache();
         if (collision.IsLoadedFor(runtime.map_name)) {

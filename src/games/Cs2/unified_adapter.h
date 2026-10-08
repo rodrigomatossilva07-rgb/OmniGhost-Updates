@@ -21,7 +21,7 @@ public:
         
         // Visuals
         dst.esp_enabled = src.esp_enabled;
-        dst.box = src.box; dst.corner_box = src.corner_box; dst.box_fill = src.box_fill;
+        dst.box = src.box; dst.corner_box = src.box_corner; dst.box_fill = src.box_fill;
         dst.box_thickness = src.box_thickness; dst.box_rounding = src.box_rounding;
         dst.skeleton = src.skeleton; dst.skeleton_joints = src.skeleton_joints;
         dst.skeleton_thickness = src.skeleton_thickness;
@@ -86,7 +86,7 @@ public:
         const auto& src = Get();
         
         dst.esp_enabled = src.esp_enabled;
-        dst.box = src.box; dst.corner_box = src.corner_box; dst.box_fill = src.box_fill;
+        dst.box = src.box; dst.corner_box = src.box_corner; dst.box_fill = src.box_fill;
         dst.box_thickness = src.box_thickness; dst.box_rounding = src.box_rounding;
         dst.skeleton = src.skeleton; dst.skeleton_joints = src.skeleton_joints;
         dst.skeleton_thickness = src.skeleton_thickness;
