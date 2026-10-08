@@ -1,7 +1,6 @@
 #pragma once
 
 #include "gameplay/unified_config.h"
-#include "gameplay/unified_optional_thread.h"
 #include "gameplay/unified_esp.h"
 #include "config/cs2_config.h"
 
@@ -146,18 +145,6 @@ public:
     // Get FeatureFlags for RequiredFields()
     static OmniGhost::Gameplay::UnifiedESP::FeatureFlags GetFeatureFlags() {
         return Get().GetFeatureFlags();
-    }
-};
-
-// CS2 Optional Thread using unified base class
-class CS2OptionalThread : public OmniGhost::Gameplay::UnifiedESP::OptionalThread {
-protected:
-    void DoWork(OmniGhost::Gameplay::UnifiedESP::OptionalJob&& job, 
-                OmniGhost::Gameplay::UnifiedESP::OptionalResult& result) override {
-        // Delegate to existing CS2 optional enrichment
-        // This will be called from the unified thread
-        // For now, we keep the existing CS2 optional logic in cs2_game.cpp
-        // and just call it from here if needed
     }
 };
 

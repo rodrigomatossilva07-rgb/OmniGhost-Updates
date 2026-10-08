@@ -15,7 +15,6 @@
 #include "trajectory/cs2_map_collision_cache.h"
 #include "trajectory/cs2_visibility.h"
 #include "gameplay/unified_esp.h"
-#include "gameplay/unified_optional_thread.h"
 #include "unified_adapter.h"
 
 #include <Windows.h>

@@ -7,6 +7,7 @@
 #include <sstream>
 #include <variant>
 #include <vector>
+#include <exception>
 
 namespace OmniGhost::Gameplay::UnifiedConfig {
 
@@ -83,7 +84,10 @@ public:
                 try {
                     ConfigValue cv = ParseValue(val);
                     it->second(cv);
-                } catch (...) {}
+                } catch (const std::exception&) {
+                    // Ignore this malformed entry without changing its setting.
+                    continue;
+                }
             }
         }
         return true;
@@ -135,9 +139,11 @@ protected:
         if (s == "1" || s == "true") return ConfigValue(true);
         if (s == "0" || s == "false") return ConfigValue(false);
         // Try int
-        try { return ConfigValue(std::stoi(s)); } catch (...) {}
+        try { return ConfigValue(std::stoi(s)); }
+        catch (const std::exception&) { /* Try the next supported type. */ }
         // Try float
-        try { return ConfigValue(std::stof(s)); } catch (...) {}
+        try { return ConfigValue(std::stof(s)); }
+        catch (const std::exception&) { /* Keep the original string below. */ }
         // Try color (r,g,b,a)
         if (s.find(',') != std::string::npos) {
             std::array<float, 4> c{};
