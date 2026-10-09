@@ -474,7 +474,7 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
     if (!frameViewMatrix)
         return; // no temporally coherent camera — skip frame rather than jitter
     for (const Player& player : snapshot.players) {
-        if (!player.alive || player.is_local || (!settings.show_bots && player.is_bot)) continue;
+        if (!player.alive || (!settings.show_bots && player.is_bot)) continue;
         if (diedSinceSnapshot(player)) {
             continue;
         }

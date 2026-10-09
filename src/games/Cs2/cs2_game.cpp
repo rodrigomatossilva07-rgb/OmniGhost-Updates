@@ -4775,13 +4775,10 @@ static void RunFrameWithConfig(const Config& frame_config) {
         if (!alive || is_local || hidden_teammate) continue;
         // Positions are already part of PawnCore. Cull by range before any
         // names, weapon metadata, bone or visibility work is scheduled.
-        const float dx = positions[c][0] - runtime.local_pos[0];
-        const float dy = positions[c][1] - runtime.local_pos[1];
-        const float dz = positions[c][2] - runtime.local_pos[2];
-        const float distance_sq = dx * dx + dy * dy + dz * dz;
-        const float max_units = frame_config.max_distance * 39.37f;
-        if (!IsFinitePosition(positions[c]) ||
-            (frame_config.max_distance > 1.f && distance_sq > max_units * max_units))
+        // NOTE: Distance culling is now done ONLY in presentation layer (cs2_esp.cpp)
+        // so that ALL players are acquired regardless of distance. This ensures 10 enemies
+        // + teammates are always available when "hide team" is toggled off.
+        if (!IsFinitePosition(positions[c]))
             continue;
         if (eligible_count != c) {
             resolved_pawns[eligible_count] = resolved_pawns[c];
