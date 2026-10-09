@@ -145,15 +145,13 @@ bool SecurityManager::VerifyProtectedFiles() noexcept {
 bool SecurityManager::VerifyHostIdentity() noexcept {
 #if defined(OMNIGHOST_PUBLISH_BUILD)
     if (!OmniGhost::Update::ReleaseTrust::Configured) {
-        // Unsigned distribution is an explicit supported release policy
-        // (release-publish.json: requireAuthenticode=false). Do not reject the
-        // official launcher merely because no certificate anchor was embedded.
-        // When a trust anchor is configured, all checks below remain mandatory.
+        // A Publish build must never silently downgrade to unsigned trust.
         OmniGhost::SessionLog::Write(
-            OmniGhost::SessionLog::Severity::Info,
+            OmniGhost::SessionLog::Severity::Error,
             OmniGhost::SessionLog::Subsystem::Core,
-            "publisher identity check not required by release policy");
-        return true;
+            "publisher identity unavailable: release trust anchor is not configured");
+        Record(EventId::ReleaseTrustMissing);
+        return false;
     }
     const auto host = SignedHostPath();
     if (host.empty()) {

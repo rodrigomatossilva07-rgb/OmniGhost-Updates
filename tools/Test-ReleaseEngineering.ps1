@@ -49,7 +49,7 @@ Assert ($policy.requireConfirmation -eq $false) 'Publish must remain non-interac
 Assert ($policy.requireCleanReproducibleBuild -eq $true) 'Clean reproducible source must be required.'
 Assert ($policy.requireTagRelease -eq $true) 'A matching release tag must be required.'
 Assert ($policy.allowDeterministicSourceSnapshot -eq $true) 'Deterministic source snapshot publication must be explicitly enabled for this extracted project.'
-Assert ($policy.requireAuthenticode -eq $false -and $policy.requireManifestSignature -eq $false) 'ZIP-only releases must not require certificate signatures.'
+Assert ($policy.requireAuthenticode -eq $true -and $policy.requireManifestSignature -eq $true) 'Commercial releases must require Authenticode and signed manifests.'
 
 $project = [IO.File]::ReadAllText((Join-Path $ProjectDir 'OmiGhost.vcxproj'))
 $publishBuild = [IO.File]::ReadAllText((Join-Path $ProjectDir 'tools\Publish-Build.ps1'))
@@ -64,7 +64,7 @@ $workflow = [IO.File]::ReadAllText((Join-Path $ProjectDir '.github\workflows\rel
 Assert ($workflow -match 'workflow_dispatch:') 'Manual recovery workflow is unavailable.'
 Assert ($workflow -match 'environment:\s*production') 'Production approval environment is missing.'
 Assert ($workflow -match 'needs:\s*build_test_package') 'Publication does not require the validated build/package job.'
-Assert ($workflow -match 'Mode Publish') 'Release workflow does not package the unsigned ZIP build.'
+Assert ($workflow -match 'Mode Publish') 'Release workflow does not package the validated Publish build.'
 Assert ($workflow -notmatch 'Validate-CommercialRelease\.ps1|Test-SignedReleaseTampering\.ps1') 'Legacy signature validation remains in the workflow.'
 Assert ($workflow -notmatch 'DISCORD_WEBHOOK_URL|Notify-DiscordRelease') 'Removed Discord webhook is still referenced by the workflow.'
 Assert ($workflow -notmatch 'hardware_integration_test|OMNIGHOST_TEST_GAME') 'Obsolete mandatory DMA release gate is still configured.'

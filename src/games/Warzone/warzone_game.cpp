@@ -5,6 +5,7 @@
 #include <thread>
 #include <atomic>
 #include <array>
+#include <span>
 #include <mutex>
 #include "warzone_aim.h"
 #include "warzone_esp.h"
@@ -1001,8 +1002,6 @@ void AcquisitionTick() {
             // Phase 3: Bone acquisition for skeleton ESP (only when skeleton is enabled in config)
             // Read bones in micro-batches with camera priority and pressure awareness
             if (!s_cached_players.empty() && offsets.bone_array_base && offsets.bone_array_stride && config.skeleton) {
-                const uint64_t bonesBeginMs = GetTickCount64();
-                
                 // LOD bone indices - matches FiveM LOD structure
                 // Full (0-30m): all 31 bones
                 // High (30-80m): 13 bones (head, neck, spine, shoulders, pelvis)
@@ -1031,11 +1030,16 @@ void AcquisitionTick() {
                 constexpr float kLodHighDist = 80.f;
                 constexpr float kLodMedDist = 150.f;
 
-                auto ComputeBoneMask = [&](float distanceM) -> const int* {
+                auto SelectLodBones = [&](float distanceM) -> std::span<const int> {
                     if (distanceM <= kLodFullDist) return kLodFullBones;
                     if (distanceM <= kLodHighDist) return kLodHighBones;
                     if (distanceM <= kLodMedDist) return kLodMedBones;
                     return kLodLowBones;
+                };
+                auto BoneVectorValid = [](const float bone[3]) noexcept {
+                    if (!std::isfinite(bone[0]) || !std::isfinite(bone[1]) || !std::isfinite(bone[2]))
+                        return false;
+                    return std::fabs(bone[0]) + std::fabs(bone[1]) + std::fabs(bone[2]) > 0.001f;
                 };
 
                 // P1-3: Micro-batch bone acquisition (4 players per batch) with camera priority DURING execution
@@ -1064,17 +1068,13 @@ void AcquisitionTick() {
                             if (!boneBase) continue;
 
                             // Determine LOD based on distance (automatic) and build bone mask
-                            const int* lodBones = ComputeBoneMask(pl.distance);
-                            int lodBoneCount = 0;
+                            const auto lodBones = SelectLodBones(pl.distance);
                             uint32_t boneMask = 0;
-                            if (pl.distance <= kLodFullDist) { lodBoneCount = 31; boneMask = 0x7FFFFFFFu; }
-                            else if (pl.distance <= kLodHighDist) { lodBoneCount = 13; }
-                            else if (pl.distance <= kLodMedDist) { lodBoneCount = 7; }
-                            else { lodBoneCount = 1; }
 
                             // Build bone mask for this player's LOD
-                            for (int b = 0; b < lodBoneCount; ++b) {
-                                int boneIdx = lodBones[b];
+                            for (const int boneIdx : lodBones) {
+                                if (boneIdx < 0 || boneIdx >= Player::kMaxBones)
+                                    continue;
                                 boneMask |= (1u << boneIdx);
                                 uintptr_t boneAddr = boneBase + offsets.bone_array_base + static_cast<uintptr_t>(boneIdx) * offsets.bone_array_stride;
                                 mem.AddScatterReadRequest(boneHandle, boneAddr, pl.bones[boneIdx], sizeof(float) * 3);
@@ -1108,14 +1108,17 @@ void AcquisitionTick() {
                                 for (size_t i = batchStart; i < batchEnd; ++i) {
                                     auto& pl = s_cached_players[i];
                                     if (!pl.valid) continue;
-                                    bool hasHead = std::isfinite(pl.bones[offsets.bone_head][0]) && 
-                                                   std::isfinite(pl.bones[offsets.bone_head][1]) && 
-                                                   std::isfinite(pl.bones[offsets.bone_head][2]);
-                                    bool hasSpine = std::isfinite(pl.bones[offsets.bone_spine_upper][0]) && 
-                                                    std::isfinite(pl.bones[offsets.bone_spine_upper][1]) && 
-                                                    std::isfinite(pl.bones[offsets.bone_spine_upper][2]);
-                                    pl.bones_ok = hasHead && hasSpine;
-                                    pl.bones_sample_ms = batchSampleMs;
+                                    const bool indicesValid = offsets.bone_head >= 0 &&
+                                        offsets.bone_head < Player::kMaxBones &&
+                                        offsets.bone_spine_upper >= 0 &&
+                                        offsets.bone_spine_upper < Player::kMaxBones;
+                                    const bool requested = indicesValid &&
+                                        (pl.bones_mask & (1u << offsets.bone_head)) != 0 &&
+                                        (pl.bones_mask & (1u << offsets.bone_spine_upper)) != 0;
+                                    pl.bones_ok = requested && BoneVectorValid(pl.bones[offsets.bone_head]) &&
+                                        BoneVectorValid(pl.bones[offsets.bone_spine_upper]);
+                                    if (pl.bones_ok)
+                                        pl.bones_sample_ms = batchSampleMs;
                                 }
                             }
                         }
@@ -1128,29 +1131,11 @@ void AcquisitionTick() {
                     }
                     mem.CloseScatterHandle(boneHandle);
                     
-                    // Backfill sample time for any players not processed
-                    const uint64_t bonesEndMs = GetTickCount64();
-                    const uint64_t bonesSampleMs = bonesBeginMs + (bonesEndMs - bonesBeginMs) / 2u;
+                    // A deferred or failed read is not a fresh pose.
                     for (auto& pl : s_cached_players) {
                         if (!pl.valid) continue;
-                        if (pl.bones_sample_ms == 0) {
-                            // Validate at least head and spine bones are finite
-                            bool hasHead = std::isfinite(pl.bones[offsets.bone_head][0]) && 
-                                           std::isfinite(pl.bones[offsets.bone_head][1]) && 
-                                           std::isfinite(pl.bones[offsets.bone_head][2]);
-                            bool hasSpine = std::isfinite(pl.bones[offsets.bone_spine_upper][0]) && 
-                                            std::isfinite(pl.bones[offsets.bone_spine_upper][1]) && 
-                                            std::isfinite(pl.bones[offsets.bone_spine_upper][2]);
-                            pl.bones_ok = hasHead && hasSpine;
-                            pl.bones_sample_ms = bonesSampleMs;
-                            // Also backfill bone mask based on distance if not set
-                            if (pl.bones_mask == 0) {
-                                if (pl.distance <= kLodFullDist) pl.bones_mask = 0x7FFFFFFFu;
-                                else if (pl.distance <= kLodHighDist) pl.bones_mask = (1u<<7)|(1u<<6)|(1u<<5)|(1u<<4)|(1u<<3)|(1u<<2)|(1u<<13)|(1u<<14)|(1u<<18)|(1u<<19);
-                                else if (pl.distance <= kLodMedDist) pl.bones_mask = (1u<<7)|(1u<<6)|(1u<<5)|(1u<<4)|(1u<<3)|(1u<<2);
-                                else pl.bones_mask = (1u<<7);
-                            }
-                        }
+                        if (pl.bones_sample_ms == 0)
+                            pl.bones_ok = false;
                     }
                 }
             }

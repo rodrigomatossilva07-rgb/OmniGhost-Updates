@@ -1038,8 +1038,26 @@ static void AcquisitionLoop() {
                 *slot.value = g_acq_runtime;
                 g_snapshots.Publish(slot.index);
             }
+        } catch (const std::exception& ex) {
+            auto& telemetry = OmniGhost::Gameplay::DmaTelemetry::Fortnite();
+            telemetry.read_fails.fetch_add(1, std::memory_order_relaxed);
+            g_acq_runtime.camera_ok = false;
+            g_acq_runtime.players.clear();
+            static uint64_t nextDiagnosticMs = 0;
+            if (now >= nextDiagnosticMs) {
+                std::cerr << "[FORTNITE] Acquisition cycle failed: " << ex.what() << '\n';
+                nextDiagnosticMs = now + 5000u;
+            }
         } catch (...) {
-            // Never kill the acquisition lane on a single bad cycle.
+            auto& telemetry = OmniGhost::Gameplay::DmaTelemetry::Fortnite();
+            telemetry.read_fails.fetch_add(1, std::memory_order_relaxed);
+            g_acq_runtime.camera_ok = false;
+            g_acq_runtime.players.clear();
+            static uint64_t nextDiagnosticMs = 0;
+            if (now >= nextDiagnosticMs) {
+                std::cerr << "[FORTNITE] Acquisition cycle failed: unknown exception\n";
+                nextDiagnosticMs = now + 5000u;
+            }
         }
         const float cycleMs = std::chrono::duration<float, std::milli>(
             std::chrono::steady_clock::now() - cycleBegin).count();

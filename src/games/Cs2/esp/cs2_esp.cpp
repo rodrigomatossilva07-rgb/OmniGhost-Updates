@@ -111,7 +111,11 @@ void DrawSkeleton(ImDrawList* draw, const CS2::Player& player, const float viewM
         const float dx = player.bones[a][0] - player.bones[b][0];
         const float dy = player.bones[a][1] - player.bones[b][1];
         const float dz = player.bones[a][2] - player.bones[b][2];
-        const float maxWorldLength = from == CS2::BoneSlot::Head ? 55.f : 100.f;
+        // Leg bones (pelvis->knee, knee->ankle) can be longer than 100 units
+        bool isLegBone = (from == CS2::BoneSlot::Pelvis && (to == CS2::BoneSlot::KneeLeft || to == CS2::BoneSlot::KneeRight)) ||
+                         (from == CS2::BoneSlot::KneeLeft && to == CS2::BoneSlot::AnkleLeft) ||
+                         (from == CS2::BoneSlot::KneeRight && to == CS2::BoneSlot::AnkleRight);
+        const float maxWorldLength = from == CS2::BoneSlot::Head ? 55.f : (isLegBone ? 180.f : 100.f);
         if (dx * dx + dy * dy + dz * dz > maxWorldLength * maxWorldLength)
             continue;
         const float sx = points[a].x - points[b].x;
@@ -549,6 +553,55 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
         }
         if (!WorldToScreen(headWorld, viewMatrix, head)) continue;
 
+        // Improved feet position: use ankle bones when available for more stable box
+        float feetWorld[3] = { predictedPosition[0], predictedPosition[1], predictedPosition[2] };
+        bool useAnkleFeet = false;
+        if (bonesFresh && player.full_bones_ok) {
+            // Use average of both ankles for more stable feet position
+            const float* ankleL = player.bones[static_cast<size_t>(BoneSlot::AnkleLeft)];
+            const float* ankleR = player.bones[static_cast<size_t>(BoneSlot::AnkleRight)];
+            bool ankleLOk = std::isfinite(ankleL[0]) && std::isfinite(ankleL[1]) && std::isfinite(ankleL[2]) &&
+                            (ankleL[0] != 0.f || ankleL[1] != 0.f || ankleL[2] != 0.f);
+            bool ankleROk = std::isfinite(ankleR[0]) && std::isfinite(ankleR[1]) && std::isfinite(ankleR[2]) &&
+                            (ankleR[0] != 0.f || ankleR[1] != 0.f || ankleR[2] != 0.f);
+            if (ankleLOk && ankleROk) {
+                feetWorld[0] = (ankleL[0] + ankleR[0]) * 0.5f + boneOffset[0];
+                feetWorld[1] = (ankleL[1] + ankleR[1]) * 0.5f + boneOffset[1];
+                feetWorld[2] = (ankleL[2] + ankleR[2]) * 0.5f + boneOffset[2];
+                useAnkleFeet = true;
+            } else if (ankleLOk) {
+                feetWorld[0] = ankleL[0] + boneOffset[0];
+                feetWorld[1] = ankleL[1] + boneOffset[1];
+                feetWorld[2] = ankleL[2] + boneOffset[2];
+                useAnkleFeet = true;
+            } else if (ankleROk) {
+                feetWorld[0] = ankleR[0] + boneOffset[0];
+                feetWorld[1] = ankleR[1] + boneOffset[1];
+                feetWorld[2] = ankleR[2] + boneOffset[2];
+                useAnkleFeet = true;
+            }
+        }
+        ImVec2 feetScreen{};
+        if (useAnkleFeet && WorldToScreen(feetWorld, viewMatrix, feetScreen)) {
+            // Smooth transition between predicted feet and ankle-based feet
+            static std::unordered_map<uintptr_t, ImVec2> s_feetSmooth;
+            static uint64_t s_feetGen = 0;
+            if (s_feetGen != snapshot.session_generation) {
+                s_feetSmooth.clear();
+                s_feetGen = snapshot.session_generation;
+            }
+            auto itFeet = s_feetSmooth.find(player.pawn);
+            if (itFeet == s_feetSmooth.end()) {
+                s_feetSmooth.emplace(player.pawn, feetScreen);
+                feet = feetScreen;
+            } else {
+                const float alpha = 0.35f;
+                itFeet->second.x = itFeet->second.x + (feetScreen.x - itFeet->second.x) * alpha;
+                itFeet->second.y = itFeet->second.y + (feetScreen.y - itFeet->second.y) * alpha;
+                feet = itFeet->second;
+            }
+        }
+
         float height = feet.y - head.y;
         if (!std::isfinite(height) || height < 8.f || height > 4000.f) continue;
         // Box height hysteresis per pawn: blend toward the new height so
@@ -564,13 +617,32 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
             if (it == s_boxHeightSmooth.end()) {
                 s_boxHeightSmooth.emplace(player.pawn, height);
             } else {
-                const float alpha = bonesFresh ? 0.45f : 0.25f;
+                // Use higher alpha when bones are fresh for faster convergence,
+                // lower when using fallback for stability
+                const float alpha = (bonesFresh && headPlausible) ? 0.55f : 0.25f;
                 it->second = it->second + (height - it->second) * alpha;
                 height = it->second;
             }
         }
+        // Also smooth the head Y position for more stable box top
+        static std::unordered_map<uintptr_t, float> s_headYSmooth;
+        static uint64_t s_headYGen = 0;
+        if (s_headYGen != snapshot.session_generation) {
+            s_headYSmooth.clear();
+            s_headYGen = snapshot.session_generation;
+        }
+        auto itHeadY = s_headYSmooth.find(player.pawn);
+        float smoothedHeadY = head.y;
+        if (itHeadY == s_headYSmooth.end()) {
+            s_headYSmooth.emplace(player.pawn, head.y);
+        } else {
+            const float alpha = (bonesFresh && headPlausible) ? 0.55f : 0.25f;
+            itHeadY->second = itHeadY->second + (head.y - itHeadY->second) * alpha;
+            smoothedHeadY = itHeadY->second;
+        }
+
         const float width = height * 0.60f;
-        const ImVec2 min(feet.x - width * .5f, head.y - height * .08f);
+        const ImVec2 min(feet.x - width * .5f, smoothedHeadY - height * .08f);
         const ImVec2 max(feet.x + width * .5f, min.y + height * 1.09f);
         // Do not turn valid-but-distant projections into dozens of text and
         // line commands. Keep a margin for entities entering the viewport.

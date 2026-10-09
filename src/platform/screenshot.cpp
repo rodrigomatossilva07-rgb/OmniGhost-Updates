@@ -1,6 +1,7 @@
 #include "screenshot.h"
 #include "app_paths.h"
 #include <Windows.h>
+#include <wincodec.h>
 #include <shellapi.h>
 #include <filesystem>
 #include <fstream>
@@ -139,6 +140,57 @@ Result SaveBMP(const std::string& filename, const uint8_t* pixels, uint32_t widt
     return result;
 }
 
+Result SavePNG(const std::string& filename, const uint8_t* pixels, uint32_t width, uint32_t height) {
+    Result result;
+    result.width = width;
+    result.height = height;
+    IWICImagingFactory* factory = nullptr;
+    IWICStream* stream = nullptr;
+    IWICBitmapEncoder* encoder = nullptr;
+    IWICBitmapFrameEncode* frame = nullptr;
+    IPropertyBag2* properties = nullptr;
+    auto releaseAll = [&] {
+        if (properties) properties->Release();
+        if (frame) frame->Release();
+        if (encoder) encoder->Release();
+        if (stream) stream->Release();
+        if (factory) factory->Release();
+    };
+
+    HRESULT hr = CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER,
+                                  IID_PPV_ARGS(&factory));
+    if (SUCCEEDED(hr)) hr = factory->CreateStream(&stream);
+    const fs::path path(filename);
+    if (SUCCEEDED(hr)) hr = stream->InitializeFromFilename(path.c_str(), GENERIC_WRITE);
+    if (SUCCEEDED(hr)) hr = factory->CreateEncoder(GUID_ContainerFormatPng, nullptr, &encoder);
+    if (SUCCEEDED(hr)) hr = encoder->Initialize(stream, WICBitmapEncoderNoCache);
+    if (SUCCEEDED(hr)) hr = encoder->CreateNewFrame(&frame, &properties);
+    if (SUCCEEDED(hr)) hr = frame->Initialize(properties);
+    if (SUCCEEDED(hr)) hr = frame->SetSize(width, height);
+    WICPixelFormatGUID format = GUID_WICPixelFormat32bppBGRA;
+    if (SUCCEEDED(hr)) hr = frame->SetPixelFormat(&format);
+    if (SUCCEEDED(hr) && format != GUID_WICPixelFormat32bppBGRA)
+        hr = WINCODEC_ERR_UNSUPPORTEDPIXELFORMAT;
+    if (SUCCEEDED(hr)) {
+        const UINT stride = width * 4u;
+        hr = frame->WritePixels(height, stride, stride * height,
+                                const_cast<BYTE*>(pixels));
+    }
+    if (SUCCEEDED(hr)) hr = frame->Commit();
+    if (SUCCEEDED(hr)) hr = encoder->Commit();
+    releaseAll();
+    if (FAILED(hr)) {
+        result.error = "PNG encoding failed: HRESULT=" + std::to_string(static_cast<unsigned long>(hr));
+        std::error_code ignored;
+        fs::remove(path, ignored);
+        return result;
+    }
+    result.path = filename;
+    result.fileSize = fs::file_size(path);
+    result.success = true;
+    return result;
+}
+
 Result CaptureInternal(const std::string& filename, int x, int y, int width, int height, Format fmt) {
     Result result;
     
@@ -176,8 +228,14 @@ Result CaptureInternal(const std::string& filename, int x, int y, int width, int
     
     HDC hScreenDC = GetDC(nullptr);
     HDC hMemoryDC = CreateCompatibleDC(hScreenDC);
-    
     HBITMAP hBitmap = CreateCompatibleBitmap(hScreenDC, width, height);
+    if (!hScreenDC || !hMemoryDC || !hBitmap) {
+        if (hBitmap) DeleteObject(hBitmap);
+        if (hMemoryDC) DeleteDC(hMemoryDC);
+        if (hScreenDC) ReleaseDC(nullptr, hScreenDC);
+        result.error = "Failed to allocate screenshot resources";
+        return result;
+    }
     HBITMAP hOldBitmap = (HBITMAP)SelectObject(hMemoryDC, hBitmap);
     
     BOOL success = BitBlt(hMemoryDC, 0, 0, width, height, hScreenDC, captureX, captureY, SRCCOPY | CAPTUREBLT);
@@ -200,26 +258,21 @@ Result CaptureInternal(const std::string& filename, int x, int y, int width, int
     bmi.bmiHeader.biCompression = BI_RGB;
     
     std::vector<uint8_t> pixels(width * height * 4);
-    GetDIBits(hScreenDC, hBitmap, 0, height, pixels.data(), &bmi, DIB_RGB_COLORS);
+    const int copiedRows = GetDIBits(hScreenDC, hBitmap, 0, height, pixels.data(), &bmi, DIB_RGB_COLORS);
     
     SelectObject(hMemoryDC, hOldBitmap);
     DeleteObject(hBitmap);
     DeleteDC(hMemoryDC);
     ReleaseDC(nullptr, hScreenDC);
+    if (copiedRows != height) {
+        result.error = "Failed to read screenshot pixels";
+        return result;
+    }
     
     if (fmt == Format::BMP) {
         result = SaveBMP(filename, pixels.data(), width, height);
     } else {
-        // For PNG, we'll save as BMP for now (PNG would require additional library)
-        result = SaveBMP(filename, pixels.data(), width, height);
-        // Rename to .png extension if needed
-        if (result.success) {
-            fs::path bmpPath(filename);
-            fs::path pngPath = bmpPath.replace_extension(".png");
-            fs::rename(bmpPath, pngPath);
-            result.path = pngPath.string();
-            result.fileSize = fs::file_size(pngPath);
-        }
+        result = SavePNG(filename, pixels.data(), width, height);
     }
     
     result.width = width;

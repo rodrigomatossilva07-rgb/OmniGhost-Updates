@@ -253,17 +253,13 @@ bool TokenOk(const std::string& req) {
             std::string tok = line.substr(bearer + 7);
             while (!tok.empty() && (tok.back() == ' ' || tok.back() == '\r')) tok.pop_back();
             while (!tok.empty() && tok.front() == ' ') tok.erase(tok.begin());
-            return tok == g_token;
+            if (tok.size() != g_token.size()) return false;
+            unsigned char difference = 0;
+            for (std::size_t i = 0; i < tok.size(); ++i)
+                difference |= static_cast<unsigned char>(tok[i] ^ g_token[i]);
+            return difference == 0;
         }
     }
-    // Query ?token=
-    auto q = req.find("token=");
-    if (q != std::string::npos) {
-        auto end = req.find_first_of(" \r\n&", q + 6);
-        std::string tok = req.substr(q + 6, end == std::string::npos ? std::string::npos : end - (q + 6));
-        return tok == g_token;
-    }
-    // Allow static assets without token; only protect /api/*
     return false;
 }
 
@@ -408,13 +404,13 @@ void ServerLoop() {
             Sleep(5);
             continue;
         }
-        // Do not let a client that connected but never sent a request stall
-        // the sole server loop. Process only immediately readable clients.
+        // Accept and TCP payload delivery are separate events. Give a valid
+        // request a short bounded window without restoring the old 750 ms stall.
         fd_set readable{};
         FD_ZERO(&readable);
         FD_SET(client, &readable);
-        timeval readyNow{};
-        if (select(0, &readable, nullptr, nullptr, &readyNow) <= 0) {
+        timeval requestDeadline{0, 100000};
+        if (select(0, &readable, nullptr, nullptr, &requestDeadline) <= 0) {
             closesocket(client);
             continue;
         }

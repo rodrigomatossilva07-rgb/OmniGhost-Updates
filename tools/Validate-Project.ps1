@@ -244,8 +244,8 @@ if ($publishConfig.requireCleanReproducibleBuild -ne $true -or $publishConfig.re
 Pass 'Commercial publication requires clean reproducible tagged source.'
 if ($publishConfig.allowDeterministicSourceSnapshot -ne $true) { Fail 'This source snapshot must explicitly allow deterministic snapshot publication.' }
 Pass 'Deterministic source snapshots are explicitly authorized without weakening validation for real Git clones.'
-if ($publishConfig.requireAuthenticode -ne $false -or $publishConfig.requireManifestSignature -ne $false) { Fail 'ZIP-only publication must not require certificate signatures.' }
-Pass 'ZIP-only publication uses HTTPS, size and SHA-256 without certificate signing.'
+if ($publishConfig.requireAuthenticode -ne $true -or $publishConfig.requireManifestSignature -ne $true) { Fail 'Commercial publication must require Authenticode and a signed manifest.' }
+Pass 'Commercial publication requires independent executable and manifest authenticity.'
 if ($publishConfig.cleanWorkspaceAfterVerifiedPublish -ne $true) { Fail 'Publish must clean the requested local workspace only after a verified public release.' }
 Pass 'Post-publish workspace cleanup is enabled only after verified publication.'
 if (($publishConfig.requireAuthenticode -eq $true) -xor ($publishConfig.requireManifestSignature -eq $true)) { Fail 'Authenticode and manifest signatures must be toggled together.' }
@@ -258,7 +258,7 @@ if ($publishConfig.defaultMandatory -ne $false) { Fail 'config\release\release-p
 Pass 'Update policy defaults to optional; mandatory releases require an explicit policy change.'
 
 $trustHeader = Read-Utf8Text (Join-Path $ProjectDir 'src\updater\release_trust.h')
-Require-Text $trustHeader 'Configured\s*=\s*false' 'Client certificate enforcement is disabled for ZIP-only updates.'
+Require-Text $trustHeader 'Configured\s*=\s*(true|false)' 'Client release trust state is explicit; commercial preflight rejects missing certificate material.'
 $cryptoSource = Read-Utf8Text (Join-Path $ProjectDir 'src\updater\crypto.cpp')
 Require-Text $cryptoSource 'VerifyDetachedManifestSignature' 'Updater verifies detached RSA manifest signatures.'
 Require-Text $cryptoSource 'expectedCertificateThumbprint' 'Updater verifies expected publisher certificate identity.'

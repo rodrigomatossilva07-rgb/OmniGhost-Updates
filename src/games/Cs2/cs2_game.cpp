@@ -1,4 +1,4 @@
-#include "cs2_game.h"
+﻿#include "cs2_game.h"
 #include "radar/cs2_radar.h"
 #include "platform/session_log.h"
 #include "../src/platform/offset_auto.h"
@@ -2947,14 +2947,17 @@ static void RunOptionalEnrichment(const Config& frame_config,
                     r.pawn = targets[i].pawn;
                     r.bone_base = boneBases[bi];
                     std::memcpy(r.origin, targets[i].origin, sizeof(r.origin));
-                    const auto validJoint = [&](const BoneJointSnapshot& j) {
+                    const auto validJoint = [&](const BoneJointSnapshot& j, size_t boneSlot) {
                         if (!std::isfinite(j.x) || !std::isfinite(j.y) || !std::isfinite(j.z))
                             return false;
                         const float dx = j.x - r.origin[0];
                         const float dy = j.y - r.origin[1];
                         const float dz = j.z - r.origin[2];
+                        // Allow ankles/feet to be lower (below -50) since they can be far from pelvis
+                        float minDz = -50.f;
+                        if (boneSlot >= 14 && boneSlot <= 19) minDz = -120.f;
                         return dx * dx + dy * dy < 180.f * 180.f &&
-                            dz > -50.f && dz < 200.f;
+                            dz > minDz && dz < 200.f;
                     };
                     // Compact upper-body mapping (head/neck/chest/stomach indices
                     // depend on layout; use sticky when known).
@@ -2962,11 +2965,12 @@ static void RunOptionalEnrichment(const Config& frame_config,
                     bool any = false;
                     for (int s = 0; s < 4; ++s) {
                         const auto& j = joints[bi][kIdx[s]];
-                        if (!validJoint(j))
+                        const size_t boneSlot = (s == 3) ? 4 : s; // head=0, neck=1, chest=2, stomach=4
+                        if (!validJoint(j, boneSlot))
                             continue;
-                        r.bones[s == 3 ? 4 : s][0] = j.x;
-                        r.bones[s == 3 ? 4 : s][1] = j.y;
-                        r.bones[s == 3 ? 4 : s][2] = j.z;
+                        r.bones[boneSlot][0] = j.x;
+                        r.bones[boneSlot][1] = j.y;
+                        r.bones[boneSlot][2] = j.z;
                         any = true;
                     }
                     bool completePose = false;
@@ -2982,7 +2986,7 @@ static void RunOptionalEnrichment(const Config& frame_config,
                         completePose = true;
                         for (size_t b = 0; b < kBoneSlotCount && b < sizeof(kFullMap)/sizeof(kFullMap[0]); ++b) {
                             const auto& j = joints[bi][kFullMap[b]];
-                            if (!validJoint(j)) continue; // renderer omits that segment
+                            if (!validJoint(j, b)) continue; // renderer omits that segment
                             r.bones[b][0] = j.x; r.bones[b][1] = j.y; r.bones[b][2] = j.z;
                         }
                         // A pose is drawable only when the torso has coherent
@@ -4828,6 +4832,11 @@ static void RunFrameWithConfig(const Config& frame_config) {
             corePlayer.pos[1] = positions[c][1];
             corePlayer.pos[2] = positions[c][2];
             corePlayer.position_sample_ms = position_sample_ms;
+            // Calculate distance in meters (units are in inches, 39.37 inches = 1 meter)
+            const float dx_dist = corePlayer.pos[0] - runtime.local_pos[0];
+            const float dy_dist = corePlayer.pos[1] - runtime.local_pos[1];
+            const float dz_dist = corePlayer.pos[2] - runtime.local_pos[2];
+            corePlayer.distance = std::sqrt(dx_dist * dx_dist + dy_dist * dy_dist + dz_dist * dz_dist) / 39.37f;
             if (track_velocity) {
                 for (int axis = 0; axis < 3; ++axis) {
                     const float v = core[c].velocity[axis];

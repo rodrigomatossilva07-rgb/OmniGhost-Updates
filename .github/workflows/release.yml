@@ -56,6 +56,14 @@ jobs:
           ./tools/Test-ReleaseEngineering.ps1 -ProjectDir .
           ./tools/Audit-UiLocalization.ps1 -ProjectDir . -ReportPath artifacts/validation/localization.json
 
+      - name: Build and run security regression tests
+        shell: pwsh
+        run: |
+          msbuild tests/OmniGhost.SecurityTests.vcxproj /m:1 /nr:false /p:Configuration=Release /p:Platform=x64
+          if ($LASTEXITCODE -ne 0) { throw 'Security tests failed to build.' }
+          & ./.cache/tests/Release/x64/OmniGhost.SecurityTests.exe
+          if ($LASTEXITCODE -ne 0) { throw 'Security tests failed.' }
+
       - name: Build customer binary
         shell: pwsh
         run: |

@@ -1,6 +1,6 @@
 #include "../src/auth/keyauth_gateway.h"
+#include "../src/updater/update_types.h"
 
-#include <chrono>
 #include <iostream>
 #include <memory>
 #include <stop_token>
@@ -34,22 +34,22 @@ bool Expect(bool condition, const char* message) {
 }
 
 int main() {
+    const OmniGhost::Update::Configuration updatePolicy{};
+    if (!Expect(updatePolicy.requireAuthenticode && updatePolicy.requireManifestSignature,
+                "updater trust policy fails closed")) return 1;
     auto provider = std::make_shared<FakeProvider>();
     LicenseGateway gateway(provider);
     if (!Expect(gateway.Login("account", "password").Ok(), "login")) return 1;
     if (!Expect(gateway.IsAuthenticated(), "login grants session")) return 1;
 
     provider->nextCheck = LicenseStatus::Timeout;
-    if (!Expect(gateway.Revalidate().status == LicenseStatus::Timeout,
-                "timeout classified as transient")) return 1;
+    if (!Expect(gateway.Revalidate().status == LicenseStatus::Timeout, "timeout classified as transient")) return 1;
     if (!Expect(gateway.IsAuthenticated(), "short network outage retains bounded session")) return 1;
 
     provider->nextCheck = LicenseStatus::Revoked;
-    if (!Expect(gateway.Revalidate().status == LicenseStatus::Revoked,
-                "revocation reaches gateway")) return 1;
+    if (!Expect(gateway.Revalidate().status == LicenseStatus::Revoked, "revocation reaches gateway")) return 1;
     if (!Expect(!gateway.IsAuthenticated(), "revoked session denied")) return 1;
-    if (!Expect(gateway.Revalidate().status == LicenseStatus::Invalid,
-                "revoked session is not silently revived")) return 1;
+    if (!Expect(gateway.Revalidate().status == LicenseStatus::Invalid, "revoked session is not revived")) return 1;
 
     if (!Expect(gateway.Login("account", "password").Ok(), "fresh login restores session")) return 1;
     provider->nextCheck = LicenseStatus::Valid;

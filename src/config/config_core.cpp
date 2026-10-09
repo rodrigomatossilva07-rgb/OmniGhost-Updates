@@ -36,6 +36,7 @@ std::string active_config_id;
 std::string ConfigDir();
 
 static fs::path ConfigStatePath() { return fs::path(ConfigDir()) / "config_state.ini"; }
+bool WriteTextAtomically(const fs::path& destination, const std::string& data, std::string& error);
 
 std::string NewConfigId() {
     GUID guid{};
@@ -58,7 +59,7 @@ static std::string ReadState(const std::string& key) {
     return {};
 }
 
-static void WriteState(const std::string& key, const std::string& value) {
+static bool WriteState(const std::string& key, const std::string& value) {
     EnsureConfigDir();
     std::map<std::string, std::string> values;
     std::ifstream f(ConfigStatePath());
@@ -68,8 +69,14 @@ static void WriteState(const std::string& key, const std::string& value) {
         if (pos != std::string::npos) values[line.substr(0, pos)] = line.substr(pos + 1);
     }
     values[key] = value;
-    std::ofstream out(ConfigStatePath(), std::ios::trunc);
-    for (const auto& [k, v] : values) out << k << "=" << v << '\n';
+    std::ostringstream serialized;
+    for (const auto& [k, v] : values) serialized << k << "=" << v << '\n';
+    std::string error;
+    if (!WriteTextAtomically(ConfigStatePath(), serialized.str(), error)) {
+        last_status = "Falha ao guardar estado da configuração: " + error;
+        return false;
+    }
+    return true;
 }
 
 // ---- Helpers ----

@@ -60,8 +60,9 @@ struct Configuration {
     std::uint32_t maximumArchiveEntries = 20000;
     bool automaticDownload = false;
     bool automaticInstallOnExit = false;
-    bool requireAuthenticode = ReleaseTrust::Configured;
-    bool requireManifestSignature = ReleaseTrust::Configured;
+    // Updates fail closed until a public release trust anchor is embedded.
+    bool requireAuthenticode = true;
+    bool requireManifestSignature = true;
     std::string expectedPublisherSubject = ReleaseTrust::PublisherSubject;
     std::string expectedCertificateThumbprint = ReleaseTrust::CertificateThumbprint;
     std::string manifestPublicCertificateDerBase64 = ReleaseTrust::PublicCertificateDerBase64;

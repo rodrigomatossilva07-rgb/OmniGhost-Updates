@@ -1157,8 +1157,6 @@ static bool EspPedIsDead(uintptr_t ped, float* outHealth = nullptr) {
 
     float health = 0.f;
     float maxH = 0.f;
-    bool deadKnown = false;
-    
     // First check liveness snapshot (high-frequency health lane ~40Hz)
     if (auto liveness = FiveM::ESP::AcquireLivenessSnapshot(); liveness.valid()) {
         const uint64_t currentGen = FiveM::ESP::GetSessionGeneration().load(std::memory_order_acquire);
@@ -1166,19 +1164,20 @@ static bool EspPedIsDead(uintptr_t ped, float* outHealth = nullptr) {
             const auto& sample = liveness.players[i];
             if (sample.ped == ped && sample.generation == currentGen) {
                 health = sample.alive ? 100.f : 0.f; // liveness only tracks alive/dead
-                deadKnown = !sample.alive;
-                break;
+                flags.dead = !sample.alive;
+                flags.dead_known = true;
+                if (outHealth) *outHealth = health;
+                return flags.dead;
             }
         }
     }
     
     // Fall back to prepared frame if liveness didn't have this ped
-    if (!deadKnown) {
+    {
         const PreparedEspData* prepared = FindPreparedEsp(ped);
         if (prepared) {
             health = prepared->health;
             maxH = prepared->max_health;
-            deadKnown = true;
         } else {
             // No presentation-thread DMA fallback.  A cold prepared frame is
             // treated as unknown/alive and will be corrected by the next producer
@@ -1191,9 +1190,10 @@ static bool EspPedIsDead(uintptr_t ped, float* outHealth = nullptr) {
     }
     
     if (outHealth) *outHealth = health;
-    const bool healthLooksValid = (maxH > 50.f && maxH < 1000.f) || (health > 0.f && health < 1000.f);
+    const bool healthLooksValid = maxH > 50.f && maxH < 1000.f &&
+        health >= 0.f && health < 1000.f;
     flags.dead = healthLooksValid && health <= 0.f;
-    flags.dead_known = true;
+    flags.dead_known = healthLooksValid;
     return flags.dead;
 }
 
@@ -2033,7 +2033,7 @@ static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer,
     if (healthLooksValid && health <= 0.f && !rcfg->show_dead)
         return;
     if (!healthLooksValid && health <= 0.f)
-        health = 100.f; // assume alive when health chain is unreliable
+        health = 0.f; // unknown is not evidence that the player is alive
 
     const bool visible = EspPedVisible(ped);
     if (rcfg->visible_check && !visible)

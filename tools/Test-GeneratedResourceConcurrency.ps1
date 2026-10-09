@@ -15,7 +15,9 @@ function Invoke-ConcurrentGenerator([string]$Name, [string]$Script, [string[]]$E
     foreach ($index in 1..2) {
         $stdout = Join-Path $artifactDir "$Name-$index.stdout.txt"
         $stderr = Join-Path $artifactDir "$Name-$index.stderr.txt"
-        $arguments = @('-NoProfile','-ExecutionPolicy','Bypass','-File',$Script,'-ProjectDir',$ProjectDir,'-Configuration','ConcurrencyTest','-Architecture','x64') + $ExtraArguments
+        $quotedScript = '"' + $Script.Replace('"', '\"') + '"'
+        $quotedProject = '"' + $ProjectDir.Replace('"', '\"') + '"'
+        $arguments = @('-NoProfile','-ExecutionPolicy','Bypass','-File',$quotedScript,'-ProjectDir',$quotedProject,'-Configuration','ConcurrencyTest','-Architecture','x64') + $ExtraArguments
         $processes += Start-Process -FilePath 'powershell.exe' -ArgumentList $arguments -PassThru -WindowStyle Hidden `
             -RedirectStandardOutput $stdout -RedirectStandardError $stderr
     }

@@ -82,13 +82,19 @@ foreach ($tree in @($manifest.trees)) {
     $index = 0
     foreach ($file in $treeFiles) {
         $relative = $file.FullName.Substring($treeRoot.TrimEnd('\').Length).TrimStart('\','/').Replace('\','/')
+        $logicalName = (([string]$tree.logicalPrefix).TrimEnd('/') + '/' + $relative)
+        if ($logicalName.StartsWith('cs2/collision/', [StringComparison]::OrdinalIgnoreCase) -and
+            ($file.Length -lt 36000 -or $file.Length % 36 -ne 0)) {
+            Write-Warning "Skipping incomplete CS2 collision resource: $relative"
+            continue
+        }
         $safeName = ($relative -replace '[^A-Za-z0-9_]', '_')
         $extension = $file.Extension.ToLowerInvariant()
         $type = if ($extension -eq '.json') {'json'} elseif ($extension -in @('.png','.jpg','.jpeg','.webp','.ico','.svg')) {'image'} else {'text'}
         $expanded.Add([pscustomobject]@{
             name = ([string]$tree.namePrefix) + '_' + $safeName
             id = [int]$tree.idStart + $index
-            logicalName = (([string]$tree.logicalPrefix).TrimEnd('/') + '/' + $relative)
+            logicalName = $logicalName
             source = $file.FullName.Substring($ProjectDir.Length).TrimStart('\','/')
             type = $type
             mandatory = [bool]$tree.mandatory

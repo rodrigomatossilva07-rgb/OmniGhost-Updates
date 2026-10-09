@@ -69,57 +69,9 @@ std::string SafeExpiryRemaining(std::string_view expiry) noexcept {
 
 #if defined(OMNIGHOST_KEYAUTH_ENABLED) && !defined(OMNIGHOST_SKIP_KEYAUTH)
 int __cdecl RunCommandWithoutWindow(const char* command) noexcept {
-    if (!command)
-        return 1;
-
-    try {
-        const int required = MultiByteToWideChar(CP_ACP, 0, command, -1, nullptr, 0);
-        if (required <= 1)
-            return -1;
-        std::wstring payload(static_cast<std::size_t>(required), L'\0');
-        MultiByteToWideChar(CP_ACP, 0, command, -1, payload.data(), required);
-        payload.pop_back();
-
-        // The bundled KeyAuth SDK prefixes one diagnostic command with
-        // "start cmd /C", which explicitly creates a visible console. Execute
-        // the same payload in our hidden command host instead.
-        std::wstring lowered(payload);
-        std::transform(lowered.begin(), lowered.end(), lowered.begin(),
-            [](wchar_t value) { return static_cast<wchar_t>(std::towlower(value)); });
-        constexpr std::wstring_view startCmd = L"start cmd /c ";
-        constexpr std::wstring_view startCmdExe = L"start cmd.exe /c ";
-        if (lowered.starts_with(startCmd))
-            payload.erase(0, startCmd.size());
-        else if (lowered.starts_with(startCmdExe))
-            payload.erase(0, startCmdExe.size());
-
-        wchar_t shellBuffer[MAX_PATH]{};
-        DWORD shellLength = GetEnvironmentVariableW(L"ComSpec", shellBuffer, MAX_PATH);
-        std::wstring shell = shellLength > 0 && shellLength < MAX_PATH
-            ? std::wstring(shellBuffer, shellLength)
-            : std::wstring(L"C:\\Windows\\System32\\cmd.exe");
-        std::wstring commandLine = L"\"" + shell + L"\" /D /S /C \"" + payload + L"\"";
-        std::vector<wchar_t> mutableCommand(commandLine.begin(), commandLine.end());
-        mutableCommand.push_back(L'\0');
-
-        STARTUPINFOW startup{};
-        startup.cb = sizeof(startup);
-        startup.dwFlags = STARTF_USESHOWWINDOW;
-        startup.wShowWindow = SW_HIDE;
-        PROCESS_INFORMATION process{};
-        if (!CreateProcessW(shell.c_str(), mutableCommand.data(), nullptr, nullptr, FALSE,
-                            CREATE_NO_WINDOW | CREATE_UNICODE_ENVIRONMENT,
-                            nullptr, nullptr, &startup, &process))
-            return -1;
-        CloseHandle(process.hThread);
-        WaitForSingleObject(process.hProcess, INFINITE);
-        DWORD exitCode = 1;
-        GetExitCodeProcess(process.hProcess, &exitCode);
-        CloseHandle(process.hProcess);
-        return static_cast<int>(exitCode);
-    } catch (...) {
-        return -1;
-    }
+    (void)command;
+    // The authentication SDK is not authorized to execute shell commands.
+    return -1;
 }
 
 bool InstallHiddenSystemImport() noexcept {
@@ -165,7 +117,7 @@ bool InstallHiddenSystemImport() noexcept {
     return false;
 }
 
-void EnsureKeyAuthCommandsAreHidden() noexcept {
+void DisableKeyAuthShellCommands() noexcept {
     static std::once_flag installed;
     std::call_once(installed, [] { (void)InstallHiddenSystemImport(); });
 }
@@ -208,7 +160,7 @@ LicenseResult KeyAuthRemoteLicenseProvider::EnsureInitialized(std::stop_token st
         return MakeResult(LicenseStatus::Valid, "KeyAuth pronto.", "keyauth.ready");
 
 #if defined(OMNIGHOST_KEYAUTH_ENABLED) && !defined(OMNIGHOST_SKIP_KEYAUTH)
-    EnsureKeyAuthCommandsAreHidden();
+    DisableKeyAuthShellCommands();
     impl_->api.init();
     if (!impl_->api.response.success)
         return MakeResult(StatusForMessage(impl_->api.response.message),
