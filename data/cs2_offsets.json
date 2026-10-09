@@ -1,27 +1,27 @@
 {
   "schema_version": 1,
   "game": "cs2",
-  "build": "cs2-dumper-14188",
-  "cl": "14188",
+  "build": "cs2-dumper-14190",
+  "cl": "14190",
   "module": "client.dll",
-  "source": "a2x/cs2-dumper output.zip supplied 2026-10-04 (build 14188; 83 dumped values unchanged; m_boneArray absent from dump)",
-  "generated_at": "2026-10-04T18:11:14Z",
+  "source": "a2x/cs2-dumper output.zip supplied 2026-10-09 (build 14190; m_boneArray absent from dump, previous fallback retained)",
+  "generated_at": "2026-10-09T01:41:20Z",
   "client.dll": {
-    "dwCSGOInput": "0x2576150",
-    "dwEntityList": "0x2715818",
-    "dwGameEntitySystem": "0x2715818",
+    "dwCSGOInput": "0x2572460",
+    "dwEntityList": "0x2711598",
+    "dwGameEntitySystem": "0x2711598",
     "dwGameEntitySystem_highestEntityIndex": "0x2120",
-    "dwGameRules": "0x255CE50",
-    "dwGlobalVars": "0x222BE98",
-    "dwGlowManager": "0x255CE60",
-    "dwLocalPlayerController": "0x2538008",
-    "dwLocalPlayerPawn": "0x2560698",
-    "dwPlantedC4": "0x24C88D0",
-    "dwPrediction": "0x25605A0",
-    "dwViewAngles": "0x25767D8",
-    "dwViewMatrix": "0x2566910",
-    "dwViewRender": "0x2565D20",
-    "dwWeaponC4": "0x24C4A90"
+    "dwGameRules": "0x255BE80",
+    "dwGlobalVars": "0x2228090",
+    "dwGlowManager": "0x2558BA0",
+    "dwLocalPlayerController": "0x25338A8",
+    "dwLocalPlayerPawn": "0x255C3C8",
+    "dwPlantedC4": "0x24C2248",
+    "dwPrediction": "0x255C2D0",
+    "dwViewAngles": "0x2572AE8",
+    "dwViewMatrix": "0x2561CD0",
+    "dwViewRender": "0x2562698",
+    "dwWeaponC4": "0x24C0800"
   },
   "engine2.dll": {
     "dwBuildNumber": "0x61CFE8",
@@ -85,8 +85,8 @@
       "m_bIsDefusing": "0x1EA2",
       "m_iShotsFired": "0x1EB4",
       "m_ArmorValue": "0x1ECC",
-      "m_angEyeAngles": "0x35F0",
-      "m_iIDEntIndex": "0x36CC"
+      "m_angEyeAngles": "0x3600",
+      "m_iIDEntIndex": "0x36DC"
     },
     "EntitySpottedState_t": {
       "m_bSpotted": "0x8"

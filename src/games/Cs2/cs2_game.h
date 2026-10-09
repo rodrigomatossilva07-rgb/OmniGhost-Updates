@@ -34,10 +34,10 @@ struct Offsets {
     uintptr_t m_sSanitizedPlayerName = 0x878;
     uintptr_t m_steamID = 0x788;
     uintptr_t m_bPawnIsAlive = 0x934;
-    // C_CSPlayerPawn fields for build 14186
+    // C_CSPlayerPawn fallback fields; current values verified against dump 14190.
     uintptr_t m_ArmorValue = 0x1ECC;
-    uintptr_t m_angEyeAngles = 0x35F0;
-    uintptr_t m_iIDEntIndex = 0x36CC;
+    uintptr_t m_angEyeAngles = 0x3600;
+    uintptr_t m_iIDEntIndex = 0x36DC;
     uintptr_t m_vecAbsOrigin = 0xC8;
     uintptr_t m_vecVelocity = 0x430;
     uintptr_t m_bDormant = 0x103;
