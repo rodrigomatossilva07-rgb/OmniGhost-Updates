@@ -1110,8 +1110,7 @@ struct PedFrameFlags {
     uint32_t frame = 0;
     uint64_t sessionGeneration = 0; // P0-4: track session for invalidation
     std::chrono::steady_clock::time_point lastAccess; // P0-4: real-time pruning
-    bool dead = false;
-    bool dead_known = false;
+    FiveM::PedHealthState health_state = FiveM::PedHealthState::Unknown;
     bool adm = false;
     bool adm_known = false;
 };
@@ -1149,25 +1148,22 @@ static PedFrameFlags& PedFlags(uintptr_t ped) {
 }
 
 // Health dead probe used by all ESP paths (skeleton / hat / box).
-static bool EspPedIsDead(uintptr_t ped, float* outHealth = nullptr) {
-    using namespace FiveM::offset;
+static FiveM::PedHealthState EspPedHealthState(uintptr_t ped, float* outHealth = nullptr) {
     auto& flags = PedFlags(ped);
-    if (flags.dead_known && !outHealth)
-        return flags.dead;
+    if (flags.health_state != FiveM::PedHealthState::Unknown && !outHealth)
+        return flags.health_state;
 
-    float health = 0.f;
-    float maxH = 0.f;
+    float health = -1.f;
     // First check liveness snapshot (high-frequency health lane ~40Hz)
     if (auto liveness = FiveM::ESP::AcquireLivenessSnapshot(); liveness.valid()) {
         const uint64_t currentGen = FiveM::ESP::GetSessionGeneration().load(std::memory_order_acquire);
         for (uint32_t i = 0; i < liveness.count; ++i) {
             const auto& sample = liveness.players[i];
             if (sample.ped == ped && sample.generation == currentGen) {
-                health = sample.alive ? 100.f : 0.f; // liveness only tracks alive/dead
-                flags.dead = !sample.alive;
-                flags.dead_known = true;
+                health = sample.health;
+                flags.health_state = FiveM::ClassifyPedHealth(health);
                 if (outHealth) *outHealth = health;
-                return flags.dead;
+                return flags.health_state;
             }
         }
     }
@@ -1175,26 +1171,28 @@ static bool EspPedIsDead(uintptr_t ped, float* outHealth = nullptr) {
     // Fall back to prepared frame if liveness didn't have this ped
     {
         const PreparedEspData* prepared = FindPreparedEsp(ped);
-        if (prepared) {
+        if (prepared && prepared->health_valid) {
             health = prepared->health;
-            maxH = prepared->max_health;
         } else {
-            // No presentation-thread DMA fallback.  A cold prepared frame is
-            // treated as unknown/alive and will be corrected by the next producer
-            // generation.
-            if (outHealth) *outHealth = 0.f;
-            flags.dead = false;
-            flags.dead_known = true;
-            return false;
+            if (outHealth) *outHealth = -1.f;
+            flags.health_state = FiveM::PedHealthState::Unknown;
+            return flags.health_state;
         }
     }
     
     if (outHealth) *outHealth = health;
-    const bool healthLooksValid = maxH > 50.f && maxH < 1000.f &&
-        health >= 0.f && health < 1000.f;
-    flags.dead = healthLooksValid && health <= 0.f;
-    flags.dead_known = healthLooksValid;
-    return flags.dead;
+    flags.health_state = FiveM::ClassifyPedHealth(health);
+    return flags.health_state;
+}
+
+static bool EspPedMayDraw(uintptr_t ped, bool showDead) {
+    const auto state = EspPedHealthState(ped);
+    return state == FiveM::PedHealthState::Alive ||
+        (showDead && state == FiveM::PedHealthState::Dead);
+}
+
+static bool EspPedIsDead(uintptr_t ped) {
+    return EspPedHealthState(ped) == FiveM::PedHealthState::Dead;
 }
 
 static bool EspPedIsFriend(uintptr_t ped) {
@@ -1253,7 +1251,7 @@ static int FxSegCount(float distM, int nearSegs, int farSegs) {
 
 static void DrawMotionVisuals(uintptr_t ped, Matrix viewport, const PedData* cached) {
     const auto& cfg = esp::config;
-    if (EspPedIsDead(ped) && !cfg.show_dead)
+    if (!EspPedMayDraw(ped, cfg.show_dead))
         return;
     if (!cfg.trails && !cfg.head_halo && !cfg.look_direction && !cfg.chinese_hat &&
         !cfg.angel_wings && !cfg.devil_horns && !cfg.floating_crown)
@@ -1699,9 +1697,11 @@ void esp::prepare_esp_frame(const std::vector<uintptr_t>& peds,
         next.entries[i] = {};
         next.entries[i].ped = peds[i];
         next.entries[i].origin = i < origins.size() ? origins[i] : Vec3{};
-        if (i < coreHealths.size() && std::isfinite(coreHealths[i]) &&
-            coreHealths[i] >= 0.f && coreHealths[i] < 1000.f)
+        if (i < coreHealths.size() &&
+            ClassifyPedHealth(coreHealths[i]) != PedHealthState::Unknown) {
             next.entries[i].health = coreHealths[i];
+            next.entries[i].health_valid = true;
+        }
         next.entries[i].valid = peds[i] != 0 && !next.entries[i].origin.IsZero();
         next.index[peds[i]] = i;
     }
@@ -1823,6 +1823,11 @@ void esp::prepare_esp_frame(const std::vector<uintptr_t>& peds,
     const bool firstReadOk = mem.ExecuteReadScatter(first);
     const uint64_t boneEndMs = GetTickCount64();
     const uint64_t boneSampleMs = boneBeginMs + (boneEndMs - boneBeginMs) / 2u;
+
+    for (auto& data : next.entries) {
+        if (!data.health_valid && firstReadOk)
+            data.health_valid = ClassifyPedHealth(data.health) != PedHealthState::Unknown;
+    }
 
     // Validate bone data for entries that requested bones
     if (need_bones) {
@@ -2009,7 +2014,7 @@ static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer,
     // an ad-hoc DMA read.
     if (!prepared_esp)
         return;
-    if (EspPedIsDead(ped) && !rcfg->show_dead) return;
+    if (!EspPedMayDraw(ped, rcfg->show_dead)) return;
 
     Vec3 origin = prepared_esp->origin;
     if (origin.IsZero() && cached && !cached->position_origin.IsZero())
@@ -2026,14 +2031,11 @@ static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer,
 
     float health = prepared_esp->health;
 
-    // Only treat as dead when health is clearly <= 0 AND we successfully read a
-    // plausible max-health (avoids "everyone invisible" when the offset is wrong).
-    float maxHealthProbe = prepared_esp->max_health;
-    const bool healthLooksValid = (maxHealthProbe > 50.f && maxHealthProbe < 1000.f);
-    if (healthLooksValid && health <= 0.f && !rcfg->show_dead)
+    // Health unknown after a failed read is not evidence that this ped is alive.
+    if (!prepared_esp->health_valid) return;
+    const float maxHealthProbe = prepared_esp->max_health;
+    if (ClassifyPedHealth(health) == PedHealthState::Dead && !rcfg->show_dead)
         return;
-    if (!healthLooksValid && health <= 0.f)
-        health = 0.f; // unknown is not evidence that the player is alive
 
     const bool visible = EspPedVisible(ped);
     if (rcfg->visible_check && !visible)
@@ -2431,7 +2433,7 @@ void esp::render_esp_for_ped(uintptr_t ped, Matrix viewport, uintptr_t localplay
     if (config.team_check && EspPedIsFriend(ped))
         return;
     // Dead: never draw skeleton/hat/etc unless "Mostrar mortos"
-    if (EspPedIsDead(ped) && !config.show_dead)
+    if (!EspPedMayDraw(ped, config.show_dead))
         return;
     // Visibility: when ON, skip entities that are not visible
     if (config.visible_check && !EspPedVisible(ped))
@@ -2453,7 +2455,7 @@ void esp::render_esp_for_ped_cached(uintptr_t ped, Matrix viewport, uintptr_t lo
     if (!config.self_esp && IsLocalPlayerPed(ped, localplayer)) return;
     if (config.team_check && EspPedIsFriend(ped))
         return;
-    if (EspPedIsDead(ped) && !config.show_dead)
+    if (!EspPedMayDraw(ped, config.show_dead))
         return;
     if (config.visible_check && !EspPedVisible(ped))
         return;
@@ -2569,7 +2571,7 @@ void esp::draw_skeleton_cached(uintptr_t ped, Matrix viewport, uintptr_t localpl
 }
 
 void esp::draw_skeleton(uintptr_t ped, Matrix viewport, uintptr_t localplayer) {
-    if (EspPedIsDead(ped) && !esp::config.show_dead) return;
+    if (!EspPedMayDraw(ped, esp::config.show_dead)) return;
     ImDrawList* draw_list = ImGui::GetForegroundDrawList();
     if (!draw_list) return;
     // Hard distance LOD for skeleton — biggest CPU cost per ped

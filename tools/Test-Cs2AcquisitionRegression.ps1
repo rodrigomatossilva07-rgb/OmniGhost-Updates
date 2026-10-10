@@ -5,6 +5,7 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 if (-not $ProjectDir) { $ProjectDir = Split-Path -Parent $PSScriptRoot }
 $source = [IO.File]::ReadAllText((Join-Path $ProjectDir 'src/games/Cs2/cs2_game.cpp'))
+$espSource = [IO.File]::ReadAllText((Join-Path $ProjectDir 'src/games/Cs2/esp/cs2_esp.cpp'))
 
 function Require-Match([string]$Text, [string]$Pattern, [string]$Reason) {
     if ($Text -notmatch $Pattern) { throw $Reason }
@@ -71,4 +72,23 @@ Require-Condition ($source -notmatch 'Trajectory::Vec3\(cam->view_matrix\[12\]')
 
 $historyLocks = [regex]::Matches($source, 'lock\(g_camera_history_mutex\)').Count
 Require-Condition ($historyLocks -eq 3) 'Camera history publish, reset and selection must all lock the same mutex.'
-Write-Host '[PASS] CS2 acquisition source invariants and numerical regression fixtures (no C++ build or DMA).'
+
+$drawPlayers = [regex]::Match($espSource, '(?s)void DrawPlayers\(const Runtime& snapshot, const Config& settings\) \{.*?\n\}').Value
+Require-Condition ($drawPlayers.Length -gt 0) 'CS2 presentation loop not found.'
+Require-Condition ([regex]::Matches($drawPlayers, 'AcquireCameraSnapshot\(').Count -eq 1) 'Render must acquire the camera once per frame.'
+Require-Condition ($drawPlayers -match 'presentationSampleMs = frameCamera->timestamp_ms' -and
+    $drawPlayers -match 'presentationDeltaMs\(positionSampleMs\)' -and
+    $drawPlayers -match 'presentationDeltaMs\(boneOriginSampleMs\)') 'Position and bones must be aligned to one camera sample.'
+Require-Condition ($drawPlayers -match 'std::min\)\(presentationSampleMs - sampleMs, uint64_t\{35\}\)' -and
+    $drawPlayers -match 'return sampleMs \? deltaMs : 0.f') 'Presentation offset must be signed, bounded, and reject unknown timestamps.'
+Require-Match $espSource '(?s)\{CS2::BoneSlot::Pelvis, CS2::BoneSlot::HipLeft\}.*?\{CS2::BoneSlot::HipLeft, CS2::BoneSlot::KneeLeft\}' 'Left leg must use the acquired hip joint between pelvis and knee.'
+Require-Match $espSource '(?s)\{CS2::BoneSlot::Pelvis, CS2::BoneSlot::HipRight\}.*?\{CS2::BoneSlot::HipRight, CS2::BoneSlot::KneeRight\}' 'Right leg must use the acquired hip joint between pelvis and knee.'
+Require-Condition ($espSource -notmatch 's_feetSmooth|s_boxHeightSmooth|s_headYSmooth') 'Screen-space box smoothing still delays camera movement.'
+Require-Match $drawPlayers 'WorldToScreen\(headWorld, viewMatrix, boxHead\)' 'Box anchor must be projected from world coordinates each frame.'
+Require-Condition ($espSource -notmatch 'SelectCameraSnapshot\(') 'Per-item camera history selection remains in the renderer.'
+foreach ($pair in @(@(1000, 1016, 16), @(1016, 1000, -16), @(1000, 1100, 35), @(1100, 1000, -35))) {
+    $delta = [Math]::Max(-35, [Math]::Min(35, [double]$pair[1] - [double]$pair[0]))
+    Require-Condition ($delta -eq $pair[2]) "Signed presentation offset fixture failed for $($pair[0]) → $($pair[1]) ms."
+}
+
+Write-Host '[PASS] CS2 acquisition and presentation invariants/fixtures (no C++ build or DMA).'

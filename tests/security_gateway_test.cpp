@@ -1,8 +1,10 @@
 #include "../src/auth/keyauth_gateway.h"
 #include "../src/updater/update_types.h"
 #include "../src/games/Cs2/radar/radar_http.h"
+#include "../src/games/Fivem/game/health_state.h"
 
 #include <iostream>
+#include <limits>
 #include <memory>
 #include <stop_token>
 #include <string_view>
@@ -35,6 +37,15 @@ bool Expect(bool condition, const char* message) {
 }
 
 int main() {
+    using FiveM::PedHealthState;
+    if (!Expect(FiveM::ClassifyPedHealth(125.f) == PedHealthState::Alive,
+                "positive FiveM health is alive")) return 1;
+    if (!Expect(FiveM::ClassifyPedHealth(0.f) == PedHealthState::Dead,
+                "zero FiveM health is dead")) return 1;
+    if (!Expect(FiveM::ClassifyPedHealth(-1.f) == PedHealthState::Unknown &&
+                FiveM::ClassifyPedHealth(std::numeric_limits<float>::quiet_NaN()) == PedHealthState::Unknown &&
+                FiveM::ClassifyPedHealth(1000.f) == PedHealthState::Unknown,
+                "invalid FiveM health is unknown")) return 1;
     using CS2::WebRadar::Http::TokenOk;
     if (!Expect(TokenOk("GET /api/live HTTP/1.1\r\naUtHoRiZaTiOn: bEaReR test\r\n\r\n", "test"),
                 "HTTP authorization is case insensitive")) return 1;

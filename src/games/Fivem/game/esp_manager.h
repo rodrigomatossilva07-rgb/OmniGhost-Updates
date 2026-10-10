@@ -3,6 +3,7 @@
 #include <chrono>
 #include "math/math.h"
 #include "gameplay/snapshot_exchange.h"
+#include "health_state.h"
 
 namespace FiveM {
     namespace ESP {
@@ -64,7 +65,7 @@ namespace FiveM {
         // Liveness (health-only) snapshot for fast death detection (opaque handle)
         struct LivenessSample {
             uintptr_t ped = 0;
-            bool alive = false;
+            float health = -1.f;
             uint64_t sample_ms = 0;
             uint64_t generation = 0;
         };

@@ -205,10 +205,10 @@ namespace FiveM {
                 ? nowMs - static_cast<uint64_t>(age) : 0;
             uint32_t count = 0;
             for (int i = 0; i < snapshot->count && i < MAX_PEDS; ++i) {
-                if (!snapshot->validPeds[i] || !std::isfinite(snapshot->healths[i]) ||
-                    snapshot->healths[i] < 0.f)
+                if (!snapshot->validPeds[i] ||
+                    ClassifyPedHealth(snapshot->healths[i]) == PedHealthState::Unknown)
                     continue;
-                samples[count++] = { snapshot->validPeds[i], snapshot->healths[i] > 0.f,
+                samples[count++] = { snapshot->validPeds[i], snapshot->healths[i],
                                      sampleMs, snapshot->sessionGeneration };
             }
             return { samples.data(), count, sampleMs, snapshot->sessionGeneration };
@@ -1326,7 +1326,7 @@ namespace FiveM {
                         }
                         const auto positionReadBegin = std::chrono::steady_clock::now();
                         mem.SetDmaCallTag("FiveM.CoreWorld");
-                        mem.ExecuteReadScatter(handle);
+                        const bool coreReadOk = mem.ExecuteReadScatter(handle);
                         const auto positionReadEnd = std::chrono::steady_clock::now();
                         s_acquireWorldSampleTime = positionReadBegin +
                             (positionReadEnd - positionReadBegin) / 2;
@@ -1426,9 +1426,9 @@ namespace FiveM {
                                 aliveVel.push_back(vel);
                             }
                             {
-                                float hp = i < s_acquireHealths.size()
+                                float hp = coreReadOk && i < s_acquireHealths.size()
                                     ? s_acquireHealths[i] : -1.f;
-                                if (!std::isfinite(hp) || hp < 0.f || hp > 1000.f)
+                                if (ClassifyPedHealth(hp) == PedHealthState::Unknown)
                                     hp = -1.f;
                                 aliveHp.push_back(hp);
                             }
@@ -1643,7 +1643,8 @@ namespace FiveM {
         
         bool try_get_prepared_health(uintptr_t ped, float& out) {
             PedData data;
-            if (!g_pedCacheManager.getPedData(ped, data) || !data.isValid)
+            if (!g_pedCacheManager.getPedData(ped, data) || !data.isValid ||
+                ClassifyPedHealth(data.health) == PedHealthState::Unknown)
                 return false;
             out = data.health;
             return true;
