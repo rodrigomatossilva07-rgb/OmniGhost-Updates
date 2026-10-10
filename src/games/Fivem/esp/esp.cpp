@@ -1698,7 +1698,7 @@ void esp::prepare_esp_frame(const std::vector<uintptr_t>& peds,
         next.entries[i].ped = peds[i];
         next.entries[i].origin = i < origins.size() ? origins[i] : Vec3{};
         if (i < coreHealths.size() &&
-            ClassifyPedHealth(coreHealths[i]) != PedHealthState::Unknown) {
+            FiveM::ClassifyPedHealth(coreHealths[i]) != FiveM::PedHealthState::Unknown) {
             next.entries[i].health = coreHealths[i];
             next.entries[i].health_valid = true;
         }
@@ -1826,7 +1826,7 @@ void esp::prepare_esp_frame(const std::vector<uintptr_t>& peds,
 
     for (auto& data : next.entries) {
         if (!data.health_valid && firstReadOk)
-            data.health_valid = ClassifyPedHealth(data.health) != PedHealthState::Unknown;
+            data.health_valid = FiveM::ClassifyPedHealth(data.health) != FiveM::PedHealthState::Unknown;
     }
 
     // Validate bone data for entries that requested bones
@@ -2034,7 +2034,7 @@ static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer,
     // Health unknown after a failed read is not evidence that this ped is alive.
     if (!prepared_esp->health_valid) return;
     const float maxHealthProbe = prepared_esp->max_health;
-    if (ClassifyPedHealth(health) == PedHealthState::Dead && !rcfg->show_dead)
+    if (FiveM::ClassifyPedHealth(health) == FiveM::PedHealthState::Dead && !rcfg->show_dead)
         return;
 
     const bool visible = EspPedVisible(ped);
