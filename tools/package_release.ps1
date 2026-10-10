@@ -563,7 +563,8 @@ try {
 
     $ChangelogSource = Join-Path $ArtifactOutputDir 'changelog.json'
     $NotesSource = Join-Path $ArtifactOutputDir 'release-notes.md'
-    foreach ($RequiredFile in @($ChangelogSource, $NotesSource)) {
+    $ReleaseMetaSource = Join-Path $ArtifactOutputDir 'release-meta.json'
+    foreach ($RequiredFile in @($ChangelogSource, $NotesSource, $ReleaseMetaSource)) {
         if (-not (Test-Path -LiteralPath $RequiredFile -PathType Leaf)) {
             throw "Artefacto obrigatório em falta: $RequiredFile"
         }
@@ -599,6 +600,7 @@ try {
     $ReleaseInstallManifestSignature = Join-Path $ReleaseOutputDir 'install-manifest.sha256.sig'
     $ReleaseChangelog = Join-Path $ReleaseOutputDir 'changelog.json'
     $ReleaseNotes = Join-Path $ReleaseOutputDir 'release-notes.md'
+    $ReleaseMeta = Join-Path $ReleaseOutputDir 'release-meta.json'
     $ReleaseSbom = Join-Path $ReleaseOutputDir 'SBOM.cdx.json'
     $ReleaseSums = Join-Path $ReleaseOutputDir 'SHA256SUMS.txt'
 
@@ -613,6 +615,7 @@ try {
     }
     Copy-Item -LiteralPath $ChangelogSource -Destination $ReleaseChangelog -Force
     Copy-Item -LiteralPath $NotesSource -Destination $ReleaseNotes -Force
+    Copy-Item -LiteralPath $ReleaseMetaSource -Destination $ReleaseMeta -Force
     Copy-Item -LiteralPath $ArtifactSbom -Destination $ReleaseSbom -Force
     Copy-Item -LiteralPath $ArtifactSums -Destination $ReleaseSums -Force
 
@@ -627,6 +630,7 @@ try {
     }
     Assert-CopyMatches -Source $ChangelogSource -Destination $ReleaseChangelog
     Assert-CopyMatches -Source $NotesSource -Destination $ReleaseNotes
+    Assert-CopyMatches -Source $ReleaseMetaSource -Destination $ReleaseMeta
     Assert-CopyMatches -Source $ArtifactSbom -Destination $ReleaseSbom
     Assert-CopyMatches -Source $ArtifactSums -Destination $ReleaseSums
     Write-ReleaseLog "Artefactos copiados e validados em: $ReleaseOutputDir"
