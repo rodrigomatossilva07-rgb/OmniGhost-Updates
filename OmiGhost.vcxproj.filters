@@ -261,7 +261,13 @@
     <ClCompile Include="src\auth\local_auth_service.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\auth\hardware_fingerprint.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="src\auth\keyauth_gateway.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\auth\keyauth_hwid_override.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\auth\keyauth_remote_provider.cpp">
@@ -458,6 +464,9 @@
     <ClInclude Include="src\launcher\game_select_pages.inl">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="src\launcher\admin\admin_panel.inl">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="src\launcher\game_select_modals.inl">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -613,6 +622,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\auth\local_auth_service.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\auth\hardware_fingerprint.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\auth\keyauth_gateway.h">

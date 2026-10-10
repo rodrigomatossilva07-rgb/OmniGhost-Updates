@@ -277,6 +277,8 @@ void DrawMarketplace(ImVec2 display) {
     EndControlPage();
 }
 
+#include "admin/admin_panel.inl"
+
 const char* DiagnosticsGameName(GameId id) {
     const GameDefinition* game = FindGame(id);
     return game ? game->name : "—";

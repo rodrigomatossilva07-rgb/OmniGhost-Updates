@@ -14,11 +14,50 @@
 #include <cstring>
 #include <deque>
 #include <cstdio>
+#include <charconv>
 #include <functional>
 #include <unordered_map>
 #include <utility>
 
 namespace {
+
+// Fast formatting using std::to_chars (C++17) - avoids locale and parsing overhead of snprintf
+inline int FormatDistance(char* buffer, size_t size, float distance) {
+    auto [ptr, ec] = std::to_chars(buffer, buffer + size - 1, distance, std::chars_format::fixed, 0);
+    if (ec == std::errc{}) {
+        // Append " m"
+        if (ptr + 2 < buffer + size) {
+            *ptr++ = ' ';
+            *ptr++ = 'm';
+            *ptr = '\0';
+            return static_cast<int>(ptr - buffer);
+        }
+    }
+    // Fallback
+    return std::snprintf(buffer, size, "%.0f m", distance);
+}
+
+inline int FormatAmmo(char* buffer, size_t size, int clip, int reserve) {
+    auto [ptr, ec] = std::to_chars(buffer, buffer + size - 1, clip);
+    if (ec == std::errc{} && ptr + 1 < buffer + size) {
+        *ptr++ = '/';
+        auto [ptr2, ec2] = std::to_chars(ptr, buffer + size - 1, reserve);
+        if (ec2 == std::errc{}) {
+            *ptr2 = '\0';
+            return static_cast<int>(ptr2 - buffer);
+        }
+    }
+    return std::snprintf(buffer, size, "%d/%d", clip, reserve);
+}
+
+inline int FormatInt(char* buffer, size_t size, int value) {
+    auto [ptr, ec] = std::to_chars(buffer, buffer + size, value);
+    if (ec == std::errc{}) {
+        *ptr = '\0';
+        return static_cast<int>(ptr - buffer);
+    }
+    return std::snprintf(buffer, size, "%d", value);
+}
 
 bool WorldToScreen(const float world[3], const float matrix[16], ImVec2& screen) {
     const float clipX = world[0] * matrix[0] + world[1] * matrix[1] + world[2] * matrix[2] + matrix[3];
@@ -159,9 +198,11 @@ void DrawExtras(ImDrawList* draw, const CS2::Player& player, const ImVec2& head,
                 uint64_t sessionGeneration) {
     const float height = max.y - min.y;
     const float scale = std::clamp(height / 180.f, .45f, 2.2f);
+    // Cache display size for snaplines
+    const ImVec2 displaySize = ImGui::GetIO().DisplaySize;
     if (settings.snaplines) {
-        const float y = settings.snapline_position == 0 ? 0.f : settings.snapline_position == 1 ? ImGui::GetIO().DisplaySize.y * .5f : ImGui::GetIO().DisplaySize.y;
-        draw->AddLine(ImVec2(ImGui::GetIO().DisplaySize.x * .5f, y), feet,
+        const float y = settings.snapline_position == 0 ? 0.f : settings.snapline_position == 1 ? displaySize.y * .5f : displaySize.y;
+        draw->AddLine(ImVec2(displaySize.x * .5f, y), feet,
                       EffectColor(settings, settings.col_snaplines, rgb), std::clamp(settings.snapline_thickness, .5f, 5.f));
     }
     if (settings.head_dot)
@@ -240,6 +281,11 @@ void DrawExtras(ImDrawList* draw, const CS2::Player& player, const ImVec2& head,
             point.sample_ms = player.position_sample_ms;
             point.time = now;
             points.push_back(point);
+            // Limit max points per player to prevent unbounded memory growth
+            // max_fps = 144, max duration = 2.5s => max 360 points per player
+            constexpr size_t kMaxTrailPoints = 360;
+            if (points.size() > kMaxTrailPoints)
+                points.pop_front();
         }
         const double duration = std::clamp(static_cast<double>(settings.trail_duration), .2, 2.5);
         while (!points.empty() && now - points.front().time > duration) points.pop_front();
@@ -631,19 +677,21 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
             DrawOutlinedText(draw, ImVec2((min.x + max.x - size.x) * .5f, min.y - 16.f), Color(settings.col_name), player.name, settings);
         }
         if (settings.distance) {
-            char distance[32]{}; std::snprintf(distance, sizeof(distance), "%.0f m", player.distance);
+            char distance[32];
+            FormatDistance(distance, sizeof(distance), player.distance);
             const ImVec2 size = ImGui::CalcTextSize(distance);
             const float textY = max.y + (settings.weapon_name ?
                 settings.weapon_ammo && player.ammo_clip >= 0 ? 36.f : 20.f : 4.f);
             DrawOutlinedText(draw, ImVec2((min.x + max.x - size.x) * .5f, textY), Color(settings.col_distance), distance, settings);
         }
         if (settings.weapon_ammo && settings.weapon_name && player.ammo_clip >= 0) {
-            char ammo[32]{}; std::snprintf(ammo, sizeof(ammo), "%d/%d", player.ammo_clip, (std::max)(0, player.ammo_reserve));
+            char ammo[32];
+            FormatAmmo(ammo, sizeof(ammo), player.ammo_clip, (std::max)(0, player.ammo_reserve));
             const ImVec2 size = ImGui::CalcTextSize(ammo);
             DrawOutlinedText(draw, ImVec2((min.x + max.x - size.x) * .5f, max.y + 20.f), Color(settings.col_weapon), ammo, settings);
         }
-        if (settings.health_value) { char hp[16]{}; std::snprintf(hp, sizeof(hp), "%d", player.health); DrawOutlinedText(draw, ImVec2(min.x - 25.f, min.y), Color(settings.col_health), hp, settings); }
-        if (settings.armor_value && player.armor > 0) { char ap[16]{}; std::snprintf(ap, sizeof(ap), "%d", player.armor); DrawOutlinedText(draw, ImVec2(max.x + 8.f, min.y), Color(settings.col_armor), ap, settings); }
+        if (settings.health_value) { char hp[16]; FormatInt(hp, sizeof(hp), player.health); DrawOutlinedText(draw, ImVec2(min.x - 25.f, min.y), Color(settings.col_health), hp, settings); }
+        if (settings.armor_value && player.armor > 0) { char ap[16]; FormatInt(ap, sizeof(ap), player.armor); DrawOutlinedText(draw, ImVec2(max.x + 8.f, min.y), Color(settings.col_armor), ap, settings); }
         DrawExtras(draw, player, head, feet, min, max, viewMatrix, predictedPosition, settings,
                    rgbColor, snapshot.session_generation);
         lastDrawnMs[player.pawn] = nowMs;

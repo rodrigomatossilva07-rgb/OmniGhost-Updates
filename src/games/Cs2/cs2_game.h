@@ -227,6 +227,100 @@ struct Runtime {
     bool offsets_self_test_ok = false;
     std::vector<Player> players;
     std::vector<Player> spectators;
+
+    // Move semantics for efficient snapshot publishing (avoids deep copy of vectors)
+    Runtime() = default;
+    Runtime(Runtime&& other) noexcept
+        : client_base(other.client_base), engine_base(other.engine_base),
+          entity_list_addr(other.entity_list_addr), entity_list_entry(other.entity_list_entry),
+          local_pawn(other.local_pawn), local_controller(other.local_controller),
+          local_team(other.local_team), local_health(other.local_health),
+          local_pos{other.local_pos[0], other.local_pos[1], other.local_pos[2]},
+          local_vel{other.local_vel[0], other.local_vel[1], other.local_vel[2]},
+          local_angles{other.local_angles[0], other.local_angles[1], other.local_angles[2]},
+          local_view_yaw(other.local_view_yaw), local_weapon_definition(other.local_weapon_definition),
+          local_scoped(other.local_scoped), local_has_defuser(other.local_has_defuser),
+          local_crosshair_entity(other.local_crosshair_entity), local_shots_fired(other.local_shots_fired),
+          local_aim_punch{other.local_aim_punch[0], other.local_aim_punch[1]},
+          local_aim_sample_ms(other.local_aim_sample_ms), local_last_shot_ms(other.local_last_shot_ms),
+          view_matrix{other.view_matrix[0], other.view_matrix[1], other.view_matrix[2], other.view_matrix[3],
+                       other.view_matrix[4], other.view_matrix[5], other.view_matrix[6], other.view_matrix[7],
+                       other.view_matrix[8], other.view_matrix[9], other.view_matrix[10], other.view_matrix[11],
+                       other.view_matrix[12], other.view_matrix[13], other.view_matrix[14], other.view_matrix[15]},
+          map_name{0}, in_match(other.in_match),
+          controller_stride(other.controller_stride), pawn_stride(other.pawn_stride),
+          bomb(std::move(other.bomb)), dropped_weapons(std::move(other.dropped_weapons)),
+          player_count(other.player_count), enemy_count(other.enemy_count),
+          controller_count(other.controller_count), pawn_count(other.pawn_count),
+          spectator_count(other.spectator_count), spectator_target(other.spectator_target),
+          spectator_target_name{0}, build_number(other.build_number),
+          frames(other.frames), read_fails(other.read_fails),
+          snapshot_timestamp_ms(other.snapshot_timestamp_ms), session_generation(other.session_generation),
+          world_sample_ms(other.world_sample_ms), snapshot_drops(other.snapshot_drops),
+          acquisition_hz(other.acquisition_hz), acquisition_ms(other.acquisition_ms),
+          processing_ms(other.processing_ms), snapshot_interval_ms(other.snapshot_interval_ms),
+          fps(other.fps), entity_cap_used(other.entity_cap_used),
+          offsets_self_test_ok(other.offsets_self_test_ok),
+          players(std::move(other.players)), spectators(std::move(other.spectators)) {
+        std::copy_n(other.map_name, 64, map_name);
+        std::copy_n(other.spectator_target_name, 64, spectator_target_name);
+    }
+
+    Runtime& operator=(Runtime&& other) noexcept {
+        if (this != &other) {
+            client_base = other.client_base;
+            engine_base = other.engine_base;
+            entity_list_addr = other.entity_list_addr;
+            entity_list_entry = other.entity_list_entry;
+            local_pawn = other.local_pawn;
+            local_controller = other.local_controller;
+            local_team = other.local_team;
+            local_health = other.local_health;
+            local_pos[0] = other.local_pos[0]; local_pos[1] = other.local_pos[1]; local_pos[2] = other.local_pos[2];
+            local_vel[0] = other.local_vel[0]; local_vel[1] = other.local_vel[1]; local_vel[2] = other.local_vel[2];
+            local_angles[0] = other.local_angles[0]; local_angles[1] = other.local_angles[1]; local_angles[2] = other.local_angles[2];
+            local_view_yaw = other.local_view_yaw;
+            local_weapon_definition = other.local_weapon_definition;
+            local_scoped = other.local_scoped;
+            local_has_defuser = other.local_has_defuser;
+            local_crosshair_entity = other.local_crosshair_entity;
+            local_shots_fired = other.local_shots_fired;
+            local_aim_punch[0] = other.local_aim_punch[0]; local_aim_punch[1] = other.local_aim_punch[1];
+            local_aim_sample_ms = other.local_aim_sample_ms;
+            local_last_shot_ms = other.local_last_shot_ms;
+            for (int i = 0; i < 16; ++i) view_matrix[i] = other.view_matrix[i];
+            std::copy_n(other.map_name, 64, map_name);
+            in_match = other.in_match;
+            controller_stride = other.controller_stride;
+            pawn_stride = other.pawn_stride;
+            bomb = std::move(other.bomb);
+            dropped_weapons = std::move(other.dropped_weapons);
+            player_count = other.player_count;
+            enemy_count = other.enemy_count;
+            controller_count = other.controller_count;
+            pawn_count = other.pawn_count;
+            spectator_count = other.spectator_count;
+            spectator_target = other.spectator_target;
+            std::copy_n(other.spectator_target_name, 64, spectator_target_name);
+            build_number = other.build_number;
+            frames = other.frames;
+            read_fails = other.read_fails;
+            snapshot_timestamp_ms = other.snapshot_timestamp_ms;
+            session_generation = other.session_generation;
+            world_sample_ms = other.world_sample_ms;
+            snapshot_drops = other.snapshot_drops;
+            acquisition_hz = other.acquisition_hz;
+            acquisition_ms = other.acquisition_ms;
+            processing_ms = other.processing_ms;
+            snapshot_interval_ms = other.snapshot_interval_ms;
+            fps = other.fps;
+            entity_cap_used = other.entity_cap_used;
+            offsets_self_test_ok = other.offsets_self_test_ok;
+            players = std::move(other.players);
+            spectators = std::move(other.spectators);
+        }
+        return *this;
+    }
 };
 
 using RuntimeSnapshotLease = OmniGhost::Gameplay::SnapshotExchange<Runtime, 4>::ReadLease;

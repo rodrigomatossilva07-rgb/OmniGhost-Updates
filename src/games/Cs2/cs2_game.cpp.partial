@@ -1,0 +1,36 @@
+std::atomic<float> g_acquisition_hz{0.f};
+std::atomic<uint64_t> g_camera_deadline_ms{0};
+std::atomic_bool g_camera_pending{false};
+std::atomic<uint64_t> g_session_generation{1};
+std::mutex g_process_liveness_mutex;
+uint64_t g_process_liveness_next_probe_ms = 0;
+std::atomic_bool g_process_liveness_last_result{true};
+
+// RAII thread guard for exception-safe join
+class ScopedThread {
+    std::thread t_;
+public:
+    ScopedThread() = default;
+    explicit ScopedThread(std::thread&& t) noexcept : t_(std::move(t)) {}
+    ScopedThread(ScopedThread&& other) noexcept : t_(std::move(other.t_)) { other.t_ = {}; }
+    ScopedThread& operator=(ScopedThread&& other) noexcept {
+        if (this != &other) {
+            if (t_.joinable()) t_.join();
+            t_ = std::move(other.t_);
+        }
+        return *this;
+    }
+    ~ScopedThread() { if (t_.joinable()) t_.join(); }
+    ScopedThread(const ScopedThread&) = delete;
+    ScopedThread& operator=(const ScopedThread&) = delete;
+    void reset(std::thread&& t = {}) { if (t_.joinable()) t_.join(); t_ = std::move(t); }
+    [[nodiscard]] bool joinable() const noexcept { return t_.joinable(); }
+    std::thread::id get_id() const noexcept { return t_.get_id(); }
+    void join() { if (t_.joinable()) t_.join(); }
+    std::thread& get() noexcept { return &t_; }
+};
+
+ScopedThread g_acquisition_thread;
+ScopedThread g_camera_thread;
+ScopedThread g_web_radar_control_thread;
+ScopedThread g_optional_thread;

@@ -11,6 +11,7 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <Windows.h>
+#include <dpapi.h>
 
 #include <algorithm>
 #include <atomic>
@@ -29,6 +30,8 @@
 #include <string>
 #include <vector>
 
+#pragma comment(lib, "crypt32.lib")
+
 namespace fs = std::filesystem;
 
 namespace OmniGhost::SessionLog {
@@ -39,6 +42,49 @@ constexpr std::uintmax_t kMaximumStructuredLogBytes = 5u * 1024u * 1024u;
 constexpr size_t kMaximumArchivedLogs = 8;
 constexpr std::uintmax_t kMaximumArchiveBytes = 40u * 1024u * 1024u;
 constexpr size_t kMaximumRecentEvents = 256;
+
+// Encryption configuration
+constexpr bool kEncryptLogFiles = true; // Enable DPAPI encryption for log files
+constexpr wchar_t kDpapiEntropy[] = L"OmniGhost-SessionLog-v1"; // Per-app entropy
+
+// DPAPI encryption/decryption helpers
+std::optional<std::vector<BYTE>> DpapiEncrypt(std::string_view plaintext) {
+    DATA_BLOB inBlob{};
+    inBlob.pbData = const_cast<BYTE*>(reinterpret_cast<const BYTE*>(plaintext.data()));
+    inBlob.cbData = static_cast<DWORD>(plaintext.size());
+
+    DATA_BLOB entropyBlob{};
+    entropyBlob.pbData = const_cast<BYTE*>(reinterpret_cast<const BYTE*>(kDpapiEntropy));
+    entropyBlob.cbData = static_cast<DWORD>((wcslen(kDpapiEntropy) + 1) * sizeof(wchar_t));
+
+    DATA_BLOB outBlob{};
+    if (CryptProtectData(&inBlob, L"OmniGhost-SessionLog", &entropyBlob, nullptr, nullptr,
+                         CRYPTPROTECT_UI_FORBIDDEN | CRYPTPROTECT_LOCAL_MACHINE, &outBlob)) {
+        std::vector<BYTE> result(outBlob.pbData, outBlob.pbData + outBlob.cbData);
+        LocalFree(outBlob.pbData);
+        return result;
+    }
+    return std::nullopt;
+}
+
+std::optional<std::string> DpapiDecrypt(const std::vector<BYTE>& ciphertext) {
+    DATA_BLOB inBlob{};
+    inBlob.pbData = const_cast<BYTE*>(ciphertext.data());
+    inBlob.cbData = static_cast<DWORD>(ciphertext.size());
+
+    DATA_BLOB entropyBlob{};
+    entropyBlob.pbData = const_cast<BYTE*>(reinterpret_cast<const BYTE*>(kDpapiEntropy));
+    entropyBlob.cbData = static_cast<DWORD>((wcslen(kDpapiEntropy) + 1) * sizeof(wchar_t));
+
+    DATA_BLOB outBlob{};
+    if (CryptUnprotectData(&inBlob, nullptr, &entropyBlob, nullptr, nullptr,
+                           CRYPTPROTECT_UI_FORBIDDEN, &outBlob)) {
+        std::string result(reinterpret_cast<char*>(outBlob.pbData), outBlob.cbData);
+        LocalFree(outBlob.pbData);
+        return result;
+    }
+    return std::nullopt;
+}
 
 std::mutex g_outputMutex;
 std::mutex g_lifecycleMutex;
@@ -364,6 +410,34 @@ void PruneArchives() {
     }
 }
 
+// Encrypt a log file using DPAPI and save as .enc
+bool EncryptLogFile(const fs::path& sourcePath, const fs::path& destPath) {
+    if (!kEncryptLogFiles) return false;
+    
+    std::error_code error;
+    if (!fs::is_regular_file(sourcePath, error)) return false;
+    
+    std::ifstream inFile(sourcePath, std::ios::binary);
+    if (!inFile) return false;
+    
+    std::ostringstream content;
+    content << inFile.rdbuf();
+    inFile.close();
+    
+    auto encrypted = DpapiEncrypt(content.str());
+    if (!encrypted) return false;
+    
+    std::ofstream outFile(destPath, std::ios::binary | std::ios::trunc);
+    if (!outFile) return false;
+    
+    outFile.write(reinterpret_cast<const char*>(encrypted->data()), static_cast<std::streamsize>(encrypted->size()));
+    outFile.close();
+    
+    // Remove plaintext source after successful encryption
+    fs::remove(sourcePath, error);
+    return true;
+}
+
 bool RotateOpenLog(std::ofstream& stream, const fs::path& path, const char* suffix,
                    std::uintmax_t& bytes, std::string& day) {
     std::error_code error;
@@ -375,13 +449,22 @@ bool RotateOpenLog(std::ofstream& stream, const fs::path& path, const char* suff
         error.clear();
         const fs::path log2 = path.parent_path() / (path.stem().wstring() + L".2.txt");
         const fs::path log1 = path.parent_path() / (path.stem().wstring() + L".1.txt");
+        
+        // Encrypt and remove log2 (oldest)
+        fs::path log2Enc = log2.wstring() + L".enc";
+        EncryptLogFile(log2, log2Enc);
         fs::remove(log2, error);
         error.clear();
+        
+        // Encrypt and rotate log1 to log2
+        fs::path log1Enc = log1.wstring() + L".enc";
         if (fs::is_regular_file(log1, error)) {
+            EncryptLogFile(log1, log1Enc);
+            fs::remove(log1, error);
             error.clear();
-            fs::rename(log1, log2, error);
         }
-        error.clear();
+        
+        // Rotate current to log1 (will be encrypted on next rotation)
         fs::rename(path, log1, error);
         if (error) {
             error.clear();
@@ -553,6 +636,41 @@ std::string RedactForSupport(std::string_view input) {
         text = std::regex_replace(text,
             std::regex(R"((\"(?:password|passwd|pwd|token|access_token|refresh_token|api_key|apikey|license|licence|license_key|licence_key)\"\s*:\s*\")[^\"]*(\"))", std::regex::icase),
             "$1<redacted>$2");
+
+        // Aggressive redaction for OmniGhost-specific sensitive data
+        // License keys (alphanumeric with dashes, typical formats)
+        text = std::regex_replace(text,
+            std::regex(R"((license[_\-]?key\s*[:=]\s*)[A-Za-z0-9\-]{16,})", std::regex::icase),
+            "$1<redacted>");
+        text = std::regex_replace(text,
+            std::regex(R"(([A-Za-z0-9]{5}(?:-[A-Za-z0-9]{5}){3,})[A-Za-z0-9\-]*)", std::regex::icase),
+            "<redacted-license>");
+        
+        // Hardware IDs (MAC-like, serial-like)
+        text = std::regex_replace(text,
+            std::regex(R"((hwid|hardware[_\-]?id\s*[:=]\s*)[A-Fa-f0-9\:\-]{12,})", std::regex::icase),
+            "$1<redacted>");
+        text = std::regex_replace(text,
+            std::regex(R"(\b([A-Fa-f0-9]{2}[:-]){5}[A-Fa-f0-9]{2}\b)"), // MAC addresses
+            "<redacted-mac>");
+        
+        // DMA device paths and serials
+        text = std::regex_replace(text,
+            std::regex(R"((device[_\-]?path\s*[:=]\s*)[^\s,;]+)", std::regex::icase),
+            "$1<redacted>");
+        text = std::regex_replace(text,
+            std::regex(R"((serial[_\-]?number\s*[:=]\s*)[A-Za-z0-9\-]{8,})", std::regex::icase),
+            "$1<redacted>");
+        
+        // Process paths and executable names that may reveal user info
+        text = std::regex_replace(text,
+            std::regex(R"(([A-Za-z]:[\\/][^\\/\s,;]+))", std::regex::icase),
+            "<redacted-path>");
+        
+        // KeyAuth / licensing related
+        text = std::regex_replace(text,
+            std::regex(R"((keyauth[_\-]?(?:api|key|token)\s*[:=]\s*)[A-Za-z0-9\-_\.]{16,})", std::regex::icase),
+            "$1<redacted>");
     } catch (const std::exception& ex) {
         std::cerr << "[SessionLog] Redaction regex failed: " << ex.what() << "\n";
     } catch (...) {

@@ -21,10 +21,13 @@
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile><LanguageStandard>stdcpp20</LanguageStandard><WarningLevel>Level4</WarningLevel><TreatWarningAsError>true</TreatWarningAsError></ClCompile>
-    <Link><SubSystem>Console</SubSystem></Link>
+    <Link><SubSystem>Console</SubSystem><AdditionalDependencies>bcrypt.lib;advapi32.lib;user32.lib;%(AdditionalDependencies)</AdditionalDependencies></Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\src\auth\hardware_fingerprint.cpp" />
     <ClCompile Include="..\src\auth\keyauth_gateway.cpp" />
+    <ClCompile Include="..\src\auth\keyauth_hwid_override.cpp" />
+    <ClCompile Include="..\src\platform\file_integrity.cpp" />
     <ClCompile Include="security_gateway_test.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

@@ -28,7 +28,6 @@ public:
 			reset(other.release());
 		return *this;
 	}
-
 	VmmSession& operator=(VMM_HANDLE handle) noexcept
 	{
 		reset(handle);
@@ -392,9 +391,9 @@ public:
 	Memory& operator=(Memory&&) = delete;
 
 	/**
-	* @brief Gets the registry object
-	* @return registry class
-	*/
+	 * @brief Gets the registry object
+	 * @return registry class
+	 */
 #ifndef OMNIGHOST_READONLY_MODE
 	c_registry GetRegistry() { return registry; }
 #else
@@ -402,15 +401,15 @@ public:
 #endif
 
 	/**
-	* @brief Gets the key object
-	* @return key class
-	*/
+	 * @brief Gets the key object
+	 * @return key class
+	 */
 	c_keys* GetKeyboard() { return key.get(); }
 
 	/**
-	* @brief Gets the shellcode object
-	* @return shellcode class
-	*/
+	 * @brief Gets the shellcode object
+	 * @return shellcode class
+	 */
 #ifndef OMNIGHOST_READONLY_MODE
 	c_shellcode GetShellcode() { return shellcode; }
 #else
@@ -418,12 +417,12 @@ public:
 #endif
 
 	/**
-	* brief Initializes the DMA
-	* This is required before any DMA operations can be done.
-	* @param process_name the name of the process
-	* @param memMap if true, will dump the memory map to a file	& make the DMA use it.
-	* @return true if successful, false if not.
-	*/
+	 * brief Initializes the DMA
+	 * This is required before any DMA operations can be done.
+	 * @param process_name the name of the process
+	 * @param memMap if true, will dump the memory map to a file	& make the DMA use it.
+	 * @return true if successful, false if not.
+	 */
 	bool Init(std::string process_name, bool memMap = true, bool debug = false,
 		bool quickDeviceProbe = false);
 
@@ -530,9 +529,27 @@ public:
 	VMMDLL_PROCESS_INFORMATION GetProcessInformation();
 
 	/**
-	* \brief Gets the process peb
-	* \return the process peb 
-	*/
+	 * \brief Validates if an address is within a valid VAD (Virtual Address Descriptor) region
+	 * Uses VMMDLL_Map_GetVadW to check if the address falls within a valid memory region.
+	 * Caches the VAD map for performance; refreshes periodically or on demand.
+	 * @param address The virtual address to validate
+	 * @param pid Process ID (0 = current process)
+	 * @return true if address is in a valid VAD region, false otherwise
+	 */
+	[[nodiscard]] bool IsValidReadAddress(uint64_t address, int pid = 0) const;
+
+	/**
+	 * \brief Refreshes the cached VAD map for the current process
+	 * Should be called periodically or when process memory layout may have changed.
+	 * @param pid Process ID (0 = current process)
+	 * @return true if VAD map was successfully refreshed
+	 */
+	bool RefreshVadCache(int pid = 0) const;
+
+	/**
+	 * \brief Gets the process peb
+	 * \return the process peb 
+	 */
 	PEB GetProcessPeb();
 
 	/**
@@ -626,12 +643,12 @@ public:
 	}
 
 	/**
-	* brief Reads memory from the process
-	* @param address The address to read from
-	* @param buffer The buffer to read to
-	* @param size The size of the buffer
-	* @return true if successful, false if not.
-	*/
+	 * brief Reads memory from the process
+	 * @param address The address to read from
+	 * @param buffer The buffer to read to
+	 * @param size The size of the buffer
+	 * @return true if successful, false if not.
+	 */
 	bool Read(uintptr_t address, void* buffer, size_t size) const;
 	// Non-blocking transport read for latency-sensitive consumers such as the
 	// camera lane. `attempted` is true only after the physical DMA gate was won.
@@ -642,10 +659,10 @@ public:
 	bool ReadWithCount(uintptr_t address, void* buffer, size_t size, size_t& bytesRead) const;
 
 	/**
-	* brief Reads memory from the process using a template
-	* @param address The address to read from
-	* @return the value read from the process
-	*/
+	 * brief Reads memory from the process using a template
+	 * @param address The address to read from
+	 * @return the value read from the process
+	 */
 	template <typename T>
 	T Read(void* address)
 	{
@@ -663,11 +680,11 @@ public:
 	}
 
 	/**
-	* brief Reads memory from the process using a template and pid
-	* @param address The address to read from
-	* @param pid The process id of the process
-	* @return the value read from the process
-	*/
+	 * brief Reads memory from the process using a template and pid
+	 * @param address The address to read from
+	 * @param pid The process id of the process
+	 * @return the value read from the process
+	 */
 	template <typename T>
 	T Read(void* address, int pid)
 	{
@@ -685,11 +702,11 @@ public:
 	}
 
 	/**
-	* brief Reads a chain of offsets from the address
-	* @param address The address to read from
-	* @param a vector of offset values to read through
-	* @return the value read from the chain
-	*/
+	 * brief Reads a chain of offsets from the address
+	 * @param address The address to read from
+	 * @param a vector of offset values to read through
+	 * @return the value read from the chain
+	 */
 	uint64_t ReadChain(uint64_t base, const std::vector<uint64_t>& offsets)
 	{
 		uint64_t result = Read<uint64_t>(base + offsets.at(0));

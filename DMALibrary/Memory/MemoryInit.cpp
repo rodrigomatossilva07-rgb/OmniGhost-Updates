@@ -40,6 +40,21 @@ constexpr const char* kProcInfoDir = "\\misc\\procinfo\\";
 constexpr const char* kProcInfoProgressFile = "\\misc\\procinfo\\progress_percent.txt";
 constexpr const char* kProcInfoDtbFile = "\\misc\\procinfo\\dtb.txt";
 
+// Sanitize process name: only allow alphanumeric, dot, hyphen, underscore.
+// Prevents potential issues with VMM process name matching.
+std::string SanitizeProcessName(std::string name) noexcept
+{
+    std::string out;
+    out.reserve(name.size());
+    for (char ch : name) {
+        if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
+            (ch >= '0' && ch <= '9') || ch == '.' || ch == '-' || ch == '_') {
+            out.push_back(ch);
+        }
+    }
+    return out;
+}
+
 std::string Narrow(const std::wstring& text)
 {
 	std::string out;
@@ -955,6 +970,14 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 	if (process_name.empty()) {
 		last_attach_result = AttachResult::Success;
 		return true;
+	}
+
+	// Sanitize process name to prevent injection/validation issues.
+	process_name = SanitizeProcessName(std::move(process_name));
+	if (process_name.empty()) {
+		std::cout << "[DMA][Bind] process name sanitized to empty\n";
+		last_attach_result = AttachResult::Waiting;
+		return false;
 	}
 
 	// Phase 2: bind to the target process.

@@ -80,7 +80,9 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="src\auth\hardware_fingerprint.cpp"/>
     <ClCompile Include="src\auth\keyauth_gateway.cpp"/>
+    <ClCompile Include="src\auth\keyauth_hwid_override.cpp"/>
     <ClCompile Include="src\auth\keyauth_remote_provider.cpp"/>
     <!-- libs\ is the local fallback runtime bundle. Every DLL placed there is copied
          to build\ automatically; the canonical DMA/custom runtimes below are copied
@@ -226,6 +228,7 @@
     <Error Condition="'$(Platform)'!='x64'" Code="OGPLAT001" Text="OmniGhost suporta apenas Release ou Publish em x64."/>
   </Target>
   <ItemGroup>
+    <ClInclude Include="src\auth\hardware_fingerprint.h"/>
     <ClInclude Include="src\auth\keyauth_gateway.h"/>
     <ClInclude Include="src\security\security_manager.h"/>
     <ClInclude Include="src\gameplay\weapon_name_registry.h"/>
@@ -254,6 +257,7 @@
     <ClInclude Include="src\launcher\epic_game_update_check.h"/>
     <ClInclude Include="src\launcher\game_select_presentation.inl"/>
     <ClInclude Include="src\launcher\game_select_pages.inl"/>
+    <ClInclude Include="src\launcher\admin\admin_panel.inl"/>
     <ClInclude Include="src\launcher\game_select_modals.inl"/>
     <ClCompile Include="src\launcher\launcher_assets.cpp"/>
     <ClCompile Include="src\launcher\launcher_data.cpp"/>

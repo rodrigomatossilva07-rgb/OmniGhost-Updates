@@ -132,10 +132,26 @@ jobs:
         with:
           sarif_file: trivy-results.sarif
 
+  admin-api:
+    name: Admin API Build & Security Tests
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Build Admin API
+        shell: pwsh
+        run: dotnet build server/OmniGhost.AdminApi/OmniGhost.AdminApi.csproj --configuration Release --nologo
+
+      - name: Run Admin API Security Tests
+        shell: pwsh
+        run: dotnet run --project server/OmniGhost.AdminApi.Tests/OmniGhost.AdminApi.Tests.csproj --configuration Release --nologo
+
   build-verification:
     name: Build Verification
     runs-on: windows-latest
-    needs: [clang-tidy, cppcheck, warnings-baseline, sbom-generation, vulnerability-scan]
+    needs: [clang-tidy, cppcheck, warnings-baseline, sbom-generation, vulnerability-scan, admin-api]
     timeout-minutes: 60
     steps:
       - name: Checkout

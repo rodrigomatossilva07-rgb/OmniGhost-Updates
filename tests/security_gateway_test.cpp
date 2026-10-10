@@ -1,4 +1,6 @@
 #include "../src/auth/keyauth_gateway.h"
+#include "../src/auth/hardware_fingerprint.h"
+#include "../keyauth/x64/lib/utils.hpp"
 #include "../src/updater/update_types.h"
 #include "../src/games/Cs2/radar/radar_http.h"
 #include "../src/games/Fivem/game/health_state.h"
@@ -8,6 +10,7 @@
 #include <memory>
 #include <stop_token>
 #include <string_view>
+#include <Windows.h>
 
 namespace {
 using namespace OmniGhost::Auth;
@@ -28,6 +31,11 @@ public:
         return {nextCheck, "check", "test.check", {}};
     }
     bool IsConfigured() const noexcept override { return true; }
+    std::string GetModulePath() const override {
+        char path[MAX_PATH]{};
+        const DWORD length = GetModuleFileNameA(nullptr, path, MAX_PATH);
+        return std::string(path, length);
+    }
 };
 
 bool Expect(bool condition, const char* message) {
@@ -37,6 +45,15 @@ bool Expect(bool condition, const char* message) {
 }
 
 int main() {
+    const std::string hardwareFingerprint = ComputeHardwareFingerprint();
+    if (!Expect(hardwareFingerprint.starts_with("oghw2:") && hardwareFingerprint.size() == 70,
+                "hardware fingerprint is a versioned SHA-256 digest")) return 1;
+    if (!Expect(hardwareFingerprint == ComputeHardwareFingerprint(),
+                "hardware fingerprint is stable within the same machine")) return 1;
+    if (!Expect(hardwareFingerprint.find(' ') == std::string::npos,
+                "hardware fingerprint exposes no raw component text")) return 1;
+    if (!Expect(utils::get_hwid() == hardwareFingerprint,
+                "KeyAuth uses the composite hardware fingerprint")) return 1;
     using FiveM::PedHealthState;
     if (!Expect(FiveM::ClassifyPedHealth(125.f) == PedHealthState::Alive,
                 "positive FiveM health is alive")) return 1;

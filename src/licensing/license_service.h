@@ -33,6 +33,8 @@ void ShutdownSessionRevalidation() noexcept;
 void ClearRememberedRemoteCredentials() noexcept;
 [[nodiscard]] bool IsRemoteAuthenticated() noexcept;
 [[nodiscard]] std::string RemoteUsername();
+// Administrative UI gate. Administrative mutations remain server-side.
+[[nodiscard]] bool IsAdmin();
 // Central game-access gate: only a valid KeyAuth session grants product access.
 [[nodiscard]] bool HasGameAccess(std::string_view productId);
 // Human-readable remaining duration supplied by KeyAuth for a product. Empty

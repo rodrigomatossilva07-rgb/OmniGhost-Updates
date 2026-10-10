@@ -33,6 +33,7 @@
 #include "../globals.h"
 #include "../auth/local_auth_service.h"
 #include "../licensing/license_service.h"
+#include "../security/security_manager.h"
 #include "../platform/offset_auto.h"
 #include "src/games/Cs2/cs2_game.h"
 #include "src/games/Warzone/warzone_game.h"
@@ -124,6 +125,7 @@ enum class NavPage : int {
     Diagnostics = 4,
     Settings = 5,
     Account = 6,
+    Admin = 7,
 };
 
 std::vector<GameRuntime> g_games;
@@ -163,6 +165,7 @@ void ChangeNavigation(int page);
 void PushToast(const char* text, ImU32 color, ToastAction action, const char* action_label);
 ActiveGame ToActiveGame(GameId id);
 void RequestOffsetRefresh(GameId id, bool silent);
+std::string BuildDiagnosticsText();
 
 #include "game_select_session.inl"
 #include "game_select_presentation.inl"
@@ -265,6 +268,9 @@ bool Draw() {
 
     RefreshRuntimeStates();
 
+    if (g_nav == static_cast<int>(NavPage::Admin) && !OmniGhost::Licensing::IsAdmin())
+        ChangeNavigation(static_cast<int>(NavPage::Home));
+
     const PerformanceMode::State performance = PerformanceMode::Update(
         ImGui::GetIO().Framerate,
         delta,
@@ -311,6 +317,8 @@ bool Draw() {
         DrawSettings(display);
     } else if (g_nav == static_cast<int>(NavPage::Account)) {
         DrawAccount(display);
+    } else if (g_nav == static_cast<int>(NavPage::Admin)) {
+        DrawAdmin(display);
     }
 
     bool launch_ready = false;

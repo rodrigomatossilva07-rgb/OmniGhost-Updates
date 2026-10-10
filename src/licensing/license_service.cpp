@@ -98,15 +98,23 @@ std::string NormalizeEntitlement(std::string_view value) {
     while (!result.empty() && result.back() == '_') result.pop_back();
     return result;
 }
+constexpr bool IsAdminEntitlement(std::string_view entitlement) noexcept {
+    return entitlement == "admin";
+}
+constexpr bool IsUniversalEntitlement(std::string_view entitlement) noexcept {
+    return IsAdminEntitlement(entitlement) || entitlement == "all" || entitlement == "todos" ||
+           entitlement == "todos_os_jogos" || entitlement == "omnighost_all" ||
+           entitlement == "omnighost_full" || entitlement == "omnighost_universal";
+}
+static_assert(IsUniversalEntitlement("admin"));
 bool RemoteEntitlementGrants(std::string_view productId) {
     const std::string product = NormalizeEntitlement(productId);
     if (product.empty()) return false;
     const std::string canonical = "omnighost_" + product;
     for (const auto& item : RemoteGateway().CurrentEntitlements()) {
         const std::string entitlement = NormalizeEntitlement(item.name);
-        if (entitlement == "all" || entitlement == "todos" || entitlement == "todos_os_jogos" ||
-            entitlement == "omnighost_all" || entitlement == "omnighost_full" ||
-            entitlement == "omnighost_universal" || entitlement == product || entitlement == canonical) return true;
+        if (IsUniversalEntitlement(entitlement) || entitlement == product || entitlement == canonical)
+            return true;
     }
     return false;
 }
@@ -201,6 +209,15 @@ void ShutdownSessionRevalidation() noexcept { StopRevalidator(); }
 bool IsRemoteConfigured() noexcept { return RemoteGateway().IsConfigured(); }
 bool IsRemoteAuthenticated() noexcept { return RemoteGateway().IsAuthenticated(); }
 std::string RemoteUsername() { return RemoteGateway().CurrentUsername(); }
+bool IsAdmin() {
+    if (!IsRemoteAuthenticated() ||
+        !OmniGhost::Security::SecurityManager::Instance().CanUseProtectedFeatures())
+        return false;
+    const auto entitlements = RemoteGateway().CurrentEntitlements();
+    return std::any_of(entitlements.begin(), entitlements.end(), [](const auto& item) {
+        return IsAdminEntitlement(NormalizeEntitlement(item.name));
+    });
+}
 bool HasGameAccess(std::string_view productId) {
     constexpr std::string_view kProducts[]{"fivem", "cs2", "rust", "warzone", "apex", "fortnite"};
     return std::find(std::begin(kProducts), std::end(kProducts), productId) != std::end(kProducts) &&
@@ -213,9 +230,7 @@ std::string GameAccessDuration(std::string_view productId) {
     const std::string canonical = "omnighost_" + product;
     for (const auto& item : RemoteGateway().CurrentEntitlements()) {
         const std::string entitlement = NormalizeEntitlement(item.name);
-        if (entitlement == "all" || entitlement == "todos" || entitlement == "todos_os_jogos" ||
-            entitlement == "omnighost_all" || entitlement == "omnighost_full" ||
-            entitlement == "omnighost_universal" || entitlement == product || entitlement == canonical)
+        if (IsUniversalEntitlement(entitlement) || entitlement == product || entitlement == canonical)
             return item.remaining.empty() ? "Ativo" : item.remaining;
     }
     return {};

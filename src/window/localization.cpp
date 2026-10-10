@@ -46,6 +46,8 @@ namespace {
 
         {"launcher.home", {"Início", "Home", "Home", "Home", "Home", "Home"}},
         {"launcher.library", {"Biblioteca", "Library", "Library", "Library", "Library", "Library"}},
+        {"launcher.admin", {"Admin", "Admin", "Admin", "Admin", "Admin", "Admin"}},
+        {"launcher.admin.subtitle", {"Área restrita à subscrição administrativa.", "Restricted to the administrative subscription.", "Restricted to the administrative subscription.", "Área restringida a la suscripción administrativa.", "Réservé à l’abonnement administrateur.", "Area riservata all'abbonamento amministratore."}},
         {"launcher.marketplace", {"Marketplace", "Marketplace", "Marketplace", "Marketplace", "Marketplace", "Marketplace"}},
         {"launcher.marketplace.subtitle", {"Catálogo oficial, preparado para conteúdo validado.", "Official catalogue, prepared for validated content.", "Official catalogue, prepared for validated content.", "Official catalogue, prepared for validated content.", "Official catalogue, prepared for validated content.", "Official catalogue, prepared for validated content."}},
         {"launcher.updates", {"Atualizações", "Updates", "Updates", "Updates", "Updates", "Updates"}},

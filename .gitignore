@@ -22,6 +22,10 @@ third_party/upstream/
 *.lastbuildstate
 *.log
 
+# .NET administrative service build state
+**/bin/
+**/obj/
+
 # Local release/signing material (private keys must never enter Git)
 *.pfx
 *.p12
