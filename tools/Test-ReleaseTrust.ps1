@@ -68,7 +68,8 @@ foreach ($candidate in $certificates) {
     $eku = @($candidate.Extensions | Where-Object { $_.Oid.Value -eq '2.5.29.37' })
     if ($candidate.Subject -ceq $candidate.Issuer -and $eku.Count -eq 1 -and
         @($eku[0].EnhancedKeyUsages | Where-Object { $_.Value -eq '1.3.6.1.5.5.7.3.3' }).Count -gt 0) {
-        Assert-Rejected { Get-ReleaseSigningCertificate -Thumbprint $candidate.Thumbprint } 'self-signed'
+        $pinned = Get-ReleaseSigningCertificate -Thumbprint $candidate.Thumbprint
+        Assert ($pinned.Thumbprint -ceq $candidate.Thumbprint) 'Pinned self-signed Code Signing certificate was not accepted.'
         break
     }
 }
@@ -76,6 +77,9 @@ $packager = [IO.File]::ReadAllText((Join-Path $ProjectDir 'tools\Package-Release
 Assert ($packager.Contains("if (`$Mode -in @('Commercial', 'Publish')) { `$parameters.Commercial = `$true }")) 'Publish must enter the mandatory signing path.'
 $directPackager = [IO.File]::ReadAllText((Join-Path $ProjectDir 'tools\package_release.ps1'))
 Assert ($directPackager.Contains('$Commercial = $Commercial -or $PublishBuild')) 'Direct Publish packaging must require signing.'
+$crypto = [IO.File]::ReadAllText((Join-Path $ProjectDir 'src\updater\crypto.cpp'))
+Assert ($crypto.Contains('CERT_E_UNTRUSTEDROOT') -and $crypto.Contains('CERT_E_CHAINING') -and
+        $crypto.Contains('CertCompareCertificateName')) 'Pinned self-signed Authenticode fallback is incomplete.'
 $workflow = [IO.File]::ReadAllText((Join-Path $ProjectDir '.github\workflows\release.yml'))
 foreach ($name in @('update.json.sig','install-manifest.sha256.sig')) {
     Assert ([regex]::Matches($workflow, [regex]::Escape('artifacts/release/' + $name)).Count -eq 2) "CI must upload and publish $name."

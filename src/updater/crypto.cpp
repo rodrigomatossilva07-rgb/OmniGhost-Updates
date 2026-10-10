@@ -171,7 +171,8 @@ bool VerifyAuthenticode(const std::filesystem::path& file,
 
     GUID policy = WINTRUST_ACTION_GENERIC_VERIFY_V2;
     const LONG result = WinVerifyTrust(nullptr, &policy, &data);
-    if (result != ERROR_SUCCESS) {
+    const bool pinnedRootCandidate = result == CERT_E_UNTRUSTEDROOT || result == CERT_E_CHAINING;
+    if (result != ERROR_SUCCESS && !pinnedRootCandidate) {
         data.dwStateAction = WTD_STATEACTION_CLOSE;
         WinVerifyTrust(nullptr, &policy, &data);
         error = (result == CRYPT_E_REVOCATION_OFFLINE || result == CERT_E_REVOCATION_FAILURE)
@@ -227,6 +228,12 @@ bool VerifyAuthenticode(const std::filesystem::path& file,
     if (!EqualsAsciiInsensitive(actualFullSubject, expectedSubject) &&
         !EqualsAsciiInsensitive(simpleSubject, expectedSubject)) {
         error = "O subject do certificado Authenticode não corresponde ao publisher esperado.";
+        return false;
+    }
+    if (pinnedRootCandidate && !CertCompareCertificateName(
+            X509_ASN_ENCODING, &signerCertificate->pCertInfo->Subject,
+            &signerCertificate->pCertInfo->Issuer)) {
+        error = "A cadeia Authenticode não é confiável e o certificado fixado não é autoassinado.";
         return false;
     }
     return true;

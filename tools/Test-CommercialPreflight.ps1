@@ -76,7 +76,7 @@ if (Test-Path -LiteralPath $configPath -PathType Leaf) {
         $trustConfigured = $thumbprint -match '^[0-9A-F]{40}$' -and
             -not [string]::IsNullOrWhiteSpace([string]$config.expectedPublisherSubject)
         if (-not $trustConfigured) {
-            $errors.Add('[ERROR] Release trust is not configured. Install a CA-issued RSA Code Signing certificate with its private key in CurrentUser\My, set OMNIGHOST_SIGNING_THUMBPRINT, then run tools\Configure-ReleaseTrust.ps1. Commit the generated public policy/header and rebuild before Publish.')
+            $errors.Add('[ERROR] Release trust is not configured. Install an RSA Code Signing certificate with its private key in CurrentUser\My, set OMNIGHOST_SIGNING_THUMBPRINT, then run tools\Configure-ReleaseTrust.ps1. Commit the generated public policy/header and rebuild before Publish.')
         }
         if ($environmentThumb -notmatch '^[0-9A-F]{40}$') {
             $errors.Add('[ERROR] Set OMNIGHOST_SIGNING_THUMBPRINT to the 40-character Code Signing certificate thumbprint.')

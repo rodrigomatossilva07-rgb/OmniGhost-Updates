@@ -8,9 +8,8 @@ namespace OmniGhost::Update {
 bool Sha256File(const std::filesystem::path& file, std::string& hexDigest, std::string& error);
 bool ConstantTimeEquals(const std::string& left, const std::string& right);
 
-// Authenticode is accepted only when both the Windows trust chain and the
-// configured publisher identity match. Empty identity values intentionally fail
-// when verification is requested.
+// Authenticode requires a valid Windows signature and the exact configured
+// publisher pin. A self-signed root is accepted only when that exact pin matches.
 bool VerifyAuthenticode(const std::filesystem::path& file,
                         std::string_view expectedPublisherSubject,
                         std::string_view expectedCertificateThumbprint,

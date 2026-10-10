@@ -17,13 +17,12 @@ function Get-ReleaseSigningCertificate {
     }
     $constraints = @($certificate.Extensions | Where-Object { $_.Oid.Value -eq '2.5.29.19' })
     if ($constraints.Count -gt 0 -and $constraints[0].CertificateAuthority) { throw 'A certificate authority key cannot be used as the release publisher.' }
-    if ($certificate.Subject -ceq $certificate.Issuer) {
-        throw 'A self-signed development/test certificate cannot configure commercial release trust. Install a CA-issued Code Signing certificate.'
-    }
+    $selfSigned = $certificate.Subject -ceq $certificate.Issuer
     $publicKey = [Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPublicKey($certificate)
     if ($null -eq $publicKey) { throw 'Release manifest signatures require an RSA certificate.' }
     try { if ($publicKey.KeySize -lt 2048) { throw 'The RSA signing key must contain at least 2048 bits.' } }
     finally { $publicKey.Dispose() }
+    if ($selfSigned) { return $certificate }
     $chain = New-Object Security.Cryptography.X509Certificates.X509Chain
     try {
         $chain.ChainPolicy.ApplicationPolicy.Add((New-Object Security.Cryptography.Oid '1.3.6.1.5.5.7.3.3'))
