@@ -71,7 +71,6 @@ void DrawSkeleton(ImDrawList* draw, const CS2::Player& player, const float viewM
                   ImU32 color, ImU32 jointColor, float thickness, bool joints, float bodyHeightPx) {
     if (!player.full_bones_ok) return;
 
-    // Compact reference-style rig: exactly 13 visible segments.
     constexpr std::pair<CS2::BoneSlot, CS2::BoneSlot> kLinks[] = {
         {CS2::BoneSlot::Head, CS2::BoneSlot::Neck}, {CS2::BoneSlot::Neck, CS2::BoneSlot::SpineUpper},
         {CS2::BoneSlot::SpineUpper, CS2::BoneSlot::Pelvis},
@@ -79,11 +78,11 @@ void DrawSkeleton(ImDrawList* draw, const CS2::Player& player, const float viewM
         {CS2::BoneSlot::ShoulderLeft, CS2::BoneSlot::ElbowLeft}, {CS2::BoneSlot::ElbowLeft, CS2::BoneSlot::HandLeft},
         {CS2::BoneSlot::Neck, CS2::BoneSlot::ShoulderRight},
         {CS2::BoneSlot::ShoulderRight, CS2::BoneSlot::ElbowRight}, {CS2::BoneSlot::ElbowRight, CS2::BoneSlot::HandRight},
-        {CS2::BoneSlot::Pelvis, CS2::BoneSlot::KneeLeft}, {CS2::BoneSlot::KneeLeft, CS2::BoneSlot::AnkleLeft},
-        {CS2::BoneSlot::Pelvis, CS2::BoneSlot::KneeRight}, {CS2::BoneSlot::KneeRight, CS2::BoneSlot::AnkleRight},
+        {CS2::BoneSlot::Pelvis, CS2::BoneSlot::HipLeft},
+        {CS2::BoneSlot::HipLeft, CS2::BoneSlot::KneeLeft}, {CS2::BoneSlot::KneeLeft, CS2::BoneSlot::AnkleLeft},
+        {CS2::BoneSlot::Pelvis, CS2::BoneSlot::HipRight},
+        {CS2::BoneSlot::HipRight, CS2::BoneSlot::KneeRight}, {CS2::BoneSlot::KneeRight, CS2::BoneSlot::AnkleRight},
     };
-    static_assert(sizeof(kLinks) / sizeof(kLinks[0]) == 13,
-        "CS2 skeleton must have exactly 13 segments");
     std::array<bool, CS2::kBoneSlotCount> used{};
     for (const auto& [from, to] : kLinks) {
         used[static_cast<std::size_t>(from)] = true;
@@ -111,11 +110,7 @@ void DrawSkeleton(ImDrawList* draw, const CS2::Player& player, const float viewM
         const float dx = player.bones[a][0] - player.bones[b][0];
         const float dy = player.bones[a][1] - player.bones[b][1];
         const float dz = player.bones[a][2] - player.bones[b][2];
-        // Leg bones (pelvis->knee, knee->ankle) can be longer than 100 units
-        bool isLegBone = (from == CS2::BoneSlot::Pelvis && (to == CS2::BoneSlot::KneeLeft || to == CS2::BoneSlot::KneeRight)) ||
-                         (from == CS2::BoneSlot::KneeLeft && to == CS2::BoneSlot::AnkleLeft) ||
-                         (from == CS2::BoneSlot::KneeRight && to == CS2::BoneSlot::AnkleRight);
-        const float maxWorldLength = from == CS2::BoneSlot::Head ? 55.f : (isLegBone ? 180.f : 100.f);
+        const float maxWorldLength = from == CS2::BoneSlot::Head ? 55.f : 100.f;
         if (dx * dx + dy * dy + dz * dz > maxWorldLength * maxWorldLength)
             continue;
         const float sx = points[a].x - points[b].x;
@@ -338,25 +333,14 @@ void DrawDroppedWeapons(ImDrawList* draw, const CS2::Runtime& snapshot,
     // World loot is useful only nearby and is deliberately constrained so it
     // never clutters the screen with objects from the other side of the map.
     constexpr float kMaxDistanceUnits = 50.f * 39.37f;
-    // A discovery batch has one spatial sample. Choose its coherent camera
-    // once instead of locking the camera history for every world item.
-    // Group items sharing the same acquisition sample so camera is selected
-    // once per temporal cohort, not once per item.
-    uint64_t activeSampleMs = 0;
-    const float* weaponMatrix = viewMatrix;
-    CS2::CameraSnapshot weaponCamera{};
     for (const auto& weapon : snapshot.dropped_weapons) {
         const float dx = weapon.pos[0] - snapshot.local_pos[0];
         const float dy = weapon.pos[1] - snapshot.local_pos[1];
         const float dz = weapon.pos[2] - snapshot.local_pos[2];
         if (dx * dx + dy * dy + dz * dz > kMaxDistanceUnits * kMaxDistanceUnits) continue;
-        if (weapon.sample_timestamp_ms && weapon.sample_timestamp_ms != activeSampleMs) {
-            activeSampleMs = weapon.sample_timestamp_ms;
-            weaponCamera = CS2::SelectCameraSnapshot(activeSampleMs);
-            weaponMatrix = weaponCamera.timestamp_ms ? weaponCamera.view_matrix : viewMatrix;
-        }
         ImVec2 screen{};
-        if (!WorldToScreen(weapon.pos, weaponMatrix, screen)) continue;
+        // Static world items must follow the same current camera as players.
+        if (!WorldToScreen(weapon.pos, viewMatrix, screen)) continue;
         const ImU32 color = Color(settings.col_weapon);
         char label[96]{};
         if (settings.dropped_weapon_ammo && weapon.ammo_clip >= 0)
@@ -409,6 +393,7 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
         }
         return false;
     };
+    const auto frameCamera = CS2::AcquireCameraSnapshot();
     const uint64_t nowMs = GetTickCount64();
     // Render-thread-only history: last frame actually drawn, keyed by pawn
     // within one session generation. A death is measured only once.
@@ -456,28 +441,46 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
         ? snapshot.world_sample_ms : snapshot.snapshot_timestamp_ms;
     if (!worldSampleMs || nowMs < worldSampleMs || nowMs - worldSampleMs > 150u)
         return; // an outage must not project a long-dead world as live ESP
-    // Runtime snapshots are produced from one core scatter, so one coherent
-    // camera selection covers the whole frame and avoids mutex contention per player.
-    // Presentation must never use runtime.view_matrix for W2S when a coherent
-    // camera history sample exists. Fall back only to the latest camera lease;
-    // never to the (possibly older) matrix embedded in the world snapshot.
-    const CS2::CameraSnapshot frameCamera = CS2::SelectCameraSnapshot(framePositionSampleMs);
-    CS2::CameraSnapshotLease liveCameraLease;
-    const float* frameViewMatrix = nullptr;
-    if (frameCamera.timestamp_ms)
-        frameViewMatrix = frameCamera.view_matrix;
-    else {
-        liveCameraLease = CS2::AcquireCameraSnapshot();
-        if (liveCameraLease && liveCameraLease->timestamp_ms)
-            frameViewMatrix = liveCameraLease->view_matrix;
+    // Reproject with the current camera; align positions and bone origins to
+    // that camera's sample, not to a newer time paired with a historical matrix.
+    if (!frameCamera || !frameCamera->timestamp_ms || nowMs < frameCamera->timestamp_ms ||
+        nowMs - frameCamera->timestamp_ms > 100u)
+        return;
+    const float* frameViewMatrix = frameCamera->view_matrix;
+    const uint64_t presentationSampleMs = frameCamera->timestamp_ms;
+    const auto presentationDeltaMs = [presentationSampleMs](uint64_t sampleMs) {
+        const float deltaMs = presentationSampleMs >= sampleMs
+            ? static_cast<float>((std::min)(presentationSampleMs - sampleMs, uint64_t{35}))
+            : -static_cast<float>((std::min)(sampleMs - presentationSampleMs, uint64_t{35}));
+        return sampleMs ? deltaMs : 0.f;
+    };
+    struct HeadHeight {
+        uintptr_t controller = 0;
+        uint64_t pose_ms = 0;
+        uint64_t last_seen_ms = 0;
+        float units = 72.f;
+    };
+    static std::unordered_map<uintptr_t, HeadHeight> headHeights;
+    static uint64_t headHeightGeneration = 0;
+    static uint64_t nextHeadPruneMs = 0;
+    if (headHeightGeneration != snapshot.session_generation) {
+        headHeights.clear();
+        headHeightGeneration = snapshot.session_generation;
+        nextHeadPruneMs = 0;
     }
-    if (!frameViewMatrix)
-        return; // no temporally coherent camera — skip frame rather than jitter
+    if (nowMs >= nextHeadPruneMs) {
+        nextHeadPruneMs = nowMs + 1000u;
+        for (auto it = headHeights.begin(); it != headHeights.end();) {
+            if (nowMs - it->second.last_seen_ms > 2000u) it = headHeights.erase(it);
+            else ++it;
+        }
+    }
     for (const Player& player : snapshot.players) {
-        if (!player.alive || (!settings.show_bots && player.is_bot)) continue;
-        if (diedSinceSnapshot(player)) {
+        if (!player.alive || diedSinceSnapshot(player)) {
+            headHeights.erase(player.pawn);
             continue;
         }
+        if (!settings.show_bots && player.is_bot) continue;
         measuredDeathMs.erase(player.pawn);
         if (hideTeam && player.team == snapshot.local_team) continue;
         if (!std::isfinite(player.distance) || (maxDistance > 0.f && player.distance > maxDistance)) continue;
@@ -490,17 +493,12 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
             ? nowMs - positionSampleMs : 0;
         const float velocityMagnitude = std::sqrt(player.velocity[0] * player.velocity[0] +
             player.velocity[1] * player.velocity[1] + player.velocity[2] * player.velocity[2]);
-        // Hard prediction cap: never extrapolate more than ~35 ms. If the sample
-        // is older than that, present the last known position without lag masking.
-        constexpr uint64_t kMaxPredictionMs = 35u;
-        const uint64_t predictionCapMs = velocityMagnitude > 0.01f && velocityMagnitude < 2500.f
-            ? kMaxPredictionMs : 20u;
-        const bool sampleTooOld = rawPositionAgeMs > 80u;
-        const uint64_t positionAgeMs = sampleTooOld ? 0u : (std::min)(rawPositionAgeMs, predictionCapMs);
-        const float predictionSeconds = static_cast<float>(positionAgeMs) / 1000.f;
+        const bool velocityValid = std::isfinite(velocityMagnitude) && velocityMagnitude < 2500.f;
+        const float predictionMs = velocityValid ? presentationDeltaMs(positionSampleMs) : 0.f;
+        const float predictionSeconds = predictionMs / 1000.f;
         const float* viewMatrix = frameViewMatrix;
-        const uint64_t cameraDelta = frameCamera.timestamp_ms > positionSampleMs
-            ? frameCamera.timestamp_ms - positionSampleMs : positionSampleMs - frameCamera.timestamp_ms;
+        const uint64_t cameraDelta = presentationSampleMs > positionSampleMs
+            ? presentationSampleMs - positionSampleMs : positionSampleMs - presentationSampleMs;
         float bonesAge = 0.f;
         if (player.bones_sample_ms && nowMs >= player.bones_sample_ms) {
             bonesAge = static_cast<float>(nowMs - player.bones_sample_ms);
@@ -513,19 +511,20 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
             }
         }
         OmniGhost::Gameplay::DmaTelemetry::ObservePresentationTiming(
-            OmniGhost::Gameplay::DmaTelemetry::CS2(), static_cast<float>(positionAgeMs), bonesAge,
-            static_cast<float>(cameraDelta), static_cast<float>(positionAgeMs));
+            OmniGhost::Gameplay::DmaTelemetry::CS2(), static_cast<float>(rawPositionAgeMs), bonesAge,
+            static_cast<float>(cameraDelta), std::abs(predictionMs));
         const float positionOffset[3] = {
-            std::isfinite(player.velocity[0]) ? player.velocity[0] * predictionSeconds : 0.f,
-            std::isfinite(player.velocity[1]) ? player.velocity[1] * predictionSeconds : 0.f,
-            std::isfinite(player.velocity[2]) ? player.velocity[2] * predictionSeconds : 0.f
+            velocityValid ? player.velocity[0] * predictionSeconds : 0.f,
+            velocityValid ? player.velocity[1] * predictionSeconds : 0.f,
+            velocityValid ? player.velocity[2] * predictionSeconds : 0.f
         };
-        const uint64_t boneOriginAgeMs = player.bone_origin_sample_ms && nowMs >= player.bone_origin_sample_ms
-            ? (std::min)(nowMs - player.bone_origin_sample_ms, uint64_t{20}) : positionAgeMs;
-        const float bonePredictionSeconds = static_cast<float>(boneOriginAgeMs) / 1000.f;
+        const uint64_t boneOriginSampleMs = player.bone_origin_sample_ms
+            ? player.bone_origin_sample_ms : positionSampleMs;
+        const float bonePredictionSeconds = velocityValid ? presentationDeltaMs(boneOriginSampleMs) / 1000.f : 0.f;
         const float boneOffset[3] = {
-            player.velocity[0] * bonePredictionSeconds, player.velocity[1] * bonePredictionSeconds,
-            player.velocity[2] * bonePredictionSeconds
+            velocityValid ? player.velocity[0] * bonePredictionSeconds : 0.f,
+            velocityValid ? player.velocity[1] * bonePredictionSeconds : 0.f,
+            velocityValid ? player.velocity[2] * bonePredictionSeconds : 0.f
         };
         const float predictedPosition[3] = {
             player.pos[0] + positionOffset[0], player.pos[1] + positionOffset[1], player.pos[2] + positionOffset[2]
@@ -545,104 +544,52 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
         const bool headPlausible = std::isfinite(headDx) && std::isfinite(headDy) &&
             std::isfinite(headDz) && headDx * headDx + headDy * headDy < 100.f * 100.f &&
             headDz > 5.f && headDz < 160.f;
-        float headWorld[3] = { predictedPosition[0], predictedPosition[1], predictedPosition[2] + 72.f };
+        auto [heightIt, insertedHeight] = headHeights.try_emplace(player.pawn);
+        auto& headHeight = heightIt->second;
+        if (insertedHeight || headHeight.controller != player.controller) {
+            headHeight = {};
+            headHeight.controller = player.controller;
+        }
+        const uint64_t heightUpdateDeltaMs = nowMs - headHeight.last_seen_ms;
+        headHeight.last_seen_ms = nowMs;
         if (bonesFresh && headPlausible) {
-            headWorld[0] = player.bones[static_cast<size_t>(BoneSlot::Head)][0] + boneOffset[0];
-            headWorld[1] = player.bones[static_cast<size_t>(BoneSlot::Head)][1] + boneOffset[1];
-            headWorld[2] = player.bones[static_cast<size_t>(BoneSlot::Head)][2] + boneOffset[2];
-        }
-        if (!WorldToScreen(headWorld, viewMatrix, head)) continue;
-
-        // Improved feet position: use ankle bones when available for more stable box
-        float feetWorld[3] = { predictedPosition[0], predictedPosition[1], predictedPosition[2] };
-        bool useAnkleFeet = false;
-        if (bonesFresh && player.full_bones_ok) {
-            // Use average of both ankles for more stable feet position
-            const float* ankleL = player.bones[static_cast<size_t>(BoneSlot::AnkleLeft)];
-            const float* ankleR = player.bones[static_cast<size_t>(BoneSlot::AnkleRight)];
-            bool ankleLOk = std::isfinite(ankleL[0]) && std::isfinite(ankleL[1]) && std::isfinite(ankleL[2]) &&
-                            (ankleL[0] != 0.f || ankleL[1] != 0.f || ankleL[2] != 0.f);
-            bool ankleROk = std::isfinite(ankleR[0]) && std::isfinite(ankleR[1]) && std::isfinite(ankleR[2]) &&
-                            (ankleR[0] != 0.f || ankleR[1] != 0.f || ankleR[2] != 0.f);
-            if (ankleLOk && ankleROk) {
-                feetWorld[0] = (ankleL[0] + ankleR[0]) * 0.5f + boneOffset[0];
-                feetWorld[1] = (ankleL[1] + ankleR[1]) * 0.5f + boneOffset[1];
-                feetWorld[2] = (ankleL[2] + ankleR[2]) * 0.5f + boneOffset[2];
-                useAnkleFeet = true;
-            } else if (ankleLOk) {
-                feetWorld[0] = ankleL[0] + boneOffset[0];
-                feetWorld[1] = ankleL[1] + boneOffset[1];
-                feetWorld[2] = ankleL[2] + boneOffset[2];
-                useAnkleFeet = true;
-            } else if (ankleROk) {
-                feetWorld[0] = ankleR[0] + boneOffset[0];
-                feetWorld[1] = ankleR[1] + boneOffset[1];
-                feetWorld[2] = ankleR[2] + boneOffset[2];
-                useAnkleFeet = true;
+            const float measuredHeight = std::clamp(
+                player.bones[static_cast<size_t>(BoneSlot::Head)][2] + boneOffset[2] - predictedPosition[2],
+                16.f, 96.f);
+            if (!headHeight.pose_ms) {
+                headHeight.units = measuredHeight;
+            } else if (player.bone_pose_sample_ms > headHeight.pose_ms) {
+                const float dtMs = static_cast<float>(player.bone_pose_sample_ms - headHeight.pose_ms);
+                const float alpha = 1.f - std::exp(-dtMs / 50.f);
+                headHeight.units += (measuredHeight - headHeight.units) * alpha;
             }
+            headHeight.pose_ms = player.bone_pose_sample_ms;
+        } else if (headHeight.pose_ms && nowMs >= headHeight.pose_ms &&
+            nowMs - headHeight.pose_ms > kBonesVisualMaxAgeMs) {
+            const float alpha = 1.f - std::exp(-static_cast<float>(heightUpdateDeltaMs) / 120.f);
+            headHeight.units += (72.f - headHeight.units) * alpha;
         }
-        ImVec2 feetScreen{};
-        if (useAnkleFeet && WorldToScreen(feetWorld, viewMatrix, feetScreen)) {
-            // Smooth transition between predicted feet and ankle-based feet
-            static std::unordered_map<uintptr_t, ImVec2> s_feetSmooth;
-            static uint64_t s_feetGen = 0;
-            if (s_feetGen != snapshot.session_generation) {
-                s_feetSmooth.clear();
-                s_feetGen = snapshot.session_generation;
-            }
-            auto itFeet = s_feetSmooth.find(player.pawn);
-            if (itFeet == s_feetSmooth.end()) {
-                s_feetSmooth.emplace(player.pawn, feetScreen);
-                feet = feetScreen;
-            } else {
-                const float alpha = 0.35f;
-                itFeet->second.x = itFeet->second.x + (feetScreen.x - itFeet->second.x) * alpha;
-                itFeet->second.y = itFeet->second.y + (feetScreen.y - itFeet->second.y) * alpha;
-                feet = itFeet->second;
-            }
+        // Only stance height is smoothed in world units. Screen coordinates
+        // must be projected afresh, otherwise a camera turn moves the box late.
+        const float headWorld[3] = {
+            predictedPosition[0], predictedPosition[1], predictedPosition[2] + headHeight.units
+        };
+        ImVec2 boxHead{};
+        if (!WorldToScreen(headWorld, viewMatrix, boxHead)) continue;
+        head = boxHead;
+        if (bonesFresh && headPlausible) {
+            const float actualHead[3] = {
+                player.bones[static_cast<size_t>(BoneSlot::Head)][0] + boneOffset[0],
+                player.bones[static_cast<size_t>(BoneSlot::Head)][1] + boneOffset[1],
+                player.bones[static_cast<size_t>(BoneSlot::Head)][2] + boneOffset[2]
+            };
+            ImVec2 actualHeadScreen{};
+            if (WorldToScreen(actualHead, viewMatrix, actualHeadScreen)) head = actualHeadScreen;
         }
-
-        float height = feet.y - head.y;
+        const float height = feet.y - boxHead.y;
         if (!std::isfinite(height) || height < 8.f || height > 4000.f) continue;
-        // Box height hysteresis per pawn: blend toward the new height so
-        // head-bone ↔ fallback transitions do not pop the rectangle.
-        {
-            static std::unordered_map<uintptr_t, float> s_boxHeightSmooth;
-            static uint64_t s_boxHeightGen = 0;
-            if (s_boxHeightGen != snapshot.session_generation) {
-                s_boxHeightSmooth.clear();
-                s_boxHeightGen = snapshot.session_generation;
-            }
-            auto it = s_boxHeightSmooth.find(player.pawn);
-            if (it == s_boxHeightSmooth.end()) {
-                s_boxHeightSmooth.emplace(player.pawn, height);
-            } else {
-                // Use higher alpha when bones are fresh for faster convergence,
-                // lower when using fallback for stability
-                const float alpha = (bonesFresh && headPlausible) ? 0.55f : 0.25f;
-                it->second = it->second + (height - it->second) * alpha;
-                height = it->second;
-            }
-        }
-        // Also smooth the head Y position for more stable box top
-        static std::unordered_map<uintptr_t, float> s_headYSmooth;
-        static uint64_t s_headYGen = 0;
-        if (s_headYGen != snapshot.session_generation) {
-            s_headYSmooth.clear();
-            s_headYGen = snapshot.session_generation;
-        }
-        auto itHeadY = s_headYSmooth.find(player.pawn);
-        float smoothedHeadY = head.y;
-        if (itHeadY == s_headYSmooth.end()) {
-            s_headYSmooth.emplace(player.pawn, head.y);
-        } else {
-            const float alpha = (bonesFresh && headPlausible) ? 0.55f : 0.25f;
-            itHeadY->second = itHeadY->second + (head.y - itHeadY->second) * alpha;
-            smoothedHeadY = itHeadY->second;
-        }
-
         const float width = height * 0.60f;
-        const ImVec2 min(feet.x - width * .5f, smoothedHeadY - height * .08f);
+        const ImVec2 min(feet.x - width * .5f, boxHead.y - height * .08f);
         const ImVec2 max(feet.x + width * .5f, min.y + height * 1.09f);
         // Do not turn valid-but-distant projections into dozens of text and
         // line commands. Keep a margin for entities entering the viewport.
@@ -686,7 +633,9 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
         if (settings.distance) {
             char distance[32]{}; std::snprintf(distance, sizeof(distance), "%.0f m", player.distance);
             const ImVec2 size = ImGui::CalcTextSize(distance);
-            DrawOutlinedText(draw, ImVec2((min.x + max.x - size.x) * .5f, max.y + (settings.weapon_name ? 20.f : 4.f)), Color(settings.col_distance), distance, settings);
+            const float textY = max.y + (settings.weapon_name ?
+                settings.weapon_ammo && player.ammo_clip >= 0 ? 36.f : 20.f : 4.f);
+            DrawOutlinedText(draw, ImVec2((min.x + max.x - size.x) * .5f, textY), Color(settings.col_distance), distance, settings);
         }
         if (settings.weapon_ammo && settings.weapon_name && player.ammo_clip >= 0) {
             char ammo[32]{}; std::snprintf(ammo, sizeof(ammo), "%d/%d", player.ammo_clip, (std::max)(0, player.ammo_reserve));

@@ -54,6 +54,7 @@ jobs:
         run: |
           ./tools/Validate-Project.ps1 -ProjectDir .
           ./tools/Test-ReleaseEngineering.ps1 -ProjectDir .
+          ./tools/Test-ReleaseTrust.ps1 -ProjectDir .
           ./tools/Audit-UiLocalization.ps1 -ProjectDir . -ReportPath artifacts/validation/localization.json
 
       - name: Build and run security regression tests
@@ -97,7 +98,9 @@ jobs:
           path: |
             artifacts/release/OmniGhost.zip
             artifacts/release/update.json
+            artifacts/release/update.json.sig
             artifacts/release/install-manifest.sha256
+            artifacts/release/install-manifest.sha256.sig
             artifacts/release/SBOM.cdx.json
             artifacts/release/changelog.json
             artifacts/release/release-notes.md
@@ -163,14 +166,16 @@ jobs:
             --notes-file artifacts/release/release-notes.md `
             artifacts/release/OmniGhost.zip `
             artifacts/release/update.json `
+            artifacts/release/update.json.sig `
             artifacts/release/install-manifest.sha256 `
+            artifacts/release/install-manifest.sha256.sig `
             artifacts/release/SBOM.cdx.json `
             artifacts/release/changelog.json `
             artifacts/release/release-meta.json `
             artifacts/release/SHA256SUMS.txt
           if ($LASTEXITCODE -ne 0) { throw 'Could not create the complete draft release.' }
           $view = gh release view $tag --repo $repo --json isDraft,assets | ConvertFrom-Json
-          $expected = @('OmniGhost.zip','update.json','install-manifest.sha256','SBOM.cdx.json','changelog.json','release-meta.json','SHA256SUMS.txt')
+          $expected = @('OmniGhost.zip','update.json','update.json.sig','install-manifest.sha256','install-manifest.sha256.sig','SBOM.cdx.json','changelog.json','release-meta.json','SHA256SUMS.txt')
           $actual = @($view.assets | ForEach-Object name)
           foreach ($asset in $expected) {
             if ($asset -notin $actual) { throw "Draft release is incomplete: $asset missing." }

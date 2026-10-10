@@ -19,6 +19,7 @@
 #include <fstream>
 #include <sstream>
 #include <filesystem>
+#include <initializer_list>
 
 namespace fs = std::filesystem;
 
@@ -59,16 +60,26 @@ static std::string ReadState(const std::string& key) {
     return {};
 }
 
-static bool WriteState(const std::string& key, const std::string& value) {
+static bool WriteState(std::initializer_list<std::pair<std::string, std::string>> updates) {
     EnsureConfigDir();
     std::map<std::string, std::string> values;
     std::ifstream f(ConfigStatePath());
+    std::error_code existsError;
+    if (!f && fs::exists(ConfigStatePath(), existsError)) {
+        last_status = "Falha ao ler estado da configuração";
+        return false;
+    }
     std::string line;
     while (std::getline(f, line)) {
         auto pos = line.find('=');
         if (pos != std::string::npos) values[line.substr(0, pos)] = line.substr(pos + 1);
     }
-    values[key] = value;
+    if (f.bad() || existsError) {
+        last_status = "Falha ao ler estado da configuração";
+        return false;
+    }
+    f.close();
+    for (const auto& [key, value] : updates) values[key] = value;
     std::ostringstream serialized;
     for (const auto& [k, v] : values) serialized << k << "=" << v << '\n';
     std::string error;
@@ -117,7 +128,11 @@ bool WriteTextAtomically(const fs::path& destination, const std::string& data, s
         }
     }
 
-    FlushPathToDisk(temporary);
+    if (!FlushPathToDisk(temporary)) {
+        error = "FlushFileBuffers failed win32=" + std::to_string(GetLastError());
+        fs::remove(temporary, ec);
+        return false;
+    }
 
     BOOL promoted = FALSE;
     if (fs::exists(destination, ec) && !ec) {
@@ -368,10 +383,10 @@ bool SaveToFile(const std::string& name) {
         last_status = "Erro ao guardar atomicamente: " + error;
         return false;
     }
-    last_status = "Guardado: Configs/" + safe + ".ogcfg";
     active_config_name = safe;
-    WriteState(std::string("active.") + ActiveGameMeta(), active_config_name);
-    WriteState(std::string("active_id.") + ActiveGameMeta(), active_config_id);
+    if (!WriteState({{std::string("active.") + ActiveGameMeta(), active_config_name},
+                    {std::string("active_id.") + ActiveGameMeta(), active_config_id}})) return false;
+    last_status = "Guardado: Configs/" + safe + ".ogcfg";
     RefreshList();
     return true;
 }
@@ -394,8 +409,12 @@ bool LoadFromFile(const std::string& name) {
     bool ok = DeserializeAll(ss.str());
     if (ok) {
         active_config_name = name;
-        WriteState(std::string("active.") + ActiveGameMeta(), active_config_name);
-        WriteState(std::string("active_id.") + ActiveGameMeta(), active_config_id);
+        if (!WriteState({{std::string("active.") + ActiveGameMeta(), active_config_name},
+                        {std::string("active_id.") + ActiveGameMeta(), active_config_id}})) {
+            // Loading succeeded; a read-only state file must not trigger default-config fallback.
+            last_status = "Config carregada, mas " + last_status;
+            return true;
+        }
         last_status = "Carregado: " + name + " (ativa)";
     } else {
         std::error_code copyEc;
@@ -414,8 +433,11 @@ bool DeleteConfigFile(const std::string& name) {
     const fs::path path = fs::path(ConfigDir()) / (name + ".ogcfg");
     std::error_code ec;
     fs::remove(path, ec);
-    if (!ec && IsFavoriteConfig(name))
-        WriteState(std::string("favorite.") + ActiveGameMeta(), "");
+    if (!ec && IsFavoriteConfig(name) &&
+        !WriteState({{std::string("favorite.") + ActiveGameMeta(), ""}})) {
+        RefreshList();
+        return false;
+    }
     last_status = ec ? "Erro ao apagar" : ("Apagado: " + name);
     RefreshList();
     return !ec;
@@ -566,10 +588,10 @@ bool ToggleFavoriteConfig(const std::string& name) {
 
     const std::string key = std::string("favorite.") + ActiveGameMeta();
     const bool removing = ReadState(key) == name;
-    WriteState(key, removing ? std::string{} : name);
+    if (!WriteState({{key, removing ? std::string{} : name}})) return false;
     last_status = removing ? "Favorito removido: " + name : "Favorito: " + name;
     RefreshList();
-    return !removing;
+    return true;
 }
 
 void Initialize() {
@@ -591,7 +613,7 @@ void ActivateCurrentGameConfig() {
     if (!favorite_name.empty() && NameBelongsToActiveGame(favorite_name)) {
         loaded = LoadFromFile(favorite_name);
         if (!loaded)
-            WriteState(favorite_key, "");
+            (void)WriteState({{favorite_key, ""}});
     }
     if (!loaded && !remembered_name.empty() && remembered_name != favorite_name &&
         NameBelongsToActiveGame(remembered_name)) {

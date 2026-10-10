@@ -1,5 +1,6 @@
 #include "screenshot.h"
 #include "app_paths.h"
+#include "scope_exit.h"
 #include <Windows.h>
 #include <wincodec.h>
 #include <shellapi.h>
@@ -10,6 +11,7 @@
 #include <iomanip>
 #include <chrono>
 #include <ctime>
+#include <climits>
 
 namespace fs = std::filesystem;
 
@@ -93,7 +95,12 @@ Result SaveBMP(const std::string& filename, const uint8_t* pixels, uint32_t widt
     result.width = width;
     result.height = height;
     
-    const uint32_t rowSize = ((width * 32 + 31) / 32) * 4;
+    if (!pixels || !width || !height || width > INT_MAX || height > INT_MAX ||
+        uint64_t{width} * height * 4u > UINT_MAX - 54u) {
+        result.error = "Invalid screenshot dimensions";
+        return result;
+    }
+    const uint32_t rowSize = width * 4u;
     const uint32_t imageSize = rowSize * height;
     
     BMPFileHeader fileHeader;
@@ -115,20 +122,14 @@ Result SaveBMP(const std::string& filename, const uint8_t* pixels, uint32_t widt
         file.write(reinterpret_cast<const char*>(&fileHeader), sizeof(fileHeader));
         file.write(reinterpret_cast<const char*>(&infoHeader), sizeof(infoHeader));
         
-        // Write pixel data (BMP expects BGR order, top-down)
-        std::vector<uint8_t> rowBuffer(rowSize);
-        for (uint32_t y = 0; y < height; ++y) {
-            const uint8_t* srcRow = pixels + y * width * 4;
-            uint8_t* dst = rowBuffer.data();
-            for (uint32_t x = 0; x < width; ++x) {
-                dst[0] = srcRow[2]; // B
-                dst[1] = srcRow[1]; // G
-                dst[2] = srcRow[0]; // R
-                dst[3] = srcRow[3]; // A
-                dst += 4;
-            }
-            file.write(reinterpret_cast<const char*>(rowBuffer.data()), rowSize);
+        // GetDIBits already returns top-down BGRA, which is the BMP layout.
+        file.write(reinterpret_cast<const char*>(pixels), imageSize);
+        file.flush();
+        if (!file.good()) {
+            result.error = "Failed to write screenshot pixels";
+            return result;
         }
+        file.close();
         
         result.path = filename;
         result.fileSize = fs::file_size(filename);
@@ -144,6 +145,20 @@ Result SavePNG(const std::string& filename, const uint8_t* pixels, uint32_t widt
     Result result;
     result.width = width;
     result.height = height;
+    if (!pixels || !width || !height || width > INT_MAX || height > INT_MAX ||
+        uint64_t{width} * height * 4u > UINT_MAX) {
+        result.error = "Invalid screenshot dimensions";
+        return result;
+    }
+    const HRESULT com = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+    if (FAILED(com) && com != RPC_E_CHANGED_MODE) {
+        result.error = "Failed to initialize screenshot encoder";
+        return result;
+    }
+    const auto uninitialize = OmniGhost::Platform::MakeScopeExit([com] {
+        if (SUCCEEDED(com)) CoUninitialize();
+    });
+    (void)uninitialize;
     IWICImagingFactory* factory = nullptr;
     IWICStream* stream = nullptr;
     IWICBitmapEncoder* encoder = nullptr;
@@ -156,12 +171,17 @@ Result SavePNG(const std::string& filename, const uint8_t* pixels, uint32_t widt
         if (stream) stream->Release();
         if (factory) factory->Release();
     };
+    auto encoderCleanup = OmniGhost::Platform::MakeScopeExit([&] { releaseAll(); });
 
     HRESULT hr = CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER,
                                   IID_PPV_ARGS(&factory));
     if (SUCCEEDED(hr)) hr = factory->CreateStream(&stream);
     const fs::path path(filename);
-    if (SUCCEEDED(hr)) hr = stream->InitializeFromFilename(path.c_str(), GENERIC_WRITE);
+    bool fileOpened = false;
+    if (SUCCEEDED(hr)) {
+        hr = stream->InitializeFromFilename(path.c_str(), GENERIC_WRITE);
+        fileOpened = SUCCEEDED(hr);
+    }
     if (SUCCEEDED(hr)) hr = factory->CreateEncoder(GUID_ContainerFormatPng, nullptr, &encoder);
     if (SUCCEEDED(hr)) hr = encoder->Initialize(stream, WICBitmapEncoderNoCache);
     if (SUCCEEDED(hr)) hr = encoder->CreateNewFrame(&frame, &properties);
@@ -179,14 +199,20 @@ Result SavePNG(const std::string& filename, const uint8_t* pixels, uint32_t widt
     if (SUCCEEDED(hr)) hr = frame->Commit();
     if (SUCCEEDED(hr)) hr = encoder->Commit();
     releaseAll();
+    encoderCleanup.Release();
     if (FAILED(hr)) {
         result.error = "PNG encoding failed: HRESULT=" + std::to_string(static_cast<unsigned long>(hr));
         std::error_code ignored;
-        fs::remove(path, ignored);
+        if (fileOpened) fs::remove(path, ignored);
         return result;
     }
     result.path = filename;
-    result.fileSize = fs::file_size(path);
+    std::error_code sizeError;
+    result.fileSize = fs::file_size(path, sizeError);
+    if (sizeError) {
+        result.error = "Failed to inspect screenshot: " + sizeError.message();
+        return result;
+    }
     result.success = true;
     return result;
 }
@@ -213,6 +239,11 @@ Result CaptureInternal(const std::string& filename, int x, int y, int width, int
     if (height <= 0) height = winHeight;
     if (x < 0) x = 0;
     if (y < 0) y = 0;
+    if (width <= 0 || height <= 0 || uint64_t{static_cast<unsigned>(width)} *
+        static_cast<unsigned>(height) * 4u > UINT_MAX) {
+        result.error = "Invalid capture dimensions";
+        return result;
+    }
     
     // Adjust for window client area
     RECT clientRect;
@@ -237,18 +268,27 @@ Result CaptureInternal(const std::string& filename, int x, int y, int width, int
         return result;
     }
     HBITMAP hOldBitmap = (HBITMAP)SelectObject(hMemoryDC, hBitmap);
-    
-    BOOL success = BitBlt(hMemoryDC, 0, 0, width, height, hScreenDC, captureX, captureY, SRCCOPY | CAPTUREBLT);
-    
-    if (!success) {
+    if (!hOldBitmap || hOldBitmap == HGDI_ERROR) {
+        DeleteObject(hBitmap);
+        DeleteDC(hMemoryDC);
+        ReleaseDC(nullptr, hScreenDC);
+        result.error = "Failed to select screenshot bitmap";
+        return result;
+    }
+    auto captureCleanup = OmniGhost::Platform::MakeScopeExit([&] {
         SelectObject(hMemoryDC, hOldBitmap);
         DeleteObject(hBitmap);
         DeleteDC(hMemoryDC);
         ReleaseDC(nullptr, hScreenDC);
+    });
+    
+    BOOL success = BitBlt(hMemoryDC, 0, 0, width, height, hScreenDC, captureX, captureY, SRCCOPY | CAPTUREBLT);
+    
+    if (!success) {
         result.error = "BitBlt failed";
         return result;
     }
-    
+
     BITMAPINFO bmi = {};
     bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
     bmi.bmiHeader.biWidth = width;
@@ -256,18 +296,22 @@ Result CaptureInternal(const std::string& filename, int x, int y, int width, int
     bmi.bmiHeader.biPlanes = 1;
     bmi.bmiHeader.biBitCount = 32;
     bmi.bmiHeader.biCompression = BI_RGB;
-    
-    std::vector<uint8_t> pixels(width * height * 4);
+
+    std::vector<uint8_t> pixels(static_cast<std::size_t>(width) * height * 4u);
+    // GetDIBits requires the bitmap to be deselected from its DC.
+    SelectObject(hMemoryDC, hOldBitmap);
     const int copiedRows = GetDIBits(hScreenDC, hBitmap, 0, height, pixels.data(), &bmi, DIB_RGB_COLORS);
     
     SelectObject(hMemoryDC, hOldBitmap);
     DeleteObject(hBitmap);
     DeleteDC(hMemoryDC);
     ReleaseDC(nullptr, hScreenDC);
+    captureCleanup.Release();
     if (copiedRows != height) {
         result.error = "Failed to read screenshot pixels";
         return result;
     }
+    for (std::size_t i = 3; i < pixels.size(); i += 4) pixels[i] = 255;
     
     if (fmt == Format::BMP) {
         result = SaveBMP(filename, pixels.data(), width, height);

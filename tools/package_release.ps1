@@ -21,6 +21,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+$Commercial = $Commercial -or $PublishBuild
 . (Join-Path $PSScriptRoot 'Hashing.ps1')
 
 # Packaging is intentionally local-only. Remote publication is owned exclusively by Publish-Release.ps1.
@@ -376,6 +377,9 @@ try {
         if (($env:OMNIGHOST_SIGNING_THUMBPRINT -replace '\s','').ToUpperInvariant() -ne $SigningThumbprint) {
             throw 'OMNIGHOST_SIGNING_THUMBPRINT difere do certificado público configurado para o cliente.'
         }
+        . (Join-Path $ProjectDir 'tools\ReleaseTrustTools.ps1')
+        $SigningCertificate = Get-ReleaseSigningCertificate -Thumbprint $SigningThumbprint -RequirePrivateKey
+        Assert-ReleaseTrustMatches -Policy $PublishSettings -HeaderPath (Join-Path $ProjectDir 'src\updater\release_trust.h') -Certificate $SigningCertificate
         $TimestampUrl = if ($PublishSettings.timestampUrl) { [string]$PublishSettings.timestampUrl } else { 'https://timestamp.digicert.com' }
         Write-ReleaseLog 'A assinar a cópia staged de OmniGhost.exe com Authenticode...'
         & (Join-Path $ProjectDir 'tools\Sign-AuthenticodeFile.ps1') -Path $StagedExecutable -CertificateThumbprint $SigningThumbprint -TimestampUrl $TimestampUrl
@@ -621,7 +625,7 @@ try {
 
     if ($Commercial) {
         Write-ReleaseLog 'A executar validação comercial final do pacote...'
-        & (Join-Path $ProjectDir 'tools\Validate-CommercialRelease.ps1') -ProjectDir $ProjectDir -ReleaseDirectory $ReleaseOutputDir -Version $Version
+        & (Join-Path $ProjectDir 'tools\Validate-ReleaseArtifacts.ps1') -ProjectDir $ProjectDir -ReleaseDirectory $ReleaseOutputDir -Version $Version
         if ($LASTEXITCODE -ne 0) { throw 'Commercial release validation failed.' }
         Write-ReleaseLog 'Pacote comercial validado: Authenticode + publisher + manifest signature + SHA-256.'
     }

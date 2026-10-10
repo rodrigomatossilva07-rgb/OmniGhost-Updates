@@ -117,10 +117,10 @@ constexpr int TEAM_INTERVAL_MS = 500;
 OmniGhost::Gameplay::SnapshotExchange<CameraSnapshot> g_camera_snapshots;
 OmniGhost::Gameplay::SnapshotExchange<LivenessSnapshot> g_liveness_snapshots;
 OmniGhost::Gameplay::SnapshotExchange<Config> g_config_snapshots;
-// Lock-free ring buffer for camera history (single producer: camera thread).
-// Atomic index avoids mutex in 16ms hot path.
+// Publication and history selection share this short, CPU-only critical section.
+std::mutex g_camera_history_mutex;
 std::array<CameraSnapshot, 10> g_camera_history{};
-std::atomic<size_t> g_camera_history_next{0};
+size_t g_camera_history_next = 0;
 std::atomic_bool g_acquisition_stop{false};
 std::atomic_bool g_acquisition_running{false};
 std::atomic<float> g_presentation_fps{0.f};
@@ -160,6 +160,7 @@ struct OptionalTarget {
     uintptr_t controller = 0;
     uintptr_t scene = 0;
     float origin[3]{};
+    uint64_t position_sample_ms = 0;
     bool has_name = false;
 };
 struct OptionalBoneResult {
@@ -341,9 +342,11 @@ void PublishCameraSnapshot(const float* matrix, uint64_t sample_ms = 0) {
     if (!slot) return;
     std::memcpy(slot.value->view_matrix, matrix, sizeof(slot.value->view_matrix));
     slot.value->timestamp_ms = sample_ms ? sample_ms : GetTickCount64();
-    // P0-7: Lock-free ring buffer update (single producer).
-    const size_t idx = g_camera_history_next.fetch_add(1, std::memory_order_relaxed) % g_camera_history.size();
-    g_camera_history[idx] = *slot.value;
+    {
+        std::lock_guard lock(g_camera_history_mutex);
+        g_camera_history[g_camera_history_next] = *slot.value;
+        g_camera_history_next = (g_camera_history_next + 1u) % g_camera_history.size();
+    }
     g_camera_snapshots.Publish(slot.index);
 }
 
@@ -1445,8 +1448,11 @@ void ResetSessionState(const char* reason) {
     g_last_snapshot_publish_ms.store(0, std::memory_order_relaxed);
     g_runtime_snapshot_drops.store(0, std::memory_order_relaxed);
     g_acquisition_hz.store(0.f, std::memory_order_relaxed);
-    g_camera_history = {};
-    g_camera_history_next.store(0, std::memory_order_relaxed);
+    {
+        std::lock_guard lock(g_camera_history_mutex);
+        g_camera_history = {};
+        g_camera_history_next = 0;
+    }
     g_pending_entity_list = 0;
     g_entity_list_confirmations = 0;
     g_entity_list_next_validation_ms = 0;
@@ -2246,7 +2252,9 @@ static void ScatterReadPawnHandles(const uintptr_t* controllers, uint32_t* handl
 static int ScatterResolvePawnHandles(const uint32_t* handles, uintptr_t* pawns,
                                      int count, uintptr_t stride,
                                      uintptr_t alternate_stride,
-                                     bool optionalLane = false) {
+                                     bool optionalLane = false,
+                                     VMMDLL_SCATTER_HANDLE workerScatter = nullptr,
+                                     uintptr_t workerClientBase = 0) {
     if (!handles || !pawns || count <= 0) return 0;
     std::fill(pawns, pawns + count, 0);
     bool anyValidHandle = false;
@@ -2258,20 +2266,27 @@ static int ScatterResolvePawnHandles(const uint32_t* handles, uintptr_t* pawns,
     }
     if (!anyValidHandle) return 0;
 
-    uintptr_t root = g_cached_entity_root;
-    if (!IsUserPointer(root)) {
-        if (!QReadT(runtime.client_base + offsets.dwEntityList, root) || !IsUserPointer(root))
+    uintptr_t root = 0;
+    if (workerScatter) {
+        if (!IsUserPointer(workerClientBase) ||
+            !QReadT(workerClientBase + offsets.dwEntityList, root) || !IsUserPointer(root))
             return 0;
-        g_cached_entity_root = root;
+    } else {
+        root = g_cached_entity_root;
+        if (!IsUserPointer(root)) {
+            if (!QReadT(runtime.client_base + offsets.dwEntityList, root) || !IsUserPointer(root))
+                return 0;
+            g_cached_entity_root = root;
+        }
     }
 
     constexpr int kMaxPages = 64;
     uintptr_t chunks[kMaxPages]{};
     bool pageUsed[kMaxPages]{};
-    static uintptr_t cachedChunks[kMaxPages]{};
-    static uintptr_t cachedChunkRoot = 0;
-    static uint64_t cachedChunksUntilMs = 0;
-    static uint64_t cachedChunkGeneration = 0;
+    static thread_local uintptr_t cachedChunks[kMaxPages]{};
+    static thread_local uintptr_t cachedChunkRoot = 0;
+    static thread_local uint64_t cachedChunksUntilMs = 0;
+    static thread_local uint64_t cachedChunkGeneration = 0;
     const uint64_t nowMs = GetTickCount64();
     const uint64_t generation = g_session_generation.load(std::memory_order_acquire);
     if (cachedChunkGeneration != generation || cachedChunkRoot != root ||
@@ -2288,8 +2303,10 @@ static int ScatterResolvePawnHandles(const uint32_t* handles, uintptr_t* pawns,
         if (page >= 0 && page < kMaxPages) pageUsed[page] = true;
     }
 
-    EnsureScatter();
-    if (!g_scatter_full) {
+    if (!workerScatter) EnsureScatter();
+    const VMMDLL_SCATTER_HANDLE scatter = workerScatter ? workerScatter :
+        static_cast<VMMDLL_SCATTER_HANDLE>(g_scatter_full);
+    if (!scatter) {
         if (optionalLane) return 0;
         int resolved = 0;
         for (int i = 0; i < count; ++i) {
@@ -2306,7 +2323,7 @@ static int ScatterResolvePawnHandles(const uint32_t* handles, uintptr_t* pawns,
             chunks[page] = cachedChunks[page];
             continue;
         }
-        mem.AddScatterReadRequest(g_scatter_full,
+        mem.AddScatterReadRequest(scatter,
             root + kEntityPageTableOffset + sizeof(uintptr_t) * static_cast<uintptr_t>(page),
             &chunks[page], sizeof(uintptr_t));
         queuedChunkPointers = true;
@@ -2314,7 +2331,7 @@ static int ScatterResolvePawnHandles(const uint32_t* handles, uintptr_t* pawns,
     if (queuedChunkPointers) {
         if (optionalLane) CS2::GiveCameraPriorityBeforeOptionalDma();
         mem.SetDmaCallTag("CS2.ResolveHandles.Pages");
-        mem.ExecuteReadScatter(g_scatter_full);
+        mem.ExecuteReadScatter(scatter);
         for (int page = 0; page < kMaxPages; ++page)
             if (IsUserPointer(chunks[page])) cachedChunks[page] = chunks[page];
     }
@@ -2326,17 +2343,17 @@ static int ScatterResolvePawnHandles(const uint32_t* handles, uintptr_t* pawns,
         if (!parts.valid) continue;
         const int page = static_cast<int>(parts.page);
         if (page < 0 || page >= kMaxPages || !IsUserPointer(chunks[page])) continue;
-        mem.AddScatterReadRequest(g_scatter_full, chunks[page] + stride * parts.index,
+        mem.AddScatterReadRequest(scatter, chunks[page] + stride * parts.index,
                                   &pawns[i], sizeof(uintptr_t));
         queuedEntityPointers = true;
     }
     if (queuedEntityPointers) {
         if (optionalLane) CS2::GiveCameraPriorityBeforeOptionalDma();
         mem.SetDmaCallTag("CS2.ResolveHandles.Entities");
-        mem.ExecuteReadScatter(g_scatter_full);
+        mem.ExecuteReadScatter(scatter);
     }
 
-    // Check if primary stride resolved enough; if not, try alternate stride
+    // Retain every valid primary result before trying unresolved handles.
     int resolved = 0;
     for (int i = 0; i < count; ++i) {
         if (IsUserPointer(pawns[i])) {
@@ -2346,23 +2363,24 @@ static int ScatterResolvePawnHandles(const uint32_t* handles, uintptr_t* pawns,
         }
     }
 
-    // If primary stride failed for many, try alternate in same function
-    if (alternate_stride && alternate_stride != stride && resolved < count / 2) {
-        std::fill(pawns, pawns + count, 0);
+    // A sparse refresh contains zero handles for unchanged controllers. Retry
+    // only unresolved handles; never discard valid primary-stride results.
+    if (alternate_stride && alternate_stride != stride) {
         queuedEntityPointers = false;
         for (int i = 0; i < count; ++i) {
+            if (IsUserPointer(pawns[i])) continue;
             const EntityHandleParts parts = DecodeEntityHandle(handles[i]);
             if (!parts.valid) continue;
             const int page = static_cast<int>(parts.page);
             if (page < 0 || page >= kMaxPages || !IsUserPointer(chunks[page])) continue;
-            mem.AddScatterReadRequest(g_scatter_full, chunks[page] + alternate_stride * parts.index,
+            mem.AddScatterReadRequest(scatter, chunks[page] + alternate_stride * parts.index,
                                       &pawns[i], sizeof(uintptr_t));
             queuedEntityPointers = true;
         }
         if (queuedEntityPointers) {
             if (optionalLane) CS2::GiveCameraPriorityBeforeOptionalDma();
             mem.SetDmaCallTag("CS2.ResolveHandles.Entities.Alt");
-            mem.ExecuteReadScatter(g_scatter_full);
+            mem.ExecuteReadScatter(scatter);
         }
         resolved = 0;
         for (int i = 0; i < count; ++i) {
@@ -2494,7 +2512,15 @@ static void ScatterReadPawnCore(const uintptr_t* pawns, const uintptr_t* control
             mem.AddScatterReadRequest(g_scatter_full, pawns[i] + offsets.m_angEyeAngles,
                                       fields[i].eye_angles, sizeof(fields[i].eye_angles));
     }
-    mem.ExecuteReadScatter(g_scatter_full);
+    if (!mem.ExecuteReadScatter(g_scatter_full)) {
+        for (int i = 0; i < count; ++i) {
+            fields[i] = PawnCoreFields{};
+            if (positions)
+                std::fill(std::begin(positions[i]), std::end(positions[i]),
+                    (std::numeric_limits<float>::quiet_NaN)());
+        }
+        return;
+    }
     for (int i = 0; i < count; ++i)
         fields[i].spotted = (spotted_buf[i] != 0);
 }
@@ -2767,7 +2793,6 @@ static void RunOptionalEnrichment(const Config& frame_config,
         return;
 
     OmniGhost::Gameplay::UnifiedConfig::CS2Config unifiedConfig;
-    unifiedConfig = CS2::UnifiedConfigAdapter::Get();
     // Update with frame-specific values
     unifiedConfig.esp_enabled = frame_config.esp_enabled;
     unifiedConfig.box = frame_config.box;
@@ -2905,6 +2930,10 @@ static void RunOptionalEnrichment(const Config& frame_config,
             const size_t end = (std::min)(targets.size(), base + static_cast<size_t>(pressure >= 2 ? 1 : kBatch));
             uintptr_t boneBases[kBatch]{};
             BoneJointSnapshot joints[kBatch][kJointCount]{};
+            float sampledOrigins[kBatch][3];
+            for (auto& origin : sampledOrigins)
+                std::fill(std::begin(origin), std::end(origin),
+                    (std::numeric_limits<float>::quiet_NaN)());
             bool eligible[kBatch]{};
             int queued = 0;
             for (size_t i = base; i < end; ++i) {
@@ -2924,13 +2953,16 @@ static void RunOptionalEnrichment(const Config& frame_config,
                 eligible[bi] = true;
                 mem.AddScatterReadRequest(g_scatter_optional, boneBase,
                     joints[bi], sizeof(BoneJointSnapshot) * (need_full_bones ? kJointCount : 8));
+                mem.AddScatterReadRequest(g_scatter_optional,
+                    targets[i].scene + offsets.m_vecAbsOrigin,
+                    sampledOrigins[bi], sizeof(sampledOrigins[bi]));
                 ++queued;
             }
             if (queued > 0) {
                 CS2::GiveCameraPriorityBeforeOptionalDma();
                 mem.SetDmaCallTag("CS2.Optional.Bones");
                 const uint64_t bone_read_begin_ms = GetTickCount64();
-                mem.ExecuteReadScatter(g_scatter_optional);
+                const bool boneReadOk = mem.ExecuteReadScatter(g_scatter_optional);
                 const uint64_t bone_read_end_ms = GetTickCount64();
                 // P0-3: Check generation immediately after DMA to avoid processing stale data
                 if (jobGen != g_session_generation.load(std::memory_order_acquire)) return;
@@ -2940,15 +2972,19 @@ static void RunOptionalEnrichment(const Config& frame_config,
                     (bone_read_end_ms - bone_read_begin_ms) / 2u;
                 for (size_t i = base; i < end; ++i) {
                     const size_t bi = i - base;
-                    if (!eligible[bi]) continue;
+                    if (!boneReadOk || !eligible[bi] || !IsFinitePosition(sampledOrigins[bi])) continue;
                     if (results.bone_count >= results.bones.size()) break;
                     OptionalBoneResult& r = results.bones[results.bone_count];
                     r = OptionalBoneResult{}; // rejected candidate must not contaminate the next slot
                     r.pawn = targets[i].pawn;
                     r.bone_base = boneBases[bi];
-                    std::memcpy(r.origin, targets[i].origin, sizeof(r.origin));
+                    // Translation must use the origin sampled with this pose,
+                    // not the older origin captured when the job was queued.
+                    std::memcpy(r.origin, sampledOrigins[bi], sizeof(r.origin));
                     const auto validJoint = [&](const BoneJointSnapshot& j, size_t boneSlot) {
                         if (!std::isfinite(j.x) || !std::isfinite(j.y) || !std::isfinite(j.z))
+                            return false;
+                        if (j.x == 0.f && j.y == 0.f && j.z == 0.f)
                             return false;
                         const float dx = j.x - r.origin[0];
                         const float dy = j.y - r.origin[1];
@@ -2962,16 +2998,17 @@ static void RunOptionalEnrichment(const Config& frame_config,
                     // Compact upper-body mapping (head/neck/chest/stomach indices
                     // depend on layout; use sticky when known).
                     static constexpr int kIdx[4] = {6, 5, 4, 2}; // head neck chest stomach common
-                    bool any = false;
+                    bool upperPoseValid = true;
                     for (int s = 0; s < 4; ++s) {
                         const auto& j = joints[bi][kIdx[s]];
                         const size_t boneSlot = (s == 3) ? 4 : s; // head=0, neck=1, chest=2, stomach=4
-                        if (!validJoint(j, boneSlot))
+                        if (!validJoint(j, boneSlot)) {
+                            upperPoseValid = false;
                             continue;
+                        }
                         r.bones[boneSlot][0] = j.x;
                         r.bones[boneSlot][1] = j.y;
                         r.bones[boneSlot][2] = j.z;
-                        any = true;
                     }
                     bool completePose = false;
                     if (need_full_bones) {
@@ -3009,7 +3046,7 @@ static void RunOptionalEnrichment(const Config& frame_config,
                         }
                         r.full_bones_ok = completePose;
                     }
-                    if (any && (!need_full_bones || completePose)) {
+                    if (upperPoseValid && (!need_full_bones || completePose)) {
                         r.bones_ok = true;
                         r.sample_ms = sampleMs;
                         ++results.bone_count;
@@ -3099,10 +3136,11 @@ static void RunOptionalEnrichment(const Config& frame_config,
         // Phase 3: Resolve weapon entity handles in batch
         std::vector<uintptr_t> weaponEntities(targets.size(), 0);
         {
-            const uintptr_t primaryStride = g_pawn_stride ? g_pawn_stride : 0x70;
-            const uintptr_t alternateStride = (primaryStride == 0x70) ? 0x78 : 0x70;
+            constexpr uintptr_t primaryStride = kEntityIdentityStride;
+            constexpr uintptr_t alternateStride = kLegacyEntityIdentityStride;
             CS2::ScatterResolvePawnHandles(weaponHandles.data(), weaponEntities.data(),
-                static_cast<int>(targets.size()), primaryStride, alternateStride);
+                static_cast<int>(targets.size()), primaryStride, alternateStride,
+                true, g_scatter_optional, client_base);
         }
         if (jobGen != g_session_generation.load(std::memory_order_acquire)) return;
 
@@ -3156,20 +3194,15 @@ static void RunOptionalEnrichment(const Config& frame_config,
     if (OmniGhost::Gameplay::UnifiedESP::Has(
             fields, OmniGhost::Gameplay::UnifiedESP::DataField::Visibility) &&
         !!budget.Remaining() && pressure < 2) {
-        // Get collision world for this map
+        // Match the queued world points to a camera sample and an immutable
+        // map identity; projection row 3 is not the camera's world position.
         auto& collision = Trajectory::CollisionCache();
-        if (collision.IsLoadedFor(runtime.map_name)) {
-            // Get camera origin for raycasting
-            Trajectory::Vec3 cameraOrigin{};
-            if (auto cam = g_camera_snapshots.Acquire(); cam && cam->timestamp_ms != 0) {
-                cameraOrigin = Trajectory::Vec3(cam->view_matrix[12], cam->view_matrix[13], cam->view_matrix[14]);
-            } else if (targets.empty()) {
-                cameraOrigin = Trajectory::Vec3(0, 0, 0);
-            } else {
-                // Fallback: use first target's origin as rough camera position
-                cameraOrigin = Trajectory::Vec3(targets[0].origin[0], targets[0].origin[1], targets[0].origin[2]);
-            }
-
+        const auto world = AcquireRuntimeSnapshot();
+        const CameraSnapshot camera = SelectCameraSnapshot(targets.front().position_sample_ms);
+        const auto cameraOrigin = Visibility::CameraOrigin(
+            camera.timestamp_ms ? camera.view_matrix : nullptr);
+        if (world && world->session_generation == jobGen && cameraOrigin &&
+            collision.IsLoadedFor(world->map_name)) {
             // Prepare visibility targets - use head + body points for each pawn
             std::vector<VisibilityTarget> visTargets;
             visTargets.reserve(targets.size());
@@ -3193,7 +3226,7 @@ static void RunOptionalEnrichment(const Config& frame_config,
                 const auto visPhaseBegin = std::chrono::steady_clock::now();
                 // Submit to visibility worker (async)
                 g_visibility_worker.Submit(
-                    collision.WorldSnapshot(), cameraOrigin, std::move(visTargets), jobGen);
+                    collision.WorldSnapshot(), *cameraOrigin, std::move(visTargets), jobGen);
                 // Note: visibility worker runs async; results will be queried on next optional job
                 // For now, we query any already-completed results from previous submissions
                 for (const auto& t : targets) {
@@ -3284,7 +3317,8 @@ static void QueueOptionalEnrichment(const Config& frame_config) {
             if (!IsUserPointer(p.pawn) || !p.alive) continue;
             if (g_optional_targets.size() >= 64) break;
             g_optional_targets.push_back({p.pawn, p.controller, p.scene,
-                                          {p.pos[0], p.pos[1], p.pos[2]}, p.name[0] != 0});
+                                          {p.pos[0], p.pos[1], p.pos[2]},
+                                          p.position_sample_ms, p.name[0] != 0});
         }
         g_optional_job_generation.store(
             g_session_generation.load(std::memory_order_relaxed), std::memory_order_release);
@@ -3540,7 +3574,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
     ++runtime.frames;
     runtime.fps = g_presentation_fps.load(std::memory_order_relaxed);
 
-    const uint64_t currentGen = g_session_generation.load(std::memory_order_acquire);
+    uint64_t currentGen = g_session_generation.load(std::memory_order_acquire);
     const uintptr_t client = runtime.client_base;
     // Keep last-good player snapshot when entity list briefly fails (prevents
     // ESP/aim going empty for 1–2 frames on ListEntry null flicker).
@@ -3761,6 +3795,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
     // during load and would leave LMB stuck ("mira sozinho").
     if (std::strncmp(previous_map, runtime.map_name, sizeof(previous_map)) != 0) {
         ResetSessionState("map-change");
+        currentGen = g_session_generation.load(std::memory_order_acquire);
         std::memcpy(previous_map, runtime.map_name, sizeof(previous_map));
         g_pending_entity_list = 0;
         g_entity_list_confirmations = 0;
@@ -4322,12 +4357,10 @@ static void RunFrameWithConfig(const Config& frame_config) {
         return;
     }
 
-    int kMax = frame_config.max_entities > 0 ? frame_config.max_entities : 32;
-    if (kMax > 64) kMax = 64;
     // Renderer FPS must never decide who exists in the acquisition snapshot.
     // Optional lanes have their own DMA-pressure budgets.
-    runtime.entity_cap_used = kMax;
     constexpr int kMaxSlots = 64;
+    runtime.entity_cap_used = kMaxSlots;
 
     uintptr_t controllers[kMaxSlots]{};
     static uintptr_t cachedControllers[kMaxSlots]{};
@@ -4335,6 +4368,15 @@ static void RunFrameWithConfig(const Config& frame_config) {
     static uintptr_t cachedControllerListEntry = 0;
     static uint64_t nextControllerRefreshMs = 0;
     static int emptyEntryScans = 0;
+    static uint64_t cachedControllerGeneration = 0;
+    if (cachedControllerGeneration != currentGen) {
+        std::fill(std::begin(cachedControllers), std::end(cachedControllers), 0);
+        cachedControllerCount = 0;
+        cachedControllerListEntry = 0;
+        nextControllerRefreshMs = 0;
+        emptyEntryScans = 0;
+        cachedControllerGeneration = currentGen;
+    }
 
     // Prefer the confirmed Source 2 stride (0x70). Fall back to 0x78 only if
     // the primary layout returns no controllers at all.
@@ -4557,7 +4599,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
     const bool need_yaw = frame_config.radar_2d ||
         OmniGhost::Gameplay::UnifiedESP::Has(
             fields, OmniGhost::Gameplay::UnifiedESP::DataField::Facing);
-    const bool track_velocity = OmniGhost::Gameplay::UnifiedESP::Has(
+    const bool track_velocity = frame_config.esp_enabled ||
+        OmniGhost::Gameplay::UnifiedESP::Has(
         fields, OmniGhost::Gameplay::UnifiedESP::DataField::Velocity);
     const bool flagsEnabled = false; // retired player flags
     const bool need_scoped = frame_config.trigger_scoped_only ||
@@ -4721,8 +4764,12 @@ static void RunFrameWithConfig(const Config& frame_config) {
         sample.sample_ms = position_sample_ms;
         sample.generation = liveness.generation;
         sample.alive = !dead;
-        if (dead)
+        if (dead) {
             confirmedDead[confirmedDeadCount++] = sample.pawn;
+            // A respawn may replace this controller's pawn before the normal
+            // topology TTL. Re-read its handle on the very next core scan.
+            controllerPawnCache.erase(candidateControllers[c]);
+        }
     }
     PublishLivenessSnapshot(liveness);
     for (size_t i = 0; i < confirmedDeadCount; ++i) {
@@ -4773,11 +4820,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
         const bool hidden_teammate = frame_config.team_check &&
             static_cast<int>(core[c].team) == runtime.local_team;
         if (!alive || is_local || hidden_teammate) continue;
-        // Positions are already part of PawnCore. Cull by range before any
-        // names, weapon metadata, bone or visibility work is scheduled.
-        // NOTE: Distance culling is now done ONLY in presentation layer (cs2_esp.cpp)
-        // so that ALL players are acquired regardless of distance. This ensures 10 enemies
-        // + teammates are always available when "hide team" is toggled off.
+        // Keep every valid core sample; presentation owns the distance filter.
         if (!IsFinitePosition(positions[c]))
             continue;
         if (eligible_count != c) {
@@ -4829,11 +4872,11 @@ static void RunFrameWithConfig(const Config& frame_config) {
             corePlayer.pos[1] = positions[c][1];
             corePlayer.pos[2] = positions[c][2];
             corePlayer.position_sample_ms = position_sample_ms;
-            // Calculate distance in meters (units are in inches, 39.37 inches = 1 meter)
+            // Source units are inches; convert to metres once for all consumers.
             const float dx_dist = corePlayer.pos[0] - runtime.local_pos[0];
             const float dy_dist = corePlayer.pos[1] - runtime.local_pos[1];
             const float dz_dist = corePlayer.pos[2] - runtime.local_pos[2];
-            corePlayer.distance = std::sqrt(dx_dist * dx_dist + dy_dist * dy_dist + dz_dist * dz_dist) / 39.37f;
+            corePlayer.distance = std::sqrt(dx_dist * dx_dist + dy_dist * dy_dist + dz_dist * dz_dist) * 0.0254f;
             if (track_velocity) {
                 for (int axis = 0; axis < 3; ++axis) {
                     const float v = core[c].velocity[axis];
@@ -4859,9 +4902,13 @@ static void RunFrameWithConfig(const Config& frame_config) {
                     corePlayer.pos[1] - bit->second.origin[1],
                     corePlayer.pos[2] - bit->second.origin[2]
                 };
-                for (std::size_t bone = 0; bone < kBoneSlotCount; ++bone)
+                for (std::size_t bone = 0; bone < kBoneSlotCount; ++bone) {
+                    const auto& joint = corePlayer.bones[bone];
+                    if (joint[0] == 0.f && joint[1] == 0.f && joint[2] == 0.f)
+                        continue; // keep rejected joints invalid after translation
                     for (int axis = 0; axis < 3; ++axis)
                         corePlayer.bones[bone][axis] += cachedShift[axis];
+                }
                 corePlayer.bones_ok = true;
                 corePlayer.full_bones_ok = bit->second.full_pose;
                 corePlayer.bones_sample_ms = bit->second.last_valid_ms;
@@ -5388,7 +5435,7 @@ LivenessSnapshotLease AcquireLivenessSnapshot() {
 CameraSnapshot SelectCameraSnapshot(uint64_t world_sample_ms) {
     CameraSnapshot best{};
     uint64_t best_delta = (std::numeric_limits<uint64_t>::max)();
-    // P0-7: Lock-free read of ring buffer (single writer, relaxed ordering OK).
+    std::lock_guard lock(g_camera_history_mutex);
     const size_t count = g_camera_history.size();
     for (size_t i = 0; i < count; ++i) {
         const CameraSnapshot& candidate = g_camera_history[i];

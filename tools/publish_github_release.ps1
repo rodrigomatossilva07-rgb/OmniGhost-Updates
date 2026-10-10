@@ -411,6 +411,10 @@ Write-Gh "Tag: $Tag"
 Write-Gh "Draft: $Draft"
 
 $RequireSignatures = $Config.requireManifestSignature -eq $true
+if (-not $RequireSignatures -or $Config.requireAuthenticode -ne $true) {
+    throw 'Publication requires executable and manifest authenticity.'
+}
+& (Join-Path $PSScriptRoot 'Validate-ReleaseArtifacts.ps1') -ProjectDir $ProjectDir -ReleaseDirectory $ReleaseDirectory -Version $Version
 $Required = Get-RequiredAssets -RequireSignatures $RequireSignatures
 $LocalInfo = Get-LocalAssetInfo -Names $Required
 $AssetPaths = @($Required | ForEach-Object { $LocalInfo[$_].Path })

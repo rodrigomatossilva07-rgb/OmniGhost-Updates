@@ -17,7 +17,7 @@ if ([string]::IsNullOrWhiteSpace($BuildDir)) {
     $BuildDir = Join-Path $ProjectDir "build\$configuration"
 }
 $parameters = @{ ProjectDir = $ProjectDir; BuildDir = $BuildDir }
-if ($Mode -eq 'Commercial') { $parameters.Commercial = $true }
+if ($Mode -in @('Commercial', 'Publish')) { $parameters.Commercial = $true }
 if ($AllowMissingTag) { $parameters.AllowMissingTag = $true }
 if ($Mode -eq 'Publish') { $parameters.PublishBuild = $true }
 if (-not [string]::IsNullOrWhiteSpace($SemanticAnalysisPath)) {

@@ -300,9 +300,9 @@ void DrawSaveConfigs()
     if (CyberWidgets::GoldButton(Loc::TrID("save.create"), ImVec2(140, 32))) {
         char* n = config_manager::new_config_name;
         while (*n == ' ') ++n;
-        if (*n) config_manager::SaveToFile(n);
-        else config_manager::SaveToFile("config");
-        CyberWidgets::Notify(Loc::Tr("status.config_saved"), CyberWidgets::ToastType::Success);
+        const bool saved = config_manager::SaveToFile(*n ? n : "config");
+        CyberWidgets::Notify(saved ? Loc::Tr("status.config_saved") : config_manager::last_status.c_str(),
+            saved ? CyberWidgets::ToastType::Success : CyberWidgets::ToastType::Error);
     }
     ImGui::SameLine();
     if (CyberWidgets::CyberButton(Loc::TrID("save.open_folder"), ImVec2(120, 32)))
@@ -394,15 +394,20 @@ void DrawSaveConfigs()
         }
         ImGui::SameLine(0.0f, action_gap);
         if (CyberWidgets::GoldButton(Loc::TrID("common.load"), ImVec2(load_width, 32.0f))) {
-            config_manager::LoadFromFile(cfg.name);
-            CyberWidgets::Notify(Loc::Tr("status.config_loaded"), CyberWidgets::ToastType::Success);
+            const bool loaded = config_manager::LoadFromFile(cfg.name);
+            CyberWidgets::Notify(config_manager::last_status.c_str(),
+                loaded ? CyberWidgets::ToastType::Success : CyberWidgets::ToastType::Error);
         }
         if (toggle_favorite) {
-            const bool favorite = config_manager::ToggleFavoriteConfig(cfg.name);
-            CyberWidgets::Notify(favorite
-                ? app_settings::T("Config favorita definida", "Favorite config selected")
-                : app_settings::T("Favorito removido", "Favorite removed"),
-                favorite ? CyberWidgets::ToastType::Success : CyberWidgets::ToastType::Info);
+            if (config_manager::ToggleFavoriteConfig(cfg.name)) {
+                const bool favorite = config_manager::IsFavoriteConfig(cfg.name);
+                CyberWidgets::Notify(favorite
+                    ? app_settings::T("Config favorita definida", "Favorite config selected")
+                    : app_settings::T("Favorito removido", "Favorite removed"),
+                    favorite ? CyberWidgets::ToastType::Success : CyberWidgets::ToastType::Info);
+            } else {
+                CyberWidgets::Notify(config_manager::last_status.c_str(), CyberWidgets::ToastType::Error);
+            }
             ImGui::SetCursorScreenPos(ImVec2(row.x, row.y + rowH + 2.0f));
             ImGui::PopID();
             break;

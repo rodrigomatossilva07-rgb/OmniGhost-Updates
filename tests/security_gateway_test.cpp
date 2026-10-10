@@ -1,5 +1,6 @@
 #include "../src/auth/keyauth_gateway.h"
 #include "../src/updater/update_types.h"
+#include "../src/games/Cs2/radar/radar_http.h"
 
 #include <iostream>
 #include <memory>
@@ -34,6 +35,19 @@ bool Expect(bool condition, const char* message) {
 }
 
 int main() {
+    using CS2::WebRadar::Http::TokenOk;
+    if (!Expect(TokenOk("GET /api/live HTTP/1.1\r\naUtHoRiZaTiOn: bEaReR test\r\n\r\n", "test"),
+                "HTTP authorization is case insensitive")) return 1;
+    if (!Expect(!TokenOk("GET /api/live?token=test HTTP/1.1\r\n\r\n", "test"),
+                "URL tokens are rejected")) return 1;
+    if (!Expect(!TokenOk("GET /api/live HTTP/1.1\r\nAuthorization: Bearer test\r\n", "test"),
+                "fragmented headers are not accepted early")) return 1;
+    if (!Expect(!TokenOk("GET /api/live HTTP/1.1\r\nAuthorization: Bearer test\r\nAuthorization: Bearer test\r\n\r\n", "test"),
+                "duplicate authorization headers are rejected")) return 1;
+    if (!Expect(!TokenOk("GET /api/live HTTP/1.1\r\nAuthorization: Bearer tesT\r\n\r\n", "test"),
+                "token bytes remain case sensitive")) return 1;
+    if (!Expect(!TokenOk("GET /api/live HTTP/1.1\r\n\r\n", ""),
+                "empty configured token fails closed")) return 1;
     const OmniGhost::Update::Configuration updatePolicy{};
     if (!Expect(updatePolicy.requireAuthenticode && updatePolicy.requireManifestSignature,
                 "updater trust policy fails closed")) return 1;

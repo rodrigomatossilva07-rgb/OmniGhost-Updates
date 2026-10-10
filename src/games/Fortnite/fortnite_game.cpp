@@ -1033,16 +1033,13 @@ static void AcquisitionLoop() {
             } else {
                 g_acq_runtime.camera_ok = false;
             }
-            g_acq_runtime.snapshot_timestamp_ms = GetTickCount64();
-            if (auto slot = g_snapshots.TryBeginWrite()) {
-                *slot.value = g_acq_runtime;
-                g_snapshots.Publish(slot.index);
-            }
         } catch (const std::exception& ex) {
             auto& telemetry = OmniGhost::Gameplay::DmaTelemetry::Fortnite();
             telemetry.read_fails.fetch_add(1, std::memory_order_relaxed);
             g_acq_runtime.camera_ok = false;
+            g_acq_runtime.camera_sample_ms = 0;
             g_acq_runtime.players.clear();
+            g_acq_runtime.status = "Falha na aquisição de dados; a tentar novamente";
             static uint64_t nextDiagnosticMs = 0;
             if (now >= nextDiagnosticMs) {
                 std::cerr << "[FORTNITE] Acquisition cycle failed: " << ex.what() << '\n';
@@ -1052,12 +1049,19 @@ static void AcquisitionLoop() {
             auto& telemetry = OmniGhost::Gameplay::DmaTelemetry::Fortnite();
             telemetry.read_fails.fetch_add(1, std::memory_order_relaxed);
             g_acq_runtime.camera_ok = false;
+            g_acq_runtime.camera_sample_ms = 0;
             g_acq_runtime.players.clear();
+            g_acq_runtime.status = "Falha na aquisição de dados; a tentar novamente";
             static uint64_t nextDiagnosticMs = 0;
             if (now >= nextDiagnosticMs) {
                 std::cerr << "[FORTNITE] Acquisition cycle failed: unknown exception\n";
                 nextDiagnosticMs = now + 5000u;
             }
+        }
+        g_acq_runtime.snapshot_timestamp_ms = GetTickCount64();
+        if (auto slot = g_snapshots.TryBeginWrite()) {
+            *slot.value = g_acq_runtime;
+            g_snapshots.Publish(slot.index);
         }
         const float cycleMs = std::chrono::duration<float, std::milli>(
             std::chrono::steady_clock::now() - cycleBegin).count();

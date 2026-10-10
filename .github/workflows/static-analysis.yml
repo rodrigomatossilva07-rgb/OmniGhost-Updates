@@ -42,7 +42,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Install cppcheck
         run: |
@@ -58,10 +58,10 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Setup MSVC
-        uses: microsoft/setup-msbuild@v2
+        uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce # v2
 
       - name: Build with Warning Baseline
         shell: cmd
@@ -74,7 +74,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Install CycloneDX CLI
         run: |
@@ -85,14 +85,14 @@ jobs:
           cyclonedx-cli dotnet msbuild OmiGhost.vcxproj /p:Configuration=Release /p:Platform=x64 --output-file sbom.json
 
       - name: Upload SBOM
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: SBOM
           path: sbom.json
           retention-days: 30
 
       - name: Attest SBOM
-        uses: actions/attest-build-provenance@v1
+        uses: actions/attest-build-provenance@92c65d2898f1f53cfdc910b962cecff86e7f8fcc # v1
         with:
           subject-path: sbom.json
 
@@ -103,23 +103,23 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Download SBOM
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: SBOM
           path: .
 
       - name: Run Grype Vulnerability Scan
-        uses: anchore/scan-action@v3
+        uses: anchore/scan-action@3343887d815d7b07465f6fdcd395bd66508d486a # v3
         with:
           sbom: sbom.json
           fail-build: true
           severity-cutoff: high
 
       - name: Run Trivy Scan
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2 # v0.28.0
         with:
           scan-type: fs
           scan-ref: .
@@ -128,49 +128,9 @@ jobs:
           severity: HIGH,CRITICAL
 
       - name: Upload Trivy Results
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@cf12ceefebab2c867b9c35d7f907e059681d37ab # v3
         with:
           sarif_file: trivy-results.sarif
-
-  code-signing:
-    name: Authenticode Code Signing
-    runs-on: windows-latest
-    if: github.event_name == 'release' && github.event.action == 'published'
-    timeout-minutes: 30
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup MSVC
-        uses: microsoft/setup-msbuild@v2
-
-      - name: Build Publish
-        shell: cmd
-        run: |
-          msbuild OmniGhost.Bootstrap.vcxproj /p:Configuration=Publish /p:Platform=x64 /t:Rebuild /v:m /p:OmniGhostSkipPackaging=true /p:OmniGhostSkipRemotePublish=true
-
-      - name: Sign Binary with Azure SignTool
-        uses: azure/signtool@v1
-        with:
-          file: build/Publish/OmniGhost.exe
-          key-vault-url: ${{ secrets.AZURE_KEY_VAULT_URL }}
-          certificate-name: ${{ secrets.SIGNING_CERT_NAME }}
-          timestamp-rfc3161: http://timestamp.digicert.com
-          hash-algorithm: sha256
-
-      - name: Verify Signature
-        run: |
-          signtool verify /pa /v build/Publish/OmniGhost.exe
-
-      - name: Upload Signed Binary
-        uses: actions/upload-artifact@v4
-        with:
-          name: OmniGhost-Signed
-          path: build/Publish/OmniGhost.exe
-          retention-days: 7
 
   build-verification:
     name: Build Verification
@@ -179,10 +139,10 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Setup MSVC
-        uses: microsoft/setup-msbuild@v2
+        uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce # v2
 
       - name: Build Release
         shell: cmd
@@ -201,7 +161,7 @@ jobs:
           dumpbin /headers build/Publish/OmniGhost.exe | findstr /C:"Dynamic base" /C:"NX compat" /C:"Guard CF" /C:"SafeSEH"
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: OmniGhost-Build
           path: build/**/OmniGhost.exe
@@ -214,7 +174,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Run Security Audit
         shell: pwsh

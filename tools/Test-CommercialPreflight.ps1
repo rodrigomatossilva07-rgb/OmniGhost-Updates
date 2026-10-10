@@ -2,7 +2,9 @@
 param([string]$ProjectDir = '', [switch]$AllowMissingTag, [switch]$SourceOnly)
 
 $ErrorActionPreference = 'Stop'
+[Console]::OutputEncoding = New-Object Text.UTF8Encoding($false)
 Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot 'ReleaseTrustTools.ps1')
 $global:LASTEXITCODE = -1
 if ([string]::IsNullOrWhiteSpace($ProjectDir)) { $ProjectDir = Split-Path -Parent $PSScriptRoot }
 $ProjectDir = [IO.Path]::GetFullPath($ProjectDir)
@@ -65,35 +67,32 @@ if (-not $SourceOnly -and (Test-Path -LiteralPath $metadataPath -PathType Leaf))
 } elseif (-not $SourceOnly) { $errors.Add("[ERROR] Missing Publish metadata: $metadataPath") }
 
 if (Test-Path -LiteralPath $configPath -PathType Leaf) {
-    $config = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
-    if ($config.requireAuthenticode -eq $true) {
+    $config = [IO.File]::ReadAllText($configPath, [Text.Encoding]::UTF8) | ConvertFrom-Json
+    if ($config.requireAuthenticode -ne $true -or $config.requireManifestSignature -ne $true) {
+        $errors.Add('[ERROR] Commercial releases require Authenticode and signed manifests. Signing policy must remain enabled.')
+    } else {
         $thumbprint = ([string]$config.signingCertificateThumbprint -replace '\s','').ToUpperInvariant()
-        $environmentThumb = ($env:OMNIGHOST_SIGNING_THUMBPRINT -replace '\s','').ToUpperInvariant()
+        $environmentThumb = ([string]$env:OMNIGHOST_SIGNING_THUMBPRINT -replace '\s','').ToUpperInvariant()
+        $trustConfigured = $thumbprint -match '^[0-9A-F]{40}$' -and
+            -not [string]::IsNullOrWhiteSpace([string]$config.expectedPublisherSubject)
+        if (-not $trustConfigured) {
+            $errors.Add('[ERROR] Release trust is not configured. Install a CA-issued RSA Code Signing certificate with its private key in CurrentUser\My, set OMNIGHOST_SIGNING_THUMBPRINT, then run tools\Configure-ReleaseTrust.ps1. Commit the generated public policy/header and rebuild before Publish.')
+        }
         if ($environmentThumb -notmatch '^[0-9A-F]{40}$') {
-            $errors.Add('[ERROR] Define OMNIGHOST_SIGNING_THUMBPRINT com os 40 caracteres do certificado Code Signing.')
-        } elseif ($environmentThumb -cne $thumbprint) {
-            $errors.Add('[ERROR] OMNIGHOST_SIGNING_THUMBPRINT difere do certificado público configurado. Reconfigura a confiança e recompila antes de Publish.')
+            $errors.Add('[ERROR] Set OMNIGHOST_SIGNING_THUMBPRINT to the 40-character Code Signing certificate thumbprint.')
+        } elseif ($trustConfigured -and $environmentThumb -cne $thumbprint) {
+            $errors.Add('[ERROR] OMNIGHOST_SIGNING_THUMBPRINT differs from the pinned public certificate. Reconfigure release trust and rebuild before Publish.')
         }
-        $signTool = 'C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\signtool.exe'
-        if (-not (Test-Path -LiteralPath $signTool -PathType Leaf)) { $errors.Add("[ERROR] Required SignTool missing: $signTool") }
-        if ([string]::IsNullOrWhiteSpace([string]$config.expectedPublisherSubject)) {
-            $errors.Add('[ERROR] Missing expectedPublisherSubject in release-publish.json.')
-        }
-        if ($thumbprint -notmatch '^[0-9A-F]{40}$') { $errors.Add('[ERROR] Missing signing certificate thumbprint in release-publish.json.') }
-        else {
-            $cert = Get-Item -LiteralPath "Cert:\CurrentUser\My\$thumbprint" -ErrorAction SilentlyContinue
-            if ($null -eq $cert -or -not $cert.HasPrivateKey) { $errors.Add("[ERROR] Signing certificate $thumbprint with private key not installed.") }
-            else {
-                $now = [DateTime]::UtcNow
-                if ($cert.NotBefore.ToUniversalTime() -gt $now -or $cert.NotAfter.ToUniversalTime() -le $now) {
-                    $errors.Add('[ERROR] Signing certificate is outside its validity period.')
+        try { [void](Get-ReleaseSignTool) }
+        catch { $errors.Add('[ERROR] ' + $_.Exception.Message) }
+        if ($environmentThumb -match '^[0-9A-F]{40}$') {
+            try {
+                $cert = Get-ReleaseSigningCertificate -Thumbprint $environmentThumb -RequirePrivateKey
+                if ($trustConfigured) {
+                    Assert-ReleaseTrustMatches -Policy $config -HeaderPath (Join-Path $ProjectDir 'src\updater\release_trust.h') -Certificate $cert
                 }
-                $eku = @($cert.Extensions | Where-Object { $_.Oid.Value -eq '2.5.29.37' })
-                if ($eku.Count -ne 1 -or @($eku[0].EnhancedKeyUsages | Where-Object { $_.Value -eq '1.3.6.1.5.5.7.3.3' }).Count -eq 0) {
-                    $errors.Add('[ERROR] Signing certificate lacks Code Signing EKU.')
-                }
-                $checks.Add("[OK] Signing certificate: $thumbprint")
-            }
+                $checks.Add("[OK] Code Signing certificate and trust: $environmentThumb")
+            } catch { $errors.Add('[ERROR] ' + $_.Exception.Message) }
         }
     }
 } else { $errors.Add("[ERROR] Missing release config: $configPath") }

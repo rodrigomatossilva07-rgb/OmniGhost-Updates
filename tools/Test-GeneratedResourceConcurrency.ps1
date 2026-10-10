@@ -17,7 +17,7 @@ function Invoke-ConcurrentGenerator([string]$Name, [string]$Script, [string[]]$E
         $stderr = Join-Path $artifactDir "$Name-$index.stderr.txt"
         $quotedScript = '"' + $Script.Replace('"', '\"') + '"'
         $quotedProject = '"' + $ProjectDir.Replace('"', '\"') + '"'
-        $arguments = @('-NoProfile','-ExecutionPolicy','Bypass','-File',$quotedScript,'-ProjectDir',$quotedProject,'-Configuration','ConcurrencyTest','-Architecture','x64') + $ExtraArguments
+        $arguments = @('-NoProfile','-ExecutionPolicy','Bypass','-File',$quotedScript,'-ProjectDir',$quotedProject,'-Configuration','ConcurrencyTest','-Platform','x64') + $ExtraArguments
         $processes += Start-Process -FilePath 'powershell.exe' -ArgumentList $arguments -PassThru -WindowStyle Hidden `
             -RedirectStandardOutput $stdout -RedirectStandardError $stderr
     }
@@ -34,7 +34,7 @@ function Invoke-ConcurrentGenerator([string]$Name, [string]$Script, [string[]]$E
         $concurrentHashes[$relative] = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash
     }
 
-    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $Script -ProjectDir $ProjectDir -Configuration ConcurrencyTest @ExtraArguments
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $Script -ProjectDir $ProjectDir -Configuration ConcurrencyTest -Platform x64 @ExtraArguments
     if ($LASTEXITCODE -ne 0) { throw "$Name deterministic verification run failed." }
     foreach ($relative in $Outputs) {
         $actual = (Get-FileHash -LiteralPath (Join-Path $ProjectDir $relative) -Algorithm SHA256).Hash

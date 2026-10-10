@@ -1036,11 +1036,16 @@ void AcquisitionTick() {
                     if (distanceM <= kLodMedDist) return kLodMedBones;
                     return kLodLowBones;
                 };
-                auto BoneVectorValid = [](const float bone[3]) noexcept {
+                auto BoneVectorValid = [](const float bone[3], const float origin[3]) noexcept {
                     if (!std::isfinite(bone[0]) || !std::isfinite(bone[1]) || !std::isfinite(bone[2]))
                         return false;
-                    return std::fabs(bone[0]) + std::fabs(bone[1]) + std::fabs(bone[2]) > 0.001f;
+                    if (std::fabs(bone[0]) + std::fabs(bone[1]) + std::fabs(bone[2]) <= 0.001f)
+                        return false;
+                    const float dx = bone[0] - origin[0], dy = bone[1] - origin[1], dz = bone[2] - origin[2];
+                    // More than 6.5 metres from the player cannot be part of this pose.
+                    return dx * dx + dy * dy + dz * dz <= 256.f * 256.f;
                 };
+                static_assert(Player::kMaxBones <= 32);
 
                 // P1-3: Micro-batch bone acquisition (4 players per batch) with camera priority DURING execution
                 // Reduced batch size + yield between players allows camera to run mid-batch
@@ -1075,6 +1080,7 @@ void AcquisitionTick() {
                             for (const int boneIdx : lodBones) {
                                 if (boneIdx < 0 || boneIdx >= Player::kMaxBones)
                                     continue;
+                                std::fill_n(pl.bones[boneIdx], 3, std::numeric_limits<float>::quiet_NaN());
                                 boneMask |= (1u << boneIdx);
                                 uintptr_t boneAddr = boneBase + offsets.bone_array_base + static_cast<uintptr_t>(boneIdx) * offsets.bone_array_stride;
                                 mem.AddScatterReadRequest(boneHandle, boneAddr, pl.bones[boneIdx], sizeof(float) * 3);
@@ -1091,35 +1097,26 @@ void AcquisitionTick() {
                             const uint64_t batchEndMs = GetTickCount64();
                             const uint64_t batchSampleMs = batchBeginMs + (batchEndMs - batchBeginMs) / 2u;
                             
-                            // Check camera priority AFTER each batch execution (camera can now run)
-                            if (g_camera_pending.load(std::memory_order_acquire)) {
-                                const uint64_t deadline = g_camera_deadline_ms.load(std::memory_order_acquire);
-                                const uint64_t now = GetTickCount64();
-                                if (deadline != 0 && now + 2u >= deadline) {
-                                    // Camera needs priority, yield and retry next iteration
-                                    batchStart = batchEnd;
-                                    std::this_thread::yield();
-                                    continue;
+                            // Failed requests keep their sentinel and must not get a fresh timestamp.
+                            for (size_t i = batchStart; i < batchEnd; ++i) {
+                                auto& pl = s_cached_players[i];
+                                if (!pl.valid) continue;
+                                if (!batchOk) pl.bones_mask = 0;
+                                for (int bone = 0; bone < Player::kMaxBones; ++bone) {
+                                    if ((pl.bones_mask & (1u << bone)) != 0 &&
+                                        !BoneVectorValid(pl.bones[bone], pl.pos))
+                                        pl.bones_mask &= ~(1u << bone);
                                 }
-                            }
-                            
-                            if (batchOk) {
-                                // Validate bones for this batch
-                                for (size_t i = batchStart; i < batchEnd; ++i) {
-                                    auto& pl = s_cached_players[i];
-                                    if (!pl.valid) continue;
-                                    const bool indicesValid = offsets.bone_head >= 0 &&
-                                        offsets.bone_head < Player::kMaxBones &&
-                                        offsets.bone_spine_upper >= 0 &&
-                                        offsets.bone_spine_upper < Player::kMaxBones;
-                                    const bool requested = indicesValid &&
-                                        (pl.bones_mask & (1u << offsets.bone_head)) != 0 &&
-                                        (pl.bones_mask & (1u << offsets.bone_spine_upper)) != 0;
-                                    pl.bones_ok = requested && BoneVectorValid(pl.bones[offsets.bone_head]) &&
-                                        BoneVectorValid(pl.bones[offsets.bone_spine_upper]);
-                                    if (pl.bones_ok)
-                                        pl.bones_sample_ms = batchSampleMs;
-                                }
+                                const bool indicesValid = offsets.bone_head >= 0 &&
+                                    offsets.bone_head < Player::kMaxBones &&
+                                    offsets.bone_spine_upper >= 0 &&
+                                    offsets.bone_spine_upper < Player::kMaxBones;
+                                const bool requested = indicesValid &&
+                                    (pl.bones_mask & (1u << offsets.bone_head)) != 0 &&
+                                    (pl.bones_mask & (1u << offsets.bone_spine_upper)) != 0;
+                                pl.bones_ok = requested;
+                                if (pl.bones_ok)
+                                    pl.bones_sample_ms = batchSampleMs;
                             }
                         }
                         batchStart = batchEnd;

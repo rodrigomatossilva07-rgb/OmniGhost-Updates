@@ -1,4 +1,5 @@
 #include "cs2_radar.h"
+#include "radar_http.h"
 #include "cs2_game.h"
 #include "../config/cs2_config.h"
 #include "../src/platform/runtime_bootstrap.h"
@@ -11,6 +12,7 @@
 #include <iphlpapi.h>
 
 #include <atomic>
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
@@ -206,17 +208,8 @@ std::string JsonEscape(const char* s) {
     return o;
 }
 
-void SendAll(SOCKET s, const char* data, int len) {
-    int sent = 0;
-    while (sent < len) {
-        const int n = send(s, data + sent, len - sent, 0);
-        if (n <= 0) break;
-        sent += n;
-    }
-}
-
-void SendResponse(SOCKET s, int code, const char* statusText, const std::string& body,
-                  const char* contentType, bool noCache = true, bool sendBody = true) {
+std::string Response(int code, const char* statusText, const std::string& body,
+                     const char* contentType, bool noCache = true, bool sendBody = true) {
     char header[512];
     std::snprintf(header, sizeof(header),
         "HTTP/1.1 %d %s\r\n"
@@ -228,9 +221,9 @@ void SendResponse(SOCKET s, int code, const char* statusText, const std::string&
         "Connection: close\r\n\r\n",
         code, statusText, contentType, body.size(),
         noCache ? "Cache-Control: no-store\r\n" : "Cache-Control: public, max-age=60\r\n");
-    SendAll(s, header, static_cast<int>(std::strlen(header)));
-    if (sendBody && !body.empty())
-        SendAll(s, body.data(), static_cast<int>(body.size()));
+    std::string response(header);
+    if (sendBody) response += body;
+    return response;
 }
 
 std::string LiveJsonSnapshot() {
@@ -240,44 +233,13 @@ std::string LiveJsonSnapshot() {
 
 bool TokenOk(const std::string& req) {
     std::lock_guard<std::mutex> lock(g_mu);
-    if (g_token.empty()) return true;
-    // Authorization: Bearer <token>
-    auto pos = req.find("Authorization:");
-    if (pos == std::string::npos) pos = req.find("authorization:");
-    if (pos != std::string::npos) {
-        auto lineEnd = req.find("\r\n", pos);
-        std::string line = req.substr(pos, lineEnd == std::string::npos ? std::string::npos : lineEnd - pos);
-        auto bearer = line.find("Bearer ");
-        if (bearer == std::string::npos) bearer = line.find("bearer ");
-        if (bearer != std::string::npos) {
-            std::string tok = line.substr(bearer + 7);
-            while (!tok.empty() && (tok.back() == ' ' || tok.back() == '\r')) tok.pop_back();
-            while (!tok.empty() && tok.front() == ' ') tok.erase(tok.begin());
-            if (tok.size() != g_token.size()) return false;
-            unsigned char difference = 0;
-            for (std::size_t i = 0; i < tok.size(); ++i)
-                difference |= static_cast<unsigned char>(tok[i] ^ g_token[i]);
-            return difference == 0;
-        }
-    }
-    return false;
+    return Http::TokenOk(req, g_token);
 }
 
-void HandleClient(SOCKET client) {
-    char buf[8192]{};
-    const int n = recv(client, buf, sizeof(buf) - 1, 0);
-    if (n <= 0) {
-        closesocket(client);
-        return;
-    }
-    buf[n] = 0;
-    std::string req(buf, n);
-
+std::string HandleRequest(const std::string& req) {
     // OPTIONS CORS preflight
     if (req.rfind("OPTIONS ", 0) == 0) {
-        SendResponse(client, 204, "No Content", "", "text/plain");
-        closesocket(client);
-        return;
+        return Response(204, "No Content", "", "text/plain");
     }
 
     std::string method, path;
@@ -288,60 +250,39 @@ void HandleClient(SOCKET client) {
     auto qmark = path.find('?');
     std::string pure = qmark == std::string::npos ? path : path.substr(0, qmark);
     if (pure.empty()) pure = "/";
+    const bool sendBody = method != "HEAD";
+    if (pure.front() != '/' || pure.find("..") != std::string::npos ||
+        pure.find('\\') != std::string::npos || pure.find(':') != std::string::npos ||
+        pure.rfind("//", 0) == 0)
+        return Response(400, "Bad Request", "bad path", "text/plain", true, sendBody);
 
     const bool isApi = pure.rfind("/api/", 0) == 0;
     if (isApi && !TokenOk(req)) {
-        SendResponse(client, 401, "Unauthorized", "token required", "text/plain");
-        closesocket(client);
-        return;
+        return Response(401, "Unauthorized", "token required", "text/plain", true, sendBody);
     }
 
-    if (method == "GET" && (pure == "/api/live" || pure == "/api/state")) {
+    if ((method == "GET" || method == "HEAD") && (pure == "/api/live" || pure == "/api/state")) {
         const std::string json = LiveJsonSnapshot();
-        SendResponse(client, 200, "OK", json, "application/json; charset=utf-8");
-        closesocket(client);
-        return;
+        return Response(200, "OK", json, "application/json; charset=utf-8", true, sendBody);
     }
 
-    if (method == "GET" && pure == "/healthz") {
-        SendResponse(client, 200, "OK", "ok", "text/plain");
-        closesocket(client);
-        return;
+    if ((method == "GET" || method == "HEAD") && pure == "/healthz") {
+        return Response(200, "OK", "ok", "text/plain", true, sendBody);
     }
 
-    if (method == "GET" && pure == "/api/stream") {
+    if ((method == "GET" || method == "HEAD") && pure == "/api/stream") {
         // Minimal SSE stream — one snapshot then close (client will reconnect/poll).
         const std::string json = LiveJsonSnapshot();
         std::string body = "data: " + json + "\n\n";
-        char header[256];
-        std::snprintf(header, sizeof(header),
-            "HTTP/1.1 200 OK\r\n"
-            "Content-Type: text/event-stream\r\n"
-            "Cache-Control: no-store\r\n"
-            "Access-Control-Allow-Origin: http://127.0.0.1\r\n"
-            "Connection: close\r\n"
-            "Content-Length: %zu\r\n\r\n", body.size());
-        SendAll(client, header, static_cast<int>(std::strlen(header)));
-        SendAll(client, body.data(), static_cast<int>(body.size()));
-        closesocket(client);
-        return;
+        return Response(200, "OK", body, "text/event-stream", true, sendBody);
     }
 
     // Static files
     if (method != "GET" && method != "HEAD") {
-        SendResponse(client, 405, "Method Not Allowed", "method", "text/plain");
-        closesocket(client);
-        return;
+        return Response(405, "Method Not Allowed", "method", "text/plain");
     }
 
     if (pure == "/") pure = "/index.html";
-    // Prevent path traversal
-    if (pure.find("..") != std::string::npos) {
-        SendResponse(client, 400, "Bad Request", "bad path", "text/plain");
-        closesocket(client);
-        return;
-    }
-
     std::string root;
     {
         std::lock_guard<std::mutex> lock(g_mu);
@@ -357,16 +298,21 @@ void HandleClient(SOCKET client) {
         if (const auto embedded = OmniGhost::LoadEmbeddedResource(logical)) {
             body.assign(reinterpret_cast<const char*>(embedded->data()), embedded->size());
         } else {
-            SendResponse(client, 404, "Not Found", "not found", "text/plain");
-            closesocket(client);
-            return;
+            return Response(404, "Not Found", "not found", "text/plain", true, sendBody);
         }
     }
-    SendResponse(client, 200, "OK", body, MimeType(file.string()).c_str(), false, method != "HEAD");
-    closesocket(client);
+    return Response(200, "OK", body, MimeType(file.string()).c_str(), false, sendBody);
 }
 
 void ServerLoop() {
+    struct Client {
+        SOCKET socket = INVALID_SOCKET;
+        std::string request, response;
+        std::size_t sent = 0;
+        ULONGLONG deadline = 0;
+    };
+    std::vector<Client> clients;
+    clients.reserve(32);
     while (g_running.load()) {
         const ULONGLONG now = GetTickCount64();
         if (now >= g_next_json_refresh) {
@@ -397,30 +343,57 @@ void ServerLoop() {
         }
         if (listenSock == INVALID_SOCKET) break;
 
-        sockaddr_in cli{};
-        int clen = sizeof(cli);
-        SOCKET client = accept(listenSock, reinterpret_cast<sockaddr*>(&cli), &clen);
-        if (client == INVALID_SOCKET) {
-            Sleep(5);
-            continue;
-        }
-        // Accept and TCP payload delivery are separate events. Give a valid
-        // request a short bounded window without restoring the old 750 ms stall.
         fd_set readable{};
+        fd_set writable{};
         FD_ZERO(&readable);
-        FD_SET(client, &readable);
-        timeval requestDeadline{0, 100000};
-        if (select(0, &readable, nullptr, nullptr, &requestDeadline) <= 0) {
-            closesocket(client);
-            continue;
+        FD_ZERO(&writable);
+        if (clients.size() < 32) FD_SET(listenSock, &readable);
+        for (const auto& client : clients) {
+            if (client.response.empty()) FD_SET(client.socket, &readable);
+            else FD_SET(client.socket, &writable);
         }
-        DWORD timeout = 100;
-        setsockopt(client, SOL_SOCKET, SO_RCVTIMEO,
-                   reinterpret_cast<const char*>(&timeout), sizeof(timeout));
-        setsockopt(client, SOL_SOCKET, SO_SNDTIMEO,
-                   reinterpret_cast<const char*>(&timeout), sizeof(timeout));
-        HandleClient(client);
+        timeval pollInterval{0, 5000};
+        if (select(0, &readable, &writable, nullptr, &pollInterval) == SOCKET_ERROR) break;
+        for (auto it = clients.begin(); it != clients.end();) {
+            bool close = GetTickCount64() >= it->deadline;
+            if (!close && it->response.empty() && FD_ISSET(it->socket, &readable)) {
+                char buffer[4096];
+                const int received = recv(it->socket, buffer, sizeof(buffer), 0);
+                if (received > 0) {
+                    it->request.append(buffer, static_cast<std::size_t>(received));
+                    if (it->request.size() > 8192) close = true;
+                    else if (it->request.find("\r\n\r\n") != std::string::npos) {
+                        it->response = HandleRequest(it->request);
+                        it->request.clear();
+                        it->deadline = GetTickCount64() + 5000u;
+                    }
+                } else if (received == 0 || WSAGetLastError() != WSAEWOULDBLOCK) close = true;
+            }
+            if (!close && !it->response.empty() && FD_ISSET(it->socket, &writable)) {
+                const auto remaining = it->response.size() - it->sent;
+                const int chunk = static_cast<int>((std::min)(remaining, std::size_t{64 * 1024}));
+                const int sent = send(it->socket, it->response.data() + it->sent, chunk, 0);
+                if (sent > 0) {
+                    it->sent += static_cast<std::size_t>(sent);
+                    close = it->sent == it->response.size();
+                } else if (sent == 0 || WSAGetLastError() != WSAEWOULDBLOCK) close = true;
+            }
+            if (close) {
+                closesocket(it->socket);
+                it = clients.erase(it);
+            } else ++it;
+        }
+        if (FD_ISSET(listenSock, &readable)) {
+            SOCKET accepted = accept(listenSock, nullptr, nullptr);
+            if (accepted != INVALID_SOCKET) {
+                u_long nonblocking = 1;
+                if (ioctlsocket(accepted, FIONBIO, &nonblocking) == 0)
+                    clients.push_back({accepted, {}, {}, 0, GetTickCount64() + 3000u});
+                else closesocket(accepted);
+            }
+        }
     }
+    for (const auto& client : clients) closesocket(client.socket);
 }
 
 std::wstring FindCloudflared() {
