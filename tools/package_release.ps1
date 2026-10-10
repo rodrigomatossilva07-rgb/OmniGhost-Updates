@@ -380,10 +380,18 @@ try {
         . (Join-Path $ProjectDir 'tools\ReleaseTrustTools.ps1')
         $SigningCertificate = Get-ReleaseSigningCertificate -Thumbprint $SigningThumbprint -RequirePrivateKey
         Assert-ReleaseTrustMatches -Policy $PublishSettings -HeaderPath (Join-Path $ProjectDir 'src\updater\release_trust.h') -Certificate $SigningCertificate
-        $TimestampUrl = if ($PublishSettings.timestampUrl) { [string]$PublishSettings.timestampUrl } else { 'https://timestamp.digicert.com' }
         Write-ReleaseLog 'A assinar a cópia staged de OmniGhost.exe com Authenticode...'
-        & (Join-Path $ProjectDir 'tools\Sign-AuthenticodeFile.ps1') -Path $StagedExecutable -CertificateThumbprint $SigningThumbprint -TimestampUrl $TimestampUrl
-        if ($LASTEXITCODE -ne 0) { throw 'Authenticode signing failed.' }
+        $SignTool = Get-ReleaseSignTool
+        & $SignTool sign /fd SHA256 /sha1 $SigningCertificate.Thumbprint /s My $StagedExecutable
+        if ($LASTEXITCODE -ne 0) { throw "SignTool signing failed with exit code $LASTEXITCODE." }
+        & $SignTool verify /pa /all /v $StagedExecutable
+        if ($LASTEXITCODE -ne 0) { throw "SignTool verification failed with exit code $LASTEXITCODE." }
+        $ExecutableSignature = Get-AuthenticodeSignature -LiteralPath $StagedExecutable
+        if ($ExecutableSignature.Status -ne 'Valid' -or
+            $null -eq $ExecutableSignature.SignerCertificate -or
+            $ExecutableSignature.SignerCertificate.Thumbprint -cne $SigningCertificate.Thumbprint) {
+            throw 'The Authenticode signer does not match the selected trusted publisher.'
+        }
     }
 
     # Installation manifest: all customer runtime files are independently hashed.

@@ -20,7 +20,6 @@
     "secondarySigningCertificateThumbprint":  "",
     "secondaryExpectedPublisherSubject":  "",
     "certificateRotationWarningDays":  60,
-    "timestampUrl":  "https://timestamp.digicert.com",
     "releaseChannel":  "stable",
     "minimumSupportedVersion":  "1.0.0",
     "defaultMandatory":  false,

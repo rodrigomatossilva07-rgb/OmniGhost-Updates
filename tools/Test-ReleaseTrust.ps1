@@ -13,7 +13,7 @@ function Assert-Rejected([scriptblock]$Operation, [string]$Expected) {
     try { & $Operation } catch { $failure = $_.Exception.Message }
     Assert ($failure.Contains($Expected)) "Expected rejection '$Expected'; got '$failure'."
 }
-foreach ($name in @('ReleaseTrustTools','Configure-ReleaseTrust','Sign-UpdateManifest','Sign-AuthenticodeFile','Test-CommercialPreflight','Validate-ReleaseArtifacts','Package-Release','package_release','publish_github_release')) {
+foreach ($name in @('ReleaseTrustTools','Configure-ReleaseTrust','Sign-UpdateManifest','Test-CommercialPreflight','Validate-ReleaseArtifacts','Package-Release','package_release','publish_github_release')) {
     $tokens = $null
     $parseErrors = $null
     [void][Management.Automation.Language.Parser]::ParseFile((Join-Path $ProjectDir "tools\$name.ps1"), [ref]$tokens, [ref]$parseErrors)
@@ -77,6 +77,8 @@ $packager = [IO.File]::ReadAllText((Join-Path $ProjectDir 'tools\Package-Release
 Assert ($packager.Contains("if (`$Mode -in @('Commercial', 'Publish')) { `$parameters.Commercial = `$true }")) 'Publish must enter the mandatory signing path.'
 $directPackager = [IO.File]::ReadAllText((Join-Path $ProjectDir 'tools\package_release.ps1'))
 Assert ($directPackager.Contains('$Commercial = $Commercial -or $PublishBuild')) 'Direct Publish packaging must require signing.'
+Assert ($directPackager -match 'sign /fd SHA256 /sha1') 'Commercial packaging no longer signs the staged executable.'
+Assert ($directPackager -notmatch 'TimestampUrl|timestampUrl|timestamp\.digicert') 'Commercial packaging still configures timestamping.'
 $crypto = [IO.File]::ReadAllText((Join-Path $ProjectDir 'src\updater\crypto.cpp'))
 Assert ($crypto.Contains('CERT_E_UNTRUSTEDROOT') -and $crypto.Contains('CERT_E_CHAINING') -and
         $crypto.Contains('CertCompareCertificateName')) 'Pinned self-signed Authenticode fallback is incomplete.'
