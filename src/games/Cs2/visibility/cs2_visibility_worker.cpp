@@ -94,10 +94,10 @@ void Worker::Run() {
         auto& metrics = OmniGhost::Gameplay::DmaTelemetry::CS2();
         const float elapsed_ms = std::chrono::duration<float, std::milli>(
             std::chrono::steady_clock::now() - begin).count();
-        metrics.visibility_ms.store(elapsed_ms, std::memory_order_relaxed);
-        metrics.visibility_players_tested.store(
+        metrics.visibility.visibility_ms.store(elapsed_ms, std::memory_order_relaxed);
+        metrics.visibility.visibility_players_tested.store(
             static_cast<int>(complete.size()), std::memory_order_relaxed);
-        metrics.visibility_rays.store(rays_tested, std::memory_order_relaxed);
+        metrics.visibility.visibility_rays.store(rays_tested, std::memory_order_relaxed);
 
         std::unique_lock lock(mutex_);
         if (!stop_.load(std::memory_order_acquire) &&

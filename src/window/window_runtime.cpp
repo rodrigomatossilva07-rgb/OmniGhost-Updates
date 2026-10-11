@@ -662,22 +662,22 @@ void Overlay::EndRender() {
 		switch (OmniGhost::GameContext::Instance().GetActiveGame()) {
 		case OmniGhost::ActiveGame::CS2:
 			if (auto& sample = OmniGhost::Gameplay::DmaTelemetry::CS2();
-				sample.active.load(std::memory_order_relaxed))
+				sample.process.active.load(std::memory_order_relaxed))
 				OmniGhost::Gameplay::DmaTelemetry::ObserveRender(sample, frameMs);
 			break;
 		case OmniGhost::ActiveGame::FiveM:
 			if (auto& sample = OmniGhost::Gameplay::DmaTelemetry::FiveM();
-				sample.active.load(std::memory_order_relaxed))
+				sample.process.active.load(std::memory_order_relaxed))
 				OmniGhost::Gameplay::DmaTelemetry::ObserveRender(sample, frameMs);
 			break;
 		case OmniGhost::ActiveGame::Warzone:
 			if (auto& sample = OmniGhost::Gameplay::DmaTelemetry::Warzone();
-				sample.active.load(std::memory_order_relaxed))
+				sample.process.active.load(std::memory_order_relaxed))
 				OmniGhost::Gameplay::DmaTelemetry::ObserveRender(sample, frameMs);
 			break;
 		case OmniGhost::ActiveGame::Fortnite:
 			if (auto& sample = OmniGhost::Gameplay::DmaTelemetry::Fortnite();
-				sample.active.load(std::memory_order_relaxed))
+				sample.process.active.load(std::memory_order_relaxed))
 				OmniGhost::Gameplay::DmaTelemetry::ObserveRender(sample, frameMs);
 			break;
 		default:

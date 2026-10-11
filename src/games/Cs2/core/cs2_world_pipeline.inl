@@ -281,7 +281,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
             }
         }
         auto& telemetry = OmniGhost::Gameplay::DmaTelemetry::CS2();
-        telemetry.last_good_age_ms.store(last_good_ms && now_ms >= last_good_ms
+        telemetry.pressure.last_good_age_ms.store(last_good_ms && now_ms >= last_good_ms
             ? now_ms - last_good_ms : 0u, std::memory_order_relaxed);
         return true;
     };
@@ -1480,7 +1480,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
             for (const auto& player : runtime.players)
                 last_good_players.push_back({player.pawn, player.controller});
             last_good_ms = nowMs;
-            OmniGhost::Gameplay::DmaTelemetry::CS2().last_good_age_ms.store(
+            OmniGhost::Gameplay::DmaTelemetry::CS2().pressure.last_good_age_ms.store(
                 0, std::memory_order_relaxed);
         }
         // Bomb / local-weapon metadata are optional-pressure gated and cheap

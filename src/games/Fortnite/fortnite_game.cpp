@@ -1024,7 +1024,7 @@ static void AcquisitionLoop() {
             }
         } catch (const std::exception& ex) {
             auto& telemetry = OmniGhost::Gameplay::DmaTelemetry::Fortnite();
-            telemetry.read_fails.fetch_add(1, std::memory_order_relaxed);
+            telemetry.counts.read_fails.fetch_add(1, std::memory_order_relaxed);
             g_acq_runtime.camera_ok = false;
             g_acq_runtime.camera_sample_ms = 0;
             g_acq_runtime.players.clear();
@@ -1036,7 +1036,7 @@ static void AcquisitionLoop() {
             }
         } catch (...) {
             auto& telemetry = OmniGhost::Gameplay::DmaTelemetry::Fortnite();
-            telemetry.read_fails.fetch_add(1, std::memory_order_relaxed);
+            telemetry.counts.read_fails.fetch_add(1, std::memory_order_relaxed);
             g_acq_runtime.camera_ok = false;
             g_acq_runtime.camera_sample_ms = 0;
             g_acq_runtime.players.clear();
@@ -1057,7 +1057,7 @@ static void AcquisitionLoop() {
         auto& telemetry = OmniGhost::Gameplay::DmaTelemetry::Fortnite();
         const bool active = g_acq_runtime.attached && g_acq_runtime.local_pawn != 0;
         OmniGhost::Gameplay::DmaTelemetry::ObserveAcquire(telemetry, cycleMs, active, ++scanId);
-        telemetry.entities.store(static_cast<int>(g_acq_runtime.players.size()), std::memory_order_relaxed);
+        telemetry.counts.entities.store(static_cast<int>(g_acq_runtime.players.size()), std::memory_order_relaxed);
         if (g_acq_runtime.camera_sample_ms) {
             const uint64_t measuredAt = GetTickCount64();
             OmniGhost::Gameplay::DmaTelemetry::ObserveCameraAge(telemetry,

@@ -96,7 +96,7 @@ void EnsureAcquisitionStarted() {
                 Camera::SetPending(true);
                 auto& camera_tel = OmniGhost::Gameplay::DmaTelemetry::CS2();
                 if (HeavyDmaCooldownActive())
-                    camera_tel.camera_cooldown_bypasses.fetch_add(1, std::memory_order_relaxed);
+                    camera_tel.camera.camera_cooldown_bypasses.fetch_add(1, std::memory_order_relaxed);
                 bool attempted = false;
                 const auto camera_read_begin = std::chrono::steady_clock::now();
                 const uint64_t camera_read_begin_ms = GetTickCount64();
@@ -108,7 +108,7 @@ void EnsureAcquisitionStarted() {
                         (camera_read_end_ms - camera_read_begin_ms) / 2u);
                 if (attempted) {
                     if (read_ok && consecutive_busy > 0)
-                        camera_tel.camera_busy_retry_success.fetch_add(1, std::memory_order_relaxed);
+                        camera_tel.camera.camera_busy_retry_success.fetch_add(1, std::memory_order_relaxed);
                     consecutive_busy = 0;
                     OmniGhost::Gameplay::DmaTelemetry::ObserveCameraRead(
                         camera_tel,
@@ -125,11 +125,11 @@ void EnsureAcquisitionStarted() {
                 }
                 else {
                     ++consecutive_busy;
-                    camera_tel.camera_busy_skips.fetch_add(
+                    camera_tel.camera.camera_busy_skips.fetch_add(
                         1, std::memory_order_relaxed);
-                    auto observed = camera_tel.camera_consecutive_busy_max.load(std::memory_order_relaxed);
+                    auto observed = camera_tel.camera.camera_consecutive_busy_max.load(std::memory_order_relaxed);
                     while (observed < consecutive_busy &&
-                           !camera_tel.camera_consecutive_busy_max.compare_exchange_weak(
+                           !camera_tel.camera.camera_consecutive_busy_max.compare_exchange_weak(
                                observed, consecutive_busy, std::memory_order_relaxed)) {}
                     // Keep the pending flag raised so optional full-scan lanes yield.
                     busyRetry = true;
@@ -198,28 +198,28 @@ void EnsureAcquisitionStarted() {
                     auto& tel = OmniGhost::Gameplay::DmaTelemetry::CS2();
                     const bool activeSample = runtime.in_match && runtime.player_count > 0;
                     if (!runtime.in_match)
-                        tel.idle_reason.store(2, std::memory_order_relaxed); // not_in_match
+                        tel.process.idle_reason.store(2, std::memory_order_relaxed); // not_in_match
                     else if (runtime.player_count <= 0)
-                        tel.idle_reason.store(5, std::memory_order_relaxed); // no_local/no players
+                        tel.process.idle_reason.store(5, std::memory_order_relaxed); // no_local/no players
                     else
-                        tel.idle_reason.store(0, std::memory_order_relaxed);
+                        tel.process.idle_reason.store(0, std::memory_order_relaxed);
                     g_phase.lock_wait_ms = static_cast<float>(mem.ConsumeThreadDmaWaitUs()) / 1000.f;
                     NotePossibleDeviceStall(runtime.acquisition_ms);
                     OmniGhost::Gameplay::DmaTelemetry::ObserveAcquire(
                         tel, runtime.acquisition_ms, activeSample, g_phase.scan_id);
-                    tel.entities.store(runtime.player_count, std::memory_order_relaxed);
-                    tel.snapshot_drops.store(RuntimePipeline::SnapshotDrops(), std::memory_order_relaxed);
-                    tel.dma_open.store(mem.vHandle != nullptr, std::memory_order_relaxed);
-                    tel.process_id.store(static_cast<std::uint32_t>(mem.GetDiagnosticsSnapshot().processId), std::memory_order_relaxed);
-                    tel.process_connected.store(runtime.client_base != 0, std::memory_order_relaxed);
-                    tel.snapshot_hz.store(RuntimePipeline::AcquisitionHz(), std::memory_order_relaxed);
-                    tel.bones_players.store(g_phase.bones_players, std::memory_order_relaxed);
-					tel.pressure_level.store(
+                    tel.counts.entities.store(runtime.player_count, std::memory_order_relaxed);
+                    tel.counts.snapshot_drops.store(RuntimePipeline::SnapshotDrops(), std::memory_order_relaxed);
+                    tel.process.dma_open.store(mem.vHandle != nullptr, std::memory_order_relaxed);
+                    tel.process.process_id.store(static_cast<std::uint32_t>(mem.GetDiagnosticsSnapshot().processId), std::memory_order_relaxed);
+                    tel.process.process_connected.store(runtime.client_base != 0, std::memory_order_relaxed);
+                    tel.snapshot.snapshot_hz.store(RuntimePipeline::AcquisitionHz(), std::memory_order_relaxed);
+                    tel.counts.bones_players.store(g_phase.bones_players, std::memory_order_relaxed);
+					tel.pressure.pressure_level.store(
 						g_pressure_level.load(std::memory_order_relaxed), std::memory_order_relaxed);
 					{
 						const uint64_t now_ms = GetTickCount64();
 						const uint64_t cool_until = g_heavy_dma_cooldown_until_ms.load(std::memory_order_acquire);
-						tel.cooldown_remaining_ms.store(
+						tel.pressure.cooldown_remaining_ms.store(
 							cool_until > now_ms ? cool_until - now_ms : 0, std::memory_order_relaxed);
 					}
                     {
@@ -236,12 +236,12 @@ void EnsureAcquisitionStarted() {
                             const float worldAge = static_cast<float>(nowMs - worldSample);
                             const float publishDelay = rt->snapshot_timestamp_ms >= worldSample
                                 ? static_cast<float>(rt->snapshot_timestamp_ms - worldSample) : 0.f;
-                            tel.snapshot_age_ms.store(snapshotAge, std::memory_order_relaxed);
-                            tel.world_age_ms.store(worldAge, std::memory_order_relaxed);
-                            tel.publish_delay_ms.store(publishDelay, std::memory_order_relaxed);
+                            tel.snapshot.snapshot_age_ms.store(snapshotAge, std::memory_order_relaxed);
+                            tel.snapshot.world_age_ms.store(worldAge, std::memory_order_relaxed);
+                            tel.snapshot.publish_delay_ms.store(publishDelay, std::memory_order_relaxed);
                         }
                     }
-                    tel.snapshot_interval_ms.store(
+                    tel.snapshot.snapshot_interval_ms.store(
                         RuntimePipeline::AcquisitionHz() > 0.1f
                             ? (1000.f / RuntimePipeline::AcquisitionHz())
                             : 0.f,
@@ -343,7 +343,7 @@ void EnsureAcquisitionStarted() {
                 std::sort(sortedScans.begin(), sortedScans.begin() + recentScanCount);
                 const float recentP95 = recentScanCount
                     ? sortedScans[(recentScanCount - 1) * 95 / 100] : 0.f;
-                OmniGhost::Gameplay::DmaTelemetry::CS2().pressure_window_p95_ms.store(
+                OmniGhost::Gameplay::DmaTelemetry::CS2().acquire.pressure_window_p95_ms.store(
                     recentP95, std::memory_order_relaxed);
                 int level = g_pressure_level.load(std::memory_order_relaxed);
                 // IDENTICAL to FiveM esp_manager.cpp:722-743 — adaptive pressure with hysteresis

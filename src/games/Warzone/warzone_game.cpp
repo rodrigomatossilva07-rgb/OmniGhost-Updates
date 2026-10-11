@@ -1149,9 +1149,9 @@ void AcquisitionTick() {
         if (g_acq_runtime.camera_sample_ms)
             OmniGhost::Gameplay::DmaTelemetry::ObserveCameraAge(tel,
                 static_cast<float>(metricNowMs > g_acq_runtime.camera_sample_ms ? metricNowMs - g_acq_runtime.camera_sample_ms : 0));
-        tel.world_age_ms.store(g_acq_runtime.world_sample_ms && metricNowMs > g_acq_runtime.world_sample_ms
+        tel.snapshot.world_age_ms.store(g_acq_runtime.world_sample_ms && metricNowMs > g_acq_runtime.world_sample_ms
             ? static_cast<float>(metricNowMs - g_acq_runtime.world_sample_ms) : 0.f, std::memory_order_relaxed);
-        tel.entities.store(g_acq_runtime.player_count, std::memory_order_relaxed);
+        tel.counts.entities.store(g_acq_runtime.player_count, std::memory_order_relaxed);
     }
 
     // Count name_array candidates for diagnostics only (never as verified players)
@@ -1281,9 +1281,9 @@ void AcquisitionTick() {
     PublishRuntimeSnapshot(g_acq_runtime);
     if (OmniGhost::Gameplay::DmaTelemetry::IsEnabled()) {
         auto& tel = OmniGhost::Gameplay::DmaTelemetry::Warzone();
-        tel.active.store(g_acq_runtime.in_game && g_acq_runtime.player_count > 0, std::memory_order_relaxed);
-        tel.entities.store(g_acq_runtime.player_count, std::memory_order_relaxed);
-        tel.pressure_level.store(g_pressure_level.load(std::memory_order_relaxed),
+        tel.process.active.store(g_acq_runtime.in_game && g_acq_runtime.player_count > 0, std::memory_order_relaxed);
+        tel.counts.entities.store(g_acq_runtime.player_count, std::memory_order_relaxed);
+        tel.pressure.pressure_level.store(g_pressure_level.load(std::memory_order_relaxed),
             std::memory_order_relaxed);
         if (g_acq_runtime.camera_sample_ms) {
             const uint64_t now = GetTickCount64();
@@ -1292,7 +1292,7 @@ void AcquisitionTick() {
         }
         if (g_acq_runtime.world_sample_ms) {
             const uint64_t now = GetTickCount64();
-            tel.world_age_ms.store(
+            tel.snapshot.world_age_ms.store(
                 now > g_acq_runtime.world_sample_ms ? static_cast<float>(now - g_acq_runtime.world_sample_ms) : 0.f,
                 std::memory_order_relaxed);
         }
@@ -1342,7 +1342,7 @@ void RunFrame() {
                 const uint64_t delta = selectedMs > presentation.world_sample_ms
                     ? selectedMs - presentation.world_sample_ms
                     : presentation.world_sample_ms - selectedMs;
-                OmniGhost::Gameplay::DmaTelemetry::Warzone().camera_position_delta_ms.store(
+                OmniGhost::Gameplay::DmaTelemetry::Warzone().camera_pos_delta.camera_position_delta_ms.store(
                     static_cast<float>(delta), std::memory_order_relaxed);
             }
         }

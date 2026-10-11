@@ -29,7 +29,8 @@ void Publish(Runtime& source, uint64_t generation, uint64_t read_fails) {
 
     // BUG-007 Fix: Build snapshot in local temporary to avoid global 'runtime'
     // being in a partially-published state during move assignment.
-    Runtime snapshot = source; // Copy (move would leave source in valid but unspecified state)
+    // Runtime is move-only; source is reset to a clean state after publishing.
+    Runtime snapshot = std::move(source);
     snapshot.snapshot_timestamp_ms = now;
     snapshot.session_generation = generation;
     snapshot.read_fails = read_fails;

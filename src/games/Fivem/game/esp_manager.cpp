@@ -721,7 +721,7 @@ namespace FiveM {
                     std::sort(sortedScans.begin(), sortedScans.begin() + recentScanCount);
                     const float recentP95 = recentScanCount
                         ? sortedScans[(recentScanCount - 1) * 95 / 100] : 0.f;
-                    OmniGhost::Gameplay::DmaTelemetry::FiveM().pressure_window_p95_ms.store(
+                    OmniGhost::Gameplay::DmaTelemetry::FiveM().acquire.pressure_window_p95_ms.store(
                         recentP95, std::memory_order_relaxed);
 
                     int level = s_pressureLevel.load(std::memory_order_relaxed);
@@ -755,9 +755,9 @@ namespace FiveM {
                     auto& tel = OmniGhost::Gameplay::DmaTelemetry::FiveM();
                     OmniGhost::Gameplay::DmaTelemetry::ObserveAcquire(
                         tel, fullAcquireMs, cacheValid && !s_acquireValidPeds.empty(), scanId);
-                    tel.entities.store(static_cast<int>(s_acquireValidPeds.size()), std::memory_order_relaxed);
-                    tel.snapshot_drops.store(s_snapshotDrops.load(std::memory_order_relaxed), std::memory_order_relaxed);
-                    tel.dma_open.store(mem.vHandle != nullptr, std::memory_order_relaxed);
+                    tel.counts.entities.store(static_cast<int>(s_acquireValidPeds.size()), std::memory_order_relaxed);
+                    tel.counts.snapshot_drops.store(s_snapshotDrops.load(std::memory_order_relaxed), std::memory_order_relaxed);
+                    tel.process.dma_open.store(mem.vHandle != nullptr, std::memory_order_relaxed);
                 }
 
 
@@ -1156,7 +1156,7 @@ namespace FiveM {
                     ? std::chrono::duration<float, std::milli>(
                         currentSnapshot.timestamp - currentSnapshot.worldSampleTime).count()
                     : 0.f;
-                tel.snapshot_age_ms.store((std::max)(0.f, snapshotAgeMs), std::memory_order_relaxed);
+                tel.snapshot.snapshot_age_ms.store((std::max)(0.f, snapshotAgeMs), std::memory_order_relaxed);
                 if (auto cam = s_cameraSnapshots.Acquire()) {
                     if (cam->sampleMs) {
                         const float camAge = static_cast<float>(GetTickCount64() - cam->sampleMs);
@@ -1166,7 +1166,7 @@ namespace FiveM {
                             const auto delta = selectedCameraTime > currentSnapshot.worldSampleTime
                                 ? selectedCameraTime - currentSnapshot.worldSampleTime
                                 : currentSnapshot.worldSampleTime - selectedCameraTime;
-                            tel.camera_position_delta_ms.store(
+                            tel.camera_pos_delta.camera_position_delta_ms.store(
                                 std::chrono::duration<float, std::milli>(delta).count(),
                                 std::memory_order_relaxed);
                         }
@@ -1178,10 +1178,10 @@ namespace FiveM {
                     OmniGhost::Gameplay::DmaTelemetry::ObservePresentationTiming(
                         tel, posAge, bonesAge, 0.f, 0.f);
                 }
-                tel.world_age_ms.store((std::max)(0.f, worldAgeMs), std::memory_order_relaxed);
-                tel.publish_delay_ms.store(publishDelayMs, std::memory_order_relaxed);
-                tel.entities.store(static_cast<int>(validPeds.size()), std::memory_order_relaxed);
-                tel.snapshot_drops.store(s_snapshotDrops.load(std::memory_order_relaxed), std::memory_order_relaxed);
+                tel.snapshot.world_age_ms.store((std::max)(0.f, worldAgeMs), std::memory_order_relaxed);
+                tel.snapshot.publish_delay_ms.store(publishDelayMs, std::memory_order_relaxed);
+                tel.counts.entities.store(static_cast<int>(validPeds.size()), std::memory_order_relaxed);
+                tel.counts.snapshot_drops.store(s_snapshotDrops.load(std::memory_order_relaxed), std::memory_order_relaxed);
             }
 
             s_pipelineMetrics.RecordFrame(frameMs);
@@ -1452,7 +1452,7 @@ namespace FiveM {
                                 }
                                 // Telemetry: which velocity source dominated
                                 auto& tel = OmniGhost::Gameplay::DmaTelemetry::FiveM();
-                                tel.reads_s.fetch_add(1, std::memory_order_relaxed);
+                                tel.counts.reads_s.fetch_add(1, std::memory_order_relaxed);
                                 (void)altOk;
                             }
                             // Reject absurd residual deltas later in presentation.

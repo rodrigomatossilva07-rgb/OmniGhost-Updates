@@ -517,7 +517,7 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
                 continue;
             const float hideMs = drawn->second > dead.sample_ms
                 ? static_cast<float>(drawn->second - dead.sample_ms) : 0.f;
-            OmniGhost::Gameplay::DmaTelemetry::CS2().death_to_hide_ms.store(
+            OmniGhost::Gameplay::DmaTelemetry::CS2().pressure.death_to_hide_ms.store(
                 hideMs, std::memory_order_relaxed);
             lastDrawnMs.erase(drawn);
         }
@@ -601,9 +601,9 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
             bonesAge = static_cast<float>(nowMs - player.bones_sample_ms);
             auto& timing = OmniGhost::Gameplay::DmaTelemetry::CS2();
             if (player.bones_sample_ms < player.position_sample_ms) {
-                timing.cached_bones_used.fetch_add(1, std::memory_order_relaxed);
-                float oldMax = timing.cached_bones_age_max_ms.load(std::memory_order_relaxed);
-                while (bonesAge > oldMax && !timing.cached_bones_age_max_ms.compare_exchange_weak(
+                timing.cache_vmm.cached_bones_used.fetch_add(1, std::memory_order_relaxed);
+                float oldMax = timing.cache_vmm.cached_bones_age_max_ms.load(std::memory_order_relaxed);
+                while (bonesAge > oldMax && !timing.cache_vmm.cached_bones_age_max_ms.compare_exchange_weak(
                     oldMax, bonesAge, std::memory_order_relaxed)) {}
             }
         }

@@ -246,7 +246,7 @@ int RunDmaIntegrationTest(int argc, wchar_t** argv) {
     if (!providedToken.empty()) {
         // BUG-030 Fix: Verify HMAC-SHA256 token against build-time secret
         // The token should be: HMAC-SHA256(secret, "integration_test" + timestamp + build_id)
-        constexpr const char* kHmacSecret = "OMNIGHOST_INTEGRATION_TEST_SECRET_CHANGE_IN_PRODUCTION";
+        [[maybe_unused]] constexpr const char* kHmacSecret = "OMNIGHOST_INTEGRATION_TEST_SECRET_CHANGE_IN_PRODUCTION";
         std::string tokenStr;
         tokenStr.reserve(providedToken.size());
         for (wchar_t ch : providedToken) {
