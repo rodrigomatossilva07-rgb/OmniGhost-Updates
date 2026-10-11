@@ -179,6 +179,9 @@
     <ClCompile Include="src\window\animations.cpp">
       <Filter>Source Files\window</Filter>
     </ClCompile>
+    <ClCompile Include="src\window\ui_feedback.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="src\window\icons.cpp">
       <Filter>Source Files\window</Filter>
     </ClCompile>

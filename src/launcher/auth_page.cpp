@@ -11,6 +11,7 @@
 #include "../window/performance_mode.h"
 #include "../window/theme.h"
 #include "../window/widgets.h"
+#include "../window/ui_feedback.h"
 #include "imgui.h"
 
 #include <Windows.h>
@@ -180,6 +181,8 @@ void BeginCompletion(Completion completion) {
     g_completion = completion;
     g_completion_time = 0.0f;
     g_error.clear();
+    if (completion == Completion::Login || completion == Completion::Register)
+        OmniGhost::UiFeedback::Play(OmniGhost::UiFeedback::SoundEvent::Success);
 }
 
 void StartRemoteOperation(RemoteOperation operation, std::string username,
@@ -577,9 +580,13 @@ void DrawFeedback(float contentWidth) {
     ImGui::BeginChild("##auth_feedback_slot", ImVec2(contentWidth, S(34.f)), false,
                       ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     if (!g_error.empty()) {
-        ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + contentWidth);
-        ImGui::TextColored(CyberTheme::Colors.Error, "%s", g_error.c_str());
-        ImGui::PopTextWrapPos();
+        static std::string lastError;
+        if (lastError != g_error) {
+            lastError = g_error;
+            OmniGhost::UiFeedback::Play(OmniGhost::UiFeedback::SoundEvent::Error);
+        }
+        CyberWidgets::InlineMessage(g_error.c_str(), CyberWidgets::TextTone::Error,
+                                     "auth_error_feedback");
     }
     ImGui::EndChild();
 }
@@ -904,7 +911,7 @@ bool Draw() {
     }
     if (animation <= 0.f) g_transition = 1.f;
     else g_transition = (std::min)(1.0f, g_transition + delta /
-        (CyberTheme::Metrics::PageTransitionSeconds / (std::max)(0.35f, animation)));
+        (CyberTheme::Metrics::PageTransitionSeconds * (0.80f + 0.20f * animation)));
     const float eased = g_transition * g_transition * (3.0f - 2.0f * g_transition);
 
     const ImVec2 display = ImGui::GetIO().DisplaySize;
@@ -1003,6 +1010,31 @@ bool Draw() {
             ? (g_completion == Completion::Register ? "CONTA CRIADA" : "ACCESS GRANTED")
             : "A preparar o OmniGhost";
         const float centerY = windowPos.y + height * 0.43f;
+        if (success) {
+            const float duration = (std::max)(0.12f, 0.30f * (std::max)(0.35f, animation));
+            const float checkProgress = animation <= 0.f ? 1.f
+                : (std::min)(1.f, g_completion_time / duration);
+            const ImVec2 checkCenter(windowPos.x + width * 0.5f, centerY - S(74.f));
+            const ImVec2 checkA(checkCenter.x - S(12.f), checkCenter.y);
+            const ImVec2 checkB(checkCenter.x - S(3.f), checkCenter.y + S(9.f));
+            const ImVec2 checkC(checkCenter.x + S(15.f), checkCenter.y - S(11.f));
+            draw->AddCircle(checkCenter, S(23.f),
+                CyberTheme::WithAlpha(CyberTheme::Colors.Success, 0.30f), 32, S(1.2f));
+            if (checkProgress <= 0.42f) {
+                const float segmentProgress = checkProgress / 0.42f;
+                draw->AddLine(checkA,
+                    ImVec2(checkA.x + (checkB.x - checkA.x) * segmentProgress,
+                           checkA.y + (checkB.y - checkA.y) * segmentProgress),
+                    CyberTheme::U32(CyberTheme::Colors.Success), S(2.4f));
+            } else {
+                draw->AddLine(checkA, checkB, CyberTheme::U32(CyberTheme::Colors.Success), S(2.4f));
+                const float segmentProgress = (checkProgress - 0.42f) / 0.58f;
+                draw->AddLine(checkB,
+                    ImVec2(checkB.x + (checkC.x - checkB.x) * segmentProgress,
+                           checkB.y + (checkC.y - checkB.y) * segmentProgress),
+                    CyberTheme::U32(CyberTheme::Colors.Success), S(2.4f));
+            }
+        }
         ImGui::SetCursorScreenPos(ImVec2(windowPos.x + S(28.f), centerY - S(58.f)));
         DrawBrand(false);
         ImGui::Dummy(ImVec2(0, S(28.f)));

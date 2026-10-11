@@ -1,13 +1,30 @@
 #pragma once
 
-#include "embedded_resource_catalog.h"
-
 #include <cstddef>
 #include <cstdint>
+#include <array>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
+
+#if __has_include("embedded_resource_catalog.h")
+#include "embedded_resource_catalog.h"
+#else
+// Design-time fallback only: the real catalog is generated before ClCompile
+// and ResourceCompile. This keeps IntelliSense usable in a clean checkout.
+namespace OmniGhost {
+enum class EmbeddedResourceId : std::uint16_t { Unavailable = 0 };
+struct EmbeddedResourceDescriptor {
+    EmbeddedResourceId id;
+    const char* logicalName;
+    std::uint32_t originalSize;
+    std::uint32_t storedSize;
+    bool mandatory;
+};
+inline constexpr std::array<EmbeddedResourceDescriptor, 0> kEmbeddedResourceCatalog{};
+} // namespace OmniGhost
+#endif
 
 namespace OmniGhost {
 

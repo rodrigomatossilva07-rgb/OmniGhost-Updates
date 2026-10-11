@@ -1,7 +1,45 @@
 #include "EspPreview.h"
 #include "../../../launcher/launcher_assets.h"
+#include "../../../config/app_settings.h"
+#include "third_party/ImGui/imgui_internal.h"
+
+#include <cmath>
+#include <unordered_map>
 
 namespace EspPreview {
+
+namespace {
+    float SmoothFeature(ImGuiID base, const char* name, bool enabled) {
+        ImGuiStorage* storage = ImGui::GetStateStorage();
+        const ImGuiID id = ImHashStr(name, 0, base);
+        const float target = enabled ? 1.0f : 0.0f;
+        float value = storage->GetFloat(id, target);
+        if (!app_settings::MotionEnabled()) value = target;
+        else value += (target - value) *
+            (1.0f - std::exp(-13.0f * std::min(ImGui::GetIO().DeltaTime, 0.05f)));
+        storage->SetFloat(id, value);
+        return value;
+    }
+
+    ImU32 SmoothColor(ImGuiID base, const char* name, ImU32 target, float alpha) {
+        static std::unordered_map<ImGuiID, ImVec4> colors;
+        const ImGuiID id = ImHashStr(name, 0, base);
+        const ImVec4 targetColor = ImGui::ColorConvertU32ToFloat4(target);
+        auto [it, inserted] = colors.try_emplace(id, targetColor);
+        if (!inserted && app_settings::MotionEnabled()) {
+            const float amount = 1.0f - std::exp(-11.0f * std::min(ImGui::GetIO().DeltaTime, 0.05f));
+            it->second.x += (targetColor.x - it->second.x) * amount;
+            it->second.y += (targetColor.y - it->second.y) * amount;
+            it->second.z += (targetColor.z - it->second.z) * amount;
+            it->second.w += (targetColor.w - it->second.w) * amount;
+        } else if (!app_settings::MotionEnabled()) {
+            it->second = targetColor;
+        }
+        ImVec4 result = it->second;
+        result.w *= std::clamp(alpha, 0.0f, 1.0f);
+        return ImGui::ColorConvertFloat4ToU32(result);
+    }
+}
 
 // ============================================================
 // GEOMETRY BUILDER
@@ -579,15 +617,9 @@ void DrawPreview(ImDrawList* dl, const ImVec2& origin, float width, float height
                  const char* previewLabel) {
 
     const PreviewConfig& cfg = adapter.GetPreviewConfig();
-    if (!cfg.esp_enabled) {
-        // Still draw background + label
-        DrawBackground(dl, origin, width, height);
-        DrawCharacterTexture(dl, origin, width, height);
-        if (previewLabel && *previewLabel)
-            dl->AddText(ImVec2(origin.x + 12.f, origin.y + 12.f), IM_COL32(215, 215, 210, 210), previewLabel);
-        ImGui::Dummy(ImVec2(width, height));
-        return;
-    }
+    const ImGuiID previewId = ImGui::GetCurrentWindow()->GetID(
+        previewLabel && *previewLabel ? previewLabel : "##esp_preview_motion");
+    const float espAlpha = SmoothFeature(previewId, "esp", cfg.esp_enabled);
 
     // Build unified geometry
     PlayerGeometry g = BuildGeometry(origin, width, height);
@@ -595,22 +627,39 @@ void DrawPreview(ImDrawList* dl, const ImVec2& origin, float width, float height
     // Resolve colors
     ImU32 boxCol = adapter.GetBoxColor(cfg.rgb_mode, cfg.visibility_colors, cfg.visible_check);
     const bool sharedBoxColor = cfg.rgb_mode || (cfg.visibility_colors && cfg.visible_check);
-    const ImU32 fullBoxCol = sharedBoxColor ? boxCol : ToImU32(cfg.col_box);
-    const ImU32 cornerBoxCol = sharedBoxColor ? boxCol : ToImU32(cfg.col_box_corner);
-    ImU32 skeletonCol = ToImU32(cfg.col_skeleton);
-    ImU32 jointsCol = ToImU32(cfg.col_joints);
-    ImU32 headCol = ToImU32(cfg.col_head);
-    ImU32 haloCol = ToImU32(cfg.col_halo);
-    ImU32 healthCol = ToImU32(cfg.col_health);
-    ImU32 armorCol = ToImU32(cfg.col_armor);
-    ImU32 nameCol = ToImU32(cfg.col_name);
-    ImU32 distCol = ToImU32(cfg.col_distance);
-    ImU32 weaponCol = ToImU32(cfg.col_weapon);
-    ImU32 snapCol = ToImU32(cfg.col_snaplines);
-    ImU32 trailCol = ToImU32(cfg.col_trail);
-    ImU32 funCol = ToImU32(cfg.col_fun_effects);
-    ImU32 lookCol = ToImU32(cfg.col_look);
-    ImU32 outlineTextCol = ToImU32(cfg.col_text_outline);
+    const ImU32 fullBoxCol = SmoothColor(previewId, "box_color", sharedBoxColor ? boxCol : ToImU32(cfg.col_box),
+        espAlpha * SmoothFeature(previewId, "box", cfg.box));
+    const ImU32 cornerBoxCol = SmoothColor(previewId, "corner_color", sharedBoxColor ? boxCol : ToImU32(cfg.col_box_corner),
+        espAlpha * SmoothFeature(previewId, "corner", cfg.box_corner));
+    ImU32 skeletonCol = SmoothColor(previewId, "skeleton_color", ToImU32(cfg.col_skeleton),
+        espAlpha * SmoothFeature(previewId, "skeleton", cfg.skeleton));
+    ImU32 jointsCol = SmoothColor(previewId, "joints_color", ToImU32(cfg.col_joints),
+        espAlpha * SmoothFeature(previewId, "joints", cfg.skeleton_joints && cfg.skeleton));
+    ImU32 headCol = SmoothColor(previewId, "head_color", ToImU32(cfg.col_head),
+        espAlpha * SmoothFeature(previewId, "head", cfg.head_dot));
+    ImU32 haloCol = SmoothColor(previewId, "halo_color", ToImU32(cfg.col_halo),
+        espAlpha * SmoothFeature(previewId, "halo", cfg.head_halo));
+    ImU32 healthCol = SmoothColor(previewId, "health_color", ToImU32(cfg.col_health),
+        espAlpha * SmoothFeature(previewId, "health", cfg.health_bar));
+    ImU32 armorCol = SmoothColor(previewId, "armor_color", ToImU32(cfg.col_armor),
+        espAlpha * SmoothFeature(previewId, "armor", cfg.armor_bar));
+    ImU32 nameCol = SmoothColor(previewId, "name_color", ToImU32(cfg.col_name),
+        espAlpha * SmoothFeature(previewId, "name", cfg.name));
+    ImU32 distCol = SmoothColor(previewId, "distance_color", ToImU32(cfg.col_distance),
+        espAlpha * SmoothFeature(previewId, "distance", cfg.distance));
+    const bool anyWeapon = cfg.weapon_name || cfg.weapon_ammo;
+    ImU32 weaponCol = SmoothColor(previewId, "weapon_color", ToImU32(cfg.col_weapon),
+        espAlpha * SmoothFeature(previewId, "weapon", anyWeapon));
+    ImU32 snapCol = SmoothColor(previewId, "snap_color", ToImU32(cfg.col_snaplines),
+        espAlpha * SmoothFeature(previewId, "snap", cfg.snaplines));
+    ImU32 trailCol = SmoothColor(previewId, "trail_color", ToImU32(cfg.col_trail),
+        espAlpha * SmoothFeature(previewId, "trail", cfg.trails));
+    const bool anyFun = cfg.angel_wings || cfg.chinese_hat || cfg.devil_horns || cfg.floating_crown;
+    ImU32 funCol = SmoothColor(previewId, "fun_color", ToImU32(cfg.col_fun_effects),
+        espAlpha * SmoothFeature(previewId, "fun", anyFun));
+    ImU32 lookCol = SmoothColor(previewId, "look_color", ToImU32(cfg.col_look),
+        espAlpha * SmoothFeature(previewId, "look", cfg.look_direction));
+    ImU32 outlineTextCol = SmoothColor(previewId, "outline_color", ToImU32(cfg.col_text_outline), espAlpha);
 
     // Text stack for bottom elements
     TextStack stack(g.textStackY, g.boundsCenter.x);
@@ -620,46 +669,48 @@ void DrawPreview(ImDrawList* dl, const ImVec2& origin, float width, float height
     // Background must be first; the old order painted over both effects.
     DrawBackground(dl, origin, width, height);
     dl->PushClipRect(origin, ImVec2(origin.x + width, origin.y + height), true);
-    if (cfg.trails) DrawTrails(dl, g, trailCol);
-    if (cfg.angel_wings) DrawAngelWings(dl, g, funCol);
+    if ((trailCol >> 24) != 0) DrawTrails(dl, g, trailCol);
+    if ((funCol >> 24) != 0 && cfg.angel_wings) DrawAngelWings(dl, g, funCol);
     DrawCharacterTexture(dl, origin, width, height);
 
     // 4. Boxes
     const float previewBoxThickness = (std::max)(cfg.box_thickness, 2.f);
-    if (cfg.box) DrawBox2D(dl, g, fullBoxCol, previewBoxThickness, cfg.box_rounding, cfg.box_fill, ToImU32(cfg.col_box_fill));
-    if (cfg.box_corner) DrawCornerBox(dl, g, cornerBoxCol, previewBoxThickness);
+    if ((fullBoxCol >> 24) != 0) DrawBox2D(dl, g, fullBoxCol, previewBoxThickness, cfg.box_rounding,
+        cfg.box_fill, SmoothColor(previewId, "box_fill_color", ToImU32(cfg.col_box_fill),
+        espAlpha * SmoothFeature(previewId, "box_fill", cfg.box && cfg.box_fill)));
+    if ((cornerBoxCol >> 24) != 0) DrawCornerBox(dl, g, cornerBoxCol, previewBoxThickness);
 
     // 5. Skeleton
-    if (cfg.skeleton) DrawSkeleton(dl, g, skeletonCol, cfg.skeleton_thickness);
+    if ((skeletonCol >> 24) != 0) DrawSkeleton(dl, g, skeletonCol, cfg.skeleton_thickness);
 
     // 6. Joints
-    if (cfg.skeleton_joints && cfg.skeleton) DrawJoints(dl, g, jointsCol);
+    if ((jointsCol >> 24) != 0) DrawJoints(dl, g, jointsCol);
 
     // 7. Health/Armor bars (preview fractions: 75% / 65%)
-    if (cfg.health_bar) DrawHealthBar(dl, g, healthCol, 0.75f, cfg.health_value);
-    if (cfg.armor_bar) DrawArmorBar(dl, g, armorCol, 0.65f, cfg.armor_value);
+    if ((healthCol >> 24) != 0) DrawHealthBar(dl, g, healthCol, 0.75f, cfg.health_value);
+    if ((armorCol >> 24) != 0) DrawArmorBar(dl, g, armorCol, 0.65f, cfg.armor_value);
 
     // 8. Head circle
-    if (cfg.head_dot) DrawHeadCircle(dl, g, headCol, cfg.head_circle_thickness);
+    if ((headCol >> 24) != 0) DrawHeadCircle(dl, g, headCol, cfg.head_circle_thickness);
 
     // 9. Decorative head elements
-    if (cfg.head_halo) DrawHalo(dl, g, haloCol);
+    if ((haloCol >> 24) != 0) DrawHalo(dl, g, haloCol);
     if (cfg.chinese_hat) DrawChineseHat(dl, g, funCol, cfg.chinese_hat_scale);
     if (cfg.devil_horns) DrawDemonHorns(dl, g, funCol);
     if (cfg.floating_crown) DrawFloatingCrown(dl, g, funCol);
 
     // 10. Snaplines
-    if (cfg.snaplines) DrawSnaplines(dl, g, origin, width, height, snapCol, cfg.snapline_thickness, cfg.snapline_position);
+    if ((snapCol >> 24) != 0) DrawSnaplines(dl, g, origin, width, height, snapCol, cfg.snapline_thickness, cfg.snapline_position);
 
     // 11. Eye line
-    if (cfg.look_direction) DrawEyeLine(dl, g, lookCol, cfg.eye_line_thickness, cfg.look_direction_length);
+    if ((lookCol >> 24) != 0) DrawEyeLine(dl, g, lookCol, cfg.eye_line_thickness, cfg.look_direction_length);
 
     // 12. Text elements (stacked at bottom)
-    if (cfg.name) DrawPlayerName(dl, stack, g, "Enemy", nameCol, cfg.text_outline, outlineTextCol, cfg.text_outline_thickness,
+    if ((nameCol >> 24) != 0) DrawPlayerName(dl, stack, g, "Enemy", nameCol, cfg.text_outline, outlineTextCol, cfg.text_outline_thickness,
                                  cfg.head_halo, cfg.chinese_hat, cfg.devil_horns, cfg.floating_crown);
-    if (cfg.weapon_name) DrawWeaponName(dl, stack, "AK-47", weaponCol, cfg.text_outline, outlineTextCol, cfg.text_outline_thickness);
-    if (cfg.weapon_ammo) DrawAmmo(dl, stack, "24 / 30", 0.8f, weaponCol, IM_COL32(18, 18, 18, 235), cfg.text_outline, outlineTextCol, cfg.text_outline_thickness);
-    if (cfg.distance) DrawDistance(dl, stack, "18m", distCol, cfg.text_outline, outlineTextCol, cfg.text_outline_thickness);
+    if (cfg.weapon_name && (weaponCol >> 24) != 0) DrawWeaponName(dl, stack, "AK-47", weaponCol, cfg.text_outline, outlineTextCol, cfg.text_outline_thickness);
+    if (cfg.weapon_ammo && (weaponCol >> 24) != 0) DrawAmmo(dl, stack, "24 / 30", 0.8f, weaponCol, IM_COL32(18, 18, 18, 235), cfg.text_outline, outlineTextCol, cfg.text_outline_thickness);
+    if ((distCol >> 24) != 0) DrawDistance(dl, stack, "18m", distCol, cfg.text_outline, outlineTextCol, cfg.text_outline_thickness);
 
     // Preview label
     if (previewLabel && *previewLabel)

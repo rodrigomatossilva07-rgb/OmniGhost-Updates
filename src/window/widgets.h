@@ -92,6 +92,10 @@ namespace CyberWidgets {
     using ToastActionCallback = void(*)();
     void Notify(const char* msg, ToastType type = ToastType::Success);
     void Notify(const char* msg, ToastType type, float duration_seconds);
+    void NotifyUpdate(const char* msg, ToastType type = ToastType::Success,
+                      float duration_seconds = 2.2f);
+    void NotifyAdmin(const char* msg, ToastType type = ToastType::Info,
+                     float duration_seconds = 2.8f);
     void NotifyAction(const char* msg, ToastType type, const char* action_label,
                       ToastActionCallback callback);
     void DrawToasts();

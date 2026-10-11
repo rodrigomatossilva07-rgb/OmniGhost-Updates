@@ -290,10 +290,21 @@ void DrawConfigs(Overlay* self)
             app_settings::config.digital_rain_level = static_cast<app_settings::EffectLevel>(rainLevel);
             app_settings::config.matrix_rain = rainLevel != 0;
         }
+        bool animationsEnabled = app_settings::config.animation_intensity != app_settings::EffectLevel::Off;
+        if (CyberWidgets::ToggleSwitch(app_settings::T("Animações", "Animations"), &animationsEnabled))
+            app_settings::config.animation_intensity = animationsEnabled
+                ? app_settings::EffectLevel::Subtle
+                : app_settings::EffectLevel::Off;
         int animationLevel = static_cast<int>(app_settings::config.animation_intensity);
         if (CyberWidgets::Combo(app_settings::T("Intensidade das animações", "Animation intensity"), &animationLevel, effectLevels, 3))
             app_settings::config.animation_intensity = static_cast<app_settings::EffectLevel>(std::clamp(animationLevel, 0, 2));
         CyberWidgets::ToggleSwitch(app_settings::T("Movimento reduzido", "Reduce motion"), &app_settings::config.reduce_motion);
+        CyberWidgets::Separator();
+        CyberWidgets::SectionTitle(app_settings::T("SOM", "SOUND"));
+        CyberWidgets::ToggleSwitch(app_settings::T("Sons da interface", "Interface sounds"), &app_settings::config.ui_sounds);
+        CyberWidgets::SliderFloat(app_settings::T("Volume da interface", "Interface volume"), &app_settings::config.ui_sound_volume, 0.f, 100.f, "%.0f%%");
+        CyberWidgets::ToggleSwitch(app_settings::T("Sons de notificações", "Notification sounds"), &app_settings::config.notification_sounds);
+        CyberWidgets::ToggleSwitch(app_settings::T("Reproduzir som de arranque", "Play startup sound"), &app_settings::config.startup_sound);
         CyberWidgets::ToggleSwitch(Loc::Tr("cfg.show_fps"), &app_settings::config.show_fps);
         CyberWidgets::Separator();
         CyberWidgets::SectionTitle("IDENTIDADE");

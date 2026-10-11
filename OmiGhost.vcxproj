@@ -74,7 +74,7 @@
       <PreprocessorDefinitions>OMNIGHOST_PRIVATE_STATIC_VMM;VMMDLL_STATIC;LEECHCORE_STATIC;OMNIGHOST_PRIVATE_DEVELOPMENT_BUILD;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>$(ProjectDir).cache\private-static\vmm\vmm.lib;$(ProjectDir).cache\private-static\leechcore\leechcore.lib;d3d11.lib;dxgi.lib;d3dcompiler.lib;dwmapi.lib;user32.lib;gdi32.lib;imm32.lib;setupapi.lib;ws2_32.lib;windowscodecs.lib;ole32.lib;shell32.lib;winhttp.lib;wininet.lib;bcrypt.lib;wintrust.lib;crypt32.lib;shlwapi.lib;version.lib;advapi32.lib;credui.lib;rpcrt4.lib;secur32.lib;winusb.lib;ntdll.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(ProjectDir).cache\private-static\vmm\vmm.lib;$(ProjectDir).cache\private-static\leechcore\leechcore.lib;d3d11.lib;dxgi.lib;d3dcompiler.lib;dwmapi.lib;user32.lib;gdi32.lib;imm32.lib;setupapi.lib;ws2_32.lib;windowscodecs.lib;ole32.lib;shell32.lib;winhttp.lib;wininet.lib;bcrypt.lib;wintrust.lib;crypt32.lib;shlwapi.lib;version.lib;advapi32.lib;credui.lib;rpcrt4.lib;secur32.lib;winusb.lib;ntdll.lib;winmm.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <DelayLoadDLLs></DelayLoadDLLs>
       <AdditionalLibraryDirectories>$(ProjectDir).cache\private-static\vmm;$(ProjectDir).cache\private-static\leechcore;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
@@ -128,7 +128,7 @@
 
   <Target Name="BuildOmniGhostEmbeddedResources" BeforeTargets="ClCompile;ResourceCompile" Condition="'$(DesignTimeBuild)'!='true' And '$(OmniGhostSkipEmbeddedGeneration)'!='true'">
     <Message Importance="High" Text="[OmniGhost Resources] Validating and generating embedded runtime resources..."/>
-    <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; generate-embedded-resources &quot;$(MSBuildProjectDirectory)&quot; &quot;$(Configuration)&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
+    <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; generate-embedded-resources &quot;$(MSBuildProjectDirectory)&quot; &quot;$(Configuration)&quot; &quot;$(Platform)&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
       <Output TaskParameter="ExitCode" PropertyName="OmniGhostEmbeddedResourcesExitCode"/>
     </Exec>
     <Error Condition="'$(OmniGhostEmbeddedResourcesExitCode)'!='0'" Code="OGRES001" Text="Falha ao gerar os recursos embedded. Consulta a janela Saída."/>
@@ -326,6 +326,7 @@
     <ClCompile Include="src\updater\version_comparer.cpp"/>
     <ClCompile Include="src\updater\wininet_fallback.cpp"/>
     <ClCompile Include="src\window\animations.cpp"/>
+    <ClCompile Include="src\window\ui_feedback.cpp"/>
     <ClCompile Include="src\window\brand_assets.cpp"/>
     <ClCompile Include="src\window\cards.cpp"/>
     <ClCompile Include="src\window\changelog.cpp"/>

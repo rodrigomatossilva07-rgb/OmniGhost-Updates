@@ -194,6 +194,7 @@ void ChangeNavigation(int page) {
         page = static_cast<int>(NavPage::Home);
     if (page == g_nav) return;
     g_nav = page;
+    OmniGhost::UiFeedback::Play(OmniGhost::UiFeedback::SoundEvent::Navigate);
     g_page_transition = app_settings::MotionEnabled() ? 0.f : 1.f;
     g_keyboard_active = false;
     g_profile_menu_open = false;
@@ -824,7 +825,20 @@ bool DrawGameCard(ImDrawList* draw, ImVec2 min, ImVec2 max,
     }
 
     const char* status = CardStateLabel(runtime.state);
-    const ImU32 status_color = CardStateColor(runtime.state);
+    {
+        static std::unordered_map<int, CardState> previousStates;
+        const int stateKey = static_cast<int>(game.launch_id);
+        auto [it, inserted] = previousStates.try_emplace(stateKey, runtime.state);
+        if ((!inserted && it->second != CardState::Running && runtime.state == CardState::Running) ||
+            (inserted && runtime.state == CardState::Running))
+            OmniGhost::UiFeedback::Play(OmniGhost::UiFeedback::SoundEvent::GameDetected);
+        else if (!inserted && it->second != runtime.state &&
+                 (runtime.state == CardState::NeedsOffsets ||
+                  (it->second == CardState::Running && runtime.state == CardState::GameNotFound)))
+            OmniGhost::UiFeedback::Play(OmniGhost::UiFeedback::SoundEvent::Warning);
+        it->second = runtime.state;
+    }
+    const ImU32 status_color = SmoothGameStateColor(game.launch_id, CardStateColor(runtime.state));
     const ImVec2 status_size = ImGui::CalcTextSize(status);
     const ImVec2 badge_min(card_max.x - status_size.x - S(57.f), card_min.y + S(14.f));
     const ImVec2 badge_max(card_max.x - S(38.f), card_min.y + S(36.f));

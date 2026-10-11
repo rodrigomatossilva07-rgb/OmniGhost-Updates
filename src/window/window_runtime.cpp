@@ -10,6 +10,7 @@
 #include "hotkeys.h"
 #include "onboarding.h"
 #include "changelog.h"
+#include "ui_feedback.h"
 #include "../updater/update_service.h"
 #include "../launcher/launcher_assets.h"
 #include "../platform/offset_auto.h"
@@ -700,6 +701,7 @@ void Overlay::Shutdown() {
 
     shutdown_ = true;
     shouldRun = false;
+    OmniGhost::UiFeedback::Shutdown();
 
     if (imgui_initialized_) {
         LauncherAssets::Shutdown();

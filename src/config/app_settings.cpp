@@ -17,7 +17,7 @@ namespace app_settings {
     bool menu_open = false;
 
     namespace {
-        constexpr int kGlobalSettingsSchema = 3;
+        constexpr int kGlobalSettingsSchema = 4;
         constexpr int kMinimumSupportedSchema = 1;
         constexpr std::uintmax_t kMaximumSettingsBytes = 128 * 1024;
 
@@ -64,6 +64,13 @@ namespace app_settings {
                 result.wasMigrated = true;
                 cfg.schema_version = 3;
                 cfg.language = Language::EN;
+            }
+
+            if (fromVersion < 4) {
+                // v4 adds local, non-identifying UI audio preferences. The
+                // Config defaults are intentionally conservative.
+                result.wasMigrated = true;
+                cfg.schema_version = 4;
             }
 
             return result;
@@ -138,6 +145,7 @@ namespace app_settings {
             // never allow an imported/older profile to weaken or disable it.
             value.digital_rain_level = EffectLevel::Subtle;
             value.animation_intensity = static_cast<EffectLevel>(ClampValue(static_cast<int>(value.animation_intensity), 0, 2, "animation_intensity", wasClamped));
+            value.ui_sound_volume = ClampValue(value.ui_sound_volume, 0.0f, 100.0f, "ui_sound_volume", wasClamped);
             value.matrix_rain = true;
             value.black_background = value.black_level > 0.5f;
             value.menu_bind = ClampValue(value.menu_bind, 0, 255, "menu_bind", wasClamped);
@@ -182,6 +190,10 @@ namespace app_settings {
             out << "appearance.digital_rain=" << static_cast<int>(value.digital_rain_level) << '\n';
             out << "appearance.animation=" << static_cast<int>(value.animation_intensity) << '\n';
             out << "appearance.reduce_motion=" << (value.reduce_motion ? 1 : 0) << '\n';
+            out << "sound.ui=" << (value.ui_sounds ? 1 : 0) << '\n';
+            out << "sound.volume=" << value.ui_sound_volume << '\n';
+            out << "sound.notifications=" << (value.notification_sounds ? 1 : 0) << '\n';
+            out << "sound.startup=" << (value.startup_sound ? 1 : 0) << '\n';
             out << "appearance.high_contrast=" << (value.high_contrast ? 1 : 0) << '\n';
             out << "appearance.theme_mode=" << value.theme_mode << '\n';
             out << "appearance.accent_preset=" << value.accent_preset << '\n';
@@ -252,6 +264,10 @@ namespace app_settings {
                 else if (key == "appearance.digital_rain") parsed.digital_rain_level = static_cast<EffectLevel>(ParseInt(value, static_cast<int>(parsed.digital_rain_level)));
                 else if (key == "appearance.animation") parsed.animation_intensity = static_cast<EffectLevel>(ParseInt(value, static_cast<int>(parsed.animation_intensity)));
                 else if (key == "appearance.reduce_motion") parsed.reduce_motion = ParseBool(value, parsed.reduce_motion);
+                else if (key == "sound.ui") parsed.ui_sounds = ParseBool(value, parsed.ui_sounds);
+                else if (key == "sound.volume") parsed.ui_sound_volume = ParseFloat(value, parsed.ui_sound_volume);
+                else if (key == "sound.notifications") parsed.notification_sounds = ParseBool(value, parsed.notification_sounds);
+                else if (key == "sound.startup") parsed.startup_sound = ParseBool(value, parsed.startup_sound);
                 else if (key == "appearance.high_contrast") parsed.high_contrast = ParseBool(value, parsed.high_contrast);
                 else if (key == "appearance.theme_mode") parsed.theme_mode = ParseInt(value, parsed.theme_mode);
                 else if (key == "appearance.accent_preset") parsed.accent_preset = ParseInt(value, parsed.accent_preset);
@@ -451,6 +467,10 @@ namespace app_settings {
             config.color_primary = defaults.color_primary;
             config.color_secondary = defaults.color_secondary;
             config.reduce_motion = defaults.reduce_motion;
+            config.ui_sounds = defaults.ui_sounds;
+            config.ui_sound_volume = defaults.ui_sound_volume;
+            config.notification_sounds = defaults.notification_sounds;
+            config.startup_sound = defaults.startup_sound;
             config.particles = defaults.particles;
             config.high_contrast = defaults.high_contrast;
             config.theme_mode = defaults.theme_mode;

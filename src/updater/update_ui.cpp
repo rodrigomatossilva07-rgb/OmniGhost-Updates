@@ -5,6 +5,7 @@
 #include "../window/theme.h"
 #include "../window/ui_format.h"
 #include "../window/widgets.h"
+#include "../window/ui_feedback.h"
 #include "../window/transition_overlay.h"
 #include "third_party/ImGui/imgui.h"
 
@@ -109,6 +110,12 @@ void Draw() {
     static std::string previousTechnicalDetail;
 
     if (state.status != previousStatus || state.technicalDetail != previousTechnicalDetail) {
+        if (state.status != previousStatus) {
+            if (state.status == Status::Available || state.status == Status::Completed)
+                OmniGhost::UiFeedback::Play(OmniGhost::UiFeedback::SoundEvent::Update);
+            else if (state.status == Status::Error)
+                OmniGhost::UiFeedback::Play(OmniGhost::UiFeedback::SoundEvent::Error);
+        }
         if (state.status == Status::UpToDate)
             upToDateSince = std::chrono::steady_clock::now();
         technicalDetailsExpanded = false;

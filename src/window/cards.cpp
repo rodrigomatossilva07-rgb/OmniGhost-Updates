@@ -9,6 +9,7 @@
 #include <cfloat>
 #include <cmath>
 #include <vector>
+#include <unordered_map>
 #include <cstdio>
 
 namespace CyberWidgets {
@@ -23,12 +24,19 @@ namespace CyberWidgets {
             ImGuiWindow* window;
             float content_region_max_x;
             float work_rect_max_x;
+            float entry_progress;
+        };
+
+        struct CardEntryState {
+            int last_frame = -100;
+            float progress = 0.0f;
         };
 
         std::vector<CardState> g_cards;
         int g_card_row_depth = 0;
         int g_card_row_columns = 2;
         float g_card_row_cell = 0.0f;
+        std::unordered_map<ImGuiID, CardEntryState> g_card_entries;
     }
 
     void BeginCard(const char* title, float width)
@@ -39,8 +47,23 @@ namespace CyberWidgets {
         const float card_width = std::max(120.0f, width > 0.0f ? width : available);
         const float inset = CyberTheme::Metrics::CardPadding;
         const float content_width = std::max(80.0f, card_width - inset * 2.0f);
-        const ImVec2 start = ImGui::GetCursorScreenPos();
         ImGuiWindow* window = ImGui::GetCurrentWindow();
+        const ImGuiID entryId = window->GetID("##card_entry");
+        CardEntryState& entry = g_card_entries[entryId];
+        const int frame = ImGui::GetFrameCount();
+        if (frame - entry.last_frame > 2)
+            entry.progress = 0.0f;
+        entry.last_frame = frame;
+        if (!app_settings::MotionEnabled())
+            entry.progress = 1.0f;
+        else
+            entry.progress = std::min(1.0f, entry.progress +
+                std::min(ImGui::GetIO().DeltaTime, 0.05f) / 0.19f);
+        const float inverse = 1.0f - entry.progress;
+        const float easedEntry = 1.0f - inverse * inverse * inverse;
+        ImVec2 start = ImGui::GetCursorScreenPos();
+        start.y += (1.0f - easedEntry) * CyberTheme::Px(7.0f);
+        ImGui::SetCursorScreenPos(start);
 
         ImDrawList* dl = ImGui::GetWindowDrawList();
         dl->ChannelsSplit(2);
@@ -54,7 +77,8 @@ namespace CyberWidgets {
             g_card_row_depth > 0,
             window,
             window->ContentRegionRect.Max.x,
-            window->WorkRect.Max.x
+            window->WorkRect.Max.x,
+            easedEntry
         });
 
         ImGui::BeginGroup();
@@ -189,6 +213,13 @@ namespace CyberWidgets {
                 dl->AddText(ImVec2(titleX, a.y + 12.0f),
                     CyberTheme::U32(CyberTheme::Colors.Text), card.title, titleEnd);
 
+        }
+        if (card.entry_progress < 0.999f) {
+            dl->ChannelsSetCurrent(1);
+            dl->AddRectFilled(a, b,
+                CyberTheme::WithAlpha(CyberTheme::Colors.Panel,
+                          std::clamp(1.0f - card.entry_progress, 0.0f, 1.0f)),
+                CyberTheme::Metrics::CardRounding);
         }
         dl->ChannelsMerge();
 

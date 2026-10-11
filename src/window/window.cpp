@@ -15,6 +15,7 @@
 #include "hotkeys.h"
 #include "onboarding.h"
 #include "changelog.h"
+#include "ui_feedback.h"
 #include "../config/app_settings.h"
 #include "../config/config_manager.h"
 #include "../platform/app_paths.h"
@@ -253,6 +254,8 @@ bool Overlay::CreateImGui()
     Hotkeys::Initialize();
     Onboarding::Initialize();
     Changelog::Initialize();
+    OmniGhost::UiFeedback::Initialize();
+    OmniGhost::UiFeedback::PlayStartupOnce();
     const float initialScale = std::clamp(
         OmniGhost::Platform::DpiScaleForWindow(overlay) * app_settings::UiScalePreference(),
         0.75f, 2.50f);
@@ -475,7 +478,7 @@ const PerformanceMode::State performance = PerformanceMode::Update(
     } else {
         // 180-220 ms class transition, shortened in Subtle mode but never
         // allowed to linger. Only content moves; navigation remains stable.
-        const float duration = CyberTheme::Metrics::PageTransitionSeconds / (std::max)(0.45f, motionScale);
+        const float duration = CyberTheme::Metrics::PageTransitionSeconds * (0.80f + 0.20f * motionScale);
         tab_transition = (std::min)(1.0f,
             tab_transition + (std::min)(ImGui::GetIO().DeltaTime, 0.05f) / duration);
     }

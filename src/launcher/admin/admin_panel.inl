@@ -33,7 +33,7 @@ bool OpenExternal(const wchar_t* url, const char* failure) {
     const HINSTANCE result = ShellExecuteW(nullptr, L"open", url, nullptr, nullptr, SW_SHOWNORMAL);
     if (reinterpret_cast<INT_PTR>(result) > 32)
         return true;
-    CyberWidgets::Notify(failure, CyberWidgets::ToastType::Error);
+    CyberWidgets::NotifyAdmin(failure, CyberWidgets::ToastType::Error);
     return false;
 }
 
@@ -406,7 +406,7 @@ void DrawAdminDevTools() {
     CyberWidgets::BeginCard("FERRAMENTAS LOCAIS", 0.f);
     if (CyberWidgets::Button("ATUALIZAR CONFIGS", CyberWidgets::ButtonStyle::Secondary, ImVec2(S(175.f), S(34.f)))) {
         config_manager::RefreshList();
-        CyberWidgets::Notify("Lista de configurações atualizada.", CyberWidgets::ToastType::Success);
+        CyberWidgets::NotifyAdmin("Lista de configurações atualizada.", CyberWidgets::ToastType::Success);
     }
     ImGui::SameLine();
 #if defined(NDEBUG)
@@ -450,10 +450,10 @@ void DrawAdminSupport() {
         std::filesystem::path packagePath;
         std::string error;
         if (OmniGhost::Diagnostics::CreatePackage(BuildDiagnosticsText(), packagePath, error)) {
-            CyberWidgets::Notify("Pacote de diagnóstico criado.", CyberWidgets::ToastType::Success);
+            CyberWidgets::NotifyAdmin("Pacote de diagnóstico criado.", CyberWidgets::ToastType::Success);
             ShellExecuteW(nullptr, L"open", packagePath.parent_path().c_str(), nullptr, nullptr, SW_SHOWNORMAL);
         } else {
-            CyberWidgets::Notify(error.empty() ? "Não foi possível criar o pacote." : error.c_str(),
+            CyberWidgets::NotifyAdmin(error.empty() ? "Não foi possível criar o pacote." : error.c_str(),
                                  CyberWidgets::ToastType::Error);
         }
     }

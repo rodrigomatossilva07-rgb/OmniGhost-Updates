@@ -53,7 +53,7 @@
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <ProgramDatabaseFile>$(ProjectDir).cache\symbols\$(Configuration)\$(TargetName).pdb</ProgramDatabaseFile>
-      <AdditionalDependencies>delayimp.lib;leechcore.lib;vmm.lib;d3d11.lib;dxgi.lib;d3dcompiler.lib;dwmapi.lib;user32.lib;gdi32.lib;imm32.lib;setupapi.lib;ws2_32.lib;windowscodecs.lib;ole32.lib;shell32.lib;winhttp.lib;wininet.lib;bcrypt.lib;wintrust.lib;crypt32.lib;shlwapi.lib;version.lib;advapi32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>delayimp.lib;leechcore.lib;vmm.lib;d3d11.lib;dxgi.lib;d3dcompiler.lib;dwmapi.lib;user32.lib;gdi32.lib;imm32.lib;setupapi.lib;ws2_32.lib;windowscodecs.lib;ole32.lib;shell32.lib;winhttp.lib;wininet.lib;bcrypt.lib;wintrust.lib;crypt32.lib;shlwapi.lib;version.lib;advapi32.lib;winmm.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <DelayLoadDLLs>leechcore.dll;vmm.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
       <AdditionalLibraryDirectories>$(ProjectDir)third_party\dma_stack\lib;$(ProjectDir)third_party\DMALibrary\libs;$(ProjectDir)libs;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <DataExecutionPrevention>true</DataExecutionPrevention>

@@ -42,7 +42,7 @@ if "%COMMAND%"=="generate-embedded-offsets" (
         exit /b 1
     )
     "%PS_CMD%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& \"%SCRIPT_DIR%Build-EmbeddedOffsets.ps1\" -ProjectDir \"%~1\" -Configuration \"%~2\""
-    exit /b %ERRORLEVEL%
+    exit /b
 )
 
 if "%COMMAND%"=="generate-embedded-runtime" (
@@ -51,7 +51,7 @@ if "%COMMAND%"=="generate-embedded-runtime" (
         exit /b 1
     )
     "%PS_CMD%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& \"%SCRIPT_DIR%Build-EmbeddedRuntime.ps1\" -ProjectDir \"%~1\" -VcToolsRedistDir \"%~2\" -Configuration \"%~3\""
-    exit /b %ERRORLEVEL%
+    exit /b
 )
 
 if "%COMMAND%"=="validate-embedded-runtime" (
@@ -60,7 +60,7 @@ if "%COMMAND%"=="validate-embedded-runtime" (
         exit /b 1
     )
     "%PS_CMD%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& \"%SCRIPT_DIR%Validate-EmbeddedRuntime.ps1\" -ProjectDir \"%~1\" -Configuration \"%~2\" -Platform \"%~3\""
-    exit /b %ERRORLEVEL%
+    exit /b
 )
 
 if "%COMMAND%"=="generate-embedded-resources" (
@@ -69,7 +69,7 @@ if "%COMMAND%"=="generate-embedded-resources" (
         exit /b 1
     )
     "%PS_CMD%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& \"%SCRIPT_DIR%Build-EmbeddedResources.ps1\" -ProjectDir \"%~1\" -Configuration \"%~2\" -Platform \"%~3\""
-    exit /b %ERRORLEVEL%
+    exit /b
 )
 
 if "%COMMAND%"=="publish-build" (
@@ -78,7 +78,7 @@ if "%COMMAND%"=="publish-build" (
         exit /b 1
     )
     "%PS_CMD%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& \"%SCRIPT_DIR%Publish-Build.ps1\" -ProjectDir \"%~1\" -BuildDir \"%~2\""
-    exit /b %ERRORLEVEL%
+    exit /b
 )
 
 if "%COMMAND%"=="cleanup-verified-build" (
@@ -87,7 +87,7 @@ if "%COMMAND%"=="cleanup-verified-build" (
         exit /b 1
     )
     "%PS_CMD%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& \"%SCRIPT_DIR%Cleanup-PublishWorkspace.ps1\" -ProjectDir \"%~1\""
-    exit /b %ERRORLEVEL%
+    exit /b
 )
 
 if "%COMMAND%"=="validate-embedded-offsets" (
@@ -96,7 +96,7 @@ if "%COMMAND%"=="validate-embedded-offsets" (
         exit /b 1
     )
     "%PS_CMD%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& \"%SCRIPT_DIR%Validate-EmbeddedOffsets.ps1\" -ProjectDir \"%~1\" -Executable \"%~2\" -Configuration \"%~3\" -Platform \"%~4\""
-    exit /b %ERRORLEVEL%
+    exit /b
 )
 
 if "%COMMAND%"=="validate-project" (
@@ -105,7 +105,7 @@ if "%COMMAND%"=="validate-project" (
         exit /b 1
     )
     "%PS_CMD%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& \"%SCRIPT_DIR%Validate-Project.ps1\" -ProjectDir \"%~1\""
-    exit /b %ERRORLEVEL%
+    exit /b
 )
 
 if "%COMMAND%"=="prepare-publish-version" (
@@ -114,7 +114,7 @@ if "%COMMAND%"=="prepare-publish-version" (
         exit /b 1
     )
     "%PS_CMD%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& \"%SCRIPT_DIR%Prepare-PublishVersion.ps1\" -ProjectDir \"%~1\""
-    exit /b %ERRORLEVEL%
+    exit /b
 )
 
 if "%COMMAND%"=="ensure-metadata" (
@@ -123,7 +123,7 @@ if "%COMMAND%"=="ensure-metadata" (
         exit /b 1
     )
     "%PS_CMD%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& \"%SCRIPT_DIR%Ensure-ProjectMetadata.ps1\" -ProjectDir \"%~1\""
-    exit /b %ERRORLEVEL%
+    exit /b
 )
 
 if "%COMMAND%"=="validate-distribution" (
@@ -132,7 +132,7 @@ if "%COMMAND%"=="validate-distribution" (
         exit /b 1
     )
     "%PS_CMD%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& \"%SCRIPT_DIR%Validate-DistributionBuild.ps1\" -ProjectDir \"%~1\" -Configuration \"%~2\""
-    exit /b %ERRORLEVEL%
+    exit /b
 )
 
 if "%COMMAND%"=="generate-build-metadata" (
@@ -141,7 +141,7 @@ if "%COMMAND%"=="generate-build-metadata" (
         exit /b 1
     )
     "%PS_CMD%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& \"%SCRIPT_DIR%Generate-BuildMetadata.ps1\" -ProjectDir \"%~1\" -Configuration \"%~2\" -Architecture \"%~3\" -ReleaseChannel \"%~4\" -WindowsSdkVersion \"%~5\""
-    exit /b %ERRORLEVEL%
+    exit /b
 )
 
 echo Comando desconhecido: %COMMAND%

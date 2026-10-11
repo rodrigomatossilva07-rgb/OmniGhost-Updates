@@ -44,6 +44,7 @@
 #include "security/security_manager.h"
 #include "window/performance_mode.h"
 #include "window/widgets.h"
+#include "window/ui_feedback.h"
 #include "window/hardware_monitor.h"
 #include "third_party/ImGui/imgui.h"
 #include "makcu/makcu_wrapper.h"
@@ -669,7 +670,7 @@ while (application.shouldRun && !authenticated) {
         const std::string subtitle = "Versão " + version;
         OmniGhost::UI::RenderTimedTransition(application, "✓ Atualização concluída",
             subtitle.c_str(), app_settings::MotionEnabled() ? 0.48f : 0.05f, true);
-        CyberWidgets::Notify(("OmniGhost atualizado para " + version).c_str(),
+        CyberWidgets::NotifyUpdate(("OmniGhost atualizado para " + version).c_str(),
             CyberWidgets::ToastType::Success);
     }
     // The library starts the client-version check when it is first opened.
@@ -956,6 +957,7 @@ while (application.shouldRun && !authenticated) {
     const auto& processProbe = launchWork.probe;
     const auto& startResult = launchWork.result;
     if (!startResult.succeeded) {
+        OmniGhost::UiFeedback::Play(OmniGhost::UiFeedback::SoundEvent::Error);
         // Use centralized adapter error model for consistent messaging
         const std::string_view errorMessage =
             OmniGhost::Launcher::AdapterErrorMessage(startResult.error.code);
@@ -1072,6 +1074,8 @@ while (application.shouldRun && !authenticated) {
         Launcher::MarkGameUsed(selected);
         Launcher::RecordGameSession(selected, Launcher::SessionResult::None, {});
     }
+
+    OmniGhost::UiFeedback::Play(OmniGhost::UiFeedback::SoundEvent::GameDetected);
 
     // CS2 keeps a light self-check and reloads only the configured data file.
     if (pending_game == ActiveGame::CS2) {

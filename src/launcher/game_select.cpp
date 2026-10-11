@@ -26,6 +26,7 @@
 #include "../window/theme.h"
 #include "../window/ui_format.h"
 #include "../window/widgets.h"
+#include "../window/ui_feedback.h"
 #include "../window/InputDevicesCard.h"
 #include "../platform/monitor_utils.h"
 #include "../window/window.hpp"
@@ -77,6 +78,7 @@
 #include <sstream>
 #include <string_view>
 #include <thread>
+#include <unordered_map>
 #include <vector>
 
 namespace Launcher {
@@ -104,6 +106,23 @@ ImU32 WithAlpha(ImU32 color, int alpha) {
 
 ImU32 GameColor(const RgbColor& color, int alpha = 255) {
     return IM_COL32(color.r, color.g, color.b, alpha);
+}
+
+ImU32 SmoothGameStateColor(GameId game, ImU32 target) {
+    static std::unordered_map<int, ImVec4> displayed;
+    const int key = static_cast<int>(game);
+    const ImVec4 targetColor = ImGui::ColorConvertU32ToFloat4(target);
+    auto [it, inserted] = displayed.try_emplace(key, targetColor);
+    if (inserted || !app_settings::MotionEnabled()) {
+        it->second = targetColor;
+    } else {
+        const float amount = 1.0f - std::exp(-8.5f * std::min(ImGui::GetIO().DeltaTime, 0.05f));
+        it->second.x += (targetColor.x - it->second.x) * amount;
+        it->second.y += (targetColor.y - it->second.y) * amount;
+        it->second.z += (targetColor.z - it->second.z) * amount;
+        it->second.w += (targetColor.w - it->second.w) * amount;
+    }
+    return ImGui::ColorConvertFloat4ToU32(it->second);
 }
 
 enum class ToastAction { None, OpenUpdates, OpenLogs };
@@ -331,7 +350,8 @@ bool Draw() {
 
     const float animation = app_settings::AnimationScale();
     if (animation <= 0.f) g_page_transition = 1.f;
-    else g_page_transition = (std::min)(1.f, g_page_transition + delta / (CyberTheme::Metrics::PageTransitionSeconds / (std::max)(0.35f, animation)));
+    else g_page_transition = (std::min)(1.f, g_page_transition + delta /
+        (CyberTheme::Metrics::PageTransitionSeconds * (0.80f + 0.20f * animation)));
     if (g_page_transition < 1.f) {
         const float eased = g_page_transition * g_page_transition * (3.f - 2.f * g_page_transition);
         foreground->AddRectFilled(ImVec2(0, S(58.f)), ImVec2(display.x, display.y - S(36.f)),

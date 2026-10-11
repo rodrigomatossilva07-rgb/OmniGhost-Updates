@@ -60,7 +60,7 @@ namespace app_settings {
     };
 
 struct Config {
-        int schema_version = 3;  // Current schema version for migration support
+        int schema_version = 4;  // Current schema version for migration support
 
         // New installations start in English. The chosen language is persisted
         // in the global settings file and restored before authentication opens.
@@ -92,6 +92,10 @@ struct Config {
         EffectLevel digital_rain_level = EffectLevel::Full;
         EffectLevel animation_intensity = EffectLevel::Subtle;
         bool reduce_motion = false;
+        bool ui_sounds = true;
+        float ui_sound_volume = 35.0f;
+        bool notification_sounds = true;
+        bool startup_sound = true;
         bool high_contrast = false;
         float ui_scale = 1.0f; // 0.75 .. 2.50
         int monitor_index = -1;
