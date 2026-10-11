@@ -153,6 +153,14 @@ void DrawVisuals()
     CyberWidgets::Separator();
     CyberWidgets::SectionTitle(Loc::Tr("vis.elements"));
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.skeleton"), &esp::config.skeleton);
+    if (esp::config.skeleton) {
+        CyberWidgets::ToggleSwitch(Loc::Tr("vis.skeleton_lod"), &esp::config.skeleton_lod);
+        if (esp::config.skeleton_lod) {
+            CyberWidgets::SliderFloat(Loc::Tr("vis.lod_full"), &esp::config.lod_full_dist, 10.f, 100.f, "%.0f m");
+            CyberWidgets::SliderFloat(Loc::Tr("vis.lod_high"), &esp::config.lod_high_dist, 50.f, 200.f, "%.0f m");
+            CyberWidgets::SliderFloat(Loc::Tr("vis.lod_med"), &esp::config.lod_med_dist, 100.f, 300.f, "%.0f m");
+        }
+    }
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.joints"), &esp::config.joints);
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.head_circle"), &esp::config.head_circle);
     if (esp::config.head_circle) {

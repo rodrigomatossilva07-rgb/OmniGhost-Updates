@@ -514,10 +514,10 @@ bool Attach() {
         status = "Warzone: cod.exe nao encontrado — abre o jogo";
         std::cout << "[Warzone] " << status << std::endl;
         backend_busy = false;
-        ready = true; // UI stays open; RunFrame retries with cooldown
+        ready = false;
         runtime.decrypt_needed = true;
         std::snprintf(runtime.status, sizeof(runtime.status), "%s", status.c_str());
-        return true;
+        return false; // Not ready - process not found
     }
 
     // PID exists — attempt full bind (FixCr3 + MZ). Distinguish "not found" from "CR3/MZ fail".
@@ -544,11 +544,11 @@ bool Attach() {
         status = buf;
         std::cout << "[Warzone] " << status << std::endl;
         backend_busy = false;
-        ready = true;
+        ready = false;
         runtime.decrypt_needed = true;
         runtime.last_bind_attempt_ms = GetTickCount64();
         std::snprintf(runtime.status, sizeof(runtime.status), "%s", status.c_str());
-        return true; // UI open; RunFrame will retry on cooldown
+        return false; // Not ready - CR3/MZ validation failed
     }
 
     runtime.module_base = mem.GetBaseDaddy(found_name ? found_name : "cod.exe");
@@ -666,7 +666,7 @@ bool Attach() {
               << std::endl;
 
     backend_busy = false;
-    return true;
+    return ready; // Only return true if actually ready
 }
 
 bool InitializeMenuShell() {
@@ -819,6 +819,9 @@ void AcquisitionTick() {
             s_dec_generation = currentGen;
         }
         s_cached_players.clear();
+        // P1-15 fix: Reserve capacity to avoid reallocation every enum cycle
+        const int max_slots = s_dec.client_base_ok ? 120 : 64;
+        s_cached_players.reserve(max_slots);
 
         if (s_dec_ok && (s_dec.client_base_ok || s_dec.name_array_ok)) {
             const int max_slots = s_dec.client_base_ok ? 120 : 64;

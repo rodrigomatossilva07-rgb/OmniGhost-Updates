@@ -328,9 +328,13 @@ namespace aimbot {
         float bestScore = 1e30f;
         TargetInfo best{};
 
-        const std::vector<uintptr_t>* pedsPtr = &FiveM::ESP::validPeds;
-        const std::vector<Vec3>* posPtr = &FiveM::ESP::positions;
-        if (pedsPtr->empty()) {
+        const std::vector<uintptr_t>* pedsPtr = nullptr;
+        const std::vector<Vec3>* posPtr = nullptr;
+        auto snapshot = FiveM::ESP::GetValidPedsSnapshot();
+        if (!snapshot.validPeds.empty()) {
+            pedsPtr = &snapshot.validPeds;
+            posPtr = &snapshot.positions;
+        } else {
             CollectPedsForAim();
             pedsPtr = &s_aimPeds;
             posPtr = &s_aimPos;
@@ -1045,7 +1049,6 @@ namespace aimbot {
     }
 
     void Run() {
-        config.silent_enabled = false; // hard-disable legacy silent
         RunAimbotLogic();
         RunTriggerLogic();
 

@@ -20,7 +20,7 @@
 namespace OmniGhost::Platform {
 
 Result<StartupResult> StartupOrchestrator::Run() {
-    running_ = true;
+    running_.store(true, std::memory_order_release);
     StartupResult result;
 
     // Phase sequence
@@ -55,13 +55,13 @@ Result<StartupResult> StartupOrchestrator::Run() {
 }
 
 void StartupOrchestrator::Shutdown(const std::string& reason) noexcept {
-    running_ = false;
-    phase_ = StartupPhase::Failed;
+    running_.store(false, std::memory_order_release);
+    phase_.store(StartupPhase::Failed, std::memory_order_release);
     std::cout << "[Startup] Shutdown: " << reason << "\n";
 }
 
 void StartupOrchestrator::SetPhase(StartupPhase next) {
-    phase_ = next;
+    phase_.store(next, std::memory_order_release);
     LogPhase(next);
 }
 
@@ -156,7 +156,7 @@ Result<void> StartupOrchestrator::PhaseAuthenticating() {
         : 0;
 
     bool authenticated = false;
-    while (running_ && !authenticated) {
+    while (running_.load(std::memory_order_acquire) && !authenticated) {
         if (deadline && clock_->NowMs() >= deadline) {
             return Err<void>("Authentication timeout");
         }
@@ -170,7 +170,7 @@ Result<void> StartupOrchestrator::PhaseAuthenticating() {
         WaitForEvents(std::chrono::milliseconds(16));
     }
 
-    if (!authenticated && !running_) {
+    if (!authenticated && !running_.load(std::memory_order_acquire)) {
         return Err<void>("Application closed during authentication");
     }
 
@@ -228,7 +228,7 @@ Result<void> StartupOrchestrator::PhaseLauncherReady() {
 Result<void> StartupOrchestrator::WaitForEvents(std::chrono::milliseconds timeout) {
     if (!clock_) return Err<void>("Clock not initialized");
     const auto deadline = clock_->NowMs() + timeout.count();
-    while (running_ && clock_->NowMs() < deadline) {
+    while (running_.load(std::memory_order_acquire) && clock_->NowMs() < deadline) {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
     return Ok();

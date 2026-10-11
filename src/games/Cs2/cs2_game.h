@@ -92,6 +92,55 @@ enum class BoneSlot : std::size_t {
 inline constexpr std::size_t kBoneSlotCount =
     static_cast<std::size_t>(BoneSlot::Count);
 
+static_assert(kBoneSlotCount == 20, "BoneSlot enum must have exactly 20 entries");
+
+// Bone name to joint index mapping (resolved at runtime from game model).
+// Falls back to hardcoded defaults if model reading fails.
+struct BoneMapping {
+    int jointIndex[kBoneSlotCount];
+    bool resolved = false;
+
+    constexpr BoneMapping() {
+        // Hardcoded defaults (CS2 common skeleton layout)
+        // These match the historical kFullMap and kIdx values
+        jointIndex[static_cast<std::size_t>(BoneSlot::Head)] = 6;
+        jointIndex[static_cast<std::size_t>(BoneSlot::Neck)] = 5;
+        jointIndex[static_cast<std::size_t>(BoneSlot::SpineUpper)] = 4;
+        jointIndex[static_cast<std::size_t>(BoneSlot::SpineMiddle)] = 3;
+        jointIndex[static_cast<std::size_t>(BoneSlot::SpineLower)] = 2;
+        jointIndex[static_cast<std::size_t>(BoneSlot::Pelvis)] = 0;
+        jointIndex[static_cast<std::size_t>(BoneSlot::ClavicleLeft)] = 8;
+        jointIndex[static_cast<std::size_t>(BoneSlot::ShoulderLeft)] = 9;
+        jointIndex[static_cast<std::size_t>(BoneSlot::ElbowLeft)] = 10;
+        jointIndex[static_cast<std::size_t>(BoneSlot::HandLeft)] = 11;
+        jointIndex[static_cast<std::size_t>(BoneSlot::ClavicleRight)] = 13;
+        jointIndex[static_cast<std::size_t>(BoneSlot::ShoulderRight)] = 14;
+        jointIndex[static_cast<std::size_t>(BoneSlot::ElbowRight)] = 15;
+        jointIndex[static_cast<std::size_t>(BoneSlot::HandRight)] = 16;
+        jointIndex[static_cast<std::size_t>(BoneSlot::HipLeft)] = 22;
+        jointIndex[static_cast<std::size_t>(BoneSlot::KneeLeft)] = 23;
+        jointIndex[static_cast<std::size_t>(BoneSlot::AnkleLeft)] = 24;
+        jointIndex[static_cast<std::size_t>(BoneSlot::HipRight)] = 25;
+        jointIndex[static_cast<std::size_t>(BoneSlot::KneeRight)] = 26;
+        jointIndex[static_cast<std::size_t>(BoneSlot::AnkleRight)] = 27;
+    }
+
+    // Resolve bone indices from game model (studiohdr bone names)
+    // Returns true if successfully resolved from model, false if using defaults.
+    bool ResolveFromModel(uintptr_t clientBase, uintptr_t modelBase);
+};
+
+// Global bone mapping instance (initialized once at startup)
+extern BoneMapping g_boneMapping;
+
+inline int GetBoneJointIndex(BoneSlot slot) {
+    return g_boneMapping.jointIndex[static_cast<std::size_t>(slot)];
+}
+
+inline constexpr int kIdxUpperBody[4] = {
+    6, 5, 4, 2  // Default: head, neck, chest, stomach
+};
+
 // Shared constants to ensure consistency between acquisition and presentation.
 // Bone visual max age: bones older than this are not rendered (prevents stale skeleton).
 inline constexpr uint64_t kBoneVisualMaxAgeMs = 160u;

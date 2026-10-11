@@ -79,21 +79,31 @@ bool DeserializeAll(const std::string& data) {
             else if (mk == "meta.config_id") meta_config_id = mv;
         }
     }
-    if (schema_version <= 0 || schema_version > kConfigSchemaVersion ||
-        config_version <= 0 || config_version > kConfigSchemaVersion) {
-        last_status = "Versao de config nao suportada";
+    if (schema_version <= 0 || config_version <= 0) {
+        last_status = "Versao de config invalida";
         return false;
+    }
+    // Allow newer schema versions (forward compatibility) - load with defaults for unknown fields
+    // Only reject if schema is from the future AND has breaking changes we can't handle
+    if (schema_version > kConfigSchemaVersion) {
+        std::cout << "[Config] Warning: Loading config from newer schema v" << schema_version 
+                  << " (current is v" << kConfigSchemaVersion << "). Unknown fields will be ignored.\n";
     }
     if (!meta_game.empty() && meta_game != ActiveGameMeta()) {
         last_status = std::string("Config invalida para este jogo (meta.game=") + meta_game + ")";
         return false;
     }
 
-    // Start from the canonical defaults so settings absent from older schemas
-    // automatically receive the current default instead of leaking a previous value.
+    // Migration: apply schema-specific transformations
+    // v1 -> v2: added meta.config_version field
+    // v2 -> v3: added per-game config isolation
+    if (schema_version < 3) {
+        std::cout << "[Config] Migrating config from schema v" << schema_version << " to v3\n";
+        // Per-game isolation: ensure foreign game sections are skipped (handled below)
+    }
     ResetActiveGameToDefaults();
     if (g_activeGame == ActiveGame::FiveM) {
-        aimbot::config.silent_enabled = false;
+        // silent removed - no longer exists
     }
     active_config_id = meta_config_id;
     if (active_config_id.empty()) active_config_id = NewConfigId();
@@ -104,28 +114,54 @@ bool DeserializeAll(const std::string& data) {
 
         auto bi = [&](const char* k) { return key == k; };
         auto toB = [&]() { return val == "1" || val == "true"; };
-        auto toF = [&]() { return (float)atof(val.c_str()); };
-        auto toI = [&]() { return atoi(val.c_str()); };
-        auto toU = [&]() { return (ImU32)strtoul(val.c_str(), nullptr, 10); };
+        // FIX SEC-003: Safe parsing with validation to prevent UB on malicious config
+        auto toF = [&]() -> float {
+            char* end = nullptr;
+            const float result = std::strtof(val.c_str(), &end);
+            return (end != val.c_str() && *end == '\0') ? result : 0.0f;
+        };
+        auto toI = [&]() -> int {
+            char* end = nullptr;
+            const long result = std::strtol(val.c_str(), &end, 10);
+            return (end != val.c_str() && *end == '\0' && result >= INT_MIN && result <= INT_MAX) ? static_cast<int>(result) : 0;
+        };
+        auto toU = [&]() -> ImU32 {
+            char* end = nullptr;
+            const unsigned long result = std::strtoul(val.c_str(), &end, 10);
+            return (end != val.c_str() && *end == '\0' && result <= UINT32_MAX) ? static_cast<ImU32>(result) : 0u;
+        };
 
         if (bi("meta.schema_version")) {
-            schema_version = atoi(val.c_str());
-            if (schema_version <= 0 || schema_version > kConfigSchemaVersion) {
-                last_status = "Config schema nao suportado: " + std::to_string(schema_version);
+            schema_version = toI();
+            if (schema_version <= 0) {
+                last_status = "Config schema invalido: " + std::to_string(schema_version);
                 return false;
+            }
+            // Allow newer schemas (forward compatibility)
+            if (schema_version > kConfigSchemaVersion) {
+                // Warning already logged during metadata parsing
             }
             continue;
         }
         if (bi("meta.app_version")) { continue; }
         if (bi("meta.game")) { meta_game = val; continue; }
         if (bi("meta.config_id")) { meta_config_id = val; continue; }
-        if (bi("meta.config_version")) { config_version = atoi(val.c_str()); continue; }
+        if (bi("meta.config_version")) { config_version = toI(); continue; }
 
-        // Skip foreign game sections
-        if (key.rfind("cs2.", 0) == 0 && g_activeGame != ActiveGame::CS2) continue;
-        if (key.rfind("warzone.", 0) == 0 && g_activeGame != ActiveGame::Warzone) continue;
+        // Skip foreign game sections (with warning)
+        if (key.rfind("cs2.", 0) == 0 && g_activeGame != ActiveGame::CS2) {
+            std::cout << "[Config] Ignoring foreign game section: " << key << " (active game: " << ActiveGameMeta() << ")\n";
+            continue;
+        }
+        if (key.rfind("warzone.", 0) == 0 && g_activeGame != ActiveGame::Warzone) {
+            std::cout << "[Config] Ignoring foreign game section: " << key << " (active game: " << ActiveGameMeta() << ")\n";
+            continue;
+        }
         if ((key.rfind("esp.", 0) == 0 || key.rfind("aim.", 0) == 0 || key.rfind("veh.", 0) == 0)
-            && g_activeGame != ActiveGame::FiveM) continue;
+            && g_activeGame != ActiveGame::FiveM) {
+            std::cout << "[Config] Ignoring foreign game section: " << key << " (active game: " << ActiveGameMeta() << ")\n";
+            continue;
+        }
 
         // Try each module
         if (DeserializeESP(key, val)) continue;
@@ -150,7 +186,6 @@ bool DeserializeAll(const std::string& data) {
     }
 
     // Silent aim removed — never leave enabled from old files
-    aimbot::config.silent_enabled = false;
 
     // Keep loaded binds, but FiveM fire must remain independent from aim.
     if (aimbot::config.aimbot_bind <= 0 || aimbot::config.aimbot_bind == VK_LBUTTON)

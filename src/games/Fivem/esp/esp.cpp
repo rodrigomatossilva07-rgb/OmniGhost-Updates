@@ -56,9 +56,9 @@ uint16_t esp::ComputeSkeletonBoneMask(SkeletonLOD lod) {
 }
 
 esp::SkeletonLOD esp::ComputeSkeletonLOD(float distance) {
-    if (distance <= LOD_DIST_FULL) return SkeletonLOD::Full;
-    if (distance <= LOD_DIST_HIGH) return SkeletonLOD::High;
-    if (distance <= LOD_DIST_MEDIUM) return SkeletonLOD::Medium;
+    if (distance <= esp::config.lod_full_dist) return SkeletonLOD::Full;
+    if (distance <= esp::config.lod_high_dist) return SkeletonLOD::High;
+    if (distance <= esp::config.lod_med_dist) return SkeletonLOD::Medium;
     return SkeletonLOD::Low;
 }
 
@@ -134,8 +134,10 @@ struct CachedSkeletonData {
     std::vector<Vec3> bone_positions;  // Cache all bone positions
     std::chrono::steady_clock::time_point last_update;
     bool is_valid;
+    // P2-2 fix: Store validity TTL at insert time to handle config changes
+    std::chrono::milliseconds validity_at_insert;
 
-    CachedSkeletonData() : last_update(std::chrono::steady_clock::now()), is_valid(false) {
+    CachedSkeletonData() : last_update(std::chrono::steady_clock::now()), is_valid(false), validity_at_insert(std::chrono::milliseconds(0)) {
         bone_positions.resize(9); // Pre-allocate for bones 0-8
     }
 };
@@ -228,6 +230,8 @@ public:
         cached_data.bone_positions = bone_positions;
         cached_data.last_update = now;
         cached_data.is_valid = true;
+        // P2-2: Store validity TTL at insert time
+        cached_data.validity_at_insert = GetSkeletonCacheValidity();
 
         esp::esp_stats.memory_reads.fetch_add(
             static_cast<int>(bone_indices.size()), std::memory_order_relaxed);
@@ -236,7 +240,6 @@ public:
 
     void cleanup_skeleton_cache() {
         auto now = std::chrono::steady_clock::now();
-        auto validity = GetSkeletonCacheValidity();
 
         if (now - last_cleanup < std::chrono::seconds(3)) {
             return;
@@ -244,12 +247,19 @@ public:
 
         for (auto it = skeleton_cache.begin(); it != skeleton_cache.end(); ) {
             auto age = now - it->second.last_update;
-            // P0-6/P3-1: Align cleanup TTL with configurable validity —
-            // remove entries older than 2x validity to prevent zombie accumulation.
-            if (age > validity * 2) {
+            // P2-2: Use stored validity_at_insert instead of current config value
+            // to handle config changes correctly for old entries.
+            auto entry_validity = it->second.validity_at_insert;
+            if (entry_validity.count() == 0) {
+                // Legacy entry without stored validity — use current config as fallback
+                if (age > GetSkeletonCacheValidity() * 2) {
+                    it = skeleton_cache.erase(it);
+                } else {
+                    ++it;
+                }
+            } else if (age > entry_validity * 2) {
                 it = skeleton_cache.erase(it);
-            }
-            else {
+            } else {
                 ++it;
             }
         }
@@ -569,7 +579,12 @@ void esp::prepare_skeleton_frame(const std::vector<uintptr_t>& peds,
     // This executes on the acquisition thread: never call ImGui from here.
     next.frame = g_prepared_sequence.fetch_add(1, std::memory_order_relaxed) + 1;
     next.timestamp = std::chrono::steady_clock::now();
-    next.session_generation = g_prepared_session_generation.load(std::memory_order_acquire);
+    
+    // P0-7 fix: Increment session generation FIRST with release semantics,
+    // then load the new value. This ensures any render thread that sees the
+    // new frame will also see the new session generation.
+    next.session_generation = g_prepared_session_generation.fetch_add(1, std::memory_order_acq_rel) + 1;
+    
     if (peds.empty()) {
         std::unique_lock lock(g_prepared_skeleton_mutex);
         g_prepared_skeleton = std::move(next);
@@ -945,13 +960,17 @@ static bool IsPlausiblePlayerName(const char* s) {
     return len >= 1 && len <= 47 && visible > 0 && s[len] == '\0';
 }
 
-// Name cache by netId — TTL + hard cap
+// Name cache by netId — TTL + hard cap + LRU + thread-safe
 static std::unordered_map<uint32_t, std::pair<std::string, std::chrono::steady_clock::time_point>> g_nameCache;
+static std::list<uint32_t> g_nameCacheLru; // MRU at back
+static std::mutex g_nameCacheMutex;
 static constexpr size_t kNameCacheMax = 256;
 static constexpr auto kNameCacheTtl = std::chrono::seconds(30);
 
 void esp::ClearNameCache() {
+    std::scoped_lock lock(g_nameCacheMutex);
     g_nameCache.clear();
+    g_nameCacheLru.clear();
 }
 
 #pragma warning(push)
@@ -981,10 +1000,20 @@ static bool ReadPlayerDisplayName(uintptr_t ped, uintptr_t pinfo, uint32_t netId
             // Don't cache "ID N" forever as a real name
             if (it->second.first.rfind("ID ", 0) != 0) {
                 snprintf(out, outN, "%s", it->second.first.c_str());
+                // Update LRU
+                {
+                    std::scoped_lock lock(g_nameCacheMutex);
+                    g_nameCacheLru.remove(netId);
+                    g_nameCacheLru.push_back(netId);
+                }
                 return true;
             }
         }
-        g_nameCache.erase(it);
+        {
+            std::scoped_lock lock(g_nameCacheMutex);
+            g_nameCache.erase(it);
+            g_nameCacheLru.remove(netId);
+        }
     }
 
     // Render is deliberately read-free.  A name not already cached is shown
@@ -1062,8 +1091,17 @@ static bool ReadPlayerDisplayName(uintptr_t ped, uintptr_t pinfo, uint32_t netId
     if (ok) {
         snprintf(out, outN, "%s", buf);
         if (netId) {
-            if (g_nameCache.size() >= kNameCacheMax) g_nameCache.clear();
+            std::scoped_lock lock(g_nameCacheMutex);
+            if (g_nameCache.size() >= kNameCacheMax) {
+                // LRU eviction
+                if (!g_nameCacheLru.empty()) {
+                    uint32_t lru = g_nameCacheLru.front();
+                    g_nameCacheLru.pop_front();
+                    g_nameCache.erase(lru);
+                }
+            }
             g_nameCache[netId] = { buf, std::chrono::steady_clock::now() };
+            g_nameCacheLru.push_back(netId);
         }
         return true;
     }
@@ -1114,36 +1152,62 @@ struct PedFrameFlags {
     bool adm = false;
     bool adm_known = false;
 };
+// Thread-safe access to per-ped frame flags
 static std::unordered_map<uintptr_t, PedFrameFlags> g_pedFrameFlags;
+static std::shared_mutex g_pedFrameFlagsMutex;
 
 static PedFrameFlags& PedFlags(uintptr_t ped) {
     const uint32_t f = static_cast<uint32_t>(ImGui::GetFrameCount());
     const uint64_t currentGen = FiveM::ESP::GetSessionGeneration().load(std::memory_order_acquire);
-    auto& e = g_pedFrameFlags[ped];
     
-    // P0-4: Invalidate on session generation change (map change, detach, reattach)
-    if (e.sessionGeneration != currentGen) {
-        e = PedFrameFlags{};
-        e.sessionGeneration = currentGen;
+    // Phase 1: Fast shared-lock check
+    {
+        std::shared_lock lock(g_pedFrameFlagsMutex);
+        auto it = g_pedFrameFlags.find(ped);
+        if (it != g_pedFrameFlags.end()) {
+            const PedFrameFlags& e = it->second;
+            // Check if entry is still valid (same session, same frame)
+            if (e.sessionGeneration == currentGen && e.frame == f) {
+                // Valid entry - need unique lock to update lastAccess
+                lock.unlock();
+                std::unique_lock uLock(g_pedFrameFlagsMutex);
+                auto it2 = g_pedFrameFlags.find(ped);
+                if (it2 != g_pedFrameFlags.end()) {
+                    it2->second.lastAccess = std::chrono::steady_clock::now();
+                    return it2->second;
+                }
+                // Fall through to recreate (entry was removed)
+            }
+        }
     }
-    if (e.frame != f) {
+    
+    // Phase 2: Unique lock for modifications (new entry, session change, new frame)
+    std::unique_lock lock(g_pedFrameFlagsMutex);
+    auto& e = g_pedFrameFlags[ped];
+    bool needsReset = (e.sessionGeneration != currentGen || e.frame != f);
+    
+    if (needsReset) {
         e = PedFrameFlags{};
         e.frame = f;
         e.sessionGeneration = currentGen;
     }
     e.lastAccess = std::chrono::steady_clock::now();
     
-    // Opportunistic prune by real time (30s TTL) once in a while
-    static uint32_t s_lastPrune = 0;
-    if (f != s_lastPrune && (f % 300) == 0) {
-        s_lastPrune = f;
-        const auto now = std::chrono::steady_clock::now();
-        constexpr auto kPruneTTL = std::chrono::seconds(30);
-        for (auto it = g_pedFrameFlags.begin(); it != g_pedFrameFlags.end();) {
-            if (now - it->second.lastAccess > kPruneTTL) it = g_pedFrameFlags.erase(it);
-            else ++it;
+    // Incremental pruning: remove at most 1 expired entry per call (amortized O(1))
+    static uint32_t s_pruneCursor = 0;
+    constexpr auto kPruneTTL = std::chrono::seconds(30);
+    const auto now = std::chrono::steady_clock::now();
+    
+    if (!g_pedFrameFlags.empty()) {
+        size_t idx = s_pruneCursor % g_pedFrameFlags.size();
+        auto it = g_pedFrameFlags.begin();
+        std::advance(it, idx);
+        if (now - it->second.lastAccess > kPruneTTL) {
+            g_pedFrameFlags.erase(it);
         }
+        s_pruneCursor = (s_pruneCursor + 1) % (g_pedFrameFlags.size() + 1);
     }
+    
     return e;
 }
 
@@ -1592,6 +1656,9 @@ void esp::prepare_esp_frame(const std::vector<uintptr_t>& peds,
     // This executes on the acquisition thread: never call ImGui from here.
     next.frame = g_prepared_sequence.fetch_add(1, std::memory_order_relaxed) + 1;
     next.timestamp = std::chrono::steady_clock::now();
+    // P0-7: Use current session generation (set by prepare_skeleton_frame or previous cycle)
+    next.session_generation = g_prepared_session_generation.load(std::memory_order_acquire);
+    
     // P2-7: Copy render config to frame for render thread (no global esp::config access).
     next.renderConfig.max_esp_distance = frameConfig.max_esp_distance;
     next.renderConfig.show_dead = frameConfig.show_dead;
@@ -3063,32 +3130,36 @@ void esp::DrawPlayerRadar(const Matrix& /*view_matrix*/, uintptr_t localplayer) 
         dl->AddCircleFilled(ImVec2(cx, cy), 3.5f, IM_COL32(0, 255, 120, 255), 12);
         Vec3 localPos = FiveM::ESP::FrameCacheValid()
             ? FiveM::ESP::GetFrameLocalPos() : Vec3{};
-        if (localPos.IsZero()) return;
-        // Heading is optional for the square radar.  Keep a stable north-up
-        // view instead of reading the local matrix from the render thread.
-        float fx = 0.f, fy = 1.f;
-        float rx = fy, ry = -fx;
-        for (size_t i = 0; i < FiveM::ESP::validPeds.size(); ++i) {
-            uintptr_t ped = FiveM::ESP::validPeds[i];
-            if (!ped || ped == localplayer) continue;
-            const bool visible = EspPedVisible(ped);
-            if (config.visible_check && !visible) continue;
-            Vec3 pos = (i < FiveM::ESP::positions.size()) ? FiveM::ESP::positions[i] : Vec3{};
-            if (pos.IsZero()) continue;
-            float dx = pos.x - localPos.x, dy = pos.y - localPos.y;
-            float dist = sqrtf(dx * dx + dy * dy);
-            if (dist > range || dist < 0.5f) continue;
-            float localX = dx * rx + dy * ry;
-            float localY = dx * fx + dy * fy;
-            float nx = (localX / range) * R;
-            float ny = (-localY / range) * R;
-            nx = std::clamp(nx, -R + 5.f, R - 5.f);
-            ny = std::clamp(ny, -R + 5.f, R - 5.f);
-            ImU32 col = EspPedColor(ped, config.color_box_2d, visible);
-            if (!config.visibility_colors && EspPedIsFriend(ped))
-                col = friends::config.friend_color;
-            dl->AddCircleFilled(ImVec2(cx + nx, cy + ny), 3.0f, col, 10);
-        }
+        if (!FiveM::ESP::FrameCacheValid()) return;
+    auto snapshot = FiveM::ESP::GetValidPedsSnapshot();
+    if (snapshot.validPeds.empty()) return;
+    const Vec3 localPos = FiveM::ESP::GetFrameLocalPos();
+    if (localPos.IsZero()) return;
+    // Heading is optional for the square radar.  Keep a stable north-up
+    // view instead of reading the local matrix from the render thread.
+    float fx = 0.f, fy = 1.f;
+    float rx = fy, ry = -fx;
+    for (size_t i = 0; i < snapshot.validPeds.size(); ++i) {
+        uintptr_t ped = snapshot.validPeds[i];
+        if (!ped || ped == localplayer) continue;
+        const bool visible = EspPedVisible(ped);
+        if (config.visible_check && !visible) continue;
+        Vec3 pos = (i < snapshot.positions.size()) ? snapshot.positions[i] : Vec3{};
+        if (pos.IsZero()) continue;
+        float dx = pos.x - localPos.x, dy = pos.y - localPos.y;
+        float dist = sqrtf(dx * dx + dy * dy);
+        if (dist > range || dist < 0.5f) continue;
+        float localX = dx * rx + dy * ry;
+        float localY = dx * fx + dy * fy;
+        float nx = (localX / range) * R;
+        float ny = (-localY / range) * R;
+        nx = std::clamp(nx, -R + 5.f, R - 5.f);
+        ny = std::clamp(ny, -R + 5.f, R - 5.f);
+        ImU32 col = EspPedColor(ped, config.color_box_2d, visible);
+        if (!config.visibility_colors && EspPedIsFriend(ped))
+            col = friends::config.friend_color;
+        dl->AddCircleFilled(ImVec2(cx + nx, cy + ny), 3.0f, col, 10);
+    }
     }
 
     // Triangle radar around crosshair (default) — tracks aim FOV rings
@@ -3112,6 +3183,10 @@ void esp::DrawPlayerRadar(const Matrix& /*view_matrix*/, uintptr_t localplayer) 
     // Implemented with weak default; esp_manager can set via config.triangle_radar_radius before call.
 
     radius = (std::max)(40.f, config.triangle_radar_radius);
+
+    if (!FiveM::ESP::FrameCacheValid()) return;
+    auto snapshot = FiveM::ESP::GetValidPedsSnapshot();
+    if (snapshot.validPeds.empty()) return;
 
     Vec3 localPos = FiveM::ESP::FrameCacheValid()
         ? FiveM::ESP::GetFrameLocalPos() : Vec3{};
@@ -3146,14 +3221,14 @@ void esp::DrawPlayerRadar(const Matrix& /*view_matrix*/, uintptr_t localplayer) 
     const float maxDist = config.max_esp_distance;
     if (maxDist <= 0.f) return;
 
-    for (size_t i = 0; i < FiveM::ESP::validPeds.size(); ++i) {
-        uintptr_t ped = FiveM::ESP::validPeds[i];
+    for (size_t i = 0; i < snapshot.validPeds.size(); ++i) {
+        uintptr_t ped = snapshot.validPeds[i];
         if (!ped || ped == localplayer) continue;
         if (config.team_check && EspPedIsFriend(ped)) continue;
         const bool visible = EspPedVisible(ped);
         if (config.visible_check && !visible) continue;
 
-        Vec3 pos = (i < FiveM::ESP::positions.size()) ? FiveM::ESP::positions[i] : Vec3{};
+        Vec3 pos = (i < snapshot.positions.size()) ? snapshot.positions[i] : Vec3{};
         if (pos.IsZero()) continue;
 
         float dist = localPos.distance_to(pos);
@@ -3505,7 +3580,7 @@ void esp::ShutdownPreparedFrames() {
     g_proj_cache.clear();
     ClearNameCache();
     g_lastPrepScatter = {};
-    g_prepared_session_generation.fetch_add(1, std::memory_order_acq_rel);
+    // Session generation increment moved to prepare_skeleton_frame (P0-7 fix)
     {
         std::scoped_lock lock(g_preparedBoneScatterMutex);
         if (g_preparedBoneScatter) {

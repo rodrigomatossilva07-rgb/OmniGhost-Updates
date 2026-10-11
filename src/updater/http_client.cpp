@@ -2,11 +2,13 @@
 #include "http_policy.h"
 #include "update_log.h"
 #include "wininet_fallback.h"
+#include "update_types.h"
 #include "../platform/text_encoding.h"
 #include "../platform/internet_handle.h"
 
 #include <Windows.h>
 #include <winhttp.h>
+#include <wincrypt.h>
 
 #include <algorithm>
 #include <array>
@@ -23,6 +25,7 @@
 #include <vector>
 
 #pragma comment(lib, "winhttp.lib")
+#pragma comment(lib, "crypt32.lib")
 
 namespace OmniGhost::Update {
 namespace {
@@ -151,6 +154,75 @@ void ConfigureRequest(void* request) {
 #endif
 }
 
+namespace {
+bool ValidateServerCertificate(const void* requestHandle, const std::vector<std::string>& pinnedThumbprints) {
+    if (pinnedThumbprints.empty()) return true; // No pinning configured
+
+    PCCERT_CONTEXT certContext = nullptr;
+    DWORD certSize = 0;
+
+    // Get the server certificate from the request handle
+    if (!WinHttpQueryOption(
+            requestHandle,
+            WINHTTP_OPTION_SERVER_CERT_CONTEXT,
+            &certContext,
+            &certSize)) {
+        return false;
+    }
+
+    if (!certContext) return false;
+
+    // Compute SHA-256 thumbprint of the server certificate
+    HCRYPTPROV hProv = 0;
+    HCRYPTHASH hHash = 0;
+    BYTE thumbprint[32];
+    DWORD thumbprintSize = sizeof(thumbprint);
+    bool ok = false;
+
+    if (!CryptAcquireContextW(&hProv, nullptr, nullptr, PROV_RSA_AES, CRYPT_VERIFYCONTEXT))
+        return false;
+
+    if (!CryptCreateHash(hProv, CALG_SHA_256, 0, 0, &hHash)) {
+        CryptReleaseContext(hProv, 0);
+        return false;
+    }
+
+    if (!CryptHashData(hHash, certContext->pbCertEncoded, certContext->cbCertEncoded, 0)) {
+        CryptDestroyHash(hHash);
+        CryptReleaseContext(hProv, 0);
+        return false;
+    }
+
+    if (!CryptGetHashParam(hHash, HP_HASHVAL, thumbprint, &thumbprintSize, 0)) {
+        CryptDestroyHash(hHash);
+        CryptReleaseContext(hProv, 0);
+        return false;
+    }
+
+    CryptDestroyHash(hHash);
+    CryptReleaseContext(hProv, 0);
+
+    // Convert thumbprint to hex string
+    std::string thumbprintHex;
+    thumbprintHex.reserve(64);
+    for (DWORD i = 0; i < thumbprintSize; ++i) {
+        char hex[3];
+        sprintf_s(hex, "%02X", thumbprint[i]);
+        thumbprintHex += hex;
+    }
+
+    // Compare against pinned thumbprints (case-insensitive)
+    for (const auto& pinned : pinnedThumbprints) {
+        if (_stricmp(thumbprintHex.c_str(), pinned.c_str()) == 0) {
+            ok = true;
+            break;
+        }
+    }
+
+    return ok;
+}
+} // namespace
+
 bool CreateAndSendRequest(
     const std::string& url,
     int timeoutMilliseconds,
@@ -274,6 +346,13 @@ bool CreateAndSendRequest(
     if (!WinHttpReceiveResponse(handles.request.get(), nullptr)) {
         const DWORD code = GetLastError();
         error = BuildWinHttpFailure("WinHttpReceiveResponse", code, url, noProxy);
+        return false;
+    }
+
+    // P1-10: Validate server certificate against pinned thumbprints
+    const auto& config = HttpPolicy::GetConfiguration();
+    if (!ValidateServerCertificate(handles.request.get(), config.githubTlsCertificateThumbprints)) {
+        error = "Certificado TLS do servidor não corresponde aos thumbprints esperados (certificate pinning falhou).";
         return false;
     }
 

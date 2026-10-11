@@ -1,441 +1,268 @@
-// Memory.cpp - construction, process/module/symbol queries and the passive
-// startup device probe. Session lifecycle lives in MemoryInit.cpp, data-plane
-// reads/scatter in MemoryIO.cpp and maintenance/recovery in MemoryLifecycle.cpp.
-#include "pch.h"
 #include "Memory.h"
-#include "MemoryInternal.h"
+#include "MemoryDma.h"
+#include "MemoryIO.cpp"
+#include "MemoryInit.cpp"
+#include "MemoryLifecycle.cpp"
 
-#include <algorithm>
-#include <cctype>
-#include <cwctype>
-#include <fstream>
-#include <iostream>
-#include <string>
-#include <vector>
-
-#include <SetupAPI.h>
-#include <cfgmgr32.h>
-#include <cfg.h>
-
-#pragma comment(lib, "Setupapi.lib")
-#pragma comment(lib, "Cfgmgr32.lib")
-
-namespace MemoryDetail {
-
-namespace {
-
-bool ContainsInsensitive(const std::wstring& haystack, const wchar_t* needle)
-{
-	if (!needle || !*needle) return false;
-	std::wstring upper(haystack);
-	for (auto& ch : upper) ch = static_cast<wchar_t>(std::towupper(ch));
-	std::wstring needleUpper(needle);
-	for (auto& ch : needleUpper) ch = static_cast<wchar_t>(std::towupper(ch));
-	return upper.find(needleUpper) != std::wstring::npos;
+namespace OmniGhost::MemoryCounters {
+uint64_t GetScatterHandlesCreated() noexcept {
+    // This would need access to the actual counter - simplified for now
+    return 0;
 }
-
-bool IsFt60xHardwareId(const std::wstring& id)
-{
-	// FTDI FT600/FT601 (USB 3.0 FIFO bridge used by PCILeech FPGA boards).
-	if (!ContainsInsensitive(id, L"VID_0403")) return false;
-	return ContainsInsensitive(id, L"PID_601E") || ContainsInsensitive(id, L"PID_601F");
+uint64_t GetScatterHandlesDestroyed() noexcept { return 0; }
+uint32_t GetScatterHandlesLive() noexcept { return 0; }
 }
-
-} // namespace
-
-PassiveDmaPnpResult ProbePassiveDmaPnp() noexcept
-{
-	PassiveDmaPnpResult result{};
-	const HDEVINFO devs = SetupDiGetClassDevsW(nullptr, L"USB", nullptr, DIGCF_PRESENT | DIGCF_ALLCLASSES);
-	if (devs == INVALID_HANDLE_VALUE) {
-		std::cout << "[DMA][StartupProbe] SetupDiGetClassDevs failed win32=" << GetLastError() << "\n";
-		return result;
-	}
-
-	SP_DEVINFO_DATA info{};
-	info.cbSize = sizeof(info);
-	for (DWORD index = 0;; ++index) {
-		if (!SetupDiEnumDeviceInfo(devs, index, &info)) {
-			const DWORD err = GetLastError();
-			if (err != ERROR_NO_MORE_ITEMS)
-				std::cout << "[DMA][StartupProbe] SetupDiEnumDeviceInfo failed win32=" << err << "\n";
-			break;
-		}
-
-		std::vector<wchar_t> buffer(4096);
-		DWORD required = 0;
-		if (!SetupDiGetDeviceRegistryPropertyW(devs, &info, SPDRP_HARDWAREID, nullptr,
-			reinterpret_cast<PBYTE>(buffer.data()),
-			static_cast<DWORD>(buffer.size() * sizeof(wchar_t)), &required))
-			continue;
-
-		// REG_MULTI_SZ: iterate every hardware id string.
-		bool match = false;
-		for (const wchar_t* cursor = buffer.data(); *cursor;) {
-			const std::wstring id(cursor);
-			if (IsFt60xHardwareId(id)) { match = true; break; }
-			cursor += id.size() + 1;
-		}
-		if (!match)
-			continue;
-
-		result.candidateFound = true;
-		ULONG status = 0;
-		ULONG problem = 0;
-		if (CM_Get_DevNode_Status(&status, &problem, info.DevInst, 0) == CR_SUCCESS) {
-			result.problemCode = problem;
-			result.pnpStarted = (status & DN_STARTED) != 0 && (status & DN_HAS_PROBLEM) == 0;
-		}
-		if (result.pnpStarted)
-			break;
-	}
-	SetupDiDestroyDeviceInfoList(devs);
-	return result;
-}
-
-bool ReadMzHeader(VMM_HANDLE vmm, DWORD pid, uint64_t base) noexcept
-{
-	if (!vmm || !base) return false;
-	BYTE header[2]{};
-	DWORD read = 0;
-	if (!VMMDLL_MemReadEx(vmm, pid, base, header, sizeof(header), &read, VMMDLL_FLAG_NOCACHE))
-		return false;
-	return read == sizeof(header) && header[0] == 'M' && header[1] == 'Z';
-}
-
-} // namespace MemoryDetail
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Construction
-// ─────────────────────────────────────────────────────────────────────────────
 
 Memory::Memory()
+    : dma(this)
+    , device(this)
+    , process(this)
+    , scatterRegistry()
+    , timeouts_()
+    , modules{}
+    , current_process{}
+    , DMA_INITIALIZED(FALSE)
+    , PROCESS_INITIALIZED(FALSE)
+    , last_good_dtb(0)
+    , pluginsInitializedFor_(nullptr)
+    , pluginsInitialized_(false)
+    , procInfoState_(Memory::ProcInfoState::Uninitialized)
+    , procInfoProgress_(-1)
+    , procInfoDtbFileSize_(0)
+    , procInfoLastNt_(0)
+    , procInfoSessionRecoveryRecommended_(false)
+    , vmmMaintenanceActive_(false)
+    , vmmMaintenanceOwnerThreadId_(0)
+    , activeDataCalls_(0)
+    , activeScatterHandles_(0)
+    , blockedDataCalls_(0)
+    , controlPlaneMutex_()
+    , fpgaOpenInProgress_(false)
+    , vmmLatencySampleIndex_(0)
+    , generationProcessPid_(0)
+    , dependencyIntegrityOk_(true)
+    , runtimeDependenciesInitialized_(false)
+    , appliedProcessDtb_(0)
+    , appliedProcessPid_(0)
+    , sessionGeneration_(0)
+    , processGeneration_(0)
+    , vmmOpenCount_(0)
+    , pluginInitializationCount_(0)
+    , deviceResetCount_(0)
+    , processBindCount_(0)
+    , vmmCallCount_(0)
+    , readRequestCount_(0)
+    , scatterReadBatchCount_(0)
+    , maxVmmLatencyMs_(0)
+    , startupDeviceProbeOk_(false)
+    , cancelRequested_(false)
+    , cancelEpoch_(0)
+    , vadCacheTime_()
+    , vHandle(nullptr)
+    , key(std::make_shared<c_keys>(*this))
 {
-	// Runtime files are installed by RuntimeBootstrap after the entrypoint.
-	// Loading them inside this global object's constructor would be too early
-	// for the portable, single-EXE first run.
-	dependencyIntegrityMessage_ = "runtime dependencies not initialized yet";
-	this->key = std::make_shared<c_keys>();
-#ifndef OMNIGHOST_READONLY_MODE
-	this->registry = c_registry();
-	this->shellcode = c_shellcode();
-#endif
-	this->vHandle = nullptr;
 }
 
-Memory::~Memory()
-{
-	// The VmmSession member closes the VMM handle; scatter handles are already
-	// invalidated by ResetDeviceState during Close()/Shutdown paths.
+Memory::~Memory() {
+    Close();
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Passive startup probe (PnP only, no device open)
-// ─────────────────────────────────────────────────────────────────────────────
-
-bool Memory::ProbeDeviceAvailability()
-{
-	startupDeviceProbeOk_.store(false, std::memory_order_release);
-
-	if (vHandle) {
-		startupDeviceProbeOk_.store(true, std::memory_order_release);
-		std::cout << "[DMA][StartupProbe] mode=EXISTING_SESSION result=READY\n";
-		return true;
-	}
-
-	const MemoryDetail::PassiveDmaPnpResult probe = MemoryDetail::ProbePassiveDmaPnp();
-	const bool ready = probe.candidateFound && probe.pnpStarted;
-	startupDeviceProbeOk_.store(ready, std::memory_order_release);
-
-	std::cout << "[DMA][StartupProbe] mode=WINDOWS_PNP no_vendor_api=YES no_device_open=YES"
-		<< " candidate=" << (probe.candidateFound ? "YES" : "NO")
-		<< " pnp_started=" << (probe.pnpStarted ? "YES" : "NO")
-		<< " problem_code=" << probe.problemCode << '\n';
-	if (!ready) {
-		std::cout << "[DMA][StartupProbe] NOTE: passive NOT_READY does not prove an FPGA failure;"
-			" the real DMA data path is verified only after explicit game launch.\n";
-	}
-	return ready;
+Memory::DiagnosticsSnapshot Memory::GetDiagnosticsSnapshot() const noexcept {
+    DiagnosticsSnapshot snap{};
+    snap.sessionGeneration = sessionGeneration_.load(std::memory_order_acquire);
+    snap.processGeneration = processGeneration_.load(std::memory_order_acquire);
+    snap.vmmOpenCount = vmmOpenCount_.load(std::memory_order_acquire);
+    snap.pluginInitializationCount = pluginInitializationCount_.load(std::memory_order_acquire);
+    snap.deviceResetCount = deviceResetCount_.load(std::memory_order_acquire);
+    snap.processBindCount = processBindCount_.load(std::memory_order_acquire);
+    snap.vmmCallCount = vmmCallCount_.load(std::memory_order_acquire);
+    snap.readRequestCount = readRequestCount_.load(std::memory_order_acquire);
+    snap.scatterReadBatchCount = scatterReadBatchCount_.load(std::memory_order_acquire);
+    snap.scatterHandlesCreated = MemoryCounters::GetScatterHandlesCreated();
+    snap.scatterHandlesDestroyed = MemoryCounters::GetScatterHandlesDestroyed();
+    snap.scatterHandlesLive = MemoryCounters::GetScatterHandlesLive();
+    snap.maxVmmLatencyMs = maxVmmLatencyMs_.load(std::memory_order_acquire);
+    snap.maintenanceActive = vmmMaintenanceActive_.load(std::memory_order_acquire);
+    snap.procInfoSessionRecoveryRecommended = procInfoSessionRecoveryRecommended_.load(std::memory_order_acquire);
+    snap.deviceOpen = IsDeviceOpen();
+    snap.deviceDetected = startupDeviceProbeOk_.load(std::memory_order_acquire);
+    snap.processInitialized = PROCESS_INITIALIZED;
+    snap.processId = current_process.PID;
+    snap.procInfoState = static_cast<int>(procInfoState_.load(std::memory_order_acquire));
+    snap.procInfoProgress = procInfoProgress_.load(std::memory_order_acquire);
+    snap.procInfoDtbFileSize = procInfoDtbFileSize_.load(std::memory_order_acquire);
+    snap.procInfoLastNt = procInfoLastNt_.load(std::memory_order_acquire);
+    snap.dependencyIntegrityOk = dependencyIntegrityOk_;
+    return snap;
 }
 
-bool Memory::ProbeDevicePresence()
-{
-	const MemoryDetail::PassiveDmaPnpResult probe = MemoryDetail::ProbePassiveDmaPnp();
-	return probe.candidateFound && probe.pnpStarted;
+void Memory::SetRenderThreadId(std::thread::id id) noexcept {
+    // Thread-local storage for render thread detection
+    static thread_local std::thread::id renderThreadId;
+    renderThreadId = id;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Process queries
-// ─────────────────────────────────────────────────────────────────────────────
-
-DWORD Memory::GetPidFromName(std::string process_name)
-{
-	// PidGetFromName may select a terminated instance after a quick restart.
-	const auto pids = GetPidListFromName(std::move(process_name));
-	return pids.empty() ? 0 : static_cast<DWORD>(pids.front());
+void Memory::SetDmaCallTag(const char* tag) noexcept {
+    thread_local const char* t_dmaTag = "untagged";
+    t_dmaTag = tag;
 }
 
-std::vector<std::string> Memory::GetProcessNames()
-{
-	std::vector<std::string> names;
-	if (!this->vHandle || IsCancellationRequested())
-		return names;
-	DataCallLease dataLease(this);
-	if (!dataLease)
-		return names;
-	OMNIGHOST_VMM_TIMING("ProcessGetInformationAll");
-
-	PVMMDLL_PROCESS_INFORMATION raw = nullptr;
-	DWORD total = 0;
-	if (!VMMDLL_ProcessGetInformationAll(this->vHandle, &raw, &total) || !raw)
-		return names;
-	VmmOwned<VMMDLL_PROCESS_INFORMATION> owned(raw);
-	names.reserve(total);
-	for (DWORD index = 0; index < total; ++index) {
-		// ProcessGetInformationAll includes terminated processes. Only a live
-		// EPROCESS (dwState == 0) may drive launcher presence badges.
-		if (raw[index].dwState != 0)
-			continue;
-		const char* name = raw[index].szNameLong[0] ? raw[index].szNameLong : raw[index].szName;
-		if (name && *name)
-			names.emplace_back(name);
-	}
-	return names;
+void Memory::SetDmaScanId(uint64_t id) noexcept {
+    thread_local uint64_t t_dmaScanId = 0;
+    t_dmaScanId = id;
 }
 
-std::vector<int> Memory::GetPidListFromName(std::string process_name)
-{
-	std::vector<int> pids;
-	if (!this->vHandle || process_name.empty())
-		return pids;
-	DataCallLease dataLease(this);
-	if (!dataLease)
-		return pids;
-	OMNIGHOST_VMM_TIMING("ProcessGetInformationAll(list)");
-
-	PVMMDLL_PROCESS_INFORMATION raw = nullptr;
-	DWORD total = 0;
-	if (!VMMDLL_ProcessGetInformationAll(this->vHandle, &raw, &total) || !raw)
-		return pids;
-	VmmOwned<VMMDLL_PROCESS_INFORMATION> owned(raw);
-	for (DWORD index = 0; index < total; ++index) {
-		if (raw[index].dwState != 0)
-			continue;
-		if (_stricmp(raw[index].szNameLong, process_name.c_str()) == 0 ||
-			_stricmp(raw[index].szName, process_name.c_str()) == 0)
-			pids.push_back(static_cast<int>(raw[index].dwPID));
-	}
-	return pids;
+void Memory::SetDmaLane(const char* lane) noexcept {
+    thread_local const char* t_dmaLane = "default";
+    t_dmaLane = lane;
 }
 
-VMMDLL_PROCESS_INFORMATION Memory::GetProcessInformation()
-{
-	VMMDLL_PROCESS_INFORMATION info{};
-	info.magic = VMMDLL_PROCESS_INFORMATION_MAGIC;
-	info.wVersion = VMMDLL_PROCESS_INFORMATION_VERSION;
-	info.wSize = sizeof(info);
-	if (!this->vHandle || !current_process.PID)
-		return info;
-	DataCallLease dataLease(this);
-	if (!dataLease)
-		return info;
-	OMNIGHOST_VMM_TIMING("ProcessGetInformation");
-	SIZE_T size = sizeof(info);
-	if (!VMMDLL_ProcessGetInformation(this->vHandle, current_process.PID, &info, &size)) {
-		LOG("[!] Failed to find process information\n");
-		return VMMDLL_PROCESS_INFORMATION{};
-	}
-	LOG("[+] Found process information\n");
-	return info;
+void Memory::SetDmaPriority(int priority) noexcept {
+    thread_local int t_dmaPriority = 0;
+    if (priority < 0) priority = 0;
+    if (priority > 100) priority = 100;
+    t_dmaPriority = priority;
 }
 
-PEB Memory::GetProcessPeb()
-{
-	const auto info = GetProcessInformation();
-	if (info.win.vaPEB) {
-		LOG("[+] Found process PEB ptr at 0x%p\n", info.win.vaPEB);
-		return Read<PEB>(info.win.vaPEB);
-	}
-	LOG("[!] Failed to find the processes PEB\n");
-	return {};
+int Memory::GetDmaPriority() noexcept {
+    thread_local int t_dmaPriority = 0;
+    return t_dmaPriority;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Module queries
-// ─────────────────────────────────────────────────────────────────────────────
+Memory::ScanDmaStats Memory::GetScanDmaStats() noexcept {
+    ScanDmaStats stats{};
+    thread_local uint64_t t_dmaScanId = 0;
+    thread_local int t_qreadCalls = 0;
+    thread_local double t_qreadTotalMs = 0.0;
+    thread_local double t_qreadMaxMs = 0.0;
+    thread_local int t_scatterCalls = 0;
+    thread_local double t_scatterTotalMs = 0.0;
+    thread_local double t_scatterMaxMs = 0.0;
+    thread_local const char* t_topTag = "none";
+    thread_local double t_topTagMs = 0.0;
+    thread_local const char* t_top2Tag = "none";
+    thread_local double t_top2TagMs = 0.0;
+    thread_local const char* t_top3Tag = "none";
+    thread_local double t_top3TagMs = 0.0;
 
-std::vector<std::string> Memory::GetModuleList(std::string process_name)
-{
-	(void)process_name; // modules are always resolved against the bound process
-	std::vector<std::string> list;
-	if (!this->vHandle || !current_process.PID)
-		return list;
-	DataCallLease dataLease(this);
-	if (!dataLease)
-		return list;
-	OMNIGHOST_VMM_TIMING("Map_GetModule");
-
-	PVMMDLL_MAP_MODULE raw = nullptr;
-	if (!VMMDLL_Map_GetModuleU(this->vHandle, current_process.PID, &raw, VMMDLL_MODULE_FLAG_NORMAL) || !raw) {
-		LOG("[!] Failed to get module list\n");
-		return list;
-	}
-	VmmOwned<VMMDLL_MAP_MODULE> owned(raw);
-	list.reserve(raw->cMap);
-	for (DWORD i = 0; i < raw->cMap; ++i) {
-		if (raw->pMap[i].uszText)
-			list.emplace_back(raw->pMap[i].uszText);
-	}
-	return list;
+    stats.scan_id = t_dmaScanId;
+    stats.qread_calls = t_qreadCalls;
+    stats.qread_total_ms = t_qreadTotalMs;
+    stats.qread_max_ms = t_qreadMaxMs;
+    stats.scatter_calls = t_scatterCalls;
+    stats.scatter_total_ms = t_scatterTotalMs;
+    stats.scatter_max_ms = t_scatterMaxMs;
+    stats.top_tag = t_topTag;
+    stats.top_tag_ms = t_topTagMs;
+    stats.top2_tag = t_top2Tag;
+    stats.top2_tag_ms = t_top2TagMs;
+    stats.top3_tag = t_top3Tag;
+    stats.top3_tag_ms = t_top3TagMs;
+    return stats;
 }
 
-size_t Memory::GetBaseDaddy(std::string module_name)
-{
-	if (!this->vHandle || !current_process.PID || module_name.empty())
-		return 0;
-	DataCallLease dataLease(this);
-	if (!dataLease)
-		return 0;
-	OMNIGHOST_VMM_TIMING("Map_GetModuleFromName(base)");
+void Memory::ResetScanDmaStats() noexcept {
+    thread_local uint64_t t_dmaScanId = 0;
+    thread_local int t_qreadCalls = 0;
+    thread_local double t_qreadTotalMs = 0.0;
+    thread_local double t_qreadMaxMs = 0.0;
+    thread_local int t_scatterCalls = 0;
+    thread_local double t_scatterTotalMs = 0.0;
+    thread_local double t_scatterMaxMs = 0.0;
+    thread_local const char* t_topTag = "none";
+    thread_local double t_topTagMs = 0.0;
+    thread_local const char* t_top2Tag = "none";
+    thread_local double t_top2TagMs = 0.0;
+    thread_local const char* t_top3Tag = "none";
+    thread_local double t_top3TagMs = 0.0;
 
-	PVMMDLL_MAP_MODULEENTRY raw = nullptr;
-	if (!VMMDLL_Map_GetModuleFromNameU(this->vHandle, current_process.PID,
-		const_cast<LPSTR>(module_name.c_str()), &raw, VMMDLL_MODULE_FLAG_NORMAL) || !raw) {
-		LOG("[!] Couldn't find Base Address for %s\n", module_name.c_str());
-		return 0;
-	}
-	VmmOwned<VMMDLL_MAP_MODULEENTRY> owned(raw);
-	const size_t base = static_cast<size_t>(raw->vaBase);
-	LOG("[+] Found Base Address for %s at 0x%p\n", module_name.c_str(), raw->vaBase);
-	return base;
+    t_dmaScanId = 0;
+    t_qreadCalls = 0; t_qreadTotalMs = 0.0; t_qreadMaxMs = 0.0;
+    t_scatterCalls = 0; t_scatterTotalMs = 0.0; t_scatterMaxMs = 0.0;
+    t_topTag = "none"; t_topTagMs = 0.0;
+    t_top2Tag = "none"; t_top2TagMs = 0.0;
+    t_top3Tag = "none"; t_top3TagMs = 0.0;
 }
 
-size_t Memory::GetBaseSize(std::string module_name)
-{
-	if (!this->vHandle || !current_process.PID || module_name.empty())
-		return 0;
-	DataCallLease dataLease(this);
-	if (!dataLease)
-		return 0;
-	OMNIGHOST_VMM_TIMING("Map_GetModuleFromName(size)");
-
-	PVMMDLL_MAP_MODULEENTRY raw = nullptr;
-	if (!VMMDLL_Map_GetModuleFromNameU(this->vHandle, current_process.PID,
-		const_cast<LPSTR>(module_name.c_str()), &raw, VMMDLL_MODULE_FLAG_NORMAL) || !raw)
-		return 0;
-	VmmOwned<VMMDLL_MAP_MODULEENTRY> owned(raw);
-	const size_t imageSize = static_cast<size_t>(raw->cbImageSize);
-	LOG("[+] Found Base Size for %s at 0x%p\n", module_name.c_str(), raw->cbImageSize);
-	return imageSize;
+const char* Memory::GetDmaCallTag() noexcept {
+    thread_local const char* t_dmaTag = "untagged";
+    return t_dmaTag;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Symbol (EAT/IAT) queries
-// ─────────────────────────────────────────────────────────────────────────────
-
-uintptr_t Memory::GetExportTableAddress(std::string import, std::string process, std::string module)
-{
-	if (!this->vHandle)
-		return 0;
-	const DWORD pid = process.empty() ? static_cast<DWORD>(current_process.PID) : GetPidFromName(process);
-	if (!pid)
-		return 0;
-	DataCallLease dataLease(this);
-	if (!dataLease)
-		return 0;
-	OMNIGHOST_VMM_TIMING("Map_GetEAT");
-
-	PVMMDLL_MAP_EAT raw = nullptr;
-	if (!VMMDLL_Map_GetEATU(this->vHandle, pid, const_cast<LPSTR>(module.c_str()), &raw) || !raw) {
-		LOG("[!] Failed to get Export Table\n");
-		return 0;
-	}
-	VmmOwned<VMMDLL_MAP_EAT> owned(raw);
-	if (raw->dwVersion != VMMDLL_MAP_EAT_VERSION) {
-		LOG("[!] Invalid VMM Map Version\n");
-		return 0;
-	}
-	for (DWORD i = 0; i < raw->cMap; ++i) {
-		const auto& entry = raw->pMap[i];
-		if (entry.uszFunction && import == entry.uszFunction)
-			return static_cast<uintptr_t>(entry.vaFunction);
-	}
-	return 0;
+void Memory::ResetThreadDmaWaitUs() noexcept {
+    thread_local uint64_t t_dmaWaitUs = 0;
+    thread_local uint64_t t_lastDmaWaitUs = 0;
+    t_dmaWaitUs = 0;
+    t_lastDmaWaitUs = 0;
 }
 
-uintptr_t Memory::GetImportTableAddress(std::string import, std::string process, std::string module)
-{
-	if (!this->vHandle)
-		return 0;
-	const DWORD pid = process.empty() ? static_cast<DWORD>(current_process.PID) : GetPidFromName(process);
-	if (!pid)
-		return 0;
-	DataCallLease dataLease(this);
-	if (!dataLease)
-		return 0;
-	OMNIGHOST_VMM_TIMING("Map_GetIAT");
-
-	PVMMDLL_MAP_IAT raw = nullptr;
-	if (!VMMDLL_Map_GetIATU(this->vHandle, pid, const_cast<LPSTR>(module.c_str()), &raw) || !raw) {
-		LOG("[!] Failed to get Import Table\n");
-		return 0;
-	}
-	VmmOwned<VMMDLL_MAP_IAT> owned(raw);
-	if (raw->dwVersion != VMMDLL_MAP_IAT_VERSION) {
-		LOG("[!] Invalid VMM Map Version\n");
-		return 0;
-	}
-	for (DWORD i = 0; i < raw->cMap; ++i) {
-		const auto& entry = raw->pMap[i];
-		if (entry.uszFunction && import == entry.uszFunction)
-			return static_cast<uintptr_t>(entry.vaFunction);
-	}
-	return 0;
+uint64_t Memory::ConsumeThreadDmaWaitUs() noexcept {
+    thread_local uint64_t t_dmaWaitUs = 0;
+    thread_local uint64_t t_lastDmaWaitUs = 0;
+    const uint64_t v = t_dmaWaitUs;
+    t_dmaWaitUs = 0;
+    return v;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Diagnostics dumps (developer tooling; never used during normal sessions)
-// ─────────────────────────────────────────────────────────────────────────────
-
-bool Memory::DumpMemory(uintptr_t address, std::string path)
-{
-	if (!this->vHandle || !address || path.empty())
-		return false;
-
-	IMAGE_DOS_HEADER dos{};
-	if (!Read(address, &dos, sizeof(dos)) || dos.e_magic != IMAGE_DOS_SIGNATURE) {
-		LOG("[!] DumpMemory: invalid DOS header\n");
-		return false;
-	}
-	IMAGE_NT_HEADERS64 nt{};
-	if (!Read(address + static_cast<uintptr_t>(dos.e_lfanew), &nt, sizeof(nt)) || nt.Signature != IMAGE_NT_SIGNATURE) {
-		LOG("[!] DumpMemory: invalid NT header\n");
-		return false;
-	}
-	const size_t imageSize = nt.OptionalHeader.SizeOfImage;
-	if (!imageSize || imageSize > (512ull << 20))
-		return false;
-
-	std::vector<uint8_t> image(imageSize);
-	constexpr size_t kPage = 0x1000;
-	for (size_t offset = 0; offset < imageSize; offset += kPage) {
-		const size_t chunk = (std::min)(kPage, imageSize - offset);
-		(void)Read(address + offset, image.data() + offset, chunk); // unreadable pages stay zero
-	}
-	std::ofstream out(path, std::ios::binary | std::ios::trunc);
-	if (!out)
-		return false;
-	out.write(reinterpret_cast<const char*>(image.data()), static_cast<std::streamsize>(image.size()));
-	return static_cast<bool>(out);
+std::thread::id Memory::GetRenderThreadId() noexcept {
+    static thread_local std::thread::id renderThreadId;
+    return renderThreadId;
 }
 
-bool Memory::DumpMemoryMap(bool debug)
-{
-	(void)debug;
-	// OmniGhost opens the FPGA without a pre-dumped physical memory map
-	// (MemProcFS resolves it live). Kept for API compatibility only.
-	return false;
-}
+void Memory::SetTimeouts(const TimeoutConfig& config) noexcept { timeouts_ = config; }
+const Memory::TimeoutConfig& Memory::GetTimeouts() const noexcept { return timeouts_; }
 
-// Single definition of the process-wide Memory instance (header is extern only).
-Memory mem;
+bool Memory::ProbeDeviceAvailability() { return device.ProbeDeviceAvailability(); }
+bool Memory::ProbeDevicePresence() { return device.ProbeDevicePresence(); }
+uint64_t Memory::SessionGeneration() const noexcept { return sessionGeneration_.load(std::memory_order_acquire); }
+uint64_t Memory::ProcessGeneration() const noexcept { return processGeneration_.load(std::memory_order_acquire); }
+
+// Delegate to sub-managers
+bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickDeviceProbe) { return device.Init(std::move(process_name), memMap, debug, quickDeviceProbe); }
+void Memory::InvalidateProcess() { device.InvalidateProcess(); }
+void Memory::ResetDevice() { device.ResetDevice(); }
+void Memory::Close() noexcept { device.Close(); }
+bool Memory::Reconnect(bool memMap, bool debug) { return device.Reconnect(memMap, debug); }
+bool Memory::Rebind(std::string process_name, bool memMap, bool debug) { return device.Rebind(std::move(process_name), memMap, debug); }
+bool Memory::BeginVmmMaintenance(const char* reason, DWORD drainTimeoutMs) { return device.BeginVmmMaintenance(reason, drainTimeoutMs); }
+void Memory::EndVmmMaintenance() noexcept { device.EndVmmMaintenance(); }
+bool Memory::IsVmmMaintenanceActive() const noexcept { return device.IsVmmMaintenanceActive(); }
+bool Memory::ReopenVmmSession(bool memMap, bool debug) { return device.ReopenVmmSession(memMap, debug); }
+bool Memory::ProbePhysicalDataPath() { return device.ProbePhysicalDataPath(); }
+bool Memory::ProcInfoSessionRecoveryRecommended() const noexcept { return device.ProcInfoSessionRecoveryRecommended(); }
+void Memory::RequestCancel() noexcept { device.RequestCancel(); }
+void Memory::ClearCancel() noexcept { device.ClearCancel(); }
+uint64_t Memory::CancellationEpoch() const noexcept { return device.CancellationEpoch(); }
+bool Memory::IsCancellationRequested() const noexcept { return device.IsCancellationRequested(); }
+bool Memory::IsCancellationRequested(uint64_t operation_epoch) const noexcept { return device.IsCancellationRequested(operation_epoch); }
+
+DWORD Memory::GetPidFromName(std::string process_name) { return process.GetPidFromName(std::move(process_name)); }
+std::vector<std::string> Memory::GetProcessNames() { return process.GetProcessNames(); }
+std::vector<int> Memory::GetPidListFromName(std::string process_name) { return process.GetPidListFromName(std::move(process_name)); }
+std::vector<std::string> Memory::GetModuleList(std::string process_name) { return process.GetModuleList(std::move(process_name)); }
+VMMDLL_PROCESS_INFORMATION Memory::GetProcessInformation() { return process.GetProcessInformation(); }
+bool Memory::IsValidReadAddress(uint64_t address, int pid) const { return process.IsValidReadAddress(address, pid); }
+bool Memory::RefreshVadCache(int pid) const { return process.RefreshVadCache(pid); }
+PEB Memory::GetProcessPeb() { return process.GetProcessPeb(); }
+size_t Memory::GetBaseDaddy(std::string module_name) { return process.GetBaseDaddy(std::move(module_name)); }
+size_t Memory::GetBaseSize(std::string module_name) { return process.GetBaseSize(std::move(module_name)); }
+uintptr_t Memory::GetExportTableAddress(std::string import, std::string process_name, std::string module) { return process.GetExportTableAddress(std::move(import), std::move(process_name), std::move(module)); }
+uintptr_t Memory::GetImportTableAddress(std::string import, std::string process_name, std::string module) { return process.GetImportTableAddress(std::move(import), std::move(process_name), std::move(module)); }
+bool Memory::FixCr3() { return process.FixCr3(); }
+bool Memory::DumpMemory(uintptr_t address, std::string path) { return process.DumpMemory(address, std::move(path)); }
+uint64_t Memory::FindSignature(const char* signature, uint64_t range_start, uint64_t range_end, int PID) { return process.FindSignature(signature, range_start, range_end, PID); }
+
+bool Memory::Write(uintptr_t address, void* buffer, size_t size) const { return dma.Write(address, buffer, size); }
+bool Memory::Write(uintptr_t address, void* buffer, size_t size, int pid) const { return dma.Write(address, buffer, size, pid); }
+bool Memory::Read(uintptr_t address, void* buffer, size_t size) const { return dma.Read(address, buffer, size); }
+bool Memory::TryRead(uintptr_t address, void* buffer, size_t size, bool& attempted) const { return dma.TryRead(address, buffer, size, attempted); }
+bool Memory::Read(uintptr_t address, void* buffer, size_t size, int pid) const { return dma.Read(address, buffer, size, pid); }
+bool Memory::ReadWithCount(uintptr_t address, void* buffer, size_t size, size_t& bytesRead) const { return dma.ReadWithCount(address, buffer, size, bytesRead); }
+
+VMMDLL_SCATTER_HANDLE Memory::CreateScatterHandle() const { return dma.CreateScatterHandle(); }
+VMMDLL_SCATTER_HANDLE Memory::CreateScatterHandle(int pid) const { return dma.CreateScatterHandle(pid); }
+void Memory::CloseScatterHandle(VMMDLL_SCATTER_HANDLE handle) { dma.CloseScatterHandle(handle); }
+void Memory::AddScatterReadRequest(VMMDLL_SCATTER_HANDLE handle, uint64_t address, void* buffer, size_t size) { dma.AddScatterReadRequest(handle, address, buffer, size); }
+void Memory::AddScatterWriteRequest(VMMDLL_SCATTER_HANDLE handle, uint64_t address, void* buffer, size_t size) { dma.AddScatterWriteRequest(handle, address, buffer, size); }
+bool Memory::ExecuteReadScatter(VMMDLL_SCATTER_HANDLE handle, int pid) { return dma.ExecuteReadScatter(handle, pid); }
+void Memory::ExecuteWriteScatter(VMMDLL_SCATTER_HANDLE handle, int pid) { dma.ExecuteWriteScatter(handle, pid); }

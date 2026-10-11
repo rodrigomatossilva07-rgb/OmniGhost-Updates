@@ -4,8 +4,10 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <list>
 #include <mutex>
 #include <optional>
+#include <shared_mutex>
 #include <unordered_map>
 #include <vector>
 
@@ -46,6 +48,12 @@ struct EntityCacheEntry {
     // Frame stamp for invalidation
     uint64_t frameStamp = 0;
     bool valid = false;
+    
+    // LRU list iterator for O(1) move-to-front/back
+    std::list<uint64_t>::iterator lruIt;
+    
+    // TTL-based expiration (steady_clock time point)
+    std::chrono::steady_clock::time_point expiresAt;
 };
 
 // ============================================================
@@ -63,7 +71,9 @@ public:
     
     // Entity cache
     EntityCacheEntry* GetOrCreateEntity(uint64_t entityAddress, uint32_t entityId) noexcept;
-    EntityCacheEntry* GetEntity(uint64_t entityAddress) noexcept;
+    // Safe access pattern: callback receives valid entry pointer while lock is held
+    template<typename Fn>
+    bool AccessEntity(uint64_t entityAddress, Fn&& fn) noexcept;
     void InvalidateEntity(uint64_t entityAddress) noexcept;
     
     // Bone matrix cache
@@ -98,6 +108,15 @@ public:
     // Configuration
     void SetMaxEntities(size_t max) noexcept { maxEntities_ = max; }
     void SetMaxBonesPerEntity(size_t max) noexcept { maxBonesPerEntity_ = max; }
+    void SetEntityTTL(std::chrono::milliseconds ttl) noexcept { entityTTL_ = ttl; }
+    [[nodiscard]] std::chrono::milliseconds GetEntityTTL() const noexcept { return entityTTL_; }
+    
+    // Align FrameCache TTL with bone cache TTL (FrameCache TTL should be >= bone cache TTL)
+    void AlignTTLWithBoneCache(std::chrono::milliseconds boneCacheTTL) noexcept {
+        if (entityTTL_ < boneCacheTTL * 2) {
+            entityTTL_ = boneCacheTTL * 2;
+        }
+    }
     
     // Global accessor
     static FrameCache& Instance() noexcept {
@@ -109,24 +128,31 @@ private:
     // Current frame stamp
     std::atomic<uint64_t> currentFrame_{0};
     
-    // Entity cache (address -> entry)
-    mutable std::mutex cacheMutex_;
+    // Entity cache (address -> entry) - protected by shared_mutex
+    mutable std::shared_mutex cacheMutex_;
     std::unordered_map<uint64_t, EntityCacheEntry> entityCache_;
+    
+    // LRU list (most recent at back) - protected by cacheMutex_
+    std::list<uint64_t> lruList_;
     
     // Configuration
     size_t maxEntities_ = 1024;
     size_t maxBonesPerEntity_ = 128;
+    std::chrono::milliseconds entityTTL_{2000}; // 2 seconds default TTL
     
     // Statistics
     mutable std::mutex statsMutex_;
     size_t cacheHits_ = 0;
     size_t cacheMisses_ = 0;
     
-    // Cleanup old entries
-    void CleanupOldEntries() noexcept;
+    // Helper: remove expired entries (caller must hold unique lock)
+    void RemoveExpiredEntriesLocked() noexcept;
     
-    // LRU tracking
-    std::vector<uint64_t> lruList_;
+    // Helper: evict LRU entry if over capacity (caller must hold unique lock)
+    void EvictLRUIfNeededLocked() noexcept;
+    
+    // Helper: update LRU position (caller must hold unique lock)
+    void UpdateLRULocked(EntityCacheEntry& entry) noexcept;
 };
 
 // ============================================================
@@ -147,6 +173,11 @@ public:
 // Convenience functions
 inline EntityCacheEntry* GetEntityCache(uint64_t address, uint32_t id = 0) noexcept {
     return FrameCache::Instance().GetOrCreateEntity(address, id);
+}
+
+template<typename Fn>
+inline bool AccessEntityCache(uint64_t address, Fn&& fn) noexcept {
+    return FrameCache::Instance().AccessEntity(address, std::forward<Fn>(fn));
 }
 
 inline BoneMatrix* GetCachedBone(EntityCacheEntry* entity, uint32_t boneId) noexcept {

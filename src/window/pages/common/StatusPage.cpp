@@ -33,7 +33,7 @@ void DrawFiveMStatus()
     const bool localOk = LooksPtr(localplayer);
     const bool offsetsOk = OmniGhost::OffsetAuto::HasCriticalOffsets(ActiveGame::FiveM)
         && worldOk && viewOk;
-    const int pedCount = static_cast<int>(FiveM::ESP::validPeds.size());
+    const int pedCount = static_cast<int>(FiveM::ESP::GetValidPedsSnapshot().validPeds.size());
     const bool espOn = esp::config.enabled;
 
     BeginCardRow();

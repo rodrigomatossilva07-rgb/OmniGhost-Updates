@@ -186,7 +186,10 @@ struct ConfigSerializerTraits<std::vector<T>> {
     static size_t Size(const std::vector<T>& value) {
         size_t total = sizeof(size_t);
         for (const auto& elem : value) {
-            total += ConfigSerializerTraits<T>::Size(elem);
+            const size_t elemSize = ConfigSerializerTraits<T>::Size(elem);
+            // FIX BUG-005: Checked addition to prevent size_t wrap-around on large vectors
+            if (total > SIZE_MAX - elemSize) return SIZE_MAX; // Saturate at max
+            total += elemSize;
         }
         return total;
     }

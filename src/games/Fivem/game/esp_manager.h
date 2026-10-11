@@ -13,6 +13,23 @@ namespace FiveM {
         extern std::vector<uintptr_t> validPeds;
         extern std::vector<Vec2> screenPositions;
 
+        // Thread-safe access to validPeds and related containers
+        // Uses the snapshot exchange for thread-safe access to acquisition data
+        struct ValidPedsSnapshot {
+            std::vector<uintptr_t> validPeds;
+            std::vector<Vec3> positions;
+            uint64_t generation = 0;
+            std::chrono::steady_clock::time_point timestamp{};
+        };
+
+        // Thread-safe accessors (acquisition thread writes, render thread reads)
+        void UpdateValidPedsSnapshot(const std::vector<uintptr_t>& peds, const std::vector<Vec3>& pos, uint64_t gen);
+        [[nodiscard]] ValidPedsSnapshot GetValidPedsSnapshot() noexcept;
+        
+        // Legacy accessors (deprecated - use snapshot instead)
+        [[nodiscard]] const std::vector<uintptr_t>& GetValidPeds() noexcept;
+        [[nodiscard]] const std::vector<Vec3>& GetPositions() noexcept;
+
         // Performance tracking
         extern int frameCount;
         extern std::chrono::steady_clock::time_point lastFrameTime;

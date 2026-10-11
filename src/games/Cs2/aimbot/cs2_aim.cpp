@@ -58,6 +58,7 @@ struct WeaponRecoilPattern {
 };
 
 static std::unordered_map<int, WeaponRecoilPattern> g_recoil_patterns;
+static std::shared_mutex g_recoil_patterns_mutex; // P1-17: Protect concurrent access
 static std::array<std::pair<float, float>, 30> g_current_pattern{};
 static int g_shots_fired = 0;
 static int g_last_shots_fired = 0;
@@ -475,6 +476,7 @@ void InitializeHumanizer() {
 }
 
 void LoadRecoilPatterns() {
+    std::unique_lock lock(g_recoil_patterns_mutex); // P1-17: Exclusive lock for initialization
     if (g_patterns_loaded) return;
     g_patterns_loaded = true;
 
@@ -577,10 +579,14 @@ std::pair<float, float> CalculateRCS(const CS2::Runtime& rt, const CS2::Config& 
 
     LoadRecoilPatterns();
 
-    auto it = g_recoil_patterns.find(weapon_def);
-    if (it == g_recoil_patterns.end()) return {};
-
-    const WeaponRecoilPattern& pattern = it->second;
+    const WeaponRecoilPattern* pattern = nullptr;
+    {
+        std::shared_lock lock(g_recoil_patterns_mutex); // P1-17: Shared lock for read
+        auto it = g_recoil_patterns.find(weapon_def);
+        if (it == g_recoil_patterns.end()) return {};
+        pattern = &it->second;
+    }
+    if (!pattern || pattern->length == 0) return {};
     if (pattern.length == 0) return {};
 
     int idx = std::clamp(g_shots_fired - 1, 0, pattern.length - 1);

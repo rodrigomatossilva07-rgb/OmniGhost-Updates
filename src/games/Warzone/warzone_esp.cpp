@@ -82,6 +82,9 @@ static void DrawPlayerSkeleton(ImDrawList* dl, const Warzone::Player& p, const W
         // Only draw link if both bones are in the LOD mask
         if ((p.bones_mask & (1u << link.from)) == 0) continue;
         if ((p.bones_mask & (1u << link.to)) == 0) continue;
+        // FIX BUG-006: Defensive check - bones_ok already verified at function entry (line 64)
+        // but assert here documents the invariant for static analysis.
+        assert(p.bones_ok && "bones_ok must be true when drawing skeleton");
         
         float bx1, by1, bx2, by2;
         if (W2S(p.bones[link.from], rt_view_matrix, bx1, by1) &&

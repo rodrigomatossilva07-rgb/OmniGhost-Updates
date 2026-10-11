@@ -4,10 +4,10 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <thread>
+#include <vector>
 
 namespace OmniGhost::Hardware {
-
-struct ProbeTask;
 
 enum class ProbeStage {
     Idle,
@@ -54,8 +54,8 @@ private:
 
     mutable std::mutex mutex_;
     State state_{};
-    std::shared_ptr<ProbeTask> makcuTask_;
-    std::shared_ptr<ProbeTask> dmaTask_;
+    // Use jthread for proper RAII thread management with cooperative cancellation
+    std::vector<std::jthread> workers_;
     std::chrono::steady_clock::time_point stageStarted_{};
     std::chrono::steady_clock::time_point nextMakcuRetry_{};
     TimeoutConfig timeouts_{};

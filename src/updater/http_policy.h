@@ -36,6 +36,7 @@ unsigned RetryDelayMilliseconds(unsigned attempt, int retryAfterSeconds = 0) noe
 std::string StatusMessage(int statusCode, std::string_view finalUrl = {});
 ErrorClass ClassifyFailure(int statusCode, std::string_view error) noexcept;
 const char* ErrorClassName(ErrorClass value) noexcept;
+const Configuration& GetConfiguration() noexcept;
 
 } // namespace HttpPolicy
 } // namespace Update

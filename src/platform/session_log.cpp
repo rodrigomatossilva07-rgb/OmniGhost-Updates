@@ -662,6 +662,9 @@ std::string RedactForSupport(std::string_view input) {
             std::regex(R"((serial[_\-]?number\s*[:=]\s*)[A-Za-z0-9\-]{8,})", std::regex::icase),
             "$1<redacted>");
         
+        text = std::regex_replace(text,
+            std::regex(R"(\b(0x[0-9A-Fa-f]{8,16})\b)"), // Memory addresses/pointers
+            "<redacted-ptr>");
         // Process paths and executable names that may reveal user info
         text = std::regex_replace(text,
             std::regex(R"(([A-Za-z]:[\\/][^\\/\s,;]+))", std::regex::icase),

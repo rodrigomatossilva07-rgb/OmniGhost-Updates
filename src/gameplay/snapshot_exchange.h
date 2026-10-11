@@ -141,8 +141,11 @@ public:
     void Publish(std::uint32_t slot) noexcept {
         AssertSingleProducer();
         if (slot >= SlotCount) return;
+        // FIX BUG-009: Use seq_cst for generation to prevent ABA reordering
+        // between published_ store and generation_ increment.
+        // seq_cst ensures all threads see a consistent order of these operations.
         published_.store(slot, std::memory_order_release);
-        generation_.fetch_add(1, std::memory_order_release);
+        generation_.fetch_add(1, std::memory_order_seq_cst);
     }
 
     [[nodiscard]] ReadLease Acquire() const noexcept {

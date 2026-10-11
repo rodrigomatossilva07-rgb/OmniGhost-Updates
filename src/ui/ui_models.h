@@ -69,6 +69,10 @@ namespace esp {
 
         // Legacy fields for compatibility
         bool skeleton_lod = true;
+        // Skeleton LOD distance thresholds (meters)
+        float lod_full_dist = 30.0f;
+        float lod_high_dist = 80.0f;
+        float lod_med_dist = 150.0f;
     };
 
 } // namespace esp
@@ -115,19 +119,6 @@ namespace aimbot {
         float overshoot_chance = 0.12f;
         float overshoot_scale = 0.08f;
         float min_move_threshold = 0.15f;
-
-        bool silent_enabled = false;
-        bool silent_show_fov = false;
-        bool silent_fov_rgb = false;
-        ImU32 silent_fov_color = IM_COL32(0, 200, 200, 180);
-        int silent_bind = 0x02;
-        float silent_fov_size = 100.0f;
-        float silent_max_distance = 300.0f;
-        float silent_hit_chance = 100.0f;
-        float silent_miss_chance = 0.0f;
-        Hitbox silent_bone = Hitbox::Head;
-        bool silent_legit = true;
-        bool silent_rage = false;
 
         bool trigger_enabled = false;
         bool trigger_always_on = true;

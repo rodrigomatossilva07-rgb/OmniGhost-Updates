@@ -21,6 +21,7 @@
 #include <thread>
 #include <condition_variable>
 #include <mutex>
+#include <shared_mutex>
 #include <unordered_map>
 #include "gameplay/esp_optimizer.h"
 #include "gameplay/snapshot_exchange.h"
@@ -31,6 +32,47 @@ namespace FiveM {
     namespace ESP {
         // Constants definition
         const int MAX_PEDS = 110;
+
+        // Global containers
+        std::vector<uintptr_t> rawPedPointers;
+        std::vector<Vec3> positions;
+        std::vector<uintptr_t> validPeds;
+        std::vector<Vec2> screenPositions;
+
+        // P1-8 fix: Thread-safe snapshot for validPeds and positions
+        struct ValidPedsSnapshot {
+            std::vector<uintptr_t> validPeds;
+            std::vector<Vec3> positions;
+            uint64_t generation = 0;
+            std::chrono::steady_clock::time_point timestamp{};
+        };
+
+        static std::mutex s_validPedsSnapshotMutex;
+        static ValidPedsSnapshot s_validPedsSnapshot;
+
+        void UpdateValidPedsSnapshot(const std::vector<uintptr_t>& peds, const std::vector<Vec3>& pos, uint64_t gen) {
+            std::scoped_lock lock(s_validPedsSnapshotMutex);
+            s_validPedsSnapshot.validPeds = peds;
+            s_validPedsSnapshot.positions = pos;
+            s_validPedsSnapshot.generation = gen;
+            s_validPedsSnapshot.timestamp = std::chrono::steady_clock::now();
+        }
+
+        ValidPedsSnapshot GetValidPedsSnapshot() noexcept {
+            std::scoped_lock lock(s_validPedsSnapshotMutex);
+            return s_validPedsSnapshot;
+        }
+
+        // Legacy accessors (deprecated - use snapshot instead)
+        const std::vector<uintptr_t>& GetValidPeds() noexcept {
+            std::scoped_lock lock(s_validPedsSnapshotMutex);
+            return s_validPedsSnapshot.validPeds;
+        }
+
+        const std::vector<Vec3>& GetPositions() noexcept {
+            std::scoped_lock lock(s_validPedsSnapshotMutex);
+            return s_validPedsSnapshot.positions;
+        }
 
         // Global containers
         std::vector<uintptr_t> rawPedPointers;
@@ -134,7 +176,11 @@ namespace FiveM {
             uint64_t entry_generation = 0; // P0-2: pointer reuse safety
             bool initialized = false;
         };
+        // FIX BUG-001: Thread-safe presentation map with shared_mutex
+        // Render thread writes in RunESP(), reads in try_get_prepared_velocity()
+        // Acquisition thread does NOT access this map directly (only via snapshots)
         static std::unordered_map<uintptr_t, PresentationState> s_presentation;
+        static std::shared_mutex s_presentation_mutex;
 
         // Performance tracking
         int frameCount = 0;
@@ -251,18 +297,33 @@ namespace FiveM {
             s_snapshots.Publish(slot.index);
         }
 
-        static void GiveCameraPriorityBeforeOptionalDma() {
+        static bool GiveCameraPriorityBeforeOptionalDma() {
             if (!s_cameraPending.load(std::memory_order_acquire)) {
                 const uint64_t deadline = s_cameraDeadlineMs.load(std::memory_order_acquire);
                 const uint64_t now = GetTickCount64();
                 if (deadline == 0 || now + 2u < deadline)
-                    return;
+                    return true; // safe to proceed
             }
-            for (int spin = 0; spin < 48; ++spin) {
+            // FIX CONC-002: Exponential backoff + max wait to prevent starvation
+            // Camera has priority; optional DMA must yield or skip batch
+            int spin = 0;
+            const int maxSpins = 96; // increased from 48
+            auto baseDelay = std::chrono::microseconds(10);
+            while (spin < maxSpins) {
                 if (!s_cameraPending.load(std::memory_order_acquire))
-                    return;
+                    return true; // camera done, safe to proceed
                 std::this_thread::yield();
+                ++spin;
+                // Exponential backoff after 32 spins
+                if (spin >= 32) {
+                    std::this_thread::sleep_for(baseDelay);
+                    baseDelay *= 2; // 10µs -> 20µs -> 40µs -> 80µs...
+                    if (baseDelay > std::chrono::microseconds(500))
+                        baseDelay = std::chrono::microseconds(500);
+                }
             }
+            // Camera still busy after max retries — skip this optional batch
+            return false;
         }
 
         static void CameraLoop() {
@@ -375,6 +436,7 @@ namespace FiveM {
         static void OptionalWorkerLoop() {
             while (!s_optionalStop.load(std::memory_order_acquire)) {
                 OptionalJob job{};
+                uint64_t jobGen = 0;
                 {
                     std::unique_lock lock(s_optionalMu);
                     // P2-3: Wait indefinitely for work — no spurious 40ms wakeups.
@@ -387,12 +449,14 @@ namespace FiveM {
                     if (!s_optionalPending.load(std::memory_order_acquire))
                         continue;
                     job = std::move(s_optionalJob);
+                    jobGen = job.sessionGeneration; // Capture generation before releasing lock
                     s_optionalPending.store(false, std::memory_order_release);
                 }
-                // P0-2: Validate job belongs to current session generation
+                // FIX BUG-002: IMMEDIATE generation validation — before ANY pointer access
+                // If generation changed (map change/detach), drop job without touching pointers.
                 const uint64_t currentGen = s_sessionGeneration.load(std::memory_order_acquire);
-                if (job.sessionGeneration != currentGen)
-                    continue; // stale job from previous map/session — drop
+                if (jobGen != currentGen)
+                    continue; // stale job from previous map/session — drop safely
                 
                 s_optionalBusy.store(true, std::memory_order_release);
                 try {
@@ -406,7 +470,7 @@ namespace FiveM {
                     };
                     // P0-2: Check generation before each DMA phase
                     auto checkGen = [&]() -> bool {
-                        return s_sessionGeneration.load(std::memory_order_acquire) == currentGen;
+                        return s_sessionGeneration.load(std::memory_order_acquire) == jobGen;
                     };
                     
                     if (!job.peds.empty() && pressure < 2 && checkGen()) {
@@ -415,7 +479,8 @@ namespace FiveM {
                         std::vector<bool> prodVis; // Local per-job visibility results
                         if (needVis) {
                             mem.SetDmaPriority(Memory::DmaPri::OtherMetadata);
-                            GiveCameraPriorityBeforeOptionalDma();
+                            if (!GiveCameraPriorityBeforeOptionalDma())
+                                break; // Camera busy — skip visibility batch
                             
                             // Get camera matrix for frustum culling
                             Matrix viewMatrix{};
@@ -436,7 +501,8 @@ namespace FiveM {
                             (job.espConfig.radar_enabled &&
                              (job.espConfig.team_check || friends::HasFriends()))) {
                             mem.SetDmaPriority(Memory::DmaPri::WeaponNameTeam);
-                            GiveCameraPriorityBeforeOptionalDma();
+                            if (!GiveCameraPriorityBeforeOptionalDma())
+                                break; // Camera busy — skip weapon/name batch
                             // Pass visibility results directly to prepare_esp_frame for immediate
                             // integration into PreparedEspData, bypassing cache timing issues.
                             esp::prepare_esp_frame(job.peds, job.positions, job.healths,
@@ -445,17 +511,20 @@ namespace FiveM {
                     }
                     if (job.boneMask && !job.peds.empty() && pressure < 2 && elapsed() < kBudgetMs && checkGen()) {
                         mem.SetDmaPriority(Memory::DmaPri::Bones);
-                        GiveCameraPriorityBeforeOptionalDma();
+                        if (!GiveCameraPriorityBeforeOptionalDma())
+                            break; // Camera busy — skip bone batch
                         esp::prepare_skeleton_frame(job.peds, job.positions, job.boneMask);
                     }
                     if (elapsed() < kBudgetMs && pressure < 1 && checkGen()) {
                         mem.SetDmaPriority(Memory::DmaPri::OtherMetadata);
-                        GiveCameraPriorityBeforeOptionalDma();
+                        if (!GiveCameraPriorityBeforeOptionalDma())
+                            break; // Camera busy — skip waypoint/blip batch
                         esp::PrepareWaypointAndBlips(job.espConfig, job.localPos);
                     }
                     if (elapsed() < kBudgetMs && pressure < 2 && checkGen()) {
                         mem.SetDmaPriority(Memory::DmaPri::OtherMetadata);
-                        GiveCameraPriorityBeforeOptionalDma();
+                        if (!GiveCameraPriorityBeforeOptionalDma())
+                            break; // Camera busy — skip vehicle batch
                         Matrix vehicleCamera{};
                         if (auto cam = s_cameraSnapshots.Acquire(); cam &&
                             cam->sessionGeneration == s_sessionGeneration.load(std::memory_order_acquire))
@@ -482,7 +551,10 @@ namespace FiveM {
                 return; // drop — core already published; avoid stacking
             {
                 std::lock_guard lock(s_optionalMu);
-                job.sessionGeneration = s_sessionGeneration.load(std::memory_order_acquire);
+                // FIX BUG-002: Capture generation at queue time — validates job
+                // belongs to current session before pointers are captured.
+                const uint64_t queueGen = s_sessionGeneration.load(std::memory_order_acquire);
+                job.sessionGeneration = queueGen;
                 s_optionalJob = std::move(job);
                 s_optionalPending.store(true, std::memory_order_release);
             }
@@ -504,7 +576,8 @@ namespace FiveM {
                 mem.SetDmaLane("fivem");
                 mem.SetDmaScanId(++scanId);
                 const auto acquireBegin = std::chrono::steady_clock::now();
-                const bool needPeds = s_needPeds.load(std::memory_order_relaxed);
+                // FIX CONC-003: Use acquire ordering to match render thread's release stores
+                const bool needPeds = s_needPeds.load(std::memory_order_acquire);
                 const auto options = s_optionSnapshots.Acquire();
                 esp::Config espOptions = options->espConfig;
                 const bool friendsListRequested = friends::PlayerListRequestedRecently();
@@ -513,7 +586,7 @@ namespace FiveM {
                 const auto& vehicleOptions = options->vehicleConfig;
                 bool cacheValid = false;
                 uint16_t pendingBoneMask = 0;
-                const bool npcEspEnabled = s_npcEsp.load(std::memory_order_relaxed);
+                const bool npcEspEnabled = s_npcEsp.load(std::memory_order_acquire);
                 if (previousNpcEsp && !npcEspEnabled) {
                 }
                 previousNpcEsp = npcEspEnabled;
@@ -802,6 +875,11 @@ namespace FiveM {
                 mem.CloseScatterHandle(s_acqScatter);
                 s_acqScatter = nullptr;
             }
+            // FIX MEM-001: Close g_preparedBoneScatter
+            if (g_preparedBoneScatter) {
+                mem.CloseScatterHandle(g_preparedBoneScatter);
+                g_preparedBoneScatter = nullptr;
+            }
             FiveM::Visibility::Shutdown();
             esp::ShutdownWaypointAndBlips();
             esp::ShutdownPreparedFrames();
@@ -816,7 +894,11 @@ namespace FiveM {
             s_acquireLocalPos = {};
             s_acquireWorldSampleTime = {};
             ++s_sessionGeneration;
-            s_presentation.clear();
+            // FIX BUG-001: Protect clear with unique_lock (writer) — runs after thread joins
+            {
+                std::unique_lock lock(s_presentation_mutex);
+                s_presentation.clear();
+            }
             s_snapshots.ResetProducerThread();
             PublishAcquisitionSnapshot(0, false, 0.f);
         }
@@ -832,13 +914,16 @@ namespace FiveM {
                 esp::config.radar_enabled || friends::PlayerListRequestedRecently();
 
             const ImVec2 display = ImGui::GetIO().DisplaySize;
-            s_needPeds.store(needPeds, std::memory_order_relaxed);
-            s_selfEsp.store(esp::config.self_esp, std::memory_order_relaxed);
-            s_npcEsp.store(esp::config.npc_esp, std::memory_order_relaxed);
-            s_performanceMode.store(app_settings::config.performance_mode, std::memory_order_relaxed);
-            s_maxDistance.store(esp::config.max_esp_distance, std::memory_order_relaxed);
-            s_displayWidth.store(display.x, std::memory_order_relaxed);
-            s_displayHeight.store(display.y, std::memory_order_relaxed);
+            // FIX CONC-003: Use release/acquire ordering for config flags.
+            // Render thread (writer) uses release; Acquisition thread (reader) uses acquire.
+            // Full config data synchronized via s_optionSnapshots (release/acquire).
+            s_needPeds.store(needPeds, std::memory_order_release);
+            s_selfEsp.store(esp::config.self_esp, std::memory_order_release);
+            s_npcEsp.store(esp::config.npc_esp, std::memory_order_release);
+            s_performanceMode.store(app_settings::config.performance_mode, std::memory_order_release);
+            s_maxDistance.store(esp::config.max_esp_distance, std::memory_order_release);
+            s_displayWidth.store(display.x, std::memory_order_release);
+            s_displayHeight.store(display.y, std::memory_order_release);
             if (auto slot = s_optionSnapshots.TryBeginWrite()) {
                 slot.value->espConfig = esp::config;
                 slot.value->aimConfig = aimbot::config;
@@ -923,55 +1008,59 @@ namespace FiveM {
                 validPeds[static_cast<size_t>(i)] = currentSnapshot.validPeds[i];
                 const Vec3& raw = currentSnapshot.positions[i];
                 const uintptr_t ped = validPeds[static_cast<size_t>(i)];
-                auto& presentation = s_presentation[ped];
-                // P0-2: Pointer reuse safety — if ped pointer was recycled in a new
-                // session, discard the stale presentation state.
-                if (presentation.entry_generation != s_sessionGeneration) {
-                    presentation.position = raw;
-                    presentation.velocity = Vec3{};
-                    presentation.sourceGeneration = 0;
-                    presentation.initialized = false;
-                    presentation.entry_generation = s_sessionGeneration;
-                }
-                if (!presentation.initialized) {
-                    presentation.position = raw;
-                    presentation.initialized = true;
-                }
-                if (presentation.sourceGeneration != currentSnapshot.generation) {
-                    // Prefer real DMA velocity from the core world scatter.
-                    const Vec3& dmaVel = currentSnapshot.velocities[static_cast<size_t>(i)];
-                    const float dmaSpeedSq = dmaVel.x * dmaVel.x + dmaVel.y * dmaVel.y +
-                        dmaVel.z * dmaVel.z;
-                    if (dmaSpeedSq > 0.01f && dmaSpeedSq < 40000.f &&
-                        std::isfinite(dmaVel.x) && std::isfinite(dmaVel.y) && std::isfinite(dmaVel.z)) {
-                        presentation.velocity = dmaVel;
-                    } else if (previousSnapshot.generation &&
-                        currentSnapshot.worldSampleTime > previousSnapshot.worldSampleTime) {
-                        // Fallback estimate only when the game velocity is zero/invalid.
-                        const auto it = prevIndex.find(validPeds[static_cast<size_t>(i)]);
-                        if (it != prevIndex.end() && it->second >= 0 && it->second < previousSnapshot.count) {
-                            const float interval = std::chrono::duration<float>(
-                                currentSnapshot.worldSampleTime - previousSnapshot.worldSampleTime).count();
-                            if (interval > .001f)
-                                presentation.velocity =
-                                    (raw - previousSnapshot.positions[it->second]) * (1.f / interval);
-                        }
+                // FIX BUG-001: Protect presentation map with unique_lock (writer)
+                {
+                    std::unique_lock lock(s_presentation_mutex);
+                    auto& presentation = s_presentation[ped];
+                    // P0-2: Pointer reuse safety — if ped pointer was recycled in a new
+                    // session, discard the stale presentation state.
+                    if (presentation.entry_generation != s_sessionGeneration) {
+                        presentation.position = raw;
+                        presentation.velocity = Vec3{};
+                        presentation.sourceGeneration = 0;
+                        presentation.initialized = false;
+                        presentation.entry_generation = s_sessionGeneration;
                     }
-                    presentation.sourceGeneration = currentSnapshot.generation;
+                    if (!presentation.initialized) {
+                        presentation.position = raw;
+                        presentation.initialized = true;
+                    }
+                    if (presentation.sourceGeneration != currentSnapshot.generation) {
+                        // Prefer real DMA velocity from the core world scatter.
+                        const Vec3& dmaVel = currentSnapshot.velocities[static_cast<size_t>(i)];
+                        const float dmaSpeedSq = dmaVel.x * dmaVel.x + dmaVel.y * dmaVel.y +
+                            dmaVel.z * dmaVel.z;
+                        if (dmaSpeedSq > 0.01f && dmaSpeedSq < 40000.f &&
+                            std::isfinite(dmaVel.x) && std::isfinite(dmaVel.y) && std::isfinite(dmaVel.z)) {
+                            presentation.velocity = dmaVel;
+                        } else if (previousSnapshot.generation &&
+                            currentSnapshot.worldSampleTime > previousSnapshot.worldSampleTime) {
+                            // Fallback estimate only when the game velocity is zero/invalid.
+                            const auto it = prevIndex.find(validPeds[static_cast<size_t>(i)]);
+                            if (it != prevIndex.end() && it->second >= 0 && it->second < previousSnapshot.count) {
+                                const float interval = std::chrono::duration<float>(
+                                    currentSnapshot.worldSampleTime - previousSnapshot.worldSampleTime).count();
+                                if (interval > .001f)
+                                    presentation.velocity =
+                                        (raw - previousSnapshot.positions[it->second]) * (1.f / interval);
+                            }
+                        }
+                        presentation.sourceGeneration = currentSnapshot.generation;
+                    }
+                    Vec3 target = raw + presentation.velocity * snapshotAge;
+                    const Vec3 delta = target - presentation.position;
+                    const float distanceSq = delta.x * delta.x + delta.y * delta.y + delta.z * delta.z;
+                    if (distanceSq > 9.f) {
+                        presentation.position = raw;
+                    } else {
+                        const float speedSq = presentation.velocity.x * presentation.velocity.x +
+                            presentation.velocity.y * presentation.velocity.y + presentation.velocity.z * presentation.velocity.z;
+                        const float tau = speedSq > 9.f ? .007f : .014f;
+                        const float alpha = 1.f - std::exp(-presentDt / tau);
+                        presentation.position = presentation.position + delta * alpha;
+                    }
+                    positions[static_cast<size_t>(i)] = presentation.position;
                 }
-                Vec3 target = raw + presentation.velocity * snapshotAge;
-                const Vec3 delta = target - presentation.position;
-                const float distanceSq = delta.x * delta.x + delta.y * delta.y + delta.z * delta.z;
-                if (distanceSq > 9.f) {
-                    presentation.position = raw;
-                } else {
-                    const float speedSq = presentation.velocity.x * presentation.velocity.x +
-                        presentation.velocity.y * presentation.velocity.y + presentation.velocity.z * presentation.velocity.z;
-                    const float tau = speedSq > 9.f ? .007f : .014f;
-                    const float alpha = 1.f - std::exp(-presentDt / tau);
-                    presentation.position = presentation.position + delta * alpha;
-                }
-                positions[static_cast<size_t>(i)] = presentation.position;
             }
 
             // Ped pointers change throughout a long FiveM session.  Keep the
@@ -979,20 +1068,23 @@ namespace FiveM {
             // every ped that has ever streamed in.  This is deliberately an
             // infrequent, bounded cleanup outside the render hot path.
             static auto lastPresentationPrune = std::chrono::steady_clock::time_point{};
-            if (s_presentation.size() > static_cast<size_t>(MAX_PEDS * 2) ||
-                currentTime - lastPresentationPrune >= std::chrono::seconds(5)) {
-                lastPresentationPrune = currentTime;
-                int removed = 0;
-                for (auto it = s_presentation.begin(); it != s_presentation.end() && removed < MAX_PEDS;) {
-                    bool stillPresent = false;
-                    for (const uintptr_t ped : validPeds) {
-                        if (ped == it->first) { stillPresent = true; break; }
-                    }
-                    if (!stillPresent) {
-                        it = s_presentation.erase(it);
-                        ++removed;
-                    } else {
-                        ++it;
+            // FIX BUG-001: Protect prune with unique_lock (writer)
+            {
+                std::unique_lock lock(s_presentation_mutex);
+                // FIX MEM-003: More aggressive prune - remove ALL stale entries each cycle,
+                // not just up to MAX_PEDS. Run every 2 seconds instead of 5.
+                if (currentTime - lastPresentationPrune >= std::chrono::seconds(2)) {
+                    lastPresentationPrune = currentTime;
+                    for (auto it = s_presentation.begin(); it != s_presentation.end();) {
+                        bool stillPresent = false;
+                        for (const uintptr_t ped : validPeds) {
+                            if (ped == it->first) { stillPresent = true; break; }
+                        }
+                        if (!stillPresent) {
+                            it = s_presentation.erase(it);
+                        } else {
+                            ++it;
+                        }
                     }
                 }
             }
@@ -1135,8 +1227,6 @@ namespace FiveM {
                 s_acquireHealths.clear();
                 return;
             }
-            previousPeds.assign(writePeds.begin(), writePeds.end());
-            previousPositions.assign(writePositions.begin(), writePositions.end());
             writePeds.clear();
             writePositions.clear();
             s_acquireVelocities.clear();
@@ -1527,6 +1617,11 @@ namespace FiveM {
                 }
             }
 
+            // FIX BUG-003: Capture FINAL ranked/filtered data for velocity fallback comparison.
+            // Must be after ranking/frustum culling so indices match published snapshot.
+            previousPeds.assign(writePeds.begin(), writePeds.end());
+            previousPositions.assign(writePositions.begin(), writePositions.end());
+
             if (ownedHandle && handle) mem.CloseScatterHandle(handle);
         }
 
@@ -1633,6 +1728,8 @@ namespace FiveM {
                     return true;
                 }
             }
+            // FIX BUG-001: Protect read with shared_lock (reader)
+            std::shared_lock lock(s_presentation_mutex);
             const auto it = s_presentation.find(ped);
             if (it == s_presentation.end() || !it->second.initialized ||
                 it->second.entry_generation != s_sessionGeneration)

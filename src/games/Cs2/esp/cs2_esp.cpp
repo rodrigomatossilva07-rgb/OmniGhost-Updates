@@ -64,9 +64,12 @@ bool WorldToScreen(const float world[3], const float matrix[16], ImVec2& screen)
     const float clipY = world[0] * matrix[4] + world[1] * matrix[5] + world[2] * matrix[6] + matrix[7];
     const float clipW = world[0] * matrix[12] + world[1] * matrix[13] + world[2] * matrix[14] + matrix[15];
     if (!std::isfinite(clipW) || clipW < 0.01f) return false;
-    const ImVec2 size = ImGui::GetIO().DisplaySize;
-    screen.x = (size.x * 0.5f) * (1.f + clipX / clipW);
-    screen.y = (size.y * 0.5f) * (1.f - clipY / clipW);
+    // BAIXO #23: Viewport cache removed - ImGui::GetIO().DisplaySize is just
+    // two float reads (no syscall), so caching provides no benefit and causes
+    // thread-safety issues (static const init) + stale data on window resize.
+    const ImVec2 displaySize = ImGui::GetIO().DisplaySize;
+    screen.x = (displaySize.x * 0.5f) * (1.f + clipX / clipW);
+    screen.y = (displaySize.y * 0.5f) * (1.f - clipY / clipW);
     return std::isfinite(screen.x) && std::isfinite(screen.y);
 }
 

@@ -85,3 +85,10 @@ const char* ErrorClassName(ErrorClass value) noexcept {
 }
 
 } // namespace OmniGhost::Update::HttpPolicy
+
+namespace OmniGhost::Update::HttpPolicy {
+const Configuration& GetConfiguration() noexcept {
+    static Configuration s_config;
+    return s_config;
+}
+} // namespace OmniGhost::Update::HttpPolicy

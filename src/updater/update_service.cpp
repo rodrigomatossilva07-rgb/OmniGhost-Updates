@@ -967,7 +967,8 @@ bool UpdateService::InstallPreparedUpdate() {
     const Snapshot installSnapshot = GetSnapshot();
     if (!installSnapshot.releaseNotesUrl.empty())
         arguments << L" --notes-url \"" << Platform::Utf8ToWide(installSnapshot.releaseNotesUrl) << L"\"";
-    const wchar_t* verb = DirectoryWritable(Paths::InstallDirectory()) ? L"open" : L"runas";
+    const bool needElevation = !DirectoryWritable(Paths::InstallDirectory());
+    const wchar_t* verb = needElevation ? L"runas" : L"open";
     const std::wstring argumentText = arguments.str();
     const std::wstring runnerDirectoryText = runnerDirectory.wstring();
     SHELLEXECUTEINFOW launch{};
@@ -978,9 +979,15 @@ bool UpdateService::InstallPreparedUpdate() {
     launch.lpFile = runner.c_str();
     launch.lpParameters = argumentText.c_str();
     launch.lpDirectory = runnerDirectoryText.c_str();
-    launch.nShow = SW_HIDE;
+    launch.nShow = needElevation ? SW_SHOW : SW_HIDE; // Show UAC prompt if elevation needed
     if (!ShellExecuteExW(&launch) || !launch.hProcess) {
-        SetError({}, WindowsError(GetLastError()), "launch-updater");
+        const DWORD code = GetLastError();
+        if (needElevation && code == ERROR_CANCELLED) {
+            SetError("A atualização requer privilégios de administrador.",
+                "O controlo de conta de utilizador (UAC) foi negado ou cancelado. Execute o OmniGhost como administrador para instalar a atualização.", "launch-updater");
+        } else {
+            SetError({}, WindowsError(GetLastError()), "launch-updater");
+        }
         return false;
     }
     Platform::UniqueHandle updaterProcess(launch.hProcess);

@@ -64,7 +64,7 @@ public:
     Result<StartupResult> Run();
 
     // Check current phase
-    StartupPhase CurrentPhase() const noexcept { return phase_; }
+    StartupPhase CurrentPhase() const noexcept { return phase_.load(std::memory_order_acquire); }
 
     // Check if hardware is ready (may be degraded)
     bool IsHardwareReady() const noexcept { return hardware_ready_; }
@@ -80,10 +80,10 @@ public:
 
 private:
     StartupConfig config_;
-    StartupPhase phase_ = StartupPhase::Boot;
+    std::atomic<StartupPhase> phase_{StartupPhase::Boot}; // FIX BUG-007: atomic for thread-safe CurrentPhase()
     bool hardware_ready_ = false;
     bool launcher_ready_ = false;
-    bool running_ = false;
+    std::atomic<bool> running_{false}; // Also atomic for thread-safe access
     std::string hardware_status_;
 
     std::shared_ptr<IClock> clock_ = std::make_shared<SteadyClock>();

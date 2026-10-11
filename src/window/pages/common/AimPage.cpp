@@ -203,6 +203,5 @@ void DrawAim()
     ImGui::EndGroup();
 
     // Hard-disable silent leftovers from old configs
-    aimbot::config.silent_enabled = false;
     aimbot::config.fov_rgb = false;
 }

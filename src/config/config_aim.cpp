@@ -22,21 +22,13 @@ void SerializeAim(std::ostringstream& o) {
     WFloat(o, "aim.jitter_amount", a.jitter_amount);
     WFloat(o, "aim.acceleration", a.acceleration);
     WFloat(o, "aim.overshoot_chance", a.overshoot_chance);
-    WFloat(o, "aim.overshoot_scale", a.overshoot_scale);
+    WBool(o, "aim.overshoot_scale", a.overshoot_scale);
     WFloat(o, "aim.min_move_threshold", a.min_move_threshold);
     WInt(o, "aim.hitbox", (int)a.hitbox);
     WInt(o, "aim.fov_style", (int)a.fov_style);
     WInt(o, "aim.aimbot_bind", a.aimbot_bind);
     WInt(o, "aim.aimbot_bind2", a.aimbot_bind2);
     WBool(o, "aim.visible_check", a.visible_check);
-    WBool(o, "aim.silent_enabled", false); // silent removed
-    WFloat(o, "aim.silent_fov_size", a.silent_fov_size);
-    WFloat(o, "aim.silent_max_distance", a.silent_max_distance);
-    WFloat(o, "aim.silent_hit_chance", a.silent_hit_chance);
-    WFloat(o, "aim.silent_miss_chance", a.silent_miss_chance);
-    WInt(o, "aim.silent_bone", (int)a.silent_bone);
-    WBool(o, "aim.silent_legit", a.silent_legit);
-    WBool(o, "aim.silent_rage", a.silent_rage);
     WBool(o, "aim.trigger_enabled", a.trigger_enabled);
     WBool(o, "aim.trigger_always_on", a.trigger_always_on);
     WInt(o, "aim.trigger_bind", a.trigger_bind);
@@ -96,25 +88,6 @@ bool DeserializeAim(const std::string& key, const std::string& val) {
     if (a.aimbot_bind2 == VK_LBUTTON || a.aimbot_bind2 == a.aimbot_bind)
         a.aimbot_bind2 = 0;
     if (bi("aim.visible_check")) { a.visible_check = toB(); return true; }
-    if (bi("aim.silent_enabled")) { a.silent_enabled = toB(); return true; }
-    a.silent_enabled = false; // force — silent removed from product
-    if (bi("aim.silent_show_fov")) { a.silent_show_fov = toB(); return true; }
-    if (bi("aim.silent_fov_rgb")) { a.silent_fov_rgb = toB(); return true; }
-    if (bi("aim.silent_fov_color")) { a.silent_fov_color = toU(); return true; }
-    if (bi("aim.silent_bind")) { a.silent_bind = toI(); return true; }
-    if (bi("aim.silent_fov_size")) { a.silent_fov_size = toF(); return true; }
-    if (bi("aim.silent_max_distance")) { a.silent_max_distance = toF(); return true; }
-    if (bi("aim.silent_hit_chance")) { a.silent_hit_chance = toF(); return true; }
-    if (bi("aim.silent_miss_chance")) { a.silent_miss_chance = toF(); return true; }
-    if (bi("aim.silent_bone")) {
-        int value = toI();
-        if (value < 0 || value > static_cast<int>(aimbot::Hitbox::Legs))
-            value = static_cast<int>(aimbot::Hitbox::Head);
-        a.silent_bone = static_cast<aimbot::Hitbox>(value);
-        return true;
-    }
-    if (bi("aim.silent_legit")) { a.silent_legit = toB(); return true; }
-    if (bi("aim.silent_rage")) { a.silent_rage = toB(); return true; }
     if (bi("aim.trigger_enabled")) { a.trigger_enabled = toB(); return true; }
     if (bi("aim.trigger_always_on")) { a.trigger_always_on = toB(); return true; }
     if (bi("aim.trigger_bind")) { a.trigger_bind = toI(); return true; }

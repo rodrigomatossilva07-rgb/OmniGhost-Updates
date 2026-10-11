@@ -1,6 +1,7 @@
 #include "frame_cache.h"
 #include <algorithm>
 #include <chrono>
+#include <functional>
 
 namespace OmniGhost::Platform {
 
@@ -15,9 +16,10 @@ void FrameCache::BeginFrame(uint64_t frameNumber) noexcept {
     }
     currentFrame_.store(frameNumber, std::memory_order_release);
     
-    // Periodic cleanup (every 60 frames)
-    if (frameNumber % 60 == 0) {
-        CleanupOldEntries();
+    // Remove expired entries at frame start (cheap, no periodic full scan)
+    {
+        std::unique_lock lock(cacheMutex_);
+        RemoveExpiredEntriesLocked();
     }
 }
 
@@ -26,44 +28,71 @@ void FrameCache::EndFrame() noexcept {
 }
 
 EntityCacheEntry* FrameCache::GetOrCreateEntity(uint64_t entityAddress, uint32_t entityId) noexcept {
-    std::lock_guard lock(cacheMutex_);
+    // Fast path: try shared lock first for existing entries
+    {
+        std::shared_lock lock(cacheMutex_);
+        auto it = entityCache_.find(entityAddress);
+        if (it != entityCache_.end()) {
+            EntityCacheEntry& entry = it->second;
+            // Check TTL expiration
+            if (std::chrono::steady_clock::now() < entry.expiresAt) {
+                entry.frameStamp = currentFrame_.load(std::memory_order_acquire);
+                entry.valid = true;
+                
+                // Update LRU (need unique lock for list modification)
+                lock.unlock();
+                std::unique_lock uLock(cacheMutex_);
+                // Re-verify entry still exists after lock upgrade
+                auto it2 = entityCache_.find(entityAddress);
+                if (it2 != entityCache_.end()) {
+                    UpdateLRULocked(it2->second);
+                }
+                {
+                    std::lock_guard statsLock(statsMutex_);
+                    cacheHits_++;
+                }
+                return &entry;
+            }
+            // Expired - fall through to unique lock path for removal/recreation
+        }
+    }
     
+    // Unique lock path: create new or replace expired
+    std::unique_lock lock(cacheMutex_);
+    
+    // Re-check after lock upgrade
     auto it = entityCache_.find(entityAddress);
     if (it != entityCache_.end()) {
-        // Update existing
-        it->second.frameStamp = currentFrame_.load(std::memory_order_acquire);
-        it->second.valid = true;
-        
-        // Update LRU
-        auto lruIt = std::find(lruList_.begin(), lruList_.end(), entityAddress);
-        if (lruIt != lruList_.end()) {
-            lruList_.erase(lruIt);
+        EntityCacheEntry& entry = it->second;
+        if (std::chrono::steady_clock::now() < entry.expiresAt) {
+            entry.frameStamp = currentFrame_.load(std::memory_order_acquire);
+            entry.valid = true;
+            UpdateLRULocked(entry);
+            {
+                std::lock_guard statsLock(statsMutex_);
+                cacheHits_++;
+            }
+            return &entry;
         }
-        lruList_.push_back(entityAddress);
-        
-        {
-            std::lock_guard statsLock(statsMutex_);
-            cacheHits_++;
-        }
-        return &it->second;
+        // Expired - remove old entry
+        lruList_.erase(entry.lruIt);
+        entityCache_.erase(it);
     }
+    
+    // Evict LRU if at capacity
+    EvictLRUIfNeededLocked();
     
     // Create new entry
-    if (entityCache_.size() >= maxEntities_) {
-        // Remove LRU entry
-        if (!lruList_.empty()) {
-            uint64_t lru = lruList_.front();
-            lruList_.erase(lruList_.begin());
-            entityCache_.erase(lru);
-        }
-    }
-    
     auto& entry = entityCache_[entityAddress];
     entry.entityAddress = entityAddress;
     entry.entityId = entityId;
     entry.frameStamp = currentFrame_.load(std::memory_order_acquire);
     entry.valid = true;
+    entry.expiresAt = std::chrono::steady_clock::now() + entityTTL_;
+    
+    // Add to LRU list (back = most recent)
     lruList_.push_back(entityAddress);
+    entry.lruIt = std::prev(lruList_.end());
     
     {
         std::lock_guard statsLock(statsMutex_);
@@ -73,29 +102,39 @@ EntityCacheEntry* FrameCache::GetOrCreateEntity(uint64_t entityAddress, uint32_t
     return &entry;
 }
 
-EntityCacheEntry* FrameCache::GetEntity(uint64_t entityAddress) noexcept {
-    std::lock_guard lock(cacheMutex_);
+template<typename Fn>
+bool FrameCache::AccessEntity(uint64_t entityAddress, Fn&& fn) noexcept {
+    std::shared_lock lock(cacheMutex_);
     auto it = entityCache_.find(entityAddress);
     if (it != entityCache_.end()) {
-        {
-            std::lock_guard statsLock(statsMutex_);
-            cacheHits_++;
+        // Check TTL
+        if (std::chrono::steady_clock::now() < it->second.expiresAt) {
+            it->second.frameStamp = currentFrame_.load(std::memory_order_acquire);
+            it->second.valid = true;
+            fn(&it->second);
+            {
+                std::lock_guard statsLock(statsMutex_);
+                cacheHits_++;
+            }
+            return true;
         }
-        return &it->second;
     }
     {
         std::lock_guard statsLock(statsMutex_);
         cacheMisses_++;
     }
-    return nullptr;
+    return false;
 }
 
+// Explicit instantiation for common use cases
+template bool FrameCache::AccessEntity(uint64_t, std::function<void(EntityCacheEntry*)>) noexcept;
+
 void FrameCache::InvalidateEntity(uint64_t entityAddress) noexcept {
-    std::lock_guard lock(cacheMutex_);
-    entityCache_.erase(entityAddress);
-    auto it = std::find(lruList_.begin(), lruList_.end(), entityAddress);
-    if (it != lruList_.end()) {
-        lruList_.erase(it);
+    std::unique_lock lock(cacheMutex_);
+    auto it = entityCache_.find(entityAddress);
+    if (it != entityCache_.end()) {
+        lruList_.erase(it->second.lruIt);
+        entityCache_.erase(it);
     }
 }
 
@@ -166,7 +205,7 @@ bool FrameCache::GetEntityVisibility(EntityCacheEntry* entity) const noexcept {
 }
 
 FrameCache::Stats FrameCache::GetStats() const noexcept {
-    std::lock_guard lock(cacheMutex_);
+    std::shared_lock lock(cacheMutex_);
     std::lock_guard statsLock(statsMutex_);
     
     Stats stats;
@@ -191,26 +230,32 @@ void FrameCache::ResetStats() noexcept {
     cacheMisses_ = 0;
 }
 
-void FrameCache::CleanupOldEntries() noexcept {
-    std::lock_guard lock(cacheMutex_);
-    uint64_t current = currentFrame_.load(std::memory_order_acquire);
-    
-    // Remove entries older than 2 frames
+void FrameCache::RemoveExpiredEntriesLocked() noexcept {
+    auto now = std::chrono::steady_clock::now();
     auto it = entityCache_.begin();
     while (it != entityCache_.end()) {
-        if (current - it->second.frameStamp > 2) {
-            auto lruIt = std::find(lruList_.begin(), lruList_.end(), it->first);
-            if (lruIt != lruList_.end()) lruList_.erase(lruIt);
+        if (now >= it->second.expiresAt) {
+            lruList_.erase(it->second.lruIt);
             it = entityCache_.erase(it);
         } else {
             ++it;
         }
     }
-    
-    // Trim LRU list if needed
-    if (lruList_.size() > maxEntities_) {
-        lruList_.erase(lruList_.begin(), lruList_.begin() + (lruList_.size() - maxEntities_));
+}
+
+void FrameCache::EvictLRUIfNeededLocked() noexcept {
+    if (entityCache_.size() >= maxEntities_ && !lruList_.empty()) {
+        uint64_t lru = lruList_.front();
+        lruList_.pop_front();
+        entityCache_.erase(lru);
     }
+}
+
+void FrameCache::UpdateLRULocked(EntityCacheEntry& entry) noexcept {
+    // Move to back (most recent)
+    lruList_.erase(entry.lruIt);
+    lruList_.push_back(entry.entityAddress);
+    entry.lruIt = std::prev(lruList_.end());
 }
 
 } // namespace OmniGhost::Platform

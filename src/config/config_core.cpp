@@ -526,6 +526,15 @@ void TickAutoSave() {
         std::chrono::steady_clock::now() - lastChange).count();
     if (elapsed < 700) return;
 
+    // FIX SEC-001: Sanitize active_config_name as defense in depth
+    // against corrupted state file (path traversal via config_state.ini)
+    const std::string safeName = SanitizeFileName(active_config_name);
+    if (safeName != active_config_name) {
+        active_config_name = safeName;
+        // Persist corrected name
+        WriteState({{std::string("active.") + ActiveGameMeta(), active_config_name}});
+    }
+
     EnsureConfigDir();
     const fs::path path = fs::path(ConfigDir()) / (active_config_name + ".ogcfg");
     std::string error;
@@ -539,6 +548,13 @@ void TickAutoSave() {
 
 void FlushActiveConfig() {
     if (active_config_name.empty()) return;
+    // FIX SEC-001: Sanitize active_config_name as defense in depth
+    const std::string safeName = SanitizeFileName(active_config_name);
+    if (safeName != active_config_name) {
+        active_config_name = safeName;
+        WriteState({{std::string("active.") + ActiveGameMeta(), active_config_name}});
+    }
+
     EnsureConfigDir();
     const fs::path path = fs::path(ConfigDir()) / (active_config_name + ".ogcfg");
     std::string error;

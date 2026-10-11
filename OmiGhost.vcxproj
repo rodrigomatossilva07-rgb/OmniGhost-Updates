@@ -375,6 +375,15 @@
     <ClCompile Include="src\games\Cs2\aimbot\cs2_aim.cpp"/>
     <ClCompile Include="src\games\Cs2\esp\cs2_esp.cpp"/>
     <ClCompile Include="src\games\Cs2\cs2_game.cpp"/>
+    <ClCompile Include="src\games\Cs2\bones\cs2_bones.cpp"/>
+    <ClCompile Include="src\games\Cs2\collision\cs2_collision_loader.cpp"/>
+    <ClCompile Include="src\games\Cs2\core\cs2_core_world.cpp"/>
+    <ClCompile Include="src\games\Cs2\metadata\cs2_metadata.cpp"/>
+    <ClCompile Include="src\games\Cs2\offsets\cs2_offsets.cpp"/>
+    <ClCompile Include="src\games\Cs2\runtime\cs2_camera.cpp"/>
+    <ClCompile Include="src\games\Cs2\runtime\cs2_runtime.cpp"/>
+    <ClCompile Include="src\games\Cs2\telemetry\cs2_telemetry.cpp"/>
+    <ClCompile Include="src\games\Cs2\visibility\cs2_visibility_worker.cpp"/>
     <ClCompile Include="src\games\Cs2\trajectory\cs2_collision_mesh.cpp"/>
     <ClCompile Include="src\games\Cs2\trajectory\cs2_map_collision_cache.cpp"/>
     <ClCompile Include="src\games\Cs2\radar\cs2_radar.cpp"/>

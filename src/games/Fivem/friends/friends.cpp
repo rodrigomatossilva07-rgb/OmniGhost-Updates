@@ -89,14 +89,15 @@ namespace friends {
         using namespace FiveM;
         player_list.clear();
 
-        if (!FiveM::ESP::FrameCacheValid() || FiveM::ESP::validPeds.empty())
+        auto snapshot = FiveM::ESP::GetValidPedsSnapshot();
+        if (!FiveM::ESP::FrameCacheValid() || snapshot.validPeds.empty())
             return;
 
         const Vec3 localPos = FiveM::ESP::GetFrameLocalPos();
         if (localPos.IsZero()) return;
 
-        for (size_t i = 0; i < FiveM::ESP::validPeds.size(); ++i) {
-            uintptr_t ped = FiveM::ESP::validPeds[i];
+        for (size_t i = 0; i < snapshot.validPeds.size(); ++i) {
+            uintptr_t ped = snapshot.validPeds[i];
             if (!ped || ped == offset::localplayer) continue;
 
             uint32_t netId = 0;

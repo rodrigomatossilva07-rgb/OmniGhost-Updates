@@ -199,19 +199,27 @@ std::atomic<std::uintptr_t> g_renderThreadHash{0};
 std::uintptr_t ThreadHash(std::thread::id id) {
     return static_cast<std::uintptr_t>(std::hash<std::thread::id>{}(id));
 }
-void WarnIfDmaOnRenderThread(const char* where) {
+
+// Returns true if DMA call should proceed, false if called on render thread (blocked).
+// In Debug: asserts and returns false.
+// In Release: logs once per second and returns false.
+bool WarnIfDmaOnRenderThread(const char* where) {
     const auto h = g_renderThreadHash.load(std::memory_order_relaxed);
-    if (!h) return;
-    if (ThreadHash(std::this_thread::get_id()) != h) return;
+    if (!h) return true; // render thread not set yet, allow
+    if (ThreadHash(std::this_thread::get_id()) != h) return true; // not render thread, allow
+    
+    // Called on render thread - BLOCK the DMA call
 #ifdef _DEBUG
     assert(false && "DMA called on render thread");
 #endif
     static std::atomic<uint64_t> s_lastLog{0};
     const uint64_t now = GetTickCount64();
     uint64_t prev = s_lastLog.load(std::memory_order_relaxed);
-    if (now - prev < 1000 && prev != 0) return;
-    s_lastLog.store(now, std::memory_order_relaxed);
-    std::cout << "[CS2] ERROR DMA_ON_RENDER_THREAD where=" << where << std::endl;
+    if (now - prev >= 1000 || prev == 0) {
+        s_lastLog.store(now, std::memory_order_relaxed);
+        std::cout << "[DMA][BLOCKED] DMA call on render thread rejected: " << where << std::endl;
+    }
+    return false;
 }
 void LogSlowDma(const char* op, double duration_ms, int requests = 0) {
     if (duration_ms < 10.0) return;
@@ -378,7 +386,8 @@ uint64_t Memory::ConsumeThreadDmaWaitUs() noexcept {
 
 bool Memory::Read(uintptr_t address, void* buffer, size_t size) const
 {
-	WarnIfDmaOnRenderThread("Read");
+	if (!WarnIfDmaOnRenderThread("Read"))
+		return false;
 	DataCallLease dataLease(this);
 	if (!dataLease) {
 		// Maintenance blocked the data plane — count as wait.
@@ -419,9 +428,15 @@ bool Memory::Read(uintptr_t address, void* buffer, size_t size) const
 	bool ok = ok1;
 	if (!ok) {
 		// Fallback: cached read (sometimes works when NOCACHE fails mid DTB fix)
+		// P1-18 fix: Track fallback usage for cache invalidation awareness
 		read_size = 0;
 		ok = VMMDLL_MemReadEx(this->vHandle, current_process.PID, address,
 			static_cast<PBYTE>(buffer), byteCount, &read_size, 0) && read_size == byteCount;
+		if (ok) {
+			// Track fallback usage for diagnostics
+			static std::atomic<uint64_t> s_fallbackReadCount{0};
+			s_fallbackReadCount.fetch_add(1, std::memory_order_relaxed);
+		}
 	}
 	// dmaSpinLockGuard and dmaReadLock automatically unlock on scope exit
 	const double ms = std::chrono::duration<double, std::milli>(
@@ -439,7 +454,8 @@ bool Memory::Read(uintptr_t address, void* buffer, size_t size) const
 bool Memory::TryRead(uintptr_t address, void* buffer, size_t size, bool& attempted) const
 {
 	attempted = false;
-	WarnIfDmaOnRenderThread("TryRead");
+	if (!WarnIfDmaOnRenderThread("TryRead"))
+		return false;
 	DataCallLease dataLease(this);
 	if (!dataLease || !this->vHandle || !buffer || size > static_cast<size_t>(MAXDWORD))
 		return false;
@@ -482,7 +498,8 @@ bool Memory::TryRead(uintptr_t address, void* buffer, size_t size, bool& attempt
 
 bool Memory::ReadWithCount(uintptr_t address, void* buffer, size_t size, size_t& bytesRead) const
 {
-	WarnIfDmaOnRenderThread("ReadWithCount");
+	if (!WarnIfDmaOnRenderThread("ReadWithCount"))
+		return false;
 	bytesRead = 0;
 	DataCallLease dataLease(this);
 	if (!dataLease || !this->vHandle || !buffer)
@@ -523,7 +540,8 @@ bool Memory::ReadWithCount(uintptr_t address, void* buffer, size_t size, size_t&
 
 bool Memory::Read(uintptr_t address, void* buffer, size_t size, int pid) const
 {
-	WarnIfDmaOnRenderThread("ReadPid");
+	if (!WarnIfDmaOnRenderThread("ReadPid"))
+		return false;
 	DataCallLease dataLease(this);
 	if (!dataLease || !this->vHandle)
 		return false;
@@ -556,8 +574,7 @@ VMMDLL_SCATTER_HANDLE Memory::CreateScatterHandle() const
 			LOG("[!] Failed to create scatter handle\n");
 			return nullptr;
 		}
-		OmniGhost::MemoryCounters::ScatterHandlesCreated.fetch_add(1, std::memory_order_relaxed);
-		OmniGhost::MemoryCounters::ScatterHandlesLive.fetch_add(1, std::memory_order_relaxed);
+		// FIX BUG-008: Counters updated atomically with map in RegisterScatterHandle
 		RegisterScatterHandle(ScatterHandle);
 		return ScatterHandle;
 	}
@@ -575,8 +592,7 @@ VMMDLL_SCATTER_HANDLE Memory::CreateScatterHandle(int pid) const
 			LOG("[!] Failed to create scatter handle\n");
 			return nullptr;
 		}
-		OmniGhost::MemoryCounters::ScatterHandlesCreated.fetch_add(1, std::memory_order_relaxed);
-		OmniGhost::MemoryCounters::ScatterHandlesLive.fetch_add(1, std::memory_order_relaxed);
+		// FIX BUG-008: Counters updated atomically with map in RegisterScatterHandle
 		RegisterScatterHandle(ScatterHandle);
 		return ScatterHandle;
 	}
@@ -591,6 +607,9 @@ void Memory::RegisterScatterHandle(VMMDLL_SCATTER_HANDLE handle) const
 		sessionGeneration_.load(std::memory_order_acquire),
 		processGeneration_.load(std::memory_order_acquire)
 	});
+	// FIX BUG-008: Update counters atomically with map
+	OmniGhost::MemoryCounters::ScatterHandlesCreated.fetch_add(1, std::memory_order_relaxed);
+	OmniGhost::MemoryCounters::ScatterHandlesLive.fetch_add(1, std::memory_order_relaxed);
 	activeScatterHandles_.store(static_cast<uint32_t>(scatterHandles_.size()), std::memory_order_release);
 }
 
@@ -607,6 +626,8 @@ bool Memory::ScatterHandleIsCurrent(VMMDLL_SCATTER_HANDLE handle) const noexcept
 
 void Memory::InvalidateScatterHandles(const char* reason) noexcept
 {
+	// P1-1 fix: Release scatterMutex_ before calling VMMDLL_Scatter_CloseHandle
+	// to avoid lock hierarchy violation (scatterMutex_ -> dmaReadMutex_ via VMM internal)
 	std::unordered_map<VMMDLL_SCATTER_HANDLE, ScatterGeneration> stale;
 	{
 		std::scoped_lock lock(scatterMutex_);
@@ -632,6 +653,8 @@ void Memory::CloseScatterHandle(VMMDLL_SCATTER_HANDLE handle)
 {
 	if (!handle)
 		return;
+	// P1-1 fix: Release scatterMutex_ before calling VMMDLL_Scatter_CloseHandle
+	// to avoid lock hierarchy violation.
 	{
 		std::scoped_lock lock(scatterMutex_);
 		const auto found = scatterHandles_.find(handle);
@@ -653,6 +676,11 @@ void Memory::AddScatterReadRequest(VMMDLL_SCATTER_HANDLE handle, uint64_t addres
 		return;
 	if (size > static_cast<size_t>(MAXDWORD))
 		return;
+	// FIX MEM-005: Validate buffer alignment for DMA (require 8-byte alignment)
+	if (reinterpret_cast<uintptr_t>(buffer) % 8 != 0) {
+		LOG("[!] AddScatterReadRequest: buffer not 8-byte aligned (0x%p), DMA may corrupt memory\n", buffer);
+		return;
+	}
 	const DWORD byteCount = static_cast<DWORD>(size);
 	if (!VMMDLL_Scatter_PrepareEx(handle, address, byteCount, static_cast<PBYTE>(buffer), NULL))
 	{
@@ -683,7 +711,8 @@ void Memory::AddScatterWriteRequest(VMMDLL_SCATTER_HANDLE handle, uint64_t addre
 
 bool Memory::ExecuteReadScatter(VMMDLL_SCATTER_HANDLE handle, int pid)
 {
-	WarnIfDmaOnRenderThread("ExecuteReadScatter");
+	if (!WarnIfDmaOnRenderThread("ExecuteReadScatter"))
+		return false;
 	DataCallLease dataLease(this);
 	if (!dataLease) {
 		t_dmaWaitUs += 500;

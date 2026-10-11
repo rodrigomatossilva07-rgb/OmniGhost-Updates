@@ -373,110 +373,6 @@ namespace Gameplay::EntityCache {
         return true;
     }
 
-    // ThreadedEntityCache implementation
-    ThreadedEntityCache::ThreadedEntityCache(size_t num_threads) {
-        workers_.resize(num_threads);
-        for (size_t i = 0; i < num_threads; ++i) {
-            workers_[i].thread = std::thread(&ThreadedEntityCache::WorkerLoop, this, i);
-        }
-    }
-
-    ThreadedEntityCache::~ThreadedEntityCache() {
-        for (auto& worker : workers_) {
-            {
-                std::lock_guard<std::mutex> lock(worker.queue_mutex);
-                worker.stop = true;
-            }
-            worker.cv.notify_all();
-            if (worker.thread.joinable()) worker.thread.join();
-        }
-    }
-
-    void ThreadedEntityCache::AsyncUpdateEntity(const EntityData& entity) {
-        size_t index = entity.id % workers_.size();
-        {
-            std::lock_guard<std::mutex> lock(workers_[index].queue_mutex);
-            workers_[index].queue.push_back([this, entity]() {
-                // Update entity in main cache (would need reference)
-            });
-        }
-        workers_[index].cv.notify_one();
-    }
-
-    void ThreadedEntityCache::AsyncRemoveEntity(uint64_t id) {
-        size_t index = id % workers_.size();
-        {
-            std::lock_guard<std::mutex> lock(workers_[index].queue_mutex);
-            workers_[index].queue.push_back([this, id]() {
-                // Remove entity from main cache
-            });
-        }
-        workers_[index].cv.notify_one();
-    }
-
-    EntityData* ThreadedEntityCache::GetEntity(uint64_t id) {
-        // Would access main cache
-        return nullptr;
-    }
-
-    const EntityData* ThreadedEntityCache::GetEntity(uint64_t id) const {
-        return nullptr;
-    }
-
-    void ThreadedEntityCache::Flush() {
-        for (auto& worker : workers_) {
-            std::unique_lock<std::mutex> lock(worker.queue_mutex);
-            worker.cv.wait(lock, [&worker] { return worker.queue.empty(); });
-        }
-    }
-
-    void ThreadedEntityCache::SetNumThreads(size_t n) {
-        if (n == workers_.size()) return;
-        if (n < workers_.size()) {
-            // Stop excess threads
-            for (size_t i = n; i < workers_.size(); ++i) {
-                {
-                    std::lock_guard<std::mutex> lock(workers_[i].queue_mutex);
-                    workers_[i].stop = true;
-                }
-                workers_[i].cv.notify_all();
-            }
-            workers_.resize(n);
-        } else {
-            // Add new threads
-            size_t old_size = workers_.size();
-            workers_.resize(n);
-            for (size_t i = old_size; i < n; ++i) {
-                workers_[i].thread = std::thread(&ThreadedEntityCache::WorkerLoop, this, i);
-            }
-        }
-    }
-
-    size_t ThreadedEntityCache::GetNumThreads() const {
-        return workers_.size();
-    }
-
-    void ThreadedEntityCache::WorkerLoop(size_t index) {
-        while (running_) {
-            std::function<void()> task;
-            {
-                std::unique_lock<std::mutex> lock(workers_[index].queue_mutex);
-                workers_[index].cv.wait(lock, [this, index] {
-                    return !workers_[index].queue.empty() || workers_[index].stop;
-                });
-                
-                if (workers_[index].stop && workers_[index].queue.empty()) break;
-                
-                if (!workers_[index].queue.empty()) {
-                    task = std::move(workers_[index].queue.front());
-                    workers_[index].queue.erase(workers_[index].queue.begin());
-                }
-            }
-            
-            if (task) task();
-        }
-    }
-
     // EntityPool implementation
     EntityPool::EntityPool(size_t initial_size) {
         pool_.reserve(initial_size);
@@ -541,10 +437,25 @@ namespace Gameplay::EntityCache {
         GetCellCoords(position, x, y, z);
         int64_t hash = HashCell(x, y, z);
         grid_[hash].entities.push_back(entity_id);
+        entity_to_cell_[entity_id] = hash;
     }
 
     void SpatialHash::Remove(uint64_t entity_id) {
-        // Would need to track which cell entity is in
+        auto it = entity_to_cell_.find(entity_id);
+        if (it == entity_to_cell_.end()) return;
+        
+        int64_t hash = it->second;
+        auto cell_it = grid_.find(hash);
+        if (cell_it != grid_.end()) {
+            auto& entities = cell_it->second.entities;
+            entities.erase(std::remove(entities.begin(), entities.end(), entity_id), entities.end());
+            
+            // Clean up empty cells
+            if (entities.empty()) {
+                grid_.erase(cell_it);
+            }
+        }
+        entity_to_cell_.erase(it);
     }
 
     void SpatialHash::Update(uint64_t entity_id, const Vec3& old_pos, const Vec3& new_pos) {
@@ -604,6 +515,8 @@ namespace Gameplay::EntityCache {
 
     void SpatialHash::Clear() {
         grid_.clear();
+        entity_to_cell_.clear();
+    }
     }
 
     void SpatialHash::SetCellSize(float size) {

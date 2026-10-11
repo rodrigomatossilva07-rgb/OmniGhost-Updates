@@ -164,42 +164,6 @@ namespace Gameplay::EntityCache {
         void UpdateDerivedData(EntityData& entity);
     };
     
-    // Multi-threaded entity cache
-    class ThreadedEntityCache {
-    public:
-        ThreadedEntityCache(size_t num_threads = 2);
-        ~ThreadedEntityCache();
-        
-        // Async operations
-        void AsyncUpdateEntity(const EntityData& entity);
-        void AsyncRemoveEntity(uint64_t id);
-        
-        // Sync access
-        EntityData* GetEntity(uint64_t id);
-        const EntityData* GetEntity(uint64_t id) const;
-        
-        // Flush pending operations
-        void Flush();
-        
-        // Worker management
-        void SetNumThreads(size_t n);
-        size_t GetNumThreads() const;
-        
-    private:
-        struct WorkerData {
-            std::thread thread;
-            std::mutex queue_mutex;
-            std::vector<std::function<void()>> queue;
-            std::condition_variable cv;
-            bool stop = false;
-        };
-        
-        std::vector<WorkerData> workers_;
-        std::atomic<bool> running_ = true;
-        
-        void WorkerLoop(size_t index);
-    };
-    
     // Entity pool for memory efficiency
     class EntityPool {
     public:
@@ -252,6 +216,8 @@ namespace Gameplay::EntityCache {
         float cell_size_ = 100.0f;
         float inv_cell_size_ = 0.01f;
         std::unordered_map<int64_t, Cell> grid_;
+        // Track entity -> cell hash for O(1) removal
+        std::unordered_map<uint64_t, int64_t> entity_to_cell_;
         
         int64_t HashCell(int x, int y, int z) const;
         void GetCellCoords(const Vec3& pos, int& x, int& y, int& z) const;

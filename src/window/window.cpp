@@ -454,7 +454,7 @@ const PerformanceMode::State performance = PerformanceMode::Update(
         default:
             connected = true;
             build = "FiveM";
-            players = static_cast<int>(FiveM::ESP::validPeds.size());
+            players = static_cast<int>(FiveM::ESP::GetValidPedsSnapshot().validPeds.size());
             break;
         }
 

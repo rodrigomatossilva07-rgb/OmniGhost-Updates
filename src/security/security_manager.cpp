@@ -114,23 +114,9 @@ bool SecurityManager::CanUseProtectedFeatures() const noexcept {
 }
 
 bool SecurityManager::VerifyProtectedFiles() noexcept {
-#if defined(OMNIGHOST_PUBLISH_BUILD)
-    if (!OmniGhost::Update::ReleaseTrust::Configured) {
-        return true;
-    }
-    const auto host = SignedHostPath();
-    if (host.empty()) {
-        Record(EventId::ReleaseTrustMissing);
-        return false;
-    }
-    const auto report = OmniGhost::Update::VerifyInstallationFiles(host.parent_path());
-    if (report.status != OmniGhost::Update::IntegrityStatus::Healthy) {
-        Record(report.status == OmniGhost::Update::IntegrityStatus::Damaged
-            ? EventId::RuntimeFileInvalid : EventId::InstallManifestInvalid);
-        return false;
-    }
-    // These are the only native modules required for the DMA backend. The
-    // bootstrap manifest pins their bytes to hashes embedded in the signed EXE.
+    // Critical runtime DLL validation: ALWAYS enforced (Release + Publish).
+    // The bootstrap manifest pins SHA-256 hashes of vmm.dll, leechcore.dll, FTD3XXWU.dll
+    // to the signed EXE. This prevents runtime DLL substitution/tampering.
     for (const wchar_t* module : {L"libs/vmm.dll", L"libs/leechcore.dll", L"libs/FTD3XXWU.dll"}) {
         std::wstring error;
         if (!OmniGhost::RuntimeBootstrap::ValidatePrivateRuntimeFile(module, error)) {
@@ -138,12 +124,22 @@ bool SecurityManager::VerifyProtectedFiles() noexcept {
             return false;
         }
     }
-#endif
-    return true;
-}
 
-bool SecurityManager::VerifyHostIdentity() noexcept {
+    // Installation manifest validation: ALWAYS enforced.
+    // Checks that all installed files match the signed manifest.
+    const auto host = SignedHostPath();
+    if (!host.empty()) {
+        const auto report = OmniGhost::Update::VerifyInstallationFiles(host.parent_path());
+        if (report.status != OmniGhost::Update::IntegrityStatus::Healthy) {
+            Record(report.status == OmniGhost::Update::IntegrityStatus::Damaged
+                ? EventId::RuntimeFileInvalid : EventId::InstallManifestInvalid);
+            return false;
+        }
+    }
+
 #if defined(OMNIGHOST_PUBLISH_BUILD)
+    // Publisher identity / Authenticode verification: PUBLISH ONLY.
+    // Requires configured release trust anchor (publisher certificate).
     if (!OmniGhost::Update::ReleaseTrust::Configured) {
         // A Publish build must never silently downgrade to unsigned trust.
         OmniGhost::SessionLog::Write(
@@ -153,7 +149,6 @@ bool SecurityManager::VerifyHostIdentity() noexcept {
         Record(EventId::ReleaseTrustMissing);
         return false;
     }
-    const auto host = SignedHostPath();
     if (host.empty()) {
         Record(EventId::ReleaseTrustMissing);
         return false;
@@ -178,6 +173,71 @@ bool SecurityManager::VerifyHostIdentity() noexcept {
     if (!CoreMatchesSignedHost(host)) {
         Record(EventId::RuntimeFileInvalid);
         return false;
+    }
+#endif
+    return true;
+}
+
+bool SecurityManager::VerifyHostIdentity() noexcept {
+    // Core payload integrity: ALWAYS enforced (Release + Publish).
+    // Verifies that the core payload embedded in the host EXE matches the running executable.
+    const auto host = SignedHostPath();
+    if (host.empty()) {
+        Record(EventId::ReleaseTrustMissing);
+        return false;
+    }
+    if (!CoreMatchesSignedHost(host)) {
+        Record(EventId::RuntimeFileInvalid);
+        return false;
+    }
+
+#if defined(OMNIGHOST_PUBLISH_BUILD)
+    // Publisher identity / Authenticode verification: PUBLISH ONLY.
+    // Requires configured release trust anchor (publisher certificate).
+    if (!OmniGhost::Update::ReleaseTrust::Configured) {
+        // A Publish build must never silently downgrade to unsigned trust.
+        OmniGhost::SessionLog::Write(
+            OmniGhost::SessionLog::Severity::Error,
+            OmniGhost::SessionLog::Subsystem::Core,
+            "publisher identity unavailable: release trust anchor is not configured");
+        Record(EventId::ReleaseTrustMissing);
+        return false;
+    }
+    std::string error;
+    bool signedByPublisher = OmniGhost::Update::VerifyAuthenticode(
+        host, OmniGhost::Update::ReleaseTrust::PublisherSubject,
+        OmniGhost::Update::ReleaseTrust::CertificateThumbprint, error);
+    bool revocationUnavailable = error.find("trust.revocation_offline") != std::string::npos;
+    if (!signedByPublisher && OmniGhost::Update::ReleaseTrust::SecondaryConfigured) {
+        signedByPublisher = OmniGhost::Update::VerifyAuthenticode(
+            host, OmniGhost::Update::ReleaseTrust::SecondaryPublisherSubject,
+            OmniGhost::Update::ReleaseTrust::SecondaryCertificateThumbprint, error);
+        revocationUnavailable = revocationUnavailable ||
+            error.find("trust.revocation_offline") != std::string::npos;
+    }
+    if (!signedByPublisher) {
+        Record(revocationUnavailable ? EventId::SignatureVerificationUnavailable
+                                     : EventId::ExecutableSignatureInvalid);
+        return false;
+    }
+#else
+    // FIX SEC-005: Best-effort Authenticode verification in dev builds.
+    // Does not block execution (dev builds may be unsigned), but logs warning if signature invalid.
+    std::string error;
+    bool signedByPublisher = OmniGhost::Update::VerifyAuthenticode(
+        host, OmniGhost::Update::ReleaseTrust::PublisherSubject,
+        OmniGhost::Update::ReleaseTrust::CertificateThumbprint, error);
+    if (!signedByPublisher && OmniGhost::Update::ReleaseTrust::SecondaryConfigured) {
+        signedByPublisher = OmniGhost::Update::VerifyAuthenticode(
+            host, OmniGhost::Update::ReleaseTrust::SecondaryPublisherSubject,
+            OmniGhost::Update::ReleaseTrust::SecondaryCertificateThumbprint, error);
+    }
+    if (!signedByPublisher) {
+        OmniGhost::SessionLog::Write(
+            OmniGhost::SessionLog::Severity::Warning,
+            OmniGhost::SessionLog::Subsystem::Core,
+            "executavel nao assinado ou assinatura invalida (dev build) - verifique a integridade",
+            {{"executable", OmniGhost::Platform::WideToUtf8(host.wstring())}});
     }
 #endif
     return true;
