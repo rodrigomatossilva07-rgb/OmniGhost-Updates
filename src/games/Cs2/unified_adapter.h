@@ -143,7 +143,9 @@ public:
     }
     
     // Get FeatureFlags for RequiredFields()
-    static const OmniGhost::Gameplay::UnifiedESP::FeatureFlags& GetFeatureFlags() {
+    // Returns by value: the unified config's GetFeatureFlags() materializes the
+    // flags, so a const& would dangle (C4172).
+    static OmniGhost::Gameplay::UnifiedESP::FeatureFlags GetFeatureFlags() {
         return Get().GetFeatureFlags();
     }
 };
