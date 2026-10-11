@@ -18,7 +18,7 @@ $RuntimeDir = [IO.Path]::GetFullPath((Join-Path $RuntimeDir '.'))
 $SbomPath = [IO.Path]::GetFullPath($SbomPath)
 
 foreach ($required in @(
-    (Join-Path $ProjectDir 'THIRD_PARTY_NOTICES.txt'),
+    (Join-Path $ProjectDir 'docs\legal\THIRD_PARTY_NOTICES.txt'),
     (Join-Path $ProjectDir 'config\release\versions.json'),
     $SbomPath
 )) {
@@ -87,7 +87,7 @@ foreach ($game in @('Warzone')) {
     }
 }
 
-$ownSourceRoots = @('src', 'Cs2', 'Fivem', 'Warzone', 'DMALibrary')
+$ownSourceRoots = @('src', 'third_party\DMALibrary')
 foreach ($rootName in $ownSourceRoots) {
     $root = Join-Path $ProjectDir $rootName
     if (-not (Test-Path -LiteralPath $root -PathType Container)) { continue }

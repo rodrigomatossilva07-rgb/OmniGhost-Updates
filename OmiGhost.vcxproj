@@ -89,7 +89,7 @@
          afterwards so authoritative project versions win on duplicate names. -->
     <OmniGhostLibRuntimeLibrary Include="$(ProjectDir)libs\*.dll"/>
     <OmniGhostDmaRuntimeLibrary Include="$(ProjectDir)third_party\dma_stack\bin\*.dll"/>
-    <OmniGhostCustomRuntimeLibrary Include="$(ProjectDir)runtime\own\*.dll"/>
+    <OmniGhostCustomRuntimeLibrary Include="$(ProjectDir)infrastructure\runtime\own\*.dll"/>
     <OmniGhostDmaPlugin Include="$(ProjectDir)third_party\dma_stack\plugins\**\*"/>
     <OmniGhostRootResource Include="$(ProjectDir)resources\OmniGhost.ico;$(ProjectDir)resources\OmniGhost.png"/>
     <OmniGhostGameResource Include="$(ProjectDir)resources\games\**\*.png;$(ProjectDir)resources\games\**\*.jpg;$(ProjectDir)resources\games\**\*.jpeg;$(ProjectDir)resources\games\**\*.webp"/>
@@ -421,20 +421,20 @@
     <ClCompile Include="src\window\pages\fivem\FivemVisualsPage.cpp"/>
     <ClCompile Include="src\window\pages\unified_stubs.cpp"/>
 
-    <ClCompile Include="ImGui\imgui.cpp"/>
-    <ClCompile Include="ImGui\imgui_draw.cpp"/>
-    <ClCompile Include="ImGui\imgui_impl_dx11.cpp"/>
-    <ClCompile Include="ImGui\imgui_impl_win32.cpp"/>
-    <ClCompile Include="ImGui\imgui_tables.cpp"/>
-    <ClCompile Include="ImGui\imgui_widgets.cpp"/>
-    <ClCompile Include="DMALibrary\Memory\InputManager.cpp"/>
-    <ClCompile Include="DMALibrary\Memory\Memory.cpp"/>
-    <ClCompile Include="DMALibrary\Memory\MemoryInit.cpp"/>
-    <ClCompile Include="DMALibrary\Memory\MemoryIO.cpp"/>
-    <ClCompile Include="DMALibrary\Memory\MemoryLifecycle.cpp"/>
-    <ClCompile Include="DMALibrary\Memory\Registry.cpp"/>
-    <ClCompile Include="DMALibrary\Memory\Shellcode.cpp"/>
-    <ClCompile Include="DMALibrary\pch.cpp"/>
+    <ClCompile Include="third_party\ImGui\imgui.cpp"/>
+    <ClCompile Include="third_party\ImGui\imgui_draw.cpp"/>
+    <ClCompile Include="third_party\ImGui\imgui_impl_dx11.cpp"/>
+    <ClCompile Include="third_party\ImGui\imgui_impl_win32.cpp"/>
+    <ClCompile Include="third_party\ImGui\imgui_tables.cpp"/>
+    <ClCompile Include="third_party\ImGui\imgui_widgets.cpp"/>
+    <ClCompile Include="third_party\DMALibrary\Memory\InputManager.cpp"/>
+    <ClCompile Include="third_party\DMALibrary\Memory\Memory.cpp"/>
+    <ClCompile Include="third_party\DMALibrary\Memory\MemoryInit.cpp"/>
+    <ClCompile Include="third_party\DMALibrary\Memory\MemoryIO.cpp"/>
+    <ClCompile Include="third_party\DMALibrary\Memory\MemoryLifecycle.cpp"/>
+    <ClCompile Include="third_party\DMALibrary\Memory\Registry.cpp"/>
+    <ClCompile Include="third_party\DMALibrary\Memory\Shellcode.cpp"/>
+    <ClCompile Include="third_party\DMALibrary\pch.cpp"/>
     <ClCompile Include="src\platform\file_integrity.cpp"/>
     <ClCompile Include="src\platform\embedded_offsets.cpp"/>
     <ClCompile Include="src\platform\offset_source.cpp"/>

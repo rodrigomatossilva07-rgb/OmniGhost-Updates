@@ -1,7 +1,7 @@
 #include "game_setup.h"
 #include "esp_manager.h"
 #include "offsets.h"
-#include "../../DMALibrary/Memory/Memory.h"
+#include "third_party/DMALibrary/Memory/Memory.h"
 #include "globals.h"
 #include "../playerInfo/PedData.h"
 #include "gameplay/weapon_name_registry.h"
@@ -101,8 +101,8 @@ void Setup() {
         if (build_offset->camera_offset != 0)
             camera = mem.Read<uintptr_t>(game_base + build_offset->camera_offset);
 
-        if (LooksPtr(world))
-            localplayer = mem.Read<uintptr_t>(world + 0x8);
+        if (LooksPtr(world) && world_localPlayer)
+            localplayer = mem.Read<uintptr_t>(world + world_localPlayer);
 
         playerInfo = build_offset->playerInfo_offset;
         playerHealth = build_offset->playerHealth_offset;
@@ -123,8 +123,8 @@ void Setup() {
         std::cout << "[FiveM] Atualiza a tabela de offsets suportada e tenta novamente." << std::endl;
         WriteStatusLog("invalid_pointers");
     } else {
-        if (!LooksPtr(localplayer))
-            localplayer = mem.Read<uintptr_t>(world + 0x8);
+        if (!LooksPtr(localplayer) && world_localPlayer)
+            localplayer = mem.Read<uintptr_t>(world + world_localPlayer);
         std::cout << "[FiveM] Pointers OK — World/Viewport/LocalPlayer valid (b"
                   << buildVersion << ")" << std::endl;
         if (LocalPlayerLooksAlive())

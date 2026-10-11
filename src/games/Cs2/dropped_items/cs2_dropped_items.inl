@@ -59,16 +59,18 @@ static void CollectDroppedWeapons(const Config& frame_config, bool in_match,
     }
     next_scan_ms = now + 250;
 
-    constexpr size_t kPages = 4, kSlotsPerPage = kEntityPageSize, kSlots = kPages * kSlotsPerPage;
+    constexpr size_t kPages = 4;
+    const size_t kSlotsPerPage = static_cast<size_t>(offsets.entity_page_size);
+    const size_t kSlots = kPages * kSlotsPerPage;
     // World entities are not guaranteed to occupy either of the first two
     // entity pages (especially on community servers). Scan 4 pages per batch
     // to complete full sweep in 2 passes (500ms) instead of 8 passes (2s).
     const size_t first_page = (next_page += kPages) % 8;
     std::array<uintptr_t, kPages> pages{};
-    std::array<uintptr_t, kSlots> entities{}, identities{}, name_ptrs{}, scenes{};
-    std::array<std::array<char, 48>, kSlots> names{};
-    std::array<std::array<float, 3>, kSlots> positions{};
-    std::array<int, kSlots> ammo{};
+    std::vector<uintptr_t> entities(kSlots), identities(kSlots), name_ptrs(kSlots), scenes(kSlots);
+    std::vector<std::array<char, 48>> names(kSlots);
+    std::vector<std::array<float, 3>> positions(kSlots);
+    std::vector<int> ammo(kSlots);
     uintptr_t root = g_cached_entity_root;
     if (!IsUserPointer(root) && (!QReadT(client_base + offsets.dwEntityList, root) || !IsUserPointer(root))) {
         publishCachedWeapons();
@@ -83,14 +85,14 @@ static void CollectDroppedWeapons(const Config& frame_config, bool in_match,
 
     mem.SetDmaCallTag("CS2.DroppedWeapons.Pages");
     for (size_t page = 0; page < kPages; ++page)
-        mem.AddScatterReadRequest(g_scatter_optional, root + kEntityPageTableOffset + sizeof(uintptr_t) * (first_page + page), &pages[page], sizeof(uintptr_t));
+        mem.AddScatterReadRequest(g_scatter_optional, root + offsets.entity_page_table_offset + sizeof(uintptr_t) * (first_page + page), &pages[page], sizeof(uintptr_t));
     CS2::GiveCameraPriorityBeforeOptionalDma();
     mem.ExecuteReadScatter(g_scatter_optional);
     mem.SetDmaCallTag("CS2.DroppedWeapons.Entities");
     bool queuedEntities = false;
     for (size_t page = 0; page < kPages; ++page) if (IsUserPointer(pages[page]))
         for (size_t slot = 0; slot < kSlotsPerPage; ++slot)
-            { mem.AddScatterReadRequest(g_scatter_optional, pages[page] + kEntityIdentityStride * slot,
+            { mem.AddScatterReadRequest(g_scatter_optional, pages[page] + offsets.entity_identity_stride * slot,
                 &entities[page * kSlotsPerPage + slot], sizeof(uintptr_t)); queuedEntities = true; }
     if (!queuedEntities) { publishCachedWeapons(); return; }
     CS2::GiveCameraPriorityBeforeOptionalDma();
@@ -98,7 +100,7 @@ static void CollectDroppedWeapons(const Config& frame_config, bool in_match,
     mem.SetDmaCallTag("CS2.DroppedWeapons.Identity");
     bool queuedIdentity = false;
     for (size_t i = 0; i < kSlots; ++i) if (IsUserPointer(entities[i]))
-        { mem.AddScatterReadRequest(g_scatter_optional, entities[i] + 0x10, &identities[i], sizeof(uintptr_t)); queuedIdentity = true; }
+        { mem.AddScatterReadRequest(g_scatter_optional, entities[i] + offsets.entity_identity_pointer, &identities[i], sizeof(uintptr_t)); queuedIdentity = true; }
     if (!queuedIdentity) { publishCachedWeapons(); return; }
     CS2::GiveCameraPriorityBeforeOptionalDma();
     mem.ExecuteReadScatter(g_scatter_optional);
@@ -111,7 +113,7 @@ static void CollectDroppedWeapons(const Config& frame_config, bool in_match,
             cached->second.last_seen_ms = now;
         }
         else if (IsUserPointer(identities[i]))
-            { mem.AddScatterReadRequest(g_scatter_optional, identities[i] + 0x20, &name_ptrs[i], sizeof(uintptr_t)); queuedNames = true; }
+            { mem.AddScatterReadRequest(g_scatter_optional, identities[i] + offsets.entity_identity_name, &name_ptrs[i], sizeof(uintptr_t)); queuedNames = true; }
     }
     if (queuedNames) {
         CS2::GiveCameraPriorityBeforeOptionalDma();

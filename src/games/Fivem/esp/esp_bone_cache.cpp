@@ -23,18 +23,18 @@ Matrix esp::BoneCache::get_bone_matrix(uintptr_t ped, bool force_refresh) {
     esp_stats.memory_reads.fetch_add(1, std::memory_order_relaxed);
 
     Matrix bone_matrix{};
-    // Preferred chain (cheatoffsets): ped + frag(0xFF8/0x12B8) → +skel_o1 → matrix
-    // Fall back to CEntity visual matrix at +0x60 if frag path fails.
+    // All layout offsets come from data/fivem_offsets.json.
     bool got = false;
     const uintptr_t frag_offs[] = {
-        FiveM::offset::boneMatrix ? FiveM::offset::boneMatrix : BONE_FRAG_3258,
-        BONE_FRAG_3258, BONE_FRAG_3751
+        FiveM::offset::boneMatrix,
+        FiveM::offset::boneFrag3258,
+        FiveM::offset::boneFrag3751
     };
     for (uintptr_t frag_off : frag_offs) {
         if (!frag_off) continue;
         uintptr_t frag = mem.Read<uintptr_t>(ped + frag_off);
         if (frag < 0x10000ull || frag > 0x7FFFFFFFFFFFULL) continue;
-        uintptr_t skel = mem.Read<uintptr_t>(frag + BONE_SKEL_O1);
+        uintptr_t skel = mem.Read<uintptr_t>(frag + FiveM::offset::boneSkeleton);
         if (skel < 0x10000ull || skel > 0x7FFFFFFFFFFFULL) {
             // some builds store matrix block directly at frag
             skel = frag;
@@ -46,7 +46,7 @@ Matrix esp::BoneCache::get_bone_matrix(uintptr_t ped, bool force_refresh) {
     }
     if (!got) {
         auto handle = mem.CreateScatterHandle();
-        mem.AddScatterReadRequest(handle, ped + BONE_MATRIX_OFFSET, &bone_matrix, sizeof(Matrix));
+        mem.AddScatterReadRequest(handle, ped + FiveM::offset::boneMatrix, &bone_matrix, sizeof(Matrix));
         mem.ExecuteReadScatter(handle);
         mem.CloseScatterHandle(handle);
     }
@@ -80,7 +80,7 @@ Vec3 esp::BoneCache::get_bone_position(uintptr_t ped, int bone_position, bool fo
 
     Vector3 bone_offset;
     auto handle = mem.CreateScatterHandle();
-    mem.AddScatterReadRequest(handle, ped + (BONE_ARRAY_BASE + BONE_SIZE * bone_position),
+    mem.AddScatterReadRequest(handle, ped + (FiveM::offset::boneArrayBase + FiveM::offset::boneSize * bone_position),
         reinterpret_cast<void*>(&bone_offset), sizeof(Vector3));
     mem.ExecuteReadScatter(handle);
     mem.CloseScatterHandle(handle);

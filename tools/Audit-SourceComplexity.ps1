@@ -10,7 +10,7 @@ $ProjectDir = [IO.Path]::GetFullPath($ProjectDir)
 $ceilings = [ordered]@{
     'src/launcher/game_select.cpp' = 2836
     'src/launcher/updates_page.cpp' = 2050
-    'DMALibrary/Memory/Memory.cpp' = 2404
+    'third_party/DMALibrary/Memory/Memory.cpp' = 2404
     # Current baselines: fail on further growth until these modules are split.
     'src/games/Fivem/esp/esp.cpp' = 2962
     # CS2 is now a small composition root; feature code belongs in its focused

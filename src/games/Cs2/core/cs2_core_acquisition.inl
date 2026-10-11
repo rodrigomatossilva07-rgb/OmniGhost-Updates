@@ -11,18 +11,18 @@ static void CalibratePawnStride(uintptr_t local_controller, uintptr_t local_pawn
     if (!QReadT(local_controller + offsets.m_hPlayerPawn, handle) || !handle || handle == 0xFFFFFFFF)
         return;
 
-    const uintptr_t with70 = ResolveEntityByHandle(handle, kEntityIdentityStride);
+    const uintptr_t with70 = ResolveEntityByHandle(handle, offsets.entity_identity_stride);
     if (with70 == local_pawn) {
-        g_pawn_stride = kEntityIdentityStride;
+        g_pawn_stride = offsets.entity_identity_stride;
         calibrated = true;
         last_local_pawn = local_pawn;
         std::cout << "[CS2] Pawn stride calibrated: 0x70 (handle=0x"
                   << std::hex << handle << std::dec << ")" << std::endl;
         return;
     }
-    const uintptr_t with78 = ResolveEntityByHandle(handle, kLegacyEntityIdentityStride);
+    const uintptr_t with78 = ResolveEntityByHandle(handle, offsets.entity_identity_stride);
     if (with78 == local_pawn) {
-        g_pawn_stride = kLegacyEntityIdentityStride;
+        g_pawn_stride = offsets.entity_identity_stride;
         calibrated = true;
         last_local_pawn = local_pawn;
         std::cout << "[CS2] Pawn stride calibrated: 0x78 (handle=0x"
@@ -48,9 +48,9 @@ static void CalibratePawnStride(uintptr_t local_controller, uintptr_t local_pawn
 static uintptr_t ResolvePawnFromHandle(uint32_t handle, uintptr_t expected_local_pawn) {
     if (!handle || handle == 0xFFFFFFFF) return 0;
 
-    const uintptr_t primary = g_pawn_stride ? g_pawn_stride : kEntityIdentityStride;
-    const uintptr_t alternate = (primary == kEntityIdentityStride)
-        ? kLegacyEntityIdentityStride : kEntityIdentityStride;
+    const uintptr_t primary = g_pawn_stride ? g_pawn_stride : offsets.entity_identity_stride;
+    const uintptr_t alternate = (primary == offsets.entity_identity_stride)
+        ? offsets.entity_identity_stride : offsets.entity_identity_stride;
 
     // CS2-DMA-main accepts the pointer as-is (no health gate here).
     const uintptr_t preferred = ResolveEntityByHandle(handle, primary);
@@ -131,7 +131,7 @@ static void UpdateLocalWeaponDefinitionThrottled() {
         next_update_ms = now + 150u;
         return;
     }
-    const uintptr_t entity = ResolveEntityByHandle(handle, g_pawn_stride ? g_pawn_stride : kEntityIdentityStride);
+    const uintptr_t entity = ResolveEntityByHandle(handle, g_pawn_stride ? g_pawn_stride : offsets.entity_identity_stride);
     uint16_t definition = 0;
     if (IsUserPointer(entity) && QReadT(entity + offsets.m_AttributeManager + offsets.m_Item +
         offsets.m_iItemDefinitionIndex, definition) && definition > 0 && definition < 6000) {
@@ -302,7 +302,7 @@ static int ScatterResolvePawnHandles(const uint32_t* handles, uintptr_t* pawns,
             continue;
         }
         mem.AddScatterReadRequest(scatter,
-            root + kEntityPageTableOffset + sizeof(uintptr_t) * static_cast<uintptr_t>(page),
+            root + offsets.entity_page_table_offset + sizeof(uintptr_t) * static_cast<uintptr_t>(page),
             &chunks[page], sizeof(uintptr_t));
         queuedChunkPointers = true;
     }
@@ -497,6 +497,7 @@ static void ScatterReadPawnCore(const uintptr_t* pawns, const uintptr_t* control
                 std::fill(std::begin(positions[i]), std::end(positions[i]),
                     (std::numeric_limits<float>::quiet_NaN)());
         }
+        g_read_fails.fetch_add(count, std::memory_order_relaxed);
         return;
     }
     for (int i = 0; i < count; ++i)

@@ -12,7 +12,7 @@
 #include "warzone_decrypt.h"
 #include "../src/platform/match_lifecycle.h"
 #include "../src/platform/embedded_offsets.h"
-#include "../DMALibrary/Memory/Memory.h"
+#include "third_party/DMALibrary/Memory/Memory.h"
 #include <Windows.h>
 #include <fstream>
 #include <sstream>
@@ -35,21 +35,6 @@ Config config{};
 std::atomic_bool ready{false};
 std::string status = "Warzone idle";
 std::atomic_bool backend_busy{false};
-
-// Warzone name array default offsets (fallback when schema offsets missing)
-constexpr uintptr_t kWZNameEntrySizeDefault = 0xD0;
-constexpr uintptr_t kWZNameArrayPosDefault = 0x3038;
-constexpr uintptr_t kWZNameEntryNameDefault = 0x10;
-constexpr uintptr_t kWZNameEntryHealthDefault = 0x90;
-constexpr uintptr_t kWZNameEntryArmorDefault = 0x98;
-constexpr uintptr_t kWZNameEntryAliveDefault = 0x78;
-constexpr uintptr_t kWZPlayerSizeDefault = 0x2808;
-constexpr uintptr_t kWZPlayerPosDataDefault = 0x80;
-constexpr uintptr_t kWZPlayerPosDefault = 0xEB0;
-constexpr uintptr_t kWZPlayerStanceDefault = 0x19D0;
-constexpr uintptr_t kWZPlayerArmorDefault = 0x13F8;
-constexpr uintptr_t kWZPlayerValidDefault = 0x13FC;
-constexpr uintptr_t kWZPlayerTeamDefault = 0xB0;
 
 // Defined later; acquisition thread calls this each core tick.
 void AcquisitionTick();
@@ -330,8 +315,8 @@ bool PopulateFromEmbedded(const OmniGhost::EmbeddedOffsets::Snapshot& snapshot) 
     required &= get("bone.base_pos", next.bone_base_pos, true);
     required &= get("bone.size", next.bone_size, true);
     required &= get("bone.offset", next.bone_offset, true);
-    required &= get("bone.array_base", next.bone_array_base, true);
-    required &= get("bone.array_stride", next.bone_array_stride, true);
+    get("bone.array_base", next.bone_array_base);
+    get("bone.array_stride", next.bone_array_stride);
     getInt("bone.head", next.bone_head);
     getInt("bone.chest", next.bone_chest);
     getInt("bone.neck", next.bone_neck);
@@ -382,7 +367,6 @@ bool LoadOffsetsFromExternalJson(const char* path) {
     if (path && path[0]) p = path;
     else {
         p = ExeDir() + "\\data\\warzone_offsets.json";
-        if (!fs::exists(p)) p = ExeDir() + "\\warzone_offsets.json";
     }
     std::ifstream in(p);
     if (!in) return false;
@@ -589,7 +573,7 @@ bool Attach() {
             if (mem.Read(runtime.module_base + 0x3C, &e_lfanew, sizeof(e_lfanew)) &&
                 e_lfanew > 0 && e_lfanew < 0x1000 &&
                 mem.Read(runtime.module_base + e_lfanew + 8, &pe_ts, sizeof(pe_ts))) {
-                const uint32_t expect = offsets.timestamp ? (uint32_t)offsets.timestamp : 0x6A6D4AEFu;
+                const uint32_t expect = static_cast<uint32_t>(offsets.timestamp);
                 std::cout << "[Warzone] PE TimeDateStamp=0x" << std::hex << pe_ts
                           << " expected=0x" << expect << std::dec
                           << (pe_ts == expect ? " MATCH" : " MISMATCH — atualiza offsets/decrypt")
@@ -824,12 +808,12 @@ void AcquisitionTick() {
         s_cached_players.reserve(max_slots);
 
         if (s_dec_ok && (s_dec.client_base_ok || s_dec.name_array_ok)) {
-            const uintptr_t nsize = offsets.name_entry_size ? offsets.name_entry_size : kWZNameEntrySizeDefault;
-            const uintptr_t npos  = offsets.name_array_pos ? offsets.name_array_pos : kWZNameArrayPosDefault;
-            const uintptr_t nname = offsets.name_entry_name ? offsets.name_entry_name : kWZNameEntryNameDefault;
-            const uintptr_t nhealth = offsets.name_entry_health ? offsets.name_entry_health : kWZNameEntryHealthDefault;
-            const uintptr_t nalive = offsets.name_entry_alive ? offsets.name_entry_alive : kWZNameEntryAliveDefault;
-            const uintptr_t psize = offsets.player_size ? offsets.player_size : kWZPlayerSizeDefault;
+            const uintptr_t nsize = offsets.name_entry_size;
+            const uintptr_t npos  = offsets.name_array_pos;
+            const uintptr_t nname = offsets.name_entry_name;
+            const uintptr_t nhealth = offsets.name_entry_health;
+            const uintptr_t nalive = offsets.name_entry_alive;
+            const uintptr_t psize = offsets.player_size;
 
             // Phase 1: scatter-read name entries (names + health + armor + alive)
             struct NameSlot {
@@ -839,7 +823,7 @@ void AcquisitionTick() {
                 int alive = 0;
             };
             std::vector<NameSlot> names(max_slots);
-            const uintptr_t narmor = offsets.name_entry_armor ? offsets.name_entry_armor : 0x98;
+            const uintptr_t narmor = offsets.name_entry_armor;
             if (s_dec.name_array_ok && s_dec.name_array_base) {
                 auto h = mem.CreateScatterHandle();
                 for (int i = 0; i < max_slots; ++i) {
@@ -854,8 +838,8 @@ void AcquisitionTick() {
             }
 
             // Phase 2: scatter-read player valid/team/pos/armor when client_base is up.
-            // pos at player+kWZPlayerPosDefault may be either float3 or a pointer to a data block
-            // (actual floats at ptr + pos_data/kWZPlayerPosDataDefault). We read both layouts in two passes.
+            // The JSON-defined player.pos may be either float3 or a pointer to
+            // a data block; player.pos_data locates the floats in the latter.
             struct PosSlot {
                 int valid = 0;
                 int team = 0;
@@ -866,12 +850,12 @@ void AcquisitionTick() {
             };
             std::vector<PosSlot> poss(max_slots);
             if (s_dec.client_base_ok && s_dec.client_base) {
-                const uintptr_t pvalid = offsets.player_valid ? offsets.player_valid : kWZPlayerValidDefault;
-                const uintptr_t pteam  = offsets.player_team  ? offsets.player_team  : kWZPlayerTeamDefault;
-                const uintptr_t ppos   = offsets.player_pos   ? offsets.player_pos   : kWZPlayerPosDefault;
-                const uintptr_t pdata  = offsets.player_pos_data ? offsets.player_pos_data : kWZPlayerPosDataDefault;
-                const uintptr_t pstance = offsets.player_stance ? offsets.player_stance : kWZPlayerStanceDefault;
-                const uintptr_t parmor = offsets.player_armor ? offsets.player_armor : kWZPlayerArmorDefault;
+                const uintptr_t pvalid = offsets.player_valid;
+                const uintptr_t pteam  = offsets.player_team;
+                const uintptr_t ppos   = offsets.player_pos;
+                const uintptr_t pdata  = offsets.player_pos_data;
+                const uintptr_t pstance = offsets.player_stance;
+                const uintptr_t parmor = offsets.player_armor;
                 auto h = mem.CreateScatterHandle();
                 for (int i = 0; i < max_slots; ++i) {
                     uintptr_t player = s_dec.client_base + (uintptr_t)i * psize;
@@ -1179,9 +1163,9 @@ void AcquisitionTick() {
         if (probeNowMs >= nextNameProbeMs || probedNameBase != s_dec.name_array_base) {
             nextNameProbeMs = probeNowMs + 1000u;
             probedNameBase = s_dec.name_array_base;
-            const uintptr_t nsize = offsets.name_entry_size ? offsets.name_entry_size : 0xD0;
-            const uintptr_t npos  = offsets.name_array_pos ? offsets.name_array_pos : 0x3038;
-            const uintptr_t nname = offsets.name_entry_name ? offsets.name_entry_name : 0x10;
+            const uintptr_t nsize = offsets.name_entry_size;
+            const uintptr_t npos  = offsets.name_array_pos;
+            const uintptr_t nname = offsets.name_entry_name;
             std::array<std::array<char, 32>, 64> namesProbe{};
             auto nameHandle = mem.CreateScatterHandle();
             if (nameHandle) {

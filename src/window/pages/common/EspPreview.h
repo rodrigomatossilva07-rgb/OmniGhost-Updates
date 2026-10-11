@@ -277,6 +277,9 @@ struct PreviewConfig {
     bool text_outline = true;
     float text_outline_thickness = 1.f;
 
+    // Self ESP
+    bool self_esp = false;
+
     // Snaplines
     bool snaplines = false;
     int snapline_position = 2; // 0=top, 1=center, 2=bottom

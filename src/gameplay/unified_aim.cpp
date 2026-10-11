@@ -5,8 +5,8 @@
 #include <sstream>
 #include <fstream>
 
-#include "../../ImGui/imgui.h"
-#include "../../ImGui/imgui_internal.h"
+#include "third_party/ImGui/imgui.h"
+#include "third_party/ImGui/imgui_internal.h"
 
 namespace Gameplay::UnifiedAim {
 

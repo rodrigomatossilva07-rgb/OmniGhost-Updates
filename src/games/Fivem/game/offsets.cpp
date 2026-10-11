@@ -1,7 +1,8 @@
 #include "offsets.h"
 
 #include "globals.h"
-#include "../../DMALibrary/Memory/Memory.h"
+#include "third_party/DMALibrary/Memory/Memory.h"
+#include "../../../platform/offset_source.h"
 
 #include <cctype>
 #include <iostream>
@@ -20,10 +21,10 @@ uintptr_t viewport = 0;
 uintptr_t camera = 0;
 uintptr_t localplayer = 0;
 uintptr_t boneList = 0;
-uintptr_t boneMatrix = 0x60;
+uintptr_t boneMatrix = 0;
 uintptr_t playerInfo = 0;
-uintptr_t playerHealth = 0x280;
-uintptr_t playerPosition = 0x90;
+uintptr_t playerHealth = 0;
+uintptr_t playerPosition = 0;
 uintptr_t base = 0;
 int buildVersion = 0;
 uintptr_t pedVisibilityOffset = 0;
@@ -33,27 +34,95 @@ uintptr_t bullet = 0;
 uintptr_t network_player_mgr = 0;
 uintptr_t object_pool = 0;
 uintptr_t waypoint = 0;
+uintptr_t playerInfo_netId = 0;
+uintptr_t playerInfo_netId_alt = 0;
+uintptr_t weaponManager = 0;
+uintptr_t playerArmor = 0;
+uintptr_t playerArmorAlt1 = 0;
+uintptr_t playerArmorAlt2 = 0;
+uintptr_t playerMaxHealth = 0;
+uintptr_t pedVehicle = 0;
+uintptr_t playerInfo_wanted = 0;
+uintptr_t playerInfo_name = 0;
+uintptr_t vehicleLock = 0;
+uintptr_t vehicleDriver = 0;
+uintptr_t vehicleDriverNew = 0;
+uintptr_t vehicleEngineHp = 0;
+uintptr_t vehicleBodyHp = 0;
+uintptr_t vehicleFuel = 0;
+uintptr_t vehicleGear = 0;
+uintptr_t vehicleRPM = 0;
+uintptr_t vehicleModelInfo = 0;
+uintptr_t pedVelocity = 0;
+uintptr_t pedConfigFlags = 0;
+uintptr_t vehicleHandling = 0;
+uintptr_t vehicleGravity = 0;
+uintptr_t weaponMgr_currentWeapon = 0;
+uintptr_t weaponInfo_hash = 0;
+uintptr_t weaponInfo_recoil = 0;
+uintptr_t weaponInfo_spread = 0;
+uintptr_t weaponInfo_damage = 0;
+uintptr_t weaponInfo_range = 0;
+uintptr_t cam_position = 0;
+uintptr_t cam_direction = 0;
+uintptr_t world_localPlayer = 0;
+uintptr_t boneFrag3258 = 0;
+uintptr_t boneFrag3751 = 0;
+uintptr_t boneSkeleton = 0;
+uintptr_t boneSkeletonStride = 0;
+uintptr_t boneSkeletonTranslation = 0;
+uintptr_t boneArrayBase = 0;
+uintptr_t boneSize = 0;
+uintptr_t pedVelocityAlt = 0;
+uintptr_t vehicleList = 0;
+uintptr_t vehicleCount = 0;
+uintptr_t vehicleEntryStride = 0;
+uintptr_t vehiclePosition = 0;
+uintptr_t vehicleMatrix = 0;
+uintptr_t viewportMatrix = 0;
+uintptr_t replayPedInterface = 0;
+uintptr_t pedInterfaceList = 0;
+uintptr_t replayVehicleInterface = 0;
+uintptr_t replayVehicleInterfaceAlt = 0;
+uintptr_t waypointBlipPosition = 0;
+uintptr_t waypointBlipSprite = 0;
+uintptr_t b3258_networkPlayerMgr = 0;
+uintptr_t b3258_objectPool = 0;
+uintptr_t b3258_pickupMgr = 0;
+uintptr_t b3258_waypoint = 0;
+uintptr_t b3258_globalPtr = 0;
+uintptr_t b3258_skySettings = 0;
 
 } // namespace offset
 
 namespace {
 
 // Source of truth: data/fivem_offsets.json (also embedded at Publish via Build-EmbeddedOffsets).
-// Hardcoded seed is only used if JSON cannot be loaded (dev misconfig).
 static std::vector<BuildOffsets> g_buildOffsets;
 static bool g_offsetsLoaded = false;
 
-static const BuildOffsets kSeedBuildOffsets[] = {
-    // build, world, replay, viewport, camera, playerInfo, boneList, boneMatrix, health, pos,
-    // object_pool, net_mgr, blip, waypoint, aim_cped, ped_pool, veh_pool, ped_visible_flag
-    { 2802, 0x1F5B820, 0x1F5B820, 0x1FBC100, 0x0,       0x10A8, 0x0,    0x60,   0x280, 0x90, 0,0,0,0,0,0,0,0x147C },
-    { 2944, 0x257BEA0, 0x1F42068, 0x1FEAAC0, 0x0,       0x10A8, 0x0,    0x60,   0x280, 0x90, 0,0,0,0,0,0,0,0x147C },
-    { 3095, 0x2593320, 0x1FBD4F0, 0x201DBA0, 0x201ED50, 0x10A8, 0x410,  0x60,   0x280, 0x90, 0,0,0,0,0,0,0,0x147C },
-    { 3258, 0x25B14B0, 0x1FBD4F0, 0x201DBA0, 0x201E7D0, 0x10A8, 0x410,  0x60,   0x280, 0x90,
-      0x25BFDE8, 0x1E63C68, 0x2023400, 0x2EE0288, 0x202C8D0, 0x25B1758, 0x2F23F78, 0x147C },
-    { 3751, 0x2603908, 0x1FC38A8, 0x206C060, 0x206CC40, 0x10A8, 0x12B8, 0x12B8, 0x280, 0x90, 0,0,0,0,0,0,0x147C },
-    { 3788, 0x26068E0, 0x1FC68A8, 0x206F060, 0x206FC40, 0x10A8, 0x12B8, 0x12B8, 0x280, 0x90, 0,0,0,0,0,0,0,0x147C },
-};
+static void ResetLoadedFieldOffsets() noexcept {
+    using namespace offset;
+    boneMatrix = playerInfo = playerHealth = playerPosition = 0;
+    pedVisibilityOffset = 0;
+    playerInfo_netId = playerInfo_netId_alt = 0;
+    weaponManager = playerArmor = playerArmorAlt1 = playerArmorAlt2 = 0;
+    playerMaxHealth = pedVehicle = playerInfo_wanted = playerInfo_name = 0;
+    vehicleLock = vehicleDriver = vehicleDriverNew = vehicleEngineHp = 0;
+    vehicleBodyHp = vehicleFuel = vehicleGear = vehicleRPM = vehicleModelInfo = 0;
+    pedVelocity = pedConfigFlags = vehicleHandling = vehicleGravity = 0;
+    weaponMgr_currentWeapon = weaponInfo_hash = weaponInfo_recoil = 0;
+    weaponInfo_spread = weaponInfo_damage = weaponInfo_range = 0;
+    cam_position = cam_direction = world_localPlayer = 0;
+    boneFrag3258 = boneFrag3751 = boneSkeleton = boneSkeletonStride = 0;
+    boneSkeletonTranslation = boneArrayBase = boneSize = pedVelocityAlt = 0;
+    vehicleList = vehicleCount = vehicleEntryStride = vehiclePosition = vehicleMatrix = 0;
+    viewportMatrix = replayPedInterface = pedInterfaceList = 0;
+    replayVehicleInterface = replayVehicleInterfaceAlt = 0;
+    waypointBlipPosition = waypointBlipSprite = 0;
+    b3258_networkPlayerMgr = b3258_objectPool = b3258_pickupMgr = 0;
+    b3258_waypoint = b3258_globalPtr = b3258_skySettings = 0;
+}
 
 static uintptr_t ParseHexU64(const std::string& s) {
     if (s.empty()) return 0;
@@ -109,21 +178,139 @@ static bool ReadEntireFile(const std::string& path, std::string& out) {
     return static_cast<bool>(in) || in.eof();
 }
 
-static void SeedFromHardcoded() {
+static uintptr_t SnapshotValue(const OmniGhost::EmbeddedOffsets::Snapshot& snapshot,
+                               int build, const char* field) {
+    std::uint64_t value = 0;
+    const std::string path = "builds." + std::to_string(build) + "." + field;
+    return snapshot.TryGet(path, value) ? static_cast<uintptr_t>(value) : 0;
+}
+
+static bool LoadFromEmbeddedSnapshot() {
+    const auto result = OmniGhost::OffsetSource::LoadSnapshot(
+        OmniGhost::OffsetSource::GameId::FiveM);
+    if (!result.ok)
+        return false;
+
     g_buildOffsets.clear();
-    for (const auto& b : kSeedBuildOffsets)
-        g_buildOffsets.push_back(b);
+    std::uint64_t buildCount = 0;
+    if (!result.snapshot.TryGet("build_index.count", buildCount) || buildCount == 0 || buildCount > 128)
+        return false;
+    for (std::uint64_t index = 0; index < buildCount; ++index) {
+        std::uint64_t buildValue = 0;
+        const std::string indexPath = "build_index." + std::to_string(index);
+        if (!result.snapshot.TryGet(indexPath, buildValue) || buildValue == 0 || buildValue > 99999)
+            return false;
+        BuildOffsets offsets{};
+        offsets.build = static_cast<int>(buildValue);
+        offsets.world_offset = SnapshotValue(result.snapshot, offsets.build, "world");
+        offsets.replay_offset = SnapshotValue(result.snapshot, offsets.build, "replay");
+        offsets.viewport_offset = SnapshotValue(result.snapshot, offsets.build, "viewport");
+        offsets.camera_offset = SnapshotValue(result.snapshot, offsets.build, "camera");
+        offsets.playerInfo_offset = SnapshotValue(result.snapshot, offsets.build, "player_info");
+        offsets.boneList_offset = SnapshotValue(result.snapshot, offsets.build, "bone_list");
+        offsets.boneMatrix_offset = SnapshotValue(result.snapshot, offsets.build, "bone_matrix");
+        offsets.playerHealth_offset = SnapshotValue(result.snapshot, offsets.build, "player_health");
+        offsets.playerPosition_offset = SnapshotValue(result.snapshot, offsets.build, "player_position");
+        offsets.object_pool_offset = SnapshotValue(result.snapshot, offsets.build, "object_pool");
+        offsets.network_player_mgr_offset = SnapshotValue(result.snapshot, offsets.build, "network_player_mgr");
+        offsets.blip_list_offset = SnapshotValue(result.snapshot, offsets.build, "blip_list");
+        offsets.waypoint_offset = SnapshotValue(result.snapshot, offsets.build, "waypoint");
+        offsets.aim_cped_offset = SnapshotValue(result.snapshot, offsets.build, "aim_cped");
+        offsets.ped_pool_offset = SnapshotValue(result.snapshot, offsets.build, "ped_pool");
+        offsets.vehicle_pool_offset = SnapshotValue(result.snapshot, offsets.build, "vehicle_pool");
+        offsets.ped_visibility_offset = SnapshotValue(result.snapshot, offsets.build, "ped_visible_flag");
+        if (offsets.world_offset && offsets.viewport_offset)
+            g_buildOffsets.push_back(offsets);
+    }
+    if (g_buildOffsets.empty())
+        return false;
+    auto shared = [&](const char* field, uintptr_t& output) {
+        std::uint64_t value = 0;
+        if (result.snapshot.TryGet(std::string("shared_fields.") + field, value))
+            output = static_cast<uintptr_t>(value);
+    };
+    shared("playerInfo_netId", offset::playerInfo_netId);
+    shared("playerInfo_netId_alt", offset::playerInfo_netId_alt);
+    shared("weaponManager", offset::weaponManager);
+    shared("playerArmor", offset::playerArmor);
+    shared("playerArmorAlt1", offset::playerArmorAlt1);
+    shared("playerArmorAlt2", offset::playerArmorAlt2);
+    shared("playerMaxHealth", offset::playerMaxHealth);
+    shared("pedVehicle", offset::pedVehicle);
+    shared("playerInfo_wanted", offset::playerInfo_wanted);
+    shared("playerInfo_name", offset::playerInfo_name);
+    shared("vehicleLock", offset::vehicleLock);
+    shared("vehicleDriver", offset::vehicleDriver);
+    shared("vehicleDriverNew", offset::vehicleDriverNew);
+    shared("vehicleEngineHp", offset::vehicleEngineHp);
+    shared("vehicleBodyHp", offset::vehicleBodyHp);
+    shared("vehicleFuel", offset::vehicleFuel);
+    shared("vehicleGear", offset::vehicleGear);
+    shared("vehicleRPM", offset::vehicleRPM);
+    shared("vehicleModelInfo", offset::vehicleModelInfo);
+    shared("pedVelocity", offset::pedVelocity);
+    shared("pedConfigFlags", offset::pedConfigFlags);
+    shared("vehicleHandling", offset::vehicleHandling);
+    shared("vehicleGravity", offset::vehicleGravity);
+    shared("weaponMgr_currentWeapon", offset::weaponMgr_currentWeapon);
+    shared("weaponInfo_hash", offset::weaponInfo_hash);
+    shared("weaponInfo_recoil", offset::weaponInfo_recoil);
+    shared("weaponInfo_spread", offset::weaponInfo_spread);
+    shared("weaponInfo_damage", offset::weaponInfo_damage);
+    shared("weaponInfo_range", offset::weaponInfo_range);
+    shared("cam_position", offset::cam_position);
+    shared("cam_direction", offset::cam_direction);
+    shared("world_localPlayer", offset::world_localPlayer);
+    shared("boneFrag3258", offset::boneFrag3258);
+    shared("boneFrag3751", offset::boneFrag3751);
+    shared("boneSkeleton", offset::boneSkeleton);
+    shared("boneSkeletonStride", offset::boneSkeletonStride);
+    shared("boneSkeletonTranslation", offset::boneSkeletonTranslation);
+    shared("boneArrayBase", offset::boneArrayBase);
+    shared("boneSize", offset::boneSize);
+    shared("pedVelocityAlt", offset::pedVelocityAlt);
+    shared("vehicleList", offset::vehicleList);
+    shared("vehicleCount", offset::vehicleCount);
+    shared("vehicleEntryStride", offset::vehicleEntryStride);
+    shared("vehiclePosition", offset::vehiclePosition);
+    shared("vehicleMatrix", offset::vehicleMatrix);
+    shared("viewportMatrix", offset::viewportMatrix);
+    shared("replayPedInterface", offset::replayPedInterface);
+    shared("pedInterfaceList", offset::pedInterfaceList);
+    shared("replayVehicleInterface", offset::replayVehicleInterface);
+    shared("replayVehicleInterfaceAlt", offset::replayVehicleInterfaceAlt);
+    shared("waypointBlipPosition", offset::waypointBlipPosition);
+    shared("waypointBlipSprite", offset::waypointBlipSprite);
+    shared("b3258_networkPlayerMgr", offset::b3258_networkPlayerMgr);
+    shared("b3258_objectPool", offset::b3258_objectPool);
+    shared("b3258_pickupMgr", offset::b3258_pickupMgr);
+    shared("b3258_waypoint", offset::b3258_waypoint);
+    shared("b3258_globalPtr", offset::b3258_globalPtr);
+    shared("b3258_skySettings", offset::b3258_skySettings);
+    if (!offset::world_localPlayer || !offset::playerInfo_netId ||
+        !offset::weaponManager || !offset::playerArmor ||
+        !offset::pedVehicle || !offset::playerInfo_name ||
+        !offset::pedVelocity || !offset::weaponMgr_currentWeapon ||
+        !offset::weaponInfo_hash || !offset::viewportMatrix ||
+        !offset::replayPedInterface || !offset::pedInterfaceList ||
+        !offset::replayVehicleInterface || !offset::waypointBlipPosition ||
+        !offset::waypointBlipSprite) {
+        g_buildOffsets.clear();
+        return false;
+    }
+    std::cout << "[FiveM] Offsets embedded: builds=" << g_buildOffsets.size() << std::endl;
+    return true;
 }
 
 int LoadOffsetsFromJsonImpl(const char* explicit_path) {
     g_buildOffsets.clear();
     g_offsetsLoaded = false;
+    ResetLoadedFieldOffsets();
 
     std::vector<std::string> candidates;
     if (explicit_path && explicit_path[0])
         candidates.emplace_back(explicit_path);
     candidates.emplace_back("data/fivem_offsets.json");
-    candidates.emplace_back("fivem_offsets.json");
     try {
         // Beside executable
         char mod[MAX_PATH]{};
@@ -132,7 +319,6 @@ int LoadOffsetsFromJsonImpl(const char* explicit_path) {
             const auto slash = dir.find_last_of("\\/");
             if (slash != std::string::npos) dir.resize(slash);
             candidates.push_back(dir + "\\data\\fivem_offsets.json");
-            candidates.push_back(dir + "\\fivem_offsets.json");
         }
     } catch (...) {
         std::cerr << "[FiveM] Falha ao adicionar caminhos de offsets junto ao executavel; a continuar com os caminhos padrao.\n";
@@ -148,8 +334,8 @@ int LoadOffsetsFromJsonImpl(const char* explicit_path) {
     }
 
     if (data.empty()) {
-        std::cerr << "[FiveM] fivem_offsets.json nao encontrado — a usar tabela seed embutida\n";
-        SeedFromHardcoded();
+        if (!LoadFromEmbeddedSnapshot())
+            std::cerr << "[FiveM] Snapshot de offsets indisponivel ou invalido; ativacao bloqueada.\n";
         g_offsetsLoaded = true;
         return static_cast<int>(g_buildOffsets.size());
     }
@@ -157,14 +343,12 @@ int LoadOffsetsFromJsonImpl(const char* explicit_path) {
     // Parse "builds" : { "3258": { ... }, ... }
     const size_t buildsKey = data.find("\"builds\"");
     if (buildsKey == std::string::npos) {
-        std::cerr << "[FiveM] fivem_offsets.json sem objeto \"builds\" — seed\n";
-        SeedFromHardcoded();
+        std::cerr << "[FiveM] fivem_offsets.json sem objeto \"builds\"; ativacao bloqueada.\n";
         g_offsetsLoaded = true;
         return static_cast<int>(g_buildOffsets.size());
     }
     size_t brace = data.find('{', buildsKey);
     if (brace == std::string::npos) {
-        SeedFromHardcoded();
         g_offsetsLoaded = true;
         return static_cast<int>(g_buildOffsets.size());
     }
@@ -228,9 +412,80 @@ int LoadOffsetsFromJsonImpl(const char* explicit_path) {
     }
 
     if (g_buildOffsets.empty()) {
-        std::cerr << "[FiveM] Nenhum build valido em " << used << " — seed\n";
-        SeedFromHardcoded();
+        std::cerr << "[FiveM] Nenhum build valido em " << used << "; ativacao bloqueada.\n";
     } else {
+        auto shared = [&](const char* field, uintptr_t& output) {
+            output = JsonHexField(data, field);
+        };
+        shared("playerInfo_netId", offset::playerInfo_netId);
+        shared("playerInfo_netId_alt", offset::playerInfo_netId_alt);
+        shared("weaponManager", offset::weaponManager);
+        shared("playerArmor", offset::playerArmor);
+        shared("playerArmorAlt1", offset::playerArmorAlt1);
+        shared("playerArmorAlt2", offset::playerArmorAlt2);
+        shared("playerMaxHealth", offset::playerMaxHealth);
+        shared("pedVehicle", offset::pedVehicle);
+        shared("playerInfo_wanted", offset::playerInfo_wanted);
+        shared("playerInfo_name", offset::playerInfo_name);
+        shared("vehicleLock", offset::vehicleLock);
+        shared("vehicleDriver", offset::vehicleDriver);
+        shared("vehicleDriverNew", offset::vehicleDriverNew);
+        shared("vehicleEngineHp", offset::vehicleEngineHp);
+        shared("vehicleBodyHp", offset::vehicleBodyHp);
+        shared("vehicleFuel", offset::vehicleFuel);
+        shared("vehicleGear", offset::vehicleGear);
+        shared("vehicleRPM", offset::vehicleRPM);
+        shared("vehicleModelInfo", offset::vehicleModelInfo);
+        shared("pedVelocity", offset::pedVelocity);
+        shared("pedConfigFlags", offset::pedConfigFlags);
+        shared("vehicleHandling", offset::vehicleHandling);
+        shared("vehicleGravity", offset::vehicleGravity);
+        shared("weaponMgr_currentWeapon", offset::weaponMgr_currentWeapon);
+        shared("weaponInfo_hash", offset::weaponInfo_hash);
+        shared("weaponInfo_recoil", offset::weaponInfo_recoil);
+        shared("weaponInfo_spread", offset::weaponInfo_spread);
+        shared("weaponInfo_damage", offset::weaponInfo_damage);
+        shared("weaponInfo_range", offset::weaponInfo_range);
+        shared("cam_position", offset::cam_position);
+        shared("cam_direction", offset::cam_direction);
+        shared("world_localPlayer", offset::world_localPlayer);
+        shared("boneFrag3258", offset::boneFrag3258);
+        shared("boneFrag3751", offset::boneFrag3751);
+        shared("boneSkeleton", offset::boneSkeleton);
+        shared("boneSkeletonStride", offset::boneSkeletonStride);
+        shared("boneSkeletonTranslation", offset::boneSkeletonTranslation);
+        shared("boneArrayBase", offset::boneArrayBase);
+        shared("boneSize", offset::boneSize);
+        shared("pedVelocityAlt", offset::pedVelocityAlt);
+        shared("vehicleList", offset::vehicleList);
+        shared("vehicleCount", offset::vehicleCount);
+        shared("vehicleEntryStride", offset::vehicleEntryStride);
+        shared("vehiclePosition", offset::vehiclePosition);
+        shared("vehicleMatrix", offset::vehicleMatrix);
+        shared("viewportMatrix", offset::viewportMatrix);
+        shared("replayPedInterface", offset::replayPedInterface);
+        shared("pedInterfaceList", offset::pedInterfaceList);
+        shared("replayVehicleInterface", offset::replayVehicleInterface);
+        shared("replayVehicleInterfaceAlt", offset::replayVehicleInterfaceAlt);
+        shared("waypointBlipPosition", offset::waypointBlipPosition);
+        shared("waypointBlipSprite", offset::waypointBlipSprite);
+        shared("b3258_networkPlayerMgr", offset::b3258_networkPlayerMgr);
+        shared("b3258_objectPool", offset::b3258_objectPool);
+        shared("b3258_pickupMgr", offset::b3258_pickupMgr);
+        shared("b3258_waypoint", offset::b3258_waypoint);
+        shared("b3258_globalPtr", offset::b3258_globalPtr);
+        shared("b3258_skySettings", offset::b3258_skySettings);
+        if (!offset::world_localPlayer || !offset::playerInfo_netId ||
+            !offset::weaponManager || !offset::playerArmor ||
+            !offset::pedVehicle || !offset::playerInfo_name ||
+            !offset::pedVelocity || !offset::weaponMgr_currentWeapon ||
+            !offset::weaponInfo_hash || !offset::viewportMatrix ||
+            !offset::replayPedInterface || !offset::pedInterfaceList ||
+            !offset::replayVehicleInterface || !offset::waypointBlipPosition ||
+            !offset::waypointBlipSprite) {
+            std::cerr << "[FiveM] shared_fields incompleto; ativacao bloqueada.\n";
+            g_buildOffsets.clear();
+        }
         std::cout << "[FiveM] Offsets JSON: " << used << " builds=" << g_buildOffsets.size() << std::endl;
     }
     g_offsetsLoaded = true;
@@ -324,6 +579,15 @@ bool SoftProbeLobbyOffsets() {
               << " read=" << (readable ? "OK" : "FAIL")
               << " => " << (ok ? "PASS" : "FAIL") << std::endl;
     return ok;
+}
+
+bool HasAnyCriticalOffsets() {
+    EnsureOffsetsLoaded();
+    for (const BuildOffsets& bo : g_buildOffsets) {
+        if (bo.world_offset && bo.viewport_offset)
+            return true;
+    }
+    return false;
 }
 
 } // namespace FiveM

@@ -69,10 +69,8 @@ void UpdateBombState() {
     uint8_t defusing = 0;
     uintptr_t globals = 0;
     uintptr_t scene = 0;
-    float cur_slots[4]{};
-    constexpr uintptr_t kCurOff[4] = {
-        kGlobalVarsCurrentTime, (uintptr_t)0x2C, (uintptr_t)0x34, (uintptr_t)0x38
-    };
+    float cur_slots[1]{};
+    const uintptr_t kCurOff[1] = { offsets.global_vars_current_time };
 
     EnsureScatter();
     if (g_scatter_full) {
@@ -104,7 +102,7 @@ void UpdateBombState() {
         mem.ExecuteReadScatter(g_scatter_full);
 
         if (IsUserPointer(globals)) {
-            for (int i = 0; i < 4; ++i)
+            for (int i = 0; i < 1; ++i)
                 mem.AddScatterReadRequest(g_scatter_full, globals + kCurOff[i],
                                           &cur_slots[i], sizeof(float));
             CS2::GiveCameraPriorityBeforeOptionalDma();
@@ -132,7 +130,7 @@ void UpdateBombState() {
         if (offsets.dwGlobalVars)
             QReadT(runtime.client_base + offsets.dwGlobalVars, globals, "CS2.Bomb.Globals");
         if (IsUserPointer(globals)) {
-            for (int i = 0; i < 4; ++i)
+            for (int i = 0; i < 1; ++i)
                 QReadT(globals + kCurOff[i], cur_slots[i], "CS2.Bomb.CurTime");
         }
         if (offsets.m_pGameSceneNode &&
@@ -143,7 +141,7 @@ void UpdateBombState() {
 
     float current_time = 0.f;
     bool have_time = false;
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < 1; ++i) {
         const float t = cur_slots[i];
         if (std::isfinite(t) && t > 1.f && t < 1.0e7f) {
             current_time = t;

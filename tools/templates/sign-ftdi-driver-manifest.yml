@@ -3,7 +3,7 @@ name: Sign FTDI driver manifest
 on:
   push:
     paths:
-      - drivers/ftdi/driver-manifest.json
+      - infrastructure/drivers/ftdi/driver-manifest.json
   workflow_dispatch:
 
 permissions:
@@ -23,14 +23,14 @@ jobs:
       - name: Sign manifest
         run: |
           openssl pkeyutl -sign -rawin -inkey /tmp/ftdi-manifest-private.pem \
-            -in drivers/ftdi/driver-manifest.json \
-            -out drivers/ftdi/driver-manifest.sig
-          base64 -w 0 drivers/ftdi/driver-manifest.sig > drivers/ftdi/driver-manifest.sig.b64
-          mv drivers/ftdi/driver-manifest.sig.b64 drivers/ftdi/driver-manifest.sig
+            -in infrastructure/drivers/ftdi/driver-manifest.json \
+            -out infrastructure/drivers/ftdi/driver-manifest.sig
+          base64 -w 0 infrastructure/drivers/ftdi/driver-manifest.sig > infrastructure/drivers/ftdi/driver-manifest.sig.b64
+          mv infrastructure/drivers/ftdi/driver-manifest.sig.b64 infrastructure/drivers/ftdi/driver-manifest.sig
       - name: Commit signature
         run: |
           git config user.name "OmniGhost manifest signer"
           git config user.email "actions@github.com"
-          git add drivers/ftdi/driver-manifest.sig
+          git add infrastructure/drivers/ftdi/driver-manifest.sig
           git diff --cached --quiet || git commit -m "Sign FTDI driver manifest"
           git push

@@ -48,6 +48,7 @@
 #include "makcu/makcu_wrapper.h"
 #include "src/games/Fivem/aimbot/aim_type.h"
 #include "gameplay/dma_telemetry_log.h"
+#include "gameplay/camera_priority.h"
 
 namespace fs = std::filesystem;
 
@@ -84,6 +85,53 @@ using Metadata::IsDroppedWeaponClass;
 //  - Optional budget: 6 ms/frame — shed before core ever loses priority
 // Presentation extrapolates briefly from timestamped world samples at overlay FPS.
 namespace {
+
+// Dynamic interval calculator — adapts to entity count, DMA latency, and pressure
+struct DynamicIntervals {
+    int camera_ms = 16;           // Fixed at 16ms (62.5 Hz) - highest priority
+    int bones_ms = 24;            // Near skeleton tier (~42 Hz)
+    int full_scan_ms = 18;        // Position / HP / core identity
+    int weapon_ms = 200;
+    int weapon_fallback_ms = 3000;
+    int entity_list_ms = 1000;
+    int entity_list_full_probe_ms = 15000;
+    int name_ms = 1000;
+    int bone_reliability_hold_ms = kBoneReliabilityHoldMs;
+    int team_ms = 500;
+
+    // Update intervals based on current conditions
+    void Update(int entity_count, float dma_latency_ms, int pressure_level, float /*optional_budget_ms*/) {
+        // Base multipliers
+        float entity_mult = 1.0f;
+        if (entity_count > 48) entity_mult = 1.5f;
+        else if (entity_count > 32) entity_mult = 1.25f;
+        else if (entity_count > 16) entity_mult = 1.1f;
+
+        // DMA latency multiplier (cap at 2x)
+        float latency_mult = 1.0f + std::min(dma_latency_ms / 50.f, 1.0f);
+
+        // Pressure multiplier
+        float pressure_mult = 1.0f;
+        if (pressure_level >= 3) pressure_mult = 2.0f;
+        else if (pressure_level == 2) pressure_mult = 1.5f;
+        else if (pressure_level == 1) pressure_mult = 1.25f;
+
+        float total_mult = entity_mult * latency_mult * pressure_mult;
+        total_mult = std::clamp(total_mult, 1.0f, 3.0f);
+
+        bones_ms = static_cast<int>(std::round(24.f * total_mult));
+        full_scan_ms = static_cast<int>(std::round(18.f * total_mult));
+        // Camera stays fixed at 16ms for visual fluidity
+        camera_ms = 16;
+    }
+};
+
+DynamicIntervals g_intervals;
+
+// Optional lane budget (ms) — MUST match FiveM's 6 ms to prevent core starvation
+constexpr float kOptionalBudgetMs = 6.f;
+
+// AUDIT-006: Keep constants for backward compatibility in other modules
 constexpr int CAMERA_INTERVAL_MS = 16;
 constexpr int BONES_INTERVAL_MS = 24;       // near skeleton tier (~42 Hz)
 constexpr int FULL_SCAN_INTERVAL_MS = 18;   // position / HP / core identity
@@ -95,8 +143,6 @@ constexpr int NAME_INTERVAL_MS = 1000;
 constexpr int BONE_RELIABILITY_HOLD_MS = kBoneReliabilityHoldMs;
 constexpr int TEAM_INTERVAL_MS = 500;
 
-// Optional lane budget (ms) — MUST match FiveM's 6 ms to prevent core starvation
-constexpr float kOptionalBudgetMs = 6.f;
 // Pressure thresholds — IDENTICAL to FiveM esp_manager.cpp lines 722-743
 constexpr float PRESSURE_ENTER_L1_WORK = 35.f;
 constexpr float PRESSURE_ENTER_L1_P95 = 32.f;
@@ -113,27 +159,111 @@ constexpr float PRESSURE_EXIT_L1_P95 = 24.f;
 constexpr int PRESSURE_HEALTHY_SCANS_TO_RECOVER = 12; // ~250 ms
 }
 
-std::atomic_bool g_acquisition_stop{false};
-std::atomic_bool g_acquisition_running{false};
-std::atomic<float> g_presentation_fps{0.f};
-bool g_publish_runtime_this_scan = true; // acquisition producer only
-auto& g_session_generation = CacheManager::session_generation;
-std::mutex g_process_liveness_mutex;
-uint64_t g_process_liveness_next_probe_ms = 0;
-std::atomic_bool g_process_liveness_last_result{true};
-std::thread g_acquisition_thread;
-std::thread g_camera_thread;
-std::thread g_web_radar_control_thread;
-// Optional DMA lane (bones/weapons/names/flags/dropped). Runs after core
-// publish so the next core scan is never blocked by metadata work.
-std::thread g_optional_thread;
-std::atomic_bool g_optional_stop{false};
-std::atomic_bool g_optional_busy{false};
-std::atomic_bool g_optional_pending{false};
-std::mutex g_optional_mu;
-std::condition_variable g_optional_cv;
-Config g_optional_config{};
-std::atomic<uint64_t> g_optional_job_generation{0};
+// AUDIT-002: Consolidated acquisition state machine — replaces 5+ atomic bools
+// with a single atomic state enum for clearer transitions and race-free checks.
+enum class AcquisitionState : uint8_t {
+    Uninitialized = 0,
+    Starting,
+    Running,
+    Stopping,
+    Stopped
+};
+
+// Forward declarations for optional enrichment pipeline
+struct OptionalTarget;
+struct OptionalBoneResult;
+struct OptionalNameResult;
+struct OptionalWeaponResult;
+struct OptionalVisibilityResult;
+struct OptionalResults;
+
+struct AcquisitionStateMachine {
+    std::atomic<AcquisitionState> state{AcquisitionState::Uninitialized};
+    std::atomic<bool> optional_busy{false};
+    std::atomic<bool> optional_pending{false};
+    std::mutex optional_mu;
+    std::condition_variable optional_cv;
+    Config optional_config{};
+    std::atomic<uint64_t> optional_job_generation{0};
+
+    // Optional work data (public for access from .inl files)
+    bool g_optional_in_match = false;
+    bool g_optional_dropped_only = false;
+    uintptr_t g_optional_client_base = 0;
+    std::vector<OptionalTarget> g_optional_targets;
+
+    // Acquisition thread control
+    bool TryStart() {
+        AcquisitionState current = state.load(std::memory_order_acquire);
+        while (current == AcquisitionState::Uninitialized ||
+               current == AcquisitionState::Stopped) {
+            if (state.compare_exchange_weak(current, AcquisitionState::Starting,
+                                            std::memory_order_acq_rel,
+                                            std::memory_order_acquire))
+                return true;
+        }
+        return false;
+    }
+    void MarkRunning() {
+        state.store(AcquisitionState::Running, std::memory_order_release);
+    }
+    bool TryStop() {
+        AcquisitionState expected = AcquisitionState::Running;
+        return state.compare_exchange_strong(expected, AcquisitionState::Stopping);
+    }
+    void MarkStopped() {
+        state.store(AcquisitionState::Stopped, std::memory_order_release);
+    }
+    bool IsRunning() const noexcept {
+        return state.load(std::memory_order_acquire) == AcquisitionState::Running;
+    }
+    bool IsStoppingOrStopped() const noexcept {
+        auto s = state.load(std::memory_order_acquire);
+        return s == AcquisitionState::Stopping || s == AcquisitionState::Stopped;
+    }
+
+    // Optional work control (replaces g_optional_stop/busy/pending)
+    bool TryQueueOptional() {
+        if (optional_busy.load(std::memory_order_acquire) ||
+            optional_pending.load(std::memory_order_acquire) ||
+            IsStoppingOrStopped()) {
+            return false;
+        }
+        optional_pending.store(true, std::memory_order_release);
+        return true;
+    }
+    bool ClaimOptional(Config& out_config, std::vector<OptionalTarget>& out_targets,
+                       bool& out_in_match, bool& out_dropped_only,
+                       uintptr_t& out_client_base, uint64_t& out_generation) {
+        std::unique_lock lock(optional_mu);
+        optional_cv.wait(lock, [this] {
+            return optional_pending.load(std::memory_order_acquire) ||
+                   IsStoppingOrStopped();
+        });
+        if (IsStoppingOrStopped() || !optional_pending.load(std::memory_order_acquire))
+            return false;
+        out_config = optional_config;
+        out_targets.swap(g_optional_targets);
+        out_in_match = g_optional_in_match;
+        out_dropped_only = g_optional_dropped_only;
+        out_client_base = g_optional_client_base;
+        out_generation = optional_job_generation.load(std::memory_order_acquire);
+        optional_pending.store(false, std::memory_order_release);
+        optional_busy.store(true, std::memory_order_release);
+        return true;
+    }
+    void ReleaseOptional() {
+        optional_busy.store(false, std::memory_order_release);
+    }
+    void RequestStop() {
+        state.store(AcquisitionState::Stopping, std::memory_order_release);
+        optional_pending.store(true, std::memory_order_release); // wake worker
+        optional_cv.notify_all();
+    }
+
+    // Compatibility: AcquisitionRunning() equivalent
+    bool IsAcquisitionRunning() const noexcept { return IsRunning(); }
+};
 
 // ── Optional enrichment pipeline (P0 fix: strict single-producer) ─────────
 // The optional worker never touches the global `runtime` and never publishes
@@ -153,9 +283,10 @@ struct OptionalTarget {
 struct OptionalBoneResult {
     uintptr_t pawn = 0;
     uintptr_t bone_base = 0;
-    float bones[kBoneSlotCount][3]{};
+    // Use 20 bones (kBoneSlotCount) instead of 31 - CS2 only uses 20 slots
+    std::array<std::array<float, 3>, kBoneSlotCount> bones{};
     float origin[3]{};
-    uint64_t sample_ms = 0; // midpoint of the bone scatter execute (real read time)
+    uint64_t sample_ms = 0;
     bool bones_ok = false;
     bool full_bones_ok = false;
 };
@@ -167,24 +298,42 @@ struct OptionalVisibilityResult {
     bool known = false;
     uint64_t checked_ms = 0;
 };
+// AUDIT-007: Reduced array sizes from 64 to 32 for memory pressure (3 slots × smaller struct)
+constexpr size_t kOptionalMaxPlayers = 32;
 struct OptionalResults {
     uint64_t generation = 0;
-    std::array<OptionalBoneResult, 64> bones{};
-    std::array<OptionalNameResult, 64> names{};
-    std::array<OptionalWeaponResult, 64> weapons{};
-    std::array<OptionalVisibilityResult, 64> visibility{};
+    std::array<OptionalBoneResult, kOptionalMaxPlayers> bones{};
+    std::array<OptionalNameResult, kOptionalMaxPlayers> names{};
+    std::array<OptionalWeaponResult, kOptionalMaxPlayers> weapons{};
+    std::array<OptionalVisibilityResult, kOptionalMaxPlayers> visibility{};
     uint32_t name_count = 0, weapon_count = 0;
     uint32_t bone_count = 0;
     uint32_t visibility_count = 0;
     float bones_ms = 0.f;
     float weapon_ms = 0.f;
     float visibility_ms = 0.f;
-    float dropped_ms = 0.f;        // P2-8: dropped weapons timing
-    float budget_left_ms = 0.f;    // P2-8: optional budget remaining
+    float dropped_ms = 0.f;
+    float budget_left_ms = 0.f;
     std::vector<DroppedWeapon> dropped_weapons;
     bool dropped_weapons_valid = false;
 };
-OmniGhost::Gameplay::SnapshotExchange<OptionalResults, 3> g_optional_results; // producer: optional thread only
+
+// Global state machine instance
+AcquisitionStateMachine g_acqState;
+
+std::atomic<float> g_presentation_fps{0.f};
+bool g_publish_runtime_this_scan = true; // acquisition producer only
+auto& g_session_generation = CacheManager::session_generation;
+std::mutex g_process_liveness_mutex;
+uint64_t g_process_liveness_next_probe_ms = 0;
+std::atomic_bool g_process_liveness_last_result{true};
+std::thread g_acquisition_thread;
+std::thread g_camera_thread;
+std::thread g_web_radar_control_thread;
+// Optional DMA lane (bones/weapons/names/flags/dropped). Runs after core
+// publish so the next core scan is never blocked by metadata work.
+std::thread g_optional_thread;
+
 // P2-4: Single-producer, single-consumer via std::swap() under g_optional_mu.
 // Acquisition writes under mutex; optional thread reads via swap() (ownership transfer).
 std::vector<OptionalTarget> g_optional_targets;
@@ -197,6 +346,8 @@ std::atomic_bool g_web_radar_desired_enabled{false};
 std::atomic_bool g_web_radar_desired_cloudflare{false};
 std::atomic<int> g_web_radar_desired_port{8080};
 OmniGhost::Gameplay::PipelineTelemetry g_pipeline_metrics;
+
+OmniGhost::Gameplay::SnapshotExchange<OptionalResults, 3> g_optional_results; // producer: optional thread only
 
 VisibilityPipeline::Worker g_visibility_worker;
 
@@ -389,6 +540,7 @@ void EnsureScatter() {
 
 void DestroyScatter() {
     g_scatter_full.Reset();
+    g_scatter_optional.Reset();
     g_cached_entity_root = 0;
     {
         std::scoped_lock lock(g_process_liveness_mutex);
@@ -406,7 +558,6 @@ struct EntityHandleParts {
 constexpr uint32_t kEntityHandlePageMask = 0x7FFFu;
 constexpr uint32_t kEntityHandleIndexMask = 0x1FFu;
 constexpr int kEntityHandlePageShift = 9;
-constexpr uintptr_t kBoneArrayOffsetDefault = 0x80; // DEPRECATED: BoneArray is now required from schema
 
 constexpr EntityHandleParts DecodeEntityHandle(uint32_t handle) noexcept {
     return { static_cast<uintptr_t>((handle & kEntityHandlePageMask) >> kEntityHandlePageShift),
@@ -495,48 +646,10 @@ void LoadSchemaOffsets(const std::string& schema) {
     JsonClassU64(schema, "C_EconEntity", "m_AttributeManager", offsets.m_AttributeManager);
     JsonClassU64(schema, "C_AttributeContainer", "m_Item", offsets.m_Item);
     JsonClassU64(schema, "C_EconItemView", "m_iItemDefinitionIndex", offsets.m_iItemDefinitionIndex);
-    offsets.BoneArray = offsets.m_modelState + 0x80;
-}
-
-bool ScanRipRelative(uintptr_t module_base, size_t module_size, const char* signature,
-                     size_t displacement_offset, size_t instruction_size, uintptr_t& out_rva) {
-    if (!module_base || module_size < 0x1000) return false;
-    const uintptr_t match = mem.FindSignature(
-        signature, module_base, module_base + module_size);
-    if (!match) return false;
-
-    // FIX BUG-004: Validate instruction encoding at match site.
-    // Read the actual instruction bytes to confirm displacement_offset/instruction_size
-    // match the real encoding (guards against signature collisions with different encodings).
-    std::array<uint8_t, 16> insnBytes{};
-    if (!QRead(match, insnBytes.data(), insnBytes.size())) return false;
-
-    // Basic sanity: verify the first bytes match expected REX/opcode pattern for RIP-relative.
-    // The signature already encodes this, but we double-check the displacement location.
-    // For 7-byte RIP-relative (REX + opcode + ModRM + disp32): displacement at offset 3
-    // For 6-byte RIP-relative (opcode + ModRM + disp32): displacement at offset 2
-    if (instruction_size == 7 && displacement_offset == 3) {
-        // Expect REX.W (0x48) or similar prefix at byte 0
-        if (insnBytes[0] != 0x48 && insnBytes[0] != 0x4C && insnBytes[0] != 0x49) {
-            std::cerr << "[CS2] ScanRipRelative: Unexpected prefix byte 0x" << std::hex << (int)insnBytes[0] 
-                      << " at match 0x" << match << " (expected REX prefix for 7-byte RIP-rel)\n";
-            return false;
-        }
-    } else if (instruction_size == 6 && displacement_offset == 2) {
-        // Expect opcode 0x89 (MOV r/m32, r32) or similar at byte 0
-        if (insnBytes[0] != 0x89 && insnBytes[0] != 0x8B && insnBytes[0] != 0x8D) {
-            std::cerr << "[CS2] ScanRipRelative: Unexpected opcode 0x" << std::hex << (int)insnBytes[0]
-                      << " at match 0x" << match << " (expected MOV/LEA for 6-byte RIP-rel)\n";
-            return false;
-        }
-    }
-
-    int32_t displacement = 0;
-    if (!QReadT(match + displacement_offset, displacement)) return false;
-    const uintptr_t target = match + instruction_size + static_cast<intptr_t>(displacement);
-    if (target < module_base || target >= module_base + module_size) return false;
-    out_rva = target - module_base;
-    return true;
+    uintptr_t boneArrayInModelState = 0;
+    JsonClassU64(schema, "CModelState", "m_boneArray", boneArrayInModelState);
+    offsets.BoneArray = offsets.m_modelState && boneArrayInModelState
+        ? offsets.m_modelState + boneArrayInModelState : 0;
 }
 
 bool ProbeViewMatrix(float* destination = nullptr) {
@@ -570,58 +683,36 @@ bool ProbeViewMatrix(float* destination = nullptr) {
 #include "bomb/cs2_bomb.inl"
 // Returns false when the camera lane is still busy after the wait budget —
 // callers should skip/abandon this optional batch so the camera keeps priority.
-// IDENTICAL to FiveM esp_manager.cpp:295-307 with exponential backoff
+// Uses shared implementation from CameraPriority.
 bool GiveCameraPriorityBeforeOptionalDma() {
-    const uint64_t deadline = Camera::Deadline();
-    const bool pending = Camera::Pending();
-    const uint64_t now = GetTickCount64();
-    // Far from the deadline and no pending camera read → proceed immediately.
-    if (!pending && (deadline == 0 || now + 2u < deadline))
-        return true;
-
-    // Cooperative yield with exponential backoff until the camera lane clears.
-    // Optional DMA must yield to camera unconditionally.
-    int spin = 0;
-    const int maxSpins = 96; // increased from 48 to match FiveM
-    auto baseDelay = std::chrono::microseconds(10);
-    while (spin < maxSpins) {
-        if (!Camera::Pending())
-            return true; // camera done, safe to proceed
-        std::this_thread::yield();
-        ++spin;
-        // Exponential backoff after 32 spins
-        if (spin >= 32) {
-            std::this_thread::sleep_for(baseDelay);
-            baseDelay *= 2; // 10µs -> 20µs -> 40µs -> 80µs...
-            if (baseDelay > std::chrono::microseconds(500))
-                baseDelay = std::chrono::microseconds(500);
-        }
-    }
-    return false; // camera still busy after max retries — skip this optional batch
+    struct CameraState : OmniGhost::Gameplay::CameraPriority::ICameraState {
+        bool IsPending() const noexcept override { return Camera::Pending(); }
+        uint64_t GetDeadlineMs() const noexcept override { return Camera::Deadline(); }
+    };
+    static CameraState state;
+    return OmniGhost::Gameplay::CameraPriority::GiveCameraPriority(state);
 }
 
 // True when optional DMA should pause before starting another micro-batch
 // because the camera deadline is imminent or a camera read is in flight.
 [[maybe_unused]] static bool OptionalDmaShouldYieldToCamera() noexcept {
-    if (Camera::Pending())
-        return true;
-    const uint64_t deadline = Camera::Deadline();
-    if (deadline == 0)
-        return false;
-    const uint64_t now = GetTickCount64();
-    return now + 3u >= deadline;
+    struct CameraState : OmniGhost::Gameplay::CameraPriority::ICameraState {
+        bool IsPending() const noexcept override { return Camera::Pending(); }
+        uint64_t GetDeadlineMs() const noexcept override { return Camera::Deadline(); }
+    };
+    static CameraState state;
+    return OmniGhost::Gameplay::CameraPriority::ShouldYieldToCamera(state);
 }
 
 // Use the same camera priority logic as GiveCameraPriorityBeforeOptionalDma
 // but without the spin loop - just a quick check for yield decision.
 static bool ShouldYieldToCameraQuick() noexcept {
-    if (Camera::Pending())
-        return true;
-    const uint64_t deadline = Camera::Deadline();
-    if (deadline == 0)
-        return false;
-    const uint64_t now = GetTickCount64();
-    return now + 2u >= deadline;
+    struct CameraState : OmniGhost::Gameplay::CameraPriority::ICameraState {
+        bool IsPending() const noexcept override { return Camera::Pending(); }
+        uint64_t GetDeadlineMs() const noexcept override { return Camera::Deadline(); }
+    };
+    static CameraState state;
+    return OmniGhost::Gameplay::CameraPriority::ShouldYieldToCamera(state);
 }
 
 // ── Optional enrichment worker ───────────────────────────────────────────

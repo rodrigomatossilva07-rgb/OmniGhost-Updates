@@ -3,7 +3,7 @@
 #include "../cs2_game.h"
 #include "../config/cs2_config.h"
 #include "gameplay/dma_telemetry_log.h"
-#include "../../ImGui/imgui.h"
+#include "third_party/ImGui/imgui.h"
 #include "../../src/config/app_settings.h"
 
 #include <Windows.h>

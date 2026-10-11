@@ -2,7 +2,7 @@
 #include <numbers>
 #include <cmath>
 #include <Windows.h>
-#include "../../Utils/SimpleMath.h"
+#include "third_party/Utils/SimpleMath.h"
 
 using namespace DirectX::SimpleMath;
 extern int width;

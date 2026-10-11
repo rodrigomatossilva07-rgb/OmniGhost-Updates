@@ -3,7 +3,7 @@
 #include "security/security_manager.h"
 #include "platform/runtime_bootstrap.h"
 #include "platform/app_paths.h"
-#include "../DMALibrary/Memory/Memory.h"
+#include "third_party/DMALibrary/Memory/Memory.h"
 #include "src/games/Fivem/game/offsets.h"
 #include "globals.h"
 #include <iostream>

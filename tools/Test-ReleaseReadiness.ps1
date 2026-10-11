@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param([Parameter(Mandatory=$true)][string]$ProjectDir)
 
 $ErrorActionPreference = 'Stop'
@@ -12,7 +12,7 @@ if ($license -match 'TemporaryDevelopmentLicense|CreateTemporaryLocalLicense|Act
     throw 'Uma via de licença local de desenvolvimento continua no código.'
 }
 $project = [IO.File]::ReadAllText((Join-Path $ProjectDir 'OmiGhost.vcxproj'))
-if ($project -match 'src\\tests\\|src\\launcher\\license_page\.cpp|ImGui\\imgui_demo\.cpp') {
+if ($project -match 'src\\tests\\|src\\launcher\\license_page\.cpp|third_party\ImGui\\imgui_demo\.cpp') {
     throw 'O executável ainda inclui testes ou a página de licença local obsoleta.'
 }
 $main = [IO.File]::ReadAllText((Join-Path $ProjectDir 'src\main.cpp'))

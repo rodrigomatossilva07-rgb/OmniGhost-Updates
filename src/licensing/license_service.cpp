@@ -14,22 +14,93 @@
 #include <cctype>
 #include <cstdint>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
+#include <iostream>
 #include <iterator>
 #include <memory>
 #include <mutex>
+#include <stop_token>
+#include <string>
+#include <string_view>
+#include <system_error>
 #include <thread>
 #include <utility>
+#include <vector>
 #pragma comment(lib, "crypt32.lib")
 
 namespace OmniGhost::Licensing {
 namespace {
+
+// Caminho do executável atual. O LicenseGateway usa GetModulePath() para verificar a
+// identidade do provider (SHA-256 do ficheiro); se vier vazio, o construtor lança
+// std::runtime_error.
+std::string CurrentExecutablePath() {
+    char buffer[MAX_PATH]{};
+    const DWORD length = GetModuleFileNameA(nullptr, buffer, MAX_PATH);
+    return std::string(buffer, length);
+}
+
+void LogLicenseFailure(const char* what) {
+    const std::string message = std::string("[LICENSE][FATAL] Failed to initialize license gateway: ") + what + "\n";
+    OutputDebugStringA(message.c_str());
+    std::cerr << message;
+}
+
+// Fallback provider used when license gateway initialization fails.
+// Returns NotConfigured for all operations so the app can show a proper error message
+// instead of crashing.
+class FakeProviderForFallback final : public OmniGhost::Auth::IRemoteLicenseProvider {
+public:
+    [[nodiscard]] bool IsConfigured() const noexcept override { return false; }
+    // Tem de devolver um caminho valido, senao o LicenseGateway lanca a mesma excecao.
+    [[nodiscard]] std::string GetModulePath() const override { return CurrentExecutablePath(); }
+    OmniGhost::Auth::LicenseResult Authenticate(std::string_view, std::string_view, std::stop_token) override {
+        return {OmniGhost::Auth::LicenseStatus::NotConfigured, "O serviço de licenças não está disponível.", "auth.unavailable", {}};
+    }
+    OmniGhost::Auth::LicenseResult Login(std::string_view, std::string_view, std::stop_token) override {
+        return {OmniGhost::Auth::LicenseStatus::NotConfigured, "O serviço de autenticação não está disponível.", "auth.unavailable", {}};
+    }
+    OmniGhost::Auth::LicenseResult Register(std::string_view, std::string_view, std::string_view, std::stop_token) override {
+        return {OmniGhost::Auth::LicenseStatus::NotConfigured, "O serviço de autenticação não está disponível.", "auth.unavailable", {}};
+    }
+    OmniGhost::Auth::LicenseResult Activate(std::string_view, std::stop_token) override {
+        return {OmniGhost::Auth::LicenseStatus::NotConfigured, "O serviço de autenticação não está disponível.", "auth.unavailable", {}};
+    }
+    OmniGhost::Auth::LicenseResult Upgrade(std::string_view, std::string_view, std::stop_token) override {
+        return {OmniGhost::Auth::LicenseStatus::NotConfigured, "O serviço de autenticação não está disponível.", "auth.unavailable", {}};
+    }
+    void Logout() noexcept override {}
+    OmniGhost::Auth::LicenseResult CheckSession(std::stop_token) override {
+        return {OmniGhost::Auth::LicenseStatus::NotConfigured, "Revalidação indisponível.", "auth.unavailable", {}};
+    }
+    [[nodiscard]] std::string CurrentUsername() const override { return {}; }
+    [[nodiscard]] std::vector<OmniGhost::Auth::RemoteEntitlement> CurrentEntitlements() const override { return {}; }
+};
+
 std::mutex g_mutex;
 Snapshot g_snapshot{};
+
 OmniGhost::Auth::LicenseGateway& RemoteGateway() {
-    static OmniGhost::Auth::LicenseGateway gateway(
-        std::make_shared<OmniGhost::Auth::KeyAuthRemoteLicenseProvider>());
-    return gateway;
+    static std::unique_ptr<OmniGhost::Auth::LicenseGateway> gateway;
+    static std::once_flag initFlag;
+    std::call_once(initFlag, [] {
+        try {
+            gateway = std::make_unique<OmniGhost::Auth::LicenseGateway>(
+                std::make_shared<OmniGhost::Auth::KeyAuthRemoteLicenseProvider>());
+        } catch (const std::exception& ex) {
+            LogLicenseFailure(ex.what());
+        } catch (...) {
+            LogLicenseFailure("unknown exception");
+        }
+        if (!gateway) {
+            // Gateway "vazio": devolve NotConfigured em todas as operacoes, para a app
+            // poder mostrar um erro no ecra de login em vez de fechar.
+            gateway = std::make_unique<OmniGhost::Auth::LicenseGateway>(
+                std::make_shared<FakeProviderForFallback>());
+        }
+    });
+    return *gateway;
 }
 std::mutex& RevalidatorMutex() {
     static std::mutex mutex;

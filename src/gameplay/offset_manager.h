@@ -53,8 +53,7 @@ namespace Gameplay::Offsets {
         int max_scan_threads = 4;
         int scan_timeout_ms = 5000;
         
-        // Fallback
-        bool use_fallback_offsets = true;
+        // Sources/caching. Hardcoded fallback tables are intentionally unsupported.
         bool use_community_offsets = true;
         bool use_cached_offsets = true;
         

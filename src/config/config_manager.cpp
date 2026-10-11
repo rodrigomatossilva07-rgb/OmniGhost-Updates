@@ -98,10 +98,18 @@ bool DeserializeAll(const std::string& data) {
     // Migration: apply schema-specific transformations
     // v1 -> v2: added meta.config_version field
     // v2 -> v3: added per-game config isolation
+    // v3 -> v4: added aim_bind validation and defaults
     if (schema_version < 3) {
         std::cout << "[Config] Migrating config from schema v" << schema_version << " to v3\n";
         // Per-game isolation: ensure foreign game sections are skipped (handled below)
     }
+    if (schema_version < 4) {
+        std::cout << "[Config] Migrating config from schema v" << schema_version << " to v4\n";
+        // Ensure aim binds have valid defaults per game
+        // Actual bind migration happens during deserialization below
+    }
+    // Update schema version to current
+    schema_version = kConfigSchemaVersion;
     ResetActiveGameToDefaults();
     if (g_activeGame == ActiveGame::FiveM) {
         // silent removed - no longer exists

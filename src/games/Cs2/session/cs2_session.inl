@@ -1,39 +1,10 @@
 // Session generation, map transitions and entity-list ownership.
-// CS2 entity identity stride is 0x70 (Source 2 CEntityIdentity).
-// Reference CS2-DMA always uses 0x70 for controller slots and pawn handles.
-// 0x78 is kept only as a soft fallback when 0x70 yields zero controllers.
-constexpr uintptr_t kEntityIdentityStride = 0x70;
-constexpr uintptr_t kLegacyEntityIdentityStride = 0x78;
-constexpr uintptr_t kEntityPageSize = 0x200;
-constexpr uintptr_t kEntityPageTableOffset = 0x10;
-constexpr uintptr_t kGlobalVarsCurrentTime = 0x30;
-constexpr uintptr_t kGlobalVarsCurrentMap = 0x180;
-
 // Handle decoding constants (Source 2 CEntityIdentity)
-
-// Name array default offsets (fallback when schema offsets missing)
-constexpr uintptr_t kNameEntrySizeDefault = 0xD0;
-constexpr uintptr_t kNameArrayPosDefault = 0x3038;
-constexpr uintptr_t kNameEntryNameDefault = 0x10;
-constexpr uintptr_t kNameEntryHealthDefault = 0x90;
-constexpr uintptr_t kNameEntryArmorDefault = 0x98;
-constexpr uintptr_t kNameEntryAliveDefault = 0x78;
-
-// Bone array offset within model state (fallback)
-
-// Player structure default offsets (fallback)
-constexpr uintptr_t kPlayerSizeDefault = 0x2808;
-constexpr uintptr_t kPlayerPosDataDefault = 0x80;
-constexpr uintptr_t kPlayerPosDefault = 0xEB0;
-constexpr uintptr_t kPlayerStanceDefault = 0x19D0;
-constexpr uintptr_t kPlayerArmorDefault = 0x13F8;
-constexpr uintptr_t kPlayerValidDefault = 0x13FC;
-constexpr uintptr_t kPlayerTeamDefault = 0xB0;
 
 uintptr_t g_pending_entity_list = 0;
 int g_entity_list_confirmations = 0;
-uintptr_t g_controller_stride = kEntityIdentityStride;
-uintptr_t g_pawn_stride = kEntityIdentityStride;
+uintptr_t g_controller_stride = 0;
+uintptr_t g_pawn_stride = 0;
 uint64_t g_entity_list_next_validation_ms = 0;
 uint64_t g_entity_list_next_full_probe_ms = 0;
 bool g_entity_list_force_refresh = true;
@@ -99,7 +70,7 @@ void RefreshMapName() {
                                   &globals, sizeof(globals));
         mem.ExecuteReadScatter(g_scatter_full);
         if (IsUserPointer(globals)) {
-            mem.AddScatterReadRequest(g_scatter_full, globals + kGlobalVarsCurrentMap,
+            mem.AddScatterReadRequest(g_scatter_full, globals + offsets.global_vars_current_map,
                                       &map_address, sizeof(map_address));
             mem.ExecuteReadScatter(g_scatter_full);
             if (IsUserPointer(map_address)) {
@@ -111,7 +82,7 @@ void RefreshMapName() {
     } else {
         mapOk = QReadT(runtime.client_base + offsets.dwGlobalVars, globals, "CS2.MapRefresh") &&
                 IsUserPointer(globals) &&
-                QReadT(globals + kGlobalVarsCurrentMap, map_address, "CS2.MapRefresh") &&
+                QReadT(globals + offsets.global_vars_current_map, map_address, "CS2.MapRefresh") &&
                 IsUserPointer(map_address) &&
                 QRead(map_address, raw, sizeof(raw) - 1, "CS2.MapRefresh");
     }
@@ -201,7 +172,7 @@ static bool RefreshEntityListEntry() {
         mem.AddScatterReadRequest(g_scatter_full,
             runtime.client_base + offsets.dwEntityList, &observedRoot, sizeof(observedRoot));
         mem.AddScatterReadRequest(g_scatter_full,
-            root + kEntityPageTableOffset, &primaryEntry, sizeof(primaryEntry));
+            root + offsets.entity_page_table_offset, &primaryEntry, sizeof(primaryEntry));
         mem.ExecuteReadScatter(g_scatter_full);
         validationOk = observedRoot == root && primaryEntry == runtime.entity_list_entry;
     }
@@ -234,16 +205,10 @@ static bool RefreshEntityListEntry() {
     }
 
     g_phase.entity_full_probe = 1;
-    static const uintptr_t kPageOffs[] = {
-        kEntityPageTableOffset, // 0x10
-        0x08,
-        0x18,
-        0x20,
-        0x28
-    };
+    const uintptr_t kPageOffs[] = { offsets.entity_page_table_offset };
 
     uintptr_t best_entry = 0;
-    uintptr_t best_stride = g_controller_stride ? g_controller_stride : kEntityIdentityStride;
+    uintptr_t best_stride = g_controller_stride ? g_controller_stride : offsets.entity_identity_stride;
 
     // One scatter for all candidate page pointers, then probe only valid ones.
     uintptr_t pageEntries[sizeof(kPageOffs) / sizeof(kPageOffs[0])]{};
@@ -264,14 +229,9 @@ static bool RefreshEntityListEntry() {
         const uintptr_t entry = pageEntries[pi];
         if (!IsUserPointer(entry))
             continue;
-        if (ProbeListEntry(entry, kEntityIdentityStride)) {
+        if (ProbeListEntry(entry, offsets.entity_identity_stride)) {
             best_entry = entry;
-            best_stride = kEntityIdentityStride;
-            break;
-        }
-        if (ProbeListEntry(entry, kLegacyEntityIdentityStride)) {
-            best_entry = entry;
-            best_stride = kLegacyEntityIdentityStride;
+            best_stride = offsets.entity_identity_stride;
             break;
         }
         if (!best_entry)
@@ -351,7 +311,7 @@ static uintptr_t ResolveEntityByHandle(uint32_t handle, uintptr_t stride) {
     const EntityHandleParts parts = DecodeEntityHandle(handle);
 
     uintptr_t chunk = 0;
-    if (!QReadT(root + kEntityPageTableOffset + sizeof(uintptr_t) * parts.page, chunk) ||
+    if (!QReadT(root + offsets.entity_page_table_offset + sizeof(uintptr_t) * parts.page, chunk) ||
         !IsUserPointer(chunk))
         return 0;
 

@@ -2,7 +2,7 @@
 #include "prepared_esp_data.h"
 #include "math/math.h"
 #include "../game/game.h"
-#include "../../ImGui/imgui.h"
+#include "third_party/ImGui/imgui.h"
 #include <iostream>
 #include "../playerInfo/PedData.h"
 #include "../friends/friends.h"
@@ -211,7 +211,7 @@ public:
 
         auto handle = mem.CreateScatterHandle();
         for (size_t i = 0; i < bone_indices.size(); ++i) {
-            mem.AddScatterReadRequest(handle, ped + (esp::BONE_ARRAY_BASE + esp::BONE_SIZE * bone_indices[i]),
+            mem.AddScatterReadRequest(handle, ped + (FiveM::offset::boneArrayBase + FiveM::offset::boneSize * bone_indices[i]),
                 &bone_offsets[i], sizeof(Vector3));
         }
         mem.ExecuteReadScatter(handle);
@@ -525,7 +525,7 @@ void esp::batch_read_skeleton_data(const std::vector<uintptr_t>& peds,
         out_data[i].bone_mask = bone_mask;
         out_data[i].bone_matrix = {};
         std::fill(out_data[i].bone_offsets.begin(), out_data[i].bone_offsets.end(), Vector3{});
-        mem.AddScatterReadRequest(handle, peds[i] + BONE_MATRIX_OFFSET,
+        mem.AddScatterReadRequest(handle, peds[i] + FiveM::offset::boneMatrix,
             &out_data[i].bone_matrix, sizeof(Matrix));
     }
 
@@ -536,7 +536,7 @@ void esp::batch_read_skeleton_data(const std::vector<uintptr_t>& peds,
             if ((bone_mask & (uint16_t(1u) << static_cast<unsigned>(bone_id))) == 0)
                 continue;
             mem.AddScatterReadRequest(handle,
-                peds[ped_idx] + (BONE_ARRAY_BASE + BONE_SIZE * bone_id),
+                peds[ped_idx] + (FiveM::offset::boneArrayBase + FiveM::offset::boneSize * bone_id),
                 &out_data[ped_idx].bone_offsets[bone_id],
                 sizeof(Vector3));
         }
@@ -812,11 +812,11 @@ void esp::batch_read_head_data(const std::vector<uintptr_t>& peds, std::vector<B
         out_data[i].ped = peds[i];
 
         // Read bone matrix
-        mem.AddScatterReadRequest(handle, peds[i] + BONE_MATRIX_OFFSET,
+        mem.AddScatterReadRequest(handle, peds[i] + FiveM::offset::boneMatrix,
             &out_data[i].bone_matrix, sizeof(Matrix));
 
         // Read head offset (bone 0)
-        mem.AddScatterReadRequest(handle, peds[i] + (BONE_ARRAY_BASE + BONE_SIZE * 0),
+        mem.AddScatterReadRequest(handle, peds[i] + FiveM::offset::boneArrayBase,
             &out_data[i].head_offset, sizeof(Vector3));
     }
 
@@ -1849,14 +1849,14 @@ void esp::prepare_esp_frame(const std::vector<uintptr_t>& peds,
             coreHealths[i] < 0.f || coreHealths[i] >= 1000.f)
             mem.AddScatterReadRequest(first, data.ped + offset::playerHealth,
                 &data.health, sizeof(data.health));
-        mem.AddScatterReadRequest(first, data.ped + 0x284,
+        mem.AddScatterReadRequest(first, data.ped + offset::playerMaxHealth,
             &data.max_health, sizeof(data.max_health));
         if (need_armor) {
             mem.AddScatterReadRequest(first, data.ped + offset::playerArmor,
                 &data.armor, sizeof(data.armor));
-            mem.AddScatterReadRequest(first, data.ped + 0x14E0,
+            mem.AddScatterReadRequest(first, data.ped + offset::playerArmorAlt1,
                 &data.armor_alt_1, sizeof(data.armor_alt_1));
-            mem.AddScatterReadRequest(first, data.ped + 0x1530,
+            mem.AddScatterReadRequest(first, data.ped + offset::playerArmorAlt2,
                 &data.armor_alt_2, sizeof(data.armor_alt_2));
         }
         if (need_identity)
@@ -1875,12 +1875,12 @@ void esp::prepare_esp_frame(const std::vector<uintptr_t>& peds,
         
         // Bone acquisition for skeleton/head circle ESP
         if (need_bones) {
-            mem.AddScatterReadRequest(first, data.ped + BONE_MATRIX_OFFSET,
+            mem.AddScatterReadRequest(first, data.ped + FiveM::offset::boneMatrix,
                 &data.bone_matrix, sizeof(Matrix));
             // Read 9 key bone offsets: 0=head, 1=neck, 2=spine1, 3=spine2, 4=pelvis, 5=l_shoulder, 6=l_elbow, 7=r_shoulder, 8=r_elbow
             for (int b = 0; b < 9; ++b) {
                 mem.AddScatterReadRequest(first,
-                    data.ped + (BONE_ARRAY_BASE + BONE_SIZE * b),
+                    data.ped + (FiveM::offset::boneArrayBase + FiveM::offset::boneSize * b),
                     &data.bone_offsets[b], sizeof(Vector3));
             }
         }
@@ -2268,7 +2268,7 @@ static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer,
     // ── Armor bar matching health style (right of box) ──
     if (rcfg->armor_bar) {
         float armor = prepared_esp->armor;
-        // Only probe fallback offsets when value looks invalid (not when truly 0 armor)
+        // Alternate layout fields also come from data/fivem_offsets.json.
         if (armor < 0.f || armor > 200.f) {
             float a2 = prepared_esp->armor_alt_1;
             if (a2 >= 0.f && a2 <= 200.f) armor = a2;
@@ -2478,10 +2478,10 @@ static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer,
 }
 
 // Resolve local player ONLY via world→localplayer pointer (no distance heuristics).
-// CPed* at World+0x8 is the authoritative local player entity in GTA/FiveM.
+// CPed* at World+world_localPlayer is the authoritative local player entity.
 static uintptr_t ResolveLocalPlayerPointer(uintptr_t fallback) {
     using namespace FiveM;
-    // ESP manager refreshes World+0x8 once at the start of every frame.
+    // ESP manager refreshes the configured field once at the start of every frame.
     // Re-reading it here used to add one synchronous DMA request per player.
     return offset::localplayer ? offset::localplayer : fallback;
 }
@@ -3355,8 +3355,8 @@ void esp::draw_health_info(const Vec2& position, float health) {
 // Your existing functions (keeping them exactly as they are)
 Vec3 esp::get_bone_position(uintptr_t ped, int bone_position)
 {
-    Matrix bone_matrix = mem.Read<Matrix>(ped + 0x60);
-    Vector3 Head = mem.Read<Vector3>(ped + (0x410 + 0x10 * bone_position));
+    Matrix bone_matrix = mem.Read<Matrix>(ped + FiveM::offset::boneMatrix);
+    Vector3 Head = mem.Read<Vector3>(ped + (FiveM::offset::boneArrayBase + FiveM::offset::boneSize * bone_position));
     DirectX::SimpleMath::Vector3 boneVec(Head.x, Head.y, Head.z);
     DirectX::SimpleMath::Vector3 transformedBoneVec = DirectX::XMVector3Transform(boneVec, bone_matrix);
     return Vec3(transformedBoneVec.x, transformedBoneVec.y, transformedBoneVec.z);
@@ -3407,9 +3407,9 @@ void esp::batch_update_bone_cache(const std::vector<uintptr_t>& peds) {
     std::vector<Vector3> head_offsets(peds.size());
 
     for (size_t i = 0; i < peds.size(); ++i) {
-        mem.AddScatterReadRequest(handle, peds[i] + BONE_MATRIX_OFFSET,
+        mem.AddScatterReadRequest(handle, peds[i] + FiveM::offset::boneMatrix,
             &bone_matrices[i], sizeof(Matrix));
-        mem.AddScatterReadRequest(handle, peds[i] + (BONE_ARRAY_BASE + BONE_SIZE * 0),
+        mem.AddScatterReadRequest(handle, peds[i] + FiveM::offset::boneArrayBase,
             &head_offsets[i], sizeof(Vector3));
     }
 
@@ -3534,9 +3534,9 @@ void esp::PrepareWaypointAndBlips(const Config& frameConfig, const Vec3& localPo
             bool queuedPositions = false;
             for (size_t i = 0; i < entries.size(); ++i) {
                 if (entries[i] <= 0x10000u || entries[i] >= 0x7FFFFFFFFFFFULL) continue;
-                mem.AddScatterReadRequest(g_waypointScatter, entries[i] + 0x10,
+                mem.AddScatterReadRequest(g_waypointScatter, entries[i] + FiveM::offset::waypointBlipPosition,
                     &primary[i], sizeof(Vec3));
-                mem.AddScatterReadRequest(g_waypointScatter, entries[i] + 0x8,
+                mem.AddScatterReadRequest(g_waypointScatter, entries[i] + FiveM::offset::waypointBlipSprite,
                     &fallback[i], sizeof(Vec3));
                 queuedPositions = true;
             }

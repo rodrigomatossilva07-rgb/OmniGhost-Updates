@@ -16,7 +16,7 @@
 #include <queue>
 #include <condition_variable>
 
-#include "../../ImGui/imgui.h"
+#include "third_party/ImGui/imgui.h"
 #include "../../src/platform/object_pools.h"
 
 namespace Gameplay::ESPOptimizer {

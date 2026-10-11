@@ -19,33 +19,73 @@ namespace {
 std::mutex eventMutex;
 bool denied = false;
 
-std::filesystem::path SignedHostPath() {
-    const DWORD needed = GetEnvironmentVariableW(L"OMNIGHOST_HOST_EXE", nullptr, 0);
-    if (needed < 2 || needed >= 32768) return {};
-    std::wstring value(needed, L'\0');
-    const DWORD size = GetEnvironmentVariableW(L"OMNIGHOST_HOST_EXE", value.data(), needed);
-    if (size == 0 || size >= needed) return {};
-    value.resize(size);
-    return std::filesystem::path(value);
-}
-
-bool CoreMatchesSignedHost(const std::filesystem::path& host) {
-    // Build-BootstrapPayload.ps1 reserves RCDATA 3001 for the core payload.
-    HMODULE mapped = LoadLibraryExW(host.c_str(), nullptr, LOAD_LIBRARY_AS_DATAFILE);
-    if (!mapped) return false;
-    const HRSRC resource = FindResourceW(mapped, MAKEINTRESOURCEW(3001), RT_RCDATA);
-    if (!resource) { FreeLibrary(mapped); return false; }
-    const HGLOBAL loaded = LoadResource(mapped, resource);
-    const void* bytes = loaded ? LockResource(loaded) : nullptr;
-    const DWORD size = SizeofResource(mapped, resource);
-    if (!bytes || size == 0) { FreeLibrary(mapped); return false; }
-    std::string embeddedHash, ownHash, error;
-    const bool valid = OmniGhost::Platform::Sha256Text(
-        std::string_view(static_cast<const char*>(bytes), size), embeddedHash, error) &&
-        OmniGhost::Platform::Sha256File(OmniGhost::Paths::Executable(), ownHash, error) &&
-        OmniGhost::Platform::ConstantTimeEquals(embeddedHash, ownHash);
-    FreeLibrary(mapped);
-    return valid;
+// Single-EXE model: verify the running executable's Authenticode signature directly.
+// Returns empty path if verification is not applicable (e.g., dev build without publisher config).
+std::filesystem::path VerifiedExecutablePath() {
+    const auto exePath = OmniGhost::Paths::Executable();
+    
+#if defined(OMNIGHOST_PUBLISH_BUILD)
+    // Publish builds MUST have release trust configured and valid Authenticode signature.
+    if (!OmniGhost::Update::ReleaseTrust::Configured) {
+        OmniGhost::SessionLog::Write(
+            OmniGhost::SessionLog::Severity::Error,
+            OmniGhost::SessionLog::Subsystem::Core,
+            "publisher identity unavailable: release trust anchor is not configured");
+        return {};
+    }
+    std::string error;
+    bool signedByPublisher = OmniGhost::Update::VerifyAuthenticode(
+        exePath, OmniGhost::Update::ReleaseTrust::PublisherSubject,
+        OmniGhost::Update::ReleaseTrust::CertificateThumbprint, error);
+    bool revocationUnavailable = error.find("trust.revocation_offline") != std::string::npos;
+    if (!signedByPublisher && OmniGhost::Update::ReleaseTrust::SecondaryConfigured) {
+        signedByPublisher = OmniGhost::Update::VerifyAuthenticode(
+            exePath, OmniGhost::Update::ReleaseTrust::SecondaryPublisherSubject,
+            OmniGhost::Update::ReleaseTrust::SecondaryCertificateThumbprint, error);
+        revocationUnavailable = revocationUnavailable ||
+            error.find("trust.revocation_offline") != std::string::npos;
+    }
+    if (!signedByPublisher) {
+        OmniGhost::SessionLog::Write(
+            revocationUnavailable ? OmniGhost::SessionLog::Severity::Warning
+                                  : OmniGhost::SessionLog::Severity::Error,
+            OmniGhost::SessionLog::Subsystem::Core,
+            revocationUnavailable
+                ? "Authenticode verification unavailable (revocation offline); build requires publisher signature"
+                : "Authenticode signature invalid or not from trusted publisher",
+            {{"executable", OmniGhost::Platform::WideToUtf8(exePath.wstring())},
+             {"error", error}});
+        return {};
+    }
+    // Publisher identity verified - this is an officially signed build.
+    return exePath;
+#else
+    // Release/Dev builds: best-effort Authenticode check (does not block).
+    // Logs warning if unsigned/invalid but allows execution.
+    if (OmniGhost::Update::ReleaseTrust::Configured) {
+        std::string error;
+        bool signedByPublisher = OmniGhost::Update::VerifyAuthenticode(
+            exePath, OmniGhost::Update::ReleaseTrust::PublisherSubject,
+            OmniGhost::Update::ReleaseTrust::CertificateThumbprint, error);
+        if (!signedByPublisher && OmniGhost::Update::ReleaseTrust::SecondaryConfigured) {
+            signedByPublisher = OmniGhost::Update::VerifyAuthenticode(
+                exePath, OmniGhost::Update::ReleaseTrust::SecondaryPublisherSubject,
+                OmniGhost::Update::ReleaseTrust::SecondaryCertificateThumbprint, error);
+        }
+        if (!signedByPublisher) {
+            OmniGhost::SessionLog::Write(
+                OmniGhost::SessionLog::Severity::Warning,
+                OmniGhost::SessionLog::Subsystem::Core,
+                "executable not signed or signature invalid (dev/release build) - verify integrity manually",
+                {{"executable", OmniGhost::Platform::WideToUtf8(exePath.wstring())},
+                 {"error", error}});
+        }
+    }
+    // For non-Publish builds, we consider the executable "verified" if it passes
+    // the runtime DLL integrity checks below. Return the path to indicate
+    // the executable identity is available for further checks.
+    return exePath;
+#endif
 }
 }
 
@@ -128,9 +168,9 @@ bool SecurityManager::VerifyProtectedFiles() noexcept {
 
     // Installation manifest validation: ALWAYS enforced.
     // Checks that all installed files match the signed manifest.
-    const auto host = SignedHostPath();
-    if (!host.empty()) {
-        const auto report = OmniGhost::Update::VerifyInstallationFiles(host.parent_path());
+    const auto verifiedExe = VerifiedExecutablePath();
+    if (!verifiedExe.empty()) {
+        const auto report = OmniGhost::Update::VerifyInstallationFiles(verifiedExe.parent_path());
         if (report.status != OmniGhost::Update::IntegrityStatus::Healthy) {
             Record(report.status == OmniGhost::Update::IntegrityStatus::Damaged
                 ? EventId::RuntimeFileInvalid : EventId::InstallManifestInvalid);
@@ -141,107 +181,42 @@ bool SecurityManager::VerifyProtectedFiles() noexcept {
 #if defined(OMNIGHOST_PUBLISH_BUILD)
     // Publisher identity / Authenticode verification: PUBLISH ONLY.
     // Requires configured release trust anchor (publisher certificate).
-    if (!OmniGhost::Update::ReleaseTrust::Configured) {
-        // A Publish build must never silently downgrade to unsigned trust.
-        OmniGhost::SessionLog::Write(
-            OmniGhost::SessionLog::Severity::Error,
-            OmniGhost::SessionLog::Subsystem::Core,
-            "publisher identity unavailable: release trust anchor is not configured");
+    // VerifiedExecutablePath() already performs this check and returns empty on failure.
+    if (verifiedExe.empty()) {
         Record(EventId::ReleaseTrustMissing);
         return false;
     }
-    if (host.empty()) {
-        Record(EventId::ReleaseTrustMissing);
-        return false;
-    }
-    std::string error;
-    bool signedByPublisher = OmniGhost::Update::VerifyAuthenticode(
-        host, OmniGhost::Update::ReleaseTrust::PublisherSubject,
-        OmniGhost::Update::ReleaseTrust::CertificateThumbprint, error);
-    bool revocationUnavailable = error.find("trust.revocation_offline") != std::string::npos;
-    if (!signedByPublisher && OmniGhost::Update::ReleaseTrust::SecondaryConfigured) {
-        signedByPublisher = OmniGhost::Update::VerifyAuthenticode(
-            host, OmniGhost::Update::ReleaseTrust::SecondaryPublisherSubject,
-            OmniGhost::Update::ReleaseTrust::SecondaryCertificateThumbprint, error);
-        revocationUnavailable = revocationUnavailable ||
-            error.find("trust.revocation_offline") != std::string::npos;
-    }
-    if (!signedByPublisher) {
-        Record(revocationUnavailable ? EventId::SignatureVerificationUnavailable
-                                     : EventId::ExecutableSignatureInvalid);
-        return false;
-    }
-    if (!CoreMatchesSignedHost(host)) {
-        Record(EventId::RuntimeFileInvalid);
-        return false;
-    }
+#else
+    // Release/Dev builds: if publisher verification failed (empty path), that's OK.
+    // The runtime DLL validation above is the primary integrity check.
+    // If we have a verified executable path, also validate installation manifest.
 #endif
     return true;
 }
 
 bool SecurityManager::VerifyHostIdentity() noexcept {
-    // Core payload integrity: ALWAYS enforced (Release + Publish).
-    // Verifies that the core payload embedded in the host EXE matches the running executable.
-    const auto host = SignedHostPath();
-    if (host.empty()) {
-        Record(EventId::ReleaseTrustMissing);
-        return false;
-    }
-    if (!CoreMatchesSignedHost(host)) {
-        Record(EventId::RuntimeFileInvalid);
-        return false;
-    }
-
+    // Single-EXE model: verify the running executable's identity.
+    // For Publish builds: requires valid Authenticode signature from trusted publisher.
+    // For Release/Dev builds: best-effort Authenticode check (logs warning if unsigned).
+    // Runtime DLL integrity (SHA-256 of embedded DLLs) is verified in VerifyProtectedFiles().
+    const auto verifiedExe = VerifiedExecutablePath();
+    
 #if defined(OMNIGHOST_PUBLISH_BUILD)
-    // Publisher identity / Authenticode verification: PUBLISH ONLY.
-    // Requires configured release trust anchor (publisher certificate).
-    if (!OmniGhost::Update::ReleaseTrust::Configured) {
-        // A Publish build must never silently downgrade to unsigned trust.
-        OmniGhost::SessionLog::Write(
-            OmniGhost::SessionLog::Severity::Error,
-            OmniGhost::SessionLog::Subsystem::Core,
-            "publisher identity unavailable: release trust anchor is not configured");
+    // Publish builds MUST have valid publisher identity.
+    if (verifiedExe.empty()) {
+        // VerifiedExecutablePath() already logged the specific failure reason.
         Record(EventId::ReleaseTrustMissing);
         return false;
     }
-    std::string error;
-    bool signedByPublisher = OmniGhost::Update::VerifyAuthenticode(
-        host, OmniGhost::Update::ReleaseTrust::PublisherSubject,
-        OmniGhost::Update::ReleaseTrust::CertificateThumbprint, error);
-    bool revocationUnavailable = error.find("trust.revocation_offline") != std::string::npos;
-    if (!signedByPublisher && OmniGhost::Update::ReleaseTrust::SecondaryConfigured) {
-        signedByPublisher = OmniGhost::Update::VerifyAuthenticode(
-            host, OmniGhost::Update::ReleaseTrust::SecondaryPublisherSubject,
-            OmniGhost::Update::ReleaseTrust::SecondaryCertificateThumbprint, error);
-        revocationUnavailable = revocationUnavailable ||
-            error.find("trust.revocation_offline") != std::string::npos;
-    }
-    if (!signedByPublisher) {
-        Record(revocationUnavailable ? EventId::SignatureVerificationUnavailable
-                                     : EventId::ExecutableSignatureInvalid);
-        return false;
-    }
-#else
-    // FIX SEC-005: Best-effort Authenticode verification in dev builds.
-    // Does not block execution (dev builds may be unsigned), but logs warning if signature invalid.
-    std::string error;
-    bool signedByPublisher = OmniGhost::Update::VerifyAuthenticode(
-        host, OmniGhost::Update::ReleaseTrust::PublisherSubject,
-        OmniGhost::Update::ReleaseTrust::CertificateThumbprint, error);
-    if (!signedByPublisher && OmniGhost::Update::ReleaseTrust::SecondaryConfigured) {
-        signedByPublisher = OmniGhost::Update::VerifyAuthenticode(
-            host, OmniGhost::Update::ReleaseTrust::SecondaryPublisherSubject,
-            OmniGhost::Update::ReleaseTrust::SecondaryCertificateThumbprint, error);
-    }
-    if (!signedByPublisher) {
-        OmniGhost::SessionLog::Write(
-            OmniGhost::SessionLog::Severity::Warning,
-            OmniGhost::SessionLog::Subsystem::Core,
-            "executavel nao assinado ou assinatura invalida (dev build) - verifique a integridade",
-            {{"executable", OmniGhost::Platform::WideToUtf8(host.wstring())}});
-    }
-#endif
+    // Publisher identity verified - executable is officially signed.
     return true;
+#else
+    // Release/Dev builds: VerifiedExecutablePath() returns the executable path
+    // even if unsigned (best-effort). The critical integrity check is the
+    // runtime DLL validation in VerifyProtectedFiles().
+    // If publisher verification failed, it was already logged as a warning.
+    return true;
+#endif
 }
 
 bool SecurityManager::VerifyStartup() noexcept {

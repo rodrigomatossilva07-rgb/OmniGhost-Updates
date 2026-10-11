@@ -2,7 +2,7 @@
 #include <chrono>
 #include <cstdint>
 #include <vector>
-#include "../../DMALibrary/Memory/Memory.h"
+#include "third_party/DMALibrary/Memory/Memory.h"
 #include "../playerInfo/PedData.h"
 #include "offsets.h"
 

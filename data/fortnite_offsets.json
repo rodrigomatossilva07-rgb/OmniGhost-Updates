@@ -7,6 +7,11 @@
   "source": "user paste (engine globals + full UObject offsets)",
   "generated_at": "2026-09-22",
   "note": "SOURCE OF TRUTH. After a Fortnite patch, update ONLY this file and rebuild Publish|x64. GWorld is ENCODED: world = encoded * world_mul + world_add (gworld_crypto).",
+  "runtime": {
+    "pcm_cam_location": "0x15A0",
+    "pcm_cam_rotation": "0x15B8",
+    "pcm_cam_fov": "0x15D0"
+  },
   "globals": {
     "GWorld": "0x1B2C5BA0"
   },

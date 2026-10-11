@@ -8,12 +8,9 @@ void SubmitAcquisitionConfig(const Config& next) noexcept {
 }
 
 void EnsureAcquisitionStarted() {
-    bool expected = false;
-    if (!g_acquisition_running.compare_exchange_strong(
-            expected, true, std::memory_order_acq_rel))
+    if (!g_acqState.TryStart())
         return;
 
-    g_acquisition_stop.store(false, std::memory_order_release);
     {
         std::scoped_lock lock(g_process_liveness_mutex);
         g_process_liveness_next_probe_ms = 0;
@@ -57,12 +54,13 @@ void EnsureAcquisitionStarted() {
     // remains the only producer from here on.
     RuntimePipeline::ResetProducerThreadForShutdown();
     PublishRuntimeSnapshot();
+    // Every worker below gates its loop on IsRunning().  Publish the running
+    // state before constructing any thread so a newly scheduled worker cannot
+    // observe Starting and exit permanently before the caller reaches it.
+    g_acqState.MarkRunning();
     // Camera and origins are latency-critical for visual attachment while
     // turning or moving.  Bones remain in the validated full scan; this small
     // lane refreshes only their common origin and the view matrix.
-    g_optional_stop.store(false, std::memory_order_release);
-    g_optional_busy.store(false, std::memory_order_release);
-    g_optional_pending.store(false, std::memory_order_release);
     g_optional_thread = std::thread(OptionalWorkerLoop);
 
     g_camera_thread = std::thread([] {
@@ -72,18 +70,27 @@ void EnsureAcquisitionStarted() {
         float matrix[16]{};
         uint64_t next_camera_ms = 0;
         uint64_t consecutive_busy = 0;
-        while (!g_acquisition_stop.load(std::memory_order_acquire)) {
-            const auto runtime_view = RuntimePipeline::Acquire();
-            const uintptr_t client_base = runtime_view ? runtime_view->client_base : 0;
-            const bool in_match = runtime_view && runtime_view->in_match;
+        // Cache runtime state atomically instead of acquiring full snapshot every cycle
+        uintptr_t cached_client_base = 0;
+        bool cached_in_match = false;
+        while (g_acqState.IsRunning()) {
+            // Lightweight atomic reads instead of full snapshot acquire
+            if (cached_client_base != runtime.client_base) {
+                cached_client_base = runtime.client_base;
+            }
+            if (cached_in_match != runtime.in_match) {
+                cached_in_match = runtime.in_match;
+            }
+            const uintptr_t client_base = cached_client_base;
+            const bool in_match = cached_in_match;
             const bool canRead = ready && offsets.loaded && client_base && offsets.dwViewMatrix;
             const uint64_t camera_now_ms = GetTickCount64();
             const int camera_pressure = g_pressure_level.load(std::memory_order_relaxed);
             // IDENTICAL to FiveM: camera stays at 16ms through pressure 0-2, only 25ms at pressure 3 (recovery)
             // No dynamic adjustment based on camPosDelta — fixed cadence prevents temporal skew
-            int camera_period_ms = camera_pressure >= 3 ? 25 : CAMERA_INTERVAL_MS;
+            int camera_period_ms = camera_pressure >= 3 ? 25 : g_intervals.camera_ms;
             Camera::SetDeadline(next_camera_ms);
-            int wait_ms = in_match ? CAMERA_INTERVAL_MS : 20;
+            int wait_ms = in_match ? g_intervals.camera_ms : 20;
             bool busyRetry = false;
             if (canRead && in_match && camera_now_ms >= next_camera_ms) {
                 Camera::SetPending(true);
@@ -144,7 +151,7 @@ void EnsureAcquisitionStarted() {
                     std::chrono::milliseconds(1);
                 do {
                     std::this_thread::yield();
-                } while (!g_acquisition_stop.load(std::memory_order_acquire) &&
+                } while (g_acqState.IsRunning() &&
                          std::chrono::steady_clock::now() < retryAt);
             } else {
                 scheduler.Wait(std::chrono::milliseconds(wait_ms));
@@ -159,7 +166,7 @@ void EnsureAcquisitionStarted() {
         size_t recentScanCursor = 0;
         uint64_t pressureSessionGeneration = 0;
         int healthyPressureScans = 0;
-        while (!g_acquisition_stop.load(std::memory_order_acquire)) {
+        while (g_acqState.IsRunning()) {
             const auto acquire_begin = std::chrono::steady_clock::now();
             try {
                 // A 300 ms+ device stall is a board/driver queue event. Do
@@ -304,7 +311,7 @@ void EnsureAcquisitionStarted() {
             // presents the immutable snapshots with bounded extrapolation.
             // Adaptive scheduler (hysteresis): based on measured work, not board name.
             // IDENTICAL to FiveM esp_manager.cpp:758-763
-            int delayMs = runtime.in_match ? FULL_SCAN_INTERVAL_MS : 16;
+            int delayMs = runtime.in_match ? g_intervals.full_scan_ms : 16;
             try {
                 auto cfgLease = RuntimePipeline::AcquireConfig();
                 if (cfgLease) {
@@ -360,6 +367,8 @@ void EnsureAcquisitionStarted() {
                     healthyPressureScans = 0;
                 }
                 g_pressure_level.store(level, std::memory_order_relaxed);
+                // Update dynamic intervals based on current conditions
+                g_intervals.Update(runtime.player_count, runtime.acquisition_ms, level, kOptionalBudgetMs);
                 // Delay stretch — IDENTICAL to FiveM: 40/28/22 ms at pressure 3/2/1
                 if (level >= 3) delayMs = (std::max)(delayMs, 40);
                 else if (level == 2) delayMs = (std::max)(delayMs, 28);
@@ -377,9 +386,7 @@ void EnsureAcquisitionStarted() {
 void StopAcquisition() {
     if (OmniGhost::Gameplay::DmaTelemetry::IsEnabled())
         OmniGhost::Gameplay::DmaTelemetry::LogSessionSummary("CS2");
-    g_acquisition_stop.store(true, std::memory_order_release);
-    g_optional_stop.store(true, std::memory_order_release);
-    g_optional_cv.notify_all();
+    g_acqState.RequestStop();
     if (g_optional_thread.joinable())
         g_optional_thread.join();
     if (g_camera_thread.joinable())
@@ -389,13 +396,11 @@ void StopAcquisition() {
     g_scatter_optional.Reset();
     // FIX MEM-002: Also reset g_scatter_full to avoid leak
     g_scatter_full.Reset();
-    g_optional_busy.store(false, std::memory_order_release);
-    g_optional_pending.store(false, std::memory_order_release);
     g_web_radar_control_stop.store(true, std::memory_order_release);
     if (g_web_radar_control_thread.joinable())
         g_web_radar_control_thread.join();
     Camera::Reset();
-    g_acquisition_running.store(false, std::memory_order_release);
+    g_acqState.MarkStopped();
 }
 
 RuntimeSnapshotLease AcquireRuntimeSnapshot() {
@@ -415,7 +420,7 @@ CameraSnapshot SelectCameraSnapshot(uint64_t world_sample_ms) {
 }
 
 bool AcquisitionRunning() noexcept {
-    return g_acquisition_running.load(std::memory_order_acquire);
+    return g_acqState.IsAcquisitionRunning();
 }
 
 void SetPresentationFps(float fps) noexcept {

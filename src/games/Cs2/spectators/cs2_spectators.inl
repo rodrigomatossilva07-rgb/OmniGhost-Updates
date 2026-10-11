@@ -49,7 +49,7 @@ static void UpdateSpectators(const Config& frame_config,
             IsUserPointer(localServices) &&
             QReadT(localServices + offsets.m_hObserverTarget, watchedHandle)) {
             const uintptr_t watched = ResolveEntityByHandle(
-                watchedHandle, g_pawn_stride ? g_pawn_stride : kEntityIdentityStride);
+                watchedHandle, g_pawn_stride ? g_pawn_stride : offsets.entity_identity_stride);
             if (IsUserPointer(watched)) runtime.spectator_target = watched;
         }
     }
@@ -80,9 +80,9 @@ static void UpdateSpectators(const Config& frame_config,
     }
     uintptr_t observerPawns[kSpectatorSlots]{};
     if (queuedObservers) {
-        const uintptr_t primaryStride = g_pawn_stride ? g_pawn_stride : kEntityIdentityStride;
-        const uintptr_t alternateStride = (primaryStride == kEntityIdentityStride)
-            ? kLegacyEntityIdentityStride : kEntityIdentityStride;
+        const uintptr_t primaryStride = g_pawn_stride ? g_pawn_stride : offsets.entity_identity_stride;
+        const uintptr_t alternateStride = (primaryStride == offsets.entity_identity_stride)
+            ? offsets.entity_identity_stride : offsets.entity_identity_stride;
         ScatterResolvePawnHandles(observerHandles, observerPawns,
             spectatorControllerCount, primaryStride, alternateStride, true);
     }
@@ -116,9 +116,9 @@ static void UpdateSpectators(const Config& frame_config,
     }
     uintptr_t targetPawns[kSpectatorSlots]{};
     if (queuedTargets) {
-        const uintptr_t primaryStride = g_pawn_stride ? g_pawn_stride : kEntityIdentityStride;
-        const uintptr_t alternateStride = (primaryStride == kEntityIdentityStride)
-            ? kLegacyEntityIdentityStride : kEntityIdentityStride;
+        const uintptr_t primaryStride = g_pawn_stride ? g_pawn_stride : offsets.entity_identity_stride;
+        const uintptr_t alternateStride = (primaryStride == offsets.entity_identity_stride)
+            ? offsets.entity_identity_stride : offsets.entity_identity_stride;
         ScatterResolvePawnHandles(targetHandles, targetPawns,
             spectatorControllerCount, primaryStride, alternateStride, true);
     }

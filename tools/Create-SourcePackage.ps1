@@ -33,12 +33,11 @@ $allowedRootFiles = @(
     '.clang-format', '.editorconfig', '.gitattributes', '.gitignore',
     'OmiGhost.slnx', 'OmiGhost.vcxproj', 'OmiGhost.vcxproj.filters',
     'config\build\OmniGhost.Common.props', 'config\build\OmniGhost.Release.props',
-    'README.txt', 'THIRD_PARTY_NOTICES.txt', 'config\release\version.txt',
+    'README.txt', 'config\release\version.txt',
     'config\release\release-notes.override.json', 'config\release\release-publish.json'
 )
 $allowedRoots = @(
-    'Cs2', 'DMALibrary', 'Fivem', 'ImGui', 'Utils',
-    'Warzone', 'data', 'docs', 'libs', 'resources', 'runtime', 'src',
+    'data', 'docs', 'infrastructure', 'libs', 'resources', 'src',
     'third_party', 'tools'
 )
 $excludedDirectoryNames = @('.vs', '.cache', 'build', 'artifacts', '.temp', 'logs', 'x64',

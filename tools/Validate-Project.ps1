@@ -50,7 +50,7 @@ function Assert-ManifestHash([object]$Expected, [string]$Relative) {
 foreach ($file in @(
     'OmiGhost.vcxproj','config\build\OmniGhost.Common.props','config\build\OmniGhost.Release.props',
     'config\release\versions.json',
-    'src\runtime\cloudflared\cloudflared.exe','THIRD_PARTY_NOTICES.txt',
+    'src\runtime\cloudflared\cloudflared.exe','docs\legal\THIRD_PARTY_NOTICES.txt',
     'resources\OmniGhost.ico',
     'resources\resource.h','resources\embedded-resources.json',
     'src\platform\embedded_offsets.cpp','src\platform\embedded_offsets.h',
@@ -68,7 +68,7 @@ if ((Get-Sha256 $cloudflaredPath) -cne $expectedCloudflaredSha256) {
 }
 Pass 'cloudflared.exe matches the approved Authenticode-verified Cloudflare 2026.8.2 binary.'
 
-foreach ($path in @('DMALibrary\libs','DMALibrary\info.db','libs\info.db','src\launcher\calibration_page.cpp','src\launcher\calibration_page.h')) {
+foreach ($path in @('third_party\DMALibrary\libs','third_party\DMALibrary\info.db','libs\info.db','src\launcher\calibration_page.cpp','src\launcher\calibration_page.h')) {
     Require-Absent $path
 }
 foreach ($file in @('.github\workflows\release.yml')) {
@@ -324,6 +324,33 @@ InstallDirectory\(\).+version\.txt
 '@
 Forbid-Text $configManager $patternInstallDir 'Runtime config no longer depends on version.txt beside the EXE.'
 Forbid-Text $configCore $patternInstallDir 'Config core no longer depends on version.txt beside the EXE.'
+
+# Offset policy: data/<game>_offsets.json is the only editable authority.
+# Release may embed generated copies, but game adapters must fail closed instead
+# of silently activating C++ seed/emergency tables.
+$offsetAdapterFiles = @(
+    'src\games\Cs2\cs2_game.h',
+    'src\games\Fivem\game\offsets.cpp',
+    'src\games\Fivem\game\offsets.h',
+    'src\games\Fortnite\fortnite_game.h',
+    'src\games\Warzone\warzone_game.h'
+)
+foreach ($relative in $offsetAdapterFiles) {
+    $offsetAdapter = Read-Utf8Text (Join-Path $ProjectDir $relative)
+    Forbid-Text $offsetAdapter 'kSeedBuildOffsets|SeedFromHardcoded|kLegacyEntityIdentityStride' "No emergency offset table in $relative."
+}
+$fiveMOffsetsPath = Join-Path $ProjectDir 'data\fivem_offsets.json'
+$fiveMOffsets = Get-Content -LiteralPath $fiveMOffsetsPath -Raw | ConvertFrom-Json
+$indexedBuilds = @($fiveMOffsets.build_index.PSObject.Properties |
+    Where-Object Name -ne 'count' | ForEach-Object {
+        [Convert]::ToInt32(([string]$_.Value -replace '^0[xX]', ''), 16)
+    })
+$declaredBuilds = @($fiveMOffsets.builds.PSObject.Properties.Name | ForEach-Object { [int]$_ })
+if ([Convert]::ToInt32(([string]$fiveMOffsets.build_index.count -replace '^0[xX]', ''), 16) -ne $indexedBuilds.Count -or
+    @(Compare-Object ($indexedBuilds | Sort-Object) ($declaredBuilds | Sort-Object)).Count -ne 0) {
+    Fail 'data\fivem_offsets.json build_index must exactly match builds for embedded loading.'
+}
+Pass 'All game offsets use data JSON snapshots; FiveM embedded build index is complete.'
 
 Pass 'Engineering documentation is intentionally non-blocking for compilation.'
 

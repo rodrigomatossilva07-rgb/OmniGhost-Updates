@@ -1,7 +1,7 @@
 #include "math.h"
-#include "../../ImGui/imgui.h"
+#include "third_party/ImGui/imgui.h"
 #include "game/game.h"
-#include "../../Utils/SimpleMath.h"
+#include "third_party/Utils/SimpleMath.h"
 
 int width = GetSystemMetrics(0);
 int height = GetSystemMetrics(1);

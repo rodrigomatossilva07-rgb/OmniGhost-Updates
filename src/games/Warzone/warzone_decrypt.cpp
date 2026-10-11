@@ -1,6 +1,6 @@
 #include "warzone_decrypt.h"
 #include "warzone_game.h"
-#include "../DMALibrary/Memory/Memory.h"
+#include "third_party/DMALibrary/Memory/Memory.h"
 #include <Windows.h>
 #include <intrin.h>
 #include <cstring>
@@ -47,30 +47,30 @@ inline bool is_heap(std::uint64_t p) {
     return p >= 0x10000ull && p <= 0x00007FFFFFFFFFFFull;
 }
 
-// Build 0x6A6D4AEF — matches data/warzone_offsets.json + cheatoffsets Steam dump.
-// Runtime offsets.* can override these if non-zero (see RunDecrypt).
+// Runtime RVAs are loaded exclusively from data/warzone_offsets.json (or its
+// generated embedded copy). Keeping zero defaults makes missing data fail closed.
 namespace wz_rva {
-    inline std::uint64_t client_info_enc = 0xEB72B98;
-    inline std::uint64_t client_info_key = 0xD92F779;
-    inline std::uint64_t client_base_enc = 0x23CDA8;
-    inline std::uint64_t client_base_key = 0xD92F7AA;
-    inline std::uint64_t bone_enc       = 0x12EC3488;
-    inline std::uint64_t bone_key       = 0xD92F89D;
-    inline std::uint64_t ref_def        = 0xEB841A0;
-    inline std::uint64_t camera_pos_enc = 0x160;
-    inline std::uint64_t camera_pos_key = 0x16C;
+    inline std::uint64_t client_info_enc = 0;
+    inline std::uint64_t client_info_key = 0;
+    inline std::uint64_t client_base_enc = 0;
+    inline std::uint64_t client_base_key = 0;
+    inline std::uint64_t bone_enc = 0;
+    inline std::uint64_t bone_key = 0;
+    inline std::uint64_t ref_def = 0;
+    inline std::uint64_t camera_pos_enc = 0;
+    inline std::uint64_t camera_pos_key = 0;
 }
 
 void SyncRvaFromOffsets() {
-    if (offsets.client_info_enc) wz_rva::client_info_enc = offsets.client_info_enc;
-    if (offsets.client_info_key) wz_rva::client_info_key = offsets.client_info_key;
-    if (offsets.client_base_enc) wz_rva::client_base_enc = offsets.client_base_enc;
-    if (offsets.client_base_key) wz_rva::client_base_key = offsets.client_base_key;
-    if (offsets.bone_enc)       wz_rva::bone_enc       = offsets.bone_enc;
-    if (offsets.bone_key)       wz_rva::bone_key       = offsets.bone_key;
-    if (offsets.ref_def)        wz_rva::ref_def        = offsets.ref_def;
-    if (offsets.camera_pos_enc) wz_rva::camera_pos_enc = offsets.camera_pos_enc;
-    if (offsets.camera_pos_key) wz_rva::camera_pos_key = offsets.camera_pos_key;
+    wz_rva::client_info_enc = offsets.client_info_enc;
+    wz_rva::client_info_key = offsets.client_info_key;
+    wz_rva::client_base_enc = offsets.client_base_enc;
+    wz_rva::client_base_key = offsets.client_base_key;
+    wz_rva::bone_enc = offsets.bone_enc;
+    wz_rva::bone_key = offsets.bone_key;
+    wz_rva::ref_def = offsets.ref_def;
+    wz_rva::camera_pos_enc = offsets.camera_pos_enc;
+    wz_rva::camera_pos_key = offsets.camera_pos_key;
 }
 
 // Throttled debug
@@ -1380,7 +1380,7 @@ inline std::uint16_t get_bone_index(ReadFn fn, void* ctx, std::uint64_t base, st
 }
 
 // Camera origin: same Key3-style per-float xor as refdef (Usermode DecryptCameraOrigin).
-// Fallback in callers is the raw float3 at camera_pos (+0x1F4).
+// Callers may use the raw float3 at the configured camera.pos field.
 inline Vec3 decrypt_camera_origin(ReadFn fn, void* ctx, std::uint64_t camera_base)
 {
     Vec3 origin{};
@@ -1424,7 +1424,7 @@ bool RunDecrypt(uintptr_t module_base, DecryptState& out) {
     void* ctx = nullptr;
 
     // ---- name_array always (candidates / names) ----
-    const uintptr_t na_rva = offsets.name_array ? offsets.name_array : 0xED1C710;
+    const uintptr_t na_rva = offsets.name_array;
     uintptr_t na = 0;
     if (ReadU64(module_base + na_rva, na) && IsCanonicalUserPtr(na) && PointerReadable(na)) {
         out.name_array_base = na;
@@ -1511,8 +1511,8 @@ bool RunDecrypt(uintptr_t module_base, DecryptState& out) {
 
     // ---- local_index from client_info ----
     if (out.client_info_ok) {
-        const uintptr_t li_off = offsets.local_index_off ? offsets.local_index_off : 0xB03F0;
-        const uintptr_t li_pos = offsets.local_index_pos ? offsets.local_index_pos : 0x418;
+        const uintptr_t li_off = offsets.local_index_off;
+        const uintptr_t li_pos = offsets.local_index_pos;
         // Two common layouts: direct int at client_info+off, or ptr then +pos
         int idx = -1;
         uintptr_t maybe_ptr = 0;
@@ -1558,11 +1558,11 @@ bool ReadPlayerSlot(const DecryptState& st, uintptr_t /*module_base*/, int index
     if (index < 0 || index > 155) return false;
     if (!st.client_base_ok || !st.client_base) return false;
 
-    const uintptr_t psize = offsets.player_size ? offsets.player_size : 0x2808;
-    const uintptr_t pvalid = offsets.player_valid ? offsets.player_valid : 0x13FC;
-    const uintptr_t ppos = offsets.player_pos ? offsets.player_pos : 0xEB0;
-    const uintptr_t pteam = offsets.player_team ? offsets.player_team : 0xB0;
-    const uintptr_t phealth = offsets.player_health ? offsets.player_health : 0x600;
+    const uintptr_t psize = offsets.player_size;
+    const uintptr_t pvalid = offsets.player_valid;
+    const uintptr_t ppos = offsets.player_pos;
+    const uintptr_t pteam = offsets.player_team;
+    const uintptr_t phealth = offsets.player_health;
 
     uintptr_t player = st.client_base + (uintptr_t)index * psize;
     if (!PointerReadable(player)) return false;
@@ -1580,7 +1580,7 @@ bool ReadPlayerSlot(const DecryptState& st, uintptr_t /*module_base*/, int index
     out_pos[0] = pos[0]; out_pos[1] = pos[1]; out_pos[2] = pos[2];
     // Stance-aware head (same table as warzone_game enum path)
     int stance = 0;
-    const uintptr_t pstance = offsets.player_stance ? offsets.player_stance : 0x19D0;
+    const uintptr_t pstance = offsets.player_stance;
     mem.Read(player + pstance, &stance, sizeof(stance));
     if (stance < 0 || stance > 8) stance = 0;
     if (stance > 2) stance = 2;
@@ -1608,9 +1608,9 @@ bool ReadPlayerSlot(const DecryptState& st, uintptr_t /*module_base*/, int index
     }
 
     if (out_name && name_cap > 1 && st.name_array_ok && st.name_array_base) {
-        const uintptr_t nsize = offsets.name_entry_size ? offsets.name_entry_size : 0xD0;
-        const uintptr_t npos = offsets.name_array_pos ? offsets.name_array_pos : 0x3038;
-        const uintptr_t nname = offsets.name_entry_name ? offsets.name_entry_name : 0x10;
+        const uintptr_t nsize = offsets.name_entry_size;
+        const uintptr_t npos = offsets.name_array_pos;
+        const uintptr_t nname = offsets.name_entry_name;
         char buf[64]{};
         mem.Read(st.name_array_base + npos + (uintptr_t)index * nsize + nname, buf, 31);
         buf[31] = 0;

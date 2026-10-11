@@ -142,7 +142,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 if (!IsUserPointer(r.pawn) || !r.bones_ok || !r.sample_ms) continue;
                 CachedBones& cb = bone_cache[r.pawn];
                 if (cb.entry_generation != generation) { cb = CachedBones{}; cb.entry_generation = generation; }
-                std::memcpy(cb.joints, r.bones, sizeof(cb.joints));
+                std::memcpy(cb.joints, r.bones.data(), sizeof(cb.joints));
                 cb.last_valid_ms = r.sample_ms;
                 cb.full_pose = r.full_bones_ok;
                 std::memcpy(cb.origin, r.origin, sizeof(cb.origin));
@@ -379,7 +379,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
         if (QReadT(client + offsets.dwLocalPlayerPawn, probe_pawn, "CS2.MatchProbe") &&
             QReadT(client + offsets.dwEntityList, entity_root, "CS2.MatchProbe") &&
             IsUserPointer(probe_pawn) && IsUserPointer(entity_root) &&
-            QReadT(entity_root + kEntityPageTableOffset, entity_page, "CS2.MatchProbe") &&
+            QReadT(entity_root + offsets.entity_page_table_offset, entity_page, "CS2.MatchProbe") &&
             IsUserPointer(entity_page)) {
             uintptr_t controllers[4]{};
             int controllerCount = 0;
@@ -388,14 +388,14 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 mem.SetDmaCallTag("CS2.MatchProbe");
                 for (int i = 1; i <= 4; ++i)
                     mem.AddScatterReadRequest(g_scatter_full,
-                        entity_page + static_cast<uintptr_t>(i) * kEntityIdentityStride,
+                        entity_page + static_cast<uintptr_t>(i) * offsets.entity_identity_stride,
                         &controllers[i - 1], sizeof(uintptr_t));
                 const auto probeBegin = std::chrono::steady_clock::now();
                 mem.ExecuteReadScatter(g_scatter_full);
                 NotePossibleDeviceStall(OmniGhost::Gameplay::TimeMs(probeBegin));
             } else {
                 for (int i = 1; i <= 4; ++i)
-                    QReadT(entity_page + static_cast<uintptr_t>(i) * kEntityIdentityStride,
+                    QReadT(entity_page + static_cast<uintptr_t>(i) * offsets.entity_identity_stride,
                            controllers[i - 1], "CS2.MatchProbe");
             }
             for (const uintptr_t controller : controllers)
@@ -913,8 +913,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
         }
     }
     if (collected == 0) {
-        const uintptr_t alternate = (g_controller_stride == kEntityIdentityStride)
-            ? kLegacyEntityIdentityStride : kEntityIdentityStride;
+        const uintptr_t alternate = (g_controller_stride == offsets.entity_identity_stride)
+            ? offsets.entity_identity_stride : offsets.entity_identity_stride;
         collected = CollectControllers(runtime.entity_list_entry, alternate, controllers, kMaxSlots);
         if (collected > 0) {
             g_controller_stride = alternate;
@@ -1040,9 +1040,9 @@ static void RunFrameWithConfig(const Config& frame_config) {
     uintptr_t newlyResolved[kMaxSlots]{};
     int newlyResolvedCount = 0;
     if (anyHandleChanged) {
-        const uintptr_t primaryStride = g_pawn_stride ? g_pawn_stride : kEntityIdentityStride;
-        const uintptr_t alternateStride = (primaryStride == kEntityIdentityStride)
-            ? kLegacyEntityIdentityStride : kEntityIdentityStride;
+        const uintptr_t primaryStride = g_pawn_stride ? g_pawn_stride : offsets.entity_identity_stride;
+        const uintptr_t alternateStride = (primaryStride == offsets.entity_identity_stride)
+            ? offsets.entity_identity_stride : offsets.entity_identity_stride;
         newlyResolvedCount = ScatterResolvePawnHandles(
             handlesToResolve, newlyResolved, collected,
             primaryStride, alternateStride);

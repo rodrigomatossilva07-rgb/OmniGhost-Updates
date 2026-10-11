@@ -63,32 +63,32 @@ struct Offsets {
     // Bone array: base + index * stride, each entry is float3
     uintptr_t bone_array_base = 0;
     uintptr_t bone_array_stride = 0;
-    int bone_head = 7;
-    int bone_chest = 5;
+    int bone_head = -1;
+    int bone_chest = -1;
     // Unified bone indices (Gameplay::BoneSystem::BoneId mapping)
-    int bone_neck = 6;
-    int bone_spine_upper = 5;
-    int bone_spine_mid = 4;
-    int bone_spine_lower = 3;
-    int bone_pelvis = 2;
-    int bone_l_clavicle = 13;
-    int bone_l_shoulder = 14;
-    int bone_l_elbow = 15;
-    int bone_l_wrist = 16;
-    int bone_l_hand = 17;
-    int bone_r_clavicle = 18;
-    int bone_r_shoulder = 19;
-    int bone_r_elbow = 20;
-    int bone_r_wrist = 21;
-    int bone_r_hand = 22;
-    int bone_l_hip = 23;
-    int bone_l_knee = 24;
-    int bone_l_ankle = 25;
-    int bone_l_foot = 26;
-    int bone_r_hip = 27;
-    int bone_r_knee = 28;
-    int bone_r_ankle = 29;
-    int bone_r_foot = 30;
+    int bone_neck = -1;
+    int bone_spine_upper = -1;
+    int bone_spine_mid = -1;
+    int bone_spine_lower = -1;
+    int bone_pelvis = -1;
+    int bone_l_clavicle = -1;
+    int bone_l_shoulder = -1;
+    int bone_l_elbow = -1;
+    int bone_l_wrist = -1;
+    int bone_l_hand = -1;
+    int bone_r_clavicle = -1;
+    int bone_r_shoulder = -1;
+    int bone_r_elbow = -1;
+    int bone_r_wrist = -1;
+    int bone_r_hand = -1;
+    int bone_l_hip = -1;
+    int bone_l_knee = -1;
+    int bone_l_ankle = -1;
+    int bone_l_foot = -1;
+    int bone_r_hip = -1;
+    int bone_r_knee = -1;
+    int bone_r_ankle = -1;
+    int bone_r_foot = -1;
 
     // name_array entry
     uintptr_t name_array_pos = 0;

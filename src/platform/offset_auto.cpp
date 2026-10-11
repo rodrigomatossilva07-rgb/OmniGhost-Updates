@@ -106,11 +106,15 @@ bool HasCriticalOffsets(ActiveGame game) {
     if (game == ActiveGame::Warzone) {
         return Warzone::offsets.loaded && Warzone::offsets.view_matrix != 0;
     }
-    if (game == ActiveGame::Apex || game == ActiveGame::FiveM) {
-        // File-backed dumps from cheatoffsets — presence is enough until dedicated loaders expand
-        return true;
+    if (game == ActiveGame::FiveM) {
+        // FiveM uses build-specific offsets table; validate at least one build has critical offsets
+        return FiveM::HasAnyCriticalOffsets();
     }
-    return true;
+    if (game == ActiveGame::Apex) {
+        // Apex not yet implemented with dedicated offsets module
+        return false;
+    }
+    return false;
 }
 
 bool ValidateLive(ActiveGame game) {

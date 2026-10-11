@@ -1,8 +1,10 @@
 #include "hardware_fingerprint.h"
 
+#include "../platform/app_paths.h"
 #include "../platform/file_integrity.h"
 
 #include <Windows.h>
+#include <wincrypt.h>
 #include <intrin.h>
 #include <winioctl.h>
 
@@ -12,9 +14,14 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <string>
 #include <utility>
 #include <vector>
+
+#pragma comment(lib, "crypt32.lib")
 
 namespace OmniGhost::Auth {
 namespace {
@@ -237,20 +244,122 @@ std::string Digest(std::vector<Component> components) {
     return "oghw2:" + digest;
 }
 
+constexpr char kFingerprintPrefix[] = "oghw2:";
+constexpr wchar_t kFingerprintFile[] = L"hardware-identity-v2.bin";
+constexpr char kDpapiEntropy[] = "OmniGhost.HardwareIdentity.v2";
+
+bool IsFingerprint(std::string_view value) noexcept {
+    if (value.size() != sizeof(kFingerprintPrefix) - 1 + 64 ||
+        value.compare(0, sizeof(kFingerprintPrefix) - 1, kFingerprintPrefix) != 0)
+        return false;
+    return std::all_of(value.begin() + (sizeof(kFingerprintPrefix) - 1), value.end(),
+        [](unsigned char character) { return std::isxdigit(character) != 0; });
+}
+
+DATA_BLOB FingerprintEntropy() noexcept {
+    DATA_BLOB entropy{};
+    entropy.pbData = reinterpret_cast<BYTE*>(const_cast<char*>(kDpapiEntropy));
+    entropy.cbData = static_cast<DWORD>(sizeof(kDpapiEntropy) - 1);
+    return entropy;
+}
+
+std::string LoadPersistedFingerprint() {
+    const std::filesystem::path path = OmniGhost::Paths::Configs() / kFingerprintFile;
+    std::ifstream input(path, std::ios::binary);
+    if (!input)
+        return {};
+    const std::vector<unsigned char> encrypted{
+        std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()};
+    if (encrypted.empty() || encrypted.size() > 64u * 1024u)
+        return {};
+
+    DATA_BLOB source{};
+    source.pbData = const_cast<BYTE*>(encrypted.data());
+    source.cbData = static_cast<DWORD>(encrypted.size());
+    DATA_BLOB plain{};
+    DATA_BLOB entropy = FingerprintEntropy();
+    if (!CryptUnprotectData(&source, nullptr, &entropy, nullptr, nullptr,
+                            CRYPTPROTECT_UI_FORBIDDEN, &plain))
+        return {};
+
+    std::string fingerprint;
+    if (plain.pbData && plain.cbData)
+        fingerprint.assign(reinterpret_cast<const char*>(plain.pbData), plain.cbData);
+    if (plain.pbData)
+        LocalFree(plain.pbData);
+    return IsFingerprint(fingerprint) ? fingerprint : std::string{};
+}
+
+bool PersistFingerprint(std::string_view fingerprint) {
+    if (!IsFingerprint(fingerprint) || !OmniGhost::Paths::EnsureUserDirectories())
+        return false;
+
+    DATA_BLOB source{};
+    source.pbData = reinterpret_cast<BYTE*>(const_cast<char*>(fingerprint.data()));
+    source.cbData = static_cast<DWORD>(fingerprint.size());
+    DATA_BLOB encrypted{};
+    DATA_BLOB entropy = FingerprintEntropy();
+    if (!CryptProtectData(&source, L"OmniGhost hardware identity", &entropy,
+                          nullptr, nullptr,
+                          CRYPTPROTECT_LOCAL_MACHINE | CRYPTPROTECT_UI_FORBIDDEN,
+                          &encrypted))
+        return false;
+
+    const std::filesystem::path destination = OmniGhost::Paths::Configs() / kFingerprintFile;
+    const std::filesystem::path temporary = destination.wstring() + L".tmp";
+    bool written = false;
+    {
+        std::ofstream output(temporary, std::ios::binary | std::ios::trunc);
+        if (output && encrypted.pbData && encrypted.cbData) {
+            output.write(reinterpret_cast<const char*>(encrypted.pbData), encrypted.cbData);
+            output.flush();
+            written = output.good();
+        }
+    }
+    if (encrypted.pbData)
+        LocalFree(encrypted.pbData);
+    if (!written) {
+        std::error_code ignored;
+        std::filesystem::remove(temporary, ignored);
+        return false;
+    }
+    if (!MoveFileExW(temporary.c_str(), destination.c_str(),
+                     MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+        std::error_code ignored;
+        std::filesystem::remove(temporary, ignored);
+        return false;
+    }
+    return true;
+}
+
+std::string ComputeCurrentFingerprint() {
+    std::vector<Component> components;
+    components.reserve(16);
+    AddFirmware(components); // motherboard, BIOS, processor and memory devices
+    AddCpu(components);
+    AddDisplayAdapters(components);
+    AddStorageDevices(components);
+    AddSystemVolume(components);
+    AddMachineGuid(components);
+    AddUserSid(components);
+    return Digest(std::move(components));
+}
+
 } // namespace
 
 std::string ComputeHardwareFingerprint() noexcept {
     try {
-        std::vector<Component> components;
-        components.reserve(16);
-        AddFirmware(components); // motherboard, BIOS, processor and memory devices
-        AddCpu(components);
-        AddDisplayAdapters(components);
-        AddStorageDevices(components);
-        AddSystemVolume(components);
-        AddMachineGuid(components);
-        AddUserSid(components);
-        return Digest(std::move(components));
+        // KeyAuth binds the first successful identity. Optional device queries
+        // (for example a sleeping disk or a display adapter still starting)
+        // must not create a different account HWID on the next launch. Persist
+        // the first complete digest under machine-bound DPAPI and reuse it for
+        // all later runs and application updates.
+        if (std::string persisted = LoadPersistedFingerprint(); !persisted.empty())
+            return persisted;
+        std::string fingerprint = ComputeCurrentFingerprint();
+        if (!fingerprint.empty())
+            (void)PersistFingerprint(fingerprint);
+        return fingerprint;
     } catch (...) {
         return {};
     }

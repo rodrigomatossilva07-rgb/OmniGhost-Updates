@@ -4,7 +4,7 @@ on:
   push:
     branches: [ main, master ]
     paths:
-      - drivers/ftdi/driver-manifest.json
+      - infrastructure/drivers/ftdi/driver-manifest.json
       - .github/workflows/publish-ftdi-driver-manifest.yml
   workflow_dispatch:
 
@@ -20,8 +20,8 @@ jobs:
 
       - name: Validate policy is complete
         run: |
-          test -s drivers/ftdi/driver-manifest.json
-          ! grep -q 'REPLACE_' drivers/ftdi/driver-manifest.json
+          test -s infrastructure/drivers/ftdi/driver-manifest.json
+          ! grep -q 'REPLACE_' infrastructure/drivers/ftdi/driver-manifest.json
           jq -e '
             .schemaVersion == 2 and .product == "FTDI-D3XX" and
             .channel == "stable" and
@@ -31,7 +31,7 @@ jobs:
             (.latest.package.size | numbers and . > 0) and
             (.latest.package.type == "ZIP_WITH_INF") and
             (.latest.acceptedInstalledDrivers | length > 0)
-          ' drivers/ftdi/driver-manifest.json >/dev/null
+          ' infrastructure/drivers/ftdi/driver-manifest.json >/dev/null
 
       - name: Write private signing key
         env:
@@ -44,13 +44,13 @@ jobs:
       - name: Sign canonical JSON bytes
         run: |
           openssl pkeyutl -sign -rawin -inkey /tmp/ftdi-manifest-private.pem \
-            -in drivers/ftdi/driver-manifest.json -out /tmp/driver-manifest.sig.bin
+            -in infrastructure/drivers/ftdi/driver-manifest.json -out /tmp/driver-manifest.sig.bin
           base64 -w 0 /tmp/driver-manifest.sig.bin > /tmp/driver-manifest.sig
 
       - name: Commit detached signature
         run: |
           git config user.name "OmniGhost Driver Publisher"
           git config user.email "actions@github.com"
-          git add drivers/ftdi/driver-manifest.json drivers/ftdi/driver-manifest.sig
+          git add infrastructure/drivers/ftdi/driver-manifest.json infrastructure/drivers/ftdi/driver-manifest.sig
           git diff --cached --quiet || git commit -m "Publish signed FTDI driver manifest"
           git push

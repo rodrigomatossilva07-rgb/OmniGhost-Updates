@@ -151,7 +151,7 @@ static void RunOptionalEnrichment(const Config& frame_config,
         }
 
         for (size_t base = 0; base < targets.size() && !!budget.Remaining();) {
-            if (g_optional_stop.load(std::memory_order_acquire)) return;
+            if (g_acqState.IsStoppingOrStopped()) return;
             if (jobGen != g_session_generation.load(std::memory_order_acquire)) return;
             // Quick check first - if camera is pending or deadline imminent, do full yield
             if (CS2::ShouldYieldToCameraQuick()) {
@@ -227,7 +227,7 @@ static void RunOptionalEnrichment(const Config& frame_config,
                             dz > minDz && dz < 200.f;
                     };
                     // Compact upper-body mapping using runtime-resolved bone indices.
-                    // Uses g_boneMapping (populated from game model at startup, falls back to defaults).
+                    // Uses g_boneMapping (loaded from the canonical offset snapshot).
                     const int kIdx[4] = {
                         CS2::GetBoneJointIndex(CS2::BoneSlot::Head),
                         CS2::GetBoneJointIndex(CS2::BoneSlot::Neck),
@@ -250,7 +250,7 @@ static void RunOptionalEnrichment(const Config& frame_config,
                     bool completePose = false;
                     if (need_full_bones) {
                         // Map extended slots from joint stream using runtime-resolved bone indices.
-                        // g_boneMapping is populated from game model at startup (falls back to defaults).
+                        // g_boneMapping is loaded from the canonical offset snapshot.
                         completePose = true;
                         for (size_t b = 0; b < kBoneSlotCount; ++b) {
                             int jointIdx = CS2::GetBoneJointIndex(static_cast<CS2::BoneSlot>(b));
@@ -369,8 +369,8 @@ static void RunOptionalEnrichment(const Config& frame_config,
         // Phase 3: Resolve weapon entity handles in batch
         std::vector<uintptr_t> weaponEntities(targets.size(), 0);
         {
-            constexpr uintptr_t primaryStride = kEntityIdentityStride;
-            constexpr uintptr_t alternateStride = kLegacyEntityIdentityStride;
+            const uintptr_t primaryStride = offsets.entity_identity_stride;
+            const uintptr_t alternateStride = offsets.entity_identity_stride;
             CS2::ScatterResolvePawnHandles(weaponHandles.data(), weaponEntities.data(),
                 static_cast<int>(targets.size()), primaryStride, alternateStride,
                 true, g_scatter_optional, client_base);

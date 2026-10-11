@@ -56,7 +56,8 @@
     "weapon_index": "0x208",
     "weapon_obj": "0x200",
     "usercmd": "0x308",
-    "health": "0x600"
+    "health": "0x600",
+    "armor": "0x13F8"
   },
   "bone": {
     "base_pos": "0x1E86A0",
@@ -65,7 +66,28 @@
     "head": "0x7",
     "neck": "0x6",
     "chest": "0x5",
-    "pelvis": "0x0"
+    "pelvis": "0x2",
+    "spine_upper": "0x5",
+    "spine_mid": "0x4",
+    "spine_lower": "0x3",
+    "l_clavicle": "0xD",
+    "l_shoulder": "0xE",
+    "l_elbow": "0xF",
+    "l_wrist": "0x10",
+    "l_hand": "0x11",
+    "r_clavicle": "0x12",
+    "r_shoulder": "0x13",
+    "r_elbow": "0x14",
+    "r_wrist": "0x15",
+    "r_hand": "0x16",
+    "l_hip": "0x17",
+    "l_knee": "0x18",
+    "l_ankle": "0x19",
+    "l_foot": "0x1A",
+    "r_hip": "0x1B",
+    "r_knee": "0x1C",
+    "r_ankle": "0x1D",
+    "r_foot": "0x1E"
   },
   "entity": {
     "predictedPlayerEntity": "0x35930",
@@ -82,6 +104,7 @@
     "size": "0xD0",
     "entry_name": "0x10",
     "entry_health": "0x90",
+    "entry_armor": "0x98",
     "entry_alive": "0x78"
   },
   "loot": {

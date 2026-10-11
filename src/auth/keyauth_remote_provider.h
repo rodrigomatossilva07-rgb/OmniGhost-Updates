@@ -29,6 +29,11 @@ public:
     [[nodiscard]] std::vector<RemoteEntitlement> CurrentEntitlements() const override;
     [[nodiscard]] bool IsConfigured() const noexcept override;
 
+    // Returns the main executable path for provider identity verification.
+    // The KeyAuth SDK is embedded in the main EXE, so the executable itself
+    // is the module whose integrity is verified.
+    [[nodiscard]] std::string GetModulePath() const override;
+
 private:
     struct Impl;
     LicenseResult EnsureInitialized(std::stop_token stopToken);

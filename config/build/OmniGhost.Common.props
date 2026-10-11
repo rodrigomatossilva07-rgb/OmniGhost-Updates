@@ -33,7 +33,7 @@
         <!-- Generated manifests must precede source include directories.  In
              particular, runtime_bootstrap.cpp has an optional IDE stub beside
              it; shipping builds must never compile against that empty stub. -->
-        <AdditionalIncludeDirectories>$(ProjectDir).cache\generated\$(Configuration)\$(Platform);$(ProjectDir).cache\generated;$(ProjectDir);$(ProjectDir)src;$(ProjectDir)src\games;$(ProjectDir)src\games\Cs2;$(ProjectDir)src\games\Fivem;$(ProjectDir)src\games\Warzone;$(ProjectDir)ImGui;$(ProjectDir)DMALibrary;$(ProjectDir)third_party\dma_stack\include;$(ProjectDir)libs;$(ProjectDir)Utils;$(ProjectDir)resources;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+        <AdditionalIncludeDirectories>$(ProjectDir).cache\generated\$(Configuration)\$(Platform);$(ProjectDir).cache\generated;$(ProjectDir);$(ProjectDir)src;$(ProjectDir)src\games;$(ProjectDir)src\games\Cs2;$(ProjectDir)src\games\Fivem;$(ProjectDir)src\games\Warzone;$(ProjectDir)third_party\ImGui;$(ProjectDir)third_party\DMALibrary;$(ProjectDir)third_party\dma_stack\include;$(ProjectDir)libs;$(ProjectDir)third_party\Utils;$(ProjectDir)resources;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
         <BufferSecurityCheck>true</BufferSecurityCheck>
         <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
         <Optimization>MaxSpeed</Optimization>
@@ -55,7 +55,7 @@
       <ProgramDatabaseFile>$(ProjectDir).cache\symbols\$(Configuration)\$(TargetName).pdb</ProgramDatabaseFile>
       <AdditionalDependencies>delayimp.lib;leechcore.lib;vmm.lib;d3d11.lib;dxgi.lib;d3dcompiler.lib;dwmapi.lib;user32.lib;gdi32.lib;imm32.lib;setupapi.lib;ws2_32.lib;windowscodecs.lib;ole32.lib;shell32.lib;winhttp.lib;wininet.lib;bcrypt.lib;wintrust.lib;crypt32.lib;shlwapi.lib;version.lib;advapi32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <DelayLoadDLLs>leechcore.dll;vmm.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
-      <AdditionalLibraryDirectories>$(ProjectDir)third_party\dma_stack\lib;$(ProjectDir)DMALibrary\libs;$(ProjectDir)libs;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(ProjectDir)third_party\dma_stack\lib;$(ProjectDir)third_party\DMALibrary\libs;$(ProjectDir)libs;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <DataExecutionPrevention>true</DataExecutionPrevention>
       <SafeSEH>false</SafeSEH>
       <AddressSpaceLayoutRandomization>true</AddressSpaceLayoutRandomization>

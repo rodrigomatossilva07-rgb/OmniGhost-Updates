@@ -314,7 +314,7 @@ void ConfigureRuntimeDllSearch(const fs::path& libs) {
          }
      }
      
-     // 4. ProjectDir\runtime\own (for pdbcrust.dll fallback)
+     // 4. ProjectDir\infrastructure\runtime\own (for pdbcrust.dll fallback)
      {
          fs::path projectDir = OmniGhost::Paths::InstallDirectory();
          for (int i = 0; i < 4 && !projectDir.empty(); ++i) {

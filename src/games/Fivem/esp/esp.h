@@ -8,21 +8,12 @@
 #include "math/math.h"
 #include "../game/game.h"
 #include "ui/ui_models.h"
-#include "../../ImGui/imgui.h"
+#include "third_party/ImGui/imgui.h"
 #include "../playerInfo/PedData.h"
 
 namespace aimbot { struct Config; }
 
 namespace esp {
-    // Bone chain (cheatoffsets): ped + bone_matrix → +skel_o1 → matrices @ stride, trans @ +0xC
-    const uintptr_t BONE_MATRIX_OFFSET = 0x60;   // CEntity visual matrix (fallback)
-    const uintptr_t BONE_FRAG_3258     = 0xFF8;  // frag_inst / bone_matrix on 3258
-    const uintptr_t BONE_FRAG_3751     = 0x12B8; // 3751+
-    const uintptr_t BONE_SKEL_O1       = 0x78;
-    const uintptr_t BONE_SKEL_STRIDE   = 0x40;
-    const uintptr_t BONE_SKEL_TRANS    = 0xC;
-    const uintptr_t BONE_ARRAY_BASE    = 0x410;  // legacy local array
-    const uintptr_t BONE_SIZE          = 0x10;
     const float MAX_ESP_DISTANCE = 200.0f;
 
     // P1-3: LOD bone selection - reduces DMA bandwidth by reading only

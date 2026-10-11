@@ -1,6 +1,6 @@
 #include "hardware_manager.h"
 
-#include "../../DMALibrary/Memory/Memory.h"
+#include "third_party/DMALibrary/Memory/Memory.h"
 #include "../makcu/makcu_wrapper.h"
 #include "src/games/Fivem/aimbot/aim_type.h"
 #include "watchdog.h"

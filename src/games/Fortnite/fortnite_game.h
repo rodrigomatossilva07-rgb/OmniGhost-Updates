@@ -101,74 +101,74 @@ struct Config {
 // Legacy dumps may still use rotl64(encoded - sub, rol) ^ xor_key.
 // Fallback: GEngine -> Viewport -> World.
 struct Offsets {
-    uintptr_t gworld = 0x1B2C5BA0;   // encoded slot RVA
+    uintptr_t gworld = 0;
     uintptr_t gnames = 0;
     uintptr_t gengine = 0;
     uintptr_t process_event = 0;
 
     // GWorld crypto
-    bool gworld_encoded = true;
+    bool gworld_encoded = false;
     // Method: "mul_add" (current) or "rot_xor" (legacy)
-    uint64_t gworld_mul = 0x6501B96661E130DDULL;
-    uint64_t gworld_add = 0x79D95BD19230E74DULL;
+    uint64_t gworld_mul = 0;
+    uint64_t gworld_add = 0;
     // Legacy rot_xor fields (kept for older JSON snapshots)
     uint64_t gworld_sub = 0;
     uint32_t gworld_rol = 0;
     uint64_t gworld_xor = 0;
 
-    uintptr_t engine_game_viewport = 0xB70;
+    uintptr_t engine_game_viewport = 0;
 
-    uintptr_t viewport_world = 0x78;
-    uintptr_t viewport_game_instance = 0x80;
+    uintptr_t viewport_world = 0;
+    uintptr_t viewport_game_instance = 0;
 
-    uintptr_t world_persistent_level = 0x38;
-    uintptr_t world_net_driver = 0x40;
-    uintptr_t world_game_state = 0x1C0;
-    uintptr_t world_levels = 0x1D8;
-    uintptr_t world_owning_game_instance = 0x238;
+    uintptr_t world_persistent_level = 0;
+    uintptr_t world_net_driver = 0;
+    uintptr_t world_game_state = 0;
+    uintptr_t world_levels = 0;
+    uintptr_t world_owning_game_instance = 0;
 
-    uintptr_t level_actor_cluster = 0x88;
-    uintptr_t level_world_settings = 0x2C0;
-    uintptr_t level_actors = 0x28;
+    uintptr_t level_actor_cluster = 0;
+    uintptr_t level_world_settings = 0;
+    uintptr_t level_actors = 0;
 
-    uintptr_t gi_local_players = 0x38;
+    uintptr_t gi_local_players = 0;
 
-    uintptr_t local_player_controller = 0x30;
-    uintptr_t local_viewport_client = 0x78;
+    uintptr_t local_player_controller = 0;
+    uintptr_t local_viewport_client = 0;
 
-    uintptr_t pc_acknowledged_pawn = 0x318;
-    uintptr_t pc_my_hud = 0x320;
-    uintptr_t pc_player_camera_manager = 0x328;
-    uintptr_t pc_spectator_pawn = 0x640;   // APlayerController::SpectatorPawn
-    uintptr_t controller_pawn = 0x2B0;     // AController::Pawn
-    uintptr_t controller_player_state = 0x278; // AController::PlayerState
-    uintptr_t controller_character = 0x2C0; // AController::Character
-    uintptr_t pcm_view_target = 0x300;     // APlayerCameraManager::ViewTarget (TViewTarget)
+    uintptr_t pc_acknowledged_pawn = 0;
+    uintptr_t pc_my_hud = 0;
+    uintptr_t pc_player_camera_manager = 0;
+    uintptr_t pc_spectator_pawn = 0;
+    uintptr_t controller_pawn = 0;
+    uintptr_t controller_player_state = 0;
+    uintptr_t controller_character = 0;
+    uintptr_t pcm_view_target = 0;
     // TViewTarget.Target is at +0x0 inside ViewTarget
 
-    uintptr_t pawn_player_state = 0x290;
-    uintptr_t pawn_controller = 0x2A0;
+    uintptr_t pawn_player_state = 0;
+    uintptr_t pawn_controller = 0;
 
-    uintptr_t character_mesh = 0x2F0;
+    uintptr_t character_mesh = 0;
 
-    uintptr_t actor_root_component = 0x1B0;
+    uintptr_t actor_root_component = 0;
 
-    uintptr_t scene_relative_location = 0x140;
-    uintptr_t scene_relative_rotation = 0x158;
-    uintptr_t scene_component_velocity = 0x188;
+    uintptr_t scene_relative_location = 0;
+    uintptr_t scene_relative_rotation = 0;
+    uintptr_t scene_component_velocity = 0;
 
-    uintptr_t pcm_camera_cache_private = 0x1590;
-    uintptr_t pcm_cam_location = 0x15A0;
-    uintptr_t pcm_cam_rotation = 0x15B8;
-    uintptr_t pcm_cam_fov = 0x15D0;
+    uintptr_t pcm_camera_cache_private = 0;
+    uintptr_t pcm_cam_location = 0;
+    uintptr_t pcm_cam_rotation = 0;
+    uintptr_t pcm_cam_fov = 0;
 
-    uintptr_t game_state_player_array = 0x288;
-    uintptr_t player_state_pawn_private = 0x2E8;
-    uintptr_t fort_ps_current_health = 0xD0C;
-    uintptr_t fort_pawn_current_weapon = 0x9D0;
-    uintptr_t fort_ps_team_index = 0xF69;
+    uintptr_t game_state_player_array = 0;
+    uintptr_t player_state_pawn_private = 0;
+    uintptr_t fort_ps_current_health = 0;
+    uintptr_t fort_pawn_current_weapon = 0;
+    uintptr_t fort_ps_team_index = 0;
 
-    const char* build = "user-dump-2026-09-22";
+    const char* build = "";
     const char* cl = "";
 };
 

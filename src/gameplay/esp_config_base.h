@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cstdint>
-#include <ImGui/imgui.h>
+#include <third_party/ImGui/imgui.h>
 
 namespace OmniGhost::Gameplay {
 

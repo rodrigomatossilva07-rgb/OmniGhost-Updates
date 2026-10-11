@@ -1,8 +1,10 @@
 #include "keyauth_remote_provider.h"
+#include "../platform/app_paths.h"
+#include "../platform/text_encoding.h"
 
 #if defined(OMNIGHOST_KEYAUTH_ENABLED) && !defined(OMNIGHOST_SKIP_KEYAUTH)
-#include "keyauth/x64/auth.hpp"
-#include "keyauth/x64/skStr.h"
+#include "third_party/keyauth/x64/auth.hpp"
+#include "third_party/keyauth/x64/skStr.h"
 #endif
 
 #include <algorithm>
@@ -303,6 +305,12 @@ std::vector<RemoteEntitlement> KeyAuthRemoteLicenseProvider::CurrentEntitlements
     }
 #endif
     return result;
+}
+
+std::string KeyAuthRemoteLicenseProvider::GetModulePath() const {
+    // The KeyAuth SDK is embedded in the main executable.
+    // Return the path to the running executable for identity verification.
+    return OmniGhost::Platform::WideToUtf8(OmniGhost::Paths::Executable().wstring());
 }
 
 } // namespace OmniGhost::Auth

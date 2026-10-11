@@ -142,11 +142,11 @@ jobs:
 
       - name: Build Admin API
         shell: pwsh
-        run: dotnet build server/OmniGhost.AdminApi/OmniGhost.AdminApi.csproj --configuration Release --nologo
+        run: dotnet build infrastructure/server/OmniGhost.AdminApi/OmniGhost.AdminApi.csproj --configuration Release --nologo
 
       - name: Run Admin API Security Tests
         shell: pwsh
-        run: dotnet run --project server/OmniGhost.AdminApi.Tests/OmniGhost.AdminApi.Tests.csproj --configuration Release --nologo
+        run: dotnet run --project infrastructure/server/OmniGhost.AdminApi.Tests/OmniGhost.AdminApi.Tests.csproj --configuration Release --nologo
 
   build-verification:
     name: Build Verification

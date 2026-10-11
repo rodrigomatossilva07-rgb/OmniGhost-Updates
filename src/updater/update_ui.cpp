@@ -6,7 +6,7 @@
 #include "../window/ui_format.h"
 #include "../window/widgets.h"
 #include "../window/transition_overlay.h"
-#include "../../ImGui/imgui.h"
+#include "third_party/ImGui/imgui.h"
 
 #include <Windows.h>
 #include <Shellapi.h>

@@ -27,7 +27,7 @@
            The supported Microsoft VC runtime is supplied by Windows/VC Redist. -->
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <PreprocessorDefinitions>OMNIGHOST_KEYAUTH_ENABLED=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(ProjectDir)keyauth\x64;$(ProjectDir)keyauth\x64\lib;$(ProjectDir)keyauth\x64\lib\libsodium;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)third_party\keyauth\x64;$(ProjectDir)third_party\keyauth\x64\lib;$(ProjectDir)third_party\keyauth\x64\lib\libsodium;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <!-- library_x64.lib from the supplied KeyAuth SDK contains legacy
@@ -40,7 +40,7 @@
            suppressing only that third-party debug-symbol diagnostic. -->
       <AdditionalOptions>/IGNORE:4099 %(AdditionalOptions)</AdditionalOptions>
       <AdditionalDependencies>library_x64.lib;libcurl.lib;zlib.lib;libsodium.lib;winhttp.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(ProjectDir)keyauth\x64;$(ProjectDir)keyauth\x64\lib\curl;$(ProjectDir)keyauth\x64\lib\libsodium;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(ProjectDir)third_party\keyauth\x64;$(ProjectDir)third_party\keyauth\x64\lib\curl;$(ProjectDir)third_party\keyauth\x64\lib\libsodium;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
 </Project>

@@ -1,5 +1,5 @@
 #pragma once
-#include "../../ImGui/imgui.h"
+#include "third_party/ImGui/imgui.h"
 #include <array>
 #include <vector>
 #include <string>

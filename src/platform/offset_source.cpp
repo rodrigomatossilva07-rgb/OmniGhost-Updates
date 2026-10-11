@@ -241,11 +241,6 @@ std::vector<std::string> ExternalJsonCandidates(GameId id) {
     try {
         const fs::path exeDir = Paths::Executable().parent_path();
         add(exeDir / "data" / name);
-        add(exeDir / name);
-        if (id == GameId::CS2) {
-            add(exeDir / "data" / "offsets.json");
-            add(exeDir / "offsets.json");
-        }
     } catch (const std::exception& ex) {
         std::cerr << "[OmniGhost Offsets] Failed to resolve candidates beside EXE: " << ex.what() << "\n";
     } catch (...) {
@@ -253,8 +248,6 @@ std::vector<std::string> ExternalJsonCandidates(GameId id) {
     }
     // Project-relative (dev tree)
     add(fs::path("data") / name);
-    add(fs::path(name));
-    if (id == GameId::CS2) add(fs::path("data") / "offsets.json");
     return out;
 }
 
@@ -264,10 +257,14 @@ LoadResult LoadSnapshot(GameId id, const char* explicit_path) {
 
 #if defined(OMNIGHOST_DEV_EXTERNAL_OFFSETS)
     std::vector<std::string> candidates;
-    if (explicit_path && explicit_path[0])
-        candidates.emplace_back(explicit_path);
-    else
+    if (explicit_path && explicit_path[0]) {
+        const std::filesystem::path requested(explicit_path);
+        if (requested.parent_path().filename() == "data" &&
+            requested.filename() == CanonicalJsonName(id))
+            candidates.emplace_back(requested.string());
+    } else {
         candidates = ExternalJsonCandidates(id);
+    }
 
     for (const auto& path : candidates) {
         std::string json;

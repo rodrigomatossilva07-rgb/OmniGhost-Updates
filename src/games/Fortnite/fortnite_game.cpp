@@ -1,5 +1,5 @@
 #include "fortnite_game.h"
-#include "../DMALibrary/Memory/Memory.h"
+#include "third_party/DMALibrary/Memory/Memory.h"
 #include "platform/offset_source.h"
 #include "gameplay/snapshot_exchange.h"
 #include "gameplay/frame_pipeline.h"
@@ -787,7 +787,7 @@ bool LoadOffsetsFromJson(const char* path) {
         return false;
     }
 
-    Offsets next = offsets; // keep seeds, overwrite from snapshot
+    Offsets next{};
     auto set = [&](std::initializer_list<const char*> keys, uintptr_t& dst) {
         std::uint64_t v = 0;
         if (TryGetAny(loaded.snapshot, keys, v) && v != 0)
@@ -864,14 +864,9 @@ bool LoadOffsetsFromJson(const char* path) {
     set({"SceneComponent.ComponentVelocity", "USceneComponent.ComponentVelocity"}, next.scene_component_velocity);
 
     set({"PlayerCameraManager.CameraCachePrivate", "APlayerCameraManager.CameraCachePrivate"}, next.pcm_camera_cache_private);
-    // Derived camera POV fields stay relative to CameraCachePrivate unless explicitly present
-    if (next.pcm_camera_cache_private) {
-        next.pcm_cam_location = next.pcm_camera_cache_private + 0x10; // + POV + Location
-        next.pcm_cam_rotation = next.pcm_camera_cache_private + 0x28;
-        next.pcm_cam_fov = next.pcm_camera_cache_private + 0x40;
-        // Prefer explicit absolute fields from previous layout if JSON has MinimalViewInfo only as relative 0
-    }
-    // Keep proven absolute PCM camera fields when present as full offsets in prior seeds
+    set({"runtime.pcm_cam_location"}, next.pcm_cam_location);
+    set({"runtime.pcm_cam_rotation"}, next.pcm_cam_rotation);
+    set({"runtime.pcm_cam_fov"}, next.pcm_cam_fov);
     set({"GameStateBase.PlayerArray", "AGameStateBase.PlayerArray",
          "agame_state_base.PlayerArray", "dump_structs.agame_state_base.PlayerArray"},
         next.game_state_player_array);
@@ -904,12 +899,6 @@ bool LoadOffsetsFromJson(const char* path) {
     set({"dump_structs.apawn.PlayerState", "apawn.PlayerState"}, next.pawn_player_state);
     set({"dump_structs.apawn.Controller", "apawn.Controller"}, next.pawn_controller);
     set({"dump_structs.aplayer_camera_manager.CameraCachePrivate", "aplayer_camera_manager.CameraCachePrivate"}, next.pcm_camera_cache_private);
-    if (next.pcm_camera_cache_private) {
-        next.pcm_cam_location = next.pcm_camera_cache_private + 0x10;
-        next.pcm_cam_rotation = next.pcm_camera_cache_private + 0x28;
-        next.pcm_cam_fov = next.pcm_camera_cache_private + 0x40;
-    }
-
     // Static string pointers for build/cl — store into thread-local buffers
     static char build_buf[32] = {};
     static char cl_buf[32] = {};

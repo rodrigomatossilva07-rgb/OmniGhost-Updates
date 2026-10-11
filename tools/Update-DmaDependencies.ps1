@@ -5,7 +5,7 @@
 .DESCRIPTION
   third_party\dma_stack is the only managed source of truth. Updates are staged,
   compatibility-gated, validated, and rolled back on failure. Legacy managed copies
-  under DMALibrary\libs are deliberately removed. The root libs\ directory is an
+  under third_party\DMALibrary\libs are deliberately removed. The root libs\ directory is an
   intentional local runtime fallback bundle and is preserved.
 
 .EXAMPLE
@@ -310,9 +310,9 @@ function Install-FromExtracts([string]$MemProcDir, [string]$LeechCoreDir, [strin
 
 function Remove-LegacyManagedCopies {
     $legacyFiles = @(
-        "DMALibrary\libs\vmmdll.h", "DMALibrary\libs\leechcore.h",
-        "DMALibrary\libs\vmm.lib", "DMALibrary\libs\leechcore.lib",
-        "DMALibrary\libs\info.db", "DMALibrary\info.db", "third_party\dma_stack\data\info.db"
+        "third_party\DMALibrary\libs\vmmdll.h", "third_party\DMALibrary\libs\leechcore.h",
+        "third_party\DMALibrary\libs\vmm.lib", "third_party\DMALibrary\libs\leechcore.lib",
+        "third_party\DMALibrary\libs\info.db", "third_party\DMALibrary\info.db", "third_party\dma_stack\data\info.db"
     )
     foreach ($relative in $legacyFiles) {
         $path = Join-Path $Root $relative
@@ -321,7 +321,7 @@ function Remove-LegacyManagedCopies {
             Write-Log "Removed legacy managed copy: $relative"
         }
     }
-    foreach ($relativeDir in @("DMALibrary\libs")) {
+    foreach ($relativeDir in @("third_party\DMALibrary\libs")) {
         $dir = Join-Path $Root $relativeDir
         if (Test-Path -LiteralPath $dir -PathType Container) {
             $remaining = @(Get-ChildItem -LiteralPath $dir -Force -ErrorAction SilentlyContinue)
@@ -365,8 +365,8 @@ function Invoke-Validate {
     Assert-ManifestHash $manifest.leechcore.sha256.'leechcore.h' (Join-Path $Stack "include\leechcore.h") "leechcore.h" -NormalizeText
 
     $legacyManaged = @(
-        "DMALibrary\libs\vmmdll.h","DMALibrary\libs\leechcore.h","DMALibrary\libs\vmm.lib","DMALibrary\libs\leechcore.lib",
-        "DMALibrary\info.db"
+        "third_party\DMALibrary\libs\vmmdll.h","third_party\DMALibrary\libs\leechcore.h","third_party\DMALibrary\libs\vmm.lib","third_party\DMALibrary\libs\leechcore.lib",
+        "third_party\DMALibrary\info.db"
     )
     foreach ($relative in $legacyManaged) {
         if (Test-Path -LiteralPath (Join-Path $Root $relative)) {
@@ -380,7 +380,7 @@ function Invoke-Validate {
 
     $projectPath = Join-Path $Root "OmiGhost.vcxproj"
     $project = Get-Content -LiteralPath $projectPath -Raw
-    if ($project -match 'DMALibrary\\libs') { throw "INVALID: OmiGhost.vcxproj still references DMALibrary\libs." }
+    if ($project -match 'third_party\DMALibrary\\libs') { throw "INVALID: OmiGhost.vcxproj still references third_party\DMALibrary\libs." }
     # Headers/libraries may be provided by the private-static build property
     # sheet while the canonical DMA stack supplies the embedded runtime bundle.
     # Do not reject that supported layout merely because the paths are not in
@@ -392,7 +392,7 @@ function Invoke-Validate {
 
 function Invoke-Doctor {
     Invoke-Validate
-    $custom = Join-Path $Root "runtime\own"
+    $custom = Join-Path $Root "infrastructure\runtime\own"
     if (Test-Path -LiteralPath $custom) {
         foreach ($dll in Get-ChildItem -LiteralPath $custom -Filter *.dll -File) {
             if (-not (Test-PeX64 $dll.FullName)) { throw "INVALID custom runtime: $($dll.Name) is not AMD64." }

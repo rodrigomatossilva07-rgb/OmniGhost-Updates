@@ -1,6 +1,6 @@
 #include "esp_manager.h"
 #include "config/app_settings.h"
-#include "../../ImGui/imgui.h"
+#include "third_party/ImGui/imgui.h"
 #include "offsets.h"
 #include "../esp/esp.h"
 #include "../esp/vehicle_esp.h"
@@ -9,7 +9,7 @@
 #include "../friends/friends.h"
 #include "visibility.h"
 #include "../playerInfo/PedData.h"
-#include "../../DMALibrary/Memory/Memory.h"
+#include "third_party/DMALibrary/Memory/Memory.h"
 #include "globals.h"
 #include <iostream>
 #include <cstdio>
@@ -27,6 +27,7 @@
 #include "gameplay/snapshot_exchange.h"
 #include "gameplay/frame_pipeline.h"
 #include "gameplay/dma_telemetry_log.h"
+#include "gameplay/camera_priority.h"
 
 namespace FiveM {
     namespace ESP {
@@ -284,32 +285,12 @@ namespace FiveM {
         }
 
         static bool GiveCameraPriorityBeforeOptionalDma() {
-            if (!s_cameraPending.load(std::memory_order_acquire)) {
-                const uint64_t deadline = s_cameraDeadlineMs.load(std::memory_order_acquire);
-                const uint64_t now = GetTickCount64();
-                if (deadline == 0 || now + 2u < deadline)
-                    return true; // safe to proceed
-            }
-            // FIX CONC-002: Exponential backoff + max wait to prevent starvation
-            // Camera has priority; optional DMA must yield or skip batch
-            int spin = 0;
-            const int maxSpins = 96; // increased from 48
-            auto baseDelay = std::chrono::microseconds(10);
-            while (spin < maxSpins) {
-                if (!s_cameraPending.load(std::memory_order_acquire))
-                    return true; // camera done, safe to proceed
-                std::this_thread::yield();
-                ++spin;
-                // Exponential backoff after 32 spins
-                if (spin >= 32) {
-                    std::this_thread::sleep_for(baseDelay);
-                    baseDelay *= 2; // 10µs -> 20µs -> 40µs -> 80µs...
-                    if (baseDelay > std::chrono::microseconds(500))
-                        baseDelay = std::chrono::microseconds(500);
-                }
-            }
-            // Camera still busy after max retries — skip this optional batch
-            return false;
+            struct CameraState : OmniGhost::Gameplay::CameraPriority::ICameraState {
+                bool IsPending() const noexcept override { return s_cameraPending.load(std::memory_order_acquire); }
+                uint64_t GetDeadlineMs() const noexcept override { return s_cameraDeadlineMs.load(std::memory_order_acquire); }
+            };
+            static CameraState state;
+            return OmniGhost::Gameplay::CameraPriority::GiveCameraPriority(state);
         }
 
         static void CameraLoop() {
@@ -368,13 +349,13 @@ namespace FiveM {
                 if (!camScatter)
                     camScatter = mem.CreateScatterHandle();
                 if (camScatter) {
-                    mem.AddScatterReadRequest(camScatter, offset::viewport + 0x24C,
+                    mem.AddScatterReadRequest(camScatter, offset::viewport + offset::viewportMatrix,
                                               &matrix, sizeof(Matrix));
                     mem.SetDmaPriority(Memory::DmaPri::Camera);
                     mem.SetDmaCallTag("FiveM.Camera");
                     ok = mem.ExecuteReadScatter(camScatter);
                 } else {
-                    ok = mem.Read(offset::viewport + 0x24C, &matrix, sizeof(Matrix));
+                    ok = mem.Read(offset::viewport + offset::viewportMatrix, &matrix, sizeof(Matrix));
                 }
                 const float finalEnergy = std::fabs(matrix._11) +
                     std::fabs(matrix._22) + std::fabs(matrix._33);
@@ -592,7 +573,7 @@ namespace FiveM {
                             freshViewSampleMs = cam->sampleMs;
                         }
                     if (s_acqScatter) {
-                        mem.AddScatterReadRequest(s_acqScatter, offset::world + 0x8, &freshLp, sizeof(uintptr_t));
+                        mem.AddScatterReadRequest(s_acqScatter, offset::world + offset::world_localPlayer, &freshLp, sizeof(uintptr_t));
                         mem.SetDmaCallTag("FiveM.LocalAndCamera");
                         mem.ExecuteReadScatter(s_acqScatter);
                     }
@@ -1248,12 +1229,12 @@ namespace FiveM {
             if (now >= nextChainRefresh) {
                 uintptr_t freshInterface = 0;
                 uintptr_t freshList = 0;
-                mem.AddScatterReadRequest(handle, offset::replay + 0x18,
+                mem.AddScatterReadRequest(handle, offset::replay + offset::replayPedInterface,
                     &freshInterface, sizeof(uintptr_t));
                 mem.SetDmaCallTag("FiveM.ReplayInterface");
                 mem.ExecuteReadScatter(handle);
                 if (freshInterface > 0x10000u) {
-                    mem.AddScatterReadRequest(handle, freshInterface + 0x100,
+                    mem.AddScatterReadRequest(handle, freshInterface + offset::pedInterfaceList,
                         &freshList, sizeof(uintptr_t));
                     mem.SetDmaCallTag("FiveM.PedListPointer");
                     mem.ExecuteReadScatter(handle);
@@ -1412,7 +1393,6 @@ namespace FiveM {
                         // Stationary players must not trigger a second DMA
                         // scatter on every core scan.
                         {
-                            static constexpr uintptr_t kAltVelocity = 0x320;
                             static uint64_t nextAltProbeMs = 0;
                             int nearZero = 0;
                             int movedWithoutVelocity = 0;
@@ -1438,7 +1418,7 @@ namespace FiveM {
                                 std::vector<Vec3> alt(s_acquireVelocities.size());
                                 for (size_t i = 0; i < writePeds.size(); ++i)
                                     mem.AddScatterReadRequest(handle,
-                                        writePeds[i] + kAltVelocity, &alt[i], sizeof(Vec3));
+                                        writePeds[i] + offset::pedVelocityAlt, &alt[i], sizeof(Vec3));
                                 mem.SetDmaCallTag("FiveM.VelocityAlt");
                                 mem.ExecuteReadScatter(handle);
                                 int altOk = 0;

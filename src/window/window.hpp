@@ -5,9 +5,9 @@
 #include <dxgi.h>
 #include <chrono>
 
-#include "../../ImGui/imgui.h"
-#include "../../ImGui/imgui_impl_dx11.h"
-#include "../../ImGui/imgui_impl_win32.h"
+#include "third_party/ImGui/imgui.h"
+#include "third_party/ImGui/imgui_impl_dx11.h"
+#include "third_party/ImGui/imgui_impl_win32.h"
 
 class Overlay;
 

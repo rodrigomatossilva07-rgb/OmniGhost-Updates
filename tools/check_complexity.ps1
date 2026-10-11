@@ -1,7 +1,7 @@
 $files = @(
     'src/launcher/game_select.cpp',
     'src/launcher/updates_page.cpp',
-    'DMALibrary/Memory/Memory.cpp',
+    'third_party/DMALibrary/Memory/Memory.cpp',
     'src/games/Fivem/esp/esp.cpp',
     'src/games/Cs2/cs2_game.cpp'
 )

@@ -870,8 +870,8 @@ if (-not (Test-Path -LiteralPath $NotesPath -PathType Leaf) -or (Get-Item -Liter
 
 $ReleasedLocal = (Get-Date).ToString('dd/MM/yyyy')
 if (-not $SkipRootChangelog) {
-    # Project-root CHANGELOG.md (prepend current release; keep prior history)
-    $RootChangelog = Join-Path $ProjectDir 'CHANGELOG.md'
+    # Keep human-facing documentation together under docs/.
+    $RootChangelog = Join-Path $ProjectDir 'docs\CHANGELOG.md'
     $RootBuilder = New-Object System.Text.StringBuilder
 [void]$RootBuilder.AppendLine("## OmniGhost $Version")
 [void]$RootBuilder.AppendLine()

@@ -8,14 +8,7 @@ bool ResolveDataPath(std::string& out_dir) {
         fs::path(exe).parent_path().parent_path().parent_path(),
         fs::current_path(),
     };
-    const char* candidates[] = {
-        "data",
-        "src/games/Cs2/data",
-        "CS2/data",
-        "build/data",
-        "artifacts/OmniGhost-win-x64/data",
-        "offsets",
-    };
+    const char* candidates[] = { "data" };
     for (const fs::path& base : search_bases) {
         if (base.empty()) continue;
         for (const char* rel : candidates) {
@@ -28,7 +21,7 @@ bool ResolveDataPath(std::string& out_dir) {
         }
     }
     out_dir = (fs::path(exe) / "data").string();
-    std::cout << "[CS2] Dados de offsets nao encontrados, fallback para: " << out_dir << std::endl;
+    std::cout << "[CS2] data/cs2_offsets.json nao encontrado: " << out_dir << std::endl;
     return false;
 }
 
@@ -77,6 +70,30 @@ bool LoadOffsetsFromJson(const char* path) {
     JsonU64(slice, "dwViewAngles", offsets.dwViewAngles);
     JsonU64(slice, "dwGlobalVars", offsets.dwGlobalVars);
     JsonU64(slice, "dwPlantedC4", offsets.dwPlantedC4);
+    JsonU64(data, "entity_identity_stride", offsets.entity_identity_stride);
+    JsonU64(data, "entity_identity_pointer", offsets.entity_identity_pointer);
+    JsonU64(data, "entity_identity_name", offsets.entity_identity_name);
+    JsonU64(data, "entity_page_size", offsets.entity_page_size);
+    JsonU64(data, "entity_page_table_offset", offsets.entity_page_table_offset);
+    JsonU64(data, "global_vars_current_time", offsets.global_vars_current_time);
+    JsonU64(data, "global_vars_current_map", offsets.global_vars_current_map);
+    bool bone_mapping_loaded = true;
+    {
+        static constexpr const char* kBoneNames[kBoneSlotCount] = {
+            "Head", "Neck", "SpineUpper", "SpineMiddle", "SpineLower", "Pelvis",
+            "ClavicleLeft", "ShoulderLeft", "ElbowLeft", "HandLeft",
+            "ClavicleRight", "ShoulderRight", "ElbowRight", "HandRight",
+            "HipLeft", "KneeLeft", "AnkleLeft", "HipRight", "KneeRight", "AnkleRight"
+        };
+        g_boneMapping = BoneMapping{};
+        for (std::size_t i = 0; i < kBoneSlotCount; ++i) {
+            uintptr_t value = 0;
+            const bool ok = JsonClassU64(data, "bone_mapping", kBoneNames[i], value) && value <= 255;
+            bone_mapping_loaded &= ok;
+            if (ok)
+                g_boneMapping.jointIndex[i] = static_cast<int>(value);
+        }
+    }
 
     auto eng = data.find("\"engine2.dll\"");
     if (eng != std::string::npos) {
@@ -143,7 +160,9 @@ bool LoadOffsetsFromJson(const char* path) {
 
     LoadSchemaOffsets(data);
     std::string validation_error;
-    offsets.loaded = offsets.Validate(&validation_error);
+    offsets.loaded = bone_mapping_loaded && offsets.Validate(&validation_error);
+    if (!bone_mapping_loaded && validation_error.empty())
+        validation_error = "bone_mapping incompleto";
 
     const bool loaded_from_file = offsets.loaded;
     if (loaded_from_file) {
@@ -200,6 +219,30 @@ bool LoadEmbeddedOffsets() {
     read("client.dll.dwGlobalVars", offsets.dwGlobalVars, false);
     read("client.dll.dwPlantedC4", offsets.dwPlantedC4, false);
     read("engine2.dll.dwBuildNumber", offsets.dwBuildNumber, false);
+    required &= read("layout.entity_identity_stride", offsets.entity_identity_stride);
+    required &= read("layout.entity_identity_pointer", offsets.entity_identity_pointer);
+    required &= read("layout.entity_identity_name", offsets.entity_identity_name);
+    required &= read("layout.entity_page_size", offsets.entity_page_size);
+    required &= read("layout.entity_page_table_offset", offsets.entity_page_table_offset);
+    read("layout.global_vars_current_time", offsets.global_vars_current_time, false);
+    read("layout.global_vars_current_map", offsets.global_vars_current_map, false);
+    {
+        static constexpr const char* kBoneNames[kBoneSlotCount] = {
+            "Head", "Neck", "SpineUpper", "SpineMiddle", "SpineLower", "Pelvis",
+            "ClavicleLeft", "ShoulderLeft", "ElbowLeft", "HandLeft",
+            "ClavicleRight", "ShoulderRight", "ElbowRight", "HandRight",
+            "HipLeft", "KneeLeft", "AnkleLeft", "HipRight", "KneeRight", "AnkleRight"
+        };
+        g_boneMapping = BoneMapping{};
+        for (std::size_t i = 0; i < kBoneSlotCount; ++i) {
+            std::uint64_t value = 0;
+            const std::string path = std::string("bone_mapping.") + kBoneNames[i];
+            const bool ok = snapshot.TryGet(path, value) && value <= 255;
+            required &= ok;
+            if (ok)
+                g_boneMapping.jointIndex[i] = static_cast<int>(value);
+        }
+    }
 
     // Release builds use the embedded snapshot exclusively. Previously only
     // module globals were restored here, leaving pawn/controller fields at
@@ -331,88 +374,6 @@ bool WaitForProcess(int timeout_sec) {
     status = "Timeout - cs2.exe nao encontrado";
     std::cout << "[CS2] " << status << std::endl;
     return false;
-}
-
-bool RecoverCriticalOffsets() {
-    if (!runtime.client_base) return false;
-
-    const size_t client_size = mem.GetBaseSize("client.dll");
-    const size_t engine_size = runtime.engine_base ? mem.GetBaseSize("engine2.dll") : 0;
-    if (client_size < 0x1000) {
-        std::cout << "[CS2] Não foi possível obter o tamanho de client.dll" << std::endl;
-        return false;
-    }
-
-    status = "A recuperar offsets diretamente do processo";
-    std::cout << "[CS2] Offsets empacotados incompatíveis; pesquisa por assinaturas..." << std::endl;
-
-    uintptr_t entity_list = 0;
-    uintptr_t view_matrix = 0;
-    uintptr_t local_controller = 0;
-    uintptr_t prediction = 0;
-
-    const bool entity_ok = ScanRipRelative(runtime.client_base, client_size,
-        "48 89 0D ? ? ? ? E9 ? ? ? ? CC", 3, 7, entity_list);
-    const bool matrix_ok = ScanRipRelative(runtime.client_base, client_size,
-        "48 8D 0D ? ? ? ? 48 C1 E0 06", 3, 7, view_matrix);
-    const bool prediction_ok = ScanRipRelative(runtime.client_base, client_size,
-        "48 8D 05 ? ? ? ? C3 CC CC CC CC CC CC CC CC CC 40 53 56 41 54",
-        3, 7, prediction);
-    ScanRipRelative(runtime.client_base, client_size,
-        "48 8B 05 ? ? ? ? 41 89 BE", 3, 7, local_controller);
-
-    uintptr_t local_pawn = 0;
-    if (prediction_ok) {
-        const uintptr_t member_match = mem.FindSignature(
-            "4C 39 B6 ? ? ? ? 74 ? 44 88 BE",
-            runtime.client_base, runtime.client_base + client_size);
-        uint32_t member_offset = 0;
-        if (member_match && QReadT(member_match + 3, member_offset) && member_offset < 0x10000)
-            local_pawn = prediction + member_offset;
-    }
-
-    uintptr_t build_number = 0;
-    if (runtime.engine_base && engine_size >= 0x1000) {
-        ScanRipRelative(runtime.engine_base, engine_size,
-            "89 05 ? ? ? ? 48 8D 0D ? ? ? ? FF 15 ? ? ? ? 48 8B 0D",
-            2, 6, build_number);
-    }
-
-    if (!entity_ok || !matrix_ok || !local_pawn) {
-        char failure[192]{};
-        std::snprintf(failure, sizeof(failure),
-            "Falha ao recuperar offsets (EntityList=%s, ViewMatrix=%s, LocalPawn=%s)",
-            entity_ok ? "OK" : "falhou",
-            matrix_ok ? "OK" : "falhou",
-            local_pawn ? "OK" : "falhou");
-        status = failure;
-        std::cout << "[CS2] " << status << std::endl;
-        return false;
-    }
-
-    offsets.dwEntityList = entity_list;
-    offsets.dwViewMatrix = view_matrix;
-    offsets.dwLocalPlayerPawn = local_pawn;
-    if (local_controller) offsets.dwLocalPlayerController = local_controller;
-    if (build_number) offsets.dwBuildNumber = build_number;
-    std::string validation_error;
-    offsets.loaded = offsets.Validate(&validation_error);
-    if (!offsets.loaded) {
-        status = validation_error;
-        offsets_source = "assinaturas inválidas";
-        return false;
-    }
-    offsets_source = "assinaturas do processo atual";
-
-    char recovered[224]{};
-    std::snprintf(recovered, sizeof(recovered),
-        "Offsets recuperados  EL=0x%llX  LPP=0x%llX  VM=0x%llX",
-        static_cast<unsigned long long>(offsets.dwEntityList),
-        static_cast<unsigned long long>(offsets.dwLocalPlayerPawn),
-        static_cast<unsigned long long>(offsets.dwViewMatrix));
-    status = recovered;
-    std::cout << "[CS2] " << status << std::endl;
-    return true;
 }
 
 bool Attach() {
@@ -569,7 +530,7 @@ bool Attach() {
         "CS2 modules resolved",
         {{"client", std::to_string(runtime.client_base)}});
 
-    // Priority: packaged/local data → embedded fallback → signature recovery.
+    // The data JSON (or its generated embedded copy) is the sole authority.
     if (!offsets.loaded) {
         LoadOffsetsFromJson(nullptr);
     }
@@ -605,12 +566,10 @@ bool Attach() {
     // after game updates; recover them from the loaded modules when necessary.
     if (!ProbeViewMatrix()) {
         std::cout << "[CS2] ViewMatrix ilegível; offsets podem estar desatualizados" << std::endl;
-        if (!RecoverCriticalOffsets() || !ProbeViewMatrix()) {
-            status = "Offsets incompatíveis com o build atual; atualiza os ficheiros em data/";
-            OmniGhost::OffsetAuto::MarkOutdated(OmniGhost::ActiveGame::CS2, status);
-            std::cout << "[CS2] " << status << std::endl;
-            return false;
-        }
+        status = "Offsets incompatíveis com o build atual; atualiza data/cs2_offsets.json";
+        OmniGhost::OffsetAuto::MarkOutdated(OmniGhost::ActiveGame::CS2, status);
+        std::cout << "[CS2] " << status << std::endl;
+        return false;
     }
 
     if (runtime.engine_base && offsets.dwBuildNumber)

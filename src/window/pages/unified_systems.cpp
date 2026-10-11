@@ -698,7 +698,6 @@ void DrawOffsetManager() {
     SliderInt("Threads Scan", &config.max_scan_threads, 1, 8);
     SliderInt("Timeout Scan (ms)", &config.scan_timeout_ms, 1000, 30000);
     
-    ToggleSwitch("Fallback Offsets", &config.use_fallback_offsets);
     ToggleSwitch("Offsets Comunidade", &config.use_community_offsets);
     ToggleSwitch("Offsets Cacheados", &config.use_cached_offsets);
     ToggleSwitch("Cross Validate", &config.cross_validate);

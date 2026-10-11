@@ -18,7 +18,7 @@ namespace fs = std::filesystem;
 namespace config_manager {
 
 // Core constants
-inline constexpr int kConfigSchemaVersion = 3;
+inline constexpr int kConfigSchemaVersion = 4;
 constexpr std::uintmax_t kMaxConfigBytes = 2u * 1024u * 1024u;
 
 // Core helpers

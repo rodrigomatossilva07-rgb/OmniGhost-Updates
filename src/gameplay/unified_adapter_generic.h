@@ -1,7 +1,7 @@
 #pragma once
 #include "gameplay/unified_config.h"
 #include "gameplay/unified_esp.h"
-#include <ImGui/imgui.h>
+#include <third_party/ImGui/imgui.h>
 
 namespace OmniGhost::Gameplay {
 

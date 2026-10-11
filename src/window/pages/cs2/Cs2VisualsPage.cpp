@@ -60,6 +60,9 @@ struct Cs2PreviewAdapter : EspPreview::IConfigAdapter {
         cfg.chinese_hat_scale = CS2::config.chinese_hat_scale;
         cfg.fun_effects_scale = CS2::config.fun_effects_scale;
 
+        // Self ESP (was preview-only, now connected to real config)
+        cfg.self_esp = CS2::config.self_esp;
+
         // Colors
         for (int i = 0; i < 4; ++i) {
             cfg.col_box[i] = CS2::config.col_box[i];
@@ -108,13 +111,6 @@ struct Cs2PreviewAdapter : EspPreview::IConfigAdapter {
 
 static Cs2PreviewAdapter g_cs2Adapter;
 
-// Preview-only toggles (not connected to real config)
-static bool previewSelfEsp = false;
-
-void PreviewToggle(const char* label, bool* value) {
-    CyberWidgets::ToggleSwitch(label, value);
-}
-
 } // namespace
 
 void DrawCs2Visuals() {
@@ -132,7 +128,7 @@ void DrawCs2Visuals() {
     CyberWidgets::ToggleSwitch("Ativar ESP", &CS2::config.esp_enabled);
     CyberWidgets::Separator();
     ImGui::BeginDisabled(!CS2::config.esp_enabled);
-    PreviewToggle("ESP próprio", &previewSelfEsp); CyberWidgets::ToggleSwitch("Mostrar bots", &CS2::config.show_bots);
+    CyberWidgets::ToggleSwitch("ESP próprio", &CS2::config.self_esp); CyberWidgets::ToggleSwitch("Mostrar bots", &CS2::config.show_bots);
     CyberWidgets::ToggleSwitch("Verificação de visibilidade", &CS2::config.visible_check);
     CyberWidgets::ToggleSwitch("Ocultar equipa", &CS2::config.team_check);
     CyberWidgets::Separator();

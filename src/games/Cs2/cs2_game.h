@@ -18,64 +18,70 @@ struct Offsets {
     uintptr_t dwGlobalVars = 0;
     uintptr_t dwBuildNumber = 0;
     uintptr_t dwPlantedC4 = 0;
+    uintptr_t entity_identity_stride = 0;
+    uintptr_t entity_identity_pointer = 0;
+    uintptr_t entity_identity_name = 0;
+    uintptr_t entity_page_size = 0;
+    uintptr_t entity_page_table_offset = 0;
+    uintptr_t global_vars_current_time = 0;
+    uintptr_t global_vars_current_map = 0;
 
-    uintptr_t m_iHealth = 0x34C;
-    uintptr_t m_iTeamNum = 0x3E7;
-    uintptr_t m_pGameSceneNode = 0x330;
-    uintptr_t m_fFlags = 0x3F4;
-    uintptr_t m_vOldOrigin = 0x14A4;
-    uintptr_t m_hPlayerPawn = 0x92C;
-    uintptr_t m_hObserverPawn = 0x930;
-    uintptr_t m_pObserverServices = 0x1308; // C_CSPlayerPawn → CPlayer_ObserverServices*
-    uintptr_t m_hObserverTarget = 0x4C;   // CPlayer_ObserverServices
-    uintptr_t m_iPawnHealth = 0x938;
-    uintptr_t m_iPawnArmor = 0x93C;
-    uintptr_t m_iszPlayerName = 0x6FC;
-    uintptr_t m_sSanitizedPlayerName = 0x878;
-    uintptr_t m_steamID = 0x788;
-    uintptr_t m_bPawnIsAlive = 0x934;
-    // C_CSPlayerPawn fallback fields; current values verified against dump 14190.
-    uintptr_t m_ArmorValue = 0x1ECC;
-    uintptr_t m_angEyeAngles = 0x3600;
-    uintptr_t m_iIDEntIndex = 0x36DC;
-    uintptr_t m_vecAbsOrigin = 0xC8;
-    uintptr_t m_vecVelocity = 0x430;
-    uintptr_t m_bDormant = 0x103;
-    uintptr_t m_modelState = 0x140;
-    uintptr_t BoneArray = 0x1C0;
+    uintptr_t m_iHealth = 0;
+    uintptr_t m_iTeamNum = 0;
+    uintptr_t m_pGameSceneNode = 0;
+    uintptr_t m_fFlags = 0;
+    uintptr_t m_vOldOrigin = 0;
+    uintptr_t m_hPlayerPawn = 0;
+    uintptr_t m_hObserverPawn = 0;
+    uintptr_t m_pObserverServices = 0;
+    uintptr_t m_hObserverTarget = 0;
+    uintptr_t m_iPawnHealth = 0;
+    uintptr_t m_iPawnArmor = 0;
+    uintptr_t m_iszPlayerName = 0;
+    uintptr_t m_sSanitizedPlayerName = 0;
+    uintptr_t m_steamID = 0;
+    uintptr_t m_bPawnIsAlive = 0;
+    uintptr_t m_ArmorValue = 0;
+    uintptr_t m_angEyeAngles = 0;
+    uintptr_t m_iIDEntIndex = 0;
+    uintptr_t m_vecAbsOrigin = 0;
+    uintptr_t m_vecVelocity = 0;
+    uintptr_t m_bDormant = 0;
+    uintptr_t m_modelState = 0;
+    uintptr_t BoneArray = 0;
     uintptr_t m_pClippingWeapon = 0; // absent from the current schema
-    uintptr_t m_bIsScoped = 0x1EA0;
+    uintptr_t m_bIsScoped = 0;
     // EntitySpottedState_t on C_CSPlayerPawn
-    uintptr_t m_entitySpottedState = 0x1E88;
-    uintptr_t m_bSpotted = 0x8; // within EntitySpottedState_t
-    uintptr_t m_flFlashDuration = 0x1510;
+    uintptr_t m_entitySpottedState = 0;
+    uintptr_t m_bSpotted = 0;
+    uintptr_t m_flFlashDuration = 0;
     // Recoil fields. Shots is present in build 14186; the legacy direct punch
     // angle stays zero because current schemas expose a services component.
-    uintptr_t m_iShotsFired = 0x1EB4;
+    uintptr_t m_iShotsFired = 0;
     uintptr_t m_aimPunchAngle = 0;
     // Current CS2 builds expose aim punch through a pawn component. Keep the
     // legacy direct angle for compatibility with older offset dumps.
     // C_PlantedC4 fields for build 14186
-    uintptr_t m_bBombTicking = 0x1288;
-    uintptr_t m_flC4Blow = 0x12B8;
-    uintptr_t m_flTimerLength = 0x12C0;
-    uintptr_t m_bBombDefused = 0x12DC;
-    uintptr_t m_bBeingDefused = 0x12C4;
-    uintptr_t m_flDefuseCountDown = 0x12D8;
-    uintptr_t m_hBombDefuser = 0x12E0;
+    uintptr_t m_bBombTicking = 0;
+    uintptr_t m_flC4Blow = 0;
+    uintptr_t m_flTimerLength = 0;
+    uintptr_t m_bBombDefused = 0;
+    uintptr_t m_bBeingDefused = 0;
+    uintptr_t m_flDefuseCountDown = 0;
+    uintptr_t m_hBombDefuser = 0;
     // Weapon chain
-    uintptr_t m_pWeaponServices = 0x12F0;
-    uintptr_t m_pItemServices = 0x12F8;
-    uintptr_t m_bHasDefuser = 0x48;
-    uintptr_t m_hActiveWeapon = 0x60;
-    uintptr_t m_AttributeManager = 0x1290;
-    uintptr_t m_Item = 0x50;
-    uintptr_t m_iItemDefinitionIndex = 0x1BA;
-    uintptr_t m_iClip1 = 0x1928;            // C_BasePlayerWeapon (schema may override)
-    uintptr_t m_pReserveAmmo = 0x1930;      // optional
-    uintptr_t m_pInGameMoneyServices = 0x818; // CCSPlayerController
-    uintptr_t m_iAccount = 0x40;             // CCSPlayerController_InGameMoneyServices
-    uintptr_t m_bIsDefusing = 0x1EA2;        // C_CSPlayerPawn
+    uintptr_t m_pWeaponServices = 0;
+    uintptr_t m_pItemServices = 0;
+    uintptr_t m_bHasDefuser = 0;
+    uintptr_t m_hActiveWeapon = 0;
+    uintptr_t m_AttributeManager = 0;
+    uintptr_t m_Item = 0;
+    uintptr_t m_iItemDefinitionIndex = 0;
+    uintptr_t m_iClip1 = 0;
+    uintptr_t m_pReserveAmmo = 0;
+    uintptr_t m_pInGameMoneyServices = 0;
+    uintptr_t m_iAccount = 0;
+    uintptr_t m_bIsDefusing = 0;
     bool loaded = false;
 
     bool Validate(std::string* reason = nullptr) const noexcept;
@@ -94,35 +100,15 @@ inline constexpr std::size_t kBoneSlotCount =
 
 static_assert(kBoneSlotCount == 20, "BoneSlot enum must have exactly 20 entries");
 
-// Bone name to joint index mapping (resolved at runtime from game model).
-// Falls back to hardcoded defaults if model reading fails.
+// Bone name to joint index mapping. The initial mapping is loaded exclusively
+// from data/cs2_offsets.json; model introspection may replace it at runtime.
 struct BoneMapping {
     int jointIndex[kBoneSlotCount];
     bool resolved = false;
 
     constexpr BoneMapping() {
-        // Hardcoded defaults (CS2 common skeleton layout)
-        // These match the historical kFullMap and kIdx values
-        jointIndex[static_cast<std::size_t>(BoneSlot::Head)] = 6;
-        jointIndex[static_cast<std::size_t>(BoneSlot::Neck)] = 5;
-        jointIndex[static_cast<std::size_t>(BoneSlot::SpineUpper)] = 4;
-        jointIndex[static_cast<std::size_t>(BoneSlot::SpineMiddle)] = 3;
-        jointIndex[static_cast<std::size_t>(BoneSlot::SpineLower)] = 2;
-        jointIndex[static_cast<std::size_t>(BoneSlot::Pelvis)] = 0;
-        jointIndex[static_cast<std::size_t>(BoneSlot::ClavicleLeft)] = 8;
-        jointIndex[static_cast<std::size_t>(BoneSlot::ShoulderLeft)] = 9;
-        jointIndex[static_cast<std::size_t>(BoneSlot::ElbowLeft)] = 10;
-        jointIndex[static_cast<std::size_t>(BoneSlot::HandLeft)] = 11;
-        jointIndex[static_cast<std::size_t>(BoneSlot::ClavicleRight)] = 13;
-        jointIndex[static_cast<std::size_t>(BoneSlot::ShoulderRight)] = 14;
-        jointIndex[static_cast<std::size_t>(BoneSlot::ElbowRight)] = 15;
-        jointIndex[static_cast<std::size_t>(BoneSlot::HandRight)] = 16;
-        jointIndex[static_cast<std::size_t>(BoneSlot::HipLeft)] = 22;
-        jointIndex[static_cast<std::size_t>(BoneSlot::KneeLeft)] = 23;
-        jointIndex[static_cast<std::size_t>(BoneSlot::AnkleLeft)] = 24;
-        jointIndex[static_cast<std::size_t>(BoneSlot::HipRight)] = 25;
-        jointIndex[static_cast<std::size_t>(BoneSlot::KneeRight)] = 26;
-        jointIndex[static_cast<std::size_t>(BoneSlot::AnkleRight)] = 27;
+        for (std::size_t i = 0; i < kBoneSlotCount; ++i)
+            jointIndex[i] = -1;
     }
 
     // Resolve bone indices from game model (studiohdr bone names)
@@ -136,10 +122,6 @@ extern BoneMapping g_boneMapping;
 inline int GetBoneJointIndex(BoneSlot slot) {
     return g_boneMapping.jointIndex[static_cast<std::size_t>(slot)];
 }
-
-inline constexpr int kIdxUpperBody[4] = {
-    6, 5, 4, 2  // Default: head, neck, chest, stomach
-};
 
 // Shared constants to ensure consistency between acquisition and presentation.
 // Bone visual max age: bones older than this are not rendered (prevents stale skeleton).
@@ -247,8 +229,8 @@ struct Runtime {
     float view_matrix[16]{};
     char map_name[64]{};
     bool in_match = false;
-    uintptr_t controller_stride = 0x70;
-    uintptr_t pawn_stride = 0x70;
+    uintptr_t controller_stride = 0;
+    uintptr_t pawn_stride = 0;
     BombState bomb{};
     std::vector<DroppedWeapon> dropped_weapons;
     int player_count = 0;
@@ -409,7 +391,6 @@ bool ResolveDataPath(std::string& out_dir);
 bool LoadOffsetsFromJson(const char* path = nullptr);
 bool WaitForProcess(int timeout_sec = 120);
 bool Attach();
-bool RecoverCriticalOffsets();
 void RunFrame();
 void EnsureAcquisitionStarted();
 void StopAcquisition();

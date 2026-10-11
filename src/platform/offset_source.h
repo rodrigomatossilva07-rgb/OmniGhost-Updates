@@ -20,9 +20,9 @@
 //     Release  -> EmbeddedOffsets::Load only (no plaintext JSON beside the EXE)
 //     Development builds -> OMNIGHOST_DEV_EXTERNAL_OFFSETS: try data/*.json first, then embedded
 //
-// Game adapters must call OffsetSource::LoadSnapshot + apply keys into their
-// Offsets structs. Do not keep a second authoritative table of RVAs in .cpp/.h
-// beyond compile-time seeds that are overwritten at load.
+// Game adapters must call OffsetSource::LoadSnapshot + apply keys into zero-
+// initialized Offsets structs. Hardcoded emergency/seed offset tables are not
+// permitted: a missing or incomplete snapshot must fail closed.
 
 namespace OmniGhost::OffsetSource {
 

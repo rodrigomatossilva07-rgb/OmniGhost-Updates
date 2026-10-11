@@ -7,7 +7,7 @@
 #include <mutex>
 #include <vector>
 #include <utility>
-#include "../ImGui/imgui_internal.h"
+#include "third_party/ImGui/imgui_internal.h"
 
 namespace CyberLayout {
 

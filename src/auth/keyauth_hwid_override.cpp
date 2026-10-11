@@ -1,6 +1,6 @@
 #include "hardware_fingerprint.h"
 
-#include "../../keyauth/x64/lib/utils.hpp"
+#include "third_party/keyauth/x64/lib/utils.hpp"
 
 // The prebuilt KeyAuth SDK resolves this symbol at link time. Supplying it in
 // the application replaces the SDK's SID-only implementation without changing

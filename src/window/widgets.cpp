@@ -8,7 +8,7 @@
 #include "hardware_monitor.h"
 #include "config_history.h"
 #include "../config/app_settings.h"
-#include "../ImGui/imgui_internal.h"
+#include "third_party/ImGui/imgui_internal.h"
 
 #include <algorithm>
 #include <cctype>

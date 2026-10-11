@@ -2,7 +2,7 @@
 #include "../game/game.h"
 #include "../game/offsets.h"
 #include "../game/esp_manager.h"
-#include "../../ImGui/imgui.h"
+#include "third_party/ImGui/imgui.h"
 #include <Memory/Memory.h>
 #include <cmath>
 #include <algorithm>
@@ -18,12 +18,6 @@ namespace vehicle_esp {
     std::vector<VehicleData> vehicles;
 
     static const int MAX_VEHICLES = 64;
-
-    static constexpr uintptr_t VEHICLE_LIST_OFFSET = 0x180;
-    static constexpr uintptr_t VEHICLE_COUNT_OFFSET = 0x188;
-    static constexpr uintptr_t VEHICLE_ENTRY_STRIDE = 0x10;
-    static constexpr uintptr_t VEHICLE_POSITION_OFFSET = 0x90;
-    static constexpr uintptr_t VEHICLE_MATRIX_OFFSET = 0x60;
 
     // Cached entity matrices from last Collect (for oriented 3D boxes)
     static std::unordered_map<uintptr_t, Matrix> g_matrices;
@@ -111,11 +105,11 @@ namespace vehicle_esp {
         uintptr_t vehicle_interface = 0;
         uintptr_t vehicle_interface_alt = 0;
 
-        // Normal CReplayInterface layout uses +0x10.  The supplied b3258 dump
-        // also advertises +0xD10, so probe it as a fallback and validate the
-        // resulting list rather than trusting either blindly.
-        mem.AddScatterReadRequest(handle, offset::replay + 0x10, &vehicle_interface, sizeof(uintptr_t));
-        mem.AddScatterReadRequest(handle, offset::replay + 0xD10, &vehicle_interface_alt, sizeof(uintptr_t));
+        // Both documented interface candidates come from data/fivem_offsets.json;
+        // validate the resulting list rather than trusting either blindly.
+        mem.AddScatterReadRequest(handle, offset::replay + offset::replayVehicleInterface, &vehicle_interface, sizeof(uintptr_t));
+        if (offset::replayVehicleInterfaceAlt)
+            mem.AddScatterReadRequest(handle, offset::replay + offset::replayVehicleInterfaceAlt, &vehicle_interface_alt, sizeof(uintptr_t));
         mem.SetDmaCallTag("FiveM.VehicleRoots");
         mem.ExecuteReadScatter(handle);
         if (localPos.IsZero()) {
@@ -132,11 +126,11 @@ namespace vehicle_esp {
 
         uintptr_t vehicleListBase = 0, vehicleListBaseAlt = 0;
         int vehicleCount = 0, vehicleCountAlt = 0;
-        mem.AddScatterReadRequest(handle, vehicle_interface + VEHICLE_LIST_OFFSET, &vehicleListBase, sizeof(uintptr_t));
-        mem.AddScatterReadRequest(handle, vehicle_interface + VEHICLE_COUNT_OFFSET, &vehicleCount, sizeof(int));
+        mem.AddScatterReadRequest(handle, vehicle_interface + FiveM::offset::vehicleList, &vehicleListBase, sizeof(uintptr_t));
+        mem.AddScatterReadRequest(handle, vehicle_interface + FiveM::offset::vehicleCount, &vehicleCount, sizeof(int));
         if (IsValidPtr(vehicle_interface_alt) && vehicle_interface_alt != vehicle_interface) {
-            mem.AddScatterReadRequest(handle, vehicle_interface_alt + VEHICLE_LIST_OFFSET, &vehicleListBaseAlt, sizeof(uintptr_t));
-            mem.AddScatterReadRequest(handle, vehicle_interface_alt + VEHICLE_COUNT_OFFSET, &vehicleCountAlt, sizeof(int));
+            mem.AddScatterReadRequest(handle, vehicle_interface_alt + FiveM::offset::vehicleList, &vehicleListBaseAlt, sizeof(uintptr_t));
+            mem.AddScatterReadRequest(handle, vehicle_interface_alt + FiveM::offset::vehicleCount, &vehicleCountAlt, sizeof(int));
         }
         mem.SetDmaCallTag("FiveM.VehicleListPointer");
         mem.ExecuteReadScatter(handle);
@@ -158,7 +152,7 @@ namespace vehicle_esp {
             ? (std::min)(vehicleCount, MAX_VEHICLES) : MAX_VEHICLES;
         std::vector<uintptr_t> rawPtrs(listCount, 0);
         for (int i = 0; i < listCount; ++i)
-            mem.AddScatterReadRequest(handle, vehicleListBase + (uintptr_t)i * VEHICLE_ENTRY_STRIDE,
+            mem.AddScatterReadRequest(handle, vehicleListBase + (uintptr_t)i * FiveM::offset::vehicleEntryStride,
                                       &rawPtrs[i], sizeof(uintptr_t));
         mem.SetDmaCallTag("FiveM.VehicleEntities");
         mem.ExecuteReadScatter(handle);
@@ -184,14 +178,15 @@ namespace vehicle_esp {
         const bool needLock = frameConfig.lock_status;
         const bool needOccupied = frameConfig.ignore_occupied || frameConfig.show_occupants;
         for (size_t i = 0; i < valid.size(); ++i) {
-            mem.AddScatterReadRequest(handle, valid[i] + VEHICLE_POSITION_OFFSET, &positions[i], sizeof(Vec3));
+            mem.AddScatterReadRequest(handle, valid[i] + FiveM::offset::vehiclePosition, &positions[i], sizeof(Vec3));
             if (needMatrix)
-                mem.AddScatterReadRequest(handle, valid[i] + VEHICLE_MATRIX_OFFSET, &matrices[i], sizeof(Matrix));
+                mem.AddScatterReadRequest(handle, valid[i] + FiveM::offset::vehicleMatrix, &matrices[i], sizeof(Matrix));
             if (needLock)
                 mem.AddScatterReadRequest(handle, valid[i] + offset::vehicleLock,
                                           &lockState[i], sizeof(uint32_t));
             if (needOccupied) {
-                const uintptr_t buildDriver = offset::buildVersion >= 3751 ? 0xCA8 : offset::vehicleDriver;
+                const uintptr_t buildDriver = offset::buildVersion >= 3751
+                    ? offset::vehicleDriverNew : offset::vehicleDriver;
                 mem.AddScatterReadRequest(handle, valid[i] + buildDriver,
                                           &driverPrimary[i], sizeof(uintptr_t));
                 if (buildDriver != offset::vehicleDriver)
