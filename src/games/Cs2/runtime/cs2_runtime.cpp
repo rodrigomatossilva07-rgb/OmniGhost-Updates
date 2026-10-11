@@ -27,12 +27,16 @@ void Publish(Runtime& source, uint64_t generation, uint64_t read_fails) {
             1000.0f / static_cast<float>(now - previous), std::memory_order_relaxed);
     }
 
-    source.snapshot_timestamp_ms = now;
-    source.session_generation = generation;
-    source.read_fails = read_fails;
-    source.acquisition_hz = g_acquisition_hz.load(std::memory_order_relaxed);
-    source.snapshot_interval_ms = previous && now > previous
+    // BUG-007 Fix: Build snapshot in local temporary to avoid global 'runtime'
+    // being in a partially-published state during move assignment.
+    Runtime snapshot = source; // Copy (move would leave source in valid but unspecified state)
+    snapshot.snapshot_timestamp_ms = now;
+    snapshot.session_generation = generation;
+    snapshot.read_fails = read_fails;
+    snapshot.acquisition_hz = g_acquisition_hz.load(std::memory_order_relaxed);
+    snapshot.snapshot_interval_ms = previous && now > previous
         ? static_cast<float>(now - previous) : 0.f;
+    snapshot.snapshot_drops = g_snapshot_drops.load(std::memory_order_relaxed);
 
     auto slot = g_runtime_snapshots.TryBeginWrite();
     if (!slot) {
@@ -40,8 +44,7 @@ void Publish(Runtime& source, uint64_t generation, uint64_t read_fails) {
         return;
     }
 
-    source.snapshot_drops = g_snapshot_drops.load(std::memory_order_relaxed);
-    *slot.value = std::move(source);
+    *slot.value = std::move(snapshot);
     g_runtime_snapshots.Publish(slot.index);
     WebRadar::SubmitSnapshot(*slot.value);
     source = Runtime{};

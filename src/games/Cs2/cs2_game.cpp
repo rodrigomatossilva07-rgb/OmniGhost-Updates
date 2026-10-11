@@ -101,7 +101,8 @@ struct DynamicIntervals {
 
     // Update intervals based on current conditions
     void Update(int entity_count, float dma_latency_ms, int pressure_level, float /*optional_budget_ms*/) {
-        // Base multipliers
+        // BUG-026 Fix: Use MAX instead of multiply to avoid aggressive compounding.
+        // Each factor independently extends intervals; we take the dominant one.
         float entity_mult = 1.0f;
         if (entity_count > 48) entity_mult = 1.5f;
         else if (entity_count > 32) entity_mult = 1.25f;
@@ -116,7 +117,8 @@ struct DynamicIntervals {
         else if (pressure_level == 2) pressure_mult = 1.5f;
         else if (pressure_level == 1) pressure_mult = 1.25f;
 
-        float total_mult = entity_mult * latency_mult * pressure_mult;
+        // BUG-026: Take the maximum factor instead of multiplying (prevents 1.5*1.5*2 = 4.5x)
+        float total_mult = std::max({entity_mult, latency_mult, pressure_mult});
         total_mult = std::clamp(total_mult, 1.0f, 3.0f);
 
         bones_ms = static_cast<int>(std::round(24.f * total_mult));

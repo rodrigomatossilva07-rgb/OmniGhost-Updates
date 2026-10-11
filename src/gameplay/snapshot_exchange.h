@@ -141,20 +141,33 @@ public:
     void Publish(std::uint32_t slot) noexcept {
         AssertSingleProducer();
         if (slot >= SlotCount) return;
-        // FIX BUG-009: Use seq_cst for generation to prevent ABA reordering
-        // between published_ store and generation_ increment.
-        // seq_cst ensures all threads see a consistent order of these operations.
-        published_.store(slot, std::memory_order_release);
+        // BUG-003 Fix: Increment generation FIRST (seq_cst), THEN publish slot (release).
+        // This prevents ABA: reader seeing new generation with old published slot.
+        // seq_cst on generation ensures all prior writes (to the slot) are visible
+        // before the generation increment becomes visible to other threads.
         generation_.fetch_add(1, std::memory_order_seq_cst);
+        published_.store(slot, std::memory_order_release);
     }
 
     [[nodiscard]] ReadLease Acquire() const noexcept {
+        // BUG-018 Fix: Exponential backoff on publication race to avoid CPU burn
+        unsigned spin = 0;
         for (;;) {
             const std::uint32_t slot = published_.load(std::memory_order_acquire);
             readers_[slot].fetch_add(1, std::memory_order_acquire);
             if (slot == published_.load(std::memory_order_acquire))
                 return ReadLease(this, slot, &slots_[slot]);
             readers_[slot].fetch_sub(1, std::memory_order_release);
+            
+            // Backoff: yield, then sleep with increasing delay
+            if (spin < 4) {
+                std::this_thread::yield();
+            } else if (spin < 16) {
+                std::this_thread::sleep_for(std::chrono::microseconds(1 << (spin - 4))); // 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048 us
+            } else {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
+            ++spin;
         }
     }
 

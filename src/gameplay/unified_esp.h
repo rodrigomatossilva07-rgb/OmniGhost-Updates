@@ -225,7 +225,8 @@ struct UnifiedPlayer {
 class IGameConfigAdapter {
 public:
     virtual ~IGameConfigAdapter() = default;
-    virtual FeatureFlags GetFeatureFlags() const = 0;
+    // BUG-034 Fix: Return const reference to avoid copying 96 bools
+    virtual const FeatureFlags& GetFeatureFlags() const = 0;
     virtual LODConfig GetLODConfig() const = 0;
     virtual AcquisitionBudget GetBudget() const = 0;
     virtual bool IsFeatureEnabled(const char* feature_name) const = 0;

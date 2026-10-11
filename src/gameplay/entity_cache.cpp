@@ -167,13 +167,18 @@ namespace Gameplay::EntityCache {
             if (dist < config_.position_threshold) return;
         }
         
+        // BUG-017 Fix: Check capacity BEFORE push to avoid transient overshoot
+        if (history.size() >= config_.max_history_per_entity) {
+            history.erase(history.begin()); // Remove oldest
+        }
+        
         HistoryEntry entry;
         entry.position = pos;
         entry.velocity = vel;
         entry.timestamp = std::chrono::steady_clock::now();
         
         history.push_back(entry);
-        PruneHistory(id);
+        PruneHistory(id); // Still prune by time
     }
 
     std::vector<Vec3> EntityCache::GetPositionHistory(uint64_t id, float time_range) const {
@@ -206,9 +211,34 @@ namespace Gameplay::EntityCache {
             if (age > config_.max_age) stats.stale_entities++;
         }
         
-        // Estimate memory usage
-        stats.memory_usage_mb = (entities_.size() * sizeof(EntityData) + 
-                                 position_history_.size() * config_.max_history_per_entity * sizeof(Vec3) * 2) / (1024.0f * 1024.0f);
+        // BUG-010 Fix: More accurate memory estimation including container overhead
+        size_t entities_map_overhead = entities_.bucket_count() * sizeof(void*); // bucket array
+        size_t entities_node_overhead = entities_.size() * (sizeof(void*) * 3 + 1); // approx node (ptr + ptr + hash + flags)
+        
+        size_t history_map_overhead = position_history_.bucket_count() * sizeof(void*);
+        size_t history_node_overhead = position_history_.size() * (sizeof(void*) * 3 + 1);
+        
+        // Estimate string allocations (name + model)
+        size_t string_overhead = 0;
+        for (const auto& [id, entity] : entities_) {
+            string_overhead += entity.name.capacity() + entity.model.capacity();
+            for (const auto& [k, v] : entity.custom_data) {
+                string_overhead += k.capacity() + v.capacity();
+            }
+        }
+        
+        // Estimate history vector allocations
+        size_t history_vec_overhead = 0;
+        for (const auto& [id, hist] : position_history_) {
+            history_vec_overhead += hist.capacity() * sizeof(HistoryEntry);
+        }
+        
+        size_t total_bytes = entities_.size() * sizeof(EntityData) +
+                             entities_map_overhead + entities_node_overhead +
+                             history_map_overhead + history_node_overhead +
+                             string_overhead + history_vec_overhead;
+        
+        stats.memory_usage_mb = static_cast<float>(total_bytes) / (1024.0f * 1024.0f);
         
         return stats;
     }
@@ -302,8 +332,9 @@ namespace Gameplay::EntityCache {
                 << entity.is_alive << "|"
                 << entity.is_dormant << "|"
                 << entity.flags << "|"
-                << std::chrono::duration_cast<std::chrono::seconds>(entity.last_update.time_since_epoch()).count() << "|"
-                << std::chrono::duration_cast<std::chrono::seconds>(entity.first_seen.time_since_epoch()).count() << "\n";
+                // BUG-022 Fix: Serialize as steady_clock milliseconds (monotonic, NTP-safe)
+                << std::chrono::duration_cast<std::chrono::milliseconds>(entity.last_update.time_since_epoch()).count() << "|"
+                << std::chrono::duration_cast<std::chrono::milliseconds>(entity.first_seen.time_since_epoch()).count() << "\n";
         }
         return out.str();
     }
@@ -364,9 +395,12 @@ namespace Gameplay::EntityCache {
             std::getline(ss, token, '|'); entity.is_dormant = token == "1";
             std::getline(ss, token, '|'); entity.flags = std::stoul(token);
             std::getline(ss, token, '|'); 
-            entity.last_update = std::chrono::system_clock::from_time_t(std::stoll(token));
+            // BUG-022 Fix: Deserialize timestamps stored as steady_clock milliseconds since epoch
+            uint64_t last_update_ms = std::stoull(token);
+            entity.last_update = std::chrono::steady_clock::time_point(std::chrono::milliseconds(last_update_ms));
             std::getline(ss, token, '|'); 
-            entity.first_seen = std::chrono::system_clock::from_time_t(std::stoll(token));
+            uint64_t first_seen_ms = std::stoull(token);
+            entity.first_seen = std::chrono::steady_clock::time_point(std::chrono::milliseconds(first_seen_ms));
             
             entities_[entity.id] = entity;
         }
@@ -568,8 +602,9 @@ namespace Gameplay::EntityCache {
             << entity.is_alive << "|"
             << entity.is_dormant << "|"
             << entity.flags << "|"
-            << std::chrono::duration_cast<std::chrono::seconds>(entity.last_update.time_since_epoch()).count() << "|"
-            << std::chrono::duration_cast<std::chrono::seconds>(entity.first_seen.time_since_epoch()).count();
+            // BUG-022 Fix: Serialize as steady_clock milliseconds (monotonic, NTP-safe)
+            << std::chrono::duration_cast<std::chrono::milliseconds>(entity.last_update.time_since_epoch()).count() << "|"
+            << std::chrono::duration_cast<std::chrono::milliseconds>(entity.first_seen.time_since_epoch()).count();
         return out.str();
     }
 
@@ -611,9 +646,12 @@ namespace Gameplay::EntityCache {
         std::getline(ss, token, '|'); entity.is_dormant = token == "1";
         std::getline(ss, token, '|'); entity.flags = std::stoul(token);
         std::getline(ss, token, '|'); 
-        entity.last_update = std::chrono::system_clock::from_time_t(std::stoll(token));
+        // BUG-022 Fix: Deserialize timestamps stored as steady_clock milliseconds since epoch
+        uint64_t last_update_ms = std::stoull(token);
+        entity.last_update = std::chrono::steady_clock::time_point(std::chrono::milliseconds(last_update_ms));
         std::getline(ss, token, '|'); 
-        entity.first_seen = std::chrono::system_clock::from_time_t(std::stoll(token));
+        uint64_t first_seen_ms = std::stoull(token);
+        entity.first_seen = std::chrono::steady_clock::time_point(std::chrono::milliseconds(first_seen_ms));
         
         return true;
     }

@@ -975,23 +975,22 @@ void esp::ClearNameCache() {
 
 #pragma warning(push)
 #pragma warning(disable: 4505)
+// BUG-005 Fix: Render-thread safe name resolver — NO live DMA reads.
+// This function ONLY reads from the prepared name cache (populated by optional worker).
+// Returns false if name not cached; caller shows fallback.
 static bool ReadPlayerDisplayName(uintptr_t ped, uintptr_t pinfo, uint32_t netId,
-#pragma warning(pop)
-                                  bool allow_live_fallback, char* out, size_t outN) {
+                                  char* out, size_t outN) {
     if (!out || outN < 4 || !ped) return false;
     out[0] = 0;
     if (!esp::config.player_name) { snprintf(out, outN, "Jogador"); return false; }
     using namespace FiveM;
-    if (!pinfo && allow_live_fallback)
-        pinfo = mem.Read<uintptr_t>(ped + offset::playerInfo);
     if (!pinfo) {
         snprintf(out, outN, "Jogador");
         return false;
     }
-    if (!netId && allow_live_fallback) {
-        netId = mem.Read<uint32_t>(pinfo + offset::playerInfo_netId);
-        if (!netId)
-            netId = mem.Read<uint32_t>(pinfo + offset::playerInfo_netId_alt);
+    if (!netId) {
+        // Try to read netId from player_info (already in prepared data, no DMA here)
+        // This function assumes pinfo/netId come from prepared frame
     }
 
     auto it = g_nameCache.find(netId);
@@ -1016,102 +1015,15 @@ static bool ReadPlayerDisplayName(uintptr_t ped, uintptr_t pinfo, uint32_t netId
         }
     }
 
-    // Render is deliberately read-free.  A name not already cached is shown
+    // Render is deliberately read-free. A name not already cached is shown
     // as a stable fallback until the acquisition lane supplies it.
-    if (!allow_live_fallback) {
-        if (esp::config.player_id && netId)
-            snprintf(out, outN, "ID %u", netId);
-        else
-            snprintf(out, outN, "Jogador");
-        return false;
-    }
-
-    char buf[64]{};
-    bool ok = false;
-
-    // 1) Inline string at CPlayerInfo+name (0x100 cheatoffsets)
-    mem.Read(pinfo + offset::playerInfo_name, buf, sizeof(buf) - 1);
-    buf[sizeof(buf) - 1] = 0;
-    ok = IsPlausiblePlayerName(buf);
-
-    // 2) Pointer at same offset
-    if (!ok) {
-        uintptr_t sp = mem.Read<uintptr_t>(pinfo + offset::playerInfo_name);
-        if (sp > 0x10000 && sp < 0x7FFFFFFFFFFFULL) {
-            memset(buf, 0, sizeof(buf));
-            mem.Read(sp, buf, sizeof(buf) - 1);
-            buf[sizeof(buf) - 1] = 0;
-            ok = IsPlausiblePlayerName(buf);
-        }
-    }
-
-    // 3) Other common CPlayerInfo name slots
-    if (!ok) {
-        for (uintptr_t off : { 0x100u, 0xFCu, 0x7Cu, 0xA0u, 0x84u, 0xBC0u, 0xE0u }) {
-            memset(buf, 0, sizeof(buf));
-            mem.Read(pinfo + off, buf, sizeof(buf) - 1);
-            buf[sizeof(buf) - 1] = 0;
-            if (IsPlausiblePlayerName(buf)) { ok = true; break; }
-            uintptr_t sp = mem.Read<uintptr_t>(pinfo + off);
-            if (sp > 0x10000 && sp < 0x7FFFFFFFFFFFULL) {
-                memset(buf, 0, sizeof(buf));
-                mem.Read(sp, buf, sizeof(buf) - 1);
-                buf[sizeof(buf) - 1] = 0;
-                if (IsPlausiblePlayerName(buf)) { ok = true; break; }
-            }
-        }
-    }
-
-    // 4) PlayerNames global table (module RVA) indexed by netId when available
-    if (!ok && netId && offset::base) {
-        // b3258 PlayerNames = 0x1E63C68; also stored as network_player_mgr on some builds
-        uintptr_t names_rva = offset::b3258_networkPlayerMgr; // 0x1E63C68 in offsets.h
-        if (names_rva) {
-            uintptr_t table = mem.Read<uintptr_t>(offset::base + names_rva);
-            if (table > 0x10000 && table < 0x7FFFFFFFFFFFULL) {
-                // Common layout: entry = table + netId * stride, name at +0
-                for (uintptr_t stride : { 0x10ull, 0x18ull, 0x20ull }) {
-                    uintptr_t entry = table + (uintptr_t)netId * stride;
-                    memset(buf, 0, sizeof(buf));
-                    mem.Read(entry, buf, sizeof(buf) - 1);
-                    buf[sizeof(buf) - 1] = 0;
-                    if (IsPlausiblePlayerName(buf)) { ok = true; break; }
-                    uintptr_t sp = mem.Read<uintptr_t>(entry);
-                    if (sp > 0x10000 && sp < 0x7FFFFFFFFFFFULL) {
-                        memset(buf, 0, sizeof(buf));
-                        mem.Read(sp, buf, sizeof(buf) - 1);
-                        buf[sizeof(buf) - 1] = 0;
-                        if (IsPlausiblePlayerName(buf)) { ok = true; break; }
-                    }
-                }
-            }
-        }
-    }
-
-    if (ok) {
-        snprintf(out, outN, "%s", buf);
-        if (netId) {
-            std::scoped_lock lock(g_nameCacheMutex);
-            if (g_nameCache.size() >= kNameCacheMax) {
-                // LRU eviction
-                if (!g_nameCacheLru.empty()) {
-                    uint32_t lru = g_nameCacheLru.front();
-                    g_nameCacheLru.pop_front();
-                    g_nameCache.erase(lru);
-                }
-            }
-            g_nameCache[netId] = { buf, std::chrono::steady_clock::now() };
-            g_nameCacheLru.push_back(netId);
-        }
-        return true;
-    }
-    // Real name not found — show ID only when player_id is on; otherwise "Player"
     if (esp::config.player_id && netId)
         snprintf(out, outN, "ID %u", netId);
     else
         snprintf(out, outN, "Jogador");
     return false;
 }
+#pragma warning(pop)
 
 static void DrawTextOutlined(ImDrawList* dl, ImVec2 pos, ImU32 col, const char* text) {
     if (!dl || !text) return;

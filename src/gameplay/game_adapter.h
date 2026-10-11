@@ -75,28 +75,43 @@ namespace Gameplay::GameAdapter {
         std::string executable_path;    // Full path to executable
     };
 
-    // Adapter interface
-    class IGameAdapter {
+    // Adapter interfaces (ISP-compliant - split by responsibility)
+    // ============================================================
+    
+    // Game identification & lifecycle
+    class IGameIdentity {
     public:
-        virtual ~IGameAdapter() = default;
-        
-        // Identification
+        virtual ~IGameIdentity() = default;
         virtual GameInfo GetGameInfo() const = 0;
         virtual bool IsGameRunning() const = 0;
         virtual bool AttachToGame() = 0;
         virtual void DetachFromGame() = 0;
-        
-        // Offsets
+    };
+    
+    // Offset management
+    class IOffsetProvider {
+    public:
+        virtual ~IOffsetProvider() = default;
         virtual bool InitializeOffsets() = 0;
         virtual bool UpdateOffsets() = 0;
         virtual uintptr_t GetOffset(const std::string& name) = 0;
-        
-        // Entity management
+    };
+    
+    // Entity list & raw entity reads
+    class IEntityReader {
+    public:
+        virtual ~IEntityReader() = default;
         virtual std::vector<uint64_t> GetEntityList() = 0;
         virtual bool ReadEntity(uint64_t entity, void* buffer, size_t size) = 0;
         virtual bool WriteEntity(uint64_t entity, const void* buffer, size_t size) = 0;
+    };
+    
+    // Player & entity info (high-level)
+    class IPlayerInfo {
+    public:
+        virtual ~IPlayerInfo() = default;
         
-        // Player
+        // Local player
         virtual uint64_t GetLocalPlayer() = 0;
         virtual Vec3 GetLocalPosition() = 0;
         virtual Vec3 GetLocalVelocity() = 0;
@@ -106,7 +121,7 @@ namespace Gameplay::GameAdapter {
         virtual bool IsLocalAlive() = 0;
         virtual bool IsLocalScoping() = 0;
         
-        // Entity
+        // Entity info
         virtual Vec3 GetEntityPosition(uint64_t entity) = 0;
         virtual Vec3 GetEntityVelocity(uint64_t entity) = 0;
         virtual int GetEntityHealth(uint64_t entity) = 0;
@@ -118,30 +133,60 @@ namespace Gameplay::GameAdapter {
         virtual std::string GetEntityName(uint64_t entity) = 0;
         virtual std::string GetEntityModel(uint64_t entity) = 0;
         virtual int GetEntityWeapon(uint64_t entity) = 0;
-        
-        // Aim
+    };
+    
+    // Aim-related
+    class IAim {
+    public:
+        virtual ~IAim() = default;
         virtual bool WorldToScreen(const Vec3& world, Vec2& screen) = 0;
         virtual float GetFOVToEntity(uint64_t entity) = 0;
         virtual float GetDistanceToEntity(uint64_t entity) = 0;
         virtual void SetViewAngles(const Vec3& angles) = 0;
         virtual Vec3 GetViewAngles() = 0;
-        
-        // Input
+    };
+    
+    // Input
+    class IInput {
+    public:
+        virtual ~IInput() = default;
         virtual void MoveMouse(float x, float y) = 0;
         virtual void Click(int button) = 0;
         virtual void KeyPress(int key, bool down) = 0;
         virtual bool IsKeyDown(int key) = 0;
-        
-        // Memory
+    };
+    
+    // Memory operations
+    class IMemory {
+    public:
+        virtual ~IMemory() = default;
         virtual bool ReadMemory(uintptr_t address, void* buffer, size_t size) = 0;
         virtual bool WriteMemory(uintptr_t address, const void* buffer, size_t size) = 0;
         virtual uintptr_t FindPattern(const std::string& module, const std::string& pattern, const std::string& mask) = 0;
-        
-        // Game-specific
+    };
+    
+    // Game state
+    class IGameState {
+    public:
+        virtual ~IGameState() = default;
         virtual std::vector<std::string> GetEntityClasses() = 0;
         virtual bool IsInMenu() = 0;
         virtual bool IsInGame() = 0;
         virtual float GetGameTime() = 0;
+    };
+    
+    // Full adapter combines all interfaces (for backward compatibility)
+    class IGameAdapter :
+        public IGameIdentity,
+        public IOffsetProvider,
+        public IEntityReader,
+        public IPlayerInfo,
+        public IAim,
+        public IInput,
+        public IMemory,
+        public IGameState {
+    public:
+        virtual ~IGameAdapter() = default;
     };
     
     // Adapter factory

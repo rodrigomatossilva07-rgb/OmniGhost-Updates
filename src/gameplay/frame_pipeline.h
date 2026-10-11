@@ -20,17 +20,22 @@ public:
             next_ = now + period;
             started_ = true;
         } else {
-            next_ += period;
+            // BUG-029 Fix: Use the SAME period that was used for the last sleep,
+            // not the current parameter (which may have changed due to pressure).
+            // This prevents drift when delayMs varies per iteration.
+            next_ += last_period_;
         }
         if (next_ > now)
             std::this_thread::sleep_until(next_);
         else
             next_ = now;
+        last_period_ = period; // Remember period for next iteration
     }
 
 private:
     Clock::time_point next_{};
     bool started_ = false;
+    std::chrono::milliseconds last_period_{0}; // Period used for last sleep
 };
 
 struct PipelineTelemetry final {

@@ -134,7 +134,6 @@ inline constexpr size_t kRuntimeSnapshotSlots = 4; // Extra slot for CS2
 
 // Visual age ceilings (ms)
 inline constexpr uint64_t kBoneVisualMaxAgeMs = 160;
-inline constexpr int kBoneReliabilityHoldMs = 160;
 inline constexpr float kSnapshotMaxAgeMs = 120.0f;
 inline constexpr float kCameraMaxAgeMs = 80.0f;
 
@@ -188,7 +187,8 @@ inline constexpr int kWebRadarPort = 8080;
 
 inline bool IsUserPointer(uintptr_t value) noexcept {
 #if defined(_WIN64)
-    return value >= 0x10000ull && value <= 0x00007FFFFFFFFFFFull;
+    // BUG-023 Fix: Windows 10/11 user mode can use up to 0x7FFFFFFFFFFFFF
+    return value >= 0x10000ull && value <= 0x7FFFFFFFFFFFFFull;
 #else
     return value >= 0x10000u && value <= 0x7FFF0000u;
 #endif

@@ -27,77 +27,158 @@ struct WindowStats {
     int samples = 0;
 };
 
+// Cache line padding to prevent false sharing (64 bytes per cache line)
+struct alignas(64) CacheLinePad {
+    char pad[64];
+};
+
 struct Sample {
-    std::atomic<float> acquire_ms{0.f};
-    std::atomic<float> acquire_p50_ms{0.f};
-    std::atomic<float> acquire_p95_ms{0.f};
-    std::atomic<float> acquire_p99_ms{0.f};
-    std::atomic<float> acquire_max_ms{0.f};
-    std::atomic<float> pressure_window_p95_ms{0.f};
-    std::atomic<float> render_ms{0.f};
-    std::atomic<float> render_p95_ms{0.f};
-    std::atomic<float> render_p99_ms{0.f};
-    std::atomic<float> render_max_ms{0.f};
-    std::atomic<float> snapshot_age_ms{0.f};
-    std::atomic<float> world_age_ms{0.f};
-    std::atomic<float> publish_delay_ms{0.f};
-    std::atomic<float> visibility_ms{0.f};
-    std::atomic<int> visibility_players_tested{0};
-    std::atomic<int> visibility_rays{0};
-    std::atomic<float> snapshot_interval_ms{0.f};
-    std::atomic<float> snapshot_hz{0.f};
-    std::atomic<float> camera_age_ms{0.f};
-	std::atomic<float> camera_age_avg_ms{0.f};
-	std::atomic<float> camera_age_p50_ms{0.f};
-	std::atomic<float> camera_age_p95_ms{0.f};
-	std::atomic<float> camera_age_p99_ms{0.f};
-	std::atomic<float> camera_age_max_ms{0.f};
-	std::atomic<float> camera_read_p95_ms{0.f};
-	std::atomic<float> camera_read_p99_ms{0.f};
-	std::atomic<float> camera_read_max_ms{0.f};
-	std::atomic<std::uint64_t> camera_busy_skips{0};
-	std::atomic<std::uint64_t> camera_busy_retry_success{0};
-	std::atomic<std::uint64_t> camera_consecutive_busy_max{0};
-	std::atomic<std::uint64_t> camera_cooldown_skips{0};
-	std::atomic<std::uint64_t> camera_cooldown_bypasses{0};
-	std::atomic<int> pressure_level{0};
-	std::atomic<std::uint64_t> cooldown_remaining_ms{0};
-    std::atomic<float> death_to_hide_ms{0.f};
-    std::atomic<std::uint64_t> recent_player_reinsertions{0};
-    std::atomic<std::uint64_t> last_good_age_ms{0};
-    std::atomic<float> position_age_ms{0.f};
-    std::atomic<float> position_age_avg_ms{0.f};
-    std::atomic<float> position_age_p95_ms{0.f};
-    std::atomic<float> position_age_p99_ms{0.f};
-    std::atomic<float> position_age_max_ms{0.f};
-    std::atomic<float> bones_age_ms{0.f};
-    std::atomic<float> bones_age_avg_ms{0.f};
-    std::atomic<float> bones_age_p95_ms{0.f};
-    std::atomic<float> bones_age_p99_ms{0.f};
-    std::atomic<float> bones_age_max_ms{0.f};
-    std::atomic<float> camera_position_delta_ms{0.f};
-    std::atomic<float> camera_position_delta_p95_ms{0.f};
-    std::atomic<float> camera_position_delta_p99_ms{0.f};
-    std::atomic<float> camera_position_delta_max_ms{0.f};
-    std::atomic<float> prediction_ms{0.f};
-    std::atomic<float> prediction_p95_ms{0.f};
-    std::atomic<float> prediction_p99_ms{0.f};
-    std::atomic<float> prediction_max_ms{0.f};
-    std::atomic<std::uint64_t> cached_bones_used{0};
-    std::atomic<float> cached_bones_age_max_ms{0.f};
-    std::atomic<float> motion_age_ms{0.f};
-    std::atomic<float> state_age_ms{0.f};
-    std::atomic<float> target_lane_age_ms{0.f};
-    std::atomic<float> vmm_avg_ms{0.f};
-    std::atomic<float> vmm_p50_ms{0.f};
-    std::atomic<float> vmm_p95_ms{0.f};
-    std::atomic<float> vmm_p99_ms{0.f};
-    std::atomic<float> vmm_max_ms{0.f};
-    std::atomic<float> scheduler_wait_ms{0.f};
-    std::atomic<int> entities{0};
-    std::atomic<int> vehicles{0};
-    std::atomic<int> objects{0};
-    std::atomic<int> bones_players{0};
+    // Acquire timing (1 cache line)
+    struct alignas(64) AcquireStats {
+        std::atomic<float> acquire_ms{0.f};
+        std::atomic<float> acquire_p50_ms{0.f};
+        std::atomic<float> acquire_p95_ms{0.f};
+        std::atomic<float> acquire_p99_ms{0.f};
+        std::atomic<float> acquire_max_ms{0.f};
+        std::atomic<float> pressure_window_p95_ms{0.f};
+    } acquire;
+    
+    // Render timing (1 cache line)
+    struct alignas(64) RenderStats {
+        std::atomic<float> render_ms{0.f};
+        std::atomic<float> render_p95_ms{0.f};
+        std::atomic<float> render_p99_ms{0.f};
+        std::atomic<float> render_max_ms{0.f};
+    } render;
+    
+    // Snapshot/World timing (1 cache line)
+    struct alignas(64) SnapshotStats {
+        std::atomic<float> snapshot_age_ms{0.f};
+        std::atomic<float> world_age_ms{0.f};
+        std::atomic<float> publish_delay_ms{0.f};
+        std::atomic<float> snapshot_interval_ms{0.f};
+        std::atomic<float> snapshot_hz{0.f};
+    } snapshot;
+    
+    // Camera timing (1 cache line)
+    struct alignas(64) CameraStats {
+        std::atomic<float> camera_age_ms{0.f};
+        std::atomic<float> camera_age_avg_ms{0.f};
+        std::atomic<float> camera_age_p50_ms{0.f};
+        std::atomic<float> camera_age_p95_ms{0.f};
+        std::atomic<float> camera_age_p99_ms{0.f};
+        std::atomic<float> camera_age_max_ms{0.f};
+        std::atomic<float> camera_read_p95_ms{0.f};
+        std::atomic<float> camera_read_p99_ms{0.f};
+        std::atomic<float> camera_read_max_ms{0.f};
+        std::atomic<std::uint64_t> camera_busy_skips{0};
+        std::atomic<std::uint64_t> camera_busy_retry_success{0};
+        std::atomic<std::uint64_t> camera_consecutive_busy_max{0};
+        std::atomic<std::uint64_t> camera_cooldown_skips{0};
+        std::atomic<std::uint64_t> camera_cooldown_bypasses{0};
+    } camera;
+    
+    // Pressure & cooldown (1 cache line)
+    struct alignas(64) PressureStats {
+        std::atomic<int> pressure_level{0};
+        std::atomic<std::uint64_t> cooldown_remaining_ms{0};
+        std::atomic<float> death_to_hide_ms{0.f};
+        std::atomic<std::uint64_t> recent_player_reinsertions{0};
+        std::atomic<std::uint64_t> last_good_age_ms{0};
+    } pressure;
+    
+    // Position timing (1 cache line)
+    struct alignas(64) PositionStats {
+        std::atomic<float> position_age_ms{0.f};
+        std::atomic<float> position_age_avg_ms{0.f};
+        std::atomic<float> position_age_p95_ms{0.f};
+        std::atomic<float> position_age_p99_ms{0.f};
+        std::atomic<float> position_age_max_ms{0.f};
+    } position;
+    
+    // Bones timing (1 cache line)
+    struct alignas(64) BonesStats {
+        std::atomic<float> bones_age_ms{0.f};
+        std::atomic<float> bones_age_avg_ms{0.f};
+        std::atomic<float> bones_age_p95_ms{0.f};
+        std::atomic<float> bones_age_p99_ms{0.f};
+        std::atomic<float> bones_age_max_ms{0.f};
+    } bones;
+    
+    // Camera-position delta (1 cache line)
+    struct alignas(64) CameraPosDeltaStats {
+        std::atomic<float> camera_position_delta_ms{0.f};
+        std::atomic<float> camera_position_delta_p95_ms{0.f};
+        std::atomic<float> camera_position_delta_p99_ms{0.f};
+        std::atomic<float> camera_position_delta_max_ms{0.f};
+    } camera_pos_delta;
+    
+    // Prediction timing (1 cache line)
+    struct alignas(64) PredictionStats {
+        std::atomic<float> prediction_ms{0.f};
+        std::atomic<float> prediction_p95_ms{0.f};
+        std::atomic<float> prediction_p99_ms{0.f};
+        std::atomic<float> prediction_max_ms{0.f};
+    } prediction;
+    
+    // Cache/VMM timing (1 cache line)
+    struct alignas(64) CacheVmmStats {
+        std::atomic<std::uint64_t> cached_bones_used{0};
+        std::atomic<float> cached_bones_age_max_ms{0.f};
+        std::atomic<float> motion_age_ms{0.f};
+        std::atomic<float> state_age_ms{0.f};
+        std::atomic<float> target_lane_age_ms{0.f};
+        std::atomic<float> vmm_avg_ms{0.f};
+        std::atomic<float> vmm_p50_ms{0.f};
+        std::atomic<float> vmm_p95_ms{0.f};
+        std::atomic<float> vmm_p99_ms{0.f};
+        std::atomic<float> vmm_max_ms{0.f};
+        std::atomic<float> scheduler_wait_ms{0.f};
+    } cache_vmm;
+    
+    // Entity counts (1 cache line)
+    struct alignas(64) CountStats {
+        std::atomic<int> entities{0};
+        std::atomic<int> vehicles{0};
+        std::atomic<int> objects{0};
+        std::atomic<int> bones_players{0};
+        std::atomic<int> bones_batches_s{0};
+        std::atomic<float> bones_p95_ms{0.f};
+        std::atomic<float> bones_p99_ms{0.f};
+        std::atomic<float> bones_max_ms{0.f};
+        std::atomic<int> reads_s{0};
+        std::atomic<int> scatter_s{0};
+        std::atomic<std::uint64_t> snapshot_drops{0};
+        std::atomic<std::uint64_t> read_fails{0};
+        std::atomic<std::uint64_t> acquisition_spikes{0};
+        std::atomic<std::uint64_t> render_spikes{0};
+        std::atomic<std::uint64_t> suppressed_spikes_20{0};
+        std::atomic<std::uint64_t> suppressed_spikes_50{0};
+        std::atomic<std::uint64_t> suppressed_spikes_100{0};
+    } counts;
+    
+    // Process resources (1 cache line)
+    struct alignas(64) ProcessStats {
+        std::atomic<std::uint32_t> process_id{0};
+        std::atomic_bool process_connected{false};
+        std::atomic_bool dma_open{false};
+        std::atomic<std::uint64_t> process_handles{0};
+        std::atomic<std::int64_t> process_handles_delta{0};
+        std::atomic<std::uint32_t> process_threads{0};
+        std::atomic<float> working_set_mb{0.f};
+        std::atomic<float> private_mb{0.f};
+        std::atomic<std::uint32_t> scatter_handles_live{0};
+        std::atomic_bool active{false};
+        std::atomic<int> idle_reason{0};
+    } process;
+    
+    // Visibility stats (1 cache line)
+    struct alignas(64) VisibilityStats {
+        std::atomic<float> visibility_ms{0.f};
+        std::atomic<int> visibility_players_tested{0};
+        std::atomic<int> visibility_rays{0};
+    } visibility;
+};
     std::atomic<int> bones_batches_s{0};
     std::atomic<float> bones_p95_ms{0.f};
     std::atomic<float> bones_p99_ms{0.f};

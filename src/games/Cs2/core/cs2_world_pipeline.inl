@@ -1261,12 +1261,13 @@ static void RunFrameWithConfig(const Config& frame_config) {
     size_t confirmedDeadCount = 0;
     for (int c = 0; c < candidate_count &&
          liveness.count < static_cast<uint32_t>(liveness.players.size()); ++c) {
-        const bool healthKnown = core[c].health >= 0 && core[c].health <= 200;
-        const bool controllerKnown = core[c].controller_alive == 0 ||
-            core[c].controller_alive == 1;
+        const bool readOk = core[c].read_ok;
+        const bool healthKnown = readOk && core[c].health >= 0 && core[c].health <= 200;
+        const bool controllerKnown = readOk && (core[c].controller_alive == 0 ||
+            core[c].controller_alive == 1);
         const bool dead = (healthKnown && core[c].health <= 0) ||
             (controllerKnown && core[c].controller_alive == 0);
-        if (!healthKnown && !controllerKnown)
+        if (!readOk)
             continue; // both reads failed: retain grace, never call it death
         auto& sample = liveness.players[liveness.count++];
         sample.pawn = resolved_pawns[c];
@@ -1359,6 +1360,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
             const uintptr_t pawn = resolved_pawns[c];
             const uintptr_t controller = candidateControllers[c];
             if (!IsUserPointer(pawn)) continue;
+            if (!core[c].read_ok) continue; // BUG-008: Skip unread pawns
             const bool healthAlive = core[c].health > 0 && core[c].health <= 200;
             const bool controllerKnown = core[c].controller_alive == 0 ||
                 core[c].controller_alive == 1;

@@ -301,11 +301,11 @@ Sample& Fortnite() { return g_fortnite; }
 void ObserveAcquire(Sample& s, float work_ms, bool activeSample, uint64_t scan_id) noexcept {
     if (work_ms < 0.f) return;
     if (!activeSample) {
-        s.active.store(false, std::memory_order_relaxed);
+        s.process.active.store(false, std::memory_order_relaxed);
         return;
     }
-    s.active.store(true, std::memory_order_relaxed);
-    s.idle_reason.store(0, std::memory_order_relaxed);
+    s.process.active.store(true, std::memory_order_relaxed);
+    s.process.idle_reason.store(0, std::memory_order_relaxed);
 
     const bool isCs2 = (&s == &g_cs2);
     const bool isWarzone = (&s == &g_warzone);
@@ -330,15 +330,15 @@ void ObserveAcquire(Sample& s, float work_ms, bool activeSample, uint64_t scan_i
     };
     if (work_ms < 20.f) return;
     if (work_ms < 50.f) {
-        s.suppressed_spikes_20.fetch_add(1, std::memory_order_relaxed);
+        s.counts.suppressed_spikes_20.fetch_add(1, std::memory_order_relaxed);
         return;
     }
     if (work_ms < 100.f) {
-        s.suppressed_spikes_50.fetch_add(1, std::memory_order_relaxed);
+        s.counts.suppressed_spikes_50.fetch_add(1, std::memory_order_relaxed);
         if (!claimSpikeWindow(g_lastSpikeWarnMs, 500u))
             return;
     } else if (work_ms < kSpikeSevereMs) {
-        s.suppressed_spikes_100.fetch_add(1, std::memory_order_relaxed);
+        s.counts.suppressed_spikes_100.fetch_add(1, std::memory_order_relaxed);
         if (!claimSpikeWindow(g_lastSpikeWarnMs, 500u))
             return;
     } else if (work_ms < kSpikeCriticalMs) {
@@ -346,12 +346,12 @@ void ObserveAcquire(Sample& s, float work_ms, bool activeSample, uint64_t scan_i
             return;
     }
 
-    s.acquisition_spikes.fetch_add(1, std::memory_order_relaxed);
+    s.counts.acquisition_spikes.fetch_add(1, std::memory_order_relaxed);
     char buf[256]{};
     std::snprintf(buf, sizeof(buf),
                   "SPIKE\nscan_id=%llu\ntotal_ms=%.2f\nplayers=%d\nreads_s=%d\nscatter_s=%d",
                   static_cast<unsigned long long>(scan_id),
-                  work_ms, s.entities.load(), s.reads_s.load(), s.scatter_s.load());
+                  work_ms, s.counts.entities.load(), s.counts.reads_s.load(), s.counts.scatter_s.load());
     EmitWarn(isCs2 ? "CS2" : isWarzone ? "WARZONE" : isFortnite ? "FORTNITE" : "FIVEM", buf);
 }
 
@@ -369,10 +369,10 @@ void ObserveRender(Sample& s, float ms) noexcept {
             next, now + 100u, std::memory_order_relaxed))
         return;
     auto st = ring.Stats();
-    s.render_ms.store(st.avg, std::memory_order_relaxed);
-    s.render_p95_ms.store(st.p95, std::memory_order_relaxed);
-    s.render_p99_ms.store(st.p99, std::memory_order_relaxed);
-    s.render_max_ms.store(st.max, std::memory_order_relaxed);
+    s.render.render_ms.store(st.avg, std::memory_order_relaxed);
+    s.render.render_p95_ms.store(st.p95, std::memory_order_relaxed);
+    s.render.render_p99_ms.store(st.p99, std::memory_order_relaxed);
+    s.render.render_max_ms.store(st.max, std::memory_order_relaxed);
 }
 
 void ObserveCameraAge(Sample& s, float age_ms) noexcept {
@@ -380,12 +380,12 @@ void ObserveCameraAge(Sample& s, float age_ms) noexcept {
 	Ring& ring = (&s == &g_cs2) ? g_cameraAgeC : (&s == &g_warzone) ? g_cameraAgeW : g_cameraAgeFortnite;
 	ring.Push(age_ms);
 	const auto st = ring.Stats();
-	s.camera_age_ms.store(age_ms, std::memory_order_relaxed);
-	s.camera_age_avg_ms.store(st.avg, std::memory_order_relaxed);
-	s.camera_age_p50_ms.store(st.p50, std::memory_order_relaxed);
-	s.camera_age_p95_ms.store(st.p95, std::memory_order_relaxed);
-	s.camera_age_p99_ms.store(st.p99, std::memory_order_relaxed);
-	s.camera_age_max_ms.store(st.max, std::memory_order_relaxed);
+	s.camera.camera_age_ms.store(age_ms, std::memory_order_relaxed);
+	s.camera.camera_age_avg_ms.store(st.avg, std::memory_order_relaxed);
+	s.camera.camera_age_p50_ms.store(st.p50, std::memory_order_relaxed);
+	s.camera.camera_age_p95_ms.store(st.p95, std::memory_order_relaxed);
+	s.camera.camera_age_p99_ms.store(st.p99, std::memory_order_relaxed);
+	s.camera.camera_age_max_ms.store(st.max, std::memory_order_relaxed);
 }
 
 void ObserveCameraRead(Sample& s, float read_ms) noexcept {
@@ -394,9 +394,9 @@ void ObserveCameraRead(Sample& s, float read_ms) noexcept {
 	    : (&s == &g_fortnite) ? g_cameraReadFortnite : g_cameraReadF;
 	ring.Push(read_ms);
 	const auto st = ring.Stats();
-	s.camera_read_p95_ms.store(st.p95, std::memory_order_relaxed);
-	s.camera_read_p99_ms.store(st.p99, std::memory_order_relaxed);
-	s.camera_read_max_ms.store(st.max, std::memory_order_relaxed);
+	s.camera.camera_read_p95_ms.store(st.p95, std::memory_order_relaxed);
+	s.camera.camera_read_p99_ms.store(st.p99, std::memory_order_relaxed);
+	s.camera.camera_read_max_ms.store(st.max, std::memory_order_relaxed);
 }
 
 void ObserveBones(Sample& s, float bones_ms) noexcept {

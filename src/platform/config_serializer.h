@@ -76,8 +76,16 @@ struct ConfigSerializerTraits<int> {
     static bool Read(std::istream& is, int& value) {
         std::string val;
         if (ReadLine(is, val)) {
-            value = std::stoi(val);
-            return true;
+            try {
+                long long parsed = std::stoll(val);
+                // Clamp to int range
+                if (parsed < std::numeric_limits<int>::min()) parsed = std::numeric_limits<int>::min();
+                if (parsed > std::numeric_limits<int>::max()) parsed = std::numeric_limits<int>::max();
+                value = static_cast<int>(parsed);
+                return true;
+            } catch (const std::exception&) {
+                return false;
+            }
         }
         return false;
     }
@@ -92,8 +100,18 @@ struct ConfigSerializerTraits<float> {
     static bool Read(std::istream& is, float& value) {
         std::string val;
         if (ReadLine(is, val)) {
-            value = std::stof(val);
-            return true;
+            try {
+                double parsed = std::stod(val);
+                // Reject NaN and infinity
+                if (!std::isfinite(parsed)) return false;
+                // Clamp to float range
+                if (parsed < -std::numeric_limits<float>::max()) parsed = -std::numeric_limits<float>::max();
+                if (parsed > std::numeric_limits<float>::max()) parsed = std::numeric_limits<float>::max();
+                value = static_cast<float>(parsed);
+                return true;
+            } catch (const std::exception&) {
+                return false;
+            }
         }
         return false;
     }
@@ -108,8 +126,14 @@ struct ConfigSerializerTraits<uint32_t> {
     static bool Read(std::istream& is, uint32_t& value) {
         std::string val;
         if (ReadLine(is, val)) {
-            value = static_cast<uint32_t>(std::stoul(val));
-            return true;
+            try {
+                unsigned long long parsed = std::stoull(val);
+                if (parsed > std::numeric_limits<uint32_t>::max()) return false;
+                value = static_cast<uint32_t>(parsed);
+                return true;
+            } catch (const std::exception&) {
+                return false;
+            }
         }
         return false;
     }
@@ -124,8 +148,12 @@ struct ConfigSerializerTraits<uint64_t> {
     static bool Read(std::istream& is, uint64_t& value) {
         std::string val;
         if (ReadLine(is, val)) {
-            value = std::stoull(val);
-            return true;
+            try {
+                value = std::stoull(val);
+                return true;
+            } catch (const std::exception&) {
+                return false;
+            }
         }
         return false;
     }
@@ -138,7 +166,15 @@ struct ConfigSerializerTraits<std::string> {
         os << key << "=" << value << '\n';
     }
     static bool Read(std::istream& is, std::string& value) {
-        return ReadLine(is, value);
+        std::string line;
+        if (ReadLine(is, line)) {
+            // BUG-009: Limit string length to prevent memory exhaustion
+            constexpr size_t kMaxConfigStringLength = 4096;
+            if (line.size() > kMaxConfigStringLength) return false;
+            value = std::move(line);
+            return true;
+        }
+        return false;
     }
     static size_t Size(const std::string& value) { return value.size(); }
 };
@@ -344,9 +380,13 @@ public:
         std::string line;
         
         bool dirtyOnly = false;
+        constexpr size_t kMaxLineLength = 8192; // BUG-009: Prevent huge lines
         
         while (ReadLine(iss, line)) {
             if (line.empty() || line[0] == '#') continue;
+            
+            // BUG-009: Reject excessively long lines
+            if (line.size() > kMaxLineLength) continue;
             
             if (line.starts_with("meta.")) {
                 if (line.starts_with("meta.dirty_only=1")) {
@@ -360,6 +400,9 @@ public:
             
             std::string key = line.substr(0, eqPos);
             std::string value = line.substr(eqPos + 1);
+            
+            // BUG-009: Validate key length
+            if (key.size() > 256) continue;
             
             if (!dirtyOnly || entries_[key].dirty) {
                 entries_[key].value = line;

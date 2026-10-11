@@ -161,7 +161,7 @@ void EnsureAcquisitionStarted() {
     });
     g_acquisition_thread = std::thread([] {
         OmniGhost::Gameplay::FixedRateScheduler scheduler;
-        std::array<float, 16> recentActiveScans{};
+        std::array<float, 32> recentActiveScans{}; // BUG-035 Fix: Increased from 16 to 32 for stable pressure recovery
         size_t recentScanCount = 0;
         size_t recentScanCursor = 0;
         uint64_t pressureSessionGeneration = 0;

@@ -386,6 +386,9 @@ struct PawnCoreFields {
     float flash = 0.f;
     float eye_angles[2]{};
     uintptr_t weapon_services = 0;
+    // BUG-008 Fix: Explicit read success flag — avoids any ambiguity between
+    // "read failed" (health=-1) and "confirmed dead" (health=0).
+    bool read_ok = false;
 };
 
 static void ScatterReadPawnCore(const uintptr_t* pawns, const uintptr_t* controllers,
@@ -500,8 +503,10 @@ static void ScatterReadPawnCore(const uintptr_t* pawns, const uintptr_t* control
         g_read_fails.fetch_add(count, std::memory_order_relaxed);
         return;
     }
-    for (int i = 0; i < count; ++i)
+    for (int i = 0; i < count; ++i) {
         fields[i].spotted = (spotted_buf[i] != 0);
+        fields[i].read_ok = true; // BUG-008: Mark read as successful
+    }
 }
 
 

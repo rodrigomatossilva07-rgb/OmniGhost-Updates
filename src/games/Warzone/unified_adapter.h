@@ -72,7 +72,7 @@ public:
         }
     }
     
-    static OmniGhost::Gameplay::UnifiedESP::FeatureFlags GetFeatureFlags() {
+    static const OmniGhost::Gameplay::UnifiedESP::FeatureFlags& GetFeatureFlags() {
         return Get().GetFeatureFlags();
     }
 };

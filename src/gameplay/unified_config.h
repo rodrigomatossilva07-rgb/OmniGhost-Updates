@@ -138,20 +138,23 @@ protected:
         // Try bool
         if (s == "1" || s == "true") return ConfigValue(true);
         if (s == "0" || s == "false") return ConfigValue(false);
+        // BUG-028 Fix: Try color (r,g,b,a) BEFORE int/float
+        // Color format: "r,g,b,a" with 4 comma-separated floats
+        if (s.find(',') != std::string::npos) {
+            std::array<float, 4> c{};
+            std::istringstream iss(s);
+            char comma;
+            if (iss >> c[0] >> comma >> c[1] >> comma >> c[2] >> comma >> c[3]) {
+                // Validate all 4 components parsed successfully
+                return ConfigValue(c);
+            }
+        }
         // Try int
         try { return ConfigValue(std::stoi(s)); }
         catch (const std::exception&) { /* Try the next supported type. */ }
         // Try float
         try { return ConfigValue(std::stof(s)); }
         catch (const std::exception&) { /* Keep the original string below. */ }
-        // Try color (r,g,b,a)
-        if (s.find(',') != std::string::npos) {
-            std::array<float, 4> c{};
-            std::istringstream iss(s);
-            char comma;
-            if (iss >> c[0] >> comma >> c[1] >> comma >> c[2] >> comma >> c[3])
-                return ConfigValue(c);
-        }
         return ConfigValue(s);
     }
 

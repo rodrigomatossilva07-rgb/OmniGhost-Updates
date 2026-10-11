@@ -23,6 +23,7 @@
 #include <mutex>
 #include <shared_mutex>
 #include <unordered_map>
+#include <unordered_set>
 #include "gameplay/esp_optimizer.h"
 #include "gameplay/snapshot_exchange.h"
 #include "gameplay/frame_pipeline.h"
@@ -166,8 +167,10 @@ namespace FiveM {
         // FIX BUG-001: Thread-safe presentation map with shared_mutex
         // Render thread writes in RunESP(), reads in try_get_prepared_velocity()
         // Acquisition thread does NOT access this map directly (only via snapshots)
+        // Entries are cleaned up each frame to prevent unbounded growth and stale pointer reuse.
         static std::unordered_map<uintptr_t, PresentationState> s_presentation;
         static std::shared_mutex s_presentation_mutex;
+        static constexpr size_t kMaxPresentationEntries = 256; // Hard cap to prevent unbounded growth
 
         // Performance tracking
         int frameCount = 0;
@@ -518,10 +521,12 @@ namespace FiveM {
                 return; // drop — core already published; avoid stacking
             {
                 std::lock_guard lock(s_optionalMu);
-                // FIX BUG-002: Capture generation at queue time — validates job
-                // belongs to current session before pointers are captured.
-                const uint64_t queueGen = s_sessionGeneration.load(std::memory_order_acquire);
-                job.sessionGeneration = queueGen;
+                // Generation already set by caller at pointer capture time.
+                // Validate it still matches current session before queuing.
+                const uint64_t currentGen = s_sessionGeneration.load(std::memory_order_acquire);
+                if (job.sessionGeneration != currentGen) {
+                    return; // session changed while building job — drop
+                }
                 s_optionalJob = std::move(job);
                 s_optionalPending.store(true, std::memory_order_release);
             }
@@ -671,6 +676,9 @@ namespace FiveM {
                 PublishAcquisitionSnapshot(localPlayer, cacheValid, coreAcquireMs);
                 // Optional lanes on dedicated worker — next core scan is not blocked.
                 {
+                    // BUG-002 Fix: Capture generation FIRST, before building job with pointers.
+                    // This ensures the job's generation matches the pointers' session.
+                    const uint64_t currentGen = s_sessionGeneration.load(std::memory_order_acquire);
                     const int pressure = s_pressureLevel.load(std::memory_order_relaxed);
                     OptionalJob job{};
                     job.peds = s_acquireValidPeds;
@@ -683,6 +691,7 @@ namespace FiveM {
                     job.vehicleConfig = vehicleOptions;
                     job.friendsListRequested = friendsListRequested;
                     job.pressure = pressure;
+                    job.sessionGeneration = currentGen; // Set at capture time
                     QueueOptionalJob(std::move(job));
                 }
                 // Adaptive pressure with hysteresis + rolling p95 (model ported
@@ -842,11 +851,7 @@ namespace FiveM {
                 mem.CloseScatterHandle(s_acqScatter);
                 s_acqScatter = nullptr;
             }
-            // FIX MEM-001: Close g_preparedBoneScatter
-            if (g_preparedBoneScatter) {
-                mem.CloseScatterHandle(g_preparedBoneScatter);
-                g_preparedBoneScatter = nullptr;
-            }
+            // g_preparedBoneScatter and g_preparedEspScatters are closed in esp::ShutdownPreparedFrames()
             FiveM::Visibility::Shutdown();
             esp::ShutdownWaypointAndBlips();
             esp::ShutdownPreparedFrames();
@@ -1030,28 +1035,43 @@ namespace FiveM {
                 }
             }
 
-            // Ped pointers change throughout a long FiveM session.  Keep the
-            // presentation cache bounded instead of retaining an entry for
-            // every ped that has ever streamed in.  This is deliberately an
-            // infrequent, bounded cleanup outside the render hot path.
-            static auto lastPresentationPrune = std::chrono::steady_clock::time_point{};
-            // FIX BUG-001: Protect prune with unique_lock (writer)
+            // BUG-001 Fix: Clean up stale presentation entries EVERY frame to prevent
+            // unbounded growth and stale pointer reuse. Build a lookup set for O(1) checks.
             {
                 std::unique_lock lock(s_presentation_mutex);
-                // FIX MEM-003: More aggressive prune - remove ALL stale entries each cycle,
-                // not just up to MAX_PEDS. Run every 2 seconds instead of 5.
-                if (currentTime - lastPresentationPrune >= std::chrono::seconds(2)) {
-                    lastPresentationPrune = currentTime;
-                    for (auto it = s_presentation.begin(); it != s_presentation.end();) {
-                        bool stillPresent = false;
-                        for (const uintptr_t ped : validPeds) {
-                            if (ped == it->first) { stillPresent = true; break; }
-                        }
-                        if (!stillPresent) {
-                            it = s_presentation.erase(it);
-                        } else {
-                            ++it;
-                        }
+
+                // Build a hash set of currently valid peds for O(1) lookup
+                static std::unordered_set<uintptr_t> currentValidPeds;
+                currentValidPeds.clear();
+                currentValidPeds.reserve(validPeds.size() * 2);
+                for (const uintptr_t ped : validPeds) {
+                    currentValidPeds.insert(ped);
+                }
+
+                // Remove entries for peds no longer valid OR from previous session generation
+                for (auto it = s_presentation.begin(); it != s_presentation.end();) {
+                    if (!currentValidPeds.contains(it->first) ||
+                        it->second.entry_generation != s_sessionGeneration) {
+                        it = s_presentation.erase(it);
+                    } else {
+                        ++it;
+                    }
+                }
+
+                // Hard cap: if still over limit, remove oldest entries (by sourceGeneration)
+                if (s_presentation.size() > kMaxPresentationEntries) {
+                    // Find entries with oldest sourceGeneration
+                    std::vector<std::pair<uintptr_t, uint64_t>> entries;
+                    entries.reserve(s_presentation.size());
+                    for (const auto& kv : s_presentation) {
+                        entries.emplace_back(kv.first, kv.second.sourceGeneration);
+                    }
+                    std::sort(entries.begin(), entries.end(),
+                        [](const auto& a, const auto& b) { return a.second < b.second; });
+
+                    size_t toRemove = s_presentation.size() - kMaxPresentationEntries;
+                    for (size_t i = 0; i < toRemove; ++i) {
+                        s_presentation.erase(entries[i].first);
                     }
                 }
             }
