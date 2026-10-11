@@ -144,7 +144,10 @@ namespace makcu_wrapper {
         if (device) {
             try { device->enableButtonMonitoring(false); } catch (const std::exception& ex) { std::string msg = "disable monitoring: " + std::string(ex.what()); LogDeviceFailure(msg.c_str()); } catch (...) { LogDeviceFailure("disable monitoring: unknown exception"); }
             try { device->disconnect(); } catch (const std::exception& ex) { std::string msg = "disconnect: " + std::string(ex.what()); LogDeviceFailure(msg.c_str()); } catch (...) { LogDeviceFailure("disconnect: unknown exception"); }
-            device.reset();
+            // Keep the Device object alive: aim/input threads may be in flight
+            // inside device->mouseMove() etc.; destroying the unique_ptr here
+            // would be a use-after-free race. The object is reused on the next
+            // MakcuInitialize and released only at process exit.
         }
         g_state.monitoringRequested = false;
         g_state.monitoringConfirmed = false;

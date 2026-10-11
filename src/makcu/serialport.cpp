@@ -174,9 +174,27 @@ namespace makcu {
 
 #ifdef _WIN32
         DWORD bytesWritten = 0;
-        bool success = WriteFile(m_handle.get(), trackedCommand.c_str(),
-            static_cast<DWORD>(trackedCommand.length()),
-            &bytesWritten, nullptr);
+        bool success;
+        {
+            // Guard the handle against a concurrent close(): a writer must not
+            // race handle teardown (use-after-close / handle reuse).
+            std::lock_guard<std::mutex> handleLock(m_mutex);
+            if (!m_isOpen) {
+                std::lock_guard<std::mutex> lock(m_commandMutex);
+                auto it = m_pendingCommands.find(cmdId);
+                if (it != m_pendingCommands.end()) {
+                    try {
+                        it->second->promise.set_exception(std::make_exception_ptr(
+                            std::runtime_error("Connection closed"))); }
+                    catch (...) {}
+                    m_pendingCommands.erase(it);
+                }
+                return future;
+            }
+            success = WriteFile(m_handle.get(), trackedCommand.c_str(),
+                static_cast<DWORD>(trackedCommand.length()),
+                &bytesWritten, nullptr);
+        }
 
         if (!success || bytesWritten != trackedCommand.length()) {
             std::lock_guard<std::mutex> lock(m_commandMutex);
@@ -211,9 +229,15 @@ namespace makcu {
 
 #ifdef _WIN32
         DWORD bytesWritten = 0;
-        bool success = WriteFile(m_handle.get(), fullCommand.c_str(),
-            static_cast<DWORD>(fullCommand.length()),
-            &bytesWritten, nullptr);
+        bool success;
+        {
+            // Guard the handle against a concurrent close() (use-after-close).
+            std::lock_guard<std::mutex> handleLock(m_mutex);
+            if (!m_isOpen) return false;
+            success = WriteFile(m_handle.get(), fullCommand.c_str(),
+                static_cast<DWORD>(fullCommand.length()),
+                &bytesWritten, nullptr);
+        }
 
         if (success && bytesWritten == fullCommand.length()) {
             FlushFileBuffers(m_handle.get());
@@ -669,6 +693,7 @@ namespace makcu {
     std::vector<uint8_t> SerialPort::read(size_t maxBytes) {
         // This is a legacy method - not recommended for high performance
         std::vector<uint8_t> buffer;
+        std::lock_guard<std::mutex> handleLock(m_mutex);
         if (!m_isOpen || maxBytes == 0) {
             return buffer;
         }

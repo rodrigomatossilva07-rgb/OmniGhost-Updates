@@ -390,10 +390,12 @@ namespace makcu {
     }
 
     ConnectionStatus Device::getStatus() const {
+        std::lock_guard<std::mutex> lock(m_impl->mutex);
         return m_impl->status;
     }
 
     DeviceInfo Device::getDeviceInfo() const {
+        std::lock_guard<std::mutex> lock(m_impl->mutex);
         return m_impl->deviceInfo;
     }
 
@@ -851,6 +853,14 @@ namespace makcu {
 
     bool Device::setMouseSerial(const std::string& serial) {
         if (!m_impl->connected.load()) return false;
+
+        // The serial string is embedded verbatim into a device command:
+        // reject characters that would terminate or break out of the command.
+        for (char c : serial) {
+            if (c == '\'' || c == '\\' || c == '(' || c == ')' || c == '\r' || c == '\n'
+                || static_cast<unsigned char>(c) < 0x20)
+                return false;
+        }
 
         std::string command = "km.serial('" + serial + "')";
         return m_impl->executeCommand(command);
