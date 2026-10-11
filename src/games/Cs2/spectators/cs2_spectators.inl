@@ -31,6 +31,8 @@ static void UpdateSpectators(const Config& frame_config,
         runtime.spectator_target = cachedTarget;
         runtime.spectators = cachedSpectators;
         runtime.spectator_count = static_cast<int>(runtime.spectators.size());
+        CacheManager::Metrics().spectators.store(
+            cachedSpectators.size(), std::memory_order_relaxed);
         return;
     }
     if (g_pressure_level.load(std::memory_order_relaxed) >= 2)
@@ -173,6 +175,8 @@ static void UpdateSpectators(const Config& frame_config,
     cachedLocalDead = localDead;
     nextRefreshMs = now + 500u;
     runtime.spectator_count = static_cast<int>(runtime.spectators.size());
+    CacheManager::Metrics().spectators.store(
+        cachedSpectators.size(), std::memory_order_relaxed);
 }
 
 

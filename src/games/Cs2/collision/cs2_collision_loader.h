@@ -34,6 +34,7 @@ private:
     bool stop_ = false;
     bool pending_ = false;
     std::string requested_map_;
+    std::string active_map_;
     std::string attempted_map_;
     uint64_t retry_at_ms_ = 0;
     uint64_t epoch_ = 1;

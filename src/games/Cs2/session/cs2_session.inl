@@ -46,13 +46,14 @@ bool g_entity_list_force_refresh = true;
 // map change and reattach so no static unordered_map can inherit another
 // session's pointers.
 void ResetSessionState(const char* reason) {
-    g_session_generation.fetch_add(1, std::memory_order_acq_rel);
+    const uint64_t newGeneration = CacheManager::AdvanceGeneration();
     g_boneMapping.resolved = false; // P1-14: Reset bone mapping on session change (map change, detach, reattach)
     g_visibility_worker.Reset();
     g_collision_loader.Reset();
     Telemetry::ResetSession();
     Camera::Reset();
     RuntimePipeline::ResetPublishMetrics();
+    CacheManager::ResetMetrics();
     g_pending_entity_list = 0;
     g_entity_list_confirmations = 0;
     g_entity_list_next_validation_ms = 0;
@@ -60,7 +61,7 @@ void ResetSessionState(const char* reason) {
     g_entity_list_force_refresh = true;
     g_cached_entity_root = 0;
     if (reason) std::cout << "[CS2] Reset de sessao: " << reason
-                          << " gen=" << g_session_generation.load(std::memory_order_relaxed) << std::endl;
+                          << " gen=" << newGeneration << std::endl;
 }
 
 

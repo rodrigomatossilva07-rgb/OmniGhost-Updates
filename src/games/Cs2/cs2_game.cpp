@@ -23,6 +23,7 @@
 #include "telemetry/cs2_telemetry.h"
 #include "core/cs2_core_world.h"
 #include "metadata/cs2_metadata.h"
+#include "state/cs2_cache_manager.h"
 
 #include <Windows.h>
 #include <TlHelp32.h>
@@ -116,7 +117,7 @@ std::atomic_bool g_acquisition_stop{false};
 std::atomic_bool g_acquisition_running{false};
 std::atomic<float> g_presentation_fps{0.f};
 bool g_publish_runtime_this_scan = true; // acquisition producer only
-std::atomic<uint64_t> g_session_generation{1};
+auto& g_session_generation = CacheManager::session_generation;
 std::mutex g_process_liveness_mutex;
 uint64_t g_process_liveness_next_probe_ms = 0;
 std::atomic_bool g_process_liveness_last_result{true};
@@ -609,186 +610,6 @@ static bool OptionalDmaShouldYieldToCamera() noexcept {
 #include "spectators/cs2_spectators.inl"
 #include "core/cs2_world_pipeline.inl"
 #include "runtime/cs2_runtime_threads.inl"
-bool ReinitDma() {
-    const bool restart_acquisition = AcquisitionRunning();
-    if (restart_acquisition)
-        StopAcquisition();
-    status = "Reinit DMA...";
-    std::cout << "[CS2] Reinit DMA\n";
-    mem.InvalidateProcess();
-    bool ok = mem.Init("cs2.exe", true, false) || mem.Init("CS2.exe", true, false);
-    if (!ok) {
-        mem.ResetDevice();
-        if (!mem.Init(std::string(), true, false)) {
-            status = "Reinit DMA: FPGA falhou";
-            return false;
-        }
-        ok = mem.Init("cs2.exe", true, false) || mem.Init("CS2.exe", true, false);
-    }
-    if (!ok) {
-        status = "Reinit DMA: attach falhou";
-        return false;
-    }
-    if (!ResolveModuleBases()) {
-        status = "Reinit DMA: client.dll nao encontrado";
-        std::cout << "[CS2] " << status << std::endl;
-        return false;
-    }
-    status = "Reinit DMA OK";
-    std::cout << "[CS2] " << status << std::endl;
-    if (restart_acquisition)
-        EnsureAcquisitionStarted();
-    return true;
-}
-
-void Shutdown() {
-    StopAcquisition();
-    g_visibility_worker.Stop();
-    g_collision_loader.Stop();
-    WebRadar::Stop();
-    DestroyScatter();
-    ResetSessionState("shutdown");
-    g_pending_entity_list = 0;
-    g_entity_list_confirmations = 0;
-    g_entity_list_next_validation_ms = 0;
-    g_entity_list_next_full_probe_ms = 0;
-    g_entity_list_force_refresh = true;
-    g_controller_stride = kEntityIdentityStride;
-    g_pawn_stride = kEntityIdentityStride;
-    ready = false;
-    g_read_fails.store(0, std::memory_order_relaxed);
-    runtime = Runtime{};
-    // Handoff: acquisition threads are joined above; publish the cleared
-    // runtime from this thread without tripping the single-producer guard.
-    RuntimePipeline::ResetProducerThreadForShutdown();
-    PublishRuntimeSnapshot();
-    status = "Shutdown";
-}
-
-bool RefreshProcessLiveness() {
-	// Process liveness is control-plane state, not frame state. Repeated
-	// VMMDLL_PidGetFromName calls at the old every-eight-scans cadence can cause
-	// needless native-resource churn in some MemProcFS builds. Cache the probe
-	// for one second; shutdown detection remains responsive without polling VMM
-	// dozens of times per second.
-	const uint64_t now_ms = GetTickCount64();
-	std::scoped_lock lock(g_process_liveness_mutex);
-	if (now_ms < g_process_liveness_next_probe_ms)
-		return g_process_liveness_last_result.load(std::memory_order_acquire);
-	g_process_liveness_next_probe_ms = now_ms + 1000;
-
-    // A local process is not proof of liveness on the DMA target PC.
-    DWORD pid = 0;
-    if (mem.vHandle) {
-        pid = mem.GetPidFromName("cs2.exe");
-    }
-	g_process_liveness_last_result.store(pid != 0, std::memory_order_release);
-	return pid != 0;
-}
-
-bool IsGameProcessAlive() {
-    // Presentation/UI never performs a potentially blocking MemProcFS process
-    // query while a CS2 acquisition session is running.
-    if (g_acquisition_running.load(std::memory_order_acquire))
-        return g_process_liveness_last_result.load(std::memory_order_acquire);
-    return RefreshProcessLiveness();
-}
-
-const char* StatusLine() {
-    static char buf[96];
-    if (!ready)
-        std::snprintf(buf, sizeof(buf), "%s", status.c_str());
-    else {
-        const auto snapshot = AcquireRuntimeSnapshot();
-        std::snprintf(buf, sizeof(buf), "CS2 b%u  %d jogadores",
-            snapshot ? snapshot->build_number : 0,
-            snapshot ? snapshot->player_count : 0);
-    }
-    return buf;
-}
-
-int PlayerCount() {
-    const auto snapshot = AcquireRuntimeSnapshot();
-    return snapshot ? snapshot->player_count : 0;
-}
-
-// Soft probe that works in lobby/menu: entity list + view matrix must resolve.
-// Does NOT require local pawn (often null in main menu).
-bool SoftProbeLobbyOffsets() {
-    if (!ready || !offsets.loaded || !runtime.client_base) {
-        std::cout << "[CS2] SoftProbe: not attached / offsets not loaded\n";
-        return false;
-    }
-    const uintptr_t client = runtime.client_base;
-    uintptr_t el = 0;
-    float vm[16]{};
-    const bool el_ok = mem.Read(client + offsets.dwEntityList, &el, sizeof(el))
-        && el >= 0x10000ULL && el < 0x00007FFFFFFFFFFFULL;
-    const bool vm_ok = mem.Read(client + offsets.dwViewMatrix, vm, sizeof(vm));
-    bool matrix_shape = false;
-    if (vm_ok) {
-        int finite = 0;
-        for (int i = 0; i < 16; ++i)
-            if (std::isfinite(vm[i])) ++finite;
-        // identity-ish or any live camera matrix: not all zeros, mostly finite
-        float abs_sum = 0.f;
-        for (int i = 0; i < 16; ++i) abs_sum += std::fabs(vm[i]);
-        matrix_shape = finite >= 12 && abs_sum > 0.01f;
-    }
-    // LocalPlayerPawn pointer slot must be readable (value may be 0 in lobby)
-    uintptr_t lpp = 0;
-    const bool lpp_slot = mem.Read(client + offsets.dwLocalPlayerPawn, &lpp, sizeof(lpp));
-    const bool ok = el_ok && (matrix_shape || lpp_slot);
-    std::cout << "[CS2] SoftProbe lobby EL=" << (el_ok ? "OK" : "FAIL")
-              << " VM=" << (matrix_shape ? "OK" : "bad")
-              << " LPP_slot=" << (lpp_slot ? "OK" : "FAIL")
-              << " LPP=0x" << std::hex << lpp << std::dec
-              << " => " << (ok ? "PASS" : "FAIL") << std::endl;
-    return ok;
-}
-
-bool SelfTestOffsets() {
-    runtime.offsets_self_test_ok = false;
-    if (!ready || !offsets.loaded) {
-        std::cout << "[CS2] SelfTest: not ready" << std::endl;
-        return false;
-    }
-    // Lobby-safe first: if entity list + matrix/LPP slot work, offsets are not outdated
-    if (SoftProbeLobbyOffsets()) {
-        // Prefer full pawn test when available (in-match)
-        if (runtime.local_pawn) {
-            int hp = 0;
-            int team = 0;
-            uintptr_t scene = 0;
-            const bool ok_hp = mem.Read(runtime.local_pawn + offsets.m_iHealth, &hp, sizeof(hp));
-            const bool ok_team = mem.Read(runtime.local_pawn + offsets.m_iTeamNum, &team, sizeof(team));
-            const bool ok_scene = mem.Read(runtime.local_pawn + offsets.m_pGameSceneNode, &scene, sizeof(scene));
-            const bool full = ok_hp && hp >= 0 && hp <= 200 && ok_team && team >= 0 && team <= 3
-                && ok_scene && scene != 0;
-            runtime.offsets_self_test_ok = full || true; // soft pass if lobby probe ok
-            std::cout << "[CS2] SelfTest local HP=" << hp << " team=" << team
-                      << " scene=" << (ok_scene && scene ? "OK" : "fail")
-                      << " full=" << (full ? "PASS" : "skip") << std::endl;
-            return true;
-        }
-        runtime.offsets_self_test_ok = true;
-        return true;
-    }
-    runtime.offsets_self_test_ok = false;
-    std::cout << "[CS2] SelfTest FAIL — offsets likely outdated\n";
-    return false;
-}
-
-bool ValidateLiveOffsets() {
-    if (AcquisitionRunning()) {
-        const auto snapshot = AcquireRuntimeSnapshot();
-        // The worker already proved the same pointer chain while producing a
-        // recent frame. Avoid a second DMA probe racing the acquisition lane.
-        return snapshot && snapshot->client_base != 0 &&
-            (snapshot->frames > 0 || snapshot->offsets_self_test_ok);
-    }
-    // Use soft probe for lobby-safe validation; if that passes, offsets are not outdated.
-    return SoftProbeLobbyOffsets();
-}
-
+#include "session/cs2_lifecycle.inl"
+#include "offsets/cs2_offset_validation.inl"
 } // namespace CS2

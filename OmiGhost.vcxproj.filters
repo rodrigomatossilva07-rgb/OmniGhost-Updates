@@ -1,6 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" ToolsVersion="4.0">
   <ItemGroup>
+    <ClInclude Include="src\games\Cs2\bomb\cs2_bomb.inl"><Filter>Header Files\Cs2</Filter></ClInclude>
+    <ClInclude Include="src\games\Cs2\bones\cs2_bones_pipeline.inl"><Filter>Header Files\Cs2</Filter></ClInclude>
+    <ClInclude Include="src\games\Cs2\state\cs2_cache_manager.h"><Filter>Header Files\Cs2</Filter></ClInclude>
+    <ClInclude Include="src\games\Cs2\collision\cs2_collision_loader.h"><Filter>Header Files\Cs2</Filter></ClInclude>
+    <ClInclude Include="src\games\Cs2\core\cs2_core_acquisition.inl"><Filter>Header Files\Cs2</Filter></ClInclude>
+    <ClInclude Include="src\games\Cs2\core\cs2_core_world.h"><Filter>Header Files\Cs2</Filter></ClInclude>
+    <ClInclude Include="src\games\Cs2\core\cs2_world_pipeline.inl"><Filter>Header Files\Cs2</Filter></ClInclude>
+    <ClInclude Include="src\games\Cs2\dropped_items\cs2_dropped_items.inl"><Filter>Header Files\Cs2</Filter></ClInclude>
+    <ClInclude Include="src\games\Cs2\metadata\cs2_metadata.h"><Filter>Header Files\Cs2</Filter></ClInclude>
+    <ClInclude Include="src\games\Cs2\offsets\cs2_offset_validation.inl"><Filter>Header Files\Cs2</Filter></ClInclude>
+    <ClInclude Include="src\games\Cs2\offsets\cs2_offsets_pipeline.inl"><Filter>Header Files\Cs2</Filter></ClInclude>
+    <ClInclude Include="src\games\Cs2\runtime\cs2_camera.h"><Filter>Header Files\Cs2</Filter></ClInclude>
+    <ClInclude Include="src\games\Cs2\runtime\cs2_optional_lane.inl"><Filter>Header Files\Cs2</Filter></ClInclude>
+    <ClInclude Include="src\games\Cs2\runtime\cs2_runtime.h"><Filter>Header Files\Cs2</Filter></ClInclude>
+    <ClInclude Include="src\games\Cs2\runtime\cs2_runtime_threads.inl"><Filter>Header Files\Cs2</Filter></ClInclude>
+    <ClInclude Include="src\games\Cs2\session\cs2_lifecycle.inl"><Filter>Header Files\Cs2</Filter></ClInclude>
+    <ClInclude Include="src\games\Cs2\session\cs2_session.inl"><Filter>Header Files\Cs2</Filter></ClInclude>
+    <ClInclude Include="src\games\Cs2\spectators\cs2_spectators.inl"><Filter>Header Files\Cs2</Filter></ClInclude>
+    <ClInclude Include="src\games\Cs2\telemetry\cs2_telemetry.h"><Filter>Header Files\Cs2</Filter></ClInclude>
+    <ClInclude Include="src\games\Cs2\visibility\cs2_visibility_worker.h"><Filter>Header Files\Cs2</Filter></ClInclude>
     <Filter Include="Source Files">
       <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
       <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
@@ -562,6 +582,9 @@
       <Filter>Source Files\Cs2</Filter>
     </ClCompile>
     <ClCompile Include="src\games\Cs2\bones\cs2_bones.cpp">
+      <Filter>Source Files\Cs2</Filter>
+    </ClCompile>
+    <ClCompile Include="src\games\Cs2\state\cs2_cache_manager.cpp">
       <Filter>Source Files\Cs2</Filter>
     </ClCompile>
     <ClCompile Include="src\games\Cs2\collision\cs2_collision_loader.cpp">

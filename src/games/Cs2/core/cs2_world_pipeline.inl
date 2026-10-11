@@ -55,7 +55,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
     static uint64_t last_good_ms = 0;
     struct RecentPlayer {
         Player player{};
-        std::atomic<uint64_t> last_seen_ms{0};
+        uint64_t last_seen_ms = 0;
         uint64_t entry_generation = 0;
         bool confirmed_dead = false; // P0-3: never reinsert after confirmed death
     };
@@ -122,7 +122,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
                     rp.player.pawn = r.pawn;
                     rp.entry_generation = generation;
                 }
-                rp.last_seen_ms.store(mergeNowMs, std::memory_order_relaxed);
+                rp.last_seen_ms = mergeNowMs;
                 rp.player.controller = r.controller;
                 std::snprintf(rp.player.name, sizeof(rp.player.name), "%s", r.name);
                 rp.player.is_bot = IsBotPlayerName(r.name);
@@ -139,7 +139,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
                     rp.player.pawn = r.pawn;
                     rp.entry_generation = generation;
                 }
-                rp.last_seen_ms.store(mergeNowMs, std::memory_order_relaxed);
+                rp.last_seen_ms = mergeNowMs;
                 if (r.weapon_def > 0) rp.player.weapon_def = r.weapon_def;
                 if (r.weapon[0])
                     std::snprintf(rp.player.weapon, sizeof(rp.player.weapon), "%s", r.weapon);
@@ -158,7 +158,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
                     rp.player.pawn = r.pawn;
                     rp.entry_generation = generation;
                 }
-                rp.last_seen_ms.store(mergeNowMs, std::memory_order_relaxed);
+                rp.last_seen_ms = mergeNowMs;
                 rp.player.visibility_known = true;
                 rp.player.visible = r.visible;
             }
@@ -1409,7 +1409,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
                     std::snprintf(corePlayer.name, sizeof(corePlayer.name), "%s",
                         rit->second.player.name);
                     corePlayer.is_bot = corePlayer.is_bot || rit->second.player.is_bot;
-                    rit->second.last_seen_ms.store(scan_now_ms, std::memory_order_relaxed);
+                    rit->second.last_seen_ms = scan_now_ms;
                 }
                 if (rit->second.player.weapon[0])
                     std::snprintf(corePlayer.weapon, sizeof(corePlayer.weapon), "%s",
@@ -1469,9 +1469,14 @@ static void RunFrameWithConfig(const Config& frame_config) {
                     ++it;
             }
         };
-        prune(recent_players, [](const RecentPlayer& e) { return e.last_seen_ms.load(std::memory_order_relaxed); });
+        prune(recent_players, [](const RecentPlayer& e) { return e.last_seen_ms; });
         prune(bone_cache, [](const CachedBones& e) { return e.last_valid_ms; });
     }
+    auto& cacheMetrics = CacheManager::Metrics();
+    cacheMetrics.recent_players.store(recent_players.size(), std::memory_order_relaxed);
+    cacheMetrics.bones.store(bone_cache.size(), std::memory_order_relaxed);
+    cacheMetrics.controller_pawns.store(controllerPawnCache.size(), std::memory_order_relaxed);
+    cacheMetrics.scene_bones.store(sceneBoneCache.size(), std::memory_order_relaxed);
     QueueOptionalEnrichment(frame_config);
     {
         // Residual phase accounting for core-only scans.

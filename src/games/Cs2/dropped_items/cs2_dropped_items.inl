@@ -36,6 +36,8 @@ static void CollectDroppedWeapons(const Config& frame_config, bool in_match,
                 out.push_back(it->second.weapon);
             ++it;
         }
+        CacheManager::Metrics().dropped_weapons.store(
+            weapon_cache.size(), std::memory_order_relaxed);
     };
     if (now >= nextClassCachePruneMs) {
         nextClassCachePruneMs = now + 5000u;

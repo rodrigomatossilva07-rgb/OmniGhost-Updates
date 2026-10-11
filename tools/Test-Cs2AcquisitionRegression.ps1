@@ -4,7 +4,14 @@ param([string]$ProjectDir = '')
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 if (-not $ProjectDir) { $ProjectDir = Split-Path -Parent $PSScriptRoot }
-$source = [IO.File]::ReadAllText((Join-Path $ProjectDir 'src/games/Cs2/cs2_game.cpp'))
+$cs2Root = Join-Path $ProjectDir 'src/games/Cs2'
+# The acquisition runtime is intentionally composed from focused .cpp/.inl
+# modules. Audit the complete implementation instead of silently regressing to
+# checks against the small composition root only.
+$sourceFiles = Get-ChildItem -LiteralPath $cs2Root -Recurse -File |
+    Where-Object { $_.Extension -in @('.cpp', '.inl') -and $_.FullName -notlike '*\esp\cs2_esp.cpp' } |
+    Sort-Object FullName
+$source = ($sourceFiles | ForEach-Object { [IO.File]::ReadAllText($_.FullName) }) -join "`n"
 $espSource = [IO.File]::ReadAllText((Join-Path $ProjectDir 'src/games/Cs2/esp/cs2_esp.cpp'))
 
 function Require-Match([string]$Text, [string]$Pattern, [string]$Reason) {
@@ -70,7 +77,7 @@ Require-Match $source 'Visibility::CameraOrigin\(' 'Visibility must solve the wo
 Require-Match $source 'collision.IsLoadedFor\(world->map_name\)' 'Optional visibility must read map identity from an immutable snapshot.'
 Require-Condition ($source -notmatch 'Trajectory::Vec3\(cam->view_matrix\[12\]') 'Visibility still uses the projection row as camera position.'
 
-$historyLocks = [regex]::Matches($source, 'lock\(g_camera_history_mutex\)').Count
+$historyLocks = [regex]::Matches($source, 'lock\(g_history_mutex\)').Count
 Require-Condition ($historyLocks -eq 3) 'Camera history publish, reset and selection must all lock the same mutex.'
 
 $drawPlayers = [regex]::Match($espSource, '(?s)void DrawPlayers\(const Runtime& snapshot, const Config& settings\) \{.*?\n\}').Value

@@ -13,7 +13,9 @@ $ceilings = [ordered]@{
     'DMALibrary/Memory/Memory.cpp' = 2404
     # Current baselines: fail on further growth until these modules are split.
     'src/games/Fivem/esp/esp.cpp' = 2962
-    'src/games/Cs2/cs2_game.cpp' = 4748
+    # CS2 is now a small composition root; feature code belongs in its focused
+    # runtime/core/bones/metadata/session modules.
+    'src/games/Cs2/cs2_game.cpp' = 750
 }
 $rows = @()
 foreach ($relative in $ceilings.Keys) {

@@ -19,8 +19,17 @@ void Loader::EnsureStartedLocked() {
 void Loader::Request(const char* map_name, bool needed, uint64_t now_ms) {
     auto& cache = Trajectory::CollisionCache();
     if (!needed) {
-        std::lock_guard lock(mutex_);
-        if (!pending_ && requested_map_.empty())
+        cancel_.store(true, std::memory_order_release);
+        {
+            std::lock_guard lock(mutex_);
+            if (pending_ || !active_map_.empty())
+                ++epoch_;
+            pending_ = false;
+            requested_map_.clear();
+            attempted_map_.clear();
+            retry_at_ms_ = 0;
+        }
+        if (cache.WorldSnapshot())
             cache.Clear();
         return;
     }
@@ -31,7 +40,9 @@ void Loader::Request(const char* map_name, bool needed, uint64_t now_ms) {
     const std::string requested(map_name);
     if (requested == attempted_map_ && now_ms < retry_at_ms_)
         return;
-    if (requested == requested_map_ && (pending_ || !cancel_.load(std::memory_order_acquire)))
+    if (requested == requested_map_ && pending_)
+        return;
+    if (requested == active_map_ && !cancel_.load(std::memory_order_acquire))
         return;
 
     EnsureStartedLocked();
@@ -51,6 +62,7 @@ void Loader::Reset() {
         ++epoch_;
         pending_ = false;
         requested_map_.clear();
+        active_map_.clear();
         attempted_map_.clear();
         retry_at_ms_ = 0;
     }
@@ -92,6 +104,7 @@ void Loader::Run() {
             map = requested_map_;
             requested_map_.clear();
             pending_ = false;
+            active_map_ = map;
             epoch = epoch_;
             cancel_.store(false, std::memory_order_release);
         }
@@ -108,6 +121,8 @@ void Loader::Run() {
         }
 
         std::lock_guard lock(mutex_);
+        if (active_map_ == map)
+            active_map_.clear();
         if (epoch != epoch_ || cancel_.load(std::memory_order_acquire)) {
             if (Trajectory::CollisionCache().IsLoadedFor(map.c_str()))
                 Trajectory::CollisionCache().Clear();
