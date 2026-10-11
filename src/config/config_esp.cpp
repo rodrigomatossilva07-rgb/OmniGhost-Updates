@@ -84,10 +84,10 @@ bool DeserializeESP(const std::string& key, const std::string& val) {
     if (key.rfind("esp.", 0) != 0) return false;
     auto& e = esp::config;
     auto bi = [&](const char* k) { return key == k; };
-    auto toB = [&]() { return val == "1" || val == "true"; };
-    auto toF = [&]() { return (float)atof(val.c_str()); };
-    auto toI = [&]() { return atoi(val.c_str()); };
-    auto toU = [&]() { return (ImU32)strtoul(val.c_str(), nullptr, 10); };
+    auto toB = [&]() -> bool { return config_manager::toB(val); };
+    auto toF = [&]() -> float { return config_manager::toF(val); };
+    auto toI = [&]() -> int { return config_manager::toI(val); };
+    auto toU = [&]() -> ImU32 { return config_manager::toU(val); };
 
     if (bi("esp.enabled")) { e.enabled = toB(); return true; }
     if (bi("esp.self_esp")) { e.self_esp = toB(); return true; }
@@ -137,13 +137,6 @@ bool DeserializeESP(const std::string& key, const std::string& val) {
     if (bi("esp.player_name")) { e.player_name = toB(); return true; }
     if (bi("esp.player_id")) { e.player_id = toB(); return true; }
     if (bi("esp.max_esp_distance")) { e.max_esp_distance = toF(); return true; }
-    if (bi("esp.show_knocked")) { e.show_knocked = toB(); return true; }
-    if (bi("esp.radar_pos_x")) { e.radar_pos_x = toF(); return true; }
-    if (bi("esp.radar_pos_y")) { e.radar_pos_y = toF(); return true; }
-    if (bi("esp.blip_esp")) { e.blip_esp = toB(); return true; }
-    if (bi("esp.waypoint_line")) { e.waypoint_line = toB(); return true; }
-    if (bi("esp.triangle_radar_radius")) { e.triangle_radar_radius = toF(); return true; }
-    if (bi("esp.joints")) { e.joints = toB(); return true; }
     if (bi("esp.snapline_pos")) { e.snapline_pos = toI(); return true; }
     if (bi("esp.circle_type")) { e.circle_type = toI(); return true; }
     if (bi("esp.color_visible")) { e.color_visible = toU(); return true; }

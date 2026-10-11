@@ -1,5 +1,7 @@
 #pragma once
 
+#include "update_types.h"
+
 #include <cstdint>
 #include <string>
 #include <string_view>

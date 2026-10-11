@@ -38,10 +38,10 @@ bool DeserializeVehicle(const std::string& key, const std::string& val) {
     if (key.rfind("veh.", 0) != 0) return false;
     auto& v = vehicle_esp::config;
     auto bi = [&](const char* k) { return key == k; };
-    auto toB = [&]() { return val == "1" || val == "true"; };
-    auto toF = [&]() { return (float)atof(val.c_str()); };
-    auto toI = [&]() { return atoi(val.c_str()); };
-    auto toU = [&]() { return (ImU32)strtoul(val.c_str(), nullptr, 10); };
+    auto toB = [&]() -> bool { return config_manager::toB(val); };
+    auto toF = [&]() -> float { return config_manager::toF(val); };
+    auto toI = [&]() -> int { return config_manager::toI(val); };
+    auto toU = [&]() -> ImU32 { return config_manager::toU(val); };
 
     if (bi("veh.enabled")) { v.enabled = toB(); return true; }
     if (bi("veh.self_vehicle")) { v.self_vehicle = toB(); return true; }
@@ -64,10 +64,6 @@ bool DeserializeVehicle(const std::string& key, const std::string& val) {
     if (bi("veh.color_occupants")) { v.color_occupants = toU(); return true; }
     if (bi("veh.color_name")) { v.color_name = toU(); return true; }
     if (bi("veh.snapline_pos")) { v.snapline_pos = toI(); return true; }
-    if (bi("veh.color_unlocked")) { v.color_unlocked = toU(); return true; }
-    if (bi("veh.color_locked")) { v.color_locked = toU(); return true; }
-    if (bi("veh.color_occupants")) { v.color_occupants = toU(); return true; }
-    if (bi("veh.color_name")) { v.color_name = toU(); return true; }
     if (bi("veh.unlock_bind")) { v.unlock_bind = toI(); return true; }
     if (bi("veh.lock_bind")) { v.lock_bind = toI(); return true; }
     if (bi("veh.fix_total_bind")) { v.fix_total_bind = toI(); return true; }

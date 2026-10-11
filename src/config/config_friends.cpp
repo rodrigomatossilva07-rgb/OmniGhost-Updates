@@ -25,10 +25,10 @@ void SerializeFriends(std::ostringstream& o) {
 bool DeserializeFriends(const std::string& key, const std::string& val) {
     if (key.rfind("friends.", 0) != 0) return false;
     auto bi = [&](const char* k) { return key == k; };
-    auto toB = [&]() { return val == "1" || val == "true"; };
-    auto toF = [&]() { return (float)atof(val.c_str()); };
-    auto toI = [&]() { return atoi(val.c_str()); };
-    auto toU = [&]() { return (ImU32)strtoul(val.c_str(), nullptr, 10); };
+    auto toB = [&]() -> bool { return config_manager::toB(val); };
+    auto toF = [&]() -> float { return config_manager::toF(val); };
+    auto toI = [&]() -> int { return config_manager::toI(val); };
+    auto toU = [&]() -> ImU32 { return config_manager::toU(val); };
 
     if (bi("friends.ignore_aim")) { friends::config.ignore_aim = toB(); return true; }
     if (bi("friends.ignore_silent")) { friends::config.ignore_silent = toB(); return true; }

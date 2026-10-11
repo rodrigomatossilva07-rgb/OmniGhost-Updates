@@ -15,6 +15,7 @@
 #endif
 #include <Windows.h>
 #include <cstdlib>
+#include <iostream>
 #include <sstream>
 
 namespace config_manager {

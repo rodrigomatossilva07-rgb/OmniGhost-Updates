@@ -3,6 +3,7 @@
 #include "../platform/app_paths.h"
 #include "../platform/file_integrity.h"
 #include "../platform/session_log.h"
+#include "../platform/text_encoding.h"
 #include "../platform/runtime_bootstrap.h"
 #include "../updater/crypto.h"
 #include "../updater/installation_integrity.h"

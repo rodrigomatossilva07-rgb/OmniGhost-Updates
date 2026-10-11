@@ -39,14 +39,6 @@ namespace FiveM {
         std::vector<uintptr_t> validPeds;
         std::vector<Vec2> screenPositions;
 
-        // P1-8 fix: Thread-safe snapshot for validPeds and positions
-        struct ValidPedsSnapshot {
-            std::vector<uintptr_t> validPeds;
-            std::vector<Vec3> positions;
-            uint64_t generation = 0;
-            std::chrono::steady_clock::time_point timestamp{};
-        };
-
         static std::mutex s_validPedsSnapshotMutex;
         static ValidPedsSnapshot s_validPedsSnapshot;
 
@@ -73,12 +65,6 @@ namespace FiveM {
             std::scoped_lock lock(s_validPedsSnapshotMutex);
             return s_validPedsSnapshot.positions;
         }
-
-        // Global containers
-        std::vector<uintptr_t> rawPedPointers;
-        std::vector<Vec3> positions;
-        std::vector<uintptr_t> validPeds;
-        std::vector<Vec2> screenPositions;
 
         struct AcquisitionSnapshot {
             std::array<uintptr_t, MAX_PEDS> validPeds{};

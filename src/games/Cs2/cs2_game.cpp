@@ -570,7 +570,7 @@ bool ProbeViewMatrix(float* destination = nullptr) {
 #include "bomb/cs2_bomb.inl"
 // Returns false when the camera lane is still busy after the wait budget —
 // callers should skip/abandon this optional batch so the camera keeps priority.
-// IDENTICAL to FiveM esp_manager.cpp:295-307
+// IDENTICAL to FiveM esp_manager.cpp:295-307 with exponential backoff
 bool GiveCameraPriorityBeforeOptionalDma() {
     const uint64_t deadline = Camera::Deadline();
     const bool pending = Camera::Pending();
@@ -579,19 +579,30 @@ bool GiveCameraPriorityBeforeOptionalDma() {
     if (!pending && (deadline == 0 || now + 2u < deadline))
         return true;
 
-    // Cooperative yield until the camera lane clears. No hard timeout —
-    // optional DMA must yield to camera unconditionally.
-    for (int spin = 0; spin < 48; ++spin) {
+    // Cooperative yield with exponential backoff until the camera lane clears.
+    // Optional DMA must yield to camera unconditionally.
+    int spin = 0;
+    const int maxSpins = 96; // increased from 48 to match FiveM
+    auto baseDelay = std::chrono::microseconds(10);
+    while (spin < maxSpins) {
         if (!Camera::Pending())
-            return true;
+            return true; // camera done, safe to proceed
         std::this_thread::yield();
+        ++spin;
+        // Exponential backoff after 32 spins
+        if (spin >= 32) {
+            std::this_thread::sleep_for(baseDelay);
+            baseDelay *= 2; // 10µs -> 20µs -> 40µs -> 80µs...
+            if (baseDelay > std::chrono::microseconds(500))
+                baseDelay = std::chrono::microseconds(500);
+        }
     }
-    return false; // camera still busy after 48 yields — skip this optional batch
+    return false; // camera still busy after max retries — skip this optional batch
 }
 
 // True when optional DMA should pause before starting another micro-batch
 // because the camera deadline is imminent or a camera read is in flight.
-static bool OptionalDmaShouldYieldToCamera() noexcept {
+[[maybe_unused]] static bool OptionalDmaShouldYieldToCamera() noexcept {
     if (Camera::Pending())
         return true;
     const uint64_t deadline = Camera::Deadline();
@@ -599,6 +610,18 @@ static bool OptionalDmaShouldYieldToCamera() noexcept {
         return false;
     const uint64_t now = GetTickCount64();
     return now + 3u >= deadline;
+}
+
+// Use the same camera priority logic as GiveCameraPriorityBeforeOptionalDma
+// but without the spin loop - just a quick check for yield decision.
+static bool ShouldYieldToCameraQuick() noexcept {
+    if (Camera::Pending())
+        return true;
+    const uint64_t deadline = Camera::Deadline();
+    if (deadline == 0)
+        return false;
+    const uint64_t now = GetTickCount64();
+    return now + 2u >= deadline;
 }
 
 // ── Optional enrichment worker ───────────────────────────────────────────

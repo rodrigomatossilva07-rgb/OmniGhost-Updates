@@ -155,7 +155,7 @@ void ConfigureRequest(void* request) {
 }
 
 namespace {
-bool ValidateServerCertificate(const void* requestHandle, const std::vector<std::string>& pinnedThumbprints) {
+bool ValidateServerCertificate(HINTERNET requestHandle, const std::vector<std::string>& pinnedThumbprints) {
     if (pinnedThumbprints.empty()) return true; // No pinning configured
 
     PCCERT_CONTEXT certContext = nullptr;

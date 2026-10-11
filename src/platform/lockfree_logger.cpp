@@ -30,7 +30,7 @@ bool LockFreeLogger::Initialize(const std::filesystem::path& logPath, size_t max
     
     // Get current file size
     logFile_.seekp(0, std::ios::end);
-    fileBytes_ = static_cast<size_t>(logFile_.tellp());
+    fileBytes_.store(static_cast<size_t>(logFile_.tellp()), std::memory_order_relaxed);
     
     // Generate session ID
     auto now = std::chrono::system_clock::now();
@@ -174,7 +174,7 @@ LockFreeLogger::Stats LockFreeLogger::GetStats() const noexcept {
     Stats stats;
     stats.totalLogged = totalLogged_.load();
     stats.dropped = dropped_.load();
-    stats.fileBytes = fileBytes_;
+    stats.fileBytes = fileBytes_.load(std::memory_order_relaxed);
     stats.queueSize = eventQueue_.Size();
     return stats;
 }
@@ -189,7 +189,7 @@ void LockFreeLogger::SetLogFile(const std::filesystem::path& path, size_t maxByt
     logFile_.open(logPath_, std::ios::out | std::ios::app | std::ios::binary);
     if (logFile_.is_open()) {
         logFile_.seekp(0, std::ios::end);
-        fileBytes_ = static_cast<size_t>(logFile_.tellp());
+        fileBytes_.store(static_cast<size_t>(logFile_.tellp()), std::memory_order_relaxed);
     }
 }
 
@@ -245,7 +245,7 @@ void LockFreeLogger::WriteToFile() {
         for (const auto& ev : batch) {
             std::string line = FormatEvent(ev);
             logFile_.write(line.c_str(), static_cast<std::streamsize>(line.size()));
-            fileBytes_ += line.size();
+            fileBytes_.fetch_add(line.size(), std::memory_order_relaxed);
         }
         RotateIfNeeded();
     }
@@ -255,7 +255,7 @@ void LockFreeLogger::RotateIfNeeded() {
     // Caller must hold fileMutex_ (WriteToFile).
     if (!logFile_.is_open()) return;
 
-    if (fileBytes_ < maxFileBytes_) return;
+    if (fileBytes_.load(std::memory_order_relaxed) < maxFileBytes_) return;
 
     logFile_.flush();
     logFile_.close();
@@ -269,7 +269,7 @@ void LockFreeLogger::RotateIfNeeded() {
     }
 
     logFile_.open(logPath_, std::ios::out | std::ios::app | std::ios::binary);
-    fileBytes_ = 0;
+    fileBytes_.store(0, std::memory_order_relaxed);
 }
 
 void LockFreeLogger::WriteHeader() {

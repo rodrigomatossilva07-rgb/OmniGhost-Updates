@@ -1032,8 +1032,6 @@ namespace aimbot {
         config.reaction_time = 0.08f;
         config.humanize = true;
         config.jitter_amount = 0.4f;
-        config.silent_legit = false; // silent removed
-        config.silent_rage = false;
         config.trigger_delay = 0.08f;
     }
 
@@ -1043,8 +1041,6 @@ namespace aimbot {
         config.fov_size = 180.f;
         config.reaction_time = 0.f;
         config.humanize = false;
-        config.silent_rage = false; // silent removed
-        config.silent_legit = false;
         config.trigger_delay = 0.02f;
     }
 

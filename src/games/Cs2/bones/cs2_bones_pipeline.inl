@@ -153,14 +153,11 @@ static void RunOptionalEnrichment(const Config& frame_config,
         for (size_t base = 0; base < targets.size() && !!budget.Remaining();) {
             if (g_optional_stop.load(std::memory_order_acquire)) return;
             if (jobGen != g_session_generation.load(std::memory_order_acquire)) return;
-            if (OptionalDmaShouldYieldToCamera()) {
+            // Quick check first - if camera is pending or deadline imminent, do full yield
+            if (CS2::ShouldYieldToCameraQuick()) {
                 if (!CS2::GiveCameraPriorityBeforeOptionalDma())
                     break; // camera still busy after timeout — defer remaining batches
-                if (OptionalDmaShouldYieldToCamera())
-                    break; // defer remaining bone batches to next optional job
             }
-            if (!CS2::GiveCameraPriorityBeforeOptionalDma())
-                break; // camera still busy — defer remaining bone batches
             const size_t end = (std::min)(targets.size(), base + static_cast<size_t>(pressure >= 2 ? 1 : kBatch));
             uintptr_t boneBases[kBatch]{};
             BoneJointSnapshot joints[kBatch][kJointCount]{};

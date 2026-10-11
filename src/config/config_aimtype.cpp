@@ -21,9 +21,9 @@ void SerializeAimType(std::ostringstream& o) {
 bool DeserializeAimType(const std::string& key, const std::string& val) {
     if (key.rfind("aimtype.", 0) != 0) return false;
     auto bi = [&](const char* k) { return key == k; };
-    auto toB = [&]() { return val == "1" || val == "true"; };
-    auto toF = [&]() { return (float)atof(val.c_str()); };
-    auto toI = [&]() { return atoi(val.c_str()); };
+    auto toB = [&]() -> bool { return config_manager::toB(val); };
+    auto toF = [&]() -> float { return config_manager::toF(val); };
+    auto toI = [&]() -> int { return config_manager::toI(val); };
 
     if (bi("aimtype.active")) { aim_type::config.active = (aim_type::DeviceType)toI(); return true; }
     if (bi("aimtype.makcu_enabled")) { aim_type::config.makcu_enabled = toB(); return true; }

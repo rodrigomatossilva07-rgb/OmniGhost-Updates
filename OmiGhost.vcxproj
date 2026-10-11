@@ -114,7 +114,7 @@
     </Exec>
     <Error Condition="'$(OmniGhostDmaDependencyExitCode)'!='0'" Code="OGDMA001" Text="Não foi possível verificar/atualizar a stack DMA oficial. A build foi interrompida para não compilar com dependências incompletas."/>
   </Target>
-  <Target Name="BuildOmniGhostEmbeddedRuntime" BeforeTargets="ClCompile;ResourceCompile" Condition="'$(DesignTimeBuild)'!='true'">
+  <Target Name="BuildOmniGhostEmbeddedRuntime" BeforeTargets="ClCompile;ResourceCompile" Condition="'$(DesignTimeBuild)'!='true' And '$(OmniGhostSkipEmbeddedGeneration)'!='true'">
     <Message Importance="High" Text="[OmniGhost Runtime] Generating single-process native dependency bundle..."/>
     <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; generate-embedded-runtime &quot;$(MSBuildProjectDirectory)&quot; &quot;$(VCInstallDir)Redist\MSVC\$(VCToolsVersion)\x64&quot; &quot;$(Configuration)&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
       <Output TaskParameter="ExitCode" PropertyName="OmniGhostEmbeddedRuntimeExitCode"/>
@@ -126,7 +126,7 @@
     <Error Condition="'$(OmniGhostEmbeddedRuntimeValidationExitCode)'!='0' And '$(Configuration)'!='PrivateStatic'" Code="OGRUN002" Text="O runtime embedded está incompleto: vmm.dll/leechcore.dll não foram incorporados ao EXE."/>
   </Target>
 
-  <Target Name="BuildOmniGhostEmbeddedResources" BeforeTargets="ClCompile;ResourceCompile" Condition="'$(DesignTimeBuild)'!='true'">
+  <Target Name="BuildOmniGhostEmbeddedResources" BeforeTargets="ClCompile;ResourceCompile" Condition="'$(DesignTimeBuild)'!='true' And '$(OmniGhostSkipEmbeddedGeneration)'!='true'">
     <Message Importance="High" Text="[OmniGhost Resources] Validating and generating embedded runtime resources..."/>
     <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; generate-embedded-resources &quot;$(MSBuildProjectDirectory)&quot; &quot;$(Configuration)&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
       <Output TaskParameter="ExitCode" PropertyName="OmniGhostEmbeddedResourcesExitCode"/>

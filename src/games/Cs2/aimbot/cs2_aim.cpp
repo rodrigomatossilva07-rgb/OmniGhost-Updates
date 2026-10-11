@@ -15,6 +15,8 @@
 #include <cstdio>
 #include <array>
 #include <string>
+#include <mutex>
+#include <shared_mutex>
 #include <unordered_map>
 #include <utility>
 
@@ -579,14 +581,13 @@ std::pair<float, float> CalculateRCS(const CS2::Runtime& rt, const CS2::Config& 
 
     LoadRecoilPatterns();
 
-    const WeaponRecoilPattern* pattern = nullptr;
+    WeaponRecoilPattern pattern{};
     {
         std::shared_lock lock(g_recoil_patterns_mutex); // P1-17: Shared lock for read
         auto it = g_recoil_patterns.find(weapon_def);
         if (it == g_recoil_patterns.end()) return {};
-        pattern = &it->second;
+        pattern = it->second;
     }
-    if (!pattern || pattern->length == 0) return {};
     if (pattern.length == 0) return {};
 
     int idx = std::clamp(g_shots_fired - 1, 0, pattern.length - 1);

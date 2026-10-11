@@ -824,7 +824,6 @@ void AcquisitionTick() {
         s_cached_players.reserve(max_slots);
 
         if (s_dec_ok && (s_dec.client_base_ok || s_dec.name_array_ok)) {
-            const int max_slots = s_dec.client_base_ok ? 120 : 64;
             const uintptr_t nsize = offsets.name_entry_size ? offsets.name_entry_size : kWZNameEntrySizeDefault;
             const uintptr_t npos  = offsets.name_array_pos ? offsets.name_array_pos : kWZNameArrayPosDefault;
             const uintptr_t nname = offsets.name_entry_name ? offsets.name_entry_name : kWZNameEntryNameDefault;

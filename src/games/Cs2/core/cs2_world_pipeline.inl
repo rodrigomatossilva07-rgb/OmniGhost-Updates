@@ -53,6 +53,12 @@ static void RunFrameWithConfig(const Config& frame_config) {
     struct RecoveryIdentity { uintptr_t pawn = 0; uintptr_t controller = 0; };
     static std::vector<RecoveryIdentity> last_good_players;
     static uint64_t last_good_ms = 0;
+    // Maximum cache sizes to prevent unbounded memory growth
+    constexpr size_t kMaxRecentPlayers = 128;
+    constexpr size_t kMaxBoneCache = 128;
+    constexpr size_t kMaxStickyBoneLayout = 128;
+    constexpr size_t kMaxLastBoneMs = 128;
+    
     struct RecentPlayer {
         Player player{};
         uint64_t last_seen_ms = 0;
@@ -82,6 +88,37 @@ static void RunFrameWithConfig(const Config& frame_config) {
     if (bone_cache.bucket_count() < 128) bone_cache.reserve(128);
     if (s_stickyBoneLayout.bucket_count() < 128) s_stickyBoneLayout.reserve(128);
     if (s_lastBoneMs.bucket_count() < 128) s_lastBoneMs.reserve(128);
+
+    // Periodic cache size enforcement (every 1000 frames)
+    static uint64_t s_cacheEnforceFrame = 0;
+    if (++s_cacheEnforceFrame % 1000 == 0) {
+        std::unique_lock lock(g_cache_mutex);
+        // Enforce max sizes by removing oldest entries
+        while (recent_players.size() > kMaxRecentPlayers) {
+            auto oldest = recent_players.begin();
+            for (auto it = std::next(oldest); it != recent_players.end(); ++it) {
+                if (it->second.last_seen_ms < oldest->second.last_seen_ms)
+                    oldest = it;
+            }
+            recent_players.erase(oldest);
+        }
+        while (bone_cache.size() > kMaxBoneCache) {
+            auto oldest = bone_cache.begin();
+            for (auto it = std::next(oldest); it != bone_cache.end(); ++it) {
+                if (it->second.last_valid_ms < oldest->second.last_valid_ms)
+                    oldest = it;
+            }
+            bone_cache.erase(oldest);
+        }
+        while (s_stickyBoneLayout.size() > kMaxStickyBoneLayout) {
+            auto it = s_stickyBoneLayout.begin();
+            s_stickyBoneLayout.erase(it);
+        }
+        while (s_lastBoneMs.size() > kMaxLastBoneMs) {
+            auto it = s_lastBoneMs.begin();
+            s_lastBoneMs.erase(it);
+        }
+    }
 
     // ── Merge optional enrichment results (P0 single-writer invariant) ───
     // The optional worker is the sole producer of g_optional_results and never
@@ -317,7 +354,6 @@ static void RunFrameWithConfig(const Config& frame_config) {
     // Visibility colours use the static collision mesh of the active map.
     // The owned loader performs all filesystem/decompression/BVH work away
     // from acquisition and replaces pending requests on a map transition.
-    auto& collision = Trajectory::CollisionCache();
     const bool needs_collision = frame_config.esp_enabled && frame_config.visibility_colors;
     g_collision_loader.Request(runtime.map_name, needs_collision, map_now_ms);
 

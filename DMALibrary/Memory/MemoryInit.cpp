@@ -563,9 +563,6 @@ void Memory::Close() noexcept
 
 bool Memory::Reconnect(bool memMap, bool debug)
 {
-	// FIX CONC-005: controlPlaneMutex_ held only for ResetDevice().
-	// Init() acquires/releases controlPlaneMutex_ internally for Phase 0 validation,
-	// then releases it before long-running FPGA open/process bind (FixCr3/WaitForProcInfo).
 	std::scoped_lock controlPlaneLock(controlPlaneMutex_);
 	ResetDevice();
 	return Init(std::string(), memMap, debug);
@@ -714,63 +711,39 @@ static VMM_HANDLE SafeVmmInitialize(DWORD argc, LPCSTR argv[], DWORD* outSehCode
 
 bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickDeviceProbe)
 {
-	// Phase 0: Fast validation under control-plane lock.
-	{
-		std::scoped_lock controlPlaneLock(controlPlaneMutex_);
+	// One control-plane owner at a time. Concurrent VMMDLL/LeechCore opens against
+	// the same FPGA are a driver/firmware stability risk and never necessary.
+	std::scoped_lock controlPlaneLock(controlPlaneMutex_);
 
-		if (!EnsureRuntimeDependencies()) {
-			OmniGhost::SessionLog::Write(OmniGhost::SessionLog::Severity::Error,
-				OmniGhost::SessionLog::Subsystem::DMA, "Memory::Init runtime dependencies failed",
-				{{"detail", dependencyIntegrityMessage_}});
-			last_attach_result = AttachResult::Failed;
-			return false;
-		}
-		if (!dependencyIntegrityOk_) {
-			std::cout << "[DMA][INTEGRITY] refusing initialization: " << dependencyIntegrityMessage_ << "\n";
-			OmniGhost::SessionLog::Write(OmniGhost::SessionLog::Severity::Error,
-				OmniGhost::SessionLog::Subsystem::DMA, "Memory::Init dependency integrity failed",
-				{{"detail", dependencyIntegrityMessage_}});
-			last_attach_result = AttachResult::Failed;
-			return false;
-		}
-		if (IsCancellationRequested()) {
-			std::cout << "[DMA][Init] cancelled before start\n";
-			last_attach_result = AttachResult::Waiting;
-			return false;
-		}
-
-		// A closed handle with a stale flag means a previous session died.
-		if (DMA_INITIALIZED && !vHandle) {
-			DMA_INITIALIZED = FALSE;
-			PROCESS_INITIALIZED = FALSE;
-		}
+	if (!EnsureRuntimeDependencies()) {
+		OmniGhost::SessionLog::Write(OmniGhost::SessionLog::Severity::Error,
+			OmniGhost::SessionLog::Subsystem::DMA, "Memory::Init runtime dependencies failed",
+			{{"detail", dependencyIntegrityMessage_}});
+		last_attach_result = AttachResult::Failed;
+		return false;
+	}
+	if (!dependencyIntegrityOk_) {
+		std::cout << "[DMA][INTEGRITY] refusing initialization: " << dependencyIntegrityMessage_ << "\n";
+		OmniGhost::SessionLog::Write(OmniGhost::SessionLog::Severity::Error,
+			OmniGhost::SessionLog::Subsystem::DMA, "Memory::Init dependency integrity failed",
+			{{"detail", dependencyIntegrityMessage_}});
+		last_attach_result = AttachResult::Failed;
+		return false;
+	}
+	if (IsCancellationRequested()) {
+		std::cout << "[DMA][Init] cancelled before start\n";
+		last_attach_result = AttachResult::Waiting;
+		return false;
 	}
 
-	// Phase 1: open FPGA + VMM once (OUTSIDE controlPlaneMutex_ to avoid blocking
-	// other control-plane operations like Rebind/Reconnect for 10-30s).
-	// Uses atomic guard to prevent concurrent FPGA opens.
-	if (!DMA_INITIALIZED) {
-		// Fast atomic check-and-set for FPGA open guard
-		bool expected = false;
-		if (!fpgaOpenInProgress_.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
-			std::cout << "[DMA][Init] another FPGA open in progress, waiting...\n";
-			// Wait for the other open to complete
-			while (fpgaOpenInProgress_.load(std::memory_order_acquire)) {
-				std::this_thread::sleep_for(std::chrono::milliseconds(50));
-				if (IsCancellationRequested()) {
-					last_attach_result = AttachResult::Waiting;
-					return false;
-				}
-			}
-			// Another thread completed the open, check if it succeeded
-			if (DMA_INITIALIZED) {
-				std::cout << "[DMA][Init] FPGA already opened by another thread\n";
-			} else {
-				std::cout << "[DMA][Init] other FPGA open failed, retrying...\n";
-				// Fall through to try ourselves
-			}
-		}
+	// A closed handle with a stale flag means a previous session died.
+	if (DMA_INITIALIZED && !vHandle) {
+		DMA_INITIALIZED = FALSE;
+		PROCESS_INITIALIZED = FALSE;
+	}
 
+	// Phase 1: open FPGA + VMM once. Device lifecycle is separate from process bind.
+	if (!DMA_INITIALIZED) {
 		OmniGhost::SessionLog::Write(OmniGhost::SessionLog::Severity::Info,
 			OmniGhost::SessionLog::Subsystem::DMA, "FPGA open started",
 			{{"memmap_requested", memMap ? "yes" : "no"},
@@ -791,198 +764,178 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 
 		// UC-base compatible open: exactly like the working base
 		// Minimal argv: "", "-device", "fpga://algo=0" [+ optional -memmap / -v / -printf]
-		auto tryOpen = [&](const char* device, bool useMmap, int attemptNo, int attemptMax) -> bool {
-			std::vector<LPCSTR> args;
-			args.push_back("");
-			args.push_back("-device");
-			args.push_back(device);
+			auto tryOpen = [&](const char* device, bool useMmap, int attemptNo, int attemptMax) -> bool {
+				std::vector<LPCSTR> args;
+				args.push_back("");
+				args.push_back("-device");
+				args.push_back(device);
 #if defined(OMNIGHOST_DISABLE_VMM_INFODB)
-			args.push_back("-disable-infodb");
+				args.push_back("-disable-infodb");
 #endif
 #if defined(OMNIGHOST_DISABLE_VMM_SYMBOLS)
-			args.push_back("-disable-symbols");
+				args.push_back("-disable-symbols");
 #endif
-		if (EnvironmentFlagEnabled(L"OMNIGHOST_VMM_NOREFRESH"))
-			args.push_back("-norefresh"); // diagnostic A/B only
-		if (useMmap && !mmapPath.empty()) {
-			args.push_back("-memmap");
-			args.push_back(mmapPath.c_str());
-		}
-		if (debug) {
-			args.push_back("-v");
-			args.push_back("-printf");
-		}
+			if (EnvironmentFlagEnabled(L"OMNIGHOST_VMM_NOREFRESH"))
+				args.push_back("-norefresh"); // diagnostic A/B only
+			if (useMmap && !mmapPath.empty()) {
+				args.push_back("-memmap");
+				args.push_back(mmapPath.c_str());
+			}
+			if (debug) {
+				args.push_back("-v");
+				args.push_back("-printf");
+			}
 
-		std::cout << "[DMA][Init] attempt=" << attemptNo << "/" << attemptMax
-			<< " device=" << device
-			<< " infodb="
+			std::cout << "[DMA][Init] attempt=" << attemptNo << "/" << attemptMax
+				<< " device=" << device
+				<< " infodb="
 #if defined(OMNIGHOST_DISABLE_VMM_INFODB)
-			<< "DISABLED"
+				<< "DISABLED"
 #else
-			<< "ENABLED"
+				<< "ENABLED"
 #endif
-			<< " symbols="
+				<< " symbols="
 #if defined(OMNIGHOST_DISABLE_VMM_SYMBOLS)
-			<< "DISABLED"
+				<< "DISABLED"
 #else
-			<< "ENABLED"
+				<< "ENABLED"
 #endif
-			<< " refresh=" << (EnvironmentFlagEnabled(L"OMNIGHOST_VMM_NOREFRESH") ? "DISABLED_DIAGNOSTIC" : "ENABLED_TUNED")
-			<< (useMmap && !mmapPath.empty() ? " memmap=YES" : " memmap=NO") << "\n";
-		OmniGhost::SessionLog::Write(OmniGhost::SessionLog::Severity::Info,
-			OmniGhost::SessionLog::Subsystem::DMA, "FPGA open attempt",
-			{{"attempt", std::to_string(attemptNo)}, {"attempt_max", std::to_string(attemptMax)},
-			 {"device", device}, {"memmap", (useMmap && !mmapPath.empty()) ? "yes" : "no"}});
+				<< " refresh=" << (EnvironmentFlagEnabled(L"OMNIGHOST_VMM_NOREFRESH") ? "DISABLED_DIAGNOSTIC" : "ENABLED_TUNED")
+				<< (useMmap && !mmapPath.empty() ? " memmap=YES" : " memmap=NO") << "\n";
+			OmniGhost::SessionLog::Write(OmniGhost::SessionLog::Severity::Info,
+				OmniGhost::SessionLog::Subsystem::DMA, "FPGA open attempt",
+				{{"attempt", std::to_string(attemptNo)}, {"attempt_max", std::to_string(attemptMax)},
+				 {"device", device}, {"memmap", (useMmap && !mmapPath.empty()) ? "yes" : "no"}});
 
-		// The bridges were already loaded from validated absolute paths above.
-		// Do not call LoadLibraryA here: that would reintroduce an unrestricted
-		// search and could select a stale vendor DLL from the current directory.
+			// The bridges were already loaded from validated absolute paths above.
+			// Do not call LoadLibraryA here: that would reintroduce an unrestricted
+			// search and could select a stale vendor DLL from the current directory.
 
-		DWORD sehCode = 0;
-		VMM_HANDLE handle = SafeVmmInitialize(static_cast<DWORD>(args.size()), args.data(), &sehCode);
-		if (sehCode != 0) {
-			sehFaultObserved = true;
-			std::cout << "[DMA][Init] SEH fault during VMMDLL_Initialize code=0x"
-				<< std::hex << sehCode << std::dec
-				<< " (runtime validated; fault originated in the VMM/vendor-device stack)\n";
-			const std::string message = std::string(device) + " Initialize SEH fault code=" + HexOf(sehCode);
-			if (firstError.empty()) firstError = message;
-			lastError = message;
-			if (firstApiMessage.empty()) firstApiMessage = message;
-			lastApiMessage = message;
-			OmniGhost::SessionLog::Write(OmniGhost::SessionLog::Severity::Critical,
-				OmniGhost::SessionLog::Subsystem::DMA, "FPGA open SEH fault",
-				{{"device", device}, {"seh_code", HexOf(sehCode)}});
-			return false;
-		}
-
-		if (!handle) {
-			const std::string message = std::string(device) + " Initialize FAIL";
-			if (firstError.empty()) firstError = message;
-			lastError = message;
-			std::cout << "[DMA][Init] " << message << "\n";
-			OmniGhost::SessionLog::Write(OmniGhost::SessionLog::Severity::Error,
-				OmniGhost::SessionLog::Subsystem::DMA, "FPGA open failed",
-				{{"device", device}, {"result", "VMMDLL_Initialize returned null"}});
-			return false;
-		}
-		vHandle = handle;
-		std::cout << "[DMA][Init] OPEN OK device=" << device << "\n";
-		OmniGhost::SessionLog::Write(OmniGhost::SessionLog::Severity::Info,
-			OmniGhost::SessionLog::Subsystem::DMA, "FPGA open succeeded", {{"device", device}});
-		return true;
-	};
-
-	// Preload FTDI (best-effort). UC base does LoadLibraryA("FTD3XX.dll") and
-	// continues even if lookup is soft — do not hard-fail before open.
-	std::cout << "[DMA][Init] Preloading FTDI bridges (UC-compatible)...\n";
-	PreloadAllFtdiBridges();
-	if (!HasFtdiBridge()) {
-		std::cout << "[DMA][Init] WARN: FTD3XX not pre-validated — still trying open like UC base\n";
-	}
-	try {
-		LogFtdiDiagnostics();
-	} catch (const std::exception& ex) {
-		std::cout << "[DMA][FTDI] diagnostics skipped: " << ex.what() << "\n";
-	} catch (...) {
-		std::cout << "[DMA][FTDI] diagnostics skipped: unknown error\n";
-	}
-
-	// Exact match with working UC base: only fpga://algo=0, no extended flags
-	struct Candidate { const char* device; bool useMmap; };
-	const Candidate candidates[] = {
-		{ "fpga://algo=0", false }, // Primary (matches working base)
-		{ "fpga://algo=0", true  }, // + memmap fallback
-		{ "fpga",          false }, // Bare fpga fallback
-	};
-	constexpr int kAttemptsPerDevice = 1; // Single attempt like working base
-	const int attemptMax = static_cast<int>(std::size(candidates)) * kAttemptsPerDevice;
-	int attemptNo = 0;
-	bool opened = false;
-	for (const Candidate& candidate : candidates) {
-		if (sehFaultObserved) {
-			std::cout << "[DMA][Init] stopping fallback attempts after an SEH fault to avoid reopening an unstable device stack\n";
-			break;
-		}
-		if (candidate.useMmap && mmapPath.empty())
-			continue;
-		if (attemptNo > 0)
-			std::cout << "[DMA][Init] fallback device=" << candidate.device
-				<< (candidate.useMmap ? "+mmap" : "") << "\n";
-		for (int retry = 0; retry < kAttemptsPerDevice && !opened; ++retry) {
-			if (IsCancellationRequested()) {
-				std::cout << "[DMA][Init] cancelled during FPGA retry loop\n";
-				last_attach_result = AttachResult::Waiting;
+			DWORD sehCode = 0;
+			VMM_HANDLE handle = SafeVmmInitialize(static_cast<DWORD>(args.size()), args.data(), &sehCode);
+			if (sehCode != 0) {
+				sehFaultObserved = true;
+				std::cout << "[DMA][Init] SEH fault during VMMDLL_Initialize code=0x"
+					<< std::hex << sehCode << std::dec
+					<< " (runtime validated; fault originated in the VMM/vendor-device stack)\n";
+				const std::string message = std::string(device) + " Initialize SEH fault code=" + HexOf(sehCode);
+				if (firstError.empty()) firstError = message;
+				lastError = message;
+				if (firstApiMessage.empty()) firstApiMessage = message;
+				lastApiMessage = message;
+				OmniGhost::SessionLog::Write(OmniGhost::SessionLog::Severity::Critical,
+					OmniGhost::SessionLog::Subsystem::DMA, "FPGA open SEH fault",
+					{{"device", device}, {"seh_code", HexOf(sehCode)}});
 				return false;
 			}
-			++attemptNo;
-			opened = tryOpen(candidate.device, candidate.useMmap, attemptNo, attemptMax);
-			if (!opened)
-				std::this_thread::sleep_for(std::chrono::milliseconds(400));
-		}
-		if (opened)
-			break;
-	}
 
-	if (!opened) {
-		std::cout << "[DMA][Init] FAILED attempts=" << attemptNo
-			<< " first_error=" << firstError << " last_error=" << lastError << "\n";
-		std::cout << "[DMA][Init] first_api_message=\"" << firstApiMessage
-			<< "\" last_api_message=\"" << lastApiMessage << "\"\n";
-		std::cout << "[DMA] ===============================================================\n";
-		OmniGhost::SessionLog::Write(OmniGhost::SessionLog::Severity::Critical,
-			OmniGhost::SessionLog::Subsystem::DMA, "FPGA open exhausted all candidates",
-			{{"attempts", std::to_string(attemptNo)}, {"first_error", firstError},
-			 {"last_error", lastError}, {"first_api_message", firstApiMessage},
-			 {"last_api_message", lastApiMessage}, {"seh_fault", sehFaultObserved ? "yes" : "no"}});
-		std::cout << "[DMA] Falha na comunicacao com o DMA/FPGA.\n";
-		std::cout << "[DMA] Possiveis causas e solucoes:\n";
-		std::cout << "[DMA]   1) FPGA nao conectada ou nao reconhecida pelo Windows\n";
-		std::cout << "[DMA]      -> Verifique no Gerenciador de Dispositivos: 'FTDI FT600/FT601'\n";
-		std::cout << "[DMA]   2) Driver FTDI desatualizado ou corrompido\n";
-		std::cout << "[DMA]      -> Reinstale o driver FTDI D3XX do site da FTDI\n";
-		std::cout << "[DMA]   3) Outro programa usando a FPGA (PCILeech, MemProcFS, etc.)\n";
-		std::cout << "[DMA]      -> Feche outros programas DMA e reinicie o PC\n";
-		std::cout << "[DMA]   4) Falha no link PCIe (cabo/riser frouxo ou danificado)\n";
-		std::cout << "[DMA]      -> Reencaixe a placa FPGA e verifique cabos de alimentacao\n";
-		std::cout << "[DMA]   5) Alimentacao insuficiente para a placa FPGA\n";
-		std::cout << "[DMA]      -> Verifique conexoes de 12V/3.3V e cabos PCIe power\n";
-		std::cout << "[DMA]   6) Conflito de versao LeechCore/MemProcFS\n";
-		std::cout << "[DMA]      -> Verifique se vmm.dll e leechcore.dll sao da mesma versao\n";
-		std::cout << "[DMA]   7) Secure Boot ativo impede driver FTDI de carregar\n";
-		std::cout << "[DMA]      -> Desative Secure Boot na BIOS/UEFI\n";
-		std::cout << "[DMA]   8) Virtualizacao (Hyper-V/VBS/WSL2) bloqueia acesso DMA\n";
-		std::cout << "[DMA]      -> Desative Hyper-V, VBS/Memory Integrity, WSL2\n";
-		std::cout << "[DMA] ===============================================================\n";
-		last_attach_result = AttachResult::Failed;
-		fpgaOpenInProgress_.store(false, std::memory_order_release);
-		return false;
-	}
-
-	if (IsCancellationRequested()) {
-		std::cout << "[DMA][Init] cancelled before device open completed\n";
-		vHandle.reset();
-		last_attach_result = AttachResult::Waiting;
-		fpgaOpenInProgress_.store(false, std::memory_order_release);
-		return false;
-	}
-
-	// Phase 2: Re-acquire control plane lock to publish handle and configure
-	{
-		std::scoped_lock controlPlaneLock(controlPlaneMutex_);
-		
-		// Check if another thread already completed initialization
-		if (DMA_INITIALIZED && vHandle) {
-			std::cout << "[DMA][Init] FPGA already initialized by another thread\n";
-			fpgaOpenInProgress_.store(false, std::memory_order_release);
-			if (process_name.empty()) {
-				last_attach_result = AttachResult::Success;
-				return true;
+			if (!handle) {
+				const std::string message = std::string(device) + " Initialize FAIL";
+				if (firstError.empty()) firstError = message;
+				lastError = message;
+				std::cout << "[DMA][Init] " << message << "\n";
+				OmniGhost::SessionLog::Write(OmniGhost::SessionLog::Severity::Error,
+					OmniGhost::SessionLog::Subsystem::DMA, "FPGA open failed",
+					{{"device", device}, {"result", "VMMDLL_Initialize returned null"}});
+				return false;
 			}
-			// Continue to process bind below
-		} else if (!vHandle) {
-			// Open failed
-			fpgaOpenInProgress_.store(false, std::memory_order_release);
+			vHandle = handle;
+			std::cout << "[DMA][Init] OPEN OK device=" << device << "\n";
+			OmniGhost::SessionLog::Write(OmniGhost::SessionLog::Severity::Info,
+				OmniGhost::SessionLog::Subsystem::DMA, "FPGA open succeeded", {{"device", device}});
+			return true;
+		};
+
+
+				// Preload FTDI (best-effort). UC base does LoadLibraryA("FTD3XX.dll") and
+		// continues even if lookup is soft — do not hard-fail before open.
+		std::cout << "[DMA][Init] Preloading FTDI bridges (UC-compatible)...\n";
+		PreloadAllFtdiBridges();
+		if (!HasFtdiBridge()) {
+			std::cout << "[DMA][Init] WARN: FTD3XX not pre-validated — still trying open like UC base\n";
+		}
+		try {
+			LogFtdiDiagnostics();
+		} catch (const std::exception& ex) {
+			std::cout << "[DMA][FTDI] diagnostics skipped: " << ex.what() << "\n";
+		} catch (...) {
+			std::cout << "[DMA][FTDI] diagnostics skipped: unknown error\n";
+		}
+
+		// Exact match with working UC base: only fpga://algo=0, no extended flags
+		struct Candidate { const char* device; bool useMmap; };
+		const Candidate candidates[] = {
+			{ "fpga://algo=0", false }, // Primary (matches working base)
+			{ "fpga://algo=0", true  }, // + memmap fallback
+			{ "fpga",          false }, // Bare fpga fallback
+		};
+		constexpr int kAttemptsPerDevice = 1; // Single attempt like working base
+		const int attemptMax = static_cast<int>(std::size(candidates)) * kAttemptsPerDevice;
+		int attemptNo = 0;
+		bool opened = false;
+		for (const Candidate& candidate : candidates) {
+			if (sehFaultObserved) {
+				std::cout << "[DMA][Init] stopping fallback attempts after an SEH fault to avoid reopening an unstable device stack\n";
+				break;
+			}
+			if (candidate.useMmap && mmapPath.empty())
+				continue;
+			if (attemptNo > 0)
+				std::cout << "[DMA][Init] fallback device=" << candidate.device
+					<< (candidate.useMmap ? "+mmap" : "") << "\n";
+			for (int retry = 0; retry < kAttemptsPerDevice && !opened; ++retry) {
+				if (IsCancellationRequested()) {
+					std::cout << "[DMA][Init] cancelled during FPGA retry loop\n";
+					last_attach_result = AttachResult::Waiting;
+					return false;
+				}
+				++attemptNo;
+				opened = tryOpen(candidate.device, candidate.useMmap, attemptNo, attemptMax);
+				if (!opened)
+					std::this_thread::sleep_for(std::chrono::milliseconds(400));
+			}
+			if (opened)
+				break;
+		}
+
+		if (!opened) {
+			std::cout << "[DMA][Init] FAILED attempts=" << attemptNo
+				<< " first_error=" << firstError << " last_error=" << lastError << "\n";
+			std::cout << "[DMA][Init] first_api_message=\"" << firstApiMessage
+				<< "\" last_api_message=\"" << lastApiMessage << "\"\n";
+			std::cout << "[DMA] ===============================================================\n";
+			OmniGhost::SessionLog::Write(OmniGhost::SessionLog::Severity::Critical,
+				OmniGhost::SessionLog::Subsystem::DMA, "FPGA open exhausted all candidates",
+				{{"attempts", std::to_string(attemptNo)}, {"first_error", firstError},
+				 {"last_error", lastError}, {"first_api_message", firstApiMessage},
+				 {"last_api_message", lastApiMessage}, {"seh_fault", sehFaultObserved ? "yes" : "no"}});
+			std::cout << "[DMA] Falha na comunicacao com o DMA/FPGA.\n";
+			std::cout << "[DMA] Possiveis causas e solucoes:\n";
+			std::cout << "[DMA]   1) FPGA nao conectada ou nao reconhecida pelo Windows\n";
+			std::cout << "[DMA]      -> Verifique no Gerenciador de Dispositivos: 'FTDI FT600/FT601'\n";
+			std::cout << "[DMA]   2) Driver FTDI desatualizado ou corrompido\n";
+			std::cout << "[DMA]      -> Reinstale o driver FTDI D3XX do site da FTDI\n";
+			std::cout << "[DMA]   3) Outro programa usando a FPGA (PCILeech, MemProcFS, etc.)\n";
+			std::cout << "[DMA]      -> Feche outros programas DMA e reinicie o PC\n";
+			std::cout << "[DMA]   4) Falha no link PCIe (cabo/riser frouxo ou danificado)\n";
+			std::cout << "[DMA]      -> Reencaixe a placa FPGA e verifique cabos de alimentacao\n";
+			std::cout << "[DMA]   5) Alimentacao insuficiente para a placa FPGA\n";
+			std::cout << "[DMA]      -> Verifique conexoes de 12V/3.3V e cabos PCIe power\n";
+			std::cout << "[DMA]   6) Conflito de versao LeechCore/MemProcFS\n";
+			std::cout << "[DMA]      -> Verifique se vmm.dll e leechcore.dll sao da mesma versao\n";
+			std::cout << "[DMA]   7) Secure Boot ativo impede driver FTDI de carregar\n";
+			std::cout << "[DMA]      -> Desative Secure Boot na BIOS/UEFI\n";
+			std::cout << "[DMA]   8) Virtualizacao (Hyper-V/VBS/WSL2) bloqueia acesso DMA\n";
+			std::cout << "[DMA]      -> Desative Hyper-V, VBS/Memory Integrity, WSL2\n";
+			std::cout << "[DMA] ===============================================================\n";
+			last_attach_result = AttachResult::Failed;
+			return false;
+		}
+
+		if (IsCancellationRequested()) {
+			std::cout << "[DMA][Init] cancelled before device open completed\n";
+			vHandle.reset();
+			last_attach_result = AttachResult::Waiting;
 			return false;
 		}
 
@@ -1007,8 +960,6 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 			<< " open_count=" << vmmOpenCount_.load(std::memory_order_relaxed) << "\n";
 		(void)SetFPGA();
 
-		fpgaOpenInProgress_.store(false, std::memory_order_release);
-
 		if (quickDeviceProbe) {
 			std::cout << "[DMA][Probe] device open confirmed; deferred VMM/plugin preparation\n";
 			last_attach_result = AttachResult::Success;
@@ -1021,75 +972,70 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 		return true;
 	}
 
-	// Phase 3: bind to the target process (under control plane lock)
-	{
-		std::scoped_lock controlPlaneLock(controlPlaneMutex_);
-
-		// Sanitize process name to prevent injection/validation issues.
-		process_name = SanitizeProcessName(std::move(process_name));
-		if (process_name.empty()) {
-			std::cout << "[DMA][Bind] process name sanitized to empty\n";
-			last_attach_result = AttachResult::Waiting;
-			return false;
-		}
-
-		// Phase 2: bind to the target process.
-		std::cout << "[DMA][Bind] pid lookup start process=" << process_name << "\n";
-		DWORD pid = 0;
-		{
-			OMNIGHOST_VMM_TIMING("PidGetFromName(bind)");
-			if (!VMMDLL_PidGetFromName(vHandle, const_cast<LPSTR>(process_name.c_str()), &pid))
-				pid = 0;
-		}
-		std::cout << "[DMA][Bind] pid lookup done pid=" << pid << "\n";
-		if (!pid) {
-			PROCESS_INITIALIZED = FALSE;
-			last_attach_result = AttachResult::Waiting;
-			return false;
-		}
-
-		if (current_process.PID != static_cast<int>(pid) || current_process.process_name != process_name) {
-			if (appliedProcessPid_ != 0 && appliedProcessPid_ != static_cast<int>(pid)) {
-				std::cout << "[VMM] applied PROCESS_DTB tracking reset (PID changed "
-					<< appliedProcessPid_ << " -> " << pid << ")\n";
-				appliedProcessDtb_ = 0;
-				appliedProcessPid_ = 0;
-			}
-			InvalidateScatterHandles("process bind");
-			current_process = CurrentProcessInformation{};
-			current_process.PID = static_cast<int>(pid);
-			current_process.process_name = process_name;
-			generationProcessPid_ = static_cast<int>(pid);
-			processGeneration_.fetch_add(1, std::memory_order_acq_rel);
-			processBindCount_.fetch_add(1, std::memory_order_relaxed);
-			std::cout << "[PROCESS] generation=" << ProcessGeneration() << " pid=" << pid
-				<< " name=" << process_name << "\n";
-		}
-
-		std::cout << "[DMA][Bind] FixCr3 start pid=" << pid << "\n";
-		const bool ok = FixCr3();
-		std::cout << "[DMA][Bind] FixCr3 done result=" << LastAttachResultName() << "\n";
-		if (!ok) {
-			PROCESS_INITIALIZED = FALSE;
-			if (last_attach_result == AttachResult::Waiting)
-				std::cout << "[DMA] device=READY VMM=READY process=WAITING (MZ/DTB not valid)\n";
-			return false;
-		}
-
-		if (!current_process.base_size && !current_process.process_name.empty()) {
-			PVMMDLL_MAP_MODULEENTRY raw = nullptr;
-			if (VMMDLL_Map_GetModuleFromNameU(vHandle, current_process.PID,
-				const_cast<LPSTR>(current_process.process_name.c_str()), &raw, VMMDLL_MODULE_FLAG_NORMAL) && raw) {
-				VmmOwned<VMMDLL_MAP_MODULEENTRY> owned(raw);
-				current_process.base_size = static_cast<size_t>(raw->cbImageSize);
-			}
-		}
-		PROCESS_INITIALIZED = TRUE;
-		last_attach_result = AttachResult::Success;
-		std::cout << "[DMA] attach validate MZ @0x" << std::hex << current_process.base_address << std::dec
-			<< " pid=" << current_process.PID << " size=" << HexOf(current_process.base_size) << "\n";
-		return true;
+	// Sanitize process name to prevent injection/validation issues.
+	process_name = SanitizeProcessName(std::move(process_name));
+	if (process_name.empty()) {
+		std::cout << "[DMA][Bind] process name sanitized to empty\n";
+		last_attach_result = AttachResult::Waiting;
+		return false;
 	}
+
+	// Phase 2: bind to the target process.
+	std::cout << "[DMA][Bind] pid lookup start process=" << process_name << "\n";
+	DWORD pid = 0;
+	{
+		OMNIGHOST_VMM_TIMING("PidGetFromName(bind)");
+		if (!VMMDLL_PidGetFromName(vHandle, const_cast<LPSTR>(process_name.c_str()), &pid))
+			pid = 0;
+	}
+	std::cout << "[DMA][Bind] pid lookup done pid=" << pid << "\n";
+	if (!pid) {
+		PROCESS_INITIALIZED = FALSE;
+		last_attach_result = AttachResult::Waiting;
+		return false;
+	}
+
+	if (current_process.PID != static_cast<int>(pid) || current_process.process_name != process_name) {
+		if (appliedProcessPid_ != 0 && appliedProcessPid_ != static_cast<int>(pid)) {
+			std::cout << "[VMM] applied PROCESS_DTB tracking reset (PID changed "
+				<< appliedProcessPid_ << " -> " << pid << ")\n";
+			appliedProcessDtb_ = 0;
+			appliedProcessPid_ = 0;
+		}
+		InvalidateScatterHandles("process bind");
+		current_process = CurrentProcessInformation{};
+		current_process.PID = static_cast<int>(pid);
+		current_process.process_name = process_name;
+		generationProcessPid_ = static_cast<int>(pid);
+		processGeneration_.fetch_add(1, std::memory_order_acq_rel);
+		processBindCount_.fetch_add(1, std::memory_order_relaxed);
+		std::cout << "[PROCESS] generation=" << ProcessGeneration() << " pid=" << pid
+			<< " name=" << process_name << "\n";
+	}
+
+	std::cout << "[DMA][Bind] FixCr3 start pid=" << pid << "\n";
+	const bool ok = FixCr3();
+	std::cout << "[DMA][Bind] FixCr3 done result=" << LastAttachResultName() << "\n";
+	if (!ok) {
+		PROCESS_INITIALIZED = FALSE;
+		if (last_attach_result == AttachResult::Waiting)
+			std::cout << "[DMA] device=READY VMM=READY process=WAITING (MZ/DTB not valid)\n";
+		return false;
+	}
+
+	if (!current_process.base_size && !current_process.process_name.empty()) {
+		PVMMDLL_MAP_MODULEENTRY raw = nullptr;
+		if (VMMDLL_Map_GetModuleFromNameU(vHandle, current_process.PID,
+			const_cast<LPSTR>(current_process.process_name.c_str()), &raw, VMMDLL_MODULE_FLAG_NORMAL) && raw) {
+			VmmOwned<VMMDLL_MAP_MODULEENTRY> owned(raw);
+			current_process.base_size = static_cast<size_t>(raw->cbImageSize);
+		}
+	}
+	PROCESS_INITIALIZED = TRUE;
+	last_attach_result = AttachResult::Success;
+	std::cout << "[DMA] attach validate MZ @0x" << std::hex << current_process.base_address << std::dec
+		<< " pid=" << current_process.PID << " size=" << HexOf(current_process.base_size) << "\n";
+	return true;
 }
 
 // ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
@@ -1245,7 +1191,6 @@ bool Memory::WaitForProcInfo(int timeout_sec, bool* out_stuck, bool* out_cancell
 	std::cout << "[VFS][procinfo] state=GENERATING timeout=" << effectiveTimeoutSec << "s\n";
 
 	while (true) {
-		// P1-3 fix: More frequent cancellation checks
 		if (IsCancellationRequested(epoch)) {
 			procInfoState_ = ProcInfoState::Cancelled;
 			std::cout << "[VFS][procinfo] state=CANCELLED progress=" << lastProgress << "\n";
@@ -1287,19 +1232,11 @@ bool Memory::WaitForProcInfo(int timeout_sec, bool* out_stuck, bool* out_cancell
 		}
 
 		if (progress >= 100) {
-			// P1-3 fix: Check cancellation during settle sleep
-			auto endSettle = std::chrono::steady_clock::now() + std::chrono::milliseconds(settleMs);
-			while (std::chrono::steady_clock::now() < endSettle) {
-				if (IsCancellationRequested(epoch)) return false;
-				std::this_thread::sleep_for(std::chrono::milliseconds(5));
-			}
+			// Let the plugin publish dtb.txt before we list it.
+			std::this_thread::sleep_for(std::chrono::milliseconds(settleMs));
 			VfsProbeResult probe = ProbeProcInfoDtb("VfsList(procinfo/settle)");
 			if (!probe.found || probe.size == 0) {
-				endSettle = std::chrono::steady_clock::now() + std::chrono::milliseconds(settleMs);
-				while (std::chrono::steady_clock::now() < endSettle) {
-					if (IsCancellationRequested(epoch)) return false;
-					std::this_thread::sleep_for(std::chrono::milliseconds(5));
-				}
+				std::this_thread::sleep_for(std::chrono::milliseconds(settleMs));
 				probe = ProbeProcInfoDtb("VfsList(procinfo/settle)");
 			}
 			procInfoState_ = probe.found
@@ -1328,12 +1265,7 @@ bool Memory::WaitForProcInfo(int timeout_sec, bool* out_stuck, bool* out_cancell
 			std::cout << "[VFS][procinfo] state=GENERATING progress=" << progress
 				<< " elapsed_ms=" << elapsedMs << "\n";
 		}
-		// P1-3 fix: More granular cancellation check during sleep
-		auto endPoll = std::chrono::steady_clock::now() + std::chrono::milliseconds(pollMs);
-		while (std::chrono::steady_clock::now() < endPoll) {
-			if (IsCancellationRequested(epoch)) return false;
-			std::this_thread::sleep_for(std::chrono::milliseconds(2));
-		}
+		std::this_thread::sleep_for(std::chrono::milliseconds(pollMs));
 	}
 }
 
@@ -1408,19 +1340,8 @@ bool Memory::FixCr3()
 			return false;
 		uintptr_t base = 0;
 		for (int attempt = 0; attempt < 4; ++attempt) {
-			// P1-3 fix: Check cancellation before each attempt
-			if (IsCancellationRequested(operation_epoch))
-				return false;
-			if (attempt > 0) {
-				// P1-3 fix: Reduced sleep with cancellation check
-				const auto sleepMs = 20 + attempt * 10; // 20, 30, 40, 50ms
-				auto end = std::chrono::steady_clock::now() + std::chrono::milliseconds(sleepMs);
-				while (std::chrono::steady_clock::now() < end) {
-					if (IsCancellationRequested(operation_epoch))
-						return false;
-					std::this_thread::sleep_for(std::chrono::milliseconds(5));
-				}
-			}
+			if (attempt > 0)
+				std::this_thread::sleep_for(std::chrono::milliseconds(40 + attempt * 20));
 			if (IsCancellationRequested(operation_epoch))
 				return false;
 			base = resolve_validation_base();
@@ -1631,15 +1552,10 @@ bool Memory::FixCr3()
 
 	size_t tried = 0;
 	for (uint64_t dtb : candidates) {
-		// P1-3 fix: Granular cancellation check and yielding between candidates
 		if (IsCancellationRequested(operation_epoch)) {
 			std::cout << "[DMA] FixCr3: cancelled during candidate validation\n";
 			last_attach_result = AttachResult::Waiting;
 			return false;
-		}
-		// P1-3 fix: Yield between candidates to allow other threads to run
-		if (tried > 0) {
-			std::this_thread::sleep_for(std::chrono::milliseconds(1));
 		}
 		++tried;
 		std::cout << "[DMA] FixCr3 try " << tried << "/" << candidates.size()

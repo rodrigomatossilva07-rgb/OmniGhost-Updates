@@ -3128,13 +3128,11 @@ void esp::DrawPlayerRadar(const Matrix& /*view_matrix*/, uintptr_t localplayer) 
         dl->AddLine(ImVec2(radarMin.x, cy), ImVec2(radarMax.x, cy), IM_COL32(212, 175, 55, 45), 1.f);
         dl->AddLine(ImVec2(cx, radarMin.y), ImVec2(cx, radarMax.y), IM_COL32(212, 175, 55, 45), 1.f);
         dl->AddCircleFilled(ImVec2(cx, cy), 3.5f, IM_COL32(0, 255, 120, 255), 12);
-        Vec3 localPos = FiveM::ESP::FrameCacheValid()
-            ? FiveM::ESP::GetFrameLocalPos() : Vec3{};
         if (!FiveM::ESP::FrameCacheValid()) return;
-    auto snapshot = FiveM::ESP::GetValidPedsSnapshot();
-    if (snapshot.validPeds.empty()) return;
-    const Vec3 localPos = FiveM::ESP::GetFrameLocalPos();
-    if (localPos.IsZero()) return;
+        const Vec3 localPos = FiveM::ESP::GetFrameLocalPos();
+        if (localPos.IsZero()) return;
+        auto snapshot = FiveM::ESP::GetValidPedsSnapshot();
+        if (snapshot.validPeds.empty()) return;
     // Heading is optional for the square radar.  Keep a stable north-up
     // view instead of reading the local matrix from the render thread.
     float fx = 0.f, fy = 1.f;

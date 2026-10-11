@@ -170,9 +170,21 @@ void WStr(std::ostringstream& o, const char* k, const std::string& v) { o << k <
 
 // Deserialization helpers
 bool toB(const std::string& val) { return val == "1" || val == "true"; }
-float toF(const std::string& val) { return (float)atof(val.c_str()); }
-int toI(const std::string& val) { return atoi(val.c_str()); }
-ImU32 toU(const std::string& val) { return (ImU32)strtoul(val.c_str(), nullptr, 10); }
+float toF(const std::string& val) {
+    char* end = nullptr;
+    const float result = std::strtof(val.c_str(), &end);
+    return (end != val.c_str() && *end == '\0') ? result : 0.0f;
+}
+int toI(const std::string& val) {
+    char* end = nullptr;
+    const long result = std::strtol(val.c_str(), &end, 10);
+    return (end != val.c_str() && *end == '\0' && result >= INT_MIN && result <= INT_MAX) ? static_cast<int>(result) : 0;
+}
+ImU32 toU(const std::string& val) {
+    char* end = nullptr;
+    const unsigned long result = std::strtoul(val.c_str(), &end, 10);
+    return (end != val.c_str() && *end == '\0' && result <= UINT32_MAX) ? static_cast<ImU32>(result) : 0u;
+}
 
 // ---- Directory management ----
 std::string ConfigDir() {

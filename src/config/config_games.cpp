@@ -183,10 +183,10 @@ bool DeserializeCS2(const std::string& key, const std::string& val) {
     if (key.rfind("cs2.", 0) != 0) return false;
     auto& c = CS2::config;
     auto bi = [&](const char* k) { return key == k; };
-    auto toB = [&]() { return val == "1" || val == "true"; };
-    auto toF = [&]() { return (float)atof(val.c_str()); };
-    auto toI = [&]() { return atoi(val.c_str()); };
-    auto toU = [&]() { return (ImU32)strtoul(val.c_str(), nullptr, 10); };
+    auto toB = [&]() -> bool { return config_manager::toB(val); };
+    auto toF = [&]() -> float { return config_manager::toF(val); };
+    auto toI = [&]() -> int { return config_manager::toI(val); };
+    auto toU = [&]() -> ImU32 { return config_manager::toU(val); };
 
     if (bi("cs2.esp_enabled")) { c.esp_enabled = toB(); return true; }
     if (bi("cs2.self_esp")) { c.self_esp = toB(); return true; }
@@ -718,9 +718,9 @@ bool DeserializeWarzone(const std::string& key, const std::string& val) {
     if (key.rfind("warzone.", 0) != 0) return false;
     auto& c = Warzone::config;
     auto bi = [&](const char* k) { return key == k; };
-    auto toB = [&]() { return val == "1" || val == "true"; };
-    auto toF = [&]() { return (float)atof(val.c_str()); };
-    auto toI = [&]() { return atoi(val.c_str()); };
+    auto toB = [&]() -> bool { return config_manager::toB(val); };
+    auto toF = [&]() -> float { return config_manager::toF(val); };
+    auto toI = [&]() -> int { return config_manager::toI(val); };
 
     if (bi("warzone.esp_enabled")) { c.esp_enabled = toB(); return true; }
     if (bi("warzone.team_check")) { c.team_check = toB(); return true; }
@@ -827,9 +827,9 @@ bool DeserializeColorArray(const std::string& key, const std::string& val, const
     size_t dotPos = key.find('.', strlen(prefix));
     if (dotPos == std::string::npos) return false;
     std::string idxStr = key.substr(dotPos + 1);
-    int idx = atoi(idxStr.c_str());
+    int idx = config_manager::toI(idxStr);
     if (idx >= 0 && idx < 4) {
-        value[idx] = (float)atof(val.c_str());
+        value[idx] = config_manager::toF(val);
         return true;
     }
     return false;

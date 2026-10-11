@@ -219,7 +219,7 @@ private:
     std::filesystem::path logPath_;
     size_t maxFileBytes_ = 5 * 1024 * 1024;
     std::ofstream logFile_;
-    size_t fileBytes_ = 0;
+    std::atomic<size_t> fileBytes_{0};
     std::mutex fileMutex_;  // Only for file operations
     
     // Writer thread

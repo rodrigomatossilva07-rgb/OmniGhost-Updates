@@ -141,10 +141,6 @@ bool Memory::BeginVmmMaintenance(const char* reason, DWORD drainTimeoutMs)
 	if (IsVmmMaintenanceOwner())
 		return true;
 
-	// FIX CONC-001: Acquire controlPlaneMutex_ (level 1) to follow lock hierarchy.
-	// Maintenance operations must hold control-plane lock while coordinating drain.
-	std::scoped_lock controlPlaneLock(controlPlaneMutex_);
-
 	bool expected = false;
 	if (!vmmMaintenanceActive_.compare_exchange_strong(
 			expected, true, std::memory_order_acq_rel, std::memory_order_acquire)) {

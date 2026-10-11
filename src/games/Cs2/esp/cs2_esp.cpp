@@ -268,6 +268,7 @@ void DrawExtras(ImDrawList* draw, const CS2::Player& player, const ImVec2& head,
         static std::unordered_map<uintptr_t, std::deque<Point>> history;
         static double nextPrune = 0.;
         static uint64_t historyGeneration = 0;
+        constexpr size_t kMaxTrailPlayers = 128; // Max players to track trails for
         if (historyGeneration != sessionGeneration) {
             history.clear();
             nextPrune = 0.;
@@ -308,6 +309,18 @@ void DrawExtras(ImDrawList* draw, const CS2::Player& player, const ImVec2& head,
                     it = history.erase(it);
                 else
                     ++it;
+            }
+            // Enforce max players limit by removing oldest entries
+            if (history.size() > kMaxTrailPlayers) {
+                // Remove entries with oldest last access time
+                while (history.size() > kMaxTrailPlayers) {
+                    auto oldest = history.begin();
+                    for (auto it = std::next(oldest); it != history.end(); ++it) {
+                        if (it->second.back().time < oldest->second.back().time)
+                            oldest = it;
+                    }
+                    history.erase(oldest);
+                }
             }
         }
     }
@@ -450,6 +463,8 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
     static uint64_t nextDeathPruneMs = 0;
     static std::unordered_map<uintptr_t, uint64_t> lastDrawnMs;
     static std::unordered_map<uintptr_t, uint64_t> measuredDeathMs;
+    constexpr size_t kMaxDrawnMs = 128;
+    constexpr size_t kMaxDeathMs = 128;
     if (measuredGeneration != snapshot.session_generation) {
         lastDrawnMs.clear();
         measuredDeathMs.clear();
@@ -465,6 +480,27 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
         for (auto it = measuredDeathMs.begin(); it != measuredDeathMs.end();) {
             if (nowMs > it->second && nowMs - it->second > 10000u) it = measuredDeathMs.erase(it);
             else ++it;
+        }
+        // Enforce max sizes
+        if (lastDrawnMs.size() > kMaxDrawnMs) {
+            while (lastDrawnMs.size() > kMaxDrawnMs) {
+                auto oldest = lastDrawnMs.begin();
+                for (auto it = std::next(oldest); it != lastDrawnMs.end(); ++it) {
+                    if (it->second < oldest->second)
+                        oldest = it;
+                }
+                lastDrawnMs.erase(oldest);
+            }
+        }
+        if (measuredDeathMs.size() > kMaxDeathMs) {
+            while (measuredDeathMs.size() > kMaxDeathMs) {
+                auto oldest = measuredDeathMs.begin();
+                for (auto it = std::next(oldest); it != measuredDeathMs.end(); ++it) {
+                    if (it->second < oldest->second)
+                        oldest = it;
+                }
+                measuredDeathMs.erase(oldest);
+            }
         }
     }
     if (liveness) {
@@ -512,6 +548,7 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
     static std::unordered_map<uintptr_t, HeadHeight> headHeights;
     static uint64_t headHeightGeneration = 0;
     static uint64_t nextHeadPruneMs = 0;
+    constexpr size_t kMaxHeadHeights = 128; // Max players to track head heights for
     if (headHeightGeneration != snapshot.session_generation) {
         headHeights.clear();
         headHeightGeneration = snapshot.session_generation;
@@ -522,6 +559,17 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
         for (auto it = headHeights.begin(); it != headHeights.end();) {
             if (nowMs - it->second.last_seen_ms > 2000u) it = headHeights.erase(it);
             else ++it;
+        }
+        // Enforce max size by removing oldest entries
+        if (headHeights.size() > kMaxHeadHeights) {
+            while (headHeights.size() > kMaxHeadHeights) {
+                auto oldest = headHeights.begin();
+                for (auto it = std::next(oldest); it != headHeights.end(); ++it) {
+                    if (it->second.last_seen_ms < oldest->second.last_seen_ms)
+                        oldest = it;
+                }
+                headHeights.erase(oldest);
+            }
         }
     }
     for (const Player& player : snapshot.players) {
