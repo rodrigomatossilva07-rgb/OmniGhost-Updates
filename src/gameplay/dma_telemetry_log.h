@@ -32,6 +32,10 @@ struct alignas(64) CacheLinePad {
     char pad[64];
 };
 
+// The alignas(64) sub-structs below are padded intentionally (false-sharing
+// prevention). Silence C4324 locally so /WX builds still succeed.
+#pragma warning(push)
+#pragma warning(disable : 4324)
 struct Sample {
     // Acquire timing (1 cache line)
     struct alignas(64) AcquireStats {
@@ -179,32 +183,7 @@ struct Sample {
         std::atomic<int> visibility_rays{0};
     } visibility;
 };
-    std::atomic<int> bones_batches_s{0};
-    std::atomic<float> bones_p95_ms{0.f};
-    std::atomic<float> bones_p99_ms{0.f};
-    std::atomic<float> bones_max_ms{0.f};
-    std::atomic<int> reads_s{0};
-    std::atomic<int> scatter_s{0};
-    std::atomic<std::uint64_t> snapshot_drops{0};
-    std::atomic<std::uint64_t> read_fails{0};
-    std::atomic<std::uint64_t> acquisition_spikes{0};
-    std::atomic<std::uint64_t> render_spikes{0};
-    std::atomic<std::uint64_t> suppressed_spikes_20{0};
-    std::atomic<std::uint64_t> suppressed_spikes_50{0};
-    std::atomic<std::uint64_t> suppressed_spikes_100{0};
-    std::atomic<std::uint32_t> process_id{0};
-    std::atomic_bool process_connected{false};
-    std::atomic_bool dma_open{false};
-    // Process resource snapshot (updated from ResourceTracker on Tick).
-    std::atomic<std::uint64_t> process_handles{0};
-    std::atomic<std::int64_t> process_handles_delta{0};
-    std::atomic<std::uint32_t> process_threads{0};
-    std::atomic<float> working_set_mb{0.f};
-    std::atomic<float> private_mb{0.f};
-    std::atomic<std::uint32_t> scatter_handles_live{0};
-    std::atomic_bool active{false}; // gameplay acquisition samples only when true
-    std::atomic<int> idle_reason{0}; // 0=none,1=dead,2=not_in_match,3=menu,4=esp_off,5=no_local
-};
+#pragma warning(pop)
 
 [[nodiscard]] Sample& FiveM();
 [[nodiscard]] Sample& CS2();

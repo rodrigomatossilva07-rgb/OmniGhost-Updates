@@ -130,11 +130,11 @@ void EmitWarn(std::string_view tag, std::string_view body) {
 void PublishAcquireStats(Sample& s, Ring& ring, float last) {
     auto st = ring.Stats();
     st.last = last;
-    s.acquire_ms.store(st.avg, std::memory_order_relaxed);
-    s.acquire_p50_ms.store(st.p50, std::memory_order_relaxed);
-    s.acquire_p95_ms.store(st.p95, std::memory_order_relaxed);
-    s.acquire_p99_ms.store(st.p99, std::memory_order_relaxed);
-    s.acquire_max_ms.store(st.max, std::memory_order_relaxed);
+    s.acquire.acquire_ms.store(st.avg, std::memory_order_relaxed);
+    s.acquire.acquire_p50_ms.store(st.p50, std::memory_order_relaxed);
+    s.acquire.acquire_p95_ms.store(st.p95, std::memory_order_relaxed);
+    s.acquire.acquire_p99_ms.store(st.p99, std::memory_order_relaxed);
+    s.acquire.acquire_max_ms.store(st.max, std::memory_order_relaxed);
 }
 
 const char* IdleName(int r) {
@@ -175,75 +175,75 @@ void WritePerf(std::string_view tag, Sample& s) {
         "bones_players=%d\nbones_p95_ms=%.2f\nbones_p99_ms=%.2f\nbones_max_ms=%.2f\n"
         "render_avg_ms=%.2f\nrender_p95_ms=%.2f\nrender_p99_ms=%.2f\nrender_max_ms=%.2f\n\n"
         "suppressed_spikes_20=%llu\nsuppressed_spikes_50=%llu\nsuppressed_spikes_100=%llu",
-        s.active.load() ? 1 : 0,
-        s.process_connected.load() ? 1 : 0,
-        s.process_id.load(),
-        IdleName(s.idle_reason.load()),
-        s.entities.load(),
-        s.reads_s.load(),
-        s.scatter_s.load(),
-        s.vmm_avg_ms.load(),
-        s.vmm_p50_ms.load(),
-        s.vmm_p95_ms.load(),
-        s.vmm_p99_ms.load(),
-        s.vmm_max_ms.load(),
-        static_cast<unsigned long long>(s.read_fails.load()),
-        s.acquire_ms.load(),
-        s.acquire_p50_ms.load(),
-        s.acquire_p95_ms.load(),
-        s.acquire_p99_ms.load(),
-        s.acquire_max_ms.load(),
-        s.scheduler_wait_ms.load(),
-        s.pressure_window_p95_ms.load(),
-        s.snapshot_age_ms.load(),
-        s.world_age_ms.load(),
-        s.publish_delay_ms.load(),
-        s.snapshot_hz.load(),
-        s.snapshot_interval_ms.load(),
-        static_cast<unsigned long long>(s.snapshot_drops.load()),
-        s.visibility_ms.load(),
-        s.visibility_players_tested.load(),
-        s.visibility_rays.load(),
-        s.camera_age_ms.load(),
-		s.camera_age_avg_ms.load(),
-		s.camera_age_p50_ms.load(),
-		s.camera_age_p95_ms.load(),
-		s.camera_age_p99_ms.load(),
-		s.camera_age_max_ms.load(),
-		s.camera_read_p95_ms.load(),
-		s.camera_read_p99_ms.load(),
-		s.camera_read_max_ms.load(),
-		static_cast<unsigned long long>(s.camera_busy_skips.load()),
-		static_cast<unsigned long long>(s.camera_busy_retry_success.load()),
-		static_cast<unsigned long long>(s.camera_consecutive_busy_max.load()),
-		static_cast<unsigned long long>(s.camera_cooldown_skips.load()),
-		static_cast<unsigned long long>(s.camera_cooldown_bypasses.load()),
-		s.pressure_level.load(),
-		static_cast<unsigned long long>(s.cooldown_remaining_ms.load()),
-        s.death_to_hide_ms.load(),
-        static_cast<unsigned long long>(s.recent_player_reinsertions.load()),
-        static_cast<unsigned long long>(s.last_good_age_ms.load()),
-        s.motion_age_ms.load(),
-		s.position_age_ms.load(), s.position_age_avg_ms.load(), s.position_age_p95_ms.load(),
-		s.position_age_p99_ms.load(), s.position_age_max_ms.load(),
-		s.bones_age_ms.load(), s.bones_age_avg_ms.load(), s.bones_age_p95_ms.load(),
-		s.bones_age_p99_ms.load(), s.bones_age_max_ms.load(),
-		s.camera_position_delta_ms.load(), s.camera_position_delta_p95_ms.load(),
-		s.camera_position_delta_p99_ms.load(), s.camera_position_delta_max_ms.load(),
-		s.prediction_ms.load(), s.prediction_p95_ms.load(), s.prediction_p99_ms.load(),
-		s.prediction_max_ms.load(),
-		static_cast<unsigned long long>(s.cached_bones_used.load()), s.cached_bones_age_max_ms.load(),
-        s.bones_players.load(),
-        s.bones_p95_ms.load(),
-        s.bones_p99_ms.load(),
-        s.bones_max_ms.load(),
-        s.render_ms.load(),
-        s.render_p95_ms.load(),
-        s.render_p99_ms.load(),
-        s.render_max_ms.load(),
-        static_cast<unsigned long long>(s.suppressed_spikes_20.load()),
-        static_cast<unsigned long long>(s.suppressed_spikes_50.load()),
-        static_cast<unsigned long long>(s.suppressed_spikes_100.load()));
+        s.process.active.load() ? 1 : 0,
+        s.process.process_connected.load() ? 1 : 0,
+        s.process.process_id.load(),
+        IdleName(s.process.idle_reason.load()),
+        s.counts.entities.load(),
+        s.counts.reads_s.load(),
+        s.counts.scatter_s.load(),
+        s.cache_vmm.vmm_avg_ms.load(),
+        s.cache_vmm.vmm_p50_ms.load(),
+        s.cache_vmm.vmm_p95_ms.load(),
+        s.cache_vmm.vmm_p99_ms.load(),
+        s.cache_vmm.vmm_max_ms.load(),
+        static_cast<unsigned long long>(s.counts.read_fails.load()),
+        s.acquire.acquire_ms.load(),
+        s.acquire.acquire_p50_ms.load(),
+        s.acquire.acquire_p95_ms.load(),
+        s.acquire.acquire_p99_ms.load(),
+        s.acquire.acquire_max_ms.load(),
+        s.cache_vmm.scheduler_wait_ms.load(),
+        s.acquire.pressure_window_p95_ms.load(),
+        s.snapshot.snapshot_age_ms.load(),
+        s.snapshot.world_age_ms.load(),
+        s.snapshot.publish_delay_ms.load(),
+        s.snapshot.snapshot_hz.load(),
+        s.snapshot.snapshot_interval_ms.load(),
+        static_cast<unsigned long long>(s.counts.snapshot_drops.load()),
+        s.visibility.visibility_ms.load(),
+        s.visibility.visibility_players_tested.load(),
+        s.visibility.visibility_rays.load(),
+        s.camera.camera_age_ms.load(),
+		s.camera.camera_age_avg_ms.load(),
+		s.camera.camera_age_p50_ms.load(),
+		s.camera.camera_age_p95_ms.load(),
+		s.camera.camera_age_p99_ms.load(),
+		s.camera.camera_age_max_ms.load(),
+		s.camera.camera_read_p95_ms.load(),
+		s.camera.camera_read_p99_ms.load(),
+		s.camera.camera_read_max_ms.load(),
+		static_cast<unsigned long long>(s.camera.camera_busy_skips.load()),
+		static_cast<unsigned long long>(s.camera.camera_busy_retry_success.load()),
+		static_cast<unsigned long long>(s.camera.camera_consecutive_busy_max.load()),
+		static_cast<unsigned long long>(s.camera.camera_cooldown_skips.load()),
+		static_cast<unsigned long long>(s.camera.camera_cooldown_bypasses.load()),
+		s.pressure.pressure_level.load(),
+		static_cast<unsigned long long>(s.pressure.cooldown_remaining_ms.load()),
+        s.pressure.death_to_hide_ms.load(),
+        static_cast<unsigned long long>(s.pressure.recent_player_reinsertions.load()),
+        static_cast<unsigned long long>(s.pressure.last_good_age_ms.load()),
+        s.cache_vmm.motion_age_ms.load(),
+		s.position.position_age_ms.load(), s.position.position_age_avg_ms.load(), s.position.position_age_p95_ms.load(),
+		s.position.position_age_p99_ms.load(), s.position.position_age_max_ms.load(),
+		s.bones.bones_age_ms.load(), s.bones.bones_age_avg_ms.load(), s.bones.bones_age_p95_ms.load(),
+		s.bones.bones_age_p99_ms.load(), s.bones.bones_age_max_ms.load(),
+		s.camera_pos_delta.camera_position_delta_ms.load(), s.camera_pos_delta.camera_position_delta_p95_ms.load(),
+		s.camera_pos_delta.camera_position_delta_p99_ms.load(), s.camera_pos_delta.camera_position_delta_max_ms.load(),
+		s.prediction.prediction_ms.load(), s.prediction.prediction_p95_ms.load(), s.prediction.prediction_p99_ms.load(),
+		s.prediction.prediction_max_ms.load(),
+		static_cast<unsigned long long>(s.cache_vmm.cached_bones_used.load()), s.cache_vmm.cached_bones_age_max_ms.load(),
+        s.counts.bones_players.load(),
+        s.counts.bones_p95_ms.load(),
+        s.counts.bones_p99_ms.load(),
+        s.counts.bones_max_ms.load(),
+        s.render.render_ms.load(),
+        s.render.render_p95_ms.load(),
+        s.render.render_p99_ms.load(),
+        s.render.render_max_ms.load(),
+        static_cast<unsigned long long>(s.counts.suppressed_spikes_20.load()),
+        static_cast<unsigned long long>(s.counts.suppressed_spikes_50.load()),
+        static_cast<unsigned long long>(s.counts.suppressed_spikes_100.load()));
     // Resource footprint (leak detection)
     DWORD handleCount = 0;
     GetProcessHandleCount(GetCurrentProcess(), &handleCount);
@@ -403,9 +403,9 @@ void ObserveBones(Sample& s, float bones_ms) noexcept {
     if (bones_ms < 0.f || &s != &g_cs2) return;
     g_bonesC.Push(bones_ms);
     const auto st = g_bonesC.Stats();
-    s.bones_p95_ms.store(st.p95, std::memory_order_relaxed);
-    s.bones_p99_ms.store(st.p99, std::memory_order_relaxed);
-    s.bones_max_ms.store(st.max, std::memory_order_relaxed);
+    s.counts.bones_p95_ms.store(st.p95, std::memory_order_relaxed);
+    s.counts.bones_p99_ms.store(st.p99, std::memory_order_relaxed);
+    s.counts.bones_max_ms.store(st.max, std::memory_order_relaxed);
 }
 
 void ObservePresentationTiming(Sample& s, float positionAgeMs, float bonesAgeMs,
@@ -416,10 +416,10 @@ void ObservePresentationTiming(Sample& s, float positionAgeMs, float bonesAgeMs,
         ring.Push(value);
         last.store(value, std::memory_order_relaxed);
     };
-    sample(g_positionAgeC, positionAgeMs, s.position_age_ms);
-    sample(g_bonesAgeC, bonesAgeMs, s.bones_age_ms);
-    sample(g_cameraPositionDeltaC, cameraPositionDeltaMs, s.camera_position_delta_ms);
-    sample(g_predictionC, predictionMs, s.prediction_ms);
+    sample(g_positionAgeC, positionAgeMs, s.position.position_age_ms);
+    sample(g_bonesAgeC, bonesAgeMs, s.bones.bones_age_ms);
+    sample(g_cameraPositionDeltaC, cameraPositionDeltaMs, s.camera_pos_delta.camera_position_delta_ms);
+    sample(g_predictionC, predictionMs, s.prediction.prediction_ms);
     static std::atomic<uint64_t> nextStatsMs{0};
     const uint64_t now = GetTickCount64();
     uint64_t next = nextStatsMs.load(std::memory_order_relaxed);
@@ -427,29 +427,29 @@ void ObservePresentationTiming(Sample& s, float positionAgeMs, float bonesAgeMs,
             next, now + 100u, std::memory_order_relaxed))
         return;
     const auto positions = g_positionAgeC.Stats();
-    s.position_age_avg_ms.store(positions.avg, std::memory_order_relaxed);
-    s.position_age_p95_ms.store(positions.p95, std::memory_order_relaxed);
-    s.position_age_p99_ms.store(positions.p99, std::memory_order_relaxed);
-    s.position_age_max_ms.store(positions.max, std::memory_order_relaxed);
+    s.position.position_age_avg_ms.store(positions.avg, std::memory_order_relaxed);
+    s.position.position_age_p95_ms.store(positions.p95, std::memory_order_relaxed);
+    s.position.position_age_p99_ms.store(positions.p99, std::memory_order_relaxed);
+    s.position.position_age_max_ms.store(positions.max, std::memory_order_relaxed);
     const auto bones = g_bonesAgeC.Stats();
-    s.bones_age_avg_ms.store(bones.avg, std::memory_order_relaxed);
-    s.bones_age_p95_ms.store(bones.p95, std::memory_order_relaxed);
-    s.bones_age_p99_ms.store(bones.p99, std::memory_order_relaxed);
-    s.bones_age_max_ms.store(bones.max, std::memory_order_relaxed);
+    s.bones.bones_age_avg_ms.store(bones.avg, std::memory_order_relaxed);
+    s.bones.bones_age_p95_ms.store(bones.p95, std::memory_order_relaxed);
+    s.bones.bones_age_p99_ms.store(bones.p99, std::memory_order_relaxed);
+    s.bones.bones_age_max_ms.store(bones.max, std::memory_order_relaxed);
     const auto delta = g_cameraPositionDeltaC.Stats();
-    s.camera_position_delta_p95_ms.store(delta.p95, std::memory_order_relaxed);
-    s.camera_position_delta_p99_ms.store(delta.p99, std::memory_order_relaxed);
-    s.camera_position_delta_max_ms.store(delta.max, std::memory_order_relaxed);
+    s.camera_pos_delta.camera_position_delta_p95_ms.store(delta.p95, std::memory_order_relaxed);
+    s.camera_pos_delta.camera_position_delta_p99_ms.store(delta.p99, std::memory_order_relaxed);
+    s.camera_pos_delta.camera_position_delta_max_ms.store(delta.max, std::memory_order_relaxed);
     const auto prediction = g_predictionC.Stats();
-    s.prediction_p95_ms.store(prediction.p95, std::memory_order_relaxed);
-    s.prediction_p99_ms.store(prediction.p99, std::memory_order_relaxed);
-    s.prediction_max_ms.store(prediction.max, std::memory_order_relaxed);
+    s.prediction.prediction_p95_ms.store(prediction.p95, std::memory_order_relaxed);
+    s.prediction.prediction_p99_ms.store(prediction.p99, std::memory_order_relaxed);
+    s.prediction.prediction_max_ms.store(prediction.max, std::memory_order_relaxed);
 }
 
 void ObserveSchedulerWait(Sample& s, float wait_ms) noexcept {
     if (wait_ms < 0.f) return;
-    const float old = s.scheduler_wait_ms.load(std::memory_order_relaxed);
-    s.scheduler_wait_ms.store(old <= 0.f ? wait_ms : old + (wait_ms - old) * 0.15f,
+    const float old = s.cache_vmm.scheduler_wait_ms.load(std::memory_order_relaxed);
+    s.cache_vmm.scheduler_wait_ms.store(old <= 0.f ? wait_ms : old + (wait_ms - old) * 0.15f,
                               std::memory_order_relaxed);
 }
 
@@ -476,17 +476,17 @@ void RefreshFromMemory() noexcept {
     g_prevScatter = scat;
 
     auto fill = [&](Sample& s) {
-        s.reads_s.store((std::max)(0, reads_s), std::memory_order_relaxed);
-        s.scatter_s.store((std::max)(0, scat_s), std::memory_order_relaxed);
-        s.vmm_avg_ms.store(static_cast<float>(snap.vmmLatencyAverageMs), std::memory_order_relaxed);
-        s.vmm_p50_ms.store(static_cast<float>(snap.vmmLatencyP50Ms), std::memory_order_relaxed);
-        s.vmm_p95_ms.store(static_cast<float>(snap.vmmLatencyP95Ms), std::memory_order_relaxed);
-        s.vmm_p99_ms.store(static_cast<float>(snap.vmmLatencyP99Ms), std::memory_order_relaxed);
-        s.vmm_max_ms.store(static_cast<float>(snap.maxVmmLatencyMs), std::memory_order_relaxed);
-        s.read_fails.store(snap.readFailureCount, std::memory_order_relaxed);
-        s.dma_open.store(snap.deviceOpen, std::memory_order_relaxed);
-        s.process_id.store(static_cast<std::uint32_t>(snap.processId), std::memory_order_relaxed);
-        s.process_connected.store(snap.processInitialized, std::memory_order_relaxed);
+        s.counts.reads_s.store((std::max)(0, reads_s), std::memory_order_relaxed);
+        s.counts.scatter_s.store((std::max)(0, scat_s), std::memory_order_relaxed);
+        s.cache_vmm.vmm_avg_ms.store(static_cast<float>(snap.vmmLatencyAverageMs), std::memory_order_relaxed);
+        s.cache_vmm.vmm_p50_ms.store(static_cast<float>(snap.vmmLatencyP50Ms), std::memory_order_relaxed);
+        s.cache_vmm.vmm_p95_ms.store(static_cast<float>(snap.vmmLatencyP95Ms), std::memory_order_relaxed);
+        s.cache_vmm.vmm_p99_ms.store(static_cast<float>(snap.vmmLatencyP99Ms), std::memory_order_relaxed);
+        s.cache_vmm.vmm_max_ms.store(static_cast<float>(snap.maxVmmLatencyMs), std::memory_order_relaxed);
+        s.counts.read_fails.store(snap.readFailureCount, std::memory_order_relaxed);
+        s.process.dma_open.store(snap.deviceOpen, std::memory_order_relaxed);
+        s.process.process_id.store(static_cast<std::uint32_t>(snap.processId), std::memory_order_relaxed);
+        s.process.process_connected.store(snap.processInitialized, std::memory_order_relaxed);
     };
     fill(g_cs2);
     fill(g_fivem);
@@ -502,18 +502,18 @@ static void ObserveProcessResources(Sample& s) noexcept {
             ? static_cast<int64_t>(snap.handleCount) - static_cast<int64_t>(prevHandles)
             : 0;
         prevHandles = snap.handleCount;
-        s.process_handles.store(snap.handleCount, std::memory_order_relaxed);
-        s.process_handles_delta.store(delta, std::memory_order_relaxed);
-        s.process_threads.store(snap.threadCount, std::memory_order_relaxed);
-        s.working_set_mb.store(static_cast<float>(snap.memoryBytes) / (1024.f * 1024.f),
+        s.process.process_handles.store(snap.handleCount, std::memory_order_relaxed);
+        s.process.process_handles_delta.store(delta, std::memory_order_relaxed);
+        s.process.process_threads.store(snap.threadCount, std::memory_order_relaxed);
+        s.process.working_set_mb.store(static_cast<float>(snap.memoryBytes) / (1024.f * 1024.f),
             std::memory_order_relaxed);
         // private_mb approximated from same working set when PMC private not split
-        s.private_mb.store(static_cast<float>(snap.memoryBytes) / (1024.f * 1024.f),
+        s.process.private_mb.store(static_cast<float>(snap.memoryBytes) / (1024.f * 1024.f),
             std::memory_order_relaxed);
         const auto memSnap = mem.GetDiagnosticsSnapshot();
-        s.scatter_handles_live.store(memSnap.scatterHandlesLive, std::memory_order_relaxed);
+        s.process.scatter_handles_live.store(memSnap.scatterHandlesLive, std::memory_order_relaxed);
     } catch (...) {
-        // ResourceTracker may throw if the process is gone; silently ignore —
+        // ResourceTracker may throw if the process is gone; silently ignore ?
         // telemetry is best-effort and the next tick will retry.
     }
 }
@@ -532,7 +532,7 @@ void Tick(std::string_view tag) {
     else if (tag == "FORTNITE") { sample = &g_fortnite; last = &lastFortnite; }
     ObserveProcessResources(*sample);
     // PERF once/sec only while active gameplay for CS2/FiveM samples
-    if (!sample->active.load(std::memory_order_relaxed)) {
+    if (!sample->process.active.load(std::memory_order_relaxed)) {
         // Still emit a light STATUS at most every 5s when idle so logs show state
         if (last->time_since_epoch().count() != 0 &&
             now - *last < std::chrono::seconds(5))
@@ -543,10 +543,10 @@ void Tick(std::string_view tag) {
         char status[256]{};
         std::snprintf(status, sizeof(status),
                       "STATUS process=%s pid=%u dma=%s active=0 idle_reason=%s handles=%lu scatter_handles_live=%u",
-                      sample->process_connected.load() ? "connected" : "waiting",
-                      sample->process_id.load(),
-                      sample->dma_open.load() ? "open" : "closed",
-                      IdleName(sample->idle_reason.load()),
+                      sample->process.process_connected.load() ? "connected" : "waiting",
+                      sample->process.process_id.load(),
+                      sample->process.dma_open.load() ? "open" : "closed",
+                      IdleName(sample->process.idle_reason.load()),
                       static_cast<unsigned long>(handleCount),
                       OmniGhost::MemoryCounters::GetScatterHandlesLive());
         Emit(tag, status);
@@ -584,28 +584,28 @@ void LogSessionSummary(std::string_view tag) {
         "death_to_hide_ms=%.1f\nrecent_player_reinsertions=%llu\nlast_good_age_ms=%llu\n"
         "snapshot_drops=%llu\nread_fails=%llu\nspikes=%llu\n"
         "suppressed_20=%llu\nsuppressed_50=%llu\nsuppressed_100=%llu",
-        s.acquire_ms.load(), s.acquire_p50_ms.load(), s.acquire_p95_ms.load(),
-        s.acquire_p99_ms.load(), s.acquire_max_ms.load(),
-        s.vmm_avg_ms.load(), s.vmm_p95_ms.load(), s.vmm_p99_ms.load(), s.vmm_max_ms.load(),
-        s.render_ms.load(), s.render_p95_ms.load(), s.render_p99_ms.load(), s.render_max_ms.load(),
-		s.camera_age_avg_ms.load(), s.camera_age_p50_ms.load(), s.camera_age_p95_ms.load(),
-		s.camera_age_p99_ms.load(), s.camera_age_max_ms.load(),
-		s.camera_read_p95_ms.load(), s.camera_read_p99_ms.load(), s.camera_read_max_ms.load(),
-		static_cast<unsigned long long>(s.camera_busy_skips.load()),
-		static_cast<unsigned long long>(s.camera_busy_retry_success.load()),
-		static_cast<unsigned long long>(s.camera_consecutive_busy_max.load()),
-		static_cast<unsigned long long>(s.camera_cooldown_skips.load()),
-		static_cast<unsigned long long>(s.camera_cooldown_bypasses.load()),
-        s.bones_p95_ms.load(), s.bones_p99_ms.load(), s.bones_max_ms.load(),
-        s.death_to_hide_ms.load(),
-        static_cast<unsigned long long>(s.recent_player_reinsertions.load()),
-        static_cast<unsigned long long>(s.last_good_age_ms.load()),
-        static_cast<unsigned long long>(s.snapshot_drops.load()),
-        static_cast<unsigned long long>(s.read_fails.load()),
-        static_cast<unsigned long long>(s.acquisition_spikes.load()),
-        static_cast<unsigned long long>(s.suppressed_spikes_20.load()),
-        static_cast<unsigned long long>(s.suppressed_spikes_50.load()),
-        static_cast<unsigned long long>(s.suppressed_spikes_100.load()));
+        s.acquire.acquire_ms.load(), s.acquire.acquire_p50_ms.load(), s.acquire.acquire_p95_ms.load(),
+        s.acquire.acquire_p99_ms.load(), s.acquire.acquire_max_ms.load(),
+        s.cache_vmm.vmm_avg_ms.load(), s.cache_vmm.vmm_p95_ms.load(), s.cache_vmm.vmm_p99_ms.load(), s.cache_vmm.vmm_max_ms.load(),
+        s.render.render_ms.load(), s.render.render_p95_ms.load(), s.render.render_p99_ms.load(), s.render.render_max_ms.load(),
+		s.camera.camera_age_avg_ms.load(), s.camera.camera_age_p50_ms.load(), s.camera.camera_age_p95_ms.load(),
+		s.camera.camera_age_p99_ms.load(), s.camera.camera_age_max_ms.load(),
+		s.camera.camera_read_p95_ms.load(), s.camera.camera_read_p99_ms.load(), s.camera.camera_read_max_ms.load(),
+		static_cast<unsigned long long>(s.camera.camera_busy_skips.load()),
+		static_cast<unsigned long long>(s.camera.camera_busy_retry_success.load()),
+		static_cast<unsigned long long>(s.camera.camera_consecutive_busy_max.load()),
+		static_cast<unsigned long long>(s.camera.camera_cooldown_skips.load()),
+		static_cast<unsigned long long>(s.camera.camera_cooldown_bypasses.load()),
+        s.counts.bones_p95_ms.load(), s.counts.bones_p99_ms.load(), s.counts.bones_max_ms.load(),
+        s.pressure.death_to_hide_ms.load(),
+        static_cast<unsigned long long>(s.pressure.recent_player_reinsertions.load()),
+        static_cast<unsigned long long>(s.pressure.last_good_age_ms.load()),
+        static_cast<unsigned long long>(s.counts.snapshot_drops.load()),
+        static_cast<unsigned long long>(s.counts.read_fails.load()),
+        static_cast<unsigned long long>(s.counts.acquisition_spikes.load()),
+        static_cast<unsigned long long>(s.counts.suppressed_spikes_20.load()),
+        static_cast<unsigned long long>(s.counts.suppressed_spikes_50.load()),
+        static_cast<unsigned long long>(s.counts.suppressed_spikes_100.load()));
     Emit(tag, buf);
 }
 
