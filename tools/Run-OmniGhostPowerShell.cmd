@@ -1,220 +1,148 @@
 @echo off
-setlocal EnableExtensions DisableDelayedExpansion
-rem MSBuild and both PowerShell engines must agree on UTF-8 for accented logs.
-chcp 65001 >nul
+setlocal
 
-if "%~1"=="" goto :usage
-if "%~2"=="" goto :usage
+:: Run-OmniGhostPowerShell.cmd
+:: PowerShell bridge for MSBuild to invoke OmniGhost tooling scripts.
+:: Usage: Run-OmniGhostPowerShell.cmd <command> [args...]
 
-set "ACTION=%~1"
-set "PROJECT_DIR=%~f2"
-set "SCRIPT="
+set "SCRIPT_DIR=%~dp0"
 
-if /I "%ACTION%"=="validate-project" set "SCRIPT=%PROJECT_DIR%\tools\Validate-Project.ps1"
-if /I "%ACTION%"=="ensure-metadata" set "SCRIPT=%PROJECT_DIR%\tools\Ensure-ProjectMetadata.ps1"
-if /I "%ACTION%"=="generate-build-metadata" set "SCRIPT=%PROJECT_DIR%\tools\Generate-BuildMetadata.ps1"
-if /I "%ACTION%"=="generate-embedded-offsets" set "SCRIPT=%PROJECT_DIR%\tools\Build-EmbeddedOffsets.ps1"
-if /I "%ACTION%"=="generate-embedded-runtime" set "SCRIPT=%PROJECT_DIR%\tools\Build-EmbeddedRuntime.ps1"
-if /I "%ACTION%"=="validate-embedded-runtime" set "SCRIPT=%PROJECT_DIR%\tools\Validate-EmbeddedRuntime.ps1"
-if /I "%ACTION%"=="validate-embedded-offsets" set "SCRIPT=%PROJECT_DIR%\tools\Validate-EmbeddedOffsets.ps1"
-if /I "%ACTION%"=="generate-embedded-resources" set "SCRIPT=%PROJECT_DIR%\tools\Build-EmbeddedResources.ps1"
-if /I "%ACTION%"=="build-private-static-vmm" set "SCRIPT=%PROJECT_DIR%\tools\Build-PrivateStaticVmm.ps1"
-if /I "%ACTION%"=="increment-version" set "SCRIPT=%PROJECT_DIR%\tools\Increment-Version.ps1"
-if /I "%ACTION%"=="prepare-publish-version" set "SCRIPT=%PROJECT_DIR%\tools\Prepare-PublishVersion.ps1"
-if /I "%ACTION%"=="package-release" set "SCRIPT=%PROJECT_DIR%\tools\package_release.ps1"
-if /I "%ACTION%"=="restore-version" set "SCRIPT=%PROJECT_DIR%\tools\Restore-Version.ps1"
-if /I "%ACTION%"=="repair-latest" set "SCRIPT=%PROJECT_DIR%\tools\Repair-LatestRelease.ps1"
-if /I "%ACTION%"=="validate-distribution" set "SCRIPT=%PROJECT_DIR%\tools\Validate-DistributionBuild.ps1"
-if /I "%ACTION%"=="publish-build" set "SCRIPT=%PROJECT_DIR%\tools\Publish-Build.ps1"
-if /I "%ACTION%"=="cleanup-verified-build" set "SCRIPT=%PROJECT_DIR%\tools\Cleanup-PublishWorkspace.ps1"
-if /I "%ACTION%"=="compress-assets" set "SCRIPT=%PROJECT_DIR%\tools\Compress-Assets.ps1"
-if /I "%ACTION%"=="ensure-dma-dependencies" set "SCRIPT=%PROJECT_DIR%\tools\Update-DmaDependencies.ps1"
-
-if not defined SCRIPT (
-    echo [OmniGhost PowerShell] Unknown action: %ACTION%
-    exit /b 64
+if "%~1"=="" (
+    echo Uso: %~nx0 ^<comando^> [argumentos...]
+    echo.
+    echo Comandos disponiveis:
+    echo   generate-embedded-offsets       ^<ProjectDir^> ^<Configuration^>
+    echo   generate-embedded-runtime       ^<ProjectDir^> ^<VcToolsRedistDir^> ^<Configuration^>
+    echo   validate-embedded-runtime       ^<ProjectDir^> ^<Configuration^> ^<Platform^>
+    echo   generate-embedded-resources     ^<ProjectDir^> ^<Configuration^> ^<Platform^>
+    echo   publish-build                   ^<ProjectDir^> ^<BuildDir^>
+    echo   cleanup-verified-build          ^<ProjectDir^>
+    echo   validate-embedded-offsets       ^<ProjectDir^> ^<Executable^> ^<Configuration^> ^<Platform^>
+    echo   validate-project                ^<ProjectDir^>
+    echo   prepare-publish-version         ^<ProjectDir^>
+    echo   ensure-metadata                 ^<ProjectDir^>
+    echo   validate-distribution           ^<ProjectDir^> ^<Configuration^>
+    echo   generate-build-metadata         ^<ProjectDir^> ^<Configuration^> ^<Platform^> ^<ReleaseChannel^> ^<WindowsSdkVersion^>
+    exit /b 1
 )
 
-if not exist "%SCRIPT%" (
-    echo [OmniGhost PowerShell] Script not found: %SCRIPT%
-    exit /b 66
+set "COMMAND=%~1"
+shift
+
+:: Find PowerShell
+set "PS_CMD=powershell.exe"
+where powershell.exe >nul 2>nul || set "PS_CMD=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
+
+:: Helper to invoke a .ps1 script with arguments, handling paths with spaces
+set "INVOKE_PS=^& \"%SCRIPT_DIR:~0,-1%\""
+
+if "%COMMAND%"=="generate-embedded-offsets" (
+    if "%~2"=="" (
+        echo Erro: generate-embedded-offsets requer ProjectDir e Configuration
+        exit /b 1
+    )
+    "%PS_CMD%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& \"%SCRIPT_DIR%Build-EmbeddedOffsets.ps1\" -ProjectDir \"%~1\" -Configuration \"%~2\""
+    exit /b %ERRORLEVEL%
 )
 
-set "PS_EXE="
-
-rem Optional explicit override for CI or developer machines.
-if defined OMNIGHOST_POWERSHELL (
-    if exist "%OMNIGHOST_POWERSHELL%" set "PS_EXE=%OMNIGHOST_POWERSHELL%"
+if "%COMMAND%"=="generate-embedded-runtime" (
+    if "%~3"=="" (
+        echo Erro: generate-embedded-runtime requer ProjectDir, VcToolsRedistDir e Configuration
+        exit /b 1
+    )
+    "%PS_CMD%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& \"%SCRIPT_DIR%Build-EmbeddedRuntime.ps1\" -ProjectDir \"%~1\" -VcToolsRedistDir \"%~2\" -Configuration \"%~3\""
+    exit /b %ERRORLEVEL%
 )
 
-rem Prefer PowerShell 7's consistent UTF-8 output where available.
-if not defined PS_EXE (
-    if exist "%ProgramFiles%\PowerShell\7\pwsh.exe" set "PS_EXE=%ProgramFiles%\PowerShell\7\pwsh.exe"
+if "%COMMAND%"=="validate-embedded-runtime" (
+    if "%~3"=="" (
+        echo Erro: validate-embedded-runtime requer ProjectDir, Configuration e Platform
+        exit /b 1
+    )
+    "%PS_CMD%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& \"%SCRIPT_DIR%Validate-EmbeddedRuntime.ps1\" -ProjectDir \"%~1\" -Configuration \"%~2\" -Platform \"%~3\""
+    exit /b %ERRORLEVEL%
 )
 
-if not defined PS_EXE (
-    for /f "delims=" %%P in ('where pwsh.exe 2^>nul') do if not defined PS_EXE set "PS_EXE=%%P"
+if "%COMMAND%"=="generate-embedded-resources" (
+    if "%~3"=="" (
+        echo Erro: generate-embedded-resources requer ProjectDir, Configuration e Platform
+        exit /b 1
+    )
+    "%PS_CMD%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& \"%SCRIPT_DIR%Build-EmbeddedResources.ps1\" -ProjectDir \"%~1\" -Configuration \"%~2\" -Platform \"%~3\""
+    exit /b %ERRORLEVEL%
 )
 
-if not defined PS_EXE (
-    if exist "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" set "PS_EXE=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
+if "%COMMAND%"=="publish-build" (
+    if "%~2"=="" (
+        echo Erro: publish-build requer ProjectDir e BuildDir
+        exit /b 1
+    )
+    "%PS_CMD%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& \"%SCRIPT_DIR%Publish-Build.ps1\" -ProjectDir \"%~1\" -BuildDir \"%~2\""
+    exit /b %ERRORLEVEL%
 )
 
-if not defined PS_EXE (
-    for /f "delims=" %%P in ('where powershell.exe 2^>nul') do if not defined PS_EXE set "PS_EXE=%%P"
+if "%COMMAND%"=="cleanup-verified-build" (
+    if "%~1"=="" (
+        echo Erro: cleanup-verified-build requer ProjectDir
+        exit /b 1
+    )
+    "%PS_CMD%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& \"%SCRIPT_DIR%Cleanup-PublishWorkspace.ps1\" -ProjectDir \"%~1\""
+    exit /b %ERRORLEVEL%
 )
 
-if not defined PS_EXE (
-    echo [OmniGhost PowerShell] No compatible PowerShell engine was found.
-    echo [OmniGhost PowerShell] Supported engines: Windows PowerShell 5.1 and PowerShell 7+.
-    exit /b 69
+if "%COMMAND%"=="validate-embedded-offsets" (
+    if "%~4"=="" (
+        echo Erro: validate-embedded-offsets requer ProjectDir, Executable, Configuration e Platform
+        exit /b 1
+    )
+    "%PS_CMD%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& \"%SCRIPT_DIR%Validate-EmbeddedOffsets.ps1\" -ProjectDir \"%~1\" -Executable \"%~2\" -Configuration \"%~3\" -Platform \"%~4\""
+    exit /b %ERRORLEVEL%
 )
 
-echo [OmniGhost PowerShell] Engine: %PS_EXE%
-
-if /I "%ACTION%"=="package-release" goto :package
-if /I "%ACTION%"=="generate-build-metadata" goto :build_metadata
-if /I "%ACTION%"=="repair-latest" goto :repair_latest
-if /I "%ACTION%"=="validate-distribution" goto :validate_distribution
-if /I "%ACTION%"=="publish-build" goto :publish_build
-if /I "%ACTION%"=="cleanup-verified-build" goto :cleanup_verified_build
-if /I "%ACTION%"=="compress-assets" goto :compress_assets
-if /I "%ACTION%"=="generate-embedded-runtime" goto :embedded_runtime
-if /I "%ACTION%"=="validate-embedded-runtime" goto :validate_embedded_runtime
-if /I "%ACTION%"=="validate-embedded-offsets" goto :validate_embedded_offsets
-if /I "%ACTION%"=="generate-embedded-offsets" goto :embedded_data
-if /I "%ACTION%"=="generate-embedded-resources" goto :embedded_data
-if /I "%ACTION%"=="build-private-static-vmm" goto :private_static_vmm
-if /I "%ACTION%"=="prepare-publish-version" goto :prepare_publish_version
-if /I "%ACTION%"=="increment-version" goto :project_dir_only
-if /I "%ACTION%"=="restore-version" goto :project_dir_only
-if /I "%ACTION%"=="validate-project" goto :project_dir_only
-if /I "%ACTION%"=="ensure-metadata" goto :project_dir_only
-if /I "%ACTION%"=="ensure-dma-dependencies" goto :ensure_dma_dependencies
-"%PS_EXE%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%SCRIPT%" -ProjectDir "%PROJECT_DIR%"
-exit /b %ERRORLEVEL%
-
-:prepare_publish_version
-rem Only -ProjectDir is required; -Configuration is optional and ignored by the script.
-"%PS_EXE%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%SCRIPT%" -ProjectDir "%PROJECT_DIR%"
-exit /b %ERRORLEVEL%
-
-:project_dir_only
-"%PS_EXE%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%SCRIPT%" -ProjectDir "%PROJECT_DIR%"
-exit /b %ERRORLEVEL%
-
-:private_static_vmm
-set "PLATFORM_TOOLSET=%~3"
-if not defined PLATFORM_TOOLSET set "PLATFORM_TOOLSET=v145"
-"%PS_EXE%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%SCRIPT%" -ProjectDir "%PROJECT_DIR%" -PlatformToolset "%PLATFORM_TOOLSET%"
-exit /b %ERRORLEVEL%
-
-:embedded_runtime
-set "CONFIGURATION=%~4"
-if not defined CONFIGURATION set "CONFIGURATION=Release"
-set "PLATFORM=%~5"
-if not defined PLATFORM set "PLATFORM=x64"
-"%PS_EXE%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%SCRIPT%" -ProjectDir "%PROJECT_DIR%" -VcToolsRedistDir "%~3" -Configuration "%CONFIGURATION%" -Platform "%PLATFORM%"
-exit /b %ERRORLEVEL%
-
-:validate_embedded_runtime
-set "CONFIGURATION=%~3"
-if not defined CONFIGURATION set "CONFIGURATION=Release"
-set "PLATFORM=%~4"
-if not defined PLATFORM set "PLATFORM=x64"
-"%PS_EXE%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%SCRIPT%" -ProjectDir "%PROJECT_DIR%" -Configuration "%CONFIGURATION%" -Platform "%PLATFORM%"
-exit /b %ERRORLEVEL%
-
-:validate_embedded_offsets
-if "%~3"=="" goto :usage
-set "CONFIGURATION=%~4"
-if not defined CONFIGURATION set "CONFIGURATION=Release"
-set "PLATFORM=%~5"
-if not defined PLATFORM set "PLATFORM=x64"
-"%PS_EXE%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%SCRIPT%" -ProjectDir "%PROJECT_DIR%" -Executable "%~f3" -Configuration "%CONFIGURATION%" -Platform "%PLATFORM%"
-exit /b %ERRORLEVEL%
-
-:embedded_data
-set "CONFIGURATION=%~3"
-if not defined CONFIGURATION set "CONFIGURATION=Release"
-set "PLATFORM=%~4"
-if not defined PLATFORM set "PLATFORM=x64"
-"%PS_EXE%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%SCRIPT%" -ProjectDir "%PROJECT_DIR%" -Configuration "%CONFIGURATION%" -Platform "%PLATFORM%"
-exit /b %ERRORLEVEL%
-
-:build_metadata
-set "CONFIGURATION=%~3"
-set "ARCHITECTURE=%~4"
-set "RELEASE_CHANNEL=%~5"
-set "WINDOWS_SDK_VERSION=%~6"
-if not defined ARCHITECTURE set "ARCHITECTURE=x64"
-if not defined RELEASE_CHANNEL set "RELEASE_CHANNEL=stable"
-"%PS_EXE%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%SCRIPT%" -ProjectDir "%PROJECT_DIR%" -Configuration "%CONFIGURATION%" -Architecture "%ARCHITECTURE%" -ReleaseChannel "%RELEASE_CHANNEL%" -WindowsSdkVersion "%WINDOWS_SDK_VERSION%"
-exit /b %ERRORLEVEL%
-
-:repair_latest
-if "%~3"=="" (
-    "%PS_EXE%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%SCRIPT%" -ProjectDir "%PROJECT_DIR%"
-) else (
-    "%PS_EXE%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%SCRIPT%" -ProjectDir "%PROJECT_DIR%" -Tag "%~3"
+if "%COMMAND%"=="validate-project" (
+    if "%~1"=="" (
+        echo Erro: validate-project requer ProjectDir
+        exit /b 1
+    )
+    "%PS_CMD%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& \"%SCRIPT_DIR%Validate-Project.ps1\" -ProjectDir \"%~1\""
+    exit /b %ERRORLEVEL%
 )
-exit /b %ERRORLEVEL%
 
-:validate_distribution
-if "%~3"=="" goto :usage
-"%PS_EXE%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%SCRIPT%" -ProjectDir "%PROJECT_DIR%" -Configuration "%~3"
-exit /b %ERRORLEVEL%
-
-:publish_build
-if "%~3"=="" goto :usage
-set "BUILD_DIR=%~f3"
-set "VALIDATE_ONLY=%~4"
-if /I "%VALIDATE_ONLY%"=="true" (
-    "%PS_EXE%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%SCRIPT%" -ProjectDir "%PROJECT_DIR%" -BuildDir "%BUILD_DIR%" -ValidateOnly -ExplicitConfirmed
-) else (
-    "%PS_EXE%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%SCRIPT%" -ProjectDir "%PROJECT_DIR%" -BuildDir "%BUILD_DIR%" -ExplicitConfirmed
+if "%COMMAND%"=="prepare-publish-version" (
+    if "%~1"=="" (
+        echo Erro: prepare-publish-version requer ProjectDir
+        exit /b 1
+    )
+    "%PS_CMD%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& \"%SCRIPT_DIR%Prepare-PublishVersion.ps1\" -ProjectDir \"%~1\""
+    exit /b %ERRORLEVEL%
 )
-exit /b %ERRORLEVEL%
 
-:ensure_dma_dependencies
-"%PS_EXE%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%SCRIPT%" -EnsureLatest
-exit /b %ERRORLEVEL%
+if "%COMMAND%"=="ensure-metadata" (
+    if "%~1"=="" (
+        echo Erro: ensure-metadata requer ProjectDir
+        exit /b 1
+    )
+    "%PS_CMD%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& \"%SCRIPT_DIR%Ensure-ProjectMetadata.ps1\" -ProjectDir \"%~1\""
+    exit /b %ERRORLEVEL%
+)
 
-:cleanup_verified_build
-"%PS_EXE%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%SCRIPT%" -ProjectDir "%PROJECT_DIR%"
-exit /b %ERRORLEVEL%
+if "%COMMAND%"=="validate-distribution" (
+    if "%~2"=="" (
+        echo Erro: validate-distribution requer ProjectDir e Configuration
+        exit /b 1
+    )
+    "%PS_CMD%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& \"%SCRIPT_DIR%Validate-DistributionBuild.ps1\" -ProjectDir \"%~1\" -Configuration \"%~2\""
+    exit /b %ERRORLEVEL%
+)
 
-:compress_assets
-set "CONFIGURATION=%~3"
-if not defined CONFIGURATION set "CONFIGURATION=Release"
-"%PS_EXE%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%SCRIPT%" -ProjectDir "%PROJECT_DIR%" -Configuration "%CONFIGURATION%"
-exit /b %ERRORLEVEL%
+if "%COMMAND%"=="generate-build-metadata" (
+    if "%~5"=="" (
+        echo Erro: generate-build-metadata requer ProjectDir, Configuration, Platform, ReleaseChannel e WindowsSdkVersion
+        exit /b 1
+    )
+    "%PS_CMD%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& \"%SCRIPT_DIR%Generate-BuildMetadata.ps1\" -ProjectDir \"%~1\" -Configuration \"%~2\" -Architecture \"%~3\" -ReleaseChannel \"%~4\" -WindowsSdkVersion \"%~5\""
+    exit /b %ERRORLEVEL%
+)
 
-:package
-if "%~3"=="" goto :usage
-if "%~4"=="" goto :usage
-set "BUILD_DIR=%~f3"
-set "LOG_FILE=%~f4"
-"%PS_EXE%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%SCRIPT%" -ProjectDir "%PROJECT_DIR%" -BuildDir "%BUILD_DIR%" -LogFile "%LOG_FILE%"
-exit /b %ERRORLEVEL%
-
-:usage
-echo Usage:
-echo   Run-OmniGhostPowerShell.cmd validate-project PROJECT_DIR
-echo   Run-OmniGhostPowerShell.cmd ensure-metadata PROJECT_DIR
-echo   Run-OmniGhostPowerShell.cmd generate-build-metadata PROJECT_DIR [CONFIGURATION] [ARCHITECTURE] [RELEASE_CHANNEL] [WINDOWS_SDK_VERSION]
-echo   Run-OmniGhostPowerShell.cmd generate-embedded-offsets PROJECT_DIR
-echo   Run-OmniGhostPowerShell.cmd generate-embedded-runtime PROJECT_DIR
-echo   Run-OmniGhostPowerShell.cmd validate-embedded-offsets PROJECT_DIR EXECUTABLE
-echo   Run-OmniGhostPowerShell.cmd generate-embedded-resources PROJECT_DIR
-echo   Run-OmniGhostPowerShell.cmd build-private-static-vmm PROJECT_DIR [PLATFORM_TOOLSET]
-echo   Run-OmniGhostPowerShell.cmd increment-version PROJECT_DIR
-echo   Run-OmniGhostPowerShell.cmd prepare-publish-version PROJECT_DIR
-echo   Run-OmniGhostPowerShell.cmd package-release PROJECT_DIR BUILD_DIR LOG_FILE
-echo   Run-OmniGhostPowerShell.cmd restore-version PROJECT_DIR
-echo   Run-OmniGhostPowerShell.cmd repair-latest PROJECT_DIR [TAG]
-echo   Run-OmniGhostPowerShell.cmd validate-distribution PROJECT_DIR CONFIGURATION
-echo   Run-OmniGhostPowerShell.cmd publish-build PROJECT_DIR BUILD_DIR [true-for-preflight]
-echo   Run-OmniGhostPowerShell.cmd cleanup-verified-build PROJECT_DIR
-echo   Run-OmniGhostPowerShell.cmd compress-assets PROJECT_DIR [CONFIGURATION]
-exit /b 64
+echo Comando desconhecido: %COMMAND%
+exit /b 1
