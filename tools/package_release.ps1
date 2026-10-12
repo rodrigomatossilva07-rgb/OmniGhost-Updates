@@ -23,6 +23,8 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $Commercial = $Commercial -or $PublishBuild
 . (Join-Path $PSScriptRoot 'Hashing.ps1')
+. (Join-Path $PSScriptRoot 'ReleaseOutput.ps1')
+$packageTimer = [Diagnostics.Stopwatch]::StartNew()
 
 # Packaging is intentionally local-only. Remote publication is owned exclusively by Publish-Release.ps1.
 # This script has no code path capable of creating or modifying a remote Release.
@@ -30,7 +32,7 @@ $Commercial = $Commercial -or $PublishBuild
 $ProjectDir = [System.IO.Path]::GetFullPath((Join-Path $ProjectDir '.'))
 $BuildDir = [System.IO.Path]::GetFullPath((Join-Path $BuildDir '.'))
 if ($Commercial) {
-    & (Join-Path $PSScriptRoot 'Test-CommercialPreflight.ps1') -ProjectDir $ProjectDir -AllowMissingTag:$AllowMissingTag
+    & (Join-Path $PSScriptRoot 'Test-CommercialPreflight.ps1') -ProjectDir $ProjectDir -AllowMissingTag:$AllowMissingTag -Quiet
 }
 if (-not $LogFile) {
     $LogFile = Join-Path $ProjectDir 'artifacts\release-build.log'
@@ -225,6 +227,7 @@ Write-ReleaseLog ("PowerShell: {0} ({1})" -f $PSVersionTable.PSVersion.ToString(
 Backup-ReleaseTransaction
 
 try {
+    if ($PublishBuild) { Write-OmniPhase 6 'Packaging e inventário' }
     if (-not (Test-Path -LiteralPath $VersionFile -PathType Leaf)) {
         throw "Ficheiro de versão não encontrado: $VersionFile"
     }
@@ -299,7 +302,8 @@ try {
     & (Join-Path $ProjectDir 'tools\Audit-ReleaseDependencies.ps1') `
         -ProjectDir $ProjectDir `
         -RuntimeDir $BuildDir `
-        -SbomPath $SbomPath
+        -SbomPath $SbomPath `
+        -Quiet
     Write-ReleaseLog 'SBOM e política de dependências validados.'
 
     $script:ReleaseOutputDir = Get-ReleaseOutputDirectory
@@ -380,18 +384,29 @@ try {
         . (Join-Path $ProjectDir 'tools\ReleaseTrustTools.ps1')
         $SigningCertificate = Get-ReleaseSigningCertificate -Thumbprint $SigningThumbprint -RequirePrivateKey
         Assert-ReleaseTrustMatches -Policy $PublishSettings -HeaderPath (Join-Path $ProjectDir 'src\updater\release_trust.h') -Certificate $SigningCertificate
+        Write-OmniPhase 7 'Assinaturas e integridade'
         Write-ReleaseLog 'A assinar a cópia staged de OmniGhost.exe com Authenticode...'
+        $signingTimer = [Diagnostics.Stopwatch]::StartNew()
         $SignTool = Get-ReleaseSignTool
-        & $SignTool sign /fd SHA256 /sha1 $SigningCertificate.Thumbprint /s My $StagedExecutable
-        if ($LASTEXITCODE -ne 0) { throw "SignTool signing failed with exit code $LASTEXITCODE." }
-        & $SignTool verify /pa /all /v $StagedExecutable
-        if ($LASTEXITCODE -ne 0) { throw "SignTool verification failed with exit code $LASTEXITCODE." }
+        $signOutput = @(& $SignTool sign /q /fd SHA256 /sha1 $SigningCertificate.Thumbprint /s My $StagedExecutable 2>&1)
+        $signExitCode = $LASTEXITCODE
+        if ($signExitCode -ne 0) {
+            throw "SignTool signing failed with exit code ${signExitCode}: $($signOutput -join ' ')"
+        }
+        $verifyOutput = @(& $SignTool verify /q /pa /all $StagedExecutable 2>&1)
+        $verifyExitCode = $LASTEXITCODE
+        if ($verifyExitCode -ne 0) {
+            throw "SignTool verification failed with exit code ${verifyExitCode}: $($verifyOutput -join ' ')"
+        }
         $ExecutableSignature = Get-AuthenticodeSignature -LiteralPath $StagedExecutable
         if ($ExecutableSignature.Status -ne 'Valid' -or
             $null -eq $ExecutableSignature.SignerCertificate -or
             $ExecutableSignature.SignerCertificate.Thumbprint -cne $SigningCertificate.Thumbprint) {
             throw 'The Authenticode signer does not match the selected trusted publisher.'
         }
+        $signedExecutableHash = Get-LowerSha256 -Path $StagedExecutable
+        Write-ReleaseLog "[Signing] OmniGhost.exe assinado e verificado em $(Format-OmniDuration $signingTimer.Elapsed)."
+        Write-ReleaseLog "[Signing] Certificado: $($SigningCertificate.Subject); SHA-256: $signedExecutableHash"
     }
 
     # Installation manifest: all customer runtime files are independently hashed.
@@ -448,7 +463,7 @@ try {
     $Size = [int64]$ZipItem.Length
     if ($Size -le 0) { throw 'OmniGhost.zip foi criado com tamanho zero.' }
     $Sha256 = Get-LowerSha256 -Path $ArtifactZip
-    Write-ReleaseLog "ZIP criado: $Size bytes; SHA-256: $Sha256"
+    Write-ReleaseLog "Pacote final: $(Format-OmniBytes $Size); SHA-256: $Sha256"
 
     # Publish the signed inventory beside the ZIP. The client ZIP intentionally
     # contains OmniGhost.exe and the dependency notices; package SHA-256 and
@@ -636,10 +651,10 @@ try {
     Write-ReleaseLog "Artefactos copiados e validados em: $ReleaseOutputDir"
 
     if ($Commercial) {
-        Write-ReleaseLog 'A executar validação comercial final do pacote...'
-        & (Join-Path $ProjectDir 'tools\Validate-ReleaseArtifacts.ps1') -ProjectDir $ProjectDir -ReleaseDirectory $ReleaseOutputDir -Version $Version
+        Write-OmniPhase 8 'Validação comercial final'
+        & (Join-Path $ProjectDir 'tools\Validate-ReleaseArtifacts.ps1') -ProjectDir $ProjectDir -ReleaseDirectory $ReleaseOutputDir -Version $Version -Quiet
         if ($LASTEXITCODE -ne 0) { throw 'Commercial release validation failed.' }
-        Write-ReleaseLog 'Pacote comercial validado: Authenticode + publisher + manifest signature + SHA-256.'
+        Write-ReleaseLog 'Pacote comercial validado: Authenticode, publisher, manifestos e SHA-256.'
     }
 
     Copy-Item -LiteralPath $ArtifactZip -Destination $DownloadsZipPath -Force
@@ -657,24 +672,10 @@ try {
 
     Remove-Item -LiteralPath (Join-Path $BuildDir 'OmniGhost.pdb') -Force -ErrorAction SilentlyContinue
 
-    Write-ReleaseLog 'Artefactos locais preservados. Packaging nunca apaga o canonical release/CI output.'
-
-    Write-ReleaseLog 'Pacote de Release criado com sucesso.'
-    Write-ReleaseLog "Versão: $Version"
-    Write-ReleaseLog "Tag: $Tag"
-    Write-ReleaseLog "Tamanho: $Size bytes"
-    Write-ReleaseLog "SHA-256: $Sha256"
-    if (Test-Path -LiteralPath $DownloadsZipPath) {
+    Write-ReleaseLog "Packaging concluído em $(Format-OmniDuration $packageTimer.Elapsed): $Tag, $(Format-OmniBytes $Size), 9 artefactos assinados/validados."
+    if ($env:OMNIGHOST_VERBOSE_BUILD -eq '1') {
         Write-ReleaseLog "ZIP nas Transferências: $DownloadsZipPath"
-    }
-    else {
-        Write-ReleaseLog 'O ZIP temporário das Transferências foi removido depois da validação do upload.'
-    }
-    if (Test-Path -LiteralPath $ReleaseOutputDir) {
         Write-ReleaseLog "Pasta local: $ReleaseOutputDir"
-    }
-    else {
-        Write-ReleaseLog 'A pasta local foi removida depois da validação do upload.'
     }
 }
 catch {

@@ -2,7 +2,8 @@
 param(
     [Parameter(Mandatory = $true)][string]$ProjectDir,
     [Parameter(Mandatory = $true)][string]$ReleaseDirectory,
-    [Parameter(Mandatory = $true)][string]$Version
+    [Parameter(Mandatory = $true)][string]$Version,
+    [switch]$Quiet
 )
 
 $ErrorActionPreference = 'Stop'
@@ -42,7 +43,7 @@ foreach ($line in [IO.File]::ReadAllLines($sumsPath)) {
 foreach ($name in $expectedNames) {
     if (-not $seen.Contains($name)) { throw "SHA256SUMS.txt omite: $name" }
 }
-Write-Host "[HASH] SHA256SUMS.txt validado: $($seen.Count) artefactos."
+if (-not $Quiet) { Write-Host "[HASH] SHA256SUMS.txt validado: $($seen.Count) artefactos." }
 
 $policy = [IO.File]::ReadAllText((Join-Path $ProjectDir 'config\release\release-publish.json'), [Text.Encoding]::UTF8) | ConvertFrom-Json
 if ($policy.requireAuthenticode -ne $true -or $policy.requireManifestSignature -ne $true) {
@@ -118,7 +119,8 @@ if (Test-Path -LiteralPath $runtimeDir -PathType Container) {
     & (Join-Path $ProjectDir 'tools\Audit-ReleaseDependencies.ps1') `
         -ProjectDir $ProjectDir `
         -RuntimeDir $runtimeDir `
-        -SbomPath (Join-Path $ReleaseDirectory 'SBOM.cdx.json')
+        -SbomPath (Join-Path $ReleaseDirectory 'SBOM.cdx.json') `
+        -Quiet:$Quiet
 }
 else {
     $sbom = Get-Content -LiteralPath (Join-Path $ReleaseDirectory 'SBOM.cdx.json') -Raw | ConvertFrom-Json
@@ -128,4 +130,6 @@ else {
     }
 }
 
-Write-Host "[OmniGhost Release] Artefactos $Version validados: ZIP, manifesto, SHA-256, caminhos e SBOM."
+if (-not $Quiet) {
+    Write-Host "[OmniGhost Release] Artefactos $Version validados: ZIP, manifesto, SHA-256, caminhos e SBOM."
+}

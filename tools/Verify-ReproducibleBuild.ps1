@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [Parameter(Mandatory=$true)][string]$ProjectDir,
     [Parameter(Mandatory=$true)][string]$PrimaryExecutable,
@@ -7,6 +7,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot 'ReleaseOutput.ps1')
 $ProjectDir = [IO.Path]::GetFullPath($ProjectDir)
 $PrimaryExecutable = [IO.Path]::GetFullPath($PrimaryExecutable)
 $MSBuildPath = [IO.Path]::GetFullPath($MSBuildPath)
@@ -60,18 +61,28 @@ if ($LASTEXITCODE -ne 0 -or $commit -notmatch '^[0-9a-f]{40}$') { throw 'Could n
 $reproParent = Split-Path -Parent $ProjectDir
 $reproRoot = Join-Path $reproParent ('.omnighost-repro-' + [Guid]::NewGuid().ToString('N'))
 $worktreeAdded = $false
+$reproTimer = [Diagnostics.Stopwatch]::StartNew()
+$reproLog = Join-Path $ProjectDir '.cache\logs\repro-build.log'
 try {
-    & $git -C $ProjectDir worktree add --detach $reproRoot $commit
+    Write-Host '[Repro 1/3] A preparar checkout isolado...'
+    & $git -C $ProjectDir worktree add --quiet --detach $reproRoot $commit
     if ($LASTEXITCODE -ne 0) { throw 'Could not create isolated reproducibility worktree.' }
     $worktreeAdded = $true
 
     $project = Join-Path $reproRoot 'OmiGhost.vcxproj'
-    Write-Host "[OmniGhost Repro] Independent build at $reproRoot"
-    & $MSBuildPath $project /t:Build /m:1 /nr:false /p:Configuration=Publish /p:Platform=x64 `
+    Write-Host '[Repro 2/3] A executar build independente (detalhes em .cache\logs\repro-build.log)...'
+    [IO.Directory]::CreateDirectory((Split-Path -Parent $reproLog)) | Out-Null
+    $buildOutput = @(& $MSBuildPath $project /t:Build /m:1 /nr:false /p:Configuration=Publish /p:Platform=x64 `
         /p:OmniGhostReproducibilityPass=true /p:OmniGhostSkipReleaseSigning=true `
         /p:OmniGhostSkipPackaging=true /p:OmniGhostSkipRemotePublish=true `
-        /p:OmniGhostSkipVersionAdvance=true /v:minimal
-    if ($LASTEXITCODE -ne 0) { throw "Independent Publish rebuild failed with exit code $LASTEXITCODE." }
+        /p:OmniGhostSkipVersionAdvance=true /v:minimal 2>&1)
+    $buildExitCode = $LASTEXITCODE
+    [IO.File]::WriteAllLines($reproLog, @($buildOutput | ForEach-Object { [string]$_ }), (New-Object Text.UTF8Encoding($false)))
+    if ($buildExitCode -ne 0) {
+        Write-Host '[OmniGhost Repro] Ultimas linhas da build independente:'
+        $buildOutput | Select-Object -Last 80 | ForEach-Object { Write-Host "  $_" }
+        throw "Independent Publish rebuild failed with exit code $buildExitCode. Full log: $reproLog"
+    }
 
     $secondExecutable = Join-Path $reproRoot 'build\Publish\OmniGhost.exe'
     if (-not (Test-Path -LiteralPath $secondExecutable -PathType Leaf)) { throw 'Independent rebuild did not produce OmniGhost.exe.' }
@@ -95,11 +106,11 @@ try {
     $metadata | Add-Member -NotePropertyName reproducibility_verified_utc -NotePropertyValue ([DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ')) -Force
     $utf8 = New-Object Text.UTF8Encoding($false)
     [IO.File]::WriteAllText($metadataPath, (($metadata | ConvertTo-Json -Depth 8) + [Environment]::NewLine), $utf8)
-    Write-Host "[OmniGhost Repro] PASS SHA-256=$primaryHash commit=$commit"
+    Write-Host "[Repro 3/3] Executaveis identicos - PASS ($(Format-OmniDuration $reproTimer.Elapsed)); SHA-256=$primaryHash"
 }
 finally {
     if ($worktreeAdded) {
-        & $git -C $ProjectDir worktree remove --force $reproRoot 2>$null
-        & $git -C $ProjectDir worktree prune 2>$null
+        & $git -C $ProjectDir worktree remove --force $reproRoot 2>$null | Out-Null
+        & $git -C $ProjectDir worktree prune 2>$null | Out-Null
     }
 }

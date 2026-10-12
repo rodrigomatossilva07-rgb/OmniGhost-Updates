@@ -9,6 +9,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot 'ReleaseOutput.ps1')
 $ProjectDir = [IO.Path]::GetFullPath($ProjectDir)
 $Configuration = ($Configuration -replace '[^A-Za-z0-9_.-]', '_')
 $Platform = ($Platform -replace '[^A-Za-z0-9_.-]', '_')
@@ -74,7 +75,6 @@ if (Test-Path -LiteralPath $libsDir -PathType Container) {
         $libsEmbedded += $file.Name
     }
 }
-Write-Host "[EmbeddedRuntime] from libs\: $($libsEmbedded.Count) files - $($libsEmbedded -join ', ')"
 
 # Secondary: third_party\dma_stack\bin\*.dll (also mapped to libs/<name>)
 $dmaBin = Join-Path $ProjectDir 'third_party\dma_stack\bin'
@@ -85,15 +85,13 @@ if (Test-Path -LiteralPath $dmaBin -PathType Container) {
         $dmaEmbedded += $file.Name
     }
 }
-if ($dmaEmbedded.Count -gt 0) {
-    Write-Host "[EmbeddedRuntime] from dma_stack\bin: $($dmaEmbedded.Count) files - $($dmaEmbedded -join ', ')"
-}
-
-$hasFtdi = ($libsEmbedded + $dmaEmbedded) | Where-Object { $_ -ieq 'FTD3XX.dll' -or $_ -ieq 'FTD3XXWU.dll' }
+$hasFtdi = @(($libsEmbedded + $dmaEmbedded) |
+    Where-Object { $_ -ieq 'FTD3XX.dll' -or $_ -ieq 'FTD3XXWU.dll' } |
+    Sort-Object -Unique)
 if (-not $hasFtdi) {
-    Write-Warning "[EmbeddedRuntime] FTD3XX.dll / FTD3XXWU.dll not found in libs\ or third_party\dma_stack\bin ÔÇö FPGA open will fail until one is present at Publish time."
+    Write-Warning "[EmbeddedRuntime] FTD3XX.dll / FTD3XXWU.dll not found; FPGA open will fail until Publish includes one."
 } else {
-    Write-Host "[EmbeddedRuntime] FTDI bridge will be embedded: $($hasFtdi -join ', ')"
+    Write-Host "[EmbeddedRuntime] FTDI: $($hasFtdi -join ', ')"
 }
 # The current pinned vmm.dll, leechcore.dll and pdbcrust.dll import only
 # VCRUNTIME140.dll from the private Microsoft VC runtime. Do not embed the
@@ -109,18 +107,18 @@ if (-not [string]::IsNullOrWhiteSpace($VcToolsRedistDir) -and
     if ($null -ne $crt) {
         $vcruntime = Join-Path $crt.FullName 'vcruntime140.dll'
         if (-not (Test-Path -LiteralPath $vcruntime -PathType Leaf)) {
-            throw 'vcruntime140.dll x64 n├úo foi encontrado no redistributable do MSVC.'
+            throw 'vcruntime140.dll x64 nao foi encontrado no redistributable do MSVC.'
         }
         Add-RuntimeFile $vcruntime 'libs/vcruntime140.dll'
     }
 }
 $cloudflared = Join-Path $ProjectDir 'src\runtime\cloudflared\cloudflared.exe'
 if (-not (Test-Path -LiteralPath $cloudflared -PathType Leaf)) {
-    throw 'cloudflared.exe can├│nico em src\runtime\cloudflared est├í em falta.'
+    throw 'cloudflared.exe canonico em src\runtime\cloudflared esta em falta.'
 }
 $expectedCloudflaredSha256 = 'C29EEE2B121F5436A642EED69FD9767DA7E7B8C510FA50AAA130337F931357B5'
 if ((Get-Sha256Hex $cloudflared) -cne $expectedCloudflaredSha256) {
-    throw 'cloudflared.exe n├úo corresponde ao bin├írio Cloudflare 2026.8.2 aprovado.'
+    throw 'cloudflared.exe nao corresponde ao binario Cloudflare 2026.8.2 aprovado.'
 }
 Add-RuntimeFile $cloudflared 'libs/cloudflared.exe'
 # Only native DLLs and the selected pdbcrust symbol backend are materialized.
@@ -179,10 +177,11 @@ $headerLines.Add('} // namespace OmniGhost::EmbeddedRuntimeGenerated')
 
 [IO.File]::WriteAllLines($RcOutput, $rcLines, (New-Object Text.UTF8Encoding($false)))
 [IO.File]::WriteAllLines($HeaderOutput, $headerLines, (New-Object Text.UTF8Encoding($false)))
-Write-Host "[EmbeddedRuntime] from libs: $($embeddedList.Count) files - $($embeddedList -join ', ')"
-Write-Host "[EmbeddedRuntime] embedded count=$($ordered.Count) total_bytes=$total"
-Write-Host "[EmbeddedRuntime] skipped: $($skippedList -join '; ')"
-Write-Host "[EmbeddedRuntime] configuration=$Configuration private_static=$privateStatic"
-Write-Host "[EmbeddedRuntime] RC include: $RcOutput"
-Write-Host "[EmbeddedRuntime] manifest: $HeaderOutput"
+Write-Host "[EmbeddedRuntime] $($ordered.Count) ficheiros; tamanho=$(Format-OmniBytes $total); configuração=$Configuration"
+if ($skippedList.Count -gt 0) { Write-Host "[EmbeddedRuntime] Ignorados: $($skippedList -join '; ')" }
+if ($env:OMNIGHOST_VERBOSE_BUILD -eq '1') {
+    Write-Host "[EmbeddedRuntime] Ficheiros: $($ordered.Relative -join ', ')"
+    Write-Host "[EmbeddedRuntime] RC: $RcOutput"
+    Write-Host "[EmbeddedRuntime] Manifesto: $HeaderOutput"
+}
 $generatorLock.Dispose()

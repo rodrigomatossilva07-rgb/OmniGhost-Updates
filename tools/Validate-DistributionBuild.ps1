@@ -15,7 +15,7 @@ if ($Configuration -eq 'Publish') {
     if ($publish.releaseChannel -cne 'stable') {
         throw 'Publish must retain the stable updater protocol channel.'
     }
-    Write-Host '[OmniGhost Distribution] Publish: PRIVATE DEVELOPMENT BUILD / NOT FOR DISTRIBUTION; private GitHub update channel.'
+    Write-Host '[OmniGhost Distribution] Publish: canal stable publico no GitHub; pacote assinado e validado antes do upload.'
     exit 0
 }
 

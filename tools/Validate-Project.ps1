@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [Parameter(Mandatory=$false)]
     [string]$ProjectDir = (Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path))
@@ -56,7 +56,7 @@ foreach ($file in @(
     'src\platform\embedded_offsets.cpp','src\platform\embedded_offsets.h',
     'src\platform\embedded_resources.cpp','src\platform\embedded_resources.h',
     'src\platform\runtime_bootstrap.cpp','src\platform\runtime_bootstrap.h',
-	'tools\Build-EmbeddedOffsets.ps1','tools\Build-EmbeddedRuntime.ps1','tools\Build-EmbeddedResources.ps1','tools\Verify-BuildMatrix.ps1','tools\Finalize-VersionCommit.ps1',
+	'tools\Build-EmbeddedOffsets.ps1','tools\Build-EmbeddedRuntime.ps1','tools\Build-EmbeddedResources.ps1','tools\Build-CompilePhase.ps1','tools\ReleaseOutput.ps1','tools\Verify-BuildMatrix.ps1','tools\Finalize-VersionCommit.ps1',
     'data\fortnite_offsets.json','data\warzone_offsets.json',
     'src\licensing\license_service.cpp'
 )) { Require-File $file }
@@ -355,7 +355,7 @@ Pass 'All game offsets use data JSON snapshots; FiveM embedded build index is co
 Pass 'Engineering documentation is intentionally non-blocking for compilation.'
 
 Write-Host ''
-Write-Host ("[OmniGhost Validation] OK - {0} verificacoes concluidas" -f $script:PassCount) -ForegroundColor Green
+Write-Host ("[OmniGhost Validation] OK - {0} verificações concluídas" -f $script:PassCount) -ForegroundColor Green
 if (-not $script:VerbosePasses) {
-    Write-Host '  Detalhes ocultos para manter o output legivel. Define OMNIGHOST_VERBOSE_VALIDATION=1 para os mostrar.' -ForegroundColor DarkGray
+    Write-Host '  Detalhes ocultos para manter o output legível. Define OMNIGHOST_VERBOSE_VALIDATION=1 para os mostrar.' -ForegroundColor DarkGray
 }

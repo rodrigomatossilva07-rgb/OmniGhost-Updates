@@ -7,6 +7,8 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot 'ReleaseOutput.ps1')
+$resourceTimer = [Diagnostics.Stopwatch]::StartNew()
 $ProjectDir = [IO.Path]::GetFullPath($ProjectDir)
 $Configuration = ($Configuration -replace '[^A-Za-z0-9_.-]', '_')
 $Platform = ($Platform -replace '[^A-Za-z0-9_.-]', '_')
@@ -391,8 +393,13 @@ $header = @(
 )
 [IO.File]::WriteAllLines($catalogPath, $header, (New-Object Text.UTF8Encoding($false)))
 [IO.File]::WriteAllLines($rcPath, $rc, (New-Object Text.UTF8Encoding($false)))
-Write-Host "[EmbeddedResources] resources=$($items.Count) original=$totalOriginal stored=$totalStored"
+if ($totalOriginal -gt 0) { $savedPercent = (1.0 - ([double]$totalStored / [double]$totalOriginal)) * 100.0 } else { $savedPercent = 0.0 }
+Write-Host ("[EmbeddedResources] {0} recursos: {1} -> {2} ({3:N1}% menor); tempo={4}" -f `
+    $items.Count, (Format-OmniBytes $totalOriginal), (Format-OmniBytes $totalStored), $savedPercent,
+    (Format-OmniDuration $resourceTimer.Elapsed))
 Write-Host "[EmbeddedResources] LZMS cache hits=$compressionCacheHits misses=$compressionCacheMisses invalid=$compressionCacheInvalid root=$compressionCacheRoot"
-Write-Host "[EmbeddedResources] catalog=$catalogPath"
-Write-Host "[EmbeddedResources] rc=$rcPath"
+if ($env:OMNIGHOST_VERBOSE_BUILD -eq '1') {
+    Write-Host "[EmbeddedResources] Catalogo: $catalogPath"
+    Write-Host "[EmbeddedResources] RC: $rcPath"
+}
 $generatorLock.Dispose()

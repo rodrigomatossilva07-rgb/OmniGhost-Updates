@@ -1,5 +1,6 @@
 @echo off
 setlocal
+chcp 65001 >nul
 
 :: Run-OmniGhostPowerShell.cmd
 :: PowerShell bridge for MSBuild to invoke OmniGhost tooling scripts.
@@ -23,6 +24,7 @@ if "%~1"=="" (
     echo   ensure-metadata                 ^<ProjectDir^>
     echo   validate-distribution           ^<ProjectDir^> ^<Configuration^>
     echo   generate-build-metadata         ^<ProjectDir^> ^<Configuration^> ^<Platform^> ^<ReleaseChannel^> ^<WindowsSdkVersion^>
+    echo   compile-phase                   ^<Start^|Complete^> ^<StatePath^> [SourceCount]
     exit /b 1
 )
 
@@ -141,6 +143,15 @@ if "%COMMAND%"=="generate-build-metadata" (
         exit /b 1
     )
     "%PS_CMD%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& \"%SCRIPT_DIR%Generate-BuildMetadata.ps1\" -ProjectDir \"%~1\" -Configuration \"%~2\" -Architecture \"%~3\" -ReleaseChannel \"%~4\" -WindowsSdkVersion \"%~5\""
+    exit /b
+)
+
+if "%COMMAND%"=="compile-phase" (
+    if "%~2"=="" (
+        echo Erro: compile-phase requer Action e StatePath
+        exit /b 1
+    )
+    "%PS_CMD%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& \"%SCRIPT_DIR%Build-CompilePhase.ps1\" -Action \"%~1\" -StatePath \"%~2\" -SourceCount \"%~3\""
     exit /b
 )
 

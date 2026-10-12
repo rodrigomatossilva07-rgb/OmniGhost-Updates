@@ -480,4 +480,5 @@ $MetadataJson = $Metadata | ConvertTo-Json -Depth 6
 [IO.File]::WriteAllText($MetadataPath, $MetadataJson + [Environment]::NewLine, $Utf8NoBom)
 Write-Host "[BuildMetadata] header=$OutputPath"
 Write-Host "[BuildMetadata] metadata=$MetadataPath"
-Write-Host "[BuildMetadata] build_id=$BuildId commit=$CommitShort provenance=$SourceProvenance reproducible=$Reproducible config=$Configuration arch=$Architecture channel=$ReleaseChannel vc=$ToolchainVersion compiler=$CompilerVersion sdk=$WindowsSdkVersion"
+$reproducibilityLabel = if ($Configuration -ceq 'Publish' -and -not $Reproducible) { 'pending' } elseif ($Reproducible) { 'verified' } else { 'not-requested' }
+Write-Host "[BuildMetadata] build_id=$BuildId commit=$CommitShort provenance=$SourceProvenance reproducibility=$reproducibilityLabel config=$Configuration arch=$Architecture channel=$ReleaseChannel vc=$ToolchainVersion compiler=$CompilerVersion sdk=$WindowsSdkVersion"

@@ -7,7 +7,9 @@ param(
     [string]$RuntimeDir,
 
     [Parameter(Mandatory = $true)]
-    [string]$SbomPath
+    [string]$SbomPath,
+
+    [switch]$Quiet
 )
 
 $ErrorActionPreference = 'Stop'
@@ -99,4 +101,6 @@ foreach ($rootName in $ownSourceRoots) {
     }
 }
 
-Write-Host "[OmniGhost Audit] SBOM, hashes, maturidade dos jogos e política de runtime validados."
+if (-not $Quiet) {
+    Write-Host "[OmniGhost Audit] SBOM, hashes, maturidade dos jogos e política de runtime validados."
+}

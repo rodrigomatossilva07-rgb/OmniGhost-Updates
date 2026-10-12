@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([string]$ProjectDir = '', [switch]$AllowMissingTag, [switch]$SourceOnly)
+param([string]$ProjectDir = '', [switch]$AllowMissingTag, [switch]$SourceOnly, [switch]$Quiet)
 
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = New-Object Text.UTF8Encoding($false)
@@ -97,7 +97,9 @@ if (Test-Path -LiteralPath $configPath -PathType Leaf) {
     }
 } else { $errors.Add("[ERROR] Missing release config: $configPath") }
 
-Write-Host 'Release validation:'
-foreach ($check in $checks) { Write-Host $check }
+if (-not $Quiet -or $errors.Count -gt 0) {
+    Write-Host 'Release validation:'
+    foreach ($check in $checks) { Write-Host $check }
+}
 foreach ($problem in $errors) { Write-Host $problem }
 if ($errors.Count -gt 0) { throw "Release validation failed with $($errors.Count) problem(s)." }

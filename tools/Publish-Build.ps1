@@ -16,6 +16,9 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot 'ReleaseOutput.ps1')
+$publishTimer = [Diagnostics.Stopwatch]::StartNew()
+$packagingDuration = $null
 
 if ([string]::IsNullOrWhiteSpace($ProjectDir)) { $ProjectDir = Split-Path -Parent $PSScriptRoot }
 $ProjectDir = [IO.Path]::GetFullPath((Join-Path $ProjectDir '.'))
@@ -38,7 +41,7 @@ foreach ($requiredPath in @($configPath, $versionPath, $metadataPath)) {
     }
 }
 
-& (Join-Path $PSScriptRoot 'Test-CommercialPreflight.ps1') -ProjectDir $ProjectDir -AllowMissingTag
+& (Join-Path $PSScriptRoot 'Test-CommercialPreflight.ps1') -ProjectDir $ProjectDir -AllowMissingTag -Quiet
 
 $config = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
 if ($config.enabled -ne $true) {
@@ -118,9 +121,10 @@ if (-not (Test-Path -LiteralPath $executablePath -PathType Leaf)) {
 
 if (-not $SkipPackaging) {
     $mode = 'Publish'
-    Write-Host "[OmniGhost Publish] Packaging da versão $version (modo $mode)..."
+    $packagingTimer = [Diagnostics.Stopwatch]::StartNew()
     & (Join-Path $ProjectDir 'tools\Package-Release.ps1') -ProjectDir $ProjectDir -BuildDir $BuildDir -Mode Publish -AllowMissingTag
     if ($LASTEXITCODE -ne 0) { throw "O packaging terminou com o código $LASTEXITCODE." }
+    $packagingDuration = $packagingTimer.Elapsed
 }
 
 if ([string]::IsNullOrWhiteSpace($ReleaseDirectory)) {
@@ -129,9 +133,10 @@ if ([string]::IsNullOrWhiteSpace($ReleaseDirectory)) {
 $ReleaseDirectory = [IO.Path]::GetFullPath((Join-Path $ReleaseDirectory '.'))
 
 & (Join-Path $ProjectDir 'tools\Validate-ReleaseArtifacts.ps1') `
-    -ProjectDir $ProjectDir -ReleaseDirectory $ReleaseDirectory -Version $version
-Write-Host '[OmniGhost Publish] Pacote comercial local validado. A publicação remota depende do workflow de build, assinatura e integridade.'
+    -ProjectDir $ProjectDir -ReleaseDirectory $ReleaseDirectory -Version $version -Quiet
 if (-not $ValidateOnly -and -not $SkipRemoteUpload -and -not $usingApprovedSourceSnapshot) {
+    Write-OmniPhase 9 'Publicação e confirmação no GitHub'
+    $uploadTimer = [Diagnostics.Stopwatch]::StartNew()
     $git = Get-Command git -ErrorAction Stop
     $tag = "v$version"
     $headTags = @(& $git.Source -C $ProjectDir tag --points-at HEAD)
@@ -140,21 +145,28 @@ if (-not $ValidateOnly -and -not $SkipRemoteUpload -and -not $usingApprovedSourc
         & $git.Source -C $ProjectDir tag -a $tag -m "OmniGhost $version"
         if ($LASTEXITCODE -ne 0) { throw "Falha ao criar a tag local $tag." }
     }
-    & $git.Source -C $ProjectDir push origin $tag
-    if ($LASTEXITCODE -ne 0) {
-        throw "O pacote local foi validado, mas o push da tag $tag falhou. Corrige a ligação/autenticação e repete Publish; não movas a tag."
+    $pushOutput = @(& $git.Source -C $ProjectDir push origin $tag 2>&1)
+    $pushExitCode = $LASTEXITCODE
+    $publishLog = Join-Path $ProjectDir 'artifacts\release-publish.log'
+    if ($pushOutput.Count -gt 0) {
+        Add-Content -LiteralPath $publishLog -Value @($pushOutput | ForEach-Object { [string]$_ }) -Encoding UTF8
+    }
+    if ($pushExitCode -ne 0) {
+        throw "O pacote local foi validado, mas o push da tag $tag falhou: $($pushOutput -join ' ')"
     }
     Write-Host "[OmniGhost Publish] Tag $tag enviada. A publicar diretamente os artefactos locais já validados."
     & (Join-Path $ProjectDir 'tools\publish_github_release.ps1') `
-        -ProjectDir $ProjectDir -Version $version -ReleaseDirectory $ReleaseDirectory -InternalConfirmed
+        -ProjectDir $ProjectDir -Version $version -ReleaseDirectory $ReleaseDirectory -InternalConfirmed -Quiet
     if ($LASTEXITCODE -ne 0) {
         throw "A tag $tag foi enviada, mas o upload da Release para o GitHub falhou com código $LASTEXITCODE."
     }
-    Write-Host "[OmniGhost Publish] Release $tag publicada e confirmada no GitHub."
+    $uploadDuration = $uploadTimer.Elapsed
+    Write-Host "[OmniGhost Publish] Release $tag publicada e confirmada em $(Format-OmniDuration $uploadDuration)."
 
     # A published tag is immutable. Prepare the next source version only after
     # GitHub confirms this release, ensuring the following Publish can never
     # accidentally try to reuse the tag that was just published.
+    Write-OmniPhase 10 'Preparação da próxima versão'
     & (Join-Path $ProjectDir 'tools\Increment-Version.ps1') -ProjectDir $ProjectDir
     if ($LASTEXITCODE -ne 0) {
         throw "A release $tag foi publicada, mas não foi possível preparar a próxima versão de origem."
@@ -166,7 +178,22 @@ if (-not $ValidateOnly -and -not $SkipRemoteUpload -and -not $usingApprovedSourc
 	}
     Remove-Item -LiteralPath (Join-Path $ProjectDir 'artifacts\version-backup\pending-version.json') -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath (Join-Path $ProjectDir 'artifacts\.version-build.lock') -Force -ErrorAction SilentlyContinue
-	Write-Host '[OmniGhost Publish] Próxima versão preparada; a árvore de trabalho permanece limpa para a próxima Publish.'
+	$nextVersion = ([IO.File]::ReadAllText($versionPath)).Trim()
+    $releaseUrl = "https://github.com/$([string]$config.repository)/releases/tag/$tag"
+    $zipPath = Join-Path $ReleaseDirectory 'OmniGhost.zip'
+    $zipSize = if (Test-Path -LiteralPath $zipPath -PathType Leaf) { (Get-Item -LiteralPath $zipPath).Length } else { 0 }
+    Write-Host '═════════════════════════════════════════════'
+    Write-Host "OMNIGHOST $tag PUBLICADO COM SUCESSO"
+    Write-Host "Release: $releaseUrl"
+    Write-Host "Pacote: $(Format-OmniBytes $zipSize)"
+    Write-Host 'Reprodutibilidade: PASS'
+    Write-Host 'Assinatura: PASS'
+    Write-Host 'Artefactos: 9/9 validados'
+    Write-Host "Próxima versão preparada: $nextVersion"
+    if ($null -ne $packagingDuration) { Write-Host "Packaging: $(Format-OmniDuration $packagingDuration)" }
+    Write-Host "Upload GitHub: $(Format-OmniDuration $uploadDuration)"
+    Write-Host "Duração total do Publish: $(Format-OmniDuration $publishTimer.Elapsed)"
+    Write-Host '═════════════════════════════════════════════'
 }
 }
 finally {

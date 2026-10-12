@@ -13,7 +13,9 @@ param(
     [switch]$InternalConfirmed,
 
     [Parameter(Mandatory = $false)]
-    [switch]$ValidateOnly
+    [switch]$ValidateOnly,
+
+    [switch]$Quiet
 )
 
 $ErrorActionPreference = 'Stop'
@@ -24,12 +26,18 @@ if (-not $InternalConfirmed) { throw 'Direct publication is blocked. Use tools\P
 
 $ProjectDir = [System.IO.Path]::GetFullPath((Join-Path $ProjectDir '.'))
 $ReleaseDirectory = [System.IO.Path]::GetFullPath((Join-Path $ReleaseDirectory '.'))
+$script:GitHubLogPath = Join-Path $ProjectDir 'artifacts\release-publish.log'
+[IO.Directory]::CreateDirectory((Split-Path -Parent $script:GitHubLogPath)) | Out-Null
 $ConfigPath = Join-Path $ProjectDir 'config\release\release-publish.json'
 $Tag = "v$Version"
 
 function Write-Gh {
     param([string]$Message)
-    Write-Host "[OmniGhost GitHub] $Message"
+    Add-Content -LiteralPath $script:GitHubLogPath `
+        -Value "[$((Get-Date).ToString('yyyy-MM-dd HH:mm:ss'))] $Message" -Encoding UTF8
+    if (-not $Quiet -or $Message -match 'Release publicada|Latest confirmado|URL:') {
+        Write-Host "[OmniGhost GitHub] $Message"
+    }
 }
 
 function Find-Gh {
@@ -414,7 +422,7 @@ $RequireSignatures = $Config.requireManifestSignature -eq $true
 if (-not $RequireSignatures -or $Config.requireAuthenticode -ne $true) {
     throw 'Publication requires executable and manifest authenticity.'
 }
-& (Join-Path $PSScriptRoot 'Validate-ReleaseArtifacts.ps1') -ProjectDir $ProjectDir -ReleaseDirectory $ReleaseDirectory -Version $Version
+& (Join-Path $PSScriptRoot 'Validate-ReleaseArtifacts.ps1') -ProjectDir $ProjectDir -ReleaseDirectory $ReleaseDirectory -Version $Version -Quiet:$Quiet
 $Required = Get-RequiredAssets -RequireSignatures $RequireSignatures
 $LocalInfo = Get-LocalAssetInfo -Names $Required
 $AssetPaths = @($Required | ForEach-Object { $LocalInfo[$_].Path })

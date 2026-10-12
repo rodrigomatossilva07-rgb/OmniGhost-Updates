@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [string]$ProjectDir = '',
     [string]$Configuration = '',
@@ -9,6 +9,8 @@ param(
 $ErrorActionPreference = 'Stop'
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}
 Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot 'ReleaseOutput.ps1')
+$versionPhaseTimer = [Diagnostics.Stopwatch]::StartNew()
 if ([string]::IsNullOrWhiteSpace($ProjectDir)) { $ProjectDir = Split-Path -Parent $PSScriptRoot }
 $ProjectDir = [IO.Path]::GetFullPath($ProjectDir)
 $versionPath = Join-Path $ProjectDir 'config\release\version.txt'
@@ -119,3 +121,4 @@ if (-not $ValidateOnly) {
 	Write-Host "[OmniGhost Version] Versão Publish selecionada automaticamente: $version"
     & (Join-Path $PSScriptRoot 'Test-CommercialPreflight.ps1') -ProjectDir $ProjectDir -AllowMissingTag -SourceOnly
 }
+Write-Host "[OmniGhost Version] Validação concluída em $(Format-OmniDuration $versionPhaseTimer.Elapsed)."

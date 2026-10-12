@@ -56,12 +56,17 @@ $publishBuild = [IO.File]::ReadAllText((Join-Path $ProjectDir 'tools\Publish-Bui
 $powerShellBridge = [IO.File]::ReadAllText((Join-Path $ProjectDir 'tools\Run-OmniGhostPowerShell.cmd'))
 $packageRelease = [IO.File]::ReadAllText((Join-Path $ProjectDir 'tools\package_release.ps1'))
 $prepareVersion = [IO.File]::ReadAllText((Join-Path $ProjectDir 'tools\Prepare-PublishVersion.ps1'))
+$reproBuild = [IO.File]::ReadAllText((Join-Path $ProjectDir 'tools\Verify-ReproducibleBuild.ps1'))
 Assert ($project -match 'PublishOmniGhostRelease') 'Publish remote target is missing.'
 Assert ($project -match 'prepare-publish-version') 'Publish version preparation target is missing.'
 Assert ($project -match 'OmniGhostSkipVersionAdvance') 'Publish version preparation cannot be disabled for CI/preflight.'
 Assert ($project -match "'\$\(Configuration\)'=='Publish'.*OmniGhostSkipRemotePublish") 'Remote target is not isolated to Publish with a CI bypass.'
 Assert ($project -notmatch "'\$\(Configuration\)'=='Release'.*publish-build") 'Release invokes remote publication.'
 Assert ($powerShellBridge -match 'Publish-Build\.ps1[^\r\n]*-ExplicitConfirmed') 'The Publish target bridge does not authorize the guarded publisher.'
+Assert ($powerShellBridge -match 'chcp 65001') 'The MSBuild PowerShell bridge does not establish UTF-8 console output.'
+Assert ($project -match 'OmniGhost 01/10' -and $project -match 'OmniGhost 05/10') 'The Publish build does not expose numbered phases.'
+Assert ($reproBuild -match 'worktree add --quiet' -and $reproBuild -match 'repro-build\.log') 'The reproducible build does not preserve a quiet detailed log.'
+Assert ($packageRelease -match 'SignTool sign /q' -and $packageRelease -match 'SignTool verify /q') 'SignTool success output is not summarized.'
 
 $workflow = [IO.File]::ReadAllText((Join-Path $ProjectDir '.github\workflows\release.yml'))
 Assert ($workflow -match 'workflow_dispatch:') 'Manual recovery workflow is unavailable.'
