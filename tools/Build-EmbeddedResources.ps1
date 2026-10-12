@@ -15,6 +15,25 @@ $manifestPath = Join-Path $ProjectDir 'resources\embedded-resources.json'
 $generatedDir = Join-Path $configurationGeneratedDir 'resources'
 $catalogPath = Join-Path $configurationGeneratedDir 'embedded_resource_catalog.h'
 $rcPath = Join-Path $configurationGeneratedDir 'embedded_resources.rc2'
+$compressionCacheRoot = $null
+$compressionCacheEnabled = $env:OMNIGHOST_DISABLE_RESOURCE_CACHE -ne '1'
+if ($compressionCacheEnabled) {
+    try {
+        $configuredCacheRoot = $env:OMNIGHOST_RESOURCE_CACHE_DIR
+        if ([string]::IsNullOrWhiteSpace($configuredCacheRoot)) {
+            $localAppData = [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)
+            if ([string]::IsNullOrWhiteSpace($localAppData)) { throw 'LOCALAPPDATA is unavailable.' }
+            $configuredCacheRoot = Join-Path $localAppData 'OmniGhost\build-cache'
+        }
+        $compressionCacheRoot = Join-Path ([IO.Path]::GetFullPath($configuredCacheRoot)) 'lzms-v1'
+        New-Item -ItemType Directory -Path $compressionCacheRoot -Force | Out-Null
+    }
+    catch {
+        Write-Warning "Embedded resource compression cache disabled: $($_.Exception.Message)"
+        $compressionCacheEnabled = $false
+        $compressionCacheRoot = $null
+    }
+}
 
 function Acquire-GeneratorLock([string]$Name) {
     $lockDirectory = $configurationGeneratedDir
@@ -39,6 +58,29 @@ function Put-U16([Collections.Generic.List[byte]]$Out, [uint16]$Value) {
 }
 function Put-U32([Collections.Generic.List[byte]]$Out, [uint32]$Value) {
     0..3 | ForEach-Object { $Out.Add([byte](($Value -shr ($_ * 8)) -band 0xff)) }
+}
+function Compute-Sha256([byte[]]$Bytes) {
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try { return ,([byte[]]$sha.ComputeHash($Bytes)) } finally { $sha.Dispose() }
+}
+function ConvertTo-Hex([byte[]]$Bytes) {
+    return -join @($Bytes | ForEach-Object { $_.ToString('x2') })
+}
+function Test-BytesEqual([byte[]]$Left, [byte[]]$Right) {
+    if ($null -eq $Left -or $null -eq $Right -or $Left.Length -ne $Right.Length) { return $false }
+    for ($i = 0; $i -lt $Left.Length; $i++) {
+        if ($Left[$i] -ne $Right[$i]) { return $false }
+    }
+    return $true
+}
+function Acquire-CompressionCacheLock([string]$Key) {
+    $lockPath = Join-Path $compressionCacheRoot ($Key + '.lock')
+    $deadline = [DateTime]::UtcNow.AddMinutes(10)
+    while ([DateTime]::UtcNow -lt $deadline) {
+        try { return [IO.File]::Open($lockPath, 'OpenOrCreate', 'ReadWrite', 'None') }
+        catch [IO.IOException] { Start-Sleep -Milliseconds 100 }
+    }
+    throw "Timed out waiting for compression cache entry: $Key"
 }
 function Compress-PackBits([byte[]]$InputBytes) {
     $out = New-Object 'Collections.Generic.List[byte]'
@@ -140,6 +182,9 @@ public static class OmniGhostLzms {
     [DllImport("cabinet.dll", SetLastError=true)] static extern bool CreateCompressor(uint algorithm, IntPtr alloc, out IntPtr handle);
     [DllImport("cabinet.dll", SetLastError=true)] static extern bool CloseCompressor(IntPtr handle);
     [DllImport("cabinet.dll", SetLastError=true)] static extern bool Compress(IntPtr handle, byte[] source, UIntPtr sourceSize, byte[] destination, UIntPtr destinationSize, out UIntPtr needed);
+    [DllImport("cabinet.dll", SetLastError=true)] static extern bool CreateDecompressor(uint algorithm, IntPtr alloc, out IntPtr handle);
+    [DllImport("cabinet.dll", SetLastError=true)] static extern bool CloseDecompressor(IntPtr handle);
+    [DllImport("cabinet.dll", SetLastError=true)] static extern bool Decompress(IntPtr handle, byte[] source, UIntPtr sourceSize, byte[] destination, UIntPtr destinationSize, out UIntPtr needed);
     public static byte[] CompressBytes(byte[] source) {
         IntPtr handle;
         if (!CreateCompressor(Lzms, IntPtr.Zero, out handle)) throw new InvalidOperationException("CreateCompressor failed");
@@ -154,6 +199,19 @@ public static class OmniGhostLzms {
             Array.Resize(ref destination, checked((int)needed.ToUInt64())); return destination;
         } finally { CloseCompressor(handle); }
     }
+    public static byte[] DecompressBytes(byte[] source, int expectedLength) {
+        if (expectedLength <= 0) throw new ArgumentOutOfRangeException("expectedLength");
+        IntPtr handle;
+        if (!CreateDecompressor(Lzms, IntPtr.Zero, out handle)) throw new InvalidOperationException("CreateDecompressor failed");
+        try {
+            byte[] destination = new byte[expectedLength]; UIntPtr needed;
+            if (!Decompress(handle, source, (UIntPtr)source.Length, destination, (UIntPtr)destination.Length, out needed))
+                throw new InvalidOperationException("Decompress failed");
+            if (needed.ToUInt64() != (ulong)expectedLength)
+                throw new InvalidOperationException("Decompressed length mismatch");
+            return destination;
+        } finally { CloseDecompressor(handle); }
+    }
 }
 '@
     }
@@ -162,8 +220,69 @@ public static class OmniGhostLzms {
     }
 }
 function Compress-Lzms([byte[]]$InputBytes) { return [OmniGhostLzms]::CompressBytes($InputBytes) }
+function Read-ValidatedLzmsCache([string]$CachePath, [byte[]]$SourceDigest, [int]$SourceLength) {
+    if (-not (Test-Path -LiteralPath $CachePath -PathType Leaf)) { return $null }
+    try {
+        $record = [IO.File]::ReadAllBytes($CachePath)
+        if ($record.Length -lt 89) { throw 'cache record is truncated' }
+        $magic = [Text.Encoding]::ASCII.GetString($record, 0, 8)
+        if ($magic -ne 'OGLZMS01') { throw 'cache record has an unsupported format' }
+        $storedSourceDigest = New-Object byte[] 32
+        $storedPayloadDigest = New-Object byte[] 32
+        [Buffer]::BlockCopy($record, 8, $storedSourceDigest, 0, 32)
+        [Buffer]::BlockCopy($record, 40, $storedPayloadDigest, 0, 32)
+        if (-not (Test-BytesEqual $storedSourceDigest $SourceDigest)) { throw 'source digest mismatch' }
+        $storedSourceLength = [BitConverter]::ToUInt64($record, 72)
+        $payloadLength = [BitConverter]::ToUInt64($record, 80)
+        if ($storedSourceLength -ne [uint64]$SourceLength) { throw 'source length mismatch' }
+        if ($payloadLength -eq 0 -or $payloadLength -ge [uint64]$SourceLength -or
+            $payloadLength -gt [uint64]([int]::MaxValue) -or
+            [uint64]$record.Length -ne ([uint64]88 + $payloadLength)) { throw 'payload length mismatch' }
+        $payload = New-Object byte[] ([int]$payloadLength)
+        [Buffer]::BlockCopy($record, 88, $payload, 0, [int]$payloadLength)
+        $actualPayloadDigest = Compute-Sha256 $payload
+        if (-not (Test-BytesEqual $storedPayloadDigest $actualPayloadDigest)) { throw 'payload digest mismatch' }
+
+        # The cache is local and must be treated as untrusted. Decompress it and
+        # verify the reconstructed source hash before embedding any cached byte.
+        $roundTrip = [OmniGhostLzms]::DecompressBytes($payload, $SourceLength)
+        $roundTripDigest = Compute-Sha256 $roundTrip
+        if (-not (Test-BytesEqual $SourceDigest $roundTripDigest)) { throw 'decompressed source digest mismatch' }
+        return ,([byte[]]$payload)
+    }
+    catch {
+        Write-Warning "Discarding invalid LZMS cache entry '$CachePath': $($_.Exception.Message)"
+        Remove-Item -LiteralPath $CachePath -Force -ErrorAction SilentlyContinue
+        return $null
+    }
+}
+function Write-LzmsCacheAtomically([string]$CachePath, [byte[]]$SourceDigest, [int]$SourceLength, [byte[]]$Payload) {
+    $payloadDigest = Compute-Sha256 $Payload
+    $record = New-Object byte[] (88 + $Payload.Length)
+    [Buffer]::BlockCopy([Text.Encoding]::ASCII.GetBytes('OGLZMS01'), 0, $record, 0, 8)
+    [Buffer]::BlockCopy($SourceDigest, 0, $record, 8, 32)
+    [Buffer]::BlockCopy($payloadDigest, 0, $record, 40, 32)
+    [Buffer]::BlockCopy([BitConverter]::GetBytes([uint64]$SourceLength), 0, $record, 72, 8)
+    [Buffer]::BlockCopy([BitConverter]::GetBytes([uint64]$Payload.Length), 0, $record, 80, 8)
+    [Buffer]::BlockCopy($Payload, 0, $record, 88, $Payload.Length)
+    $temporary = $CachePath + '.' + $PID + '.' + [Guid]::NewGuid().ToString('N') + '.tmp'
+    try {
+        [IO.File]::WriteAllBytes($temporary, $record)
+        if (-not (Test-Path -LiteralPath $CachePath -PathType Leaf)) {
+            [IO.File]::Move($temporary, $CachePath)
+        }
+    }
+    finally {
+        if (Test-Path -LiteralPath $temporary -PathType Leaf) {
+            Remove-Item -LiteralPath $temporary -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
 $processedCollisionBytes = [uint64]0
 $processedCollisionItems = 0
+$compressionCacheHits = 0
+$compressionCacheMisses = 0
+$compressionCacheInvalid = 0
 
 foreach ($item in $items) {
     $id = [int]$item.id; $name = [string]$item.name; $logical = ([string]$item.logicalName).Replace('\','/')
@@ -198,16 +317,40 @@ foreach ($item in $items) {
             throw "Invalid JSON resource ${logical}: $($_.Exception.Message)"
         }
     }
+    $digest = Compute-Sha256 $raw
     $compression = [byte]0; $payload = $raw
     if ([IO.Path]::GetExtension($source).ToLowerInvariant() -eq '.tri') {
-        $lzms = Compress-Lzms $raw
+        $lzms = $null
+        if ($compressionCacheEnabled) {
+            $sourceKey = ConvertTo-Hex $digest
+            $cachePath = Join-Path $compressionCacheRoot ($sourceKey + '.oglzms')
+            $cacheLock = Acquire-CompressionCacheLock $sourceKey
+            try {
+                $cacheExisted = Test-Path -LiteralPath $cachePath -PathType Leaf
+                $lzms = Read-ValidatedLzmsCache $cachePath $digest $raw.Length
+                if ($null -ne $lzms) {
+                    $compressionCacheHits++
+                } else {
+                    if ($cacheExisted) { $compressionCacheInvalid++ }
+                    $compressionCacheMisses++
+                    $lzms = Compress-Lzms $raw
+                    if ($lzms.Length -lt $raw.Length) {
+                        Write-LzmsCacheAtomically $cachePath $digest $raw.Length $lzms
+                    }
+                }
+            }
+            finally {
+                $cacheLock.Dispose()
+            }
+        } else {
+            $compressionCacheMisses++
+            $lzms = Compress-Lzms $raw
+        }
         if ($lzms.Length -lt $raw.Length) { $compression = 2; $payload = $lzms }
     } else {
         $packed = Compress-PackBits $raw
         if ($packed.Length -lt $raw.Length) { $compression = 1; $payload = $packed }
     }
-    $sha = [Security.Cryptography.SHA256]::Create()
-    try { $digest = $sha.ComputeHash($raw) } finally { $sha.Dispose() }
     $blob = New-Object 'Collections.Generic.List[byte]'
     Put-U32 $blob 0x5352474F; Put-U16 $blob 1; Put-U16 $blob 0
     $blob.Add($compression); $blob.Add(0); $blob.Add(0); $blob.Add(0)
@@ -249,6 +392,7 @@ $header = @(
 [IO.File]::WriteAllLines($catalogPath, $header, (New-Object Text.UTF8Encoding($false)))
 [IO.File]::WriteAllLines($rcPath, $rc, (New-Object Text.UTF8Encoding($false)))
 Write-Host "[EmbeddedResources] resources=$($items.Count) original=$totalOriginal stored=$totalStored"
+Write-Host "[EmbeddedResources] LZMS cache hits=$compressionCacheHits misses=$compressionCacheMisses invalid=$compressionCacheInvalid root=$compressionCacheRoot"
 Write-Host "[EmbeddedResources] catalog=$catalogPath"
 Write-Host "[EmbeddedResources] rc=$rcPath"
 $generatorLock.Dispose()
