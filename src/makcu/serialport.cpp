@@ -186,7 +186,13 @@ namespace makcu {
                     try {
                         it->second->promise.set_exception(std::make_exception_ptr(
                             std::runtime_error("Connection closed"))); }
-                    catch (...) {}
+                    catch (const std::exception& ex) {
+                        std::cerr << "[SerialPort] Close-race promise cancellation failed: "
+                                  << ex.what() << "\n";
+                    }
+                    catch (...) {
+                        std::cerr << "[SerialPort] Close-race promise cancellation failed with unknown exception\n";
+                    }
                     m_pendingCommands.erase(it);
                 }
                 return future;
