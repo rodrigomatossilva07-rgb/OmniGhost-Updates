@@ -77,7 +77,7 @@ if "%COMMAND%"=="publish-build" (
         echo Erro: publish-build requer ProjectDir e BuildDir
         exit /b 1
     )
-    "%PS_CMD%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& \"%SCRIPT_DIR%Publish-Build.ps1\" -ProjectDir \"%~1\" -BuildDir \"%~2\""
+    "%PS_CMD%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& \"%SCRIPT_DIR%Publish-Build.ps1\" -ProjectDir \"%~1\" -BuildDir \"%~2\" -ExplicitConfirmed"
     exit /b
 )
 

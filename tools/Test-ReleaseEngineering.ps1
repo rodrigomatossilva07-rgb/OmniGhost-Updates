@@ -53,6 +53,7 @@ Assert ($policy.requireAuthenticode -eq $true -and $policy.requireManifestSignat
 
 $project = [IO.File]::ReadAllText((Join-Path $ProjectDir 'OmiGhost.vcxproj'))
 $publishBuild = [IO.File]::ReadAllText((Join-Path $ProjectDir 'tools\Publish-Build.ps1'))
+$powerShellBridge = [IO.File]::ReadAllText((Join-Path $ProjectDir 'tools\Run-OmniGhostPowerShell.cmd'))
 $packageRelease = [IO.File]::ReadAllText((Join-Path $ProjectDir 'tools\package_release.ps1'))
 $prepareVersion = [IO.File]::ReadAllText((Join-Path $ProjectDir 'tools\Prepare-PublishVersion.ps1'))
 Assert ($project -match 'PublishOmniGhostRelease') 'Publish remote target is missing.'
@@ -60,6 +61,7 @@ Assert ($project -match 'prepare-publish-version') 'Publish version preparation 
 Assert ($project -match 'OmniGhostSkipVersionAdvance') 'Publish version preparation cannot be disabled for CI/preflight.'
 Assert ($project -match "'\$\(Configuration\)'=='Publish'.*OmniGhostSkipRemotePublish") 'Remote target is not isolated to Publish with a CI bypass.'
 Assert ($project -notmatch "'\$\(Configuration\)'=='Release'.*publish-build") 'Release invokes remote publication.'
+Assert ($powerShellBridge -match 'Publish-Build\.ps1[^\r\n]*-ExplicitConfirmed') 'The Publish target bridge does not authorize the guarded publisher.'
 
 $workflow = [IO.File]::ReadAllText((Join-Path $ProjectDir '.github\workflows\release.yml'))
 Assert ($workflow -match 'workflow_dispatch:') 'Manual recovery workflow is unavailable.'
