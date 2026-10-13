@@ -24,7 +24,6 @@
 #include <shared_mutex>
 #include <unordered_map>
 #include <unordered_set>
-#include "gameplay/esp_optimizer.h"
 #include "gameplay/snapshot_exchange.h"
 #include "gameplay/frame_pipeline.h"
 #include "gameplay/dma_telemetry_log.h"

@@ -29,7 +29,13 @@ void Publish(Runtime& source, uint64_t generation, uint64_t read_fails) {
 
     // BUG-007 Fix: Build snapshot in local temporary to avoid global 'runtime'
     // being in a partially-published state during move assignment.
-    // Runtime is move-only; source is reset to a clean state after publishing.
+    // CS2-001 Fix: the hand-written move constructor copies the scalar identity
+    // fields (client_base/engine_base/entity list/strides/local state/...) and
+    // only moves the per-scan vectors (players/spectators/dropped_weapons).
+    // The accumulator must keep the identity fields — the next scan depends on
+    // client_base/entity_list_entry to run at all — so Publish must never
+    // reinitialize `source`. Vectors are moved out (per-scan clear); scalars
+    // stay valid for the next acquisition tick.
     Runtime snapshot = std::move(source);
     snapshot.snapshot_timestamp_ms = now;
     snapshot.session_generation = generation;
@@ -48,7 +54,11 @@ void Publish(Runtime& source, uint64_t generation, uint64_t read_fails) {
     *slot.value = std::move(snapshot);
     g_runtime_snapshots.Publish(slot.index);
     WebRadar::SubmitSnapshot(*slot.value);
-    source = Runtime{};
+    // CS2-001 Fix: do NOT reset `source` here. Resetting destroyed the module
+    // bases and entity-list cache (client_base=0 permanently → every later
+    // scan early-returned), which killed ESP/aim/radar/bones until re-attach.
+    // Per-scan counters are zeroed and vectors cleared at scan start in
+    // RunFrameWithConfig; identity/scalar fields survive by design.
 }
 
 RuntimeSnapshotLease Acquire() {

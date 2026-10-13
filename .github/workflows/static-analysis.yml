@@ -163,12 +163,12 @@ jobs:
       - name: Build Release
         shell: cmd
         run: |
-          msbuild OmniGhost.Bootstrap.vcxproj /p:Configuration=Release /p:Platform=x64 /t:Rebuild /v:m
+          msbuild OmiGhost.vcxproj /p:Configuration=Release /p:Platform=x64 /t:Rebuild /v:m
 
       - name: Build Publish
         shell: cmd
         run: |
-          msbuild OmniGhost.Bootstrap.vcxproj /p:Configuration=Publish /p:Platform=x64 /t:Rebuild /v:m /p:OmniGhostSkipPackaging=true /p:OmniGhostSkipRemotePublish=true
+          msbuild OmiGhost.vcxproj /p:Configuration=Publish /p:Platform=x64 /t:Rebuild /v:m /p:OmniGhostSkipPackaging=true /p:OmniGhostSkipRemotePublish=true
 
       - name: Verify Binary Hardening
         shell: cmd

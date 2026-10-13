@@ -108,10 +108,14 @@ Result<void> StartupOrchestrator::PhaseCheckingInstance() {
     SetPhase(StartupPhase::CheckingInstance);
 
     // Single instance check
+    // PLAT-003 Fix: a local UniqueHandle was destroyed when this phase
+    // returned, releasing the named mutex and narrowing single-instance
+    // protection to the startup window only. A function-local static keeps
+    // the guard alive until process exit.
     constexpr wchar_t kSingleInstanceName[] = L"Local\\OmniGhostApp-6A670FC7";
-    HANDLE handle = CreateMutexW(nullptr, FALSE, L"Local\\OmniGhostApp-6A670FC7");
+    HANDLE handle = CreateMutexW(nullptr, FALSE, kSingleInstanceName);
     const DWORD error = GetLastError();
-    UniqueHandle singleInstance(handle);
+    static UniqueHandle singleInstance(handle);
 
     if (!singleInstance) {
         return Err<void>("single-instance mutex creation failed");

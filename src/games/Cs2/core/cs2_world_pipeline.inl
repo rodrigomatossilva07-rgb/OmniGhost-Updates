@@ -293,6 +293,12 @@ static void RunFrameWithConfig(const Config& frame_config) {
     runtime.players.clear();
     if (runtime.players.capacity() < 64)
         runtime.players.reserve(64);
+    // CS2-001/002 Fix: per-scan accumulators must be cleared explicitly now
+    // that Publish no longer resets the whole Runtime. Spectator state is
+    // repopulated by UpdateSpectators while the local player is dead; when
+    // alive, the previous scan's spectators must not linger.
+    runtime.spectators.clear();
+    runtime.spectator_count = 0;
     // Entity-list root/page validation is time-based inside
     // RefreshEntityListEntry; ordinary scans reuse the last confirmed pair.
 
@@ -1465,13 +1471,16 @@ static void RunFrameWithConfig(const Config& frame_config) {
         runtime.players.push_back(corePlayer);
         }
         runtime.player_count = static_cast<int>(runtime.players.size());
-        if (g_publish_runtime_this_scan)
-            PublishRuntimeSnapshot();
     }
 
     // P0: optional DMA (bones/weapons/names/flags/dropped) runs on the
     // optional worker. Core acquisition returns here so the next world scan
     // is never blocked by metadata. Presentation already has core state.
+    // CS2-002 Fix: last-good identification, bomb state, local weapon and the
+    // optional-enrichment queue all consume the freshly assembled runtime and
+    // must run BEFORE the publish below (publishing moves the player vector
+    // out of `runtime`, leaving these consumers with an empty view when run
+    // afterwards).
     {
         const uint64_t nowMs = frame_time_ms;
         if (!runtime.players.empty()) {
@@ -1516,6 +1525,15 @@ static void RunFrameWithConfig(const Config& frame_config) {
     cacheMetrics.controller_pawns.store(controllerPawnCache.size(), std::memory_order_relaxed);
     cacheMetrics.scene_bones.store(sceneBoneCache.size(), std::memory_order_relaxed);
     QueueOptionalEnrichment(frame_config);
+    // CS2-001/002 Fix: single publish per scan, now that all consumers above
+    // ran against the assembled runtime. The publish moves the per-scan
+    // vectors into the immutable snapshot but preserves identity fields for
+    // the next scan. Consuming the flag here prevents the acquisition loop
+    // from publishing a second, post-move (empty) snapshot at end of scan.
+    if (g_publish_runtime_this_scan) {
+        PublishRuntimeSnapshot();
+        g_publish_runtime_this_scan = false;
+    }
     {
         // Residual phase accounting for core-only scans.
         const float wall = OmniGhost::Gameplay::TimeMs(_frameWallBegin);

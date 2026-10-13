@@ -26,7 +26,6 @@
 #include <mutex>
 #include <atomic>
 
-#include "gameplay/esp_optimizer.h"
 #include "gameplay/snapshot_exchange.h"
 
 // Initialize global instances

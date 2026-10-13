@@ -33,43 +33,6 @@ static bool PassiveDmaPnpProbe() {
 
 namespace {
 
-// Helper to run a cancellable background operation using jthread.
-// The operation receives a stop_token and should check it periodically.
-// Returns false if cancelled or operation failed, true if operation succeeded.
-template<typename Op>
-bool RunCancellableTask(std::jthread& worker, Op&& operation) {
-    // If there's already a worker running, don't start another
-    if (worker.joinable()) {
-        return false;
-    }
-
-    worker = std::jthread([op = std::forward<Op>(operation)](std::stop_token st) {
-        bool value = false;
-        try {
-            if (!st.stop_requested()) {
-                // Pass stop_token to operation if it accepts it
-                if constexpr (std::is_invocable_v<Op, std::stop_token>) {
-                    value = op(st);
-                } else {
-                    // For legacy operations that don't accept stop_token,
-                    // run them but check cancellation before starting
-                    value = op();
-                }
-            }
-        } catch (const std::exception& ex) {
-            std::cerr << "[Hardware] Background task failed: " << ex.what() << "\n";
-            value = false;
-        } catch (...) {
-            std::cerr << "[Hardware] Background task failed with unknown exception\n";
-            value = false;
-        }
-        // Note: result handling is done by the caller checking the worker state
-        (void)value; // suppress unused warning when not checking
-    });
-
-    return true;
-}
-
 } // namespace
 
 Manager::~Manager() {

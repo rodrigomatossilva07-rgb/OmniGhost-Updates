@@ -1,7 +1,6 @@
 #include "warzone_esp.h"
 #include "warzone_aim.h"
 #include "../src/gameplay/esp_core.h"
-#include "gameplay/esp_optimizer.h"
 #include "imgui.h"
 #include <Windows.h>
 #include <cmath>

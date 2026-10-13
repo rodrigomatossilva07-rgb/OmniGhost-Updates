@@ -220,8 +220,11 @@ bool SecurityManager::VerifyHostIdentity() noexcept {
 }
 
 bool SecurityManager::VerifyStartup() noexcept {
-    // The signed host/payload check runs before RuntimeBootstrap::Prepare(),
-    // so native DLLs are never loaded before their parent EXE is trusted.
+    // Native DLLs are never loaded before integrity verification: the runtime
+    // bootstrap validates every manifest-covered binary (SHA-256) immediately
+    // before any LoadLibrary (see PLAT-002 gate in RuntimeBootstrap::Prepare),
+    // and this startup check re-validates the same files plus the signed
+    // installation manifest before any DMA/device initialization happens.
     return VerifyProtectedFiles();
 }
 

@@ -1,5 +1,10 @@
 #include "keyauth_gateway.h"
 
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <Windows.h>
+
 #include <array>
 #include <cstdint>
 #include <cstring>
@@ -200,14 +205,32 @@ LicenseGateway::LicenseGateway(std::shared_ptr<IRemoteLicenseProvider> provider)
     }
 
     // Verify against official identity
-    if (*identity != kOfficialProviderIdentity) {
+    // SEC-001 Fix: the official provider is compiled INTO the host EXE, so
+    // GetModulePath() returns the running image. Hashing the running image can
+    // never equal a build-time constant — Authenticode signing rewrites the
+    // file after linking — and the constant was never materialized (all-zero
+    // placeholder), which made every PUBLISH build throw here; the exception
+    // then escaped the fallback construction in Licensing::RemoteGateway() and
+    // terminated the process via the noexcept accessors. An in-process
+    // provider is instead covered by SecurityManager::VerifyHostIdentity()
+    // (publisher Authenticode), which publish builds already enforce before
+    // any licensing call. The constant comparison below now only applies to a
+    // genuinely external provider module.
+    bool isInProcessProvider = false;
+    {
+        char ownExe[MAX_PATH]{};
+        const DWORD ownLen = GetModuleFileNameA(nullptr, ownExe, MAX_PATH);
+        isInProcessProvider = ownLen > 0 && ownLen < MAX_PATH &&
+            _stricmp(ownExe, modulePath.c_str()) == 0;
+    }
+    if (!isInProcessProvider && *identity != kOfficialProviderIdentity) {
         // In production, this would be a hard failure. For development, log warning.
         // TODO: Remove this fallback in production builds.
         #if defined(OMNIGHOST_PUBLISH_BUILD)
         throw std::runtime_error("LicenseGateway: provider identity verification failed - module hash mismatch for " + modulePath);
         #else
         // Development build: log warning but continue
-        std::cerr << "[LICENSE][WARNING] Provider identity mismatch for " << modulePath 
+        std::cerr << "[LICENSE][WARNING] Provider identity mismatch for " << modulePath
                   << " - expected: " << std::hex << std::uppercase;
         for (auto b : kOfficialProviderIdentity.moduleHash) std::cerr << std::setw(2) << std::setfill('0') << static_cast<int>(b);
         std::cerr << ", got: ";

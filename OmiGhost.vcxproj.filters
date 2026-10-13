@@ -413,9 +413,6 @@
     <ClCompile Include="src\window\pages\cs2\Cs2RadarPage.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\gameplay\sound_esp.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="src\window\onboarding.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

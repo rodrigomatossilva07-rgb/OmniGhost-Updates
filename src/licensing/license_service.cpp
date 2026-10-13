@@ -96,8 +96,24 @@ OmniGhost::Auth::LicenseGateway& RemoteGateway() {
         if (!gateway) {
             // Gateway "vazio": devolve NotConfigured em todas as operacoes, para a app
             // poder mostrar um erro no ecra de login em vez de fechar.
-            gateway = std::make_unique<OmniGhost::Auth::LicenseGateway>(
-                std::make_shared<FakeProviderForFallback>());
+            // SEC-001 Fix: a construcao de reserva tambem corre dentro de try —
+            // uma excecao aqui escaparia do call_once para accessors noexcept
+            // (IsRemoteConfigured/IsRemoteAuthenticated) e terminaria o processo.
+            try {
+                gateway = std::make_unique<OmniGhost::Auth::LicenseGateway>(
+                    std::make_shared<FakeProviderForFallback>());
+            } catch (const std::exception& ex) {
+                LogLicenseFailure(ex.what());
+            } catch (...) {
+                LogLicenseFailure("unknown exception building fallback gateway");
+            }
+        }
+        if (!gateway) {
+            // Last resort: should be unreachable after SEC-001 (the fallback
+            // provider is in-process and never fails identity verification),
+            // but never dereference a null gateway.
+            LogLicenseFailure("gateway unavailable; licensing will report NotConfigured");
+            throw std::runtime_error("Licensing gateway unavailable");
         }
     });
     return *gateway;

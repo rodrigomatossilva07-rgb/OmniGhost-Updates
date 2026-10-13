@@ -123,6 +123,28 @@ void Run(const Warzone::Runtime& rt, const Warzone::Config& cfg) {
         return;
     }
 
+    // WZ-001 Fix: the aim loop previously pulled the mouse continuously
+    // whenever aim_enabled was set, ignoring aim_bind/aim_bind2/aim_always_on
+    // shown in the UI. Mirror the FiveM hold-bind policy: only acquire/move
+    // when "always on" is set or an aim bind is held. KeyDown(0) is false, so
+    // unconfigured binds never activate.
+    const bool aimActive =
+        cfg.aim_always_on || KeyDown(cfg.aim_bind) || KeyDown(cfg.aim_bind2);
+    if (!aimActive) {
+        g_active = -1;
+        g_aim_motion.Reset();
+        std::snprintf(g_debug, sizeof(g_debug), "aim: bind OFF");
+        if (cfg.aim_draw_fov) {
+            const ImVec2 ds0 = ImGui::GetIO().DisplaySize;
+            if (ImDrawList* dl = ImGui::GetBackgroundDrawList()) {
+                dl->AddCircle(ImVec2(ds0.x * 0.5f, ds0.y * 0.5f), cfg.aim_fov,
+                    IM_COL32((int)(cfg.col_fov[0]*255),(int)(cfg.col_fov[1]*255),
+                             (int)(cfg.col_fov[2]*255),(int)(cfg.col_fov[3]*255)), 64, 1.2f);
+            }
+        }
+        return;
+    }
+
     // Use existing aim logic for actual aiming (unified aimbot is stub in Publish)
     float best_fov = FLT_MAX;
     int best_idx = -1;

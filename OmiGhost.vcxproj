@@ -359,8 +359,7 @@
     <ClCompile Include="src\window\pages\warzone\WarzoneWorldPage.cpp"/>
     <ClCompile Include="src\window\pages\warzone\WarzonePlayersPage.cpp"/>
     <ClCompile Include="src\window\pages\warzone\WarzoneMiscPage.cpp"/>
-    <ClCompile Include="src\gameplay\sound_esp.cpp"/>
-    <ClCompile Include="src\gameplay\smooth_curves.cpp"/>
+        <ClCompile Include="src\gameplay\smooth_curves.cpp"/>
     <ClCompile Include="src\gameplay\dma_telemetry_log.cpp"/>
     <ClCompile Include="src\gameplay\unified_stub.cpp"/>
     <ClCompile Include="src\gameplay\gameplay_stubs.cpp"/>

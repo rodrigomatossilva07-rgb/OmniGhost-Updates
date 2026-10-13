@@ -398,12 +398,29 @@ void ConfigureRuntimeDllSearch(const fs::path& libs) {
         }
         
         if (!materialized) {
+            // PLAT-001 Fix: the embedded manifest is the trust anchor for
+            // runtime binaries. Resolve the expected SHA-256 for this DLL once;
+            // any on-disk source that would replace/add a manifest-covered DLL
+            // must match the manifest hash exactly. Unsigned "convenience"
+            // copies from sibling directories otherwise enable DLL planting.
+            std::string expectedHashHex;
+            if (hasEmbedded) {
+                const std::wstring lookupPath = std::wstring(L"libs/") + dllName;
+                for (std::size_t i = 0; i < OmniGhost::EmbeddedRuntimeGenerated::kEntryCount; ++i) {
+                    const auto& entry = OmniGhost::EmbeddedRuntimeGenerated::kEntries[i];
+                    if (_wcsicmp(entry.relativePath, lookupPath.c_str()) == 0) {
+                        expectedHashHex = OmniGhost::Platform::DigestHex(entry.sha256);
+                        break;
+                    }
+                }
+            }
             // Try source directories
             for (const auto& srcDir : sourceDirs) {
                 fs::path source = srcDir / dllName;
                 if (fs::is_regular_file(source, ec)) {
                     // Check if source is newer/different
                     bool shouldCopy = !targetExists;
+                    std::string srcHash;
                     if (!shouldCopy) {
                         std::uintmax_t srcSize = fs::file_size(source, ec);
                         std::uintmax_t tgtSize = fs::file_size(target, ec);
@@ -411,7 +428,7 @@ void ConfigureRuntimeDllSearch(const fs::path& libs) {
                             shouldCopy = true;
                         } else if (!ec && srcSize == tgtSize) {
                             // Compare hashes
-                            std::string srcHash, tgtHash, hashError;
+                            std::string tgtHash, hashError;
                             if (OmniGhost::Platform::Sha256File(source, srcHash, hashError) &&
                                 OmniGhost::Platform::Sha256File(target, tgtHash, hashError) &&
                                 srcHash != tgtHash) {
@@ -419,7 +436,28 @@ void ConfigureRuntimeDllSearch(const fs::path& libs) {
                             }
                         }
                     }
-                    
+
+                    if (shouldCopy && !expectedHashHex.empty()) {
+                        // Manifest-covered DLL: the source must hash-match the
+                        // embedded manifest, otherwise it is treated as a
+                        // planted/unknown binary and rejected.
+                        if (srcHash.empty()) {
+                            std::string hashError;
+                            if (!OmniGhost::Platform::Sha256File(source, srcHash, hashError))
+                                srcHash.clear();
+                        }
+                        if (srcHash.empty() ||
+                            !OmniGhost::Platform::ConstantTimeEquals(srcHash, expectedHashHex)) {
+                            OmniGhost::SessionLog::Write(
+                                OmniGhost::SessionLog::Severity::Warning,
+                                OmniGhost::SessionLog::Subsystem::Runtime,
+                                "Runtime library source rejected (hash mismatch with embedded manifest)",
+                                {{"dll", Narrow(dllName)}, {"source", Narrow(srcDir.wstring())}});
+                            ec.clear();
+                            continue;
+                        }
+                    }
+
                     if (shouldCopy) {
                         fs::create_directories(target.parent_path(), ec);
                         fs::copy_file(source, target, fs::copy_options::overwrite_existing, ec);
@@ -700,12 +738,54 @@ Result Prepare() {
     auto [copied, skipped] = SyncRuntimeLibraries(libs);
 
     // Preload FTDI by absolute path so LeechCore/VMM never probe the process CWD.
+    // PLAT-002 Fix: never load a runtime DLL before integrity verification.
+    // Manifest-covered binaries must pass ValidatePrivateRuntimeFile (SHA-256
+    // pinned to the signed EXE) BEFORE LoadLibraryExW runs. Binaries absent
+    // from the manifest are dev/private-runtime only and keep the previous
+    // behavior, but are logged loudly.
     ConfigureRuntimeDllSearch(libs);
     {
+        const auto NarrowName = [](const wchar_t* text) -> std::string {
+            std::string out;
+            for (const wchar_t* p = text; p && *p; ++p)
+                out.push_back(*p < 0x80 ? static_cast<char>(*p) : '?');
+            return out;
+        };
         const wchar_t* ftdiNames[] = { L"FTD3XX.dll", L"FTD3XXWU.dll" };
         for (const wchar_t* name : ftdiNames) {
             const fs::path candidate = libs / name;
             if (fs::is_regular_file(candidate, ec) && !ec) {
+                const std::wstring relativePath = std::wstring(L"libs/") + name;
+                bool coveredByManifest = false;
+                for (std::size_t i = 0; i < OmniGhost::EmbeddedRuntimeGenerated::kEntryCount; ++i) {
+                    if (_wcsicmp(OmniGhost::EmbeddedRuntimeGenerated::kEntries[i].relativePath,
+                                 relativePath.c_str()) == 0) {
+                        coveredByManifest = true;
+                        break;
+                    }
+                }
+                if (coveredByManifest) {
+                    std::wstring validationError;
+                    if (!OmniGhost::RuntimeBootstrap::ValidatePrivateRuntimeFile(
+                            relativePath, validationError)) {
+                        // Known binary with wrong content: never load it.
+                        OmniGhost::SessionLog::Write(
+                            OmniGhost::SessionLog::Severity::Error,
+                            OmniGhost::SessionLog::Subsystem::Runtime,
+                            "Runtime DLL preload blocked: integrity validation failed",
+                            {{"dll", NarrowName(name)}});
+                        ec.clear();
+                        continue;
+                    }
+                } else {
+                    // Not covered by the manifest (dev/private runtime): load,
+                    // but make the reduced trust level visible in the log.
+                    OmniGhost::SessionLog::Write(
+                        OmniGhost::SessionLog::Severity::Warning,
+                        OmniGhost::SessionLog::Subsystem::Runtime,
+                        "Runtime DLL not covered by the embedded manifest; loading unvalidated",
+                        {{"dll", NarrowName(name)}});
+                }
                 HMODULE mod = LoadLibraryExW(
                     candidate.c_str(),
                     nullptr,

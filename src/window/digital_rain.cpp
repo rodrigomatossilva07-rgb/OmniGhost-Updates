@@ -1,6 +1,5 @@
 #include "digital_rain.h"
 #include "fonts.h"
-#include "../platform/performance_manager.h"
 
 #include <algorithm>
 #include <cmath>

@@ -42,7 +42,7 @@ jobs:
 
       - name: Build Release x64
         run: |
-          msbuild OmniGhost.Bootstrap.vcxproj /p:Configuration=Release /p:Platform=x64 /v:m /m
+          msbuild OmiGhost.vcxproj /p:Configuration=Release /p:Platform=x64 /v:m /m
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -50,7 +50,7 @@ jobs:
           name: OmniGhost-Release-x64
           path: |
             build/OmniGhost.exe
-            .cache/symbols/bootstrap/Release/OmniGhost.pdb
+            .cache/symbols/Release/OmniGhost.pdb
           retention-days: 7
 
   cleanup:
