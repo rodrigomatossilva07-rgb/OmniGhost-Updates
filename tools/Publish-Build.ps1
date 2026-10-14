@@ -20,6 +20,42 @@ Set-StrictMode -Version Latest
 $publishTimer = [Diagnostics.Stopwatch]::StartNew()
 $packagingDuration = $null
 
+function Invoke-NativeCommandCapture {
+    param(
+        [Parameter(Mandatory = $true)][string]$FilePath,
+        [Parameter(Mandatory = $true)][string[]]$Arguments
+    )
+
+    $previousErrorActionPreference = $ErrorActionPreference
+    $captured = @()
+    $exitCode = 1
+
+    try {
+        # Windows PowerShell 5.1 promotes native stderr to NativeCommandError
+        # when the script-wide ErrorActionPreference is Stop. Git writes normal
+        # push progress (including the remote URL) to stderr, so capture both
+        # streams with Continue and decide success from the process exit code.
+        $ErrorActionPreference = 'Continue'
+        $captured = @(& $FilePath @Arguments 2>&1)
+        $exitCode = [int]$LASTEXITCODE
+    }
+    catch {
+        $captured += $_.Exception.Message
+        if (Test-Path variable:LASTEXITCODE) {
+            $exitCode = [int]$LASTEXITCODE
+        }
+        if ($exitCode -eq 0) { $exitCode = 1 }
+    }
+    finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+
+    return [pscustomobject]@{
+        ExitCode = $exitCode
+        Output = @($captured | ForEach-Object { [string]$_ })
+    }
+}
+
 if ([string]::IsNullOrWhiteSpace($ProjectDir)) { $ProjectDir = Split-Path -Parent $PSScriptRoot }
 $ProjectDir = [IO.Path]::GetFullPath((Join-Path $ProjectDir '.'))
 if ([string]::IsNullOrWhiteSpace($BuildDir)) {
@@ -145,8 +181,11 @@ if (-not $ValidateOnly -and -not $SkipRemoteUpload -and -not $usingApprovedSourc
         & $git.Source -C $ProjectDir tag -a $tag -m "OmniGhost $version"
         if ($LASTEXITCODE -ne 0) { throw "Falha ao criar a tag local $tag." }
     }
-    $pushOutput = @(& $git.Source -C $ProjectDir push origin $tag 2>&1)
-    $pushExitCode = $LASTEXITCODE
+    $pushResult = Invoke-NativeCommandCapture `
+        -FilePath $git.Source `
+        -Arguments @('-C', $ProjectDir, 'push', 'origin', $tag)
+    $pushOutput = @($pushResult.Output)
+    $pushExitCode = [int]$pushResult.ExitCode
     $publishLog = Join-Path $ProjectDir 'artifacts\release-publish.log'
     if ($pushOutput.Count -gt 0) {
         Add-Content -LiteralPath $publishLog -Value @($pushOutput | ForEach-Object { [string]$_ }) -Encoding UTF8

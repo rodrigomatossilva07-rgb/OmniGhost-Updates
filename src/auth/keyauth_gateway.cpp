@@ -282,6 +282,12 @@ LicenseResult LicenseGateway::Authenticate(std::string_view licenseKey,
     if (transient && allowOffline) {
         if (offlineHardwareId_ == hardwareId && now < offlineExpiresAt_) {
             authenticated_ = true;
+            // SEC-003 Fix: an offline-granted session must remain valid for
+            // its declared 24h window. Track it explicitly so IsAuthenticated
+            // honors the offline window instead of the 20-minute online
+            // freshness check (which knows nothing about the grant).
+            offlineSessionActive_ = true;
+            lastRemoteValidation_ = now;
             return Result(LicenseStatus::Valid, "Sessao offline validada.", "auth.offline_valid");
         }
         if (!offlineHardwareId_.empty())

@@ -559,6 +559,10 @@ void Memory::Close() noexcept
 	std::scoped_lock controlPlaneLock(controlPlaneMutex_);
 	RequestCancel();
 	ResetDeviceState();
+	// DMA-006 Fix: do not leak the cancel flag into the NEXT session — a later
+	// Init() had to rely on every caller remembering ClearCancel() (main.cpp
+	// did, by contract). Close is a completed teardown boundary; clear it here.
+	ClearCancel();
 }
 
 bool Memory::Reconnect(bool memMap, bool debug)

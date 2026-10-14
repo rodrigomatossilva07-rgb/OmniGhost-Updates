@@ -158,42 +158,54 @@ uint64_t Memory::FindSignature(const char* signature, uint64_t range_start, uint
 	if (PID == 0)
 		PID = current_process.PID;
 
+	// DMA-004 Fix: the old implementation read the ENTIRE range (up to 4 GB)
+	// under the transport lock and restarted pattern matching incorrectly on
+	// mismatch, skipping overlaps. Scan in 1 MB chunks with (patternLen-1)
+	// overlap between chunks; cancellation is honored between chunks so the
+	// camera lane is no longer blocked for seconds.
+	uint64_t patLen = 0;
+	for (const char* p = signature; *p; p += (*p == '?') ? 2 : 3) ++patLen;
+	if (patLen == 0 || patLen > 0x1000)
+		return 0; // zero-length, or larger than any sane pattern
+
 	const uint64_t rangeSize = range_end - range_start;
-	if (rangeSize > static_cast<uint64_t>(MAXDWORD) ||
-		rangeSize > static_cast<uint64_t>((std::numeric_limits<size_t>::max)()))
-		return 0;
-	std::vector<uint8_t> buffer(static_cast<size_t>(rangeSize));
-	const DWORD bufferSize = static_cast<DWORD>(buffer.size());
-	{
-		auto dmaTransportGuard = AcquireDmaTransportLock();
-		const bool readOk = VMMDLL_MemReadEx(this->vHandle, PID, range_start, buffer.data(), bufferSize, 0,
-			VMMDLL_FLAG_NOCACHE | VMMDLL_FLAG_ZEROPAD_ON_FAIL) != FALSE;
+	constexpr uint64_t kChunkSize = 1ull << 20; // 1 MB
+	std::vector<uint8_t> buffer(static_cast<size_t>(kChunkSize + patLen - 1));
+
+	uint64_t offset = 0;
+	while (offset < rangeSize) {
+		if (IsCancellationRequested())
+			return 0;
+		const uint64_t want = (std::min)(kChunkSize, rangeSize - offset) + (offset ? patLen - 1 : 0);
+		const uint64_t wantClamped = (std::min)(want, static_cast<uint64_t>(buffer.size()));
+		bool readOk;
+		{
+			auto dmaTransportGuard = AcquireDmaTransportLock();
+			readOk = VMMDLL_MemReadEx(this->vHandle, PID,
+				range_start + offset - (offset ? patLen - 1 : 0),
+				buffer.data(), static_cast<DWORD>(wantClamped), 0,
+				VMMDLL_FLAG_NOCACHE | VMMDLL_FLAG_ZEROPAD_ON_FAIL) != FALSE;
+		}
 		if (!readOk)
 			return 0;
+
+		// Scan this chunk byte-by-byte with a correct mismatch restart.
+		for (uint64_t i = 0; i + patLen <= wantClamped; ++i) {
+			const char* pat = signature;
+			uint64_t j = 0;
+			for (; j < patLen; ++j) {
+				const char pb = pat[0];
+				if (pb == '?') { pat += 2; continue; }
+				if (buffer[i + j] != GetByte(pat)) break;
+				pat += 3;
+			}
+			if (j == patLen)
+				return range_start + offset - (offset ? patLen - 1 : 0) + i;
+		}
+		offset += kChunkSize;
 	}
 
-	const char* pat = signature;
-	uint64_t first_match = 0;
-	for (uint64_t i = range_start; i < range_end; i++)
-	{
-		if (*pat == '?' || buffer[i - range_start] == GetByte(pat))
-		{
-			if (!first_match)
-				first_match = i;
-
-			if (!pat[2])
-				break;
-
-			pat += (*pat == '?') ? 2 : 3;
-		}
-		else
-		{
-			pat = signature;
-			first_match = 0;
-		}
-	}
-
-	return first_match;
+	return 0;
 }
 
 // Write paths. In OMNIGHOST_READONLY_MODE every write is compiled to a logged

@@ -78,6 +78,10 @@ Assert ($workflow -notmatch 'DISCORD_WEBHOOK_URL|Notify-DiscordRelease') 'Remove
 Assert ($workflow -notmatch 'hardware_integration_test|OMNIGHOST_TEST_GAME') 'Obsolete mandatory DMA release gate is still configured.'
 Assert ($publishBuild -match 'publish_github_release\.ps1') 'Publish build does not upload its validated local artifacts directly.'
 Assert ($publishBuild -match 'Finalize-VersionCommit\.ps1') 'Publish does not finalize the mechanical next-version commit.'
+Assert ($publishBuild -match 'Invoke-NativeCommandCapture' -and
+        $publishBuild -match "ErrorActionPreference = 'Continue'" -and
+        $publishBuild -match '''push'', ''origin'', \$tag') `
+    'Git push stderr can still be promoted to a terminating NativeCommandError.'
 Assert ($packageRelease -match 'Copy-Item -LiteralPath \$ReleaseMetaSource -Destination \$ReleaseMeta') 'Packaging does not copy release-meta.json into the validated release directory.'
 Assert ($packageRelease -match 'Assert-CopyMatches -Source \$ReleaseMetaSource -Destination \$ReleaseMeta') 'Packaging does not verify the copied release-meta.json.'
 Assert ($prepareVersion -match 'tag --list.*currentTag') 'Publish preparation does not test tag existence safely on Windows PowerShell 5.1.'
