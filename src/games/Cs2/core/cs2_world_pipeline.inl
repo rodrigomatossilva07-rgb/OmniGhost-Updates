@@ -1386,6 +1386,21 @@ static void RunFrameWithConfig(const Config& frame_config) {
             corePlayer.is_bot = core[c].controller_steam_id == 0;
             corePlayer.is_local = pawn == runtime.local_pawn ||
                 controller == runtime.local_controller;
+            // CS2-006 Fix: publish the entity-list slot (1-based) so the
+            // trigger's m_iIDEntIndex compare can actually match a target;
+            // ent_index was always 0, making trigger_use_ident dead.
+            corePlayer.ent_index = slot_index[c] + 1;
+            // CS2-004 Fix: publish the freshly read spotted state (the
+            // aim/trigger visibility check consumed a never-written default
+            // `true` before). Unknown read => fail-open keeps old behavior.
+            corePlayer.spotted = core[c].spotted_known ? core[c].spotted : true;
+            // CS2-005 Fix: publish remote view yaw — m_angEyeAngles was read
+            // every scan (need_yaw) and then discarded, leaving radar heading
+            // and the look-direction line stuck at 0 degrees.
+            {
+                const float yaw = core[c].eye_angles[1];
+                corePlayer.view_yaw = std::isfinite(yaw) ? yaw : 0.f;
+            }
             corePlayer.pos[0] = positions[c][0];
             corePlayer.pos[1] = positions[c][1];
             corePlayer.pos[2] = positions[c][2];
@@ -1459,7 +1474,9 @@ static void RunFrameWithConfig(const Config& frame_config) {
                     std::snprintf(corePlayer.weapon, sizeof(corePlayer.weapon), "%s",
                         rit->second.player.weapon);
                 corePlayer.weapon_def = rit->second.player.weapon_def;
-                corePlayer.spotted = rit->second.player.spotted;
+                // CS2-004 Fix: recent_players never carries a spotted value;
+                // overwriting corePlayer.spotted here stomped the fresh read
+                // above with the Player default (always true).
                 corePlayer.visibility_known = rit->second.player.visibility_known;
                 corePlayer.visible = rit->second.player.visible;
             }

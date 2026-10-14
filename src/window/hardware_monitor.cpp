@@ -176,11 +176,12 @@ namespace HardwareMonitor {
         return g_entity_history;
     }
 
-    float GetAverageLatency(DeviceType /*type*/, int window_seconds) {
-        std::lock_guard<std::mutex> lock(g_mutex);
+    // GPL-007 Fix: lock-free internal variants for callers already holding
+    // g_mutex (e.g. ExportMetrics). The public wrappers never recurse.
+    float GetAverageLatencyLocked(int window_seconds) {
         auto now = std::chrono::steady_clock::now();
         auto cutoff = now - std::chrono::seconds(window_seconds);
-        
+
         float sum = 0.0f;
         int count = 0;
         for (const auto& sample : g_latency_history) {
@@ -192,11 +193,10 @@ namespace HardwareMonitor {
         return count > 0 ? sum / count : 0.0f;
     }
 
-    float GetMaxLatency(DeviceType /*type*/, int window_seconds) {
-        std::lock_guard<std::mutex> lock(g_mutex);
+    float GetMaxLatencyLocked(int window_seconds) {
         auto now = std::chrono::steady_clock::now();
         auto cutoff = now - std::chrono::seconds(window_seconds);
-        
+
         float max_lat = 0.0f;
         for (const auto& sample : g_latency_history) {
             if (sample.timestamp >= cutoff) {
@@ -204,6 +204,16 @@ namespace HardwareMonitor {
             }
         }
         return max_lat;
+    }
+
+    float GetAverageLatency(DeviceType /*type*/, int window_seconds) {
+        std::lock_guard<std::mutex> lock(g_mutex);
+        return GetAverageLatencyLocked(window_seconds);
+    }
+
+    float GetMaxLatency(DeviceType /*type*/, int window_seconds) {
+        std::lock_guard<std::mutex> lock(g_mutex);
+        return GetMaxLatencyLocked(window_seconds);
     }
 
     bool IsDeviceHealthy(DeviceType type) {
@@ -260,8 +270,8 @@ namespace HardwareMonitor {
             file << "      \"port\": \"" << d.port << "\",\n";
             file << "      \"version\": \"" << d.version << "\",\n";
             file << "      \"last_error\": \"" << d.last_error << "\",\n";
-            file << "      \"avg_latency_ms\": " << GetAverageLatency(static_cast<DeviceType>(i)) << ",\n";
-            file << "      \"max_latency_ms\": " << GetMaxLatency(static_cast<DeviceType>(i)) << "\n";
+            file << "      \"avg_latency_ms\": " << GetAverageLatencyLocked(5) << ",\n";
+            file << "      \"max_latency_ms\": " << GetMaxLatencyLocked(5) << "\n";
             file << "    }" << (i < static_cast<int>(DeviceType::Count) - 1 ? "," : "") << "\n";
         }
         file << "  ]\n";

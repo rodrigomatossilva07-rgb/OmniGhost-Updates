@@ -50,7 +50,11 @@ bool SelfTestOffsets() {
             const bool ok_scene = mem.Read(runtime.local_pawn + offsets.m_pGameSceneNode, &scene, sizeof(scene));
             const bool full = ok_hp && hp >= 0 && hp <= 200 && ok_team && team >= 0 && team <= 3
                 && ok_scene && scene != 0;
-            runtime.offsets_self_test_ok = full || true; // soft pass if lobby probe ok
+            // CS2-016 Fix: `full || true` made the self-test report success
+            // unconditionally — auto_dump_on_mismatch and the diagnostics page
+            // could never see a real schema failure. Report the real result;
+            // the function still returns true because the lobby probe passed.
+            runtime.offsets_self_test_ok = full;
             std::cout << "[CS2] SelfTest local HP=" << hp << " team=" << team
                       << " scene=" << (ok_scene && scene ? "OK" : "fail")
                       << " full=" << (full ? "PASS" : "skip") << std::endl;

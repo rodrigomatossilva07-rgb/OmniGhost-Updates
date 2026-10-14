@@ -54,6 +54,7 @@ std::string SerializeAll() {
     }
 
     o << Hotkeys::SerializeFeatureToggles();
+    o << Hotkeys::SerializeActions();
 
     return o.str();
 }
@@ -188,6 +189,7 @@ bool DeserializeAll(const std::string& data) {
         if (DeserializeWarzone(key, val)) continue;
         if (DeserializeFiveM(key, val)) continue;
         if (Hotkeys::DeserializeFeatureToggle(key, val)) continue;
+        if (Hotkeys::DeserializeAction(key, val)) continue;
 
         // Friend list entries
         if (key.rfind("friend.", 0) == 0 && key.find(".id") != std::string::npos) {

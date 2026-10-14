@@ -70,19 +70,11 @@ void EnsureAcquisitionStarted() {
         float matrix[16]{};
         uint64_t next_camera_ms = 0;
         uint64_t consecutive_busy = 0;
-        // Cache runtime state atomically instead of acquiring full snapshot every cycle
-        uintptr_t cached_client_base = 0;
-        bool cached_in_match = false;
+        // CS2-008 Fix: read the atomically mirrored producer state instead of
+        // the plain `runtime` fields written by the acquisition thread.
         while (g_acqState.IsRunning()) {
-            // Lightweight atomic reads instead of full snapshot acquire
-            if (cached_client_base != runtime.client_base) {
-                cached_client_base = runtime.client_base;
-            }
-            if (cached_in_match != runtime.in_match) {
-                cached_in_match = runtime.in_match;
-            }
-            const uintptr_t client_base = cached_client_base;
-            const bool in_match = cached_in_match;
+            const uintptr_t client_base = RuntimePipeline::PublishedClientBase();
+            const bool in_match = RuntimePipeline::PublishedInMatch();
             const bool canRead = ready && offsets.loaded && client_base && offsets.dwViewMatrix;
             const uint64_t camera_now_ms = GetTickCount64();
             const int camera_pressure = g_pressure_level.load(std::memory_order_relaxed);

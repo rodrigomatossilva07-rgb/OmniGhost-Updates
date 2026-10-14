@@ -604,19 +604,28 @@ std::pair<float, float> CalculateRCS(const CS2::Runtime& rt, const CS2::Config& 
     return { rcs_x, rcs_y };
 }
 
-void HandlePanic(CS2::Config& cfg) {
-    if (!cfg.panic_key_enabled || cfg.panic_key == 0) return;
+// CS2-003 Fix: panic must persist until the user re-enables the features.
+// The flag previously mutated a per-frame copy of the config, so everything
+// switched back on one frame later. Now it writes the shared CS2::config (UI
+// state) and republishes to the acquisition thread. Returns true when the
+// panic fired so Run() can adopt the new config in the same frame.
+bool HandlePanic() {
+    if (!CS2::config.panic_key_enabled || CS2::config.panic_key == 0) return false;
     static bool was_down = false;
-    const bool down = KeyDown(cfg.panic_key);
+    const bool down = KeyDown(CS2::config.panic_key);
     if (down && !was_down) {
-        cfg.aim_enabled = false;
-        cfg.trigger_enabled = false;
-        cfg.radar_2d = false;
-        cfg.bomb_timer = false;
+        CS2::config.aim_enabled = false;
+        CS2::config.trigger_enabled = false;
+        CS2::config.radar_2d = false;
+        CS2::config.bomb_timer = false;
+        CS2::SubmitAcquisitionConfig(CS2::config);
         MessageBeep(MB_OK);
         std::snprintf(g_debug, sizeof(g_debug), "PANIC — tudo OFF");
+        was_down = down;
+        return true;
     }
     was_down = down;
+    return false;
 }
 
 } // namespace
@@ -634,7 +643,8 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
     // Input configuration belongs to the UI/snapshot owner. The aim update
     // may adapt its own decisions, but must never mutate shared UI state.
     CS2::Config cfg = cfg_in;
-    HandlePanic(cfg);
+    if (HandlePanic())
+        cfg = CS2::config; // adopt the just-published OFF state this frame
 
     InitializeHumanizer();
 

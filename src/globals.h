@@ -74,14 +74,18 @@ public:
         switch (game) {
             case ActiveGame::CS2: return "cs2_";
             case ActiveGame::Warzone: return "warzone_";
+            case ActiveGame::Fortnite: return "fortnite_";
+            case ActiveGame::Apex: return "apex_";
             default: return "fivem_";
         }
     }
-    
+
     static std::string GetGameMeta(ActiveGame game) noexcept {
         switch (game) {
             case ActiveGame::CS2: return "cs2";
             case ActiveGame::Warzone: return "warzone";
+            case ActiveGame::Fortnite: return "fortnite";
+            case ActiveGame::Apex: return "apex";
             default: return "fivem";
         }
     }

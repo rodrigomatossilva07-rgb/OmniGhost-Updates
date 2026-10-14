@@ -49,6 +49,9 @@ jobs:
 
       - name: Commit detached signature
         run: |
+          # CI-003 Fix: the signature was written to /tmp but never copied into
+          # the checkout, so `git add` failed with pathspec errors every run.
+          cp /tmp/driver-manifest.sig infrastructure/drivers/ftdi/driver-manifest.sig
           git config user.name "OmniGhost Driver Publisher"
           git config user.email "actions@github.com"
           git add infrastructure/drivers/ftdi/driver-manifest.json infrastructure/drivers/ftdi/driver-manifest.sig

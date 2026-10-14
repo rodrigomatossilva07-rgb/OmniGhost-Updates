@@ -194,12 +194,38 @@ AdapterErrorCode FortniteStartFailure() {
     return AdapterErrorCode::AttachFailed;
 }
 
+namespace {
+// LCH-001 Fix: attaching assigns g_activeGame BEFORE the DMA attach attempt.
+// On failure the launcher was left bound to a game the user never entered, so
+// config saves ran under the wrong prefix/metadata. This guard restores the
+// previous game unless the start path explicitly commits.
+struct ScopedActiveGame {
+    ScopedActiveGame()
+        : previous(OmniGhost::GameContext::Instance().GetActiveGame()),
+          previousExecutable(OmniGhost::GameContext::Instance().GetValidExecutable()) {}
+    ~ScopedActiveGame() {
+        if (!commit) {
+            OmniGhost::GameContext::Instance().SetActiveGame(previous);
+            OmniGhost::GameContext::Instance().SetValidExecutable(previousExecutable);
+        }
+    }
+    void Commit() { commit = true; }
+    ActiveGame previous;
+    std::string previousExecutable;
+    bool commit = false;
+};
+} // namespace
+
 bool StartCs2() {
+    ScopedActiveGame gameGuard;
     try {
         s_cs2StartException = false;
         g_activeGame = ActiveGame::CS2;
         config_manager::ActivateCurrentGameConfig();
-        return CS2::Attach();
+        if (!CS2::Attach())
+            return false;
+        gameGuard.Commit();
+        return true;
     } catch (const std::exception& ex) {
         s_cs2StartException = true;
         std::cerr << "[CS2] CRASH em StartCs2: " << ex.what() << std::endl;
@@ -212,18 +238,27 @@ bool StartCs2() {
 }
 
 bool StartWarzone() {
+    ScopedActiveGame gameGuard;
     g_activeGame = ActiveGame::Warzone;
-    if (Warzone::Attach()) return true;
+    if (Warzone::Attach()) {
+        gameGuard.Commit();
+        return true;
+    }
     std::cerr << "[Warzone] Falha na comunicacao com DMA/FPGA.\n";
     return false;
 }
 
 bool StartFortnite() {
+    ScopedActiveGame gameGuard;
     g_activeGame = ActiveGame::Fortnite;
-    return Fortnite::Attach();
+    if (!Fortnite::Attach())
+        return false;
+    gameGuard.Commit();
+    return true;
 }
 
 bool StartFiveM() {
+    ScopedActiveGame gameGuard;
     try {
         s_fiveMStartFailure = AdapterErrorCode::AttachFailed;
         OmniGhost::GameContext::Instance().SetActiveGame(ActiveGame::FiveM);
@@ -261,6 +296,7 @@ bool StartFiveM() {
         OmniGhost::OffsetAuto::MarkLiveValid(ActiveGame::FiveM, "Build e leitura DMA FiveM confirmadas");
         FiveM::ESP::InitializeContainers();
         if (!aim_type::IsConnected()) makcu_wrapper::MakcuInitialize("");
+        gameGuard.Commit();
         return true;
     } catch (const std::exception& ex) {
         s_fiveMStartFailure = AdapterErrorCode::UnexpectedException;

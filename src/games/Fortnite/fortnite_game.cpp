@@ -1286,7 +1286,10 @@ void Tick() {
 void DrawESP() {
     if (!runtime.attached || !config.esp_enabled)
         return;
-    if (!config.show_local_marker && !config.show_local_coords && !config.show_camera_debug)
+    // FN-002 Fix: o painel de diagnóstico estava fora do guarda — com os
+    // três marcadores OFF e o painel ON, nada era desenhado.
+    if (!config.show_local_marker && !config.show_local_coords && !config.show_camera_debug
+        && !config.show_debug_panel)
         return;
 
     ImDrawList* dl = ImGui::GetBackgroundDrawList();

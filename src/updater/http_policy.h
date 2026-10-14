@@ -39,6 +39,7 @@ std::string StatusMessage(int statusCode, std::string_view finalUrl = {});
 ErrorClass ClassifyFailure(int statusCode, std::string_view error) noexcept;
 const char* ErrorClassName(ErrorClass value) noexcept;
 const Configuration& GetConfiguration() noexcept;
+void SetConfiguration(const Configuration& config);
 
 } // namespace HttpPolicy
 } // namespace Update

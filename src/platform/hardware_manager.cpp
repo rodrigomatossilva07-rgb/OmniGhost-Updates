@@ -40,37 +40,41 @@ Manager::~Manager() {
 }
 
 void Manager::Shutdown() noexcept {
-    // Request stop on all workers - jthread will automatically join on destruction
-    // But we explicitly request stop to interrupt any blocking operations that check stop_token
-    for (auto& worker : workers_) {
-        if (worker.joinable()) {
-            worker.request_stop();
-        }
+    // Request cooperative cancellation and join the single worker. Joining
+    // here is safe: Shutdown runs on the main thread at process exit, not in
+    // the per-frame Poll() path.
+    {
+        std::scoped_lock lock(mutex_);
+        if (worker_.joinable())
+            worker_.request_stop();
     }
-    // BUG-024 Fix: Wait for workers with timeout (graceful shutdown)
-    constexpr auto kShutdownTimeout = std::chrono::seconds(3);
-    const auto deadline = std::chrono::steady_clock::now() + kShutdownTimeout;
-    for (auto& worker : workers_) {
-        if (worker.joinable() && std::chrono::steady_clock::now() < deadline) {
-            // jthread destructor will join, but we wait explicitly here with timeout
-            // Note: jthread doesn't have timed_join, so we rely on request_stop + join
-            // The worker should check stop_token and exit promptly
-        }
+    if (worker_.joinable())
+        worker_.join();
+    {
+        std::scoped_lock lock(mutex_);
+        workerState_.store(0, std::memory_order_relaxed);
+        workerKind_.store(0, std::memory_order_relaxed);
+        state_.stage = ProbeStage::Complete;
     }
-    // Clear vector - jthread destructors will join remaining workers
-    workers_.clear();
-
-    std::scoped_lock lock(mutex_);
-    state_.stage = ProbeStage::Complete;
 }
 
 void Manager::CancelWorkersLocked() noexcept {
-    for (auto& worker : workers_) {
-        if (worker.joinable()) {
-            worker.request_stop();
-        }
-    }
-    workers_.clear();
+    if (worker_.joinable())
+        worker_.request_stop();
+    if (worker_.joinable())
+        worker_.join();
+    workerState_.store(0, std::memory_order_relaxed);
+    workerKind_.store(0, std::memory_order_relaxed);
+}
+
+void Manager::DrainWorkerLocked() noexcept {
+    if (workerState_.load(std::memory_order_acquire) != 2)
+        return;
+    if (worker_.joinable())
+        worker_.join(); // already signaled completion: this cannot block
+    worker_ = std::jthread{};
+    workerState_.store(0, std::memory_order_relaxed);
+    workerKind_.store(0, std::memory_order_relaxed);
 }
 
 void Manager::BeginStartupProbe() {
@@ -95,7 +99,7 @@ void Manager::BeginStartupProbe() {
     nextMakcuRetry_ = stageStarted_ + 5s;
     if (!state_.makcuAvailable) {
         // Start MAKCU initialization as a cancellable background task
-        RunCancellableTask(workers_.emplace_back(), [] {
+        StartWorkerLocked(1, [] {
             makcu_wrapper::MakcuInitialize("");
             return makcu_wrapper::IsConnected();
         });
@@ -108,13 +112,19 @@ void Manager::BeginStartupProbe() {
 }
 
 void Manager::StartDmaProbeLocked() {
-    if (state_.stage == ProbeStage::CheckingDma || state_.stage == ProbeStage::Complete)
+    // Idempotent: only (re)start when the single worker slot is free. After a
+    // MAKCU timeout the discovery thread may still be unwinding; the DMA probe
+    // is scheduled by Poll() as soon as the slot drains instead of blocking
+    // the UI on a join.
+    if (state_.stage == ProbeStage::Complete)
+        return;
+    if (workerState_.load(std::memory_order_acquire) != 0)
         return;
     state_.stage = ProbeStage::CheckingDma;
     stageStarted_ = std::chrono::steady_clock::now();
     std::clog << "[STARTUP][Hardware] stage=CheckingDma required=YES mode=PASSIVE_PNP timeout_ms="
               << timeouts_.dmaTimeout.count() << "\n";
-    RunCancellableTask(workers_.emplace_back(), [] { return PassiveDmaPnpProbe(); });
+    StartWorkerLocked(2, [] { return PassiveDmaPnpProbe(); });
 }
 
 void Manager::ConsumeLateMakcuResultLocked() {
@@ -148,6 +158,26 @@ void Manager::Poll() {
     }
 #endif
 
+    // PLAT-004 Fix: consume finished background work through the result
+    // channel. Poll() never joins a live thread — a done worker is joined
+    // only after it has signaled completion (cannot block the UI).
+    if (workerState_.load(std::memory_order_acquire) == 2) {
+        const int kind = workerKind_.load(std::memory_order_relaxed);
+        const bool result = workerResult_.load(std::memory_order_relaxed);
+        if (kind == 1) {            // MAKCU discovery result
+            state_.makcuAvailable = result;
+            state_.makcuFinished = true;
+        } else if (kind == 2) {     // DMA PnP probe result (arrives any time)
+            state_.dmaAvailable = result;
+            state_.dmaFinished = true;
+            state_.stage = ProbeStage::Complete;
+            std::clog << "[STARTUP][Hardware] dma="
+                      << (state_.dmaAvailable ? "PRESENT_PNP" : "NOT_DETECTED")
+                      << " complete=YES note=PnP_is_diagnostic_only\n";
+        }
+        DrainWorkerLocked();
+    }
+
     // Publish an asynchronously-established connection on the UI thread and
     // make MAKCU the active input device without requiring a button click.
     if (makcu_wrapper::IsConnected()) {
@@ -163,62 +193,43 @@ void Manager::Poll() {
     }
 
     if (state_.stage == ProbeStage::CheckingMakcu) {
-        // Check if MAKCU background task completed
-        // Since we use jthread, we rely on makcu_wrapper::IsConnected() which
-        // reflects the actual connection state. The background task may have
-        // already finished and updated the connection.
         if (makcu_wrapper::IsConnected()) {
             state_.makcuAvailable = true;
             state_.makcuFinished = true;
             std::clog << "[STARTUP][Hardware] makcu=AVAILABLE\n";
             StartDmaProbeLocked();
-        } else if (now - stageStarted_ >= timeouts_.makcuTimeout) {
-            // Timeout - cancel any pending MAKCU worker
-            for (auto& worker : workers_) {
-                if (worker.joinable()) {
-                    worker.request_stop();
-                }
-            }
-            workers_.clear();
+        } else if (!state_.makcuFinished && now - stageStarted_ >= timeouts_.makcuTimeout) {
+            // Timeout: request cooperative stop but never join from the UI
+            // thread; the DMA probe starts as soon as the worker slot drains.
+            if (worker_.joinable())
+                worker_.request_stop();
             state_.makcuFinished = true;
             state_.makcuAvailable = false;
             std::clog << "[STARTUP][Hardware] makcu=TIMEOUT optional=YES continuing=DMA\n";
-            StartDmaProbeLocked();
         }
+        // The MAKCU thread may outlive the stage timeout (serial I/O is not
+        // cancellable); promote to the DMA stage once the slot is free.
+        if (state_.makcuFinished &&
+            workerState_.load(std::memory_order_acquire) == 0 &&
+            workerKind_.load(std::memory_order_relaxed) == 0)
+            StartDmaProbeLocked();
         return;
     }
 
     ConsumeLateMakcuResultLocked();
     if (state_.stage == ProbeStage::CheckingDma) {
-        // DMA probe is passive PnP check - typically fast
-        // We rely on the fact that PassiveDmaPnpProbe() runs quickly
-        // If worker is still running, we wait for it (it should complete within dmaTimeout)
-        if (now - stageStarted_ >= timeouts_.dmaTimeout) {
-            // Timeout - cancel any pending DMA worker
-            for (auto& worker : workers_) {
-                if (worker.joinable()) {
-                    worker.request_stop();
-                }
-            }
-            workers_.clear();
+        // The probe was deferred while MAKCU discovery still occupied the
+        // single worker slot; start it now that the slot is free.
+        if (workerState_.load(std::memory_order_acquire) == 0 &&
+            workerKind_.load(std::memory_order_relaxed) == 0 && !state_.dmaFinished)
+            StartDmaProbeLocked();
+        if (!state_.dmaFinished && now - stageStarted_ >= timeouts_.dmaTimeout) {
+            if (worker_.joinable())
+                worker_.request_stop();
             state_.dmaAvailable = false;
             state_.dmaFinished = true;
             state_.stage = ProbeStage::Complete;
             std::clog << "[STARTUP][Hardware] dma=TIMEOUT launcher_continues=YES note=PnP_probe_does_not_guarantee_functional_session\n";
-        }
-        // Note: Actual result consumption happens via the next Poll() call
-        // when the worker has finished. For passive PnP, it's usually instant.
-        if (!workers_.empty()) {
-            // Check if the DMA worker completed by trying to see if we can proceed
-            // The worker result is reflected in the next call
-            // For simplicity, we assume passive PnP is fast enough
-        } else if (state_.dmaFinished == false) {
-            // Worker finished, we need to get its result
-            // Since we don't have a direct result channel, we re-run the probe
-            // (it's cheap and passive)
-            state_.dmaAvailable = PassiveDmaPnpProbe();
-            state_.dmaFinished = true;
-            state_.stage = ProbeStage::Complete;
         }
         if (state_.stage == ProbeStage::Complete)
             std::clog << "[STARTUP][Hardware] dma="
@@ -229,15 +240,11 @@ void Manager::Poll() {
     // Support devices connected after the launcher opens. Retries are bounded,
     // asynchronous and never block rendering or DMA discovery.
     if (state_.stage == ProbeStage::Complete && !makcu_wrapper::IsConnected()) {
-        if (!workers_.empty() && workers_.back().joinable()) {
-            // Previous retry may still be running, wait for it
-            // In practice, we just clear and start new
-            workers_.clear();
-        }
-        if (now >= nextMakcuRetry_) {
+        if (now >= nextMakcuRetry_ &&
+            workerState_.load(std::memory_order_acquire) == 0) {
             state_.makcuFinished = false;
             nextMakcuRetry_ = now + 5s;
-            RunCancellableTask(workers_.emplace_back(), [] {
+            StartWorkerLocked(1, [] {
                 makcu_wrapper::MakcuInitialize("");
                 return makcu_wrapper::IsConnected();
             });

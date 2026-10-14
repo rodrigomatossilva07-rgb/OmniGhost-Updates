@@ -22,7 +22,7 @@ void SerializeAim(std::ostringstream& o) {
     WFloat(o, "aim.jitter_amount", a.jitter_amount);
     WFloat(o, "aim.acceleration", a.acceleration);
     WFloat(o, "aim.overshoot_chance", a.overshoot_chance);
-    WBool(o, "aim.overshoot_scale", a.overshoot_scale);
+    WFloat(o, "aim.overshoot_scale", a.overshoot_scale); // CFG-002 Fix: era WBool e lia-se como float → 0.08 virava "1"
     WFloat(o, "aim.min_move_threshold", a.min_move_threshold);
     WInt(o, "aim.hitbox", (int)a.hitbox);
     WInt(o, "aim.fov_style", (int)a.fov_style);

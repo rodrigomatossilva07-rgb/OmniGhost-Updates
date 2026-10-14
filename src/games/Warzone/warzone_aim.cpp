@@ -1,7 +1,6 @@
 #pragma warning(disable: 4100 4244)
 #include "warzone_aim.h"
 #include "../src/gameplay/aim_controller.h"
-#include "gameplay/unified_aim.h"
 #include "aimbot/aim_type.h"
 #include "imgui.h"
 #include <Windows.h>
@@ -18,9 +17,9 @@ OmniGhost::Gameplay::ContinuousAimController g_aim_motion;
 int g_active = -1;
 char g_debug[128] = "aim idle";
 
-// Unified aimbot instance (stub for Publish builds)
-static std::unique_ptr<Gameplay::UnifiedAim::UnifiedAimbot> g_unified_aimbot;
-
+// GPL-002 Fix: the "unified aimbot" object created here was a Publish-build
+// stub whose Update() is a no-op; keeping the dead call path suggested a
+// feature that never ran. Warzone aiming lives in the local logic below.
 bool W2S(const float world[3], const float vm[16], float& sx, float& sy) {
     const float w = vm[3] * world[0] + vm[7] * world[1] + vm[11] * world[2] + vm[15];
     if (w < 0.001f) return false;
@@ -70,16 +69,6 @@ int ActiveTargetIndex() { return g_active; }
 const char* DebugStatus() { return g_debug; }
 
 void Run(const Warzone::Runtime& rt, const Warzone::Config& cfg) {
-    // Initialize unified aimbot if needed (stub for Publish)
-    if (!g_unified_aimbot) {
-        g_unified_aimbot = Gameplay::UnifiedAim::CreateAimbotForGame("Warzone");
-        Gameplay::UnifiedAim::UnifiedConfig ucfg;
-        ucfg.enabled = cfg.aim_enabled;
-        ucfg.fov = cfg.aim_fov;
-        ucfg.smooth = cfg.aim_smooth;
-        g_unified_aimbot->SetConfig(ucfg);
-    }
-
     if (!rt.in_game && rt.players.empty()) {
         g_active = -1;
         g_aim_motion.Reset();
@@ -189,11 +178,6 @@ void Run(const Warzone::Runtime& rt, const Warzone::Config& cfg) {
         g_active = -1;
         std::snprintf(g_debug, sizeof(g_debug), "aim: no target");
     }
-
-    // Update unified aimbot stub (does nothing in Publish)
-    Gameplay::UnifiedAim::AimContext ctx;
-    ctx.dt = ImGui::GetIO().DeltaTime;
-    g_unified_aimbot->Update(ctx);
 
     // Keep existing FOV drawing
     if (cfg.aim_draw_fov) {

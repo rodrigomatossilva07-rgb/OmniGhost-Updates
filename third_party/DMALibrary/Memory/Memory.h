@@ -150,15 +150,19 @@ private:
 	mutable std::atomic<uint32_t> activeDataCalls_{ 0 };
 	mutable std::atomic<uint32_t> activeScatterHandles_{ 0 };
 	mutable std::atomic<uint64_t> blockedDataCalls_{ 0 };
-	// MemProcFS/LeechCore data transfers share one physical transport. Keep the
-	// critical section at the actual transfer boundary so callers can continue
-	// doing CPU-side preparation and validation concurrently.
+	// MemProcFS/LeechCore data transfers share one physical transport. All
+	// data-plane entry points serialize on the single spinlock in MemoryIO.cpp
+	// (DMA-001); this member is retained only for ABI/shape compatibility and
+	// is no longer used by the transfer paths.
 	mutable std::mutex dmaReadMutex_;
 	struct ScatterGeneration final
 	{
 		uint64_t session = 0;
 		uint64_t process = 0;
 		uint32_t preparedRequests = 0;
+		// DMA-003: pins held by threads currently executing VMMDLL calls on
+		// this handle; closers must wait for these to drain.
+		uint32_t inUse = 0;
 	};
 	mutable std::mutex scatterMutex_;
 	mutable std::unordered_map<VMMDLL_SCATTER_HANDLE, ScatterGeneration> scatterHandles_;
@@ -225,6 +229,8 @@ private:
 	void ResetDeviceState() noexcept;
 	void RegisterScatterHandle(VMMDLL_SCATTER_HANDLE handle) const;
 	[[nodiscard]] bool ScatterHandleIsCurrent(VMMDLL_SCATTER_HANDLE handle) const noexcept;
+	[[nodiscard]] bool AcquireScatterUse(VMMDLL_SCATTER_HANDLE handle) const noexcept;
+	void ReleaseScatterUse(VMMDLL_SCATTER_HANDLE handle) const noexcept;
 	void InvalidateScatterHandles(const char* reason) noexcept;
 	bool EnsurePluginsInitialized();
 	bool ApplyProcessDtbOverride(uint64_t dtb);

@@ -2,10 +2,22 @@
 #include "widgets.h"
 #include "theme.h"
 #include "localization.h"
+#include "imgui.h"
 #include "../config/app_settings.h"
+#include "../config/config_manager.h"
+#include "../platform/app_paths.h"
+#include "../platform/screenshot.h"
+#include "../globals.h"
 #include "src/games/Fivem/aimbot/aim_type.h"
+#include "src/games/Fivem/aimbot/aimbot.h"
+#include "src/games/Fivem/esp/esp.h"
+#include "src/games/Fivem/esp/vehicle_esp.h"
+#include "src/games/Cs2/cs2_game.h"
 #include <array>
 #include <algorithm>
+#include <cstdio>
+#include <chrono>
+#include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <cstdint>
@@ -58,48 +70,56 @@ namespace Hotkeys {
 
     void Update() {
         if (!g_initialized) return;
-        
+
+        // UI-004 Fix: never fire hotkeys while the user types into a text
+        // field (e.g. config save name) — Ctrl+S used to trigger during edits.
+        const bool wantText = ImGui::GetCurrentContext() && ImGui::GetIO().WantTextInput;
+
         // Update current state
         for (int i = 0; i < static_cast<int>(Action::Count); ++i) {
             g_prev_state[i] = g_curr_state[i];
-            
+
             const Hotkey& hk = g_hotkeys[i];
-            if (!hk.enabled || hk.vk_code == 0) {
+            if (!hk.enabled || hk.vk_code == 0 || wantText) {
                 g_curr_state[i] = {0, 0};
                 continue;
             }
-            
+
             bool vk_down = (GetAsyncKeyState(hk.vk_code) & 0x8000) != 0;
             bool ctrl_down = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
             bool shift_down = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
             bool alt_down = (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
             bool win_down = (GetAsyncKeyState(VK_LWIN) & 0x8000) != 0 || (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0;
-            
+
             int current_modifiers = 0;
             if (ctrl_down) current_modifiers |= 1;
             if (shift_down) current_modifiers |= 2;
             if (alt_down) current_modifiers |= 4;
             if (win_down) current_modifiers |= 8;
-            
-            // Allow extra modifiers (e.g., if hotkey is Ctrl+S, allow Ctrl+Shift+S)
-            bool modifiers_ok = (current_modifiers & hk.modifiers) == hk.modifiers;
-            
-            g_curr_state[i] = { vk_down ? hk.vk_code : 0, vk_down && modifiers_ok ? current_modifiers : 0 };
+
+            // UI-001/UI-007 Fix: the press requires the EXACT modifier mask —
+            // previously "S" alone triggered the Ctrl+S save and uncounted
+            // extra modifiers (Ctrl+Shift+S etc.) matched loosely here while
+            // HasConflict() uses exact equality.
+            const bool active = vk_down && current_modifiers == hk.modifiers;
+            g_curr_state[i] = { active ? hk.vk_code : 0, active ? current_modifiers : 0 };
         }
 
-        for (auto& [id, feature] : g_feature_toggles) {
-            if (!feature.value || feature.vk_code <= 0) continue;
-            const bool down = FeatureKeyDown(feature.vk_code);
-            if (down && !feature.was_down)
-                *feature.value = !*feature.value;
-            feature.was_down = down;
+        if (!wantText) {
+            for (auto& [id, feature] : g_feature_toggles) {
+                if (!feature.value || feature.vk_code <= 0) continue;
+                const bool down = FeatureKeyDown(feature.vk_code);
+                if (down && !feature.was_down)
+                    *feature.value = !*feature.value;
+                feature.was_down = down;
+            }
         }
-        
+
         // Check for presses and trigger callbacks
         for (int i = 0; i < static_cast<int>(Action::Count); ++i) {
             bool was_down = g_prev_state[i].vk_code != 0;
             bool is_down = g_curr_state[i].vk_code != 0;
-            
+
             if (is_down && !was_down) {
                 // Key pressed
                 Action action = static_cast<Action>(i);
@@ -129,6 +149,73 @@ namespace Hotkeys {
         g_hotkeys[static_cast<int>(Action::Custom1)] = { Action::Custom1, 0, 0, "Custom 1", "Custom action 1" };
         g_hotkeys[static_cast<int>(Action::Custom2)] = { Action::Custom2, 0, 0, "Custom 2", "Custom action 2" };
         g_hotkeys[static_cast<int>(Action::Custom3)] = { Action::Custom3, 0, 0, "Custom 3", "Custom action 3" };
+
+        // UI-002 Fix: action hotkeys previously had no callbacks at all —
+        // every default binding silently did nothing. Wire each action to its
+        // owner system. ToggleMenu intentionally has NO callback: menu
+        // toggling is owned by the overlay window (menu_bind path); duplicating
+        // it here would double-toggle every press.
+        g_hotkeys[static_cast<int>(Action::ToggleOverlay)].vk_code = 0;  // handled by menu path
+        g_hotkeys[static_cast<int>(Action::ReinitDMA)].vk_code = 0;      // no safe UI-thread reentry
+        g_hotkeys[static_cast<int>(Action::TestInputDevice)].vk_code = 0;
+
+        g_callbacks[Action::ToggleESP] = [] {
+            if (OmniGhost::GameContext::Instance().GetActiveGame() == OmniGhost::ActiveGame::CS2) {
+                CS2::config.esp_enabled = !CS2::config.esp_enabled;
+                CS2::SubmitAcquisitionConfig(CS2::config);
+            } else {
+                esp::config.enabled = !esp::config.enabled;
+            }
+        };
+        g_callbacks[Action::ToggleAim] = [] {
+            if (OmniGhost::GameContext::Instance().GetActiveGame() == OmniGhost::ActiveGame::CS2) {
+                CS2::config.aim_enabled = !CS2::config.aim_enabled;
+                CS2::SubmitAcquisitionConfig(CS2::config);
+            } else {
+                aimbot::config.aimbot_enabled = !aimbot::config.aimbot_enabled;
+            }
+        };
+        g_callbacks[Action::ToggleVehicle] = [] {
+            vehicle_esp::config.enabled = !vehicle_esp::config.enabled;
+        };
+        g_callbacks[Action::ToggleCrosshair] = [] {
+            aimbot::config.crosshair_enabled = !aimbot::config.crosshair_enabled;
+        };
+        g_callbacks[Action::ToggleConfigMenu] = [] {
+            app_settings::menu_open = true;
+        };
+        g_callbacks[Action::ReloadConfig] = [] {
+            config_manager::ActivateCurrentGameConfig();
+        };
+        g_callbacks[Action::SaveConfig] = [] {
+            if (!config_manager::active_config_name.empty())
+                config_manager::SaveToFile(config_manager::active_config_name);
+        };
+        g_callbacks[Action::TakeScreenshot] = [] {
+            namespace fs = std::filesystem;
+            const fs::path dir = OmniGhost::Paths::LocalData() / L"screenshots";
+            std::error_code ec;
+            fs::create_directories(dir, ec);
+            char name[64];
+            const auto now = std::chrono::system_clock::now().time_since_epoch();
+            std::snprintf(name, sizeof(name), "capture_%lld.png",
+                static_cast<long long>(std::chrono::duration_cast<std::chrono::seconds>(now).count()));
+            OmniGhost::Screenshot::CaptureViewport((dir / name).string());
+        };
+        g_callbacks[Action::TogglePerformanceMode] = [] {
+            app_settings::config.performance_mode = !app_settings::config.performance_mode;
+        };
+        g_callbacks[Action::PanicButton] = [] {
+            CS2::config.aim_enabled = false;
+            CS2::config.trigger_enabled = false;
+            CS2::config.esp_enabled = false;
+            CS2::SubmitAcquisitionConfig(CS2::config);
+            esp::config.enabled = false;
+            aimbot::config.aimbot_enabled = false;
+            aimbot::config.trigger_enabled = false;
+            vehicle_esp::config.enabled = false;
+            MessageBeep(MB_OK);
+        };
     }
 
     const Hotkey& GetHotkey(Action action) {
@@ -420,6 +507,32 @@ namespace Hotkeys {
                 out << "hotkey.feature." << (id.rfind("#pending:", 0) == 0 ? id.substr(9) : HexId(id)) << "=" << feature.vk_code << "\n";
         }
         return out.str();
+    }
+
+    // UI-003 Fix: action hotkeys round-trip with the active config —
+    // previously they were registered at startup and never persisted.
+    std::string SerializeActions()
+    {
+        std::ostringstream out;
+        for (int i = 0; i < static_cast<int>(Action::Count); ++i) {
+            const Hotkey& hk = g_hotkeys[i];
+            if (hk.vk_code > 0)
+                out << "hotkey.action." << i << "=" << hk.vk_code << "," << hk.modifiers << "\n";
+        }
+        return out.str();
+    }
+
+    bool DeserializeAction(const std::string& key, const std::string& value)
+    {
+        constexpr const char* prefix = "hotkey.action.";
+        if (key.rfind(prefix, 0) != 0) return false;
+        const int idx = std::atoi(key.c_str() + std::strlen(prefix));
+        if (idx < 0 || idx >= static_cast<int>(Action::Count)) return true;
+        int vk = 0, mods = 0;
+        if (std::sscanf(value.c_str(), "%d,%d", &vk, &mods) != 2) return true;
+        g_hotkeys[idx].vk_code = (vk > 0 && vk < 256) ? vk : 0;
+        g_hotkeys[idx].modifiers = mods & 15;
+        return true;
     }
 
     bool DeserializeFeatureToggle(const std::string& key, const std::string& value)

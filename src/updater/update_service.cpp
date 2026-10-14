@@ -257,6 +257,10 @@ UpdateService::~UpdateService() { Shutdown(); }
 void UpdateService::Initialize(Configuration configuration, std::unique_ptr<IHttpClient> http) {
     if (initialized_.exchange(true)) return;
     config_ = std::move(configuration);
+    // UPD-001 Fix: the HTTP layer used to read a frozen default Configuration
+    // (HttpPolicy::GetConfiguration), ignoring everything set here — including
+    // the TLS pins. Publish the effective configuration before any request.
+    HttpPolicy::SetConfiguration(config_);
     http_ = http ? std::move(http) : std::make_unique<WinHttpClient>();
 
     const bool userDirectoriesReady = Paths::EnsureUserDirectories();

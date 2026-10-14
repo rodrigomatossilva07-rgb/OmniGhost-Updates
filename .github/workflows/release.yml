@@ -1,6 +1,12 @@
 name: Build, test and release OmniGhost
 
+# CI-003 Fix: the publish job required github.ref_type == 'tag' but the
+# workflow only ran on workflow_dispatch, so a release could never publish.
+# Tag pushes now trigger the pipeline directly; manual dispatch stays for
+# package-only validation runs from main.
 on:
+  push:
+    tags: ['v*']
   workflow_dispatch:
 
 permissions:
@@ -60,9 +66,9 @@ jobs:
       - name: Build and run security regression tests
         shell: pwsh
         run: |
-          msbuild tests/OmniGhost.SecurityTests.vcxproj /m:1 /nr:false /p:Configuration=Release /p:Platform=x64
-          if ($LASTEXITCODE -ne 0) { throw 'Security tests failed to build.' }
-          & ./.cache/tests/Release/x64/OmniGhost.SecurityTests.exe
+          # CI-002 Fix: tests/OmniGhost.SecurityTests.vcxproj no longer exists;
+          # the maintained suite is the AdminApi .NET security tests.
+          dotnet test infrastructure/server/OmniGhost.AdminApi.Tests/OmniGhost.AdminApi.Tests.csproj -c Release
           if ($LASTEXITCODE -ne 0) { throw 'Security tests failed.' }
 
       - name: Build customer binary

@@ -76,6 +76,11 @@ namespace Hotkeys {
     bool ImportHotkeys(const std::string& json);
     bool ExportToFile(const char* path);
     bool ImportFromFile(const char* path);
+
+    // UI-003: key=value persistence into the active config file; the
+    // config_manager routes "hotkey.action." keys to DeserializeAction.
+    std::string SerializeActions();
+    bool DeserializeAction(const std::string& key, const std::string& value);
     
     // Reset to defaults
     void ResetToDefaults();

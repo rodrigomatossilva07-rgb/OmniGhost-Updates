@@ -1625,6 +1625,11 @@ void esp::prepare_esp_frame(const std::vector<uintptr_t>& peds,
     next.renderConfig.snapline_pos = frameConfig.snapline_pos;
     next.renderConfig.filled_box = frameConfig.filled_box;
     next.renderConfig.box_rounding = frameConfig.box_rounding;
+    // FIVEM-002 Fix: hit_marker was serialized and gated acquisition but never
+    // copied into the render config, so the consumer at render_esp_for_ped
+    // always saw false. health_value/armor_value/footstep_esp remain
+    // preview-only until a renderer exists for them.
+    next.renderConfig.hit_marker = frameConfig.hit_marker;
     next.renderConfig.skeleton_lod = frameConfig.skeleton_lod;
 
     const auto publish = [&](PreparedEspFrame&& frame) {

@@ -39,6 +39,15 @@ private:
     LicenseResult EnsureInitialized(std::stop_token stopToken);
     LicenseResult ResponseResult() const;
 
+    // AUTH-002 Fix: UI-facing reads must never wait behind an in-flight
+    // KeyAuth network call. mutating operations stay serialized on mutex_
+    // (the SDK is not thread-safe), while this mirror — updated after each
+    // mutation — serves CurrentUsername()/CurrentEntitlements() cheaply.
+    mutable std::mutex stateMutex_;
+    std::string cachedUsername_;
+    std::vector<RemoteEntitlement> cachedEntitlements_;
+    void UpdateStateMirror(); // call with mutex_ held
+
     mutable std::mutex mutex_;
     std::unique_ptr<Impl> impl_;
     bool initialized_{};

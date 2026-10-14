@@ -16,6 +16,11 @@ OmniGhost::Gameplay::SnapshotExchange<Config> g_config_snapshots;
 std::atomic<uint64_t> g_last_publish_ms{0};
 std::atomic<uint64_t> g_snapshot_drops{0};
 std::atomic<float> g_acquisition_hz{0.f};
+// CS2-008 Fix: camera-lane view of producer state. The camera thread used to
+// read runtime.client_base/runtime.in_match directly — plain fields written
+// by the acquisition thread (C++ data race). Publish mirrors them atomically.
+std::atomic<uintptr_t> g_published_client_base{0};
+std::atomic<bool> g_published_in_match{false};
 
 } // namespace
 
@@ -53,6 +58,8 @@ void Publish(Runtime& source, uint64_t generation, uint64_t read_fails) {
 
     *slot.value = std::move(snapshot);
     g_runtime_snapshots.Publish(slot.index);
+    g_published_client_base.store(slot.value->client_base, std::memory_order_release);
+    g_published_in_match.store(slot.value->in_match, std::memory_order_release);
     WebRadar::SubmitSnapshot(*slot.value);
     // CS2-001 Fix: do NOT reset `source` here. Resetting destroyed the module
     // bases and entity-list cache (client_base=0 permanently → every later
@@ -105,6 +112,14 @@ uint64_t SnapshotDrops() noexcept {
 
 void ResetProducerThreadForShutdown() noexcept {
     g_runtime_snapshots.ResetProducerThread();
+}
+
+uintptr_t PublishedClientBase() noexcept {
+    return g_published_client_base.load(std::memory_order_acquire);
+}
+
+bool PublishedInMatch() noexcept {
+    return g_published_in_match.load(std::memory_order_acquire);
 }
 
 } // namespace CS2::RuntimePipeline

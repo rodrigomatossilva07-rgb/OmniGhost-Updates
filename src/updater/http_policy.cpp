@@ -87,8 +87,15 @@ const char* ErrorClassName(ErrorClass value) noexcept {
 } // namespace OmniGhost::Update::HttpPolicy
 
 namespace OmniGhost::Update::HttpPolicy {
+namespace {
+    // UPD-001 Fix: the live configuration now comes from
+    // UpdateService::Initialize() instead of being a frozen default.
+    Configuration s_config;
+}
 const Configuration& GetConfiguration() noexcept {
-    static Configuration s_config;
     return s_config;
+}
+void SetConfiguration(const Configuration& config) {
+    s_config = config;
 }
 } // namespace OmniGhost::Update::HttpPolicy

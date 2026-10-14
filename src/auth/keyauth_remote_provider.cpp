@@ -193,6 +193,23 @@ LicenseResult KeyAuthRemoteLicenseProvider::Authenticate(std::string_view licens
     return Activate(licenseKey, stopToken);
 }
 
+void KeyAuthRemoteLicenseProvider::UpdateStateMirror() {
+    // Called with mutex_ held after any SDK mutation. Copies UI-visible state
+    // so CurrentUsername()/CurrentEntitlements() never block on the network.
+    std::scoped_lock stateLock(stateMutex_);
+    cachedUsername_ = username_;
+    cachedEntitlements_.clear();
+#if defined(OMNIGHOST_KEYAUTH_ENABLED) && !defined(OMNIGHOST_SKIP_KEYAUTH)
+    cachedEntitlements_.reserve(impl_->api.user_data.subscriptions.size());
+    for (const auto& subscription : impl_->api.user_data.subscriptions) {
+        if (!subscription.name.empty()) {
+            cachedEntitlements_.push_back({subscription.name, subscription.expiry,
+                                           SafeExpiryRemaining(subscription.expiry)});
+        }
+    }
+#endif
+}
+
 LicenseResult KeyAuthRemoteLicenseProvider::Login(std::string_view username, std::string_view password,
                                                    std::stop_token stopToken) {
     std::scoped_lock lock(mutex_);
@@ -203,6 +220,7 @@ LicenseResult KeyAuthRemoteLicenseProvider::Login(std::string_view username, std
     LicenseResult result = ResponseResult();
     if (result.Ok()) username_ = impl_->api.user_data.username.empty() ? std::string(username) : impl_->api.user_data.username;
     else username_.clear();
+    UpdateStateMirror();
     return result;
 #else
     return MakeResult(LicenseStatus::NotConfigured, "KeyAuth não está configurado nesta build.", "keyauth.not_configured");
@@ -221,6 +239,7 @@ LicenseResult KeyAuthRemoteLicenseProvider::Register(std::string_view username, 
     LicenseResult result = ResponseResult();
     if (result.Ok()) username_ = impl_->api.user_data.username.empty() ? std::string(username) : impl_->api.user_data.username;
     else username_.clear();
+    UpdateStateMirror();
     return result;
 #else
     return MakeResult(LicenseStatus::NotConfigured, "KeyAuth não está configurado nesta build.", "keyauth.not_configured");
@@ -236,6 +255,7 @@ LicenseResult KeyAuthRemoteLicenseProvider::Activate(std::string_view licenseKey
     LicenseResult result = ResponseResult();
     if (result.Ok()) username_ = impl_->api.user_data.username;
     else username_.clear();
+    UpdateStateMirror();
     return result;
 #else
     return MakeResult(LicenseStatus::NotConfigured, "KeyAuth não está configurado nesta build.", "keyauth.not_configured");
@@ -252,6 +272,7 @@ LicenseResult KeyAuthRemoteLicenseProvider::Upgrade(std::string_view username, s
     LicenseResult result = ResponseResult();
     if (result.Ok()) username_ = std::string(username);
     else username_.clear();
+    UpdateStateMirror();
     return result;
 #else
     return MakeResult(LicenseStatus::NotConfigured, "KeyAuth não está configurado nesta build.", "keyauth.not_configured");
@@ -266,6 +287,7 @@ void KeyAuthRemoteLicenseProvider::Logout() noexcept {
     }
 #endif
     username_.clear();
+    try { UpdateStateMirror(); } catch (...) { /* noexcept contract */ }
 }
 
 LicenseResult KeyAuthRemoteLicenseProvider::CheckSession(std::stop_token stopToken) {
@@ -277,7 +299,9 @@ LicenseResult KeyAuthRemoteLicenseProvider::CheckSession(std::stop_token stopTok
 #if defined(OMNIGHOST_KEYAUTH_ENABLED) && !defined(OMNIGHOST_SKIP_KEYAUTH)
     try {
         impl_->api.check();
-        return ResponseResult();
+        LicenseResult result = ResponseResult();
+        UpdateStateMirror();
+        return result;
     } catch (...) {
         return MakeResult(LicenseStatus::Unavailable, "Serviço KeyAuth temporariamente indisponível.",
                           "keyauth.recheck_unavailable");
@@ -288,23 +312,13 @@ LicenseResult KeyAuthRemoteLicenseProvider::CheckSession(std::stop_token stopTok
 }
 
 std::string KeyAuthRemoteLicenseProvider::CurrentUsername() const {
-    std::scoped_lock lock(mutex_);
-    return username_;
+    std::scoped_lock stateLock(stateMutex_);
+    return cachedUsername_;
 }
 
 std::vector<RemoteEntitlement> KeyAuthRemoteLicenseProvider::CurrentEntitlements() const {
-    std::scoped_lock lock(mutex_);
-    std::vector<RemoteEntitlement> result;
-#if defined(OMNIGHOST_KEYAUTH_ENABLED) && !defined(OMNIGHOST_SKIP_KEYAUTH)
-    result.reserve(impl_->api.user_data.subscriptions.size());
-    for (const auto& subscription : impl_->api.user_data.subscriptions) {
-        if (!subscription.name.empty()) {
-            result.push_back({subscription.name, subscription.expiry,
-                              SafeExpiryRemaining(subscription.expiry)});
-        }
-    }
-#endif
-    return result;
+    std::scoped_lock stateLock(stateMutex_);
+    return cachedEntitlements_;
 }
 
 std::string KeyAuthRemoteLicenseProvider::GetModulePath() const {

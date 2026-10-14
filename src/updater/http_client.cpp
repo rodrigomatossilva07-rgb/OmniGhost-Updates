@@ -747,6 +747,12 @@ bool ShouldTryWinInetFallback(const HttpResult& result, bool cancelled) {
     if (cancelled || result.error.empty())
         return false;
 
+    // UPD-001 Fix: never retry on the un-pinned transport after a TLS/pinning
+    // failure — the fallback path performs no certificate validation beyond
+    // the system chain, so a pinning mismatch must fail closed.
+    if (HttpPolicy::ClassifyFailure(result.statusCode, result.error) == HttpPolicy::ErrorClass::Tls)
+        return false;
+
     return result.statusCode == 0 ||
            result.error.find("WinHttp") != std::string::npos ||
            result.error.find("WinHTTP") != std::string::npos;

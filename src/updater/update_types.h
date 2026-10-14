@@ -72,17 +72,15 @@ struct Configuration {
     int updaterExitTimeoutSeconds = 30;
     int startupConfirmationSeconds = 30;
 
-    // P1-10: Certificate pinning for GitHub HTTPS connections
-    // SHA-256 thumbprints of expected GitHub TLS certificates (DigiCert/Baltimore roots)
-    // Updated when GitHub rotates their TLS certificates
-    std::vector<std::string> githubTlsCertificateThumbprints = {
-        // DigiCert SHA2 High Assurance Server CA (expires 2028)
-        "8E6C6F65E4E2D6B8D4E8F5A4D6C8F9E2A7B4C3D1E0F8A9B6C5D4E3F2A1B0C9D8E",
-        // DigiCert TLS RSA SHA256 2020 CA1 (expires 2030)
-        "A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6E7F8A9B0C1D2E3F4A5B6C7D8E9F0A1B2",
-        // Baltimore CyberTrust Root (legacy, expires 2025)
-        "D4E5F6A7B8C9D0E1F2A3B4C5D6E7F8A9B0C1D2E3F4A5B6C7D8E9F0A1B2C3D4E5",
-    };
+    // P1-10: Certificate pinning for GitHub HTTPS connections.
+    // UPD-001 Fix: the previous defaults were synthetic hex sequences that
+    // never matched a real certificate, forcing every WinHTTP request into
+    // the un-pinned WinINet fallback. Pinning is now OFF unless the build
+    // embeds REAL SHA-256 thumbprints of GitHub's current TLS chain (rotate
+    // them on certificate rollover; generating them belongs to the release
+    // tooling, never to a hard-coded guess). The manifest RSA signature +
+    // package SHA-256 remain the primary trust anchor for payloads.
+    std::vector<std::string> githubTlsCertificateThumbprints = {};
 };
 
 struct Snapshot {

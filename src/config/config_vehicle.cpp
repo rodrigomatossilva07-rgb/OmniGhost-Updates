@@ -13,7 +13,7 @@ void SerializeVehicle(std::ostringstream& o) {
     WBool(o, "veh.snaplines", v.snaplines);
     WBool(o, "veh.marker", v.marker);
     WBool(o, "veh.distance", v.distance);
-    WBool(o, "veh.max_distance", v.max_distance);
+    WFloat(o, "veh.max_distance", v.max_distance); // CFG-003 Fix: era WBool e lia-se como float → qualquer valor >0 virava 1.0
     WBool(o, "veh.rgb_mode", v.rgb_mode);
     WBool(o, "veh.show_speed", v.show_speed);
     WBool(o, "veh.lock_status", v.lock_status);

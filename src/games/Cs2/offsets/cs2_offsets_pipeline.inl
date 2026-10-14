@@ -88,7 +88,7 @@ bool LoadOffsetsFromJson(const char* path) {
         g_boneMapping = BoneMapping{};
         for (std::size_t i = 0; i < kBoneSlotCount; ++i) {
             uintptr_t value = 0;
-            const bool ok = JsonClassU64(data, "bone_mapping", kBoneNames[i], value) && value <= 255;
+            const bool ok = JsonClassU64(data, "bone_mapping", kBoneNames[i], value) && value < 28; // CS2-007: limit == joint stream capacity
             bone_mapping_loaded &= ok;
             if (ok)
                 g_boneMapping.jointIndex[i] = static_cast<int>(value);
@@ -237,7 +237,7 @@ bool LoadEmbeddedOffsets() {
         for (std::size_t i = 0; i < kBoneSlotCount; ++i) {
             std::uint64_t value = 0;
             const std::string path = std::string("bone_mapping.") + kBoneNames[i];
-            const bool ok = snapshot.TryGet(path, value) && value <= 255;
+            const bool ok = snapshot.TryGet(path, value) && value < 28; // CS2-007: limit == joint stream capacity
             required &= ok;
             if (ok)
                 g_boneMapping.jointIndex[i] = static_cast<int>(value);

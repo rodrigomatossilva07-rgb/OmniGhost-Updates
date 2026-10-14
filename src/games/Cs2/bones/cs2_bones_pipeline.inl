@@ -236,6 +236,14 @@ static void RunOptionalEnrichment(const Config& frame_config,
                     };
                     bool upperPoseValid = true;
                     for (int s = 0; s < 4; ++s) {
+                        // CS2-007 Fix: bound the mapping before indexing the
+                        // joint array — a 28..255 value from a stale/corrupt
+                        // bone_mapping (validated only as <= 255 upstream)
+                        // used to read past joints[kJointCount].
+                        if (kIdx[s] < 0 || kIdx[s] >= static_cast<int>(kJointCount)) {
+                            upperPoseValid = false;
+                            continue;
+                        }
                         const auto& j = joints[bi][kIdx[s]];
                         const size_t boneSlot = (s == 3) ? 
                             static_cast<size_t>(CS2::BoneSlot::SpineLower) : s; // head=0, neck=1, chest=2, stomach=4

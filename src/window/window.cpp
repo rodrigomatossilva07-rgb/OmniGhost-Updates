@@ -308,6 +308,10 @@ void Overlay::Render()
     SetCaptureExclusion(false);
 #endif
 
+    // UI-010 Fix: hotkeys must work in-game with the menu closed. Update()
+    // previously ran only on menu frames, leaving Panic/toggles inert.
+    Hotkeys::Update();
+
     if (!app_settings::menu_open && !RenderMenu)
         return;
 
@@ -434,7 +438,8 @@ const PerformanceMode::State performance = PerformanceMode::Update(
         const float fps = ImGui::GetIO().Framerate;
         const float frame_time_ms = 1000.0f / std::max(0.1f, fps);
         HardwareMonitor::RecordFPS(fps, frame_time_ms);
-        Hotkeys::Update();
+        // UI-010: Hotkeys::Update() runs before the menu-visibility early
+        // return (see above) so binds work with the menu closed.
         
         bool connected = false;
         const char* build = "Execução";
