@@ -182,8 +182,6 @@ namespace makcu_wrapper {
         std::shared_lock deviceLock(device_mutex);
         if (!connected || !device || !device->isConnected()) return;
         if (x == 0 && y == 0) return;
-        if (x < -127) x = -127; if (x > 127) x = 127;
-        if (y < -127) y = -127; if (y > 127) y = 127;
         device->mouseMove(x, y);
     }
 

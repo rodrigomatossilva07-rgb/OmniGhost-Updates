@@ -29,7 +29,7 @@
     <WholeProgramOptimization>true</WholeProgramOptimization>
   </PropertyGroup>
 <PropertyGroup Condition="'$(Configuration)'=='Publish'" Label="Configuration">
-    <!-- Publish produces the signed stable package for the public GitHub update channel. -->
+    <!-- Publish produces the validated stable package for the public GitHub update channel. -->
     <UseDebugLibraries>false</UseDebugLibraries>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <OmniGhostPublishBuild>true</OmniGhostPublishBuild>

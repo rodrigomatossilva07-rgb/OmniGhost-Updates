@@ -24,7 +24,7 @@ function Get-Sha256([string]$LiteralPath) {
     }
 }
 
-if (-not (Test-Path -LiteralPath $PrimaryExecutable -PathType Leaf)) { throw "Primary unsigned executable missing: $PrimaryExecutable" }
+if (-not (Test-Path -LiteralPath $PrimaryExecutable -PathType Leaf)) { throw "Primary executable missing: $PrimaryExecutable" }
 if (-not (Test-Path -LiteralPath $MSBuildPath -PathType Leaf)) { throw "MSBuild missing: $MSBuildPath" }
 if (-not (Test-Path -LiteralPath $metadataPath -PathType Leaf)) { throw "Publish metadata missing: $metadataPath" }
 
@@ -73,7 +73,7 @@ try {
     Write-Host '[Repro 2/3] A executar build independente (detalhes em .cache\logs\repro-build.log)...'
     [IO.Directory]::CreateDirectory((Split-Path -Parent $reproLog)) | Out-Null
     $buildOutput = @(& $MSBuildPath $project /t:Build /m:1 /nr:false /p:Configuration=Publish /p:Platform=x64 `
-        /p:OmniGhostReproducibilityPass=true /p:OmniGhostSkipReleaseSigning=true `
+        /p:OmniGhostReproducibilityPass=true `
         /p:OmniGhostSkipPackaging=true /p:OmniGhostSkipRemotePublish=true `
         /p:OmniGhostSkipVersionAdvance=true /v:minimal 2>&1)
     $buildExitCode = $LASTEXITCODE
