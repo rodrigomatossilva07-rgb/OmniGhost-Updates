@@ -68,7 +68,7 @@ public:
              {"leaked_threads", (threadDelta > 0 ? "YES" : "NO"), false},
              {"leaked_handles", (handleDelta > 0 ? "YES" : "NO"), false}});
 
-        // Also log to console for immediate visibility
+
         if (threadDelta != 0 || handleDelta != 0) {
             std::clog << "[RESOURCE] session=" << sessionName_
                       << " threads=" << before_.threadCount << "->" << after_.threadCount << " (" << (threadDelta >= 0 ? "+" : "") << threadDelta << ")"
@@ -126,7 +126,7 @@ private:
     ResourceSnapshot after_{};
 };
 
-// Global instance for convenient access
+
 inline ResourceCounter g_resourceCounter;
 
-} // namespace OmniGhost::Platform
+}

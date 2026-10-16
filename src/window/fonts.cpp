@@ -70,8 +70,8 @@ namespace {
         };
 
         for (const std::string& candidate : candidates) {
-            // AddFontFromFileTTF asserts when the file cannot be opened, so only
-            // call it after verifying that the candidate is actually readable.
+
+
             if (candidate.empty() || !IsReadableFile(candidate))
                 continue;
 
@@ -79,18 +79,18 @@ namespace {
             cfg.OversampleH = 2;
             cfg.OversampleV = 2;
             cfg.PixelSnapH = true;
-            // Default + full Latin so PT/ES/FR accents render (não, ação, …).
+
             const ImWchar* ranges = atlas->GetGlyphRangesDefault();
             if (ImFont* font = atlas->AddFontFromFileTTF(candidate.c_str(), size_pixels, &cfg, ranges))
                 return font;
         }
 
-        // ProggyClean is embedded in Dear ImGui, making this last fallback
-        // independent of the working directory and of fonts installed on Windows.
+
+
         return AddEmbeddedDefaultFont(atlas, size_pixels);
     }
 
-} // namespace
+}
 
 namespace CyberFonts {
 
@@ -103,10 +103,10 @@ namespace CyberFonts {
     void LoadFonts(float scale) {
         ImGuiIO& io = ImGui::GetIO();
 
-        // Load the body face first and explicitly make it the default.  The
-        // previous order made every native ImGui control inherit the 24 px
-        // display face, which was the main source of the oversized, "debug
-        // menu" typography.
+
+
+
+
         g_body_font = LoadFontWithFallback(
             io.Fonts,
             "Inter-Regular.ttf",
@@ -139,4 +139,4 @@ namespace CyberFonts {
     ImFont* GetBodyFont() { return g_body_font; }
     ImFont* GetMonoFont() { return g_mono_font; }
 
-} // namespace CyberFonts
+}

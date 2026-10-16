@@ -39,7 +39,7 @@ int CountProcessThreadsCached() {
     cached = n;
     return cached;
 }
-} // namespace
+}
 namespace OmniGhost::Gameplay::DmaTelemetry {
 namespace {
 
@@ -88,7 +88,7 @@ struct Ring {
         s.p95 = at(0.95f);
         s.p99 = at(0.99f);
         s.max = sorted[static_cast<size_t>(n - 1)];
-        // Enforce ordering
+
         s.p95 = (std::max)(s.p95, s.p50);
         s.p99 = (std::max)(s.p99, s.p95);
         s.max = (std::max)(s.max, s.p99);
@@ -244,7 +244,7 @@ void WritePerf(std::string_view tag, Sample& s) {
         static_cast<unsigned long long>(s.counts.suppressed_spikes_20.load()),
         static_cast<unsigned long long>(s.counts.suppressed_spikes_50.load()),
         static_cast<unsigned long long>(s.counts.suppressed_spikes_100.load()));
-    // Resource footprint (leak detection)
+
     DWORD handleCount = 0;
     GetProcessHandleCount(GetCurrentProcess(), &handleCount);
     static DWORD previousHandleCount = 0;
@@ -283,7 +283,7 @@ void WritePerf(std::string_view tag, Sample& s) {
     Emit(tag, full);
 }
 
-} // namespace
+}
 
 void SetEnabled(bool enabled) noexcept {
     g_enabled.store(enabled, std::memory_order_release);
@@ -318,7 +318,7 @@ void ObserveAcquire(Sample& s, float work_ms, bool activeSample, uint64_t scan_i
     else g_lastAcqF.store(work_ms, std::memory_order_relaxed);
     PublishAcquireStats(s, ring, work_ms);
 
-    // Rate-limited spike reporting (never on idle)
+
     if (!IsEnabled()) return;
     const uint64_t nowMs = GetTickCount64();
     const auto claimSpikeWindow = [&](std::atomic<uint64_t>& last, uint64_t intervalMs) {
@@ -466,7 +466,7 @@ void RefreshFromMemory() noexcept {
     const uint64_t reads = snap.readRequestCount;
     const uint64_t scat = snap.scatterReadBatchCount;
     const auto rate = [dt](uint64_t current, uint64_t previous) -> int {
-        if (current < previous) return 0; // device/session counters restarted
+        if (current < previous) return 0;
         const double value = static_cast<double>(current - previous) / dt;
         return static_cast<int>((std::min)(value, static_cast<double>((std::numeric_limits<int>::max)())));
     };
@@ -507,14 +507,14 @@ static void ObserveProcessResources(Sample& s) noexcept {
         s.process.process_threads.store(snap.threadCount, std::memory_order_relaxed);
         s.process.working_set_mb.store(static_cast<float>(snap.memoryBytes) / (1024.f * 1024.f),
             std::memory_order_relaxed);
-        // private_mb approximated from same working set when PMC private not split
+
         s.process.private_mb.store(static_cast<float>(snap.memoryBytes) / (1024.f * 1024.f),
             std::memory_order_relaxed);
         const auto memSnap = mem.GetDiagnosticsSnapshot();
         s.process.scatter_handles_live.store(memSnap.scatterHandlesLive, std::memory_order_relaxed);
     } catch (...) {
-        // ResourceTracker may throw if the process is gone; silently ignore ?
-        // telemetry is best-effort and the next tick will retry.
+
+
     }
 }
 
@@ -531,9 +531,9 @@ void Tick(std::string_view tag) {
     else if (tag == "WARZONE" || tag == "WZ") { sample = &g_warzone; last = &lastW; }
     else if (tag == "FORTNITE") { sample = &g_fortnite; last = &lastFortnite; }
     ObserveProcessResources(*sample);
-    // PERF once/sec only while active gameplay for CS2/FiveM samples
+
     if (!sample->process.active.load(std::memory_order_relaxed)) {
-        // Still emit a light STATUS at most every 5s when idle so logs show state
+
         if (last->time_since_epoch().count() != 0 &&
             now - *last < std::chrono::seconds(5))
             return;
@@ -614,7 +614,7 @@ void LogSpikeBreakdown(std::string_view tag, const SpikeBreakdown& b) noexcept {
     if (b.total_ms < 50.f) return;
     static std::chrono::steady_clock::time_point s_last{};
     const auto now = std::chrono::steady_clock::now();
-    // At most one breakdown per 500ms (severe) / 250ms (critical)
+
     const auto minGap = b.total_ms >= 200.f
         ? std::chrono::milliseconds(250)
         : std::chrono::milliseconds(500);
@@ -656,4 +656,4 @@ void LogSpikeBreakdown(std::string_view tag, const SpikeBreakdown& b) noexcept {
     EmitWarn(tag, buf);
 }
 
-} // namespace OmniGhost::Gameplay::DmaTelemetry
+}

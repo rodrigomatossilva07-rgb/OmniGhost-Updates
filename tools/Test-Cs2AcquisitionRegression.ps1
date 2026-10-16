@@ -5,9 +5,9 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 if (-not $ProjectDir) { $ProjectDir = Split-Path -Parent $PSScriptRoot }
 $cs2Root = Join-Path $ProjectDir 'src/games/Cs2'
-# The acquisition runtime is intentionally composed from focused .cpp/.inl
-# modules. Audit the complete implementation instead of silently regressing to
-# checks against the small composition root only.
+
+
+
 $sourceFiles = Get-ChildItem -LiteralPath $cs2Root -Recurse -File |
     Where-Object { $_.Extension -in @('.cpp', '.inl') -and $_.FullName -notlike '*\esp\cs2_esp.cpp' } |
     Sort-Object FullName
@@ -32,8 +32,8 @@ Require-Match $resolver 'mem\.ExecuteReadScatter\(scatter\)' 'Resolver must exec
 Require-Match $source 'true, g_scatter_optional, client_base\);' 'Optional weapon resolution must use the optional worker scatter.'
 Require-Condition ($source -notmatch 'unifiedConfig\s*=\s*CS2::UnifiedConfigAdapter::Get\(') 'Optional worker still reads mutable acquisition configuration.'
 
-# A single changed handle among 64 slots used to select the alternate stride
-# and erase the valid primary result. Check sparse and mixed refresh fixtures.
+
+
 foreach ($count in @(10, 32, 64)) {
     $primary = New-Object UInt64[] $count
     $alternate = New-Object UInt64[] $count

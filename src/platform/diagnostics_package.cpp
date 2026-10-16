@@ -96,7 +96,7 @@ bool WriteZip(const fs::path& path, std::vector<Entry>& entries, std::string& er
         entry.localOffset = static_cast<std::uint32_t>(offset);
         entry.crc = Crc32(entry.data);
         Put32(output, 0x04034b50u);
-        Put16(output, 20); Put16(output, 0x0800); Put16(output, 0); // UTF-8, stored
+        Put16(output, 20); Put16(output, 0x0800); Put16(output, 0);
         Put16(output, 0); Put16(output, 0);
         Put32(output, entry.crc);
         Put32(output, static_cast<std::uint32_t>(entry.data.size()));
@@ -149,7 +149,7 @@ bool WriteZip(const fs::path& path, std::vector<Entry>& entries, std::string& er
     return true;
 }
 
-} // namespace
+}
 
 bool CreatePackage(std::string_view summary,
                    std::filesystem::path& outputPath,
@@ -201,4 +201,4 @@ bool CreatePackage(std::string_view summary,
     return true;
 }
 
-} // namespace OmniGhost::Diagnostics
+}

@@ -1,5 +1,5 @@
-﻿# Asset Compression Build Script
-# Compresses images and other assets for embedded resources
+
+
 
 param(
     [Parameter(Mandatory=$true)][string]$ProjectDir,
@@ -30,13 +30,13 @@ function Compress-Image([string]$InputPath, [string]$OutputPath, [int]$Quality =
     if (-not (Test-Path $InputPath)) { return $false }
 
     $ext = [IO.Path]::GetExtension($InputPath).ToLowerInvariant()
-    # System.Drawing cannot load SVG / modern WebP reliably — copy as-is.
+
     if ($ext -eq '.svg' -or $ext -eq '.webp' -or $ext -eq '.ico') {
         Copy-Item -Path $InputPath -Destination $OutputPath -Force
         return $true
     }
 
-    # Use .NET System.Drawing for raster compression (png/jpg/jpeg)
+
     Add-Type -AssemblyName System.Drawing
 
     try {
@@ -53,7 +53,7 @@ function Compress-Image([string]$InputPath, [string]$OutputPath, [int]$Quality =
             if ($codec -and ($ext -eq '.jpg' -or $ext -eq '.jpeg')) {
                 $image.Save($OutputPath, $codec, $encoderParams)
             } else {
-                # Keep PNG lossless; re-saving via default encoder is fine
+
                 $image.Save($OutputPath, $image.RawFormat)
             }
         } finally {
@@ -71,7 +71,7 @@ function Compress-Json([string]$InputPath, [string]$OutputPath) {
     if (-not (Test-Path $InputPath)) { return $false }
 
     try {
-        # Strip UTF-8 BOM if present, parse + re-emit compact JSON (safe minify).
+
         $bytes = [IO.File]::ReadAllBytes($InputPath)
         if ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) {
             $bytes = $bytes[3..($bytes.Length - 1)]
@@ -91,7 +91,7 @@ function Compress-Json([string]$InputPath, [string]$OutputPath) {
 
 function Compress-Css([string]$InputPath, [string]$OutputPath) {
     if (-not (Test-Path $InputPath)) { return $false }
-    
+
     try {
         $content = Get-Content -Path $InputPath -Raw -Encoding UTF8
         $minified = $content -replace '(?s)/\*.*?\*/', '' -replace '\s+', ' ' -replace '\s*([{};:,])\s*', '$1'
@@ -107,10 +107,10 @@ function Compress-Css([string]$InputPath, [string]$OutputPath) {
 
 function Compress-Js([string]$InputPath, [string]$OutputPath) {
     if (-not (Test-Path $InputPath)) { return $false }
-    
+
     try {
         $content = Get-Content -Path $InputPath -Raw -Encoding UTF8
-        # Basic JS minification
+
         $minified = $content -replace '(?s)/\*.*?\*/', '' -replace '(?m)^\s*//.*$', '' -replace '\s+', ' ' -replace '\s*([{}();,])\s*', '$1'
         $minified = $minified.Trim()
         Set-Content -Path $OutputPath -Value $minified -Encoding UTF8 -NoNewline
@@ -130,10 +130,10 @@ function Get-CacheKey([string]$FilePath) {
 function Should-Compress([string]$SourcePath, [string]$DestPath) {
     if ($ForceRecompress) { return $true }
     if (-not (Test-Path $DestPath)) { return $true }
-    
+
     $sourceHash = Get-CacheKey $SourcePath
     $cacheKeyPath = Join-Path $CacheDir (($sourceHash) + '.key')
-    
+
     if (Test-Path $cacheKeyPath) {
         $cachedHash = (Get-Content -Path $cacheKeyPath -Raw).Trim()
         if ($cachedHash -eq $sourceHash) {
@@ -149,28 +149,28 @@ function Update-CacheKey([string]$FilePath) {
     Set-Content -Path $cacheKeyPath -Value $hash -Encoding UTF8
 }
 
-# Main compression logic
+
 Log "Starting asset compression for $Configuration"
 $compressedCount = 0
 $skippedCount = 0
 $totalSaved = 0
 
-# Process game resources
+
 $imageExtensions = @('.png', '.jpg', '.jpeg', '.webp', '.svg', '.ico')
 $compressExtensions = @('.json', '.json5', '.css', '.js', '.html', '.htm')
 
-# Game resources
+
 if (Test-Path $GamesDir) {
     $files = Get-ChildItem -Path $GamesDir -Recurse -File | Where-Object { $imageExtensions -contains $_.Extension.ToLower() }
     foreach ($file in $files) {
         $relativePath = $file.FullName.Substring($ResourcesDir.Length + 1)
         $destPath = Join-Path $CacheDir $relativePath
-        
+
         if (Should-Compress $file.FullName $destPath) {
             $origSize = $file.Length
             $destDir = Split-Path -Parent $destPath
             New-Item -ItemType Directory -Path $destDir -Force | Out-Null
-            
+
             if (Compress-Image $file.FullName $destPath 85) {
                 $newSize = (Get-Item $destPath).Length
                 $saved = $origSize - $newSize
@@ -185,19 +185,19 @@ if (Test-Path $GamesDir) {
     }
 }
 
-# Radar webapp
+
 if (Test-Path $RadarWebAppDir) {
     $files = Get-ChildItem -Path $RadarWebAppDir -Recurse -File
     foreach ($file in $files) {
         $ext = $file.Extension.ToLower()
         $relativePath = $file.FullName.Substring($ProjectDir.Length + 1)
         $destPath = Join-Path $CacheDir $relativePath
-        
+
         if (Should-Compress $file.FullName $destPath) {
             $origSize = $file.Length
             $destDir = Split-Path -Parent $destPath
             New-Item -ItemType Directory -Path $destDir -Force | Out-Null
-            
+
             $success = $false
             if ($imageExtensions -contains $ext) {
                 $success = Compress-Image $file.FullName $destPath 85
@@ -211,7 +211,7 @@ if (Test-Path $RadarWebAppDir) {
                 Copy-Item -Path $file.FullName -Destination $destPath -Force
                 $success = $true
             }
-            
+
             if ($success) {
                 $newSize = (Get-Item $destPath).Length
                 $saved = $origSize - $newSize
@@ -233,15 +233,15 @@ if (Test-Path $RadarWebAppDir) {
 Log "Compression complete: $compressedCount files compressed, $skippedCount skipped, $totalSaved bytes saved"
 Log "Compressed assets available at: $CacheDir"
 
-# Copy compressed assets to build output for embedding
-    # Skip for Publish builds - assets are embedded via resource system
+
+
     if ($Configuration -ine 'Publish') {
         $buildDir = Join-Path $ProjectDir "build\$Configuration"
         if (Test-Path $buildDir) {
             $assetsDir = Join-Path $buildDir "data\compressed"
             New-Item -ItemType Directory -Path $assetsDir -Force | Out-Null
-            
-            # Copy compressed assets
+
+
             Copy-Item -Path (Join-Path $CacheDir '*') -Destination $assetsDir -Recurse -Force
             Log "Copied compressed assets to $assetsDir for embedding"
         }

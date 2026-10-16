@@ -1,8 +1,8 @@
-// Central core-world scan and immutable snapshot assembly.
+
 static void RunFrameWithConfig(const Config& frame_config) {
     runtime.read_fails = g_read_fails.load(std::memory_order_relaxed);
-    // The network/process lifecycle is owned by its control worker, never by
-    // the latency-critical acquisition lane.
+
+
     const int radarPort = frame_config.webradar_port > 0 && frame_config.webradar_port <= 65535
         ? frame_config.webradar_port : 8080;
     g_web_radar_desired_port.store(radarPort, std::memory_order_relaxed);
@@ -12,10 +12,10 @@ static void RunFrameWithConfig(const Config& frame_config) {
     if (!ready || !offsets.loaded || !runtime.client_base)
         return;
 
-    // Capture frame timestamp once to avoid repeated GetTickCount64() syscalls.
+
     const uint64_t frame_time_ms = GetTickCount64();
 
-    // CS2 Diversos → Telemetria: mirror into the shared DMA telemetry logger.
+
     OmniGhost::Gameplay::DmaTelemetry::SetEnabled(frame_config.telemetry_enabled);
     if (frame_config.telemetry_enabled) {
         static uint64_t s_cfgBits = 0;
@@ -48,22 +48,22 @@ static void RunFrameWithConfig(const Config& frame_config) {
 
     uint64_t currentGen = g_session_generation.load(std::memory_order_acquire);
     const uintptr_t client = runtime.client_base;
-    // Keep last-good player snapshot when entity list briefly fails (prevents
-    // ESP/aim going empty for 1–2 frames on ListEntry null flicker).
+
+
     struct RecoveryIdentity { uintptr_t pawn = 0; uintptr_t controller = 0; };
     static std::vector<RecoveryIdentity> last_good_players;
     static uint64_t last_good_ms = 0;
-    // Maximum cache sizes to prevent unbounded memory growth
+
     constexpr size_t kMaxRecentPlayers = 128;
     constexpr size_t kMaxBoneCache = 128;
     constexpr size_t kMaxStickyBoneLayout = 128;
     constexpr size_t kMaxLastBoneMs = 128;
-    
+
     struct RecentPlayer {
         Player player{};
         uint64_t last_seen_ms = 0;
         uint64_t entry_generation = 0;
-        bool confirmed_dead = false; // P0-3: never reinsert after confirmed death
+        bool confirmed_dead = false;
     };
     struct CachedBones {
         float joints[kBoneSlotCount][3]{};
@@ -74,7 +74,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
     };
     static std::unordered_map<uintptr_t, RecentPlayer> recent_players;
     static std::unordered_map<uintptr_t, CachedBones> bone_cache;
-    static std::unordered_map<uintptr_t, uint8_t> s_stickyBoneLayout; // 0/1 once validated
+    static std::unordered_map<uintptr_t, uint8_t> s_stickyBoneLayout;
     static std::unordered_map<uintptr_t, uint64_t> s_lastBoneMs;
     static uint64_t recoveryCacheGeneration = 0;
     static std::shared_mutex g_cache_mutex;
@@ -89,11 +89,11 @@ static void RunFrameWithConfig(const Config& frame_config) {
     if (s_stickyBoneLayout.bucket_count() < 128) s_stickyBoneLayout.reserve(128);
     if (s_lastBoneMs.bucket_count() < 128) s_lastBoneMs.reserve(128);
 
-    // Periodic cache size enforcement (every 1000 frames)
+
     static uint64_t s_cacheEnforceFrame = 0;
     if (++s_cacheEnforceFrame % 1000 == 0) {
         std::unique_lock lock(g_cache_mutex);
-        // Enforce max sizes by removing oldest entries
+
         while (recent_players.size() > kMaxRecentPlayers) {
             auto oldest = recent_players.begin();
             for (auto it = std::next(oldest); it != recent_players.end(); ++it) {
@@ -120,19 +120,19 @@ static void RunFrameWithConfig(const Config& frame_config) {
         }
     }
 
-    // ── Merge optional enrichment results (P0 single-writer invariant) ───
-    // The optional worker is the sole producer of g_optional_results and never
-    // touches `runtime`. Draining here keeps THIS thread the only writer of
-    // runtime.players and the only producer of g_runtime_snapshots.
+
+
+
+
     const auto drainOptionalResults = [&](uint64_t generation) {
         auto opt = g_optional_results.Acquire();
         if (!opt || opt->generation != generation)
             return;
         const uint64_t mergeNowMs = frame_time_ms;
-        // Attribute the optional worker's phase timings to this scan.
+
         g_phase.bones_ms += opt->bones_ms;
         g_phase.weapon_ms += opt->weapon_ms;
-        g_phase.optional_budget_left_ms = opt->budget_left_ms; // P2-8: track optional budget
+        g_phase.optional_budget_left_ms = opt->budget_left_ms;
         g_phase.bones_players += static_cast<int>(opt->bone_count);
 
         {
@@ -181,9 +181,12 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 if (r.weapon[0])
                     std::snprintf(rp.player.weapon, sizeof(rp.player.weapon), "%s", r.weapon);
                 if (r.ammo_clip >= 0) rp.player.ammo_clip = r.ammo_clip;
+
+
+                if (r.ammo_reserve >= 0) rp.player.ammo_reserve = r.ammo_reserve;
             }
         }
-        // Merge visibility results from optional worker
+
         {
             std::unique_lock lock(g_cache_mutex);
             for (uint32_t i = 0; i < opt->visibility_count && i < opt->visibility.size(); ++i) {
@@ -202,17 +205,20 @@ static void RunFrameWithConfig(const Config& frame_config) {
         }
         {
             std::unique_lock lock(g_cache_mutex);
-            if (opt->dropped_weapons_valid)
+
+
+            if (opt->dropped_weapons_valid) {
                 runtime.dropped_weapons = opt->dropped_weapons;
                 runtime.dropped_weapons.reserve(24);
+            }
         }
     };
     drainOptionalResults(currentGen);
-    // Recovery may freeze expensive topology/metadata work, but it must never
-    // freeze death detection. Probe only the already-known pawn health fields,
-    // publish them immediately, and remove confirmed deaths from every cache
-    // that can republish a player. Sentinel values remain unknown/read-failed
-    // and deliberately retain the short dropout grace period.
+
+
+
+
+
     const auto refresh_cached_liveness = [&](uint64_t now_ms) {
         if (last_good_players.empty() || !offsets.m_iHealth)
             return false;
@@ -250,7 +256,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
         std::array<uintptr_t, 64> confirmed_dead{};
         size_t dead_count = 0;
         for (size_t i = 0; i < count; ++i) {
-            // Values left at the sentinel are failed/unknown, not deaths.
+
             const bool healthKnown = health[i] != kUnknownHealth && health[i] >= 0 && health[i] <= 200;
             const bool controllerKnown = controller_alive[i] == 0 || controller_alive[i] == 1;
             if (!healthKnown && !controllerKnown)
@@ -293,40 +299,40 @@ static void RunFrameWithConfig(const Config& frame_config) {
     runtime.players.clear();
     if (runtime.players.capacity() < 64)
         runtime.players.reserve(64);
-    // CS2-001/002 Fix: per-scan accumulators must be cleared explicitly now
-    // that Publish no longer resets the whole Runtime. Spectator state is
-    // repopulated by UpdateSpectators while the local player is dead; when
-    // alive, the previous scan's spectators must not linger.
+
+
+
+
     runtime.spectators.clear();
     runtime.spectator_count = 0;
-    // Entity-list root/page validation is time-based inside
-    // RefreshEntityListEntry; ordinary scans reuse the last confirmed pair.
 
-    // Map detection is wall-clock based so acquisition cadence changes do not
-    // accidentally make this expensive read more frequent. Lobby remains fast.
+
+
+
+
     static char previous_map[64]{};
     static uint64_t next_map_refresh_ms = 0;
     const uint64_t map_now_ms = frame_time_ms;
     if (map_now_ms >= next_map_refresh_ms) {
         mem.SetDmaCallTag("CS2.MapRefresh");
         RefreshMapName();
-        // The map normally changes only on a transition.  Re-reading it every
-        // few seconds was an expensive synchronous probe that could queue
-        // behind player reads.  Keep lobby detection responsive, but let a
-        // confirmed match reuse its valid name for a longer period.
+
+
+
+
         const int pressure = g_pressure_level.load(std::memory_order_relaxed);
-        // Keep a cheap safety probe during a match. Session/topology changes
-        // force an immediate refresh elsewhere, while this catches missed
-        // transitions without retaining a collision world for minutes.
+
+
+
         next_map_refresh_ms = map_now_ms + (runtime.in_match
             ? (pressure >= 2 ? 60000u : 30000u)
             : 1000u);
     }
 
-    // Match transition: map changed → force entity-list re-acquire so ESP
-    // recovers automatically when leaving lobby / joining a new game.
-    // Also force-clear Makcu button mask — release packets are often lost
-    // during load and would leave LMB stuck ("mira sozinho").
+
+
+
+
     if (std::strncmp(previous_map, runtime.map_name, sizeof(previous_map)) != 0) {
         ResetSessionState("map-change");
         currentGen = g_session_generation.load(std::memory_order_acquire);
@@ -357,9 +363,9 @@ static void RunFrameWithConfig(const Config& frame_config) {
                       << " (ESP auto-recover, config intact)" << std::endl;
     }
 
-    // Visibility colours use the static collision mesh of the active map.
-    // The owned loader performs all filesystem/decompression/BVH work away
-    // from acquisition and replaces pending requests on a map transition.
+
+
+
     const bool needs_collision = frame_config.esp_enabled && frame_config.visibility_colors;
     g_collision_loader.Request(runtime.map_name, needs_collision, map_now_ms);
 
@@ -367,15 +373,15 @@ static void RunFrameWithConfig(const Config& frame_config) {
     runtime.in_match = map_reports_match;
     int entity_probe_controller_count = 0;
 
-    // Detect lobby → match and match → match transitions even when the map
-    // string stays empty briefly (common when INSERT was opened in the lobby).
+
+
     static bool was_in_match = false;
     static int zero_player_frames = 0;
-    // Map refresh is the primary match signal. Some builds briefly expose an
-    // empty map string after loading, so retain a deliberately strict and slow
-    // fallback: a local pawn alone is also present in lobby, but a live entity
-    // page with multiple controllers is not. This avoids activating the full
-    // pipeline in lobby while still recovering automatically in a real match.
+
+
+
+
+
     static uint64_t next_match_fallback_ms = 0;
     if (!runtime.in_match && map_now_ms >= next_match_fallback_ms && !HeavyDmaCooldownActive()) {
         next_match_fallback_ms = map_now_ms + 2500u;
@@ -414,8 +420,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
         }
     }
 
-    // Entering a match (from lobby or after map change) → force entity list re-acquire.
-    // Clear Makcu mask: load screens often drop the LMB release packet.
+
+
     if (runtime.in_match && !was_in_match) {
         g_pending_entity_list = 0;
         g_entity_list_confirmations = 0;
@@ -432,20 +438,20 @@ static void RunFrameWithConfig(const Config& frame_config) {
                   << ", controllers=" << entity_probe_controller_count
                   << ") — a revalidar entity list" << std::endl;
     }
-    // Leaving a match → drop avatar cache (memory + %LocalAppData%/OmniGhost/cache/cs2/avatars).
+
     if (was_in_match && !runtime.in_match) {
         std::cout << "[CS2] Saída de partida — a limpar cache de avatares\n";
     }
     was_in_match = runtime.in_match;
 
-    // LOBBY / MENU: keep light probes only; entity DMA resumes on match enter.
+
     if (!runtime.in_match) {
         zero_player_frames = 0;
         return;
     }
 
-    // On-demand: no active features → zero entity DMA (pipeline sleeps).
-    // Web radar / bomb still handled above or in this branch only if needed.
+
+
     if (!NeedsPlayerScan(frame_config)) {
         zero_player_frames = 0;
         runtime.players.clear();
@@ -457,30 +463,33 @@ static void RunFrameWithConfig(const Config& frame_config) {
             UpdateBombStateThrottled();
         else if (!frame_config.bomb_timer)
             runtime.bomb = BombState{};
-        // World-only visuals deliberately bypass the player pipeline. They
-        // retain their own rate/pressure gates and do not wake controller,
-        // pawn, bone or weapon acquisition when no player ESP is enabled.
-        // Discovery runs on the optional worker (single-threaded static
-        // caches + own scatter handle); results merge on the next scan.
-        QueueOptionalDroppedOnly(frame_config);
 
-        // Merge any pending optional results so dropped items still refresh
-        // while no player scan is active (this branch returns before the
-        // normal merge point below).
+
+
+
+
+
+
+        if (frame_config.dropped_weapons)
+            QueueOptionalDroppedOnly(frame_config);
+
+
+
+
         drainOptionalResults(currentGen);
         return;
     }
 
-    // The camera lane already owns the high-rate view-matrix sampling. Reuse
-    // its recent immutable snapshot instead of issuing a duplicate QRead in
-    // every full player scan. Fall back only when that lane has no usable data.
+
+
+
     bool haveView = false;
     if (const auto camera = Camera::Acquire(); camera && camera->timestamp_ms) {
         const uint64_t now = GetTickCount64();
-        // A fresh matrix is ideal, but after a transport stall a slightly old
-        // coherent matrix is preferable to scheduling another synchronous
-        // QRead.  The render keeps one consistent camera state until the fast
-        // camera lane catches up again instead of amplifying the stall.
+
+
+
+
         if (now >= camera->timestamp_ms && now - camera->timestamp_ms <= 120u) {
             std::memcpy(runtime.view_matrix, camera->view_matrix, sizeof(runtime.view_matrix));
             haveView = true;
@@ -495,13 +504,13 @@ static void RunFrameWithConfig(const Config& frame_config) {
 
     runtime.players.reserve(64);
 
-    // Keep the last validated team so TEAM_INTERVAL_MS is effective.
-    // Preserve the last valid yaw on a transient read failure.
-    // Preserve the last valid local origin. A transient DMA failure must not
-    // make every range calculation originate from world zero.
-    // The local pawn/controller pointers rarely change while alive.  Refresh
-    // them at a controlled cadence. Health joins the main local-state scatter
-    // whenever the cached pawn is valid.
+
+
+
+
+
+
+
     static uint64_t s_lastLocalBootstrapMs = 0;
     const uint64_t localNowMs = frame_time_ms;
     const bool refreshLocalBootstrap = !IsUserPointer(runtime.local_pawn) ||
@@ -548,9 +557,9 @@ static void RunFrameWithConfig(const Config& frame_config) {
     }
 
     if (runtime.local_pawn) {
-        // Do not keep reading local movement,
-        // view, item or trigger state after death; observer/bomb handling
-        // below is the only remaining DMA work in that state.
+
+
+
         if (runtime.local_health > 0 || refreshLocalBootstrap) {
             static ULONGLONG s_lastTeamMs = 0;
             const ULONGLONG nowT = frame_time_ms;
@@ -582,7 +591,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
             float local_position_sample[3] = { runtime.local_pos[0], runtime.local_pos[1], runtime.local_pos[2] };
             bool scoped = runtime.local_scoped;
             int crosshair = 0;
-            int shots = -1; // failed DMA must not masquerade as a fresh sample
+            int shots = -1;
             float aimPunch[2] = {
                 (std::numeric_limits<float>::quiet_NaN)(),
                 (std::numeric_limits<float>::quiet_NaN)()
@@ -624,9 +633,9 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 if (needRcsState && offsets.m_aimPunchAngle)
                     mem.AddScatterReadRequest(g_scatter_full, runtime.local_pawn + offsets.m_aimPunchAngle,
                                               aimPunch, sizeof(aimPunch));
-                // Scene/item pointers are stable. Read their dependent values
-                // through the previous confirmed pointers in this same batch;
-                // a pointer change naturally takes effect on the next scan.
+
+
+
                 if (IsUserPointer(cached_local_scene))
                     mem.AddScatterReadRequest(g_scatter_full,
                         cached_local_scene + offsets.m_vecAbsOrigin,
@@ -641,9 +650,9 @@ static void RunFrameWithConfig(const Config& frame_config) {
                         &runtime.local_has_defuser, sizeof(runtime.local_has_defuser));
                 mem.ExecuteReadScatter(g_scatter_full);
             } else {
-                // Scatter handle was unavailable on the primary path — rebuild
-                // once and batch every local field into a single round-trip.
-                // Individual QReads remain only if EnsureScatter still fails.
+
+
+
                 EnsureScatter();
                 if (g_scatter_full) {
                     if (offsets.m_iHealth)
@@ -692,8 +701,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
                     mem.SetDmaCallTag("CS2.LocalFallbackScatter");
                     mem.ExecuteReadScatter(g_scatter_full);
                 } else {
-                    // Last-resort: allocate a one-shot scatter handle so we still
-                    // avoid a chain of sequential QReads on the hot path.
+
+
                     VMMDLL_SCATTER_HANDLE oneShot = mem.CreateScatterHandle();
                     auto queueLocal = [&](VMMDLL_SCATTER_HANDLE h) {
                         if (offsets.m_iHealth)
@@ -734,15 +743,15 @@ static void RunFrameWithConfig(const Config& frame_config) {
                         mem.ExecuteReadScatter(oneShot);
                         mem.CloseScatterHandle(oneShot);
                     } else {
-                        // Device refused any scatter handle — single combined
-                        // failure is preferable to a multi-QRead stall chain.
-                        // Keep last-known local state; next scan retries.
+
+
+
                     }
                 }
             }
 
-            // Preserve the last known value on a failed read; only accept a
-            // valid game-domain health sample from the completed state batch.
+
+
             if (sampled_health >= 0 && sampled_health <= 200)
                 runtime.local_health = sampled_health;
 
@@ -755,7 +764,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 runtime.local_angles[0] = view_angles[0];
                 runtime.local_angles[1] = view_angles[1];
             } else if (offsets.dwViewAngles) {
-                // Schema/global drift fallback is rare and deliberately outside the hot batch.
+
                 float fallback_angles[2]{};
                 if (QRead(runtime.local_pawn + offsets.m_angEyeAngles, fallback_angles, sizeof(fallback_angles)) &&
                     std::isfinite(fallback_angles[1])) {
@@ -803,9 +812,9 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 runtime.local_aim_sample_ms = frame_time_ms;
             }
         } else {
-            // Death must not turn local-state acquisition off for the whole
-            // bootstrap TTL. A tiny, throttled liveness lane detects respawn
-            // promptly without paying for movement, item or trigger fields.
+
+
+
             static uint64_t nextDeadLocalLivenessMs = 0;
             const uint64_t deadNowMs = frame_time_ms;
             if (deadNowMs >= nextDeadLocalLivenessMs) {
@@ -837,9 +846,9 @@ static void RunFrameWithConfig(const Config& frame_config) {
                     runtime.local_health = 0;
                 else if (readAttempted && respawnHealth >= 0 && respawnHealth <= 200)
                     runtime.local_health = respawnHealth;
-                // An unknown controller flag never forces a false respawn.
-                // The next pass enters the normal lane as soon as the health
-                // sample becomes positive.
+
+
+
                 nextDeadLocalLivenessMs = deadNowMs + 80u;
             }
             runtime.local_crosshair_entity = 0;
@@ -860,20 +869,20 @@ static void RunFrameWithConfig(const Config& frame_config) {
     if (preTopologyPressure >= 2)
         recoveryLivenessFresh = refresh_cached_liveness(frame_time_ms);
     if (!RefreshEntityListEntry()) {
-        // Hold last-good ESP/aim targets briefly so the overlay does not blink
-        // off when ListEntry is transiently null after map/round changes.
+
+
         const uint64_t now_ms = frame_time_ms;
         if (!recoveryLivenessFresh)
             (void)refresh_cached_liveness(now_ms);
-        // Never republish stale world positions on a topology miss. The
-        // renderer keeps its already-published snapshot while the next scan
-        // reacquires health/origin/velocity from the live entity list.
+
+
+
         g_publish_runtime_this_scan = false;
         return;
     }
 
-    // Renderer FPS must never decide who exists in the acquisition snapshot.
-    // Optional lanes have their own DMA-pressure budgets.
+
+
     constexpr int kMaxSlots = 64;
     runtime.entity_cap_used = kMaxSlots;
 
@@ -893,12 +902,12 @@ static void RunFrameWithConfig(const Config& frame_config) {
         cachedControllerGeneration = currentGen;
     }
 
-    // Prefer the confirmed Source 2 stride (0x70). Fall back to 0x78 only if
-    // the primary layout returns no controllers at all.
+
+
     const int recoveryPressure = g_pressure_level.load(std::memory_order_relaxed);
-    // Pressure sheds optional metadata and bones below, never the core world
-    // state. A stale position snapshot is more visible than a slower name or
-    // weapon refresh, so recovery continues through health/origin/velocity.
+
+
+
     const uint64_t controllerNowMs = frame_time_ms;
     int collected = 0;
     if (cachedControllerCount > 0 &&
@@ -908,8 +917,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
         collected = cachedControllerCount;
     } else {
         collected = CollectControllers(runtime.entity_list_entry, g_controller_stride, controllers, kMaxSlots);
-        // Controller metadata changes only on joins/spawns. A 250 ms normal
-        // cache prevents a broad list scatter from dominating the DMA lane.
+
+
         nextControllerRefreshMs = controllerNowMs + (recoveryPressure >= 1 ? 500u : 250u);
         if (collected > 0) {
             std::memcpy(cachedControllers, controllers, sizeof(controllers));
@@ -919,17 +928,18 @@ static void RunFrameWithConfig(const Config& frame_config) {
         }
     }
     if (collected == 0) {
-        const uintptr_t alternate = (g_controller_stride == offsets.entity_identity_stride)
-            ? offsets.entity_identity_stride : offsets.entity_identity_stride;
+
+        const uintptr_t alternate = (g_controller_stride == kEntityStrideAlternate)
+            ? kEntityStridePrimary : kEntityStrideAlternate;
         collected = CollectControllers(runtime.entity_list_entry, alternate, controllers, kMaxSlots);
         if (collected > 0) {
             g_controller_stride = alternate;
             g_pawn_stride = alternate;
             emptyEntryScans = 0;
         } else {
-            // Entry pointer is stale (no controllers on either stride) —
-            // request an immediate cached-root/page validation. Keep the old
-            // snapshot briefly so a single transport miss does not blink ESP.
+
+
+
             g_entity_list_force_refresh = true;
             g_entity_list_next_validation_ms = 0;
             cachedControllerCount = 0;
@@ -950,11 +960,11 @@ static void RunFrameWithConfig(const Config& frame_config) {
     runtime.controller_stride = g_controller_stride;
     runtime.controller_count = collected;
 
-    // The Source 2 controller array is sparse, but every later stage only
-    // needs valid controller pointers. Compact it once so a four-player match
-    // does not enqueue 64 pawn-handle/page requests on every acquisition scan.
-    // This preserves controller/pawn pairing through slot_index while cutting
-    // thousands of redundant scatter requests per second.
+
+
+
+
+
     int controller_span = 0;
     for (int i = 0; i < kMaxSlots; ++i) {
         if (!IsUserPointer(controllers[i])) continue;
@@ -965,10 +975,10 @@ static void RunFrameWithConfig(const Config& frame_config) {
     collected = controller_span;
     runtime.controller_count = collected;
 
-    // While dead, do not enter the entity, position, bone, weapon, visibility
-    // or aim acquisition stages.  Spectators and bomb state remain available
-    // through their small dedicated paths; a positive local HP next frame
-    // immediately falls through to the normal acquisition pipeline again.
+
+
+
+
     if (runtime.local_health <= 0) {
         runtime.players.clear();
         runtime.player_count = 0;
@@ -982,11 +992,17 @@ static void RunFrameWithConfig(const Config& frame_config) {
         return;
     }
 
-    // Calibrate handle→pawn stride against the local player when available.
+
     if (runtime.local_controller && runtime.local_pawn)
         CalibratePawnStride(runtime.local_controller, runtime.local_pawn);
 
-    // ── Phase 1: scatter all pawn handles in one DMA round-trip ──────────
+
+
+
+
+    UpdateSpectators(frame_config, controllers, collected);
+
+
     uint32_t handles[kMaxSlots]{};
     uintptr_t resolved_by_slot[kMaxSlots]{};
     struct CachedControllerPawn {
@@ -1047,8 +1063,9 @@ static void RunFrameWithConfig(const Config& frame_config) {
     int newlyResolvedCount = 0;
     if (anyHandleChanged) {
         const uintptr_t primaryStride = g_pawn_stride ? g_pawn_stride : offsets.entity_identity_stride;
-        const uintptr_t alternateStride = (primaryStride == offsets.entity_identity_stride)
-            ? offsets.entity_identity_stride : offsets.entity_identity_stride;
+
+        const uintptr_t alternateStride = (primaryStride == kEntityStrideAlternate)
+            ? kEntityStridePrimary : kEntityStrideAlternate;
         newlyResolvedCount = ScatterResolvePawnHandles(
             handlesToResolve, newlyResolved, collected,
             primaryStride, alternateStride);
@@ -1103,21 +1120,60 @@ static void RunFrameWithConfig(const Config& frame_config) {
     runtime.pawn_count = candidate_count;
     runtime.pawn_stride = g_pawn_stride;
 
-    // ── Phase 3: scatter health / team / armor / scene for candidates ────
-    // Use unified FeatureFlags for RequiredFields
-    CS2::UnifiedConfigAdapter::SyncToUnified(frame_config);
-    const auto unifiedFlags = CS2::UnifiedConfigAdapter::GetFeatureFlags();
+
+
+    // CS2-019 Fix: the unified-adapter framework was retired (dead code that
+    // didn't compile). Compute the required DMA fields directly from the
+    // frame config using the same UnifiedESP field model.
+    OmniGhost::Gameplay::UnifiedESP::FeatureFlags unifiedFlags;
+    unifiedFlags.box = frame_config.box;
+    unifiedFlags.corner_box = frame_config.box_corner;
+    unifiedFlags.box_fill = frame_config.box_fill;
+    unifiedFlags.skeleton = frame_config.skeleton;
+    unifiedFlags.skeleton_joints = frame_config.skeleton_joints;
+    unifiedFlags.head_dot = frame_config.head_dot;
+    unifiedFlags.head_halo = frame_config.head_halo;
+    unifiedFlags.health_bar = frame_config.health_bar;
+    unifiedFlags.armor_bar = frame_config.armor_bar;
+    unifiedFlags.health_value = frame_config.health_value;
+    unifiedFlags.armor_value = frame_config.armor_value;
+    unifiedFlags.name = frame_config.name;
+    unifiedFlags.distance = frame_config.distance;
+    unifiedFlags.weapon_name = frame_config.weapon_name;
+    unifiedFlags.weapon_ammo = frame_config.weapon_ammo;
+    unifiedFlags.snaplines = frame_config.snaplines;
+    unifiedFlags.trails = frame_config.trails;
+    unifiedFlags.chinese_hat = frame_config.chinese_hat;
+    unifiedFlags.angel_wings = frame_config.angel_wings;
+    unifiedFlags.devil_horns = frame_config.devil_horns;
+    unifiedFlags.floating_crown = frame_config.floating_crown;
+    unifiedFlags.look_direction = frame_config.look_direction;
+    unifiedFlags.self_esp = frame_config.self_esp;
+    unifiedFlags.show_dead = frame_config.show_dead;
+    unifiedFlags.show_bots = frame_config.show_bots;
+    unifiedFlags.bomb_timer = frame_config.bomb_timer;
+    unifiedFlags.spectator_list = frame_config.spectator_list;
+    unifiedFlags.dropped_weapons = frame_config.dropped_weapons;
+    unifiedFlags.webradar_enabled = frame_config.webradar_enabled;
+    unifiedFlags.aim_enabled = frame_config.aim_enabled;
+    unifiedFlags.trigger_enabled = frame_config.trigger_enabled;
+    unifiedFlags.aim_visibility_check = frame_config.aim_visibility_check;
+    unifiedFlags.aim_prediction = frame_config.aim_prediction;
+    unifiedFlags.aim_ignore_bots = frame_config.aim_ignore_bots;
     const auto fields = unifiedFlags.RequiredFields();
 
     const bool need_armor = OmniGhost::Gameplay::UnifiedESP::Has(
         fields, OmniGhost::Gameplay::UnifiedESP::DataField::Armor);
-    const bool need_yaw = frame_config.radar_2d ||
+
+
+
+    const bool need_yaw =
         OmniGhost::Gameplay::UnifiedESP::Has(
             fields, OmniGhost::Gameplay::UnifiedESP::DataField::Facing);
     const bool track_velocity = frame_config.esp_enabled ||
         OmniGhost::Gameplay::UnifiedESP::Has(
         fields, OmniGhost::Gameplay::UnifiedESP::DataField::Velocity);
-    const bool flagsEnabled = false; // retired player flags
+    const bool flagsEnabled = false;
     const bool need_scoped = frame_config.trigger_scoped_only ||
         (flagsEnabled && frame_config.flag_scoped);
     const bool need_flash = flagsEnabled && frame_config.flag_blind;
@@ -1196,8 +1252,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
     const bool need_spotted = (frame_config.aim_enabled && frame_config.aim_visibility_check) ||
         (frame_config.trigger_enabled && frame_config.aim_visibility_check);
     const bool need_weapon_services = need_weapon || need_spotted;
-    // Health/team/scene stay on the full cadence. Armor is only four bytes per
-    // pawn, so include it here instead of paying for a separate round-trip.
+
+
     mem.SetDmaCallTag("CS2.PawnCore");
     const auto _posBegin = std::chrono::steady_clock::now();
     const uint64_t position_read_begin_ms = GetTickCount64();
@@ -1241,12 +1297,12 @@ static void RunFrameWithConfig(const Config& frame_config) {
         } else {
             core[c].scene = cached.scene;
         }
-        // Cache weapon_services (stable pointer, long TTL)
+
         if (need_weapon_services && refreshWeaponServices[c] && IsUserPointer(core[c].weapon_services)) {
             cached.weapon_services = core[c].weapon_services;
             cached.weapon_services_expires_ms = scan_now_ms + 500u;
         }
-        // Cache spotted (changes frequently, shorter TTL)
+
         if (need_spotted && refreshSpotted[c] && core[c].spotted_known) {
             cached.spotted = core[c].spotted;
             cached.spotted_known = true;
@@ -1257,9 +1313,9 @@ static void RunFrameWithConfig(const Config& frame_config) {
         }
     }
 
-    // Deathmatch can transition dead → respawning before the optional bone
-    // reads finish. Publish health immediately so presentation can hide a dead
-    // pawn without waiting for the complete entity snapshot.
+
+
+
     LivenessSnapshot liveness{};
     liveness.timestamp_ms = frame_time_ms;
     liveness.generation = g_session_generation.load(std::memory_order_acquire);
@@ -1274,7 +1330,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
         const bool dead = (healthKnown && core[c].health <= 0) ||
             (controllerKnown && core[c].controller_alive == 0);
         if (!readOk)
-            continue; // both reads failed: retain grace, never call it death
+            continue;
         auto& sample = liveness.players[liveness.count++];
         sample.pawn = resolved_pawns[c];
         sample.sample_ms = position_sample_ms;
@@ -1282,8 +1338,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
         sample.alive = !dead;
         if (dead) {
             confirmedDead[confirmedDeadCount++] = sample.pawn;
-            // A respawn may replace this controller's pawn before the normal
-            // topology TTL. Re-read its handle on the very next core scan.
+
+
             controllerPawnCache.erase(candidateControllers[c]);
         }
     }
@@ -1308,8 +1364,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
     for (int c = 0; c < candidate_count; ++c)
         validCoreSamples += IsPlayableTeam(static_cast<int>(core[c].team)) ? 1 : 0;
     if (candidate_count > 0 && validCoreSamples == 0) {
-        // Cached pawn addresses stopped producing valid core data. Revalidate
-        // root/page immediately and rebuild the topology on the next scan.
+
+
         g_entity_list_force_refresh = true;
         g_entity_list_next_validation_ms = 0;
         for (int c = 0; c < candidate_count; ++c)
@@ -1318,13 +1374,13 @@ static void RunFrameWithConfig(const Config& frame_config) {
         return;
     }
 
-    // Health and team are the minimum discriminator reads: without them we
-    // cannot know which pawns to exclude. Compact the candidate set here so
-    // dead players and hidden team-mates never reach position, bone, weapon or
-    // name acquisition. Spectators are resolved later from controllers through
-    // their own lightweight observer path.
+
+
+
+
+
     int eligible_count = 0;
-    // The local pawn has a dedicated snapshot and must never enter the remote
+
     for (int c = 0; c < candidate_count; ++c) {
         const bool is_local = resolved_pawns[c] == runtime.local_pawn ||
             controllers[slot_index[c]] == runtime.local_controller;
@@ -1337,7 +1393,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
         const bool hidden_teammate = frame_config.team_check &&
             static_cast<int>(core[c].team) == runtime.local_team;
         if (!alive || is_local || hidden_teammate) continue;
-        // Keep every valid core sample; presentation owns the distance filter.
+
         if (!IsFinitePosition(positions[c]))
             continue;
         if (eligible_count != c) {
@@ -1352,11 +1408,11 @@ static void RunFrameWithConfig(const Config& frame_config) {
     candidate_count = eligible_count;
     runtime.pawn_count = candidate_count;
 
-    // ── Early core publish (P0): positions / health / velocity / liveness ─
-    // Presentation must not wait for bones, weapons, names or dropped items.
-    // Build a core-only player list, publish immediately, then continue the
-    // optional lanes which will overwrite runtime.players before the final
-    // publish at the end of the scan.
+
+
+
+
+
     {
         ScopedPhase _phEarly(&g_phase.early_publish_ms);
         runtime.players.clear();
@@ -1366,7 +1422,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
             const uintptr_t pawn = resolved_pawns[c];
             const uintptr_t controller = candidateControllers[c];
             if (!IsUserPointer(pawn)) continue;
-            if (!core[c].read_ok) continue; // BUG-008: Skip unread pawns
+            if (!core[c].read_ok) continue;
             const bool healthAlive = core[c].health > 0 && core[c].health <= 200;
             const bool controllerKnown = core[c].controller_alive == 0 ||
                 core[c].controller_alive == 1;
@@ -1386,17 +1442,17 @@ static void RunFrameWithConfig(const Config& frame_config) {
             corePlayer.is_bot = core[c].controller_steam_id == 0;
             corePlayer.is_local = pawn == runtime.local_pawn ||
                 controller == runtime.local_controller;
-            // CS2-006 Fix: publish the entity-list slot (1-based) so the
-            // trigger's m_iIDEntIndex compare can actually match a target;
-            // ent_index was always 0, making trigger_use_ident dead.
+
+
+
             corePlayer.ent_index = slot_index[c] + 1;
-            // CS2-004 Fix: publish the freshly read spotted state (the
-            // aim/trigger visibility check consumed a never-written default
-            // `true` before). Unknown read => fail-open keeps old behavior.
+
+
+
             corePlayer.spotted = core[c].spotted_known ? core[c].spotted : true;
-            // CS2-005 Fix: publish remote view yaw — m_angEyeAngles was read
-            // every scan (need_yaw) and then discarded, leaving radar heading
-            // and the look-direction line stuck at 0 degrees.
+
+
+
             {
                 const float yaw = core[c].eye_angles[1];
                 corePlayer.view_yaw = std::isfinite(yaw) ? yaw : 0.f;
@@ -1405,12 +1461,12 @@ static void RunFrameWithConfig(const Config& frame_config) {
             corePlayer.pos[1] = positions[c][1];
             corePlayer.pos[2] = positions[c][2];
             corePlayer.position_sample_ms = position_sample_ms;
-            // Source units are inches; convert to metres once for all consumers.
+
             const float dx_dist = corePlayer.pos[0] - runtime.local_pos[0];
             const float dy_dist = corePlayer.pos[1] - runtime.local_pos[1];
             const float dz_dist = corePlayer.pos[2] - runtime.local_pos[2];
-            // BAIXO #24: Fast inverse square root using SSE rsqrt (approx 12-bit precision)
-            // dist = sqrt(dx²+dy²+dz²) * 0.0254; compute as dist_sq * rsqrt(dist_sq)
+
+
             const float dist_sq = dx_dist * dx_dist + dy_dist * dy_dist + dz_dist * dz_dist;
             const __m128 dist_vec = _mm_set_ss(dist_sq + 1e-6f);
             const float inv_dist = _mm_cvtss_f32(_mm_rsqrt_ss(dist_vec));
@@ -1429,8 +1485,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 corePlayer.move_speed = std::isfinite(speed) ? speed : 0.f;
                 corePlayer.is_moving = corePlayer.move_speed > 5.f;
             }
-            // Carry last-good bones from cache so skeleton does not blink off
-            // between optional refreshes — presentation enforces visual age cap.
+
+
             {
                 std::shared_lock lock(g_cache_mutex);
                 if (auto bit = bone_cache.find(pawn); bit != bone_cache.end() &&
@@ -1445,7 +1501,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 for (std::size_t bone = 0; bone < kBoneSlotCount; ++bone) {
                     const auto& joint = corePlayer.bones[bone];
                     if (joint[0] == 0.f && joint[1] == 0.f && joint[2] == 0.f)
-                        continue; // keep rejected joints invalid after translation
+                        continue;
                     for (int axis = 0; axis < 3; ++axis)
                         corePlayer.bones[bone][axis] += cachedShift[axis];
                 }
@@ -1474,15 +1530,15 @@ static void RunFrameWithConfig(const Config& frame_config) {
                     std::snprintf(corePlayer.weapon, sizeof(corePlayer.weapon), "%s",
                         rit->second.player.weapon);
                 corePlayer.weapon_def = rit->second.player.weapon_def;
-                // CS2-004 Fix: recent_players never carries a spotted value;
-                // overwriting corePlayer.spotted here stomped the fresh read
-                // above with the Player default (always true).
+
+
+
                 corePlayer.visibility_known = rit->second.player.visibility_known;
                 corePlayer.visible = rit->second.player.visible;
             }
         }
-        // Keep bots in the acquisition snapshot: the optional identity
-        // worker must see them before the renderer can filter them.
+
+
         if (!corePlayer.is_local && corePlayer.team != runtime.local_team)
             ++runtime.enemy_count;
         runtime.players.push_back(corePlayer);
@@ -1490,14 +1546,14 @@ static void RunFrameWithConfig(const Config& frame_config) {
         runtime.player_count = static_cast<int>(runtime.players.size());
     }
 
-    // P0: optional DMA (bones/weapons/names/flags/dropped) runs on the
-    // optional worker. Core acquisition returns here so the next world scan
-    // is never blocked by metadata. Presentation already has core state.
-    // CS2-002 Fix: last-good identification, bomb state, local weapon and the
-    // optional-enrichment queue all consume the freshly assembled runtime and
-    // must run BEFORE the publish below (publishing moves the player vector
-    // out of `runtime`, leaving these consumers with an empty view when run
-    // afterwards).
+
+
+
+
+
+
+
+
     {
         const uint64_t nowMs = frame_time_ms;
         if (!runtime.players.empty()) {
@@ -1509,17 +1565,21 @@ static void RunFrameWithConfig(const Config& frame_config) {
             OmniGhost::Gameplay::DmaTelemetry::CS2().pressure.last_good_age_ms.store(
                 0, std::memory_order_relaxed);
         }
-        // Bomb / local-weapon metadata are optional-pressure gated and cheap
-        // enough to keep on the core path without blocking the next scan.
+
+
         if (!runtime.in_match || !frame_config.bomb_timer)
             runtime.bomb = BombState{};
         else if (g_pressure_level.load(std::memory_order_relaxed) < 2)
             UpdateBombStateThrottled();
-        if (g_pressure_level.load(std::memory_order_relaxed) < 2)
+
+
+        const bool need_local_weapon = frame_config.aim_enabled ||
+            frame_config.trigger_enabled || frame_config.aim_rcs_standalone;
+        if (need_local_weapon && g_pressure_level.load(std::memory_order_relaxed) < 2)
             UpdateLocalWeaponDefinitionThrottled();
     }
-    // EntityCacheHub policy on the core path: prune maps that feed the early
-    // publish carry (bones/names) so pointer reuse cannot outlive last_seen.
+
+
     {
         constexpr uint64_t kGraceMs = 5000;
         const uint64_t nowMs = frame_time_ms;
@@ -1542,17 +1602,17 @@ static void RunFrameWithConfig(const Config& frame_config) {
     cacheMetrics.controller_pawns.store(controllerPawnCache.size(), std::memory_order_relaxed);
     cacheMetrics.scene_bones.store(sceneBoneCache.size(), std::memory_order_relaxed);
     QueueOptionalEnrichment(frame_config);
-    // CS2-001/002 Fix: single publish per scan, now that all consumers above
-    // ran against the assembled runtime. The publish moves the per-scan
-    // vectors into the immutable snapshot but preserves identity fields for
-    // the next scan. Consuming the flag here prevents the acquisition loop
-    // from publishing a second, post-move (empty) snapshot at end of scan.
+
+
+
+
+
     if (g_publish_runtime_this_scan) {
         PublishRuntimeSnapshot();
         g_publish_runtime_this_scan = false;
     }
     {
-        // Residual phase accounting for core-only scans.
+
         const float wall = OmniGhost::Gameplay::TimeMs(_frameWallBegin);
         const float accounted = g_phase.webradar_ms + g_phase.entity_ms + g_phase.local_ms
             + g_phase.core_scatter_ms + g_phase.positions_ms + g_phase.early_publish_ms
@@ -1560,7 +1620,5 @@ static void RunFrameWithConfig(const Config& frame_config) {
         g_phase.other_ms = (std::max)(0.f, wall - accounted);
         g_phase.optional_budget_left_ms = 0.f;
     }
-    return; // core path done — optional worker continues enrichment
+    return;
 }
-
-

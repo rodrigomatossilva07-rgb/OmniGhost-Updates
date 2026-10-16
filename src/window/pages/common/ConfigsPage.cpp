@@ -37,8 +37,8 @@ const char* ActiveGameTelemetryName() {
 }
 
 void DrawTelemetryWindow() {
-    // Telemetry is log-only: no ImGui popup window.
-    // Toggle matches ESP-style switches; PERF lines go to logs.txt via SessionLog.
+
+
     CyberWidgets::ToggleSwitch(
         app_settings::T("Telemetria (logs.txt)", "Telemetry (logs.txt)"),
         &app_settings::config.telemetry_log_enabled);
@@ -121,8 +121,8 @@ bool ChooseProfileImage(HWND owner) {
     dialog.lpstrFilter = L"Image files\0*.png;*.jpg;*.jpeg;*.bmp\0PNG\0*.png\0JPEG\0*.jpg;*.jpeg\0Bitmap\0*.bmp\0\0";
     dialog.nFilterIndex = 1;
     dialog.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
-    // The overlay itself is topmost.  Making the native file picker its owned
-    // dialog keeps the picker above the menu/background instead of behind it.
+
+
     dialog.hwndOwner = owner;
     if (!GetOpenFileNameW(&dialog)) return false;
     return LauncherAssets::ImportProfileAvatar(selected);
@@ -144,7 +144,7 @@ void DrawProfileAvatar(ImDrawList* draw, ImVec2 min, ImVec2 max) {
     if (image)
         draw->AddImageRounded(image, min, max, uv0, uv1, IM_COL32_WHITE, (max.x - min.x) * .5f);
 }
-} // namespace
+}
 
 static bool g_search_registered = false;
 
@@ -174,7 +174,7 @@ void DrawConfigs(Overlay* self)
         GlobalSearch::RegisterItem("Return to Launcher", "Configs", "Settings", []{});
         g_search_registered = true;
     }
-    
+
     static int settingsTab = 0;
     const char* tabLabels[] = {
         app_settings::T("GERAL##settings_general", "GENERAL##settings_general"),
@@ -189,6 +189,13 @@ void DrawConfigs(Overlay* self)
             settingsTab = i;
     }
     CyberWidgets::CardGap(CyberTheme::Spacing::Sm);
+
+    // CFG-011 Fix: in-game settings changes never called SaveGlobal and were
+    // silently lost on exit. Every mutation below persists now.
+    const auto saveSettings = [] {
+        std::string saveError;
+        (void)app_settings::SaveGlobal(&saveError);
+    };
 
     if (settingsTab == 0) {
         CyberWidgets::BeginCard(Loc::Tr("profile.label"));
@@ -229,16 +236,17 @@ void DrawConfigs(Overlay* self)
         int lang = static_cast<int>(app_settings::config.language);
         if (CyberWidgets::Combo(Loc::Tr("cfg.language"), &lang, langs.data(), static_cast<int>(langs.size()))) {
             app_settings::config.language = static_cast<app_settings::Language>(lang);
-            std::string saveError;
-            (void)app_settings::SaveGlobal(&saveError);
+            saveSettings();
         }
-        CyberWidgets::ToggleSwitch(Loc::Tr("cfg.auto_save"), &app_settings::config.auto_save);
+        if (CyberWidgets::ToggleSwitch(Loc::Tr("cfg.auto_save"), &app_settings::config.auto_save))
+            saveSettings();
         const char* performanceModes[] = { app_settings::T("Automático", "Automatic"), app_settings::T("Qualidade", "Quality"), app_settings::T("Desempenho", "Performance") };
         int performanceMode = app_settings::config.auto_performance ? 0
             : (app_settings::config.performance_mode ? 2 : 1);
         if (CyberWidgets::Combo(app_settings::T("Desempenho", "Performance"), &performanceMode, performanceModes, 3)) {
             app_settings::config.auto_performance = performanceMode == 0;
             app_settings::config.performance_mode = performanceMode == 2;
+            saveSettings();
         }
         CyberWidgets::EndCard();
 
@@ -246,14 +254,16 @@ void DrawConfigs(Overlay* self)
         CyberWidgets::BeginCard(app_settings::T("ECRÃ", "DISPLAY"), half);
     const char* uiScales[] = { "75%", "80%", "90%", "100%", "110%", "125%", "150%", "175%", "200%", "250%" };
     const float uiScaleValues[] = { 0.75f, 0.80f, 0.90f, 1.00f, 1.10f, 1.25f, 1.50f, 1.75f, 2.00f, 2.50f };
-    int uiScaleIndex = 3; // 100% default
+    int uiScaleIndex = 3;
     float bestDistance = 100.0f;
     for (int i = 0; i < 10; ++i) {
         const float distance = std::fabs(app_settings::config.ui_scale - uiScaleValues[i]);
         if (distance < bestDistance) { bestDistance = distance; uiScaleIndex = i; }
     }
-    if (CyberWidgets::Combo("UI Scale", &uiScaleIndex, uiScales, 10))
+    if (CyberWidgets::Combo("UI Scale", &uiScaleIndex, uiScales, 10)) {
         app_settings::config.ui_scale = uiScaleValues[std::clamp(uiScaleIndex, 0, 9)];
+        saveSettings();
+    }
     CyberWidgets::HelpMarker("A escala é combinada com o DPI do monitor. Em 125%, 150% ou 200% do Windows, o OmniGhost mantém texto e controlos nítidos.");
 
     const auto monitors = OmniGhost::Platform::EnumerateMonitors();
@@ -274,8 +284,10 @@ void DrawConfigs(Overlay* self)
     for (const auto& label : monitorLabels) monitorItems.push_back(label.c_str());
     int monitorSelection = app_settings::config.monitor_index + 1;
     monitorSelection = std::clamp(monitorSelection, 0, static_cast<int>(monitorItems.size()) - 1);
-    if (CyberWidgets::Combo("Monitor", &monitorSelection, monitorItems.data(), static_cast<int>(monitorItems.size())))
+    if (CyberWidgets::Combo("Monitor", &monitorSelection, monitorItems.data(), static_cast<int>(monitorItems.size()))) {
         app_settings::config.monitor_index = monitorSelection - 1;
+        saveSettings();
+    }
         CyberWidgets::EndCard();
         CyberWidgets::EndCardRow();
 
@@ -283,29 +295,43 @@ void DrawConfigs(Overlay* self)
         CyberWidgets::BeginCard(app_settings::T("APARÊNCIA", "APPEARANCE"));
         CyberWidgets::SliderFloat(app_settings::T("Escurecimento do fundo", "Background darkness"), &app_settings::config.black_level, 0.f, 100.f, "%.0f%%");
         app_settings::config.black_background = app_settings::config.black_level > .5f;
+        if (ImGui::IsItemDeactivated())
+            saveSettings();
         const char* effectLevels[] = { app_settings::T("Desligado", "Off"), app_settings::T("Subtil", "Subtle"), app_settings::T("Completo", "Full") };
         int rainLevel = static_cast<int>(app_settings::config.digital_rain_level);
         if (CyberWidgets::Combo(Loc::Tr("cfg.matrix"), &rainLevel, effectLevels, 3)) {
             rainLevel = std::clamp(rainLevel, 0, 2);
             app_settings::config.digital_rain_level = static_cast<app_settings::EffectLevel>(rainLevel);
             app_settings::config.matrix_rain = rainLevel != 0;
+            saveSettings();
         }
         bool animationsEnabled = app_settings::config.animation_intensity != app_settings::EffectLevel::Off;
-        if (CyberWidgets::ToggleSwitch(app_settings::T("Animações", "Animations"), &animationsEnabled))
+        if (CyberWidgets::ToggleSwitch(app_settings::T("Animações", "Animations"), &animationsEnabled)) {
             app_settings::config.animation_intensity = animationsEnabled
                 ? app_settings::EffectLevel::Subtle
                 : app_settings::EffectLevel::Off;
+            saveSettings();
+        }
         int animationLevel = static_cast<int>(app_settings::config.animation_intensity);
-        if (CyberWidgets::Combo(app_settings::T("Intensidade das animações", "Animation intensity"), &animationLevel, effectLevels, 3))
+        if (CyberWidgets::Combo(app_settings::T("Intensidade das animações", "Animation intensity"), &animationLevel, effectLevels, 3)) {
             app_settings::config.animation_intensity = static_cast<app_settings::EffectLevel>(std::clamp(animationLevel, 0, 2));
-        CyberWidgets::ToggleSwitch(app_settings::T("Movimento reduzido", "Reduce motion"), &app_settings::config.reduce_motion);
+            saveSettings();
+        }
+        if (CyberWidgets::ToggleSwitch(app_settings::T("Movimento reduzido", "Reduce motion"), &app_settings::config.reduce_motion))
+            saveSettings();
         CyberWidgets::Separator();
         CyberWidgets::SectionTitle(app_settings::T("SOM", "SOUND"));
-        CyberWidgets::ToggleSwitch(app_settings::T("Sons da interface", "Interface sounds"), &app_settings::config.ui_sounds);
+        if (CyberWidgets::ToggleSwitch(app_settings::T("Sons da interface", "Interface sounds"), &app_settings::config.ui_sounds))
+            saveSettings();
         CyberWidgets::SliderFloat(app_settings::T("Volume da interface", "Interface volume"), &app_settings::config.ui_sound_volume, 0.f, 100.f, "%.0f%%");
-        CyberWidgets::ToggleSwitch(app_settings::T("Sons de notificações", "Notification sounds"), &app_settings::config.notification_sounds);
-        CyberWidgets::ToggleSwitch(app_settings::T("Reproduzir som de arranque", "Play startup sound"), &app_settings::config.startup_sound);
-        CyberWidgets::ToggleSwitch(Loc::Tr("cfg.show_fps"), &app_settings::config.show_fps);
+        if (ImGui::IsItemDeactivated())
+            saveSettings();
+        if (CyberWidgets::ToggleSwitch(app_settings::T("Sons de notificações", "Notification sounds"), &app_settings::config.notification_sounds))
+            saveSettings();
+        if (CyberWidgets::ToggleSwitch(app_settings::T("Reproduzir som de arranque", "Play startup sound"), &app_settings::config.startup_sound))
+            saveSettings();
+        if (CyberWidgets::ToggleSwitch(Loc::Tr("cfg.show_fps"), &app_settings::config.show_fps))
+            saveSettings();
         CyberWidgets::Separator();
         CyberWidgets::SectionTitle("IDENTIDADE");
         CyberWidgets::TextLine("OMNIGHOST · Preto, dourado e precisão.",
@@ -321,6 +347,7 @@ void DrawConfigs(Overlay* self)
                 if (vk != app_settings::config.menu_bind && (GetAsyncKeyState(vk) & 1)) {
                     app_settings::config.menu_bind = vk;
                     waiting_bind = false;
+                    saveSettings();
                     break;
                 }
             }
@@ -332,9 +359,12 @@ void DrawConfigs(Overlay* self)
         Hotkeys::DrawHotkeyConfig();
     } else {
         CyberWidgets::BeginCard(app_settings::T("AVANÇADO", "ADVANCED"));
-        CyberWidgets::ToggleSwitch(Loc::Tr("cfg.vsync"), &app_settings::config.vsync);
-        CyberWidgets::ToggleSwitch(Loc::Tr("cfg.hotkey_overlay"), &app_settings::config.show_hotkey_overlay);
-        CyberWidgets::ToggleSwitch(app_settings::T("Detalhes técnicos", "Technical details"), &app_settings::config.show_advanced);
+        if (CyberWidgets::ToggleSwitch(Loc::Tr("cfg.vsync"), &app_settings::config.vsync))
+            saveSettings();
+        if (CyberWidgets::ToggleSwitch(Loc::Tr("cfg.hotkey_overlay"), &app_settings::config.show_hotkey_overlay))
+            saveSettings();
+        if (CyberWidgets::ToggleSwitch(app_settings::T("Detalhes técnicos", "Technical details"), &app_settings::config.show_advanced))
+            saveSettings();
         CyberWidgets::Separator();
         DrawTelemetryWindow();
         CyberWidgets::EndCard();
@@ -360,7 +390,7 @@ void DrawConfigs(Overlay* self)
             msg = "Warzone: process bind limpo; volta ao launcher para reattach";
             ok = true;
         } else {
-            // Generic: invalidate process bind only
+
             mem.InvalidateProcess();
             msg = "Associação ao processo limpa — troca para um jogo com motor DMA";
             ok = true;

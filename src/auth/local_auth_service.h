@@ -60,4 +60,4 @@ private:
 #endif
 };
 
-} // namespace OmniGhost::Auth
+}

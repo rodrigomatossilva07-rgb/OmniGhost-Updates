@@ -182,7 +182,7 @@ void ReaderLoop(std::stop_token stopToken) {
     g_readerRunning = false;
 }
 
-} // namespace
+}
 
 bool Connect(const std::string& requestedPort, int baudRate) {
     Disconnect();
@@ -331,4 +331,4 @@ std::string LastError() {
     return g_lastError;
 }
 
-} // namespace ferrum_device
+}

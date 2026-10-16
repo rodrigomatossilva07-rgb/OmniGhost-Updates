@@ -162,10 +162,10 @@ foreach ($item in $items) {
     }
 }
 if ($null -eq ('OmniGhostLzms' -as [type])) {
-    # Add-Type invokes the C# compiler, which treats every LIB entry as a
-    # compiler search path. A partially initialized VS environment can leave
-    # relative entries such as "lib\um\x64" there; those are warnings-as-errors
-    # even though this P/Invoke-only helper does not link against them.
+
+
+
+
     $originalProcessLib = [Environment]::GetEnvironmentVariable('LIB', 'Process')
     $validLibPaths = @(
         $originalProcessLib -split ';' | Where-Object {
@@ -245,8 +245,8 @@ function Read-ValidatedLzmsCache([string]$CachePath, [byte[]]$SourceDigest, [int
         $actualPayloadDigest = Compute-Sha256 $payload
         if (-not (Test-BytesEqual $storedPayloadDigest $actualPayloadDigest)) { throw 'payload digest mismatch' }
 
-        # The cache is local and must be treated as untrusted. Decompress it and
-        # verify the reconstructed source hash before embedding any cached byte.
+
+
         $roundTrip = [OmniGhostLzms]::DecompressBytes($payload, $SourceLength)
         $roundTripDigest = Compute-Sha256 $roundTrip
         if (-not (Test-BytesEqual $SourceDigest $roundTripDigest)) { throw 'decompressed source digest mismatch' }
@@ -295,9 +295,9 @@ foreach ($item in $items) {
     $source = [IO.Path]::GetFullPath((Join-Path $ProjectDir ([string]$item.source)))
     if (-not $source.StartsWith($ProjectDir, [StringComparison]::OrdinalIgnoreCase) -or -not (Test-Path -LiteralPath $source -PathType Leaf)) { throw "Invalid or missing source: $source" }
     $raw = [IO.File]::ReadAllBytes($source)
-    # Git worktrees may materialize web text with different line endings.
-    # Embed canonical UTF-8/LF bytes so independent Publish builds have
-    # identical resource payloads regardless of checkout settings.
+
+
+
     $textExtensions = @('.js', '.css', '.html', '.svg', '.json', '.txt', '.xml')
     if ([IO.Path]::GetExtension($source).ToLowerInvariant() -in $textExtensions) {
         $utf8Strict = New-Object Text.UTF8Encoding($false, $true)
@@ -305,8 +305,8 @@ foreach ($item in $items) {
         $text = $text.Replace("`r`n", "`n").Replace("`r", "`n")
         $raw = $utf8Strict.GetBytes($text)
     }
-    # Blob lengths and Windows PE resources are uint32-based.  The former 64 MiB
-    # policy was artificial and rejected several valid CS2 collision meshes.
+
+
     if ($raw.Length -eq 0) { throw "Invalid resource size: $logical" }
     if ([string]$item.type -eq 'json') {
         try {

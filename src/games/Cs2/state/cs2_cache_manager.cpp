@@ -28,4 +28,4 @@ void ResetMetrics() noexcept {
     g_sizes.spectators.store(0, std::memory_order_relaxed);
 }
 
-} // namespace CS2::CacheManager
+}

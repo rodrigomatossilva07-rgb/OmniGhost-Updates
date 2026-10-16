@@ -608,8 +608,8 @@ namespace LauncherUpdates {
             const std::size_t changeCount =
                 ChangeCount(release);
 
-            // Compact featured card — never dominate the page.
-            // Full change list lives in expandable history cards below.
+
+
             const float estimatedHeight =
                 210.0f +
                 static_cast<float>((std::min)(changeCount, static_cast<std::size_t>(3))) *
@@ -1297,7 +1297,7 @@ namespace LauncherUpdates {
             }
         }
 
-    } // namespace
+    }
 
     void Reset() {
         g_search[0] = '\0';
@@ -2027,4 +2027,4 @@ namespace LauncherUpdates {
         ImGui::PopStyleColor(2);
     }
 
-} // namespace LauncherUpdates
+}

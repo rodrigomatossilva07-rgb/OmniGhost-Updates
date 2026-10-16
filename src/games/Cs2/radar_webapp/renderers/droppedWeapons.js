@@ -1,8 +1,8 @@
-// Dropped weapons rendering
-//
-// Shows weapons dropped on the ground on the map.
 
-// itemId -> visualKey mapping (mirrors WeaponLookup.h kWeaponLookup)
+
+
+
+
 const DROPPED_WEAPON_VISUAL_KEY = {
 	1: "deagle", 2: "elite", 3: "fiveseven", 4: "glock",
 	7: "ak47", 8: "aug", 9: "awp", 10: "famas", 11: "g3sg1",
@@ -43,7 +43,7 @@ socket.element.addEventListener("droppedWeapons", event => {
 		activeIds.push(weaponID)
 	}
 
-	// Remove weapons no longer in the game
+
 	for (let elem of document.getElementById("droppedWeapons").children) {
 		if (!activeIds.includes(elem.id)) {
 			elem.remove()
@@ -51,7 +51,7 @@ socket.element.addEventListener("droppedWeapons", event => {
 	}
 })
 
-// Clear all dropped weapons on round reset
+
 socket.element.addEventListener("roundend", event => {
 	document.getElementById("droppedWeapons").innerHTML = ""
 })

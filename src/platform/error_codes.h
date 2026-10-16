@@ -4,10 +4,10 @@
 
 namespace OmniGhost::Platform {
 
-// Centralized error codes for all subsystems
-// Used by UI for consistent messaging
+
+
 enum class ErrorCode : std::uint32_t {
-    // Generic
+
     None = 0,
     Unknown = 1,
     NotImplemented = 2,
@@ -27,7 +27,7 @@ enum class ErrorCode : std::uint32_t {
     PermissionDenied = 16,
     IntegrityCheckFailed = 16,
 
-    // DMA / Hardware
+
     DmaDeviceNotFound = 1000,
     DmaDeviceOpenFailed = 1001,
     DmaDeviceDataPathFailed = 1002,
@@ -50,7 +50,7 @@ enum class ErrorCode : std::uint32_t {
     DmaDriverVersionMismatch = 1019,
     DmaFirmwareTooOld = 1020,
 
-    // Authentication / License
+
     AuthInvalidCredentials = 2000,
     AuthExpired = 2001,
     AuthRevoked = 2002,
@@ -62,7 +62,7 @@ enum class ErrorCode : std::uint32_t {
     AuthTrialExpired = 2008,
     AuthConcurrentLimit = 2009,
 
-    // Offsets / Game
+
     OffsetsMissing = 3000,
     OffsetsOutdated = 3001,
     OffsetsValidationFailed = 3002,
@@ -74,7 +74,7 @@ enum class ErrorCode : std::uint32_t {
     GameOffsetsOutdated = 3014,
     GameUnsupportedBuild = 3015,
 
-    // Updater
+
     UpdateCheckFailed = 4000,
     UpdateDownloadFailed = 4001,
     UpdateIntegrityFailed = 4002,
@@ -86,44 +86,44 @@ enum class ErrorCode : std::uint32_t {
     UpdateSignatureInvalid = 4008,
     UpdateVersionIncompatible = 4008,
 
-    // Configuration
+
     ConfigLoadFailed = 5000,
     ConfigSaveFailed = 5001,
     ConfigCorrupted = 5002,
     ConfigSchemaMismatch = 5003,
     ConfigMigrationFailed = 5004,
 
-    // Network
+
     NetworkDnsFailed = 6000,
     NetworkConnectionFailed = 6001,
     NetworkTimeout = 6002,
     NetworkSslError = 6003,
     NetworkRateLimited = 6004,
 
-    // Filesystem
+
     FsNotFound = 7000,
     FsAccessDenied = 7001,
     FsFull = 7002,
     FsCorrupted = 7003,
     FsLocked = 7004,
 
-    // UI / Rendering
+
     UiRendererInitFailed = 8000,
     UiFontLoadFailed = 8001,
     UiTextureLoadFailed = 8002,
     UiLayoutError = 8003,
 };
 
-// Human-readable messages for UI display
+
 [[nodiscard]] std::string_view ErrorMessage(ErrorCode code) noexcept;
 
-// Check if error is retryable
+
 [[nodiscard]] bool IsRetryable(ErrorCode code) noexcept;
 
-// Check if error is user-actionable
+
 [[nodiscard]] bool IsUserActionable(ErrorCode code) noexcept;
 
-// Get subsystem from error code
+
 [[nodiscard]] std::string_view ErrorSubsystem(ErrorCode code) noexcept;
 
-} // namespace OmniGhost::Platform
+}

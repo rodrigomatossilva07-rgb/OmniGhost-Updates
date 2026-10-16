@@ -19,4 +19,4 @@ inline const char* ChangeTypeIcon(Launcher::ChangeType type) {
     }
 }
 
-} // namespace LauncherUpdates
+}

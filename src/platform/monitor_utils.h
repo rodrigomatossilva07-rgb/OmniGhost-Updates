@@ -18,18 +18,18 @@ struct MonitorInfo {
 };
 
 enum class OverlayPositionMode {
-    Fullscreen,        // Full monitor
-    Windowed,          // Custom window size/position
-    Centered,          // Centered on monitor
-    Custom             // User-defined rect
+    Fullscreen,
+    Windowed,
+    Centered,
+    Custom
 };
 
 struct OverlayPosition {
     OverlayPositionMode mode = OverlayPositionMode::Fullscreen;
-    int monitor_index = -1;  // -1 = auto/current
-    RECT custom_rect{};      // For Custom mode
-    float scale = 1.0f;      // Additional UI scale multiplier
-    bool lock_to_monitor = true; // Prevent moving between monitors
+    int monitor_index = -1;
+    RECT custom_rect{};
+    float scale = 1.0f;
+    bool lock_to_monitor = true;
 };
 
 std::vector<MonitorInfo> EnumerateMonitors();
@@ -40,15 +40,15 @@ int MonitorIndexFromHandle(HMONITOR handle);
 float DpiScaleForWindow(HWND hwnd);
 float DpiScaleForMonitor(const MonitorInfo& monitor);
 
-// Advanced positioning
+
 OverlayPosition GetOverlayPosition();
 void SetOverlayPosition(const OverlayPosition& pos);
 RECT CalculateOverlayRect(const OverlayPosition& pos, const MonitorInfo& monitor);
 bool IsPositionValid(const OverlayPosition& pos, const MonitorInfo& monitor);
 
-// Multi-monitor utilities
+
 bool IsWindowOnMonitor(HWND hwnd, const MonitorInfo& monitor);
 void MoveWindowToMonitor(HWND hwnd, const MonitorInfo& monitor, const OverlayPosition& pos);
-std::vector<MonitorInfo> GetAllMonitorsSorted(); // Left-to-right, top-to-bottom
+std::vector<MonitorInfo> GetAllMonitorsSorted();
 
-} // namespace OmniGhost::Platform
+}

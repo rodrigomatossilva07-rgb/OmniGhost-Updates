@@ -18,4 +18,4 @@ void EndGameSessionWithTransition(
     std::uint64_t generation,
     bool requestedByUser);
 
-} // namespace OmniGhost::UI
+}

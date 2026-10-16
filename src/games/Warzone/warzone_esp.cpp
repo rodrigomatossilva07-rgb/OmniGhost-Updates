@@ -78,13 +78,13 @@ static void DrawPlayerSkeleton(ImDrawList* dl, const Warzone::Player& p, const W
     };
 
     for (const auto& link : links) {
-        // Only draw link if both bones are in the LOD mask
+
         if ((p.bones_mask & (1u << link.from)) == 0) continue;
         if ((p.bones_mask & (1u << link.to)) == 0) continue;
-        // FIX BUG-006: Defensive check - bones_ok already verified at function entry (line 64)
-        // but assert here documents the invariant for static analysis.
+
+
         assert(p.bones_ok && "bones_ok must be true when drawing skeleton");
-        
+
         float bx1, by1, bx2, by2;
         if (W2S(p.bones[link.from], rt_view_matrix, bx1, by1) &&
             W2S(p.bones[link.to], rt_view_matrix, bx2, by2)) {
@@ -118,7 +118,7 @@ static void DrawPlayerNameDist(ImDrawList* dl, const Warzone::Player& p, const W
     dl->AddText(ImVec2(x0, hy - 14.f), IM_COL32(255,255,255,220), line);
 }
 
-} // namespace
+}
 
 void Draw(const Warzone::Runtime& rt, const Warzone::Config& cfg) {
     if (!cfg.esp_enabled) return;
@@ -162,4 +162,4 @@ void Draw(const Warzone::Runtime& rt, const Warzone::Config& cfg) {
     }
 }
 
-} // namespace Warzone_ESP
+}

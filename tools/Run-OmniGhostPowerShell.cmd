@@ -2,9 +2,9 @@
 setlocal
 chcp 65001 >nul
 
-:: Run-OmniGhostPowerShell.cmd
-:: PowerShell bridge for MSBuild to invoke OmniGhost tooling scripts.
-:: Usage: Run-OmniGhostPowerShell.cmd <command> [args...]
+
+
+
 
 set "SCRIPT_DIR=%~dp0"
 
@@ -31,11 +31,11 @@ if "%~1"=="" (
 set "COMMAND=%~1"
 shift
 
-:: Find PowerShell
+
 set "PS_CMD=powershell.exe"
 where powershell.exe >nul 2>nul || set "PS_CMD=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
 
-:: Helper to invoke a .ps1 script with arguments, handling paths with spaces
+
 set "INVOKE_PS=^& \"%SCRIPT_DIR:~0,-1%\""
 
 if "%COMMAND%"=="generate-embedded-offsets" (

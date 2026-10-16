@@ -15,4 +15,4 @@ WindowAudit AuditOmniGhostWindows() noexcept;
 bool ActivateExistingOmniGhostWindow() noexcept;
 void LogWindowAudit(const char* stage, HWND expectedWindow = nullptr);
 
-} // namespace OmniGhost::Platform
+}

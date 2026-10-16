@@ -15,4 +15,4 @@ std::uint8_t ButtonMask();
 
 std::string LastError();
 
-} // namespace kmbox_net
+}

@@ -1,4 +1,4 @@
-// Offset discovery, schema loading, process attach and live recovery.
+
 bool ResolveDataPath(std::string& out_dir) {
     const std::string exe = ExeDir();
     const std::vector<fs::path> search_bases = {
@@ -59,7 +59,7 @@ bool LoadOffsetsFromJson(const char* path) {
     offsets.dwBuildNumber = 0;
     offsets.dwPlantedC4 = 0;
 
-    // 1) JSON style: "client.dll" { "dwEntityList": "0x..." } (cs2-dumper / a2x)
+
     auto sub = data.find("\"client.dll\"");
     const std::string slice = (sub != std::string::npos) ? data.substr(sub) : data;
 
@@ -88,7 +88,7 @@ bool LoadOffsetsFromJson(const char* path) {
         g_boneMapping = BoneMapping{};
         for (std::size_t i = 0; i < kBoneSlotCount; ++i) {
             uintptr_t value = 0;
-            const bool ok = JsonClassU64(data, "bone_mapping", kBoneNames[i], value) && value < 28; // CS2-007: limit == joint stream capacity
+            const bool ok = JsonClassU64(data, "bone_mapping", kBoneNames[i], value) && value < 28;
             bone_mapping_loaded &= ok;
             if (ok)
                 g_boneMapping.jointIndex[i] = static_cast<int>(value);
@@ -101,14 +101,14 @@ bool LoadOffsetsFromJson(const char* path) {
         JsonU64(es, "dwBuildNumber", offsets.dwBuildNumber);
     }
 
-    // 2) cheatoffsets.com API: values live in markdown C++ fences
-    //    e.g. uintptr_t dwEntityList = 0x2554050;
+
+
     auto grab_cpp = [&](const char* key, uintptr_t& out) {
-        if (out) return; // already from JSON
+        if (out) return;
         const std::string k(key);
         size_t p = 0;
         while ((p = data.find(k, p)) != std::string::npos) {
-            // require word boundary-ish: char before is not alphanumeric
+
             if (p > 0) {
                 const char c = data[p - 1];
                 if (std::isalnum((unsigned char)c) || c == '_' || c == '"') {
@@ -150,7 +150,7 @@ bool LoadOffsetsFromJson(const char* path) {
     grab_cpp("dwPlantedC4", offsets.dwPlantedC4);
     grab_cpp("dwBuildNumber", offsets.dwBuildNumber);
 
-    // 3) offsets_flat style keys if present
+
     {
         uintptr_t v = 0;
         if (!offsets.dwEntityList && JsonU64(data, "client.dwEntityList", v)) offsets.dwEntityList = v;
@@ -237,16 +237,16 @@ bool LoadEmbeddedOffsets() {
         for (std::size_t i = 0; i < kBoneSlotCount; ++i) {
             std::uint64_t value = 0;
             const std::string path = std::string("bone_mapping.") + kBoneNames[i];
-            const bool ok = snapshot.TryGet(path, value) && value < 28; // CS2-007: limit == joint stream capacity
+            const bool ok = snapshot.TryGet(path, value) && value < 28;
             required &= ok;
             if (ok)
                 g_boneMapping.jointIndex[i] = static_cast<int>(value);
         }
     }
 
-    // Release builds use the embedded snapshot exclusively. Previously only
-    // module globals were restored here, leaving pawn/controller fields at
-    // stale header defaults even though the current schema was embedded.
+
+
+
     read("schemas.C_BaseEntity.m_iHealth", offsets.m_iHealth, false);
     read("schemas.C_BaseEntity.m_iTeamNum", offsets.m_iTeamNum, false);
     read("schemas.C_BaseEntity.m_pGameSceneNode", offsets.m_pGameSceneNode, false);
@@ -360,8 +360,8 @@ bool WaitForProcess(int timeout_sec) {
             pid = mem.GetPidFromName("cs2.exe");
             if (!pid) pid = mem.GetPidFromName("CS2.exe");
         }
-        // The game may be on a second PC. A local process is not proof that
-        // the DMA target contains CS2, so do not use Toolhelp for attach.
+
+
         if (pid) {
             status = "cs2.exe encontrado";
             std::cout << "[CS2] " << status << " (pid " << pid << ")" << std::endl;
@@ -384,7 +384,7 @@ bool Attach() {
         "CS2 attach begin",
         {{"game", "CS2"}, {"vHandle", mem.vHandle ? "yes" : "no"}});
 
-    // Prefer opening a functional FPGA session (not launcher PnP probe).
+
     if (!mem.vHandle) {
         status = "Inicializando DMA";
         std::cout << "[CS2] " << status << std::endl;
@@ -428,7 +428,7 @@ bool Attach() {
         }
     }
 
-    // Only the remote DMA target can satisfy an attach to the game PC.
+
     if (mem.GetPidFromName("cs2.exe") || mem.GetPidFromName("CS2.exe")) {
         status = "cs2.exe encontrado";
         std::cout << "[CS2] " << status << " (DMA)" << std::endl;
@@ -445,7 +445,7 @@ bool Attach() {
         return false;
     }
 
-    // Attach may fail briefly while the process is still starting; retry.
+
     bool attached = false;
     for (int a = 0; a < 40; ++a) {
         try {
@@ -489,7 +489,7 @@ bool Attach() {
         OmniGhost::SessionLog::Subsystem::Process,
         "CS2 process bound", {});
 
-    // client.dll is mapped late during boot — wait up to ~60s.
+
     for (int attempt = 0; attempt < 120; ++attempt) {
         try {
             if (ResolveModuleBases())
@@ -503,7 +503,7 @@ bool Attach() {
             std::cout << "[CS2] client.dll ainda nao resolvido (" << attempt << ")" << std::endl;
         status = "A aguardar client.dll...";
         Sleep(500);
-        // Re-bind process every few seconds in case DMA handle went stale
+
         if (attempt > 0 && (attempt % 10) == 0) {
             try {
                 mem.Init("cs2.exe", false, false) || mem.Init("CS2.exe", false, false);
@@ -530,13 +530,12 @@ bool Attach() {
         "CS2 modules resolved",
         {{"client", std::to_string(runtime.client_base)}});
 
-    // The data JSON (or its generated embedded copy) is the sole authority.
+
     if (!offsets.loaded) {
         LoadOffsetsFromJson(nullptr);
     }
-    if (!offsets.loaded) {
-        LoadOffsetsFromJson(nullptr);
-    }
+
+
     if (!offsets.loaded) {
         LoadEmbeddedOffsets();
     }
@@ -551,7 +550,7 @@ bool Attach() {
               << "  LPP=0x" << offsets.dwLocalPlayerPawn
               << std::dec << std::endl;
 
-    // Initialize shared weapon name registry (used by both CS2 and FiveM)
+
     if (!OmniGhost::Gameplay::WeaponNameRegistry::Instance().LoadFromJson("data/weapons.json")) {
         std::cout << "[CS2] Warning: Failed to load data/weapons.json, trying embedded resource..." << std::endl;
         if (!OmniGhost::Gameplay::WeaponNameRegistry::Instance().LoadFromEmbedded()) {
@@ -562,8 +561,8 @@ bool Attach() {
     if (runtime.engine_base && offsets.dwBuildNumber)
         QReadT(runtime.engine_base + offsets.dwBuildNumber, runtime.build_number);
 
-    // Validate globals against the running build. Packaged offsets become stale
-    // after game updates; recover them from the loaded modules when necessary.
+
+
     if (!ProbeViewMatrix()) {
         std::cout << "[CS2] ViewMatrix ilegível; offsets podem estar desatualizados" << std::endl;
         status = "Offsets incompatíveis com o build atual; atualiza data/cs2_offsets.json";
@@ -585,7 +584,7 @@ bool Attach() {
     status = buf;
     std::cout << "[CS2] " << status << std::endl;
 
-    // Auto-detect Makcu on all COM ports (same behaviour as FiveM).
+
     if (!aim_type::IsConnected()) {
         std::cout << "[CS2] A procurar Makcu em todas as portas COM..." << std::endl;
         makcu_wrapper::MakcuInitialize("");
@@ -603,5 +602,3 @@ bool Attach() {
     }
     return true;
 }
-
-

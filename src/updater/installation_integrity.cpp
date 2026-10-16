@@ -36,17 +36,18 @@ IntegrityReport VerifyInstallationFiles(const fs::path& installDirectory, std::s
     IntegrityReport report{};
     const fs::path manifest = installDirectory / L"install-manifest.sha256";
     if (!fs::exists(manifest)) {
-		// Customer installations are intentionally a single EXE. The downloaded
-		// package is authenticated by update.json size/SHA-256 before replacement,
-		// so no sidecar file needs to be left beside the application.
-		if (fs::is_regular_file(installDirectory / L"OmniGhost.exe")) {
-			report.status = IntegrityStatus::Healthy;
-			report.checkedFiles = 1;
-			report.message = "Instalação single-EXE validada; sem ficheiros auxiliares.";
-		} else {
-			report.status = IntegrityStatus::ManifestMissing;
-			report.message = "O executável principal não existe.";
-		}
+        // UPD-002 Fix: "exists" is not verification. A single-EXE installation
+        // without a manifest is reported as not-verifiable instead of
+        // Healthy; the launcher/UI keeps working, but the repair tool no
+        // longer pretends an integrity check passed.
+        if (fs::is_regular_file(installDirectory / L"OmniGhost.exe")) {
+            report.status = IntegrityStatus::ManifestMissing;
+            report.checkedFiles = 0;
+            report.message = "Instalação single-EXE sem manifesto de integridade: ficheiros não verificáveis.";
+        } else {
+            report.status = IntegrityStatus::ManifestMissing;
+            report.message = "O executável principal não existe.";
+        }
         return report;
     }
 
@@ -64,9 +65,9 @@ IntegrityReport VerifyInstallationFiles(const fs::path& installDirectory, std::s
         return report;
     }
 
-    // In commercial builds the local integrity manifest is itself authenticated.
-    // Otherwise an attacker able to edit both a runtime file and its local hash
-    // could make a plain SHA-256-only verification report a false success.
+
+
+
     if (ReleaseTrust::Configured) {
         const fs::path signaturePath = installDirectory / L"install-manifest.sha256.sig";
         std::ifstream signatureStream(signaturePath, std::ios::binary);

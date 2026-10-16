@@ -31,10 +31,10 @@ namespace {
         using GetDpiForMonitorFn = HRESULT(WINAPI*)(HMONITOR, int, UINT*, UINT*);
         static const auto getDpiForMonitor = reinterpret_cast<GetDpiForMonitorFn>(
             GetProcAddress(GetModuleHandleW(L"shcore.dll"), "GetDpiForMonitor"));
-        
+
         UINT dpiX = 96, dpiY = 96;
         if (getDpiForMonitor) {
-            getDpiForMonitor(monitor, 0, &dpiX, &dpiY); // MDT_EFFECTIVE_DPI = 0
+            getDpiForMonitor(monitor, 0, &dpiX, &dpiY);
         }
         return static_cast<int>(dpiX);
     }
@@ -44,7 +44,7 @@ namespace {
         info.scale = std::clamp(static_cast<float>(info.dpi) / 96.0f, 0.75f, 3.0f);
     }
 
-} // namespace
+}
 
 std::vector<MonitorInfo> EnumerateMonitors() {
     std::vector<MonitorInfo> monitors;
@@ -62,8 +62,8 @@ std::vector<MonitorInfo> EnumerateMonitors() {
         entry.work = info.rcWork;
         entry.primary = (info.dwFlags & MONITORINFOF_PRIMARY) != 0;
         entry.deviceName = info.szDevice;
-        
-        // Get DPI
+
+
         using GetDpiForMonitorFn = HRESULT(WINAPI*)(HMONITOR, int, UINT*, UINT*);
         static const auto getDpiForMonitor = reinterpret_cast<GetDpiForMonitorFn>(
             GetProcAddress(GetModuleHandleW(L"shcore.dll"), "GetDpiForMonitor"));
@@ -73,7 +73,7 @@ std::vector<MonitorInfo> EnumerateMonitors() {
         }
         entry.dpi = static_cast<int>(dpiX);
         entry.scale = std::clamp(static_cast<float>(dpiX) / 96.0f, 0.75f, 3.0f);
-        
+
         monitors->push_back(entry);
         return TRUE;
     }, reinterpret_cast<LPARAM>(&monitors));
@@ -166,18 +166,18 @@ void SetOverlayPosition(const OverlayPosition& pos) {
 
 RECT CalculateOverlayRect(const OverlayPosition& pos, const MonitorInfo& monitor) {
     RECT result = monitor.rect;
-    
+
     switch (pos.mode) {
         case OverlayPositionMode::Fullscreen:
             result = monitor.rect;
             break;
-            
+
         case OverlayPositionMode::Windowed:
-            if (pos.custom_rect.right > pos.custom_rect.left && 
+            if (pos.custom_rect.right > pos.custom_rect.left &&
                 pos.custom_rect.bottom > pos.custom_rect.top) {
                 result = pos.custom_rect;
             } else {
-                // Default to centered 80% of monitor
+
                 int w = monitor.rect.right - monitor.rect.left;
                 int h = monitor.rect.bottom - monitor.rect.top;
                 int cw = static_cast<int>(w * 0.8f);
@@ -188,7 +188,7 @@ RECT CalculateOverlayRect(const OverlayPosition& pos, const MonitorInfo& monitor
                 result.bottom = result.top + ch;
             }
             break;
-            
+
         case OverlayPositionMode::Centered:
             {
                 int w = monitor.rect.right - monitor.rect.left;
@@ -201,15 +201,15 @@ RECT CalculateOverlayRect(const OverlayPosition& pos, const MonitorInfo& monitor
                 result.bottom = result.top + ch;
             }
             break;
-            
+
         case OverlayPositionMode::Custom:
-            if (pos.custom_rect.right > pos.custom_rect.left && 
+            if (pos.custom_rect.right > pos.custom_rect.left &&
                 pos.custom_rect.bottom > pos.custom_rect.top) {
                 result = pos.custom_rect;
             }
             break;
     }
-    
+
     return result;
 }
 
@@ -218,12 +218,12 @@ bool IsPositionValid(const OverlayPosition& pos, const MonitorInfo& monitor) {
         const auto monitors = EnumerateMonitors();
         if (pos.monitor_index >= static_cast<int>(monitors.size())) return false;
     }
-    
+
     if (pos.mode == OverlayPositionMode::Custom || pos.mode == OverlayPositionMode::Windowed) {
-        if (pos.custom_rect.right <= pos.custom_rect.left || 
+        if (pos.custom_rect.right <= pos.custom_rect.left ||
             pos.custom_rect.bottom <= pos.custom_rect.top) return false;
-        
-        // Check if rect is within monitor bounds (with some tolerance)
+
+
         const int tolerance = 100;
         if (pos.custom_rect.left < monitor.rect.left - tolerance ||
             pos.custom_rect.top < monitor.rect.top - tolerance ||
@@ -232,7 +232,7 @@ bool IsPositionValid(const OverlayPosition& pos, const MonitorInfo& monitor) {
             return false;
         }
     }
-    
+
     return true;
 }
 
@@ -246,12 +246,12 @@ bool IsWindowOnMonitor(HWND hwnd, const MonitorInfo& monitor) {
 
 void MoveWindowToMonitor(HWND hwnd, const MonitorInfo& monitor, const OverlayPosition& pos) {
     if (!hwnd) return;
-    
+
     RECT target_rect = CalculateOverlayRect(pos, monitor);
-    
-    // Apply DPI scaling if needed
+
+
     float dpi_scale = DpiScaleForMonitor(monitor) * pos.scale; (void)dpi_scale;
-    
+
     SetWindowPos(hwnd, HWND_TOPMOST,
         target_rect.left, target_rect.top,
         target_rect.right - target_rect.left,
@@ -261,8 +261,8 @@ void MoveWindowToMonitor(HWND hwnd, const MonitorInfo& monitor, const OverlayPos
 
 std::vector<MonitorInfo> GetAllMonitorsSorted() {
     auto monitors = EnumerateMonitors();
-    // Already sorted by EnumerateMonitors (primary first, then left-to-right, top-to-bottom)
+
     return monitors;
 }
 
-} // namespace OmniGhost::Platform
+}

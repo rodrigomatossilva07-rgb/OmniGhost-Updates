@@ -21,11 +21,11 @@
 
 namespace {
 
-// Fast formatting using std::to_chars (C++17) - avoids locale and parsing overhead of snprintf
+
 inline int FormatDistance(char* buffer, size_t size, float distance) {
     auto [ptr, ec] = std::to_chars(buffer, buffer + size - 1, distance, std::chars_format::fixed, 0);
     if (ec == std::errc{}) {
-        // Append " m"
+
         if (ptr + 2 < buffer + size) {
             *ptr++ = ' ';
             *ptr++ = 'm';
@@ -33,7 +33,7 @@ inline int FormatDistance(char* buffer, size_t size, float distance) {
             return static_cast<int>(ptr - buffer);
         }
     }
-    // Fallback
+
     return std::snprintf(buffer, size, "%.0f m", distance);
 }
 
@@ -64,9 +64,9 @@ bool WorldToScreen(const float world[3], const float matrix[16], ImVec2& screen)
     const float clipY = world[0] * matrix[4] + world[1] * matrix[5] + world[2] * matrix[6] + matrix[7];
     const float clipW = world[0] * matrix[12] + world[1] * matrix[13] + world[2] * matrix[14] + matrix[15];
     if (!std::isfinite(clipW) || clipW < 0.01f) return false;
-    // BAIXO #23: Viewport cache removed - ImGui::GetIO().DisplaySize is just
-    // two float reads (no syscall), so caching provides no benefit and causes
-    // thread-safety issues (static const init) + stale data on window resize.
+
+
+
     const ImVec2 displaySize = ImGui::GetIO().DisplaySize;
     screen.x = (displaySize.x * 0.5f) * (1.f + clipX / clipW);
     screen.y = (displaySize.y * 0.5f) * (1.f - clipY / clipW);
@@ -183,8 +183,8 @@ void DrawOutlinedText(ImDrawList* draw, ImVec2 pos, ImU32 color, const char* tex
     if (settings.text_outline) {
         const ImU32 outline = Color(settings.col_text_outline);
         const float t = std::clamp(settings.text_outline_thickness, .5f, 2.f);
-        // Two diagonal offsets read as a full outline at ESP scale and cut
-        // AddText volume in half vs 4-cardinal expansion.
+
+
         draw->AddText(ImVec2(pos.x - t, pos.y - t), outline, text);
         draw->AddText(ImVec2(pos.x + t, pos.y + t), outline, text);
         if (t >= 1.25f) {
@@ -201,7 +201,7 @@ void DrawExtras(ImDrawList* draw, const CS2::Player& player, const ImVec2& head,
                 uint64_t sessionGeneration) {
     const float height = max.y - min.y;
     const float scale = std::clamp(height / 180.f, .45f, 2.2f);
-    // Cache display size for snaplines
+
     const ImVec2 displaySize = ImGui::GetIO().DisplaySize;
     if (settings.snaplines) {
         const float y = settings.snapline_position == 0 ? 0.f : settings.snapline_position == 1 ? displaySize.y * .5f : displaySize.y;
@@ -268,7 +268,7 @@ void DrawExtras(ImDrawList* draw, const CS2::Player& player, const ImVec2& head,
         static std::unordered_map<uintptr_t, std::deque<Point>> history;
         static double nextPrune = 0.;
         static uint64_t historyGeneration = 0;
-        constexpr size_t kMaxTrailPlayers = 128; // Max players to track trails for
+        constexpr size_t kMaxTrailPlayers = 128;
         if (historyGeneration != sessionGeneration) {
             history.clear();
             nextPrune = 0.;
@@ -276,8 +276,8 @@ void DrawExtras(ImDrawList* draw, const CS2::Player& player, const ImVec2& head,
         }
         auto& points = history[player.pawn];
         const double now = ImGui::GetTime();
-        // A trail represents acquired world samples, not overlay frames.  Do
-        // not manufacture duplicate points while acquisition is unchanged.
+
+
         if (player.position_sample_ms &&
             (points.empty() || points.back().sample_ms != player.position_sample_ms)) {
             Point point{};
@@ -285,8 +285,8 @@ void DrawExtras(ImDrawList* draw, const CS2::Player& player, const ImVec2& head,
             point.sample_ms = player.position_sample_ms;
             point.time = now;
             points.push_back(point);
-            // Limit max points per player to prevent unbounded memory growth
-            // max_fps = 144, max duration = 2.5s => max 360 points per player
+
+
             constexpr size_t kMaxTrailPoints = 360;
             if (points.size() > kMaxTrailPoints)
                 points.pop_front();
@@ -310,9 +310,9 @@ void DrawExtras(ImDrawList* draw, const CS2::Player& player, const ImVec2& head,
                 else
                     ++it;
             }
-            // Enforce max players limit by removing oldest entries
+
             if (history.size() > kMaxTrailPlayers) {
-                // Remove entries with oldest last access time
+
                 while (history.size() > kMaxTrailPlayers) {
                     auto oldest = history.begin();
                     for (auto it = std::next(oldest); it != history.end(); ++it) {
@@ -353,7 +353,7 @@ void DrawPersistentWindow(const char* id, const char* title, float& x, float& y,
 
 void DrawBombTimerWindow(const CS2::Runtime& snapshot, const CS2::Config& settings) {
     if (!settings.bomb_timer) return;
-    // Window placement is render-thread UI state, not mutable gameplay config.
+
     static float x = -1.f, y = -1.f;
     if (x < 0.f || y < 0.f) { x = settings.bomb_window_x; y = settings.bomb_window_y; }
     const auto& bomb = snapshot.bomb;
@@ -392,8 +392,8 @@ void DrawSpectatorWindow(const CS2::Runtime& snapshot, const CS2::Config& settin
 void DrawDroppedWeapons(ImDrawList* draw, const CS2::Runtime& snapshot,
                         const CS2::Config& settings, const float* viewMatrix) {
     if (!settings.dropped_weapons || !viewMatrix) return;
-    // World loot is useful only nearby and is deliberately constrained so it
-    // never clutters the screen with objects from the other side of the map.
+
+
     constexpr float kMaxDistanceUnits = 50.f * 39.37f;
     for (const auto& weapon : snapshot.dropped_weapons) {
         const float dx = weapon.pos[0] - snapshot.local_pos[0];
@@ -401,7 +401,7 @@ void DrawDroppedWeapons(ImDrawList* draw, const CS2::Runtime& snapshot,
         const float dz = weapon.pos[2] - snapshot.local_pos[2];
         if (dx * dx + dy * dy + dz * dz > kMaxDistanceUnits * kMaxDistanceUnits) continue;
         ImVec2 screen{};
-        // Static world items must follow the same current camera as players.
+
         if (!WorldToScreen(weapon.pos, viewMatrix, screen)) continue;
         const ImU32 color = Color(settings.col_weapon);
         char label[96]{};
@@ -412,8 +412,8 @@ void DrawDroppedWeapons(ImDrawList* draw, const CS2::Runtime& snapshot,
         const ImVec2 text = ImGui::CalcTextSize(label);
         const float iconOffset = settings.dropped_weapon_icons ? 10.f : 0.f;
         if (settings.dropped_weapon_icons) {
-            // Small vector icon avoids depending on a particular icon-font
-            // glyph/version while making world weapons recognisable at a glance.
+
+
             draw->AddRectFilled(ImVec2(screen.x - text.x * .5f - 11.f, screen.y - 1.f),
                 ImVec2(screen.x - text.x * .5f - 3.f, screen.y + 5.f), color, 1.f);
         }
@@ -421,14 +421,14 @@ void DrawDroppedWeapons(ImDrawList* draw, const CS2::Runtime& snapshot,
     }
 }
 
-} // namespace
+}
 
 namespace CS2::ESP {
 
 void DrawPlayers(const Runtime& snapshot, const Config& settings) {
-    // Widgets are independent from the player ESP master switch. This makes
-    // them visible/movable in a live match even when the user only wants C4
-    // or spectator information.
+
+
+
     if (snapshot.in_match) {
         DrawBombTimerWindow(snapshot, settings);
         DrawSpectatorWindow(snapshot, settings);
@@ -457,8 +457,8 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
     };
     const auto frameCamera = CS2::AcquireCameraSnapshot();
     const uint64_t nowMs = GetTickCount64();
-    // Render-thread-only history: last frame actually drawn, keyed by pawn
-    // within one session generation. A death is measured only once.
+
+
     static uint64_t measuredGeneration = 0;
     static uint64_t nextDeathPruneMs = 0;
     static std::unordered_map<uintptr_t, uint64_t> lastDrawnMs;
@@ -481,7 +481,7 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
             if (nowMs > it->second && nowMs - it->second > 10000u) it = measuredDeathMs.erase(it);
             else ++it;
         }
-        // Enforce max sizes
+
         if (lastDrawnMs.size() > kMaxDrawnMs) {
             while (lastDrawnMs.size() > kMaxDrawnMs) {
                 auto oldest = lastDrawnMs.begin();
@@ -525,9 +525,9 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
     const uint64_t worldSampleMs = snapshot.world_sample_ms
         ? snapshot.world_sample_ms : snapshot.snapshot_timestamp_ms;
     if (!worldSampleMs || nowMs < worldSampleMs || nowMs - worldSampleMs > 150u)
-        return; // an outage must not project a long-dead world as live ESP
-    // Reproject with the current camera; align positions and bone origins to
-    // that camera's sample, not to a newer time paired with a historical matrix.
+        return;
+
+
     if (!frameCamera || !frameCamera->timestamp_ms || nowMs < frameCamera->timestamp_ms ||
         nowMs - frameCamera->timestamp_ms > 100u)
         return;
@@ -548,7 +548,7 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
     static std::unordered_map<uintptr_t, HeadHeight> headHeights;
     static uint64_t headHeightGeneration = 0;
     static uint64_t nextHeadPruneMs = 0;
-    constexpr size_t kMaxHeadHeights = 128; // Max players to track head heights for
+    constexpr size_t kMaxHeadHeights = 128;
     if (headHeightGeneration != snapshot.session_generation) {
         headHeights.clear();
         headHeightGeneration = snapshot.session_generation;
@@ -560,7 +560,7 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
             if (nowMs - it->second.last_seen_ms > 2000u) it = headHeights.erase(it);
             else ++it;
         }
-        // Enforce max size by removing oldest entries
+
         if (headHeights.size() > kMaxHeadHeights) {
             while (headHeights.size() > kMaxHeadHeights) {
                 auto oldest = headHeights.begin();
@@ -628,9 +628,9 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
         };
         ImVec2 feet{}, head{};
         if (!WorldToScreen(predictedPosition, viewMatrix, feet)) continue;
-        // Visual bone age hard limit: after this, do not draw skeleton and do
-        // not pin the box head to a stale joint (fallback hull height is used).
-        // Shared with acquisition (kBoneVisualMaxAgeMs in cs2_game.h).
+
+
+
         constexpr uint64_t kBonesVisualMaxAgeMs = CS2::kBoneVisualMaxAgeMs;
         const bool bonesFresh = player.bones_ok && player.bone_pose_sample_ms &&
             nowMs >= player.bone_pose_sample_ms &&
@@ -666,8 +666,8 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
             const float alpha = 1.f - std::exp(-static_cast<float>(heightUpdateDeltaMs) / 120.f);
             headHeight.units += (72.f - headHeight.units) * alpha;
         }
-        // Only stance height is smoothed in world units. Screen coordinates
-        // must be projected afresh, otherwise a camera turn moves the box late.
+
+
         const float headWorld[3] = {
             predictedPosition[0], predictedPosition[1], predictedPosition[2] + headHeight.units
         };
@@ -688,8 +688,8 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
         const float width = height * 0.60f;
         const ImVec2 min(feet.x - width * .5f, boxHead.y - height * .08f);
         const ImVec2 max(feet.x + width * .5f, min.y + height * 1.09f);
-        // Do not turn valid-but-distant projections into dozens of text and
-        // line commands. Keep a margin for entities entering the viewport.
+
+
         const ImVec2 viewport = ImGui::GetIO().DisplaySize;
         constexpr float kViewportMargin = 240.f;
         if (max.x < -kViewportMargin || min.x > viewport.x + kViewportMargin ||
@@ -750,4 +750,4 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
     DrawDroppedWeapons(draw, snapshot, settings, frameViewMatrix);
 }
 
-} // namespace CS2::ESP
+}

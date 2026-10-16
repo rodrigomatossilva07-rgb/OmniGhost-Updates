@@ -75,13 +75,13 @@ namespace {
         return icon;
     }
 
-} // namespace
+}
 
     bool Initialize(ID3D11Device* device, HINSTANCE instance)
     {
         Shutdown();
 
-        // Prefer embedded high-quality 64x64 RGBA (always available).
+
         if (!CreateSrv(device, BrandLogoData::kPixels,
                        BrandLogoData::kWidth, BrandLogoData::kHeight)) {
             std::cerr << "[BrandAssets] Failed to create logo texture." << std::endl;
@@ -119,4 +119,4 @@ namespace {
             SendMessageW(hwnd, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(g_small));
     }
 
-} // namespace BrandAssets
+}

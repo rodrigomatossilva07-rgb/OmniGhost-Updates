@@ -18,7 +18,7 @@ New-Item -ItemType Directory -Path $baselineDir -Force | Out-Null
 
 function Get-CompilerWarnings {
     param([string]$ProjectFile)
-    
+
     $tempLog = [IO.Path]::GetTempFileName()
     try {
         $result = msbuild $ProjectFile `
@@ -31,9 +31,9 @@ function Get-CompilerWarnings {
     } finally {
         if (Test-Path $tempLog) { Remove-Item $tempLog -Force }
     }
-    
+
     if (-not (Test-Path $tempLog)) { return @() }
-    
+
     $warnings = @()
     Get-Content $tempLog -Raw | ForEach-Object {
         if ($_ -match 'warning\s+([A-Z]\d+):\s*(.+)') {
@@ -59,12 +59,12 @@ if ($CheckNewWarnings) {
         Write-Warning "No baseline file found. Run with -GenerateBaseline first."
         exit 1
     }
-    
+
     $baseline = Get-Content $baselineFile | Sort-Object -Unique
     $current = Get-CompilerWarnings (Join-Path $ProjectDir 'OmiGhost.vcxproj')
-    
+
     $newWarnings = $current | Where-Object { $_ -notin $baseline }
-    
+
     if ($newWarnings.Count -gt 0) {
         Write-Error "[FAIL] Found $($newWarnings.Count) new warning(s):"
         $newWarnings | ForEach-Object { Write-Host "  $_" }

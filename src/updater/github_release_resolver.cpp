@@ -64,7 +64,7 @@ bool SafeReleaseUrl(const std::string& url, const std::string& tag) {
            url.find('\\') == std::string::npos;
 }
 
-} // namespace
+}
 
 GitHubReleaseResult ResolveHighestStableGitHubRelease(const std::string& json) {
     auto fail = [](std::string message) {
@@ -183,4 +183,4 @@ GitHubReleaseResult ResolveHighestStableGitHubRelease(const std::string& json) {
     return GitHubReleaseResult{std::move(best), {}};
 }
 
-} // namespace OmniGhost::Update
+}

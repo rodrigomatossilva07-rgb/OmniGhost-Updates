@@ -39,4 +39,4 @@ private:
     SOCKET socket_{INVALID_SOCKET};
 };
 
-} // namespace OmniGhost::Platform
+}

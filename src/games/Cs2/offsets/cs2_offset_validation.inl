@@ -1,4 +1,4 @@
-// Runtime offset probes and live validation diagnostics.
+
 bool SoftProbeLobbyOffsets() {
     if (!ready || !offsets.loaded || !runtime.client_base) {
         std::cout << "[CS2] SoftProbe: not attached / offsets not loaded\n";
@@ -15,12 +15,12 @@ bool SoftProbeLobbyOffsets() {
         int finite = 0;
         for (int i = 0; i < 16; ++i)
             if (std::isfinite(vm[i])) ++finite;
-        // identity-ish or any live camera matrix: not all zeros, mostly finite
+
         float abs_sum = 0.f;
         for (int i = 0; i < 16; ++i) abs_sum += std::fabs(vm[i]);
         matrix_shape = finite >= 12 && abs_sum > 0.01f;
     }
-    // LocalPlayerPawn pointer slot must be readable (value may be 0 in lobby)
+
     uintptr_t lpp = 0;
     const bool lpp_slot = mem.Read(client + offsets.dwLocalPlayerPawn, &lpp, sizeof(lpp));
     const bool ok = el_ok && (matrix_shape || lpp_slot);
@@ -38,9 +38,9 @@ bool SelfTestOffsets() {
         std::cout << "[CS2] SelfTest: not ready" << std::endl;
         return false;
     }
-    // Lobby-safe first: if entity list + matrix/LPP slot work, offsets are not outdated
+
     if (SoftProbeLobbyOffsets()) {
-        // Prefer full pawn test when available (in-match)
+
         if (runtime.local_pawn) {
             int hp = 0;
             int team = 0;
@@ -50,10 +50,10 @@ bool SelfTestOffsets() {
             const bool ok_scene = mem.Read(runtime.local_pawn + offsets.m_pGameSceneNode, &scene, sizeof(scene));
             const bool full = ok_hp && hp >= 0 && hp <= 200 && ok_team && team >= 0 && team <= 3
                 && ok_scene && scene != 0;
-            // CS2-016 Fix: `full || true` made the self-test report success
-            // unconditionally — auto_dump_on_mismatch and the diagnostics page
-            // could never see a real schema failure. Report the real result;
-            // the function still returns true because the lobby probe passed.
+
+
+
+
             runtime.offsets_self_test_ok = full;
             std::cout << "[CS2] SelfTest local HP=" << hp << " team=" << team
                       << " scene=" << (ok_scene && scene ? "OK" : "fail")
@@ -71,13 +71,11 @@ bool SelfTestOffsets() {
 bool ValidateLiveOffsets() {
     if (AcquisitionRunning()) {
         const auto snapshot = AcquireRuntimeSnapshot();
-        // The worker already proved the same pointer chain while producing a
-        // recent frame. Avoid a second DMA probe racing the acquisition lane.
+
+
         return snapshot && snapshot->client_base != 0 &&
             (snapshot->frames > 0 || snapshot->offsets_self_test_ok);
     }
-    // Use soft probe for lobby-safe validation; if that passes, offsets are not outdated.
+
     return SoftProbeLobbyOffsets();
 }
-
-

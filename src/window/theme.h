@@ -45,9 +45,9 @@ namespace CyberTheme {
         const char* id;
     };
 
-    // Product-wide design tokens. All measurements are updated by SetUiScale()
-    // from these logical 96-DPI base values so pages no longer invent their own
-    // spacing/radius system.
+
+
+
     namespace Spacing {
         inline float Xs = 4.0f;
         inline float Sm = 8.0f;
@@ -99,19 +99,19 @@ namespace CyberTheme {
         inline float SearchHeight = 36.0f;
         inline float LogoSize = 44.0f;
         inline float SidebarItemHeight = 40.0f;
-        inline float CardMinHeight = 0.0f; // content-sized cards
+        inline float CardMinHeight = 0.0f;
         inline float PageTransitionSeconds = 0.20f;
     }
 
     struct ColorPalette {
-        // Clear dark hierarchy: Background < Surface < Card < CardHover.
+
         ImVec4 Background;
         ImVec4 Surface;
         ImVec4 Card;
         ImVec4 CardHover;
 
-        // Compatibility aliases used by older widgets. Panel maps to Surface
-        // and PanelHover maps to CardHover when the palette is rebuilt.
+
+
         ImVec4 Panel;
         ImVec4 PanelHover;
 
@@ -161,7 +161,7 @@ namespace CyberTheme {
     const ImVec4& GetCustomAccent();
     const std::vector<AccentColor>& GetAccentPresets();
 
-    // Theme import/export
+
     struct ThemeExportData {
         ThemeMode mode = ThemeMode::Dark;
         AccentPreset accent = AccentPreset::Cyber;
@@ -177,8 +177,8 @@ namespace CyberTheme {
     std::string SerializeTheme();
     bool DeserializeTheme(const std::string& json, std::string* error = nullptr);
 
-    // Low-cost ambient texture used instead of heavy glows. Seed is stable so
-    // the pattern does not shimmer between frames.
+
+
     void DrawSubtleNoise(
         ImDrawList* draw,
         const ImVec2& min,
@@ -193,4 +193,4 @@ namespace CyberTheme {
         float radius,
         float opacity = 0.10f);
 
-} // namespace CyberTheme
+}

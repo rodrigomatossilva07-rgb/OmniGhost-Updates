@@ -37,7 +37,7 @@ void DrawCs2Misc()
         TextTone::Secondary);
     const bool prev = CS2::config.telemetry_enabled;
     ToggleSwitch("Telemetria", &CS2::config.telemetry_enabled);
-    // Keep DMA telemetry engine in sync with this CS2-only toggle.
+
     OmniGhost::Gameplay::DmaTelemetry::SetEnabled(CS2::config.telemetry_enabled);
     if (CS2::config.telemetry_enabled && !prev) {
         char blob[384];

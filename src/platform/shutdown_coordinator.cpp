@@ -50,11 +50,11 @@ bool ShutdownCoordinator::ShutdownAll(std::string_view reason) noexcept {
     const std::string reasonCopy(reason);
     {
         std::unique_lock lock(mutex_);
-        // Idempotent: if already complete or shutting down, wait for completion
+
         if (state_ == ShutdownState::Complete)
             return true;
         if (state_ == ShutdownState::ShuttingDown) {
-            // Wait for the in-progress shutdown to complete
+
             complete_.wait(lock, [this] { return state_ == ShutdownState::Complete; });
             return true;
         }
@@ -159,4 +159,4 @@ void ShutdownCoordinator::CancelSessionRegistration(std::uint64_t generation) no
     }
 }
 
-} // namespace OmniGhost::Platform
+}

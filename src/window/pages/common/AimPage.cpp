@@ -121,7 +121,7 @@ void DrawFovPreview(float previewWidth, float previewHeight) {
     ImGui::Dummy(ImVec2(previewWidth, previewHeight));
 }
 
-} // namespace
+}
 
 void DrawAim()
 {
@@ -151,8 +151,8 @@ void DrawAim()
         ImGui::SameLine(160.f);
         HotkeyCaptureButton("aim1", &aimbot::config.aimbot_bind);
     }
-    // FiveM aiming is fire-independent: never allow LMB to become the aim bind.
-    // Invalid/cleared primary binds fall back to RMB, matching the project default.
+
+
     if (aimbot::config.aimbot_bind <= 0 || aimbot::config.aimbot_bind == VK_LBUTTON)
         aimbot::config.aimbot_bind = VK_RBUTTON;
 
@@ -161,7 +161,7 @@ void DrawAim()
         ImGui::SameLine(160.f);
         HotkeyCaptureButton("aim2", &aimbot::config.aimbot_bind2);
     }
-    // LMB must never acquire or reinforce aim. Also avoid duplicate binds.
+
     if (aimbot::config.aimbot_bind2 == VK_LBUTTON ||
         aimbot::config.aimbot_bind2 == aimbot::config.aimbot_bind)
         aimbot::config.aimbot_bind2 = 0;
@@ -202,6 +202,6 @@ void DrawAim()
     CyberWidgets::EndCard();
     ImGui::EndGroup();
 
-    // Hard-disable silent leftovers from old configs
+
     aimbot::config.fov_rgb = false;
 }

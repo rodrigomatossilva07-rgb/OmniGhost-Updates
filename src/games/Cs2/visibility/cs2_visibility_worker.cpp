@@ -108,4 +108,4 @@ void Worker::Run() {
     }
 }
 
-} // namespace CS2::VisibilityPipeline
+}

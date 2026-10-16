@@ -15,18 +15,23 @@
 namespace {
 
 void CopyToClipboard(const std::string& text) {
+    // UI-014 Fix: added null checks for GlobalLock and SetClipboardData, and
+    // free the handle when SetClipboardData fails (it does NOT take ownership
+    // on failure).
     if (!OpenClipboard(nullptr)) return;
     EmptyClipboard();
     HGLOBAL mem = GlobalAlloc(GMEM_MOVEABLE, text.size() + 1);
-    if (mem) {
-        memcpy(GlobalLock(mem), text.c_str(), text.size() + 1);
-        GlobalUnlock(mem);
-        SetClipboardData(CF_TEXT, mem);
-    }
+    if (!mem) { CloseClipboard(); return; }
+    void* locked = GlobalLock(mem);
+    if (!locked) { GlobalFree(mem); CloseClipboard(); return; }
+    memcpy(locked, text.c_str(), text.size() + 1);
+    GlobalUnlock(mem);
+    if (!SetClipboardData(CF_TEXT, mem))
+        GlobalFree(mem); // ownership not transferred on failure
     CloseClipboard();
 }
 
-} // namespace
+}
 
 void DrawCs2Radar() {
     const float full = CyberWidgets::CardContentWidth();

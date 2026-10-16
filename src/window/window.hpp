@@ -11,7 +11,7 @@
 
 class Overlay;
 
-// Global overlay instance (set in CreateOverlay)
+
 extern Overlay* g_overlay_instance;
 
 class Overlay {
@@ -37,7 +37,7 @@ public:
     void SetCaptureExclusion(bool enabled);
     void SetCompactMode(bool enabled);
     void ApplyDisplayConfiguration(bool force = false);
-    // Item 63: Event-based wait to replace busy-waiting
+
     void WaitForEvents(std::chrono::milliseconds timeout = std::chrono::milliseconds(1));
 
     bool shouldRun = true;
@@ -72,9 +72,9 @@ private:
     UINT pending_resize_width_ = 0;
     UINT pending_resize_height_ = 0;
     bool resize_pending_ = false;
-    // The HWND is created hidden and becomes visible only after the first fully
-    // rendered frame. This prevents Windows/DWM from briefly presenting an
-    // unpainted black surface that looks like a second startup window.
+
+
+
     bool window_visible_ = false;
 	std::chrono::steady_clock::time_point frame_render_begin_{};
 	bool frame_render_timing_active_ = false;

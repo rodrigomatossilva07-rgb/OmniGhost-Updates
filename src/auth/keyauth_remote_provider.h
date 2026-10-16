@@ -7,8 +7,8 @@
 
 namespace OmniGhost::Auth {
 
-// Concrete adapter for the official KeyAuth C++ package. It is intentionally
-// kept outside ImGui and the launcher pages; callers use LicenseGateway only.
+
+
 class KeyAuthRemoteLicenseProvider final : public IRemoteLicenseProvider {
 public:
     KeyAuthRemoteLicenseProvider();
@@ -29,9 +29,9 @@ public:
     [[nodiscard]] std::vector<RemoteEntitlement> CurrentEntitlements() const override;
     [[nodiscard]] bool IsConfigured() const noexcept override;
 
-    // Returns the main executable path for provider identity verification.
-    // The KeyAuth SDK is embedded in the main EXE, so the executable itself
-    // is the module whose integrity is verified.
+
+
+
     [[nodiscard]] std::string GetModulePath() const override;
 
 private:
@@ -39,14 +39,14 @@ private:
     LicenseResult EnsureInitialized(std::stop_token stopToken);
     LicenseResult ResponseResult() const;
 
-    // AUTH-002 Fix: UI-facing reads must never wait behind an in-flight
-    // KeyAuth network call. mutating operations stay serialized on mutex_
-    // (the SDK is not thread-safe), while this mirror — updated after each
-    // mutation — serves CurrentUsername()/CurrentEntitlements() cheaply.
+
+
+
+
     mutable std::mutex stateMutex_;
     std::string cachedUsername_;
     std::vector<RemoteEntitlement> cachedEntitlements_;
-    void UpdateStateMirror(); // call with mutex_ held
+    void UpdateStateMirror();
 
     mutable std::mutex mutex_;
     std::unique_ptr<Impl> impl_;
@@ -54,4 +54,4 @@ private:
     std::string username_;
 };
 
-} // namespace OmniGhost::Auth
+}

@@ -96,7 +96,7 @@ void DrawVersionLine(const Update::Snapshot& state) {
         "%s  →  %s", installed.c_str(), available.c_str());
 }
 
-} // namespace
+}
 
 void Draw() {
     using namespace Update;
@@ -312,4 +312,4 @@ void Draw() {
     ImGui::PopStyleColor(2);
 }
 
-} // namespace OmniGhost::UpdateUI
+}

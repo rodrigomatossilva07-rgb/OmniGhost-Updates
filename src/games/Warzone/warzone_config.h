@@ -5,46 +5,46 @@
 namespace Warzone {
 
 struct Config : OmniGhost::Gameplay::EspConfigBase {
-    // Warzone-specific additions
+
     bool ignore_downed = true;
     bool ignore_ai = true;
-    int max_distance = 400; // overridden from base 300
+    int max_distance = 400;
 
-    // Aim
+
     bool aim_enabled = false;
     bool aim_draw_fov = true;
     bool aim_prediction = false;
     bool aim_humanize = true;
-    bool aim_always_on = false; // never used unless bind==0 blocked
+    bool aim_always_on = false;
     float aim_fov = 100.f;
     float aim_smooth = 25.f;
     float aim_deadzone = 1.5f;
     float aim_max_dist = 250.f;
     int aim_bind = 0x02;
     int aim_bind2 = 0;
-    int aim_bone = 0; // 0 head 1 chest
+    int aim_bone = 0;
     float sticky_ms = 140.f;
     bool aim_ignore_team = true;
     bool aim_ignore_downed = true;
     bool aim_ignore_ai = true;
 
-    // Trigger
+
     bool trigger_enabled = false;
     int trigger_bind = 0x06;
     int trigger_delay_ms = 40;
     bool trigger_team_check = true;
 
-    // Radar
+
     bool radar_2d = false;
     float radar_size = 160.f;
 
-    // Misc / product features
-    bool radar_only_mode = false;     // ESP+aim off, radar on — teammate share
-    int  esp_density_limit = 40;      // hide long labels when players > limit
-    bool esp_auto_hide_names = true;  // density: prefer box/hp over name spam
-    char scenario_preset[32] = "custom"; // stream|ranked|hotdrop|radar_only|visuals|custom
 
-    // Visual-only menu state for the Warzone player list and miscellaneous pages.
+    bool radar_only_mode = false;
+    int  esp_density_limit = 40;
+    bool esp_auto_hide_names = true;
+    char scenario_preset[32] = "custom";
+
+
     bool player_list_enabled = false;
     bool misc_airstrike_alert = false;
     bool misc_top250_alert = false;
@@ -56,4 +56,4 @@ struct Config : OmniGhost::Gameplay::EspConfigBase {
 
 extern Config config;
 
-} // namespace Warzone
+}

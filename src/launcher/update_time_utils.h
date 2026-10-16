@@ -8,4 +8,4 @@ namespace LauncherUpdates::UpdateTime {
 [[nodiscard]] std::string DateDisplay(const std::string& iso);
 [[nodiscard]] std::string RelativePublishedTime(const std::string& iso);
 
-} // namespace LauncherUpdates::UpdateTime
+}

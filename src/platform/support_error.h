@@ -28,4 +28,4 @@ enum class ErrorCode {
 std::string_view Code(ErrorCode error) noexcept;
 std::string_view Message(ErrorCode error) noexcept;
 
-} // namespace OmniGhost::Support
+}

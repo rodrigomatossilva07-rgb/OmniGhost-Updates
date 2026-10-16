@@ -6,9 +6,9 @@
 
 namespace CS2::CacheManager {
 
-// Every pointer-keyed cache compares against this generation before use.
-// Session/map transitions advance it once; hot-path caches then clear lazily
-// on their owning thread without a cross-thread stop-the-world sweep.
+
+
+
 extern std::atomic<uint64_t> session_generation;
 
 struct Sizes {
@@ -25,4 +25,4 @@ struct Sizes {
 [[nodiscard]] uint64_t AdvanceGeneration() noexcept;
 void ResetMetrics() noexcept;
 
-} // namespace CS2::CacheManager
+}

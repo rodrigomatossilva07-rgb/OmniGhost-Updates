@@ -181,7 +181,7 @@ fs::path FallbackLogFile(const fs::path& requested) {
     return base / L"OmniGhost" / L"logs" / filename;
 }
 
-} // namespace
+}
 
 std::string WindowsError(unsigned long code) {
     char* raw = nullptr;
@@ -293,4 +293,4 @@ void RotateLogs(const fs::path& directory, int maximumFiles, int maximumAgeDays)
     }
 }
 
-} // namespace OmniGhost::Update
+}

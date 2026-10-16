@@ -24,8 +24,8 @@ bool HeavyDmaCooldownActive() noexcept {
 }
 
 void NotePossibleDeviceStall(float duration_ms) noexcept {
-    // Only transport-scale stalls trigger recovery. Normal 20-120 ms scans on
-    // slower boards must not poison the optional-lane scheduler.
+
+
     constexpr float threshold = 300.f;
     if (!std::isfinite(duration_ms) || duration_ms < threshold)
         return;
@@ -51,4 +51,4 @@ void ResetSession() noexcept {
     phase = {};
 }
 
-} // namespace CS2::Telemetry
+}

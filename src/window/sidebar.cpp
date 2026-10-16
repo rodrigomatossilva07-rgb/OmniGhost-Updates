@@ -50,7 +50,7 @@ void DrawProfileImage(ImDrawList* dl, ImVec2 min, ImVec2 max)
             (max.x - min.x) * .5f, CyberTheme::U32(CyberTheme::Colors.Gold), 32);
 }
 
-} // namespace
+}
 
 namespace CyberWidgets {
 
@@ -136,8 +136,8 @@ namespace CyberWidgets {
             tabs = fivemTabs;
             tabCount = (int)(sizeof(fivemTabs) / sizeof(fivemTabs[0]));
         }
-        
-        // Fit every game's complete navigation in the same shared sidebar.
+
+
         const float topPad = CyberTheme::Px(34.0f);
         const float profileHeight = CyberTheme::Px(72.0f);
         const float usableHeight = (std::max)(CyberTheme::Px(300.0f),
@@ -152,7 +152,7 @@ namespace CyberWidgets {
                 (usableHeight - (tabCount - 1) * gapY) / tabCount);
             blockHeight = tabCount * itemH + (tabCount - 1) * gapY;
         }
-        // Vertically centre the navigation stack inside the sidebar.
+
         const float startY = pos.y + topPad +
             (std::max)(0.0f, (usableHeight - blockHeight) * 0.5f);
 
@@ -193,4 +193,4 @@ namespace CyberWidgets {
             CyberTheme::U32(CyberTheme::Colors.TextDisabled), Loc::Tr("profile.label"));
     }
 
-} // namespace CyberWidgets
+}

@@ -14,4 +14,4 @@ void MarkCleanShutdown() noexcept;
 [[nodiscard]] PreviousRunState PreviousRun() noexcept;
 [[nodiscard]] const char* PreviousRunStateName(PreviousRunState state) noexcept;
 
-} // namespace OmniGhost::CrashHandler
+}

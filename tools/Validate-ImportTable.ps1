@@ -18,9 +18,9 @@ if (-not $AllowListPath) {
 
 Write-Host "[ImportTable] Validating import table for: $ExecutablePath"
 
-# Default allowlist for OmniGhost
+
 $defaultAllowList = @(
-    # System DLLs
+
     "kernel32.dll", "ntdll.dll", "user32.dll", "gdi32.dll", "advapi32.dll",
     "shell32.dll", "ole32.dll", "oleaut32.dll", "comdlg32.dll", "version.dll",
     "ws2_32.dll", "winhttp.dll", "wininet.dll", "bcrypt.dll", "wintrust.dll",
@@ -28,8 +28,8 @@ $defaultAllowList = @(
     "dwmapi.dll", "imm32.dll", "windowscodecs.lib", "d3d11.dll", "dxgi.dll", "d3dcompiler_47.dll",
     "d3dcompiler.lib", "bcrypt.lib", "wintrust.lib", "crypt32.lib",
     "shlwapi.lib", "version.lib", "advapi32.lib",
-    
-    # CRT / Universal CRT
+
+
     "vcruntime140.dll", "vcruntime140_1.dll", "msvcrt.dll", "ucrtbase.dll",
     "concrt140.dll", "msvcp140.dll", "msvcp140_1.dll", "msvcp140_2.dll", "msvcp140_atomic_wait.dll",
     "api-ms-win-crt-convert-l1-1-0.dll", "api-ms-win-crt-environment-l1-1-0.dll",
@@ -38,17 +38,17 @@ $defaultAllowList = @(
     "api-ms-win-crt-runtime-l1-1-0.dll", "api-ms-win-crt-stdio-l1-1-0.dll",
     "api-ms-win-crt-string-l1-1-0.dll", "api-ms-win-crt-time-l1-1-0.dll",
     "api-ms-win-crt-utility-l1-1-0.dll",
-    
-    # DMA / DMA stack
+
+
     "leechcore.dll", "vmm.dll", "vmmdll.dll",
-    
-    # System
+
+
     "kernelbase.dll", "sechost.dll", "rpcrt4.dll", "sspicli.dll", "dnsapi.dll", "psapi.dll", "userenv.dll",
     "cryptbase.dll", "cfgmgr32.dll", "devobj.dll", "propsys.dll",
     "uxtheme.dll", "dwmapi.dll", "clbcatq.dll", "oleacc.dll"
 )
 
-# Load custom allowlist if provided
+
 $allowList = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
 foreach ($dll in $defaultAllowList) {
     $allowList.Add($dll) | Out-Null
@@ -62,7 +62,7 @@ if ($AllowListPath -and (Test-Path -LiteralPath $AllowListPath)) {
     Write-Host "[ImportTable] Loaded $($custom.Count) additional allowed DLLs from $AllowListPath"
 }
 
-# Use dumpbin to extract import table
+
 $dumpbin = "dumpbin.exe"
 if (-not (Get-Command $dumpbin -ErrorAction SilentlyContinue)) {
     $programFilesX86 = [Environment]::GetFolderPath([Environment+SpecialFolder]::ProgramFilesX86)
@@ -82,7 +82,7 @@ if (-not (Test-Path -LiteralPath $dumpbin -PathType Leaf)) {
 
 Write-Host "[ImportTable] Using dumpbin: $dumpbin"
 
-# Extract import table
+
 $imports = @()
 $process = Start-Process -FilePath $dumpbin -ArgumentList "/IMPORTS", "/NOLOGO", "`"$ExecutablePath`"" -PassThru -RedirectStandardOutput (Join-Path $env:TEMP "imports.txt") -Wait -NoNewWindow
 if ($process.ExitCode -ne 0) {
@@ -91,7 +91,7 @@ if ($process.ExitCode -ne 0) {
 
 $output = Get-Content (Join-Path $env:TEMP "imports.txt") -Raw
 
-# Parse import table
+
 $currentDll = ""
 $imports = @()
 $importedDlls = @()
@@ -111,7 +111,7 @@ $importedDlls = @($importedDlls | Sort-Object -Unique)
 $importedDllCount = $importedDlls.Count
 Write-Host "[ImportTable] Found $($imports.Count) imported functions from $importedDllCount DLLs"
 
-# Check for unauthorized imports
+
 $unauthorized = @()
 foreach ($dll in $importedDlls) {
     if (-not $allowList.Contains($dll)) {

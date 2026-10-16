@@ -13,9 +13,9 @@ struct TrailPoint {
     double time = 0.0;
 };
 
-// Fixed-size, allocation-free history used by every game adapter. Samples are
-// rate- and distance-limited so an enabled trail never creates DMA reads or a
-// growing vector per player.
+
+
+
 template <std::size_t Capacity = 18>
 class FixedTrailHistory {
 public:
@@ -67,4 +67,4 @@ private:
     double last_seen_ = 0.0;
 };
 
-} // namespace OmniGhost::Gameplay
+}

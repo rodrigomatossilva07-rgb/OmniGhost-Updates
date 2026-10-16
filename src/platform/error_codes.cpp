@@ -14,7 +14,7 @@ struct ErrorEntry {
 };
 
 constexpr std::array<ErrorEntry, 88> kErrorTable = {{
-    // Generic
+
     {OmniGhost::Platform::ErrorCode::None, "OK", false, false, "core"},
     {OmniGhost::Platform::ErrorCode::Unknown, "Erro desconhecido", false, false, "core"},
     {OmniGhost::Platform::ErrorCode::NotImplemented, "Funcionalidade nao implementada", false, false, "core"},
@@ -34,7 +34,7 @@ constexpr std::array<ErrorEntry, 88> kErrorTable = {{
     {OmniGhost::Platform::ErrorCode::PermissionDenied, "Permissao negada", false, true, "core"},
     {OmniGhost::Platform::ErrorCode::IntegrityCheckFailed, "Falha na verificacao de integridade", false, false, "core"},
 
-    // DMA / Hardware
+
     {OmniGhost::Platform::ErrorCode::DmaDeviceNotFound, "Dispositivo DMA nao encontrado", true, true, "dma"},
     {OmniGhost::Platform::ErrorCode::DmaDeviceOpenFailed, "Falha ao abrir dispositivo DMA", true, true, "dma"},
     {OmniGhost::Platform::ErrorCode::DmaDeviceDataPathFailed, "Caminho de dados DMA sem resposta", true, true, "dma"},
@@ -57,7 +57,7 @@ constexpr std::array<ErrorEntry, 88> kErrorTable = {{
     {OmniGhost::Platform::ErrorCode::DmaDriverVersionMismatch, "Versao de driver incompativel", false, true, "dma"},
     {OmniGhost::Platform::ErrorCode::DmaFirmwareTooOld, "Firmware muito antigo", false, true, "dma"},
 
-    // Authentication / License
+
     {OmniGhost::Platform::ErrorCode::AuthInvalidCredentials, "Credenciais invalidas", false, true, "auth"},
     {OmniGhost::Platform::ErrorCode::AuthExpired, "Licenca expirada", false, true, "auth"},
     {OmniGhost::Platform::ErrorCode::AuthRevoked, "Licenca revogada", false, true, "auth"},
@@ -69,7 +69,7 @@ constexpr std::array<ErrorEntry, 88> kErrorTable = {{
     {OmniGhost::Platform::ErrorCode::AuthTrialExpired, "Trial expirado", false, true, "auth"},
     {OmniGhost::Platform::ErrorCode::AuthConcurrentLimit, "Limite de sessoes excedido", false, true, "auth"},
 
-    // Offsets / Game
+
     {OmniGhost::Platform::ErrorCode::OffsetsMissing, "Offsets em falta", false, true, "offsets"},
     {OmniGhost::Platform::ErrorCode::OffsetsOutdated, "Offsets desatualizados", false, true, "offsets"},
     {OmniGhost::Platform::ErrorCode::OffsetsValidationFailed, "Validacao de offsets falhou", true, true, "offsets"},
@@ -81,7 +81,7 @@ constexpr std::array<ErrorEntry, 88> kErrorTable = {{
     {OmniGhost::Platform::ErrorCode::GameOffsetsOutdated, "Offsets do jogo desatualizados", false, true, "offsets"},
     {OmniGhost::Platform::ErrorCode::GameUnsupportedBuild, "Build do jogo nao suportado", false, true, "game"},
 
-    // Updater
+
     {OmniGhost::Platform::ErrorCode::UpdateCheckFailed, "Falha ao verificar atualizacoes", true, true, "updater"},
     {OmniGhost::Platform::ErrorCode::UpdateDownloadFailed, "Falha ao baixar atualizacao", true, true, "updater"},
     {OmniGhost::Platform::ErrorCode::UpdateIntegrityFailed, "Integridade da atualizacao falhou", false, false, "updater"},
@@ -93,28 +93,28 @@ constexpr std::array<ErrorEntry, 88> kErrorTable = {{
     {OmniGhost::Platform::ErrorCode::UpdateSignatureInvalid, "Assinatura invalida", false, false, "updater"},
     {OmniGhost::Platform::ErrorCode::UpdateVersionIncompatible, "Versao incompativel", false, true, "updater"},
 
-    // Configuration
+
     {OmniGhost::Platform::ErrorCode::ConfigLoadFailed, "Falha ao carregar configuracoes", false, false, "config"},
     {OmniGhost::Platform::ErrorCode::ConfigSaveFailed, "Falha ao salvar configuracoes", false, false, "config"},
     {OmniGhost::Platform::ErrorCode::ConfigCorrupted, "Configuracao corrompida", false, true, "config"},
     {OmniGhost::Platform::ErrorCode::ConfigSchemaMismatch, "Schema de configuracao incompativel", false, true, "config"},
     {OmniGhost::Platform::ErrorCode::ConfigMigrationFailed, "Migracao de configuracao falhou", false, false, "config"},
 
-    // Network
+
     {OmniGhost::Platform::ErrorCode::NetworkDnsFailed, "Falha na resolucao DNS", true, false, "network"},
     {OmniGhost::Platform::ErrorCode::NetworkConnectionFailed, "Falha na conexao", true, true, "network"},
     {OmniGhost::Platform::ErrorCode::NetworkTimeout, "Tempo de conexao excedido", true, true, "network"},
     {OmniGhost::Platform::ErrorCode::NetworkSslError, "Erro SSL/TLS", false, false, "network"},
     {OmniGhost::Platform::ErrorCode::NetworkRateLimited, "Taxa de requisicoes excedida", true, true, "network"},
 
-    // Filesystem
+
     {OmniGhost::Platform::ErrorCode::FsNotFound, "Ficheiro nao encontrado", false, true, "filesystem"},
     {OmniGhost::Platform::ErrorCode::FsAccessDenied, "Acesso negado ao ficheiro", false, true, "filesystem"},
     {OmniGhost::Platform::ErrorCode::FsFull, "Disco cheio", false, true, "filesystem"},
     {OmniGhost::Platform::ErrorCode::FsCorrupted, "Ficheiro corrompido", false, false, "filesystem"},
     {OmniGhost::Platform::ErrorCode::FsLocked, "Ficheiro bloqueado", true, true, "filesystem"},
 
-    // UI / Rendering
+
     {OmniGhost::Platform::ErrorCode::UiRendererInitFailed, "Falha ao inicializar renderer", false, false, "ui"},
     {OmniGhost::Platform::ErrorCode::UiFontLoadFailed, "Falha ao carregar fonte", false, false, "ui"},
     {OmniGhost::Platform::ErrorCode::UiTextureLoadFailed, "Falha ao carregar textura", false, false, "ui"},
@@ -149,4 +149,4 @@ std::string_view ErrorSubsystem(OmniGhost::Platform::ErrorCode code) noexcept {
     return "core";
 }
 
-} // namespace OmniGhost::Platform
+}

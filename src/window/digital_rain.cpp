@@ -14,7 +14,7 @@ namespace DigitalRain {
 
 QualitySettings QualitySettings::FromPreset(QualityPreset preset) noexcept {
     QualitySettings s;
-    
+
     switch (preset) {
         case QualityPreset::Disabled:
             s.maxColumns = 0;
@@ -22,7 +22,7 @@ QualitySettings QualitySettings::FromPreset(QualityPreset preset) noexcept {
             s.enableTrails = false;
             s.spacing = 0.0f;
             break;
-            
+
         case QualityPreset::Potato:
             s.maxColumns = 16;
             s.minTrail = 4;
@@ -47,7 +47,7 @@ QualitySettings QualitySettings::FromPreset(QualityPreset preset) noexcept {
             s.nodeAlphaMax = 0;
             s.linkDistanceFactor = 0;
             break;
-            
+
         case QualityPreset::Low:
             s.maxColumns = 32;
             s.minTrail = 6;
@@ -72,7 +72,7 @@ QualitySettings QualitySettings::FromPreset(QualityPreset preset) noexcept {
             s.nodeAlphaMax = 0;
             s.linkDistanceFactor = 0;
             break;
-            
+
         case QualityPreset::Medium:
             s.maxColumns = 64;
             s.minTrail = 8;
@@ -97,7 +97,7 @@ QualitySettings QualitySettings::FromPreset(QualityPreset preset) noexcept {
             s.nodeAlphaMax = 30;
             s.linkDistanceFactor = 5;
             break;
-            
+
         case QualityPreset::High:
             s.maxColumns = 96;
             s.minTrail = 10;
@@ -122,7 +122,7 @@ QualitySettings QualitySettings::FromPreset(QualityPreset preset) noexcept {
             s.nodeAlphaMax = 42;
             s.linkDistanceFactor = 7;
             break;
-            
+
         case QualityPreset::Ultra:
             s.maxColumns = 96;
             s.minTrail = 12;
@@ -152,17 +152,17 @@ QualitySettings QualitySettings::FromPreset(QualityPreset preset) noexcept {
     return s;
 }
 
-// ============================================================
-// Quality Presets Implementation
-// ============================================================
+
+
+
 
 QualitySettings GetQualitySettings(QualityPreset preset) noexcept {
     return QualitySettings::FromPreset(preset);
 }
 
-// ============================================================
-// Global State (namespace scope, not anonymous)
-// ============================================================
+
+
+
 
 constexpr int kMaxColumns = 96;
 constexpr int kMaxTrail = 28;
@@ -229,9 +229,9 @@ GPUInfo g_gpuInfo{};
 bool g_gpuDetected = false;
 bool g_autoQualityEnabled = true;
 
-// ============================================================
-// Helpers
-// ============================================================
+
+
+
 
 std::uint32_t NextRand() {
     g_rng ^= g_rng << 13;
@@ -253,7 +253,7 @@ int CalculateTargetColumnCount(float width, bool performance_mode) {
     if (!std::isfinite(width) || width <= 0.0f) return 0;
     const float density_scale = g_dynamicDensity;
     if (density_scale <= 0.001f) return 0;
-    
+
     const float spacing = performance_mode ? g_qualitySettings.spacing * 1.8f : g_qualitySettings.spacing;
     const int full = static_cast<int>(std::ceil(width / spacing)) + 2;
     const int maximum = std::min(g_qualitySettings.maxColumns, kMaxColumns);
@@ -293,7 +293,7 @@ void SeedStars(float width, float height, bool performance_mode) {
         g_star_count = 0;
         return;
     }
-    
+
     const float density_scale = g_dynamicConstellationDensity;
     const int fullClusters = performance_mode ? std::min(4, g_qualitySettings.maxClusters) : g_qualitySettings.maxClusters;
     g_cluster_count = std::clamp(static_cast<int>(std::lround(fullClusters * density_scale)), 0, fullClusters);
@@ -339,25 +339,25 @@ void SeedStars(float width, float height, bool performance_mode) {
 
             float ang = 0.f, rad = (std::min)(width, height) * 0.045f * cl.scale;
             switch (cl.shape) {
-            case 1: // triangle
+            case 1:
                 ang = (i / (float)cl.count) * 6.28318f + 0.3f;
                 rad *= (0.85f + 0.25f * Rand01());
                 break;
-            case 2: // diamond
+            case 2:
                 ang = (i % 4) * 1.5708f + (i >= 4 ? 0.4f : 0.f);
                 rad *= (i < 4 ? 1.f : 0.45f);
                 break;
-            case 3: // arc
+            case 3:
                 ang = -0.9f + (i / (float)(std::max)(1, cl.count - 1)) * 1.8f;
                 rad *= (0.7f + 0.5f * std::fabs(std::sin(ang * 1.2f)));
                 s.x = cl.cx + ang * rad * 1.4f;
                 s.y = cl.cy + std::sin(ang) * rad * 0.6f;
                 continue;
-            case 4: // scatter
+            case 4:
                 ang = Rand01() * 6.28318f;
                 rad *= (0.3f + Rand01() * 1.1f);
                 break;
-            default: // ring
+            default:
                 ang = (i / (float)cl.count) * 6.28318f + Rand01() * 0.2f;
                 rad *= (0.75f + Rand01() * 0.35f);
                 break;
@@ -411,31 +411,31 @@ void EnsureColumns(float width, float height, bool performance_mode) {
     g_ready = g_count > 0;
 }
 
-// ============================================================
-// GPU Detection
-// ============================================================
+
+
+
 
 GPUInfo DetectGPU() noexcept {
     GPUInfo info;
-    
-    // Try to get GPU info from WGL/GL
-    // This is a simplified version - in production would use wglGetExtensionsStringARB, etc.
-    
-    // Check for integrated GPU indicators
-    // Common integrated GPU vendors
+
+
+
+
+
+
     info.vendor = "Unknown";
     info.renderer = "Unknown";
     info.version = "Unknown";
     info.isIntegrated = false;
     info.isLowEnd = false;
     info.vramMB = 0;
-    
-    // Try to get from D3D11 if available
-    // This is a placeholder - real implementation would use DXGI
-    
-    // Heuristic: if running on laptop battery or known integrated GPU names
-    // For now, assume discrete GPU
-    
+
+
+
+
+
+
+
     g_gpuInfo = info;
     g_gpuDetected = true;
     return info;
@@ -443,9 +443,9 @@ GPUInfo DetectGPU() noexcept {
 
 void AutoSelectQualityPreset() noexcept {
     if (!g_autoQualityEnabled) return;
-    
+
     GPUInfo gpu = DetectGPU();
-    
+
     if (!g_gpuDetected || gpu.isIntegrated || gpu.isLowEnd) {
         SetQualityPresetOverride(QualityPreset::Low);
     } else if (gpu.vramMB > 0 && gpu.vramMB < 2048) {
@@ -462,9 +462,9 @@ void ApplyIGPUFallback() noexcept {
     g_igpuFallbackEnabled = true;
 }
 
-// ============================================================
-// Quality Control
-// ============================================================
+
+
+
 
 void SetQualityPreset(QualityPreset preset) noexcept {
     if (g_qualityOverrideActive) return;
@@ -504,9 +504,9 @@ QualitySettings GetCurrentQualitySettings() noexcept {
     return g_qualitySettings;
 }
 
-// ============================================================
-// Main API Implementation
-// ============================================================
+
+
+
 
 void Initialize() {
     g_rng = kInitialSeed;
@@ -551,9 +551,9 @@ void Draw(
     float local_offset = std::clamp(quiet_left_width, 0.0f, window_size.x - 32.0f);
     float width = window_size.x - local_offset;
     float height = window_size.y;
-    // Particles are stored in local window coordinates and translated only
-    // when drawn. Comparing them with screen-space bounds made rain disappear
-    // from centred/floating windows such as authentication.
+
+
+
     float left = 0.0f;
     float right = width;
 
@@ -578,7 +578,7 @@ void Draw(
 
     const float fade = g_qualitySettings.fadeSeconds > 0.0f ? std::exp(-dt / g_qualitySettings.fadeSeconds) : 0.9f;
 
-    // Update columns
+
     for (int i = 0; i < g_count; ++i) {
         Column& col = g_cols[i];
         col.y += col.speed * dt;
@@ -587,7 +587,7 @@ void Draw(
         }
     }
 
-    // Update stars
+
     if (draw_constellations && g_qualitySettings.enableConstellations) {
         for (int i = 0; i < g_star_count; ++i) {
             Star& s = g_stars[i];
@@ -596,7 +596,7 @@ void Draw(
             s.phase += dt * 2.0f;
         }
 
-        // Update clusters
+
         for (int c = 0; c < g_cluster_count; ++c) {
             Cluster& cl = g_clusters[c];
             float dx = cl.tx - cl.cx;
@@ -612,7 +612,7 @@ void Draw(
         }
     }
 
-    // Draw columns
+
     for (int i = 0; i < g_count; ++i) {
         Column& col = g_cols[i];
         float x = col.x;
@@ -643,7 +643,7 @@ void Draw(
         }
     }
 
-    // Draw constellations
+
     if (draw_constellations && g_qualitySettings.enableConstellations && g_cluster_count > 0) {
         for (int c = 0; c < g_cluster_count; ++c) {
             Cluster& cl = g_clusters[c];
@@ -656,7 +656,7 @@ void Draw(
                 ImU32 color = IM_COL32(212, 175, 55, g_qualitySettings.nodeAlphaMax);
                 dl->AddCircleFilled(ImVec2(window_pos.x + local_offset + s.x, window_pos.y + s.y), s.radius, color);
 
-                // Links to other stars in same cluster
+
                 if (g_qualitySettings.linkAlphaMax > 0) {
                     for (int j = cl.start; j < end; ++j) {
                         if (i == j) continue;
@@ -693,7 +693,7 @@ void DrawGoldMotif(ImDrawList* dl, const ImVec2& position, const ImVec2& size,
     dl->PushClipRect(ImVec2(position.x + left, position.y),
                      ImVec2(position.x + size.x, position.y + size.y), true);
 
-    // Stable individual phases make the network drift rather than jitter.
+
     constexpr int columns = 6;
     constexpr int rows = 5;
     ImVec2 nodes[columns * rows];
@@ -724,7 +724,7 @@ void DrawGoldMotif(ImDrawList* dl, const ImVec2& position, const ImVec2& size,
         }
     }
 
-    // A restrained flowing gold ribbon echoes the second reference image.
+
     if (!performance_mode) {
         constexpr int segments = 44;
         for (int band = 0; band < 3; ++band) {
@@ -748,7 +748,7 @@ void DrawGoldMotif(ImDrawList* dl, const ImVec2& position, const ImVec2& size,
     dl->PopClipRect();
 }
 
-// Dynamic performance scaling
+
 void SetDynamicDensity(float density_scale) noexcept {
     g_dynamicDensity = std::clamp(density_scale, 0.0f, 1.0f);
 }
@@ -773,4 +773,4 @@ float GetDynamicConstellationDensity() noexcept {
     return g_dynamicConstellationDensity;
 }
 
-} // namespace DigitalRain
+}

@@ -8,7 +8,7 @@
 namespace Warzone {
 
 struct Offsets {
-    // globals / module RVAs
+
     uintptr_t timestamp = 0;
     uintptr_t ref_def = 0;
     uintptr_t name_array = 0;
@@ -23,7 +23,7 @@ struct Offsets {
     uintptr_t lobby_data = 0;
     uintptr_t scoreboard = 0;
 
-    // decrypt RVAs
+
     uintptr_t client_info_enc = 0;
     uintptr_t client_info_key = 0;
     uintptr_t client_base_enc = 0;
@@ -34,18 +34,18 @@ struct Offsets {
     uintptr_t stub_client_base = 0;
     uintptr_t stub_bone_base = 0;
 
-    // camera
+
     uintptr_t camera_pos = 0;
     uintptr_t camera_pos_enc = 0;
     uintptr_t camera_pos_key = 0;
 
-    // local (relative to client_info)
-    uintptr_t local_index_off = 0;   // was local_index in old code
+
+    uintptr_t local_index_off = 0;
     uintptr_t local_index_pos = 0;
     uintptr_t visible_client_bits = 0;
     uintptr_t recoil = 0;
 
-    // player struct
+
     uintptr_t player_size = 0;
     uintptr_t player_valid = 0;
     uintptr_t player_pos = 0;
@@ -56,16 +56,16 @@ struct Offsets {
     uintptr_t player_armor = 0;
     uintptr_t player_weapon_index = 0;
 
-    // bone
+
     uintptr_t bone_base_pos = 0;
     uintptr_t bone_size = 0;
     uintptr_t bone_offset = 0;
-    // Bone array: base + index * stride, each entry is float3
+
     uintptr_t bone_array_base = 0;
     uintptr_t bone_array_stride = 0;
     int bone_head = -1;
     int bone_chest = -1;
-    // Unified bone indices (Gameplay::BoneSystem::BoneId mapping)
+
     int bone_neck = -1;
     int bone_spine_upper = -1;
     int bone_spine_mid = -1;
@@ -90,7 +90,7 @@ struct Offsets {
     int bone_r_ankle = -1;
     int bone_r_foot = -1;
 
-    // name_array entry
+
     uintptr_t name_array_pos = 0;
     uintptr_t name_entry_size = 0;
     uintptr_t name_entry_name = 0;
@@ -98,7 +98,7 @@ struct Offsets {
     uintptr_t name_entry_armor = 0;
     uintptr_t name_entry_alive = 0;
 
-    // legacy aliases kept for LoadOffsets compatibility
+
     uintptr_t client_info = 0;
     uintptr_t client_base = 0;
     uintptr_t bone_base = 0;
@@ -126,15 +126,15 @@ struct Player {
     bool is_local = false;
     bool valid = false;
     bool alive = false;
-    // 0=stand 1=crouch 2=prone (CoD-style). Aim/ESP head height follows this live.
+
     int stance = 0;
     uint64_t position_sample_ms = 0;
-    // Bone data for skeleton ESP
-    static constexpr int kMaxBones = 31; // Head(0) to R_Foot(30)
+
+    static constexpr int kMaxBones = 31;
     float bones[kMaxBones][3]{};
     bool bones_ok = false;
     uint64_t bones_sample_ms = 0;
-    // LOD bone mask: which bones were actually read (1 bit per bone, 31 bits fit in uint32_t)
+
     uint32_t bones_mask = 0;
 };
 
@@ -159,13 +159,13 @@ struct Runtime {
     bool decrypt_ok = false;
     uint64_t last_bind_attempt_ms = 0;
     int bind_fail_count = 0;
-    // Acquisition timestamps (GetTickCount64 monotonic ms). Presentation prefers these
-    // over the moment the Runtime was published.
+
+
     uint64_t camera_sample_ms = 0;
     uint64_t world_sample_ms = 0;
     uint64_t snapshot_timestamp_ms = 0;
     uint64_t session_generation = 1;
-    uint64_t pipeline_epoch = 0; // invalidates snapshots across detach/reattach
+    uint64_t pipeline_epoch = 0;
     char status[192] = "Warzone idle";
     char decrypt_detail[160] = "";
 };
@@ -188,4 +188,4 @@ bool ReloadOffsets();
 bool InitializeMenuShell();
 const char* StatusLine();
 
-} // namespace Warzone
+}

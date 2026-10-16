@@ -23,7 +23,8 @@ var options = new AdminOptions(
     10,
     TimeSpan.FromSeconds(60),
     auditPath,
-    false);
+    false,
+    Array.Empty<System.Net.IPAddress>());
 var authenticator = new ApiKeyAuthenticator(options);
 Expect(authenticator.Authenticate($"Bearer rodrigo.{secret}") == "rodrigo", "Valid API key was rejected.");
 Expect(authenticator.Authenticate("Bearer rodrigo.wrong") is null, "Invalid API key was accepted.");

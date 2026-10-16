@@ -13,7 +13,7 @@ namespace aim_type {
     void Disconnect(DeviceType type);
     bool Test(DeviceType type);
 
-    // Hardware input only (no game memory writes)
+
     void Move(int x, int y);
     void LeftClick();
     void LeftClickRelease();
@@ -23,4 +23,4 @@ namespace aim_type {
     const char* StatusText();
     std::string LastError(DeviceType type);
 
-} // namespace aim_type
+}

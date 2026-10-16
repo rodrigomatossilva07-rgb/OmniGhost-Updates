@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Net;
 
 namespace OmniGhost.AdminApi;
 
@@ -10,7 +11,8 @@ public sealed record AdminOptions(
     int RequiredLevel,
     TimeSpan EntitlementCacheDuration,
     string AuditPath,
-    bool TrustForwardedHttps)
+    bool TrustForwardedHttps,
+    IReadOnlyList<IPAddress> TrustedForwardedProxies)
 {
     public bool IsConfigured =>
         KeyAuthSellerKey.Length >= 16 && ApiKeyHashes.Count > 0;
@@ -33,6 +35,17 @@ public sealed record AdminOptions(
         if (!Path.IsPathRooted(auditPath))
             auditPath = Path.GetFullPath(Path.Combine(environment.ContentRootPath, auditPath));
 
+        var trustForwarded = string.Equals(Environment.GetEnvironmentVariable("OMNIGHOST_ADMIN_TRUST_FORWARDED_HTTPS"),
+                          "true", StringComparison.OrdinalIgnoreCase);
+        // API-003 Fix: forwarded headers are only honoured when they come from
+        // an explicitly trusted reverse proxy; trusting the header blindly
+        // let any client bypass the HTTPS requirement.
+        var trustedProxies = ParseTrustedProxies(
+            Environment.GetEnvironmentVariable("OMNIGHOST_ADMIN_TRUSTED_FORWARD_PROXIES"));
+        if (trustForwarded && trustedProxies.Count == 0)
+            throw new InvalidOperationException(
+                "OMNIGHOST_ADMIN_TRUST_FORWARDED_HTTPS=true requires OMNIGHOST_ADMIN_TRUSTED_FORWARD_PROXIES with at least one proxy IP.");
+
         return new AdminOptions(
             endpoint,
             Environment.GetEnvironmentVariable("OMNIGHOST_ADMIN_KEYAUTH_SELLER_KEY")?.Trim() ?? string.Empty,
@@ -41,8 +54,20 @@ public sealed record AdminOptions(
             level,
             TimeSpan.FromSeconds(cacheSeconds),
             auditPath,
-            string.Equals(Environment.GetEnvironmentVariable("OMNIGHOST_ADMIN_TRUST_FORWARDED_HTTPS"),
-                          "true", StringComparison.OrdinalIgnoreCase));
+            trustForwarded,
+            trustedProxies);
+    }
+
+    public static IReadOnlyList<IPAddress> ParseTrustedProxies(string? value)
+    {
+        var result = new List<IPAddress>();
+        if (string.IsNullOrWhiteSpace(value)) return result;
+        foreach (var entry in value.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (IPAddress.TryParse(entry, out var address))
+                result.Add(address);
+        }
+        return result;
     }
 
     public static IReadOnlyDictionary<string, string> ParseApiKeyHashes(string? value)

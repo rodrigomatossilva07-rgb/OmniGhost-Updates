@@ -65,7 +65,7 @@ void SoftwareLeft(bool down) {
     SendInput(1, &input, sizeof(input));
 }
 
-} // namespace
+}
 
 void Initialize() {
     const int active = static_cast<int>(config.active);
@@ -291,4 +291,4 @@ std::string LastError(DeviceType type) {
     }
 }
 
-} // namespace aim_type
+}

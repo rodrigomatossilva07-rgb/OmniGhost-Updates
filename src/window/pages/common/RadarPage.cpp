@@ -35,7 +35,7 @@ void DrawRadarPreview(float previewWidth, float previewHeight)
     ImGui::Dummy(ImVec2(previewWidth, previewHeight));
 }
 
-} // namespace
+}
 
 void DrawRadar()
 {

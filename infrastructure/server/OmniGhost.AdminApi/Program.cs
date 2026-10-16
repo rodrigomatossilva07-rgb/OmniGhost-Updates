@@ -30,16 +30,36 @@ builder.Services.AddRateLimiter(configuration => {
 var app = builder.Build();
 if (!app.Environment.IsDevelopment()) {
     app.UseHsts();
-    app.Use(async (context, next) => {
-        var forwardedHttps = adminOptions.TrustForwardedHttps &&
-            string.Equals(context.Request.Headers["X-Forwarded-Proto"], "https", StringComparison.OrdinalIgnoreCase);
-        if (!context.Request.IsHttps && !forwardedHttps) {
-            await Results.Problem("HTTPS is required.", statusCode: StatusCodes.Status426UpgradeRequired)
-                .ExecuteAsync(context);
-            return;
-        }
-        await next();
-    });
+    if (adminOptions.TrustForwardedHttps) {
+        // API-003 Fix: process X-Forwarded-Proto ONLY from the explicitly
+        // configured trusted proxies (ForwardedHeaders middleware filters by
+        // KnownProxies); the previous code trusted the header from any
+        // client, allowing the HTTPS requirement to be bypassed.
+        app.Use(async (context, next) => {
+            var remote = context.Connection.RemoteIpAddress;
+            var proto = context.Request.Headers["X-Forwarded-Proto"].ToString();
+            if (remote is not null &&
+                adminOptions.TrustedForwardedProxies.Any(proxy => proxy.Equals(remote)) &&
+                string.Equals(proto, "https", StringComparison.OrdinalIgnoreCase)) {
+                context.Request.Scheme = "https";
+            }
+            if (!context.Request.IsHttps) {
+                await Results.Problem("HTTPS is required.", statusCode: StatusCodes.Status426UpgradeRequired)
+                    .ExecuteAsync(context);
+                return;
+            }
+            await next();
+        });
+    } else {
+        app.Use(async (context, next) => {
+            if (!context.Request.IsHttps) {
+                await Results.Problem("HTTPS is required.", statusCode: StatusCodes.Status426UpgradeRequired)
+                    .ExecuteAsync(context);
+                return;
+            }
+            await next();
+        });
+    }
 }
 
 app.Use(async (context, next) => {

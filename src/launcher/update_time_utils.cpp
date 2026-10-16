@@ -51,7 +51,7 @@ bool ParseUtcTime(const std::string& iso, std::time_t& output) {
     return true;
 }
 
-} // namespace
+}
 
 bool ParseIsoDatePrefix(const std::string& iso, int& year, int& month, int& day) {
     if (iso.size() < 10 || iso[4] != '-' || iso[7] != '-') return false;
@@ -80,4 +80,4 @@ std::string RelativePublishedTime(const std::string& iso) {
     return "em " + DateDisplay(iso);
 }
 
-} // namespace LauncherUpdates::UpdateTime
+}

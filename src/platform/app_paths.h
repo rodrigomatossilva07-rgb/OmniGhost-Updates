@@ -7,8 +7,8 @@ std::filesystem::path Executable();
 std::filesystem::path InstallDirectory();
 std::wstring InstallIdentity();
 std::filesystem::path LocalData();
-// Immutable native components which Windows/vendor APIs require as physical
-// files. Kept separate from mutable user state and never contains OmniGhost.exe.
+
+
 std::filesystem::path NativeRuntime();
 std::filesystem::path Configs();
 std::filesystem::path Cs2Configs();

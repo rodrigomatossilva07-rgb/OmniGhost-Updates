@@ -98,7 +98,7 @@ AimPreviewState CurrentAimState() {
         value.max_dist = Warzone::config.aim_max_dist;
         break;
     default:
-        // FiveM uses aimbot from aimbot.cpp
+
         value.enabled = false;
         value.fov = 0.0f;
         value.smooth = 0.0f;
@@ -192,55 +192,55 @@ void DrawAimPreview() {
     const ImU32 accent = app_settings::config.color_primary;
     const ImU32 muted = CyberTheme::U32(CyberTheme::Colors.TextDisabled);
     const ImVec2 center(origin.x + previewWidth * 0.5f, origin.y + previewHeight * 0.5f);
-    
+
     if (!state.enabled) {
         const char* disabled = "Mira desativada";
         const ImVec2 text = ImGui::CalcTextSize(disabled);
         draw->AddText(ImVec2(origin.x + (previewWidth - text.x) * .5f, origin.y + 98.f), muted, disabled);
     } else {
-        // FOV circle
+
         float fov_radius = std::clamp(state.fov * 2.0f, 20.0f, 150.0f);
         ImVec4 accentColor = ImGui::ColorConvertU32ToFloat4(accent);
         accentColor.w = 0.3f;
         draw->AddCircle(center, fov_radius, ImGui::ColorConvertFloat4ToU32(accentColor), 64, 1.5f);
         accentColor.w = 0.6f;
         draw->AddCircle(center, fov_radius, ImGui::ColorConvertFloat4ToU32(accentColor), 64, 1.0f);
-        
-        // Smooth indicator
+
+
         char smooth_str[32];
         std::snprintf(smooth_str, sizeof(smooth_str), "Smooth: %.1f", state.smooth);
         draw->AddText(ImVec2(center.x - 40.f, center.y + fov_radius + 20.f), accent, smooth_str);
-        
-        // Target dot
+
+
         draw->AddCircleFilled(center, 4.0f, accent, 12);
-        
-        // Crosshair
+
+
         float cross_size = 12.0f;
         draw->AddLine(ImVec2(center.x - cross_size, center.y), ImVec2(center.x + cross_size, center.y), accent, 1.5f);
         draw->AddLine(ImVec2(center.x, center.y - cross_size), ImVec2(center.x, center.y + cross_size), accent, 1.5f);
-        
-        // Info panel
+
+
         ImVec2 info_pos(origin.x + 20.f, origin.y + 20.f);
         char fov_str[32];
         std::snprintf(fov_str, sizeof(fov_str), "FOV: %.0f°", state.fov);
         draw->AddText(info_pos, CyberTheme::U32(CyberTheme::Colors.Text), fov_str);
-        
+
         char bone_str[32];
         std::snprintf(bone_str, sizeof(bone_str), "Bone: %d", state.bone);
         draw->AddText(ImVec2(info_pos.x, info_pos.y + 20.f), CyberTheme::U32(CyberTheme::Colors.Text), bone_str);
-        
+
         char dist_str[32];
         std::snprintf(dist_str, sizeof(dist_str), "Max Dist: %.0fm", state.max_dist);
         draw->AddText(ImVec2(info_pos.x, info_pos.y + 40.f), CyberTheme::U32(CyberTheme::Colors.Text), dist_str);
-        
+
         if (state.rcs) {
             draw->AddText(ImVec2(info_pos.x, info_pos.y + 60.f), CyberTheme::U32(CyberTheme::Colors.Success), "RCS: ON");
         }
         if (state.prediction) {
             draw->AddText(ImVec2(info_pos.x, info_pos.y + 80.f), CyberTheme::U32(CyberTheme::Colors.Info), "Prediction: ON");
         }
-        
-        // Key binding indicator
+
+
         if (state.aim_key > 0) {
             char key_str[32];
             std::snprintf(key_str, sizeof(key_str), "Tecla: 0x%02X", state.aim_key);
@@ -251,7 +251,7 @@ void DrawAimPreview() {
     ImGui::InvisibleButton("##aim_profile_preview", ImVec2(previewWidth, previewHeight));
 }
 
-} // namespace
+}
 
 void DrawSaveConfigs()
 {
@@ -363,8 +363,8 @@ void DrawSaveConfigs()
 
         float name_x = row.x + 2.0f;
         if (cfg.favorite) {
-            // Draw the star ourselves so it cannot turn into '?' on fonts
-            // without the Unicode star glyph.
+
+
             ImVec2 points[10];
             constexpr float pi = 3.14159265f;
             const ImVec2 center(name_x + 7.0f, row.y + 18.0f);

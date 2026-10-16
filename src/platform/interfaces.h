@@ -12,9 +12,9 @@
 
 namespace OmniGhost::Platform {
 
-// ============================================================
-// IClock - abstraction for time
-// ============================================================
+
+
+
 class IClock {
 public:
     virtual ~IClock() = default;
@@ -42,9 +42,9 @@ public:
     }
 };
 
-// ============================================================
-// IFilesystem - abstraction for filesystem operations
-// ============================================================
+
+
+
 class IFilesystem {
 public:
     virtual ~IFilesystem() = default;
@@ -162,9 +162,9 @@ public:
     }
 };
 
-// ============================================================
-// INetwork - abstraction for network operations
-// ============================================================
+
+
+
 class INetwork {
 public:
     virtual ~INetwork() = default;
@@ -174,9 +174,9 @@ public:
     [[nodiscard]] virtual bool IsOnline() const noexcept = 0;
 };
 
-// ============================================================
-// IProcess - abstraction for process operations
-// ============================================================
+
+
+
 class IProcess {
 public:
     virtual ~IProcess() = default;
@@ -187,9 +187,9 @@ public:
     [[nodiscard]] virtual Result<std::filesystem::path> GetProcessExePath(uint32_t pid) const noexcept = 0;
 };
 
-// ============================================================
-// IHardware - abstraction for hardware probing
-// ============================================================
+
+
+
 class IHardware {
 public:
     virtual ~IHardware() = default;
@@ -199,4 +199,4 @@ public:
     [[nodiscard]] virtual Result<std::string> GetMakcuInfo() const noexcept = 0;
 };
 
-} // namespace OmniGhost::Platform
+}

@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
     [string]$ProjectDir,
@@ -435,8 +435,8 @@ if (Test-Path -LiteralPath $OverridePath -PathType Leaf) {
 
 $SemanticModeRequested = -not [string]::IsNullOrWhiteSpace($SemanticAnalysisPath)
 if ($SemanticModeRequested) {
-    # In semantic CI mode, an old/manual override must not contaminate the
-    # evidence-backed result or the Conventional Commits fallback.
+
+
     $ManualChanges = @()
     $Summary = ''
 }
@@ -517,8 +517,8 @@ if ($GitCommand) {
                 }
             }
 
-            # The path list is evidence validation only. Filenames never create
-            # release-note claims; semantic AI or Conventional Commits do that.
+
+
             Write-ChangelogLog "A recolher evidence do git diff $Range --name-status..."
             $NameStatus = & $GitCommand.Source diff --name-status $Range 2>$null
             if ($LASTEXITCODE -eq 0) {
@@ -595,7 +595,7 @@ if (-not [string]::IsNullOrWhiteSpace($SemanticAnalysisPath) -and
         }
         if ($SemanticChanges.Count -gt 0) {
             $GitChanges = @($SemanticChanges)
-            $ManualChanges = @() # validated semantic diff is authoritative
+            $ManualChanges = @()
             $SemanticSummary = Normalize-Text ([string]$Semantic.summary)
             if ($SemanticSummary) { $Summary = $SemanticSummary }
             $SemanticAccepted = $true
@@ -683,9 +683,9 @@ foreach ($GitChange in $GitChanges) {
 }
 
 if ($AllChanges.Count -eq 0) {
-    # A ausência de commits Git ou a reutilização acidental de um override antigo
-    # não deve interromper uma Build Release válida. Em vez disso, é criada uma
-    # entrada de manutenção verdadeira sobre os artefactos gerados nesta versão.
+
+
+
     $FallbackText = Normalize-Text (
         "Maintenance release with no user-facing changes identified")
 
@@ -870,7 +870,7 @@ if (-not (Test-Path -LiteralPath $NotesPath -PathType Leaf) -or (Get-Item -Liter
 
 $ReleasedLocal = (Get-Date).ToString('dd/MM/yyyy')
 if (-not $SkipRootChangelog) {
-    # Keep human-facing documentation together under docs/.
+
     $RootChangelog = Join-Path $ProjectDir 'docs\CHANGELOG.md'
     $RootBuilder = New-Object System.Text.StringBuilder
 [void]$RootBuilder.AppendLine("## OmniGhost $Version")
@@ -899,14 +899,14 @@ foreach ($Module in $Modules) {
 [void]$RootBuilder.AppendLine()
 if (Test-Path -LiteralPath $RootChangelog -PathType Leaf) {
     $Existing = Read-TextUtf8 -Path $RootChangelog
-    # Drop previous heading for same version if regenerating
+
     $Existing = [regex]::Replace($Existing, "(?ms)^## OmniGhost $([regex]::Escape($Version)).*?(?=^## OmniGhost |\z)", '')
     [void]$RootBuilder.Append($Existing.TrimStart())
 }
     Write-TextAtomic -Path $RootChangelog -Text $RootBuilder.ToString()
 }
 
-# Internal metadata for Discord / audit (no secrets)
+
 $AffectedProducts = @($Modules | ForEach-Object { [string]$_.name } | Select-Object -Unique)
 $Meta = [ordered]@{
     previousTag = if ($PreviousTag) { $PreviousTag } else { '' }

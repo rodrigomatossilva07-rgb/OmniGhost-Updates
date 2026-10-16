@@ -5,8 +5,8 @@
 
 namespace OmniGhost::Gameplay {
 
-// RAII timing helper for scoped phase measurement
-// Usage: ScopedPhase phase(&metrics.phase_ms);
+
+
 struct ScopedPhase {
     float* target;
     std::chrono::steady_clock::time_point t0;
@@ -17,4 +17,4 @@ struct ScopedPhase {
     }
 };
 
-} // namespace OmniGhost::Gameplay
+}

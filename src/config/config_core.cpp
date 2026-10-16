@@ -8,6 +8,7 @@
 #include "../platform/unique_handle.h"
 #include "../platform/build_info.h"
 #include <algorithm>
+#include <cmath>
 #include <limits>
 #include <cstdio>
 #include <cstring>
@@ -25,7 +26,7 @@ namespace fs = std::filesystem;
 
 namespace config_manager {
 
-// Global state
+
 std::vector<SavedConfigInfo> saved_list;
 char new_config_name[64] = "MinhaConfig";
 std::string last_status = "Pronto";
@@ -33,7 +34,7 @@ std::string active_config_name;
 std::string active_profile_name = "Default";
 std::string active_config_id;
 
-// ---- Core helpers ----
+
 std::string ConfigDir();
 
 static fs::path ConfigStatePath() { return fs::path(ConfigDir()) / "config_state.ini"; }
@@ -90,7 +91,7 @@ static bool WriteState(std::initializer_list<std::pair<std::string, std::string>
     return true;
 }
 
-// ---- Helpers ----
+
 std::string CurrentAppVersion() {
     return OmniGhost::BuildInfo::AppVersion;
 }
@@ -161,19 +162,36 @@ bool ParseLine(const std::string& line, std::string& key, std::string& val) {
     return true;
 }
 
-// Serialization helpers
+
 void WBool(std::ostringstream& o, const char* k, bool v) { o << k << "=" << (v ? 1 : 0) << "\n"; }
-void WFloat(std::ostringstream& o, const char* k, float v) { o << k << "=" << v << "\n"; }
+// CFG-009 Fix: use 9 significant digits instead of the default 6 —
+// positions/radius values silently lost precision on reload.
+void WFloat(std::ostringstream& o, const char* k, float v) { o << k << "=" << std::setprecision(9) << v << "\n"; }
 void WInt(std::ostringstream& o, const char* k, int v) { o << k << "=" << v << "\n"; }
 void WU32(std::ostringstream& o, const char* k, ImU32 v) { o << k << "=" << v << "\n"; }
-void WStr(std::ostringstream& o, const char* k, const std::string& v) { o << k << "=" << v << "\n"; }
+// CFG-008 Fix: strip line breaks from serialized string values so a shared
+// config can never inject new key=value lines.
+void WStr(std::ostringstream& o, const char* k, const std::string& v) {
+    std::string safe = v;
+    for (char& c : safe) {
+        if (c == '\r' || c == '\n')
+            c = ' ';
+    }
+    o << k << "=" << safe << "\n";
+}
 
-// Deserialization helpers
+
 bool toB(const std::string& val) { return val == "1" || val == "true"; }
 float toF(const std::string& val) {
     char* end = nullptr;
     const float result = std::strtof(val.c_str(), &end);
-    return (end != val.c_str() && *end == '\0') ? result : 0.0f;
+    if (end == val.c_str() || *end != '\0')
+        return 0.0f;
+    // CFG-004 Fix: NaN/inf parsed successfully from "nan"/"1e999" and then
+    // silently broke every comparison downstream; reject them outright.
+    if (!std::isfinite(result))
+        return 0.0f;
+    return result;
 }
 int toI(const std::string& val) {
     char* end = nullptr;
@@ -186,7 +204,7 @@ ImU32 toU(const std::string& val) {
     return (end != val.c_str() && *end == '\0' && result <= UINT32_MAX) ? static_cast<ImU32>(result) : 0u;
 }
 
-// ---- Directory management ----
+
 std::string ConfigDir() {
     return OmniGhost::Paths::Configs().string();
 }
@@ -206,8 +224,8 @@ void MigrateLegacyConfigs() {
         if (stem.rfind("cs2_", 0) == 0 || stem.rfind("fivem_", 0) == 0 ||
             stem.rfind("rust_", 0) == 0 || stem.rfind("warzone_", 0) == 0)
             continue;
-        
-        // Read meta.game if present
+
+
         std::string meta;
         {
             std::ifstream f(entry.path());
@@ -226,7 +244,7 @@ void MigrateLegacyConfigs() {
         else if (meta == "rust") prefix = "rust_";
         else if (meta == "warzone") prefix = "warzone_";
         else {
-            // Heuristic
+
             std::ifstream f2(entry.path());
             std::string whole((std::istreambuf_iterator<char>(f2)), std::istreambuf_iterator<char>());
             if (whole.find("cs2.") != std::string::npos && whole.find("esp.enabled") == std::string::npos)
@@ -286,7 +304,7 @@ void RefreshList() {
         entries.push_back(std::move(e));
     }
 
-    // Load manual order from Configs/order.txt if present
+
     std::vector<std::string> orderNames;
     {
         std::ifstream of((fs::path(dir) / "order.txt").string());
@@ -329,7 +347,7 @@ void SaveOrder() {
     }
 }
 
-// ---- Game prefix/meta ----
+
 const char* ActiveGamePrefix() {
     switch (g_activeGame) {
     case ActiveGame::CS2: return "cs2_";
@@ -351,7 +369,7 @@ bool NameBelongsToActiveGame(const std::string& name) {
     return name.rfind(p, 0) == 0;
 }
 
-// ---- File operations ----
+
 std::string SanitizeFileName(std::string name) {
     while (!name.empty() && (name.front() == ' ' || name.front() == '\t'))
         name.erase(name.begin());
@@ -423,7 +441,7 @@ bool LoadFromFile(const std::string& name) {
         active_config_name = name;
         if (!WriteState({{std::string("active.") + ActiveGameMeta(), active_config_name},
                         {std::string("active_id.") + ActiveGameMeta(), active_config_id}})) {
-            // Loading succeeded; a read-only state file must not trigger default-config fallback.
+
             last_status = "Config carregada, mas " + last_status;
             return true;
         }
@@ -455,7 +473,7 @@ bool DeleteConfigFile(const std::string& name) {
     return !ec;
 }
 
-// ---- Clipboard ----
+
 bool CopyToClipboard() {
     const std::wstring data = OmniGhost::Platform::Utf8ToWide(SerializeAll());
     if (data.empty()) { last_status = "Conversao UTF-8 falhou"; return false; }
@@ -513,14 +531,23 @@ bool PasteFromClipboard() {
     return ok;
 }
 
-// ---- Auto-save ----
+
 void TickAutoSave() {
     if (!app_settings::config.auto_save || active_config_name.empty())
         return;
 
     static std::string lastSnap;
     static auto lastChange = std::chrono::steady_clock::now();
+    static auto lastCompare = std::chrono::steady_clock::time_point{};
     static bool dirty = false;
+
+    // CFG-006 Fix: SerializeAll() used to run on EVERY frame just to detect
+    // changes; compare at most twice a second instead.
+    const auto nowTp = std::chrono::steady_clock::now();
+    if (lastCompare.time_since_epoch().count() != 0 &&
+        std::chrono::duration_cast<std::chrono::milliseconds>(nowTp - lastCompare).count() < 500)
+        return;
+    lastCompare = nowTp;
 
     std::string now = SerializeAll();
     if (lastSnap.empty()) {
@@ -538,12 +565,12 @@ void TickAutoSave() {
         std::chrono::steady_clock::now() - lastChange).count();
     if (elapsed < 700) return;
 
-    // FIX SEC-001: Sanitize active_config_name as defense in depth
-    // against corrupted state file (path traversal via config_state.ini)
+
+
     const std::string safeName = SanitizeFileName(active_config_name);
     if (safeName != active_config_name) {
         active_config_name = safeName;
-        // Persist corrected name
+
         WriteState({{std::string("active.") + ActiveGameMeta(), active_config_name}});
     }
 
@@ -560,7 +587,7 @@ void TickAutoSave() {
 
 void FlushActiveConfig() {
     if (active_config_name.empty()) return;
-    // FIX SEC-001: Sanitize active_config_name as defense in depth
+
     const std::string safeName = SanitizeFileName(active_config_name);
     if (safeName != active_config_name) {
         active_config_name = safeName;
@@ -580,7 +607,7 @@ const char* ActiveConfigName() {
     return active_config_name.empty() ? "(nenhuma)" : active_config_name.c_str();
 }
 
-// ---- Folder operations ----
+
 void OpenConfigFolder() {
     const fs::path directory = OmniGhost::Paths::Configs();
     std::error_code error;
@@ -664,4 +691,4 @@ void ActivateCurrentGameConfig() {
         active_profile_name = "Personalizado";
 }
 
-} // namespace config_manager
+}

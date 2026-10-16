@@ -23,4 +23,4 @@ ProcessProbeResult ProbeProcess(::Launcher::GameId selected);
 bool IsProcessPresent(::Launcher::GameId selected);
 bool Initialize(::Launcher::GameId selected);
 
-} // namespace OmniGhost::GameLaunch
+}

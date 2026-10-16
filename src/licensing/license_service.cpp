@@ -32,9 +32,9 @@
 namespace OmniGhost::Licensing {
 namespace {
 
-// Caminho do executável atual. O LicenseGateway usa GetModulePath() para verificar a
-// identidade do provider (SHA-256 do ficheiro); se vier vazio, o construtor lança
-// std::runtime_error.
+
+
+
 std::string CurrentExecutablePath() {
     char buffer[MAX_PATH]{};
     const DWORD length = GetModuleFileNameA(nullptr, buffer, MAX_PATH);
@@ -47,13 +47,13 @@ void LogLicenseFailure(const char* what) {
     std::cerr << message;
 }
 
-// Fallback provider used when license gateway initialization fails.
-// Returns NotConfigured for all operations so the app can show a proper error message
-// instead of crashing.
+
+
+
 class FakeProviderForFallback final : public OmniGhost::Auth::IRemoteLicenseProvider {
 public:
     [[nodiscard]] bool IsConfigured() const noexcept override { return false; }
-    // Tem de devolver um caminho valido, senao o LicenseGateway lanca a mesma excecao.
+
     [[nodiscard]] std::string GetModulePath() const override { return CurrentExecutablePath(); }
     OmniGhost::Auth::LicenseResult Authenticate(std::string_view, std::string_view, std::stop_token) override {
         return {OmniGhost::Auth::LicenseStatus::NotConfigured, "O serviço de licenças não está disponível.", "auth.unavailable", {}};
@@ -94,11 +94,11 @@ OmniGhost::Auth::LicenseGateway& RemoteGateway() {
             LogLicenseFailure("unknown exception");
         }
         if (!gateway) {
-            // Gateway "vazio": devolve NotConfigured em todas as operacoes, para a app
-            // poder mostrar um erro no ecra de login em vez de fechar.
-            // SEC-001 Fix: a construcao de reserva tambem corre dentro de try —
-            // uma excecao aqui escaparia do call_once para accessors noexcept
-            // (IsRemoteConfigured/IsRemoteAuthenticated) e terminaria o processo.
+
+
+
+
+
             try {
                 gateway = std::make_unique<OmniGhost::Auth::LicenseGateway>(
                     std::make_shared<FakeProviderForFallback>());
@@ -109,9 +109,9 @@ OmniGhost::Auth::LicenseGateway& RemoteGateway() {
             }
         }
         if (!gateway) {
-            // Last resort: should be unreachable after SEC-001 (the fallback
-            // provider is in-process and never fails identity verification),
-            // but never dereference a null gateway.
+
+
+
             LogLicenseFailure("gateway unavailable; licensing will report NotConfigured");
             throw std::runtime_error("Licensing gateway unavailable");
         }
@@ -135,7 +135,7 @@ void StopRevalidator() {
     }
 }
 void StartRevalidator() {
-    // Construct the gateway before the worker so the worker is destroyed first.
+
     auto& gateway = RemoteGateway();
     std::scoped_lock lock(RevalidatorMutex());
     auto& worker = RevalidatorThread();
@@ -205,7 +205,7 @@ bool RemoteEntitlementGrants(std::string_view productId) {
     }
     return false;
 }
-// Preserve the existing DPAPI envelope so remembered KeyAuth logins survive upgrades.
+
 constexpr unsigned char kProtectedMagic[]{'O','G','L','1'};
 constexpr std::size_t kMaximumCredentialBytes = 4096;
 bool ProtectForCurrentUser(std::string_view plaintext, std::vector<unsigned char>& output) {
@@ -256,7 +256,7 @@ void Publish(Snapshot snapshot) {
     std::lock_guard lock(g_mutex);
     g_snapshot = std::move(snapshot);
 }
-} // namespace
+}
 
 void Refresh() {
     Snapshot snapshot{};
@@ -331,12 +331,12 @@ namespace {
 std::filesystem::path RememberedRemotePath() {
     return OmniGhost::Paths::Configs() / L"keyauth_remember.bin";
 }
-} // namespace
+}
 
 bool SaveRememberedRemoteCredentials(std::string_view username, std::string_view password) {
     if (username.empty() || password.empty())
         return false;
-    // username length + username + NUL + password
+
     std::string payload;
     payload.reserve(username.size() + password.size() + 8);
     const uint32_t userLen = static_cast<uint32_t>(username.size());
@@ -376,4 +376,4 @@ void ClearRememberedRemoteCredentials() noexcept {
     std::filesystem::remove(RememberedRemotePath(), ec);
 }
 
-} // namespace OmniGhost::Licensing
+}

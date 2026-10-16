@@ -8,8 +8,8 @@
 namespace HardwareMonitor {
 
     namespace {
-        constexpr int MAX_HISTORY_SAMPLES = 600; // 10 minutes at 10Hz
-        constexpr int MAX_LATENCY_SAMPLES = 300; // 5 minutes at 1Hz
+        constexpr int MAX_HISTORY_SAMPLES = 600;
+        constexpr int MAX_LATENCY_SAMPLES = 300;
 
         std::array<DeviceStatus, static_cast<int>(DeviceType::Count)> g_devices;
         SystemMetrics g_metrics;
@@ -30,20 +30,20 @@ namespace HardwareMonitor {
 
     void Initialize() {
         if (g_initialized) return;
-        
+
         InitDevice(static_cast<int>(DeviceType::DMA), "DMA");
         InitDevice(static_cast<int>(DeviceType::Makcu), "Makcu");
         InitDevice(static_cast<int>(DeviceType::KMBoxNet), "KMBox-Net");
         InitDevice(static_cast<int>(DeviceType::Ferrum), "Ferrum");
-        
+
         g_metrics = {};
         g_metrics.last_update = std::chrono::steady_clock::now();
         g_start_time = std::chrono::steady_clock::now();
-        
+
         g_latency_history.reserve(MAX_LATENCY_SAMPLES);
         g_fps_history.reserve(MAX_HISTORY_SAMPLES);
         g_entity_history.reserve(MAX_HISTORY_SAMPLES);
-        
+
         g_initialized = true;
     }
 
@@ -53,12 +53,12 @@ namespace HardwareMonitor {
 
     void Update() {
         if (!g_initialized) return;
-        
+
         std::lock_guard<std::mutex> lock(g_mutex);
         auto now = std::chrono::steady_clock::now();
         g_metrics.last_update = now;
-        
-        // Trim history to max size
+
+
         if (g_fps_history.size() > MAX_HISTORY_SAMPLES) {
             g_fps_history.erase(g_fps_history.begin(), g_fps_history.end() - MAX_HISTORY_SAMPLES);
         }
@@ -72,16 +72,16 @@ namespace HardwareMonitor {
 
     void RecordDMALatency(float read_ms, float write_ms) {
         if (!g_initialized) return;
-        
+
         std::lock_guard<std::mutex> lock(g_mutex);
         g_metrics.dma_read_latency_ms = read_ms;
         g_metrics.dma_write_latency_ms = write_ms;
-        
+
         LatencySample sample;
         sample.latency_ms = read_ms;
         sample.timestamp = std::chrono::steady_clock::now();
         g_latency_history.push_back(sample);
-        
+
         if (g_latency_history.size() > MAX_LATENCY_SAMPLES) {
             g_latency_history.erase(g_latency_history.begin());
         }
@@ -89,21 +89,21 @@ namespace HardwareMonitor {
 
     void RecordEntityCount(int players, int vehicles) {
         if (!g_initialized) return;
-        
+
         std::lock_guard<std::mutex> lock(g_mutex);
         g_metrics.player_count = players;
         g_metrics.vehicle_count = vehicles;
         g_metrics.entity_count = players + vehicles;
         g_entity_history.push_back(g_metrics.entity_count);
-        
+
         if (g_entity_history.size() > MAX_HISTORY_SAMPLES) {
             g_entity_history.erase(g_entity_history.begin());
         }
     }
 
-    void RecordMemoryOp(bool is_read, bool success, float /*latency_ms*/) {
+    void RecordMemoryOp(bool is_read, bool success, float ) {
         if (!g_initialized) return;
-        
+
         std::lock_guard<std::mutex> lock(g_mutex);
         if (is_read) {
             g_metrics.memory_reads++;
@@ -116,12 +116,12 @@ namespace HardwareMonitor {
 
     void RecordFPS(float fps, float frame_time_ms) {
         if (!g_initialized) return;
-        
+
         std::lock_guard<std::mutex> lock(g_mutex);
         g_metrics.fps = fps;
         g_metrics.frame_time_ms = frame_time_ms;
         g_fps_history.push_back(fps);
-        
+
         if (g_fps_history.size() > MAX_HISTORY_SAMPLES) {
             g_fps_history.erase(g_fps_history.begin());
         }
@@ -129,7 +129,7 @@ namespace HardwareMonitor {
 
     void UpdateDeviceStatus(DeviceType type, bool connected, const std::string& port, const std::string& version, const std::string& error) {
         if (!g_initialized) return;
-        
+
         std::lock_guard<std::mutex> lock(g_mutex);
         int idx = static_cast<int>(type);
         if (idx >= 0 && idx < static_cast<int>(DeviceType::Count)) {
@@ -143,7 +143,7 @@ namespace HardwareMonitor {
 
     void SetDeviceEnabled(DeviceType type, bool enabled) {
         if (!g_initialized) return;
-        
+
         std::lock_guard<std::mutex> lock(g_mutex);
         int idx = static_cast<int>(type);
         if (idx >= 0 && idx < static_cast<int>(DeviceType::Count)) {
@@ -151,33 +151,37 @@ namespace HardwareMonitor {
         }
     }
 
-    const DeviceStatus& GetDeviceStatus(DeviceType type) {
-        static DeviceStatus empty;
+    DeviceStatus GetDeviceStatus(DeviceType type) {
         int idx = static_cast<int>(type);
         if (idx >= 0 && idx < static_cast<int>(DeviceType::Count)) {
+            std::lock_guard<std::mutex> lock(g_mutex);
             return g_devices[idx];
         }
-        return empty;
+        return DeviceStatus{};
     }
 
-    const SystemMetrics& GetSystemMetrics() {
+    SystemMetrics GetSystemMetrics() {
+        std::lock_guard<std::mutex> lock(g_mutex);
         return g_metrics;
     }
 
-    const std::vector<LatencySample>& GetLatencyHistory() {
+    std::vector<LatencySample> GetLatencyHistory() {
+        std::lock_guard<std::mutex> lock(g_mutex);
         return g_latency_history;
     }
 
-    const std::vector<float>& GetFPSHistory() {
+    std::vector<float> GetFPSHistory() {
+        std::lock_guard<std::mutex> lock(g_mutex);
         return g_fps_history;
     }
 
-    const std::vector<int>& GetEntityHistory() {
+    std::vector<int> GetEntityHistory() {
+        std::lock_guard<std::mutex> lock(g_mutex);
         return g_entity_history;
     }
 
-    // GPL-007 Fix: lock-free internal variants for callers already holding
-    // g_mutex (e.g. ExportMetrics). The public wrappers never recurse.
+
+
     float GetAverageLatencyLocked(int window_seconds) {
         auto now = std::chrono::steady_clock::now();
         auto cutoff = now - std::chrono::seconds(window_seconds);
@@ -206,35 +210,35 @@ namespace HardwareMonitor {
         return max_lat;
     }
 
-    float GetAverageLatency(DeviceType /*type*/, int window_seconds) {
+    float GetAverageLatency(DeviceType , int window_seconds) {
         std::lock_guard<std::mutex> lock(g_mutex);
         return GetAverageLatencyLocked(window_seconds);
     }
 
-    float GetMaxLatency(DeviceType /*type*/, int window_seconds) {
+    float GetMaxLatency(DeviceType , int window_seconds) {
         std::lock_guard<std::mutex> lock(g_mutex);
         return GetMaxLatencyLocked(window_seconds);
     }
 
     bool IsDeviceHealthy(DeviceType type) {
         const auto& status = GetDeviceStatus(type);
-        if (!status.enabled) return true; // Not enabled = not a problem
+        if (!status.enabled) return true;
         if (!status.connected) return false;
-        
+
         auto now = std::chrono::steady_clock::now();
         auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - status.last_update).count();
-        return elapsed < 10; // Consider stale after 10 seconds
+        return elapsed < 10;
     }
 
     std::string GetDeviceHealthString(DeviceType type) {
         const auto& status = GetDeviceStatus(type);
         if (!status.enabled) return "Disabled";
         if (!status.connected) return "Disconnected";
-        
+
         auto now = std::chrono::steady_clock::now();
         auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - status.last_update).count();
         if (elapsed > 10) return "Stale";
-        
+
         float avg_lat = GetAverageLatency(type, 5);
         if (avg_lat > 50.0f) return "High Latency";
         if (avg_lat > 20.0f) return "Elevated Latency";
@@ -245,7 +249,7 @@ namespace HardwareMonitor {
         std::lock_guard<std::mutex> lock(g_mutex);
         std::ofstream file(path);
         if (!file) return;
-        
+
         file << "{\n";
         file << "  \"timestamp\": \"" << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()) << "\",\n";
         file << "  \"metrics\": {\n";
@@ -287,4 +291,4 @@ namespace HardwareMonitor {
         g_entity_history.clear();
     }
 
-} // namespace HardwareMonitor
+}

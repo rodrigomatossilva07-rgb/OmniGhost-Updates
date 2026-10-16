@@ -63,9 +63,15 @@ int SemVersion::Compare(const SemVersion& other) const {
         const bool leftNumeric = Numeric(prerelease[i]);
         const bool rightNumeric = Numeric(other.prerelease[i]);
         if (leftNumeric && rightNumeric) {
+            // UPD-008 Fix: ParseNumber can fail on > uint64 identifiers;
+            // fall back to lexicographic comparison when it does so the
+            // ordering is still deterministic instead of comparing 0 == 0.
             std::uint64_t left{}, right{};
-            ParseNumber(prerelease[i], left); ParseNumber(other.prerelease[i], right);
-            return left < right ? -1 : 1;
+            const bool leftOk = ParseNumber(prerelease[i], left);
+            const bool rightOk = ParseNumber(other.prerelease[i], right);
+            if (leftOk && rightOk)
+                return left < right ? -1 : 1;
+            return prerelease[i] < other.prerelease[i] ? -1 : 1;
         }
         if (leftNumeric != rightNumeric) return leftNumeric ? -1 : 1;
         return prerelease[i] < other.prerelease[i] ? -1 : 1;

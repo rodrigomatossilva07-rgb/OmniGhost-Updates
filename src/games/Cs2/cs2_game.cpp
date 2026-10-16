@@ -1,4 +1,4 @@
-﻿#include "cs2_game.h"
+#include "cs2_game.h"
 #include "radar/cs2_radar.h"
 #include "platform/session_log.h"
 #include "../src/platform/offset_auto.h"
@@ -15,7 +15,6 @@
 #include "trajectory/cs2_map_collision_cache.h"
 #include "trajectory/cs2_visibility.h"
 #include "gameplay/unified_esp.h"
-#include "unified_adapter.h"
 #include "runtime/cs2_camera.h"
 #include "runtime/cs2_runtime.h"
 #include "visibility/cs2_visibility_worker.h"
@@ -27,7 +26,7 @@
 
 #include <Windows.h>
 #include <TlHelp32.h>
-#include <xmmintrin.h> // SSE intrinsics for _mm_rsqrt_ss
+#include <xmmintrin.h>
 #include <fstream>
 #include <sstream>
 #include <iostream>
@@ -77,20 +76,20 @@ using Metadata::FormatDroppedWeaponName;
 using Metadata::IsBotPlayerName;
 using Metadata::IsDroppedWeaponClass;
 
-// Multi-rate acquisition profile — IDENTICAL to FiveM for parity
-//  - Camera: 16 ms (62.5 Hz) — highest priority, dedicated thread
-//  - Core world (position/health/velocity): 18 ms (~55 Hz) — adaptive with pressure
-//  - Bones: 24 ms (~42 Hz) — LOD-based, optional lane
-//  - Weapons/Names/Flags: 200ms/1s/500ms — optional lane
-//  - Optional budget: 6 ms/frame — shed before core ever loses priority
-// Presentation extrapolates briefly from timestamped world samples at overlay FPS.
+
+
+
+
+
+
+
 namespace {
 
-// Dynamic interval calculator — adapts to entity count, DMA latency, and pressure
+
 struct DynamicIntervals {
-    int camera_ms = 16;           // Fixed at 16ms (62.5 Hz) - highest priority
-    int bones_ms = 24;            // Near skeleton tier (~42 Hz)
-    int full_scan_ms = 18;        // Position / HP / core identity
+    int camera_ms = 16;
+    int bones_ms = 24;
+    int full_scan_ms = 18;
     int weapon_ms = 200;
     int weapon_fallback_ms = 3000;
     int entity_list_ms = 1000;
@@ -99,44 +98,44 @@ struct DynamicIntervals {
     int bone_reliability_hold_ms = kBoneReliabilityHoldMs;
     int team_ms = 500;
 
-    // Update intervals based on current conditions
-    void Update(int entity_count, float dma_latency_ms, int pressure_level, float /*optional_budget_ms*/) {
-        // BUG-026 Fix: Use MAX instead of multiply to avoid aggressive compounding.
-        // Each factor independently extends intervals; we take the dominant one.
+
+    void Update(int entity_count, float dma_latency_ms, int pressure_level, float ) {
+
+
         float entity_mult = 1.0f;
         if (entity_count > 48) entity_mult = 1.5f;
         else if (entity_count > 32) entity_mult = 1.25f;
         else if (entity_count > 16) entity_mult = 1.1f;
 
-        // DMA latency multiplier (cap at 2x)
+
         float latency_mult = 1.0f + std::min(dma_latency_ms / 50.f, 1.0f);
 
-        // Pressure multiplier
+
         float pressure_mult = 1.0f;
         if (pressure_level >= 3) pressure_mult = 2.0f;
         else if (pressure_level == 2) pressure_mult = 1.5f;
         else if (pressure_level == 1) pressure_mult = 1.25f;
 
-        // BUG-026: Take the maximum factor instead of multiplying (prevents 1.5*1.5*2 = 4.5x)
+
         float total_mult = std::max({entity_mult, latency_mult, pressure_mult});
         total_mult = std::clamp(total_mult, 1.0f, 3.0f);
 
         bones_ms = static_cast<int>(std::round(24.f * total_mult));
         full_scan_ms = static_cast<int>(std::round(18.f * total_mult));
-        // Camera stays fixed at 16ms for visual fluidity
+
         camera_ms = 16;
     }
 };
 
 DynamicIntervals g_intervals;
 
-// Optional lane budget (ms) — MUST match FiveM's 6 ms to prevent core starvation
+
 constexpr float kOptionalBudgetMs = 6.f;
 
-// AUDIT-006: Keep constants for backward compatibility in other modules
+
 constexpr int CAMERA_INTERVAL_MS = 16;
-constexpr int BONES_INTERVAL_MS = 24;       // near skeleton tier (~42 Hz)
-constexpr int FULL_SCAN_INTERVAL_MS = 18;   // position / HP / core identity
+constexpr int BONES_INTERVAL_MS = 24;
+constexpr int FULL_SCAN_INTERVAL_MS = 18;
 constexpr int WEAPON_INTERVAL_MS = 200;
 constexpr int WEAPON_FALLBACK_INTERVAL_MS = 3000;
 constexpr int ENTITY_LIST_INTERVAL_MS = 1000;
@@ -145,7 +144,7 @@ constexpr int NAME_INTERVAL_MS = 1000;
 constexpr int BONE_RELIABILITY_HOLD_MS = kBoneReliabilityHoldMs;
 constexpr int TEAM_INTERVAL_MS = 500;
 
-// Pressure thresholds — IDENTICAL to FiveM esp_manager.cpp lines 722-743
+
 constexpr float PRESSURE_ENTER_L1_WORK = 35.f;
 constexpr float PRESSURE_ENTER_L1_P95 = 32.f;
 constexpr float PRESSURE_ENTER_L2_WORK = 55.f;
@@ -158,11 +157,11 @@ constexpr float PRESSURE_EXIT_L2_WORK = 26.f;
 constexpr float PRESSURE_EXIT_L2_P95 = 30.f;
 constexpr float PRESSURE_EXIT_L1_WORK = 20.f;
 constexpr float PRESSURE_EXIT_L1_P95 = 24.f;
-constexpr int PRESSURE_HEALTHY_SCANS_TO_RECOVER = 12; // ~250 ms
+constexpr int PRESSURE_HEALTHY_SCANS_TO_RECOVER = 12;
 }
 
-// AUDIT-002: Consolidated acquisition state machine — replaces 5+ atomic bools
-// with a single atomic state enum for clearer transitions and race-free checks.
+
+
 enum class AcquisitionState : uint8_t {
     Uninitialized = 0,
     Starting,
@@ -171,7 +170,7 @@ enum class AcquisitionState : uint8_t {
     Stopped
 };
 
-// Forward declarations for optional enrichment pipeline
+
 struct OptionalTarget;
 struct OptionalBoneResult;
 struct OptionalNameResult;
@@ -188,13 +187,13 @@ struct AcquisitionStateMachine {
     Config optional_config{};
     std::atomic<uint64_t> optional_job_generation{0};
 
-    // Optional work data (public for access from .inl files)
+
     bool g_optional_in_match = false;
     bool g_optional_dropped_only = false;
     uintptr_t g_optional_client_base = 0;
     std::vector<OptionalTarget> g_optional_targets;
 
-    // Acquisition thread control
+
     bool TryStart() {
         AcquisitionState current = state.load(std::memory_order_acquire);
         while (current == AcquisitionState::Uninitialized ||
@@ -224,7 +223,7 @@ struct AcquisitionStateMachine {
         return s == AcquisitionState::Stopping || s == AcquisitionState::Stopped;
     }
 
-    // Optional work control (replaces g_optional_stop/busy/pending)
+
     bool TryQueueOptional() {
         if (optional_busy.load(std::memory_order_acquire) ||
             optional_pending.load(std::memory_order_acquire) ||
@@ -259,21 +258,21 @@ struct AcquisitionStateMachine {
     }
     void RequestStop() {
         state.store(AcquisitionState::Stopping, std::memory_order_release);
-        optional_pending.store(true, std::memory_order_release); // wake worker
+        optional_pending.store(true, std::memory_order_release);
         optional_cv.notify_all();
     }
 
-    // Compatibility: AcquisitionRunning() equivalent
+
     bool IsAcquisitionRunning() const noexcept { return IsRunning(); }
 };
 
-// ── Optional enrichment pipeline (P0 fix: strict single-producer) ─────────
-// The optional worker never touches the global `runtime` and never publishes
-// g_runtime_snapshots. It consumes an immutable job snapshot taken by the
-// acquisition thread and publishes OptionalResults on its OWN exchange.
-// The acquisition thread merges results at the start of the next scan into
-// its own caches (bone_cache / recent_players) and is therefore the only
-// writer of runtime.players and the only producer of g_runtime_snapshots.
+
+
+
+
+
+
+
 struct OptionalTarget {
     uintptr_t pawn = 0;
     uintptr_t controller = 0;
@@ -285,7 +284,7 @@ struct OptionalTarget {
 struct OptionalBoneResult {
     uintptr_t pawn = 0;
     uintptr_t bone_base = 0;
-    // Use 20 bones (kBoneSlotCount) instead of 31 - CS2 only uses 20 slots
+
     std::array<std::array<float, 3>, kBoneSlotCount> bones{};
     float origin[3]{};
     uint64_t sample_ms = 0;
@@ -293,14 +292,14 @@ struct OptionalBoneResult {
     bool full_bones_ok = false;
 };
 struct OptionalNameResult { uintptr_t pawn = 0; uintptr_t controller = 0; char name[64]{}; };
-struct OptionalWeaponResult { uintptr_t pawn = 0; int weapon_def = 0; char weapon[32]{}; int ammo_clip = -1; };
+struct OptionalWeaponResult { uintptr_t pawn = 0; int weapon_def = 0; char weapon[32]{}; int ammo_clip = -1; int ammo_reserve = -1; };
 struct OptionalVisibilityResult {
     uintptr_t pawn = 0;
     bool visible = false;
     bool known = false;
     uint64_t checked_ms = 0;
 };
-// AUDIT-007: Reduced array sizes from 64 to 32 for memory pressure (3 slots × smaller struct)
+
 constexpr size_t kOptionalMaxPlayers = 32;
 struct OptionalResults {
     uint64_t generation = 0;
@@ -320,11 +319,11 @@ struct OptionalResults {
     bool dropped_weapons_valid = false;
 };
 
-// Global state machine instance
+
 AcquisitionStateMachine g_acqState;
 
 std::atomic<float> g_presentation_fps{0.f};
-bool g_publish_runtime_this_scan = true; // acquisition producer only
+bool g_publish_runtime_this_scan = true;
 auto& g_session_generation = CacheManager::session_generation;
 std::mutex g_process_liveness_mutex;
 uint64_t g_process_liveness_next_probe_ms = 0;
@@ -332,12 +331,12 @@ std::atomic_bool g_process_liveness_last_result{true};
 std::thread g_acquisition_thread;
 std::thread g_camera_thread;
 std::thread g_web_radar_control_thread;
-// Optional DMA lane (bones/weapons/names/flags/dropped). Runs after core
-// publish so the next core scan is never blocked by metadata work.
+
+
 std::thread g_optional_thread;
 
-// P2-4: Single-producer, single-consumer via std::swap() under g_optional_mu.
-// Acquisition writes under mutex; optional thread reads via swap() (ownership transfer).
+
+
 std::vector<OptionalTarget> g_optional_targets;
 bool g_optional_in_match = false;
 bool g_optional_dropped_only = false;
@@ -349,14 +348,14 @@ std::atomic_bool g_web_radar_desired_cloudflare{false};
 std::atomic<int> g_web_radar_desired_port{8080};
 OmniGhost::Gameplay::PipelineTelemetry g_pipeline_metrics;
 
-OmniGhost::Gameplay::SnapshotExchange<OptionalResults, 3> g_optional_results; // producer: optional thread only
+OmniGhost::Gameplay::SnapshotExchange<OptionalResults, 3> g_optional_results;
 
 VisibilityPipeline::Worker g_visibility_worker;
 
-// Optional DMA lanes must not monopolise the FT601 transport while the
-// camera deadline is due. We spin-yield until the camera worker clears the
-// pending flag or a short wall-clock cap elapses — never Sleep() here (a 1 ms
-// sleep on Windows can consume a full ~15.6 ms scheduler tick).
+
+
+
+
 
 void PublishRuntimeSnapshot() {
     RuntimePipeline::Publish(
@@ -426,12 +425,12 @@ std::string ExeDir() {
     return fs::path(buf).parent_path().string();
 }
 
-// A transport pause must stop the current producer from immediately queuing
-// more physical reads. Definitions live below the shared DMA state.
+
+
 static bool HeavyDmaCooldownActive();
 static void NotePossibleDeviceStall(float duration_ms);
 
-// Quiet read — avoids flooding log with "[!] Failed to read Memory"
+
 bool QRead(uintptr_t addr, void* buf, size_t size, const char* tag = "QRead") {
     if (!addr || !buf || !size || !mem.vHandle) return false;
     if (addr < 0x10000) return false;
@@ -447,16 +446,16 @@ bool QRead(uintptr_t addr, void* buf, size_t size, const char* tag = "QRead") {
     return true;
 }
 
-// Camera-only non-blocking read. A busy transport is not a read failure and
-// does not consume the camera cadence; the worker retries on its next wake-up.
-// Respects HeavyDmaCooldownActive to maintain temporal consistency with core.
+
+
+
 bool QTryRead(uintptr_t addr, void* buf, size_t size, bool& attempted,
               const char* tag = "QTryRead") {
     attempted = false;
     if (!addr || !buf || !size || !mem.vHandle || addr < 0x10000)
         return false;
-    // P0-5: Respect heavy-lane cooldown to avoid camera/core temporal skew.
-    // Return attempted=false so camera thread yields and retries next cycle.
+
+
     if (HeavyDmaCooldownActive())
         return false;
     mem.SetDmaCallTag(tag);
@@ -482,8 +481,8 @@ bool QReadT(uintptr_t addr, T& out, const char* tag = "QRead") {
     return QRead(addr, &out, sizeof(T), tag);
 }
 
-// Persistent scatter handle — N sequential DMA reads → 1 round-trip. Ownership
-// is explicit so every shutdown/error path closes the native resource once.
+
+
 class ScatterHandleOwner {
 public:
     ScatterHandleOwner() = default;
@@ -510,10 +509,10 @@ private:
 };
 
 ScatterHandleOwner g_scatter_full;
-ScatterHandleOwner g_scatter_optional; // optional lane only — never shared with core/camera
+ScatterHandleOwner g_scatter_optional;
 Collision::Loader g_collision_loader;
-// Per-scan phase timings for SPIKE_BREAKDOWN (acquisition thread only).
-// Includes previously-unaccounted sub-phases so other_ms collapses to near zero.
+
+
 using Cs2PhaseTiming = Telemetry::PhaseTiming;
 auto& g_scan_id = Telemetry::scan_id;
 auto& g_phase = Telemetry::phase;
@@ -534,7 +533,7 @@ static void NotePossibleDeviceStall(float duration_ms) {
 
 
 
-uintptr_t g_cached_entity_root = 0; // refreshed once per frame when scanning
+uintptr_t g_cached_entity_root = 0;
 
 void EnsureScatter() {
     g_scatter_full.Ensure();
@@ -570,8 +569,8 @@ constexpr EntityHandleParts DecodeEntityHandle(uint32_t handle) noexcept {
 static_assert(DecodeEntityHandle(0x201u).page == 1u);
 static_assert(DecodeEntityHandle(0x201u).index == 1u);
 
-// The master ESP toggle alone must not keep the player pipeline alive. Every
-// listed element maps to an actual player visual/read path below.
+
+
 static bool HasEnabledPlayerVisuals(const Config& c) {
     if (!c.esp_enabled) return false;
     return c.box || c.box_corner || c.skeleton || c.health_bar || c.armor_bar ||
@@ -581,13 +580,13 @@ static bool HasEnabledPlayerVisuals(const Config& c) {
         c.floating_crown;
 }
 
-// True only when some feature actually needs the player list this frame.
-// With everything OFF this is false → RunFrame is nearly free (target 130+ FPS).
+
+
 bool NeedsPlayerScan(const Config& frame_config) {
+
     return HasEnabledPlayerVisuals(frame_config)
         || frame_config.aim_enabled
         || frame_config.trigger_enabled
-        || frame_config.radar_2d
         || frame_config.webradar_enabled
         || frame_config.spectator_list
         || frame_config.bomb_timer
@@ -676,16 +675,16 @@ bool ProbeViewMatrix(float* destination = nullptr) {
     return true;
 }
 
-} // namespace
+}
 
 #include "offsets/cs2_offsets_pipeline.inl"
 #include "session/cs2_session.inl"
 #include "dropped_items/cs2_dropped_items.inl"
 #include "core/cs2_core_acquisition.inl"
 #include "bomb/cs2_bomb.inl"
-// Returns false when the camera lane is still busy after the wait budget —
-// callers should skip/abandon this optional batch so the camera keeps priority.
-// Uses shared implementation from CameraPriority.
+
+
+
 bool GiveCameraPriorityBeforeOptionalDma() {
     struct CameraState : OmniGhost::Gameplay::CameraPriority::ICameraState {
         bool IsPending() const noexcept override { return Camera::Pending(); }
@@ -695,8 +694,8 @@ bool GiveCameraPriorityBeforeOptionalDma() {
     return OmniGhost::Gameplay::CameraPriority::GiveCameraPriority(state);
 }
 
-// True when optional DMA should pause before starting another micro-batch
-// because the camera deadline is imminent or a camera read is in flight.
+
+
 [[maybe_unused]] static bool OptionalDmaShouldYieldToCamera() noexcept {
     struct CameraState : OmniGhost::Gameplay::CameraPriority::ICameraState {
         bool IsPending() const noexcept override { return Camera::Pending(); }
@@ -706,8 +705,8 @@ bool GiveCameraPriorityBeforeOptionalDma() {
     return OmniGhost::Gameplay::CameraPriority::ShouldYieldToCamera(state);
 }
 
-// Use the same camera priority logic as GiveCameraPriorityBeforeOptionalDma
-// but without the spin loop - just a quick check for yield decision.
+
+
 static bool ShouldYieldToCameraQuick() noexcept {
     struct CameraState : OmniGhost::Gameplay::CameraPriority::ICameraState {
         bool IsPending() const noexcept override { return Camera::Pending(); }
@@ -717,10 +716,10 @@ static bool ShouldYieldToCameraQuick() noexcept {
     return OmniGhost::Gameplay::CameraPriority::ShouldYieldToCamera(state);
 }
 
-// ── Optional enrichment worker ───────────────────────────────────────────
-// Core acquisition publishes position/health/velocity/liveness then returns.
-// This worker refreshes bones, names, weapons, flags and dropped items using
-// the already-published player list so the next core scan is never blocked.
+
+
+
+
 #include "bones/cs2_bones_pipeline.inl"
 #include "runtime/cs2_optional_lane.inl"
 #include "spectators/cs2_spectators.inl"
@@ -728,4 +727,4 @@ static bool ShouldYieldToCameraQuick() noexcept {
 #include "runtime/cs2_runtime_threads.inl"
 #include "session/cs2_lifecycle.inl"
 #include "offsets/cs2_offset_validation.inl"
-} // namespace CS2
+}

@@ -29,4 +29,4 @@ namespace aimbot {
     void ApplyLegitProfile();
     void ApplyRageProfile();
 
-} // namespace aimbot
+}

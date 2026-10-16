@@ -54,7 +54,7 @@ bool SafeName(const std::string& value) {
            value.ends_with(".zip");
 }
 
-} // namespace
+}
 
 ManifestResult ParseAndValidateManifest(const std::string& json, const Configuration& config,
                                         const std::string& architecture) {
@@ -177,4 +177,4 @@ const Package* SelectPackage(const Manifest& manifest, const std::string& archit
     return nullptr;
 }
 
-} // namespace OmniGhost::Update
+}

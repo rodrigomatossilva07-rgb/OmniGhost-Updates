@@ -17,8 +17,8 @@ enum class ShutdownState : std::uint8_t {
     Running, ShutdownRequested, ShuttingDown, Complete
 };
 
-// Single process-wide authority for teardown ordering. Registrations are
-// component keyed, run at most once, and execute without holding the mutex.
+
+
 class ShutdownCoordinator final {
 public:
     using Callback = std::function<void()>;
@@ -51,4 +51,4 @@ private:
 
 const char* ShutdownComponentName(ShutdownComponent component) noexcept;
 
-} // namespace OmniGhost::Platform
+}

@@ -6,7 +6,7 @@
 int width = GetSystemMetrics(0);
 int height = GetSystemMetrics(1);
 
-// FIXED: Made world_to_screen const-correct by adding const keyword
+
 bool Vec3::world_to_screen(const DirectX::SimpleMath::Matrix& view_matrix, Vec2& out) const
 {
 	Matrix v = view_matrix.Transpose();
@@ -31,7 +31,7 @@ bool Vec3::world_to_screen(const DirectX::SimpleMath::Matrix& view_matrix, Vec2&
 	screen_pos.x *= screen_pos.z;
 	screen_pos.y *= screen_pos.z;
 
-	// Prefer live overlay / ImGui display size over process-start metrics
+
 	float sw = (float)width;
 	float sh = (float)height;
 	if (ImGui::GetCurrentContext()) {

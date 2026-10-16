@@ -28,10 +28,10 @@ bool ReadU64(uintptr_t addr, uintptr_t& out) {
     return mem.Read(addr, &out, sizeof(out));
 }
 
-// ---- DMA adapter for the Blonde94 / UC decrypt primitives ----
+
 using ReadFn = bool(*)(void* ctx, std::uint64_t addr, void* dst, std::size_t size);
 
-bool DmaReadFn(void* /*ctx*/, std::uint64_t addr, void* dst, std::size_t size) {
+bool DmaReadFn(void* , std::uint64_t addr, void* dst, std::size_t size) {
     if (!addr || !dst || !size) return false;
     return mem.Read((uintptr_t)addr, dst, size);
 }
@@ -47,8 +47,8 @@ inline bool is_heap(std::uint64_t p) {
     return p >= 0x10000ull && p <= 0x00007FFFFFFFFFFFull;
 }
 
-// Runtime RVAs are loaded exclusively from data/warzone_offsets.json (or its
-// generated embedded copy). Keeping zero defaults makes missing data fail closed.
+
+
 namespace wz_rva {
     inline std::uint64_t client_info_enc = 0;
     inline std::uint64_t client_info_key = 0;
@@ -73,7 +73,7 @@ void SyncRvaFromOffsets() {
     wz_rva::camera_pos_key = offsets.camera_pos_key;
 }
 
-// Throttled debug
+
 void LogCi(uintptr_t mb, uintptr_t raw, uintptr_t result, int mode, const char* reason) {
     static uint64_t last = 0;
     const uint64_t now = GetTickCount64();
@@ -125,9 +125,9 @@ inline std::uint64_t get_refdef_ptr(ReadFn fn, void* ctx, std::uint64_t base) {
     return is_heap(p) ? p : 0;
 }
 
-// ---- Live STEAM decrypts (0x6A6D4AEF) ----
-// Blonde94 / UC steam 0x6A6D4AEF — MUST use rdx = ~peb (not base).
-// mode: 0=~peb  1=peb  2=base  3=0  (0 is correct; others for probe only)
+
+
+
 inline std::uint64_t decrypt_client_info_mode(ReadFn fn, void* ctx, std::uint64_t base, std::uint64_t peb, int mode)
 {
     if (!base) return 0;
@@ -157,7 +157,7 @@ inline std::uint64_t decrypt_client_info_mode(ReadFn fn, void* ctx, std::uint64_
     rbx -= rdx;
     rbx += rax;
     rbx ^= r9;
-    // Multiplier table: *(~key + 0x19) — must be readable
+
     const std::uint64_t mul = rd<std::uint64_t>(fn, ctx, rcx + 0x19);
     if (!mul) return 0;
     rbx *= mul;
@@ -167,12 +167,12 @@ inline std::uint64_t decrypt_client_info_mode(ReadFn fn, void* ctx, std::uint64_
 inline std::uint64_t decrypt_client_info(ReadFn fn, void* ctx, std::uint64_t base, std::uint64_t peb)
 {
     if (!peb) return 0;
-    // Correct path first
+
     {
         const std::uint64_t p = decrypt_client_info_mode(fn, ctx, base, peb, 0);
         if (is_heap(p)) return p;
     }
-    // Fallbacks only if ~peb failed (wrong PEB?)
+
     for (int mode = 1; mode < 4; ++mode) {
         const std::uint64_t p = decrypt_client_info_mode(fn, ctx, base, peb, mode);
         if (is_heap(p)) return p;
@@ -180,7 +180,7 @@ inline std::uint64_t decrypt_client_info(ReadFn fn, void* ctx, std::uint64_t bas
     return decrypt_client_info_mode(fn, ctx, base, peb, 0);
 }
 
-// Which PEB mode produced a heap client_info (-1 = none)
+
 inline int probe_client_info_mode(ReadFn fn, void* ctx, std::uint64_t base, std::uint64_t peb)
 {
     for (int mode = 0; mode < 4; ++mode) {
@@ -198,577 +198,577 @@ inline std::uint64_t decrypt_client_base(ReadFn fn, void* ctx, std::uint64_t bas
     r8 = rd<std::uint64_t>(fn, ctx, client_info + wz_rva::client_base_enc);
     if(!r8)
         return r8;
-    rbx = peb;         //mov rbx, gs:[rax]
-    rax = rbx;         //mov rax, rbx
-    rax <<= 0x23;         //shl rax, 0x23
-    rax = _byteswap_uint64(rax);         //bswap rax
+    rbx = peb;
+    rax = rbx;
+    rax <<= 0x23;
+    rax = _byteswap_uint64(rax);
     rax &= 0xF;
     switch(rax) {
     case 0:
     {
-        r10 = rd<std::uint64_t>(fn, ctx, base + wz_rva::client_base_key);         //mov r10, [0x0000000009D35834]
-        rax = base;         //lea rax, [0xFFFFFFFFFC405EDA]
-        r8 -= rax;         //sub r8, rax
-        rax = r8;         //mov rax, r8
-        rax >>= 0x1E;         //shr rax, 0x1E
-        rax ^= r8;         //xor rax, r8
-        r8 = rax;         //mov r8, rax
-        r8 >>= 0x3C;         //shr r8, 0x3C
-        r8 ^= rax;         //xor r8, rax
-        rax = base;         //lea rax, [0xFFFFFFFFFC405CBE]
-        r8 -= rax;         //sub r8, rax
-        rax = r8;         //mov rax, r8
-        rax >>= 0x28;         //shr rax, 0x28
-        r8 ^= rax;         //xor r8, rax
-        rax = 0;         //and rax, 0xFFFFFFFFC0000000
-        rax = _rotl64(rax, 0x10);         //rol rax, 0x10
-        rax ^= r10;         //xor rax, r10
-        rax = ~rax;         //not rax
-        r8 *= rd<std::uint64_t>(fn, ctx, rax + 0x9);         //imul r8, [rax+0x09]
-        rax = 0x9CC8E0420ADA280D;         //mov rax, 0x9CC8E0420ADA280D
-        rax *= r8;         //imul rax, r8
-        rax += rbx;         //add rax, rbx
-        r8 = rax;         //mov r8, rax
-        r8 >>= 0x11;         //shr r8, 0x11
-        r8 ^= rax;         //xor r8, rax
-        rax = r8;         //mov rax, r8
-        rax >>= 0x22;         //shr rax, 0x22
-        r8 ^= rax;         //xor r8, rax
+        r10 = rd<std::uint64_t>(fn, ctx, base + wz_rva::client_base_key);
+        rax = base;
+        r8 -= rax;
+        rax = r8;
+        rax >>= 0x1E;
+        rax ^= r8;
+        r8 = rax;
+        r8 >>= 0x3C;
+        r8 ^= rax;
+        rax = base;
+        r8 -= rax;
+        rax = r8;
+        rax >>= 0x28;
+        r8 ^= rax;
+        rax = 0;
+        rax = _rotl64(rax, 0x10);
+        rax ^= r10;
+        rax = ~rax;
+        r8 *= rd<std::uint64_t>(fn, ctx, rax + 0x9);
+        rax = 0x9CC8E0420ADA280D;
+        rax *= r8;
+        rax += rbx;
+        r8 = rax;
+        r8 >>= 0x11;
+        r8 ^= rax;
+        rax = r8;
+        rax >>= 0x22;
+        r8 ^= rax;
         return r8;
     }
     case 1:
     {
-        r10 = rd<std::uint64_t>(fn, ctx, base + wz_rva::client_base_key);         //mov r10, [0x0000000009D3539D]
-        r15 = base + 0x755F7BDD;         //lea r15, [0x00000000719FD7B8]
-        rax = r8;         //mov rax, r8
-        rax >>= 0x9;         //shr rax, 0x09
-        rax ^= r8;         //xor rax, r8
-        r8 = rax;         //mov r8, rax
-        r8 >>= 0x12;         //shr r8, 0x12
-        r8 ^= rax;         //xor r8, rax
-        rax = r8;         //mov rax, r8
-        rax >>= 0x24;         //shr rax, 0x24
-        r8 ^= rax;         //xor r8, rax
-        r8 ^= rbx;         //xor r8, rbx
-        rcx = 0;         //and rcx, 0xFFFFFFFFC0000000
-        rcx = _rotl64(rcx, 0x10);         //rol rcx, 0x10
-        rcx ^= r10;         //xor rcx, r10
-        rcx = ~rcx;         //not rcx
-        r8 *= rd<std::uint64_t>(fn, ctx, rcx + 0x9);         //imul r8, [rcx+0x09]
-        rcx = base;         //lea rcx, [0xFFFFFFFFFC405841]
-        rax = rbx;         //mov rax, rbx
-        rax -= rcx;         //sub rax, rcx
-        rax += 0xFFFFFFFF9F0CFAED;         //add rax, 0xFFFFFFFF9F0CFAED
-        r8 += rax;         //add r8, rax
-        rax = 0x40ED86BABDEA8F5B;         //mov rax, 0x40ED86BABDEA8F5B
-        r8 *= rax;         //imul r8, rax
-        rax = 0xA7798517B7F399EA;         //mov rax, 0xA7798517B7F399EA
-        r8 ^= rax;         //xor r8, rax
-        rax = r15;         //mov rax, r15
-        rax = ~rax;         //not rax
-        rax ^= rbx;         //xor rax, rbx
-        r8 += rax;         //add r8, rax
-        rax = 0x459093E765583ADB;         //mov rax, 0x459093E765583ADB
-        r8 *= rax;         //imul r8, rax
+        r10 = rd<std::uint64_t>(fn, ctx, base + wz_rva::client_base_key);
+        r15 = base + 0x755F7BDD;
+        rax = r8;
+        rax >>= 0x9;
+        rax ^= r8;
+        r8 = rax;
+        r8 >>= 0x12;
+        r8 ^= rax;
+        rax = r8;
+        rax >>= 0x24;
+        r8 ^= rax;
+        r8 ^= rbx;
+        rcx = 0;
+        rcx = _rotl64(rcx, 0x10);
+        rcx ^= r10;
+        rcx = ~rcx;
+        r8 *= rd<std::uint64_t>(fn, ctx, rcx + 0x9);
+        rcx = base;
+        rax = rbx;
+        rax -= rcx;
+        rax += 0xFFFFFFFF9F0CFAED;
+        r8 += rax;
+        rax = 0x40ED86BABDEA8F5B;
+        r8 *= rax;
+        rax = 0xA7798517B7F399EA;
+        r8 ^= rax;
+        rax = r15;
+        rax = ~rax;
+        rax ^= rbx;
+        r8 += rax;
+        rax = 0x459093E765583ADB;
+        r8 *= rax;
         return r8;
     }
     case 2:
     {
-        r10 = rd<std::uint64_t>(fn, ctx, base + wz_rva::client_base_key);         //mov r10, [0x0000000009D34F4F]
-        r14 = base + 0xAC81;         //lea r14, [0xFFFFFFFFFC410413]
-        rax = 0xE03443781C6DB26D;         //mov rax, 0xE03443781C6DB26D
-        r8 *= rax;         //imul r8, rax
-        rax = 0x26676A6627BAC50C;         //mov rax, 0x26676A6627BAC50C
-        r8 -= rax;         //sub r8, rax
-        rax = 0x541ECC7788F37ADE;         //mov rax, 0x541ECC7788F37ADE
-        r8 += rax;         //add r8, rax
-        r8 += r14;         //add r8, r14
-        rax = base + 0x142;         //lea rax, [0xFFFFFFFFFC405492]
-        rax = ~rax;         //not rax
-        rcx = rbx;         //mov rcx, rbx
-        rcx = ~rcx;         //not rcx
-        rcx -= rbx;         //sub rcx, rbx
-        rcx += rax;         //add rcx, rax
-        r8 += rcx;         //add r8, rcx
-        rax = r8;         //mov rax, r8
-        rax >>= 0x15;         //shr rax, 0x15
-        r8 ^= rax;         //xor r8, rax
-        rax = r8;         //mov rax, r8
-        rax >>= 0x2A;         //shr rax, 0x2A
-        r8 ^= rax;         //xor r8, rax
-        rax = base;         //lea rax, [0xFFFFFFFFFC4052F1]
-        r8 -= rax;         //sub r8, rax
-        rax = 0;         //and rax, 0xFFFFFFFFC0000000
-        rax = _rotl64(rax, 0x10);         //rol rax, 0x10
-        rax ^= r10;         //xor rax, r10
-        rax = ~rax;         //not rax
-        r8 *= rd<std::uint64_t>(fn, ctx, rax + 0x9);         //imul r8, [rax+0x09]
+        r10 = rd<std::uint64_t>(fn, ctx, base + wz_rva::client_base_key);
+        r14 = base + 0xAC81;
+        rax = 0xE03443781C6DB26D;
+        r8 *= rax;
+        rax = 0x26676A6627BAC50C;
+        r8 -= rax;
+        rax = 0x541ECC7788F37ADE;
+        r8 += rax;
+        r8 += r14;
+        rax = base + 0x142;
+        rax = ~rax;
+        rcx = rbx;
+        rcx = ~rcx;
+        rcx -= rbx;
+        rcx += rax;
+        r8 += rcx;
+        rax = r8;
+        rax >>= 0x15;
+        r8 ^= rax;
+        rax = r8;
+        rax >>= 0x2A;
+        r8 ^= rax;
+        rax = base;
+        r8 -= rax;
+        rax = 0;
+        rax = _rotl64(rax, 0x10);
+        rax ^= r10;
+        rax = ~rax;
+        r8 *= rd<std::uint64_t>(fn, ctx, rax + 0x9);
         return r8;
     }
     case 3:
     {
-        r10 = rd<std::uint64_t>(fn, ctx, base + wz_rva::client_base_key);         //mov r10, [0x0000000009D34A72]
-        r13 = base + 0xF26D;         //lea r13, [0xFFFFFFFFFC414522]
-        r8 ^= rbx;         //xor r8, rbx
-        rcx = 0;         //and rcx, 0xFFFFFFFFC0000000
-        rcx = _rotl64(rcx, 0x10);         //rol rcx, 0x10
-        rcx ^= r10;         //xor rcx, r10
-        rcx = ~rcx;         //not rcx
-        r8 *= rd<std::uint64_t>(fn, ctx, rcx + 0x9);         //imul r8, [rcx+0x09]
-        rax = 0x6C5618A3BE4C414;         //mov rax, 0x6C5618A3BE4C414
-        r8 -= rax;         //sub r8, rax
-        rax = 0xE98709096AD185CC;         //mov rax, 0xE98709096AD185CC
-        r8 ^= rax;         //xor r8, rax
-        rax = r8;         //mov rax, r8
-        rax >>= 0xB;         //shr rax, 0x0B
-        rax ^= r8;         //xor rax, r8
-        r8 = base + 0x5ED318FB;         //lea r8, [0x000000005B136A8B]
-        rcx = rax;         //mov rcx, rax
-        r8 = ~r8;         //not r8
-        r8 *= rbx;         //imul r8, rbx
-        rcx >>= 0x16;         //shr rcx, 0x16
-        rcx ^= rax;         //xor rcx, rax
-        rax = rcx;         //mov rax, rcx
-        rax >>= 0x2C;         //shr rax, 0x2C
-        r8 ^= rax;         //xor r8, rax
-        r8 ^= rcx;         //xor r8, rcx
-        rax = 0x22A1571E2E749CB;         //mov rax, 0x22A1571E2E749CB
-        r8 *= rax;         //imul r8, rax
-        rax = rbx;         //mov rax, rbx
-        rax *= r13;         //imul rax, r13
-        r8 += rax;         //add r8, rax
+        r10 = rd<std::uint64_t>(fn, ctx, base + wz_rva::client_base_key);
+        r13 = base + 0xF26D;
+        r8 ^= rbx;
+        rcx = 0;
+        rcx = _rotl64(rcx, 0x10);
+        rcx ^= r10;
+        rcx = ~rcx;
+        r8 *= rd<std::uint64_t>(fn, ctx, rcx + 0x9);
+        rax = 0x6C5618A3BE4C414;
+        r8 -= rax;
+        rax = 0xE98709096AD185CC;
+        r8 ^= rax;
+        rax = r8;
+        rax >>= 0xB;
+        rax ^= r8;
+        r8 = base + 0x5ED318FB;
+        rcx = rax;
+        r8 = ~r8;
+        r8 *= rbx;
+        rcx >>= 0x16;
+        rcx ^= rax;
+        rax = rcx;
+        rax >>= 0x2C;
+        r8 ^= rax;
+        r8 ^= rcx;
+        rax = 0x22A1571E2E749CB;
+        r8 *= rax;
+        rax = rbx;
+        rax *= r13;
+        r8 += rax;
         return r8;
     }
     case 4:
     {
-        r10 = rd<std::uint64_t>(fn, ctx, base + wz_rva::client_base_key);         //mov r10, [0x0000000009D345F4]
-        r15 = base + 0x72D0A311;         //lea r15, [0x000000006F10F143]
-        rax = 0x54EE9012A77B3C0E;         //mov rax, 0x54EE9012A77B3C0E
-        r8 ^= rax;         //xor r8, rax
-        rax = base;         //lea rax, [0xFFFFFFFFFC4049E1]
-        rax += 0x432D;         //add rax, 0x432D
-        rax += rbx;         //add rax, rbx
-        r8 += rax;         //add r8, rax
-        rax = 0xBE6A84FFF3304C3D;         //mov rax, 0xBE6A84FFF3304C3D
-        r8 *= rax;         //imul r8, rax
-        rax = r8;         //mov rax, r8
-        r8 >>= 0x12;         //shr r8, 0x12
-        r8 ^= rax;         //xor r8, rax
-        rax = r8;         //mov rax, r8
-        rax >>= 0x24;         //shr rax, 0x24
-        rax ^= r8;         //xor rax, r8
-        r8 = rax;         //mov r8, rax
-        r8 >>= 0x7;         //shr r8, 0x07
-        r8 ^= rax;         //xor r8, rax
-        rax = r8;         //mov rax, r8
-        rax >>= 0xE;         //shr rax, 0x0E
-        r8 ^= rax;         //xor r8, rax
-        rax = r8;         //mov rax, r8
-        rax >>= 0x1C;         //shr rax, 0x1C
-        rax ^= r8;         //xor rax, r8
-        r8 = rax;         //mov r8, rax
-        r8 >>= 0x38;         //shr r8, 0x38
-        r8 ^= rax;         //xor r8, rax
-        rax = 0;         //and rax, 0xFFFFFFFFC0000000
-        rax = _rotl64(rax, 0x10);         //rol rax, 0x10
-        rax ^= r10;         //xor rax, r10
-        rax = ~rax;         //not rax
-        r8 *= rd<std::uint64_t>(fn, ctx, rax + 0x9);         //imul r8, [rax+0x09]
-        rax = rbx;         //mov rax, rbx
-        rax *= r15;         //imul rax, r15
-        r8 -= rax;         //sub r8, rax
-        rax = 0x598660DAA37ACC99;         //mov rax, 0x598660DAA37ACC99
-        r8 ^= rax;         //xor r8, rax
+        r10 = rd<std::uint64_t>(fn, ctx, base + wz_rva::client_base_key);
+        r15 = base + 0x72D0A311;
+        rax = 0x54EE9012A77B3C0E;
+        r8 ^= rax;
+        rax = base;
+        rax += 0x432D;
+        rax += rbx;
+        r8 += rax;
+        rax = 0xBE6A84FFF3304C3D;
+        r8 *= rax;
+        rax = r8;
+        r8 >>= 0x12;
+        r8 ^= rax;
+        rax = r8;
+        rax >>= 0x24;
+        rax ^= r8;
+        r8 = rax;
+        r8 >>= 0x7;
+        r8 ^= rax;
+        rax = r8;
+        rax >>= 0xE;
+        r8 ^= rax;
+        rax = r8;
+        rax >>= 0x1C;
+        rax ^= r8;
+        r8 = rax;
+        r8 >>= 0x38;
+        r8 ^= rax;
+        rax = 0;
+        rax = _rotl64(rax, 0x10);
+        rax ^= r10;
+        rax = ~rax;
+        r8 *= rd<std::uint64_t>(fn, ctx, rax + 0x9);
+        rax = rbx;
+        rax *= r15;
+        r8 -= rax;
+        rax = 0x598660DAA37ACC99;
+        r8 ^= rax;
         return r8;
     }
     case 5:
     {
-        r10 = rd<std::uint64_t>(fn, ctx, base + wz_rva::client_base_key);         //mov r10, [0x0000000009D34159]
-        rax = 0;         //and rax, 0xFFFFFFFFC0000000
-        rax = _rotl64(rax, 0x10);         //rol rax, 0x10
-        rax ^= r10;         //xor rax, r10
-        rax = ~rax;         //not rax
-        r8 *= rd<std::uint64_t>(fn, ctx, rax + 0x9);         //imul r8, [rax+0x09]
-        rax = 0xC088FB236BE68165;         //mov rax, 0xC088FB236BE68165
-        r8 *= rax;         //imul r8, rax
-        rax = r8;         //mov rax, r8
-        r8 >>= 0x5;         //shr r8, 0x05
-        r8 ^= rax;         //xor r8, rax
-        rax = r8;         //mov rax, r8
-        rax >>= 0xA;         //shr rax, 0x0A
-        rax ^= r8;         //xor rax, r8
-        r8 = rax;         //mov r8, rax
-        r8 >>= 0x14;         //shr r8, 0x14
-        r8 ^= rax;         //xor r8, rax
-        rax = r8;         //mov rax, r8
-        rax >>= 0x28;         //shr rax, 0x28
-        r8 ^= rax;         //xor r8, rax
-        rax = r8;         //mov rax, r8
-        rax >>= 0xB;         //shr rax, 0x0B
-        r8 ^= rax;         //xor r8, rax
-        rax = r8;         //mov rax, r8
-        rax >>= 0x16;         //shr rax, 0x16
-        r8 ^= rax;         //xor r8, rax
-        rax = r8;         //mov rax, r8
-        rax >>= 0x2C;         //shr rax, 0x2C
-        r8 ^= rax;         //xor r8, rax
-        rax = 0xF87FD44152069748;         //mov rax, 0xF87FD44152069748
-        r8 ^= rax;         //xor r8, rax
-        rax = base;         //lea rax, [0xFFFFFFFFFC404676]
-        rax += 0x1079;         //add rax, 0x1079
-        rax += rbx;         //add rax, rbx
-        r8 ^= rax;         //xor r8, rax
-        rcx = base;         //lea rcx, [0xFFFFFFFFFC404857]
-        rax = rbx;         //mov rax, rbx
-        rax = ~rax;         //not rax
-        rax -= rcx;         //sub rax, rcx
-        rax += 0xFFFFFFFF968271AB;         //add rax, 0xFFFFFFFF968271AB
-        r8 += rax;         //add r8, rax
+        r10 = rd<std::uint64_t>(fn, ctx, base + wz_rva::client_base_key);
+        rax = 0;
+        rax = _rotl64(rax, 0x10);
+        rax ^= r10;
+        rax = ~rax;
+        r8 *= rd<std::uint64_t>(fn, ctx, rax + 0x9);
+        rax = 0xC088FB236BE68165;
+        r8 *= rax;
+        rax = r8;
+        r8 >>= 0x5;
+        r8 ^= rax;
+        rax = r8;
+        rax >>= 0xA;
+        rax ^= r8;
+        r8 = rax;
+        r8 >>= 0x14;
+        r8 ^= rax;
+        rax = r8;
+        rax >>= 0x28;
+        r8 ^= rax;
+        rax = r8;
+        rax >>= 0xB;
+        r8 ^= rax;
+        rax = r8;
+        rax >>= 0x16;
+        r8 ^= rax;
+        rax = r8;
+        rax >>= 0x2C;
+        r8 ^= rax;
+        rax = 0xF87FD44152069748;
+        r8 ^= rax;
+        rax = base;
+        rax += 0x1079;
+        rax += rbx;
+        r8 ^= rax;
+        rcx = base;
+        rax = rbx;
+        rax = ~rax;
+        rax -= rcx;
+        rax += 0xFFFFFFFF968271AB;
+        r8 += rax;
         return r8;
     }
     case 6:
     {
-        r10 = rd<std::uint64_t>(fn, ctx, base + wz_rva::client_base_key);         //mov r10, [0x0000000009D33CDB]
-        r15 = base + 0x1EE2;         //lea r15, [0xFFFFFFFFFC406400]
-        rax = 0;         //and rax, 0xFFFFFFFFC0000000
-        rax = _rotl64(rax, 0x10);         //rol rax, 0x10
-        rax ^= r10;         //xor rax, r10
-        rax = ~rax;         //not rax
-        r8 *= rd<std::uint64_t>(fn, ctx, rax + 0x9);         //imul r8, [rax+0x09]
-        rcx = 0x30DABF93D6E4FB5;         //mov rcx, 0x30DABF93D6E4FB5
-        r8 ^= rcx;         //xor r8, rcx
-        rax = rbx;         //mov rax, rbx
-        rax ^= r15;         //xor rax, r15
-        r8 -= rax;         //sub r8, rax
-        rax = 0xDB8B0AAFA542904;         //mov rax, 0xDB8B0AAFA542904
-        r8 -= rbx;         //sub r8, rbx
-        r8 -= rax;         //sub r8, rax
-        rax = r8;         //mov rax, r8
-        rax >>= 0x22;         //shr rax, 0x22
-        r8 ^= rax;         //xor r8, rax
-        rax = 0xDF170407BBE28DB5;         //mov rax, 0xDF170407BBE28DB5
-        r8 *= rax;         //imul r8, rax
-        rax = r8;         //mov rax, r8
-        r8 >>= 0x8;         //shr r8, 0x08
-        r8 ^= rax;         //xor r8, rax
-        rax = r8;         //mov rax, r8
-        rax >>= 0x10;         //shr rax, 0x10
-        r8 ^= rax;         //xor r8, rax
-        rax = r8;         //mov rax, r8
-        rax >>= 0x20;         //shr rax, 0x20
-        r8 ^= rax;         //xor r8, rax
+        r10 = rd<std::uint64_t>(fn, ctx, base + wz_rva::client_base_key);
+        r15 = base + 0x1EE2;
+        rax = 0;
+        rax = _rotl64(rax, 0x10);
+        rax ^= r10;
+        rax = ~rax;
+        r8 *= rd<std::uint64_t>(fn, ctx, rax + 0x9);
+        rcx = 0x30DABF93D6E4FB5;
+        r8 ^= rcx;
+        rax = rbx;
+        rax ^= r15;
+        r8 -= rax;
+        rax = 0xDB8B0AAFA542904;
+        r8 -= rbx;
+        r8 -= rax;
+        rax = r8;
+        rax >>= 0x22;
+        r8 ^= rax;
+        rax = 0xDF170407BBE28DB5;
+        r8 *= rax;
+        rax = r8;
+        r8 >>= 0x8;
+        r8 ^= rax;
+        rax = r8;
+        rax >>= 0x10;
+        r8 ^= rax;
+        rax = r8;
+        rax >>= 0x20;
+        r8 ^= rax;
         return r8;
     }
     case 7:
     {
-        r10 = rd<std::uint64_t>(fn, ctx, base + wz_rva::client_base_key);         //mov r10, [0x0000000009D3389A]
-        r15 = base + 0xC177;         //lea r15, [0xFFFFFFFFFC410254]
-        rax = 0;         //and rax, 0xFFFFFFFFC0000000
-        rax = _rotl64(rax, 0x10);         //rol rax, 0x10
-        rax ^= r10;         //xor rax, r10
-        rax = ~rax;         //not rax
-        r8 *= rd<std::uint64_t>(fn, ctx, rax + 0x9);         //imul r8, [rax+0x09]
-        rax = 0x1C4A7DE2E2F8F68F;         //mov rax, 0x1C4A7DE2E2F8F68F
-        rcx = 0x378CE09B287B2D41;         //mov rcx, 0x378CE09B287B2D41
-        rcx ^= r8;         //xor rcx, r8
-        rcx += rax;         //add rcx, rax
-        r8 = rcx;         //mov r8, rcx
-        r8 >>= 0x23;         //shr r8, 0x23
-        r8 ^= rcx;         //xor r8, rcx
-        rax = rbx + 0x1;         //lea rax, [rbx+0x01]
-        rax *= r15;         //imul rax, r15
-        rax += rbx;         //add rax, rbx
-        r8 += rax;         //add r8, rax
-        rax = 0xEBEA9B8B5714671D;         //mov rax, 0xEBEA9B8B5714671D
-        r8 *= rax;         //imul r8, rax
-        rax = r8;         //mov rax, r8
-        rax >>= 0xE;         //shr rax, 0x0E
-        rax ^= r8;         //xor rax, r8
-        r8 = rax;         //mov r8, rax
-        r8 >>= 0x1C;         //shr r8, 0x1C
-        r8 ^= rax;         //xor r8, rax
-        rax = r8;         //mov rax, r8
-        rax >>= 0x38;         //shr rax, 0x38
-        r8 ^= rax;         //xor r8, rax
+        r10 = rd<std::uint64_t>(fn, ctx, base + wz_rva::client_base_key);
+        r15 = base + 0xC177;
+        rax = 0;
+        rax = _rotl64(rax, 0x10);
+        rax ^= r10;
+        rax = ~rax;
+        r8 *= rd<std::uint64_t>(fn, ctx, rax + 0x9);
+        rax = 0x1C4A7DE2E2F8F68F;
+        rcx = 0x378CE09B287B2D41;
+        rcx ^= r8;
+        rcx += rax;
+        r8 = rcx;
+        r8 >>= 0x23;
+        r8 ^= rcx;
+        rax = rbx + 0x1;
+        rax *= r15;
+        rax += rbx;
+        r8 += rax;
+        rax = 0xEBEA9B8B5714671D;
+        r8 *= rax;
+        rax = r8;
+        rax >>= 0xE;
+        rax ^= r8;
+        r8 = rax;
+        r8 >>= 0x1C;
+        r8 ^= rax;
+        rax = r8;
+        rax >>= 0x38;
+        r8 ^= rax;
         return r8;
     }
     case 8:
     {
-        r10 = rd<std::uint64_t>(fn, ctx, base + wz_rva::client_base_key);         //mov r10, [0x0000000009D33359]
-        r13 = base + 0x553;         //lea r13, [0xFFFFFFFFFC4040EA]
-        r15 = base + 0x88B9;         //lea r15, [0xFFFFFFFFFC40C43F]
-        rax = base;         //lea rax, [0xFFFFFFFFFC4039B0]
-        r8 ^= rax;         //xor r8, rax
-        rax = 0x3169FBDB3B875224;         //mov rax, 0x3169FBDB3B875224
-        r8 += rax;         //add r8, rax
-        rax = r15;         //mov rax, r15
-        rax = ~rax;         //not rax
-        rax *= rbx;         //imul rax, rbx
-        r8 ^= rax;         //xor r8, rax
-        r8 ^= rbx;         //xor r8, rbx
-        r8 ^= r13;         //xor r8, r13
-        rax = r8;         //mov rax, r8
-        rax >>= 0x13;         //shr rax, 0x13
-        r8 ^= rax;         //xor r8, rax
-        rax = r8;         //mov rax, r8
-        rax >>= 0x26;         //shr rax, 0x26
-        r8 ^= rax;         //xor r8, rax
-        rcx = 0;         //and rcx, 0xFFFFFFFFC0000000
-        rcx = _rotl64(rcx, 0x10);         //rol rcx, 0x10
-        rax = 0x49665D7F2AFA3F6B;         //mov rax, 0x49665D7F2AFA3F6B
-        r8 *= rax;         //imul r8, rax
-        rcx ^= r10;         //xor rcx, r10
-        rax = base + 0x11D125F7;         //lea rax, [0x000000000E115EE0]
-        rax = ~rax;         //not rax
-        rcx = ~rcx;         //not rcx
-        rax *= rbx;         //imul rax, rbx
-        r8 += rax;         //add r8, rax
-        r8 *= rd<std::uint64_t>(fn, ctx, rcx + 0x9);         //imul r8, [rcx+0x09]
+        r10 = rd<std::uint64_t>(fn, ctx, base + wz_rva::client_base_key);
+        r13 = base + 0x553;
+        r15 = base + 0x88B9;
+        rax = base;
+        r8 ^= rax;
+        rax = 0x3169FBDB3B875224;
+        r8 += rax;
+        rax = r15;
+        rax = ~rax;
+        rax *= rbx;
+        r8 ^= rax;
+        r8 ^= rbx;
+        r8 ^= r13;
+        rax = r8;
+        rax >>= 0x13;
+        r8 ^= rax;
+        rax = r8;
+        rax >>= 0x26;
+        r8 ^= rax;
+        rcx = 0;
+        rcx = _rotl64(rcx, 0x10);
+        rax = 0x49665D7F2AFA3F6B;
+        r8 *= rax;
+        rcx ^= r10;
+        rax = base + 0x11D125F7;
+        rax = ~rax;
+        rcx = ~rcx;
+        rax *= rbx;
+        r8 += rax;
+        r8 *= rd<std::uint64_t>(fn, ctx, rcx + 0x9);
         return r8;
     }
     case 9:
     {
-        r9 = rd<std::uint64_t>(fn, ctx, base + wz_rva::client_base_key);         //mov r9, [0x0000000009D32F1C]
-        r11 = base + 0x7C81;         //lea r11, [0xFFFFFFFFFC40B3E0]
-        rax = rbx;         //mov rax, rbx
-        rax *= r11;         //imul rax, r11
-        r8 -= rax;         //sub r8, rax
-        rax = base;         //lea rax, [0xFFFFFFFFFC403485]
-        r8 -= rax;         //sub r8, rax
-        rax = rbx;         //mov rax, rbx
-        rax -= base;         //sub rax, [rsp+0x70] -- didn't find trace -> use base
-        rax += 0xFFFFFFFFFFFF4D38;         //add rax, 0xFFFFFFFFFFFF4D38
-        r8 += rax;         //add r8, rax
-        rax = 0xB294869EA09D48AA;         //mov rax, 0xB294869EA09D48AA
-        r8 ^= rax;         //xor r8, rax
-        rax = 0xDA6A9700AB4D27FD;         //mov rax, 0xDA6A9700AB4D27FD
-        r8 *= rax;         //imul r8, rax
-        rax = 0;         //and rax, 0xFFFFFFFFC0000000
-        rax = _rotl64(rax, 0x10);         //rol rax, 0x10
-        rax ^= r9;         //xor rax, r9
-        rax = ~rax;         //not rax
-        r8 *= rd<std::uint64_t>(fn, ctx, rax + 0x9);         //imul r8, [rax+0x09]
-        rax = 0x38632CDC13FD78A5;         //mov rax, 0x38632CDC13FD78A5
-        r8 += rax;         //add r8, rax
-        rax = r8;         //mov rax, r8
-        rax >>= 0x1D;         //shr rax, 0x1D
-        rax ^= r8;         //xor rax, r8
-        r8 = rax;         //mov r8, rax
-        r8 >>= 0x3A;         //shr r8, 0x3A
-        r8 ^= rax;         //xor r8, rax
+        r9 = rd<std::uint64_t>(fn, ctx, base + wz_rva::client_base_key);
+        r11 = base + 0x7C81;
+        rax = rbx;
+        rax *= r11;
+        r8 -= rax;
+        rax = base;
+        r8 -= rax;
+        rax = rbx;
+        rax -= base;
+        rax += 0xFFFFFFFFFFFF4D38;
+        r8 += rax;
+        rax = 0xB294869EA09D48AA;
+        r8 ^= rax;
+        rax = 0xDA6A9700AB4D27FD;
+        r8 *= rax;
+        rax = 0;
+        rax = _rotl64(rax, 0x10);
+        rax ^= r9;
+        rax = ~rax;
+        r8 *= rd<std::uint64_t>(fn, ctx, rax + 0x9);
+        rax = 0x38632CDC13FD78A5;
+        r8 += rax;
+        rax = r8;
+        rax >>= 0x1D;
+        rax ^= r8;
+        r8 = rax;
+        r8 >>= 0x3A;
+        r8 ^= rax;
         return r8;
     }
     case 10:
     {
-        r10 = rd<std::uint64_t>(fn, ctx, base + wz_rva::client_base_key);         //mov r10, [0x0000000009D32A01]
-        r8 += rbx;         //add r8, rbx
-        rax = 0x36164EFD786890C1;         //mov rax, 0x36164EFD786890C1
-        r8 *= rax;         //imul r8, rax
-        rax = 0x6F993F33D7A49418;         //mov rax, 0x6F993F33D7A49418
-        rax += r8;         //add rax, r8
-        r8 = rax;         //mov r8, rax
-        r8 >>= 0x8;         //shr r8, 0x08
-        r8 ^= rax;         //xor r8, rax
-        rcx = r8;         //mov rcx, r8
-        rcx >>= 0x10;         //shr rcx, 0x10
-        rcx ^= r8;         //xor rcx, r8
-        rax = 0;         //and rax, 0xFFFFFFFFC0000000
-        rax = _rotl64(rax, 0x10);         //rol rax, 0x10
-        r8 = rcx;         //mov r8, rcx
-        rax ^= r10;         //xor rax, r10
-        r8 >>= 0x20;         //shr r8, 0x20
-        r8 ^= rcx;         //xor r8, rcx
-        rax = ~rax;         //not rax
-        r8 *= rd<std::uint64_t>(fn, ctx, rax + 0x9);         //imul r8, [rax+0x09]
-        rax = 0xE88B55E25B8B057C;         //mov rax, 0xE88B55E25B8B057C
-        r8 ^= rax;         //xor r8, rax
-        rax = r8;         //mov rax, r8
-        rax >>= 0x1A;         //shr rax, 0x1A
-        rax ^= r8;         //xor rax, r8
-        rcx = rax;         //mov rcx, rax
-        rcx >>= 0x34;         //shr rcx, 0x34
-        rcx ^= rax;         //xor rcx, rax
-        rax = rcx;         //mov rax, rcx
-        rax >>= 0x4;         //shr rax, 0x04
-        rax ^= rcx;         //xor rax, rcx
-        rcx = rax;         //mov rcx, rax
-        rcx >>= 0x8;         //shr rcx, 0x08
-        rcx ^= rax;         //xor rcx, rax
-        r8 = rcx;         //mov r8, rcx
-        r8 >>= 0x10;         //shr r8, 0x10
-        r8 ^= rcx;         //xor r8, rcx
-        rax = r8;         //mov rax, r8
-        rax >>= 0x20;         //shr rax, 0x20
-        r8 ^= rax;         //xor r8, rax
+        r10 = rd<std::uint64_t>(fn, ctx, base + wz_rva::client_base_key);
+        r8 += rbx;
+        rax = 0x36164EFD786890C1;
+        r8 *= rax;
+        rax = 0x6F993F33D7A49418;
+        rax += r8;
+        r8 = rax;
+        r8 >>= 0x8;
+        r8 ^= rax;
+        rcx = r8;
+        rcx >>= 0x10;
+        rcx ^= r8;
+        rax = 0;
+        rax = _rotl64(rax, 0x10);
+        r8 = rcx;
+        rax ^= r10;
+        r8 >>= 0x20;
+        r8 ^= rcx;
+        rax = ~rax;
+        r8 *= rd<std::uint64_t>(fn, ctx, rax + 0x9);
+        rax = 0xE88B55E25B8B057C;
+        r8 ^= rax;
+        rax = r8;
+        rax >>= 0x1A;
+        rax ^= r8;
+        rcx = rax;
+        rcx >>= 0x34;
+        rcx ^= rax;
+        rax = rcx;
+        rax >>= 0x4;
+        rax ^= rcx;
+        rcx = rax;
+        rcx >>= 0x8;
+        rcx ^= rax;
+        r8 = rcx;
+        r8 >>= 0x10;
+        r8 ^= rcx;
+        rax = r8;
+        rax >>= 0x20;
+        r8 ^= rax;
         return r8;
     }
     case 11:
     {
-        r10 = rd<std::uint64_t>(fn, ctx, base + wz_rva::client_base_key);         //mov r10, [0x0000000009D325D4]
-        rax = 0;         //and rax, 0xFFFFFFFFC0000000
-        rax = _rotl64(rax, 0x10);         //rol rax, 0x10
-        rax ^= r10;         //xor rax, r10
-        rax = ~rax;         //not rax
-        r8 *= rd<std::uint64_t>(fn, ctx, rax + 0x9);         //imul r8, [rax+0x09]
-        rax = rbx;         //mov rax, rbx
+        r10 = rd<std::uint64_t>(fn, ctx, base + wz_rva::client_base_key);
+        rax = 0;
+        rax = _rotl64(rax, 0x10);
+        rax ^= r10;
+        rax = ~rax;
+        r8 *= rd<std::uint64_t>(fn, ctx, rax + 0x9);
+        rax = rbx;
         std::uint64_t RBP_0xFFFFFFFFFFFFFFB8;
-        RBP_0xFFFFFFFFFFFFFFB8 = base + 0xA1FD;         //lea rax, [0xFFFFFFFFFC40D020]
-        rax *= RBP_0xFFFFFFFFFFFFFFB8;         //imul rax, [rbp-0x48]
-        r8 += rax;         //add r8, rax
-        rax = r8;         //mov rax, r8
-        rax >>= 0x26;         //shr rax, 0x26
-        r8 ^= rax;         //xor r8, rax
-        rax = r8;         //mov rax, r8
-        rax >>= 0xA;         //shr rax, 0x0A
-        r8 ^= rax;         //xor r8, rax
-        rax = r8;         //mov rax, r8
-        rax >>= 0x14;         //shr rax, 0x14
-        rax ^= r8;         //xor rax, r8
-        r8 = rax;         //mov r8, rax
-        r8 >>= 0x28;         //shr r8, 0x28
-        r8 ^= rax;         //xor r8, rax
-        rax = 0xC6A8E21F37CF3675;         //mov rax, 0xC6A8E21F37CF3675
-        r8 *= rax;         //imul r8, rax
-        rax = base;         //lea rax, [0xFFFFFFFFFC402916]
-        rax += rbx;         //add rax, rbx
-        r8 -= rax;         //sub r8, rax
-        rax = base;         //lea rax, [0xFFFFFFFFFC402A43]
-        r8 ^= rax;         //xor r8, rax
+        RBP_0xFFFFFFFFFFFFFFB8 = base + 0xA1FD;
+        rax *= RBP_0xFFFFFFFFFFFFFFB8;
+        r8 += rax;
+        rax = r8;
+        rax >>= 0x26;
+        r8 ^= rax;
+        rax = r8;
+        rax >>= 0xA;
+        r8 ^= rax;
+        rax = r8;
+        rax >>= 0x14;
+        rax ^= r8;
+        r8 = rax;
+        r8 >>= 0x28;
+        r8 ^= rax;
+        rax = 0xC6A8E21F37CF3675;
+        r8 *= rax;
+        rax = base;
+        rax += rbx;
+        r8 -= rax;
+        rax = base;
+        r8 ^= rax;
         return r8;
     }
     case 12:
     {
-        r9 = rd<std::uint64_t>(fn, ctx, base + wz_rva::client_base_key);         //mov r9, [0x0000000009D3209F]
-        rax = 0x5D2901AC55739352;         //mov rax, 0x5D2901AC55739352
-        r8 -= rax;         //sub r8, rax
-        rax = 0;         //and rax, 0xFFFFFFFFC0000000
-        rax = _rotl64(rax, 0x10);         //rol rax, 0x10
-        rax ^= r9;         //xor rax, r9
-        rax = ~rax;         //not rax
-        r8 *= rd<std::uint64_t>(fn, ctx, rax + 0x9);         //imul r8, [rax+0x09]
-        rax = base;         //lea rax, [0xFFFFFFFFFC402441]
-        r8 += rax;         //add r8, rax
-        rax = 0x156D71AB28FBFAFF;         //mov rax, 0x156D71AB28FBFAFF
-        r8 *= rax;         //imul r8, rax
-        rax = r8;         //mov rax, r8
-        r8 >>= 0x27;         //shr r8, 0x27
-        r8 ^= rax;         //xor r8, rax
-        r8 -= rbx;         //sub r8, rbx
-        rax = r8;         //mov rax, r8
-        rax >>= 0x17;         //shr rax, 0x17
-        r8 ^= rax;         //xor r8, rax
-        rax = r8;         //mov rax, r8
-        rax >>= 0x2E;         //shr rax, 0x2E
-        r8 ^= rax;         //xor r8, rax
-        rax = base;         //lea rax, [0xFFFFFFFFFC4024C3]
-        r8 ^= rax;         //xor r8, rax
+        r9 = rd<std::uint64_t>(fn, ctx, base + wz_rva::client_base_key);
+        rax = 0x5D2901AC55739352;
+        r8 -= rax;
+        rax = 0;
+        rax = _rotl64(rax, 0x10);
+        rax ^= r9;
+        rax = ~rax;
+        r8 *= rd<std::uint64_t>(fn, ctx, rax + 0x9);
+        rax = base;
+        r8 += rax;
+        rax = 0x156D71AB28FBFAFF;
+        r8 *= rax;
+        rax = r8;
+        r8 >>= 0x27;
+        r8 ^= rax;
+        r8 -= rbx;
+        rax = r8;
+        rax >>= 0x17;
+        r8 ^= rax;
+        rax = r8;
+        rax >>= 0x2E;
+        r8 ^= rax;
+        rax = base;
+        r8 ^= rax;
         return r8;
     }
     case 13:
     {
-        r11 = rd<std::uint64_t>(fn, ctx, base + wz_rva::client_base_key);         //mov r11, [0x0000000009D31B56]
-        rax = r8;         //mov rax, r8
-        rax >>= 0x1F;         //shr rax, 0x1F
-        r8 ^= rax;         //xor r8, rax
-        rcx = r8;         //mov rcx, r8
-        rax = base;         //lea rax, [0xFFFFFFFFFC401FAF]
-        rcx >>= 0x3E;         //shr rcx, 0x3E
-        rcx ^= r8;         //xor rcx, r8
-        rdx = 0;         //and rdx, 0xFFFFFFFFC0000000
-        rdx = _rotl64(rdx, 0x10);         //rol rdx, 0x10
-        r8 = rbx;         //mov r8, rbx
-        r8 = ~r8;         //not r8
-        rdx ^= r11;         //xor rdx, r11
-        r8 += rcx;         //add r8, rcx
-        rdx = ~rdx;         //not rdx
-        r8 -= rax;         //sub r8, rax
-        r8 -= 0x6929AFAC;         //sub r8, 0x6929AFAC
-        r8 *= rd<std::uint64_t>(fn, ctx, rdx + 0x9);         //imul r8, [rdx+0x09]
-        rax = r8;         //mov rax, r8
-        rax >>= 0x18;         //shr rax, 0x18
-        r8 ^= rax;         //xor r8, rax
-        rax = r8;         //mov rax, r8
-        rax >>= 0x30;         //shr rax, 0x30
-        r8 ^= rax;         //xor r8, rax
-        rax = 0x69651B1AF033619B;         //mov rax, 0x69651B1AF033619B
-        r8 += rbx;         //add r8, rbx
-        r8 *= rax;         //imul r8, rax
-        rax = 0x29BBD1B30DFD9417;         //mov rax, 0x29BBD1B30DFD9417
-        r8 *= rax;         //imul r8, rax
-        rax = 0xA7B8F15C4FABBB6C;         //mov rax, 0xA7B8F15C4FABBB6C
-        r8 ^= rax;         //xor r8, rax
+        r11 = rd<std::uint64_t>(fn, ctx, base + wz_rva::client_base_key);
+        rax = r8;
+        rax >>= 0x1F;
+        r8 ^= rax;
+        rcx = r8;
+        rax = base;
+        rcx >>= 0x3E;
+        rcx ^= r8;
+        rdx = 0;
+        rdx = _rotl64(rdx, 0x10);
+        r8 = rbx;
+        r8 = ~r8;
+        rdx ^= r11;
+        r8 += rcx;
+        rdx = ~rdx;
+        r8 -= rax;
+        r8 -= 0x6929AFAC;
+        r8 *= rd<std::uint64_t>(fn, ctx, rdx + 0x9);
+        rax = r8;
+        rax >>= 0x18;
+        r8 ^= rax;
+        rax = r8;
+        rax >>= 0x30;
+        r8 ^= rax;
+        rax = 0x69651B1AF033619B;
+        r8 += rbx;
+        r8 *= rax;
+        rax = 0x29BBD1B30DFD9417;
+        r8 *= rax;
+        rax = 0xA7B8F15C4FABBB6C;
+        r8 ^= rax;
         return r8;
     }
     case 14:
     {
-        r10 = rd<std::uint64_t>(fn, ctx, base + wz_rva::client_base_key);         //mov r10, [0x0000000009D316DA]
-        r8 += rbx;         //add r8, rbx
-        rax = base + 0x8D0;         //lea rax, [0xFFFFFFFFFC402661]
-        rax -= rbx;         //sub rax, rbx
-        r8 += rax;         //add r8, rax
-        rax = 0xBC0AAA7E98B1663A;         //mov rax, 0xBC0AAA7E98B1663A
-        r8 ^= rax;         //xor r8, rax
-        rax = 0x54D1F9305B205B45;         //mov rax, 0x54D1F9305B205B45
-        r8 *= rax;         //imul r8, rax
-        rcx = r8;         //mov rcx, r8
-        rcx >>= 0xA;         //shr rcx, 0x0A
-        rcx ^= r8;         //xor rcx, r8
-        rax = rcx;         //mov rax, rcx
-        rax >>= 0x14;         //shr rax, 0x14
-        rax ^= rcx;         //xor rax, rcx
-        r8 = rax;         //mov r8, rax
-        r8 >>= 0x28;         //shr r8, 0x28
-        r8 ^= rax;         //xor r8, rax
-        rax = r8;         //mov rax, r8
-        rax >>= 0x12;         //shr rax, 0x12
-        rax ^= r8;         //xor rax, r8
-        r8 = rax;         //mov r8, rax
-        r8 >>= 0x24;         //shr r8, 0x24
-        r8 ^= rax;         //xor r8, rax
-        rax = 0xFFFFFFFFDE23E20A;         //mov rax, 0xFFFFFFFFDE23E20A
-        rax -= rbx;         //sub rax, rbx
-        rax -= base;         //sub rax, [rsp+0x70] -- didn't find trace -> use base
-        r8 += rax;         //add r8, rax
-        rax = 0;         //and rax, 0xFFFFFFFFC0000000
-        rax = _rotl64(rax, 0x10);         //rol rax, 0x10
-        rax ^= r10;         //xor rax, r10
-        rax = ~rax;         //not rax
-        r8 *= rd<std::uint64_t>(fn, ctx, rax + 0x9);         //imul r8, [rax+0x09]
+        r10 = rd<std::uint64_t>(fn, ctx, base + wz_rva::client_base_key);
+        r8 += rbx;
+        rax = base + 0x8D0;
+        rax -= rbx;
+        r8 += rax;
+        rax = 0xBC0AAA7E98B1663A;
+        r8 ^= rax;
+        rax = 0x54D1F9305B205B45;
+        r8 *= rax;
+        rcx = r8;
+        rcx >>= 0xA;
+        rcx ^= r8;
+        rax = rcx;
+        rax >>= 0x14;
+        rax ^= rcx;
+        r8 = rax;
+        r8 >>= 0x28;
+        r8 ^= rax;
+        rax = r8;
+        rax >>= 0x12;
+        rax ^= r8;
+        r8 = rax;
+        r8 >>= 0x24;
+        r8 ^= rax;
+        rax = 0xFFFFFFFFDE23E20A;
+        rax -= rbx;
+        rax -= base;
+        r8 += rax;
+        rax = 0;
+        rax = _rotl64(rax, 0x10);
+        rax ^= r10;
+        rax = ~rax;
+        r8 *= rd<std::uint64_t>(fn, ctx, rax + 0x9);
         return r8;
     }
     case 15:
     {
-        r10 = rd<std::uint64_t>(fn, ctx, base + wz_rva::client_base_key);         //mov r10, [0x0000000009D31256]
-        r15 = base + 0x76BB;         //lea r15, [0xFFFFFFFFFC409154]
-        rax = 0;         //and rax, 0xFFFFFFFFC0000000
-        rax = _rotl64(rax, 0x10);         //rol rax, 0x10
-        rax ^= r10;         //xor rax, r10
-        rax = ~rax;         //not rax
-        rax = rd<std::uint64_t>(fn, ctx, rax + 0x9);         //mov rax, [rax+0x09]
+        r10 = rd<std::uint64_t>(fn, ctx, base + wz_rva::client_base_key);
+        r15 = base + 0x76BB;
+        rax = 0;
+        rax = _rotl64(rax, 0x10);
+        rax ^= r10;
+        rax = ~rax;
+        rax = rd<std::uint64_t>(fn, ctx, rax + 0x9);
         std::uint64_t RBP_0xFFFFFFFFFFFFFFB0;
-        RBP_0xFFFFFFFFFFFFFFB0 = 0x3A27415DA31CA989;         //mov rax, 0x3A27415DA31CA989
-        rax *= RBP_0xFFFFFFFFFFFFFFB0;         //imul rax, [rbp-0x50]
-        r8 *= rax;         //imul r8, rax
-        rax = 0x6F6A3BE0CADE4A54;         //mov rax, 0x6F6A3BE0CADE4A54
-        r8 -= rax;         //sub r8, rax
-        r8 -= rbx;         //sub r8, rbx
-        rcx = r8;         //mov rcx, r8
-        rcx >>= 0x13;         //shr rcx, 0x13
-        rcx ^= r8;         //xor rcx, r8
-        r8 = rbx;         //mov r8, rbx
-        r8 = ~r8;         //not r8
-        rax = r15;         //mov rax, r15
-        rax = ~rax;         //not rax
-        r8 *= rax;         //imul r8, rax
-        rax = rcx;         //mov rax, rcx
-        rax >>= 0x26;         //shr rax, 0x26
-        rax ^= rcx;         //xor rax, rcx
-        r8 += rax;         //add r8, rax
-        rax = r8;         //mov rax, r8
-        rax >>= 0x28;         //shr rax, 0x28
-        r8 ^= rax;         //xor r8, rax
-        rax = 0x3224CE0A9BEB6A6E;         //mov rax, 0x3224CE0A9BEB6A6E
-        r8 -= rax;         //sub r8, rax
+        RBP_0xFFFFFFFFFFFFFFB0 = 0x3A27415DA31CA989;
+        rax *= RBP_0xFFFFFFFFFFFFFFB0;
+        r8 *= rax;
+        rax = 0x6F6A3BE0CADE4A54;
+        r8 -= rax;
+        r8 -= rbx;
+        rcx = r8;
+        rcx >>= 0x13;
+        rcx ^= r8;
+        r8 = rbx;
+        r8 = ~r8;
+        rax = r15;
+        rax = ~rax;
+        r8 *= rax;
+        rax = rcx;
+        rax >>= 0x26;
+        rax ^= rcx;
+        r8 += rax;
+        rax = r8;
+        rax >>= 0x28;
+        r8 ^= rax;
+        rax = 0x3224CE0A9BEB6A6E;
+        r8 -= rax;
         return r8;
     }
     }
@@ -782,40 +782,40 @@ inline std::uint64_t decrypt_bone_base(ReadFn fn, void* ctx, std::uint64_t base,
     rdx = rd<std::uint64_t>(fn, ctx, base + wz_rva::bone_enc);
     if(!rdx)
         return rdx;
-    r8 = peb;         //mov r8, gs:[rax]
-    rax = r8;         //mov rax, r8
-    rax >>= 0x13;         //shr rax, 0x13
+    r8 = peb;
+    rax = r8;
+    rax >>= 0x13;
     rax &= 0xF;
     switch(rax) {
     case 0:
     {
-        r9 = rd<std::uint64_t>(fn, ctx, base + wz_rva::bone_key);         //mov r9, [0x000000000638DE60]
-        rax = base + 0x8C93;         //lea rax, [0xFFFFFFFFF8A671DC]
-        rax -= r8;         //sub rax, r8
-        rdx ^= rax;         //xor rdx, rax
-        rax = rdx;         //mov rax, rdx
-        rax >>= 0x15;         //shr rax, 0x15
-        rax ^= rdx;         //xor rax, rdx
-        rdx = rax;         //mov rdx, rax
-        rdx >>= 0x2A;         //shr rdx, 0x2A
-        rdx ^= rax;         //xor rdx, rax
-        rdx += r8;         //add rdx, r8
-        rax = 0;         //and rax, 0xFFFFFFFFC0000000
-        rax = _rotl64(rax, 0x10);         //rol rax, 0x10
-        rax ^= r9;         //xor rax, r9
-        rax = ~rax;         //not rax
-        rdx *= rd<std::uint64_t>(fn, ctx, rax + 0x17);         //imul rdx, [rax+0x17]
-        rax = base;         //lea rax, [0xFFFFFFFFF8A5E22C]
-        rdx ^= rax;         //xor rdx, rax
-        rax = 0x860534C8C01FEA7B;         //mov rax, 0x860534C8C01FEA7B
-        rdx *= rax;         //imul rdx, rax
-        rax = 0xEE334BF3EC572D68;         //mov rax, 0xEE334BF3EC572D68
-        rdx ^= rax;         //xor rdx, rax
+        r9 = rd<std::uint64_t>(fn, ctx, base + wz_rva::bone_key);
+        rax = base + 0x8C93;
+        rax -= r8;
+        rdx ^= rax;
+        rax = rdx;
+        rax >>= 0x15;
+        rax ^= rdx;
+        rdx = rax;
+        rdx >>= 0x2A;
+        rdx ^= rax;
+        rdx += r8;
+        rax = 0;
+        rax = _rotl64(rax, 0x10);
+        rax ^= r9;
+        rax = ~rax;
+        rdx *= rd<std::uint64_t>(fn, ctx, rax + 0x17);
+        rax = base;
+        rdx ^= rax;
+        rax = 0x860534C8C01FEA7B;
+        rdx *= rax;
+        rax = 0xEE334BF3EC572D68;
+        rdx ^= rax;
         return rdx;
     }
     case 1:
     {
-        // Steam 0x6A6D4AEF — previous body was a stub (return rdx). Live PEB hits this case.
+
         r10 = rd<std::uint64_t>(fn, ctx, base + wz_rva::bone_key);
         r15 = base + 0xDF5D;
         rax = 0;
@@ -856,30 +856,30 @@ inline std::uint64_t decrypt_bone_base(ReadFn fn, void* ctx, std::uint64_t base,
     }
     case 2:
     {
-        r9 = rd<std::uint64_t>(fn, ctx, base + wz_rva::bone_key);         //mov r9, [0x000000000638D526]
-        rax = 0;         //and rax, 0xFFFFFFFFC0000000
-        rax = _rotl64(rax, 0x10);         //rol rax, 0x10
-        rax ^= r9;         //xor rax, r9
-        rax = ~rax;         //not rax
-        rdx *= rd<std::uint64_t>(fn, ctx, rax + 0x17);         //imul rdx, [rax+0x17]
-        rax = base + 0x47C2AE1B;         //lea rax, [0x00000000406889E9]
-        rax = ~rax;         //not rax
-        rax ^= r8;         //xor rax, r8
-        rax += r8;         //add rax, r8
-        rdx += rax;         //add rdx, rax
-        rax = 0x94073D91C803188D;         //mov rax, 0x94073D91C803188D
-        rdx ^= rax;         //xor rdx, rax
-        rax = 0x2EEA8A0831CE333B;         //mov rax, 0x2EEA8A0831CE333B
-        rdx *= rax;         //imul rdx, rax
-        rdx += r8;         //add rdx, r8
-        rax = rdx;         //mov rax, rdx
-        rax >>= 0x13;         //shr rax, 0x13
-        rdx ^= rax;         //xor rdx, rax
-        rax = rdx;         //mov rax, rdx
-        rax >>= 0x26;         //shr rax, 0x26
-        rdx ^= rax;         //xor rdx, rax
-        rax = 0xD4E2CCE5B7959CA0;         //mov rax, 0xD4E2CCE5B7959CA0
-        rdx ^= rax;         //xor rdx, rax
+        r9 = rd<std::uint64_t>(fn, ctx, base + wz_rva::bone_key);
+        rax = 0;
+        rax = _rotl64(rax, 0x10);
+        rax ^= r9;
+        rax = ~rax;
+        rdx *= rd<std::uint64_t>(fn, ctx, rax + 0x17);
+        rax = base + 0x47C2AE1B;
+        rax = ~rax;
+        rax ^= r8;
+        rax += r8;
+        rdx += rax;
+        rax = 0x94073D91C803188D;
+        rdx ^= rax;
+        rax = 0x2EEA8A0831CE333B;
+        rdx *= rax;
+        rdx += r8;
+        rax = rdx;
+        rax >>= 0x13;
+        rdx ^= rax;
+        rax = rdx;
+        rax >>= 0x26;
+        rdx ^= rax;
+        rax = 0xD4E2CCE5B7959CA0;
+        rdx ^= rax;
         return rdx;
     }
     case 3:
@@ -975,74 +975,74 @@ inline std::uint64_t decrypt_bone_base(ReadFn fn, void* ctx, std::uint64_t base,
     }
     case 6:
     {
-        r9 = rd<std::uint64_t>(fn, ctx, base + wz_rva::bone_key);         //mov r9, [0x000000000638C315]
-        rax = 0;         //and rax, 0xFFFFFFFFC0000000
-        rax = _rotl64(rax, 0x10);         //rol rax, 0x10
-        rax ^= r9;         //xor rax, r9
-        rax = ~rax;         //not rax
-        rdx *= rd<std::uint64_t>(fn, ctx, rax + 0x17);         //imul rdx, [rax+0x17]
-        rdx += r8;         //add rdx, r8
-        rcx = base + 0x4951;         //lea rcx, [0xFFFFFFFFF8A610AE]
-        rax = r8;         //mov rax, r8
-        rax *= rcx;         //imul rax, rcx
-        rdx += rax;         //add rdx, rax
-        rax = r8 + rdx * 1;         //lea rax, [r8+rdx*1]
-        r10 = base;         //lea r10, [0xFFFFFFFFF8A5C8BA]
-        rcx = r10 + 0x1d37b933;         //lea rcx, [r10+0x1D37B933]
-        rcx += rax;         //add rcx, rax
-        rdx = rcx;         //mov rdx, rcx
-        rdx >>= 0x9;         //shr rdx, 0x09
-        rdx ^= rcx;         //xor rdx, rcx
-        rax = rdx;         //mov rax, rdx
-        rax >>= 0x12;         //shr rax, 0x12
-        rax ^= rdx;         //xor rax, rdx
-        rcx = rax;         //mov rcx, rax
-        rcx >>= 0x24;         //shr rcx, 0x24
-        rcx ^= rax;         //xor rcx, rax
-        rax = 0x6C2A29044A40E4C7;         //mov rax, 0x6C2A29044A40E4C7
-        rcx *= rax;         //imul rcx, rax
-        rcx ^= r10;         //xor rcx, r10
-        rax = rcx;         //mov rax, rcx
-        rax >>= 0x3;         //shr rax, 0x03
-        rax ^= rcx;         //xor rax, rcx
-        rcx = rax;         //mov rcx, rax
-        rcx >>= 0x6;         //shr rcx, 0x06
-        rcx ^= rax;         //xor rcx, rax
-        rax = rcx;         //mov rax, rcx
-        rax >>= 0xC;         //shr rax, 0x0C
-        rax ^= rcx;         //xor rax, rcx
-        rdx = rax;         //mov rdx, rax
-        rdx >>= 0x18;         //shr rdx, 0x18
-        rdx ^= rax;         //xor rdx, rax
-        rax = rdx;         //mov rax, rdx
-        rax >>= 0x30;         //shr rax, 0x30
-        rdx ^= rax;         //xor rdx, rax
+        r9 = rd<std::uint64_t>(fn, ctx, base + wz_rva::bone_key);
+        rax = 0;
+        rax = _rotl64(rax, 0x10);
+        rax ^= r9;
+        rax = ~rax;
+        rdx *= rd<std::uint64_t>(fn, ctx, rax + 0x17);
+        rdx += r8;
+        rcx = base + 0x4951;
+        rax = r8;
+        rax *= rcx;
+        rdx += rax;
+        rax = r8 + rdx * 1;
+        r10 = base;
+        rcx = r10 + 0x1d37b933;
+        rcx += rax;
+        rdx = rcx;
+        rdx >>= 0x9;
+        rdx ^= rcx;
+        rax = rdx;
+        rax >>= 0x12;
+        rax ^= rdx;
+        rcx = rax;
+        rcx >>= 0x24;
+        rcx ^= rax;
+        rax = 0x6C2A29044A40E4C7;
+        rcx *= rax;
+        rcx ^= r10;
+        rax = rcx;
+        rax >>= 0x3;
+        rax ^= rcx;
+        rcx = rax;
+        rcx >>= 0x6;
+        rcx ^= rax;
+        rax = rcx;
+        rax >>= 0xC;
+        rax ^= rcx;
+        rdx = rax;
+        rdx >>= 0x18;
+        rdx ^= rax;
+        rax = rdx;
+        rax >>= 0x30;
+        rdx ^= rax;
         return rdx;
     }
     case 7:
     {
-        r9 = rd<std::uint64_t>(fn, ctx, base + wz_rva::bone_key);         //mov r9, [0x000000000638BF07]
-        rax = base;         //lea rax, [0xFFFFFFFFF8A5C51C]
-        rdx += rax;         //add rdx, rax
-        rax = 0x5F80490A38DB3901;         //mov rax, 0x5F80490A38DB3901
-        rdx ^= rax;         //xor rdx, rax
-        rax = 0x4EC9DC6A5902297D;         //mov rax, 0x4EC9DC6A5902297D
-        rdx -= rax;         //sub rdx, rax
-        rax = rdx;         //mov rax, rdx
-        rax >>= 0x25;         //shr rax, 0x25
-        rdx ^= rax;         //xor rdx, rax
-        rcx = base + 0xCEFB;         //lea rcx, [0xFFFFFFFFF8A693A6]
-        rax = r8;         //mov rax, r8
-        rax ^= rcx;         //xor rax, rcx
-        rdx += rax;         //add rdx, rax
-        rax = 0x92B34BC27C367071;         //mov rax, 0x92B34BC27C367071
-        rdx *= rax;         //imul rdx, rax
-        rdx -= r8;         //sub rdx, r8
-        rax = 0;         //and rax, 0xFFFFFFFFC0000000
-        rax = _rotl64(rax, 0x10);         //rol rax, 0x10
-        rax ^= r9;         //xor rax, r9
-        rax = ~rax;         //not rax
-        rdx *= rd<std::uint64_t>(fn, ctx, rax + 0x17);         //imul rdx, [rax+0x17]
+        r9 = rd<std::uint64_t>(fn, ctx, base + wz_rva::bone_key);
+        rax = base;
+        rdx += rax;
+        rax = 0x5F80490A38DB3901;
+        rdx ^= rax;
+        rax = 0x4EC9DC6A5902297D;
+        rdx -= rax;
+        rax = rdx;
+        rax >>= 0x25;
+        rdx ^= rax;
+        rcx = base + 0xCEFB;
+        rax = r8;
+        rax ^= rcx;
+        rdx += rax;
+        rax = 0x92B34BC27C367071;
+        rdx *= rax;
+        rdx -= r8;
+        rax = 0;
+        rax = _rotl64(rax, 0x10);
+        rax ^= r9;
+        rax = ~rax;
+        rdx *= rd<std::uint64_t>(fn, ctx, rax + 0x17);
         return rdx;
     }
     case 8:
@@ -1092,184 +1092,184 @@ inline std::uint64_t decrypt_bone_base(ReadFn fn, void* ctx, std::uint64_t base,
     }
     case 9:
     {
-        r10 = rd<std::uint64_t>(fn, ctx, base + wz_rva::bone_key);         //mov r10, [0x000000000638B5AA]
-        r11 = base + 0x429D;         //lea r11, [0xFFFFFFFFF8A5FFA3]
-        r9 = base + 0xF1EC;         //lea r9, [0xFFFFFFFFF8A6AEEB]
-        rax = 0;         //and rax, 0xFFFFFFFFC0000000
-        rax = _rotl64(rax, 0x10);         //rol rax, 0x10
-        rax ^= r10;         //xor rax, r10
-        rax = ~rax;         //not rax
-        rdx *= rd<std::uint64_t>(fn, ctx, rax + 0x17);         //imul rdx, [rax+0x17]
-        rax = r8 + r9 * 1;         //lea rax, [r8+r9*1]
-        rcx = r8 + r11 * 1;         //lea rcx, [r8+r11*1]
-        rcx += rdx;         //add rcx, rdx
-        rcx ^= rax;         //xor rcx, rax
-        rax = base + 0x5304B0E6;         //lea rax, [0x000000004BAA6D41]
-        rcx ^= rax;         //xor rcx, rax
-        rcx ^= r8;         //xor rcx, r8
-        rdx = rcx;         //mov rdx, rcx
-        rdx >>= 0x22;         //shr rdx, 0x22
-        rdx ^= rcx;         //xor rdx, rcx
-        rax = 0xEE899EDDAF56550;         //mov rax, 0xEE899EDDAF56550
-        rdx ^= rax;         //xor rdx, rax
-        rax = rdx;         //mov rax, rdx
-        rax >>= 0xE;         //shr rax, 0x0E
-        rdx ^= rax;         //xor rdx, rax
-        rax = rdx;         //mov rax, rdx
-        rax >>= 0x1C;         //shr rax, 0x1C
-        rdx ^= rax;         //xor rdx, rax
-        rax = rdx;         //mov rax, rdx
-        rax >>= 0x38;         //shr rax, 0x38
-        rdx ^= rax;         //xor rdx, rax
-        rax = 0x39D515C223A57391;         //mov rax, 0x39D515C223A57391
-        rdx *= rax;         //imul rdx, rax
+        r10 = rd<std::uint64_t>(fn, ctx, base + wz_rva::bone_key);
+        r11 = base + 0x429D;
+        r9 = base + 0xF1EC;
+        rax = 0;
+        rax = _rotl64(rax, 0x10);
+        rax ^= r10;
+        rax = ~rax;
+        rdx *= rd<std::uint64_t>(fn, ctx, rax + 0x17);
+        rax = r8 + r9 * 1;
+        rcx = r8 + r11 * 1;
+        rcx += rdx;
+        rcx ^= rax;
+        rax = base + 0x5304B0E6;
+        rcx ^= rax;
+        rcx ^= r8;
+        rdx = rcx;
+        rdx >>= 0x22;
+        rdx ^= rcx;
+        rax = 0xEE899EDDAF56550;
+        rdx ^= rax;
+        rax = rdx;
+        rax >>= 0xE;
+        rdx ^= rax;
+        rax = rdx;
+        rax >>= 0x1C;
+        rdx ^= rax;
+        rax = rdx;
+        rax >>= 0x38;
+        rdx ^= rax;
+        rax = 0x39D515C223A57391;
+        rdx *= rax;
         return rdx;
     }
     case 10:
     {
-        rax = rdx;         //mov rax, rdx
-        rax >>= 0xF;         //shr rax, 0x0F
-        rax ^= rdx;         //xor rax, rdx
-        rdx = rax;         //mov rdx, rax
-        rdx >>= 0x1E;         //shr rdx, 0x1E
-        rdx ^= rax;         //xor rdx, rax
-        rax = rdx;         //mov rax, rdx
-        rax >>= 0x3C;         //shr rax, 0x3C
-        rax ^= rdx;         //xor rax, rdx
-        rdx = rax;         //mov rdx, rax
-        rdx >>= 0x13;         //shr rdx, 0x13
-        rdx ^= rax;         //xor rdx, rax
-        rax = rdx;         //mov rax, rdx
-        rax >>= 0x26;         //shr rax, 0x26
-        rdx ^= rax;         //xor rdx, rax
+        rax = rdx;
+        rax >>= 0xF;
+        rax ^= rdx;
+        rdx = rax;
+        rdx >>= 0x1E;
+        rdx ^= rax;
+        rax = rdx;
+        rax >>= 0x3C;
+        rax ^= rdx;
+        rdx = rax;
+        rdx >>= 0x13;
+        rdx ^= rax;
+        rax = rdx;
+        rax >>= 0x26;
+        rdx ^= rax;
         return rdx;
     }
     case 11:
     {
-        r9 = rd<std::uint64_t>(fn, ctx, base + wz_rva::bone_key);         //mov r9, [0x000000000638ACBD]
-        rax = rdx;         //mov rax, rdx
-        rax >>= 0x22;         //shr rax, 0x22
-        rdx ^= rax;         //xor rdx, rax
-        rax = base + 0x67B591A2;         //lea rax, [0x00000000605B437B]
-        rax = ~rax;         //not rax
-        rax ^= r8;         //xor rax, r8
-        rax += r8;         //add rax, r8
-        rdx -= rax;         //sub rdx, rax
-        rax = 0;         //and rax, 0xFFFFFFFFC0000000
-        rax = _rotl64(rax, 0x10);         //rol rax, 0x10
-        rax ^= r9;         //xor rax, r9
-        rax = ~rax;         //not rax
-        rdx *= rd<std::uint64_t>(fn, ctx, rax + 0x17);         //imul rdx, [rax+0x17]
-        rdx ^= r8;         //xor rdx, r8
-        rax = 0x112AEF7CBA9BEDF1;         //mov rax, 0x112AEF7CBA9BEDF1
-        rdx *= rax;         //imul rdx, rax
-        rax = 0x792205E77EAA6797;         //mov rax, 0x792205E77EAA6797
-        rdx ^= rax;         //xor rdx, rax
+        r9 = rd<std::uint64_t>(fn, ctx, base + wz_rva::bone_key);
+        rax = rdx;
+        rax >>= 0x22;
+        rdx ^= rax;
+        rax = base + 0x67B591A2;
+        rax = ~rax;
+        rax ^= r8;
+        rax += r8;
+        rdx -= rax;
+        rax = 0;
+        rax = _rotl64(rax, 0x10);
+        rax ^= r9;
+        rax = ~rax;
+        rdx *= rd<std::uint64_t>(fn, ctx, rax + 0x17);
+        rdx ^= r8;
+        rax = 0x112AEF7CBA9BEDF1;
+        rdx *= rax;
+        rax = 0x792205E77EAA6797;
+        rdx ^= rax;
         return rdx;
     }
     case 12:
     {
-        r9 = rd<std::uint64_t>(fn, ctx, base + wz_rva::bone_key);         //mov r9, [0x000000000638A90C]
-        rax = 0;         //and rax, 0xFFFFFFFFC0000000
-        rax = _rotl64(rax, 0x10);         //rol rax, 0x10
-        rax ^= r9;         //xor rax, r9
-        rax = ~rax;         //not rax
-        rdx *= rd<std::uint64_t>(fn, ctx, rax + 0x17);         //imul rdx, [rax+0x17]
-        rax = 0x33BF00DD8A073650;         //mov rax, 0x33BF00DD8A073650
-        rdx -= rax;         //sub rdx, rax
-        rax = rdx;         //mov rax, rdx
-        rax >>= 0xA;         //shr rax, 0x0A
-        rdx ^= rax;         //xor rdx, rax
-        rax = rdx;         //mov rax, rdx
-        rax >>= 0x14;         //shr rax, 0x14
-        rax ^= rdx;         //xor rax, rdx
-        rdx = rax;         //mov rdx, rax
-        rdx >>= 0x28;         //shr rdx, 0x28
-        rdx ^= rax;         //xor rdx, rax
-        rax = base;         //lea rax, [0xFFFFFFFFF8A5AE09]
-        rdx ^= rax;         //xor rdx, rax
-        rax = base + 0x70E4B3E1;         //lea rax, [0x00000000698A60D2]
-        rax = ~rax;         //not rax
-        rdx += rax;         //add rdx, rax
-        rax = 0x37300D9E69A77B2F;         //mov rax, 0x37300D9E69A77B2F
-        rdx *= rax;         //imul rdx, rax
-        rdx -= r8;         //sub rdx, r8
+        r9 = rd<std::uint64_t>(fn, ctx, base + wz_rva::bone_key);
+        rax = 0;
+        rax = _rotl64(rax, 0x10);
+        rax ^= r9;
+        rax = ~rax;
+        rdx *= rd<std::uint64_t>(fn, ctx, rax + 0x17);
+        rax = 0x33BF00DD8A073650;
+        rdx -= rax;
+        rax = rdx;
+        rax >>= 0xA;
+        rdx ^= rax;
+        rax = rdx;
+        rax >>= 0x14;
+        rax ^= rdx;
+        rdx = rax;
+        rdx >>= 0x28;
+        rdx ^= rax;
+        rax = base;
+        rdx ^= rax;
+        rax = base + 0x70E4B3E1;
+        rax = ~rax;
+        rdx += rax;
+        rax = 0x37300D9E69A77B2F;
+        rdx *= rax;
+        rdx -= r8;
         return rdx;
     }
     case 13:
     {
-        r9 = rd<std::uint64_t>(fn, ctx, base + wz_rva::bone_key);         //mov r9, [0x000000000638A53C]
-        rax = base + 0x666C9DA0;         //lea rax, [0x000000005F1248CC]
-        rax ^= r8;         //xor rax, r8
-        rdx -= rax;         //sub rdx, rax
-        rax = 0x124569EA4125D98;         //mov rax, 0x124569EA4125D98
-        rdx ^= rax;         //xor rdx, rax
-        rax = rdx;         //mov rax, rdx
-        rax >>= 0x5;         //shr rax, 0x05
-        rax ^= rdx;         //xor rax, rdx
-        rcx = rax;         //mov rcx, rax
-        rcx >>= 0xA;         //shr rcx, 0x0A
-        rcx ^= rax;         //xor rcx, rax
-        rdx = rcx;         //mov rdx, rcx
-        rdx >>= 0x14;         //shr rdx, 0x14
-        rdx ^= rcx;         //xor rdx, rcx
-        rax = rdx;         //mov rax, rdx
-        rax >>= 0x28;         //shr rax, 0x28
-        rax ^= rdx;         //xor rax, rdx
-        rdx = rax;         //mov rdx, rax
-        rdx >>= 0x1A;         //shr rdx, 0x1A
-        rdx ^= rax;         //xor rdx, rax
-        rax = rdx;         //mov rax, rdx
-        rcx = 0;         //and rcx, 0xFFFFFFFFC0000000
-        rax >>= 0x34;         //shr rax, 0x34
-        rcx = _rotl64(rcx, 0x10);         //rol rcx, 0x10
-        rdx ^= rax;         //xor rdx, rax
-        rcx ^= r9;         //xor rcx, r9
-        rcx = ~rcx;         //not rcx
-        rdx *= rd<std::uint64_t>(fn, ctx, rcx + 0x17);         //imul rdx, [rcx+0x17]
-        rdx ^= r8;         //xor rdx, r8
-        rax = 0xD83F30F92C64DF4F;         //mov rax, 0xD83F30F92C64DF4F
-        rdx ^= rax;         //xor rdx, rax
-        rax = 0xB69AFD2628432A9D;         //mov rax, 0xB69AFD2628432A9D
-        rdx *= rax;         //imul rdx, rax
+        r9 = rd<std::uint64_t>(fn, ctx, base + wz_rva::bone_key);
+        rax = base + 0x666C9DA0;
+        rax ^= r8;
+        rdx -= rax;
+        rax = 0x124569EA4125D98;
+        rdx ^= rax;
+        rax = rdx;
+        rax >>= 0x5;
+        rax ^= rdx;
+        rcx = rax;
+        rcx >>= 0xA;
+        rcx ^= rax;
+        rdx = rcx;
+        rdx >>= 0x14;
+        rdx ^= rcx;
+        rax = rdx;
+        rax >>= 0x28;
+        rax ^= rdx;
+        rdx = rax;
+        rdx >>= 0x1A;
+        rdx ^= rax;
+        rax = rdx;
+        rcx = 0;
+        rax >>= 0x34;
+        rcx = _rotl64(rcx, 0x10);
+        rdx ^= rax;
+        rcx ^= r9;
+        rcx = ~rcx;
+        rdx *= rd<std::uint64_t>(fn, ctx, rcx + 0x17);
+        rdx ^= r8;
+        rax = 0xD83F30F92C64DF4F;
+        rdx ^= rax;
+        rax = 0xB69AFD2628432A9D;
+        rdx *= rax;
         return rdx;
     }
     case 14:
     {
-        r9 = rd<std::uint64_t>(fn, ctx, base + wz_rva::bone_key);         //mov r9, [0x000000000638A10A]
-        r10 = base + 0xD03A;         //lea r10, [0xFFFFFFFFF8A678A0]
-        rax = rdx;         //mov rax, rdx
-        rax >>= 0x1B;         //shr rax, 0x1B
-        rdx ^= rax;         //xor rdx, rax
-        rax = rdx;         //mov rax, rdx
-        rcx = 0;         //and rcx, 0xFFFFFFFFC0000000
-        rax >>= 0x36;         //shr rax, 0x36
-        rcx = _rotl64(rcx, 0x10);         //rol rcx, 0x10
-        rdx ^= rax;         //xor rdx, rax
-        rcx ^= r9;         //xor rcx, r9
-        rcx = ~rcx;         //not rcx
-        rdx *= rd<std::uint64_t>(fn, ctx, rcx + 0x17);         //imul rdx, [rcx+0x17]
-        rax = 0xDC4274449EFE767B;         //mov rax, 0xDC4274449EFE767B
-        rdx ^= rax;         //xor rdx, rax
-        rax = rdx;         //mov rax, rdx
-        rax >>= 0x6;         //shr rax, 0x06
-        rax ^= rdx;         //xor rax, rdx
-        rcx = rax;         //mov rcx, rax
-        rcx >>= 0xC;         //shr rcx, 0x0C
-        rcx ^= rax;         //xor rcx, rax
-        rdx = rcx;         //mov rdx, rcx
-        rdx >>= 0x18;         //shr rdx, 0x18
-        rdx ^= rcx;         //xor rdx, rcx
-        rax = rdx;         //mov rax, rdx
-        rax >>= 0x30;         //shr rax, 0x30
-        rdx ^= rax;         //xor rdx, rax
-        rax = base + 0x5113;         //lea rax, [0xFFFFFFFFF8A5F6BD]
-        rax ^= r8;         //xor rax, r8
-        rdx -= rax;         //sub rdx, rax
-        rax = 0x4480AA60A21867F9;         //mov rax, 0x4480AA60A21867F9
-        rdx *= rax;         //imul rdx, rax
-        rax = r8 + r10 * 1;         //lea rax, [r8+r10*1]
-        rdx += rax;         //add rdx, rax
+        r9 = rd<std::uint64_t>(fn, ctx, base + wz_rva::bone_key);
+        r10 = base + 0xD03A;
+        rax = rdx;
+        rax >>= 0x1B;
+        rdx ^= rax;
+        rax = rdx;
+        rcx = 0;
+        rax >>= 0x36;
+        rcx = _rotl64(rcx, 0x10);
+        rdx ^= rax;
+        rcx ^= r9;
+        rcx = ~rcx;
+        rdx *= rd<std::uint64_t>(fn, ctx, rcx + 0x17);
+        rax = 0xDC4274449EFE767B;
+        rdx ^= rax;
+        rax = rdx;
+        rax >>= 0x6;
+        rax ^= rdx;
+        rcx = rax;
+        rcx >>= 0xC;
+        rcx ^= rax;
+        rdx = rcx;
+        rdx >>= 0x18;
+        rdx ^= rcx;
+        rax = rdx;
+        rax >>= 0x30;
+        rdx ^= rax;
+        rax = base + 0x5113;
+        rax ^= r8;
+        rdx -= rax;
+        rax = 0x4480AA60A21867F9;
+        rdx *= rax;
+        rax = r8 + r10 * 1;
+        rdx += rax;
         return rdx;
     }
     case 15:
@@ -1319,68 +1319,68 @@ inline std::uint16_t get_bone_index(ReadFn fn, void* ctx, std::uint64_t base, st
     std::uint64_t rax = mb, rbx = mb, rcx = mb, rdx = mb, r8 = mb, r9 = mb, r10 = mb, r11 = mb, r14 = mb;
     rbx = bone_index;
     rcx = rbx * 0x13C8;
-    rax = 0xCB182C584BD5193;         //mov rax, 0xCB182C584BD5193
-    r11 = base;         //lea r11, [0xFFFFFFFFFC4257C1]
-    rax = _umul128(rax, rcx, (std::uint64_t*)&rdx);         //mul rcx
-    rax = rcx;         //mov rax, rcx
-    r10 = 0xD6FB75C08B670E5B;         //mov r10, 0xD6FB75C08B670E5B
-    rax -= rdx;         //sub rax, rdx
-    rax >>= 0x1;         //shr rax, 0x01
-    rax += rdx;         //add rax, rdx
-    rax >>= 0xC;         //shr rax, 0x0C
-    rax = rax * 0x1E7D;         //imul rax, rax, 0x1E7D
-    rcx -= rax;         //sub rcx, rax
-    rax = 0x4078E2A8FCDA18EF;         //mov rax, 0x4078E2A8FCDA18EF
-    r8 = rcx * 0x1E7D;         //imul r8, rcx, 0x1E7D
-    rax = _umul128(rax, r8, (std::uint64_t*)&rdx);         //mul r8
-    rdx >>= 0xB;         //shr rdx, 0x0B
-    rax = rdx * 0x1FC4;         //imul rax, rdx, 0x1FC4
-    r8 -= rax;         //sub r8, rax
-    rax = 0xF0F0F0F0F0F0F0F1;         //mov rax, 0xF0F0F0F0F0F0F0F1
-    rax = _umul128(rax, r8, (std::uint64_t*)&rdx);         //mul r8
-    rax = 0x624DD2F1A9FBE77;         //mov rax, 0x624DD2F1A9FBE77
-    rdx >>= 0x6;         //shr rdx, 0x06
-    rcx = rdx * 0x44;         //imul rcx, rdx, 0x44
-    rax = _umul128(rax, r8, (std::uint64_t*)&rdx);         //mul r8
-    rax = r8;         //mov rax, r8
-    rax -= rdx;         //sub rax, rdx
-    rax >>= 0x1;         //shr rax, 0x01
-    rax += rdx;         //add rax, rdx
-    rax >>= 0x6;         //shr rax, 0x06
-    rcx += rax;         //add rcx, rax
-    rax = rcx * 0xFA;         //imul rax, rcx, 0xFA
-    rcx = r8 * 0xFC;         //imul rcx, r8, 0xFC
-    rcx -= rax;         //sub rcx, rax
-    rax = rd<std::uint16_t>(fn, ctx, rcx + r11 * 1 + 0xC51BD00);         //movzx eax, word ptr [rcx+r11*1+0xC51BD00]
-    r8 = rax * 0x13C8;         //imul r8, rax, 0x13C8
-    rax = r10;         //mov rax, r10
-    rax = _umul128(rax, r8, (std::uint64_t*)&rdx);         //mul r8
-    rax = r10;         //mov rax, r10
-    rdx >>= 0xD;         //shr rdx, 0x0D
-    rcx = rdx * 0x261B;         //imul rcx, rdx, 0x261B
-    r8 -= rcx;         //sub r8, rcx
-    r9 = r8 * 0x2F75;         //imul r9, r8, 0x2F75
-    rax = _umul128(rax, r9, (std::uint64_t*)&rdx);         //mul r9
-    rdx >>= 0xD;         //shr rdx, 0x0D
-    rax = rdx * 0x261B;         //imul rax, rdx, 0x261B
-    r9 -= rax;         //sub r9, rax
-    rax = 0x8FB823EE08FB823F;         //mov rax, 0x8FB823EE08FB823F
-    rax = _umul128(rax, r9, (std::uint64_t*)&rdx);         //mul r9
-    rax = 0x579D6EE340579D6F;         //mov rax, 0x579D6EE340579D6F
-    rdx >>= 0x5;         //shr rdx, 0x05
-    rcx = rdx * 0x39;         //imul rcx, rdx, 0x39
-    rax = _umul128(rax, r9, (std::uint64_t*)&rdx);         //mul r9
-    rdx >>= 0x6;         //shr rdx, 0x06
-    rcx += rdx;         //add rcx, rdx
-    rax = rcx * 0x176;         //imul rax, rcx, 0x176
-    rcx = r9 * 0x178;         //imul rcx, r9, 0x178
-    rcx -= rax;         //sub rcx, rax
-    r14 = rd<std::uint16_t>(fn, ctx, rcx + r11 * 1 + 0xC51FF70);         //movsx r14d, word ptr [rcx+r11*1+0xC51FF70]
+    rax = 0xCB182C584BD5193;
+    r11 = base;
+    rax = _umul128(rax, rcx, (std::uint64_t*)&rdx);
+    rax = rcx;
+    r10 = 0xD6FB75C08B670E5B;
+    rax -= rdx;
+    rax >>= 0x1;
+    rax += rdx;
+    rax >>= 0xC;
+    rax = rax * 0x1E7D;
+    rcx -= rax;
+    rax = 0x4078E2A8FCDA18EF;
+    r8 = rcx * 0x1E7D;
+    rax = _umul128(rax, r8, (std::uint64_t*)&rdx);
+    rdx >>= 0xB;
+    rax = rdx * 0x1FC4;
+    r8 -= rax;
+    rax = 0xF0F0F0F0F0F0F0F1;
+    rax = _umul128(rax, r8, (std::uint64_t*)&rdx);
+    rax = 0x624DD2F1A9FBE77;
+    rdx >>= 0x6;
+    rcx = rdx * 0x44;
+    rax = _umul128(rax, r8, (std::uint64_t*)&rdx);
+    rax = r8;
+    rax -= rdx;
+    rax >>= 0x1;
+    rax += rdx;
+    rax >>= 0x6;
+    rcx += rax;
+    rax = rcx * 0xFA;
+    rcx = r8 * 0xFC;
+    rcx -= rax;
+    rax = rd<std::uint16_t>(fn, ctx, rcx + r11 * 1 + 0xC51BD00);
+    r8 = rax * 0x13C8;
+    rax = r10;
+    rax = _umul128(rax, r8, (std::uint64_t*)&rdx);
+    rax = r10;
+    rdx >>= 0xD;
+    rcx = rdx * 0x261B;
+    r8 -= rcx;
+    r9 = r8 * 0x2F75;
+    rax = _umul128(rax, r9, (std::uint64_t*)&rdx);
+    rdx >>= 0xD;
+    rax = rdx * 0x261B;
+    r9 -= rax;
+    rax = 0x8FB823EE08FB823F;
+    rax = _umul128(rax, r9, (std::uint64_t*)&rdx);
+    rax = 0x579D6EE340579D6F;
+    rdx >>= 0x5;
+    rcx = rdx * 0x39;
+    rax = _umul128(rax, r9, (std::uint64_t*)&rdx);
+    rdx >>= 0x6;
+    rcx += rdx;
+    rax = rcx * 0x176;
+    rcx = r9 * 0x178;
+    rcx -= rax;
+    r14 = rd<std::uint16_t>(fn, ctx, rcx + r11 * 1 + 0xC51FF70);
     return static_cast<std::uint16_t>(r14);
 }
 
-// Camera origin: same Key3-style per-float xor as refdef (Usermode DecryptCameraOrigin).
-// Callers may use the raw float3 at the configured camera.pos field.
+
+
 inline Vec3 decrypt_camera_origin(ReadFn fn, void* ctx, std::uint64_t camera_base)
 {
     Vec3 origin{};
@@ -1417,13 +1417,13 @@ bool RunDecrypt(uintptr_t module_base, DecryptState& out) {
     out.peb = ResolvePebAddress();
     if (!out.peb) {
         std::snprintf(out.detail, sizeof(out.detail), "CLIENT_INFO reason=PEB_MISSING");
-        // still try name_array below
+
     }
 
     ReadFn fn = &DmaReadFn;
     void* ctx = nullptr;
 
-    // ---- name_array always (candidates / names) ----
+
     const uintptr_t na_rva = offsets.name_array;
     uintptr_t na = 0;
     if (ReadU64(module_base + na_rva, na) && IsCanonicalUserPtr(na) && PointerReadable(na)) {
@@ -1431,13 +1431,13 @@ bool RunDecrypt(uintptr_t module_base, DecryptState& out) {
         out.name_array_ok = true;
     }
 
-    // ---- client_info PEB-mixed (mode 0 = ~peb is correct for this build) ----
+
     if (out.peb) {
         uintptr_t raw_enc = 0;
         const bool raw_read_ok = ReadU64(module_base + (uintptr_t)wz_rva::client_info_enc, raw_enc);
 
-        // raw==0 is the most common post-patch / lobby signal: either the encrypted
-        // pointer is not populated yet (menu/lobby) or client_info_enc RVA moved.
+
+
         if (!raw_read_ok) {
             LogCi(module_base, 0, 0, -1, "READ_FAIL");
 #if defined(OMNIGHOST_VERBOSE_OFFSET_DIAGNOSTICS)
@@ -1485,9 +1485,9 @@ bool RunDecrypt(uintptr_t module_base, DecryptState& out) {
         std::snprintf(out.detail, sizeof(out.detail), "CLIENT_INFO FAIL reason=PEB_MISSING");
     }
 
-    // ---- client_base (only after client_info) ----
+
     if (out.client_info_ok) {
-        // PEB switch selector (same formula as decrypt body)
+
         std::uint64_t sw = out.peb;
         sw <<= 0x23;
         sw = _byteswap_uint64(sw);
@@ -1509,11 +1509,11 @@ bool RunDecrypt(uintptr_t module_base, DecryptState& out) {
         }
     }
 
-    // ---- local_index from client_info ----
+
     if (out.client_info_ok) {
         const uintptr_t li_off = offsets.local_index_off;
         const uintptr_t li_pos = offsets.local_index_pos;
-        // Two common layouts: direct int at client_info+off, or ptr then +pos
+
         int idx = -1;
         uintptr_t maybe_ptr = 0;
         if (ReadU64(out.client_info + li_off, maybe_ptr) && IsCanonicalUserPtr(maybe_ptr)) {
@@ -1529,7 +1529,7 @@ bool RunDecrypt(uintptr_t module_base, DecryptState& out) {
         out.local_index = idx;
     }
 
-    // ---- optional bone_base ----
+
     if (out.peb) {
         const uintptr_t bb = (uintptr_t)decrypt_bone_base(fn, ctx, module_base, out.peb);
         if (is_heap(bb) && PointerReadable(bb)) {
@@ -1539,11 +1539,11 @@ bool RunDecrypt(uintptr_t module_base, DecryptState& out) {
     }
 
     if (out.client_base_ok) return true;
-    if (out.name_array_ok) return true; // candidates only
+    if (out.name_array_ok) return true;
     return false;
 }
 
-bool ReadPlayerSlot(const DecryptState& st, uintptr_t /*module_base*/, int index,
+bool ReadPlayerSlot(const DecryptState& st, uintptr_t , int index,
                     float out_pos[3], float out_head[3], float out_chest[3],
                     int& out_team, float& out_health, char* out_name, size_t name_cap,
                     bool& out_valid, bool& out_alive) {
@@ -1578,7 +1578,7 @@ bool ReadPlayerSlot(const DecryptState& st, uintptr_t /*module_base*/, int index
     if (std::fabs(pos[0]) > 1e6f || std::fabs(pos[1]) > 1e6f) return false;
 
     out_pos[0] = pos[0]; out_pos[1] = pos[1]; out_pos[2] = pos[2];
-    // Stance-aware head (same table as warzone_game enum path)
+
     int stance = 0;
     const uintptr_t pstance = offsets.player_stance;
     mem.Read(player + pstance, &stance, sizeof(stance));
@@ -1622,4 +1622,4 @@ bool ReadPlayerSlot(const DecryptState& st, uintptr_t /*module_base*/, int index
     return true;
 }
 
-} // namespace Warzone
+}

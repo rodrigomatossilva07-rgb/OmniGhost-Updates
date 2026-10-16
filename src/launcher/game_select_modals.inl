@@ -1,5 +1,5 @@
-// This implementation fragment is included by game_select.cpp inside Launcher's private namespace.
-// It is separated by responsibility to keep the launcher coordinator reviewable.
+
+
 
 void DrawLauncherModals(ImDrawList* draw, ImVec2 display) {
     (void)draw;
@@ -122,9 +122,9 @@ void DrawLauncherModals(ImDrawList* draw, ImVec2 display) {
         } else if (state == CardState::NeedsOffsets) RequestOffsetRefresh(id);
         else if (state == CardState::UpdateRequired) ToastOpenUpdates();
         else if (state == CardState::DeviceMissing) {
-            // Explicit retry is allowed to leave the launcher so main can make
-            // one fresh device-open attempt. The game menu still opens only if
-            // that DMA attempt succeeds.
+
+
+
             if (!CanStartGame(id)) {
                 CyberWidgets::EndModal();
                 return;

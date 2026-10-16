@@ -9,9 +9,9 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 $ProjectDir = [IO.Path]::GetFullPath($ProjectDir)
 
-# Never create a distributable source snapshot from a tree that would fail the
-# same engineering/dependency checks used by Visual Studio. In particular, this
-# prevents source packages from silently omitting canonical runtime DLLs.
+
+
+
 $Validator = Join-Path $ProjectDir 'tools\Validate-Project.ps1'
 if (-not (Test-Path -LiteralPath $Validator -PathType Leaf)) {
     throw "Project validator not found: $Validator"
@@ -26,9 +26,9 @@ $OutputPath = [IO.Path]::GetFullPath($OutputPath)
 New-Item -ItemType Directory -Force -Path (Split-Path -Parent $OutputPath) | Out-Null
 if (Test-Path -LiteralPath $OutputPath) { Remove-Item -LiteralPath $OutputPath -Force }
 
-# Source packages are produced from an explicit allowlist. New top-level folders
-# do not silently enter a release/source archive just because they were created
-# in a developer workspace.
+
+
+
 $allowedRootFiles = @(
     '.clang-format', '.editorconfig', '.gitattributes', '.gitignore',
     'OmiGhost.slnx', 'OmiGhost.vcxproj', 'OmiGhost.vcxproj.filters',
@@ -43,7 +43,7 @@ $allowedRoots = @(
 $excludedDirectoryNames = @('.vs', '.cache', 'build', 'artifacts', '.temp', 'logs', 'x64',
     'dma_stack.backup', 'dma_stack.staging')
 $excludedExtensions = @('.user', '.suo', '.ipch', '.obj', '.pdb', '.ilk', '.tlog', '.lastbuildstate', '.idb', '.iobj', '.ipdb', '.exp')
-$allowedMarkdown = @() # Source delivery intentionally carries no loose Markdown documentation.
+$allowedMarkdown = @()
 
 function Test-IncludedFile([System.IO.FileInfo]$File, [string]$Relative) {
     if ($Relative -in @('config\release\SOURCE_BUILD_METADATA.json', 'config\release\SOURCE_PACKAGE_MANIFEST.json')) { return $false }
@@ -72,7 +72,7 @@ foreach ($rootName in $allowedRoots) {
     }
 }
 
-# Guard against duplicate/case-colliding archive paths on Windows.
+
 $seen = @{}
 foreach ($entry in $files) {
     $key = ([string]$entry.Relative).Replace('/', '\').ToLowerInvariant()
@@ -98,7 +98,7 @@ try {
     $versionPath = Join-Path $ProjectDir 'config\release\version.txt'
     $version = if (Test-Path -LiteralPath $versionPath -PathType Leaf) { (Get-Content -LiteralPath $versionPath -Raw).Trim() } else { 'unknown' }
 
-    # Preserve build provenance without shipping the .git directory.
+
     $commit = 'unknown'
     $sourceEpoch = $null
     $dirty = $false
@@ -119,8 +119,8 @@ try {
         if ([long]::TryParse([string]$env:SOURCE_DATE_EPOCH, [ref]$epochValue) -and $epochValue -gt 0) { $sourceEpoch = $epochValue }
     }
 
-    # Extracted source packages may legitimately have no .git directory. Give them
-    # a deterministic source-tree identity instead of serialising commit_id=unknown.
+
+
     if ([string]::IsNullOrWhiteSpace($commit) -or $commit -eq 'unknown') {
         $IdentityLines = @($manifestEntries | Sort-Object path | ForEach-Object { "{0}`t{1}`t{2}" -f $_.path, $_.sha256, $_.size })
         $IdentityBytes = (New-Object Text.UTF8Encoding($false)).GetBytes(($IdentityLines -join "`n") + "`n")

@@ -84,8 +84,8 @@
 namespace Launcher {
 namespace {
 
-// Launcher colors are aliases of the single product-wide CyberTheme palette.
-// The launcher no longer owns a parallel gold/text palette.
+
+
 float S(float logical) { return CyberTheme::Px(logical); }
 
 ImU32 C_BG(int alpha = 255) { return CyberTheme::WithAlpha(CyberTheme::Colors.Background, alpha / 255.0f); }
@@ -190,7 +190,7 @@ std::string BuildDiagnosticsText();
 #include "game_select_presentation.inl"
 #include "game_select_pages.inl"
 #include "game_select_modals.inl"
-} // namespace
+}
 
 void Reset(EntryReason reason) {
     PerformanceMode::Reset();
@@ -211,9 +211,9 @@ void Reset(EntryReason reason) {
     ++g_remote_process_generation;
     g_remote_process_mask = 0;
     g_remote_process_scanned_at = 0.0;
-    // Let the UI transition settle before the first remote process inventory.
-    // This avoids hitting the FPGA again in the same instant that startup
-    // finishes opening the device.
+
+
+
     g_next_remote_process_scan = ImGui::GetTime() + 6.0;
     g_logout_requested = false;
     g_search[0] = 0;
@@ -253,8 +253,8 @@ void Reset(EntryReason reason) {
         g_games.push_back(runtime);
     }
 
-    // Persisted live failures remain quarantined until the API supplies a new,
-    // structurally valid candidate. A network failure never clears this state.
+
+
     for (const GameRuntime& runtime : g_games) {
         if (!runtime.definition) continue;
         if (runtime.definition->coming_soon) continue;
@@ -263,10 +263,10 @@ void Reset(EntryReason reason) {
             OmniGhost::OffsetAuto::MarkOutdated(active, "A validação no jogo falhou na última sessão");
     }
     if (!g_startup_offset_checks.valid()) {
-        // Soft background check (ETag / If-None-Match) for every API-backed game
+
         for (ActiveGame g : {
                 ActiveGame::CS2,
-                ActiveGame::Warzone, ActiveGame::FiveM, ActiveGame::Apex}) {
+                ActiveGame::Warzone, ActiveGame::FiveM}) {
             OmniGhost::OffsetAuto::MarkChecking(g);
         }
         g_startup_offset_checks = std::async(std::launch::async, [] {
@@ -411,4 +411,4 @@ bool ConsumeLogoutRequest() {
     return requested;
 }
 
-} // namespace Launcher
+}

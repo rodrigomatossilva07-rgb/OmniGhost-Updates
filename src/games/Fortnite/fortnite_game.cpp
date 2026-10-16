@@ -28,12 +28,12 @@ static const char* kProcessCandidates[] = {
 
 static bool g_logged_once = false;
 
-// ── P0 fix: DMA never runs on the render thread ──────────────────────────
-// Acquisition thread owns g_acq_runtime and publishes immutable Runtime
-// snapshots. CameraLoop refreshes only the 3 PCM fields at ~62 Hz from the
-// chain-resolved camera manager pointer. Tick()/DrawESP() consume leases;
-// the public `runtime` global is written exclusively by the render thread
-// (single-writer — UI status pages read it without cross-thread races).
+
+
+
+
+
+
 namespace {
 OmniGhost::Gameplay::SnapshotExchange<Runtime, 3> g_snapshots;
 OmniGhost::Gameplay::SnapshotExchange<Config, 3> g_config_snapshots;
@@ -42,23 +42,23 @@ struct CameraFrame {
     FRotatorD rot{};
     float fov = 0.f;
     bool ok = false;
-    uint64_t sample_ms = 0; // midpoint of the PCM fields read
+    uint64_t sample_ms = 0;
     uintptr_t camera_manager = 0;
 };
 OmniGhost::Gameplay::SnapshotExchange<CameraFrame, 3> g_camera_frames;
-Runtime g_acq_runtime{};                 // acquisition thread ONLY
+Runtime g_acq_runtime{};
 std::thread g_acq_thread;
 std::thread g_cam_thread;
 std::atomic_bool g_threads_stop{false};
 std::atomic_bool g_threads_running{false};
-std::atomic<uintptr_t> g_camera_manager{0}; // chain → camera lane handoff
-} // namespace
+std::atomic<uintptr_t> g_camera_manager{0};
+}
 
 static bool IsCanonicalUserPtr(uintptr_t p) {
-    // Usermode x64 canonical pointer, non-null, reasonable floor.
+
     if (p < 0x10000ULL) return false;
     if (p > 0x00007FFFFFFFFFFFULL) return false;
-    // Reject common poison patterns
+
     if ((p & 0xFFFFULL) == 0xACDE) return false;
     return true;
 }
@@ -115,7 +115,7 @@ static ChainDiag ReadPtrDiag(uintptr_t addr) {
     uint64_t tmp = 0;
     size_t got = 0;
     if (addr) {
-        // Counted read first (surfaces partial page faults), then plain Read fallback.
+
         if (mem.ReadWithCount(addr, &tmp, sizeof(tmp), got) && got == sizeof(tmp)) {
             d.read_ok = true;
         } else if (mem.Read(addr, &tmp, sizeof(tmp))) {
@@ -132,7 +132,7 @@ static ChainDiag ReadPtrDiag(uintptr_t addr) {
     return d;
 }
 
-// PE32+ OptionalHeader.SizeOfImage. Returns 0 on failure.
+
 static uint32_t ReadPeSizeOfImage(uintptr_t module_base) {
     if (!module_base) return 0;
     uint32_t e_lfanew = 0;
@@ -146,8 +146,8 @@ static uint32_t ReadPeSizeOfImage(uintptr_t module_base) {
     return size_of_image;
 }
 
-// Current dump: world = encoded * mul + add (uint64 modular arithmetic).
-// Legacy: rotl64(encoded - sub, rol) ^ xor_key when mul/add are zero.
+
+
 static uintptr_t DecryptGWorld(uint64_t encoded) {
     if (!offsets.gworld_encoded)
         return static_cast<uintptr_t>(encoded);
@@ -156,14 +156,14 @@ static uintptr_t DecryptGWorld(uint64_t encoded) {
             offsets.gworld_mul * encoded + offsets.gworld_add;
         return static_cast<uintptr_t>(world);
     }
-    // Legacy rot_xor path
+
     const uint64_t v = encoded - offsets.gworld_sub;
     const uint32_t r = offsets.gworld_rol & 63u;
     const uint64_t rotated = (v << r) | (v >> ((64u - r) & 63u));
     return static_cast<uintptr_t>(rotated ^ offsets.gworld_xor);
 }
 
-// Standard UE-style W2S with degrees, camera at origin of view axes.
+
 static bool WorldToScreen(const FVectorD& world, const FVectorD& cam_loc,
                           const FRotatorD& cam_rot, float fov_deg,
                           float screen_w, float screen_h,
@@ -179,7 +179,7 @@ static bool WorldToScreen(const FVectorD& world, const FVectorD& cam_loc,
     const double cp = std::cos(pitch), sp = std::sin(pitch);
     const double cy = std::cos(yaw), sy = std::sin(yaw);
 
-    // Camera axes (UE: X forward, Y right, Z up)
+
     const double fx = cp * cy, fy = cp * sy, fz = sp;
     const double rx = -sy, ry = cy, rz = 0.0;
     const double ux = -sp * cy, uy = -sp * sy, uz = cp;
@@ -189,7 +189,7 @@ static bool WorldToScreen(const FVectorD& world, const FVectorD& cam_loc,
     const double dz = world.z - cam_loc.z;
 
     const double forward = dx * fx + dy * fy + dz * fz;
-    if (forward < 1.0) return false; // behind / too close
+    if (forward < 1.0) return false;
 
     const double right = dx * rx + dy * ry + dz * rz;
     const double up = dx * ux + dy * uy + dz * uz;
@@ -213,11 +213,11 @@ static std::string Hex(uintptr_t v) {
     return o.str();
 }
 
-// Read only the replicated GameState player list. This data is diagnostic at
-// this stage; the Fortnite ESP and aim paths do not consume runtime.players.
-// Acquisition-thread only. Player slots are read with scatter passes instead
-// of per-player sequential DMA: A=pawn/health/team, B=root/state validate,
-// C=positions (world_sample_ms = midpoint of the position scatter).
+
+
+
+
+
 static void ResolvePlayers(Runtime& rt, const Config& frameConfig) {
     rt.players.clear();
     rt.player_array_ok = false;
@@ -242,8 +242,8 @@ static void ResolvePlayers(Runtime& rt, const Config& frameConfig) {
         return;
     }
 
-    // UE TArray: data pointer, Num and Max. Reject corrupt headers before
-    // allocating or reading a potentially unbounded region over DMA.
+
+
     const uintptr_t array_addr = game_state + offsets.game_state_player_array;
     uintptr_t data = 0;
     int32_t count = 0, capacity = 0;
@@ -284,8 +284,8 @@ static void ResolvePlayers(Runtime& rt, const Config& frameConfig) {
         mem.Read(local_state + offsets.fort_ps_team_index, &local_team, sizeof(local_team));
     const double max_cm = static_cast<double>(frameConfig.max_distance) * 100.0;
 
-    // ── Pass A: pawn ptr + health + team for every entry (scatter) ────────
-    constexpr int kMaxPlayers = 128; // practical server cap; arrays stay stack-bound
+
+    constexpr int kMaxPlayers = 128;
     const int n = (std::min)(count, kMaxPlayers);
     std::array<uintptr_t, kMaxPlayers> pawns{};
     std::array<float, kMaxPlayers> healths{};
@@ -304,7 +304,7 @@ static void ResolvePlayers(Runtime& rt, const Config& frameConfig) {
         mem.CloseScatterHandle(h);
     }
 
-    // ── Pass B: root component + pong validate (candidates only) ──────────
+
     std::array<uintptr_t, kMaxPlayers> roots{};
     std::array<uintptr_t, kMaxPlayers> pawnStates{};
     std::array<bool, kMaxPlayers> candidate{};
@@ -312,8 +312,8 @@ static void ResolvePlayers(Runtime& rt, const Config& frameConfig) {
         for (int i = 0; i < n; ++i) {
             const uintptr_t pawn = pawns[i];
             if (!IsCanonicalUserPtr(pawn)) continue;
-            if (rt.local_pawn_ok && pawn == rt.local_pawn) continue;   // local
-            if (!std::isfinite(healths[i]) || healths[i] <= 0.f) continue; // dying
+            if (rt.local_pawn_ok && pawn == rt.local_pawn) continue;
+            if (!std::isfinite(healths[i]) || healths[i] <= 0.f) continue;
             candidate[i] = true;
             mem.AddScatterReadRequest(h, pawn + offsets.actor_root_component,
                                       &roots[i], sizeof(uintptr_t));
@@ -324,7 +324,7 @@ static void ResolvePlayers(Runtime& rt, const Config& frameConfig) {
         mem.CloseScatterHandle(h);
     }
 
-    // ── Pass C: positions (world sample timestamp = midpoint of this read) ─
+
     std::array<FVectorD, kMaxPlayers> positions{};
     bool queuedPos = false;
     {
@@ -423,7 +423,7 @@ static void ResolvePlayers(Runtime& rt, const Config& frameConfig) {
 
 static void FlushDiagnosticsToLogImpl(const Runtime& rt) {
 #if !defined(OMNIGHOST_VERBOSE_OFFSET_DIAGNOSTICS)
-    // Throttle identical SUMMARY lines (Tick resolves every frame).
+
     static std::string last_status;
     static ULONGLONG last_ts = 0;
     const ULONGLONG now = GetTickCount64();
@@ -434,8 +434,8 @@ static void FlushDiagnosticsToLogImpl(const Runtime& rt) {
         return;
     last_status = summary;
     last_ts = now;
-    // SessionLog owns the only logs.txt sink. Customer builds intentionally log
-    // outcomes rather than addresses/RVAs or the full offset table.
+
+
     std::clog << "[FORTNITE] diagnostics=SUMMARY"
               << " attached=" << (rt.attached ? "YES" : "NO")
               << " chain=" << (rt.chain_ok ? "PASS" : "FAIL")
@@ -508,7 +508,7 @@ static void FlushDiagnosticsToLogImpl(const Runtime& rt) {
 #endif
 }
 
-// UI-thread diagnostics entry point (reads the presentation-owned runtime).
+
 void FlushDiagnosticsToLog() { FlushDiagnosticsToLogImpl(runtime); }
 
 static void ResolveLocalChain(Runtime& rt) {
@@ -535,7 +535,7 @@ static void ResolveLocalChain(Runtime& rt) {
         return;
     }
 
-    // Prove process VA reads work (PE MZ at module base).
+
     uint16_t mz = 0;
     if (!mem.Read(rt.base, &mz, sizeof(mz)) || mz != 0x5A4D) {
         rt.last_fail = "module base not readable (MZ)";
@@ -545,11 +545,11 @@ static void ResolveLocalChain(Runtime& rt) {
 
     const uint32_t image_size = ReadPeSizeOfImage(rt.base);
 
-    // -------------------------------------------------------------------------
-    // PRIMARY ROOT — cheatoffsets 42.00: GWorld plain pointer.
-    // Capware CL-57316517 UWorld members applied after pointer resolves.
-    // OPTIONAL fallback: GEngine -> GameViewport -> World when GWorld fails.
-    // -------------------------------------------------------------------------
+
+
+
+
+
     bool have_world = false;
     if (offsets.gworld) {
         if (image_size && offsets.gworld >= image_size) {
@@ -557,8 +557,8 @@ static void ResolveLocalChain(Runtime& rt) {
             rt.status = "FAIL GWorld: RVA fora da imagem (offsets/modulo)";
             return;
         }
-        // Encoded path: read u64 at GWorld RVA, then decrypt_world().
-        // Plain path: treat value as pointer directly (gworld_encoded=false).
+
+
         const uintptr_t slot = rt.base + offsets.gworld;
         uint64_t encoded = 0;
         size_t got = 0;
@@ -586,7 +586,7 @@ static void ResolveLocalChain(Runtime& rt) {
             rt.d_world.fail = "READ FAILED";
         }
     }
-    // Fallback: GEngine -> GameViewport -> World (cheatoffsets documents this path).
+
     if (!have_world && offsets.gengine) {
         rt.d_engine = ReadPtrDiag(rt.base + offsets.gengine);
         if (rt.d_engine.read_ok && rt.d_engine.canonical) {
@@ -616,7 +616,7 @@ static void ResolveLocalChain(Runtime& rt) {
         return;
     }
 
-    // GameInstance from World (official). Viewport GI is optional cross-check only.
+
     rt.d_gi = ReadPtrDiag(rt.world + offsets.world_owning_game_instance);
     if (!rt.d_gi.read_ok || !rt.d_gi.canonical) {
         rt.last_fail = rt.d_gi.fail ? rt.d_gi.fail : "GameInstance";
@@ -633,10 +633,10 @@ static void ResolveLocalChain(Runtime& rt) {
             rt.gi_match = (vgi == rt.world_gi);
         }
     } else {
-        rt.gi_match = true; // N/A on pure GWorld path
+        rt.gi_match = true;
     }
 
-    // LocalPlayers TArray: data @ +0, count @ +8
+
     uintptr_t lp_data = 0;
     int32_t lp_count = 0;
     if (!ReadU64(rt.game_instance + offsets.gi_local_players, lp_data) ||
@@ -667,7 +667,7 @@ static void ResolveLocalChain(Runtime& rt) {
     rt.d_lp.canonical = true;
     rt.d_lp.bytes_read = 8;
 
-    // PlayerController
+
     rt.d_pc = ReadPtrDiag(local_player + offsets.local_player_controller);
     if (!rt.d_pc.read_ok || !rt.d_pc.canonical) {
         rt.last_fail = rt.d_pc.fail ? rt.d_pc.fail : "PlayerController";
@@ -676,7 +676,7 @@ static void ResolveLocalChain(Runtime& rt) {
     }
     rt.player_controller = rt.d_pc.value;
 
-    // Camera manager (required for W2S / lobby camera)
+
     rt.d_pcm = ReadPtrDiag(rt.player_controller + offsets.pc_player_camera_manager);
     if (!rt.d_pcm.read_ok || !rt.d_pcm.canonical) {
         rt.last_fail = rt.d_pcm.fail ? rt.d_pcm.fail : "PlayerCameraManager";
@@ -685,7 +685,7 @@ static void ResolveLocalChain(Runtime& rt) {
     }
     rt.camera_manager = rt.d_pcm.value;
 
-    // Camera POV fields
+
     FVectorD cam_loc{};
     FRotatorD cam_rot{};
     float fov = 0.f;
@@ -698,14 +698,14 @@ static void ResolveLocalChain(Runtime& rt) {
     rt.camera_ok = loc_ok && rot_ok && fov_ok && fov > 20.f && fov < 170.f;
     if (!rt.camera_ok) {
         rt.last_fail = "camera Location/Rotation/FOV invalid";
-        // still mark chain partially ok for PC/World
+
         rt.chain_ok = true;
         rt.status = "CHAIN OK | CAMERA FAIL";
         return;
     }
 
-    // Local pawn resolution — AcknowledgedPawn is often null in lobby.
-    // Try several UE paths so lobby / spectate still yield a usable actor.
+
+
     auto try_pawn = [&](uintptr_t addr, const char* tag) -> uintptr_t {
         uintptr_t p = 0;
         if (!addr || !ReadU64(addr, p) || !IsCanonicalUserPtr(p))
@@ -728,7 +728,7 @@ static void ResolveLocalChain(Runtime& rt) {
              (pawn = try_pawn(rt.player_controller + offsets.pc_spectator_pawn, "SpectatorPawn")))
         pawn_source = "SpectatorPawn";
     else if (offsets.pcm_view_target && rt.camera_manager) {
-        // TViewTarget.Target at ViewTarget+0
+
         if ((pawn = try_pawn(rt.camera_manager + offsets.pcm_view_target, "ViewTarget.Target")))
             pawn_source = "ViewTarget";
     }
@@ -736,8 +736,8 @@ static void ResolveLocalChain(Runtime& rt) {
     rt.chain_ok = true;
 
     if (!pawn) {
-        // Lobby without possessed pawn: still drive W2S from the camera so the
-        // overlay is not "disconnected". Marker sits at the camera origin.
+
+
         rt.local_pawn = 0;
         rt.local_pawn_ok = false;
         rt.root_component = 0;
@@ -799,7 +799,7 @@ bool LoadOffsetsFromJson(const char* path) {
     set({"globals.GNames", "engine.GNames", "GNames"}, next.gnames);
     set({"globals.ProcessEvent", "engine.ProcessEvent", "ProcessEvent"}, next.process_event);
 
-    // GWorld crypto (mul_add preferred; rot_xor legacy)
+
     {
         std::uint64_t mul = 0, add = 0, sub = 0, xor_key = 0, rol = 0;
         if (TryGetAny(loaded.snapshot, {"gworld_crypto.world_mul", "engine.world_mul", "Engine.world_mul"}, mul) && mul)
@@ -883,7 +883,7 @@ bool LoadOffsetsFromJson(const char* path) {
          "afort_player_state_athena.TeamIndex", "dump_structs.afort_player_state_athena.TeamIndex"},
         next.fort_ps_team_index);
 
-    // dump_structs paths: update data/fortnite_offsets.json only after patches
+
     set({"dump_structs.uworld.PersistentLevel", "uworld.PersistentLevel"}, next.world_persistent_level);
     set({"dump_structs.uworld.GameState", "uworld.GameState"}, next.world_game_state);
     set({"dump_structs.uworld.Levels", "uworld.Levels"}, next.world_levels);
@@ -899,7 +899,7 @@ bool LoadOffsetsFromJson(const char* path) {
     set({"dump_structs.apawn.PlayerState", "apawn.PlayerState"}, next.pawn_player_state);
     set({"dump_structs.apawn.Controller", "apawn.Controller"}, next.pawn_controller);
     set({"dump_structs.aplayer_camera_manager.CameraCachePrivate", "aplayer_camera_manager.CameraCachePrivate"}, next.pcm_camera_cache_private);
-    // Static string pointers for build/cl — store into thread-local buffers
+
     static char build_buf[32] = {};
     static char cl_buf[32] = {};
     if (!loaded.snapshot.metadata.build.empty()) {
@@ -937,10 +937,13 @@ bool ReloadOffsets() {
     return LoadOffsetsFromJson(nullptr);
 }
 
-// Camera lane: reads ONLY the PlayerCameraManager POV block from the cached
-// chain pointer at ~62 Hz. Never re-walks the deep UE chain — that belongs to
-// the acquisition lane. sample_ms = midpoint of the POV read.
+
+
+
 static void CameraLoop() {
+    // FN-005 Fix: set DMA lane/priority like FiveM and Warzone camera threads.
+    mem.SetDmaLane("camera");
+    mem.SetDmaPriority(Memory::DmaPri::Camera);
     uint64_t nextSampleMs = 0;
     while (!g_threads_stop.load(std::memory_order_acquire)) {
         const uint64_t nowMs = GetTickCount64();
@@ -954,8 +957,8 @@ static void CameraLoop() {
             nextSampleMs = nowMs + 50u;
             continue;
         }
-        // POV fields are contiguous in CameraCachePrivate on current builds:
-        // loc(24B) @ pcm_cam_location, rot(24B), fov(4B). Single DMA read.
+
+
         struct alignas(8) PovBlock { double loc[3]; double rot[3]; float fov; };
         const bool contiguous =
             offsets.pcm_cam_location + 24 == offsets.pcm_cam_rotation &&
@@ -991,9 +994,9 @@ static void CameraLoop() {
     }
 }
 
-// Acquisition lane: deep chain re-resolve (~20 Hz) + player list (~4 Hz),
-// identical cadence to before but now OFF the render thread. Publishes an
-// immutable Runtime snapshot per cycle.
+
+
+
 static void AcquisitionLoop() {
     OmniGhost::Gameplay::FixedRateScheduler scheduler;
     uint64_t lastPlayerScanMs = 0;
@@ -1002,15 +1005,28 @@ static void AcquisitionLoop() {
         const auto cycleBegin = std::chrono::steady_clock::now();
         const uint64_t now = GetTickCount64();
         try {
-            ResolveLocalChain(g_acq_runtime);
-            g_camera_manager.store(g_acq_runtime.camera_manager,
-                                   std::memory_order_release);
-            if (now - lastPlayerScanMs >= 250) {
-                lastPlayerScanMs = now;
-                if (auto options = g_config_snapshots.Acquire())
-                    ResolvePlayers(g_acq_runtime, *options);
+            // FN-003 Fix: the loop used to resolve the ~10-read local chain at
+            // 10-20 Hz and run three player-scatter passes at 4 Hz with every
+            // feature OFF — data that only the diagnostics consume. Gate the
+            // world reads on the features that exist; the status page keeps
+            // its lightweight state publish either way.
+            bool needsWorldData = false;
+            if (auto options = g_config_snapshots.Acquire()) {
+                needsWorldData = options->esp_enabled || options->show_local_marker ||
+                    options->show_local_coords || options->show_camera_debug ||
+                    options->show_debug_panel;
+                if (needsWorldData) {
+                    ResolveLocalChain(g_acq_runtime);
+                    g_camera_manager.store(g_acq_runtime.camera_manager,
+                                           std::memory_order_release);
+                    if (now - lastPlayerScanMs >= 250) {
+                        lastPlayerScanMs = now;
+                        ResolvePlayers(g_acq_runtime, *options);
+                    }
+                }
             }
-            // Camera freshness comes from the camera lane; embed the latest.
+
+            if (needsWorldData) {
             if (auto cam = g_camera_frames.Acquire(); cam && cam->ok &&
                 cam->camera_manager == g_acq_runtime.camera_manager && cam->sample_ms &&
                 GetTickCount64() >= cam->sample_ms && GetTickCount64() - cam->sample_ms <= 100u) {
@@ -1021,6 +1037,7 @@ static void AcquisitionLoop() {
                 g_acq_runtime.camera_sample_ms = cam->sample_ms;
             } else {
                 g_acq_runtime.camera_ok = false;
+            }
             }
         } catch (const std::exception& ex) {
             auto& telemetry = OmniGhost::Gameplay::DmaTelemetry::Fortnite();
@@ -1065,8 +1082,8 @@ static void AcquisitionLoop() {
                     ? measuredAt - g_acq_runtime.camera_sample_ms : 0u));
         }
         OmniGhost::Gameplay::DmaTelemetry::Tick("FORTNITE");
-        // If a cycle overran its whole budget the device is stalling — do not
-        // stack another heavy scan immediately; one short recovery beat.
+
+
         scheduler.Wait(std::chrono::milliseconds(cycleMs > 60.f ? 100 : 50));
     }
 }
@@ -1093,7 +1110,7 @@ static void StopThreads() {
 }
 
 bool Attach() {
-    StopThreads(); // safety: never leave a previous session's threads alive
+    StopThreads();
     runtime = Runtime{};
     g_acq_runtime = Runtime{};
     runtime.visual_only = false;
@@ -1128,11 +1145,11 @@ bool Attach() {
     }
     runtime.pid = pid;
 
-    // GetBaseDaddy() resolves modules against Memory::current_process. Merely
-    // finding a PID does not bind that context, so the old code queried PID 0
-    // (or the previously selected game) and could never resolve Fortnite's
-    // image. Perform the same validated process bind used by the other game
-    // adapters before asking for a module base.
+
+
+
+
+
     if (!mem.Init(runtime.process_name, false, false)) {
         runtime.status = mem.last_attach_result == Memory::AttachResult::Waiting
             ? "Processo ok | Memoria ainda a preparar"
@@ -1172,8 +1189,8 @@ bool Attach() {
         std::cerr << "[FORTNITE] GWorld RVA exceeds SizeOfImage — offsets/module mismatch\n";
     }
 
-    // First synchronous resolution (attach UI context, threads not yet
-    // started — safe to touch both runtimes here).
+
+
     ResolveLocalChain(g_acq_runtime);
     ResolvePlayers(g_acq_runtime, config);
     runtime = g_acq_runtime;
@@ -1181,20 +1198,20 @@ bool Attach() {
         *slot.value = g_acq_runtime;
         g_snapshots.Publish(slot.index);
     }
-    g_snapshots.ResetProducerThread(); // main-thread attach -> acquisition worker
+    g_snapshots.ResetProducerThread();
     if (auto options = g_config_snapshots.TryBeginWrite()) {
         *options.value = config;
         g_config_snapshots.Publish(options.index);
     }
-    g_config_snapshots.ResetProducerThread(); // attach caller -> UI/render publisher
-    EnsureThreadsStarted(); // from here on, DMA runs only on worker threads
+    g_config_snapshots.ResetProducerThread();
+    EnsureThreadsStarted();
     FlushDiagnosticsToLog();
     g_logged_once = true;
     return true;
 }
 
 void Detach() {
-    StopThreads(); // join workers BEFORE clearing shared state
+    StopThreads();
     g_acq_runtime = Runtime{};
     runtime = Runtime{};
     runtime.status = "Fortnite detached";
@@ -1215,8 +1232,8 @@ bool IsGameProcessAlive() {
 }
 
 bool ValidateLiveOffsets() {
-    // Fortnite's offsets are simple (no complex encryption); if the process is
-    // attached and the base module is readable, offsets are considered valid.
+
+
     return IsGameProcessAlive() && runtime.base != 0;
 }
 
@@ -1230,16 +1247,16 @@ void Tick() {
         }
         return;
     }
-    // UI/render thread is the sole writer of Config snapshots. Acquisition
-    // never reads mutable UI configuration directly.
+
+
     if (auto options = g_config_snapshots.TryBeginWrite()) {
         *options.value = config;
         g_config_snapshots.Publish(options.index);
     }
-    EnsureThreadsStarted(); // idempotent; workers own all DMA from here
+    EnsureThreadsStarted();
 
-    // Presentation merge (render thread is the ONLY writer of `runtime`):
-    // world state from the acquisition lane, camera from the camera lane.
+
+
     if (auto snap = g_snapshots.Acquire()) {
         const uint64_t keepFrames = runtime.frames;
         runtime = *snap;
@@ -1259,8 +1276,8 @@ void Tick() {
         runtime.camera_ok = false;
     }
 
-    // W2S using overlay display size. In lobby without a pawn we still project
-    // local_pos (camera origin) so the pipeline is not "disconnected".
+
+
     runtime.w2s_ok = false;
     if (runtime.camera_ok && runtime.local_pos.finite()) {
         const ImGuiIO& io = ImGui::GetIO();
@@ -1273,7 +1290,7 @@ void Tick() {
         }
     }
 
-    // Re-log every ~5s if still failing, or once when recovered
+
     static ULONGLONG last_log = 0;
     const ULONGLONG now = GetTickCount64();
     if (!g_logged_once || (now - last_log > 5000 && (!runtime.chain_ok || !runtime.player_array_ok))) {
@@ -1286,8 +1303,8 @@ void Tick() {
 void DrawESP() {
     if (!runtime.attached || !config.esp_enabled)
         return;
-    // FN-002 Fix: o painel de diagnóstico estava fora do guarda — com os
-    // três marcadores OFF e o painel ON, nada era desenhado.
+
+
     if (!config.show_local_marker && !config.show_local_coords && !config.show_camera_debug
         && !config.show_debug_panel)
         return;
@@ -1295,7 +1312,7 @@ void DrawESP() {
     ImDrawList* dl = ImGui::GetBackgroundDrawList();
     if (!dl) return;
 
-    // Debug HUD (top-left)
+
     if (config.show_debug_panel) {
         float y = 12.f;
         auto line = [&](const char* s) {
@@ -1332,7 +1349,7 @@ void DrawESP() {
         }
     }
 
-    // Local / camera screen marker (pawn when available; camera origin in lobby)
+
     if (runtime.w2s_ok && config.show_local_marker) {
         const ImU32 col = IM_COL32(
             (int)(config.col_local[0] * 255),
@@ -1348,18 +1365,18 @@ void DrawESP() {
             char buf[128];
             std::snprintf(buf, sizeof(buf), "%.0f %.0f %.0f | %.0fm",
                           runtime.local_pos.x, runtime.local_pos.y, runtime.local_pos.z,
-                          runtime.distance_to_cam / 100.f); // cm -> m-ish
+                          runtime.distance_to_cam / 100.f);
             dl->AddText(ImVec2(p.x + 10.f, p.y + 6.f), IM_COL32(220, 220, 220, 220), buf);
         }
     }
 }
 
 void RunAim() {
-    // Intentionally empty — no aim in this phase.
+
 }
 
 const char* StatusText() {
     return runtime.status.c_str();
 }
 
-} // namespace Fortnite
+}

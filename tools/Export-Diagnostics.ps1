@@ -19,7 +19,7 @@ function Redact-Text([string]$Text) {
             $value = [regex]::Replace($value, [regex]::Escape($candidate), '<redacted-user>', 'IgnoreCase')
         }
     }
-    # Conservative support-bundle redaction. Never preserve common secret forms.
+
     $value = [regex]::Replace($value, '(?im)(authorization\s*[:=]\s*)([^\r\n]+)', '$1<redacted>')
     $value = [regex]::Replace($value, '(?im)((?:license|licence|token|secret|password|api[_-]?key)\s*[:=]\s*)([^\s\r\n]+)', '$1<redacted>')
     $value = [regex]::Replace($value, '(?i)([?&](?:token|key|secret|password)=)[^&\s]+', '$1<redacted>')

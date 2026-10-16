@@ -1,4 +1,4 @@
-// Optional, incremental dropped-weapon acquisition lane.
+
 static void CollectDroppedWeapons(const Config& frame_config, bool in_match,
                                   uintptr_t client_base, std::vector<DroppedWeapon>& out) {
     struct CachedDroppedWeapon { DroppedWeapon weapon{}; uint64_t last_seen_ms = 0; };
@@ -62,9 +62,9 @@ static void CollectDroppedWeapons(const Config& frame_config, bool in_match,
     constexpr size_t kPages = 4;
     const size_t kSlotsPerPage = static_cast<size_t>(offsets.entity_page_size);
     const size_t kSlots = kPages * kSlotsPerPage;
-    // World entities are not guaranteed to occupy either of the first two
-    // entity pages (especially on community servers). Scan 4 pages per batch
-    // to complete full sweep in 2 passes (500ms) instead of 8 passes (2s).
+
+
+
     const size_t first_page = (next_page += kPages) % 8;
     std::array<uintptr_t, kPages> pages{};
     std::vector<uintptr_t> entities(kSlots), identities(kSlots), name_ptrs(kSlots), scenes(kSlots);
@@ -171,5 +171,3 @@ static void CollectDroppedWeapons(const Config& frame_config, bool in_match,
         }
     }
 }
-
-

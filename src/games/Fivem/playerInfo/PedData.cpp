@@ -1,4 +1,4 @@
-// peddata.cpp
+
 #include "peddata.h"
 #include "third_party/DMALibrary/Memory/Memory.h"
 #include "../game/game.h"
@@ -11,7 +11,7 @@
 #include <cmath>
 #include <limits>
 
-// Global cache manager instance
+
 PedCacheManager g_pedCacheManager;
 
 PedCacheManager::PedCacheManager()
@@ -20,7 +20,7 @@ PedCacheManager::PedCacheManager()
 }
 
 PedCacheManager::~PedCacheManager() {
-    // No thread to stop
+
 }
 
 void PedCacheManager::initialize() {
@@ -34,8 +34,8 @@ void PedCacheManager::update() {
     {
         std::unique_lock lock(mutex_);
         if (now - lastSlowUpdate >= SLOW_CACHE_INTERVAL) {
-            // Reserve this interval while protected.  The DMA work itself is
-            // performed by slowCache, which owns the same cache lock.
+
+
             lastSlowUpdate = now;
             runSlow = true;
         }
@@ -45,8 +45,8 @@ void PedCacheManager::update() {
 }
 
 void PedCacheManager::slowCache() {
-    // Core acquisition already samples health with positions. Only request a
-    // health scatter for peds whose core sample is missing or older than 250 ms.
+
+
     static std::vector<uintptr_t> pedIds;
     static std::vector<float> healthValues;
     {
@@ -58,7 +58,7 @@ void PedCacheManager::slowCache() {
             if (!pedData.isValid) continue;
             if (pedData.health_updated.time_since_epoch().count() != 0 &&
                 now - pedData.health_updated < std::chrono::milliseconds(250))
-                continue; // core sample is fresh — no duplicate DMA
+                continue;
             pedIds.push_back(pedId);
         }
     }
@@ -77,8 +77,8 @@ void PedCacheManager::slowCache() {
         const auto readEnd = std::chrono::steady_clock::now();
         mem.CloseScatterHandle(handle);
 
-        // DMA completed without holding the cache mutex.  Publishing fields is
-        // intentionally short so render/aim never waits behind an I/O stall.
+
+
         std::unique_lock lock(mutex_);
         const auto sampledAt = readBegin + (readEnd - readBegin) / 2;
         for (size_t i = 0; i < pedIds.size(); ++i) {
@@ -98,8 +98,8 @@ void PedCacheManager::slowCache() {
 
 void PedCacheManager::fastCache(const std::vector<uintptr_t>& validPeds,
     const std::vector<Vec3>& positions) {
-    // Legacy entry point: positions only. Health/velocity come exclusively from
-    // the core acquisition path via fastCacheCore — no duplicate DMA here.
+
+
     static const std::vector<Vec3> kEmptyVel;
     static const std::vector<float> kEmptyHp;
     fastCacheCore(validPeds, positions, kEmptyVel, kEmptyHp);
@@ -136,8 +136,8 @@ void PedCacheManager::fastCacheCore(const std::vector<uintptr_t>& validPeds,
             }
             pedCache.emplace(pedId, std::move(pd));
         } else {
-            // P0-2: Pointer reuse check — if generation mismatches, the ped pointer
-            // was recycled and this is a different entity now.
+
+
             if (it->second.entry_generation != gen) {
                 it->second = PedData{};
                 it->second.entry_generation = gen;
@@ -156,7 +156,7 @@ void PedCacheManager::fastCacheCore(const std::vector<uintptr_t>& validPeds,
             }
         }
     }
-    // Invalidate peds not in this core sample
+
     for (auto it = pedCache.begin(); it != pedCache.end();) {
         if (!present.count(it->first)) {
             it->second.isValid = false;
@@ -170,11 +170,11 @@ void PedCacheManager::fastCacheCore(const std::vector<uintptr_t>& validPeds,
 
 void PedCacheManager::manualCache() {
     std::unique_lock lock(mutex_);
-    // Full reinitialization - rare operation
-    // Clear all cache data
+
+
     pedCache.clear();
 
-    // Reset timing
+
     lastSlowUpdate = std::chrono::steady_clock::now();
 
 }
@@ -266,7 +266,7 @@ void PedCacheManager::cleanup() {
 }
 
 void PedCacheManager::cleanupUnlocked() {
-    // Remove invalid or old entries
+
     auto now = std::chrono::steady_clock::now();
 
     for (auto it = pedCache.begin(); it != pedCache.end(); ) {

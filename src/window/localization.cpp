@@ -18,9 +18,9 @@ namespace {
         const char* it;
         const char* ru;
     };
-    
-    // Helper macro for adding Russian translations
-    // Most entries use English as fallback for RU
+
+
+
 
     const std::unordered_map<std::string_view, Pack> kTable = {
         {"nav.title", {"NAVEGAÇÃO", "NAVIGATION", "NAVIGATION", "NAVEGACION", "NAVIGATION", "NAVIGAZIONE", "ðØðÉðÆðÿðôðÉðªðÿð»"}},
@@ -666,7 +666,7 @@ namespace {
         }
     }
 
-} // namespace
+}
 
     const char* Tr(const char* key)
     {
@@ -694,7 +694,7 @@ namespace {
 
     const char* LanguageName(int index)
     {
-        // ASCII-safe labels so the language switcher never shows "?".
+
         static const char* names[] = {
             "Portugues", "English", "Deutsch", "Espanol", "Francais", "Italiano", "Russian"
         };
@@ -708,4 +708,4 @@ namespace {
         return 7;
     }
 
-} // namespace Loc
+}

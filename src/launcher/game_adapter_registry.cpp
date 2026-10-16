@@ -195,10 +195,10 @@ AdapterErrorCode FortniteStartFailure() {
 }
 
 namespace {
-// LCH-001 Fix: attaching assigns g_activeGame BEFORE the DMA attach attempt.
-// On failure the launcher was left bound to a game the user never entered, so
-// config saves ran under the wrong prefix/metadata. This guard restores the
-// previous game unless the start path explicitly commits.
+
+
+
+
 struct ScopedActiveGame {
     ScopedActiveGame()
         : previous(OmniGhost::GameContext::Instance().GetActiveGame()),
@@ -214,7 +214,7 @@ struct ScopedActiveGame {
     std::string previousExecutable;
     bool commit = false;
 };
-} // namespace
+}
 
 bool StartCs2() {
     ScopedActiveGame gameGuard;
@@ -314,7 +314,7 @@ std::string_view FiveMStatus() noexcept {
         ? "FiveM ligado" : "FiveM não ligado";
 }
 
-// Static functions for adapter operations to avoid lambda/std::function issues
+
 bool FivemIsAlive() {
     if (OmniGhost::GameContext::Instance().GetValidExecutable().empty()) return false;
     return !::OmniGhost::GameLaunch::FindFiveMProcessViaDma().empty();
@@ -351,7 +351,7 @@ IGameAdapter* FindGameAdapter(::Launcher::GameId game) noexcept {
             FiveM::ESP::StopAcquisition();
             mem.InvalidateProcess();
         }, FiveMStatus,
-        [] { 
+        [] {
             try {
                 if (!g_validExecutable.empty()) {
                     FiveM::ESP::RunESP();
@@ -368,7 +368,7 @@ IGameAdapter* FindGameAdapter(::Launcher::GameId game) noexcept {
         Capability::Menu | Capability::ReadOnlyMemory | Capability::Overlay | Capability::Radar },
         StartCs2, [] { CS2::Shutdown(); CS2::ready = false; },
         [] { return std::string_view(CS2::status); },
-        [] { 
+        [] {
             try {
                 if (CS2::ready) {
                     CS2::SetPresentationFps(ImGui::GetIO().Framerate);
@@ -392,7 +392,7 @@ IGameAdapter* FindGameAdapter(::Launcher::GameId game) noexcept {
         Capability::Menu | Capability::ReadOnlyMemory },
         StartWarzone, [] { Warzone::Shutdown(); },
         [] { return std::string_view(Warzone::status); },
-        [] { 
+        [] {
             if (Warzone::ready) {
                 Warzone::RunFrame();
             }
@@ -402,7 +402,7 @@ IGameAdapter* FindGameAdapter(::Launcher::GameId game) noexcept {
         Capability::Menu | Capability::ReadOnlyMemory | Capability::Overlay },
         StartFortnite, [] { Fortnite::Detach(); },
         [] { return std::string_view(Fortnite::StatusText()); },
-        [] { 
+        [] {
             Fortnite::Tick();
             Fortnite::DrawESP();
             Fortnite::RunAim();
@@ -431,4 +431,4 @@ AdapterStartResult StartGameAdapter(::Launcher::GameId game) {
         return { false, adapter->GetLastError() };
     return { true, {} };
 }
-} // namespace OmniGhost::Launcher
+}

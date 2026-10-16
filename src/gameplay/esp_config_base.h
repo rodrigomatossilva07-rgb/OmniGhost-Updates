@@ -5,13 +5,13 @@
 
 namespace OmniGhost::Gameplay {
 
-// Base ESP configuration shared across all game adapters.
-// Game-specific configs should inherit from this and add their own fields.
+
+
 struct EspConfigBase {
-    // Master toggle
+
     bool esp_enabled = false;
 
-    // Filtering
+
     bool team_check = true;
     bool show_bots = true;
     bool visible_check = false;
@@ -20,7 +20,7 @@ struct EspConfigBase {
     bool show_knocked = false;
     bool self_esp = false;
 
-    // Core elements
+
     bool box = true;
     bool box_corner = false;
     bool box_fill = false;
@@ -50,10 +50,10 @@ struct EspConfigBase {
     float text_outline_thickness = 1.f;
 
     bool snaplines = false;
-    int snapline_position = 2; // 0=top, 1=center, 2=bottom
+    int snapline_position = 2;
     float snapline_thickness = 1.5f;
 
-    // Visual effects
+
     bool look_direction = false;
     float eye_line_thickness = 1.6f;
     float look_direction_length = 90.f;
@@ -71,30 +71,30 @@ struct EspConfigBase {
     bool rainbow_trails = true;
     bool fun_effects_rainbow = true;
 
-    // Radar
+
     bool radar_2d = false;
     bool radar_2d_draggable = false;
     float radar_2d_x = 18.f;
     float radar_2d_y = 18.f;
     float radar_2d_size = 160.f;
 
-    // Skeleton LOD
+
     bool skeleton_lod = true;
     float skeleton_lod_distance = 70.f;
     bool bone_draw_arms = true;
     bool bone_draw_legs = true;
 
-    // Distance culling
+
     float max_distance = 300.f;
 
-    // Performance
+
     bool performance_mode = false;
     float optional_lane_budget_ms = 6.f;
 
-    // Telemetry
+
     bool telemetry_enabled = false;
 
-    // Colors (RGBA 0-1)
+
     float col_enemy[4] = {0.9f, 0.25f, 0.25f, 1.f};
     float col_team[4] = {0.25f, 0.75f, 0.95f, 1.f};
     float col_skeleton[4] = {0.95f, 0.85f, 0.35f, 1.f};
@@ -123,11 +123,11 @@ struct EspConfigBase {
     float col_knocked[4] = {1.f, 0.65f, 0.f, 1.f};
     float col_npc[4] = {0.5f, 0.4f, 1.f, 1.f};
 
-    // RGB/Visibility modes
+
     bool rgb_mode = false;
     bool distance_feet = false;
 
-    // Utility: convert float[4] color to ImU32
+
     ImU32 ToImU32(const float c[4]) const {
         return IM_COL32(
             static_cast<int>(c[0] * 255.f),
@@ -138,4 +138,4 @@ struct EspConfigBase {
     }
 };
 
-} // namespace OmniGhost::Gameplay
+}

@@ -130,7 +130,7 @@ bool ConstantTimeEqual(const std::array<std::uint8_t, kHashSize>& a,
     return diff == 0;
 }
 
-} // namespace
+}
 
 struct LocalAuthService::StoredAccount {
     std::string email;
@@ -380,4 +380,4 @@ void LocalAuthService::Logout(bool forgetRememberMe) {
         OmniGhost::SessionLog::Subsystem::Auth, "local logout");
 }
 
-} // namespace OmniGhost::Auth
+}

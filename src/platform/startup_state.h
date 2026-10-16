@@ -31,4 +31,4 @@ private:
     State state_{State::Boot};
 };
 
-} // namespace OmniGhost::Startup
+}

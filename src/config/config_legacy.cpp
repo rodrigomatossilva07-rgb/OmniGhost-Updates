@@ -12,4 +12,4 @@ std::vector<std::string> ListHistory() {
     return out;
 }
 
-} // namespace config_manager
+}

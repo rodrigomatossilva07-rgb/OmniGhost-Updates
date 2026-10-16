@@ -19,12 +19,12 @@ namespace vehicle_esp {
 
     static const int MAX_VEHICLES = 64;
 
-    // Cached entity matrices from last Collect (for oriented 3D boxes)
+
     static std::unordered_map<uintptr_t, Matrix> g_matrices;
     static Matrix g_vehicleViewMatrix{};
     static std::chrono::steady_clock::time_point g_vehicleSampleTime{};
     static std::mutex g_vehicleMutex;
-    static VMMDLL_SCATTER_HANDLE g_vehicleScatter = nullptr; // acquisition producer only
+    static VMMDLL_SCATTER_HANDLE g_vehicleScatter = nullptr;
     struct GearState { int8_t gear = 0; float engine = 0.f; std::chrono::steady_clock::time_point seen{}; };
     static std::unordered_map<uintptr_t, GearState> g_gearCache;
     static std::chrono::steady_clock::time_point g_lastGearRefresh{};
@@ -42,20 +42,20 @@ namespace vehicle_esp {
         return p > 0x10000ULL && p < 0x7FFFFFFFFFFFULL;
     }
 
-    // eCarLockState values used by GTA V
+
     static bool IsLockedState(uint32_t state) {
-        // GTA uses 0/1 for none/unlocked.  The remaining native enum values
-        // (2..10) all restrict entry in some form.
+
+
         return state >= 2 && state <= 10;
     }
 
-    // Extract basis vectors from a 4x4 row-major entity matrix (GTA style)
+
     static void MatrixAxes(const Matrix& m, Vec3& right, Vec3& forward, Vec3& up, Vec3& pos) {
         right   = Vec3(m._11, m._12, m._13);
         forward = Vec3(m._21, m._22, m._23);
         up      = Vec3(m._31, m._32, m._33);
         pos     = Vec3(m._41, m._42, m._43);
-        // Fallback if matrix is empty: identity around stored position
+
         if (right.IsZero() && forward.IsZero()) {
             right = Vec3(1, 0, 0);
             forward = Vec3(0, 1, 0);
@@ -68,8 +68,8 @@ namespace vehicle_esp {
                  const Matrix& cameraMatrix, bool force) {
         static auto s_lastPose = std::chrono::steady_clock::time_point{};
         auto nowc = std::chrono::steady_clock::now();
-        // Optional vehicle discovery is a low-rate acquisition lane.  It must
-        // never execute in the ImGui presentation thread.
+
+
         if (!force && s_lastPose.time_since_epoch().count() != 0 &&
             nowc - s_lastPose < std::chrono::milliseconds(100))
             return;
@@ -86,7 +86,7 @@ namespace vehicle_esp {
                 ? positionSampleTime : std::chrono::steady_clock::now();
         };
         Matrix view_matrix = cameraMatrix;
-        // ESP draw gated in Render(); force=true lets lock/repair work with toggle off
+
         if (!force && !frameConfig.enabled) { publish(view_matrix); return; }
 
         using namespace FiveM;
@@ -105,8 +105,8 @@ namespace vehicle_esp {
         uintptr_t vehicle_interface = 0;
         uintptr_t vehicle_interface_alt = 0;
 
-        // Both documented interface candidates come from data/fivem_offsets.json;
-        // validate the resulting list rather than trusting either blindly.
+
+
         mem.AddScatterReadRequest(handle, offset::replay + offset::replayVehicleInterface, &vehicle_interface, sizeof(uintptr_t));
         if (offset::replayVehicleInterfaceAlt)
             mem.AddScatterReadRequest(handle, offset::replay + offset::replayVehicleInterfaceAlt, &vehicle_interface_alt, sizeof(uintptr_t));
@@ -226,7 +226,7 @@ namespace vehicle_esp {
             g_lastGearRefresh = nowc;
         }
 
-        // Only walk ped->vehicle when occupied filtering/labels are needed.
+
         std::vector<uintptr_t> pedVehicles;
         if (needOccupied && !peds.empty()) {
             pedVehicles.assign(peds.size(), 0);
@@ -274,8 +274,8 @@ namespace vehicle_esp {
                 vd.engine_health = gear->second.engine;
             }
             vd.valid = true;
-            // Same sample cohort as the view matrix published below — render
-            // prefers FrameCache camera when valid (ped ESP coherent).
+
+
             vd.sample_ms = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
                 std::chrono::steady_clock::now().time_since_epoch()).count());
             nextVehicles.push_back(vd);
@@ -290,12 +290,12 @@ namespace vehicle_esp {
         }
     }
 
-    // Project a world point; returns false if behind camera / off-screen enough
+
     static bool Project(const Vec3& world, const Matrix& view, Vec2& out) {
         return world.world_to_screen(const_cast<Matrix&>(view), out);
     }
 
-    // Oriented 3D box from entity matrix. Half-extents approximate a car.
+
     static void DrawOrientedBox3D(ImDrawList* dl, const Matrix& entityMat, const Matrix& view,
                                   ImU32 col, float thickness)
     {
@@ -304,12 +304,12 @@ namespace vehicle_esp {
         if (pos.IsZero())
             return;
 
-        // Approximate sedan half-extents (metres). Scale slightly with no model data.
-        const float hx = 1.05f;  // half-width
-        const float hy = 2.30f;  // half-length
-        const float hz = 0.85f;  // half-height
 
-        // Normalize axes in case matrix has scale
+        const float hx = 1.05f;
+        const float hy = 2.30f;
+        const float hz = 0.85f;
+
+
         auto norm = [](Vec3 v) {
             float l = sqrtf(v.x * v.x + v.y * v.y + v.z * v.z);
             if (l < 1e-4f) return Vec3(0, 0, 0);
@@ -323,10 +323,10 @@ namespace vehicle_esp {
         if (up.IsZero())
             up = Vec3(0, 0, 1);
 
-        // Center box slightly above ground origin
+
         Vec3 center = Vec3(pos.x + up.x * hz, pos.y + up.y * hz, pos.z + up.z * hz);
 
-        // Index bits: 0=right, 1=forward, 2=up
+
         Vec3 corners[8];
         for (int i = 0; i < 8; ++i) {
             float sx = (i & 1) ? hx : -hx;
@@ -348,11 +348,11 @@ namespace vehicle_esp {
         if (visible < 2)
             return;
 
-        // 12 edges matching bit-index corners
+
         static const int edges[12][2] = {
-            {0,1},{1,3},{3,2},{2,0}, // bottom (z-)
-            {4,5},{5,7},{7,6},{6,4}, // top (z+)
-            {0,4},{1,5},{2,6},{3,7}  // vertical
+            {0,1},{1,3},{3,2},{2,0},
+            {4,5},{5,7},{7,6},{6,4},
+            {0,4},{1,5},{2,6},{3,7}
         };
         for (int e = 0; e < 12; ++e) {
             int a = edges[e][0], b = edges[e][1];
@@ -394,8 +394,8 @@ namespace vehicle_esp {
 
         using namespace FiveM;
 
-        // Prefer the same camera the ped ESP frame used so vehicles and
-        // players share one temporal cohort when both are on-screen.
+
+
         Matrix view_matrix{};
         if (FiveM::ESP::FrameCacheValid()) {
             view_matrix = FiveM::ESP::GetFrameViewMatrix();
@@ -420,7 +420,7 @@ namespace vehicle_esp {
             }
         }
 
-        // Draw closest vehicles first; hard-cap GPU/line work under load.
+
         std::vector<const VehicleData*> drawList;
         drawList.reserve(frameVehicles.size());
         for (const auto& v : frameVehicles)
@@ -438,7 +438,7 @@ namespace vehicle_esp {
             if (!Project(v.position, view_matrix, screenPos))
                 continue;
 
-            // ── Oriented 3D box (true 3D, size fixed in world metres) ──
+
             ImU32 useBox = boxCol;
             if (v.address == nearestAddr)
                 useBox = IM_COL32(255, 220, 50, 255);
@@ -448,7 +448,7 @@ namespace vehicle_esp {
                 if (it != frameMatrices.end()) {
                     DrawOrientedBox3D(dl, it->second, view_matrix, useBox, v.address == nearestAddr ? 2.4f : 1.6f);
                 } else {
-                    // Fallback: simple screen box scaled by distance but clamped
+
                     float scale = std::clamp(180.0f / (v.distance + 2.0f), 20.0f, 120.0f);
                     float boxW = scale * 1.5f;
                     float boxH = scale * 0.9f;
@@ -481,7 +481,7 @@ namespace vehicle_esp {
             }
 
             if (config.show_speed) {
-                // Speed from inter-frame position delta (no fragile velocity offset)
+
                 float now = (float)ImGui::GetTime();
                 float speedKmh = 0.f;
                 auto it = g_speedHistory.find(v.address);
@@ -521,8 +521,10 @@ namespace vehicle_esp {
                 textY += ts.y + 2.f;
             }
 
-            // Gear / engine are acquired in the low-rate vehicle lane.
-            {
+
+            // FIVEM-005 Fix: gear/engine used to draw unconditionally; they are
+            // movement data, so they now respect the "speed/movement" toggle.
+            if (config.show_speed) {
                 char buf[48];
                 if (v.gear >= -1 && v.gear <= 8) {
                     snprintf(buf, sizeof(buf), "G%d", (int)v.gear);
@@ -561,4 +563,4 @@ namespace vehicle_esp {
         g_speedHistory.clear();
     }
 
-} // namespace vehicle_esp
+}

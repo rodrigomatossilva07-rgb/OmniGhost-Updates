@@ -94,14 +94,14 @@ RayHit CollisionBvh::TraceRay(Vec3 from, Vec3 to, const std::atomic_bool* cancel
     RayHit out{};
     if (nodes.empty()) return out;
     Vec3 d = Sub(to, from);
-    // A fixed stack silently used to turn a deep BVH traversal into a false
-    // collision. Keep storage per-thread and reusable, but never drop nodes.
+
+
     thread_local std::vector<unsigned> stack;
     stack.clear();
     stack.push_back(0);
     unsigned nodesTraversed = 0;
     while (!stack.empty()) {
-        // Check cancellation every 64 nodes to avoid overhead
+
         if ((++nodesTraversed & 63u) == 0u && cancel && cancel->load(std::memory_order_acquire))
             return out;
         const auto id = stack.back(); stack.pop_back();

@@ -72,8 +72,8 @@ struct Copy {
 };
 
 const Copy& Text() {
-    // Prefer ASCII-safe UI strings here so accents never show as "?" when the
-    // active font atlas lacks the glyph. Full localization can expand later.
+
+
     static constexpr std::array<Copy, 6> copy{{
         {"ENTRAR", "CRIAR CONTA", "Sair", "Utilizador", "Palavra-passe", "Confirmar palavra-passe", "REGISTAR", "VOLTAR"},
         {"SIGN IN", "CREATE ACCOUNT", "Exit", "Username", "Password", "Confirm password", "REGISTER", "BACK"},
@@ -166,7 +166,7 @@ void InitializeState() {
             g_auto_login_attempt = true;
             if (user.size() < sizeof(g_email))
                 std::snprintf(g_email, sizeof(g_email), "%s", user.c_str());
-            // Validate against KeyAuth in the background; only enter if still valid.
+
             StartRemoteOperation(RemoteOperation::Login, user, pass, {});
             if (!pass.empty()) SecureZeroMemory(pass.data(), pass.size());
         }
@@ -242,7 +242,7 @@ void PollRemoteOperation() {
             g_auto_login_attempt = false;
             BeginCompletion(automatic ? Completion::AutoLogin : result.completion);
         } else {
-            // Only wipe stored credentials when an automatic remember-me login failed.
+
             if (automatic) {
                 OmniGhost::Licensing::ClearRememberedRemoteCredentials();
                 g_auto_login_attempt = false;
@@ -331,8 +331,8 @@ bool AuthPrimaryButton(const char* label, const ImVec2& size) {
 }
 
 void CenterBlockVertically(float blockHeight, float alignment = 0.36f) {
-    // Keep the compact form slightly above the mathematical centre, like a
-    // desktop launcher, while retaining enough room for the bottom action.
+
+
     const float topPad = S(22.f);
     const float bottomPad = S(16.f);
     const float available = ImGui::GetWindowHeight() - topPad - bottomPad;
@@ -449,7 +449,7 @@ bool AuthPasswordField(const char* id, char* buffer, std::size_t bufferSize,
     DrawAuthFocusTransition(focusId, position, width, height);
     const ImVec2 eyeMin(position.x + width - S(38.f), position.y + S(3.f));
     ImGui::SetCursorScreenPos(eyeMin);
-    ImGui::PushID("eye"); // Unique ID per field to avoid conflicts
+    ImGui::PushID("eye");
     const bool clicked = ImGui::InvisibleButton("##eye", ImVec2(S(32.f), height - S(6.f)));
     if (clicked) *reveal = !*reveal;
     ImGui::PopID();
@@ -545,10 +545,10 @@ void DrawLanguageSelector(const ImVec2& windowPos, float windowWidth) {
                 ImGui::Dummy(itemSize);
             if (pressed) {
                 app_settings::config.language = static_cast<app_settings::Language>(index);
-                // Authentication is displayed before a game profile exists, so
-                // save the global preference here as well. This keeps the
-                // selected language across the next launch, including login and
-                // account creation screens.
+
+
+
+
                 std::string saveError;
                 (void)app_settings::SaveGlobal(&saveError);
                 config_manager::FlushActiveConfig();
@@ -572,9 +572,9 @@ void DrawLanguageSelector(const ImVec2& windowPos, float windowWidth) {
 }
 
 void DrawFeedback(float contentWidth) {
-    // Reserve this slot even when there is no message.  Otherwise an error
-    // inserts a variable-height block below the primary button and can push
-    // the Back action outside the compact authentication card.
+
+
+
     ImGui::Dummy(ImVec2(0, S(7.f)));
     CenterCursor(contentWidth);
     ImGui::BeginChild("##auth_feedback_slot", ImVec2(contentWidth, S(34.f)), false,
@@ -617,8 +617,8 @@ void DrawLogin() {
     auto& auth = OmniGhost::Auth::LocalAuthService::Instance();
     const float contentWidth = S(342.f);
 
-    // The feedback slot has a stable height, so the Back action never moves
-    // outside the card when KeyAuth returns an error.
+
+
     CenterBlockVertically(S(310.f), 0.48f);
     DrawBrand(false);
     ImGui::Dummy(ImVec2(0, S(14.f)));
@@ -626,7 +626,7 @@ void DrawLogin() {
     CenterCursor(contentWidth);
     ImGui::BeginGroup();
     const bool remote = OmniGhost::Licensing::IsRemoteConfigured();
-    const char* identity = text.email; // already localized (Utilizador / Username / ...)
+    const char* identity = text.email;
     AuthInputField("login_email", g_email, sizeof(g_email), identity,
                    contentWidth, true, AuthFieldIcon::Email);
     ImGui::Dummy(ImVec2(0, S(7.f)));
@@ -686,7 +686,7 @@ void DrawRegister() {
     const float contentWidth = S(342.f);
     const bool remote = OmniGhost::Licensing::IsRemoteConfigured();
 
-    // Compact block so the full form (fields + remember + button + back) stays visible.
+
     const float blockHeight = remote ? S(354.f) : S(304.f);
     CenterBlockVertically(blockHeight, 0.48f);
     DrawBrand(false);
@@ -837,7 +837,7 @@ void DrawStartupPreparation(ImDrawList* draw, const ImVec2& windowPos,
     draw->PopClipRect();
 }
 
-} // namespace
+}
 
 void Reset() {
     g_initialized = false;
@@ -886,8 +886,8 @@ bool Draw() {
 
     if (g_startup_preparing) {
         g_startup_time += delta;
-        // Keep the branded preparation state visible long enough to avoid a
-        // one-frame flash, while never delaying an outstanding network request.
+
+
         if (g_startup_time >= 0.52f && !g_remote_operation_pending)
             g_startup_preparing = false;
     }
@@ -924,8 +924,8 @@ bool Draw() {
             performance.effective, app_settings::AnimationScale(),
             0.72f);
 
-    // A crisp frame anchors the decorative network to the actual application
-    // boundary. Corner accents remain clearly visible even on dark monitors.
+
+
     const float frameInset = S(1.5f);
     const ImVec2 frameMin(frameInset, frameInset);
     const ImVec2 frameMax(display.x - frameInset, display.y - frameInset);
@@ -976,8 +976,8 @@ bool Draw() {
     const bool showAuthRain = !g_startup_preparing && g_completion == Completion::None &&
         (g_screen == Screen::Landing || g_screen == Screen::Login || g_screen == Screen::Register);
     if (showAuthRain) {
-        // Rain belongs to the authentication card itself. Keep it deliberately
-        // faint and sparse so fields and branding remain the visual hierarchy.
+
+
         draw->PushClipRect(windowPos, Add(windowPos, ImVec2(width, height)), true);
         DigitalRain::Draw(draw, windowPos, ImVec2(width, height), true,
             performance.effective, 0.0f, 0.58f, 0.28f, animation, false, false);
@@ -1069,4 +1069,4 @@ bool ConsumeCloseRequest() {
     return requested;
 }
 
-} // namespace LauncherAuth
+}

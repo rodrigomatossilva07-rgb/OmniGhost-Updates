@@ -17,8 +17,8 @@
 
 namespace OmniGhost::EmbeddedOffsets {
 namespace {
-constexpr std::uint32_t kContainerMagic = 0x464F474Fu; // "OGOF" little-endian
-constexpr std::uint32_t kPayloadMagic = 0x504E534Fu;   // "OSNP" little-endian
+constexpr std::uint32_t kContainerMagic = 0x464F474Fu;
+constexpr std::uint32_t kPayloadMagic = 0x504E534Fu;
 constexpr std::uint16_t kContainerVersion = 1;
 constexpr std::uint16_t kPayloadVersion = 1;
 constexpr std::uint8_t kCompressionPackBits = 1;
@@ -187,7 +187,7 @@ bool ParsePayload(ByteView payload, Game expectedGame, Snapshot& snapshot) {
     return cursor == payload.size();
 }
 
-} // namespace
+}
 
 std::uint32_t HashOffsetPath(std::string_view path) noexcept {
     std::uint32_t hash = 2166136261u;
@@ -215,7 +215,8 @@ int ResourceIdForGame(Game game) noexcept {
     case Game::Warzone: return IDR_OFFSETS_WARZONE;
     case Game::CS2: return IDR_OFFSETS_CS2;
     case Game::FiveM: return IDR_OFFSETS_FIVEM;
-    case Game::Apex: return IDR_OFFSETS_APEX;
+    // RES-001: Apex has no runtime; no resource is embedded for it.
+    case Game::Apex: return 0;
     default: return 0;
     }
 }
@@ -341,4 +342,4 @@ bool Load(Game game, Snapshot& snapshot, Diagnostics& diagnostics) {
     return ParseEmbeddedOffsetBlob(ByteView(resource->data(), resource->size()), game, snapshot, diagnostics);
 }
 
-} // namespace OmniGhost::EmbeddedOffsets
+}

@@ -85,10 +85,10 @@ namespace preview_runtime {
     const Status& GetStatus();
     void Initialize();
 
-} // namespace preview_runtime
+}
 
-// The preview never loads the MAKCU implementation. AimPage uses this
-// lightweight declaration so its existing status widget remains interactive.
+
+
 namespace makcu_wrapper {
     bool IsConnected();
 }

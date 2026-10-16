@@ -6,7 +6,7 @@
 
 namespace Gameplay::SmoothCurves {
 
-    // BezierCurve implementation
+
     float BezierCurve::Evaluate(float t) const {
         t = std::clamp(t, 0.0f, 1.0f);
         float u = 1.0f - t;
@@ -14,11 +14,11 @@ namespace Gameplay::SmoothCurves {
         float u3 = u2 * u;
         float t2 = t * t;
         float t3 = t2 * t;
-        
-        // Y component of cubic bezier
-        return p0.y * u3 + 
-               3.0f * p1.y * u2 * t + 
-               3.0f * p2.y * u * t2 + 
+
+
+        return p0.y * u3 +
+               3.0f * p1.y * u2 * t +
+               3.0f * p2.y * u * t2 +
                p3.y * t3;
     }
 
@@ -54,7 +54,7 @@ namespace Gameplay::SmoothCurves {
         return BezierCurve{ImVec2(0,0), ImVec2(0.33f, 0.0f), ImVec2(0.67f, 1.0f), ImVec2(1,1)};
     }
 
-    // CatmullRomSpline implementation
+
     void CatmullRomSpline::AddPoint(const ImVec2& point) {
         points.push_back(point);
     }
@@ -72,49 +72,49 @@ namespace Gameplay::SmoothCurves {
     float CatmullRomSpline::Evaluate(float t) const {
         if (points.size() < 2) return 0.0f;
         if (points.size() == 2) {
-            // Linear interpolation for 2 points
+
             return points[0].y + (points[1].y - points[0].y) * t;
         }
-        
+
         t = std::clamp(t, 0.0f, 1.0f);
-        
-        // Map t to segment
+
+
         size_t num_segments = closed ? points.size() : points.size() - 1;
         float segment_t = t * num_segments;
         size_t segment = static_cast<size_t>(segment_t);
-        
+
         if (!closed && segment >= num_segments) {
             segment = num_segments - 1;
             segment_t = 1.0f;
         } else {
             segment_t = segment_t - segment;
         }
-        
-        // Get 4 control points for Catmull-Rom
+
+
         size_t p0_idx = (segment + points.size() - 1) % points.size();
         size_t p1_idx = segment % points.size();
         size_t p2_idx = (segment + 1) % points.size();
         size_t p3_idx = (segment + 2) % points.size();
-        
+
         if (!closed) {
             if (segment == 0) p0_idx = p1_idx;
             if (segment == num_segments - 1) p3_idx = p2_idx;
         }
-        
+
         const ImVec2& p0 = points[p0_idx];
         const ImVec2& p1 = points[p1_idx];
         const ImVec2& p2 = points[p2_idx];
         const ImVec2& p3 = points[p3_idx];
-        
+
         float t2 = segment_t * segment_t;
         float t3 = t2 * segment_t;
-        
-        // Catmull-Rom formula
+
+
         float result = p1.y * 2.0f +
                        (p2.y - p0.y) * segment_t +
                        (p0.y * 2.0f - p1.y * 5.0f + p2.y * 4.0f - p3.y) * t2 +
                        (p0.y * -1.0f + p1.y * 3.0f - p2.y * 3.0f + p3.y) * t3;
-        
+
         return result * 0.5f * tension + p1.y * (1.0f - tension);
     }
 
@@ -144,7 +144,7 @@ namespace Gameplay::SmoothCurves {
         return spline;
     }
 
-    // SmoothCurveEvaluator implementation
+
     SmoothCurveEvaluator::SmoothCurveEvaluator() {
         config_ = SmoothCurveConfig();
         config_.bezier = BezierCurve::EaseOut();
@@ -164,20 +164,20 @@ namespace Gameplay::SmoothCurves {
 
     float SmoothCurveEvaluator::Evaluate(float input) const {
         input = std::clamp(input, config_.input_min, config_.input_max);
-        
-        // Normalize to 0-1
+
+
         float t = (input - config_.input_min) / (config_.input_max - config_.input_min);
         if (config_.input_max == config_.input_min) t = 0.0f;
-        
+
         float result = EvaluateCurveType(config_.type, t, config_.overshoot, config_.amplitude, config_.period);
-        
-        // Denormalize
+
+
         result = result * (config_.output_max - config_.output_min) + config_.output_min;
-        
+
         if (config_.clamp_output) {
             result = std::clamp(result, config_.min_output, config_.max_output);
         }
-        
+
         last_input_ = input;
         last_output_ = result;
         return result;
@@ -185,30 +185,30 @@ namespace Gameplay::SmoothCurves {
 
     float SmoothCurveEvaluator::Evaluate(const CurveContext& context) const {
         float input = context.input;
-        
-        // Apply dynamic adjustments
+
+
         if (config_.dynamic_adjustment) {
-            // Adjust based on velocity
+
             if (context.velocity > 0) {
                 input *= 1.0f + context.velocity * config_.velocity_factor;
             }
-            
-            // Adjust based on error
+
+
             if (context.error > 0) {
                 input *= 1.0f + context.error * config_.error_factor;
             }
-            
-            // Adjust based on distance
+
+
             if (context.distance > 0) {
                 input *= 1.0f + context.distance * config_.distance_factor;
             }
         }
-        
-        // Use distance-based curve if enabled
+
+
         if (config_.use_distance_curves && context.distance > 0) {
             for (const auto& dc : config_.distance_curves) {
                 if (context.distance <= dc.max_distance) {
-                    // Temporarily use distance curve
+
                     SmoothCurveConfig temp = config_;
                     temp.type = dc.type;
                     temp.bezier = dc.bezier;
@@ -217,7 +217,7 @@ namespace Gameplay::SmoothCurves {
                 }
             }
         }
-        
+
         return Evaluate(input);
     }
 
@@ -233,60 +233,60 @@ namespace Gameplay::SmoothCurves {
 
     float SmoothCurveEvaluator::EvaluateCurveType(CurveType type, float t, float overshoot, float amplitude, float period) const {
         t = std::clamp(t, 0.0f, 1.0f);
-        
+
         switch (type) {
             case CurveType::Linear:
                 return t;
-                
+
             case CurveType::EaseInQuad:
                 return t * t;
             case CurveType::EaseOutQuad:
                 return 1.0f - (1.0f - t) * (1.0f - t);
             case CurveType::EaseInOutQuad:
                 return t < 0.5f ? 2.0f * t * t : 1.0f - 2.0f * (1.0f - t) * (1.0f - t);
-                
+
             case CurveType::EaseInCubic:
                 return t * t * t;
             case CurveType::EaseOutCubic:
                 return 1.0f - (1.0f - t) * (1.0f - t) * (1.0f - t);
             case CurveType::EaseInOutCubic:
                 return t < 0.5f ? 4.0f * t * t * t : 1.0f - 4.0f * (1.0f - t) * (1.0f - t) * (1.0f - t);
-                
+
             case CurveType::EaseInQuart:
                 return t * t * t * t;
             case CurveType::EaseOutQuart:
                 return 1.0f - (1.0f - t) * (1.0f - t) * (1.0f - t) * (1.0f - t);
             case CurveType::EaseInOutQuart:
                 return t < 0.5f ? 8.0f * t * t * t * t : 1.0f - 8.0f * (1.0f - t) * (1.0f - t) * (1.0f - t) * (1.0f - t);
-                
+
             case CurveType::EaseInQuint:
                 return t * t * t * t * t;
             case CurveType::EaseOutQuint:
                 return 1.0f - (1.0f - t) * (1.0f - t) * (1.0f - t) * (1.0f - t) * (1.0f - t);
             case CurveType::EaseInOutQuint:
                 return t < 0.5f ? 16.0f * t * t * t * t * t : 1.0f - 16.0f * (1.0f - t) * (1.0f - t) * (1.0f - t) * (1.0f - t);
-                
+
             case CurveType::EaseInSine:
                 return 1.0f - cosf(t * 1.5707963f);
             case CurveType::EaseOutSine:
                 return sinf(t * 1.5707963f);
             case CurveType::EaseInOutSine:
                 return 0.5f * (1.0f - cosf(t * 3.14159265f));
-                
+
             case CurveType::EaseInExpo:
                 return t == 0 ? 0 : powf(2.0f, 10.0f * (t - 1.0f));
             case CurveType::EaseOutExpo:
                 return t == 1 ? 1 : 1.0f - powf(2.0f, -10.0f * t);
             case CurveType::EaseInOutExpo:
                 return t == 0 ? 0 : t == 1 ? 1 : t < 0.5f ? 0.5f * powf(2.0f, 20.0f * t - 10.0f) : 1.0f - 0.5f * powf(2.0f, -20.0f * (t - 0.5f));
-                
+
             case CurveType::EaseInCirc:
                 return 1.0f - sqrtf(1.0f - t * t);
             case CurveType::EaseOutCirc:
                 return sqrtf(1.0f - (1.0f - t) * (1.0f - t));
             case CurveType::EaseInOutCirc:
                 return t < 0.5f ? 0.5f * (1.0f - sqrtf(1.0f - 4.0f * t * t)) : 0.5f * (sqrtf(1.0f - 4.0f * (1.0f - t) * (1.0f - t)) + 1.0f);
-                
+
             case CurveType::EaseInBack: {
                 float c1 = 1.70158f;
                 float c3 = c1 + 1.0f;
@@ -304,7 +304,7 @@ namespace Gameplay::SmoothCurves {
                     ? (powf(2.0f * t, 2.0f) * ((c2 + 1.0f) * 2.0f * t - c2)) * 0.5f
                     : (powf(2.0f * t - 2.0f, 2.0f) * ((c2 + 1.0f) * (2.0f * t - 2.0f) + c2) + 2.0f) * 0.5f;
             }
-                
+
             case CurveType::EaseInElastic: {
                 if (t == 0) return 0;
                 if (t == 1) return 1;
@@ -325,7 +325,7 @@ namespace Gameplay::SmoothCurves {
                     ? -0.5f * powf(2.0f, 20.0f * t - 10.0f) * sinf((20.0f * t - 11.125f) * c4) * amplitude
                     : 0.5f * powf(2.0f, -20.0f * t + 10.0f) * sinf((20.0f * t - 11.125f) * c4) * amplitude + 1.0f;
             }
-                
+
             case CurveType::EaseInBounce:
                 return 1.0f - EvaluateCurveType(CurveType::EaseOutBounce, 1.0f - t, 0, 0, 0);
             case CurveType::EaseOutBounce: {
@@ -338,18 +338,18 @@ namespace Gameplay::SmoothCurves {
                 return t < 0.5f
                     ? 0.5f * EvaluateCurveType(CurveType::EaseInBounce, 2.0f * t, 0, 0, 0)
                     : 0.5f * EvaluateCurveType(CurveType::EaseOutBounce, 2.0f * t - 1.0f, 0, 0, 0) + 0.5f;
-                
+
             case CurveType::Bezier:
                 return EvaluateBezier(t);
-                
+
             case CurveType::CatmullRom:
                 return EvaluateSpline(t);
-                
+
             case CurveType::Custom:
-                // User would provide custom function
+
                 return t;
         }
-        
+
         return t;
     }
 
@@ -479,10 +479,10 @@ namespace Gameplay::SmoothCurves {
     bool SmoothCurveEvaluator::Deserialize(const std::string& data) {
         std::istringstream in(data);
         std::string token;
-        
+
         if (!std::getline(in, token, '|')) return false;
         config_.type = static_cast<CurveType>(std::stoi(token));
-        
+
         auto read_vec2 = [&](ImVec2& v) {
             if (!std::getline(in, token, '|')) return false;
             size_t comma = token.find(',');
@@ -491,12 +491,12 @@ namespace Gameplay::SmoothCurves {
             v.y = std::stof(token.substr(comma + 1));
             return true;
         };
-        
+
         if (!read_vec2(config_.bezier.p0)) return false;
         if (!read_vec2(config_.bezier.p1)) return false;
         if (!read_vec2(config_.bezier.p2)) return false;
         if (!read_vec2(config_.bezier.p3)) return false;
-        
+
         if (!std::getline(in, token, '|')) return false; config_.overshoot = std::stof(token);
         if (!std::getline(in, token, '|')) return false; config_.amplitude = std::stof(token);
         if (!std::getline(in, token, '|')) return false; config_.period = std::stof(token);
@@ -512,12 +512,12 @@ namespace Gameplay::SmoothCurves {
         if (!std::getline(in, token, '|')) return false; config_.output_max = std::stof(token);
         if (!std::getline(in, token, '|')) return false; config_.clamp_output = token == "1";
         if (!std::getline(in, token)) return false; config_.min_output = std::stof(token);
-        config_.max_output = 1.0f; // Would need another token
-        
+        config_.max_output = 1.0f;
+
         return true;
     }
 
-    // DistanceCurveManager implementation
+
     void DistanceCurveManager::AddCurve(float min_dist, float max_dist, const SmoothCurveConfig& config) {
         CurveEntry entry;
         entry.min_distance = min_dist;
@@ -566,13 +566,13 @@ namespace Gameplay::SmoothCurves {
     bool DistanceCurveManager::Deserialize(const std::string& data) {
         std::istringstream in(data);
         std::string token;
-        
+
         if (!std::getline(in, token, '|')) return false;
         size_t count = std::stoul(token);
-        
+
         curves_.clear();
         curves_.reserve(count);
-        
+
         for (size_t i = 0; i < count; ++i) {
             CurveEntry entry;
             if (!std::getline(in, token, '|')) return false;
@@ -582,12 +582,12 @@ namespace Gameplay::SmoothCurves {
             entry.min_distance = std::stof(token.substr(0, c1));
             entry.max_distance = std::stof(token.substr(c1 + 1, c2 - c1 - 1));
             entry.blend_range = std::stof(token.substr(c2 + 1));
-            
+
             if (!std::getline(in, token, '|')) return false;
             SmoothCurveEvaluator eval;
             if (!eval.Deserialize(token)) return false;
             entry.config = eval.GetConfig();
-            
+
             curves_.push_back(entry);
         }
         return true;
@@ -618,30 +618,30 @@ namespace Gameplay::SmoothCurves {
         return mgr;
     }
 
-    // AimHumanizer implementation
+
     AimHumanizer::AimHumanizer(const HumanizerConfig& config) : config_(config), rng_(std::random_device{}()) {}
-    
+
     ImVec2 AimHumanizer::Humanize(const ImVec2& raw_movement, float distance, float dt) {
         if (!config_.enabled || (raw_movement.x == 0 && raw_movement.y == 0)) {
             return raw_movement;
         }
-        
-        // Determine distance multiplier
+
+
         float dist_mult = 1.0f;
         if (distance < 30) dist_mult = config_.close_range_multiplier;
         else if (distance < 80) dist_mult = config_.mid_range_multiplier;
         else dist_mult = config_.far_range_multiplier;
-        
+
         ImVec2 result = raw_movement;
-        
-        // Micro jitter
+
+
         if (config_.micro_jitter > 0) {
             std::uniform_real_distribution<float> jitter(-config_.micro_jitter, config_.micro_jitter);
             result.x += jitter(rng_) * dist_mult;
             result.y += jitter(rng_) * dist_mult;
         }
-        
-        // Macro drift
+
+
         if (config_.macro_drift > 0) {
             std::uniform_real_distribution<float> drift(-config_.macro_drift, config_.macro_drift);
             accumulated_drift_x_ += drift(rng_) * dt * dist_mult;
@@ -651,8 +651,8 @@ namespace Gameplay::SmoothCurves {
             result.x += accumulated_drift_x_;
             result.y += accumulated_drift_y_;
         }
-        
-        // Pause chance
+
+
         if (!is_paused_ && config_.pause_chance > 0) {
             std::uniform_real_distribution<float> pause_dist(0, 1);
             if (pause_dist(rng_) < config_.pause_chance * dt * 60.0f) {
@@ -660,17 +660,17 @@ namespace Gameplay::SmoothCurves {
                 pause_timer_ = config_.pause_duration;
             }
         }
-        
+
         if (is_paused_) {
             pause_timer_ -= dt;
             if (pause_timer_ <= 0) {
                 is_paused_ = false;
             } else {
-                return ImVec2(0, 0); // No movement during pause
+                return ImVec2(0, 0);
             }
         }
-        
-        // Overshoot chance
+
+
         if (config_.overshoot_chance > 0 && (raw_movement.x != 0 || raw_movement.y != 0)) {
             std::uniform_real_distribution<float> overshoot_dist(0, 1);
             if (overshoot_dist(rng_) < config_.overshoot_chance * dt * 60.0f) {
@@ -679,7 +679,7 @@ namespace Gameplay::SmoothCurves {
                 result.y += (raw_movement.y > 0 ? overshoot : -overshoot);
             }
         }
-        
+
         return result;
     }
 
@@ -690,4 +690,4 @@ namespace Gameplay::SmoothCurves {
         is_paused_ = false;
     }
 
-} // namespace Gameplay::SmoothCurves
+}

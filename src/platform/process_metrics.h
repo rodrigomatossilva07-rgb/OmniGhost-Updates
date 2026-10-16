@@ -17,4 +17,4 @@ struct ProcessMetrics {
 [[nodiscard]] ProcessMetrics CaptureProcessMetrics() noexcept;
 [[nodiscard]] std::string FormatProcessMetrics(const ProcessMetrics& metrics);
 
-} // namespace OmniGhost::Platform
+}

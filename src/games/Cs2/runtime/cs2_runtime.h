@@ -19,12 +19,12 @@ void ResetPublishMetrics() noexcept;
 [[nodiscard]] float AcquisitionHz() noexcept;
 [[nodiscard]] uint64_t SnapshotDrops() noexcept;
 
-// Shutdown publishes from a different thread after all producers have joined.
+
 void ResetProducerThreadForShutdown() noexcept;
 
-// CS2-008: atomically-mirrored identity state for the camera lane (avoids
-// reading the plain `runtime` globals while the acquisition thread writes).
+
+
 [[nodiscard]] uintptr_t PublishedClientBase() noexcept;
 [[nodiscard]] bool PublishedInMatch() noexcept;
 
-} // namespace CS2::RuntimePipeline
+}

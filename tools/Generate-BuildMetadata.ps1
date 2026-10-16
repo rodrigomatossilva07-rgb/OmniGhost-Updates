@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [Parameter(Mandatory=$false)]
     [string]$ProjectDir = '',
@@ -43,10 +43,10 @@ $MetadataPath = [IO.Path]::GetFullPath($MetadataPath)
 
 Write-Host "[BuildMetadata] start project=$ProjectDir"
 
-# Only inspect Git when this extracted project itself contains a .git marker.
-# Without this guard, `git -C <project>` can discover a .git directory in a
-# parent folder (for example C:\Users\<name>) and `git diff` may scan a very
-# large unrelated working tree, which makes the Visual Studio build appear frozen.
+
+
+
+
 $GitMarker = Join-Path $ProjectDir '.git'
 $Git = $null
 if (Test-Path -LiteralPath $GitMarker) {
@@ -60,9 +60,9 @@ if (Test-Path -LiteralPath $GitMarker) {
     Write-Host "[BuildMetadata] no project-local .git marker; skipping Git inspection."
 }
 
-# Source archives preserve commit/timestamp metadata without shipping .git.
-# This keeps Diagnostics meaningful and allows deterministic timestamps when a
-# customer/developer builds an extracted source package.
+
+
+
 $SourceMetadata = $null
 $SourceMetadataPath = Join-Path $ProjectDir 'config\release\SOURCE_BUILD_METADATA.json'
 if (Test-Path -LiteralPath $SourceMetadataPath -PathType Leaf) {
@@ -74,9 +74,9 @@ if (Test-Path -LiteralPath $SourceMetadataPath -PathType Leaf) {
     }
 }
 
-# Compatibility fallback for older source snapshots that predate config\release\SOURCE_BUILD_METADATA.json.
-# A stable fingerprint of config\release\SOURCE_PACKAGE_MANIFEST.json gives Diagnostics a concrete
-# source identity instead of "unknown" without pretending it is a Git commit.
+
+
+
 $SourcePackageManifest = $null
 $SourcePackageFingerprint = ''
 $SourcePackageManifestPath = Join-Path $ProjectDir 'config\release\SOURCE_PACKAGE_MANIFEST.json'
@@ -90,16 +90,16 @@ if (Test-Path -LiteralPath $SourcePackageManifestPath -PathType Leaf) {
     }
 }
 
-# If a source package manifest is present, verify its listed files before claiming
-# a reproducible extracted-source build. Editing a packaged source tree must turn
-# reproducible=false instead of reusing stale package provenance.
-#
-# Full SHA-256 of every packaged file (including third_party binaries) can take
-# many minutes and looks like a freeze in Visual Studio. Strategy:
-#   - Always check path safety + existence (fast)
-#   - Hash only for Publish configuration (commercial reproducibility gate)
-#   - Skip hashing under heavy/generated trees even on Publish
-#   - Emit progress so the build log does not appear stuck
+
+
+
+
+
+
+
+
+
+
 $SourcePackageDirty = $false
 if ($null -eq $Git -and $null -ne $SourcePackageManifest -and $null -ne $SourcePackageManifest.files) {
     $ProjectRootPrefix = $ProjectDir.TrimEnd('\') + '\'
@@ -173,8 +173,8 @@ function Get-GitValue([string[]]$Arguments, [string]$Fallback) {
     return $Fallback
 }
 
-# Git status/diff can hang for a long time on large trees, broken worktrees, or
-# when AV scans every touched file. Bound all git invocations used at build time.
+
+
 function Invoke-GitWithTimeout {
     param(
         [string[]]$Arguments,
@@ -184,8 +184,8 @@ function Invoke-GitWithTimeout {
 
     $proc = $null
     try {
-        # Windows PowerShell 5.1 can return a blank ExitCode from Start-Process
-        # -PassThru even after WaitForExit. Use the .NET Process API directly.
+
+
         $start = New-Object System.Diagnostics.ProcessStartInfo
         $start.FileName = $Git.Source
         $start.Arguments = ($Arguments -join ' ')
@@ -240,7 +240,7 @@ if ($Commit.Length -gt 12) { $CommitShort = $Commit.Substring(0,12) } else { $Co
 $Dirty = $false
 $DirtyFiles = @()
 if ($null -ne $Git) {
-    # Include untracked files: they can change the source used for a release.
+
     Write-Host "[BuildMetadata] checking git dirty state (timeout 12s)..."
     $status = Invoke-GitWithTimeout -Arguments @('status','--porcelain','--untracked-files=normal','--ignore-submodules') -TimeoutSeconds 12
     if ($status.TimedOut -or $status.ExitCode -ne 0) {
@@ -293,8 +293,8 @@ if (-not $HasSourceDateEpoch -and $null -ne $SourcePackageManifest -and $SourceP
 }
 $Reproducible = $false
 if ($HasSourceDateEpoch) {
-    # Use a stable source timestamp so /Brepro builds do not change only because
-    # the same source was compiled at a different wall-clock time.
+
+
     $BuildTime = [DateTimeOffset]::FromUnixTimeSeconds($SourceDateEpoch).UtcDateTime
 } else {
     $BuildTime = [DateTime]::UtcNow
@@ -315,8 +315,8 @@ try {
     $ClCommand = Get-Command cl.exe -ErrorAction Stop
     $CompilerPath = $ClCommand.Source
 } catch {}
-# Prefer environment / PATH. Avoid vswhere on normal incremental builds — it can
-# stall for a long time on some developer machines with many VS installs.
+
+
 if ([string]::IsNullOrWhiteSpace($CompilerPath)) {
     try {
         Write-Host "[BuildMetadata] locating cl.exe via vswhere (Publish only)..."
@@ -388,8 +388,8 @@ $ReproducibilityPrerequisitesMet = $HasSourceDateEpoch -and -not $Dirty -and
     $Commit -notin @('unknown','untracked-source') -and
     $ToolchainVersion -ne 'unknown' -and $CompilerVersion -ne 'unknown' -and
     $WindowsSdkVersion -ne 'unknown'
-# Deterministic inputs do not prove byte-for-byte reproducibility. This field
-# remains false until a separate independent rebuild comparison is recorded.
+
+
 $Reproducible = $false
 if ([string]::IsNullOrWhiteSpace($Configuration)) { $Configuration = if ($env:Configuration) { $env:Configuration } else { 'unknown' } }
 if ([string]::IsNullOrWhiteSpace($Architecture)) { $Architecture = 'x64' }

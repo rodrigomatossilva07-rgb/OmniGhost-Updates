@@ -4,14 +4,14 @@
 #include <cmath>
 #include <vector>
 
-// Fortnite LocalPlayer-only ESP (lobby test) — read-only.
-// Target: 42.00-CL-57316517 via GEngine plain pointer (no decrypt).
-// Globals: GWorld/GNames from cheatoffsets 42.00; GEngine kept as prior plain RVA
-// (cheatoffsets dump had GEngine=0 / not present).
+
+
+
+
 namespace Fortnite {
 
 struct Config {
-    // Core ESP
+
     bool esp_enabled = true;
     bool show_local_marker = true;
     bool show_local_coords = true;
@@ -39,7 +39,7 @@ struct Config {
     bool text_outline = true;
     float text_outline_thickness = 1.f;
     bool snaplines = false;
-    int snapline_position = 2; // 0=top, 1=center, 2=bottom
+    int snapline_position = 2;
     float snapline_thickness = 1.5f;
     bool look_direction = false;
     float eye_line_thickness = 1.6f;
@@ -57,7 +57,7 @@ struct Config {
     bool self_esp = true;
     bool hit_marker = false;
 
-    // Aim
+
     bool aim_enabled = false;
     bool aim_visible_only = true;
     bool predict = false;
@@ -67,7 +67,7 @@ struct Config {
     float bullet_velocity = 80000.f;
     bool show_fps = true;
 
-    // Colors (RGBA 0-1)
+
     float col_enemy[4] = {1.f, 0.25f, 0.25f, 1.f};
     float col_team[4] = {0.25f, 0.85f, 0.35f, 1.f};
     float col_box[4] = {1.f, 1.f, 1.f, 0.9f};
@@ -91,27 +91,27 @@ struct Config {
     float col_visible[4] = {0.27f, 0.9f, 0.37f, 1.f};
     float col_occluded[4] = {0.9f, 0.25f, 0.25f, 1.f};
 
-    // RGB/Visibility modes
+
     bool rgb_mode = false;
     bool visibility_colors = false;
 };
 
-// GWorld is ENCODED (see gworld_crypto in data/fortnite_offsets.json).
-// Decrypt (current dump): world = encoded * world_mul + world_add (uint64 wrap).
-// Legacy dumps may still use rotl64(encoded - sub, rol) ^ xor_key.
-// Fallback: GEngine -> Viewport -> World.
+
+
+
+
 struct Offsets {
     uintptr_t gworld = 0;
     uintptr_t gnames = 0;
     uintptr_t gengine = 0;
     uintptr_t process_event = 0;
 
-    // GWorld crypto
+
     bool gworld_encoded = false;
-    // Method: "mul_add" (current) or "rot_xor" (legacy)
+
     uint64_t gworld_mul = 0;
     uint64_t gworld_add = 0;
-    // Legacy rot_xor fields (kept for older JSON snapshots)
+
     uint64_t gworld_sub = 0;
     uint32_t gworld_rol = 0;
     uint64_t gworld_xor = 0;
@@ -144,7 +144,7 @@ struct Offsets {
     uintptr_t controller_player_state = 0;
     uintptr_t controller_character = 0;
     uintptr_t pcm_view_target = 0;
-    // TViewTarget.Target is at +0x0 inside ViewTarget
+
 
     uintptr_t pawn_player_state = 0;
     uintptr_t pawn_controller = 0;
@@ -197,7 +197,7 @@ struct ChainDiag {
 
 struct Runtime {
     bool attached = false;
-    bool visual_only = false; // false once local chain is active
+    bool visual_only = false;
     bool chain_ok = false;
     bool camera_ok = false;
     bool local_pawn_ok = false;
@@ -231,9 +231,9 @@ struct Runtime {
     float screen_y = 0.f;
     float distance_to_cam = 0.f;
 
-    // Acquisition timestamps (monotonic ms). camera_sample_ms is the midpoint
-    // of the camera-fields read; world_sample_ms is the midpoint of the player
-    // position scatter. Presentation/age gating must use these, not publish time.
+
+
+
     uint64_t camera_sample_ms = 0;
     uint64_t world_sample_ms = 0;
     uint64_t snapshot_timestamp_ms = 0;
@@ -270,19 +270,19 @@ extern Config config;
 extern Offsets offsets;
 extern Runtime runtime;
 
-// Loads offsets from data/fortnite_offsets.json (Tester) or embedded RCDATA (Release).
-// Edit ONLY data/fortnite_offsets.json to update after a game patch, then rebuild Release.
+
+
 bool LoadOffsetsFromJson(const char* path = nullptr);
 bool ReloadOffsets();
 
 bool Attach();
 void Detach();
 void Tick();
-void DrawESP(); // LocalPlayer marker only
-void RunAim();  // no-op
+void DrawESP();
+void RunAim();
 bool IsGameProcessAlive();
 bool ValidateLiveOffsets();
 const char* StatusText();
 void FlushDiagnosticsToLog();
 
-} // namespace Fortnite
+}

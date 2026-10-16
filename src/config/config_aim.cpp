@@ -22,7 +22,7 @@ void SerializeAim(std::ostringstream& o) {
     WFloat(o, "aim.jitter_amount", a.jitter_amount);
     WFloat(o, "aim.acceleration", a.acceleration);
     WFloat(o, "aim.overshoot_chance", a.overshoot_chance);
-    WFloat(o, "aim.overshoot_scale", a.overshoot_scale); // CFG-002 Fix: era WBool e lia-se como float → 0.08 virava "1"
+    WFloat(o, "aim.overshoot_scale", a.overshoot_scale);
     WFloat(o, "aim.min_move_threshold", a.min_move_threshold);
     WInt(o, "aim.hitbox", (int)a.hitbox);
     WInt(o, "aim.fov_style", (int)a.fov_style);
@@ -82,11 +82,9 @@ bool DeserializeAim(const std::string& key, const std::string& val) {
     if (bi("aim.fov_style")) { a.fov_style = (aimbot::FovStyle)toI(); return true; }
     if (bi("aim.aimbot_bind")) { a.aimbot_bind = toI(); return true; }
     if (bi("aim.aimbot_bind2")) { a.aimbot_bind2 = toI(); return true; }
-    // Migrate old/bad FiveM configs: fire (LMB) is never an aim hold.
-    if (a.aimbot_bind <= 0 || a.aimbot_bind == VK_LBUTTON)
-        a.aimbot_bind = VK_RBUTTON;
-    if (a.aimbot_bind2 == VK_LBUTTON || a.aimbot_bind2 == a.aimbot_bind)
-        a.aimbot_bind2 = 0;
+    // CFG-005 Fix: the bind normalization used to run inside this key chain
+    // (executing as a side effect of any unrecognized aim.* key); the same
+    // normalization already runs once at the end of DeserializeAll.
     if (bi("aim.visible_check")) { a.visible_check = toB(); return true; }
     if (bi("aim.trigger_enabled")) { a.trigger_enabled = toB(); return true; }
     if (bi("aim.trigger_always_on")) { a.trigger_always_on = toB(); return true; }
@@ -106,4 +104,4 @@ bool DeserializeAim(const std::string& key, const std::string& val) {
     return false;
 }
 
-} // namespace config_manager
+}

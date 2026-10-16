@@ -28,7 +28,7 @@
 
 #pragma comment(lib, "dwmapi.lib")
 
-// Algumas versões do imgui_impl_win32.h não expõem esta declaração.
+
 extern LRESULT ImGui_ImplWin32_WndProcHandler(
     HWND hwnd,
     UINT message,
@@ -36,14 +36,14 @@ extern LRESULT ImGui_ImplWin32_WndProcHandler(
     LPARAM lparam
 );
 
-// Definition matches extern in window.hpp (must NOT live in anonymous namespace).
+
 Overlay* g_overlay_instance = nullptr;
 
 namespace {
 
 constexpr float kCompactWindowWidth = 480.0f;
-// Compact desktop-launcher footprint. The authentication card adapts inside
-// this surface and enables scrolling only on unusually small displays/scales.
+
+
 constexpr float kCompactWindowHeight = 520.0f;
 
 std::wstring Widen(const char* text) {
@@ -99,12 +99,12 @@ void ApplyWindowShape(HWND window, bool compact, float dpiScale) {
         radius, radius);
     if (!region)
         return;
-    // After a successful SetWindowRgn, Windows owns the region handle.
+
     if (!SetWindowRgn(window, region, TRUE))
         DeleteObject(region);
 }
 
-} // namespace
+}
 
 Overlay::~Overlay() {
     Shutdown();
@@ -115,10 +115,10 @@ void Overlay::CreateOverlay(const char* window_name) {
         return;
     }
 
-    // Window ownership has its own process-independent guard in addition to the
-    // application-level mutex in main.cpp. This sits directly on the only code
-    // path that can create the product HWND, so even a future startup path that
-    // accidentally bypasses main's guard cannot create a second OmniGhost UI.
+
+
+
+
     constexpr wchar_t kWindowOwnerMutex[] = L"Local\\OmniGhostWindowOwner-6A670FC7";
     SetLastError(ERROR_SUCCESS);
     window_owner_mutex_ = CreateMutexW(nullptr, TRUE, kWindowOwnerMutex);
@@ -148,7 +148,7 @@ void Overlay::CreateOverlay(const char* window_name) {
     window_class_.lpfnWndProc = WindowProc;
     window_class_.hInstance = instance;
 
-    // MAKEINTRESOURCEW força a utilização da versão Unicode.
+
     window_class_.hCursor = LoadCursorW(
         nullptr,
         MAKEINTRESOURCEW(32512)
@@ -227,10 +227,10 @@ void Overlay::CreateOverlay(const char* window_name) {
         &margins
     );
 
-    // Do not expose the HWND until ImGui has produced and DXGI has presented a
-    // complete frame. Showing it here lets DWM briefly display the raw layered
-    // surface before authentication is drawn, which is perceived as a second
-    // window even though the HWND audit still reports exactly one handle.
+
+
+
+
     window_visible_ = false;
     ApplyWindowShape(overlay, compact_mode_,
         static_cast<float>(GetDpiForWindow(overlay)) / 96.0f);
@@ -263,12 +263,12 @@ void Overlay::ApplyDisplayConfiguration(bool force) {
             const bool haveCurrent = GetWindowRect(overlay, &current) != FALSE;
             const bool geometryChanged = !haveCurrent || current.left != left || current.top != top ||
                 (current.right - current.left) != width || (current.bottom - current.top) != height;
-            // IMPORTANT: never resize DXGI from WM_SIZE and never force a synchronous
-            // Present/Redraw while SetWindowPos is on the call stack. On some secondary
-            // PCs/drivers that re-entrant path can deadlock exactly when the compact
-            // hardware screen expands into the launcher, making it look as if the DMA
-            // probe froze the machine. WM_SIZE only queues the new size; StartRender()
-            // performs ResizeBuffers after SetWindowPos has fully returned.
+
+
+
+
+
+
             SetWindowPos(overlay, HWND_TOPMOST, left, top,
                          width, height, SWP_NOACTIVATE | SWP_FRAMECHANGED);
             ApplyWindowShape(overlay, compact_mode_,
@@ -316,10 +316,10 @@ void Overlay::ApplyPendingResize() {
     std::clog << "[UI][Resize] applying deferred swap-chain resize "
               << width << "x" << height << "\n";
 
-    // ResizeBuffers requires every direct and indirect reference to the old
-    // back buffer to be released. Releasing our RTV is not enough while it is
-    // still bound to the output-merger stage; that produced DXGI_ERROR_INVALID_CALL
-    // exactly on the authentication -> launcher resize and stopped the UI.
+
+
+
+
     device_context->OMSetRenderTargets(0, nullptr, nullptr);
     device_context->Flush();
     CleanupRenderTarget();
@@ -330,9 +330,9 @@ void Overlay::ApplyPendingResize() {
         CreateRenderTarget();
         std::clog << "[UI][Resize] deferred ResizeBuffers PASS\n";
     } else {
-        // ResizeBuffers failure must not terminate a successfully authenticated
-        // session. The old swap-chain buffers remain valid when ResizeBuffers
-        // fails, so rebuild their RTV and keep rendering while logging the error.
+
+
+
         CreateRenderTarget();
         std::cerr << "[UI][Resize] deferred ResizeBuffers FAIL hr=0x"
                   << std::hex << static_cast<unsigned long>(result) << std::dec << "\n";
@@ -476,26 +476,26 @@ void Overlay::StartRender() {
     if (!shouldRun)
         return;
 
-    // WM_SIZE only records dimensions. Perform DXGI buffer work here, outside the
-    // Win32 message callback and outside SetWindowPos's synchronous call stack.
+
+
     ApplyPendingResize();
     if (!shouldRun || !render_target_view)
         return;
 	frame_render_begin_ = std::chrono::steady_clock::now();
 	frame_render_timing_active_ = true;
 
-    // In game, ESC only closes the menu. In launcher mode we intentionally do
-    // not consume the key here so the launcher can use ESC for navigation.
-    // Exiting the application is an explicit window action (X / WM_CLOSE).
+
+
+
     if (!RenderMenu && app_settings::menu_open && (GetAsyncKeyState(VK_ESCAPE) & 1))
         app_settings::menu_open = false;
 
-    // Menu toggle: Insert by default. Use both the Win32 transition bit and a
-    // held-state edge because the overlay does not always own keyboard focus.
+
+
     {
         int menu_vk = app_settings::config.menu_bind;
         if (menu_vk <= 0 || menu_vk > 0xFE)
-            menu_vk = 0x2D; // VK_INSERT
+            menu_vk = 0x2D;
         const SHORT menu_state = GetAsyncKeyState(menu_vk);
         const SHORT insert_state = menu_vk == VK_INSERT
             ? menu_state
@@ -505,7 +505,7 @@ void Overlay::StartRender() {
         static bool s_prev_menu_down = false;
         static ULONGLONG s_last_menu_toggle = 0;
         const ULONGLONG now = GetTickCount64();
-        // Also accept physical Insert even if menu_bind was rebound incorrectly.
+
         if ((transitioned || (any_down && !s_prev_menu_down)) &&
             now - s_last_menu_toggle >= 120) {
             app_settings::menu_open = !app_settings::menu_open;
@@ -517,8 +517,8 @@ void Overlay::StartRender() {
     const bool interactive =
         RenderMenu || app_settings::menu_open;
 
-    // Updating GWL_EXSTYLE every frame is unnecessary and can cause focus
-    // flicker on some systems. Only touch it when interactivity changes.
+
+
     if (interactive != interactive_style_enabled_) {
         interactive_style_enabled_ = interactive;
         const LONG_PTR ex_style =
@@ -542,9 +542,9 @@ void Overlay::SetCaptureExclusion(bool enabled) {
     if (!overlay || enabled == capture_exclusion_enabled_)
         return;
 
-    // WDA_EXCLUDEFROMCAPTURE (0x11) is supported on Windows 10 2004+. The
-    // overlay owns the HWND, so capture policy belongs here rather than in a
-    // game ESP module trying to discover a window by title/class.
+
+
+
     constexpr DWORD kExcludeFromCapture = 0x00000011;
     const DWORD affinity = enabled ? kExcludeFromCapture : WDA_NONE;
     if (SetWindowDisplayAffinity(overlay, affinity) != FALSE)
@@ -617,16 +617,16 @@ void Overlay::EndRender() {
         }
     }
 
-    // Product-wide overlays are rendered once per frame, independent of whether
-    // the current screen is auth, launcher, updater or an in-game page.
+
+
     CyberWidgets::DrawToasts();
 
     ImGui::Render();
-    // Configurable background opacity with a pure RGB(0,0,0) framebuffer.
+
     float bl = app_settings::config.black_level;
     if (bl < 0.f) bl = 0.f;
     if (bl > 100.f) bl = 100.f;
-    // Legacy toggle still forces full on/off when level not used
+
     if (app_settings::config.black_background && bl < 0.5f)
         bl = 100.f;
     if (!app_settings::config.black_background && bl > 99.5f)
@@ -711,7 +711,7 @@ void Overlay::Shutdown() {
 
         imgui_initialized_ = false;
     }
-    
+
     HardwareMonitor::Shutdown();
     ConfigHistory::Shutdown();
     Hotkeys::Shutdown();

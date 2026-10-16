@@ -14,6 +14,8 @@ namespace makcu_wrapper {
     std::atomic<bool> connected(false);
     std::atomic<bool> allowLocalInputFallback(true);
 
+    // MAK-003 Fix: previous_states is written/read from both the aim lane and
+    // the UI/diagnostics lane — guard it with diag_mutex.
     static std::map<int, bool> previous_states;
     static std::mutex diag_mutex;
 
@@ -21,23 +23,23 @@ namespace makcu_wrapper {
         std::atomic<bool> monitoringRequested{ false };
         std::atomic<bool> monitoringConfirmed{ false };
         std::atomic<bool> deviceDetected{ false };
-        std::atomic<uint8_t> buttonMask{ 0 };          // LATCHED from serial only
-        std::atomic<uint64_t> lastPacketTick{ 0 };     // last REAL serial packet
-        std::atomic<uint64_t> lastChangeTick{ 0 };     // last time mask value changed
+        std::atomic<uint8_t> buttonMask{ 0 };
+        std::atomic<uint64_t> lastPacketTick{ 0 };
+        std::atomic<uint64_t> lastChangeTick{ 0 };
         std::atomic<uint64_t> packetsReceived{ 0 };
         std::atomic<uint64_t> parseErrors{ 0 };
-        // Monotonic serial generation — PollButtons detects NEW packets
+
         std::atomic<uint64_t> serialGeneration{ 0 };
-        // After stuck-mask force-clear, ignore until a real serial packet.
+
         std::atomic<uint64_t> ignorePollUntilPacket{ 0 };
         char port[32]{};
         char deviceInfo[64]{};
         char faultInfo[64]{};
         char buttonsStatus[48]{};
-        std::atomic<int> lastSource{ 0 }; // 0 none, 1 makcu, 2 local
+        std::atomic<int> lastSource{ 0 };
     };
     static InternalState g_state;
-    // Consumer cursor for PollButtons (aim thread only)
+
     static uint64_t s_pollCursor;
 
     static uint64_t NowMs() { return GetTickCount64(); }
@@ -50,10 +52,10 @@ namespace makcu_wrapper {
     }
 
     void NotifyMaskFromDevice(uint8_t mask) {
-        // ONLY entry point that mutates the latched mask from the wire.
-        // hasPacket semantics: every call here is a real serial event.
-        // mask==0 with a real packet = explicit RELEASE.
-        // No call here = silence = "no change", NOT release.
+
+
+
+
         const uint8_t m = static_cast<uint8_t>(mask & 0x1F);
         const uint8_t prev = g_state.buttonMask.load();
         g_state.packetsReceived.fetch_add(1);
@@ -66,16 +68,16 @@ namespace makcu_wrapper {
         g_state.lastSource.store(1);
         g_state.ignorePollUntilPacket.store(0);
     }
-} // namespace makcu_wrapper — closed briefly for extern bridge
+}
 
-// C-linkage bridge so Device serial callback can notify without including
-// the full wrapper header (avoids circular includes).
+
+
 void MakcuNotifyMaskFromSerial(uint8_t m) {
     makcu_wrapper::NotifyMaskFromDevice(m);
 }
 
 namespace makcu_wrapper {
-    // reopen namespace for the rest of the file
+
 
     void MakcuInitialize(const std::string& port) {
         connected = false;
@@ -144,10 +146,10 @@ namespace makcu_wrapper {
         if (device) {
             try { device->enableButtonMonitoring(false); } catch (const std::exception& ex) { std::string msg = "disable monitoring: " + std::string(ex.what()); LogDeviceFailure(msg.c_str()); } catch (...) { LogDeviceFailure("disable monitoring: unknown exception"); }
             try { device->disconnect(); } catch (const std::exception& ex) { std::string msg = "disconnect: " + std::string(ex.what()); LogDeviceFailure(msg.c_str()); } catch (...) { LogDeviceFailure("disconnect: unknown exception"); }
-            // Keep the Device object alive: aim/input threads may be in flight
-            // inside device->mouseMove() etc.; destroying the unique_ptr here
-            // would be a use-after-free race. The object is reused on the next
-            // MakcuInitialize and released only at process exit.
+
+
+
+
         }
         g_state.monitoringRequested = false;
         g_state.monitoringConfirmed = false;
@@ -160,8 +162,8 @@ namespace makcu_wrapper {
     }
 
     void move(int x, int y) {
-        // Send one bounded movement packet. The FiveM aimbot rate-limits its
-        // caller and no longer emits multi-packet bursts that can build backlog.
+
+
         if (!connected || !device || !device->isConnected()) return;
         if (x == 0 && y == 0) return;
         if (x < -127) x = -127; if (x > 127) x = 127;
@@ -195,7 +197,7 @@ namespace makcu_wrapper {
 
     static bool LocalKeyDown(int virtual_key) {
         if (virtual_key <= 0) return false;
-        // Async + sync: some focus/elevation cases only report one of them.
+
         if ((GetAsyncKeyState(virtual_key) & 0x8000) != 0) return true;
         if ((GetKeyState(virtual_key) & 0x8000) != 0) return true;
         return false;
@@ -210,20 +212,20 @@ namespace makcu_wrapper {
         const uint64_t pkts = g_state.packetsReceived.load();
         const bool streamLive = g_state.monitoringConfirmed.load() || pkts > 0;
 
-        // ── Makcu path (GAME-PC mouse stream) ─────────────────────────────
-        // Change-only firmwares send ONE packet on press and ONE on release.
-        // Silence with bit still set MUST keep the hold — never age-out to "up"
-        // or the aim drops after a few seconds while the user is still holding.
-        // Only an explicit serial packet with the bit cleared releases the hold.
+
+
+
+
+
         if (connected.load() && isMouse && streamLive) {
             bool bitDown = (st.makcuMask & (1u << bit)) != 0;
             st.down = bitDown;
             st.source = InputSource::Makcu;
             if (bitDown)
                 g_state.lastSource.store(1);
-            // Mask says up: on single-PC, local key can keep the hold if the
-            // release packet was noise or the user is holding the local mouse.
-            // Dual-PC: local stays false → respect explicit release.
+
+
+
             if (!bitDown && allowLocalInputFallback.load() && LocalKeyDown(virtual_key)) {
                 st.down = true;
                 st.source = InputSource::LocalWindows;
@@ -232,9 +234,9 @@ namespace makcu_wrapper {
             return st;
         }
 
-        // ── Connected but stream never started / dead ─────────────────────
-        // Single-PC: local mouse is the same physical mouse → aim must work.
-        // Dual-PC: local won't see GAME-PC mouse → overlay shows STREAM OFF.
+
+
+
         if (connected.load() && isMouse) {
             if (allowLocalInputFallback.load() && LocalKeyDown(virtual_key)) {
                 st.down = true;
@@ -242,13 +244,13 @@ namespace makcu_wrapper {
                 g_state.lastSource.store(2);
                 return st;
             }
-            // Still no stream: report up (diagnostics show pkts=0).
+
             st.down = false;
             st.source = InputSource::None;
             return st;
         }
 
-        // ── Keyboard / Makcu offline ──────────────────────────────────────
+
         if (allowLocalInputFallback.load() && virtual_key > 0) {
             if (LocalKeyDown(virtual_key)) {
                 st.down = true;
@@ -268,10 +270,10 @@ namespace makcu_wrapper {
     }
 
     uint8_t GetButtonMask() {
-        // Pure latched mask from serial NotifyMaskFromDevice.
-        // Do NOT re-interpret device->getButtonMask() as a live level —
-        // on change-only firmware that value is also just the last packet,
-        // and treating a stale 0 as "up" is the hold-death bug.
+
+
+
+
         if (g_state.ignorePollUntilPacket.load() != 0)
             return 0;
         return g_state.buttonMask.load();
@@ -286,14 +288,14 @@ namespace makcu_wrapper {
             pkt.buttons = g_state.buttonMask.load();
         } else {
             pkt.hasPacket = false;
-            pkt.buttons = g_state.buttonMask.load(); // last known, not an event
+            pkt.buttons = g_state.buttonMask.load();
         }
         return pkt;
     }
 
     void ForceClearButtons() {
         g_state.buttonMask.store(0);
-        g_state.ignorePollUntilPacket.store(UINT64_MAX); // until real serial packet
+        g_state.ignorePollUntilPacket.store(UINT64_MAX);
         g_state.lastChangeTick.store(NowMs());
         if (device && device->isConnected()) {
             try { device->enableButtonMonitoring(true); } catch (const std::exception& ex) { std::string msg = "resume monitoring: " + std::string(ex.what()); LogDeviceFailure(msg.c_str()); } catch (...) { LogDeviceFailure("resume monitoring: unknown exception"); }
@@ -312,7 +314,7 @@ namespace makcu_wrapper {
         const uint8_t mask = g_state.buttonMask.load();
         const uint64_t pkts = g_state.packetsReceived.load();
 
-        // Re-enable when stream never confirmed, silence, or stuck mask.
+
         const bool need =
             !g_state.monitoringConfirmed.load() ||
             pkts == 0 ||
@@ -325,7 +327,7 @@ namespace makcu_wrapper {
         static auto lastSend = std::chrono::steady_clock::time_point{};
         static int cmdRotate = 0;
         const auto now = std::chrono::steady_clock::now();
-        // Aggressive until first packet; then slower keep-alive.
+
         const int minIntervalMs = (pkts == 0) ? 150 :
             (g_state.monitoringConfirmed.load() ? 1200 : 350);
         if (lastSend.time_since_epoch().count() != 0 &&
@@ -334,7 +336,7 @@ namespace makcu_wrapper {
         lastSend = now;
 
         g_state.monitoringRequested = true;
-        // Rotate enable variants — firmwares differ (period arg optional/required).
+
         static const char* kEnableCmds[] = {
             "km.buttons(1,10)",
             "km.buttons(1)",
@@ -346,7 +348,7 @@ namespace makcu_wrapper {
         ++cmdRotate;
         try { device->enableButtonMonitoring(true); } catch (const std::exception& ex) { std::string msg = "diagnostic monitoring: " + std::string(ex.what()); LogDeviceFailure(msg.c_str()); } catch (...) { LogDeviceFailure("diagnostic monitoring: unknown exception"); }
         try { device->sendRawCommand(cmd); } catch (const std::exception& ex) { std::string msg = "diagnostic command: " + std::string(ex.what()); LogDeviceFailure(msg.c_str()); } catch (...) { LogDeviceFailure("diagnostic command: unknown exception"); }
-        // Some builds only stream after a second enable pulse.
+
         if (pkts == 0) {
             try { device->sendRawCommand("km.buttons(1,10)"); } catch (const std::exception& ex) { std::string msg = "diagnostic button stream: " + std::string(ex.what()); LogDeviceFailure(msg.c_str()); } catch (...) { LogDeviceFailure("diagnostic button stream: unknown exception"); }
         }
@@ -354,6 +356,7 @@ namespace makcu_wrapper {
 
     bool IsKeyJustPressed(int virtual_key) {
         bool current = IsDown(virtual_key);
+        std::lock_guard<std::mutex> lock(diag_mutex);
         bool& prev = previous_states[virtual_key];
         bool edge = current && !prev;
         prev = current;
@@ -362,6 +365,7 @@ namespace makcu_wrapper {
 
     bool IsKeyJustReleased(int virtual_key) {
         bool current = IsDown(virtual_key);
+        std::lock_guard<std::mutex> lock(diag_mutex);
         bool& prev = previous_states[virtual_key];
         bool edge = !current && prev;
         prev = current;

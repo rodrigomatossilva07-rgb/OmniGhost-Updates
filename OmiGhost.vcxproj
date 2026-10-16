@@ -101,16 +101,20 @@
     </Exec>
     <Error Condition="'$(OmniGhostEmbeddedOffsetsExitCode)'!='0'" Code="OGOFF001" Text="Falha ao gerar os recursos de offsets embutidos. Consulta a janela Saída."/>
   </Target>
-  <!-- Each real build verifies the official MemProcFS/LeechCore releases.
-       The manager only replaces the local stack when the published release
-       asset changed; installation is staged, hash-checked and rollback-safe. -->
+  <!-- TOOL-001 Fix: dependency downloads are OPT-IN. The default build is
+       hermetic (no network); pass /p:OmniGhostUpdateDmaDependencies=true in
+       CI when a stack refresh is intended and approved. -->
   <Target Name="EnsureOmniGhostDmaDependencies" BeforeTargets="PrepareForBuild"
-          Condition="'$(DesignTimeBuild)'!='true' And '$(OmniGhostSkipDmaDependencyCheck)'!='true'">
-    <Message Importance="High" Text="[OmniGhost 01/10] Dependências DMA"/>
+          Condition="'$(DesignTimeBuild)'!='true' And '$(OmniGhostUpdateDmaDependencies)'=='true'">
+    <Message Importance="High" Text="[OmniGhost 01/10] DMA dependencies"/>
     <Exec Command="&quot;%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe&quot; -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\tools\Update-DmaDependencies.ps1&quot; -EnsureLatest" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
       <Output TaskParameter="ExitCode" PropertyName="OmniGhostDmaDependencyExitCode"/>
     </Exec>
-    <Error Condition="'$(OmniGhostDmaDependencyExitCode)'!='0'" Code="OGDMA001" Text="Não foi possível verificar/atualizar a stack DMA oficial. A build foi interrompida para não compilar com dependências incompletas."/>
+    <Error Condition="'$(OmniGhostDmaDependencyExitCode)'!='0'" Code="OGDMA001" Text="Nao foi possivel verificar/atualizar a stack DMA oficial. A build foi interrompida para nao compilar com dependencias incompletas."/>
+  </Target>
+  <Target Name="NoticeOmniGhostDmaDependenciesSkipped" BeforeTargets="PrepareForBuild"
+          Condition="'$(DesignTimeBuild)'!='true' And '$(OmniGhostUpdateDmaDependencies)'!='true' And '$(OmniGhostSilentDependencyNotice)'!='true'">
+    <Message Importance="Low" Text="[OmniGhost] DMA dependency auto-update skipped (hermetic build). Set OmniGhostUpdateDmaDependencies=true to refresh the stack."/>
   </Target>
   <Target Name="BuildOmniGhostEmbeddedRuntime" BeforeTargets="ClCompile;ResourceCompile" Condition="'$(DesignTimeBuild)'!='true' And '$(OmniGhostSkipEmbeddedGeneration)'!='true'">
     <Message Importance="High" Text="[OmniGhost Runtime] Generating single-process native dependency bundle..."/>

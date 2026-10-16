@@ -52,4 +52,4 @@ std::string_view Message(ErrorCode error) noexcept
     return "Ocorreu um erro não identificado.";
 }
 
-} // namespace OmniGhost::Support
+}

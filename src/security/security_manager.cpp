@@ -19,13 +19,13 @@ namespace {
 std::mutex eventMutex;
 bool denied = false;
 
-// Single-EXE model: verify the running executable's Authenticode signature directly.
-// Returns empty path if verification is not applicable (e.g., dev build without publisher config).
+
+
 std::filesystem::path VerifiedExecutablePath() {
     const auto exePath = OmniGhost::Paths::Executable();
-    
+
 #if defined(OMNIGHOST_PUBLISH_BUILD)
-    // Publish builds MUST have release trust configured and valid Authenticode signature.
+
     if (!OmniGhost::Update::ReleaseTrust::Configured) {
         OmniGhost::SessionLog::Write(
             OmniGhost::SessionLog::Severity::Error,
@@ -57,11 +57,11 @@ std::filesystem::path VerifiedExecutablePath() {
              {"error", error}});
         return {};
     }
-    // Publisher identity verified - this is an officially signed build.
+
     return exePath;
 #else
-    // Release/Dev builds: best-effort Authenticode check (does not block).
-    // Logs warning if unsigned/invalid but allows execution.
+
+
     if (OmniGhost::Update::ReleaseTrust::Configured) {
         std::string error;
         bool signedByPublisher = OmniGhost::Update::VerifyAuthenticode(
@@ -81,9 +81,9 @@ std::filesystem::path VerifiedExecutablePath() {
                  {"error", error}});
         }
     }
-    // For non-Publish builds, we consider the executable "verified" if it passes
-    // the runtime DLL integrity checks below. Return the path to indicate
-    // the executable identity is available for further checks.
+
+
+
     return exePath;
 #endif
 }
@@ -105,6 +105,7 @@ Assessment SecurityManager::Classify(EventId id) noexcept {
         return {id, Severity::High, Enforcement::DenyFeatures};
     case EventId::SessionUnavailable:
     case EventId::SignatureVerificationUnavailable:
+    case EventId::InstallManifestMissing:
         return {id, Severity::Medium, Enforcement::Recheck};
     case EventId::SessionRestored:
         return {id, Severity::Info, Enforcement::None};
@@ -120,6 +121,7 @@ std::string_view SecurityManager::Code(EventId id) noexcept {
     case EventId::ReleaseTrustMissing: return "SEC-001";
     case EventId::ExecutableSignatureInvalid: return "SEC-002";
     case EventId::InstallManifestInvalid: return "SEC-003";
+    case EventId::InstallManifestMissing: return "SEC-011";
     case EventId::RuntimeFileInvalid: return "SEC-004";
     case EventId::SessionInvalid: return "SEC-005";
     case EventId::SessionUnavailable: return "SEC-006";
@@ -155,9 +157,9 @@ bool SecurityManager::CanUseProtectedFeatures() const noexcept {
 }
 
 bool SecurityManager::VerifyProtectedFiles() noexcept {
-    // Critical runtime DLL validation: ALWAYS enforced (Release + Publish).
-    // The bootstrap manifest pins SHA-256 hashes of vmm.dll, leechcore.dll, FTD3XXWU.dll
-    // to the signed EXE. This prevents runtime DLL substitution/tampering.
+
+
+
     for (const wchar_t* module : {L"libs/vmm.dll", L"libs/leechcore.dll", L"libs/FTD3XXWU.dll"}) {
         std::wstring error;
         if (!OmniGhost::RuntimeBootstrap::ValidatePrivateRuntimeFile(module, error)) {
@@ -166,66 +168,74 @@ bool SecurityManager::VerifyProtectedFiles() noexcept {
         }
     }
 
-    // Installation manifest validation: ALWAYS enforced.
-    // Checks that all installed files match the signed manifest.
+
+
     const auto verifiedExe = VerifiedExecutablePath();
     if (!verifiedExe.empty()) {
         const auto report = OmniGhost::Update::VerifyInstallationFiles(verifiedExe.parent_path());
-        if (report.status != OmniGhost::Update::IntegrityStatus::Healthy) {
-            Record(report.status == OmniGhost::Update::IntegrityStatus::Damaged
-                ? EventId::RuntimeFileInvalid : EventId::InstallManifestInvalid);
+        // UPD-002 Fix: a manifest-less single-EXE install is a warning (the
+        // runtime-DLL SHA-256 gate above stays authoritative); a present-but-
+        // mismatched manifest still fails closed.
+        if (report.status == OmniGhost::Update::IntegrityStatus::Damaged) {
+            Record(EventId::RuntimeFileInvalid);
             return false;
         }
+        if (report.status == OmniGhost::Update::IntegrityStatus::Error) {
+            Record(EventId::InstallManifestInvalid);
+            return false;
+        }
+        if (report.status == OmniGhost::Update::IntegrityStatus::ManifestMissing)
+            Record(EventId::InstallManifestMissing);
     }
 
 #if defined(OMNIGHOST_PUBLISH_BUILD)
-    // Publisher identity / Authenticode verification: PUBLISH ONLY.
-    // Requires configured release trust anchor (publisher certificate).
-    // VerifiedExecutablePath() already performs this check and returns empty on failure.
+
+
+
     if (verifiedExe.empty()) {
         Record(EventId::ReleaseTrustMissing);
         return false;
     }
 #else
-    // Release/Dev builds: if publisher verification failed (empty path), that's OK.
-    // The runtime DLL validation above is the primary integrity check.
-    // If we have a verified executable path, also validate installation manifest.
+
+
+
 #endif
     return true;
 }
 
 bool SecurityManager::VerifyHostIdentity() noexcept {
-    // Single-EXE model: verify the running executable's identity.
-    // For Publish builds: requires valid Authenticode signature from trusted publisher.
-    // For Release/Dev builds: best-effort Authenticode check (logs warning if unsigned).
-    // Runtime DLL integrity (SHA-256 of embedded DLLs) is verified in VerifyProtectedFiles().
+
+
+
+
     const auto verifiedExe = VerifiedExecutablePath();
-    
+
 #if defined(OMNIGHOST_PUBLISH_BUILD)
-    // Publish builds MUST have valid publisher identity.
+
     if (verifiedExe.empty()) {
-        // VerifiedExecutablePath() already logged the specific failure reason.
+
         Record(EventId::ReleaseTrustMissing);
         return false;
     }
-    // Publisher identity verified - executable is officially signed.
+
     return true;
 #else
-    // Release/Dev builds: VerifiedExecutablePath() returns the executable path
-    // even if unsigned (best-effort). The critical integrity check is the
-    // runtime DLL validation in VerifyProtectedFiles().
-    // If publisher verification failed, it was already logged as a warning.
+
+
+
+
     return true;
 #endif
 }
 
 bool SecurityManager::VerifyStartup() noexcept {
-    // Native DLLs are never loaded before integrity verification: the runtime
-    // bootstrap validates every manifest-covered binary (SHA-256) immediately
-    // before any LoadLibrary (see PLAT-002 gate in RuntimeBootstrap::Prepare),
-    // and this startup check re-validates the same files plus the signed
-    // installation manifest before any DMA/device initialization happens.
+
+
+
+
+
     return VerifyProtectedFiles();
 }
 
-} // namespace OmniGhost::Security
+}

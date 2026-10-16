@@ -1,4 +1,4 @@
-// Acquisition, camera and WebRadar-control thread orchestration.
+
 void RunFrame() {
     RunFrameWithConfig(config);
 }
@@ -49,18 +49,18 @@ void EnsureAcquisitionStarted() {
         WebRadar::Stop();
     });
     Camera::Reset();
-    // Legitimate producer handoff: this init publish happens on the calling
-    // thread BEFORE the acquisition worker exists. Rebind so the worker
-    // remains the only producer from here on.
+
+
+
     RuntimePipeline::ResetProducerThreadForShutdown();
     PublishRuntimeSnapshot();
-    // Every worker below gates its loop on IsRunning().  Publish the running
-    // state before constructing any thread so a newly scheduled worker cannot
-    // observe Starting and exit permanently before the caller reaches it.
+
+
+
     g_acqState.MarkRunning();
-    // Camera and origins are latency-critical for visual attachment while
-    // turning or moving.  Bones remain in the validated full scan; this small
-    // lane refreshes only their common origin and the view matrix.
+
+
+
     g_optional_thread = std::thread(OptionalWorkerLoop);
 
     g_camera_thread = std::thread([] {
@@ -70,16 +70,16 @@ void EnsureAcquisitionStarted() {
         float matrix[16]{};
         uint64_t next_camera_ms = 0;
         uint64_t consecutive_busy = 0;
-        // CS2-008 Fix: read the atomically mirrored producer state instead of
-        // the plain `runtime` fields written by the acquisition thread.
+
+
         while (g_acqState.IsRunning()) {
             const uintptr_t client_base = RuntimePipeline::PublishedClientBase();
             const bool in_match = RuntimePipeline::PublishedInMatch();
             const bool canRead = ready && offsets.loaded && client_base && offsets.dwViewMatrix;
             const uint64_t camera_now_ms = GetTickCount64();
             const int camera_pressure = g_pressure_level.load(std::memory_order_relaxed);
-            // IDENTICAL to FiveM: camera stays at 16ms through pressure 0-2, only 25ms at pressure 3 (recovery)
-            // No dynamic adjustment based on camPosDelta — fixed cadence prevents temporal skew
+
+
             int camera_period_ms = camera_pressure >= 3 ? 25 : g_intervals.camera_ms;
             Camera::SetDeadline(next_camera_ms);
             int wait_ms = in_match ? g_intervals.camera_ms : 20;
@@ -105,8 +105,8 @@ void EnsureAcquisitionStarted() {
                     OmniGhost::Gameplay::DmaTelemetry::ObserveCameraRead(
                         camera_tel,
                         OmniGhost::Gameplay::TimeMs(camera_read_begin));
-                    // Keep a stable cadence relative to the previous deadline,
-                    // not relative to the variable-duration DMA read.
+
+
                     next_camera_ms += static_cast<uint64_t>(camera_period_ms);
                     const uint64_t after_read_ms = GetTickCount64();
                     if (next_camera_ms <= after_read_ms)
@@ -123,7 +123,7 @@ void EnsureAcquisitionStarted() {
                     while (observed < consecutive_busy &&
                            !camera_tel.camera.camera_consecutive_busy_max.compare_exchange_weak(
                                observed, consecutive_busy, std::memory_order_relaxed)) {}
-                    // Keep the pending flag raised so optional full-scan lanes yield.
+
                     busyRetry = true;
                 }
             }
@@ -131,14 +131,14 @@ void EnsureAcquisitionStarted() {
                 Camera::SetPending(false);
                 consecutive_busy = 0;
             }
-            // The full scan already publishes coherent player positions. Keep this
-            // worker dedicated to the matrix instead of acquiring snapshots for the
-            // retired motion lane on every wake-up.
-            // Keep the camera snappy — the matrix must stay fluid for ESP.
+
+
+
+
             if (busyRetry) {
-                // sleep_until(1 ms) can round up to a full Windows timer tick.
-                // A bounded yield gives the camera a real ~1 ms retry without
-                // allowing one busy skip to cost another 16 ms.
+
+
+
                 const auto retryAt = std::chrono::steady_clock::now() +
                     std::chrono::milliseconds(1);
                 do {
@@ -153,7 +153,7 @@ void EnsureAcquisitionStarted() {
     });
     g_acquisition_thread = std::thread([] {
         OmniGhost::Gameplay::FixedRateScheduler scheduler;
-        std::array<float, 32> recentActiveScans{}; // BUG-035 Fix: Increased from 16 to 32 for stable pressure recovery
+        std::array<float, 32> recentActiveScans{};
         size_t recentScanCount = 0;
         size_t recentScanCursor = 0;
         uint64_t pressureSessionGeneration = 0;
@@ -161,10 +161,10 @@ void EnsureAcquisitionStarted() {
         while (g_acqState.IsRunning()) {
             const auto acquire_begin = std::chrono::steady_clock::now();
             try {
-                // A 300 ms+ device stall is a board/driver queue event. Do
-                // not immediately start another heavy scan: retain the last
-                // published immutable snapshot and give the DMA transport a
-                // short recovery window.
+
+
+
+
                 const uint64_t now = GetTickCount64();
                 const uint64_t coolUntil = g_heavy_dma_cooldown_until_ms.load(std::memory_order_acquire);
                 if (now < coolUntil) {
@@ -190,9 +190,9 @@ void EnsureAcquisitionStarted() {
                     auto& tel = OmniGhost::Gameplay::DmaTelemetry::CS2();
                     const bool activeSample = runtime.in_match && runtime.player_count > 0;
                     if (!runtime.in_match)
-                        tel.process.idle_reason.store(2, std::memory_order_relaxed); // not_in_match
+                        tel.process.idle_reason.store(2, std::memory_order_relaxed);
                     else if (runtime.player_count <= 0)
-                        tel.process.idle_reason.store(5, std::memory_order_relaxed); // no_local/no players
+                        tel.process.idle_reason.store(5, std::memory_order_relaxed);
                     else
                         tel.process.idle_reason.store(0, std::memory_order_relaxed);
                     g_phase.lock_wait_ms = static_cast<float>(mem.ConsumeThreadDmaWaitUs()) / 1000.f;
@@ -284,33 +284,33 @@ void EnsureAcquisitionStarted() {
                         OmniGhost::Gameplay::DmaTelemetry::LogSpikeBreakdown("CS2", bd);
                     }
                 }
-                // Processing is deliberately kept producer-side and currently
-                // consists of validation/cache assembly included in RunFrame.
+
+
                 runtime.processing_ms = runtime.acquisition_ms;
                 OmniGhost::Gameplay::PipelineTelemetry::Smooth(
                     g_pipeline_metrics.acquire_ms, runtime.acquisition_ms);
                 g_pipeline_metrics.entities.store(runtime.player_count, std::memory_order_relaxed);
-                // lock_wait_ms is captured once above. Do not overwrite the
-                // residual CPU attribution with a second, unrelated counter read.
+
+
             } catch (const std::exception& ex) {
                 std::cerr << "[CS2] acquisition exception: " << ex.what() << std::endl;
             } catch (...) {
                 std::cerr << "[CS2] acquisition unknown exception" << std::endl;
             }
 
-            // Core position/HP acquisition targets 18 ms. Bones have their own
-            // 24/32/50 ms per-pawn cadence, while presentation remains uncapped and
-            // presents the immutable snapshots with bounded extrapolation.
-            // Adaptive scheduler (hysteresis): based on measured work, not board name.
-            // IDENTICAL to FiveM esp_manager.cpp:758-763
+
+
+
+
+
             int delayMs = runtime.in_match ? g_intervals.full_scan_ms : 16;
             try {
                 auto cfgLease = RuntimePipeline::AcquireConfig();
                 if (cfgLease) {
                     if (!NeedsPlayerScan(*cfgLease))
-                        delayMs = 50; // on-demand sleep: zero wasted transfers
+                        delayMs = 50;
                     else if (runtime.in_match) {
-                        // Performance mode base: 24ms, else 18ms — FiveM uses 24/18
+
                         delayMs = cfgLease->performance_mode ? 24 : 18;
                     }
                 }
@@ -338,7 +338,7 @@ void EnsureAcquisitionStarted() {
                 OmniGhost::Gameplay::DmaTelemetry::CS2().acquire.pressure_window_p95_ms.store(
                     recentP95, std::memory_order_relaxed);
                 int level = g_pressure_level.load(std::memory_order_relaxed);
-                // IDENTICAL to FiveM esp_manager.cpp:722-743 — adaptive pressure with hysteresis
+
                 int demanded = 0;
                 if (work > PRESSURE_ENTER_L3_WORK || recentP95 > PRESSURE_ENTER_L3_P95) demanded = 3;
                 else if (work > PRESSURE_ENTER_L2_WORK || recentP95 > PRESSURE_ENTER_L2_P95) demanded = 2;
@@ -359,9 +359,9 @@ void EnsureAcquisitionStarted() {
                     healthyPressureScans = 0;
                 }
                 g_pressure_level.store(level, std::memory_order_relaxed);
-                // Update dynamic intervals based on current conditions
+
                 g_intervals.Update(runtime.player_count, runtime.acquisition_ms, level, kOptionalBudgetMs);
-                // Delay stretch — IDENTICAL to FiveM: 40/28/22 ms at pressure 3/2/1
+
                 if (level >= 3) delayMs = (std::max)(delayMs, 40);
                 else if (level == 2) delayMs = (std::max)(delayMs, 28);
                 else if (level == 1) delayMs = (std::max)(delayMs, 22);
@@ -386,7 +386,7 @@ void StopAcquisition() {
     if (g_acquisition_thread.joinable())
         g_acquisition_thread.join();
     g_scatter_optional.Reset();
-    // FIX MEM-002: Also reset g_scatter_full to avoid leak
+
     g_scatter_full.Reset();
     g_web_radar_control_stop.store(true, std::memory_order_release);
     if (g_web_radar_control_thread.joinable())
@@ -439,6 +439,3 @@ float LastAmmoPhaseMs() noexcept {
 float LastFlagsPhaseMs() noexcept {
     return g_last_flags_ms.load(std::memory_order_relaxed);
 }
-
-
-

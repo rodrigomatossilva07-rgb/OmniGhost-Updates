@@ -56,11 +56,11 @@ std::string FindFiveMProcessViaDma() {
 
 ProcessProbeResult ProbeProcess(::Launcher::GameId selected) {
     try {
-    // This is a preflight only: open the DMA device without binding it to a
-    // game process, then look for the selected executable.  It prevents a
-    // wrong menu from changing the global DMA process context.
-    // Trust the live handle rather than a diagnostics snapshot that may lag a
-    // reset/reinitialization by one sample.
+
+
+
+
+
     if (!mem.vHandle && !mem.Init(std::string(), true, false))
         return {ProcessProbeState::DeviceUnavailable, {}};
     const auto tryPidNames = [&](std::initializer_list<const char*> names) -> ProcessProbeResult {
@@ -137,4 +137,4 @@ bool Initialize(::Launcher::GameId selected) {
     return result.succeeded;
 }
 
-} // namespace OmniGhost::GameLaunch
+}

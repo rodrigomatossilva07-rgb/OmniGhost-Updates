@@ -17,4 +17,4 @@ std::string ConnectedPort();
 std::string DeviceVersion();
 std::string LastError();
 
-} // namespace ferrum_device
+}

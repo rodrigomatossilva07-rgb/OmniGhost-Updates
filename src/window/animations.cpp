@@ -53,12 +53,12 @@ namespace CyberAnimations {
 
     void SpringUpdate(SpringState& spring, float dt) {
         if (spring.settled) return;
-        
+
         const float x = spring.position - spring.target;
         const float a = -spring.config.stiffness * x - spring.config.damping * spring.velocity;
         spring.velocity += a / spring.config.mass * dt;
         spring.position += spring.velocity * dt;
-        
+
         if (std::abs(spring.position - spring.target) < spring.config.rest_threshold &&
             std::abs(spring.velocity) < spring.config.rest_velocity_threshold) {
             spring.position = spring.target;
@@ -230,12 +230,12 @@ namespace CyberAnimations {
             current_ = queue_.front().message;
             queue_.erase(queue_.begin());
         }
-        
+
         if (!current_.empty()) {
-            // In a real implementation, this would use platform-specific
-            // accessibility APIs (UIA on Windows, AT-SPI on Linux, etc.)
-            // For now, we just track the timing
+
+
+
         }
     }
 
-} // namespace CyberAnimations
+}

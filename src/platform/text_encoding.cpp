@@ -15,7 +15,7 @@ bool FitsWin32Length(Size size) noexcept {
     return size <= static_cast<Size>((std::numeric_limits<int>::max)());
 }
 
-} // namespace
+}
 
 std::wstring Utf8ToWide(std::string_view text) noexcept {
     if (text.empty())
@@ -83,4 +83,4 @@ std::string WideToUtf8(std::wstring_view text) noexcept {
     return result;
 }
 
-} // namespace OmniGhost::Platform
+}

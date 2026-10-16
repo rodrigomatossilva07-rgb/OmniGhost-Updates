@@ -17,8 +17,8 @@
 namespace OmniGhost::OffsetSource {
 namespace {
 
-// Minimal JSON → EmbeddedOffsets-compatible snapshot for development external files.
-// Accepts the same nested hex-string layout as tools/Build-EmbeddedOffsets.ps1.
+
+
 bool ReadFileUtf8(const std::string& path, std::string& out) {
     std::ifstream in(path, std::ios::binary);
     if (!in) return false;
@@ -83,7 +83,7 @@ bool ParseObject(const std::string& s, size_t& i, const std::string& path,
         if (!ParseString(s, i, key)) return false;
         if (!Match(s, i, ':')) return false;
         const std::string child = path.empty() ? key : (path + "." + key);
-        // Metadata strings
+
         if (key == "schema_version" || key == "game" || key == "build" || key == "cl" ||
             key == "module" || key == "source" || key == "generated_at" || key == "note" ||
             key == "version" || key == "build_id" || key == "label" || key == "updated_at" ||
@@ -104,7 +104,7 @@ bool ParseObject(const std::string& s, size_t& i, const std::string& path,
                     if (snap.metadata.note.empty()) snap.metadata.note = str;
                 }
             } else if (key == "schema_version") {
-                // number
+
                 SkipWs(s, i);
                 size_t j = i;
                 while (j < s.size() && (isdigit((unsigned char)s[j]))) ++j;
@@ -113,9 +113,9 @@ bool ParseObject(const std::string& s, size_t& i, const std::string& path,
                     i = j;
                 }
             } else {
-                // skip unknown scalar/array roughly
+
                 if (!ParseValue(s, i, child, snap)) {
-                    // consume until comma/brace at this level — best effort skip
+
                     int depth = 0;
                     while (i < s.size()) {
                         if (s[i] == '{' || s[i] == '[') ++depth;
@@ -143,7 +143,7 @@ bool ParseValue(const std::string& s, size_t& i, const std::string& path,
     if (i >= s.size()) return false;
     if (s[i] == '{') return ParseObject(s, i, path, snap);
     if (s[i] == '[') {
-        // skip arrays
+
         int depth = 0;
         do {
             if (s[i] == '[') ++depth;
@@ -164,7 +164,7 @@ bool ParseValue(const std::string& s, size_t& i, const std::string& path,
         }
         return true;
     }
-    // number / bool / null — skip token
+
     while (i < s.size() && s[i] != ',' && s[i] != '}' && s[i] != ']') ++i;
     return true;
 }
@@ -178,12 +178,12 @@ bool ParseExternalJsonToSnapshot(const std::string& json, EmbeddedOffsets::Snaps
     if (snap.metadata.build.empty()) snap.metadata.build = "unknown";
     if (snap.metadata.module.empty()) snap.metadata.module = "unknown";
     if (snap.metadata.source.empty()) snap.metadata.source = "external-json";
-    // Sort entries by hash for TryGet binary search
+
     std::sort(snap.entries.begin(), snap.entries.end(),
               [](const EmbeddedOffsets::Entry& a, const EmbeddedOffsets::Entry& b) {
                   return a.keyHash < b.keyHash;
               });
-    // Dedup keep first
+
     std::vector<EmbeddedOffsets::Entry> unique;
     unique.reserve(snap.entries.size());
     for (const auto& e : snap.entries) {
@@ -194,7 +194,7 @@ bool ParseExternalJsonToSnapshot(const std::string& json, EmbeddedOffsets::Snaps
     return !snap.entries.empty();
 }
 
-} // namespace
+}
 
 EmbeddedOffsets::Game ToEmbeddedGame(GameId id) noexcept {
     switch (id) {
@@ -237,7 +237,7 @@ std::vector<std::string> ExternalJsonCandidates(GameId id) {
         std::error_code ec;
         if (fs::is_regular_file(p, ec)) out.push_back(p.string());
     };
-    // Beside EXE
+
     try {
         const fs::path exeDir = Paths::Executable().parent_path();
         add(exeDir / "data" / name);
@@ -246,7 +246,7 @@ std::vector<std::string> ExternalJsonCandidates(GameId id) {
     } catch (...) {
         std::cerr << "[OmniGhost Offsets] Unknown exception resolving candidates beside EXE\n";
     }
-    // Project-relative (dev tree)
+
     add(fs::path("data") / name);
     return out;
 }
@@ -271,11 +271,11 @@ LoadResult LoadSnapshot(GameId id, const char* explicit_path) {
         if (!ReadFileUtf8(path, json)) continue;
         EmbeddedOffsets::Snapshot snap;
         if (!ParseExternalJsonToSnapshot(json, snap)) continue;
-        // Soft game slug check when present
+
         if (!snap.metadata.game.empty() &&
             snap.metadata.game != GameSlug(id) &&
             snap.metadata.game != "unknown") {
-            // still accept CS2 offsets.json without game field historically
+
             if (!(id == GameId::CS2 && (snap.metadata.game == "cs2" || snap.metadata.game.empty())))
                 continue;
         }
@@ -328,4 +328,4 @@ void LogLoadResult(GameId id, const LoadResult& result) {
     }
 }
 
-} // namespace OmniGhost::OffsetSource
+}

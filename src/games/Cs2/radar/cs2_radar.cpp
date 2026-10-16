@@ -81,7 +81,7 @@ bool EnsureWsa() {
 std::string RandomToken() {
     unsigned char bytes[16]{};
     if (BCryptGenRandom(nullptr, bytes, sizeof(bytes), BCRYPT_USE_SYSTEM_PREFERRED_RNG) != 0)
-        return {}; // start fails closed rather than exposing an unauthenticated API
+        return {};
     static const char* hex = "0123456789abcdef";
     std::string out(32, '0');
     for (int i = 0; i < 16; ++i) {
@@ -142,7 +142,7 @@ std::string ResolveWebRoot() {
     bases.push_back(fs::path(exe));
     bases.push_back(fs::path(exe).parent_path());
     bases.push_back(fs::current_path());
-    // Walk up from the EXE looking for a source tree with radar_webapp.
+
     {
         fs::path walk = fs::path(exe);
         for (int i = 0; i < 8 && !walk.empty(); ++i) {
@@ -237,7 +237,7 @@ bool TokenOk(const std::string& req) {
 }
 
 std::string HandleRequest(const std::string& req) {
-    // OPTIONS CORS preflight
+
     if (req.rfind("OPTIONS ", 0) == 0) {
         return Response(204, "No Content", "", "text/plain");
     }
@@ -271,13 +271,13 @@ std::string HandleRequest(const std::string& req) {
     }
 
     if ((method == "GET" || method == "HEAD") && pure == "/api/stream") {
-        // Minimal SSE stream — one snapshot then close (client will reconnect/poll).
+
         const std::string json = LiveJsonSnapshot();
         std::string body = "data: " + json + "\n\n";
         return Response(200, "OK", body, "text/event-stream", true, sendBody);
     }
 
-    // Static files
+
     if (method != "GET" && method != "HEAD") {
         return Response(405, "Method Not Allowed", "method", "text/plain");
     }
@@ -329,8 +329,8 @@ void ServerLoop() {
                 std::string json = BuildLiveJson(snapshot);
                 std::lock_guard<std::mutex> lock(g_mu);
                 g_live_json = std::move(json);
-                // Match the normal browser polling cadence (~15 Hz). Building
-                // JSON twice as often only adds allocations and lock traffic.
+
+
                 g_next_json_refresh = now + (snapshot.in_match ? 67u : 500u);
             } else {
                 g_next_json_refresh = now + 100u;
@@ -416,21 +416,21 @@ std::wstring FindCloudflared() {
         fs::path p = fs::path(exe) / r;
         if (fs::exists(p)) return p.wstring();
     }
-    // AppData OmniGhost
+
     wchar_t local[MAX_PATH]{};
     if (GetEnvironmentVariableW(L"LOCALAPPDATA", local, MAX_PATH)) {
         fs::path p = fs::path(local) / L"OmniGhost" / L"NativeRuntime" / L"libs" / L"cloudflared.exe";
         if (fs::exists(p)) return p.wstring();
     }
-    return L"cloudflared.exe"; // PATH fallback
+    return L"cloudflared.exe";
 }
 
-} // namespace
+}
 
 std::string BuildLiveJson(const RadarSnapshot& rt) {
     std::ostringstream ss;
     std::string map = rt.map_name[0] ? rt.map_name : "unknown";
-    // Strip path / extension
+
     {
         auto slash = map.find_last_of("/\\");
         if (slash != std::string::npos) map = map.substr(slash + 1);
@@ -526,8 +526,8 @@ bool Start(int port) {
 
     sockaddr_in addr{};
     addr.sin_family = AF_INET;
-    // Localhost by default: LAN/public sharing requires an explicit future
-    // opt-in instead of exposing player data to every network interface.
+
+
     addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     addr.sin_port = htons(static_cast<u_short>(port));
     if (bind(s, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) != 0) {
@@ -539,7 +539,7 @@ bool Start(int port) {
         closesocket(s);
         return false;
     }
-    // Non-blocking accept
+
     u_long nb = 1;
     ioctlsocket(s, FIONBIO, &nb);
 
@@ -602,23 +602,23 @@ void SubmitSnapshot(const Runtime& snapshot) {
     static ULONGLONG nextSnapshot = 0;
     const ULONGLONG now = GetTickCount64();
     if (now < nextSnapshot) return;
-    // Match the server JSON refresh and browser polling cadence. Intermediate
-    // realtime snapshots would only be replaced before any client sees them.
+
+
     nextSnapshot = now + (snapshot.in_match ? 67 : 500);
-    // The radar consumes a deliberately small DTO. Copying a Runtime here
-    // used to copy every skeleton/bone vector while holding the server mutex.
-    // JSON formatting and allocations remain in ServerLoop.
-    // Reuse the acquisition thread's previous DTO buffer. Swapping it with
-    // the pending snapshot avoids allocating a new player vector every tick.
+
+
+
+
+
     static thread_local RadarSnapshot compact;
     compact.in_match = snapshot.in_match;
     std::memcpy(compact.map_name, snapshot.map_name, sizeof(compact.map_name));
     compact.bomb = snapshot.bomb;
     compact.players.clear();
     compact.players.reserve(snapshot.players.size() + (snapshot.local_pawn ? 1u : 0u));
-    // The acquisition pipeline intentionally excludes the local pawn from
-    // remote ESP players. Add a compact local marker explicitly so radar
-    // clients always have an anchor for rotation/follow behaviour.
+
+
+
     if (snapshot.local_pawn) {
         RadarPlayer local{};
         local.team = snapshot.local_team;
@@ -663,9 +663,9 @@ std::string LocalUrl() {
 }
 
 std::string PublicUrl() {
-    // Quick-tunnel domains are valid only while their cloudflared process is
-    // alive.  Never leave an old link available in the UI after that process
-    // has stopped: opening it produces the misleading "page unavailable".
+
+
+
     if (!CloudflareRunning()) return {};
     std::lock_guard<std::mutex> lock(g_mu);
     if (g_public_url.empty()) return {};
@@ -735,8 +735,8 @@ bool StartCloudflare() {
         g_cf_proc = pi.hProcess;
     }
 
-    // Pipe parsing belongs off the render thread. Keep draining after finding
-    // the URL so cloudflared cannot block on a full output pipe.
+
+
     g_cf_reader = std::thread([rd]() {
         std::string output;
         char tmp[512];
@@ -810,4 +810,4 @@ bool CloudflareRunning() noexcept {
     return false;
 }
 
-} // namespace CS2::WebRadar
+}

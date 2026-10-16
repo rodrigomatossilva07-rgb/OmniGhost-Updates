@@ -40,36 +40,36 @@ struct RemoteEntitlement {
     std::string remaining;
 };
 
-// Provider identity for supply-chain integrity verification.
-// The official KeyAuth provider DLL must match this hash at runtime.
+
+
 struct ProviderIdentity {
-    // SHA-256 hash of the official provider module (DLL/EXE).
+
     std::array<std::byte, 32> moduleHash{};
-    
-    // Human-readable version identifier for diagnostics.
+
+
     std::string version;
-    
+
     bool operator==(const ProviderIdentity& other) const noexcept {
         return moduleHash == other.moduleHash;
     }
 };
 
-// Compute SHA-256 hash of a loaded module.
-// Returns empty optional on failure.
+
+
 std::optional<ProviderIdentity> ComputeProviderIdentity(std::string_view modulePath);
 
-// Expected identity of the official KeyAuth provider.
-// SEC-001: only enforced for providers that live OUTSIDE the host EXE. The
-// in-process provider (KeyAuth SDK compiled into OmniGhost.exe) hashes the
-// running image, which can never match a post-link build constant; its
-// integrity is covered by Authenticode host verification instead.
+
+
+
+
+
 constexpr ProviderIdentity kOfficialProviderIdentity{
-    .moduleHash = { /* Filled by build script - placeholder */ },
+    .moduleHash = {  },
     .version = "1.0.0"
 };
 
-// Boundary implemented by the KeyAuth adapter. It deliberately accepts no
-// Seller API key: administrative credentials must exist only in CI/backend code.
+
+
 class IRemoteLicenseProvider {
 public:
     virtual ~IRemoteLicenseProvider() = default;
@@ -77,8 +77,8 @@ public:
                                        std::string_view hardwareId,
                                        std::stop_token stopToken) = 0;
 
-    // Account operations deliberately live behind the same gateway boundary as
-    // license-only activation. The launcher never owns an SDK instance.
+
+
     virtual LicenseResult Login(std::string_view, std::string_view, std::stop_token) {
         return {LicenseStatus::NotConfigured, "O servico de autenticacao nao esta configurado.", "auth.not_configured", {}};
     }
@@ -96,20 +96,20 @@ public:
         return {LicenseStatus::NotConfigured, "Revalidacao indisponivel.", "auth.recheck_unavailable", {}};
     }
     [[nodiscard]] virtual std::string CurrentUsername() const { return {}; }
-    // Product identifiers returned from the remote account. They are data from
-    // the licensing provider, never values chosen by the launcher UI.
+
+
     [[nodiscard]] virtual std::vector<RemoteEntitlement> CurrentEntitlements() const { return {}; }
     [[nodiscard]] virtual bool IsConfigured() const noexcept { return false; }
-    
-    // Returns the provider's module path for identity verification.
-    // Default implementation returns empty string (verification will fail).
+
+
+
     virtual std::string GetModulePath() const { return {}; }
 };
 
 class LicenseGateway final {
 public:
-    // Constructs gateway with provider identity verification.
-    // Throws std::runtime_error if provider identity doesn't match official.
+
+
     explicit LicenseGateway(std::shared_ptr<IRemoteLicenseProvider> provider);
 
     LicenseResult Authenticate(std::string_view licenseKey,
@@ -138,6 +138,9 @@ private:
     static constexpr unsigned kMaximumFailures = 5;
     static constexpr auto kLockoutDuration = std::chrono::minutes(5);
 
+
+    [[nodiscard]] LicenseResult CheckLockout() const;
+
     std::shared_ptr<IRemoteLicenseProvider> provider_;
     ProviderIdentity verifiedIdentity_;
     mutable std::mutex mutex_;
@@ -146,6 +149,8 @@ private:
     std::string offlineHardwareId_;
     std::chrono::steady_clock::time_point offlineExpiresAt_{};
     bool authenticated_{};
+
+    bool offlineSessionActive_{};
     std::chrono::steady_clock::time_point lastRemoteValidation_{};
     std::string currentUsername_;
     std::vector<RemoteEntitlement> currentEntitlements_;
@@ -153,4 +158,4 @@ private:
     LicenseResult CompleteRemoteOperation(LicenseResult result);
 };
 
-} // namespace OmniGhost::Auth
+}

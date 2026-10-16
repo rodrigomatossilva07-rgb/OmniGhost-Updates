@@ -45,9 +45,9 @@ struct Manifest {
 };
 
 struct Configuration {
-    // Primary source: the public Releases API. The updater selects the highest
-    // published stable SemVer release instead of trusting GitHub's mutable
-    // "Latest" marker. manifestUrl remains a compatibility fallback.
+
+
+
     std::string releasesApiUrl = "https://api.github.com/repos/rodrigomatossilva07-rgb/OmniGhost-Updates/releases?per_page=30";
     std::string manifestUrl = "https://github.com/rodrigomatossilva07-rgb/OmniGhost-Updates/releases/latest/download/update.json";
     std::string expectedAppId = "com.omnighost.launcher";
@@ -60,7 +60,7 @@ struct Configuration {
     std::uint32_t maximumArchiveEntries = 20000;
     bool automaticDownload = false;
     bool automaticInstallOnExit = false;
-    // Updates fail closed until a public release trust anchor is embedded.
+
     bool requireAuthenticode = true;
     bool requireManifestSignature = true;
     std::string expectedPublisherSubject = ReleaseTrust::PublisherSubject;
@@ -72,14 +72,14 @@ struct Configuration {
     int updaterExitTimeoutSeconds = 30;
     int startupConfirmationSeconds = 30;
 
-    // P1-10: Certificate pinning for GitHub HTTPS connections.
-    // UPD-001 Fix: the previous defaults were synthetic hex sequences that
-    // never matched a real certificate, forcing every WinHTTP request into
-    // the un-pinned WinINet fallback. Pinning is now OFF unless the build
-    // embeds REAL SHA-256 thumbprints of GitHub's current TLS chain (rotate
-    // them on certificate rollover; generating them belongs to the release
-    // tooling, never to a hard-coded guess). The manifest RSA signature +
-    // package SHA-256 remain the primary trust anchor for payloads.
+
+
+
+
+
+
+
+
     std::vector<std::string> githubTlsCertificateThumbprints = {};
 };
 

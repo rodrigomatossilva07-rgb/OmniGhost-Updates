@@ -26,8 +26,8 @@ struct Result {
     bool visible = false;
 };
 
-// Latest-state-wins CPU worker. A new submission replaces pending work; Reset
-// invalidates both queued and in-flight work without blocking the DMA producer.
+
+
 class Worker final {
 public:
     Worker() = default;
@@ -63,4 +63,4 @@ private:
     std::unordered_map<uintptr_t, Result> results_;
 };
 
-} // namespace CS2::VisibilityPipeline
+}

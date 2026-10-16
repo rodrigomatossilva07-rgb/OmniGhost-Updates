@@ -30,8 +30,8 @@ std::string SerializeAll() {
     WInt(o, "meta.config_version", kConfigSchemaVersion);
     o << "# OmniGhost Config schema " << kConfigSchemaVersion << "\n";
 
-    // Shared modules belong to FiveM only. Other games have isolated schemas
-    // and must never persist stale shared runtime state.
+
+
     if (g_activeGame == ActiveGame::FiveM) {
         SerializeESP(o);
         SerializeAim(o);
@@ -40,7 +40,7 @@ std::string SerializeAll() {
         SerializeAimType(o);
     }
 
-    // Game-specific
+
     switch (g_activeGame) {
     case ActiveGame::CS2:
         SerializeCS2(o);
@@ -68,7 +68,7 @@ bool DeserializeAll(const std::string& data) {
     int schema_version = 1;
     int config_version = 1;
 
-    // Read metadata first so a foreign/corrupt config can never mutate runtime state.
+
     {
         std::istringstream metaIn(data);
         std::string metaLine;
@@ -85,10 +85,10 @@ bool DeserializeAll(const std::string& data) {
         last_status = "Versao de config invalida";
         return false;
     }
-    // Allow newer schema versions (forward compatibility) - load with defaults for unknown fields
-    // Only reject if schema is from the future AND has breaking changes we can't handle
+
+
     if (schema_version > kConfigSchemaVersion) {
-        std::cout << "[Config] Warning: Loading config from newer schema v" << schema_version 
+        std::cout << "[Config] Warning: Loading config from newer schema v" << schema_version
                   << " (current is v" << kConfigSchemaVersion << "). Unknown fields will be ignored.\n";
     }
     if (!meta_game.empty() && meta_game != ActiveGameMeta()) {
@@ -96,30 +96,30 @@ bool DeserializeAll(const std::string& data) {
         return false;
     }
 
-    // Migration: apply schema-specific transformations
-    // v1 -> v2: added meta.config_version field
-    // v2 -> v3: added per-game config isolation (FiveM shared vs game-specific)
-    // v3 -> v4: added aim_bind validation and defaults
+
+
+
+
     if (schema_version < 3) {
         std::cout << "[Config] Migrating config from schema v" << schema_version << " to v3\n";
-        // BUG-020 Fix: v2→v3 migration - per-game config isolation
-        // In v2, ESP/Aim/Vehicle/Friends were shared across games.
-        // In v3+, each game has isolated configs. We must reset all games to defaults
-        // and only deserialize into the current game's section.
+
+
+
+
         ResetCS2ToDefaults();
         ResetWarzoneToDefaults();
-        ResetActiveGameToDefaults(); // FiveM
+        ResetActiveGameToDefaults();
     }
     if (schema_version < 4) {
         std::cout << "[Config] Migrating config from schema v" << schema_version << " to v4\n";
-        // Ensure aim binds have valid defaults per game
-        // Actual bind migration happens during deserialization below
+
+
     }
-    // Update schema version to current
+
     schema_version = kConfigSchemaVersion;
     ResetActiveGameToDefaults();
     if (g_activeGame == ActiveGame::FiveM) {
-        // silent removed - no longer exists
+
     }
     active_config_id = meta_config_id;
     if (active_config_id.empty()) active_config_id = NewConfigId();
@@ -130,7 +130,7 @@ bool DeserializeAll(const std::string& data) {
 
         auto bi = [&](const char* k) { return key == k; };
         auto toB = [&]() { return val == "1" || val == "true"; };
-        // FIX SEC-003: Safe parsing with validation to prevent UB on malicious config
+
         auto toF = [&]() -> float {
             char* end = nullptr;
             const float result = std::strtof(val.c_str(), &end);
@@ -153,9 +153,9 @@ bool DeserializeAll(const std::string& data) {
                 last_status = "Config schema invalido: " + std::to_string(schema_version);
                 return false;
             }
-            // Allow newer schemas (forward compatibility)
+
             if (schema_version > kConfigSchemaVersion) {
-                // Warning already logged during metadata parsing
+
             }
             continue;
         }
@@ -164,7 +164,7 @@ bool DeserializeAll(const std::string& data) {
         if (bi("meta.config_id")) { meta_config_id = val; continue; }
         if (bi("meta.config_version")) { config_version = toI(); continue; }
 
-        // Skip foreign game sections (with warning)
+
         if (key.rfind("cs2.", 0) == 0 && g_activeGame != ActiveGame::CS2) {
             std::cout << "[Config] Ignoring foreign game section: " << key << " (active game: " << ActiveGameMeta() << ")\n";
             continue;
@@ -179,7 +179,7 @@ bool DeserializeAll(const std::string& data) {
             continue;
         }
 
-        // Try each module
+
         if (DeserializeESP(key, val)) continue;
         if (DeserializeAim(key, val)) continue;
         if (DeserializeVehicle(key, val)) continue;
@@ -190,27 +190,19 @@ bool DeserializeAll(const std::string& data) {
         if (DeserializeFiveM(key, val)) continue;
         if (Hotkeys::DeserializeFeatureToggle(key, val)) continue;
         if (Hotkeys::DeserializeAction(key, val)) continue;
-
-        // Friend list entries
-        if (key.rfind("friend.", 0) == 0 && key.find(".id") != std::string::npos) {
-            uint32_t id = (uint32_t)strtoul(val.c_str(), nullptr, 10);
-            friends::AddFriend(std::string("Friend_") + val, id, false);
-            continue;
-        }
-        if (key.rfind("friend.", 0) == 0 && key.find(".name") != std::string::npos) {
-            continue;
-        }
+        // CFG-007: friend.N.* keys are consumed (and now restored) by
+        // DeserializeFriends above.
     }
 
-    // Silent aim removed — never leave enabled from old files
 
-    // Keep loaded binds, but FiveM fire must remain independent from aim.
+
+
     if (aimbot::config.aimbot_bind <= 0 || aimbot::config.aimbot_bind == VK_LBUTTON)
         aimbot::config.aimbot_bind = VK_RBUTTON;
     if (aimbot::config.aimbot_bind2 == VK_LBUTTON || aimbot::config.aimbot_bind2 == aimbot::config.aimbot_bind)
         aimbot::config.aimbot_bind2 = 0;
 
-    // Default bind for CS2 if missing
+
     if (g_activeGame == ActiveGame::CS2 && CS2::config.aim_bind <= 0)
         CS2::config.aim_bind = 0x01;
 
@@ -218,4 +210,4 @@ bool DeserializeAll(const std::string& data) {
 }
 
 
-} // namespace config_manager
+}

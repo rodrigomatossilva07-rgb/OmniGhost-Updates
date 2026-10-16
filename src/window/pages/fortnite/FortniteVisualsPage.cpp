@@ -9,15 +9,15 @@
 
 namespace {
 
-// ============================================================
-// FORTNITE CONFIG ADAPTER FOR UNIFIED PREVIEW
-// ============================================================
+
+
+
 
 struct FortnitePreviewAdapter : EspPreview::IConfigAdapter {
     const EspPreview::PreviewConfig& GetPreviewConfig() const override {
         static EspPreview::PreviewConfig cfg;
-        // Map Fortnite config to unified preview config
-        // Fortnite uses Fortnite::config namespace
+
+
         cfg.esp_enabled = Fortnite::config.esp_enabled;
         cfg.box = Fortnite::config.box;
         cfg.box_corner = Fortnite::config.box_corner;
@@ -34,7 +34,7 @@ struct FortnitePreviewAdapter : EspPreview::IConfigAdapter {
         cfg.head_circle_thickness = Fortnite::config.head_circle_thickness;
 
         cfg.health_bar = Fortnite::config.health_bar;
-        cfg.armor_bar = Fortnite::config.armor_bar; // shield bar in Fortnite
+        cfg.armor_bar = Fortnite::config.armor_bar;
         cfg.health_value = Fortnite::config.health_value;
         cfg.armor_value = Fortnite::config.armor_value;
 
@@ -61,7 +61,7 @@ struct FortnitePreviewAdapter : EspPreview::IConfigAdapter {
         cfg.chinese_hat_scale = Fortnite::config.chinese_hat_scale;
         cfg.fun_effects_scale = Fortnite::config.fun_effects_scale;
 
-        // Colors
+
         for (int i = 0; i < 4; ++i) {
             cfg.col_box[i] = Fortnite::config.col_box[i];
             cfg.col_box_corner[i] = Fortnite::config.col_box_corner[i];
@@ -109,7 +109,7 @@ struct FortnitePreviewAdapter : EspPreview::IConfigAdapter {
 
 static FortnitePreviewAdapter g_fortniteAdapter;
 
-} // namespace
+}
 
 void DrawFortniteVisuals() {
     const float full = ImGui::GetContentRegionAvail().x;
@@ -119,15 +119,15 @@ void DrawFortniteVisuals() {
     const float previewWidth = stacked ? full : std::clamp(full * 0.30f, CyberTheme::Px(250.f), CyberTheme::Px(310.f));
     const float columnWidth = stacked ? full : (full - previewWidth - 2.f * gap) * 0.5f;
 
-    // ---- FEATURES COLUMN ----
+
     ImGui::BeginChild("##fn_visual_features", ImVec2(columnWidth, height), false, ImGuiWindowFlags_AlwaysVerticalScrollbar);
     CyberWidgets::BeginCard("ESP DE JOGADORES");
-    // WARNING: Fortnite ESP is currently local-player only (lobby test)
+
     ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 180, 0, 255));
     ImGui::TextWrapped("[AVISO] ESP do Fortnite: Apenas jogador local (teste de lobby). Funcionalidades de outros jogadores NAO IMPLEMENTADAS.");
     ImGui::PopStyleColor();
     ImGui::Separator();
-    
+
     CyberWidgets::ToggleSwitch("Ativar diagnóstico visual local", &Fortnite::config.esp_enabled);
     CyberWidgets::Separator();
     CyberWidgets::SectionTitle("DIAGNÓSTICO SUPORTADO");
@@ -140,10 +140,10 @@ void DrawFortniteVisuals() {
 
     if (!stacked) ImGui::SameLine(0.f, gap);
 
-    // ---- COLORS COLUMN ----
+
     ImGui::BeginChild("##fn_visual_colors", ImVec2(columnWidth, height), false, ImGuiWindowFlags_AlwaysVerticalScrollbar);
     CyberWidgets::BeginCard("PERSONALIZAÇÃO");
-    
+
 #ifdef FORTNITE_ESP_IMPL
     CyberWidgets::ToggleSwitch("Modo RGB", &Fortnite::config.rgb_mode);
     CyberWidgets::ToggleSwitch("Cores por visibilidade", &Fortnite::config.visibility_colors);
@@ -183,7 +183,7 @@ void DrawFortniteVisuals() {
 
     if (!stacked) ImGui::SameLine(0.f, gap);
 
-    // ---- PREVIEW PANEL ----
+
     ImGui::BeginChild("##fn_visual_preview", ImVec2(previewWidth, height), false);
     CyberWidgets::BeginCard("PRÉ-VISUALIZAÇÃO", previewWidth);
 

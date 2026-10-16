@@ -1,4 +1,4 @@
-// Optional-worker lifecycle and latest-state-wins job submission.
+
 static void OptionalWorkerLoop() {
     Config jobConfig{};
     std::vector<OptionalTarget> jobTargets;
@@ -8,7 +8,7 @@ static void OptionalWorkerLoop() {
 
     while (true) {
         if (!g_acqState.ClaimOptional(jobConfig, jobTargets, jobInMatch, jobDroppedOnly, jobClientBase, jobGeneration)) {
-            break; // shutdown requested or no work
+            break;
         }
         try {
             mem.SetDmaLane("optional");
@@ -17,7 +17,7 @@ static void OptionalWorkerLoop() {
             RunOptionalEnrichment(jobConfig, std::move(jobTargets), jobInMatch,
                                   jobClientBase, jobDroppedOnly, jobGeneration);
         } catch (...) {
-            // Never kill the worker on a single bad scan.
+
         }
         g_acqState.ReleaseOptional();
         mem.SetDmaLane("full");
@@ -31,8 +31,8 @@ static void QueueOptionalEnrichment(const Config& frame_config) {
     {
         std::lock_guard lock(g_acqState.optional_mu);
         g_acqState.optional_config = frame_config;
-        // Immutable job payload: acquisition thread owns runtime.players, so
-        // the optional worker receives copies and never dereferences runtime.
+
+
         g_acqState.g_optional_in_match = runtime.in_match;
         g_acqState.g_optional_client_base = runtime.client_base;
         g_acqState.g_optional_dropped_only = false;
@@ -51,8 +51,8 @@ static void QueueOptionalEnrichment(const Config& frame_config) {
     g_acqState.optional_cv.notify_one();
 }
 
-// Dropped-item discovery must run even when player scanning is disabled
-// (on-demand branch). Queues a metadata-only optional job with no pawns.
+
+
 static void QueueOptionalDroppedOnly(const Config& frame_config) {
     if (!g_acqState.TryQueueOptional())
         return;
@@ -68,10 +68,3 @@ static void QueueOptionalDroppedOnly(const Config& frame_config) {
     }
     g_acqState.optional_cv.notify_one();
 }
-
-
-// Death-mode is deliberately a separate, low-frequency path.  It never reads
-// player transforms, bones, weapons or aim data; it only follows observer
-// handles so the spectator widget keeps working while the main acquisition is
-// paused.  The normal scan resumes automatically as soon as local HP is back.
-

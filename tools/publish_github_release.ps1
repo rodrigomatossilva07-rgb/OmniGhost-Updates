@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
     [string]$ProjectDir,
@@ -139,10 +139,10 @@ function Invoke-GhCapture {
     $ExitCode = 1
 
     try {
-        # gh writes expected lookup failures (for example "release not found")
-        # to stderr. With the script-wide ErrorActionPreference = Stop, Windows
-        # PowerShell can turn that expected stderr into a terminating error.
-        # Capture it with Continue and decide from the real process exit code.
+
+
+
+
         $ErrorActionPreference = 'Continue'
         $Captured = @(& $Gh @Arguments 2>&1)
         $ExitCode = [int]$LASTEXITCODE
@@ -200,9 +200,9 @@ function Test-PublicUpdateManifest {
     $PublicUrl = "https://github.com/$Repository/releases/latest/download/update.json"
     Write-Gh "A verificar URL pública do manifesto: $PublicUrl"
 
-    # Prefer WebClient.DownloadString — always returns a .NET string (UTF-8),
-    # avoiding PS 5.1 Invoke-WebRequest returning [byte[]] / Object[] that
-    # stringifies as "123 10 32 ..." under ConvertFrom-Json.
+
+
+
     $body = $null
     try {
         $wc = New-Object System.Net.WebClient
@@ -211,7 +211,7 @@ function Test-PublicUpdateManifest {
         $body = $wc.DownloadString($PublicUrl)
         $wc.Dispose()
     } catch {
-        # Fallback: Invoke-WebRequest with explicit UTF-8 decode
+
         try {
             $resp = Invoke-WebRequest -Uri $PublicUrl -Method Get -UseBasicParsing -TimeoutSec 45
             if ([int]$resp.StatusCode -ne 200) {
@@ -242,7 +242,7 @@ function Test-PublicUpdateManifest {
     if ($body.Length -gt 0 -and [int][char]$body[0] -eq 0xFEFF) {
         $body = $body.Substring(1)
     }
-    # Guard: never pass a "byte dump" string to ConvertFrom-Json
+
     if ($body -match '^\s*\d{1,3}(\s+\d{1,3}){8,}') {
         throw ("Resposta pública não parece texto JSON (possível descodificação errada). URL: {0} len={1}" -f $PublicUrl, $body.Length)
     }
@@ -411,8 +411,8 @@ $Repository = if ($Config.repository) {
 $Branch = if ($Config.targetBranch) { [string]$Config.targetBranch } else { 'main' }
 $Draft = if ($null -ne $Config.draft) { [bool]$Config.draft } else { $true }
 $MakeLatest = if ($null -ne $Config.makeLatest) { [bool]$Config.makeLatest } else { $true }
-# Canonical local/CI artefacts are always preserved after upload.
-# Remote publication never owns local cleanup.
+
+
 Write-Gh 'Publicação explícita autorizada.'
 Write-Gh "Repositório: $Repository"
 Write-Gh "Tag: $Tag"
@@ -498,8 +498,8 @@ if ($Existing) {
     Write-Gh 'Release existente atualizada e validada.'
 }
 else {
-    # gh release create também suporta uma tag Git já existente. Não recusamos
-    # esse caso: apenas criamos a Release apontada à tag/branch configurada.
+
+
     $Arguments = @('release', 'create', $Tag) + $AssetPaths + @(
         '--repo', $Repository,
         '--target', $Branch,

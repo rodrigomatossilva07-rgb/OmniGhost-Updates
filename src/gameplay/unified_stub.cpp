@@ -1,5 +1,5 @@
-// Minimal stub implementation for UnifiedAim (matches minimal unified_aim.h)
-// Used for Publish builds where full implementation is not included
+
+
 
 #include "unified_aim.h"
 
@@ -42,4 +42,4 @@ std::unique_ptr<UnifiedAimbot> CreateAimbotForGame(const char*) {
     return std::make_unique<UnifiedAimbot>();
 }
 
-} // namespace Gameplay::UnifiedAim
+}

@@ -24,7 +24,7 @@ private:
     std::vector<Triangle> triangles;
     std::vector<unsigned> indices;
     std::vector<Node> nodes;
-    const std::atomic_bool* buildCancel = nullptr; // only accessed by the build thread
+    const std::atomic_bool* buildCancel = nullptr;
     unsigned BuildNode(unsigned begin, unsigned end);
 };
 }

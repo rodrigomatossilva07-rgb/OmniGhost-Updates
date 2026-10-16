@@ -52,4 +52,4 @@ const char* LocalizedChannelLabel(std::string_view channel) {
     return customChannel.c_str();
 }
 
-} // namespace Launcher
+}

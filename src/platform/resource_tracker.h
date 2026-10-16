@@ -10,8 +10,8 @@
 
 namespace OmniGhost::Platform {
 
-// Item 65: Resource counters for threads, handles, memory
-// Track before/after each session in development builds
+
+
 
 class ResourceTracker {
 public:
@@ -29,16 +29,16 @@ public:
         return instance;
     }
 
-    // Take a snapshot of current resource usage
+
     Snapshot TakeSnapshot() const noexcept;
 
-    // Record a baseline for comparison
+
     void SetBaseline() noexcept {
         baseline_ = TakeSnapshot();
         hasBaseline_ = true;
     }
 
-    // Compare current state to baseline
+
     struct Delta {
         int32_t threadDelta = 0;
         int64_t handleDelta = 0;
@@ -58,25 +58,25 @@ public:
         delta.gdiDelta = static_cast<int64_t>(current.gdiObjects) - static_cast<int64_t>(baseline_.gdiObjects);
         delta.userDelta = static_cast<int64_t>(current.userObjects) - static_cast<int64_t>(baseline_.userObjects);
         delta.hasLeak = (delta.threadDelta > 0 || delta.handleDelta > 0 ||
-                         delta.memoryDelta > 1024 * 1024 || // 1MB threshold
+                         delta.memoryDelta > 1024 * 1024 ||
                          delta.gdiDelta > 0 || delta.userDelta > 0);
         return delta;
     }
 
-    // Log current resource usage
+
     void LogUsage(std::string_view context) noexcept;
 
-    // Reset baseline
+
     void Reset() noexcept {
         hasBaseline_ = false;
     }
 
-    // Get current snapshot without modifying baseline
+
     [[nodiscard]] Snapshot GetCurrentSnapshot() const noexcept {
         return TakeSnapshot();
     }
 
-    // Mutable cache not required; TakeSnapshot is pure observation.
+
 
 private:
     ResourceTracker() = default;
@@ -84,4 +84,4 @@ private:
     bool hasBaseline_ = false;
 };
 
-} // namespace OmniGhost::Platform
+}

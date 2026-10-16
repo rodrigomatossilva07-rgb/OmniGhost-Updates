@@ -15,7 +15,7 @@ namespace OmniGhost::Platform {
                               std::string& error);
 [[nodiscard]] bool ConstantTimeEquals(std::string_view left, std::string_view right) noexcept;
 
-// Convert raw 32-byte digest to lowercase hex string.
+
 [[nodiscard]] inline std::string DigestHex(const std::array<std::uint8_t, 32>& digest) {
     static constexpr char kHex[] = "0123456789abcdef";
     std::string out(64, '\0');
@@ -26,4 +26,4 @@ namespace OmniGhost::Platform {
     return out;
 }
 
-} // namespace OmniGhost::Platform
+}

@@ -7,12 +7,12 @@
 #include <shared_mutex>
 #include "math/math.h"
 
-// Provisional CPed byte mapping. Requires live per-build validation.
+
 inline constexpr bool PedVisibilityFlagMeansVisible(uint8_t flag) noexcept {
     return flag != 0 && flag != 4 && flag != 36;
 }
 
-// Define the structure for storing ped data
+
 struct PedData {
     float health;
     Vec3 position_origin;
@@ -26,28 +26,28 @@ struct PedData {
     bool visibility_known = false;
     uint8_t visibility_flag = 0;
     std::chrono::steady_clock::time_point visibility_updated{};
-    uint64_t entry_generation = 0; // P0-2: pointer reuse safety
+    uint64_t entry_generation = 0;
 
     PedData() : health(0.0f), position_origin{}, playerInfo(0),
         lastUpdate(std::chrono::steady_clock::now()), isValid(false) {
     }
 };
 
-// The producer owns writes while ESP/aim consume snapshots on the presentation
-// thread.  Keep this cache internally synchronized; callers never receive a
-// reference into the map.
+
+
+
 class PedCacheManager {
 private:
     std::unordered_map<uintptr_t, PedData> pedCache;
     mutable std::shared_mutex mutex_;
-    std::atomic<uint64_t> currentGeneration{1}; // P0-2: pointer reuse safety
+    std::atomic<uint64_t> currentGeneration{1};
 
-    // Cache timing
+
     std::chrono::steady_clock::time_point lastSlowUpdate;
-    // Health/playerInfo ~20 Hz; bones a bit slower — max speed without hurting FPS
+
     static constexpr std::chrono::milliseconds SLOW_CACHE_INTERVAL{ 50 };
 
-    // Internal cache methods
+
     void slowCache();
     void cleanupUnlocked();
 
@@ -55,32 +55,32 @@ public:
     PedCacheManager();
     ~PedCacheManager();
 
-    // Initialization
+
     void initialize();
 
-    // Update method - call this every frame
+
     void update();
 
-    // Cache access methods
+
     void fastCache(const std::vector<uintptr_t>& validPeds,
         const std::vector<Vec3>& positions);
-    // Core-world path: positions + velocity + health already sampled together.
+
     void fastCacheCore(const std::vector<uintptr_t>& validPeds,
         const std::vector<Vec3>& positions,
         const std::vector<Vec3>& velocities,
         const std::vector<float>& healths);
 
-    // P0-2: Set current session generation for pointer reuse validation
+
     void setCurrentGeneration(uint64_t generation) { currentGeneration.store(generation, std::memory_order_release); }
 
-    void manualCache(); // Full reinitialization
+    void manualCache();
 
-    // Reader methods
+
     bool getPedData(uintptr_t pedId, PedData& outData) const;
     std::vector<uintptr_t> getValidPedIds() const;
     size_t getCacheSize() const;
 
-    // Writer methods
+
     void updatePedPosition(uintptr_t pedId, const Vec3& position);
     void updatePedHealth(uintptr_t pedId, float health);
     void updatePedVisibilities(const std::vector<uintptr_t>& peds,
@@ -90,9 +90,9 @@ public:
     void removePed(uintptr_t pedId);
     void clearCache();
 
-    // Cache management
-    void cleanup(); // Remove invalid/old entries
+
+    void cleanup();
 };
 
-// Global cache manager instance
+
 extern PedCacheManager g_pedCacheManager;

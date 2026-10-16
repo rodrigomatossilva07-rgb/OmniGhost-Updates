@@ -8,4 +8,4 @@ namespace CS2::CoreWorld {
                                          const float* view_matrix) noexcept;
 [[nodiscard]] bool IsPlayableMapName(const char* map_name);
 
-} // namespace CS2::CoreWorld
+}

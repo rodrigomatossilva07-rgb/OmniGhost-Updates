@@ -22,4 +22,4 @@ std::string_view AdapterErrorMessage(AdapterErrorCode code) noexcept {
     return "Ocorreu um erro desconhecido no adapter do jogo.";
 }
 
-} // namespace OmniGhost::Launcher
+}

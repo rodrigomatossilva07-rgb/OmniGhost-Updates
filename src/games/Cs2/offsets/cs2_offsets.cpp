@@ -35,4 +35,4 @@ bool Offsets::Validate(std::string* reason) const noexcept {
     return true;
 }
 
-} // namespace CS2
+}

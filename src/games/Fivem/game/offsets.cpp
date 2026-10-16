@@ -93,11 +93,11 @@ uintptr_t b3258_waypoint = 0;
 uintptr_t b3258_globalPtr = 0;
 uintptr_t b3258_skySettings = 0;
 
-} // namespace offset
+}
 
 namespace {
 
-// Source of truth: data/fivem_offsets.json (also embedded at Publish via Build-EmbeddedOffsets).
+
 static std::vector<BuildOffsets> g_buildOffsets;
 static bool g_offsetsLoaded = false;
 
@@ -152,7 +152,7 @@ static bool ExtractJsonStringValue(const std::string& obj, const char* key, std:
         out = obj.substr(p + 1, e - p - 1);
         return true;
     }
-    // bare number
+
     size_t e = p;
     while (e < obj.size() && (std::isxdigit(static_cast<unsigned char>(obj[e])) || obj[e]=='x'||obj[e]=='X'||obj[e]=='+'||obj[e]=='-'))
         ++e;
@@ -312,7 +312,7 @@ int LoadOffsetsFromJsonImpl(const char* explicit_path) {
         candidates.emplace_back(explicit_path);
     candidates.emplace_back("data/fivem_offsets.json");
     try {
-        // Beside executable
+
         char mod[MAX_PATH]{};
         if (GetModuleFileNameA(nullptr, mod, MAX_PATH)) {
             std::string dir(mod);
@@ -340,7 +340,7 @@ int LoadOffsetsFromJsonImpl(const char* explicit_path) {
         return static_cast<int>(g_buildOffsets.size());
     }
 
-    // Parse "builds" : { "3258": { ... }, ... }
+
     const size_t buildsKey = data.find("\"builds\"");
     if (buildsKey == std::string::npos) {
         std::cerr << "[FiveM] fivem_offsets.json sem objeto \"builds\"; ativacao bloqueada.\n";
@@ -353,7 +353,7 @@ int LoadOffsetsFromJsonImpl(const char* explicit_path) {
         return static_cast<int>(g_buildOffsets.size());
     }
 
-    // Walk top-level keys inside builds object (depth-aware)
+
     size_t i = brace + 1;
     int depth = 1;
     while (i < data.size() && depth > 0) {
@@ -521,7 +521,7 @@ int BuildFromProcessName()
     return build;
 }
 
-} // namespace
+}
 
 int LoadOffsetsFromJson(const char* explicit_path) {
     return LoadOffsetsFromJsonImpl(explicit_path);
@@ -590,4 +590,4 @@ bool HasAnyCriticalOffsets() {
     return false;
 }
 
-} // namespace FiveM
+}

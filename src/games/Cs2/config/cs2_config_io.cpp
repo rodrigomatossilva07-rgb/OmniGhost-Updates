@@ -32,4 +32,4 @@ bool LoadConfig(const char* name) {
     return config_manager::LoadFromFile(requested);
 }
 
-} // namespace CS2
+}

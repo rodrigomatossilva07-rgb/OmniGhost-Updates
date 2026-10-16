@@ -59,7 +59,7 @@ struct WeaponRecoilPattern {
 };
 
 static std::unordered_map<int, WeaponRecoilPattern> g_recoil_patterns;
-static std::shared_mutex g_recoil_patterns_mutex; // P1-17: Protect concurrent access
+static std::shared_mutex g_recoil_patterns_mutex;
 static std::array<std::pair<float, float>, 30> g_current_pattern{};
 static int g_shots_fired = 0;
 static int g_last_shots_fired = 0;
@@ -78,15 +78,15 @@ bool W2S(const float* world, const float* vm, float& sx, float& sy) {
     return std::isfinite(sx) && std::isfinite(sy);
 }
 
-// Aim point is fixed: 0 Head, 1 Neck, 2 Chest, 3 Stomach. No auto-bone.
+
 void PickBone(const CS2::Player& p, int bone, float out[3]) {
     const float* selected = p.head;
     if (p.bones_ok) {
         switch (bone) {
-        case 1: selected = p.bones[1]; break; // neck
-        case 2: selected = p.bones[2]; break; // chest
-        case 3: selected = p.bones[4]; break; // stomach / lower spine
-        default: selected = p.bones[0]; break; // head
+        case 1: selected = p.bones[1]; break;
+        case 2: selected = p.bones[2]; break;
+        case 3: selected = p.bones[4]; break;
+        default: selected = p.bones[0]; break;
         }
     }
     out[0] = selected[0];
@@ -94,18 +94,18 @@ void PickBone(const CS2::Player& p, int bone, float out[3]) {
     out[2] = selected[2];
 }
 
-// Smooth 0..100 → strength 1..0. Monotonic ease-out curve (not 1/smooth).
-// 0-20 strong, 20-50 moderate, 50-80 soft, 80-99 feather, 100 off.
+
+
 float SmoothToStrength(float smooth) {
     if (smooth <= 0.f) return 1.f;
     if (smooth >= 100.f) return 0.f;
-    const float t = smooth * 0.01f; // 0..1
-    // strength = (1-t)^1.75 → decays slowly at first, then faster toward 0
+    const float t = smooth * 0.01f;
+
     return std::pow(1.f - t, 1.75f);
 }
 
-// Single motion controller: error → SmoothToStrength → humanize trajectory.
-// Integer residual lives only in MoveMouse (one quantizer, no double filter).
+
+
 struct PaidAimController {
     float phase = 0.f;
     float phase2 = 0.f;
@@ -116,19 +116,19 @@ struct PaidAimController {
         out_x = out_y = 0.f;
         dt = std::clamp(dt, 1.e-4f, 0.05f);
         const float err = std::sqrt(err_x * err_x + err_y * err_y);
-        // Stable deadzone: stop micro +1/-1 oscillation near crosshair
+
         if (err <= deadzone)
             return;
 
         const float strength = SmoothToStrength(smooth);
         if (strength <= 1.e-6f)
-            return; // Smooth 100 → zero output
+            return;
 
-        // FPS-independent exponential approach toward target
-        // strength=1 → full correction this frame; lower strength → slower pull
+
+
         float frac;
         if (strength >= 0.999f) {
-            frac = 1.f; // Smooth 0: instant lock
+            frac = 1.f;
         } else {
             const float rate = 4.f + strength * 22.f;
             frac = 1.f - std::exp(-rate * dt * strength);
@@ -137,8 +137,8 @@ struct PaidAimController {
         float mx = err_x * frac;
         float my = err_y * frac;
 
-        // Humanization only shapes trajectory (low-frequency, continuous).
-        // Independent from smooth; does not meaningfully change final accuracy.
+
+
         const float h = std::clamp(humanization, 0.f, 100.f) * 0.01f;
         if (h > 0.001f) {
             phase  += dt * (0.85f + 1.4f * h);
@@ -160,8 +160,8 @@ struct PaidAimController {
 static PaidAimController g_paid_aim;
 
 void MoveMouse(float dx, float dy) {
-    // Input devices accept integer counts, but aim/RCS/humanization are all
-    // fractional. Keep the remainder across frames instead of discarding it.
+
+
     const float desired_x = dx + g_output_residual_x;
     const float desired_y = dy + g_output_residual_y;
     int whole_x = static_cast<int>(std::lround(desired_x));
@@ -241,9 +241,9 @@ int AutoSelectBone(const CS2::Player& p, int weapon_def, float distance_m, bool 
     else if (is_pistol) preferred = (distance_m > 30.f) ? 1 : 2;
     else preferred = 0;
 
-    // The available signal is player.spotted. Projecting a bone to screen is
-    // not a wall trace, so it must not be presented as per-bone visibility.
-    // Target filtering performs the reliable spotted-state check separately.
+
+
+
     return preferred;
 }
 
@@ -291,9 +291,9 @@ void ClampMagnitude(std::array<float, 3>& value, float maximum) noexcept {
     value[2] *= scale;
 }
 
-// A bounded, direction-aware prediction. It deliberately stops trusting
-// acceleration during a sharp reversal, where an instantaneous velocity is
-// usually stale and would put the cursor ahead of the player.
+
+
+
 void ApplyRobustPrediction(float point[3], const CS2::Player& player,
                            const CS2::Runtime& rt, const CS2::Config& cfg,
                            uint64_t now_ms) {
@@ -353,8 +353,8 @@ void ApplyRobustPrediction(float point[3], const CS2::Player& player,
     for (int axis = 0; axis < 3; ++axis)
         displacement[axis] = history.velocity[axis] * lead + history.acceleration[axis] * accel_term;
 
-    // Never allow an old/stale sample to lead more than a small, distance-aware
-    // world displacement. Incoming data corrects naturally on the next sample.
+
+
     ClampMagnitude(displacement, std::clamp(2.f + player.distance * .055f, 4.f, 14.f));
     for (int axis = 0; axis < 3; ++axis) point[axis] += displacement[axis];
 }
@@ -378,7 +378,7 @@ TargetCandidate SelectTarget(const CS2::Runtime& rt, const CS2::Config& cfg,
         if (player.distance > cfg.aim_max_dist) { ++g_target_diag.distance; continue; }
 
         int bone = std::clamp(cfg.aim_bone, 0, 3);
-        
+
         float point[3]{};
         PickBone(player, bone, point);
 
@@ -415,9 +415,9 @@ TargetCandidate SelectTarget(const CS2::Runtime& rt, const CS2::Config& cfg,
         if (candidate.score < best.score) best = candidate;
     }
 
-    // Keep the current target unless the alternative wins by a meaningful,
-    // screen-space margin. This is more stable than applying a hidden fixed
-    // multiplier to the incumbent score.
+
+
+
     if (incumbent.index >= 0 && best.pawn != incumbent.pawn) {
         const float required_gain = 3.f + std::clamp(cfg.aim_switch_margin, .02f, .50f) * 32.f;
         if ((incumbent.score - best.score) < required_gain) {
@@ -477,7 +477,7 @@ void InitializeHumanizer() {
 }
 
 void LoadRecoilPatterns() {
-    std::unique_lock lock(g_recoil_patterns_mutex); // P1-17: Exclusive lock for initialization
+    std::unique_lock lock(g_recoil_patterns_mutex);
     if (g_patterns_loaded) return;
     g_patterns_loaded = true;
 
@@ -492,61 +492,61 @@ void LoadRecoilPatterns() {
         p.scale = scale;
     };
 
-    add_pattern(7, {  // AK-47
+    add_pattern(7, {
         {0,0}, {0.5,2.1}, {1.2,3.8}, {1.8,5.2}, {2.1,6.5}, {2.3,7.8}, {2.4,9.1}, {2.3,10.3}, {2.1,11.4}, {1.8,12.4},
         {1.4,13.3}, {1.0,14.1}, {0.5,14.8}, {0,15.4}, {-0.5,15.9}, {-1.0,16.3}, {-1.5,16.6}, {-2.0,16.8}, {-2.4,16.9}, {-2.8,16.9},
         {-3.1,16.8}, {-3.3,16.6}, {-3.4,16.3}, {-3.4,15.8}, {-3.3,15.2}, {-3.1,14.5}, {-2.8,13.7}, {-2.4,12.8}, {-2.0,11.9}, {-1.5,10.9}
     }, 1.0f);
 
-    add_pattern(8, {  // AUG
+    add_pattern(8, {
         {0,0}, {0.3,1.8}, {0.8,3.2}, {1.2,4.5}, {1.5,5.6}, {1.7,6.6}, {1.8,7.5}, {1.8,8.3}, {1.7,9.0}, {1.5,9.7},
         {1.2,10.3}, {0.8,10.8}, {0.4,11.2}, {0,11.5}, {-0.4,11.7}, {-0.8,11.8}, {-1.2,11.8}, {-1.5,11.7}, {-1.8,11.5}, {-2.0,11.2},
         {-2.2,10.8}, {-2.3,10.3}, {-2.4,9.7}, {-2.4,9.1}, {-2.3,8.4}, {-2.2,7.6}, {-2.0,6.8}, {-1.7,5.9}, {-1.4,5.0}, {-1.0,4.1}
     }, 0.85f);
 
-    add_pattern(9, {  // AWP
+    add_pattern(9, {
         {0,0}, {0,12.0}, {0,24.0}, {0,36.0}, {0,48.0}, {0,60.0}, {0,72.0}, {0,84.0}, {0,96.0}, {0,108.0},
         {0,120.0}, {0,132.0}, {0,144.0}, {0,156.0}, {0,168.0}, {0,180.0}, {0,192.0}, {0,204.0}, {0,216.0}, {0,228.0},
         {0,240.0}, {0,252.0}, {0,264.0}, {0,276.0}, {0,288.0}, {0,300.0}, {0,312.0}, {0,324.0}, {0,336.0}, {0,348.0}
     }, 1.0f);
 
-    add_pattern(10, { // FAMAS
+    add_pattern(10, {
         {0,0}, {0.4,2.0}, {1.0,3.6}, {1.5,5.0}, {1.8,6.2}, {2.0,7.3}, {2.1,8.3}, {2.1,9.2}, {2.0,10.0}, {1.8,10.7},
         {1.5,11.3}, {1.1,11.8}, {0.6,12.2}, {0,12.5}, {-0.5,12.7}, {-1.0,12.8}, {-1.5,12.8}, {-1.9,12.7}, {-2.3,12.5}, {-2.6,12.2},
         {-2.8,11.7}, {-3.0,11.1}, {-3.1,10.4}, {-3.1,9.6}, {-3.0,8.8}, {-2.8,7.9}, {-2.5,7.0}, {-2.1,6.0}, {-1.7,5.1}, {-1.2,4.1}
     }, 0.9f);
 
-    add_pattern(13, { // Galil AR
+    add_pattern(13, {
         {0,0}, {0.6,2.2}, {1.4,4.0}, {2.0,5.5}, {2.4,6.8}, {2.6,8.0}, {2.7,9.1}, {2.7,10.1}, {2.5,11.0}, {2.2,11.8},
         {1.8,12.5}, {1.3,13.1}, {0.7,13.6}, {0,14.0}, {-0.7,14.3}, {-1.4,14.5}, {-2.0,14.6}, {-2.6,14.6}, {-3.1,14.5}, {-3.6,14.3},
         {-4.0,14.0}, {-4.3,13.5}, {-4.5,12.8}, {-4.6,12.1}, {-4.6,11.3}, {-4.5,10.4}, {-4.3,9.5}, {-4.0,8.5}, {-3.6,7.5}, {-3.1,6.5}
     }, 0.95f);
 
-    add_pattern(16, { // M4A4
+    add_pattern(16, {
         {0,0}, {0.4,1.9}, {1.0,3.5}, {1.5,4.9}, {1.8,6.1}, {2.0,7.2}, {2.1,8.1}, {2.1,9.0}, {2.0,9.8}, {1.8,10.5},
         {1.5,11.1}, {1.1,11.6}, {0.6,12.0}, {0,12.3}, {-0.5,12.5}, {-1.0,12.6}, {-1.4,12.6}, {-1.8,12.5}, {-2.1,12.3}, {-2.4,12.0},
         {-2.6,11.6}, {-2.7,11.1}, {-2.8,10.5}, {-2.8,9.8}, {-2.7,9.1}, {-2.5,8.3}, {-2.3,7.5}, {-2.0,6.6}, {-1.6,5.7}, {-1.2,4.7}
     }, 0.9f);
 
-    add_pattern(60, { // M4A1-S
+    add_pattern(60, {
         {0,0}, {0.3,1.7}, {0.8,3.1}, {1.2,4.3}, {1.5,5.4}, {1.7,6.4}, {1.8,7.2}, {1.8,8.0}, {1.7,8.7}, {1.5,9.3},
         {1.2,9.9}, {0.9,10.3}, {0.5,10.7}, {0,11.0}, {-0.4,11.2}, {-0.8,11.3}, {-1.2,11.3}, {-1.5,11.2}, {-1.8,11.0}, {-2.0,10.7},
         {-2.2,10.3}, {-2.3,9.9}, {-2.3,9.3}, {-2.3,8.7}, {-2.2,8.0}, {-2.0,7.3}, {-1.8,6.5}, {-1.5,5.7}, {-1.2,4.9}, {-0.9,4.1}
     }, 0.85f);
 
-    add_pattern(1, { // Desert Eagle
+    add_pattern(1, {
         {0,0}, {0,3.5}, {0,6.8}, {0,9.8}, {0,12.5}, {0,15.0}, {0,17.2}, {0,19.2}, {0,21.0}, {0,22.6},
         {0,24.0}, {0,25.3}, {0,26.4}, {0,27.4}, {0,28.2}, {0,28.9}, {0,29.5}, {0,30.0}, {0,30.4}, {0,30.7},
         {0,30.9}, {0,31.0}, {0,31.1}, {0,31.1}, {0,31.0}, {0,30.9}, {0,30.7}, {0,30.4}, {0,30.1}, {0,29.7}
     }, 1.2f);
 
-    add_pattern(4, { // Glock-18
+    add_pattern(4, {
         {0,0}, {0.2,1.5}, {0.5,2.8}, {0.8,3.9}, {1.0,4.8}, {1.1,5.6}, {1.2,6.3}, {1.2,6.9}, {1.1,7.4}, {1.0,7.8},
         {0.8,8.1}, {0.5,8.3}, {0.2,8.5}, {0,8.6}, {-0.2,8.6}, {-0.5,8.5}, {-0.8,8.4}, {-1.1,8.2}, {-1.4,7.9}, {-1.6,7.5},
         {-1.8,7.1}, {-1.9,6.6}, {-2.0,6.1}, {-2.0,5.5}, {-2.0,4.9}, {-1.9,4.3}, {-1.8,3.7}, {-1.6,3.1}, {-1.4,2.5}, {-1.1,1.9}
     }, 0.7f);
 
-    add_pattern(61, { // USP-S
+    add_pattern(61, {
         {0,0}, {0.2,1.4}, {0.5,2.6}, {0.7,3.6}, {0.9,4.5}, {1.0,5.2}, {1.0,5.9}, {1.0,6.4}, {0.9,6.9}, {0.8,7.3},
         {0.6,7.7}, {0.3,7.9}, {0,8.1}, {-0.3,8.1}, {-0.6,8.1}, {-0.9,8.0}, {-1.2,7.8}, {-1.5,7.5}, {-1.7,7.1}, {-1.9,6.6},
         {-2.0,6.1}, {-2.1,5.5}, {-2.1,4.9}, {-2.1,4.2}, {-2.0,3.6}, {-1.9,2.9}, {-1.7,2.3}, {-1.5,1.7}, {-1.2,1.1}, {-0.9,0.5}
@@ -557,8 +557,8 @@ std::pair<float, float> CalculateRCS(const CS2::Runtime& rt, const CS2::Config& 
     if (!cfg.aim_rcs_auto && !cfg.aim_rcs_standalone) return {};
     if (!rt.local_pawn) return {};
 
-    // The aim update runs on the presentation thread. It must never wait for
-    // DMA; recoil samples are acquired with the local state scatter instead.
+
+
     const uint64_t nowMs = GetTickCount64();
     if (!rt.local_aim_sample_ms || nowMs < rt.local_aim_sample_ms ||
         nowMs - rt.local_aim_sample_ms > 100u)
@@ -582,7 +582,7 @@ std::pair<float, float> CalculateRCS(const CS2::Runtime& rt, const CS2::Config& 
 
     WeaponRecoilPattern pattern{};
     {
-        std::shared_lock lock(g_recoil_patterns_mutex); // P1-17: Shared lock for read
+        std::shared_lock lock(g_recoil_patterns_mutex);
         auto it = g_recoil_patterns.find(weapon_def);
         if (it == g_recoil_patterns.end()) return {};
         pattern = it->second;
@@ -604,11 +604,11 @@ std::pair<float, float> CalculateRCS(const CS2::Runtime& rt, const CS2::Config& 
     return { rcs_x, rcs_y };
 }
 
-// CS2-003 Fix: panic must persist until the user re-enables the features.
-// The flag previously mutated a per-frame copy of the config, so everything
-// switched back on one frame later. Now it writes the shared CS2::config (UI
-// state) and republishes to the acquisition thread. Returns true when the
-// panic fired so Run() can adopt the new config in the same frame.
+
+
+
+
+
 bool HandlePanic() {
     if (!CS2::config.panic_key_enabled || CS2::config.panic_key == 0) return false;
     static bool was_down = false;
@@ -628,7 +628,7 @@ bool HandlePanic() {
     return false;
 }
 
-} // namespace
+}
 
 int ActiveTargetIndex() { return g_active_target_idx; }
 const char* DebugStatus() { return g_debug; }
@@ -640,11 +640,11 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
         g_motion_history.clear();
         motion_map = current_map;
     }
-    // Input configuration belongs to the UI/snapshot owner. The aim update
-    // may adapt its own decisions, but must never mutate shared UI state.
+
+
     CS2::Config cfg = cfg_in;
     if (HandlePanic())
-        cfg = CS2::config; // adopt the just-published OFF state this frame
+        cfg = CS2::config;
 
     InitializeHumanizer();
 
@@ -672,9 +672,9 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
 
     const int local_weapon_definition = rt.local_weapon_definition;
 
-    // A zero definition means the weapon-chain read was unavailable for this
-    // snapshot.  Do not turn that transient read failure into a permanent aim
-    // block; known utility definitions remain strictly blocked.
+
+
+
     if (local_weapon_definition > 0 && !IsFirearm(local_weapon_definition)) {
         g_active_target_idx = -1;
         g_last_target_idx = -1;
@@ -693,9 +693,9 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
 
     const float cx = ds.x * 0.5f;
     const float cy = ds.y * 0.5f;
-    // One temporally coherent camera for every projection performed by this
-    // update. Do not re-lock camera history per target or mix rt.view_matrix
-    // with a newer camera sample in the trigger/retention paths.
+
+
+
     const auto updateCamera = CS2::SelectCameraSnapshot(
         rt.world_sample_ms ? rt.world_sample_ms : rt.snapshot_timestamp_ms);
     const float* updateViewMatrix = updateCamera.timestamp_ms
@@ -718,8 +718,8 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
         if (g_target_pawn && target.pawn != g_target_pawn) {
             const auto held_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                 now - g_target_acquired).count();
-            // A small hysteresis margin extends the incumbent target hold;
-            // it prevents close scores from producing rapid target swaps.
+
+
             const float lock_ms = (std::max)(cfg.sticky_ms, cfg.aim_switch_cooldown_ms) +
                 std::clamp(cfg.aim_switch_margin, 0.f, .50f) * 200.f;
             if (held_ms < static_cast<long long>(lock_ms)) {
@@ -758,8 +758,8 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
         g_active_target_idx = target.index;
         g_last_target_idx = target.index;
 
-        // Single controller: smooth strength + independent humanization.
-        // Keep this adaptation local; shared UI configuration is immutable here.
+
+
         cfg.aim_auto_bone = false;
         const int boneFixed = std::clamp(cfg.aim_bone, 0, 3);
         (void)boneFixed;
@@ -799,8 +799,8 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
             std::snprintf(g_debug, sizeof(g_debug), "sem alvo: projecao=%d", g_target_diag.projection);
     }
 
-    // Aim and recoil now share one dispatch per frame. Previously each sent a
-    // separate packet and the second correction could fight the first.
+
+
     if (cfg.aim_rcs_standalone || (cfg.aim_enabled && cfg.aim_rcs_auto && aim_key_down)) {
         const auto [rcs_x, rcs_y] = CalculateRCS(rt, cfg, local_weapon_definition);
         aim_output_x += rcs_x;
@@ -809,8 +809,8 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
     if (std::fabs(aim_output_x) > 0.001f || std::fabs(aim_output_y) > 0.001f)
         MoveMouse(aim_output_x, aim_output_y);
 
-    // Local state has a dedicated acquisition lane and is intentionally absent
-    // from the capped remote-player list.
+
+
     const bool local_scoped = rt.local_scoped;
 
     if (cfg.trigger_enabled) {
@@ -830,7 +830,7 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
                             if (p.is_local) continue;
                             if (cfg.trigger_team_check && p.team == rt.local_team) continue;
                             if (!p.alive || p.health <= 0) continue;
-                            if (cfg.aim_visibility_check && !p.spotted) continue; // optional: block unspotted through cover
+                            if (cfg.aim_visibility_check && !p.spotted) continue;
                             if (p.ent_index == idEnt || p.ent_index == (idEnt & 0x7FFF)) {
                                 if (cfg.trigger_head_only) {
                                     float sx, sy;
@@ -888,7 +888,7 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
                         now - targetEntered).count();
                     const auto cooldownMs = std::chrono::duration_cast<std::chrono::milliseconds>(
                         now - lastShot).count();
-                    const int weaponDelayMs = local_weapon_definition == 64 ? 90 : 0; // R8 requires a brief cock delay
+                    const int weaponDelayMs = local_weapon_definition == 64 ? 90 : 0;
                     if (reactionMs >= (std::max)(cfg.trigger_delay_ms, 0) + weaponDelayMs && cooldownMs >= 60) {
                         Click();
                         lastShot = now;
@@ -903,4 +903,4 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
     }
 }
 
-} // namespace CS2_Aim
+}

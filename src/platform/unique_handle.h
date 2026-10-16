@@ -130,4 +130,4 @@ struct UniqueProcessInformation final {
         return std::exchange(value.hThread, nullptr);
     }
 };
-} // namespace OmniGhost::Platform
+}

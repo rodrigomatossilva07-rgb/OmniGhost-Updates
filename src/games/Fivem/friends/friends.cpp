@@ -87,14 +87,24 @@ namespace friends {
 
     void UpdatePlayerList() {
         using namespace FiveM;
-        player_list.clear();
+        // FIVEM-008 Fix: take the list mutex — the UI thread (FriendsPage)
+        // iterates player_list while this rebuilds it on the game thread.
+        std::vector<PlayerEntry> next;
+        next.reserve(32);
 
         auto snapshot = FiveM::ESP::GetValidPedsSnapshot();
-        if (!FiveM::ESP::FrameCacheValid() || snapshot.validPeds.empty())
+        if (!FiveM::ESP::FrameCacheValid() || snapshot.validPeds.empty()) {
+            std::lock_guard<std::mutex> lock(list_mutex);
+            player_list.clear();
             return;
+        }
 
         const Vec3 localPos = FiveM::ESP::GetFrameLocalPos();
-        if (localPos.IsZero()) return;
+        if (localPos.IsZero()) {
+            std::lock_guard<std::mutex> lock(list_mutex);
+            player_list.clear();
+            return;
+        }
 
         for (size_t i = 0; i < snapshot.validPeds.size(); ++i) {
             uintptr_t ped = snapshot.validPeds[i];
@@ -114,11 +124,14 @@ namespace friends {
             if (!esp::try_get_prepared_player_name(ped, nameBuf, sizeof(nameBuf)))
                 snprintf(nameBuf, sizeof(nameBuf), "Jogador_%u", netId);
 
-            player_list.push_back({ nameBuf, netId, dist, hpPct, ped });
+            next.push_back({ nameBuf, netId, dist, hpPct, ped });
         }
 
-        std::sort(player_list.begin(), player_list.end(),
+        std::sort(next.begin(), next.end(),
             [](const PlayerEntry& a, const PlayerEntry& b) { return a.distance < b.distance; });
+
+        std::lock_guard<std::mutex> lock(list_mutex);
+        player_list = std::move(next);
     }
 
     void AddClosestAsFriend() {
@@ -131,7 +144,7 @@ namespace friends {
     }
 
     void KickClosestFromFriends() {
-        // Remove friend with matching closest player id if in list
+
         UpdatePlayerList();
         if (player_list.empty()) return;
         RemoveFriend(player_list.front().id);
@@ -191,4 +204,4 @@ namespace friends {
         return true;
     }
 
-} // namespace friends
+}

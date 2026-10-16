@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
     [string]$ProjectDir,
@@ -26,8 +26,8 @@ $Commercial = $Commercial -or $PublishBuild
 . (Join-Path $PSScriptRoot 'ReleaseOutput.ps1')
 $packageTimer = [Diagnostics.Stopwatch]::StartNew()
 
-# Packaging is intentionally local-only. Remote publication is owned exclusively by Publish-Release.ps1.
-# This script has no code path capable of creating or modifying a remote Release.
+
+
 
 $ProjectDir = [System.IO.Path]::GetFullPath((Join-Path $ProjectDir '.'))
 $BuildDir = [System.IO.Path]::GetFullPath((Join-Path $BuildDir '.'))
@@ -113,7 +113,7 @@ function Get-DownloadsFolder {
         }
     }
     catch {
-        # Fall back to the standard user-profile Downloads directory.
+
     }
 
     $Profile = [Environment]::GetFolderPath('UserProfile')
@@ -216,7 +216,7 @@ function Complete-ReleaseTransaction {
     Remove-Item -LiteralPath $TransactionBackupDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 
-# Start with a fresh log for each packaging attempt.
+
 $script:DownloadsZipPath = Join-Path (Get-DownloadsFolder) $ZipName
 $LogDirectory = Split-Path -Parent $LogFile
 if ($LogDirectory) { New-Item -ItemType Directory -Path $LogDirectory -Force | Out-Null }
@@ -256,8 +256,8 @@ try {
     Write-ReleaseLog "Executável validado: $ExecutablePath (versão $($ExecutableVersionMatch.Groups['version'].Value))"
 
     if ($PublishBuild -or $Commercial) {
-        # Any remotely publishable package must originate from Publish|x64. Signed
-        # commercial builds additionally require clean reproducible provenance.
+
+
         $BuildMetadataPath = Join-Path $ProjectDir '.cache\generated\Publish\x64\build-metadata.json'
         if (-not (Test-Path -LiteralPath $BuildMetadataPath -PathType Leaf)) {
             throw 'Metadados de build em falta. Recompila Publish|x64 antes do packaging.'
@@ -314,7 +314,7 @@ try {
     }
     $null = Remove-WithRetry -Path $ReleaseOutputDir
     if (Test-Path -LiteralPath $ReleaseOutputDir) {
-        # Folder still locked (Explorer open) — write to a unique sibling instead of failing
+
         $script:ReleaseOutputDir = Join-Path (Get-DownloadsFolder) ("OmniGhost-Release_" + (Get-Date -Format "yyyyMMdd_HHmmss"))
         Write-ReleaseLog -Level WARN -Message "OmniGhost-Release bloqueada; a usar: $ReleaseOutputDir"
     }
@@ -323,9 +323,9 @@ try {
     New-Item -ItemType Directory -Path $ReleaseOutputDir -Force | Out-Null
     New-Item -ItemType Directory -Path $StageDir -Force | Out-Null
 
-    # Customer builds are self-contained. OmniGhost.exe verifies and repairs its
-    # unavoidable native runtime under the configured volume-root data directory; no DLL, data,
-    # resource or plaintext offset file is distributed beside the executable.
+
+
+
     $RequiredRuntimeFiles = @('OmniGhost.exe')
     foreach ($Name in $RequiredRuntimeFiles) {
         $Source = Join-Path $BuildDir $Name
@@ -409,9 +409,9 @@ try {
         Write-ReleaseLog "[Signing] Certificado: $($SigningCertificate.Subject); SHA-256: $signedExecutableHash"
     }
 
-    # Installation manifest: all customer runtime files are independently hashed.
-    # It is line-oriented (SHA256<TAB>SIZE<TAB>RELATIVE_PATH) so the client can
-    # verify it without another JSON parser. The manifest itself is excluded.
+
+
+
     $InstallManifestPath = Join-Path $ReleaseWorkDir 'install-manifest.sha256'
     $InstallManifestLines = New-Object System.Collections.Generic.List[string]
     Get-ChildItem -LiteralPath $StageDir -Recurse -Force -File |
@@ -439,9 +439,9 @@ try {
         Remove-Item -LiteralPath $InstallManifestSignaturePath -Force -ErrorAction SilentlyContinue
     }
 
-	# The install manifest remains a release-audit asset. It is deliberately not
-	# included in the customer ZIP: installation is exactly one self-contained
-	# executable and leaves no sidecars in the user's chosen folder.
+
+
+
 
     $ForbiddenFiles = Get-ChildItem -LiteralPath $StageDir -Recurse -Force -File -ErrorAction SilentlyContinue |
         Where-Object { $_.Extension.ToLowerInvariant() -in @('.pdb', '.obj', '.tlog', '.idb', '.ilk', '.exp') }
@@ -465,9 +465,9 @@ try {
     $Sha256 = Get-LowerSha256 -Path $ArtifactZip
     Write-ReleaseLog "Pacote final: $(Format-OmniBytes $Size); SHA-256: $Sha256"
 
-    # Publish the signed inventory beside the ZIP. The client ZIP intentionally
-    # contains OmniGhost.exe and the dependency notices; package SHA-256 and
-    # Authenticode authenticate the executable and the signed inventory.
+
+
+
     $ArtifactInstallManifest = Join-Path $ArtifactOutputDir 'install-manifest.sha256'
     $ArtifactInstallManifestSignature = Join-Path $ArtifactOutputDir 'install-manifest.sha256.sig'
     $ArtifactSbom = Join-Path $ArtifactOutputDir 'SBOM.cdx.json'
@@ -477,8 +477,8 @@ try {
         Copy-Item -LiteralPath $InstallManifestSignaturePath -Destination $ArtifactInstallManifestSignature -Force
     }
 
-    # Release policy comes from config\release\release-publish.json, never from a stale update.json.
-    # This prevents an old mandatory flag/channel from silently leaking into a new package.
+
+
     $MinimumSupportedVersion = if ($null -ne $PublishSettings -and $PublishSettings.minimumSupportedVersion) { [string]$PublishSettings.minimumSupportedVersion } else { '1.0.0' }
     $Mandatory = if ($null -ne $PublishSettings -and $null -ne $PublishSettings.defaultMandatory) { [bool]$PublishSettings.defaultMandatory } else { $false }
     $MandatoryReason = if ($null -ne $PublishSettings -and $PublishSettings.mandatoryReason) { [string]$PublishSettings.mandatoryReason } else { '' }
@@ -561,8 +561,8 @@ try {
                 ProjectDir = $ProjectDir
                 Version = $Version
                 OutputDir = $ArtifactOutputDir
-                # Publishing must not modify tracked source files. The release
-                # changelog and notes live in the validated artifact directory.
+
+
                 SkipRootChangelog = $true
             }
             if (-not [string]::IsNullOrWhiteSpace($SemanticAnalysisPath) -and
@@ -594,8 +594,8 @@ try {
     }
     Write-ReleaseLog 'Changelog e notas validados.'
 
-    # Hash only completed release assets. The executable was signed before ZIP creation.
-    # SHA256SUMS.txt deliberately excludes itself to avoid a circular hash.
+
+
     $SumNames = @('OmniGhost.zip','update.json','install-manifest.sha256',
         'SBOM.cdx.json','changelog.json','release-notes.md','release-meta.json')
     if ($Commercial) { $SumNames += @('update.json.sig','install-manifest.sha256.sig') }
@@ -661,7 +661,7 @@ try {
     Assert-CopyMatches -Source $ArtifactZip -Destination $DownloadsZipPath
     Write-ReleaseLog "ZIP final copiado para as Transferências: $DownloadsZipPath"
 
-    # Version is read-only during Package. Version changes are an explicit developer action.
+
 
     if ($PublishBuild) {
         Write-ReleaseLog 'Fase Package concluida. O orquestrador Publish pode agora executar a operacao remota.'
@@ -694,13 +694,13 @@ catch {
     catch {
         Write-ReleaseLog -Level WARN -Message "Não foi possível restaurar todos os artefactos anteriores: $($_.Exception.Message)"
     }
-    # Packaging never mutates version/source, therefore it must never roll source files back.
+
     throw
 }
 finally {
     Remove-Item -LiteralPath $StageDir -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $TransactionBackupDir -Recurse -Force -ErrorAction SilentlyContinue
-    # A fase Package preserva sempre os artefactos locais para validação/publicação posterior.
+
 }
 
 return

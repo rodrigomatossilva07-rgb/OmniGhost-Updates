@@ -5,7 +5,7 @@
 namespace CS2 {
 
 struct Config : OmniGhost::Gameplay::EspConfigBase {
-    // CS2-specific additions
+
     int box_style = 0;
     bool vsync = false;
     bool self_esp = false;
@@ -40,7 +40,7 @@ struct Config : OmniGhost::Gameplay::EspConfigBase {
     float radar_2d_size = 160.f;
     bool hotkey_overlay = false;
     bool panic_key_enabled = true;
-    int panic_key = 0x23; // END
+    int panic_key = 0x23;
     bool stream_proof = false;
     bool show_makcu_status = true;
     int max_entities = 32;
@@ -49,61 +49,61 @@ struct Config : OmniGhost::Gameplay::EspConfigBase {
     bool auto_dump_on_mismatch = true;
     char server_config_key[64] = {};
 
-    // Aim
+
     bool aim_enabled = false;
     bool aim_draw_fov = true;
     bool aim_fov_rgb = false;
-    int aim_fov_style = 0; // 0 circle 1 square 2 cross
+    int aim_fov_style = 0;
     bool aim_dynamic_fov = false;
     float aim_fov = 80.f;
     float aim_fov_min = 25.f;
-    float aim_smooth = 12.f; // 0 = instant snap, 100 = no pull
+    float aim_smooth = 12.f;
     float aim_max_dist = 150.f;
-    int aim_bone = 0; // aim_point: 0 Head, 1 Neck, 2 Chest, 3 Stomach
-    int aim_bind = 0x02;   // RMB by default; configurable in the aim page
-    int aim_bind2 = 0;     // legacy secondary binding
-    int aim_bind3 = 0;     // optional
+    int aim_bone = 0;
+    int aim_bind = 0x02;
+    int aim_bind2 = 0;
+    int aim_bind3 = 0;
     float aim_deadzone = 2.f;
     float sticky_ms = 120.f;
     bool aim_prediction = false;
-    bool aim_humanize = false; // derived from aim_humanization > 0
-    float aim_humanization = 0.f; // 0..100 — trajectory shape only
+    bool aim_humanize = false;
+    float aim_humanization = 0.f;
     float prediction_strength = 0.35f;
     bool hit_chance_ui = false;
     float aim_switch_cooldown_ms = 90.f;
-    float aim_switch_margin = 0.16f;   // retain a valid target unless a new one is clearly better
+    float aim_switch_margin = 0.16f;
     int aim_reaction_min_ms = 30;
     int aim_reaction_max_ms = 80;
     float aim_overshoot_px = 0.55f;
     float aim_micro_jitter_px = 0.06f;
     int aim_motion_interval_ms = 6;
-    int aim_max_step = 0;              // 0 = adaptive distance profile
+    int aim_max_step = 0;
     float aim_ema_alpha = 0.40f;
     float aim_reversal_damping = 0.16f;
     bool aim_ignore_team = true;
     bool aim_ignore_spectators = false;
     bool aim_ignore_bots = true;
-    bool aim_auto_bone = false;         // fixed aim point only (head/neck/chest/stomach)
-    bool aim_visibility_check = false;  // ON: only aim at spotted targets; OFF: aim through walls (spotted-state, not raytrace)
-    bool aim_rcs_standalone = false;    // RCS without aimbot
-    bool aim_rcs_auto = true;           // auto-detect weapon & apply inverse pattern
-    float aim_rcs_x = 1.f;              // horizontal strength multiplier
-    float aim_rcs_y = 1.f;              // vertical strength multiplier
+    bool aim_auto_bone = false;
+    bool aim_visibility_check = false;
+    bool aim_rcs_standalone = false;
+    bool aim_rcs_auto = true;
+    float aim_rcs_x = 1.f;
+    float aim_rcs_y = 1.f;
     float col_fov[4] = { 0.83f, 0.69f, 0.22f, 0.45f };
 
-    // Trigger
+
     bool trigger_enabled = false;
     bool trigger_always_on = true;
-    int trigger_bind = 0x12; // ALT
+    int trigger_bind = 0x12;
     int trigger_delay_ms = 30;
     bool trigger_team_check = true;
     bool trigger_scoped_only = false;
     bool trigger_head_only = false;
-    bool trigger_use_ident = true; // prefer m_iIDEntIndex
+    bool trigger_use_ident = true;
 
-    int profile = 0; // 0 custom, 1 legit, 2 rage
+    int profile = 0;
 
-    // Config persistence
+
     bool SaveConfig(const char* name = "cs2_default");
     bool LoadConfig(const char* name = "cs2_default");
     bool SelfTestOffsets();
@@ -171,4 +171,4 @@ inline void ApplyRageProfile(Config& c) {
 
 extern Config config;
 
-} // namespace CS2
+}

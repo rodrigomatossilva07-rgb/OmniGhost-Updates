@@ -7,27 +7,27 @@
 
 namespace {
 
-// ============================================================
-// WARZONE CONFIG ADAPTER FOR UNIFIED PREVIEW
-// ============================================================
+
+
+
 
 struct WarzonePreviewAdapter : EspPreview::IConfigAdapter {
     const EspPreview::PreviewConfig& GetPreviewConfig() const override {
         static EspPreview::PreviewConfig cfg;
-        // Map Warzone config to unified preview config
+
         cfg.esp_enabled = Warzone::config.esp_enabled;
         cfg.box = Warzone::config.box;
         cfg.box_corner = Warzone::config.box_corner;
-        cfg.box_fill = false; // Warzone doesn't have box_fill
-        cfg.box_thickness = 1.8f; // Warzone doesn't have thickness config
+        cfg.box_fill = false;
+        cfg.box_thickness = 1.8f;
         cfg.box_rounding = 0.f;
 
         cfg.skeleton = Warzone::config.skeleton;
-        cfg.skeleton_joints = false; // Warzone doesn't have joints
+        cfg.skeleton_joints = false;
         cfg.skeleton_thickness = 1.8f;
 
         cfg.head_dot = Warzone::config.head_dot;
-        cfg.head_halo = false; // Warzone doesn't have halo
+        cfg.head_halo = false;
         cfg.head_circle_thickness = 1.5f;
 
         cfg.health_bar = Warzone::config.health_bar;
@@ -37,13 +37,13 @@ struct WarzonePreviewAdapter : EspPreview::IConfigAdapter {
 
         cfg.name = Warzone::config.name;
         cfg.distance = Warzone::config.distance;
-        cfg.weapon_name = false; // Warzone doesn't have weapon name
+        cfg.weapon_name = false;
         cfg.weapon_ammo = false;
         cfg.text_outline = true;
         cfg.text_outline_thickness = 1.f;
 
         cfg.snaplines = Warzone::config.snaplines;
-        cfg.snapline_position = 2; // bottom
+        cfg.snapline_position = 2;
         cfg.snapline_thickness = 1.5f;
 
         cfg.look_direction = false;
@@ -58,7 +58,7 @@ struct WarzonePreviewAdapter : EspPreview::IConfigAdapter {
         cfg.chinese_hat_scale = 1.f;
         cfg.fun_effects_scale = 1.f;
 
-        // Colors - map Warzone colors to unified
+
         for (int i = 0; i < 4; ++i) {
             cfg.col_box[i] = Warzone::config.col_enemy[i];
             cfg.col_box_corner[i] = Warzone::config.col_enemy[i];
@@ -76,7 +76,7 @@ struct WarzonePreviewAdapter : EspPreview::IConfigAdapter {
             cfg.col_trail[i] = Warzone::config.col_enemy[i];
             cfg.col_fun_effects[i] = Warzone::config.col_enemy[i];
             cfg.col_look[i] = Warzone::config.col_enemy[i];
-            cfg.col_text_outline[i] = 0.f; // black
+            cfg.col_text_outline[i] = 0.f;
             cfg.col_visible[i] = Warzone::config.col_enemy[i];
             cfg.col_occluded[i] = Warzone::config.col_enemy[i];
             cfg.col_team[i] = Warzone::config.col_team[i];
@@ -94,14 +94,14 @@ struct WarzonePreviewAdapter : EspPreview::IConfigAdapter {
         (void)rgbMode;
         (void)visibilityColors;
         (void)visibleCheck;
-        // Warzone uses single enemy color
+
         return EspPreview::ToImU32(Warzone::config.col_enemy);
     }
 };
 
 static WarzonePreviewAdapter g_warzoneAdapter;
 
-} // namespace
+}
 
 void DrawWarzoneVisuals() {
     const float full = ImGui::GetContentRegionAvail().x;
@@ -109,7 +109,7 @@ void DrawWarzoneVisuals() {
     const float previewWidth = std::clamp(full * 0.30f, CyberTheme::Px(250.f), CyberTheme::Px(310.f));
     const float controlsWidth = full - previewWidth - gap;
 
-    // ---- CONTROLS COLUMN ----
+
     ImGui::BeginChild("##wz_visual_controls", ImVec2(controlsWidth, 0), false,
         ImGuiWindowFlags_AlwaysVerticalScrollbar);
     CyberWidgets::BeginCard("FUNÇÕES ESP");
@@ -134,7 +134,7 @@ void DrawWarzoneVisuals() {
 
     ImGui::SameLine(0.f, gap);
 
-    // ---- PREVIEW + COLORS COLUMN ----
+
     ImGui::BeginChild("##wz_visual_preview", ImVec2(previewWidth, 0), false);
     CyberWidgets::BeginCard("PRÉ-VISUALIZAÇÃO DO ESP");
 

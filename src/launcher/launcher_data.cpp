@@ -89,7 +89,7 @@ constexpr GameDefinition kGames[] = {
         "resources/games/apex/banner.png",
         "0.1.0",
         true,
-        false,
+        true,
         { 40, 12, 14 },
         { 14, 4, 6 },
         { 218, 41, 42 },
@@ -104,14 +104,14 @@ constexpr GameDefinition kGames[] = {
         "resources/games/fortnite/logo.png",
         "resources/games/fortnite/banner.png",
         "Beta",
-        false, // launchable — visual menu + DMA attach (no ESP/aim yet)
+        false,
         false,
         { 14, 18, 42 }, { 6, 8, 20 }, { 120, 170, 255 },
         "F", "launcher.game.fortnite.tagline"
     }
 };
 
-// Historical numeric IDs remain stable for saved launcher session data.
+
 static_assert(std::size(kGames) == static_cast<std::size_t>(GameId::Count) - 2,
               "GameId and launcher catalogue must be updated together");
 
@@ -153,8 +153,8 @@ void SaveLauncherState() {
     const fs::path path = StatePath();
     std::error_code error;
     fs::create_directories(path.parent_path(), error);
-    
-    // Write to temporary file first
+
+
     const fs::path temporary = path.wstring() + L".tmp";
     {
         std::ofstream file(temporary, std::ios::binary | std::ios::trunc);
@@ -191,21 +191,21 @@ void SaveLauncherState() {
             return;
         }
     }
-    
-    // Atomic replace with backup
+
+
     const fs::path backup = path.wstring() + L".bak";
     if (fs::exists(path, error)) {
         fs::copy_file(path, backup, fs::copy_options::overwrite_existing, error);
     }
-    
+
     if (MoveFileExW(temporary.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
-        // Success - remove backup
+
         std::error_code cleanupError;
         fs::remove(backup, cleanupError);
         return;
     }
-    
-    // Restore from backup on failure
+
+
     std::error_code restoreError;
     if (fs::exists(backup, restoreError)) {
         fs::copy_file(backup, path, fs::copy_options::overwrite_existing, restoreError);
@@ -220,7 +220,7 @@ std::uint64_t UnixNow() {
         std::chrono::system_clock::now().time_since_epoch()).count());
 }
 
-} // namespace
+}
 
 const GameDefinition* Games(std::size_t& count) {
     count = std::size(kGames);
@@ -285,7 +285,7 @@ void LoadLauncherState() {
 
     std::ifstream file(StatePath());
     std::string line;
-    unsigned loadedSchema = 1; // legacy files had no explicit version
+    unsigned loadedSchema = 1;
     while (file && std::getline(file, line)) {
         if (line.rfind("schema=", 0) == 0) {
             try {
@@ -368,12 +368,12 @@ void LoadLauncherState() {
                     history.lastSessionSeconds = c;
                 }
             } catch (...) {
-                // Ignore a damaged entry while retaining the rest of the state.
+
             }
         }
     }
-    // Unknown newer schemas keep recognized keys but are never rewritten just
-    // by loading. Mutating an item writes the current normalized schema.
+
+
     (void)loadedSchema;
     g_state_loaded = true;
 }
@@ -501,4 +501,4 @@ void ForgetLastPlayedGame() {
     SaveLauncherState();
 }
 
-} // namespace Launcher
+}

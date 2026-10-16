@@ -114,7 +114,7 @@ std::vector<std::uint8_t> BuildWave(SoundEvent event, float volumePercent) {
     return wave;
 }
 
-} // namespace
+}
 
 void Initialize() noexcept {
     std::scoped_lock lock(g_audioMutex);
@@ -143,8 +143,8 @@ void Play(SoundEvent event) noexcept {
             return;
         g_lastPlayed[index] = now;
 
-        // PlaySound replaces the previous asynchronous memory sound. Stop it
-        // before replacing its backing storage so the pointer never dangles.
+
+
         ::PlaySoundW(nullptr, nullptr, 0);
         g_activeWave = BuildWave(event, app_settings::config.ui_sound_volume);
         if (!g_activeWave.empty())
@@ -152,7 +152,7 @@ void Play(SoundEvent event) noexcept {
                          SND_ASYNC | SND_MEMORY | SND_NODEFAULT);
     }
     catch (...) {
-        // UI feedback is optional and must never affect input or rendering.
+
         ::OutputDebugStringW(L"OmniGhost: UI sound synthesis failed.\n");
     }
 }
@@ -166,4 +166,4 @@ void PlayStartupOnce() noexcept {
     Play(SoundEvent::Startup);
 }
 
-} // namespace OmniGhost::UiFeedback
+}

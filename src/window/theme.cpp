@@ -312,7 +312,7 @@ namespace CyberTheme {
         Metrics::SearchHeight = kBaseSearchHeight * scale;
         Metrics::LogoSize = kBaseLogoSize * scale;
         Metrics::SidebarItemHeight = kBaseSidebarItemHeight * scale;
-        Metrics::CardMinHeight = 0.0f; // content-sized
+        Metrics::CardMinHeight = 0.0f;
         Metrics::PageTransitionSeconds = g_reduced_motion ? 0.0f : 0.20f;
 
         if (ImGui::GetCurrentContext())
@@ -522,9 +522,9 @@ namespace CyberTheme {
 
     bool DeserializeTheme(const std::string& json, std::string* error) {
         try {
-            // Theme packs are data only.  Keep the parser deliberately small
-            // and bounded so a Marketplace download can never become a code
-            // execution or resource-exhaustion path.
+
+
+
             if (json.empty() || json.size() > 64u * 1024u) {
                 if (error) *error = "Theme pack must be between 1 byte and 64 KiB";
                 return false;
@@ -681,4 +681,4 @@ namespace CyberTheme {
         }
     }
 
-} // namespace CyberTheme
+}

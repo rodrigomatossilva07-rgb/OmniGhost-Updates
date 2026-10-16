@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [Parameter(Mandatory=$true)]
     [string]$ProjectDir,
@@ -13,7 +13,7 @@ Set-StrictMode -Version Latest
 $ProjectDir = [IO.Path]::GetFullPath($ProjectDir)
 $Configuration = ($Configuration -replace '[^A-Za-z0-9_.-]', '_')
 $Platform = ($Platform -replace '[^A-Za-z0-9_.-]', '_')
-$privateStatic = $Configuration -ieq 'PrivateStatic'  # Publish uses delay-loaded vmm.dll/leechcore.dll (UC-base path)
+$privateStatic = $Configuration -ieq 'PrivateStatic'
 $GeneratedDir = Join-Path $ProjectDir ".cache\generated\$Configuration\$Platform"
 $RcOutput = Join-Path $GeneratedDir 'embedded_runtime.rc2'
 $HeaderOutput = Join-Path $GeneratedDir 'embedded_runtime_manifest.h'
@@ -46,9 +46,9 @@ function Add-RuntimeFile([string]$Source, [string]$Relative) {
     if ([string]::IsNullOrWhiteSpace($relativePath) -or $relativePath.Contains('../')) {
         throw "Invalid embedded runtime path: $Relative"
     }
-    # In the explicitly private prototype these two libraries are linked from
-    # their preserved upstream source trees. Do not leave dead DLL resources in
-    # the PE and do not materialize them at runtime.
+
+
+
     if ($privateStatic -and $relativePath -ieq 'libs/vmm.dll') { return }
     if ($privateStatic -and $relativePath -ieq 'libs/leechcore.dll') { return }
     $files[$relativePath.ToLowerInvariant()] = [pscustomobject]@{
@@ -66,7 +66,7 @@ function Add-RuntimeTree([string]$Root, [string]$Prefix, [scriptblock]$Include =
     }
 }
 
-# Primary source: ProjectDir\libs\*.dll (includes FTD3XX.dll / FTD3XXWU.dll when present)
+
 $libsDir = Join-Path $ProjectDir 'libs'
 $libsEmbedded = @()
 if (Test-Path -LiteralPath $libsDir -PathType Container) {
@@ -76,7 +76,7 @@ if (Test-Path -LiteralPath $libsDir -PathType Container) {
     }
 }
 
-# Secondary: third_party\dma_stack\bin\*.dll (also mapped to libs/<name>)
+
 $dmaBin = Join-Path $ProjectDir 'third_party\dma_stack\bin'
 $dmaEmbedded = @()
 if (Test-Path -LiteralPath $dmaBin -PathType Container) {
@@ -93,13 +93,13 @@ if (-not $hasFtdi) {
 } else {
     Write-Host "[EmbeddedRuntime] FTDI: $($hasFtdi -join ', ')"
 }
-# The current pinned vmm.dll, leechcore.dll and pdbcrust.dll import only
-# VCRUNTIME140.dll from the private Microsoft VC runtime. Do not embed the
-# complete redistributable directory: msvcp/concrt/vccorlib and the auxiliary
-# vcruntime variants are not in the dependency closure of any bundled binary.
-# Keep this allow-list deliberately explicit so a dependency update cannot
-# silently grow the customer runtime again; Validate-Project.ps1/import-table
-# checks must be updated together when the pinned binaries change.
+
+
+
+
+
+
+
 if (-not [string]::IsNullOrWhiteSpace($VcToolsRedistDir) -and
     (Test-Path -LiteralPath $VcToolsRedistDir -PathType Container)) {
     $crt = Get-ChildItem -LiteralPath $VcToolsRedistDir -Directory -Filter 'Microsoft.VC*.CRT' -ErrorAction SilentlyContinue |
@@ -121,10 +121,10 @@ if ((Get-Sha256Hex $cloudflared) -cne $expectedCloudflaredSha256) {
     throw 'cloudflared.exe nao corresponde ao binario Cloudflare 2026.8.2 aprovado.'
 }
 Add-RuntimeFile $cloudflared 'libs/cloudflared.exe'
-# Only native DLLs and the selected pdbcrust symbol backend are materialized.
-# OmniGhost builds VMM with -disable-infodb, so info.db is not part of the bundle.
-# Windows cannot load ordinary DLL imports or execute cloudflared from RCDATA.
-# Product data, plug-in scripts and UI resources are deliberately not extracted.
+
+
+
+
 
 $ordered = @($files.Values | Sort-Object Relative)
 if ($ordered.Count -eq 0) { throw 'No files were selected for the embedded runtime bundle.' }
@@ -152,7 +152,7 @@ foreach ($file in Get-ChildItem -LiteralPath (Join-Path $ProjectDir 'libs') -Fil
         $skippedList += "$relativePath (from libs/)"
     }
 }
-# Add cloudflared and vcruntime to embedded list
+
 if ($files.ContainsKey('libs/cloudflared.exe')) { $embeddedList += 'libs/cloudflared.exe' }
 if ($files.ContainsKey('libs/vcruntime140.dll')) { $embeddedList += 'libs/vcruntime140.dll' }
 if ($privateStatic) {

@@ -92,14 +92,14 @@ struct Diagnostics {
                                    std::string_view expectedCl,
                                    std::string_view expectedModule) noexcept;
 
-// Pure parser used by the resource loader and unit tests. It never touches disk.
-// ByteView keeps the implementation compatible with the main project's C++17 toolchain.
+
+
 [[nodiscard]] bool ParseEmbeddedOffsetBlob(ByteView blob,
                                            Game expectedGame,
                                            Snapshot& snapshot,
                                            Diagnostics& diagnostics);
 
-// Loads RCDATA from the current executable and parses it entirely in memory.
+
 [[nodiscard]] bool Load(Game game, Snapshot& snapshot, Diagnostics& diagnostics);
 
-} // namespace OmniGhost::EmbeddedOffsets
+}

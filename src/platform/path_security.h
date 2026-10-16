@@ -53,8 +53,8 @@ namespace OmniGhost::Platform {
     if (target.empty() || target.front() != '/')
         return false;
 
-    // Deliberately reject encoded paths. This keeps the static-file policy simple and
-    // prevents alternative encodings from bypassing the lexical checks below.
+
+
     if (target.find('%') != std::string_view::npos ||
         target.find('\\') != std::string_view::npos ||
         target.find(':') != std::string_view::npos ||
@@ -68,4 +68,4 @@ namespace OmniGhost::Platform {
     return true;
 }
 
-} // namespace OmniGhost::Platform
+}

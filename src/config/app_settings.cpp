@@ -47,28 +47,28 @@ namespace app_settings {
             result.success = true;
 
             if (fromVersion < 2) {
-                // v1 -> v2 migration: add schema_version field, ensure all fields have defaults
+
                 result.wasMigrated = true;
                 cfg.schema_version = 2;
 
-                // v1 didn't have some fields, ensure they have sensible defaults
-                // The defaults in the struct definition handle this
+
+
             }
 
             if (fromVersion < 3) {
-                // Until schema v3 the product default was Portuguese, and the
-                // settings file did not record whether that value was an
-                // explicit user choice. Move old defaults to the new English
-                // first-run language once; future selections are persisted as
-                // normal schema-v3 settings.
+
+
+
+
+
                 result.wasMigrated = true;
                 cfg.schema_version = 3;
                 cfg.language = Language::EN;
             }
 
             if (fromVersion < 4) {
-                // v4 adds local, non-identifying UI audio preferences. The
-                // Config defaults are intentionally conservative.
+
+
                 result.wasMigrated = true;
                 cfg.schema_version = 4;
             }
@@ -131,22 +131,23 @@ namespace app_settings {
         void Clamp(Config& value)
         {
             bool wasClamped = false;
-            
+
             value.language = static_cast<Language>(ClampValue(static_cast<int>(value.language), 0, 5, "language", wasClamped));
             value.start_behavior = static_cast<StartBehavior>(ClampValue(static_cast<int>(value.start_behavior), 0, 2, "start_behavior", wasClamped));
             value.minimize_behavior = static_cast<MinimizeBehavior>(ClampValue(static_cast<int>(value.minimize_behavior), 0, 1, "minimize_behavior", wasClamped));
             value.close_behavior = static_cast<CloseBehavior>(ClampValue(static_cast<int>(value.close_behavior), 0, 1, "close_behavior", wasClamped));
-            value.update_channel = static_cast<UpdateChannel>(ClampValue(static_cast<int>(value.update_channel), 0, 1, "update_channel", wasClamped));
+            value.update_channel = static_cast<UpdateChannel>(ClampValue(static_cast<int>(value.update_channel), 0, 2, "update_channel", wasClamped)); // CFG-010: Development (2) reachable
             value.ui_scale = ClampValue(value.ui_scale, 0.75f, 2.50f, "ui_scale", wasClamped);
             value.monitor_index = ClampValue(value.monitor_index, -1, 15, "monitor_index", wasClamped);
             value.black_level = ClampValue(value.black_level, 0.0f, 100.0f, "black_level", wasClamped);
-            // The launcher identity always uses the complete digital-rain scene.
-            // Keep the legacy fields serialized for backwards compatibility, but
-            // never allow an imported/older profile to weaken or disable it.
-            value.digital_rain_level = EffectLevel::Subtle;
+
+
+            // CFG-010 Fix: respect the user's digital_rain choice instead of
+            // forcing Subtle/true on every save/load cycle.
+            value.digital_rain_level = static_cast<EffectLevel>(ClampValue(static_cast<int>(value.digital_rain_level), 0, 2, "digital_rain_level", wasClamped));
             value.animation_intensity = static_cast<EffectLevel>(ClampValue(static_cast<int>(value.animation_intensity), 0, 2, "animation_intensity", wasClamped));
             value.ui_sound_volume = ClampValue(value.ui_sound_volume, 0.0f, 100.0f, "ui_sound_volume", wasClamped);
-            value.matrix_rain = true;
+            value.matrix_rain = value.digital_rain_level != EffectLevel::Off;
             value.black_background = value.black_level > 0.5f;
             value.menu_bind = ClampValue(value.menu_bind, 0, 255, "menu_bind", wasClamped);
             value.hotkey_esp = ClampValue(value.hotkey_esp, 0, 255, "hotkey_esp", wasClamped);
@@ -161,7 +162,7 @@ namespace app_settings {
             value.overlay_custom_rect.top = ClampValue(value.overlay_custom_rect.top, static_cast<decltype(value.overlay_custom_rect.top)>(-10000), static_cast<decltype(value.overlay_custom_rect.top)>(10000), "overlay_custom_rect.top", wasClamped);
             value.overlay_custom_rect.right = ClampValue(value.overlay_custom_rect.right, static_cast<decltype(value.overlay_custom_rect.right)>(-10000), static_cast<decltype(value.overlay_custom_rect.right)>(10000), "overlay_custom_rect.right", wasClamped);
             value.overlay_custom_rect.bottom = ClampValue(value.overlay_custom_rect.bottom, static_cast<decltype(value.overlay_custom_rect.bottom)>(-10000), static_cast<decltype(value.overlay_custom_rect.bottom)>(10000), "overlay_custom_rect.bottom", wasClamped);
-            
+
             if (wasClamped) {
                 OmniGhost::SessionLog::Write(
                     OmniGhost::SessionLog::Severity::Info,
@@ -215,7 +216,7 @@ namespace app_settings {
             out << "updates.auto_check=" << (value.update_auto_check ? 1 : 0) << '\n';
             out << "updates.auto_download=" << (value.update_auto_download ? 1 : 0) << '\n';
             out << "updates.install_on_exit=" << (value.update_install_on_exit ? 1 : 0) << '\n';
-            // Advanced values are persisted, but the Advanced panel itself is never auto-opened.
+
             out << "advanced.performance_mode=" << (value.performance_mode ? 1 : 0) << '\n';
             out << "advanced.auto_performance=" << (value.auto_performance ? 1 : 0) << '\n';
             out << "advanced.snow=" << (value.snow_effect ? 1 : 0) << '\n';
@@ -305,7 +306,7 @@ namespace app_settings {
                 else if (key == "onboarding.license_accepted") parsed.license_accepted = ParseBool(value, parsed.license_accepted);
                 else if (key == "onboarding.last_game") parsed.last_selected_game = ParseInt(value, parsed.last_selected_game);
                 else if (key == "onboarding.changelog_viewed") parsed.changelog_last_viewed = value;
-                // Unknown keys are silently ignored for forward compatibility
+
             }
 
             if (schema < kMinimumSupportedSchema || schema > kGlobalSettingsSchema) {
@@ -313,7 +314,7 @@ namespace app_settings {
                 return false;
             }
 
-            // Run schema migrations if needed
+
             if (schema < kGlobalSettingsSchema) {
                 auto migrationResult = MigrateSchema(parsed, schema);
                 if (!migrationResult.success) {
@@ -533,7 +534,7 @@ namespace app_settings {
     }
 
     float DigitalRainDensity() {
-        // Keep rain present but much lighter (≈40% of previous full density).
+
         switch (config.digital_rain_level) {
         case EffectLevel::Off: return 0.0f;
         case EffectLevel::Subtle: return 0.22f;
@@ -583,4 +584,4 @@ namespace app_settings {
         return en;
     }
 
-} // namespace app_settings
+}

@@ -36,7 +36,7 @@ std::atomic_bool ready{false};
 std::string status = "Warzone idle";
 std::atomic_bool backend_busy{false};
 
-// Defined later; acquisition thread calls this each core tick.
+
 void AcquisitionTick();
 
 namespace {
@@ -71,7 +71,7 @@ bool LooksLikeMatrix(const float* m) {
     return finite >= 6;
 }
 
-// ── Camera / Core pipeline (CS2-style) ──────────────────────────────────
+
 struct CameraSnapshot {
     float view_matrix[16]{};
     uint64_t sample_ms = 0;
@@ -85,11 +85,11 @@ struct CameraSnapshot {
 OmniGhost::Gameplay::SnapshotExchange<Runtime, 4> g_runtime_snapshots;
 OmniGhost::Gameplay::SnapshotExchange<CameraSnapshot, 3> g_camera_snapshots;
 
-// P1 fix: exclusive ownership — the acquisition thread writes ONLY
-// g_acq_runtime; the render thread writes ONLY the public `runtime` global
-// (merged from leases). No cross-thread shared struct anymore.
+
+
+
 static Runtime g_acq_runtime{};
-// module_base handoff for the camera lane (acq thread publishes, camera reads).
+
 static std::atomic<uintptr_t> g_wz_module_base{0};
 
 std::atomic_bool g_pipeline_stop{false};
@@ -114,7 +114,7 @@ void CameraLoop() {
     mem.SetDmaLane("warzone-camera");
     mem.SetDmaPriority(Memory::DmaPri::Camera);
     VMMDLL_SCATTER_HANDLE camScatter = nullptr;
-    uint64_t nextCameraMs = 0; // anchored deadline (no drift)
+    uint64_t nextCameraMs = 0;
     std::array<std::array<float, 16>, 12> history{};
     std::array<uint64_t, 12> historyMs{};
     unsigned historyCount = 0;
@@ -176,9 +176,9 @@ void CameraLoop() {
             }
         }
         g_camera_pending.store(false, std::memory_order_release);
-        nextCameraMs += kPeriodMs; // anchored: stable cadence, no drift
+        nextCameraMs += kPeriodMs;
         if (nextCameraMs <= GetTickCount64())
-            nextCameraMs = GetTickCount64() + 1u; // retry promptly after an overrun
+            nextCameraMs = GetTickCount64() + 1u;
     }
     if (camScatter) {
         mem.CloseScatterHandle(camScatter);
@@ -230,12 +230,31 @@ void EnsurePipelineStarted() {
         return;
     g_pipeline_stop.store(false, std::memory_order_release);
     OmniGhost::Platform::ResourceTracker::Instance().SetBaseline();
-    // Seed the acquisition-owned runtime before any worker touches it, and
-    // hand the module context to the camera lane.
+
+
     g_acq_runtime = runtime;
     g_wz_module_base.store(g_acq_runtime.module_base, std::memory_order_release);
     g_camera_thread = std::thread(CameraLoop);
     g_acquisition_thread = std::thread(AcquisitionLoop);
+}
+
+// WZ-005 Fix: the acquisition thread read `Warzone::config` (plain struct
+// written by the UI thread) directly — a C++ data race. RunFrame() publishes
+// the only flags the acquisition lane needs as a packed atomic bitmask.
+enum AcqNeedBits : uint32_t {
+    kAcqNeedSkeleton = 1u << 0,
+    kAcqNeedPlayers = 1u << 1
+};
+std::atomic<uint32_t> g_acq_need_bits{0};
+
+uint32_t ComputeAcqNeedBits(const Config& c) {
+    uint32_t bits = 0;
+    if (c.skeleton)
+        bits |= kAcqNeedSkeleton;
+    if (c.esp_enabled || c.skeleton || c.aim_enabled || c.trigger_enabled ||
+        c.radar_2d || c.player_list_enabled)
+        bits |= kAcqNeedPlayers;
+    return bits;
 }
 
 void StopPipeline() {
@@ -249,7 +268,7 @@ void StopPipeline() {
     g_camera_pending.store(false, std::memory_order_release);
 }
 
-} // namespace
+}
 
 namespace {
 
@@ -408,7 +427,7 @@ bool LoadOffsetsFromExternalJson(const char* path) {
 }
 #endif
 
-} // namespace
+}
 
 bool LoadOffsetsFromJson(const char* path) {
 #if defined(OMNIGHOST_DEV_EXTERNAL_OFFSETS)
@@ -471,7 +490,7 @@ bool Attach() {
     runtime = {};
     status = "Warzone: a abrir DMA...";
 
-    // Device first (same as FiveM/CS2)
+
     if (!mem.Init(std::string(), true, false)) {
         status = "Warzone: falha FPGA/DMA";
         std::cout << "[Warzone] " << status << std::endl;
@@ -480,7 +499,7 @@ bool Attach() {
     }
     std::cout << "[Warzone] DMA device OK" << std::endl;
 
-    // Canonical CoD process names (avoid duplicate case variants that double the FixCr3 cost)
+
     static const char* kNames[] = { "cod.exe", "ModernWarfare.exe", "iw8_ship.exe", "COD.exe", nullptr };
 
     DWORD found_pid = 0;
@@ -501,16 +520,16 @@ bool Attach() {
         ready = false;
         runtime.decrypt_needed = true;
         std::snprintf(runtime.status, sizeof(runtime.status), "%s", status.c_str());
-        return false; // Not ready - process not found
+        return false;
     }
 
-    // PID exists — attempt full bind (FixCr3 + MZ). Distinguish "not found" from "CR3/MZ fail".
+
     bool attached = false;
     if (mem.Init(found_name, false, false)) {
         attached = true;
         std::cout << "[Warzone] Anexado a " << found_name << " pid=" << found_pid << std::endl;
     } else {
-        // One more try with alternate casing only if primary failed
+
         if (found_name && _stricmp(found_name, "cod.exe") == 0) {
             if (mem.Init("COD.exe", false, false)) {
                 attached = true;
@@ -532,7 +551,7 @@ bool Attach() {
         runtime.decrypt_needed = true;
         runtime.last_bind_attempt_ms = GetTickCount64();
         std::snprintf(runtime.status, sizeof(runtime.status), "%s", status.c_str());
-        return false; // Not ready - CR3/MZ validation failed
+        return false;
     }
 
     runtime.module_base = mem.GetBaseDaddy(found_name ? found_name : "cod.exe");
@@ -555,8 +574,8 @@ bool Attach() {
 #endif
     }
 
-    // Quick MZ/base validation. Getting a valid module base is only the attach stage;
-    // the next stage is validating that the shipped offsets actually read sensible data.
+
+
     bool module_mz_ok = false;
     size_t module_size = 0;
     if (runtime.module_base) {
@@ -567,7 +586,7 @@ bool Attach() {
             if (!module_size) module_size = mem.GetBaseSize("cod.exe");
             std::cout << "[Warzone] Module base OK 0x" << std::hex << runtime.module_base
                       << " size=0x" << module_size << std::dec << std::endl;
-            // PE TimeDateStamp — must match offsets.timestamp (Steam 0x6A6D4AEF) or decrypt RVAs are stale.
+
             uint32_t pe_ts = 0;
             uint32_t e_lfanew = 0;
             if (mem.Read(runtime.module_base + 0x3C, &e_lfanew, sizeof(e_lfanew)) &&
@@ -605,9 +624,9 @@ bool Attach() {
         }
     }
 
-    // This backend currently has the attach/base and raw offset probes wired, but the
-    // encrypted entity/client layout is intentionally reported as a separate stage.
-    // Do not make a valid module base look like a hang.
+
+
+
     runtime.decrypt_needed = offsets.entity_list != 0 || offsets.client_info != 0 || offsets.client_base != 0;
     ready = true;
     runtime.last_bind_attempt_ms = GetTickCount64();
@@ -650,11 +669,11 @@ bool Attach() {
               << std::endl;
 
     backend_busy = false;
-    return ready; // Only return true if actually ready
+    return ready;
 }
 
 bool InitializeMenuShell() {
-    // Prefer real attach when called from launcher
+
     return Attach();
 }
 
@@ -666,8 +685,8 @@ bool IsGameProcessAlive() {
 }
 
 
-// Lobby-safe: module base is MZ and view_matrix RVA sits inside the image.
-// Full matrix validity may wait for a match — that is NOT treated as outdated offsets.
+
+
 bool SoftProbeLobbyOffsets() {
     if (!ready || !runtime.module_base) {
         std::cout << "[Warzone] SoftProbe: module not ready\n";
@@ -682,13 +701,13 @@ bool SoftProbeLobbyOffsets() {
         std::cout << "[Warzone] SoftProbe: view_matrix RVA=0\n";
         return false;
     }
-    // PE SizeOfImage
+
     uint32_t pe_off = 0, size = 0;
     mem.Read(runtime.module_base + 0x3C, &pe_off, sizeof(pe_off));
     if (pe_off && pe_off < 0x1000)
         mem.Read(runtime.module_base + pe_off + 0x50, &size, sizeof(size));
     const bool in_image = !size || (offsets.view_matrix < size);
-    // Readable slot (may be zeros in lobby)
+
     float vm[16]{};
     const bool readable = mem.Read(runtime.module_base + offsets.view_matrix, vm, sizeof(vm));
     const bool ok = in_image && readable;
@@ -699,7 +718,7 @@ bool SoftProbeLobbyOffsets() {
 }
 
 bool ValidateLiveOffsets() {
-    // Use soft probe for lobby-safe validation; if that passes, offsets are not outdated.
+
     return SoftProbeLobbyOffsets();
 }
 
@@ -707,8 +726,8 @@ void AcquisitionTick() {
     if (!ready) return;
     ++g_acq_runtime.frames;
 
-    // Retry bind only on cooldown. FixCr3 + procinfo costs ~3s; never spam every 60 frames.
-    // Cooldown grows with consecutive failures so the menu stays responsive.
+
+
     if (!g_acq_runtime.module_base) {
         const uint64_t now = GetTickCount64();
         const uint64_t cooldown_ms = 4000ull + (uint64_t)(std::min)(g_acq_runtime.bind_fail_count, 8) * 1500ull;
@@ -732,7 +751,11 @@ void AcquisitionTick() {
                     if (!g_acq_runtime.module_base) g_acq_runtime.module_base = mem.GetBaseDaddy("COD.exe");
                     if (!g_acq_runtime.module_base) g_acq_runtime.module_base = mem.GetBaseDaddy("ModernWarfare.exe");
                     g_acq_runtime.bind_fail_count = 0;
-                    // Hand the new context to the camera lane.
+
+                    // WZ-008e Fix: a module (re-)bind is a new process epoch.
+                    // Bump it so decrypt caches and the presentation copy reset
+                    // instead of surviving stale data from the previous bind.
+                    g_pipeline_epoch.fetch_add(1, std::memory_order_acq_rel);
                     g_wz_module_base.store(g_acq_runtime.module_base,
                         std::memory_order_release);
                     std::cout << "[Warzone] Process bind late base=0x" << std::hex
@@ -763,9 +786,9 @@ void AcquisitionTick() {
         return;
     }
 
-    // --- Performance pipeline (CS2/FiveM style) ---
-    // Matrix: every frame (cheap single read).
-    // Decrypt + player enum: every N frames via scatter, keep last good list between refreshes.
+
+
+
     static DecryptState s_dec{};
     static bool s_dec_ok = false;
     static uint64_t s_dec_generation = 0;
@@ -777,8 +800,8 @@ void AcquisitionTick() {
     static uint64_t s_cached_world_sample_ms = 0;
 
     g_acq_runtime.matrix_ok = false;
-    // Camera lane owns view-matrix sampling. Reuse its published snapshot
-    // instead of issuing a duplicate DMA read every acquisition cycle.
+
+
     if (auto cam = g_camera_snapshots.Acquire(); cam && cam->ok &&
         cam->module_base == g_acq_runtime.module_base && cam->sample_ms &&
         GetTickCount64() >= cam->sample_ms && GetTickCount64() - cam->sample_ms <= 100u) {
@@ -789,13 +812,20 @@ void AcquisitionTick() {
     const bool matrix_read_ok = g_acq_runtime.matrix_ok;
 
     const uint64_t now_ms = GetTickCount64();
-    // Lobby: refresh every 250ms. In-match with clients: every 50ms (~20Hz).
-    const uint64_t enum_interval_ms = s_dec.client_base_ok ? 50ull : 250ull;
+
+    // WZ-004/WZ-005 Fix: gate the enumeration cadence on the published need
+    // bits (no more full 20 Hz player scans with every feature OFF) and stop
+    // reading `config` directly on this thread.
+    const uint32_t needBits = g_acq_need_bits.load(std::memory_order_acquire);
+    const bool needPlayers = (needBits & kAcqNeedPlayers) != 0;
+    const uint64_t enum_interval_ms = !needPlayers
+        ? 1000ull // keep-alive liveness probe only
+        : (s_dec.client_base_ok ? 50ull : 250ull);
     const bool need_enum = (s_last_enum_ms == 0) || (now_ms - s_last_enum_ms >= enum_interval_ms);
 
     if (need_enum) {
         s_last_enum_ms = now_ms;
-        // P2-7: Only re-run decrypt if state is invalid or session generation changed
+
         const uint64_t currentGen = g_pipeline_epoch.load(std::memory_order_acquire);
         if (!s_dec_ok || s_dec_generation != currentGen) {
             s_dec = {};
@@ -803,7 +833,7 @@ void AcquisitionTick() {
             s_dec_generation = currentGen;
         }
         s_cached_players.clear();
-        // P1-15 fix: Reserve capacity to avoid reallocation every enum cycle
+
         const int max_slots = s_dec.client_base_ok ? 120 : 64;
         s_cached_players.reserve(max_slots);
 
@@ -815,7 +845,7 @@ void AcquisitionTick() {
             const uintptr_t nalive = offsets.name_entry_alive;
             const uintptr_t psize = offsets.player_size;
 
-            // Phase 1: scatter-read name entries (names + health + armor + alive)
+
             struct NameSlot {
                 char name[64]{};
                 int health = 0;
@@ -837,13 +867,13 @@ void AcquisitionTick() {
                 mem.CloseScatterHandle(h);
             }
 
-            // Phase 2: scatter-read player valid/team/pos/armor when client_base is up.
-            // The JSON-defined player.pos may be either float3 or a pointer to
-            // a data block; player.pos_data locates the floats in the latter.
+
+
+
             struct PosSlot {
                 int valid = 0;
                 int team = 0;
-                int stance = 0; // 0 stand, 1 crouch, 2 prone
+                int stance = 0;
                 float pos[3]{};
                 uintptr_t pos_ptr = 0;
                 int armor = 0;
@@ -863,13 +893,13 @@ void AcquisitionTick() {
                     mem.AddScatterReadRequest(h, player + pteam,  &poss[i].team,  sizeof(int));
                     mem.AddScatterReadRequest(h, player + pstance, &poss[i].stance, sizeof(int));
                     mem.AddScatterReadRequest(h, player + parmor, &poss[i].armor, sizeof(int));
-                    // First attempt: treat as pointer (common for this build)
+
                     mem.AddScatterReadRequest(h, player + ppos,   &poss[i].pos_ptr, sizeof(uintptr_t));
                 }
                 mem.ExecuteReadScatter(h);
                 mem.CloseScatterHandle(h);
 
-                // Second pass: resolve positions via pointer indirection, fallback to direct float3
+
                 auto h2 = mem.CreateScatterHandle();
                 std::vector<float> direct_pos(max_slots * 3, 0.f);
                 for (int i = 0; i < max_slots; ++i) {
@@ -901,7 +931,7 @@ void AcquisitionTick() {
             s_cached_players.reserve(64);
 
             for (int i = 0; i < max_slots; ++i) {
-                // sanitize name
+
                 char* nm = names[i].name;
                 for (int c = 0; c < 63 && nm[c]; ++c) {
                     if ((unsigned char)nm[c] < 32 || (unsigned char)nm[c] > 126) {
@@ -909,13 +939,13 @@ void AcquisitionTick() {
                         break;
                     }
                 }
-                // Verified players require client_base + plausible position.
-                // Name alone must NEVER enter g_acq_runtime.players.
+
+
                 if (!s_dec.client_base_ok) continue;
-                // valid flag is authoritative when non-zero; still accept strong positions
-                // if the flag layout drifts on a future build.
+
+
                 if (poss[i].valid == 0) {
-                    // skip empty slots early
+
                 }
                 const bool has_pos = std::isfinite(poss[i].pos[0]) && std::isfinite(poss[i].pos[1]) &&
                     std::isfinite(poss[i].pos[2]) &&
@@ -931,24 +961,24 @@ void AcquisitionTick() {
                 pl.pos[0] = poss[i].pos[0];
                 pl.pos[1] = poss[i].pos[1];
                 pl.pos[2] = poss[i].pos[2];
-                // Live stance → head/chest height. Fixes free-cheat bug where aim
-                // stays at standing head when the enemy crouches/prones.
-                // CoD: 0/stand, 1/crouch, 2/prone (also accept bit-ish values).
+
+
+
                 int st = poss[i].stance;
                 if (st < 0 || st > 8) st = 0;
-                pl.stance = (st >= 2) ? 2 : st; // clamp 0..2 for known range
+                pl.stance = (st >= 2) ? 2 : st;
                 float head_dz = 70.f;
                 float chest_dz = 40.f;
-                if (pl.stance == 1) { head_dz = 42.f; chest_dz = 28.f; }      // crouch
-                else if (pl.stance == 2) { head_dz = 18.f; chest_dz = 12.f; } // prone
+                if (pl.stance == 1) { head_dz = 42.f; chest_dz = 28.f; }
+                else if (pl.stance == 2) { head_dz = 18.f; chest_dz = 12.f; }
                 pl.head[0] = pl.pos[0]; pl.head[1] = pl.pos[1]; pl.head[2] = pl.pos[2] + head_dz;
                 pl.chest[0] = pl.pos[0]; pl.chest[1] = pl.pos[1]; pl.chest[2] = pl.pos[2] + chest_dz;
                 pl.team = poss[i].team;
                 if (names[i].health > 0 && names[i].health <= 200)
                     pl.health = (float)names[i].health;
                 else
-                    pl.health = 0.f; // never invent 100 HP
-                // Armor: prefer name_array, fall back to player struct
+                    pl.health = 0.f;
+
                 int armor_val = 0;
                 if (names[i].armor > 0 && names[i].armor <= 300)
                     armor_val = names[i].armor;
@@ -956,7 +986,7 @@ void AcquisitionTick() {
                     armor_val = poss[i].armor;
                 pl.armor = (float)armor_val;
                 pl.valid = true;
-                // Do not let one stale positive source override confirmed zero HP.
+
                 pl.alive = pl.health > 0.f && names[i].alive != 0;
                 pl.downed = pl.alive && pl.health > 0.f && pl.health <= 30.f;
                 pl.is_local = (s_dec.local_index >= 0 && i == s_dec.local_index);
@@ -985,33 +1015,34 @@ void AcquisitionTick() {
             }
             s_cached_local_index = s_dec.local_index;
 
-            // Phase 3: Bone acquisition for skeleton ESP (only when skeleton is enabled in config)
-            // Read bones in micro-batches with camera priority and pressure awareness
-            if (!s_cached_players.empty() && offsets.bone_array_base && offsets.bone_array_stride && config.skeleton) {
-                // LOD bone indices - matches FiveM LOD structure
-                // Full (0-30m): all 31 bones
-                // High (30-80m): 13 bones (head, neck, spine, shoulders, pelvis)
-                // Medium (80-150m): 7 bones (head, neck, spine, pelvis)
-                // Low (150m+): 1 bone (head only)
+
+
+            if (!s_cached_players.empty() && offsets.bone_array_base && offsets.bone_array_stride &&
+                (needBits & kAcqNeedSkeleton) != 0) {
+
+
+
+
+
                 static constexpr int kLodFullBones[] = {
-                    7, 6, 5, 4, 3, 2,  // head, neck, spine upper/mid/lower, pelvis
-                    13, 14, 15, 16, 17,  // left arm
-                    18, 19, 20, 21, 22,  // right arm
-                    23, 24, 25, 26,      // left leg
-                    27, 28, 29, 30       // right leg
+                    7, 6, 5, 4, 3, 2,
+                    13, 14, 15, 16, 17,
+                    18, 19, 20, 21, 22,
+                    23, 24, 25, 26,
+                    27, 28, 29, 30
                 };
                 static constexpr int kLodHighBones[] = {
-                    7, 6, 5, 4, 3, 2,  // head, neck, spine upper/mid/lower, pelvis
-                    13, 14, 18, 19     // clavicles, shoulders
+                    7, 6, 5, 4, 3, 2,
+                    13, 14, 18, 19
                 };
                 static constexpr int kLodMedBones[] = {
-                    7, 6, 5, 4, 3, 2  // head, neck, spine upper/mid/lower, pelvis
+                    7, 6, 5, 4, 3, 2
                 };
                 static constexpr int kLodLowBones[] = {
-                    7  // head only
+                    7
                 };
 
-                // Automatic LOD thresholds (meters) - hardcoded, not user-configurable
+
                 constexpr float kLodFullDist = 30.f;
                 constexpr float kLodHighDist = 80.f;
                 constexpr float kLodMedDist = 150.f;
@@ -1028,25 +1059,30 @@ void AcquisitionTick() {
                     if (std::fabs(bone[0]) + std::fabs(bone[1]) + std::fabs(bone[2]) <= 0.001f)
                         return false;
                     const float dx = bone[0] - origin[0], dy = bone[1] - origin[1], dz = bone[2] - origin[2];
-                    // More than 6.5 metres from the player cannot be part of this pose.
+
                     return dx * dx + dy * dy + dz * dz <= 256.f * 256.f;
                 };
                 static_assert(Player::kMaxBones <= 32);
 
-                // P1-3: Micro-batch bone acquisition (4 players per batch) with camera priority DURING execution
-                // Reduced batch size + yield between players allows camera to run mid-batch
+
+
                 constexpr int kBoneBatchSize = 4;
                 auto boneHandle = mem.CreateScatterHandle();
                 if (boneHandle) {
                     size_t batchStart = 0;
                     while (batchStart < s_cached_players.size()) {
-                        // Check camera priority before each batch
+
                         if (g_camera_pending.load(std::memory_order_acquire)) {
+                            // WZ-008f Fix: yield only when the camera read is
+                            // genuinely imminent (deadline within 2 ms). The
+                            // old `now + 2 >= deadline` also triggered when the
+                            // deadline was already overdue, deferring bones
+                            // indefinitely while the camera lane ran late.
                             const uint64_t deadline = g_camera_deadline_ms.load(std::memory_order_acquire);
                             const uint64_t now = GetTickCount64();
-                            if (deadline != 0 && now + 2u >= deadline) break; // defer remaining
+                            if (deadline != 0 && deadline > now && deadline - now <= 2u) break;
                         }
-                        // Pressure check - skip if high pressure
+
                         if (g_pressure_level.load(std::memory_order_relaxed) >= 3) break;
 
                         const size_t batchEnd = (std::min)(s_cached_players.size(), batchStart + kBoneBatchSize);
@@ -1058,11 +1094,11 @@ void AcquisitionTick() {
                             uintptr_t boneBase = pl.address + offsets.bone_base_pos;
                             if (!boneBase) continue;
 
-                            // Determine LOD based on distance (automatic) and build bone mask
+
                             const auto lodBones = SelectLodBones(pl.distance);
                             uint32_t boneMask = 0;
 
-                            // Build bone mask for this player's LOD
+
                             for (const int boneIdx : lodBones) {
                                 if (boneIdx < 0 || boneIdx >= Player::kMaxBones)
                                     continue;
@@ -1072,7 +1108,7 @@ void AcquisitionTick() {
                                 mem.AddScatterReadRequest(boneHandle, boneAddr, pl.bones[boneIdx], sizeof(float) * 3);
                                 batchHasRequests = true;
                             }
-                            // Store the bone mask so render knows which bones are valid
+
                             pl.bones_mask = boneMask;
                         }
 
@@ -1082,8 +1118,8 @@ void AcquisitionTick() {
                             const bool batchOk = mem.ExecuteReadScatter(boneHandle);
                             const uint64_t batchEndMs = GetTickCount64();
                             const uint64_t batchSampleMs = batchBeginMs + (batchEndMs - batchBeginMs) / 2u;
-                            
-                            // Failed requests keep their sentinel and must not get a fresh timestamp.
+
+
                             for (size_t i = batchStart; i < batchEnd; ++i) {
                                 auto& pl = s_cached_players[i];
                                 if (!pl.valid) continue;
@@ -1106,15 +1142,15 @@ void AcquisitionTick() {
                             }
                         }
                         batchStart = batchEnd;
-                        
-                        // Yield between batches to give camera a chance to run
+
+
                         if (batchStart < s_cached_players.size()) {
                             std::this_thread::yield();
                         }
                     }
                     mem.CloseScatterHandle(boneHandle);
-                    
-                    // A deferred or failed read is not a fresh pose.
+
+
                     for (auto& pl : s_cached_players) {
                         if (!pl.valid) continue;
                         if (pl.bones_sample_ms == 0)
@@ -1125,7 +1161,7 @@ void AcquisitionTick() {
         }
     }
 
-    // Publish cached list every frame (no DMA)
+
     g_acq_runtime.decrypt_ok = s_dec_ok;
     g_acq_runtime.decrypt_needed = !s_dec.client_base_ok;
     std::snprintf(g_acq_runtime.decrypt_detail, sizeof(g_acq_runtime.decrypt_detail), "%s", s_dec.detail);
@@ -1135,8 +1171,8 @@ void AcquisitionTick() {
     g_acq_runtime.players = s_cached_players;
     g_acq_runtime.player_count = (int)g_acq_runtime.players.size();
     g_acq_runtime.list_ok = g_acq_runtime.player_count > 0;
-    // World sample is the midpoint of the last successful position scatter;
-    // between enumerations positions retain their original age.
+
+
     g_acq_runtime.world_sample_ms = s_cached_world_sample_ms;
     g_acq_runtime.snapshot_timestamp_ms = GetTickCount64();
     for (auto& pl : g_acq_runtime.players) {
@@ -1154,7 +1190,7 @@ void AcquisitionTick() {
         tel.counts.entities.store(g_acq_runtime.player_count, std::memory_order_relaxed);
     }
 
-    // Count name_array candidates for diagnostics only (never as verified players)
+
     static int name_candidates = 0;
     static uint64_t nextNameProbeMs = 0;
     static uintptr_t probedNameBase = 0;
@@ -1189,7 +1225,7 @@ void AcquisitionTick() {
         probedNameBase = 0;
     }
 
-    // Lobby → match lifecycle (always probing; never treat lobby as terminal failure)
+
     static MatchLifecycle::State s_match{};
     const bool has_world = g_acq_runtime.module_base != 0 && g_acq_runtime.matrix_ok;
     const bool has_local = s_cached_local_index >= 0 || g_acq_runtime.local_index >= 0;
@@ -1201,7 +1237,7 @@ void AcquisitionTick() {
         || (g_acq_runtime.matrix_ok && s_dec.client_base_ok));
 
     if (phase == MatchLifecycle::Phase::EnteredMatch) {
-        // Clear decrypt/player cache so the next enum rebuilds for the new match
+
         s_dec_ok = false;
         s_dec_generation = 0;
         s_cached_players.clear();
@@ -1236,7 +1272,7 @@ void AcquisitionTick() {
             "Lobby / a aguardar | ClientInfo FAIL | Names %d", name_candidates);
     }
 
-    // Full diagnostics go to the single logs.txt via std::clog.
+
     {
         static bool last_matrix_ok = false;
         static bool last_list_ok = false;
@@ -1268,7 +1304,7 @@ void AcquisitionTick() {
         }
     }
 
-    // Prefer latest camera snapshot for matrix_ok / view_matrix coherence.
+
     if (auto cam = g_camera_snapshots.Acquire()) {
         const uint64_t cameraNowMs = GetTickCount64();
         if (cam->ok && cam->module_base == g_acq_runtime.module_base && cam->sample_ms &&
@@ -1303,9 +1339,11 @@ void AcquisitionTick() {
 void RunFrame() {
     if (!ready) return;
     EnsurePipelineStarted();
-    // Presentation only — never DMA here, never read the acquisition-owned
-    // runtime. The render thread holds the last published snapshot locally
-    // (single-writer: only this thread ever assigns the public `runtime`).
+
+    // WZ-005 Fix: publish the acquisition need flags from the UI thread; the
+    // acquisition lane no longer touches `config` directly.
+    g_acq_need_bits.store(ComputeAcqNeedBits(config), std::memory_order_release);
+
     static Runtime presentation{};
     const uint64_t epoch = g_pipeline_epoch.load(std::memory_order_acquire);
     if (presentation.pipeline_epoch != epoch) {
@@ -1347,7 +1385,7 @@ void RunFrame() {
             }
         }
     }
-    // Publish the merged presentation state for UI status lines/pages.
+
     runtime = presentation;
     Warzone_ESP::Draw(presentation, config);
     Warzone_Aim::Run(presentation, config);
@@ -1364,4 +1402,4 @@ const char* StatusLine() {
     return runtime.status[0] ? runtime.status : status.c_str();
 }
 
-} // namespace Warzone
+}

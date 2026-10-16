@@ -41,6 +41,6 @@ const char* ErrorClassName(ErrorClass value) noexcept;
 const Configuration& GetConfiguration() noexcept;
 void SetConfiguration(const Configuration& config);
 
-} // namespace HttpPolicy
-} // namespace Update
-} // namespace OmniGhost
+}
+}
+}

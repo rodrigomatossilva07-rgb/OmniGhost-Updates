@@ -12,7 +12,7 @@
 
 namespace OmniGhost::Gameplay::UnifiedESP {
 
-// Job payload passed to optional thread
+
 struct OptionalJob {
     std::vector<UnifiedPlayer> players;
     FeatureFlags features;
@@ -24,7 +24,7 @@ struct OptionalJob {
     float local_pos[3] = {};
 };
 
-// Result from optional thread
+
 struct OptionalResult {
     std::vector<UnifiedPlayer> enriched_players;
     uint64_t session_generation = 0;
@@ -42,19 +42,19 @@ struct OptionalResult {
     bool dropped_items_valid = false;
 };
 
-// Optional thread interface - game implements the work function
+
 class OptionalThread {
 public:
     OptionalThread() = default;
     ~OptionalThread() { Stop(); }
 
-    // Start the optional worker thread
+
     void Start() {
         stop_.store(false, std::memory_order_release);
         thread_ = std::thread(&OptionalThread::WorkerLoop, this);
     }
 
-    // Stop the worker thread
+
     void Stop() {
         if (thread_.joinable()) {
             stop_.store(true, std::memory_order_release);
@@ -63,21 +63,21 @@ public:
         }
     }
 
-    // Queue a job for the optional thread
-    // Returns false if worker is busy/pending (job dropped)
+
+
     bool QueueJob(OptionalJob&& job) {
         std::lock_guard lock(mutex_);
         if (busy_.load(std::memory_order_acquire) || pending_.load(std::memory_order_acquire))
             return false;
-        
+
         job_ = std::move(job);
         pending_.store(true, std::memory_order_release);
         cv_.notify_one();
         return true;
     }
 
-    // Try to get completed result (non-blocking)
-    // Returns false if no result available
+
+
     bool TryGetResult(OptionalResult& out) {
         std::lock_guard lock(mutex_);
         if (!result_ready_.load(std::memory_order_acquire))
@@ -87,14 +87,14 @@ public:
         return true;
     }
 
-    // Check if worker is currently busy
+
     bool IsBusy() const { return busy_.load(std::memory_order_acquire); }
 
-    // Check if a job is pending
+
     bool HasPendingJob() const { return pending_.load(std::memory_order_acquire); }
 
 protected:
-    // Game-specific work function - MUST be implemented by derived class
+
     virtual void DoWork(OptionalJob&& job, OptionalResult& result) = 0;
 
 private:
@@ -113,17 +113,17 @@ private:
                 job = std::move(job_);
                 pending_.store(false, std::memory_order_release);
             }
-            
+
             busy_.store(true, std::memory_order_release);
             OptionalResult result{};
             result.session_generation = job.session_generation;
-            
+
             try {
                 DoWork(std::move(job), result);
             } catch (...) {
-                // Never crash the worker thread
+
             }
-            
+
             {
                 std::lock_guard lock(mutex_);
                 result_ = std::move(result);
@@ -133,7 +133,7 @@ private:
         }
     }
 
-    // Member variables
+
     std::thread thread_;
     std::mutex mutex_;
     std::condition_variable cv_;
@@ -145,7 +145,7 @@ private:
     OptionalResult result_;
 };
 
-// Helper for budget tracking within optional work
+
 class PhaseBudget {
 public:
     explicit PhaseBudget(float budget_ms) : budget_ms_(budget_ms), start_(std::chrono::steady_clock::now()) {}
@@ -160,7 +160,7 @@ private:
     std::chrono::steady_clock::time_point start_;
 };
 
-// Camera priority helper
+
 inline bool ShouldYieldToCamera(std::atomic<uint64_t>& camera_deadline, std::atomic<bool>& camera_pending) {
     if (!camera_pending.load(std::memory_order_acquire)) return false;
     uint64_t deadline = camera_deadline.load(std::memory_order_acquire);
@@ -168,14 +168,14 @@ inline bool ShouldYieldToCamera(std::atomic<uint64_t>& camera_deadline, std::ato
     return deadline != 0 && now + 2u >= deadline;
 }
 
-// DMA scatter handle wrapper (RAII)
+
 class ScatterHandle {
 public:
     ScatterHandle() = default;
     ~ScatterHandle() = default;
     ScatterHandle(const ScatterHandle&) = delete;
     ScatterHandle& operator=(const ScatterHandle&) = delete;
-    
+
     template<typename CreateFn>
     void Ensure(void* mem_handle, CreateFn create_fn) {
         if (!handle_ && mem_handle) handle_ = create_fn();
@@ -186,7 +186,7 @@ public:
     }
     explicit operator bool() const { return handle_ != nullptr; }
     auto get() const { return handle_; }
-    
+
     template<typename AddReq>
     void AddRequests(AddReq&& add) {
         if (handle_) add(handle_);
@@ -196,9 +196,9 @@ public:
         if (!handle_) return false;
         return exec_fn(handle_);
     }
-    
+
 private:
     void* handle_ = nullptr;
 };
 
-} // namespace OmniGhost::Gameplay::UnifiedESP
+}

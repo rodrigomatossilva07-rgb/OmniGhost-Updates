@@ -20,10 +20,11 @@ if (-not (Test-Path -LiteralPath $generatedRc -PathType Leaf)) {
     throw "Generated embedded-offset resource file is missing: $generatedRc"
 }
 $rc = Get-Content -LiteralPath $generatedRc -Raw
+# RES-001: Apex retired until a runtime ships; only real games are required.
 $required = @(
     @{ id = 201; name = 'FORTNITE' }, @{ id = 202; name = 'WARZONE' },
     @{ id = 203; name = 'CS2' },
-    @{ id = 205; name = 'FIVEM' }, @{ id = 206; name = 'APEX' }
+    @{ id = 205; name = 'FIVEM' }
 )
 foreach ($entry in $required) {
     if ($rc -notmatch ("IDR_OFFSETS_{0}\s+RCDATA" -f $entry.name)) {
@@ -32,9 +33,9 @@ foreach ($entry in $required) {
 }
 
 if (-not ('OmniGhost.NativeResourceValidation' -as [type])) {
-    # Add-Type uses the process LIB search path. Ignore relative or absent
-    # entries inherited from an incomplete Visual Studio environment, then
-    # restore the original environment immediately after compilation.
+
+
+
     $originalProcessLib = [Environment]::GetEnvironmentVariable('LIB', 'Process')
     $validLibPaths = @(
         $originalProcessLib -split ';' | Where-Object {

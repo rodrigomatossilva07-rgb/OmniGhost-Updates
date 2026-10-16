@@ -33,8 +33,8 @@ foreach ($name in $required) {
         throw "Generated embedded runtime manifest does not contain $name. The build would produce an EXE that cannot validate its DMA runtime."
     }
     if ($rcText -notmatch [regex]::Escape($name)) {
-        # RC stores the absolute source path, so verify the filename rather than the
-        # generated relative logical path.
+
+
         $leaf = Split-Path $name -Leaf
         if ($rcText -notmatch [regex]::Escape($leaf)) {
             throw "Generated embedded runtime resource list does not contain $leaf."

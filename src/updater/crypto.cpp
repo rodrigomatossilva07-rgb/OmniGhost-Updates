@@ -268,6 +268,14 @@ bool VerifyDetachedManifestSignature(std::string_view manifestBytes,
         return false;
     }
 
+    // UPD-009 Fix: enforce the release anchor's certificate hygiene — time
+    // validity and a minimum RSA modulus size. The anchor is pinned, so these
+    // can only fail when the embedded certificate is mis-issued or replaced.
+    if (CertVerifyTimeValidity(nullptr, certificate->pCertInfo) != 0) {
+        error = "O certificado de Release está expirado ou ainda não é válido.";
+        return false;
+    }
+
     BCRYPT_KEY_HANDLE publicKey = nullptr;
     if (!CryptImportPublicKeyInfoEx2(X509_ASN_ENCODING,
                                      &certificate->pCertInfo->SubjectPublicKeyInfo,
@@ -278,6 +286,18 @@ bool VerifyDetachedManifestSignature(std::string_view manifestBytes,
     auto destroyKey = OmniGhost::Platform::MakeScopeExit([&] {
         if (publicKey) BCryptDestroyKey(publicKey);
     });
+
+    {
+        DWORD keyLength = 0;
+        ULONG produced = 0;
+        if (BCryptGetProperty(publicKey, BCRYPT_KEY_LENGTH,
+                             reinterpret_cast<PUCHAR>(&keyLength), sizeof(keyLength),
+                             &produced, 0) < 0 || produced != sizeof(keyLength) ||
+            keyLength < 2048) {
+            error = "O certificado de Release usa uma chave RSA demasiado curta (mínimo 2048 bits).";
+            return false;
+        }
+    }
 
     std::array<unsigned char, 32> digest{};
     if (!Sha256Bytes(manifestBytes, digest, error)) return false;

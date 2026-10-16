@@ -45,15 +45,15 @@ namespace makcu {
         uint32_t getBaudRate() const;
         std::string getPortName() const;
 
-        // High-performance command execution with tracking
+
         std::future<std::string> sendTrackedCommand(const std::string& command,
             bool expectResponse = false,
             std::chrono::milliseconds timeout = std::chrono::milliseconds(100));
 
-        // Fast fire-and-forget commands
+
         bool sendCommand(const std::string& command);
 
-        // Legacy methods for compatibility
+
         bool write(const std::vector<uint8_t>& data);
         bool write(const std::string& data);
         std::vector<uint8_t> read(size_t maxBytes = 1024);
@@ -62,19 +62,19 @@ namespace makcu {
         size_t available() const;
         bool flush();
 
-        // Optimized timeout control
+
         void setTimeout(uint32_t timeoutMs);
         uint32_t getTimeout() const;
 
-        // Port enumeration
+
         static std::vector<std::string> getAvailablePorts();
         static std::vector<std::string> findMakcuPorts();
 
-        // Button callback support
-        // (buttonIndex 0-4, pressed) — derived from mask changes
+
+
         using ButtonCallback = std::function<void(uint8_t, bool)>;
         void setButtonCallback(ButtonCallback callback);
-        // Full mask 0-31 every time the GAME-PC mouse state changes (preferred)
+
         using MaskCallback = std::function<void(uint8_t)>;
         void setMaskCallback(MaskCallback callback);
 
@@ -93,29 +93,29 @@ namespace makcu {
         int m_fd;
 #endif
 
-        // Command tracking system
+
         std::atomic<int> m_commandCounter{ 0 };
         std::unordered_map<int, std::unique_ptr<PendingCommand>> m_pendingCommands;
         std::mutex m_commandMutex;
 
-        // High-performance listener thread
+
         std::jthread m_listenerThread;
         std::atomic<bool> m_stopListener{ false };
 
-        // Button data processing
+
         ButtonCallback m_buttonCallback;
         MaskCallback m_maskCallback;
         std::atomic<uint8_t> m_lastButtonMask{ 0 };
         std::atomic<uint64_t> m_buttonPackets{ 0 };
 
-        // Stream parser state (listener thread only — not shared)
-        // Official:  "km.buttons" + <mask_u8>
-        // HPM/legacy: "km." + <mask_u8>
+
+
+
         size_t m_prefixMatch = 0;
         bool m_expectMaskByte = false;
-        int m_prefixMode = 0; // 0=none, 1=full "km.buttons", 2=short "km."
+        int m_prefixMode = 0;
 
-        // Optimized parsing buffers
+
         static constexpr size_t BUFFER_SIZE = 4096;
         static constexpr size_t LINE_BUFFER_SIZE = 256;
 
@@ -128,9 +128,9 @@ namespace makcu {
         void cleanupTimedOutCommands();
         int generateCommandId();
 
-        // Disable copy
+
         SerialPort(const SerialPort&) = delete;
         SerialPort& operator=(const SerialPort&) = delete;
     };
 
-} // namespace makcu
+}

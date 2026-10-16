@@ -41,6 +41,9 @@ public:
         warningCallback_ = std::move(warningCb);
         criticalCallback_ = std::move(criticalCb);
         startTime_ = std::chrono::steady_clock::now();
+
+
+        warningLogged_.store(false, std::memory_order_release);
         running_ = true;
         stopped_ = false;
 
@@ -89,36 +92,48 @@ private:
             const auto criticalMs = config_.criticalThreshold.count();
 
             if (elapsed.count() >= criticalMs) {
+
+
+
+                const std::string stageCopy(stage_);
                 if (config_.enableLogging) {
                     SessionLog::Write(
                         SessionLog::Severity::Error,
                         SessionLog::Subsystem::Watchdog,
                         "Operation exceeded critical threshold",
-                        {SessionLog::Field{"stage", std::string(stage_), false},
+                        {SessionLog::Field{"stage", stageCopy, false},
                          SessionLog::Field{"elapsed_ms", std::to_string(elapsed.count()), false},
                          SessionLog::Field{"threshold_ms", std::to_string(criticalMs), false}});
                 }
                 if (config_.enableCallbacks && criticalCallback_) {
+                    auto cb = criticalCallback_;
                     lock.unlock();
-                    criticalCallback_(stage_, elapsed);
+                    cb(stageCopy, elapsed);
                 }
+
+
+
+                running_.store(false, std::memory_order_release);
+                stopped_.store(true, std::memory_order_release);
                 break;
             }
 
             if (elapsed.count() >= warningMs && !warningLogged_) {
                 warningLogged_ = true;
+                const std::string stageCopy(stage_);
                 if (config_.enableLogging) {
                     SessionLog::Write(
                         SessionLog::Severity::Warning,
                         SessionLog::Subsystem::Watchdog,
                         "Operation exceeded warning threshold",
-                        {SessionLog::Field{"stage", std::string(stage_), false},
+                        {SessionLog::Field{"stage", stageCopy, false},
                          SessionLog::Field{"elapsed_ms", std::to_string(elapsed.count()), false},
                          SessionLog::Field{"threshold_ms", std::to_string(warningMs), false}});
                 }
                 if (config_.enableCallbacks && warningCallback_) {
+                    auto cb = warningCallback_;
                     lock.unlock();
-                    warningCallback_(stage_, elapsed);
+                    cb(stageCopy, elapsed);
                 }
             }
 
@@ -168,4 +183,4 @@ private:
     std::string stage_;
 };
 
-} // namespace OmniGhost::Platform
+}

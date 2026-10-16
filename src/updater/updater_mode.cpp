@@ -136,7 +136,7 @@ bool ConfirmStarted(DWORD pid, const fs::path& file, const std::wstring& token, 
         if (value == token) {
             stream.close();
             std::error_code cleanupError;
-            fs::remove(file, cleanupError); // one-shot confirmation
+            fs::remove(file, cleanupError);
             return true;
         }
         Platform::UniqueHandle process(OpenProcess(SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid));
@@ -164,8 +164,8 @@ bool ConfirmStarted(DWORD pid, const fs::path& file, const std::wstring& token, 
 std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
     if (argc < 2 || std::wstring(argv[1]) != L"--apply-update") return std::nullopt;
 
-    // The updater runs from the same executable and shares the product's single
-    // human-readable log. Do not create an updater.log sidecar.
+
+
     const fs::path log = Paths::Logs() / L"logs.txt";
     WriteLog(log, LogLevel::Info, Version, {}, "entry",
         "Pedido para iniciar o modo atualizador recebido.");
@@ -264,9 +264,9 @@ std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
     const IntegrityReport stagedIntegrity = VerifyInstallationFiles(staging);
     const bool singleExecutablePackage = archive.files.size() == 1 &&
         archive.files.front() == executableName;
-    // A single-EXE package is already authenticated by the package SHA-256 and
-    // the Authenticode check immediately below. It intentionally carries no
-    // second file merely to describe the first one.
+
+
+
     if (stagedIntegrity.status != IntegrityStatus::Healthy &&
         !(singleExecutablePackage && stagedIntegrity.status == IntegrityStatus::ManifestMissing)) {
         WriteLog(log, LogLevel::Error, Version, targetVersion, "integrity", stagedIntegrity.message);
@@ -338,8 +338,8 @@ std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
     const bool startupConfirmed = applicationStarted &&
         ConfirmStarted(newPid, confirmation, token, configuration.startupConfirmationSeconds, error);
     if (!startupConfirmed) {
-        // Policy: never restore an older executable. Keep the newest installed
-        // bits even if the first post-update start fails (DMA/device/driver, etc.).
+
+
         if (newPid) {
             Platform::UniqueHandle process(OpenProcess(PROCESS_TERMINATE | SYNCHRONIZE, FALSE, newPid));
             if (process) {
@@ -350,11 +350,25 @@ std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
         const std::string restartDetail = error.empty()
             ? "A nova versao nao confirmou o arranque."
             : error;
+        // UPD-003 Fix: restore the previous executable when the backup exists;
+        // "never restore" bricked installs whose new build failed at startup.
+        const fs::path backupExe = target / (executableName.wstring() + std::wstring(L".previous"));
+        std::error_code rollbackError;
+        bool rolledBack = false;
+        if (fs::exists(backupExe, rollbackError)) {
+            fs::copy_file(backupExe, target / executableName,
+                fs::copy_options::overwrite_existing, rollbackError);
+            rolledBack = !rollbackError;
+        }
         WriteLog(log, LogLevel::Error, Version, targetVersion, "restart",
-            restartDetail + "; rollback desativado — a versao instalada e mantida.");
+            restartDetail + (rolledBack
+                ? "; rollback executado — versao anterior restaurada."
+                : "; rollback indisponivel — a versao instalada e mantida."));
         RecordHealth("startup-confirmation-failed", Version, targetVersion, expectedHash, {},
-            "skipped-keep-latest",
-            restartDetail + "; kept latest version (no rollback)");
+            rolledBack ? "restored-previous" : "skipped-keep-latest",
+            restartDetail + (rolledBack
+                ? "; previous executable restored from backup"
+                : "; kept latest version (no backup available)"));
         return 28;
     }
 
@@ -362,8 +376,8 @@ std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
     WriteLog(log, LogLevel::Info, targetVersion, targetVersion, "complete", "Atualização concluída e arranque confirmado.");
     RecordHealth("complete", targetVersion, targetVersion, expectedHash, {}, "not-required",
         "update completed and startup confirmed");
-    // This process is the temporary copy of OmniGhost.exe. Windows removes it
-    // on reboot if it cannot be cleaned during a later normal startup.
+
+
     MoveFileExW(Paths::Executable().c_str(), nullptr, MOVEFILE_DELAY_UNTIL_REBOOT);
     return 0;
 }

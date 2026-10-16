@@ -33,8 +33,8 @@ constexpr bool Has(DataField fields, DataField value) noexcept {
     return (static_cast<std::uint32_t>(fields) & static_cast<std::uint32_t>(value)) != 0;
 }
 
-// Normalized feature declaration for existing and future game adapters. A game
-// collector asks for RequiredFields() once per frame and reads only those fields.
+
+
 struct FeatureSet {
     bool box = false;
     bool corner_box = false;
@@ -54,9 +54,9 @@ struct FeatureSet {
     bool look_direction = false;
 
     constexpr DataField RequiredFields() const noexcept {
-        // Position is enough for box / HP / armor (origin + standing hull).
-        // Skeleton is ONLY for features that truly need the joint buffer —
-        // forcing bones for simple boxes caused massive DMA hitch spikes.
+
+
+
         DataField fields = DataField::None;
         if (box || corner_box || skeleton || head || health || armor || snapline ||
             distance || trail || halo || look_direction || aim || name || weapon)
@@ -99,8 +99,8 @@ inline ImU32 HealthColor(float fraction, int alpha = 255) {
     return ImGui::ColorConvertFloat4ToU32(ImVec4(red, green, 0.10f, alpha / 255.f));
 }
 
-// Constant draw-call bar: track + one GPU gradient + outline. Its cost does not
-// grow with the height of the player box.
+
+
 inline void DrawVerticalBar(ImDrawList* draw, ImVec2 min, ImVec2 max,
                             float fraction, ImU32 top_color, ImU32 bottom_color,
                             ImU32 track_color = IM_COL32(18, 18, 22, 225),
@@ -143,4 +143,4 @@ inline void DrawCenteredOutlinedText(ImDrawList* draw, float center_x, float y,
     DrawOutlinedText(draw, ImVec2(center_x - size.x * 0.5f, y), color, text);
 }
 
-} // namespace OmniGhost::Gameplay::EspCore
+}

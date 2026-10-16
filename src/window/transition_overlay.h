@@ -12,8 +12,8 @@ struct TransitionOverlayOptions {
     bool success{};
 };
 
-// Draws the shared full-screen visual used only for major context changes.
-// It does not own a window, perform a resize or block the render loop.
+
+
 void DrawTransitionOverlay(const TransitionOverlayOptions& options);
 
-} // namespace OmniGhost::UI
+}

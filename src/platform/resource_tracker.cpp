@@ -12,7 +12,7 @@ ResourceTracker::Snapshot ResourceTracker::TakeSnapshot() const noexcept {
     Snapshot snap;
     snap.timestamp = std::chrono::steady_clock::now();
 
-    // Thread count
+
     HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
     if (snapshot != INVALID_HANDLE_VALUE) {
         THREADENTRY32 te{};
@@ -27,24 +27,24 @@ ResourceTracker::Snapshot ResourceTracker::TakeSnapshot() const noexcept {
         CloseHandle(snapshot);
     }
 
-    // Handle count
+
     DWORD handleCount = 0;
     if (GetProcessHandleCount(GetCurrentProcess(), &handleCount)) {
         snap.handleCount = handleCount;
     }
 
-    // Memory usage
+
     PROCESS_MEMORY_COUNTERS_EX pmc{};
     pmc.cb = sizeof(pmc);
     if (GetProcessMemoryInfo(GetCurrentProcess(), reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&pmc), sizeof(pmc))) {
         snap.memoryBytes = pmc.WorkingSetSize;
     }
 
-    // GDI objects
+
     DWORD gdiCount = GetGuiResources(GetCurrentProcess(), GR_GDIOBJECTS);
     snap.gdiObjects = gdiCount;
 
-    // User objects
+
     DWORD userCount = GetGuiResources(GetCurrentProcess(), GR_USEROBJECTS);
     snap.userObjects = userCount;
 
@@ -66,7 +66,7 @@ void ResourceTracker::LogUsage(std::string_view context) noexcept {
             {"context", std::string(context), false}
         });
 
-    // Also log delta if baseline exists
+
     if (auto delta = GetDelta()) {
         SessionLog::Write(
             SessionLog::Severity::Debug,
@@ -95,4 +95,4 @@ void ResourceTracker::LogUsage(std::string_view context) noexcept {
     }
 }
 
-} // namespace OmniGhost::Platform
+}

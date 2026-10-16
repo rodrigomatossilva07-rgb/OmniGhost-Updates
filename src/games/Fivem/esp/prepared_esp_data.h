@@ -4,7 +4,7 @@
 #include "math/math.h"
 #include "../game/health_state.h"
 
-// One ped's acquisition snapshot, consumed by ESP without DMA on render.
+
 struct PreparedEspData {
     uintptr_t ped = 0;
     Vec3 origin{};
@@ -17,7 +17,7 @@ struct PreparedEspData {
     uintptr_t player_info = 0;
     uint32_t network_id = 0;
     char player_name[48]{};
-    uintptr_t name_ptr = 0; // P1-6: name pointer for batched resolution
+    uintptr_t name_ptr = 0;
     uintptr_t weapon_manager = 0;
     uintptr_t weapon_info = 0;
     uint32_t weapon_hash = 0;
@@ -27,25 +27,25 @@ struct PreparedEspData {
     uint8_t visibility_flag = 0;
     bool valid = false;
 
-    // Bone data for skeleton/head ESP (unified acquisition)
+
     Matrix bone_matrix{};
-    // P2-5: Expanded from 9 to 20 slots for full skeleton support
-    // 0=head, 1=neck, 2=spine_upper, 3=spine_mid, 4=spine_lower, 5=pelvis,
-    // 6=clavicle_l, 7=shoulder_l, 8=elbow_l, 9=hand_l,
-    // 10=clavicle_r, 11=shoulder_r, 12=elbow_r, 13=hand_r,
-    // 14=hip_l, 15=knee_l, 16=ankle_l,
-    // 17=hip_r, 18=knee_r, 19=ankle_r
+
+
+
+
+
+
     std::array<Vector3, 20> bone_offsets{};
     uint16_t bone_mask = 0;
     bool bones_ok = false;
-    uint64_t bones_sample_ms = 0; // acquisition midpoint timestamp
+    uint64_t bones_sample_ms = 0;
 
-    // Temporal coherence: acquisition timestamps for camera/world coherence
-    uint64_t world_sample_ms = 0;       // midpoint of position/health scatter
-    uint64_t camera_sample_ms = 0;      // selected camera sample time for this entity
+
+    uint64_t world_sample_ms = 0;
+    uint64_t camera_sample_ms = 0;
 };
 
-// P2-7: Frame-level render config snapshot — render reads this instead of global esp::config.
+
 struct PreparedRenderConfig {
     float max_esp_distance = 200.0f;
     bool show_dead = false;

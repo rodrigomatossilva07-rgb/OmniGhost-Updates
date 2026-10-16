@@ -83,25 +83,25 @@ const char* StemFromDef(int def) {
     case 61: return "weapon_usp_silencer";
     case 63: return "weapon_cz75a";
     case 64: return "weapon_revolver";
-    // Individual knives (item definition indexes)
+
     case 500: return "weapon_bayonet";
-    case 503: return "weapon_knife_css";           // Classic
+    case 503: return "weapon_knife_css";
     case 505: return "weapon_knife_flip";
     case 506: return "weapon_knife_gut";
     case 507: return "weapon_knife_karambit";
     case 508: return "weapon_knife_m9_bayonet";
-    case 509: return "weapon_knife_tactical";      // Huntsman
+    case 509: return "weapon_knife_tactical";
     case 512: return "weapon_knife_falchion";
-    case 514: return "weapon_knife_bowie";         // Bowie / survival_bowie
+    case 514: return "weapon_knife_bowie";
     case 515: return "weapon_knife_butterfly";
-    case 516: return "weapon_knife_push";          // Shadow Daggers
-    case 517: return "weapon_knife_cord";          // Paracord
-    case 518: return "weapon_knife_canis";         // Survival
+    case 516: return "weapon_knife_push";
+    case 517: return "weapon_knife_cord";
+    case 518: return "weapon_knife_canis";
     case 519: return "weapon_knife_ursus";
-    case 520: return "weapon_knife_gypsy_jackknife"; // Navaja
-    case 521: return "weapon_knife_outdoor";       // Nomad
+    case 520: return "weapon_knife_gypsy_jackknife";
+    case 521: return "weapon_knife_outdoor";
     case 522: return "weapon_knife_stiletto";
-    case 523: return "weapon_knife_widowmaker";    // Talon
+    case 523: return "weapon_knife_widowmaker";
     case 525: return "weapon_knife_skeleton";
     case 526: return "weapon_knife_kukri";
     default:
@@ -243,8 +243,8 @@ std::vector<std::filesystem::path> IconSearchDirs() {
     namespace fs = std::filesystem;
     std::vector<fs::path> dirs;
     try {
-        // Prefer persistent LocalAppData cache so icons are not re-decoded
-        // from embedded resources on every process start.
+
+
         dirs.push_back(WeaponIconCacheDir());
         const fs::path install = OmniGhost::Paths::InstallDirectory();
         const fs::path exe = OmniGhost::Paths::Executable().parent_path();
@@ -304,14 +304,14 @@ void RequestOne(int def) {
         failed != g_failed_icons_until_ms.end() && now < failed->second) return;
     if (def <= 0 || !StemFromDef(def) || g_icons.count(def) || g_cpu_icons.count(def) ||
         g_pending_icons.count(def)) return;
-    // Cap background decode concurrency. A newly requested definition that
-    // misses the cap is retried by Get() on a following frame.
+
+
     std::size_t activeWorkers = 0;
     for (auto& [_, future] : g_pending_icons) {
         if (future.valid() && future.wait_for(std::chrono::seconds(0)) != std::future_status::ready)
             ++activeWorkers;
     }
-    if (activeWorkers >= 1) return; // single worker — avoid thread explosion
+    if (activeWorkers >= 1) return;
     if (g_pending_icons.size() >= 8) return;
     g_pending_icons.emplace(def, std::async(std::launch::async, [def] { return DecodeOne(def); }));
 }
@@ -319,7 +319,7 @@ void RequestOne(int def) {
 void PumpUploads(ID3D11Device* device, int max_uploads) {
     if (!device || max_uploads <= 0) return;
 
-    // Collect completed CPU decodes without waiting. WIC/filesystem work stays off render.
+
     for (auto it = g_pending_icons.begin(); it != g_pending_icons.end();) {
         if (it->second.wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
             ++it;
@@ -343,18 +343,18 @@ void PumpUploads(ID3D11Device* device, int max_uploads) {
         if (CreateSrv(device, pixels.rgba.data(), pixels.w, pixels.h, tex)) {
             g_icons[def] = tex;
             ++uploaded;
-            // Texture dimensions live in IconTex; retaining the RGBA buffer
-            // after a successful GPU upload only wastes process memory.
+
+
             it = g_cpu_icons.erase(it);
         } else {
-            // A failed resource/device upload should not retry every frame.
+
             g_failed_icons_until_ms[def] = GetTickCount64() + 5000;
             it = g_cpu_icons.erase(it);
         }
     }
 }
 
-} // namespace
+}
 
 const char* FileStem(int weapon_def) { return StemFromDef(weapon_def); }
 
@@ -369,7 +369,7 @@ void EnsureLoaded(ID3D11Device* device) {
     }
     g_device = device;
     g_attempted = true;
-    // One D3D upload per render frame caps the worst-case frametime cost.
+
     PumpUploads(device, 1);
 }
 
@@ -380,7 +380,7 @@ ID3D11ShaderResourceView* Get(int weapon_def) {
 
     RequestOne(weapon_def);
     if (weapon_def >= 500 && weapon_def <= 530)
-        RequestOne(41); // generic knife fallback, also decoded asynchronously
+        RequestOne(41);
 
     if (weapon_def >= 500 && weapon_def <= 530) {
         it = g_icons.find(41);
@@ -406,8 +406,8 @@ void Shutdown() {
         if (kv.second.srv) kv.second.srv->Release();
     }
     g_icons.clear();
-    // std::async futures may wait in their destructors; this is shutdown work,
-    // never something performed from an ordinary render frame.
+
+
     g_pending_icons.clear();
     g_cpu_icons.clear();
     g_failed_icons_until_ms.clear();
@@ -415,4 +415,4 @@ void Shutdown() {
     g_device = nullptr;
 }
 
-} // namespace CS2_WeaponIcons
+}

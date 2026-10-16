@@ -43,11 +43,11 @@ constexpr size_t kMaximumArchivedLogs = 8;
 constexpr std::uintmax_t kMaximumArchiveBytes = 40u * 1024u * 1024u;
 constexpr size_t kMaximumRecentEvents = 256;
 
-// Encryption configuration
-constexpr bool kEncryptLogFiles = true; // Enable DPAPI encryption for log files
-constexpr wchar_t kDpapiEntropy[] = L"OmniGhost-SessionLog-v1"; // Per-app entropy
 
-// DPAPI encryption/decryption helpers
+constexpr bool kEncryptLogFiles = true;
+constexpr wchar_t kDpapiEntropy[] = L"OmniGhost-SessionLog-v1";
+
+
 std::optional<std::vector<BYTE>> DpapiEncrypt(std::string_view plaintext) {
     DATA_BLOB inBlob{};
     inBlob.pbData = const_cast<BYTE*>(reinterpret_cast<const BYTE*>(plaintext.data()));
@@ -58,8 +58,10 @@ std::optional<std::vector<BYTE>> DpapiEncrypt(std::string_view plaintext) {
     entropyBlob.cbData = static_cast<DWORD>((wcslen(kDpapiEntropy) + 1) * sizeof(wchar_t));
 
     DATA_BLOB outBlob{};
+
+
     if (CryptProtectData(&inBlob, L"OmniGhost-SessionLog", &entropyBlob, nullptr, nullptr,
-                         CRYPTPROTECT_UI_FORBIDDEN | CRYPTPROTECT_LOCAL_MACHINE, &outBlob)) {
+                         CRYPTPROTECT_UI_FORBIDDEN, &outBlob)) {
         std::vector<BYTE> result(outBlob.pbData, outBlob.pbData + outBlob.cbData);
         LocalFree(outBlob.pbData);
         return result;
@@ -123,15 +125,15 @@ bool IsEssentialConsoleLine(std::string_view line, ConsoleStreamKind kind) {
     if (line.empty())
         return false;
 
-    // Keep interactive/plain-text prompts visible. Diagnostic lines are bracket-prefixed.
+
     if (line.front() != '[')
         return true;
 
-    // Errors and warnings are always useful in the CMD window.
+
     if (ContainsAny(line, {"[ERROR]", "[CRITICAL]", "[WARN]", "[WARNING]", "[FAIL]"}))
         return true;
 
-    // SessionLog::Write(INFO/DEBUG) and low-level DMA/VMM traces remain in logs.txt only.
+
     if (StartsWith(line, "[INFO][") || StartsWith(line, "[DEBUG][") ||
         StartsWith(line, "[TRACE][") || StartsWith(line, "[LOG]") ||
         StartsWith(line, "[SESSION]") || StartsWith(line, "[DMA]") ||
@@ -143,7 +145,7 @@ bool IsEssentialConsoleLine(std::string_view line, ConsoleStreamKind kind) {
     if (StartsWith(line, "[OK]"))
         return true;
 
-    // High-level application/game state only. Detailed probes use [DEBUG] and stay in logs.txt.
+
     if (StartsWith(line, "[Warzone]") || StartsWith(line, "[CS2]") ||
         StartsWith(line, "[FiveM]") || StartsWith(line, "[OmniGhost]") ||
         StartsWith(line, "[Kmbox]") || StartsWith(line, "[OffsetAuto]")) {
@@ -156,7 +158,7 @@ bool IsEssentialConsoleLine(std::string_view line, ConsoleStreamKind kind) {
         });
     }
 
-    // Unknown bracketed diagnostics are intentionally quiet in CMD but still persisted.
+
     return false;
 }
 
@@ -184,7 +186,7 @@ protected:
         std::lock_guard<std::mutex> lock(g_outputMutex);
         WriteFile(data, size);
         QueueConsole(data, size);
-        // Suppressed console output is intentional and must not set failbit on std::cout/clog.
+
         return size;
     }
 
@@ -358,7 +360,7 @@ void AddRecentEvent(const std::string& event) {
 void PruneArchives() {
     std::error_code error;
     const fs::path archiveDir = Paths::Logs() / L"archive";
-    // Do not create archive/ just to prune — only touch it if it already exists.
+
     if (!fs::is_directory(archiveDir, error)) {
         error.clear();
         return;
@@ -410,30 +412,30 @@ void PruneArchives() {
     }
 }
 
-// Encrypt a log file using DPAPI and save as .enc
+
 bool EncryptLogFile(const fs::path& sourcePath, const fs::path& destPath) {
     if (!kEncryptLogFiles) return false;
-    
+
     std::error_code error;
     if (!fs::is_regular_file(sourcePath, error)) return false;
-    
+
     std::ifstream inFile(sourcePath, std::ios::binary);
     if (!inFile) return false;
-    
+
     std::ostringstream content;
     content << inFile.rdbuf();
     inFile.close();
-    
+
     auto encrypted = DpapiEncrypt(content.str());
     if (!encrypted) return false;
-    
+
     std::ofstream outFile(destPath, std::ios::binary | std::ios::trunc);
     if (!outFile) return false;
-    
+
     outFile.write(reinterpret_cast<const char*>(encrypted->data()), static_cast<std::streamsize>(encrypted->size()));
     outFile.close();
-    
-    // Remove plaintext source after successful encryption
+
+
     fs::remove(sourcePath, error);
     return true;
 }
@@ -444,32 +446,24 @@ bool RotateOpenLog(std::ofstream& stream, const fs::path& path, const char* suff
     stream.flush();
     stream.close();
 
-    // Rotate: logs.txt → logs.1.txt → logs.2.txt (drop oldest). No archive/.
+
+
+
     if (fs::is_regular_file(path, error) && fs::file_size(path, error) > 0) {
         error.clear();
-        const fs::path log2 = path.parent_path() / (path.stem().wstring() + L".2.txt");
-        const fs::path log1 = path.parent_path() / (path.stem().wstring() + L".1.txt");
-        
-        // Encrypt and remove log2 (oldest)
-        fs::path log2Enc = log2.wstring() + L".enc";
-        EncryptLogFile(log2, log2Enc);
-        fs::remove(log2, error);
-        error.clear();
-        
-        // Encrypt and rotate log1 to log2
-        fs::path log1Enc = log1.wstring() + L".enc";
-        if (fs::is_regular_file(log1, error)) {
-            EncryptLogFile(log1, log1Enc);
-            fs::remove(log1, error);
-            error.clear();
-        }
-        
-        // Rotate current to log1 (will be encrypted on next rotation)
-        fs::rename(path, log1, error);
-        if (error) {
+        const fs::path dir = path.parent_path();
+        const std::wstring stem = path.stem().wstring();
+        const fs::path enc3 = dir / (stem + L".3.txt.enc");
+        const fs::path enc2 = dir / (stem + L".2.txt.enc");
+        const fs::path enc1 = dir / (stem + L".1.txt.enc");
+        fs::remove(enc3, error); error.clear();
+        fs::rename(enc2, enc3, error); error.clear();
+        fs::rename(enc1, enc2, error); error.clear();
+        if (EncryptLogFile(path, enc1)) {
             error.clear();
             fs::remove(path, error);
         }
+        error.clear();
         (void)suffix;
         ++g_liveRotationSequence;
     }
@@ -502,8 +496,8 @@ bool RotateStructuredLogIfNeeded(std::uintmax_t incomingBytes) {
                          g_structuredFileBytes, g_structuredLogDay);
 }
 
-void ArchiveExistingLog(const fs::path& path, const char* /*suffix*/) {
-    // Keep a single previous copy beside the active log. Never create archive/.
+void ArchiveExistingLog(const fs::path& path, const char* ) {
+
     std::error_code error;
     if (!fs::is_regular_file(path, error))
         return;
@@ -526,8 +520,8 @@ void ArchiveExistingLog(const fs::path& path, const char* /*suffix*/) {
 }
 
 fs::path PreferredLogPath() {
-    // A portable executable may live in a read-only or transient directory.
-    // Keep the single authoritative log with the rest of the mutable user data.
+
+
     return Paths::LocalData() / L"logs.txt";
 }
 
@@ -556,7 +550,7 @@ void WriteSessionHeader() {
               << "\n";
 }
 
-} // namespace
+}
 
 const char* SeverityName(Severity severity) noexcept {
     switch (severity) {
@@ -571,8 +565,8 @@ const char* SeverityName(Severity severity) noexcept {
 }
 
 const char* SubsystemName(Subsystem subsystem) noexcept {
-    // Public log categories are intentionally small and stable. Detailed origin
-    // remains available in the message/fields without fragmenting support logs.
+
+
     switch (subsystem) {
     case Subsystem::Auth: return "AUTH";
     case Subsystem::DMA: return "DMA";
@@ -618,62 +612,49 @@ std::string RedactForSupport(std::string_view input) {
             ReplaceAllCaseInsensitive(text, utf8, "<user>");
     }
 
-    // Strip credentials embedded in URLs and common authorization headers.
-    // This is intentionally conservative and does not attempt to preserve the secret.
-    try {
-        text = std::regex_replace(text,
-            std::regex(R"((https?://)([^/@:\s]+):([^/@\s]+)@)", std::regex::icase),
-            "$1<redacted>@");
-        text = std::regex_replace(text,
-            std::regex(R"((Authorization\s*[:=]\s*(?:Bearer|Basic)\s+)[A-Za-z0-9+/_=.-]+)", std::regex::icase),
-            "$1<redacted>");
-        text = std::regex_replace(text,
-            std::regex(R"(([?&](?:token|access_token|api_key|apikey|key|password|passwd|pwd)=)[^&#\s]+)", std::regex::icase),
-            "$1<redacted>");
-        text = std::regex_replace(text,
-            std::regex(R"(((?:password|passwd|pwd|token|access_token|refresh_token|api_key|apikey|license|licence|license_key|licence_key)\s*[:=]\s*)[^,;\s]+)", std::regex::icase),
-            "$1<redacted>");
-        text = std::regex_replace(text,
-            std::regex(R"((\"(?:password|passwd|pwd|token|access_token|refresh_token|api_key|apikey|license|licence|license_key|licence_key)\"\s*:\s*\")[^\"]*(\"))", std::regex::icase),
-            "$1<redacted>$2");
 
-        // Aggressive redaction for OmniGhost-specific sensitive data
-        // License keys (alphanumeric with dashes, typical formats)
-        text = std::regex_replace(text,
-            std::regex(R"((license[_\-]?key\s*[:=]\s*)[A-Za-z0-9\-]{16,})", std::regex::icase),
-            "$1<redacted>");
-        text = std::regex_replace(text,
-            std::regex(R"(([A-Za-z0-9]{5}(?:-[A-Za-z0-9]{5}){3,})[A-Za-z0-9\-]*)", std::regex::icase),
-            "<redacted-license>");
-        
-        // Hardware IDs (MAC-like, serial-like)
-        text = std::regex_replace(text,
-            std::regex(R"((hwid|hardware[_\-]?id\s*[:=]\s*)[A-Fa-f0-9\:\-]{12,})", std::regex::icase),
-            "$1<redacted>");
-        text = std::regex_replace(text,
-            std::regex(R"(\b([A-Fa-f0-9]{2}[:-]){5}[A-Fa-f0-9]{2}\b)"), // MAC addresses
-            "<redacted-mac>");
-        
-        // DMA device paths and serials
-        text = std::regex_replace(text,
-            std::regex(R"((device[_\-]?path\s*[:=]\s*)[^\s,;]+)", std::regex::icase),
-            "$1<redacted>");
-        text = std::regex_replace(text,
-            std::regex(R"((serial[_\-]?number\s*[:=]\s*)[A-Za-z0-9\-]{8,})", std::regex::icase),
-            "$1<redacted>");
-        
-        text = std::regex_replace(text,
-            std::regex(R"(\b(0x[0-9A-Fa-f]{8,16})\b)"), // Memory addresses/pointers
-            "<redacted-ptr>");
-        // Process paths and executable names that may reveal user info
-        text = std::regex_replace(text,
-            std::regex(R"(([A-Za-z]:[\\/][^\\/\s,;]+))", std::regex::icase),
-            "<redacted-path>");
-        
-        // KeyAuth / licensing related
-        text = std::regex_replace(text,
-            std::regex(R"((keyauth[_\-]?(?:api|key|token)\s*[:=]\s*)[A-Za-z0-9\-_\.]{16,})", std::regex::icase),
-            "$1<redacted>");
+
+
+
+    static const std::regex reUrlCred(R"((https?://)([^/@:\s]+):([^/@\s]+)@)", std::regex::icase);
+    static const std::regex reAuthHdr(R"((Authorization\s*[:=]\s*(?:Bearer|Basic)\s+)[A-Za-z0-9+/_=.-]+)", std::regex::icase);
+    static const std::regex reQueryToken(R"(([?&](?:token|access_token|api_key|apikey|key|password|passwd|pwd)=)[^&#\s]+)", std::regex::icase);
+    static const std::regex reKvSecret(R"(((?:password|passwd|pwd|token|access_token|refresh_token|api_key|apikey|license|licence|license_key|licence_key)\s*[:=]\s*)[^,;\s]+)", std::regex::icase);
+    static const std::regex reJsonSecret(R"((\"(?:password|passwd|pwd|token|access_token|refresh_token|api_key|apikey|license|licence|license_key|licence_key)\"\s*:\s*\")[^\"]*(\"))", std::regex::icase);
+    static const std::regex reLicenseKey(R"((license[_\-]?key\s*[:=]\s*)[A-Za-z0-9\-]{16,})", std::regex::icase);
+    static const std::regex reLicenseGroup(R"(([A-Za-z0-9]{5}(?:-[A-Za-z0-9]{5}){3,})[A-Za-z0-9\-]*)", std::regex::icase);
+    static const std::regex reHwid(R"((hwid|hardware[_\-]?id\s*[:=]\s*)[A-Fa-f0-9\:\-]{12,})", std::regex::icase);
+    static const std::regex reMac(R"(\b([A-Fa-f0-9]{2}[:-]){5}[A-Fa-f0-9]{2}\b)");
+    static const std::regex reDevicePath(R"((device[_\-]?path\s*[:=]\s*)[^\s,;]+)", std::regex::icase);
+    static const std::regex reSerial(R"((serial[_\-]?number\s*[:=]\s*)[A-Za-z0-9\-]{8,})", std::regex::icase);
+    static const std::regex rePtr(R"(\b(0x[0-9A-Fa-f]{8,16})\b)");
+    static const std::regex rePath(R"(([A-Za-z]:[\\/][^\\/\s,;]+))", std::regex::icase);
+    static const std::regex reKeyAuth(R"((keyauth[_\-]?(?:api|key|token)\s*[:=]\s*)[A-Za-z0-9\-_\.]{16,})", std::regex::icase);
+    try {
+        text = std::regex_replace(text, reUrlCred, "$1<redacted>@");
+        text = std::regex_replace(text, reAuthHdr, "$1<redacted>");
+        text = std::regex_replace(text, reQueryToken, "$1<redacted>");
+        text = std::regex_replace(text, reKvSecret, "$1<redacted>");
+        text = std::regex_replace(text, reJsonSecret, "$1<redacted>$2");
+
+
+        text = std::regex_replace(text, reLicenseKey, "$1<redacted>");
+        text = std::regex_replace(text, reLicenseGroup, "<redacted-license>");
+
+
+        text = std::regex_replace(text, reHwid, "$1<redacted>");
+        text = std::regex_replace(text, reMac, "<redacted-mac>");
+
+
+        text = std::regex_replace(text, reDevicePath, "$1<redacted>");
+        text = std::regex_replace(text, reSerial, "$1<redacted>");
+
+        text = std::regex_replace(text, rePtr, "<redacted-ptr>");
+
+        text = std::regex_replace(text, rePath, "<redacted-path>");
+
+
+        text = std::regex_replace(text, reKeyAuth, "$1<redacted>");
     } catch (const std::exception& ex) {
         std::cerr << "[SessionLog] Redaction regex failed: " << ex.what() << "\n";
     } catch (...) {
@@ -695,7 +676,7 @@ bool Initialize() {
     if (!Paths::EnsureUserDirectories())
         return false;
 
-    // Archive legacy log.txt names so only logs.txt is active for the session.
+
     ArchiveExistingLog(Paths::InstallDirectory() / L"log.txt", ".legacy-log.txt");
     ArchiveExistingLog(Paths::Logs() / L"log.txt", ".legacy-log.txt");
     g_logPath = PreferredLogPath();
@@ -711,7 +692,7 @@ bool Initialize() {
     if (!g_file)
         return false;
 
-    // Single-log mode: no events.jsonl sidecar is created.
+
     g_fileBytes = 0;
     g_structuredFileBytes = 0;
     g_logDay = CurrentLocalDay();
@@ -789,7 +770,7 @@ void Write(Severity severity,
     const std::string humanLine = human.str();
     AddRecentEvent(timestamp + " " + humanLine);
 
-    // Human-readable sink remains the authoritative console/session log.
+
     std::clog << humanLine << '\n';
     if (severity == Severity::Error || severity == Severity::Critical)
         std::clog.flush();
@@ -874,9 +855,13 @@ std::string LastErrorId() {
 }
 
 void Shutdown() {
-    std::lock_guard<std::mutex> lifecycle(g_lifecycleMutex);
-    if (!g_file.is_open())
-        return;
+
+
+    {
+        std::lock_guard<std::mutex> lifecycle(g_lifecycleMutex);
+        if (!g_file.is_open())
+            return;
+    }
 
     const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::steady_clock::now() - g_sessionStart);
@@ -895,16 +880,27 @@ void Shutdown() {
     if (g_structuredFile.is_open())
         g_structuredFile.flush();
 
-    std::cout.rdbuf(g_originalOut);
-    std::cerr.rdbuf(g_originalErr);
-    std::clog.rdbuf(g_originalLog);
-    g_outTee.reset();
-    g_errTee.reset();
-    g_logTee.reset();
-    g_file.close();
-    g_structuredFile.close();
+
+
+
+
+    {
+        std::lock_guard<std::mutex> eventLock(g_eventMutex);
+        std::lock_guard<std::mutex> outputLock(g_outputMutex);
+        std::lock_guard<std::mutex> lifecycle(g_lifecycleMutex);
+        if (!g_file.is_open())
+            return;
+        std::cout.rdbuf(g_originalOut);
+        std::cerr.rdbuf(g_originalErr);
+        std::clog.rdbuf(g_originalLog);
+        g_outTee.reset();
+        g_errTee.reset();
+        g_logTee.reset();
+        g_file.close();
+        g_structuredFile.close();
+    }
     if ((g_fileTruncated || g_structuredFileTruncated) && g_originalErr)
         std::cerr << "[LOG] Um ficheiro de diagnostico atingiu o limite configurado; o processo continuou sem crescimento ilimitado.\n";
 }
 
-} // namespace OmniGhost::SessionLog
+}

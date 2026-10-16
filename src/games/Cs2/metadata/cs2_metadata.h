@@ -13,4 +13,4 @@ namespace CS2::Metadata {
 void FormatDroppedWeaponName(const char* source, char* output,
                              std::size_t output_size) noexcept;
 
-} // namespace CS2::Metadata
+}

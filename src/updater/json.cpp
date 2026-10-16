@@ -374,7 +374,7 @@ private:
     std::size_t errorOffset_{};
 };
 
-} // namespace
+}
 
 ParseResult Parse(std::string_view text, Value& output, Limits limits) {
     return Parser(text, limits).Run(output);
@@ -417,4 +417,4 @@ bool AsDouble(const Value& value, double& output) noexcept {
     return false;
 }
 
-} // namespace OmniGhost::Update::Json
+}

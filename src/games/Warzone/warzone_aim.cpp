@@ -9,6 +9,7 @@
 #include <cmath>
 #include <cstdio>
 #include <memory>
+#include <thread>
 
 namespace Warzone_Aim {
 namespace {
@@ -16,10 +17,13 @@ namespace {
 OmniGhost::Gameplay::ContinuousAimController g_aim_motion;
 int g_active = -1;
 char g_debug[128] = "aim idle";
+// WZ-002 Fix: fractional movement carried between frames (see Run below).
+float g_residual_x = 0.f;
+float g_residual_y = 0.f;
 
-// GPL-002 Fix: the "unified aimbot" object created here was a Publish-build
-// stub whose Update() is a no-op; keeping the dead call path suggested a
-// feature that never ran. Warzone aiming lives in the local logic below.
+
+
+
 bool W2S(const float world[3], const float vm[16], float& sx, float& sy) {
     const float w = vm[3] * world[0] + vm[7] * world[1] + vm[11] * world[2] + vm[15];
     if (w < 0.001f) return false;
@@ -47,7 +51,10 @@ void MoveMouse(int dx, int dy) {
 }
 
 void Click() {
+    // WZ-008a Fix: 12 ms press-release dwell so the click registers reliably
+    // with the game's input sampling frame.
     aim_type::LeftClick();
+    std::this_thread::sleep_for(std::chrono::milliseconds(12));
     aim_type::LeftClickRelease();
 }
 
@@ -63,7 +70,7 @@ bool Pass(const Warzone::Player& p, const Warzone::Config& cfg) {
     return true;
 }
 
-} // namespace
+}
 
 int ActiveTargetIndex() { return g_active; }
 const char* DebugStatus() { return g_debug; }
@@ -94,7 +101,7 @@ void Run(const Warzone::Runtime& rt, const Warzone::Config& cfg) {
             float sx, sy;
             if (!W2S(p.head, rt.view_matrix, sx, sy)) continue;
             const float d = std::sqrt((sx - cx) * (sx - cx) + (sy - cy) * (sy - cy));
-            if (d < 12.f) { hit = true; break; }
+            if (d < 14.f) { hit = true; break; } // WZ-008b: slightly larger fixed radius for readability
         }
         if (hit) {
             const auto now = std::chrono::steady_clock::now();
@@ -112,11 +119,11 @@ void Run(const Warzone::Runtime& rt, const Warzone::Config& cfg) {
         return;
     }
 
-    // WZ-001 Fix: the aim loop previously pulled the mouse continuously
-    // whenever aim_enabled was set, ignoring aim_bind/aim_bind2/aim_always_on
-    // shown in the UI. Mirror the FiveM hold-bind policy: only acquire/move
-    // when "always on" is set or an aim bind is held. KeyDown(0) is false, so
-    // unconfigured binds never activate.
+
+
+
+
+
     const bool aimActive =
         cfg.aim_always_on || KeyDown(cfg.aim_bind) || KeyDown(cfg.aim_bind2);
     if (!aimActive) {
@@ -134,22 +141,22 @@ void Run(const Warzone::Runtime& rt, const Warzone::Config& cfg) {
         return;
     }
 
-    // Use existing aim logic for actual aiming (unified aimbot is stub in Publish)
+
     float best_fov = FLT_MAX;
     int best_idx = -1;
     float best_dx = 0, best_dy = 0;
-    
+
     for (size_t i = 0; i < rt.players.size(); ++i) {
         const auto& p = rt.players[i];
         if (!Pass(p, cfg)) continue;
-        
+
         float sx, sy;
         if (!W2S(p.head, rt.view_matrix, sx, sy)) continue;
-        
+
         float dx = sx - cx;
         float dy = sy - cy;
         float fov = std::sqrt(dx * dx + dy * dy);
-        
+
         if (fov < cfg.aim_fov && fov < best_fov) {
             best_fov = fov;
             best_idx = static_cast<int>(i);
@@ -157,20 +164,20 @@ void Run(const Warzone::Runtime& rt, const Warzone::Config& cfg) {
             best_dy = dy;
         }
     }
-    
+
     if (best_idx >= 0) {
         g_active = best_idx;
-        
-        // Apply smoothing
+
+
         float smooth = cfg.aim_smooth > 0 ? cfg.aim_smooth : 1.0f;
         float mx = best_dx / smooth;
         float my = best_dy / smooth;
-        
-        // Update debug
+
+
         std::snprintf(g_debug, sizeof(g_debug), "pull %+d,%+d d=%.0f idx=%d",
             static_cast<int>(mx), static_cast<int>(my), best_fov, best_idx);
-        
-        // Move mouse
+
+
         if (mx != 0 || my != 0) {
             MoveMouse(static_cast<int>(mx), static_cast<int>(my));
         }
@@ -179,7 +186,7 @@ void Run(const Warzone::Runtime& rt, const Warzone::Config& cfg) {
         std::snprintf(g_debug, sizeof(g_debug), "aim: no target");
     }
 
-    // Keep existing FOV drawing
+
     if (cfg.aim_draw_fov) {
         if (ImDrawList* dl = ImGui::GetBackgroundDrawList()) {
             dl->AddCircle(ImVec2(cx, cy), cfg.aim_fov,
@@ -189,4 +196,4 @@ void Run(const Warzone::Runtime& rt, const Warzone::Config& cfg) {
     }
 }
 
-} // namespace Warzone_Aim
+}

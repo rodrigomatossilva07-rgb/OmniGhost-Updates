@@ -37,10 +37,33 @@ bool DeserializeFriends(const std::string& key, const std::string& val) {
     if (bi("friends.prox_max_distance")) { friends::config.prox_max_distance = toF(); return true; }
     if (bi("friends.friend_color")) { friends::config.friend_color = toU(); return true; }
 
-    // Friend list entries handled in main DeserializeAll
-    if (key.rfind("friend.", 0) == 0) return true;
+
+    if (key.rfind("friend.", 0) == 0) {
+        // CFG-007 Fix: this blanket return used to swallow every friend.N.*
+        // key — the id/name restore branches in config_manager were dead code
+        // (they run AFTER DeserializeFriends), so friends never came back
+        // from a saved config at all.
+        const auto sep = key.rfind('.');
+        if (sep == std::string::npos || sep + 1 >= key.size())
+            return true;
+        const std::string leaf = key.substr(sep + 1);
+        const auto first = key.find('.');
+        const size_t idx = (first == std::string::npos || sep == first)
+            ? SIZE_MAX
+            : (size_t)strtoul(key.substr(first + 1, sep - first - 1).c_str(), nullptr, 10);
+        if (leaf == "id") {
+            const uint32_t id = (uint32_t)strtoul(val.c_str(), nullptr, 10);
+            friends::AddFriend(std::string("Friend_") + val, id, false);
+        } else if (leaf == "name" && idx != SIZE_MAX) {
+            // friend.N.name — N matches the insertion order of the ids above.
+            std::lock_guard<std::mutex> lock(friends::list_mutex);
+            if (idx < friends::friend_list.size() && !val.empty())
+                friends::friend_list[idx].name = val;
+        }
+        return true;
+    }
 
     return false;
 }
 
-} // namespace config_manager
+}

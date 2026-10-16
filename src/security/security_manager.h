@@ -9,6 +9,7 @@ enum class Severity : std::uint8_t { Info, Low, Medium, High, Critical };
 enum class Enforcement : std::uint8_t { None, Observe, Recheck, DenyFeatures };
 enum class EventId : std::uint8_t {
     ReleaseTrustMissing, ExecutableSignatureInvalid, InstallManifestInvalid,
+    InstallManifestMissing,
     RuntimeFileInvalid, SessionInvalid, SessionUnavailable, SessionRestored,
     SignatureVerificationUnavailable,
     DebuggerObserved, UnknownModuleObserved
@@ -20,7 +21,7 @@ struct Assessment {
     Enforcement enforcement;
 };
 
-// No client-side permanent ban or administrative KeyAuth action is exposed.
+
 class SecurityManager final {
 public:
     static SecurityManager& Instance() noexcept;
@@ -37,4 +38,4 @@ private:
     bool featuresDenied_{};
 };
 
-} // namespace OmniGhost::Security
+}

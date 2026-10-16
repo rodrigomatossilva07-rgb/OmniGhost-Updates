@@ -11,40 +11,40 @@
 
 namespace OmniGhost::Gameplay::UnifiedConfig {
 
-// Type-erased config value
+
 using ConfigValue = std::variant<bool, int, float, std::array<float, 4>, std::string>;
 
-// Unified config entry
+
 struct ConfigEntry {
     std::string key;
     ConfigValue value;
-    std::string category;  // "visuals", "aim", "radar", "colors", "advanced"
+    std::string category;
     std::string description;
     bool requires_restart = false;
 };
 
-// Config schema for serialization
+
 class ConfigSchema {
 public:
     virtual ~ConfigSchema() = default;
-    
-    // Game-specific feature flags (must be implemented by derived class)
+
+
     virtual OmniGhost::Gameplay::UnifiedESP::FeatureFlags GetFeatureFlags() const = 0;
-    
-    // Register a config variable
+
+
     template<typename T>
     void Register(const std::string& key, T* ptr, const std::string& category, const std::string& desc) {
         entries_.push_back({key, ConfigValue(*ptr), category, desc});
         pointers_[key] = [ptr](const ConfigValue& v) { *ptr = std::get<T>(v); };
     }
 
-    // Register color (array<float,4>)
+
     void RegisterColor(const std::string& key, std::array<float, 4>* ptr, const std::string& category, const std::string& desc) {
         entries_.push_back({key, ConfigValue(*ptr), category, desc});
         pointers_[key] = [ptr](const ConfigValue& v) { *ptr = std::get<std::array<float, 4>>(v); };
     }
 
-    // Serialize all registered configs
+
     std::string Serialize() const {
         std::ostringstream oss;
         for (const auto& e : entries_) {
@@ -57,35 +57,35 @@ public:
         return oss.str();
     }
 
-    // Deserialize from string
+
     bool Deserialize(const std::string& data) {
         std::istringstream iss(data);
         std::string line;
         std::string current_category;
         while (std::getline(iss, line)) {
-            // Skip comments
+
             if (line.empty() || line[0] == ';') continue;
-            
-            // Category header
+
+
             if (line[0] == '[' && line.back() == ']') {
                 current_category = line.substr(1, line.size() - 2);
                 continue;
             }
-            
-            // Key=value
+
+
             size_t eq = line.find('=');
             if (eq == std::string::npos) continue;
             std::string key = line.substr(0, eq);
             std::string val = line.substr(eq + 1);
             Trim(key); Trim(val);
-            
+
             auto it = pointers_.find(key);
             if (it != pointers_.end()) {
                 try {
                     ConfigValue cv = ParseValue(val);
                     it->second(cv);
                 } catch (const std::exception&) {
-                    // Ignore this malformed entry without changing its setting.
+
                     continue;
                 }
             }
@@ -93,7 +93,7 @@ public:
         return true;
     }
 
-    // Save to file
+
     bool SaveToFile(const std::string& path) const {
         std::ofstream f(path);
         if (!f) return false;
@@ -101,7 +101,7 @@ public:
         return true;
     }
 
-    // Load from file
+
     bool LoadFromFile(const std::string& path) {
         std::ifstream f(path);
         if (!f) return false;
@@ -109,7 +109,7 @@ public:
         return Deserialize(ss.str());
     }
 
-    // Get all entries for UI rendering
+
     const std::vector<ConfigEntry>& GetEntries() const { return entries_; }
 
 protected:
@@ -135,26 +135,26 @@ protected:
     }
 
     static ConfigValue ParseValue(const std::string& s) {
-        // Try bool
+
         if (s == "1" || s == "true") return ConfigValue(true);
         if (s == "0" || s == "false") return ConfigValue(false);
-        // BUG-028 Fix: Try color (r,g,b,a) BEFORE int/float
-        // Color format: "r,g,b,a" with 4 comma-separated floats
+
+
         if (s.find(',') != std::string::npos) {
             std::array<float, 4> c{};
             std::istringstream iss(s);
             char comma;
             if (iss >> c[0] >> comma >> c[1] >> comma >> c[2] >> comma >> c[3]) {
-                // Validate all 4 components parsed successfully
+
                 return ConfigValue(c);
             }
         }
-        // Try int
+
         try { return ConfigValue(std::stoi(s)); }
-        catch (const std::exception&) { /* Try the next supported type. */ }
-        // Try float
+        catch (const std::exception&) {  }
+
         try { return ConfigValue(std::stof(s)); }
-        catch (const std::exception&) { /* Keep the original string below. */ }
+        catch (const std::exception&) {  }
         return ConfigValue(s);
     }
 
@@ -164,10 +164,10 @@ protected:
     }
 };
 
-// Game-specific config implementations
+
 class CS2Config : public ConfigSchema {
 public:
-    // Visual
+
     bool esp_enabled = true;
     bool box = false, corner_box = false, box_fill = false;
     float box_thickness = 1.8f, box_rounding = 0.f;
@@ -199,7 +199,7 @@ public:
     bool dropped_weapon_icons = true;
     bool dropped_weapon_ammo = false;
 
-    // Aim
+
     bool aim_enabled = false;
     bool trigger_enabled = false;
     bool aim_visibility_check = false;
@@ -212,7 +212,7 @@ public:
     bool aim_auto_bone = false;
     bool aim_humanize = false;
 
-    // Colors
+
     std::array<float, 4> col_box = {1,1,1,0.9f};
     std::array<float, 4> col_box_corner = {0,0.78f,1,1};
     std::array<float, 4> col_box_fill = {1,0.25f,0.25f,0.16f};
@@ -261,7 +261,7 @@ public:
     }
 
     void RegisterAll() {
-        // Visuals
+
         Register("esp_enabled", &esp_enabled, "visuals", "Master ESP toggle");
         Register("box", &box, "visuals", "2D box");
         Register("corner_box", &corner_box, "visuals", "Corner box");
@@ -305,8 +305,8 @@ public:
         Register("team_check", &team_check, "visuals", "Team check");
         Register("show_bots", &show_bots, "visuals", "Show bots");
         Register("max_distance", &max_distance, "visuals", "Max ESP distance");
-        
-        // Colors
+
+
         RegisterColor("col_box", &col_box, "colors", "Box color");
         RegisterColor("col_box_corner", &col_box_corner, "colors", "Corner box color");
         RegisterColor("col_box_fill", &col_box_fill, "colors", "Box fill color");
@@ -328,8 +328,8 @@ public:
         RegisterColor("col_occluded", &col_occluded, "colors", "Occluded color");
         RegisterColor("col_team", &col_team, "colors", "Team color");
         RegisterColor("col_target", &col_target, "colors", "Target color");
-        
-        // Misc
+
+
         Register("bomb_timer", &bomb_timer, "misc", "Bomb timer");
         Register("spectator_list", &spectator_list, "misc", "Spectator list");
         Register("radar_2d", &radar_2d, "misc", "2D radar");
@@ -347,8 +347,8 @@ public:
         Register("dropped_weapon_heavy", &dropped_weapon_heavy, "misc", "Dropped weapon heavy");
         Register("dropped_weapon_icons", &dropped_weapon_icons, "misc", "Dropped weapon icons");
         Register("dropped_weapon_ammo", &dropped_weapon_ammo, "misc", "Dropped weapon ammo");
-        
-        // Aim
+
+
         Register("aim_enabled", &aim_enabled, "aim", "Aimbot enabled");
         Register("trigger_enabled", &trigger_enabled, "aim", "Triggerbot");
         Register("aim_visibility_check", &aim_visibility_check, "aim", "Aim visibility check");
@@ -363,7 +363,7 @@ public:
     }
 };
 
-// FiveM Config
+
 class FiveMConfig : public ConfigSchema {
 public:
     bool enabled = true, self_esp = false, visible_check = false, visibility_colors = false;
@@ -385,7 +385,7 @@ public:
     float triangle_radar_radius = 100.f;
     bool aimbot_enabled = false, trigger_enabled = false, visible_check_aim = false;
 
-    // Colors (ImU32 but stored as float[4] for serialization)
+
     std::array<float, 4> color_visible = {0.27f, 0.9f, 0.37f, 1};
     std::array<float, 4> color_invisible = {1, 0, 0, 1};
     std::array<float, 4> color_dead = {1, 0.2f, 0.2f, 1};
@@ -431,11 +431,11 @@ public:
 
     void RegisterAll() {
         Register("enabled", &enabled, "visuals", "Master ESP toggle");
-        // ... register all fields
+
     }
 };
 
-// Warzone Config
+
 class WarzoneConfig : public ConfigSchema {
 public:
     bool esp_enabled = true, team_check = true, ignore_downed = false, ignore_ai = false;
@@ -479,7 +479,7 @@ public:
         Register("max_distance", &max_distance, "visuals", "Max distance");
         Register("aim_enabled", &aim_enabled, "aim", "Aimbot");
         Register("trigger_enabled", &trigger_enabled, "aim", "Triggerbot");
-        
+
         RegisterColor("col_enemy", &col_enemy, "colors", "Enemy color");
         RegisterColor("col_team", &col_team, "colors", "Team color");
         RegisterColor("col_target", &col_target, "colors", "Target color");
@@ -488,7 +488,7 @@ public:
     }
 };
 
-// Fortnite Config (local only)
+
 class FortniteConfig : public ConfigSchema {
 public:
     bool esp_enabled = true, self_esp = true, show_bots = false;
@@ -503,7 +503,7 @@ public:
     bool chinese_hat = false, angel_wings = false, devil_horns = false, floating_crown = false;
     bool trails = false, hit_marker = false;
     float box_thickness = 1.8f, box_rounding = 0.f, skeleton_thickness = 1.8f;
-    float head_circle_thickness = 1.6f; 
+    float head_circle_thickness = 1.6f;
     float max_distance = 300.f;
     bool rgb_mode = false, visibility_colors = false;
     bool dropped_weapons = false;
@@ -557,14 +557,14 @@ public:
 
     void RegisterAll() {
         Register("esp_enabled", &esp_enabled, "visuals", "Master ESP toggle");
-        // ... register all fields
+
     }
 };
 
-// Global access
+
 inline CS2Config& GetCS2Config() { static CS2Config c; return c; }
 inline FiveMConfig& GetFiveMConfig() { static FiveMConfig c; return c; }
 inline WarzoneConfig& GetWarzoneConfig() { static WarzoneConfig c; return c; }
 inline FortniteConfig& GetFortniteConfig() { static FortniteConfig c; return c; }
 
-} // namespace OmniGhost::Gameplay::UnifiedConfig
+}

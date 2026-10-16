@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [Parameter(Mandatory=$false)]
     [string]$ProjectDir = (Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path))
@@ -32,9 +32,9 @@ function Forbid-Text([string]$Text, [string]$Pattern, [string]$Message) {
     if ($Text -match $Pattern) { Fail $Message }
     Pass $Message
 }
-# Windows PowerShell 5.x defaults Get-Content to the system ANSI code page.
-# Project sources are UTF-8; always read them as UTF-8 so accented validation
-# strings and Portuguese diagnostics match reliably.
+
+
+
 function Read-Utf8Text([string]$LiteralPath) {
     return [System.IO.File]::ReadAllText($LiteralPath, [System.Text.UTF8Encoding]::new($false))
 }
@@ -46,7 +46,7 @@ function Assert-ManifestHash([object]$Expected, [string]$Relative) {
     Pass "Hash: $Relative"
 }
 
-# Essential project/runtime inputs only. No test-suite requirements.
+
 foreach ($file in @(
     'OmiGhost.vcxproj','config\build\OmniGhost.Common.props','config\build\OmniGhost.Release.props',
     'config\release\versions.json',
@@ -75,16 +75,16 @@ foreach ($file in @('.github\workflows\release.yml')) {
     Require-File $file
 }
 
-# libs\ remains an editable source bundle. Commercial builds embed its selected
-# contents and install them privately instead of distributing them beside the EXE.
+
+
 $libsDir = Join-Path $ProjectDir 'libs'
 if (-not (Test-Path -LiteralPath $libsDir -PathType Container)) { Fail 'Missing directory: libs' }
 $libsDlls = @(Get-ChildItem -LiteralPath $libsDir -File -Filter '*.dll' -ErrorAction SilentlyContinue)
 if ($libsDlls.Count -eq 0) { Fail 'No DLL files found in libs' }
 Pass ("Local runtime bundle: libs ({0} DLLs)" -f $libsDlls.Count)
 
-# Documentation is not build-critical. Do not fail project validation merely because
-# a developer keeps Markdown notes/documentation next to the source tree.
+
+
 $markdown = @(Get-ChildItem -LiteralPath $ProjectDir -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.Extension -in @('.md','.markdown') })
 if ($markdown.Count -gt 0) {
     Write-Host ("[INFO] Markdown documentation present: {0} file(s); ignored by build validation." -f $markdown.Count) -ForegroundColor DarkGray
@@ -96,16 +96,16 @@ $versions = Read-Utf8Text (Join-Path $ProjectDir 'config\release\versions.json')
 Assert-ManifestHash $versions.memprocfs.sha256.'vmm.dll' 'libs\vmm.dll'
 Assert-ManifestHash $versions.leechcore.sha256.'leechcore.dll' 'libs\leechcore.dll'
 
-# The build explicitly consumes/copies the canonical DMA runtime from
-# third_party\dma_stack. Copies produced by a previous build or release staging are
-# expected and must not make the *next* build fail validation. Only source-tree
-# duplicates outside known generated/output roots are considered suspicious.
+
+
+
+
 $duplicates = @()
 $ignoredGeneratedRoots = @(
     'build\', 'x64\', '.cache\', '.temp\', 'artifacts\', 'dist\', 'out\', 'libs\',
     'third_party\dma_stack\bin\',
-    # Update-DmaDependencies.ps1 creates these while swapping the canonical stack.
-    # They are rollback/staging copies, never build inputs.
+
+
     'third_party\dma_stack.backup\', 'third_party\dma_stack.staging\'
 )
 foreach ($name in @('vmm.dll','leechcore.dll')) {
@@ -141,7 +141,7 @@ $common = Read-Utf8Text (Join-Path $ProjectDir 'config\build\OmniGhost.Common.pr
 $release = Read-Utf8Text (Join-Path $ProjectDir 'config\build\OmniGhost.Release.props')
 $runtimeBootstrap = Read-Utf8Text (Join-Path $ProjectDir 'src\platform\runtime_bootstrap.cpp')
 
-# These are regular expressions, so literal Windows path separators must be escaped.
+
 Require-Text $project 'libs\\\*\.dll' 'Canonical DMA runtime configured.'
 Require-Text $project 'libs\\\*\.dll' 'Local libs source bundle configured.'
 Require-Text $project 'src\\licensing\\license_service\.cpp' 'Licensing service is part of the build.'
@@ -179,16 +179,16 @@ Require-Text $project "Exists\('\$\(OutDir\)data\\fortnite_offsets\.json'\)" 'Re
 Require-Text $project "Exists\('\$\(OutDir\)data\\warzone_offsets\.json'\)" 'Release fails closed if a Warzone offset JSON reaches runtime output.'
 Require-Text $project "Exists\('\$\(OutDir\)data\\offsets\.json'\)" 'Release fails closed if a generic offset JSON reaches runtime output.'
 
-# Build-hardening settings live in imported property sheets, not necessarily in the .vcxproj itself.
+
 Require-Text $common '<WarningLevel>Level4</WarningLevel>' 'Level4 warnings enabled.'
 Require-Text $common '/permissive-' 'Strict MSVC conformance enabled.'
 Require-Text $release '<ControlFlowGuard>Guard</ControlFlowGuard>' 'Control Flow Guard enabled for Release.'
-# AddressSanitizer is optional dev config (not required for Release)
-# Require-Text $common '<AddressSanitizer>DynamicBase</AddressSanitizer>' 'AddressSanitizer enabled for Release (optional dev config).'
 
-# Static Analysis (SARIF output) - optional
-# Require-Text $common '<CodeAnalysisRuleSet>.*\.ruleset</CodeAnalysisRuleSet>' 'Static analysis ruleset configured.'
-# Require-Text $common '<RunCodeAnalysis>true</RunCodeAnalysis>' 'Static analysis enabled for Release builds.'
+
+
+
+
+
 
 $patternOutDir = @'
 <OutDir Condition="'\$\(OutDir\)'==''">\$\(ProjectDir\)build\\</OutDir>
@@ -220,7 +220,7 @@ Require-Text $releasePackager 'vc_tools_version' 'Commercial packaging requires 
 Require-Text $releasePackager 'windows_sdk_version' 'Commercial packaging requires captured Windows SDK metadata.'
 
 $packageWrapper = Read-Utf8Text (Join-Path $ProjectDir 'tools\Package-Release.ps1')
-Require-Text $packageWrapper 'Packaging never increments version\.txt and never publishes remotely' 'Package wrapper documents immutable source/version semantics.'
+Forbid-Text $packageWrapper 'Increment-Version\.ps1|Publish-Build\.ps1|publish_github_release\.ps1' 'Package wrapper can mutate the source version or publish remotely.'
 $publishWrapper = Read-Utf8Text (Join-Path $ProjectDir 'tools\Publish-Release.ps1')
 Require-Text $publishWrapper 'Publish-Build\.ps1' 'Manual retry reuses the Publish-only orchestrator.'
 $publishBuild = Read-Utf8Text (Join-Path $ProjectDir 'tools\Publish-Build.ps1')
@@ -308,9 +308,9 @@ $patternStage = @'
 stage == "integrity".*VerifyInstallationAsync\(
 '@
 Require-Text $updateService $patternStage 'Retry repeats installation verification for integrity-stage failures.'
-# Validate updater capabilities, not localized presentation strings. UI copy is allowed
-# to change with the selected language without turning a normal C++ build into an
-# engineering-validation failure.
+
+
+
 Require-Text $updateUi 'DownloadAndScheduleInstallOnExitAsync\(\)' 'Optional update UI wires the Install-on-exit action.'
 Require-Text $updateUi 'RetryLastFailure\(\)' 'Updater UI wires stage-aware Retry.'
 Require-Text $updateUi 'releaseNotesForCompletedUpdate\.c_str\(\)' 'Updater UI exposes completed-update release notes.'
@@ -325,9 +325,9 @@ InstallDirectory\(\).+version\.txt
 Forbid-Text $configManager $patternInstallDir 'Runtime config no longer depends on version.txt beside the EXE.'
 Forbid-Text $configCore $patternInstallDir 'Config core no longer depends on version.txt beside the EXE.'
 
-# Offset policy: data/<game>_offsets.json is the only editable authority.
-# Release may embed generated copies, but game adapters must fail closed instead
-# of silently activating C++ seed/emergency tables.
+
+
+
 $offsetAdapterFiles = @(
     'src\games\Cs2\cs2_game.h',
     'src\games\Fivem\game\offsets.cpp',

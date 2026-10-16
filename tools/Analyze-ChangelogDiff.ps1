@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)][string]$ProjectDir,
     [Parameter(Mandatory = $true)][string]$Version,
@@ -89,8 +89,8 @@ try {
             $remaining = $MaximumDiffCharacters - $diffBuilder.Length
             if ($remaining -le 0) { break }
             if ($fileDiff.Length -gt $remaining) {
-                # Do not expose a path as valid evidence when only an arbitrary,
-                # potentially misleading fragment of its patch would be supplied.
+
+
                 break
             }
             [void]$diffBuilder.AppendLine($fileDiff)

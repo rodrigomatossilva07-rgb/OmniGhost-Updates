@@ -10,12 +10,12 @@
 #include <mutex>
 #include <unordered_map>
 
-// Defined in makcu_wrapper.cpp — forwards serial mask packets to the input layer.
+
 extern void MakcuNotifyMaskFromSerial(uint8_t m);
 
 namespace makcu {
 
-    // Constants
+
     constexpr uint16_t MAKCU_VID = 0x1A86;
     constexpr uint16_t MAKCU_PID = 0x55D3;
     constexpr const char* TARGET_DESC = "USB-Enhanced-SERIAL CH343";
@@ -23,19 +23,19 @@ namespace makcu {
     constexpr uint32_t INITIAL_BAUD_RATE = 115200;
     constexpr uint32_t HIGH_SPEED_BAUD_RATE = 4000000;
 
-    // Baud rate change command
+
     const std::vector<uint8_t> BAUD_CHANGE_COMMAND = {
         0xDE, 0xAD, 0x05, 0x00, 0xA5, 0x00, 0x09, 0x3D, 0x00
     };
 
-    // Static member definitions for PerformanceProfiler
+
     std::atomic<bool> PerformanceProfiler::s_enabled{ false };
     std::mutex PerformanceProfiler::s_mutex;
     std::unordered_map<std::string, std::pair<uint64_t, uint64_t>> PerformanceProfiler::s_stats;
 
-    // Command cache for maximum performance
+
     struct CommandCache {
-        // Pre-computed command strings
+
         std::unordered_map<MouseButton, std::string> press_commands;
         std::unordered_map<MouseButton, std::string> release_commands;
         std::unordered_map<std::string, std::string> lock_commands;
@@ -43,7 +43,7 @@ namespace makcu {
         std::unordered_map<std::string, std::string> query_commands;
 
         CommandCache() {
-            // Pre-compute all button commands
+
             press_commands[MouseButton::LEFT] = "km.left(1)";
             press_commands[MouseButton::RIGHT] = "km.right(1)";
             press_commands[MouseButton::MIDDLE] = "km.middle(1)";
@@ -56,7 +56,7 @@ namespace makcu {
             release_commands[MouseButton::SIDE1] = "km.ms1(0)";
             release_commands[MouseButton::SIDE2] = "km.ms2(0)";
 
-            // Pre-compute lock commands
+
             lock_commands["X"] = "km.lock_mx(1)";
             lock_commands["Y"] = "km.lock_my(1)";
             lock_commands["LEFT"] = "km.lock_ml(1)";
@@ -83,7 +83,7 @@ namespace makcu {
         }
     };
 
-    // High-performance PIMPL implementation
+
     class Device::Impl {
     public:
         std::unique_ptr<SerialPort> serialPort;
@@ -94,21 +94,21 @@ namespace makcu {
         std::atomic<bool> highPerformanceMode;
         mutable std::mutex mutex;
 
-        // Command cache for ultra-fast lookups
+
         CommandCache commandCache;
 
-        // State caching with bitwise operations (like Python v2.0)
-        std::atomic<uint16_t> lockStateCache{ 0 };  // 16 bits for different lock states
+
+        std::atomic<uint16_t> lockStateCache{ 0 };
         std::atomic<bool> lockStateCacheValid{ false };
 
-        // Button state tracking
+
         std::atomic<uint8_t> currentButtonMask{ 0 };
 
-        // Callbacks
+
         Device::MouseButtonCallback mouseButtonCallback;
         Device::ConnectionCallback connectionCallback;
 
-        // Pre-allocated string buffers for move commands
+
         mutable std::string moveCommandBuffer;
         mutable std::mutex moveBufferMutex;
 
@@ -119,10 +119,10 @@ namespace makcu {
             , highPerformanceMode(false) {
             deviceInfo.isConnected = false;
 
-            // Absolute mask from GAME-PC mouse stream (source of truth for IsDown).
-            // Always store — even 0x00 heartbeats prove the stream is alive.
-            // Forward every packet to the wrapper so stuck-mask recovery and
-            // packet accounting stay in sync (do not rely only on polling).
+
+
+
+
             serialPort->setMaskCallback([this](uint8_t mask) {
                 currentButtonMask.store(mask);
                 monitoring.store(true);
@@ -140,7 +140,7 @@ namespace makcu {
                 return false;
             }
 
-            // Send baud rate change command
+
             if (!serialPort->write(BAUD_CHANGE_COMMAND)) {
                 return false;
             }
@@ -149,7 +149,7 @@ namespace makcu {
                 return false;
             }
 
-            // Close and reopen at high speed
+
             std::string portName = serialPort->getPortName();
             serialPort->close();
 
@@ -167,15 +167,15 @@ namespace makcu {
                 return false;
             }
 
-            // Small delay for device to be ready
+
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-            // Official stream: enable + 10ms period (not bare km.buttons(1))
+
             return serialPort->sendCommand("km.buttons(1,10)");
         }
 
         void handleButtonEvent(uint8_t button, bool pressed) {
-            // Mask is already absolute via setMaskCallback. Only fire user hooks.
+
             (void)pressed;
             if (mouseButtonCallback && button < 5) {
                 MouseButton mouseBtn = static_cast<MouseButton>(button);
@@ -199,7 +199,7 @@ namespace makcu {
             }
         }
 
-        // High-performance command execution
+
         bool executeCommand(const std::string& command) {
             if (!connected.load()) {
                 return false;
@@ -209,15 +209,15 @@ namespace makcu {
 
             bool result;
             if (highPerformanceMode.load()) {
-                // Fire-and-forget mode for gaming
+
                 result = serialPort->sendCommand(command);
             }
             else {
-                // Standard mode with minimal tracking
+
                 result = serialPort->sendCommand(command);
             }
 
-            // Performance profiling
+
             auto end = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
             makcu::PerformanceProfiler::logCommandTiming(command, duration);
@@ -225,11 +225,11 @@ namespace makcu {
             return result;
         }
 
-        // Optimized move command with buffer reuse
+
         bool executeMoveCommand(int32_t x, int32_t y) {
             std::lock_guard<std::mutex> lock(moveBufferMutex);
             moveCommandBuffer.clear();
-            moveCommandBuffer.reserve(32); // Pre-allocate reasonable size
+            moveCommandBuffer.reserve(32);
 
             moveCommandBuffer = "km.move(";
             moveCommandBuffer += std::to_string(x);
@@ -240,7 +240,7 @@ namespace makcu {
             return executeCommand(moveCommandBuffer);
         }
 
-        // Cache-based lock state management
+
         void updateLockStateCache(const std::string& target, bool locked) {
             static const std::unordered_map<std::string, int> lockBitMap = {
                 {"X", 0}, {"Y", 1}, {"LEFT", 2}, {"RIGHT", 3},
@@ -268,7 +268,7 @@ namespace makcu {
             };
 
             if (!lockStateCacheValid.load()) {
-                return false; // Cache invalid
+                return false;
             }
 
             auto it = lockBitMap.find(target);
@@ -279,7 +279,7 @@ namespace makcu {
         }
     };
 
-    // Device implementation
+
     Device::Device() : m_impl(std::make_unique<Impl>()) {}
 
     Device::~Device() {
@@ -323,27 +323,27 @@ namespace makcu {
 
         m_impl->status = ConnectionStatus::CONNECTING;
 
-        // Open at initial baud rate
+
         if (!m_impl->serialPort->open(targetPort, INITIAL_BAUD_RATE)) {
             m_impl->status = ConnectionStatus::CONNECTION_ERROR;
             return false;
         }
 
-        // Switch to high-speed mode
+
         if (!m_impl->switchToHighSpeedMode()) {
             m_impl->serialPort->close();
             m_impl->status = ConnectionStatus::CONNECTION_ERROR;
             return false;
         }
 
-        // Initialize device
+
         if (!m_impl->initializeDevice()) {
             m_impl->serialPort->close();
             m_impl->status = ConnectionStatus::CONNECTION_ERROR;
             return false;
         }
 
-        // Update device info
+
         m_impl->deviceInfo.port = targetPort;
         m_impl->deviceInfo.description = TARGET_DESC;
         m_impl->deviceInfo.vid = MAKCU_VID;
@@ -425,7 +425,7 @@ namespace makcu {
             });
     }
 
-    // High-performance mouse control methods
+
     bool Device::mouseDown(MouseButton button) {
         if (!m_impl->connected.load()) {
             return false;
@@ -455,7 +455,7 @@ namespace makcu {
             return false;
         }
 
-        // For maximum performance, batch press+release
+
         auto pressIt = m_impl->commandCache.press_commands.find(button);
         auto releaseIt = m_impl->commandCache.release_commands.find(button);
 
@@ -492,7 +492,7 @@ namespace makcu {
             return false;
         }
 
-        // Use cached button state for performance
+
         uint8_t mask = m_impl->currentButtonMask.load();
         return (mask & (1 << static_cast<uint8_t>(button))) != 0;
     }
@@ -503,7 +503,7 @@ namespace makcu {
             });
     }
 
-    // High-performance movement methods
+
     bool Device::mouseMove(int32_t x, int32_t y) {
         if (!m_impl->connected.load()) {
             return false;
@@ -568,7 +568,7 @@ namespace makcu {
             });
     }
 
-    // Mouse locking methods with caching
+
     bool Device::lockMouseX(bool lock) {
         if (!m_impl->connected.load()) return false;
 
@@ -667,7 +667,7 @@ namespace makcu {
         return result;
     }
 
-    // Fast cached lock state queries
+
     bool Device::isMouseXLocked() const {
         return m_impl->getLockStateFromCache("X");
     }
@@ -708,7 +708,7 @@ namespace makcu {
         };
     }
 
-    // Mouse input catching methods
+
     uint8_t Device::catchMouseLeft() {
         if (!m_impl->connected.load()) return 0;
 
@@ -804,15 +804,15 @@ namespace makcu {
         }
     }
 
-    // Button monitoring methods
+
     bool Device::enableButtonMonitoring(bool enable) {
         if (!m_impl->connected.load()) {
             return false;
         }
 
-        // Official API: km.buttons(1,10) enable with 10ms report period
-        //                km.buttons(0,0)  disable
-        // Some firmwares only accept km.buttons(1) without period — send both.
+
+
+
         if (!enable) {
             const bool ok = m_impl->executeCommand("km.buttons(0,0)");
             m_impl->monitoring.store(false);
@@ -824,8 +824,8 @@ namespace makcu {
         if (!ok)
             ok = m_impl->executeCommand("km.buttons(1)");
         else
-            (void)m_impl->executeCommand("km.buttons(1)"); // second pulse, ignore result
-        // Do NOT mark monitoring confirmed here — only a received mask packet does.
+            (void)m_impl->executeCommand("km.buttons(1)");
+
         return ok;
     }
 
@@ -837,7 +837,7 @@ namespace makcu {
         return m_impl->currentButtonMask.load();
     }
 
-    // Serial spoofing methods
+
     std::string Device::getMouseSerial() {
         if (!m_impl->connected.load()) return "";
 
@@ -854,8 +854,8 @@ namespace makcu {
     bool Device::setMouseSerial(const std::string& serial) {
         if (!m_impl->connected.load()) return false;
 
-        // The serial string is embedded verbatim into a device command:
-        // reject characters that would terminate or break out of the command.
+
+
         for (char c : serial) {
             if (c == '\'' || c == '\\' || c == '(' || c == ')' || c == '\r' || c == '\n'
                 || static_cast<unsigned char>(c) < 0x20)
@@ -899,7 +899,7 @@ namespace makcu {
         m_impl->connectionCallback = callback;
     }
 
-    // High-level automation methods
+
     bool Device::clickSequence(const std::vector<MouseButton>& buttons,
         std::chrono::milliseconds delay) {
         if (!m_impl->connected.load()) {
@@ -946,7 +946,7 @@ namespace makcu {
         return m_impl->highPerformanceMode.load();
     }
 
-    // Batch command builder implementation
+
     Device::BatchCommandBuilder Device::createBatch() {
         return BatchCommandBuilder(this);
     }
@@ -1004,7 +1004,7 @@ namespace makcu {
         return true;
     }
 
-    // Legacy raw command interface (not recommended)
+
     bool Device::sendRawCommand(const std::string& command) const {
         if (!m_impl->connected.load()) {
             return false;
@@ -1014,8 +1014,8 @@ namespace makcu {
     }
 
     std::string Device::receiveRawResponse() const {
-        // This method is deprecated and not recommended for performance
-        // Use async methods instead
+
+
         return "";
     }
 
@@ -1031,7 +1031,7 @@ namespace makcu {
             std::chrono::milliseconds(100));
     }
 
-    // Utility functions
+
     std::string mouseButtonToString(MouseButton button) {
         switch (button) {
         case MouseButton::LEFT: return "LEFT";
@@ -1054,7 +1054,7 @@ namespace makcu {
         if (upper == "SIDE1") return MouseButton::SIDE1;
         if (upper == "SIDE2") return MouseButton::SIDE2;
 
-        return MouseButton::LEFT; // Default fallback
+        return MouseButton::LEFT;
     }
 
-} // namespace makcu
+}

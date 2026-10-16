@@ -16,36 +16,36 @@ namespace aimbot { struct Config; }
 namespace esp {
     const float MAX_ESP_DISTANCE = 200.0f;
 
-    // P1-3: LOD bone selection - reduces DMA bandwidth by reading only
-    // bones needed for the visual features at a given distance.
+
+
     enum class SkeletonLOD : uint8_t {
-        Full = 0,    // All 9 bones (head, spine, limbs) - close range
-        High = 1,    // 5 bones (head, neck, shoulders, pelvis) - medium
-        Medium = 2,  // 3 bones (head, neck, pelvis) - far
-        Low = 3      // 1 bone (head only) - very far / minimal
+        Full = 0,
+        High = 1,
+        Medium = 2,
+        Low = 3
     };
 
-    // Distance thresholds for LOD transitions (meters)
+
     inline constexpr float LOD_DIST_FULL = 30.0f;
     inline constexpr float LOD_DIST_HIGH = 80.0f;
     inline constexpr float LOD_DIST_MEDIUM = 150.0f;
 
-    // Compute bone mask for a given LOD level
+
     uint16_t ComputeSkeletonBoneMask(SkeletonLOD lod);
-    // Compute LOD from distance to local player
+
     SkeletonLOD ComputeSkeletonLOD(float distance);
-    // Compute combined bone mask for all peds based on their distances
+
     uint16_t ComputeCombinedBoneMask(const std::vector<uintptr_t>& peds,
                                      const std::vector<Vec3>& positions,
                                      const Vec3& localPos);
 
-    // ESP Mode Configuration - Simple two modes
+
     enum class ESPMode {
-        HEAD_CIRCLE = 0,  // Your existing head circle ESP
-        SKELETON_BONES = 1 // Your existing skeleton bones ESP
+        HEAD_CIRCLE = 0,
+        SKELETON_BONES = 1
     };
 
-    // Global ESP configuration
+
     extern ESPMode current_esp_mode;
     extern ImU32 circle_color;
     extern ImU32 skeleton_color;
@@ -55,7 +55,7 @@ namespace esp {
 
     extern Config config;
 
-    // Enhanced bone data structure for caching
+
     struct CachedBoneData {
         Matrix bone_matrix;
         Vec3 head_position;
@@ -68,7 +68,7 @@ namespace esp {
         }
     };
 
-    // NEW: Batch skeleton data structure
+
     struct BatchSkeletonData {
         uintptr_t ped;
         Matrix bone_matrix;
@@ -80,12 +80,12 @@ namespace esp {
         std::chrono::steady_clock::time_point pose_sample{};
         std::chrono::steady_clock::time_point origin_sample{};
         uint64_t session_generation = 0;
-        uint64_t camera_sample_ms = 0;  // selected camera sample time for temporal coherence
+        uint64_t camera_sample_ms = 0;
 
         BatchSkeletonData() : ped(0), health(0.0f), bone_mask(0), valid(false) {}
     };
 
-    // NEW: Batch head data structure
+
     struct BatchHeadData {
         uintptr_t ped;
         Matrix bone_matrix;
@@ -100,13 +100,13 @@ namespace esp {
     void DrawDebugText(const Vec2& pos, const char* text, ImU32 color);
     void DrawDebugCircle(const Vec2& center, float radius, ImU32 color);
 
-    // Enhanced bone cache class with intelligent caching
+
     class BoneCache {
     private:
         std::unordered_map<uintptr_t, CachedBoneData> cached_bone_data;
-        // Reuse data within one 120 Hz acquisition interval. A zero duration
-        // made every lookup a guaranteed miss and defeated the cache entirely.
-        static constexpr std::chrono::seconds CLEANUP_INTERVAL{ 2 }; // Cleanup every 2 seconds
+
+
+        static constexpr std::chrono::seconds CLEANUP_INTERVAL{ 2 };
         std::chrono::steady_clock::time_point last_cleanup;
 
         static std::chrono::milliseconds GetCacheValidity() {
@@ -116,41 +116,41 @@ namespace esp {
     public:
         BoneCache() : last_cleanup(std::chrono::steady_clock::now()) {}
 
-        // Get bone matrix with caching
+
         Matrix get_bone_matrix(uintptr_t ped, bool force_refresh = false);
 
-        // Get bone position with caching
+
         Vec3 get_bone_position(uintptr_t ped, int bone_position, bool force_refresh = false);
 
-        // Update cache with fresh data (called from slow cache thread)
+
         void update_bone_data(uintptr_t ped, const Matrix& bone_matrix, const Vec3& head_pos);
 
-        // Cache management
+
         void clear() { cached_bone_data.clear(); }
         void cleanup_old_entries();
         bool is_data_valid(uintptr_t ped) const;
         size_t get_cache_size() const { return cached_bone_data.size(); }
 
-        
+
     };
 
     bool get_skeleton_bones_for_ped(uintptr_t ped, std::vector<Vec3>& bone_positions, bool force_refresh = false);
 
-    
-    // Global bone cache instance
+
+
     extern BoneCache bone_cache;
 
-    // Core ESP functions - your existing ones
+
     void draw_skeleton(uintptr_t ped, Matrix viewport, uintptr_t localplayer);
     void DrawWaypointAndBlips(const Matrix& view, uintptr_t localplayer);
     void DrawPlayerRadar(const Matrix& view_matrix, uintptr_t localplayer);
     void draw_skeleton_cached(uintptr_t ped, Matrix viewport, uintptr_t localplayer, const PedData& cached_ped_data);
 
-    // HEAD CIRCLE ESP functions (based on your existing cached version)
+
     void draw_head_circle(uintptr_t ped, Matrix viewport, uintptr_t localplayer);
     void draw_head_circle_cached(uintptr_t ped, Matrix viewport, uintptr_t localplayer, const PedData& cached_ped_data);
 
-    // ESP Mode Management
+
     void set_esp_mode(ESPMode mode);
     ESPMode get_esp_mode();
     const char* get_esp_mode_name(ESPMode mode);
@@ -158,11 +158,11 @@ namespace esp {
     void set_use_cache(bool use_cache);
     bool get_use_cache();
 
-    // Main rendering dispatcher - chooses between head circle or skeleton
+
     void render_esp_for_ped(uintptr_t ped, Matrix viewport, uintptr_t localplayer);
     void render_esp_for_ped_cached(uintptr_t ped, Matrix viewport, uintptr_t localplayer, const PedData& cached_ped_data);
 
-    // NEW: Batch skeleton functions
+
     void batch_read_skeleton_data(const std::vector<uintptr_t>& peds,
         std::vector<BatchSkeletonData>& out_data, uint16_t bone_mask = 0x01FFu);
     void prepare_skeleton_frame(const std::vector<uintptr_t>& peds,
@@ -185,25 +185,25 @@ namespace esp {
     void render_skeleton_esp_batch();
 
 
-    // NEW: Batch head circle functions
+
     void batch_read_head_data(const std::vector<uintptr_t>& peds, std::vector<BatchHeadData>& out_data);
     void render_batch_head_circles(const std::vector<BatchHeadData>& head_data, Matrix viewport, uintptr_t localplayer);
     void render_head_circle_esp_batch();
 
-    // Bone position functions (your existing ones)
+
     Vec3 get_bone_position(uintptr_t ped, int bone_position);
     Vec3 get_bone_position_cached(uintptr_t ped, int bone_position, const PedData& cached_ped_data);
 
-    // Utility functions
+
     Vec3 find_closest_player(Vec3& localPlayerPosition, Matrix viewmatrix);
     void draw_health_info(const Vec2& position, float health);
-    void draw_enhanced_health_info(const Vec2& position, float health); // OLD: Small health display
+    void draw_enhanced_health_info(const Vec2& position, float health);
 
-    // Batch update functions for performance
+
     void batch_update_bone_cache(const std::vector<uintptr_t>& peds);
-    void batch_update_skeleton_cache(const std::vector<uintptr_t>& peds); // NEW: Skeleton cache batch update
+    void batch_update_skeleton_cache(const std::vector<uintptr_t>& peds);
 
-    // NEW: Multi-threaded bone reading for skeleton ESP
+
     struct BoneReadResult {
         uintptr_t ped;
         std::vector<Vec3> bone_positions;
@@ -211,34 +211,34 @@ namespace esp {
 
         BoneReadResult() : ped(0), success(false) {}
         BoneReadResult(uintptr_t p) : ped(p), success(false) {
-            bone_positions.resize(6); // For the 6 bone connections
+            bone_positions.resize(6);
         }
     };
 
-    // Configuration setters
+
     void set_circle_color(ImU32 color);
     void set_skeleton_color(ImU32 color);
     void set_line_thickness(float thickness);
-    void set_use_batch_skeleton(bool use_batch);  // NEW
+    void set_use_batch_skeleton(bool use_batch);
 
     ImU32 get_circle_color();
     ImU32 get_skeleton_color();
     float get_line_thickness();
-    bool get_use_batch_skeleton();  // NEW
+    bool get_use_batch_skeleton();
 
-    // NEW: Skeleton cache management
+
     size_t get_skeleton_cache_size();
     void clear_skeleton_cache();
 
-    // Name cache management
+
     void ClearNameCache();
 
-    // Performance monitoring
+
     struct ESPStats {
-        // P3-3: Combined counter for atomic hit ratio (high 32=hits, low 32=misses)
-        // Bit layout: [63:32] = hits (uint32), [31:0] = misses (uint32)
-        // This allows atomic read of both counters without locking.
-        // Usage: hits = combined >> 32; misses = combined & 0xFFFFFFFFu
+
+
+
+
         std::atomic<uint64_t> cache_combined{0};
         std::atomic<int> memory_reads{0};
         std::atomic<int> batch_reads{0};

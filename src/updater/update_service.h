@@ -49,8 +49,8 @@ private:
     std::atomic_bool installOnExit_{false}; bool deferred_{};
 };
 
-// Called by the normal application entrypoint before UpdateService::Initialize.
-// It captures a successful update or rollback marker passed by the temporary updater.
+
+
 void CaptureUpdaterStartupNoticeFromCommandLine(int argc, wchar_t** argv);
 bool ConfirmUpdaterStartupFromCommandLine(int argc, wchar_t** argv);
 }

@@ -86,15 +86,15 @@ namespace CyberWidgets {
         ImGui::Indent(inset);
         ImGui::PushItemWidth(content_width);
 
-        // Constrain native widgets that use -1/GetContentRegionAvail (list
-        // boxes, inputs, etc.) to the card just like the custom controls.
+
+
         const float content_max_x = start.x + card_width - inset;
         window->ContentRegionRect.Max.x =
             std::min(window->ContentRegionRect.Max.x, content_max_x);
         window->WorkRect.Max.x = std::min(window->WorkRect.Max.x, content_max_x);
 
-        // Keep custom and native controls inside the card without introducing
-        // another child window/panel.
+
+
         dl->PushClipRect(
             ImVec2(start.x + 1.0f, start.y + 1.0f),
             ImVec2(start.x + card_width - 1.0f, FLT_MAX),
@@ -112,8 +112,8 @@ namespace CyberWidgets {
         ImDrawList* dl = ImGui::GetWindowDrawList();
         dl->PopClipRect();
 
-        // Product-wide minimum card height keeps neighbouring cards visually
-        // aligned without changing size on hover or while async state changes.
+
+
         const float minimumEndY = card.start.y + CyberTheme::Metrics::CardMinHeight - CyberTheme::Px(10.0f);
         const float currentY = ImGui::GetCursorScreenPos().y;
         if (currentY < minimumEndY)
@@ -140,7 +140,7 @@ namespace CyberWidgets {
 
         dl->ChannelsSetCurrent(0);
 
-        // Soft elevation instead of a second framed window.
+
         dl->AddRectFilled(
             ImVec2(a.x + 1.0f, a.y + 3.0f - hover),
             ImVec2(b.x + 1.0f, b.y + 4.0f + hover),
@@ -191,7 +191,7 @@ namespace CyberWidgets {
                    a.y + CyberTheme::Metrics::CardHeaderHeight),
             CyberTheme::WithAlpha(CyberTheme::Colors.Border, 0.44f), 1.0f);
 
-        // Clean card title — gold accent bar, no template numbering
+
         {
             dl->AddRectFilledMultiColor(
                 ImVec2(a.x + 13.0f, a.y + 13.0f),
@@ -270,4 +270,4 @@ namespace CyberWidgets {
             : g_cards.back().content_width;
     }
 
-} // namespace CyberWidgets
+}

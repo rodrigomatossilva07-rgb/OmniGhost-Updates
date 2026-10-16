@@ -70,9 +70,9 @@ void AddFirmware(std::vector<Component>& components) {
     if (GetSystemFirmwareTable(kRawSmbios, 0, bytes.data(), size) != size)
         return;
 
-    // RawSMBIOSData starts with four version bytes followed by a DWORD table
-    // length. Hash only hardware records: boot-status and firmware bookkeeping
-    // can change without the machine changing.
+
+
+
     DWORD tableLength = 0;
     std::memcpy(&tableLength, bytes.data() + 4, sizeof(tableLength));
     if (tableLength > bytes.size() - 8)
@@ -335,7 +335,7 @@ bool PersistFingerprint(std::string_view fingerprint) {
 std::string ComputeCurrentFingerprint() {
     std::vector<Component> components;
     components.reserve(16);
-    AddFirmware(components); // motherboard, BIOS, processor and memory devices
+    AddFirmware(components);
     AddCpu(components);
     AddDisplayAdapters(components);
     AddStorageDevices(components);
@@ -345,15 +345,15 @@ std::string ComputeCurrentFingerprint() {
     return Digest(std::move(components));
 }
 
-} // namespace
+}
 
 std::string ComputeHardwareFingerprint() noexcept {
     try {
-        // KeyAuth binds the first successful identity. Optional device queries
-        // (for example a sleeping disk or a display adapter still starting)
-        // must not create a different account HWID on the next launch. Persist
-        // the first complete digest under machine-bound DPAPI and reuse it for
-        // all later runs and application updates.
+
+
+
+
+
         if (std::string persisted = LoadPersistedFingerprint(); !persisted.empty())
             return persisted;
         std::string fingerprint = ComputeCurrentFingerprint();
@@ -365,4 +365,4 @@ std::string ComputeHardwareFingerprint() noexcept {
     }
 }
 
-} // namespace OmniGhost::Auth
+}

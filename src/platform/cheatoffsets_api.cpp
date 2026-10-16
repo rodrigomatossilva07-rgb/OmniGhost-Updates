@@ -33,6 +33,11 @@ HttpResult HttpGet(const std::wstring& path, const std::wstring& ifNone) {
     auto sess = OmniGhost::Platform::MakeWinHttpHandle(WinHttpOpen(L"OmniGhost-CheatOffsets/2.0",
         WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0));
     if (!sess) return out;
+
+
+
+
+    WinHttpSetTimeouts(sess.get(), 15000, 15000, 15000, 15000);
     auto conn = OmniGhost::Platform::MakeWinHttpHandle(WinHttpConnect(sess.get(), L"www.cheatoffsets.com", INTERNET_DEFAULT_HTTPS_PORT, 0));
     if (!conn) return out;
     auto req = OmniGhost::Platform::MakeWinHttpHandle(WinHttpOpenRequest(conn.get(), L"GET", path.c_str(), nullptr,
@@ -42,10 +47,12 @@ HttpResult HttpGet(const std::wstring& path, const std::wstring& ifNone) {
     std::wstring hdrs = L"Accept: application/json\r\nUser-Agent: OmniGhost-CheatOffsets/2.0\r\n";
     if (!ifNone.empty())
         hdrs += L"If-None-Match: " + ifNone + L"\r\n";
-    WinHttpSendRequest(req.get(),
+    if (!WinHttpSendRequest(req.get(),
         hdrs.c_str(), (DWORD)-1,
-        WINHTTP_NO_REQUEST_DATA, 0, 0, 0);
-    WinHttpReceiveResponse(req.get(), nullptr);
+        WINHTTP_NO_REQUEST_DATA, 0, 0, 0))
+        return out;
+    if (!WinHttpReceiveResponse(req.get(), nullptr))
+        return out;
 
     DWORD status = 0, sz = sizeof(status);
     WinHttpQueryHeaders(req.get(), WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
@@ -57,8 +64,15 @@ HttpResult HttpGet(const std::wstring& path, const std::wstring& ifNone) {
     if (WinHttpQueryHeaders(req.get(), WINHTTP_QUERY_CUSTOM, L"ETag", etagBuf, &etagLen, WINHTTP_NO_HEADER_INDEX))
         out.etag = OmniGhost::Platform::WideToUtf8(etagBuf);
 
+    constexpr size_t kMaxBodyBytes = 8ull * 1024ull * 1024ull;
     DWORD avail = 0;
     while (WinHttpQueryDataAvailable(req.get(), &avail) && avail) {
+        if (out.body.size() + avail > kMaxBodyBytes) {
+
+            out.status = 0;
+            out.body.clear();
+            return out;
+        }
         std::string chunk(avail, '\0');
         DWORD read = 0;
         if (!WinHttpReadData(req.get(), chunk.data(), avail, &read) || !read) break;
@@ -83,7 +97,7 @@ bool WriteFile(const std::string& path, const std::string& body) {
     return true;
 }
 
-} // namespace
+}
 
 bool FetchGame(const char* slug, const char* out_json_path, std::string* status) {
     if (!slug || !slug[0]) return false;
@@ -92,7 +106,7 @@ bool FetchGame(const char* slug, const char* out_json_path, std::string* status)
         : DataPath((std::string(slug) + "_offsets.json").c_str());
 
     const std::wstring base = L"/api/games/" + OmniGhost::Platform::Utf8ToWide(slug);
-    // Prefer compact offsets payload; fall back to full /current document
+
     auto r = HttpGet(base + L"/current/offsets", L"");
     if (r.status != 200 || r.body.empty())
         r = HttpGet(base + L"/current", L"");
@@ -148,7 +162,7 @@ bool FetchGameIfChanged(const char* slug, const char* out_json_path, std::string
 }
 
 bool FetchRust(std::string* s) {
-    // Primary path used by the Rust module and OffsetAuto
+
     return FetchGameIfChanged("rust", DataPath("rust_offsets.json").c_str(), s);
 }
 bool FetchCS2(std::string* s) { return FetchGameIfChanged("cs2", nullptr, s); }
@@ -179,5 +193,5 @@ int FetchAll(std::string* status) {
     return ok;
 }
 
-} // namespace CheatOffsets
-} // namespace OmniGhost
+}
+}

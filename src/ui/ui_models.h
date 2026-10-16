@@ -9,9 +9,9 @@
 namespace esp {
 
     struct Config : OmniGhost::Gameplay::EspConfigBase {
-        // FiveM-specific additions / overrides
-        bool enabled = false; // aliases esp_enabled
-        // Legacy FiveM UI/config fields retained until all consumers migrate.
+
+        bool enabled = false;
+
         bool joints = false;
         bool head_circle = false;
         bool box_2d = true;
@@ -22,20 +22,20 @@ namespace esp {
         bool self_esp = false;
         bool show_dead = false;
         bool show_knocked = false;
-        bool team_check = false; // when true: hide friends from ESP
+        bool team_check = false;
         bool npc_esp = false;
         bool triangle_radar = false;
         bool blip_esp = false;
-        bool waypoint_line = true;      // arrows around crosshair
-        bool square_radar = false;       // old corner minimap (off by default)
-        float triangle_radar_radius = 80.f; // base; scales with aim FOV
+        bool waypoint_line = true;
+        bool square_radar = false;
+        float triangle_radar_radius = 80.f;
         int bone_cache_validity_ms = 8;
         int skeleton_cache_validity_ms = 10;
         int circle_type = 0;
         int snapline_pos = 0;
 
-        // FiveM uses ImU32 colors (0xAARRGGBB) instead of float[4]
-        // These override the base float[4] colors when used
+
+
         ImU32 color_visible = IM_COL32(0, 255, 0, 255);
         ImU32 color_invisible = IM_COL32(255, 55, 55, 255);
         ImU32 color_dead = IM_COL32(255, 50, 50, 255);
@@ -59,23 +59,23 @@ namespace esp {
         ImU32 color_fun_effects = IM_COL32(255, 184, 46, 242);
         ImU32 color_look_direction = IM_COL32(212, 175, 55, 220);
 
-        // Radar specific
+
         bool radar_enabled = false;
         float radar_range = 100.0f;
         float radar_size = 110.0f;
-        float radar_pos_x = 0.88f; // fraction of screen
+        float radar_pos_x = 0.88f;
         float radar_pos_y = 0.78f;
         float radar_2d_size = 110.0f;
 
-        // Legacy fields for compatibility
+
         bool skeleton_lod = true;
-        // Skeleton LOD distance thresholds (meters)
+
         float lod_full_dist = 30.0f;
         float lod_high_dist = 80.0f;
         float lod_med_dist = 150.0f;
     };
 
-} // namespace esp
+}
 
 namespace aimbot {
 
@@ -96,7 +96,7 @@ namespace aimbot {
     struct Config {
         Hitbox hitbox = Hitbox::Head;
         FovStyle fov_style = FovStyle::Circle;
-        bool visible_check = false; // DMA visibility often false-negatives
+        bool visible_check = false;
         bool closest_to_crosshair = true;
 
         bool aimbot_enabled = false;
@@ -107,9 +107,9 @@ namespace aimbot {
         int aimbot_bind2 = 0;
         float fov_size = 100.0f;
         float max_distance = 300.0f;
-        float smooth_x = 0.0f;   // 0 = full snap, 100 = no pull (same as CS2)
+        float smooth_x = 0.0f;
         float smooth_y = 0.0f;
-        float reaction_time = 0.0f; // no artificial delay by default
+        float reaction_time = 0.0f;
 
         bool humanize = false;
         bool threat_priority = true;
@@ -136,7 +136,7 @@ namespace aimbot {
         bool recoil_pattern_visual = false;
     };
 
-} // namespace aimbot
+}
 
 namespace aim_type {
 
@@ -167,21 +167,17 @@ namespace aim_type {
         bool makcu_connected = false;
     };
 
-} // namespace aim_type
+}
 
 namespace vehicle_esp {
 
     struct Config {
         bool enabled = false;
-        bool self_vehicle = false;
-        bool anti_fall_moto = false;
 
         bool box_3d = false;
         bool snaplines = false;
-        bool marker = false;
         bool distance = true;
         bool show_occupants = false;
-        bool vehicle_name = false;
         bool ignore_occupied = false;
         bool lock_status = true;
         bool show_speed = false;
@@ -190,23 +186,19 @@ namespace vehicle_esp {
 
         ImU32 color_box_3d = IM_COL32(0, 255, 100, 255);
         ImU32 color_snaplines = IM_COL32(255, 200, 50, 200);
-        ImU32 color_marker = IM_COL32(255, 220, 50, 255);
         ImU32 color_distance = IM_COL32(200, 200, 100, 255);
         ImU32 color_unlocked = IM_COL32(50, 255, 80, 255);
         ImU32 color_locked = IM_COL32(255, 50, 50, 255);
         ImU32 color_occupants = IM_COL32(100, 200, 255, 255);
-        ImU32 color_name = IM_COL32(255, 255, 255, 255);
 
         bool rgb_mode = false;
         int snapline_pos = 0;
-
-        int unlock_bind = 0;
-        int lock_bind = 0;
-        int fix_total_bind = 0;
-        int fix_motor_bind = 0;
+        // FIVEM-005 Fix: removed dead keys (self_vehicle, anti_fall_moto,
+        // marker, vehicle_name, color_marker, color_name and the
+        // unlock/lock/fix binds) — none of them had an implementation.
     };
 
-} // namespace vehicle_esp
+}
 
 namespace friends {
 
@@ -233,8 +225,8 @@ namespace friends {
         float prox_max_distance = 50.0f;
     };
 
-} // namespace friends
+}
 
 namespace config_manager {
 
-} // namespace config_manager
+}

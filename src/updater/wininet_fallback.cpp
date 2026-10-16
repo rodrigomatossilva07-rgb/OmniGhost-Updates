@@ -43,15 +43,15 @@ namespace OmniGhost::Update {
                 return false;
             }
 
-            /*
-             * InternetCrackUrlW only accepts ICU_DECODE/ICU_ESCAPE when the
-             * caller supplies output buffers. The previous implementation
-             * requested pointer slices and passed ICU_DECODE, so WinINet
-             * rejected every valid HTTPS URL before opening the connection.
-             *
-             * Explicit Unicode buffers also make this independent from the
-             * Visual Studio Character Set setting.
-             */
+
+
+
+
+
+
+
+
+
             std::array<wchar_t, 16> schemeBuffer{};
             std::array<wchar_t, 256> hostBuffer{};
 
@@ -571,7 +571,7 @@ namespace OmniGhost::Update {
             }
         }
 
-    } // namespace
+    }
 
     HttpResult GetTextWithWinInet(
         const std::string& url,
@@ -927,4 +927,4 @@ namespace OmniGhost::Update {
         return result;
     }
 
-} // namespace OmniGhost::Update
+}

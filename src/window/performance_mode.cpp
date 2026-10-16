@@ -29,7 +29,7 @@ float SanitizeFps(float value) {
     return (std::min)(value, 1000.0f);
 }
 
-} // namespace
+}
 
 void Reset() {
     g_state = State{};
@@ -92,4 +92,4 @@ State Current() {
     return g_state;
 }
 
-} // namespace PerformanceMode
+}

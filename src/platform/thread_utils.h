@@ -22,7 +22,7 @@ inline void SetCurrentThreadName(std::wstring_view name) noexcept {
     if (!fn)
         return;
 
-    // std::wstring_view is not required to be NUL-terminated.
+
     wchar_t buffer[64]{};
     constexpr size_t capacity = sizeof(buffer) / sizeof(buffer[0]);
     const size_t count = (std::min)(name.size(), capacity - 1);
@@ -34,4 +34,4 @@ inline void SetCurrentThreadName(std::wstring_view name) noexcept {
     (void)fn(GetCurrentThread(), buffer);
 }
 
-} // namespace OmniGhost::Platform
+}

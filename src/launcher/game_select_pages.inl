@@ -1,5 +1,5 @@
-// This implementation fragment is included by game_select.cpp inside Launcher's private namespace.
-// It is separated by responsibility to keep the launcher coordinator reviewable.
+
+
 
 void BeginControlPage(const char* id, ImVec2 display) {
     ImGui::SetNextWindowPos(ImVec2(S(24.f), S(76.f)));
@@ -18,8 +18,8 @@ void EndControlPage() {
 }
 
 void DrawPageHeading(const char* title, const char* subtitle) {
-    // Shared page signature: it keeps every area of the launcher recognisably
-    // OmniGhost without introducing a separate visual language per page.
+
+
     if (ImFont* font = CyberFonts::GetTitleFont()) ImGui::PushFont(font);
     ImGui::TextColored(CyberTheme::Colors.Text, "%s", title);
     if (CyberFonts::GetTitleFont()) ImGui::PopFont();
@@ -236,8 +236,8 @@ void DrawMarketplace(ImVec2 display) {
 							 ImVec2(S(205.f), S(34.f))))
 		openThemeGuide = true;
     CyberWidgets::EndCard();
-	// BeginCard owns an ImGui ID scope. Open the modal only after leaving that
-	// scope so OpenPopup and BeginPopupModal resolve exactly the same popup ID.
+
+
 	if (openThemeGuide) {
 		ImGui::OpenPopup("CRIAR TEMA DA COMUNIDADE");
 		openThemeGuide = false;
@@ -782,8 +782,8 @@ void DrawSettings(ImVec2 display) {
         for (std::size_t index = 0; index < gameCount; ++index)
             if (!gameList[index].coming_soon) ++integratedGames;
 
-        // Compact two-panel command centre: related information stays grouped
-        // instead of stretching a pair of values over the full launcher width.
+
+
         CyberWidgets::BeginCardRow(2);
         const float licenseColumnWidth = CyberWidgets::CardRowHalfWidth();
         CyberWidgets::BeginCard("Estado da licença", licenseColumnWidth);

@@ -73,7 +73,7 @@ bool HotkeyCaptureButton(const char* id, int* vk) {
     return changed;
 }
 
-} // namespace
+}
 
 void DrawCs2Aim() {
     const float gap = CyberTheme::Spacing::Md;
@@ -88,15 +88,15 @@ void DrawCs2Aim() {
         CyberWidgets::TextLine("Ativa enquanto mantiveres a tecla premida; ao largar, desativa.",
                                CyberWidgets::TextTone::Secondary);
 
-        // 2) Smooth 0..100
+
         CyberWidgets::SliderFloat(Loc::Tr("aim.smooth"), &CS2::config.aim_smooth, 0.f, 100.f, "%.0f");
         CS2::config.aim_smooth = std::clamp(CS2::config.aim_smooth, 0.f, 100.f);
 
-        // 3) FOV Size
+
         CyberWidgets::SliderFloat("FOV Size", &CS2::config.aim_fov, 10.f, 500.f, "%.0f px");
         CS2::config.aim_fov = std::clamp(CS2::config.aim_fov, 1.f, 500.f);
 
-        // 4) Aim Point — fixed only
+
         CS2::config.aim_auto_bone = false;
         static const char* kPoints[] = { "Head", "Neck", "Chest", "Stomach" };
         int point = CS2::config.aim_bone;
@@ -105,18 +105,18 @@ void DrawCs2Aim() {
         if (CyberWidgets::Combo("Aim Point", &point, kPoints, 4))
             CS2::config.aim_bone = point;
 
-        // 5) Humanization 0..100
+
         CyberWidgets::SliderFloat("Humanization", &CS2::config.aim_humanization, 0.f, 100.f, "%.0f");
         CS2::config.aim_humanization = std::clamp(CS2::config.aim_humanization, 0.f, 100.f);
         CS2::config.aim_humanize = CS2::config.aim_humanization > 0.5f;
 
-        // 6) Visibility check — only pull when game reports target as spotted
+
         CyberWidgets::ToggleSwitch("Verificacao de visibilidade", &CS2::config.aim_visibility_check);
         if (CS2::config.aim_visibility_check)
             CyberWidgets::TextLine("So puxa alvos visiveis (spotted). Desliga para puxar atras de paredes.",
                                    CyberWidgets::TextTone::Secondary);
 
-        // 7) Dynamic FOV
+
         CyberWidgets::ToggleSwitch("Dynamic FOV", &CS2::config.aim_dynamic_fov);
         if (CS2::config.aim_dynamic_fov) {
             CyberWidgets::SliderFloat("Min FOV", &CS2::config.aim_fov_min, 5.f, 200.f, "%.0f px");

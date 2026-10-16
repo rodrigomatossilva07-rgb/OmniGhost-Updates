@@ -174,4 +174,4 @@ void ResetSettingsOnly() {
         "settings reset (auth/license preserved)");
 }
 
-} // namespace config_manager
+}

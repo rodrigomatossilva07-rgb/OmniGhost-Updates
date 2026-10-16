@@ -20,7 +20,7 @@ void DrawWarzoneMisc() {
     CyberWidgets::TextLine("Opções visuais guardadas no perfil Warzone.", CyberWidgets::TextTone::Secondary);
     CyberWidgets::EndCard();
 
-    // Live backend status (real runtime — not a UI stub)
+
     CyberWidgets::BeginCard("Estado do Warzone", 0.f);
     {
         const bool dma = Warzone::runtime.module_base != 0;
@@ -58,7 +58,7 @@ void DrawWarzoneMisc() {
     }
     CyberWidgets::EndCard();
 
-    // Scenario presets
+
     CyberWidgets::BeginCard("Predefinições de cenário", 0.f);
     CyberWidgets::TextLine(
         "Conjuntos de configuração por contexto. Os nomes não indicam segurança/deteção e não substituem perfis guardados.",

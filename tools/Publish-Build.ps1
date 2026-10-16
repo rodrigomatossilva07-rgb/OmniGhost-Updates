@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [Parameter(Mandatory = $false)]
     [string]$ProjectDir = '',
@@ -31,10 +31,10 @@ function Invoke-NativeCommandCapture {
     $exitCode = 1
 
     try {
-        # Windows PowerShell 5.1 promotes native stderr to NativeCommandError
-        # when the script-wide ErrorActionPreference is Stop. Git writes normal
-        # push progress (including the remote URL) to stderr, so capture both
-        # streams with Continue and decide success from the process exit code.
+
+
+
+
         $ErrorActionPreference = 'Continue'
         $captured = @(& $FilePath @Arguments 2>&1)
         $exitCode = [int]$LASTEXITCODE
@@ -63,8 +63,8 @@ if ([string]::IsNullOrWhiteSpace($BuildDir)) {
 }
 $BuildDir = [IO.Path]::GetFullPath((Join-Path $BuildDir '.'))
 
-# Downloads contains only convenience copies made during packaging. Canonical
-# release assets live in artifacts\release and are never removed here.
+
+
 try {
 
 $configPath = Join-Path $ProjectDir 'config\release\release-publish.json'
@@ -121,7 +121,7 @@ if ($config.requireTagRelease -eq $true -or $config.requireCleanReproducibleBuil
         if ($LASTEXITCODE -ne 0) {
             throw 'Não foi possível listar tags Git no HEAD.'
         }
-        # A new tag is created only after package and signatures pass below.
+
     }
 }
 
@@ -202,9 +202,9 @@ if (-not $ValidateOnly -and -not $SkipRemoteUpload -and -not $usingApprovedSourc
     $uploadDuration = $uploadTimer.Elapsed
     Write-Host "[OmniGhost Publish] Release $tag publicada e confirmada em $(Format-OmniDuration $uploadDuration)."
 
-    # A published tag is immutable. Prepare the next source version only after
-    # GitHub confirms this release, ensuring the following Publish can never
-    # accidentally try to reuse the tag that was just published.
+
+
+
     Write-OmniPhase 10 'Preparação da próxima versão'
     & (Join-Path $ProjectDir 'tools\Increment-Version.ps1') -ProjectDir $ProjectDir
     if ($LASTEXITCODE -ne 0) {

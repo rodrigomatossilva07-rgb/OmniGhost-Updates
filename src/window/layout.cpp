@@ -17,7 +17,7 @@ std::mutex g_focusables_mutex;
 int g_focus_index = -1;
 bool g_high_contrast = false;
 bool g_reduced_motion = false;
-} // namespace
+}
 
 LayoutMetrics& GetMetrics() noexcept { return g_metrics; }
 
@@ -301,8 +301,8 @@ std::string GetLocalized(const char* key, const char* fallback) noexcept {
 }
 
 void AuditLocalizationCoverage() {
-    // This will be called from the UI to report coverage
-    // The actual audit is done in the localization system
+
+
 }
 
-} // namespace CyberLayout
+}

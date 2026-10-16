@@ -1,7 +1,7 @@
-// Included by game_select_pages.inl inside Launcher's private namespace.
-// Remote administration deliberately stays server-side: this panel exposes
-// trustworthy local diagnostics and links to the official control planes, but
-// never embeds KeyAuth Seller credentials in the distributable executable.
+
+
+
+
 
 namespace AdminPanel {
 
@@ -481,7 +481,7 @@ void DrawContent() {
     }
 }
 
-} // namespace AdminPanel
+}
 
 void DrawAdmin(ImVec2 display) {
     BeginControlPage("##launcher_admin", display);

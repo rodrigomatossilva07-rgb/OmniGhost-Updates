@@ -8,12 +8,12 @@ namespace CyberPerformance {
 void PerformanceManager::Tick(float deltaTimeMs) noexcept {
     if (deltaTimeMs <= 0.0f || !std::isfinite(deltaTimeMs)) return;
 
-    // Store frame time
+
     frameTimes_[frameIndex_] = deltaTimeMs;
     frameIndex_ = (frameIndex_ + 1) % frameTimes_.size();
     if (frameCount_ < frameTimes_.size()) frameCount_++;
 
-    // Initialize timing on first frame
+
     if (firstFrame_) {
         firstFrame_ = false;
         lastAdjustment_ = std::chrono::steady_clock::now();
@@ -21,7 +21,7 @@ void PerformanceManager::Tick(float deltaTimeMs) noexcept {
 
     UpdateAverage();
 
-    // Check cooldown
+
     const auto now = std::chrono::steady_clock::now();
     const float elapsedSec = std::chrono::duration<float>(now - lastAdjustment_).count();
 
@@ -40,7 +40,7 @@ void PerformanceManager::UpdateAverage() noexcept {
     }
     avgFrameTimeMs_.store(sum / static_cast<float>(frameCount_), std::memory_order_relaxed);
 
-    // Update state based on average
+
     const float avg = avgFrameTimeMs_.load(std::memory_order_relaxed);
     if (avg >= config_.criticalThresholdMs) {
         state_.store(State::Critical, std::memory_order_relaxed);
@@ -58,14 +58,14 @@ void PerformanceManager::AdjustLevels() noexcept {
     [[maybe_unused]] const float avg = avgFrameTimeMs_.load(std::memory_order_relaxed);
 
     if (currentState == State::Critical) {
-        // Aggressive reduction
+
         ReduceLevels();
-        ReduceLevels(); // Double reduction for critical
+        ReduceLevels();
     } else if (currentState == State::Warning) {
-        // Moderate reduction
+
         ReduceLevels();
     } else if (currentState == State::Optimal) {
-        // Gradual restore
+
         RestoreLevels();
     }
 }
@@ -77,7 +77,7 @@ void PerformanceManager::ReduceLevels() noexcept {
     current_.particleDensity = std::max(0.0f, current_.particleDensity - step);
     current_.animationIntensity = std::max(0.0f, current_.animationIntensity - step);
     current_.constellationDensity = std::max(0.0f, current_.constellationDensity - step);
-    current_.motionScale = std::max(0.3f, current_.motionScale - step * 0.5f); // Don't freeze completely
+    current_.motionScale = std::max(0.3f, current_.motionScale - step * 0.5f);
 }
 
 void PerformanceManager::RestoreLevels() noexcept {
@@ -100,4 +100,4 @@ void PerformanceManager::Reset() noexcept {
     firstFrame_ = true;
 }
 
-} // namespace CyberPerformance
+}

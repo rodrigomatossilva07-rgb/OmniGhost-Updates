@@ -70,14 +70,14 @@ fs::path LocalApplicationDataBase() {
     if (!result.empty())
         return result;
 
-    // SHGetKnownFolderPath can fail when the process starts before COM/Shell
-    // initialization. LOCALAPPDATA is a reliable fallback for the same folder.
+
+
     result = EnvironmentPath(L"LOCALAPPDATA");
     if (!result.empty())
         return result;
 
-    // Last-resort absolute fallback. Never return a relative path because that
-    // would make logs and updater files depend on the current working directory.
+
+
     return TemporaryBasePath();
 }
 
@@ -136,7 +136,7 @@ void CopyFileMissing(const fs::path& source, const fs::path& destination) {
     fs::copy_file(source, destination, fs::copy_options::none, error);
 }
 
-} // namespace
+}
 
 namespace OmniGhost::Paths {
 
@@ -174,15 +174,15 @@ fs::path InstallDirectory() {
 }
 
 std::wstring InstallIdentity() {
-    // Scope process-lifetime state to the concrete installation directory.
-    // This lets a developer build in one folder while testing a packaged copy
-    // in another without both copies colliding on the same named mutex/marker.
+
+
+
     std::wstring normalized = InstallDirectory().wstring();
     std::replace(normalized.begin(), normalized.end(), L'/', L'\\');
     while (normalized.size() > 3 && !normalized.empty() && normalized.back() == L'\\')
         normalized.pop_back();
 
-    std::uint64_t hash = 14695981039346656037ull; // FNV-1a 64-bit
+    std::uint64_t hash = 14695981039346656037ull;
     for (wchar_t character : normalized) {
         const wchar_t folded = static_cast<wchar_t>(std::towlower(character));
         hash ^= static_cast<std::uint64_t>(static_cast<std::uint16_t>(folded));
@@ -199,8 +199,8 @@ std::wstring InstallIdentity() {
 }
 
 fs::path LocalData() {
-    // Only mutable per-user state lives here. The executable remains wherever
-    // the user launched it from and is never copied into LocalAppData.
+
+
     return LocalApplicationDataBase() / L"OmniGhost";
 }
 
@@ -221,24 +221,24 @@ fs::path Cache() {
 }
 
 fs::path Logs() {
-    // Session log is LocalData()/logs.txt — no separate logs/ directory.
+
     return LocalData();
 }
 
 fs::path Updates() {
-    // Staging under runtime; do not create a permanent updates/ tree at startup.
+
     return NativeRuntime() / L"updates-staging";
 }
 
 fs::path Backups() {
-    // Only created when a caller actually writes a backup.
+
     return LocalData() / L"backups";
 }
 
 bool EnsureUserDirectories() {
-    // Minimal footprint under %LOCALAPPDATA%\OmniGhost:
-    // - root + runtime + Configs only at startup
-    // - CS2/, cache/, backups/, crash-dumps/ created lazily when used
+
+
+
     const std::array<fs::path, 3> directories = {
         LocalData(),
         NativeRuntime(),
@@ -258,10 +258,10 @@ bool EnsureUserDirectories() {
 void MigrateLegacyUserData() {
     EnsureUserDirectories();
 
-    // Builds from the short-lived portable-root layout stored mutable state in
-    // <drive>:\OmniGhost. Preserve it by copying only known user files and only
-    // when the LocalAppData destination does not already exist. Immutable
-    // runtime files and OmniGhost.exe are deliberately excluded.
+
+
+
+
     fs::path volumeRoot = Executable().root_path();
     if (volumeRoot.empty()) {
         volumeRoot = EnvironmentPath(L"SystemDrive");
@@ -295,8 +295,8 @@ void MigrateLegacyUserData() {
     CopyMissing(install / L"configs", Configs());
 
 #ifdef OMNIGHOST_DEV_EXTERNAL_RESOURCES
-    // Legacy source-tree migration is development-only. Customer builds must
-    // neither require nor probe an install-adjacent data directory.
+
+
     const fs::path legacyData = install / L"data";
     std::error_code error;
     if (fs::exists(legacyData, error)) {
@@ -367,4 +367,4 @@ bool IsProtectedInstallPath(const fs::path& relativePath) {
     return false;
 }
 
-} // namespace OmniGhost::Paths
+}

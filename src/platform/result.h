@@ -22,7 +22,7 @@ struct Error {
     [[nodiscard]] operator std::string_view() const noexcept { return message; }
 };
 
-// Primary: Result<T>
+
 template <typename T>
 class Result {
 public:
@@ -62,7 +62,7 @@ private:
     std::variant<T, Error> value_;
 };
 
-// Specialization: Result<void>
+
 template <>
 class Result<void> {
 public:
@@ -85,7 +85,7 @@ private:
     Error error_;
 };
 
-// Helpers
+
 template <typename T>
 [[nodiscard]] inline Result<T> Ok(const T& value) noexcept { return Result<T>(value); }
 
@@ -110,4 +110,4 @@ template <typename T>
 [[nodiscard]] inline Result<void> Err(std::string&& error) noexcept { return Result<void>(Error(std::move(error))); }
 [[nodiscard]] inline Result<void> Err(const char* error) noexcept { return Result<void>(Error(error)); }
 
-} // namespace OmniGhost::Platform
+}

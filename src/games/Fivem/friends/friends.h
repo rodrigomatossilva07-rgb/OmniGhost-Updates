@@ -22,8 +22,8 @@ namespace friends {
     void AddFriend(const std::string& name, uint32_t id, bool prox = false);
     void RemoveFriend(uint32_t id);
     void AddClosestAsFriend();
-    void KickClosestFromFriends(); // remove closest friend from list
-    void UpdatePlayerList(); // fill from ESP valid peds + net id if available
-    bool ExportFriendsClipboard(); // CSV id,name
-    bool ImportFriendsClipboard(); // parse CSV
-} // namespace friends
+    void KickClosestFromFriends();
+    void UpdatePlayerList();
+    bool ExportFriendsClipboard();
+    bool ImportFriendsClipboard();
+}

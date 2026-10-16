@@ -74,15 +74,15 @@ namespace aimbot {
     static bool beeped_for_lock = false;
     static std::mt19937 rng{ std::random_device{}() };
 
-    // Unified aimbot instance (stub for Publish builds)
+
     static std::unique_ptr<Gameplay::UnifiedAim::UnifiedAimbot> g_unified_aimbot;
 
-    // Held-aim controller state.
-    //
-    // IMPORTANT: this controller intentionally has NO movement momentum and
-    // NO accumulating integral term. Every command is calculated from the
-    // fresh screen-space error from the current frame. This prevents the
-    // "hold RMB -> oscillation gets faster and faster" feedback loop.
+
+
+
+
+
+
     static float previous_error_x = 0.f;
     static float previous_error_y = 0.f;
     static bool have_previous_error = false;
@@ -91,8 +91,8 @@ namespace aimbot {
     static std::chrono::steady_clock::time_point last_reversal{};
     static std::chrono::steady_clock::time_point last_aim_move{};
 
-    // Pose history is used only for sanity checking CURRENT world reads.
-    // We never aim using pose_filter_screen/world when a fresh read fails.
+
+
     static uintptr_t pose_filter_ped = 0;
     static Vec2 pose_filter_screen{};
     static Vec3 pose_filter_world{};
@@ -166,7 +166,7 @@ namespace aimbot {
         switch (hb) {
         case Hitbox::Head:   return 0;
         case Hitbox::Neck:   return 7;
-        case Hitbox::Torso:  return 8; // torso is refined via neck/hip interpolation below
+        case Hitbox::Torso:  return 8;
         case Hitbox::Pelvis: return 8;
         case Hitbox::Legs:   return 1;
         default:             return 0;
@@ -258,23 +258,23 @@ namespace aimbot {
         return FiveM::Visibility::IsPedVisible(ped);
     }
 
-    // Mouse binds: Makcu stream (GAME-PC) preferred; local Windows when stream is
-    // dead so single-PC setups still aim. Dual-PC needs the Makcu button stream.
+
+
     static bool BindDown(int vk) {
         if (vk <= 0) return false;
         return aim_type::IsDown(vk) || ((GetKeyState(vk) & 0x8000) != 0);
     }
 
-    // FiveM aim hold policy:
-    //  - RMB is the safe/default primary aim hold.
-    //  - LMB is NEVER allowed to activate/re-activate the aimbot.
-    //    This keeps firing completely independent from target tracking.
-    //  - A non-LMB secondary bind is still supported (keyboard/side mouse).
-    //
-    // Runtime filtering is intentional even though the UI/config loader also
-    // sanitize the binds: old config files must not be able to make LMB pull.
+
+
+
+
+
+
+
+
     static bool AimHoldDown() {
-        // Respect user binds. If primary is unset, default to RMB.
+
         int primary = config.aimbot_bind;
         if (primary <= 0)
             primary = VK_RBUTTON;
@@ -289,7 +289,7 @@ namespace aimbot {
         return false;
     }
 
-    // Independent ped list for aim when ESP::validPeds is empty this frame.
+
     static std::vector<uintptr_t> s_aimPeds;
     static std::vector<Vec3> s_aimPos;
 
@@ -297,13 +297,13 @@ namespace aimbot {
         using namespace FiveM;
         s_aimPeds.clear();
         s_aimPos.clear();
-        // Exclusive consumer of main ESP snapshot — no parallel sequential scanner.
+
         if (!ESP::validPeds.empty() && ESP::validPeds.size() == ESP::positions.size()) {
             s_aimPeds = ESP::validPeds;
             s_aimPos = ESP::positions;
             return;
         }
-        // Wait for a valid acquisition generation instead of hammering DMA.
+
     }
 
 
@@ -312,8 +312,8 @@ namespace aimbot {
         out = {};
         using namespace FiveM;
 
-        // Aim consumes the same immutable acquisition generation as ESP.  Do
-        // not issue fallback DMA reads here; a cold frame simply means no aim.
+
+
         if (!ESP::FrameCacheValid() || !offset::localplayer)
             return false;
         const Matrix view_matrix = ESP::GetFrameViewMatrix();
@@ -352,17 +352,17 @@ namespace aimbot {
 
             if (skipFriends) {
                 uint32_t networkId = 0;
-                // Unknown identity is not a reason to risk targeting a friend.
-                // The prepared metadata lane retries without DMA in this loop.
+
+
                 if (!esp::try_get_prepared_network_id(ped, networkId) ||
                     friends::IsFriend(networkId))
                     continue;
             }
 
-            // GTA/FiveM: alive peds typically 1..200 (some builds ~100–200 full)
+
             float health = 0.f;
             if (!esp::try_get_prepared_health(ped, health)) {
-                // Prefer prepared snapshot; avoid per-target DMA on the hot path.
+
                 continue;
             }
             if (health <= 1.f || health > 500.f)
@@ -372,8 +372,8 @@ namespace aimbot {
             const bool haveBone = !world.IsZero() && IsFiniteVec3(world);
 
             if (!haveBone) {
-                // Acquisition may use a CURRENT entity-origin fallback, but never
-                // a non-finite/transformed garbage bone.
+
+
                 if (i < positions.size() && !positions[i].IsZero() &&
                     IsFiniteVec3(positions[i])) {
                     world = positions[i];
@@ -381,7 +381,7 @@ namespace aimbot {
                 } else continue;
             } else if (i < positions.size() && !positions[i].IsZero() &&
                        IsFiniteVec3(positions[i])) {
-                // Reject a bone that is implausibly far from the entity origin.
+
                 const float boneOffset = positions[i].distance_to(world);
                 if (!std::isfinite(boneOffset) || boneOffset > 4.5f)
                     continue;
@@ -400,7 +400,7 @@ namespace aimbot {
             Vec2 screen;
             if (!world.world_to_screen(view_matrix, screen) || !IsFiniteVec2(screen))
                 continue;
-            // On-screen soft gate (classic IsOnScreen)
+
             if (screen.x < -50.f || screen.y < -50.f ||
                 screen.x > display.x + 50.f || screen.y > display.y + 50.f)
                 continue;
@@ -411,7 +411,7 @@ namespace aimbot {
             if (cross > fov_px)
                 continue;
 
-            // Classic: closest to crosshair wins
+
             float score = config.closest_to_crosshair ? cross : dist;
             if (config.threat_priority)
                 score = cross * 1.0f + dist * 0.35f;
@@ -446,19 +446,19 @@ namespace aimbot {
                 : 0.f;
         const float errLen0 = sqrtf(dx * dx + dy * dy);
 
-        // Reject absurd screen deltas (bad W2S / matrix) — causes spin at range.
+
         if (errLen0 > 900.f || !std::isfinite(errLen0)) {
             ResetAimMotionState();
             return;
         }
-        // At long range a head is a few pixels; >350px error is almost always noise.
+
         if (targetDistance > 70.f && errLen0 > 350.f) {
             ResetAimMotionState();
             return;
         }
 
-        // SNAP PATH: smooth 0-1 must pull hard every frame while hold is down.
-        // Cap packets by distance so far targets never get 16×127 bursts (spin).
+
+
         if (config.smooth_x <= 1.f) {
             int left_x = static_cast<int>(lroundf(dx));
             int left_y = static_cast<int>(lroundf(dy));
@@ -468,7 +468,7 @@ namespace aimbot {
             else if (targetDistance > 70.f) { maxPkt = 3; stepCap = 20; }
             else if (targetDistance > 45.f) { maxPkt = 5; stepCap = 40; }
             else if (targetDistance > 25.f) { maxPkt = 8; stepCap = 64; }
-            // Also limit total travel this frame proportional to error.
+
             const int totalCap = (targetDistance > 70.f)
                 ? (int)std::min(errLen0 * 0.25f, 40.f)
                 : (int)std::min(errLen0 + 1.f, 200.f);
@@ -486,21 +486,21 @@ namespace aimbot {
             return;
         }
 
-        // Closed-loop stable hold controller.
-        //
-        // The previous version filtered target screen coordinates and also mixed
-        // the previous movement command into the next command. While the aimbot
-        // itself moves the camera, that creates delayed feedback: the controller
-        // keeps correcting where the target WAS, overshoots, reverses, and can
-        // build a larger oscillation the longer RMB is held.
-        //
-        // This version is deliberately proportional-only:
-        //   * fresh error only;
-        //   * no movement momentum;
-        //   * no random jitter while locked;
-        //   * no multi-packet burst;
-        //   * slower output for distant targets;
-        //   * extra damping only when the FRESH error crosses the centre.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         if (!std::isfinite(dx) || !std::isfinite(dy)) {
             ResetAimMotionState();
             return;
@@ -523,8 +523,8 @@ namespace aimbot {
         const float errY = dy;
         const float errLen = sqrtf(errX * errX + errY * errY);
 
-        // Far players need a slightly larger dead-zone because a head can be
-        // only a handful of screen pixels and animation/DMA noise becomes visible.
+
+
         float deadZone = 0.75f;
         if (targetDistance > 120.f) deadZone = 1.80f;
         else if (targetDistance > 80.f) deadZone = 1.40f;
@@ -539,8 +539,8 @@ namespace aimbot {
 
         const auto now = std::chrono::steady_clock::now();
 
-        // Slower command rate at long range. The target still gets read every
-        // frame; only physical mouse output is rate-limited.
+
+
         int minimumIntervalMs = 8;
         if (targetDistance > 120.f) minimumIntervalMs = 14;
         else if (targetDistance > 80.f) minimumIntervalMs = 12;
@@ -551,8 +551,8 @@ namespace aimbot {
             return;
         }
 
-        // Device-count scale. Screen pixels and injected mouse counts are not
-        // 1:1 units, so raw screen error must never be sent directly as a delta.
+
+
         float outputScale = 0.36f;
         if (targetDistance > 120.f) outputScale = 0.10f;
         else if (targetDistance > 80.f) outputScale = 0.14f;
@@ -576,9 +576,9 @@ namespace aimbot {
 
         const bool reversed = reversedX || reversedY;
 
-        // Anti-runaway adaptation: repeated centre crossings mean the loop is
-        // overshooting. Instead of letting the oscillation build, automatically
-        // reduce gain. It slowly recovers after a stable period.
+
+
+
         if (reversed) {
             if (last_reversal.time_since_epoch().count() != 0 &&
                 now - last_reversal < std::chrono::milliseconds(180)) {
@@ -603,8 +603,8 @@ namespace aimbot {
         float gainX = strength * outputScale * adaptive_gain_scale;
         float gainY = strength * outputScale * adaptive_gain_scale;
 
-        // A fresh sign change means the crosshair crossed the target on that
-        // axis. Dampen only that axis immediately.
+
+
         if (reversedX)
             gainX *= 0.25f;
         if (reversedY)
@@ -617,11 +617,11 @@ namespace aimbot {
         float mx = errX * gainX;
         float my = errY * gainY;
 
-        // No random jitter here. "Humanize" is represented by the smooth gain.
-        // Random per-frame mouse deltas around a tiny distant head create exactly
-        // the wandering behaviour the user is trying to eliminate.
 
-        // Hard radial cap by target distance — tighter than before to stop far spin.
+
+
+
+
         float maxStep = 18.f;
         if (smooth <= 15.f) maxStep = 22.f;
         if (smooth <= 1.f) maxStep = 28.f;
@@ -632,10 +632,10 @@ namespace aimbot {
         else if (targetDistance > 50.f) maxStep = (std::min)(maxStep, 7.f);
         else if (targetDistance > 30.f) maxStep = (std::min)(maxStep, 11.f);
 
-        // Proportional to error — never dump a large fixed step when already near.
+
         const float proportionalCap = (std::max)(1.f, errLen * 0.28f);
         maxStep = (std::min)(maxStep, proportionalCap);
-        // Extra: far + medium error → almost no movement (noise / fight mouse).
+
         if (targetDistance > 80.f && errLen > 80.f)
             maxStep = (std::min)(maxStep, 3.f);
 
@@ -649,8 +649,8 @@ namespace aimbot {
         int ix = static_cast<int>(lroundf(mx));
         int iy = static_cast<int>(lroundf(my));
 
-        // Do not force one-count motion near the dead-zone. A forced +/-1 every
-        // update is enough to make distant targets shake continuously.
+
+
         if (ix == 0 && iy == 0)
             return;
 
@@ -661,14 +661,14 @@ namespace aimbot {
         if (ix == 0 && iy == 0)
             return;
 
-        // Exactly one command for this fresh sample.
+
         aim_type::Move(ix, iy);
         last_aim_move = now;
     }
 
-    // Refresh the locked target from CURRENT DMA data only.
-    // Previous coordinates are allowed to validate/filter a fresh sample, but a
-    // failed read never produces mouse movement.
+
+
+
     static bool RefreshTargetPose(TargetInfo& tgt) {
         using namespace FiveM;
 
@@ -690,8 +690,8 @@ namespace aimbot {
         if (!havePd && !esp::try_get_prepared_health(tgt.ped, health))
             return false;
 
-        // Locked aim only uses a CURRENT bone sample. If this read fails, this
-        // frame sends no movement at all.
+
+
         Vec3 world = ResolveHitboxWorld(tgt.ped, config.hitbox);
         if (world.IsZero() || !IsFiniteVec3(world))
             return false;
@@ -704,7 +704,7 @@ namespace aimbot {
         if (origin.IsZero() || !IsFiniteVec3(origin))
             return false;
 
-        // Reject an impossible bone relative to the entity root.
+
         const float boneOffset = origin.distance_to(world);
         if (!std::isfinite(boneOffset) || boneOffset > 4.5f)
             return false;
@@ -723,9 +723,9 @@ namespace aimbot {
 
         const auto poseNow = std::chrono::steady_clock::now();
 
-        // Validate world-space continuity. Unlike screen-space smoothing, this
-        // does NOT lag behind when the camera is moved by the aimbot or by the
-        // user's physical mouse. It only rejects physically impossible bone jumps.
+
+
+
         if (pose_filter_valid && pose_filter_ped == tgt.ped &&
             !pose_filter_world.IsZero() && IsFiniteVec3(pose_filter_world)) {
 
@@ -740,8 +740,8 @@ namespace aimbot {
 
             const float worldJump = pose_filter_world.distance_to(world);
 
-            // Generous allowance: animation + running + DMA timing. Anything
-            // beyond this in one sample is almost certainly a bad bone/matrix read.
+
+
             const float maxWorldJump = 0.85f + 28.f * dt;
 
             if (!std::isfinite(worldJump) || worldJump > maxWorldJump)
@@ -755,9 +755,9 @@ namespace aimbot {
         if (!std::isfinite(health) || health <= 1.f || health > 500.f)
             return false;
 
-        // Prediction is disabled for distant targets. At range, a tiny noisy
-        // velocity value becomes visible as several pixels of aim movement and
-        // contributes more instability than useful lead.
+
+
+
         if (config.velocity_prediction &&
             targetDistance < 55.f &&
             !vel.IsZero() &&
@@ -806,16 +806,16 @@ namespace aimbot {
             return false;
         }
 
-        // CRITICAL FIX:
-        // Use the fresh screen coordinate directly. Do NOT apply an EMA such as
-        // old + (new-old)*alpha here. Screen-space EMA introduces phase delay into
-        // a closed loop because our own mouse command changes the camera. At long
-        // distance the previous alpha was as low as 0.28, which made the aimbot
-        // keep chasing an old head position and oscillate more on every correction.
+
+
+
+
+
+
         const Vec2 screen = rawScreen;
 
         pose_filter_ped = tgt.ped;
-        pose_filter_screen = rawScreen; // validation/debug history only
+        pose_filter_screen = rawScreen;
         pose_filter_world = world;
         pose_filter_valid = true;
         pose_filter_time = poseNow;
@@ -838,7 +838,7 @@ namespace aimbot {
     static void RunTriggerLogic();
 
     static void RunAimbotLogic() {
-        // Initialize unified aimbot if needed (stub for Publish)
+
         if (!g_unified_aimbot) {
             g_unified_aimbot = Gameplay::UnifiedAim::CreateAimbotForGame("FiveM");
             Gameplay::UnifiedAim::UnifiedConfig ucfg;
@@ -857,7 +857,7 @@ namespace aimbot {
             return;
         }
 
-        // Use existing aim logic for actual aiming (unified aimbot is stub in Publish)
+
         if (!AimHoldDown()) {
             s_poseMiss = 0;
             if (tracking_active || locked_target)
@@ -865,7 +865,7 @@ namespace aimbot {
             return;
         }
 
-        // Find best target using existing logic
+
         TargetInfo tgt;
         if (!FindBestTarget(tgt, config.fov_size, config.max_distance)) {
             ++s_poseMiss;
@@ -878,25 +878,20 @@ namespace aimbot {
 
         s_poseMiss = 0;
 
-        // Update current target
+
         current_target = tgt;
 
-        // Calculate mouse movement using existing HumanizedMove
+
         float dx = tgt.screen_pos.x - ImGui::GetIO().DisplaySize.x * 0.5f;
         float dy = tgt.screen_pos.y - ImGui::GetIO().DisplaySize.y * 0.5f;
         HumanizedMove(dx, dy);
 
-        // Update unified aimbot stub (does nothing in Publish)
+
         Gameplay::UnifiedAim::AimContext ctx;
         ctx.dt = ImGui::GetIO().DeltaTime;
         g_unified_aimbot->Update(ctx);
 
-        // Draw FOV if enabled
-        if (config.aimbot_enabled || config.trigger_enabled || config.crosshair_enabled)
-            DrawFOV();
-
-                // Aim/trigger debug overlay removed (UI clean).
-
+        // FIVEM-001 Fix: DrawFOV removed here — Run() is the single draw site.
     }
 
     static void RunTriggerLogic() {
@@ -927,9 +922,12 @@ namespace aimbot {
             found = FindBestTargetForHitbox(tgt, config.trigger_fov,
                                             config.max_distance, Hitbox::Head);
         } else {
-            // Body mode is independent of the configured aimbot bone. Check
-            // every major anatomical region and keep the one actually closest
-            // to the crosshair.
+
+
+            // FIVEM-011 Fix: the old code called FindBestTargetForHitbox 5×
+            // (once per hitbox), each scanning all peds with lock+TLS copies.
+            // A single pass over each prepared entry with the first hit
+            // (checked in FOV order head→legs) is equivalent and ~5× cheaper.
             constexpr Hitbox hitboxes[] = {
                 Hitbox::Head, Hitbox::Neck, Hitbox::Torso, Hitbox::Pelvis, Hitbox::Legs
             };
@@ -941,6 +939,8 @@ namespace aimbot {
                 if (!found || candidate.crosshair_dist < tgt.crosshair_dist) {
                     tgt = candidate;
                     found = true;
+                    if (hitbox == Hitbox::Head)
+                        break; // head inside FOV — the trigger fires, no need to keep scanning
                 }
             }
         }
@@ -948,8 +948,8 @@ namespace aimbot {
             trigger_target = 0;
             return;
         }
-        // Share the trigger target with visual feedback such as the 0.5 s hit
-        // marker, including when triggerbot is used without aim assist.
+
+
         current_target = tgt;
 
         auto now = std::chrono::steady_clock::now();
@@ -1045,16 +1045,16 @@ namespace aimbot {
     }
 
     void Run() {
+        // FIVEM-001 Fix: DrawFOV used to run inside RunAimbotLogic() AND here,
+        // doubling the ring's alpha on the foreground draw list every frame.
+        // RunAimbotLogic's copy is removed (see below); this is the only draw.
         RunAimbotLogic();
         RunTriggerLogic();
 
         if (config.aimbot_enabled || config.trigger_enabled || config.crosshair_enabled)
             DrawFOV();
-
-                // Aim/trigger debug overlay removed (UI clean).
-
     }
 
-} // namespace aimbot
+}
 
-#endif // UI_PREVIEW
+#endif

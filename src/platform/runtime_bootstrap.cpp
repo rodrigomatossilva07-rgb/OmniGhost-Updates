@@ -3,9 +3,9 @@
 #include "session_log.h"
 #include "app_paths.h"
 #include "file_integrity.h"
-// Use an angle include deliberately: the generated manifest must be selected
-// from the configuration-specific include directory, never the IDE fallback
-// header located beside this source file.
+
+
+
 #include <embedded_runtime_manifest.h>
 #include "embedded_resources.h"
 
@@ -72,7 +72,7 @@ void MigrateLegacyMutableData(const fs::path& legacyRoot) {
         return;
     }
 
-    // Only migrate durable user data. Do not re-create cache/backups/logs/crash-dumps.
+
     static constexpr std::array<const wchar_t*, 2> kMutableDirectories = {
         L"Configs", L"CS2"
     };
@@ -152,19 +152,19 @@ bool ExtractEntry(const OmniGhost::EmbeddedRuntimeGenerated::Entry& entry,
         error = L"A validação SHA-256 de um recurso do runtime falhou.";
         return false;
     }
-    // Item 42: Validate file permissions and type before replacement
+
     if (fs::exists(target, ec)) {
         auto status = fs::status(target, ec);
         if (ec) {
             error = L"Não foi possível verificar o ficheiro existente do runtime.";
             return false;
         }
-        // Ensure it's a regular file, not a symlink/junction
+
         if (!fs::is_regular_file(target, ec)) {
             error = L"O destino do runtime não é um ficheiro regular (pode ser symlink/junction)";
             return false;
         }
-        // Check write permissions
+
         if ((status.permissions() & fs::perms::owner_write) == fs::perms::none) {
             error = L"Sem permissão de escrita no ficheiro de runtime existente";
             return false;
@@ -185,14 +185,14 @@ bool ExtractBundle(const fs::path& root, std::wstring& error) {
         error = L"Não foi possível preparar a pasta de dados local do utilizador.";
         return false;
     }
-    
-    // Item 41: Validate runtime directory is not a junction/reparse point
+
+
     std::error_code ec;
     if (fs::exists(root, ec)) {
         const auto status = fs::status(root, ec);
-        if (!ec && (status.type() == fs::file_type::symlink || 
+        if (!ec && (status.type() == fs::file_type::symlink ||
             (status.permissions() & fs::perms::owner_read) == fs::perms::owner_read)) {
-            // Check for reparse point on Windows
+
             DWORD attrs = GetFileAttributesW(root.c_str());
             if (attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_REPARSE_POINT)) {
                 error = L"Diretório de runtime é um ponto de reparse/junction - recusando materialização";
@@ -202,10 +202,10 @@ bool ExtractBundle(const fs::path& root, std::wstring& error) {
     }
 
 #if defined(OMNIGHOST_PRIVATE_STATIC_VMM)
-    // A normal Release may have left these immutable DLLs in the shared runtime
-    // directory. The private source-linked build must neither load nor retain
-    // them. At this point the single-instance guard is held and no DMA module has
-    // been initialized, so deleting these two exact obsolete files is safe.
+
+
+
+
     std::error_code staleError;
     fs::remove(root / L"libs" / L"vmm.dll", staleError);
     staleError.clear();
@@ -213,14 +213,14 @@ bool ExtractBundle(const fs::path& root, std::wstring& error) {
 #endif
     for (std::size_t _i = 0; _i < OmniGhost::EmbeddedRuntimeGenerated::kEntryCount; ++_i) {
         const auto& entry = OmniGhost::EmbeddedRuntimeGenerated::kEntries[_i];
-        // Public Radar is optional. Keep cloudflared inside the PE until the user
-        // explicitly enables that feature instead of leaving a daemon binary on
-        // disk after every normal launcher start.
+
+
+
         if (_wcsicmp(entry.relativePath, L"libs/cloudflared.exe") == 0)
             continue;
 #if defined(OMNIGHOST_DISABLE_VMM_SYMBOLS)
-        // Experimental: -disable-symbols + EAT path for gafAsyncKeyState means
-        // pdbcrust is not required on disk for startup.
+
+
         if (_wcsicmp(entry.relativePath, L"libs/pdbcrust.dll") == 0)
             continue;
 #endif
@@ -234,20 +234,20 @@ void ConfigureRuntimeDllSearch(const fs::path& libs) {
         LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_USER_DIRS);
     static DLL_DIRECTORY_COOKIE cookie = nullptr;
     if (!cookie) cookie = AddDllDirectory(libs.c_str());
-    // SetDllDirectoryW removed - AddDllDirectory with restricted LoadLibraryEx flags is sufficient.
+
 }
 
-// Synchronizes runtime libraries from embedded manifest and fallback source locations.
- // Returns pair<copied, skipped> count.
+
+
  std::pair<int, int> SyncRuntimeLibraries(const fs::path& libsDir) {
      int copied = 0;
      int skipped = 0;
      int failed = 0;
-     
+
      std::error_code ec;
      fs::create_directories(libsDir, ec);
-     
-     // Required DLLs that must be present for DMA operation
+
+
      static constexpr const wchar_t* kRequiredDlls[] = {
          L"FTD3XX.dll",
          L"FTD3XXWU.dll",
@@ -258,7 +258,7 @@ void ConfigureRuntimeDllSearch(const fs::path& libs) {
          L"symsrv.dll",
          L"vcruntime140.dll"
      };
-     
+
      auto Narrow = [](const std::wstring& text) -> std::string {
          std::string out;
          out.reserve(text.size());
@@ -266,8 +266,8 @@ void ConfigureRuntimeDllSearch(const fs::path& libs) {
              out.push_back(ch < 0x80 ? static_cast<char>(ch) : '?');
          return out;
      };
-     
-     // Build a set of DLLs available in embedded manifest
+
+
      std::set<std::wstring> embeddedDlls;
      for (std::size_t i = 0; i < OmniGhost::EmbeddedRuntimeGenerated::kEntryCount; ++i) {
          const auto& entry = OmniGhost::EmbeddedRuntimeGenerated::kEntries[i];
@@ -276,11 +276,11 @@ void ConfigureRuntimeDllSearch(const fs::path& libs) {
              embeddedDlls.insert(relPath.filename().wstring());
          }
      }
-     
-     // Source locations in priority order
+
+
      std::vector<fs::path> sourceDirs;
-     
-     // 1. ProjectDir\libs (authoritative source for all runtime DLLs)
+
+
      {
          fs::path projectDir = OmniGhost::Paths::InstallDirectory();
          for (int i = 0; i < 4 && !projectDir.empty(); ++i) {
@@ -292,16 +292,16 @@ void ConfigureRuntimeDllSearch(const fs::path& libs) {
              projectDir = projectDir.parent_path();
          }
      }
-     
-     // 2. InstallDirectory\libs (fallback)
+
+
      {
          fs::path candidate = OmniGhost::Paths::InstallDirectory() / L"libs";
          if (fs::is_directory(candidate, ec)) {
              sourceDirs.push_back(candidate);
          }
      }
-     
-     // 3. ProjectDir\src\runtime\cloudflared (for cloudflared.exe)
+
+
      {
          fs::path projectDir = OmniGhost::Paths::InstallDirectory();
          for (int i = 0; i < 4 && !projectDir.empty(); ++i) {
@@ -313,8 +313,8 @@ void ConfigureRuntimeDllSearch(const fs::path& libs) {
              projectDir = projectDir.parent_path();
          }
      }
-     
-     // 4. ProjectDir\infrastructure\runtime\own (for pdbcrust.dll fallback)
+
+
      {
          fs::path projectDir = OmniGhost::Paths::InstallDirectory();
          for (int i = 0; i < 4 && !projectDir.empty(); ++i) {
@@ -326,8 +326,8 @@ void ConfigureRuntimeDllSearch(const fs::path& libs) {
              projectDir = projectDir.parent_path();
          }
      }
-    
-    // 6. ProjectDir\libs (for pdbcrust.dll and other local DLLs)
+
+
     {
         fs::path projectDir = OmniGhost::Paths::InstallDirectory();
         for (int i = 0; i < 4 && !projectDir.empty(); ++i) {
@@ -339,18 +339,18 @@ void ConfigureRuntimeDllSearch(const fs::path& libs) {
             projectDir = projectDir.parent_path();
         }
     }
-    
-    // For each required DLL, ensure it exists in libsDir with correct content
+
+
     for (const wchar_t* dllName : kRequiredDlls) {
         fs::path target = libsDir / dllName;
         bool hasEmbedded = embeddedDlls.find(dllName) != embeddedDlls.end();
         bool targetExists = fs::is_regular_file(target, ec);
         ec.clear();
-        
-        // Check if embedded version matches target
+
+
         bool embeddedMatches = false;
         if (hasEmbedded && targetExists) {
-            // Find the embedded entry
+
             for (std::size_t i = 0; i < OmniGhost::EmbeddedRuntimeGenerated::kEntryCount; ++i) {
                 const auto& entry = OmniGhost::EmbeddedRuntimeGenerated::kEntries[i];
                 std::wstring lookupPath = std::wstring(L"libs/") + dllName;
@@ -368,13 +368,13 @@ void ConfigureRuntimeDllSearch(const fs::path& libs) {
                 }
             }
         }
-        
+
         if (embeddedMatches) {
             skipped++;
             continue;
         }
-        
-        // Try to materialize from embedded first
+
+
         bool materialized = false;
         if (hasEmbedded) {
             std::wstring error;
@@ -388,7 +388,7 @@ void ConfigureRuntimeDllSearch(const fs::path& libs) {
                     "Runtime library materialized from embedded",
                     {{"dll", Narrow(dllName)}, {"source", "embedded"}});
             } else {
-                // Embedded materialization failed, will try source dirs
+
                 OmniGhost::SessionLog::Write(
                     OmniGhost::SessionLog::Severity::Warning,
                     OmniGhost::SessionLog::Subsystem::Runtime,
@@ -396,13 +396,13 @@ void ConfigureRuntimeDllSearch(const fs::path& libs) {
                     {{"dll", Narrow(dllName)}, {"error", Narrow(error)}});
             }
         }
-        
+
         if (!materialized) {
-            // PLAT-001 Fix: the embedded manifest is the trust anchor for
-            // runtime binaries. Resolve the expected SHA-256 for this DLL once;
-            // any on-disk source that would replace/add a manifest-covered DLL
-            // must match the manifest hash exactly. Unsigned "convenience"
-            // copies from sibling directories otherwise enable DLL planting.
+
+
+
+
+
             std::string expectedHashHex;
             if (hasEmbedded) {
                 const std::wstring lookupPath = std::wstring(L"libs/") + dllName;
@@ -414,11 +414,11 @@ void ConfigureRuntimeDllSearch(const fs::path& libs) {
                     }
                 }
             }
-            // Try source directories
+
             for (const auto& srcDir : sourceDirs) {
                 fs::path source = srcDir / dllName;
                 if (fs::is_regular_file(source, ec)) {
-                    // Check if source is newer/different
+
                     bool shouldCopy = !targetExists;
                     std::string srcHash;
                     if (!shouldCopy) {
@@ -427,7 +427,7 @@ void ConfigureRuntimeDllSearch(const fs::path& libs) {
                         if (!ec && srcSize != tgtSize) {
                             shouldCopy = true;
                         } else if (!ec && srcSize == tgtSize) {
-                            // Compare hashes
+
                             std::string tgtHash, hashError;
                             if (OmniGhost::Platform::Sha256File(source, srcHash, hashError) &&
                                 OmniGhost::Platform::Sha256File(target, tgtHash, hashError) &&
@@ -438,9 +438,9 @@ void ConfigureRuntimeDllSearch(const fs::path& libs) {
                     }
 
                     if (shouldCopy && !expectedHashHex.empty()) {
-                        // Manifest-covered DLL: the source must hash-match the
-                        // embedded manifest, otherwise it is treated as a
-                        // planted/unknown binary and rejected.
+
+
+
                         if (srcHash.empty()) {
                             std::string hashError;
                             if (!OmniGhost::Platform::Sha256File(source, srcHash, hashError))
@@ -480,9 +480,9 @@ void ConfigureRuntimeDllSearch(const fs::path& libs) {
                 ec.clear();
             }
         }
-        
+
         if (!materialized && !targetExists) {
-            // DLL is required but not available anywhere
+
             failed++;
             OmniGhost::SessionLog::Write(
                 OmniGhost::SessionLog::Severity::Error,
@@ -493,13 +493,13 @@ void ConfigureRuntimeDllSearch(const fs::path& libs) {
             skipped++;
         }
     }
-    
+
     OmniGhost::SessionLog::Write(
         OmniGhost::SessionLog::Severity::Info,
         OmniGhost::SessionLog::Subsystem::Runtime,
         "Runtime library sync complete",
         {{"copied", std::to_string(copied)}, {"skipped", std::to_string(skipped)}, {"failed", std::to_string(failed)}});
-    
+
     return {copied, skipped};
 }
 
@@ -518,7 +518,7 @@ bool IsUpdaterWorker() {
     return updater;
 }
 
-} // namespace
+}
 
 namespace OmniGhost::RuntimeBootstrap {
 
@@ -594,18 +594,18 @@ bool RetireLegacyPrivateInstall(std::wstring& error) {
         CloseHandle(process);
     }
 
-    // Keep account, licence and settings while changing the data root. Copy
-    // only known mutable state and never migrate the old executable/resources.
+
+
     MigrateLegacyMutableData(legacyRoot);
 
-    // Delete only immutable artifacts from the obsolete bootstrap model.
+
     DeleteFileW(legacyExe.c_str());
     fs::remove_all(legacyRoot / L"libs", ec);
     fs::remove_all(legacyRoot / L"data", ec);
     fs::remove_all(legacyRoot / L"plugins", ec);
     fs::remove_all(legacyRoot / L"resources", ec);
     ec.clear();
-    fs::remove(legacyRoot, ec); // succeeds only when no user data remains
+    fs::remove(legacyRoot, ec);
     if (fs::exists(legacyExe, ec)) {
         error = L"A cópia privada antiga do OmniGhost continua bloqueada.";
         return false;
@@ -711,9 +711,9 @@ Result Prepare() {
     std::wstring error;
     std::error_code ec;
 
-    // The updater intentionally runs from a temporary copy. It must update the
-    // installed EXE directly, not bootstrap/relaunch itself back into the file it
-    // is about to replace. DMA is never initialized in updater mode.
+
+
+
     if (IsUpdaterWorker()) {
         ConfigureRuntimeDllSearch(libs);
         return Result::Continue;
@@ -724,8 +724,8 @@ Result Prepare() {
         return Result::Failed;
     }
 
-    // Force-materialize FTDI bridge from the embedded PE resources so a clean
-    // %LOCALAPPDATA%\OmniGhost\runtime\libs is always populated on first run.
+
+
     {
         std::wstring matErr;
         (void)MaterializePrivateRuntimeFile(L"libs/FTD3XX.dll", matErr);
@@ -734,15 +734,15 @@ Result Prepare() {
         (void)MaterializePrivateRuntimeFile(L"libs/vcruntime140.dll", matErr);
     }
 
-    // Sync runtime libraries from embedded manifest and fallback sources
+
     auto [copied, skipped] = SyncRuntimeLibraries(libs);
 
-    // Preload FTDI by absolute path so LeechCore/VMM never probe the process CWD.
-    // PLAT-002 Fix: never load a runtime DLL before integrity verification.
-    // Manifest-covered binaries must pass ValidatePrivateRuntimeFile (SHA-256
-    // pinned to the signed EXE) BEFORE LoadLibraryExW runs. Binaries absent
-    // from the manifest are dev/private-runtime only and keep the previous
-    // behavior, but are logged loudly.
+
+
+
+
+
+
     ConfigureRuntimeDllSearch(libs);
     {
         const auto NarrowName = [](const wchar_t* text) -> std::string {
@@ -768,7 +768,7 @@ Result Prepare() {
                     std::wstring validationError;
                     if (!OmniGhost::RuntimeBootstrap::ValidatePrivateRuntimeFile(
                             relativePath, validationError)) {
-                        // Known binary with wrong content: never load it.
+
                         OmniGhost::SessionLog::Write(
                             OmniGhost::SessionLog::Severity::Error,
                             OmniGhost::SessionLog::Subsystem::Runtime,
@@ -778,8 +778,8 @@ Result Prepare() {
                         continue;
                     }
                 } else {
-                    // Not covered by the manifest (dev/private runtime): load,
-                    // but make the reduced trust level visible in the log.
+
+
                     OmniGhost::SessionLog::Write(
                         OmniGhost::SessionLog::Severity::Warning,
                         OmniGhost::SessionLog::Subsystem::Runtime,
@@ -801,7 +801,7 @@ Result Prepare() {
         }
     }
 
-    // Verify FTDI presence
+
     bool ftdiPresent = fs::is_regular_file(libs / L"FTD3XX.dll", ec) || fs::is_regular_file(libs / L"FTD3XXWU.dll", ec);
     ec.clear();
 
@@ -817,7 +817,7 @@ Result Prepare() {
     return Result::Continue;
 }
 
-// Item 47: Clean startup test that lists everything in %LOCALAPPDATA%\OmniGhost
+
 void LogRuntimeDirectoryContents() noexcept {
     const auto root = OmniGhost::Paths::NativeRuntime();
     std::error_code ec;
@@ -871,7 +871,7 @@ for (const auto& entry : files) {
     }
 }
 
-// Item 48: Confirm no private copy of OmniGhost.exe is created
+
 void VerifyNoPrivateExeCopy() noexcept {
     const auto exePath = OmniGhost::Paths::Executable();
     const auto localAppData = OmniGhost::Paths::NativeRuntime();
@@ -887,7 +887,7 @@ void VerifyNoPrivateExeCopy() noexcept {
     }
 }
 
-// Item 49: Separate files created at startup, DMA session, public radar
+
 enum class FileOrigin : uint8_t {
     Startup = 0,
     DmaSession = 1,
@@ -897,11 +897,11 @@ enum class FileOrigin : uint8_t {
 
 struct FileOriginMap {
     std::unordered_map<std::string, FileOrigin> origins;
-    
+
     void Register(const std::string& relativePath, FileOrigin origin) {
         origins[relativePath] = origin;
     }
-    
+
     [[nodiscard]] FileOrigin Get(const std::string& relativePath) const noexcept {
         auto it = origins.find(relativePath);
         return it != origins.end() ? it->second : FileOrigin::Unknown;
@@ -918,14 +918,4 @@ void RegisterFileOrigin(const std::string& relativePath, FileOrigin origin) noex
     g_fileOrigins.Register(relativePath, origin);
 }
 
-} // namespace OmniGhost::RuntimeBootstrap
-
-
-
-
-
-
-
-
-
-
+}

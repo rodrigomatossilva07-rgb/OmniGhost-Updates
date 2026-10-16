@@ -1,14 +1,14 @@
 #pragma once
-// Shared lobby → match lifecycle for all OmniGhost games.
-// Shared match/session lifecycle pattern.
-//  - Always keep probing while attached; never "give up" in lobby.
-//  - Detect enter/leave match transitions.
-//  - Invalidate caches when world/session generation changes.
-//  - Human-readable phase for UI status lines.
-//
-// Usage per-frame after resolving world / local / players:
-//   auto phase = MatchLifecycle::Update(state, has_world, has_local, player_count, world_ptr);
-//   if (phase == MatchLifecycle::Phase::EnteredMatch) { /* clear entity caches */ }
+
+
+
+
+
+
+
+
+
+
 
 #include <cstdint>
 #include <cstdio>
@@ -17,12 +17,12 @@
 namespace MatchLifecycle {
 
 enum class Phase : int {
-    Offline = 0,   // no world / not attached context
-    Lobby,         // world ok, no local pawn / no players yet
-    WaitingEntities, // local present but player list still empty
-    EnteredMatch,  // transition edge: lobby → match this frame
-    InMatch,       // stable in match
-    LeftMatch      // transition edge: match → lobby this frame
+    Offline = 0,
+    Lobby,
+    WaitingEntities,
+    EnteredMatch,
+    InMatch,
+    LeftMatch
 };
 
 struct State {
@@ -34,15 +34,15 @@ struct State {
     int leave_count = 0;
 };
 
-// has_world: process world/module context valid
-// has_local: local pawn/player resolved
-// player_count: verified entities for ESP/aim
-// world_ptr: pointer identity for generation tracking (UWorld, GA base, etc.)
+
+
+
+
 inline Phase Update(State& s, bool has_world, bool has_local, int player_count, uintptr_t world_ptr) {
     if (world_ptr && world_ptr != s.last_world) {
         s.last_world = world_ptr;
         ++s.world_generation;
-        // New world: treat as not-yet-in-match until signals confirm.
+
         s.was_in_match = false;
         s.zero_player_streak = 0;
     }
@@ -94,7 +94,7 @@ inline const char* PhaseName(Phase p) {
     }
 }
 
-// Fill a short status line suitable for game debug panels.
+
 inline void FormatStatus(char* out, size_t out_len, Phase phase, int players, const char* extra = nullptr) {
     if (!out || out_len == 0) return;
     if (extra && extra[0]) {
@@ -126,4 +126,4 @@ inline void FormatStatus(char* out, size_t out_len, Phase phase, int players, co
     }
 }
 
-} // namespace MatchLifecycle
+}

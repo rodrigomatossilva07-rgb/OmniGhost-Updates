@@ -24,7 +24,7 @@ public:
             try {
                 fn_();
             } catch (...) {
-                // Scope-exit cleanup must never propagate from a destructor.
+
             }
         }
     }
@@ -41,4 +41,4 @@ template <typename F>
     return ScopeExit<std::decay_t<F>>(std::forward<F>(fn));
 }
 
-} // namespace OmniGhost::Platform
+}

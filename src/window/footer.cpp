@@ -83,7 +83,7 @@ namespace CyberWidgets {
         } else if (g_activeGame == ActiveGame::Warzone) {
             snprintf(value, sizeof(value), "%s", Warzone::StatusLine());
         } else {
-            // FiveM: game build
+
             snprintf(value, sizeof(value), Loc::Tr("footer.build"), build ? build : "--");
         }
         x = DrawFooterItem(dl, body, x, text_y, value,
@@ -113,7 +113,7 @@ namespace CyberWidgets {
                 verified ? CyberTheme::U32(CyberTheme::Colors.Success) : CyberTheme::U32(CyberTheme::Colors.Warning), kFont);
             x = DrawDivider(dl, x, text_y);
         }
-        // Support links and exact version strings belong in Definições > Sobre.
+
 
         char fps_value[24];
         snprintf(fps_value, sizeof(fps_value), Loc::Tr("footer.fps"), fps);
@@ -164,4 +164,4 @@ namespace CyberWidgets {
         }
     }
 
-} // namespace CyberWidgets
+}

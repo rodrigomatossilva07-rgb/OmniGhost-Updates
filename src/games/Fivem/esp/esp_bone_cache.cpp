@@ -6,7 +6,7 @@
 
 esp::BoneCache esp::bone_cache;
 
-// Bone Cache Implementation (keeping your existing logic)
+
 Matrix esp::BoneCache::get_bone_matrix(uintptr_t ped, bool force_refresh) {
     auto now = std::chrono::steady_clock::now();
 
@@ -23,7 +23,7 @@ Matrix esp::BoneCache::get_bone_matrix(uintptr_t ped, bool force_refresh) {
     esp_stats.memory_reads.fetch_add(1, std::memory_order_relaxed);
 
     Matrix bone_matrix{};
-    // All layout offsets come from data/fivem_offsets.json.
+
     bool got = false;
     const uintptr_t frag_offs[] = {
         FiveM::offset::boneMatrix,
@@ -36,7 +36,7 @@ Matrix esp::BoneCache::get_bone_matrix(uintptr_t ped, bool force_refresh) {
         if (frag < 0x10000ull || frag > 0x7FFFFFFFFFFFULL) continue;
         uintptr_t skel = mem.Read<uintptr_t>(frag + FiveM::offset::boneSkeleton);
         if (skel < 0x10000ull || skel > 0x7FFFFFFFFFFFULL) {
-            // some builds store matrix block directly at frag
+
             skel = frag;
         }
         if (mem.Read(skel, &bone_matrix, sizeof(Matrix))) {
@@ -116,12 +116,12 @@ void esp::BoneCache::cleanup_old_entries() {
         return;
     }
 
-    // Use configurable validity from esp::config (via GetCacheValidity)
+
     auto maxAge = GetCacheValidity() * 2;
-    
+
     for (auto it = cached_bone_data.begin(); it != cached_bone_data.end(); ) {
         auto age = now - it->second.last_update;
-        // Align cleanup TTL with cache validity — remove entries older than 2x validity
+
         if (age > maxAge) {
             it = cached_bone_data.erase(it);
         }
@@ -139,7 +139,6 @@ bool esp::BoneCache::is_data_valid(uintptr_t ped) const {
 
     auto now = std::chrono::steady_clock::now();
     auto age = now - it->second.last_update;
-    // Use configurable validity from esp::config (via GetCacheValidity)
+
     return it->second.is_valid && age < GetCacheValidity();
 }
-

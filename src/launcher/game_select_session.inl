@@ -1,5 +1,5 @@
-// This implementation fragment is included by game_select.cpp inside Launcher's private namespace.
-// It is separated by responsibility to keep the launcher coordinator reviewable.
+
+
 
 void StartRemoteLicenseUpgrade(std::string key) {
     if (g_license_operation_pending)
@@ -61,7 +61,7 @@ std::filesystem::path RequiredDataPath(GameId id) {
 #if defined(OMNIGHOST_DEV_EXTERNAL_OFFSETS)
         return root / L"data" / L"cs2_offsets.json";
 #else
-        return {}; // Customer builds load the compact embedded CS2 snapshot.
+        return {};
 #endif
     case GameId::Warzone:
 #if defined(OMNIGHOST_DEV_EXTERNAL_OFFSETS)
@@ -80,8 +80,8 @@ std::filesystem::path RequiredDataPath(GameId id) {
 }
 
 bool DetectInstalled(const GameDefinition& game) {
-    // Dev/product preference: never gate the launcher card on DLL presence.
-    // Missing FPGA/DLLs are reported only when the user actually launches.
+
+
     if (game.coming_soon)
         return false;
     return true;
@@ -181,8 +181,8 @@ void PollRemoteProcessScan(double now) {
         g_remote_process_scanned_at = 0.0;
         return;
     }
-    // VMM process enumeration can wait on the FPGA. It must never run on the
-    // ImGui/Win32 message thread, otherwise a normal refresh looks like a hang.
+
+
     const std::uint64_t generation = g_remote_process_generation;
     g_remote_process_scan = std::async(std::launch::async, [generation] {
         std::uint32_t mask = 0;
@@ -208,13 +208,13 @@ void PollRemoteProcessScan(double now) {
 }
 
 bool DetectRunning(GameId id) {
-    // When DMA is open, the target PC is authoritative. A process running on
-    // the controller PC must not make a remote game appear present.
+
+
     const bool remoteTarget = mem.GetDiagnosticsSnapshot().deviceOpen;
     switch (id) {
     case GameId::CS2:
-        // `CS2::ready` can describe an earlier successful attachment. Only a
-        // current cs2.exe process is allowed to produce the Running badge.
+
+
         return remoteTarget ? RemoteGameRunning(id) : LocalProcessRunning({L"cs2.exe"});
     case GameId::Warzone:
         return remoteTarget ? RemoteGameRunning(id) : LocalProcessRunning({L"cod.exe", L"ModernWarfare.exe", L"iw8_ship.exe"});
@@ -229,9 +229,9 @@ bool DetectRunning(GameId id) {
     }
 }
 
-// DMA process context is global to the application. Starting an adapter for a
-// different game while another supported title is running can replace that
-// context mid-session, which is unsafe for both adapters.
+
+
+
 const GameDefinition* FindConflictingRunningGame(GameId selected) {
     std::size_t count = 0;
     const GameDefinition* games = Games(count);
@@ -281,9 +281,9 @@ CardState ResolveRuntimeState(GameRuntime& runtime) {
     if (OmniGhost::Update::UpdateService::Instance().BlocksGameLaunch())
         return CardState::UpdateRequired;
 
-    // Do not block the card on DLL detection, dependency integrity, sticky
-    // history, or offset pre-checks. Clicking always proceeds to open FPGA/menu;
-    // real failures surface during the explicit launch path.
+
+
+
     if (DetectRunning(game.launch_id))
         return CardState::Running;
     return game.beta ? CardState::Beta : CardState::Ready;
@@ -304,9 +304,11 @@ void PollOffsetRefresh() {
         RecordGameSession(game, SessionResult::None, {});
         PushToast(Loc::Tr("launcher.toast.offsets_updated"), C_GREEN(), ToastAction::None, nullptr);
     } else if (result == OmniGhost::OffsetAuto::Result::UsingCached) {
-        PushToast(OmniGhost::OffsetAuto::g_status.c_str(), C_MUTED(), ToastAction::None, nullptr);
+        // BUG-009: g_status is a proxy now — take a string snapshot for c_str().
+        const std::string statusText = std::string(OmniGhost::OffsetAuto::g_status);
+        PushToast(statusText.c_str(), C_MUTED(), ToastAction::None, nullptr);
     } else if (result != OmniGhost::OffsetAuto::Result::Busy) {
-        RecordGameSession(game, SessionResult::OffsetsFailed, OmniGhost::OffsetAuto::g_status);
+        RecordGameSession(game, SessionResult::OffsetsFailed, std::string(OmniGhost::OffsetAuto::g_status));
         PushToast(Loc::Tr("launcher.toast.offsets_failed"), C_RED(), ToastAction::OpenLogs,
                   Loc::Tr("launcher.action.open_logs"));
     }
@@ -318,9 +320,9 @@ void RefreshRuntimeStates() {
     static double nextRefresh = 0.0;
     static double nextStaleRetry = 0.0;
     const double now = ImGui::GetTime();
-    // Remote inventory is useful only while the Library is visible. Keeping it
-    // completely idle on Home prevents an otherwise pointless FPGA request
-    // immediately after the startup probe succeeds.
+
+
+
     if (g_nav == static_cast<int>(NavPage::Library))
         PollRemoteProcessScan(now);
     if (now >= nextStaleRetry && !g_offset_refresh_pending && !OmniGhost::OffsetAuto::g_busy.load()) {
@@ -492,8 +494,8 @@ const char* SessionResultDisplay(SessionResult result) {
 }
 
 bool IsReadyState(CardState state) {
-    // Allow launch from any non-terminal gate except ComingSoon / Launching.
-    // License/Update are still checked inside ActivateGame.
+
+
     switch (state) {
     case CardState::Ready:
     case CardState::Beta:
@@ -530,6 +532,6 @@ void RequestOffsetRefresh(GameId id, bool silent = false) {
         PushToast(Loc::Tr("launcher.toast.offsets_working"), C_GOLD(), ToastAction::None, nullptr);
     const ActiveGame game = ToActiveGame(id);
     g_offset_refresh = std::async(std::launch::async, [game] {
-        return OmniGhost::OffsetAuto::EnsureOffsets(game, true); // force fetch from cheatoffsets.com
+        return OmniGhost::OffsetAuto::EnsureOffsets(game, true);
     });
 }

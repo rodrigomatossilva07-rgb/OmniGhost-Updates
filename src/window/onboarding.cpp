@@ -25,11 +25,11 @@ namespace Onboarding {
         Step g_current_step = Step::Welcome;
         bool g_active = false;
         std::vector<WizardStep> g_steps;
-        
+
         void InitSteps() {
             g_steps.clear();
-            
-            // Welcome
+
+
             g_steps.push_back({
                 Step::Welcome,
                 "Welcome to OmniGhost",
@@ -40,7 +40,7 @@ namespace Onboarding {
                 []() {},
                 []() {}
             });
-            
+
             // License Agreement
             g_steps.push_back({
                 Step::LicenseAgreement,
@@ -52,15 +52,15 @@ namespace Onboarding {
                 []() {},
                 []() {}
             });
-            
-            // Hardware Detection
+
+
             g_steps.push_back({
                 Step::HardwareDetection,
                 "Hardware Detection",
                 "Checking connected hardware and input devices.",
                 "🔧",
                 false,
-                []() { 
+                []() {
                     HardwareMonitor::Initialize();
                     return HardwareMonitor::GetDeviceStatus(HardwareMonitor::DeviceType::DMA).connected ||
                            HardwareMonitor::GetDeviceStatus(HardwareMonitor::DeviceType::Makcu).connected ||
@@ -70,8 +70,8 @@ namespace Onboarding {
                 []() { HardwareMonitor::Initialize(); },
                 []() {}
             });
-            
-            // Complete
+
+
             g_steps.push_back({
                 Step::Complete,
                 "Setup Complete!",
@@ -123,9 +123,9 @@ namespace Onboarding {
             CyberWidgets::Notify("Please complete the current step first", CyberWidgets::ToastType::Warning);
             return false;
         }
-        
+
         if (current.onExit) current.onExit();
-        
+
         int next = static_cast<int>(g_current_step) + 1;
         if (next < static_cast<int>(Step::Count)) {
             g_current_step = static_cast<Step>(next);
@@ -141,7 +141,7 @@ namespace Onboarding {
         if (prev >= 0) {
             const WizardStep& current = GetStepInfo(g_current_step);
             if (current.onExit) current.onExit();
-            
+
             g_current_step = static_cast<Step>(prev);
             const WizardStep& prev_step = GetStepInfo(g_current_step);
             if (prev_step.onEnter) prev_step.onEnter();
@@ -154,7 +154,7 @@ namespace Onboarding {
         if (static_cast<int>(step) >= 0 && static_cast<int>(step) < static_cast<int>(Step::Count)) {
             const WizardStep& current = GetStepInfo(g_current_step);
             if (current.onExit) current.onExit();
-            
+
             g_current_step = step;
             const WizardStep& next_step = GetStepInfo(g_current_step);
             if (next_step.onEnter) next_step.onEnter();
@@ -381,11 +381,11 @@ namespace Onboarding {
 
     void DrawWizard() {
         if (!g_active) return;
-        
+
         const WizardStep& step = GetStepInfo(g_current_step);
         int step_idx = static_cast<int>(g_current_step);
-        int total_steps = static_cast<int>(Step::Count) - 1; // Exclude Complete
-        
+        int total_steps = static_cast<int>(Step::Count) - 1;
+
         ImGui::OpenPopup("##onboarding_wizard");
         ImGuiViewport* viewport = ImGui::GetMainViewport();
         ImVec2 center = viewport->GetCenter();
@@ -401,7 +401,7 @@ namespace Onboarding {
         ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, CyberTheme::Radius::Lg);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
-        
+
         if (ImGui::BeginPopupModal("##onboarding_wizard", nullptr,
             ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove)) {
             ImDrawList* dl = ImGui::GetWindowDrawList();
@@ -473,14 +473,14 @@ namespace Onboarding {
                     NextStep();
                 }
             }
-            
+
             if (!g_active)
                 ImGui::CloseCurrentPopup();
             ImGui::EndPopup();
         }
         ImGui::PopStyleVar(3);
         ImGui::PopStyleColor(3);
-        
+
     }
 
     void DrawStepContent(const WizardStep& step) {
@@ -596,4 +596,4 @@ namespace Onboarding {
         app_settings::SaveGlobal(nullptr);
     }
 
-} // namespace Onboarding
+}

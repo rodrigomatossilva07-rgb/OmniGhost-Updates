@@ -18,8 +18,8 @@ bool WeaponNameRegistry::LoadFromJson(const std::string& path) {
     buffer << file.rdbuf();
     std::string content = buffer.str();
 
-    // Simple JSON parsing for our known format
-    // {"weapons": [{ "hash": 0x..., "name": "...", "category": "...", "games": [...] }, ...]}
+
+
     size_t weaponsPos = content.find("\"weapons\"");
     if (weaponsPos == std::string::npos) {
         std::cerr << "[WeaponRegistry] No 'weapons' array found" << std::endl;
@@ -46,7 +46,7 @@ bool WeaponNameRegistry::LoadFromJson(const std::string& path) {
         std::string name;
         std::string category;
 
-        // Parse hash
+
         size_t hashPos = obj.find("\"hash\"");
         if (hashPos != std::string::npos) {
             size_t colon = obj.find(':', hashPos);
@@ -63,7 +63,7 @@ bool WeaponNameRegistry::LoadFromJson(const std::string& path) {
             }
         }
 
-        // Parse name
+
         size_t namePos = obj.find("\"name\"");
         if (namePos != std::string::npos) {
             size_t colon = obj.find(':', namePos);
@@ -76,7 +76,7 @@ bool WeaponNameRegistry::LoadFromJson(const std::string& path) {
             }
         }
 
-        // Parse category
+
         size_t catPos = obj.find("\"category\"");
         if (catPos != std::string::npos) {
             size_t colon = obj.find(':', catPos);
@@ -103,9 +103,9 @@ bool WeaponNameRegistry::LoadFromJson(const std::string& path) {
 }
 
 bool WeaponNameRegistry::LoadFromEmbedded() {
-    // EmbeddedOffsets contains schema offsets, not the weapons.json catalog.
-    // The CS2-specific definition table remains the fallback when the JSON
-    // catalog is unavailable; do not report a successful empty registry.
+
+
+
     return false;
 }
 
@@ -121,4 +121,4 @@ const WeaponInfo* WeaponNameRegistry::GetWeaponInfo(uint32_t hash) const {
     return it != weapon_map_.end() ? &it->second : nullptr;
 }
 
-} // namespace OmniGhost::Gameplay
+}

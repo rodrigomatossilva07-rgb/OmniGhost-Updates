@@ -1,26 +1,26 @@
-﻿// Lazy initialization wrapper
+
 (function() {
     if (typeof window.radarLazyInit === 'undefined') {
         window.radarLazyInit = [];
     }
     window.radarLazyInit.push(function() {
-// Initial map rendering
-//
-// Responsible for changing radar background on map change, loading map
-// metadata and applying some general config values.
 
-// Catch map data send by the game
+
+
+
+
+
 socket.element.addEventListener("map", event => {
-	/**
-	 * Show a map error and quit
-	 * @param  {String} text What error message to show
-	 */
+
+
+
+
 	function throwMapError(text) {
 		document.getElementById("unknownMap").style.display = "flex"
 		document.getElementById("unknownMap").children[0].innerHTML = text
 	}
 
-	// If map is unchanged we do not need to do anything
+
 	if (global.currentMap == event.data) return
 
 	let mapName = event.data
@@ -34,37 +34,37 @@ socket.element.addEventListener("map", event => {
 		data = data.replace(/^\s*?\/\/.*?$/gm, "")
 		global.mapData = JSON.parse(data)
 
-		// Check if the map uses the expected meta format
+
 		if (!global.mapData.version || global.mapData.version.format != 4) {
 			return throwMapError(`Outdated map file for ${mapName}`)
 		}
 
-		// Make sure that the "unknown map" message is turned off for valid maps
+
 		document.getElementById("unknownMap").style.display = "none"
 
-		// Show the radar backdrop
+
 		document.getElementById("radarBackground").src = `/maps/${mapName}/radar.png`
 
 		if (global.config.radar.showBuyzones != "never") {
 			document.getElementById("radarBuyZones").src = `/maps/${mapName}/overlay_buyzones.png`
 		}
 
-		// Set the map as the current map and in the window title
+
 		global.currentMap = mapName
 		document.title = t("page_title") + " - " + mapName
 
-		// Hide advisories if you've been disabled in the config
+
 		if (global.config.radar.hideAdvisories) {
 			document.getElementById("advisory").style.display = "none"
 		}
 		else {
-			// Otherwise, read the advisory position from config and apply it
+
 			document.getElementById("advisory").style.left = global.mapData.advisoryPosition.x + "%"
 			document.getElementById("advisory").style.bottom = global.mapData.advisoryPosition.y + "%"
 			document.getElementById("advisory").style.display = "block"
 		}
 
-		// Mark the map as ready for other renderers
+
 		hasMap = true
 	})
 	.catch((err) => {
@@ -109,7 +109,7 @@ document.addEventListener("configchange", function(event) {
 	}
 })
 
-// +90 雷达旋转
+
 function updateRotate90() {
 	let container = document.getElementById("container")
 	if (!container) return
@@ -123,7 +123,7 @@ function updateRotate90() {
 	}
 }
 
-// 按钮点击切换 +90 旋转
+
 document.addEventListener("DOMContentLoaded", function() {
 	let btn = document.getElementById("rotate90-toggle")
 	if (btn) {
@@ -134,7 +134,7 @@ document.addEventListener("DOMContentLoaded", function() {
 	}
 })
 
-// 监听配置变化更新旋转
+
 document.addEventListener("configchange", updateRotate90)
 
     });

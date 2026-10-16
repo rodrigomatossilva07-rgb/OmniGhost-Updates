@@ -69,7 +69,19 @@ void RecordHealth(const std::string& stage,
         detail
     });
 }
+// UPD-007 Fix: also quotes free-form strings (release notes URLs) that can
+// contain spaces; the old version was only safe for filesystem paths.
 std::wstring Quote(const fs::path& path) { return L"\"" + path.wstring() + L"\""; }
+std::wstring Quote(const std::wstring& text) {
+    // Strip embedded quotes so a crafted URL cannot break out of the argument.
+    std::wstring safe;
+    safe.reserve(text.size() + 2);
+    for (wchar_t c : text) {
+        if (c != L'"')
+            safe.push_back(c);
+    }
+    return L"\"" + safe + L"\"";
+}
 
 bool DescendantPath(const fs::path& child, const fs::path& parent) {
     std::error_code ec;
@@ -132,11 +144,11 @@ bool IsOfflineNetworkFailure(const std::string& detail) {
     if (!networkCode)
         return false;
 
-    // InternetGetConnectedState can report a local network as connected even
-    // when that network has no Internet access. When both independent Windows
-    // transports fail with the same name/connection error, treat it as an
-    // offline condition for the user-facing message while retaining the exact
-    // codes under Technical details.
+
+
+
+
+
     const bool bothTransportsFailed =
         Contains(detail, "Transporte WinHTTP:") &&
         Contains(detail, "Transporte alternativo WinINet:");
@@ -257,9 +269,9 @@ UpdateService::~UpdateService() { Shutdown(); }
 void UpdateService::Initialize(Configuration configuration, std::unique_ptr<IHttpClient> http) {
     if (initialized_.exchange(true)) return;
     config_ = std::move(configuration);
-    // UPD-001 Fix: the HTTP layer used to read a frozen default Configuration
-    // (HttpPolicy::GetConfiguration), ignoring everything set here — including
-    // the TLS pins. Publish the effective configuration before any request.
+
+
+
     HttpPolicy::SetConfiguration(config_);
     http_ = http ? std::move(http) : std::make_unique<WinHttpClient>();
 
@@ -561,8 +573,8 @@ void UpdateService::RunCheck(bool force) {
     }
 
     if (manifest.version.Compare(*installed) <= 0) {
-        // When the API failed and the mutable /releases/latest marker points to
-        // an older release, reporting "up to date" would be misleading.
+
+
         if (releaseListResponseReceived &&
             !releaseResolutionWarning.empty()) {
             SetError(
@@ -619,9 +631,9 @@ void UpdateService::RunCheck(bool force) {
     MarkChecked();
     const bool belowMinimumSupported =
         installed->Compare(manifest.minimumSupportedVersion) < 0;
-    // The launcher only permits the newest published client. A newer version
-    // is therefore always treated as mandatory, even when the manifest marks
-    // it as optional for other distribution channels.
+
+
+
     const bool mandatory = true;
     std::string mandatoryReason;
     if (mandatory) {
@@ -687,6 +699,14 @@ void UpdateService::DownloadAndScheduleInstallOnExitAsync() {
 }
 
 void UpdateService::DownloadAsync() {
+    // UPD-006 Fix: check the busy gate FIRST — installOnExit_ used to be set
+    // even when the service was already busy (leaving the flag on with no
+    // download running).
+    if (busy_.exchange(true)) {
+        WriteLog(LogFile(), LogLevel::Warning, OmniGhost::Version, {}, "download",
+            "Another update operation is already in progress.");
+        return;
+    }
     bool automaticInstallOnExit = false;
     {
         std::lock_guard lock(mutex_);
@@ -698,11 +718,6 @@ void UpdateService::DownloadAsync() {
             installOnExit_.store(true, std::memory_order_release);
             SetSnapshot([](Snapshot& s) { s.installOnExit = true; });
         }
-    }
-    if (busy_.exchange(true)) {
-        WriteLog(LogFile(), LogLevel::Warning, OmniGhost::Version, {}, "download",
-            "Pedido de transferência ignorado porque já existe uma operação do atualizador em curso.");
-        return;
     }
     StartDownloadWorker();
 }
@@ -932,9 +947,9 @@ bool UpdateService::InstallPreparedUpdate() {
     const fs::path runner = runnerDirectory / OmniGhost::MainExecutable; std::error_code ec;
     fs::create_directories(runnerDirectory, ec);
     fs::copy_file(installedExecutable, runner, fs::copy_options::overwrite_existing, ec);
-    // The updater worker is now the same self-contained EXE. Its bootstrap
-    // detects --apply-update and does not load DMA or copy any private runtime file,
-    // so the runner directory intentionally contains only OmniGhost.exe.
+
+
+
 
     std::string sourceRunnerHash, copiedRunnerHash, runnerHashError;
     if (!Sha256File(installedExecutable, sourceRunnerHash, runnerHashError) ||
@@ -963,14 +978,14 @@ bool UpdateService::InstallPreparedUpdate() {
         RecordHealth("authenticode-verified", version, expectedHash, "verified");
     }
     std::wostringstream arguments; arguments << L"--apply-update --pid " << GetCurrentProcessId() << L" --package " << Quote(downloadedPackage_)
-        << L" --target " << Quote(Paths::InstallDirectory()) << L" --executable " << Quote(OmniGhost::MainExecutable)
+        << L" --target " << Quote(Paths::InstallDirectory()) << L" --executable " << Quote(fs::path(OmniGhost::MainExecutable))
 		<< L" --version \"" << Platform::Utf8ToWide(version) << L"\""
         << L" --sha256 \"" << Platform::Utf8ToWide(expectedHash) << L"\" --size " << expectedSize
         << L" --timeout " << config_.updaterExitTimeoutSeconds
         << L" --from-version \"" << Platform::Utf8ToWide(OmniGhost::Version) << L"\"";
     const Snapshot installSnapshot = GetSnapshot();
     if (!installSnapshot.releaseNotesUrl.empty())
-        arguments << L" --notes-url \"" << Platform::Utf8ToWide(installSnapshot.releaseNotesUrl) << L"\"";
+        arguments << L" --notes-url " << Quote(Platform::Utf8ToWide(installSnapshot.releaseNotesUrl)); // UPD-007 Fix
     const bool needElevation = !DirectoryWritable(Paths::InstallDirectory());
     const wchar_t* verb = needElevation ? L"runas" : L"open";
     const std::wstring argumentText = arguments.str();
@@ -983,7 +998,7 @@ bool UpdateService::InstallPreparedUpdate() {
     launch.lpFile = runner.c_str();
     launch.lpParameters = argumentText.c_str();
     launch.lpDirectory = runnerDirectoryText.c_str();
-    launch.nShow = needElevation ? SW_SHOW : SW_HIDE; // Show UAC prompt if elevation needed
+    launch.nShow = needElevation ? SW_SHOW : SW_HIDE;
     if (!ShellExecuteExW(&launch) || !launch.hProcess) {
         const DWORD code = GetLastError();
         if (needElevation && code == ERROR_CANCELLED) {
@@ -996,9 +1011,9 @@ bool UpdateService::InstallPreparedUpdate() {
     }
     Platform::UniqueHandle updaterProcess(launch.hProcess);
 
-    // ShellExecute success only means Windows accepted the request. Previously
-    // the launcher exited even when the updater rejected its arguments and died
-    // immediately, leaving the user with no update and no visible explanation.
+
+
+
     const DWORD earlyExit = WaitForSingleObject(updaterProcess.get(), 750);
     if (earlyExit == WAIT_OBJECT_0) {
         DWORD exitCode = 0;

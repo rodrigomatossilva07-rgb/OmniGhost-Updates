@@ -4,4 +4,4 @@
 
 namespace OmniGhost::Platform {
 
-} // namespace OmniGhost::Platform
+}

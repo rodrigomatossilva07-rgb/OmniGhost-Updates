@@ -99,7 +99,7 @@ div.dot.T {
 	background: #f0c941;
 }
 
-/* CS2 游戏内玩家颜色 (color0-5)，覆盖队伍默认色 */
+
 div.dot.color0 { background: #5ab8f4; }
 div.dot.color1 { background: #4caf50; }
 div.dot.color2 { background: #f0c941; }
@@ -107,7 +107,7 @@ div.dot.color3 { background: #ff8200; }
 div.dot.color4 { background: #a647c7; }
 div.dot.color5 { background: #ffffff; }
 
-/* 敌方玩家外部红圈，不覆盖内部填充色 */
+
 div.dot.enemy {
 	box-shadow: 0 0 0 1.2vmin rgba(255, 50, 50, 0.95), 0 0 1.6vmin .8vmin rgba(0, 0, 0, .2);
 }
@@ -115,7 +115,7 @@ div.dot.enemy {
 div.dot.bomb {
 	border-radius: 2vmin .4vmin 2vmin 2.4vmin;
 	background: #FF8200;
-	/* 携带炸弹脉冲环（伪元素已被 hurting/shooting 占用，用 box-shadow 模拟） */
+
 	box-shadow: 0 0 0 2px rgba(255, 176, 72, 0.98), 0 0 0 4px transparent, 0 0 0 6px rgba(255, 176, 72, 0.5);
 	animation: bombRingPulse 4.6s linear infinite;
 }
@@ -152,24 +152,24 @@ div.dot.flashed.active {
 	box-shadow: 0 0 0 .2vmin rgba(0, 0, 0, .9), 0 0 0 1vmin rgba(255, 255, 255, .9), 0 0 2.4vmin 1.2vmin rgba(255, 255, 255, .2), inset 0 0 2vmin 1vmin rgba(255, 255, 255, .9);
 }
 
-/* 被观察的敌方玩家同时显示红色边缘和白色观察框 */
+
 div.dot.enemy.active {
 	box-shadow: 0 0 0 1.2vmin rgba(255, 50, 50, 0.95), 0 0 0 .2vmin rgba(0, 0, 0, .9), 0 0 0 1vmin rgba(255, 255, 255, .9), 0 0 2.4vmin 1.2vmin rgba(255, 255, 255, .2);
 }
 
-/* 敌方被闪：白底+红环 */
+
 div.dot.enemy.flashed {
 	background: #ffffff !important;
 	box-shadow: 0 0 0 1.2vmin rgba(255, 50, 50, 0.95), 0 0 1.6vmin .8vmin rgba(255, 255, 255, .4), inset 0 0 2vmin 1vmin rgba(255, 255, 255, .9);
 }
 
-/* 敌方被闪且被观察：白底+红环+观察框 */
+
 div.dot.enemy.flashed.active {
 	background: #ffffff !important;
 	box-shadow: 0 0 0 1.2vmin rgba(255, 50, 50, 0.95), 0 0 0 .2vmin rgba(0, 0, 0, .9), 0 0 0 1vmin rgba(255, 255, 255, .9), 0 0 2.4vmin 1.2vmin rgba(255, 255, 255, .2), inset 0 0 2vmin 1vmin rgba(255, 255, 255, .9);
 }
 
-/* 选中观察的玩家高亮 */
+
 div.dot.followed {
 	z-index: 7000 !important;
 	box-shadow: 0 0 0 .3vmin rgba(0, 255, 0, .9), 0 0 2vmin 1vmin rgba(0, 255, 0, .3);

@@ -108,8 +108,8 @@ void ConfigureSession(void* session, int timeoutMilliseconds) {
     secureProtocols |= WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_3;
 #endif
     if (secureProtocols != 0) {
-        // Ignore failure on older Windows versions. Their system defaults are
-        // still used and the actual request will provide a useful error.
+
+
         WinHttpSetOption(
             session,
             WINHTTP_OPTION_SECURE_PROTOCOLS,
@@ -156,12 +156,12 @@ void ConfigureRequest(void* request) {
 
 namespace {
 bool ValidateServerCertificate(HINTERNET requestHandle, const std::vector<std::string>& pinnedThumbprints) {
-    if (pinnedThumbprints.empty()) return true; // No pinning configured
+    if (pinnedThumbprints.empty()) return true;
 
     PCCERT_CONTEXT certContext = nullptr;
     DWORD certSize = 0;
 
-    // Get the server certificate from the request handle
+
     if (!WinHttpQueryOption(
             requestHandle,
             WINHTTP_OPTION_SERVER_CERT_CONTEXT,
@@ -172,7 +172,7 @@ bool ValidateServerCertificate(HINTERNET requestHandle, const std::vector<std::s
 
     if (!certContext) return false;
 
-    // Compute SHA-256 thumbprint of the server certificate
+
     HCRYPTPROV hProv = 0;
     HCRYPTHASH hHash = 0;
     BYTE thumbprint[32];
@@ -202,7 +202,7 @@ bool ValidateServerCertificate(HINTERNET requestHandle, const std::vector<std::s
     CryptDestroyHash(hHash);
     CryptReleaseContext(hProv, 0);
 
-    // Convert thumbprint to hex string
+
     std::string thumbprintHex;
     thumbprintHex.reserve(64);
     for (DWORD i = 0; i < thumbprintSize; ++i) {
@@ -211,7 +211,7 @@ bool ValidateServerCertificate(HINTERNET requestHandle, const std::vector<std::s
         thumbprintHex += hex;
     }
 
-    // Compare against pinned thumbprints (case-insensitive)
+
     for (const auto& pinned : pinnedThumbprints) {
         if (_stricmp(thumbprintHex.c_str(), pinned.c_str()) == 0) {
             ok = true;
@@ -221,7 +221,7 @@ bool ValidateServerCertificate(HINTERNET requestHandle, const std::vector<std::s
 
     return ok;
 }
-} // namespace
+}
 
 bool CreateAndSendRequest(
     const std::string& url,
@@ -349,7 +349,7 @@ bool CreateAndSendRequest(
         return false;
     }
 
-    // P1-10: Validate server certificate against pinned thumbprints
+
     const auto& config = HttpPolicy::GetConfiguration();
     if (!ValidateServerCertificate(handles.request.get(), config.githubTlsCertificateThumbprints)) {
         error = "Certificado TLS do servidor não corresponde aos thumbprints esperados (certificate pinning falhou).";
@@ -533,7 +533,7 @@ void RemoveUtf8Bom(std::string& body) {
     }
 }
 
-} // namespace
+}
 
 HttpResult GetTextWithWinHttp(
     const std::string& url,
@@ -747,9 +747,9 @@ bool ShouldTryWinInetFallback(const HttpResult& result, bool cancelled) {
     if (cancelled || result.error.empty())
         return false;
 
-    // UPD-001 Fix: never retry on the un-pinned transport after a TLS/pinning
-    // failure — the fallback path performs no certificate validation beyond
-    // the system chain, so a pinning mismatch must fail closed.
+
+
+
     if (HttpPolicy::ClassifyFailure(result.statusCode, result.error) == HttpPolicy::ErrorClass::Tls)
         return false;
 
@@ -770,7 +770,7 @@ HttpResult CombineTransportFailures(
     return fallback;
 }
 
-} // namespace
+}
 
 bool WaitForRetry(unsigned attempt, const HttpResult& result, std::atomic_bool& cancelled) {
     const unsigned delay = HttpPolicy::RetryDelayMilliseconds(attempt, result.retryAfterSeconds);
@@ -892,4 +892,4 @@ HttpResult WinHttpClient::Download(
     return result;
 }
 
-} // namespace OmniGhost::Update
+}

@@ -1,22 +1,22 @@
-<#
-.SYNOPSIS
-  Transactional MemProcFS + LeechCore dependency manager for OmniGhost.
 
-.DESCRIPTION
-  third_party\dma_stack is the only managed source of truth. Updates are staged,
-  compatibility-gated, validated, and rolled back on failure. Legacy managed copies
-  under third_party\DMALibrary\libs are deliberately removed. The root libs\ directory is an
-  intentional local runtime fallback bundle and is preserved.
 
-.EXAMPLE
-  .\tools\Update-DmaDependencies.ps1 -MemProcFSZip path\mpfs.zip -LeechCoreZip path\lc.zip
-  .\tools\Update-DmaDependencies.ps1 -Latest
-  .\tools\Update-DmaDependencies.ps1 -Validate
-  .\tools\Update-DmaDependencies.ps1 -Doctor
-  .\tools\Update-DmaDependencies.ps1 -Status
-  .\tools\Update-DmaDependencies.ps1 -Rollback
-  .\tools\Update-DmaDependencies.ps1 -DryRun -Latest
-#>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 [CmdletBinding()]
 param(
     [string]$MemProcFSZip = "",
@@ -46,7 +46,7 @@ $MaxExpandedBytes = 2GB
 New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
 $Log = Join-Path $LogDir ("dependency-update-{0:yyyyMMdd-HHmmss}.log" -f (Get-Date))
 
-# Windows PowerShell 5.1 may default to older TLS policies.
+
 try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch {}
 
 function Write-Log([string]$Message) {
@@ -57,9 +57,9 @@ function Write-Log([string]$Message) {
 
 function Get-Sha256([string]$Path) {
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $null }
-    # Windows PowerShell is the build baseline. Some stripped Windows images
-    # do not ship Get-FileHash, so keep a .NET fallback for deterministic
-    # validation instead of silently weakening the integrity check.
+
+
+
     $hashCommand = Get-Command Get-FileHash -ErrorAction SilentlyContinue
     if ($hashCommand) {
         return (Get-FileHash -Algorithm SHA256 -LiteralPath $Path).Hash.ToLowerInvariant()
@@ -77,9 +77,9 @@ function Get-Sha256([string]$Path) {
 function Get-NormalizedTextSha256([string]$Path) {
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $null }
 
-    # Git may materialize tracked headers with CRLF or LF depending on the
-    # checkout configuration. Hash their logical UTF-8/LF representation so
-    # an independent reproducibility checkout validates the same source text.
+
+
+
     $text = [System.IO.File]::ReadAllText($Path)
     $normalized = $text.Replace("`r`n", "`n").Replace("`r", "`n")
     $utf8 = New-Object System.Text.UTF8Encoding($false)
@@ -225,12 +225,12 @@ function Install-FromExtracts([string]$MemProcDir, [string]$LeechCoreDir, [strin
     Write-Log "LeechCore LIB SHA256 MemProcFS=$mpfsLibHash"
     Write-Log "LeechCore LIB SHA256 Standalone=$lcLibHash"
 
-    # Official MemProcFS and standalone LeechCore releases may package DLLs
-    # produced by separate builds (different signatures/build metadata), so a
-    # byte-for-byte DLL comparison rejects otherwise compatible official
-    # releases. The import library is the ABI contract used by this project:
-    # require it to be identical, then keep the LeechCore DLL bundled with
-    # MemProcFS so vmm.dll and leechcore.dll always come from the same runtime.
+
+
+
+
+
+
     if (-not $mpfsLibHash -or -not $lcLibHash -or $mpfsLibHash -ne $lcLibHash) {
         throw "COMPATIBILITY CHECK FAILED: MemProcFS and standalone LeechCore import libraries differ."
     }
@@ -381,10 +381,10 @@ function Invoke-Validate {
     $projectPath = Join-Path $Root "OmiGhost.vcxproj"
     $project = Get-Content -LiteralPath $projectPath -Raw
     if ($project -match 'third_party\DMALibrary\\libs') { throw "INVALID: OmiGhost.vcxproj still references third_party\DMALibrary\libs." }
-    # Headers/libraries may be provided by the private-static build property
-    # sheet while the canonical DMA stack supplies the embedded runtime bundle.
-    # Do not reject that supported layout merely because the paths are not in
-    # the .vcxproj itself.
+
+
+
+
     if ($project -notmatch 'third_party\\dma_stack\\bin') { throw "INVALID: canonical runtime path not configured." }
 
     Write-Log "DMA dependency stack: VALID"
@@ -464,9 +464,9 @@ if ($Check -or $Latest -or $EnsureLatest) {
     }
 
     if ($EnsureLatest) {
-        # Compare release asset identities rather than guessing from PE version
-        # fields.  The asset is an upstream release artefact and stays stable
-        # across local rebuilds of OmniGhost.
+
+
+
         $currentMpAsset = ""
         $currentLcAsset = ""
         $manifestPath = Join-Path $Stack "versions.json"
@@ -530,7 +530,7 @@ try {
 
     Install-FromExtracts $mpExt $lcExt $Staging
 
-    # Validate staging by temporarily targeting it through the same basic file/hash rules.
+
     foreach ($required in @("include\vmmdll.h","include\leechcore.h","lib\vmm.lib","lib\leechcore.lib",
                             "bin\vmm.dll","bin\leechcore.dll","versions.json")) {
         if (-not (Test-Path -LiteralPath (Join-Path $Staging $required))) {
@@ -570,9 +570,9 @@ try {
     Write-Log "Dependencies updated successfully."
 } catch {
     Write-Log "ERROR: $_"
-    # Only quarantine $Stack when this invocation already swapped staging into
-    # place. A validation/extraction failure before the swap must leave the
-    # previously active canonical stack untouched.
+
+
+
     if ($installedNewStack -and (Test-Path -LiteralPath $Stack)) {
         New-Item -ItemType Directory -Force -Path $FailedRoot | Out-Null
         $failed = Join-Path $FailedRoot ("dma_stack.failed-{0:yyyyMMdd-HHmmss}" -f (Get-Date))

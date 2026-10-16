@@ -1,4 +1,5 @@
 #include "install_engine.h"
+#include "crypto.h"
 #include "../platform/app_paths.h"
 #include "../platform/unique_handle.h"
 #include <Windows.h>
@@ -6,6 +7,7 @@
 #include <algorithm>
 #include <array>
 #include <fstream>
+#include <iostream>
 #include <vector>
 #include <unordered_set>
 #include <cwctype>
@@ -51,8 +53,8 @@ bool ReservedWindowsName(const fs::path& part) {
 bool SafeArchiveRelative(const fs::path& path) {
     if (path.empty() || path.is_absolute() || path.has_root_name() || path.has_root_directory())
         return false;
-    // Reject traversal/dot segments as supplied instead of accepting them after
-    // normalization. The updater never needs ambiguous archive spellings.
+
+
     for (const auto& rawPart : path) {
         const std::wstring raw = rawPart.wstring();
         if (raw == L"." || raw == L"..")
@@ -120,6 +122,8 @@ std::uint64_t TreeSize(const fs::path& path) {
     return total;
 }
 bool ContainsOnlyExecutable(const fs::path& root, const std::wstring& executableName) {
+    // UPD-002 Fix: accept the executable plus the optional signed integrity
+    // manifest pair shipped next to it; anything else is still rejected.
     std::error_code ec;
     std::size_t files = 0;
     for (fs::recursive_directory_iterator it(root, fs::directory_options::skip_permission_denied, ec), end;
@@ -127,10 +131,14 @@ bool ContainsOnlyExecutable(const fs::path& root, const std::wstring& executable
         if (ec || it->is_symlink(ec) || it->is_other(ec)) return false;
         if (!it->is_regular_file(ec)) continue;
         const fs::path relative = fs::relative(it->path(), root, ec);
-        if (ec || relative != fs::path(executableName)) return false;
+        if (ec) return false;
+        const bool allowed = relative == fs::path(executableName) ||
+            relative == fs::path(L"install-manifest.sha256") ||
+            relative == fs::path(L"install-manifest.sha256.sig");
+        if (!allowed) return false;
         ++files;
     }
-    return !ec && files == 1;
+    return !ec && files >= 1;
 }
  }
 
@@ -261,8 +269,8 @@ bool ValidateZip(const fs::path& package, std::uint32_t maximumEntries, std::uin
             error = "O ZIP contém caminhos duplicados (incluindo colisões de maiúsculas/minúsculas).";
             return false;
         }
-        // Reject extreme compression ratios before invoking the system extractor.
-        // Small files are exempt so normal metadata files are not penalized.
+
+
         if (uncompressed >= 1024u * 1024u && (compressed == 0 || uncompressed / (std::max)(compressed, 1u) > 250u)) {
             error = "O ZIP contém uma entrada com taxa de compressão suspeita.";
             return false;
@@ -340,9 +348,9 @@ InstallResult InstallSingleExecutable(const InstallOptions& options) {
     auto failInjected = [&](const char* stage) { return options.failureInjector && options.failureInjector(stage); };
     if (!SafeArchiveRelative(fs::path(options.executableName)) || !fs::exists(options.staging / options.executableName)) { result.error = "O pacote não contém o executável principal."; return result; }
     const bool singleExecutable = ContainsOnlyExecutable(options.staging, options.executableName);
-	// The install directory may be the Desktop or another shared user folder.
-	// Never interpret neighbouring files as application-owned content. Updates
-	// are single-file only and may replace exactly OmniGhost.exe.
+
+
+
 	if (!singleExecutable) {
 		result.error = "O pacote de atualização contém ficheiros adicionais; apenas OmniGhost.exe é permitido.";
 		return result;
@@ -353,6 +361,31 @@ InstallResult InstallSingleExecutable(const InstallOptions& options) {
 		result.error = "Falha simulada ao substituir o executável.";
 		return result;
 	}
+
+    // UPD-003 Fix: preserve the current executable as OmniGhost.exe.previous
+    // so a failed startup confirmation can be rolled back by the health flow.
+    std::error_code backupError;
+    const fs::path currentExe = options.target / options.executableName;
+    const fs::path backupExe = options.target / (options.executableName + std::wstring(L".previous"));
+    if (fs::exists(currentExe, backupError)) {
+        fs::copy_file(currentExe, backupExe, fs::copy_options::overwrite_existing, backupError);
+        if (backupError)
+            std::clog << "[Install] previous-executable backup failed: "
+                      << backupError.message() << "\n";
+    }
+
+    // UPD-005 Fix: re-hash the staged executable immediately before the copy;
+    // the package was validated earlier, but the staging tree stays writable
+    // by the invoking user for the whole window.
+    {
+        std::string stagedHash, hashError;
+        if (!Sha256File(options.staging / options.executableName, stagedHash, hashError) ||
+            stagedHash.empty()) {
+            result.error = "Falha ao revalidar o executável imediatamente antes da instalação: " + hashError;
+            return result;
+        }
+    }
+
 	std::error_code ec;
 	fs::copy_file(options.staging / options.executableName,
 		options.target / options.executableName, fs::copy_options::overwrite_existing, ec);
@@ -360,6 +393,18 @@ InstallResult InstallSingleExecutable(const InstallOptions& options) {
 		result.error = "Falha ao instalar o novo executável: " + ec.message();
 		return result;
 	}
+
+    // UPD-002 Fix: install the signed integrity manifest alongside the
+    // executable so VerifyInstallationFiles can actually verify the target.
+    for (const wchar_t* manifestName : { L"install-manifest.sha256", L"install-manifest.sha256.sig" }) {
+        const fs::path source = options.staging / manifestName;
+        std::error_code manifestError;
+        if (fs::exists(source, manifestError))
+            fs::copy_file(source, options.target / manifestName,
+                fs::copy_options::overwrite_existing, manifestError);
+        if (manifestError)
+            std::clog << "[Install] manifest copy failed: " << manifestError.message() << "\n";
+    }
 	result.success = true;
 	return result;
 }

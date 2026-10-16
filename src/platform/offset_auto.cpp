@@ -13,8 +13,25 @@
 
 namespace OmniGhost::OffsetAuto {
 
-std::string g_status = "Offsets prontos";
+namespace {
+
+
+std::mutex g_status_mutex;
+std::string g_status_value = "Offsets prontos";
+}
+
 std::atomic_bool g_busy{false};
+
+StatusProxy::operator std::string() const {
+    std::scoped_lock lock(g_status_mutex);
+    return g_status_value;
+}
+
+StatusProxy& StatusProxy::operator=(std::string_view value) {
+    std::scoped_lock lock(g_status_mutex);
+    g_status_value = value;
+    return *this;
+}
 
 namespace {
 std::mutex g_state_mutex;
@@ -49,7 +66,7 @@ bool InstallCandidate(const std::filesystem::path& candidate,
     if (!ec) std::filesystem::remove(candidate, ec);
     return !ec;
 }
-} // namespace
+}
 
 CompatibilitySnapshot Compatibility(ActiveGame game) {
     std::scoped_lock lock(g_state_mutex);
@@ -76,10 +93,10 @@ void MarkUnsupported(ActiveGame game, const std::string& detail) {
     SetState(game, CompatibilityState::Unsupported, detail);
 }
 bool BlocksLaunch(ActiveGame game) {
-    // Soft gate: outdated offsets are a warning, not a hard block.
-    // User can still open the menu; features may fail until SoftProbe/live
-    // validation succeeds. Unsupported stays non-blocking here as well —
-    // launch path reports the real attach/read error instead.
+
+
+
+
     (void)game;
     return false;
 }
@@ -90,7 +107,6 @@ bool SupportsAutomaticRefresh(ActiveGame game) {
     case ActiveGame::Warzone:
 #endif
     case ActiveGame::FiveM:
-    case ActiveGame::Apex:
         return true;
     default:
         return false;
@@ -107,11 +123,11 @@ bool HasCriticalOffsets(ActiveGame game) {
         return Warzone::offsets.loaded && Warzone::offsets.view_matrix != 0;
     }
     if (game == ActiveGame::FiveM) {
-        // FiveM uses build-specific offsets table; validate at least one build has critical offsets
+
         return FiveM::HasAnyCriticalOffsets();
     }
     if (game == ActiveGame::Apex) {
-        // Apex not yet implemented with dedicated offsets module
+
         return false;
     }
     return false;
@@ -134,7 +150,7 @@ bool SoftProbeLive(ActiveGame game) {
     case ActiveGame::FiveM:
         return FiveM::SoftProbeLobbyOffsets();
     case ActiveGame::Apex:
-        return true; // file-backed until full runtime exists
+        return true;
     default:
         return true;
     }
@@ -164,9 +180,9 @@ Result EnsureOffsets(ActiveGame game, bool force_refresh) {
     MarkChecking(game);
 #if !defined(OMNIGHOST_DEV_EXTERNAL_OFFSETS)
     (void)force_refresh;
-    // Customer snapshots are immutable PE resources. Updating a JSON beside the
-    // executable could not replace those bytes, so Release never creates a data/
-    // cache or pretends that a downloaded file changed the active snapshot.
+
+
+
     g_status = "Offsets integrados na versão instalada";
     MarkLiveValid(game, g_status);
     return Result::Current;
@@ -190,7 +206,7 @@ Result EnsureOffsets(ActiveGame game, bool force_refresh) {
         const bool downloaded = force_refresh
             ? OmniGhost::CheatOffsets::FetchGame("cs2", candidate.string().c_str(), &networkStatus)
             : OmniGhost::CheatOffsets::FetchGameIfChanged("cs2", candidate.string().c_str(), &networkStatus);
-        // LoadOffsetsFromJson now accepts API markdown + classic client.dll JSON.
+
         if (downloaded && try_install(candidate, data / L"cs2_offsets.json",
                 [](const char* p) { return CS2::LoadOffsetsFromJson(p); })) {
             MarkLiveValid(game, networkStatus.empty()
@@ -251,8 +267,8 @@ Result EnsureOffsets(ActiveGame game, bool force_refresh) {
             ? OmniGhost::CheatOffsets::FetchGame("fivem", candidate.string().c_str(), &networkStatus)
             : OmniGhost::CheatOffsets::FetchGameIfChanged("fivem", candidate.string().c_str(), &networkStatus);
         if (downloaded && std::filesystem::exists(candidate)) {
-            // Keep embedded build table as runtime authority; still refresh the data dump for
-            // future loaders / diagnostics and so the launcher stops showing "outdated".
+
+
             if (InstallCandidate(candidate, target) || std::filesystem::exists(target)) {
                 MarkLiveValid(game, networkStatus.empty()
                     ? "FiveM: offsets atualizados via cheatoffsets.com" : networkStatus);
@@ -265,42 +281,13 @@ Result EnsureOffsets(ActiveGame game, bool force_refresh) {
             g_status = "FiveM: offsets já atuais";
             return Result::Current;
         }
-        // Embedded table always allows launch; API dump is best-effort
+
         MarkLiveValid(game, "FiveM: tabela de builds local (API indisponível)");
         g_status = std::string("FiveM: API indisponível (") + networkStatus + "); tabela local OK";
         return Result::UsingCached;
     }
-    if (game == ActiveGame::Apex) {
-        const auto candidate = data / L"apex_offsets.candidate.json";
-        const auto target = data / L"apex_offsets.json";
-        const bool downloaded = force_refresh
-            ? OmniGhost::CheatOffsets::FetchGame("apex", candidate.string().c_str(), &networkStatus)
-            : OmniGhost::CheatOffsets::FetchGameIfChanged("apex", candidate.string().c_str(), &networkStatus);
-        if (downloaded && std::filesystem::exists(candidate)) {
-            std::error_code ec;
-            const auto sz = std::filesystem::file_size(candidate, ec);
-            if (!ec && sz > 64 && InstallCandidate(candidate, target)) {
-                MarkLiveValid(game, networkStatus.empty()
-                    ? "Apex: offsets atualizados via cheatoffsets.com" : networkStatus);
-                g_status = "Apex: offsets atualizados";
-                return Result::Ok;
-            }
-        }
-        if (!force_refresh && networkStatus.find("304") != std::string::npos) {
-            MarkLiveValid(game, "Apex: já atuais (API 304)");
-            g_status = "Apex: offsets já atuais";
-            return Result::Current;
-        }
-        std::error_code ec;
-        const bool cached = std::filesystem::exists(target, ec) &&
-            !ec && std::filesystem::file_size(target, ec) > 64;
-        g_status = cached
-            ? (std::string("Apex: API indisponível (") + networkStatus + "); mantido último válido")
-            : "Apex: offsets em falta — tenta Atualizar offsets";
-        if (cached) MarkLiveValid(game, g_status);
-        else MarkOutdated(game, g_status);
-        return cached ? Result::UsingCached : Result::RefreshFailed;
-    }
+    // RES-001 Fix: Apex has no runtime/adapter; its offsets refresh and its
+    // entry in RefreshAllSupported are removed until a real Apex module ships.
 
     g_status = "Atualização automática não suportada com segurança para este jogo";
     MarkUnsupported(game, g_status);
@@ -314,7 +301,6 @@ int RefreshAllSupported(bool force) {
         ActiveGame::CS2,
         ActiveGame::Warzone,
         ActiveGame::FiveM,
-        ActiveGame::Apex,
     };
     std::string all;
     for (ActiveGame g : games) {
@@ -328,4 +314,4 @@ int RefreshAllSupported(bool force) {
     return ok;
 }
 
-} // namespace OmniGhost::OffsetAuto
+}

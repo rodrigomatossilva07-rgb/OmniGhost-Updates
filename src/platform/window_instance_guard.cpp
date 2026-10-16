@@ -21,7 +21,7 @@ bool ProcessImageIsOmniGhost(DWORD pid) noexcept {
         if (path[i] == L'\\' || path[i] == L'/') filename = path + i + 1;
     return _wcsicmp(filename, L"OmniGhost.exe") == 0;
 }
-} // namespace
+}
 
 WindowAudit AuditOmniGhostWindows() noexcept {
     struct Context { WindowAudit audit{}; DWORD currentPid{}; }
@@ -73,4 +73,4 @@ void LogWindowAudit(const char* stage, HWND expectedWindow) {
               << " foreign_process=" << audit.foreignProcessWindows << '\n';
 }
 
-} // namespace OmniGhost::Platform
+}

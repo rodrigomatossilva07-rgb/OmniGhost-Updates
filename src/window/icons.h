@@ -3,7 +3,7 @@
 
 namespace CyberIcons {
 
-    // Distinct OmniGhost-style icons (inspired by common menu glyphs, not copies)
+
     void DrawESPIcon(ImDrawList* draw_list, ImVec2 pos, float size, ImU32 color);
     void DrawWorldIcon(ImDrawList* draw_list, ImVec2 pos, float size, ImU32 color);
     void DrawAimIcon(ImDrawList* draw_list, ImVec2 pos, float size, ImU32 color);
@@ -17,7 +17,7 @@ namespace CyberIcons {
     void DrawStatusIcon(ImDrawList* draw_list, ImVec2 pos, float size, ImU32 color);
     void DrawRadarIcon(ImDrawList* draw_list, ImVec2 pos, float size, ImU32 color);
 
-    // Alias kept for older call sites
+
     inline void DrawBuildIcon(ImDrawList* d, ImVec2 p, float s, ImU32 c) { DrawStatusIcon(d, p, s, c); }
 
-} // namespace CyberIcons
+}

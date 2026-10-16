@@ -1,16 +1,16 @@
-﻿// Lazy initialization wrapper
+
 (function() {
     if (typeof window.radarLazyInit === 'undefined') {
         window.radarLazyInit = [];
     }
     window.radarLazyInit.push(function() {
-// 设置面板渲染器
-// 负责控件事件绑定、状态回填、重置功能
-//
-// 依赖：_init.js 提供的 window.applySetting / window.resetConfig /
-// window.getConfigValue，以及 _global.js 提供的 global.config。
-// _init.js 中 loadConfig/applyConfig 均为同步执行，因此只要本脚本
-// 在 _init.js 之后加载，初始化时 global.config 已就绪。
+
+
+
+
+
+
+
 
 function initSettings() {
 	const toggle = document.getElementById("settings-toggle")
@@ -20,7 +20,7 @@ function initSettings() {
 
 	const controls = panel.querySelectorAll("[data-config]")
 
-	// 从 global.config 回填控件状态
+
 	function refreshControls() {
 		controls.forEach(function(ctrl) {
 			const key = ctrl.getAttribute("data-config")
@@ -42,7 +42,7 @@ function initSettings() {
 		})
 	}
 
-	// 回填语言下拉框（i18n.js 在本脚本之前加载，currentLang 已就绪）
+
 	if (langSelect) {
 		langSelect.value = currentLang
 		langSelect.addEventListener("change", function() {
@@ -50,7 +50,7 @@ function initSettings() {
 		})
 	}
 
-	// 齿轮按钮切换 popover 显隐
+
 	toggle.addEventListener("click", function() {
 		if (panel.hasAttribute("hidden")) {
 			panel.removeAttribute("hidden")
@@ -61,7 +61,7 @@ function initSettings() {
 		}
 	})
 
-	// 重置按钮
+
 	resetBtn.addEventListener("click", function() {
 		if (confirm(t("settings_confirm_reset"))) {
 			resetConfig()
@@ -69,7 +69,7 @@ function initSettings() {
 		}
 	})
 
-	// 绑定所有控件事件，调用 applySetting 实时生效
+
 	controls.forEach(function(ctrl) {
 		const key = ctrl.getAttribute("data-config")
 		const eventName = ctrl.type === "checkbox" ? "change" : "input"
@@ -92,18 +92,18 @@ function initSettings() {
 		})
 	})
 
-	// 监听 configchange 事件：全量重置时同步所有控件
+
 	document.addEventListener("configchange", function(e) {
 		if (e.detail.key === null) {
 			refreshControls()
 		}
 	})
 
-	// 初始回填（global.config 已由 _init.js 同步设置）
+
 	refreshControls()
 }
 
-// 与 _init.js 保持一致的初始化时机
+
 if (document.readyState === "loading") {
 	document.addEventListener("DOMContentLoaded", initSettings)
 }

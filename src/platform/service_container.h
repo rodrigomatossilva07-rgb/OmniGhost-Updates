@@ -13,25 +13,25 @@
 
 namespace OmniGhost::Platform {
 
-// ============================================================
-// Service Lifetime
-// ============================================================
+
+
+
 enum class ServiceLifetime : std::uint8_t {
-    Singleton,    // Single instance per container (default)
-    Scoped,       // Single instance per scope (child container)
-    Transient     // New instance every time
+    Singleton,
+    Scoped,
+    Transient
 };
 
-// ============================================================
-// ServiceDescriptor - Type-erased service registration
-// ============================================================
-class ServiceContainer; // forward declare for factory signature
+
+
+
+class ServiceContainer;
 
 struct ServiceDescriptor {
     ServiceLifetime lifetime = ServiceLifetime::Singleton;
     std::function<std::shared_ptr<void>(ServiceContainer&)> factory;
-    std::shared_ptr<void> instance;  // For singleton instances
-    
+    std::shared_ptr<void> instance;
+
     ServiceDescriptor() = default;
     ServiceDescriptor(ServiceLifetime lt, std::function<std::shared_ptr<void>(ServiceContainer&)> f)
         : lifetime(lt), factory(std::move(f)) {}
@@ -39,16 +39,16 @@ struct ServiceDescriptor {
         : lifetime(lt), instance(std::move(inst)) {}
 };
 
-// ============================================================
-// ServiceContainer - Enhanced DI Container
-// ============================================================
+
+
+
 class ServiceContainer {
 public:
     ServiceContainer() = default;
     ~ServiceContainer() = default;
     ServiceContainer(const ServiceContainer&) = delete;
     ServiceContainer& operator=(const ServiceContainer&) = delete;
-    
+
     ServiceContainer(ServiceContainer&& other) noexcept {
         std::unique_lock lock(other.mutex_);
         descriptors_ = std::move(other.descriptors_);
@@ -56,7 +56,7 @@ public:
         parent_ = other.parent_;
         other.parent_ = nullptr;
     }
-    
+
     ServiceContainer& operator=(ServiceContainer&& other) noexcept {
         if (this != &other) {
             std::unique_lock lock1(mutex_, std::defer_lock);
@@ -70,87 +70,87 @@ public:
         return *this;
     }
 
-    // Create a child container (for scoped services)
+
     [[nodiscard]] std::unique_ptr<ServiceContainer> CreateScope() const;
 
-    // Get parent container
+
     [[nodiscard]] ServiceContainer* GetParent() const noexcept {
         std::shared_lock lock(mutex_);
         return parent_;
     }
 
-    // ===== Registration =====
 
-    // Register singleton (default)
+
+
     template <typename Interface, typename Implementation, typename... Args>
     void RegisterSingleton(Args&&... args) {
         static_assert(std::is_base_of_v<Interface, Implementation>,
             "Implementation must derive from Interface");
         const auto type = std::type_index(typeid(Interface));
-        
+
         auto factory = [args = std::make_tuple(std::forward<Args>(args)...)](
             ServiceContainer& container) mutable -> std::shared_ptr<void> {
             return std::apply([&container](auto&&... a) {
                 return std::make_shared<Implementation>(std::forward<decltype(a)>(a)...);
             }, std::move(args));
         };
-        
+
         std::unique_lock lock(mutex_);
         descriptors_[type] = ServiceDescriptor(ServiceLifetime::Singleton, std::move(factory));
-        singletons_.erase(type);  // Clear any existing instance
+        singletons_.erase(type);
     }
 
-    // Register scoped
+
     template <typename Interface, typename Implementation, typename... Args>
     void RegisterScoped(Args&&... args) {
         static_assert(std::is_base_of_v<Interface, Implementation>,
             "Implementation must derive from Interface");
         const auto type = std::type_index(typeid(Interface));
-        
+
         auto factory = [args = std::make_tuple(std::forward<Args>(args)...)](
             ServiceContainer& container) mutable -> std::shared_ptr<void> {
             return std::apply([&container](auto&&... a) {
                 return std::make_shared<Implementation>(std::forward<decltype(a)>(a)...);
             }, std::move(args));
         };
-        
+
         std::unique_lock lock(mutex_);
         descriptors_[type] = ServiceDescriptor(ServiceLifetime::Scoped, std::move(factory));
         singletons_.erase(type);
     }
 
-    // Register transient
+
     template <typename Interface, typename Implementation, typename... Args>
     void RegisterTransient(Args&&... args) {
         static_assert(std::is_base_of_v<Interface, Implementation>,
             "Implementation must derive from Interface");
         const auto type = std::type_index(typeid(Interface));
-        
+
         auto factory = [args = std::make_tuple(std::forward<Args>(args)...)](
             ServiceContainer& container) mutable -> std::shared_ptr<void> {
             return std::apply([&container](auto&&... a) {
                 return std::make_shared<Implementation>(std::forward<decltype(a)>(a)...);
             }, std::move(args));
         };
-        
+
         std::unique_lock lock(mutex_);
         descriptors_[type] = ServiceDescriptor(ServiceLifetime::Transient, std::move(factory));
         singletons_.erase(type);
     }
 
-    // Register with custom factory
+
     template <typename Interface>
     void RegisterFactory(ServiceLifetime lifetime, std::function<std::shared_ptr<Interface>(ServiceContainer&)> factory) {
         const auto type = std::type_index(typeid(Interface));
         std::unique_lock lock(mutex_);
-        descriptors_[type] = ServiceDescriptor(lifetime, 
+        descriptors_[type] = ServiceDescriptor(lifetime,
             [factory = std::move(factory)](ServiceContainer& c) -> std::shared_ptr<void> {
                 return factory(c);
             });
         singletons_.erase(type);
     }
 
-    // Register pre-created instance (always singleton)
+
     template <typename Interface>
     void RegisterInstance(std::shared_ptr<Interface> instance) {
         const auto type = std::type_index(typeid(Interface));
@@ -159,15 +159,15 @@ public:
         singletons_[type] = std::static_pointer_cast<void>(std::move(instance));
     }
 
-    // Register instance by value (moves into shared_ptr)
+
     template <typename Interface, typename Implementation>
     void RegisterInstance(Implementation&& instance) {
         RegisterInstance<Interface>(std::make_shared<Implementation>(std::forward<Implementation>(instance)));
     }
 
-    // ===== Resolution =====
 
-    // Get service (throws if not found)
+
+
     template <typename Interface>
     [[nodiscard]] std::shared_ptr<Interface> Get() const {
         auto ptr = TryGet<Interface>();
@@ -177,12 +177,12 @@ public:
         return ptr;
     }
 
-    // Try get service (returns null if not found)
+
     template <typename Interface>
     [[nodiscard]] std::shared_ptr<Interface> TryGet() const noexcept {
         const auto type = std::type_index(typeid(Interface));
-        
-        // Check singletons first
+
+
         {
             std::shared_lock lock(mutex_);
             auto it = singletons_.find(type);
@@ -190,59 +190,65 @@ public:
                 return std::static_pointer_cast<Interface>(it->second);
             }
         }
-        
-        // Check descriptors
-        std::shared_lock lock(mutex_);
-        auto it = descriptors_.find(type);
-        if (it == descriptors_.end()) {
-            // Check parent
-            if (parent_) return parent_->TryGet<Interface>();
-            return nullptr;
-        }
-        
-        const auto& desc = it->second;
-        
-        if (desc.lifetime == ServiceLifetime::Singleton) {
-            if (desc.instance) {
-                return std::static_pointer_cast<Interface>(desc.instance);
+
+
+        ServiceLifetime lifetime;
+        std::function<std::shared_ptr<void>(ServiceContainer&)> factory;
+        std::shared_ptr<void> existingInstance;
+        {
+            std::shared_lock lock(mutex_);
+            auto it = descriptors_.find(type);
+            if (it == descriptors_.end()) {
+
+                if (parent_) return parent_->TryGet<Interface>();
+                return nullptr;
             }
-            if (desc.factory) {
-                std::unique_lock lock(mutex_);  // Upgrade for creation
-                // Double-check after upgrade
+            lifetime = it->second.lifetime;
+            factory = it->second.factory;
+            existingInstance = it->second.instance;
+        }
+
+        if (lifetime == ServiceLifetime::Singleton) {
+            if (existingInstance) {
+                return std::static_pointer_cast<Interface>(existingInstance);
+            }
+            if (factory) {
+
+
+
+
+
+                auto instance = factory(*const_cast<ServiceContainer*>(this));
+                std::unique_lock lock(mutex_);
                 auto it2 = singletons_.find(type);
                 if (it2 != singletons_.end()) {
                     return std::static_pointer_cast<Interface>(it2->second);
                 }
-                auto instance = desc.factory(*const_cast<ServiceContainer*>(this));
                 singletons_[type] = instance;
                 return std::static_pointer_cast<Interface>(instance);
             }
-        } else if (desc.lifetime == ServiceLifetime::Scoped) {
-            if (desc.factory) {
-                return std::static_pointer_cast<Interface>(desc.factory(*const_cast<ServiceContainer*>(this)));
-            }
-        } else if (desc.lifetime == ServiceLifetime::Transient) {
-            if (desc.factory) {
-                return std::static_pointer_cast<Interface>(desc.factory(*const_cast<ServiceContainer*>(this)));
+        } else if (lifetime == ServiceLifetime::Scoped || lifetime == ServiceLifetime::Transient) {
+            if (factory) {
+                return std::static_pointer_cast<Interface>(factory(*const_cast<ServiceContainer*>(this)));
             }
         }
-        
-        // Check parent
+
+
         if (parent_) return parent_->TryGet<Interface>();
         return nullptr;
     }
 
-    // Get or create service (factory if not registered)
+
     template <typename Interface, typename Implementation, typename... Args>
     [[nodiscard]] std::shared_ptr<Interface> GetOrCreate(Args&&... args) {
         auto ptr = TryGet<Interface>();
         if (ptr) return ptr;
-        
+
         RegisterSingleton<Interface, Implementation>(std::forward<Args>(args)...);
         return Get<Interface>();
     }
 
-    // Check if service is registered (in this container or parent)
+
     template <typename Interface>
     [[nodiscard]] bool Has() const noexcept {
         const auto type = std::type_index(typeid(Interface));
@@ -252,7 +258,7 @@ public:
         return false;
     }
 
-    // Remove a service registration
+
     template <typename Interface>
     void Unregister() noexcept {
         const auto type = std::type_index(typeid(Interface));
@@ -261,14 +267,14 @@ public:
         singletons_.erase(type);
     }
 
-    // Clear all services
+
     void Clear() noexcept {
         std::unique_lock lock(mutex_);
         descriptors_.clear();
         singletons_.clear();
     }
 
-    // Get all registered service types (for debugging)
+
     [[nodiscard]] std::vector<std::string> ListServices() const noexcept {
         std::shared_lock lock(mutex_);
         std::vector<std::string> names;
@@ -282,7 +288,7 @@ public:
         return names;
     }
 
-    // Get service lifetime
+
     template <typename Interface>
     [[nodiscard]] std::optional<ServiceLifetime> GetLifetime() const noexcept {
         const auto type = std::type_index(typeid(Interface));
@@ -293,7 +299,7 @@ public:
         return std::nullopt;
     }
 
-    // Clone this container (deep copy of descriptors, singletons are shared)
+
     [[nodiscard]] std::unique_ptr<ServiceContainer> Clone() const {
         auto clone = std::make_unique<ServiceContainer>();
         std::shared_lock lock(mutex_);
@@ -310,9 +316,9 @@ private:
     ServiceContainer* parent_ = nullptr;
 };
 
-// ============================================================
-// ServiceBuilder - Fluent registration API
-// ============================================================
+
+
+
 class ServiceBuilder {
 public:
     explicit ServiceBuilder(ServiceContainer& container) : container_(container) {}
@@ -353,23 +359,23 @@ private:
     ServiceContainer& container_;
 };
 
-// ============================================================
-// Global accessor (for migration period)
-// ============================================================
+
+
+
 class Services {
 public:
     static ServiceContainer& Instance() noexcept {
         static ServiceContainer container;
         return container;
     }
-    
+
     static ServiceBuilder Builder() {
         return ServiceBuilder(Instance());
     }
 };
 
-// Factories implemented in service_container.cpp (keeps this header free of interfaces.h)
+
 [[nodiscard]] ServiceContainer CreateProductionContainer();
 [[nodiscard]] ServiceContainer CreateTestContainer();
 
-} // namespace OmniGhost::Platform
+}

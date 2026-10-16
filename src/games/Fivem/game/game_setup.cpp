@@ -24,7 +24,7 @@ bool LocalPlayerLooksAlive() {
     float hp = 0.f;
     if (!mem.Read(localplayer + playerHealth, &hp, sizeof(hp)))
         return false;
-    // GTA health is typically 100..200 when alive; accept a wider window for edge cases.
+
     return hp > 0.f && hp < 1000.f && std::isfinite(hp);
 }
 
@@ -36,7 +36,7 @@ void ApplyBuildExtras(uintptr_t game_base, int build) {
         object_pool = network_player_mgr = blip_list = waypoint = aim_cped = 0;
         return;
     }
-    // All module RVAs come from data/fivem_offsets.json via BuildOffsets.
+
     blip_list = bo->blip_list_offset ? game_base + bo->blip_list_offset : 0;
     aim_cped = bo->aim_cped_offset ? game_base + bo->aim_cped_offset : 0;
     network_player_mgr = bo->network_player_mgr_offset ? game_base + bo->network_player_mgr_offset : 0;
@@ -44,7 +44,7 @@ void ApplyBuildExtras(uintptr_t game_base, int build) {
     waypoint = bo->waypoint_offset ? game_base + bo->waypoint_offset : 0;
     bullet = 0;
     pedVisibilityOffset = bo->ped_visibility_offset;
-    // Prefer JSON field offsets when present (also set from build_offset in Setup).
+
     if (bo->boneList_offset) boneList = bo->boneList_offset;
     if (bo->boneMatrix_offset) boneMatrix = bo->boneMatrix_offset;
     if (bo->playerInfo_offset) playerInfo = bo->playerInfo_offset;
@@ -63,13 +63,13 @@ void WriteStatusLog(const char* note) {
               << " camera=0x" << camera << std::dec << '\n';
 #endif
 }
-} // namespace
+}
 
 void Setup() {
     using namespace offset;
 
-    // Process generations must never inherit pointers or optional offsets from
-    // the previous FiveM session.
+
+
     world = replay = viewport = camera = localplayer = 0;
     base = 0;
     pedVisibilityOffset = blip_list = aim_cped = bullet = 0;
@@ -132,7 +132,7 @@ void Setup() {
         else
             std::cout << "[FiveM] LocalPlayer health probe soft-fail (lobby / loading?)" << std::endl;
 
-        // Initialize shared weapon name registry
+
         if (!OmniGhost::Gameplay::WeaponNameRegistry::Instance().LoadFromJson("data/weapons.json")) {
             std::cout << "[FiveM] Warning: Failed to load data/weapons.json, using fallback map" << std::endl;
         }
@@ -152,8 +152,8 @@ void InitializePedCache() {
 
 bool ReinitDma() {
     std::cout << "[FiveM] Reinit DMA (process + world pointers)" << std::endl;
-    // The acquisition producer owns long-lived scatter handles. Stop and
-    // release them before invalidating the VMM process/device generation.
+
+
     ESP::StopAcquisition();
     mem.InvalidateProcess();
     std::string exe = OmniGhost::GameContext::Instance().GetValidExecutable();
@@ -181,4 +181,4 @@ bool ReinitDma() {
     return true;
 }
 
-} // namespace FiveM
+}

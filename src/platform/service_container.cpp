@@ -16,8 +16,8 @@ std::unique_ptr<ServiceContainer> ServiceContainer::CreateScope() const {
     return child;
 }
 
-// Lightweight factories: do not pull interfaces.h here (avoids MSVC C1202).
-// Callers can RegisterInstance/RegisterSingleton for IClock/IFilesystem as needed.
+
+
 ServiceContainer CreateProductionContainer() {
     return ServiceContainer{};
 }
@@ -26,4 +26,4 @@ ServiceContainer CreateTestContainer() {
     return ServiceContainer{};
 }
 
-} // namespace OmniGhost::Platform
+}

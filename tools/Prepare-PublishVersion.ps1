@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [string]$ProjectDir = '',
     [string]$Configuration = '',
@@ -25,10 +25,10 @@ if ([string]$config.repository -notmatch '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$') {
 }
 Write-Host "[OmniGhost Version] Versão de origem: $version; tag esperada: v$version."
 if (-not $ValidateOnly) {
-	# Publish is the explicit approval point for local source changes. Capture
-	# tracked edits and auto-accept new non-archive files so intentional source
-	# additions (headers, helpers) never block the pipeline. ZIP/archive dumps
-	# stay out of release tracking.
+
+
+
+
 	$git = Get-Command git -ErrorAction Stop
 	$status = @(& $git.Source -C $ProjectDir status --porcelain --untracked-files=normal --ignore-submodules)
 	if ($LASTEXITCODE -ne 0) { throw 'Não foi possível consultar o estado Git antes da Publish.' }
@@ -40,7 +40,7 @@ if (-not $ValidateOnly) {
 		foreach ($line in $untracked) {
 			$pathPart = ([string]$line).Substring(3).Trim()
 			if ([string]::IsNullOrWhiteSpace($pathPart)) { continue }
-			# Porcelain may quote paths; strip surrounding quotes.
+
 			if ($pathPart.StartsWith('"') -and $pathPart.EndsWith('"') -and $pathPart.Length -ge 2) {
 				$pathPart = $pathPart.Substring(1, $pathPart.Length - 2)
 			}
@@ -58,7 +58,7 @@ if (-not $ValidateOnly) {
 			Write-Host ('[OmniGhost Publish] A aceitar ficheiros novos: ' + ($toAdd -join ', '))
 			& $git.Source -C $ProjectDir add -- $toAdd
 			if ($LASTEXITCODE -ne 0) { throw 'Não foi possível adicionar ficheiros novos ao índice Git antes da Publish.' }
-			# Refresh status so tracked-change commit includes the new files.
+
 			$status = @(& $git.Source -C $ProjectDir status --porcelain --untracked-files=normal --ignore-submodules)
 			if ($LASTEXITCODE -ne 0) { throw 'Não foi possível reconsultar o estado Git após aceitar ficheiros novos.' }
 		}
@@ -88,9 +88,9 @@ if (-not $ValidateOnly) {
 		if ($LASTEXITCODE -ne 0 -or $head -notmatch '^[0-9a-fA-F]{40}$') {
 			throw 'Não foi possível determinar o commit atual antes de preparar a versão Publish.'
 		}
-		# Windows PowerShell 5.1 promotes Git stderr to NativeCommandError even
-		# when it is redirected. `tag --list` is silent for a missing tag, so only
-		# ask rev-list to resolve a name that Git has already confirmed exists.
+
+
+
 		$matchingTags = @(& $git.Source -C $ProjectDir tag --list $currentTag)
 		if ($LASTEXITCODE -ne 0) { throw "Não foi possível consultar a tag $currentTag." }
 		$tagExists = $matchingTags.Count -gt 0

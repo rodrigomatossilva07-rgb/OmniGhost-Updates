@@ -48,10 +48,10 @@ std::uint64_t FileTimestamp(const GameQuery& query) {
     const fs::path path = OmniGhost::Paths::InstallDirectory() / L"data" / query.offsetsFile;
     std::error_code error;
     fs::path reference = path;
-    // Release builds package offsets as resources. In that configuration there
-    // is deliberately no plaintext data/<game>_offsets.json beside the EXE;
-    // use the installed launcher binary as the timestamp of the embedded set
-    // instead of treating the offsets as missing on every library open.
+
+
+
+
     if (!fs::is_regular_file(reference, error)) {
         error.clear();
         reference = OmniGhost::Paths::Executable();
@@ -115,7 +115,7 @@ void QuerySteam() {
     { std::scoped_lock lock(shared.mutex); shared.status = std::move(results); }
     shared.checking.store(false, std::memory_order_release);
 }
-} // namespace
+}
 
 void StartForLibrary() {
     SharedState& shared = Shared();
@@ -145,4 +145,4 @@ Status Get(GameId game) {
             ? State::OffsetsOutdated : State::Current;
     return result;
 }
-} // namespace Launcher::SteamGameUpdateCheck
+}

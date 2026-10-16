@@ -18,4 +18,4 @@ HttpResult DownloadWithWinInet(
     std::atomic_bool& cancelled,
     const ProgressCallback& progress);
 
-} // namespace OmniGhost::Update
+}

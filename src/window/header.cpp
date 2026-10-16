@@ -12,8 +12,8 @@ namespace CyberWidgets {
     void DrawHeader(const ImVec2& wp, const ImVec2& ws, float fps, bool dma_ok,
                     const char* build, int ping_ms, int players)
     {
-        // Detailed telemetry lives in the footer; the header carries only the
-        // global state needed for orientation.
+
+
         (void)fps;
         (void)ping_ms;
         (void)players;
@@ -61,9 +61,9 @@ namespace CyberWidgets {
         dl->AddRect(logo_a, logo_b,
             CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.38f), 8.0f, 0, 1.1f);
 
-        // The home header intentionally stays icon-led.  Keeping the brand
-        // mark without the old "Omni // Control Center" copy gives the page
-        // more room and avoids repeating the application name.
+
+
+
 
         const char* systemState = dma_ok ? "DMA ONLINE" : "DMA OFFLINE";
         const ImU32 systemColor = dma_ok
@@ -82,7 +82,7 @@ namespace CyberWidgets {
         const float stateX = right - gameSize.x - stateSize.x - 30.f;
         dl->AddCircleFilled(ImVec2(stateX, a.y + 19.f), 3.f, systemColor, 10);
         dl->AddText(ImVec2(stateX + 9.f, a.y + 12.f), systemColor, systemState);
-        
+
     }
 
-} // namespace CyberWidgets
+}

@@ -8,12 +8,12 @@
 namespace OmniGhost::Gameplay {
 
 struct AimMotionSettings {
-    float smooth = 0.f;              // 0 = full assist, 100 = disabled
+    float smooth = 0.f;
     float deadzone = 0.f;
     bool humanize = false;
 
-    // Optional advanced motion shaping. These defaults keep the behaviour of
-    // older configurations unless the corresponding feature is enabled.
+
+
     bool permanent_humanize = false;
     int reaction_delay_ms_min = 35;
     int reaction_delay_ms_max = 85;
@@ -23,14 +23,14 @@ struct AimMotionSettings {
     float micro_jitter_px = 0.08f;
     float max_deg_per_ms = 6.f;
 
-    float minimum_strength = 0.02f;  // low floor so held assist does not fight the mouse
+    float minimum_strength = 0.02f;
     float minimum_error = 0.45f;
-    float output_scale = 1.f;        // device counts per screen-space correction
-    float reversal_damping = 0.18f;  // kills overshoot when error sign flips
-    int max_step = 0;                // 0 keeps the smooth-derived limit
-    int minimum_interval_ms = 0;     // prevents serial command backlog
-    float approach_softness = 18.f;  // px radius where strength eases down (human track)
-    float ema_alpha = 0.42f;         // temporal smoothing of desired move (0.2-0.6)
+    float output_scale = 1.f;
+    float reversal_damping = 0.18f;
+    int max_step = 0;
+    int minimum_interval_ms = 0;
+    float approach_softness = 18.f;
+    float ema_alpha = 0.42f;
 };
 
 struct AimMotion {
@@ -42,8 +42,8 @@ struct AimMotion {
     explicit operator bool() const noexcept { return x != 0 || y != 0; }
 };
 
-// Shared distance profile for every game adapter. Far targets get smaller,
-// capped steps so a held bind cannot accelerate into an oscillation.
+
+
 inline void ApplyStableDistanceProfile(AimMotionSettings& settings,
                                        float distance_meters) noexcept {
     settings.minimum_interval_ms = 6;
@@ -75,8 +75,8 @@ inline void ApplyStableDistanceProfile(AimMotionSettings& settings,
     }
 }
 
-// Shared by every game. Converts target error into continuous human-like
-// correction: eases near the crosshair, damps reversals, keeps sub-pixel residual.
+
+
 class ContinuousAimController {
 public:
     void Reset() noexcept {
@@ -124,20 +124,20 @@ public:
         result.error = std::sqrt(error_x * error_x + error_y * error_y);
         const float smooth = std::clamp(settings.smooth, 0.f, 100.f);
 
-        // Base strength: 0 smooth = full, 100 = none.
+
         float strength = (100.f - smooth) / 100.f;
 
-        // Soft ease near the crosshair so the assist lands like a human track
-        // instead of oscillating left/right around the bone.
+
+
         const float soft = (std::max)(6.f, settings.approach_softness);
         if (strength > 0.f && result.error < soft) {
             const float t = result.error / soft;
-            // Ease-in quadratic: very gentle when almost locked.
+
             strength *= t * t;
         }
 
         if (settings.humanize && strength > 0.05f && strength < 0.95f) {
-            // Slightly softer curve; avoid noise near center (causes side-wobble).
+
             strength = std::pow(strength, 0.90f);
             if (result.error > 8.f) {
                 const float n = 0.012f * strength;
@@ -172,7 +172,7 @@ public:
         float scale_y = scale_x;
         const float reversal = std::clamp(settings.reversal_damping, 0.05f, 1.f);
 
-        // Detect left/right (or up/down) thrashing while the bind is held.
+
         if (have_previous_error_) {
             const bool flip_x = (error_x * previous_error_x_ < 0.f) &&
                                 std::fabs(error_x) > 0.6f && std::fabs(previous_error_x_) > 0.6f;
@@ -195,9 +195,9 @@ public:
                 flip_streak_ = 0;
             }
 
-            // Stance change (crouch/prone): head drops fast on screen. Boost vertical
-            // tracking so the crosshair follows the new head instead of lagging at the
-            // old standing height while the bind is held.
+
+
+
             const float dy_jump = std::fabs(error_y - previous_error_y_);
             if (dy_jump > 28.f && std::fabs(error_y) > 10.f) {
                 scale_y = (std::min)(1.f, scale_y * 1.85f);
@@ -212,7 +212,7 @@ public:
         previous_error_y_ = error_y;
         have_previous_error_ = true;
 
-        // Soft reaction delay on new target (permanent humanization).
+
         if (settings.permanent_humanize || settings.humanize) {
             if (target_switched_) {
                 const int delay_min = (std::max)(0, (std::min)(settings.reaction_delay_ms_min, settings.reaction_delay_ms_max));
@@ -228,7 +228,7 @@ public:
             const auto since_acquire = std::chrono::duration_cast<std::chrono::milliseconds>(
                 now - acquire_time_).count();
             if (since_acquire < reaction_delay_ms_) {
-                // Hold aim assist during reaction latency — mouse still works.
+
                 residual_x_ = residual_y_ = 0.f;
                 ema_x_ *= 0.7f;
                 ema_y_ *= 0.7f;
@@ -236,11 +236,11 @@ public:
             }
         }
 
-        // Desired continuous move (screen px * strength * scale).
+
         float desired_x = error_x * strength * scale_x;
         float desired_y = error_y * strength * scale_y;
 
-        // Prediction lead (optional menu toggle): advance along last error delta.
+
         if (settings.prediction && had_previous_error) {
             const float vx = error_x - previous_error_x;
             const float vy = error_y - previous_error_y;
@@ -248,15 +248,15 @@ public:
             desired_y += vy * (settings.prediction_lead * 60.f);
         }
 
-        // Bezier-like ease on the strength curve even at smooth 0 (anti-linear).
+
         if (settings.permanent_humanize) {
             const float t = std::clamp(result.error / 120.f, 0.f, 1.f);
-            // Hermite smoothstep: accelerate then decelerate.
+
             const float ease = t * t * (3.f - 2.f * t);
             desired_x *= (0.55f + 0.45f * ease);
             desired_y *= (0.55f + 0.45f * ease);
 
-            // First-impulse overshoot then correction.
+
             if (overshoot_remaining_ > 0.05f && result.error > 6.f) {
                 const float sign_x = error_x >= 0.f ? 1.f : -1.f;
                 const float sign_y = error_y >= 0.f ? 1.f : -1.f;
@@ -267,9 +267,9 @@ public:
             }
         }
 
-        // Temporal EMA so consecutive frames do not fight each other (side wobble).
+
         const float alpha = std::clamp(settings.ema_alpha, 0.15f, 0.85f);
-        // Even at smooth 0, keep a light EMA so motion is never a pure step function.
+
         if (smooth <= 1.f && !settings.permanent_humanize) {
             ema_x_ = desired_x;
             ema_y_ = desired_y;
@@ -279,7 +279,7 @@ public:
             ema_y_ = ema_y_ * (1.f - a) + desired_y * a;
         }
 
-        // Micro-jitter (muscle tremor) — permanent, low amplitude.
+
         float jitter_x = 0.f, jitter_y = 0.f;
         if (settings.permanent_humanize && settings.micro_jitter_px > 0.f && result.error > 2.f) {
             const float phase = static_cast<float>((target_id_ + static_cast<std::uint64_t>(
@@ -304,7 +304,7 @@ public:
             if (y == 0 && std::fabs(move_y) >= 0.28f) y = move_y > 0.f ? 1 : -1;
         }
 
-        // Rate limiter / anti-snap (always).
+
         int limit = smooth <= 1.f ? 48 : (smooth <= 12.f ? 36 : (smooth <= 40.f ? 28 : 20));
         if (settings.permanent_humanize) {
             const float rate = (std::max)(4.f, settings.max_deg_per_ms * 8.f);
@@ -344,4 +344,4 @@ private:
     bool target_switched_ = false;
 };
 
-} // namespace OmniGhost::Gameplay
+}

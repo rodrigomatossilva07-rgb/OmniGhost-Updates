@@ -62,11 +62,13 @@ namespace HardwareMonitor {
     void UpdateDeviceStatus(DeviceType type, bool connected, const std::string& port = "", const std::string& version = "", const std::string& error = "");
     void SetDeviceEnabled(DeviceType type, bool enabled);
 
-    const DeviceStatus& GetDeviceStatus(DeviceType type);
-    const SystemMetrics& GetSystemMetrics();
-    const std::vector<LatencySample>& GetLatencyHistory();
-    const std::vector<float>& GetFPSHistory();
-    const std::vector<int>& GetEntityHistory();
+    // GPL-006 Fix: getters return snapshots under the lock — they used to hand
+    // out live references written by other threads (C++ data race).
+    DeviceStatus GetDeviceStatus(DeviceType type);
+    SystemMetrics GetSystemMetrics();
+    std::vector<LatencySample> GetLatencyHistory();
+    std::vector<float> GetFPSHistory();
+    std::vector<int> GetEntityHistory();
 
     float GetAverageLatency(DeviceType type, int window_seconds = 5);
     float GetMaxLatency(DeviceType type, int window_seconds = 5);
@@ -76,4 +78,4 @@ namespace HardwareMonitor {
     void ExportMetrics(const char* path);
     void ResetMetrics();
 
-} // namespace HardwareMonitor
+}

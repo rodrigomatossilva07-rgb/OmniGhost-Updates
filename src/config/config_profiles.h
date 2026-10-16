@@ -16,4 +16,4 @@ void ResetActiveGameToDefaults();
 void ResetToDefaults();
 void ResetSettingsOnly();
 
-} // namespace config_manager
+}

@@ -14,8 +14,8 @@ void DrawFriends()
 #ifndef UI_PREVIEW
     friends::RequestPlayerList();
 #endif
-    // The live FiveM list performs identity/name DMA. Do not repeat that
-    // pointer chain at the UI frame rate while this page is open.
+
+
     static double nextPlayerListRefresh = 0.0;
     const double now = ImGui::GetTime();
     if (now >= nextPlayerListRefresh) {
@@ -28,10 +28,20 @@ void DrawFriends()
     const float leftW = full * 0.45f;
     const float rightW = full - leftW - gap;
 
+    // GPL-006 Fix: friend_list/player_list are written by other threads —
+    // take locked snapshots once per frame and never reference live elements.
+    std::vector<friends::FriendEntry> friendsSnapshot;
+    std::vector<friends::PlayerEntry> playersSnapshot;
+    {
+        std::lock_guard<std::mutex> lock(friends::list_mutex);
+        friendsSnapshot = friends::friend_list;
+        playersSnapshot = friends::player_list;
+    }
+
     ImGui::BeginGroup();
     CyberWidgets::BeginCard(Loc::Tr("fr.list"), leftW);
     CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary,
-        Loc::Tr("fr.nearby"), (int)friends::player_list.size());
+        Loc::Tr("fr.nearby"), (int)playersSnapshot.size());
     CyberWidgets::Separator();
     CyberWidgets::SectionTitle("REGRAS");
     CyberWidgets::ToggleSwitch(Loc::Tr("fr.ignore_aim"), &friends::config.ignore_aim);
@@ -64,12 +74,11 @@ void DrawFriends()
     }
     CyberWidgets::Separator();
     CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary,
-        Loc::Tr("fr.count"), (int)friends::friend_list.size());
+        Loc::Tr("fr.count"), (int)friendsSnapshot.size());
     CyberWidgets::BeginSurfaceList("##friend_list", 140.0f);
     uint32_t to_remove = 0;
     {
-        std::lock_guard<std::mutex> lock(friends::list_mutex);
-        if (friends::friend_list.empty()) {
+        if (friendsSnapshot.empty()) {
             ImDrawList* edl = ImGui::GetWindowDrawList();
             const ImVec2 ep = ImGui::GetCursorScreenPos();
             const float ew = ImGui::GetContentRegionAvail().x;
@@ -81,8 +90,8 @@ void DrawFriends()
                 Loc::Tr("fr.empty_hint"));
             ImGui::Dummy(ImVec2(ew, 28.0f));
         }
-        for (size_t i = 0; i < friends::friend_list.size(); ++i) {
-            auto& f = friends::friend_list[i];
+        for (size_t i = 0; i < friendsSnapshot.size(); ++i) {
+            auto& f = friendsSnapshot[i];
             ImGui::PushID(static_cast<int>(f.id));
             const ImVec2 row = ImGui::GetCursorScreenPos();
             const float row_width = ImGui::GetContentRegionAvail().x;
@@ -132,20 +141,20 @@ void DrawFriends()
     }
     CyberWidgets::Separator();
 
-    // Filter players based on search
+
     std::vector<const friends::PlayerEntry*> filteredPlayers;
-    filteredPlayers.reserve(friends::player_list.size());
-    for (const auto& p : friends::player_list) {
+    filteredPlayers.reserve(playersSnapshot.size());
+    for (const auto& p : playersSnapshot) {
         if (!search[0] || p.name.find(search) != std::string::npos) {
             filteredPlayers.push_back(&p);
         }
     }
 
-    // Use virtualized list for performance with large player lists
+
     static int selectedPlayer = -1;
     const float rowH = 22.f;
     [[maybe_unused]] const float listHeight = 180.f;
-    
+
     CyberWidgets::VirtualizedList<const friends::PlayerEntry*>(
         "##nearby_players",
         filteredPlayers,
@@ -160,7 +169,7 @@ void DrawFriends()
                 ? friends::config.friend_color
                 : ImGui::ColorConvertFloat4ToU32(CyberTheme::Colors.Text);
 
-            // Invisible button covers the whole row for hover + double-click
+
             ImGui::PushID(static_cast<int>(p->id));
             ImGui::InvisibleButton("##row", ImVec2(width, rowH));
             const bool hovered = ImGui::IsItemHovered();
@@ -196,7 +205,7 @@ void DrawFriends()
         rowH,
         180.f,
         [&]([[maybe_unused]] const friends::PlayerEntry* item, [[maybe_unused]] int idx, [[maybe_unused]] bool isSelected) {
-            // renderItem is handled inline above
+
         },
         true,
         &selectedPlayer);

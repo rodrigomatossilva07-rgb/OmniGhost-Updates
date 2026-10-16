@@ -32,18 +32,23 @@ public sealed class KeyAuthSellerClient : IDisposable
         if (!options.IsConfigured)
             return new(false, "KeyAuth Seller API is not configured.", new JsonObject());
 
-        var query = new List<KeyValuePair<string, string?>> {
+        // API-001 Fix: the KeyAuth Seller API only accepts the seller key as a
+        // GET query parameter, so it WILL appear in URLs. Move the credentials
+        // into the POST body instead (KeyAuth also accepts form-encoded POST
+        // for seller calls), keeping secrets out of query strings, proxies and
+        // access logs. The response handling below is unchanged.
+        var content = new List<KeyValuePair<string, string?>> {
             new("sellerkey", options.KeyAuthSellerKey),
             new("type", type)
         };
-        query.AddRange(parameters);
-        var uri = new UriBuilder(options.KeyAuthSellerEndpoint) {
-            Query = string.Join("&", query.Where(item => item.Value is not null).Select(item =>
-                $"{Uri.EscapeDataString(item.Key)}={Uri.EscapeDataString(item.Value!)}"))
-        }.Uri;
+        content.AddRange(parameters);
+        var uri = options.KeyAuthSellerEndpoint;
 
         try {
-            using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+            using var body = new FormUrlEncodedContent(
+                content.Where(item => item.Value is not null)
+                       .Select(item => new KeyValuePair<string, string>(item.Key, item.Value!)));
+            using var request = new HttpRequestMessage(HttpMethod.Post, uri) { Content = body };
             using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
             if ((int)response.StatusCode is < 200 or >= 300)
                 return new(false, $"KeyAuth returned HTTP {(int)response.StatusCode}.", new JsonObject());

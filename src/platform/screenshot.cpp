@@ -41,34 +41,34 @@ std::string GenerateFilename(const std::string& prefix, Format fmt) {
     if (!EnsureScreenshotDirectory()) {
         return "";
     }
-    
+
     auto now = std::chrono::system_clock::now();
     auto time_t = std::chrono::system_clock::to_time_t(now);
     std::tm tm;
     localtime_s(&tm, &time_t);
-    
+
     std::ostringstream oss;
-    oss << prefix << "_" 
+    oss << prefix << "_"
         << std::put_time(&tm, "%Y%m%d_%H%M%S");
-    
-    // Add milliseconds
+
+
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
         now.time_since_epoch()) % 1000;
     oss << "_" << std::setfill('0') << std::setw(3) << ms.count();
-    
+
     if (fmt == Format::PNG) {
         oss << ".png";
     } else {
         oss << ".bmp";
     }
-    
+
     return (GetScreenshotDirectory() / oss.str()).string();
 }
 
-// BMP file header structures
+
 #pragma pack(push, 1)
 struct BMPFileHeader {
-    uint16_t signature = 0x4D42; // "BM"
+    uint16_t signature = 0x4D42;
     uint32_t fileSize = 0;
     uint16_t reserved1 = 0;
     uint16_t reserved2 = 0;
@@ -94,7 +94,7 @@ Result SaveBMP(const std::string& filename, const uint8_t* pixels, uint32_t widt
     Result result;
     result.width = width;
     result.height = height;
-    
+
     if (!pixels || !width || !height || width > INT_MAX || height > INT_MAX ||
         uint64_t{width} * height * 4u > UINT_MAX - 54u) {
         result.error = "Invalid screenshot dimensions";
@@ -102,27 +102,27 @@ Result SaveBMP(const std::string& filename, const uint8_t* pixels, uint32_t widt
     }
     const uint32_t rowSize = width * 4u;
     const uint32_t imageSize = rowSize * height;
-    
+
     BMPFileHeader fileHeader;
     fileHeader.fileSize = sizeof(BMPFileHeader) + sizeof(BMPInfoHeader) + imageSize;
-    
+
     BMPInfoHeader infoHeader;
     infoHeader.width = static_cast<int32_t>(width);
-    infoHeader.height = -static_cast<int32_t>(height); // Negative = top-down
+    infoHeader.height = -static_cast<int32_t>(height);
     infoHeader.bitsPerPixel = 32;
     infoHeader.imageSize = imageSize;
-    
+
     try {
         std::ofstream file(filename, std::ios::binary);
         if (!file) {
             result.error = "Failed to open file for writing";
             return result;
         }
-        
+
         file.write(reinterpret_cast<const char*>(&fileHeader), sizeof(fileHeader));
         file.write(reinterpret_cast<const char*>(&infoHeader), sizeof(infoHeader));
-        
-        // GetDIBits already returns top-down BGRA, which is the BMP layout.
+
+
         file.write(reinterpret_cast<const char*>(pixels), imageSize);
         file.flush();
         if (!file.good()) {
@@ -130,14 +130,14 @@ Result SaveBMP(const std::string& filename, const uint8_t* pixels, uint32_t widt
             return result;
         }
         file.close();
-        
+
         result.path = filename;
         result.fileSize = fs::file_size(filename);
         result.success = true;
     } catch (const std::exception& e) {
         result.error = e.what();
     }
-    
+
     return result;
 }
 
@@ -219,22 +219,22 @@ Result SavePNG(const std::string& filename, const uint8_t* pixels, uint32_t widt
 
 Result CaptureInternal(const std::string& filename, int x, int y, int width, int height, Format fmt) {
     Result result;
-    
+
     HWND hwnd = GetForegroundWindow();
     if (!hwnd) {
         result.error = "No foreground window";
         return result;
     }
-    
+
     RECT rect;
     if (!GetWindowRect(hwnd, &rect)) {
         result.error = "Failed to get window rect";
         return result;
     }
-    
+
     int winWidth = rect.right - rect.left;
     int winHeight = rect.bottom - rect.top;
-    
+
     if (width <= 0) width = winWidth;
     if (height <= 0) height = winHeight;
     if (x < 0) x = 0;
@@ -244,19 +244,19 @@ Result CaptureInternal(const std::string& filename, int x, int y, int width, int
         result.error = "Invalid capture dimensions";
         return result;
     }
-    
-    // Adjust for window client area
+
+
     RECT clientRect;
     GetClientRect(hwnd, &clientRect);
     POINT clientTopLeft = { clientRect.left, clientRect.top };
     ClientToScreen(hwnd, &clientTopLeft);
-    
+
     int borderX = clientTopLeft.x - rect.left;
     int borderY = clientTopLeft.y - rect.top;
-    
+
     int captureX = rect.left + borderX + x;
     int captureY = rect.top + borderY + y;
-    
+
     HDC hScreenDC = GetDC(nullptr);
     HDC hMemoryDC = CreateCompatibleDC(hScreenDC);
     HBITMAP hBitmap = CreateCompatibleBitmap(hScreenDC, width, height);
@@ -281,9 +281,9 @@ Result CaptureInternal(const std::string& filename, int x, int y, int width, int
         DeleteDC(hMemoryDC);
         ReleaseDC(nullptr, hScreenDC);
     });
-    
+
     BOOL success = BitBlt(hMemoryDC, 0, 0, width, height, hScreenDC, captureX, captureY, SRCCOPY | CAPTUREBLT);
-    
+
     if (!success) {
         result.error = "BitBlt failed";
         return result;
@@ -292,16 +292,16 @@ Result CaptureInternal(const std::string& filename, int x, int y, int width, int
     BITMAPINFO bmi = {};
     bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
     bmi.bmiHeader.biWidth = width;
-    bmi.bmiHeader.biHeight = -static_cast<LONG>(height); // Top-down
+    bmi.bmiHeader.biHeight = -static_cast<LONG>(height);
     bmi.bmiHeader.biPlanes = 1;
     bmi.bmiHeader.biBitCount = 32;
     bmi.bmiHeader.biCompression = BI_RGB;
 
     std::vector<uint8_t> pixels(static_cast<std::size_t>(width) * height * 4u);
-    // GetDIBits requires the bitmap to be deselected from its DC.
+
     SelectObject(hMemoryDC, hOldBitmap);
     const int copiedRows = GetDIBits(hScreenDC, hBitmap, 0, height, pixels.data(), &bmi, DIB_RGB_COLORS);
-    
+
     SelectObject(hMemoryDC, hOldBitmap);
     DeleteObject(hBitmap);
     DeleteDC(hMemoryDC);
@@ -312,13 +312,13 @@ Result CaptureInternal(const std::string& filename, int x, int y, int width, int
         return result;
     }
     for (std::size_t i = 3; i < pixels.size(); i += 4) pixels[i] = 255;
-    
+
     if (fmt == Format::BMP) {
         result = SaveBMP(filename, pixels.data(), width, height);
     } else {
         result = SavePNG(filename, pixels.data(), width, height);
     }
-    
+
     result.width = width;
     result.height = height;
     return result;
@@ -336,8 +336,8 @@ Result CaptureRegion(const std::string& filename, int x, int y, int width, int h
 }
 
 Result CaptureViewport(const std::string& filename, Format fmt) {
-    // Capture ImGui viewport - for now just capture the window
+
     return CaptureWindow(filename, fmt);
 }
 
-} // namespace OmniGhost::Screenshot
+}

@@ -19,7 +19,7 @@ void LowerCopy(const char* source, char* output, std::size_t output_size) noexce
     }
 }
 
-} // namespace
+}
 
 bool IsBotPlayerName(const char* name) noexcept {
     return name &&
@@ -88,4 +88,4 @@ void FormatDroppedWeaponName(const char* source, char* output,
     }
 }
 
-} // namespace CS2::Metadata
+}

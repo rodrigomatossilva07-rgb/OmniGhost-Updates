@@ -23,7 +23,7 @@ Result<StartupResult> StartupOrchestrator::Run() {
     running_.store(true, std::memory_order_release);
     StartupResult result;
 
-    // Phase sequence
+
     if (auto r = PhaseBoot(); !r.IsOk()) {
         result.errorCode = r.UnwrapErr().message == "Failed" ? ErrorCode::Unknown : ErrorCode::InvalidState;
         result.errorDetail = r.UnwrapErr().message;
@@ -33,7 +33,7 @@ Result<StartupResult> StartupOrchestrator::Run() {
     if (auto r = PhaseInitializingRuntime(); !r.IsOk()) return Err<StartupResult>(r.UnwrapErr().message);
     if (auto r = PhaseAuthenticating(); !r.IsOk()) return Err<StartupResult>(r.UnwrapErr().message);
 
-    // Hardware probe runs in background; we don't block launcher on it
+
     if (auto r = PhaseCheckingHardware(); !r.IsOk()) {
         if (!config_.allowDegradedHardware) {
             result.success = false;
@@ -80,22 +80,22 @@ void StartupOrchestrator::LogPhase(StartupPhase phase) {
 Result<void> StartupOrchestrator::PhaseBoot() {
     SetPhase(StartupPhase::Boot);
 
-    // Runtime bootstrap
+
     const auto bootstrap = OmniGhost::RuntimeBootstrap::Prepare();
     if (bootstrap == RuntimeBootstrap::Result::Failed) {
         return Err<void>("Runtime bootstrap failed");
     }
 
-    // Crash handler
+
     OmniGhost::CrashHandler::Install();
 
-    // Session log
+
     OmniGhost::SessionLog::Initialize();
     OmniGhost::SessionLog::Write(
         SessionLog::Severity::Info, SessionLog::Subsystem::Core,
         "startup entered", {{"session_id", SessionLog::CurrentSessionId()}});
 
-    // Version logging
+
     std::clog << "[RUNTIME] mode=SINGLE_PROCESS_PORTABLE\n";
     std::clog << "[RUNTIME] build=PRIVATE_DEVELOPMENT_BUILD\n";
     std::clog << "[RUNTIME] static_vmm=YES source_integration\n";
@@ -107,11 +107,11 @@ Result<void> StartupOrchestrator::PhaseBoot() {
 Result<void> StartupOrchestrator::PhaseCheckingInstance() {
     SetPhase(StartupPhase::CheckingInstance);
 
-    // Single instance check
-    // PLAT-003 Fix: a local UniqueHandle was destroyed when this phase
-    // returned, releasing the named mutex and narrowing single-instance
-    // protection to the startup window only. A function-local static keeps
-    // the guard alive until process exit.
+
+
+
+
+
     constexpr wchar_t kSingleInstanceName[] = L"Local\\OmniGhostApp-6A670FC7";
     HANDLE handle = CreateMutexW(nullptr, FALSE, kSingleInstanceName);
     const DWORD error = GetLastError();
@@ -125,14 +125,14 @@ Result<void> StartupOrchestrator::PhaseCheckingInstance() {
         return Err<void>("another instance already running");
     }
 
-    // Legacy cleanup
+
     std::wstring legacyError;
     if (!OmniGhost::RuntimeBootstrap::RetireLegacyPrivateInstall(legacyError)) {
         return Err<void>("legacy cleanup failed: " + WideToUtf8(legacyError));
     }
     OmniGhost::Paths::MigrateLegacyUserData();
 
-    // Settings
+
     app_settings::Initialize();
     config_manager::Initialize();
 
@@ -142,7 +142,7 @@ Result<void> StartupOrchestrator::PhaseCheckingInstance() {
 Result<void> StartupOrchestrator::PhaseInitializingRuntime() {
     SetPhase(StartupPhase::InitializingRuntime);
 
-    // Initialize services that don't need hardware
+
     friends::Initialize();
     aim_type::Initialize();
     aimbot::Initialize();
@@ -164,13 +164,13 @@ Result<void> StartupOrchestrator::PhaseAuthenticating() {
         if (deadline && clock_->NowMs() >= deadline) {
             return Err<void>("Authentication timeout");
         }
-        // The actual auth logic would be in a callback
+
         if (auth_cb_) {
             auto result = auth_cb_();
             if (result.IsOk()) authenticated = true;
             else if (result.IsErr()) return Err<void>(result.UnwrapErr().message);
         }
-        // Item 63: Replace polling with event-based wait
+
         WaitForEvents(std::chrono::milliseconds(16));
     }
 
@@ -190,13 +190,13 @@ Result<void> StartupOrchestrator::PhaseCheckingHardware() {
         return Ok();
     }
 
-    // Start hardware probe asynchronously
-    // In real implementation, this would start the HardwareManager
-    // and we would poll Poll() until Complete() or timeout
+
+
+
 
     hardware_status_ = "Probing hardware...";
 
-    // For now, run synchronously
+
     if (hw_probe_cb_) {
         auto result = hw_probe_cb_();
         if (result.IsOk()) {
@@ -207,7 +207,7 @@ Result<void> StartupOrchestrator::PhaseCheckingHardware() {
             hardware_status_ = "Hardware probe failed: " + result.UnwrapErr().message;
         }
     } else {
-        // Default: probe DMA device
+
         hardware_ready_ = false;
         hardware_status_ = "No hardware probe callback";
     }
@@ -238,4 +238,4 @@ Result<void> StartupOrchestrator::WaitForEvents(std::chrono::milliseconds timeou
     return Ok();
 }
 
-} // namespace OmniGhost::Platform
+}

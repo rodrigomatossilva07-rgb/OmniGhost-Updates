@@ -30,10 +30,10 @@ inline ImU32 Hsv(float h, float s, float v, float a = 1.f) {
         static_cast<int>(std::clamp(a, 0.f, 1.f) * 255.f));
 }
 
-// Project world -> screen. Returns false if behind camera / invalid.
+
 using ProjectFn = std::function<bool(float wx, float wy, float wz, float& sx, float& sy)>;
 
-// Animated rainbow Chinese hat (cone) + optional stacked discs, rotates over time.
+
 inline void DrawChineseHat(ImDrawList* dl, float hx, float hy, float hz,
                            const ProjectFn& project, float timeSec,
                            float scale = 1.f, bool rainbow = true) {
@@ -47,7 +47,7 @@ inline void DrawChineseHat(ImDrawList* dl, float hx, float hy, float hz,
     if (!project(hx, hy, hz + hatHeight + 0.06f * scale, apexX, apexY))
         return;
 
-    // Cone sides
+
     float prevSx = 0.f, prevSy = 0.f;
     bool prevOk = false;
     for (int i = 0; i <= segs; ++i) {
@@ -68,7 +68,7 @@ inline void DrawChineseHat(ImDrawList* dl, float hx, float hy, float hz,
         prevSx = sx; prevSy = sy; prevOk = ok;
     }
 
-    // Floating rainbow discs (matches reference style)
+
     for (int ring = 0; ring < 3; ++ring) {
         const float z = hz + 0.02f * scale + ring * 0.09f * scale;
         const float rr = baseR * (0.95f - ring * 0.18f);
@@ -93,4 +93,4 @@ inline ImU32 RainbowFade(float t, float ageNorm, float alphaScale = 1.f) {
     return Hsv(t + ageNorm * 0.35f, 0.95f, 1.f, (1.f - ageNorm) * (1.f - ageNorm) * alphaScale);
 }
 
-} // namespace OmniGhost::Gameplay::EspFx
+}

@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
     [string]$ProjectDir,
@@ -9,16 +9,16 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 $ProjectDir = [IO.Path]::GetFullPath((Join-Path $ProjectDir '.'))
-# Keep the successful executable available in build/. The shared .cache tree
-# must survive local cleanup: another Release/Publish build can be generating
-# embedded resources there concurrently. Removing it mid-build invalidates
-# resource paths even when the generator itself holds its per-output lock.
+
+
+
+
 $targets = @('artifacts', 'logs', '.temp')
 $failed = $false
 
 if ($Retry) {
-    # MSBuild itself owns the intermediate log until its final target exits.
-    # This detached retry deliberately runs after that handle is released.
+
+
     Start-Sleep -Seconds 4
 }
 

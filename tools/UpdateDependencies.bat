@@ -1,7 +1,7 @@
 @echo off
 setlocal
 
-rem This BAT lives in tools\. Resolve the project root explicitly.
+
 set "TOOLS_DIR=%~dp0"
 for %%I in ("%TOOLS_DIR%..") do set "PROJECT_ROOT=%%~fI"
 

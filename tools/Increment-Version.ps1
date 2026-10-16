@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
     [string]$ProjectDir,
@@ -26,7 +26,7 @@ function Write-VersionLog {
 
 function Test-OmniGhostVersionFormat {
     param([string]$Version)
-    # OmniGhost uses decimal release slots: MINOR and PATCH are always 0..9.
+
     return $Version -match '^(0|[1-9]\d*)\.[0-9]\.[0-9]$'
 }
 
@@ -42,8 +42,8 @@ function Get-NextOmniGhostVersion {
     $Minor = [int]$Parts[1]
     $Patch = [int]$Parts[2]
 
-    # OmniGhost rule: PATCH and MINOR are 0..9.
-    # Examples: 2.4.9 -> 2.5.0 and 2.9.9 -> 3.0.0.
+
+
     if ($Patch -ge 9) {
         $Patch = 0
         $Minor++
@@ -127,8 +127,8 @@ if (-not (Test-OmniGhostVersionFormat -Version $Current)) {
     throw "version.txt inválido. Esperado MAJOR.MINOR.PATCH. Valor: '$Current'"
 }
 
-# If MSBuild invokes this target twice in the same build, reuse the pending
-# version instead of failing because the lock already exists.
+
+
 if (Test-Path -LiteralPath $StateFile -PathType Leaf) {
     try {
         $Pending = Get-Content -LiteralPath $StateFile -Raw | ConvertFrom-Json
@@ -158,7 +158,7 @@ if ($DryRun) {
 
 New-Item -ItemType Directory -Force -Path $BackupDir | Out-Null
 
-# A lock without state is left by an interrupted attempt and can be discarded.
+
 if (Test-Path -LiteralPath $LockFile) {
     Write-VersionLog "Lock sem estado reutilizável detetado; a remover."
     Remove-Item -LiteralPath $LockFile -Force -ErrorAction SilentlyContinue
@@ -192,8 +192,8 @@ try {
     }
     Write-TextAtomic -Path $StateFile -Text (($State | ConvertTo-Json -Depth 4) + [Environment]::NewLine)
 
-	# .gitattributes requires LF for text files. Writing CRLF here produced a
-	# noisy Git warning during every automatic post-Publish commit.
+
+
 	Write-TextAtomic -Path $VersionFile -Text ($Next + "`n")
     Write-VersionLog "version.txt atualizado para $Next"
 

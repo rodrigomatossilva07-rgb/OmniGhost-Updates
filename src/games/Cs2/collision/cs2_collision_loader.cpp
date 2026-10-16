@@ -130,10 +130,10 @@ void Loader::Run() {
             attempted_map_.clear();
             retry_at_ms_ = 0;
         }
-        // Idle is represented by cancel=true, so Request can distinguish an
-        // active build from a completed attempt without another state race.
+
+
         cancel_.store(true, std::memory_order_release);
     }
 }
 
-} // namespace CS2::Collision
+}

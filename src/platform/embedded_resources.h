@@ -11,8 +11,8 @@
 #if __has_include("embedded_resource_catalog.h")
 #include "embedded_resource_catalog.h"
 #else
-// Design-time fallback only: the real catalog is generated before ClCompile
-// and ResourceCompile. This keeps IntelliSense usable in a clean checkout.
+
+
 namespace OmniGhost {
 enum class EmbeddedResourceId : std::uint16_t { Unavailable = 0 };
 struct EmbeddedResourceDescriptor {
@@ -23,7 +23,7 @@ struct EmbeddedResourceDescriptor {
     bool mandatory;
 };
 inline constexpr std::array<EmbeddedResourceDescriptor, 0> kEmbeddedResourceCatalog{};
-} // namespace OmniGhost
+}
 #endif
 
 namespace OmniGhost {
@@ -59,8 +59,8 @@ struct EmbeddedResourceDiagnostics {
     std::string error;
 };
 
-// The only Win32 PE-resource access point in first-party code. Offset and
-// private DLL bootstrap loaders also use this view instead of calling Win32 directly.
+
+
 [[nodiscard]] std::optional<EmbeddedByteView> GetPeResourceView(int resourceId) noexcept;
 
 [[nodiscard]] const EmbeddedResourceDescriptor* FindEmbeddedResource(
@@ -68,7 +68,7 @@ struct EmbeddedResourceDiagnostics {
 [[nodiscard]] const EmbeddedResourceDescriptor* FindEmbeddedResource(
     std::string_view logicalName) noexcept;
 
-// Pure, disk-free parser used by runtime and tests.
+
 [[nodiscard]] bool ParseEmbeddedResourceBlob(
     EmbeddedByteView blob,
     std::vector<std::uint8_t>& output,
@@ -81,4 +81,4 @@ struct EmbeddedResourceDiagnostics {
     std::string_view logicalName,
     EmbeddedResourceDiagnostics* diagnostics = nullptr);
 
-} // namespace OmniGhost
+}

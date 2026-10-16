@@ -1,20 +1,20 @@
-// Planted-C4 acquisition with unknown versus confirmed-absent semantics.
+
 void UpdateBombState() {
     if (!offsets.dwPlantedC4) {
         runtime.bomb = BombState{};
         return;
     }
 
-    // CS2 has exposed dwPlantedC4 in both forms across builds: either the
-    // C_PlantedC4 pointer itself, or a pointer to a one-entry list.
-    // Prefer one scatter batch for all bomb fields to avoid 10+ sequential QReads
-    // which show up as micro-stutters on 35T/75T during planted C4.
+
+
+
+
     mem.SetDmaCallTag("CS2.Bomb");
     uintptr_t candidate = 0;
     if (!QReadT(runtime.client_base + offsets.dwPlantedC4, candidate, "CS2.Bomb.Ptr"))
         return;
     if (!IsUserPointer(candidate)) {
-        runtime.bomb = BombState{}; // confirmed absent
+        runtime.bomb = BombState{};
         return;
     }
 
@@ -54,8 +54,8 @@ void UpdateBombState() {
         }
     }
     if (!ticking || !IsUserPointer(entity)) {
-        // A valid ticking=false is authoritative. An unresolved list pointer
-        // can be a transport failure and must not clear a planted timer.
+
+
         if (entity && ticking == 0) runtime.bomb = BombState{};
         return;
     }
@@ -154,13 +154,13 @@ void UpdateBombState() {
     if (have_time && std::isfinite(absolute_blow_time) && absolute_blow_time > 1.f)
         blow = absolute_blow_time - current_time;
 
-    // Prefer remaining time from absolute - curtime; fall back to timer_length.
-    // CS2 C4 is never > 45s. Huge floats = wrong offsets / garbage read.
+
+
     if (!std::isfinite(blow) || blow < 0.05f || blow > 45.f) {
         if (std::isfinite(timer_length) && timer_length > 0.05f && timer_length <= 45.f)
             blow = timer_length;
         else
-            return; // refuse to show garbage
+            return;
     }
 
     float defuse = 0.f;
@@ -182,11 +182,9 @@ void UpdateBombStateThrottled() {
     static uint64_t next_update_ms = 0;
     const uint64_t now = GetTickCount64();
     if (now < next_update_ms) return;
-    // Before a plant, the C4 pointer is static/absent. Polling it at 20 Hz
-    // was an unnecessary sequential DMA read during every round. Once a bomb
-    // is confirmed planted, keep the timer responsive at 50 ms.
+
+
+
     next_update_ms = now + (runtime.bomb.planted ? 50u : 250u);
     UpdateBombState();
 }
-
-

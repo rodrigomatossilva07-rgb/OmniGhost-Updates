@@ -23,7 +23,7 @@ LicenseResult Result(LicenseStatus status, const char* userMessage, const char* 
     return {status, userMessage, code, {}};
 }
 
-// SHA-256 constants (FIPS 180-4)
+
 static constexpr std::uint32_t kSha256K[64] = {
     0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
     0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
@@ -35,7 +35,7 @@ static constexpr std::uint32_t kSha256K[64] = {
     0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
 };
 
-// SHA-256 implementation
+
 class Sha256 {
 public:
     Sha256() { Reset(); }
@@ -71,21 +71,21 @@ public:
     }
 
     void Finalize(std::array<std::byte, 32>& outHash) {
-        // Pad with 0x80 then zeros, then length in bits (big-endian)
+
         std::uint8_t pad[64] = {0};
         pad[0] = 0x80;
-        
+
         size_t padLen = (bufferPos_ < 56) ? (56 - bufferPos_) : (64 + 56 - bufferPos_);
         Update(pad, padLen);
 
-        // Append bit count as big-endian 64-bit
+
         std::uint8_t lengthBytes[8];
         for (int i = 0; i < 8; ++i) {
             lengthBytes[i] = static_cast<std::uint8_t>((bitCount_ >> (56 - i * 8)) & 0xFF);
         }
         Update(lengthBytes, 8);
 
-        // Output hash
+
         for (int i = 0; i < 8; ++i) {
             outHash[i * 4 + 0] = static_cast<std::byte>((state_[i] >> 24) & 0xFF);
             outHash[i * 4 + 1] = static_cast<std::byte>((state_[i] >> 16) & 0xFF);
@@ -97,8 +97,8 @@ public:
 private:
     void ProcessBlock() {
         std::uint32_t w[64];
-        
-        // Prepare message schedule
+
+
         for (int i = 0; i < 16; ++i) {
             w[i] = (static_cast<std::uint32_t>(buffer_[i * 4]) << 24) |
                    (static_cast<std::uint32_t>(buffer_[i * 4 + 1]) << 16) |
@@ -146,7 +146,7 @@ private:
     size_t bufferPos_ = 0;
 };
 
-// Compute SHA-256 hash of a file
+
 std::optional<std::array<std::byte, 32>> ComputeFileSHA256(std::string_view filePath) {
     std::ifstream file(filePath.data(), std::ios::binary);
     if (!file) {
@@ -166,7 +166,7 @@ std::optional<std::array<std::byte, 32>> ComputeFileSHA256(std::string_view file
     }
 
     if (!file && !file.eof()) {
-        return std::nullopt; // Read error
+        return std::nullopt;
     }
 
     std::array<std::byte, 32> hash;
@@ -174,7 +174,7 @@ std::optional<std::array<std::byte, 32>> ComputeFileSHA256(std::string_view file
     return hash;
 }
 
-} // namespace
+}
 
 std::optional<ProviderIdentity> ComputeProviderIdentity(std::string_view modulePath) {
     auto hash = ComputeFileSHA256(modulePath);
@@ -183,7 +183,7 @@ std::optional<ProviderIdentity> ComputeProviderIdentity(std::string_view moduleP
     }
     ProviderIdentity identity;
     identity.moduleHash = *hash;
-    identity.version = "1.0.0"; // Would be read from version resource in production
+    identity.version = "1.0.0";
     return identity;
 }
 
@@ -193,7 +193,7 @@ LicenseGateway::LicenseGateway(std::shared_ptr<IRemoteLicenseProvider> provider)
         throw std::runtime_error("LicenseGateway: provider cannot be null");
     }
 
-    // Verify provider identity
+
     const std::string modulePath = provider_->GetModulePath();
     if (modulePath.empty()) {
         throw std::runtime_error("LicenseGateway: provider must implement GetModulePath() for identity verification");
@@ -204,18 +204,18 @@ LicenseGateway::LicenseGateway(std::shared_ptr<IRemoteLicenseProvider> provider)
         throw std::runtime_error("LicenseGateway: failed to compute provider identity hash for " + modulePath);
     }
 
-    // Verify against official identity
-    // SEC-001 Fix: the official provider is compiled INTO the host EXE, so
-    // GetModulePath() returns the running image. Hashing the running image can
-    // never equal a build-time constant — Authenticode signing rewrites the
-    // file after linking — and the constant was never materialized (all-zero
-    // placeholder), which made every PUBLISH build throw here; the exception
-    // then escaped the fallback construction in Licensing::RemoteGateway() and
-    // terminated the process via the noexcept accessors. An in-process
-    // provider is instead covered by SecurityManager::VerifyHostIdentity()
-    // (publisher Authenticode), which publish builds already enforce before
-    // any licensing call. The constant comparison below now only applies to a
-    // genuinely external provider module.
+
+
+
+
+
+
+
+
+
+
+
+
     bool isInProcessProvider = false;
     {
         char ownExe[MAX_PATH]{};
@@ -224,12 +224,12 @@ LicenseGateway::LicenseGateway(std::shared_ptr<IRemoteLicenseProvider> provider)
             _stricmp(ownExe, modulePath.c_str()) == 0;
     }
     if (!isInProcessProvider && *identity != kOfficialProviderIdentity) {
-        // In production, this would be a hard failure. For development, log warning.
-        // TODO: Remove this fallback in production builds.
+
+
         #if defined(OMNIGHOST_PUBLISH_BUILD)
         throw std::runtime_error("LicenseGateway: provider identity verification failed - module hash mismatch for " + modulePath);
         #else
-        // Development build: log warning but continue
+
         std::cerr << "[LICENSE][WARNING] Provider identity mismatch for " << modulePath
                   << " - expected: " << std::hex << std::uppercase;
         for (auto b : kOfficialProviderIdentity.moduleHash) std::cerr << std::setw(2) << std::setfill('0') << static_cast<int>(b);
@@ -269,6 +269,7 @@ LicenseResult LicenseGateway::Authenticate(std::string_view licenseKey,
         consecutiveFailures_ = 0;
         lockedUntil_ = {};
         authenticated_ = true;
+        offlineSessionActive_ = false;
         lastRemoteValidation_ = std::chrono::steady_clock::now();
         currentUsername_ = remoteUsername;
         currentEntitlements_ = remoteEntitlements;
@@ -282,10 +283,10 @@ LicenseResult LicenseGateway::Authenticate(std::string_view licenseKey,
     if (transient && allowOffline) {
         if (offlineHardwareId_ == hardwareId && now < offlineExpiresAt_) {
             authenticated_ = true;
-            // SEC-003 Fix: an offline-granted session must remain valid for
-            // its declared 24h window. Track it explicitly so IsAuthenticated
-            // honors the offline window instead of the 20-minute online
-            // freshness check (which knows nothing about the grant).
+
+
+
+
             offlineSessionActive_ = true;
             lastRemoteValidation_ = now;
             return Result(LicenseStatus::Valid, "Sessao offline validada.", "auth.offline_valid");
@@ -312,14 +313,20 @@ void LicenseGateway::Logout() noexcept {
         provider_->Logout();
     std::scoped_lock lock(mutex_);
     authenticated_ = false;
+    offlineSessionActive_ = false;
     currentUsername_.clear();
     currentEntitlements_.clear();
 }
 
 bool LicenseGateway::IsAuthenticated() const noexcept {
     std::scoped_lock lock(mutex_);
-    return authenticated_ &&
-        std::chrono::steady_clock::now() - lastRemoteValidation_ <= std::chrono::minutes(20);
+    if (!authenticated_)
+        return false;
+    const auto now = std::chrono::steady_clock::now();
+    if (now - lastRemoteValidation_ <= std::chrono::minutes(20))
+        return true;
+
+    return offlineSessionActive_ && now < offlineExpiresAt_;
 }
 
 LicenseResult LicenseGateway::Revalidate(std::stop_token stopToken) {
@@ -337,6 +344,7 @@ LicenseResult LicenseGateway::Revalidate(std::stop_token stopToken) {
     std::scoped_lock lock(mutex_);
     if (result.Ok()) {
         lastRemoteValidation_ = std::chrono::steady_clock::now();
+        offlineSessionActive_ = false;
         currentUsername_ = remoteUsername;
         currentEntitlements_ = remoteEntitlements;
     } else if (result.status != LicenseStatus::Timeout &&
@@ -359,9 +367,27 @@ LicenseResult LicenseGateway::CompleteRemoteOperation(LicenseResult result) {
     if (result.Ok()) {
         consecutiveFailures_ = 0;
         lockedUntil_ = {};
+        offlineSessionActive_ = false;
         lastRemoteValidation_ = std::chrono::steady_clock::now();
+    } else if (result.status != LicenseStatus::Timeout &&
+               result.status != LicenseStatus::Unavailable &&
+               result.status != LicenseStatus::Cancelled &&
+               result.status != LicenseStatus::NotConfigured) {
+
+
+        if (++consecutiveFailures_ >= kMaximumFailures) {
+            consecutiveFailures_ = 0;
+            lockedUntil_ = std::chrono::steady_clock::now() + kLockoutDuration;
+        }
     }
     return result;
+}
+
+LicenseResult LicenseGateway::CheckLockout() const {
+    std::scoped_lock lock(mutex_);
+    if (std::chrono::steady_clock::now() < lockedUntil_)
+        return Result(LicenseStatus::LockedOut, "Demasiadas tentativas. Tenta novamente mais tarde.", "auth.locked_out");
+    return Result(LicenseStatus::Valid, {}, "auth.lockout_clear");
 }
 
 LicenseResult LicenseGateway::Login(std::string_view username, std::string_view password,
@@ -370,6 +396,7 @@ LicenseResult LicenseGateway::Login(std::string_view username, std::string_view 
         return Result(LicenseStatus::Cancelled, "Autenticacao cancelada.", "auth.cancelled");
     if (username.empty() || password.empty())
         return Result(LicenseStatus::Invalid, "Introduz o utilizador e a palavra-passe.", "auth.invalid_input");
+    if (const auto locked = CheckLockout(); !locked.Ok()) return locked;
     return CompleteRemoteOperation(provider_ ? provider_->Login(username, password, stopToken)
         : Result(LicenseStatus::NotConfigured, "KeyAuth nao esta configurado.", "auth.not_configured"));
 }
@@ -380,6 +407,7 @@ LicenseResult LicenseGateway::Register(std::string_view username, std::string_vi
         return Result(LicenseStatus::Cancelled, "Registo cancelado.", "auth.cancelled");
     if (username.empty() || password.empty() || licenseKey.empty())
         return Result(LicenseStatus::Invalid, "Introduz utilizador, palavra-passe e chave de licenca.", "auth.invalid_input");
+    if (const auto locked = CheckLockout(); !locked.Ok()) return locked;
     return CompleteRemoteOperation(provider_ ? provider_->Register(username, password, licenseKey, stopToken)
         : Result(LicenseStatus::NotConfigured, "KeyAuth nao esta configurado.", "auth.not_configured"));
 }
@@ -389,6 +417,7 @@ LicenseResult LicenseGateway::Activate(std::string_view licenseKey, std::stop_to
         return Result(LicenseStatus::Cancelled, "Ativacao cancelada.", "auth.cancelled");
     if (licenseKey.empty())
         return Result(LicenseStatus::Invalid, "Introduz uma chave de licenca.", "auth.invalid_input");
+    if (const auto locked = CheckLockout(); !locked.Ok()) return locked;
     return CompleteRemoteOperation(provider_ ? provider_->Activate(licenseKey, stopToken)
         : Result(LicenseStatus::NotConfigured, "KeyAuth nao esta configurado.", "auth.not_configured"));
 }
@@ -399,6 +428,7 @@ LicenseResult LicenseGateway::Upgrade(std::string_view username, std::string_vie
         return Result(LicenseStatus::Cancelled, "Upgrade cancelado.", "auth.cancelled");
     if (username.empty() || licenseKey.empty())
         return Result(LicenseStatus::Invalid, "Introduz o utilizador e a chave de licenca.", "auth.invalid_input");
+    if (const auto locked = CheckLockout(); !locked.Ok()) return locked;
     return CompleteRemoteOperation(provider_ ? provider_->Upgrade(username, licenseKey, stopToken)
         : Result(LicenseStatus::NotConfigured, "KeyAuth nao esta configurado.", "auth.not_configured"));
 }
@@ -424,4 +454,4 @@ void LicenseGateway::SetOfflineGrantForTesting(
     offlineExpiresAt_ = expiresAt;
 }
 
-} // namespace OmniGhost::Auth
+}

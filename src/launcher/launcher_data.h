@@ -74,8 +74,8 @@ struct GameDefinition {
     const char* logo_path;
     const char* banner_path;
     const char* version;
-    bool coming_soon; // true = backend not yet integrated; install readiness is detected at runtime
-    bool beta;        // visible maturity badge; does not change launch readiness
+    bool coming_soon;
+    bool beta;
     RgbColor banner_top;
     RgbColor banner_bottom;
     RgbColor accent;
@@ -102,8 +102,8 @@ struct UpdateDefinition {
     bool example;
 };
 
-// Add future games only in launcher_data.cpp. The library and filters consume
-// this list automatically; no layout duplication is required.
+
+
 const GameDefinition* Games(std::size_t& count);
 const UpdateDefinition* Updates(std::size_t& count);
 const GameDefinition* FindGame(const char* id);
@@ -118,8 +118,8 @@ void MarkUpdateRead(const char* update_id);
 void MarkAllUpdatesRead();
 int UnreadUpdateCount();
 
-// Persistent Control Center state. This is local UX metadata only and never
-// participates in licensing/authentication decisions.
+
+
 bool IsFavorite(GameId id);
 void SetFavorite(GameId id, bool favorite);
 GameHistory GetGameHistory(GameId id);
@@ -131,4 +131,4 @@ GameId LastPlayedGame();
 GameId MostRecentHistoryGame();
 void ForgetLastPlayedGame();
 
-} // namespace Launcher
+}

@@ -37,9 +37,9 @@ bool MapCollisionCache::LoadForMap(const char* mapName, const std::atomic_bool* 
     }
     std::unique_lock write_lock(mutex);
     if (requestedGeneration != generation || (cancel && cancel->load(std::memory_order_acquire))) return false;
-    // CollisionBvh owns its compact copy of the triangles. Do not retain a
-    // second complete mesh after construction; large maps otherwise cost
-    // hundreds of MiB while the trajectory feature is enabled.
+
+
+
     map=next; error.clear(); world=std::move(built); return true;
 }
 bool MapCollisionCache::IsLoadedFor(const char* mapName) const {

@@ -3,12 +3,12 @@
 #include <string>
 #include <string_view>
 
-// Phase 1 local auth types.
-// Designed so a future KeyAuthService can implement the same surface
-// without rewriting auth_page / launcher UI.
-//
-// Local auto-login is UX only.
-// Remote authentication will replace this in Phase 2.
+
+
+
+
+
+
 
 namespace OmniGhost::Auth {
 
@@ -32,8 +32,8 @@ struct AuthResult {
     [[nodiscard]] bool Ok() const noexcept { return status == AuthStatus::Success; }
 };
 
-// Abstract service — LocalAuthService is the Phase 1 implementation.
-// Phase 2: KeyAuthService implements the same interface.
+
+
 class IAuthService {
 public:
     virtual ~IAuthService() = default;
@@ -46,4 +46,4 @@ public:
     virtual const AuthUser& CurrentUser() const = 0;
 };
 
-} // namespace OmniGhost::Auth
+}

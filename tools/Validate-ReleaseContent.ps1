@@ -17,7 +17,7 @@ if (-not (Test-Path -LiteralPath $ReleaseDirectory -PathType Container)) {
 
 Write-Host "[ValidateRelease] Validating release directory: $ReleaseDirectory"
 
-# 1. Check required files exist
+
 $requiredFiles = @(
     "OmniGhost.exe",
     "update.json",
@@ -37,7 +37,7 @@ foreach ($file in $requiredFiles) {
     Write-Host "[PASS] Required file present: $file"
 }
 
-# 2. Validate executable version matches
+
 $exePath = Join-Path $ReleaseDirectory 'OmniGhost.exe'
 if ($Version) {
     $exeVersion = (Get-Item -LiteralPath $exePath).VersionInfo.FileVersion
@@ -47,7 +47,7 @@ if ($Version) {
     Write-Host "[PASS] Executable version matches: $exeVersion"
 }
 
-# 2. Validate update.json structure
+
 $updateJsonPath = Join-Path $ReleaseDirectory 'update.json'
 $updateJson = Get-Content -LiteralPath $updateJsonPath -Raw | ConvertFrom-Json
 
@@ -59,27 +59,27 @@ foreach ($field in $requiredFields) {
 }
 Write-Host "[PASS] update.json has all required fields"
 
-# 3. Validate package structure
+
 foreach ($package in $updateJson.packages) {
     if (-not $package.platform -or -not $package.architecture -or -not $package.fileName -or -not $package.url -or -not $package.size -or -not $package.sha256) {
         throw "Package missing required fields: $($package | ConvertTo-Json)"
     }
-    
+
     $packagePath = Join-Path $ReleaseDirectory $package.fileName
     if (-not (Test-Path -LiteralPath $packagePath -PathType Leaf)) {
         throw "Package file not found: $($package.fileName)"
     }
-    
-    # Verify SHA256
+
+
     $actualSha = (Get-FileHash -LiteralPath $packagePath -Algorithm SHA256).Hash
     if ($actualSha -cne $package.sha256) {
         throw "SHA256 mismatch for $($package.fileName): expected $($package.sha256), got $actualSha"
     }
-    
+
     Write-Host "[PASS] Package validated: $($package.fileName)"
 }
 
-# 4. Validate install-manifest.sha256
+
 $manifestPath = Join-Path $ReleaseDirectory 'install-manifest.sha256'
 $manifestContent = Get-Content -LiteralPath $manifestPath -Raw
 if (-not $manifestContent) {
@@ -87,14 +87,14 @@ if (-not $manifestContent) {
 }
 Write-Host "[PASS] install-manifest.sha256 present and non-empty"
 
-# 5. Validate signature
+
 $sigPath = Join-Path $ReleaseDirectory 'install-manifest.sha256.sig'
 if (-not (Test-Path -LiteralPath $sigPath -PathType Leaf)) {
     throw "Signature file missing: install-manifest.sha256.sig"
 }
 Write-Host "[PASS] Signature file present"
 
-# 6. Validate SBOM
+
 $sbomPath = Join-Path $ReleaseDirectory 'SBOM.cdx.json'
 $sbom = Get-Content -LiteralPath $sbomPath -Raw | ConvertFrom-Json
 if (-not $sbom.bomFormat -or -not $sbom.specVersion -or -not $sbom.components) {
@@ -102,7 +102,7 @@ if (-not $sbom.bomFormat -or -not $sbom.specVersion -or -not $sbom.components) {
 }
 Write-Host "[PASS] SBOM valid: $($sbom.components.Count) components"
 
-# 7. Validate changelog
+
 $changelogPath = Join-Path $ReleaseDirectory 'changelog.json'
 $changelog = Get-Content -LiteralPath $changelogPath -Raw | ConvertFrom-Json
 if (-not $changelog.version -or -not $changelog.entries) {
@@ -110,7 +110,7 @@ if (-not $changelog.version -or -not $changelog.entries) {
 }
 Write-Host "[PASS] Changelog valid with $($changelog.entries.Count) entries"
 
-# 8. Validate release-meta.json
+
 $metaPath = Join-Path $ReleaseDirectory 'release-meta.json'
 $meta = Get-Content -LiteralPath $metaPath -Raw | ConvertFrom-Json
 if (-not $meta.version -or -not $meta.buildTimestamp -or -not $meta.configuration -or -not $meta.architecture) {

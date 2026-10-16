@@ -19,14 +19,14 @@
 
 namespace {
 
-// ============================================================
-// FIVEM CONFIG ADAPTER FOR UNIFIED PREVIEW
-// ============================================================
+
+
+
 
 struct FivemPreviewAdapter : EspPreview::IConfigAdapter {
     const EspPreview::PreviewConfig& GetPreviewConfig() const override {
         static EspPreview::PreviewConfig cfg;
-        // Map FiveM config to unified preview config
+
         cfg.esp_enabled = esp::config.enabled;
         cfg.box = esp::config.box_2d;
         cfg.box_corner = esp::config.corner_box;
@@ -70,7 +70,7 @@ struct FivemPreviewAdapter : EspPreview::IConfigAdapter {
         cfg.chinese_hat_scale = esp::config.chinese_hat_scale;
         cfg.fun_effects_scale = esp::config.fun_effects_scale;
 
-        // Colors - convert ImU32 to float[4]
+
         auto u32ToFloat = [](ImU32 c, float out[4]) {
             out[0] = ((c >> 0) & 0xFF) / 255.f;
             out[1] = ((c >> 8) & 0xFF) / 255.f;
@@ -123,12 +123,12 @@ struct FivemPreviewAdapter : EspPreview::IConfigAdapter {
 
 static FivemPreviewAdapter g_fivemAdapter;
 
-} // namespace
+}
 
 void DrawVisuals()
 {
-    // Three independent columns mirror the reference layout: feature switches
-    // and colours can scroll without ever moving the live preview out of view.
+
+
 
     const float full = ImGui::GetContentRegionAvail().x;
     const float columnHeight = (std::max)(CyberTheme::Px(410.0f), ImGui::GetContentRegionAvail().y);
@@ -147,7 +147,7 @@ void DrawVisuals()
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.self_esp"), &esp::config.self_esp);
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.npc"), &esp::config.npc_esp);
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.show_dead"), &esp::config.show_dead);
-    CyberWidgets::ToggleSwitch(Loc::Tr("vis.show_knocked"), &esp::config.show_knocked);
+    // FIVEM-004 Fix: "knocked" has no data source in FiveM — hidden.
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.visible_check"), &esp::config.visible_check);
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.hide_team"), &esp::config.team_check);
     CyberWidgets::Separator();
@@ -169,8 +169,8 @@ void DrawVisuals()
     }
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.health_bar"), &esp::config.health_bar);
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.armor_bar"), &esp::config.armor_bar);
-    esp::config.player_name = false; // removido
-    esp::config.player_id = false; // removido
+    esp::config.player_name = false;
+    esp::config.player_id = false;
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.weapon_name"), &esp::config.weapon_name);
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.distance"), &esp::config.distance);
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.box_2d"), &esp::config.box_2d);
@@ -229,7 +229,7 @@ void DrawVisuals()
     const bool visibilityColorsEnabled = espEnabled && esp::config.visibility_colors && esp::config.visible_check;
     colorWhenEnabled(Loc::Tr("vis.visible"), &esp::config.color_visible, visibilityColorsEnabled);
     colorWhenEnabled(Loc::Tr("vis.hidden"), &esp::config.color_invisible, visibilityColorsEnabled);
-    colorWhenEnabled(Loc::Tr("vis.knocked"), &esp::config.color_knocked, espEnabled && esp::config.show_knocked);
+    // FIVEM-004: "knocked" color hidden — no data source in FiveM.
     colorWhenEnabled(Loc::Tr("vis.dead"), &esp::config.color_dead, espEnabled && esp::config.show_dead);
     colorWhenEnabled(Loc::Tr("vis.team"), &esp::config.color_team, espEnabled && !esp::config.team_check);
     CyberWidgets::Separator();
@@ -293,11 +293,9 @@ void DrawVisuals()
     ImDrawList* dl = ImGui::GetWindowDrawList();
     const ImVec2 origin = ImGui::GetCursorScreenPos();
 
-    // Use unified preview system
+
     EspPreview::DrawPreview(dl, origin, drawWidth, panelHeight, g_fivemAdapter, Loc::Tr("vis.preview"));
 
     CyberWidgets::EndCard();
     ImGui::EndGroup();
 }
-
-// namespace

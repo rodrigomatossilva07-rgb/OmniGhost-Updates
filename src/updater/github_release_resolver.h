@@ -20,8 +20,8 @@ struct GitHubReleaseResult {
     std::string error;
 };
 
-// Parses the public GitHub Releases API response and selects the highest
-// published, non-prerelease semantic version that contains update.json.
+
+
 GitHubReleaseResult ResolveHighestStableGitHubRelease(const std::string& json);
 
-} // namespace OmniGhost::Update
+}

@@ -33,6 +33,8 @@ namespace {
 
 constexpr size_t kMaximumCrashDumps = 5;
 std::atomic_flag g_dumpInProgress = ATOMIC_FLAG_INIT;
+
+HMODULE g_dbghelp = nullptr;
 std::mutex g_stateMutex;
 PreviousRunState g_previousRun = PreviousRunState::Clean;
 bool g_installed = false;
@@ -59,7 +61,7 @@ void PruneCrashDumps() noexcept {
     try {
         std::error_code error;
         const fs::path directory = CrashDirectory();
-        // Do not create crash-dumps/ until a dump is actually written.
+
         if (!fs::is_directory(directory, error))
             return;
 
@@ -182,12 +184,9 @@ bool WriteMiniDump(EXCEPTION_POINTERS* exceptionPointers) noexcept {
         if (!dumpFile)
             throw std::runtime_error("dump file unavailable");
 
-        HMODULE dbghelp = LoadLibraryExW(
-            L"dbghelp.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
+        HMODULE dbghelp = g_dbghelp;
         if (!dbghelp)
-            throw std::runtime_error("system dbghelp unavailable");
-        const auto freeDbgHelp = Platform::MakeScopeExit([dbghelp] { FreeLibrary(dbghelp); });
-        (void)freeDbgHelp;
+            throw std::runtime_error("system dbghelp unavailable (not preloaded)");
 
         using MiniDumpWriteDumpFn = BOOL(WINAPI*)(
             HANDLE, DWORD, HANDLE, MINIDUMP_TYPE,
@@ -242,13 +241,18 @@ LONG WINAPI UnhandledExceptionFilter(EXCEPTION_POINTERS* exceptionPointers) noex
     __assume(0);
 }
 
-} // namespace
+}
 
 bool Install() noexcept {
     std::lock_guard<std::mutex> lock(g_stateMutex);
     if (g_installed)
         return true;
     Paths::EnsureUserDirectories();
+
+
+
+
+    g_dbghelp = LoadLibraryExW(L"dbghelp.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
     g_previousRun = ReadPreviousMarker();
     PruneCrashDumps();
     const bool markerWritten = WriteMarker(false);
@@ -290,4 +294,4 @@ const char* PreviousRunStateName(PreviousRunState state) noexcept {
     }
 }
 
-} // namespace OmniGhost::CrashHandler
+}

@@ -1,8 +1,8 @@
 #pragma once
 
-// Centralised per-entity cache policy for ESP acquisition lanes.
-// Keys are always (session_generation, pawn). Lookups never create entries.
-// Prune on generation change, detach, map change, and periodic last_seen TTL.
+
+
+
 
 #include <cstdint>
 #include <unordered_map>
@@ -18,10 +18,10 @@ public:
         T value{};
         uint64_t generation = 0;
         uint64_t last_seen_ms = 0;
-        uint64_t expires_ms = 0; // 0 = no soft TTL
+        uint64_t expires_ms = 0;
     };
 
-    // Lookup only — never inserts.
+
     [[nodiscard]] Entry* Find(uintptr_t pawn, uint64_t generation) noexcept {
         auto it = map_.find(pawn);
         if (it == map_.end()) return nullptr;
@@ -36,7 +36,7 @@ public:
         return &it->second;
     }
 
-    // Insert or replace. Caller owns policy for TTL.
+
     Entry& Upsert(uintptr_t pawn, uint64_t generation, uint64_t now_ms, uint64_t ttl_ms = 0) {
         auto& e = map_[pawn];
         if (e.generation != generation) {
@@ -59,7 +59,7 @@ public:
 
     void Clear() noexcept { map_.clear(); }
 
-    // Drop entries from other generations or past hard grace.
+
     void Prune(uint64_t generation, uint64_t now_ms, uint64_t hard_grace_ms) {
         for (auto it = map_.begin(); it != map_.end();) {
             const bool wrongGen = it->second.generation != generation;
@@ -85,15 +85,15 @@ public:
 
     [[nodiscard]] std::size_t size() const noexcept { return map_.size(); }
 
-    // Enumerate live keys for telemetry.
+
     void CollectSizes(std::size_t& out) const noexcept { out = map_.size(); }
 
 private:
     std::unordered_map<uintptr_t, Entry> map_;
 };
 
-// Wall-clock budget for optional DMA phases (bones / metadata).
-// Resets each scan; Consume returns false when budget is exhausted.
+
+
 struct OptionalPhaseBudget {
     std::chrono::steady_clock::time_point start{};
     float budget_ms = 6.f;
@@ -118,4 +118,4 @@ struct OptionalPhaseBudget {
     }
 };
 
-} // namespace OmniGhost::Gameplay
+}

@@ -9,14 +9,14 @@
 
 namespace {
 
-// ============================================================
-// CS2 CONFIG ADAPTER FOR UNIFIED PREVIEW
-// ============================================================
+
+
+
 
 struct Cs2PreviewAdapter : EspPreview::IConfigAdapter {
     const EspPreview::PreviewConfig& GetPreviewConfig() const override {
         static EspPreview::PreviewConfig cfg;
-        // Map CS2 config to unified preview config
+
         cfg.esp_enabled = CS2::config.esp_enabled;
         cfg.box = CS2::config.box;
         cfg.box_corner = CS2::config.box_corner;
@@ -60,10 +60,10 @@ struct Cs2PreviewAdapter : EspPreview::IConfigAdapter {
         cfg.chinese_hat_scale = CS2::config.chinese_hat_scale;
         cfg.fun_effects_scale = CS2::config.fun_effects_scale;
 
-        // Self ESP (was preview-only, now connected to real config)
+
         cfg.self_esp = CS2::config.self_esp;
 
-        // Colors
+
         for (int i = 0; i < 4; ++i) {
             cfg.col_box[i] = CS2::config.col_box[i];
             cfg.col_box_corner[i] = CS2::config.col_box_corner[i];
@@ -111,7 +111,7 @@ struct Cs2PreviewAdapter : EspPreview::IConfigAdapter {
 
 static Cs2PreviewAdapter g_cs2Adapter;
 
-} // namespace
+}
 
 void DrawCs2Visuals() {
     const float full = ImGui::GetContentRegionAvail().x;
@@ -122,7 +122,7 @@ void DrawCs2Visuals() {
     const float featuresWidth = settingsWidth * 0.5f;
     const float colorsWidth = settingsWidth - featuresWidth;
 
-    // ---- FEATURES COLUMN ----
+
     ImGui::BeginChild("##cs2_esp_features", ImVec2(featuresWidth, height), false, ImGuiWindowFlags_AlwaysVerticalScrollbar);
     CyberWidgets::BeginCard("ESP DE JOGADORES");
     CyberWidgets::ToggleSwitch("Ativar ESP", &CS2::config.esp_enabled);
@@ -160,7 +160,7 @@ void DrawCs2Visuals() {
 
     ImGui::SameLine(0.f, gap);
 
-    // ---- COLORS COLUMN ----
+
     ImGui::BeginChild("##cs2_esp_colors", ImVec2(colorsWidth, height), false, ImGuiWindowFlags_AlwaysVerticalScrollbar);
     CyberWidgets::BeginCard("PERSONALIZAÇÃO");
     ImGui::BeginDisabled(!CS2::config.esp_enabled);
@@ -204,7 +204,9 @@ void DrawCs2Visuals() {
     ImGui::BeginDisabled(!CS2::config.look_direction);
     ImGui::ColorEdit4("Eye Line", CS2::config.col_look, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     ImGui::EndDisabled();
-    ImGui::BeginDisabled(!CS2::config.chinese_hat || !CS2::config.angel_wings || !CS2::config.devil_horns || !CS2::config.floating_crown);
+    // UI-011 Fix: the disabled condition used || instead of && — it disabled
+    // the color picker when ANY effect was off, instead of when ALL were off.
+    ImGui::BeginDisabled(!CS2::config.chinese_hat && !CS2::config.angel_wings && !CS2::config.devil_horns && !CS2::config.floating_crown);
     ImGui::ColorEdit4("Efeitos", CS2::config.col_fun_effects, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     ImGui::EndDisabled();
     CyberWidgets::Separator();
@@ -227,7 +229,7 @@ void DrawCs2Visuals() {
 
     ImGui::SameLine(0.f, gap);
 
-    // ---- PREVIEW PANEL ----
+
     ImGui::BeginGroup();
     CyberWidgets::BeginCard("", previewWidth);
     const float panelHeight = (std::max)(CyberTheme::Px(300.f), height - CyberTheme::Metrics::CardHeaderHeight - CyberTheme::Metrics::CardPadding * 2.f - CyberTheme::Px(12.f));

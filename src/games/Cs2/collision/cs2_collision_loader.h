@@ -9,9 +9,9 @@
 
 namespace CS2::Collision {
 
-// Single owned worker for map BVH construction. Requests are latest-state-wins;
-// reset/map-change cancels the current build cooperatively and invalidates the
-// loaded cache before another map can be published.
+
+
+
 class Loader final {
 public:
     Loader() = default;
@@ -40,4 +40,4 @@ private:
     uint64_t epoch_ = 1;
 };
 
-} // namespace CS2::Collision
+}

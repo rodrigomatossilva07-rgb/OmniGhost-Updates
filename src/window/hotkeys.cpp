@@ -44,8 +44,8 @@ namespace Hotkeys {
         bool FeatureKeyDown(int vk)
         {
             if (vk <= 0) return false;
-            // IsDown includes the input devices configured by the user; the
-            // Windows state keeps ordinary primary-PC keyboard use working.
+
+
             return (GetAsyncKeyState(vk) & 0x8000) != 0 || aim_type::IsDown(vk);
         }
 
@@ -71,11 +71,11 @@ namespace Hotkeys {
     void Update() {
         if (!g_initialized) return;
 
-        // UI-004 Fix: never fire hotkeys while the user types into a text
-        // field (e.g. config save name) — Ctrl+S used to trigger during edits.
+
+
         const bool wantText = ImGui::GetCurrentContext() && ImGui::GetIO().WantTextInput;
 
-        // Update current state
+
         for (int i = 0; i < static_cast<int>(Action::Count); ++i) {
             g_prev_state[i] = g_curr_state[i];
 
@@ -97,10 +97,10 @@ namespace Hotkeys {
             if (alt_down) current_modifiers |= 4;
             if (win_down) current_modifiers |= 8;
 
-            // UI-001/UI-007 Fix: the press requires the EXACT modifier mask —
-            // previously "S" alone triggered the Ctrl+S save and uncounted
-            // extra modifiers (Ctrl+Shift+S etc.) matched loosely here while
-            // HasConflict() uses exact equality.
+
+
+
+
             const bool active = vk_down && current_modifiers == hk.modifiers;
             g_curr_state[i] = { active ? hk.vk_code : 0, active ? current_modifiers : 0 };
         }
@@ -115,13 +115,13 @@ namespace Hotkeys {
             }
         }
 
-        // Check for presses and trigger callbacks
+
         for (int i = 0; i < static_cast<int>(Action::Count); ++i) {
             bool was_down = g_prev_state[i].vk_code != 0;
             bool is_down = g_curr_state[i].vk_code != 0;
 
             if (is_down && !was_down) {
-                // Key pressed
+
                 Action action = static_cast<Action>(i);
                 auto it = g_callbacks.find(action);
                 if (it != g_callbacks.end() && it->second) {
@@ -150,13 +150,13 @@ namespace Hotkeys {
         g_hotkeys[static_cast<int>(Action::Custom2)] = { Action::Custom2, 0, 0, "Custom 2", "Custom action 2" };
         g_hotkeys[static_cast<int>(Action::Custom3)] = { Action::Custom3, 0, 0, "Custom 3", "Custom action 3" };
 
-        // UI-002 Fix: action hotkeys previously had no callbacks at all —
-        // every default binding silently did nothing. Wire each action to its
-        // owner system. ToggleMenu intentionally has NO callback: menu
-        // toggling is owned by the overlay window (menu_bind path); duplicating
-        // it here would double-toggle every press.
-        g_hotkeys[static_cast<int>(Action::ToggleOverlay)].vk_code = 0;  // handled by menu path
-        g_hotkeys[static_cast<int>(Action::ReinitDMA)].vk_code = 0;      // no safe UI-thread reentry
+
+
+
+
+
+        g_hotkeys[static_cast<int>(Action::ToggleOverlay)].vk_code = 0;
+        g_hotkeys[static_cast<int>(Action::ReinitDMA)].vk_code = 0;
         g_hotkeys[static_cast<int>(Action::TestInputDevice)].vk_code = 0;
 
         g_callbacks[Action::ToggleESP] = [] {
@@ -230,16 +230,16 @@ namespace Hotkeys {
     bool SetHotkey(Action action, int vk_code, int modifiers) {
         int idx = static_cast<int>(action);
         if (idx < 0 || idx >= static_cast<int>(Action::Count)) return false;
-        
-        // Check for conflicts
+
+
         Hotkey new_hk = g_hotkeys[idx];
         new_hk.vk_code = vk_code;
         new_hk.modifiers = modifiers;
-        
+
         if (HasConflict(new_hk, action)) {
-            return false; // Conflict detected
+            return false;
         }
-        
+
         g_hotkeys[idx].vk_code = vk_code;
         g_hotkeys[idx].modifiers = modifiers;
         return true;
@@ -280,7 +280,7 @@ namespace Hotkeys {
 
     bool HasConflict(const Hotkey& hk, Action exclude) {
         if (hk.vk_code == 0) return false;
-        
+
         for (int i = 0; i < static_cast<int>(Action::Count); ++i) {
             if (static_cast<Action>(i) == exclude) continue;
             const Hotkey& other = g_hotkeys[i];
@@ -320,29 +320,29 @@ namespace Hotkeys {
 
     bool ImportHotkeys(const std::string& json) {
         try {
-            // Simple JSON parsing for hotkeys
+
             std::istringstream in(json);
             std::string line;
             while (std::getline(in, line)) {
                 if (line.find("\"action\"") != std::string::npos) {
                     int action = 0, vk = 0, mods = 0;
                     bool enabled = true;
-                    
+
                     size_t pos = line.find(":");
                     if (pos != std::string::npos) action = std::stoi(line.substr(pos + 1));
-                    
+
                     std::getline(in, line);
                     pos = line.find(":");
                     if (pos != std::string::npos) vk = std::stoi(line.substr(pos + 1));
-                    
+
                     std::getline(in, line);
                     pos = line.find(":");
                     if (pos != std::string::npos) mods = std::stoi(line.substr(pos + 1));
-                    
+
                     std::getline(in, line);
                     pos = line.find(":");
                     if (pos != std::string::npos) enabled = line.find("true") != std::string::npos;
-                    
+
                     if (action >= 0 && action < static_cast<int>(Action::Count)) {
                         g_hotkeys[action].vk_code = vk;
                         g_hotkeys[action].modifiers = mods;
@@ -509,8 +509,8 @@ namespace Hotkeys {
         return out.str();
     }
 
-    // UI-003 Fix: action hotkeys round-trip with the active config —
-    // previously they were registered at startup and never persisted.
+
+
     std::string SerializeActions()
     {
         std::ostringstream out;
@@ -542,8 +542,8 @@ namespace Hotkeys {
         const int vk = std::atoi(value.c_str());
         if (vk <= 0 || vk > 255) return true;
         const std::string savedHash = key.substr(std::strlen(prefix));
-        // Widgets register after a config loads; keep the saved hash in a
-        // placeholder until its matching row is rendered.
+
+
         g_feature_toggles["#pending:" + savedHash].vk_code = vk;
         return true;
     }
@@ -552,14 +552,14 @@ namespace Hotkeys {
         CyberWidgets::BeginCard("Keyboard Shortcuts");
         CyberWidgets::TextLine("Configure keyboard shortcuts for quick actions. Click a binding to change it.", CyberWidgets::TextTone::Secondary);
         CyberWidgets::CardGap(8.0f);
-        
+
         static bool waiting_for_key = false;
         static Action waiting_action = Action::Count;
-        
+
         if (waiting_for_key) {
             CyberWidgets::TextLine("Press a key combination... (Esc to cancel)", CyberWidgets::TextTone::Warning);
-            
-            // Check for key press
+
+
             for (int vk = 1; vk < 256; ++vk) {
                 if (GetAsyncKeyState(vk) & 1) {
                     if (vk == VK_ESCAPE) {
@@ -571,8 +571,8 @@ namespace Hotkeys {
                         if (GetAsyncKeyState(VK_SHIFT) & 0x8000) modifiers |= 2;
                         if (GetAsyncKeyState(VK_MENU) & 0x8000) modifiers |= 4;
                         if ((GetAsyncKeyState(VK_LWIN) & 0x8000) || (GetAsyncKeyState(VK_RWIN) & 0x8000)) modifiers |= 8;
-                        
-                        // Don't allow modifier-only bindings
+
+
                         if (vk != VK_CONTROL && vk != VK_SHIFT && vk != VK_MENU && vk != VK_LWIN && vk != VK_RWIN) {
                             if (SetHotkey(waiting_action, vk, modifiers)) {
                                 CyberWidgets::Notify("Hotkey updated", CyberWidgets::ToastType::Success);
@@ -588,91 +588,91 @@ namespace Hotkeys {
             }
             CyberWidgets::CardGap(8.0f);
         }
-        
-        // Hotkey list
+
+
         CyberWidgets::BeginSurfaceList("##hotkey_list", 400.0f);
-        
+
         for (int i = 0; i < static_cast<int>(Action::Count); ++i) {
             Hotkey& hk = g_hotkeys[i];
             if (!hk.enabled && hk.vk_code == 0 && i >= static_cast<int>(Action::Custom1)) continue;
-            
+
             ImGui::PushID(i);
             const ImVec2 row = ImGui::GetCursorScreenPos();
             const float row_width = ImGui::GetContentRegionAvail().x;
             const float rowH = 36.0f;
             ImDrawList* dl = ImGui::GetWindowDrawList();
-            
-            // Background
+
+
             bool hovered = false;
             ImGui::InvisibleButton("##row", ImVec2(row_width, rowH));
             hovered = ImGui::IsItemHovered();
             if (hovered) {
-                dl->AddRectFilled(row, ImVec2(row.x + row_width, row.y + rowH), 
+                dl->AddRectFilled(row, ImVec2(row.x + row_width, row.y + rowH),
                     CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.1f), CyberTheme::Radius::Sm);
             }
-            
-            // Action label
+
+
             dl->AddText(ImVec2(row.x + 10.0f, row.y + 9.0f),
                 CyberTheme::U32(CyberTheme::Colors.Text), hk.label.c_str());
-            
-            // Description
+
+
             if (!hk.description.empty()) {
                 dl->AddText(ImVec2(row.x + 10.0f, row.y + 22.0f),
                     CyberTheme::U32(CyberTheme::Colors.TextDisabled), hk.description.c_str());
             }
-            
-            // Current binding
+
+
             std::string display = GetHotkeyDisplayString(hk);
             ImVec2 text_size = ImGui::CalcTextSize(display.c_str());
             float btn_x = row.x + row_width - text_size.x - 20.0f;
             if (btn_x < row.x + 200.0f) btn_x = row.x + 200.0f;
-            
+
             bool is_waiting = waiting_for_key && waiting_action == static_cast<Action>(i);
             if (is_waiting) display = "Press key...";
-            
+
             ImVec2 btn_pos(btn_x, row.y + 4.0f);
             ImVec2 btn_end(btn_pos.x + text_size.x + 20.0f, btn_pos.y + 28.0f);
-            
-            ImU32 btn_color = is_waiting ? CyberTheme::U32(CyberTheme::Colors.Warning) : 
+
+            ImU32 btn_color = is_waiting ? CyberTheme::U32(CyberTheme::Colors.Warning) :
                 (hovered ? CyberTheme::U32(CyberTheme::Colors.PanelHover) : CyberTheme::U32(CyberTheme::Colors.Panel));
-            
+
             dl->AddRectFilled(btn_pos, btn_end, btn_color, 4.0f);
-            dl->AddRect(btn_pos, btn_end, 
+            dl->AddRect(btn_pos, btn_end,
                 CyberTheme::WithAlpha(is_waiting ? CyberTheme::Colors.Warning : CyberTheme::Colors.Border, 0.5f), 4.0f);
             dl->AddText(ImVec2(btn_pos.x + 10.0f, btn_pos.y + 6.0f),
                 CyberTheme::U32(CyberTheme::Colors.Text), display.c_str());
-            
-            // Click to edit
+
+
             if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
                 waiting_for_key = true;
                 waiting_action = static_cast<Action>(i);
             }
-            
-            // Clear button
+
+
             if (hk.vk_code != 0) {
                 float clear_x = btn_pos.x - 30.0f;
                 ImVec2 clear_pos(clear_x, row.y + 4.0f);
                 ImVec2 clear_end(clear_x + 24.0f, clear_pos.y + 24.0f);
                 dl->AddRectFilled(clear_pos, clear_end, CyberTheme::U32(CyberTheme::Colors.Panel), 4.0f);
                 dl->AddRect(clear_pos, clear_end, CyberTheme::WithAlpha(CyberTheme::Colors.Border, 0.5f), 4.0f);
-                dl->AddLine(ImVec2(clear_pos.x + 6.0f, clear_pos.y + 6.0f), 
+                dl->AddLine(ImVec2(clear_pos.x + 6.0f, clear_pos.y + 6.0f),
                     ImVec2(clear_end.x - 6.0f, clear_end.y - 6.0f), CyberTheme::U32(CyberTheme::Colors.TextDisabled), 1.5f);
-                dl->AddLine(ImVec2(clear_end.x - 6.0f, clear_pos.y + 6.0f), 
+                dl->AddLine(ImVec2(clear_end.x - 6.0f, clear_pos.y + 6.0f),
                     ImVec2(clear_pos.x + 6.0f, clear_end.y - 6.0f), CyberTheme::U32(CyberTheme::Colors.TextDisabled), 1.5f);
-                
+
                 if (ImGui::IsMouseHoveringRect(clear_pos, clear_end) && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
                     ClearHotkey(static_cast<Action>(i));
                     CyberWidgets::Notify("Hotkey cleared", CyberWidgets::ToastType::Info);
                 }
             }
-            
+
             ImGui::Dummy(ImVec2(row_width, rowH + 4.0f));
             ImGui::PopID();
         }
-        
+
         CyberWidgets::EndSurfaceList();
-        
-        // Reset button
+
+
         CyberWidgets::CardGap(8.0f);
         if (CyberWidgets::Button("Reset to Defaults", CyberWidgets::ButtonStyle::Ghost)) {
             ResetToDefaults();
@@ -680,14 +680,14 @@ namespace Hotkeys {
         }
         ImGui::SameLine();
         if (CyberWidgets::Button("Export", CyberWidgets::ButtonStyle::Secondary)) {
-            // Export to file
+
         }
         ImGui::SameLine();
         if (CyberWidgets::Button("Import", CyberWidgets::ButtonStyle::Secondary)) {
-            // Import from file
+
         }
-        
+
         CyberWidgets::EndCard();
     }
 
-} // namespace Hotkeys
+}

@@ -45,9 +45,9 @@ LicenseStatus StatusForMessage(std::string_view message) {
 }
 
 std::string SafeExpiryRemaining(std::string_view expiry) noexcept {
-    // KeyAuth returns subscription expiry as Unix seconds. Its bundled
-    // expiry_remaining implementation feeds unchecked data to strftime; the
-    // Windows CRT fail-fasts the entire process for an invalid tm value.
+
+
+
     long long epochSeconds = 0;
     const auto parsed = std::from_chars(expiry.data(), expiry.data() + expiry.size(), epochSeconds);
     if (parsed.ec != std::errc{} || parsed.ptr != expiry.data() + expiry.size() || epochSeconds <= 0)
@@ -72,7 +72,7 @@ std::string SafeExpiryRemaining(std::string_view expiry) noexcept {
 #if defined(OMNIGHOST_KEYAUTH_ENABLED) && !defined(OMNIGHOST_SKIP_KEYAUTH)
 int __cdecl RunCommandWithoutWindow(const char* command) noexcept {
     (void)command;
-    // The authentication SDK is not authorized to execute shell commands.
+
     return -1;
 }
 
@@ -125,7 +125,7 @@ void DisableKeyAuthShellCommands() noexcept {
 }
 #endif
 
-} // namespace
+}
 
 struct KeyAuthRemoteLicenseProvider::Impl {
 #if defined(OMNIGHOST_KEYAUTH_ENABLED) && !defined(OMNIGHOST_SKIP_KEYAUTH)
@@ -194,8 +194,8 @@ LicenseResult KeyAuthRemoteLicenseProvider::Authenticate(std::string_view licens
 }
 
 void KeyAuthRemoteLicenseProvider::UpdateStateMirror() {
-    // Called with mutex_ held after any SDK mutation. Copies UI-visible state
-    // so CurrentUsername()/CurrentEntitlements() never block on the network.
+
+
     std::scoped_lock stateLock(stateMutex_);
     cachedUsername_ = username_;
     cachedEntitlements_.clear();
@@ -233,8 +233,8 @@ LicenseResult KeyAuthRemoteLicenseProvider::Register(std::string_view username, 
     LicenseResult ready = EnsureInitialized(stopToken);
     if (!ready.Ok()) return ready;
 #if defined(OMNIGHOST_KEYAUTH_ENABLED) && !defined(OMNIGHOST_SKIP_KEYAUTH)
-    // This is the account-creating KeyAuth call. It consumes/associates the
-    // supplied license key in KeyAuth and makes the user visible in its panel.
+
+
     impl_->api.regstr(std::string(username), std::string(password), std::string(licenseKey));
     LicenseResult result = ResponseResult();
     if (result.Ok()) username_ = impl_->api.user_data.username.empty() ? std::string(username) : impl_->api.user_data.username;
@@ -283,11 +283,11 @@ void KeyAuthRemoteLicenseProvider::Logout() noexcept {
     std::scoped_lock lock(mutex_);
 #if defined(OMNIGHOST_KEYAUTH_ENABLED) && !defined(OMNIGHOST_SKIP_KEYAUTH)
     if (initialized_) {
-        try { impl_->api.logout(); } catch (...) { /* Local denial still applies. */ }
+        try { impl_->api.logout(); } catch (...) {  }
     }
 #endif
     username_.clear();
-    try { UpdateStateMirror(); } catch (...) { /* noexcept contract */ }
+    try { UpdateStateMirror(); } catch (...) {  }
 }
 
 LicenseResult KeyAuthRemoteLicenseProvider::CheckSession(std::stop_token stopToken) {
@@ -322,9 +322,9 @@ std::vector<RemoteEntitlement> KeyAuthRemoteLicenseProvider::CurrentEntitlements
 }
 
 std::string KeyAuthRemoteLicenseProvider::GetModulePath() const {
-    // The KeyAuth SDK is embedded in the main executable.
-    // Return the path to the running executable for identity verification.
+
+
     return OmniGhost::Platform::WideToUtf8(OmniGhost::Paths::Executable().wstring());
 }
 
-} // namespace OmniGhost::Auth
+}

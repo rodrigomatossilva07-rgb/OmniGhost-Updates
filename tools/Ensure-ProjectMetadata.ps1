@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
     [string]$ProjectDir
@@ -65,8 +65,8 @@ function Get-VersionFromResource {
     return $Detected
 }
 
-# version.txt is authoritative. Generated source version files are synchronized
-# from it before compilation; Publish will later reject an uncommitted change.
+
+
 Require-SourceFile -Path $VersionFile -DisplayName 'version.txt'
 Require-SourceFile -Path $HeaderFile -DisplayName 'src\app_version.h'
 Require-SourceFile -Path $ResourceFile -DisplayName 'resources\app.rc'

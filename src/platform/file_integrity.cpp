@@ -147,4 +147,4 @@ bool ConstantTimeEquals(std::string_view left, std::string_view right) noexcept 
     return difference == 0;
 }
 
-} // namespace OmniGhost::Platform
+}

@@ -17,7 +17,7 @@ std::size_t g_history_next = 0;
 std::atomic<uint64_t> g_deadline_ms{0};
 std::atomic_bool g_pending{false};
 
-} // namespace
+}
 
 void Publish(const float* matrix, uint64_t sample_ms) {
     if (!matrix)
@@ -83,4 +83,4 @@ bool Pending() noexcept {
     return g_pending.load(std::memory_order_acquire);
 }
 
-} // namespace CS2::Camera
+}

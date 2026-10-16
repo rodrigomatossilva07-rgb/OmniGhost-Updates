@@ -83,7 +83,7 @@ namespace CyberWidgets {
     void DrawSpinner(ImDrawList* draw, ImVec2 center, float radius = 7.0f,
                      float thickness = 2.0f, TextTone tone = TextTone::Accent);
 
-    // Real-time hardware status widget
+
     void DrawHardwareStatusWidget();
     void DrawMetricGraph(const char* label, const std::vector<float>& data, float width, float height, ImU32 color);
     void DrawMetricGraphInt(const char* label, const std::vector<int>& data, float width, float height, ImU32 color);
@@ -115,7 +115,7 @@ namespace CyberWidgets {
 
     void ColorEditU32(const char* label, ImU32* col);
 
-    // Visual state components for consistent UI feedback
+
     enum class VisualState {
         Normal,
         Loading,
@@ -125,7 +125,7 @@ namespace CyberWidgets {
         Retry
     };
 
-    // Draw a visual state indicator with consistent styling
+
     bool DrawVisualState(
         VisualState state,
         const char* message = nullptr,
@@ -133,14 +133,14 @@ namespace CyberWidgets {
         bool (*actionCallback)() = nullptr,
         float width = -1.0f);
 
-    // Convenience functions for common states
+
     bool DrawLoadingState(const char* message = "A carregar...", float width = -1.0f);
     bool DrawUnavailableState(const char* message = "Indisponível", const char* actionLabel = "Tentar novamente", bool (*actionCallback)() = nullptr, float width = -1.0f);
     bool DrawErrorState(const char* message = "Ocorreu um erro", const char* actionLabel = "Tentar novamente", bool (*actionCallback)() = nullptr, float width = -1.0f);
     bool DrawEmptyState(const char* title = "Nenhum item", const char* description = nullptr, const char* actionLabel = nullptr, bool (*actionCallback)() = nullptr, float width = -1.0f);
     bool DrawRetryState(const char* message = "Falha na operação", const char* actionLabel = "Tentar novamente", bool (*actionCallback)() = nullptr, float width = -1.0f);
 
-    // Virtualized list - only renders visible items for performance with large lists
+
     template<typename T>
     void VirtualizedList(
         const char* id,
@@ -155,42 +155,42 @@ namespace CyberWidgets {
         int* selectedIndex)
     {
         if (items.empty() || containerHeight <= 0.0f || itemHeight <= 0.0f) return;
-        
+
         ImGui::PushID(id);
         ImGui::BeginChild(id, ImVec2(0, containerHeight), true);
-        
+
         const float scrollY = ImGui::GetScrollY();
-        
-        // Calculate visible range
+
+
         int startIdx = static_cast<int>(scrollY / itemHeight);
         int endIdx = static_cast<int>((scrollY + containerHeight) / itemHeight) + 1;
         startIdx = std::max(0, startIdx);
         endIdx = std::min(static_cast<int>(items.size()), endIdx);
-        
-        // Dummy for items before visible range
+
+
         if (startIdx > 0) {
             ImGui::Dummy(ImVec2(0, startIdx * itemHeight));
         }
-        
-        // Render visible items
+
+
         for (int i = startIdx; i < endIdx; ++i) {
             bool isSelected = selectedIndex && *selectedIndex == i;
             renderItem(items[i], i, isSelected);
         }
-        
-        // Dummy for items after visible range
+
+
         const float endY = (items.size() - endIdx) * itemHeight;
         if (endY > 0) {
             ImGui::Dummy(ImVec2(0, endY));
         }
-        
+
         ImGui::EndChild();
         ImGui::PopID();
     }
 
-} // namespace CyberWidgets
+}
 
-// Progress dialog for long operations with cancel support
+
 class ProgressDialog {
 public:
     struct Config {
@@ -198,7 +198,7 @@ public:
         const char* message = nullptr;
         bool cancellable = true;
         const char* cancelLabel = "Cancelar";
-        float minDuration = 0.5f;  // Minimum time to show dialog
+        float minDuration = 0.5f;
         bool showProgressBar = true;
         bool showTimeElapsed = true;
         float width = 400.0f;
@@ -210,34 +210,34 @@ public:
     ProgressDialog(const ProgressDialog&) = delete;
     ProgressDialog& operator=(const ProgressDialog&) = delete;
 
-    // Start the progress dialog
+
     void Open(const Config& config = Config()) noexcept;
 
-    // Update progress (0.0 to 1.0)
+
     void SetProgress(float progress, const char* message = nullptr) noexcept;
 
-    // Get current progress (0.0 to 1.0)
+
     [[nodiscard]] float GetProgress() const noexcept { return progress_; }
 
-    // Get current message
+
     [[nodiscard]] const std::string& GetMessage() const noexcept { return message_; }
 
-    // Check if user requested cancel
+
     [[nodiscard]] bool IsCancelled() const noexcept { return cancelled_; }
 
-    // Request cancel
+
     void Cancel() noexcept { cancelled_ = true; }
 
-    // Close the dialog
+
     void Close() noexcept;
 
-    // Check if dialog is open
+
     [[nodiscard]] bool IsOpen() const noexcept { return open_; }
 
-    // Get elapsed time
+
     [[nodiscard]] float GetElapsedSeconds() const noexcept;
 
-    // Get config (for internal drawing)
+
     [[nodiscard]] const Config& GetConfig() const noexcept { return config_; }
 
 private:

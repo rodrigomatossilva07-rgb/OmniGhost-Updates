@@ -72,4 +72,4 @@ void DrawTransitionOverlay(const TransitionOverlayOptions& options) {
     }
 }
 
-} // namespace OmniGhost::UI
+}

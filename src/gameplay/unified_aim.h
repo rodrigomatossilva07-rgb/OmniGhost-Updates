@@ -1,6 +1,6 @@
 #pragma once
-// Minimal UnifiedAim surface for Publish builds.
-// Full implementation is in unified_aim.h.full.bak — restore when modules are fixed.
+
+
 
 #include <cstdint>
 #include <memory>
@@ -73,4 +73,4 @@ private:
 UnifiedAimbot& GetUnifiedAimbot();
 std::unique_ptr<UnifiedAimbot> CreateAimbotForGame(const char*);
 
-} // namespace Gameplay::UnifiedAim
+}

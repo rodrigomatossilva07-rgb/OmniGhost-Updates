@@ -16,8 +16,8 @@ struct Texture {
     explicit operator bool() const { return id != nullptr; }
 };
 
-// Release decodes validated embedded PNG bytes directly in memory. Development builds may
-// explicitly prefer source files for rapid asset iteration.
+
+
 void Initialize(ID3D11Device* device);
 void Shutdown();
 Texture Logo(Launcher::GameId game);
@@ -29,4 +29,4 @@ bool Reload(Launcher::GameId game);
 bool ImportProfileAvatar(const std::filesystem::path& source);
 bool HasCustomProfileAvatar();
 
-} // namespace LauncherAssets
+}

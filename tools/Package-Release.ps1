@@ -9,7 +9,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
-# Packaging never increments version.txt and never publishes remotely.
+
 if ([string]::IsNullOrWhiteSpace($ProjectDir)) { $ProjectDir = Split-Path -Parent $PSScriptRoot }
 $ProjectDir = [IO.Path]::GetFullPath($ProjectDir)
 if ([string]::IsNullOrWhiteSpace($BuildDir)) {

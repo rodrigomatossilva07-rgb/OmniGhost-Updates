@@ -11,38 +11,38 @@
 
 namespace OmniGhost::Platform {
 
-// ============================================================
-// StartupOrchestrator - extracted from main.cpp
-// Separates hardware readiness from launcher readiness
-// ============================================================
+
+
+
+
 
 enum class StartupPhase : std::uint8_t {
     Boot,
     CheckingInstance,
     InitializingRuntime,
     Authenticating,
-    CheckingHardware,      // Hardware probe in progress
-    HardwareReady,         // Hardware probe complete (success or degraded)
-    LauncherReady,         // UI ready, hardware may still be degraded
+    CheckingHardware,
+    HardwareReady,
+    LauncherReady,
     StartingGame,
     Running,
     Failed
 };
 
 struct StartupConfig {
-    bool skipHardwareProbe = false;      // For testing
-    bool skipAuthentication = false;     // For testing
-    bool allowDegradedHardware = true;   // Allow launcher to open with degraded hardware
+    bool skipHardwareProbe = false;
+    bool skipAuthentication = false;
+    bool allowDegradedHardware = true;
     std::chrono::milliseconds hardwareProbeTimeout{30000};
-    std::chrono::milliseconds authTimeout{0};  // 0 = no timeout
+    std::chrono::milliseconds authTimeout{0};
 };
 
 struct StartupResult {
     bool success = false;
     ErrorCode errorCode = ErrorCode::None;
     std::string errorDetail;
-    bool hardwareDegraded = false;       // Hardware probe failed but launcher can open
-    std::string hardwareStatus;          // Human-readable hardware status
+    bool hardwareDegraded = false;
+    std::string hardwareStatus;
 };
 
 class StartupOrchestrator {
@@ -52,38 +52,38 @@ public:
 
     explicit StartupOrchestrator(const StartupConfig& config = {}) : config_(config) {}
 
-    // Inject dependencies for testing
+
     void SetClock(std::shared_ptr<IClock> clock) { clock_ = std::move(clock); }
     void SetFilesystem(std::shared_ptr<IFilesystem> fs) { fs_ = std::move(fs); }
     void SetAuthCallback(AuthCallback cb) { auth_cb_ = std::move(cb); }
     void SetHardwareProbeCallback(HardwareProbeCallback cb) { hw_probe_cb_ = std::move(cb); }
 
-    // Run the startup sequence
-    // Returns when LauncherReady is reached (UI can be shown)
-    // Hardware may still be probing in background
+
+
+
     Result<StartupResult> Run();
 
-    // Check current phase
+
     StartupPhase CurrentPhase() const noexcept { return phase_.load(std::memory_order_acquire); }
 
-    // Check if hardware is ready (may be degraded)
+
     bool IsHardwareReady() const noexcept { return hardware_ready_; }
 
-    // Check if launcher is ready
+
     bool IsLauncherReady() const noexcept { return launcher_ready_; }
 
-    // Get hardware status for UI
+
     std::string_view HardwareStatus() const noexcept { return hardware_status_; }
 
-    // Shutdown
+
     void Shutdown(const std::string& reason = "shutdown") noexcept;
 
 private:
     StartupConfig config_;
-    std::atomic<StartupPhase> phase_{StartupPhase::Boot}; // FIX BUG-007: atomic for thread-safe CurrentPhase()
+    std::atomic<StartupPhase> phase_{StartupPhase::Boot};
     bool hardware_ready_ = false;
     bool launcher_ready_ = false;
-    std::atomic<bool> running_{false}; // Also atomic for thread-safe access
+    std::atomic<bool> running_{false};
     std::string hardware_status_;
 
     std::shared_ptr<IClock> clock_ = std::make_shared<SteadyClock>();
@@ -105,4 +105,4 @@ private:
     void LogPhase(StartupPhase phase);
 };
 
-} // namespace OmniGhost::Platform
+}

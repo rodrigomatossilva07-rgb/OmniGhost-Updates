@@ -1,4 +1,4 @@
-// Cached batched spectator pipeline.
+
 static void UpdateSpectators(const Config& frame_config,
                              const uintptr_t* controllers, int count) {
     runtime.spectators.clear();
@@ -36,9 +36,9 @@ static void UpdateSpectators(const Config& frame_config,
         return;
     }
     if (g_pressure_level.load(std::memory_order_relaxed) >= 2)
-        return; // no cached target for this pawn; shed optional DMA entirely
-    // The target and list are one optional 500 ms lane; do not read the
-    // observer pointer chain on every 18 ms core scan while dead.
+        return;
+
+
     CS2::GiveCameraPriorityBeforeOptionalDma();
     ScopedPhase _phSpectators(&g_phase.spectator_ms);
     g_phase.spectator_refresh = 1;
@@ -54,14 +54,14 @@ static void UpdateSpectators(const Config& frame_config,
         }
     }
 
-    // Fetch every observer handle in one DMA trip. The old path made one
-    // blocking QRead per controller before even knowing who was spectating.
+
+
     constexpr int kSpectatorSlots = 64;
     uint32_t observerHandles[kSpectatorSlots]{};
     EnsureScatter();
     if (!g_scatter_full || !offsets.m_hObserverPawn) {
         nextRefreshMs = now + 500u;
-        return; // optional UI lane must not fall back to 64 synchronous reads
+        return;
     }
     const int spectatorControllerCount = (std::min)(count, kSpectatorSlots);
     bool queuedObservers = false;
@@ -81,8 +81,9 @@ static void UpdateSpectators(const Config& frame_config,
     uintptr_t observerPawns[kSpectatorSlots]{};
     if (queuedObservers) {
         const uintptr_t primaryStride = g_pawn_stride ? g_pawn_stride : offsets.entity_identity_stride;
-        const uintptr_t alternateStride = (primaryStride == offsets.entity_identity_stride)
-            ? offsets.entity_identity_stride : offsets.entity_identity_stride;
+
+        const uintptr_t alternateStride = (primaryStride == kEntityStrideAlternate)
+            ? kEntityStridePrimary : kEntityStrideAlternate;
         ScatterResolvePawnHandles(observerHandles, observerPawns,
             spectatorControllerCount, primaryStride, alternateStride, true);
     }
@@ -117,8 +118,9 @@ static void UpdateSpectators(const Config& frame_config,
     uintptr_t targetPawns[kSpectatorSlots]{};
     if (queuedTargets) {
         const uintptr_t primaryStride = g_pawn_stride ? g_pawn_stride : offsets.entity_identity_stride;
-        const uintptr_t alternateStride = (primaryStride == offsets.entity_identity_stride)
-            ? offsets.entity_identity_stride : offsets.entity_identity_stride;
+
+        const uintptr_t alternateStride = (primaryStride == kEntityStrideAlternate)
+            ? kEntityStridePrimary : kEntityStrideAlternate;
         ScatterResolvePawnHandles(targetHandles, targetPawns,
             spectatorControllerCount, primaryStride, alternateStride, true);
     }
@@ -178,5 +180,3 @@ static void UpdateSpectators(const Config& frame_config,
     CacheManager::Metrics().spectators.store(
         cachedSpectators.size(), std::memory_order_relaxed);
 }
-
-

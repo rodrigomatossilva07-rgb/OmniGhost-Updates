@@ -20,8 +20,8 @@
 namespace makcu {
 
     namespace {
-        // Streamed button masks are binary levels in the range 0x00..0x1F.
-        // Printable bytes after "km." belong to echoes such as "km.move(...)".
+
+
         constexpr bool IsBinaryButtonMask(uint8_t value) noexcept {
             return value <= 0x1F;
         }
@@ -33,7 +33,7 @@ namespace makcu {
 
     SerialPort::SerialPort()
         : m_baudRate(115200)
-        , m_timeout(100)  // Reduced from 1000ms
+        , m_timeout(100)
         , m_isOpen(false)
 #ifdef _WIN32
         , m_handle()
@@ -52,8 +52,8 @@ namespace makcu {
     }
 
     bool SerialPort::open(const std::string& port, uint32_t baudRate) {
-        // close() acquires m_mutex itself. Calling it while holding m_mutex caused
-        // a self-deadlock when reopening an already-open port.
+
+
         if (m_isOpen.load())
             close();
 
@@ -89,13 +89,13 @@ namespace makcu {
 
         m_isOpen = true;
 
-        // Start high-performance listener thread
+
         m_stopListener = false;
         m_listenerThread = std::jthread([this](std::stop_token stopToken) { listenerLoop(stopToken); });
 
         return true;
 #else
-        return false; // Linux implementation would go here
+        return false;
 #endif
     }
 
@@ -106,14 +106,14 @@ namespace makcu {
             return;
         }
 
-        // Stop listener thread
+
         m_stopListener = true;
         if (m_listenerThread.joinable()) {
             m_listenerThread.request_stop();
             m_listenerThread.join();
         }
 
-        // Cancel all pending commands
+
         {
             std::lock_guard<std::mutex> cmdLock(m_commandMutex);
             for (auto& [id, cmd] : m_pendingCommands) {
@@ -161,13 +161,13 @@ namespace makcu {
         auto pendingCmd = std::make_unique<PendingCommand>(cmdId, command, expectResponse, timeout);
         auto future = pendingCmd->promise.get_future();
 
-        // Store pending command
+
         {
             std::lock_guard<std::mutex> lock(m_commandMutex);
             m_pendingCommands[cmdId] = std::move(pendingCmd);
         }
 
-        // Send command with ID tracking
+
         std::string trackedCommand = expectResponse ?
             command + "#" + std::to_string(cmdId) + "\r\n" :
             command + "\r\n";
@@ -176,8 +176,8 @@ namespace makcu {
         DWORD bytesWritten = 0;
         bool success;
         {
-            // Guard the handle against a concurrent close(): a writer must not
-            // race handle teardown (use-after-close / handle reuse).
+
+
             std::lock_guard<std::mutex> handleLock(m_mutex);
             if (!m_isOpen) {
                 std::lock_guard<std::mutex> lock(m_commandMutex);
@@ -237,7 +237,7 @@ namespace makcu {
         DWORD bytesWritten = 0;
         bool success;
         {
-            // Guard the handle against a concurrent close() (use-after-close).
+
             std::lock_guard<std::mutex> handleLock(m_mutex);
             if (!m_isOpen) return false;
             success = WriteFile(m_handle.get(), fullCommand.c_str(),
@@ -260,14 +260,14 @@ namespace makcu {
         std::vector<uint8_t> lineBuffer(LINE_BUFFER_SIZE);
         size_t linePos = 0;
 
-        // Official: "km.buttons" + <mask_u8>
-        // HPM:      "km."       + <mask_u8>
+
+
         static const char kFull[] = "km.buttons";
         static const size_t kFullLen = 10;
 
         m_prefixMatch = 0;
         m_expectMaskByte = false;
-        m_prefixMode = 0; // 0 idle, 1 waiting mask after full, 2 waiting mask after short
+        m_prefixMode = 0;
 
         auto lastCleanup = std::chrono::steady_clock::now();
         constexpr auto cleanupInterval = std::chrono::milliseconds(50);
@@ -296,11 +296,11 @@ namespace makcu {
                 for (DWORD i = 0; i < bytesRead; ++i) {
                     const uint8_t byte = readBuffer[i];
 
-                    // ── Expecting mask byte after a recognized prefix ──
+
                     if (m_expectMaskByte) {
                         m_expectMaskByte = false;
                         if (byte == '(') {
-                            // Text command echo: km.buttons(…) or km.(…) — rebuild prefix
+
                             const char* p = (m_prefixMode == 2) ? "km." : kFull;
                             while (*p && linePos < LINE_BUFFER_SIZE - 1)
                                 lineBuffer[linePos++] = static_cast<uint8_t>(*p++);
@@ -313,8 +313,8 @@ namespace makcu {
                         if (IsBinaryButtonMask(byte)) {
                             handleButtonData(byte);
                         } else {
-                            // Preserve malformed/text continuation as a normal
-                            // response; never manufacture a mouse mask from it.
+
+
                             const char* p = (m_prefixMode == 2) ? "km." : kFull;
                             while (*p && linePos < LINE_BUFFER_SIZE - 1)
                                 lineBuffer[linePos++] = static_cast<uint8_t>(*p++);
@@ -326,12 +326,12 @@ namespace makcu {
                         continue;
                     }
 
-                    // ── Prefix matcher for "km.buttons" / short "km." ──
-                    // State m_prefixMatch = number of matched chars of kFull so far.
+
+
                     if (byte == static_cast<uint8_t>(kFull[m_prefixMatch])) {
                         ++m_prefixMatch;
                         if (m_prefixMatch == kFullLen) {
-                            // Full "km.buttons" matched → next byte is mask
+
                             m_expectMaskByte = true;
                             m_prefixMode = 1;
                             m_prefixMatch = 0;
@@ -339,11 +339,11 @@ namespace makcu {
                         continue;
                     }
 
-                    // At exactly 3 matched chars we have "km." — if next is not 'b',
-                    // accept only a BINARY short-form mask. Printable bytes are
-                    // command echoes (km.move, km.left, km.right, ...).
+
+
+
                     if (m_prefixMatch == 3) {
-                        // byte != 'b' (otherwise the branch above would have matched)
+
                         if (IsBinaryButtonMask(byte)) {
                             handleButtonData(byte);
                         } else {
@@ -358,17 +358,17 @@ namespace makcu {
                         continue;
                     }
 
-                    // Prefix broken — restart if this byte could start a new "k"
+
                     if (m_prefixMatch > 0) {
                         m_prefixMatch = (byte == 'k') ? 1 : 0;
                         if (m_prefixMatch == 1)
                             continue;
                     }
 
-                    // ── Legacy bare mask (Eventuri-style km.buttons(1) stream) ──
-                    // Accept 0x00-0x1F when not mid-text-line. Skip lone CR/LF until
-                    // we have already seen at least one real button packet (avoids
-                    // treating response newlines as masks).
+
+
+
+
                     if (linePos == 0 && byte <= 0x1F) {
                         const bool crlf = (byte == 0x0A || byte == 0x0D);
                         if (!crlf) {
@@ -376,14 +376,14 @@ namespace makcu {
                             continue;
                         }
                         if (m_buttonPackets.load() > 0) {
-                            // After stream is alive, CR/LF after a mask are terminators
+
                             linePos = 0;
                             continue;
                         }
-                        // else fall through: treat as text line ending
+
                     }
 
-                    // ── Text line assembly ──
+
                     if (byte == 0x0A) {
                         if (linePos > 0) {
                             std::string line(lineBuffer.begin(), lineBuffer.begin() + linePos);
@@ -416,8 +416,8 @@ namespace makcu {
     }
 
     void SerialPort::handleButtonData(uint8_t data) {
-        // Absolute mask 0-31. Always notify (even mask==0) so stream heartbeat
-        // confirms monitoring; only fire per-button edges on change.
+
+
         data = static_cast<uint8_t>(data & 0x1F);
         const uint8_t lastMask = m_lastButtonMask.exchange(data);
         m_buttonPackets.fetch_add(1, std::memory_order_relaxed);
@@ -450,16 +450,16 @@ namespace makcu {
     }
 
     void SerialPort::processResponse(const std::string& response) {
-        // Remove ">>> " prefix if present
+
         std::string content = response;
         if (content.substr(0, 4) == ">>> ") {
             content = content.substr(4);
         }
 
-        // Check for command ID correlation
+
         size_t hashPos = content.find('#');
         if (hashPos != std::string::npos) {
-            // Extract command ID
+
             std::string idStr = content.substr(hashPos + 1);
             size_t colonPos = idStr.find(':');
             if (colonPos != std::string::npos) {
@@ -488,8 +488,8 @@ namespace makcu {
             }
         }
 
-        // Some Makcu firmwares stream button masks as plain numeric lines "0".."31"
-        // instead of raw binary bytes. Accept those as button state updates.
+
+
         {
             bool numeric = !content.empty();
             for (char c : content) {
@@ -509,7 +509,7 @@ namespace makcu {
             }
         }
 
-        // Text forms: "km.buttons=2", "buttons: 2", "mask=0x02"
+
         {
             auto tryMask = [&](int value) {
                 if (value >= 0 && value <= 31) {
@@ -518,7 +518,7 @@ namespace makcu {
                 }
                 return false;
             };
-            const auto lower = content; // already raw
+            const auto lower = content;
             auto digAt = [&](size_t pos) -> int {
                 if (pos >= lower.size()) return -1;
                 size_t i = pos;
@@ -533,6 +533,9 @@ namespace makcu {
                         else if (c >= 'a' && c <= 'f') d = 10 + c - 'a';
                         else if (c >= 'A' && c <= 'F') d = 10 + c - 'A';
                         else break;
+                        // MAK-002 Fix: saturate instead of overflowing the
+                        // signed accumulator on attacker-controlled input.
+                        if (v > 31) return -1;
                         any = true; v = (v << 4) + d; ++i;
                     }
                     return any ? v : -1;
@@ -540,6 +543,7 @@ namespace makcu {
                 if (i < lower.size() && lower[i] >= '0' && lower[i] <= '9') {
                     int v = 0;
                     while (i < lower.size() && lower[i] >= '0' && lower[i] <= '9') {
+                        if (v > 31) return -1; // MAK-002: saturate
                         v = v * 10 + (lower[i] - '0'); ++i;
                     }
                     return v;
@@ -557,9 +561,13 @@ namespace makcu {
             }
         }
 
-        // Handle untracked response (oldest pending command)
+
+        // MAK-004 Fix: an untracked response used to be delivered to the
+        // oldest pending command; with more than one command in flight that
+        // could answer the wrong caller. Only accept an untracked response
+        // when there is exactly ONE pending command (unambiguous).
         std::lock_guard<std::mutex> lock(m_commandMutex);
-        if (!m_pendingCommands.empty()) {
+        if (m_pendingCommands.size() == 1) {
             auto it = m_pendingCommands.begin();
             try {
                 it->second->promise.set_value(content);
@@ -603,7 +611,9 @@ namespace makcu {
     }
 
     int SerialPort::generateCommandId() {
-        return (m_commandCounter.fetch_add(1) % 10000) + 1;
+        // MAK-004 Fix: the old 1..10000 counter collided with still-pending
+        // commands in long sessions; use the full 32-bit space instead.
+        return static_cast<int>(m_commandCounter.fetch_add(1));
     }
 
     bool SerialPort::configurePort() {
@@ -645,12 +655,12 @@ namespace makcu {
 
     void SerialPort::updateTimeouts() {
 #ifdef _WIN32
-        // Gaming-optimized timeouts - much faster than original
-        m_timeouts.ReadIntervalTimeout = 1;          // 1ms between bytes
-        m_timeouts.ReadTotalTimeoutConstant = 10;    // 10ms total read timeout
-        m_timeouts.ReadTotalTimeoutMultiplier = 1;   // 1ms per byte
-        m_timeouts.WriteTotalTimeoutConstant = 10;   // 10ms write timeout
-        m_timeouts.WriteTotalTimeoutMultiplier = 1;  // 1ms per byte
+
+        m_timeouts.ReadIntervalTimeout = 1;
+        m_timeouts.ReadTotalTimeoutConstant = 10;
+        m_timeouts.ReadTotalTimeoutMultiplier = 1;
+        m_timeouts.WriteTotalTimeoutConstant = 10;
+        m_timeouts.WriteTotalTimeoutMultiplier = 1;
 
         SetCommTimeouts(m_handle.get(), &m_timeouts);
 #endif
@@ -664,7 +674,7 @@ namespace makcu {
         m_maskCallback = callback;
     }
 
-    // Legacy compatibility methods
+
     bool SerialPort::setBaudRate(uint32_t baudRate) {
         std::lock_guard<std::mutex> lock(m_mutex);
         if (!m_isOpen) {
@@ -697,7 +707,7 @@ namespace makcu {
     }
 
     std::vector<uint8_t> SerialPort::read(size_t maxBytes) {
-        // This is a legacy method - not recommended for high performance
+
         std::vector<uint8_t> buffer;
         std::lock_guard<std::mutex> handleLock(m_mutex);
         if (!m_isOpen || maxBytes == 0) {
@@ -805,6 +815,7 @@ namespace makcu {
 
     std::vector<std::string> SerialPort::findMakcuPorts() {
         std::vector<std::string> makcuPorts;
+        std::vector<std::string> weakPorts; // MAK-001: generic CH34x candidates
 
 #ifdef _WIN32
         auto allPorts = getAvailablePorts();
@@ -833,13 +844,20 @@ namespace makcu {
                 std::string identity = desc + " " + hardwareIds;
                 std::transform(identity.begin(), identity.end(), identity.begin(),
                     [](unsigned char ch) { return static_cast<char>(std::toupper(ch)); });
+                // MAK-001 Fix: strong match first. The exact MAKCU VID/PID is
+                // the only accepted identity for auto-connect; the generic
+                // CH340/CH343 descriptions are a last-resort candidate that
+                // must still answer the protocol handshake (km.version) in
+                // the caller before the port is used.
                 const bool makcuIdentity =
-                    identity.find("VID_1A86&PID_55D3") != std::string::npos ||
-                    identity.find("CH343") != std::string::npos ||
-                    identity.find("USB-SERIAL CH340") != std::string::npos ||
-                    identity.find("USB-ENHANCED-SERIAL") != std::string::npos;
+                    identity.find("VID_1A86&PID_55D3") != std::string::npos;
+                const bool genericSerialCandidate =
+                    !makcuIdentity &&
+                    (identity.find("CH343") != std::string::npos ||
+                     identity.find("USB-SERIAL CH340") != std::string::npos ||
+                     identity.find("USB-ENHANCED-SERIAL") != std::string::npos);
 
-                if (makcuIdentity) {
+                if (makcuIdentity || genericSerialCandidate) {
 
                     HKEY hDeviceKey = SetupDiOpenDevRegKey(deviceInfoSet, &deviceInfoData,
                         DICS_FLAG_GLOBAL, 0,
@@ -852,7 +870,14 @@ namespace makcu {
                             &portNameSize) == ERROR_SUCCESS) {
                             std::string port(portName);
                             if (std::find(allPorts.begin(), allPorts.end(), port) != allPorts.end()) {
-                                makcuPorts.emplace_back(port);
+                                // MAK-001 Fix: keep strong (exact VID/PID) and
+                                // generic CH34x candidates apart so the caller
+                                // never opens a foreign CH340 while a real
+                                // MAKCU is present.
+                                if (makcuIdentity)
+                                    makcuPorts.emplace_back(port);
+                                else
+                                    weakPorts.emplace_back(port);
                             }
                         }
                         RegCloseKey(hDeviceKey);
@@ -866,7 +891,13 @@ namespace makcu {
 
         std::sort(makcuPorts.begin(), makcuPorts.end());
         makcuPorts.erase(std::unique(makcuPorts.begin(), makcuPorts.end()), makcuPorts.end());
-        return makcuPorts;
+        std::sort(weakPorts.begin(), weakPorts.end());
+        weakPorts.erase(std::unique(weakPorts.begin(), weakPorts.end()), weakPorts.end());
+        // MAK-001: exact-identity ports win; generic CH34x devices are only
+        // considered when no real MAKCU is detected.
+        if (!makcuPorts.empty())
+            return makcuPorts;
+        return weakPorts;
     }
 
-} // namespace makcu
+}

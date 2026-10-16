@@ -20,56 +20,56 @@ class GameContext {
 public:
     GameContext() = default;
     ~GameContext() = default;
-    
+
     GameContext(const GameContext&) = delete;
     GameContext& operator=(const GameContext&) = delete;
     GameContext(GameContext&&) = default;
     GameContext& operator=(GameContext&&) = default;
 
-    // Active game management
+
     [[nodiscard]] ActiveGame GetActiveGame() const noexcept {
         return activeGame_.load(std::memory_order_acquire);
     }
-    
+
     void SetActiveGame(ActiveGame game) noexcept {
         activeGame_.store(game, std::memory_order_release);
     }
-    
-    // Valid executable (for FiveM)
+
+
     [[nodiscard]] std::string GetValidExecutable() const {
         std::lock_guard<std::mutex> lock(mutex_);
         return validExecutable_;
     }
-    
+
     void SetValidExecutable(std::string_view exe) {
         std::lock_guard<std::mutex> lock(mutex_);
         validExecutable_ = exe;
     }
-    
+
     void ClearValidExecutable() noexcept {
         std::lock_guard<std::mutex> lock(mutex_);
         validExecutable_.clear();
     }
-    
+
     [[nodiscard]] bool HasValidExecutable() const noexcept {
         std::lock_guard<std::mutex> lock(mutex_);
         return !validExecutable_.empty();
     }
-    
-    // Session state
+
+
     [[nodiscard]] bool IsInSession() const noexcept {
         return inSession_.load(std::memory_order_acquire);
     }
-    
+
     void SetInSession(bool inSession) noexcept {
         inSession_.store(inSession, std::memory_order_release);
     }
-    
-    // Game-specific config access
+
+
     [[nodiscard]] std::string GetGamePrefix() const noexcept {
         return GetGamePrefix(GetActiveGame());
     }
-    
+
     static std::string GetGamePrefix(ActiveGame game) noexcept {
         switch (game) {
             case ActiveGame::CS2: return "cs2_";
@@ -89,13 +89,13 @@ public:
             default: return "fivem";
         }
     }
-    
+
     static bool NameBelongsToActiveGame(const std::string& name, ActiveGame game) noexcept {
         const std::string prefix = GetGamePrefix(game);
         return name.rfind(prefix, 0) == 0;
     }
-    
-    // Singleton access
+
+
     static GameContext& Instance() noexcept {
         static GameContext instance;
         return instance;
@@ -108,13 +108,13 @@ private:
     mutable std::mutex mutex_;
 };
 
-} // namespace OmniGhost
+}
 
-// ---------------------------------------------------------------------------
-// Legacy global shims — large parts of the codebase still use g_activeGame /
-// g_validExecutable / bare ActiveGame. These proxies keep call sites compiling
-// while the migration to GameContext continues.
-// ---------------------------------------------------------------------------
+
+
+
+
+
 using OmniGhost::ActiveGame;
 
 struct LegacyActiveGameProxy {

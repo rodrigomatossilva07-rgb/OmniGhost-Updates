@@ -6,6 +6,7 @@
 #include <vector>
 #include "config/cs2_config.h"
 #include "gameplay/snapshot_exchange.h"
+#include "gameplay/unified_esp.h"
 
 namespace CS2 {
 
@@ -49,19 +50,19 @@ struct Offsets {
     uintptr_t m_bDormant = 0;
     uintptr_t m_modelState = 0;
     uintptr_t BoneArray = 0;
-    uintptr_t m_pClippingWeapon = 0; // absent from the current schema
+    uintptr_t m_pClippingWeapon = 0;
     uintptr_t m_bIsScoped = 0;
-    // EntitySpottedState_t on C_CSPlayerPawn
+
     uintptr_t m_entitySpottedState = 0;
     uintptr_t m_bSpotted = 0;
     uintptr_t m_flFlashDuration = 0;
-    // Recoil fields. Shots is present in build 14186; the legacy direct punch
-    // angle stays zero because current schemas expose a services component.
+
+
     uintptr_t m_iShotsFired = 0;
     uintptr_t m_aimPunchAngle = 0;
-    // Current CS2 builds expose aim punch through a pawn component. Keep the
-    // legacy direct angle for compatibility with older offset dumps.
-    // C_PlantedC4 fields for build 14186
+
+
+
     uintptr_t m_bBombTicking = 0;
     uintptr_t m_flC4Blow = 0;
     uintptr_t m_flTimerLength = 0;
@@ -69,7 +70,7 @@ struct Offsets {
     uintptr_t m_bBeingDefused = 0;
     uintptr_t m_flDefuseCountDown = 0;
     uintptr_t m_hBombDefuser = 0;
-    // Weapon chain
+
     uintptr_t m_pWeaponServices = 0;
     uintptr_t m_pItemServices = 0;
     uintptr_t m_bHasDefuser = 0;
@@ -100,8 +101,14 @@ inline constexpr std::size_t kBoneSlotCount =
 
 static_assert(kBoneSlotCount == 20, "BoneSlot enum must have exactly 20 entries");
 
-// Bone name to joint index mapping. The initial mapping is loaded exclusively
-// from data/cs2_offsets.json; model introspection may replace it at runtime.
+
+
+
+
+
+
+inline constexpr uintptr_t kEntityStridePrimary = 0x78;
+inline constexpr uintptr_t kEntityStrideAlternate = 0x70;
 struct BoneMapping {
     int jointIndex[kBoneSlotCount];
     bool resolved = false;
@@ -111,24 +118,24 @@ struct BoneMapping {
             jointIndex[i] = -1;
     }
 
-    // Resolve bone indices from game model (studiohdr bone names)
-    // Returns true if successfully resolved from model, false if using defaults.
+
+
     bool ResolveFromModel(uintptr_t clientBase, uintptr_t modelBase);
 };
 
-// Global bone mapping instance (initialized once at startup)
+
 extern BoneMapping g_boneMapping;
 
 inline int GetBoneJointIndex(BoneSlot slot) {
     return g_boneMapping.jointIndex[static_cast<std::size_t>(slot)];
 }
 
-// Shared constants to ensure consistency between acquisition and presentation.
-// Bone visual max age: bones older than this are not rendered (prevents stale skeleton).
+
+
 inline constexpr uint64_t kBoneVisualMaxAgeMs = 160u;
 
-// Bone reliability hold: how long to keep a bone pose after a successful read
-// before considering it unreliable. Must match kBoneVisualMaxAgeMs.
+
+
 inline constexpr int kBoneReliabilityHoldMs = static_cast<int>(kBoneVisualMaxAgeMs);
 
 struct Player {
@@ -148,8 +155,8 @@ struct Player {
     bool is_spectator = false;
     float pos[3]{};
     float velocity[3]{};
-    // Acquisition timestamps, not publish timestamps. Presentation uses these
-    // to keep prediction and camera selection tied to the same world sample.
+
+
     uint64_t position_sample_ms = 0;
     uint64_t bones_sample_ms = 0;
     uint64_t bone_pose_sample_ms = 0;
@@ -160,21 +167,21 @@ struct Player {
     char weapon[32]{};
     int weapon_def = 0;
     float distance = 0.f;
-    // Expanded skeleton slots (close-range detail + LOD-safe far):
-    //  0 head  1 neck  2 spine2  3 spine1  4 spine0  5 pelvis
-    //  6 clav_l  7 shoulder_l  8 elbow_l  9 hand_l
-    // 10 clav_r 11 shoulder_r 12 elbow_r 13 hand_r
-    // 14 hip_l  15 knee_l  16 ankle_l
-    // 17 hip_r  18 knee_r  19 ankle_r
+
+
+
+
+
+
     float bones[kBoneSlotCount][3]{};
-    bool bones_ok = false;          // at least head/neck/chest/stomach are valid
-    bool full_bones_ok = false;     // complete 20-slot pose is valid for skeleton/body trigger
-    bool spotted = true; // m_bSpotted (EntitySpottedState_t)
-    bool visibility_known = false; // Static map LOS, independent of radar spotting.
+    bool bones_ok = false;
+    bool full_bones_ok = false;
+    bool spotted = true;
+    bool visibility_known = false;
     bool visible = false;
     int ent_index = 0;
     uint64_t steam_id = 0;
-    // Extended status (flags / ammo / movement)
+
     int ammo_clip = -1;
     int ammo_reserve = -1;
     int money = -1;
@@ -245,8 +252,8 @@ struct Runtime {
     uint64_t read_fails = 0;
     uint64_t snapshot_timestamp_ms = 0;
     uint64_t session_generation = 0;
-    // Midpoint of the core world acquisition; unlike snapshot_timestamp_ms,
-    // this is not delayed by post-processing or optional lanes.
+
+
     uint64_t world_sample_ms = 0;
     uint64_t snapshot_drops = 0;
     float acquisition_hz = 0.f;
@@ -259,7 +266,7 @@ struct Runtime {
     std::vector<Player> players;
     std::vector<Player> spectators;
 
-    // Move semantics for efficient snapshot publishing (avoids deep copy of vectors)
+
     Runtime() = default;
     Runtime(Runtime&& other) noexcept
         : client_base(other.client_base), engine_base(other.engine_base),
@@ -354,6 +361,9 @@ struct Runtime {
     }
 };
 
+// namespace CS2 is defined above; the unified-adapter framework was retired
+// (CS2-019/FIVEM-014 cleanup). Feature flags are now computed inline in the
+// world pipeline using the UnifiedESP field model directly.
 using RuntimeSnapshotLease = OmniGhost::Gameplay::SnapshotExchange<Runtime, 4>::ReadLease;
 
 struct CameraSnapshot {
@@ -362,13 +372,13 @@ struct CameraSnapshot {
 };
 using CameraSnapshotLease = OmniGhost::Gameplay::SnapshotExchange<CameraSnapshot>::ReadLease;
 
-// A tiny, high-priority life-state lane. It is published immediately after
-// the existing core health scatter, before optional bones and metadata.
+
+
 struct LivenessSample {
     uintptr_t pawn = 0;
     bool alive = false;
-    // A pointer may be recycled. Consumers must never apply a death from an
-    // older session/sample to a newer pawn state.
+
+
     uint64_t sample_ms = 0;
     uint64_t generation = 0;
 };
@@ -400,7 +410,7 @@ void SubmitAcquisitionConfig(const Config& next) noexcept;
 [[nodiscard]] CameraSnapshot SelectCameraSnapshot(uint64_t world_sample_ms);
 [[nodiscard]] LivenessSnapshotLease AcquireLivenessSnapshot();
 [[nodiscard]] bool AcquisitionRunning() noexcept;
-// 0 normal, 1 reduced optional work, 2 cached metadata, 3 recovery.
+
 [[nodiscard]] int DmaPressureLevel() noexcept;
 [[nodiscard]] float LastSlowDmaMs() noexcept;
 [[nodiscard]] float LastWeaponPhaseMs() noexcept;
@@ -414,11 +424,11 @@ bool SoftProbeLobbyOffsets();
 bool SelfTestOffsets();
 bool ValidateLiveOffsets();
 bool ReinitDma();
-// True while cs2.exe is still visible to the DMA / local process list.
+
 bool IsGameProcessAlive();
 
-// Camera priority helper for optional DMA lanes.
-// Returns false when camera is still busy after the wait budget — skip the batch.
+
+
 bool GiveCameraPriorityBeforeOptionalDma();
 
-} // namespace CS2
+}

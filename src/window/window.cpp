@@ -145,8 +145,8 @@ namespace {
         case MenuTab::TAB_FORTNITE_VISUALS:  DrawFortniteVisuals(); break;
         case MenuTab::TAB_FORTNITE_AIM:      DrawFortniteAim(); break;
         case MenuTab::TAB_FORTNITE_STATUS:   DrawFortniteStatus(); break;
-        
-        // Unified system pages
+
+
         case MenuTab::TAB_UNIFIED_AIM:       DrawUnifiedAim(); break;
         case MenuTab::TAB_SOUND_ESP:         DrawSoundESP(); break;
         case MenuTab::TAB_SPECTATOR_LIST:    DrawSpectatorList(); break;
@@ -162,9 +162,9 @@ namespace {
         case MenuTab::TAB_OFFSET_MANAGER:    DrawOffsetManager(); break;
         case MenuTab::TAB_RESOLUTION:        DrawResolution(); break;
         case MenuTab::TAB_GAME_ADAPTER:      DrawGameAdapter(); break;
-        
+
         default:
-            if (overlay) { /* keep */ }
+            if (overlay) {  }
             DrawVisuals();
             break;
         }
@@ -209,8 +209,8 @@ namespace {
         corner(x1 - inset, y1 - inset, -1, -1);
         dl->PopClipRect();
     }
-    
-    
+
+
 void WaitForEvents(std::chrono::milliseconds timeout) {
         const DWORD timeoutMs = static_cast<DWORD>(timeout.count());
         const DWORD result = MsgWaitForMultipleObjectsEx(
@@ -218,7 +218,7 @@ void WaitForEvents(std::chrono::milliseconds timeout) {
             QS_ALLINPUT, MWMO_ALERTABLE);
         (void)result;
     }
-} // namespace
+}
 
 void Overlay::SetupOverlay(const char* window_name)
 {
@@ -284,8 +284,8 @@ static MenuTab DefaultTabForGame(OmniGhost::ActiveGame game) {
 
 void Overlay::Render()
 {
-    // Config persistence is game-independent. Keep ticking even while the menu
-    // is hidden so a change made just before closing it is still committed.
+
+
     config_manager::TickAutoSave();
 
     auto& ctx = OmniGhost::GameContext::Instance();
@@ -301,15 +301,15 @@ void Overlay::Render()
     }
 
 #ifndef UI_PREVIEW
-    // Capture policy belongs to the owned overlay HWND and must be updated even
-    // when the in-game menu is closed. Never exclude the launcher itself.
+
+
     SetCaptureExclusion(!RenderMenu && ctx.GetActiveGame() == OmniGhost::ActiveGame::CS2 && CS2::config.stream_proof);
 #else
     SetCaptureExclusion(false);
 #endif
 
-    // UI-010 Fix: hotkeys must work in-game with the menu closed. Update()
-    // previously ran only on menu frames, leaving Panic/toggles inert.
+
+
     Hotkeys::Update();
 
     if (!app_settings::menu_open && !RenderMenu)
@@ -347,7 +347,7 @@ void Overlay::Render()
     const ImVec2 window_size = ImGui::GetWindowSize();
     ImDrawList* draw_list = ImGui::GetWindowDrawList();
 
-    // Pure-black menu base.
+
     draw_list->AddRectFilled(
         window_pos,
         ImVec2(window_pos.x + window_size.x, window_pos.y + window_size.y),
@@ -367,7 +367,7 @@ const PerformanceMode::State performance = PerformanceMode::Update(
         app_settings::config.performance_mode,
         app_settings::config.auto_performance);
 
-    // Configure and tick dynamic performance manager
+
     static bool perfManagerConfigured = false;
     if (!perfManagerConfigured) {
         CyberPerformance::PerformanceManager::Config perfConfig;
@@ -383,7 +383,7 @@ const PerformanceMode::State performance = PerformanceMode::Update(
     }
     CyberPerformance::g_performanceManager.Tick(ImGui::GetIO().DeltaTime * 1000.0f);
 
-    // Apply dynamic performance scaling to digital rain
+
     const auto perfLevels = CyberPerformance::g_performanceManager.GetEffectLevels();
     DigitalRain::SetDynamicDensity(perfLevels.digitalRainDensity);
     DigitalRain::SetDynamicMotionScale(perfLevels.motionScale);
@@ -394,9 +394,9 @@ const PerformanceMode::State performance = PerformanceMode::Update(
         performance.effective ? 0.008f : 0.014f, 0x4F474D4Eu,
         performance.effective ? 100 : 210);
 
-    // Shared Off/Subtle/Full rain. Subtle is the default and uses ~28% density.
+
     const float rainDensity = app_settings::DigitalRainDensity();
-    // User preference is the base, dynamic scaling is applied inside DigitalRain::Draw
+
     DigitalRain::Draw(
         draw_list,
         window_pos,
@@ -413,7 +413,7 @@ const PerformanceMode::State performance = PerformanceMode::Update(
             performance.effective, app_settings::AnimationScale(),
             0.65f, CyberTheme::Metrics::SidebarWidth);
 
-    // Static structure stays deliberately quiet; gold is an accent, not a frame.
+
     DrawTechGrid(draw_list, window_pos, window_size, performance.effective);
     draw_list->AddRect(
         window_pos,
@@ -438,9 +438,9 @@ const PerformanceMode::State performance = PerformanceMode::Update(
         const float fps = ImGui::GetIO().Framerate;
         const float frame_time_ms = 1000.0f / std::max(0.1f, fps);
         HardwareMonitor::RecordFPS(fps, frame_time_ms);
-        // UI-010: Hotkeys::Update() runs before the menu-visibility early
-        // return (see above) so binds work with the menu closed.
-        
+
+
+
         bool connected = false;
         const char* build = "Execução";
         int players = -1;
@@ -481,8 +481,8 @@ const PerformanceMode::State performance = PerformanceMode::Update(
     if (motionScale <= 0.0f) {
         tab_transition = 1.0f;
     } else {
-        // 180-220 ms class transition, shortened in Subtle mode but never
-        // allowed to linger. Only content moves; navigation remains stable.
+
+
         const float duration = CyberTheme::Metrics::PageTransitionSeconds * (0.80f + 0.20f * motionScale);
         tab_transition = (std::min)(1.0f,
             tab_transition + (std::min)(ImGui::GetIO().DeltaTime, 0.05f) / duration);
@@ -515,7 +515,7 @@ const PerformanceMode::State performance = PerformanceMode::Update(
     ImGui::PushStyleVar(ImGuiStyleVar_Alpha, (std::max)(0.18f, tabEase));
     DrawPageHeading(current_tab);
     DrawCurrentTab(current_tab, this);
-    // Keep last widgets clear of the footer
+
     ImGui::Dummy(ImVec2(0.0f, CyberTheme::Spacing::Xl));
     ImGui::PopStyleVar();
     ImGui::EndChild();

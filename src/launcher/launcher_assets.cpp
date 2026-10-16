@@ -61,9 +61,9 @@ fs::path ResolveLocalPath(const char* relative) {
         return requested;
 
     const fs::path executable = OmniGhost::Paths::InstallDirectory();
-    // Assets are local-only and resolved relative to the controlled install root.
-    // The process current directory is deliberately excluded so another folder
-    // cannot shadow a shipped image when OmniGhost is launched from a shortcut.
+
+
+
     const fs::path candidates[] = {
         executable / requested,
         executable / "resources" / requested
@@ -221,7 +221,7 @@ Texture Find(Launcher::GameId game, bool banner) {
     return {};
 }
 
-} // namespace
+}
 
 void Initialize(ID3D11Device* device) {
     Shutdown();
@@ -355,4 +355,4 @@ bool ImportProfileAvatar(const fs::path& source) {
     return true;
 }
 
-} // namespace LauncherAssets
+}

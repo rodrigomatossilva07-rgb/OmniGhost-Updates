@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param()
 
 $ErrorActionPreference = 'Continue'
@@ -43,8 +43,8 @@ function Remove-ReleasePath {
         return $false
     }
 
-    # A rename on the same volume is atomic and removes the public release name
-    # immediately, even while Explorer/antivirus briefly scans the contents.
+
+
     $working = $Path
     $leaf = Split-Path -Leaf $Path
     if ($leaf -notlike '.omnighost-release-cleanup-*') {

@@ -92,4 +92,4 @@ void ApplyVisualWarzone();
 void ApplyMinimalProfileForActiveGame();
 void ApplyVisualProfileForActiveGame();
 
-} // namespace config_manager
+}

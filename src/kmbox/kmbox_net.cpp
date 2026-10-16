@@ -73,6 +73,8 @@ std::jthread g_monitorThread;
 std::atomic_bool g_monitorRunning{ false };
 std::atomic_bool g_connected{ false };
 std::atomic_uint8_t g_buttonMask{ 0 };
+// KM-003: learned monitor-report header byte (-1 = not learned yet).
+std::atomic_int g_monitorReportId{ -1 };
 bool g_winsockStarted = false;
 std::uint32_t g_mac = 0;
 std::uint32_t g_index = 0;
@@ -116,14 +118,15 @@ bool SameEndpoint(const sockaddr_in& address) {
 }
 
 bool SameDeviceAddress(const sockaddr_in& address) {
-    // Monitor reports may originate from another UDP source port. The
-    // official protocol only guarantees that they come from the device IP.
+
+
     return address.sin_family == AF_INET &&
         address.sin_addr.s_addr == g_deviceAddress.sin_addr.s_addr;
 }
 
 bool Request(std::uint32_t command, const void* payload, std::size_t payloadSize,
-             std::uint32_t randomValue = 0, bool fixedRandom = false) {
+             std::uint32_t randomValue = 0, bool fixedRandom = false,
+             bool expectReply = true) {
     std::lock_guard<std::mutex> lock(g_commandMutex);
     if (!g_commandSocket) {
         SetError("Socket KMBox-Net fechado.");
@@ -145,6 +148,10 @@ bool Request(std::uint32_t command, const void* payload, std::size_t payloadSize
         std::memcpy(packet.data() + sizeof(header), payload, payloadSize);
 
     const int length = static_cast<int>(sizeof(header) + payloadSize);
+    // KM-002 Fix: high-frequency movement commands are fire-and-forget — the
+    // old synchronous request/response stalled the aim thread for up to
+    // 80 ms per Move() whenever the device did not ACK. Connect/monitor/click
+    // keep the confirmed transaction.
     const int maxAttempts = (command == kCommandConnect || command == kCommandMonitor) ? 3 : 1;
     for (int attempt = 0; attempt < maxAttempts; ++attempt) {
         const int sent = sendto(g_commandSocket.get(),
@@ -154,6 +161,8 @@ bool Request(std::uint32_t command, const void* payload, std::size_t payloadSize
             SetError("Falha ao enviar comando ao KMBox-Net.");
             return false;
         }
+        if (!expectReply)
+            return true;
         std::array<std::uint8_t, 1024> response{};
         sockaddr_in source{};
         int sourceLength = sizeof(source);
@@ -189,6 +198,15 @@ void MonitorLoop(std::stop_token stopToken) {
             continue;
         MonitorMouseReport report{};
         std::memcpy(&report, buffer.data(), sizeof(report));
+        // KM-003 Fix: pin the report header byte on the first valid reports of
+        // this monitor session and reject every datagram that does not match
+        // afterwards. A spoofed packet must now guess the learned reportId
+        // instead of sending any ≥8-byte payload from the device's IP.
+        const int learned = g_monitorReportId.load(std::memory_order_acquire);
+        if (learned < 0)
+            g_monitorReportId.store(report.reportId, std::memory_order_release);
+        else if (report.reportId != static_cast<std::uint8_t>(learned))
+            continue;
         g_buttonMask.store(static_cast<std::uint8_t>(report.buttons & 0x1Fu),
                            std::memory_order_relaxed);
     }
@@ -228,6 +246,7 @@ bool StartMonitor() {
     }
 
     g_monitorRunning = true;
+    g_monitorReportId.store(-1, std::memory_order_release); // KM-003: relearn per session
     g_monitorThread = std::jthread([](std::stop_token stopToken) {
         try {
             MonitorLoop(stopToken);
@@ -246,17 +265,21 @@ void StopMonitor(bool notifyDevice) {
     if (notifyDevice && g_commandSocket)
         Request(kCommandMonitor, nullptr, 0, 0, true);
     g_monitorRunning = false;
-    if (g_monitorSocket) {
-        g_monitorSocket.reset();
-    }
+    // KM-004 Fix: signal + join BEFORE closing the socket — the old order
+    // closed the handle the monitor thread was blocked in, leaving a window
+    // where the OS could recycle the socket handle for another resource.
     if (g_monitorThread.joinable()) {
         g_monitorThread.request_stop();
         g_monitorThread.join();
     }
+    if (g_monitorSocket) {
+        g_monitorSocket.reset();
+    }
+    g_monitorReportId.store(-1, std::memory_order_release);
     g_buttonMask = 0;
 }
 
-} // namespace
+}
 
 bool Connect(const std::string& ip, int port, const std::string& uuid) {
     Disconnect();
@@ -335,7 +358,8 @@ bool Move(int x, int y) {
     payload.buttons = g_buttons.load(std::memory_order_relaxed);
     payload.x = std::clamp(x, -32767, 32767);
     payload.y = std::clamp(y, -32767, 32767);
-    return Request(kCommandMouseMove, &payload, sizeof(payload));
+    // KM-002 Fix: movement does not wait for the device ACK (see Request).
+    return Request(kCommandMouseMove, &payload, sizeof(payload), 0, false, false);
 }
 
 bool SetLeft(bool down) {
@@ -361,4 +385,4 @@ std::string LastError() {
     return g_lastError;
 }
 
-} // namespace kmbox_net
+}

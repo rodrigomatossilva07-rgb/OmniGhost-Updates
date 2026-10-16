@@ -1,5 +1,5 @@
-# CS2 Radar WebApp Memory Optimization Script
-# Optimizes assets and adds lazy loading for reduced memory footprint
+
+
 
 param(
     [Parameter(Mandatory=$true)][string]$RadarDir,
@@ -19,20 +19,20 @@ function Log([string]$Message) {
 
 function Optimize-MapAssets {
     Log "Optimizing map assets..."
-    
+
     if (-not (Test-Path $MapsDir)) {
         Write-Warning "Maps directory not found: $MapsDir"
         return
     }
-    
+
     $maps = Get-ChildItem -Path $MapsDir -Directory
     foreach ($map in $maps) {
         $radarPath = Join-Path $map.FullName 'radar.png'
         $overlayPath = Join-Path $map.FullName 'overlay_buyzones.png'
         $overlayLogosPath = Join-Path $map.FullName 'overlay_logos.png'
         $metaPath = Join-Path $map.FullName 'meta.json5'
-        
-        # Add lazy loading hints to meta.json5
+
+
         if (Test-Path $metaPath) {
             $meta = Get-Content -Path $metaPath -Raw -Encoding UTF8
             if ($meta -notmatch '"lazyLoad"') {
@@ -41,24 +41,24 @@ function Optimize-MapAssets {
                 Log "Added lazyLoad flag to $($map.Name)/meta.json5"
             }
         }
-        
-        # Note: Image compression happens in Compress-Assets.ps1
-        # This script focuses on structural optimizations
+
+
+
     }
 }
 
 function Add-LazyLoadingToIndex {
     Log "Adding lazy loading to index.html..."
-    
+
     $indexPath = Join-Path $RadarDir 'index.html'
     if (-not (Test-Path $indexPath)) {
         Write-Warning "index.html not found"
         return
     }
-    
+
     $html = Get-Content -Path $indexPath -Raw -Encoding UTF8
-    
-    # Add preload hints for critical assets
+
+
     if ($html -notmatch 'rel="preload"') {
         $preload = @'
     <link rel="preload" as="image" href="img/icon-64x64.png">
@@ -67,37 +67,37 @@ function Add-LazyLoadingToIndex {
 '@
         $html = $html -replace '(</head>)', "$preload`n$1"
     }
-    
-    # Add loading="lazy" to non-critical images
+
+
     if ($html -notmatch 'loading="lazy"') {
         $html = $html -replace '<img([^>]*src="img/[^"]*")', '<img$1 loading="lazy"'
     }
-    
-    # Add defer to non-critical scripts
+
+
     if ($html -notmatch 'defer') {
         $html = $html -replace '<script src="(renderers/[^"]+\.js)"', '<script src="$1" defer'
     }
-    
+
     Set-Content -Path $indexPath -Value $html -Encoding UTF8
     Log "Updated index.html with lazy loading optimizations"
 }
 
 function Optimize-Renderers {
     Log "Optimizing renderer modules for lazy loading..."
-    
+
     if (-not (Test-Path $RenderersDir)) {
         Write-Warning "Renderers directory not found"
         return
     }
-    
+
     $files = Get-ChildItem -Path $RenderersDir -Filter '*.js'
     foreach ($file in $files) {
         $content = Get-Content -Path $file.FullName -Raw -Encoding UTF8
         $modified = $false
-        
-        # Add lazy initialization pattern
+
+
         if ($content -notmatch 'lazyInit' -and $content -match 'function\s+\w+\s*\(') {
-            # Add lazy init wrapper
+
             $header = @'
 // Lazy initialization wrapper
 (function() {
@@ -114,8 +114,8 @@ function Optimize-Renderers {
             Set-Content -Path $file.FullName -Value $content -Encoding UTF8
             $modified = $true
         }
-        
-        # Minify (basic)
+
+
         if ($content.Length -gt 5000) {
             $minified = $content -replace '(?s)/\*.*?\*/', '' -replace '(?m)^\s*//.*$', '' -replace '\s+', ' ' -replace '\s*([{}();,])\s*', '$1'
             if ($minified.Length -lt $content.Length) {
@@ -123,7 +123,7 @@ function Optimize-Renderers {
                 $modified = $true
             }
         }
-        
+
         if ($modified) {
             Log "Optimized $($file.Name)"
         }
@@ -132,15 +132,15 @@ function Optimize-Renderers {
 
 function Optimize-CSS {
     Log "Optimizing CSS..."
-    
+
     $files = Get-ChildItem -Path $CssDir -Filter '*.css'
     foreach ($file in $files) {
         $content = Get-Content -Path $file.FullName -Raw -Encoding UTF8
-        
-        # Basic minification
+
+
         $minified = $content -replace '(?s)/\*.*?\*/', '' -replace '\s+', ' ' -replace '\s*([{};:,])\s*', '$1' -replace '\s+', ' '
         $minified = $minified.Trim()
-        
+
         if ($minified.Length -lt $content.Length) {
             Set-Content -Path $file.FullName -Value $minified -Encoding UTF8 -NoNewline
             Log "Minified $($file.Name): $($content.Length) -> $($minified.Length) bytes"
@@ -150,21 +150,21 @@ function Optimize-CSS {
 
 function Create-LazyLoadModule {
     Log "Creating lazy load module..."
-    
+
     $lazyModule = @'
 // Lazy Loading Module for CS2 Radar
 // Loads non-critical assets on demand
 
 (function() {
     'use strict';
-    
+
     const loadedModules = new Set();
     const loadPromises = new Map();
-    
+
     window.radarLoadModule = async function(moduleName) {
         if (loadedModules.has(moduleName)) return;
         if (loadPromises.has(moduleName)) return loadPromises.get(moduleName);
-        
+
         const promise = (async () => {
             try {
                 const script = document.createElement('script');
@@ -181,33 +181,33 @@ function Create-LazyLoadModule {
                 throw e;
             }
         })();
-        
+
         loadPromises.set(moduleName, promise);
         return promise;
     };
-    
+
     // Preload critical modules
     const criticalModules = ['_init', '_global', '_map'];
     criticalModules.forEach(m => radarLoadModule(m));
-    
+
     // Lazy load on user interaction
     let interactionLoaded = false;
     function loadOnInteraction() {
         if (interactionLoaded) return;
         interactionLoaded = true;
-        
-        ['_settings', '_socket', 'playerPosition', 'droppedWeapons', 'bomb', 'bombTimer', 
+
+        ['_settings', '_socket', 'playerPosition', 'droppedWeapons', 'bomb', 'bombTimer',
          'advisory', 'smokes', 'projectiles', 'teamPanel', 'rttMonitor'].forEach(m => {
             radarLoadModule(m).catch(console.error);
         });
     }
-    
+
     ['click', 'keydown', 'mousemove', 'touchstart'].forEach(evt => {
         document.addEventListener(evt, loadOnInteraction, { once: true, passive: true });
     });
 })();
 '@
-    
+
     $outputPath = Join-Path $RenderersDir 'lazy-load.js'
     Set-Content -Path $outputPath -Value $lazyModule -Encoding UTF8 -NoNewline
     Log "Created lazy-load.js module"
@@ -215,7 +215,7 @@ function Create-LazyLoadModule {
 
 function Update-ResourceManifest {
     Log "Updating resource manifest for lazy loading..."
-    
+
     $manifestPath = Join-Path $RadarDir 'manifest.json'
     $manifest = @{
         version = "1.0"
@@ -238,13 +238,13 @@ function Update-ResourceManifest {
             'maps/*/overlay_buyzones.png'
         )
     }
-    
+
     $json = $manifest | ConvertTo-Json -Depth 5 -Compress
     Set-Content -Path $manifestPath -Value $json -Encoding UTF8
     Log "Updated manifest.json"
 }
 
-# Main
+
 Write-Host "=== CS2 Radar Memory Optimization ==="
 Write-Host "Target directory: $RadarDir"
 

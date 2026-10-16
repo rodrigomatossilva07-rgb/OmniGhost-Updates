@@ -16,9 +16,9 @@ inline std::string Version(std::string_view raw) {
 }
 
 inline std::string Date(std::string_view iso) {
-    // Release metadata is ISO-8601. Product UI always renders a compact,
-    // locale-independent DD/MM/YYYY form so the same date never changes style
-    // from page to page.
+
+
+
     if (iso.size() >= 10 && iso[4] == '-' && iso[7] == '-') {
         const bool digits =
             iso[0] >= '0' && iso[0] <= '9' && iso[1] >= '0' && iso[1] <= '9' &&
@@ -66,4 +66,4 @@ inline std::string DateTimeLocal(std::time_t timestamp) {
     return out;
 }
 
-} // namespace UiFormat
+}

@@ -1,6 +1,8 @@
 #pragma once
 #include <atomic>
+#include <mutex>
 #include <string>
+#include <string_view>
 #include "../globals.h"
 
 namespace OmniGhost::OffsetAuto {
@@ -28,21 +30,30 @@ struct CompatibilitySnapshot {
     std::string detail;
 };
 
-// Human-readable status for overlay (UTF-8).
-extern std::string g_status;
+
+
+
+
+
+
+struct StatusProxy {
+    [[nodiscard]] operator std::string() const;
+    StatusProxy& operator=(std::string_view value);
+};
+inline StatusProxy g_status{};
 extern std::atomic_bool g_busy;
 
-// Refreshes the supported data source and reloads local offsets. This function
-// never discovers, launches or depends on an external executable.
+
+
 Result EnsureOffsets(ActiveGame game, bool force_refresh = false);
 
-// True if critical offsets look usable after load (no full self-test).
+
 bool HasCriticalOffsets(ActiveGame game);
 
-// Full in-game probe (requires process already attached when possible).
+
 bool ValidateLive(ActiveGame game);
 
-// Lobby-safe structural probe after attach. False => offsets outdated, do not open menu.
+
 bool SoftProbeLive(ActiveGame game);
 const char* SoftProbeFailReason(ActiveGame game);
 
@@ -54,7 +65,7 @@ void MarkUnsupported(ActiveGame game, const std::string& detail);
 bool BlocksLaunch(ActiveGame game);
 bool SupportsAutomaticRefresh(ActiveGame game);
 
-// Best-effort refresh for every game that supports the cheatoffsets API.
+
 int RefreshAllSupported(bool force = false);
 
-} // namespace OmniGhost::OffsetAuto
+}

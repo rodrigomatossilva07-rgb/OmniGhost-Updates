@@ -16,12 +16,12 @@ struct Status {
     std::string detail;
 };
 
-// Safe to call every frame while the Library is visible. It starts a bounded,
-// background Steam query at most once per refresh interval.
+
+
 void StartForLibrary();
 
-// Returns a value copy. The local offset-file timestamp is re-evaluated here,
-// so a manual offset update clears an existing warning without restarting.
+
+
 Status Get(GameId game);
 
-} // namespace Launcher::SteamGameUpdateCheck
+}

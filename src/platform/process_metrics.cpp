@@ -64,4 +64,4 @@ std::string FormatProcessMetrics(const ProcessMetrics& metrics) {
     return out.str();
 }
 
-} // namespace OmniGhost::Platform
+}

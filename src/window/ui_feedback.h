@@ -16,11 +16,11 @@ enum class SoundEvent {
     Admin
 };
 
-// Audio is synthesized locally into short PCM buffers. No sound assets,
-// device identifiers, or user data leave the process.
+
+
 void Initialize() noexcept;
 void Shutdown() noexcept;
 void Play(SoundEvent event) noexcept;
 void PlayStartupOnce() noexcept;
 
-} // namespace OmniGhost::UiFeedback
+}

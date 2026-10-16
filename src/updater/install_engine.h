@@ -21,11 +21,11 @@ struct InstallOptions {
 struct InstallResult { bool success{}; std::string error; };
 InstallResult InstallSingleExecutable(const InstallOptions& options);
 bool HasEnoughDiskSpace(const std::filesystem::path& path, std::uint64_t requiredBytes, std::string& error);
-// Applies a protected DACL granting full access only to SYSTEM, Administrators and
-// the current user. Directories use inheritable ACEs so extracted children keep
-// the same trust boundary.
+
+
+
 bool RestrictPathToCurrentUser(const std::filesystem::path& path, bool directory, std::string& error);
 
-// Validates that a path is safe for archive extraction (no traversal, reserved names, etc.)
+
 bool SafeRelative(const std::filesystem::path& path);
 }

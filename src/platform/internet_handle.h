@@ -33,4 +33,4 @@ using UniqueWinInetHandle = BasicInternetHandle<&InternetCloseHandle>;
     return UniqueWinInetHandle(handle);
 }
 
-} // namespace OmniGhost::Platform
+}

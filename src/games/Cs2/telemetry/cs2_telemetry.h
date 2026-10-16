@@ -52,4 +52,4 @@ extern std::atomic<float> last_flags_ms;
 void NotePossibleDeviceStall(float duration_ms) noexcept;
 void ResetSession() noexcept;
 
-} // namespace CS2::Telemetry
+}

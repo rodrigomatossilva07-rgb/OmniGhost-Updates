@@ -9,10 +9,10 @@ namespace BrandAssets {
     bool Initialize(ID3D11Device* device, HINSTANCE instance = nullptr);
     void Shutdown();
 
-    ImTextureID GetLogoTexture(); // nullptr if unavailable
+    ImTextureID GetLogoTexture();
     int GetLogoWidth();
     int GetLogoHeight();
 
     void ApplyWindowIcon(HWND hwnd, HINSTANCE instance = nullptr);
 
-} // namespace BrandAssets
+}

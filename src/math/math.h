@@ -30,7 +30,7 @@ public:
     Vec3(float x, float y, float z) : x(x), y(y), z(z) {}
     Vec3(const DirectX::SimpleMath::Vector3& other) : x(other.x), y(other.y), z(other.z) {}
 
-    // FIXED: Made world_to_screen const-correct
+
     bool world_to_screen(const DirectX::SimpleMath::Matrix& view_matrix, Vec2& out) const;
     const bool IsZero() const;
     Vec3 operator+(const Vec3& other) const;

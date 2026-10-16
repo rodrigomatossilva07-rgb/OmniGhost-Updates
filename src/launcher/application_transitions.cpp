@@ -112,4 +112,4 @@ void EndGameSessionWithTransition(Overlay& application,
     (void)teardown.get();
 }
 
-} // namespace OmniGhost::UI
+}

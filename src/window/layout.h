@@ -8,11 +8,11 @@
 namespace CyberLayout {
 
 enum class Breakpoint {
-    Small,      // < 800px width
-    Medium,     // 800px - 1200px
-    Large,      // 1200px - 1600px
-    XLarge,     // 1600px - 2560px
-    XXLarge     // > 2560px (4K, ultrawide)
+    Small,
+    Medium,
+    Large,
+    XLarge,
+    XXLarge
 };
 
 struct LayoutMetrics {
@@ -107,4 +107,4 @@ struct LocalizedString {
 
 void AuditLocalizationCoverage();
 
-} // namespace CyberLayout
+}

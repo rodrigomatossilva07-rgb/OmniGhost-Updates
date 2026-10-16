@@ -10,20 +10,20 @@
 
 namespace {
 
-// ============================================================
-// FIVEM CONFIG ADAPTER FOR UNIFIED PREVIEW
-// ============================================================
+
+
+
 
 struct FivemPreviewAdapter : EspPreview::IConfigAdapter {
     const EspPreview::PreviewConfig& GetPreviewConfig() const override {
         static EspPreview::PreviewConfig cfg;
-        // Map FiveM config to unified preview config
+
         cfg.esp_enabled = esp::config.enabled;
         cfg.box = esp::config.box_2d;
         cfg.box_corner = esp::config.corner_box;
         cfg.box_fill = esp::config.filled_box;
         cfg.box_thickness = esp::config.box_thickness;
-        cfg.box_rounding = 0.f; // FiveM doesn't have box rounding
+        cfg.box_rounding = 0.f;
 
         cfg.skeleton = esp::config.skeleton;
         cfg.skeleton_joints = esp::config.joints;
@@ -35,13 +35,13 @@ struct FivemPreviewAdapter : EspPreview::IConfigAdapter {
 
         cfg.health_bar = esp::config.health_bar;
         cfg.armor_bar = esp::config.armor_bar;
-        cfg.health_value = false; // FiveM doesn't have health value
+        cfg.health_value = false;
         cfg.armor_value = false;
 
         cfg.name = esp::config.player_name;
         cfg.distance = esp::config.distance;
         cfg.weapon_name = esp::config.weapon_name;
-        cfg.weapon_ammo = false; // FiveM doesn't have ammo
+        cfg.weapon_ammo = false;
         cfg.text_outline = true;
         cfg.text_outline_thickness = 1.f;
 
@@ -61,7 +61,7 @@ struct FivemPreviewAdapter : EspPreview::IConfigAdapter {
         cfg.chinese_hat_scale = esp::config.chinese_hat_scale;
         cfg.fun_effects_scale = esp::config.fun_effects_scale;
 
-        // Colors - convert ImU32 to float[4]
+
         auto u32ToFloat = [](ImU32 c, float out[4]) {
             out[0] = ((c >> 0) & 0xFF) / 255.f;
             out[1] = ((c >> 8) & 0xFF) / 255.f;
@@ -71,7 +71,7 @@ struct FivemPreviewAdapter : EspPreview::IConfigAdapter {
 
         u32ToFloat(esp::config.color_box_2d, cfg.col_box);
         u32ToFloat(esp::config.color_corner_box, cfg.col_box_corner);
-        u32ToFloat(esp::config.color_box_2d, cfg.col_box_fill); // use same as box
+        u32ToFloat(esp::config.color_box_2d, cfg.col_box_fill);
         u32ToFloat(esp::config.color_skeleton, cfg.col_skeleton);
         u32ToFloat(esp::config.color_skeleton_points, cfg.col_joints);
         u32ToFloat(esp::config.color_head_circle, cfg.col_head);
@@ -114,7 +114,7 @@ struct FivemPreviewAdapter : EspPreview::IConfigAdapter {
 
 static FivemPreviewAdapter g_fivemAdapter;
 
-} // namespace
+}
 
 void DrawFivemVisuals() {
     const float full = ImGui::GetContentRegionAvail().x;
@@ -124,7 +124,7 @@ void DrawFivemVisuals() {
     const float previewWidth = stacked ? full : std::clamp(full * 0.30f, CyberTheme::Px(250.f), CyberTheme::Px(310.f));
     const float columnWidth = stacked ? full : (full - previewWidth - 2.f * gap) * 0.5f;
 
-    // ---- FEATURES COLUMN ----
+
     ImGui::BeginChild("##fm_visual_features", ImVec2(columnWidth, childHeight), false, ImGuiWindowFlags_AlwaysVerticalScrollbar);
     CyberWidgets::BeginCard("ESP DE JOGADORES");
     CyberWidgets::ToggleSwitch("Ativar ESP", &esp::config.enabled);
@@ -135,7 +135,9 @@ void DrawFivemVisuals() {
     CyberWidgets::ToggleSwitch("Cores por visibilidade", &esp::config.visibility_colors);
     CyberWidgets::ToggleSwitch("Ocultar equipa", &esp::config.team_check);
     CyberWidgets::ToggleSwitch("Mostrar mortos", &esp::config.show_dead);
-    CyberWidgets::ToggleSwitch("Mostrar caídos", &esp::config.show_knocked);
+    // FIVEM-004 Fix: "caído" (knocked) has no data source in FiveM (GTA has no
+    // downed state like CS2/Rust) — the toggle was inert. Hidden until a
+    // derived state (health/animation) exists.
     CyberWidgets::ToggleSwitch("NPCs", &esp::config.npc_esp);
     CyberWidgets::Separator();
     CyberWidgets::SectionTitle("ELEMENTOS");
@@ -177,7 +179,7 @@ void DrawFivemVisuals() {
 
     if (!stacked) ImGui::SameLine(0.f, gap);
 
-    // ---- COLORS COLUMN ----
+
     ImGui::BeginChild("##fm_visual_colors", ImVec2(columnWidth, childHeight), false, ImGuiWindowFlags_AlwaysVerticalScrollbar);
     CyberWidgets::BeginCard("PERSONALIZAÇÃO");
     CyberWidgets::ToggleSwitch("Modo RGB", &esp::config.rgb_mode);
@@ -186,7 +188,7 @@ void DrawFivemVisuals() {
     ImGui::ColorEdit4("Visível", (float*)&esp::config.color_visible, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     ImGui::ColorEdit4("Oculto", (float*)&esp::config.color_invisible, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     ImGui::ColorEdit4("Morto", (float*)&esp::config.color_dead, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
-    ImGui::ColorEdit4("Caído", (float*)&esp::config.color_knocked, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
+    // FIVEM-004: "Caído" hidden — no knocked state exists in FiveM.
     ImGui::ColorEdit4("Equipa", (float*)&esp::config.color_team, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     CyberWidgets::Separator();
     CyberWidgets::SectionTitle("DESENHO");
@@ -216,7 +218,7 @@ void DrawFivemVisuals() {
 
     if (!stacked) ImGui::SameLine(0.f, gap);
 
-    // ---- PREVIEW PANEL ----
+
     ImGui::BeginChild("##fm_visual_preview", ImVec2(previewWidth, childHeight), false);
     CyberWidgets::BeginCard("PRÉ-VISUALIZAÇÃO", previewWidth);
 

@@ -16,13 +16,13 @@ OmniGhost::Gameplay::SnapshotExchange<Config> g_config_snapshots;
 std::atomic<uint64_t> g_last_publish_ms{0};
 std::atomic<uint64_t> g_snapshot_drops{0};
 std::atomic<float> g_acquisition_hz{0.f};
-// CS2-008 Fix: camera-lane view of producer state. The camera thread used to
-// read runtime.client_base/runtime.in_match directly — plain fields written
-// by the acquisition thread (C++ data race). Publish mirrors them atomically.
+
+
+
 std::atomic<uintptr_t> g_published_client_base{0};
 std::atomic<bool> g_published_in_match{false};
 
-} // namespace
+}
 
 void Publish(Runtime& source, uint64_t generation, uint64_t read_fails) {
     const uint64_t now = GetTickCount64();
@@ -32,15 +32,15 @@ void Publish(Runtime& source, uint64_t generation, uint64_t read_fails) {
             1000.0f / static_cast<float>(now - previous), std::memory_order_relaxed);
     }
 
-    // BUG-007 Fix: Build snapshot in local temporary to avoid global 'runtime'
-    // being in a partially-published state during move assignment.
-    // CS2-001 Fix: the hand-written move constructor copies the scalar identity
-    // fields (client_base/engine_base/entity list/strides/local state/...) and
-    // only moves the per-scan vectors (players/spectators/dropped_weapons).
-    // The accumulator must keep the identity fields — the next scan depends on
-    // client_base/entity_list_entry to run at all — so Publish must never
-    // reinitialize `source`. Vectors are moved out (per-scan clear); scalars
-    // stay valid for the next acquisition tick.
+
+
+
+
+
+
+
+
+
     Runtime snapshot = std::move(source);
     snapshot.snapshot_timestamp_ms = now;
     snapshot.session_generation = generation;
@@ -61,11 +61,11 @@ void Publish(Runtime& source, uint64_t generation, uint64_t read_fails) {
     g_published_client_base.store(slot.value->client_base, std::memory_order_release);
     g_published_in_match.store(slot.value->in_match, std::memory_order_release);
     WebRadar::SubmitSnapshot(*slot.value);
-    // CS2-001 Fix: do NOT reset `source` here. Resetting destroyed the module
-    // bases and entity-list cache (client_base=0 permanently → every later
-    // scan early-returned), which killed ESP/aim/radar/bones until re-attach.
-    // Per-scan counters are zeroed and vectors cleared at scan start in
-    // RunFrameWithConfig; identity/scalar fields survive by design.
+
+
+
+
+
 }
 
 RuntimeSnapshotLease Acquire() {
@@ -122,4 +122,4 @@ bool PublishedInMatch() noexcept {
     return g_published_in_match.load(std::memory_order_acquire);
 }
 
-} // namespace CS2::RuntimePipeline
+}

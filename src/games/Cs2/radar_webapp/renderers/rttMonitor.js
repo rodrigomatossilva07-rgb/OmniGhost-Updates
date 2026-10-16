@@ -1,25 +1,25 @@
-﻿// Lazy initialization wrapper
+
 (function() {
     if (typeof window.radarLazyInit === 'undefined') {
         window.radarLazyInit = [];
     }
     window.radarLazyInit.push(function() {
-// WebRadar RTT monitor (Task 14)
-// Polls /api/ping every 1.5s, computes round-trip time median over the last
-// 20 samples, and updates the #conn-status indicator. Dispatches "rttupdate"
-// CustomEvents on document with detail { rtt, status } where status is one of
-// "connecting" | "live" | "error".
+
+
+
+
+
 
 (function () {
   "use strict";
 
-  var PING_INTERVAL = 1500;   // cadence between ping requests
-  var PING_TIMEOUT = 2000;    // fetch abort threshold; >this means trouble
+  var PING_INTERVAL = 1500;
+  var PING_TIMEOUT = 2000;
   var MAX_SAMPLES = 20;
-  var LIVE_RTT_THRESHOLD = 2000;  // status flips to "error" at/above this RTT
+  var LIVE_RTT_THRESHOLD = 2000;
 
-  var samples = [];           // recent RTT samples (ms)
-  var status = "connecting";  // current status
+  var samples = [];
+  var status = "connecting";
   var timer = null;
 
   var indicator = document.getElementById("conn-status");
@@ -83,13 +83,13 @@
         render();
       })
       .catch(function () {
-        // AbortError (timeout) or network failure — both mean we can't reach the server.
+
         setStatus("error", 0);
       });
   }
 
   function start() {
-    render(); // initial "connecting" state
+    render();
     pingOnce();
     timer = setInterval(pingOnce, PING_INTERVAL);
   }

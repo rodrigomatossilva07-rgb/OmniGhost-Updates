@@ -11,64 +11,64 @@
 
 namespace OmniGhost::Gameplay {
 
-/**
- * @brief Single-Producer / Multi-Consumer Lock-Free Snapshot Exchange
- *
- * THREADING MODEL:
- * ----------------
- * This class implements a lock-free snapshot exchange with the following guarantees:
- *
- * 1. SINGLE PRODUCER: Only ONE thread may call TryBeginWrite() and Publish().
- *    The producer thread is registered on first use (debug builds assert on violation).
- *    Legitimate producer handoff (e.g., main thread init → worker thread) requires
- *    calling ResetProducerThread() while no other producer is active.
- *
- * 2. MULTI CONSUMER: Any number of threads may call Acquire() simultaneously.
- *    Each Acquire() returns a ReadLease that pins the current snapshot.
- *    ReadLease destructor automatically unpins (reference counting).
- *
- * 3. SLOT COUNT: Minimum 3 slots (enforced by static_assert).
- *    - Slot 0: Published snapshot (readers may hold)
- *    - Slot 1: Next snapshot being written (producer owns)
- *    - Slot 2: Spare/previous snapshot (readers may still hold)
- *    This prevents a slow renderer from blocking the acquisition thread.
- *
- * 4. MEMORY ORDERING:
- *    - Publish(): release store to published_ + generation increment (release)
- *    - Acquire(): acquire load of published_, then acquire fence via reader count
- *    - This ensures snapshot writes are visible to readers after Acquire() returns.
- *
- * 5. ABA PROTECTION: Generation counter increments on each Publish().
- *    Consumers can track Generation() to detect missed snapshots.
- *
- * 6. NON-BLOCKING: TryBeginWrite() never waits. Returns empty if no free slot.
- *    Acquire() spin-locks briefly on publication race (typically 1 iteration).
- *
- * USAGE PATTERNS:
- * --------------
- * Producer (acquisition thread):
- *     auto slot = exchange.TryBeginWrite();
- *     if (slot) {
- *         *slot.value = new_snapshot;
- *         exchange.Publish(slot.index);
- *     }
- *
- * Consumer (render thread):
- *     if (auto lease = exchange.Acquire()) {
- *         use(*lease);  // immutable snapshot
- *     }  // auto-unpin on lease destruction
- *
- * Producer handoff (initialization):
- *     // Main thread publishes initial snapshot
- *     exchange.ResetProducerThread();  // allow worker to become producer
- *     // Worker thread now owns production
- */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 template <typename T, std::size_t SlotCount = 3>
 class SnapshotExchange final {
     static_assert(SlotCount >= 3, "Three slots prevent a slow renderer from blocking acquisition");
 
 public:
-    // ... rest of class unchanged
+
     class ReadLease final {
     public:
         ReadLease() = default;
@@ -141,16 +141,16 @@ public:
     void Publish(std::uint32_t slot) noexcept {
         AssertSingleProducer();
         if (slot >= SlotCount) return;
-        // BUG-003 Fix: Increment generation FIRST (seq_cst), THEN publish slot (release).
-        // This prevents ABA: reader seeing new generation with old published slot.
-        // seq_cst on generation ensures all prior writes (to the slot) are visible
-        // before the generation increment becomes visible to other threads.
+
+
+
+
         generation_.fetch_add(1, std::memory_order_seq_cst);
         published_.store(slot, std::memory_order_release);
     }
 
     [[nodiscard]] ReadLease Acquire() const noexcept {
-        // BUG-018 Fix: Exponential backoff on publication race to avoid CPU burn
+
         unsigned spin = 0;
         for (;;) {
             const std::uint32_t slot = published_.load(std::memory_order_acquire);
@@ -158,12 +158,12 @@ public:
             if (slot == published_.load(std::memory_order_acquire))
                 return ReadLease(this, slot, &slots_[slot]);
             readers_[slot].fetch_sub(1, std::memory_order_release);
-            
-            // Backoff: yield, then sleep with increasing delay
+
+
             if (spin < 4) {
                 std::this_thread::yield();
             } else if (spin < 16) {
-                std::this_thread::sleep_for(std::chrono::microseconds(1 << (spin - 4))); // 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048 us
+                std::this_thread::sleep_for(std::chrono::microseconds(1 << (spin - 4)));
             } else {
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
             }
@@ -175,8 +175,8 @@ public:
         return generation_.load(std::memory_order_acquire);
     }
 
-    // Call only after the previous producer has stopped (or before its first
-    // publication). This permits an explicit main-thread -> worker handoff.
+
+
     void ResetProducerThread() noexcept {
 #ifndef NDEBUG
         producer_thread_.store(0, std::memory_order_relaxed);
@@ -188,14 +188,14 @@ private:
     mutable std::array<std::atomic<std::uint32_t>, SlotCount> readers_{};
     std::atomic<std::uint32_t> published_{0};
     std::atomic<std::uint64_t> generation_{0};
-    std::uint32_t write_cursor_ = 0; // producer-only
+    std::uint32_t write_cursor_ = 0;
 
 #ifndef NDEBUG
-    // Regression guard: this exchanger is single-producer by design
-    // (write_cursor_ is a plain member). A second producer thread is a
-    // data race on both the cursor and the slot payload — fail fast.
-    // A legitimate handoff (e.g. init on main thread, then the worker)
-    // must call ResetProducerThread() while no other producer is running.
+
+
+
+
+
     void AssertSingleProducer() const noexcept {
         const std::uintptr_t self =
             static_cast<std::uintptr_t>(std::hash<std::thread::id>{}(std::this_thread::get_id()));
@@ -211,4 +211,4 @@ private:
 #endif
 };
 
-} // namespace OmniGhost::Gameplay
+}

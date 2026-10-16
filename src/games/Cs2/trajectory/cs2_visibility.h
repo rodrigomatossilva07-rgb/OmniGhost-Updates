@@ -12,8 +12,8 @@ inline bool Finite(Vec3 p) {
     return std::isfinite(p.x) && std::isfinite(p.y) && std::isfinite(p.z);
 }
 
-// In a perspective view-projection matrix the camera lies at x=y=w=0.
-// Solve those three planes, avoiding a guessed standing/crouching eye height.
+
+
 inline std::optional<Vec3> CameraOrigin(const float* matrix) {
     if (!matrix) return std::nullopt;
     double a[3][4]{};
@@ -43,8 +43,8 @@ inline std::optional<Vec3> CameraOrigin(const float* matrix) {
     return Finite(origin) ? std::optional<Vec3>(origin) : std::nullopt;
 }
 
-// Static map geometry only: moving doors/props and smoke are not in the mesh.
-// Unknown is distinct from occluded. One exposed point is enough to be visible.
+
+
 inline std::optional<bool> CheckPoints(const Trajectory::CollisionBvh* world,
                                        Vec3 origin, std::span<const Vec3> points,
                                        int* raysTested = nullptr,
@@ -63,4 +63,4 @@ inline std::optional<bool> CheckPoints(const Trajectory::CollisionBvh* world,
     return tested ? std::optional<bool>(false) : std::nullopt;
 }
 
-} // namespace CS2::Visibility
+}

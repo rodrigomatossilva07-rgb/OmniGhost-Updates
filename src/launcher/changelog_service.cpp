@@ -125,9 +125,9 @@ bool HasDemoText(const std::string& value) {
 }
 
 std::optional<ChangeType> ParseChangeType(const std::string& type) {
-    // Releases produced by older tooling used mixed-case category names.
-    // Normalize the wire value so a cosmetic casing difference cannot poison
-    // the whole changelog refresh.
+
+
+
     std::string normalized;
     normalized.reserve(type.size());
     for (const unsigned char character : type)
@@ -236,8 +236,8 @@ ParseResult ParseChangelog(const std::string& json) {
                 for (const Json& module : *modules)
                     moduleValues.push_back(&module);
             } else if (SharedJson::AsObject(*modulesField) != nullptr) {
-                // Compatibilidade com históricos antigos serializados pelo
-                // Windows PowerShell 5.1 como objeto quando existia um só módulo.
+
+
                 moduleValues.push_back(modulesField);
             }
         }
@@ -269,7 +269,7 @@ ParseResult ParseChangelog(const std::string& json) {
                     for (const Json& change : *changes)
                         changeValues.push_back(&change);
                 } else if (SharedJson::AsObject(*changesField) != nullptr) {
-                    // Mesma compatibilidade para uma única alteração antiga.
+
                     changeValues.push_back(changesField);
                 }
             }
@@ -366,7 +366,7 @@ std::string ReadFile(const fs::path& path) {
             std::istreambuf_iterator<char>()};
 }
 
-} // namespace
+}
 
 ChangelogService& ChangelogService::Instance() {
     static ChangelogService service;
@@ -572,4 +572,4 @@ void ChangelogService::Shutdown() {
     busy_ = false;
 }
 
-} // namespace Launcher
+}

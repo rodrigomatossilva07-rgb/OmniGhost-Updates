@@ -26,7 +26,7 @@ std::string MachineName(USHORT machine) {
     }
 }
 
-} // namespace
+}
 
 SystemInfo CaptureSystemInfo() noexcept {
     SystemInfo info{};
@@ -76,4 +76,4 @@ std::string FormatSystemInfo(const SystemInfo& info) {
     return out.str();
 }
 
-} // namespace OmniGhost::Platform
+}

@@ -21,11 +21,11 @@
 namespace OmniGhost {
 namespace {
 
-constexpr std::uint32_t kMagic = 0x5352474Fu; // "OGRS", little endian
+constexpr std::uint32_t kMagic = 0x5352474Fu;
 constexpr std::uint16_t kFormatVersion = 1;
 constexpr std::size_t kHeaderSize = 52;
-// The PE resource API and our blob header carry uint32_t lengths.  This
-// replaces the old artificial 64 MiB policy, which rejected valid CS2 maps.
+
+
 constexpr std::size_t kMaxEmbeddedResourceSize = (std::numeric_limits<std::uint32_t>::max)();
 
 std::uint16_t Read16(EmbeddedByteView bytes, std::size_t offset) noexcept {
@@ -119,7 +119,7 @@ void LogSuccessfulLoadOnce(const EmbeddedResourceDescriptor& descriptor) {
               << " found=YES header=PASS integrity=PASS decompress=PASS load=PASS\n";
 }
 
-} // namespace
+}
 
 std::optional<EmbeddedByteView> GetPeResourceView(int resourceId) noexcept {
     if (resourceId <= 0 || resourceId > 0xffff) return std::nullopt;
@@ -221,4 +221,4 @@ std::optional<std::vector<std::uint8_t>> LoadEmbeddedResource(
     return LoadEmbeddedResource(descriptor->id, diagnostics);
 }
 
-} // namespace OmniGhost
+}

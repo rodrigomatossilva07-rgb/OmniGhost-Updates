@@ -1,4 +1,4 @@
-// Pawn handle resolution, local state and core player scatter acquisition.
+
 static void CalibratePawnStride(uintptr_t local_controller, uintptr_t local_pawn) {
     static bool calibrated = false;
     static uintptr_t last_local_pawn = 0;
@@ -11,18 +11,18 @@ static void CalibratePawnStride(uintptr_t local_controller, uintptr_t local_pawn
     if (!QReadT(local_controller + offsets.m_hPlayerPawn, handle) || !handle || handle == 0xFFFFFFFF)
         return;
 
-    const uintptr_t with70 = ResolveEntityByHandle(handle, offsets.entity_identity_stride);
+    const uintptr_t with70 = ResolveEntityByHandle(handle, kEntityStrideAlternate);
     if (with70 == local_pawn) {
-        g_pawn_stride = offsets.entity_identity_stride;
+        g_pawn_stride = kEntityStrideAlternate;
         calibrated = true;
         last_local_pawn = local_pawn;
         std::cout << "[CS2] Pawn stride calibrated: 0x70 (handle=0x"
                   << std::hex << handle << std::dec << ")" << std::endl;
         return;
     }
-    const uintptr_t with78 = ResolveEntityByHandle(handle, offsets.entity_identity_stride);
+    const uintptr_t with78 = ResolveEntityByHandle(handle, kEntityStridePrimary);
     if (with78 == local_pawn) {
-        g_pawn_stride = offsets.entity_identity_stride;
+        g_pawn_stride = kEntityStridePrimary;
         calibrated = true;
         last_local_pawn = local_pawn;
         std::cout << "[CS2] Pawn stride calibrated: 0x78 (handle=0x"
@@ -30,7 +30,7 @@ static void CalibratePawnStride(uintptr_t local_controller, uintptr_t local_pawn
         return;
     }
 
-    // Dump diagnostics once so we can see why calibration failed.
+
     static bool dumped = false;
     if (!dumped) {
         dumped = true;
@@ -49,15 +49,16 @@ static uintptr_t ResolvePawnFromHandle(uint32_t handle, uintptr_t expected_local
     if (!handle || handle == 0xFFFFFFFF) return 0;
 
     const uintptr_t primary = g_pawn_stride ? g_pawn_stride : offsets.entity_identity_stride;
-    const uintptr_t alternate = (primary == offsets.entity_identity_stride)
-        ? offsets.entity_identity_stride : offsets.entity_identity_stride;
 
-    // CS2-DMA-main accepts the pointer as-is (no health gate here).
+    const uintptr_t alternate = (primary == kEntityStrideAlternate)
+        ? kEntityStridePrimary : kEntityStrideAlternate;
+
+
     const uintptr_t preferred = ResolveEntityByHandle(handle, primary);
     if (preferred) {
         if (expected_local_pawn && preferred == expected_local_pawn)
             return preferred;
-        // Still accept a valid pointer — main loop filters by health/team.
+
         if (IsUserPointer(preferred))
             return preferred;
     }
@@ -107,8 +108,8 @@ static void UpdateLocalWeaponDefinitionThrottled() {
                                       &handle, sizeof(handle));
         mem.SetDmaCallTag("CS2.LocalWeaponState");
         mem.ExecuteReadScatter(g_scatter_full);
-        // A newly discovered services pointer becomes usable on the next
-        // throttled update; never create a dependent QRead in this lane.
+
+
         if (!handle && IsUserPointer(services) && services != cached_services) {
             cached_services = services;
             next_update_ms = now + 40u;
@@ -154,14 +155,14 @@ static uint32_t ReadPawnHandle(uintptr_t controller) {
     uint32_t handle = 0;
     if (QReadT(controller + offsets.m_hPlayerPawn, handle) && handle && handle != 0xFFFFFFFF)
         return handle;
-    // Spectator / death: fall back to observer pawn handle.
+
     if (offsets.m_hObserverPawn &&
         QReadT(controller + offsets.m_hObserverPawn, handle) && handle && handle != 0xFFFFFFFF)
         return handle;
     return 0;
 }
 
-// Batch-read controller pointers in a single scatter (64 → 1 DMA round-trip).
+
 static int CollectControllers(uintptr_t list_entry, uintptr_t stride, uintptr_t* out, int max_count) {
     int count = 0;
     if (!list_entry || !out || max_count <= 0) return 0;
@@ -199,7 +200,7 @@ static int CollectControllers(uintptr_t list_entry, uintptr_t stride, uintptr_t*
     return count;
 }
 
-// Scatter-read m_hPlayerPawn for every non-null controller in one round-trip.
+
 static void ScatterReadPawnHandles(const uintptr_t* controllers, uint32_t* handles, int count) {
     if (!controllers || !handles || count <= 0) return;
     EnsureScatter();
@@ -224,9 +225,9 @@ static void ScatterReadPawnHandles(const uintptr_t* controllers, uint32_t* handl
     }
 }
 
-// Resolve all Source 2 handles in two DMA round-trips: one for the unique page
-// pointers and one for the entity pointers. Tries both strides in one call
-// to avoid double round-trips when stride is uncertain.
+
+
+
 static int ScatterResolvePawnHandles(const uint32_t* handles, uintptr_t* pawns,
                                      int count, uintptr_t stride,
                                      uintptr_t alternate_stride,
@@ -314,7 +315,7 @@ static int ScatterResolvePawnHandles(const uint32_t* handles, uintptr_t* pawns,
             if (IsUserPointer(chunks[page])) cachedChunks[page] = chunks[page];
     }
 
-    // Try primary stride first
+
     bool queuedEntityPointers = false;
     for (int i = 0; i < count; ++i) {
         const EntityHandleParts parts = DecodeEntityHandle(handles[i]);
@@ -331,7 +332,7 @@ static int ScatterResolvePawnHandles(const uint32_t* handles, uintptr_t* pawns,
         mem.ExecuteReadScatter(scatter);
     }
 
-    // Retain every valid primary result before trying unresolved handles.
+
     int resolved = 0;
     for (int i = 0; i < count; ++i) {
         if (IsUserPointer(pawns[i])) {
@@ -341,8 +342,8 @@ static int ScatterResolvePawnHandles(const uint32_t* handles, uintptr_t* pawns,
         }
     }
 
-    // A sparse refresh contains zero handles for unchanged controllers. Retry
-    // only unresolved handles; never discard valid primary-stride results.
+
+
     if (alternate_stride && alternate_stride != stride) {
         queuedEntityPointers = false;
         for (int i = 0; i < count; ++i) {
@@ -369,13 +370,13 @@ static int ScatterResolvePawnHandles(const uint32_t* handles, uintptr_t* pawns,
     return resolved;
 }
 
-// Core pawn fields in one scatter: health, team, armor, scene node.
+
 struct PawnCoreFields {
-    // -1 means the scatter did not produce a trustworthy value. Zero is a
-    // distinct, confirmed dead state and must never enter dropout grace.
+
+
     int health = -1;
-    uint8_t controller_alive = 0xFF; // 0xFF = read unknown
-    uint64_t controller_steam_id = UINT64_MAX; // unread != bot (zero)
+    uint8_t controller_alive = 0xFF;
+    uint64_t controller_steam_id = UINT64_MAX;
     uint8_t team = 0;
     int armor = 0;
     uintptr_t scene = 0;
@@ -386,8 +387,8 @@ struct PawnCoreFields {
     float flash = 0.f;
     float eye_angles[2]{};
     uintptr_t weapon_services = 0;
-    // BUG-008 Fix: Explicit read success flag — avoids any ambiguity between
-    // "read failed" (health=-1) and "confirmed dead" (health=0).
+
+
     bool read_ok = false;
 };
 
@@ -408,11 +409,11 @@ static void ScatterReadPawnCore(const uintptr_t* pawns, const uintptr_t* control
                                 const bool* refresh_spotted) {
     if (!pawns || !fields || count <= 0) return;
     EnsureScatter();
-    // P1-5: Remove QRead fallback — if scatter handle unavailable, treat as frame drop
-    // to avoid 10+ QReads/player causing massive frame spikes.
+
+
     if (!g_scatter_full) {
         for (int i = 0; i < count; ++i) {
-            fields[i] = PawnCoreFields{}; // mark as unread
+            fields[i] = PawnCoreFields{};
         }
         return;
     }
@@ -449,19 +450,19 @@ static void ScatterReadPawnCore(const uintptr_t* pawns, const uintptr_t* control
             mem.AddScatterReadRequest(g_scatter_full, pawns[i] + offsets.m_ArmorValue,
                                       &fields[i].armor, sizeof(int));
         if (!IsUserPointer(cachedScene) || (refresh_scenes && refresh_scenes[i])) {
-            // A zero sentinel distinguishes a failed metadata refresh from the
-            // previous cached pointer. Origin still uses cachedScene below.
+
+
             fields[i].scene = 0;
             mem.AddScatterReadRequest(g_scatter_full, pawns[i] + offsets.m_pGameSceneNode,
                                       &fields[i].scene, sizeof(uintptr_t));
         }
-        // Weapon services: cache the pointer (stable across rounds, long TTL)
+
         if (need_weapon_services && (!cached_weapon_services || (refresh_weapon_services && refresh_weapon_services[i]))) {
             fields[i].weapon_services = 0;
             mem.AddScatterReadRequest(g_scatter_full, pawns[i] + offsets.m_pWeaponServices,
                                       &fields[i].weapon_services, sizeof(uintptr_t));
         }
-        // Spotted: entity spotted state changes frequently, shorter TTL
+
         if (need_spotted && offsets.m_entitySpottedState && (!cached_spotted || (refresh_spotted && refresh_spotted[i]))) {
             spotted_buf[i] = 0xFF;
             mem.AddScatterReadRequest(g_scatter_full,
@@ -505,8 +506,6 @@ static void ScatterReadPawnCore(const uintptr_t* pawns, const uintptr_t* control
     }
     for (int i = 0; i < count; ++i) {
         fields[i].spotted = (spotted_buf[i] != 0);
-        fields[i].read_ok = true; // BUG-008: Mark read as successful
+        fields[i].read_ok = true;
     }
 }
-
-

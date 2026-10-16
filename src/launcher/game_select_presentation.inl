@@ -1,5 +1,5 @@
-// This implementation fragment is included by game_select.cpp inside Launcher's private namespace.
-// It is separated by responsibility to keep the launcher coordinator reviewable.
+
+
 
 void DrawCornerBracket(
     ImDrawList* draw,
@@ -76,13 +76,13 @@ void DrawBackground(
     draw->AddRectFilledMultiColor(ImVec2(0.f, header), ImVec2(display.x, display.y - footer),
         C_PANEL(252), C_CARD(238), C_BG(252), C_PANEL(244));
 
-    // A static, almost imperceptible texture provides depth without another glow layer.
+
     CyberTheme::DrawSubtleNoise(draw, ImVec2(0.f, header),
         ImVec2(display.x, display.y - footer), performance_mode ? 0.010f : 0.018f,
         0x4F474C41u, performance_mode ? 150 : 330);
 
-    // Each marketplace theme owns a motion signature, not only a colour.
-    // Reduced-motion and performance mode keep every signature static/cheap.
+
+
     const bool animateTheme = !performance_mode && app_settings::MotionEnabled();
     const float motion = animateTheme ? g_time : 0.f;
     switch (CyberTheme::GetVisualStyle()) {
@@ -128,8 +128,8 @@ void DrawBackground(
     }
 
     const float rainDensity = app_settings::DigitalRainDensity();
-    // Rain is a peripheral brand texture, never the foreground.  Keeping it
-    // inside this narrow range also makes the visual stable across monitors.
+
+
     const float rainOpacity = std::clamp(app_settings::DigitalRainOpacity(), 0.02f, 0.04f);
     DigitalRain::Draw(
         draw,
@@ -147,7 +147,7 @@ void DrawBackground(
             ImVec2(display.x, display.y - header - footer), performance_mode,
             app_settings::AnimationScale(), 0.65f);
 
-    // Quiet technical grid: hierarchy comes from spacing and surfaces, not glow.
+
     const float grid = S(performance_mode ? 118.0f : 94.0f);
     const ImU32 minor_grid = CyberTheme::WithAlpha(CyberTheme::Colors.Gold, performance_mode ? 0.004f : 0.008f);
     const ImU32 major_grid = CyberTheme::WithAlpha(CyberTheme::Colors.Gold, performance_mode ? 0.008f : 0.014f);
@@ -286,7 +286,7 @@ void DrawHeader(ImDrawList* draw, ImVec2 display) {
         x += size.x + (display.x < S(900.f) ? S(18.f) : S(28.f));
     }
 
-    // Real, local status only. No "services online" claim is made without a server.
+
     if (display.x >= S(1180.f)) {
         float statusX = (std::max)(x + S(18.f), display.x - S(620.f));
         const float statusRight = display.x - S(254.f);
@@ -614,7 +614,7 @@ void ActivateGame(GameRuntime& runtime) {
         }
         if (!CanStartGame(game.launch_id))
             return;
-        // Dependency / FPGA checks run during the real game launch, not here.
+
         MarkGameUsed(game.launch_id);
         RecordGameSession(game.launch_id, SessionResult::None, {});
         runtime.state = CardState::Launching;
@@ -629,7 +629,7 @@ void ActivateGame(GameRuntime& runtime) {
         PushToast(Loc::Tr("launcher.toast.already_running"), C_MUTED());
         return;
     }
-    // Unavailable/degraded states explain the cause instead of silently doing nothing.
+
     g_help_game = game.launch_id;
 }
 
@@ -637,10 +637,10 @@ void DrawCardContextMenu(const GameDefinition& game, ImVec2 anchor) {
     if (g_card_menu_game != game.launch_id)
         return;
 
-    // Let ImGui own the popup lifetime and input handling. The previous
-    // implementation mixed a raw foreground draw list with manual hit
-    // testing while the card itself lived inside a scrolling child window.
-    // That made the context menu fragile during focus/resize transitions.
+
+
+
+
     char popupId[96]{};
     std::snprintf(popupId, sizeof(popupId), "##game_context_%s",
                   game.id ? game.id : "unknown");
@@ -847,7 +847,7 @@ bool DrawGameCard(ImDrawList* draw, ImVec2 min, ImVec2 max,
                           WithAlpha(status_color, alpha), 10);
     draw->AddText(ImVec2(badge_min.x + S(19.f), badge_min.y + S(3.f)), WithAlpha(C_MUTED(), alpha), status);
 
-    // Persistent pin and maturity badges. A favourite beta game still remains visibly BETA.
+
     float leftBadgeX = card_min.x + S(12.f);
     if (history.favorite) {
         const char* pin = "PIN";
@@ -868,7 +868,7 @@ bool DrawGameCard(ImDrawList* draw, ImVec2 min, ImVec2 max,
         draw->AddText(ImVec2(beta_min.x + S(8.f), beta_min.y + S(3.f)), WithAlpha(accent, alpha), beta);
     }
 
-    // Three-dot context menu has a dedicated hit target and never launches the card.
+
     const ImVec2 moreMin(card_max.x - S(35.f), card_min.y + S(10.f));
     const ImVec2 moreMax(card_max.x - S(8.f), card_min.y + S(39.f));
     const bool moreHovered = ImGui::IsMouseHoveringRect(moreMin, moreMax);
@@ -964,7 +964,7 @@ void DrawLibrary(ImDrawList* draw, ImVec2 display, float delta) {
     char count[72]{};
     std::snprintf(count, sizeof(count), Loc::Tr("launcher.games_available"), visible_count);
 
-    // Search field + always-visible "Procurar atualizações" on the same row.
+
     const float check_btn_w = S(178.f);
     const float check_btn_h = S(34.f);
     const float search_width = display.x < S(720.f) ? S(150.f) : S(220.f);
@@ -1037,7 +1037,7 @@ void DrawLibrary(ImDrawList* draw, ImVec2 display, float delta) {
     }
     if (body) ImGui::PopFont();
 
-    // Update install UI lives in the top-right UpdateUI only (no mid-page banner).
+
     const float gap = display.x < S(760.f) ? S(14.f) : S(20.f);
     const float start_y = top + S(79.f);
     const float footer = S(36.f);

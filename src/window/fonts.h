@@ -9,4 +9,4 @@ namespace CyberFonts {
     ImFont* GetBodyFont();
     ImFont* GetMonoFont();
 
-} // namespace CyberFonts
+}

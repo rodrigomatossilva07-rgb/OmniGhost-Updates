@@ -6,16 +6,16 @@
 
 namespace DigitalRain {
 
-// ============================================================
-// Quality Presets
-// ============================================================
+
+
+
 enum class QualityPreset : uint8_t {
-    Disabled = 0,    // No digital rain
-    Potato = 1,      // Minimum: 16 cols, no constellations, no trails
-    Low = 2,         // 32 cols, no constellations, short trails
-    Medium = 3,      // 64 cols, 4 constellations, medium trails
-    High = 4,        // 96 cols, 7 constellations, full trails
-    Ultra = 5        // 96 cols + extra, 7 constellations, full trails + glow
+    Disabled = 0,
+    Potato = 1,
+    Low = 2,
+    Medium = 3,
+    High = 4,
+    Ultra = 5
 };
 
 struct QualitySettings {
@@ -41,8 +41,8 @@ struct QualitySettings {
     float alphaDecay = 0.028f;
     int linkAlphaMax = 28;
     int nodeAlphaMax = 42;
-    int linkDistanceFactor = 7;  // percentage of min(width,height)
-    
+    int linkDistanceFactor = 7;
+
     static QualitySettings FromPreset(QualityPreset preset) noexcept;
 };
 
@@ -50,9 +50,9 @@ struct QualitySettings {
 void SetQualityPreset(QualityPreset preset) noexcept;
 [[nodiscard]] QualityPreset GetQualityPreset() noexcept;
 
-// ============================================================
-// iGPU Detection & Auto-Fallback
-// ============================================================
+
+
+
 struct GPUInfo {
     std::string vendor;
     std::string renderer;
@@ -65,14 +65,14 @@ struct GPUInfo {
 [[nodiscard]] GPUInfo DetectGPU() noexcept;
 void AutoSelectQualityPreset() noexcept;
 
-// ============================================================
-// Main API
-// ============================================================
 
-// Soft gold matrix rain behind all UI. density_scale controls how many
-// columns/constellations are created (Subtle ≈ 0.28, Full = 1.0).
-// motion_scale is 0 when Reduce Motion is enabled. edge_only keeps the
-// centre calm, useful for authentication forms.
+
+
+
+
+
+
+
 void Initialize();
 void Shutdown();
 void Draw(
@@ -88,13 +88,13 @@ void Draw(
     bool edge_only = false,
     bool draw_constellations = true);
 
-// Gold moving mesh and flowing ribbon shared by launcher and in-game menus.
-// Draw behind controls; motion_scale=0 leaves a static composition.
+
+
 void DrawGoldMotif(ImDrawList* dl, const ImVec2& position, const ImVec2& size,
                    bool performance_mode, float motion_scale,
                    float opacity = 1.0f, float quiet_left_width = 0.0f);
 
-// Dynamic performance scaling - called from PerformanceManager
+
 void SetDynamicDensity(float density_scale) noexcept;
 void SetDynamicMotionScale(float motion_scale) noexcept;
 void SetDynamicConstellationDensity(float density_scale) noexcept;
@@ -102,19 +102,19 @@ void SetDynamicConstellationDensity(float density_scale) noexcept;
 [[nodiscard]] float GetDynamicMotionScale() noexcept;
 [[nodiscard]] float GetDynamicConstellationDensity() noexcept;
 
-// Quality control
+
 void SetQualityPreset(QualityPreset preset) noexcept;
 [[nodiscard]] QualityPreset GetQualityPreset() noexcept;
-void SetQualityPresetOverride(QualityPreset preset) noexcept;  // Force preset (disables auto)
+void SetQualityPresetOverride(QualityPreset preset) noexcept;
 [[nodiscard]] bool IsQualityOverrideActive() noexcept;
 
-// iGPU fallback
+
 void SetIGPUFallbackEnabled(bool enabled) noexcept;
 [[nodiscard]] bool IsIGPUFallbackEnabled() noexcept;
 void ApplyIGPUFallback() noexcept;
 
-// Advanced settings
+
 void SetCustomQualitySettings(const struct QualitySettings& settings) noexcept;
 [[nodiscard]] struct QualitySettings GetCurrentQualitySettings() noexcept;
 
-} // namespace DigitalRain
+}

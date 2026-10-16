@@ -43,4 +43,4 @@ bool AsUInt64(const Value& value, std::uint64_t& output) noexcept;
 bool AsInt64(const Value& value, std::int64_t& output) noexcept;
 bool AsDouble(const Value& value, double& output) noexcept;
 
-} // namespace OmniGhost::Update::Json
+}

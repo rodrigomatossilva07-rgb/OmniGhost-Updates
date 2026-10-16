@@ -151,12 +151,16 @@ public static class AdminEndpoints
         return Results.Ok(new { requested = request.Usernames.Count, successful, items = results });
     }
 
-    private static async Task<IResult> ExportUsersAsync(HttpContext context, KeyAuthSellerClient keyAuth, string? filter)
+    private static async Task<IResult> ExportUsersAsync(
+        HttpContext context, KeyAuthSellerClient keyAuth, AuditLog audit, string? filter)
     {
         var response = await keyAuth.CallAsync("fetchallusers", context.RequestAborted);
         if (!response.Success) return UpstreamFailure(response);
         var users = FilterAll(response.Payload["users"] as JsonArray, filter, RedactUserSecrets, 5000);
         var csv = ToCsv(users, ["username", "email", "ip", "hwid", "createdate", "lastlogin", "banned"]);
+        // API-002 Fix: exports contain PII and must be audited like mutations.
+        await audit.WriteAsync(context.Actor(), context, "user.export", true,
+            $"filter={filter ?? "all"}; rows={users.Count}");
         return Results.File(Encoding.UTF8.GetBytes(csv), "text/csv; charset=utf-8", "omnighost-users.csv");
     }
 
@@ -236,12 +240,16 @@ public static class AdminEndpoints
         return SellerResult(response);
     }
 
-    private static async Task<IResult> ExportLicensesAsync(HttpContext context, KeyAuthSellerClient keyAuth, string? filter)
+    private static async Task<IResult> ExportLicensesAsync(
+        HttpContext context, KeyAuthSellerClient keyAuth, AuditLog audit, string? filter)
     {
         var response = await keyAuth.CallAsync("fetchallkeys", context.RequestAborted, Parameter("format", "json"));
         if (!response.Success) return UpstreamFailure(response);
         var keys = FilterAll(response.Payload["keys"] as JsonArray, filter, node => node.DeepClone(), 5000);
         var csv = ToCsv(keys, ["key", "status", "level", "expiry", "owner", "note"]);
+        // API-002 Fix: full license keys leave the system here — audit it.
+        await audit.WriteAsync(context.Actor(), context, "license.export", true,
+            $"filter={filter ?? "all"}; rows={keys.Count}");
         return Results.File(Encoding.UTF8.GetBytes(csv), "text/csv; charset=utf-8", "omnighost-licenses.csv");
     }
 

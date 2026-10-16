@@ -34,7 +34,7 @@ std::string_view Trim(std::string_view value) noexcept
     return value;
 }
 
-} // namespace
+}
 
 bool GenerateSessionToken(std::string& token, std::string& error)
 {
@@ -134,7 +134,7 @@ bool HasSafeSameOrigin(std::string_view request)
 {
     const std::string origin = HeaderValue(request, "Origin");
     if (origin.empty())
-        return true; // Non-browser clients normally omit Origin.
+        return true;
     const std::string host = HeaderValue(request, "Host");
     if (host.empty())
         return false;
@@ -142,4 +142,4 @@ bool HasSafeSameOrigin(std::string_view request)
            ConstantTimeEquals(origin, "https://" + host);
 }
 
-} // namespace OmniGhost::RadarAccess
+}

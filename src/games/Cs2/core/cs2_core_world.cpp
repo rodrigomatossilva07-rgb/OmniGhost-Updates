@@ -45,4 +45,4 @@ bool IsPlayableMapName(const char* map_name) {
     return name != "lobby" && name != "none" && name != "mainmenu";
 }
 
-} // namespace CS2::CoreWorld
+}

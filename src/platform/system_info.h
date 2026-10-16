@@ -16,4 +16,4 @@ struct SystemInfo {
 [[nodiscard]] SystemInfo CaptureSystemInfo() noexcept;
 [[nodiscard]] std::string FormatSystemInfo(const SystemInfo& info);
 
-} // namespace OmniGhost::Platform
+}

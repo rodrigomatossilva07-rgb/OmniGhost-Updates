@@ -92,4 +92,4 @@ private:
     std::atomic_bool cancelled_{false};
 };
 
-} // namespace Launcher
+}

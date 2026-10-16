@@ -22,5 +22,5 @@ inline bool PointersLookValid() {
     return true;
 }
 
-} // namespace OffsetAuto
-} // namespace FiveM
+}
+}

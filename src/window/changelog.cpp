@@ -15,7 +15,7 @@ namespace Changelog {
         std::vector<ChangelogEntry> g_entries;
         std::string g_last_viewed_version;
         bool g_initialized = false;
-        
+
         ImU32 GetTypeColor(ChangeType type) {
             switch (type) {
                 case ChangeType::Added: return IM_COL32(0, 200, 100, 255);
@@ -28,7 +28,7 @@ namespace Changelog {
             }
             return IM_COL32(200, 200, 200, 255);
         }
-        
+
         const char* GetTypeLabel(ChangeType type) {
             switch (type) {
                 case ChangeType::Added: return "Added";
@@ -41,11 +41,11 @@ namespace Changelog {
             }
             return "Unknown";
         }
-        
+
         void AddDefaultEntries() {
             g_entries.clear();
-            
-            auto addEntry = [&](const std::string& ver, ChangeType type, const std::string& title, 
+
+            auto addEntry = [&](const std::string& ver, ChangeType type, const std::string& title,
                                const std::string& desc, const std::vector<std::string>& details, bool highlight = false) {
                 ChangelogEntry entry;
                 entry.version = ver;
@@ -57,9 +57,9 @@ namespace Changelog {
                 entry.highlight = highlight;
                 g_entries.push_back(entry);
             };
-            
-            // Version 2.5.0 - Current
-            addEntry("2.5.0", ChangeType::Added, "Theme System Overhaul", 
+
+
+            addEntry("2.5.0", ChangeType::Added, "Theme System Overhaul",
                 "Complete rewrite of the theme system with import/export support",
                 {"Light/Dark theme modes", "9 accent color presets", "Custom accent color picker", "Theme import/export (JSON)", "High contrast mode improvements"});
             addEntry("2.5.0", ChangeType::Added, "Real-time Hardware Monitoring",
@@ -80,8 +80,8 @@ namespace Changelog {
             addEntry("2.5.0", ChangeType::Performance, "Animation System Optimization",
                 "Reduced jank and improved frame pacing",
                 {"60% less allocation per frame", "Smoother hover transitions", "Reduced motion respects system setting", "Virtualized lists for large datasets"});
-            
-            // Version 2.4.0
+
+
             addEntry("2.4.0", ChangeType::Added, "Multi-Monitor Overlay Positioning",
                 "Advanced overlay placement across multiple displays",
                 {"Per-monitor DPI scaling", "Custom position offsets", "Fullscreen/windowed modes", "Monitor hot-plug detection"});
@@ -91,8 +91,8 @@ namespace Changelog {
             addEntry("2.4.0", ChangeType::Fixed, "DMA Reconnection Stability",
                 "Improved reliability for DMA device reconnection",
                 {"Async reinit with progress", "Cancellation support", "Better error reporting", "State preservation"});
-            
-            // Version 2.3.0
+
+
             addEntry("2.3.0", ChangeType::Added, "ESP Preview System",
                 "Real-time visualization of ESP settings",
                 {"Live preview for all games", "Box/Skeleton/Health/Name toggles", "Radar preview", "Color-coded elements"});
@@ -102,7 +102,7 @@ namespace Changelog {
             addEntry("2.3.0", ChangeType::Fixed, "High DPI Scaling Fixes",
                 "Perfect scaling at 125%, 150%, 200%, 250%",
                 {"Crisp text rendering", "Proper hit-testing", "No blur on fractional scales"});
-            
+
             g_last_viewed_version = "2.2.0";
         }
     }
@@ -131,9 +131,9 @@ namespace Changelog {
         }
     }
 
-    bool LoadFromString(const std::string& /*content*/) {
-        // Simple parser for markdown-style changelog
-        // This would be expanded for production
+    bool LoadFromString(const std::string& ) {
+
+
         return true;
     }
 
@@ -166,7 +166,7 @@ namespace Changelog {
 
     bool HasNewEntries(const std::string& last_viewed_version) {
         if (last_viewed_version.empty()) return !g_entries.empty();
-        
+
         for (const auto& entry : g_entries) {
             if (entry.version == last_viewed_version) break;
             return true;
@@ -190,58 +190,58 @@ namespace Changelog {
         float height = 20.0f;
         float padding = 8.0f;
         ImVec2 text_size = ImGui::CalcTextSize(entry.version.c_str());
-        
+
         ImDrawList* dl = ImGui::GetWindowDrawList();
         dl->AddRectFilled(pos, ImVec2(pos.x + text_size.x + padding * 2, pos.y + height), color, 4.0f);
         dl->AddText(ImVec2(pos.x + padding, pos.y + 2.0f), IM_COL32(0, 0, 0, 255), entry.version.c_str());
-        
+
         ImGui::Dummy(ImVec2(text_size.x + padding * 2, height));
         ImGui::SameLine(0, 8);
     }
 
     void DrawChangelogCompact() {
         if (!g_initialized) Initialize();
-        
+
         CyberWidgets::BeginCard("Changelog Highlights");
-        
+
         auto highlights = GetHighlightedEntries();
         for (size_t i = 0; i < std::min(highlights.size(), size_t(3)); ++i) {
             const auto& entry = highlights[i];
-            
+
             ImDrawList* dl = ImGui::GetWindowDrawList();
             ImVec2 pos = ImGui::GetCursorScreenPos();
-            
-            // Type badge
+
+
             DrawVersionBadge(entry);
-            
-            // Title
+
+
             dl->AddText(ImGui::GetCursorScreenPos(), CyberTheme::U32(CyberTheme::Colors.Text), entry.title.c_str());
             ImGui::Dummy(ImVec2(0, 18));
-            
-            // Description
+
+
             CyberWidgets::TextLine(entry.description.c_str(), CyberWidgets::TextTone::Secondary);
-            
+
             if (i < std::min(highlights.size(), size_t(3)) - 1) {
                 CyberWidgets::Separator();
             }
         }
-        
+
         if (HasNewEntries(g_last_viewed_version)) {
             ImGui::Spacing();
             if (CyberWidgets::Button("View Full Changelog", CyberWidgets::ButtonStyle::Secondary)) {
-                // Would open full changelog
+
             }
         }
-        
+
         CyberWidgets::EndCard();
     }
 
     void DrawChangelog() {
         if (!g_initialized) Initialize();
-        
+
         CyberWidgets::BeginCard("Changelog");
-        
-        // Toolbar
+
+
         CyberWidgets::BeginCardRow(3);
         CyberWidgets::BeginCard("", CyberWidgets::CardRowHalfWidth());
         static char filter_ver[16] = "";
@@ -256,38 +256,38 @@ namespace Changelog {
         CyberWidgets::NextCardColumn();
         CyberWidgets::BeginCard("", CyberWidgets::CardRowHalfWidth());
         if (CyberWidgets::Button("Export", CyberWidgets::ButtonStyle::Secondary)) {
-            // Export functionality
+
         }
         CyberWidgets::EndCard();
         CyberWidgets::EndCardRow();
         CyberWidgets::CardGap(12.0f);
-        
+
         if (g_entries.empty()) {
             CyberWidgets::TextLine("No changelog entries available", CyberWidgets::TextTone::Secondary);
             CyberWidgets::EndCard();
             return;
         }
-        
+
         CyberWidgets::BeginSurfaceList("##changelog_list", 500.0f);
-        
+
         std::string current_version;
         for (size_t i = 0; i < g_entries.size(); ++i) {
             const auto& entry = g_entries[i];
-            
-            // Version header
+
+
             if (entry.version != current_version) {
                 current_version = entry.version;
-                bool is_new = HasNewEntries(g_last_viewed_version) && 
+                bool is_new = HasNewEntries(g_last_viewed_version) &&
                     std::find_if(g_entries.begin(), g_entries.end(),
-                        [&](const ChangelogEntry& e) { return e.version == g_last_viewed_version; }) > 
+                        [&](const ChangelogEntry& e) { return e.version == g_last_viewed_version; }) >
                     std::find(g_entries.begin(), g_entries.end(), entry);
-                
+
                 ImGui::PushID(("ver_" + entry.version).c_str());
-                
+
                 ImVec2 pos = ImGui::GetCursorScreenPos();
                 ImDrawList* dl = ImGui::GetWindowDrawList();
-                
-                // Version badge with "NEW" indicator
+
+
                 ImU32 ver_color = is_new ? IM_COL32(255, 200, 0, 255) : CyberTheme::U32(CyberTheme::Colors.Gold);
                 float badge_w = 120.0f;
                 dl->AddRectFilled(pos, ImVec2(pos.x + badge_w, pos.y + 28.0f), ver_color, 6.0f);
@@ -295,49 +295,49 @@ namespace Changelog {
                 if (is_new) {
                     dl->AddText(ImVec2(pos.x + badge_w + 10.0f, pos.y + 5.0f), IM_COL32(255, 200, 0, 255), "NEW");
                 }
-                
+
                 ImGui::Dummy(ImVec2(badge_w, 36.0f));
                 ImGui::PopID();
             }
-            
-            // Entry
+
+
             ImGui::PushID(static_cast<int>(i));
             ImVec2 pos = ImGui::GetCursorScreenPos();
             float row_w = ImGui::GetContentRegionAvail().x;
             ImDrawList* dl = ImGui::GetWindowDrawList();
-            
-            // Type badge
+
+
             ImU32 type_color = GetTypeColor(entry.type);
             const char* type_label = GetTypeLabel(entry.type);
             ImVec2 type_size = ImGui::CalcTextSize(type_label);
             dl->AddRectFilled(pos, ImVec2(pos.x + type_size.x + 16.0f, pos.y + 22.0f), type_color, 4.0f);
             dl->AddText(ImVec2(pos.x + 8.0f, pos.y + 3.0f), IM_COL32(0, 0, 0, 255), type_label);
-            
-            // Highlight star
+
+
             if (entry.highlight) {
                 dl->AddText(ImVec2(pos.x + type_size.x + 24.0f, pos.y + 1.0f), IM_COL32(255, 215, 0, 255), "★");
             }
-            
-            // Title
+
+
             ImVec2 title_pos(pos.x + type_size.x + 32.0f, pos.y + 2.0f);
             dl->AddText(title_pos, CyberTheme::U32(CyberTheme::Colors.Text), entry.title.c_str());
-            
-            // Description
+
+
             ImVec2 desc_pos(pos.x + type_size.x + 32.0f, pos.y + 22.0f);
             dl->AddText(desc_pos, CyberTheme::U32(CyberTheme::Colors.TextDisabled), entry.description.c_str());
-            
-            // Details
+
+
             for (size_t d = 0; d < entry.details.size(); ++d) {
                 ImVec2 det_pos(pos.x + type_size.x + 48.0f, pos.y + 42.0f + d * 18.0f);
                 dl->AddCircleFilled(ImVec2(det_pos.x - 6.0f, det_pos.y + 7.0f), 3.0f, CyberTheme::U32(CyberTheme::Colors.Gold));
                 dl->AddText(det_pos, CyberTheme::U32(CyberTheme::Colors.TextDisabled), entry.details[d].c_str());
             }
-            
+
             float entry_height = 42.0f + entry.details.size() * 18.0f;
             ImGui::Dummy(ImVec2(row_w, entry_height + 8.0f));
             ImGui::PopID();
         }
-        
+
         CyberWidgets::EndSurfaceList();
         CyberWidgets::EndCard();
     }
@@ -345,14 +345,14 @@ namespace Changelog {
     std::string ExportToMarkdown() {
         std::ostringstream out;
         out << "# OmniGhost Changelog\n\n";
-        
+
         std::string current_version;
         for (const auto& entry : g_entries) {
             if (entry.version != current_version) {
                 current_version = entry.version;
                 out << "## Version " << entry.version << "\n\n";
             }
-            
+
             out << "- **[" << GetTypeLabel(entry.type) << "]** " << entry.title;
             if (entry.highlight) out << " ⭐";
             out << "\n";
@@ -377,14 +377,14 @@ namespace Changelog {
         out << ".experimental{background:#ffc800;} .highlight{border-color:#ffd700;} ";
         out << "</style></head><body>";
         out << "<h1>OmniGhost Changelog</h1>";
-        
+
         std::string current_version;
         for (const auto& entry : g_entries) {
             if (entry.version != current_version) {
                 current_version = entry.version;
                 out << "<div class='version'>Version " << entry.version << "</div>";
             }
-            
+
             out << "<div class='entry " << (entry.highlight ? "highlight" : "") << "'>";
             out << "<span class='type " << GetTypeLabel(entry.type) << "'>" << GetTypeLabel(entry.type) << "</span> ";
             out << "<strong>" << entry.title << "</strong>";
@@ -399,4 +399,4 @@ namespace Changelog {
         return out.str();
     }
 
-} // namespace Changelog
+}

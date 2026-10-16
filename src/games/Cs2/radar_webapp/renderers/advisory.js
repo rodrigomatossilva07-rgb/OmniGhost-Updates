@@ -1,12 +1,12 @@
-﻿// Lazy initialization wrapper
+
 (function() {
     if (typeof window.radarLazyInit === 'undefined') {
         window.radarLazyInit = [];
     }
     window.radarLazyInit.push(function() {
-// Advisories
-//
-// Determines if an advisory can be shown and prioritizes the most important one.
+
+
+
 
 let idToNum = {}
 let advisories = {
@@ -24,7 +24,7 @@ function updateAdvisory() {
 			if (advisoryEl.children[0].innerHTML == 10) {
 				advisoryEl.children[0].innerHTML = 0
 			}
-			// 状态标签（i18n 翻译）
+
 			let labelKey = {
 				planting: "advisory_planting",
 				defuse: "advisory_defuse",
@@ -43,7 +43,7 @@ function updateAdvisory() {
 	if (advisory.children[1]) advisory.children[1].textContent = ""
 }
 
-// 语言切换时刷新当前建议标签
+
 document.addEventListener("langchange", updateAdvisory)
 
 socket.element.addEventListener("players", event => {

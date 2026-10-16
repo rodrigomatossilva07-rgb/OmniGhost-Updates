@@ -8,8 +8,8 @@
 
 namespace OmniGhost::Gameplay {
 
-// Drift-free cadence for acquisition workers.  Unlike sleep_for, the next
-// deadline is anchored to the preceding deadline and missed ticks are skipped.
+
+
 class FixedRateScheduler final {
 public:
     using Clock = std::chrono::steady_clock;
@@ -20,22 +20,22 @@ public:
             next_ = now + period;
             started_ = true;
         } else {
-            // BUG-029 Fix: Use the SAME period that was used for the last sleep,
-            // not the current parameter (which may have changed due to pressure).
-            // This prevents drift when delayMs varies per iteration.
+
+
+
             next_ += last_period_;
         }
         if (next_ > now)
             std::this_thread::sleep_until(next_);
         else
             next_ = now;
-        last_period_ = period; // Remember period for next iteration
+        last_period_ = period;
     }
 
 private:
     Clock::time_point next_{};
     bool started_ = false;
-    std::chrono::milliseconds last_period_{0}; // Period used for last sleep
+    std::chrono::milliseconds last_period_{0};
 };
 
 struct PipelineTelemetry final {
@@ -70,4 +70,4 @@ inline float TimeMs(std::chrono::steady_clock::time_point begin) noexcept {
         std::chrono::steady_clock::now() - begin).count();
 }
 
-} // namespace OmniGhost::Gameplay
+}

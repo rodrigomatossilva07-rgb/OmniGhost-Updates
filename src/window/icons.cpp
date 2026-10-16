@@ -8,7 +8,7 @@ namespace CyberIcons {
         return ImVec2(pos.x + size * 0.5f, pos.y + size * 0.5f);
     }
 
-    // Compact ESP eye with corner brackets. The silhouette stays readable at 20-26 px.
+
     void DrawESPIcon(ImDrawList* dl, ImVec2 pos, float size, ImU32 color) {
         const ImVec2 c = C(pos, size);
         const float rx = size * 0.34f;
@@ -55,7 +55,7 @@ namespace CyberIcons {
         const ImVec2 c = C(pos, size);
         const float r = size * 0.32f;
         const float gap = size * 0.11f;
-        // Four broken scope arcs plus a precise center point.
+
         dl->PathArcTo(c, r, -2.82f, -1.90f, 7); dl->PathStroke(color, false, 1.8f);
         dl->PathArcTo(c, r, -1.24f, -0.32f, 7); dl->PathStroke(color, false, 1.8f);
         dl->PathArcTo(c, r,  0.32f,  1.24f, 7); dl->PathStroke(color, false, 1.8f);
@@ -77,14 +77,14 @@ namespace CyberIcons {
         dl->AddLine(ImVec2(x0 + 1.f, mid), ImVec2(x1 - 1.f, mid), color, 1.4f);
         dl->AddLine(ImVec2((x0 + x1) * 0.5f, y0 + 2.f),
                     ImVec2((x0 + x1) * 0.5f, mid), color, 1.4f);
-        // Wheel
+
         dl->AddCircleFilled(ImVec2((x0 + x1) * 0.5f, (y0 + mid) * 0.55f), size * 0.05f, color, 8);
     }
 
     void DrawTriggerIcon(ImDrawList* dl, ImVec2 pos, float size, ImU32 color) {
         const ImVec2 c = C(pos, size);
         const float r = size * 0.30f;
-        // A pulse/click glyph: ring, center dot and three short activation rays.
+
         dl->AddCircle(c, r, color, 20, 1.7f);
         dl->AddCircleFilled(c, size * 0.07f, color, 10);
         dl->AddLine(ImVec2(c.x + r * 0.62f, c.y - r * 0.62f),
@@ -93,17 +93,17 @@ namespace CyberIcons {
                     ImVec2(c.x + r * 1.42f, c.y), color, 1.6f);
         dl->AddLine(ImVec2(c.x, c.y - r * 0.95f),
                     ImVec2(c.x, c.y - r * 1.42f), color, 1.6f);
-        // Lower stem differentiates it from the Aim icon.
+
         dl->AddLine(ImVec2(c.x, c.y + r * 0.70f),
                     ImVec2(c.x, pos.y + size * 0.94f), color, 1.7f);
     }
 
     void DrawWrenchIcon(ImDrawList* dl, ImVec2 pos, float size, ImU32 color) {
         const ImVec2 c = C(pos, size);
-        // Handle
+
         dl->AddLine(ImVec2(c.x - size * 0.28f, c.y + size * 0.28f),
                     ImVec2(c.x + size * 0.22f, c.y - size * 0.22f), color, 2.2f);
-        // Head
+
         dl->AddCircle(ImVec2(c.x + size * 0.26f, c.y - size * 0.26f), size * 0.16f, color, 12, 1.6f);
         dl->AddLine(ImVec2(c.x + size * 0.14f, c.y - size * 0.36f),
                     ImVec2(c.x + size * 0.38f, c.y - size * 0.16f), color, 1.5f);
@@ -124,21 +124,21 @@ namespace CyberIcons {
 
     void DrawSaveIcon(ImDrawList* dl, ImVec2 pos, float size, ImU32 color) {
         const ImVec2 c = C(pos, size);
-        // Cloud
+
         dl->AddCircleFilled(ImVec2(c.x - size * 0.14f, c.y - size * 0.02f), size * 0.16f, color, 12);
         dl->AddCircleFilled(ImVec2(c.x + size * 0.10f, c.y - size * 0.06f), size * 0.20f, color, 12);
         dl->AddCircleFilled(ImVec2(c.x + size * 0.22f, c.y + size * 0.02f), size * 0.14f, color, 12);
         dl->AddRectFilled(
             ImVec2(c.x - size * 0.26f, c.y - size * 0.02f),
             ImVec2(c.x + size * 0.28f, c.y + size * 0.18f), color, 3.f);
-        // Gear overlay (hollow)
+
         dl->AddCircle(ImVec2(c.x, c.y + size * 0.04f), size * 0.10f,
             IM_COL32(20, 20, 20, 220), 10, 1.6f);
     }
 
     void DrawUserIcon(ImDrawList* dl, ImVec2 pos, float size, ImU32 color) {
         const ImVec2 c = C(pos, size);
-        // Primary person
+
         dl->AddCircle(ImVec2(c.x - size * 0.08f, pos.y + size * 0.30f), size * 0.15f, color, 12, 1.6f);
         dl->AddBezierCubic(
             ImVec2(pos.x + size * 0.12f, pos.y + size * 0.88f),
@@ -146,7 +146,7 @@ namespace CyberIcons {
             ImVec2(pos.x + size * 0.62f, pos.y + size * 0.55f),
             ImVec2(pos.x + size * 0.62f, pos.y + size * 0.88f),
             color, 1.6f);
-        // Secondary smaller person
+
         dl->AddCircle(ImVec2(c.x + size * 0.22f, pos.y + size * 0.34f), size * 0.12f, color, 10, 1.4f);
         dl->AddBezierCubic(
             ImVec2(pos.x + size * 0.48f, pos.y + size * 0.88f),
@@ -158,18 +158,18 @@ namespace CyberIcons {
 
     void DrawVehicleIcon(ImDrawList* dl, ImVec2 pos, float size, ImU32 color) {
         const float y = pos.y + size * 0.42f;
-        // Body
+
         dl->AddRectFilled(
             ImVec2(pos.x + size * 0.12f, y),
             ImVec2(pos.x + size * 0.88f, y + size * 0.22f), color, 2.f);
-        // Cabin
+
         dl->AddQuadFilled(
             ImVec2(pos.x + size * 0.28f, y),
             ImVec2(pos.x + size * 0.38f, pos.y + size * 0.22f),
             ImVec2(pos.x + size * 0.62f, pos.y + size * 0.22f),
             ImVec2(pos.x + size * 0.72f, y),
             color);
-        // Wheels
+
         dl->AddCircleFilled(ImVec2(pos.x + size * 0.28f, y + size * 0.28f), size * 0.10f, color, 10);
         dl->AddCircleFilled(ImVec2(pos.x + size * 0.72f, y + size * 0.28f), size * 0.10f, color, 10);
         dl->AddCircle(ImVec2(pos.x + size * 0.28f, y + size * 0.28f), size * 0.10f,
@@ -179,7 +179,7 @@ namespace CyberIcons {
     }
 
     void DrawStatusIcon(ImDrawList* dl, ImVec2 pos, float size, ImU32 color) {
-        // Three rising signal bars
+
         const float base = pos.y + size * 0.88f;
         const float w = size * 0.16f;
         const float gap = size * 0.10f;
@@ -202,4 +202,4 @@ namespace CyberIcons {
         dl->AddLine(ImVec2(c.x - r, c.y), ImVec2(c.x + r, c.y), color, 1.0f);
     }
 
-} // namespace CyberIcons
+}

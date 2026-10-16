@@ -36,4 +36,4 @@ private:
     bool loaded_ = false;
 };
 
-} // namespace OmniGhost::Gameplay
+}
