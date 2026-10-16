@@ -17,7 +17,7 @@ static void OptionalWorkerLoop() {
             RunOptionalEnrichment(jobConfig, std::move(jobTargets), jobInMatch,
                                   jobClientBase, jobDroppedOnly, jobGeneration);
         } catch (...) {
-
+            OutputDebugStringA("[OmniGhost][CS2] Optional enrichment failed.\n");
         }
         g_acqState.ReleaseOptional();
         mem.SetDmaLane("full");

@@ -10,6 +10,7 @@
 #include <atomic>
 #include <future>
 #include <chrono>
+#include "makcu_protocol.h"
 
 namespace makcu {
 
@@ -131,6 +132,9 @@ namespace makcu {
         DeviceInfo getDeviceInfo() const;
         std::string getVersion() const;
         std::future<std::string> getVersionAsync() const;
+        FirmwareDescriptor getFirmwareDescriptor() const;
+        CapabilityState getCapability(Capability capability) const;
+        std::string getLastError() const;
 
 
         bool mouseDown(MouseButton button);
@@ -235,7 +239,7 @@ namespace makcu {
             friend class Device;
             BatchCommandBuilder(Device* device) : m_device(device) {}
             Device* m_device;
-            std::vector<std::string> m_commands;
+            std::vector<WireCommand> m_commands;
         };
 
         BatchCommandBuilder createBatch();

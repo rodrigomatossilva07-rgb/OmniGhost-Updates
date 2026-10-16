@@ -513,8 +513,7 @@ static void ObserveProcessResources(Sample& s) noexcept {
         const auto memSnap = mem.GetDiagnosticsSnapshot();
         s.process.scatter_handles_live.store(memSnap.scatterHandlesLive, std::memory_order_relaxed);
     } catch (...) {
-
-
+        OutputDebugStringA("[OmniGhost][Telemetry] Failed to refresh DMA diagnostics.\n");
     }
 }
 

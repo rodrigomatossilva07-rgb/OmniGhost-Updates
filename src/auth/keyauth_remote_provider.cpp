@@ -26,6 +26,17 @@ LicenseResult MakeResult(LicenseStatus status, std::string message, const char* 
     return {status, std::move(message), code, {}};
 }
 
+void ReportCleanupFailure(const char* operation, const char* detail = nullptr) noexcept {
+    OutputDebugStringA("[OmniGhost][KeyAuth] ");
+    OutputDebugStringA(operation ? operation : "cleanup");
+    OutputDebugStringA(" failed");
+    if (detail && *detail) {
+        OutputDebugStringA(": ");
+        OutputDebugStringA(detail);
+    }
+    OutputDebugStringA("\n");
+}
+
 LicenseStatus StatusForMessage(std::string_view message) {
     std::string normalized(message);
     std::transform(normalized.begin(), normalized.end(), normalized.begin(), [](unsigned char value) {
@@ -283,11 +294,23 @@ void KeyAuthRemoteLicenseProvider::Logout() noexcept {
     std::scoped_lock lock(mutex_);
 #if defined(OMNIGHOST_KEYAUTH_ENABLED) && !defined(OMNIGHOST_SKIP_KEYAUTH)
     if (initialized_) {
-        try { impl_->api.logout(); } catch (...) {  }
+        try {
+            impl_->api.logout();
+        } catch (const std::exception& exception) {
+            ReportCleanupFailure("logout", exception.what());
+        } catch (...) {
+            ReportCleanupFailure("logout");
+        }
     }
 #endif
     username_.clear();
-    try { UpdateStateMirror(); } catch (...) {  }
+    try {
+        UpdateStateMirror();
+    } catch (const std::exception& exception) {
+        ReportCleanupFailure("state mirror reset", exception.what());
+    } catch (...) {
+        ReportCleanupFailure("state mirror reset");
+    }
 }
 
 LicenseResult KeyAuthRemoteLicenseProvider::CheckSession(std::stop_token stopToken) {

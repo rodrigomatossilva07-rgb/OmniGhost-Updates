@@ -2,6 +2,7 @@
 
 #include <type_traits>
 #include <utility>
+#include <cstdio>
 
 namespace OmniGhost::Platform {
 
@@ -24,7 +25,7 @@ public:
             try {
                 fn_();
             } catch (...) {
-
+                std::fputs("[OmniGhost][ScopeExit] Cleanup callback failed.\n", stderr);
             }
         }
     }

@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <cstring>
 #include <mutex>
+#include <shared_mutex>
 
 namespace makcu_wrapper {
     std::unique_ptr<makcu::Device> device;
@@ -18,6 +19,7 @@ namespace makcu_wrapper {
     // the UI/diagnostics lane — guard it with diag_mutex.
     static std::map<int, bool> previous_states;
     static std::mutex diag_mutex;
+    static std::shared_mutex device_mutex;
 
     struct InternalState {
         std::atomic<bool> monitoringRequested{ false };
@@ -40,7 +42,7 @@ namespace makcu_wrapper {
     };
     static InternalState g_state;
 
-    static uint64_t s_pollCursor;
+    static std::atomic<uint64_t> s_pollCursor{0};
 
     static uint64_t NowMs() { return GetTickCount64(); }
 
@@ -80,6 +82,7 @@ namespace makcu_wrapper {
 
 
     void MakcuInitialize(const std::string& port) {
+        std::unique_lock deviceLock(device_mutex);
         connected = false;
         g_state.monitoringRequested = false;
         g_state.monitoringConfirmed = false;
@@ -90,10 +93,15 @@ namespace makcu_wrapper {
         g_state.packetsReceived = 0;
         g_state.serialGeneration = 0;
         g_state.ignorePollUntilPacket = 0;
-        s_pollCursor = 0;
-        g_state.deviceInfo[0] = 0;
-        g_state.faultInfo[0] = 0;
-        g_state.buttonsStatus[0] = 0;
+        s_pollCursor.store(0);
+        {
+            std::lock_guard<std::mutex> lock(diag_mutex);
+            g_state.port[0] = 0;
+            g_state.deviceInfo[0] = 0;
+            g_state.faultInfo[0] = 0;
+            g_state.buttonsStatus[0] = 0;
+            previous_states.clear();
+        }
 
         if (!device)
             device = std::make_unique<makcu::Device>();
@@ -121,27 +129,33 @@ namespace makcu_wrapper {
                 break;
             }
         }
-        if (target_port.empty()) return;
+        if (target_port.empty()) {
+            const std::string error = device ? device->getLastError() : "No MAKCU device instance.";
+            std::lock_guard<std::mutex> lock(diag_mutex);
+            std::snprintf(g_state.faultInfo, sizeof(g_state.faultInfo), "%s", error.c_str());
+            return;
+        }
 
         connected = true;
         device->enableHighPerformanceMode(true);
 
-        g_state.monitoringRequested = true;
-        device->enableButtonMonitoring(true);
-
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        device->enableButtonMonitoring(true);
-        try {
-            device->sendRawCommand("km.buttons(1,10)");
-        } catch (const std::exception& ex) {
-            std::string msg = "enable button stream: " + std::string(ex.what());
-            LogDeviceFailure(msg.c_str());
-        } catch (...) {
-            LogDeviceFailure("enable button stream: unknown exception");
+        const auto firmware = device->getFirmwareDescriptor();
+        g_state.deviceDetected = true;
+        {
+            std::lock_guard<std::mutex> lock(diag_mutex);
+            std::snprintf(g_state.deviceInfo, sizeof(g_state.deviceInfo), "%s %s @ %u",
+                makcu::FirmwareFamilyName(firmware.family),
+                makcu::FirmwareVersionText(firmware).c_str(), firmware.baudRate);
+            g_state.faultInfo[0] = 0;
         }
+
+        g_state.monitoringRequested = true;
+        (void)device->enableButtonMonitoring(true);
+        g_state.monitoringConfirmed = false;
     }
 
     void MakcuShutdown() {
+        std::unique_lock deviceLock(device_mutex);
         connected = false;
         if (device) {
             try { device->enableButtonMonitoring(false); } catch (const std::exception& ex) { std::string msg = "disable monitoring: " + std::string(ex.what()); LogDeviceFailure(msg.c_str()); } catch (...) { LogDeviceFailure("disable monitoring: unknown exception"); }
@@ -158,12 +172,14 @@ namespace makcu_wrapper {
         g_state.lastPacketTick = 0;
         g_state.lastChangeTick = NowMs();
         g_state.ignorePollUntilPacket = 0;
-        previous_states.clear();
+        {
+            std::lock_guard<std::mutex> lock(diag_mutex);
+            previous_states.clear();
+        }
     }
 
     void move(int x, int y) {
-
-
+        std::shared_lock deviceLock(device_mutex);
         if (!connected || !device || !device->isConnected()) return;
         if (x == 0 && y == 0) return;
         if (x < -127) x = -127; if (x > 127) x = 127;
@@ -172,11 +188,13 @@ namespace makcu_wrapper {
     }
 
     void left_click() {
+        std::shared_lock deviceLock(device_mutex);
         if (!connected || !device || !device->isConnected()) return;
         device->mouseDown(makcu::MouseButton::LEFT);
     }
 
     void left_click_release() {
+        std::shared_lock deviceLock(device_mutex);
         if (!connected || !device || !device->isConnected()) return;
         device->mouseUp(makcu::MouseButton::LEFT);
     }
@@ -205,6 +223,12 @@ namespace makcu_wrapper {
 
     ButtonState GetButtonState(int virtual_key) {
         ButtonState st{};
+        const bool connectionLive = IsConnected();
+        if (!connectionLive) {
+            connected = false;
+            g_state.buttonMask = 0;
+            g_state.monitoringConfirmed = false;
+        }
         st.makcuMask = g_state.buttonMask.load();
 
         const int bit = VkToBit(virtual_key);
@@ -217,7 +241,7 @@ namespace makcu_wrapper {
 
 
 
-        if (connected.load() && isMouse && streamLive) {
+        if (connectionLive && isMouse && streamLive) {
             bool bitDown = (st.makcuMask & (1u << bit)) != 0;
             st.down = bitDown;
             st.source = InputSource::Makcu;
@@ -237,7 +261,7 @@ namespace makcu_wrapper {
 
 
 
-        if (connected.load() && isMouse) {
+        if (connectionLive && isMouse) {
             if (allowLocalInputFallback.load() && LocalKeyDown(virtual_key)) {
                 st.down = true;
                 st.source = InputSource::LocalWindows;
@@ -270,10 +294,12 @@ namespace makcu_wrapper {
     }
 
     uint8_t GetButtonMask() {
-
-
-
-
+        if (!IsConnected()) {
+            connected = false;
+            g_state.buttonMask = 0;
+            g_state.monitoringConfirmed = false;
+            return 0;
+        }
         if (g_state.ignorePollUntilPacket.load() != 0)
             return 0;
         return g_state.buttonMask.load();
@@ -282,8 +308,8 @@ namespace makcu_wrapper {
     DevicePacket PollButtons() {
         DevicePacket pkt{};
         const uint64_t gen = g_state.serialGeneration.load();
-        if (gen != s_pollCursor) {
-            s_pollCursor = gen;
+        const uint64_t previous = s_pollCursor.exchange(gen);
+        if (gen != previous) {
             pkt.hasPacket = true;
             pkt.buttons = g_state.buttonMask.load();
         } else {
@@ -297,17 +323,16 @@ namespace makcu_wrapper {
         g_state.buttonMask.store(0);
         g_state.ignorePollUntilPacket.store(UINT64_MAX);
         g_state.lastChangeTick.store(NowMs());
+        std::shared_lock deviceLock(device_mutex);
         if (device && device->isConnected()) {
             try { device->enableButtonMonitoring(true); } catch (const std::exception& ex) { std::string msg = "resume monitoring: " + std::string(ex.what()); LogDeviceFailure(msg.c_str()); } catch (...) { LogDeviceFailure("resume monitoring: unknown exception"); }
-            try { device->sendRawCommand("km.buttons(1,10)"); } catch (const std::exception& ex) { std::string msg = "resume button stream: " + std::string(ex.what()); LogDeviceFailure(msg.c_str()); } catch (...) { LogDeviceFailure("resume button stream: unknown exception"); }
         }
     }
 
     void EnsureButtonMonitoring() {
+        std::shared_lock deviceLock(device_mutex);
         if (!connected || !device || !device->isConnected())
             return;
-
-        (void)GetButtonMask();
 
         const uint64_t last = g_state.lastPacketTick.load();
         const uint64_t age = last ? (NowMs() - last) : UINT64_MAX;
@@ -324,34 +349,17 @@ namespace makcu_wrapper {
 
         if (!need) return;
 
-        static auto lastSend = std::chrono::steady_clock::time_point{};
-        static int cmdRotate = 0;
-        const auto now = std::chrono::steady_clock::now();
-
+        static std::atomic<uint64_t> lastSendMs{0};
         const int minIntervalMs = (pkts == 0) ? 150 :
             (g_state.monitoringConfirmed.load() ? 1200 : 350);
-        if (lastSend.time_since_epoch().count() != 0 &&
-            std::chrono::duration_cast<std::chrono::milliseconds>(now - lastSend).count() < minIntervalMs)
-            return;
-        lastSend = now;
+        const uint64_t nowMs = NowMs();
+        uint64_t previousSend = lastSendMs.load(std::memory_order_relaxed);
+        if (previousSend != 0 && nowMs - previousSend < static_cast<uint64_t>(minIntervalMs)) return;
+        if (!lastSendMs.compare_exchange_strong(previousSend, nowMs, std::memory_order_acq_rel)) return;
 
         g_state.monitoringRequested = true;
 
-        static const char* kEnableCmds[] = {
-            "km.buttons(1,10)",
-            "km.buttons(1)",
-            "km.buttons(1,5)",
-            "km.buttons(1,20)",
-            "km.buttons(1,0)",
-        };
-        const char* cmd = kEnableCmds[cmdRotate % 5];
-        ++cmdRotate;
         try { device->enableButtonMonitoring(true); } catch (const std::exception& ex) { std::string msg = "diagnostic monitoring: " + std::string(ex.what()); LogDeviceFailure(msg.c_str()); } catch (...) { LogDeviceFailure("diagnostic monitoring: unknown exception"); }
-        try { device->sendRawCommand(cmd); } catch (const std::exception& ex) { std::string msg = "diagnostic command: " + std::string(ex.what()); LogDeviceFailure(msg.c_str()); } catch (...) { LogDeviceFailure("diagnostic command: unknown exception"); }
-
-        if (pkts == 0) {
-            try { device->sendRawCommand("km.buttons(1,10)"); } catch (const std::exception& ex) { std::string msg = "diagnostic button stream: " + std::string(ex.what()); LogDeviceFailure(msg.c_str()); } catch (...) { LogDeviceFailure("diagnostic button stream: unknown exception"); }
-        }
     }
 
     bool IsKeyJustPressed(int virtual_key) {
@@ -374,7 +382,7 @@ namespace makcu_wrapper {
 
     InputDiagnostics GetDiagnostics() {
         InputDiagnostics d{};
-        d.connected = connected.load() && device && device->isConnected();
+        d.connected = IsConnected();
         d.monitoringRequested = g_state.monitoringRequested.load();
         d.monitoringConfirmed = g_state.monitoringConfirmed.load();
         d.deviceDetected = g_state.deviceDetected.load();
@@ -400,7 +408,10 @@ namespace makcu_wrapper {
         (void)GetButtonMask();
         auto d = GetDiagnostics();
         if (!d.connected) {
-            std::snprintf(buf, sizeof(buf), "Makcu DESLIGADO");
+            if (d.faultInfo[0])
+                std::snprintf(buf, sizeof(buf), "Makcu DESLIGADO: %.120s", d.faultInfo);
+            else
+                std::snprintf(buf, sizeof(buf), "Makcu DESLIGADO");
             return buf;
         }
         if (!d.monitoringConfirmed) {
@@ -429,6 +440,7 @@ namespace makcu_wrapper {
     }
 
     bool IsConnected() {
+        std::shared_lock deviceLock(device_mutex);
         return connected && device && device->isConnected();
     }
 

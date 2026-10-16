@@ -9,6 +9,7 @@
 #include <chrono>
 #include <vector>
 #include <memory>
+#include <cstdio>
 
 namespace OmniGhost::Gameplay::UnifiedESP {
 
@@ -121,7 +122,7 @@ private:
             try {
                 DoWork(std::move(job), result);
             } catch (...) {
-
+                std::fputs("[OmniGhost][OptionalThread] Optional work failed.\n", stderr);
             }
 
             {

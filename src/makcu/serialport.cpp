@@ -9,6 +9,7 @@
 #include <cstring>
 #include <chrono>
 #include <cctype>
+#include <limits>
 
 #ifdef _WIN32
 #include <setupapi.h>
@@ -51,10 +52,10 @@ namespace makcu {
         close();
     }
 
-    bool SerialPort::open(const std::string& port, uint32_t baudRate) {
+    bool SerialPort::open(const std::string& port, uint32_t baudRate, bool startReader) {
 
 
-        if (m_isOpen.load())
+        if (m_isOpen.load() || m_listenerThread.joinable())
             close();
 
         std::lock_guard<std::mutex> lock(m_mutex);
@@ -91,7 +92,17 @@ namespace makcu {
 
 
         m_stopListener = false;
-        m_listenerThread = std::jthread([this](std::stop_token stopToken) { listenerLoop(stopToken); });
+        if (startReader) {
+            try {
+                m_listenerStarted = true;
+                m_listenerThread = std::jthread([this](std::stop_token stopToken) { listenerLoop(stopToken); });
+            } catch (...) {
+                m_listenerStarted = false;
+                m_isOpen = false;
+                m_handle.reset();
+                return false;
+            }
+        }
 
         return true;
 #else
@@ -100,19 +111,22 @@ namespace makcu {
     }
 
     void SerialPort::close() {
-        std::lock_guard<std::mutex> lock(m_mutex);
-
-        if (!m_isOpen) {
-            return;
+        std::jthread listener;
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            if (!m_isOpen && !m_listenerThread.joinable()) return;
+            m_isOpen = false;
+            m_stopListener = true;
+            if (m_listenerThread.joinable()) {
+                m_listenerThread.request_stop();
+#ifdef _WIN32
+                if (m_handle) CancelIoEx(m_handle.get(), nullptr);
+#endif
+                listener = std::move(m_listenerThread);
+            }
         }
 
-
-        m_stopListener = true;
-        if (m_listenerThread.joinable()) {
-            m_listenerThread.request_stop();
-            m_listenerThread.join();
-        }
-
+        if (listener.joinable()) listener.join();
 
         {
             std::lock_guard<std::mutex> cmdLock(m_commandMutex);
@@ -132,19 +146,94 @@ namespace makcu {
         }
 
 #ifdef _WIN32
-        m_handle.reset();
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_handle.reset();
+        }
 #else
         if (m_fd >= 0) {
             ::close(m_fd);
             m_fd = -1;
         }
 #endif
-
-        m_isOpen = false;
+        m_listenerStarted = false;
     }
 
     bool SerialPort::isOpen() const {
         return m_isOpen;
+    }
+
+    bool SerialPort::startListener() {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (!m_isOpen) return false;
+        if (m_listenerStarted.load()) return true;
+        m_stopListener = false;
+        try {
+            m_listenerStarted = true;
+            m_listenerThread = std::jthread([this](std::stop_token stopToken) { listenerLoop(stopToken); });
+        } catch (...) {
+            m_listenerStarted = false;
+            return false;
+        }
+        return true;
+    }
+
+    void SerialPort::setReaderMode(TransportReaderMode mode) noexcept {
+        if (!m_listenerStarted.load()) m_readerMode.store(mode);
+    }
+
+    bool SerialPort::writeRaw(std::span<const uint8_t> data) {
+        if (data.empty()) return true;
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (!m_isOpen) return false;
+#ifdef _WIN32
+        size_t offset = 0;
+        while (offset < data.size()) {
+            const DWORD remaining = static_cast<DWORD>((std::min)(
+                data.size() - offset, static_cast<size_t>(std::numeric_limits<DWORD>::max())));
+            DWORD written = 0;
+            if (!WriteFile(m_handle.get(), data.data() + offset, remaining, &written, nullptr) || written == 0)
+                return false;
+            offset += written;
+        }
+        return true;
+#else
+        return false;
+#endif
+    }
+
+    std::vector<uint8_t> SerialPort::readFor(std::chrono::milliseconds timeout,
+                                             std::chrono::milliseconds quietPeriod) {
+        std::vector<uint8_t> output;
+        if (m_listenerStarted.load()) return output;
+        const auto deadline = std::chrono::steady_clock::now() + timeout;
+        auto quietDeadline = deadline;
+        bool received = false;
+        while (std::chrono::steady_clock::now() < deadline) {
+            const size_t queued = available();
+            if (queued != 0) {
+                std::vector<uint8_t> chunk = read((std::min)(queued, static_cast<size_t>(4096)));
+                if (!chunk.empty()) {
+                    output.insert(output.end(), chunk.begin(), chunk.end());
+                    received = true;
+                    quietDeadline = std::chrono::steady_clock::now() + quietPeriod;
+                }
+            } else if (received && std::chrono::steady_clock::now() >= quietDeadline) {
+                break;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        return output;
+    }
+
+    bool SerialPort::purge() {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (!m_isOpen || m_listenerStarted.load()) return false;
+#ifdef _WIN32
+        return PurgeComm(m_handle.get(), PURGE_RXABORT | PURGE_RXCLEAR | PURGE_TXABORT | PURGE_TXCLEAR) != 0;
+#else
+        return false;
+#endif
     }
 
     std::future<std::string> SerialPort::sendTrackedCommand(const std::string& command,
@@ -160,49 +249,20 @@ namespace makcu {
         int cmdId = generateCommandId();
         auto pendingCmd = std::make_unique<PendingCommand>(cmdId, command, expectResponse, timeout);
         auto future = pendingCmd->promise.get_future();
-
-
         {
             std::lock_guard<std::mutex> lock(m_commandMutex);
+            if (expectResponse && !m_pendingCommands.empty()) {
+                pendingCmd->promise.set_exception(std::make_exception_ptr(
+                    std::runtime_error("Another MAKCU query is already in flight")));
+                return future;
+            }
             m_pendingCommands[cmdId] = std::move(pendingCmd);
         }
 
-
-        std::string trackedCommand = expectResponse ?
-            command + "#" + std::to_string(cmdId) + "\r\n" :
-            command + "\r\n";
-
-#ifdef _WIN32
-        DWORD bytesWritten = 0;
-        bool success;
-        {
-
-
-            std::lock_guard<std::mutex> handleLock(m_mutex);
-            if (!m_isOpen) {
-                std::lock_guard<std::mutex> lock(m_commandMutex);
-                auto it = m_pendingCommands.find(cmdId);
-                if (it != m_pendingCommands.end()) {
-                    try {
-                        it->second->promise.set_exception(std::make_exception_ptr(
-                            std::runtime_error("Connection closed"))); }
-                    catch (const std::exception& ex) {
-                        std::cerr << "[SerialPort] Close-race promise cancellation failed: "
-                                  << ex.what() << "\n";
-                    }
-                    catch (...) {
-                        std::cerr << "[SerialPort] Close-race promise cancellation failed with unknown exception\n";
-                    }
-                    m_pendingCommands.erase(it);
-                }
-                return future;
-            }
-            success = WriteFile(m_handle.get(), trackedCommand.c_str(),
-                static_cast<DWORD>(trackedCommand.length()),
-                &bytesWritten, nullptr);
-        }
-
-        if (!success || bytesWritten != trackedCommand.length()) {
+        const std::string wireCommand = command + "\r\n";
+        const bool success = writeRaw(std::span<const uint8_t>(
+            reinterpret_cast<const uint8_t*>(wireCommand.data()), wireCommand.size()));
+        if (!success) {
             std::lock_guard<std::mutex> lock(m_commandMutex);
             auto it = m_pendingCommands.find(cmdId);
             if (it != m_pendingCommands.end()) {
@@ -218,11 +278,14 @@ namespace makcu {
                 }
                 m_pendingCommands.erase(it);
             }
+        } else if (!expectResponse) {
+            std::lock_guard<std::mutex> lock(m_commandMutex);
+            auto it = m_pendingCommands.find(cmdId);
+            if (it != m_pendingCommands.end()) {
+                it->second->promise.set_value({});
+                m_pendingCommands.erase(it);
+            }
         }
-
-        FlushFileBuffers(m_handle.get());
-#endif
-
         return future;
     }
 
@@ -232,32 +295,15 @@ namespace makcu {
         }
 
         std::string fullCommand = command + "\r\n";
-
-#ifdef _WIN32
-        DWORD bytesWritten = 0;
-        bool success;
-        {
-
-            std::lock_guard<std::mutex> handleLock(m_mutex);
-            if (!m_isOpen) return false;
-            success = WriteFile(m_handle.get(), fullCommand.c_str(),
-                static_cast<DWORD>(fullCommand.length()),
-                &bytesWritten, nullptr);
-        }
-
-        if (success && bytesWritten == fullCommand.length()) {
-            FlushFileBuffers(m_handle.get());
-            return true;
-        }
-#endif
-
-        return false;
+        return writeRaw(std::span<const uint8_t>(
+            reinterpret_cast<const uint8_t*>(fullCommand.data()), fullCommand.size()));
     }
 
     void SerialPort::listenerLoop(std::stop_token stopToken) {
         OmniGhost::Platform::SetCurrentThreadName(L"OmniGhost.MakcuSerial");
         std::vector<uint8_t> readBuffer(BUFFER_SIZE);
         std::vector<uint8_t> lineBuffer(LINE_BUFFER_SIZE);
+        std::vector<uint8_t> binaryBuffer;
         size_t linePos = 0;
 
 
@@ -271,6 +317,7 @@ namespace makcu {
 
         auto lastCleanup = std::chrono::steady_clock::now();
         constexpr auto cleanupInterval = std::chrono::milliseconds(50);
+        unsigned consecutiveIoFailures = 0;
 
         while (!stopToken.stop_requested() && !m_stopListener && m_isOpen.load()) {
             try {
@@ -278,9 +325,14 @@ namespace makcu {
                 COMSTAT comStat;
                 DWORD errors = 0;
                 if (!ClearCommError(m_handle.get(), &errors, &comStat)) {
+                    if (++consecutiveIoFailures >= 3) {
+                        m_isOpen = false;
+                        break;
+                    }
                     std::this_thread::sleep_for(std::chrono::milliseconds(1));
                     continue;
                 }
+                consecutiveIoFailures = 0;
                 if (comStat.cbInQue == 0) {
                     std::this_thread::sleep_for(std::chrono::microseconds(500));
                     continue;
@@ -289,7 +341,31 @@ namespace makcu {
                 DWORD bytesToRead = std::min<DWORD>(comStat.cbInQue, static_cast<DWORD>(BUFFER_SIZE));
                 DWORD bytesRead = 0;
                 if (!ReadFile(m_handle.get(), readBuffer.data(), bytesToRead, &bytesRead, nullptr)) {
+                    if (++consecutiveIoFailures >= 3) {
+                        m_isOpen = false;
+                        break;
+                    }
                     std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                    continue;
+                }
+                consecutiveIoFailures = 0;
+
+                if (m_readerMode.load() == TransportReaderMode::LegacyV2Binary) {
+                    binaryBuffer.insert(binaryBuffer.end(), readBuffer.begin(), readBuffer.begin() + bytesRead);
+                    while (!binaryBuffer.empty()) {
+                        const auto start = std::find(binaryBuffer.begin(), binaryBuffer.end(), static_cast<uint8_t>(0x50));
+                        if (start != binaryBuffer.begin()) binaryBuffer.erase(binaryBuffer.begin(), start);
+                        if (binaryBuffer.size() < 4) break;
+                        const size_t payloadLength = static_cast<size_t>(binaryBuffer[2]) |
+                                                     (static_cast<size_t>(binaryBuffer[3]) << 8);
+                        if (payloadLength > BUFFER_SIZE) {
+                            binaryBuffer.erase(binaryBuffer.begin());
+                            continue;
+                        }
+                        const size_t frameLength = 4 + payloadLength;
+                        if (binaryBuffer.size() < frameLength) break;
+                        binaryBuffer.erase(binaryBuffer.begin(), binaryBuffer.begin() + static_cast<ptrdiff_t>(frameLength));
+                    }
                     continue;
                 }
 
@@ -422,8 +498,16 @@ namespace makcu {
         const uint8_t lastMask = m_lastButtonMask.exchange(data);
         m_buttonPackets.fetch_add(1, std::memory_order_relaxed);
 
-        if (m_maskCallback) {
-            try { m_maskCallback(data); }
+        MaskCallback maskCallback;
+        ButtonCallback buttonCallback;
+        {
+            std::lock_guard<std::mutex> lock(m_callbackMutex);
+            maskCallback = m_maskCallback;
+            buttonCallback = m_buttonCallback;
+        }
+
+        if (maskCallback) {
+            try { maskCallback(data); }
             catch (const std::exception& exception) {
                 std::cerr << "[MAKCU] callback de máscara falhou: " << exception.what() << "\n";
             }
@@ -432,13 +516,13 @@ namespace makcu {
             }
         }
 
-        if (data != lastMask && m_buttonCallback) {
+        if (data != lastMask && buttonCallback) {
             const uint8_t changedBits = static_cast<uint8_t>(data ^ lastMask);
             for (int bit = 0; bit < 5; ++bit) {
                 if (changedBits & (1 << bit)) {
                     const bool isPressed = (data & (1 << bit)) != 0;
                     try {
-                        m_buttonCallback(static_cast<uint8_t>(bit), isPressed);
+                        buttonCallback(static_cast<uint8_t>(bit), isPressed);
                     } catch (const std::exception& exception) {
                         std::cerr << "[MAKCU] callback de botão falhou: " << exception.what() << "\n";
                     } catch (...) {
@@ -452,8 +536,16 @@ namespace makcu {
     void SerialPort::processResponse(const std::string& response) {
 
         std::string content = response;
-        if (content.substr(0, 4) == ">>> ") {
+        if (content.rfind(">>> ", 0) == 0) {
             content = content.substr(4);
+        }
+        if (content.empty() || content == ">>>") return;
+
+        {
+            std::lock_guard<std::mutex> lock(m_commandMutex);
+            if (m_pendingCommands.size() == 1 &&
+                content == m_pendingCommands.begin()->second->command)
+                return;
         }
 
 
@@ -667,10 +759,12 @@ namespace makcu {
     }
 
     void SerialPort::setButtonCallback(ButtonCallback callback) {
+        std::lock_guard<std::mutex> lock(m_callbackMutex);
         m_buttonCallback = callback;
     }
 
     void SerialPort::setMaskCallback(MaskCallback callback) {
+        std::lock_guard<std::mutex> lock(m_callbackMutex);
         m_maskCallback = callback;
     }
 
@@ -699,11 +793,12 @@ namespace makcu {
     }
 
     bool SerialPort::write(const std::vector<uint8_t>& data) {
-        return sendCommand(std::string(data.begin(), data.end()));
+        return writeRaw(data);
     }
 
     bool SerialPort::write(const std::string& data) {
-        return sendCommand(data);
+        return writeRaw(std::span<const uint8_t>(
+            reinterpret_cast<const uint8_t*>(data.data()), data.size()));
     }
 
     std::vector<uint8_t> SerialPort::read(size_t maxBytes) {

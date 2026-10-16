@@ -368,7 +368,8 @@ void LoadLauncherState() {
                     history.lastSessionSeconds = c;
                 }
             } catch (...) {
-
+                std::cerr << "[Launcher] Failed to parse persisted session data for game "
+                          << static_cast<int>(id) << ".\n";
             }
         }
     }

@@ -146,6 +146,12 @@
     <ClCompile Include="src\makcu\makcu.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\makcu\makcu_connection.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\makcu\makcu_protocol.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="src\makcu\serialport.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

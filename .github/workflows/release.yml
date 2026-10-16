@@ -60,6 +60,7 @@ jobs:
         run: |
           ./tools/Validate-Project.ps1 -ProjectDir .
           ./tools/Test-ReleaseEngineering.ps1 -ProjectDir .
+          ./tools/Test-MakcuIntegration.ps1
           ./tools/Test-ReleaseTrust.ps1 -ProjectDir .
           ./tools/Audit-UiLocalization.ps1 -ProjectDir . -ReportPath artifacts/validation/localization.json
 

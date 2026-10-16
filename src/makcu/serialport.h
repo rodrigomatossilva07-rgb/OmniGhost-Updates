@@ -10,6 +10,8 @@
 #include <stop_token>
 #include <queue>
 #include <chrono>
+#include <span>
+#include "makcu_transport.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -32,18 +34,24 @@ namespace makcu {
         }
     };
 
-    class SerialPort {
+    class SerialPort final : public IMakcuTransport {
     public:
         SerialPort();
-        ~SerialPort();
+        ~SerialPort() override;
 
-        bool open(const std::string& port, uint32_t baudRate);
-        void close();
-        bool isOpen() const;
+        bool open(const std::string& port, uint32_t baudRate, bool startReader = true) override;
+        void close() override;
+        bool isOpen() const override;
+        bool startListener() override;
+        void setReaderMode(TransportReaderMode mode) noexcept override;
+        bool writeRaw(std::span<const uint8_t> data) override;
+        std::vector<uint8_t> readFor(std::chrono::milliseconds timeout,
+                                     std::chrono::milliseconds quietPeriod) override;
+        bool purge() override;
 
         bool setBaudRate(uint32_t baudRate);
-        uint32_t getBaudRate() const;
-        std::string getPortName() const;
+        uint32_t getBaudRate() const override;
+        std::string getPortName() const override;
 
 
         std::future<std::string> sendTrackedCommand(const std::string& command,
@@ -101,10 +109,13 @@ namespace makcu {
 
         std::jthread m_listenerThread;
         std::atomic<bool> m_stopListener{ false };
+        std::atomic<bool> m_listenerStarted{ false };
+        std::atomic<TransportReaderMode> m_readerMode{ TransportReaderMode::Text };
 
 
         ButtonCallback m_buttonCallback;
         MaskCallback m_maskCallback;
+        std::mutex m_callbackMutex;
         std::atomic<uint8_t> m_lastButtonMask{ 0 };
         std::atomic<uint64_t> m_buttonPackets{ 0 };
 

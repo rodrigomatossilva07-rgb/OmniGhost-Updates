@@ -254,6 +254,9 @@
     <ClInclude Include="src\games\Cs2\spectators\cs2_spectators.inl"/>
     <ClInclude Include="src\games\Cs2\telemetry\cs2_telemetry.h"/>
     <ClInclude Include="src\games\Cs2\visibility\cs2_visibility_worker.h"/>
+    <ClInclude Include="src\makcu\makcu_connection.h"/>
+    <ClInclude Include="src\makcu\makcu_protocol.h"/>
+    <ClInclude Include="src\makcu\makcu_transport.h"/>
     <ClCompile Include="src\main.cpp"/>
     <ClCompile Include="src\config\app_settings.cpp"/>
     <ClCompile Include="src\config\config_manager.cpp"/>
@@ -287,6 +290,8 @@
     <ClCompile Include="src\launcher\updates_page.cpp"/>
     <ClCompile Include="src\launcher\update_time_utils.cpp"/>
     <ClCompile Include="src\makcu\makcu.cpp"/>
+    <ClCompile Include="src\makcu\makcu_connection.cpp"/>
+    <ClCompile Include="src\makcu\makcu_protocol.cpp"/>
     <ClCompile Include="src\makcu\makcu_wrapper.cpp"/>
     <ClCompile Include="src\makcu\serialport.cpp"/>
     <ClCompile Include="src\math\math.cpp"/>
