@@ -303,7 +303,7 @@ void DrawAdminGameConfig() {
         ImGui::Dummy(ImVec2(0.f, S(9.f)));
     }
     DrawRemoteBoundary("ROLLOUT E FEATURE FLAGS",
-        "Publicação de offsets, canary rollout e perfis oficiais precisam de artefactos assinados e de um serviço de configuração autenticado.", false);
+        "Publicação de offsets, canary rollout e perfis oficiais precisam de artefactos validados por SHA-256 e de um serviço de configuração autenticado.", false);
 }
 
 void DrawAdminBuildInfo() {

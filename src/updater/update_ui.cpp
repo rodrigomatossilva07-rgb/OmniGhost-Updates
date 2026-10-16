@@ -24,7 +24,6 @@ const char* StageLabel(const std::string& stage) {
     if (stage == "release-resolution") return "Resolução da versão";
     if (stage == "check") return "Rede / transferência do manifesto";
     if (stage == "manifest") return "Validação do manifesto";
-    if (stage == "signature") return "Assinatura do manifesto";
     if (stage == "integrity") return "Integridade da instalação";
     if (stage == "repair") return "Preparação da reparação";
     if (stage == "version") return "Comparação de versões";
@@ -32,7 +31,6 @@ const char* StageLabel(const std::string& stage) {
     if (stage == "sha256") return "Validação SHA-256";
     if (stage == "prepare") return "Preparação do pacote";
     if (stage == "launch-updater") return "Arranque do atualizador";
-    if (stage == "authenticode") return "Assinatura digital";
     if (stage == "installation") return "Instalação";
     if (stage == "restart") return "Reinício / confirmação de arranque";
     return "Etapa desconhecida";

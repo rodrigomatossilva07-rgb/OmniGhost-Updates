@@ -53,8 +53,7 @@
     <OmniGhostReleaseChannel Condition="'$(OmniGhostReleaseChannel)'==''">stable</OmniGhostReleaseChannel>
   </PropertyGroup>
   <PropertyGroup Condition="('$(Configuration)'=='Release' Or '$(Configuration)'=='Publish') And '$(Platform)'=='x64' And '$(OmniGhostPayloadBuild)'!='true'">
-    <!-- Distribution is ZIP-only. MSIX necessarily requires a package
-         signature, so it is intentionally not generated. -->
+    <!-- Distribution is ZIP-only; MSIX generation is intentionally disabled. -->
     <GenerateMsixPackage>false</GenerateMsixPackage>
     <AppxPackageSigningEnabled>false</AppxPackageSigningEnabled>
   </PropertyGroup>
@@ -72,7 +71,7 @@
       <PreprocessorDefinitions>OMNIGHOST_PRIVATE_STATIC_VMM;VMMDLL_STATIC;LEECHCORE_STATIC;OMNIGHOST_PRIVATE_DEVELOPMENT_BUILD;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>$(ProjectDir).cache\private-static\vmm\vmm.lib;$(ProjectDir).cache\private-static\leechcore\leechcore.lib;d3d11.lib;dxgi.lib;d3dcompiler.lib;dwmapi.lib;user32.lib;gdi32.lib;imm32.lib;setupapi.lib;ws2_32.lib;windowscodecs.lib;ole32.lib;shell32.lib;winhttp.lib;wininet.lib;bcrypt.lib;wintrust.lib;crypt32.lib;shlwapi.lib;version.lib;advapi32.lib;credui.lib;rpcrt4.lib;secur32.lib;winusb.lib;ntdll.lib;winmm.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(ProjectDir).cache\private-static\vmm\vmm.lib;$(ProjectDir).cache\private-static\leechcore\leechcore.lib;d3d11.lib;dxgi.lib;d3dcompiler.lib;dwmapi.lib;user32.lib;gdi32.lib;imm32.lib;setupapi.lib;ws2_32.lib;windowscodecs.lib;ole32.lib;shell32.lib;winhttp.lib;wininet.lib;bcrypt.lib;crypt32.lib;shlwapi.lib;version.lib;advapi32.lib;credui.lib;rpcrt4.lib;secur32.lib;winusb.lib;ntdll.lib;winmm.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <DelayLoadDLLs></DelayLoadDLLs>
       <AdditionalLibraryDirectories>$(ProjectDir).cache\private-static\vmm;$(ProjectDir).cache\private-static\leechcore;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
@@ -488,7 +487,6 @@
     <ClInclude Include="src\updater\json.h"/>
     <ClInclude Include="src\updater\http_policy.h"/>
     <ClInclude Include="src\updater\installation_integrity.h"/>
-    <ClInclude Include="src\updater\release_trust.h"/>
     <ClInclude Include="src\updater\wininet_fallback.h"/>
     <ClInclude Include="src\platform\build_info.h"/>
     <ClInclude Include="src\platform\internet_handle.h"/>

@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [Parameter(Mandatory=$false)]
     [string]$ProjectDir = (Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path))
@@ -66,7 +66,7 @@ $expectedCloudflaredSha256 = 'c29eee2b121f5436a642eed69fd9767da7e7b8c510fa50aaa1
 if ((Get-Sha256 $cloudflaredPath) -cne $expectedCloudflaredSha256) {
     Fail 'cloudflared.exe does not match the approved signed Cloudflare 2026.8.2 binary.'
 }
-Pass 'cloudflared.exe matches the approved Authenticode-verified Cloudflare 2026.8.2 binary.'
+Pass 'cloudflared.exe matches the approved Cloudflare 2026.8.2 SHA-256.'
 
 foreach ($path in @('third_party\DMALibrary\libs','third_party\DMALibrary\info.db','libs\info.db','src\launcher\calibration_page.cpp','src\launcher\calibration_page.h')) {
     Require-Absent $path
@@ -208,7 +208,7 @@ Require-Text $releasePackager 'RequiredRuntimeFiles' 'Release staging has an exp
 Forbid-Text $releasePackager 'publish_github_release\.ps1' 'Package phase contains no remote publication code path.'
 Forbid-Text $releasePackager 'SkipPublish' 'Package phase does not expose a legacy publish toggle.'
 Require-Text $releasePackager 'install-manifest\.sha256' 'Runtime packages contain an installation integrity manifest.'
-Require-Text $releasePackager 'install-manifest\.sha256\.sig' 'Commercial runtime packages sign the local integrity manifest.'
+Forbid-Text $releasePackager 'install-manifest\.sha256\.sig|update\.json\.sig|SignTool|Get-AuthenticodeSignature' 'Release packaging does not require signatures.'
 Forbid-Text $releasePackager "StageDir 'THIRD_PARTY_NOTICES\.txt'" 'Customer ZIP does not install dependency-notice sidecars.'
 Forbid-Text $releasePackager "StageDir 'install-manifest\.sha256'" 'Customer ZIP does not install integrity-manifest sidecars.'
 $installEngine = Read-Utf8Text (Join-Path $ProjectDir 'src\updater\install_engine.cpp')
@@ -244,24 +244,18 @@ if ($publishConfig.requireCleanReproducibleBuild -ne $true -or $publishConfig.re
 Pass 'Commercial publication requires clean reproducible tagged source.'
 if ($publishConfig.allowDeterministicSourceSnapshot -ne $true) { Fail 'This source snapshot must explicitly allow deterministic snapshot publication.' }
 Pass 'Deterministic source snapshots are explicitly authorized without weakening validation for real Git clones.'
-if ($publishConfig.requireAuthenticode -ne $true -or $publishConfig.requireManifestSignature -ne $true) { Fail 'Commercial publication must require Authenticode and a signed manifest.' }
-Pass 'Commercial publication requires independent executable and manifest authenticity.'
+if ($publishConfig.PSObject.Properties.Name -contains 'requireAuthenticode' -or
+    $publishConfig.PSObject.Properties.Name -contains 'requireManifestSignature') { Fail 'Release policy still exposes signature requirements.' }
+Pass 'Commercial publication uses HTTPS, size and SHA-256 without certificate dependencies.'
 if ($publishConfig.cleanWorkspaceAfterVerifiedPublish -ne $true) { Fail 'Publish must clean the requested local workspace only after a verified public release.' }
 Pass 'Post-publish workspace cleanup is enabled only after verified publication.'
-if (($publishConfig.requireAuthenticode -eq $true) -xor ($publishConfig.requireManifestSignature -eq $true)) { Fail 'Authenticode and manifest signatures must be toggled together.' }
-Pass 'Optional signing policy is internally consistent.'
-if ([int]$publishConfig.certificateRotationWarningDays -lt 30) { Fail 'Certificate rotation warning must be at least 30 days.' }
-Pass 'Certificate expiry/rotation policy is configured.'
 if ($publishConfig.PSObject.Properties.Name -contains 'deleteLocalReleaseAfterUpload') { Fail 'Use cleanWorkspaceAfterVerifiedPublish rather than the legacy cleanup setting.' }
 Pass 'No legacy automatic cleanup setting is exposed.'
 if ($publishConfig.defaultMandatory -ne $false) { Fail 'config\release\release-publish.json must default to optional updates; mandatory releases are explicit.' }
 Pass 'Update policy defaults to optional; mandatory releases require an explicit policy change.'
 
-$trustHeader = Read-Utf8Text (Join-Path $ProjectDir 'src\updater\release_trust.h')
-Require-Text $trustHeader 'Configured\s*=\s*(true|false)' 'Client release trust state is explicit; commercial preflight rejects missing certificate material.'
 $cryptoSource = Read-Utf8Text (Join-Path $ProjectDir 'src\updater\crypto.cpp')
-Require-Text $cryptoSource 'VerifyDetachedManifestSignature' 'Updater verifies detached RSA manifest signatures.'
-Require-Text $cryptoSource 'expectedCertificateThumbprint' 'Updater verifies expected publisher certificate identity.'
+Forbid-Text $cryptoSource 'VerifyDetachedManifestSignature|VerifyAuthenticode|expectedCertificateThumbprint' 'Updater has no release-signature dependency.'
 $symbolsPackager = Read-Utf8Text (Join-Path $ProjectDir 'tools\Create-SymbolsPackage.ps1')
 Require-Text $symbolsPackager '\.cache\\symbols\\\$Configuration' 'Private symbol package reads the selected configuration PDBs from .cache, not build/.'
 

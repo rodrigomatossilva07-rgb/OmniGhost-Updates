@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [Parameter(Mandatory = $false)]
     [string]$ProjectDir = '',
@@ -226,8 +226,8 @@ if (-not $ValidateOnly -and -not $SkipRemoteUpload -and -not $usingApprovedSourc
     Write-Host "Release: $releaseUrl"
     Write-Host "Pacote: $(Format-OmniBytes $zipSize)"
     Write-Host 'Reprodutibilidade: PASS'
-    Write-Host 'Assinatura: PASS'
-    Write-Host 'Artefactos: 9/9 validados'
+    Write-Host 'Integridade SHA-256: PASS'
+    Write-Host 'Artefactos: 7/7 validados'
     Write-Host "Próxima versão preparada: $nextVersion"
     if ($null -ne $packagingDuration) { Write-Host "Packaging: $(Format-OmniDuration $packagingDuration)" }
     Write-Host "Upload GitHub: $(Format-OmniDuration $uploadDuration)"

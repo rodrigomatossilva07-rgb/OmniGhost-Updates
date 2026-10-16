@@ -466,9 +466,6 @@
     <ClInclude Include="src\updater\installation_integrity.h">
       <Filter>Header Files\updater</Filter>
     </ClInclude>
-    <ClInclude Include="src\updater\release_trust.h">
-      <Filter>Header Files\updater</Filter>
-    </ClInclude>
     <ClInclude Include="src\updater\wininet_fallback.h">
       <Filter>Header Files</Filter>
     </ClInclude>

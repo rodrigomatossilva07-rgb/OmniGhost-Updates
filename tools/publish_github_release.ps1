@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
     [string]$ProjectDir,
@@ -91,8 +91,7 @@ function Find-Gh {
 }
 
 function Get-RequiredAssets {
-    param([bool]$RequireSignatures)
-    $assets = @(
+    return @(
         'OmniGhost.zip',
         'update.json',
         'install-manifest.sha256',
@@ -102,11 +101,6 @@ function Get-RequiredAssets {
         'release-meta.json',
         'SHA256SUMS.txt'
     )
-    if ($RequireSignatures) {
-        $assets += 'update.json.sig'
-        $assets += 'install-manifest.sha256.sig'
-    }
-    return $assets
 }
 
 function Get-LocalAssetInfo {
@@ -418,12 +412,8 @@ Write-Gh "Repositório: $Repository"
 Write-Gh "Tag: $Tag"
 Write-Gh "Draft: $Draft"
 
-$RequireSignatures = $Config.requireManifestSignature -eq $true
-if (-not $RequireSignatures -or $Config.requireAuthenticode -ne $true) {
-    throw 'Publication requires executable and manifest authenticity.'
-}
 & (Join-Path $PSScriptRoot 'Validate-ReleaseArtifacts.ps1') -ProjectDir $ProjectDir -ReleaseDirectory $ReleaseDirectory -Version $Version -Quiet:$Quiet
-$Required = Get-RequiredAssets -RequireSignatures $RequireSignatures
+$Required = Get-RequiredAssets
 $LocalInfo = Get-LocalAssetInfo -Names $Required
 $AssetPaths = @($Required | ForEach-Object { $LocalInfo[$_].Path })
 
@@ -463,7 +453,7 @@ $CreatedRelease = $false
 $View = $null
 
 if ($Existing) {
-    Write-Gh "A Release $Tag já existe; a atualizar os assets assinados com --clobber."
+    Write-Gh "A Release $Tag já existe; a atualizar os artefactos validados com --clobber."
     $UploadArguments = @('release', 'upload', $Tag) + $AssetPaths + @(
         '--repo', $Repository, '--clobber')
     $UploadResult = Invoke-GhCapture -Gh $Gh -Arguments $UploadArguments

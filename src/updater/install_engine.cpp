@@ -133,8 +133,7 @@ bool ContainsOnlyExecutable(const fs::path& root, const std::wstring& executable
         const fs::path relative = fs::relative(it->path(), root, ec);
         if (ec) return false;
         const bool allowed = relative == fs::path(executableName) ||
-            relative == fs::path(L"install-manifest.sha256") ||
-            relative == fs::path(L"install-manifest.sha256.sig");
+            relative == fs::path(L"install-manifest.sha256");
         if (!allowed) return false;
         ++files;
     }
@@ -394,9 +393,7 @@ InstallResult InstallSingleExecutable(const InstallOptions& options) {
 		return result;
 	}
 
-    // UPD-002 Fix: install the signed integrity manifest alongside the
-    // executable so VerifyInstallationFiles can actually verify the target.
-    for (const wchar_t* manifestName : { L"install-manifest.sha256", L"install-manifest.sha256.sig" }) {
+    for (const wchar_t* manifestName : { L"install-manifest.sha256" }) {
         const fs::path source = options.staging / manifestName;
         std::error_code manifestError;
         if (fs::exists(source, manifestError))

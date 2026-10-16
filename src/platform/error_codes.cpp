@@ -90,7 +90,6 @@ constexpr std::array<ErrorEntry, 88> kErrorTable = {{
     {OmniGhost::Platform::ErrorCode::UpdateNoSpace, "Espaco em disco insuficiente", false, true, "updater"},
     {OmniGhost::Platform::ErrorCode::UpdateLocked, "Atualizacao bloqueada", false, false, "updater"},
     {OmniGhost::Platform::ErrorCode::UpdateManifestInvalid, "Manifesto invalido", false, false, "updater"},
-    {OmniGhost::Platform::ErrorCode::UpdateSignatureInvalid, "Assinatura invalida", false, false, "updater"},
     {OmniGhost::Platform::ErrorCode::UpdateVersionIncompatible, "Versao incompativel", false, true, "updater"},
 
 

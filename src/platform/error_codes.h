@@ -83,7 +83,6 @@ enum class ErrorCode : std::uint32_t {
     UpdateNoSpace = 4005,
     UpdateLocked = 4006,
     UpdateManifestInvalid = 4007,
-    UpdateSignatureInvalid = 4008,
     UpdateVersionIncompatible = 4008,
 
 

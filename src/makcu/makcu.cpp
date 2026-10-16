@@ -80,13 +80,39 @@ namespace makcu {
 
         ~Impl() = default;
 
+        // Reconnection policy: after a mid-session write failure the device
+        // is marked disconnected and the caller can call connect() again.
+        // We do NOT queue or replay old commands — moves are relative and
+        // stale deltas would corrupt the aim. The wrapper's move() already
+        // drops everything when !isConnected(), which is the correct
+        // behaviour for relative mouse input.
+        std::atomic<uint32_t> reconnectAttempts{ 0 };
+        static constexpr uint32_t kMaxReconnectAttempts = 5;
+        std::chrono::steady_clock::time_point lastReconnectAttempt{};
+        std::chrono::milliseconds reconnectCooldown{ 2000 };
+
         bool executeWire(const WireCommand& wire) {
             if (!connected.load() || !serialPort->isOpen()) return false;
+            bool ok;
             if (wire.encoding == WireEncoding::Text) {
                 const std::string command(wire.bytes.begin(), wire.bytes.end());
-                return serialPort->sendCommand(command);
+                ok = serialPort->sendCommand(command);
+            } else {
+                ok = serialPort->writeRaw(wire.bytes);
             }
-            return serialPort->writeRaw(wire.bytes);
+            // Mid-write failure: mark disconnected immediately so no further
+            // commands are attempted; the hardware_manager's next probe will
+            // call connect() which releases all buttons and restarts clean.
+            if (!ok) {
+                const bool wasConnected = connected.exchange(false);
+                if (wasConnected) {
+                    status = ConnectionStatus::CONNECTION_ERROR;
+                    lastError = "Write failed; device disconnected mid-session.";
+                    currentButtonMask.store(0);
+                    monitoring.store(false);
+                }
+            }
+            return ok;
         }
 
         void handleButtonEvent(uint8_t button, bool pressed) {
@@ -131,18 +157,7 @@ namespace makcu {
             }
 
             auto start = std::chrono::high_resolution_clock::now();
-
-            bool result;
-            if (highPerformanceMode.load()) {
-
-                result = serialPort->sendCommand(command);
-            }
-            else {
-
-                result = serialPort->sendCommand(command);
-            }
-
-
+            const bool result = serialPort->sendCommand(command);
             auto end = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
             makcu::PerformanceProfiler::logCommandTiming(command, duration);

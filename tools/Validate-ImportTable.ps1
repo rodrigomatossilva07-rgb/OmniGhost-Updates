@@ -23,10 +23,10 @@ $defaultAllowList = @(
 
     "kernel32.dll", "ntdll.dll", "user32.dll", "gdi32.dll", "advapi32.dll",
     "shell32.dll", "ole32.dll", "oleaut32.dll", "comdlg32.dll", "version.dll",
-    "ws2_32.dll", "winhttp.dll", "wininet.dll", "bcrypt.dll", "wintrust.dll",
+    "ws2_32.dll", "winhttp.dll", "wininet.dll", "bcrypt.dll",
     "crypt32.dll", "shlwapi.dll", "version.dll", "advapi32.dll", "setupapi.dll",
     "dwmapi.dll", "imm32.dll", "windowscodecs.lib", "d3d11.dll", "dxgi.dll", "d3dcompiler_47.dll",
-    "d3dcompiler.lib", "bcrypt.lib", "wintrust.lib", "crypt32.lib",
+    "d3dcompiler.lib", "bcrypt.lib", "crypt32.lib",
     "shlwapi.lib", "version.lib", "advapi32.lib",
 
 

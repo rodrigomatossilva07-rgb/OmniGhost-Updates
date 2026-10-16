@@ -174,7 +174,12 @@ public:
     }
 
     std::optional<WireCommand> Lock(std::string_view target, bool enabled) const override {
-        return TextProtocol(FirmwareFamily::V4, capabilities_).Lock(target, enabled);
+        if (capabilities_.Get(Capability::MouseLocks) != CapabilityState::Supported) return std::nullopt;
+        // V4 accepts text commands for locks alongside binary ones; encode
+        // directly instead of constructing a temporary TextProtocol.
+        static constexpr std::array<std::string_view, 7> allowed{"mx", "my", "ml", "mr", "mm", "ms1", "ms2"};
+        if (std::find(allowed.begin(), allowed.end(), target) == allowed.end()) return std::nullopt;
+        return TextCommand("km.lock_" + std::string(target) + (enabled ? "(1)" : "(0)"));
     }
 
 private:

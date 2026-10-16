@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
     [string]$ProjectDir,
@@ -363,50 +363,11 @@ try {
 
     if ($Commercial) {
         if ($null -eq $PublishSettings) { throw 'config\release\release-publish.json é obrigatório para packaging Commercial.' }
-        if ($PublishSettings.requireAuthenticode -ne $true -or $PublishSettings.requireManifestSignature -ne $true) {
-            throw 'Packaging Commercial exige requireAuthenticode=true e requireManifestSignature=true.'
-        }
         $ConfiguredChannel = if ($PublishSettings.releaseChannel) { [string]$PublishSettings.releaseChannel } else { 'stable' }
         if ([string]$BuildMetadata.release_channel -cne $ConfiguredChannel) {
             throw "Release channel do build ('$($BuildMetadata.release_channel)') não corresponde ao policy ('$ConfiguredChannel'). Recompila Publish|x64 com o canal correto."
         }
-        $SigningThumbprint = ([string]$PublishSettings.signingCertificateThumbprint -replace '\s','').ToUpperInvariant()
-        $ExpectedPublisher = [string]$PublishSettings.expectedPublisherSubject
-        if ($SigningThumbprint -notmatch '^[0-9A-F]{40}$' -or [string]::IsNullOrWhiteSpace($ExpectedPublisher)) {
-            throw 'Trust comercial não configurado. Executa tools\Configure-ReleaseTrust.ps1 no ambiente de assinatura.'
-        }
-        if ([string]::IsNullOrWhiteSpace($env:OMNIGHOST_SIGNING_THUMBPRINT)) {
-            throw 'Define OMNIGHOST_SIGNING_THUMBPRINT no ambiente de Publish.'
-        }
-        if (($env:OMNIGHOST_SIGNING_THUMBPRINT -replace '\s','').ToUpperInvariant() -ne $SigningThumbprint) {
-            throw 'OMNIGHOST_SIGNING_THUMBPRINT difere do certificado público configurado para o cliente.'
-        }
-        . (Join-Path $ProjectDir 'tools\ReleaseTrustTools.ps1')
-        $SigningCertificate = Get-ReleaseSigningCertificate -Thumbprint $SigningThumbprint -RequirePrivateKey
-        Assert-ReleaseTrustMatches -Policy $PublishSettings -HeaderPath (Join-Path $ProjectDir 'src\updater\release_trust.h') -Certificate $SigningCertificate
-        Write-OmniPhase 7 'Assinaturas e integridade'
-        Write-ReleaseLog 'A assinar a cópia staged de OmniGhost.exe com Authenticode...'
-        $signingTimer = [Diagnostics.Stopwatch]::StartNew()
-        $SignTool = Get-ReleaseSignTool
-        $signOutput = @(& $SignTool sign /q /fd SHA256 /sha1 $SigningCertificate.Thumbprint /s My $StagedExecutable 2>&1)
-        $signExitCode = $LASTEXITCODE
-        if ($signExitCode -ne 0) {
-            throw "SignTool signing failed with exit code ${signExitCode}: $($signOutput -join ' ')"
-        }
-        $verifyOutput = @(& $SignTool verify /q /pa /all $StagedExecutable 2>&1)
-        $verifyExitCode = $LASTEXITCODE
-        if ($verifyExitCode -ne 0) {
-            throw "SignTool verification failed with exit code ${verifyExitCode}: $($verifyOutput -join ' ')"
-        }
-        $ExecutableSignature = Get-AuthenticodeSignature -LiteralPath $StagedExecutable
-        if ($ExecutableSignature.Status -ne 'Valid' -or
-            $null -eq $ExecutableSignature.SignerCertificate -or
-            $ExecutableSignature.SignerCertificate.Thumbprint -cne $SigningCertificate.Thumbprint) {
-            throw 'The Authenticode signer does not match the selected trusted publisher.'
-        }
-        $signedExecutableHash = Get-LowerSha256 -Path $StagedExecutable
-        Write-ReleaseLog "[Signing] OmniGhost.exe assinado e verificado em $(Format-OmniDuration $signingTimer.Elapsed)."
-        Write-ReleaseLog "[Signing] Certificado: $($SigningCertificate.Subject); SHA-256: $signedExecutableHash"
+        Write-OmniPhase 7 'Integridade do pacote'
     }
 
 
@@ -427,17 +388,6 @@ try {
         }
     [IO.File]::WriteAllLines($InstallManifestPath, $InstallManifestLines, $Utf8NoBom)
     Write-ReleaseLog ("Install manifest criado: {0} ficheiros." -f $InstallManifestLines.Count)
-
-    $InstallManifestSignaturePath = Join-Path $ReleaseWorkDir 'install-manifest.sha256.sig'
-    if ($Commercial) {
-        Write-ReleaseLog 'A assinar install-manifest.sha256 para permitir Verify installation autenticado...'
-        & (Join-Path $ProjectDir 'tools\Sign-UpdateManifest.ps1') -InputPath $InstallManifestPath -OutputPath $InstallManifestSignaturePath -CertificateThumbprint $SigningThumbprint
-        if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $InstallManifestSignaturePath -PathType Leaf)) {
-            throw 'Detached install manifest signing failed.'
-        }
-    } else {
-        Remove-Item -LiteralPath $InstallManifestSignaturePath -Force -ErrorAction SilentlyContinue
-    }
 
 
 
@@ -469,13 +419,9 @@ try {
 
 
     $ArtifactInstallManifest = Join-Path $ArtifactOutputDir 'install-manifest.sha256'
-    $ArtifactInstallManifestSignature = Join-Path $ArtifactOutputDir 'install-manifest.sha256.sig'
     $ArtifactSbom = Join-Path $ArtifactOutputDir 'SBOM.cdx.json'
     Copy-Item -LiteralPath $InstallManifestPath -Destination $ArtifactInstallManifest -Force
     Copy-Item -LiteralPath $SbomPath -Destination $ArtifactSbom -Force
-    if (Test-Path -LiteralPath $InstallManifestSignaturePath -PathType Leaf) {
-        Copy-Item -LiteralPath $InstallManifestSignaturePath -Destination $ArtifactInstallManifestSignature -Force
-    }
 
 
 
@@ -523,22 +469,6 @@ try {
     [System.IO.File]::WriteAllText($ManifestPath, $ManifestJson, $Utf8NoBom)
     $ArtifactManifest = Join-Path $ArtifactOutputDir 'update.json'
     [System.IO.File]::WriteAllText($ArtifactManifest, $ManifestJson, $Utf8NoBom)
-
-    $ArtifactManifestSignature = Join-Path $ArtifactOutputDir 'update.json.sig'
-    if ($Commercial) {
-        Write-ReleaseLog 'A assinar update.json com a chave privada do certificado de Release...'
-        & (Join-Path $ProjectDir 'tools\Sign-UpdateManifest.ps1') -InputPath $ArtifactManifest -OutputPath $ArtifactManifestSignature -CertificateThumbprint $SigningThumbprint
-        if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $ArtifactManifestSignature -PathType Leaf)) {
-            throw 'Detached manifest signing failed.'
-        }
-    } else {
-        Remove-Item -LiteralPath $ArtifactManifestSignature -Force -ErrorAction SilentlyContinue
-        if ($PublishBuild) {
-            Write-ReleaseLog -Message 'Publish sem certificado: update.json.sig nao foi criado; HTTPS, tamanho e SHA-256 continuam obrigatorios.'
-        } else {
-            Write-ReleaseLog -Level WARN -Message 'Development package: update.json.sig nao foi criado.'
-        }
-    }
 
     $ManifestCheck = Get-Content -LiteralPath $ArtifactManifest -Raw | ConvertFrom-Json
     if ([string]$ManifestCheck.version -ne $Version -or
@@ -598,7 +528,6 @@ try {
 
     $SumNames = @('OmniGhost.zip','update.json','install-manifest.sha256',
         'SBOM.cdx.json','changelog.json','release-notes.md','release-meta.json')
-    if ($Commercial) { $SumNames += @('update.json.sig','install-manifest.sha256.sig') }
     $SumLines = foreach ($name in ($SumNames | Sort-Object)) {
         $path = Join-Path $ArtifactOutputDir $name
         if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "[HASH] Artefacto em falta: $name" }
@@ -606,13 +535,11 @@ try {
     }
     $ArtifactSums = Join-Path $ArtifactOutputDir 'SHA256SUMS.txt'
     [IO.File]::WriteAllLines($ArtifactSums, [string[]]$SumLines, $Utf8NoBom)
-    Write-ReleaseLog "[HASH] SHA256SUMS.txt gerado após assinatura: $($SumNames.Count) artefactos."
+    Write-ReleaseLog "[HASH] SHA256SUMS.txt gerado: $($SumNames.Count) artefactos."
 
     $ReleaseZip = Join-Path $ReleaseOutputDir $ZipName
     $ReleaseManifest = Join-Path $ReleaseOutputDir 'update.json'
-    $ReleaseManifestSignature = Join-Path $ReleaseOutputDir 'update.json.sig'
     $ReleaseInstallManifest = Join-Path $ReleaseOutputDir 'install-manifest.sha256'
-    $ReleaseInstallManifestSignature = Join-Path $ReleaseOutputDir 'install-manifest.sha256.sig'
     $ReleaseChangelog = Join-Path $ReleaseOutputDir 'changelog.json'
     $ReleaseNotes = Join-Path $ReleaseOutputDir 'release-notes.md'
     $ReleaseMeta = Join-Path $ReleaseOutputDir 'release-meta.json'
@@ -621,13 +548,7 @@ try {
 
     Copy-Item -LiteralPath $ArtifactZip -Destination $ReleaseZip -Force
     Copy-Item -LiteralPath $ArtifactManifest -Destination $ReleaseManifest -Force
-    if (Test-Path -LiteralPath $ArtifactManifestSignature -PathType Leaf) {
-        Copy-Item -LiteralPath $ArtifactManifestSignature -Destination $ReleaseManifestSignature -Force
-    }
     Copy-Item -LiteralPath $ArtifactInstallManifest -Destination $ReleaseInstallManifest -Force
-    if (Test-Path -LiteralPath $ArtifactInstallManifestSignature -PathType Leaf) {
-        Copy-Item -LiteralPath $ArtifactInstallManifestSignature -Destination $ReleaseInstallManifestSignature -Force
-    }
     Copy-Item -LiteralPath $ChangelogSource -Destination $ReleaseChangelog -Force
     Copy-Item -LiteralPath $NotesSource -Destination $ReleaseNotes -Force
     Copy-Item -LiteralPath $ReleaseMetaSource -Destination $ReleaseMeta -Force
@@ -636,13 +557,7 @@ try {
 
     Assert-CopyMatches -Source $ArtifactZip -Destination $ReleaseZip
     Assert-CopyMatches -Source $ArtifactManifest -Destination $ReleaseManifest
-    if (Test-Path -LiteralPath $ArtifactManifestSignature -PathType Leaf) {
-        Assert-CopyMatches -Source $ArtifactManifestSignature -Destination $ReleaseManifestSignature
-    }
     Assert-CopyMatches -Source $ArtifactInstallManifest -Destination $ReleaseInstallManifest
-    if (Test-Path -LiteralPath $ArtifactInstallManifestSignature -PathType Leaf) {
-        Assert-CopyMatches -Source $ArtifactInstallManifestSignature -Destination $ReleaseInstallManifestSignature
-    }
     Assert-CopyMatches -Source $ChangelogSource -Destination $ReleaseChangelog
     Assert-CopyMatches -Source $NotesSource -Destination $ReleaseNotes
     Assert-CopyMatches -Source $ReleaseMetaSource -Destination $ReleaseMeta
@@ -654,7 +569,7 @@ try {
         Write-OmniPhase 8 'Validação comercial final'
         & (Join-Path $ProjectDir 'tools\Validate-ReleaseArtifacts.ps1') -ProjectDir $ProjectDir -ReleaseDirectory $ReleaseOutputDir -Version $Version -Quiet
         if ($LASTEXITCODE -ne 0) { throw 'Commercial release validation failed.' }
-        Write-ReleaseLog 'Pacote comercial validado: Authenticode, publisher, manifestos e SHA-256.'
+        Write-ReleaseLog 'Pacote comercial validado: HTTPS, manifestos, tamanho e SHA-256.'
     }
 
     Copy-Item -LiteralPath $ArtifactZip -Destination $DownloadsZipPath -Force
@@ -672,7 +587,7 @@ try {
 
     Remove-Item -LiteralPath (Join-Path $BuildDir 'OmniGhost.pdb') -Force -ErrorAction SilentlyContinue
 
-    Write-ReleaseLog "Packaging concluído em $(Format-OmniDuration $packageTimer.Elapsed): $Tag, $(Format-OmniBytes $Size), 9 artefactos assinados/validados."
+    Write-ReleaseLog "Packaging concluído em $(Format-OmniDuration $packageTimer.Elapsed): $Tag, $(Format-OmniBytes $Size), 7 artefactos validados."
     if ($env:OMNIGHOST_VERBOSE_BUILD -eq '1') {
         Write-ReleaseLog "ZIP nas Transferências: $DownloadsZipPath"
         Write-ReleaseLog "Pasta local: $ReleaseOutputDir"

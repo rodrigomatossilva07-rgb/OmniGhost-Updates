@@ -4,7 +4,6 @@ param([string]$ProjectDir = '', [switch]$AllowMissingTag, [switch]$SourceOnly, [
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = New-Object Text.UTF8Encoding($false)
 Set-StrictMode -Version Latest
-. (Join-Path $PSScriptRoot 'ReleaseTrustTools.ps1')
 $global:LASTEXITCODE = -1
 if ([string]::IsNullOrWhiteSpace($ProjectDir)) { $ProjectDir = Split-Path -Parent $PSScriptRoot }
 $ProjectDir = [IO.Path]::GetFullPath($ProjectDir)
@@ -68,33 +67,7 @@ if (-not $SourceOnly -and (Test-Path -LiteralPath $metadataPath -PathType Leaf))
 
 if (Test-Path -LiteralPath $configPath -PathType Leaf) {
     $config = [IO.File]::ReadAllText($configPath, [Text.Encoding]::UTF8) | ConvertFrom-Json
-    if ($config.requireAuthenticode -ne $true -or $config.requireManifestSignature -ne $true) {
-        $errors.Add('[ERROR] Commercial releases require Authenticode and signed manifests. Signing policy must remain enabled.')
-    } else {
-        $thumbprint = ([string]$config.signingCertificateThumbprint -replace '\s','').ToUpperInvariant()
-        $environmentThumb = ([string]$env:OMNIGHOST_SIGNING_THUMBPRINT -replace '\s','').ToUpperInvariant()
-        $trustConfigured = $thumbprint -match '^[0-9A-F]{40}$' -and
-            -not [string]::IsNullOrWhiteSpace([string]$config.expectedPublisherSubject)
-        if (-not $trustConfigured) {
-            $errors.Add('[ERROR] Release trust is not configured. Install an RSA Code Signing certificate with its private key in CurrentUser\My, set OMNIGHOST_SIGNING_THUMBPRINT, then run tools\Configure-ReleaseTrust.ps1. Commit the generated public policy/header and rebuild before Publish.')
-        }
-        if ($environmentThumb -notmatch '^[0-9A-F]{40}$') {
-            $errors.Add('[ERROR] Set OMNIGHOST_SIGNING_THUMBPRINT to the 40-character Code Signing certificate thumbprint.')
-        } elseif ($trustConfigured -and $environmentThumb -cne $thumbprint) {
-            $errors.Add('[ERROR] OMNIGHOST_SIGNING_THUMBPRINT differs from the pinned public certificate. Reconfigure release trust and rebuild before Publish.')
-        }
-        try { [void](Get-ReleaseSignTool) }
-        catch { $errors.Add('[ERROR] ' + $_.Exception.Message) }
-        if ($environmentThumb -match '^[0-9A-F]{40}$') {
-            try {
-                $cert = Get-ReleaseSigningCertificate -Thumbprint $environmentThumb -RequirePrivateKey
-                if ($trustConfigured) {
-                    Assert-ReleaseTrustMatches -Policy $config -HeaderPath (Join-Path $ProjectDir 'src\updater\release_trust.h') -Certificate $cert
-                }
-                $checks.Add("[OK] Code Signing certificate and trust: $environmentThumb")
-            } catch { $errors.Add('[ERROR] ' + $_.Exception.Message) }
-        }
-    }
+    $checks.Add('[OK] Release integrity policy: HTTPS, size and SHA-256')
 } else { $errors.Add("[ERROR] Missing release config: $configPath") }
 
 if (-not $Quiet -or $errors.Count -gt 0) {

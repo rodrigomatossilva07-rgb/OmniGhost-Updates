@@ -183,8 +183,6 @@ std::string ExactErrorTitle(const std::string& stage, const std::string& detail)
         return "NÃO FOI POSSÍVEL CONFIRMAR A VERSÃO MAIS RECENTE";
     if (stage == "manifest")
         return "MANIFESTO DE ATUALIZAÇÃO INVÁLIDO";
-    if (stage == "signature")
-        return "ASSINATURA DO MANIFESTO INVÁLIDA";
     if (stage == "integrity")
         return "A INSTALAÇÃO TEM FICHEIROS ALTERADOS";
     if (stage == "repair")
@@ -199,8 +197,6 @@ std::string ExactErrorTitle(const std::string& stage, const std::string& detail)
         return "NÃO FOI POSSÍVEL PREPARAR A ATUALIZAÇÃO";
     if (stage == "launch-updater")
         return "NÃO FOI POSSÍVEL INICIAR O ATUALIZADOR";
-    if (stage == "authenticode")
-        return "ASSINATURA DIGITAL INVÁLIDA";
 
     return "NÃO FOI POSSÍVEL CONCLUIR A ATUALIZAÇÃO";
 }
@@ -239,8 +235,6 @@ std::string ExactUserMessage(const std::string& stage, const std::string& detail
                "Se já publicaste, verifica a ligação e tenta novamente.";
     if (stage == "manifest")
         return "A informação da nova versão foi descarregada, mas não passou na validação de segurança.";
-    if (stage == "signature")
-        return "A assinatura criptográfica do manifesto não corresponde ao editor confiável e a atualização foi recusada.";
     if (stage == "integrity")
         return "A verificação encontrou ficheiros em falta ou alterados. Podes preparar uma reparação segura.";
     if (stage == "repair")
@@ -255,8 +249,6 @@ std::string ExactUserMessage(const std::string& stage, const std::string& detail
         return "A atualização foi descarregada, mas não foi possível prepará-la para instalação.";
     if (stage == "launch-updater")
         return "O Windows não conseguiu iniciar o processo de instalação da atualização.";
-    if (stage == "authenticode")
-        return "A assinatura digital exigida não pôde ser validada.";
 
     return "Ocorreu um problema durante a atualização. Tenta novamente ou consulta os detalhes técnicos.";
 }
@@ -351,32 +343,6 @@ bool UpdateService::ApplyUserPreferences(Channel channel, bool automaticDownload
 
 void UpdateService::SetSnapshot(const std::function<void(Snapshot&)>& change) { std::lock_guard lock(mutex_); change(snapshot_); }
 Snapshot UpdateService::GetSnapshot() const { std::lock_guard lock(mutex_); return snapshot_; }
-
-bool UpdateService::ValidateManifestSignature(const std::string& manifestUrl, const std::string& manifestBytes,
-                                              std::string& error) {
-    if (!config_.requireManifestSignature) return true;
-    if (config_.manifestPublicCertificateDerBase64.empty()) {
-        error = "A chave pública ou o certificado de publicação não está configurado no cliente.";
-        return false;
-    }
-    const std::string signatureUrl = manifestUrl + ".sig";
-    const int timeoutMilliseconds = static_cast<int>(config_.networkTimeout.count() * 1000);
-    HttpResult signatureResponse = http_->GetText(signatureUrl, timeoutMilliseconds, cancelled_);
-    if (!signatureResponse.error.empty()) {
-        error = "Não foi possível obter update.json.sig: " + signatureResponse.error;
-        return false;
-    }
-    if (VerifyDetachedManifestSignature(manifestBytes, signatureResponse.body,
-                                        config_.manifestPublicCertificateDerBase64, error)) return true;
-    if (!config_.secondaryManifestPublicCertificateDerBase64.empty()) {
-        std::string secondaryError;
-        if (VerifyDetachedManifestSignature(manifestBytes, signatureResponse.body,
-                                            config_.secondaryManifestPublicCertificateDerBase64,
-                                            secondaryError)) return true;
-        error += "; a âncora de confiança secundária rejeitou a assinatura: " + secondaryError;
-    }
-    return false;
-}
 
 void UpdateService::CheckAsync(bool force) {
     if (!initialized_) Initialize();
@@ -542,15 +508,6 @@ void UpdateService::RunCheck(bool force) {
         SetError({}, detail, "check");
         return;
     }
-
-    std::string signatureError;
-    if (!ValidateManifestSignature(manifestUrl, response.body, signatureError)) {
-        RecordHealth("manifest-signature-failed", resolvedRelease ? resolvedRelease->version.original : std::string{}, {}, "failed", {}, signatureError);
-        SetError({}, signatureError, "signature");
-        return;
-    }
-    if (config_.requireManifestSignature)
-        RecordHealth("manifest-signature-verified", resolvedRelease ? resolvedRelease->version.original : std::string{}, {}, "verified");
 
     ManifestResult parsed =
         ParseAndValidateManifest(response.body, config_, Architecture());
@@ -857,8 +814,6 @@ void UpdateService::RunPrepareRepair() {
     const int timeoutMilliseconds = static_cast<int>(config_.networkTimeout.count() * 1000);
     HttpResult response = http_->GetText(manifestUrl, timeoutMilliseconds, cancelled_);
     if (!response.error.empty()) { SetError({}, response.error, "repair"); return; }
-    std::string signatureError;
-    if (!ValidateManifestSignature(manifestUrl, response.body, signatureError)) { SetError({}, signatureError, "signature"); return; }
     ManifestResult parsed = ParseAndValidateManifest(response.body, config_, Architecture());
     if (!parsed.manifest) { SetError({}, parsed.error, "manifest"); return; }
     Manifest manifest = std::move(*parsed.manifest);
@@ -898,7 +853,7 @@ bool UpdateService::ScheduleInstallOnExit() {
 void UpdateService::RetryLastFailure() {
     const Snapshot current = GetSnapshot();
     const std::string stage = current.errorStage;
-    if (current.repairMode && (stage == "repair" || stage == "signature" || stage == "manifest" || stage == "check")) {
+    if (current.repairMode && (stage == "repair" || stage == "manifest" || stage == "check")) {
         PrepareRepairAsync();
         return;
     }
@@ -906,7 +861,7 @@ void UpdateService::RetryLastFailure() {
         DownloadAsync();
         return;
     }
-    if (stage == "launch-updater" || stage == "authenticode") {
+    if (stage == "launch-updater") {
         if (fs::exists(downloadedPackage_)) {
             SetSnapshot([](Snapshot& s) { s.status = Status::Ready; });
             if (InstallPreparedUpdate()) return;
@@ -960,23 +915,6 @@ bool UpdateService::InstallPreparedUpdate() {
         return false;
     }
 
-    if (config_.requireAuthenticode) {
-        std::string error;
-        bool trustedRunner = VerifyAuthenticode(runner, config_.expectedPublisherSubject,
-                                                config_.expectedCertificateThumbprint, error);
-        if (!trustedRunner && !config_.secondaryCertificateThumbprint.empty()) {
-            std::string secondaryError;
-            trustedRunner = VerifyAuthenticode(runner, config_.secondaryPublisherSubject,
-                                               config_.secondaryCertificateThumbprint, secondaryError);
-            if (!trustedRunner) error += "; o editor secundário rejeitou o executável: " + secondaryError;
-        }
-        if (!trustedRunner) {
-            RecordHealth("authenticode-failed", version, expectedHash, "failed", {}, error);
-            SetError({}, error, "authenticode");
-            return false;
-        }
-        RecordHealth("authenticode-verified", version, expectedHash, "verified");
-    }
     std::wostringstream arguments; arguments << L"--apply-update --pid " << GetCurrentProcessId() << L" --package " << Quote(downloadedPackage_)
         << L" --target " << Quote(Paths::InstallDirectory()) << L" --executable " << Quote(fs::path(OmniGhost::MainExecutable))
 		<< L" --version \"" << Platform::Utf8ToWide(version) << L"\""
@@ -1038,8 +976,7 @@ bool UpdateService::InstallPreparedUpdate() {
         s.errorStage.clear();
         s.technicalDetail.clear();
     });
-    RecordHealth("install-launched", version, expectedHash,
-        config_.requireAuthenticode ? "verified" : "not-required");
+    RecordHealth("install-launched", version, expectedHash, "sha256-verified");
     exitRequested_ = true; return true;
 }
 

@@ -1,6 +1,5 @@
 #pragma once
 #include "installation_integrity.h"
-#include "release_trust.h"
 #include <atomic>
 #include <chrono>
 #include <cstdint>
@@ -61,14 +60,6 @@ struct Configuration {
     bool automaticDownload = false;
     bool automaticInstallOnExit = false;
 
-    bool requireAuthenticode = true;
-    bool requireManifestSignature = true;
-    std::string expectedPublisherSubject = ReleaseTrust::PublisherSubject;
-    std::string expectedCertificateThumbprint = ReleaseTrust::CertificateThumbprint;
-    std::string manifestPublicCertificateDerBase64 = ReleaseTrust::PublicCertificateDerBase64;
-    std::string secondaryPublisherSubject = ReleaseTrust::SecondaryPublisherSubject;
-    std::string secondaryCertificateThumbprint = ReleaseTrust::SecondaryCertificateThumbprint;
-    std::string secondaryManifestPublicCertificateDerBase64 = ReleaseTrust::SecondaryPublicCertificateDerBase64;
     int updaterExitTimeoutSeconds = 30;
     int startupConfirmationSeconds = 30;
 

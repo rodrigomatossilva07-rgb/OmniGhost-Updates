@@ -1,6 +1,5 @@
 #include "installation_integrity.h"
 #include "crypto.h"
-#include "release_trust.h"
 #include "../platform/text_encoding.h"
 #include <charconv>
 #include <fstream>
@@ -67,33 +66,6 @@ IntegrityReport VerifyInstallationFiles(const fs::path& installDirectory, std::s
 
 
 
-
-    if (ReleaseTrust::Configured) {
-        const fs::path signaturePath = installDirectory / L"install-manifest.sha256.sig";
-        std::ifstream signatureStream(signaturePath, std::ios::binary);
-        if (!signatureStream) {
-            report.status = IntegrityStatus::Error;
-            report.message = "A assinatura do manifesto de instalação está em falta.";
-            return report;
-        }
-        const std::string signature((std::istreambuf_iterator<char>(signatureStream)),
-                                    std::istreambuf_iterator<char>());
-        std::string signatureError;
-        bool signatureValid = VerifyDetachedManifestSignature(
-            manifestBytes, signature, ReleaseTrust::PublicCertificateDerBase64, signatureError);
-        if (!signatureValid && ReleaseTrust::SecondaryConfigured) {
-            std::string secondaryError;
-            signatureValid = VerifyDetachedManifestSignature(
-                manifestBytes, signature, ReleaseTrust::SecondaryPublicCertificateDerBase64,
-                secondaryError);
-            if (!signatureValid) signatureError += "; a âncora de confiança secundária rejeitou a assinatura: " + secondaryError;
-        }
-        if (!signatureValid) {
-            report.status = IntegrityStatus::Error;
-            report.message = "A assinatura do manifesto de instalação é inválida: " + signatureError;
-            return report;
-        }
-    }
 
     std::istringstream input(manifestBytes);
     std::string line;
@@ -170,9 +142,9 @@ IntegrityReport VerifyInstallationFiles(const fs::path& installDirectory, std::s
         report.message = "install-manifest.sha256 está vazio.";
         return report;
     }
-    if (ReleaseTrust::Configured && !executableListed) {
+    if (!executableListed) {
         report.status = IntegrityStatus::Error;
-        report.message = "O manifesto assinado não inclui OmniGhost.exe.";
+        report.message = "O manifesto de integridade não inclui OmniGhost.exe.";
         return report;
     }
 

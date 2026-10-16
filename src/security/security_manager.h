@@ -8,10 +8,8 @@ namespace OmniGhost::Security {
 enum class Severity : std::uint8_t { Info, Low, Medium, High, Critical };
 enum class Enforcement : std::uint8_t { None, Observe, Recheck, DenyFeatures };
 enum class EventId : std::uint8_t {
-    ReleaseTrustMissing, ExecutableSignatureInvalid, InstallManifestInvalid,
-    InstallManifestMissing,
+    InstallManifestInvalid, InstallManifestMissing,
     RuntimeFileInvalid, SessionInvalid, SessionUnavailable, SessionRestored,
-    SignatureVerificationUnavailable,
     DebuggerObserved, UnknownModuleObserved
 };
 

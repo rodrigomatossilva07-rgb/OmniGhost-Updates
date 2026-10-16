@@ -38,8 +38,6 @@ private:
     void StartDownloadWorker();
     void RunDownload();
     void RunPrepareRepair();
-    bool ValidateManifestSignature(const std::string& manifestUrl, const std::string& manifestBytes,
-                                   std::string& error);
     void SetError(const std::string& userMessage, const std::string& detail, const std::string& stage);
     void SetSnapshot(const std::function<void(Snapshot&)>& change);
     Configuration config_{}; std::unique_ptr<IHttpClient> http_;

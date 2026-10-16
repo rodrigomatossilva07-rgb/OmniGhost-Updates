@@ -49,7 +49,8 @@ Assert ($policy.requireConfirmation -eq $false) 'Publish must remain non-interac
 Assert ($policy.requireCleanReproducibleBuild -eq $true) 'Clean reproducible source must be required.'
 Assert ($policy.requireTagRelease -eq $true) 'A matching release tag must be required.'
 Assert ($policy.allowDeterministicSourceSnapshot -eq $true) 'Deterministic source snapshot publication must be explicitly enabled for this extracted project.'
-Assert ($policy.requireAuthenticode -eq $true -and $policy.requireManifestSignature -eq $true) 'Commercial releases must require Authenticode and signed manifests.'
+Assert (-not ($policy.PSObject.Properties.Name -contains 'requireAuthenticode')) 'Release policy must not depend on Authenticode.'
+Assert (-not ($policy.PSObject.Properties.Name -contains 'requireManifestSignature')) 'Release policy must not depend on detached signatures.'
 
 $project = [IO.File]::ReadAllText((Join-Path $ProjectDir 'OmiGhost.vcxproj'))
 $publishBuild = [IO.File]::ReadAllText((Join-Path $ProjectDir 'tools\Publish-Build.ps1'))
@@ -66,7 +67,7 @@ Assert ($powerShellBridge -match 'Publish-Build\.ps1[^\r\n]*-ExplicitConfirmed')
 Assert ($powerShellBridge -match 'chcp 65001') 'The MSBuild PowerShell bridge does not establish UTF-8 console output.'
 Assert ($project -match 'OmniGhost 01/10' -and $project -match 'OmniGhost 05/10') 'The Publish build does not expose numbered phases.'
 Assert ($reproBuild -match 'worktree add --quiet' -and $reproBuild -match 'repro-build\.log') 'The reproducible build does not preserve a quiet detailed log.'
-Assert ($packageRelease -match 'SignTool sign /q' -and $packageRelease -match 'SignTool verify /q') 'SignTool success output is not summarized.'
+Assert ($packageRelease -notmatch 'SignTool|Get-AuthenticodeSignature|Sign-UpdateManifest') 'Release packaging still depends on signing tools.'
 
 $workflow = [IO.File]::ReadAllText((Join-Path $ProjectDir '.github\workflows\release.yml'))
 Assert ($workflow -match 'workflow_dispatch:') 'Manual recovery workflow is unavailable.'

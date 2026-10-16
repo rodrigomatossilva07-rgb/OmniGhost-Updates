@@ -5,9 +5,7 @@
 #include "../platform/session_log.h"
 #include "../platform/text_encoding.h"
 #include "../platform/runtime_bootstrap.h"
-#include "../updater/crypto.h"
 #include "../updater/installation_integrity.h"
-#include "../updater/release_trust.h"
 
 #include <Windows.h>
 #include <filesystem>
@@ -23,69 +21,9 @@ bool denied = false;
 
 std::filesystem::path VerifiedExecutablePath() {
     const auto exePath = OmniGhost::Paths::Executable();
-
-#if defined(OMNIGHOST_PUBLISH_BUILD)
-
-    if (!OmniGhost::Update::ReleaseTrust::Configured) {
-        OmniGhost::SessionLog::Write(
-            OmniGhost::SessionLog::Severity::Error,
-            OmniGhost::SessionLog::Subsystem::Core,
-            "publisher identity unavailable: release trust anchor is not configured");
-        return {};
-    }
-    std::string error;
-    bool signedByPublisher = OmniGhost::Update::VerifyAuthenticode(
-        exePath, OmniGhost::Update::ReleaseTrust::PublisherSubject,
-        OmniGhost::Update::ReleaseTrust::CertificateThumbprint, error);
-    bool revocationUnavailable = error.find("trust.revocation_offline") != std::string::npos;
-    if (!signedByPublisher && OmniGhost::Update::ReleaseTrust::SecondaryConfigured) {
-        signedByPublisher = OmniGhost::Update::VerifyAuthenticode(
-            exePath, OmniGhost::Update::ReleaseTrust::SecondaryPublisherSubject,
-            OmniGhost::Update::ReleaseTrust::SecondaryCertificateThumbprint, error);
-        revocationUnavailable = revocationUnavailable ||
-            error.find("trust.revocation_offline") != std::string::npos;
-    }
-    if (!signedByPublisher) {
-        OmniGhost::SessionLog::Write(
-            revocationUnavailable ? OmniGhost::SessionLog::Severity::Warning
-                                  : OmniGhost::SessionLog::Severity::Error,
-            OmniGhost::SessionLog::Subsystem::Core,
-            revocationUnavailable
-                ? "Authenticode verification unavailable (revocation offline); build requires publisher signature"
-                : "Authenticode signature invalid or not from trusted publisher",
-            {{"executable", OmniGhost::Platform::WideToUtf8(exePath.wstring())},
-             {"error", error}});
-        return {};
-    }
-
+    std::error_code error;
+    if (!std::filesystem::is_regular_file(exePath, error) || error) return {};
     return exePath;
-#else
-
-
-    if (OmniGhost::Update::ReleaseTrust::Configured) {
-        std::string error;
-        bool signedByPublisher = OmniGhost::Update::VerifyAuthenticode(
-            exePath, OmniGhost::Update::ReleaseTrust::PublisherSubject,
-            OmniGhost::Update::ReleaseTrust::CertificateThumbprint, error);
-        if (!signedByPublisher && OmniGhost::Update::ReleaseTrust::SecondaryConfigured) {
-            signedByPublisher = OmniGhost::Update::VerifyAuthenticode(
-                exePath, OmniGhost::Update::ReleaseTrust::SecondaryPublisherSubject,
-                OmniGhost::Update::ReleaseTrust::SecondaryCertificateThumbprint, error);
-        }
-        if (!signedByPublisher) {
-            OmniGhost::SessionLog::Write(
-                OmniGhost::SessionLog::Severity::Warning,
-                OmniGhost::SessionLog::Subsystem::Core,
-                "executable not signed or signature invalid (dev/release build) - verify integrity manually",
-                {{"executable", OmniGhost::Platform::WideToUtf8(exePath.wstring())},
-                 {"error", error}});
-        }
-    }
-
-
-
-    return exePath;
-#endif
 }
 }
 
@@ -96,15 +34,12 @@ SecurityManager& SecurityManager::Instance() noexcept {
 
 Assessment SecurityManager::Classify(EventId id) noexcept {
     switch (id) {
-    case EventId::ReleaseTrustMissing:
-    case EventId::ExecutableSignatureInvalid:
     case EventId::InstallManifestInvalid:
     case EventId::RuntimeFileInvalid:
         return {id, Severity::Critical, Enforcement::DenyFeatures};
     case EventId::SessionInvalid:
         return {id, Severity::High, Enforcement::DenyFeatures};
     case EventId::SessionUnavailable:
-    case EventId::SignatureVerificationUnavailable:
     case EventId::InstallManifestMissing:
         return {id, Severity::Medium, Enforcement::Recheck};
     case EventId::SessionRestored:
@@ -118,15 +53,12 @@ Assessment SecurityManager::Classify(EventId id) noexcept {
 
 std::string_view SecurityManager::Code(EventId id) noexcept {
     switch (id) {
-    case EventId::ReleaseTrustMissing: return "SEC-001";
-    case EventId::ExecutableSignatureInvalid: return "SEC-002";
     case EventId::InstallManifestInvalid: return "SEC-003";
     case EventId::InstallManifestMissing: return "SEC-011";
     case EventId::RuntimeFileInvalid: return "SEC-004";
     case EventId::SessionInvalid: return "SEC-005";
     case EventId::SessionUnavailable: return "SEC-006";
     case EventId::SessionRestored: return "SEC-007";
-    case EventId::SignatureVerificationUnavailable: return "SEC-010";
     case EventId::DebuggerObserved: return "SEC-008";
     case EventId::UnknownModuleObserved: return "SEC-009";
     }
@@ -188,19 +120,10 @@ bool SecurityManager::VerifyProtectedFiles() noexcept {
             Record(EventId::InstallManifestMissing);
     }
 
-#if defined(OMNIGHOST_PUBLISH_BUILD)
-
-
-
     if (verifiedExe.empty()) {
-        Record(EventId::ReleaseTrustMissing);
+        Record(EventId::RuntimeFileInvalid);
         return false;
     }
-#else
-
-
-
-#endif
     return true;
 }
 
@@ -211,22 +134,11 @@ bool SecurityManager::VerifyHostIdentity() noexcept {
 
     const auto verifiedExe = VerifiedExecutablePath();
 
-#if defined(OMNIGHOST_PUBLISH_BUILD)
-
     if (verifiedExe.empty()) {
-
-        Record(EventId::ReleaseTrustMissing);
+        Record(EventId::RuntimeFileInvalid);
         return false;
     }
-
     return true;
-#else
-
-
-
-
-    return true;
-#endif
 }
 
 bool SecurityManager::VerifyStartup() noexcept {

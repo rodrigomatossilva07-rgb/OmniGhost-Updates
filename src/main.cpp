@@ -372,7 +372,7 @@ int RunOmniGhost(int argc, wchar_t** argv) {
         (argc > 1 && argv && argv[1]) ? OmniGhost::Platform::WideToUtf8(argv[1]) : "normal");
     OmniGhost::SessionLog::Initialize();
     if (!OmniGhost::Security::SecurityManager::Instance().VerifyHostIdentity()) {
-        MessageBoxW(nullptr, L"A origem da aplicação não passou a verificação de segurança (SEC-001/002/004).",
+        MessageBoxW(nullptr, L"Não foi possível validar o executável da aplicação (SEC-004).",
                     L"OmniGhost", MB_OK | MB_ICONERROR);
         OmniGhost::SessionLog::Shutdown();
         return 5;
@@ -442,7 +442,7 @@ int RunOmniGhost(int argc, wchar_t** argv) {
         return *updater_result;
 
     if (!OmniGhost::Security::SecurityManager::Instance().VerifyStartup()) {
-        MessageBoxW(nullptr, L"A instalação não passou a verificação de segurança. Reinstala a versão oficial (SEC-001/002/003/004).",
+        MessageBoxW(nullptr, L"A instalação não passou a verificação de integridade. Reinstala a versão oficial (SEC-003/004).",
                     L"OmniGhost", MB_OK | MB_ICONERROR);
         return 5;
     }

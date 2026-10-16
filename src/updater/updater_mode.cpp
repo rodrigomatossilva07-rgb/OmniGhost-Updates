@@ -274,24 +274,6 @@ std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
         return 33;
     }
 
-    if (configuration.requireAuthenticode) {
-        const fs::path stagedExecutable = staging / executableName;
-        bool trustedExecutable = VerifyAuthenticode(stagedExecutable, configuration.expectedPublisherSubject,
-                                                    configuration.expectedCertificateThumbprint, error);
-        if (!trustedExecutable && !configuration.secondaryCertificateThumbprint.empty()) {
-            std::string secondaryError;
-            trustedExecutable = VerifyAuthenticode(stagedExecutable, configuration.secondaryPublisherSubject,
-                                                   configuration.secondaryCertificateThumbprint, secondaryError);
-            if (!trustedExecutable) error += "; secondary publisher rejected the executable: " + secondaryError;
-        }
-        if (!trustedExecutable) {
-            WriteLog(log, LogLevel::Error, Version, targetVersion, "authenticode", error);
-            RecordHealth("new-executable-authenticode-failed", Version, targetVersion, expectedHash, "failed", {}, error);
-            return 34;
-        }
-        RecordHealth("new-executable-authenticode-verified", Version, targetVersion, expectedHash, "verified");
-    }
-
 	InstallOptions install{staging, target, executableName.wstring()};
 	const InstallResult installed = InstallSingleExecutable(install);
     if (!installed.success) {

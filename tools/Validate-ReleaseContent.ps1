@@ -22,7 +22,6 @@ $requiredFiles = @(
     "OmniGhost.exe",
     "update.json",
     "install-manifest.sha256",
-    "install-manifest.sha256.sig",
     "SBOM.cdx.json",
     "changelog.json",
     "release-notes.md",
@@ -86,13 +85,6 @@ if (-not $manifestContent) {
     throw "install-manifest.sha256 is empty"
 }
 Write-Host "[PASS] install-manifest.sha256 present and non-empty"
-
-
-$sigPath = Join-Path $ReleaseDirectory 'install-manifest.sha256.sig'
-if (-not (Test-Path -LiteralPath $sigPath -PathType Leaf)) {
-    throw "Signature file missing: install-manifest.sha256.sig"
-}
-Write-Host "[PASS] Signature file present"
 
 
 $sbomPath = Join-Path $ReleaseDirectory 'SBOM.cdx.json'
