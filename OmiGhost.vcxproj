@@ -293,6 +293,9 @@
     <ClCompile Include="src\makcu\makcu_protocol.cpp"/>
     <ClCompile Include="src\makcu\makcu_wrapper.cpp"/>
     <ClCompile Include="src\makcu\serialport.cpp"/>
+    <ClCompile Include="src\makcu\makcu_tests.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)'=='Publish'">true</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="src\math\math.cpp"/>
     <ClCompile Include="src\platform\app_paths.cpp"/>
     <!-- <ClCompile Include="src\platform\error_codes.cpp"/> -->

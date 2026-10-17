@@ -149,6 +149,18 @@ namespace makcu_wrapper {
             g_state.faultInfo[0] = 0;
         }
 
+        // Structured log of the firmware detection result for diagnostics.
+        OmniGhost::SessionLog::Write(
+            OmniGhost::SessionLog::Severity::Info,
+            OmniGhost::SessionLog::Subsystem::Input,
+            "MAKCU firmware detected",
+            {{"family", makcu::FirmwareFamilyName(firmware.family), false},
+             {"version", makcu::FirmwareVersionText(firmware), false},
+             {"baud", std::to_string(firmware.baudRate), false},
+             {"numeric_version_known", firmware.numericVersionKnown ? "yes" : "no", false},
+             {"device_kinds_known", firmware.deviceKindsKnown ? "yes" : "no", false},
+             {"compatible", firmware.compatible ? "yes" : "no", false}});
+
         g_state.monitoringRequested = true;
         (void)device->enableButtonMonitoring(true);
         g_state.monitoringConfirmed = false;
