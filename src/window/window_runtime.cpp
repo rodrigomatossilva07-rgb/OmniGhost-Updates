@@ -385,10 +385,26 @@ bool Overlay::CreateDevice() {
         D3D_FEATURE_LEVEL_10_0
     };
 
-    const HRESULT result =
-        D3D11CreateDeviceAndSwapChain(
+    const auto releasePartialDevice = [this]() noexcept {
+        CleanupRenderTarget();
+        if (swap_chain) {
+            swap_chain->Release();
+            swap_chain = nullptr;
+        }
+        if (device_context) {
+            device_context->Release();
+            device_context = nullptr;
+        }
+        if (device) {
+            device->Release();
+            device = nullptr;
+        }
+    };
+
+    const auto createDevice = [&](D3D_DRIVER_TYPE driverType) {
+        return D3D11CreateDeviceAndSwapChain(
             nullptr,
-            D3D_DRIVER_TYPE_HARDWARE,
+            driverType,
             nullptr,
             0,
             feature_levels,
@@ -402,15 +418,47 @@ bool Overlay::CreateDevice() {
             &feature_level,
             &device_context
         );
+    };
 
-    if (FAILED(result)) {
+    const HRESULT hardwareResult = createDevice(D3D_DRIVER_TYPE_HARDWARE);
+    HRESULT finalResult = hardwareResult;
+    if (FAILED(hardwareResult)) {
+        releasePartialDevice();
+        finalResult = createDevice(D3D_DRIVER_TYPE_WARP);
+        std::cerr << "[UI][DirectX] hardware device creation failed hr=0x"
+                  << std::hex << static_cast<unsigned long>(hardwareResult)
+                  << "; WARP fallback hr=0x"
+                  << static_cast<unsigned long>(finalResult) << std::dec << "\n";
+    }
+
+    if (FAILED(finalResult)) {
+        releasePartialDevice();
+        wchar_t message[320]{};
+        swprintf_s(message,
+            L"Não foi possível iniciar o sistema gráfico do OmniGhost.\n\n"
+            L"DirectX hardware: 0x%08lX\nDirectX WARP: 0x%08lX\n\n"
+            L"Atualiza o controlador gráfico e confirma que o DirectX 11 está disponível.",
+            static_cast<unsigned long>(hardwareResult),
+            static_cast<unsigned long>(finalResult));
+        MessageBoxW(nullptr, message, L"OmniGhost — erro gráfico", MB_OK | MB_ICONERROR);
         shouldRun = false;
         return false;
     }
 
     CreateRenderTarget();
 
-    return render_target_view != nullptr;
+    if (!render_target_view) {
+        std::cerr << "[UI][DirectX] render target creation failed after device initialization\n";
+        MessageBoxW(nullptr,
+            L"O DirectX foi iniciado, mas não foi possível criar a superfície de desenho. "
+            L"Atualiza o controlador gráfico e tenta novamente.",
+            L"OmniGhost — erro gráfico", MB_OK | MB_ICONERROR);
+        releasePartialDevice();
+        shouldRun = false;
+        return false;
+    }
+
+    return true;
 }
 
 void Overlay::CreateRenderTarget() {

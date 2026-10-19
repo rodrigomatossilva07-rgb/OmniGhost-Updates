@@ -63,8 +63,13 @@ if (-not (Test-Path -LiteralPath $keyAuthSecretsSource -PathType Leaf)) {
 
 
 
-$reproParent = Split-Path -Parent $ProjectDir
-$reproRoot = Join-Path $reproParent ('.omnighost-repro-' + [Guid]::NewGuid().ToString('N'))
+$localAppData = [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)
+if ([string]::IsNullOrWhiteSpace($localAppData)) {
+    throw 'Could not resolve LocalAppData for the isolated reproducibility worktree.'
+}
+$reproParent = Join-Path $localAppData 'OmniGhost\build-cache\repro-worktrees'
+[IO.Directory]::CreateDirectory($reproParent) | Out-Null
+$reproRoot = Join-Path $reproParent ('repro-' + [Guid]::NewGuid().ToString('N'))
 $worktreeAdded = $false
 $reproTimer = [Diagnostics.Stopwatch]::StartNew()
 $reproLog = Join-Path $ProjectDir '.cache\logs\repro-build.log'
@@ -118,7 +123,17 @@ try {
 }
 finally {
     if ($worktreeAdded) {
-        & $git -C $ProjectDir worktree remove --force $reproRoot 2>$null | Out-Null
+        $removed = $false
+        for ($attempt = 1; $attempt -le 3 -and -not $removed; ++$attempt) {
+            & $git -C $ProjectDir worktree remove --force $reproRoot 2>$null | Out-Null
+            $removed = $LASTEXITCODE -eq 0 -and -not (Test-Path -LiteralPath $reproRoot)
+            if (-not $removed -and $attempt -lt 3) {
+                Start-Sleep -Milliseconds 250
+            }
+        }
         & $git -C $ProjectDir worktree prune 2>$null | Out-Null
+        if (-not $removed) {
+            Write-Warning "Não foi possível remover o worktree temporário: $reproRoot"
+        }
     }
 }

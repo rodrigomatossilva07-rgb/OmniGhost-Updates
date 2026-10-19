@@ -33,6 +33,32 @@ static bool PassiveDmaPnpProbe() {
 
 namespace {
 
+bool RunMakcuProbe() {
+    makcu_wrapper::MakcuInitialize("");
+    return makcu_wrapper::IsConnected();
+}
+
+bool RunMakcuProbeIsolated() noexcept {
+#if defined(_MSC_VER) && defined(_WIN32)
+    __try {
+        return RunMakcuProbe();
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        char message[160]{};
+        sprintf_s(message,
+            "[STARTUP][Hardware] MAKCU probe isolated a native exception code=0x%08lX\n",
+            static_cast<unsigned long>(GetExceptionCode()));
+        OutputDebugStringA(message);
+        return false;
+    }
+#else
+    try {
+        return RunMakcuProbe();
+    } catch (...) {
+        return false;
+    }
+#endif
+}
+
 }
 
 Manager::~Manager() {
@@ -98,11 +124,7 @@ void Manager::BeginStartupProbe() {
     stageStarted_ = std::chrono::steady_clock::now();
     nextMakcuRetry_ = stageStarted_ + 5s;
     if (!state_.makcuAvailable) {
-
-        StartWorkerLocked(1, [] {
-            makcu_wrapper::MakcuInitialize("");
-            return makcu_wrapper::IsConnected();
-        });
+        StartWorkerLocked(1, [] { return RunMakcuProbeIsolated(); });
     }
     std::clog << "[STARTUP][Hardware] stage=CheckingMakcu optional=YES auto_connect=YES already_connected="
               << (state_.makcuAvailable ? "YES" : "NO") << "\n";
@@ -244,10 +266,7 @@ void Manager::Poll() {
             workerState_.load(std::memory_order_acquire) == 0) {
             state_.makcuFinished = false;
             nextMakcuRetry_ = now + 5s;
-            StartWorkerLocked(1, [] {
-                makcu_wrapper::MakcuInitialize("");
-                return makcu_wrapper::IsConnected();
-            });
+            StartWorkerLocked(1, [] { return RunMakcuProbeIsolated(); });
             std::clog << "[Hardware] MAKCU automatic rediscovery started\n";
         }
     }
