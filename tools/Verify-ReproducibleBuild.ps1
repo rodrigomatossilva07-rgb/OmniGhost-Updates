@@ -55,6 +55,11 @@ if ($status.Count -gt 0) {
 $commit = (& $git -C $ProjectDir rev-parse HEAD).Trim()
 if ($LASTEXITCODE -ne 0 -or $commit -notmatch '^[0-9a-f]{40}$') { throw 'Could not resolve HEAD for independent rebuild.' }
 
+$keyAuthSecretsSource = Join-Path $ProjectDir 'src\auth\keyauth_secrets.h'
+if (-not (Test-Path -LiteralPath $keyAuthSecretsSource -PathType Leaf)) {
+    throw 'Independent Publish rebuild requires the local ignored file src\auth\keyauth_secrets.h.'
+}
+
 
 
 
@@ -68,6 +73,9 @@ try {
     & $git -C $ProjectDir worktree add --quiet --detach $reproRoot $commit
     if ($LASTEXITCODE -ne 0) { throw 'Could not create isolated reproducibility worktree.' }
     $worktreeAdded = $true
+
+    $keyAuthSecretsDestination = Join-Path $reproRoot 'src\auth\keyauth_secrets.h'
+    Copy-Item -LiteralPath $keyAuthSecretsSource -Destination $keyAuthSecretsDestination -Force
 
     $project = Join-Path $reproRoot 'OmiGhost.vcxproj'
     Write-Host '[Repro 2/3] A executar build independente (detalhes em .cache\logs\repro-build.log)...'
