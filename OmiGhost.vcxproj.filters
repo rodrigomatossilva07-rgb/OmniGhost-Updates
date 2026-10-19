@@ -302,6 +302,9 @@
     <ClCompile Include="src\auth\keyauth_remote_provider.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\auth\launcher_account_service.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="src\launcher\auth_page.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -684,6 +687,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\auth\keyauth_remote_provider.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\auth\launcher_account_service.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\launcher\auth_page.h">

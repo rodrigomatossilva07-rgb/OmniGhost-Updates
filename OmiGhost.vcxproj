@@ -81,6 +81,7 @@
     <ClCompile Include="src\auth\keyauth_gateway.cpp"/>
     <ClCompile Include="src\auth\keyauth_hwid_override.cpp"/>
     <ClCompile Include="src\auth\keyauth_remote_provider.cpp"/>
+    <ClCompile Include="src\auth\launcher_account_service.cpp"/>
 
 
 
@@ -463,6 +464,7 @@
     <ClInclude Include="src\auth\auth_types.h"/>
     <ClInclude Include="src\auth\local_auth_service.h"/>
     <ClInclude Include="src\auth\keyauth_remote_provider.h"/>
+    <ClInclude Include="src\auth\launcher_account_service.h"/>
     <ClInclude Include="src\launcher\auth_page.h"/>
     <ClInclude Include="src\platform\crash_handler.h"/>
     <ClInclude Include="src\platform\monitor_utils.h"/>

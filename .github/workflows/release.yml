@@ -59,6 +59,7 @@ jobs:
           ./tools/Validate-Project.ps1 -ProjectDir .
           ./tools/Test-ReleaseEngineering.ps1 -ProjectDir .
           ./tools/Test-MakcuIntegration.ps1
+          ./tools/Test-LauncherAccountService.ps1
           ./tools/Audit-UiLocalization.ps1 -ProjectDir . -ReportPath artifacts/validation/localization.json
 
       - name: Build and run security regression tests

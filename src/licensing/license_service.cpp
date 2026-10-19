@@ -1,5 +1,6 @@
 #include "license_service.h"
 #include "../auth/keyauth_remote_provider.h"
+#include "../auth/launcher_account_service.h"
 #include "../platform/app_paths.h"
 #include "../platform/scope_exit.h"
 #include "../security/security_manager.h"
@@ -92,6 +93,11 @@ public:
 std::mutex g_mutex;
 Snapshot g_snapshot{};
 
+OmniGhost::Auth::LauncherAccountService& WebsiteService() {
+    static OmniGhost::Auth::LauncherAccountService service;
+    return service;
+}
+
 OmniGhost::Auth::LicenseGateway& RemoteGateway() {
     static std::unique_ptr<OmniGhost::Auth::LicenseGateway> gateway;
     static std::once_flag initFlag;
@@ -156,21 +162,42 @@ void StartRevalidator() {
         std::condition_variable_any wake;
         std::unique_lock waitLock(waitMutex);
         bool degraded = false;
+        auto nextWebsiteLicenseRefresh = std::chrono::steady_clock::now();
+        auto nextLegacyValidation = std::chrono::steady_clock::now();
         while (!stop.stop_requested()) {
-            if (wake.wait_for(waitLock, stop, std::chrono::minutes(15), [] { return false; })) break;
+            if (wake.wait_for(waitLock, stop, std::chrono::minutes(1), [] { return false; })) break;
             if (stop.stop_requested()) break;
             waitLock.unlock();
-            const auto result = gateway.Revalidate(stop);
+            OmniGhost::Auth::LicenseResult result{
+                OmniGhost::Auth::LicenseStatus::Valid, {}, "auth.idle", {}};
+            bool checked = false;
+            if (WebsiteService().IsAuthenticated()) {
+                const auto steadyNow = std::chrono::steady_clock::now();
+                if (WebsiteService().NeedsRenewal(std::chrono::system_clock::now())) {
+                    result = WebsiteService().Renew();
+                    checked = true;
+                    nextWebsiteLicenseRefresh = steadyNow + std::chrono::minutes(5);
+                } else if (steadyNow >= nextWebsiteLicenseRefresh) {
+                    result = WebsiteService().RefreshLicenses();
+                    checked = true;
+                    nextWebsiteLicenseRefresh = steadyNow + std::chrono::minutes(5);
+                }
+            } else if (gateway.IsAuthenticated() &&
+                       std::chrono::steady_clock::now() >= nextLegacyValidation) {
+                result = gateway.Revalidate(stop);
+                checked = true;
+                nextLegacyValidation = std::chrono::steady_clock::now() + std::chrono::minutes(15);
+            }
             if (stop.stop_requested() || result.status == OmniGhost::Auth::LicenseStatus::Cancelled)
                 break;
-            if (!result.Ok()) {
+            if (checked && !result.Ok()) {
                 degraded = true;
                 OmniGhost::Security::SecurityManager::Instance().Record(
                     result.status == OmniGhost::Auth::LicenseStatus::Timeout ||
                     result.status == OmniGhost::Auth::LicenseStatus::Unavailable
                         ? OmniGhost::Security::EventId::SessionUnavailable
                         : OmniGhost::Security::EventId::SessionInvalid);
-            } else if (degraded) {
+            } else if (checked && degraded) {
                 degraded = false;
                 OmniGhost::Security::SecurityManager::Instance().Record(
                     OmniGhost::Security::EventId::SessionRestored);
@@ -180,8 +207,27 @@ void StartRevalidator() {
     });
 }
 void ApplyRemoteState(Snapshot& snapshot) {
+    const auto website = WebsiteService().Snapshot();
+    if (website.authenticated) {
+        snapshot.remoteServiceConfigured = true;
+        snapshot.remoteAuthenticated = true;
+        snapshot.websiteAccount = true;
+        snapshot.websiteAdmin = website.isAdmin;
+        snapshot.remoteUsername = website.email;
+        snapshot.websiteLicenses = website.licenses;
+        snapshot.selectedLicenseId = website.selectedLicenseId;
+        snapshot.remoteEntitlements.clear();
+        snapshot.remoteEntitlements.reserve(website.licenses.size());
+        for (const auto& license : website.licenses) {
+            if (!license.IsUsable()) continue;
+            snapshot.remoteEntitlements.push_back({license.product, license.expiresAt,
+                license.plan == "lifetime" || license.expiresAt.empty()
+                    ? "Vitalício" : license.expiresAt});
+        }
+        return;
+    }
     auto& gateway = RemoteGateway();
-    snapshot.remoteServiceConfigured = gateway.IsConfigured();
+    snapshot.remoteServiceConfigured = true;
     snapshot.remoteAuthenticated = gateway.IsAuthenticated();
     snapshot.remoteUsername = gateway.CurrentUsername();
     snapshot.remoteEntitlements = gateway.CurrentEntitlements();
@@ -286,6 +332,29 @@ Snapshot GetSnapshot() {
 OmniGhost::Auth::LicenseResult Login(std::string_view username, std::string_view password) {
     return RemoteGateway().Login(username, password);
 }
+OmniGhost::Auth::LicenseResult LoginWebsite(std::string_view email, std::string_view password) {
+    const auto result = WebsiteService().Login(email, password);
+    Refresh();
+    return result;
+}
+OmniGhost::Auth::LicenseResult RegisterWebsite(std::string_view email,
+                                               std::string_view password,
+                                               std::string_view licenseKey) {
+    const auto result = WebsiteService().Register(email, password, licenseKey);
+    Refresh();
+    return result;
+}
+OmniGhost::Auth::LicenseResult RestoreWebsiteSession() {
+    const auto result = WebsiteService().Restore();
+    Refresh();
+    return result;
+}
+bool SelectWebsiteLicense(std::string_view licenseId) {
+    const bool selected = WebsiteService().SelectLicense(licenseId);
+    if (selected) Refresh();
+    return selected;
+}
+bool IsWebsiteAuthenticated() noexcept { return WebsiteService().IsAuthenticated(); }
 OmniGhost::Auth::LicenseResult Register(std::string_view username, std::string_view password,
                                         std::string_view licenseKey) {
     return RemoteGateway().Register(username, password, licenseKey);
@@ -311,6 +380,7 @@ void LogoutRemote() noexcept {
 
 
     StopRevalidator();
+    WebsiteService().Logout();
     const bool hadRemoteSession = RemoteGateway().IsAuthenticated();
     if (hadRemoteSession) {
         static std::future<void> pendingRemoteLogout = std::async(std::launch::deferred, [] {});
@@ -333,13 +403,20 @@ void LogoutRemote() noexcept {
 }
 void StartSessionRevalidation() { StartRevalidator(); }
 void ShutdownSessionRevalidation() noexcept { StopRevalidator(); }
-bool IsRemoteConfigured() noexcept { return RemoteGateway().IsConfigured(); }
-bool IsRemoteAuthenticated() noexcept { return RemoteGateway().IsAuthenticated(); }
-std::string RemoteUsername() { return RemoteGateway().CurrentUsername(); }
+bool IsRemoteConfigured() noexcept { return true; }
+bool IsRemoteAuthenticated() noexcept {
+    return WebsiteService().IsAuthenticated() || RemoteGateway().IsAuthenticated();
+}
+std::string RemoteUsername() {
+    const auto website = WebsiteService().Snapshot();
+    return website.authenticated ? website.email : RemoteGateway().CurrentUsername();
+}
 bool IsAdmin() {
     if (!IsRemoteAuthenticated() ||
         !OmniGhost::Security::SecurityManager::Instance().CanUseProtectedFeatures())
         return false;
+    const auto website = WebsiteService().Snapshot();
+    if (website.authenticated) return website.isAdmin;
     const auto entitlements = RemoteGateway().CurrentEntitlements();
     return std::any_of(entitlements.begin(), entitlements.end(), [](const auto& item) {
         return IsAdminEntitlement(NormalizeEntitlement(item.name));
@@ -347,12 +424,15 @@ bool IsAdmin() {
 }
 bool HasGameAccess(std::string_view productId) {
     constexpr std::string_view kProducts[]{"fivem", "cs2", "rust", "warzone", "apex", "fortnite"};
-    return std::find(std::begin(kProducts), std::end(kProducts), productId) != std::end(kProducts) &&
-           OmniGhost::Security::SecurityManager::Instance().CanUseProtectedFeatures() &&
-           IsRemoteAuthenticated() && RemoteEntitlementGrants(productId);
+    if (std::find(std::begin(kProducts), std::end(kProducts), productId) == std::end(kProducts) ||
+        !OmniGhost::Security::SecurityManager::Instance().CanUseProtectedFeatures())
+        return false;
+    if (WebsiteService().IsAuthenticated()) return WebsiteService().HasProduct(productId);
+    return RemoteGateway().IsAuthenticated() && RemoteEntitlementGrants(productId);
 }
 std::string GameAccessDuration(std::string_view productId) {
     if (!IsRemoteAuthenticated()) return {};
+    if (WebsiteService().IsAuthenticated()) return WebsiteService().ProductDuration(productId);
     const std::string product = NormalizeEntitlement(productId);
     const std::string canonical = "omnighost_" + product;
     for (const auto& item : RemoteGateway().CurrentEntitlements()) {
@@ -364,8 +444,13 @@ std::string GameAccessDuration(std::string_view productId) {
 }
 bool HasAnyGameAccess() {
     constexpr std::string_view kProducts[]{"fivem", "cs2", "rust", "warzone", "apex", "fortnite"};
-    return IsRemoteAuthenticated() &&
-           std::any_of(std::begin(kProducts), std::end(kProducts), RemoteEntitlementGrants);
+    if (WebsiteService().IsAuthenticated()) {
+        if (WebsiteService().Snapshot().isAdmin) return true;
+        return std::any_of(std::begin(kProducts), std::end(kProducts),
+            [](std::string_view product) { return WebsiteService().HasProduct(product); });
+    }
+    return RemoteGateway().IsAuthenticated() &&
+        std::any_of(std::begin(kProducts), std::end(kProducts), RemoteEntitlementGrants);
 }
 namespace {
 std::filesystem::path RememberedRemotePath() {

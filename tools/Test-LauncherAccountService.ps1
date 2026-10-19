@@ -1,0 +1,52 @@
+[CmdletBinding()]
+param()
+
+$ErrorActionPreference = 'Stop'
+Set-StrictMode -Version Latest
+
+$projectDir = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+$vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+if (-not (Test-Path -LiteralPath $vswhere -PathType Leaf)) {
+    throw 'vswhere.exe não foi encontrado.'
+}
+
+$installation = (& $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath | Select-Object -First 1)
+if (-not $installation) {
+    throw 'MSVC C++ não foi encontrado.'
+}
+
+$vcvars = Join-Path $installation 'VC\Auxiliary\Build\vcvars64.bat'
+if (-not (Test-Path -LiteralPath $vcvars -PathType Leaf)) {
+    throw "vcvars64.bat não foi encontrado: $vcvars"
+}
+
+$outputDir = Join-Path $projectDir '.cache\tests\launcher-account'
+$objectDir = Join-Path $outputDir 'obj'
+New-Item -ItemType Directory -Force -Path $objectDir | Out-Null
+$responseFile = Join-Path $outputDir 'compile.rsp'
+$executable = Join-Path $outputDir 'launcher_account_service_tests.exe'
+$arguments = @(
+    '/nologo', '/std:c++20', '/EHsc', '/W4', '/WX', '/DWIN32_LEAN_AND_MEAN',
+    "/Fo`"$objectDir/`"",
+    "/I`"$($projectDir)\src`"",
+    "`"$($projectDir)\tests\launcher_account_service_tests.cpp`"",
+    "`"$($projectDir)\src\auth\launcher_account_service.cpp`"",
+    "`"$($projectDir)\src\updater\json.cpp`"",
+    "`"$($projectDir)\src\platform\system_info.cpp`"",
+    'winhttp.lib', 'advapi32.lib',
+    "/Fe:`"$executable`""
+)
+[IO.File]::WriteAllLines($responseFile, $arguments, [Text.UTF8Encoding]::new($false))
+
+$command = 'call "{0}" >nul && cd /d "{1}" && cl.exe @"{2}"' -f $vcvars, $objectDir, $responseFile
+& $env:ComSpec /d /s /c $command
+if ($LASTEXITCODE -ne 0) {
+    throw "Compilação dos testes de conta do launcher falhou com exit code $LASTEXITCODE."
+}
+
+& $executable
+if ($LASTEXITCODE -ne 0) {
+    throw "Testes de conta do launcher falharam com exit code $LASTEXITCODE."
+}
+
+Write-Host '[Launcher Account Test] Login, licenças, token rotation, device e logout: PASS'

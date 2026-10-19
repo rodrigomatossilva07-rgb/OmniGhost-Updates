@@ -54,33 +54,11 @@ void WriteAuthStage(const char* stage) noexcept {
     CloseHandle(file);
 }
 
-bool PreviousAuthenticationWasInterrupted() noexcept {
-    wchar_t localAppData[MAX_PATH]{};
-    const DWORD length = GetEnvironmentVariableW(L"LOCALAPPDATA", localAppData, MAX_PATH);
-    if (length == 0 || length >= MAX_PATH)
-        return false;
-    std::wstring path(localAppData);
-    path += L"\\OmniGhost\\post-auth-stage.txt";
-    HANDLE file = CreateFileW(path.c_str(), GENERIC_READ,
-                              FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                              nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (file == INVALID_HANDLE_VALUE)
-        return false;
-    char stage[64]{};
-    DWORD read = 0;
-    const BOOL ok = ReadFile(file, stage, static_cast<DWORD>(sizeof(stage) - 1), &read, nullptr);
-    CloseHandle(file);
-    if (!ok)
-        return false;
-    stage[read] = '\0';
-    return std::strcmp(stage, "auth-operation-started") == 0;
-}
-
 float S(float value) { return CyberTheme::Px(value); }
 ImVec2 Add(const ImVec2& left, const ImVec2& right) { return {left.x + right.x, left.y + right.y}; }
 ImVec2 Sub(const ImVec2& left, const ImVec2& right) { return {left.x - right.x, left.y - right.y}; }
 
-enum class Screen { Landing, Login, Register, Activate };
+enum class Screen { Landing, Login, Register, LicenseSelect, Activate };
 enum class Completion { None, Login, Register, AutoLogin, Preparing };
 
 struct Copy {
@@ -98,12 +76,12 @@ const Copy& Text() {
 
 
     static constexpr std::array<Copy, 6> copy{{
-        {"ENTRAR", "CRIAR CONTA", "Sair", "Utilizador", "Palavra-passe", "Confirmar palavra-passe", "REGISTAR", "VOLTAR"},
-        {"SIGN IN", "CREATE ACCOUNT", "Exit", "Username", "Password", "Confirm password", "REGISTER", "BACK"},
-        {"ANMELDEN", "KONTO ERSTELLEN", "Beenden", "Benutzer", "Passwort", "Passwort bestaetigen", "REGISTRIEREN", "ZURUECK"},
-        {"ENTRAR", "CREAR CUENTA", "Salir", "Usuario", "Contrasena", "Confirmar contrasena", "REGISTRARSE", "VOLVER"},
-        {"CONNEXION", "CREER UN COMPTE", "Quitter", "Utilisateur", "Mot de passe", "Confirmer le mot de passe", "S'INSCRIRE", "RETOUR"},
-        {"ACCEDI", "CREA ACCOUNT", "Esci", "Utente", "Password", "Conferma password", "REGISTRATI", "INDIETRO"}
+        {"ENTRAR", "CRIAR CONTA", "Sair", "Email", "Palavra-passe", "Confirmar palavra-passe", "REGISTAR", "VOLTAR"},
+        {"SIGN IN", "CREATE ACCOUNT", "Exit", "Email", "Password", "Confirm password", "REGISTER", "BACK"},
+        {"ANMELDEN", "KONTO ERSTELLEN", "Beenden", "E-Mail", "Passwort", "Passwort bestaetigen", "REGISTRIEREN", "ZURUECK"},
+        {"ENTRAR", "CREAR CUENTA", "Salir", "Email", "Contrasena", "Confirmar contrasena", "REGISTRARSE", "VOLVER"},
+        {"CONNEXION", "CREER UN COMPTE", "Quitter", "E-mail", "Mot de passe", "Confirmer le mot de passe", "S'INSCRIRE", "RETOUR"},
+        {"ACCEDI", "CREA ACCOUNT", "Esci", "Email", "Password", "Conferma password", "REGISTRATI", "INDIETRO"}
     }};
     const int index = std::clamp(static_cast<int>(app_settings::config.language), 0,
                                  static_cast<int>(copy.size() - 1));
@@ -143,6 +121,7 @@ bool g_language_open = false;
 bool g_upgrade_mode = false;
 bool g_remember_me = true;
 bool g_auto_login_attempt = false;
+bool g_legacy_login = false;
 bool g_startup_preparing = true;
 float g_startup_time = 0.0f;
 char g_email[320]{};
@@ -154,6 +133,7 @@ Completion g_completion = Completion::None;
 float g_completion_time = 0.0f;
 
 enum class RemoteOperation {
+    WebsiteLogin, WebsiteRegister, WebsiteRestore,
     Login, Register, Activate, Upgrade,
 
 
@@ -167,6 +147,9 @@ struct RemoteOperationResult {
     bool persistCredentials{};
     std::string rememberedUsername;
     std::string rememberedPassword;
+    std::string diagnosticCode;
+    bool websiteAccount{};
+    bool requiresLicenseSelection{};
 };
 std::future<RemoteOperationResult> g_remote_operation;
 bool g_remote_operation_pending = false;
@@ -187,34 +170,12 @@ void StartRemoteOperation(RemoteOperation operation, std::string username,
                           bool rememberCredentials = false);
 
 void InitializeState() {
-    auto& auth = OmniGhost::Auth::LocalAuthService::Instance();
-    auth.Initialize();
+    OmniGhost::Auth::LocalAuthService::Instance().Initialize();
     g_screen = Screen::Landing;
     g_startup_preparing = true;
     g_startup_time = 0.0f;
-    if (OmniGhost::Licensing::IsRemoteConfigured()) {
-        if (PreviousAuthenticationWasInterrupted()) {
-            OmniGhost::Licensing::ClearRememberedRemoteCredentials();
-            g_screen = Screen::Login;
-            g_error = "A autenticação anterior foi interrompida. Volta a iniciar sessão.";
-            WriteAuthStage("auth-retry-required");
-            g_initialized = true;
-            return;
-        }
-        std::string user, pass;
-        if (OmniGhost::Licensing::LoadRememberedRemoteCredentials(user, pass)) {
-            g_remember_me = true;
-            g_auto_login_attempt = true;
-            if (user.size() < sizeof(g_email))
-                std::snprintf(g_email, sizeof(g_email), "%s", user.c_str());
-
-            StartRemoteOperation(RemoteOperation::Login, user, pass, {});
-            if (!pass.empty()) SecureZeroMemory(pass.data(), pass.size());
-        }
-    } else if (auth.TryAutoLogin()) {
-        g_completion = Completion::AutoLogin;
-        g_completion_time = 0.0f;
-    }
+    g_auto_login_attempt = true;
+    StartRemoteOperation(RemoteOperation::WebsiteRestore, {}, {}, {});
     g_initialized = true;
 }
 
@@ -241,6 +202,21 @@ void StartRemoteOperation(RemoteOperation operation, std::string username,
             try {
                 OmniGhost::Auth::LicenseResult result{};
                 switch (operation) {
+                case RemoteOperation::WebsiteLogin:
+                    result = OmniGhost::Licensing::LoginWebsite(username, password);
+                    outcome.completion = Completion::Login;
+                    outcome.websiteAccount = true;
+                    break;
+                case RemoteOperation::WebsiteRegister:
+                    result = OmniGhost::Licensing::RegisterWebsite(username, password, licenseKey);
+                    outcome.completion = Completion::Register;
+                    outcome.websiteAccount = true;
+                    break;
+                case RemoteOperation::WebsiteRestore:
+                    result = OmniGhost::Licensing::RestoreWebsiteSession();
+                    outcome.completion = Completion::AutoLogin;
+                    outcome.websiteAccount = true;
+                    break;
                 case RemoteOperation::Login:
                     result = OmniGhost::Licensing::Login(username, password);
                     outcome.completion = Completion::Login;
@@ -295,6 +271,12 @@ void StartRemoteOperation(RemoteOperation operation, std::string username,
                 WriteAuthStage(result.Ok() ? "auth-service-success" : "auth-service-rejected");
                 outcome.success = result.Ok();
                 outcome.message = std::move(result.userMessage);
+                outcome.diagnosticCode = std::move(result.diagnosticCode);
+                if (outcome.success && outcome.websiteAccount) {
+                    const auto snapshot = OmniGhost::Licensing::GetSnapshot();
+                    outcome.requiresLicenseSelection = snapshot.websiteLicenses.size() > 1 &&
+                        snapshot.selectedLicenseId.empty();
+                }
                 if (outcome.success && rememberCredentials &&
                     (operation == RemoteOperation::Login || operation == RemoteOperation::Register)) {
                     outcome.persistCredentials = true;
@@ -330,15 +312,32 @@ void PollRemoteOperation() {
             if (!result.rememberedPassword.empty())
                 SecureZeroMemory(result.rememberedPassword.data(), result.rememberedPassword.size());
             g_auto_login_attempt = false;
-            BeginCompletion(automatic ? Completion::AutoLogin : result.completion);
+            if (result.requiresLicenseSelection) {
+                SetScreen(Screen::LicenseSelect);
+            } else {
+                BeginCompletion(automatic ? Completion::AutoLogin : result.completion);
+            }
         } else {
 
             if (automatic) {
-                OmniGhost::Licensing::ClearRememberedRemoteCredentials();
+                if (result.diagnosticCode == "website.no_saved_session") {
+                    std::string user;
+                    std::string pass;
+                    if (OmniGhost::Licensing::LoadRememberedRemoteCredentials(user, pass)) {
+                        g_legacy_login = true;
+                        g_auto_login_attempt = true;
+                        if (user.size() < sizeof(g_email))
+                            std::snprintf(g_email, sizeof(g_email), "%s", user.c_str());
+                        StartRemoteOperation(RemoteOperation::Login, user, pass, {});
+                        if (!pass.empty()) SecureZeroMemory(pass.data(), pass.size());
+                        return;
+                    }
+                }
                 g_auto_login_attempt = false;
                 SetScreen(Screen::Login);
             }
-            g_error = result.message.empty() ? "Não foi possível iniciar sessão." : result.message;
+            if (result.diagnosticCode != "website.no_saved_session")
+                g_error = result.message.empty() ? "Não foi possível iniciar sessão." : result.message;
         }
     } catch (...) {
         WriteAuthStage("auth-result-exception");
@@ -708,26 +707,26 @@ void DrawLogin() {
 
 
     static_cast<void>(OmniGhost::Auth::LocalAuthService::Instance());
-    const float contentWidth = S(342.f);
+    const float contentWidth = S(392.f);
 
 
 
-    CenterBlockVertically(S(310.f), 0.48f);
+    CenterBlockVertically(S(g_legacy_login ? 356.f : 334.f), 0.48f);
     DrawBrand(false);
     ImGui::Dummy(ImVec2(0, S(14.f)));
 
     CenterCursor(contentWidth);
     ImGui::BeginGroup();
-    const bool remote = OmniGhost::Licensing::IsRemoteConfigured();
-    const char* identity = text.email;
+    const char* identity = g_legacy_login ? "Utilizador do login antigo" : "Email da conta OmniGhost";
     AuthInputField("login_email", g_email, sizeof(g_email), identity,
                    contentWidth, true, AuthFieldIcon::Email);
     ImGui::Dummy(ImVec2(0, S(7.f)));
     const bool enter = AuthPasswordField("login_password", g_password,
-        sizeof(g_password), &g_show_password, text.password, contentWidth,
+        sizeof(g_password), &g_show_password,
+        g_legacy_login ? text.password : "Palavra-passe do launcher", contentWidth,
         ImGuiInputTextFlags_EnterReturnsTrue);
-    ImGui::Dummy(ImVec2(0, S(6.f)));
-    {
+    if (g_legacy_login) {
+        ImGui::Dummy(ImVec2(0, S(6.f)));
         CenterCursor(contentWidth);
         ImGui::PushStyleColor(ImGuiCol_Text, CyberTheme::Colors.TextDisabled);
         ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(S(2.f), S(2.f)));
@@ -741,7 +740,7 @@ void DrawLogin() {
         ImVec2(contentWidth, S(42.f))) || enter;
     ImGui::EndDisabled();
     if (submit && !g_remote_operation_pending) {
-        if (remote) {
+        if (g_legacy_login) {
             const std::string user = g_email;
             const std::string pass = g_password;
             if (!g_remember_me)
@@ -752,10 +751,7 @@ void DrawLogin() {
             DrawFeedback(contentWidth);
             return;
         }
-
-
-
-        StartRemoteOperation(RemoteOperation::LocalLogin, g_email, g_password, {});
+        StartRemoteOperation(RemoteOperation::WebsiteLogin, g_email, g_password, {});
         SecureClear(g_password, sizeof(g_password));
         ImGui::EndGroup();
         DrawFeedback(contentWidth);
@@ -764,6 +760,14 @@ void DrawLogin() {
     ImGui::EndGroup();
     DrawFeedback(contentWidth);
     ImGui::Dummy(ImVec2(0, S(3.f)));
+    CenterCursor(contentWidth);
+    if (CyberWidgets::GhostButton(g_legacy_login ? "Usar conta OmniGhost" : "Usar login antigo",
+                                  ImVec2(contentWidth, S(34.f)))) {
+        g_legacy_login = !g_legacy_login;
+        SecureClear(g_password, sizeof(g_password));
+        g_error.clear();
+    }
+    ImGui::Dummy(ImVec2(0, S(4.f)));
     CenterCursor(contentWidth);
     const std::string back = std::string("<  ") + text.back;
     if (CyberWidgets::GhostButton(back.c_str(), ImVec2(contentWidth, S(34.f)))) {
@@ -776,11 +780,10 @@ void DrawRegister() {
     const Copy& text = Text();
 
     static_cast<void>(OmniGhost::Auth::LocalAuthService::Instance());
-    const float contentWidth = S(342.f);
-    const bool remote = OmniGhost::Licensing::IsRemoteConfigured();
+    const float contentWidth = S(392.f);
 
 
-    const float blockHeight = remote ? S(354.f) : S(304.f);
+    const float blockHeight = S(g_legacy_login ? 402.f : 420.f);
     CenterBlockVertically(blockHeight, 0.48f);
     DrawBrand(false);
     ImGui::Dummy(ImVec2(0, S(14.f)));
@@ -791,21 +794,28 @@ void DrawRegister() {
                    contentWidth, true, AuthFieldIcon::Email);
     ImGui::Dummy(ImVec2(0, S(6.f)));
     bool submit = AuthPasswordField("register_password", g_password, sizeof(g_password),
-        &g_show_password, text.password, contentWidth,
-        remote ? 0 : ImGuiInputTextFlags_EnterReturnsTrue);
-    if (remote) {
-        ImGui::Dummy(ImVec2(0, S(6.f)));
-        submit = AuthPasswordField("register_key", g_license_key,
-            sizeof(g_license_key), &g_show_license_key, LicenseKeyHint(), contentWidth,
-            ImGuiInputTextFlags_EnterReturnsTrue) || submit;
-    }
+        &g_show_password, g_legacy_login ? text.password : "Nova palavra-passe do launcher",
+        contentWidth, 0);
     ImGui::Dummy(ImVec2(0, S(6.f)));
-    CenterCursor(contentWidth);
-    ImGui::PushStyleColor(ImGuiCol_Text, CyberTheme::Colors.TextDisabled);
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(S(2.f), S(2.f)));
-    ImGui::Checkbox(RememberMeLabel(), &g_remember_me);
-    ImGui::PopStyleVar();
-    ImGui::PopStyleColor();
+    submit = AuthPasswordField("register_key", g_license_key,
+        sizeof(g_license_key), &g_show_license_key, LicenseKeyHint(), contentWidth,
+        ImGuiInputTextFlags_EnterReturnsTrue) || submit;
+    if (g_legacy_login) {
+        ImGui::Dummy(ImVec2(0, S(6.f)));
+        CenterCursor(contentWidth);
+        ImGui::PushStyleColor(ImGuiCol_Text, CyberTheme::Colors.TextDisabled);
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(S(2.f), S(2.f)));
+        ImGui::Checkbox(RememberMeLabel(), &g_remember_me);
+        ImGui::PopStyleVar();
+        ImGui::PopStyleColor();
+    } else {
+        ImGui::Dummy(ImVec2(0, S(8.f)));
+        CenterCursor(contentWidth);
+        ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + contentWidth);
+        ImGui::TextColored(CyberTheme::Colors.TextDisabled,
+            "Usa o mesmo email da compra. A palavra-passe é exclusiva do launcher.");
+        ImGui::PopTextWrapPos();
+    }
     ImGui::Dummy(ImVec2(0, S(6.f)));
     ImGui::BeginDisabled(g_remote_operation_pending);
     const bool registerPressed = AuthPrimaryButton(
@@ -815,7 +825,11 @@ void DrawRegister() {
     if (registerPressed && !g_remote_operation_pending) {
         if (g_password[0] == '\0') {
             g_error = "Indica uma palavra-passe.";
-        } else if (remote) {
+        } else if (!g_legacy_login && std::strlen(g_password) < 10) {
+            g_error = "A palavra-passe do launcher deve ter pelo menos 10 caracteres.";
+        } else if (!g_legacy_login && (std::strchr(g_email, '@') == nullptr || g_license_key[0] == '\0')) {
+            g_error = "Indica o email usado no site e a licença comprada nessa conta.";
+        } else if (g_legacy_login) {
             const std::string user = g_email;
             const std::string pass = g_password;
             const std::string key = g_license_key;
@@ -829,9 +843,7 @@ void DrawRegister() {
             DrawFeedback(contentWidth);
             return;
         } else {
-
-
-            StartRemoteOperation(RemoteOperation::LocalRegister, g_email,
+            StartRemoteOperation(RemoteOperation::WebsiteRegister, g_email,
                                  g_password, g_license_key);
             SecureClear(g_password, sizeof(g_password));
             SecureClear(g_confirm, sizeof(g_confirm));
@@ -844,12 +856,58 @@ void DrawRegister() {
     ImGui::EndGroup();
     DrawFeedback(contentWidth);
     ImGui::Dummy(ImVec2(0, S(2.f)));
+    CenterCursor(contentWidth);
+    if (CyberWidgets::GhostButton(g_legacy_login ? "Criar conta OmniGhost" : "Usar registo antigo",
+                                  ImVec2(contentWidth, S(34.f)))) {
+        g_legacy_login = !g_legacy_login;
+        SecureClear(g_password, sizeof(g_password));
+        SecureClear(g_license_key, sizeof(g_license_key));
+        g_error.clear();
+    }
+    ImGui::Dummy(ImVec2(0, S(4.f)));
     const std::string back = std::string("<- ") + text.back;
     if (DrawTextAction(back.c_str())) {
         SecureClear(g_password, sizeof(g_password));
         SecureClear(g_confirm, sizeof(g_confirm));
         SecureClear(g_license_key, sizeof(g_license_key));
         SetScreen(Screen::Landing);
+    }
+}
+
+void DrawLicenseSelection() {
+    const float contentWidth = S(410.f);
+    CenterBlockVertically(S(390.f), 0.47f);
+    DrawBrand(false);
+    ImGui::Dummy(ImVec2(0, S(14.f)));
+    DrawCenteredText("ESCOLHER LICENÇA",
+        CyberTheme::Colors.Text);
+    ImGui::Dummy(ImVec2(0, S(7.f)));
+    DrawCenteredText("Seleciona o produto que pretendes usar nesta sessão",
+        CyberTheme::Colors.TextDisabled);
+    ImGui::Dummy(ImVec2(0, S(14.f)));
+    const auto snapshot = OmniGhost::Licensing::GetSnapshot();
+    CenterCursor(contentWidth);
+    ImGui::BeginGroup();
+    for (const auto& license : snapshot.websiteLicenses) {
+        if (!license.IsUsable()) continue;
+        ImGui::PushID(license.id.c_str());
+        std::string label = license.product;
+        if (!license.plan.empty()) label += "  //  " + license.plan;
+        if (CyberWidgets::GhostButton(label.c_str(), ImVec2(contentWidth, S(44.f)))) {
+            if (OmniGhost::Licensing::SelectWebsiteLicense(license.id))
+                BeginCompletion(Completion::Login);
+            else
+                g_error = "Não foi possível selecionar esta licença.";
+        }
+        ImGui::PopID();
+        ImGui::Dummy(ImVec2(0, S(7.f)));
+    }
+    ImGui::EndGroup();
+    DrawFeedback(contentWidth);
+    CenterCursor(contentWidth);
+    if (CyberWidgets::GhostButton("Terminar sessão", ImVec2(contentWidth, S(34.f)))) {
+        OmniGhost::Licensing::LogoutRemote();
+        SetScreen(Screen::Login);
     }
 }
 
@@ -972,6 +1030,7 @@ void Reset() {
     g_language_open = false;
     g_show_license_key = false;
     g_upgrade_mode = false;
+    g_legacy_login = false;
     g_remote_operation_pending = remoteOperationInFlight;
     g_email[0] = '\0';
     SecureClear(g_password, sizeof(g_password));
@@ -1054,11 +1113,14 @@ bool Draw() {
     background->AddLine(ImVec2(frameMax.x - corner, frameMax.y), ImVec2(frameMax.x - S(20.f), frameMax.y), accent, S(1.5f));
     background->AddLine(ImVec2(frameMax.x, frameMax.y - corner), ImVec2(frameMax.x, frameMax.y - S(20.f)), accent, S(1.5f));
 
-    const float desiredWidth = S(468.f);
+    const float desiredWidth = S(
+        g_screen == Screen::Login || g_screen == Screen::Register ||
+        g_screen == Screen::LicenseSelect ? 548.f : 468.f);
     const float desiredHeight =
-        g_screen == Screen::Register ? S(530.f) :
-        (g_screen == Screen::Login ? S(486.f) :
-         (g_screen == Screen::Activate ? S(438.f) : S(360.f)));
+        g_screen == Screen::Register ? S(620.f) :
+        (g_screen == Screen::Login ? S(550.f) :
+         (g_screen == Screen::LicenseSelect ? S(560.f) :
+         (g_screen == Screen::Activate ? S(438.f) : S(360.f))));
     const float width = (std::max)(S(340.f), (std::min)(desiredWidth, display.x - S(20.f)));
     const float availableHeight = (std::max)(S(300.f), display.y - S(24.f));
     const float height = (std::min)(desiredHeight, availableHeight);
@@ -1117,6 +1179,7 @@ bool Draw() {
         case Screen::Landing: DrawLanding(); break;
         case Screen::Login: DrawLogin(); break;
         case Screen::Register: DrawRegister(); break;
+        case Screen::LicenseSelect: DrawLicenseSelection(); break;
         case Screen::Activate: DrawActivate(); break;
         }
     } else {
