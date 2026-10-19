@@ -28,6 +28,7 @@ $responseFile = Join-Path $outputDir 'compile.rsp'
 $executable = Join-Path $outputDir 'makcu_integration_tests.exe'
 $arguments = @(
     '/nologo', '/std:c++20', '/EHsc', '/W4', '/WX',
+    "/Fo`"$objectDir/`"",
     "/I`"$($projectDir)\src`"",
     "`"$($projectDir)\tests\makcu_integration_tests.cpp`"",
     "`"$($projectDir)\src\makcu\makcu_protocol.cpp`"",

@@ -27,6 +27,7 @@ $responseFile = Join-Path $outputDir 'compile.rsp'
 $executable = Join-Path $outputDir 'auth_gateway_regression_tests.exe'
 $arguments = @(
     '/nologo', '/std:c++20', '/EHsc', '/W4', '/WX',
+    "/Fo`"$objectDir/`"",
     "/I`"$($projectDir)\src`"",
     "`"$($projectDir)\tests\auth_gateway_regression_tests.cpp`"",
     "`"$($projectDir)\src\auth\keyauth_gateway.cpp`"",
