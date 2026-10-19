@@ -15,9 +15,9 @@
 namespace {
 
 void CopyToClipboard(const std::string& text) {
-    // UI-014 Fix: added null checks for GlobalLock and SetClipboardData, and
-    // free the handle when SetClipboardData fails (it does NOT take ownership
-    // on failure).
+
+
+
     if (!OpenClipboard(nullptr)) return;
     EmptyClipboard();
     HGLOBAL mem = GlobalAlloc(GMEM_MOVEABLE, text.size() + 1);
@@ -27,7 +27,7 @@ void CopyToClipboard(const std::string& text) {
     memcpy(locked, text.c_str(), text.size() + 1);
     GlobalUnlock(mem);
     if (!SetClipboardData(CF_TEXT, mem))
-        GlobalFree(mem); // ownership not transferred on failure
+        GlobalFree(mem);
     CloseClipboard();
 }
 

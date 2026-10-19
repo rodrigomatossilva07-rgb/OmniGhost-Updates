@@ -16,6 +16,7 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <future>
 #include <iostream>
 #include <iterator>
 #include <memory>
@@ -286,8 +287,36 @@ OmniGhost::Auth::LicenseResult Upgrade(std::string_view username, std::string_vi
     return RemoteGateway().Upgrade(username, licenseKey);
 }
 void LogoutRemote() noexcept {
+
+
+
+
+
+
+
+
+
+
+
+
+
     StopRevalidator();
-    RemoteGateway().Logout();
+    const bool hadRemoteSession = RemoteGateway().IsAuthenticated();
+    if (hadRemoteSession) {
+        static std::future<void> pendingRemoteLogout = std::async(std::launch::deferred, [] {});
+        try {
+            auto next = std::async(std::launch::async, [] {
+                RemoteGateway().Logout();
+            });
+
+
+
+            pendingRemoteLogout = std::move(next);
+        } catch (...) {
+
+
+        }
+    }
     ClearRememberedRemoteCredentials();
     Refresh();
 }

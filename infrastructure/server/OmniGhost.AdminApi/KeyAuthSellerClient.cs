@@ -32,11 +32,11 @@ public sealed class KeyAuthSellerClient : IDisposable
         if (!options.IsConfigured)
             return new(false, "KeyAuth Seller API is not configured.", new JsonObject());
 
-        // API-001 Fix: the KeyAuth Seller API only accepts the seller key as a
-        // GET query parameter, so it WILL appear in URLs. Move the credentials
-        // into the POST body instead (KeyAuth also accepts form-encoded POST
-        // for seller calls), keeping secrets out of query strings, proxies and
-        // access logs. The response handling below is unchanged.
+
+
+
+
+
         var content = new List<KeyValuePair<string, string?>> {
             new("sellerkey", options.KeyAuthSellerKey),
             new("type", type)

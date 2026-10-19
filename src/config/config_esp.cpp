@@ -39,6 +39,13 @@ void SerializeESP(std::ostringstream& o) {
     WFloat(o, "esp.trail_duration", e.trail_duration);
     WFloat(o, "esp.trail_thickness", e.trail_thickness);
     WFloat(o, "esp.look_direction_length", e.look_direction_length);
+
+
+    WFloat(o, "esp.box_thickness", e.box_thickness);
+    WFloat(o, "esp.skeleton_thickness", e.skeleton_thickness);
+    WFloat(o, "esp.head_circle_thickness", e.head_circle_thickness);
+    WFloat(o, "esp.snapline_thickness", e.snapline_thickness);
+    WFloat(o, "esp.eye_line_thickness", e.eye_line_thickness);
     WBool(o, "esp.rgb_mode", e.rgb_mode);
     WBool(o, "esp.radar_enabled", e.radar_enabled);
     WFloat(o, "esp.radar_range", e.radar_range);
@@ -139,6 +146,12 @@ bool DeserializeESP(const std::string& key, const std::string& val) {
     if (bi("esp.max_esp_distance")) { e.max_esp_distance = toF(); return true; }
     if (bi("esp.snapline_pos")) { e.snapline_pos = toI(); return true; }
     if (bi("esp.circle_type")) { e.circle_type = toI(); return true; }
+
+    if (bi("esp.box_thickness")) { e.box_thickness = toF(); return true; }
+    if (bi("esp.skeleton_thickness")) { e.skeleton_thickness = toF(); return true; }
+    if (bi("esp.head_circle_thickness")) { e.head_circle_thickness = toF(); return true; }
+    if (bi("esp.snapline_thickness")) { e.snapline_thickness = toF(); return true; }
+    if (bi("esp.eye_line_thickness")) { e.eye_line_thickness = toF(); return true; }
     if (bi("esp.color_visible")) { e.color_visible = toU(); return true; }
     if (bi("esp.color_invisible")) { e.color_invisible = toU(); return true; }
     if (bi("esp.color_dead")) { e.color_dead = toU(); return true; }

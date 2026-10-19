@@ -76,6 +76,19 @@ bool Descendant(const fs::path& child, const fs::path& parent) {
     return true;
 }
 
+
+
+std::string ReadTrimmedTextFile(const fs::path& path) {
+    std::ifstream stream(path, std::ios::binary);
+    if (!stream)
+        return {};
+    std::string contents((std::istreambuf_iterator<char>(stream)), std::istreambuf_iterator<char>());
+    while (!contents.empty() && (contents.back() == '\n' || contents.back() == '\r' ||
+                                 contents.back() == ' ' || contents.back() == '\t'))
+        contents.pop_back();
+    return contents;
+}
+
 bool WaitForExit(DWORD pid, int seconds, std::string& error) {
     Platform::UniqueHandle process(OpenProcess(SYNCHRONIZE, FALSE, pid));
     if (!process) {
@@ -229,8 +242,28 @@ std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
         return reject(22, "arguments", "Os caminhos ou metadados do pedido de atualização não são seguros/válidos.");
 
     WriteLog(log, LogLevel::Info, Version, targetVersion, "start", "Modo atualizador do OmniGhost iniciado.");
-    std::string error, actualHash; std::error_code fileError;
-    if (fs::file_size(package, fileError) != expectedSize || !Sha256File(package, actualHash, error) ||
+    std::string error, actualHash;
+
+
+
+
+
+
+
+
+    Platform::UniqueHandle packageLock(CreateFileW(package.c_str(), GENERIC_READ, FILE_SHARE_READ,
+        nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
+    if (!packageLock) {
+        WriteLog(log, LogLevel::Error, Version, targetVersion, "revalidate",
+            "Não foi possível abrir o pacote em modo exclusivo de leitura (partilha de escrita negada).");
+        RecordHealth("revalidate-failed", Version, targetVersion, expectedHash, {}, {},
+            "package could not be locked for verification");
+        return 29;
+    }
+    LARGE_INTEGER pinnedSize{};
+    if (!GetFileSizeEx(packageLock.get(), &pinnedSize) ||
+        static_cast<std::uint64_t>(pinnedSize.QuadPart) != expectedSize ||
+        !Sha256File(package, actualHash, error) ||
         !ConstantTimeEquals(actualHash, expectedHash)) {
         WriteLog(log, LogLevel::Error, Version, targetVersion, "revalidate",
             error.empty() ? "Tamanho ou SHA-256 alterado antes da instalação." : error);
@@ -238,7 +271,8 @@ std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
             error.empty() ? "size or sha256 changed before install" : error);
         return 29;
     }
-    RecordHealth("revalidated", Version, targetVersion, expectedHash, {}, {}, "package size and sha256 verified");
+    RecordHealth("revalidated", Version, targetVersion, expectedHash, {}, {},
+        "package size and sha256 verified (write-locked during install)");
     int timeout = 30;
     if (args.contains(L"--timeout")) {
         try {
@@ -261,6 +295,12 @@ std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
         WriteLog(log, LogLevel::Error, Version, targetVersion, "extract", error); return 24;
     }
 
+
+
+
+
+    packageLock.reset();
+
     const IntegrityReport stagedIntegrity = VerifyInstallationFiles(staging);
     const bool singleExecutablePackage = archive.files.size() == 1 &&
         archive.files.front() == executableName;
@@ -274,7 +314,7 @@ std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
         return 33;
     }
 
-	InstallOptions install{staging, target, executableName.wstring()};
+	InstallOptions install{staging, target, executableName.wstring(), expectedHash};
 	const InstallResult installed = InstallSingleExecutable(install);
     if (!installed.success) {
         WriteLog(log, LogLevel::Error, Version, targetVersion, "install", installed.error);
@@ -332,25 +372,49 @@ std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
         const std::string restartDetail = error.empty()
             ? "A nova versao nao confirmou o arranque."
             : error;
-        // UPD-003 Fix: restore the previous executable when the backup exists;
-        // "never restore" bricked installs whose new build failed at startup.
+
+
         const fs::path backupExe = target / (executableName.wstring() + std::wstring(L".previous"));
         std::error_code rollbackError;
         bool rolledBack = false;
+        std::string rollbackDetail;
         if (fs::exists(backupExe, rollbackError)) {
-            fs::copy_file(backupExe, target / executableName,
-                fs::copy_options::overwrite_existing, rollbackError);
-            rolledBack = !rollbackError;
+
+
+
+
+
+
+            const fs::path backupHashSidecar =
+                target / (executableName.wstring() + std::wstring(L".previous.sha256"));
+            const std::string expectedBackupHash = ReadTrimmedTextFile(backupHashSidecar);
+            bool backupVerified = true;
+            if (expectedBackupHash.size() == 64) {
+                std::string actualBackupHash, hashError;
+                backupVerified = Sha256File(backupExe, actualBackupHash, hashError) &&
+                                ConstantTimeEquals(actualBackupHash, expectedBackupHash);
+                if (!backupVerified)
+                    rollbackDetail = "rollback blocked: OmniGhost.exe.previous SHA-256 mismatch";
+            }
+            if (backupVerified) {
+                fs::copy_file(backupExe, target / executableName,
+                    fs::copy_options::overwrite_existing, rollbackError);
+                rolledBack = !rollbackError;
+            }
         }
         WriteLog(log, LogLevel::Error, Version, targetVersion, "restart",
             restartDetail + (rolledBack
                 ? "; rollback executado — versao anterior restaurada."
-                : "; rollback indisponivel — a versao instalada e mantida."));
+                : (rollbackDetail.empty()
+                    ? "; rollback indisponivel — a versao instalada e mantida."
+                    : "; " + rollbackDetail + " — a versao instalada e mantida.")));
         RecordHealth("startup-confirmation-failed", Version, targetVersion, expectedHash, {},
             rolledBack ? "restored-previous" : "skipped-keep-latest",
             restartDetail + (rolledBack
                 ? "; previous executable restored from backup"
-                : "; kept latest version (no backup available)"));
+                : (rollbackDetail.empty()
+                    ? "; kept latest version (no backup available)"
+                    : "; " + rollbackDetail)));
         return 28;
     }
 

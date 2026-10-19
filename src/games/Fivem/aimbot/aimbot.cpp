@@ -64,6 +64,8 @@ namespace aimbot {
 
     static bool tracking_active = false;
     static uintptr_t locked_target = 0;
+
+    static uintptr_t last_beeped_lock_ped = 0;
     static std::chrono::steady_clock::time_point lock_start{};
     static std::chrono::steady_clock::time_point last_trigger{};
     static bool trigger_pressed = false;
@@ -159,6 +161,7 @@ namespace aimbot {
         locked_target = 0;
         current_target = {};
         beeped_for_lock = false;
+        last_beeped_lock_ped = 0;
         ResetAimStabilityState();
     }
 
@@ -434,6 +437,153 @@ namespace aimbot {
         return FindBestTargetForHitbox(out, fov_px, max_dist, config.hitbox);
     }
 
+
+
+
+
+
+
+
+
+
+
+
+    static bool FindBestTriggerTarget(TargetInfo& out, float fov_px,
+                                       float max_dist) {
+        out = {};
+        using namespace FiveM;
+
+        if (!ESP::FrameCacheValid() || !offset::localplayer)
+            return false;
+        const Matrix view_matrix = ESP::GetFrameViewMatrix();
+        const Vec3 localPos = ESP::GetFrameLocalPos();
+        if (localPos.IsZero()) return false;
+
+        ImVec2 display = ImGui::GetIO().DisplaySize;
+        if (display.x < 1.f || display.y < 1.f) return false;
+        float cx = display.x * 0.5f;
+        float cy = display.y * 0.5f;
+
+        const std::vector<uintptr_t>* pedsPtr = nullptr;
+        const std::vector<Vec3>* posPtr = nullptr;
+        auto snapshot = FiveM::ESP::GetValidPedsSnapshot();
+        if (!snapshot.validPeds.empty()) {
+            pedsPtr = &snapshot.validPeds;
+            posPtr = &snapshot.positions;
+        } else {
+            CollectPedsForAim();
+            pedsPtr = &s_aimPeds;
+            posPtr = &s_aimPos;
+        }
+        const auto& peds = *pedsPtr;
+        const auto& positions = *posPtr;
+        if (peds.empty())
+            return false;
+        const bool skipFriends = friends::config.ignore_aim && friends::HasFriends();
+
+        constexpr Hitbox kTriggerHitboxes[] = {
+            Hitbox::Head, Hitbox::Neck, Hitbox::Torso, Hitbox::Pelvis, Hitbox::Legs
+        };
+
+
+
+
+        float bestCross = 1e30f;
+        bool bestFromHead = false;
+        TargetInfo best{};
+
+        for (size_t i = 0; i < peds.size(); ++i) {
+            uintptr_t ped = peds[i];
+            if (!ped || ped == offset::localplayer)
+                continue;
+
+            if (skipFriends) {
+                uint32_t networkId = 0;
+                if (!esp::try_get_prepared_network_id(ped, networkId) ||
+                    friends::IsFriend(networkId))
+                    continue;
+            }
+
+            float health = 0.f;
+            if (!esp::try_get_prepared_health(ped, health))
+                continue;
+            if (health <= 1.f || health > 500.f)
+                continue;
+
+            if (!IsVisibleForAim(ped))
+                continue;
+
+
+
+            for (const Hitbox hitbox : kTriggerHitboxes) {
+                Vec3 world = ResolveHitboxWorld(ped, hitbox);
+                const bool haveBone = !world.IsZero() && IsFiniteVec3(world);
+
+                if (!haveBone) {
+                    if (i < positions.size() && !positions[i].IsZero() &&
+                        IsFiniteVec3(positions[i])) {
+                        world = positions[i];
+                        world.z += (hitbox == Hitbox::Head) ? 0.85f : 0.55f;
+                    } else continue;
+                } else if (i < positions.size() && !positions[i].IsZero() &&
+                           IsFiniteVec3(positions[i])) {
+                    const float boneOffset = positions[i].distance_to(world);
+                    if (!std::isfinite(boneOffset) || boneOffset > 4.5f)
+                        continue;
+                }
+
+                if (!IsFiniteVec3(world))
+                    continue;
+
+                const float dist = localPos.distance_to(world);
+                if (!std::isfinite(dist) || dist > max_dist || dist < 0.35f)
+                    continue;
+
+                Vec2 screen;
+                if (!world.world_to_screen(view_matrix, screen) || !IsFiniteVec2(screen))
+                    continue;
+
+                if (screen.x < -50.f || screen.y < -50.f ||
+                    screen.x > display.x + 50.f || screen.y > display.y + 50.f)
+                    continue;
+
+                float dx = screen.x - cx;
+                float dy = screen.y - cy;
+                float cross = sqrtf(dx * dx + dy * dy);
+                if (cross > fov_px)
+                    continue;
+
+                float score = config.closest_to_crosshair ? cross : dist;
+                if (config.threat_priority)
+                    score = cross * 1.0f + dist * 0.35f;
+                (void)score;
+
+
+                const bool fromHead = hitbox == Hitbox::Head;
+
+
+
+
+                if (bestFromHead && !fromHead)
+                    break;
+                if (!best.valid || cross < bestCross || (fromHead && !bestFromHead)) {
+                    bestCross = cross;
+                    bestFromHead = fromHead;
+                    best.ped = ped;
+                    best.world_pos = world;
+                    best.screen_pos = screen;
+                    best.distance = dist;
+                    best.crosshair_dist = cross;
+                    best.valid = true;
+                }
+                break;
+            }
+        }
+
+        out = best;
+        return best.valid;
+    }
+
     void HumanizedMove(float dx, float dy) {
         if (!std::isfinite(dx) || !std::isfinite(dy)) {
             ResetAimMotionState();
@@ -510,9 +660,21 @@ namespace aimbot {
         if (smooth < 0.f) smooth = 0.f;
         if (smooth > 100.f) smooth = 100.f;
 
+
+
+
+
+
+        float smoothY = config.smooth_y;
+        if (!std::isfinite(smoothY) || smoothY < 0.f) smoothY = smooth;
+        if (smoothY > 100.f) smoothY = 100.f;
+
         float strength = (100.f - smooth) / 100.f;
+        float strengthY = (100.f - smoothY) / 100.f;
         if (config.humanize && strength > 0.f && strength < 1.f)
             strength = powf(strength, 0.92f);
+        if (config.humanize && strengthY > 0.f && strengthY < 1.f)
+            strengthY = powf(strengthY, 0.92f);
 
         if (strength <= 0.0001f) {
             ResetAimMotionState();
@@ -601,7 +763,7 @@ namespace aimbot {
         }
 
         float gainX = strength * outputScale * adaptive_gain_scale;
-        float gainY = strength * outputScale * adaptive_gain_scale;
+        float gainY = strengthY * outputScale * adaptive_gain_scale;
 
 
 
@@ -882,6 +1044,16 @@ namespace aimbot {
         current_target = tgt;
 
 
+
+
+
+        if (config.lock_beep && tgt.ped != 0 && tgt.ped != last_beeped_lock_ped) {
+            last_beeped_lock_ped = tgt.ped;
+            beeped_for_lock = true;
+            MessageBeep(MB_OK);
+        }
+
+
         float dx = tgt.screen_pos.x - ImGui::GetIO().DisplaySize.x * 0.5f;
         float dy = tgt.screen_pos.y - ImGui::GetIO().DisplaySize.y * 0.5f;
         HumanizedMove(dx, dy);
@@ -891,7 +1063,7 @@ namespace aimbot {
         ctx.dt = ImGui::GetIO().DeltaTime;
         g_unified_aimbot->Update(ctx);
 
-        // FIVEM-001 Fix: DrawFOV removed here — Run() is the single draw site.
+
     }
 
     static void RunTriggerLogic() {
@@ -924,25 +1096,10 @@ namespace aimbot {
         } else {
 
 
-            // FIVEM-011 Fix: the old code called FindBestTargetForHitbox 5×
-            // (once per hitbox), each scanning all peds with lock+TLS copies.
-            // A single pass over each prepared entry with the first hit
-            // (checked in FOV order head→legs) is equivalent and ~5× cheaper.
-            constexpr Hitbox hitboxes[] = {
-                Hitbox::Head, Hitbox::Neck, Hitbox::Torso, Hitbox::Pelvis, Hitbox::Legs
-            };
-            for (const Hitbox hitbox : hitboxes) {
-                TargetInfo candidate{};
-                if (!FindBestTargetForHitbox(candidate, config.trigger_fov,
-                                             config.max_distance, hitbox))
-                    continue;
-                if (!found || candidate.crosshair_dist < tgt.crosshair_dist) {
-                    tgt = candidate;
-                    found = true;
-                    if (hitbox == Hitbox::Head)
-                        break; // head inside FOV — the trigger fires, no need to keep scanning
-                }
-            }
+
+
+            found = FindBestTriggerTarget(tgt, config.trigger_fov,
+                                           config.max_distance);
         }
         if (!found) {
             trigger_target = 0;
@@ -1045,9 +1202,9 @@ namespace aimbot {
     }
 
     void Run() {
-        // FIVEM-001 Fix: DrawFOV used to run inside RunAimbotLogic() AND here,
-        // doubling the ring's alpha on the foreground draw list every frame.
-        // RunAimbotLogic's copy is removed (see below); this is the only draw.
+
+
+
         RunAimbotLogic();
         RunTriggerLogic();
 

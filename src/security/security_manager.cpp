@@ -105,9 +105,9 @@ bool SecurityManager::VerifyProtectedFiles() noexcept {
     const auto verifiedExe = VerifiedExecutablePath();
     if (!verifiedExe.empty()) {
         const auto report = OmniGhost::Update::VerifyInstallationFiles(verifiedExe.parent_path());
-        // UPD-002 Fix: a manifest-less single-EXE install is a warning (the
-        // runtime-DLL SHA-256 gate above stays authoritative); a present-but-
-        // mismatched manifest still fails closed.
+
+
+
         if (report.status == OmniGhost::Update::IntegrityStatus::Damaged) {
             Record(EventId::RuntimeFileInvalid);
             return false;

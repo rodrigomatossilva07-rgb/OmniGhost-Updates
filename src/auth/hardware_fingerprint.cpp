@@ -18,6 +18,7 @@
 #include <fstream>
 #include <iterator>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -61,7 +62,7 @@ std::string NormalizedAscii(const char* value, std::size_t capacity) {
     return result;
 }
 
-void AddFirmware(std::vector<Component>& components) {
+void AddFirmware(std::vector<Component>& components, bool includeMemoryDevices = true) {
     constexpr DWORD kRawSmbios = FirmwareProvider('R', 'S', 'M', 'B');
     const UINT size = GetSystemFirmwareTable(kRawSmbios, 0, nullptr, 0);
     if (size < 8 || size > 4u * 1024u * 1024u)
@@ -91,7 +92,8 @@ void AddFirmware(std::vector<Component>& components) {
         if (recordEnd + 1 >= tableEnd)
             break;
         recordEnd += 2;
-        if (type == 1 || type == 2 || type == 3 || type == 4 || type == 17)
+        if (type == 1 || type == 2 || type == 3 || type == 4 ||
+            (includeMemoryDevices && type == 17))
             AddBytes(components, "smbios-" + std::to_string(type), cursor,
                      static_cast<std::size_t>(recordEnd - cursor));
         cursor = recordEnd;
@@ -224,7 +226,7 @@ void AppendLength(std::string& output, std::uint64_t length) {
         output.push_back(static_cast<char>((length >> shift) & 0xffu));
 }
 
-std::string Digest(std::vector<Component> components) {
+std::string Digest(std::vector<Component> components, std::string_view prefix) {
     if (components.empty())
         return {};
     std::sort(components.begin(), components.end());
@@ -241,18 +243,24 @@ std::string Digest(std::vector<Component> components) {
     std::string error;
     if (!Platform::Sha256Text(material, digest, error) || digest.size() != 64)
         return {};
-    return "oghw2:" + digest;
+    return std::string(prefix) + digest;
 }
 
 constexpr char kFingerprintPrefix[] = "oghw2:";
 constexpr wchar_t kFingerprintFile[] = L"hardware-identity-v2.bin";
+
+
+
+
+constexpr char kBindingPrefix[] = "oghwbind:";
+constexpr wchar_t kBindingFile[] = L"hardware-identity-binding.bin";
 constexpr char kDpapiEntropy[] = "OmniGhost.HardwareIdentity.v2";
 
-bool IsFingerprint(std::string_view value) noexcept {
-    if (value.size() != sizeof(kFingerprintPrefix) - 1 + 64 ||
-        value.compare(0, sizeof(kFingerprintPrefix) - 1, kFingerprintPrefix) != 0)
+bool IsPrefixedHex(std::string_view value, std::string_view prefix) noexcept {
+    if (value.size() != prefix.size() + 64 ||
+        value.compare(0, prefix.size(), prefix) != 0)
         return false;
-    return std::all_of(value.begin() + (sizeof(kFingerprintPrefix) - 1), value.end(),
+    return std::all_of(value.begin() + prefix.size(), value.end(),
         [](unsigned char character) { return std::isxdigit(character) != 0; });
 }
 
@@ -263,8 +271,8 @@ DATA_BLOB FingerprintEntropy() noexcept {
     return entropy;
 }
 
-std::string LoadPersistedFingerprint() {
-    const std::filesystem::path path = OmniGhost::Paths::Configs() / kFingerprintFile;
+std::string LoadPersistedIdentity(const wchar_t* fileName, std::string_view prefix) {
+    const std::filesystem::path path = OmniGhost::Paths::Configs() / fileName;
     std::ifstream input(path, std::ios::binary);
     if (!input)
         return {};
@@ -282,30 +290,39 @@ std::string LoadPersistedFingerprint() {
                             CRYPTPROTECT_UI_FORBIDDEN, &plain))
         return {};
 
-    std::string fingerprint;
+    std::string identity;
     if (plain.pbData && plain.cbData)
-        fingerprint.assign(reinterpret_cast<const char*>(plain.pbData), plain.cbData);
+        identity.assign(reinterpret_cast<const char*>(plain.pbData), plain.cbData);
     if (plain.pbData)
         LocalFree(plain.pbData);
-    return IsFingerprint(fingerprint) ? fingerprint : std::string{};
+    return IsPrefixedHex(identity, prefix) ? identity : std::string{};
 }
 
-bool PersistFingerprint(std::string_view fingerprint) {
-    if (!IsFingerprint(fingerprint) || !OmniGhost::Paths::EnsureUserDirectories())
+std::string LoadPersistedFingerprint() {
+    return LoadPersistedIdentity(kFingerprintFile, kFingerprintPrefix);
+}
+
+std::string LoadPersistedBinding() {
+    return LoadPersistedIdentity(kBindingFile, kBindingPrefix);
+}
+
+bool PersistIdentity(const wchar_t* fileName, const wchar_t* dpapiDescription,
+                     std::string_view identity, std::string_view prefix) {
+    if (!IsPrefixedHex(identity, prefix) || !OmniGhost::Paths::EnsureUserDirectories())
         return false;
 
     DATA_BLOB source{};
-    source.pbData = reinterpret_cast<BYTE*>(const_cast<char*>(fingerprint.data()));
-    source.cbData = static_cast<DWORD>(fingerprint.size());
+    source.pbData = reinterpret_cast<BYTE*>(const_cast<char*>(identity.data()));
+    source.cbData = static_cast<DWORD>(identity.size());
     DATA_BLOB encrypted{};
     DATA_BLOB entropy = FingerprintEntropy();
-    if (!CryptProtectData(&source, L"OmniGhost hardware identity", &entropy,
+    if (!CryptProtectData(&source, dpapiDescription, &entropy,
                           nullptr, nullptr,
                           CRYPTPROTECT_LOCAL_MACHINE | CRYPTPROTECT_UI_FORBIDDEN,
                           &encrypted))
         return false;
 
-    const std::filesystem::path destination = OmniGhost::Paths::Configs() / kFingerprintFile;
+    const std::filesystem::path destination = OmniGhost::Paths::Configs() / fileName;
     const std::filesystem::path temporary = destination.wstring() + L".tmp";
     bool written = false;
     {
@@ -332,6 +349,16 @@ bool PersistFingerprint(std::string_view fingerprint) {
     return true;
 }
 
+bool PersistFingerprint(std::string_view fingerprint) {
+    return PersistIdentity(kFingerprintFile, L"OmniGhost hardware identity",
+                           fingerprint, kFingerprintPrefix);
+}
+
+bool PersistBinding(std::string_view binding) {
+    return PersistIdentity(kBindingFile, L"OmniGhost hardware binding",
+                           binding, kBindingPrefix);
+}
+
 std::string ComputeCurrentFingerprint() {
     std::vector<Component> components;
     components.reserve(16);
@@ -342,7 +369,23 @@ std::string ComputeCurrentFingerprint() {
     AddSystemVolume(components);
     AddMachineGuid(components);
     AddUserSid(components);
-    return Digest(std::move(components));
+    return Digest(std::move(components), kFingerprintPrefix);
+}
+
+
+
+
+
+
+
+std::string ComputeBindingFingerprint() {
+    std::vector<Component> components;
+    components.reserve(8);
+    AddFirmware(components,                          false);
+    AddCpu(components);
+    AddMachineGuid(components);
+    AddUserSid(components);
+    return Digest(std::move(components), kBindingPrefix);
 }
 
 }
@@ -354,11 +397,48 @@ std::string ComputeHardwareFingerprint() noexcept {
 
 
 
-        if (std::string persisted = LoadPersistedFingerprint(); !persisted.empty())
+
+
+
+
+
+
+
+
+
+
+
+
+        std::string persisted = LoadPersistedFingerprint();
+        std::string binding = ComputeBindingFingerprint();
+
+        if (persisted.empty()) {
+            std::string fingerprint = ComputeCurrentFingerprint();
+            if (!fingerprint.empty()) {
+                (void)PersistFingerprint(fingerprint);
+                if (!binding.empty())
+                    (void)PersistBinding(binding);
+            }
+            return fingerprint;
+        }
+
+        if (binding.empty())
             return persisted;
+
+        std::string persistedBinding = LoadPersistedBinding();
+        if (persistedBinding.empty()) {
+            (void)PersistBinding(binding);
+            return persisted;
+        }
+
+        if (persistedBinding == binding)
+            return persisted;
+
         std::string fingerprint = ComputeCurrentFingerprint();
-        if (!fingerprint.empty())
-            (void)PersistFingerprint(fingerprint);
+        if (fingerprint.empty())
+            return persisted;
+        (void)PersistFingerprint(fingerprint);
+        (void)PersistBinding(binding);
         return fingerprint;
     } catch (...) {
         return {};

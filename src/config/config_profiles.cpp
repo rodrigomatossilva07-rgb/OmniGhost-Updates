@@ -6,6 +6,7 @@
 #include "../../src/games/Fivem/aimbot/aimbot.h"
 #include "../../src/games/Fivem/esp/vehicle_esp.h"
 #include "../../src/games/Fivem/friends/friends.h"
+#include "../../src/games/Fortnite/fortnite_game.h"
 #include <cstring>
 
 namespace config_manager {
@@ -147,6 +148,12 @@ void ResetActiveGameToDefaults() {
         break;
     case ActiveGame::Warzone:
         Warzone::config = Warzone::Config{};
+        break;
+    case ActiveGame::Fortnite:
+
+
+
+        Fortnite::config = Fortnite::Config{};
         break;
     default:
         esp::config = esp::Config{};

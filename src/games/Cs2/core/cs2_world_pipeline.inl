@@ -1122,9 +1122,9 @@ static void RunFrameWithConfig(const Config& frame_config) {
 
 
 
-    // CS2-019 Fix: the unified-adapter framework was retired (dead code that
-    // didn't compile). Compute the required DMA fields directly from the
-    // frame config using the same UnifiedESP field model.
+
+
+
     OmniGhost::Gameplay::UnifiedESP::FeatureFlags unifiedFlags;
     unifiedFlags.box = frame_config.box;
     unifiedFlags.corner_box = frame_config.box_corner;

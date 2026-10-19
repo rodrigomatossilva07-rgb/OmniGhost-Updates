@@ -26,9 +26,9 @@ static void RunOptionalEnrichment(const Config& frame_config,
     if (!g_scatter_optional)
         return;
 
-    // CS2-019 Fix: build FeatureFlags directly from the frame config — the
-    // old UnifiedConfig::CS2Config copy round-trip is retired with the
-    // dead adapter framework.
+
+
+
     OmniGhost::Gameplay::UnifiedESP::FeatureFlags unifiedFlags;
     unifiedFlags.box = frame_config.box;
     unifiedFlags.corner_box = frame_config.box_corner;

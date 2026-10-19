@@ -164,13 +164,13 @@ bool ParseLine(const std::string& line, std::string& key, std::string& val) {
 
 
 void WBool(std::ostringstream& o, const char* k, bool v) { o << k << "=" << (v ? 1 : 0) << "\n"; }
-// CFG-009 Fix: use 9 significant digits instead of the default 6 —
-// positions/radius values silently lost precision on reload.
+
+
 void WFloat(std::ostringstream& o, const char* k, float v) { o << k << "=" << std::setprecision(9) << v << "\n"; }
 void WInt(std::ostringstream& o, const char* k, int v) { o << k << "=" << v << "\n"; }
 void WU32(std::ostringstream& o, const char* k, ImU32 v) { o << k << "=" << v << "\n"; }
-// CFG-008 Fix: strip line breaks from serialized string values so a shared
-// config can never inject new key=value lines.
+
+
 void WStr(std::ostringstream& o, const char* k, const std::string& v) {
     std::string safe = v;
     for (char& c : safe) {
@@ -187,8 +187,8 @@ float toF(const std::string& val) {
     const float result = std::strtof(val.c_str(), &end);
     if (end == val.c_str() || *end != '\0')
         return 0.0f;
-    // CFG-004 Fix: NaN/inf parsed successfully from "nan"/"1e999" and then
-    // silently broke every comparison downstream; reject them outright.
+
+
     if (!std::isfinite(result))
         return 0.0f;
     return result;
@@ -222,7 +222,8 @@ void MigrateLegacyConfigs() {
         if (entry.path().extension() != ".ogcfg") continue;
         std::string stem = entry.path().stem().string();
         if (stem.rfind("cs2_", 0) == 0 || stem.rfind("fivem_", 0) == 0 ||
-            stem.rfind("rust_", 0) == 0 || stem.rfind("warzone_", 0) == 0)
+            stem.rfind("rust_", 0) == 0 || stem.rfind("warzone_", 0) == 0 ||
+            stem.rfind("fortnite_", 0) == 0)
             continue;
 
 
@@ -243,6 +244,7 @@ void MigrateLegacyConfigs() {
         if (meta == "cs2") prefix = "cs2_";
         else if (meta == "rust") prefix = "rust_";
         else if (meta == "warzone") prefix = "warzone_";
+        else if (meta == "fortnite") prefix = "fortnite_";
         else {
 
             std::ifstream f2(entry.path());
@@ -352,6 +354,10 @@ const char* ActiveGamePrefix() {
     switch (g_activeGame) {
     case ActiveGame::CS2: return "cs2_";
     case ActiveGame::Warzone: return "warzone_";
+
+
+
+    case ActiveGame::Fortnite: return "fortnite_";
     default: return "fivem_";
     }
 }
@@ -360,6 +366,9 @@ const char* ActiveGameMeta() {
     switch (g_activeGame) {
     case ActiveGame::CS2: return "cs2";
     case ActiveGame::Warzone: return "warzone";
+
+
+    case ActiveGame::Fortnite: return "fortnite";
     default: return "fivem";
     }
 }
@@ -404,6 +413,7 @@ bool SaveToFile(const std::string& name) {
         if (safe.rfind("cs2_", 0) == 0) safe = safe.substr(4);
         else if (safe.rfind("fivem_", 0) == 0) safe = safe.substr(6);
         else if (safe.rfind("rust_", 0) == 0) safe = safe.substr(5);
+        else if (safe.rfind("fortnite_", 0) == 0) safe = safe.substr(9);
         safe = prefix + safe;
     }
     EnsureConfigDir();
@@ -541,8 +551,8 @@ void TickAutoSave() {
     static auto lastCompare = std::chrono::steady_clock::time_point{};
     static bool dirty = false;
 
-    // CFG-006 Fix: SerializeAll() used to run on EVERY frame just to detect
-    // changes; compare at most twice a second instead.
+
+
     const auto nowTp = std::chrono::steady_clock::now();
     if (lastCompare.time_since_epoch().count() != 0 &&
         std::chrono::duration_cast<std::chrono::milliseconds>(nowTp - lastCompare).count() < 500)

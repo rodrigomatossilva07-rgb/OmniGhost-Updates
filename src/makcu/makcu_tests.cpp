@@ -1,7 +1,7 @@
-// MAKCU protocol, capability and connection tests with a mock transport.
-// These tests do NOT require a physical device; they exercise the
-// firmware-detector parsers, capability registry, protocol adapters and
-// the connection manager handshake against a simulated serial port.
+
+
+
+
 
 #include "makcu_protocol.h"
 #include "makcu_transport.h"
@@ -16,9 +16,9 @@
 
 namespace makcu_tests {
 
-// ---------------------------------------------------------------------------
-// Mock transport: records writes, replies with scripted responses.
-// ---------------------------------------------------------------------------
+
+
+
 class MockTransport final : public makcu::IMakcuTransport {
 public:
     struct Write {
@@ -62,7 +62,7 @@ public:
     uint32_t getBaudRate() const override { return baudRate_; }
     std::string getPortName() const override { return port_; }
 
-    // Test scripting
+
     void setResponses(std::vector<std::vector<uint8_t>> responses) {
         responses_ = std::move(responses);
         responseIndex_ = 0;
@@ -90,9 +90,9 @@ private:
     size_t responseIndex_ = 0;
 };
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+
+
+
 std::vector<uint8_t> Text(const std::string& value) {
     return std::vector<uint8_t>(value.begin(), value.end());
 }
@@ -108,9 +108,9 @@ void Check(bool condition, const char* label) {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Firmware detector tests
-// ---------------------------------------------------------------------------
+
+
+
 void TestTextHandshakeV27() {
     const auto descriptor = makcu::MakcuFirmwareDetector::ParseTextHandshake(
         ">>> km.version()\r\n>>> V27\r\n", 4000000);
@@ -159,11 +159,11 @@ void TestEmptyHandshake() {
 }
 
 void TestV4BinaryVersionParse() {
-    // 0xDE 0xAD len=4 0x04 <4-byte version>
+
     std::vector<uint8_t> response = {0xDE, 0xAD, 0x04, 0x00, 0x04, 0xB9, 0x0F, 0x00, 0x00};
     const auto version = makcu::MakcuFirmwareDetector::ParseV4FirmwareVersion(response);
     Check(version.has_value(), "V4 binary version parsed");
-    if (version) Check(*version == 4025, "V4 binary version == 4025"); // 0x0FB9 = 4025
+    if (version) Check(*version == 4025, "V4 binary version == 4025");
 }
 
 void TestV4BinaryVersionGarbage() {
@@ -180,7 +180,7 @@ void TestV4DeviceKindsParse() {
 }
 
 void TestLegacyV2VersionParse() {
-    // 0x50 0xBF len=4 "V27\x00"
+
     std::vector<uint8_t> response = {0x50, 0xBF, 0x03, 0x00, 'V', '2', '7'};
     const auto version = makcu::MakcuFirmwareDetector::ParseLegacyV2Version(response);
     Check(version.has_value(), "Legacy V2 version parsed");
@@ -194,9 +194,9 @@ void TestLegacyV2AioIdentity() {
     if (version) Check(*version == "AIO", "Legacy V2 identity == AIO");
 }
 
-// ---------------------------------------------------------------------------
-// Capability registry tests
-// ---------------------------------------------------------------------------
+
+
+
 void TestLegacyTextCapabilities() {
     makcu::FirmwareDescriptor descriptor;
     descriptor.family = makcu::FirmwareFamily::LegacyText;
@@ -282,9 +282,9 @@ void TestUnknownCapabilities() {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Protocol adapter tests
-// ---------------------------------------------------------------------------
+
+
+
 void TestTextProtocolMove() {
     makcu::FirmwareDescriptor descriptor;
     descriptor.family = makcu::FirmwareFamily::LegacyText;
@@ -308,7 +308,7 @@ void TestTextProtocolMoveRange() {
     descriptor.compatible = true;
     auto protocol = makcu::MakcuProtocolRegistry::Create(descriptor);
 
-    // int16 overflow
+
     Check(!protocol->Move(40000, 0).has_value(), "LegacyText Move rejects x > int16");
     Check(!protocol->Move(0, -40000).has_value(), "LegacyText Move rejects y < -int16");
 }
@@ -396,7 +396,7 @@ void TestLockEncoding() {
         Check(text.find("km.lock_mx(1)") != std::string::npos, "Text Lock mx encoding");
     }
 
-    // Invalid target
+
     Check(!protocol->Lock("invalid", true).has_value(), "Lock rejects invalid target");
 }
 
@@ -407,9 +407,9 @@ void TestUnknownFirmwareNoProtocol() {
     Check(protocol == nullptr, "Unknown firmware → no protocol adapter");
 }
 
-// ---------------------------------------------------------------------------
-// Connection manager tests
-// ---------------------------------------------------------------------------
+
+
+
 void TestConnectLegacyText() {
     MockTransport transport;
     makcu::MakcuConnectionManager manager;
@@ -427,9 +427,9 @@ void TestConnectV4WithVersion() {
     MockTransport transport;
     makcu::MakcuConnectionManager manager;
     transport.setResponses({
-        Text(">>> km.MAKCU\r\n"),                    // text handshake
-        {0xDE, 0xAD, 0x04, 0x00, 0x04, 0xB9, 0x0F, 0x00, 0x00}, // version
-        {0xDE, 0xAD, 0x01, 0x00, 0x02, 0x03}         // device kinds
+        Text(">>> km.MAKCU\r\n"),
+        {0xDE, 0xAD, 0x04, 0x00, 0x04, 0xB9, 0x0F, 0x00, 0x00},
+        {0xDE, 0xAD, 0x01, 0x00, 0x02, 0x03}
     });
     const auto attempt = manager.Connect(transport, "COM3");
     Check(attempt.connected, "V4 connect succeeded");
@@ -443,8 +443,8 @@ void TestConnectV2Binary() {
     MockTransport transport;
     makcu::MakcuConnectionManager manager;
     transport.setResponses({
-        {},                                         // text probe: no response
-        {0x50, 0xBF, 0x03, 0x00, 'V', '2', '7'}    // V2 binary response
+        {},
+        {0x50, 0xBF, 0x03, 0x00, 'V', '2', '7'}
     });
     const auto attempt = manager.Connect(transport, "COM3");
     Check(attempt.connected, "V2 binary connect succeeded");
@@ -457,7 +457,7 @@ void TestConnectUnknownFirmware() {
     makcu::MakcuConnectionManager manager;
     transport.setResponses({
         Text(">>> km.version()\r\n>>> UnknownDevice v99\r\n"),
-        {}  // V2 probe: nothing
+        {}
     });
     const auto attempt = manager.Connect(transport, "COM3");
     Check(!attempt.connected, "Unknown firmware rejected");
@@ -467,7 +467,7 @@ void TestConnectUnknownFirmware() {
 void TestConnectNoResponse() {
     MockTransport transport;
     makcu::MakcuConnectionManager manager;
-    transport.setResponses({{}, {}, {}, {}}); // all empty
+    transport.setResponses({{}, {}, {}, {}});
     const auto attempt = manager.Connect(transport, "COM3");
     Check(!attempt.connected, "No response → not connected");
 }
@@ -498,7 +498,7 @@ void TestConnectWriteNotDuringDiscovery() {
     const auto attempt = manager.Connect(transport, "COM3");
     Check(attempt.connected, "Connected");
 
-    // Verify every written command is a discovery probe, never a move/click
+
     for (const auto& write : transport.writes()) {
         const std::string text(write.bytes.begin(), write.bytes.end());
         Check(text.find("km.move") == std::string::npos, "Discovery never sends km.move");
@@ -507,16 +507,16 @@ void TestConnectWriteNotDuringDiscovery() {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Move command validation tests
-// ---------------------------------------------------------------------------
+
+
+
 void TestMoveZeroRejected() {
     makcu::FirmwareDescriptor descriptor;
     descriptor.family = makcu::FirmwareFamily::LegacyText;
     descriptor.compatible = true;
     auto protocol = makcu::MakcuProtocolRegistry::Create(descriptor);
 
-    // Zero-zero is valid but wasteful; protocol allows it (caller filters)
+
     const auto cmd = protocol->Move(0, 0);
     Check(cmd.has_value(), "Move(0,0) produces a command (caller should filter)");
 }
@@ -532,12 +532,12 @@ void TestMoveMaxInt16() {
     Check(!protocol->Move(0, -32769).has_value(), "Move(y < int16 min) rejected");
 }
 
-} // namespace makcu_tests
+}
 
 int main() {
     using namespace makcu_tests;
 
-    // Firmware detection
+
     TestTextHandshakeV27();
     TestTextHandshakeV29();
     TestTextHandshakeV30();
@@ -550,14 +550,14 @@ int main() {
     TestLegacyV2VersionParse();
     TestLegacyV2AioIdentity();
 
-    // Capabilities
+
     TestLegacyTextCapabilities();
     TestV4Capabilities();
     TestV4CapabilitiesWithVersion();
     TestV2BinaryCapabilities();
     TestUnknownCapabilities();
 
-    // Protocol adapters
+
     TestTextProtocolMove();
     TestTextProtocolMoveRange();
     TestV4ProtocolMove();
@@ -568,7 +568,7 @@ int main() {
     TestLockEncoding();
     TestUnknownFirmwareNoProtocol();
 
-    // Connection manager
+
     TestConnectLegacyText();
     TestConnectV4WithVersion();
     TestConnectV2Binary();
@@ -578,7 +578,7 @@ int main() {
     TestConnectEmptyPort();
     TestConnectWriteNotDuringDiscovery();
 
-    // Move validation
+
     TestMoveZeroRejected();
     TestMoveMaxInt16();
 

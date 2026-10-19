@@ -1,12 +1,12 @@
-# Auto detect text files and perform LF normalization
+
 * text=auto
 /.gitattributes text eol=lf
 
-# Windows batch/scripts - keep CRLF
+
 *.cmd text eol=crlf
 *.bat text eol=crlf
 *.ps1 text eol=crlf
-# Source files - LF
+
 *.cpp text eol=lf
 *.h text eol=lf
 *.hpp text eol=lf
@@ -24,11 +24,11 @@
 *.txt text eol=lf
 LICENSE text eol=lf
 *.py text eol=lf
-# KeyAuth ships curl build metadata for upstream builds. It is not compiled by
-# OmniGhost, but keeping it in LF avoids Git conversion noise during Publish.
+
+
 keyauth/x64/lib/curl/Makefile.am text eol=lf
 keyauth/x64/lib/curl/Makefile.in text eol=lf
-# Visual Studio project files - CRLF
+
 *.vcxproj text eol=crlf
 *.vcxproj.filters text eol=crlf
 *.props text eol=crlf

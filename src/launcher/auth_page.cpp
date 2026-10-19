@@ -130,7 +130,13 @@ std::string g_error;
 Completion g_completion = Completion::None;
 float g_completion_time = 0.0f;
 
-enum class RemoteOperation { Login, Register, Activate, Upgrade };
+enum class RemoteOperation {
+    Login, Register, Activate, Upgrade,
+
+
+
+    LocalLogin, LocalRegister
+};
 struct RemoteOperationResult {
     bool success{};
     std::string message;
@@ -201,6 +207,40 @@ void StartRemoteOperation(RemoteOperation operation, std::string username,
                 case RemoteOperation::Login:
                     result = OmniGhost::Licensing::Login(username, password);
                     outcome.completion = Completion::Login;
+                    break;
+                case RemoteOperation::LocalLogin:
+
+
+
+                    {
+                        const auto local = OmniGhost::Auth::LocalAuthService::Instance().Login(
+                            username, password, g_remember_me);
+                        result = OmniGhost::Auth::LicenseResult(
+                            local.Ok() ? OmniGhost::Auth::LicenseStatus::Valid
+                                       : OmniGhost::Auth::LicenseStatus::Invalid,
+                            local.Ok() ? std::string{}
+                                       : (local.message.empty()
+                                           ? std::string("Login local falhou.")
+                                           : local.message),
+                            local.Ok() ? "local.ok" : "local.rejected");
+                        outcome.completion = Completion::Login;
+                    }
+                    break;
+                case RemoteOperation::LocalRegister:
+
+                    {
+                        const auto local = OmniGhost::Auth::LocalAuthService::Instance().Register(
+                            username, password, g_remember_me);
+                        result = OmniGhost::Auth::LicenseResult(
+                            local.Ok() ? OmniGhost::Auth::LicenseStatus::Valid
+                                       : OmniGhost::Auth::LicenseStatus::Invalid,
+                            local.Ok() ? std::string{}
+                                       : (local.message.empty()
+                                           ? std::string("Registo local falhou.")
+                                           : local.message),
+                            local.Ok() ? "local.ok" : "local.rejected");
+                        outcome.completion = Completion::Register;
+                    }
                     break;
                 case RemoteOperation::Register:
                     result = OmniGhost::Licensing::Register(username, password, licenseKey);
@@ -614,7 +654,9 @@ void DrawLanding() {
 
 void DrawLogin() {
     const Copy& text = Text();
-    auto& auth = OmniGhost::Auth::LocalAuthService::Instance();
+
+
+    static_cast<void>(OmniGhost::Auth::LocalAuthService::Instance());
     const float contentWidth = S(342.f);
 
 
@@ -661,13 +703,14 @@ void DrawLogin() {
             DrawFeedback(contentWidth);
             return;
         }
-        const auto result = auth.Login(g_email, g_password, g_remember_me);
-        if (result.Ok()) {
-            SecureClear(g_password, sizeof(g_password));
-            BeginCompletion(Completion::Login);
-        } else {
-            g_error = result.message;
-        }
+
+
+
+        StartRemoteOperation(RemoteOperation::LocalLogin, g_email, g_password, {});
+        SecureClear(g_password, sizeof(g_password));
+        ImGui::EndGroup();
+        DrawFeedback(contentWidth);
+        return;
     }
     ImGui::EndGroup();
     DrawFeedback(contentWidth);
@@ -682,7 +725,8 @@ void DrawLogin() {
 
 void DrawRegister() {
     const Copy& text = Text();
-    auto& auth = OmniGhost::Auth::LocalAuthService::Instance();
+
+    static_cast<void>(OmniGhost::Auth::LocalAuthService::Instance());
     const float contentWidth = S(342.f);
     const bool remote = OmniGhost::Licensing::IsRemoteConfigured();
 
@@ -738,15 +782,16 @@ void DrawRegister() {
             DrawFeedback(contentWidth);
             return;
         } else {
-            const auto result = auth.Register(g_email, g_password, g_remember_me);
-            if (result.Ok()) {
-                SecureClear(g_password, sizeof(g_password));
-                SecureClear(g_confirm, sizeof(g_confirm));
-                SecureClear(g_license_key, sizeof(g_license_key));
-                BeginCompletion(Completion::Register);
-            } else {
-                g_error = result.message;
-            }
+
+
+            StartRemoteOperation(RemoteOperation::LocalRegister, g_email,
+                                 g_password, g_license_key);
+            SecureClear(g_password, sizeof(g_password));
+            SecureClear(g_confirm, sizeof(g_confirm));
+            SecureClear(g_license_key, sizeof(g_license_key));
+            ImGui::EndGroup();
+            DrawFeedback(contentWidth);
+            return;
         }
     }
     ImGui::EndGroup();
@@ -840,6 +885,27 @@ void DrawStartupPreparation(ImDrawList* draw, const ImVec2& windowPos,
 }
 
 void Reset() {
+
+
+
+
+
+
+
+
+
+    using namespace std::chrono_literals;
+    bool remoteOperationInFlight = false;
+    if (g_remote_operation.valid()) {
+        if (g_remote_operation.wait_for(0ms) == std::future_status::ready) {
+            try {
+                (void)g_remote_operation.get();
+            } catch (...) {
+            }
+        } else {
+            remoteOperationInFlight = true;
+        }
+    }
     g_initialized = false;
     g_remember_me = true;
     g_startup_preparing = true;
@@ -856,7 +922,7 @@ void Reset() {
     g_language_open = false;
     g_show_license_key = false;
     g_upgrade_mode = false;
-    g_remote_operation_pending = false;
+    g_remote_operation_pending = remoteOperationInFlight;
     g_email[0] = '\0';
     SecureClear(g_password, sizeof(g_password));
     SecureClear(g_confirm, sizeof(g_confirm));

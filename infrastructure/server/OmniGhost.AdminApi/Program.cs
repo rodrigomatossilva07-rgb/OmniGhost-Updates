@@ -31,10 +31,10 @@ var app = builder.Build();
 if (!app.Environment.IsDevelopment()) {
     app.UseHsts();
     if (adminOptions.TrustForwardedHttps) {
-        // API-003 Fix: process X-Forwarded-Proto ONLY from the explicitly
-        // configured trusted proxies (ForwardedHeaders middleware filters by
-        // KnownProxies); the previous code trusted the header from any
-        // client, allowing the HTTPS requirement to be bypassed.
+
+
+
+
         app.Use(async (context, next) => {
             var remote = context.Connection.RemoteIpAddress;
             var proto = context.Request.Headers["X-Forwarded-Proto"].ToString();

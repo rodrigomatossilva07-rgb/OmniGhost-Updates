@@ -37,9 +37,9 @@ public sealed record AdminOptions(
 
         var trustForwarded = string.Equals(Environment.GetEnvironmentVariable("OMNIGHOST_ADMIN_TRUST_FORWARDED_HTTPS"),
                           "true", StringComparison.OrdinalIgnoreCase);
-        // API-003 Fix: forwarded headers are only honoured when they come from
-        // an explicitly trusted reverse proxy; trusting the header blindly
-        // let any client bypass the HTTPS requirement.
+
+
+
         var trustedProxies = ParseTrustedProxies(
             Environment.GetEnvironmentVariable("OMNIGHOST_ADMIN_TRUSTED_FORWARD_PROXIES"));
         if (trustForwarded && trustedProxies.Count == 0)

@@ -247,11 +247,21 @@ namespace vehicle_esp {
         }
 
         for (size_t i = 0; i < valid.size(); ++i) {
+
+
+
+
+
+
+            if (!std::isfinite(positions[i].x) ||
+                !std::isfinite(positions[i].y) ||
+                !std::isfinite(positions[i].z))
+                continue;
             if (positions[i].IsZero())
                 continue;
 
             float dist = positions[i].distance_to(localPos);
-            if (dist > frameConfig.max_distance || dist < 0.1f)
+            if (!std::isfinite(dist) || dist > frameConfig.max_distance || dist < 0.1f)
                 continue;
 
             bool occupied = occupiedVehicles.find(valid[i]) != occupiedVehicles.end();
@@ -279,7 +289,13 @@ namespace vehicle_esp {
             vd.sample_ms = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
                 std::chrono::steady_clock::now().time_since_epoch()).count());
             nextVehicles.push_back(vd);
-            if (needMatrix) nextMatrices[valid[i]] = matrices[i];
+
+
+
+            if (needMatrix && std::isfinite(matrices[i]._11) && std::isfinite(matrices[i]._22) &&
+                std::isfinite(matrices[i]._33) && std::isfinite(matrices[i]._41) &&
+                std::isfinite(matrices[i]._42) && std::isfinite(matrices[i]._43))
+                nextMatrices[valid[i]] = matrices[i];
         }
         publish(view_matrix);
         if (g_gearCache.size() > 256) {
@@ -423,8 +439,12 @@ namespace vehicle_esp {
 
         std::vector<const VehicleData*> drawList;
         drawList.reserve(frameVehicles.size());
+
+
+
+
         for (const auto& v : frameVehicles)
-            if (v.valid) drawList.push_back(&v);
+            if (v.valid && std::isfinite(v.distance)) drawList.push_back(&v);
         std::sort(drawList.begin(), drawList.end(),
             [](const VehicleData* a, const VehicleData* b) { return a->distance < b->distance; });
         constexpr size_t kMaxDraw = 40;
@@ -522,8 +542,8 @@ namespace vehicle_esp {
             }
 
 
-            // FIVEM-005 Fix: gear/engine used to draw unconditionally; they are
-            // movement data, so they now respect the "speed/movement" toggle.
+
+
             if (config.show_speed) {
                 char buf[48];
                 if (v.gear >= -1 && v.gear <= 8) {

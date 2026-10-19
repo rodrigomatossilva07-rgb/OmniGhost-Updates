@@ -5,6 +5,16 @@
 #if defined(OMNIGHOST_KEYAUTH_ENABLED) && !defined(OMNIGHOST_SKIP_KEYAUTH)
 #include "third_party/keyauth/x64/auth.hpp"
 #include "third_party/keyauth/x64/skStr.h"
+
+
+
+
+#include "keyauth_secrets.h"
+#if defined(OMNIGHOST_PUBLISH_BUILD)
+#if !defined(OMNIGHOST_KEYAUTH_APP) || !defined(OMNIGHOST_KEYAUTH_OWNERID)
+#error Publish builds require OMNIGHOST_KEYAUTH_APP/OMNIGHOST_KEYAUTH_OWNERID defined via src/auth/keyauth_secrets.h (see keyauth_secrets.h.example).
+#endif
+#endif
 #endif
 
 #include <algorithm>
@@ -141,11 +151,32 @@ void DisableKeyAuthShellCommands() noexcept {
 struct KeyAuthRemoteLicenseProvider::Impl {
 #if defined(OMNIGHOST_KEYAUTH_ENABLED) && !defined(OMNIGHOST_SKIP_KEYAUTH)
     Impl()
-        : api(skCrypt("OmniGhost").decrypt(),
-              skCrypt("TMXuFRFSR1").decrypt(),
+        : api(skCrypt(OMNIGHOST_KEYAUTH_APP).decrypt(),
+              skCrypt(OMNIGHOST_KEYAUTH_OWNERID).decrypt(),
               skCrypt("1.0").decrypt(),
               skCrypt("https://keyauth.win/api/1.3/").decrypt(),
-              skCrypt("").decrypt()) {}
+              skCrypt("").decrypt()) {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        api.block_custom_ca = true;
+        api.block_proxy = true;
+        api.block_private_dns = true;
+        api.set_allowed_hosts({"keyauth.win"});
+    }
 
     KeyAuth::api api;
 #endif

@@ -48,6 +48,11 @@ std::string SerializeAll() {
     case ActiveGame::Warzone:
         SerializeWarzone(o);
         break;
+    case ActiveGame::Fortnite:
+
+
+        SerializeFortnite(o);
+        break;
     default:
         SerializeFiveM(o);
         break;
@@ -173,6 +178,11 @@ bool DeserializeAll(const std::string& data) {
             std::cout << "[Config] Ignoring foreign game section: " << key << " (active game: " << ActiveGameMeta() << ")\n";
             continue;
         }
+
+        if (key.rfind("fortnite.", 0) == 0 && g_activeGame != ActiveGame::Fortnite) {
+            std::cout << "[Config] Ignoring foreign game section: " << key << " (active game: " << ActiveGameMeta() << ")\n";
+            continue;
+        }
         if ((key.rfind("esp.", 0) == 0 || key.rfind("aim.", 0) == 0 || key.rfind("veh.", 0) == 0)
             && g_activeGame != ActiveGame::FiveM) {
             std::cout << "[Config] Ignoring foreign game section: " << key << " (active game: " << ActiveGameMeta() << ")\n";
@@ -187,11 +197,12 @@ bool DeserializeAll(const std::string& data) {
         if (DeserializeAimType(key, val)) continue;
         if (DeserializeCS2(key, val)) continue;
         if (DeserializeWarzone(key, val)) continue;
+        if (DeserializeFortnite(key, val)) continue;
         if (DeserializeFiveM(key, val)) continue;
         if (Hotkeys::DeserializeFeatureToggle(key, val)) continue;
         if (Hotkeys::DeserializeAction(key, val)) continue;
-        // CFG-007: friend.N.* keys are consumed (and now restored) by
-        // DeserializeFriends above.
+
+
     }
 
 

@@ -87,8 +87,8 @@ namespace friends {
 
     void UpdatePlayerList() {
         using namespace FiveM;
-        // FIVEM-008 Fix: take the list mutex — the UI thread (FriendsPage)
-        // iterates player_list while this rebuilds it on the game thread.
+
+
         std::vector<PlayerEntry> next;
         next.reserve(32);
 

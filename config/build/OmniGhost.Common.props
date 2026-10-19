@@ -6,14 +6,14 @@
     <OutDir Condition="'$(OutDir)'==''">$(ProjectDir)build\</OutDir>
     <IntDir>$(ProjectDir).cache\intermediate\$(Platform)\$(Configuration)\</IntDir>
     <TargetName>OmniGhost</TargetName>
-    <!-- app.rc embeds resources/app.manifest as RT_MANIFEST ID 1. Disable the
-         linker's implicit UAC manifest to prevent a duplicate resource. -->
+
+
     <GenerateManifest>false</GenerateManifest>
-    <!-- OmniGhost does not rely on MemProcFS InfoDB in its normal runtime.
-         Keep the upstream feature disabled unless a developer explicitly opts in. -->
+
+
     <OmniGhostDisableVmmInfoDb Condition="'$(OmniGhostDisableVmmInfoDb)'==''">true</OmniGhostDisableVmmInfoDb>
-    <!-- Fortnite ESP implementation flag - off by default since not implemented.
-         Set FORTNITE_ESP_IMPL=true in build to enable menu features when ready. -->
+
+
     <FortniteEspImpl Condition="'$(FortniteEspImpl)'==''">false</FortniteEspImpl>
   </PropertyGroup>
 <ItemDefinitionGroup>
@@ -30,9 +30,9 @@
         <PreprocessorDefinitions Condition="'$(OmniGhostDisableVmmSymbols)'=='true'">OMNIGHOST_DISABLE_VMM_SYMBOLS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
         <PreprocessorDefinitions Condition="'$(OmniGhostReadOnlyMode)'=='true'">OMNIGHOST_READONLY_MODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
         <PreprocessorDefinitions Condition="'$(FortniteEspImpl)'=='true'">FORTNITE_ESP_IMPL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-        <!-- Generated manifests must precede source include directories.  In
-             particular, runtime_bootstrap.cpp has an optional IDE stub beside
-             it; shipping builds must never compile against that empty stub. -->
+
+
+
         <AdditionalIncludeDirectories>$(ProjectDir).cache\generated\$(Configuration)\$(Platform);$(ProjectDir).cache\generated;$(ProjectDir);$(ProjectDir)src;$(ProjectDir)src\games;$(ProjectDir)src\games\Cs2;$(ProjectDir)src\games\Fivem;$(ProjectDir)src\games\Warzone;$(ProjectDir)third_party\ImGui;$(ProjectDir)third_party\DMALibrary;$(ProjectDir)third_party\dma_stack\include;$(ProjectDir)libs;$(ProjectDir)third_party\Utils;$(ProjectDir)resources;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
         <BufferSecurityCheck>true</BufferSecurityCheck>
         <RuntimeLibrary>MultiThreaded</RuntimeLibrary>

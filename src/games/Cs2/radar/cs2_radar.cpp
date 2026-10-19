@@ -353,7 +353,16 @@ void ServerLoop() {
             else FD_SET(client.socket, &writable);
         }
         timeval pollInterval{0, 5000};
-        if (select(0, &readable, &writable, nullptr, &pollInterval) == SOCKET_ERROR) break;
+        if (select(0, &readable, &writable, nullptr, &pollInterval) == SOCKET_ERROR) {
+
+
+
+
+
+
+            g_running.store(false, std::memory_order_release);
+            break;
+        }
         for (auto it = clients.begin(); it != clients.end();) {
             bool close = GetTickCount64() >= it->deadline;
             if (!close && it->response.empty() && FD_ISSET(it->socket, &readable)) {

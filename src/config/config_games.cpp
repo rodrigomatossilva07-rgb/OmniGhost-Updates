@@ -2,6 +2,7 @@
 #include "config_core.h"
 #include "../src/games/Cs2/cs2_game.h"
 #include "../src/games/Warzone/warzone_game.h"
+#include "../src/games/Fortnite/fortnite_game.h"
 #include <cstring>
 #include <iterator>
 
@@ -530,6 +531,181 @@ void ApplyVisualWarzone() {
     Warzone::config.esp_auto_hide_names = true;
     std::strncpy(Warzone::config.scenario_preset, "visuals", sizeof(Warzone::config.scenario_preset) - 1);
     Warzone::config.scenario_preset[sizeof(Warzone::config.scenario_preset) - 1] = '\0';
+}
+
+
+
+
+
+
+
+
+
+void SerializeFortnite(std::ostringstream& o) {
+    auto& c = Fortnite::config;
+    WBool(o, "fortnite.esp_enabled", c.esp_enabled);
+    WBool(o, "fortnite.show_local_marker", c.show_local_marker);
+    WBool(o, "fortnite.show_local_coords", c.show_local_coords);
+    WBool(o, "fortnite.show_camera_debug", c.show_camera_debug);
+    WBool(o, "fortnite.show_debug_panel", c.show_debug_panel);
+    WBool(o, "fortnite.box", c.box);
+    WBool(o, "fortnite.box_corner", c.box_corner);
+    WBool(o, "fortnite.box_fill", c.box_fill);
+    WFloat(o, "fortnite.box_thickness", c.box_thickness);
+    WFloat(o, "fortnite.box_rounding", c.box_rounding);
+    WBool(o, "fortnite.skeleton", c.skeleton);
+    WBool(o, "fortnite.skeleton_joints", c.skeleton_joints);
+    WFloat(o, "fortnite.skeleton_thickness", c.skeleton_thickness);
+    WBool(o, "fortnite.head_dot", c.head_dot);
+    WBool(o, "fortnite.head_halo", c.head_halo);
+    WFloat(o, "fortnite.head_circle_thickness", c.head_circle_thickness);
+    WBool(o, "fortnite.health_bar", c.health_bar);
+    WBool(o, "fortnite.armor_bar", c.armor_bar);
+    WBool(o, "fortnite.health_value", c.health_value);
+    WBool(o, "fortnite.armor_value", c.armor_value);
+    WBool(o, "fortnite.name", c.name);
+    WBool(o, "fortnite.distance", c.distance);
+    WBool(o, "fortnite.weapon_name", c.weapon_name);
+    WBool(o, "fortnite.weapon_ammo", c.weapon_ammo);
+    WBool(o, "fortnite.text_outline", c.text_outline);
+    WFloat(o, "fortnite.text_outline_thickness", c.text_outline_thickness);
+    WBool(o, "fortnite.snaplines", c.snaplines);
+    WInt(o, "fortnite.snapline_position", c.snapline_position);
+    WFloat(o, "fortnite.snapline_thickness", c.snapline_thickness);
+    WBool(o, "fortnite.look_direction", c.look_direction);
+    WFloat(o, "fortnite.eye_line_thickness", c.eye_line_thickness);
+    WFloat(o, "fortnite.look_direction_length", c.look_direction_length);
+    WBool(o, "fortnite.chinese_hat", c.chinese_hat);
+    WBool(o, "fortnite.angel_wings", c.angel_wings);
+    WBool(o, "fortnite.devil_horns", c.devil_horns);
+    WBool(o, "fortnite.floating_crown", c.floating_crown);
+    WBool(o, "fortnite.trails", c.trails);
+    WFloat(o, "fortnite.chinese_hat_scale", c.chinese_hat_scale);
+    WFloat(o, "fortnite.fun_effects_scale", c.fun_effects_scale);
+    WBool(o, "fortnite.show_bots", c.show_bots);
+    WBool(o, "fortnite.visible_check", c.visible_check);
+    WBool(o, "fortnite.team_check", c.team_check);
+    WBool(o, "fortnite.self_esp", c.self_esp);
+    WBool(o, "fortnite.hit_marker", c.hit_marker);
+    WBool(o, "fortnite.aim_enabled", c.aim_enabled);
+    WBool(o, "fortnite.aim_visible_only", c.aim_visible_only);
+    WBool(o, "fortnite.predict", c.predict);
+    WFloat(o, "fortnite.aim_smooth", c.aim_smooth);
+    WFloat(o, "fortnite.aim_fov", c.aim_fov);
+    WFloat(o, "fortnite.max_distance", c.max_distance);
+    WFloat(o, "fortnite.bullet_velocity", c.bullet_velocity);
+    WBool(o, "fortnite.show_fps", c.show_fps);
+    WBool(o, "fortnite.rgb_mode", c.rgb_mode);
+    WBool(o, "fortnite.visibility_colors", c.visibility_colors);
+    SerializeColorArray(o, "fortnite.col_enemy", c.col_enemy);
+    SerializeColorArray(o, "fortnite.col_team", c.col_team);
+    SerializeColorArray(o, "fortnite.col_box", c.col_box);
+    SerializeColorArray(o, "fortnite.col_box_corner", c.col_box_corner);
+    SerializeColorArray(o, "fortnite.col_box_fill", c.col_box_fill);
+    SerializeColorArray(o, "fortnite.col_skeleton", c.col_skeleton);
+    SerializeColorArray(o, "fortnite.col_joints", c.col_joints);
+    SerializeColorArray(o, "fortnite.col_head", c.col_head);
+    SerializeColorArray(o, "fortnite.col_halo", c.col_halo);
+    SerializeColorArray(o, "fortnite.col_health", c.col_health);
+    SerializeColorArray(o, "fortnite.col_armor", c.col_armor);
+    SerializeColorArray(o, "fortnite.col_name", c.col_name);
+    SerializeColorArray(o, "fortnite.col_local", c.col_local);
+    SerializeColorArray(o, "fortnite.col_distance", c.col_distance);
+    SerializeColorArray(o, "fortnite.col_weapon", c.col_weapon);
+    SerializeColorArray(o, "fortnite.col_snaplines", c.col_snaplines);
+    SerializeColorArray(o, "fortnite.col_trail", c.col_trail);
+    SerializeColorArray(o, "fortnite.col_fun_effects", c.col_fun_effects);
+    SerializeColorArray(o, "fortnite.col_look", c.col_look);
+    SerializeColorArray(o, "fortnite.col_text_outline", c.col_text_outline);
+    SerializeColorArray(o, "fortnite.col_visible", c.col_visible);
+    SerializeColorArray(o, "fortnite.col_occluded", c.col_occluded);
+}
+
+bool DeserializeFortnite(const std::string& key, const std::string& val) {
+    if (key.rfind("fortnite.", 0) != 0) return false;
+    auto& c = Fortnite::config;
+    auto bi = [&](const char* k) { return key == k; };
+    auto toB = [&]() -> bool { return config_manager::toB(val); };
+    auto toF = [&]() -> float { return config_manager::toF(val); };
+    auto toI = [&]() -> int { return config_manager::toI(val); };
+
+    if (bi("fortnite.esp_enabled")) { c.esp_enabled = toB(); return true; }
+    if (bi("fortnite.show_local_marker")) { c.show_local_marker = toB(); return true; }
+    if (bi("fortnite.show_local_coords")) { c.show_local_coords = toB(); return true; }
+    if (bi("fortnite.show_camera_debug")) { c.show_camera_debug = toB(); return true; }
+    if (bi("fortnite.show_debug_panel")) { c.show_debug_panel = toB(); return true; }
+    if (bi("fortnite.box")) { c.box = toB(); return true; }
+    if (bi("fortnite.box_corner")) { c.box_corner = toB(); return true; }
+    if (bi("fortnite.box_fill")) { c.box_fill = toB(); return true; }
+    if (bi("fortnite.box_thickness")) { c.box_thickness = toF(); return true; }
+    if (bi("fortnite.box_rounding")) { c.box_rounding = toF(); return true; }
+    if (bi("fortnite.skeleton")) { c.skeleton = toB(); return true; }
+    if (bi("fortnite.skeleton_joints")) { c.skeleton_joints = toB(); return true; }
+    if (bi("fortnite.skeleton_thickness")) { c.skeleton_thickness = toF(); return true; }
+    if (bi("fortnite.head_dot")) { c.head_dot = toB(); return true; }
+    if (bi("fortnite.head_halo")) { c.head_halo = toB(); return true; }
+    if (bi("fortnite.head_circle_thickness")) { c.head_circle_thickness = toF(); return true; }
+    if (bi("fortnite.health_bar")) { c.health_bar = toB(); return true; }
+    if (bi("fortnite.armor_bar")) { c.armor_bar = toB(); return true; }
+    if (bi("fortnite.health_value")) { c.health_value = toB(); return true; }
+    if (bi("fortnite.armor_value")) { c.armor_value = toB(); return true; }
+    if (bi("fortnite.name")) { c.name = toB(); return true; }
+    if (bi("fortnite.distance")) { c.distance = toB(); return true; }
+    if (bi("fortnite.weapon_name")) { c.weapon_name = toB(); return true; }
+    if (bi("fortnite.weapon_ammo")) { c.weapon_ammo = toB(); return true; }
+    if (bi("fortnite.text_outline")) { c.text_outline = toB(); return true; }
+    if (bi("fortnite.text_outline_thickness")) { c.text_outline_thickness = toF(); return true; }
+    if (bi("fortnite.snaplines")) { c.snaplines = toB(); return true; }
+    if (bi("fortnite.snapline_position")) { c.snapline_position = toI(); return true; }
+    if (bi("fortnite.snapline_thickness")) { c.snapline_thickness = toF(); return true; }
+    if (bi("fortnite.look_direction")) { c.look_direction = toB(); return true; }
+    if (bi("fortnite.eye_line_thickness")) { c.eye_line_thickness = toF(); return true; }
+    if (bi("fortnite.look_direction_length")) { c.look_direction_length = toF(); return true; }
+    if (bi("fortnite.chinese_hat")) { c.chinese_hat = toB(); return true; }
+    if (bi("fortnite.angel_wings")) { c.angel_wings = toB(); return true; }
+    if (bi("fortnite.devil_horns")) { c.devil_horns = toB(); return true; }
+    if (bi("fortnite.floating_crown")) { c.floating_crown = toB(); return true; }
+    if (bi("fortnite.trails")) { c.trails = toB(); return true; }
+    if (bi("fortnite.chinese_hat_scale")) { c.chinese_hat_scale = toF(); return true; }
+    if (bi("fortnite.fun_effects_scale")) { c.fun_effects_scale = toF(); return true; }
+    if (bi("fortnite.show_bots")) { c.show_bots = toB(); return true; }
+    if (bi("fortnite.visible_check")) { c.visible_check = toB(); return true; }
+    if (bi("fortnite.team_check")) { c.team_check = toB(); return true; }
+    if (bi("fortnite.self_esp")) { c.self_esp = toB(); return true; }
+    if (bi("fortnite.hit_marker")) { c.hit_marker = toB(); return true; }
+    if (bi("fortnite.aim_enabled")) { c.aim_enabled = toB(); return true; }
+    if (bi("fortnite.aim_visible_only")) { c.aim_visible_only = toB(); return true; }
+    if (bi("fortnite.predict")) { c.predict = toB(); return true; }
+    if (bi("fortnite.aim_smooth")) { c.aim_smooth = toF(); return true; }
+    if (bi("fortnite.aim_fov")) { c.aim_fov = toF(); return true; }
+    if (bi("fortnite.max_distance")) { c.max_distance = toF(); return true; }
+    if (bi("fortnite.bullet_velocity")) { c.bullet_velocity = toF(); return true; }
+    if (bi("fortnite.show_fps")) { c.show_fps = toB(); return true; }
+    if (bi("fortnite.rgb_mode")) { c.rgb_mode = toB(); return true; }
+    if (bi("fortnite.visibility_colors")) { c.visibility_colors = toB(); return true; }
+    if (DeserializeColorArray(key, val, "fortnite.col_enemy", c.col_enemy)) return true;
+    if (DeserializeColorArray(key, val, "fortnite.col_team", c.col_team)) return true;
+    if (DeserializeColorArray(key, val, "fortnite.col_box", c.col_box)) return true;
+    if (DeserializeColorArray(key, val, "fortnite.col_box_corner", c.col_box_corner)) return true;
+    if (DeserializeColorArray(key, val, "fortnite.col_box_fill", c.col_box_fill)) return true;
+    if (DeserializeColorArray(key, val, "fortnite.col_skeleton", c.col_skeleton)) return true;
+    if (DeserializeColorArray(key, val, "fortnite.col_joints", c.col_joints)) return true;
+    if (DeserializeColorArray(key, val, "fortnite.col_head", c.col_head)) return true;
+    if (DeserializeColorArray(key, val, "fortnite.col_halo", c.col_halo)) return true;
+    if (DeserializeColorArray(key, val, "fortnite.col_health", c.col_health)) return true;
+    if (DeserializeColorArray(key, val, "fortnite.col_armor", c.col_armor)) return true;
+    if (DeserializeColorArray(key, val, "fortnite.col_name", c.col_name)) return true;
+    if (DeserializeColorArray(key, val, "fortnite.col_local", c.col_local)) return true;
+    if (DeserializeColorArray(key, val, "fortnite.col_distance", c.col_distance)) return true;
+    if (DeserializeColorArray(key, val, "fortnite.col_weapon", c.col_weapon)) return true;
+    if (DeserializeColorArray(key, val, "fortnite.col_snaplines", c.col_snaplines)) return true;
+    if (DeserializeColorArray(key, val, "fortnite.col_trail", c.col_trail)) return true;
+    if (DeserializeColorArray(key, val, "fortnite.col_fun_effects", c.col_fun_effects)) return true;
+    if (DeserializeColorArray(key, val, "fortnite.col_look", c.col_look)) return true;
+    if (DeserializeColorArray(key, val, "fortnite.col_text_outline", c.col_text_outline)) return true;
+    if (DeserializeColorArray(key, val, "fortnite.col_visible", c.col_visible)) return true;
+    if (DeserializeColorArray(key, val, "fortnite.col_occluded", c.col_occluded)) return true;
+    return false;
 }
 
 

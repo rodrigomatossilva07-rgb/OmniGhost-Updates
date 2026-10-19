@@ -69,11 +69,11 @@ void RecordHealth(const std::string& stage,
         detail
     });
 }
-// UPD-007 Fix: also quotes free-form strings (release notes URLs) that can
-// contain spaces; the old version was only safe for filesystem paths.
+
+
 std::wstring Quote(const fs::path& path) { return L"\"" + path.wstring() + L"\""; }
 std::wstring Quote(const std::wstring& text) {
-    // Strip embedded quotes so a crafted URL cannot break out of the argument.
+
     std::wstring safe;
     safe.reserve(text.size() + 2);
     for (wchar_t c : text) {
@@ -278,18 +278,53 @@ void UpdateService::Initialize(Configuration configuration, std::unique_ptr<IHtt
         userDirectoriesReady
             ? "Serviço de atualização inicializado. Log: " + LogFile().string()
             : "Não foi possível preparar todas as pastas do utilizador. Será usado o fallback de log quando necessário.");
+
+
+
+
+
+    if (config_.githubTlsCertificateThumbprints.empty()) {
+        WriteLog(
+            LogFile(),
+            LogLevel::Warning,
+            OmniGhost::Version,
+            {},
+            "tls-pinning",
+            "Pin TLS do GitHub INATIVO (githubTlsCertificateThumbprints vazio): a cadeia de "
+            "atualização depende apenas da validação CA do Windows. Consulta o comentário em "
+            "update_types.h para ativar com pins SPKI SHA-256 reais.");
+    }
     std::error_code cleanupError;
     const auto stale = fs::file_time_type::clock::now() - std::chrono::hours(48);
     for (const auto& entry : fs::directory_iterator(Paths::Updates(), fs::directory_options::skip_permission_denied, cleanupError)) {
         const std::wstring entryName = entry.path().filename().wstring();
-        if (entry.path().extension() == L".partial" && entry.last_write_time(cleanupError) < stale) fs::remove(entry.path(), cleanupError);
-        if (entry.is_regular_file(cleanupError) && entryName.rfind(L"startup-confirm-", 0) == 0 &&
-            entry.path().extension() == L".txt" && entry.last_write_time(cleanupError) < stale)
-            fs::remove(entry.path(), cleanupError);
+
+
+
+
+
+        if (entry.path().extension() == L".partial") {
+            std::error_code timeError;
+            const auto modified = entry.last_write_time(timeError);
+            if (!timeError && modified < stale) fs::remove(entry.path(), cleanupError);
+        }
+        std::error_code typeError;
+        const bool isRegular = entry.is_regular_file(typeError) && !typeError;
+        if (isRegular && entryName.rfind(L"startup-confirm-", 0) == 0 &&
+            entry.path().extension() == L".txt") {
+            std::error_code timeError;
+            const auto modified = entry.last_write_time(timeError);
+            if (!timeError && modified < stale) fs::remove(entry.path(), cleanupError);
+        }
         const std::wstring directoryName = entryName;
-        if (entry.is_directory(cleanupError) &&
-            (directoryName.rfind(L"staging-", 0) == 0 || directoryName.rfind(L"runner-", 0) == 0) &&
-            entry.last_write_time(cleanupError) < stale) fs::remove_all(entry.path(), cleanupError);
+        std::error_code dirError;
+        const bool isDirectory = entry.is_directory(dirError) && !dirError;
+        if (isDirectory &&
+            (directoryName.rfind(L"staging-", 0) == 0 || directoryName.rfind(L"runner-", 0) == 0)) {
+            std::error_code timeError;
+            const auto modified = entry.last_write_time(timeError);
+            if (!timeError && modified < stale) fs::remove_all(entry.path(), cleanupError);
+        }
         cleanupError.clear();
     }
     SetSnapshot([](Snapshot& value) {
@@ -656,9 +691,9 @@ void UpdateService::DownloadAndScheduleInstallOnExitAsync() {
 }
 
 void UpdateService::DownloadAsync() {
-    // UPD-006 Fix: check the busy gate FIRST — installOnExit_ used to be set
-    // even when the service was already busy (leaving the flag on with no
-    // download running).
+
+
+
     if (busy_.exchange(true)) {
         WriteLog(LogFile(), LogLevel::Warning, OmniGhost::Version, {}, "download",
             "Another update operation is already in progress.");
@@ -923,7 +958,7 @@ bool UpdateService::InstallPreparedUpdate() {
         << L" --from-version \"" << Platform::Utf8ToWide(OmniGhost::Version) << L"\"";
     const Snapshot installSnapshot = GetSnapshot();
     if (!installSnapshot.releaseNotesUrl.empty())
-        arguments << L" --notes-url " << Quote(Platform::Utf8ToWide(installSnapshot.releaseNotesUrl)); // UPD-007 Fix
+        arguments << L" --notes-url " << Quote(Platform::Utf8ToWide(installSnapshot.releaseNotesUrl));
     const bool needElevation = !DirectoryWritable(Paths::InstallDirectory());
     const wchar_t* verb = needElevation ? L"runas" : L"open";
     const std::wstring argumentText = arguments.str();

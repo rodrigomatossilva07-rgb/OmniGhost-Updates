@@ -35,10 +35,10 @@ IntegrityReport VerifyInstallationFiles(const fs::path& installDirectory, std::s
     IntegrityReport report{};
     const fs::path manifest = installDirectory / L"install-manifest.sha256";
     if (!fs::exists(manifest)) {
-        // UPD-002 Fix: "exists" is not verification. A single-EXE installation
-        // without a manifest is reported as not-verifiable instead of
-        // Healthy; the launcher/UI keeps working, but the repair tool no
-        // longer pretends an integrity check passed.
+
+
+
+
         if (fs::is_regular_file(installDirectory / L"OmniGhost.exe")) {
             report.status = IntegrityStatus::ManifestMissing;
             report.checkedFiles = 0;

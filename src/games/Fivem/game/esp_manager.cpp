@@ -57,9 +57,9 @@ namespace FiveM {
         }
 
 
-        // FIVEM-009 Fix: these used to return references into a snapshot
-        // released when the function exited (dangling by design). They have
-        // zero call sites; use GetValidPedsSnapshot() instead. Removed.
+
+
+
 
         struct AcquisitionSnapshot {
             std::array<uintptr_t, MAX_PEDS> validPeds{};
@@ -102,7 +102,11 @@ namespace FiveM {
         static OmniGhost::Gameplay::SnapshotExchange<AcquisitionOptions> s_optionSnapshots;
         static std::atomic<uint64_t> s_snapshotDrops{0};
         static VMMDLL_SCATTER_HANDLE s_acqScatter = nullptr;
-        static VMMDLL_SCATTER_HANDLE g_preparedBoneScatter = nullptr;
+
+
+
+
+
         static std::vector<uintptr_t> s_acquireRawPeds;
         static std::vector<uintptr_t> s_acquireValidPeds;
         static std::vector<Vec3> s_acquirePositions;
@@ -277,6 +281,20 @@ namespace FiveM {
                 }
             }
             slot.value->acquireMs = acquireMs;
+
+
+
+
+
+
+
+
+
+
+
+            UpdateValidPedsSnapshot(s_acquireValidPeds, s_acquirePositions,
+                                    s_sessionGeneration);
+
             s_snapshots.Publish(slot.index);
         }
 
@@ -304,8 +322,23 @@ namespace FiveM {
             uint64_t lastKnownSessionGen = 0;
             while (!s_cameraStop.load(std::memory_order_acquire)) {
                 const auto now = Clock::now();
-                (void)std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
-                s_cameraDeadlineMs.store(static_cast<uint64_t>(nextCameraTime.time_since_epoch().count() / 1000000), std::memory_order_release);
+
+
+
+
+
+
+
+                {
+                    const uint64_t tickNow = GetTickCount64();
+                    const int64_t deltaToDeadline = std::chrono::duration_cast<std::chrono::milliseconds>(
+                        nextCameraTime - now).count();
+                    s_cameraDeadlineMs.store(deltaToDeadline >= 0
+                        ? tickNow + static_cast<uint64_t>(deltaToDeadline)
+                        : (tickNow > static_cast<uint64_t>(-deltaToDeadline)
+                            ? tickNow - static_cast<uint64_t>(-deltaToDeadline) : uint64_t{0}),
+                        std::memory_order_release);
+                }
                 const uint64_t currentSessionGen = s_sessionGeneration.load(std::memory_order_acquire);
 
 
@@ -371,7 +404,18 @@ namespace FiveM {
                     if (slot) {
                         slot.value->viewMatrix = matrix;
                         slot.value->sampleTime = sampleTime;
-                        slot.value->sampleMs = std::chrono::duration_cast<std::chrono::milliseconds>(sampleTime.time_since_epoch()).count();
+
+
+
+
+
+                        {
+                            const uint64_t tickNow = GetTickCount64();
+                            const int64_t sampleAge = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                Clock::now() - sampleTime).count();
+                            slot.value->sampleMs = sampleAge >= 0 && static_cast<uint64_t>(sampleAge) <= tickNow
+                                ? tickNow - static_cast<uint64_t>(sampleAge) : uint64_t{0};
+                        }
                         slot.value->sessionGeneration = s_sessionGeneration.load(std::memory_order_acquire);
                         slot.value->historyMatrices = cameraHistory;
                         slot.value->historyTimes = cameraTimes;
@@ -422,7 +466,20 @@ namespace FiveM {
                     continue;
 
                 s_optionalBusy.store(true, std::memory_order_release);
+
+
+
+
+
+
+
+
+
+
+
+
                 try {
+                    do {
                     mem.SetDmaLane("fivem-optional");
                     mem.SetDmaPriority(Memory::DmaPri::Bones);
                     const int pressure = job.pressure;
@@ -495,6 +552,7 @@ namespace FiveM {
                         vehicle_esp::Collect(job.vehicleConfig, job.peds,
                             job.localPos, vehicleCamera);
                     }
+                    } while (false);
                 } catch (const std::exception& ex) {
                     std::cerr << "[FiveM] Optional ESP job failed: " << ex.what() << '\n';
                 } catch (...) {
@@ -635,7 +693,13 @@ namespace FiveM {
                                 || espOptions.angel_wings || espOptions.devil_horns || espOptions.floating_crown
                                 || espOptions.head_halo || espOptions.look_direction || aimOptions.aimbot_enabled) {
 
-                                boneMask = esp::ComputeCombinedBoneMask(s_acquireValidPeds, s_acquirePositions, s_acquireLocalPos);
+
+
+
+                                boneMask = esp::ComputeCombinedBoneMask(
+                                    s_acquireValidPeds, s_acquirePositions, s_acquireLocalPos,
+                                    espOptions.lod_full_dist, espOptions.lod_high_dist,
+                                    espOptions.lod_med_dist);
                             }
                             if (espOptions.box_2d || espOptions.corner_box || espOptions.snaplines ||
                                 espOptions.health_bar || espOptions.armor_bar)
@@ -805,8 +869,8 @@ namespace FiveM {
             s_snapshots.ResetProducerThread();
             s_cameraSnapshots.ResetProducerThread();
 
-            if (!g_preparedBoneScatter && mem.vHandle)
-                g_preparedBoneScatter = mem.CreateScatterHandle();
+
+
             s_acquisitionStop.store(false, std::memory_order_release);
             s_cameraStop.store(false, std::memory_order_release);
             s_livenessStop.store(false, std::memory_order_release);
@@ -1668,20 +1732,7 @@ namespace FiveM {
         }
 
 
-        void printPerformanceStats() {
-            static auto lastPrint = std::chrono::steady_clock::now();
-            auto now = std::chrono::steady_clock::now();
 
-            if (now - lastPrint >= std::chrono::seconds(5)) {
-                auto fps = frameCount / 5.0;
-                auto cacheSize = g_pedCacheManager.getCacheSize();
-
-                (void)fps;
-                (void)cacheSize;
-                frameCount = 0;
-                lastPrint = now;
-            }
-        }
 
 
         void refreshCache() {

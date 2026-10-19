@@ -15,8 +15,8 @@ namespace makcu_wrapper {
     std::atomic<bool> connected(false);
     std::atomic<bool> allowLocalInputFallback(true);
 
-    // MAK-003 Fix: previous_states is written/read from both the aim lane and
-    // the UI/diagnostics lane — guard it with diag_mutex.
+
+
     static std::map<int, bool> previous_states;
     static std::mutex diag_mutex;
     static std::shared_mutex device_mutex;
@@ -149,7 +149,7 @@ namespace makcu_wrapper {
             g_state.faultInfo[0] = 0;
         }
 
-        // Structured log of the firmware detection result for diagnostics.
+
         OmniGhost::SessionLog::Write(
             OmniGhost::SessionLog::Severity::Info,
             OmniGhost::SessionLog::Subsystem::Input,

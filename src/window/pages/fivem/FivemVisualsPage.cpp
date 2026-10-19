@@ -135,9 +135,9 @@ void DrawFivemVisuals() {
     CyberWidgets::ToggleSwitch("Cores por visibilidade", &esp::config.visibility_colors);
     CyberWidgets::ToggleSwitch("Ocultar equipa", &esp::config.team_check);
     CyberWidgets::ToggleSwitch("Mostrar mortos", &esp::config.show_dead);
-    // FIVEM-004 Fix: "caído" (knocked) has no data source in FiveM (GTA has no
-    // downed state like CS2/Rust) — the toggle was inert. Hidden until a
-    // derived state (health/animation) exists.
+
+
+
     CyberWidgets::ToggleSwitch("NPCs", &esp::config.npc_esp);
     CyberWidgets::Separator();
     CyberWidgets::SectionTitle("ELEMENTOS");
@@ -188,7 +188,7 @@ void DrawFivemVisuals() {
     ImGui::ColorEdit4("Visível", (float*)&esp::config.color_visible, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     ImGui::ColorEdit4("Oculto", (float*)&esp::config.color_invisible, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     ImGui::ColorEdit4("Morto", (float*)&esp::config.color_dead, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
-    // FIVEM-004: "Caído" hidden — no knocked state exists in FiveM.
+
     ImGui::ColorEdit4("Equipa", (float*)&esp::config.color_team, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     CyberWidgets::Separator();
     CyberWidgets::SectionTitle("DESENHO");

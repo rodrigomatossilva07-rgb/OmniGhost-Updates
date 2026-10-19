@@ -29,7 +29,7 @@
     <WholeProgramOptimization>true</WholeProgramOptimization>
   </PropertyGroup>
 <PropertyGroup Condition="'$(Configuration)'=='Publish'" Label="Configuration">
-    <!-- Publish produces the validated stable package for the public GitHub update channel. -->
+
     <UseDebugLibraries>false</UseDebugLibraries>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <OmniGhostPublishBuild>true</OmniGhostPublishBuild>
@@ -49,20 +49,20 @@
   </PropertyGroup>
   <PropertyGroup Label="UserMacros"/>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <!-- Release is an optimized local build and never publishes remotely. -->
+
     <OmniGhostReleaseChannel Condition="'$(OmniGhostReleaseChannel)'==''">stable</OmniGhostReleaseChannel>
   </PropertyGroup>
   <PropertyGroup Condition="('$(Configuration)'=='Release' Or '$(Configuration)'=='Publish') And '$(Platform)'=='x64' And '$(OmniGhostPayloadBuild)'!='true'">
-    <!-- Distribution is ZIP-only; MSIX generation is intentionally disabled. -->
+
     <GenerateMsixPackage>false</GenerateMsixPackage>
     <AppxPackageSigningEnabled>false</AppxPackageSigningEnabled>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Publish|x64'">
-    <!-- Stable public update channel. -->
+
     <OmniGhostReleaseChannel>stable</OmniGhostReleaseChannel>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='PrivateStatic|x64'">
-    <!-- PRIVATE DEVELOPMENT BUILD - NOT FOR DISTRIBUTION -->
+
     <OmniGhostReleaseChannel>private-development</OmniGhostReleaseChannel>
     <OutDir>$(ProjectDir)build\PrivateStatic\</OutDir>
   </PropertyGroup>
@@ -81,9 +81,9 @@
     <ClCompile Include="src\auth\keyauth_gateway.cpp"/>
     <ClCompile Include="src\auth\keyauth_hwid_override.cpp"/>
     <ClCompile Include="src\auth\keyauth_remote_provider.cpp"/>
-    <!-- libs\ is the local fallback runtime bundle. Every DLL placed there is copied
-         to build\ automatically; the canonical DMA/custom runtimes below are copied
-         afterwards so authoritative project versions win on duplicate names. -->
+
+
+
     <OmniGhostLibRuntimeLibrary Include="$(ProjectDir)libs\*.dll"/>
     <OmniGhostDmaRuntimeLibrary Include="$(ProjectDir)third_party\dma_stack\bin\*.dll"/>
     <OmniGhostCustomRuntimeLibrary Include="$(ProjectDir)infrastructure\runtime\own\*.dll"/>
@@ -100,9 +100,9 @@
     </Exec>
     <Error Condition="'$(OmniGhostEmbeddedOffsetsExitCode)'!='0'" Code="OGOFF001" Text="Falha ao gerar os recursos de offsets embutidos. Consulta a janela Saída."/>
   </Target>
-  <!-- TOOL-001 Fix: dependency downloads are OPT-IN. The default build is
-       hermetic (no network); pass /p:OmniGhostUpdateDmaDependencies=true in
-       CI when a stack refresh is intended and approved. -->
+
+
+
   <Target Name="EnsureOmniGhostDmaDependencies" BeforeTargets="PrepareForBuild"
           Condition="'$(DesignTimeBuild)'!='true' And '$(OmniGhostUpdateDmaDependencies)'=='true'">
     <Message Importance="High" Text="[OmniGhost 01/10] DMA dependencies"/>
@@ -138,31 +138,31 @@
     <RemoveDir Directories="$(OutDir)" Condition="Exists('$(OutDir)')"/>
     <MakeDir Directories="$(OutDir)"/>
   </Target>
-  <!-- The former external-runtime target belonged to the removed Tester profile.
-       Release and Publish are both single-EXE outputs, so it stays disabled unless
-       an explicit legacy maintenance build opts in. -->
+
+
+
   <Target Name="CopyOmniGhostLegacyExternalRuntime" AfterTargets="Build"
           Condition="'$(OmniGhostCopyLegacyExternalRuntime)'=='true'">
-    <!-- If Visual Studio exposes its redistributable directory, include those DLLs
-         app-local too. This is optional: libs\ is the supported local fallback, so a
-         missing/empty VCToolsRedistDir must never make a valid build fail. -->
+
+
+
     <ItemGroup Condition="'$(Configuration)'=='Release'">
       <OmniGhostVcRuntimeLibrary Include="$(VCToolsRedistDir)\x64\Microsoft.VC*.CRT\msvcp*.dll"/>
       <OmniGhostVcRuntimeLibrary Include="$(VCToolsRedistDir)\x64\Microsoft.VC*.CRT\vcruntime*.dll"/>
       <OmniGhostVcRuntimeLibrary Include="$(VCToolsRedistDir)\x64\Microsoft.VC*.CRT\concrt*.dll"/>
     </ItemGroup>
     <Error Condition="'@(OmniGhostLibRuntimeLibrary)'==''" Code="OGLIB001" Text="A pasta libs não contém DLLs. Coloca a pasta libs na raiz do OmniGhost antes de compilar."/>
-    <!-- A project-owned third_party bundle is optional. The validated local
-         libs\ bundle is the supported fallback for local Release builds. -->
+
+
     <Error Condition="!Exists('$(ProjectDir)libs\vmm.dll') And !Exists('$(ProjectDir)third_party\dma_stack\bin\vmm.dll')" Code="OGDLL001" Text="Nenhuma cópia de vmm.dll foi encontrada em libs\ ou third_party\dma_stack\bin\."/>
     <Error Condition="!Exists('$(ProjectDir)libs\leechcore.dll') And !Exists('$(ProjectDir)third_party\dma_stack\bin\leechcore.dll')" Code="OGDLL001" Text="Nenhuma cópia de leechcore.dll foi encontrada em libs\ ou third_party\dma_stack\bin\."/>
     <MakeDir Directories="$(OutDir)data;$(OutDir)data\runtime;$(OutDir)resources"/>
     <MakeDir Directories="$(OutDir)plugins" Condition="'@(OmniGhostDmaPlugin)'!=''"/>
     <MakeDir Directories="$(OutDir)resources\games" Condition="'@(OmniGhostGameResource)'!=''"/>
-    <!-- Copy the local libs bundle first. Because build\ is cleaned before each build,
-         this guarantees that every DLL in libs\ is present in the runtime output. -->
+
+
     <Copy SourceFiles="@(OmniGhostLibRuntimeLibrary)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true"/>
-    <!-- Canonical project-owned copies intentionally come afterwards. -->
+
     <Copy SourceFiles="@(OmniGhostDmaRuntimeLibrary)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true"/>
     <Copy SourceFiles="@(OmniGhostCustomRuntimeLibrary)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" Condition="'@(OmniGhostCustomRuntimeLibrary)'!=''"/>
     <Copy SourceFiles="@(OmniGhostVcRuntimeLibrary)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" Condition="'$(Configuration)'=='Release' And '@(OmniGhostVcRuntimeLibrary)'!=''"/>
@@ -205,8 +205,8 @@
     </Exec>
     <Error Condition="'$(OmniGhostReproducibilityExitCode)'!='0'" Code="OGREPRO001" Text="A segunda build independente não corresponde byte-for-byte à build Publish principal."/>
   </Target>
-  <!-- Publish é a única configuração que pode alterar o GitHub. Release
-       nunca alcançam este target. Tag, source limpo e artefactos válidos continuam obrigatórios. -->
+
+
   <Target Name="PublishOmniGhostRelease" AfterTargets="ValidateOmniGhostSingleExeRuntime" DependsOnTargets="VerifyOmniGhostReproducibility" Condition="'$(Configuration)'=='Publish' And '$(DesignTimeBuild)'!='true' And '$(OmniGhostSkipRemotePublish)'!='true'">
     <Message Importance="High" Text="[OmniGhost Publish] A validar, empacotar e publicar a versão no GitHub."/>
     <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; publish-build &quot;$(MSBuildProjectDirectory)&quot; &quot;$(OutDir).&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
@@ -214,9 +214,9 @@
     </Exec>
     <Error Condition="'$(OmniGhostPublishExitCode)'!='0'" Code="OGPUB001" Text="A build Publish compilou, mas o pipeline de publicação falhou. Consulta a janela Saída e a primeira causa reportada; o upload para o GitHub pode ainda não ter começado. Release nunca publica remotamente."/>
   </Target>
-  <!-- Local outputs are disposable once the single-EXE validation has passed.
-       A real Publish is deliberately excluded: Publish-Build cleans only after
-       GitHub has confirmed the public Latest release. -->
+
+
+
   <Target Name="CleanupVerifiedLocalBuildWorkspace" AfterTargets="ValidateOmniGhostSingleExeRuntime"
           Condition="'$(DesignTimeBuild)'!='true' And '$(OmniGhostPayloadBuild)'!='true' And '$(OmniGhostSkipPackaging)'!='true' And ( '$(Configuration)'=='Release' Or ( '$(Configuration)'=='Publish' And '$(OmniGhostSkipRemotePublish)'=='true' ) )">
     <Message Importance="High" Text="[OmniGhost Build] Build validada; a manter build e .cache partilhada, limpando artifacts, logs e .temp."/>
@@ -298,7 +298,7 @@
     </ClCompile>
     <ClCompile Include="src\math\math.cpp"/>
     <ClCompile Include="src\platform\app_paths.cpp"/>
-    <!-- <ClCompile Include="src\platform\error_codes.cpp"/> -->
+
     <ClCompile Include="src\platform\interfaces.cpp"/>
     <ClCompile Include="src\platform\service_container.cpp"/>
     <ClCompile Include="src\platform\startup_orchestrator.cpp"/>

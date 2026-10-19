@@ -33,11 +33,21 @@ namespace esp {
 
     uint16_t ComputeSkeletonBoneMask(SkeletonLOD lod);
 
-    SkeletonLOD ComputeSkeletonLOD(float distance);
+
+
+
+
+    SkeletonLOD ComputeSkeletonLOD(float distance,
+                                   float fullDist,
+                                   float highDist,
+                                   float medDist);
 
     uint16_t ComputeCombinedBoneMask(const std::vector<uintptr_t>& peds,
                                      const std::vector<Vec3>& positions,
-                                     const Vec3& localPos);
+                                     const Vec3& localPos,
+                                     float fullDist,
+                                     float highDist,
+                                     float medDist);
 
 
     enum class ESPMode {

@@ -28,8 +28,8 @@ void DrawFriends()
     const float leftW = full * 0.45f;
     const float rightW = full - leftW - gap;
 
-    // GPL-006 Fix: friend_list/player_list are written by other threads —
-    // take locked snapshots once per frame and never reference live elements.
+
+
     std::vector<friends::FriendEntry> friendsSnapshot;
     std::vector<friends::PlayerEntry> playersSnapshot;
     {

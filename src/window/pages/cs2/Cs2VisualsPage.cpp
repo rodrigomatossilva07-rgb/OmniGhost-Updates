@@ -204,8 +204,8 @@ void DrawCs2Visuals() {
     ImGui::BeginDisabled(!CS2::config.look_direction);
     ImGui::ColorEdit4("Eye Line", CS2::config.col_look, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     ImGui::EndDisabled();
-    // UI-011 Fix: the disabled condition used || instead of && — it disabled
-    // the color picker when ANY effect was off, instead of when ALL were off.
+
+
     ImGui::BeginDisabled(!CS2::config.chinese_hat && !CS2::config.angel_wings && !CS2::config.devil_horns && !CS2::config.floating_crown);
     ImGui::ColorEdit4("Efeitos", CS2::config.col_fun_effects, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     ImGui::EndDisabled();

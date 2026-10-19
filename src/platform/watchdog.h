@@ -131,8 +131,15 @@ private:
                          SessionLog::Field{"threshold_ms", std::to_string(warningMs), false}});
                 }
                 if (config_.enableCallbacks && warningCallback_) {
+
+
+
+
+
+
+
+
                     auto cb = warningCallback_;
-                    lock.unlock();
                     cb(stageCopy, elapsed);
                 }
             }

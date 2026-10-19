@@ -39,10 +39,10 @@ bool DeserializeFriends(const std::string& key, const std::string& val) {
 
 
     if (key.rfind("friend.", 0) == 0) {
-        // CFG-007 Fix: this blanket return used to swallow every friend.N.*
-        // key — the id/name restore branches in config_manager were dead code
-        // (they run AFTER DeserializeFriends), so friends never came back
-        // from a saved config at all.
+
+
+
+
         const auto sep = key.rfind('.');
         if (sep == std::string::npos || sep + 1 >= key.size())
             return true;
@@ -55,7 +55,7 @@ bool DeserializeFriends(const std::string& key, const std::string& val) {
             const uint32_t id = (uint32_t)strtoul(val.c_str(), nullptr, 10);
             friends::AddFriend(std::string("Friend_") + val, id, false);
         } else if (leaf == "name" && idx != SIZE_MAX) {
-            // friend.N.name — N matches the insertion order of the ids above.
+
             std::lock_guard<std::mutex> lock(friends::list_mutex);
             if (idx < friends::friend_list.size() && !val.empty())
                 friends::friend_list[idx].name = val;

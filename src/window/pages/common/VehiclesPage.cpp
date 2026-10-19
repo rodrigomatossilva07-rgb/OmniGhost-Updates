@@ -61,7 +61,7 @@ void DrawVehicles()
             CyberWidgets::ColorEditU32(Loc::Tr("veh.color_lock"), &vehicle_esp::config.color_locked);
         }
         CyberWidgets::ColorEditU32(Loc::Tr("veh.color_occ"), &vehicle_esp::config.color_occupants);
-        // FIVEM-005: vehicle name color removed — the ESP never draws names.
+
     }
 
     vehicle_esp::config.rgb_mode = false;

@@ -17,7 +17,7 @@ namespace {
 OmniGhost::Gameplay::ContinuousAimController g_aim_motion;
 int g_active = -1;
 char g_debug[128] = "aim idle";
-// WZ-002 Fix: fractional movement carried between frames (see Run below).
+
 float g_residual_x = 0.f;
 float g_residual_y = 0.f;
 
@@ -41,21 +41,54 @@ bool KeyDown(int vk) {
     return aim_type::IsDown(vk) || ((GetKeyState(vk) & 0x8000) != 0);
 }
 
-void MoveMouse(int dx, int dy) {
-    while (dx != 0 || dy != 0) {
-        int sx = dx; if (sx > 127) sx = 127; if (sx < -127) sx = -127;
-        int sy = dy; if (sy > 127) sy = 127; if (sy < -127) sy = -127;
+void MoveMouse(float dx, float dy) {
+
+
+
+
+
+
+    const float desired_x = dx + g_residual_x;
+    const float desired_y = dy + g_residual_y;
+    int whole_x = static_cast<int>(std::lround(desired_x));
+    int whole_y = static_cast<int>(std::lround(desired_y));
+    g_residual_x = std::clamp(desired_x - static_cast<float>(whole_x), -0.95f, 0.95f);
+    g_residual_y = std::clamp(desired_y - static_cast<float>(whole_y), -0.95f, 0.95f);
+    int left_x = whole_x;
+    int left_y = whole_y;
+    for (int n = 0; n < 12 && (left_x != 0 || left_y != 0); ++n) {
+        int sx = left_x; if (sx > 127) sx = 127; if (sx < -127) sx = -127;
+        int sy = left_y; if (sy > 127) sy = 127; if (sy < -127) sy = -127;
+        if (sx == 0 && sy == 0) break;
         aim_type::Move(sx, sy);
-        dx -= sx; dy -= sy;
+        left_x -= sx;
+        left_y -= sy;
     }
 }
 
+uint64_t g_click_release_at_ms = 0;
+
 void Click() {
-    // WZ-008a Fix: 12 ms press-release dwell so the click registers reliably
-    // with the game's input sampling frame.
+
+
+
+
+
+
+
+    if (g_click_release_at_ms != 0)
+        return;
     aim_type::LeftClick();
-    std::this_thread::sleep_for(std::chrono::milliseconds(12));
-    aim_type::LeftClickRelease();
+    g_click_release_at_ms = GetTickCount64() + 12;
+}
+
+void TickPendingClickRelease() {
+    if (g_click_release_at_ms == 0)
+        return;
+    if (GetTickCount64() >= g_click_release_at_ms) {
+        aim_type::LeftClickRelease();
+        g_click_release_at_ms = 0;
+    }
 }
 
 bool Pass(const Warzone::Player& p, const Warzone::Config& cfg) {
@@ -76,15 +109,20 @@ int ActiveTargetIndex() { return g_active; }
 const char* DebugStatus() { return g_debug; }
 
 void Run(const Warzone::Runtime& rt, const Warzone::Config& cfg) {
+
+
+    TickPendingClickRelease();
     if (!rt.in_game && rt.players.empty()) {
         g_active = -1;
         g_aim_motion.Reset();
+        g_residual_x = g_residual_y = 0.f;
         std::snprintf(g_debug, sizeof(g_debug), "sem dados");
         return;
     }
     if (!cfg.aim_enabled && !cfg.trigger_enabled) {
         g_active = -1;
         g_aim_motion.Reset();
+        g_residual_x = g_residual_y = 0.f;
         std::snprintf(g_debug, sizeof(g_debug), "aim/trig OFF");
         return;
     }
@@ -101,7 +139,7 @@ void Run(const Warzone::Runtime& rt, const Warzone::Config& cfg) {
             float sx, sy;
             if (!W2S(p.head, rt.view_matrix, sx, sy)) continue;
             const float d = std::sqrt((sx - cx) * (sx - cx) + (sy - cy) * (sy - cy));
-            if (d < 14.f) { hit = true; break; } // WZ-008b: slightly larger fixed radius for readability
+            if (d < 14.f) { hit = true; break; }
         }
         if (hit) {
             const auto now = std::chrono::steady_clock::now();
@@ -116,6 +154,7 @@ void Run(const Warzone::Runtime& rt, const Warzone::Config& cfg) {
     if (!cfg.aim_enabled) {
         g_active = -1;
         g_aim_motion.Reset();
+        g_residual_x = g_residual_y = 0.f;
         return;
     }
 
@@ -129,6 +168,7 @@ void Run(const Warzone::Runtime& rt, const Warzone::Config& cfg) {
     if (!aimActive) {
         g_active = -1;
         g_aim_motion.Reset();
+        g_residual_x = g_residual_y = 0.f;
         std::snprintf(g_debug, sizeof(g_debug), "aim: bind OFF");
         if (cfg.aim_draw_fov) {
             const ImVec2 ds0 = ImGui::GetIO().DisplaySize;
@@ -179,7 +219,7 @@ void Run(const Warzone::Runtime& rt, const Warzone::Config& cfg) {
 
 
         if (mx != 0 || my != 0) {
-            MoveMouse(static_cast<int>(mx), static_cast<int>(my));
+            MoveMouse(mx, my);
         }
     } else {
         g_active = -1;

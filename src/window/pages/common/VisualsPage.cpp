@@ -147,7 +147,7 @@ void DrawVisuals()
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.self_esp"), &esp::config.self_esp);
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.npc"), &esp::config.npc_esp);
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.show_dead"), &esp::config.show_dead);
-    // FIVEM-004 Fix: "knocked" has no data source in FiveM — hidden.
+
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.visible_check"), &esp::config.visible_check);
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.hide_team"), &esp::config.team_check);
     CyberWidgets::Separator();
@@ -229,7 +229,7 @@ void DrawVisuals()
     const bool visibilityColorsEnabled = espEnabled && esp::config.visibility_colors && esp::config.visible_check;
     colorWhenEnabled(Loc::Tr("vis.visible"), &esp::config.color_visible, visibilityColorsEnabled);
     colorWhenEnabled(Loc::Tr("vis.hidden"), &esp::config.color_invisible, visibilityColorsEnabled);
-    // FIVEM-004: "knocked" color hidden — no data source in FiveM.
+
     colorWhenEnabled(Loc::Tr("vis.dead"), &esp::config.color_dead, espEnabled && esp::config.show_dead);
     colorWhenEnabled(Loc::Tr("vis.team"), &esp::config.color_team, espEnabled && !esp::config.team_check);
     CyberWidgets::Separator();

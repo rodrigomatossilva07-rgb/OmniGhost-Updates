@@ -82,9 +82,9 @@ bool DeserializeAim(const std::string& key, const std::string& val) {
     if (bi("aim.fov_style")) { a.fov_style = (aimbot::FovStyle)toI(); return true; }
     if (bi("aim.aimbot_bind")) { a.aimbot_bind = toI(); return true; }
     if (bi("aim.aimbot_bind2")) { a.aimbot_bind2 = toI(); return true; }
-    // CFG-005 Fix: the bind normalization used to run inside this key chain
-    // (executing as a side effect of any unrecognized aim.* key); the same
-    // normalization already runs once at the end of DeserializeAll.
+
+
+
     if (bi("aim.visible_check")) { a.visible_check = toB(); return true; }
     if (bi("aim.trigger_enabled")) { a.trigger_enabled = toB(); return true; }
     if (bi("aim.trigger_always_on")) { a.trigger_always_on = toB(); return true; }

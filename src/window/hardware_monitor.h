@@ -62,8 +62,8 @@ namespace HardwareMonitor {
     void UpdateDeviceStatus(DeviceType type, bool connected, const std::string& port = "", const std::string& version = "", const std::string& error = "");
     void SetDeviceEnabled(DeviceType type, bool enabled);
 
-    // GPL-006 Fix: getters return snapshots under the lock — they used to hand
-    // out live references written by other threads (C++ data race).
+
+
     DeviceStatus GetDeviceStatus(DeviceType type);
     SystemMetrics GetSystemMetrics();
     std::vector<LatencySample> GetLatencyHistory();

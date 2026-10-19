@@ -20,7 +20,7 @@ if (-not (Test-Path -LiteralPath $generatedRc -PathType Leaf)) {
     throw "Generated embedded-offset resource file is missing: $generatedRc"
 }
 $rc = Get-Content -LiteralPath $generatedRc -Raw
-# RES-001: Apex retired until a runtime ships; only real games are required.
+
 $required = @(
     @{ id = 201; name = 'FORTNITE' }, @{ id = 202; name = 'WARZONE' },
     @{ id = 203; name = 'CS2' },

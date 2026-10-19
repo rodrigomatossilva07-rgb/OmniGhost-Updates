@@ -247,7 +247,13 @@ int RunDmaIntegrationTest(int argc, wchar_t** argv) {
     if (!providedToken.empty()) {
 
 
-        [[maybe_unused]] constexpr const char* kHmacSecret = "OMNIGHOST_INTEGRATION_TEST_SECRET_CHANGE_IN_PRODUCTION";
+
+
+
+
+
+
+
         std::string tokenStr;
         tokenStr.reserve(providedToken.size());
         for (wchar_t ch : providedToken) {
@@ -572,6 +578,15 @@ while (application.shouldRun && !authenticated) {
     }
 
     WritePostAuthStage("authenticated");
+
+
+
+
+
+
+
+    OmniGhost::Licensing::StartSessionRevalidation();
+    WritePostAuthStage("session-revalidation-armed");
     friends::Initialize();
     WritePostAuthStage("friends-initialized");
     aim_type::Initialize();
@@ -683,7 +698,9 @@ while (application.shouldRun && !authenticated) {
         [&changelog_service] { changelog_service.Shutdown(); });
     changelog_service.RefreshAsync(false);
     WritePostAuthStage("launcher-ready");
-    OmniGhost::Licensing::StartSessionRevalidation();
+
+
+
 
     OmniGhost::SessionLog::Write(
         OmniGhost::SessionLog::Severity::Info,
@@ -760,6 +777,10 @@ while (application.shouldRun && !authenticated) {
         }
         if (!application.shouldRun)
             break;
+
+
+
+        OmniGhost::Licensing::StartSessionRevalidation();
         application.SetCompactMode(false);
         nextLauncherEntry = Launcher::EntryReason::Authenticated;
         continue;
@@ -983,10 +1004,10 @@ while (application.shouldRun && !authenticated) {
              {"process_bound", dmaAfterAttach.processInitialized ? "yes" : "no"}});
 
         {
-            // MAIN-002 Fix: the error card shows immediately with a visible
-            // "Voltar ao launcher" button and a 30 s auto-return countdown —
-            // dismissing requires an explicit click/ESC, it no longer blocks
-            // the UI silently.
+
+
+
+
             const ULONGLONG errUntil = GetTickCount64() + 30000;
             bool dismissed = false;
             while (application.shouldRun && !dismissed && GetTickCount64() < errUntil) {

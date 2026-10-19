@@ -51,9 +51,9 @@ bool DeserializeVehicle(const std::string& key, const std::string& val) {
     if (bi("veh.color_locked")) { v.color_locked = toU(); return true; }
     if (bi("veh.color_occupants")) { v.color_occupants = toU(); return true; }
     if (bi("veh.snapline_pos")) { v.snapline_pos = toI(); return true; }
-    // FIVEM-005: legacy veh.* keys from removed features are ignored
-    // gracefully (self_vehicle, anti_fall_moto, marker, vehicle_name,
-    // color_marker, color_name, unlock/lock/fix binds).
+
+
+
     return false;
 }
 

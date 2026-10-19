@@ -18,9 +18,9 @@ RadarUiState g_radar;
 
 void DrawWarzoneRadar() {
     CyberWidgets::BeginCard("Warzone · Radar");
-    // WZ-003 Fix: the toggles below drive a local UI state struct with no
-    // renderer — previously the page pretended to configure a live radar.
-    // Keep the settings behind an honest notice until the backend exists.
+
+
+
     ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 180, 0, 255));
     ImGui::TextWrapped("[PENDENTE] O radar 2D do Warzone ainda nao tem runtime: "
                        "as opcoes ficam guardadas mas nada e desenhado no overlay.");

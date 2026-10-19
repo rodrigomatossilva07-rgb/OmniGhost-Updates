@@ -238,9 +238,9 @@ void EnsurePipelineStarted() {
     g_acquisition_thread = std::thread(AcquisitionLoop);
 }
 
-// WZ-005 Fix: the acquisition thread read `Warzone::config` (plain struct
-// written by the UI thread) directly — a C++ data race. RunFrame() publishes
-// the only flags the acquisition lane needs as a packed atomic bitmask.
+
+
+
 enum AcqNeedBits : uint32_t {
     kAcqNeedSkeleton = 1u << 0,
     kAcqNeedPlayers = 1u << 1
@@ -752,9 +752,9 @@ void AcquisitionTick() {
                     if (!g_acq_runtime.module_base) g_acq_runtime.module_base = mem.GetBaseDaddy("ModernWarfare.exe");
                     g_acq_runtime.bind_fail_count = 0;
 
-                    // WZ-008e Fix: a module (re-)bind is a new process epoch.
-                    // Bump it so decrypt caches and the presentation copy reset
-                    // instead of surviving stale data from the previous bind.
+
+
+
                     g_pipeline_epoch.fetch_add(1, std::memory_order_acq_rel);
                     g_wz_module_base.store(g_acq_runtime.module_base,
                         std::memory_order_release);
@@ -813,13 +813,13 @@ void AcquisitionTick() {
 
     const uint64_t now_ms = GetTickCount64();
 
-    // WZ-004/WZ-005 Fix: gate the enumeration cadence on the published need
-    // bits (no more full 20 Hz player scans with every feature OFF) and stop
-    // reading `config` directly on this thread.
+
+
+
     const uint32_t needBits = g_acq_need_bits.load(std::memory_order_acquire);
     const bool needPlayers = (needBits & kAcqNeedPlayers) != 0;
     const uint64_t enum_interval_ms = !needPlayers
-        ? 1000ull // keep-alive liveness probe only
+        ? 1000ull
         : (s_dec.client_base_ok ? 50ull : 250ull);
     const bool need_enum = (s_last_enum_ms == 0) || (now_ms - s_last_enum_ms >= enum_interval_ms);
 
@@ -944,16 +944,23 @@ void AcquisitionTick() {
                 if (!s_dec.client_base_ok) continue;
 
 
-                if (poss[i].valid == 0) {
 
-                }
+
+
+
+
+
+
+
+
+                if (poss[i].valid == 0)
+                    continue;
                 const bool has_pos = std::isfinite(poss[i].pos[0]) && std::isfinite(poss[i].pos[1]) &&
                     std::isfinite(poss[i].pos[2]) &&
                     (std::fabs(poss[i].pos[0]) > 1.f || std::fabs(poss[i].pos[1]) > 1.f) &&
                     std::fabs(poss[i].pos[0]) < 1e6f &&
                     std::fabs(poss[i].pos[1]) < 1e6f;
                 if (!has_pos) continue;
-                if (poss[i].valid == 0 && !has_pos) continue;
 
                 Player pl{};
                 pl.index = i;
@@ -985,7 +992,9 @@ void AcquisitionTick() {
                 else if (poss[i].armor > 0 && poss[i].armor <= 300)
                     armor_val = poss[i].armor;
                 pl.armor = (float)armor_val;
-                pl.valid = true;
+
+
+                pl.valid = poss[i].valid != 0;
 
                 pl.alive = pl.health > 0.f && names[i].alive != 0;
                 pl.downed = pl.alive && pl.health > 0.f && pl.health <= 30.f;
@@ -1073,11 +1082,11 @@ void AcquisitionTick() {
                     while (batchStart < s_cached_players.size()) {
 
                         if (g_camera_pending.load(std::memory_order_acquire)) {
-                            // WZ-008f Fix: yield only when the camera read is
-                            // genuinely imminent (deadline within 2 ms). The
-                            // old `now + 2 >= deadline` also triggered when the
-                            // deadline was already overdue, deferring bones
-                            // indefinitely while the camera lane ran late.
+
+
+
+
+
                             const uint64_t deadline = g_camera_deadline_ms.load(std::memory_order_acquire);
                             const uint64_t now = GetTickCount64();
                             if (deadline != 0 && deadline > now && deadline - now <= 2u) break;
@@ -1340,8 +1349,8 @@ void RunFrame() {
     if (!ready) return;
     EnsurePipelineStarted();
 
-    // WZ-005 Fix: publish the acquisition need flags from the UI thread; the
-    // acquisition lane no longer touches `config` directly.
+
+
     g_acq_need_bits.store(ComputeAcqNeedBits(config), std::memory_order_release);
 
     static Runtime presentation{};

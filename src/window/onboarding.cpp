@@ -41,7 +41,7 @@ namespace Onboarding {
                 []() {}
             });
 
-            // License Agreement
+
             g_steps.push_back({
                 Step::LicenseAgreement,
                 "License Agreement",

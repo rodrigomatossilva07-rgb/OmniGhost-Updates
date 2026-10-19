@@ -625,8 +625,8 @@ namespace makcu {
                         else if (c >= 'a' && c <= 'f') d = 10 + c - 'a';
                         else if (c >= 'A' && c <= 'F') d = 10 + c - 'A';
                         else break;
-                        // MAK-002 Fix: saturate instead of overflowing the
-                        // signed accumulator on attacker-controlled input.
+
+
                         if (v > 31) return -1;
                         any = true; v = (v << 4) + d; ++i;
                     }
@@ -635,7 +635,7 @@ namespace makcu {
                 if (i < lower.size() && lower[i] >= '0' && lower[i] <= '9') {
                     int v = 0;
                     while (i < lower.size() && lower[i] >= '0' && lower[i] <= '9') {
-                        if (v > 31) return -1; // MAK-002: saturate
+                        if (v > 31) return -1;
                         v = v * 10 + (lower[i] - '0'); ++i;
                     }
                     return v;
@@ -654,10 +654,10 @@ namespace makcu {
         }
 
 
-        // MAK-004 Fix: an untracked response used to be delivered to the
-        // oldest pending command; with more than one command in flight that
-        // could answer the wrong caller. Only accept an untracked response
-        // when there is exactly ONE pending command (unambiguous).
+
+
+
+
         std::lock_guard<std::mutex> lock(m_commandMutex);
         if (m_pendingCommands.size() == 1) {
             auto it = m_pendingCommands.begin();
@@ -703,8 +703,8 @@ namespace makcu {
     }
 
     int SerialPort::generateCommandId() {
-        // MAK-004 Fix: the old 1..10000 counter collided with still-pending
-        // commands in long sessions; use the full 32-bit space instead.
+
+
         return static_cast<int>(m_commandCounter.fetch_add(1));
     }
 
@@ -910,7 +910,7 @@ namespace makcu {
 
     std::vector<std::string> SerialPort::findMakcuPorts() {
         std::vector<std::string> makcuPorts;
-        std::vector<std::string> weakPorts; // MAK-001: generic CH34x candidates
+        std::vector<std::string> weakPorts;
 
 #ifdef _WIN32
         auto allPorts = getAvailablePorts();
@@ -939,11 +939,11 @@ namespace makcu {
                 std::string identity = desc + " " + hardwareIds;
                 std::transform(identity.begin(), identity.end(), identity.begin(),
                     [](unsigned char ch) { return static_cast<char>(std::toupper(ch)); });
-                // MAK-001 Fix: strong match first. The exact MAKCU VID/PID is
-                // the only accepted identity for auto-connect; the generic
-                // CH340/CH343 descriptions are a last-resort candidate that
-                // must still answer the protocol handshake (km.version) in
-                // the caller before the port is used.
+
+
+
+
+
                 const bool makcuIdentity =
                     identity.find("VID_1A86&PID_55D3") != std::string::npos;
                 const bool genericSerialCandidate =
@@ -965,10 +965,10 @@ namespace makcu {
                             &portNameSize) == ERROR_SUCCESS) {
                             std::string port(portName);
                             if (std::find(allPorts.begin(), allPorts.end(), port) != allPorts.end()) {
-                                // MAK-001 Fix: keep strong (exact VID/PID) and
-                                // generic CH34x candidates apart so the caller
-                                // never opens a foreign CH340 while a real
-                                // MAKCU is present.
+
+
+
+
                                 if (makcuIdentity)
                                     makcuPorts.emplace_back(port);
                                 else
@@ -988,8 +988,8 @@ namespace makcu {
         makcuPorts.erase(std::unique(makcuPorts.begin(), makcuPorts.end()), makcuPorts.end());
         std::sort(weakPorts.begin(), weakPorts.end());
         weakPorts.erase(std::unique(weakPorts.begin(), weakPorts.end()), weakPorts.end());
-        // MAK-001: exact-identity ports win; generic CH34x devices are only
-        // considered when no real MAKCU is detected.
+
+
         if (!makcuPorts.empty())
             return makcuPorts;
         return weakPorts;

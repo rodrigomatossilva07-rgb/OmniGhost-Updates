@@ -105,12 +105,31 @@ bool ParseObject(const std::string& s, size_t& i, const std::string& path,
                 }
             } else if (key == "schema_version") {
 
+
+
+
+
+
                 SkipWs(s, i);
                 size_t j = i;
                 while (j < s.size() && (isdigit((unsigned char)s[j]))) ++j;
-                if (j > i) {
-                    snap.metadata.schemaVersion = static_cast<std::uint32_t>(std::stoul(s.substr(i, j - i)));
-                    i = j;
+                const size_t digitCount = j - i;
+                if (digitCount > 0 && digitCount <= 10) {
+                    std::uint32_t value = 0;
+                    bool overflow = false;
+                    for (size_t k = i; k < j; ++k) {
+                        const std::uint32_t digit =
+                            static_cast<std::uint32_t>(s[k] - '0');
+                        if (value > (0xFFFFFFFFull - digit) / 10ull) {
+                            overflow = true;
+                            break;
+                        }
+                        value = value * 10ull + digit;
+                    }
+                    if (!overflow) {
+                        snap.metadata.schemaVersion = value;
+                        i = j;
+                    }
                 }
             } else {
 
@@ -286,7 +305,13 @@ LoadResult LoadSnapshot(GameId id, const char* explicit_path) {
         result.snapshot = std::move(snap);
         result.diagnostics.resourceFound = true;
         result.diagnostics.parsed = true;
-        result.diagnostics.integrityValid = true;
+
+
+
+
+
+
+        result.diagnostics.integrityValid = false;
         LogLoadResult(id, result);
         return result;
     }

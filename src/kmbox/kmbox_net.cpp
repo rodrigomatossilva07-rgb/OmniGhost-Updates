@@ -73,7 +73,9 @@ std::jthread g_monitorThread;
 std::atomic_bool g_monitorRunning{ false };
 std::atomic_bool g_connected{ false };
 std::atomic_uint8_t g_buttonMask{ 0 };
-// KM-003: learned monitor-report header byte (-1 = not learned yet).
+
+std::atomic_uint32_t g_consecutiveFailures{ 0 };
+
 std::atomic_int g_monitorReportId{ -1 };
 bool g_winsockStarted = false;
 std::uint32_t g_mac = 0;
@@ -148,10 +150,15 @@ bool Request(std::uint32_t command, const void* payload, std::size_t payloadSize
         std::memcpy(packet.data() + sizeof(header), payload, payloadSize);
 
     const int length = static_cast<int>(sizeof(header) + payloadSize);
-    // KM-002 Fix: high-frequency movement commands are fire-and-forget — the
-    // old synchronous request/response stalled the aim thread for up to
-    // 80 ms per Move() whenever the device did not ACK. Connect/monitor/click
-    // keep the confirmed transaction.
+
+
+
+
+
+
+
+    constexpr std::uint32_t kDisconnectAfterFailures = 5;
+
     const int maxAttempts = (command == kCommandConnect || command == kCommandMonitor) ? 3 : 1;
     for (int attempt = 0; attempt < maxAttempts; ++attempt) {
         const int sent = sendto(g_commandSocket.get(),
@@ -159,10 +166,15 @@ bool Request(std::uint32_t command, const void* payload, std::size_t payloadSize
             reinterpret_cast<const sockaddr*>(&g_deviceAddress), sizeof(g_deviceAddress));
         if (sent != length) {
             SetError("Falha ao enviar comando ao KMBox-Net.");
+            const std::uint32_t failures = g_consecutiveFailures.fetch_add(1, std::memory_order_relaxed) + 1;
+            if (failures >= kDisconnectAfterFailures)
+                g_connected.store(false, std::memory_order_release);
             return false;
         }
-        if (!expectReply)
+        if (!expectReply) {
+            g_consecutiveFailures.store(0, std::memory_order_relaxed);
             return true;
+        }
         std::array<std::uint8_t, 1024> response{};
         sockaddr_in source{};
         int sourceLength = sizeof(source);
@@ -175,11 +187,19 @@ bool Request(std::uint32_t command, const void* payload, std::size_t payloadSize
             continue;
         CommandHeader reply{};
         std::memcpy(&reply, response.data(), sizeof(reply));
-        if (reply.command == header.command && reply.index == header.index)
+        if (reply.command == header.command && reply.index == header.index) {
+            g_consecutiveFailures.store(0, std::memory_order_relaxed);
             return true;
+        }
     }
 
     SetError("O KMBox-Net nao respondeu ou devolveu uma resposta invalida.");
+    const std::uint32_t failures = g_consecutiveFailures.fetch_add(1, std::memory_order_relaxed) + 1;
+    if (failures >= kDisconnectAfterFailures) {
+        g_connected.store(false, std::memory_order_release);
+        SetError("KMBox-Net: " + std::to_string(failures) +
+                 " transacoes consecutivas sem ACK; ligacao marcada inativa.");
+    }
     return false;
 }
 
@@ -198,10 +218,10 @@ void MonitorLoop(std::stop_token stopToken) {
             continue;
         MonitorMouseReport report{};
         std::memcpy(&report, buffer.data(), sizeof(report));
-        // KM-003 Fix: pin the report header byte on the first valid reports of
-        // this monitor session and reject every datagram that does not match
-        // afterwards. A spoofed packet must now guess the learned reportId
-        // instead of sending any ≥8-byte payload from the device's IP.
+
+
+
+
         const int learned = g_monitorReportId.load(std::memory_order_acquire);
         if (learned < 0)
             g_monitorReportId.store(report.reportId, std::memory_order_release);
@@ -246,7 +266,7 @@ bool StartMonitor() {
     }
 
     g_monitorRunning = true;
-    g_monitorReportId.store(-1, std::memory_order_release); // KM-003: relearn per session
+    g_monitorReportId.store(-1, std::memory_order_release);
     g_monitorThread = std::jthread([](std::stop_token stopToken) {
         try {
             MonitorLoop(stopToken);
@@ -265,9 +285,9 @@ void StopMonitor(bool notifyDevice) {
     if (notifyDevice && g_commandSocket)
         Request(kCommandMonitor, nullptr, 0, 0, true);
     g_monitorRunning = false;
-    // KM-004 Fix: signal + join BEFORE closing the socket — the old order
-    // closed the handle the monitor thread was blocked in, leaving a window
-    // where the OS could recycle the socket handle for another resource.
+
+
+
     if (g_monitorThread.joinable()) {
         g_monitorThread.request_stop();
         g_monitorThread.join();
@@ -322,6 +342,7 @@ bool Connect(const std::string& ip, int port, const std::string& uuid) {
 
     g_index = 0;
     g_buttons.store(0);
+    g_consecutiveFailures.store(0, std::memory_order_relaxed);
     if (!Request(kCommandConnect, nullptr, 0)) {
         Disconnect();
         return false;
@@ -358,7 +379,7 @@ bool Move(int x, int y) {
     payload.buttons = g_buttons.load(std::memory_order_relaxed);
     payload.x = std::clamp(x, -32767, 32767);
     payload.y = std::clamp(y, -32767, 32767);
-    // KM-002 Fix: movement does not wait for the device ACK (see Request).
+
     return Request(kCommandMouseMove, &payload, sizeof(payload), 0, false, false);
 }
 
@@ -374,7 +395,12 @@ bool SetLeft(bool down) {
     payload.buttons = desired;
     if (Request(kCommandMouseLeft, &payload, sizeof(payload)))
         return true;
-    g_buttons.store(expected, std::memory_order_relaxed);
+
+
+
+    std::int32_t observed = desired;
+    g_buttons.compare_exchange_strong(observed, expected,
+        std::memory_order_relaxed, std::memory_order_relaxed);
     return false;
 }
 

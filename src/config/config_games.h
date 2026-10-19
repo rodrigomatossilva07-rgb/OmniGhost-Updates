@@ -3,6 +3,7 @@
 #include "config_manager.h"
 #include "../src/games/Cs2/cs2_game.h"
 #include "../src/games/Warzone/warzone_game.h"
+#include "../src/games/Fortnite/fortnite_game.h"
 #include <string>
 #include <array>
 
@@ -15,6 +16,12 @@ bool DeserializeCS2(const std::string& key, const std::string& val);
 
 void SerializeWarzone(std::ostringstream& o);
 bool DeserializeWarzone(const std::string& key, const std::string& val);
+
+
+
+
+void SerializeFortnite(std::ostringstream& o);
+bool DeserializeFortnite(const std::string& key, const std::string& val);
 
 
 void SerializeFiveM(std::ostringstream& o);

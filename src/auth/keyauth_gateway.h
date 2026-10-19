@@ -63,10 +63,8 @@ std::optional<ProviderIdentity> ComputeProviderIdentity(std::string_view moduleP
 
 
 
-constexpr ProviderIdentity kOfficialProviderIdentity{
-    .moduleHash = {  },
-    .version = "1.0.0"
-};
+
+
 
 
 
@@ -131,11 +129,20 @@ public:
     [[nodiscard]] std::string CurrentUsername() const;
     [[nodiscard]] std::vector<RemoteEntitlement> CurrentEntitlements() const;
 
+
+
+
+#if !defined(OMNIGHOST_PUBLISH_BUILD) || defined(OMNIGHOST_TESTING)
     void SetOfflineGrantForTesting(std::string hardwareId,
                                    std::chrono::steady_clock::time_point expiresAt);
+#endif
 
 private:
     static constexpr unsigned kMaximumFailures = 5;
+
+
+
+    static constexpr unsigned kMaximumTransientFailures = 3;
     static constexpr auto kLockoutDuration = std::chrono::minutes(5);
 
 
@@ -145,6 +152,7 @@ private:
     ProviderIdentity verifiedIdentity_;
     mutable std::mutex mutex_;
     unsigned consecutiveFailures_{};
+    unsigned consecutiveTransientFailures_{};
     std::chrono::steady_clock::time_point lockedUntil_{};
     std::string offlineHardwareId_;
     std::chrono::steady_clock::time_point offlineExpiresAt_{};

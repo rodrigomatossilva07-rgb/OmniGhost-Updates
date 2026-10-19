@@ -97,7 +97,7 @@ void DrawCs2Aim() {
         CS2::config.aim_fov = std::clamp(CS2::config.aim_fov, 1.f, 500.f);
 
 
-        CS2::config.aim_auto_bone = false;
+        CyberWidgets::ToggleSwitch("Osso automatico", &CS2::config.aim_auto_bone);
         static const char* kPoints[] = { "Head", "Neck", "Chest", "Stomach" };
         int point = CS2::config.aim_bone;
         if (point < 0) point = 0;

@@ -193,9 +193,9 @@ namespace vehicle_esp {
 
         bool rgb_mode = false;
         int snapline_pos = 0;
-        // FIVEM-005 Fix: removed dead keys (self_vehicle, anti_fall_moto,
-        // marker, vehicle_name, color_marker, color_name and the
-        // unlock/lock/fix binds) — none of them had an implementation.
+
+
+
     };
 
 }

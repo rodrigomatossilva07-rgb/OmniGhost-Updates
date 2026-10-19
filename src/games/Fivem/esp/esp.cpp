@@ -54,20 +54,33 @@ uint16_t esp::ComputeSkeletonBoneMask(SkeletonLOD lod) {
     return kLODMasks[static_cast<uint8_t>(lod)];
 }
 
-esp::SkeletonLOD esp::ComputeSkeletonLOD(float distance) {
-    if (distance <= esp::config.lod_full_dist) return SkeletonLOD::Full;
-    if (distance <= esp::config.lod_high_dist) return SkeletonLOD::High;
-    if (distance <= esp::config.lod_med_dist) return SkeletonLOD::Medium;
+esp::SkeletonLOD esp::ComputeSkeletonLOD(float distance,
+                                          float fullDist,
+                                          float highDist,
+                                          float medDist) {
+
+
+
+
+    const float full = (std::isfinite(fullDist) && fullDist > 0.f) ? fullDist : LOD_DIST_FULL;
+    const float high = (std::isfinite(highDist) && highDist > 0.f) ? highDist : LOD_DIST_HIGH;
+    const float medium = (std::isfinite(medDist) && medDist > 0.f) ? medDist : LOD_DIST_MEDIUM;
+    if (distance <= full) return SkeletonLOD::Full;
+    if (distance <= high) return SkeletonLOD::High;
+    if (distance <= medium) return SkeletonLOD::Medium;
     return SkeletonLOD::Low;
 }
 
 uint16_t esp::ComputeCombinedBoneMask(const std::vector<uintptr_t>& peds,
                                       const std::vector<Vec3>& positions,
-                                      const Vec3& localPos) {
+                                      const Vec3& localPos,
+                                      float fullDist,
+                                      float highDist,
+                                      float medDist) {
     uint16_t combinedMask = 0;
     for (size_t i = 0; i < peds.size() && i < positions.size(); ++i) {
         float dist = positions[i].distance_to(localPos);
-        SkeletonLOD lod = ComputeSkeletonLOD(dist);
+        SkeletonLOD lod = ComputeSkeletonLOD(dist, fullDist, highDist, medDist);
         combinedMask |= ComputeSkeletonBoneMask(lod);
     }
 
@@ -90,10 +103,26 @@ static bool g_hasLastViewMatrix = false;
 
 static uint64_t ProjKey(uintptr_t ped, int slot, float x, float y, float z) {
 
+
+
+
+
+
+
+    const auto mix64 = [](uint64_t v) {
+        v ^= v >> 33; v *= 0xff51afd7ed558ccdULL;
+        v ^= v >> 33; v *= 0xc4ceb9fe1a85ec53ULL;
+        v ^= v >> 33; return v;
+    };
     const int qx = static_cast<int>(x * 50.f);
     const int qy = static_cast<int>(y * 50.f);
     const int qz = static_cast<int>(z * 50.f);
-    return (uint64_t)ped ^ (uint64_t(slot) << 40) ^ (uint64_t(qx) << 20) ^ (uint64_t(qy) << 10) ^ uint64_t(qz & 0x3FF);
+    uint64_t k = ped;
+    k = mix64(k + 0x9e3779b97f4a7c15ULL + (static_cast<uint64_t>(static_cast<uint32_t>(slot)) << 1));
+    k = mix64(k ^ static_cast<uint64_t>(static_cast<uint32_t>(qx)));
+    k = mix64(k ^ static_cast<uint64_t>(static_cast<uint32_t>(qy)));
+    k = mix64(k ^ static_cast<uint64_t>(static_cast<uint32_t>(qz)));
+    return k;
 }
 
 static bool CachedWorldToScreen(uintptr_t ped, int slot, const Vec3& world, const Matrix& vp, Vec2& out) {
@@ -402,10 +431,10 @@ static const Matrix* SelectCameraSnapshot(uint64_t world_sample_ms) {
 
 
     if (camHandle.sampleMs > world_sample_ms + 40u) {
-        // FIVEM-013 Fix: this used to return historyMatrices[0] (an arbitrary
-        // ring-buffer slot) with no temporal matching. Pick the entry whose
-        // sample time is closest to the world sample — the same policy the
-        // esp_manager uses for its coherent camera selection.
+
+
+
+
         if (camHandle.historyMatrices && camHandle.historyTimesMs && camHandle.historyCount > 0) {
             const Matrix* best = nullptr;
             uint64_t bestDelta = UINT64_MAX;
@@ -1124,17 +1153,29 @@ static PedFrameFlags& PedFlags(uintptr_t ped) {
 
 
     static uint32_t s_pruneCursor = 0;
+    static std::chrono::steady_clock::time_point s_lastPrune{};
     constexpr auto kPruneTTL = std::chrono::seconds(30);
+    constexpr size_t kPruneChunk = 32;
     const auto now = std::chrono::steady_clock::now();
 
-    // FIVEM-012 Fix: the old code used std::advance (O(n) per ped per frame)
-    // to reach a rotating index in the unordered_map. Since entries are
-    // unordered anyway, just check the first entry and prune if expired —
-    // O(1) amortized with the same effective eviction rate.
-    if (!g_pedFrameFlags.empty()) {
-        auto it = g_pedFrameFlags.begin();
-        if (now - it->second.lastAccess > kPruneTTL)
-            g_pedFrameFlags.erase(it);
+
+
+
+
+
+
+    if (g_pedFrameFlags.size() > 8 &&
+        (s_lastPrune == std::chrono::steady_clock::time_point{} ||
+         now - s_lastPrune >= std::chrono::seconds(5))) {
+        s_lastPrune = now;
+        size_t examined = 0;
+        for (auto it = g_pedFrameFlags.begin();
+             it != g_pedFrameFlags.end() && examined < kPruneChunk; ++examined) {
+            if (now - it->second.lastAccess > kPruneTTL)
+                it = g_pedFrameFlags.erase(it);
+            else
+                ++it;
+        }
     }
     (void)s_pruneCursor;
 
@@ -1766,8 +1807,6 @@ void esp::prepare_esp_frame(const std::vector<uintptr_t>& peds,
         fields, OmniGhost::Gameplay::EspCore::DataField::Weapon);
     const bool need_vehicle = OmniGhost::Gameplay::EspCore::Has(
         fields, OmniGhost::Gameplay::EspCore::DataField::Visibility);
-    const bool need_bones = OmniGhost::Gameplay::EspCore::Has(
-        fields, OmniGhost::Gameplay::EspCore::DataField::Skeleton);
 
     if (!g_preparedEspScatters[0] && mem.vHandle)
         g_preparedEspScatters[0] = mem.CreateScatterHandle();
@@ -1809,16 +1848,12 @@ void esp::prepare_esp_frame(const std::vector<uintptr_t>& peds,
                 &data.name_ptr, sizeof(data.name_ptr));
 
 
-        if (need_bones) {
-            mem.AddScatterReadRequest(first, data.ped + FiveM::offset::boneMatrix,
-                &data.bone_matrix, sizeof(Matrix));
 
-            for (int b = 0; b < 9; ++b) {
-                mem.AddScatterReadRequest(first,
-                    data.ped + (FiveM::offset::boneArrayBase + FiveM::offset::boneSize * b),
-                    &data.bone_offsets[b], sizeof(Vector3));
-            }
-        }
+
+
+
+
+
     }
     mem.SetDmaCallTag("FiveM.EspCore");
     const uint64_t boneBeginMs = GetTickCount64();
@@ -1832,25 +1867,8 @@ void esp::prepare_esp_frame(const std::vector<uintptr_t>& peds,
     }
 
 
-    if (need_bones) {
-        for (auto& data : next.entries) {
-            if (!data.ped) continue;
-            const float matrixEnergy = std::fabs(data.bone_matrix._11) +
-                std::fabs(data.bone_matrix._22) + std::fabs(data.bone_matrix._33);
-            bool hasBone = false;
-            for (int b = 0; b < 9; ++b) {
-                const auto& bo = data.bone_offsets[b];
-                if (std::isfinite(bo.x) && std::isfinite(bo.y) && std::isfinite(bo.z) &&
-                    (std::fabs(bo.x) + std::fabs(bo.y) + std::fabs(bo.z)) > 0.001f) {
-                    hasBone = true;
-                    break;
-                }
-            }
-            data.bones_ok = firstReadOk && std::isfinite(matrixEnergy) && matrixEnergy > 0.001f && hasBone;
-            data.bones_sample_ms = boneSampleMs;
-            data.bone_mask = 0x01FFu;
-        }
-    }
+
+
 
     if (need_identity || need_weapon) {
         if (!g_preparedEspScatters[1] && mem.vHandle)

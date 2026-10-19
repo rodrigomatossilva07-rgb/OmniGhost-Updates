@@ -377,7 +377,13 @@ TargetCandidate SelectTarget(const CS2::Runtime& rt, const CS2::Config& cfg,
         if (cfg.aim_visibility_check && !player.spotted) { ++g_target_diag.hidden; continue; }
         if (player.distance > cfg.aim_max_dist) { ++g_target_diag.distance; continue; }
 
+
+
+
         int bone = std::clamp(cfg.aim_bone, 0, 3);
+        if (cfg.aim_auto_bone)
+            bone = AutoSelectBone(player, rt.local_weapon_definition,
+                                  player.distance, true, bone);
 
         float point[3]{};
         PickBone(player, bone, point);
@@ -760,7 +766,8 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
 
 
 
-        cfg.aim_auto_bone = false;
+
+
         const int boneFixed = std::clamp(cfg.aim_bone, 0, 3);
         (void)boneFixed;
         const float dt = ImGui::GetIO().DeltaTime;

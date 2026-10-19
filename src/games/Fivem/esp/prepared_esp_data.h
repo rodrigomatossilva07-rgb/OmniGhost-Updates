@@ -28,17 +28,9 @@ struct PreparedEspData {
     bool valid = false;
 
 
-    Matrix bone_matrix{};
 
 
 
-
-
-
-    std::array<Vector3, 20> bone_offsets{};
-    uint16_t bone_mask = 0;
-    bool bones_ok = false;
-    uint64_t bones_sample_ms = 0;
 
 
     uint64_t world_sample_ms = 0;

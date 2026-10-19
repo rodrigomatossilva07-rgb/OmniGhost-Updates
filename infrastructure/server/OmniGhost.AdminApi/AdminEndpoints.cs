@@ -158,7 +158,7 @@ public static class AdminEndpoints
         if (!response.Success) return UpstreamFailure(response);
         var users = FilterAll(response.Payload["users"] as JsonArray, filter, RedactUserSecrets, 5000);
         var csv = ToCsv(users, ["username", "email", "ip", "hwid", "createdate", "lastlogin", "banned"]);
-        // API-002 Fix: exports contain PII and must be audited like mutations.
+
         await audit.WriteAsync(context.Actor(), context, "user.export", true,
             $"filter={filter ?? "all"}; rows={users.Count}");
         return Results.File(Encoding.UTF8.GetBytes(csv), "text/csv; charset=utf-8", "omnighost-users.csv");
@@ -247,7 +247,7 @@ public static class AdminEndpoints
         if (!response.Success) return UpstreamFailure(response);
         var keys = FilterAll(response.Payload["keys"] as JsonArray, filter, node => node.DeepClone(), 5000);
         var csv = ToCsv(keys, ["key", "status", "level", "expiry", "owner", "note"]);
-        // API-002 Fix: full license keys leave the system here — audit it.
+
         await audit.WriteAsync(context.Actor(), context, "license.export", true,
             $"filter={filter ?? "all"}; rows={keys.Count}");
         return Results.File(Encoding.UTF8.GetBytes(csv), "text/csv; charset=utf-8", "omnighost-licenses.csv");

@@ -16,6 +16,10 @@ struct InstallOptions {
     std::filesystem::path staging;
     std::filesystem::path target;
     std::wstring executableName;
+
+
+
+    std::string expectedExecutableSha256;
     std::function<bool(const std::string& stage)> failureInjector;
 };
 struct InstallResult { bool success{}; std::string error; };

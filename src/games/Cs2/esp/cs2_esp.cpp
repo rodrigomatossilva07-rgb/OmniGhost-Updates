@@ -327,7 +327,8 @@ void DrawExtras(ImDrawList* draw, const CS2::Player& player, const ImVec2& head,
 }
 
 void DrawPersistentWindow(const char* id, const char* title, float& x, float& y,
-                          const ImVec2& fallback, const std::function<void()>& content) {
+                          const ImVec2& fallback, const std::function<void()>& content,
+                          float* persistX = nullptr, float* persistY = nullptr) {
     const bool movable = app_settings::menu_open;
     if (!std::isfinite(x) || !std::isfinite(y) || x < 0.f || y < 0.f) {
         x = fallback.x;
@@ -346,6 +347,12 @@ void DrawPersistentWindow(const char* id, const char* title, float& x, float& y,
             const ImVec2 pos = ImGui::GetWindowPos();
             x = pos.x;
             y = pos.y;
+
+
+
+
+            if (persistX) *persistX = x;
+            if (persistY) *persistY = y;
         }
     }
     ImGui::End();
@@ -357,6 +364,8 @@ void DrawBombTimerWindow(const CS2::Runtime& snapshot, const CS2::Config& settin
     static float x = -1.f, y = -1.f;
     if (x < 0.f || y < 0.f) { x = settings.bomb_window_x; y = settings.bomb_window_y; }
     const auto& bomb = snapshot.bomb;
+
+
     DrawPersistentWindow("##cs2_bomb_timer", "BOMBA", x, y, ImVec2(30.f, 338.f), [&] {
             if (!bomb.planted) {
                 ImGui::TextDisabled("Sem bomba plantada");
@@ -372,7 +381,7 @@ void DrawBombTimerWindow(const CS2::Runtime& snapshot, const CS2::Config& settin
             else
                 ImGui::TextDisabled("Sem defuse ativo");
             ImGui::ProgressBar(std::clamp(left / 40.f, 0.f, 1.f), ImVec2(170.f, 7.f));
-        });
+        }, &CS2::config.bomb_window_x, &CS2::config.bomb_window_y);
 }
 
 void DrawSpectatorWindow(const CS2::Runtime& snapshot, const CS2::Config& settings) {
@@ -386,7 +395,7 @@ void DrawSpectatorWindow(const CS2::Runtime& snapshot, const CS2::Config& settin
             }
             for (const auto& spectator : snapshot.spectators)
                 ImGui::BulletText("%s", spectator.name[0] ? spectator.name : "Jogador");
-        });
+        }, &CS2::config.spectator_window_x, &CS2::config.spectator_window_y);
 }
 
 void DrawDroppedWeapons(ImDrawList* draw, const CS2::Runtime& snapshot,

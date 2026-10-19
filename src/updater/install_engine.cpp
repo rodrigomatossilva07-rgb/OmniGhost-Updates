@@ -122,8 +122,8 @@ std::uint64_t TreeSize(const fs::path& path) {
     return total;
 }
 bool ContainsOnlyExecutable(const fs::path& root, const std::wstring& executableName) {
-    // UPD-002 Fix: accept the executable plus the optional signed integrity
-    // manifest pair shipped next to it; anything else is still rejected.
+
+
     std::error_code ec;
     std::size_t files = 0;
     for (fs::recursive_directory_iterator it(root, fs::directory_options::skip_permission_denied, ec), end;
@@ -361,8 +361,8 @@ InstallResult InstallSingleExecutable(const InstallOptions& options) {
 		return result;
 	}
 
-    // UPD-003 Fix: preserve the current executable as OmniGhost.exe.previous
-    // so a failed startup confirmation can be rolled back by the health flow.
+
+
     std::error_code backupError;
     const fs::path currentExe = options.target / options.executableName;
     const fs::path backupExe = options.target / (options.executableName + std::wstring(L".previous"));
@@ -373,14 +373,46 @@ InstallResult InstallSingleExecutable(const InstallOptions& options) {
                       << backupError.message() << "\n";
     }
 
-    // UPD-005 Fix: re-hash the staged executable immediately before the copy;
-    // the package was validated earlier, but the staging tree stays writable
-    // by the invoking user for the whole window.
+
+
+
+
+
+
+
+    if (!backupError && fs::exists(backupExe, backupError)) {
+        std::string backupHash, hashError;
+        if (Sha256File(backupExe, backupHash, hashError)) {
+            const fs::path sidecar =
+                options.target / (options.executableName + std::wstring(L".previous.sha256"));
+            std::ofstream sidecarStream(sidecar, std::ios::binary | std::ios::trunc);
+            if (sidecarStream) {
+                sidecarStream << backupHash << "\n";
+                sidecarStream.flush();
+                if (!sidecarStream)
+                    std::clog << "[Install] previous-executable hash sidecar write failed\n";
+            } else {
+                std::clog << "[Install] previous-executable hash sidecar open failed\n";
+            }
+        } else {
+            std::clog << "[Install] previous-executable hash failed: " << hashError << "\n";
+        }
+    }
+
+
+
+
+
     {
+        if (options.expectedExecutableSha256.size() != 64) {
+            result.error = "Hash SHA-256 esperado do executável ausente ou inválido.";
+            return result;
+        }
         std::string stagedHash, hashError;
         if (!Sha256File(options.staging / options.executableName, stagedHash, hashError) ||
-            stagedHash.empty()) {
-            result.error = "Falha ao revalidar o executável imediatamente antes da instalação: " + hashError;
+            !ConstantTimeEquals(stagedHash, options.expectedExecutableSha256)) {
+            result.error = "Falha ao revalidar o executável imediatamente antes da instalação: " +
+                (hashError.empty() ? "SHA-256 diferente do manifesto." : hashError);
             return result;
         }
     }

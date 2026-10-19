@@ -190,8 +190,8 @@ void DrawConfigs(Overlay* self)
     }
     CyberWidgets::CardGap(CyberTheme::Spacing::Sm);
 
-    // CFG-011 Fix: in-game settings changes never called SaveGlobal and were
-    // silently lost on exit. Every mutation below persists now.
+
+
     const auto saveSettings = [] {
         std::string saveError;
         (void)app_settings::SaveGlobal(&saveError);

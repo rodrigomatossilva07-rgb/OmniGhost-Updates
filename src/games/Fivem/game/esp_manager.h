@@ -51,7 +51,7 @@ namespace FiveM {
         void refreshCache();
 
 
-        void printPerformanceStats();
+
 
 
         bool FrameCacheValid();
@@ -95,6 +95,6 @@ namespace FiveM {
         };
         [[nodiscard]] LivenessSnapshotHandle AcquireLivenessSnapshot();
 
-        // FIVEM-010 Fix: GetSessionGeneration was declared twice; kept only once.
+
     }
 }

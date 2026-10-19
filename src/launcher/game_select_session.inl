@@ -304,7 +304,7 @@ void PollOffsetRefresh() {
         RecordGameSession(game, SessionResult::None, {});
         PushToast(Loc::Tr("launcher.toast.offsets_updated"), C_GREEN(), ToastAction::None, nullptr);
     } else if (result == OmniGhost::OffsetAuto::Result::UsingCached) {
-        // BUG-009: g_status is a proxy now — take a string snapshot for c_str().
+
         const std::string statusText = std::string(OmniGhost::OffsetAuto::g_status);
         PushToast(statusText.c_str(), C_MUTED(), ToastAction::None, nullptr);
     } else if (result != OmniGhost::OffsetAuto::Result::Busy) {

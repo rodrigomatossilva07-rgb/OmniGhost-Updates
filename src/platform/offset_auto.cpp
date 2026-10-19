@@ -286,8 +286,8 @@ Result EnsureOffsets(ActiveGame game, bool force_refresh) {
         g_status = std::string("FiveM: API indisponível (") + networkStatus + "); tabela local OK";
         return Result::UsingCached;
     }
-    // RES-001 Fix: Apex has no runtime/adapter; its offsets refresh and its
-    // entry in RefreshAllSupported are removed until a real Apex module ships.
+
+
 
     g_status = "Atualização automática não suportada com segurança para este jogo";
     MarkUnsupported(game, g_status);

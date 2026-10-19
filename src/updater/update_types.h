@@ -71,6 +71,17 @@ struct Configuration {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
     std::vector<std::string> githubTlsCertificateThumbprints = {};
 };
 

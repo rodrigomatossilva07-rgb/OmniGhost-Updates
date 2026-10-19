@@ -361,9 +361,9 @@ struct Runtime {
     }
 };
 
-// namespace CS2 is defined above; the unified-adapter framework was retired
-// (CS2-019/FIVEM-014 cleanup). Feature flags are now computed inline in the
-// world pipeline using the UnifiedESP field model directly.
+
+
+
 using RuntimeSnapshotLease = OmniGhost::Gameplay::SnapshotExchange<Runtime, 4>::ReadLease;
 
 struct CameraSnapshot {

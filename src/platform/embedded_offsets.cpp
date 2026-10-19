@@ -215,7 +215,7 @@ int ResourceIdForGame(Game game) noexcept {
     case Game::Warzone: return IDR_OFFSETS_WARZONE;
     case Game::CS2: return IDR_OFFSETS_CS2;
     case Game::FiveM: return IDR_OFFSETS_FIVEM;
-    // RES-001: Apex has no runtime; no resource is embedded for it.
+
     case Game::Apex: return 0;
     default: return 0;
     }

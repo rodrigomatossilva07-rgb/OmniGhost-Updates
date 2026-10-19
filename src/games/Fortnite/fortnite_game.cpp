@@ -941,7 +941,7 @@ bool ReloadOffsets() {
 
 
 static void CameraLoop() {
-    // FN-005 Fix: set DMA lane/priority like FiveM and Warzone camera threads.
+
     mem.SetDmaLane("camera");
     mem.SetDmaPriority(Memory::DmaPri::Camera);
     uint64_t nextSampleMs = 0;
@@ -1005,11 +1005,11 @@ static void AcquisitionLoop() {
         const auto cycleBegin = std::chrono::steady_clock::now();
         const uint64_t now = GetTickCount64();
         try {
-            // FN-003 Fix: the loop used to resolve the ~10-read local chain at
-            // 10-20 Hz and run three player-scatter passes at 4 Hz with every
-            // feature OFF — data that only the diagnostics consume. Gate the
-            // world reads on the features that exist; the status page keeps
-            // its lightweight state publish either way.
+
+
+
+
+
             bool needsWorldData = false;
             if (auto options = g_config_snapshots.Acquire()) {
                 needsWorldData = options->esp_enabled || options->show_local_marker ||

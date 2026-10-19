@@ -136,14 +136,14 @@ namespace app_settings {
             value.start_behavior = static_cast<StartBehavior>(ClampValue(static_cast<int>(value.start_behavior), 0, 2, "start_behavior", wasClamped));
             value.minimize_behavior = static_cast<MinimizeBehavior>(ClampValue(static_cast<int>(value.minimize_behavior), 0, 1, "minimize_behavior", wasClamped));
             value.close_behavior = static_cast<CloseBehavior>(ClampValue(static_cast<int>(value.close_behavior), 0, 1, "close_behavior", wasClamped));
-            value.update_channel = static_cast<UpdateChannel>(ClampValue(static_cast<int>(value.update_channel), 0, 2, "update_channel", wasClamped)); // CFG-010: Development (2) reachable
+            value.update_channel = static_cast<UpdateChannel>(ClampValue(static_cast<int>(value.update_channel), 0, 2, "update_channel", wasClamped));
             value.ui_scale = ClampValue(value.ui_scale, 0.75f, 2.50f, "ui_scale", wasClamped);
             value.monitor_index = ClampValue(value.monitor_index, -1, 15, "monitor_index", wasClamped);
             value.black_level = ClampValue(value.black_level, 0.0f, 100.0f, "black_level", wasClamped);
 
 
-            // CFG-010 Fix: respect the user's digital_rain choice instead of
-            // forcing Subtle/true on every save/load cycle.
+
+
             value.digital_rain_level = static_cast<EffectLevel>(ClampValue(static_cast<int>(value.digital_rain_level), 0, 2, "digital_rain_level", wasClamped));
             value.animation_intensity = static_cast<EffectLevel>(ClampValue(static_cast<int>(value.animation_intensity), 0, 2, "animation_intensity", wasClamped));
             value.ui_sound_volume = ClampValue(value.ui_sound_volume, 0.0f, 100.0f, "ui_sound_volume", wasClamped);
