@@ -285,7 +285,8 @@ void Overlay::ApplyDisplayConfiguration(bool force) {
     const float dpiScale = OmniGhost::Platform::DpiScaleForWindow(overlay);
     const float requestedScale = std::clamp(
         dpiScale * app_settings::UiScalePreference(), 0.75f, 2.50f);
-    if (!force && std::fabs(requestedScale - applied_ui_scale_) < 0.01f)
+    const bool scaleChanged = std::fabs(requestedScale - applied_ui_scale_) >= 0.01f;
+    if (!scaleChanged)
         return;
 
     applied_ui_scale_ = requestedScale;
@@ -295,7 +296,7 @@ void Overlay::ApplyDisplayConfiguration(bool force) {
         ImGui_ImplDX11_InvalidateDeviceObjects();
         CyberFonts::ReloadFonts(requestedScale);
         if (!ImGui_ImplDX11_CreateDeviceObjects()) {
-            shouldRun = false;
+            std::cerr << "[UI][DeviceObjects] recreation deferred; renderer will retry on the next frame\n";
         }
     }
 }

@@ -60,6 +60,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <cwchar>
+#include <exception>
 #include <future>
 #include <iostream>
 #include <iterator>
@@ -1311,9 +1312,23 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
 
     int argc = 0;
     wchar_t** argv = CommandLineToArgvW(GetCommandLineW(), &argc);
-    if (!argv)
-        return RunOmniGhost(0, nullptr);
-    const int result = RunOmniGhost(argc, argv);
-    LocalFree(argv);
+    int result = 0;
+    try {
+        result = argv ? RunOmniGhost(argc, argv) : RunOmniGhost(0, nullptr);
+    } catch (const std::exception& exception) {
+        std::string message = "O OmniGhost encontrou um erro inesperado durante o arranque.\n\nDetalhe: ";
+        message += exception.what();
+        OutputDebugStringA(("[OmniGhost][Startup] " + message + "\n").c_str());
+        MessageBoxA(nullptr, message.c_str(), "OmniGhost", MB_OK | MB_ICONERROR);
+        result = 10;
+    } catch (...) {
+        constexpr char message[] =
+            "O OmniGhost encontrou um erro inesperado durante o arranque. Consulta os logs de diagnostico.";
+        OutputDebugStringA("[OmniGhost][Startup] unknown startup exception\n");
+        MessageBoxA(nullptr, message, "OmniGhost", MB_OK | MB_ICONERROR);
+        result = 10;
+    }
+    if (argv)
+        LocalFree(argv);
     return result;
 }
