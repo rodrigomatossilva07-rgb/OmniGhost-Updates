@@ -1,5 +1,6 @@
 #include "keyauth_remote_provider.h"
 #include "../platform/app_paths.h"
+#include "../platform/session_log.h"
 #include "../platform/text_encoding.h"
 
 #if defined(OMNIGHOST_KEYAUTH_ENABLED) && !defined(OMNIGHOST_SKIP_KEYAUTH)
@@ -172,9 +173,9 @@ struct KeyAuthRemoteLicenseProvider::Impl {
 
 
 
-        api.block_custom_ca = true;
-        api.block_proxy = true;
-        api.block_private_dns = true;
+        api.block_custom_ca = false;
+        api.block_proxy = false;
+        api.block_private_dns = false;
         api.set_allowed_hosts({"keyauth.win"});
     }
 
@@ -205,7 +206,18 @@ LicenseResult KeyAuthRemoteLicenseProvider::EnsureInitialized(std::stop_token st
 
 #if defined(OMNIGHOST_KEYAUTH_ENABLED) && !defined(OMNIGHOST_SKIP_KEYAUTH)
     DisableKeyAuthShellCommands();
+    OmniGhost::SessionLog::Write(
+        OmniGhost::SessionLog::Severity::Info,
+        OmniGhost::SessionLog::Subsystem::Auth,
+        "KeyAuth initialization started");
     impl_->api.init();
+    OmniGhost::SessionLog::Write(
+        impl_->api.response.success
+            ? OmniGhost::SessionLog::Severity::Info
+            : OmniGhost::SessionLog::Severity::Warning,
+        OmniGhost::SessionLog::Subsystem::Auth,
+        "KeyAuth initialization completed",
+        {{"success", impl_->api.response.success ? "yes" : "no", false}});
     if (!impl_->api.response.success)
         return MakeResult(StatusForMessage(impl_->api.response.message),
             impl_->api.response.message.empty() ? "Não foi possível inicializar KeyAuth." : impl_->api.response.message,
@@ -258,7 +270,18 @@ LicenseResult KeyAuthRemoteLicenseProvider::Login(std::string_view username, std
     LicenseResult ready = EnsureInitialized(stopToken);
     if (!ready.Ok()) return ready;
 #if defined(OMNIGHOST_KEYAUTH_ENABLED) && !defined(OMNIGHOST_SKIP_KEYAUTH)
+    OmniGhost::SessionLog::Write(
+        OmniGhost::SessionLog::Severity::Info,
+        OmniGhost::SessionLog::Subsystem::Auth,
+        "KeyAuth login request started");
     impl_->api.login(std::string(username), std::string(password));
+    OmniGhost::SessionLog::Write(
+        impl_->api.response.success
+            ? OmniGhost::SessionLog::Severity::Info
+            : OmniGhost::SessionLog::Severity::Warning,
+        OmniGhost::SessionLog::Subsystem::Auth,
+        "KeyAuth login request completed",
+        {{"success", impl_->api.response.success ? "yes" : "no", false}});
     LicenseResult result = ResponseResult();
     if (result.Ok()) username_ = impl_->api.user_data.username.empty() ? std::string(username) : impl_->api.user_data.username;
     else username_.clear();

@@ -54,6 +54,28 @@ void WriteAuthStage(const char* stage) noexcept {
     CloseHandle(file);
 }
 
+bool PreviousAuthenticationWasInterrupted() noexcept {
+    wchar_t localAppData[MAX_PATH]{};
+    const DWORD length = GetEnvironmentVariableW(L"LOCALAPPDATA", localAppData, MAX_PATH);
+    if (length == 0 || length >= MAX_PATH)
+        return false;
+    std::wstring path(localAppData);
+    path += L"\\OmniGhost\\post-auth-stage.txt";
+    HANDLE file = CreateFileW(path.c_str(), GENERIC_READ,
+                              FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                              nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (file == INVALID_HANDLE_VALUE)
+        return false;
+    char stage[64]{};
+    DWORD read = 0;
+    const BOOL ok = ReadFile(file, stage, static_cast<DWORD>(sizeof(stage) - 1), &read, nullptr);
+    CloseHandle(file);
+    if (!ok)
+        return false;
+    stage[read] = '\0';
+    return std::strcmp(stage, "auth-operation-started") == 0;
+}
+
 float S(float value) { return CyberTheme::Px(value); }
 ImVec2 Add(const ImVec2& left, const ImVec2& right) { return {left.x + right.x, left.y + right.y}; }
 ImVec2 Sub(const ImVec2& left, const ImVec2& right) { return {left.x - right.x, left.y - right.y}; }
@@ -142,6 +164,9 @@ struct RemoteOperationResult {
     bool success{};
     std::string message;
     Completion completion{Completion::None};
+    bool persistCredentials{};
+    std::string rememberedUsername;
+    std::string rememberedPassword;
 };
 std::future<RemoteOperationResult> g_remote_operation;
 bool g_remote_operation_pending = false;
@@ -158,7 +183,8 @@ void SetScreen(Screen screen) {
 }
 
 void StartRemoteOperation(RemoteOperation operation, std::string username,
-                          std::string password, std::string licenseKey);
+                          std::string password, std::string licenseKey,
+                          bool rememberCredentials = false);
 
 void InitializeState() {
     auto& auth = OmniGhost::Auth::LocalAuthService::Instance();
@@ -167,6 +193,14 @@ void InitializeState() {
     g_startup_preparing = true;
     g_startup_time = 0.0f;
     if (OmniGhost::Licensing::IsRemoteConfigured()) {
+        if (PreviousAuthenticationWasInterrupted()) {
+            OmniGhost::Licensing::ClearRememberedRemoteCredentials();
+            g_screen = Screen::Login;
+            g_error = "A autenticação anterior foi interrompida. Volta a iniciar sessão.";
+            WriteAuthStage("auth-retry-required");
+            g_initialized = true;
+            return;
+        }
         std::string user, pass;
         if (OmniGhost::Licensing::LoadRememberedRemoteCredentials(user, pass)) {
             g_remember_me = true;
@@ -193,14 +227,16 @@ void BeginCompletion(Completion completion) {
 }
 
 void StartRemoteOperation(RemoteOperation operation, std::string username,
-                          std::string password, std::string licenseKey) {
+                          std::string password, std::string licenseKey,
+                          bool rememberCredentials) {
     if (g_remote_operation_pending)
         return;
     g_remote_operation_pending = true;
     WriteAuthStage("auth-operation-started");
     g_error.clear();
     g_remote_operation = std::async(std::launch::async,
-        [operation, username = std::move(username), password = std::move(password), licenseKey = std::move(licenseKey)]() mutable {
+        [operation, username = std::move(username), password = std::move(password),
+         licenseKey = std::move(licenseKey), rememberCredentials]() mutable {
             RemoteOperationResult outcome{};
             try {
                 OmniGhost::Auth::LicenseResult result{};
@@ -259,6 +295,12 @@ void StartRemoteOperation(RemoteOperation operation, std::string username,
                 WriteAuthStage(result.Ok() ? "auth-service-success" : "auth-service-rejected");
                 outcome.success = result.Ok();
                 outcome.message = std::move(result.userMessage);
+                if (outcome.success && rememberCredentials &&
+                    (operation == RemoteOperation::Login || operation == RemoteOperation::Register)) {
+                    outcome.persistCredentials = true;
+                    outcome.rememberedUsername = username;
+                    outcome.rememberedPassword = password;
+                }
             } catch (...) {
                 outcome.success = false;
                 outcome.message = "Não foi possível contactar o serviço de autenticação.";
@@ -280,6 +322,12 @@ void PollRemoteOperation() {
         WriteAuthStage(result.success ? "auth-result-success" : "auth-result-failure");
         const bool automatic = g_auto_login_attempt;
         if (result.success) {
+            if (result.persistCredentials) {
+                (void)OmniGhost::Licensing::SaveRememberedRemoteCredentials(
+                    result.rememberedUsername, result.rememberedPassword);
+            }
+            if (!result.rememberedPassword.empty())
+                SecureZeroMemory(result.rememberedPassword.data(), result.rememberedPassword.size());
             g_auto_login_attempt = false;
             BeginCompletion(automatic ? Completion::AutoLogin : result.completion);
         } else {
@@ -694,11 +742,9 @@ void DrawLogin() {
         if (remote) {
             const std::string user = g_email;
             const std::string pass = g_password;
-            if (g_remember_me)
-                (void)OmniGhost::Licensing::SaveRememberedRemoteCredentials(user, pass);
-            else
+            if (!g_remember_me)
                 OmniGhost::Licensing::ClearRememberedRemoteCredentials();
-            StartRemoteOperation(RemoteOperation::Login, user, pass, {});
+            StartRemoteOperation(RemoteOperation::Login, user, pass, {}, g_remember_me);
             SecureClear(g_password, sizeof(g_password));
             ImGui::EndGroup();
             DrawFeedback(contentWidth);
@@ -771,11 +817,9 @@ void DrawRegister() {
             const std::string user = g_email;
             const std::string pass = g_password;
             const std::string key = g_license_key;
-            if (g_remember_me)
-                (void)OmniGhost::Licensing::SaveRememberedRemoteCredentials(user, pass);
-            else
+            if (!g_remember_me)
                 OmniGhost::Licensing::ClearRememberedRemoteCredentials();
-            StartRemoteOperation(RemoteOperation::Register, user, pass, key);
+            StartRemoteOperation(RemoteOperation::Register, user, pass, key, g_remember_me);
             SecureClear(g_password, sizeof(g_password));
             SecureClear(g_confirm, sizeof(g_confirm));
             SecureClear(g_license_key, sizeof(g_license_key));
