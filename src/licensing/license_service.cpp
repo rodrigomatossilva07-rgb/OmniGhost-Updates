@@ -14,6 +14,7 @@
 #include <cctype>
 #include <cstdint>
 #include <cstring>
+#include <exception>
 #include <filesystem>
 #include <fstream>
 #include <future>
@@ -46,6 +47,15 @@ void LogLicenseFailure(const char* what) {
     const std::string message = std::string("[LICENSE][FATAL] Failed to initialize license gateway: ") + what + "\n";
     OutputDebugStringA(message.c_str());
     std::cerr << message;
+}
+
+void LogRemoteLogoutFailure(const char* detail) noexcept {
+    OutputDebugStringA("[OmniGhost][License] Failed to start remote logout");
+    if (detail && *detail) {
+        OutputDebugStringA(": ");
+        OutputDebugStringA(detail);
+    }
+    OutputDebugStringA("\n");
 }
 
 
@@ -312,9 +322,10 @@ void LogoutRemote() noexcept {
 
 
             pendingRemoteLogout = std::move(next);
+        } catch (const std::exception& exception) {
+            LogRemoteLogoutFailure(exception.what());
         } catch (...) {
-
-
+            LogRemoteLogoutFailure("unknown exception");
         }
     }
     ClearRememberedRemoteCredentials();

@@ -30,6 +30,7 @@
 #include <cmath>
 #include <cstring>
 #include <cstdio>
+#include <exception>
 #include <future>
 #include <string>
 
@@ -900,7 +901,10 @@ void Reset() {
         if (g_remote_operation.wait_for(0ms) == std::future_status::ready) {
             try {
                 (void)g_remote_operation.get();
+            } catch (const std::exception&) {
+                WriteAuthStage("auth-reset-result-exception");
             } catch (...) {
+                WriteAuthStage("auth-reset-result-unknown-exception");
             }
         } else {
             remoteOperationInFlight = true;
