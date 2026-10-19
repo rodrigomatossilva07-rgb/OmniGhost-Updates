@@ -302,6 +302,7 @@ void StartRemoteOperation(RemoteOperation operation, std::string username,
                     outcome.rememberedPassword = password;
                 }
             } catch (...) {
+                WriteAuthStage("auth-service-exception");
                 outcome.success = false;
                 outcome.message = "Não foi possível contactar o serviço de autenticação.";
             }
@@ -340,6 +341,7 @@ void PollRemoteOperation() {
             g_error = result.message.empty() ? "Não foi possível iniciar sessão." : result.message;
         }
     } catch (...) {
+        WriteAuthStage("auth-result-exception");
         if (g_auto_login_attempt) {
             OmniGhost::Licensing::ClearRememberedRemoteCredentials();
             g_auto_login_attempt = false;

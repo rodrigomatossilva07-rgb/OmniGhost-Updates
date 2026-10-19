@@ -24,8 +24,11 @@
 namespace OmniGhost::Auth {
 namespace {
 
-LicenseResult Result(LicenseStatus status, const char* userMessage, const char* code) {
-    return {status, userMessage, code, {}};
+LicenseResult Result(LicenseStatus status, std::string_view userMessage, std::string_view code) {
+    return {status,
+            std::string(userMessage),
+            std::string(code),
+            {}};
 }
 
 
@@ -270,7 +273,7 @@ LicenseResult LicenseGateway::CheckLockout() const {
     std::scoped_lock lock(mutex_);
     if (std::chrono::steady_clock::now() < lockedUntil_)
         return Result(LicenseStatus::LockedOut, "Demasiadas tentativas. Tenta novamente mais tarde.", "auth.locked_out");
-    return Result(LicenseStatus::Valid, {}, "auth.lockout_clear");
+    return Result(LicenseStatus::Valid, "", "auth.lockout_clear");
 }
 
 LicenseResult LicenseGateway::Login(std::string_view username, std::string_view password,
