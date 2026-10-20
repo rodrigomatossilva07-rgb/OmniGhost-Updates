@@ -77,7 +77,6 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="src\auth\hardware_fingerprint.cpp"/>
     <ClCompile Include="src\auth\keyauth_gateway.cpp"/>
     <ClCompile Include="src\auth\keyauth_hwid_override.cpp"/>
     <ClCompile Include="src\auth\keyauth_remote_provider.cpp"/>
@@ -230,7 +229,6 @@
     <Error Condition="'$(Platform)'!='x64'" Code="OGPLAT001" Text="OmniGhost suporta apenas Release ou Publish em x64."/>
   </Target>
   <ItemGroup>
-    <ClInclude Include="src\auth\hardware_fingerprint.h"/>
     <ClInclude Include="src\auth\keyauth_gateway.h"/>
     <ClInclude Include="src\security\security_manager.h"/>
     <ClInclude Include="src\gameplay\weapon_name_registry.h"/>
@@ -286,6 +284,7 @@
     <ClInclude Include="src\launcher\game_select_modals.inl"/>
     <ClCompile Include="src\launcher\launcher_assets.cpp"/>
     <ClCompile Include="src\launcher\launcher_data.cpp"/>
+    <ClCompile Include="src\launcher\remote_usage_service.cpp"/>
     <ClCompile Include="src\launcher\launcher_status.cpp"/>
     <ClCompile Include="src\launcher\updates_page.cpp"/>
     <ClCompile Include="src\launcher\update_time_utils.cpp"/>

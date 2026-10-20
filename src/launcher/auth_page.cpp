@@ -825,8 +825,8 @@ void DrawRegister() {
     if (registerPressed && !g_remote_operation_pending) {
         if (g_password[0] == '\0') {
             g_error = "Indica uma palavra-passe.";
-        } else if (!g_legacy_login && std::strlen(g_password) < 10) {
-            g_error = "A palavra-passe do launcher deve ter pelo menos 10 caracteres.";
+        } else if (!g_legacy_login && std::strlen(g_password) < 8) {
+            g_error = "Indica a palavra-passe da tua conta do site.";
         } else if (!g_legacy_login && (std::strchr(g_email, '@') == nullptr || g_license_key[0] == '\0')) {
             g_error = "Indica o email usado no site e a licença comprada nessa conta.";
         } else if (g_legacy_login) {
@@ -968,10 +968,14 @@ void DrawStartupPreparation(ImDrawList* draw, const ImVec2& windowPos,
     DrawCenteredText("A PREPARAR SESSÃO", CyberTheme::Colors.Text,
                      CyberFonts::GetBodyFont());
     ImGui::Dummy(ImVec2(0, S(6.f)));
-    DrawCenteredText(g_remote_operation_pending
-        ? "A validar a sessão guardada com segurança"
-        : "A verificar as preferências da conta",
-        CyberTheme::Colors.TextDisabled);
+    static constexpr const char* stages[] = {
+        "A validar a sessão guardada",
+        "A verificar as credenciais",
+        "A carregar as permissões",
+        "A sincronizar os dados do utilizador"
+    };
+    const int stage = (std::min)(3, static_cast<int>(g_startup_time / 0.42f));
+    DrawCenteredText(stages[stage], CyberTheme::Colors.TextDisabled);
 
     const float lineWidth = S(126.f);
     const float phase = std::fmod(g_startup_time * 0.82f, 1.0f);
@@ -985,6 +989,13 @@ void DrawStartupPreparation(ImDrawList* draw, const ImVec2& windowPos,
     draw->AddLine(ImVec2(start, lineMin.y), ImVec2(start + segment, lineMin.y),
         CyberTheme::WithAlpha(CyberTheme::Colors.GoldHover, .94f), S(1.7f));
     draw->PopClipRect();
+    const float dotsY = lineMin.y + S(18.f);
+    for (int index = 0; index < 4; ++index) {
+        const float x = windowPos.x + windowWidth * .5f + (index - 1.5f) * S(18.f);
+        draw->AddCircleFilled(ImVec2(x, dotsY), S(index == stage ? 3.2f : 2.2f),
+            CyberTheme::WithAlpha(index <= stage ? CyberTheme::Colors.GoldHover : CyberTheme::Colors.TextDisabled,
+                index == stage ? .92f : .30f));
+    }
 }
 
 }

@@ -82,6 +82,13 @@ public:
     [[nodiscard]] bool SelectLicense(std::string_view licenseId);
     [[nodiscard]] bool HasProduct(std::string_view product) const;
     [[nodiscard]] std::string ProductDuration(std::string_view product) const;
+    [[nodiscard]] LauncherApiResponse AuthenticatedRequest(std::string_view method,
+                                                           std::string_view path,
+                                                           std::string_view body = {});
+    [[nodiscard]] LauncherApiResponse BearerRequest(std::string_view method,
+                                                    std::string_view path,
+                                                    std::string_view body,
+                                                    std::string_view bearerToken);
 
 private:
     [[nodiscard]] LicenseResult ApplySessionResponse(LauncherApiResponse response,

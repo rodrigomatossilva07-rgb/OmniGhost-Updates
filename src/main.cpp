@@ -15,6 +15,7 @@
 #include "launcher/application_transitions.h"
 #include "launcher/game_launch_service.h"
 #include "launcher/game_adapter_registry.h"
+#include "launcher/remote_usage_service.h"
 #include "licensing/license_service.h"
 #include "updater/update_service.h"
 #include "updater/updater_mode.h"
@@ -436,6 +437,7 @@ int RunOmniGhost(int argc, wchar_t** argv) {
         });
     struct SessionShutdownGuard {
         ~SessionShutdownGuard() {
+            OmniGhost::RemoteUsage::Shutdown();
             OmniGhost::Licensing::ShutdownSessionRevalidation();
             OmniGhost::SessionLog::Write(
                 OmniGhost::SessionLog::Severity::Info,

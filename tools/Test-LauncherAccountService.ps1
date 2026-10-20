@@ -33,7 +33,7 @@ $arguments = @(
     "`"$($projectDir)\src\auth\launcher_account_service.cpp`"",
     "`"$($projectDir)\src\updater\json.cpp`"",
     "`"$($projectDir)\src\platform\system_info.cpp`"",
-    'winhttp.lib', 'advapi32.lib',
+    'winhttp.lib', 'advapi32.lib', 'ole32.lib',
     "/Fe:`"$executable`""
 )
 [IO.File]::WriteAllLines($responseFile, $arguments, [Text.UTF8Encoding]::new($false))

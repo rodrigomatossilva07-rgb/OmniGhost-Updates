@@ -1,4 +1,5 @@
 #include "launcher_data.h"
+#include "remote_usage_service.h"
 #include "../platform/app_paths.h"
 #include "../config/app_settings.h"
 
@@ -427,7 +428,14 @@ void SetFavorite(GameId id, bool favorite) {
 GameHistory GetGameHistory(GameId id) {
     if (!g_state_loaded) LoadLauncherState();
     const auto it = g_game_history.find(static_cast<int>(id));
-    return it == g_game_history.end() ? GameHistory{} : it->second;
+    GameHistory history = it == g_game_history.end() ? GameHistory{} : it->second;
+    OmniGhost::RemoteUsage::Summary remote;
+    if (OmniGhost::RemoteUsage::TryGetSummary(id, remote)) {
+        history.totalActiveSeconds = remote.totalActiveSeconds;
+        history.lastSessionSeconds = remote.lastSessionSeconds;
+        history.sessionCount = remote.sessionCount;
+    }
+    return history;
 }
 
 void MarkGameUsed(GameId id) {
@@ -455,6 +463,7 @@ void BeginTimedGameSession(GameId id) {
     if (id == GameId::None) return;
     if (!g_state_loaded) LoadLauncherState();
     g_active_sessions[static_cast<int>(id)] = std::chrono::steady_clock::now();
+    OmniGhost::RemoteUsage::Begin(id);
 }
 
 void EndTimedGameSession(GameId id, SessionResult result, const std::string& detail) {
@@ -476,6 +485,7 @@ void EndTimedGameSession(GameId id, SessionResult result, const std::string& det
         g_active_sessions.erase(it);
     }
     RecordGameSession(id, result, detail);
+    OmniGhost::RemoteUsage::Finish(id);
 }
 
 GameId LastPlayedGame() {

@@ -54,6 +54,11 @@ void ClearRememberedRemoteCredentials() noexcept;
 [[nodiscard]] std::string GameAccessDuration(std::string_view productId);
 [[nodiscard]] bool HasAnyGameAccess();
 [[nodiscard]] Snapshot GetSnapshot();
+[[nodiscard]] OmniGhost::Auth::LauncherApiResponse WebsiteRequest(
+    std::string_view method, std::string_view path, std::string_view body = {});
+[[nodiscard]] OmniGhost::Auth::LauncherApiResponse UsageRequest(
+    std::string_view method, std::string_view path, std::string_view body,
+    std::string_view accessToken);
 void Refresh();
 
 }

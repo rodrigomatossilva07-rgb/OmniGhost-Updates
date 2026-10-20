@@ -290,9 +290,6 @@
     <ClCompile Include="src\auth\local_auth_service.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\auth\hardware_fingerprint.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="src\auth\keyauth_gateway.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -575,6 +572,9 @@
     <ClCompile Include="src\launcher\launcher_data.cpp">
       <Filter>Source Files\launcher</Filter>
     </ClCompile>
+    <ClCompile Include="src\launcher\remote_usage_service.cpp">
+      <Filter>Source Files\launcher</Filter>
+    </ClCompile>
     <ClCompile Include="src\launcher\launcher_status.cpp">
       <Filter>Source Files\launcher</Filter>
     </ClCompile>
@@ -678,9 +678,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\auth\local_auth_service.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\auth\hardware_fingerprint.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\auth\keyauth_gateway.h">

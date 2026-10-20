@@ -8,10 +8,6 @@
 #include <utility>
 #include <vector>
 
-namespace OmniGhost::Auth {
-std::string ComputeHardwareFingerprint() noexcept { return "oghw2:test-device"; }
-}
-
 namespace {
 
 using OmniGhost::Auth::ILauncherApiTransport;

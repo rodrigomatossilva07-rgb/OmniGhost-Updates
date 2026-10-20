@@ -1,6 +1,5 @@
 #include "launcher_account_service.h"
 
-#include "hardware_fingerprint.h"
 #include "../app_version.h"
 #include "../platform/internet_handle.h"
 #include "../platform/scope_exit.h"
@@ -11,6 +10,7 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <Windows.h>
+#include <objbase.h>
 #include <wincred.h>
 #include <winhttp.h>
 
@@ -25,6 +25,7 @@
 #include <utility>
 
 #pragma comment(lib, "advapi32.lib")
+#pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "winhttp.lib")
 
 namespace OmniGhost::Auth {
@@ -32,6 +33,7 @@ namespace {
 
 constexpr wchar_t kApiHost[] = L"omnighost.store";
 constexpr wchar_t kCredentialTarget[] = L"OmniGhost/LauncherSession/v1";
+constexpr wchar_t kDeviceCredentialTarget[] = L"OmniGhost/InstallationDevice/v1";
 constexpr std::size_t kMaximumResponseBytes = 256u * 1024u;
 constexpr std::size_t kMaximumTokenBytes = 2048;
 constexpr std::size_t kMaximumCredentialBytes = 2400;
@@ -122,11 +124,13 @@ std::string ErrorText(const LauncherApiResponse& response, std::string fallback)
             if (Text(*object, "message", message, false) && !message.empty()) return message;
             if (Text(*object, "error", message, false) && !message.empty()) {
                 if (message == "invalid_credentials")
-                    return "O email ou a palavra-passe do launcher estão incorretos.";
+                    return "O email ou a palavra-passe da conta do site estão incorretos. Se usas apenas Google, define primeiro uma palavra-passe no site.";
                 if (message == "launcher_account_exists")
                     return "Esta conta já foi ativada no launcher. Usa Iniciar sessão.";
                 if (message == "launcher_license_not_owned")
                     return "A licença não pertence à conta indicada ou não está ativa.";
+                if (message == "launcher_license_not_active")
+                    return "A licença está suspensa, revogada ou expirada.";
                 if (message == "no_active_license")
                     return "A conta não possui uma licença ativa.";
                 if (message == "unauthorized" || message == "token_expired")
@@ -352,6 +356,36 @@ std::string WindowsVersion() {
     return output.str();
 }
 
+std::string GetOrCreateInstallationDeviceId() {
+    PCREDENTIALW credential = nullptr;
+    if (CredReadW(kDeviceCredentialTarget, CRED_TYPE_GENERIC, 0, &credential) && credential) {
+        const DWORD size = credential->CredentialBlobSize;
+        std::string existing;
+        if (size >= 21 && size <= 96)
+            existing.assign(reinterpret_cast<const char*>(credential->CredentialBlob), size);
+        CredFree(credential);
+        if (existing.rfind("ogdi_", 0) == 0) return existing;
+    }
+    GUID guid{};
+    if (FAILED(CoCreateGuid(&guid))) return {};
+    char value[64]{};
+    const int length = sprintf_s(value, "ogdi_%08lx%04hx%04hx%02x%02x%02x%02x%02x%02x%02x%02x",
+        guid.Data1, guid.Data2, guid.Data3,
+        guid.Data4[0], guid.Data4[1], guid.Data4[2], guid.Data4[3],
+        guid.Data4[4], guid.Data4[5], guid.Data4[6], guid.Data4[7]);
+    if (length <= 0) return {};
+    std::string created(value, static_cast<std::size_t>(length));
+    CREDENTIALW stored{};
+    stored.Type = CRED_TYPE_GENERIC;
+    stored.TargetName = const_cast<LPWSTR>(kDeviceCredentialTarget);
+    stored.CredentialBlobSize = static_cast<DWORD>(created.size());
+    stored.CredentialBlob = reinterpret_cast<LPBYTE>(created.data());
+    stored.Persist = CRED_PERSIST_LOCAL_MACHINE;
+    stored.UserName = const_cast<LPWSTR>(L"OmniGhost Installation");
+    if (!CredWriteW(&stored, 0)) return {};
+    return created;
+}
+
 }
 
 bool LauncherLicense::IsUsable() const noexcept {
@@ -372,7 +406,7 @@ LauncherAccountService::LauncherAccountService(
     std::shared_ptr<ILauncherSessionStore> store)
     : transport_(transport ? std::move(transport) : CreateLauncherApiTransport()),
       store_(store ? std::move(store) : CreateLauncherSessionStore()),
-      deviceId_(ComputeHardwareFingerprint()) {}
+      deviceId_(GetOrCreateInstallationDeviceId()) {}
 
 LicenseResult LauncherAccountService::Login(std::string_view emailInput,
                                             std::string_view password) {
@@ -400,10 +434,10 @@ LicenseResult LauncherAccountService::Register(std::string_view emailInput,
     std::scoped_lock operation(operationMutex_);
     const std::string email = TrimLower(emailInput);
     if (email.size() < 5 || email.size() > 320 || email.find('@') == std::string::npos ||
-        password.size() < 10 || password.size() > 1024 || licenseKey.empty() ||
+        password.size() < 8 || password.size() > 1024 || licenseKey.empty() ||
         licenseKey.size() > 512)
         return {LicenseStatus::Invalid,
-                "Indica o email do site, uma palavra-passe com pelo menos 10 caracteres e a licença comprada.",
+                "Indica o email, a palavra-passe da conta do site e a licença comprada nessa conta.",
                 "website.invalid_registration", {}};
     std::string body = "{\"email\":\"" + JsonEscape(email) +
         "\",\"password\":\"" + JsonEscape(password) +
@@ -549,6 +583,26 @@ std::string LauncherAccountService::ProductDuration(std::string_view productInpu
         }
     }
     return {};
+}
+
+LauncherApiResponse LauncherAccountService::AuthenticatedRequest(
+    std::string_view method, std::string_view path, std::string_view body) {
+    std::string token;
+    {
+        std::lock_guard lock(mutex_);
+        if (!state_.authenticated || token_.empty()) return {401, {}, "Sessão indisponível."};
+        token = token_;
+    }
+    auto response = transport_->Request(method, path, body, token, deviceId_);
+    SecureZeroMemory(token.data(), token.size());
+    return response;
+}
+
+LauncherApiResponse LauncherAccountService::BearerRequest(
+    std::string_view method, std::string_view path, std::string_view body,
+    std::string_view bearerToken) {
+    if (bearerToken.empty()) return {401, {}, "Token indisponível."};
+    return transport_->Request(method, path, body, bearerToken, deviceId_);
 }
 
 LicenseResult LauncherAccountService::ApplySessionResponse(

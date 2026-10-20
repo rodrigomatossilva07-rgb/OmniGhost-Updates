@@ -1,6 +1,7 @@
 #include "license_service.h"
 #include "../auth/keyauth_remote_provider.h"
 #include "../auth/launcher_account_service.h"
+#include "../launcher/remote_usage_service.h"
 #include "../platform/app_paths.h"
 #include "../platform/scope_exit.h"
 #include "../security/security_manager.h"
@@ -329,11 +330,21 @@ Snapshot GetSnapshot() {
     ApplyRemoteState(snapshot);
     return snapshot;
 }
+OmniGhost::Auth::LauncherApiResponse WebsiteRequest(
+    std::string_view method, std::string_view path, std::string_view body) {
+    return WebsiteService().AuthenticatedRequest(method, path, body);
+}
+OmniGhost::Auth::LauncherApiResponse UsageRequest(
+    std::string_view method, std::string_view path, std::string_view body,
+    std::string_view accessToken) {
+    return WebsiteService().BearerRequest(method, path, body, accessToken);
+}
 OmniGhost::Auth::LicenseResult Login(std::string_view username, std::string_view password) {
     return RemoteGateway().Login(username, password);
 }
 OmniGhost::Auth::LicenseResult LoginWebsite(std::string_view email, std::string_view password) {
     const auto result = WebsiteService().Login(email, password);
+    if (result.Ok()) OmniGhost::RemoteUsage::Refresh();
     Refresh();
     return result;
 }
@@ -341,11 +352,13 @@ OmniGhost::Auth::LicenseResult RegisterWebsite(std::string_view email,
                                                std::string_view password,
                                                std::string_view licenseKey) {
     const auto result = WebsiteService().Register(email, password, licenseKey);
+    if (result.Ok()) OmniGhost::RemoteUsage::Refresh();
     Refresh();
     return result;
 }
 OmniGhost::Auth::LicenseResult RestoreWebsiteSession() {
     const auto result = WebsiteService().Restore();
+    if (result.Ok()) OmniGhost::RemoteUsage::Refresh();
     Refresh();
     return result;
 }
@@ -379,6 +392,7 @@ void LogoutRemote() noexcept {
 
 
 
+    OmniGhost::RemoteUsage::Shutdown();
     StopRevalidator();
     WebsiteService().Logout();
     const bool hadRemoteSession = RemoteGateway().IsAuthenticated();

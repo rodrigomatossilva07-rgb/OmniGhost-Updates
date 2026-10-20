@@ -39,6 +39,46 @@ void DrawHome(ImVec2 display) {
     const float gap = S(14.f);
     const float available = ImGui::GetContentRegionAvail().x;
     const bool two = available >= S(760.f);
+    const auto account = OmniGhost::Licensing::GetSnapshot();
+    std::size_t catalogCount = 0;
+    const GameDefinition* catalog = Games(catalogCount);
+    std::size_t licensedCount = 0;
+    std::size_t readyCount = 0;
+    for (std::size_t index = 0; index < catalogCount; ++index) {
+        if (!catalog[index].coming_soon && OmniGhost::Licensing::HasGameAccess(catalog[index].id)) {
+            ++licensedCount;
+            if (GameRuntime* runtime = FindRuntime(catalog[index].launch_id); runtime && IsReadyState(runtime->state))
+                ++readyCount;
+        }
+    }
+    const float overviewWidth = available >= S(900.f) ? (available - gap * 3.f) * .25f
+        : (available - gap) * .5f;
+    CyberWidgets::BeginCard("CONTA", overviewWidth);
+    CyberWidgets::Badge(account.websiteAccount ? "CONTA OMNIGHOST" : "ACESSO LEGACY",
+        account.remoteAuthenticated ? CyberWidgets::TextTone::Success : CyberWidgets::TextTone::Warning);
+    CyberWidgets::TextLine(account.remoteUsername.empty() ? "Sessão local" : account.remoteUsername.c_str(),
+        CyberWidgets::TextTone::Secondary);
+    CyberWidgets::EndCard();
+    ImGui::SameLine(0.f, gap);
+    CyberWidgets::BeginCard("BIBLIOTECA", overviewWidth);
+    CyberWidgets::TextLineF(CyberWidgets::TextTone::Primary, "%zu produtos autorizados", licensedCount);
+    CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, "%zu prontos para iniciar", readyCount);
+    CyberWidgets::EndCard();
+    if (available >= S(900.f)) ImGui::SameLine(0.f, gap); else ImGui::Dummy(ImVec2(0.f, gap));
+    CyberWidgets::BeginCard("SESSÃO", overviewWidth);
+    const GameId overviewRecent = MostRecentHistoryGame();
+    const GameHistory overviewHistory = GetGameHistory(overviewRecent);
+    CyberWidgets::TextLineF(CyberWidgets::TextTone::Primary, "%u sessões registadas", overviewHistory.sessionCount);
+    CyberWidgets::TextLine(FormatActiveDuration(overviewHistory.totalActiveSeconds).c_str(), CyberWidgets::TextTone::Secondary);
+    CyberWidgets::EndCard();
+    ImGui::SameLine(0.f, gap);
+    CyberWidgets::BeginCard("SEGURANÇA", overviewWidth);
+    CyberWidgets::Badge(account.websiteAccount ? "SESSÃO PROTEGIDA" : "MIGRAÇÃO DISPONÍVEL",
+        account.websiteAccount ? CyberWidgets::TextTone::Success : CyberWidgets::TextTone::Warning);
+    CyberWidgets::TextLine(account.websiteAccount ? "Token guardado pelo Windows" : "Usa a conta do website", CyberWidgets::TextTone::Secondary);
+    CyberWidgets::EndCard();
+    ImGui::Dummy(ImVec2(0.f, gap));
+
     const float heroWidth = two ? (available - gap) * .64f : available;
     const float systemWidth = two ? (available - gap) - heroWidth : available;
 
@@ -53,7 +93,7 @@ void DrawHome(ImVec2 display) {
                 IsReadyState(runtime->state) ? CyberWidgets::TextTone::Success : CyberWidgets::TextTone::Warning);
             ImGui::Dummy(ImVec2(0, S(5.f)));
             CyberWidgets::TextLine(game->name, CyberWidgets::TextTone::Primary);
-            CyberWidgets::TextLine("PERFIL LOCAL · SESSÃO PROTEGIDA", CyberWidgets::TextTone::Secondary);
+            CyberWidgets::TextLine(account.websiteAccount ? "PERFIL REMOTO · ESTATÍSTICAS SINCRONIZADAS" : "PERFIL LOCAL · SESSÃO PROTEGIDA", CyberWidgets::TextTone::Secondary);
             CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, "Última sessão · %s · %s",
                 SessionResultDisplay(history.lastResult), FormatLastUsed(history.lastUsedUnix).c_str());
             CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary,
@@ -122,11 +162,23 @@ void DrawHome(ImVec2 display) {
         if (!homeGames[i].coming_soon) ++availableGames;
     }
     const std::string availableSummary = std::to_string(availableGames) + " produtos disponíveis";
-CyberWidgets::KeyValueRow(Loc::Tr("launcher.games"), availableSummary.c_str());
-    CyberWidgets::KeyValueRow(Loc::Tr("launcher.status"), Loc::Tr("launcher.ready_to_explore"));
-    CyberWidgets::TextLine(Loc::Tr("launcher.empty_desc"), CyberWidgets::TextTone::Secondary);
+    CyberWidgets::KeyValueRow(Loc::Tr("launcher.games"), availableSummary.c_str());
+    std::size_t shown = 0;
+    for (std::size_t index = 0; index < homeGameCount && shown < 4; ++index) {
+        const GameDefinition& game = homeGames[index];
+        if (game.coming_soon || !OmniGhost::Licensing::HasGameAccess(game.id)) continue;
+        GameRuntime* runtime = FindRuntime(game.launch_id);
+        CyberWidgets::HealthRow(game.name, runtime ? CardStateLabel(runtime->state) : Loc::Tr("launcher.unavailable"),
+            runtime && IsReadyState(runtime->state) ? CyberWidgets::HealthStatus::Ok : CyberWidgets::HealthStatus::Warning);
+        ++shown;
+    }
+    if (!shown) CyberWidgets::TextLine("Não existem produtos ativos nesta conta.", CyberWidgets::TextTone::Warning);
+    ImGui::Dummy(ImVec2(0.f, S(6.f)));
     if (CyberWidgets::Button(Loc::Tr("launcher.continue_last"), CyberWidgets::ButtonStyle::Secondary, ImVec2(S(165.f), S(33.f))))
         ChangeNavigation(static_cast<int>(NavPage::Library));
+    ImGui::SameLine();
+    if (CyberWidgets::Button(Loc::Tr("launcher.diagnostics"), CyberWidgets::ButtonStyle::Ghost, ImVec2(S(140.f), S(33.f))))
+        ChangeNavigation(static_cast<int>(NavPage::Diagnostics));
     CyberWidgets::EndCard();
 
     EndControlPage();
@@ -373,6 +425,22 @@ std::string BuildDiagnosticsText() {
     return OmniGhost::SessionLog::RedactForSupport(out.str());
 }
 
+std::string SupportJsonEscape(std::string_view value) {
+    std::string out;
+    out.reserve(value.size() + 16);
+    for (const unsigned char ch : value) {
+        switch (ch) {
+        case '"': out += "\\\""; break;
+        case '\\': out += "\\\\"; break;
+        case '\n': out += "\\n"; break;
+        case '\r': out += "\\r"; break;
+        case '\t': out += "\\t"; break;
+        default: if (ch >= 0x20) out.push_back(static_cast<char>(ch)); break;
+        }
+    }
+    return out;
+}
+
 void DrawDiagnostics(ImVec2 display) {
     BeginControlPage("##launcher_diagnostics", display);
     DrawPageHeading(Loc::Tr("launcher.diagnostics"), Loc::Tr("launcher.diagnostics.subtitle"));
@@ -449,6 +517,56 @@ void DrawDiagnostics(ImVec2 display) {
             CyberWidgets::Notify(error.empty() ? Loc::Tr("launcher.diagnostics_package_failed") : error.c_str(), CyberWidgets::ToastType::Error);
         }
     }
+    CyberWidgets::EndCard();
+
+    ImGui::Dummy(ImVec2(0, S(14.f)));
+    CyberWidgets::BeginCard("Reportar um problema", 0.f);
+    CyberWidgets::TextLine("Cria um ticket associado à tua conta. Revê o diagnóstico antes de enviar; credenciais e tokens são removidos.", CyberWidgets::TextTone::Secondary);
+    static char supportSubject[161]{};
+    static char supportDescription[3001]{};
+    static int supportCategory = 0;
+    static bool supportIncludeDiagnostics = true;
+    static std::future<OmniGhost::Auth::LauncherApiResponse> supportRequest;
+    static bool supportBusy = false;
+    static std::string supportResult;
+    const char* supportCategories[] = {"Problema do launcher", "Problema de licença", "Problema do menu", "Problema da conta", "Outro"};
+    const char* supportCategoryIds[] = {"launcher_issue", "license_issue", "game_menu_issue", "account_issue", "other"};
+    ImGui::SetNextItemWidth(std::min(S(520.f), ImGui::GetContentRegionAvail().x));
+    ImGui::InputTextWithHint("##support_subject", "Assunto", supportSubject, sizeof(supportSubject));
+    ImGui::SetNextItemWidth(std::min(S(520.f), ImGui::GetContentRegionAvail().x));
+    ImGui::Combo("##support_category", &supportCategory, supportCategories, IM_ARRAYSIZE(supportCategories));
+    ImGui::SetNextItemWidth(std::min(S(720.f), ImGui::GetContentRegionAvail().x));
+    ImGui::InputTextMultiline("##support_description", supportDescription, sizeof(supportDescription), ImVec2(-1.f, S(105.f)));
+    ImGui::Checkbox("Incluir diagnóstico técnico revisto", &supportIncludeDiagnostics);
+    if (supportBusy && supportRequest.valid() && supportRequest.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+        const auto response = supportRequest.get();
+        supportBusy = false;
+        if (response.statusCode == 201) {
+            supportResult = "Ticket criado com sucesso no Centro de Suporte.";
+            supportSubject[0] = '\0'; supportDescription[0] = '\0';
+            CyberWidgets::Notify(supportResult.c_str(), CyberWidgets::ToastType::Success);
+        } else {
+            supportResult = response.statusCode == 401 ? "A sessão expirou. Inicia sessão novamente." :
+                response.error.empty() ? "Não foi possível criar o ticket." : response.error;
+            CyberWidgets::Notify(supportResult.c_str(), CyberWidgets::ToastType::Error);
+        }
+    }
+    const bool supportValid = std::strlen(supportSubject) >= 5 && std::strlen(supportDescription) >= 10;
+    if (CyberWidgets::LoadingButton("Enviar relatório", "A enviar…", supportBusy, CyberWidgets::ButtonStyle::Primary, ImVec2(S(170.f), S(34.f))) && supportValid && !supportBusy) {
+        const std::string product = selectedGame ? selectedGame->id : "";
+        const std::string safeDiagnostics = supportIncludeDiagnostics ? BuildDiagnosticsText().substr(0, 30000) : "";
+        const std::string body = "{\"subject\":\"" + SupportJsonEscape(supportSubject) + "\",\"category\":\"" + supportCategoryIds[supportCategory] +
+            "\",\"productId\":" + (product.empty() ? "null" : "\"" + SupportJsonEscape(product) + "\"") +
+            ",\"description\":\"" + SupportJsonEscape(supportDescription) + "\",\"diagnostics\":{\"launcherVersion\":\"" + SupportJsonEscape(OmniGhost::Version) +
+            "\",\"osVersion\":\"" + SupportJsonEscape(windows) + "\",\"errorCode\":\"" + SupportJsonEscape(lastError) +
+            "\",\"licenseValidationStatus\":\"" + (OmniGhost::Licensing::IsWebsiteAuthenticated() ? "authenticated" : "unauthenticated") +
+            "\",\"logs\":\"" + SupportJsonEscape(safeDiagnostics) + "\"}}";
+        supportBusy = true;
+        supportResult.clear();
+        supportRequest = std::async(std::launch::async, [body] { return OmniGhost::Licensing::WebsiteRequest("POST", "/api/launcher/support", body); });
+    }
+    if (!supportValid) CyberWidgets::TextLine("Indica um assunto (5 caracteres) e uma descrição (10 caracteres).", CyberWidgets::TextTone::Secondary);
+    if (!supportResult.empty()) CyberWidgets::TextLine(supportResult.c_str(), CyberWidgets::TextTone::Secondary);
     CyberWidgets::EndCard();
 
     ImGui::Dummy(ImVec2(0, S(14.f)));
