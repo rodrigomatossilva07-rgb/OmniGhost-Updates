@@ -57,7 +57,7 @@ float S(float value) { return CyberTheme::Px(value); }
 ImVec2 Add(const ImVec2& left, const ImVec2& right) { return {left.x + right.x, left.y + right.y}; }
 ImVec2 Sub(const ImVec2& left, const ImVec2& right) { return {left.x - right.x, left.y - right.y}; }
 
-enum class Screen { Landing, Login, Register, LicenseSelect, Activate };
+enum class Screen { Landing, Login, Register, Activate };
 enum class Completion { None, Login, Register, AutoLogin, Preparing };
 
 struct Copy {
@@ -130,7 +130,6 @@ struct RemoteOperationResult {
     Completion completion{Completion::None};
     std::string diagnosticCode;
     bool websiteAccount{};
-    bool requiresLicenseSelection{};
 };
 std::future<RemoteOperationResult> g_remote_operation;
 bool g_remote_operation_pending = false;
@@ -208,11 +207,9 @@ void StartRemoteOperation(RemoteOperation operation, std::string username,
                 outcome.success = result.Ok();
                 outcome.message = std::move(result.userMessage);
                 outcome.diagnosticCode = std::move(result.diagnosticCode);
-                if (outcome.success && outcome.websiteAccount) {
-                    const auto snapshot = OmniGhost::Licensing::GetSnapshot();
-                    outcome.requiresLicenseSelection = snapshot.websiteLicenses.size() > 1 &&
-                        snapshot.selectedLicenseId.empty();
-                }
+
+
+
             } catch (...) {
                 WriteAuthStage("auth-service-exception");
                 outcome.success = false;
@@ -236,11 +233,7 @@ void PollRemoteOperation() {
         const bool automatic = g_auto_login_attempt;
         if (result.success) {
             g_auto_login_attempt = false;
-            if (result.requiresLicenseSelection) {
-                SetScreen(Screen::LicenseSelect);
-            } else {
-                BeginCompletion(automatic ? Completion::AutoLogin : result.completion);
-            }
+            BeginCompletion(automatic ? Completion::AutoLogin : result.completion);
         } else {
 
             if (automatic) {
@@ -627,12 +620,12 @@ void DrawLogin() {
 
     CenterCursor(contentWidth);
     ImGui::BeginGroup();
-    AuthInputField("login_email", g_email, sizeof(g_email), "Email da conta OmniGhost",
+    AuthInputField("login_email", g_email, sizeof(g_email), "Email",
                    contentWidth, true, AuthFieldIcon::Email);
     ImGui::Dummy(ImVec2(0, S(7.f)));
     const bool enter = AuthPasswordField("login_password", g_password,
         sizeof(g_password), &g_show_password,
-        "Palavra-passe da conta OmniGhost", contentWidth,
+        "Palavra-Passe", contentWidth,
         ImGuiInputTextFlags_EnterReturnsTrue);
     ImGui::Dummy(ImVec2(0, S(7.f)));
     ImGui::BeginDisabled(g_remote_operation_pending);
@@ -674,7 +667,7 @@ void DrawRegister() {
                    contentWidth, true, AuthFieldIcon::Email);
     ImGui::Dummy(ImVec2(0, S(6.f)));
     bool submit = AuthPasswordField("register_password", g_password, sizeof(g_password),
-        &g_show_password, "Palavra-passe da conta OmniGhost",
+        &g_show_password, "Palavra-Passe",
         contentWidth, 0);
     ImGui::Dummy(ImVec2(0, S(6.f)));
     submit = AuthPasswordField("register_key", g_license_key,
@@ -719,43 +712,6 @@ void DrawRegister() {
         SecureClear(g_confirm, sizeof(g_confirm));
         SecureClear(g_license_key, sizeof(g_license_key));
         SetScreen(Screen::Landing);
-    }
-}
-
-void DrawLicenseSelection() {
-    const float contentWidth = S(410.f);
-    CenterBlockVertically(S(390.f), 0.47f);
-    DrawBrand(false);
-    ImGui::Dummy(ImVec2(0, S(14.f)));
-    DrawCenteredText("ESCOLHER LICENÇA",
-        CyberTheme::Colors.Text);
-    ImGui::Dummy(ImVec2(0, S(7.f)));
-    DrawCenteredText("Seleciona o produto que pretendes usar nesta sessão",
-        CyberTheme::Colors.TextDisabled);
-    ImGui::Dummy(ImVec2(0, S(14.f)));
-    const auto snapshot = OmniGhost::Licensing::GetSnapshot();
-    CenterCursor(contentWidth);
-    ImGui::BeginGroup();
-    for (const auto& license : snapshot.websiteLicenses) {
-        if (!license.IsUsable()) continue;
-        ImGui::PushID(license.id.c_str());
-        std::string label = license.product;
-        if (!license.plan.empty()) label += "  //  " + license.plan;
-        if (CyberWidgets::GhostButton(label.c_str(), ImVec2(contentWidth, S(44.f)))) {
-            if (OmniGhost::Licensing::SelectWebsiteLicense(license.id))
-                BeginCompletion(Completion::Login);
-            else
-                g_error = "Não foi possível selecionar esta licença.";
-        }
-        ImGui::PopID();
-        ImGui::Dummy(ImVec2(0, S(7.f)));
-    }
-    ImGui::EndGroup();
-    DrawFeedback(contentWidth);
-    CenterCursor(contentWidth);
-    if (CyberWidgets::GhostButton("Terminar sessão", ImVec2(contentWidth, S(34.f)))) {
-        OmniGhost::Licensing::LogoutRemote();
-        SetScreen(Screen::Login);
     }
 }
 
@@ -971,12 +927,10 @@ bool Draw() {
     background->AddLine(ImVec2(frameMax.x, frameMax.y - corner), ImVec2(frameMax.x, frameMax.y - S(20.f)), accent, S(1.5f));
 
     const float desiredWidth = S(
-        g_screen == Screen::Login || g_screen == Screen::Register ||
-        g_screen == Screen::LicenseSelect ? 548.f : 468.f);
+        g_screen == Screen::Login || g_screen == Screen::Register ? 548.f : 468.f);
     const float desiredHeight =
         g_screen == Screen::Register ? S(620.f) :
         (g_screen == Screen::Login ? S(550.f) :
-         (g_screen == Screen::LicenseSelect ? S(560.f) :
          (g_screen == Screen::Activate ? S(438.f) : S(360.f))));
     const float width = (std::max)(S(340.f), (std::min)(desiredWidth, display.x - S(20.f)));
     const float availableHeight = (std::max)(S(300.f), display.y - S(24.f));
@@ -1036,7 +990,6 @@ bool Draw() {
         case Screen::Landing: DrawLanding(); break;
         case Screen::Login: DrawLogin(); break;
         case Screen::Register: DrawRegister(); break;
-        case Screen::LicenseSelect: DrawLicenseSelection(); break;
         case Screen::Activate: DrawActivate(); break;
         }
     } else {

@@ -966,9 +966,12 @@ static void RunFrameWithConfig(const Config& frame_config) {
 
 
     int controller_span = 0;
+    int controller_slots[kMaxSlots]{};
     for (int i = 0; i < kMaxSlots; ++i) {
         if (!IsUserPointer(controllers[i])) continue;
-        controllers[controller_span++] = controllers[i];
+        controllers[controller_span] = controllers[i];
+        controller_slots[controller_span] = i + 1;
+        ++controller_span;
     }
     for (int i = controller_span; i < kMaxSlots; ++i)
         controllers[i] = 0;
@@ -1108,6 +1111,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
 
     uintptr_t resolved_pawns[kMaxSlots]{};
     int slot_index[kMaxSlots]{};
+    int ent_slots[kMaxSlots]{};
     int candidate_count = 0;
     for (int i = 0; i < collected && candidate_count < kMaxSlots; ++i) {
         if (!controllers[i] || !handles[i]) continue;
@@ -1115,6 +1119,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
         if (!pawn) continue;
         resolved_pawns[candidate_count] = pawn;
         slot_index[candidate_count] = i;
+        ent_slots[candidate_count] = controller_slots[i];
         ++candidate_count;
     }
     runtime.pawn_count = candidate_count;
@@ -1399,6 +1404,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
         if (eligible_count != c) {
             resolved_pawns[eligible_count] = resolved_pawns[c];
             slot_index[eligible_count] = slot_index[c];
+            ent_slots[eligible_count] = ent_slots[c];
             candidateControllers[eligible_count] = candidateControllers[c];
             core[eligible_count] = core[c];
             std::memcpy(positions[eligible_count], positions[c], sizeof(positions[c]));
@@ -1445,7 +1451,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
 
 
 
-            corePlayer.ent_index = slot_index[c] + 1;
+            corePlayer.ent_index = ent_slots[c];
 
 
 

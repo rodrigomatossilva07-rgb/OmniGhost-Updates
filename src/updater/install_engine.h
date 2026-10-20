@@ -19,6 +19,8 @@ struct InstallOptions {
 
 
 
+    std::filesystem::path backupDirectory;
+
     std::string expectedExecutableSha256;
     std::function<bool(const std::string& stage)> failureInjector;
 };

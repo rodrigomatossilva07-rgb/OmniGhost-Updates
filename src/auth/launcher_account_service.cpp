@@ -697,7 +697,12 @@ LicenseResult LauncherAccountService::ApplySessionResponse(
                 [this](const LauncherLicense& license) {
                     return license.id == state_.selectedLicenseId && license.IsUsable();
                 });
-            if (selected == state_.licenses.end()) state_.selectedLicenseId.clear();
+            if (selected == state_.licenses.end()) {
+
+                const auto fallback = std::find_if(state_.licenses.begin(), state_.licenses.end(),
+                    [](const LauncherLicense& license) { return license.IsUsable(); });
+                state_.selectedLicenseId = fallback != state_.licenses.end() ? fallback->id : std::string{};
+            }
         }
         state_.authenticated = true;
         if (!PersistLocked()) {
@@ -763,6 +768,17 @@ LicenseResult LauncherAccountService::ApplyLicenseResponse(const LauncherApiResp
             const auto found = std::find_if(state_.licenses.begin(), state_.licenses.end(),
                 [](const LauncherLicense& license) { return license.IsUsable(); });
             state_.selectedLicenseId = found->id;
+        } else {
+            const auto selected = std::find_if(state_.licenses.begin(), state_.licenses.end(),
+                [this](const LauncherLicense& license) {
+                    return license.id == state_.selectedLicenseId && license.IsUsable();
+                });
+            if (selected == state_.licenses.end()) {
+
+                const auto fallback = std::find_if(state_.licenses.begin(), state_.licenses.end(),
+                    [](const LauncherLicense& license) { return license.IsUsable(); });
+                state_.selectedLicenseId = fallback != state_.licenses.end() ? fallback->id : std::string{};
+            }
         }
         state_.authenticated = true;
         if (!PersistLocked())

@@ -364,8 +364,18 @@ InstallResult InstallSingleExecutable(const InstallOptions& options) {
 
 
     std::error_code backupError;
+    fs::path backupDirectory = options.backupDirectory;
+    if (!backupDirectory.empty()) {
+        std::error_code createBackupDirError;
+        fs::create_directories(backupDirectory, createBackupDirError);
+        if (createBackupDirError || !fs::is_directory(backupDirectory, createBackupDirError))
+            backupDirectory.clear();
+        createBackupDirError.clear();
+    }
+    if (backupDirectory.empty())
+        backupDirectory = options.target;
     const fs::path currentExe = options.target / options.executableName;
-    const fs::path backupExe = options.target / (options.executableName + std::wstring(L".previous"));
+    const fs::path backupExe = backupDirectory / (options.executableName + std::wstring(L".previous"));
     if (fs::exists(currentExe, backupError)) {
         fs::copy_file(currentExe, backupExe, fs::copy_options::overwrite_existing, backupError);
         if (backupError)
@@ -384,7 +394,7 @@ InstallResult InstallSingleExecutable(const InstallOptions& options) {
         std::string backupHash, hashError;
         if (Sha256File(backupExe, backupHash, hashError)) {
             const fs::path sidecar =
-                options.target / (options.executableName + std::wstring(L".previous.sha256"));
+                backupDirectory / (options.executableName + std::wstring(L".previous.sha256"));
             std::ofstream sidecarStream(sidecar, std::ios::binary | std::ios::trunc);
             if (sidecarStream) {
                 sidecarStream << backupHash << "\n";

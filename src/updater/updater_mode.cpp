@@ -89,6 +89,30 @@ std::string ReadTrimmedTextFile(const fs::path& path) {
     return contents;
 }
 
+
+
+fs::path ResolveRollbackBackup(const fs::path& target, const fs::path& backupsDirectory,
+                               const std::wstring& backupFileName) {
+    std::error_code ec;
+    const fs::path preferred = backupsDirectory / backupFileName;
+    if (fs::is_regular_file(preferred, ec) && !ec) return preferred;
+    ec.clear();
+    const fs::path legacy = target / backupFileName;
+    if (fs::is_regular_file(legacy, ec) && !ec) return legacy;
+    return preferred;
+}
+
+void RemoveRollbackBackupFiles(const fs::path& target, const fs::path& backupsDirectory,
+                               const std::wstring& executableName) {
+    const std::wstring backupFileName = executableName + std::wstring(L".previous");
+    std::error_code ignored;
+    fs::remove(backupsDirectory / backupFileName, ignored);
+    fs::remove(backupsDirectory / (backupFileName + L".sha256"), ignored);
+    fs::remove(target / backupFileName, ignored);
+    fs::remove(target / (backupFileName + L".sha256"), ignored);
+    ignored.clear();
+}
+
 bool WaitForExit(DWORD pid, int seconds, std::string& error) {
     Platform::UniqueHandle process(OpenProcess(SYNCHRONIZE, FALSE, pid));
     if (!process) {
@@ -314,7 +338,29 @@ std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
         return 33;
     }
 
-	InstallOptions install{staging, target, executableName.wstring(), expectedHash};
+
+
+
+    const fs::path backupsDirectory = Paths::Backups();
+    std::error_code backupsDirectoryError;
+    fs::create_directories(backupsDirectory, backupsDirectoryError);
+    backupsDirectoryError.clear();
+    std::string stagedExecutableHash, stagedExecutableHashError;
+    if (!Sha256File(staging / executableName, stagedExecutableHash, stagedExecutableHashError)) {
+        WriteLog(log, LogLevel::Error, Version, targetVersion, "install",
+            stagedExecutableHashError.empty()
+                ? "Não foi possível calcular o SHA-256 do executável extraído."
+                : stagedExecutableHashError);
+        RecordHealth("install-failed", Version, targetVersion, expectedHash, {}, "disabled-single-exe",
+            "staged executable hash unavailable");
+        return 26;
+    }
+	InstallOptions install;
+	install.staging = staging;
+	install.target = target;
+	install.executableName = executableName.wstring();
+	install.backupDirectory = backupsDirectory;
+	install.expectedExecutableSha256 = stagedExecutableHash;
 	const InstallResult installed = InstallSingleExecutable(install);
     if (!installed.success) {
         WriteLog(log, LogLevel::Error, Version, targetVersion, "install", installed.error);
@@ -374,7 +420,8 @@ std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
             : error;
 
 
-        const fs::path backupExe = target / (executableName.wstring() + std::wstring(L".previous"));
+        const fs::path backupExe = ResolveRollbackBackup(target, backupsDirectory,
+            executableName.wstring() + std::wstring(L".previous"));
         std::error_code rollbackError;
         bool rolledBack = false;
         std::string rollbackDetail;
@@ -385,8 +432,8 @@ std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
 
 
 
-            const fs::path backupHashSidecar =
-                target / (executableName.wstring() + std::wstring(L".previous.sha256"));
+            const fs::path backupHashSidecar = backupExe.parent_path() /
+                (executableName.wstring() + std::wstring(L".previous.sha256"));
             const std::string expectedBackupHash = ReadTrimmedTextFile(backupHashSidecar);
             bool backupVerified = true;
             if (expectedBackupHash.size() == 64) {
@@ -400,6 +447,10 @@ std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
                 fs::copy_file(backupExe, target / executableName,
                     fs::copy_options::overwrite_existing, rollbackError);
                 rolledBack = !rollbackError;
+                if (rolledBack) {
+
+                    RemoveRollbackBackupFiles(target, backupsDirectory, executableName.wstring());
+                }
             }
         }
         WriteLog(log, LogLevel::Error, Version, targetVersion, "restart",
@@ -419,6 +470,9 @@ std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
     }
 
     fs::remove(package, cleanupError); fs::remove_all(staging, cleanupError); fs::remove(confirmation, cleanupError);
+
+
+    RemoveRollbackBackupFiles(target, backupsDirectory, executableName.wstring());
     WriteLog(log, LogLevel::Info, targetVersion, targetVersion, "complete", "Atualização concluída e arranque confirmado.");
     RecordHealth("complete", targetVersion, targetVersion, expectedHash, {}, "not-required",
         "update completed and startup confirmed");
