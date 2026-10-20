@@ -13,6 +13,9 @@ $sourceFiles = Get-ChildItem -LiteralPath $cs2Root -Recurse -File |
     Sort-Object FullName
 $source = ($sourceFiles | ForEach-Object { [IO.File]::ReadAllText($_.FullName) }) -join "`n"
 $espSource = [IO.File]::ReadAllText((Join-Path $ProjectDir 'src/games/Cs2/esp/cs2_esp.cpp'))
+$memoryIoSource = [IO.File]::ReadAllText((Join-Path $ProjectDir 'third_party/DMALibrary/Memory/MemoryIO.cpp'))
+$memoryLifecycleSource = [IO.File]::ReadAllText((Join-Path $ProjectDir 'third_party/DMALibrary/Memory/MemoryLifecycle.cpp'))
+$commonBuildProps = [IO.File]::ReadAllText((Join-Path $ProjectDir 'config/build/OmniGhost.Common.props'))
 
 function Require-Match([string]$Text, [string]$Pattern, [string]$Reason) {
     if ($Text -notmatch $Pattern) { throw $Reason }
@@ -21,6 +24,11 @@ function Require-Match([string]$Text, [string]$Pattern, [string]$Reason) {
 function Require-Condition([bool]$Condition, [string]$Reason) {
     if (-not $Condition) { throw $Reason }
 }
+
+Require-Match $memoryIoSource 'DmaSpinLockGuard\(DmaSpinLock& lock, AdoptLockTag\)' 'The non-blocking DMA lane has no adopt-lock guard.'
+Require-Match $memoryIoSource 'DmaSpinLockGuard\(g_dmaSpinLock, DmaSpinLockGuard::AdoptLockTag\{\}\)' 'TryAcquireDmaTransportLock still risks locking the same transport twice.'
+Require-Match $memoryLifecycleSource 'if \(IsCancellationRequested\(\)\)' 'DMA shutdown cancellation must reject new data-plane calls.'
+Require-Match $commonBuildProps '<OmniGhostDisableVmmSymbols[^>]*>true</OmniGhostDisableVmmSymbols>' 'VMM symbols must be disabled by default to prevent external symbol-store UI.'
 
 $resolver = [regex]::Match($source,
     '(?s)static int ScatterResolvePawnHandles\(.*?\r?\n}\r?\n').Value

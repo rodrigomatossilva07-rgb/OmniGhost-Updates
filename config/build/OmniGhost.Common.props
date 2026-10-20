@@ -12,6 +12,7 @@
 
 
     <OmniGhostDisableVmmInfoDb Condition="'$(OmniGhostDisableVmmInfoDb)'==''">true</OmniGhostDisableVmmInfoDb>
+    <OmniGhostDisableVmmSymbols Condition="'$(OmniGhostDisableVmmSymbols)'==''">true</OmniGhostDisableVmmSymbols>
 
 
     <FortniteEspImpl Condition="'$(FortniteEspImpl)'==''">false</FortniteEspImpl>

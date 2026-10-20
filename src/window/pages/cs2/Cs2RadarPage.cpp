@@ -4,6 +4,8 @@
 #include "cs2_game.h"
 #include "radar/cs2_radar.h"
 #include "platform/offset_auto.h"
+#include "Memory/Memory.h"
+#include "globals.h"
 #include "imgui.h"
 #include <Windows.h>
 #include <shellapi.h>
@@ -20,14 +22,14 @@ void CopyToClipboard(const std::string& text) {
 
     if (!OpenClipboard(nullptr)) return;
     EmptyClipboard();
-    HGLOBAL mem = GlobalAlloc(GMEM_MOVEABLE, text.size() + 1);
-    if (!mem) { CloseClipboard(); return; }
-    void* locked = GlobalLock(mem);
-    if (!locked) { GlobalFree(mem); CloseClipboard(); return; }
+    HGLOBAL clipboardMemory = GlobalAlloc(GMEM_MOVEABLE, text.size() + 1);
+    if (!clipboardMemory) { CloseClipboard(); return; }
+    void* locked = GlobalLock(clipboardMemory);
+    if (!locked) { GlobalFree(clipboardMemory); CloseClipboard(); return; }
     memcpy(locked, text.c_str(), text.size() + 1);
-    GlobalUnlock(mem);
-    if (!SetClipboardData(CF_TEXT, mem))
-        GlobalFree(mem);
+    GlobalUnlock(clipboardMemory);
+    if (!SetClipboardData(CF_TEXT, clipboardMemory))
+        GlobalFree(clipboardMemory);
     CloseClipboard();
 }
 
@@ -127,6 +129,7 @@ void DrawCs2Status() {
     const auto compatibility = OmniGhost::OffsetAuto::Compatibility(ActiveGame::CS2);
     const uint64_t now = GetTickCount64();
     const bool worker = CS2::AcquisitionRunning();
+    const auto dma = mem.GetDiagnosticsSnapshot();
     const bool worldFresh = worker && world && world->snapshot_timestamp_ms &&
         now >= world->snapshot_timestamp_ms && now - world->snapshot_timestamp_ms < 1000;
     const bool attached = worldFresh && world->client_base != 0;
@@ -142,7 +145,7 @@ void DrawCs2Status() {
     }
     const bool cameraFresh = attached && matrixValid &&
         now >= camera->timestamp_ms && now - camera->timestamp_ms < 250;
-    const bool offsetsOk = attached &&
+    const bool offsetsOk = CS2::offsets.loaded &&
         compatibility.state == OmniGhost::OffsetAuto::CompatibilityState::Ready;
 
     BeginCardRow();
@@ -150,7 +153,9 @@ void DrawCs2Status() {
     BeginCard("SISTEMA CS2", half);
     HealthRow("Aquisição", worker ? "Ativa" : "Parada",
         worker ? HealthStatus::Ok : HealthStatus::Warning);
-    HealthRow("Leitura do jogo", attached ? "Dados recentes" : "Sem dados recentes",
+    const char* readState = attached ? "Dados recentes" :
+        (dma.processInitialized ? "Aquisição sem resposta" : "Processo não associado");
+    HealthRow("Leitura do jogo", readState,
         attached ? HealthStatus::Ok : HealthStatus::Warning);
     HealthRow("Offsets", offsetsOk ? "Validados no jogo" :
         compatibility.state == OmniGhost::OffsetAuto::CompatibilityState::Outdated ?
@@ -160,7 +165,7 @@ void DrawCs2Status() {
         HealthStatus::Error : HealthStatus::Warning);
     HealthRow("ViewMatrix", cameraFresh ? "Atual" : "Indisponível ou antiga",
         cameraFresh ? HealthStatus::Ok : HealthStatus::Warning);
-    HealthRow("EntityList", attached && world->entity_list_addr ? "Resolvida" : "A aguardar",
+    HealthRow("EntityList", worldFresh && world->entity_list_addr ? "Resolvida" : "A aguardar",
         attached && world->entity_list_addr ? HealthStatus::Ok : HealthStatus::Warning);
     EndCard();
 

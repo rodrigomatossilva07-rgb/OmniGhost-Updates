@@ -1193,7 +1193,8 @@ namespace CyberWidgets {
     {
         const float width = WidgetWidth();
         const ImVec2 start = ImGui::GetCursorScreenPos();
-        const float height = CyberTheme::Px(action_label && *action_label ? 56.0f : 36.0f);
+        const bool hasAction = action_label && *action_label;
+        const float height = CyberTheme::Px(hasAction ? 154.0f : 104.0f);
         const ImVec2 end(start.x + width, start.y + height);
         ImDrawList* dl = ImGui::GetWindowDrawList();
         dl->AddRectFilled(start, end, CyberTheme::U32(CyberTheme::Colors.Surface), CyberTheme::Radius::Md);
@@ -1214,7 +1215,7 @@ namespace CyberWidgets {
                     CyberTheme::U32(CyberTheme::Colors.TextDisabled), detail);
 
         bool clicked = false;
-        if (action_label && *action_label) {
+        if (hasAction) {
             const ImVec2 buttonSize(CyberTheme::Px(150.0f), CyberTheme::Px(32.0f));
             ImGui::SetCursorScreenPos(ImVec2(start.x + (width - buttonSize.x) * 0.5f,
                                              start.y + CyberTheme::Px(108.0f)));

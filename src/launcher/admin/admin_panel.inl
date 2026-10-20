@@ -498,10 +498,11 @@ void DrawAdmin(ImVec2 display) {
         return;
     }
 
-    const float sidebarWidth = S(205.f);
+    const float sidebarWidth = S(220.f);
     const float gap = S(14.f);
     ImGui::BeginChild("##admin_navigation", ImVec2(sidebarWidth, -1.f), true,
-                      ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+                      ImGuiWindowFlags_NoSavedSettings);
+    ImGui::SetScrollX(0.0f);
     AdminPanel::DrawSectionNavigation();
     ImGui::EndChild();
     ImGui::SameLine(0.f, gap);

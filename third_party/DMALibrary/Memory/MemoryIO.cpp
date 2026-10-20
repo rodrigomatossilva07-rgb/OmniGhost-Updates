@@ -105,8 +105,10 @@ public:
 class DmaSpinLockGuard {
     DmaSpinLock* lock_ = nullptr;
 public:
+    struct AdoptLockTag {};
     DmaSpinLockGuard() = default;
     explicit DmaSpinLockGuard(DmaSpinLock& lock) : lock_(&lock) { lock_->lock(); }
+    DmaSpinLockGuard(DmaSpinLock& lock, AdoptLockTag) noexcept : lock_(&lock) {}
     DmaSpinLockGuard(DmaSpinLockGuard&& other) noexcept : lock_(other.lock_) { other.lock_ = nullptr; }
     DmaSpinLockGuard& operator=(DmaSpinLockGuard&& other) noexcept {
         if (this != &other) {
@@ -142,7 +144,7 @@ static DmaSpinLockGuard AcquireDmaTransportLock() {
 // Non-blocking variant used by the camera try-read lane: never waits.
 static DmaSpinLockGuard TryAcquireDmaTransportLock() {
     if (g_dmaSpinLock.try_lock())
-        return DmaSpinLockGuard(g_dmaSpinLock);
+        return DmaSpinLockGuard(g_dmaSpinLock, DmaSpinLockGuard::AdoptLockTag{});
     return DmaSpinLockGuard();
 }
 } // namespace

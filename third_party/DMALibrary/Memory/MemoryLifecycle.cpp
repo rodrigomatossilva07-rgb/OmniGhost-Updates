@@ -113,6 +113,10 @@ bool Memory::TryEnterDataCall(bool& counted) const noexcept
 	counted = false;
 	if (IsVmmMaintenanceOwner())
 		return true;
+	if (IsCancellationRequested()) {
+		blockedDataCalls_.fetch_add(1, std::memory_order_relaxed);
+		return false;
+	}
 
 	if (vmmMaintenanceActive_.load(std::memory_order_acquire)) {
 		blockedDataCalls_.fetch_add(1, std::memory_order_relaxed);

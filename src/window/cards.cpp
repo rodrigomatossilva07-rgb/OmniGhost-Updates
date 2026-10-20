@@ -225,8 +225,6 @@ namespace CyberWidgets {
 
         ImGui::PopID();
 
-        if (!card.inside_row)
-            ImGui::Dummy(ImVec2(0.0f, 7.0f));
     }
 
     void CardGap(float y)

@@ -1120,6 +1120,7 @@ while (application.shouldRun && !authenticated) {
     application.RenderMenu = false;
 
     const std::uint64_t shutdownGeneration = shutdownCoordinator.BeginSession([&] {
+        mem.RequestCancel();
         if (g_activeGame == ActiveGame::CS2) {
             CS2::Shutdown();
             CS2::ready = false;
