@@ -41,8 +41,8 @@ bool InsideExpandedFrustum(const float* position,
 bool IsPlayableMapName(const char* map_name) noexcept {
     if (!map_name || !*map_name)
         return false;
-    // CS-007: comparação sem construir std::string (o hot loop chamava isto
-    // a cada scan e alocava por frame).
+
+
     return std::strcmp(map_name, "lobby") != 0 &&
            std::strcmp(map_name, "none") != 0 &&
            std::strcmp(map_name, "mainmenu") != 0;

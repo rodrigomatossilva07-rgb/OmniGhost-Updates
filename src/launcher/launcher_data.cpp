@@ -431,9 +431,9 @@ GameHistory GetGameHistory(GameId id) {
     GameHistory history = it == g_game_history.end() ? GameHistory{} : it->second;
     OmniGhost::RemoteUsage::Summary remote;
     if (OmniGhost::RemoteUsage::TryGetSummary(id, remote)) {
-        // O resumo remoto é atualizado em background. Não deixar um snapshot
-        // remoto anterior (por exemplo, ainda com zero sessões) apagar a
-        // sessão que acabou de ser persistida localmente.
+
+
+
         if (remote.sessionCount > history.sessionCount ||
             (remote.sessionCount == history.sessionCount && remote.lastSessionSeconds > 0)) {
             history.lastSessionSeconds = remote.lastSessionSeconds;

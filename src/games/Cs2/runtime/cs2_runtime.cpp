@@ -44,18 +44,18 @@ void Publish(Runtime& source, uint64_t generation, uint64_t read_fails) {
     auto slot = g_runtime_snapshots.TryBeginWrite();
     if (!slot) {
         g_snapshot_drops.fetch_add(1, std::memory_order_relaxed);
-        // Sem slot livre: descarta os dados mas mantém a capacidade dos
-        // buffers do produtor (o próximo scan não aloca).
+
+
         source.players.clear();
         source.spectators.clear();
         source.dropped_weapons.clear();
         return;
     }
 
-    // CS-007: swap em vez de move — o slot reutiliza o próprio buffer de
-    // vetores e o produtor recupera o buffer antigo do slot (capacidadere-
-    // -usada no próximo scan). O leitor liberta o slot via refcounting do
-    // SnapshotExchange, como antes.
+
+
+
+
     slot.value->SwapVectorsWith(source);
     slot.value->CopyScalarsFrom(source);
     slot.value->snapshot_timestamp_ms = now;

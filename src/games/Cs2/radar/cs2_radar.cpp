@@ -53,8 +53,8 @@ std::atomic<bool> g_running{false};
 std::atomic<bool> g_wsa{false};
 std::mutex g_wsa_mu;
 SOCKET g_listen = INVALID_SOCKET;
-// CSE-005: self-pipe loopback — o Stop() acorda o select com um byte em
-// vez de fechar o listen socket a meio de select() (UB em Winsock).
+
+
 SOCKET g_wake_read = INVALID_SOCKET;
 SOCKET g_wake_write = INVALID_SOCKET;
 std::atomic<int> g_port{8080};
@@ -352,12 +352,12 @@ void ServerLoop() {
         fd_set writable{};
         FD_ZERO(&readable);
         FD_ZERO(&writable);
-        // CSE-004: o listen socket entra SEMPRE no select — em sobrecarga
-        // aceitamos e recusamos com 429 imediato em vez de deixar as
-        // ligações penduradas no backlog (slowloris).
+
+
+
         FD_SET(listenSock, &readable);
-        // CSE-005: o socket de wake também entra — o Stop() acorda o select
-        // com um byte em vez de fechar o listen socket (UB em Winsock).
+
+
         SOCKET wakeSock = INVALID_SOCKET;
         {
             std::lock_guard<std::mutex> lock(g_mu);
@@ -377,7 +377,7 @@ void ServerLoop() {
             g_running.store(false, std::memory_order_release);
             break;
         }
-        // CSE-005: drena o byte de wake — o Stop() sinalizou g_running=false.
+
         if (wakeSock != INVALID_SOCKET && FD_ISSET(wakeSock, &readable)) {
             char wakeByte = 0;
             while (recv(wakeSock, &wakeByte, 1, 0) > 0) {}
@@ -395,8 +395,8 @@ void ServerLoop() {
                     else if (it->request.find("\r\n\r\n") != std::string::npos) {
                         it->response = HandleRequest(it->request);
                         it->request.clear();
-                        // CSE-004: deadline de escrita apertado (2 s) — um
-                        // leitor lento não segura o slot por 5 s.
+
+
                         it->deadline = GetTickCount64() + 2000u;
                     }
                 } else if (received == 0 || WSAGetLastError() != WSAEWOULDBLOCK) close = true;
@@ -423,11 +423,11 @@ void ServerLoop() {
                     closesocket(accepted);
                     continue;
                 }
-                // CSE-004: o servidor escuta apenas em 127.0.0.1 (todo o
-                // tráfego externo chega pelo túnel cloudflared), por isso o
-                // budget aplica-se à assinatura slowloris: clientes com
-                // header ainda incompleto. Legítimos completam em ms; acima
-                // de 8 incompletos ou 32 totais recusa com 429 imediato.
+
+
+
+
+
                 constexpr size_t kMaxIncompleteHeaders = 8;
                 constexpr size_t kMaxClients = 32;
                 size_t incompleteHeaders = 0;
@@ -483,9 +483,9 @@ std::wstring FindCloudflared() {
 
 }
 
-// CSE-003: NaN/inf serializam como "nan"/"inf" e quebram JSON.parse no
-// webapp (a página bloqueia até ao próximo ciclo) — emite 0 para qualquer
-// float não finito.
+
+
+
 static double JsonSafe(double value) {
     return std::isfinite(value) ? value : 0.0;
 }
@@ -608,8 +608,8 @@ bool Start(int port) {
     u_long nb = 1;
     ioctlsocket(s, FIONBIO, &nb);
 
-    // CSE-005: par de sockets UDP loopback para o wake do Stop(). Se a
-    // criação falhar, o ServerLoop continua com o poll de 5 ms como fallback.
+
+
     SOCKET wakeRead = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     SOCKET wakeWrite = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (wakeRead != INVALID_SOCKET && wakeWrite != INVALID_SOCKET) {
@@ -670,9 +670,9 @@ bool Start(int port) {
 
 void Stop() {
     g_running.store(false);
-    // CSE-005: acorda o select com um byte — NÃO fecha o listen socket a
-    // meio de select() (UB em Winsock). O fecho passa a correr depois do
-    // join, quando o ServerLoop já não lhe toca.
+
+
+
     {
         std::lock_guard<std::mutex> lock(g_mu);
         if (g_wake_write != INVALID_SOCKET) {
@@ -798,9 +798,9 @@ bool StartCloudflare() {
     if (CloudflareRunning()) return true;
     if (!IsRunning()) return false;
 
-    // Elimina por completo uma tentativa anterior. Fechar apenas o HANDLE
-    // deixava cloudflared.exe vivo e a tentativa seguinte podia esperar por
-    // um pipe pertencente ao processo antigo.
+
+
+
     g_cf_stop.store(true);
     HANDLE staleProcess = nullptr;
     {
@@ -824,8 +824,8 @@ bool StartCloudflare() {
 
     const std::wstring exe = FindCloudflared();
     wchar_t cmd[512]{};
-    // HTTP/2 usa TCP/443 e evita o longo fallback de QUIC em redes onde UDP
-    // é filtrado pelo router ou ISP.
+
+
     std::swprintf(cmd, 512, L"\"%s\" tunnel --no-autoupdate --protocol http2 --url http://127.0.0.1:%d",
                   exe.c_str(), g_port.load());
 

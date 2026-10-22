@@ -1,14 +1,18 @@
 #pragma once
 
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <mutex>
 #include <optional>
 #include <shared_mutex>
+#include <stdexcept>
 #include <string>
+#include <tuple>
 #include <type_traits>
 #include <typeindex>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace OmniGhost::Platform {
@@ -73,12 +77,8 @@ public:
 
 
     [[nodiscard]] ServiceContainer* GetParent() const noexcept {
-        // PL-012: o parent é weak — se o dono partiu, devolve nullptr
-        // em vez de dangling.
         std::shared_lock lock(mutex_);
-        if (auto locked = parent_.lock())
-            return locked.get();
-        return nullptr;
+        return parent_;
     }
 
 
@@ -194,29 +194,24 @@ public:
         }
 
 
-        ServiceLifetime lifetime;
+        ServiceLifetime lifetime = ServiceLifetime::Transient;
         std::function<std::shared_ptr<void>(ServiceContainer&)> factory;
         std::shared_ptr<void> existingInstance;
-        std::weak_ptr<ServiceContainer> parentSnapshot;
+        ServiceContainer* parentSnapshot = nullptr;
+        bool descriptorFound = false;
         {
             std::shared_lock lock(mutex_);
             auto it = descriptors_.find(type);
-            if (it == descriptors_.end()) {
-
-                parentSnapshot = parent_;
-            } else {
+            descriptorFound = it != descriptors_.end();
+            parentSnapshot = parent_;
+            if (descriptorFound) {
                 lifetime = it->second.lifetime;
                 factory = it->second.factory;
                 existingInstance = it->second.instance;
-                parentSnapshot = parent_;
             }
         }
-        if (it == descriptors_.end() && parentSnapshot.expired())
-            return nullptr;
-        if (it == descriptors_.end()) {
-            if (auto parent = parentSnapshot.lock())
-                return parent->TryGet<Interface>();
-            return nullptr;
+        if (!descriptorFound) {
+            return parentSnapshot ? parentSnapshot->TryGet<Interface>() : nullptr;
         }
 
         if (lifetime == ServiceLifetime::Singleton) {
@@ -224,11 +219,9 @@ public:
                 return std::static_pointer_cast<Interface>(existingInstance);
             }
             if (factory) {
-                // PL-012: serializa a criação lazy de singletons — sem isto,
-                // duas threads corriam a factory e obtinham instâncias
-                // distintas de um "singleton". O resolveMutex_ é separado
-                // do mutex_ para a factory poder resolver dependências do
-                // próprio container sem deadlock.
+                // Serialize lazy singleton creation. A recursive mutex is
+                // required because a factory may resolve another service
+                // through this same container.
                 std::lock_guard resolveLock(resolveMutex_);
                 {
                     std::shared_lock lock(mutex_);
@@ -249,9 +242,7 @@ public:
         }
 
 
-        if (auto parent = parentSnapshot.lock())
-            return parent->TryGet<Interface>();
-        return nullptr;
+        return parentSnapshot ? parentSnapshot->TryGet<Interface>() : nullptr;
     }
 
 
@@ -327,6 +318,10 @@ public:
 
 private:
     mutable std::shared_mutex mutex_;
+    // A recursive mutex allows a singleton factory to resolve its own
+    // dependencies through this container while still preventing duplicate
+    // singleton construction by concurrent callers.
+    mutable std::recursive_mutex resolveMutex_;
     std::unordered_map<std::type_index, ServiceDescriptor> descriptors_;
     std::unordered_map<std::type_index, std::shared_ptr<void>> singletons_;
     ServiceContainer* parent_ = nullptr;

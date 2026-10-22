@@ -131,9 +131,9 @@ bool ExtractEntry(const OmniGhost::EmbeddedRuntimeGenerated::Entry& entry,
         error = L"Não foi possível criar a pasta privada do runtime.";
         return false;
     }
-    // PL-010: nome do temporário imprevisível (GUID além do pid) e criado
-    // com CREATE_NEW — falha se já existir, impedindo pré-criação/symlink
-    // por um atacante local que adivinhe o nome previsível *.tmp-<pid>.
+
+
+
     GUID tempGuid{};
     wchar_t guidText[64]{};
     fs::path temporary = target.wstring() + L".tmp-" + std::to_wstring(GetCurrentProcessId());
@@ -181,9 +181,9 @@ bool ExtractEntry(const OmniGhost::EmbeddedRuntimeGenerated::Entry& entry,
     }
 
     if (fs::exists(target, ec)) {
-        // PL-010: o check de reparse examina o PRÓPRIO link
-        // (GetFileAttributesW não segue o alvo), ao contrário de
-        // fs::status que segue symlinks.
+
+
+
         const DWORD targetAttrs = GetFileAttributesW(target.c_str());
         if (targetAttrs != INVALID_FILE_ATTRIBUTES &&
             (targetAttrs & FILE_ATTRIBUTE_REPARSE_POINT)) {
@@ -753,10 +753,10 @@ Result Prepare() {
                     }
                 }
                 if (coveredByManifest) {
-                    // PL-010: TOCTOU — mantém um handle com FILE_SHARE_READ
-                    // (sem share de escrita) do validate ao load; a share
-                    // mode impede substituição concorrente do binário na
-                    // janela entre a validação e o LoadLibraryExW.
+
+
+
+
                     HANDLE dllHandle = CreateFileW(candidate.c_str(), GENERIC_READ,
                         FILE_SHARE_READ, nullptr, OPEN_EXISTING,
                         FILE_ATTRIBUTE_NORMAL, nullptr);
@@ -895,7 +895,7 @@ void VerifyNoPrivateExeCopy() noexcept {
 }
 
 
-// PL-012: FileOriginMap/g_fileOrigins removidos — map sem lock e sem
-// chamadores (api morta com corrida formal).
+
+
 
 }

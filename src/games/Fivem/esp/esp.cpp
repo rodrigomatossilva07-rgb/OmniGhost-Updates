@@ -604,9 +604,9 @@ struct PedFrameFlags {
 static std::unordered_map<uintptr_t, PedFrameFlags> g_pedFrameFlags;
 static std::shared_mutex g_pedFrameFlagsMutex;
 
-// Devolve uma CÃƒâ€œPIA das flags do ped para o frame atual. O reset por
-// frame/sessÃƒÂ£o e o prune acontecem sob lock Ã¢â‚¬â€ nenhuma referÃƒÂªncia ao
-// estado interno escapa ao mutex.
+
+
+
 static PedFrameFlags PedFlags(uintptr_t ped) {
     const uint32_t f = static_cast<uint32_t>(ImGui::GetFrameCount());
     const uint64_t currentGen = FiveM::ESP::GetSessionGeneration().load(std::memory_order_acquire);
@@ -645,7 +645,7 @@ static PedFrameFlags PedFlags(uintptr_t ped) {
     return result;
 }
 
-// MutaÃƒÂ§ÃƒÂ£o do estado de saÃƒÂºde sob lock Ã¢â‚¬â€ substitui a antiga referÃƒÂªncia pÃƒÂ³s-unlock.
+
 static void SetPedHealthState(uintptr_t ped, FiveM::PedHealthState state) {
     std::unique_lock lock(g_pedFrameFlagsMutex);
     auto it = g_pedFrameFlags.find(ped);
@@ -654,11 +654,11 @@ static void SetPedHealthState(uintptr_t ped, FiveM::PedHealthState state) {
 }
 
 
-// Cache por frame do snapshot de liveness: uma única aquisição/frame com
-// lookup O(1) por ped, em vez de uma lease + varredura ≤110 amostras por
-// ped (O(peds²)/frame). O array de amostras é thread_local e só é
-// reescrito pela próxima AcquireLivenessSnapshot, portanto os ponteiros
-// ficam válidos durante o frame da render thread.
+
+
+
+
+
 struct LivenessFrameCache {
     const FiveM::ESP::LivenessSample* players = nullptr;
     uint32_t count = 0;
@@ -1263,9 +1263,9 @@ void esp::prepare_esp_frame(const std::vector<uintptr_t>& peds,
 
     const bool needs_motion_origin = frameConfig.trails || frameConfig.head_halo || frameConfig.look_direction ||
         frameConfig.chinese_hat || frameConfig.angel_wings || frameConfig.devil_horns || frameConfig.floating_crown;
-    // friends/team-check precisam de network_id + health no frame preparado;
-    // sem isto, configs só-skeleton publicavam frames vazios e os amigos
-    // apareciam como inimigos (FM-014).
+
+
+
     const bool identityNeeded = frameConfig.team_check || friends::HasFriends();
     const bool radarNeedsIdentity = frameConfig.radar_enabled &&
         (frameConfig.team_check || friends::HasFriends());
@@ -1465,9 +1465,9 @@ void esp::prepare_esp_frame(const std::vector<uintptr_t>& peds,
                         std::unique_lock nameLock(g_preparedNameCacheMutex);
                         g_preparedNameCache[data.player_info] = cached;
                         if (g_preparedNameCache.size() > 512) {
-                            // Prune incremental em vez de clear() total: apaga
-                            // os 25% mais antigos e mantém o cache quente,
-                            // evitando re-ler todos os nomes no frame seguinte.
+
+
+
                             std::vector<std::pair<
                                 std::chrono::steady_clock::time_point, uintptr_t>> byAge;
                             byAge.reserve(g_preparedNameCache.size());
@@ -2101,8 +2101,8 @@ static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer,
                     case 0x184140A1u: wname = "Fertilizer Can"; break;
                     default:
                         if (hash != 0) {
-                            // Consulta o registry joaat (domínio FiveM)
-                            // antes de cair no genérico "Arma" (FM-015a).
+
+
                             const std::string registered =
                                 OmniGhost::Gameplay::WeaponNameRegistry::Instance()
                                     .GetWeaponName(hash);
@@ -2838,11 +2838,11 @@ void esp::DrawPlayerRadar(const Matrix& , uintptr_t localplayer) {
         if (snapshot.validPeds.empty()) return;
 
 
-    // Base do radar derivada do heading da câmara: o ecrã-direita em espaço
-    // mundo é a coluna 2 da view matrix (view._12/_22/_32) e a câmara GTA
-    // mantém o horizonte nivelado (sem roll), logo o eixo direito é
-    // horizontal — a sua projeção no chão dá a rotação correta. Fallback:
-    // north-up se a view matrix estiver degenerada.
+
+
+
+
+
     float fx = 0.f, fy = 1.f;
     {
         const Matrix& vm = FiveM::ESP::GetFrameViewMatrix();
@@ -2911,9 +2911,9 @@ void esp::DrawPlayerRadar(const Matrix& , uintptr_t localplayer) {
 
     Matrix view = FiveM::ESP::GetFrameViewMatrix();
 
-    // Mesma base do radar quadrado: o ângulo fora do ecrã passa a ser
-    // medido no referencial da câmara, eliminando o salto na transição
-    // entre a posição projetada (ecrã) e o anel (mundo).
+
+
+
     float tfx = 0.f, tfy = 1.f;
     {
         const float rightX = view._12;
@@ -2970,8 +2970,8 @@ void esp::DrawPlayerRadar(const Matrix& , uintptr_t localplayer) {
         if (!onScreen) {
             float wdx = pos.x - localPos.x;
             float wdy = pos.y - localPos.y;
-            // Ângulo no referencial da câmara (mesma base do radar quadrado)
-            // em vez do ângulo de mundo — transição ecrã↔anel sem salto.
+
+
             float localX = wdx * tRx + wdy * tRy;
             float localY = wdx * tfx + wdy * tfy;
             float ang = atan2f(localX, localY);

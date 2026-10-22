@@ -80,10 +80,10 @@ bool W2S(const float* world, const float* vm, float& sx, float& sy) {
 
 
 void PickBone(const CS2::Player& p, int bone, float out[3]) {
-    // CSE-006: gate de frescura — os bones em cache podem ficar até 5 s
-    // velhos sob pressão DMA (prune lento); o aim não deve seguir
-    // esqueletos congelados. Acima de 250 ms cai para pos + offset de
-    // hitbox (72 u ≈ altura da cabeça, o mesmo default do ESP).
+
+
+
+
     const uint64_t now_ms = GetTickCount64();
     const bool bonesFresh = p.bones_ok && p.bone_pose_sample_ms != 0 &&
         now_ms >= p.bone_pose_sample_ms &&
@@ -212,7 +212,7 @@ bool KeyDown(int vk) {
 }
 
 bool AimKeyDown(const CS2::Config& cfg) {
-    // CSE-008: honra as teclas secundárias persistidas (como Warzone/FiveM).
+
     if (!cfg.aim_enabled) return false;
     if (cfg.aim_bind > 0 && KeyDown(cfg.aim_bind)) return true;
     if (cfg.aim_bind2 > 0 && KeyDown(cfg.aim_bind2)) return true;
@@ -807,8 +807,8 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
                     const int bone = SelectAimBone(held, cfg, rt.local_weapon_definition);
                     if (bone < 0) break;
                     PickBone(held, bone, point);
-                    // CSE-006: o path de retenção sticky não aplicava a
-                    // predição robusta ao contrário do path principal.
+
+
                     const uint64_t sticky_now_ms = GetTickCount64();
                     ApplyRobustPrediction(point, held, rt, cfg, sticky_now_ms);
                     float sx = 0.f, sy = 0.f;
@@ -905,17 +905,17 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
                     if (idEnt > 0) {
                         for (const auto& p : rt.players) {
                             if (p.is_local) continue;
-                            // CS-011: enquanto a equipa local é desconhecida
-                            // (<2), não dispara com o team check ativo — não
-                            // falha aberto em colegas nos primeiros ~500 ms.
+
+
+
                             if (cfg.trigger_team_check &&
                                 (rt.local_team < 2 || p.team == rt.local_team)) continue;
                             if (!p.alive || p.health <= 0) continue;
                             if (cfg.aim_visibility_check && !p.spotted) continue;
                             if (p.ent_index == idEnt || p.ent_index == (idEnt & 0x7FFF)) {
                                 if (cfg.trigger_head_only) {
-                                    // CSE-006: cabeça com gate de frescura —
-                                    // bones velhos caem para pos + altura.
+
+
                                     const uint64_t identNowMs = GetTickCount64();
                                     const bool identBonesFresh = p.bones_ok &&
                                         p.bone_pose_sample_ms != 0 &&
@@ -947,7 +947,7 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
                         : (std::max)(18.f, cfg.aim_fov > 1.f ? cfg.aim_fov * 0.35f : 28.f);
                     for (const auto& p : rt.players) {
                         if (p.is_local) continue;
-                        // CS-011: idem — conservador com equipa local desconhecida.
+
                         if (cfg.trigger_team_check &&
                             (rt.local_team < 2 || p.team == rt.local_team)) continue;
                         if (!p.alive || p.health <= 0) continue;
@@ -958,9 +958,9 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
                             const float d = std::sqrt((sx - cx) * (sx - cx) + (sy - cy) * (sy - cy));
                             return d < triggerFov;
                         };
-                        // CSE-006: gate de frescura — bones em cache podem
-                        // estar até 5 s velhos sob pressão DMA; o trigger
-                        // segue a posição atual + altura de hitbox.
+
+
+
                         const uint64_t trigNowMs = GetTickCount64();
                         const bool trigBonesFresh = p.bones_ok && p.bone_pose_sample_ms != 0 &&
                             trigNowMs >= p.bone_pose_sample_ms &&

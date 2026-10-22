@@ -131,9 +131,9 @@ struct Config : OmniGhost::Gameplay::EspConfigBase {
     int profile = 0;
 
 
-    // CS-014: as declarações de SaveConfig/LoadConfig/SelfTestOffsets foram
-    // removidas — não tinham definição como membros (as funções livres
-    // homónimas em cs2_config_io.cpp / cs2_offset_validation.inl continuam).
+
+
+
 };
 
 inline void ApplyLegitProfile(Config& c) {

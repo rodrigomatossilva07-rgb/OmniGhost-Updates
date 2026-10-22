@@ -19,11 +19,11 @@ void Loader::EnsureStartedLocked() {
 void Loader::Request(const char* map_name, bool needed, uint64_t now_ms) {
     auto& cache = Trajectory::CollisionCache();
     if (!needed) {
-        // CSE-009: desligar NÃO é descarregar. O pipeline simplesmente deixa
-        // de consultar o BVH; o mapa construído mantém-se para que re-ligar
-        // o toggle não reforce um rebuild completo (~0.8 GB). O unload
-        // acontece por mudança de mapa (LoadForMap substitui) ou em
-        // Reset()/Stop(). Tradeoff intencional: RAM residente maior.
+
+
+
+
+
         return;
     }
     if (!map_name || !*map_name || cache.IsLoadedFor(map_name))

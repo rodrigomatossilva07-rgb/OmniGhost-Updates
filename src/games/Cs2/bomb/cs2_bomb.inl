@@ -175,9 +175,9 @@ void UpdateBombState() {
     next.defuse_time = defuse;
     next.defused = defused != 0;
     next.defusing = defusing != 0 && defuse > 0.05f;
-    // CSE-003: valida a posição antes do commit — um m_vecAbsOrigin lido a
-    // NaN não pode chegar ao radar web (JSON.parse falha com "nan"). Zera,
-    // como recomenda a auditoria (não há campo pos_valid no BombState).
+
+
+
     if (!IsFinitePosition(next.pos))
         std::memset(next.pos, 0, sizeof(next.pos));
     runtime.bomb = next;

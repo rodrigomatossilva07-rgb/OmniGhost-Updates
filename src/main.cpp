@@ -1314,8 +1314,8 @@ while (application.shouldRun && !authenticated) {
             : return_requested_by_user
                 ? "Sessão terminada pelo utilizador."
                 : "O processo do jogo deixou de estar disponível.";
-        // Persiste e termina o heartbeat antes do teardown. Assim, mesmo que
-        // um driver/worker demore a encerrar, a Home nunca perde a sessão.
+
+
         Launcher::EndTimedGameSession(selected, sessionResult, sessionDetail);
 
         if (application.shouldRun && return_to_launcher) {

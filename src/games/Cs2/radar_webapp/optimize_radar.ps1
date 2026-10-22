@@ -18,9 +18,9 @@ function Log([string]$Message) {
 }
 
 function Optimize-MapAssets {
-    # Os metadados dos mapas são dados de runtime. A antiga substituição por
-    # regex inseria propriedades em todos os objetos e podia corromper JSON5
-    # válido. As imagens já são distribuídas no formato consumido pelo radar.
+
+
+
     Log "Map assets kept byte-for-byte (safe mode)."
 }
 
@@ -60,8 +60,8 @@ function Add-LazyLoadingToIndex {
 }
 
 function Optimize-Renderers {
-    # Não envolver nem minificar JavaScript através de regex. O antigo wrapper
-    # alterava a ordem de inicialização e podia impedir o arranque do frontend.
+
+
     Log "Renderer scripts kept byte-for-byte (safe mode)."
 }
 

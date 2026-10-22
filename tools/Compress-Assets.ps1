@@ -109,10 +109,10 @@ function Compress-Js([string]$InputPath, [string]$OutputPath) {
     if (-not (Test-Path $InputPath)) { return $false }
 
     try {
-        # JavaScript depende frequentemente de Automatic Semicolon Insertion.
-        # Uma substituição baseada em regex não é um minificador e corrompia
-        # declarações consecutivas ao remover as quebras de linha. Mantemos os
-        # bytes originais até existir um minificador com parser real.
+
+
+
+
         Copy-Item -LiteralPath $InputPath -Destination $OutputPath -Force
         return $true
     } catch {

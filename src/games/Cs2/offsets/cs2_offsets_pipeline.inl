@@ -25,8 +25,8 @@ bool ResolveDataPath(std::string& out_dir) {
     return false;
 }
 
-// CS-012: tier opcional — campos lidos por lanes de features cuja ausência
-// degrada mas não bloqueia o arranque. Aviso, não fatal.
+
+
 static void LogOptionalOffsetWarnings(const Offsets& loaded) {
     struct OptionalField { const char* name; uintptr_t value; };
     const OptionalField optional[] = {
@@ -304,10 +304,10 @@ bool LoadEmbeddedOffsets() {
     read("schemas.CSkeletonInstance.m_modelState", offsets.m_modelState, false);
     uintptr_t boneArrayInModelState = 0;
     read("schemas.CModelState.m_boneArray", boneArrayInModelState, true);
-    // CS-012: nunca compor com base zero — se o m_modelState falta,
-    // BoneArray fica inválido (0) e a validação bloqueia com log, em vez
-    // de gerar um offset a partir de 0 + boneArrayInModelState (o mesmo
-    // guard que o path JSON já usa).
+
+
+
+
     offsets.BoneArray = offsets.m_modelState && boneArrayInModelState
         ? offsets.m_modelState + boneArrayInModelState : 0;
     read("schemas.C_PlantedC4.m_bBombTicking", offsets.m_bBombTicking, false);

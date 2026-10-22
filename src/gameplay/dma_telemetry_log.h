@@ -107,8 +107,8 @@ struct Sample {
         std::atomic<float> bones_age_p95_ms{0.f};
         std::atomic<float> bones_age_p99_ms{0.f};
         std::atomic<float> bones_age_max_ms{0.f};
-        // CS-015: diagnóstico de stride do BoneArray — joints avaliados vs
-        // rejeitados pelos gates de plausibilidade (0 aceites = stride errado).
+
+
         std::atomic<std::uint64_t> joints_evaluated{0};
         std::atomic<std::uint64_t> joints_rejected{0};
     } bones;

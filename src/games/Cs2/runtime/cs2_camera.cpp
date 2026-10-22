@@ -89,9 +89,9 @@ CameraSnapshot Predict(uint64_t presentation_ms) {
     if (sampleDelta > 20u || sourceAge > 20u)
         return newest;
 
-    // Compensa apenas até um intervalo da câmara. Uma extrapolação curta dos
-    // coeficientes da matriz remove o arrasto visível durante rotações rápidas
-    // sem permitir que uma leitura atrasada produza uma projeção instável.
+
+
+
     const float factor = std::clamp(
         static_cast<float>((std::min)(sourceAge, uint64_t{8})) /
             static_cast<float>((std::max)(sampleDelta, uint64_t{1})),

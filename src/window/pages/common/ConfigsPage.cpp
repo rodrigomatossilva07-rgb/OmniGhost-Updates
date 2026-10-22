@@ -265,8 +265,8 @@ void DrawConfigs(Overlay* self)
     }
     CyberWidgets::HelpMarker("A escala é combinada com o DPI do monitor. Em 125%, 150% ou 200% do Windows, o OmniGhost mantém texto e controlos nítidos.");
 
-    // Cache dos monitores com refresh temporizado: EnumerateMonitors() por
-    // frame (EnumDisplayMonitors + strings) é custo desnecessário no tab General.
+
+
     struct MonitorListCache {
         std::vector<std::string> labels;
         std::vector<const char*> items;

@@ -133,9 +133,9 @@ inline int GetBoneJointIndex(BoneSlot slot) {
 
 
 
-// Mantém a última pose válida durante uma falha opcional curta. A origem da
-// pose é corrigida pela posição atual do pawn, portanto isto elimina flashes
-// sem deixar o esqueleto preso no mundo.
+
+
+
 inline constexpr uint64_t kBoneVisualMaxAgeMs = 650u;
 
 
@@ -366,10 +366,10 @@ struct Runtime {
         return *this;
     }
 
-    // CS-007: publicação sem churn de alocações. O produtor TROCA os vetores
-    // com o slot (ambos reutilizam os buffers) e copia apenas os escalares —
-    // em vez de mover o vector do produtor para o slot, o que o deixava com
-    // capacidade zero e obrigava a realocar ~64xPlayer a cada scan.
+
+
+
+
     void SwapVectorsWith(Runtime& other) noexcept {
         players.swap(other.players);
         spectators.swap(other.spectators);
@@ -457,18 +457,18 @@ struct LivenessSnapshot {
 using LivenessSnapshotLease = OmniGhost::Gameplay::SnapshotExchange<LivenessSnapshot>::ReadLease;
 
 extern Offsets offsets;
-// CS-008(c): a config global é propriedade da thread de UI (páginas +
-// DeserializeAll correm aí). O Tick de render — que também corre na UI —
-// publica cópias via SubmitAcquisitionConfig; o worker de aquisição lê
-// apenas as cópias publicadas. Não reescrever CS2::config fora da UI thread.
+
+
+
+
 extern Config config;
 extern Runtime runtime;
 extern bool ready;
 
-// CS-008: o estado de arranque é escrito pela pipeline de offsets (thread de
-// launch) e pela UI (ConfigsPage) e lido pelo render/launcher — substitui o
-// antigo `extern std::string status` por um buffer guardado por comprimento
-// atómico. GetStatusView devolve uma string_view para buffer thread_local.
+
+
+
+
 void SetStatus(std::string_view text);
 [[nodiscard]] std::string GetStatus();
 [[nodiscard]] std::string_view GetStatusView();
@@ -478,8 +478,8 @@ bool ResolveDataPath(std::string& out_dir);
 bool LoadOffsetsFromJson(const char* path = nullptr);
 bool WaitForProcess(int timeout_sec = 120);
 bool Attach();
-// CS-014: RunFrame() removido — corria RunFrameWithConfig na render thread
-// contra statics da aquisição; sem chamadores.
+
+
 void EnsureAcquisitionStarted();
 void StopAcquisition();
 void SubmitAcquisitionConfig(const Config& next) noexcept;

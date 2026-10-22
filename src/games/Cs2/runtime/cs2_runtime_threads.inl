@@ -80,9 +80,9 @@ void EnsureAcquisitionStarted() {
             const int camera_pressure = g_pressure_level.load(std::memory_order_relaxed);
 
 
-            // A ViewMatrix é uma leitura pequena e tem prioridade própria. Uma
-            // cadência de 25 ms fazia o ESP atrasar visivelmente em rotações
-            // rápidas, sobretudo a longa distância.
+
+
+
             const int camera_period_ms = camera_pressure >= 3
                 ? 6
                 : std::clamp(g_intervals.camera_ms, 2, 4);
@@ -389,17 +389,17 @@ void EnsureAcquisitionStarted() {
 void StopAcquisition() {
     if (OmniGhost::Gameplay::DmaTelemetry::IsEnabled())
         OmniGhost::Gameplay::DmaTelemetry::LogSessionSummary("CS2");
-    // O controlador do Web Radar também executa Stop()/StopCloudflare(). A
-    // sinalização tem de acontecer antes dos joins DMA para não ficar vivo a
-    // iniciar/reiniciar serviços durante o teardown.
+
+
+
     g_web_radar_control_stop.store(true, std::memory_order_release);
     g_web_radar_desired_enabled.store(false, std::memory_order_release);
     g_acqState.RequestStop();
     if (g_web_radar_control_thread.joinable())
         g_web_radar_control_thread.join();
-    // O controlo do radar já terminou e não pode voltar a iniciar o serviço.
-    // A paragem passa a ocorrer num único thread, evitando a corrida entre
-    // StartCloudflare/StopCloudflare que prendia o retorno ao launcher.
+
+
+
     WebRadar::Stop();
     if (g_optional_thread.joinable())
         g_optional_thread.join();

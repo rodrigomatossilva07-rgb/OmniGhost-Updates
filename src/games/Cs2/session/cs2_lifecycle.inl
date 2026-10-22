@@ -87,7 +87,7 @@ void Shutdown() {
 
     RuntimePipeline::ResetProducerThreadForShutdown();
     PublishRuntimeSnapshot();
-    // CSE-002: liberta os SRV dos ícones de armas no fim da sessão CS2.
+
     CS2_WeaponIcons::Shutdown();
     std::clog << "[CS2][Shutdown] complete\n";
     SetStatus("Shutdown");

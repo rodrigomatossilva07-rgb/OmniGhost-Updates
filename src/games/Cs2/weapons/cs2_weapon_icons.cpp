@@ -150,8 +150,8 @@ bool LoadPngRgba(const std::wstring& path, std::vector<uint8_t>& out, int& w, in
     UINT uw = 0, uh = 0;
     conv->GetSize(&uw, &uh);
     w = (int)uw; h = (int)uh;
-    // CSE-002: cap de pixels — um PNG gigante não deve provocar bad_alloc no
-    // worker (o limite já existia apenas na variante em memória).
+
+
     constexpr UINT kMaxIconDim = 4096;
     constexpr std::uint64_t kMaxIconPixels = 4ull * 1024ull * 1024ull;
     if (w <= 0 || h <= 0 || uw > kMaxIconDim || uh > kMaxIconDim ||
@@ -331,8 +331,8 @@ void PumpUploads(ID3D11Device* device, int max_uploads) {
             ++it;
             continue;
         }
-        // CSE-002: get() re Lança a exceção do worker (ex.: bad_alloc) —
-        // apanhada aqui em vez de derrubar a render thread.
+
+
         const int def = it->first;
         IconPixels pixels{};
         bool decodeOk = false;
@@ -422,9 +422,9 @@ void Shutdown() {
     }
     g_icons.clear();
 
-    // CSE-002: os futures de std::async BLOQUEIAM no destrutor — em vez de
-    // prender o Shutdown à espera de decodes em curso, move-os para um
-    // drainer destacado.
+
+
+
     if (!g_pending_icons.empty()) {
         std::vector<std::future<IconPixels>> drainer;
         drainer.reserve(g_pending_icons.size());

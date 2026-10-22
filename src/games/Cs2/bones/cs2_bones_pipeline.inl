@@ -103,11 +103,11 @@ static void RunOptionalEnrichment(const Config& frame_config,
         constexpr int kJointCount = 28;
         struct BoneJointSnapshot { float x, y, z, scale; char pad[0x10]; };
         static_assert(sizeof(BoneJointSnapshot) == 32, "BoneJointSnapshot");
-        // CS-015: layout alternativo de 48 B (matrix3x4-like; posição nos
-        // primeiros 3 floats). NEEDS VALIDATION: o stride real do BoneArray
-        // tem de ser confirmado com um dump vivo (cs2-dumper); a sonda 48 B
-        // ativa UMA vez quando TODOS os joints são rejeitados num scan com
-        // alvos resolvidos e reverte se também falhar.
+
+
+
+
+
         struct BoneJointSnapshot48 { float v[12]; };
         static_assert(sizeof(BoneJointSnapshot48) == 48, "BoneJointSnapshot48");
         static bool s_probe48Attempted = false;
@@ -188,7 +188,7 @@ static void RunOptionalEnrichment(const Config& frame_config,
                 if (!IsUserPointer(boneBase)) continue;
                 boneBases[bi] = boneBase;
                 eligible[bi] = true;
-                // CS-015: o destino/stride depende do layout em uso.
+
                 void* jointReadTarget = s_use48Stride
                     ? static_cast<void*>(joints48[bi])
                     : static_cast<void*>(joints32[bi]);
@@ -226,7 +226,7 @@ static void RunOptionalEnrichment(const Config& frame_config,
 
 
                     std::memcpy(r.origin, sampledOrigins[bi], sizeof(r.origin));
-                    // CS-015: extrai a posição do joint conforme o stride ativo.
+
                     const auto jointPosOf = [&](int jointIdx, float out[3]) {
                         if (jointIdx < 0 || jointIdx >= static_cast<int>(kJointCount))
                             return false;
@@ -362,15 +362,15 @@ static void RunOptionalEnrichment(const Config& frame_config,
             }
             base = end;
         }
-        // CS-015: telemetria de stride — joints avaliados vs rejeitados.
+
         {
             auto& tel = OmniGhost::Gameplay::DmaTelemetry::CS2();
             tel.bones.joints_evaluated.fetch_add(scanJointsEvaluated, std::memory_order_relaxed);
             tel.bones.joints_rejected.fetch_add(scanJointsRejected, std::memory_order_relaxed);
-            // Sonda de stride: se todos os joints foram rejeitados num scan
-            // com alvos resolvidos, o layout de 32 B estará errado para esta
-            // build — testa UMA vez o alternativo de 48 B e reverte se também
-            // falhar (NEEDS VALIDATION contra um dump vivo).
+
+
+
+
             const bool totalRejection = scanQueuedBatches > 0 && scanJointsEvaluated > 0 &&
                 results.bone_count == 0;
             if (totalRejection) {

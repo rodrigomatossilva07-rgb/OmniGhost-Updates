@@ -39,9 +39,9 @@ namespace CyberWidgets {
 
         float WidgetWidth()
         {
-            // Um card pode conter colunas/children. Usar sempre a largura
-            // original do card fazia os controlos atravessarem as colunas e
-            // ficarem parcialmente fora do ecrã.
+
+
+
             return std::max(40.0f,
                 std::min(CardContentWidth(), ImGui::GetContentRegionAvail().x));
         }

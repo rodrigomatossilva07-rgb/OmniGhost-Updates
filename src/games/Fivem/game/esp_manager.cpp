@@ -34,11 +34,11 @@ namespace FiveM {
 
         const int MAX_PEDS = 110;
 
-        // CPED_CONFIG_FLAG_Knockedout = 71 (docs oficiais FiveM). Os ped
-        // config flags sao um array de palavras u32 a partir de
-        // offset::pedConfigFlags, logo o flag 71 vive na palavra 2 (+8 bytes),
-        // bit 7. NEEDS VALIDATION: confirmar contra um dump vivo que
-        // offset::pedConfigFlags e o INICIO do array na build alvo.
+
+
+
+
+
         constexpr uint32_t kPedConfigFlagsKnockedWordBytes = 2 * sizeof(uint32_t);
         constexpr uint32_t kPedConfigFlagsKnockedBit = 1u << 7;
 

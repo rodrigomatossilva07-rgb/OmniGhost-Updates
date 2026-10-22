@@ -506,9 +506,9 @@ void DrawDroppedWeapons(ImDrawList* draw, const CS2::Runtime& snapshot,
         const ImVec2 text = ImGui::CalcTextSize(label);
         const float iconOffset = settings.dropped_weapon_icons ? 10.f : 0.f;
         if (settings.dropped_weapon_icons) {
-            // CSE-002: desenha o ícone PNG da arma (carregado em background)
-            // em vez do rect genérico; o rect fica de fallback enquanto o
-            // ícone não chega.
+
+
+
             ID3D11Device* device = g_overlay_instance ? g_overlay_instance->device : nullptr;
             CS2_WeaponIcons::EnsureLoaded(device);
             ID3D11ShaderResourceView* icon =
@@ -641,9 +641,9 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
     }
     const uint64_t worldSampleMs = snapshot.world_sample_ms
         ? snapshot.world_sample_ms : snapshot.snapshot_timestamp_ms;
-    // Não apagar todo o overlay durante um stall DMA curto. A câmara continua
-    // independente e a liveness remove mortes confirmadas; até 1 s é uma
-    // degradação visual mais segura do que piscar o ESP inteiro.
+
+
+
     if (!worldSampleMs || nowMs < worldSampleMs || nowMs - worldSampleMs > 1000u)
         return;
 
@@ -659,8 +659,8 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
             : -static_cast<float>((std::min)(sampleMs - presentationSampleMs, uint64_t{35}));
         return sampleMs ? deltaMs : 0.f;
     };
-    // Conserva um jogador por uma janela muito curta quando apenas uma leitura
-    // de entidade falha. A liveness continua a remover mortes imediatamente.
+
+
     std::vector<Player> presentationPlayers;
     presentationPlayers.reserve(snapshot.players.size() + heldPlayers.size());
     for (const Player& player : snapshot.players) {

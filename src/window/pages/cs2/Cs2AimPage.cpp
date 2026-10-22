@@ -128,7 +128,7 @@ void DrawCs2Aim() {
         HotkeyCaptureButton("##cs2_aim_bind2", &CS2::config.aim_bind2);
         ImGui::SameLine();
         HotkeyCaptureButton("##cs2_aim_bind3", &CS2::config.aim_bind3);
-        // CSE-008: evita duplicados com a tecla principal e o botão esquerdo.
+
         if (CS2::config.aim_bind2 == CS2::config.aim_bind ||
             CS2::config.aim_bind2 == VK_LBUTTON)
             CS2::config.aim_bind2 = 0;

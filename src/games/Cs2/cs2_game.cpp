@@ -63,9 +63,9 @@ std::atomic<uint64_t> g_read_fails{0};
 bool LoadEmbeddedOffsets();
 bool RefreshProcessLiveness();
 bool ready = false;
-// CS-008: buffer de estado guardado por comprimento atómico — escritores
-// (pipeline de offsets na thread de launch, UI) publicam com store(release)
-// após copiarem o texto; leitores copiam com load(acquire).
+
+
+
 namespace {
     char s_status[128] = "idle";
     std::atomic<uint32_t> s_statusLen{5};
@@ -242,10 +242,10 @@ struct AcquisitionStateMachine {
         return false;
     }
     void MarkRunning() {
-        // CS-013: CAS — só promove Starting→Running. Um RequestStop que
-        // aterre entre TryStart e MarkRunning deixa o estado em Stopping,
-        // que o loop de aquisição vê de imediato (o stop não se perde nem
-        // é sobrescrito).
+
+
+
+
         AcquisitionState expected = AcquisitionState::Starting;
         state.compare_exchange_strong(expected, AcquisitionState::Running,
                                       std::memory_order_acq_rel,
@@ -575,8 +575,8 @@ static void NotePossibleDeviceStall(float duration_ms) {
 
 
 
-// CS-008: partilhado entre a thread de aquisição e a lane opcional (dropped
-// items/sessão) — atómico para eliminar a corrida formal no uintptr_t.
+
+
 std::atomic<uintptr_t> g_cached_entity_root{0};
 
 void EnsureScatter() {

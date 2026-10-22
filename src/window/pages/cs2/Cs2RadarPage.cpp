@@ -42,8 +42,8 @@ void DrawCs2Radar() {
     const float right = full - left - gap;
 
     ImGui::BeginGroup();
-    // CS-014: o "Radar 2D" local nunca teve renderer — o toggle foi removido
-    // (campos+serialização mantidos, como no Warzone). O radar real é o web radar.
+
+
     CyberWidgets::BeginCard("WEB RADAR", left);
     CyberWidgets::ToggleSwitch("Ativar Web Radar", &CS2::config.webradar_enabled);
 

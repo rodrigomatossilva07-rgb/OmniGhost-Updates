@@ -30,8 +30,8 @@ void DrawFriends()
 
 
 
-    // Snapshots em cache: só recopiamos as listas quando friends:: reporta
-    // uma mutação (contador de versão), evitando cópias integrais por frame.
+
+
     static std::vector<friends::FriendEntry> friendsSnapshot;
     static std::vector<friends::PlayerEntry> playersSnapshot;
     static uint64_t snapshotVersion = 0;
