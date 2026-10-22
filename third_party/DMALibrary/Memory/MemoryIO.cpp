@@ -426,6 +426,11 @@ bool Memory::Read(uintptr_t address, void* buffer, size_t size) const
 	t_lastDmaWaitUs = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
 		std::chrono::steady_clock::now() - lockBegin).count());
 	t_dmaWaitUs += t_lastDmaWaitUs;
+	// A chamada pode ter entrado na fila antes do shutdown. Não iniciar uma
+	// nova transferência depois de obter o transporte se entretanto houve
+	// cancelamento; isto elimina a cadeia de leituras que atrasava os joins.
+	if (IsCancellationRequested())
+		return false;
 	const auto transferBegin = std::chrono::steady_clock::now();
 	const DWORD byteCount = static_cast<DWORD>(size);
 	DWORD read_size = 0;
@@ -521,6 +526,8 @@ bool Memory::ReadWithCount(uintptr_t address, void* buffer, size_t size, size_t&
 	t_lastDmaWaitUs = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
 		std::chrono::steady_clock::now() - lockBegin).count());
 	t_dmaWaitUs += t_lastDmaWaitUs;
+	if (IsCancellationRequested())
+		return false;
 
 	const DWORD byteCount = static_cast<DWORD>(size);
 	DWORD readSize = 0;
@@ -551,6 +558,8 @@ bool Memory::Read(uintptr_t address, void* buffer, size_t size, int pid) const
 	t_lastDmaWaitUs = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
 		std::chrono::steady_clock::now() - lockBegin).count());
 	t_dmaWaitUs += t_lastDmaWaitUs;
+	if (IsCancellationRequested())
+		return false;
 	const DWORD byteCount = static_cast<DWORD>(size);
 	DWORD read_size = 0;
 	if (!VMMDLL_MemReadEx(this->vHandle, pid, address, static_cast<PBYTE>(buffer), byteCount, &read_size, VMMDLL_FLAG_NOCACHE))
@@ -568,6 +577,8 @@ VMMDLL_SCATTER_HANDLE Memory::CreateScatterHandle() const
 		return nullptr;
 	{
 		auto dmaTransportGuard = AcquireDmaTransportLock();
+		if (IsCancellationRequested())
+			return nullptr;
 		const VMMDLL_SCATTER_HANDLE ScatterHandle = VMMDLL_Scatter_Initialize(this->vHandle, current_process.PID, VMMDLL_FLAG_NOCACHE);
 		if (!ScatterHandle) {
 			LOG("[!] Failed to create scatter handle\n");
@@ -587,6 +598,8 @@ VMMDLL_SCATTER_HANDLE Memory::CreateScatterHandle(int pid) const
 		return nullptr;
 	{
 		auto dmaTransportGuard = AcquireDmaTransportLock();
+		if (IsCancellationRequested())
+			return nullptr;
 		const VMMDLL_SCATTER_HANDLE ScatterHandle = VMMDLL_Scatter_Initialize(this->vHandle, pid, VMMDLL_FLAG_NOCACHE);
 		if (!ScatterHandle) {
 			LOG("[!] Failed to create scatter handle\n");
@@ -787,6 +800,10 @@ bool Memory::ExecuteReadScatter(VMMDLL_SCATTER_HANDLE handle, int pid)
 	t_lastDmaWaitUs = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
 		std::chrono::steady_clock::now() - lockBegin).count());
 	t_dmaWaitUs += t_lastDmaWaitUs;
+	if (IsCancellationRequested()) {
+		ReleaseScatterUse(handle);
+		return false;
+	}
 	const auto transferBegin = std::chrono::steady_clock::now();
 	if (pid == 0)
 		pid = current_process.PID;

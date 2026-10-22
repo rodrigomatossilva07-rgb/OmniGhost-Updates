@@ -798,13 +798,23 @@ bool StartCloudflare() {
     if (CloudflareRunning()) return true;
     if (!IsRunning()) return false;
 
+    // Elimina por completo uma tentativa anterior. Fechar apenas o HANDLE
+    // deixava cloudflared.exe vivo e a tentativa seguinte podia esperar por
+    // um pipe pertencente ao processo antigo.
     g_cf_stop.store(true);
-    if (g_cf_reader.joinable())
-        g_cf_reader.join();
+    HANDLE staleProcess = nullptr;
     {
         std::lock_guard<std::mutex> lock(g_mu);
-        if (g_cf_proc) { CloseHandle(g_cf_proc); g_cf_proc = nullptr; }
+        staleProcess = g_cf_proc;
+        g_cf_proc = nullptr;
     }
+    if (staleProcess) {
+        TerminateProcess(staleProcess, 0);
+        WaitForSingleObject(staleProcess, 1000);
+        CloseHandle(staleProcess);
+    }
+    if (g_cf_reader.joinable())
+        g_cf_reader.join();
     g_cf_stop.store(false);
     {
         std::lock_guard<std::mutex> lock(g_mu);
@@ -814,7 +824,9 @@ bool StartCloudflare() {
 
     const std::wstring exe = FindCloudflared();
     wchar_t cmd[512]{};
-    std::swprintf(cmd, 512, L"\"%s\" tunnel --no-autoupdate --url http://127.0.0.1:%d",
+    // HTTP/2 usa TCP/443 e evita o longo fallback de QUIC em redes onde UDP
+    // é filtrado pelo router ou ISP.
+    std::swprintf(cmd, 512, L"\"%s\" tunnel --no-autoupdate --protocol http2 --url http://127.0.0.1:%d",
                   exe.c_str(), g_port.load());
 
     SECURITY_ATTRIBUTES sa{ sizeof(sa), nullptr, TRUE };
@@ -854,13 +866,38 @@ bool StartCloudflare() {
 
 
     g_cf_reader = std::thread([rd]() {
+        constexpr uint64_t kTunnelStartupTimeoutMs = 15000u;
+        const uint64_t startedMs = GetTickCount64();
         std::string output;
         char tmp[512];
         while (!g_cf_stop.load()) {
+            if (GetTickCount64() - startedMs >= kTunnelStartupTimeoutMs) {
+                bool hasUrl = false;
+                {
+                    std::lock_guard<std::mutex> lock(g_mu);
+                    hasUrl = !g_public_url.empty();
+                }
+                if (!hasUrl) {
+                    HANDLE timedOutProcess = nullptr;
+                    {
+                        std::lock_guard<std::mutex> lock(g_mu);
+                        g_cloudflare_status =
+                            "O Cloudflare não respondeu em 15 segundos. Nova tentativa em breve.";
+                        timedOutProcess = g_cf_proc;
+                        g_cf_proc = nullptr;
+                    }
+                    if (timedOutProcess) {
+                        TerminateProcess(timedOutProcess, ERROR_TIMEOUT);
+                        WaitForSingleObject(timedOutProcess, 1000);
+                        CloseHandle(timedOutProcess);
+                    }
+                    break;
+                }
+            }
             DWORD avail = 0;
             if (!PeekNamedPipe(rd, nullptr, 0, nullptr, &avail, nullptr)) break;
             if (!avail) {
-                Sleep(100);
+                Sleep(50);
                 continue;
             }
             DWORD read = 0;
@@ -909,7 +946,11 @@ void StopCloudflare() {
     g_cf_stop.store(true);
     HANDLE process = nullptr;
     { std::lock_guard<std::mutex> lock(g_mu); process = g_cf_proc; g_cf_proc = nullptr; }
-    if (process) { TerminateProcess(process, 0); CloseHandle(process); }
+    if (process) {
+        TerminateProcess(process, 0);
+        WaitForSingleObject(process, 1000);
+        CloseHandle(process);
+    }
     if (g_cf_reader.joinable())
         g_cf_reader.join();
     std::lock_guard<std::mutex> lock(g_mu);

@@ -15,8 +15,8 @@ void EnsureAcquisitionStarted() {
     g_web_radar_control_stop.store(false, std::memory_order_release);
     g_web_radar_desired_enabled.store(false, std::memory_order_release);
     g_web_radar_control_thread = std::thread([] {
-        uint64_t nextCloudflareAttemptMs = 0;
         uint64_t nextServerAttemptMs = 0;
+        bool cloudflareAttempted = false;
         while (!g_web_radar_control_stop.load(std::memory_order_acquire)) {
             (void)RefreshProcessLiveness();
             if (g_web_radar_desired_enabled.load(std::memory_order_acquire)) {
@@ -25,24 +25,28 @@ void EnsureAcquisitionStarted() {
                 if ((!WebRadar::IsRunning() || WebRadar::Port() != port) &&
                     now >= nextServerAttemptMs) {
                     WebRadar::Start(port);
+                    cloudflareAttempted = false;
                     nextServerAttemptMs = now + 1000u;
                 }
                 if (WebRadar::IsRunning() &&
                     g_web_radar_desired_cloudflare.load(std::memory_order_relaxed)) {
-                    if (!WebRadar::CloudflareRunning() && now >= nextCloudflareAttemptMs) {
+                    if (!WebRadar::CloudflareRunning() && !cloudflareAttempted) {
                         WebRadar::StartCloudflare();
-                        nextCloudflareAttemptMs = now + 5000u;
+                        cloudflareAttempted = true;
                     }
                 } else if (WebRadar::CloudflareRunning()) {
                     WebRadar::StopCloudflare();
+                    cloudflareAttempted = false;
+                } else if (!g_web_radar_desired_cloudflare.load(std::memory_order_relaxed)) {
+                    cloudflareAttempted = false;
                 }
             } else {
                 if (WebRadar::IsRunning()) WebRadar::Stop();
                 else if (WebRadar::CloudflareRunning()) WebRadar::StopCloudflare();
+                cloudflareAttempted = false;
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
-        WebRadar::Stop();
     });
     Camera::Reset();
 
@@ -393,6 +397,10 @@ void StopAcquisition() {
     g_acqState.RequestStop();
     if (g_web_radar_control_thread.joinable())
         g_web_radar_control_thread.join();
+    // O controlo do radar já terminou e não pode voltar a iniciar o serviço.
+    // A paragem passa a ocorrer num único thread, evitando a corrida entre
+    // StartCloudflare/StopCloudflare que prendia o retorno ao launcher.
+    WebRadar::Stop();
     if (g_optional_thread.joinable())
         g_optional_thread.join();
     if (g_camera_thread.joinable())

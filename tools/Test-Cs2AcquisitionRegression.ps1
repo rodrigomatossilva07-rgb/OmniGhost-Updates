@@ -28,6 +28,7 @@ function Require-Condition([bool]$Condition, [string]$Reason) {
 Require-Match $memoryIoSource 'DmaSpinLockGuard\(DmaSpinLock& lock, AdoptLockTag\)' 'The non-blocking DMA lane has no adopt-lock guard.'
 Require-Match $memoryIoSource 'DmaSpinLockGuard\(g_dmaSpinLock, DmaSpinLockGuard::AdoptLockTag\{\}\)' 'TryAcquireDmaTransportLock still risks locking the same transport twice.'
 Require-Match $memoryLifecycleSource 'if \(IsCancellationRequested\(\)\)' 'DMA shutdown cancellation must reject new data-plane calls.'
+Require-Match $memoryIoSource '(?s)auto dmaSpinLockGuard = AcquireDmaTransportLock\(\);.*?if \(IsCancellationRequested\(\)\) \{\s*ReleaseScatterUse\(handle\);\s*return false;' 'A queued scatter call can still start after shutdown cancellation.'
 Require-Match $commonBuildProps '<OmniGhostDisableVmmSymbols[^>]*>true</OmniGhostDisableVmmSymbols>' 'VMM symbols must be disabled by default to prevent external symbol-store UI.'
 
 $resolver = [regex]::Match($source,

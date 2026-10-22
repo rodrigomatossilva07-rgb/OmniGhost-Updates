@@ -42,7 +42,7 @@ struct ServiceDescriptor {
 
 
 
-class ServiceContainer {
+class ServiceContainer : public std::enable_shared_from_this<ServiceContainer> {
 public:
     ServiceContainer() = default;
     ~ServiceContainer() = default;
@@ -53,8 +53,7 @@ public:
         std::unique_lock lock(other.mutex_);
         descriptors_ = std::move(other.descriptors_);
         singletons_ = std::move(other.singletons_);
-        parent_ = other.parent_;
-        other.parent_ = nullptr;
+        parent_ = std::move(other.parent_);
     }
 
     ServiceContainer& operator=(ServiceContainer&& other) noexcept {
@@ -64,8 +63,7 @@ public:
             std::lock(lock1, lock2);
             descriptors_ = std::move(other.descriptors_);
             singletons_ = std::move(other.singletons_);
-            parent_ = other.parent_;
-            other.parent_ = nullptr;
+            parent_ = std::move(other.parent_);
         }
         return *this;
     }
@@ -75,8 +73,12 @@ public:
 
 
     [[nodiscard]] ServiceContainer* GetParent() const noexcept {
+        // PL-012: o parent é weak — se o dono partiu, devolve nullptr
+        // em vez de dangling.
         std::shared_lock lock(mutex_);
-        return parent_;
+        if (auto locked = parent_.lock())
+            return locked.get();
+        return nullptr;
     }
 
 
@@ -195,17 +197,26 @@ public:
         ServiceLifetime lifetime;
         std::function<std::shared_ptr<void>(ServiceContainer&)> factory;
         std::shared_ptr<void> existingInstance;
+        std::weak_ptr<ServiceContainer> parentSnapshot;
         {
             std::shared_lock lock(mutex_);
             auto it = descriptors_.find(type);
             if (it == descriptors_.end()) {
 
-                if (parent_) return parent_->TryGet<Interface>();
-                return nullptr;
+                parentSnapshot = parent_;
+            } else {
+                lifetime = it->second.lifetime;
+                factory = it->second.factory;
+                existingInstance = it->second.instance;
+                parentSnapshot = parent_;
             }
-            lifetime = it->second.lifetime;
-            factory = it->second.factory;
-            existingInstance = it->second.instance;
+        }
+        if (it == descriptors_.end() && parentSnapshot.expired())
+            return nullptr;
+        if (it == descriptors_.end()) {
+            if (auto parent = parentSnapshot.lock())
+                return parent->TryGet<Interface>();
+            return nullptr;
         }
 
         if (lifetime == ServiceLifetime::Singleton) {
@@ -213,17 +224,21 @@ public:
                 return std::static_pointer_cast<Interface>(existingInstance);
             }
             if (factory) {
-
-
-
-
-
+                // PL-012: serializa a criação lazy de singletons — sem isto,
+                // duas threads corriam a factory e obtinham instâncias
+                // distintas de um "singleton". O resolveMutex_ é separado
+                // do mutex_ para a factory poder resolver dependências do
+                // próprio container sem deadlock.
+                std::lock_guard resolveLock(resolveMutex_);
+                {
+                    std::shared_lock lock(mutex_);
+                    auto it2 = singletons_.find(type);
+                    if (it2 != singletons_.end()) {
+                        return std::static_pointer_cast<Interface>(it2->second);
+                    }
+                }
                 auto instance = factory(*const_cast<ServiceContainer*>(this));
                 std::unique_lock lock(mutex_);
-                auto it2 = singletons_.find(type);
-                if (it2 != singletons_.end()) {
-                    return std::static_pointer_cast<Interface>(it2->second);
-                }
                 singletons_[type] = instance;
                 return std::static_pointer_cast<Interface>(instance);
             }
@@ -234,7 +249,8 @@ public:
         }
 
 
-        if (parent_) return parent_->TryGet<Interface>();
+        if (auto parent = parentSnapshot.lock())
+            return parent->TryGet<Interface>();
         return nullptr;
     }
 
