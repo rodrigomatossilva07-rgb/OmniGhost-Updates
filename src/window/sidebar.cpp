@@ -91,6 +91,7 @@ namespace CyberWidgets {
             { "nav.visuals", MenuTab::TAB_VISUALS,    CyberIcons::DrawESPIcon },
             { "nav.aim",     MenuTab::TAB_AIM,        CyberIcons::DrawAimIcon },
             { "nav.vehicles", MenuTab::TAB_VEHICLES,   CyberIcons::DrawVehicleIcon },
+            { "nav.object_esp", MenuTab::TAB_OBJECT_ESP, CyberIcons::DrawWorldIcon },
             { "nav.radar",   MenuTab::TAB_RADAR,      CyberIcons::DrawRadarIcon },
             { "nav.friends", MenuTab::TAB_FRIENDS,    CyberIcons::DrawUserIcon },
             { "nav.status",  MenuTab::TAB_STATUS,     CyberIcons::DrawStatusIcon },
@@ -140,15 +141,16 @@ namespace CyberWidgets {
 
         const float topPad = CyberTheme::Px(34.0f);
         const float profileHeight = CyberTheme::Px(72.0f);
-        const float usableHeight = (std::max)(CyberTheme::Px(300.0f),
-            size.y - topPad - profileHeight - CyberTheme::Spacing::Lg);
+        const float profileY = pos.y + size.y - profileHeight;
+        const float usableHeight = (std::max)(CyberTheme::Px(120.0f),
+            profileY - (pos.y + topPad) - CyberTheme::Spacing::Sm);
         float gapY = CyberTheme::Px(6.0f);
         float itemH = CyberTheme::Metrics::SidebarItemHeight;
         float blockHeight = tabCount * itemH +
             (tabCount > 0 ? (tabCount - 1) * gapY : 0.0f);
         if (blockHeight > usableHeight && tabCount > 0) {
             gapY = CyberTheme::Px(3.0f);
-            itemH = (std::max)(CyberTheme::Px(34.0f),
+            itemH = (std::max)(CyberTheme::Px(30.0f),
                 (usableHeight - (tabCount - 1) * gapY) / tabCount);
             blockHeight = tabCount * itemH + (tabCount - 1) * gapY;
         }
@@ -158,7 +160,7 @@ namespace CyberWidgets {
 
         dl->PushClipRect(
             ImVec2(pos.x, pos.y + CyberTheme::Spacing::Sm),
-            ImVec2(pos.x + size.x, pos.y + size.y),
+            ImVec2(pos.x + size.x, profileY - CyberTheme::Spacing::Xs),
             true);
         ImGui::PushID("##sidebar_navigation");
         ImGui::SetCursorScreenPos(ImVec2(pos.x + CyberTheme::Px(6.0f), startY));
@@ -167,13 +169,13 @@ namespace CyberWidgets {
             if (SidebarButton(Loc::Tr(tabs[i].label), *current_tab == tabs[i].tab,
                               tabs[i].icon, itemH))
                 *current_tab = tabs[i].tab;
-            ImGui::Dummy(ImVec2(0.0f, gapY));
+            if (i + 1 < tabCount)
+                ImGui::Dummy(ImVec2(0.0f, gapY));
         }
         ImGui::EndGroup();
         ImGui::PopID();
         dl->PopClipRect();
 
-        const float profileY = pos.y + size.y - profileHeight;
         const ImVec2 profileMin(pos.x + CyberTheme::Px(8.f), profileY);
         const ImVec2 profileMax(pos.x + size.x - CyberTheme::Px(8.f), pos.y + size.y - CyberTheme::Px(7.f));
         dl->AddRectFilled(profileMin, profileMax,

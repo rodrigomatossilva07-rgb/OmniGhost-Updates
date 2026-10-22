@@ -16,6 +16,7 @@
 #include "onboarding.h"
 #include "changelog.h"
 #include "ui_feedback.h"
+#include "gameplay/dma_telemetry_log.h"
 #include "../config/app_settings.h"
 #include "../config/config_manager.h"
 #include "../platform/app_paths.h"
@@ -48,6 +49,7 @@ namespace {
         case MenuTab::TAB_VISUALS:          return { Loc::Tr("nav.visuals"), app_settings::T("Jogadores, informação e aparência", "Players, information and appearance") };
         case MenuTab::TAB_AIM:              return { Loc::Tr("nav.aim"), app_settings::T("Alvo, suavidade e disparo", "Targeting, smoothing and trigger") };
         case MenuTab::TAB_VEHICLES:         return { Loc::Tr("nav.vehicles"), app_settings::T("ESP, estado e personalização", "ESP, status and customization") };
+        case MenuTab::TAB_OBJECT_ESP:       return { Loc::Tr("nav.object_esp"), app_settings::T("Objetos do mundo, filtros e apresentação", "World objects, filters and appearance") };
         case MenuTab::TAB_RADAR:            return { Loc::Tr("nav.radar"), app_settings::T("Posição, alcance e apresentação", "Position, range and appearance") };
         case MenuTab::TAB_FRIENDS:          return { Loc::Tr("nav.friends"), app_settings::T("Lista segura e jogadores próximos", "Friend list and nearby players") };
         case MenuTab::TAB_STATUS:           return { Loc::Tr("nav.status"), app_settings::T("Ligação, offsets e diagnóstico", "Connection, offsets and diagnostics") };
@@ -122,10 +124,14 @@ namespace {
 
     void DrawCurrentTab(MenuTab tab, Overlay* overlay)
     {
+
+
+        OmniGhost::Gameplay::DmaTelemetry::SetEnabled(app_settings::config.telemetry_log_enabled);
         switch (tab) {
         case MenuTab::TAB_VISUALS:     DrawVisuals(); break;
         case MenuTab::TAB_AIM:         DrawAim(); break;
         case MenuTab::TAB_VEHICLES:    DrawVehicles(); break;
+        case MenuTab::TAB_OBJECT_ESP:  DrawObjectEsp(); break;
         case MenuTab::TAB_RADAR:       DrawRadar(); break;
         case MenuTab::TAB_FRIENDS:     DrawFriends(); break;
         case MenuTab::TAB_STATUS:      DrawFiveMStatus(); break;
@@ -385,8 +391,6 @@ const PerformanceMode::State performance = PerformanceMode::Update(
 
 
     const auto perfLevels = CyberPerformance::g_performanceManager.GetEffectLevels();
-    DigitalRain::SetDynamicDensity(perfLevels.digitalRainDensity);
-    DigitalRain::SetDynamicMotionScale(perfLevels.motionScale);
     DigitalRain::SetDynamicConstellationDensity(perfLevels.constellationDensity);
 
     CyberTheme::DrawSubtleNoise(draw_list, window_pos,
@@ -395,7 +399,10 @@ const PerformanceMode::State performance = PerformanceMode::Update(
         performance.effective ? 100 : 210);
 
 
-    const float rainDensity = app_settings::DigitalRainDensity();
+    const float rainDensity = app_settings::DigitalRainDensity() *
+        perfLevels.digitalRainDensity;
+    const float backgroundMotionScale = app_settings::AnimationScale() *
+        perfLevels.motionScale;
 
     DigitalRain::Draw(
         draw_list,
@@ -406,7 +413,7 @@ const PerformanceMode::State performance = PerformanceMode::Update(
         CyberTheme::Metrics::SidebarWidth,
         app_settings::DigitalRainOpacity(),
         rainDensity,
-        app_settings::AnimationScale(),
+        backgroundMotionScale,
         false);
     if (rainDensity > 0.0f && (app_settings::menu_open || RenderMenu))
         DigitalRain::DrawGoldMotif(draw_list, window_pos, window_size,

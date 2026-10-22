@@ -1,7 +1,7 @@
 #include "cs2_core_world.h"
 
 #include <cmath>
-#include <string>
+#include <cstring>
 
 namespace CS2::CoreWorld {
 
@@ -38,11 +38,14 @@ bool InsideExpandedFrustum(const float* position,
         normalized_y >= -1.45f && normalized_y <= 1.45f;
 }
 
-bool IsPlayableMapName(const char* map_name) {
+bool IsPlayableMapName(const char* map_name) noexcept {
     if (!map_name || !*map_name)
         return false;
-    const std::string name(map_name);
-    return name != "lobby" && name != "none" && name != "mainmenu";
+    // CS-007: comparação sem construir std::string (o hot loop chamava isto
+    // a cada scan e alocava por frame).
+    return std::strcmp(map_name, "lobby") != 0 &&
+           std::strcmp(map_name, "none") != 0 &&
+           std::strcmp(map_name, "mainmenu") != 0;
 }
 
 }

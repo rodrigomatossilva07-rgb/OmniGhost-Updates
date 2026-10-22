@@ -1,5 +1,9 @@
 
+
+
 static void RunFrameWithConfig(const Config& frame_config) {
+    static std::mutex s_frame_mutex;
+    std::unique_lock<std::mutex> frame_call_lock(s_frame_mutex);
     runtime.read_fails = g_read_fails.load(std::memory_order_relaxed);
 
 
@@ -16,9 +20,10 @@ static void RunFrameWithConfig(const Config& frame_config) {
     const uint64_t frame_time_ms = GetTickCount64();
 
 
-    OmniGhost::Gameplay::DmaTelemetry::SetEnabled(frame_config.telemetry_enabled);
+
     if (frame_config.telemetry_enabled) {
         static uint64_t s_cfgBits = 0;
+        static bool s_cfgInitialized = false;
         uint64_t bits = 0;
         auto bit = [&](bool v, int i) { if (v) bits |= (1ull << i); };
         bit(frame_config.radar_2d || frame_config.webradar_enabled, 0);
@@ -27,7 +32,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
         bit(frame_config.bomb_timer, 3);
         bit(frame_config.spectator_list, 4);
         bit(frame_config.performance_mode, 5);
-        if (bits != s_cfgBits) {
+        if (!s_cfgInitialized || bits != s_cfgBits) {
+            s_cfgInitialized = true;
             s_cfgBits = bits;
             char blob[320];
             std::snprintf(blob, sizeof(blob),
@@ -43,6 +49,18 @@ static void RunFrameWithConfig(const Config& frame_config) {
     }
 
     const auto _frameWallBegin = std::chrono::steady_clock::now();
+
+    struct PhaseFinalize {
+        decltype(_frameWallBegin) begin;
+        ~PhaseFinalize() {
+            const float wall = OmniGhost::Gameplay::TimeMs(begin);
+            const float accounted = g_phase.webradar_ms + g_phase.entity_ms + g_phase.local_ms
+                + g_phase.core_scatter_ms + g_phase.positions_ms + g_phase.early_publish_ms
+                + g_phase.publish_ms;
+            g_phase.other_ms = (std::max)(0.f, wall - accounted);
+            g_phase.optional_budget_left_ms = 0.f;
+        }
+    } phase_finalize{_frameWallBegin};
     ++runtime.frames;
     runtime.fps = g_presentation_fps.load(std::memory_order_relaxed);
 
@@ -56,70 +74,35 @@ static void RunFrameWithConfig(const Config& frame_config) {
 
     constexpr size_t kMaxRecentPlayers = 128;
     constexpr size_t kMaxBoneCache = 128;
-    constexpr size_t kMaxStickyBoneLayout = 128;
-    constexpr size_t kMaxLastBoneMs = 128;
 
     struct RecentPlayer {
         Player player{};
         uint64_t last_seen_ms = 0;
         uint64_t entry_generation = 0;
         bool confirmed_dead = false;
+        uint64_t weapon_received_ms = 0;
+        uint64_t visibility_received_ms = 0;
     };
     struct CachedBones {
         float joints[kBoneSlotCount][3]{};
         float origin[3]{};
+        uintptr_t controller = 0;
         uint64_t last_valid_ms = 0;
         bool full_pose = false;
         uint64_t entry_generation = 0;
     };
     static std::unordered_map<uintptr_t, RecentPlayer> recent_players;
     static std::unordered_map<uintptr_t, CachedBones> bone_cache;
-    static std::unordered_map<uintptr_t, uint8_t> s_stickyBoneLayout;
-    static std::unordered_map<uintptr_t, uint64_t> s_lastBoneMs;
     static uint64_t recoveryCacheGeneration = 0;
     static std::shared_mutex g_cache_mutex;
     if (recoveryCacheGeneration != g_session_generation.load(std::memory_order_acquire)) {
+        std::unique_lock cache_lock(g_cache_mutex);
         last_good_players.clear(); last_good_ms = 0;
         recent_players.clear(); bone_cache.clear();
-        s_stickyBoneLayout.clear(); s_lastBoneMs.clear();
-        recoveryCacheGeneration = g_session_generation.load(std::memory_order_relaxed);
+        recoveryCacheGeneration = g_session_generation.load(std::memory_order_acquire);
     }
     if (recent_players.bucket_count() < 128) recent_players.reserve(128);
     if (bone_cache.bucket_count() < 128) bone_cache.reserve(128);
-    if (s_stickyBoneLayout.bucket_count() < 128) s_stickyBoneLayout.reserve(128);
-    if (s_lastBoneMs.bucket_count() < 128) s_lastBoneMs.reserve(128);
-
-
-    static uint64_t s_cacheEnforceFrame = 0;
-    if (++s_cacheEnforceFrame % 1000 == 0) {
-        std::unique_lock lock(g_cache_mutex);
-
-        while (recent_players.size() > kMaxRecentPlayers) {
-            auto oldest = recent_players.begin();
-            for (auto it = std::next(oldest); it != recent_players.end(); ++it) {
-                if (it->second.last_seen_ms < oldest->second.last_seen_ms)
-                    oldest = it;
-            }
-            recent_players.erase(oldest);
-        }
-        while (bone_cache.size() > kMaxBoneCache) {
-            auto oldest = bone_cache.begin();
-            for (auto it = std::next(oldest); it != bone_cache.end(); ++it) {
-                if (it->second.last_valid_ms < oldest->second.last_valid_ms)
-                    oldest = it;
-            }
-            bone_cache.erase(oldest);
-        }
-        while (s_stickyBoneLayout.size() > kMaxStickyBoneLayout) {
-            auto it = s_stickyBoneLayout.begin();
-            s_stickyBoneLayout.erase(it);
-        }
-        while (s_lastBoneMs.size() > kMaxLastBoneMs) {
-            auto it = s_lastBoneMs.begin();
-            s_lastBoneMs.erase(it);
-        }
-    }
-
 
 
 
@@ -140,9 +123,24 @@ static void RunFrameWithConfig(const Config& frame_config) {
             for (uint32_t i = 0; i < opt->bone_count && i < opt->bones.size(); ++i) {
                 const OptionalBoneResult& r = opt->bones[i];
                 if (!IsUserPointer(r.pawn) || !r.bones_ok || !r.sample_ms) continue;
+                if (r.sample_ms > mergeNowMs || mergeNowMs - r.sample_ms > 400u) continue;
+                if (r.bones.size() * sizeof(r.bones[0]) < sizeof(CachedBones::joints)) continue;
+                CachedBones candidate{};
+                std::memcpy(candidate.joints, r.bones.data(), sizeof(candidate.joints));
+                std::memcpy(candidate.origin, r.origin, sizeof(candidate.origin));
+                bool valid = true;
+                for (float coordinate : candidate.origin) valid = valid && std::isfinite(coordinate);
+                for (const auto& joint : candidate.joints)
+                    for (float coordinate : joint) valid = valid && std::isfinite(coordinate);
+                if (!valid) continue;
+                const auto liveIt = recent_players.find(r.pawn);
+                if (liveIt != recent_players.end() && liveIt->second.entry_generation == generation &&
+                    liveIt->second.confirmed_dead) continue;
                 CachedBones& cb = bone_cache[r.pawn];
                 if (cb.entry_generation != generation) { cb = CachedBones{}; cb.entry_generation = generation; }
-                std::memcpy(cb.joints, r.bones.data(), sizeof(cb.joints));
+                if (cb.last_valid_ms > r.sample_ms) continue;
+                std::memcpy(cb.joints, candidate.joints, sizeof(cb.joints));
+                cb.controller = 0;
                 cb.last_valid_ms = r.sample_ms;
                 cb.full_pose = r.full_bones_ok;
                 std::memcpy(cb.origin, r.origin, sizeof(cb.origin));
@@ -154,15 +152,18 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 const OptionalNameResult& r = opt->names[i];
                 if (!IsUserPointer(r.pawn) || !IsUserPointer(r.controller) || !r.name[0]) continue;
                 RecentPlayer& rp = recent_players[r.pawn];
-                if (rp.entry_generation != generation) {
+                if (rp.entry_generation != generation ||
+                    (rp.player.controller && rp.player.controller != r.controller)) {
                     rp = RecentPlayer{};
                     rp.player.pawn = r.pawn;
                     rp.entry_generation = generation;
                 }
+                if (rp.confirmed_dead) continue;
                 rp.last_seen_ms = mergeNowMs;
                 rp.player.controller = r.controller;
-                std::snprintf(rp.player.name, sizeof(rp.player.name), "%s", r.name);
-                rp.player.is_bot = IsBotPlayerName(r.name);
+                std::snprintf(rp.player.name, sizeof(rp.player.name), "%.*s",
+                    static_cast<int>(sizeof(r.name)), r.name);
+                rp.player.is_bot = IsBotPlayerName(rp.player.name);
             }
         }
         {
@@ -176,10 +177,13 @@ static void RunFrameWithConfig(const Config& frame_config) {
                     rp.player.pawn = r.pawn;
                     rp.entry_generation = generation;
                 }
+                if (rp.confirmed_dead) continue;
                 rp.last_seen_ms = mergeNowMs;
+                rp.weapon_received_ms = mergeNowMs;
                 if (r.weapon_def > 0) rp.player.weapon_def = r.weapon_def;
                 if (r.weapon[0])
-                    std::snprintf(rp.player.weapon, sizeof(rp.player.weapon), "%s", r.weapon);
+                    std::snprintf(rp.player.weapon, sizeof(rp.player.weapon), "%.*s",
+                        static_cast<int>(sizeof(r.weapon)), r.weapon);
                 if (r.ammo_clip >= 0) rp.player.ammo_clip = r.ammo_clip;
 
 
@@ -198,16 +202,20 @@ static void RunFrameWithConfig(const Config& frame_config) {
                     rp.player.pawn = r.pawn;
                     rp.entry_generation = generation;
                 }
+                if (rp.confirmed_dead) continue;
                 rp.last_seen_ms = mergeNowMs;
+                rp.visibility_received_ms = mergeNowMs;
                 rp.player.visibility_known = true;
                 rp.player.visible = r.visible;
+                rp.player.bone_visibility_known_mask = r.point_known_mask;
+                rp.player.bone_visibility_mask = r.point_visible_mask;
             }
         }
         {
             std::unique_lock lock(g_cache_mutex);
 
 
-            if (opt->dropped_weapons_valid) {
+            if (frame_config.dropped_weapons && opt->dropped_weapons_valid) {
                 runtime.dropped_weapons = opt->dropped_weapons;
                 runtime.dropped_weapons.reserve(24);
             }
@@ -220,8 +228,17 @@ static void RunFrameWithConfig(const Config& frame_config) {
 
 
     const auto refresh_cached_liveness = [&](uint64_t now_ms) {
-        if (last_good_players.empty() || !offsets.m_iHealth)
+        static uint64_t s_nextRecoveryReadMs = 0;
+        constexpr uint64_t kRecoveryIdentityMaxAgeMs = 2000;
+        if (!last_good_ms || now_ms < last_good_ms ||
+            now_ms - last_good_ms > kRecoveryIdentityMaxAgeMs) {
+            last_good_players.clear();
             return false;
+        }
+        if (now_ms < s_nextRecoveryReadMs || last_good_players.empty() || !offsets.m_iHealth)
+            return false;
+        s_nextRecoveryReadMs = now_ms +
+            (g_pressure_level.load(std::memory_order_relaxed) >= 2 ? 250u : 120u);
         EnsureScatter();
         if (!g_scatter_full)
             return false;
@@ -255,8 +272,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
         liveness.generation = g_session_generation.load(std::memory_order_acquire);
         std::array<uintptr_t, 64> confirmed_dead{};
         size_t dead_count = 0;
-        for (size_t i = 0; i < count; ++i) {
-
+        for (size_t i = 0; i < count && liveness.count < liveness.players.size(); ++i) {
+            if (!IsUserPointer(last_good_players[i].pawn)) continue;
             const bool healthKnown = health[i] != kUnknownHealth && health[i] >= 0 && health[i] <= 200;
             const bool controllerKnown = controller_alive[i] == 0 || controller_alive[i] == 1;
             if (!healthKnown && !controllerKnown)
@@ -282,8 +299,6 @@ static void RunFrameWithConfig(const Config& frame_config) {
                     last_good_players.end());
                 recent_players.erase(pawn);
                 bone_cache.erase(pawn);
-                s_stickyBoneLayout.erase(pawn);
-                s_lastBoneMs.erase(pawn);
             }
         }
         auto& telemetry = OmniGhost::Gameplay::DmaTelemetry::CS2();
@@ -305,6 +320,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
 
     runtime.spectators.clear();
     runtime.spectator_count = 0;
+    if (!frame_config.dropped_weapons)
+        runtime.dropped_weapons.clear();
 
 
 
@@ -313,7 +330,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
     static char previous_map[64]{};
     static uint64_t next_map_refresh_ms = 0;
     const uint64_t map_now_ms = frame_time_ms;
-    if (map_now_ms >= next_map_refresh_ms) {
+    if (map_now_ms >= next_map_refresh_ms || g_force_map_refresh) {
+        g_force_map_refresh = false;
         mem.SetDmaCallTag("CS2.MapRefresh");
         RefreshMapName();
 
@@ -325,7 +343,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
 
 
         next_map_refresh_ms = map_now_ms + (runtime.in_match
-            ? (pressure >= 2 ? 60000u : 30000u)
+            ? (pressure >= 2 ? 5000u : 2000u)
             : 1000u);
     }
 
@@ -349,9 +367,11 @@ static void RunFrameWithConfig(const Config& frame_config) {
             std::unique_lock lock(g_cache_mutex);
             recent_players.clear();
             bone_cache.clear();
-            s_stickyBoneLayout.clear();
-            s_lastBoneMs.clear();
+            last_good_players.clear();
+            last_good_ms = 0;
+            recoveryCacheGeneration = currentGen;
         }
+        runtime.dropped_weapons.clear();
         runtime.players.clear();
         runtime.player_count = 0;
         runtime.pawn_count = 0;
@@ -366,7 +386,10 @@ static void RunFrameWithConfig(const Config& frame_config) {
 
 
 
-    const bool needs_collision = frame_config.esp_enabled && frame_config.visibility_colors;
+    const bool needs_collision = (frame_config.esp_enabled &&
+        (frame_config.visibility_colors || frame_config.visible_check)) ||
+        (frame_config.aim_enabled &&
+        (frame_config.aim_visibility_check || frame_config.aim_visible_bones_only));
     g_collision_loader.Request(runtime.map_name, needs_collision, map_now_ms);
 
     const bool map_reports_match = IsPlayableMapName(runtime.map_name);
@@ -376,7 +399,6 @@ static void RunFrameWithConfig(const Config& frame_config) {
 
 
     static bool was_in_match = false;
-    static int zero_player_frames = 0;
 
 
 
@@ -431,7 +453,6 @@ static void RunFrameWithConfig(const Config& frame_config) {
         g_entity_list_next_validation_ms = 0;
         g_entity_list_next_full_probe_ms = 0;
         g_entity_list_force_refresh = true;
-        zero_player_frames = 0;
         makcu_wrapper::ForceClearButtons();
         const char* match_source = map_reports_match ? "mapa" : "probe de entidades";
         std::cout << "[CS2] Entrada em partida (" << match_source
@@ -446,14 +467,17 @@ static void RunFrameWithConfig(const Config& frame_config) {
 
 
     if (!runtime.in_match) {
-        zero_player_frames = 0;
+        runtime.players.clear();
+        runtime.dropped_weapons.clear();
+        runtime.bomb = BombState{};
+        PublishRuntimeSnapshot();
+        g_publish_runtime_this_scan = false;
         return;
     }
 
 
 
     if (!NeedsPlayerScan(frame_config)) {
-        zero_player_frames = 0;
         runtime.players.clear();
         runtime.player_count = 0;
         runtime.enemy_count = 0;
@@ -477,12 +501,19 @@ static void RunFrameWithConfig(const Config& frame_config) {
 
 
         drainOptionalResults(currentGen);
+        PublishRuntimeSnapshot();
+        g_publish_runtime_this_scan = false;
         return;
     }
 
 
 
 
+    auto viewIsFinite = [](const auto& matrix) {
+        for (int i = 0; i < 16; ++i)
+            if (!std::isfinite(matrix[i])) return false;
+        return true;
+    };
     bool haveView = false;
     if (const auto camera = Camera::Acquire(); camera && camera->timestamp_ms) {
         const uint64_t now = GetTickCount64();
@@ -490,16 +521,42 @@ static void RunFrameWithConfig(const Config& frame_config) {
 
 
 
-        if (now >= camera->timestamp_ms && now - camera->timestamp_ms <= 120u) {
+        if (now >= camera->timestamp_ms && now - camera->timestamp_ms <= 120u &&
+            viewIsFinite(camera->view_matrix)) {
             std::memcpy(runtime.view_matrix, camera->view_matrix, sizeof(runtime.view_matrix));
             haveView = true;
         }
     }
-    if (!haveView && !ProbeViewMatrix(runtime.view_matrix)) {
-        if ((runtime.frames % 180) == 1)
-            std::cout << "[CS2] ViewMatrix fail (fails=" << runtime.read_fails << ")" << std::endl;
-        g_publish_runtime_this_scan = false;
-        return;
+    static float s_lastViewMatrix[16]{};
+    static uint64_t s_lastViewMatrixMs = 0;
+    static uint64_t s_viewMatrixGen = 0;
+    if (s_viewMatrixGen != currentGen) {
+        s_viewMatrixGen = currentGen;
+        s_lastViewMatrixMs = 0;
+        std::fill(std::begin(s_lastViewMatrix), std::end(s_lastViewMatrix), 0.f);
+    }
+    float probedView[16];
+    std::fill(std::begin(probedView), std::end(probedView),
+        (std::numeric_limits<float>::quiet_NaN)());
+    const bool probedFresh = !haveView && ProbeViewMatrix(probedView) && viewIsFinite(probedView);
+    if (probedFresh)
+        std::memcpy(runtime.view_matrix, probedView, sizeof(probedView));
+    if (haveView || probedFresh) {
+        std::memcpy(s_lastViewMatrix, runtime.view_matrix, sizeof(s_lastViewMatrix));
+        s_lastViewMatrixMs = GetTickCount64();
+    } else {
+        const uint64_t viewFallbackNowMs = GetTickCount64();
+        if (s_lastViewMatrixMs && viewFallbackNowMs >= s_lastViewMatrixMs &&
+            viewFallbackNowMs - s_lastViewMatrixMs <= 500u) {
+            std::memcpy(runtime.view_matrix, s_lastViewMatrix, sizeof(runtime.view_matrix));
+        } else {
+            if ((runtime.frames % 180) == 1)
+                std::cout << "[CS2] ViewMatrix fail (fails=" << runtime.read_fails << ")" << std::endl;
+            runtime.players.clear();
+            PublishRuntimeSnapshot();
+            g_publish_runtime_this_scan = false;
+            return;
+        }
     }
 
     runtime.players.reserve(64);
@@ -512,11 +569,24 @@ static void RunFrameWithConfig(const Config& frame_config) {
 
 
     static uint64_t s_lastLocalBootstrapMs = 0;
+    static uint64_t s_localGen = 0;
+    static ULONGLONG s_lastTeamMs = 0;
+    static int previous_shots = -1;
+    if (s_localGen != currentGen) {
+        s_localGen = currentGen;
+        s_lastLocalBootstrapMs = 0;
+        s_lastTeamMs = 0;
+        previous_shots = -1;
+        runtime.local_pawn = 0;
+        runtime.local_controller = 0;
+        runtime.local_health = 0;
+        runtime.local_team = 0;
+    }
     const uint64_t localNowMs = frame_time_ms;
     const bool refreshLocalBootstrap = !IsUserPointer(runtime.local_pawn) ||
         !s_lastLocalBootstrapMs || localNowMs - s_lastLocalBootstrapMs >= 750u;
-    uintptr_t localPawn = runtime.local_pawn;
-    uintptr_t localController = runtime.local_controller;
+    uintptr_t localPawn = refreshLocalBootstrap ? 0 : runtime.local_pawn;
+    uintptr_t localController = refreshLocalBootstrap ? 0 : runtime.local_controller;
     int sampled_health = runtime.local_health;
     EnsureScatter();
     if (g_scatter_full) {
@@ -542,6 +612,11 @@ static void RunFrameWithConfig(const Config& frame_config) {
     const uintptr_t previousLocalPawn = runtime.local_pawn;
     runtime.local_pawn = IsUserPointer(localPawn) ? localPawn : 0;
     if (runtime.local_pawn != previousLocalPawn) {
+        previous_shots = -1;
+        s_lastTeamMs = 0;
+        runtime.local_team = 0;
+        runtime.local_has_defuser = false;
+        runtime.local_scoped = false;
         runtime.local_shots_fired = 0;
         runtime.local_aim_sample_ms = 0;
         std::memset(runtime.local_aim_punch, 0, sizeof(runtime.local_aim_punch));
@@ -561,12 +636,11 @@ static void RunFrameWithConfig(const Config& frame_config) {
 
 
         if (runtime.local_health > 0 || refreshLocalBootstrap) {
-            static ULONGLONG s_lastTeamMs = 0;
             const ULONGLONG nowT = frame_time_ms;
             const bool refreshTeam = runtime.local_team < 2 || !s_lastTeamMs ||
                 (nowT - s_lastTeamMs) > static_cast<ULONGLONG>(TEAM_INTERVAL_MS);
 
-            uint8_t team8 = static_cast<uint8_t>(runtime.local_team);
+            uint8_t team8 = refreshTeam ? 0xFFu : static_cast<uint8_t>(runtime.local_team);
             uintptr_t scene = 0;
             uintptr_t item_services = 0;
             static uintptr_t cached_local_scene = 0;
@@ -574,7 +648,9 @@ static void RunFrameWithConfig(const Config& frame_config) {
             static uintptr_t cached_local_pawn = 0;
             static uint64_t cached_local_scene_until_ms = 0;
             static uint64_t cached_local_item_services_until_ms = 0;
-            if (cached_local_pawn != runtime.local_pawn) {
+            static uint64_t cached_local_generation = 0;
+            if (cached_local_pawn != runtime.local_pawn || cached_local_generation != currentGen) {
+                cached_local_generation = currentGen;
                 cached_local_pawn = runtime.local_pawn;
                 cached_local_scene = 0;
                 cached_local_item_services = 0;
@@ -587,9 +663,16 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 !IsUserPointer(cached_local_item_services);
             scene = cached_local_scene;
             item_services = cached_local_item_services;
-            float view_angles[2]{};
-            float local_position_sample[3] = { runtime.local_pos[0], runtime.local_pos[1], runtime.local_pos[2] };
-            bool scoped = runtime.local_scoped;
+            float view_angles[2] = {
+                (std::numeric_limits<float>::quiet_NaN)(),
+                (std::numeric_limits<float>::quiet_NaN)()
+            };
+            float local_position_sample[3] = {
+                (std::numeric_limits<float>::quiet_NaN)(),
+                (std::numeric_limits<float>::quiet_NaN)(),
+                (std::numeric_limits<float>::quiet_NaN)()
+            };
+            bool scoped = false;
             int crosshair = 0;
             int shots = -1;
             float aimPunch[2] = {
@@ -759,7 +842,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 runtime.local_team = static_cast<int>(team8);
                 s_lastTeamMs = nowT;
             }
-            if (std::isfinite(view_angles[1])) {
+            if (std::isfinite(view_angles[0]) && std::isfinite(view_angles[1])) {
                 runtime.local_view_yaw = view_angles[1];
                 runtime.local_angles[0] = view_angles[0];
                 runtime.local_angles[1] = view_angles[1];
@@ -767,7 +850,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
 
                 float fallback_angles[2]{};
                 if (QRead(runtime.local_pawn + offsets.m_angEyeAngles, fallback_angles, sizeof(fallback_angles)) &&
-                    std::isfinite(fallback_angles[1])) {
+                    std::isfinite(fallback_angles[0]) && std::isfinite(fallback_angles[1])) {
                     runtime.local_view_yaw = fallback_angles[1];
                     runtime.local_angles[0] = fallback_angles[0];
                     runtime.local_angles[1] = fallback_angles[1];
@@ -777,6 +860,19 @@ static void RunFrameWithConfig(const Config& frame_config) {
             runtime.local_crosshair_entity = (frame_config.trigger_enabled && frame_config.trigger_use_ident)
                 ? crosshair : 0;
 
+            if (refreshLocalSceneMetadata && IsUserPointer(scene) &&
+                scene != cached_local_scene) {
+                std::fill(std::begin(local_position_sample), std::end(local_position_sample),
+                    (std::numeric_limits<float>::quiet_NaN)());
+                (void)QRead(scene + offsets.m_vecAbsOrigin,
+                    local_position_sample, sizeof(local_position_sample));
+            }
+            if (refreshLocalItemServices && IsUserPointer(item_services) &&
+                item_services != cached_local_item_services && offsets.m_bHasDefuser) {
+                runtime.local_has_defuser = false;
+                (void)QReadT(item_services + offsets.m_bHasDefuser,
+                    runtime.local_has_defuser);
+            }
             cached_local_scene = IsUserPointer(scene) ? scene : cached_local_scene;
             cached_local_item_services = IsUserPointer(item_services)
                 ? item_services : cached_local_item_services;
@@ -799,7 +895,6 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 std::memcpy(runtime.local_pos, local_position_sample, sizeof(runtime.local_pos));
 
             if (needRcsState && offsets.m_iShotsFired && shots >= 0 && shots < 256) {
-                static int previous_shots = -1;
                 if (previous_shots >= 0 && shots > previous_shots)
                     runtime.local_last_shot_ms = frame_time_ms;
                 previous_shots = shots;
@@ -810,6 +905,12 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 runtime.local_aim_punch[0] = aimPunch[0];
                 runtime.local_aim_punch[1] = aimPunch[1];
                 runtime.local_aim_sample_ms = frame_time_ms;
+            }
+            if (!needRcsState) {
+                previous_shots = -1;
+                runtime.local_shots_fired = 0;
+                runtime.local_aim_sample_ms = 0;
+                std::memset(runtime.local_aim_punch, 0, sizeof(runtime.local_aim_punch));
             }
         } else {
 
@@ -877,6 +978,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
 
 
 
+        runtime.players.clear();
+        PublishRuntimeSnapshot();
         g_publish_runtime_this_scan = false;
         return;
     }
@@ -992,6 +1095,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
             UpdateBombStateThrottled();
         else
             runtime.bomb = BombState{};
+        PublishRuntimeSnapshot();
+        g_publish_runtime_this_scan = false;
         return;
     }
 
@@ -1050,7 +1155,16 @@ static void RunFrameWithConfig(const Config& frame_config) {
         cached.entry_generation = currentGen;
         cached.last_seen_ms = controllerNowMs;
         const uint32_t fresh = refreshedHandles[i];
-        if (!fresh || fresh == 0xFFFFFFFFu) continue;
+        if (!fresh || fresh == 0xFFFFFFFFu) {
+            if (cached.last_update_ms && controllerNowMs >= cached.last_update_ms &&
+                controllerNowMs - cached.last_update_ms > 500u) {
+                cached.handle = 0;
+                cached.pawn = 0;
+                handles[i] = 0;
+                resolved_by_slot[i] = 0;
+            }
+            continue;
+        }
         if (fresh == cached.handle && IsUserPointer(cached.pawn)) {
             handles[i] = fresh;
             resolved_by_slot[i] = cached.pawn;
@@ -1102,12 +1216,6 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 ++it;
         }
     }
-    int handle_nonzero = 0;
-    int resolve_ok = 0;
-    for (int i = 0; i < collected; ++i) {
-        if (handles[i]) ++handle_nonzero;
-        if (IsUserPointer(resolved_by_slot[i])) ++resolve_ok;
-    }
 
     uintptr_t resolved_pawns[kMaxSlots]{};
     int slot_index[kMaxSlots]{};
@@ -1144,7 +1252,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
     unifiedFlags.armor_value = frame_config.armor_value;
     unifiedFlags.name = frame_config.name;
     unifiedFlags.distance = frame_config.distance;
-    unifiedFlags.weapon_name = frame_config.weapon_name;
+    unifiedFlags.weapon_name = frame_config.weapon_name || frame_config.c4_carrier_esp;
     unifiedFlags.weapon_ammo = frame_config.weapon_ammo;
     unifiedFlags.snaplines = frame_config.snaplines;
     unifiedFlags.trails = frame_config.trails;
@@ -1162,7 +1270,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
     unifiedFlags.webradar_enabled = frame_config.webradar_enabled;
     unifiedFlags.aim_enabled = frame_config.aim_enabled;
     unifiedFlags.trigger_enabled = frame_config.trigger_enabled;
-    unifiedFlags.aim_visibility_check = frame_config.aim_visibility_check;
+    unifiedFlags.aim_visibility_check = frame_config.aim_visibility_check || frame_config.aim_visible_bones_only;
     unifiedFlags.aim_prediction = frame_config.aim_prediction;
     unifiedFlags.aim_ignore_bots = frame_config.aim_ignore_bots;
     const auto fields = unifiedFlags.RequiredFields();
@@ -1178,23 +1286,20 @@ static void RunFrameWithConfig(const Config& frame_config) {
     const bool track_velocity = frame_config.esp_enabled ||
         OmniGhost::Gameplay::UnifiedESP::Has(
         fields, OmniGhost::Gameplay::UnifiedESP::DataField::Velocity);
-    const bool flagsEnabled = false;
+    const bool flagsEnabled = frame_config.flag_blind || frame_config.flag_scoped;
     const bool need_scoped = frame_config.trigger_scoped_only ||
         (flagsEnabled && frame_config.flag_scoped);
-    const bool need_flash = flagsEnabled && frame_config.flag_blind;
+    const bool need_flash = frame_config.flag_blind;
 
     const uint64_t scan_now_ms = frame_time_ms;
     struct CachedSceneBone {
         uintptr_t scene = 0;
-        uintptr_t bone_base = 0;
-        uintptr_t bone_offset = 0;
         uint8_t team = 0;
         int armor = 0;
         uintptr_t weapon_services = 0;
         bool spotted = true;
         bool spotted_known = false;
         uint64_t scene_expires_ms = 0;
-        uint64_t bone_expires_ms = 0;
         uint64_t team_expires_ms = 0;
         uint64_t armor_expires_ms = 0;
         uint64_t weapon_services_expires_ms = 0;
@@ -1254,7 +1359,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
         candidateControllers[c] = controllers[slot_index[c]];
     const bool need_weapon = OmniGhost::Gameplay::UnifiedESP::Has(
         fields, OmniGhost::Gameplay::UnifiedESP::DataField::Weapon);
-    const bool need_spotted = (frame_config.aim_enabled && frame_config.aim_visibility_check) ||
+    const bool need_spotted = (frame_config.aim_enabled &&
+        (frame_config.aim_visibility_check || frame_config.aim_visible_bones_only)) ||
         (frame_config.trigger_enabled && frame_config.aim_visibility_check);
     const bool need_weapon_services = need_weapon || need_spotted;
 
@@ -1279,36 +1385,34 @@ static void RunFrameWithConfig(const Config& frame_config) {
         auto& cached = sceneBoneCache[resolved_pawns[c]];
         cached.entry_generation = currentGen;
         cached.last_seen_ms = scan_now_ms;
-        if (IsPlayableTeam(static_cast<int>(core[c].team))) {
+        if (refreshTeams[c] && core[c].read_ok &&
+            IsPlayableTeam(static_cast<int>(core[c].team))) {
             cached.team = core[c].team;
             cached.team_expires_ms = scan_now_ms + 500u;
         } else {
             core[c].team = cached.team;
         }
-        if (need_armor && refreshArmors[c] && core[c].armor >= 0 && core[c].armor <= 200) {
+        if (need_armor && refreshArmors[c] && core[c].read_ok &&
+            core[c].armor >= 0 && core[c].armor <= 200) {
             cached.armor = core[c].armor;
             cached.armor_expires_ms = scan_now_ms + 75u;
         } else if (need_armor) {
             core[c].armor = cached.armor;
         }
-        if (IsUserPointer(core[c].scene)) {
-            if (IsUserPointer(cached.scene) && cached.scene != core[c].scene) {
-                cached.bone_base = 0;
-                cached.bone_offset = 0;
-                cached.bone_expires_ms = 0;
-            }
+        if (refreshScenes[c] && core[c].read_ok && IsUserPointer(core[c].scene)) {
             cached.scene = core[c].scene;
             cached.scene_expires_ms = scan_now_ms + 500u;
         } else {
             core[c].scene = cached.scene;
         }
 
-        if (need_weapon_services && refreshWeaponServices[c] && IsUserPointer(core[c].weapon_services)) {
+        if (need_weapon_services && refreshWeaponServices[c] && core[c].read_ok &&
+            IsUserPointer(core[c].weapon_services)) {
             cached.weapon_services = core[c].weapon_services;
             cached.weapon_services_expires_ms = scan_now_ms + 500u;
         }
 
-        if (need_spotted && refreshSpotted[c] && core[c].spotted_known) {
+        if (need_spotted && refreshSpotted[c] && core[c].read_ok && core[c].spotted_known) {
             cached.spotted = core[c].spotted;
             cached.spotted_known = true;
             cached.spotted_expires_ms = scan_now_ms + 75u;
@@ -1334,7 +1438,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
             core[c].controller_alive == 1);
         const bool dead = (healthKnown && core[c].health <= 0) ||
             (controllerKnown && core[c].controller_alive == 0);
-        if (!readOk)
+        if (!readOk || (!healthKnown && !controllerKnown))
             continue;
         auto& sample = liveness.players[liveness.count++];
         sample.pawn = resolved_pawns[c];
@@ -1356,9 +1460,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
             if (auto it = recent_players.find(pawn); it != recent_players.end())
                 it->second.confirmed_dead = true;
             bone_cache.erase(pawn);
-            s_stickyBoneLayout.erase(pawn);
             sceneBoneCache.erase(pawn);
-            s_lastBoneMs.erase(pawn);
             last_good_players.erase(std::remove_if(last_good_players.begin(),
                 last_good_players.end(), [pawn](const RecoveryIdentity& p) { return p.pawn == pawn; }),
                 last_good_players.end());
@@ -1367,7 +1469,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
 
     int validCoreSamples = 0;
     for (int c = 0; c < candidate_count; ++c)
-        validCoreSamples += IsPlayableTeam(static_cast<int>(core[c].team)) ? 1 : 0;
+        validCoreSamples += (core[c].read_ok &&
+            IsPlayableTeam(static_cast<int>(core[c].team))) ? 1 : 0;
     if (candidate_count > 0 && validCoreSamples == 0) {
 
 
@@ -1375,6 +1478,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
         g_entity_list_next_validation_ms = 0;
         for (int c = 0; c < candidate_count; ++c)
             controllerPawnCache.erase(controllers[slot_index[c]]);
+        runtime.players.clear();
+        PublishRuntimeSnapshot();
         g_publish_runtime_this_scan = false;
         return;
     }
@@ -1412,7 +1517,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
         ++eligible_count;
     }
     candidate_count = eligible_count;
-    runtime.pawn_count = candidate_count;
+
+
 
 
 
@@ -1456,6 +1562,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
 
 
             corePlayer.spotted = core[c].spotted_known ? core[c].spotted : true;
+            corePlayer.is_flashed = need_flash && core[c].flash > 0.f;
 
 
 
@@ -1494,10 +1601,14 @@ static void RunFrameWithConfig(const Config& frame_config) {
 
 
             {
-                std::shared_lock lock(g_cache_mutex);
+                std::unique_lock lock(g_cache_mutex);
                 if (auto bit = bone_cache.find(pawn); bit != bone_cache.end() &&
                     bit->second.entry_generation == currentGen &&
-                    bit->second.last_valid_ms) {
+                    bit->second.last_valid_ms &&
+                    frame_time_ms >= bit->second.last_valid_ms &&
+                    frame_time_ms - bit->second.last_valid_ms <= 150u &&
+                    (bit->second.controller == 0 || bit->second.controller == controller)) {
+                if (!bit->second.controller) bit->second.controller = controller;
                 std::memcpy(corePlayer.bones, bit->second.joints, sizeof(corePlayer.bones));
                 const float cachedShift[3] = {
                     corePlayer.pos[0] - bit->second.origin[0],
@@ -1526,21 +1637,35 @@ static void RunFrameWithConfig(const Config& frame_config) {
             if (auto rit = recent_players.find(pawn); rit != recent_players.end() &&
                 rit->second.entry_generation == currentGen) {
                 const bool sameController = rit->second.player.controller == controller;
-                if (sameController && rit->second.player.name[0]) {
+                constexpr uint64_t kOptionalNameMaxAgeMs = 5000;
+                constexpr uint64_t kOptionalWeaponMaxAgeMs = 600;
+                constexpr uint64_t kOptionalVisibilityMaxAgeMs = 250;
+                const bool freshEntry = !rit->second.confirmed_dead &&
+                    rit->second.last_seen_ms && scan_now_ms >= rit->second.last_seen_ms &&
+                    scan_now_ms - rit->second.last_seen_ms <= kOptionalNameMaxAgeMs;
+                if (sameController && freshEntry && rit->second.player.name[0]) {
                     std::snprintf(corePlayer.name, sizeof(corePlayer.name), "%s",
                         rit->second.player.name);
                     corePlayer.is_bot = corePlayer.is_bot || rit->second.player.is_bot;
-                    rit->second.last_seen_ms = scan_now_ms;
                 }
-                if (rit->second.player.weapon[0])
-                    std::snprintf(corePlayer.weapon, sizeof(corePlayer.weapon), "%s",
-                        rit->second.player.weapon);
-                corePlayer.weapon_def = rit->second.player.weapon_def;
-
-
-
-                corePlayer.visibility_known = rit->second.player.visibility_known;
-                corePlayer.visible = rit->second.player.visible;
+                if (sameController && freshEntry && rit->second.weapon_received_ms &&
+                    scan_now_ms >= rit->second.weapon_received_ms &&
+                    scan_now_ms - rit->second.weapon_received_ms <= kOptionalWeaponMaxAgeMs) {
+                    if (rit->second.player.weapon[0])
+                        std::snprintf(corePlayer.weapon, sizeof(corePlayer.weapon), "%s",
+                            rit->second.player.weapon);
+                    corePlayer.weapon_def = rit->second.player.weapon_def;
+                    corePlayer.ammo_clip = rit->second.player.ammo_clip;
+                    corePlayer.ammo_reserve = rit->second.player.ammo_reserve;
+                }
+                if (sameController && freshEntry && rit->second.visibility_received_ms &&
+                    scan_now_ms >= rit->second.visibility_received_ms &&
+                    scan_now_ms - rit->second.visibility_received_ms <= kOptionalVisibilityMaxAgeMs) {
+                    corePlayer.visibility_known = rit->second.player.visibility_known;
+                    corePlayer.visible = rit->second.player.visible;
+                    corePlayer.bone_visibility_known_mask = rit->second.player.bone_visibility_known_mask;
+                    corePlayer.bone_visibility_mask = rit->second.player.bone_visibility_mask;
+                }
             }
         }
 
@@ -1593,15 +1718,32 @@ static void RunFrameWithConfig(const Config& frame_config) {
         auto prune = [&](auto& map, auto getLast) {
             for (auto it = map.begin(); it != map.end();) {
                 const uint64_t last = getLast(it->second);
-                if (last && nowMs > last && (nowMs - last) > kGraceMs)
+                if (!last || nowMs < last || nowMs - last > kGraceMs)
                     it = map.erase(it);
                 else
                     ++it;
             }
         };
+        auto cap = [](auto& map, size_t limit, auto getLast) {
+            while (map.size() > limit) {
+                auto oldest = map.begin();
+                for (auto it = std::next(oldest); it != map.end(); ++it)
+                    if (getLast(it->second) < getLast(oldest->second)) oldest = it;
+                map.erase(oldest);
+            }
+        };
         prune(recent_players, [](const RecentPlayer& e) { return e.last_seen_ms; });
         prune(bone_cache, [](const CachedBones& e) { return e.last_valid_ms; });
+        prune(sceneBoneCache, [](const CachedSceneBone& e) { return e.last_seen_ms; });
+        prune(controllerPawnCache, [](const CachedControllerPawn& e) { return e.last_seen_ms; });
+        cap(recent_players, kMaxRecentPlayers, [](const RecentPlayer& e) { return e.last_seen_ms; });
+        cap(bone_cache, kMaxBoneCache, [](const CachedBones& e) { return e.last_valid_ms; });
+        cap(sceneBoneCache, 128u, [](const CachedSceneBone& e) { return e.last_seen_ms; });
+        cap(controllerPawnCache, 128u, [](const CachedControllerPawn& e) { return e.last_seen_ms; });
     }
+    OmniGhost::Gameplay::DmaTelemetry::CS2().pressure.last_good_age_ms.store(
+        last_good_ms && frame_time_ms >= last_good_ms ? frame_time_ms - last_good_ms : 0u,
+        std::memory_order_relaxed);
     auto& cacheMetrics = CacheManager::Metrics();
     cacheMetrics.recent_players.store(recent_players.size(), std::memory_order_relaxed);
     cacheMetrics.bones.store(bone_cache.size(), std::memory_order_relaxed);
@@ -1616,15 +1758,6 @@ static void RunFrameWithConfig(const Config& frame_config) {
     if (g_publish_runtime_this_scan) {
         PublishRuntimeSnapshot();
         g_publish_runtime_this_scan = false;
-    }
-    {
-
-        const float wall = OmniGhost::Gameplay::TimeMs(_frameWallBegin);
-        const float accounted = g_phase.webradar_ms + g_phase.entity_ms + g_phase.local_ms
-            + g_phase.core_scatter_ms + g_phase.positions_ms + g_phase.early_publish_ms
-            + g_phase.publish_ms;
-        g_phase.other_ms = (std::max)(0.f, wall - accounted);
-        g_phase.optional_budget_left_ms = 0.f;
     }
     return;
 }

@@ -43,7 +43,7 @@ static void RunOptionalEnrichment(const Config& frame_config,
     unifiedFlags.armor_value = frame_config.armor_value;
     unifiedFlags.name = frame_config.name;
     unifiedFlags.distance = frame_config.distance;
-    unifiedFlags.weapon_name = frame_config.weapon_name;
+    unifiedFlags.weapon_name = frame_config.weapon_name || frame_config.c4_carrier_esp;
     unifiedFlags.weapon_ammo = frame_config.weapon_ammo;
     unifiedFlags.snaplines = frame_config.snaplines;
     unifiedFlags.trails = frame_config.trails;
@@ -61,7 +61,7 @@ static void RunOptionalEnrichment(const Config& frame_config,
     unifiedFlags.webradar_enabled = frame_config.webradar_enabled;
     unifiedFlags.aim_enabled = frame_config.aim_enabled;
     unifiedFlags.trigger_enabled = frame_config.trigger_enabled;
-    unifiedFlags.aim_visibility_check = frame_config.aim_visibility_check;
+    unifiedFlags.aim_visibility_check = frame_config.aim_visibility_check || frame_config.aim_visible_bones_only;
     unifiedFlags.aim_prediction = frame_config.aim_prediction;
     unifiedFlags.aim_ignore_bots = frame_config.aim_ignore_bots;
     const auto fields = unifiedFlags.RequiredFields();
@@ -72,7 +72,7 @@ static void RunOptionalEnrichment(const Config& frame_config,
     const bool need_names = frame_config.name ||
         (frame_config.esp_enabled && !frame_config.show_bots) ||
         (frame_config.aim_enabled && frame_config.aim_ignore_bots);
-    const bool need_weapons = frame_config.weapon_name || frame_config.weapon_ammo;
+    const bool need_weapons = frame_config.weapon_name || frame_config.weapon_ammo || frame_config.c4_carrier_esp;
     const bool allow_weapon = pressure == 0 && !HeavyDmaCooldownActive();
 
 
@@ -103,6 +103,18 @@ static void RunOptionalEnrichment(const Config& frame_config,
         constexpr int kJointCount = 28;
         struct BoneJointSnapshot { float x, y, z, scale; char pad[0x10]; };
         static_assert(sizeof(BoneJointSnapshot) == 32, "BoneJointSnapshot");
+        // CS-015: layout alternativo de 48 B (matrix3x4-like; posição nos
+        // primeiros 3 floats). NEEDS VALIDATION: o stride real do BoneArray
+        // tem de ser confirmado com um dump vivo (cs2-dumper); a sonda 48 B
+        // ativa UMA vez quando TODOS os joints são rejeitados num scan com
+        // alvos resolvidos e reverte se também falhar.
+        struct BoneJointSnapshot48 { float v[12]; };
+        static_assert(sizeof(BoneJointSnapshot48) == 48, "BoneJointSnapshot48");
+        static bool s_probe48Attempted = false;
+        static bool s_use48Stride = false;
+        uint64_t scanJointsEvaluated = 0;
+        uint64_t scanJointsRejected = 0;
+        int scanQueuedBatches = 0;
 
         if (pressure >= 2 && targets.size() > 1) {
             static size_t recoveryCursor = 0;
@@ -121,7 +133,8 @@ static void RunOptionalEnrichment(const Config& frame_config,
             }
             const size_t end = (std::min)(targets.size(), base + static_cast<size_t>(pressure >= 2 ? 1 : kBatch));
             uintptr_t boneBases[kBatch]{};
-            BoneJointSnapshot joints[kBatch][kJointCount]{};
+            BoneJointSnapshot joints32[kBatch][kJointCount]{};
+            BoneJointSnapshot48 joints48[kBatch][kJointCount]{};
             float sampledOrigins[kBatch][3];
             for (auto& origin : sampledOrigins)
                 std::fill(std::begin(origin), std::end(origin),
@@ -174,14 +187,21 @@ static void RunOptionalEnrichment(const Config& frame_config,
                 if (!IsUserPointer(boneBase)) continue;
                 boneBases[bi] = boneBase;
                 eligible[bi] = true;
+                // CS-015: o destino/stride depende do layout em uso.
+                void* jointReadTarget = s_use48Stride
+                    ? static_cast<void*>(joints48[bi])
+                    : static_cast<void*>(joints32[bi]);
+                const size_t jointStrideBytes = s_use48Stride
+                    ? sizeof(BoneJointSnapshot48) : sizeof(BoneJointSnapshot);
                 mem.AddScatterReadRequest(g_scatter_optional, boneBase,
-                    joints[bi], sizeof(BoneJointSnapshot) * (need_full_bones ? kJointCount : 8));
+                    jointReadTarget, jointStrideBytes * (need_full_bones ? kJointCount : 8));
                 mem.AddScatterReadRequest(g_scatter_optional,
                     targets[i].scene + offsets.m_vecAbsOrigin,
                     sampledOrigins[bi], sizeof(sampledOrigins[bi]));
                 ++queued;
             }
             if (queued > 0) {
+                ++scanQueuedBatches;
                 CS2::GiveCameraPriorityBeforeOptionalDma();
                 mem.SetDmaCallTag("CS2.Optional.Bones");
                 const uint64_t bone_read_begin_ms = GetTickCount64();
@@ -204,19 +224,39 @@ static void RunOptionalEnrichment(const Config& frame_config,
 
 
                     std::memcpy(r.origin, sampledOrigins[bi], sizeof(r.origin));
-                    const auto validJoint = [&](const BoneJointSnapshot& j, size_t boneSlot) {
-                        if (!std::isfinite(j.x) || !std::isfinite(j.y) || !std::isfinite(j.z))
+                    // CS-015: extrai a posição do joint conforme o stride ativo.
+                    const auto jointPosOf = [&](int jointIdx, float out[3]) {
+                        if (jointIdx < 0 || jointIdx >= static_cast<int>(kJointCount))
                             return false;
-                        if (j.x == 0.f && j.y == 0.f && j.z == 0.f)
+                        if (s_use48Stride) {
+                            const auto& j = joints48[bi][jointIdx];
+                            out[0] = j.v[0]; out[1] = j.v[1]; out[2] = j.v[2];
+                        } else {
+                            const auto& j = joints32[bi][jointIdx];
+                            out[0] = j.x; out[1] = j.y; out[2] = j.z;
+                        }
+                        return true;
+                    };
+                    const auto validJoint = [&](const float pos[3], size_t boneSlot) {
+                        ++scanJointsEvaluated;
+                        if (!std::isfinite(pos[0]) || !std::isfinite(pos[1]) || !std::isfinite(pos[2])) {
+                            ++scanJointsRejected;
                             return false;
-                        const float dx = j.x - r.origin[0];
-                        const float dy = j.y - r.origin[1];
-                        const float dz = j.z - r.origin[2];
+                        }
+                        if (pos[0] == 0.f && pos[1] == 0.f && pos[2] == 0.f) {
+                            ++scanJointsRejected;
+                            return false;
+                        }
+                        const float dx = pos[0] - r.origin[0];
+                        const float dy = pos[1] - r.origin[1];
+                        const float dz = pos[2] - r.origin[2];
 
                         float minDz = -50.f;
                         if (boneSlot >= 14 && boneSlot <= 19) minDz = -120.f;
-                        return dx * dx + dy * dy < 180.f * 180.f &&
+                        const bool ok = dx * dx + dy * dy < 180.f * 180.f &&
                             dz > minDz && dz < 200.f;
+                        if (!ok) ++scanJointsRejected;
+                        return ok;
                     };
 
 
@@ -236,16 +276,20 @@ static void RunOptionalEnrichment(const Config& frame_config,
                             upperPoseValid = false;
                             continue;
                         }
-                        const auto& j = joints[bi][kIdx[s]];
-                        const size_t boneSlot = (s == 3) ?
-                            static_cast<size_t>(CS2::BoneSlot::SpineLower) : s;
-                        if (!validJoint(j, boneSlot)) {
+                        float jpos[3]{};
+                        if (!jointPosOf(kIdx[s], jpos)) {
                             upperPoseValid = false;
                             continue;
                         }
-                        r.bones[boneSlot][0] = j.x;
-                        r.bones[boneSlot][1] = j.y;
-                        r.bones[boneSlot][2] = j.z;
+                        const size_t boneSlot = (s == 3) ?
+                            static_cast<size_t>(CS2::BoneSlot::SpineLower) : s;
+                        if (!validJoint(jpos, boneSlot)) {
+                            upperPoseValid = false;
+                            continue;
+                        }
+                        r.bones[boneSlot][0] = jpos[0];
+                        r.bones[boneSlot][1] = jpos[1];
+                        r.bones[boneSlot][2] = jpos[2];
                     }
                     bool completePose = false;
                     if (need_full_bones) {
@@ -255,9 +299,10 @@ static void RunOptionalEnrichment(const Config& frame_config,
                         for (size_t b = 0; b < kBoneSlotCount; ++b) {
                             int jointIdx = CS2::GetBoneJointIndex(static_cast<CS2::BoneSlot>(b));
                             if (jointIdx < 0 || jointIdx >= static_cast<int>(kJointCount)) continue;
-                            const auto& j = joints[bi][jointIdx];
-                            if (!validJoint(j, b)) continue;
-                            r.bones[b][0] = j.x; r.bones[b][1] = j.y; r.bones[b][2] = j.z;
+                            float jpos[3]{};
+                            if (!jointPosOf(jointIdx, jpos)) continue;
+                            if (!validJoint(jpos, b)) continue;
+                            r.bones[b][0] = jpos[0]; r.bones[b][1] = jpos[1]; r.bones[b][2] = jpos[2];
                         }
 
 
@@ -287,6 +332,45 @@ static void RunOptionalEnrichment(const Config& frame_config,
                 }
             }
             base = end;
+        }
+        // CS-015: telemetria de stride — joints avaliados vs rejeitados.
+        {
+            auto& tel = OmniGhost::Gameplay::DmaTelemetry::CS2();
+            tel.bones.joints_evaluated.fetch_add(scanJointsEvaluated, std::memory_order_relaxed);
+            tel.bones.joints_rejected.fetch_add(scanJointsRejected, std::memory_order_relaxed);
+            // Sonda de stride: se todos os joints foram rejeitados num scan
+            // com alvos resolvidos, o layout de 32 B estará errado para esta
+            // build — testa UMA vez o alternativo de 48 B e reverte se também
+            // falhar (NEEDS VALIDATION contra um dump vivo).
+            const bool totalRejection = scanQueuedBatches > 0 && scanJointsEvaluated > 0 &&
+                results.bone_count == 0;
+            if (totalRejection) {
+                if (!s_probe48Attempted) {
+                    s_probe48Attempted = true;
+                    if (!s_use48Stride) {
+                        s_use48Stride = true;
+                        OmniGhost::SessionLog::Write(
+                            OmniGhost::SessionLog::Severity::Warning,
+                            OmniGhost::SessionLog::Subsystem::Adapter,
+                            "[CS2] Bones: todos os joints rejeitados com stride 32B — a sondar stride 48B (NEEDS VALIDATION)");
+                    } else {
+                        s_use48Stride = false;
+                        OmniGhost::SessionLog::Write(
+                            OmniGhost::SessionLog::Severity::Warning,
+                            OmniGhost::SessionLog::Subsystem::Adapter,
+                            "[CS2] Bones: stride 48B tambem rejeita todos os joints — a reverter para 32B (NEEDS VALIDATION)");
+                    }
+                }
+            } else if (s_use48Stride && results.bone_count > 0) {
+                static bool s_logged48Ok = false;
+                if (!s_logged48Ok) {
+                    s_logged48Ok = true;
+                    OmniGhost::SessionLog::Write(
+                        OmniGhost::SessionLog::Severity::Info,
+                        OmniGhost::SessionLog::Subsystem::Adapter,
+                        "[CS2] Bones: stride 48B validado em runtime (joints aceites)");
+                }
+            }
         }
         results.bones_ms = OmniGhost::Gameplay::TimeMs(bonesPhaseBegin);
     }
@@ -493,14 +577,28 @@ static void RunOptionalEnrichment(const Config& frame_config,
             for (const auto& t : targets) {
                 VisibilityPipeline::Target vt{};
                 vt.pawn = t.pawn;
-
-                vt.points[0] = Trajectory::Vec3(t.origin[0], t.origin[1], t.origin[2] + 70.f);
-
-                vt.points[1] = Trajectory::Vec3(t.origin[0], t.origin[1], t.origin[2] + 40.f);
-
-                vt.points[2] = Trajectory::Vec3(t.origin[0], t.origin[1], t.origin[2] + 10.f);
-
-                vt.points[3] = Trajectory::Vec3(t.origin[0], t.origin[1], t.origin[2] - 10.f);
+                const Player* cachedPlayer = nullptr;
+                for (const auto& candidate : world->players) {
+                    if (candidate.pawn == t.pawn) {
+                        cachedPlayer = &candidate;
+                        break;
+                    }
+                }
+                constexpr std::array<std::size_t, 4> kAimSlots = { 0u, 1u, 2u, 4u };
+                constexpr std::array<float, 4> kFallbackHeights = { 70.f, 55.f, 40.f, 22.f };
+                for (std::size_t pointIndex = 0; pointIndex < vt.points.size(); ++pointIndex) {
+                    const std::size_t slot = kAimSlots[pointIndex];
+                    if (cachedPlayer && cachedPlayer->bones_ok && slot < kBoneSlotCount) {
+                        const float* bone = cachedPlayer->bones[slot];
+                        if (std::isfinite(bone[0]) && std::isfinite(bone[1]) && std::isfinite(bone[2]) &&
+                            !(bone[0] == 0.f && bone[1] == 0.f && bone[2] == 0.f)) {
+                            vt.points[pointIndex] = Trajectory::Vec3(bone[0], bone[1], bone[2]);
+                            continue;
+                        }
+                    }
+                    vt.points[pointIndex] = Trajectory::Vec3(
+                        t.origin[0], t.origin[1], t.origin[2] + kFallbackHeights[pointIndex]);
+                }
                 visTargets.push_back(vt);
             }
 
@@ -521,6 +619,8 @@ static void RunOptionalEnrichment(const Config& frame_config,
                         r.pawn = t.pawn;
                         r.visible = visResult.visible;
                         r.known = true;
+                        r.point_known_mask = visResult.point_known_mask;
+                        r.point_visible_mask = visResult.point_visible_mask;
                         r.checked_ms = visResult.checked_ms;
                     }
                 }

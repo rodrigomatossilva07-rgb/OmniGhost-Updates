@@ -10,17 +10,6 @@
 void DrawWarzoneMisc() {
     const float half = CyberWidgets::CardRowHalfWidth();
 
-    CyberWidgets::BeginCard("DIVERSOS GERAL", 0.f);
-    CyberWidgets::ToggleSwitch("Aviso de Airstrike e Cluster Strike", &Warzone::config.misc_airstrike_alert);
-    CyberWidgets::ToggleSwitch("Alertar jogadores Top 250", &Warzone::config.misc_top250_alert);
-    CyberWidgets::ToggleSwitch("Aviso se estiver sendo olhado", &Warzone::config.misc_watched_alert);
-    CyberWidgets::ToggleSwitch("Mostrar tags de clã quando possível", &Warzone::config.misc_clan_tags);
-    CyberWidgets::ToggleSwitch("Rastrear jogadores entre partidas", &Warzone::config.misc_track_between_matches);
-    CyberWidgets::ToggleSwitch("Lista de espectadores", &Warzone::config.misc_spectator_list);
-    CyberWidgets::TextLine("Opções visuais guardadas no perfil Warzone.", CyberWidgets::TextTone::Secondary);
-    CyberWidgets::EndCard();
-
-
     CyberWidgets::BeginCard("Estado do Warzone", 0.f);
     {
         const bool dma = Warzone::runtime.module_base != 0;
@@ -152,8 +141,6 @@ void DrawWarzoneMisc() {
     CyberWidgets::ToggleSwitch("Modo de desempenho", &Warzone::config.performance_mode);
     CyberWidgets::ToggleSwitch("Ocultar nomes automaticamente (densidade)", &Warzone::config.esp_auto_hide_names);
     CyberWidgets::InputInt("Limite de densidade", &Warzone::config.esp_density_limit);
-    CyberWidgets::SliderFloat("Tamanho do radar", &Warzone::config.radar_size, 80.f, 320.f, "%.0f");
-    CyberWidgets::ToggleSwitch("Radar 2D", &Warzone::config.radar_2d);
     CyberWidgets::TextLine(
         "Com muitos jogadores, os textos longos ocultam-se; caixa e vida ficam prioritárias.",
         CyberWidgets::TextTone::Secondary);

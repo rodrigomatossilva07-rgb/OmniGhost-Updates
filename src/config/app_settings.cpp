@@ -2,6 +2,7 @@
 #include "../platform/app_paths.h"
 #include "../window/theme.h"
 #include "../platform/session_log.h"
+#include "../gameplay/dma_telemetry_log.h"
 
 #include <algorithm>
 #include <cmath>
@@ -150,9 +151,6 @@ namespace app_settings {
             value.matrix_rain = value.digital_rain_level != EffectLevel::Off;
             value.black_background = value.black_level > 0.5f;
             value.menu_bind = ClampValue(value.menu_bind, 0, 255, "menu_bind", wasClamped);
-            value.hotkey_esp = ClampValue(value.hotkey_esp, 0, 255, "hotkey_esp", wasClamped);
-            value.hotkey_aim = ClampValue(value.hotkey_aim, 0, 255, "hotkey_aim", wasClamped);
-            value.hotkey_vehicle = ClampValue(value.hotkey_vehicle, 0, 255, "hotkey_vehicle", wasClamped);
             value.theme_mode = ClampValue(value.theme_mode, 0, 2, "theme_mode", wasClamped);
             value.accent_preset = ClampValue(value.accent_preset, 0, 99, "accent_preset", wasClamped);
             value.visual_style = ClampValue(value.visual_style, 0, 6, "visual_style", wasClamped);
@@ -184,13 +182,9 @@ namespace app_settings {
             out << "general.close_behavior=" << static_cast<int>(value.close_behavior) << '\n';
             out << "general.auto_save=" << (value.auto_save ? 1 : 0) << '\n';
             out << "input.menu_bind=" << value.menu_bind << '\n';
-            out << "input.hotkey_esp=" << value.hotkey_esp << '\n';
-            out << "input.hotkey_aim=" << value.hotkey_aim << '\n';
-            out << "input.hotkey_vehicle=" << value.hotkey_vehicle << '\n';
             out << "appearance.ui_scale=" << value.ui_scale << '\n';
             out << "appearance.digital_rain=" << static_cast<int>(value.digital_rain_level) << '\n';
             out << "appearance.animation=" << static_cast<int>(value.animation_intensity) << '\n';
-            out << "appearance.reduce_motion=" << (value.reduce_motion ? 1 : 0) << '\n';
             out << "sound.ui=" << (value.ui_sounds ? 1 : 0) << '\n';
             out << "sound.volume=" << value.ui_sound_volume << '\n';
             out << "sound.notifications=" << (value.notification_sounds ? 1 : 0) << '\n';
@@ -220,6 +214,7 @@ namespace app_settings {
             out << "advanced.performance_mode=" << (value.performance_mode ? 1 : 0) << '\n';
             out << "advanced.auto_performance=" << (value.auto_performance ? 1 : 0) << '\n';
             out << "advanced.snow=" << (value.snow_effect ? 1 : 0) << '\n';
+            out << "advanced.show_technical=" << (value.show_advanced ? 1 : 0) << '\n';
             out << "advanced.aura50=" << (value.aura_50 ? 1 : 0) << '\n';
             out << "advanced.aura100=" << (value.aura_100 ? 1 : 0) << '\n';
             out << "colors.fps=" << value.color_fps << '\n';
@@ -258,13 +253,9 @@ namespace app_settings {
                 else if (key == "general.close_behavior") parsed.close_behavior = static_cast<CloseBehavior>(ParseInt(value, static_cast<int>(parsed.close_behavior)));
                 else if (key == "general.auto_save") parsed.auto_save = ParseBool(value, parsed.auto_save);
                 else if (key == "input.menu_bind") parsed.menu_bind = ParseInt(value, parsed.menu_bind);
-                else if (key == "input.hotkey_esp") parsed.hotkey_esp = ParseInt(value, parsed.hotkey_esp);
-                else if (key == "input.hotkey_aim") parsed.hotkey_aim = ParseInt(value, parsed.hotkey_aim);
-                else if (key == "input.hotkey_vehicle") parsed.hotkey_vehicle = ParseInt(value, parsed.hotkey_vehicle);
                 else if (key == "appearance.ui_scale") parsed.ui_scale = ParseFloat(value, parsed.ui_scale);
                 else if (key == "appearance.digital_rain") parsed.digital_rain_level = static_cast<EffectLevel>(ParseInt(value, static_cast<int>(parsed.digital_rain_level)));
                 else if (key == "appearance.animation") parsed.animation_intensity = static_cast<EffectLevel>(ParseInt(value, static_cast<int>(parsed.animation_intensity)));
-                else if (key == "appearance.reduce_motion") parsed.reduce_motion = ParseBool(value, parsed.reduce_motion);
                 else if (key == "sound.ui") parsed.ui_sounds = ParseBool(value, parsed.ui_sounds);
                 else if (key == "sound.volume") parsed.ui_sound_volume = ParseFloat(value, parsed.ui_sound_volume);
                 else if (key == "sound.notifications") parsed.notification_sounds = ParseBool(value, parsed.notification_sounds);
@@ -298,6 +289,7 @@ namespace app_settings {
                 else if (key == "advanced.performance_mode") parsed.performance_mode = ParseBool(value, parsed.performance_mode);
                 else if (key == "advanced.auto_performance") parsed.auto_performance = ParseBool(value, parsed.auto_performance);
                 else if (key == "advanced.snow") parsed.snow_effect = ParseBool(value, parsed.snow_effect);
+                else if (key == "advanced.show_technical") parsed.show_advanced = ParseBool(value, parsed.show_advanced);
                 else if (key == "advanced.aura50") parsed.aura_50 = ParseBool(value, parsed.aura_50);
                 else if (key == "advanced.aura100") parsed.aura_100 = ParseBool(value, parsed.aura_100);
                 else if (key == "colors.fps") parsed.color_fps = ParseU32(value, parsed.color_fps);
@@ -332,7 +324,6 @@ namespace app_settings {
             }
 
             Clamp(parsed);
-            parsed.show_advanced = false;
             parsed.schema_version = kGlobalSettingsSchema;
             output = parsed;
             return true;
@@ -467,7 +458,6 @@ namespace app_settings {
             config.matrix_rain = defaults.matrix_rain;
             config.color_primary = defaults.color_primary;
             config.color_secondary = defaults.color_secondary;
-            config.reduce_motion = defaults.reduce_motion;
             config.ui_sounds = defaults.ui_sounds;
             config.ui_sound_volume = defaults.ui_sound_volume;
             config.notification_sounds = defaults.notification_sounds;
@@ -488,9 +478,6 @@ namespace app_settings {
             break;
         case SettingsPage::Input:
             config.menu_bind = defaults.menu_bind;
-            config.hotkey_esp = defaults.hotkey_esp;
-            config.hotkey_aim = defaults.hotkey_aim;
-            config.hotkey_vehicle = defaults.hotkey_vehicle;
             break;
         case SettingsPage::Updates:
             config.update_channel = defaults.update_channel;
@@ -516,7 +503,10 @@ namespace app_settings {
         config = Config{};
         (void)LoadGlobal(nullptr);
 
-        config.show_advanced = false;
+
+
+        OmniGhost::Gameplay::DmaTelemetry::SetEnabled(config.telemetry_log_enabled);
+
 #if defined(OMNIGHOST_PUBLISH) || defined(OMNIGHOST_PRIVATE_STATIC)
         config.is_development_build = true;
 #endif
@@ -528,7 +518,7 @@ namespace app_settings {
     }
 
     float AnimationScale() {
-        if (config.reduce_motion || config.animation_intensity == EffectLevel::Off)
+        if (config.animation_intensity == EffectLevel::Off)
             return 0.0f;
         return config.animation_intensity == EffectLevel::Full ? 1.0f : 0.55f;
     }
@@ -537,23 +527,23 @@ namespace app_settings {
 
         switch (config.digital_rain_level) {
         case EffectLevel::Off: return 0.0f;
-        case EffectLevel::Subtle: return 0.22f;
+        case EffectLevel::Subtle: return 0.30f;
         case EffectLevel::Full:
-        default: return 0.42f;
+        default: return 0.58f;
         }
     }
 
     float DigitalRainOpacity() {
         switch (config.digital_rain_level) {
         case EffectLevel::Off: return 0.0f;
-        case EffectLevel::Subtle: return 0.45f;
+        case EffectLevel::Subtle: return 0.58f;
         case EffectLevel::Full:
-        default: return 0.70f;
+        default: return 0.86f;
         }
     }
 
     bool MotionEnabled() {
-        return !config.reduce_motion && config.animation_intensity != EffectLevel::Off;
+        return config.animation_intensity != EffectLevel::Off;
     }
 
     const char* EffectLevelName(EffectLevel level) {

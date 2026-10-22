@@ -28,6 +28,7 @@ namespace friends {
     }
     std::vector<PlayerEntry> player_list;
     std::mutex list_mutex;
+    std::atomic<uint64_t> list_version{0};
     static std::atomic<ULONGLONG> s_playerListRequestedMs{0};
 
     void RequestPlayerList() noexcept {
@@ -45,6 +46,7 @@ namespace friends {
         friend_list.clear();
         s_friendIds.clear();
         player_list.clear();
+        list_version.fetch_add(1, std::memory_order_release);
     }
 
     bool IsFriend(uint32_t id) {
@@ -74,6 +76,7 @@ namespace friends {
             if (f.id == id) return;
         friend_list.push_back({ name, id, prox });
         s_friendIds.insert(id);
+        list_version.fetch_add(1, std::memory_order_release);
     }
 
     void RemoveFriend(uint32_t id) {
@@ -83,6 +86,7 @@ namespace friends {
                 [id](const FriendEntry& f) { return f.id == id; }),
             friend_list.end());
         RebuildIdSet();
+        list_version.fetch_add(1, std::memory_order_release);
     }
 
     void UpdatePlayerList() {
@@ -96,6 +100,7 @@ namespace friends {
         if (!FiveM::ESP::FrameCacheValid() || snapshot.validPeds.empty()) {
             std::lock_guard<std::mutex> lock(list_mutex);
             player_list.clear();
+            list_version.fetch_add(1, std::memory_order_release);
             return;
         }
 
@@ -103,6 +108,7 @@ namespace friends {
         if (localPos.IsZero()) {
             std::lock_guard<std::mutex> lock(list_mutex);
             player_list.clear();
+            list_version.fetch_add(1, std::memory_order_release);
             return;
         }
 
@@ -132,6 +138,7 @@ namespace friends {
 
         std::lock_guard<std::mutex> lock(list_mutex);
         player_list = std::move(next);
+        list_version.fetch_add(1, std::memory_order_release);
     }
 
     void AddClosestAsFriend() {

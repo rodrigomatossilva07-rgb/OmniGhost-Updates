@@ -115,6 +115,15 @@ namespace makcu {
             return ok;
         }
 
+        bool executeWireUngated(const WireCommand& wire) {
+            if (!serialPort->isOpen()) return false;
+            if (wire.encoding == WireEncoding::Text) {
+                const std::string command(wire.bytes.begin(), wire.bytes.end());
+                return serialPort->sendCommand(command);
+            }
+            return serialPort->writeRaw(wire.bytes);
+        }
+
         void handleButtonEvent(uint8_t button, bool pressed) {
 
             (void)pressed;
@@ -290,6 +299,8 @@ namespace makcu {
         m_impl->connected.store(true);
         m_impl->status = ConnectionStatus::CONNECTED;
         m_impl->lastError.clear();
+        m_impl->reconnectAttempts.store(0);
+        m_impl->lastReconnectAttempt = {};
         for (uint8_t button = 0; button < 5; ++button) {
             if (const auto release = m_impl->protocol->Button(button, false))
                 (void)m_impl->executeWire(*release);
@@ -406,6 +417,44 @@ namespace makcu {
         const bool pressed = m_impl->executeWire(*press);
         const bool released = m_impl->executeWire(*release);
         return pressed && released;
+    }
+
+    bool Device::forceReleaseAll() {
+        std::lock_guard<std::mutex> lock(m_impl->mutex);
+        if (!m_impl->protocol || !m_impl->serialPort->isOpen()) return false;
+        bool any = false;
+        for (uint8_t button = 0; button < 5; ++button) {
+            const auto release = m_impl->protocol->Button(button, false);
+            if (release && m_impl->executeWireUngated(*release))
+                any = true;
+        }
+        m_impl->currentButtonMask.store(0);
+        return any;
+    }
+
+    bool Device::tryReconnect() {
+        std::lock_guard<std::mutex> lock(m_impl->mutex);
+        if (m_impl->connected.load() && m_impl->serialPort->isOpen()) return true;
+        if (!m_impl->protocol || !m_impl->serialPort->isOpen()) return false;
+        if (m_impl->reconnectAttempts.load() >= Impl::kMaxReconnectAttempts) return false;
+        const auto now = std::chrono::steady_clock::now();
+        if (m_impl->lastReconnectAttempt.time_since_epoch().count() != 0 &&
+            now - m_impl->lastReconnectAttempt < m_impl->reconnectCooldown)
+            return false;
+        m_impl->lastReconnectAttempt = now;
+        m_impl->reconnectAttempts.fetch_add(1);
+        const auto probe = m_impl->protocol->ButtonMonitoring(true);
+        if (!probe || !m_impl->executeWireUngated(*probe)) return false;
+        m_impl->connected.store(true);
+        m_impl->status = ConnectionStatus::CONNECTED;
+        m_impl->lastError.clear();
+        m_impl->reconnectAttempts.store(0);
+        m_impl->monitoring.store(true);
+        for (uint8_t button = 0; button < 5; ++button) {
+            const auto release = m_impl->protocol->Button(button, false);
+            if (release) (void)m_impl->executeWireUngated(*release);
+        }
+        return true;
     }
 
     std::future<bool> Device::mouseDownAsync(MouseButton button) {

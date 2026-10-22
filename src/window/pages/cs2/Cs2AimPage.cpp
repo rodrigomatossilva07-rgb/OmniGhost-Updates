@@ -73,6 +73,45 @@ bool HotkeyCaptureButton(const char* id, int* vk) {
     return changed;
 }
 
+void DrawFovCurveEditor() {
+    const ImVec2 origin = ImGui::GetCursorScreenPos();
+    const ImVec2 size(ImGui::GetContentRegionAvail().x, 150.f);
+    const ImVec2 end(origin.x + size.x, origin.y + size.y);
+    ImDrawList* draw = ImGui::GetWindowDrawList();
+    draw->AddRectFilled(origin, end, IM_COL32(7, 8, 9, 235), 6.f);
+    draw->AddRect(origin, end, IM_COL32(96, 78, 31, 220), 6.f);
+    ImGui::InvisibleButton("##cs2_fov_curve", size);
+    int nearest = -1;
+    float nearestDistance = 1.e9f;
+    ImVec2 points[5]{};
+    for (int i = 0; i < 5; ++i) {
+        const float x = std::clamp(CS2::config.aim_fov_curve_distance[i] / 300.f, 0.f, 1.f);
+        const float y = std::clamp(CS2::config.aim_fov_curve_value[i] / 500.f, 0.f, 1.f);
+        points[i] = ImVec2(origin.x + 8.f + x * (size.x - 16.f), end.y - 8.f - y * (size.y - 16.f));
+        if (i > 0) draw->AddLine(points[i - 1], points[i], IM_COL32(229, 184, 55, 235), 2.f);
+        draw->AddCircleFilled(points[i], 5.f, IM_COL32(246, 207, 83, 255));
+        const ImVec2 mouse = ImGui::GetIO().MousePos;
+        const float dx = mouse.x - points[i].x, dy = mouse.y - points[i].y;
+        const float distance = dx * dx + dy * dy;
+        if (distance < nearestDistance) { nearestDistance = distance; nearest = i; }
+    }
+    static int dragging = -1;
+    if (ImGui::IsItemActivated() && nearestDistance <= 225.f) dragging = nearest;
+    if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) dragging = -1;
+    if (dragging >= 0 && ImGui::IsItemActive()) {
+        const ImVec2 mouse = ImGui::GetIO().MousePos;
+        const float normalizedX = std::clamp((mouse.x - origin.x - 8.f) / (size.x - 16.f), 0.f, 1.f);
+        const float normalizedY = std::clamp((end.y - 8.f - mouse.y) / (size.y - 16.f), 0.f, 1.f);
+        if (dragging > 0) {
+            const float lower = CS2::config.aim_fov_curve_distance[dragging - 1] + .1f;
+            const float upper = dragging < 4 ? CS2::config.aim_fov_curve_distance[dragging + 1] - .1f : 300.f;
+            CS2::config.aim_fov_curve_distance[dragging] = std::clamp(normalizedX * 300.f, lower, upper);
+        }
+        CS2::config.aim_fov_curve_value[dragging] = std::clamp(normalizedY * 500.f, 1.f, 500.f);
+    }
+    CyberWidgets::TextLine("Eixo X: distância (0-300 m) · eixo Y: FOV (1-500 px)", CyberWidgets::TextTone::Secondary);
+}
+
 }
 
 void DrawCs2Aim() {
@@ -85,6 +124,18 @@ void DrawCs2Aim() {
     if (CS2::config.aim_enabled) {
         CyberWidgets::TextLine("Tecla de ativacao", CyberWidgets::TextTone::Secondary);
         HotkeyCaptureButton("##cs2_aim_bind", &CS2::config.aim_bind);
+        CyberWidgets::TextLine("Teclas alternativas (opcional)", CyberWidgets::TextTone::Secondary);
+        HotkeyCaptureButton("##cs2_aim_bind2", &CS2::config.aim_bind2);
+        ImGui::SameLine();
+        HotkeyCaptureButton("##cs2_aim_bind3", &CS2::config.aim_bind3);
+        // CSE-008: evita duplicados com a tecla principal e o botão esquerdo.
+        if (CS2::config.aim_bind2 == CS2::config.aim_bind ||
+            CS2::config.aim_bind2 == VK_LBUTTON)
+            CS2::config.aim_bind2 = 0;
+        if (CS2::config.aim_bind3 == CS2::config.aim_bind ||
+            CS2::config.aim_bind3 == CS2::config.aim_bind2 ||
+            CS2::config.aim_bind3 == VK_LBUTTON)
+            CS2::config.aim_bind3 = 0;
         CyberWidgets::TextLine("Ativa enquanto mantiveres a tecla premida; ao largar, desativa.",
                                CyberWidgets::TextTone::Secondary);
 
@@ -105,6 +156,24 @@ void DrawCs2Aim() {
         if (CyberWidgets::Combo("Aim Point", &point, kPoints, 4))
             CS2::config.aim_bone = point;
 
+        CyberWidgets::ToggleSwitch("Apenas bones visíveis", &CS2::config.aim_visible_bones_only);
+        if (CS2::config.aim_visible_bones_only) {
+            CyberWidgets::TextLine("Requer mapa de colisão carregado; dados desconhecidos são rejeitados.",
+                                   CyberWidgets::TextTone::Secondary);
+            for (int priority = 0; priority < 4; ++priority) {
+                char label[32];
+                std::snprintf(label, sizeof(label), "Prioridade %d", priority + 1);
+                int selected = std::clamp(CS2::config.aim_bone_priority[priority], 0, 3);
+                if (CyberWidgets::Combo(label, &selected, kPoints, 4)) {
+                    for (int other = 0; other < 4; ++other) {
+                        if (other != priority && CS2::config.aim_bone_priority[other] == selected)
+                            std::swap(CS2::config.aim_bone_priority[other], CS2::config.aim_bone_priority[priority]);
+                    }
+                    CS2::config.aim_bone_priority[priority] = selected;
+                }
+            }
+        }
+
 
         CyberWidgets::SliderFloat("Humanization", &CS2::config.aim_humanization, 0.f, 100.f, "%.0f");
         CS2::config.aim_humanization = std::clamp(CS2::config.aim_humanization, 0.f, 100.f);
@@ -119,8 +188,17 @@ void DrawCs2Aim() {
 
         CyberWidgets::ToggleSwitch("Dynamic FOV", &CS2::config.aim_dynamic_fov);
         if (CS2::config.aim_dynamic_fov) {
-            CyberWidgets::SliderFloat("Min FOV", &CS2::config.aim_fov_min, 5.f, 200.f, "%.0f px");
-            CS2::config.aim_fov_min = std::clamp(CS2::config.aim_fov_min, 1.f, 200.f);
+            DrawFovCurveEditor();
+            for (int i = 0; i < 5; ++i) {
+                char distanceLabel[32], fovLabel[32];
+                std::snprintf(distanceLabel, sizeof(distanceLabel), "Distância P%d", i + 1);
+                std::snprintf(fovLabel, sizeof(fovLabel), "FOV P%d", i + 1);
+                if (i > 0)
+                    CyberWidgets::SliderFloat(distanceLabel, &CS2::config.aim_fov_curve_distance[i],
+                        CS2::config.aim_fov_curve_distance[i - 1] + .1f,
+                        i < 4 ? CS2::config.aim_fov_curve_distance[i + 1] - .1f : 300.f, "%.1f m");
+                CyberWidgets::SliderFloat(fovLabel, &CS2::config.aim_fov_curve_value[i], 1.f, 500.f, "%.0f px");
+            }
         }
 
         CyberWidgets::Separator();

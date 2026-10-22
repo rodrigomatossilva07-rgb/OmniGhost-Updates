@@ -41,6 +41,7 @@ struct PreparedEspData {
 struct PreparedRenderConfig {
     float max_esp_distance = 200.0f;
     bool show_dead = false;
+    bool show_knocked = false;
     bool visible_check = false;
     bool visibility_colors = false;
     bool box_2d = false;
@@ -98,4 +99,20 @@ struct PreparedRenderConfig {
     bool skeleton_lod = false;
     bool footstep_esp = false;
     bool hit_marker = false;
+    bool offscreen_arrows = false;
+    float offscreen_arrow_size = 13.f;
+    float offscreen_arrow_margin = 38.f;
+    float offscreen_arrow_max_distance = 300.f;
+    float offscreen_arrow_opacity = .85f;
+    bool offscreen_arrow_distance = true;
+    bool offscreen_arrow_name = false;
+    int offscreen_arrow_style = 0;
+    ImU32 color_offscreen_arrow = IM_COL32(255, 196, 48, 220);
+    int layout_name = 0;
+    int layout_health = 2;
+    int layout_armor = 3;
+    int layout_weapon = 1;
+    int layout_distance = 1;
+    float layout_spacing = 4.f;
+    float layout_text_scale = 1.f;
 };

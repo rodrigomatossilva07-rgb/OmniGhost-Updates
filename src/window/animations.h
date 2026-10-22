@@ -48,6 +48,10 @@ namespace CyberAnimations {
     float GetHover(ImGuiID id, float speed);
 
 
+
+    float HoverNudge(ImGuiID id, bool hovered, float amplitude = 1.6f);
+
+
     struct AnimatedFloat {
         SpringState spring;
         float value = 0.0f;
@@ -142,6 +146,7 @@ namespace CyberAnimations {
 
         std::vector<Announcement> queue_;
         std::string current_;
+        float current_lifetime_ = 0.0f;
     };
 
 }

@@ -25,8 +25,8 @@ void DrawDmaPreparation(std::chrono::steady_clock::time_point started) {
     const float animation = app_settings::AnimationScale();
     DigitalRain::Draw(background, ImVec2(0, 0), display, true,
         PerformanceMode::Current().effective, 0.0f,
-        app_settings::DigitalRainOpacity() * 0.075f,
-        app_settings::DigitalRainDensity() * 0.38f, animation, true);
+        app_settings::DigitalRainOpacity() * 0.48f,
+        app_settings::DigitalRainDensity() * 0.82f, animation, false, true);
 
     const float elapsed = std::chrono::duration<float>(
         std::chrono::steady_clock::now() - started).count();
@@ -35,6 +35,21 @@ void DrawDmaPreparation(std::chrono::steady_clock::time_point started) {
     const ImU32 text = CyberTheme::WithAlpha(CyberTheme::Colors.Text, fade);
     const ImVec2 center(display.x * 0.5f, display.y * 0.44f);
     CyberTheme::DrawRadialAccent(background, center, CyberTheme::Px(220.f), 0.055f * fade);
+
+    const ImVec2 panelMin(center.x - CyberTheme::Px(252.f), center.y - CyberTheme::Px(150.f));
+    const ImVec2 panelMax(center.x + CyberTheme::Px(252.f), center.y + CyberTheme::Px(132.f));
+    background->AddRectFilled(panelMin, panelMax,
+        CyberTheme::WithAlpha(CyberTheme::Colors.Card, 0.965f * fade), CyberTheme::Px(14.f));
+    background->AddRect(panelMin, panelMax,
+        CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.24f * fade), CyberTheme::Px(14.f),
+        0, CyberTheme::Px(1.f));
+    background->AddRectFilled(
+        ImVec2(panelMin.x, panelMin.y + CyberTheme::Px(34.f)),
+        ImVec2(panelMin.x + CyberTheme::Px(3.f), panelMax.y - CyberTheme::Px(34.f)),
+        CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.84f * fade), CyberTheme::Px(2.f));
+    background->AddText(ImVec2(panelMin.x + CyberTheme::Px(22.f), panelMin.y + CyberTheme::Px(17.f)),
+        CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.72f * fade),
+        "OMNIGHOST // GAME SESSION");
 
     if (ImTextureID logo = BrandAssets::GetLogoTexture()) {
         const float pulse = animation <= 0.f ? 1.f : 1.f + std::sin(elapsed * 1.8f) * 0.025f;
@@ -53,8 +68,20 @@ void DrawDmaPreparation(std::chrono::steady_clock::time_point started) {
     background->AddText(font ? font : ImGui::GetFont(), fontSize,
         ImVec2(center.x - titleSize.x * 0.5f, center.y), text, title);
 
+    static constexpr const char* stages[] = {
+        "A validar o jogo e as permissões",
+        "A preparar a ligação DMA",
+        "A iniciar os módulos da sessão",
+        "A concluir o ambiente seguro"
+    };
+    const int stage = std::min(3, static_cast<int>(elapsed / 0.72f));
+    const char* stageText = stages[stage];
+    const ImVec2 stageSize = ImGui::CalcTextSize(stageText);
+    background->AddText(ImVec2(center.x - stageSize.x * 0.5f, center.y + CyberTheme::Px(24.f)),
+        CyberTheme::WithAlpha(CyberTheme::Colors.TextDisabled, 0.86f * fade), stageText);
+
     const float width = CyberTheme::Px(118.f);
-    const float y = center.y + CyberTheme::Px(42.f);
+    const float y = center.y + CyberTheme::Px(62.f);
     background->AddLine(ImVec2(center.x - width * 0.5f, y),
         ImVec2(center.x + width * 0.5f, y),
         CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.15f * fade), CyberTheme::Px(1.f));
@@ -65,6 +92,15 @@ void DrawDmaPreparation(std::chrono::steady_clock::time_point started) {
         ImVec2(center.x + width * 0.5f, y + CyberTheme::Px(2.f)), true);
     background->AddLine(ImVec2(startX, y), ImVec2(startX + segment, y), gold, CyberTheme::Px(1.7f));
     background->PopClipRect();
+
+    const float dotsY = y + CyberTheme::Px(24.f);
+    for (int index = 0; index < 4; ++index) {
+        const float x = center.x + (static_cast<float>(index) - 1.5f) * CyberTheme::Px(24.f);
+        background->AddCircleFilled(ImVec2(x, dotsY), CyberTheme::Px(index == stage ? 3.2f : 2.1f),
+            CyberTheme::WithAlpha(index <= stage ? CyberTheme::Colors.GoldHover
+                                                  : CyberTheme::Colors.TextDisabled,
+                                  index == stage ? 0.94f * fade : 0.30f * fade), 16);
+    }
 }
 
 void RenderTimedTransition(Overlay& application, const char* title,

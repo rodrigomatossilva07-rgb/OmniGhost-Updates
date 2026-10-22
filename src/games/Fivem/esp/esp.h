@@ -57,26 +57,9 @@ namespace esp {
 
 
     extern ESPMode current_esp_mode;
-    extern ImU32 circle_color;
-    extern ImU32 skeleton_color;
     extern float line_thickness;
-    extern bool use_cache;
-    extern bool use_batch_skeleton;
 
     extern Config config;
-
-
-    struct CachedBoneData {
-        Matrix bone_matrix;
-        Vec3 head_position;
-        std::chrono::steady_clock::time_point last_update;
-        bool is_valid;
-
-        CachedBoneData() : bone_matrix{}, head_position{},
-            last_update(std::chrono::steady_clock::now()),
-            is_valid(false) {
-        }
-    };
 
 
     struct BatchSkeletonData {
@@ -96,64 +79,15 @@ namespace esp {
     };
 
 
-    struct BatchHeadData {
-        uintptr_t ped;
-        Matrix bone_matrix;
-        Vector3 head_offset;
-        float health;
-        bool valid;
-
-        BatchHeadData() : ped(0), valid(false) {}
-    };
-
     void DrawDebugLine(const Vec2& from, const Vec2& to, ImU32 color);
     void DrawDebugText(const Vec2& pos, const char* text, ImU32 color);
     void DrawDebugCircle(const Vec2& center, float radius, ImU32 color);
 
 
-    class BoneCache {
-    private:
-        std::unordered_map<uintptr_t, CachedBoneData> cached_bone_data;
-
-
-        static constexpr std::chrono::seconds CLEANUP_INTERVAL{ 2 };
-        std::chrono::steady_clock::time_point last_cleanup;
-
-        static std::chrono::milliseconds GetCacheValidity() {
-            return std::chrono::milliseconds(esp::config.skeleton_cache_validity_ms);
-        }
-
-    public:
-        BoneCache() : last_cleanup(std::chrono::steady_clock::now()) {}
-
-
-        Matrix get_bone_matrix(uintptr_t ped, bool force_refresh = false);
-
-
-        Vec3 get_bone_position(uintptr_t ped, int bone_position, bool force_refresh = false);
-
-
-        void update_bone_data(uintptr_t ped, const Matrix& bone_matrix, const Vec3& head_pos);
-
-
-        void clear() { cached_bone_data.clear(); }
-        void cleanup_old_entries();
-        bool is_data_valid(uintptr_t ped) const;
-        size_t get_cache_size() const { return cached_bone_data.size(); }
-
-
-    };
-
-    bool get_skeleton_bones_for_ped(uintptr_t ped, std::vector<Vec3>& bone_positions, bool force_refresh = false);
-
-
-
-    extern BoneCache bone_cache;
-
-
     void draw_skeleton(uintptr_t ped, Matrix viewport, uintptr_t localplayer);
     void DrawWaypointAndBlips(const Matrix& view, uintptr_t localplayer);
     void DrawPlayerRadar(const Matrix& view_matrix, uintptr_t localplayer);
+    void DrawActiveFeaturesPanel();
     void draw_skeleton_cached(uintptr_t ped, Matrix viewport, uintptr_t localplayer, const PedData& cached_ped_data);
 
 
@@ -165,8 +99,6 @@ namespace esp {
     ESPMode get_esp_mode();
     const char* get_esp_mode_name(ESPMode mode);
     std::vector<const char*> get_esp_mode_names();
-    void set_use_cache(bool use_cache);
-    bool get_use_cache();
 
 
     void render_esp_for_ped(uintptr_t ped, Matrix viewport, uintptr_t localplayer);
@@ -191,57 +123,9 @@ namespace esp {
     bool try_get_prepared_player_name(uintptr_t ped, char* out, size_t outSize);
     bool try_get_prepared_health(uintptr_t ped, float& out);
     bool try_get_prepared_vehicle(uintptr_t ped, uintptr_t& out);
-    void render_batch_skeletons(const std::vector<BatchSkeletonData>& skeleton_data, Matrix viewport, uintptr_t localplayer);
-    void render_skeleton_esp_batch();
 
-
-
-    void batch_read_head_data(const std::vector<uintptr_t>& peds, std::vector<BatchHeadData>& out_data);
-    void render_batch_head_circles(const std::vector<BatchHeadData>& head_data, Matrix viewport, uintptr_t localplayer);
-    void render_head_circle_esp_batch();
-
-
-    Vec3 get_bone_position(uintptr_t ped, int bone_position);
-    Vec3 get_bone_position_cached(uintptr_t ped, int bone_position, const PedData& cached_ped_data);
-
-
-    Vec3 find_closest_player(Vec3& localPlayerPosition, Matrix viewmatrix);
     void draw_health_info(const Vec2& position, float health);
     void draw_enhanced_health_info(const Vec2& position, float health);
-
-
-    void batch_update_bone_cache(const std::vector<uintptr_t>& peds);
-    void batch_update_skeleton_cache(const std::vector<uintptr_t>& peds);
-
-
-    struct BoneReadResult {
-        uintptr_t ped;
-        std::vector<Vec3> bone_positions;
-        bool success;
-
-        BoneReadResult() : ped(0), success(false) {}
-        BoneReadResult(uintptr_t p) : ped(p), success(false) {
-            bone_positions.resize(6);
-        }
-    };
-
-
-    void set_circle_color(ImU32 color);
-    void set_skeleton_color(ImU32 color);
-    void set_line_thickness(float thickness);
-    void set_use_batch_skeleton(bool use_batch);
-
-    ImU32 get_circle_color();
-    ImU32 get_skeleton_color();
-    float get_line_thickness();
-    bool get_use_batch_skeleton();
-
-
-    size_t get_skeleton_cache_size();
-    void clear_skeleton_cache();
-
-
-    void ClearNameCache();
 
 
     struct ESPStats {
@@ -280,5 +164,4 @@ namespace esp {
     };
 
     extern ESPStats esp_stats;
-    void print_esp_stats();
 }

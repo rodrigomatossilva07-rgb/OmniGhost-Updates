@@ -17,6 +17,7 @@ bool Offsets::Validate(std::string* reason) const noexcept {
 
     if (!module_offset(dwEntityList)) return fail("dwEntityList invalido");
     if (!module_offset(dwLocalPlayerPawn)) return fail("dwLocalPlayerPawn invalido");
+    if (!module_offset(dwLocalPlayerController)) return fail("dwLocalPlayerController invalido");
     if (!module_offset(dwViewMatrix)) return fail("dwViewMatrix invalido");
     if (!field_offset(m_iHealth)) return fail("m_iHealth invalido");
     if (!field_offset(m_iTeamNum)) return fail("m_iTeamNum invalido");

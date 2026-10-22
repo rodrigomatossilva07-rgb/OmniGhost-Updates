@@ -109,16 +109,10 @@ bool WeaponNameRegistry::LoadFromEmbedded() {
     return false;
 }
 
-const char* WeaponNameRegistry::GetWeaponName(uint32_t hash) const {
+std::string WeaponNameRegistry::GetWeaponName(uint32_t hash) const {
     std::lock_guard<std::mutex> lock(mutex_);
     auto it = weapon_map_.find(hash);
-    return it != weapon_map_.end() ? it->second.name.c_str() : nullptr;
-}
-
-const WeaponInfo* WeaponNameRegistry::GetWeaponInfo(uint32_t hash) const {
-    std::lock_guard<std::mutex> lock(mutex_);
-    auto it = weapon_map_.find(hash);
-    return it != weapon_map_.end() ? &it->second : nullptr;
+    return it != weapon_map_.end() ? it->second.name : std::string{};
 }
 
 }

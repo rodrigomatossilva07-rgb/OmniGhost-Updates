@@ -26,7 +26,8 @@ struct Note {
 };
 
 std::mutex g_audioMutex;
-std::vector<std::uint8_t> g_activeWave;
+std::array<std::vector<std::uint8_t>, 4> g_waveRing{};
+std::size_t g_waveRingNext = 0;
 std::array<ULONGLONG, 11> g_lastPlayed{};
 bool g_startupPlayed = false;
 
@@ -124,7 +125,8 @@ void Initialize() noexcept {
 void Shutdown() noexcept {
     std::scoped_lock lock(g_audioMutex);
     ::PlaySoundW(nullptr, nullptr, 0);
-    g_activeWave.clear();
+    for (auto& wave : g_waveRing)
+        wave.clear();
 }
 
 void Play(SoundEvent event) noexcept {
@@ -146,9 +148,11 @@ void Play(SoundEvent event) noexcept {
 
 
         ::PlaySoundW(nullptr, nullptr, 0);
-        g_activeWave = BuildWave(event, app_settings::config.ui_sound_volume);
-        if (!g_activeWave.empty())
-            ::PlaySoundW(reinterpret_cast<LPCWSTR>(g_activeWave.data()), nullptr,
+        std::vector<std::uint8_t>& wave = g_waveRing[g_waveRingNext];
+        g_waveRingNext = (g_waveRingNext + 1) % g_waveRing.size();
+        wave = BuildWave(event, app_settings::config.ui_sound_volume);
+        if (!wave.empty())
+            ::PlaySoundW(reinterpret_cast<LPCWSTR>(wave.data()), nullptr,
                          SND_ASYNC | SND_MEMORY | SND_NODEFAULT);
     }
     catch (...) {

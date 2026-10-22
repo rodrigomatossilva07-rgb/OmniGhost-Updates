@@ -89,21 +89,19 @@ struct HighContrastMode {
     static ImU32 GetColor(ImU32 normal_color) noexcept;
 };
 
-struct ReducedMotion {
-    static bool IsEnabled() noexcept;
-    static float GetAnimationScale() noexcept;
-    static void SetEnabled(bool enabled) noexcept;
-};
+[[nodiscard]] std::string GetLocalized(const char* key, const char* fallback) noexcept;
 
 struct LocalizedString {
     const char* key;
     const char* fallback;
-    explicit operator const char*() const noexcept;
+    mutable std::string cached;
+    explicit operator const char*() const noexcept {
+        cached = GetLocalized(key, fallback);
+        return cached.c_str();
+    }
 };
 
 #define LOC(key, fallback) CyberLayout::LocalizedString{key, fallback}
-
-[[nodiscard]] std::string GetLocalized(const char* key, const char* fallback) noexcept;
 
 void AuditLocalizationCoverage();
 

@@ -42,19 +42,8 @@ void DrawCs2Radar() {
     const float right = full - left - gap;
 
     ImGui::BeginGroup();
-    CyberWidgets::BeginCard("RADAR 2D", left);
-    CyberWidgets::ToggleSwitch("Ativar Radar 2D", &CS2::config.radar_2d);
-    if (CS2::config.radar_2d) {
-        if (ImGui::Button("Pequeno")) CS2::config.radar_2d_size = 160.f;
-        ImGui::SameLine();
-        if (ImGui::Button("Grande")) CS2::config.radar_2d_size = 280.f;
-        CyberWidgets::SliderFloat("Tamanho", &CS2::config.radar_2d_size, 80.f, 320.f, "%.0f px");
-        CyberWidgets::TextLine("Arrasta o radar no ecrã do jogo para reposicionar.",
-                               CyberWidgets::TextTone::Secondary);
-    }
-    CyberWidgets::EndCard();
-
-    CyberWidgets::CardGap(gap);
+    // CS-014: o "Radar 2D" local nunca teve renderer — o toggle foi removido
+    // (campos+serialização mantidos, como no Warzone). O radar real é o web radar.
     CyberWidgets::BeginCard("WEB RADAR", left);
     CyberWidgets::ToggleSwitch("Ativar Web Radar", &CS2::config.webradar_enabled);
 

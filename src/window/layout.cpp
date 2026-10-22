@@ -16,7 +16,6 @@ std::vector<Focusable*> g_focusables;
 std::mutex g_focusables_mutex;
 int g_focus_index = -1;
 bool g_high_contrast = false;
-bool g_reduced_motion = false;
 }
 
 LayoutMetrics& GetMetrics() noexcept { return g_metrics; }
@@ -163,6 +162,8 @@ void NextCardGridItem() {
     ImGui::NextColumn();
 }
 
+static std::vector<bool> s_section_indented;
+
 void BeginSection(const char* title, bool collapsible, bool default_open) {
     ImGui::PushID(title);
     ImGui::Spacing();
@@ -171,19 +172,22 @@ void BeginSection(const char* title, bool collapsible, bool default_open) {
         ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_Framed | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_AllowItemOverlap;
         if (default_open) flags |= ImGuiTreeNodeFlags_DefaultOpen;
         if (!ImGui::CollapsingHeader("", flags)) {
+            s_section_indented.push_back(false);
             ImGui::PopID();
             return;
         }
         ImGui::Indent();
+        s_section_indented.push_back(true);
+        return;
     }
+    s_section_indented.push_back(false);
 }
 
 void EndSection() {
-    if (ImGui::GetCurrentContext() && ImGui::GetCurrentContext()->CurrentWindowStack.Size > 0) {
-        ImGuiWindow* window = ImGui::GetCurrentWindow();
-        if (window && window->DC.TreeDepth > 0) {
+    if (!s_section_indented.empty()) {
+        if (s_section_indented.back())
             ImGui::Unindent();
-        }
+        s_section_indented.pop_back();
     }
     ImGui::PopID();
 }
@@ -285,14 +289,6 @@ ImU32 HighContrastMode::GetColor(ImU32 normal_color) noexcept {
     unsigned char a = (normal_color >> 24) & 0xFF;
     int luminance = static_cast<int>(0.299 * r + 0.587 * g + 0.114 * b);
     return luminance > 128 ? IM_COL32(0, 0, 0, a) : IM_COL32(255, 255, 255, a);
-}
-
-bool ReducedMotion::IsEnabled() noexcept { return g_reduced_motion; }
-float ReducedMotion::GetAnimationScale() noexcept { return g_reduced_motion ? 0.0f : 1.0f; }
-void ReducedMotion::SetEnabled(bool enabled) noexcept { g_reduced_motion = enabled; }
-
-LocalizedString::operator const char*() const noexcept {
-    return GetLocalized(key, fallback).c_str();
 }
 
 std::string GetLocalized(const char* key, const char* fallback) noexcept {

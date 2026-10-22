@@ -296,10 +296,12 @@ static int ScatterResolvePawnHandles(const uint32_t* handles, uintptr_t* pawns,
     }
 
     bool queuedChunkPointers = false;
+    bool usedCachedChunkPointers = false;
     for (int page = 0; page < kMaxPages; ++page) {
         if (!pageUsed[page]) continue;
         if (IsUserPointer(cachedChunks[page])) {
             chunks[page] = cachedChunks[page];
+            usedCachedChunkPointers = true;
             continue;
         }
         mem.AddScatterReadRequest(scatter,
@@ -366,6 +368,10 @@ static int ScatterResolvePawnHandles(const uint32_t* handles, uintptr_t* pawns,
             if (IsUserPointer(pawns[i])) ++resolved;
             else pawns[i] = 0;
         }
+    }
+    if (resolved == 0 && count > 0 && usedCachedChunkPointers) {
+        std::fill(std::begin(cachedChunks), std::end(cachedChunks), 0);
+        cachedChunksUntilMs = 0;
     }
     return resolved;
 }

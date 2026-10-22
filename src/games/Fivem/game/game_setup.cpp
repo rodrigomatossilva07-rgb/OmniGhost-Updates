@@ -45,11 +45,11 @@ void ApplyBuildExtras(uintptr_t game_base, int build) {
     bullet = 0;
     pedVisibilityOffset = bo->ped_visibility_offset;
 
-    if (bo->boneList_offset) boneList = bo->boneList_offset;
-    if (bo->boneMatrix_offset) boneMatrix = bo->boneMatrix_offset;
-    if (bo->playerInfo_offset) playerInfo = bo->playerInfo_offset;
-    if (bo->playerHealth_offset) playerHealth = bo->playerHealth_offset;
-    if (bo->playerPosition_offset) playerPosition = bo->playerPosition_offset;
+    if (bo->boneList_offset) boneList = bo->boneList_offset; else boneList = 0;
+    if (bo->boneMatrix_offset) boneMatrix = bo->boneMatrix_offset; else boneMatrix = 0;
+    if (bo->playerInfo_offset) playerInfo = bo->playerInfo_offset; else playerInfo = 0;
+    if (bo->playerHealth_offset) playerHealth = bo->playerHealth_offset; else playerHealth = 0;
+    if (bo->playerPosition_offset) playerPosition = bo->playerPosition_offset; else playerPosition = 0;
 }
 
 void WriteStatusLog(const char* note) {
@@ -108,8 +108,7 @@ void Setup() {
         playerHealth = build_offset->playerHealth_offset;
         playerPosition = build_offset->playerPosition_offset;
         boneMatrix = build_offset->boneMatrix_offset;
-        if (build_offset->boneList_offset != 0)
-            boneList = build_offset->boneList_offset;
+        boneList = build_offset->boneList_offset;
 
         ApplyBuildExtras(game_base, buildVersion);
     }

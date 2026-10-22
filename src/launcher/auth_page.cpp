@@ -4,6 +4,7 @@
 #include "../config/config_manager.h"
 #include "../licensing/license_service.h"
 #include "../window/digital_rain.h"
+#include "../window/animations.h"
 #include "../window/brand_assets.h"
 #include "../window/fonts.h"
 #include "../window/localization.h"
@@ -32,6 +33,7 @@
 #include <exception>
 #include <future>
 #include <string>
+#include <vector>
 
 namespace LauncherAuth {
 namespace {
@@ -130,8 +132,12 @@ struct RemoteOperationResult {
     Completion completion{Completion::None};
     std::string diagnosticCode;
     bool websiteAccount{};
+    std::uint64_t generation{};
 };
 std::future<RemoteOperationResult> g_remote_operation;
+std::vector<std::future<RemoteOperationResult>> g_draining_operations;
+std::uint64_t g_operation_generation = 0;
+std::uint64_t g_pending_operation_generation = 0;
 bool g_remote_operation_pending = false;
 
 void SecureClear(char* value, std::size_t size) {
@@ -172,8 +178,12 @@ void StartRemoteOperation(RemoteOperation operation, std::string username,
     g_remote_operation_pending = true;
     WriteAuthStage("auth-operation-started");
     g_error.clear();
+    if (g_remote_operation.valid())
+        g_draining_operations.push_back(std::move(g_remote_operation));
+    const std::uint64_t generation = g_operation_generation;
+    g_pending_operation_generation = generation;
     g_remote_operation = std::async(std::launch::async,
-        [operation, username = std::move(username), password = std::move(password),
+        [operation, generation, username = std::move(username), password = std::move(password),
          licenseKey = std::move(licenseKey)]() mutable {
             RemoteOperationResult outcome{};
             try {
@@ -207,6 +217,7 @@ void StartRemoteOperation(RemoteOperation operation, std::string username,
                 outcome.success = result.Ok();
                 outcome.message = std::move(result.userMessage);
                 outcome.diagnosticCode = std::move(result.diagnosticCode);
+                outcome.generation = generation;
 
 
 
@@ -223,12 +234,28 @@ void StartRemoteOperation(RemoteOperation operation, std::string username,
 
 void PollRemoteOperation() {
     using namespace std::chrono_literals;
+    for (std::size_t i = 0; i < g_draining_operations.size();) {
+        if (g_draining_operations[i].valid() &&
+            g_draining_operations[i].wait_for(0ms) == std::future_status::ready) {
+            try {
+                (void)g_draining_operations[i].get();
+            } catch (...) {
+            }
+            g_draining_operations.erase(g_draining_operations.begin() +
+                                        static_cast<std::ptrdiff_t>(i));
+        } else {
+            ++i;
+        }
+    }
     if (!g_remote_operation_pending || !g_remote_operation.valid() ||
         g_remote_operation.wait_for(0ms) != std::future_status::ready)
         return;
     g_remote_operation_pending = false;
+    const std::uint64_t completedGeneration = g_pending_operation_generation;
     try {
         RemoteOperationResult result = g_remote_operation.get();
+        if (completedGeneration != g_operation_generation)
+            return;
         WriteAuthStage(result.success ? "auth-result-success" : "auth-result-failure");
         const bool automatic = g_auto_login_attempt;
         if (result.success) {
@@ -244,6 +271,8 @@ void PollRemoteOperation() {
                 g_error = result.message.empty() ? "Não foi possível iniciar sessão." : result.message;
         }
     } catch (...) {
+        if (completedGeneration != g_operation_generation)
+            return;
         WriteAuthStage("auth-result-exception");
         if (g_auto_login_attempt) {
             OmniGhost::Licensing::ClearRememberedRemoteCredentials();
@@ -317,7 +346,8 @@ bool AuthPrimaryButton(const char* label, const ImVec2& size) {
     if (held)
         draw->AddRectFilled(position, end, CyberTheme::SafeShadowU32(14), CyberTheme::Metrics::ControlRounding);
     const ImVec2 textSize = ImGui::CalcTextSize(label);
-    draw->AddText(ImVec2(position.x + (size.x - textSize.x) * 0.5f,
+    const float nudge = CyberAnimations::HoverNudge(ImGui::GetID("##auth_primary_nudge"), hovered);
+    draw->AddText(ImVec2(position.x + (size.x - textSize.x) * 0.5f + nudge,
                          position.y + (size.y - textSize.y) * 0.5f),
                   IM_COL32(24, 22, 18, 255), label);
     ImGui::PopID();
@@ -592,7 +622,11 @@ void DrawLanding() {
 
     CenterBlockVertically(S(238.f));
     DrawBrand(true);
-    ImGui::Dummy(ImVec2(0, S(21.f)));
+    ImGui::Dummy(ImVec2(0, S(9.f)));
+    DrawCenteredText("IDENTIDADE OMNIGHOST // ACESSO SEGURO",
+        ImGui::ColorConvertU32ToFloat4(
+            CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.72f)));
+    ImGui::Dummy(ImVec2(0, S(18.f)));
 
     CenterCursor(contentWidth);
     if (AuthPrimaryButton(text.enter, ImVec2(contentWidth, S(42.f))))
@@ -616,7 +650,11 @@ void DrawLogin() {
 
     CenterBlockVertically(S(334.f), 0.48f);
     DrawBrand(false);
-    ImGui::Dummy(ImVec2(0, S(14.f)));
+    ImGui::Dummy(ImVec2(0, S(7.f)));
+    DrawCenteredText("SESSÃO SEGURA // CONTA DO WEBSITE",
+        ImGui::ColorConvertU32ToFloat4(
+            CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.70f)));
+    ImGui::Dummy(ImVec2(0, S(15.f)));
 
     CenterCursor(contentWidth);
     ImGui::BeginGroup();
@@ -659,7 +697,11 @@ void DrawRegister() {
     const float blockHeight = S(420.f);
     CenterBlockVertically(blockHeight, 0.48f);
     DrawBrand(false);
-    ImGui::Dummy(ImVec2(0, S(14.f)));
+    ImGui::Dummy(ImVec2(0, S(7.f)));
+    DrawCenteredText("ATIVAÇÃO SEGURA // LICENÇA ASSOCIADA",
+        ImGui::ColorConvertU32ToFloat4(
+            CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.70f)));
+    ImGui::Dummy(ImVec2(0, S(15.f)));
 
     CenterCursor(contentWidth);
     ImGui::BeginGroup();
@@ -778,7 +820,7 @@ void DrawStartupPreparation(ImDrawList* draw, const ImVec2& windowPos,
         "A carregar as permissões",
         "A sincronizar os dados do utilizador"
     };
-    const int stage = (std::min)(3, static_cast<int>(g_startup_time / 0.42f));
+    const int stage = (std::min)(3, static_cast<int>(g_startup_time / 0.28f));
     DrawCenteredText(stages[stage], CyberTheme::Colors.TextDisabled);
 
     const float lineWidth = S(126.f);
@@ -815,7 +857,6 @@ void Reset() {
 
 
     using namespace std::chrono_literals;
-    bool remoteOperationInFlight = false;
     if (g_remote_operation.valid()) {
         if (g_remote_operation.wait_for(0ms) == std::future_status::ready) {
             try {
@@ -826,7 +867,8 @@ void Reset() {
                 WriteAuthStage("auth-reset-result-unknown-exception");
             }
         } else {
-            remoteOperationInFlight = true;
+            ++g_operation_generation;
+            g_draining_operations.push_back(std::move(g_remote_operation));
         }
     }
     g_initialized = false;
@@ -844,7 +886,7 @@ void Reset() {
     g_language_open = false;
     g_show_license_key = false;
     g_upgrade_mode = false;
-    g_remote_operation_pending = remoteOperationInFlight;
+    g_remote_operation_pending = false;
     g_email[0] = '\0';
     SecureClear(g_password, sizeof(g_password));
     SecureClear(g_confirm, sizeof(g_confirm));
@@ -876,7 +918,7 @@ bool Draw() {
         g_startup_time += delta;
 
 
-        if (g_startup_time >= 0.52f && !g_remote_operation_pending)
+        if (g_startup_time >= 1.12f && !g_remote_operation_pending)
             g_startup_preparing = false;
     }
 
@@ -907,10 +949,16 @@ bool Draw() {
     background->AddRectFilled(ImVec2(0, 0), display, IM_COL32(3, 3, 4, 255));
     CyberTheme::DrawSubtleNoise(background, ImVec2(0, 0), display, 0.012f, 0x41555448u, 180);
     const PerformanceMode::State performance = PerformanceMode::Current();
-    if (app_settings::DigitalRainDensity() > 0.0f)
+    if (app_settings::DigitalRainDensity() > 0.0f) {
+        DigitalRain::Draw(background, ImVec2(0, 0), display, true,
+            performance.effective, 0.0f,
+            app_settings::DigitalRainOpacity() * 0.48f,
+            app_settings::DigitalRainDensity() * 0.82f,
+            app_settings::AnimationScale(), false, true);
         DigitalRain::DrawGoldMotif(background, ImVec2(0, 0), display,
             performance.effective, app_settings::AnimationScale(),
             0.72f);
+    }
 
 
 
@@ -927,11 +975,11 @@ bool Draw() {
     background->AddLine(ImVec2(frameMax.x, frameMax.y - corner), ImVec2(frameMax.x, frameMax.y - S(20.f)), accent, S(1.5f));
 
     const float desiredWidth = S(
-        g_screen == Screen::Login || g_screen == Screen::Register ? 548.f : 468.f);
+        g_screen == Screen::Login || g_screen == Screen::Register ? 588.f : 492.f);
     const float desiredHeight =
-        g_screen == Screen::Register ? S(620.f) :
-        (g_screen == Screen::Login ? S(550.f) :
-         (g_screen == Screen::Activate ? S(438.f) : S(360.f))));
+        g_screen == Screen::Register ? S(650.f) :
+        (g_screen == Screen::Login ? S(582.f) :
+         (g_screen == Screen::Activate ? S(458.f) : S(382.f)));
     const float width = (std::max)(S(340.f), (std::min)(desiredWidth, display.x - S(20.f)));
     const float availableHeight = (std::max)(S(300.f), display.y - S(24.f));
     const float height = (std::min)(desiredHeight, availableHeight);
@@ -969,7 +1017,10 @@ bool Draw() {
 
         draw->PushClipRect(windowPos, Add(windowPos, ImVec2(width, height)), true);
         DigitalRain::Draw(draw, windowPos, ImVec2(width, height), true,
-            performance.effective, 0.0f, 0.58f, 0.28f, animation, false, false);
+            performance.effective, 0.0f,
+            app_settings::DigitalRainOpacity() * 0.90f,
+            app_settings::DigitalRainDensity() * 0.72f,
+            animation, false, true);
         draw->PopClipRect();
     }
     draw->AddLine(ImVec2(windowPos.x + S(24.f), windowPos.y + S(14.f)),

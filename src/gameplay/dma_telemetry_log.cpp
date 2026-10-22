@@ -173,6 +173,7 @@ void WritePerf(std::string_view tag, Sample& s) {
 		"prediction_ms=%.1f\nprediction_p95_ms=%.1f\nprediction_p99_ms=%.1f\nprediction_max_ms=%.1f\n"
 		"cached_bones_used=%llu\ncached_bones_age_max_ms=%.1f\n"
         "bones_players=%d\nbones_p95_ms=%.2f\nbones_p99_ms=%.2f\nbones_max_ms=%.2f\n"
+        "bones_joints_evaluated=%llu\nbones_joints_rejected=%llu\n"
         "render_avg_ms=%.2f\nrender_p95_ms=%.2f\nrender_p99_ms=%.2f\nrender_max_ms=%.2f\n\n"
         "suppressed_spikes_20=%llu\nsuppressed_spikes_50=%llu\nsuppressed_spikes_100=%llu",
         s.process.active.load() ? 1 : 0,
@@ -237,6 +238,8 @@ void WritePerf(std::string_view tag, Sample& s) {
         s.counts.bones_p95_ms.load(),
         s.counts.bones_p99_ms.load(),
         s.counts.bones_max_ms.load(),
+        static_cast<unsigned long long>(s.bones.joints_evaluated.load()),
+        static_cast<unsigned long long>(s.bones.joints_rejected.load()),
         s.render.render_ms.load(),
         s.render.render_p95_ms.load(),
         s.render.render_p99_ms.load(),

@@ -6,6 +6,8 @@
 #include "imgui.h"
 
 #include <algorithm>
+#include <cmath>
+#include <iterator>
 
 namespace {
 
@@ -111,6 +113,59 @@ struct Cs2PreviewAdapter : EspPreview::IConfigAdapter {
 
 static Cs2PreviewAdapter g_cs2Adapter;
 
+void DrawLayoutBuilder() {
+    CyberWidgets::SectionTitle("ESP BUILDER");
+    CyberWidgets::SliderFloat("Espaçamento", &CS2::config.layout_spacing, 0.f, 18.f, "%.0f px");
+    CyberWidgets::SliderFloat("Escala do texto", &CS2::config.layout_text_scale, .65f, 1.6f, "%.2fx");
+    const ImVec2 canvas = ImVec2(ImGui::GetContentRegionAvail().x, CyberTheme::Px(260.f));
+    const ImVec2 origin = ImGui::GetCursorScreenPos();
+    ImDrawList* draw = ImGui::GetWindowDrawList();
+    const ImVec2 canvasMax(origin.x + canvas.x, origin.y + canvas.y);
+    draw->AddRectFilled(origin, canvasMax, IM_COL32(7, 8, 9, 230), 8.f);
+    draw->AddRect(origin, canvasMax, IM_COL32(104, 83, 30, 210), 8.f);
+    const ImVec2 boxMin(origin.x + canvas.x * .34f, origin.y + 42.f);
+    const ImVec2 boxMax(origin.x + canvas.x * .66f, origin.y + canvas.y - 42.f);
+    draw->AddRect(boxMin, boxMax, IM_COL32(229, 184, 55, 230), 2.f, 0, 1.5f);
+
+    struct Item { const char* label; int* anchor; };
+    Item items[] = {
+        { "Name", &CS2::config.layout_name_anchor }, { "Health", &CS2::config.layout_health_anchor },
+        { "Armor", &CS2::config.layout_armor_anchor }, { "Weapon", &CS2::config.layout_weapon_anchor },
+        { "Distance", &CS2::config.layout_distance_anchor }, { "Ammo", &CS2::config.layout_ammo_anchor }
+    };
+    int sideCounts[4]{};
+    for (int index = 0; index < static_cast<int>(std::size(items)); ++index) {
+        const int anchor = std::clamp(*items[index].anchor, 0, 3);
+        const ImVec2 text = ImGui::CalcTextSize(items[index].label);
+        const int order = sideCounts[anchor]++;
+        ImVec2 pos{};
+        if (anchor == 0) pos = ImVec2((boxMin.x + boxMax.x - text.x) * .5f, boxMin.y - 22.f - order * 18.f);
+        else if (anchor == 1) pos = ImVec2((boxMin.x + boxMax.x - text.x) * .5f, boxMax.y + 7.f + order * 18.f);
+        else if (anchor == 2) pos = ImVec2(boxMin.x - text.x - 12.f, boxMin.y + 18.f + order * 20.f);
+        else pos = ImVec2(boxMax.x + 12.f, boxMin.y + 18.f + order * 20.f);
+        ImGui::SetCursorScreenPos(pos);
+        ImGui::PushID(index);
+        ImGui::InvisibleButton("##layout_item", ImVec2(text.x + 8.f, text.y + 6.f));
+        const bool active = ImGui::IsItemActive();
+        draw->AddRectFilled(ImVec2(pos.x - 4.f, pos.y - 3.f),
+            ImVec2(pos.x + text.x + 4.f, pos.y + text.y + 3.f),
+            active ? IM_COL32(229, 184, 55, 90) : IM_COL32(31, 28, 18, 230), 4.f);
+        draw->AddText(pos, IM_COL32(235, 225, 196, 255), items[index].label);
+        if (active && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
+            const ImVec2 mouse = ImGui::GetIO().MousePos;
+            const float dTop = std::abs(mouse.y - boxMin.y);
+            const float dBottom = std::abs(mouse.y - boxMax.y);
+            const float dLeft = std::abs(mouse.x - boxMin.x);
+            const float dRight = std::abs(mouse.x - boxMax.x);
+            const float nearest = std::min({ dTop, dBottom, dLeft, dRight });
+            *items[index].anchor = nearest == dTop ? 0 : nearest == dBottom ? 1 : nearest == dLeft ? 2 : 3;
+        }
+        ImGui::PopID();
+    }
+    ImGui::SetCursorScreenPos(ImVec2(origin.x, origin.y + canvas.y + CyberTheme::Px(6.f)));
+    CyberWidgets::TextLine("Arrasta cada elemento para cima, baixo ou para os lados da caixa.", CyberWidgets::TextTone::Secondary);
+}
+
 }
 
 void DrawCs2Visuals() {
@@ -144,6 +199,22 @@ void DrawCs2Visuals() {
     CyberWidgets::ToggleSwitch("Asas de anjo", &CS2::config.angel_wings); CyberWidgets::ToggleSwitch("Chifres de demónio", &CS2::config.devil_horns);
     CyberWidgets::ToggleSwitch("Coroa flutuante", &CS2::config.floating_crown); CyberWidgets::ToggleSwitch("Rastros", &CS2::config.trails);
     CyberWidgets::ToggleSwitch("Eye Line", &CS2::config.look_direction);
+    CyberWidgets::ToggleSwitch("Setas fora do ecrã", &CS2::config.offscreen_arrows);
+    if (CS2::config.offscreen_arrows) {
+        CyberWidgets::SliderFloat("Tamanho da seta", &CS2::config.offscreen_arrow_size, 6.f, 32.f, "%.0f px");
+        CyberWidgets::SliderFloat("Margem da seta", &CS2::config.offscreen_arrow_margin, 12.f, 160.f, "%.0f px");
+        CyberWidgets::SliderFloat("Distância das setas", &CS2::config.offscreen_arrow_max_distance, 10.f, 500.f, "%.0f m");
+        CyberWidgets::SliderFloat("Opacidade das setas", &CS2::config.offscreen_arrow_opacity, .1f, 1.f, "%.2f");
+    }
+    CyberWidgets::ToggleSwitch("C4 equipada", &CS2::config.c4_carrier_esp);
+    if (CS2::config.c4_carrier_esp)
+        ImGui::TextDisabled("Confirma o portador quando a C4 está ativa; sem assumir inventário desconhecido.");
+    CyberWidgets::ToggleSwitch("Painel de funções ativas", &CS2::config.active_features_panel);
+    if (CS2::config.active_features_panel) {
+        CyberWidgets::ToggleSwitch("Painel compacto", &CS2::config.active_features_compact);
+        CyberWidgets::SliderFloat("Escala do painel", &CS2::config.active_features_scale, .65f, 1.6f, "%.2fx");
+        CyberWidgets::SliderFloat("Opacidade do painel", &CS2::config.active_features_opacity, .15f, 1.f, "%.2f");
+    }
     CyberWidgets::SectionTitle("ESPESSURA");
     CyberWidgets::SliderFloat("Caixa", &CS2::config.box_thickness, 0.5f, 4.f, "%.1f");
     CyberWidgets::ToggleSwitch("Preenchimento da caixa", &CS2::config.box_fill);
@@ -154,6 +225,7 @@ void DrawCs2Visuals() {
     CyberWidgets::SliderFloat("Linhas guia", &CS2::config.snapline_thickness, 0.5f, 4.f, "%.1f");
     CyberWidgets::SliderFloat("Eye Line", &CS2::config.eye_line_thickness, 0.5f, 4.f, "%.1f");
     CyberWidgets::SliderFloat("Distância máxima", &CS2::config.max_distance, 20.f, 500.f, "%.0f m");
+    DrawLayoutBuilder();
     ImGui::EndDisabled();
     CyberWidgets::EndCard();
     ImGui::EndChild();
@@ -189,6 +261,7 @@ void DrawCs2Visuals() {
     ImGui::ColorEdit4("Caixa de cantos", CS2::config.col_box_corner, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     ImGui::ColorEdit4("Preenchimento", CS2::config.col_box_fill, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     ImGui::ColorEdit4("Outline de texto", CS2::config.col_text_outline, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
+    ImGui::ColorEdit4("Setas offscreen", CS2::config.col_offscreen_arrow, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     ImGui::BeginDisabled(!CS2::config.snaplines);
     ImGui::ColorEdit4("Linhas guia", CS2::config.col_snaplines, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     ImGui::EndDisabled();
@@ -221,7 +294,7 @@ void DrawCs2Visuals() {
     ImGui::ColorEdit4("Distância", CS2::config.col_distance, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     ImGui::EndDisabled();
     ImGui::BeginDisabled(!CS2::config.weapon_name);
-    ImGui::ColorEdit4("Arma", CS2::config.col_weapon, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
+    ImGui::ColorEdit4("Arma##info", CS2::config.col_weapon, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     ImGui::EndDisabled();
     ImGui::EndDisabled();
     CyberWidgets::EndCard();

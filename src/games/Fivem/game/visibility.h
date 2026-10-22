@@ -90,8 +90,8 @@ inline void BatchCheckVisibility(const std::vector<uintptr_t>& peds,
             if (viewMatrix && i < positions.size()) {
                 const Vec3& pos = positions[i];
 
-                float clipX = pos.x * viewMatrix->_11 + pos.y * viewMatrix->_21 + pos.z * viewMatrix->_31 + viewMatrix->_41;
-                float clipY = pos.x * viewMatrix->_12 + pos.y * viewMatrix->_22 + pos.z * viewMatrix->_32 + viewMatrix->_42;
+                float clipX = pos.x * viewMatrix->_12 + pos.y * viewMatrix->_22 + pos.z * viewMatrix->_32 + viewMatrix->_42;
+                float clipY = pos.x * viewMatrix->_13 + pos.y * viewMatrix->_23 + pos.z * viewMatrix->_33 + viewMatrix->_43;
                 float clipW = pos.x * viewMatrix->_14 + pos.y * viewMatrix->_24 + pos.z * viewMatrix->_34 + viewMatrix->_44;
                 if (clipW <= 0.01f || clipX < -clipW * 1.5f || clipX > clipW * 1.5f ||
                     clipY < -clipW * 1.5f || clipY > clipW * 1.5f) {

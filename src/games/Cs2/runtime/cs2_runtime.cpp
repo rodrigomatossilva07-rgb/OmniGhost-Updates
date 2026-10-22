@@ -41,22 +41,31 @@ void Publish(Runtime& source, uint64_t generation, uint64_t read_fails) {
 
 
 
-    Runtime snapshot = std::move(source);
-    snapshot.snapshot_timestamp_ms = now;
-    snapshot.session_generation = generation;
-    snapshot.read_fails = read_fails;
-    snapshot.acquisition_hz = g_acquisition_hz.load(std::memory_order_relaxed);
-    snapshot.snapshot_interval_ms = previous && now > previous
-        ? static_cast<float>(now - previous) : 0.f;
-    snapshot.snapshot_drops = g_snapshot_drops.load(std::memory_order_relaxed);
-
     auto slot = g_runtime_snapshots.TryBeginWrite();
     if (!slot) {
         g_snapshot_drops.fetch_add(1, std::memory_order_relaxed);
+        // Sem slot livre: descarta os dados mas mantém a capacidade dos
+        // buffers do produtor (o próximo scan não aloca).
+        source.players.clear();
+        source.spectators.clear();
+        source.dropped_weapons.clear();
         return;
     }
 
-    *slot.value = std::move(snapshot);
+    // CS-007: swap em vez de move — o slot reutiliza o próprio buffer de
+    // vetores e o produtor recupera o buffer antigo do slot (capacidadere-
+    // -usada no próximo scan). O leitor liberta o slot via refcounting do
+    // SnapshotExchange, como antes.
+    slot.value->SwapVectorsWith(source);
+    slot.value->CopyScalarsFrom(source);
+    slot.value->snapshot_timestamp_ms = now;
+    slot.value->session_generation = generation;
+    slot.value->read_fails = read_fails;
+    slot.value->acquisition_hz = g_acquisition_hz.load(std::memory_order_relaxed);
+    slot.value->snapshot_interval_ms = previous && now > previous
+        ? static_cast<float>(now - previous) : 0.f;
+    slot.value->snapshot_drops = g_snapshot_drops.load(std::memory_order_relaxed);
+
     g_runtime_snapshots.Publish(slot.index);
     g_published_client_base.store(slot.value->client_base, std::memory_order_release);
     g_published_in_match.store(slot.value->in_match, std::memory_order_release);

@@ -4,6 +4,7 @@
 #include "fonts.h"
 #include "localization.h"
 #include "../config/app_settings.h"
+#include "../updater/json.h"
 #include <algorithm>
 #include <fstream>
 #include <sstream>
@@ -64,16 +65,16 @@ namespace Changelog {
                 {"Light/Dark theme modes", "9 accent color presets", "Custom accent color picker", "Theme import/export (JSON)", "High contrast mode improvements"});
             addEntry("2.5.0", ChangeType::Added, "Real-time Hardware Monitoring",
                 "Live status tracking for DMA, Makcu, KMBox-Net, and Ferrum devices",
-                {"Per-device latency graphs", "Connection health indicators", "Error tracking and diagnostics", "Historical metrics (60s window)", "Export metrics to JSON"});
+                {"Per-device latency graphs", "Connection health indicators", "Error tracking and diagnostics", "Historical metrics (60s window)", "Export metrics to JSON"}, true);
             addEntry("2.5.0", ChangeType::Added, "Global Settings Search",
                 "Instant search across all configuration pages",
-                {"Fuzzy matching", "Keyboard navigation", "Category filtering", "Quick actions from results", "Ctrl+K to open"});
+                {"Fuzzy matching", "Keyboard navigation", "Category filtering", "Quick actions from results", "Ctrl+K to open"}, true);
             addEntry("2.5.0", ChangeType::Added, "Config Change History with Undo/Redo",
                 "Track and revert configuration changes",
                 {"Full change history", "Undo/Redo support (Ctrl+Z/Y)", "Per-setting change tracking", "Visual diff display", "Export history"});
             addEntry("2.5.0", ChangeType::Added, "Fully Configurable Hotkeys",
                 "Custom keyboard shortcuts for all actions",
-                {"15+ assignable actions", "Modifier key support", "Conflict detection", "Import/Export hotkey profiles", "Visual binding editor"});
+                {"15+ assignable actions", "Modifier key support", "Conflict detection", "Import/Export hotkey profiles", "Visual binding editor"}, true);
             addEntry("2.5.0", ChangeType::Added, "First-Run Onboarding Wizard",
                 "Guided setup for new users",
                 {"7-step wizard", "Hardware auto-detection", "Theme/Hotkey presets", "Game selection", "DMA setup guidance"});
@@ -131,9 +132,77 @@ namespace Changelog {
         }
     }
 
-    bool LoadFromString(const std::string& ) {
+    bool LoadFromString(const std::string& content) {
+        if (content.empty()) return false;
+        OmniGhost::Update::Json::Value root;
+        OmniGhost::Update::Json::Limits limits{16, 1024u * 1024u, 2000};
+        if (!OmniGhost::Update::Json::Parse(content, root, limits).ok)
+            return false;
+        const OmniGhost::Update::Json::Object* object =
+            OmniGhost::Update::Json::AsObject(root);
+        if (!object) return false;
+        const OmniGhost::Update::Json::Value* entriesValue =
+            OmniGhost::Update::Json::Field(*object, "entries");
+        const OmniGhost::Update::Json::Array* entries = entriesValue
+            ? OmniGhost::Update::Json::AsArray(*entriesValue) : nullptr;
+        if (!entries || entries->empty()) return false;
 
+        std::vector<ChangelogEntry> parsed;
+        for (const OmniGhost::Update::Json::Value& entryValue : *entries) {
+            const OmniGhost::Update::Json::Object* entry =
+                OmniGhost::Update::Json::AsObject(entryValue);
+            if (!entry) continue;
+            const std::string* text = nullptr;
+            ChangelogEntry item;
+            item.date = std::chrono::system_clock::now();
 
+            text = OmniGhost::Update::Json::AsString(
+                *OmniGhost::Update::Json::Field(*entry, "version"));
+            if (!text || text->empty()) continue;
+            item.version = *text;
+
+            if (const auto* typeValue = OmniGhost::Update::Json::Field(*entry, "type")) {
+                const std::string* type = OmniGhost::Update::Json::AsString(*typeValue);
+                if (type && *type == "Added") item.type = ChangeType::Added;
+                else if (type && *type == "Changed") item.type = ChangeType::Changed;
+                else if (type && *type == "Fixed") item.type = ChangeType::Fixed;
+                else if (type && *type == "Removed") item.type = ChangeType::Removed;
+                else if (type && *type == "Security") item.type = ChangeType::Security;
+                else if (type && *type == "Performance") item.type = ChangeType::Performance;
+                else if (type && *type == "Experimental") item.type = ChangeType::Experimental;
+                else continue;
+            } else {
+                item.type = ChangeType::Added;
+            }
+
+            if (const auto* titleValue = OmniGhost::Update::Json::Field(*entry, "title")) {
+                const std::string* title = OmniGhost::Update::Json::AsString(*titleValue);
+                if (title) item.title = *title;
+            }
+            if (const auto* descValue = OmniGhost::Update::Json::Field(*entry, "description")) {
+                const std::string* description = OmniGhost::Update::Json::AsString(*descValue);
+                if (description) item.description = *description;
+            }
+            if (const auto* detailsValue = OmniGhost::Update::Json::Field(*entry, "details")) {
+                if (const auto* details = OmniGhost::Update::Json::AsArray(*detailsValue)) {
+                    for (const auto& detailValue : *details) {
+                        const std::string* detail =
+                            OmniGhost::Update::Json::AsString(detailValue);
+                        if (detail && !detail->empty())
+                            item.details.push_back(*detail);
+                    }
+                }
+            }
+            if (const auto* highlightValue =
+                    OmniGhost::Update::Json::Field(*entry, "highlight")) {
+                const bool* highlight = OmniGhost::Update::Json::AsBool(*highlightValue);
+                if (highlight) item.highlight = *highlight;
+            }
+            if (item.title.empty()) continue;
+            parsed.push_back(std::move(item));
+        }
+        if (parsed.empty()) return false;
+        g_entries = std::move(parsed);
         return true;
     }
 

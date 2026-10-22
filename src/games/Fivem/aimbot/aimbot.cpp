@@ -70,10 +70,15 @@ namespace aimbot {
     static std::chrono::steady_clock::time_point last_trigger{};
     static bool trigger_pressed = false;
     static std::chrono::steady_clock::time_point trigger_release_at{};
+    static std::chrono::steady_clock::time_point trigger_burst_started{};
+    static std::chrono::steady_clock::time_point trigger_next_allowed{};
     static uintptr_t trigger_target = 0;
     static std::chrono::steady_clock::time_point trigger_target_entered{};
     static float trigger_target_delay = 0.f;
     static bool beeped_for_lock = false;
+    static std::chrono::steady_clock::time_point target_locked_at{};
+    static std::chrono::steady_clock::time_point last_target_switch{};
+    static float effective_fov = 100.f;
     static std::mt19937 rng{ std::random_device{}() };
 
 
@@ -95,12 +100,6 @@ namespace aimbot {
 
 
 
-    static uintptr_t pose_filter_ped = 0;
-    static Vec2 pose_filter_screen{};
-    static Vec3 pose_filter_world{};
-    static bool pose_filter_valid = false;
-    static std::chrono::steady_clock::time_point pose_filter_time{};
-
     static void ResetAimMotionState() {
         previous_error_x = 0.f;
         previous_error_y = 0.f;
@@ -111,17 +110,8 @@ namespace aimbot {
         last_aim_move = {};
     }
 
-    static void ResetPoseFilter() {
-        pose_filter_ped = 0;
-        pose_filter_screen = {};
-        pose_filter_world = {};
-        pose_filter_valid = false;
-        pose_filter_time = {};
-    }
-
     static void ResetAimStabilityState() {
         ResetAimMotionState();
-        ResetPoseFilter();
     }
 
     static bool IsFiniteVec3(const Vec3& v) {
@@ -134,15 +124,64 @@ namespace aimbot {
                fabsf(v.x) < 100000.f && fabsf(v.y) < 100000.f;
     }
 
+    static float WeaponRangeLimit() {
+        using Category = WeaponRangeCategory;
+        switch (config.weapon_range_category) {
+        case Category::Melee:   return config.weapon_range_melee;
+        case Category::Pistol:  return config.weapon_range_pistol;
+        case Category::Smg:     return config.weapon_range_smg;
+        case Category::Shotgun: return config.weapon_range_shotgun;
+        case Category::Rifle:   return config.weapon_range_rifle;
+        case Category::Sniper:  return config.weapon_range_sniper;
+        case Category::Heavy:   return config.weapon_range_heavy;
+        default:                return config.weapon_range_custom;
+        }
+    }
+
+    static float EffectiveMaxDistance(bool forTrigger) {
+        float result = (std::max)(1.f, config.max_distance);
+        if (config.respect_weapon_range && (!forTrigger || config.trigger_respect_weapon_range))
+            result = (std::min)(result, (std::max)(1.f, WeaponRangeLimit()));
+        return result;
+    }
+
+    static float FovForDistance(float distance) {
+        if (config.dynamic_fov_mode == DynamicFovMode::Static)
+            return (std::max)(5.f, config.fov_size);
+        const float nearDistance = (std::max)(0.f, config.dynamic_fov_near_distance);
+        const float farDistance = (std::max)(nearDistance + 1.f, config.dynamic_fov_far_distance);
+        float t = std::clamp((distance - nearDistance) / (farDistance - nearDistance), 0.f, 1.f);
+        t = std::pow(t, std::clamp(config.dynamic_fov_curve, .2f, 4.f));
+        const float lo = (std::min)(config.dynamic_fov_min, config.dynamic_fov_max);
+        const float hi = (std::max)(config.dynamic_fov_min, config.dynamic_fov_max);
+        return std::clamp(hi + (lo - hi) * t, 5.f, 500.f);
+    }
+
+    static void UpdateEffectiveFov(float targetDistance) {
+        const float desired = FovForDistance(targetDistance);
+        const float dt = std::clamp(ImGui::GetIO().DeltaTime, 0.f, .1f);
+        const float speed = std::clamp(config.dynamic_fov_transition_speed, 1.f, 30.f);
+        const float alpha = 1.f - std::exp(-speed * dt);
+        if (!std::isfinite(effective_fov) || effective_fov < 1.f)
+            effective_fov = desired;
+        else
+            effective_fov += (desired - effective_fov) * alpha;
+    }
+
     void Initialize() {
         if (trigger_pressed) aim_type::LeftClickRelease();
         trigger_pressed = false;
         trigger_release_at = {};
+        trigger_burst_started = {};
+        trigger_next_allowed = {};
         trigger_target = 0;
         trigger_target_entered = {};
         trigger_target_delay = 0.f;
         tracking_active = false;
         locked_target = 0;
+        target_locked_at = {};
+        last_target_switch = {};
+        effective_fov = config.fov_size;
         current_target = {};
         beeped_for_lock = false;
         ResetAimStabilityState();
@@ -157,8 +196,10 @@ namespace aimbot {
         trigger_target = 0;
         trigger_target_entered = {};
         trigger_target_delay = 0.f;
+        trigger_burst_started = {};
         tracking_active = false;
         locked_target = 0;
+        target_locked_at = {};
         current_target = {};
         beeped_for_lock = false;
         last_beeped_lock_ped = 0;
@@ -311,7 +352,8 @@ namespace aimbot {
 
 
     static bool FindBestTargetForHitbox(TargetInfo& out, float fov_px,
-                                        float max_dist, Hitbox selectedHitbox) {
+                                        float max_dist, Hitbox selectedHitbox,
+                                        bool applySticky = true) {
         out = {};
         using namespace FiveM;
 
@@ -330,6 +372,7 @@ namespace aimbot {
 
         float bestScore = 1e30f;
         TargetInfo best{};
+        TargetInfo lockedCandidate{};
 
         const std::vector<uintptr_t>* pedsPtr = nullptr;
         const std::vector<Vec3>* posPtr = nullptr;
@@ -411,7 +454,12 @@ namespace aimbot {
             float dx = screen.x - cx;
             float dy = screen.y - cy;
             float cross = sqrtf(dx * dx + dy * dy);
-            if (cross > fov_px)
+            const float candidateFov = config.dynamic_fov_mode == DynamicFovMode::Static
+                ? fov_px : FovForDistance(dist);
+            const float allowedFov = (applySticky && ped == locked_target)
+                ? candidateFov + (std::max)(0.f, config.sticky_tolerance)
+                : candidateFov;
+            if (cross > allowedFov)
                 continue;
 
 
@@ -427,10 +475,41 @@ namespace aimbot {
                 best.crosshair_dist = cross;
                 best.valid = true;
             }
+            if (ped == locked_target)
+                lockedCandidate = { ped, world, screen, dist, cross, true };
         }
 
-        out = best;
-        return best.valid;
+        if (!applySticky) {
+            out = best;
+            return best.valid;
+        }
+
+        const auto now = std::chrono::steady_clock::now();
+        const bool currentValid = lockedCandidate.valid;
+        const bool retentionActive = currentValid && target_locked_at.time_since_epoch().count() != 0 &&
+            std::chrono::duration<float>(now - target_locked_at).count() <
+                (std::max)(0.f, config.sticky_retention);
+        const bool switchDelayActive = last_target_switch.time_since_epoch().count() != 0 &&
+            std::chrono::duration<float>(now - last_target_switch).count() <
+                (std::max)(0.f, config.switch_delay);
+
+        if (config.sticky_aim && currentValid && (retentionActive || switchDelayActive ||
+            !best.valid || lockedCandidate.crosshair_dist <=
+                best.crosshair_dist + (std::max)(0.f, config.sticky_tolerance))) {
+            out = lockedCandidate;
+        } else if (best.valid && (currentValid || config.switch_immediately_if_invalid ||
+                   !switchDelayActive || locked_target == 0)) {
+            out = best;
+        } else {
+            out = currentValid ? lockedCandidate : TargetInfo{};
+        }
+
+        if (out.valid && out.ped != locked_target) {
+            locked_target = out.ped;
+            target_locked_at = now;
+            last_target_switch = now;
+        }
+        return out.valid;
     }
 
     bool FindBestTarget(TargetInfo& out, float fov_px, float max_dist) {
@@ -488,7 +567,7 @@ namespace aimbot {
 
 
 
-        float bestCross = 1e30f;
+        float bestScore = 1e30f;
         bool bestFromHead = false;
         TargetInfo best{};
 
@@ -556,18 +635,13 @@ namespace aimbot {
                 float score = config.closest_to_crosshair ? cross : dist;
                 if (config.threat_priority)
                     score = cross * 1.0f + dist * 0.35f;
-                (void)score;
-
 
                 const bool fromHead = hitbox == Hitbox::Head;
 
-
-
-
-                if (bestFromHead && !fromHead)
-                    break;
-                if (!best.valid || cross < bestCross || (fromHead && !bestFromHead)) {
-                    bestCross = cross;
+                const bool better = !best.valid || (fromHead && !bestFromHead) ||
+                    (fromHead == bestFromHead && score < bestScore);
+                if (better) {
+                    bestScore = score;
                     bestFromHead = fromHead;
                     best.ped = ped;
                     best.world_pos = world;
@@ -576,7 +650,6 @@ namespace aimbot {
                     best.crosshair_dist = cross;
                     best.valid = true;
                 }
-                break;
             }
         }
 
@@ -831,178 +904,13 @@ namespace aimbot {
 
 
 
-    static bool RefreshTargetPose(TargetInfo& tgt) {
-        using namespace FiveM;
-
-        if (!tgt.ped || !offset::localplayer || !ESP::FrameCacheValid())
-            return false;
-        const Matrix view_matrix = ESP::GetFrameViewMatrix();
-
-        float health = 0.f;
-        PedData pd{};
-        bool havePd = g_pedCacheManager.getPedData(tgt.ped, pd) && pd.isValid;
-
-        if (havePd) {
-            health = pd.health;
-            const auto age = std::chrono::steady_clock::now() - pd.health_updated;
-            if (pd.health_updated.time_since_epoch().count() == 0 ||
-                age > std::chrono::milliseconds(80))
-                havePd = false;
-        }
-        if (!havePd && !esp::try_get_prepared_health(tgt.ped, health))
-            return false;
-
-
-
-        Vec3 world = ResolveHitboxWorld(tgt.ped, config.hitbox);
-        if (world.IsZero() || !IsFiniteVec3(world))
-            return false;
-
-        Vec3 origin{};
-        if (!esp::try_get_prepared_origin(tgt.ped, origin) ||
-            origin.IsZero() || !IsFiniteVec3(origin))
-            return false;
-
-        if (origin.IsZero() || !IsFiniteVec3(origin))
-            return false;
-
-
-        const float boneOffset = origin.distance_to(world);
-        if (!std::isfinite(boneOffset) || boneOffset > 4.5f)
-            return false;
-
-        Vec3 localPos = ESP::GetFrameLocalPos();
-
-        if (localPos.IsZero() || !IsFiniteVec3(localPos))
-            return false;
-
-        const float targetDistance = localPos.distance_to(world);
-        if (!std::isfinite(targetDistance) ||
-            targetDistance < 0.35f ||
-            targetDistance > config.max_distance + 10.f) {
-            return false;
-        }
-
-        const auto poseNow = std::chrono::steady_clock::now();
-
-
-
-
-        if (pose_filter_valid && pose_filter_ped == tgt.ped &&
-            !pose_filter_world.IsZero() && IsFiniteVec3(pose_filter_world)) {
-
-            float dt = 0.016f;
-            if (pose_filter_time.time_since_epoch().count() != 0) {
-                dt = std::chrono::duration<float>(poseNow - pose_filter_time).count();
-                if (!std::isfinite(dt) || dt < 0.f)
-                    dt = 0.016f;
-            }
-
-            dt = std::clamp(dt, 0.001f, 0.100f);
-
-            const float worldJump = pose_filter_world.distance_to(world);
-
-
-
-            const float maxWorldJump = 0.85f + 28.f * dt;
-
-            if (!std::isfinite(worldJump) || worldJump > maxWorldJump)
-                return false;
-        }
-
-        Vec3 vel{};
-        if (config.velocity_prediction)
-            ESP::try_get_prepared_velocity(tgt.ped, vel);
-
-        if (!std::isfinite(health) || health <= 1.f || health > 500.f)
-            return false;
-
-
-
-
-        if (config.velocity_prediction &&
-            targetDistance < 55.f &&
-            !vel.IsZero() &&
-            IsFiniteVec3(vel)) {
-
-            const float velLen =
-                sqrtf(vel.x * vel.x + vel.y * vel.y + vel.z * vel.z);
-
-            if (std::isfinite(velLen) && velLen < 120.f) {
-                const float predictSeconds = 0.006f;
-
-                float px = vel.x * predictSeconds;
-                float py = vel.y * predictSeconds;
-                float pz = vel.z * predictSeconds;
-
-                const float predLen = sqrtf(px * px + py * py + pz * pz);
-
-                if (predLen > 0.12f && predLen > 0.001f) {
-                    const float scale = 0.12f / predLen;
-                    px *= scale;
-                    py *= scale;
-                    pz *= scale;
-                }
-
-                world.x += px;
-                world.y += py;
-                world.z += pz;
-            }
-        }
-
-        Vec2 rawScreen{};
-        if (!world.world_to_screen(view_matrix, rawScreen) ||
-            !IsFiniteVec2(rawScreen)) {
-            return false;
-        }
-
-        const ImVec2 d = ImGui::GetIO().DisplaySize;
-        if (d.x < 1.f || d.y < 1.f)
-            return false;
-
-        const float screenMargin = 300.f;
-        if (rawScreen.x < -screenMargin ||
-            rawScreen.y < -screenMargin ||
-            rawScreen.x > d.x + screenMargin ||
-            rawScreen.y > d.y + screenMargin) {
-            return false;
-        }
-
-
-
-
-
-
-
-        const Vec2 screen = rawScreen;
-
-        pose_filter_ped = tgt.ped;
-        pose_filter_screen = rawScreen;
-        pose_filter_world = world;
-        pose_filter_valid = true;
-        pose_filter_time = poseNow;
-
-        const float cx = d.x * 0.5f;
-        const float cy = d.y * 0.5f;
-
-        tgt.world_pos = world;
-        tgt.screen_pos = screen;
-        tgt.distance = targetDistance;
-        tgt.crosshair_dist =
-            sqrtf(
-                (screen.x - cx) * (screen.x - cx) +
-                (screen.y - cy) * (screen.y - cy));
-        tgt.valid = true;
-
-        return true;
-    }
-
     static void RunTriggerLogic();
 
     static void RunAimbotLogic() {
 
-        if (!g_unified_aimbot) {
+        if (!g_unified_aimbot)
             g_unified_aimbot = Gameplay::UnifiedAim::CreateAimbotForGame("FiveM");
+        if (g_unified_aimbot) {
             Gameplay::UnifiedAim::UnifiedConfig ucfg;
             ucfg.enabled = config.aimbot_enabled;
             ucfg.fov = config.fov_size > 5.f ? config.fov_size : 5.f;
@@ -1029,8 +937,9 @@ namespace aimbot {
 
 
         TargetInfo tgt;
-        if (!FindBestTarget(tgt, config.fov_size, config.max_distance)) {
+        if (!FindBestTarget(tgt, config.fov_size, EffectiveMaxDistance(false))) {
             ++s_poseMiss;
+            current_target = {};
             if (s_poseMiss > 10) {
                 if (tracking_active || locked_target)
                     ResetTrackingState();
@@ -1042,6 +951,7 @@ namespace aimbot {
 
 
         current_target = tgt;
+        UpdateEffectiveFov(tgt.distance);
 
 
 
@@ -1078,13 +988,14 @@ namespace aimbot {
         }
         if (!config.trigger_enabled) {
             trigger_target = 0;
+            trigger_burst_started = {};
             return;
         }
 
-        const bool active = config.trigger_always_on || config.trigger_bind <= 0 ||
-            BindDown(config.trigger_bind);
+        const bool active = config.trigger_always_on || BindDown(config.trigger_bind);
         if (!active) {
             trigger_target = 0;
+            trigger_burst_started = {};
             return;
         }
 
@@ -1092,17 +1003,18 @@ namespace aimbot {
         bool found = false;
         if (config.trigger_head_only) {
             found = FindBestTargetForHitbox(tgt, config.trigger_fov,
-                                            config.max_distance, Hitbox::Head);
+                                            EffectiveMaxDistance(true), Hitbox::Head, false);
         } else {
 
 
 
 
             found = FindBestTriggerTarget(tgt, config.trigger_fov,
-                                           config.max_distance);
+                                           EffectiveMaxDistance(true));
         }
         if (!found) {
             trigger_target = 0;
+            trigger_burst_started = {};
             return;
         }
 
@@ -1113,6 +1025,7 @@ namespace aimbot {
         if (tgt.ped != trigger_target) {
             trigger_target = tgt.ped;
             trigger_target_entered = now;
+            trigger_burst_started = {};
             trigger_target_delay = (std::max)(config.trigger_delay, 0.f);
             if (config.trigger_random_extra > 0.f) {
                 std::uniform_real_distribution<float> randomDelay(0.f, config.trigger_random_extra);
@@ -1121,13 +1034,34 @@ namespace aimbot {
         }
         const float reactionElapsed = std::chrono::duration<float>(now - trigger_target_entered).count();
         const float shotElapsed = std::chrono::duration<float>(now - last_trigger).count();
-        if (reactionElapsed < trigger_target_delay || shotElapsed < .06f)
+        if (reactionElapsed < trigger_target_delay || now < trigger_next_allowed)
+            return;
+
+        if (config.trigger_burst) {
+            if (trigger_burst_started.time_since_epoch().count() == 0)
+                trigger_burst_started = now;
+            const float burstElapsed = std::chrono::duration<float>(now - trigger_burst_started).count();
+            if (burstElapsed >= (std::max)(.02f, config.trigger_burst_duration)) {
+                trigger_burst_started = {};
+                trigger_next_allowed = now + std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+                    std::chrono::duration<float>((std::max)(config.trigger_burst_interval,
+                                                           config.trigger_cooldown)));
+                return;
+            }
+        }
+
+        const float minimumShotInterval = config.trigger_burst
+            ? .06f : (std::max)(.06f, config.trigger_cooldown);
+        if (shotElapsed < minimumShotInterval)
             return;
 
         last_trigger = now;
         aim_type::LeftClick();
         trigger_pressed = true;
         trigger_release_at = now + std::chrono::milliseconds(20);
+        if (!config.trigger_burst)
+            trigger_next_allowed = now + std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+                std::chrono::duration<float>((std::max)(0.f, config.trigger_cooldown)));
     }
 
     void DrawFOV() {
@@ -1156,15 +1090,9 @@ namespace aimbot {
 
         if (config.aimbot_enabled && config.show_fov) {
             ImU32 col = config.fov_color;
-            if (config.fov_rgb) {
-                float t = std::fmod(static_cast<float>(ImGui::GetTime()) * 0.4f, 1.f);
-                col = IM_COL32(
-                    (int)(sinf(t * 6.28f) * 127 + 128),
-                    (int)(sinf(t * 6.28f + 2.09f) * 127 + 128),
-                    (int)(sinf(t * 6.28f + 4.18f) * 127 + 128),
-                    180);
-            }
-            draw_style(config.fov_size, col, config.fov_style);
+            UpdateEffectiveFov(current_target.valid ? current_target.distance : config.dynamic_fov_near_distance);
+            draw_style(config.dynamic_fov_mode == DynamicFovMode::Static
+                ? config.fov_size : effective_fov, col, config.fov_style);
         }
 
         if (config.trigger_enabled && config.trigger_show_fov) {
@@ -1186,9 +1114,7 @@ namespace aimbot {
         config.smooth_x = 35.f;
         config.smooth_y = 35.f;
         config.fov_size = 45.f;
-        config.reaction_time = 0.08f;
         config.humanize = true;
-        config.jitter_amount = 0.4f;
         config.trigger_delay = 0.08f;
     }
 
@@ -1196,7 +1122,6 @@ namespace aimbot {
         config.smooth_x = 0.f;
         config.smooth_y = 0.f;
         config.fov_size = 180.f;
-        config.reaction_time = 0.f;
         config.humanize = false;
         config.trigger_delay = 0.02f;
     }

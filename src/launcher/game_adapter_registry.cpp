@@ -160,7 +160,7 @@ thread_local bool s_cs2StartException = false;
 AdapterErrorCode Cs2StartFailure() {
     if (s_cs2StartException)
         return AdapterErrorCode::UnexpectedException;
-    const std::string& text = CS2::status;
+    const std::string text = CS2::GetStatus();
     if (text.find("DMA offline") != std::string::npos ||
         text.find("inicializar DMA") != std::string::npos)
         return AdapterErrorCode::DeviceOpenFailed;
@@ -367,7 +367,7 @@ IGameAdapter* FindGameAdapter(::Launcher::GameId game) noexcept {
     static FunctionGameAdapter cs2({ ::Launcher::GameId::CS2, "Counter-Strike 2", AdapterMaturity::Stable,
         Capability::Menu | Capability::ReadOnlyMemory | Capability::Overlay | Capability::Radar },
         StartCs2, [] { CS2::Shutdown(); CS2::ready = false; },
-        [] { return std::string_view(CS2::status); },
+        [] { return CS2::GetStatusView(); },
         [] {
             try {
                 if (CS2::ready) {
@@ -393,8 +393,14 @@ IGameAdapter* FindGameAdapter(::Launcher::GameId game) noexcept {
         StartWarzone, [] { Warzone::Shutdown(); },
         [] { return std::string_view(Warzone::status); },
         [] {
-            if (Warzone::ready) {
-                Warzone::RunFrame();
+            try {
+                if (Warzone::ready) {
+                    Warzone::RunFrame();
+                }
+            } catch (const std::exception& ex) {
+                std::cerr << "[Warzone] CRASH em Tick: " << ex.what() << std::endl;
+            } catch (...) {
+                std::cerr << "[Warzone] CRASH desconhecido em Tick" << std::endl;
             }
         },
         WarzoneIsAlive, WarzoneValidateOffsets, WarzoneTerminationReason, WarzoneGameId);
@@ -403,9 +409,15 @@ IGameAdapter* FindGameAdapter(::Launcher::GameId game) noexcept {
         StartFortnite, [] { Fortnite::Detach(); },
         [] { return std::string_view(Fortnite::StatusText()); },
         [] {
-            Fortnite::Tick();
-            Fortnite::DrawESP();
-            Fortnite::RunAim();
+            try {
+                Fortnite::Tick();
+                Fortnite::DrawESP();
+                Fortnite::RunAim();
+            } catch (const std::exception& ex) {
+                std::cerr << "[Fortnite] CRASH em Tick: " << ex.what() << std::endl;
+            } catch (...) {
+                std::cerr << "[Fortnite] CRASH desconhecido em Tick" << std::endl;
+            }
         },
         FortniteIsAlive, FortniteValidateOffsets, FortniteTerminationReason, FortniteGameId,
         FortniteStartFailure);

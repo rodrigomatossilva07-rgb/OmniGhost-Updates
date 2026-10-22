@@ -30,14 +30,6 @@ namespace vehicle_esp {
     static std::chrono::steady_clock::time_point g_lastGearRefresh{};
     static std::unordered_map<uintptr_t, std::pair<Vec3, float>> g_speedHistory;
 
-    static ImU32 GetRGBColor() {
-        float t = (float)ImGui::GetTime();
-        int r = (int)(sinf(t * 2.0f) * 127.f + 128.f);
-        int g = (int)(sinf(t * 2.0f + 2.094f) * 127.f + 128.f);
-        int b = (int)(sinf(t * 2.0f + 4.188f) * 127.f + 128.f);
-        return IM_COL32(r, g, b, 255);
-    }
-
     static bool IsValidPtr(uintptr_t p) {
         return p > 0x10000ULL && p < 0x7FFFFFFFFFFFULL;
     }
@@ -423,8 +415,8 @@ namespace vehicle_esp {
         if (!dl) return;
         ImVec2 screen = ImGui::GetIO().DisplaySize;
 
-        ImU32 boxCol = config.rgb_mode ? GetRGBColor() : config.color_box_3d;
-        ImU32 snapCol = config.rgb_mode ? GetRGBColor() : config.color_snaplines;
+        ImU32 boxCol = config.color_box_3d;
+        ImU32 snapCol = config.color_snaplines;
         ImU32 distCol = config.color_distance;
 
         uintptr_t nearestAddr = 0;

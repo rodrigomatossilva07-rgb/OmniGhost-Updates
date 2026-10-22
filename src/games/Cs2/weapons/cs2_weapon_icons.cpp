@@ -14,6 +14,7 @@
 #include <fstream>
 #include <future>
 #include <chrono>
+#include <thread>
 
 #pragma comment(lib, "windowscodecs.lib")
 
@@ -149,7 +150,12 @@ bool LoadPngRgba(const std::wstring& path, std::vector<uint8_t>& out, int& w, in
     UINT uw = 0, uh = 0;
     conv->GetSize(&uw, &uh);
     w = (int)uw; h = (int)uh;
-    if (w <= 0 || h <= 0) {
+    // CSE-002: cap de pixels — um PNG gigante não deve provocar bad_alloc no
+    // worker (o limite já existia apenas na variante em memória).
+    constexpr UINT kMaxIconDim = 4096;
+    constexpr std::uint64_t kMaxIconPixels = 4ull * 1024ull * 1024ull;
+    if (w <= 0 || h <= 0 || uw > kMaxIconDim || uh > kMaxIconDim ||
+        static_cast<std::uint64_t>(uw) * static_cast<std::uint64_t>(uh) > kMaxIconPixels) {
         conv->Release(); frame->Release(); decoder->Release(); factory->Release();
         return false;
     }
@@ -325,10 +331,19 @@ void PumpUploads(ID3D11Device* device, int max_uploads) {
             ++it;
             continue;
         }
-        IconPixels pixels = it->second.get();
+        // CSE-002: get() re Lança a exceção do worker (ex.: bad_alloc) —
+        // apanhada aqui em vez de derrubar a render thread.
         const int def = it->first;
+        IconPixels pixels{};
+        bool decodeOk = false;
+        try {
+            pixels = it->second.get();
+            decodeOk = pixels.valid();
+        } catch (...) {
+            decodeOk = false;
+        }
         it = g_pending_icons.erase(it);
-        if (pixels.valid())
+        if (decodeOk)
             g_cpu_icons[def] = std::move(pixels);
         else
             g_failed_icons_until_ms[def] = GetTickCount64() + 5000;
@@ -407,8 +422,24 @@ void Shutdown() {
     }
     g_icons.clear();
 
-
-    g_pending_icons.clear();
+    // CSE-002: os futures de std::async BLOQUEIAM no destrutor — em vez de
+    // prender o Shutdown à espera de decodes em curso, move-os para um
+    // drainer destacado.
+    if (!g_pending_icons.empty()) {
+        std::vector<std::future<IconPixels>> drainer;
+        drainer.reserve(g_pending_icons.size());
+        for (auto& [def, fut] : g_pending_icons) {
+            (void)def;
+            if (fut.valid()) drainer.push_back(std::move(fut));
+        }
+        g_pending_icons.clear();
+        std::thread([pending = std::move(drainer)]() mutable {
+            for (auto& fut : pending) {
+                if (!fut.valid()) continue;
+                try { (void)fut.get(); } catch (...) {}
+            }
+        }).detach();
+    }
     g_cpu_icons.clear();
     g_failed_icons_until_ms.clear();
     g_attempted = false;

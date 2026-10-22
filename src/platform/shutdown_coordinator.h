@@ -5,12 +5,13 @@
 #include <functional>
 #include <mutex>
 #include <string_view>
+#include <thread>
 #include <vector>
 
 namespace OmniGhost::Platform {
 
 enum class ShutdownComponent : std::uint8_t {
-    Adapter, Radar, Updater, Changelog, Hardware, Input, Ui
+    Adapter, Radar, Updater, Changelog, LibraryChecks, Hardware, Input, Ui
 };
 
 enum class ShutdownState : std::uint8_t {
@@ -25,7 +26,7 @@ public:
 
     [[nodiscard]] bool Register(ShutdownComponent component, int priority,
                                 Callback callback);
-    [[nodiscard]] bool ShutdownAll(std::string_view reason) noexcept;
+    [[nodiscard]] bool ShutdownAll(std::string_view reason);
     [[nodiscard]] ShutdownState State() const noexcept;
 
     [[nodiscard]] std::uint64_t BeginSession(Callback callback);
@@ -44,6 +45,7 @@ private:
     std::condition_variable complete_;
     std::vector<Registration> registrations_;
     ShutdownState state_{ShutdownState::Running};
+    std::thread::id shuttingDownThread_{};
     std::uint64_t generation_ = 0;
     bool sessionActive_ = false;
     Callback sessionCallback_;

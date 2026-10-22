@@ -5,11 +5,14 @@
 #include "../platform/unique_handle.h"
 #include "../platform/text_encoding.h"
 #include "crypto.h"
+#include "http_client.h"
 #include "install_engine.h"
 #include "installation_integrity.h"
 #include "update_log.h"
+#include "update_types.h"
 #include <Windows.h>
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cstdio>
 #include <filesystem>
@@ -297,6 +300,38 @@ std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
     }
     RecordHealth("revalidated", Version, targetVersion, expectedHash, {}, {},
         "package size and sha256 verified (write-locked during install)");
+
+    {
+        std::atomic_bool cancelled{false};
+        WinHttpClient verifyClient;
+        const int verifyTimeoutMs = 20000;
+        const std::string verifyManifestUrl = Configuration{}.allowedPackageUrlPrefix +
+            "v" + targetVersion + "/update.json";
+        HttpResult manifestResponse = verifyClient.GetText(
+            verifyManifestUrl, verifyTimeoutMs, cancelled);
+        if (!manifestResponse.error.empty())
+            return reject(30, "official-verify",
+                "Não foi possível obter o manifesto oficial: " + manifestResponse.error);
+        ManifestResult parsed = ParseAndValidateManifest(
+            manifestResponse.body, Configuration{}, "x64");
+        if (!parsed.manifest)
+            return reject(30, "official-verify",
+                "O manifesto oficial é inválido: " + parsed.error);
+        const Package* official = SelectPackage(*parsed.manifest, "x64");
+        if (!official)
+            return reject(30, "official-verify",
+                "O manifesto oficial não contém um pacote x64 utilizável.");
+        if (parsed.manifest->version.original != targetVersion ||
+            !ConstantTimeEquals(official->sha256, expectedHash) ||
+            official->size != expectedSize ||
+            official->fileName != package.filename().string()) {
+            return reject(30, "official-verify",
+                "O pacote pedido não corresponde à versão oficial publicada.");
+        }
+        RecordHealth("official-verified", Version, targetVersion, expectedHash, {}, {},
+            "package matches the officially published manifest");
+    }
+
     int timeout = 30;
     if (args.contains(L"--timeout")) {
         try {

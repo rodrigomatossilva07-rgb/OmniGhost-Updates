@@ -1,6 +1,7 @@
 #include "../../widgets.h"
 #include "cs2_game.h"
 #include "config/cs2_config.h"
+#include "config/app_settings.h"
 #include "../../localization.h"
 #include "imgui.h"
 #include "gameplay/dma_telemetry_log.h"
@@ -38,7 +39,9 @@ void DrawCs2Misc()
     const bool prev = CS2::config.telemetry_enabled;
     ToggleSwitch("Telemetria", &CS2::config.telemetry_enabled);
 
-    OmniGhost::Gameplay::DmaTelemetry::SetEnabled(CS2::config.telemetry_enabled);
+
+
+    app_settings::config.telemetry_log_enabled = CS2::config.telemetry_enabled;
     if (CS2::config.telemetry_enabled && !prev) {
         char blob[384];
         std::snprintf(blob, sizeof(blob),

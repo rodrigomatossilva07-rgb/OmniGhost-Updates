@@ -3,7 +3,7 @@
 #include <cmath>
 
 namespace FiveM {
-enum class PedHealthState { Unknown, Alive, Dead };
+enum class PedHealthState { Unknown, Alive, Knocked, Dead };
 
 inline PedHealthState ClassifyPedHealth(float health) noexcept {
     if (!std::isfinite(health) || health < 0.f || health >= 1000.f)

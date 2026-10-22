@@ -49,6 +49,7 @@ extern std::atomic<float> last_ammo_ms;
 extern std::atomic<float> last_flags_ms;
 
 [[nodiscard]] bool HeavyDmaCooldownActive() noexcept;
+[[nodiscard]] uint64_t HeavyDmaCooldownRemainingMs() noexcept;
 void NotePossibleDeviceStall(float duration_ms) noexcept;
 void ResetSession() noexcept;
 

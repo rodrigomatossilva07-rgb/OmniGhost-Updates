@@ -11,6 +11,7 @@
 #include "gameplay/esp_core.h"
 #include "gameplay/trail_history.h"
 #include "gameplay/esp_fx.h"
+#include "gameplay/weapon_name_registry.h"
 #include "../game/visibility.h"
 #include "../game/esp_manager.h"
 #include <cmath>
@@ -25,6 +26,7 @@
 #include <shared_mutex>
 #include <mutex>
 #include <atomic>
+#include <cfloat>
 
 #include "gameplay/snapshot_exchange.h"
 
@@ -33,11 +35,7 @@ esp::ESPStats esp::esp_stats;
 
 
 esp::ESPMode esp::current_esp_mode = esp::ESPMode::HEAD_CIRCLE;
-ImU32 esp::circle_color = IM_COL32(0, 255, 0, 255);
-ImU32 esp::skeleton_color = IM_COL32(255, 0, 0, 255);
 float esp::line_thickness = 2.0f;
-bool esp::use_cache = true;
-bool esp::use_batch_skeleton = true;
 esp::Config esp::config;
 
 
@@ -158,149 +156,7 @@ static bool CachedWorldToScreen(uintptr_t ped, int slot, const Vec3& world, cons
 }
 
 
-struct CachedSkeletonData {
-    std::vector<Vec3> bone_positions;
-    std::chrono::steady_clock::time_point last_update;
-    bool is_valid;
-
-    std::chrono::milliseconds validity_at_insert;
-
-    CachedSkeletonData() : last_update(std::chrono::steady_clock::now()), is_valid(false), validity_at_insert(std::chrono::milliseconds(0)) {
-        bone_positions.resize(9);
-    }
-};
-
-
 static const esp::BatchSkeletonData* FindPreparedSkeleton(uintptr_t ped);
-
-class EnhancedBoneCache {
-public:
-    std::unordered_map<uintptr_t, CachedSkeletonData> skeleton_cache;
-
-private:
-    std::chrono::steady_clock::time_point last_cleanup;
-
-public:
-    EnhancedBoneCache() : last_cleanup(std::chrono::steady_clock::now()) {}
-
-
-    static std::chrono::milliseconds GetSkeletonCacheValidity() {
-        return std::chrono::milliseconds(esp::config.skeleton_cache_validity_ms);
-    }
-
-
-    bool get_skeleton_bones(uintptr_t ped, std::vector<Vec3>& bone_positions, bool force_refresh = false) {
-        auto now = std::chrono::steady_clock::now();
-
-
-        if (!force_refresh) {
-            if (const auto* prepared = FindPreparedSkeleton(ped)) {
-                if (prepared->valid) {
-                    bone_positions.resize(9);
-                    bool any = false;
-                    for (int i = 0; i < 9; ++i) {
-                        if ((prepared->bone_mask & (uint16_t(1u) << static_cast<unsigned>(i))) == 0) {
-                            bone_positions[i] = Vec3{};
-                            continue;
-                        }
-                        const Vector3& local = prepared->bone_offsets[static_cast<size_t>(i)];
-                        DirectX::SimpleMath::Vector3 value(local.x, local.y, local.z);
-                        const DirectX::SimpleMath::Vector3 transformed =
-                            DirectX::XMVector3Transform(value, prepared->bone_matrix);
-                        bone_positions[i] = Vec3(transformed.x, transformed.y, transformed.z);
-                        any = true;
-                    }
-                    if (any) {
-                        esp::esp_stats.add_hit();
-                        return true;
-                    }
-                }
-            }
-        }
-
-        auto it = skeleton_cache.find(ped);
-        if (!force_refresh && it != skeleton_cache.end() && it->second.is_valid) {
-            auto age = now - it->second.last_update;
-            if (age < GetSkeletonCacheValidity()) {
-                bone_positions = it->second.bone_positions;
-                esp::esp_stats.add_hit();
-                return true;
-            }
-        }
-
-        esp::esp_stats.add_miss();
-
-
-        Matrix bone_matrix = esp::bone_cache.get_bone_matrix(ped, force_refresh);
-
-
-        std::vector<int> bone_indices = { 0, 1, 2, 3, 4, 5, 6, 7, 8 };
-        std::vector<Vector3> bone_offsets(bone_indices.size());
-
-        auto handle = mem.CreateScatterHandle();
-        for (size_t i = 0; i < bone_indices.size(); ++i) {
-            mem.AddScatterReadRequest(handle, ped + (FiveM::offset::boneArrayBase + FiveM::offset::boneSize * bone_indices[i]),
-                &bone_offsets[i], sizeof(Vector3));
-        }
-        mem.ExecuteReadScatter(handle);
-        mem.CloseScatterHandle(handle);
-
-
-        bone_positions.resize(9);
-        for (size_t i = 0; i < bone_indices.size(); ++i) {
-            DirectX::SimpleMath::Vector3 boneVec(bone_offsets[i].x, bone_offsets[i].y, bone_offsets[i].z);
-            DirectX::SimpleMath::Vector3 transformedBoneVec = DirectX::XMVector3Transform(boneVec, bone_matrix);
-            bone_positions[bone_indices[i]] = Vec3(transformedBoneVec.x, transformedBoneVec.y, transformedBoneVec.z);
-        }
-
-
-        auto& cached_data = skeleton_cache[ped];
-        cached_data.bone_positions = bone_positions;
-        cached_data.last_update = now;
-        cached_data.is_valid = true;
-
-        cached_data.validity_at_insert = GetSkeletonCacheValidity();
-
-        esp::esp_stats.memory_reads.fetch_add(
-            static_cast<int>(bone_indices.size()), std::memory_order_relaxed);
-        return true;
-    }
-
-    void cleanup_skeleton_cache() {
-        auto now = std::chrono::steady_clock::now();
-
-        if (now - last_cleanup < std::chrono::seconds(3)) {
-            return;
-        }
-
-        for (auto it = skeleton_cache.begin(); it != skeleton_cache.end(); ) {
-            auto age = now - it->second.last_update;
-
-
-            auto entry_validity = it->second.validity_at_insert;
-            if (entry_validity.count() == 0) {
-
-                if (age > GetSkeletonCacheValidity() * 2) {
-                    it = skeleton_cache.erase(it);
-                } else {
-                    ++it;
-                }
-            } else if (age > entry_validity * 2) {
-                it = skeleton_cache.erase(it);
-            } else {
-                ++it;
-            }
-        }
-
-        last_cleanup = now;
-    }
-
-    size_t get_skeleton_cache_size() const { return skeleton_cache.size(); }
-    void clear_skeleton_cache() { skeleton_cache.clear(); }
-};
-
-
-static EnhancedBoneCache enhanced_bone_cache;
 
 
 
@@ -317,7 +173,6 @@ struct PreparedSkeletonFrame {
 static PreparedSkeletonFrame g_prepared_skeleton;
 static std::shared_mutex g_prepared_skeleton_mutex;
 static std::atomic<uint32_t> g_prepared_sequence{ 0 };
-static std::atomic<uint64_t> g_prepared_session_generation{ 1 };
 
 struct PreparedEspFrame {
     std::vector<PreparedEspData> entries;
@@ -356,7 +211,7 @@ static const esp::BatchSkeletonData* FindPreparedSkeleton(uintptr_t ped) {
 
     if (g_prepared_skeleton.timestamp.time_since_epoch().count() == 0 ||
         g_prepared_skeleton.session_generation !=
-            g_prepared_session_generation.load(std::memory_order_acquire) ||
+            FiveM::ESP::GetSessionGeneration().load(std::memory_order_acquire) ||
         std::chrono::steady_clock::now() - g_prepared_skeleton.timestamp >
             std::chrono::milliseconds(120))
         return nullptr;
@@ -386,7 +241,7 @@ static const PreparedEspData* FindPreparedEsp(uintptr_t ped) {
     std::shared_lock lock(g_prepared_esp_mutex);
     if (g_prepared_esp.timestamp.time_since_epoch().count() == 0 ||
         g_prepared_esp.session_generation !=
-            g_prepared_session_generation.load(std::memory_order_acquire) ||
+            FiveM::ESP::GetSessionGeneration().load(std::memory_order_acquire) ||
         std::chrono::steady_clock::now() - g_prepared_esp.timestamp >
             std::chrono::milliseconds(120))
         return nullptr;
@@ -401,14 +256,16 @@ static const PreparedEspData* FindPreparedEsp(uintptr_t ped) {
 
 
 static const PreparedRenderConfig* FindPreparedRenderConfig() {
+    thread_local PreparedRenderConfig copy{};
     std::shared_lock lock(g_prepared_esp_mutex);
     if (g_prepared_esp.timestamp.time_since_epoch().count() == 0 ||
         g_prepared_esp.session_generation !=
-            g_prepared_session_generation.load(std::memory_order_acquire) ||
+            FiveM::ESP::GetSessionGeneration().load(std::memory_order_acquire) ||
         std::chrono::steady_clock::now() - g_prepared_esp.timestamp >
             std::chrono::milliseconds(120))
         return nullptr;
-    return &g_prepared_esp.renderConfig;
+    copy = g_prepared_esp.renderConfig;
+    return &copy;
 }
 
 
@@ -528,7 +385,7 @@ esp::ESPMode esp::get_esp_mode() {
 
 const char* esp::get_esp_mode_name(ESPMode mode) {
     switch (mode) {
-    case ESPMode::HEAD_CIRCLE: return "Círculo na cabeça";
+    case ESPMode::HEAD_CIRCLE: return "CÃƒÂ­rculo na cabeÃƒÂ§a";
     case ESPMode::SKELETON_BONES: return "Ossos do esqueleto";
     default: return "Desconhecido";
     }
@@ -536,7 +393,7 @@ const char* esp::get_esp_mode_name(ESPMode mode) {
 
 std::vector<const char*> esp::get_esp_mode_names() {
     return {
-        "Círculo na cabeça",
+        "CÃƒÂ­rculo na cabeÃƒÂ§a",
         "Ossos do esqueleto"
     };
 }
@@ -629,7 +486,7 @@ void esp::prepare_skeleton_frame(const std::vector<uintptr_t>& peds,
 
 
 
-    next.session_generation = g_prepared_session_generation.fetch_add(1, std::memory_order_acq_rel) + 1;
+    next.session_generation = FiveM::ESP::GetSessionGeneration().load(std::memory_order_acquire);
 
     if (peds.empty()) {
         std::unique_lock lock(g_prepared_skeleton_mutex);
@@ -655,325 +512,11 @@ void esp::prepare_skeleton_frame(const std::vector<uintptr_t>& peds,
         next.entries[i].origin_sample = sampleNow;
         next.entries[i].session_generation = next.session_generation;
 
-        if (const Matrix* cam = SelectCameraSnapshot(next.world_sample_ms)) {
-
-
-        }
         next.index[next.entries[i].ped] = i;
     }
     std::unique_lock lock(g_prepared_skeleton_mutex);
     g_prepared_skeleton = std::move(next);
 }
-
-
-void esp::render_batch_skeletons(const std::vector<BatchSkeletonData>& skeleton_data,
-    Matrix viewport, uintptr_t localplayer) {
-    ImDrawList* draw_list = ImGui::GetForegroundDrawList();
-
-
-    static const int bone_connections[][2] = {
-        { 0, 7 }, { 7, 1 }, { 1, 2 }, { 2, 8 },
-        { 7, 5 }, { 5, 6 },
-        { 7, 6 },
-        { 8, 3 }, { 3, 4 },
-        { 8, 4 },
-        { 7, 8 }
-    };
-
-
-    (void)localplayer;
-
-    for (const auto& data : skeleton_data) {
-        if (!data.valid) continue;
-        if (esp::config.team_check) {
-            uint32_t networkId = 0;
-            if (esp::try_get_prepared_network_id(data.ped, networkId) &&
-                friends::IsFriend(networkId))
-                continue;
-        }
-
-
-        std::vector<Vec3> world_positions(9);
-        std::vector<Vec2> screen_positions(9);
-        std::vector<bool> on_screen(9, false);
-
-
-        for (int bone_id : {0, 1, 2, 3, 4, 5, 6, 7, 8}) {
-            DirectX::SimpleMath::Vector3 boneVec(
-                data.bone_offsets[bone_id].x,
-                data.bone_offsets[bone_id].y,
-                data.bone_offsets[bone_id].z
-            );
-            DirectX::SimpleMath::Vector3 transformedBoneVec =
-                DirectX::XMVector3Transform(boneVec, data.bone_matrix);
-
-            world_positions[bone_id] = Vec3(
-                transformedBoneVec.x,
-                transformedBoneVec.y,
-                transformedBoneVec.z
-            );
-
-
-            on_screen[bone_id] = world_positions[bone_id].world_to_screen(
-                viewport, screen_positions[bone_id]
-            );
-        }
-
-
-        float health = 100.0f;
-        PedData cached_ped_data;
-        if (g_pedCacheManager.getPedData(data.ped, cached_ped_data)) {
-            health = cached_ped_data.health;
-        }
-
-
-        const bool visible = EspPedVisible(data.ped);
-        ImU32 current_skeleton_color = EspPedColor(
-            data.ped, config.color_skeleton, visible);
-        if (!config.visibility_colors && health < 50.0f) {
-            current_skeleton_color = IM_COL32(255, 255, 0, 255);
-        }
-        if (!config.visibility_colors && health < 25.0f) {
-            current_skeleton_color = IM_COL32(255, 100, 0, 255);
-        }
-        if (health <= 0.0f) {
-            current_skeleton_color = IM_COL32(100, 100, 100, 255);
-        }
-
-
-        for (const auto& connection : bone_connections) {
-            int bone1 = connection[0];
-            int bone2 = connection[1];
-
-            if (on_screen[bone1] && on_screen[bone2]) {
-                draw_list->AddLine(
-                    ImVec2(screen_positions[bone1].x, screen_positions[bone1].y),
-                    ImVec2(screen_positions[bone2].x, screen_positions[bone2].y),
-                    current_skeleton_color,
-                    line_thickness
-                );
-
-
-                if (config.joints && health > 0.0f) {
-                    const ImU32 configured = config.color_skeleton_points
-                        ? config.color_skeleton_points
-                        : IM_COL32(80, 220, 90, 255);
-                    const ImU32 jc = EspPedColor(data.ped, configured, visible);
-                    const float joint_radius = 2.6f;
-                    auto joint = [&](int id) {
-                        if (!on_screen[id]) return;
-                        ImVec2 pt(screen_positions[id].x, screen_positions[id].y);
-                        draw_list->AddCircleFilled(pt, joint_radius, jc, 10);
-                        draw_list->AddCircle(pt, joint_radius, IM_COL32(0, 0, 0, 180), 10, 1.0f);
-                    };
-                    joint(bone1);
-                    joint(bone2);
-                }
-            }
-        }
-
-
-        if (on_screen[0]) {
-            float distance = FiveM::ESP::GetFrameLocalPos().distance_to(world_positions[0]);
-            float distance_factor = 50.0f / distance;
-            if (distance_factor < 0.2f) distance_factor = 0.2f;
-            if (distance_factor > 2.0f) distance_factor = 2.0f;
-
-            float head_radius = 4.0f * distance_factor;
-            if (head_radius < 1.0f) head_radius = 1.0f;
-            if (head_radius > 8.0f) head_radius = 8.0f;
-
-            draw_list->AddCircle(
-                ImVec2(screen_positions[0].x, screen_positions[0].y),
-                head_radius,
-                current_skeleton_color,
-                12,
-                head_radius * 0.25f
-            );
-        }
-    }
-
-
-    for (const auto& data : skeleton_data) {
-        if (data.valid) {
-            std::vector<Vec3> bone_positions(9);
-            for (int bone_id : {0, 1, 2, 3, 4, 5, 6, 7, 8}) {
-                DirectX::SimpleMath::Vector3 boneVec(
-                    data.bone_offsets[bone_id].x,
-                    data.bone_offsets[bone_id].y,
-                    data.bone_offsets[bone_id].z
-                );
-                DirectX::SimpleMath::Vector3 transformedBoneVec =
-                    DirectX::XMVector3Transform(boneVec, data.bone_matrix);
-                bone_positions[bone_id] = Vec3(
-                    transformedBoneVec.x,
-                    transformedBoneVec.y,
-                    transformedBoneVec.z
-                );
-            }
-
-
-            auto& cached_data = enhanced_bone_cache.skeleton_cache[data.ped];
-            cached_data.bone_positions = bone_positions;
-            cached_data.last_update = std::chrono::steady_clock::now();
-            cached_data.is_valid = true;
-        }
-    }
-}
-
-
-void esp::render_skeleton_esp_batch() {
-
-    std::vector<uintptr_t> valid_peds = g_pedCacheManager.getValidPedIds();
-    if (valid_peds.empty()) return;
-
-
-    if (!FiveM::ESP::FrameCacheValid()) return;
-    const Matrix& view_matrix = FiveM::ESP::GetFrameViewMatrix();
-
-
-    std::vector<BatchSkeletonData> skeleton_data;
-    batch_read_skeleton_data(valid_peds, skeleton_data);
-
-
-    render_batch_skeletons(skeleton_data, view_matrix, FiveM::offset::localplayer);
-
-
-    enhanced_bone_cache.cleanup_skeleton_cache();
-}
-
-
-void esp::batch_read_head_data(const std::vector<uintptr_t>& peds, std::vector<BatchHeadData>& out_data) {
-    if (peds.empty()) return;
-
-
-    out_data.clear();
-    out_data.resize(peds.size());
-
-
-    auto handle = mem.CreateScatterHandle();
-
-
-    for (size_t i = 0; i < peds.size(); ++i) {
-        out_data[i].ped = peds[i];
-
-
-        mem.AddScatterReadRequest(handle, peds[i] + FiveM::offset::boneMatrix,
-            &out_data[i].bone_matrix, sizeof(Matrix));
-
-
-        mem.AddScatterReadRequest(handle, peds[i] + FiveM::offset::boneArrayBase,
-            &out_data[i].head_offset, sizeof(Vector3));
-    }
-
-
-    const bool readOk = mem.ExecuteReadScatter(handle);
-    mem.CloseScatterHandle(handle);
-
-
-    for (auto& data : out_data) {
-        const float matrixEnergy = std::fabs(data.bone_matrix._11) +
-            std::fabs(data.bone_matrix._22) + std::fabs(data.bone_matrix._33);
-        data.valid = readOk && std::isfinite(matrixEnergy) && matrixEnergy > 0.001f &&
-            std::isfinite(data.head_offset.x) && std::isfinite(data.head_offset.y) &&
-            std::isfinite(data.head_offset.z);
-    }
-
-
-    esp_stats.memory_reads.fetch_add(
-        static_cast<int>(peds.size() * 2), std::memory_order_relaxed);
-    esp_stats.batch_reads.fetch_add(1, std::memory_order_relaxed);
-}
-
-
-void esp::render_batch_head_circles(const std::vector<BatchHeadData>& head_data,
-    Matrix viewport, uintptr_t localplayer) {
-    (void)localplayer;
-    ImDrawList* draw_list = ImGui::GetForegroundDrawList();
-
-    for (const auto& data : head_data) {
-        if (!data.valid) continue;
-        if (esp::config.team_check) {
-            uint32_t networkId = 0;
-            if (esp::try_get_prepared_network_id(data.ped, networkId) &&
-                friends::IsFriend(networkId))
-                continue;
-        }
-
-
-        DirectX::SimpleMath::Vector3 boneVec(
-            data.head_offset.x,
-            data.head_offset.y,
-            data.head_offset.z
-        );
-        DirectX::SimpleMath::Vector3 transformedBoneVec =
-            DirectX::XMVector3Transform(boneVec, data.bone_matrix);
-
-        Vec3 head_world_pos(
-            transformedBoneVec.x,
-            transformedBoneVec.y,
-            transformedBoneVec.z
-        );
-
-
-        Vec2 head_screen_pos;
-        if (head_world_pos.world_to_screen(viewport, head_screen_pos)) {
-
-            float health = 100.0f;
-            PedData cached_ped_data;
-            if (g_pedCacheManager.getPedData(data.ped, cached_ped_data)) {
-                health = cached_ped_data.health;
-            }
-
-
-            ImU32 color = circle_color;
-            if (health < 50.0f) {
-                color = IM_COL32(255, 255, 0, 255);
-            }
-            if (health < 25.0f) {
-                color = IM_COL32(255, 0, 0, 255);
-            }
-            if (health <= 0.0f) {
-                color = IM_COL32(100, 100, 100, 255);
-            }
-
-            const ImVec2 head(head_screen_pos.x, head_screen_pos.y);
-            if (esp::config.circle_type == 1) {
-                draw_list->AddCircleFilled(head, 4.0f, color, 20);
-            } else if (esp::config.circle_type == 2) {
-                draw_list->AddLine(ImVec2(head.x - 6.f, head.y), ImVec2(head.x + 6.f, head.y), color, 2.f);
-                draw_list->AddLine(ImVec2(head.x, head.y - 6.f), ImVec2(head.x, head.y + 6.f), color, 2.f);
-            } else {
-                draw_list->AddCircle(head, 4.0f, color, 20, 2.0f);
-            }
-        }
-
-
-        bone_cache.update_bone_data(data.ped, data.bone_matrix, head_world_pos);
-    }
-}
-
-
-void esp::render_head_circle_esp_batch() {
-
-    std::vector<uintptr_t> valid_peds = g_pedCacheManager.getValidPedIds();
-    if (valid_peds.empty()) return;
-
-
-    if (!FiveM::ESP::FrameCacheValid()) return;
-    const Matrix& view_matrix = FiveM::ESP::GetFrameViewMatrix();
-
-
-    std::vector<BatchHeadData> head_data;
-    batch_read_head_data(valid_peds, head_data);
-
-
-    render_batch_head_circles(head_data, view_matrix, FiveM::offset::localplayer);
-
-
-    bone_cache.cleanup_old_entries();
-}
-
 
 static bool IsPlausiblePlayerName(const char* s) {
     if (!s || !s[0]) return false;
@@ -1007,70 +550,6 @@ static bool IsPlausiblePlayerName(const char* s) {
 }
 
 
-static std::unordered_map<uint32_t, std::pair<std::string, std::chrono::steady_clock::time_point>> g_nameCache;
-static std::list<uint32_t> g_nameCacheLru;
-static std::mutex g_nameCacheMutex;
-static constexpr size_t kNameCacheMax = 256;
-static constexpr auto kNameCacheTtl = std::chrono::seconds(30);
-
-void esp::ClearNameCache() {
-    std::scoped_lock lock(g_nameCacheMutex);
-    g_nameCache.clear();
-    g_nameCacheLru.clear();
-}
-
-#pragma warning(push)
-#pragma warning(disable: 4505)
-
-
-
-static bool ReadPlayerDisplayName(uintptr_t ped, uintptr_t pinfo, uint32_t netId,
-                                  char* out, size_t outN) {
-    if (!out || outN < 4 || !ped) return false;
-    out[0] = 0;
-    if (!esp::config.player_name) { snprintf(out, outN, "Jogador"); return false; }
-    using namespace FiveM;
-    if (!pinfo) {
-        snprintf(out, outN, "Jogador");
-        return false;
-    }
-    if (!netId) {
-
-
-    }
-
-    auto it = g_nameCache.find(netId);
-    if (netId && it != g_nameCache.end() && !it->second.first.empty()) {
-        if (std::chrono::steady_clock::now() - it->second.second < kNameCacheTtl) {
-
-            if (it->second.first.rfind("ID ", 0) != 0) {
-                snprintf(out, outN, "%s", it->second.first.c_str());
-
-                {
-                    std::scoped_lock lock(g_nameCacheMutex);
-                    g_nameCacheLru.remove(netId);
-                    g_nameCacheLru.push_back(netId);
-                }
-                return true;
-            }
-        }
-        {
-            std::scoped_lock lock(g_nameCacheMutex);
-            g_nameCache.erase(it);
-            g_nameCacheLru.remove(netId);
-        }
-    }
-
-
-
-    if (esp::config.player_id && netId)
-        snprintf(out, outN, "ID %u", netId);
-    else
-        snprintf(out, outN, "Jogador");
-    return false;
-}
-#pragma warning(pop)
-
 static void DrawTextOutlined(ImDrawList* dl, ImVec2 pos, ImU32 col, const char* text) {
     if (!dl || !text) return;
     const ImU32 shadow = IM_COL32(0, 0, 0, 200);
@@ -1079,6 +558,19 @@ static void DrawTextOutlined(ImDrawList* dl, ImVec2 pos, ImU32 col, const char* 
     dl->AddText(ImVec2(pos.x, pos.y - 1), shadow, text);
     dl->AddText(ImVec2(pos.x, pos.y + 1), shadow, text);
     dl->AddText(pos, col, text);
+}
+
+static void DrawTextOutlinedScaled(ImDrawList* dl, ImVec2 pos, ImU32 col,
+                                   const char* text, float scale) {
+    if (!dl || !text || !*text) return;
+    ImFont* font = ImGui::GetFont();
+    const float size = ImGui::GetFontSize() * std::clamp(scale, .65f, 1.6f);
+    const ImU32 shadow = IM_COL32(0, 0, 0, 210);
+    dl->AddText(font, size, ImVec2(pos.x - 1, pos.y), shadow, text);
+    dl->AddText(font, size, ImVec2(pos.x + 1, pos.y), shadow, text);
+    dl->AddText(font, size, ImVec2(pos.x, pos.y - 1), shadow, text);
+    dl->AddText(font, size, ImVec2(pos.x, pos.y + 1), shadow, text);
+    dl->AddText(font, size, pos, col, text);
 }
 
 static ImU32 EspRGB() {
@@ -1107,100 +599,120 @@ struct PedFrameFlags {
     uint64_t sessionGeneration = 0;
     std::chrono::steady_clock::time_point lastAccess;
     FiveM::PedHealthState health_state = FiveM::PedHealthState::Unknown;
-    bool adm = false;
-    bool adm_known = false;
 };
 
 static std::unordered_map<uintptr_t, PedFrameFlags> g_pedFrameFlags;
 static std::shared_mutex g_pedFrameFlagsMutex;
 
-static PedFrameFlags& PedFlags(uintptr_t ped) {
+// Devolve uma CÃƒâ€œPIA das flags do ped para o frame atual. O reset por
+// frame/sessÃƒÂ£o e o prune acontecem sob lock Ã¢â‚¬â€ nenhuma referÃƒÂªncia ao
+// estado interno escapa ao mutex.
+static PedFrameFlags PedFlags(uintptr_t ped) {
     const uint32_t f = static_cast<uint32_t>(ImGui::GetFrameCount());
     const uint64_t currentGen = FiveM::ESP::GetSessionGeneration().load(std::memory_order_acquire);
 
-
+    PedFrameFlags result{};
     {
-        std::shared_lock lock(g_pedFrameFlagsMutex);
-        auto it = g_pedFrameFlags.find(ped);
-        if (it != g_pedFrameFlags.end()) {
-            const PedFrameFlags& e = it->second;
+        std::unique_lock lock(g_pedFrameFlagsMutex);
+        auto& e = g_pedFrameFlags[ped];
+        if (e.sessionGeneration != currentGen || e.frame != f) {
+            e = PedFrameFlags{};
+            e.frame = f;
+            e.sessionGeneration = currentGen;
+        }
+        e.lastAccess = std::chrono::steady_clock::now();
+        result = e;
 
-            if (e.sessionGeneration == currentGen && e.frame == f) {
+        static std::chrono::steady_clock::time_point s_lastPrune{};
+        constexpr auto kPruneTTL = std::chrono::seconds(30);
+        constexpr size_t kPruneChunk = 32;
+        const auto now = std::chrono::steady_clock::now();
 
-                lock.unlock();
-                std::unique_lock uLock(g_pedFrameFlagsMutex);
-                auto it2 = g_pedFrameFlags.find(ped);
-                if (it2 != g_pedFrameFlags.end()) {
-                    it2->second.lastAccess = std::chrono::steady_clock::now();
-                    return it2->second;
-                }
-
+        if (g_pedFrameFlags.size() > 8 &&
+            (s_lastPrune == std::chrono::steady_clock::time_point{} ||
+             now - s_lastPrune >= std::chrono::seconds(5))) {
+            s_lastPrune = now;
+            size_t examined = 0;
+            for (auto it = g_pedFrameFlags.begin();
+                 it != g_pedFrameFlags.end() && examined < kPruneChunk; ++examined) {
+                if (now - it->second.lastAccess > kPruneTTL)
+                    it = g_pedFrameFlags.erase(it);
+                else
+                    ++it;
             }
         }
     }
+    return result;
+}
 
-
+// MutaÃƒÂ§ÃƒÂ£o do estado de saÃƒÂºde sob lock Ã¢â‚¬â€ substitui a antiga referÃƒÂªncia pÃƒÂ³s-unlock.
+static void SetPedHealthState(uintptr_t ped, FiveM::PedHealthState state) {
     std::unique_lock lock(g_pedFrameFlagsMutex);
-    auto& e = g_pedFrameFlags[ped];
-    bool needsReset = (e.sessionGeneration != currentGen || e.frame != f);
-
-    if (needsReset) {
-        e = PedFrameFlags{};
-        e.frame = f;
-        e.sessionGeneration = currentGen;
-    }
-    e.lastAccess = std::chrono::steady_clock::now();
-
-
-    static uint32_t s_pruneCursor = 0;
-    static std::chrono::steady_clock::time_point s_lastPrune{};
-    constexpr auto kPruneTTL = std::chrono::seconds(30);
-    constexpr size_t kPruneChunk = 32;
-    const auto now = std::chrono::steady_clock::now();
-
-
-
-
-
-
-
-    if (g_pedFrameFlags.size() > 8 &&
-        (s_lastPrune == std::chrono::steady_clock::time_point{} ||
-         now - s_lastPrune >= std::chrono::seconds(5))) {
-        s_lastPrune = now;
-        size_t examined = 0;
-        for (auto it = g_pedFrameFlags.begin();
-             it != g_pedFrameFlags.end() && examined < kPruneChunk; ++examined) {
-            if (now - it->second.lastAccess > kPruneTTL)
-                it = g_pedFrameFlags.erase(it);
-            else
-                ++it;
-        }
-    }
-    (void)s_pruneCursor;
-
-    return e;
+    auto it = g_pedFrameFlags.find(ped);
+    if (it != g_pedFrameFlags.end())
+        it->second.health_state = state;
 }
 
 
+// Cache por frame do snapshot de liveness: uma única aquisição/frame com
+// lookup O(1) por ped, em vez de uma lease + varredura ≤110 amostras por
+// ped (O(peds²)/frame). O array de amostras é thread_local e só é
+// reescrito pela próxima AcquireLivenessSnapshot, portanto os ponteiros
+// ficam válidos durante o frame da render thread.
+struct LivenessFrameCache {
+    const FiveM::ESP::LivenessSample* players = nullptr;
+    uint32_t count = 0;
+    uint64_t sampleMs = 0;
+    uint64_t generation = 0;
+    uint32_t frame = 0;
+    bool valid = false;
+    std::unordered_map<uintptr_t, uint32_t> byPed;
+};
+static LivenessFrameCache g_livenessFrame;
+
+static const FiveM::ESP::LivenessSample* FindLivenessSample(uintptr_t ped) {
+    const uint32_t f = static_cast<uint32_t>(ImGui::GetFrameCount());
+    const uint64_t currentGen = FiveM::ESP::GetSessionGeneration().load(std::memory_order_acquire);
+    if (!g_livenessFrame.valid || g_livenessFrame.frame != f ||
+        g_livenessFrame.generation != currentGen) {
+        g_livenessFrame.frame = f;
+        g_livenessFrame.generation = currentGen;
+        g_livenessFrame.byPed.clear();
+        auto liveness = FiveM::ESP::AcquireLivenessSnapshot();
+        g_livenessFrame.valid = liveness.valid();
+        g_livenessFrame.players = liveness.players;
+        g_livenessFrame.count = liveness.count;
+        g_livenessFrame.sampleMs = liveness.timestamp_ms;
+        if (liveness.valid()) {
+            g_livenessFrame.byPed.reserve(static_cast<size_t>(liveness.count) * 2);
+            for (uint32_t i = 0; i < liveness.count; ++i) {
+                if (liveness.players[i].generation == currentGen)
+                    g_livenessFrame.byPed.emplace(liveness.players[i].ped, i);
+            }
+        }
+    }
+    if (!g_livenessFrame.valid) return nullptr;
+    const auto it = g_livenessFrame.byPed.find(ped);
+    if (it == g_livenessFrame.byPed.end()) return nullptr;
+    return &g_livenessFrame.players[it->second];
+}
+
 static FiveM::PedHealthState EspPedHealthState(uintptr_t ped, float* outHealth = nullptr) {
-    auto& flags = PedFlags(ped);
+    const PedFrameFlags flags = PedFlags(ped);
     if (flags.health_state != FiveM::PedHealthState::Unknown && !outHealth)
         return flags.health_state;
 
     float health = -1.f;
+    FiveM::PedHealthState state = FiveM::PedHealthState::Unknown;
 
-    if (auto liveness = FiveM::ESP::AcquireLivenessSnapshot(); liveness.valid()) {
-        const uint64_t currentGen = FiveM::ESP::GetSessionGeneration().load(std::memory_order_acquire);
-        for (uint32_t i = 0; i < liveness.count; ++i) {
-            const auto& sample = liveness.players[i];
-            if (sample.ped == ped && sample.generation == currentGen) {
-                health = sample.health;
-                flags.health_state = FiveM::ClassifyPedHealth(health);
-                if (outHealth) *outHealth = health;
-                return flags.health_state;
-            }
-        }
+    if (const auto* sample = FindLivenessSample(ped)) {
+        health = sample->health;
+        state = (sample->health > 0.f && sample->knocked)
+            ? FiveM::PedHealthState::Knocked
+            : FiveM::ClassifyPedHealth(health);
+        if (outHealth) *outHealth = health;
+        SetPedHealthState(ped, state);
+        return state;
     }
 
 
@@ -1210,24 +722,30 @@ static FiveM::PedHealthState EspPedHealthState(uintptr_t ped, float* outHealth =
             health = prepared->health;
         } else {
             if (outHealth) *outHealth = -1.f;
-            flags.health_state = FiveM::PedHealthState::Unknown;
-            return flags.health_state;
+            SetPedHealthState(ped, FiveM::PedHealthState::Unknown);
+            return FiveM::PedHealthState::Unknown;
         }
     }
 
     if (outHealth) *outHealth = health;
-    flags.health_state = FiveM::ClassifyPedHealth(health);
-    return flags.health_state;
+    state = FiveM::ClassifyPedHealth(health);
+    SetPedHealthState(ped, state);
+    return state;
 }
 
-static bool EspPedMayDraw(uintptr_t ped, bool showDead) {
+static bool EspPedMayDraw(uintptr_t ped, bool showDead, bool showKnocked) {
     const auto state = EspPedHealthState(ped);
     return state == FiveM::PedHealthState::Alive ||
-        (showDead && state == FiveM::PedHealthState::Dead);
+        (showDead && state == FiveM::PedHealthState::Dead) ||
+        (showKnocked && state == FiveM::PedHealthState::Knocked);
 }
 
 static bool EspPedIsDead(uintptr_t ped) {
     return EspPedHealthState(ped) == FiveM::PedHealthState::Dead;
+}
+
+static bool EspPedIsKnocked(uintptr_t ped) {
+    return EspPedHealthState(ped) == FiveM::PedHealthState::Knocked;
 }
 
 static bool EspPedIsFriend(uintptr_t ped) {
@@ -1244,6 +762,8 @@ static ImU32 EspPedColor(uintptr_t ped, ImU32 configured, bool visible) {
         return visible ? esp::config.color_visible : esp::config.color_invisible;
     if (esp::config.rgb_mode)
         return EspRGB();
+    if (esp::config.show_knocked && EspPedIsKnocked(ped))
+        return esp::config.color_knocked ? esp::config.color_knocked : IM_COL32(255, 165, 0, 255);
     if (EspPedIsDead(ped))
         return esp::config.color_dead ? esp::config.color_dead : IM_COL32(255, 50, 50, 255);
 
@@ -1286,7 +806,7 @@ static int FxSegCount(float distM, int nearSegs, int farSegs) {
 
 static void DrawMotionVisuals(uintptr_t ped, Matrix viewport, const PedData* cached) {
     const auto& cfg = esp::config;
-    if (!EspPedMayDraw(ped, cfg.show_dead))
+    if (!EspPedMayDraw(ped, cfg.show_dead, cfg.show_knocked))
         return;
     if (!cfg.trails && !cfg.head_halo && !cfg.look_direction && !cfg.chinese_hat &&
         !cfg.angel_wings && !cfg.devil_horns && !cfg.floating_crown)
@@ -1608,7 +1128,8 @@ static void DrawMotionVisuals(uintptr_t ped, Matrix viewport, const PedData* cac
 
 static bool AnyEspExtrasEnabled(const esp::Config& c) {
     return c.box_2d || c.corner_box || c.snaplines || c.health_bar || c.armor_bar
-        || c.weapon_name || c.distance || c.player_name || c.player_id || c.hit_marker;
+        || c.weapon_name || c.distance || c.player_name || c.player_id || c.hit_marker
+        || c.offscreen_arrows;
 }
 
 static bool AnyEspExtrasEnabled() { return AnyEspExtrasEnabled(esp::config); }
@@ -1628,11 +1149,12 @@ void esp::prepare_esp_frame(const std::vector<uintptr_t>& peds,
     next.frame = g_prepared_sequence.fetch_add(1, std::memory_order_relaxed) + 1;
     next.timestamp = std::chrono::steady_clock::now();
 
-    next.session_generation = g_prepared_session_generation.load(std::memory_order_acquire);
+    next.session_generation = FiveM::ESP::GetSessionGeneration().load(std::memory_order_acquire);
 
 
     next.renderConfig.max_esp_distance = frameConfig.max_esp_distance;
     next.renderConfig.show_dead = frameConfig.show_dead;
+    next.renderConfig.show_knocked = frameConfig.show_knocked;
     next.renderConfig.visible_check = frameConfig.visible_check;
     next.renderConfig.visibility_colors = frameConfig.visibility_colors;
     next.renderConfig.box_2d = frameConfig.box_2d;
@@ -1690,6 +1212,22 @@ void esp::prepare_esp_frame(const std::vector<uintptr_t>& peds,
 
 
     next.renderConfig.hit_marker = frameConfig.hit_marker;
+    next.renderConfig.offscreen_arrows = frameConfig.offscreen_arrows;
+    next.renderConfig.offscreen_arrow_size = frameConfig.offscreen_arrow_size;
+    next.renderConfig.offscreen_arrow_margin = frameConfig.offscreen_arrow_margin;
+    next.renderConfig.offscreen_arrow_max_distance = frameConfig.offscreen_arrow_max_distance;
+    next.renderConfig.offscreen_arrow_opacity = frameConfig.offscreen_arrow_opacity;
+    next.renderConfig.offscreen_arrow_distance = frameConfig.offscreen_arrow_distance;
+    next.renderConfig.offscreen_arrow_name = frameConfig.offscreen_arrow_name;
+    next.renderConfig.offscreen_arrow_style = frameConfig.offscreen_arrow_style;
+    next.renderConfig.color_offscreen_arrow = frameConfig.color_offscreen_arrow;
+    next.renderConfig.layout_name = static_cast<int>(frameConfig.layout_name);
+    next.renderConfig.layout_health = static_cast<int>(frameConfig.layout_health);
+    next.renderConfig.layout_armor = static_cast<int>(frameConfig.layout_armor);
+    next.renderConfig.layout_weapon = static_cast<int>(frameConfig.layout_weapon);
+    next.renderConfig.layout_distance = static_cast<int>(frameConfig.layout_distance);
+    next.renderConfig.layout_spacing = frameConfig.layout_spacing;
+    next.renderConfig.layout_text_scale = frameConfig.layout_text_scale;
     next.renderConfig.skeleton_lod = frameConfig.skeleton_lod;
 
     const auto publish = [&](PreparedEspFrame&& frame) {
@@ -1725,10 +1263,14 @@ void esp::prepare_esp_frame(const std::vector<uintptr_t>& peds,
 
     const bool needs_motion_origin = frameConfig.trails || frameConfig.head_halo || frameConfig.look_direction ||
         frameConfig.chinese_hat || frameConfig.angel_wings || frameConfig.devil_horns || frameConfig.floating_crown;
+    // friends/team-check precisam de network_id + health no frame preparado;
+    // sem isto, configs só-skeleton publicavam frames vazios e os amigos
+    // apareciam como inimigos (FM-014).
+    const bool identityNeeded = frameConfig.team_check || friends::HasFriends();
     const bool radarNeedsIdentity = frameConfig.radar_enabled &&
         (frameConfig.team_check || friends::HasFriends());
     if (peds.empty() || (!AnyEspExtrasEnabled(frameConfig) && !needs_motion_origin &&
-        !radarNeedsIdentity &&
+        !radarNeedsIdentity && !identityNeeded &&
         !aimConfig.aimbot_enabled && !aimConfig.trigger_enabled)) {
         publish(std::move(next));
         return;
@@ -1752,7 +1294,7 @@ void esp::prepare_esp_frame(const std::vector<uintptr_t>& peds,
 
 
 
-    if (!AnyEspExtrasEnabled(frameConfig) && !radarNeedsIdentity &&
+    if (!AnyEspExtrasEnabled(frameConfig) && !radarNeedsIdentity && !identityNeeded &&
         !aimConfig.aimbot_enabled &&
         !aimConfig.trigger_enabled) {
         publish(std::move(next));
@@ -1922,8 +1464,23 @@ void esp::prepare_esp_frame(const std::vector<uintptr_t>& peds,
                     {
                         std::unique_lock nameLock(g_preparedNameCacheMutex);
                         g_preparedNameCache[data.player_info] = cached;
-                        if (g_preparedNameCache.size() > 512)
-                            g_preparedNameCache.clear();
+                        if (g_preparedNameCache.size() > 512) {
+                            // Prune incremental em vez de clear() total: apaga
+                            // os 25% mais antigos e mantém o cache quente,
+                            // evitando re-ler todos os nomes no frame seguinte.
+                            std::vector<std::pair<
+                                std::chrono::steady_clock::time_point, uintptr_t>> byAge;
+                            byAge.reserve(g_preparedNameCache.size());
+                            for (const auto& [playerInfo, entry] : g_preparedNameCache)
+                                byAge.emplace_back(entry.sampledAt, playerInfo);
+                            const size_t toErase = g_preparedNameCache.size() / 4;
+                            std::partial_sort(byAge.begin(),
+                                byAge.begin() + static_cast<std::ptrdiff_t>(toErase),
+                                byAge.end(),
+                                [](const auto& a, const auto& b) { return a.first < b.first; });
+                            for (size_t n = 0; n < toErase; ++n)
+                                g_preparedNameCache.erase(byAge[n].second);
+                        }
                     }
                 }
             }
@@ -2011,6 +1568,84 @@ void esp::prepare_esp_frame(const std::vector<uintptr_t>& peds,
     publish(std::move(next));
 }
 
+static bool DrawOffscreenArrow(uintptr_t ped, const Vec3& world, const Matrix& viewport,
+                               float distance, const PreparedEspData& prepared,
+                               const PreparedRenderConfig& cfg) {
+    if (!cfg.offscreen_arrows || distance > cfg.offscreen_arrow_max_distance)
+        return false;
+    const ImVec2 display = ImGui::GetIO().DisplaySize;
+    if (display.x < 2.f || display.y < 2.f)
+        return false;
+
+    Vec2 projected{};
+    const bool projectedOk = world.world_to_screen(viewport, projected);
+    const bool onScreen = projectedOk && projected.x >= 0.f && projected.y >= 0.f &&
+        projected.x <= display.x && projected.y <= display.y;
+    if (onScreen)
+        return false;
+
+    const Matrix v = viewport.Transpose();
+    const Vector4 rowX(v._21, v._22, v._23, v._24);
+    const Vector4 rowY(v._31, v._32, v._33, v._34);
+    const Vector4 rowW(v._41, v._42, v._43, v._44);
+    float x = rowX.x * world.x + rowX.y * world.y + rowX.z * world.z + rowX.w;
+    float y = rowY.x * world.x + rowY.y * world.y + rowY.z * world.z + rowY.w;
+    const float w = rowW.x * world.x + rowW.y * world.y + rowW.z * world.z + rowW.w;
+    if (w < 0.f) { x = -x; y = -y; }
+    if (!std::isfinite(x) || !std::isfinite(y) || (fabsf(x) + fabsf(y)) < .0001f)
+        return false;
+
+    const float length = sqrtf(x * x + y * y);
+    x /= length;
+    y /= length;
+    y = -y;
+
+    const float margin = std::clamp(cfg.offscreen_arrow_margin, 12.f,
+        (std::min)(display.x, display.y) * .30f);
+    const ImVec2 center(display.x * .5f, display.y * .5f);
+    const float halfW = (std::max)(20.f, center.x - margin);
+    const float halfH = (std::max)(20.f, center.y - margin);
+    const float scale = (std::min)(halfW / (std::max)(fabsf(x), .0001f),
+                                   halfH / (std::max)(fabsf(y), .0001f));
+    const ImVec2 anchor(center.x + x * scale, center.y + y * scale);
+    const float size = std::clamp(cfg.offscreen_arrow_size, 6.f, 32.f);
+    const ImVec2 normal(x, y);
+    const ImVec2 tangent(-y, x);
+    const ImVec2 tip(anchor.x + normal.x * size, anchor.y + normal.y * size);
+    const ImVec2 left(anchor.x - normal.x * size * .65f + tangent.x * size * .72f,
+                      anchor.y - normal.y * size * .65f + tangent.y * size * .72f);
+    const ImVec2 right(anchor.x - normal.x * size * .65f - tangent.x * size * .72f,
+                       anchor.y - normal.y * size * .65f - tangent.y * size * .72f);
+    ImVec4 color = ImGui::ColorConvertU32ToFloat4(cfg.color_offscreen_arrow);
+    color.w *= std::clamp(cfg.offscreen_arrow_opacity, 0.f, 1.f);
+    const ImU32 arrowColor = ImGui::ColorConvertFloat4ToU32(color);
+    ImDrawList* draw = ImGui::GetForegroundDrawList();
+    if (cfg.offscreen_arrow_style == 1)
+        draw->AddTriangle(tip, left, right, arrowColor, 2.f);
+    else {
+        draw->AddTriangleFilled(tip, left, right, arrowColor);
+        if (cfg.offscreen_arrow_style == 2)
+            draw->AddTriangle(tip, left, right, IM_COL32(0, 0, 0, 190), 1.5f);
+    }
+
+    char label[96]{};
+    if (cfg.offscreen_arrow_name && IsPlausiblePlayerName(prepared.player_name)) {
+        if (cfg.offscreen_arrow_distance)
+            std::snprintf(label, sizeof(label), "%s  %.0fm", prepared.player_name, distance);
+        else
+            std::snprintf(label, sizeof(label), "%s", prepared.player_name);
+    } else if (cfg.offscreen_arrow_distance) {
+        std::snprintf(label, sizeof(label), "%.0fm", distance);
+    }
+    if (label[0]) {
+        const ImVec2 textSize = ImGui::CalcTextSize(label);
+        DrawTextOutlined(draw, ImVec2(anchor.x - textSize.x * .5f,
+            anchor.y + size + 4.f), arrowColor, label);
+    }
+    (void)ped;
+    return true;
+}
+
 static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer, const PedData* cached) {
     (void)localplayer;
 
@@ -2034,7 +1669,7 @@ static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer,
 
     if (!prepared_esp)
         return;
-    if (!EspPedMayDraw(ped, rcfg->show_dead)) return;
+    if (!EspPedMayDraw(ped, rcfg->show_dead, rcfg->show_knocked)) return;
 
     Vec3 origin = prepared_esp->origin;
     if (origin.IsZero() && cached && !cached->position_origin.IsZero())
@@ -2060,6 +1695,17 @@ static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer,
     const bool visible = EspPedVisible(ped);
     if (rcfg->visible_check && !visible)
         return;
+
+    Vec2 originProjection{};
+    const ImVec2 display = ImGui::GetIO().DisplaySize;
+    const bool originProjected = origin.world_to_screen(viewport, originProjection);
+    const bool originOnScreen = originProjected && originProjection.x >= 0.f &&
+        originProjection.y >= 0.f && originProjection.x <= display.x &&
+        originProjection.y <= display.y;
+    if (!originOnScreen) {
+        DrawOffscreenArrow(ped, origin, viewport, dist, *prepared_esp, *rcfg);
+        return;
+    }
 
 
     const bool needBones = rcfg->box_2d || rcfg->corner_box
@@ -2100,8 +1746,25 @@ static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer,
     if (rcfg->hit_marker) {
         struct HitMarkerState { float health = -1.f; double expires = 0.0; Vec3 world{}; };
         static std::unordered_map<uintptr_t, HitMarkerState> hitMarkers;
-        auto& marker = hitMarkers[ped];
+        static uint64_t hitMarkersGeneration = 0;
+        static double s_lastMarkerPrune = 0.0;
+        const uint64_t markersGen =
+            FiveM::ESP::GetSessionGeneration().load(std::memory_order_acquire);
+        if (markersGen != hitMarkersGeneration) {
+            hitMarkers.clear();
+            hitMarkersGeneration = markersGen;
+        }
         const double markerNow = ImGui::GetTime();
+        if (markerNow - s_lastMarkerPrune > 10.0) {
+            s_lastMarkerPrune = markerNow;
+            for (auto it = hitMarkers.begin(); it != hitMarkers.end();) {
+                if (it->second.expires + 30.0 < markerNow)
+                    it = hitMarkers.erase(it);
+                else
+                    ++it;
+            }
+        }
+        auto& marker = hitMarkers[ped];
         if (marker.health >= 0.f && health > 0.f && health < marker.health &&
             aimbot::current_target.valid && aimbot::current_target.ped == ped) {
             marker.world = aimbot::current_target.world_pos.IsZero()
@@ -2206,16 +1869,23 @@ static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer,
 
     if (rcfg->health_bar) {
         const float bw = 4.f;
-        ImVec2 barMin(boxMin.x - bw - 3.f, boxMin.y);
-        ImVec2 barMax(boxMin.x - 3.f, boxMax.y);
         const ImU32 healthColor = EspPedColor(ped, rcfg->color_health, visible);
-        OmniGhost::Gameplay::EspCore::DrawVerticalBar(
-            dl, barMin, barMax, hpFrac, healthColor, Darker(healthColor));
-        char hpBuf[16];
-        snprintf(hpBuf, sizeof(hpBuf), "%.0f", hp100);
-        ImVec2 ts = ImGui::CalcTextSize(hpBuf);
-        DrawTextOutlined(dl, ImVec2(barMin.x + (bw - ts.x) * 0.5f, barMin.y - ts.y - 2.f),
-                    healthColor, hpBuf);
+        const int anchor = std::clamp(rcfg->layout_health, 0, 3);
+        if (anchor == 2 || anchor == 3) {
+            const float x = anchor == 2 ? boxMin.x - bw - rcfg->layout_spacing
+                                        : boxMax.x + rcfg->layout_spacing;
+            OmniGhost::Gameplay::EspCore::DrawVerticalBar(dl, ImVec2(x, boxMin.y),
+                ImVec2(x + bw, boxMax.y), hpFrac, healthColor, Darker(healthColor));
+        } else {
+            const float y = anchor == 0 ? boxMin.y - bw - rcfg->layout_spacing
+                                        : boxMax.y + rcfg->layout_spacing;
+            const ImVec2 barMin(boxMin.x, y), barMax(boxMax.x, y + bw);
+            dl->AddRectFilled(ImVec2(barMin.x - 1.f, barMin.y - 1.f),
+                ImVec2(barMax.x + 1.f, barMax.y + 1.f), IM_COL32(0, 0, 0, 210), 1.f);
+            dl->AddRectFilled(barMin, barMax, IM_COL32(18, 18, 22, 225));
+            dl->AddRectFilled(barMin, ImVec2(barMin.x + (barMax.x - barMin.x) * hpFrac,
+                barMax.y), healthColor);
+        }
     }
 
 
@@ -2235,25 +1905,51 @@ static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer,
             if (ar100 > 100.f) ar100 = 100.f;
             float arFrac = ar100 / 100.f;
             const float bw = 5.f;
-            ImVec2 barMin(boxMax.x + 4.f, boxMin.y);
-            ImVec2 barMax(boxMax.x + 4.f + bw, boxMax.y);
-            const float filledY = barMax.y - (barMax.y - barMin.y) * arFrac;
             const ImU32 armorColor = EspPedColor(ped, rcfg->color_armor, visible);
-            OmniGhost::Gameplay::EspCore::DrawVerticalBar(
-                dl, barMin, barMax, arFrac, armorColor, Darker(armorColor));
-            dl->AddLine(ImVec2(barMin.x, filledY), ImVec2(barMax.x, filledY),
-                        IM_COL32(255, 255, 255, 60), 1.f);
-            char arBuf[16];
-            snprintf(arBuf, sizeof(arBuf), "%.0f", ar100);
-            dl->AddText(ImVec2(barMax.x + 3.f, barMin.y - 1.f),
-                        armorColor, arBuf);
+            const int anchor = std::clamp(rcfg->layout_armor, 0, 3);
+            if (anchor == 2 || anchor == 3) {
+                const float x = anchor == 2 ? boxMin.x - bw - rcfg->layout_spacing - 6.f
+                                            : boxMax.x + rcfg->layout_spacing;
+                OmniGhost::Gameplay::EspCore::DrawVerticalBar(dl, ImVec2(x, boxMin.y),
+                    ImVec2(x + bw, boxMax.y), arFrac, armorColor, Darker(armorColor));
+            } else {
+                const float y = anchor == 0 ? boxMin.y - bw - rcfg->layout_spacing - 6.f
+                                            : boxMax.y + rcfg->layout_spacing + 6.f;
+                const ImVec2 barMin(boxMin.x, y), barMax(boxMax.x, y + bw);
+                dl->AddRectFilled(ImVec2(barMin.x - 1.f, barMin.y - 1.f),
+                    ImVec2(barMax.x + 1.f, barMax.y + 1.f), IM_COL32(0, 0, 0, 210), 1.f);
+                dl->AddRectFilled(barMin, barMax, IM_COL32(18, 18, 22, 225));
+                dl->AddRectFilled(barMin, ImVec2(barMin.x + (barMax.x - barMin.x) * arFrac,
+                    barMax.y), armorColor);
+            }
         }
     }
 
 
     {
         const float cx = (boxMin.x + boxMax.x) * 0.5f;
-        float textY = boxMax.y + 3.f;
+        float sideOffsets[4] = { rcfg->layout_spacing, rcfg->layout_spacing,
+                                 rcfg->layout_spacing, rcfg->layout_spacing };
+        auto drawLayoutText = [&](const char* text, ImU32 color, int rawAnchor) {
+            if (!text || !*text) return;
+            const int anchor = std::clamp(rawAnchor, 0, 3);
+            const float scale = std::clamp(rcfg->layout_text_scale, .65f, 1.6f);
+            ImFont* font = ImGui::GetFont();
+            const float fontSize = ImGui::GetFontSize() * scale;
+            const ImVec2 ts = font->CalcTextSizeA(fontSize, FLT_MAX, 0.f, text);
+            ImVec2 pos{};
+            if (anchor == 0) {
+                pos = ImVec2(cx - ts.x * .5f, boxMin.y - sideOffsets[0] - ts.y);
+            } else if (anchor == 1) {
+                pos = ImVec2(cx - ts.x * .5f, boxMax.y + sideOffsets[1]);
+            } else if (anchor == 2) {
+                pos = ImVec2(boxMin.x - sideOffsets[2] - ts.x, boxMin.y + sideOffsets[2]);
+            } else {
+                pos = ImVec2(boxMax.x + sideOffsets[3], boxMin.y + sideOffsets[3]);
+            }
+            DrawTextOutlinedScaled(dl, pos, color, text, scale);
+            sideOffsets[anchor] += ts.y + 2.f;
+        };
 
 
         if (rcfg->player_name || rcfg->player_id) {
@@ -2274,11 +1970,9 @@ static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer,
                 snprintf(line, sizeof(line), "ID %u", netId);
             else
                 snprintf(line, sizeof(line), "%s", nbuf);
-            ImVec2 ts = ImGui::CalcTextSize(line);
-            DrawTextOutlined(dl, ImVec2(cx - ts.x * 0.5f, boxMin.y - ts.y - 3.f),
-                        EspPedColor(ped,
-                            (rcfg->player_name ? rcfg->color_name : rcfg->color_id),
-                            visible), line);
+            drawLayoutText(line, EspPedColor(ped,
+                (rcfg->player_name ? rcfg->color_name : rcfg->color_id), visible),
+                rcfg->layout_name);
         }
 
         if (rcfg->weapon_name) {
@@ -2407,25 +2101,28 @@ static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer,
                     case 0x184140A1u: wname = "Fertilizer Can"; break;
                     default:
                         if (hash != 0) {
-                            snprintf(wbuf, sizeof(wbuf), "Arma");
+                            // Consulta o registry joaat (domínio FiveM)
+                            // antes de cair no genérico "Arma" (FM-015a).
+                            const std::string registered =
+                                OmniGhost::Gameplay::WeaponNameRegistry::Instance()
+                                    .GetWeaponName(hash);
+                            snprintf(wbuf, sizeof(wbuf), "%s",
+                                registered.empty() ? "Arma" : registered.c_str());
                             wname = wbuf;
                         }
                         break;
                     }
                 }
             }
-            ImVec2 ts = ImGui::CalcTextSize(wname);
-            DrawTextOutlined(dl, ImVec2(cx - ts.x * 0.5f, textY),
-                        EspPedColor(ped, esp::config.color_weapon, visible), wname);
-            textY += ts.y + 2.f;
+            drawLayoutText(wname, EspPedColor(ped, rcfg->color_weapon, visible),
+                rcfg->layout_weapon);
         }
 
         if (rcfg->distance) {
             char buf[32];
             snprintf(buf, sizeof(buf), "%.0fm", dist);
-            ImVec2 ts = ImGui::CalcTextSize(buf);
-            DrawTextOutlined(dl, ImVec2(cx - ts.x * 0.5f, textY),
-                        EspPedColor(ped, rcfg->color_distance, visible), buf);
+            drawLayoutText(buf, EspPedColor(ped, rcfg->color_distance, visible),
+                rcfg->layout_distance);
         }
     }
 }
@@ -2453,7 +2150,7 @@ void esp::render_esp_for_ped(uintptr_t ped, Matrix viewport, uintptr_t localplay
     if (config.team_check && EspPedIsFriend(ped))
         return;
 
-    if (!EspPedMayDraw(ped, config.show_dead))
+    if (!EspPedMayDraw(ped, config.show_dead, config.show_knocked))
         return;
 
     if (config.visible_check && !EspPedVisible(ped))
@@ -2475,7 +2172,7 @@ void esp::render_esp_for_ped_cached(uintptr_t ped, Matrix viewport, uintptr_t lo
     if (!config.self_esp && IsLocalPlayerPed(ped, localplayer)) return;
     if (config.team_check && EspPedIsFriend(ped))
         return;
-    if (!EspPedMayDraw(ped, config.show_dead))
+    if (!EspPedMayDraw(ped, config.show_dead, config.show_knocked))
         return;
     if (config.visible_check && !EspPedVisible(ped))
         return;
@@ -2488,6 +2185,59 @@ void esp::render_esp_for_ped_cached(uintptr_t ped, Matrix viewport, uintptr_t lo
     DrawMotionVisuals(ped, viewport, &cached_ped_data);
 
     if (AnyEspExtrasEnabled()) DrawEspExtras(ped, viewport, localplayer, &cached_ped_data);
+}
+
+void esp::DrawActiveFeaturesPanel() {
+    if (!config.active_features_panel)
+        return;
+    const ImVec2 display = ImGui::GetIO().DisplaySize;
+    if (display.x < 2.f || display.y < 2.f)
+        return;
+
+    config.active_panel_x = std::clamp(config.active_panel_x, 0.f, .95f);
+    config.active_panel_y = std::clamp(config.active_panel_y, 0.f, .95f);
+    ImGui::SetNextWindowPos(ImVec2(display.x * config.active_panel_x,
+                                  display.y * config.active_panel_y), ImGuiCond_Once);
+    ImGui::SetNextWindowBgAlpha(std::clamp(config.active_panel_opacity, .15f, 1.f));
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_AlwaysAutoResize |
+        ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoCollapse |
+        ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav;
+    if (!app_settings::menu_open)
+        flags |= ImGuiWindowFlags_NoInputs;
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 8.f);
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, IM_COL32(8, 8, 8, 245));
+    ImGui::PushStyleColor(ImGuiCol_Border, IM_COL32(212, 175, 55, 105));
+    if (ImGui::Begin("##fivem_active_features", nullptr, flags)) {
+        ImGui::SetWindowFontScale(std::clamp(config.active_panel_scale, .65f, 1.6f));
+        ImGui::TextColored(ImVec4(.83f, .69f, .22f, 1.f), "FiveM DMA");
+        if (!config.active_panel_compact)
+            ImGui::Separator();
+        auto row = [](const char* name, bool active) {
+            if (!active) return;
+            ImGui::TextUnformatted(name);
+            ImGui::SameLine();
+            ImGui::TextColored(ImVec4(.20f, .90f, .48f, 1.f), "ON");
+        };
+        if (config.active_panel_show_aim) row("Aimbot", aimbot::config.aimbot_enabled);
+        if (config.active_panel_show_trigger) row("Triggerbot", aimbot::config.trigger_enabled);
+        if (config.active_panel_show_esp) row("Player ESP", config.enabled);
+        if (config.active_panel_show_radar)
+            row("Radar", config.radar_enabled || config.triangle_radar || config.square_radar);
+        row("Dynamic FOV", aimbot::config.aimbot_enabled &&
+            aimbot::config.dynamic_fov_mode != aimbot::DynamicFovMode::Static);
+        row("Offscreen Arrows", config.offscreen_arrows);
+
+        if (app_settings::menu_open && !ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
+            const ImVec2 pos = ImGui::GetWindowPos();
+            config.active_panel_x = std::clamp(pos.x / display.x, 0.f, .95f);
+            config.active_panel_y = std::clamp(pos.y / display.y, 0.f, .95f);
+        }
+        ImGui::SetWindowFontScale(1.f);
+    }
+    ImGui::End();
+    ImGui::PopStyleColor(2);
+    ImGui::PopStyleVar();
 }
 
 
@@ -2591,7 +2341,7 @@ void esp::draw_skeleton_cached(uintptr_t ped, Matrix viewport, uintptr_t localpl
 }
 
 void esp::draw_skeleton(uintptr_t ped, Matrix viewport, uintptr_t localplayer) {
-    if (!EspPedMayDraw(ped, esp::config.show_dead)) return;
+    if (!EspPedMayDraw(ped, esp::config.show_dead, esp::config.show_knocked)) return;
     ImDrawList* draw_list = ImGui::GetForegroundDrawList();
     if (!draw_list) return;
 
@@ -2620,7 +2370,7 @@ void esp::draw_skeleton(uintptr_t ped, Matrix viewport, uintptr_t localplayer) {
     static uint32_t s_frameId = 0;
     static uint32_t s_lastBump = 0;
     {
-        const uint64_t gen = g_prepared_session_generation.load(std::memory_order_acquire);
+        const uint64_t gen = FiveM::ESP::GetSessionGeneration().load(std::memory_order_acquire);
         if (gen != s_smoothGeneration) {
             s_smooth.clear();
             s_smoothGeneration = gen;
@@ -3088,7 +2838,22 @@ void esp::DrawPlayerRadar(const Matrix& , uintptr_t localplayer) {
         if (snapshot.validPeds.empty()) return;
 
 
+    // Base do radar derivada do heading da câmara: o ecrã-direita em espaço
+    // mundo é a coluna 2 da view matrix (view._12/_22/_32) e a câmara GTA
+    // mantém o horizonte nivelado (sem roll), logo o eixo direito é
+    // horizontal — a sua projeção no chão dá a rotação correta. Fallback:
+    // north-up se a view matrix estiver degenerada.
     float fx = 0.f, fy = 1.f;
+    {
+        const Matrix& vm = FiveM::ESP::GetFrameViewMatrix();
+        const float rightX = vm._12;
+        const float rightY = vm._22;
+        const float len = sqrtf(rightX * rightX + rightY * rightY);
+        if (len > 1e-4f) {
+            fx = -rightY / len;
+            fy = rightX / len;
+        }
+    }
     float rx = fy, ry = -fx;
     for (size_t i = 0; i < snapshot.validPeds.size(); ++i) {
         uintptr_t ped = snapshot.validPeds[i];
@@ -3107,7 +2872,7 @@ void esp::DrawPlayerRadar(const Matrix& , uintptr_t localplayer) {
         nx = std::clamp(nx, -R + 5.f, R - 5.f);
         ny = std::clamp(ny, -R + 5.f, R - 5.f);
         ImU32 col = EspPedColor(ped, config.color_box_2d, visible);
-        if (!config.visibility_colors && EspPedIsFriend(ped))
+        if (!config.visibility_colors && friends::config.show_friend_esp && EspPedIsFriend(ped))
             col = friends::config.friend_color;
         dl->AddCircleFilled(ImVec2(cx + nx, cy + ny), 3.0f, col, 10);
     }
@@ -3146,12 +2911,26 @@ void esp::DrawPlayerRadar(const Matrix& , uintptr_t localplayer) {
 
     Matrix view = FiveM::ESP::GetFrameViewMatrix();
 
+    // Mesma base do radar quadrado: o ângulo fora do ecrã passa a ser
+    // medido no referencial da câmara, eliminando o salto na transição
+    // entre a posição projetada (ecrã) e o anel (mundo).
+    float tfx = 0.f, tfy = 1.f;
+    {
+        const float rightX = view._12;
+        const float rightY = view._22;
+        const float len = sqrtf(rightX * rightX + rightY * rightY);
+        if (len > 1e-4f) {
+            tfx = -rightY / len;
+            tfy = rightX / len;
+        }
+    }
+    const float tRx = tfy, tRy = -tfx;
 
     struct TriSm { float ix, iy; bool init; uint32_t lastF; };
     static std::unordered_map<uintptr_t, TriSm> s_tri;
     static uint64_t s_triGeneration = 0;
     {
-        const uint64_t gen = g_prepared_session_generation.load(std::memory_order_acquire);
+        const uint64_t gen = FiveM::ESP::GetSessionGeneration().load(std::memory_order_acquire);
         if (gen != s_triGeneration) {
             s_tri.clear();
             s_triGeneration = gen;
@@ -3191,7 +2970,11 @@ void esp::DrawPlayerRadar(const Matrix& , uintptr_t localplayer) {
         if (!onScreen) {
             float wdx = pos.x - localPos.x;
             float wdy = pos.y - localPos.y;
-            float ang = atan2f(wdx, wdy);
+            // Ângulo no referencial da câmara (mesma base do radar quadrado)
+            // em vez do ângulo de mundo — transição ecrã↔anel sem salto.
+            float localX = wdx * tRx + wdy * tRy;
+            float localY = wdx * tfx + wdy * tfy;
+            float ang = atan2f(localX, localY);
             sp.x = center.x + sinf(ang) * radius;
             sp.y = center.y - cosf(ang) * radius;
         }
@@ -3231,7 +3014,7 @@ void esp::DrawPlayerRadar(const Matrix& , uintptr_t localplayer) {
         ImVec2 b(ix - nx * size * 0.6f - tx * size * 0.7f, iy - ny * size * 0.6f - ty * size * 0.7f);
 
         ImU32 col = EspPedColor(ped, config.color_box_2d, visible);
-        if (!config.visibility_colors && EspPedIsFriend(ped))
+        if (!config.visibility_colors && friends::config.show_friend_esp && EspPedIsFriend(ped))
             col = friends::config.friend_color;
 
         dl->AddTriangleFilled(tip, a, b, col);
@@ -3306,104 +3089,6 @@ void esp::draw_health_info(const Vec2& position, float health) {
 }
 
 
-Vec3 esp::get_bone_position(uintptr_t ped, int bone_position)
-{
-    Matrix bone_matrix = mem.Read<Matrix>(ped + FiveM::offset::boneMatrix);
-    Vector3 Head = mem.Read<Vector3>(ped + (FiveM::offset::boneArrayBase + FiveM::offset::boneSize * bone_position));
-    DirectX::SimpleMath::Vector3 boneVec(Head.x, Head.y, Head.z);
-    DirectX::SimpleMath::Vector3 transformedBoneVec = DirectX::XMVector3Transform(boneVec, bone_matrix);
-    return Vec3(transformedBoneVec.x, transformedBoneVec.y, transformedBoneVec.z);
-}
-
-Vec3 esp::find_closest_player(Vec3& localPlayerPosition, Matrix viewmatrix) {
-    (void)viewmatrix;
-    float minDistance = 1000.0f;
-    Vec3 closestPedPosition = Vec3(1.0f, 1.0f, 1.0f);
-
-
-    std::vector<uintptr_t> validPedIds = g_pedCacheManager.getValidPedIds();
-
-    for (uintptr_t pedPointer : validPedIds) {
-        PedData data;
-        if (g_pedCacheManager.getPedData(pedPointer, data)) {
-            float dx = localPlayerPosition.x - data.position_origin.x;
-            float dy = localPlayerPosition.y - data.position_origin.y;
-            float distance = std::sqrt(dx * dx + dy * dy);
-
-            if (distance < minDistance) {
-                minDistance = distance;
-                closestPedPosition = data.position_origin;
-            }
-        }
-    }
-
-    return closestPedPosition;
-}
-
-
-void esp::set_circle_color(ImU32 color) { circle_color = color; config.color_head_circle = color; }
-void esp::set_skeleton_color(ImU32 color) { skeleton_color = color; config.color_skeleton = color; }
-void esp::set_line_thickness(float thickness) { line_thickness = thickness; }
-void esp::set_use_batch_skeleton(bool use_batch) { use_batch_skeleton = use_batch; }
-
-ImU32 esp::get_circle_color() { return circle_color; }
-ImU32 esp::get_skeleton_color() { return skeleton_color; }
-float esp::get_line_thickness() { return line_thickness; }
-bool esp::get_use_batch_skeleton() { return use_batch_skeleton; }
-
-
-void esp::batch_update_bone_cache(const std::vector<uintptr_t>& peds) {
-    if (peds.empty()) return;
-
-    auto handle = mem.CreateScatterHandle();
-    std::vector<Matrix> bone_matrices(peds.size());
-    std::vector<Vector3> head_offsets(peds.size());
-
-    for (size_t i = 0; i < peds.size(); ++i) {
-        mem.AddScatterReadRequest(handle, peds[i] + FiveM::offset::boneMatrix,
-            &bone_matrices[i], sizeof(Matrix));
-        mem.AddScatterReadRequest(handle, peds[i] + FiveM::offset::boneArrayBase,
-            &head_offsets[i], sizeof(Vector3));
-    }
-
-    mem.ExecuteReadScatter(handle);
-    mem.CloseScatterHandle(handle);
-
-    for (size_t i = 0; i < peds.size(); ++i) {
-        DirectX::SimpleMath::Vector3 boneVec(head_offsets[i].x, head_offsets[i].y, head_offsets[i].z);
-        DirectX::SimpleMath::Vector3 transformedBoneVec = DirectX::XMVector3Transform(boneVec, bone_matrices[i]);
-        Vec3 head_pos(transformedBoneVec.x, transformedBoneVec.y, transformedBoneVec.z);
-
-        bone_cache.update_bone_data(peds[i], bone_matrices[i], head_pos);
-    }
-
-    esp_stats.memory_reads.fetch_add(
-        static_cast<int>(peds.size() * 2), std::memory_order_relaxed);
-}
-
-
-void esp::batch_update_skeleton_cache(const std::vector<uintptr_t>& peds) {
-    if (peds.empty()) return;
-
-
-    for (uintptr_t ped : peds) {
-        std::vector<Vec3> bone_positions;
-        enhanced_bone_cache.get_skeleton_bones(ped, bone_positions, false);
-    }
-}
-
-Vec3 esp::get_bone_position_cached(uintptr_t ped, int bone_position, const PedData& cached_ped_data) {
-    (void)cached_ped_data;
-    if (bone_position == 0 && bone_cache.is_data_valid(ped)) {
-        return bone_cache.get_bone_position(ped, 0, false);
-    }
-    return bone_cache.get_bone_position(ped, bone_position, true);
-}
-
-void esp::print_esp_stats() {
-
-}
-
 void esp::DrawDebugLine(const Vec2& from, const Vec2& to, ImU32 color) {
     ImDrawList* draw_list = ImGui::GetForegroundDrawList();
     draw_list->AddLine(ImVec2(from.x, from.y), ImVec2(to.x, to.y), color, 1.0f);
@@ -3418,18 +3103,6 @@ void esp::DrawDebugCircle(const Vec2& center, float radius, ImU32 color) {
     ImDrawList* draw_list = ImGui::GetForegroundDrawList();
     draw_list->AddCircle(ImVec2(center.x, center.y), radius, color, 12, 1.0f);
 }
-
-
-size_t esp::get_skeleton_cache_size() {
-    return enhanced_bone_cache.get_skeleton_cache_size();
-}
-
-void esp::clear_skeleton_cache() {
-    enhanced_bone_cache.clear_skeleton_cache();
-}
-
-void esp::set_use_cache(bool use) { use_cache = use; }
-bool esp::get_use_cache() { return use_cache; }
 
 
 
@@ -3529,7 +3202,6 @@ void esp::ShutdownPreparedFrames() {
     }
     g_nameDueBuffer.clear();
     g_proj_cache.clear();
-    ClearNameCache();
     g_lastPrepScatter = {};
 
     {

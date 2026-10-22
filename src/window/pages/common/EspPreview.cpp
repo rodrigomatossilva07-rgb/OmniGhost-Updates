@@ -25,6 +25,11 @@ namespace {
         static std::unordered_map<ImGuiID, ImVec4> colors;
         const ImGuiID id = ImHashStr(name, 0, base);
         const ImVec4 targetColor = ImGui::ColorConvertU32ToFloat4(target);
+        if (colors.size() > 256) {
+            // Trim periódico: os valores regeneram-se no frame seguinte e o
+            // map deixa de crescer indefinidamente com bases/IDs distintos.
+            colors.clear();
+        }
         auto [it, inserted] = colors.try_emplace(id, targetColor);
         if (!inserted && app_settings::MotionEnabled()) {
             const float amount = 1.0f - std::exp(-11.0f * std::min(ImGui::GetIO().DeltaTime, 0.05f));

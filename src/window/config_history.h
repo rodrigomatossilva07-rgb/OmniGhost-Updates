@@ -18,16 +18,20 @@ namespace ConfigHistory {
         SetEnum
     };
 
+    using ConfigValue = std::variant<bool, int, float, std::string, ImU32>;
+    using ConfigTarget = std::variant<bool*, int*, float*, std::string*, ImU32*>;
+
     struct HistoryEntry {
         std::string id;
         std::string label;
         ActionType type;
         std::chrono::system_clock::time_point timestamp;
 
+        ConfigTarget target{};
 
-        std::variant<bool, int, float, std::string, ImU32> prev_value;
+        ConfigValue prev_value;
 
-        std::variant<bool, int, float, std::string, ImU32> new_value;
+        ConfigValue new_value;
     };
 
     void Initialize();
@@ -35,8 +39,9 @@ namespace ConfigHistory {
 
 
     void RecordChange(const std::string& id, const std::string& label, ActionType type,
-                      const std::variant<bool, int, float, std::string, ImU32>& prev_value,
-                      const std::variant<bool, int, float, std::string, ImU32>& new_value);
+                      const ConfigTarget& target,
+                      const ConfigValue& prev_value,
+                      const ConfigValue& new_value);
 
 
     bool Undo();

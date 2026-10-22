@@ -22,6 +22,7 @@
 #include <sstream>
 #include <cstdint>
 #include <cstring>
+#include <commdlg.h>
 
 namespace Hotkeys {
 
@@ -344,9 +345,10 @@ namespace Hotkeys {
                     if (pos != std::string::npos) enabled = line.find("true") != std::string::npos;
 
                     if (action >= 0 && action < static_cast<int>(Action::Count)) {
-                        g_hotkeys[action].vk_code = vk;
-                        g_hotkeys[action].modifiers = mods;
-                        g_hotkeys[action].enabled = enabled;
+                        if (vk < 0 || vk > 255) continue;
+                        if (mods < 0 || mods > 15) continue;
+                        if (SetHotkey(static_cast<Action>(action), vk, mods))
+                            g_hotkeys[action].enabled = enabled;
                     }
                 }
             }
@@ -555,35 +557,37 @@ namespace Hotkeys {
 
         static bool waiting_for_key = false;
         static Action waiting_action = Action::Count;
+        static double capture_ignore_until = 0.0;
 
         if (waiting_for_key) {
             CyberWidgets::TextLine("Press a key combination... (Esc to cancel)", CyberWidgets::TextTone::Warning);
 
+            if (ImGui::GetTime() >= capture_ignore_until) {
+                for (int vk = 7; vk < 256; ++vk) {
+                    if (GetAsyncKeyState(vk) & 0x8000) {
+                        if (vk == VK_ESCAPE) {
+                            waiting_for_key = false;
+                            waiting_action = Action::Count;
+                        } else {
+                            int modifiers = 0;
+                            if (GetAsyncKeyState(VK_CONTROL) & 0x8000) modifiers |= 1;
+                            if (GetAsyncKeyState(VK_SHIFT) & 0x8000) modifiers |= 2;
+                            if (GetAsyncKeyState(VK_MENU) & 0x8000) modifiers |= 4;
+                            if ((GetAsyncKeyState(VK_LWIN) & 0x8000) || (GetAsyncKeyState(VK_RWIN) & 0x8000)) modifiers |= 8;
 
-            for (int vk = 1; vk < 256; ++vk) {
-                if (GetAsyncKeyState(vk) & 1) {
-                    if (vk == VK_ESCAPE) {
-                        waiting_for_key = false;
-                        waiting_action = Action::Count;
-                    } else {
-                        int modifiers = 0;
-                        if (GetAsyncKeyState(VK_CONTROL) & 0x8000) modifiers |= 1;
-                        if (GetAsyncKeyState(VK_SHIFT) & 0x8000) modifiers |= 2;
-                        if (GetAsyncKeyState(VK_MENU) & 0x8000) modifiers |= 4;
-                        if ((GetAsyncKeyState(VK_LWIN) & 0x8000) || (GetAsyncKeyState(VK_RWIN) & 0x8000)) modifiers |= 8;
 
-
-                        if (vk != VK_CONTROL && vk != VK_SHIFT && vk != VK_MENU && vk != VK_LWIN && vk != VK_RWIN) {
-                            if (SetHotkey(waiting_action, vk, modifiers)) {
-                                CyberWidgets::Notify("Hotkey updated", CyberWidgets::ToastType::Success);
-                            } else {
-                                CyberWidgets::Notify("Hotkey conflicts with another action", CyberWidgets::ToastType::Error);
+                            if (vk != VK_CONTROL && vk != VK_SHIFT && vk != VK_MENU && vk != VK_LWIN && vk != VK_RWIN) {
+                                if (SetHotkey(waiting_action, vk, modifiers)) {
+                                    CyberWidgets::Notify("Hotkey updated", CyberWidgets::ToastType::Success);
+                                } else {
+                                    CyberWidgets::Notify("Hotkey conflicts with another action", CyberWidgets::ToastType::Error);
+                                }
                             }
+                            waiting_for_key = false;
+                            waiting_action = Action::Count;
                         }
-                        waiting_for_key = false;
-                        waiting_action = Action::Count;
+                        break;
                     }
-                    break;
                 }
             }
             CyberWidgets::CardGap(8.0f);
@@ -646,6 +650,7 @@ namespace Hotkeys {
             if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
                 waiting_for_key = true;
                 waiting_action = static_cast<Action>(i);
+                capture_ignore_until = ImGui::GetTime() + 0.28;
             }
 
 
@@ -680,11 +685,44 @@ namespace Hotkeys {
         }
         ImGui::SameLine();
         if (CyberWidgets::Button("Export", CyberWidgets::ButtonStyle::Secondary)) {
-
+            wchar_t selected[MAX_PATH]{};
+            OPENFILENAMEW dialog{};
+            dialog.lStructSize = sizeof(dialog);
+            dialog.lpstrFile = selected;
+            dialog.nMaxFile = MAX_PATH;
+            dialog.lpstrFilter = L"OmniGhost hotkeys\0*.oghk\0All files\0*.*\0\0";
+            dialog.nFilterIndex = 1;
+            dialog.lpstrDefExt = L"oghk";
+            dialog.Flags = OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
+            if (GetSaveFileNameW(&dialog)) {
+                char path[MAX_PATH]{};
+                const int converted = WideCharToMultiByte(CP_UTF8, 0, selected, -1,
+                    path, sizeof(path), nullptr, nullptr);
+                if (converted > 0 && ExportToFile(path))
+                    CyberWidgets::Notify("Hotkeys exported", CyberWidgets::ToastType::Success);
+                else
+                    CyberWidgets::Notify("Hotkey export failed", CyberWidgets::ToastType::Error);
+            }
         }
         ImGui::SameLine();
         if (CyberWidgets::Button("Import", CyberWidgets::ButtonStyle::Secondary)) {
-
+            wchar_t selected[MAX_PATH]{};
+            OPENFILENAMEW dialog{};
+            dialog.lStructSize = sizeof(dialog);
+            dialog.lpstrFile = selected;
+            dialog.nMaxFile = MAX_PATH;
+            dialog.lpstrFilter = L"OmniGhost hotkeys\0*.oghk\0All files\0*.*\0\0";
+            dialog.nFilterIndex = 1;
+            dialog.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
+            if (GetOpenFileNameW(&dialog)) {
+                char path[MAX_PATH]{};
+                const int converted = WideCharToMultiByte(CP_UTF8, 0, selected, -1,
+                    path, sizeof(path), nullptr, nullptr);
+                if (converted > 0 && ImportFromFile(path))
+                    CyberWidgets::Notify("Hotkeys imported", CyberWidgets::ToastType::Success);
+                else
+                    CyberWidgets::Notify("Hotkey import failed or conflicted", CyberWidgets::ToastType::Error);
+            }
         }
 
         CyberWidgets::EndCard();

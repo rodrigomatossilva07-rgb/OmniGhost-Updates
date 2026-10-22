@@ -260,9 +260,6 @@
     <ClCompile Include="src\games\Fivem\esp\esp.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\games\Fivem\esp\esp_bone_cache.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="src\games\Fivem\esp\vehicle_esp.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

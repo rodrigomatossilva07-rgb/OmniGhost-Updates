@@ -6,6 +6,6 @@ namespace CS2::CoreWorld {
 [[nodiscard]] bool IsFinitePosition(const float* position) noexcept;
 [[nodiscard]] bool InsideExpandedFrustum(const float* position,
                                          const float* view_matrix) noexcept;
-[[nodiscard]] bool IsPlayableMapName(const char* map_name);
+[[nodiscard]] bool IsPlayableMapName(const char* map_name) noexcept;
 
 }

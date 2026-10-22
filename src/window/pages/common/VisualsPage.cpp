@@ -123,6 +123,71 @@ struct FivemPreviewAdapter : EspPreview::IConfigAdapter {
 
 static FivemPreviewAdapter g_fivemAdapter;
 
+void DrawEspLayoutBuilder(float canvasWidth, float canvasHeight)
+{
+    const ImVec2 origin = ImGui::GetCursorScreenPos();
+    ImDrawList* draw = ImGui::GetWindowDrawList();
+    const ImVec2 end(origin.x + canvasWidth, origin.y + canvasHeight);
+    draw->AddRectFilled(origin, end, CyberTheme::WithAlpha(CyberTheme::Colors.Surface, .68f), 7.f);
+    draw->AddRect(origin, end, CyberTheme::WithAlpha(CyberTheme::Colors.Border, .55f), 7.f);
+
+    const ImVec2 boxMin(origin.x + canvasWidth * .36f, origin.y + canvasHeight * .22f);
+    const ImVec2 boxMax(origin.x + canvasWidth * .64f, origin.y + canvasHeight * .78f);
+    draw->AddRect(boxMin, boxMax, CyberTheme::U32(CyberTheme::Colors.Gold), 3.f, 0, 1.5f);
+
+    struct Item { const char* label; esp::LayoutAnchor* anchor; ImU32 color; };
+    Item items[] = {
+        { "Name", &esp::config.layout_name, esp::config.color_name },
+        { "Health", &esp::config.layout_health, esp::config.color_health },
+        { "Armor", &esp::config.layout_armor, esp::config.color_armor },
+        { "Weapon", &esp::config.layout_weapon, esp::config.color_weapon },
+        { "Distance", &esp::config.layout_distance, esp::config.color_distance }
+    };
+    int slots[4] = {};
+    for (int i = 0; i < 5; ++i) {
+        const int anchor = std::clamp(static_cast<int>(*items[i].anchor), 0, 3);
+        const int slot = slots[anchor]++;
+        const ImVec2 textSize = ImGui::CalcTextSize(items[i].label);
+        const ImVec2 chipSize(textSize.x + 12.f, textSize.y + 6.f);
+        ImVec2 chip{};
+        if (anchor == 0)
+            chip = ImVec2((boxMin.x + boxMax.x - chipSize.x) * .5f,
+                          boxMin.y - chipSize.y - 8.f - slot * (chipSize.y + 3.f));
+        else if (anchor == 1)
+            chip = ImVec2((boxMin.x + boxMax.x - chipSize.x) * .5f,
+                          boxMax.y + 8.f + slot * (chipSize.y + 3.f));
+        else if (anchor == 2)
+            chip = ImVec2(boxMin.x - chipSize.x - 8.f,
+                          boxMin.y + slot * (chipSize.y + 3.f));
+        else
+            chip = ImVec2(boxMax.x + 8.f, boxMin.y + slot * (chipSize.y + 3.f));
+
+        ImGui::PushID(i);
+        ImGui::SetCursorScreenPos(chip);
+        ImGui::InvisibleButton("##layout_item", chipSize);
+        if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
+            const ImVec2 mouse = ImGui::GetIO().MousePos;
+            const float distances[] = { fabsf(mouse.y - boxMin.y), fabsf(mouse.y - boxMax.y),
+                fabsf(mouse.x - boxMin.x), fabsf(mouse.x - boxMax.x) };
+            int nearest = 0;
+            for (int side = 1; side < 4; ++side)
+                if (distances[side] < distances[nearest]) nearest = side;
+            *items[i].anchor = static_cast<esp::LayoutAnchor>(nearest);
+        }
+        const bool active = ImGui::IsItemActive() || ImGui::IsItemHovered();
+        draw->AddRectFilled(chip, ImVec2(chip.x + chipSize.x, chip.y + chipSize.y),
+            active ? CyberTheme::WithAlpha(CyberTheme::Colors.Gold, .22f)
+                   : CyberTheme::WithAlpha(CyberTheme::Colors.Panel, .92f), 4.f);
+        draw->AddRect(chip, ImVec2(chip.x + chipSize.x, chip.y + chipSize.y),
+            active ? CyberTheme::U32(CyberTheme::Colors.Gold)
+                   : CyberTheme::WithAlpha(CyberTheme::Colors.Border, .8f), 4.f);
+        draw->AddText(ImVec2(chip.x + 6.f, chip.y + 3.f), items[i].color, items[i].label);
+        ImGui::PopID();
+    }
+    ImGui::SetCursorScreenPos(origin);
+    ImGui::Dummy(ImVec2(canvasWidth, canvasHeight));
+}
+
 }
 
 void DrawVisuals()
@@ -147,6 +212,7 @@ void DrawVisuals()
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.self_esp"), &esp::config.self_esp);
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.npc"), &esp::config.npc_esp);
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.show_dead"), &esp::config.show_dead);
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.show_knocked"), &esp::config.show_knocked);
 
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.visible_check"), &esp::config.visible_check);
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.hide_team"), &esp::config.team_check);
@@ -169,10 +235,51 @@ void DrawVisuals()
     }
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.health_bar"), &esp::config.health_bar);
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.armor_bar"), &esp::config.armor_bar);
-    esp::config.player_name = false;
-    esp::config.player_id = false;
+    CyberWidgets::ToggleSwitch(app_settings::T("Nome", "Name"), &esp::config.player_name);
+    CyberWidgets::ToggleSwitch(app_settings::T("ID", "ID"), &esp::config.player_id);
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.weapon_name"), &esp::config.weapon_name);
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.distance"), &esp::config.distance);
+    CyberWidgets::Separator();
+    CyberWidgets::SectionTitle(app_settings::T("FORA DO ECRA", "OFFSCREEN"));
+    CyberWidgets::ToggleSwitch(app_settings::T("Setas fora do ecra", "Offscreen arrows"),
+        &esp::config.offscreen_arrows);
+    if (esp::config.offscreen_arrows) {
+        CyberWidgets::SliderFloat(app_settings::T("Tamanho das setas", "Arrow size"),
+            &esp::config.offscreen_arrow_size, 6.f, 32.f, "%.0f px");
+        CyberWidgets::SliderFloat(app_settings::T("Margem", "Margin"),
+            &esp::config.offscreen_arrow_margin, 12.f, 160.f, "%.0f px");
+        CyberWidgets::SliderFloat(app_settings::T("Distancia maxima", "Maximum distance"),
+            &esp::config.offscreen_arrow_max_distance, 10.f, 500.f, "%.0f m");
+        CyberWidgets::SliderFloat(app_settings::T("Opacidade", "Opacity"),
+            &esp::config.offscreen_arrow_opacity, .1f, 1.f, "%.2f");
+        CyberWidgets::ToggleSwitch(app_settings::T("Mostrar distancia", "Show distance"),
+            &esp::config.offscreen_arrow_distance);
+        CyberWidgets::ToggleSwitch(app_settings::T("Mostrar nome", "Show name"),
+            &esp::config.offscreen_arrow_name);
+        const char* arrowStyles[] = { app_settings::T("Preenchida", "Filled"),
+            app_settings::T("Contorno", "Outline"), app_settings::T("Preenchida com contorno", "Filled with outline") };
+        CyberWidgets::Combo(app_settings::T("Estilo", "Style"),
+            &esp::config.offscreen_arrow_style, arrowStyles, 3);
+    }
+    CyberWidgets::Separator();
+    CyberWidgets::SectionTitle(app_settings::T("PAINEL ATIVO", "ACTIVE PANEL"));
+    CyberWidgets::ToggleSwitch(app_settings::T("Mostrar funcionalidades ativas", "Show active features"),
+        &esp::config.active_features_panel);
+    if (esp::config.active_features_panel) {
+        CyberWidgets::SliderFloat(app_settings::T("Escala", "Scale"),
+            &esp::config.active_panel_scale, .65f, 1.6f, "%.2f");
+        CyberWidgets::SliderFloat(app_settings::T("Opacidade do painel", "Panel opacity"),
+            &esp::config.active_panel_opacity, .15f, 1.f, "%.2f");
+        CyberWidgets::ToggleSwitch(app_settings::T("Modo compacto", "Compact mode"),
+            &esp::config.active_panel_compact);
+        CyberWidgets::ToggleSwitch("ESP", &esp::config.active_panel_show_esp);
+        CyberWidgets::ToggleSwitch("Aimbot", &esp::config.active_panel_show_aim);
+        CyberWidgets::ToggleSwitch("Triggerbot", &esp::config.active_panel_show_trigger);
+        CyberWidgets::ToggleSwitch("Radar", &esp::config.active_panel_show_radar);
+        CyberWidgets::TextLine(app_settings::T("Arrasta o painel com o menu aberto.",
+                                              "Drag the panel while the menu is open."),
+            CyberWidgets::TextTone::Secondary);
+    }
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.box_2d"), &esp::config.box_2d);
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.corner_box"), &esp::config.corner_box);
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.snaplines"), &esp::config.snaplines);
@@ -231,6 +338,8 @@ void DrawVisuals()
     colorWhenEnabled(Loc::Tr("vis.hidden"), &esp::config.color_invisible, visibilityColorsEnabled);
 
     colorWhenEnabled(Loc::Tr("vis.dead"), &esp::config.color_dead, espEnabled && esp::config.show_dead);
+    colorWhenEnabled(Loc::Tr("vis.color_knocked"), &esp::config.color_knocked,
+                     espEnabled && esp::config.show_knocked);
     colorWhenEnabled(Loc::Tr("vis.team"), &esp::config.color_team, espEnabled && !esp::config.team_check);
     CyberWidgets::Separator();
     CyberWidgets::SectionTitle(Loc::Tr("vis.drawing"));
@@ -244,6 +353,9 @@ void DrawVisuals()
                      espEnabled && esp::config.corner_box);
     colorWhenEnabled(Loc::Tr("vis.snaplines"), &esp::config.color_snaplines,
                      espEnabled && esp::config.snaplines);
+    colorWhenEnabled(app_settings::T("Setas fora do ecra", "Offscreen arrows"),
+                     &esp::config.color_offscreen_arrow,
+                     espEnabled && esp::config.offscreen_arrows);
     colorWhenEnabled(Loc::Tr("vis.fun_color"), &esp::config.color_fun_effects,
                      espEnabled && !esp::config.fun_effects_rainbow &&
                      (esp::config.angel_wings || esp::config.devil_horns || esp::config.floating_crown));
@@ -295,6 +407,18 @@ void DrawVisuals()
 
 
     EspPreview::DrawPreview(dl, origin, drawWidth, panelHeight, g_fivemAdapter, Loc::Tr("vis.preview"));
+
+    CyberWidgets::Separator();
+    CyberWidgets::SectionTitle(app_settings::T("ESP BUILDER", "ESP BUILDER"));
+    CyberWidgets::TextLine(app_settings::T("Arrasta os elementos para cima, baixo ou para os lados da caixa.",
+                                          "Drag elements above, below or to either side of the box."),
+        CyberWidgets::TextTone::Secondary);
+    DrawEspLayoutBuilder(drawWidth, CyberTheme::Px(210.f));
+    CyberWidgets::SliderFloat(app_settings::T("Espacamento", "Spacing"),
+        &esp::config.layout_spacing, 0.f, 18.f, "%.0f px");
+    CyberWidgets::SliderFloat(app_settings::T("Escala do texto", "Text scale"),
+        &esp::config.layout_text_scale, .65f, 1.6f, "%.2f");
+    CyberWidgets::ToggleSwitch("Snapping", &esp::config.layout_snap);
 
     CyberWidgets::EndCard();
     ImGui::EndGroup();

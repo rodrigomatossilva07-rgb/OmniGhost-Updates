@@ -9,10 +9,9 @@ namespace CS2_Weapons {
 
 inline const char* NameFromDefIndex(int def) {
 
-    if (const char* sharedName = OmniGhost::Gameplay::WeaponNameRegistry::Instance().GetWeaponName(static_cast<uint32_t>(def))) {
-        return sharedName;
-    }
-
+    // CS2 usa def-index, não hashes joaat: a tabela própria abaixo cobre os
+    // defs do CS2. O registry joaat é domínio exclusivo do FiveM (CSE-007) —
+    // nunca passar def-index como hash.
     switch (def) {
     case 1: return "Desert Eagle";
     case 2: return "Dual Berettas";

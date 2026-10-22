@@ -24,6 +24,8 @@ struct Result {
     uint64_t checked_ms = 0;
     bool known = false;
     bool visible = false;
+    uint8_t point_known_mask = 0;
+    uint8_t point_visible_mask = 0;
 };
 
 

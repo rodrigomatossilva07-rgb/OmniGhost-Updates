@@ -13,6 +13,7 @@
 
 #include <atomic>
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
@@ -52,6 +53,10 @@ std::atomic<bool> g_running{false};
 std::atomic<bool> g_wsa{false};
 std::mutex g_wsa_mu;
 SOCKET g_listen = INVALID_SOCKET;
+// CSE-005: self-pipe loopback — o Stop() acorda o select com um byte em
+// vez de fechar o listen socket a meio de select() (UB em Winsock).
+SOCKET g_wake_read = INVALID_SOCKET;
+SOCKET g_wake_write = INVALID_SOCKET;
 std::atomic<int> g_port{8080};
 std::mutex g_mu;
 std::string g_token;
@@ -347,7 +352,18 @@ void ServerLoop() {
         fd_set writable{};
         FD_ZERO(&readable);
         FD_ZERO(&writable);
-        if (clients.size() < 32) FD_SET(listenSock, &readable);
+        // CSE-004: o listen socket entra SEMPRE no select — em sobrecarga
+        // aceitamos e recusamos com 429 imediato em vez de deixar as
+        // ligações penduradas no backlog (slowloris).
+        FD_SET(listenSock, &readable);
+        // CSE-005: o socket de wake também entra — o Stop() acorda o select
+        // com um byte em vez de fechar o listen socket (UB em Winsock).
+        SOCKET wakeSock = INVALID_SOCKET;
+        {
+            std::lock_guard<std::mutex> lock(g_mu);
+            wakeSock = g_wake_read;
+        }
+        if (wakeSock != INVALID_SOCKET) FD_SET(wakeSock, &readable);
         for (const auto& client : clients) {
             if (client.response.empty()) FD_SET(client.socket, &readable);
             else FD_SET(client.socket, &writable);
@@ -358,11 +374,16 @@ void ServerLoop() {
 
 
 
-
-
             g_running.store(false, std::memory_order_release);
             break;
         }
+        // CSE-005: drena o byte de wake — o Stop() sinalizou g_running=false.
+        if (wakeSock != INVALID_SOCKET && FD_ISSET(wakeSock, &readable)) {
+            char wakeByte = 0;
+            while (recv(wakeSock, &wakeByte, 1, 0) > 0) {}
+        }
+        if (!g_running.load())
+            break;
         for (auto it = clients.begin(); it != clients.end();) {
             bool close = GetTickCount64() >= it->deadline;
             if (!close && it->response.empty() && FD_ISSET(it->socket, &readable)) {
@@ -374,7 +395,9 @@ void ServerLoop() {
                     else if (it->request.find("\r\n\r\n") != std::string::npos) {
                         it->response = HandleRequest(it->request);
                         it->request.clear();
-                        it->deadline = GetTickCount64() + 5000u;
+                        // CSE-004: deadline de escrita apertado (2 s) — um
+                        // leitor lento não segura o slot por 5 s.
+                        it->deadline = GetTickCount64() + 2000u;
                     }
                 } else if (received == 0 || WSAGetLastError() != WSAEWOULDBLOCK) close = true;
             }
@@ -396,9 +419,33 @@ void ServerLoop() {
             SOCKET accepted = accept(listenSock, nullptr, nullptr);
             if (accepted != INVALID_SOCKET) {
                 u_long nonblocking = 1;
-                if (ioctlsocket(accepted, FIONBIO, &nonblocking) == 0)
-                    clients.push_back({accepted, {}, {}, 0, GetTickCount64() + 3000u});
-                else closesocket(accepted);
+                if (ioctlsocket(accepted, FIONBIO, &nonblocking) != 0) {
+                    closesocket(accepted);
+                    continue;
+                }
+                // CSE-004: o servidor escuta apenas em 127.0.0.1 (todo o
+                // tráfego externo chega pelo túnel cloudflared), por isso o
+                // budget aplica-se à assinatura slowloris: clientes com
+                // header ainda incompleto. Legítimos completam em ms; acima
+                // de 8 incompletos ou 32 totais recusa com 429 imediato.
+                constexpr size_t kMaxIncompleteHeaders = 8;
+                constexpr size_t kMaxClients = 32;
+                size_t incompleteHeaders = 0;
+                for (const auto& client : clients)
+                    if (client.response.empty()) ++incompleteHeaders;
+                bool overloaded = clients.size() >= kMaxClients ||
+                    incompleteHeaders >= kMaxIncompleteHeaders;
+                if (overloaded) {
+                    constexpr char kBusy[] =
+                        "HTTP/1.1 429 Too Many Requests\r\n"
+                        "Retry-After: 1\r\n"
+                        "Connection: close\r\n"
+                        "Content-Length: 0\r\n\r\n";
+                    (void)send(accepted, kBusy, sizeof(kBusy) - 1, 0);
+                    closesocket(accepted);
+                    continue;
+                }
+                clients.push_back({accepted, {}, {}, 0, GetTickCount64() + 3000u});
             }
         }
     }
@@ -436,6 +483,13 @@ std::wstring FindCloudflared() {
 
 }
 
+// CSE-003: NaN/inf serializam como "nan"/"inf" e quebram JSON.parse no
+// webapp (a página bloqueia até ao próximo ciclo) — emite 0 para qualquer
+// float não finito.
+static double JsonSafe(double value) {
+    return std::isfinite(value) ? value : 0.0;
+}
+
 std::string BuildLiveJson(const RadarSnapshot& rt) {
     std::ostringstream ss;
     std::string map = rt.map_name[0] ? rt.map_name : "unknown";
@@ -461,14 +515,15 @@ std::string BuildLiveJson(const RadarSnapshot& rt) {
            << "\"m_idx\":" << (p.ent_index > 0 ? p.ent_index : idx) << ','
            << "\"m_name\":\"" << JsonEscape(p.name) << "\","
            << "\"m_team\":" << p.team << ','
-           << "\"m_health\":" << p.health << ','
-           << "\"m_armor\":" << p.armor << ','
+           << "\"m_health\":" << JsonSafe(p.health) << ','
+           << "\"m_armor\":" << JsonSafe(p.armor) << ','
            << "\"m_is_local\":" << (p.is_local ? "true" : "false") << ','
            << "\"m_flashed\":" << (p.flashed ? "true" : "false") << ','
            << "\"m_has_bomb\":false,"
            << "\"m_color\":" << (p.team == 3 ? 1 : 0) << ','
-           << "\"m_eye_angle\":" << p.view_yaw << ','
-           << "\"m_position\":{\"x\":" << p.pos[0] << ",\"y\":" << p.pos[1] << ",\"z\":" << p.pos[2] << "}"
+           << "\"m_eye_angle\":" << JsonSafe(p.view_yaw) << ','
+           << "\"m_position\":{\"x\":" << JsonSafe(p.pos[0])
+           << ",\"y\":" << JsonSafe(p.pos[1]) << ",\"z\":" << JsonSafe(p.pos[2]) << "}"
            << "}";
         ++idx;
     }
@@ -479,9 +534,10 @@ std::string BuildLiveJson(const RadarSnapshot& rt) {
            << "\"m_is_planted\":true,"
            << "\"m_is_defused\":" << (rt.bomb.defused ? "true" : "false") << ','
            << "\"m_is_defusing\":" << (rt.bomb.defusing ? "true" : "false") << ','
-           << "\"m_blow_time\":" << rt.bomb.blow_time << ','
-           << "\"m_defuse_time\":" << rt.bomb.defuse_time << ','
-           << "\"m_position\":{\"x\":" << rt.bomb.pos[0] << ",\"y\":" << rt.bomb.pos[1] << ",\"z\":" << rt.bomb.pos[2] << "}"
+           << "\"m_blow_time\":" << JsonSafe(rt.bomb.blow_time) << ','
+           << "\"m_defuse_time\":" << JsonSafe(rt.bomb.defuse_time) << ','
+           << "\"m_position\":{\"x\":" << JsonSafe(rt.bomb.pos[0])
+           << ",\"y\":" << JsonSafe(rt.bomb.pos[1]) << ",\"z\":" << JsonSafe(rt.bomb.pos[2]) << "}"
            << "}";
     } else {
         ss << "\"m_bomb\":null";
@@ -552,11 +608,44 @@ bool Start(int port) {
     u_long nb = 1;
     ioctlsocket(s, FIONBIO, &nb);
 
+    // CSE-005: par de sockets UDP loopback para o wake do Stop(). Se a
+    // criação falhar, o ServerLoop continua com o poll de 5 ms como fallback.
+    SOCKET wakeRead = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    SOCKET wakeWrite = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (wakeRead != INVALID_SOCKET && wakeWrite != INVALID_SOCKET) {
+        sockaddr_in wakeBind{};
+        wakeBind.sin_family = AF_INET;
+        wakeBind.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        wakeBind.sin_port = 0;
+        if (bind(wakeRead, reinterpret_cast<sockaddr*>(&wakeBind), sizeof(wakeBind)) == 0) {
+            sockaddr_in wakeAddr{};
+            int wakeLen = sizeof(wakeAddr);
+            if (getsockname(wakeRead, reinterpret_cast<sockaddr*>(&wakeAddr), &wakeLen) == 0) {
+                if (connect(wakeWrite, reinterpret_cast<sockaddr*>(&wakeAddr), wakeLen) != 0) {
+                    closesocket(wakeRead);
+                    closesocket(wakeWrite);
+                    wakeRead = wakeWrite = INVALID_SOCKET;
+                }
+            }
+        } else {
+            closesocket(wakeRead);
+            closesocket(wakeWrite);
+            wakeRead = wakeWrite = INVALID_SOCKET;
+        }
+    }
+
     const std::string token = RandomToken();
-    if (token.empty()) { closesocket(s); return false; }
+    if (token.empty()) {
+        closesocket(s);
+        if (wakeRead != INVALID_SOCKET) closesocket(wakeRead);
+        if (wakeWrite != INVALID_SOCKET) closesocket(wakeWrite);
+        return false;
+    }
     {
         std::lock_guard<std::mutex> lock(g_mu);
         g_listen = s;
+        g_wake_read = wakeRead;
+        g_wake_write = wakeWrite;
         g_port.store(port);
         if (g_token.empty()) g_token = token;
         g_web_root = ResolveWebRoot();
@@ -581,15 +670,33 @@ bool Start(int port) {
 
 void Stop() {
     g_running.store(false);
+    // CSE-005: acorda o select com um byte — NÃO fecha o listen socket a
+    // meio de select() (UB em Winsock). O fecho passa a correr depois do
+    // join, quando o ServerLoop já não lhe toca.
+    {
+        std::lock_guard<std::mutex> lock(g_mu);
+        if (g_wake_write != INVALID_SOCKET) {
+            char wake = 1;
+            (void)send(g_wake_write, &wake, 1, 0);
+        }
+    }
+    if (g_server_thread.joinable())
+        g_server_thread.join();
     {
         std::lock_guard<std::mutex> lock(g_mu);
         if (g_listen != INVALID_SOCKET) {
             closesocket(g_listen);
             g_listen = INVALID_SOCKET;
         }
+        if (g_wake_read != INVALID_SOCKET) {
+            closesocket(g_wake_read);
+            g_wake_read = INVALID_SOCKET;
+        }
+        if (g_wake_write != INVALID_SOCKET) {
+            closesocket(g_wake_write);
+            g_wake_write = INVALID_SOCKET;
+        }
     }
-    if (g_server_thread.joinable())
-        g_server_thread.join();
     {
         std::lock_guard<std::mutex> lock(g_mu);
         g_pending_runtime_valid = false;

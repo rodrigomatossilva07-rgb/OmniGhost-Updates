@@ -1,8 +1,4 @@
 
-void RunFrame() {
-    RunFrameWithConfig(config);
-}
-
 void SubmitAcquisitionConfig(const Config& next) noexcept {
     RuntimePipeline::SubmitConfig(next);
 }
@@ -136,15 +132,21 @@ void EnsureAcquisitionStarted() {
 
 
             if (busyRetry) {
-
-
-
-                const auto retryAt = std::chrono::steady_clock::now() +
-                    std::chrono::milliseconds(1);
-                do {
-                    std::this_thread::yield();
-                } while (g_acqState.IsRunning() &&
-                         std::chrono::steady_clock::now() < retryAt);
+                const uint64_t cooldownRemainingMs = Telemetry::HeavyDmaCooldownRemainingMs();
+                if (cooldownRemainingMs > 0) {
+                    const int cooldownSleepMs = cooldownRemainingMs <
+                        static_cast<uint64_t>(camera_period_ms)
+                            ? static_cast<int>(cooldownRemainingMs)
+                            : camera_period_ms;
+                    scheduler.Wait(std::chrono::milliseconds(cooldownSleepMs));
+                } else {
+                    const auto retryAt = std::chrono::steady_clock::now() +
+                        std::chrono::milliseconds(1);
+                    do {
+                        std::this_thread::yield();
+                    } while (g_acqState.IsRunning() &&
+                             std::chrono::steady_clock::now() < retryAt);
+                }
             } else {
                 scheduler.Wait(std::chrono::milliseconds(wait_ms));
             }

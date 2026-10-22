@@ -165,7 +165,7 @@ QualitySettings GetQualitySettings(QualityPreset preset) noexcept {
 
 
 constexpr int kMaxColumns = 96;
-constexpr int kMaxTrail = 28;
+constexpr int kMaxTrail = 32;
 constexpr int kMinTrail = 10;
 constexpr int kMaxStars = 48;
 constexpr char kCharset[] = "0123456789ABCDEF";
@@ -185,7 +185,7 @@ struct Column {
     int length = 10;
     float font_size = 11.0f;
     std::uint8_t base_alpha = 55;
-    char glyphs[28]{};
+    char glyphs[kMaxTrail]{};
 };
 
 struct Star {
@@ -446,11 +446,14 @@ void AutoSelectQualityPreset() noexcept {
 
     GPUInfo gpu = DetectGPU();
 
-    if (!g_gpuDetected || gpu.isIntegrated || gpu.isLowEnd) {
+    if (!g_gpuDetected || gpu.vramMB == 0) {
+        return;
+    }
+    if (gpu.isIntegrated || gpu.isLowEnd) {
         SetQualityPresetOverride(QualityPreset::Low);
-    } else if (gpu.vramMB > 0 && gpu.vramMB < 2048) {
+    } else if (gpu.vramMB < 2048) {
         SetQualityPresetOverride(QualityPreset::Medium);
-    } else if (gpu.vramMB > 0 && gpu.vramMB < 4096) {
+    } else if (gpu.vramMB < 4096) {
         SetQualityPresetOverride(QualityPreset::High);
     } else {
         SetQualityPresetOverride(QualityPreset::Ultra);
@@ -571,12 +574,11 @@ void Draw(
     ImFont* font = CyberFonts::GetMonoFont();
     if (!font) font = ImGui::GetFont();
 
-    const float dt = ImGui::GetIO().DeltaTime * motion_scale;
-    if (dt <= 0.0f || dt > 0.1f) {
-        return;
-    }
-
-    const float fade = g_qualitySettings.fadeSeconds > 0.0f ? std::exp(-dt / g_qualitySettings.fadeSeconds) : 0.9f;
+    const float frame_dt = std::clamp(ImGui::GetIO().DeltaTime, 0.0f, 0.1f);
+    const float dt = frame_dt * std::max(0.0f, motion_scale);
+    const float trail_dt = dt > 0.0f ? dt : (1.0f / 60.0f);
+    const float fade = g_qualitySettings.fadeSeconds > 0.0f
+        ? std::exp(-trail_dt / g_qualitySettings.fadeSeconds) : 0.9f;
 
 
     for (int i = 0; i < g_count; ++i) {

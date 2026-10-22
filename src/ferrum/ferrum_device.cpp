@@ -205,7 +205,10 @@ bool Connect(const std::string& requestedPort, int baudRate) {
         SetError("Nao foi possivel abrir a porta COM do Ferrum.");
         return false;
     }
-    g_serial.reset(openedSerial);
+    {
+        std::lock_guard<std::mutex> lock(g_writeMutex);
+        g_serial.reset(openedSerial);
+    }
 
     DCB state{};
     state.DCBlength = sizeof(state);
@@ -288,6 +291,7 @@ void Disconnect() {
     }
     g_connected = false;
     g_readerRunning = false;
+    std::lock_guard<std::mutex> lock(g_writeMutex);
     if (g_serial)
         CancelIoEx(g_serial.get(), nullptr);
     if (g_readerThread.joinable()) {

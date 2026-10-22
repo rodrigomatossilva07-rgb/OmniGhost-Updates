@@ -103,6 +103,7 @@ static bool g_offsetsLoaded = false;
 
 static void ResetLoadedFieldOffsets() noexcept {
     using namespace offset;
+    boneList = 0;
     boneMatrix = playerInfo = playerHealth = playerPosition = 0;
     pedVisibilityOffset = 0;
     playerInfo_netId = playerInfo_netId_alt = 0;
@@ -219,8 +220,12 @@ static bool LoadFromEmbeddedSnapshot() {
         offsets.ped_pool_offset = SnapshotValue(result.snapshot, offsets.build, "ped_pool");
         offsets.vehicle_pool_offset = SnapshotValue(result.snapshot, offsets.build, "vehicle_pool");
         offsets.ped_visibility_offset = SnapshotValue(result.snapshot, offsets.build, "ped_visible_flag");
-        if (offsets.world_offset && offsets.viewport_offset)
+        if (offsets.world_offset && offsets.replay_offset && offsets.viewport_offset) {
+            if (!offsets.boneList_offset)
+                std::cerr << "[FiveM] Build b" << offsets.build
+                          << " sem bone_list: skeleton ESP indisponivel nesta build.\n";
             g_buildOffsets.push_back(offsets);
+        }
     }
     if (g_buildOffsets.empty())
         return false;
@@ -403,8 +408,12 @@ int LoadOffsetsFromJsonImpl(const char* explicit_path) {
             bo.ped_visibility_offset = JsonHexField(obj, "ped_visible_flag");
             if (!bo.ped_visibility_offset)
                 bo.ped_visibility_offset = JsonHexField(obj, "ped_visibility");
-            if (bo.world_offset && bo.viewport_offset)
+            if (bo.world_offset && bo.replay_offset && bo.viewport_offset) {
+                if (!bo.boneList_offset)
+                    std::cerr << "[FiveM] Build b" << bo.build
+                              << " sem bone_list: skeleton ESP indisponivel nesta build.\n";
                 g_buildOffsets.push_back(bo);
+            }
             i = j;
             continue;
         }

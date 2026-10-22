@@ -42,7 +42,6 @@ void DrawTelemetryWindow() {
     CyberWidgets::ToggleSwitch(
         app_settings::T("Telemetria (logs.txt)", "Telemetry (logs.txt)"),
         &app_settings::config.telemetry_log_enabled);
-    OmniGhost::Gameplay::DmaTelemetry::SetEnabled(app_settings::config.telemetry_log_enabled);
     if (app_settings::config.telemetry_log_enabled) {
         if (g_activeGame == ActiveGame::CS2)
             OmniGhost::Gameplay::DmaTelemetry::Tick("CS2");
@@ -266,25 +265,35 @@ void DrawConfigs(Overlay* self)
     }
     CyberWidgets::HelpMarker("A escala é combinada com o DPI do monitor. Em 125%, 150% ou 200% do Windows, o OmniGhost mantém texto e controlos nítidos.");
 
-    const auto monitors = OmniGhost::Platform::EnumerateMonitors();
-    std::vector<std::string> monitorLabels;
-    std::vector<const char*> monitorItems;
-    monitorLabels.reserve(monitors.size() + 1);
-    monitorLabels.emplace_back("Automático / monitor atual");
-    for (std::size_t i = 0; i < monitors.size(); ++i) {
-        const auto& monitor = monitors[i];
-        const int width = monitor.rect.right - monitor.rect.left;
-        const int height = monitor.rect.bottom - monitor.rect.top;
-        char label[96]{};
-        std::snprintf(label, sizeof(label), "Monitor %zu · %dx%d%s", i + 1, width, height,
-                      monitor.primary ? " · Principal" : "");
-        monitorLabels.emplace_back(label);
+    // Cache dos monitores com refresh temporizado: EnumerateMonitors() por
+    // frame (EnumDisplayMonitors + strings) é custo desnecessário no tab General.
+    struct MonitorListCache {
+        std::vector<std::string> labels;
+        std::vector<const char*> items;
+        double lastRefresh = -1e9;
+    };
+    static MonitorListCache s_monitorList;
+    if (ImGui::GetTime() - s_monitorList.lastRefresh >= 5.0) {
+        s_monitorList.lastRefresh = ImGui::GetTime();
+        s_monitorList.labels.clear();
+        s_monitorList.items.clear();
+        s_monitorList.labels.emplace_back("Automático / monitor atual");
+        const auto monitors = OmniGhost::Platform::EnumerateMonitors();
+        for (std::size_t i = 0; i < monitors.size(); ++i) {
+            const auto& monitor = monitors[i];
+            const int width = monitor.rect.right - monitor.rect.left;
+            const int height = monitor.rect.bottom - monitor.rect.top;
+            char label[96]{};
+            std::snprintf(label, sizeof(label), "Monitor %zu · %dx%d%s", i + 1, width, height,
+                          monitor.primary ? " · Principal" : "");
+            s_monitorList.labels.emplace_back(label);
+        }
+        s_monitorList.items.reserve(s_monitorList.labels.size());
+        for (const auto& label : s_monitorList.labels) s_monitorList.items.push_back(label.c_str());
     }
-    monitorItems.reserve(monitorLabels.size());
-    for (const auto& label : monitorLabels) monitorItems.push_back(label.c_str());
     int monitorSelection = app_settings::config.monitor_index + 1;
-    monitorSelection = std::clamp(monitorSelection, 0, static_cast<int>(monitorItems.size()) - 1);
-    if (CyberWidgets::Combo("Monitor", &monitorSelection, monitorItems.data(), static_cast<int>(monitorItems.size()))) {
+    monitorSelection = std::clamp(monitorSelection, 0, static_cast<int>(s_monitorList.items.size()) - 1);
+    if (CyberWidgets::Combo("Monitor", &monitorSelection, s_monitorList.items.data(), static_cast<int>(s_monitorList.items.size()))) {
         app_settings::config.monitor_index = monitorSelection - 1;
         saveSettings();
     }
@@ -317,8 +326,6 @@ void DrawConfigs(Overlay* self)
             app_settings::config.animation_intensity = static_cast<app_settings::EffectLevel>(std::clamp(animationLevel, 0, 2));
             saveSettings();
         }
-        if (CyberWidgets::ToggleSwitch(app_settings::T("Movimento reduzido", "Reduce motion"), &app_settings::config.reduce_motion))
-            saveSettings();
         CyberWidgets::Separator();
         CyberWidgets::SectionTitle(app_settings::T("SOM", "SOUND"));
         if (CyberWidgets::ToggleSwitch(app_settings::T("Sons da interface", "Interface sounds"), &app_settings::config.ui_sounds))
@@ -341,18 +348,22 @@ void DrawConfigs(Overlay* self)
         CyberWidgets::BeginCard(app_settings::T("TECLAS", "KEYS"));
         CyberWidgets::KeyValueRow(Loc::Tr("cfg.menu_bind"), MenuVkName(app_settings::config.menu_bind));
         static bool waiting_bind = false;
+        static double bind_ignore_until = 0.0;
         if (waiting_bind) {
             CyberWidgets::TextLine(app_settings::T("Prime qualquer tecla…", "Press any key…"), CyberWidgets::TextTone::Warning);
-            for (int vk = 1; vk < 256; ++vk) {
-                if (vk != app_settings::config.menu_bind && (GetAsyncKeyState(vk) & 1)) {
-                    app_settings::config.menu_bind = vk;
-                    waiting_bind = false;
-                    saveSettings();
-                    break;
+            if (ImGui::GetTime() >= bind_ignore_until) {
+                for (int vk = 7; vk < 256; ++vk) {
+                    if (vk != app_settings::config.menu_bind && (GetAsyncKeyState(vk) & 0x8000)) {
+                        app_settings::config.menu_bind = vk;
+                        waiting_bind = false;
+                        saveSettings();
+                        break;
+                    }
                 }
             }
         } else if (CyberWidgets::CyberButton(Loc::Tr("cfg.rebind"), ImVec2(160, 32))) {
             waiting_bind = true;
+            bind_ignore_until = ImGui::GetTime() + 0.28;
         }
         CyberWidgets::EndCard();
         CyberWidgets::CardGap();
@@ -376,12 +387,30 @@ void DrawConfigs(Overlay* self)
         CyberWidgets::SectionTitle("DMA");
         CyberWidgets::TextLine("Reinicia a ligação sem fechar o Control Center.",
                                CyberWidgets::TextTone::Secondary);
-    if (CyberWidgets::GoldButton(Loc::Tr("device.reinit_dma"), ImVec2(160, 36))) {
+    const int cs2ReinitState = g_activeGame == ActiveGame::CS2
+        ? CS2::PollReinitDma() : 0;
+    static int s_lastCs2ReinitState = 0;
+    if (cs2ReinitState >= 2 && cs2ReinitState != s_lastCs2ReinitState) {
+        s_lastCs2ReinitState = cs2ReinitState;
+        const std::string cs2ReinitText = cs2ReinitState == 2 ? "Reinit DMA OK"
+            : cs2ReinitState == 3 ? "Reinit DMA: FPGA falhou"
+            : cs2ReinitState == 4 ? "Reinit DMA: attach falhou"
+            : "Reinit DMA: client.dll nao encontrado";
+        CS2::SetStatus(cs2ReinitText);
+        CyberWidgets::Notify(cs2ReinitText.c_str(),
+            cs2ReinitState == 2 ? CyberWidgets::ToastType::Success
+                                : CyberWidgets::ToastType::Error);
+    }
+    if (CyberWidgets::GoldButton(
+            cs2ReinitState == 1 ? "A reiniciar..." : Loc::Tr("device.reinit_dma"),
+            ImVec2(160, 36)) && cs2ReinitState != 1) {
         bool ok = false;
         std::string msg;
         if (g_activeGame == ActiveGame::CS2) {
-            ok = CS2::ReinitDma();
-            msg = ok ? "CS2 Reinit DMA OK" : (CS2::status.empty() ? "CS2 Reinit DMA falhou" : CS2::status);
+            CS2::ReinitDmaAsync();
+            s_lastCs2ReinitState = 1;
+            msg = "CS2 Reinit DMA iniciado em segundo plano";
+            ok = true;
         } else if (g_activeGame == ActiveGame::FiveM) {
             ok = FiveM::ReinitDma();
             msg = ok ? "FiveM Reinit DMA OK" : "FiveM Reinit DMA falhou";

@@ -171,6 +171,9 @@ protected:
     int overflow(int value) override {
         if (traits_type::eq_int_type(value, traits_type::eof()))
             return traits_type::not_eof(value);
+        // PL-003: sink fechado — recusa (os ficheiros já estão fechados).
+        if (g_sinkClosed.load(std::memory_order_acquire))
+            return value;
 
         std::lock_guard<std::mutex> lock(g_outputMutex);
         const char character = traits_type::to_char_type(value);
@@ -182,6 +185,9 @@ protected:
     std::streamsize xsputn(const char* data, std::streamsize size) override {
         if (!data || size <= 0)
             return 0;
+        // PL-003: sink fechado — recusa.
+        if (g_sinkClosed.load(std::memory_order_acquire))
+            return size;
 
         std::lock_guard<std::mutex> lock(g_outputMutex);
         WriteFile(data, size);
@@ -191,6 +197,8 @@ protected:
     }
 
     int sync() override {
+        if (g_sinkClosed.load(std::memory_order_acquire))
+            return 0;
         std::lock_guard<std::mutex> lock(g_outputMutex);
         FlushConsolePending();
         const int consoleResult = console_ ? console_->pubsync() : 0;
@@ -252,6 +260,10 @@ std::ofstream g_structuredFile;
 std::unique_ptr<TeeBuffer> g_outTee;
 std::unique_ptr<TeeBuffer> g_errTee;
 std::unique_ptr<TeeBuffer> g_logTee;
+// PL-003: fecha os sinks atomicamente — Write() e os TeeBuffers recusam
+// depois de true; os TeeBuffers NÃO são destruídos no Shutdown (stragglers
+// podem segurar o ponteiro entre a leitura do rdbuf e o sputn).
+std::atomic<bool> g_sinkClosed{false};
 std::streambuf* g_originalOut{};
 std::streambuf* g_originalErr{};
 std::streambuf* g_originalLog{};
@@ -744,6 +756,10 @@ void Write(Severity severity,
            Subsystem subsystem,
            std::string_view message,
            std::initializer_list<Field> fields) {
+    // PL-003: recusa escritas após o fecho do sink — os ficheiros já estão
+    // fechados e os TeeBuffers foram desligados.
+    if (g_sinkClosed.load(std::memory_order_acquire))
+        return;
     std::lock_guard<std::mutex> eventLock(g_eventMutex);
 
     const std::string timestamp = TimestampUtc();
@@ -854,6 +870,13 @@ std::string LastErrorId() {
     return g_lastErrorId;
 }
 
+// PL-009: Shutdown avaliava g_recentEvents.size() fora do mutex — accessor
+// dedicado que toma o g_eventMutex.
+std::size_t RecentEventCount() {
+    std::lock_guard<std::mutex> eventLock(g_eventMutex);
+    return g_recentEvents.size();
+}
+
 void Shutdown() {
 
 
@@ -868,7 +891,7 @@ void Shutdown() {
     Write(Severity::Info, Subsystem::Core, "session shutdown", {
         {"duration_ms", std::to_string(elapsed.count()), false},
         {"log_truncated", (g_fileTruncated || g_structuredFileTruncated) ? "true" : "false", false},
-        {"recent_event_count", std::to_string(g_recentEvents.size()), false},
+        {"recent_event_count", std::to_string(RecentEventCount()), false},
         {"build_id", OmniGhost::BuildInfo::BuildId, false},
         {"start_reason", g_startReason, false}
     });
@@ -890,12 +913,16 @@ void Shutdown() {
         std::lock_guard<std::mutex> lifecycle(g_lifecycleMutex);
         if (!g_file.is_open())
             return;
+        // PL-003: marca o sink fechado ANTES do swap — a partir daqui, os
+        // TeeBuffers e o Write() recusam novos dados de qualquer thread.
+        g_sinkClosed.store(true, std::memory_order_release);
         std::cout.rdbuf(g_originalOut);
         std::cerr.rdbuf(g_originalErr);
         std::clog.rdbuf(g_originalLog);
-        g_outTee.reset();
-        g_errTee.reset();
-        g_logTee.reset();
+        // Os TeeBuffers ficam VIVOS de propósito: uma thread em curso de
+        // operator<< pode segurar o ponteiro entre a leitura do rdbuf e o
+        // sputn; com o g_sinkClosed essas chamadas são recusadas sem tocar
+        // em ficheiros. O processo está a terminar — a "fuga" é intencional.
         g_file.close();
         g_structuredFile.close();
     }

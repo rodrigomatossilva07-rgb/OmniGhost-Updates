@@ -24,4 +24,6 @@ void StartForLibrary();
 
 Status Get(GameId game);
 
+void Shutdown();
+
 }

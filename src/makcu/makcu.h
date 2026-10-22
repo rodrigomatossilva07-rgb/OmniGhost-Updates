@@ -140,6 +140,8 @@ namespace makcu {
         bool mouseDown(MouseButton button);
         bool mouseUp(MouseButton button);
         bool click(MouseButton button);
+        bool forceReleaseAll();
+        bool tryReconnect();
 
 
         std::future<bool> mouseDownAsync(MouseButton button);

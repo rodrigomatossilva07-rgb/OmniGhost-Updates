@@ -1,6 +1,7 @@
 #include "config_esp.h"
 #include "config_core.h"
 #include "../src/games/Fivem/esp/esp.h"
+#include <algorithm>
 
 namespace config_manager {
 
@@ -58,6 +59,33 @@ void SerializeESP(std::ostringstream& o) {
     WBool(o, "esp.waypoint_line", e.waypoint_line);
     WBool(o, "esp.square_radar", e.square_radar);
     WFloat(o, "esp.triangle_radar_radius", e.triangle_radar_radius);
+    WBool(o, "esp.offscreen_arrows", e.offscreen_arrows);
+    WFloat(o, "esp.offscreen_arrow_size", e.offscreen_arrow_size);
+    WFloat(o, "esp.offscreen_arrow_margin", e.offscreen_arrow_margin);
+    WFloat(o, "esp.offscreen_arrow_max_distance", e.offscreen_arrow_max_distance);
+    WFloat(o, "esp.offscreen_arrow_opacity", e.offscreen_arrow_opacity);
+    WBool(o, "esp.offscreen_arrow_distance", e.offscreen_arrow_distance);
+    WBool(o, "esp.offscreen_arrow_name", e.offscreen_arrow_name);
+    WInt(o, "esp.offscreen_arrow_style", e.offscreen_arrow_style);
+    WU32(o, "esp.color_offscreen_arrow", e.color_offscreen_arrow);
+    WBool(o, "esp.active_features_panel", e.active_features_panel);
+    WFloat(o, "esp.active_panel_x", e.active_panel_x);
+    WFloat(o, "esp.active_panel_y", e.active_panel_y);
+    WFloat(o, "esp.active_panel_scale", e.active_panel_scale);
+    WFloat(o, "esp.active_panel_opacity", e.active_panel_opacity);
+    WBool(o, "esp.active_panel_compact", e.active_panel_compact);
+    WBool(o, "esp.active_panel_show_esp", e.active_panel_show_esp);
+    WBool(o, "esp.active_panel_show_aim", e.active_panel_show_aim);
+    WBool(o, "esp.active_panel_show_trigger", e.active_panel_show_trigger);
+    WBool(o, "esp.active_panel_show_radar", e.active_panel_show_radar);
+    WInt(o, "esp.layout_name", (int)e.layout_name);
+    WInt(o, "esp.layout_health", (int)e.layout_health);
+    WInt(o, "esp.layout_armor", (int)e.layout_armor);
+    WInt(o, "esp.layout_weapon", (int)e.layout_weapon);
+    WInt(o, "esp.layout_distance", (int)e.layout_distance);
+    WFloat(o, "esp.layout_spacing", e.layout_spacing);
+    WFloat(o, "esp.layout_text_scale", e.layout_text_scale);
+    WBool(o, "esp.layout_snap", e.layout_snap);
     WBool(o, "esp.player_name", e.player_name);
     WBool(o, "esp.player_id", e.player_id);
     WFloat(o, "esp.max_esp_distance", e.max_esp_distance);
@@ -141,6 +169,33 @@ bool DeserializeESP(const std::string& key, const std::string& val) {
     if (bi("esp.waypoint_line")) { e.waypoint_line = toB(); return true; }
     if (bi("esp.square_radar")) { e.square_radar = toB(); return true; }
     if (bi("esp.triangle_radar_radius")) { e.triangle_radar_radius = toF(); return true; }
+    if (bi("esp.offscreen_arrows")) { e.offscreen_arrows = toB(); return true; }
+    if (bi("esp.offscreen_arrow_size")) { e.offscreen_arrow_size = toF(); return true; }
+    if (bi("esp.offscreen_arrow_margin")) { e.offscreen_arrow_margin = toF(); return true; }
+    if (bi("esp.offscreen_arrow_max_distance")) { e.offscreen_arrow_max_distance = toF(); return true; }
+    if (bi("esp.offscreen_arrow_opacity")) { e.offscreen_arrow_opacity = toF(); return true; }
+    if (bi("esp.offscreen_arrow_distance")) { e.offscreen_arrow_distance = toB(); return true; }
+    if (bi("esp.offscreen_arrow_name")) { e.offscreen_arrow_name = toB(); return true; }
+    if (bi("esp.offscreen_arrow_style")) { e.offscreen_arrow_style = std::clamp(toI(), 0, 2); return true; }
+    if (bi("esp.color_offscreen_arrow")) { e.color_offscreen_arrow = toU(); return true; }
+    if (bi("esp.active_features_panel")) { e.active_features_panel = toB(); return true; }
+    if (bi("esp.active_panel_x")) { e.active_panel_x = toF(); return true; }
+    if (bi("esp.active_panel_y")) { e.active_panel_y = toF(); return true; }
+    if (bi("esp.active_panel_scale")) { e.active_panel_scale = toF(); return true; }
+    if (bi("esp.active_panel_opacity")) { e.active_panel_opacity = toF(); return true; }
+    if (bi("esp.active_panel_compact")) { e.active_panel_compact = toB(); return true; }
+    if (bi("esp.active_panel_show_esp")) { e.active_panel_show_esp = toB(); return true; }
+    if (bi("esp.active_panel_show_aim")) { e.active_panel_show_aim = toB(); return true; }
+    if (bi("esp.active_panel_show_trigger")) { e.active_panel_show_trigger = toB(); return true; }
+    if (bi("esp.active_panel_show_radar")) { e.active_panel_show_radar = toB(); return true; }
+    if (bi("esp.layout_name")) { e.layout_name = (esp::LayoutAnchor)std::clamp(toI(), 0, 3); return true; }
+    if (bi("esp.layout_health")) { e.layout_health = (esp::LayoutAnchor)std::clamp(toI(), 0, 3); return true; }
+    if (bi("esp.layout_armor")) { e.layout_armor = (esp::LayoutAnchor)std::clamp(toI(), 0, 3); return true; }
+    if (bi("esp.layout_weapon")) { e.layout_weapon = (esp::LayoutAnchor)std::clamp(toI(), 0, 3); return true; }
+    if (bi("esp.layout_distance")) { e.layout_distance = (esp::LayoutAnchor)std::clamp(toI(), 0, 3); return true; }
+    if (bi("esp.layout_spacing")) { e.layout_spacing = toF(); return true; }
+    if (bi("esp.layout_text_scale")) { e.layout_text_scale = toF(); return true; }
+    if (bi("esp.layout_snap")) { e.layout_snap = toB(); return true; }
     if (bi("esp.player_name")) { e.player_name = toB(); return true; }
     if (bi("esp.player_id")) { e.player_id = toB(); return true; }
     if (bi("esp.max_esp_distance")) { e.max_esp_distance = toF(); return true; }

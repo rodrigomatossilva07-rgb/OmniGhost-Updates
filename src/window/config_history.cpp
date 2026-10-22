@@ -33,8 +33,9 @@ namespace ConfigHistory {
     }
 
     void RecordChange(const std::string& id, const std::string& label, ActionType type,
-                      const std::variant<bool, int, float, std::string, ImU32>& prev_value,
-                      const std::variant<bool, int, float, std::string, ImU32>& new_value) {
+                      const ConfigTarget& target,
+                      const ConfigValue& prev_value,
+                      const ConfigValue& new_value) {
         if (!g_initialized) Initialize();
 
 
@@ -45,6 +46,7 @@ namespace ConfigHistory {
         entry.label = label;
         entry.type = type;
         entry.timestamp = std::chrono::system_clock::now();
+        entry.target = target;
         entry.prev_value = prev_value;
         entry.new_value = new_value;
 
@@ -61,6 +63,25 @@ namespace ConfigHistory {
         }
     }
 
+    bool ApplyToTarget(const ConfigTarget& target, const ConfigValue& value) {
+        if (const auto* boolean = std::get_if<bool*>(&target)) {
+            if (const auto* v = std::get_if<bool>(&value)) { **boolean = *v; return true; }
+        }
+        if (const auto* integer = std::get_if<int*>(&target)) {
+            if (const auto* v = std::get_if<int>(&value)) { **integer = *v; return true; }
+        }
+        if (const auto* real = std::get_if<float*>(&target)) {
+            if (const auto* v = std::get_if<float>(&value)) { **real = *v; return true; }
+        }
+        if (const auto* text = std::get_if<std::string*>(&target)) {
+            if (const auto* v = std::get_if<std::string>(&value)) { **text = *v; return true; }
+        }
+        if (const auto* color = std::get_if<ImU32*>(&target)) {
+            if (const auto* v = std::get_if<ImU32>(&value)) { **color = *v; return true; }
+        }
+        return false;
+    }
+
     bool Undo() {
         if (g_undo_stack.empty()) return false;
 
@@ -68,9 +89,7 @@ namespace ConfigHistory {
         g_undo_stack.pop_back();
         g_redo_stack.push_back(entry);
 
-
-
-        return true;
+        return ApplyToTarget(entry.target, entry.prev_value);
     }
 
     bool Redo() {
@@ -80,8 +99,7 @@ namespace ConfigHistory {
         g_redo_stack.pop_back();
         g_undo_stack.push_back(entry);
 
-
-        return true;
+        return ApplyToTarget(entry.target, entry.new_value);
     }
 
     bool CanUndo() {

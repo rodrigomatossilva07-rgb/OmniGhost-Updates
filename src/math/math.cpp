@@ -21,6 +21,16 @@ bool Vec3::world_to_screen(const DirectX::SimpleMath::Matrix& view_matrix, Vec2&
 		(vec_z.x * x) + (vec_z.y * y) + (vec_z.z * z) + vec_z.w
 	);
 
+	// Filtro de NaN/inf: um NaN passa silenciosamente pela comparação z<=0.001
+	// (comparações com NaN são sempre falsas) e propagar-se-ia às coordenadas
+	// de ecrã. Choke point único — valida os três componentes.
+	if (!std::isfinite(screen_pos.x) || !std::isfinite(screen_pos.y) ||
+		!std::isfinite(screen_pos.z)) {
+		out.x = 0;
+		out.y = 0;
+		return false;
+	}
+
 	if (screen_pos.z <= 0.001f) {
 		out.x = 0;
 		out.y = 0;

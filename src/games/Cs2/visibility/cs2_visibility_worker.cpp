@@ -82,13 +82,24 @@ void Worker::Run() {
                 work.epoch != epoch_.load(std::memory_order_acquire))
                 break;
 
-            int target_rays = 0;
-            const auto visible = Visibility::CheckPoints(
-                work.world.get(), work.origin, target.points, &target_rays, &stop_);
-            rays_tested += target_rays;
+            uint8_t knownMask = 0;
+            uint8_t visibleMask = 0;
+            for (std::size_t pointIndex = 0; pointIndex < target.points.size(); ++pointIndex) {
+                const auto point = target.points[pointIndex];
+                if (!Visibility::Finite(point)) continue;
+                const float dx = point.x - work.origin.x;
+                const float dy = point.y - work.origin.y;
+                const float dz = point.z - work.origin.z;
+                if (dx * dx + dy * dy + dz * dz < .0001f) continue;
+                const uint8_t bit = static_cast<uint8_t>(1u << pointIndex);
+                knownMask |= bit;
+                ++rays_tested;
+                if (!work.world->TraceRay(work.origin, point, &stop_).hit)
+                    visibleMask |= bit;
+            }
             complete.push_back({target.pawn,
-                {work.generation, GetTickCount64(), visible.has_value(),
-                 visible.value_or(false)}});
+                {work.generation, GetTickCount64(), knownMask != 0,
+                 visibleMask != 0, knownMask, visibleMask}});
         }
 
         auto& metrics = OmniGhost::Gameplay::DmaTelemetry::CS2();

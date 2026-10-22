@@ -4,7 +4,6 @@
 #include "src/games/Warzone/warzone_game.h"
 
 namespace {
-bool g_group_teams = true;
 bool g_hide_local = true;
 bool g_hide_dead = true;
 bool g_hide_ai = true;
@@ -20,7 +19,6 @@ void DrawWarzonePlayers() {
 
     if (!Warzone::config.player_list_enabled) return;
     CyberWidgets::BeginCard("FILTROS");
-    CyberWidgets::ToggleSwitch("Agrupar por times", &g_group_teams);
     CyberWidgets::ToggleSwitch("Esconder local", &g_hide_local);
     CyberWidgets::ToggleSwitch("Esconder mortos", &g_hide_dead);
     CyberWidgets::ToggleSwitch("Esconder IA / bots", &g_hide_ai);

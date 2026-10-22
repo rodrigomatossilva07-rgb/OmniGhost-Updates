@@ -199,14 +199,16 @@ namespace makcu_wrapper {
 
     void left_click() {
         std::shared_lock deviceLock(device_mutex);
-        if (!connected || !device || !device->isConnected()) return;
-        device->mouseDown(makcu::MouseButton::LEFT);
+        if (!connected || !device) return;
+        if (!device->mouseDown(makcu::MouseButton::LEFT))
+            (void)device->forceReleaseAll();
     }
 
     void left_click_release() {
         std::shared_lock deviceLock(device_mutex);
-        if (!connected || !device || !device->isConnected()) return;
-        device->mouseUp(makcu::MouseButton::LEFT);
+        if (!connected || !device) return;
+        if (!device->mouseUp(makcu::MouseButton::LEFT))
+            (void)device->forceReleaseAll();
     }
 
     static constexpr int VkToBit(int virtual_key) {
@@ -334,15 +336,22 @@ namespace makcu_wrapper {
         g_state.ignorePollUntilPacket.store(UINT64_MAX);
         g_state.lastChangeTick.store(NowMs());
         std::shared_lock deviceLock(device_mutex);
-        if (device && device->isConnected()) {
-            try { device->enableButtonMonitoring(true); } catch (const std::exception& ex) { std::string msg = "resume monitoring: " + std::string(ex.what()); LogDeviceFailure(msg.c_str()); } catch (...) { LogDeviceFailure("resume monitoring: unknown exception"); }
+        if (device) {
+            try { (void)device->forceReleaseAll(); } catch (const std::exception& ex) { std::string msg = "force release: " + std::string(ex.what()); LogDeviceFailure(msg.c_str()); } catch (...) { LogDeviceFailure("force release: unknown exception"); }
+            if (device->isConnected()) {
+                try { device->enableButtonMonitoring(true); } catch (const std::exception& ex) { std::string msg = "resume monitoring: " + std::string(ex.what()); LogDeviceFailure(msg.c_str()); } catch (...) { LogDeviceFailure("resume monitoring: unknown exception"); }
+            }
         }
     }
 
     void EnsureButtonMonitoring() {
         std::shared_lock deviceLock(device_mutex);
-        if (!connected || !device || !device->isConnected())
-            return;
+        if (!device) return;
+        if (!device->isConnected()) {
+            if (!device->tryReconnect()) return;
+            connected = true;
+        }
+        if (!connected) return;
 
         const uint64_t last = g_state.lastPacketTick.load();
         const uint64_t age = last ? (NowMs() - last) : UINT64_MAX;
@@ -392,7 +401,7 @@ namespace makcu_wrapper {
 
     InputDiagnostics GetDiagnostics() {
         InputDiagnostics d{};
-        d.connected = IsConnected();
+        d.connected = IsConnectedSnapshot();
         d.monitoringRequested = g_state.monitoringRequested.load();
         d.monitoringConfirmed = g_state.monitoringConfirmed.load();
         d.deviceDetected = g_state.deviceDetected.load();
@@ -415,7 +424,6 @@ namespace makcu_wrapper {
 
     const char* DiagnosticsLine() {
         static thread_local char buf[160];
-        (void)GetButtonMask();
         auto d = GetDiagnostics();
         if (!d.connected) {
             if (d.faultInfo[0])
@@ -452,6 +460,10 @@ namespace makcu_wrapper {
     bool IsConnected() {
         std::shared_lock deviceLock(device_mutex);
         return connected && device && device->isConnected();
+    }
+
+    bool IsConnectedSnapshot() noexcept {
+        return connected.load(std::memory_order_acquire);
     }
 
     uint64_t PacketsReceived() {

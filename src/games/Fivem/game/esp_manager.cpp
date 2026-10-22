@@ -34,6 +34,14 @@ namespace FiveM {
 
         const int MAX_PEDS = 110;
 
+        // CPED_CONFIG_FLAG_Knockedout = 71 (docs oficiais FiveM). Os ped
+        // config flags sao um array de palavras u32 a partir de
+        // offset::pedConfigFlags, logo o flag 71 vive na palavra 2 (+8 bytes),
+        // bit 7. NEEDS VALIDATION: confirmar contra um dump vivo que
+        // offset::pedConfigFlags e o INICIO do array na build alvo.
+        constexpr uint32_t kPedConfigFlagsKnockedWordBytes = 2 * sizeof(uint32_t);
+        constexpr uint32_t kPedConfigFlagsKnockedBit = 1u << 7;
+
 
         std::vector<uintptr_t> rawPedPointers;
         std::vector<Vec3> positions;
@@ -66,6 +74,7 @@ namespace FiveM {
             std::array<Vec3, MAX_PEDS> positions{};
             std::array<Vec3, MAX_PEDS> velocities{};
             std::array<float, MAX_PEDS> healths{};
+            std::array<bool, MAX_PEDS> knocked{};
             int count = 0;
             Matrix viewMatrix{};
             Vec3 localPos{};
@@ -112,6 +121,7 @@ namespace FiveM {
         static std::vector<Vec3> s_acquirePositions;
         static std::vector<Vec3> s_acquireVelocities;
         static std::vector<float> s_acquireHealths;
+        static std::vector<uint32_t> s_acquireKnockFlags;
         static Matrix s_acquireViewMatrix{};
         static Vec3 s_acquireLocalPos{};
         static std::chrono::steady_clock::time_point s_acquireWorldSampleTime{};
@@ -242,7 +252,7 @@ namespace FiveM {
                     ClassifyPedHealth(snapshot->healths[i]) == PedHealthState::Unknown)
                     continue;
                 samples[count++] = { snapshot->validPeds[i], snapshot->healths[i],
-                                     sampleMs, snapshot->sessionGeneration };
+                                     snapshot->knocked[i], sampleMs, snapshot->sessionGeneration };
             }
             return { samples.data(), count, sampleMs, snapshot->sessionGeneration };
         }
@@ -264,6 +274,9 @@ namespace FiveM {
                     ? s_acquireVelocities[static_cast<size_t>(i)] : Vec3{};
                 slot.value->healths[i] = (i < static_cast<int>(s_acquireHealths.size()))
                     ? s_acquireHealths[static_cast<size_t>(i)] : -1.f;
+                slot.value->knocked[i] = (i < static_cast<int>(s_acquireKnockFlags.size()))
+                    ? ((s_acquireKnockFlags[static_cast<size_t>(i)] &
+                        kPedConfigFlagsKnockedBit) != 0) : false;
             }
             slot.value->viewMatrix = s_acquireViewMatrix;
             slot.value->localPos = s_acquireLocalPos;
@@ -679,6 +692,7 @@ namespace FiveM {
                             s_acquirePositions.clear();
                     s_acquireVelocities.clear();
                     s_acquireHealths.clear();
+                    s_acquireKnockFlags.clear();
                         } else {
                         collectFrameData(localPlayer, s_acquireLocalPos);
 
@@ -721,6 +735,7 @@ namespace FiveM {
                     s_acquirePositions.clear();
                             s_acquireVelocities.clear();
                             s_acquireHealths.clear();
+                            s_acquireKnockFlags.clear();
                     s_acquireLocalPos = {};
                     s_acquireWorldSampleTime = {};
                 }
@@ -914,7 +929,6 @@ namespace FiveM {
             esp::ShutdownPreparedFrames();
             vehicle_esp::Shutdown();
             g_pedCacheManager.clearCache();
-            esp::ClearNameCache();
             s_acquisitionRunning.store(false, std::memory_order_release);
             s_acquireRawPeds.clear();
             s_acquireValidPeds.clear();
@@ -1190,9 +1204,7 @@ namespace FiveM {
 
             vehicle_esp::Run();
             aimbot::Run();
-            if (!validPeds.empty() && esp::get_use_cache() && !app_settings::config.performance_mode) {
-
-            }
+            esp::DrawActiveFeaturesPanel();
 
             const float frameMs = std::chrono::duration<float, std::milli>(
                 currentTime - lastFrameTime).count();
@@ -1269,12 +1281,14 @@ namespace FiveM {
                 writePositions.clear();
                 s_acquireVelocities.clear();
                 s_acquireHealths.clear();
+                s_acquireKnockFlags.clear();
                 return;
             }
             writePeds.clear();
             writePositions.clear();
             s_acquireVelocities.clear();
             s_acquireHealths.clear();
+            s_acquireKnockFlags.clear();
 
 
             EnsureAcqScatter();
@@ -1446,10 +1460,12 @@ namespace FiveM {
                     writePositions.clear();
                     s_acquireVelocities.clear();
                     s_acquireHealths.clear();
+                    s_acquireKnockFlags.clear();
                     if (!writePeds.empty()) {
                         writePositions.resize(writePeds.size());
                         s_acquireVelocities.assign(writePeds.size(), Vec3{});
                         s_acquireHealths.assign(writePeds.size(), -1.f);
+                        s_acquireKnockFlags.assign(writePeds.size(), 0u);
                         for (size_t i = 0; i < writePeds.size(); i++) {
                             mem.AddScatterReadRequest(handle, writePeds[i] + offset::playerPosition,
                                 &writePositions[i], sizeof(Vec3));
@@ -1457,6 +1473,11 @@ namespace FiveM {
                                 &s_acquireVelocities[i], sizeof(Vec3));
                             mem.AddScatterReadRequest(handle, writePeds[i] + offset::playerHealth,
                                 &s_acquireHealths[i], sizeof(float));
+                            if (offset::pedConfigFlags) {
+                                mem.AddScatterReadRequest(handle,
+                                    writePeds[i] + offset::pedConfigFlags + kPedConfigFlagsKnockedWordBytes,
+                                    &s_acquireKnockFlags[i], sizeof(uint32_t));
+                            }
                         }
                         const auto positionReadBegin = std::chrono::steady_clock::now();
                         mem.SetDmaCallTag("FiveM.CoreWorld");
@@ -1520,14 +1541,17 @@ namespace FiveM {
                         static std::vector<Vec3> alivePos;
                         static std::vector<Vec3> aliveVel;
                         static std::vector<float> aliveHp;
+                        static std::vector<uint32_t> aliveKnock;
                         alivePeds.clear();
                         alivePos.clear();
                         aliveVel.clear();
                         aliveHp.clear();
+                        aliveKnock.clear();
                         if (alivePeds.capacity() < MAX_PEDS) alivePeds.reserve(MAX_PEDS);
                         if (alivePos.capacity() < MAX_PEDS) alivePos.reserve(MAX_PEDS);
                         if (aliveVel.capacity() < MAX_PEDS) aliveVel.reserve(MAX_PEDS);
                         if (aliveHp.capacity() < MAX_PEDS) aliveHp.reserve(MAX_PEDS);
+                        if (aliveKnock.capacity() < MAX_PEDS) aliveKnock.reserve(MAX_PEDS);
                         for (size_t i = 0; i < writePeds.size(); i++) {
                             const Vec3& p = writePositions[i];
                             if (p.IsZero()) continue;
@@ -1565,11 +1589,14 @@ namespace FiveM {
                                     hp = -1.f;
                                 aliveHp.push_back(hp);
                             }
+                            aliveKnock.push_back(i < s_acquireKnockFlags.size()
+                                ? s_acquireKnockFlags[i] : 0u);
                         }
                         writePeds.swap(alivePeds);
                         writePositions.swap(alivePos);
                         s_acquireVelocities.swap(aliveVel);
                         s_acquireHealths.swap(aliveHp);
+                        s_acquireKnockFlags.swap(aliveKnock);
                     }
 
 
@@ -1632,12 +1659,15 @@ namespace FiveM {
                         rankedPos.clear();
                         static std::vector<Vec3> rankedVel;
                         static std::vector<float> rankedHp;
+                        static std::vector<uint32_t> rankedKnock;
                         rankedVel.clear();
                         rankedHp.clear();
+                        rankedKnock.clear();
                         rankedPeds.reserve(take);
                         rankedPos.reserve(take);
                         rankedVel.reserve(take);
                         rankedHp.reserve(take);
+                        rankedKnock.reserve(take);
                         for (size_t n = 0; n < take; ++n) {
                             const size_t idx = order[n].idx;
                             rankedPeds.push_back(writePeds[idx]);
@@ -1646,16 +1676,20 @@ namespace FiveM {
                                 ? s_acquireVelocities[idx] : Vec3{});
                             rankedHp.push_back(idx < s_acquireHealths.size()
                                 ? s_acquireHealths[idx] : -1.f);
+                            rankedKnock.push_back(idx < s_acquireKnockFlags.size()
+                                ? s_acquireKnockFlags[idx] : 0u);
                         }
                         writePeds.swap(rankedPeds);
                         writePositions.swap(rankedPos);
                         s_acquireVelocities.swap(rankedVel);
                         s_acquireHealths.swap(rankedHp);
+                        s_acquireKnockFlags.swap(rankedKnock);
                     } else if (writePeds.size() > kMax) {
                         writePeds.resize(kMax);
                         if (writePositions.size() > kMax) writePositions.resize(kMax);
                         if (s_acquireVelocities.size() > kMax) s_acquireVelocities.resize(kMax);
                         if (s_acquireHealths.size() > kMax) s_acquireHealths.resize(kMax);
+                        if (s_acquireKnockFlags.size() > kMax) s_acquireKnockFlags.resize(kMax);
                     }
                 }
             }

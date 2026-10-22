@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <chrono>
 #include <condition_variable>
+#include <iostream>
 #include <limits>
 #include <map>
 #include <mutex>
@@ -27,6 +28,7 @@ namespace OmniGhost::RemoteUsage {
 namespace {
 std::mutex g_mutex;
 std::jthread g_worker;
+std::jthread g_drainer;
 std::map<int, Summary> g_summaries;
 
 const char* GameName(::Launcher::GameId game) noexcept {
@@ -146,25 +148,61 @@ void Run(std::stop_token stop, ::Launcher::GameId game) {
     RefreshSummary(token);
 }
 
-void StopWorker() noexcept {
+void StopWorkerAsync() noexcept {
     std::jthread worker;
+    std::jthread previousDrainer;
     {
         std::lock_guard lock(g_mutex);
         if (!g_worker.joinable()) return;
         g_worker.request_stop();
         worker = std::move(g_worker);
+        previousDrainer = std::move(g_drainer);
     }
+    try {
+        std::lock_guard lock(g_mutex);
+        g_drainer = std::jthread(
+            [previousDrainer = std::move(previousDrainer),
+             worker = std::move(worker)](std::stop_token) mutable {
+                if (previousDrainer.joinable()) previousDrainer.join();
+                if (worker.joinable()) worker.join();
+            });
+    } catch (...) {
+        if (worker.joinable()) worker.join();
+        if (previousDrainer.joinable()) previousDrainer.join();
+    }
+}
+
+void StopWorker() noexcept {
+    std::jthread worker;
+    std::jthread drainer;
+    {
+        std::lock_guard lock(g_mutex);
+        if (g_worker.joinable()) {
+            g_worker.request_stop();
+            worker = std::move(g_worker);
+        }
+        drainer = std::move(g_drainer);
+    }
+    if (drainer.joinable()) drainer.join();
     if (worker.joinable()) worker.join();
 }
 }
 
 void Begin(::Launcher::GameId game) {
-    StopWorker();
+    StopWorkerAsync();
     if (!Licensing::IsWebsiteAuthenticated() || !GameName(game)) return;
     std::lock_guard lock(g_mutex);
-    g_worker = std::jthread([game](std::stop_token stop) { Run(stop, game); });
+    g_worker = std::jthread([game](std::stop_token stop) {
+        try {
+            Run(stop, game);
+        } catch (const std::exception& ex) {
+            std::cerr << "[RemoteUsage] Worker terminou com exceção: " << ex.what() << std::endl;
+        } catch (...) {
+            std::cerr << "[RemoteUsage] Worker terminou com exceção não identificada." << std::endl;
+        }
+    });
 }
-void Finish(::Launcher::GameId) noexcept { StopWorker(); }
+void Finish(::Launcher::GameId) noexcept { StopWorkerAsync(); }
 void Refresh() {
     if (!Licensing::IsWebsiteAuthenticated()) return;
     const auto exchange = Licensing::WebsiteRequest("POST", "/api/usage/auth/exchange", "{}");

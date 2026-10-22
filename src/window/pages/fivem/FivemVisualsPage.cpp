@@ -1,5 +1,6 @@
 #include "../../widgets.h"
 #include "../../theme.h"
+#include "../../localization.h"
 #include "../../../launcher/launcher_assets.h"
 #include "../../../games/Fivem/esp/esp.h"
 #include "../../../ui/ui_models.h"
@@ -135,6 +136,7 @@ void DrawFivemVisuals() {
     CyberWidgets::ToggleSwitch("Cores por visibilidade", &esp::config.visibility_colors);
     CyberWidgets::ToggleSwitch("Ocultar equipa", &esp::config.team_check);
     CyberWidgets::ToggleSwitch("Mostrar mortos", &esp::config.show_dead);
+    CyberWidgets::ToggleSwitch(Loc::Tr("vis.show_knocked"), &esp::config.show_knocked);
 
 
 
@@ -185,34 +187,35 @@ void DrawFivemVisuals() {
     CyberWidgets::ToggleSwitch("Modo RGB", &esp::config.rgb_mode);
     CyberWidgets::ToggleSwitch("Cores por visibilidade", &esp::config.visibility_colors);
     CyberWidgets::SectionTitle("JOGADORES");
-    ImGui::ColorEdit4("Visível", (float*)&esp::config.color_visible, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
-    ImGui::ColorEdit4("Oculto", (float*)&esp::config.color_invisible, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
-    ImGui::ColorEdit4("Morto", (float*)&esp::config.color_dead, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
+    CyberWidgets::ColorEditU32("Visível", &esp::config.color_visible);
+    CyberWidgets::ColorEditU32("Oculto", &esp::config.color_invisible);
+    CyberWidgets::ColorEditU32("Morto", &esp::config.color_dead);
+    CyberWidgets::ColorEditU32(Loc::Tr("vis.color_knocked"), &esp::config.color_knocked);
 
-    ImGui::ColorEdit4("Equipa", (float*)&esp::config.color_team, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
+    CyberWidgets::ColorEditU32("Equipa", &esp::config.color_team);
     CyberWidgets::Separator();
     CyberWidgets::SectionTitle("DESENHO");
-    ImGui::ColorEdit4("Caixa 2D", (float*)&esp::config.color_box_2d, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
-    ImGui::ColorEdit4("Caixa de cantos", (float*)&esp::config.color_corner_box, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
-    ImGui::ColorEdit4("Esqueleto", (float*)&esp::config.color_skeleton, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
-    ImGui::ColorEdit4("Articulações", (float*)&esp::config.color_skeleton_points, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
-    ImGui::ColorEdit4("Círculo na cabeça", (float*)&esp::config.color_head_circle, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
-    ImGui::ColorEdit4("Linhas guia", (float*)&esp::config.color_snaplines, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
+    CyberWidgets::ColorEditU32("Caixa 2D", &esp::config.color_box_2d);
+    CyberWidgets::ColorEditU32("Caixa de cantos", &esp::config.color_corner_box);
+    CyberWidgets::ColorEditU32("Esqueleto", &esp::config.color_skeleton);
+    CyberWidgets::ColorEditU32("Articulações", &esp::config.color_skeleton_points);
+    CyberWidgets::ColorEditU32("Círculo na cabeça", &esp::config.color_head_circle);
+    CyberWidgets::ColorEditU32("Linhas guia", &esp::config.color_snaplines);
     CyberWidgets::Separator();
     CyberWidgets::SectionTitle("INFORMAÇÃO");
-    ImGui::ColorEdit4("Nome", (float*)&esp::config.color_name, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
-    ImGui::ColorEdit4("ID", (float*)&esp::config.color_id, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
-    ImGui::ColorEdit4("Distância", (float*)&esp::config.color_distance, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
-    ImGui::ColorEdit4("Arma", (float*)&esp::config.color_weapon, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
-    ImGui::ColorEdit4("Vida", (float*)&esp::config.color_health, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
-    ImGui::ColorEdit4("Armadura", (float*)&esp::config.color_armor, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
-    ImGui::ColorEdit4("NPCs", (float*)&esp::config.color_npc, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
+    CyberWidgets::ColorEditU32("Nome", &esp::config.color_name);
+    CyberWidgets::ColorEditU32("ID", &esp::config.color_id);
+    CyberWidgets::ColorEditU32("Distância", &esp::config.color_distance);
+    CyberWidgets::ColorEditU32("Arma", &esp::config.color_weapon);
+    CyberWidgets::ColorEditU32("Vida", &esp::config.color_health);
+    CyberWidgets::ColorEditU32("Armadura", &esp::config.color_armor);
+    CyberWidgets::ColorEditU32("NPCs", &esp::config.color_npc);
     CyberWidgets::Separator();
     CyberWidgets::SectionTitle("EFEITOS");
-    ImGui::ColorEdit4("Halo", (float*)&esp::config.color_halo, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
-    ImGui::ColorEdit4("Rastros", (float*)&esp::config.color_trail, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
-    ImGui::ColorEdit4("Eye Line", (float*)&esp::config.color_look_direction, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
-    ImGui::ColorEdit4("Outros efeitos", (float*)&esp::config.color_fun_effects, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
+    CyberWidgets::ColorEditU32("Halo", &esp::config.color_halo);
+    CyberWidgets::ColorEditU32("Rastros", &esp::config.color_trail);
+    CyberWidgets::ColorEditU32("Eye Line", &esp::config.color_look_direction);
+    CyberWidgets::ColorEditU32("Outros efeitos", &esp::config.color_fun_effects);
     CyberWidgets::EndCard();
     ImGui::EndChild();
 

@@ -64,7 +64,6 @@ void DrawVehicles()
 
     }
 
-    vehicle_esp::config.rgb_mode = false;
     CyberWidgets::EndCard();
 
     CyberWidgets::EndCardRow();

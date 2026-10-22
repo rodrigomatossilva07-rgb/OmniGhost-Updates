@@ -15,6 +15,7 @@ const char* ShutdownComponentName(ShutdownComponent component) noexcept {
     case ShutdownComponent::Radar: return "radar";
     case ShutdownComponent::Updater: return "updater";
     case ShutdownComponent::Changelog: return "changelog";
+    case ShutdownComponent::LibraryChecks: return "library-checks";
     case ShutdownComponent::Hardware: return "hardware";
     case ShutdownComponent::Input: return "input";
     case ShutdownComponent::Ui: return "ui";
@@ -45,7 +46,7 @@ ShutdownState ShutdownCoordinator::State() const noexcept {
     return state_;
 }
 
-bool ShutdownCoordinator::ShutdownAll(std::string_view reason) noexcept {
+bool ShutdownCoordinator::ShutdownAll(std::string_view reason) {
     std::vector<Registration> callbacks;
     const std::string reasonCopy(reason);
     {
@@ -54,11 +55,13 @@ bool ShutdownCoordinator::ShutdownAll(std::string_view reason) noexcept {
         if (state_ == ShutdownState::Complete)
             return true;
         if (state_ == ShutdownState::ShuttingDown) {
-
+            if (shuttingDownThread_ == std::this_thread::get_id())
+                return false;
             complete_.wait(lock, [this] { return state_ == ShutdownState::Complete; });
             return true;
         }
         state_ = ShutdownState::ShutdownRequested;
+        shuttingDownThread_ = std::this_thread::get_id();
         if (sessionActive_ && sessionCallback_) {
             callbacks.push_back({ShutdownComponent::Adapter, 1000,
                                  std::move(sessionCallback_)});

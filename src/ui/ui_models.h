@@ -8,6 +8,13 @@
 
 namespace esp {
 
+    enum class LayoutAnchor : int {
+        Top = 0,
+        Bottom,
+        Left,
+        Right
+    };
+
     struct Config : OmniGhost::Gameplay::EspConfigBase {
 
         bool enabled = false;
@@ -29,8 +36,36 @@ namespace esp {
         bool waypoint_line = true;
         bool square_radar = false;
         float triangle_radar_radius = 80.f;
-        int bone_cache_validity_ms = 8;
-        int skeleton_cache_validity_ms = 10;
+
+        bool offscreen_arrows = false;
+        float offscreen_arrow_size = 13.f;
+        float offscreen_arrow_margin = 38.f;
+        float offscreen_arrow_max_distance = 300.f;
+        float offscreen_arrow_opacity = .85f;
+        bool offscreen_arrow_distance = true;
+        bool offscreen_arrow_name = false;
+        int offscreen_arrow_style = 0;
+        ImU32 color_offscreen_arrow = IM_COL32(255, 196, 48, 220);
+
+        bool active_features_panel = false;
+        float active_panel_x = .018f;
+        float active_panel_y = .18f;
+        float active_panel_scale = 1.f;
+        float active_panel_opacity = .86f;
+        bool active_panel_compact = false;
+        bool active_panel_show_esp = true;
+        bool active_panel_show_aim = true;
+        bool active_panel_show_trigger = true;
+        bool active_panel_show_radar = true;
+
+        LayoutAnchor layout_name = LayoutAnchor::Top;
+        LayoutAnchor layout_health = LayoutAnchor::Left;
+        LayoutAnchor layout_armor = LayoutAnchor::Right;
+        LayoutAnchor layout_weapon = LayoutAnchor::Bottom;
+        LayoutAnchor layout_distance = LayoutAnchor::Bottom;
+        float layout_spacing = 4.f;
+        float layout_text_scale = 1.f;
+        bool layout_snap = true;
         int circle_type = 0;
         int snapline_pos = 0;
 
@@ -79,6 +114,22 @@ namespace esp {
 
 namespace aimbot {
 
+    enum class DynamicFovMode : int {
+        Static = 0,
+        Distance = 1
+    };
+
+    enum class WeaponRangeCategory : int {
+        Custom = 0,
+        Melee,
+        Pistol,
+        Smg,
+        Shotgun,
+        Rifle,
+        Sniper,
+        Heavy
+    };
+
     enum class Hitbox : int {
         Head = 0,
         Neck,
@@ -101,24 +152,41 @@ namespace aimbot {
 
         bool aimbot_enabled = false;
         bool show_fov = true;
-        bool fov_rgb = false;
         ImU32 fov_color = IM_COL32(0, 200, 255, 180);
         int aimbot_bind = 0x02;
         int aimbot_bind2 = 0;
         float fov_size = 100.0f;
+        DynamicFovMode dynamic_fov_mode = DynamicFovMode::Static;
+        float dynamic_fov_min = 35.f;
+        float dynamic_fov_max = 140.f;
+        float dynamic_fov_near_distance = 10.f;
+        float dynamic_fov_far_distance = 250.f;
+        float dynamic_fov_curve = 1.f;
+        float dynamic_fov_transition_speed = 10.f;
         float max_distance = 300.0f;
         float smooth_x = 0.0f;
         float smooth_y = 0.0f;
-        float reaction_time = 0.0f;
 
         bool humanize = false;
         bool threat_priority = true;
         bool velocity_prediction = true;
-        float jitter_amount = 0.35f;
-        float acceleration = 0.65f;
-        float overshoot_chance = 0.12f;
-        float overshoot_scale = 0.08f;
-        float min_move_threshold = 0.15f;
+        bool sticky_aim = true;
+        float sticky_retention = .35f;
+        float sticky_tolerance = 18.f;
+        float switch_delay = .16f;
+        bool switch_immediately_if_invalid = true;
+
+        bool respect_weapon_range = false;
+        bool trigger_respect_weapon_range = true;
+        WeaponRangeCategory weapon_range_category = WeaponRangeCategory::Custom;
+        float weapon_range_custom = 300.f;
+        float weapon_range_melee = 300.f;
+        float weapon_range_pistol = 300.f;
+        float weapon_range_smg = 300.f;
+        float weapon_range_shotgun = 300.f;
+        float weapon_range_rifle = 300.f;
+        float weapon_range_sniper = 300.f;
+        float weapon_range_heavy = 300.f;
 
         bool trigger_enabled = false;
         bool trigger_always_on = true;
@@ -128,6 +196,10 @@ namespace aimbot {
         float trigger_fov = 25.0f;
         float trigger_delay = 0.05f;
         float trigger_random_extra = 0.04f;
+        bool trigger_burst = false;
+        float trigger_burst_duration = .18f;
+        float trigger_burst_interval = .35f;
+        float trigger_cooldown = .08f;
         bool lock_beep = false;
         bool crosshair_enabled = false;
         float crosshair_size = 8.0f;
@@ -191,7 +263,6 @@ namespace vehicle_esp {
         ImU32 color_locked = IM_COL32(255, 50, 50, 255);
         ImU32 color_occupants = IM_COL32(100, 200, 255, 255);
 
-        bool rgb_mode = false;
         int snapline_pos = 0;
 
 

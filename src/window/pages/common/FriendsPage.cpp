@@ -30,9 +30,14 @@ void DrawFriends()
 
 
 
-    std::vector<friends::FriendEntry> friendsSnapshot;
-    std::vector<friends::PlayerEntry> playersSnapshot;
-    {
+    // Snapshots em cache: só recopiamos as listas quando friends:: reporta
+    // uma mutação (contador de versão), evitando cópias integrais por frame.
+    static std::vector<friends::FriendEntry> friendsSnapshot;
+    static std::vector<friends::PlayerEntry> playersSnapshot;
+    static uint64_t snapshotVersion = 0;
+    const uint64_t listVersion = friends::list_version.load(std::memory_order_acquire);
+    if (listVersion != snapshotVersion) {
+        snapshotVersion = listVersion;
         std::lock_guard<std::mutex> lock(friends::list_mutex);
         friendsSnapshot = friends::friend_list;
         playersSnapshot = friends::player_list;
@@ -45,16 +50,12 @@ void DrawFriends()
     CyberWidgets::Separator();
     CyberWidgets::SectionTitle("REGRAS");
     CyberWidgets::ToggleSwitch(Loc::Tr("fr.ignore_aim"), &friends::config.ignore_aim);
-    if (friends::config.ignore_aim)
-        CyberWidgets::ToggleSwitch(Loc::Tr("fr.ignore_silent"), &friends::config.ignore_silent);
     CyberWidgets::ToggleSwitch(Loc::Tr("fr.show_esp"), &friends::config.show_friend_esp);
     if (friends::config.show_friend_esp)
         CyberWidgets::ColorEditU32(Loc::Tr("fr.color"), &friends::config.friend_color);
     CyberWidgets::Separator();
     CyberWidgets::SectionTitle("PROXIMIDADE");
-    CyberWidgets::ToggleSwitch(Loc::Tr("fr.add_prox"), &friends::config.add_by_prox);
-    if (friends::config.add_by_prox)
-        CyberWidgets::SliderFloat(Loc::Tr("fr.prox_dist"), &friends::config.prox_max_distance, 5.0f, 200.0f, "%.0f m");
+    CyberWidgets::SliderFloat(Loc::Tr("fr.prox_dist"), &friends::config.prox_max_distance, 5.0f, 200.0f, "%.0f m");
     if (CyberWidgets::GoldButton(Loc::Tr("fr.add_closest"), ImVec2(190, 34))) {
         friends::AddClosestAsFriend();
         CyberWidgets::Notify(Loc::Tr("status.friend_added"), CyberWidgets::ToastType::Success);

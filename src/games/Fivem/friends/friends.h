@@ -5,6 +5,7 @@
 #include <vector>
 #include <cstdint>
 #include <mutex>
+#include <atomic>
 
 namespace friends {
 
@@ -12,6 +13,9 @@ namespace friends {
     extern std::vector<FriendEntry> friend_list;
     extern std::vector<PlayerEntry> player_list;
     extern std::mutex list_mutex;
+    // Incrementado sob list_mutex em cada mutação; a UI compara para
+    // evitar recopiar as listas inteiras a cada frame.
+    extern std::atomic<uint64_t> list_version;
 
     void Initialize();
     bool IsFriend(uint32_t id);

@@ -83,6 +83,7 @@ namespace FiveM {
         struct LivenessSample {
             uintptr_t ped = 0;
             float health = -1.f;
+            bool knocked = false;
             uint64_t sample_ms = 0;
             uint64_t generation = 0;
         };

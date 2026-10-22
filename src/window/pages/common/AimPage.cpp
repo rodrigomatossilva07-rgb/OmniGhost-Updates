@@ -146,15 +146,54 @@ void DrawAim()
         aimbot::config.smooth_y = aimbot::config.smooth_x;
         CyberWidgets::ToggleSwitch(app_settings::T("Humanizar movimento", "Humanize movement"), &aimbot::config.humanize);
         CyberWidgets::Separator();
+        CyberWidgets::SectionTitle(app_settings::T("ESTABILIDADE DO ALVO", "TARGET STABILITY"));
+        CyberWidgets::ToggleSwitch(app_settings::T("Sticky Aim", "Sticky Aim"), &aimbot::config.sticky_aim);
+        if (aimbot::config.sticky_aim) {
+            CyberWidgets::SliderFloat(app_settings::T("Tempo de retencao", "Retention time"),
+                &aimbot::config.sticky_retention, 0.f, 1.5f, "%.2f s");
+            CyberWidgets::SliderFloat(app_settings::T("Margem de tolerancia", "Tolerance margin"),
+                &aimbot::config.sticky_tolerance, 0.f, 80.f, "%.0f px");
+        }
+        CyberWidgets::SliderFloat(app_settings::T("Atraso entre trocas", "Switch delay"),
+            &aimbot::config.switch_delay, 0.f, 1.f, "%.2f s");
+        CyberWidgets::ToggleSwitch(
+            app_settings::T("Trocar imediatamente se invalido", "Switch immediately when invalid"),
+            &aimbot::config.switch_immediately_if_invalid);
+        CyberWidgets::Separator();
+        CyberWidgets::SectionTitle(app_settings::T("ALCANCE DA ARMA", "WEAPON RANGE"));
+        CyberWidgets::ToggleSwitch(app_settings::T("Respeitar alcance configurado", "Respect configured range"),
+            &aimbot::config.respect_weapon_range);
+        if (aimbot::config.respect_weapon_range) {
+            const char* categories[] = { "Custom", "Melee", "Pistol", "SMG", "Shotgun", "Rifle", "Sniper", "Heavy" };
+            int category = static_cast<int>(aimbot::config.weapon_range_category);
+            if (CyberWidgets::Combo(app_settings::T("Categoria equipada", "Equipped category"),
+                                    &category, categories, 8))
+                aimbot::config.weapon_range_category = static_cast<aimbot::WeaponRangeCategory>(category);
+            float* range = &aimbot::config.weapon_range_custom;
+            switch (aimbot::config.weapon_range_category) {
+            case aimbot::WeaponRangeCategory::Melee: range = &aimbot::config.weapon_range_melee; break;
+            case aimbot::WeaponRangeCategory::Pistol: range = &aimbot::config.weapon_range_pistol; break;
+            case aimbot::WeaponRangeCategory::Smg: range = &aimbot::config.weapon_range_smg; break;
+            case aimbot::WeaponRangeCategory::Shotgun: range = &aimbot::config.weapon_range_shotgun; break;
+            case aimbot::WeaponRangeCategory::Rifle: range = &aimbot::config.weapon_range_rifle; break;
+            case aimbot::WeaponRangeCategory::Sniper: range = &aimbot::config.weapon_range_sniper; break;
+            case aimbot::WeaponRangeCategory::Heavy: range = &aimbot::config.weapon_range_heavy; break;
+            default: break;
+            }
+            CyberWidgets::SliderFloat(app_settings::T("Limite da categoria", "Category limit"),
+                range, 1.f, 500.f, "%.0f m");
+            CyberWidgets::TextLine(
+                app_settings::T("A categoria e manual porque o snapshot atual nao publica a arma local de forma fiavel.",
+                                "The category is manual because the current snapshot does not reliably publish the local weapon."),
+                CyberWidgets::TextTone::Secondary);
+        }
+        CyberWidgets::Separator();
         CyberWidgets::SectionTitle(app_settings::T("ENTRADA", "INPUT"));
         ImGui::TextUnformatted(app_settings::T("Tecla principal", "Primary key"));
         ImGui::SameLine(160.f);
         HotkeyCaptureButton("aim1", &aimbot::config.aimbot_bind);
     }
 
-
-    if (aimbot::config.aimbot_bind <= 0 || aimbot::config.aimbot_bind == VK_LBUTTON)
-        aimbot::config.aimbot_bind = VK_RBUTTON;
 
     if (aimbot::config.aimbot_enabled) {
         ImGui::TextUnformatted(app_settings::T("Tecla secundária", "Secondary key"));
@@ -184,6 +223,18 @@ void DrawAim()
         CyberWidgets::ToggleSwitch(Loc::Tr("aim.trigger_head"), &aimbot::config.trigger_head_only);
         CyberWidgets::SliderFloat(Loc::Tr("aim.trigger_fov"), &aimbot::config.trigger_fov, 4.f, 80.f, "%.0f px");
         CyberWidgets::SliderFloat(Loc::Tr("aim.trigger_reaction"), &aimbot::config.trigger_delay, 0.f, .5f, "%.3f s");
+        CyberWidgets::SliderFloat(app_settings::T("Cooldown", "Cooldown"),
+            &aimbot::config.trigger_cooldown, 0.f, 1.f, "%.2f s");
+        CyberWidgets::ToggleSwitch(app_settings::T("Modo burst", "Burst mode"), &aimbot::config.trigger_burst);
+        if (aimbot::config.trigger_burst) {
+            CyberWidgets::SliderFloat(app_settings::T("Duracao do burst", "Burst duration"),
+                &aimbot::config.trigger_burst_duration, .02f, 1.f, "%.2f s");
+            CyberWidgets::SliderFloat(app_settings::T("Intervalo entre bursts", "Burst interval"),
+                &aimbot::config.trigger_burst_interval, .05f, 2.f, "%.2f s");
+        }
+        if (aimbot::config.respect_weapon_range)
+            CyberWidgets::ToggleSwitch(app_settings::T("Aplicar alcance ao Triggerbot", "Apply range to Triggerbot"),
+                &aimbot::config.trigger_respect_weapon_range);
     }
     CyberWidgets::EndCard();
     ImGui::EndGroup();
@@ -197,11 +248,31 @@ void DrawAim()
     if (CyberWidgets::Combo(app_settings::T("Forma", "Shape"), &fs, fov_styles, 3))
         aimbot::config.fov_style = static_cast<aimbot::FovStyle>(fs);
     CyberWidgets::SliderFloat(app_settings::T("Tamanho", "Size"), &aimbot::config.fov_size, 10.f, 500.f, "%.0f px");
+    const char* dynamicModes[] = { app_settings::T("Estatico", "Static"), app_settings::T("Dinamico por distancia", "Distance dynamic") };
+    int dynamicMode = static_cast<int>(aimbot::config.dynamic_fov_mode);
+    if (CyberWidgets::Combo(app_settings::T("Modo de selecao", "Selection mode"), &dynamicMode,
+                            dynamicModes, 2))
+        aimbot::config.dynamic_fov_mode = static_cast<aimbot::DynamicFovMode>(dynamicMode);
+    if (aimbot::config.dynamic_fov_mode == aimbot::DynamicFovMode::Distance) {
+        CyberWidgets::SliderFloat(app_settings::T("FOV minimo", "Minimum FOV"),
+            &aimbot::config.dynamic_fov_min, 5.f, 500.f, "%.0f px");
+        CyberWidgets::SliderFloat(app_settings::T("FOV maximo", "Maximum FOV"),
+            &aimbot::config.dynamic_fov_max, 5.f, 500.f, "%.0f px");
+        CyberWidgets::SliderFloat(app_settings::T("Distancia proxima", "Near distance"),
+            &aimbot::config.dynamic_fov_near_distance, 0.f, 250.f, "%.0f m");
+        CyberWidgets::SliderFloat(app_settings::T("Distancia distante", "Far distance"),
+            &aimbot::config.dynamic_fov_far_distance, 10.f, 500.f, "%.0f m");
+        CyberWidgets::SliderFloat(app_settings::T("Curva", "Curve"),
+            &aimbot::config.dynamic_fov_curve, .2f, 4.f, "%.2f");
+        CyberWidgets::SliderFloat(app_settings::T("Velocidade da transicao", "Transition speed"),
+            &aimbot::config.dynamic_fov_transition_speed, 1.f, 30.f, "%.0f");
+    }
+    CyberWidgets::TextLine(
+        app_settings::T("ADS dinamico nao e apresentado porque o estado ADS ainda nao e fiavel no snapshot FiveM.",
+                        "ADS dynamic mode is not shown because ADS state is not yet reliable in the FiveM snapshot."),
+        CyberWidgets::TextTone::Secondary);
     CyberWidgets::ColorEditU32(Loc::Tr("fr.color"), &aimbot::config.fov_color);
     DrawFovPreview((std::max)(140.f, right - 20.f), 160.f);
     CyberWidgets::EndCard();
     ImGui::EndGroup();
-
-
-    aimbot::config.fov_rgb = false;
 }

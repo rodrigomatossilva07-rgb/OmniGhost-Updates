@@ -94,6 +94,7 @@ namespace makcu_wrapper {
 
 
     bool IsConnected();
+    bool IsConnectedSnapshot() noexcept;
     std::string GetConnectionStatus();
 
 

@@ -7,6 +7,9 @@
 #include "../platform/text_encoding.h"
 #include "../platform/unique_handle.h"
 #include "../platform/build_info.h"
+#include "../platform/file_integrity.h"
+#include "../updater/json.h"
+#include "../licensing/license_service.h"
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -18,6 +21,7 @@
 #include <iomanip>
 #include <map>
 #include <fstream>
+#include <future>
 #include <sstream>
 #include <filesystem>
 #include <initializer_list>
@@ -33,11 +37,13 @@ std::string last_status = "Pronto";
 std::string active_config_name;
 std::string active_profile_name = "Default";
 std::string active_config_id;
+std::vector<CommunityConfigInfo> community_configs;
 
 
 std::string ConfigDir();
 
 static fs::path ConfigStatePath() { return fs::path(ConfigDir()) / "config_state.ini"; }
+static fs::path CommunityBackupPath() { return fs::path(ConfigDir()) / "community-apply-backup.ogcfg"; }
 bool WriteTextAtomically(const fs::path& destination, const std::string& data, std::string& error);
 
 std::string NewConfigId() {
@@ -483,6 +489,536 @@ bool DeleteConfigFile(const std::string& name) {
     return !ec;
 }
 
+bool DuplicateConfigFile(const std::string& name, const std::string& new_name) {
+    if (!IsSafeConfigIdentifier(name) || !NameBelongsToActiveGame(name)) {
+        last_status = "Config de origem inválida";
+        return false;
+    }
+    std::string safe = SanitizeFileName(new_name);
+    const std::string prefix = ActiveGamePrefix();
+    if (safe.rfind(prefix, 0) != 0) safe = prefix + safe;
+    if (!IsSafeConfigIdentifier(safe)) { last_status = "Nome de destino inválido"; return false; }
+    const fs::path source = fs::path(ConfigDir()) / (name + ".ogcfg");
+    const fs::path destination = fs::path(ConfigDir()) / (safe + ".ogcfg");
+    std::error_code ec;
+    if (!fs::exists(source, ec) || ec || fs::exists(destination, ec)) {
+        last_status = fs::exists(destination, ec) ? "Já existe uma config com esse nome" : "Config de origem não encontrada";
+        return false;
+    }
+    std::ifstream input(source, std::ios::binary);
+    std::ostringstream contents;
+    contents << input.rdbuf();
+    if (!input.good() && !input.eof()) { last_status = "Falha ao ler config de origem"; return false; }
+    std::string error;
+    if (!WriteTextAtomically(destination, contents.str(), error)) {
+        last_status = "Falha ao duplicar config: " + error;
+        return false;
+    }
+    last_status = "Config duplicada: " + safe;
+    RefreshList();
+    return true;
+}
+
+bool RenameConfigFile(const std::string& name, const std::string& new_name) {
+    if (!DuplicateConfigFile(name, new_name)) return false;
+    const std::string oldActive = active_config_name;
+    std::string safe = SanitizeFileName(new_name);
+    const std::string prefix = ActiveGamePrefix();
+    if (safe.rfind(prefix, 0) != 0) safe = prefix + safe;
+    if (!DeleteConfigFile(name)) {
+        std::error_code cleanup;
+        fs::remove(fs::path(ConfigDir()) / (safe + ".ogcfg"), cleanup);
+        RefreshList();
+        return false;
+    }
+    if (oldActive == name) {
+        active_config_name = safe;
+        WriteState({{std::string("active.") + ActiveGameMeta(), safe}});
+    }
+    last_status = "Config renomeada: " + safe;
+    RefreshList();
+    return true;
+}
+
+
+static std::string EscapeJsonString(std::string_view input) {
+    std::string output;
+    output.reserve(input.size() + 32);
+    static constexpr char hex[] = "0123456789abcdef";
+    for (const unsigned char c : input) {
+        switch (c) {
+        case '"': output += "\\\""; break;
+        case '\\': output += "\\\\"; break;
+        case '\b': output += "\\b"; break;
+        case '\f': output += "\\f"; break;
+        case '\n': output += "\\n"; break;
+        case '\r': output += "\\r"; break;
+        case '\t': output += "\\t"; break;
+        default:
+            if (c < 0x20) {
+                output += "\\u00";
+                output.push_back(hex[(c >> 4) & 0x0f]);
+                output.push_back(hex[c & 0x0f]);
+            } else output.push_back(static_cast<char>(c));
+        }
+    }
+    return output;
+}
+
+static std::string UrlEncode(std::string_view input) {
+    static constexpr char hex[] = "0123456789ABCDEF";
+    std::string output;
+    for (const unsigned char c : input) {
+        if (std::isalnum(c) || c == '-' || c == '_' || c == '.') output.push_back(static_cast<char>(c));
+        else {
+            output.push_back('%');
+            output.push_back(hex[(c >> 4) & 0x0f]);
+            output.push_back(hex[c & 0x0f]);
+        }
+    }
+    return output;
+}
+
+static bool CloudResponseOk(const OmniGhost::Auth::LauncherApiResponse& response,
+                            const char* operation) {
+    if (response.statusCode >= 200 && response.statusCode < 300 && response.error.empty())
+        return true;
+    last_status = std::string(operation) + " falhou";
+    if (response.statusCode == 401) last_status += ": inicia sessão com a conta OmniGhost";
+    else if (response.statusCode == 409) last_status += ": conflito de versão; descarrega antes de substituir";
+    else if (!response.error.empty()) last_status += ": " + response.error;
+    else last_status += " (HTTP " + std::to_string(response.statusCode) + ")";
+    return false;
+}
+
+bool UploadCloudConfig(const std::string& name) {
+    std::string safe = SanitizeFileName(name.empty() ? active_config_name : name);
+    if (safe.empty()) { last_status = "Nome cloud inválido"; return false; }
+    uint64_t expectedRevision = 0;
+    const std::string lookupPath = "/api/launcher/configs?game=" + UrlEncode(ActiveGameMeta()) +
+        "&name=" + UrlEncode(safe);
+    const auto current = OmniGhost::Licensing::WebsiteRequest("GET", lookupPath);
+    if (current.statusCode == 200 && current.error.empty()) {
+        OmniGhost::Update::Json::Value root;
+        OmniGhost::Update::Json::Limits limits{12, 300u * 1024u, 2000};
+        if (!OmniGhost::Update::Json::Parse(current.body, root, limits).ok) {
+            last_status = "Estado cloud inválido";
+            return false;
+        }
+        const auto* object = OmniGhost::Update::Json::AsObject(root);
+        if (!object) { last_status = "Estado cloud inválido"; return false; }
+        const auto revisionIt = object->find("revision");
+        if (revisionIt == object->end()) { last_status = "Revisão cloud ausente"; return false; }
+        uint64_t revision = 0;
+        if (!OmniGhost::Update::Json::AsUInt64(revisionIt->second, revision) || revision < 1) {
+            last_status = "Revisão cloud inválida";
+            return false;
+        }
+        expectedRevision = revision;
+    } else if (current.statusCode != 404) {
+        if (!CloudResponseOk(current, "Consulta cloud")) return false;
+    }
+    std::ostringstream body;
+    body << "{\"name\":\"" << EscapeJsonString(safe) << "\",\"game\":\""
+         << EscapeJsonString(ActiveGameMeta()) << "\",\"schemaVersion\":"
+         << kConfigSchemaVersion << ",\"expectedRevision\":" << expectedRevision
+         << ",\"payload\":\"" << EscapeJsonString(SerializeAll()) << "\"}";
+    if (body.str().size() > 256u * 1024u) { last_status = "Config demasiado grande para a cloud"; return false; }
+    const auto response = OmniGhost::Licensing::WebsiteRequest("POST", "/api/launcher/configs", body.str());
+    if (!CloudResponseOk(response, "Upload cloud")) return false;
+    last_status = "Config guardada na cloud: " + safe;
+    return true;
+}
+
+bool DownloadCloudConfig(const std::string& name) {
+    const std::string safe = SanitizeFileName(name.empty() ? active_config_name : name);
+    const std::string path = "/api/launcher/configs?game=" + UrlEncode(ActiveGameMeta()) +
+        "&name=" + UrlEncode(safe);
+    const auto response = OmniGhost::Licensing::WebsiteRequest("GET", path);
+    if (!CloudResponseOk(response, "Download cloud")) return false;
+    OmniGhost::Update::Json::Value root;
+    OmniGhost::Update::Json::Limits limits{20, 300u * 1024u, 5000};
+    if (!OmniGhost::Update::Json::Parse(response.body, root, limits).ok) {
+        last_status = "Resposta cloud inválida";
+        return false;
+    }
+    const auto* object = OmniGhost::Update::Json::AsObject(root);
+    if (!object) { last_status = "Resposta cloud inválida"; return false; }
+    const auto payloadIt = object->find("payload");
+    if (payloadIt == object->end()) { last_status = "Payload cloud ausente"; return false; }
+    const std::string* payload = OmniGhost::Update::Json::AsString(payloadIt->second);
+    if (!payload || payload->size() > kMaxConfigBytes || !DeserializeAll(*payload)) {
+        last_status = "Config cloud rejeitada pela validação";
+        return false;
+    }
+    last_status = "Config carregada da cloud: " + safe;
+    return true;
+}
+
+bool DeleteCloudConfig(const std::string& name) {
+    const std::string safe = SanitizeFileName(name.empty() ? active_config_name : name);
+    const std::string path = "/api/launcher/configs?game=" + UrlEncode(ActiveGameMeta()) +
+        "&name=" + UrlEncode(safe);
+    const auto response = OmniGhost::Licensing::WebsiteRequest("DELETE", path);
+    if (!CloudResponseOk(response, "Remoção cloud")) return false;
+    last_status = "Config removida da cloud: " + safe;
+    return true;
+}
+
+static const OmniGhost::Update::Json::Object* ParseCloudObject(
+    const OmniGhost::Auth::LauncherApiResponse& response,
+    OmniGhost::Update::Json::Value& root, const char* operation) {
+    if (!CloudResponseOk(response, operation)) return nullptr;
+    OmniGhost::Update::Json::Limits limits{24, 400u * 1024u, 10000};
+    const auto parsed = OmniGhost::Update::Json::Parse(response.body, root, limits);
+    if (!parsed.ok) {
+        last_status = std::string(operation) + ": resposta inválida";
+        return nullptr;
+    }
+    const auto* object = OmniGhost::Update::Json::AsObject(root);
+    if (!object) last_status = std::string(operation) + ": objeto ausente";
+    return object;
+}
+
+static std::string JsonString(const OmniGhost::Update::Json::Object& object, std::string_view key) {
+    const auto* value = OmniGhost::Update::Json::Field(object, key);
+    const auto* text = value ? OmniGhost::Update::Json::AsString(*value) : nullptr;
+    return text ? *text : std::string{};
+}
+
+static bool JsonBool(const OmniGhost::Update::Json::Object& object, std::string_view key) {
+    const auto* value = OmniGhost::Update::Json::Field(object, key);
+    const auto* boolean = value ? OmniGhost::Update::Json::AsBool(*value) : nullptr;
+    return boolean && *boolean;
+}
+
+static int JsonInt(const OmniGhost::Update::Json::Object& object, std::string_view key) {
+    const auto* value = OmniGhost::Update::Json::Field(object, key);
+    std::int64_t number = 0;
+    if (!value || !OmniGhost::Update::Json::AsInt64(*value, number)) {
+        std::uint64_t unsignedNumber = 0;
+        if (!value || !OmniGhost::Update::Json::AsUInt64(*value, unsignedNumber)) return 0;
+        number = static_cast<std::int64_t>((std::min<std::uint64_t>)(unsignedNumber, INT_MAX));
+    }
+    return static_cast<int>(std::clamp<std::int64_t>(number, INT_MIN, INT_MAX));
+}
+
+static double JsonDouble(const OmniGhost::Update::Json::Object& object, std::string_view key) {
+    const auto* value = OmniGhost::Update::Json::Field(object, key);
+    double number = 0.0;
+    return value && OmniGhost::Update::Json::AsDouble(*value, number) ? number : 0.0;
+}
+
+const std::vector<CommunityConfigInfo>& CommunityConfigs() { return community_configs; }
+
+bool RefreshCommunityConfigs(CommunityScope scope, const std::string& search, const std::string& sort) {
+    return RefreshCommunityConfigsForGame(ActiveGameMeta(), scope, search, sort);
+}
+
+bool RefreshCommunityConfigsForGame(const std::string& game, CommunityScope scope,
+                                    const std::string& search, const std::string& sort) {
+    if (game != "fivem" && game != "cs2" && game != "warzone" && game != "fortnite") {
+        last_status = "Jogo inválido no Config Hub"; return false;
+    }
+    const char* scopeName = scope == CommunityScope::Marketplace ? "marketplace"
+        : scope == CommunityScope::Mine ? "mine"
+        : scope == CommunityScope::Favorites ? "favorites"
+        : scope == CommunityScope::Downloads ? "downloads" : "community";
+    std::string path = "/api/launcher/community-configs?game=" + UrlEncode(game) +
+        "&scope=" + scopeName + "&sort=" + UrlEncode(sort);
+    if (!search.empty()) {
+        const bool shareCode = search.size() == 36 && search[8] == '-' && search[13] == '-' && search[18] == '-' && search[23] == '-';
+        path += shareCode ? "&code=" + UrlEncode(search) : "&search=" + UrlEncode(search.substr(0, 80));
+    }
+    const auto response = OmniGhost::Licensing::WebsiteRequest("GET", path);
+    OmniGhost::Update::Json::Value root;
+    const auto* object = ParseCloudObject(response, root, "Config Hub");
+    if (!object) return false;
+    const auto* value = OmniGhost::Update::Json::Field(*object, "configs");
+    const auto* rows = value ? OmniGhost::Update::Json::AsArray(*value) : nullptr;
+    if (!rows) { last_status = "Config Hub: lista ausente"; return false; }
+    std::vector<CommunityConfigInfo> next;
+    next.reserve(rows->size());
+    for (const auto& entry : *rows) {
+        const auto* row = OmniGhost::Update::Json::AsObject(entry);
+        if (!row) continue;
+        CommunityConfigInfo info;
+        info.id = JsonString(*row, "id");
+        info.game = JsonString(*row, "game");
+        info.title = JsonString(*row, "title");
+        info.description = JsonString(*row, "description");
+        info.author = JsonString(*row, "author");
+        info.visibility = JsonString(*row, "visibility");
+        info.status = JsonString(*row, "status");
+        info.updated_at = JsonString(*row, "updatedAt");
+        info.version = JsonInt(*row, "version");
+        info.schema_version = JsonInt(*row, "schemaVersion");
+        info.min_launcher_version = JsonString(*row, "minLauncherVersion");
+        info.compatible = info.schema_version > 0 && info.schema_version <= kConfigSchemaVersion;
+        info.downloads = JsonInt(*row, "downloads");
+        info.favorites = JsonInt(*row, "favorites");
+        info.rating_count = JsonInt(*row, "ratingCount");
+        info.rating = static_cast<float>(JsonDouble(*row, "rating"));
+        info.my_rating = JsonInt(*row, "myRating");
+        info.official = JsonBool(*row, "official");
+        info.verified = JsonBool(*row, "verified");
+        info.favorite = JsonBool(*row, "favorite");
+        info.owned = JsonBool(*row, "owned");
+        if (const auto* tagsValue = OmniGhost::Update::Json::Field(*row, "tags")) {
+            if (const auto* tags = OmniGhost::Update::Json::AsArray(*tagsValue)) {
+                for (const auto& tag : *tags) if (const auto* text = OmniGhost::Update::Json::AsString(tag))
+                    info.tags.push_back(*text);
+            }
+        }
+        if (!info.id.empty() && !info.title.empty()) next.push_back(std::move(info));
+    }
+    community_configs = std::move(next);
+    last_status = "Config Hub atualizado: " + std::to_string(community_configs.size()) + " configs";
+    return true;
+}
+
+static std::vector<std::string> SplitTags(const std::string& input) {
+    std::vector<std::string> tags;
+    std::istringstream stream(input);
+    std::string tag;
+    while (std::getline(stream, tag, ',') && tags.size() < 6) {
+        const auto first = tag.find_first_not_of(" \t\r\n");
+        const auto last = tag.find_last_not_of(" \t\r\n");
+        if (first == std::string::npos) continue;
+        tag = tag.substr(first, last - first + 1);
+        if (tag.size() > 24) tag.resize(24);
+        if (!tag.empty() && std::find(tags.begin(), tags.end(), tag) == tags.end()) tags.push_back(tag);
+    }
+    return tags;
+}
+
+bool PublishCommunityConfig(const std::string& title, const std::string& description,
+                            const std::string& visibility, const std::string& tags,
+                            const std::string& changelog, const std::string& config_id) {
+    const std::string payload = SerializeAll();
+    if (payload.empty() || payload.size() > 262144u) { last_status = "Config demasiado grande para publicar"; return false; }
+    if (title.size() < 3 || title.size() > 80 || description.size() > 600 || changelog.size() > 500) {
+        last_status = "Título, descrição ou changelog inválido"; return false;
+    }
+    if (visibility != "private" && visibility != "unlisted" && visibility != "public") {
+        last_status = "Visibilidade inválida"; return false;
+    }
+    std::ostringstream body;
+    body << "{\"action\":\"publish\",\"title\":\"" << EscapeJsonString(title)
+         << "\",\"description\":\"" << EscapeJsonString(description)
+         << "\",\"game\":\"" << EscapeJsonString(ActiveGameMeta())
+         << "\",\"visibility\":\"" << visibility << "\",\"tags\":[";
+    const auto parsedTags = SplitTags(tags);
+    for (std::size_t i = 0; i < parsedTags.size(); ++i) {
+        if (i) body << ',';
+        body << '"' << EscapeJsonString(parsedTags[i]) << '"';
+    }
+    body << "],\"schemaVersion\":" << kConfigSchemaVersion
+         << ",\"minLauncherVersion\":\"" << EscapeJsonString(CurrentAppVersion())
+         << "\",\"payload\":\"" << EscapeJsonString(payload)
+         << "\",\"changelog\":\"" << EscapeJsonString(changelog) << '"';
+    if (!config_id.empty()) body << ",\"configId\":\"" << EscapeJsonString(config_id) << '"';
+    body << '}';
+    const auto response = OmniGhost::Licensing::WebsiteRequest("POST", "/api/launcher/community-configs", body.str());
+    if (!CloudResponseOk(response, "Publicação")) return false;
+    last_status = visibility == "private" ? "Config privada guardada" : "Config enviada para revisão";
+    return true;
+}
+
+static bool CommunityAction(const std::string& action, const std::string& config_id,
+                            std::string_view extra, const char* label) {
+    if (config_id.empty()) { last_status = "Config da comunidade inválida"; return false; }
+    const std::string body = "{\"action\":\"" + action + "\",\"configId\":\"" +
+        EscapeJsonString(config_id) + "\"" + std::string(extra) + "}";
+    const auto response = OmniGhost::Licensing::WebsiteRequest("POST", "/api/launcher/community-configs", body);
+    if (!CloudResponseOk(response, label)) return false;
+    last_status = std::string(label) + " concluído";
+    return true;
+}
+
+bool ApplyCommunityConfig(const std::string& config_id, bool save_copy) {
+    const std::string body = "{\"action\":\"download\",\"configId\":\"" + EscapeJsonString(config_id) + "\"}";
+    const auto response = OmniGhost::Licensing::WebsiteRequest("POST", "/api/launcher/community-configs", body);
+    OmniGhost::Update::Json::Value root;
+    const auto* object = ParseCloudObject(response, root, "Download");
+    if (!object) return false;
+    const std::string payload = JsonString(*object, "payload");
+    const std::string expectedHash = JsonString(*object, "payloadHash");
+    const std::string title = JsonString(*object, "title");
+    const int schemaVersion = JsonInt(*object, "schemaVersion");
+    if (payload.empty() || payload.size() > kMaxConfigBytes || expectedHash.size() != 64 ||
+        schemaVersion < 1 || schemaVersion > kConfigSchemaVersion) {
+        last_status = "Config da comunidade incompatível"; return false;
+    }
+    std::string actualHash, hashError;
+    if (!OmniGhost::Platform::Sha256Text(payload, actualHash, hashError) || actualHash != expectedHash) {
+        last_status = "Hash da config da comunidade inválido"; return false;
+    }
+    std::string backupError;
+    if (!WriteTextAtomically(CommunityBackupPath(), SerializeAll(), backupError)) {
+        last_status = "Não foi possível criar backup antes de aplicar"; return false;
+    }
+    if (!DeserializeAll(payload)) { last_status = "Config descarregada rejeitada pela validação"; return false; }
+    if (save_copy) {
+        const std::string name = std::string(ActiveGamePrefix()) + "community-" + SanitizeFileName(title);
+        if (!SaveToFile(name)) return false;
+    }
+    last_status = save_copy ? "Config guardada na tua cloud local" : "Config aplicada; podes reverter";
+    return true;
+}
+
+bool DownloadCommunityToLibrary(const std::string& config_id) {
+    const std::string body = "{\"action\":\"download\",\"configId\":\"" + EscapeJsonString(config_id) + "\"}";
+    const auto response = OmniGhost::Licensing::WebsiteRequest("POST", "/api/launcher/community-configs", body);
+    OmniGhost::Update::Json::Value root;
+    const auto* object = ParseCloudObject(response, root, "Guardar no perfil");
+    if (!object) return false;
+    const std::string payload = JsonString(*object, "payload");
+    const std::string expectedHash = JsonString(*object, "payloadHash");
+    const std::string title = JsonString(*object, "title");
+    const std::string game = JsonString(*object, "game");
+    const std::string prefix = game == "fivem" ? "fivem-" : game == "cs2" ? "cs2-" :
+        game == "warzone" ? "warzone-" : game == "fortnite" ? "fortnite-" : "";
+    std::string actualHash, hashError;
+    if (prefix.empty() || payload.empty() || payload.size() > kMaxConfigBytes || expectedHash.size() != 64 ||
+        !OmniGhost::Platform::Sha256Text(payload, actualHash, hashError) || actualHash != expectedHash ||
+        payload.find("meta.game=" + game) == std::string::npos) {
+        last_status = "Config incompatível ou com integridade inválida"; return false;
+    }
+    EnsureConfigDir();
+    const std::string name = prefix + "community-" + SanitizeFileName(title);
+    std::string error;
+    if (!WriteTextAtomically(fs::path(ConfigDir()) / (name + ".ogcfg"), payload, error)) {
+        last_status = "Falha ao guardar na biblioteca: " + error; return false;
+    }
+    last_status = "Guardada em Configs: " + name;
+    RefreshList();
+    return true;
+}
+
+static std::map<std::string, std::string> ConfigValues(std::string_view payload) {
+    std::map<std::string, std::string> values;
+    std::istringstream stream{std::string(payload)};
+    std::string line, key, value;
+    while (std::getline(stream, line)) if (ParseLine(line, key, value)) values[key] = value;
+    return values;
+}
+
+bool PreviewCommunityConfig(const std::string& config_id) {
+    const std::string body = "{\"action\":\"preview\",\"configId\":\"" + EscapeJsonString(config_id) + "\"}";
+    const auto response = OmniGhost::Licensing::WebsiteRequest("POST", "/api/launcher/community-configs", body);
+    OmniGhost::Update::Json::Value root;
+    const auto* object = ParseCloudObject(response, root, "Pré-visualização");
+    if (!object) return false;
+    const std::string payload = JsonString(*object, "payload");
+    const std::string expectedHash = JsonString(*object, "payloadHash");
+    std::string actualHash, hashError;
+    if (payload.empty() || expectedHash.size() != 64 ||
+        !OmniGhost::Platform::Sha256Text(payload, actualHash, hashError) || actualHash != expectedHash) {
+        last_status = "Pré-visualização rejeitada: integridade inválida"; return false;
+    }
+    const auto current = ConfigValues(SerializeAll());
+    const auto incoming = ConfigValues(payload);
+    int changed = 0, added = 0, removed = 0;
+    for (const auto& [key, value] : incoming) {
+        const auto found = current.find(key);
+        if (found == current.end()) ++added;
+        else if (found->second != value) ++changed;
+    }
+    for (const auto& [key, value] : current) if (!incoming.contains(key)) ++removed;
+    last_status = "Diferenças: " + std::to_string(changed) + " alteradas, " +
+        std::to_string(added) + " novas, " + std::to_string(removed) + " removidas";
+    return true;
+}
+
+bool ToggleCommunityFavorite(const std::string& config_id, bool enabled) {
+    return CommunityAction("favorite", config_id, enabled ? ",\"enabled\":true" : ",\"enabled\":false", "Favorito");
+}
+bool RateCommunityConfig(const std::string& config_id, int rating) {
+    rating = std::clamp(rating, 1, 5);
+    return CommunityAction("rate", config_id, ",\"rating\":" + std::to_string(rating), "Avaliação");
+}
+bool ReportCommunityConfig(const std::string& config_id, const std::string& reason) {
+    if (reason.size() < 3 || reason.size() > 300) { last_status = "Motivo inválido"; return false; }
+    return CommunityAction("report", config_id, ",\"reason\":\"" + EscapeJsonString(reason) + "\"", "Denúncia");
+}
+bool WithdrawCommunityConfig(const std::string& config_id) {
+    return CommunityAction("withdraw", config_id, {}, "Retirada");
+}
+bool RevertCommunityConfig() {
+    const fs::path path = CommunityBackupPath();
+    std::ifstream input(path, std::ios::binary);
+    if (!input) { last_status = "Não existe backup de aplicação"; return false; }
+    std::ostringstream contents; contents << input.rdbuf();
+    if (contents.str().size() > kMaxConfigBytes || !DeserializeAll(contents.str())) {
+        last_status = "Backup inválido"; return false;
+    }
+    std::error_code error; fs::remove(path, error);
+    last_status = "Config anterior restaurada";
+    return true;
+}
+
+bool ExportJson(const std::string& file_name) {
+    const std::string safe = SanitizeFileName(file_name.empty() ? "OmniGhost-export.json" : file_name);
+    EnsureConfigDir();
+    const fs::path path = fs::path(ConfigDir()) / safe;
+    std::ostringstream json;
+    json << "{\n"
+         << "  \"schemaVersion\": 1,\n"
+         << "  \"game\": \"" << EscapeJsonString(ActiveGameMeta()) << "\",\n"
+         << "  \"format\": \"omnighost-config-v5\",\n"
+         << "  \"payload\": \"" << EscapeJsonString(SerializeAll()) << "\"\n"
+         << "}\n";
+    std::string error;
+    if (!WriteTextAtomically(path, json.str(), error)) {
+        last_status = "Falha ao exportar JSON: " + error;
+        return false;
+    }
+    last_status = "JSON exportado: " + path.filename().string();
+    return true;
+}
+
+bool ImportJson(const std::string& file_name) {
+    const std::string safe = SanitizeFileName(file_name.empty() ? "OmniGhost-import.json" : file_name);
+    const fs::path path = fs::path(ConfigDir()) / safe;
+    std::error_code ec;
+    const auto size = fs::file_size(path, ec);
+    if (ec || size == 0 || size > kMaxConfigBytes) {
+        last_status = ec ? "JSON nao encontrado na pasta Configs" : "JSON invalido ou demasiado grande";
+        return false;
+    }
+    std::ifstream stream(path, std::ios::binary);
+    std::ostringstream content;
+    content << stream.rdbuf();
+    OmniGhost::Update::Json::Value root;
+    OmniGhost::Update::Json::Limits limits{8, static_cast<std::size_t>(kMaxConfigBytes), 64};
+    const auto parsed = OmniGhost::Update::Json::Parse(content.str(), root, limits);
+    const auto* object = parsed.ok ? OmniGhost::Update::Json::AsObject(root) : nullptr;
+    if (!object) {
+        last_status = "JSON invalido: " + parsed.error;
+        return false;
+    }
+    std::int64_t version = 0;
+    const auto* versionField = OmniGhost::Update::Json::Field(*object, "schemaVersion");
+    const auto* gameField = OmniGhost::Update::Json::Field(*object, "game");
+    const auto* formatField = OmniGhost::Update::Json::Field(*object, "format");
+    const auto* payloadField = OmniGhost::Update::Json::Field(*object, "payload");
+    const auto* game = gameField ? OmniGhost::Update::Json::AsString(*gameField) : nullptr;
+    const auto* format = formatField ? OmniGhost::Update::Json::AsString(*formatField) : nullptr;
+    const auto* payload = payloadField ? OmniGhost::Update::Json::AsString(*payloadField) : nullptr;
+    if (!versionField || !OmniGhost::Update::Json::AsInt64(*versionField, version) || version != 1 ||
+        !game || *game != ActiveGameMeta() || !format || *format != "omnighost-config-v5" ||
+        !payload || payload->empty() || payload->size() > kMaxConfigBytes) {
+        last_status = "JSON incompativel, incompleto ou pertencente a outro jogo";
+        return false;
+    }
+    if (!DeserializeAll(*payload)) {
+        if (last_status.empty()) last_status = "Payload de configuracao invalido";
+        return false;
+    }
+    last_status = "JSON importado e validado";
+    return true;
+}
 
 bool CopyToClipboard() {
     const std::wstring data = OmniGhost::Platform::Utf8ToWide(SerializeAll());
@@ -550,8 +1086,24 @@ void TickAutoSave() {
     static auto lastChange = std::chrono::steady_clock::now();
     static auto lastCompare = std::chrono::steady_clock::time_point{};
     static bool dirty = false;
+    static std::future<std::string> pendingWrite;
+    static bool writeInFlight = false;
 
-
+    if (writeInFlight) {
+        if (pendingWrite.wait_for(std::chrono::milliseconds(0)) != std::future_status::ready)
+            return;
+        writeInFlight = false;
+        try {
+            const std::string writeError = pendingWrite.get();
+            if (writeError.empty())
+                last_status = "Auto: " + active_config_name;
+            else
+                last_status = "Auto-save falhou: " + writeError;
+        } catch (...) {
+            last_status = "Auto-save falhou: exceção no escritor";
+        }
+        return;
+    }
 
     const auto nowTp = std::chrono::steady_clock::now();
     if (lastCompare.time_since_epoch().count() != 0 &&
@@ -585,14 +1137,16 @@ void TickAutoSave() {
     }
 
     EnsureConfigDir();
-    const fs::path path = fs::path(ConfigDir()) / (active_config_name + ".ogcfg");
-    std::string error;
-    if (WriteTextAtomically(path, lastSnap, error)) {
-        dirty = false;
-        last_status = "Auto: " + active_config_name;
-    } else {
-        last_status = "Auto-save falhou: " + error;
-    }
+    const std::string pathString = (fs::path(ConfigDir()) / (active_config_name + ".ogcfg")).string();
+    const std::string payload = lastSnap;
+    dirty = false;
+    writeInFlight = true;
+    pendingWrite = std::async(std::launch::async, [pathString, payload]() -> std::string {
+        std::string error;
+        if (!WriteTextAtomically(fs::path(pathString), payload, error))
+            return error;
+        return {};
+    });
 }
 
 void FlushActiveConfig() {

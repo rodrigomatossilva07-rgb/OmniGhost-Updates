@@ -8,6 +8,7 @@ uintptr_t g_pawn_stride = 0;
 uint64_t g_entity_list_next_validation_ms = 0;
 uint64_t g_entity_list_next_full_probe_ms = 0;
 bool g_entity_list_force_refresh = true;
+bool g_force_map_refresh = false;
 
 
 
@@ -278,6 +279,8 @@ static bool RefreshEntityListEntry() {
     if (++g_entity_list_confirmations < need)
         return runtime.entity_list_entry != 0;
 
+    if (runtime.entity_list_entry != 0)
+        g_force_map_refresh = true;
     runtime.entity_list_addr = runtime.client_base + offsets.dwEntityList;
     runtime.entity_list_entry = best_entry;
     g_controller_stride = best_stride;

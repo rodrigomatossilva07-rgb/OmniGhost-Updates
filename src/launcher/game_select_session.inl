@@ -136,6 +136,60 @@ std::uint64_t g_remote_process_generation = 0;
 double g_remote_process_scanned_at = 0.0;
 double g_next_remote_process_scan = 0.0;
 
+std::uint32_t ScanRemoteProcessMask() {
+    std::uint32_t mask = 0;
+    const std::vector<std::string> processes = mem.GetProcessNames();
+    auto present = [&processes](std::initializer_list<const char*> names) {
+        for (const std::string& process : processes) {
+            const std::size_t slash = process.find_last_of("\\/");
+            const std::string base = slash == std::string::npos
+                ? process : process.substr(slash + 1);
+            for (const char* name : names)
+                if (name && _stricmp(base.c_str(), name) == 0) return true;
+        }
+        return false;
+    };
+    if (present({"cs2.exe"})) mask |= RemoteCs2;
+    if (present({"cod.exe", "ModernWarfare.exe", "iw8_ship.exe"})) mask |= RemoteWarzone;
+    if (present({"FortniteClient-Win64-Shipping.exe", "FortniteClient-Win64-Shipping_EAC_EOS.exe", "Fortnite.exe"})) mask |= RemoteFortnite;
+    if (present({"FiveM_GTAProcess.exe", "FiveM_b3258_GTAProcess.exe",
+                 "FiveM_b3407_GTAProcess.exe", "FiveM_b3570_GTAProcess.exe",
+                 "GTAProcess.exe"})) mask |= RemoteFiveM;
+    return mask;
+}
+
+void EnsureFreshRemoteProcessScan(double now) {
+    using namespace std::chrono_literals;
+    if (!mem.GetDiagnosticsSnapshot().deviceOpen)
+        return;
+    if (g_remote_process_scan.valid()) {
+        if (g_remote_process_scan.wait_for(0ms) != std::future_status::ready) {
+            if (g_remote_process_scan.wait_for(3s) != std::future_status::ready)
+                return;
+        }
+        try {
+            const auto result = g_remote_process_scan.get();
+            if (result.generation == g_remote_process_generation) {
+                g_remote_process_mask = result.mask;
+                g_remote_process_scanned_at = now;
+            }
+        } catch (...) {
+            g_remote_process_mask = 0;
+            g_remote_process_scanned_at = 0.0;
+        }
+    }
+    if (g_remote_process_scanned_at <= 0.0 || now - g_remote_process_scanned_at > 8.0) {
+        try {
+            g_remote_process_mask = ScanRemoteProcessMask();
+            g_remote_process_scanned_at = now;
+            g_next_remote_process_scan = now + 6.0;
+        } catch (...) {
+            g_remote_process_mask = 0;
+            g_remote_process_scanned_at = 0.0;
+        }
+    }
+}
+
 bool RemoteGameRunning(GameId id) noexcept {
     if (!mem.GetDiagnosticsSnapshot().deviceOpen ||
         g_remote_process_scanned_at <= 0.0 ||
@@ -185,25 +239,7 @@ void PollRemoteProcessScan(double now) {
 
     const std::uint64_t generation = g_remote_process_generation;
     g_remote_process_scan = std::async(std::launch::async, [generation] {
-        std::uint32_t mask = 0;
-        const std::vector<std::string> processes = mem.GetProcessNames();
-        auto present = [&processes](std::initializer_list<const char*> names) {
-            for (const std::string& process : processes) {
-                const std::size_t slash = process.find_last_of("\\/");
-                const std::string base = slash == std::string::npos
-                    ? process : process.substr(slash + 1);
-                for (const char* name : names)
-                    if (name && _stricmp(base.c_str(), name) == 0) return true;
-            }
-            return false;
-        };
-        if (present({"cs2.exe"})) mask |= RemoteCs2;
-        if (present({"cod.exe", "ModernWarfare.exe", "iw8_ship.exe"})) mask |= RemoteWarzone;
-        if (present({"FortniteClient-Win64-Shipping.exe", "FortniteClient-Win64-Shipping_EAC_EOS.exe", "Fortnite.exe"})) mask |= RemoteFortnite;
-        if (present({"FiveM_GTAProcess.exe", "FiveM_b3258_GTAProcess.exe",
-                     "FiveM_b3407_GTAProcess.exe", "FiveM_b3570_GTAProcess.exe",
-                     "GTAProcess.exe"})) mask |= RemoteFiveM;
-        return RemoteProcessScanResult{generation, mask};
+        return RemoteProcessScanResult{generation, ScanRemoteProcessMask()};
     });
 }
 
@@ -246,6 +282,7 @@ const GameDefinition* FindConflictingRunningGame(GameId selected) {
 }
 
 bool CanStartGame(GameId selected) {
+    EnsureFreshRemoteProcessScan(ImGui::GetTime());
     const GameDefinition* conflict = FindConflictingRunningGame(selected);
     if (!conflict)
         return true;

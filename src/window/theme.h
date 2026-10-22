@@ -146,10 +146,7 @@ namespace CyberTheme {
     ImU32 WithAlpha(const ImVec4& color, float alpha);
 
     void SetHighContrast(bool enabled);
-    void SetReducedMotion(bool enabled);
     bool IsHighContrast();
-    bool IsReducedMotion();
-    float GetAnimationScale();
 
     void SetThemeMode(ThemeMode mode);
     ThemeMode GetThemeMode();
@@ -169,7 +166,6 @@ namespace CyberTheme {
         ImVec4 custom_accent = ImVec4(0.83f, 0.69f, 0.22f, 1.0f);
         float ui_scale = 1.0f;
         bool high_contrast = false;
-        bool reduced_motion = false;
         int schema_version = 1;
     };
 

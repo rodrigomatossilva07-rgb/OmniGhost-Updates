@@ -23,6 +23,12 @@ bool HeavyDmaCooldownActive() noexcept {
         heavy_dma_cooldown_until_ms.load(std::memory_order_acquire);
 }
 
+uint64_t HeavyDmaCooldownRemainingMs() noexcept {
+    const uint64_t until = heavy_dma_cooldown_until_ms.load(std::memory_order_acquire);
+    const uint64_t now = GetTickCount64();
+    return until > now ? until - now : 0;
+}
+
 void NotePossibleDeviceStall(float duration_ms) noexcept {
 
 

@@ -8,12 +8,62 @@
 #include "ferrum/ferrum_device.h"
 #include "kmbox/kmbox_net.h"
 #include "makcu/makcu_wrapper.h"
+#include "Memory/Memory.h"
 
 #include <cstdio>
 #include <string>
+#include <atomic>
+#include <thread>
 
 namespace InputDevicesCard {
 namespace {
+
+std::jthread g_connect_worker;
+std::atomic<int> g_connect_state{0};
+aim_type::DeviceType g_connect_device = aim_type::DeviceType::None;
+bool g_connect_auto_makcu = false;
+
+void NotifyResult(bool ok, aim_type::DeviceType type);
+
+void PollConnectWorker() {
+    const int state = g_connect_state.load(std::memory_order_acquire);
+    if (state == 0 || state == 1)
+        return;
+    const aim_type::DeviceType device = g_connect_device;
+    const bool autoMakcu = g_connect_auto_makcu;
+    g_connect_state.store(0, std::memory_order_release);
+    const bool ok = state == 2;
+    if (ok && autoMakcu) {
+        aim_type::config.active = aim_type::DeviceType::Makcu;
+        aim_type::config.makcu_enabled = true;
+    }
+    NotifyResult(ok, device);
+}
+
+void StartConnect(aim_type::DeviceType device, bool autoMakcu) {
+    int expected = 0;
+    if (!g_connect_state.compare_exchange_strong(expected, 1, std::memory_order_acq_rel))
+        return;
+    if (g_connect_worker.joinable())
+        g_connect_worker.join();
+    g_connect_device = device;
+    g_connect_auto_makcu = autoMakcu;
+    g_connect_worker = std::jthread([device, autoMakcu](std::stop_token) {
+        bool ok = false;
+        try {
+            if (autoMakcu) {
+                makcu_wrapper::MakcuInitialize("");
+                aim_type::Initialize();
+                ok = makcu_wrapper::IsConnected();
+            } else {
+                ok = aim_type::Connect(device);
+            }
+        } catch (...) {
+            ok = false;
+        }
+        g_connect_state.store(ok ? 2 : 3, std::memory_order_release);
+    });
+}
 
 void NotifyResult(bool ok, aim_type::DeviceType type) {
     std::string message = ok ? Loc::Tr("status.device_ok") : Loc::Tr("status.offline");
@@ -39,10 +89,17 @@ HardwareMonitor::DeviceType AimTypeToHW(aim_type::DeviceType type) {
 
 void UpdateHardwareMonitor() {
 
-    HardwareMonitor::UpdateDeviceStatus(HardwareMonitor::DeviceType::DMA, true, "", "", "");
+    const auto dmaSnapshot = mem.GetDiagnosticsSnapshot();
+    if (dmaSnapshot.deviceOpen || dmaSnapshot.deviceDetected) {
+        HardwareMonitor::UpdateDeviceStatus(HardwareMonitor::DeviceType::DMA, true,
+            dmaSnapshot.deviceOpen ? "Session active" : "PnP detected",
+            dmaSnapshot.deviceOpen ? "Attached" : "", "");
+    } else {
+        HardwareMonitor::UpdateDeviceStatus(HardwareMonitor::DeviceType::DMA, false, "", "", "");
+    }
 
 
-    if (makcu_wrapper::IsConnected()) {
+    if (makcu_wrapper::IsConnectedSnapshot()) {
         HardwareMonitor::UpdateDeviceStatus(HardwareMonitor::DeviceType::Makcu, true,
             "COM", makcu_wrapper::DiagnosticsLine(), "");
     } else {
@@ -115,19 +172,13 @@ void DrawMakcu() {
     CyberWidgets::InputInt("Baud###makcu", &aim_type::config.makcu_baud);
 
     if (CyberWidgets::GoldButton(Loc::TrID("common.connect"), ImVec2(120, 34)))
-        NotifyResult(aim_type::Connect(aim_type::DeviceType::Makcu), aim_type::DeviceType::Makcu);
+        StartConnect(aim_type::DeviceType::Makcu, false);
     ImGui::SameLine();
     if (CyberWidgets::CyberButton(Loc::TrID("common.test"), ImVec2(105, 34)))
         NotifyResult(aim_type::Test(aim_type::DeviceType::Makcu), aim_type::DeviceType::Makcu);
     ImGui::SameLine();
     if (CyberWidgets::CyberButton("Automático###makcu", ImVec2(120, 34))) {
-        makcu_wrapper::MakcuInitialize("");
-        aim_type::Initialize();
-        if (makcu_wrapper::IsConnected()) {
-            aim_type::config.active = aim_type::DeviceType::Makcu;
-            aim_type::config.makcu_enabled = true;
-        }
-        NotifyResult(makcu_wrapper::IsConnected(), aim_type::DeviceType::Makcu);
+        StartConnect(aim_type::DeviceType::Makcu, true);
     }
     if (status.connected && CyberWidgets::CyberButton("Desligar###makcu", ImVec2(120, 32)))
         aim_type::Disconnect(aim_type::DeviceType::Makcu);
@@ -149,7 +200,7 @@ void DrawKmboxNet() {
         sizeof(aim_type::config.kmbox_uuid), "8 digitos hexadecimais");
 
     if (CyberWidgets::GoldButton(Loc::TrID("common.connect"), ImVec2(120, 34)))
-        NotifyResult(aim_type::Connect(aim_type::DeviceType::KmboxNet), aim_type::DeviceType::KmboxNet);
+        StartConnect(aim_type::DeviceType::KmboxNet, false);
     ImGui::SameLine();
     if (CyberWidgets::CyberButton(Loc::TrID("common.test"), ImVec2(105, 34)))
         NotifyResult(aim_type::Test(aim_type::DeviceType::KmboxNet), aim_type::DeviceType::KmboxNet);
@@ -170,7 +221,7 @@ void DrawFerrum() {
     CyberWidgets::InputInt("Baud###ferrum", &aim_type::config.ferrum_baud);
 
     if (CyberWidgets::GoldButton(Loc::TrID("common.connect"), ImVec2(120, 34)))
-        NotifyResult(aim_type::Connect(aim_type::DeviceType::Ferrum), aim_type::DeviceType::Ferrum);
+        StartConnect(aim_type::DeviceType::Ferrum, false);
     ImGui::SameLine();
     if (CyberWidgets::CyberButton(Loc::TrID("common.test"), ImVec2(105, 34)))
         NotifyResult(aim_type::Test(aim_type::DeviceType::Ferrum), aim_type::DeviceType::Ferrum);
@@ -182,6 +233,7 @@ void DrawFerrum() {
 
 void Draw() {
     aim_type::Initialize();
+    PollConnectWorker();
     UpdateHardwareMonitor();
 
     CyberWidgets::BeginCard(Loc::Tr("aim.devices"));

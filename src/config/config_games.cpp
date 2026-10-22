@@ -77,6 +77,12 @@ void SerializeCS2(std::ostringstream& o) {
     WBool(o, "cs2.aim_dynamic_fov", c.aim_dynamic_fov);
     WFloat(o, "cs2.aim_fov", c.aim_fov);
     WFloat(o, "cs2.aim_fov_min", c.aim_fov_min);
+    for (int i = 0; i < 5; ++i) {
+        const std::string distanceKey = std::string("cs2.aim_fov_curve_distance.") + std::to_string(i);
+        const std::string valueKey = std::string("cs2.aim_fov_curve_value.") + std::to_string(i);
+        WFloat(o, distanceKey.c_str(), c.aim_fov_curve_distance[i]);
+        WFloat(o, valueKey.c_str(), c.aim_fov_curve_value[i]);
+    }
     WFloat(o, "cs2.aim_smooth", c.aim_smooth);
     WFloat(o, "cs2.aim_max_dist", c.aim_max_dist);
     WInt(o, "cs2.aim_bone", c.aim_bone);
@@ -105,6 +111,11 @@ void SerializeCS2(std::ostringstream& o) {
     WBool(o, "cs2.aim_ignore_bots", c.aim_ignore_bots);
     WBool(o, "cs2.aim_auto_bone", c.aim_auto_bone);
     WBool(o, "cs2.aim_visibility_check", c.aim_visibility_check);
+    WBool(o, "cs2.aim_visible_bones_only", c.aim_visible_bones_only);
+    for (int i = 0; i < 4; ++i) {
+        const std::string key = std::string("cs2.aim_bone_priority.") + std::to_string(i);
+        WInt(o, key.c_str(), c.aim_bone_priority[i]);
+    }
     WBool(o, "cs2.aim_rcs_standalone", c.aim_rcs_standalone);
     WBool(o, "cs2.aim_rcs_auto", c.aim_rcs_auto);
     WFloat(o, "cs2.aim_rcs_x", c.aim_rcs_x);
@@ -137,6 +148,26 @@ void SerializeCS2(std::ostringstream& o) {
     WBool(o, "cs2.dropped_weapon_heavy", c.dropped_weapon_heavy);
     WBool(o, "cs2.dropped_weapon_icons", c.dropped_weapon_icons);
     WBool(o, "cs2.dropped_weapon_ammo", c.dropped_weapon_ammo);
+    WBool(o, "cs2.c4_carrier_esp", c.c4_carrier_esp);
+    WBool(o, "cs2.offscreen_arrows", c.offscreen_arrows);
+    WFloat(o, "cs2.offscreen_arrow_size", c.offscreen_arrow_size);
+    WFloat(o, "cs2.offscreen_arrow_margin", c.offscreen_arrow_margin);
+    WFloat(o, "cs2.offscreen_arrow_max_distance", c.offscreen_arrow_max_distance);
+    WFloat(o, "cs2.offscreen_arrow_opacity", c.offscreen_arrow_opacity);
+    WBool(o, "cs2.active_features_panel", c.active_features_panel);
+    WFloat(o, "cs2.active_features_x", c.active_features_x);
+    WFloat(o, "cs2.active_features_y", c.active_features_y);
+    WFloat(o, "cs2.active_features_scale", c.active_features_scale);
+    WFloat(o, "cs2.active_features_opacity", c.active_features_opacity);
+    WBool(o, "cs2.active_features_compact", c.active_features_compact);
+    WInt(o, "cs2.layout_name_anchor", c.layout_name_anchor);
+    WInt(o, "cs2.layout_health_anchor", c.layout_health_anchor);
+    WInt(o, "cs2.layout_armor_anchor", c.layout_armor_anchor);
+    WInt(o, "cs2.layout_weapon_anchor", c.layout_weapon_anchor);
+    WInt(o, "cs2.layout_distance_anchor", c.layout_distance_anchor);
+    WInt(o, "cs2.layout_ammo_anchor", c.layout_ammo_anchor);
+    WFloat(o, "cs2.layout_spacing", c.layout_spacing);
+    WFloat(o, "cs2.layout_text_scale", c.layout_text_scale);
     WFloat(o, "cs2.radar_2d_x", c.radar_2d_x);
     WFloat(o, "cs2.radar_2d_y", c.radar_2d_y);
     WFloat(o, "cs2.radar_2d_size", c.radar_2d_size);
@@ -178,6 +209,7 @@ void SerializeCS2(std::ostringstream& o) {
     SerializeColorArray(o, "cs2.col_text_outline", c.col_text_outline);
     SerializeColorArray(o, "cs2.col_flags", c.col_flags);
     SerializeColorArray(o, "cs2.col_fov", c.col_fov);
+    SerializeColorArray(o, "cs2.col_offscreen_arrow", c.col_offscreen_arrow);
 }
 
 bool DeserializeCS2(const std::string& key, const std::string& val) {
@@ -253,6 +285,10 @@ bool DeserializeCS2(const std::string& key, const std::string& val) {
     if (bi("cs2.aim_dynamic_fov")) { c.aim_dynamic_fov = toB(); return true; }
     if (bi("cs2.aim_fov")) { c.aim_fov = toF(); return true; }
     if (bi("cs2.aim_fov_min")) { c.aim_fov_min = toF(); return true; }
+    for (int i = 0; i < 5; ++i) {
+        if (key == std::string("cs2.aim_fov_curve_distance.") + std::to_string(i)) { c.aim_fov_curve_distance[i] = toF(); return true; }
+        if (key == std::string("cs2.aim_fov_curve_value.") + std::to_string(i)) { c.aim_fov_curve_value[i] = toF(); return true; }
+    }
     if (bi("cs2.aim_smooth")) { c.aim_smooth = toF(); return true; }
     if (bi("cs2.aim_max_dist")) { c.aim_max_dist = toF(); return true; }
     if (bi("cs2.aim_bone")) { c.aim_bone = toI(); return true; }
@@ -281,6 +317,10 @@ bool DeserializeCS2(const std::string& key, const std::string& val) {
     if (bi("cs2.aim_ignore_bots")) { c.aim_ignore_bots = toB(); return true; }
     if (bi("cs2.aim_auto_bone")) { c.aim_auto_bone = toB(); return true; }
     if (bi("cs2.aim_visibility_check")) { c.aim_visibility_check = toB(); return true; }
+    if (bi("cs2.aim_visible_bones_only")) { c.aim_visible_bones_only = toB(); return true; }
+    for (int i = 0; i < 4; ++i) {
+        if (key == std::string("cs2.aim_bone_priority.") + std::to_string(i)) { c.aim_bone_priority[i] = toI(); return true; }
+    }
     if (bi("cs2.aim_rcs_standalone")) { c.aim_rcs_standalone = toB(); return true; }
     if (bi("cs2.aim_rcs_auto")) { c.aim_rcs_auto = toB(); return true; }
     if (bi("cs2.aim_rcs_x")) { c.aim_rcs_x = toF(); return true; }
@@ -314,6 +354,26 @@ bool DeserializeCS2(const std::string& key, const std::string& val) {
     if (bi("cs2.dropped_weapon_heavy")) { c.dropped_weapon_heavy = toB(); return true; }
     if (bi("cs2.dropped_weapon_icons")) { c.dropped_weapon_icons = toB(); return true; }
     if (bi("cs2.dropped_weapon_ammo")) { c.dropped_weapon_ammo = toB(); return true; }
+    if (bi("cs2.c4_carrier_esp")) { c.c4_carrier_esp = toB(); return true; }
+    if (bi("cs2.offscreen_arrows")) { c.offscreen_arrows = toB(); return true; }
+    if (bi("cs2.offscreen_arrow_size")) { c.offscreen_arrow_size = toF(); return true; }
+    if (bi("cs2.offscreen_arrow_margin")) { c.offscreen_arrow_margin = toF(); return true; }
+    if (bi("cs2.offscreen_arrow_max_distance")) { c.offscreen_arrow_max_distance = toF(); return true; }
+    if (bi("cs2.offscreen_arrow_opacity")) { c.offscreen_arrow_opacity = toF(); return true; }
+    if (bi("cs2.active_features_panel")) { c.active_features_panel = toB(); return true; }
+    if (bi("cs2.active_features_x")) { c.active_features_x = toF(); return true; }
+    if (bi("cs2.active_features_y")) { c.active_features_y = toF(); return true; }
+    if (bi("cs2.active_features_scale")) { c.active_features_scale = toF(); return true; }
+    if (bi("cs2.active_features_opacity")) { c.active_features_opacity = toF(); return true; }
+    if (bi("cs2.active_features_compact")) { c.active_features_compact = toB(); return true; }
+    if (bi("cs2.layout_name_anchor")) { c.layout_name_anchor = toI(); return true; }
+    if (bi("cs2.layout_health_anchor")) { c.layout_health_anchor = toI(); return true; }
+    if (bi("cs2.layout_armor_anchor")) { c.layout_armor_anchor = toI(); return true; }
+    if (bi("cs2.layout_weapon_anchor")) { c.layout_weapon_anchor = toI(); return true; }
+    if (bi("cs2.layout_distance_anchor")) { c.layout_distance_anchor = toI(); return true; }
+    if (bi("cs2.layout_ammo_anchor")) { c.layout_ammo_anchor = toI(); return true; }
+    if (bi("cs2.layout_spacing")) { c.layout_spacing = toF(); return true; }
+    if (bi("cs2.layout_text_scale")) { c.layout_text_scale = toF(); return true; }
     if (bi("cs2.radar_2d_x")) { c.radar_2d_x = toF(); return true; }
     if (bi("cs2.radar_2d_y")) { c.radar_2d_y = toF(); return true; }
     if (bi("cs2.radar_2d_size")) { c.radar_2d_size = toF(); return true; }
@@ -338,7 +398,7 @@ bool DeserializeCS2(const std::string& key, const std::string& val) {
         "cs2.col_health", "cs2.col_armor", "cs2.col_snaplines", "cs2.col_trail",
         "cs2.col_halo", "cs2.col_fun_effects", "cs2.col_look", "cs2.col_box_corner", "cs2.col_head",
         "cs2.col_distance", "cs2.col_visible", "cs2.col_occluded", "cs2.col_box_fill",
-        "cs2.col_text_outline", "cs2.col_flags", "cs2.col_fov"
+        "cs2.col_text_outline", "cs2.col_flags", "cs2.col_fov", "cs2.col_offscreen_arrow"
     };
     for (const char* prefix : colorPrefixes) {
         auto pick = [&]() -> decltype(c.col_enemy)& {
@@ -365,6 +425,7 @@ bool DeserializeCS2(const std::string& key, const std::string& val) {
             if (std::strcmp(prefix, "cs2.col_box_fill") == 0) return c.col_box_fill;
             if (std::strcmp(prefix, "cs2.col_text_outline") == 0) return c.col_text_outline;
             if (std::strcmp(prefix, "cs2.col_flags") == 0) return c.col_flags;
+            if (std::strcmp(prefix, "cs2.col_offscreen_arrow") == 0) return c.col_offscreen_arrow;
             return c.col_fov;
         };
         if (DeserializeColorArray(key, val, prefix, pick())) {
@@ -437,6 +498,9 @@ void SerializeWarzone(std::ostringstream& o) {
     WFloat(o, "warzone.radar_size", c.radar_size);
     WBool(o, "warzone.performance_mode", c.performance_mode);
     WBool(o, "warzone.radar_only_mode", c.radar_only_mode);
+    WBool(o, "warzone.armor_bar", c.armor_bar);
+    WBool(o, "warzone.aim_always_on", c.aim_always_on);
+    WBool(o, "warzone.trigger_team_check", c.trigger_team_check);
     WInt(o, "warzone.esp_density_limit", c.esp_density_limit);
     WBool(o, "warzone.esp_auto_hide_names", c.esp_auto_hide_names);
     WBool(o, "warzone.player_list_enabled", c.player_list_enabled);
@@ -447,6 +511,11 @@ void SerializeWarzone(std::ostringstream& o) {
     WBool(o, "warzone.misc_track_between_matches", c.misc_track_between_matches);
     WBool(o, "warzone.misc_spectator_list", c.misc_spectator_list);
     WStr(o, "warzone.scenario_preset", c.scenario_preset);
+    SerializeColorArray(o, "warzone.col_enemy", c.col_enemy);
+    SerializeColorArray(o, "warzone.col_team", c.col_team);
+    SerializeColorArray(o, "warzone.col_target", c.col_target);
+    SerializeColorArray(o, "warzone.col_skeleton", c.col_skeleton);
+    SerializeColorArray(o, "warzone.col_armor", c.col_armor);
 }
 
 bool DeserializeWarzone(const std::string& key, const std::string& val) {
@@ -491,6 +560,9 @@ bool DeserializeWarzone(const std::string& key, const std::string& val) {
     if (bi("warzone.radar_size")) { c.radar_size = toF(); return true; }
     if (bi("warzone.performance_mode")) { c.performance_mode = toB(); return true; }
     if (bi("warzone.radar_only_mode")) { c.radar_only_mode = toB(); return true; }
+    if (bi("warzone.armor_bar")) { c.armor_bar = toB(); return true; }
+    if (bi("warzone.aim_always_on")) { c.aim_always_on = toB(); return true; }
+    if (bi("warzone.trigger_team_check")) { c.trigger_team_check = toB(); return true; }
     if (bi("warzone.esp_density_limit")) { c.esp_density_limit = toI(); return true; }
     if (bi("warzone.esp_auto_hide_names")) { c.esp_auto_hide_names = toB(); return true; }
     if (bi("warzone.player_list_enabled")) { c.player_list_enabled = toB(); return true; }
@@ -501,6 +573,11 @@ bool DeserializeWarzone(const std::string& key, const std::string& val) {
     if (bi("warzone.misc_track_between_matches")) { c.misc_track_between_matches = toB(); return true; }
     if (bi("warzone.misc_spectator_list")) { c.misc_spectator_list = toB(); return true; }
     if (bi("warzone.scenario_preset")) { strncpy_s(c.scenario_preset, val.c_str(), _TRUNCATE); return true; }
+    if (DeserializeColorArray(key, val, "warzone.col_enemy", c.col_enemy)) return true;
+    if (DeserializeColorArray(key, val, "warzone.col_team", c.col_team)) return true;
+    if (DeserializeColorArray(key, val, "warzone.col_target", c.col_target)) return true;
+    if (DeserializeColorArray(key, val, "warzone.col_skeleton", c.col_skeleton)) return true;
+    if (DeserializeColorArray(key, val, "warzone.col_armor", c.col_armor)) return true;
     return false;
 }
 

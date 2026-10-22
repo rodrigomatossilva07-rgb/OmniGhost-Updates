@@ -1,5 +1,5 @@
 
-bool ReinitDma() {
+static int ReinitDmaBlocking() {
     const bool restart_acquisition = g_acqState.IsAcquisitionRunning();
     if (restart_acquisition)
         StopAcquisition();
@@ -7,32 +7,58 @@ bool ReinitDma() {
 
 
     ResetSessionState("dma-reinit");
-    status = "Reinit DMA...";
     std::cout << "[CS2] Reinit DMA\n";
     mem.InvalidateProcess();
     bool ok = mem.Init("cs2.exe", true, false) || mem.Init("CS2.exe", true, false);
     if (!ok) {
         mem.ResetDevice();
         if (!mem.Init(std::string(), true, false)) {
-            status = "Reinit DMA: FPGA falhou";
-            return false;
+            return 3;
         }
         ok = mem.Init("cs2.exe", true, false) || mem.Init("CS2.exe", true, false);
     }
     if (!ok) {
-        status = "Reinit DMA: attach falhou";
-        return false;
+        return 4;
     }
     if (!ResolveModuleBases()) {
-        status = "Reinit DMA: client.dll nao encontrado";
-        std::cout << "[CS2] " << status << std::endl;
-        return false;
+        std::cout << "[CS2] Reinit DMA: client.dll nao encontrado" << std::endl;
+        return 5;
     }
-    status = "Reinit DMA OK";
-    std::cout << "[CS2] " << status << std::endl;
+    std::cout << "[CS2] Reinit DMA OK" << std::endl;
     if (restart_acquisition)
         EnsureAcquisitionStarted();
-    return true;
+    return 2;
+}
+
+static std::jthread g_reinit_worker;
+static std::atomic<int> g_reinit_state{0};
+
+bool ReinitDmaPending() {
+    return g_reinit_state.load(std::memory_order_acquire) == 1;
+}
+
+int PollReinitDma() {
+    return g_reinit_state.load(std::memory_order_acquire);
+}
+
+void ReinitDmaAsync() {
+    if (g_reinit_state.load(std::memory_order_acquire) == 1)
+        return;
+    if (g_reinit_worker.joinable())
+        g_reinit_worker.join();
+    g_reinit_state.store(1, std::memory_order_release);
+    g_reinit_worker = std::jthread([](std::stop_token) {
+        g_reinit_state.store(ReinitDmaBlocking(), std::memory_order_release);
+    });
+}
+
+bool ReinitDma() {
+    const int result = ReinitDmaBlocking();
+    SetStatus(result == 2 ? "Reinit DMA OK"
+        : result == 3 ? "Reinit DMA: FPGA falhou"
+        : result == 4 ? "Reinit DMA: attach falhou"
+        : "Reinit DMA: client.dll nao encontrado");
+    return result == 2;
 }
 
 void Shutdown() {
@@ -56,7 +82,9 @@ void Shutdown() {
 
     RuntimePipeline::ResetProducerThreadForShutdown();
     PublishRuntimeSnapshot();
-    status = "Shutdown";
+    // CSE-002: liberta os SRV dos ícones de armas no fim da sessão CS2.
+    CS2_WeaponIcons::Shutdown();
+    SetStatus("Shutdown");
 }
 
 bool RefreshProcessLiveness() {
@@ -91,7 +119,7 @@ bool IsGameProcessAlive() {
 const char* StatusLine() {
     static char buf[96];
     if (!ready)
-        std::snprintf(buf, sizeof(buf), "%s", status.c_str());
+        std::snprintf(buf, sizeof(buf), "%s", GetStatus().c_str());
     else {
         const auto snapshot = AcquireRuntimeSnapshot();
         std::snprintf(buf, sizeof(buf), "CS2 b%u  %d jogadores",

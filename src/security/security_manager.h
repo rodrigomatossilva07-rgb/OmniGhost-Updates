@@ -23,7 +23,7 @@ struct Assessment {
 class SecurityManager final {
 public:
     static SecurityManager& Instance() noexcept;
-    [[nodiscard]] bool VerifyHostIdentity() noexcept;
+    [[nodiscard]] bool VerifyHostExecutablePresent() noexcept;
     [[nodiscard]] bool VerifyStartup() noexcept;
     [[nodiscard]] bool VerifyProtectedFiles() noexcept;
     [[nodiscard]] bool CanUseProtectedFeatures() const noexcept;
@@ -33,7 +33,6 @@ public:
 
 private:
     SecurityManager() = default;
-    bool featuresDenied_{};
 };
 
 }

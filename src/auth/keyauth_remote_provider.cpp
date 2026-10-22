@@ -173,9 +173,9 @@ struct KeyAuthRemoteLicenseProvider::Impl {
 
 
 
-        api.block_custom_ca = false;
-        api.block_proxy = false;
-        api.block_private_dns = false;
+        api.block_custom_ca = true;
+        api.block_proxy = true;
+        api.block_private_dns = true;
         api.set_allowed_hosts({"keyauth.win"});
     }
 

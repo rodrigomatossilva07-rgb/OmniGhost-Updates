@@ -9,6 +9,7 @@
 #include "../window/hotkeys.h"
 #include "../globals.h"
 #include "../../src/games/Fivem/aimbot/aimbot.h"
+#include "../../src/games/Fivem/esp/esp.h"
 #include "../../src/games/Fivem/friends/friends.h"
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -17,6 +18,8 @@
 #include <cstdlib>
 #include <iostream>
 #include <sstream>
+#include <algorithm>
+#include <array>
 
 namespace config_manager {
 
@@ -213,9 +216,77 @@ bool DeserializeAll(const std::string& data) {
     if (aimbot::config.aimbot_bind2 == VK_LBUTTON || aimbot::config.aimbot_bind2 == aimbot::config.aimbot_bind)
         aimbot::config.aimbot_bind2 = 0;
 
+    if (g_activeGame == ActiveGame::FiveM) {
+        auto& aim = aimbot::config;
+        aim.fov_size = std::clamp(aim.fov_size, 5.f, 500.f);
+        aim.dynamic_fov_min = std::clamp(aim.dynamic_fov_min, 5.f, 500.f);
+        aim.dynamic_fov_max = std::clamp(aim.dynamic_fov_max, 5.f, 500.f);
+        aim.dynamic_fov_near_distance = std::clamp(aim.dynamic_fov_near_distance, 0.f, 500.f);
+        aim.dynamic_fov_far_distance = std::clamp(aim.dynamic_fov_far_distance,
+            aim.dynamic_fov_near_distance + 1.f, 1000.f);
+        aim.dynamic_fov_curve = std::clamp(aim.dynamic_fov_curve, .2f, 4.f);
+        aim.dynamic_fov_transition_speed = std::clamp(aim.dynamic_fov_transition_speed, 1.f, 30.f);
+        aim.sticky_retention = std::clamp(aim.sticky_retention, 0.f, 3.f);
+        aim.sticky_tolerance = std::clamp(aim.sticky_tolerance, 0.f, 150.f);
+        aim.switch_delay = std::clamp(aim.switch_delay, 0.f, 2.f);
+        aim.trigger_delay = std::clamp(aim.trigger_delay, 0.f, 2.f);
+        aim.trigger_burst_duration = std::clamp(aim.trigger_burst_duration, .02f, 2.f);
+        aim.trigger_burst_interval = std::clamp(aim.trigger_burst_interval, .05f, 5.f);
+        aim.trigger_cooldown = std::clamp(aim.trigger_cooldown, 0.f, 2.f);
+        auto clampRange = [](float& value) { value = std::clamp(value, 1.f, 1000.f); };
+        clampRange(aim.weapon_range_custom); clampRange(aim.weapon_range_melee);
+        clampRange(aim.weapon_range_pistol); clampRange(aim.weapon_range_smg);
+        clampRange(aim.weapon_range_shotgun); clampRange(aim.weapon_range_rifle);
+        clampRange(aim.weapon_range_sniper); clampRange(aim.weapon_range_heavy);
 
-    if (g_activeGame == ActiveGame::CS2 && CS2::config.aim_bind <= 0)
-        CS2::config.aim_bind = 0x01;
+        auto& visual = esp::config;
+        visual.offscreen_arrow_size = std::clamp(visual.offscreen_arrow_size, 6.f, 32.f);
+        visual.offscreen_arrow_margin = std::clamp(visual.offscreen_arrow_margin, 12.f, 200.f);
+        visual.offscreen_arrow_max_distance = std::clamp(visual.offscreen_arrow_max_distance, 1.f, 1000.f);
+        visual.offscreen_arrow_opacity = std::clamp(visual.offscreen_arrow_opacity, .1f, 1.f);
+        visual.active_panel_x = std::clamp(visual.active_panel_x, 0.f, .95f);
+        visual.active_panel_y = std::clamp(visual.active_panel_y, 0.f, .95f);
+        visual.active_panel_scale = std::clamp(visual.active_panel_scale, .65f, 1.6f);
+        visual.active_panel_opacity = std::clamp(visual.active_panel_opacity, .15f, 1.f);
+        visual.layout_spacing = std::clamp(visual.layout_spacing, 0.f, 18.f);
+        visual.layout_text_scale = std::clamp(visual.layout_text_scale, .65f, 1.6f);
+    }
+
+
+    if (g_activeGame == ActiveGame::CS2) {
+        auto& cs = CS2::config;
+        if (cs.aim_bind <= 0) cs.aim_bind = 0x01;
+        cs.offscreen_arrow_size = std::clamp(cs.offscreen_arrow_size, 6.f, 32.f);
+        cs.offscreen_arrow_margin = std::clamp(cs.offscreen_arrow_margin, 12.f, 200.f);
+        cs.offscreen_arrow_max_distance = std::clamp(cs.offscreen_arrow_max_distance, 1.f, 1000.f);
+        cs.offscreen_arrow_opacity = std::clamp(cs.offscreen_arrow_opacity, .1f, 1.f);
+        cs.active_features_x = std::clamp(cs.active_features_x, 0.f, .95f);
+        cs.active_features_y = std::clamp(cs.active_features_y, 0.f, .95f);
+        cs.active_features_scale = std::clamp(cs.active_features_scale, .65f, 1.6f);
+        cs.active_features_opacity = std::clamp(cs.active_features_opacity, .15f, 1.f);
+        cs.layout_spacing = std::clamp(cs.layout_spacing, 0.f, 18.f);
+        cs.layout_text_scale = std::clamp(cs.layout_text_scale, .65f, 1.6f);
+        int* anchors[] = { &cs.layout_name_anchor, &cs.layout_health_anchor,
+            &cs.layout_armor_anchor, &cs.layout_weapon_anchor,
+            &cs.layout_distance_anchor, &cs.layout_ammo_anchor };
+        for (int* anchor : anchors) *anchor = std::clamp(*anchor, 0, 3);
+        for (int i = 0; i < 5; ++i) {
+            cs.aim_fov_curve_distance[i] = std::clamp(cs.aim_fov_curve_distance[i], 0.f, 1000.f);
+            cs.aim_fov_curve_value[i] = std::clamp(cs.aim_fov_curve_value[i], 1.f, 500.f);
+            if (i > 0)
+                cs.aim_fov_curve_distance[i] = std::max(cs.aim_fov_curve_distance[i],
+                    cs.aim_fov_curve_distance[i - 1] + .1f);
+        }
+        std::array<bool, 4> used{};
+        for (int& bone : cs.aim_bone_priority) {
+            bone = std::clamp(bone, 0, 3);
+            if (used[bone]) {
+                for (int candidate = 0; candidate < 4; ++candidate)
+                    if (!used[candidate]) { bone = candidate; break; }
+            }
+            used[bone] = true;
+        }
+    }
 
     return true;
 }

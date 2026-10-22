@@ -16,6 +16,7 @@ namespace OmniGhost::Security {
 namespace {
 std::mutex eventMutex;
 bool denied = false;
+bool sessionDenied = false;
 
 
 
@@ -67,10 +68,15 @@ std::string_view SecurityManager::Code(EventId id) noexcept {
 
 void SecurityManager::Record(EventId id) noexcept {
     const auto assessment = Classify(id);
-    if (assessment.enforcement == Enforcement::DenyFeatures &&
-        id != EventId::SessionInvalid) {
+    if (assessment.enforcement == Enforcement::DenyFeatures) {
         std::scoped_lock lock(eventMutex);
-        denied = true;
+        if (id == EventId::SessionInvalid)
+            sessionDenied = true;
+        else
+            denied = true;
+    } else if (id == EventId::SessionRestored) {
+        std::scoped_lock lock(eventMutex);
+        sessionDenied = false;
     }
     OmniGhost::SessionLog::Write(
         assessment.severity == Severity::Critical ? OmniGhost::SessionLog::Severity::Critical
@@ -85,7 +91,7 @@ void SecurityManager::Record(EventId id) noexcept {
 
 bool SecurityManager::CanUseProtectedFeatures() const noexcept {
     std::scoped_lock lock(eventMutex);
-    return !denied;
+    return !denied && !sessionDenied;
 }
 
 bool SecurityManager::VerifyProtectedFiles() noexcept {
@@ -127,7 +133,7 @@ bool SecurityManager::VerifyProtectedFiles() noexcept {
     return true;
 }
 
-bool SecurityManager::VerifyHostIdentity() noexcept {
+bool SecurityManager::VerifyHostExecutablePresent() noexcept {
 
 
 

@@ -10,6 +10,7 @@
 #include <chrono>
 #include <filesystem>
 #include <mutex>
+#include <stop_token>
 #include <string_view>
 #include <thread>
 
@@ -28,6 +29,7 @@ struct SharedState {
     std::mutex mutex;
     std::array<Status, kGames.size()> status{};
     std::atomic_bool checking{false};
+    std::jthread worker{};
     Clock::time_point lastStart{};
 };
 
@@ -94,25 +96,33 @@ Status MakeStatus(const GameQuery& query, std::uint64_t latestNews, std::string 
     return result;
 }
 
-void QuerySteam() {
-    OmniGhost::Update::WinHttpClient http;
+void QuerySteam(const std::stop_token& stop) {
     std::atomic_bool cancelled{false};
-    std::array<Status, kGames.size()> results{};
-    for (std::size_t index = 0; index < kGames.size(); ++index) {
-        const GameQuery& query = kGames[index];
-        const std::string url = "https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid="
-            + std::to_string(query.appId) + "&count=1&maxlength=1&format=json";
-        const OmniGhost::Update::HttpResult response = http.GetText(url, 8000, cancelled);
-        if (response.statusCode != 200) {
-            results[index] = MakeStatus(query, 0, "Não foi possível consultar a Steam agora.");
-            continue;
+    const std::stop_callback stopCallback(stop, [&cancelled] {
+        cancelled.store(true);
+    });
+    try {
+        OmniGhost::Update::WinHttpClient http;
+        std::array<Status, kGames.size()> results{};
+        for (std::size_t index = 0; index < kGames.size(); ++index) {
+            if (stop.stop_requested()) break;
+            const GameQuery& query = kGames[index];
+            const std::string url = "https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid="
+                + std::to_string(query.appId) + "&count=1&maxlength=1&format=json";
+            const OmniGhost::Update::HttpResult response = http.GetText(url, 8000, cancelled);
+            if (response.statusCode != 200) {
+                results[index] = MakeStatus(query, 0, "Não foi possível consultar a Steam agora.");
+                continue;
+            }
+            const std::uint64_t newsDate = LatestNewsTimestamp(response.body);
+            results[index] = MakeStatus(query, newsDate,
+                newsDate ? "Steam consultada automaticamente." : "A Steam não devolveu notícias para este jogo.");
         }
-        const std::uint64_t newsDate = LatestNewsTimestamp(response.body);
-        results[index] = MakeStatus(query, newsDate,
-            newsDate ? "Steam consultada automaticamente." : "A Steam não devolveu notícias para este jogo.");
+        SharedState& shared = Shared();
+        { std::scoped_lock lock(shared.mutex); shared.status = std::move(results); }
+    } catch (...) {
     }
     SharedState& shared = Shared();
-    { std::scoped_lock lock(shared.mutex); shared.status = std::move(results); }
     shared.checking.store(false, std::memory_order_release);
 }
 }
@@ -129,7 +139,16 @@ void StartForLibrary() {
     }
     bool expected = false;
     if (!shared.checking.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) return;
-    std::thread(QuerySteam).detach();
+    if (shared.worker.joinable())
+        shared.worker.join();
+    shared.worker = std::jthread([](std::stop_token stop) { QuerySteam(stop); });
+}
+
+void Shutdown() {
+    SharedState& shared = Shared();
+    shared.worker.request_stop();
+    if (shared.worker.joinable())
+        shared.worker.join();
 }
 
 Status Get(GameId game) {

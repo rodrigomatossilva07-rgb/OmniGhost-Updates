@@ -307,7 +307,8 @@ bool Connect(const std::string& ip, int port, const std::string& uuid) {
         SetError("Porta KMBox-Net invalida.");
         return false;
     }
-    if (!ParseUuid(uuid, g_mac)) {
+    std::uint32_t mac = 0;
+    if (!ParseUuid(uuid, mac)) {
         SetError("UUID KMBox-Net invalido: usa exatamente 8 digitos hexadecimais.");
         return false;
     }
@@ -318,29 +319,36 @@ bool Connect(const std::string& ip, int port, const std::string& uuid) {
         return false;
     }
     g_winsockStarted = true;
-    g_commandSocket.reset(socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP));
-    if (!g_commandSocket) {
+    OmniGhost::Platform::UniqueSocket commandSocket(socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP));
+    if (!commandSocket) {
         SetError("Nao foi possivel criar o socket KMBox-Net.");
         Disconnect();
         return false;
     }
 
     DWORD timeout = kSocketTimeoutMs;
-    setsockopt(g_commandSocket.get(), SOL_SOCKET, SO_RCVTIMEO,
+    setsockopt(commandSocket.get(), SOL_SOCKET, SO_RCVTIMEO,
                reinterpret_cast<const char*>(&timeout), sizeof(timeout));
-    setsockopt(g_commandSocket.get(), SOL_SOCKET, SO_SNDTIMEO,
+    setsockopt(commandSocket.get(), SOL_SOCKET, SO_SNDTIMEO,
                reinterpret_cast<const char*>(&timeout), sizeof(timeout));
 
-    g_deviceAddress = {};
-    g_deviceAddress.sin_family = AF_INET;
-    g_deviceAddress.sin_port = htons(static_cast<u_short>(port));
-    if (inet_pton(AF_INET, ip.c_str(), &g_deviceAddress.sin_addr) != 1) {
+    sockaddr_in address{};
+    address.sin_family = AF_INET;
+    address.sin_port = htons(static_cast<u_short>(port));
+    if (inet_pton(AF_INET, ip.c_str(), &address.sin_addr) != 1) {
         SetError("Endereco IPv4 do KMBox-Net invalido.");
         Disconnect();
         return false;
     }
 
-    g_index = 0;
+    {
+        std::lock_guard<std::mutex> lock(g_commandMutex);
+        g_commandSocket.reset(commandSocket.release());
+        g_mac = mac;
+        g_deviceAddress = address;
+        g_index = 0;
+    }
+
     g_buttons.store(0);
     g_consecutiveFailures.store(0, std::memory_order_relaxed);
     if (!Request(kCommandConnect, nullptr, 0)) {
@@ -360,8 +368,10 @@ void Disconnect() {
         SetLeft(false);
     StopMonitor(g_connected.load());
     g_connected = false;
-    if (g_commandSocket) {
-        g_commandSocket.reset();
+    {
+        std::lock_guard<std::mutex> lock(g_commandMutex);
+        if (g_commandSocket)
+            g_commandSocket.reset();
     }
     if (g_winsockStarted) {
         WSACleanup();

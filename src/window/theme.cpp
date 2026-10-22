@@ -10,7 +10,6 @@ namespace CyberTheme {
 
     ColorPalette Colors;
     bool g_high_contrast = false;
-    bool g_reduced_motion = false;
     ThemeMode g_theme_mode = ThemeMode::Dark;
     AccentPreset g_accent_preset = AccentPreset::Cyber;
     VisualStyle g_visual_style = VisualStyle::Omni;
@@ -246,22 +245,8 @@ namespace CyberTheme {
             ApplyTheme();
     }
 
-    void SetReducedMotion(bool enabled) {
-        g_reduced_motion = enabled;
-        if (ImGui::GetCurrentContext())
-            ApplyTheme();
-    }
-
     bool IsHighContrast() {
         return g_high_contrast;
-    }
-
-    bool IsReducedMotion() {
-        return g_reduced_motion;
-    }
-
-    float GetAnimationScale() {
-        return g_reduced_motion ? 0.0f : 1.0f;
     }
 
     void SetUiScale(float scale) {
@@ -313,7 +298,7 @@ namespace CyberTheme {
         Metrics::LogoSize = kBaseLogoSize * scale;
         Metrics::SidebarItemHeight = kBaseSidebarItemHeight * scale;
         Metrics::CardMinHeight = 0.0f;
-        Metrics::PageTransitionSeconds = g_reduced_motion ? 0.0f : 0.20f;
+        Metrics::PageTransitionSeconds = 0.20f;
 
         if (ImGui::GetCurrentContext())
             ApplyTheme();
@@ -330,7 +315,6 @@ namespace CyberTheme {
     void Initialize() {
         g_ui_scale = 1.0f;
         g_high_contrast = app_settings::config.high_contrast;
-        g_reduced_motion = app_settings::config.reduce_motion;
         g_theme_mode = static_cast<ThemeMode>(app_settings::config.theme_mode);
         g_accent_preset = static_cast<AccentPreset>(app_settings::config.accent_preset);
         g_visual_style = static_cast<VisualStyle>(std::clamp(app_settings::config.visual_style, 0, 6));
@@ -434,10 +418,6 @@ namespace CyberTheme {
         colors[ImGuiCol_NavWindowingDimBg] = ImVec4(0.f, 0.f, 0.f, 0.35f);
         colors[ImGuiCol_ModalWindowDimBg] = ImVec4(0.f, 0.f, 0.f, 0.60f);
 
-        if (g_reduced_motion) {
-            style.HoverDelayNormal = 0.0f;
-            style.HoverDelayShort = 0.0f;
-        }
     }
 
     void SetThemeMode(ThemeMode mode) {
@@ -503,7 +483,6 @@ namespace CyberTheme {
         data.custom_accent = g_custom_accent;
         data.ui_scale = g_ui_scale;
         data.high_contrast = g_high_contrast;
-        data.reduced_motion = g_reduced_motion;
         data.schema_version = 1;
 
         std::ostringstream out;
@@ -514,8 +493,7 @@ namespace CyberTheme {
         out << "  \"visual_style\": " << static_cast<int>(data.visual_style) << ",\n";
         out << "  \"custom_accent\": { \"r\": " << data.custom_accent.x << ", \"g\": " << data.custom_accent.y << ", \"b\": " << data.custom_accent.z << ", \"a\": " << data.custom_accent.w << " },\n";
         out << "  \"ui_scale\": " << data.ui_scale << ",\n";
-        out << "  \"high_contrast\": " << (data.high_contrast ? "true" : "false") << ",\n";
-        out << "  \"reduced_motion\": " << (data.reduced_motion ? "true" : "false") << "\n";
+        out << "  \"high_contrast\": " << (data.high_contrast ? "true" : "false") << "\n";
         out << "}";
         return out.str();
     }
@@ -563,8 +541,6 @@ namespace CyberTheme {
                     if (pos != std::string::npos) { data.ui_scale = std::stof(line.substr(pos + 1)); sawScale = true; }
                 } else if (line.find("high_contrast") != std::string::npos) {
                     data.high_contrast = line.find("true") != std::string::npos;
-                } else if (line.find("reduced_motion") != std::string::npos) {
-                    data.reduced_motion = line.find("true") != std::string::npos;
                 }
             }
 
@@ -591,7 +567,6 @@ namespace CyberTheme {
             g_visual_style = data.visual_style;
             g_custom_accent = data.custom_accent;
             g_high_contrast = data.high_contrast;
-            g_reduced_motion = data.reduced_motion;
             SetUiScale(data.ui_scale);
             ApplyTheme();
 
@@ -599,7 +574,6 @@ namespace CyberTheme {
             app_settings::config.accent_preset = static_cast<int>(g_accent_preset);
             app_settings::config.visual_style = static_cast<int>(g_visual_style);
             app_settings::config.high_contrast = g_high_contrast;
-            app_settings::config.reduce_motion = g_reduced_motion;
             app_settings::config.ui_scale = g_ui_scale;
             app_settings::config.color_primary = ImGui::ColorConvertFloat4ToU32(GetAccentBase());
 

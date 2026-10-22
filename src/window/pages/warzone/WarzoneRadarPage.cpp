@@ -23,7 +23,7 @@ void DrawWarzoneRadar() {
 
     ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 180, 0, 255));
     ImGui::TextWrapped("[PENDENTE] O radar 2D do Warzone ainda nao tem runtime: "
-                       "as opcoes ficam guardadas mas nada e desenhado no overlay.");
+                       "as opcoes abaixo nao ficam guardadas e nada e desenhado no overlay.");
     ImGui::PopStyleColor();
     CyberWidgets::TextLine("Configuracoes do radar organizadas sem painel de preview, para manter a pagina mais limpa.",
                            CyberWidgets::TextTone::Secondary);

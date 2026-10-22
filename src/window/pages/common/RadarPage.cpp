@@ -64,6 +64,45 @@ void DrawRadar()
         CyberWidgets::TextLine(app_settings::T("Radar desativado.", "Radar disabled."), CyberWidgets::TextTone::Secondary);
     }
     CyberWidgets::EndCard();
+
+    CyberWidgets::CardGap(gap);
+    CyberWidgets::BeginCard(app_settings::T("WEB RADAR", "WEB RADAR"), left);
+    CyberWidgets::Badge(app_settings::T("EM PREPARAÇÃO", "IN PREPARATION"),
+        CyberWidgets::TextTone::Warning);
+    CyberWidgets::TextLine(
+        app_settings::T(
+            "A interface do Web Radar está preparada, mas o servidor e a publicação remota ainda não estão ativos.",
+            "The Web Radar interface is prepared, but its server and remote publishing are not active yet."),
+        CyberWidgets::TextTone::Secondary);
+
+    bool webRadarPreviewEnabled = false;
+    ImGui::BeginDisabled();
+    CyberWidgets::ToggleSwitch(
+        app_settings::T("Ativar Web Radar", "Enable Web Radar"),
+        &webRadarPreviewEnabled);
+    CyberWidgets::KeyValueRow(
+        app_settings::T("Ligação", "Connection"),
+        app_settings::T("Ainda não configurada", "Not configured yet"));
+    CyberWidgets::KeyValueRow(
+        app_settings::T("Link público", "Public link"),
+        "https://---.trycloudflare.com");
+    CyberWidgets::Button(
+        app_settings::T("Copiar link", "Copy link"),
+        CyberWidgets::ButtonStyle::Secondary,
+        ImVec2(132.f, 32.f));
+    ImGui::SameLine();
+    CyberWidgets::Button(
+        app_settings::T("Abrir link", "Open link"),
+        CyberWidgets::ButtonStyle::Ghost,
+        ImVec2(132.f, 32.f));
+    ImGui::EndDisabled();
+
+    CyberWidgets::TextLine(
+        app_settings::T(
+            "Estes controlos são apenas uma pré-visualização e não iniciam qualquer serviço.",
+            "These controls are only a preview and do not start any service."),
+        CyberWidgets::TextTone::Secondary);
+    CyberWidgets::EndCard();
     ImGui::EndGroup();
 
     ImGui::SameLine(0.f, gap);
@@ -72,6 +111,21 @@ void DrawRadar()
     CyberWidgets::Badge(esp::config.radar_enabled ? "ONLINE" : "OFFLINE",
         esp::config.radar_enabled ? CyberWidgets::TextTone::Success : CyberWidgets::TextTone::Secondary);
     DrawRadarPreview((std::max)(160.f, right - 20.f), 240.f);
+    CyberWidgets::EndCard();
+
+    CyberWidgets::CardGap(gap);
+    CyberWidgets::BeginCard(app_settings::T("ESTADO", "STATUS"), right);
+    CyberWidgets::KeyValueRow(
+        app_settings::T("Radar 2D", "2D Radar"),
+        esp::config.radar_enabled
+            ? app_settings::T("Ativo", "Active")
+            : app_settings::T("Desativado", "Disabled"));
+    CyberWidgets::KeyValueRow(
+        app_settings::T("Web Radar", "Web Radar"),
+        app_settings::T("Em preparação", "In preparation"));
+    CyberWidgets::KeyValueRow(
+        app_settings::T("Acesso remoto", "Remote access"),
+        app_settings::T("Não iniciado", "Not started"));
     CyberWidgets::EndCard();
     ImGui::EndGroup();
 }

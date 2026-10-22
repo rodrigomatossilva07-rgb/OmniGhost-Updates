@@ -24,8 +24,11 @@ public:
     bool LoadFromJson(const std::string& path);
     bool LoadFromEmbedded();
 
-    const char* GetWeaponName(uint32_t hash) const;
-    const WeaponInfo* GetWeaponInfo(uint32_t hash) const;
+    // Devolve o nome por VALOR (cópia sob lock): o retorno por ponteiro
+    // expunha c_str() de uma entry que LoadFromJson pode substituir.
+    // Domínio: hashes joaat (FiveM). O CS2 usa def-index e tem a sua
+    // própria tabela em cs2_weapons.h — nunca misturar os domínios.
+    std::string GetWeaponName(uint32_t hash) const;
 
     bool IsLoaded() const { return loaded_; }
 

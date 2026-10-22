@@ -75,9 +75,6 @@ struct Config {
 
 
         int menu_bind = 0x2D;
-        int hotkey_esp = 0;
-        int hotkey_aim = 0;
-        int hotkey_vehicle = 0;
 
 
         bool black_background = true;
@@ -91,7 +88,6 @@ struct Config {
         bool matrix_rain = true;
         EffectLevel digital_rain_level = EffectLevel::Full;
         EffectLevel animation_intensity = EffectLevel::Subtle;
-        bool reduce_motion = false;
         bool ui_sounds = true;
         float ui_sound_volume = 35.0f;
         bool notification_sounds = true;

@@ -71,6 +71,13 @@ static void CollectDroppedWeapons(const Config& frame_config, bool in_match,
     std::vector<std::array<char, 48>> names(kSlots);
     std::vector<std::array<float, 3>> positions(kSlots);
     std::vector<int> ammo(kSlots);
+    // CS-010: pré-preenche com "sem leitura" — posições a NaN (o
+    // IsFinitePosition rejeita-as como no core path) e munição a -1, para
+    // não publicar marcadores na origem (0,0,0) com "0" de munição quando
+    // a leitura falhou ou nunca foi pedida.
+    constexpr float kUnreadPos = std::numeric_limits<float>::quiet_NaN();
+    for (auto& pos : positions) pos.fill(kUnreadPos);
+    std::fill(ammo.begin(), ammo.end(), -1);
     uintptr_t root = g_cached_entity_root;
     if (!IsUserPointer(root) && (!QReadT(client_base + offsets.dwEntityList, root) || !IsUserPointer(root))) {
         publishCachedWeapons();

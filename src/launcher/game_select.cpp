@@ -20,6 +20,7 @@
 #include "../config/app_settings.h"
 #include "../config/config_manager.h"
 #include "../window/digital_rain.h"
+#include "../window/animations.h"
 #include "../window/brand_assets.h"
 #include "../window/localization.h"
 #include "../window/performance_mode.h"

@@ -2,9 +2,11 @@
 
 #include "../cs2_game.h"
 #include "../config/cs2_config.h"
+#include "../weapons/cs2_weapon_icons.h"
 #include "gameplay/dma_telemetry_log.h"
 #include "third_party/ImGui/imgui.h"
 #include "../../src/config/app_settings.h"
+#include "../../src/window/window.hpp"
 
 #include <Windows.h>
 
@@ -15,6 +17,7 @@
 #include <deque>
 #include <cstdio>
 #include <charconv>
+#include <cfloat>
 #include <functional>
 #include <unordered_map>
 #include <utility>
@@ -108,6 +111,51 @@ void DrawVerticalBar(ImDrawList* draw, float x, float top, float bottom, float f
     draw->AddRectFilled(ImVec2(x, filledTop), ImVec2(x + kWidth, bottom), color);
 }
 
+void DrawHorizontalBar(ImDrawList* draw, float left, float right, float y, float fraction, ImU32 color) {
+    constexpr float kHeight = 4.f;
+    fraction = std::clamp(fraction, 0.f, 1.f);
+    draw->AddRectFilled(ImVec2(left - 1.f, y - 1.f), ImVec2(right + 1.f, y + kHeight + 1.f), IM_COL32(0, 0, 0, 180));
+    draw->AddRectFilled(ImVec2(left, y), ImVec2(right, y + kHeight), IM_COL32(18, 18, 18, 235));
+    draw->AddRectFilled(ImVec2(left, y), ImVec2(left + (right - left) * fraction, y + kHeight), color);
+}
+
+bool DrawOffscreenArrow(ImDrawList* draw, const float world[3], const float matrix[16],
+                        const CS2::Player& player, const CS2::Config& settings) {
+    if (!settings.offscreen_arrows || player.distance > settings.offscreen_arrow_max_distance)
+        return false;
+    const ImVec2 viewport = ImGui::GetIO().DisplaySize;
+    if (viewport.x < 10.f || viewport.y < 10.f) return false;
+    const float clipX = world[0] * matrix[0] + world[1] * matrix[1] + world[2] * matrix[2] + matrix[3];
+    const float clipY = world[0] * matrix[4] + world[1] * matrix[5] + world[2] * matrix[6] + matrix[7];
+    const float clipW = world[0] * matrix[12] + world[1] * matrix[13] + world[2] * matrix[14] + matrix[15];
+    if (!std::isfinite(clipX) || !std::isfinite(clipY) || !std::isfinite(clipW)) return false;
+    const float safeW = std::abs(clipW) > .001f ? clipW : (clipW < 0.f ? -.001f : .001f);
+    float nx = clipX / safeW;
+    float ny = -clipY / safeW;
+    if (clipW < 0.f) { nx = -nx; ny = -ny; }
+    if (clipW > .001f && std::abs(nx) <= 1.f && std::abs(ny) <= 1.f) return false;
+    const float length = std::sqrt(nx * nx + ny * ny);
+    if (!std::isfinite(length) || length < .001f) return false;
+    nx /= length; ny /= length;
+    const float margin = std::clamp(settings.offscreen_arrow_margin, 12.f,
+        std::min(viewport.x, viewport.y) * .35f);
+    const float halfW = viewport.x * .5f - margin;
+    const float halfH = viewport.y * .5f - margin;
+    const float scale = std::min(halfW / std::max(std::abs(nx), .001f),
+                                 halfH / std::max(std::abs(ny), .001f));
+    const ImVec2 tip(viewport.x * .5f + nx * scale, viewport.y * .5f + ny * scale);
+    const float size = std::clamp(settings.offscreen_arrow_size, 6.f, 32.f);
+    const ImVec2 side(-ny, nx);
+    const ImVec2 base(tip.x - nx * size, tip.y - ny * size);
+    float colorValues[4] = { settings.col_offscreen_arrow[0], settings.col_offscreen_arrow[1],
+        settings.col_offscreen_arrow[2],
+        std::clamp(settings.col_offscreen_arrow[3] * settings.offscreen_arrow_opacity, 0.f, 1.f) };
+    draw->AddTriangleFilled(tip,
+        ImVec2(base.x + side.x * size * .55f, base.y + side.y * size * .55f),
+        ImVec2(base.x - side.x * size * .55f, base.y - side.y * size * .55f), Color(colorValues));
+    return true;
+}
+
 void DrawSkeleton(ImDrawList* draw, const CS2::Player& player, const float viewMatrix[16],
                   const float positionOffset[3],
                   ImU32 color, ImU32 jointColor, float thickness, bool joints, float bodyHeightPx) {
@@ -185,14 +233,15 @@ void DrawOutlinedText(ImDrawList* draw, ImVec2 pos, ImU32 color, const char* tex
         const float t = std::clamp(settings.text_outline_thickness, .5f, 2.f);
 
 
-        draw->AddText(ImVec2(pos.x - t, pos.y - t), outline, text);
-        draw->AddText(ImVec2(pos.x + t, pos.y + t), outline, text);
+        const float fontSize = ImGui::GetFontSize() * std::clamp(settings.layout_text_scale, .65f, 1.6f);
+        draw->AddText(nullptr, fontSize, ImVec2(pos.x - t, pos.y - t), outline, text);
+        draw->AddText(nullptr, fontSize, ImVec2(pos.x + t, pos.y + t), outline, text);
         if (t >= 1.25f) {
-            draw->AddText(ImVec2(pos.x + t, pos.y - t), outline, text);
-            draw->AddText(ImVec2(pos.x - t, pos.y + t), outline, text);
+            draw->AddText(nullptr, fontSize, ImVec2(pos.x + t, pos.y - t), outline, text);
+            draw->AddText(nullptr, fontSize, ImVec2(pos.x - t, pos.y + t), outline, text);
         }
     }
-    draw->AddText(pos, color, text);
+    draw->AddText(nullptr, ImGui::GetFontSize() * std::clamp(settings.layout_text_scale, .65f, 1.6f), pos, color, text);
 }
 
 void DrawExtras(ImDrawList* draw, const CS2::Player& player, const ImVec2& head, const ImVec2& feet,
@@ -211,10 +260,6 @@ void DrawExtras(ImDrawList* draw, const CS2::Player& player, const ImVec2& head,
     if (settings.head_dot)
         draw->AddCircle(head, 10.f * scale, EffectColor(settings, settings.col_head, rgb), 20,
                         std::clamp(settings.head_circle_thickness, .5f, 5.f));
-    if (settings.weapon_name && player.weapon[0]) {
-        const ImVec2 text = ImGui::CalcTextSize(player.weapon);
-        DrawOutlinedText(draw, ImVec2((min.x + max.x - text.x) * .5f, max.y + 4.f), EffectColor(settings, settings.col_weapon, rgb), player.weapon, settings);
-    }
     if (settings.head_halo) {
         ImVec2 halo[17]{};
         for (int index = 0; index <= 16; ++index) {
@@ -384,6 +429,42 @@ void DrawBombTimerWindow(const CS2::Runtime& snapshot, const CS2::Config& settin
         }, &CS2::config.bomb_window_x, &CS2::config.bomb_window_y);
 }
 
+void DrawActiveFeaturesPanel(const CS2::Config& settings) {
+    if (!settings.active_features_panel) return;
+    const ImVec2 display = ImGui::GetIO().DisplaySize;
+    const float scale = std::clamp(settings.active_features_scale, .65f, 1.6f);
+    ImGui::SetNextWindowPos(ImVec2(settings.active_features_x * display.x,
+                                   settings.active_features_y * display.y), ImGuiCond_Once);
+    ImGui::SetNextWindowBgAlpha(std::clamp(settings.active_features_opacity, .15f, 1.f));
+    ImGui::SetNextWindowSize(ImVec2(settings.active_features_compact ? 175.f : 220.f, 0.f));
+    ImGuiWindowFlags flags = ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse |
+        ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoTitleBar;
+    if (!app_settings::menu_open) flags |= ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoInputs;
+    if (ImGui::Begin("##cs2_active_features", nullptr, flags)) {
+        ImGui::SetWindowFontScale(scale);
+        ImGui::TextColored(ImVec4(.95f, .72f, .18f, 1.f), "CS2 DMA");
+        if (!settings.active_features_compact) ImGui::Separator();
+        const auto row = [&](const char* label, bool active) {
+            if (!active) return;
+            ImGui::TextColored(ImVec4(.25f, .90f, .52f, 1.f), "%s%sON", label,
+                settings.active_features_compact ? " " : "  -  ");
+        };
+        row("Aimbot", settings.aim_enabled);
+        row("Triggerbot", settings.trigger_enabled);
+        row("Player ESP", settings.esp_enabled);
+        row("Offscreen", settings.offscreen_arrows);
+        row("Dynamic FOV", settings.aim_dynamic_fov);
+        row("C4 Equipped", settings.c4_carrier_esp);
+        if (app_settings::menu_open && display.x > 1.f && display.y > 1.f) {
+            const ImVec2 pos = ImGui::GetWindowPos();
+            CS2::config.active_features_x = std::clamp(pos.x / display.x, 0.f, .95f);
+            CS2::config.active_features_y = std::clamp(pos.y / display.y, 0.f, .95f);
+        }
+        ImGui::SetWindowFontScale(1.f);
+    }
+    ImGui::End();
+}
+
 void DrawSpectatorWindow(const CS2::Runtime& snapshot, const CS2::Config& settings) {
     if (!settings.spectator_list) return;
     static float x = -1.f, y = -1.f;
@@ -421,10 +502,27 @@ void DrawDroppedWeapons(ImDrawList* draw, const CS2::Runtime& snapshot,
         const ImVec2 text = ImGui::CalcTextSize(label);
         const float iconOffset = settings.dropped_weapon_icons ? 10.f : 0.f;
         if (settings.dropped_weapon_icons) {
-
-
-            draw->AddRectFilled(ImVec2(screen.x - text.x * .5f - 11.f, screen.y - 1.f),
-                ImVec2(screen.x - text.x * .5f - 3.f, screen.y + 5.f), color, 1.f);
+            // CSE-002: desenha o ícone PNG da arma (carregado em background)
+            // em vez do rect genérico; o rect fica de fallback enquanto o
+            // ícone não chega.
+            ID3D11Device* device = g_overlay_instance ? g_overlay_instance->device : nullptr;
+            CS2_WeaponIcons::EnsureLoaded(device);
+            ID3D11ShaderResourceView* icon =
+                CS2_WeaponIcons::Get(weapon.item_definition);
+            int iconW = 0, iconH = 0;
+            if (icon)
+                CS2_WeaponIcons::GetSize(weapon.item_definition, iconW, iconH);
+            if (icon && iconW > 0 && iconH > 0) {
+                const float targetH = 26.f;
+                const float scale = targetH / static_cast<float>(iconH);
+                const ImVec2 iconMax(screen.x - text.x * .5f - 8.f, screen.y + 3.f);
+                const ImVec2 iconMin(iconMax.x - static_cast<float>(iconW) * scale,
+                                    iconMax.y - targetH);
+                draw->AddImage(reinterpret_cast<ImTextureID>(icon), iconMin, iconMax);
+            } else {
+                draw->AddRectFilled(ImVec2(screen.x - text.x * .5f - 11.f, screen.y - 1.f),
+                    ImVec2(screen.x - text.x * .5f - 3.f, screen.y + 5.f), color, 1.f);
+            }
         }
         DrawOutlinedText(draw, ImVec2(screen.x - text.x * .5f + iconOffset * .15f, screen.y - 12.f), color, label, settings);
     }
@@ -436,7 +534,7 @@ namespace CS2::ESP {
 
 void DrawPlayers(const Runtime& snapshot, const Config& settings) {
 
-
+    DrawActiveFeaturesPanel(settings);
 
     if (snapshot.in_match) {
         DrawBombTimerWindow(snapshot, settings);
@@ -635,6 +733,8 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
         const float predictedPosition[3] = {
             player.pos[0] + positionOffset[0], player.pos[1] + positionOffset[1], player.pos[2] + positionOffset[2]
         };
+        if (DrawOffscreenArrow(draw, predictedPosition, viewMatrix, player, settings))
+            continue;
         ImVec2 feet{}, head{};
         if (!WorldToScreen(predictedPosition, viewMatrix, feet)) continue;
 
@@ -721,10 +821,25 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
             if (settings.box_corner || settings.box_style == 3)
                 DrawCornerBox(draw, min, max, boxColor(settings.col_box_corner), thickness);
         }
+        const float spacing = std::clamp(settings.layout_spacing, 0.f, 18.f);
+        const auto bar = [&](int anchor, float fraction, ImU32 color, float secondaryOffset) {
+            switch (std::clamp(anchor, 0, 3)) {
+            case static_cast<int>(EspLayoutAnchor::Top):
+                DrawHorizontalBar(draw, min.x, max.x, min.y - 8.f - secondaryOffset, fraction, color); break;
+            case static_cast<int>(EspLayoutAnchor::Bottom):
+                DrawHorizontalBar(draw, min.x, max.x, max.y + 4.f + secondaryOffset, fraction, color); break;
+            case static_cast<int>(EspLayoutAnchor::Right):
+                DrawVerticalBar(draw, max.x + 3.f + secondaryOffset, min.y, max.y, fraction, color); break;
+            default:
+                DrawVerticalBar(draw, min.x - 7.f - secondaryOffset, min.y, max.y, fraction, color); break;
+            }
+        };
         if (settings.health_bar)
-            DrawVerticalBar(draw, min.x - 7.f, min.y, max.y, static_cast<float>(player.health) / 100.f, Color(settings.col_health));
+            bar(settings.layout_health_anchor, static_cast<float>(player.health) / 100.f,
+                Color(settings.col_health), 0.f);
         if (settings.armor_bar)
-            DrawVerticalBar(draw, max.x + 3.f, min.y, max.y, static_cast<float>(player.armor) / 100.f, Color(settings.col_armor));
+            bar(settings.layout_armor_anchor, static_cast<float>(player.armor) / 100.f,
+                Color(settings.col_armor), settings.layout_armor_anchor == settings.layout_health_anchor ? 7.f : 0.f);
         if (settings.skeleton && bonesFresh && headPlausible && player.full_bones_ok) {
             const ImU32 skeletonColor = settings.rgb_mode ? rgbColor
                 : useVisibilityColors && player.visibility_known ? Color(player.visible ? settings.col_visible : settings.col_occluded)
@@ -732,23 +847,46 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
             DrawSkeleton(draw, player, viewMatrix, boneOffset, skeletonColor, Color(settings.col_joints),
                          std::clamp(settings.skeleton_thickness, .5f, 4.f), settings.skeleton_joints, height);
         }
-        if (settings.name && player.name[0]) {
-            const ImVec2 size = ImGui::CalcTextSize(player.name);
-            DrawOutlinedText(draw, ImVec2((min.x + max.x - size.x) * .5f, min.y - 16.f), Color(settings.col_name), player.name, settings);
-        }
+        int topText = 0, bottomText = 0, leftText = 0, rightText = 0;
+        const auto textSize = [&](const char* text) {
+            const float fontSize = ImGui::GetFontSize() * std::clamp(settings.layout_text_scale, .65f, 1.6f);
+            return ImGui::GetFont()->CalcTextSizeA(fontSize, FLT_MAX, 0.f, text);
+        };
+        const auto placeText = [&](const char* text, int anchor, ImU32 color) {
+            if (!text || !*text) return;
+            const ImVec2 size = textSize(text);
+            ImVec2 pos{};
+            switch (std::clamp(anchor, 0, 3)) {
+            case static_cast<int>(EspLayoutAnchor::Top):
+                pos = ImVec2((min.x + max.x - size.x) * .5f,
+                    min.y - (size.y + spacing) * static_cast<float>(++topText)); break;
+            case static_cast<int>(EspLayoutAnchor::Left):
+                pos = ImVec2(min.x - size.x - 10.f,
+                    min.y + (size.y + spacing) * static_cast<float>(leftText++)); break;
+            case static_cast<int>(EspLayoutAnchor::Right):
+                pos = ImVec2(max.x + 10.f,
+                    min.y + (size.y + spacing) * static_cast<float>(rightText++)); break;
+            default:
+                pos = ImVec2((min.x + max.x - size.x) * .5f,
+                    max.y + spacing + (size.y + spacing) * static_cast<float>(bottomText++)); break;
+            }
+            DrawOutlinedText(draw, pos, color, text, settings);
+        };
+        if (settings.name && player.name[0])
+            placeText(player.name, settings.layout_name_anchor, Color(settings.col_name));
+        if (settings.c4_carrier_esp && !snapshot.bomb.planted && player.weapon_def == 49)
+            placeText("[C4]", settings.layout_name_anchor, IM_COL32(255, 190, 45, 255));
         if (settings.distance) {
             char distance[32];
             FormatDistance(distance, sizeof(distance), player.distance);
-            const ImVec2 size = ImGui::CalcTextSize(distance);
-            const float textY = max.y + (settings.weapon_name ?
-                settings.weapon_ammo && player.ammo_clip >= 0 ? 36.f : 20.f : 4.f);
-            DrawOutlinedText(draw, ImVec2((min.x + max.x - size.x) * .5f, textY), Color(settings.col_distance), distance, settings);
+            placeText(distance, settings.layout_distance_anchor, Color(settings.col_distance));
         }
+        if (settings.weapon_name && player.weapon[0])
+            placeText(player.weapon, settings.layout_weapon_anchor, Color(settings.col_weapon));
         if (settings.weapon_ammo && settings.weapon_name && player.ammo_clip >= 0) {
             char ammo[32];
             FormatAmmo(ammo, sizeof(ammo), player.ammo_clip, (std::max)(0, player.ammo_reserve));
-            const ImVec2 size = ImGui::CalcTextSize(ammo);
-            DrawOutlinedText(draw, ImVec2((min.x + max.x - size.x) * .5f, max.y + 20.f), Color(settings.col_weapon), ammo, settings);
+            placeText(ammo, settings.layout_ammo_anchor, Color(settings.col_weapon));
         }
         if (settings.health_value) { char hp[16]; FormatInt(hp, sizeof(hp), player.health); DrawOutlinedText(draw, ImVec2(min.x - 25.f, min.y), Color(settings.col_health), hp, settings); }
         if (settings.armor_value && player.armor > 0) { char ap[16]; FormatInt(ap, sizeof(ap), player.armor); DrawOutlinedText(draw, ImVec2(max.x + 8.f, min.y), Color(settings.col_armor), ap, settings); }

@@ -80,18 +80,37 @@ bool W2S(const float* world, const float* vm, float& sx, float& sy) {
 
 
 void PickBone(const CS2::Player& p, int bone, float out[3]) {
-    const float* selected = p.head;
-    if (p.bones_ok) {
+    // CSE-006: gate de frescura — os bones em cache podem ficar até 5 s
+    // velhos sob pressão DMA (prune lento); o aim não deve seguir
+    // esqueletos congelados. Acima de 250 ms cai para pos + offset de
+    // hitbox (72 u ≈ altura da cabeça, o mesmo default do ESP).
+    const uint64_t now_ms = GetTickCount64();
+    const bool bonesFresh = p.bones_ok && p.bone_pose_sample_ms != 0 &&
+        now_ms >= p.bone_pose_sample_ms &&
+        (now_ms - p.bone_pose_sample_ms) <= 250u;
+    if (bonesFresh) {
+        const float* selected = p.bones[0];
         switch (bone) {
         case 1: selected = p.bones[1]; break;
         case 2: selected = p.bones[2]; break;
         case 3: selected = p.bones[4]; break;
         default: selected = p.bones[0]; break;
         }
+        out[0] = selected[0];
+        out[1] = selected[1];
+        out[2] = selected[2];
+        return;
     }
-    out[0] = selected[0];
-    out[1] = selected[1];
-    out[2] = selected[2];
+    float height = 72.f;
+    switch (bone) {
+    case 1: height = 62.f; break;
+    case 2: height = 46.f; break;
+    case 3: height = 36.f; break;
+    default: break;
+    }
+    out[0] = p.pos[0];
+    out[1] = p.pos[1];
+    out[2] = p.pos[2] + height;
 }
 
 
@@ -193,7 +212,12 @@ bool KeyDown(int vk) {
 }
 
 bool AimKeyDown(const CS2::Config& cfg) {
-    return cfg.aim_enabled && cfg.aim_bind > 0 && KeyDown(cfg.aim_bind);
+    // CSE-008: honra as teclas secundárias persistidas (como Warzone/FiveM).
+    if (!cfg.aim_enabled) return false;
+    if (cfg.aim_bind > 0 && KeyDown(cfg.aim_bind)) return true;
+    if (cfg.aim_bind2 > 0 && KeyDown(cfg.aim_bind2)) return true;
+    if (cfg.aim_bind3 > 0 && KeyDown(cfg.aim_bind3)) return true;
+    return false;
 }
 
 bool IsFirearm(int definition) {
@@ -214,9 +238,16 @@ bool IsFirearm(int definition) {
 float EffectiveFov(const CS2::Config& cfg, float distance_m) {
     float fov = cfg.aim_fov > 1.f ? cfg.aim_fov : 80.f;
     if (!cfg.aim_dynamic_fov) return fov;
-    const float t = std::clamp(distance_m / 40.f, 0.f, 1.f);
-    const float minF = cfg.aim_fov_min > 5.f ? cfg.aim_fov_min : 20.f;
-    return minF + (fov - minF) * t;
+    const float distance = std::max(distance_m, 0.f);
+    for (std::size_t i = 1; i < std::size(cfg.aim_fov_curve_distance); ++i) {
+        const float leftDistance = cfg.aim_fov_curve_distance[i - 1];
+        const float rightDistance = std::max(cfg.aim_fov_curve_distance[i], leftDistance + .01f);
+        if (distance <= rightDistance) {
+            const float t = std::clamp((distance - leftDistance) / (rightDistance - leftDistance), 0.f, 1.f);
+            return std::lerp(cfg.aim_fov_curve_value[i - 1], cfg.aim_fov_curve_value[i], t);
+        }
+    }
+    return cfg.aim_fov_curve_value[std::size(cfg.aim_fov_curve_value) - 1];
 }
 
 float WeaponThreat(int definition) noexcept {
@@ -245,6 +276,30 @@ int AutoSelectBone(const CS2::Player& p, int weapon_def, float distance_m, bool 
 
 
     return preferred;
+}
+
+bool BoneVisibilityKnown(const CS2::Player& player, int bone) noexcept {
+    if (bone < 0 || bone > 3) return false;
+    return (player.bone_visibility_known_mask & static_cast<uint8_t>(1u << bone)) != 0;
+}
+
+bool BoneVisible(const CS2::Player& player, int bone) noexcept {
+    return BoneVisibilityKnown(player, bone) &&
+        (player.bone_visibility_mask & static_cast<uint8_t>(1u << bone)) != 0;
+}
+
+int SelectAimBone(const CS2::Player& player, const CS2::Config& cfg, int weaponDefinition) {
+    const int fallback = std::clamp(cfg.aim_bone, 0, 3);
+    if (cfg.aim_visible_bones_only) {
+        for (const int configured : cfg.aim_bone_priority) {
+            const int bone = std::clamp(configured, 0, 3);
+            if (BoneVisible(player, bone)) return bone;
+        }
+        return -1;
+    }
+    return cfg.aim_auto_bone
+        ? AutoSelectBone(player, weaponDefinition, player.distance, true, fallback)
+        : fallback;
 }
 
 struct TargetCandidate {
@@ -380,10 +435,8 @@ TargetCandidate SelectTarget(const CS2::Runtime& rt, const CS2::Config& cfg,
 
 
 
-        int bone = std::clamp(cfg.aim_bone, 0, 3);
-        if (cfg.aim_auto_bone)
-            bone = AutoSelectBone(player, rt.local_weapon_definition,
-                                  player.distance, true, bone);
+        const int bone = SelectAimBone(player, cfg, rt.local_weapon_definition);
+        if (bone < 0) { ++g_target_diag.hidden; continue; }
 
         float point[3]{};
         PickBone(player, bone, point);
@@ -712,6 +765,18 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
     float aim_output_y = 0.f;
     if (aim_key_down) target = SelectTarget(rt, cfg, cx, cy, updateViewMatrix);
 
+    if (cfg.aim_draw_fov) {
+        const float previewDistance = target.index >= 0 ? target.distance_m :
+            cfg.aim_fov_curve_distance[2];
+        const float radius = std::clamp(EffectiveFov(cfg, previewDistance), 1.f, 1000.f);
+        const ImU32 color = IM_COL32(
+            static_cast<int>(std::clamp(cfg.col_fov[0], 0.f, 1.f) * 255.f),
+            static_cast<int>(std::clamp(cfg.col_fov[1], 0.f, 1.f) * 255.f),
+            static_cast<int>(std::clamp(cfg.col_fov[2], 0.f, 1.f) * 255.f),
+            static_cast<int>(std::clamp(cfg.col_fov[3], 0.f, 1.f) * 255.f));
+        ImGui::GetBackgroundDrawList()->AddCircle(ImVec2(cx, cy), radius, color, 96, 1.25f);
+    }
+
     if (!aim_key_down) {
         g_active_target_idx = -1;
         g_last_target_idx = -1;
@@ -739,8 +804,13 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
                         (cfg.aim_visibility_check && !held.spotted) || held.distance > cfg.aim_max_dist)
                         break;
                     float point[3]{};
-                    int bone = std::clamp(cfg.aim_bone, 0, 3);
+                    const int bone = SelectAimBone(held, cfg, rt.local_weapon_definition);
+                    if (bone < 0) break;
                     PickBone(held, bone, point);
+                    // CSE-006: o path de retenção sticky não aplicava a
+                    // predição robusta ao contrário do path principal.
+                    const uint64_t sticky_now_ms = GetTickCount64();
+                    ApplyRobustPrediction(point, held, rt, cfg, sticky_now_ms);
                     float sx = 0.f, sy = 0.f;
                     if (held.alive && held.health > 0 && W2S(point, updateViewMatrix, sx, sy)) {
                         target.index = static_cast<int>(i);
@@ -835,13 +905,30 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
                     if (idEnt > 0) {
                         for (const auto& p : rt.players) {
                             if (p.is_local) continue;
-                            if (cfg.trigger_team_check && p.team == rt.local_team) continue;
+                            // CS-011: enquanto a equipa local é desconhecida
+                            // (<2), não dispara com o team check ativo — não
+                            // falha aberto em colegas nos primeiros ~500 ms.
+                            if (cfg.trigger_team_check &&
+                                (rt.local_team < 2 || p.team == rt.local_team)) continue;
                             if (!p.alive || p.health <= 0) continue;
                             if (cfg.aim_visibility_check && !p.spotted) continue;
                             if (p.ent_index == idEnt || p.ent_index == (idEnt & 0x7FFF)) {
                                 if (cfg.trigger_head_only) {
+                                    // CSE-006: cabeça com gate de frescura —
+                                    // bones velhos caem para pos + altura.
+                                    const uint64_t identNowMs = GetTickCount64();
+                                    const bool identBonesFresh = p.bones_ok &&
+                                        p.bone_pose_sample_ms != 0 &&
+                                        identNowMs >= p.bone_pose_sample_ms &&
+                                        (identNowMs - p.bone_pose_sample_ms) <= 250u;
+                                    float identHead[3] = { p.head[0], p.head[1], p.head[2] };
+                                    if (!identBonesFresh) {
+                                        identHead[0] = p.pos[0];
+                                        identHead[1] = p.pos[1];
+                                        identHead[2] = p.pos[2] + 72.f;
+                                    }
                                     float sx, sy;
-                                    if (W2S(p.head, updateViewMatrix, sx, sy)) {
+                                    if (W2S(identHead, updateViewMatrix, sx, sy)) {
                                         const float d = std::sqrt((sx - cx) * (sx - cx) + (sy - cy) * (sy - cy));
                                         if (d < 16.f) { hit = true; hitPawn = p.pawn; }
                                     }
@@ -860,7 +947,9 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
                         : (std::max)(18.f, cfg.aim_fov > 1.f ? cfg.aim_fov * 0.35f : 28.f);
                     for (const auto& p : rt.players) {
                         if (p.is_local) continue;
-                        if (cfg.trigger_team_check && p.team == rt.local_team) continue;
+                        // CS-011: idem — conservador com equipa local desconhecida.
+                        if (cfg.trigger_team_check &&
+                            (rt.local_team < 2 || p.team == rt.local_team)) continue;
                         if (!p.alive || p.health <= 0) continue;
                         if (cfg.aim_visibility_check && !p.spotted) continue;
                         auto testPoint = [&](const float* w) {
@@ -869,17 +958,30 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
                             const float d = std::sqrt((sx - cx) * (sx - cx) + (sy - cy) * (sy - cy));
                             return d < triggerFov;
                         };
+                        // CSE-006: gate de frescura — bones em cache podem
+                        // estar até 5 s velhos sob pressão DMA; o trigger
+                        // segue a posição atual + altura de hitbox.
+                        const uint64_t trigNowMs = GetTickCount64();
+                        const bool trigBonesFresh = p.bones_ok && p.bone_pose_sample_ms != 0 &&
+                            trigNowMs >= p.bone_pose_sample_ms &&
+                            (trigNowMs - p.bone_pose_sample_ms) <= 250u;
+                        float headPoint[3] = { p.head[0], p.head[1], p.head[2] };
+                        if (!trigBonesFresh) {
+                            headPoint[0] = p.pos[0];
+                            headPoint[1] = p.pos[1];
+                            headPoint[2] = p.pos[2] + 72.f;
+                        }
                         if (cfg.trigger_head_only) {
-                            if (testPoint(p.head)) { hit = true; hitPawn = p.pawn; break; }
+                            if (testPoint(headPoint)) { hit = true; hitPawn = p.pawn; break; }
                             continue;
                         }
-                        if (p.bones_ok) {
+                        if (trigBonesFresh) {
                             for (int bi = 0; bi < 20; ++bi) {
                                 if (testPoint(p.bones[bi])) { hit = true; hitPawn = p.pawn; break; }
                             }
                             if (hit) break;
                         } else {
-                            if (testPoint(p.head) || testPoint(p.pos)) {
+                            if (testPoint(headPoint) || testPoint(p.pos)) {
                                 hit = true; hitPawn = p.pawn; break;
                             }
                         }

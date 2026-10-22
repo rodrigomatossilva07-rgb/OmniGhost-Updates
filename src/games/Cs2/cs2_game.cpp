@@ -6,6 +6,7 @@
 #include "../src/platform/embedded_offsets.h"
 #include "aimbot/cs2_aim.h"
 #include "weapons/cs2_weapons.h"
+#include "weapons/cs2_weapon_icons.h"
 #include "Memory/Memory.h"
 #include "globals.h"
 #include "gameplay/esp_core.h"
@@ -62,7 +63,42 @@ std::atomic<uint64_t> g_read_fails{0};
 bool LoadEmbeddedOffsets();
 bool RefreshProcessLiveness();
 bool ready = false;
-std::string status = "idle";
+// CS-008: buffer de estado guardado por comprimento atómico — escritores
+// (pipeline de offsets na thread de launch, UI) publicam com store(release)
+// após copiarem o texto; leitores copiam com load(acquire).
+namespace {
+    char s_status[128] = "idle";
+    std::atomic<uint32_t> s_statusLen{5};
+    std::mutex s_statusMutex;
+}
+
+void SetStatus(std::string_view text) {
+    if (text.size() > sizeof(s_status) - 1)
+        text = text.substr(0, sizeof(s_status) - 1);
+    std::lock_guard lock(s_statusMutex);
+    s_statusLen.store(0, std::memory_order_release);
+    std::memcpy(s_status, text.data(), text.size());
+    s_status[text.size()] = '\0';
+    s_statusLen.store(static_cast<uint32_t>(text.size()), std::memory_order_release);
+}
+
+std::string GetStatus() {
+    const uint32_t len = s_statusLen.load(std::memory_order_acquire);
+    if (len == 0 || len >= sizeof(s_status))
+        return {};
+    return std::string(s_status, len);
+}
+
+std::string_view GetStatusView() {
+    static thread_local char viewBuffer[sizeof(s_status)];
+    const uint32_t len = s_statusLen.load(std::memory_order_acquire);
+    if (len == 0 || len >= sizeof(s_status))
+        return {};
+    std::memcpy(viewBuffer, s_status, len);
+    viewBuffer[len] = '\0';
+    return std::string_view(viewBuffer, len);
+}
+
 std::string offsets_source = "não carregados";
 
 namespace {
@@ -206,11 +242,14 @@ struct AcquisitionStateMachine {
         return false;
     }
     void MarkRunning() {
-        state.store(AcquisitionState::Running, std::memory_order_release);
-    }
-    bool TryStop() {
-        AcquisitionState expected = AcquisitionState::Running;
-        return state.compare_exchange_strong(expected, AcquisitionState::Stopping);
+        // CS-013: CAS — só promove Starting→Running. Um RequestStop que
+        // aterre entre TryStart e MarkRunning deixa o estado em Stopping,
+        // que o loop de aquisição vê de imediato (o stop não se perde nem
+        // é sobrescrito).
+        AcquisitionState expected = AcquisitionState::Starting;
+        state.compare_exchange_strong(expected, AcquisitionState::Running,
+                                      std::memory_order_acq_rel,
+                                      std::memory_order_acquire);
     }
     void MarkStopped() {
         state.store(AcquisitionState::Stopped, std::memory_order_release);
@@ -297,6 +336,8 @@ struct OptionalVisibilityResult {
     uintptr_t pawn = 0;
     bool visible = false;
     bool known = false;
+    uint8_t point_known_mask = 0;
+    uint8_t point_visible_mask = 0;
     uint64_t checked_ms = 0;
 };
 
@@ -533,7 +574,9 @@ static void NotePossibleDeviceStall(float duration_ms) {
 
 
 
-uintptr_t g_cached_entity_root = 0;
+// CS-008: partilhado entre a thread de aquisição e a lane opcional (dropped
+// items/sessão) — atómico para eliminar a corrida formal no uintptr_t.
+std::atomic<uintptr_t> g_cached_entity_root{0};
 
 void EnsureScatter() {
     g_scatter_full.Ensure();

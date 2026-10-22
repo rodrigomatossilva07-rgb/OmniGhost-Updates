@@ -130,7 +130,9 @@ void DrawBackground(
     const float rainDensity = app_settings::DigitalRainDensity();
 
 
-    const float rainOpacity = std::clamp(app_settings::DigitalRainOpacity(), 0.02f, 0.04f);
+    const float rainOpacity = std::clamp(
+        app_settings::DigitalRainOpacity() * (performance_mode ? 0.34f : 0.52f),
+        0.18f, 0.48f);
     DigitalRain::Draw(
         draw,
         ImVec2(0.0f, header),
@@ -277,8 +279,9 @@ void DrawHeader(ImDrawList* draw, ImVec2 display) {
         const ImVec2 max(x + size.x + S(8.f), height - S(2.f));
         const bool active = static_cast<int>(item.page) == g_nav;
         const bool hovered = !g_profile_menu_open && ImGui::IsMouseHoveringRect(min, max);
+        const float nudge = CyberAnimations::HoverNudge(ImGui::GetID(item.key), hovered);
         if (hovered) ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
-        draw->AddText(ImVec2(x, S(20.f)), active ? C_GOLD_LT() : (hovered ? C_TEXT() : C_MUTED()), text);
+        draw->AddText(ImVec2(x + nudge, S(20.f)), active ? C_GOLD_LT() : (hovered ? C_TEXT() : C_MUTED()), text);
         if (active)
             draw->AddRectFilled(ImVec2(x, height - S(3.f)), ImVec2(x + size.x, height), C_GOLD(), S(1.f));
         if (hovered && ImGui::IsMouseClicked(0))
@@ -353,10 +356,11 @@ void DrawHeader(ImDrawList* draw, ImVec2 display) {
             const ImVec2 itemMin(menuMin.x + S(7.f), iy);
             const ImVec2 itemMax(menuMax.x - S(7.f), iy + S(34.f));
             const bool hovered = ImGui::IsMouseHoveringRect(itemMin, itemMax, false);
+            const float nudge = CyberAnimations::HoverNudge(ImGui::GetID(item.key), hovered);
             if (hovered) ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
             if (hovered)
                 draw->AddRectFilled(itemMin, itemMax, item.logout ? CyberTheme::WithAlpha(CyberTheme::Colors.Error, 0.09f) : C_CARD_TOP(), CyberTheme::Radius::Sm);
-            draw->AddText(ImVec2(itemMin.x + S(10.f), itemMin.y + S(8.f)),
+            draw->AddText(ImVec2(itemMin.x + S(10.f) + nudge, itemMin.y + S(8.f)),
                 item.logout ? (hovered ? C_RED() : C_MUTED()) : (hovered ? C_GOLD_LT() : C_TEXT()), Loc::Tr(item.key));
             if (hovered && ImGui::IsMouseClicked(0)) {
                 g_profile_menu_open = false;

@@ -15,6 +15,9 @@
 #include <Windows.h>
 #include <shellapi.h>
 #include <TlHelp32.h>
+#include <objbase.h>
+
+#pragma comment(lib, "ole32.lib")
 
 #include <algorithm>
 #include <array>
@@ -26,6 +29,7 @@
 #include <iostream>
 #include <unordered_map>
 #include <set>
+#include <tuple>
 
 namespace fs = std::filesystem;
 
@@ -127,21 +131,44 @@ bool ExtractEntry(const OmniGhost::EmbeddedRuntimeGenerated::Entry& entry,
         error = L"Não foi possível criar a pasta privada do runtime.";
         return false;
     }
-    const fs::path temporary = target.wstring() + L".tmp-" + std::to_wstring(GetCurrentProcessId());
+    // PL-010: nome do temporário imprevisível (GUID além do pid) e criado
+    // com CREATE_NEW — falha se já existir, impedindo pré-criação/symlink
+    // por um atacante local que adivinhe o nome previsível *.tmp-<pid>.
+    GUID tempGuid{};
+    wchar_t guidText[64]{};
+    fs::path temporary = target.wstring() + L".tmp-" + std::to_wstring(GetCurrentProcessId());
+    if (SUCCEEDED(CoCreateGuid(&tempGuid)) &&
+        StringFromGUID2(tempGuid, guidText, 64) > 0) {
+        temporary += guidText;
+    }
+    HANDLE tempHandle = CreateFileW(temporary.c_str(), GENERIC_WRITE, 0,
+        nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (tempHandle == INVALID_HANDLE_VALUE) {
+        error = L"Não foi possível criar um ficheiro temporário do runtime.";
+        return false;
+    }
     {
-        std::ofstream output(temporary, std::ios::binary | std::ios::trunc);
-        if (!output) {
-            error = L"Não foi possível criar um ficheiro temporário do runtime.";
-            return false;
+        const BYTE* cursor = static_cast<const BYTE*>(bytes);
+        DWORD remaining = static_cast<DWORD>(resourceSize);
+        while (remaining > 0) {
+            const DWORD chunk = static_cast<DWORD>((std::min)<DWORD>(remaining, 8u * 1024u * 1024u));
+            DWORD written = 0;
+            if (!WriteFile(tempHandle, cursor, chunk, &written, nullptr) || written == 0) {
+                CloseHandle(tempHandle);
+                fs::remove(temporary, ec);
+                error = L"Não foi possível escrever o runtime privado.";
+                return false;
+            }
+            cursor += written;
+            remaining -= written;
         }
-        output.write(static_cast<const char*>(bytes), static_cast<std::streamsize>(resourceSize));
-        output.flush();
-        if (!output) {
-            error = L"Não foi possível escrever o runtime privado.";
-            output.close();
+        if (!FlushFileBuffers(tempHandle)) {
+            CloseHandle(tempHandle);
             fs::remove(temporary, ec);
+            error = L"Não foi possível escrever o runtime privado.";
             return false;
         }
+        CloseHandle(tempHandle);
     }
 
     std::string actual;
@@ -154,18 +181,31 @@ bool ExtractEntry(const OmniGhost::EmbeddedRuntimeGenerated::Entry& entry,
     }
 
     if (fs::exists(target, ec)) {
+        // PL-010: o check de reparse examina o PRÓPRIO link
+        // (GetFileAttributesW não segue o alvo), ao contrário de
+        // fs::status que segue symlinks.
+        const DWORD targetAttrs = GetFileAttributesW(target.c_str());
+        if (targetAttrs != INVALID_FILE_ATTRIBUTES &&
+            (targetAttrs & FILE_ATTRIBUTE_REPARSE_POINT)) {
+            fs::remove(temporary, ec);
+            error = L"O destino do runtime é um symlink/junction — recusando.";
+            return false;
+        }
         auto status = fs::status(target, ec);
         if (ec) {
+            fs::remove(temporary, ec);
             error = L"Não foi possível verificar o ficheiro existente do runtime.";
             return false;
         }
 
         if (!fs::is_regular_file(target, ec)) {
+            fs::remove(temporary, ec);
             error = L"O destino do runtime não é um ficheiro regular (pode ser symlink/junction)";
             return false;
         }
 
         if ((status.permissions() & fs::perms::owner_write) == fs::perms::none) {
+            fs::remove(temporary, ec);
             error = L"Sem permissão de escrita no ficheiro de runtime existente";
             return false;
         }
@@ -239,7 +279,7 @@ void ConfigureRuntimeDllSearch(const fs::path& libs) {
 
 
 
- std::pair<int, int> SyncRuntimeLibraries(const fs::path& libsDir) {
+ std::tuple<int, int, int> SyncRuntimeLibraries(const fs::path& libsDir) {
      int copied = 0;
      int skipped = 0;
      int failed = 0;
@@ -282,63 +322,11 @@ void ConfigureRuntimeDllSearch(const fs::path& libs) {
 
 
      {
-         fs::path projectDir = OmniGhost::Paths::InstallDirectory();
-         for (int i = 0; i < 4 && !projectDir.empty(); ++i) {
-             fs::path candidate = projectDir / L"libs";
-             if (fs::is_directory(candidate, ec)) {
-                 sourceDirs.push_back(candidate);
-                 break;
-             }
-             projectDir = projectDir.parent_path();
-         }
-     }
-
-
-     {
          fs::path candidate = OmniGhost::Paths::InstallDirectory() / L"libs";
          if (fs::is_directory(candidate, ec)) {
              sourceDirs.push_back(candidate);
          }
      }
-
-
-     {
-         fs::path projectDir = OmniGhost::Paths::InstallDirectory();
-         for (int i = 0; i < 4 && !projectDir.empty(); ++i) {
-             fs::path candidate = projectDir / L"src" / L"runtime" / L"cloudflared";
-             if (fs::is_directory(candidate, ec)) {
-                 sourceDirs.push_back(candidate);
-                 break;
-             }
-             projectDir = projectDir.parent_path();
-         }
-     }
-
-
-     {
-         fs::path projectDir = OmniGhost::Paths::InstallDirectory();
-         for (int i = 0; i < 4 && !projectDir.empty(); ++i) {
-             fs::path candidate = projectDir / L"runtime" / L"own";
-             if (fs::is_directory(candidate, ec)) {
-                 sourceDirs.push_back(candidate);
-                 break;
-             }
-             projectDir = projectDir.parent_path();
-         }
-     }
-
-
-    {
-        fs::path projectDir = OmniGhost::Paths::InstallDirectory();
-        for (int i = 0; i < 4 && !projectDir.empty(); ++i) {
-            fs::path candidate = projectDir / L"libs";
-            if (fs::is_directory(candidate, ec)) {
-                sourceDirs.push_back(candidate);
-                break;
-            }
-            projectDir = projectDir.parent_path();
-        }
-    }
 
 
     for (const wchar_t* dllName : kRequiredDlls) {
@@ -500,7 +488,7 @@ void ConfigureRuntimeDllSearch(const fs::path& libs) {
         "Runtime library sync complete",
         {{"copied", std::to_string(copied)}, {"skipped", std::to_string(skipped)}, {"failed", std::to_string(failed)}});
 
-    return {copied, skipped};
+    return {copied, skipped, failed};
 }
 
 bool IsUpdaterWorker() {
@@ -735,7 +723,7 @@ Result Prepare() {
     }
 
 
-    auto [copied, skipped] = SyncRuntimeLibraries(libs);
+    auto [copied, skipped, syncFailed] = SyncRuntimeLibraries(libs);
 
 
 
@@ -765,10 +753,27 @@ Result Prepare() {
                     }
                 }
                 if (coveredByManifest) {
+                    // PL-010: TOCTOU — mantém um handle com FILE_SHARE_READ
+                    // (sem share de escrita) do validate ao load; a share
+                    // mode impede substituição concorrente do binário na
+                    // janela entre a validação e o LoadLibraryExW.
+                    HANDLE dllHandle = CreateFileW(candidate.c_str(), GENERIC_READ,
+                        FILE_SHARE_READ, nullptr, OPEN_EXISTING,
+                        FILE_ATTRIBUTE_NORMAL, nullptr);
+                    if (dllHandle == INVALID_HANDLE_VALUE) {
+                        OmniGhost::SessionLog::Write(
+                            OmniGhost::SessionLog::Severity::Error,
+                            OmniGhost::SessionLog::Subsystem::Runtime,
+                            "Runtime DLL preload blocked: file could not be locked",
+                            {{"dll", NarrowName(name)}});
+                        ec.clear();
+                        continue;
+                    }
                     std::wstring validationError;
-                    if (!OmniGhost::RuntimeBootstrap::ValidatePrivateRuntimeFile(
-                            relativePath, validationError)) {
-
+                    const bool validated = OmniGhost::RuntimeBootstrap::ValidatePrivateRuntimeFile(
+                        relativePath, validationError);
+                    if (!validated) {
+                        CloseHandle(dllHandle);
                         OmniGhost::SessionLog::Write(
                             OmniGhost::SessionLog::Severity::Error,
                             OmniGhost::SessionLog::Subsystem::Runtime,
@@ -777,24 +782,25 @@ Result Prepare() {
                         ec.clear();
                         continue;
                     }
+                    HMODULE mod = LoadLibraryExW(
+                        candidate.c_str(),
+                        nullptr,
+                        LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
+                    CloseHandle(dllHandle);
+                    if (mod) {
+                        std::wcout << L"[Runtime] preloaded " << candidate.wstring() << L"\n";
+                    } else {
+                        std::wcout << L"[Runtime] preload failed " << candidate.wstring()
+                                   << L" win32=" << GetLastError() << L"\n";
+                    }
                 } else {
-
-
                     OmniGhost::SessionLog::Write(
-                        OmniGhost::SessionLog::Severity::Warning,
+                        OmniGhost::SessionLog::Severity::Error,
                         OmniGhost::SessionLog::Subsystem::Runtime,
-                        "Runtime DLL not covered by the embedded manifest; loading unvalidated",
+                        "Runtime DLL preload blocked: not covered by the embedded manifest",
                         {{"dll", NarrowName(name)}});
-                }
-                HMODULE mod = LoadLibraryExW(
-                    candidate.c_str(),
-                    nullptr,
-                    LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
-                if (mod) {
-                    std::wcout << L"[Runtime] preloaded " << candidate.wstring() << L"\n";
-                } else {
-                    std::wcout << L"[Runtime] preload failed " << candidate.wstring()
-                               << L" win32=" << GetLastError() << L"\n";
+                    ec.clear();
+                    continue;
                 }
             }
             ec.clear();
@@ -812,7 +818,8 @@ Result Prepare() {
         {{"ftdi_present", ftdiPresent ? "YES" : "NO"},
          {"libs_path", libs.string()},
          {"copied", std::to_string(copied)},
-         {"skipped", std::to_string(skipped)}});
+         {"skipped", std::to_string(skipped)},
+         {"failed", std::to_string(syncFailed)}});
 
     return Result::Continue;
 }

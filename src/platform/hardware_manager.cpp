@@ -3,7 +3,6 @@
 #include "third_party/DMALibrary/Memory/Memory.h"
 #include "../makcu/makcu_wrapper.h"
 #include "src/games/Fivem/aimbot/aim_type.h"
-#include "watchdog.h"
 
 #include <iostream>
 #include <atomic>
@@ -119,7 +118,7 @@ void Manager::BeginStartupProbe() {
 
 
 
-    state_.makcuAvailable = makcu_wrapper::IsConnected();
+    state_.makcuAvailable = makcu_wrapper::IsConnectedSnapshot();
     state_.makcuFinished = state_.makcuAvailable;
     stageStarted_ = std::chrono::steady_clock::now();
     nextMakcuRetry_ = stageStarted_ + 5s;
@@ -202,7 +201,7 @@ void Manager::Poll() {
 
 
 
-    if (makcu_wrapper::IsConnected()) {
+    if (makcu_wrapper::IsConnectedSnapshot()) {
         state_.makcuAvailable = true;
         state_.makcuFinished = true;
         aim_type::config.makcu_connected = true;
@@ -215,7 +214,7 @@ void Manager::Poll() {
     }
 
     if (state_.stage == ProbeStage::CheckingMakcu) {
-        if (makcu_wrapper::IsConnected()) {
+        if (makcu_wrapper::IsConnectedSnapshot()) {
             state_.makcuAvailable = true;
             state_.makcuFinished = true;
             std::clog << "[STARTUP][Hardware] makcu=AVAILABLE\n";
@@ -261,7 +260,7 @@ void Manager::Poll() {
 
 
 
-    if (state_.stage == ProbeStage::Complete && !makcu_wrapper::IsConnected()) {
+    if (state_.stage == ProbeStage::Complete && !makcu_wrapper::IsConnectedSnapshot()) {
         if (now >= nextMakcuRetry_ &&
             workerState_.load(std::memory_order_acquire) == 0) {
             state_.makcuFinished = false;

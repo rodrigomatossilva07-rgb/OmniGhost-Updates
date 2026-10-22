@@ -25,7 +25,7 @@ enum class ErrorCode : std::uint32_t {
     NetworkError = 14,
     DiskError = 15,
     PermissionDenied = 16,
-    IntegrityCheckFailed = 16,
+    IntegrityCheckFailed = 17,
 
 
     DmaDeviceNotFound = 1000,
@@ -112,6 +112,9 @@ enum class ErrorCode : std::uint32_t {
     UiTextureLoadFailed = 8002,
     UiLayoutError = 8003,
 };
+
+static_assert(static_cast<std::uint32_t>(ErrorCode::PermissionDenied) !=
+              static_cast<std::uint32_t>(ErrorCode::IntegrityCheckFailed));
 
 
 [[nodiscard]] std::string_view ErrorMessage(ErrorCode code) noexcept;

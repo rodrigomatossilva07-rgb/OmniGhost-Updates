@@ -249,7 +249,8 @@ namespace CyberWidgets {
 
             const float spinnerSpace = pending ? 18.0f : 0.0f;
             const float totalTextWidth = text_size.x + spinnerSpace;
-            const float textX = item_pos.x + (size.x - totalTextWidth) * 0.5f + spinnerSpace;
+            const float nudge = CyberAnimations::HoverNudge(id, hovered);
+            const float textX = item_pos.x + (size.x - totalTextWidth) * 0.5f + spinnerSpace + nudge;
             dl->AddText(ImVec2(textX, item_pos.y + (size.y - text_size.y) * 0.5f), textColor, visible.c_str());
             if (pending) {
                 const ImVec2 center(textX - CyberTheme::Px(10.0f), item_pos.y + size.y * 0.5f);
@@ -336,7 +337,8 @@ namespace CyberWidgets {
         ImDrawList* dl = ImGui::GetWindowDrawList();
         const char* display = DisplayLabel(label);
         const float text_y = row_pos.y + (row_height - ImGui::GetTextLineHeight()) * 0.5f;
-        dl->AddText(ImVec2(row_pos.x, text_y),
+        const float nudge = CyberAnimations::HoverNudge(id, hovered);
+        dl->AddText(ImVec2(row_pos.x + nudge, text_y),
             hovered ? IM_COL32(238, 239, 244, 255)
                     : ImGui::ColorConvertFloat4ToU32(CyberTheme::Colors.Text),
             display);
@@ -492,11 +494,12 @@ namespace CyberWidgets {
                        : IM_COL32(151, 155, 169, 255));
         ImFont* body = CyberFonts::GetBodyFont();
         const char* side_display = DisplayLabel(label);
+        const float nudge = CyberAnimations::HoverNudge(id, hovered);
         if (body)
-            dl->AddText(body, CyberTheme::Px(15.0f), ImVec2(pos.x + CyberTheme::Px(52.0f), pos.y + (size.y - CyberTheme::Px(15.0f)) * 0.5f - 1.0f),
+            dl->AddText(body, CyberTheme::Px(15.0f), ImVec2(pos.x + CyberTheme::Px(52.0f) + nudge, pos.y + (size.y - CyberTheme::Px(15.0f)) * 0.5f - 1.0f),
                 text_color, side_display);
         else
-            dl->AddText(ImVec2(pos.x + CyberTheme::Px(52.0f), pos.y + 12.0f), text_color, side_display);
+            dl->AddText(ImVec2(pos.x + CyberTheme::Px(52.0f) + nudge, pos.y + 12.0f), text_color, side_display);
         if (clicked)
             OmniGhost::UiFeedback::Play(OmniGhost::UiFeedback::SoundEvent::Navigate);
         return clicked;
@@ -566,7 +569,8 @@ namespace CyberWidgets {
         char value_text[64];
         snprintf(value_text, sizeof(value_text), format, *value);
         const ImVec2 value_size = ImGui::CalcTextSize(value_text);
-        dl->AddText(pos, ImGui::ColorConvertFloat4ToU32(CyberTheme::Colors.Text), DisplayLabel(label));
+        const float nudge = CyberAnimations::HoverNudge(id, hovered || active);
+        dl->AddText(ImVec2(pos.x + nudge, pos.y), ImGui::ColorConvertFloat4ToU32(CyberTheme::Colors.Text), DisplayLabel(label));
         dl->AddText(ImVec2(pos.x + width - value_size.x, pos.y),
             ImGui::ColorConvertFloat4ToU32(CyberTheme::Colors.Gold), value_text);
 
@@ -617,6 +621,7 @@ namespace CyberWidgets {
         const ImVec2 field_pos(pos.x + width - field_width, pos.y + 2.0f);
         const ImVec2 field_end(pos.x + width, pos.y + row_height - 2.0f);
 
+        const ImGuiID id = ImGui::GetCurrentWindow()->GetID("##combo_row");
         const bool clicked = ImGui::InvisibleButton("##combo_row", ImVec2(width, row_height));
         const bool hovered = ImGui::IsItemHovered();
         ApplyCursorForItem(true);
@@ -625,8 +630,9 @@ namespace CyberWidgets {
             ImGui::OpenPopup("##combo_popup");
 
         ImDrawList* dl = ImGui::GetWindowDrawList();
+        const float nudge = CyberAnimations::HoverNudge(id, hovered);
         dl->PushClipRect(pos, ImVec2(field_pos.x - 8.0f, pos.y + row_height), true);
-        dl->AddText(ImVec2(pos.x, pos.y + 9.0f),
+        dl->AddText(ImVec2(pos.x + nudge, pos.y + 9.0f),
             ImGui::ColorConvertFloat4ToU32(CyberTheme::Colors.Text), DisplayLabel(label));
         dl->PopClipRect();
 
@@ -706,7 +712,7 @@ namespace CyberWidgets {
         bool changed = Combo(label, current_item, items, items_count);
         if (changed && !history_id.empty()) {
             ConfigHistory::RecordChange(history_id, label, ConfigHistory::ActionType::SetEnum,
-                prev, *current_item);
+                current_item, prev, *current_item);
         }
         return changed;
     }
@@ -752,7 +758,8 @@ namespace CyberWidgets {
         char value_text[64];
         snprintf(value_text, sizeof(value_text), format, *value);
         const ImVec2 value_size = ImGui::CalcTextSize(value_text);
-        dl->AddText(pos, ImGui::ColorConvertFloat4ToU32(CyberTheme::Colors.Text), DisplayLabel(label));
+        const float nudge = CyberAnimations::HoverNudge(id, hovered || active);
+        dl->AddText(ImVec2(pos.x + nudge, pos.y), ImGui::ColorConvertFloat4ToU32(CyberTheme::Colors.Text), DisplayLabel(label));
         dl->AddText(ImVec2(pos.x + width - value_size.x, pos.y),
             ImGui::ColorConvertFloat4ToU32(CyberTheme::Colors.Gold), value_text);
 
@@ -776,7 +783,7 @@ namespace CyberWidgets {
 
         if (previous != *value && !history_id.empty()) {
             ConfigHistory::RecordChange(history_id, label, ConfigHistory::ActionType::SetFloat,
-                previous, *value);
+                value, previous, *value);
         }
         return previous != *value;
     }
@@ -805,14 +812,17 @@ namespace CyberWidgets {
         const bool hovered = ImGui::IsItemHovered();
         const std::string feature_id = std::string(window->Name) + "|" + (history_id.empty() ? label : history_id);
         Hotkeys::RegisterFeatureToggle(feature_id, value);
-        if (hovered && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Right))
+        static double feature_capture_ignore_until = 0.0;
+        if (hovered && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Right)) {
             Hotkeys::BeginFeatureCapture(feature_id);
+            feature_capture_ignore_until = ImGui::GetTime() + 0.28;
+        }
 
-        if (Hotkeys::IsCapturingFeature(feature_id)) {
-            for (int vk = 1; vk < 256; ++vk) {
-                if (!(GetAsyncKeyState(vk) & 1)) continue;
+        if (Hotkeys::IsCapturingFeature(feature_id) &&
+            ImGui::GetTime() >= feature_capture_ignore_until) {
+            for (int vk = 7; vk < 256; ++vk) {
+                if (!(GetAsyncKeyState(vk) & 0x8000)) continue;
                 if (vk == VK_ESCAPE) {
-
                     Hotkeys::SetFeatureKey(feature_id, 0);
                 } else
                     Hotkeys::SetFeatureKey(feature_id, vk);
@@ -843,7 +853,8 @@ namespace CyberWidgets {
         ImDrawList* dl = ImGui::GetWindowDrawList();
         const char* display = DisplayLabel(label);
         const float text_y = row_pos.y + (row_height - ImGui::GetTextLineHeight()) * 0.5f;
-        dl->AddText(ImVec2(row_pos.x, text_y),
+        const float nudge = CyberAnimations::HoverNudge(id, hovered);
+        dl->AddText(ImVec2(row_pos.x + nudge, text_y),
             hovered ? IM_COL32(238, 239, 244, 255)
                     : ImGui::ColorConvertFloat4ToU32(CyberTheme::Colors.Text),
             display);
@@ -855,7 +866,7 @@ namespace CyberWidgets {
             const std::string key_text = capture ? (blink ? "(...)" : "     ")
                 : (std::string("(") + Hotkeys::GetKeyName(feature_key) + ")");
             const float label_w = ImGui::CalcTextSize(display).x;
-            dl->AddText(ImVec2(row_pos.x + label_w + 9.0f, text_y),
+            dl->AddText(ImVec2(row_pos.x + label_w + 9.0f + nudge, text_y),
                 capture ? ImGui::ColorConvertFloat4ToU32(CyberTheme::Colors.Gold)
                         : ImGui::ColorConvertFloat4ToU32(CyberTheme::Colors.TextDisabled),
                 key_text.c_str());
@@ -886,7 +897,7 @@ namespace CyberWidgets {
 
         if (clicked && !history_id.empty()) {
             ConfigHistory::RecordChange(history_id, label, ConfigHistory::ActionType::SetBool,
-                !*value, *value);
+                value, !*value, *value);
         }
         return clicked;
     }
@@ -1730,6 +1741,7 @@ namespace CyberWidgets {
         const float hex_w = hex_size.x;
         const float label_max = std::max(40.0f, width - swatch_w - hex_w - gap * 2.0f);
 
+        const ImGuiID id = ImGui::GetCurrentWindow()->GetID("##color_row");
         const bool color_clicked = ImGui::InvisibleButton("##color_row", ImVec2(width, row_height)) && !disabled;
         const bool hovered = ImGui::IsItemHovered();
         ApplyCursorForItem(!disabled);
@@ -1750,7 +1762,8 @@ namespace CyberWidgets {
             label_size = font->CalcTextSizeA(label_size_px, FLT_MAX, 0.0f, color_display);
         }
         const float label_y = pos.y + (row_height - label_size.y) * 0.5f;
-        dl->AddText(font, label_size_px, ImVec2(pos.x, label_y),
+        const float nudge = CyberAnimations::HoverNudge(id, hovered && !disabled);
+        dl->AddText(font, label_size_px, ImVec2(pos.x + nudge, label_y),
             ImGui::ColorConvertFloat4ToU32(disabled
                 ? CyberTheme::Colors.TextDisabled
                 : CyberTheme::Colors.Text), DisplayLabel(label));

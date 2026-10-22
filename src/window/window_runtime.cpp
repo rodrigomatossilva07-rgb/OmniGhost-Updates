@@ -11,6 +11,7 @@
 #include "onboarding.h"
 #include "changelog.h"
 #include "ui_feedback.h"
+#include "brand_assets.h"
 #include "../updater/update_service.h"
 #include "../launcher/launcher_assets.h"
 #include "../platform/offset_auto.h"
@@ -753,6 +754,7 @@ void Overlay::Shutdown() {
     OmniGhost::UiFeedback::Shutdown();
 
     if (imgui_initialized_) {
+        BrandAssets::Shutdown();
         LauncherAssets::Shutdown();
         ImGui_ImplDX11_Shutdown();
         ImGui_ImplWin32_Shutdown();

@@ -393,7 +393,6 @@
     <ClCompile Include="src\games\Fivem\aimbot\aim_type.cpp"/>
     <ClCompile Include="src\games\Fivem\aimbot\aimbot.cpp"/>
     <ClCompile Include="src\games\Fivem\esp\esp.cpp"/>
-    <ClCompile Include="src\games\Fivem\esp\esp_bone_cache.cpp"/>
     <ClCompile Include="src\games\Fivem\esp\vehicle_esp.cpp"/>
     <ClCompile Include="src\games\Fivem\friends\friends.cpp"/>
     <ClCompile Include="src\games\Fivem\game\esp_manager.cpp"/>
@@ -428,6 +427,7 @@
     <ClCompile Include="src\window\pages\fortnite\FortniteStatusPage.cpp"/>
     <ClCompile Include="src\window\pages\fortnite\FortniteAimPage.cpp"/>
     <ClCompile Include="src\window\pages\fivem\FivemVisualsPage.cpp"/>
+    <ClCompile Include="src\window\pages\fivem\FivemObjectEspPage.cpp"/>
     <ClCompile Include="src\window\pages\unified_stubs.cpp"/>
 
     <ClCompile Include="third_party\ImGui\imgui.cpp"/>

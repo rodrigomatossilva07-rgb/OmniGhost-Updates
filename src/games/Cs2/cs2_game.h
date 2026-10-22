@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <vector>
 #include "config/cs2_config.h"
 #include "gameplay/snapshot_exchange.h"
@@ -179,6 +180,8 @@ struct Player {
     bool spotted = true;
     bool visibility_known = false;
     bool visible = false;
+    uint8_t bone_visibility_known_mask = 0;
+    uint8_t bone_visibility_mask = 0;
     int ent_index = 0;
     uint64_t steam_id = 0;
 
@@ -359,6 +362,66 @@ struct Runtime {
         }
         return *this;
     }
+
+    // CS-007: publicação sem churn de alocações. O produtor TROCA os vetores
+    // com o slot (ambos reutilizam os buffers) e copia apenas os escalares —
+    // em vez de mover o vector do produtor para o slot, o que o deixava com
+    // capacidade zero e obrigava a realocar ~64xPlayer a cada scan.
+    void SwapVectorsWith(Runtime& other) noexcept {
+        players.swap(other.players);
+        spectators.swap(other.spectators);
+        dropped_weapons.swap(other.dropped_weapons);
+    }
+
+    void CopyScalarsFrom(const Runtime& other) noexcept {
+        client_base = other.client_base;
+        engine_base = other.engine_base;
+        entity_list_addr = other.entity_list_addr;
+        entity_list_entry = other.entity_list_entry;
+        local_pawn = other.local_pawn;
+        local_controller = other.local_controller;
+        local_team = other.local_team;
+        local_health = other.local_health;
+        local_pos[0] = other.local_pos[0]; local_pos[1] = other.local_pos[1]; local_pos[2] = other.local_pos[2];
+        local_vel[0] = other.local_vel[0]; local_vel[1] = other.local_vel[1]; local_vel[2] = other.local_vel[2];
+        local_angles[0] = other.local_angles[0]; local_angles[1] = other.local_angles[1]; local_angles[2] = other.local_angles[2];
+        local_view_yaw = other.local_view_yaw;
+        local_weapon_definition = other.local_weapon_definition;
+        local_scoped = other.local_scoped;
+        local_has_defuser = other.local_has_defuser;
+        local_crosshair_entity = other.local_crosshair_entity;
+        local_shots_fired = other.local_shots_fired;
+        local_aim_punch[0] = other.local_aim_punch[0]; local_aim_punch[1] = other.local_aim_punch[1];
+        local_aim_sample_ms = other.local_aim_sample_ms;
+        local_last_shot_ms = other.local_last_shot_ms;
+        for (int i = 0; i < 16; ++i) view_matrix[i] = other.view_matrix[i];
+        std::copy_n(other.map_name, 64, map_name);
+        in_match = other.in_match;
+        controller_stride = other.controller_stride;
+        pawn_stride = other.pawn_stride;
+        bomb = other.bomb;
+        player_count = other.player_count;
+        enemy_count = other.enemy_count;
+        controller_count = other.controller_count;
+        pawn_count = other.pawn_count;
+        spectator_count = other.spectator_count;
+        spectator_target = other.spectator_target;
+        std::copy_n(other.spectator_target_name, 64, spectator_target_name);
+        build_number = other.build_number;
+        frames = other.frames;
+        read_fails = other.read_fails;
+        snapshot_timestamp_ms = other.snapshot_timestamp_ms;
+        session_generation = other.session_generation;
+        world_sample_ms = other.world_sample_ms;
+        snapshot_drops = other.snapshot_drops;
+        acquisition_hz = other.acquisition_hz;
+        acquisition_ms = other.acquisition_ms;
+        processing_ms = other.processing_ms;
+        snapshot_interval_ms = other.snapshot_interval_ms;
+        fps = other.fps;
+        entity_cap_used = other.entity_cap_used;
+        offsets_self_test_ok = other.offsets_self_test_ok;
+    }
 };
 
 
@@ -391,17 +454,29 @@ struct LivenessSnapshot {
 using LivenessSnapshotLease = OmniGhost::Gameplay::SnapshotExchange<LivenessSnapshot>::ReadLease;
 
 extern Offsets offsets;
+// CS-008(c): a config global é propriedade da thread de UI (páginas +
+// DeserializeAll correm aí). O Tick de render — que também corre na UI —
+// publica cópias via SubmitAcquisitionConfig; o worker de aquisição lê
+// apenas as cópias publicadas. Não reescrever CS2::config fora da UI thread.
 extern Config config;
 extern Runtime runtime;
 extern bool ready;
-extern std::string status;
+
+// CS-008: o estado de arranque é escrito pela pipeline de offsets (thread de
+// launch) e pela UI (ConfigsPage) e lido pelo render/launcher — substitui o
+// antigo `extern std::string status` por um buffer guardado por comprimento
+// atómico. GetStatusView devolve uma string_view para buffer thread_local.
+void SetStatus(std::string_view text);
+[[nodiscard]] std::string GetStatus();
+[[nodiscard]] std::string_view GetStatusView();
 extern std::string offsets_source;
 
 bool ResolveDataPath(std::string& out_dir);
 bool LoadOffsetsFromJson(const char* path = nullptr);
 bool WaitForProcess(int timeout_sec = 120);
 bool Attach();
-void RunFrame();
+// CS-014: RunFrame() removido — corria RunFrameWithConfig na render thread
+// contra statics da aquisição; sem chamadores.
 void EnsureAcquisitionStarted();
 void StopAcquisition();
 void SubmitAcquisitionConfig(const Config& next) noexcept;
@@ -424,6 +499,9 @@ bool SoftProbeLobbyOffsets();
 bool SelfTestOffsets();
 bool ValidateLiveOffsets();
 bool ReinitDma();
+void ReinitDmaAsync();
+bool ReinitDmaPending();
+int PollReinitDma();
 
 bool IsGameProcessAlive();
 

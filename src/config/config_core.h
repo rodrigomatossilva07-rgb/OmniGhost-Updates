@@ -18,7 +18,7 @@ namespace fs = std::filesystem;
 namespace config_manager {
 
 
-inline constexpr int kConfigSchemaVersion = 4;
+inline constexpr int kConfigSchemaVersion = 5;
 constexpr std::uintmax_t kMaxConfigBytes = 2u * 1024u * 1024u;
 
 
@@ -52,6 +52,8 @@ void SaveOrder();
 bool SaveToFile(const std::string& name);
 bool LoadFromFile(const std::string& name);
 bool DeleteConfigFile(const std::string& name);
+bool ExportJson(const std::string& file_name);
+bool ImportJson(const std::string& file_name);
 std::string SanitizeFileName(std::string name);
 bool IsSafeConfigIdentifier(const std::string& name);
 

@@ -11,6 +11,8 @@
 #include "config/config_manager.h"
 #include "launcher/game_select.h"
 #include "launcher/changelog_service.h"
+#include "launcher/steam_game_update_check.h"
+#include "launcher/epic_game_update_check.h"
 #include "launcher/auth_page.h"
 #include "launcher/application_transitions.h"
 #include "launcher/game_launch_service.h"
@@ -47,6 +49,7 @@
 #include "window/widgets.h"
 #include "window/ui_feedback.h"
 #include "window/hardware_monitor.h"
+#include "gameplay/dma_telemetry_log.h"
 #include "third_party/ImGui/imgui.h"
 #include "makcu/makcu_wrapper.h"
 #include "gameplay/process_monitor.h"
@@ -273,7 +276,7 @@ int RunDmaIntegrationTest(int argc, wchar_t** argv) {
     }
 
     OmniGhost::SessionLog::Initialize();
-    if (!OmniGhost::Security::SecurityManager::Instance().VerifyHostIdentity()) return 10;
+    if (!OmniGhost::Security::SecurityManager::Instance().VerifyHostExecutablePresent()) return 10;
     std::wstring executable;
     unsigned long expectedPid = 0;
     unsigned long long expectedHwnd = 0;
@@ -379,8 +382,8 @@ int RunOmniGhost(int argc, wchar_t** argv) {
     OmniGhost::SessionLog::SetStartReason(
         (argc > 1 && argv && argv[1]) ? OmniGhost::Platform::WideToUtf8(argv[1]) : "normal");
     OmniGhost::SessionLog::Initialize();
-    if (!OmniGhost::Security::SecurityManager::Instance().VerifyHostIdentity()) {
-        MessageBoxW(nullptr, L"Não foi possível validar o executável da aplicação (SEC-004).",
+    if (!OmniGhost::Security::SecurityManager::Instance().VerifyHostExecutablePresent()) {
+        MessageBoxW(nullptr, L"Não foi possível confirmar o executável da aplicação (SEC-004).",
                     L"OmniGhost", MB_OK | MB_ICONERROR);
         OmniGhost::SessionLog::Shutdown();
         return 5;
@@ -700,6 +703,12 @@ while (application.shouldRun && !authenticated) {
         OmniGhost::Platform::ShutdownComponent::Changelog, 700,
         [&changelog_service] { changelog_service.Shutdown(); });
     changelog_service.RefreshAsync(false);
+    (void)shutdownCoordinator.Register(
+        OmniGhost::Platform::ShutdownComponent::LibraryChecks, 690,
+        [] {
+            Launcher::SteamGameUpdateCheck::Shutdown();
+            Launcher::EpicGameUpdateCheck::Shutdown();
+        });
     WritePostAuthStage("launcher-ready");
 
 
@@ -1140,6 +1149,9 @@ while (application.shouldRun && !authenticated) {
     bool return_to_launcher = false;
     bool return_requested_by_user = false;
     ULONGLONG next_security_check = GetTickCount64() + 1000;
+    ULONGLONG next_local_process_probe = 0;
+    bool local_process_alive = false;
+    std::chrono::steady_clock::time_point telemetry_next_record{};
 
 
     int game_monitor_type = 0;
@@ -1192,7 +1204,11 @@ while (application.shouldRun && !authenticated) {
                 break;
             case ActiveGame::FiveM:
                 dma_alive = FiveM::ESP::RemoteProcessRecentlySeen();
-                local_alive = IsLocalFiveMProcessRunning();
+                if (GetTickCount64() >= next_local_process_probe) {
+                    next_local_process_probe = GetTickCount64() + 1000;
+                    local_process_alive = IsLocalFiveMProcessRunning();
+                }
+                local_alive = local_process_alive;
                 break;
             default:
                 break;
@@ -1239,6 +1255,40 @@ while (application.shouldRun && !authenticated) {
                     offset_probe_failures = 0;
                 }
             }
+        }
+
+        const auto telemetry_now = std::chrono::steady_clock::now();
+        if (telemetry_now >= telemetry_next_record) {
+            telemetry_next_record = telemetry_now + std::chrono::milliseconds(250);
+            int entity_players = 0;
+            float acquire_p50_ms = 0.f;
+            switch (g_activeGame) {
+                case ActiveGame::CS2:
+                    entity_players = CS2::PlayerCount();
+                    acquire_p50_ms = OmniGhost::Gameplay::DmaTelemetry::CS2()
+                        .acquire.acquire_p50_ms.load(std::memory_order_relaxed);
+                    break;
+                case ActiveGame::FiveM: {
+                    const auto fivem_peds = FiveM::ESP::GetValidPedsSnapshot();
+                    entity_players = static_cast<int>(fivem_peds.validPeds.size());
+                    acquire_p50_ms = OmniGhost::Gameplay::DmaTelemetry::FiveM()
+                        .acquire.acquire_p50_ms.load(std::memory_order_relaxed);
+                    break;
+                }
+                case ActiveGame::Warzone:
+                    entity_players = Warzone::runtime.player_count;
+                    acquire_p50_ms = OmniGhost::Gameplay::DmaTelemetry::Warzone()
+                        .acquire.acquire_p50_ms.load(std::memory_order_relaxed);
+                    break;
+                case ActiveGame::Fortnite:
+                    acquire_p50_ms = OmniGhost::Gameplay::DmaTelemetry::Fortnite()
+                        .acquire.acquire_p50_ms.load(std::memory_order_relaxed);
+                    break;
+                default:
+                    break;
+            }
+            HardwareMonitor::RecordEntityCount(entity_players, 0);
+            HardwareMonitor::RecordDMALatency(acquire_p50_ms, 0.f);
         }
 
         application.Render();

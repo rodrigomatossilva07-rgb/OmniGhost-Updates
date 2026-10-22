@@ -10,6 +10,12 @@ namespace CyberAnimations {
     namespace {
         std::unordered_map<ImGuiID, float> g_hover;
         std::unordered_map<ImGuiID, SpringState> g_springs;
+
+        struct HoverNudgeState {
+            bool hovered = false;
+            float elapsed = 1.0f;
+        };
+        std::unordered_map<ImGuiID, HoverNudgeState> g_hover_nudges;
     }
 
     float Ease(float t, Easing easing) {
@@ -109,6 +115,24 @@ namespace CyberAnimations {
 
     float GetHover(ImGuiID id, float speed) {
         (void)speed; return GetHover(id);
+    }
+
+    float HoverNudge(ImGuiID id, bool hovered, float amplitude) {
+        HoverNudgeState& state = g_hover_nudges[id];
+        if (!app_settings::MotionEnabled()) {
+            state.hovered = hovered;
+            state.elapsed = 1.0f;
+            return 0.0f;
+        }
+        if (hovered && !state.hovered)
+            state.elapsed = 0.0f;
+        state.hovered = hovered;
+        state.elapsed = std::min(1.0f, state.elapsed + std::min(ImGui::GetIO().DeltaTime, 0.05f) / 0.17f);
+        if (state.elapsed >= 1.0f)
+            return 0.0f;
+        const float envelope = (1.0f - state.elapsed) * (1.0f - state.elapsed);
+        return std::sin(state.elapsed * 6.0f * 3.14159265f) * amplitude * envelope *
+            app_settings::AnimationScale();
     }
 
     void AnimatedFloat::Update(float dt) {
@@ -225,16 +249,16 @@ namespace CyberAnimations {
     }
 
     void AccessibilityAnnouncer::Update(float dt) {
-        (void)dt;
-        if (!queue_.empty() && current_.empty()) {
+        if (current_.empty() && !queue_.empty()) {
             current_ = queue_.front().message;
+            current_lifetime_ = queue_.front().lifetime;
             queue_.erase(queue_.begin());
         }
 
         if (!current_.empty()) {
-
-
-
+            current_lifetime_ -= dt;
+            if (current_lifetime_ <= 0.0f)
+                current_.clear();
         }
     }
 

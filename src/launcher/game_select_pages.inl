@@ -193,6 +193,86 @@ void DrawMarketplace(ImVec2 display) {
     const int columns = available >= S(1180.f) ? 4 : (available >= S(760.f) ? 3 : (available >= S(430.f) ? 2 : 1));
     const float cardWidth = (available - gap * static_cast<float>(columns - 1)) / static_cast<float>(columns);
 
+    static int configGame = 0;
+    static int configCategory = 0;
+    static int configSort = 0;
+    static char configSearch[81]{};
+    static char configStyle[25]{};
+    static bool compatibleOnly = true;
+    static bool configLoaded = false;
+    const char* configGames[] = { "FiveM", "CS2", "Fortnite", "Warzone" };
+    const char* configGameIds[] = { "fivem", "cs2", "fortnite", "warzone" };
+    const char* configCategories[] = { "Destaques", "Oficiais", "Verificadas", "Populares" };
+    const char* configSorts[] = { "Populares", "Recentes", "Avaliação" };
+    const char* configSortValue = configSort == 1 ? "recent" : configSort == 2 ? "rating" : "popular";
+
+    CyberWidgets::BeginCard("CONFIGURAÇÕES VERIFICADAS", 0.f);
+    CyberWidgets::Badge("CONFIG HUB", CyberWidgets::TextTone::Accent);
+    ImGui::Dummy(ImVec2(0.f, S(6.f)));
+    CyberWidgets::TextLine("Presets oficiais e da comunidade que passaram pela validação técnica e moderação.", CyberWidgets::TextTone::Primary);
+    CyberWidgets::TextLine("Guardar cria uma cópia independente na tua biblioteca; atualizações do autor nunca alteram a tua cópia.", CyberWidgets::TextTone::Secondary);
+    CyberWidgets::Combo("Jogo", &configGame, configGames, 4);
+    ImGui::SameLine();
+    CyberWidgets::Combo("Categoria", &configCategory, configCategories, 4);
+    ImGui::SameLine();
+    CyberWidgets::Combo("Ordenar", &configSort, configSorts, 3);
+    CyberWidgets::InputField("##marketplace_config_search", configSearch, sizeof(configSearch), "Pesquisar configuração ou autor", 0, -1.f);
+    CyberWidgets::InputField("##marketplace_config_style", configStyle, sizeof(configStyle), "Etiqueta/estilo", 0, -1.f);
+    CyberWidgets::ToggleSwitch("Apenas compatíveis", &compatibleOnly);
+    if (CyberWidgets::GoldButton("ATUALIZAR CONFIG HUB", ImVec2(S(195.f), S(34.f)))) {
+        configLoaded = config_manager::RefreshCommunityConfigsForGame(configGameIds[configGame],
+            config_manager::CommunityScope::Marketplace, configSearch, configSortValue);
+        CyberWidgets::Notify(config_manager::last_status.c_str(), configLoaded ? CyberWidgets::ToastType::Success : CyberWidgets::ToastType::Error);
+    }
+    CyberWidgets::EndCard();
+
+    if (configLoaded) {
+        ImGui::Dummy(ImVec2(0.f, gap));
+        int shownConfigs = 0;
+        const auto& configs = config_manager::CommunityConfigs();
+        for (std::size_t i = 0; i < configs.size(); ++i) {
+            const auto& item = configs[i];
+            bool styleMatches = configStyle[0] == 0;
+            for (const auto& tag : item.tags) if (tag.find(configStyle) != std::string::npos) styleMatches = true;
+            const bool categoryMatch = configCategory == 0 ? (item.official || item.downloads >= 25 || (item.rating_count >= 3 && item.rating >= 4.f)) :
+                configCategory == 1 ? item.official : configCategory == 2 ? (item.verified && !item.official) : true;
+            if (!categoryMatch || !styleMatches || (compatibleOnly && !item.compatible)) continue;
+            ImGui::PushID(static_cast<int>(i) + 5000);
+            CyberWidgets::BeginCard(item.title.c_str(), cardWidth);
+            CyberWidgets::Badge(item.official ? "OFICIAL OMNIGHOST" : "VERIFICADA",
+                item.official ? CyberWidgets::TextTone::Accent : CyberWidgets::TextTone::Success);
+            CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, "%s · %s · v%d", item.author.c_str(), item.game.c_str(), item.version);
+            CyberWidgets::TextLineF(item.compatible ? CyberWidgets::TextTone::Success : CyberWidgets::TextTone::Warning,
+                "Schema %d · Launcher mínimo %s", item.schema_version, item.min_launcher_version.c_str());
+            CyberWidgets::TextLine(item.description.empty() ? "Sem descrição." : item.description.c_str(), CyberWidgets::TextTone::Secondary);
+            CyberWidgets::TextLineF(CyberWidgets::TextTone::Accent, "%d downloads · %.1f/5 · %d favoritos",
+                item.downloads, item.rating, item.favorites);
+            if (CyberWidgets::GoldButton("GUARDAR", ImVec2(S(100.f), S(31.f)))) {
+                const bool ok = config_manager::DownloadCommunityToLibrary(item.id);
+                CyberWidgets::Notify(config_manager::last_status.c_str(), ok ? CyberWidgets::ToastType::Success : CyberWidgets::ToastType::Error);
+            }
+            ImGui::SameLine();
+            if (CyberWidgets::CyberButton(item.favorite ? "★ FAVORITA" : "☆ FAVORITO", ImVec2(S(125.f), S(31.f)))) {
+                const bool ok = config_manager::ToggleCommunityFavorite(item.id, !item.favorite);
+                if (ok) configLoaded = config_manager::RefreshCommunityConfigsForGame(configGameIds[configGame],
+                    config_manager::CommunityScope::Marketplace, configSearch, configSortValue);
+                CyberWidgets::Notify(config_manager::last_status.c_str(), ok ? CyberWidgets::ToastType::Success : CyberWidgets::ToastType::Error);
+            }
+            CyberWidgets::EndCard();
+            ImGui::PopID();
+            ++shownConfigs;
+            if ((shownConfigs % columns) != 0) ImGui::SameLine(0.f, gap);
+            else ImGui::Dummy(ImVec2(0.f, gap));
+        }
+        if (!shownConfigs) {
+            CyberWidgets::BeginCard("SEM RESULTADOS", 0.f);
+            CyberWidgets::EmptyState("SEM CONFIGURAÇÕES", "Ainda não existem configurações verificadas nesta categoria.");
+            CyberWidgets::EndCard();
+        }
+    }
+
+    ImGui::Dummy(ImVec2(0.f, gap));
+
     CyberWidgets::BeginCard("TEMAS E VISUAIS", 0.f);
     CyberWidgets::Badge("INCLUÍDOS", CyberWidgets::TextTone::Success);
     ImGui::Dummy(ImVec2(0.f, S(7.f)));
@@ -313,8 +393,7 @@ void DrawMarketplace(ImVec2 display) {
             "  \"visual_style\": 0,\n"
             "  \"custom_accent\": { \"r\": 0.20, \"g\": 0.65, \"b\": 1.00, \"a\": 1.00 },\n"
             "  \"ui_scale\": 1.0,\n"
-            "  \"high_contrast\": false,\n"
-            "  \"reduced_motion\": false\n"
+            "  \"high_contrast\": false\n"
             "}";
         ImGui::InputTextMultiline("##ogtheme_example", example, sizeof(example),
             ImVec2(-1.f, S(205.f)), ImGuiInputTextFlags_ReadOnly);
@@ -831,7 +910,6 @@ void DrawSettings(ImVec2 display) {
         const char* levels[] = {Loc::Tr("launcher.effect.off"), Loc::Tr("launcher.effect.subtle"), Loc::Tr("launcher.effect.full")};
         int animation = static_cast<int>(app_settings::config.animation_intensity);
         if (CyberWidgets::Combo(Loc::Tr("launcher.animation"), &animation, levels, 3)) { app_settings::config.animation_intensity = static_cast<app_settings::EffectLevel>(animation); changed = true; }
-        changed |= CyberWidgets::ToggleSwitch(Loc::Tr("launcher.reduce_motion"), &app_settings::config.reduce_motion);
         const ImU32 accentBefore = app_settings::config.color_primary;
         CyberWidgets::ColorEditU32(Loc::Tr("launcher.accent"), &app_settings::config.color_primary);
         if (accentBefore != app_settings::config.color_primary) { changed = true; CyberTheme::ApplyTheme(); }
@@ -882,9 +960,6 @@ void DrawSettings(ImVec2 display) {
     case app_settings::SettingsPage::Input: {
         CyberWidgets::BeginCard(Loc::Tr("launcher.settings.input"), 0.f);
         changed |= SettingsHotkey(Loc::Tr("launcher.menu"), &app_settings::config.menu_bind);
-        changed |= SettingsHotkey("ESP", &app_settings::config.hotkey_esp);
-        changed |= SettingsHotkey(Loc::Tr("launcher.aim"), &app_settings::config.hotkey_aim);
-        changed |= SettingsHotkey(Loc::Tr("launcher.vehicle"), &app_settings::config.hotkey_vehicle);
         CyberWidgets::EndCard();
         break;
     }

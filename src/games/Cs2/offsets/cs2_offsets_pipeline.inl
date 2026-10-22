@@ -25,6 +25,32 @@ bool ResolveDataPath(std::string& out_dir) {
     return false;
 }
 
+// CS-012: tier opcional — campos lidos por lanes de features cuja ausência
+// degrada mas não bloqueia o arranque. Aviso, não fatal.
+static void LogOptionalOffsetWarnings(const Offsets& loaded) {
+    struct OptionalField { const char* name; uintptr_t value; };
+    const OptionalField optional[] = {
+        { "m_vecVelocity", loaded.m_vecVelocity },
+        { "m_vOldOrigin", loaded.m_vOldOrigin },
+        { "m_angEyeAngles", loaded.m_angEyeAngles },
+        { "m_bPawnIsAlive", loaded.m_bPawnIsAlive },
+        { "m_steamID", loaded.m_steamID },
+        { "m_entitySpottedState", loaded.m_entitySpottedState },
+        { "m_bSpotted", loaded.m_bSpotted },
+        { "m_pWeaponServices", loaded.m_pWeaponServices },
+        { "m_hActiveWeapon", loaded.m_hActiveWeapon },
+        { "m_iItemDefinitionIndex", loaded.m_iItemDefinitionIndex },
+        { "m_ArmorValue", loaded.m_ArmorValue },
+        { "m_bIsScoped", loaded.m_bIsScoped },
+        { "m_hObserverPawn", loaded.m_hObserverPawn },
+        { "m_iIDEntIndex", loaded.m_iIDEntIndex },
+    };
+    for (const auto& field : optional)
+        if (!field.value)
+            std::cout << "[CS2][OFFSETS] AVISO: campo opcional ausente — "
+                      << field.name << std::endl;
+}
+
 bool LoadOffsetsFromJson(const char* path) {
 #if !defined(OMNIGHOST_DEV_EXTERNAL_OFFSETS)
     (void)path;
@@ -45,8 +71,8 @@ bool LoadOffsetsFromJson(const char* path) {
     std::cout << "[CS2] Loading offsets from: " << file << std::endl;
     std::string data;
     if (!ReadTextFile(file, data)) {
-        status = "cs2_offsets.json nao encontrado (coloca em data/ ao lado do exe)";
-        std::cout << "[CS2] " << status << "\n    procurou: " << file << std::endl;
+SetStatus("cs2_offsets.json nao encontrado (coloca em data/ ao lado do exe)");
+        std::cout << "[CS2] " << GetStatus() << "\n    procurou: " << file << std::endl;
         return false;
     }
 
@@ -161,6 +187,7 @@ bool LoadOffsetsFromJson(const char* path) {
     LoadSchemaOffsets(data);
     std::string validation_error;
     offsets.loaded = bone_mapping_loaded && offsets.Validate(&validation_error);
+    if (offsets.loaded) LogOptionalOffsetWarnings(offsets);
     if (!bone_mapping_loaded && validation_error.empty())
         validation_error = "bone_mapping incompleto";
 
@@ -172,7 +199,7 @@ bool LoadOffsetsFromJson(const char* path) {
             (unsigned long long)offsets.dwEntityList,
             (unsigned long long)offsets.dwLocalPlayerPawn,
             (unsigned long long)offsets.dwViewMatrix);
-        status = buf;
+SetStatus(buf);
         offsets_source = file;
         std::cout << "[CS2] Loaded: " << file << std::endl;
         std::cout << "[CS2] Schema  m_hPlayerPawn=0x" << std::hex << offsets.m_hPlayerPawn
@@ -182,12 +209,12 @@ bool LoadOffsetsFromJson(const char* path) {
                   << " m_ArmorValue=0x" << offsets.m_ArmorValue
                   << std::dec << std::endl;
     } else {
-        status = validation_error.empty() ? "cs2_offsets.json incompleto" : validation_error;
-        offsets_source = status;
+SetStatus(validation_error.empty() ? "cs2_offsets.json incompleto" : validation_error);
+        offsets_source = GetStatus();
         if (explicit_path)
             offsets = previous;
     }
-    std::cout << "[CS2] " << status << std::endl;
+    std::cout << "[CS2] " << GetStatus() << std::endl;
     return loaded_from_file;
 #endif
 }
@@ -277,7 +304,12 @@ bool LoadEmbeddedOffsets() {
     read("schemas.CSkeletonInstance.m_modelState", offsets.m_modelState, false);
     uintptr_t boneArrayInModelState = 0;
     read("schemas.CModelState.m_boneArray", boneArrayInModelState, true);
-    offsets.BoneArray = offsets.m_modelState + boneArrayInModelState;
+    // CS-012: nunca compor com base zero — se o m_modelState falta,
+    // BoneArray fica inválido (0) e a validação bloqueia com log, em vez
+    // de gerar um offset a partir de 0 + boneArrayInModelState (o mesmo
+    // guard que o path JSON já usa).
+    offsets.BoneArray = offsets.m_modelState && boneArrayInModelState
+        ? offsets.m_modelState + boneArrayInModelState : 0;
     read("schemas.C_PlantedC4.m_bBombTicking", offsets.m_bBombTicking, false);
     read("schemas.C_PlantedC4.m_flC4Blow", offsets.m_flC4Blow, false);
     read("schemas.C_PlantedC4.m_flTimerLength", offsets.m_flTimerLength, false);
@@ -298,12 +330,13 @@ bool LoadEmbeddedOffsets() {
     read("schemas.EntitySpottedState_t.m_bSpotted", offsets.m_bSpotted, false);
     std::string validation_error;
     offsets.loaded = required && offsets.Validate(&validation_error);
+    if (offsets.loaded) LogOptionalOffsetWarnings(offsets);
     if (offsets.loaded) {
         offsets_source = "offsets embedded";
         std::cout << "[RESOURCE] game=CS2 source=embedded id=IDR_OFFSETS_CS2 load=PASS build="
                   << snapshot.metadata.build << std::endl;
     } else if (!validation_error.empty()) {
-        status = validation_error;
+SetStatus(validation_error);
         offsets_source = "offsets embedded inválidos";
     }
     return offsets.loaded;
@@ -352,7 +385,7 @@ static bool ResolveModuleBases() {
 
 bool WaitForProcess(int timeout_sec) {
     std::cout << "[CS2] Aguardando cs2.exe..." << std::endl;
-    status = "Aguardando cs2.exe";
+SetStatus("Aguardando cs2.exe");
     const int steps = (std::max)(1, timeout_sec);
     for (int i = 0; i < steps; ++i) {
         DWORD pid = 0;
@@ -363,21 +396,21 @@ bool WaitForProcess(int timeout_sec) {
 
 
         if (pid) {
-            status = "cs2.exe encontrado";
-            std::cout << "[CS2] " << status << " (pid " << pid << ")" << std::endl;
+SetStatus("cs2.exe encontrado");
+            std::cout << "[CS2] " << GetStatus() << " (pid " << pid << ")" << std::endl;
             return true;
         }
         if (i % 5 == 0)
             std::cout << "[CS2] ... ainda a aguardar (" << i << "s)" << std::endl;
         Sleep(1000);
     }
-    status = "Timeout - cs2.exe nao encontrado";
-    std::cout << "[CS2] " << status << std::endl;
+SetStatus("Timeout - cs2.exe nao encontrado");
+    std::cout << "[CS2] " << GetStatus() << std::endl;
     return false;
 }
 
 bool Attach() {
-    status = "A anexar cs2.exe";
+SetStatus("A anexar cs2.exe");
     OmniGhost::SessionLog::Write(
         OmniGhost::SessionLog::Severity::Info,
         OmniGhost::SessionLog::Subsystem::Adapter,
@@ -386,21 +419,21 @@ bool Attach() {
 
 
     if (!mem.vHandle) {
-        status = "Inicializando DMA";
-        std::cout << "[CS2] " << status << std::endl;
+SetStatus("Inicializando DMA");
+        std::cout << "[CS2] " << GetStatus() << std::endl;
         OmniGhost::SessionLog::Write(
             OmniGhost::SessionLog::Severity::Info,
             OmniGhost::SessionLog::Subsystem::DMA,
             "CS2 opening FPGA session", {});
         try {
             if (!mem.Init("", true, false)) {
-                status = "DMA offline (FPGA nao abriu sessao funcional)";
-                std::cout << "[CS2] " << status << std::endl;
+SetStatus("DMA offline (FPGA nao abriu sessao funcional)");
+                std::cout << "[CS2] " << GetStatus() << std::endl;
                 OmniGhost::SessionLog::Write(
                     OmniGhost::SessionLog::Severity::Error,
                     OmniGhost::SessionLog::Subsystem::DMA,
                     "CS2 DMA offline after mem.Init",
-                    {{"status", status}});
+                    {{"status", GetStatus()}});
                 return false;
             }
             OmniGhost::SessionLog::Write(
@@ -409,7 +442,7 @@ bool Attach() {
                 "CS2 FPGA session open",
                 {{"vHandle", mem.vHandle ? "yes" : "no"}});
         } catch (const std::exception& ex) {
-            status = "Excecao ao inicializar DMA: " + std::string(ex.what());
+SetStatus("Excecao ao inicializar DMA: " + std::string(ex.what()));
             std::cerr << "[CS2] CRASH em mem.Init: " << ex.what() << std::endl;
             OmniGhost::SessionLog::Write(
                 OmniGhost::SessionLog::Severity::Error,
@@ -418,7 +451,7 @@ bool Attach() {
                 {{"what", ex.what()}});
             return false;
         } catch (...) {
-            status = "Erro desconhecido ao inicializar DMA";
+SetStatus("Erro desconhecido ao inicializar DMA");
             std::cerr << "[CS2] CRASH desconhecido em mem.Init" << std::endl;
             OmniGhost::SessionLog::Write(
                 OmniGhost::SessionLog::Severity::Error,
@@ -430,8 +463,8 @@ bool Attach() {
 
 
     if (mem.GetPidFromName("cs2.exe") || mem.GetPidFromName("CS2.exe")) {
-        status = "cs2.exe encontrado";
-        std::cout << "[CS2] " << status << " (DMA)" << std::endl;
+SetStatus("cs2.exe encontrado");
+        std::cout << "[CS2] " << GetStatus() << " (DMA)" << std::endl;
         OmniGhost::SessionLog::Write(
             OmniGhost::SessionLog::Severity::Info,
             OmniGhost::SessionLog::Subsystem::Process,
@@ -441,7 +474,7 @@ bool Attach() {
             OmniGhost::SessionLog::Severity::Error,
             OmniGhost::SessionLog::Subsystem::Process,
             "CS2 process wait timeout",
-            {{"status", status}});
+            {{"status", GetStatus()}});
         return false;
     }
 
@@ -463,7 +496,7 @@ bool Attach() {
         } catch (...) {
             std::cerr << "[CS2] Attach retry " << a << " unknown exception caught and logged" << std::endl;
         }
-        status = "A anexar cs2.exe...";
+SetStatus("A anexar cs2.exe...");
         if ((a % 5) == 0) {
             std::cout << "[CS2] Attach retry " << a << std::endl;
             OmniGhost::SessionLog::Write(
@@ -475,13 +508,13 @@ bool Attach() {
         Sleep(a < 10 ? 250 : 500);
     }
     if (!attached) {
-        status = "Falha ao anexar cs2.exe (DMA aberto mas processo nao ligado)";
-        std::cout << "[CS2] " << status << std::endl;
+SetStatus("Falha ao anexar cs2.exe (DMA aberto mas processo nao ligado)");
+        std::cout << "[CS2] " << GetStatus() << std::endl;
         OmniGhost::SessionLog::Write(
             OmniGhost::SessionLog::Severity::Error,
             OmniGhost::SessionLog::Subsystem::Process,
             "CS2 process bind failed",
-            {{"status", status}});
+            {{"status", GetStatus()}});
         return false;
     }
     OmniGhost::SessionLog::Write(
@@ -501,7 +534,7 @@ bool Attach() {
         }
         if (attempt % 5 == 0)
             std::cout << "[CS2] client.dll ainda nao resolvido (" << attempt << ")" << std::endl;
-        status = "A aguardar client.dll...";
+SetStatus("A aguardar client.dll...");
         Sleep(500);
 
         if (attempt > 0 && (attempt % 10) == 0) {
@@ -515,13 +548,13 @@ bool Attach() {
         }
     }
     if (!runtime.client_base) {
-        status = "client.dll nao encontrado (abre o CS2 e espera o menu principal)";
-        std::cout << "[CS2] " << status << std::endl;
+SetStatus("client.dll nao encontrado (abre o CS2 e espera o menu principal)");
+        std::cout << "[CS2] " << GetStatus() << std::endl;
         OmniGhost::SessionLog::Write(
             OmniGhost::SessionLog::Severity::Error,
             OmniGhost::SessionLog::Subsystem::Process,
             "CS2 client.dll not found",
-            {{"status", status}});
+            {{"status", GetStatus()}});
         return false;
     }
     OmniGhost::SessionLog::Write(
@@ -540,7 +573,7 @@ bool Attach() {
         LoadEmbeddedOffsets();
     }
     if (!offsets.loaded) {
-        status = "Sem offsets validos";
+SetStatus("Sem offsets validos");
         return false;
     }
 
@@ -565,9 +598,9 @@ bool Attach() {
 
     if (!ProbeViewMatrix()) {
         std::cout << "[CS2] ViewMatrix ilegível; offsets podem estar desatualizados" << std::endl;
-        status = "Offsets incompatíveis com o build atual; atualiza data/cs2_offsets.json";
-        OmniGhost::OffsetAuto::MarkOutdated(OmniGhost::ActiveGame::CS2, status);
-        std::cout << "[CS2] " << status << std::endl;
+SetStatus("Offsets incompatíveis com o build atual; atualiza data/cs2_offsets.json");
+        OmniGhost::OffsetAuto::MarkOutdated(OmniGhost::ActiveGame::CS2, GetStatus());
+        std::cout << "[CS2] " << GetStatus() << std::endl;
         return false;
     }
 
@@ -581,8 +614,8 @@ bool Attach() {
     char buf[160];
     std::snprintf(buf, sizeof(buf), "CS2 OK  client=0x%llX  build=%u",
         (unsigned long long)runtime.client_base, runtime.build_number);
-    status = buf;
-    std::cout << "[CS2] " << status << std::endl;
+SetStatus(buf);
+    std::cout << "[CS2] " << GetStatus() << std::endl;
 
 
     if (!aim_type::IsConnected()) {

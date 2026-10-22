@@ -12,6 +12,8 @@
 #endif
 #include <Windows.h>
 #include <DbgHelp.h>
+#include <dpapi.h>
+#pragma comment(lib, "crypt32.lib")
 
 #include <algorithm>
 #include <atomic>
@@ -55,6 +57,41 @@ std::wstring Timestamp() {
         time.wYear, time.wMonth, time.wDay,
         time.wHour, time.wMinute, time.wSecond, time.wMilliseconds);
     return buffer;
+}
+
+bool EncryptDumpInPlace(const fs::path& dumpPath) noexcept {
+    try {
+        std::ifstream input(dumpPath, std::ios::binary);
+        if (!input) return false;
+        std::vector<unsigned char> bytes(
+            (std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+        if (bytes.empty() || bytes.size() > 64ull * 1024ull * 1024ull)
+            return false;
+
+        DATA_BLOB plain{};
+        plain.pbData = bytes.data();
+        plain.cbData = static_cast<DWORD>(bytes.size());
+        DATA_BLOB encrypted{};
+        if (!CryptProtectData(&plain, L"OmniGhostCrashDump", nullptr, nullptr, nullptr,
+                              CRYPTPROTECT_UI_FORBIDDEN, &encrypted))
+            return false;
+
+        Platform::UniqueHandle file(CreateFileW(
+            dumpPath.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS,
+            FILE_ATTRIBUTE_NORMAL, nullptr));
+        if (!file) {
+            LocalFree(encrypted.pbData);
+            return false;
+        }
+        DWORD written = 0;
+        const BOOL ok = WriteFile(file.get(), encrypted.pbData, encrypted.cbData,
+                                  &written, nullptr) && written == encrypted.cbData;
+        FlushFileBuffers(file.get());
+        LocalFree(encrypted.pbData);
+        return ok == TRUE;
+    } catch (...) {
+        return false;
+    }
 }
 
 void PruneCrashDumps() noexcept {
@@ -213,8 +250,12 @@ bool WriteMiniDump(EXCEPTION_POINTERS* exceptionPointers) noexcept {
             GetCurrentProcess(), GetCurrentProcessId(), dumpFile.get(), type,
             exceptionInfoPtr, nullptr, nullptr) == TRUE;
         dumpFile.reset();
-        if (!success)
+        if (!success) {
             fs::remove(dumpPath, error);
+        } else if (!EncryptDumpInPlace(dumpPath)) {
+            fs::remove(dumpPath, error);
+            success = false;
+        }
         PruneCrashDumps();
     } catch (const std::exception& ex) {
         OutputDebugStringA("[OmniGhost CrashHandler] WriteMiniDump failed: ");

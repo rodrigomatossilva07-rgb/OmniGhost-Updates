@@ -4,6 +4,8 @@
 
 namespace CS2 {
 
+enum class EspLayoutAnchor : int { Top = 0, Bottom = 1, Left = 2, Right = 3 };
+
 struct Config : OmniGhost::Gameplay::EspConfigBase {
 
     int box_style = 0;
@@ -31,6 +33,27 @@ struct Config : OmniGhost::Gameplay::EspConfigBase {
     bool dropped_weapon_heavy = true;
     bool dropped_weapon_icons = true;
     bool dropped_weapon_ammo = false;
+    bool c4_carrier_esp = false;
+    bool offscreen_arrows = false;
+    float offscreen_arrow_size = 14.f;
+    float offscreen_arrow_margin = 34.f;
+    float offscreen_arrow_max_distance = 300.f;
+    float offscreen_arrow_opacity = .90f;
+    float col_offscreen_arrow[4] = { 0.95f, 0.72f, 0.18f, 0.90f };
+    bool active_features_panel = false;
+    float active_features_x = .015f;
+    float active_features_y = .18f;
+    float active_features_scale = 1.f;
+    float active_features_opacity = .88f;
+    bool active_features_compact = false;
+    int layout_name_anchor = static_cast<int>(EspLayoutAnchor::Top);
+    int layout_health_anchor = static_cast<int>(EspLayoutAnchor::Left);
+    int layout_armor_anchor = static_cast<int>(EspLayoutAnchor::Right);
+    int layout_weapon_anchor = static_cast<int>(EspLayoutAnchor::Bottom);
+    int layout_distance_anchor = static_cast<int>(EspLayoutAnchor::Bottom);
+    int layout_ammo_anchor = static_cast<int>(EspLayoutAnchor::Bottom);
+    float layout_spacing = 4.f;
+    float layout_text_scale = 1.f;
     bool radar_2d = false;
     bool webradar_enabled = false;
     int webradar_port = 8080;
@@ -57,6 +80,8 @@ struct Config : OmniGhost::Gameplay::EspConfigBase {
     bool aim_dynamic_fov = false;
     float aim_fov = 80.f;
     float aim_fov_min = 25.f;
+    float aim_fov_curve_distance[5] = { 0.f, 25.f, 60.f, 120.f, 250.f };
+    float aim_fov_curve_value[5] = { 25.f, 40.f, 70.f, 110.f, 160.f };
     float aim_smooth = 12.f;
     float aim_max_dist = 150.f;
     int aim_bone = 0;
@@ -85,6 +110,8 @@ struct Config : OmniGhost::Gameplay::EspConfigBase {
     bool aim_ignore_bots = true;
     bool aim_auto_bone = false;
     bool aim_visibility_check = false;
+    bool aim_visible_bones_only = false;
+    int aim_bone_priority[4] = { 0, 1, 2, 3 };
     bool aim_rcs_standalone = false;
     bool aim_rcs_auto = true;
     float aim_rcs_x = 1.f;
@@ -104,9 +131,9 @@ struct Config : OmniGhost::Gameplay::EspConfigBase {
     int profile = 0;
 
 
-    bool SaveConfig(const char* name = "cs2_default");
-    bool LoadConfig(const char* name = "cs2_default");
-    bool SelfTestOffsets();
+    // CS-014: as declarações de SaveConfig/LoadConfig/SelfTestOffsets foram
+    // removidas — não tinham definição como membros (as funções livres
+    // homónimas em cs2_config_io.cpp / cs2_offset_validation.inl continuam).
 };
 
 inline void ApplyLegitProfile(Config& c) {
