@@ -77,8 +77,12 @@ public:
 
 
     [[nodiscard]] ServiceContainer* GetParent() const noexcept {
+
+
         std::shared_lock lock(mutex_);
-        return parent_;
+        if (auto locked = parent_.lock())
+            return locked.get();
+        return nullptr;
     }
 
 
@@ -197,7 +201,7 @@ public:
         ServiceLifetime lifetime = ServiceLifetime::Transient;
         std::function<std::shared_ptr<void>(ServiceContainer&)> factory;
         std::shared_ptr<void> existingInstance;
-        ServiceContainer* parentSnapshot = nullptr;
+        std::weak_ptr<ServiceContainer> parentSnapshot;
         bool descriptorFound = false;
         {
             std::shared_lock lock(mutex_);
@@ -211,7 +215,9 @@ public:
             }
         }
         if (!descriptorFound) {
-            return parentSnapshot ? parentSnapshot->TryGet<Interface>() : nullptr;
+
+            auto parent = parentSnapshot.lock();
+            return parent ? parent->TryGet<Interface>() : nullptr;
         }
 
         if (lifetime == ServiceLifetime::Singleton) {
@@ -219,9 +225,9 @@ public:
                 return std::static_pointer_cast<Interface>(existingInstance);
             }
             if (factory) {
-                // Serialize lazy singleton creation. A recursive mutex is
-                // required because a factory may resolve another service
-                // through this same container.
+
+
+
                 std::lock_guard resolveLock(resolveMutex_);
                 {
                     std::shared_lock lock(mutex_);
@@ -242,7 +248,9 @@ public:
         }
 
 
-        return parentSnapshot ? parentSnapshot->TryGet<Interface>() : nullptr;
+        if (auto parent = parentSnapshot.lock())
+            return parent->TryGet<Interface>();
+        return nullptr;
     }
 
 
@@ -261,8 +269,9 @@ public:
         const auto type = std::type_index(typeid(Interface));
         std::shared_lock lock(mutex_);
         if (descriptors_.contains(type) || singletons_.contains(type)) return true;
-        if (parent_) return parent_->Has<Interface>();
-        return false;
+
+        auto parent = parent_.lock();
+        return parent ? parent->Has<Interface>() : false;
     }
 
 
@@ -302,8 +311,9 @@ public:
         std::shared_lock lock(mutex_);
         auto it = descriptors_.find(type);
         if (it != descriptors_.end()) return it->second.lifetime;
-        if (parent_) return parent_->GetLifetime<Interface>();
-        return std::nullopt;
+
+        auto parent = parent_.lock();
+        return parent ? parent->GetLifetime<Interface>() : std::nullopt;
     }
 
 
@@ -318,13 +328,16 @@ public:
 
 private:
     mutable std::shared_mutex mutex_;
-    // A recursive mutex allows a singleton factory to resolve its own
-    // dependencies through this container while still preventing duplicate
-    // singleton construction by concurrent callers.
+
+
+
     mutable std::recursive_mutex resolveMutex_;
     std::unordered_map<std::type_index, ServiceDescriptor> descriptors_;
     std::unordered_map<std::type_index, std::shared_ptr<void>> singletons_;
-    ServiceContainer* parent_ = nullptr;
+
+
+
+    std::weak_ptr<ServiceContainer> parent_;
 };
 
 

@@ -13,6 +13,8 @@ $sourceFiles = Get-ChildItem -LiteralPath $cs2Root -Recurse -File |
     Sort-Object FullName
 $source = ($sourceFiles | ForEach-Object { [IO.File]::ReadAllText($_.FullName) }) -join "`n"
 $espSource = [IO.File]::ReadAllText((Join-Path $ProjectDir 'src/games/Cs2/esp/cs2_esp.cpp'))
+$cameraSource = [IO.File]::ReadAllText((Join-Path $ProjectDir 'src/games/Cs2/runtime/cs2_camera.cpp'))
+$bonesSource = [IO.File]::ReadAllText((Join-Path $ProjectDir 'src/games/Cs2/bones/cs2_bones_pipeline.inl'))
 $memoryIoSource = [IO.File]::ReadAllText((Join-Path $ProjectDir 'third_party/DMALibrary/Memory/MemoryIO.cpp'))
 $memoryLifecycleSource = [IO.File]::ReadAllText((Join-Path $ProjectDir 'third_party/DMALibrary/Memory/MemoryLifecycle.cpp'))
 $commonBuildProps = [IO.File]::ReadAllText((Join-Path $ProjectDir 'config/build/OmniGhost.Common.props'))
@@ -88,6 +90,10 @@ Require-Condition ($source -notmatch 'Trajectory::Vec3\(cam->view_matrix\[12\]')
 
 $historyLocks = [regex]::Matches($source, 'lock\(g_history_mutex\)').Count
 Require-Condition ($historyLocks -eq 4) 'Camera history publish, reset, selection and prediction must all lock the same mutex.'
+Require-Condition ($cameraSource -notmatch 'newest\.view_matrix\[i\].*previous\.view_matrix') 'Projection matrix coefficients must never be extrapolated independently.'
+Require-Match $cameraSource 'return newest;' 'Presentation must use the newest coherent camera matrix.'
+Require-Condition ($bonesSource -notmatch 'BoneJointSnapshot48|s_use48Stride') 'Bone acquisition must not switch to an unvalidated speculative stride.'
+Require-Match $bonesSource 'validBoneCount >= 8' 'A safe partial pose must remain drawable when one optional limb is unavailable.'
 
 $drawPlayers = [regex]::Match($espSource, '(?s)void DrawPlayers\(const Runtime& snapshot, const Config& settings\) \{.*?\n\}').Value
 Require-Condition ($drawPlayers.Length -gt 0) 'CS2 presentation loop not found.'
@@ -104,7 +110,7 @@ Require-Match $drawPlayers 'WorldToScreen\(headWorld, viewMatrix, boxHead\)' 'Bo
 Require-Condition ($espSource -notmatch 'SelectCameraSnapshot\(') 'Per-item camera history selection remains in the renderer.'
 Require-Match $drawPlayers 'nowMs - worldSampleMs > 1000u' 'A short DMA stall still blanks the complete ESP frame.'
 Require-Match $drawPlayers 'if \(!stable\.name\[0\] && cached\.name\[0\]\)' 'A partial optional scan can still blank a cached player name.'
-Require-Match $source 'completePose = false;\s*continue;' 'An incomplete limb set can still be published as a complete skeleton.'
+Require-Match $bonesSource 'r\.full_bones_ok = completePose' 'Partial bone samples must retain an explicit completeness flag.'
 $failedCoreBlock = [regex]::Match($source,
     '(?s)if \(candidate_count > 0 && validCoreSamples == 0\) \{.*?g_publish_runtime_this_scan = false;\s*return;\s*\}').Value
 Require-Condition ($failedCoreBlock.Length -gt 0 -and

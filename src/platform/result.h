@@ -13,7 +13,10 @@ struct Error {
     std::string message;
 
     Error() noexcept : message() {}
-    explicit Error(const std::string& msg) noexcept : message(msg) {}
+
+
+
+    explicit Error(const std::string& msg) : message(msg) {}
     explicit Error(std::string&& msg) noexcept : message(std::move(msg)) {}
     Error(const char* msg) noexcept : message(msg ? msg : "") {}
 
@@ -26,10 +29,13 @@ struct Error {
 template <typename T>
 class Result {
 public:
+
+
+
     Result() noexcept : value_(Error{}) {}
-    Result(const T& value) noexcept : value_(value) {}
-    Result(T&& value) noexcept : value_(std::move(value)) {}
-    explicit Result(const Error& error) noexcept : value_(error) {}
+    Result(const T& value) : value_(value) {}
+    Result(T&& value) : value_(std::move(value)) {}
+    explicit Result(const Error& error) : value_(error) {}
     explicit Result(Error&& error) noexcept : value_(std::move(error)) {}
 
     [[nodiscard]] bool IsOk() const noexcept { return std::holds_alternative<T>(value_); }

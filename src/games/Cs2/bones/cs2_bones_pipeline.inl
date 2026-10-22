@@ -108,10 +108,6 @@ static void RunOptionalEnrichment(const Config& frame_config,
 
 
 
-        struct BoneJointSnapshot48 { float v[12]; };
-        static_assert(sizeof(BoneJointSnapshot48) == 48, "BoneJointSnapshot48");
-        static bool s_probe48Attempted = false;
-        static bool s_use48Stride = false;
         uint64_t scanJointsEvaluated = 0;
         uint64_t scanJointsRejected = 0;
         int scanQueuedBatches = 0;
@@ -135,7 +131,6 @@ static void RunOptionalEnrichment(const Config& frame_config,
             const size_t end = (std::min)(targets.size(), base + batchSize);
             uintptr_t boneBases[kBatch]{};
             BoneJointSnapshot joints32[kBatch][kJointCount]{};
-            BoneJointSnapshot48 joints48[kBatch][kJointCount]{};
             float sampledOrigins[kBatch][3];
             for (auto& origin : sampledOrigins)
                 std::fill(std::begin(origin), std::end(origin),
@@ -189,13 +184,8 @@ static void RunOptionalEnrichment(const Config& frame_config,
                 boneBases[bi] = boneBase;
                 eligible[bi] = true;
 
-                void* jointReadTarget = s_use48Stride
-                    ? static_cast<void*>(joints48[bi])
-                    : static_cast<void*>(joints32[bi]);
-                const size_t jointStrideBytes = s_use48Stride
-                    ? sizeof(BoneJointSnapshot48) : sizeof(BoneJointSnapshot);
                 mem.AddScatterReadRequest(g_scatter_optional, boneBase,
-                    jointReadTarget, jointStrideBytes * (need_full_bones ? kJointCount : 8));
+                    joints32[bi], sizeof(BoneJointSnapshot) * (need_full_bones ? kJointCount : 8));
                 mem.AddScatterReadRequest(g_scatter_optional,
                     targets[i].scene + offsets.m_vecAbsOrigin,
                     sampledOrigins[bi], sizeof(sampledOrigins[bi]));
@@ -230,13 +220,8 @@ static void RunOptionalEnrichment(const Config& frame_config,
                     const auto jointPosOf = [&](int jointIdx, float out[3]) {
                         if (jointIdx < 0 || jointIdx >= static_cast<int>(kJointCount))
                             return false;
-                        if (s_use48Stride) {
-                            const auto& j = joints48[bi][jointIdx];
-                            out[0] = j.v[0]; out[1] = j.v[1]; out[2] = j.v[2];
-                        } else {
-                            const auto& j = joints32[bi][jointIdx];
-                            out[0] = j.x; out[1] = j.y; out[2] = j.z;
-                        }
+                        const auto& j = joints32[bi][jointIdx];
+                        out[0] = j.x; out[1] = j.y; out[2] = j.z;
                         return true;
                     };
                     const auto validJoint = [&](const float pos[3], size_t boneSlot) {
@@ -295,28 +280,18 @@ static void RunOptionalEnrichment(const Config& frame_config,
                     }
                     bool completePose = false;
                     if (need_full_bones) {
-
-
-                        completePose = true;
+                        std::size_t validBoneCount = 0;
                         for (size_t b = 0; b < kBoneSlotCount; ++b) {
                             int jointIdx = CS2::GetBoneJointIndex(static_cast<CS2::BoneSlot>(b));
-                            if (jointIdx < 0 || jointIdx >= static_cast<int>(kJointCount)) {
-                                completePose = false;
+                            if (jointIdx < 0 || jointIdx >= static_cast<int>(kJointCount))
                                 continue;
-                            }
                             float jpos[3]{};
-                            if (!jointPosOf(jointIdx, jpos) || !validJoint(jpos, b)) {
-                                completePose = false;
+                            if (!jointPosOf(jointIdx, jpos) || !validJoint(jpos, b))
                                 continue;
-                            }
                             r.bones[b][0] = jpos[0]; r.bones[b][1] = jpos[1]; r.bones[b][2] = jpos[2];
+                            ++validBoneCount;
                         }
-
-
-
-                        for (size_t b : {size_t{0}, size_t{1}, size_t{2}, size_t{5}})
-                            if (r.bones[b][0] == 0.f && r.bones[b][1] == 0.f && r.bones[b][2] == 0.f)
-                                completePose = false;
+                        completePose = upperPoseValid && validBoneCount >= 8;
                         if (completePose) {
                             const float dx = r.bones[0][0] - r.bones[5][0];
                             const float dy = r.bones[0][1] - r.bones[5][1];
@@ -343,17 +318,24 @@ static void RunOptionalEnrichment(const Config& frame_config,
                                 {5,14}, {14,15}, {15,16},
                                 {5,17}, {17,18}, {18,19}
                             };
+                            std::size_t validSegments = 0;
                             for (const auto& [a, b] : kAnatomyLinks) {
+                                const bool hasA = r.bones[a][0] != 0.f || r.bones[a][1] != 0.f || r.bones[a][2] != 0.f;
+                                const bool hasB = r.bones[b][0] != 0.f || r.bones[b][1] != 0.f || r.bones[b][2] != 0.f;
+                                if (!hasA || !hasB)
+                                    continue;
                                 const float maxLength = (a >= 14 || b >= 14) ? 72.f : 58.f;
                                 if (!segmentValid(a, b, .25f, maxLength)) {
                                     completePose = false;
                                     break;
                                 }
+                                ++validSegments;
                             }
+                            completePose = completePose && validSegments >= 6;
                         }
                         r.full_bones_ok = completePose;
                     }
-                    if (upperPoseValid && (!need_full_bones || completePose)) {
+                    if (upperPoseValid) {
                         r.bones_ok = true;
                         r.sample_ms = sampleMs;
                         ++results.bone_count;
@@ -371,35 +353,11 @@ static void RunOptionalEnrichment(const Config& frame_config,
 
 
 
-            const bool totalRejection = scanQueuedBatches > 0 && scanJointsEvaluated > 0 &&
-                results.bone_count == 0;
-            if (totalRejection) {
-                if (!s_probe48Attempted) {
-                    s_probe48Attempted = true;
-                    if (!s_use48Stride) {
-                        s_use48Stride = true;
-                        OmniGhost::SessionLog::Write(
-                            OmniGhost::SessionLog::Severity::Warning,
-                            OmniGhost::SessionLog::Subsystem::Adapter,
-                            "[CS2] Bones: todos os joints rejeitados com stride 32B — a sondar stride 48B (NEEDS VALIDATION)");
-                    } else {
-                        s_use48Stride = false;
-                        OmniGhost::SessionLog::Write(
-                            OmniGhost::SessionLog::Severity::Warning,
-                            OmniGhost::SessionLog::Subsystem::Adapter,
-                            "[CS2] Bones: stride 48B tambem rejeita todos os joints — a reverter para 32B (NEEDS VALIDATION)");
-                    }
-                }
-            } else if (s_use48Stride && results.bone_count > 0) {
-                static bool s_logged48Ok = false;
-                if (!s_logged48Ok) {
-                    s_logged48Ok = true;
-                    OmniGhost::SessionLog::Write(
-                        OmniGhost::SessionLog::Severity::Info,
-                        OmniGhost::SessionLog::Subsystem::Adapter,
-                        "[CS2] Bones: stride 48B validado em runtime (joints aceites)");
-                }
-            }
+            if (scanQueuedBatches > 0 && scanJointsEvaluated > 0 && results.bone_count == 0)
+                OmniGhost::SessionLog::Write(
+                    OmniGhost::SessionLog::Severity::Warning,
+                    OmniGhost::SessionLog::Subsystem::Adapter,
+                    "[CS2] Bones: amostra rejeitada; mantido o layout validado de 32B");
         }
         results.bones_ms = OmniGhost::Gameplay::TimeMs(bonesPhaseBegin);
     }

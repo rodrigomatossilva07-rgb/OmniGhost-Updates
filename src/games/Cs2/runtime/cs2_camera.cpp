@@ -63,49 +63,22 @@ CameraSnapshot Select(uint64_t world_sample_ms) {
 
 CameraSnapshot Predict(uint64_t presentation_ms) {
     CameraSnapshot newest{};
-    CameraSnapshot previous{};
 
     {
         std::lock_guard lock(g_history_mutex);
         for (const CameraSnapshot& candidate : g_history) {
             if (!candidate.timestamp_ms || candidate.timestamp_ms > presentation_ms)
                 continue;
-            if (candidate.timestamp_ms > newest.timestamp_ms) {
-                previous = newest;
+            if (candidate.timestamp_ms > newest.timestamp_ms)
                 newest = candidate;
-            } else if (candidate.timestamp_ms > previous.timestamp_ms) {
-                previous = candidate;
-            }
         }
     }
 
-    if (!newest.timestamp_ms || !previous.timestamp_ms ||
-        newest.timestamp_ms <= previous.timestamp_ms ||
-        presentation_ms <= newest.timestamp_ms)
-        return newest;
-
-    const uint64_t sampleDelta = newest.timestamp_ms - previous.timestamp_ms;
-    const uint64_t sourceAge = presentation_ms - newest.timestamp_ms;
-    if (sampleDelta > 20u || sourceAge > 20u)
-        return newest;
 
 
 
 
-    const float factor = std::clamp(
-        static_cast<float>((std::min)(sourceAge, uint64_t{8})) /
-            static_cast<float>((std::max)(sampleDelta, uint64_t{1})),
-        0.f, 1.f);
-    CameraSnapshot predicted = newest;
-    for (std::size_t i = 0; i < 16; ++i) {
-        const float value = newest.view_matrix[i] +
-            (newest.view_matrix[i] - previous.view_matrix[i]) * factor;
-        if (!std::isfinite(value))
-            return newest;
-        predicted.view_matrix[i] = value;
-    }
-    predicted.timestamp_ms = presentation_ms;
-    return predicted;
+    return newest;
 }
 
 void Reset() noexcept {

@@ -312,59 +312,7 @@ void MigrateLegacyUserData() {
 #endif
 }
 
-bool IsProtectedInstallPath(const fs::path& relativePath) {
-    if (relativePath.empty() || relativePath.is_absolute())
-        return true;
 
-    const fs::path normalized = relativePath.lexically_normal();
-    if (normalized.empty() || normalized.is_absolute())
-        return true;
-    for (const auto& segment : normalized) {
-        if (segment == L"..")
-            return true;
-    }
 
-    const std::wstring first = normalized.begin()->wstring();
-    const std::array<const wchar_t*, 8> protectedDirectories = {
-        L"Configs",
-        L"configs",
-        L"logs",
-        L"plugins",
-        L"saves",
-        L"licenses",
-        L"cache",
-        L"user-data"
-    };
-
-    for (const wchar_t* value : protectedDirectories) {
-        if (_wcsicmp(first.c_str(), value) == 0)
-            return true;
-    }
-
-    const std::wstring filename = normalized.filename().wstring();
-    const std::array<const wchar_t*, 7> protectedFiles = {
-        L"logs.txt",
-        L"log.txt",
-        L"auth.dat",
-        L"auth_state.dat",
-        L"license.dat",
-        L"licence.dat",
-        L"settings.json"
-    };
-    for (const wchar_t* value : protectedFiles) {
-        if (_wcsicmp(filename.c_str(), value) == 0)
-            return true;
-    }
-
-    const std::wstring extension = normalized.extension().wstring();
-    const std::array<const wchar_t*, 5> protectedExtensions = {
-        L".ogcfg", L".cfg", L".db", L".sqlite", L".sqlite3"
-    };
-    for (const wchar_t* value : protectedExtensions) {
-        if (_wcsicmp(extension.c_str(), value) == 0)
-            return true;
-    }
-    return false;
-}
 
 }

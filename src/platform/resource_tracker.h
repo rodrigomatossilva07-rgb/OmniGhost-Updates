@@ -3,6 +3,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <mutex>
@@ -34,7 +35,11 @@ public:
 
 
     void SetBaseline() noexcept {
-        baseline_ = TakeSnapshot();
+        const Snapshot snapshot = TakeSnapshot();
+
+
+        std::lock_guard lock(baselineMutex_);
+        baseline_ = snapshot;
         hasBaseline_ = true;
     }
 
@@ -49,14 +54,19 @@ public:
     };
 
     [[nodiscard]] std::optional<Delta> GetDelta() const noexcept {
-        if (!hasBaseline_) return std::nullopt;
+        Snapshot baseline{};
+        {
+            std::lock_guard lock(baselineMutex_);
+            if (!hasBaseline_) return std::nullopt;
+            baseline = baseline_;
+        }
         Snapshot current = TakeSnapshot();
         Delta delta;
-        delta.threadDelta = static_cast<int32_t>(current.threadCount) - static_cast<int32_t>(baseline_.threadCount);
-        delta.handleDelta = static_cast<int64_t>(current.handleCount) - static_cast<int64_t>(baseline_.handleCount);
-        delta.memoryDelta = static_cast<int64_t>(current.memoryBytes) - static_cast<int64_t>(baseline_.memoryBytes);
-        delta.gdiDelta = static_cast<int64_t>(current.gdiObjects) - static_cast<int64_t>(baseline_.gdiObjects);
-        delta.userDelta = static_cast<int64_t>(current.userObjects) - static_cast<int64_t>(baseline_.userObjects);
+        delta.threadDelta = static_cast<int32_t>(current.threadCount) - static_cast<int32_t>(baseline.threadCount);
+        delta.handleDelta = static_cast<int64_t>(current.handleCount) - static_cast<int64_t>(baseline.handleCount);
+        delta.memoryDelta = static_cast<int64_t>(current.memoryBytes) - static_cast<int64_t>(baseline.memoryBytes);
+        delta.gdiDelta = static_cast<int64_t>(current.gdiObjects) - static_cast<int64_t>(baseline.gdiObjects);
+        delta.userDelta = static_cast<int64_t>(current.userObjects) - static_cast<int64_t>(baseline.userObjects);
         delta.hasLeak = (delta.threadDelta > 0 || delta.handleDelta > 0 ||
                          delta.memoryDelta > 1024 * 1024 ||
                          delta.gdiDelta > 0 || delta.userDelta > 0);
@@ -68,6 +78,7 @@ public:
 
 
     void Reset() noexcept {
+        std::lock_guard lock(baselineMutex_);
         hasBaseline_ = false;
     }
 
@@ -80,6 +91,7 @@ public:
 
 private:
     ResourceTracker() = default;
+    mutable std::mutex baselineMutex_;
     Snapshot baseline_;
     bool hasBaseline_ = false;
 };

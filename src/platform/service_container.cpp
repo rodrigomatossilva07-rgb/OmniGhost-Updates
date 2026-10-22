@@ -6,7 +6,13 @@ std::unique_ptr<ServiceContainer> ServiceContainer::CreateScope() const {
     auto child = std::make_unique<ServiceContainer>();
     {
         std::shared_lock lock(mutex_);
-        child->parent_ = const_cast<ServiceContainer*>(this);
+
+
+
+
+        if (auto lockedSelf = weak_from_this().lock()) {
+            child->parent_ = std::const_pointer_cast<ServiceContainer>(lockedSelf);
+        }
         for (const auto& [key, desc] : descriptors_) {
             if (desc.lifetime == ServiceLifetime::Singleton) {
                 child->descriptors_[key] = desc;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "result.h"
+#include "app_paths.h"
 #include <filesystem>
 #include <fstream>
 #include <span>
@@ -154,10 +155,9 @@ public:
     }
     [[nodiscard]] Result<std::filesystem::path> GetExePath() const noexcept override {
         try {
-            wchar_t path[MAX_PATH];
-            DWORD len = GetModuleFileNameW(nullptr, path, MAX_PATH);
-            if (len == 0 || len == MAX_PATH) return Err<std::filesystem::path>("GetModuleFileNameW failed");
-            return Ok(std::filesystem::path(path));
+
+
+            return Ok(OmniGhost::Paths::Executable());
         } catch (const std::exception& e) { return Err<std::filesystem::path>(e.what()); }
     }
 };

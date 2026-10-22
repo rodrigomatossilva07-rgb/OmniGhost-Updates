@@ -18,5 +18,5 @@ std::filesystem::path Updates();
 std::filesystem::path Backups();
 bool EnsureUserDirectories();
 void MigrateLegacyUserData();
-bool IsProtectedInstallPath(const std::filesystem::path& relativePath);
+
 }
