@@ -376,7 +376,16 @@ InstallResult InstallSingleExecutable(const InstallOptions& options) {
         backupDirectory = options.target;
     const fs::path currentExe = options.target / options.executableName;
     const fs::path backupExe = backupDirectory / (options.executableName + std::wstring(L".previous"));
+    std::string currentExeHash;
     if (fs::exists(currentExe, backupError)) {
+        // UP-005: hash do exe atual ANTES da cópia — o sidecar fica com o
+        // hash da FONTE; se a cópia corromper, a verificação abaixo falha e
+        // o sidecar não é escrito (rollback bloqueado, sem propagar
+        // binário corrompido para o ponto de restauro).
+        std::string currentHashError;
+        if (!Sha256File(currentExe, currentExeHash, currentHashError))
+            std::clog << "[Install] current-executable hash failed: "
+                      << currentHashError << "\n";
         fs::copy_file(currentExe, backupExe, fs::copy_options::overwrite_existing, backupError);
         if (backupError)
             std::clog << "[Install] previous-executable backup failed: "
