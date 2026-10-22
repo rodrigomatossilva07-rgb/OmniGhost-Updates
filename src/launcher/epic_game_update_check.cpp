@@ -4,6 +4,7 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <iostream>
 #include <mutex>
 #include <stop_token>
 #include <string_view>
@@ -44,6 +45,7 @@ void Scan(const std::stop_token& stop) {
         }
         SharedState& shared = Shared(); { std::scoped_lock lock(shared.mutex); shared.status = std::move(results); }
     } catch (...) {
+        std::cerr << "[OmniGhost][EpicUpdate] Falha ao verificar atualizações." << std::endl;
     }
     SharedState& shared = Shared(); shared.checking.store(false, std::memory_order_release);
 }

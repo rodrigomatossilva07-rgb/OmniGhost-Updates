@@ -240,6 +240,7 @@ void PollRemoteOperation() {
             try {
                 (void)g_draining_operations[i].get();
             } catch (...) {
+                OutputDebugStringA("[OmniGhost][Auth] background authentication cleanup failed\n");
             }
             g_draining_operations.erase(g_draining_operations.begin() +
                                         static_cast<std::ptrdiff_t>(i));

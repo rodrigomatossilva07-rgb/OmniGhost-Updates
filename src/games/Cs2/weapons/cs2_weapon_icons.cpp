@@ -436,7 +436,11 @@ void Shutdown() {
         std::thread([pending = std::move(drainer)]() mutable {
             for (auto& fut : pending) {
                 if (!fut.valid()) continue;
-                try { (void)fut.get(); } catch (...) {}
+                try {
+                    (void)fut.get();
+                } catch (...) {
+                    OutputDebugStringA("[CS2][WeaponIcons] pending decoder cleanup failed\n");
+                }
             }
         }).detach();
     }
