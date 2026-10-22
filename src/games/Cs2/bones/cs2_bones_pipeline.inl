@@ -220,6 +220,7 @@ static void RunOptionalEnrichment(const Config& frame_config,
                     OptionalBoneResult& r = results.bones[results.bone_count];
                     r = OptionalBoneResult{};
                     r.pawn = targets[i].pawn;
+                    r.controller = targets[i].controller;
                     r.bone_base = boneBases[bi];
 
 

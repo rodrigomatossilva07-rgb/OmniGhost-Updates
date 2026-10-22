@@ -322,6 +322,7 @@ struct OptionalTarget {
 };
 struct OptionalBoneResult {
     uintptr_t pawn = 0;
+    uintptr_t controller = 0;
     uintptr_t bone_base = 0;
 
     std::array<std::array<float, 3>, kBoneSlotCount> bones{};

@@ -163,10 +163,14 @@ void DrawSkeleton(ImDrawList* draw, const CS2::Player& player, const float viewM
 
     constexpr std::pair<CS2::BoneSlot, CS2::BoneSlot> kLinks[] = {
         {CS2::BoneSlot::Head, CS2::BoneSlot::Neck}, {CS2::BoneSlot::Neck, CS2::BoneSlot::SpineUpper},
-        {CS2::BoneSlot::SpineUpper, CS2::BoneSlot::Pelvis},
-        {CS2::BoneSlot::Neck, CS2::BoneSlot::ShoulderLeft},
+        {CS2::BoneSlot::SpineUpper, CS2::BoneSlot::SpineMiddle},
+        {CS2::BoneSlot::SpineMiddle, CS2::BoneSlot::SpineLower},
+        {CS2::BoneSlot::SpineLower, CS2::BoneSlot::Pelvis},
+        {CS2::BoneSlot::Neck, CS2::BoneSlot::ClavicleLeft},
+        {CS2::BoneSlot::ClavicleLeft, CS2::BoneSlot::ShoulderLeft},
         {CS2::BoneSlot::ShoulderLeft, CS2::BoneSlot::ElbowLeft}, {CS2::BoneSlot::ElbowLeft, CS2::BoneSlot::HandLeft},
-        {CS2::BoneSlot::Neck, CS2::BoneSlot::ShoulderRight},
+        {CS2::BoneSlot::Neck, CS2::BoneSlot::ClavicleRight},
+        {CS2::BoneSlot::ClavicleRight, CS2::BoneSlot::ShoulderRight},
         {CS2::BoneSlot::ShoulderRight, CS2::BoneSlot::ElbowRight}, {CS2::BoneSlot::ElbowRight, CS2::BoneSlot::HandRight},
         {CS2::BoneSlot::Pelvis, CS2::BoneSlot::HipLeft},
         {CS2::BoneSlot::HipLeft, CS2::BoneSlot::KneeLeft}, {CS2::BoneSlot::KneeLeft, CS2::BoneSlot::AnkleLeft},
@@ -570,11 +574,17 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
     static uint64_t nextDeathPruneMs = 0;
     static std::unordered_map<uintptr_t, uint64_t> lastDrawnMs;
     static std::unordered_map<uintptr_t, uint64_t> measuredDeathMs;
+    struct HeldPlayer {
+        Player player{};
+        uint64_t lastSeenMs = 0;
+    };
+    static std::unordered_map<uintptr_t, HeldPlayer> heldPlayers;
     constexpr size_t kMaxDrawnMs = 128;
     constexpr size_t kMaxDeathMs = 128;
     if (measuredGeneration != snapshot.session_generation) {
         lastDrawnMs.clear();
         measuredDeathMs.clear();
+        heldPlayers.clear();
         measuredGeneration = snapshot.session_generation;
         nextDeathPruneMs = 0;
     }
@@ -631,12 +641,12 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
     }
     const uint64_t worldSampleMs = snapshot.world_sample_ms
         ? snapshot.world_sample_ms : snapshot.snapshot_timestamp_ms;
-    if (!worldSampleMs || nowMs < worldSampleMs || nowMs - worldSampleMs > 150u)
+    if (!worldSampleMs || nowMs < worldSampleMs || nowMs - worldSampleMs > 350u)
         return;
 
 
     if (!frameCamera || !frameCamera->timestamp_ms || nowMs < frameCamera->timestamp_ms ||
-        nowMs - frameCamera->timestamp_ms > 100u)
+        nowMs - frameCamera->timestamp_ms > 250u)
         return;
     const float* frameViewMatrix = frameCamera->view_matrix;
     const uint64_t presentationSampleMs = frameCamera->timestamp_ms;
@@ -646,6 +656,30 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
             : -static_cast<float>((std::min)(sampleMs - presentationSampleMs, uint64_t{35}));
         return sampleMs ? deltaMs : 0.f;
     };
+    // Conserva um jogador por uma janela muito curta quando apenas uma leitura
+    // de entidade falha. A liveness continua a remover mortes imediatamente.
+    std::vector<Player> presentationPlayers(snapshot.players.begin(), snapshot.players.end());
+    for (const Player& player : snapshot.players) {
+        if (!player.pawn) continue;
+        if (!player.alive || diedSinceSnapshot(player)) {
+            heldPlayers.erase(player.pawn);
+            continue;
+        }
+        heldPlayers[player.pawn] = HeldPlayer{player, nowMs};
+    }
+    for (auto it = heldPlayers.begin(); it != heldPlayers.end();) {
+        const bool present = std::find_if(snapshot.players.begin(), snapshot.players.end(),
+            [&](const Player& player) { return player.pawn == it->first; }) != snapshot.players.end();
+        const bool expired = nowMs < it->second.lastSeenMs ||
+            nowMs - it->second.lastSeenMs > 180u;
+        if (expired || diedSinceSnapshot(it->second.player)) {
+            it = heldPlayers.erase(it);
+            continue;
+        }
+        if (!present)
+            presentationPlayers.push_back(it->second.player);
+        ++it;
+    }
     struct HeadHeight {
         uintptr_t controller = 0;
         uint64_t pose_ms = 0;
@@ -679,7 +713,7 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
             }
         }
     }
-    for (const Player& player : snapshot.players) {
+    for (const Player& player : presentationPlayers) {
         if (!player.alive || diedSinceSnapshot(player)) {
             headHeights.erase(player.pawn);
             continue;

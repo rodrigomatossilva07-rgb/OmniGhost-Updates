@@ -338,9 +338,6 @@
     <ClCompile Include="src\platform\service_container.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\platform\startup_orchestrator.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="src\platform\cheatoffsets_api.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

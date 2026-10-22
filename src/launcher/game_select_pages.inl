@@ -211,11 +211,25 @@ void DrawMarketplace(ImVec2 display) {
     ImGui::Dummy(ImVec2(0.f, S(6.f)));
     CyberWidgets::TextLine("Presets oficiais e da comunidade que passaram pela validação técnica e moderação.", CyberWidgets::TextTone::Primary);
     CyberWidgets::TextLine("Guardar cria uma cópia independente na tua biblioteca; atualizações do autor nunca alteram a tua cópia.", CyberWidgets::TextTone::Secondary);
-    CyberWidgets::Combo("Jogo", &configGame, configGames, 4);
-    ImGui::SameLine();
-    CyberWidgets::Combo("Categoria", &configCategory, configCategories, 4);
-    ImGui::SameLine();
-    CyberWidgets::Combo("Ordenar", &configSort, configSorts, 3);
+    const float filterAvailable = ImGui::GetContentRegionAvail().x;
+    const bool inlineFilters = filterAvailable >= S(720.f);
+    const float filterWidth = inlineFilters
+        ? (filterAvailable - S(20.f)) / 3.f
+        : filterAvailable;
+    const auto drawMarketplaceFilter = [filterWidth](const char* id, const char* label,
+                                                      int* value, const char* const* items,
+                                                      int count) {
+        ImGui::BeginChild(id, ImVec2(filterWidth, S(40.f)), false,
+                          ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings);
+        CyberWidgets::Combo(label, value, items, count);
+        ImGui::EndChild();
+    };
+    drawMarketplaceFilter("##market_game_filter", "Jogo", &configGame, configGames, 4);
+    if (inlineFilters) ImGui::SameLine(0.f, S(10.f));
+    drawMarketplaceFilter("##market_category_filter", "Categoria", &configCategory,
+                          configCategories, 4);
+    if (inlineFilters) ImGui::SameLine(0.f, S(10.f));
+    drawMarketplaceFilter("##market_sort_filter", "Ordenar", &configSort, configSorts, 3);
     CyberWidgets::InputField("##marketplace_config_search", configSearch, sizeof(configSearch), "Pesquisar configuração ou autor", 0, -1.f);
     CyberWidgets::InputField("##marketplace_config_style", configStyle, sizeof(configStyle), "Etiqueta/estilo", 0, -1.f);
     CyberWidgets::ToggleSwitch("Apenas compatíveis", &compatibleOnly);

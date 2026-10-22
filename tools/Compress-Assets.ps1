@@ -109,14 +109,14 @@ function Compress-Js([string]$InputPath, [string]$OutputPath) {
     if (-not (Test-Path $InputPath)) { return $false }
 
     try {
-        $content = Get-Content -Path $InputPath -Raw -Encoding UTF8
-
-        $minified = $content -replace '(?s)/\*.*?\*/', '' -replace '(?m)^\s*//.*$', '' -replace '\s+', ' ' -replace '\s*([{}();,])\s*', '$1'
-        $minified = $minified.Trim()
-        Set-Content -Path $OutputPath -Value $minified -Encoding UTF8 -NoNewline
+        # JavaScript depende frequentemente de Automatic Semicolon Insertion.
+        # Uma substituição baseada em regex não é um minificador e corrompia
+        # declarações consecutivas ao remover as quebras de linha. Mantemos os
+        # bytes originais até existir um minificador com parser real.
+        Copy-Item -LiteralPath $InputPath -Destination $OutputPath -Force
         return $true
     } catch {
-        Write-Warning "Failed to minify JS ${InputPath}: $_"
+        Write-Warning "Failed to stage JS ${InputPath}: $_"
         Copy-Item -Path $InputPath -Destination $OutputPath -Force
         return $false
     }

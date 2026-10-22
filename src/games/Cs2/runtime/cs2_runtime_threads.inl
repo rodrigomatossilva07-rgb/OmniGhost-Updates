@@ -76,9 +76,14 @@ void EnsureAcquisitionStarted() {
             const int camera_pressure = g_pressure_level.load(std::memory_order_relaxed);
 
 
-            int camera_period_ms = camera_pressure >= 3 ? 25 : g_intervals.camera_ms;
+            // A ViewMatrix é uma leitura pequena e tem prioridade própria. Uma
+            // cadência de 25 ms fazia o ESP atrasar visivelmente em rotações
+            // rápidas, sobretudo a longa distância.
+            const int camera_period_ms = camera_pressure >= 3
+                ? 12
+                : std::clamp(g_intervals.camera_ms, 6, 9);
             Camera::SetDeadline(next_camera_ms);
-            int wait_ms = in_match ? g_intervals.camera_ms : 20;
+            int wait_ms = in_match ? camera_period_ms : 20;
             bool busyRetry = false;
             if (canRead && in_match && camera_now_ms >= next_camera_ms) {
                 Camera::SetPending(true);
@@ -380,7 +385,14 @@ void EnsureAcquisitionStarted() {
 void StopAcquisition() {
     if (OmniGhost::Gameplay::DmaTelemetry::IsEnabled())
         OmniGhost::Gameplay::DmaTelemetry::LogSessionSummary("CS2");
+    // O controlador do Web Radar também executa Stop()/StopCloudflare(). A
+    // sinalização tem de acontecer antes dos joins DMA para não ficar vivo a
+    // iniciar/reiniciar serviços durante o teardown.
+    g_web_radar_control_stop.store(true, std::memory_order_release);
+    g_web_radar_desired_enabled.store(false, std::memory_order_release);
     g_acqState.RequestStop();
+    if (g_web_radar_control_thread.joinable())
+        g_web_radar_control_thread.join();
     if (g_optional_thread.joinable())
         g_optional_thread.join();
     if (g_camera_thread.joinable())
@@ -390,9 +402,6 @@ void StopAcquisition() {
     g_scatter_optional.Reset();
 
     g_scatter_full.Reset();
-    g_web_radar_control_stop.store(true, std::memory_order_release);
-    if (g_web_radar_control_thread.joinable())
-        g_web_radar_control_thread.join();
     Camera::Reset();
     g_acqState.MarkStopped();
 }

@@ -18,33 +18,10 @@ function Log([string]$Message) {
 }
 
 function Optimize-MapAssets {
-    Log "Optimizing map assets..."
-
-    if (-not (Test-Path $MapsDir)) {
-        Write-Warning "Maps directory not found: $MapsDir"
-        return
-    }
-
-    $maps = Get-ChildItem -Path $MapsDir -Directory
-    foreach ($map in $maps) {
-        $radarPath = Join-Path $map.FullName 'radar.png'
-        $overlayPath = Join-Path $map.FullName 'overlay_buyzones.png'
-        $overlayLogosPath = Join-Path $map.FullName 'overlay_logos.png'
-        $metaPath = Join-Path $map.FullName 'meta.json5'
-
-
-        if (Test-Path $metaPath) {
-            $meta = Get-Content -Path $metaPath -Raw -Encoding UTF8
-            if ($meta -notmatch '"lazyLoad"') {
-                $meta = $meta -replace '(?s)(\})', ', "lazyLoad": true$1'
-                Set-Content -Path $metaPath -Value $meta -Encoding UTF8
-                Log "Added lazyLoad flag to $($map.Name)/meta.json5"
-            }
-        }
-
-
-
-    }
+    # Os metadados dos mapas são dados de runtime. A antiga substituição por
+    # regex inseria propriedades em todos os objetos e podia corromper JSON5
+    # válido. As imagens já são distribuídas no formato consumido pelo radar.
+    Log "Map assets kept byte-for-byte (safe mode)."
 }
 
 function Add-LazyLoadingToIndex {
@@ -83,51 +60,9 @@ function Add-LazyLoadingToIndex {
 }
 
 function Optimize-Renderers {
-    Log "Optimizing renderer modules for lazy loading..."
-
-    if (-not (Test-Path $RenderersDir)) {
-        Write-Warning "Renderers directory not found"
-        return
-    }
-
-    $files = Get-ChildItem -Path $RenderersDir -Filter '*.js'
-    foreach ($file in $files) {
-        $content = Get-Content -Path $file.FullName -Raw -Encoding UTF8
-        $modified = $false
-
-
-        if ($content -notmatch 'lazyInit' -and $content -match 'function\s+\w+\s*\(') {
-
-            $header = @'
-// Lazy initialization wrapper
-(function() {
-    if (typeof window.radarLazyInit === 'undefined') {
-        window.radarLazyInit = [];
-    }
-    window.radarLazyInit.push(function() {
-'@
-            $footer = @'
-    });
-})();
-'@
-            $content = $header + "`n" + $content + "`n" + $footer
-            Set-Content -Path $file.FullName -Value $content -Encoding UTF8
-            $modified = $true
-        }
-
-
-        if ($content.Length -gt 5000) {
-            $minified = $content -replace '(?s)/\*.*?\*/', '' -replace '(?m)^\s*//.*$', '' -replace '\s+', ' ' -replace '\s*([{}();,])\s*', '$1'
-            if ($minified.Length -lt $content.Length) {
-                Set-Content -Path $file.FullName -Value $minified -Encoding UTF8 -NoNewline
-                $modified = $true
-            }
-        }
-
-        if ($modified) {
-            Log "Optimized $($file.Name)"
-        }
-    }
+    # Não envolver nem minificar JavaScript através de regex. O antigo wrapper
+    # alterava a ordem de inicialização e podia impedir o arranque do frontend.
+    Log "Renderer scripts kept byte-for-byte (safe mode)."
 }
 
 function Optimize-CSS {

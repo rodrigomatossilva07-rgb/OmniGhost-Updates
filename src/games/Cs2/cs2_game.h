@@ -133,7 +133,10 @@ inline int GetBoneJointIndex(BoneSlot slot) {
 
 
 
-inline constexpr uint64_t kBoneVisualMaxAgeMs = 160u;
+// Mantém a última pose válida durante uma falha opcional curta. A origem da
+// pose é corrigida pela posição atual do pawn, portanto isto elimina flashes
+// sem deixar o esqueleto preso no mundo.
+inline constexpr uint64_t kBoneVisualMaxAgeMs = 320u;
 
 
 

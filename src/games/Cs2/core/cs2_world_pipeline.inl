@@ -122,7 +122,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
             std::unique_lock lock(g_cache_mutex);
             for (uint32_t i = 0; i < opt->bone_count && i < opt->bones.size(); ++i) {
                 const OptionalBoneResult& r = opt->bones[i];
-                if (!IsUserPointer(r.pawn) || !r.bones_ok || !r.sample_ms) continue;
+                if (!IsUserPointer(r.pawn) || !IsUserPointer(r.controller) ||
+                    !r.bones_ok || !r.sample_ms) continue;
                 if (r.sample_ms > mergeNowMs || mergeNowMs - r.sample_ms > 400u) continue;
                 if (r.bones.size() * sizeof(r.bones[0]) < sizeof(CachedBones::joints)) continue;
                 CachedBones candidate{};
@@ -137,10 +138,14 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 if (liveIt != recent_players.end() && liveIt->second.entry_generation == generation &&
                     liveIt->second.confirmed_dead) continue;
                 CachedBones& cb = bone_cache[r.pawn];
-                if (cb.entry_generation != generation) { cb = CachedBones{}; cb.entry_generation = generation; }
+                if (cb.entry_generation != generation ||
+                    (cb.controller && cb.controller != r.controller)) {
+                    cb = CachedBones{};
+                    cb.entry_generation = generation;
+                }
                 if (cb.last_valid_ms > r.sample_ms) continue;
                 std::memcpy(cb.joints, candidate.joints, sizeof(cb.joints));
-                cb.controller = 0;
+                cb.controller = r.controller;
                 cb.last_valid_ms = r.sample_ms;
                 cb.full_pose = r.full_bones_ok;
                 std::memcpy(cb.origin, r.origin, sizeof(cb.origin));
@@ -978,8 +983,9 @@ static void RunFrameWithConfig(const Config& frame_config) {
 
 
 
-        runtime.players.clear();
-        PublishRuntimeSnapshot();
+        // Falha transitória de um batch não deve publicar um frame vazio: era
+        // a origem de desaparecimentos de nomes/ESP durante alguns frames.
+        // Conserva o último snapshot publicado e força a recuperação da lista.
         g_publish_runtime_this_scan = false;
         return;
     }
@@ -1606,9 +1612,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
                     bit->second.entry_generation == currentGen &&
                     bit->second.last_valid_ms &&
                     frame_time_ms >= bit->second.last_valid_ms &&
-                    frame_time_ms - bit->second.last_valid_ms <= 150u &&
-                    (bit->second.controller == 0 || bit->second.controller == controller)) {
-                if (!bit->second.controller) bit->second.controller = controller;
+                    frame_time_ms - bit->second.last_valid_ms <= kBoneVisualMaxAgeMs &&
+                    bit->second.controller == controller) {
                 std::memcpy(corePlayer.bones, bit->second.joints, sizeof(corePlayer.bones));
                 const float cachedShift[3] = {
                     corePlayer.pos[0] - bit->second.origin[0],

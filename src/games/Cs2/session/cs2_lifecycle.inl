@@ -62,10 +62,15 @@ bool ReinitDma() {
 }
 
 void Shutdown() {
+    std::clog << "[CS2][Shutdown] acquisition begin\n";
     StopAcquisition();
+    std::clog << "[CS2][Shutdown] acquisition complete; visibility begin\n";
     g_visibility_worker.Stop();
+    std::clog << "[CS2][Shutdown] visibility complete; collision begin\n";
     g_collision_loader.Stop();
+    std::clog << "[CS2][Shutdown] collision complete; radar begin\n";
     WebRadar::Stop();
+    std::clog << "[CS2][Shutdown] radar complete; scatter begin\n";
     DestroyScatter();
     ResetSessionState("shutdown");
     g_pending_entity_list = 0;
@@ -84,6 +89,7 @@ void Shutdown() {
     PublishRuntimeSnapshot();
     // CSE-002: liberta os SRV dos ícones de armas no fim da sessão CS2.
     CS2_WeaponIcons::Shutdown();
+    std::clog << "[CS2][Shutdown] complete\n";
     SetStatus("Shutdown");
 }
 

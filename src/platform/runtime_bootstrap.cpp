@@ -895,34 +895,7 @@ void VerifyNoPrivateExeCopy() noexcept {
 }
 
 
-enum class FileOrigin : uint8_t {
-    Startup = 0,
-    DmaSession = 1,
-    PublicRadar = 2,
-    Unknown = 255
-};
-
-struct FileOriginMap {
-    std::unordered_map<std::string, FileOrigin> origins;
-
-    void Register(const std::string& relativePath, FileOrigin origin) {
-        origins[relativePath] = origin;
-    }
-
-    [[nodiscard]] FileOrigin Get(const std::string& relativePath) const noexcept {
-        auto it = origins.find(relativePath);
-        return it != origins.end() ? it->second : FileOrigin::Unknown;
-    }
-};
-
-static FileOriginMap g_fileOrigins;
-
-FileOrigin GetFileOrigin(const std::string& relativePath) noexcept {
-    return g_fileOrigins.Get(relativePath);
-}
-
-void RegisterFileOrigin(const std::string& relativePath, FileOrigin origin) noexcept {
-    g_fileOrigins.Register(relativePath, origin);
-}
+// PL-012: FileOriginMap/g_fileOrigins removidos — map sem lock e sem
+// chamadores (api morta com corrida formal).
 
 }

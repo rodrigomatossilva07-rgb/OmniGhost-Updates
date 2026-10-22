@@ -1305,6 +1305,19 @@ while (application.shouldRun && !authenticated) {
 
 
 
+        const Launcher::SessionResult sessionResult =
+            (!application.shouldRun || return_requested_by_user)
+                ? Launcher::SessionResult::Completed
+                : Launcher::SessionResult::ProcessEnded;
+        const char* sessionDetail = !application.shouldRun
+            ? "Sessão encerrada pelo utilizador."
+            : return_requested_by_user
+                ? "Sessão terminada pelo utilizador."
+                : "O processo do jogo deixou de estar disponível.";
+        // Persiste e termina o heartbeat antes do teardown. Assim, mesmo que
+        // um driver/worker demore a encerrar, a Home nunca perde a sessão.
+        Launcher::EndTimedGameSession(selected, sessionResult, sessionDetail);
+
         if (application.shouldRun && return_to_launcher) {
             OmniGhost::UI::EndGameSessionWithTransition(application, shutdownCoordinator,
                 shutdownGeneration, return_requested_by_user);
@@ -1318,20 +1331,9 @@ while (application.shouldRun && !authenticated) {
         }
 
         if (!application.shouldRun) {
-            Launcher::EndTimedGameSession(
-                selected, Launcher::SessionResult::Completed,
-                "Sessão encerrada pelo utilizador.");
             break;
         }
         if (return_to_launcher) {
-            Launcher::EndTimedGameSession(
-                selected,
-                return_requested_by_user
-                    ? Launcher::SessionResult::Completed
-                    : Launcher::SessionResult::ProcessEnded,
-                return_requested_by_user
-                    ? "Sessão terminada pelo utilizador."
-                    : "O processo do jogo deixou de estar disponível.");
             CyberWidgets::Notify(
                 return_requested_by_user
                     ? "Sessão terminada"

@@ -76,7 +76,8 @@ void DrawSectionNavigation() {
             ImGui::PushStyleColor(ImGuiCol_Header, selectedColor);
             ImGui::PushStyleColor(ImGuiCol_HeaderHovered, selectedColor);
         }
-        if (ImGui::Selectable(entry.label, selected, 0, ImVec2(-1.f, S(34.f))))
+        if (ImGui::Selectable(entry.label, selected, 0,
+                              ImVec2(ImGui::GetContentRegionAvail().x, S(34.f))))
             state.section = entry.section;
         if (selected)
             ImGui::PopStyleColor(2);

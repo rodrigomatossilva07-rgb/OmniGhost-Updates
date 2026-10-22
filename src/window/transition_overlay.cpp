@@ -42,9 +42,11 @@ void DrawTransitionOverlay(const TransitionOverlayOptions& options) {
         ImVec2(panelMin.x + 3.0f * scale, panelMax.y - 34.0f * scale),
         CyberTheme::WithAlpha(options.success ? CyberTheme::Colors.Success : CyberTheme::Colors.Gold,
                               0.82f * alpha), 2.0f * scale);
-    foreground->AddText(ImVec2(panelMin.x + 22.0f * scale, panelMin.y + 17.0f * scale),
-        CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.72f * alpha),
-        options.success ? "OMNIGHOST // COMPLETE" : "OMNIGHOST // SECURE PREPARATION");
+    if (options.success) {
+        foreground->AddText(ImVec2(panelMin.x + 22.0f * scale, panelMin.y + 17.0f * scale),
+            CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.72f * alpha),
+            "OMNIGHOST // COMPLETE");
+    }
     const float pulse = app_settings::MotionEnabled()
         ? 1.0f + std::sin(options.elapsedSeconds * 2.15f) * 0.018f
         : 1.0f;
