@@ -99,7 +99,7 @@ static void RunOptionalEnrichment(const Config& frame_config,
         const auto bonesPhaseBegin = std::chrono::steady_clock::now();
 
 
-        constexpr int kBatch = 2;
+        constexpr int kBatch = 8;
         constexpr int kJointCount = 28;
         struct BoneJointSnapshot { float x, y, z, scale; char pad[0x10]; };
         static_assert(sizeof(BoneJointSnapshot) == 32, "BoneJointSnapshot");
@@ -131,7 +131,8 @@ static void RunOptionalEnrichment(const Config& frame_config,
                 if (!CS2::GiveCameraPriorityBeforeOptionalDma())
                     break;
             }
-            const size_t end = (std::min)(targets.size(), base + static_cast<size_t>(pressure >= 2 ? 1 : kBatch));
+            const size_t batchSize = pressure >= 3 ? 2u : pressure == 2 ? 4u : static_cast<size_t>(kBatch);
+            const size_t end = (std::min)(targets.size(), base + batchSize);
             uintptr_t boneBases[kBatch]{};
             BoneJointSnapshot joints32[kBatch][kJointCount]{};
             BoneJointSnapshot48 joints48[kBatch][kJointCount]{};
@@ -299,10 +300,15 @@ static void RunOptionalEnrichment(const Config& frame_config,
                         completePose = true;
                         for (size_t b = 0; b < kBoneSlotCount; ++b) {
                             int jointIdx = CS2::GetBoneJointIndex(static_cast<CS2::BoneSlot>(b));
-                            if (jointIdx < 0 || jointIdx >= static_cast<int>(kJointCount)) continue;
+                            if (jointIdx < 0 || jointIdx >= static_cast<int>(kJointCount)) {
+                                completePose = false;
+                                continue;
+                            }
                             float jpos[3]{};
-                            if (!jointPosOf(jointIdx, jpos)) continue;
-                            if (!validJoint(jpos, b)) continue;
+                            if (!jointPosOf(jointIdx, jpos) || !validJoint(jpos, b)) {
+                                completePose = false;
+                                continue;
+                            }
                             r.bones[b][0] = jpos[0]; r.bones[b][1] = jpos[1]; r.bones[b][2] = jpos[2];
                         }
 
@@ -322,6 +328,28 @@ static void RunOptionalEnrichment(const Config& frame_config,
                             completePose = torsoSq > 100.f && torsoSq < 140.f * 140.f &&
                                 hnX * hnX + hnY * hnY + hnZ * hnZ < 55.f * 55.f &&
                                 r.bones[0][2] > r.origin[2] + 5.f;
+                            const auto segmentValid = [&](size_t a, size_t b, float minLength, float maxLength) {
+                                const float sx = r.bones[a][0] - r.bones[b][0];
+                                const float sy = r.bones[a][1] - r.bones[b][1];
+                                const float sz = r.bones[a][2] - r.bones[b][2];
+                                const float lengthSq = sx * sx + sy * sy + sz * sz;
+                                return lengthSq >= minLength * minLength &&
+                                    lengthSq <= maxLength * maxLength;
+                            };
+                            static constexpr std::pair<size_t, size_t> kAnatomyLinks[] = {
+                                {0,1}, {1,2}, {2,3}, {3,4}, {4,5},
+                                {1,6}, {6,7}, {7,8}, {8,9},
+                                {1,10}, {10,11}, {11,12}, {12,13},
+                                {5,14}, {14,15}, {15,16},
+                                {5,17}, {17,18}, {18,19}
+                            };
+                            for (const auto& [a, b] : kAnatomyLinks) {
+                                const float maxLength = (a >= 14 || b >= 14) ? 72.f : 58.f;
+                                if (!segmentValid(a, b, .25f, maxLength)) {
+                                    completePose = false;
+                                    break;
+                                }
+                            }
                         }
                         r.full_bones_ok = completePose;
                     }

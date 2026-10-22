@@ -136,7 +136,7 @@ inline int GetBoneJointIndex(BoneSlot slot) {
 // Mantém a última pose válida durante uma falha opcional curta. A origem da
 // pose é corrigida pela posição atual do pawn, portanto isto elimina flashes
 // sem deixar o esqueleto preso no mundo.
-inline constexpr uint64_t kBoneVisualMaxAgeMs = 320u;
+inline constexpr uint64_t kBoneVisualMaxAgeMs = 650u;
 
 
 
@@ -486,6 +486,7 @@ void SubmitAcquisitionConfig(const Config& next) noexcept;
 [[nodiscard]] RuntimeSnapshotLease AcquireRuntimeSnapshot();
 [[nodiscard]] CameraSnapshotLease AcquireCameraSnapshot();
 [[nodiscard]] CameraSnapshot SelectCameraSnapshot(uint64_t world_sample_ms);
+[[nodiscard]] CameraSnapshot PredictCameraSnapshot(uint64_t presentation_ms);
 [[nodiscard]] LivenessSnapshotLease AcquireLivenessSnapshot();
 [[nodiscard]] bool AcquisitionRunning() noexcept;
 

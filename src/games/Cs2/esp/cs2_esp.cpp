@@ -566,8 +566,8 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
         }
         return false;
     };
-    const auto frameCamera = CS2::AcquireCameraSnapshot();
     const uint64_t nowMs = GetTickCount64();
+    const auto frameCamera = CS2::PredictCameraSnapshot(nowMs);
 
 
     static uint64_t measuredGeneration = 0;
@@ -641,15 +641,18 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
     }
     const uint64_t worldSampleMs = snapshot.world_sample_ms
         ? snapshot.world_sample_ms : snapshot.snapshot_timestamp_ms;
-    if (!worldSampleMs || nowMs < worldSampleMs || nowMs - worldSampleMs > 350u)
+    // Não apagar todo o overlay durante um stall DMA curto. A câmara continua
+    // independente e a liveness remove mortes confirmadas; até 1 s é uma
+    // degradação visual mais segura do que piscar o ESP inteiro.
+    if (!worldSampleMs || nowMs < worldSampleMs || nowMs - worldSampleMs > 1000u)
         return;
 
 
-    if (!frameCamera || !frameCamera->timestamp_ms || nowMs < frameCamera->timestamp_ms ||
-        nowMs - frameCamera->timestamp_ms > 250u)
+    if (!frameCamera.timestamp_ms || nowMs < frameCamera.timestamp_ms ||
+        nowMs - frameCamera.timestamp_ms > 250u)
         return;
-    const float* frameViewMatrix = frameCamera->view_matrix;
-    const uint64_t presentationSampleMs = frameCamera->timestamp_ms;
+    const float* frameViewMatrix = frameCamera.view_matrix;
+    const uint64_t presentationSampleMs = frameCamera.timestamp_ms;
     const auto presentationDeltaMs = [presentationSampleMs](uint64_t sampleMs) {
         const float deltaMs = presentationSampleMs >= sampleMs
             ? static_cast<float>((std::min)(presentationSampleMs - sampleMs, uint64_t{35}))
@@ -658,20 +661,52 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
     };
     // Conserva um jogador por uma janela muito curta quando apenas uma leitura
     // de entidade falha. A liveness continua a remover mortes imediatamente.
-    std::vector<Player> presentationPlayers(snapshot.players.begin(), snapshot.players.end());
+    std::vector<Player> presentationPlayers;
+    presentationPlayers.reserve(snapshot.players.size() + heldPlayers.size());
     for (const Player& player : snapshot.players) {
         if (!player.pawn) continue;
         if (!player.alive || diedSinceSnapshot(player)) {
             heldPlayers.erase(player.pawn);
             continue;
         }
-        heldPlayers[player.pawn] = HeldPlayer{player, nowMs};
+        Player stable = player;
+        const auto previous = heldPlayers.find(player.pawn);
+        if (previous != heldPlayers.end() &&
+            previous->second.player.controller == player.controller) {
+            const Player& cached = previous->second.player;
+            if (!stable.name[0] && cached.name[0])
+                std::snprintf(stable.name, sizeof(stable.name), "%s", cached.name);
+            if ((!stable.bones_ok || !stable.full_bones_ok) &&
+                cached.bones_ok && cached.full_bones_ok && cached.bone_pose_sample_ms &&
+                nowMs >= cached.bone_pose_sample_ms &&
+                nowMs - cached.bone_pose_sample_ms <= CS2::kBoneVisualMaxAgeMs) {
+                std::memcpy(stable.bones, cached.bones, sizeof(stable.bones));
+                const float shift[3] = {
+                    stable.pos[0] - cached.pos[0], stable.pos[1] - cached.pos[1],
+                    stable.pos[2] - cached.pos[2]
+                };
+                for (std::size_t bone = 0; bone < CS2::kBoneSlotCount; ++bone) {
+                    if (stable.bones[bone][0] == 0.f && stable.bones[bone][1] == 0.f &&
+                        stable.bones[bone][2] == 0.f)
+                        continue;
+                    for (int axis = 0; axis < 3; ++axis)
+                        stable.bones[bone][axis] += shift[axis];
+                }
+                stable.bones_ok = true;
+                stable.full_bones_ok = true;
+                stable.bones_sample_ms = cached.bones_sample_ms;
+                stable.bone_pose_sample_ms = cached.bone_pose_sample_ms;
+                stable.bone_origin_sample_ms = stable.position_sample_ms;
+            }
+        }
+        heldPlayers[player.pawn] = HeldPlayer{stable, nowMs};
+        presentationPlayers.push_back(stable);
     }
     for (auto it = heldPlayers.begin(); it != heldPlayers.end();) {
         const bool present = std::find_if(snapshot.players.begin(), snapshot.players.end(),
             [&](const Player& player) { return player.pawn == it->first; }) != snapshot.players.end();
         const bool expired = nowMs < it->second.lastSeenMs ||
-            nowMs - it->second.lastSeenMs > 180u;
+            nowMs - it->second.lastSeenMs > 450u;
         if (expired || diedSinceSnapshot(it->second.player)) {
             it = heldPlayers.erase(it);
             continue;

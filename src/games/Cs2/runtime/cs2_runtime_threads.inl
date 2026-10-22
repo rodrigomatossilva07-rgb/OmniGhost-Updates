@@ -80,8 +80,8 @@ void EnsureAcquisitionStarted() {
             // cadência de 25 ms fazia o ESP atrasar visivelmente em rotações
             // rápidas, sobretudo a longa distância.
             const int camera_period_ms = camera_pressure >= 3
-                ? 12
-                : std::clamp(g_intervals.camera_ms, 6, 9);
+                ? 6
+                : std::clamp(g_intervals.camera_ms, 2, 4);
             Camera::SetDeadline(next_camera_ms);
             int wait_ms = in_match ? camera_period_ms : 20;
             bool busyRetry = false;
@@ -420,6 +420,10 @@ LivenessSnapshotLease AcquireLivenessSnapshot() {
 
 CameraSnapshot SelectCameraSnapshot(uint64_t world_sample_ms) {
     return Camera::Select(world_sample_ms);
+}
+
+CameraSnapshot PredictCameraSnapshot(uint64_t presentation_ms) {
+    return Camera::Predict(presentation_ms);
 }
 
 bool AcquisitionRunning() noexcept {

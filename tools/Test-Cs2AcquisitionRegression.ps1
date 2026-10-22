@@ -86,12 +86,12 @@ Require-Match $source 'collision.IsLoadedFor\(world->map_name\)' 'Optional visib
 Require-Condition ($source -notmatch 'Trajectory::Vec3\(cam->view_matrix\[12\]') 'Visibility still uses the projection row as camera position.'
 
 $historyLocks = [regex]::Matches($source, 'lock\(g_history_mutex\)').Count
-Require-Condition ($historyLocks -eq 3) 'Camera history publish, reset and selection must all lock the same mutex.'
+Require-Condition ($historyLocks -eq 4) 'Camera history publish, reset, selection and prediction must all lock the same mutex.'
 
 $drawPlayers = [regex]::Match($espSource, '(?s)void DrawPlayers\(const Runtime& snapshot, const Config& settings\) \{.*?\n\}').Value
 Require-Condition ($drawPlayers.Length -gt 0) 'CS2 presentation loop not found.'
-Require-Condition ([regex]::Matches($drawPlayers, 'AcquireCameraSnapshot\(').Count -eq 1) 'Render must acquire the camera once per frame.'
-Require-Condition ($drawPlayers -match 'presentationSampleMs = frameCamera->timestamp_ms' -and
+Require-Condition ([regex]::Matches($drawPlayers, 'PredictCameraSnapshot\(nowMs\)').Count -eq 1) 'Render must obtain one latency-compensated camera snapshot per frame.'
+Require-Condition ($drawPlayers -match 'presentationSampleMs = frameCamera\.timestamp_ms' -and
     $drawPlayers -match 'presentationDeltaMs\(positionSampleMs\)' -and
     $drawPlayers -match 'presentationDeltaMs\(boneOriginSampleMs\)') 'Position and bones must be aligned to one camera sample.'
 Require-Condition ($drawPlayers -match 'std::min\)\(presentationSampleMs - sampleMs, uint64_t\{35\}\)' -and
@@ -101,6 +101,13 @@ Require-Match $espSource '(?s)\{CS2::BoneSlot::Pelvis, CS2::BoneSlot::HipRight\}
 Require-Condition ($espSource -notmatch 's_feetSmooth|s_boxHeightSmooth|s_headYSmooth') 'Screen-space box smoothing still delays camera movement.'
 Require-Match $drawPlayers 'WorldToScreen\(headWorld, viewMatrix, boxHead\)' 'Box anchor must be projected from world coordinates each frame.'
 Require-Condition ($espSource -notmatch 'SelectCameraSnapshot\(') 'Per-item camera history selection remains in the renderer.'
+Require-Match $drawPlayers 'nowMs - worldSampleMs > 1000u' 'A short DMA stall still blanks the complete ESP frame.'
+Require-Match $drawPlayers 'if \(!stable\.name\[0\] && cached\.name\[0\]\)' 'A partial optional scan can still blank a cached player name.'
+Require-Match $source 'completePose = false;\s*continue;' 'An incomplete limb set can still be published as a complete skeleton.'
+$failedCoreBlock = [regex]::Match($source,
+    '(?s)if \(candidate_count > 0 && validCoreSamples == 0\) \{.*?g_publish_runtime_this_scan = false;\s*return;\s*\}').Value
+Require-Condition ($failedCoreBlock.Length -gt 0 -and
+    $failedCoreBlock -notmatch 'runtime\.players\.clear\(\)|PublishRuntimeSnapshot\(\)') 'A failed core batch still publishes an empty player list.'
 foreach ($pair in @(@(1000, 1016, 16), @(1016, 1000, -16), @(1000, 1100, 35), @(1100, 1000, -35))) {
     $delta = [Math]::Max(-35, [Math]::Min(35, [double]$pair[1] - [double]$pair[0]))
     Require-Condition ($delta -eq $pair[2]) "Signed presentation offset fixture failed for $($pair[0]) → $($pair[1]) ms."

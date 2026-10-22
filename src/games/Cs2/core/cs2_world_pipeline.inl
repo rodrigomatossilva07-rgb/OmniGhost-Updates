@@ -1484,8 +1484,10 @@ static void RunFrameWithConfig(const Config& frame_config) {
         g_entity_list_next_validation_ms = 0;
         for (int c = 0; c < candidate_count; ++c)
             controllerPawnCache.erase(controllers[slot_index[c]]);
-        runtime.players.clear();
-        PublishRuntimeSnapshot();
+        // Uma falha de transporte neste batch não significa que todos os
+        // jogadores desapareceram. Mantém o último snapshot publicado até a
+        // recuperação da entity list; publicar vazio causava o flash de nomes,
+        // caixas e skeleton observado no overlay.
         g_publish_runtime_this_scan = false;
         return;
     }

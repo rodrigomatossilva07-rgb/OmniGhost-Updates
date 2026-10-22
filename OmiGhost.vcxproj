@@ -301,7 +301,6 @@
 
     <ClCompile Include="src\platform\interfaces.cpp"/>
     <ClCompile Include="src\platform\service_container.cpp"/>
-    <ClCompile Include="src\platform\startup_orchestrator.cpp"/>
     <ClCompile Include="src\platform\monitor_utils.cpp"/>
     <ClCompile Include="src\platform\crash_handler.cpp"/>
     <ClCompile Include="src\platform\text_encoding.cpp"/>
