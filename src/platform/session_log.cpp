@@ -95,6 +95,7 @@ std::uintmax_t g_fileBytes = 0;
 std::uintmax_t g_structuredFileBytes = 0;
 std::atomic_bool g_fileTruncated{false};
 std::atomic_bool g_structuredFileTruncated{false};
+std::atomic_bool g_sinkClosed{false};
 
 enum class ConsoleStreamKind {
     StdOut,
@@ -263,7 +264,6 @@ std::unique_ptr<TeeBuffer> g_logTee;
 // PL-003: fecha os sinks atomicamente — Write() e os TeeBuffers recusam
 // depois de true; os TeeBuffers NÃO são destruídos no Shutdown (stragglers
 // podem segurar o ponteiro entre a leitura do rdbuf e o sputn).
-std::atomic<bool> g_sinkClosed{false};
 std::streambuf* g_originalOut{};
 std::streambuf* g_originalErr{};
 std::streambuf* g_originalLog{};

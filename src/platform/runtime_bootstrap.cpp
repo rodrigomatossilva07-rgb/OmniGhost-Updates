@@ -151,7 +151,7 @@ bool ExtractEntry(const OmniGhost::EmbeddedRuntimeGenerated::Entry& entry,
         const BYTE* cursor = static_cast<const BYTE*>(bytes);
         DWORD remaining = static_cast<DWORD>(resourceSize);
         while (remaining > 0) {
-            const DWORD chunk = static_cast<DWORD>((std::min)<DWORD>(remaining, 8u * 1024u * 1024u));
+            const DWORD chunk = (std::min)(remaining, static_cast<DWORD>(8u * 1024u * 1024u));
             DWORD written = 0;
             if (!WriteFile(tempHandle, cursor, chunk, &written, nullptr) || written == 0) {
                 CloseHandle(tempHandle);
