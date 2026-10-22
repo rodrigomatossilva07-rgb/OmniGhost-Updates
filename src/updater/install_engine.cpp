@@ -378,10 +378,10 @@ InstallResult InstallSingleExecutable(const InstallOptions& options) {
     const fs::path backupExe = backupDirectory / (options.executableName + std::wstring(L".previous"));
     std::string currentExeHash;
     if (fs::exists(currentExe, backupError)) {
-        // UP-005: hash do exe atual ANTES da cópia — o sidecar fica com o
-        // hash da FONTE; se a cópia corromper, a verificação abaixo falha e
-        // o sidecar não é escrito (rollback bloqueado, sem propagar
-        // binário corrompido para o ponto de restauro).
+
+
+
+
         std::string currentHashError;
         if (!Sha256File(currentExe, currentExeHash, currentHashError))
             std::clog << "[Install] current-executable hash failed: "
@@ -399,14 +399,17 @@ InstallResult InstallSingleExecutable(const InstallOptions& options) {
 
 
 
-    if (!backupError && fs::exists(backupExe, backupError)) {
+    if (!backupError && !currentExeHash.empty() && fs::exists(backupExe, backupError)) {
+        // UP-005: a cópia de backup é verificada contra o hash da FONTE —
+        // só escreve o sidecar se for byte-idêntica.
         std::string backupHash, hashError;
-        if (Sha256File(backupExe, backupHash, hashError)) {
+        if (Sha256File(backupExe, backupHash, hashError) &&
+            ConstantTimeEquals(backupHash, currentExeHash)) {
             const fs::path sidecar =
                 backupDirectory / (options.executableName + std::wstring(L".previous.sha256"));
             std::ofstream sidecarStream(sidecar, std::ios::binary | std::ios::trunc);
             if (sidecarStream) {
-                sidecarStream << backupHash << "\n";
+                sidecarStream << currentExeHash << "\n";
                 sidecarStream.flush();
                 if (!sidecarStream)
                     std::clog << "[Install] previous-executable hash sidecar write failed\n";
@@ -414,7 +417,8 @@ InstallResult InstallSingleExecutable(const InstallOptions& options) {
                 std::clog << "[Install] previous-executable hash sidecar open failed\n";
             }
         } else {
-            std::clog << "[Install] previous-executable hash failed: " << hashError << "\n";
+            std::clog << "[Install] backup copy verification failed — rollback sidecar withheld: "
+                      << hashError << "\n";
         }
     }
 
@@ -443,6 +447,18 @@ InstallResult InstallSingleExecutable(const InstallOptions& options) {
 		result.error = "Falha ao instalar o novo executável: " + ec.message();
 		return result;
 	}
+    {
+        // UP-005: re-hash do DESTINO após a cópia — valida que o binário
+        // instalado é byte-idêntico ao validado no staging (a cópia pode
+        // corromper-se; o custo é 1 hash no fim do update).
+        std::string installedHash, installedHashError;
+        if (!Sha256File(options.target / options.executableName, installedHash, installedHashError) ||
+            !ConstantTimeEquals(installedHash, options.expectedExecutableSha256)) {
+            result.error = "O executável instalado não corresponde ao hash esperado: " +
+                (installedHashError.empty() ? "SHA-256 diferente do manifesto." : installedHashError);
+            return result;
+        }
+    }
 
     for (const wchar_t* manifestName : { L"install-manifest.sha256" }) {
         const fs::path source = options.staging / manifestName;
