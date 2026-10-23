@@ -119,9 +119,9 @@ void Overlay::CreateOverlay(const char* window_name) {
         return;
     }
 
-    // The acquisition workers use 2-8 ms deadlines. Requesting 1 ms timer
-    // resolution prevents Windows from coalescing those waits into ~15.6 ms
-    // bursts. This is process-scoped on supported Windows versions.
+
+
+
     high_resolution_timer_active_ = timeBeginPeriod(1) == TIMERR_NOERROR;
 
 
