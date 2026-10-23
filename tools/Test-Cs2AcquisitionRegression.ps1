@@ -19,6 +19,7 @@ $bonesSource = [IO.File]::ReadAllText((Join-Path $ProjectDir 'src/games/Cs2/bone
 $memoryIoSource = [IO.File]::ReadAllText((Join-Path $ProjectDir 'third_party/DMALibrary/Memory/MemoryIO.cpp'))
 $memoryLifecycleSource = [IO.File]::ReadAllText((Join-Path $ProjectDir 'third_party/DMALibrary/Memory/MemoryLifecycle.cpp'))
 $commonBuildProps = [IO.File]::ReadAllText((Join-Path $ProjectDir 'config/build/OmniGhost.Common.props'))
+$windowRuntimeSource = [IO.File]::ReadAllText((Join-Path $ProjectDir 'src/window/window_runtime.cpp'))
 $offsetSnapshot = Get-Content -Raw -LiteralPath (Join-Path $ProjectDir 'data/cs2_offsets.json') | ConvertFrom-Json
 
 function Require-Match([string]$Text, [string]$Pattern, [string]$Reason) {
@@ -96,7 +97,11 @@ Require-Condition ($cameraSource -notmatch 'newest\.view_matrix\[i\].*previous\.
 Require-Match $cameraSource 'return newest;' 'Presentation must use the newest coherent camera matrix.'
 Require-Match $runtimeSource 'previousAverage \+ \(interval - previousAverage\) \* 0\.20f' 'Published acquisition rate must use a stable moving average.'
 Require-Match $source 'targetPeriodMs - workMs' 'The acquisition scheduler still adds work time on top of its target period.'
-Require-Match $source 'const int camera_period_ms = std::clamp\(g_intervals\.camera_ms, 2, 4\)' 'DMA pressure must not slow the camera below its 250 Hz target.'
+Require-Match $source 'constexpr int camera_period_ms = 2' 'The camera lane must retain its independent 500 Hz target.'
+Require-Match $source 'targetPeriodMs = cfgLease->performance_mode \? 12 : 8' 'The active world snapshot must target high-rate acquisition independently from presentation.'
+Require-Match $source 'level >= 3\) targetPeriodMs = \(std::max\)\(targetPeriodMs, 22\)' 'DMA pressure fallback must not collapse active acquisition to 25 Hz.'
+Require-Match $windowRuntimeSource "kFramePeriod = std::chrono::microseconds\(16'667\)" 'The overlay must be capped at a stable 60 Hz.'
+Require-Match $windowRuntimeSource 'std::this_thread::sleep_until\(next_frame_deadline_\)' 'The overlay limiter must use an absolute deadline to avoid cumulative drift.'
 Require-Condition ($bonesSource -notmatch 'BoneJointSnapshot48|s_use48Stride') 'Bone acquisition must not switch to an unvalidated speculative stride.'
 Require-Match $bonesSource 'validBoneCount >= 8' 'A safe partial pose must remain drawable when one optional limb is unavailable.'
 

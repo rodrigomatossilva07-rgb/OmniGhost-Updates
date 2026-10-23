@@ -79,7 +79,10 @@ void EnsureAcquisitionStarted() {
             const uint64_t camera_now_ms = GetTickCount64();
 
 
-            const int camera_period_ms = std::clamp(g_intervals.camera_ms, 2, 4);
+
+
+
+            constexpr int camera_period_ms = 2;
             Camera::SetDeadline(next_camera_ms);
             int wait_ms = in_match ? camera_period_ms : 20;
             bool busyRetry = false;
@@ -308,7 +311,7 @@ void EnsureAcquisitionStarted() {
 
 
 
-            int targetPeriodMs = runtime.in_match ? g_intervals.full_scan_ms : 16;
+            int targetPeriodMs = runtime.in_match ? 8 : 16;
             try {
                 auto cfgLease = RuntimePipeline::AcquireConfig();
                 if (cfgLease) {
@@ -316,7 +319,7 @@ void EnsureAcquisitionStarted() {
                         targetPeriodMs = 50;
                     else if (runtime.in_match) {
 
-                        targetPeriodMs = cfgLease->performance_mode ? 24 : 16;
+                        targetPeriodMs = cfgLease->performance_mode ? 12 : 8;
                     }
                 }
 
@@ -367,9 +370,9 @@ void EnsureAcquisitionStarted() {
 
                 g_intervals.Update(runtime.player_count, runtime.acquisition_ms, level, kOptionalBudgetMs);
 
-                if (level >= 3) targetPeriodMs = (std::max)(targetPeriodMs, 40);
-                else if (level == 2) targetPeriodMs = (std::max)(targetPeriodMs, 28);
-                else if (level == 1) targetPeriodMs = (std::max)(targetPeriodMs, 20);
+                if (level >= 3) targetPeriodMs = (std::max)(targetPeriodMs, 22);
+                else if (level == 2) targetPeriodMs = (std::max)(targetPeriodMs, 16);
+                else if (level == 1) targetPeriodMs = (std::max)(targetPeriodMs, 12);
             }
 
 

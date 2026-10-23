@@ -389,7 +389,7 @@ void UpdateService::CheckAsync(bool force) {
 
     cancelled_ = false;
     {
-        // UP-006: join/assign do worker serializados por workerMutex_.
+
         std::lock_guard workerLock(workerMutex_);
         if (worker_.joinable())
             worker_.join();
@@ -721,7 +721,7 @@ void UpdateService::DownloadAsync() {
 void UpdateService::StartDownloadWorker() {
     cancelled_ = false;
     {
-        // UP-006: join/assign do worker serializados por workerMutex_.
+
         std::lock_guard workerLock(workerMutex_);
         if (worker_.joinable())
             worker_.join();
@@ -801,14 +801,17 @@ void UpdateService::VerifyInstallationAsync() {
     if (!initialized_) Initialize();
     if (busy_.exchange(true)) return;
     cancelled_ = false;
-    if (worker_.joinable()) worker_.join();
-    SetSnapshot([](Snapshot& s) {
-        s.integrityStatus = IntegrityStatus::Checking;
-        s.integrityMessage = "A verificar ficheiros instalados…";
-        s.integrityCheckedFiles = 0;
-        s.integrityFailedFiles = 0;
-    });
-    worker_ = std::jthread([this](std::stop_token stopToken) {
+    {
+
+        std::lock_guard workerLock(workerMutex_);
+        if (worker_.joinable()) worker_.join();
+        SetSnapshot([](Snapshot& s) {
+            s.integrityStatus = IntegrityStatus::Checking;
+            s.integrityMessage = "A verificar ficheiros instalados…";
+            s.integrityCheckedFiles = 0;
+            s.integrityFailedFiles = 0;
+        });
+        worker_ = std::jthread([this](std::stop_token stopToken) {
         Platform::SetCurrentThreadName(L"OmniGhost.InstallVerify");
         auto busyReset = Platform::MakeScopeExit([this] { busy_ = false; });
         if (stopToken.stop_requested()) return;

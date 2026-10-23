@@ -77,5 +77,6 @@ private:
 
     bool window_visible_ = false;
 	std::chrono::steady_clock::time_point frame_render_begin_{};
+	std::chrono::steady_clock::time_point next_frame_deadline_{};
 	bool frame_render_timing_active_ = false;
 };

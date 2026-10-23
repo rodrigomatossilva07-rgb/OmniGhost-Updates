@@ -26,6 +26,7 @@
 #include <string>
 #include <iostream>
 #include <iomanip>
+#include <thread>
 
 #pragma comment(lib, "dwmapi.lib")
 
@@ -742,6 +743,19 @@ void Overlay::EndRender() {
         window_visible_ = true;
         std::clog << "[WINDOW][Visibility] first rendered frame presented; single HWND shown\n";
     }
+
+
+
+    constexpr auto kFramePeriod = std::chrono::microseconds(16'667);
+    const auto now = std::chrono::steady_clock::now();
+    if (next_frame_deadline_.time_since_epoch().count() == 0 ||
+        now > next_frame_deadline_ + kFramePeriod * 2) {
+        next_frame_deadline_ = now + kFramePeriod;
+    } else {
+        next_frame_deadline_ += kFramePeriod;
+    }
+    if (next_frame_deadline_ > now)
+        std::this_thread::sleep_until(next_frame_deadline_);
 }
 
 void Overlay::Shutdown() {
