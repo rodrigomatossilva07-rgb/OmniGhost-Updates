@@ -10,6 +10,7 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <iphlpapi.h>
+#include <winhttp.h>
 
 #include <atomic>
 #include <algorithm>
@@ -21,6 +22,7 @@
 #include <mutex>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -29,6 +31,7 @@
 #pragma comment(lib, "Ws2_32.lib")
 #pragma comment(lib, "iphlpapi.lib")
 #pragma comment(lib, "bcrypt.lib")
+#pragma comment(lib, "winhttp.lib")
 
 namespace CS2::WebRadar {
 struct RadarPlayer {
@@ -69,8 +72,43 @@ bool g_pending_runtime_valid = false;
 std::atomic<ULONGLONG> g_next_json_refresh{0};
 std::thread g_server_thread;
 HANDLE g_cf_proc = nullptr;
+HANDLE g_cf_pipe_read = nullptr;
 std::thread g_cf_reader;
 std::atomic<bool> g_cf_stop{false};
+
+bool PublicTunnelReady(const std::string& url) {
+    constexpr std::string_view prefix = "https://";
+    if (!url.starts_with(prefix)) return false;
+    const std::string host = url.substr(prefix.size());
+    if (host.empty() || host.find('/') != std::string::npos) return false;
+    const std::wstring wideHost(host.begin(), host.end());
+
+    HINTERNET session = WinHttpOpen(L"OmniGhost-WebRadar/2.2",
+        WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_NO_PROXY_NAME,
+        WINHTTP_NO_PROXY_BYPASS, 0);
+    if (!session) return false;
+    WinHttpSetTimeouts(session, 750, 750, 750, 750);
+    HINTERNET connection = WinHttpConnect(session, wideHost.c_str(),
+        INTERNET_DEFAULT_HTTPS_PORT, 0);
+    HINTERNET request = connection
+        ? WinHttpOpenRequest(connection, L"HEAD", L"/healthz", nullptr,
+            WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE)
+        : nullptr;
+    bool endpointReady = false;
+    if (request && WinHttpSendRequest(request, WINHTTP_NO_ADDITIONAL_HEADERS, 0,
+            WINHTTP_NO_REQUEST_DATA, 0, 0, 0) && WinHttpReceiveResponse(request, nullptr)) {
+        DWORD status = 0;
+        DWORD size = sizeof(status);
+        endpointReady = WinHttpQueryHeaders(request,
+            WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+            WINHTTP_HEADER_NAME_BY_INDEX, &status, &size,
+            WINHTTP_NO_HEADER_INDEX) && status == HTTP_STATUS_OK;
+    }
+    if (request) WinHttpCloseHandle(request);
+    if (connection) WinHttpCloseHandle(connection);
+    WinHttpCloseHandle(session);
+    return endpointReady;
+}
 
 bool EnsureWsa() {
     if (g_wsa.load()) return true;
@@ -803,16 +841,20 @@ bool StartCloudflare() {
 
     g_cf_stop.store(true);
     HANDLE staleProcess = nullptr;
+    HANDLE stalePipe = nullptr;
     {
         std::lock_guard<std::mutex> lock(g_mu);
         staleProcess = g_cf_proc;
         g_cf_proc = nullptr;
+        stalePipe = g_cf_pipe_read;
+        g_cf_pipe_read = nullptr;
     }
     if (staleProcess) {
         TerminateProcess(staleProcess, 0);
         WaitForSingleObject(staleProcess, 1000);
         CloseHandle(staleProcess);
     }
+    if (stalePipe) CloseHandle(stalePipe);
     if (g_cf_reader.joinable())
         g_cf_reader.join();
     g_cf_stop.store(false);
@@ -863,6 +905,7 @@ bool StartCloudflare() {
     {
         std::lock_guard<std::mutex> lock(g_mu);
         g_cf_proc = pi.hProcess;
+        g_cf_pipe_read = rd;
     }
 
 
@@ -872,6 +915,9 @@ bool StartCloudflare() {
         const uint64_t startedMs = GetTickCount64();
         std::string output;
         std::string candidateUrl;
+        bool connected = false;
+        bool published = false;
+        uint64_t nextProbeMs = 0;
         char tmp[512];
         while (!g_cf_stop.load()) {
             if (GetTickCount64() - startedMs >= kTunnelStartupTimeoutMs) {
@@ -900,6 +946,20 @@ bool StartCloudflare() {
             DWORD avail = 0;
             if (!PeekNamedPipe(rd, nullptr, 0, nullptr, &avail, nullptr)) break;
             if (!avail) {
+                const uint64_t now = GetTickCount64();
+                if (!published && connected && !candidateUrl.empty() && now >= nextProbeMs) {
+                    {
+                        std::lock_guard<std::mutex> lock(g_mu);
+                        g_cloudflare_status = "A confirmar acesso ao link público...";
+                    }
+                    if (PublicTunnelReady(candidateUrl)) {
+                        std::lock_guard<std::mutex> lock(g_mu);
+                        if (g_public_url.empty()) g_public_url = candidateUrl;
+                        g_cloudflare_status = "Túnel ligado e acessível.";
+                        published = true;
+                    }
+                    nextProbeMs = now + 500u;
+                }
                 Sleep(50);
                 continue;
             }
@@ -927,13 +987,9 @@ bool StartCloudflare() {
                 while (!url.empty() && url.back() == '/') url.pop_back();
                 candidateUrl = std::move(url);
             }
-            const bool connected = output.find("Registered tunnel connection") != std::string::npos;
+            connected = connected || output.find("Registered tunnel connection") != std::string::npos;
             if (!candidateUrl.empty() && connected) {
-                {
-                    std::lock_guard<std::mutex> lock(g_mu);
-                    if (g_public_url.empty()) g_public_url = candidateUrl;
-                    g_cloudflare_status = "Túnel ligado.";
-                }
+                nextProbeMs = 0;
                 if (output.size() > 4096) output.erase(0, pos);
             } else if (output.size() > 8192) {
                 output.erase(0, output.size() - 1024);
@@ -944,7 +1000,15 @@ bool StartCloudflare() {
             if (g_public_url.empty() && g_cloudflare_status.empty())
                 g_cloudflare_status = "cloudflared terminou antes de criar o túnel.";
         }
-        CloseHandle(rd);
+        bool ownsPipe = false;
+        {
+            std::lock_guard<std::mutex> lock(g_mu);
+            if (g_cf_pipe_read == rd) {
+                g_cf_pipe_read = nullptr;
+                ownsPipe = true;
+            }
+        }
+        if (ownsPipe) CloseHandle(rd);
     });
     return true;
 }
@@ -952,12 +1016,20 @@ bool StartCloudflare() {
 void StopCloudflare() {
     g_cf_stop.store(true);
     HANDLE process = nullptr;
-    { std::lock_guard<std::mutex> lock(g_mu); process = g_cf_proc; g_cf_proc = nullptr; }
+    HANDLE pipe = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(g_mu);
+        process = g_cf_proc;
+        g_cf_proc = nullptr;
+        pipe = g_cf_pipe_read;
+        g_cf_pipe_read = nullptr;
+    }
     if (process) {
         TerminateProcess(process, 0);
         WaitForSingleObject(process, 1000);
         CloseHandle(process);
     }
+    if (pipe) CloseHandle(pipe);
     if (g_cf_reader.joinable())
         g_cf_reader.join();
     std::lock_guard<std::mutex> lock(g_mu);

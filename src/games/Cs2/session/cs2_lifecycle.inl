@@ -62,6 +62,9 @@ bool ReinitDma() {
 }
 
 void Shutdown() {
+    config.webradar_enabled = false;
+    config.webradar_cloudflare = false;
+    SubmitAcquisitionConfig(config);
     std::clog << "[CS2][Shutdown] acquisition begin\n";
     StopAcquisition();
     std::clog << "[CS2][Shutdown] acquisition complete; visibility begin\n";

@@ -222,6 +222,8 @@ bool StartCs2() {
         s_cs2StartException = false;
         g_activeGame = ActiveGame::CS2;
         config_manager::ActivateCurrentGameConfig();
+        CS2::config.webradar_enabled = false;
+        CS2::config.webradar_cloudflare = false;
         if (!CS2::Attach())
             return false;
         gameGuard.Commit();

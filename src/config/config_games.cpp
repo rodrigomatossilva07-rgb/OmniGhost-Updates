@@ -63,9 +63,7 @@ void SerializeCS2(std::ostringstream& o) {
     WFloat(o, "cs2.bomb_window_x", c.bomb_window_x);
     WFloat(o, "cs2.bomb_window_y", c.bomb_window_y);
     WBool(o, "cs2.radar_2d", c.radar_2d);
-    WBool(o, "cs2.webradar_enabled", c.webradar_enabled);
     WInt(o, "cs2.webradar_port", c.webradar_port);
-    WBool(o, "cs2.webradar_cloudflare", c.webradar_cloudflare);
     WBool(o, "cs2.performance_mode", c.performance_mode);
     WBool(o, "cs2.telemetry_enabled", c.telemetry_enabled);
     WFloat(o, "cs2.max_distance", c.max_distance);
@@ -278,9 +276,7 @@ bool DeserializeCS2(const std::string& key, const std::string& val) {
     if (bi("cs2.bomb_window_x")) { c.bomb_window_x = toF(); return true; }
     if (bi("cs2.bomb_window_y")) { c.bomb_window_y = toF(); return true; }
     if (bi("cs2.radar_2d")) { c.radar_2d = toB(); return true; }
-    if (bi("cs2.webradar_enabled")) { c.webradar_enabled = toB(); return true; }
     if (bi("cs2.webradar_port")) { c.webradar_port = toI(); return true; }
-    if (bi("cs2.webradar_cloudflare")) { c.webradar_cloudflare = toB(); return true; }
     if (bi("cs2.performance_mode")) { c.performance_mode = toB(); return true; }
     if (bi("cs2.telemetry_enabled")) { c.telemetry_enabled = toB(); return true; }
     if (bi("cs2.max_distance")) { c.max_distance = toF(); return true; }
