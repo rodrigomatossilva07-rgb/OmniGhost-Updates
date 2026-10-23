@@ -77,8 +77,8 @@ void EnsureAcquisitionStarted() {
             const bool in_match = RuntimePipeline::PublishedInMatch();
             const bool canRead = ready && offsets.loaded && client_base && offsets.dwViewMatrix;
             const uint64_t camera_now_ms = GetTickCount64();
-            // Camera freshness directly controls screen-space alignment. Keep
-            // it at 250 Hz even while optional DMA work is being throttled.
+
+
             const int camera_period_ms = std::clamp(g_intervals.camera_ms, 2, 4);
             Camera::SetDeadline(next_camera_ms);
             int wait_ms = in_match ? camera_period_ms : 20;
@@ -371,8 +371,8 @@ void EnsureAcquisitionStarted() {
                 else if (level == 2) targetPeriodMs = (std::max)(targetPeriodMs, 28);
                 else if (level == 1) targetPeriodMs = (std::max)(targetPeriodMs, 20);
             }
-            // The period is end-to-end. Waiting the whole period after doing
-            // the DMA work made a nominal 60 Hz scan run closer to 30-45 Hz.
+
+
             const int workMs = std::max(0, static_cast<int>(std::ceil(runtime.acquisition_ms)));
             const int delayMs = std::max(1, targetPeriodMs - workMs);
             const auto waitBegin = std::chrono::steady_clock::now();

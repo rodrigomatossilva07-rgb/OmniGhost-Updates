@@ -31,8 +31,8 @@ void Publish(Runtime& source, uint64_t generation, uint64_t read_fails) {
     if (previous != 0 && now > previous) {
         const float interval = static_cast<float>(now - previous);
         const float previousAverage = g_publish_interval_ms.load(std::memory_order_relaxed);
-        // A short EWMA reports the sustained publication cadence instead of
-        // jumping between reciprocals of individual millisecond intervals.
+
+
         const float average = previousAverage > 0.f
             ? previousAverage + (interval - previousAverage) * 0.20f
             : interval;

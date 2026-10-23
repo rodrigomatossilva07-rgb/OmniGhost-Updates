@@ -400,8 +400,8 @@ InstallResult InstallSingleExecutable(const InstallOptions& options) {
 
 
     if (!backupError && !currentExeHash.empty() && fs::exists(backupExe, backupError)) {
-        // UP-005: a cópia de backup é verificada contra o hash da FONTE —
-        // só escreve o sidecar se for byte-idêntica.
+
+
         std::string backupHash, hashError;
         if (Sha256File(backupExe, backupHash, hashError) &&
             ConstantTimeEquals(backupHash, currentExeHash)) {
@@ -448,9 +448,9 @@ InstallResult InstallSingleExecutable(const InstallOptions& options) {
 		return result;
 	}
     {
-        // UP-005: re-hash do DESTINO após a cópia — valida que o binário
-        // instalado é byte-idêntico ao validado no staging (a cópia pode
-        // corromper-se; o custo é 1 hash no fim do update).
+
+
+
         std::string installedHash, installedHashError;
         if (!Sha256File(options.target / options.executableName, installedHash, installedHashError) ||
             !ConstantTimeEquals(installedHash, options.expectedExecutableSha256)) {
