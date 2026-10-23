@@ -45,7 +45,7 @@ struct Config : OmniGhost::Gameplay::EspConfigBase {
     float active_features_y = .18f;
     float active_features_scale = 1.f;
     float active_features_opacity = .88f;
-    bool active_features_compact = false;
+    bool active_features_compact = true;
     int layout_name_anchor = static_cast<int>(EspLayoutAnchor::Top);
     int layout_health_anchor = static_cast<int>(EspLayoutAnchor::Left);
     int layout_armor_anchor = static_cast<int>(EspLayoutAnchor::Right);

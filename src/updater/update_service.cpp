@@ -1047,23 +1047,26 @@ void UpdateService::InstallPreparedUpdateAsync() {
         s.technicalDetail.clear();
     });
 
-    if (worker_.joinable())
-        worker_.join();
-    worker_ = std::jthread([this](std::stop_token) {
-        Platform::SetCurrentThreadName(L"OmniGhost.UpdateInstallLaunch");
-        auto busyReset = Platform::MakeScopeExit([this] {
-            busy_.store(false, std::memory_order_release);
+    {
+        std::lock_guard workerLock(workerMutex_);
+        if (worker_.joinable())
+            worker_.join();
+        worker_ = std::jthread([this](std::stop_token) {
+            Platform::SetCurrentThreadName(L"OmniGhost.UpdateInstallLaunch");
+            auto busyReset = Platform::MakeScopeExit([this] {
+                busy_.store(false, std::memory_order_release);
+            });
+            try {
+                (void)InstallPreparedUpdate();
+            } catch (const std::exception& exception) {
+                SetError("Não foi possível preparar a instalação da atualização.",
+                    exception.what(), "launch-updater");
+            } catch (...) {
+                SetError("Não foi possível preparar a instalação da atualização.",
+                    "Falha inesperada no arranque do atualizador.", "launch-updater");
+            }
         });
-        try {
-            (void)InstallPreparedUpdate();
-        } catch (const std::exception& exception) {
-            SetError("Não foi possível preparar a instalação da atualização.",
-                exception.what(), "launch-updater");
-        } catch (...) {
-            SetError("Não foi possível preparar a instalação da atualização.",
-                "Falha inesperada no arranque do atualizador.", "launch-updater");
-        }
-    });
+    }
 }
 
 void UpdateService::DeferForSession() {

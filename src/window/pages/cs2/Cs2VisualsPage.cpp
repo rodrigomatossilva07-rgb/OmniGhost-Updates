@@ -113,19 +113,12 @@ struct Cs2PreviewAdapter : EspPreview::IConfigAdapter {
 
 static Cs2PreviewAdapter g_cs2Adapter;
 
-void DrawLayoutBuilder() {
-    CyberWidgets::SectionTitle("ESP BUILDER");
-    CyberWidgets::SliderFloat("Espaçamento", &CS2::config.layout_spacing, 0.f, 18.f, "%.0f px");
-    CyberWidgets::SliderFloat("Escala do texto", &CS2::config.layout_text_scale, .65f, 1.6f, "%.2fx");
-    const ImVec2 canvas = ImVec2(ImGui::GetContentRegionAvail().x, CyberTheme::Px(260.f));
-    const ImVec2 origin = ImGui::GetCursorScreenPos();
+void DrawLayoutBuilder(const ImVec2& origin, float width, float height) {
     ImDrawList* draw = ImGui::GetWindowDrawList();
-    const ImVec2 canvasMax(origin.x + canvas.x, origin.y + canvas.y);
-    draw->AddRectFilled(origin, canvasMax, IM_COL32(7, 8, 9, 230), 8.f);
-    draw->AddRect(origin, canvasMax, IM_COL32(104, 83, 30, 210), 8.f);
-    const ImVec2 boxMin(origin.x + canvas.x * .34f, origin.y + 42.f);
-    const ImVec2 boxMax(origin.x + canvas.x * .66f, origin.y + canvas.y - 42.f);
-    draw->AddRect(boxMin, boxMax, IM_COL32(229, 184, 55, 230), 2.f, 0, 1.5f);
+    const EspPreview::PlayerGeometry geometry = EspPreview::BuildGeometry(origin, width, height);
+    const ImVec2 boxMin = geometry.boundsMin;
+    const ImVec2 boxMax = geometry.boundsMax;
+    const ImVec2 restoreCursor = ImGui::GetCursorScreenPos();
 
     struct Item { const char* label; int* anchor; };
     Item items[] = {
@@ -139,10 +132,11 @@ void DrawLayoutBuilder() {
         const ImVec2 text = ImGui::CalcTextSize(items[index].label);
         const int order = sideCounts[anchor]++;
         ImVec2 pos{};
-        if (anchor == 0) pos = ImVec2((boxMin.x + boxMax.x - text.x) * .5f, boxMin.y - 22.f - order * 18.f);
-        else if (anchor == 1) pos = ImVec2((boxMin.x + boxMax.x - text.x) * .5f, boxMax.y + 7.f + order * 18.f);
-        else if (anchor == 2) pos = ImVec2(boxMin.x - text.x - 12.f, boxMin.y + 18.f + order * 20.f);
-        else pos = ImVec2(boxMax.x + 12.f, boxMin.y + 18.f + order * 20.f);
+        const float spacing = std::clamp(CS2::config.layout_spacing, 0.f, 18.f);
+        if (anchor == 0) pos = ImVec2((boxMin.x + boxMax.x - text.x) * .5f, boxMin.y - 22.f - order * (18.f + spacing));
+        else if (anchor == 1) pos = ImVec2((boxMin.x + boxMax.x - text.x) * .5f, boxMax.y + 7.f + order * (18.f + spacing));
+        else if (anchor == 2) pos = ImVec2(boxMin.x - text.x - 12.f, boxMin.y + 18.f + order * (20.f + spacing));
+        else pos = ImVec2(boxMax.x + 12.f, boxMin.y + 18.f + order * (20.f + spacing));
         ImGui::SetCursorScreenPos(pos);
         ImGui::PushID(index);
         ImGui::InvisibleButton("##layout_item", ImVec2(text.x + 8.f, text.y + 6.f));
@@ -162,8 +156,7 @@ void DrawLayoutBuilder() {
         }
         ImGui::PopID();
     }
-    ImGui::SetCursorScreenPos(ImVec2(origin.x, origin.y + canvas.y + CyberTheme::Px(6.f)));
-    CyberWidgets::TextLine("Arrasta cada elemento para cima, baixo ou para os lados da caixa.", CyberWidgets::TextTone::Secondary);
+    ImGui::SetCursorScreenPos(restoreCursor);
 }
 
 }
@@ -211,7 +204,6 @@ void DrawCs2Visuals() {
         ImGui::TextDisabled("Confirma o portador quando a C4 está ativa; sem assumir inventário desconhecido.");
     CyberWidgets::ToggleSwitch("Painel de funções ativas", &CS2::config.active_features_panel);
     if (CS2::config.active_features_panel) {
-        CyberWidgets::ToggleSwitch("Painel compacto", &CS2::config.active_features_compact);
         CyberWidgets::SliderFloat("Escala do painel", &CS2::config.active_features_scale, .65f, 1.6f, "%.2fx");
         CyberWidgets::SliderFloat("Opacidade do painel", &CS2::config.active_features_opacity, .15f, 1.f, "%.2f");
     }
@@ -225,7 +217,6 @@ void DrawCs2Visuals() {
     CyberWidgets::SliderFloat("Linhas guia", &CS2::config.snapline_thickness, 0.5f, 4.f, "%.1f");
     CyberWidgets::SliderFloat("Eye Line", &CS2::config.eye_line_thickness, 0.5f, 4.f, "%.1f");
     CyberWidgets::SliderFloat("Distância máxima", &CS2::config.max_distance, 20.f, 500.f, "%.0f m");
-    DrawLayoutBuilder();
     ImGui::EndDisabled();
     CyberWidgets::EndCard();
     ImGui::EndChild();
@@ -304,14 +295,18 @@ void DrawCs2Visuals() {
 
 
     ImGui::BeginGroup();
-    CyberWidgets::BeginCard("", previewWidth);
-    const float panelHeight = (std::max)(CyberTheme::Px(300.f), height - CyberTheme::Metrics::CardHeaderHeight - CyberTheme::Metrics::CardPadding * 2.f - CyberTheme::Px(12.f));
+    CyberWidgets::BeginCard("PREVIEW & ESP BUILDER", previewWidth);
+    CyberWidgets::SliderFloat("Espaçamento", &CS2::config.layout_spacing, 0.f, 18.f, "%.0f px");
+    CyberWidgets::SliderFloat("Escala do texto", &CS2::config.layout_text_scale, .65f, 1.6f, "%.2fx");
+    CyberWidgets::TextLine("Arrasta os rótulos na pré-visualização.", CyberWidgets::TextTone::Secondary);
+    const float panelHeight = (std::max)(CyberTheme::Px(260.f), height - CyberTheme::Metrics::CardHeaderHeight - CyberTheme::Metrics::CardPadding * 2.f - CyberTheme::Px(116.f));
     const float drawWidth = (std::max)(CyberTheme::Px(180.f), previewWidth - CyberTheme::Metrics::CardPadding * 2.f);
 
     ImDrawList* dl = ImGui::GetWindowDrawList();
     const ImVec2 origin = ImGui::GetCursorScreenPos();
 
     EspPreview::DrawPreview(dl, origin, drawWidth, panelHeight, g_cs2Adapter, "");
+    DrawLayoutBuilder(origin, drawWidth, panelHeight);
 
     CyberWidgets::EndCard();
     ImGui::EndGroup();

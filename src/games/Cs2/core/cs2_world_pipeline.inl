@@ -1583,6 +1583,22 @@ static void RunFrameWithConfig(const Config& frame_config) {
             corePlayer.pos[2] = positions[c][2];
             corePlayer.position_sample_ms = position_sample_ms;
 
+
+
+
+            {
+                std::unique_lock lock(g_cache_mutex);
+                if (auto aliveIt = recent_players.find(pawn);
+                    aliveIt != recent_players.end() &&
+                    aliveIt->second.entry_generation == currentGen &&
+                    aliveIt->second.confirmed_dead) {
+                    aliveIt->second.confirmed_dead = false;
+                    aliveIt->second.last_seen_ms = frame_time_ms;
+                    bone_cache.erase(pawn);
+                    sceneBoneCache.erase(pawn);
+                }
+            }
+
             const float dx_dist = corePlayer.pos[0] - runtime.local_pos[0];
             const float dy_dist = corePlayer.pos[1] - runtime.local_pos[1];
             const float dz_dist = corePlayer.pos[2] - runtime.local_pos[2];

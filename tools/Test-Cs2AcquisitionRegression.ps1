@@ -97,6 +97,7 @@ Require-Condition ($cameraSource -notmatch 'newest\.view_matrix\[i\].*previous\.
 Require-Match $cameraSource 'return newest;' 'Presentation must use the newest coherent camera matrix.'
 Require-Match $runtimeSource 'previousAverage \+ \(interval - previousAverage\) \* 0\.20f' 'Published acquisition rate must use a stable moving average.'
 Require-Match $source 'targetPeriodMs - workMs' 'The acquisition scheduler still adds work time on top of its target period.'
+Require-Match $source '(?s)Keep the projection matrix current before the largest position batch.*?GiveCameraPriorityBeforeOptionalDma\(\);\s*if \(!mem\.ExecuteReadScatter\(g_scatter_full\)\)' 'The core position batch can still starve the camera lane.'
 Require-Match $source 'constexpr int camera_period_ms = 2' 'The camera lane must retain its independent 500 Hz target.'
 Require-Match $source 'targetPeriodMs = cfgLease->performance_mode \? 12 : 8' 'The active world snapshot must target high-rate acquisition independently from presentation.'
 Require-Match $source 'level >= 3\) targetPeriodMs = \(std::max\)\(targetPeriodMs, 22\)' 'DMA pressure fallback must not collapse active acquisition to 25 Hz.'
@@ -106,6 +107,7 @@ Require-Match $windowRuntimeSource 'timeBeginPeriod\(1\) == TIMERR_NOERROR' 'Hig
 Require-Match $windowRuntimeSource 'timeEndPeriod\(1\)' 'Windows timer resolution must be restored during shutdown.'
 Require-Condition ($bonesSource -notmatch 'BoneJointSnapshot48|s_use48Stride') 'Bone acquisition must not switch to an unvalidated speculative stride.'
 Require-Match $bonesSource 'validBoneCount >= 8' 'A safe partial pose must remain drawable when one optional limb is unavailable.'
+Require-Match $source '(?s)confirmed_dead\) \{\s*aliveIt->second\.confirmed_dead = false;.*?bone_cache\.erase\(pawn\)' 'Respawn must immediately release the dead-player bone cache gate.'
 
 $expectedBoneMapping = [ordered]@{
     Head = '0x7'; Neck = '0x6'; SpineUpper = '0x17'; SpineMiddle = '0x4';

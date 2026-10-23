@@ -14,6 +14,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot 'Hashing.ps1')
 
 $ProjectDir = [IO.Path]::GetFullPath((Join-Path $ProjectDir '.'))
 $RuntimeDir = [IO.Path]::GetFullPath((Join-Path $RuntimeDir '.'))
@@ -61,7 +62,7 @@ foreach ($file in $runtimeBinaries) {
     }
     $expected = [string](@($componentsByPath[$relative].hashes |
         Where-Object alg -CEQ 'SHA-256' | Select-Object -First 1).content)
-    $actual = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+    $actual = Get-OmniGhostSha256 -LiteralPath $file.FullName
     if ($expected -cne $actual) {
         throw "SHA-256 do SBOM não corresponde ao runtime: $relative"
     }

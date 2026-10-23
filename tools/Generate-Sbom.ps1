@@ -12,19 +12,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
-
-function Get-Sha256Hex([string]$Path) {
-    $stream = [IO.File]::OpenRead($Path)
-    $algorithm = [Security.Cryptography.SHA256]::Create()
-    try {
-        $bytes = $algorithm.ComputeHash($stream)
-        return ([BitConverter]::ToString($bytes)).Replace('-', '').ToLowerInvariant()
-    }
-    finally {
-        $algorithm.Dispose()
-        $stream.Dispose()
-    }
-}
+. (Join-Path $PSScriptRoot 'Hashing.ps1')
 
 $ProjectDir = [IO.Path]::GetFullPath((Join-Path $ProjectDir '.'))
 $RuntimeDir = [IO.Path]::GetFullPath((Join-Path $RuntimeDir '.'))
@@ -56,7 +44,7 @@ $components = New-Object System.Collections.Generic.List[object]
 $dependencyRefs = New-Object System.Collections.Generic.List[string]
 foreach ($file in $runtimeFiles) {
     $relative = $file.FullName.Substring($RuntimeDir.Length).TrimStart('\', '/').Replace('\', '/')
-    $sha256 = Get-Sha256Hex $file.FullName
+    $sha256 = Get-OmniGhostSha256 -LiteralPath $file.FullName
     $reference = "urn:omnighost:file:sha256:$sha256"
     $fileVersion = [Diagnostics.FileVersionInfo]::GetVersionInfo($file.FullName).FileVersion
 

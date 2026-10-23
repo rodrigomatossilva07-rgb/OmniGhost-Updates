@@ -137,14 +137,28 @@ bool DrawOffscreenArrow(ImDrawList* draw, const float world[3], const float matr
     const float length = std::sqrt(nx * nx + ny * ny);
     if (!std::isfinite(length) || length < .001f) return false;
     nx /= length; ny /= length;
-    const float margin = std::clamp(settings.offscreen_arrow_margin, 12.f,
-        std::min(viewport.x, viewport.y) * .35f);
-    const float halfW = viewport.x * .5f - margin;
-    const float halfH = viewport.y * .5f - margin;
-    const float scale = std::min(halfW / std::max(std::abs(nx), .001f),
-                                 halfH / std::max(std::abs(ny), .001f));
-    const ImVec2 tip(viewport.x * .5f + nx * scale, viewport.y * .5f + ny * scale);
     const float size = std::clamp(settings.offscreen_arrow_size, 6.f, 32.f);
+    float fovRadius = settings.aim_fov;
+    if (settings.aim_dynamic_fov) {
+        fovRadius = settings.aim_fov_curve_value[0];
+        for (std::size_t i = 1; i < std::size(settings.aim_fov_curve_distance); ++i) {
+            const float left = settings.aim_fov_curve_distance[i - 1];
+            const float right = (std::max)(settings.aim_fov_curve_distance[i], left + .01f);
+            if (player.distance <= right) {
+                const float t = std::clamp((player.distance - left) / (right - left), 0.f, 1.f);
+                fovRadius = std::lerp(settings.aim_fov_curve_value[i - 1],
+                                      settings.aim_fov_curve_value[i], t);
+                break;
+            }
+            fovRadius = settings.aim_fov_curve_value[i];
+        }
+    }
+    const float ringRadius = std::clamp(
+        fovRadius + settings.offscreen_arrow_margin,
+        size * 2.f,
+        (std::min)(viewport.x, viewport.y) * .5f - size * 2.f);
+    const ImVec2 tip(viewport.x * .5f + nx * ringRadius,
+                     viewport.y * .5f + ny * ringRadius);
     const ImVec2 side(-ny, nx);
     const ImVec2 base(tip.x - nx * size, tip.y - ny * size);
     float colorValues[4] = { settings.col_offscreen_arrow[0], settings.col_offscreen_arrow[1],
@@ -440,18 +454,17 @@ void DrawActiveFeaturesPanel(const CS2::Config& settings) {
     ImGui::SetNextWindowPos(ImVec2(settings.active_features_x * display.x,
                                    settings.active_features_y * display.y), ImGuiCond_Once);
     ImGui::SetNextWindowBgAlpha(std::clamp(settings.active_features_opacity, .15f, 1.f));
-    ImGui::SetNextWindowSize(ImVec2(settings.active_features_compact ? 175.f : 220.f, 0.f));
+    ImGui::SetNextWindowSize(ImVec2(175.f, 0.f));
     ImGuiWindowFlags flags = ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse |
         ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoTitleBar;
     if (!app_settings::menu_open) flags |= ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoInputs;
     if (ImGui::Begin("##cs2_active_features", nullptr, flags)) {
         ImGui::SetWindowFontScale(scale);
         ImGui::TextColored(ImVec4(.95f, .72f, .18f, 1.f), "CS2 DMA");
-        if (!settings.active_features_compact) ImGui::Separator();
+        ImGui::Separator();
         const auto row = [&](const char* label, bool active) {
             if (!active) return;
-            ImGui::TextColored(ImVec4(.25f, .90f, .52f, 1.f), "%s%sON", label,
-                settings.active_features_compact ? " " : "  -  ");
+            ImGui::TextColored(ImVec4(.25f, .90f, .52f, 1.f), "%s ON", label);
         };
         row("Aimbot", settings.aim_enabled);
         row("Triggerbot", settings.trigger_enabled);

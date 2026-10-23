@@ -500,6 +500,9 @@ static void ScatterReadPawnCore(const uintptr_t* pawns, const uintptr_t* control
             mem.AddScatterReadRequest(g_scatter_full, pawns[i] + offsets.m_angEyeAngles,
                                       fields[i].eye_angles, sizeof(fields[i].eye_angles));
     }
+    // Keep the projection matrix current before the largest position batch.
+    // Otherwise every ESP element visibly trails together while the camera turns.
+    CS2::GiveCameraPriorityBeforeOptionalDma();
     if (!mem.ExecuteReadScatter(g_scatter_full)) {
         for (int i = 0; i < count; ++i) {
             fields[i] = PawnCoreFields{};

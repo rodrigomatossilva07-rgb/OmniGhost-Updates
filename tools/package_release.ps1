@@ -531,7 +531,7 @@ try {
     $SumLines = foreach ($name in ($SumNames | Sort-Object)) {
         $path = Join-Path $ArtifactOutputDir $name
         if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "[HASH] Artefacto em falta: $name" }
-        "{0}  {1}" -f (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash, $name
+        "{0}  {1}" -f (Get-OmniGhostSha256 -LiteralPath $path).ToUpperInvariant(), $name
     }
     $ArtifactSums = Join-Path $ArtifactOutputDir 'SHA256SUMS.txt'
     [IO.File]::WriteAllLines($ArtifactSums, [string[]]$SumLines, $Utf8NoBom)
