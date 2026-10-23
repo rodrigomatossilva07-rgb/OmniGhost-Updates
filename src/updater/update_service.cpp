@@ -720,22 +720,26 @@ void UpdateService::DownloadAsync() {
 
 void UpdateService::StartDownloadWorker() {
     cancelled_ = false;
-    if (worker_.joinable())
-        worker_.join();
+    {
+        // UP-006: join/assign do worker serializados por workerMutex_.
+        std::lock_guard workerLock(workerMutex_);
+        if (worker_.joinable())
+            worker_.join();
 
-    worker_ = std::jthread([this](std::stop_token stopToken) {
-        Platform::SetCurrentThreadName(L"OmniGhost.UpdateDownload");
-        std::stop_callback cancelOnStop(stopToken, [this] { cancelled_.store(true, std::memory_order_release); });
-        auto busyReset = Platform::MakeScopeExit([this] { busy_ = false; });
-        try {
-            RunDownload();
-        } catch (const std::exception& exception) {
-            SetError("A transferência terminou de forma inesperada.", exception.what(), "worker");
-        } catch (...) {
-            SetError("A transferência terminou de forma inesperada.",
-                "Exceção não identificada na tarefa de transferência.", "worker");
-        }
-    });
+        worker_ = std::jthread([this](std::stop_token stopToken) {
+            Platform::SetCurrentThreadName(L"OmniGhost.UpdateDownload");
+            std::stop_callback cancelOnStop(stopToken, [this] { cancelled_.store(true, std::memory_order_release); });
+            auto busyReset = Platform::MakeScopeExit([this] { busy_ = false; });
+            try {
+                RunDownload();
+            } catch (const std::exception& exception) {
+                SetError("A transferência terminou de forma inesperada.", exception.what(), "worker");
+            } catch (...) {
+                SetError("A transferência terminou de forma inesperada.",
+                    "Exceção não identificada na tarefa de transferência.", "worker");
+            }
+        });
+    }
 }
 
 void UpdateService::RunDownload() {
