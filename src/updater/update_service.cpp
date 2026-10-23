@@ -388,10 +388,14 @@ void UpdateService::CheckAsync(bool force) {
     }
 
     cancelled_ = false;
-    if (worker_.joinable())
-        worker_.join();
+        cancelled_ = false;
+        {
+            // UP-006: join/assign do worker serializados por workerMutex_.
+            std::lock_guard workerLock(workerMutex_);
+            if (worker_.joinable())
+                worker_.join();
 
-    worker_ = std::jthread([this, force](std::stop_token stopToken) {
+            worker_ = std::jthread([this, force](std::stop_token stopToken) {
         Platform::SetCurrentThreadName(L"OmniGhost.UpdateCheck");
         std::stop_callback cancelOnStop(stopToken, [this] { cancelled_.store(true, std::memory_order_release); });
         auto busyReset = Platform::MakeScopeExit([this] { busy_ = false; });
