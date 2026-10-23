@@ -16,6 +16,7 @@
 #include "onboarding.h"
 #include "changelog.h"
 #include "ui_feedback.h"
+#include "global_search.h"
 #include "gameplay/dma_telemetry_log.h"
 #include "../config/app_settings.h"
 #include "../config/config_manager.h"
@@ -58,6 +59,7 @@ namespace {
         case MenuTab::TAB_CS2_VISUALS:      return { "VISUAIS CS2", "ESP de jogadores" };
         case MenuTab::TAB_CS2_AIM:          return { "MIRA CS2", "Perfis e assistência de mira" };
         case MenuTab::TAB_CS2_MISC:         return { "DIVERSOS CS2", "Widgets, bomba e utilitários" };
+        case MenuTab::TAB_CS2_RADAR:        return { "RADAR CS2", "Posição, alcance e apresentação" };
         case MenuTab::TAB_CS2_STATUS:       return { Loc::Tr("nav.status"), app_settings::T("Ligação, offsets e estado em tempo real", "Connection, offsets and live status") };
         case MenuTab::TAB_WARZONE_AIM:      return { "MIRA WARZONE", "Alvo, precisão e suavidade" };
         case MenuTab::TAB_WARZONE_VISUALS:  return { "VISUAIS WARZONE", "ESP de jogadores" };
@@ -174,6 +176,42 @@ namespace {
             DrawVisuals();
             break;
         }
+    }
+
+    void RegisterCommandPages(MenuTab* current, OmniGhost::ActiveGame game)
+    {
+        if (!current) return;
+        const auto add = [current](const char* label, MenuTab tab, const char* section) {
+            GlobalSearch::RegisterPage(label, label, section, [current, tab] { *current = tab; });
+        };
+        if (game == OmniGhost::ActiveGame::CS2) {
+            add("Visuais CS2", MenuTab::TAB_CS2_VISUALS, "ESP e apresentação");
+            add("Mira CS2", MenuTab::TAB_CS2_AIM, "Assistência e disparo");
+            add("Diversos CS2", MenuTab::TAB_CS2_MISC, "Widgets e utilitários");
+            add("Radar CS2", MenuTab::TAB_CS2_RADAR, "Radar 2D");
+            add("Sistema CS2", MenuTab::TAB_CS2_STATUS, "Diagnóstico");
+        } else if (game == OmniGhost::ActiveGame::Warzone) {
+            add("Mira Warzone", MenuTab::TAB_WARZONE_AIM, "Assistência");
+            add("Visuais Warzone", MenuTab::TAB_WARZONE_VISUALS, "ESP e apresentação");
+            add("Radar Warzone", MenuTab::TAB_WARZONE_RADAR, "Radar");
+            add("Mundo Warzone", MenuTab::TAB_WARZONE_WORLD, "Objetos do mundo");
+            add("Jogadores Warzone", MenuTab::TAB_WARZONE_PLAYERS, "Jogadores");
+            add("Extras Warzone", MenuTab::TAB_WARZONE_MISC, "Sistema e utilitários");
+        } else if (game == OmniGhost::ActiveGame::Fortnite) {
+            add("Visuais Fortnite", MenuTab::TAB_FORTNITE_VISUALS, "ESP e apresentação");
+            add("Mira Fortnite", MenuTab::TAB_FORTNITE_AIM, "Assistência");
+            add("Sistema Fortnite", MenuTab::TAB_FORTNITE_STATUS, "Diagnóstico");
+        } else {
+            add("Visuais FiveM", MenuTab::TAB_VISUALS, "ESP e apresentação");
+            add("Mira FiveM", MenuTab::TAB_AIM, "Assistência");
+            add("Veículos FiveM", MenuTab::TAB_VEHICLES, "Veículos");
+            add("Objetos FiveM", MenuTab::TAB_OBJECT_ESP, "Objetos do mundo");
+            add("Radar FiveM", MenuTab::TAB_RADAR, "Radar");
+            add("Amigos FiveM", MenuTab::TAB_FRIENDS, "Jogadores");
+            add("Sistema FiveM", MenuTab::TAB_STATUS, "Diagnóstico");
+        }
+        add("Configurações", MenuTab::TAB_CONFIGS, "Interface e desempenho");
+        add("Guardar configurações", MenuTab::TAB_SAVECONFIG, "Perfis");
     }
 
     void DrawTechGrid(ImDrawList* dl, const ImVec2& window_pos, const ImVec2& window_size,
@@ -299,6 +337,12 @@ void Overlay::Render()
     static MenuTab current_tab = DefaultTabForGame(ctx.GetActiveGame());
     static MenuTab transition_tab = current_tab;
     static float tab_transition = 1.0f;
+    static bool command_palette_open = false;
+    static bool search_initialized = false;
+    if (!search_initialized) {
+        GlobalSearch::Initialize();
+        search_initialized = true;
+    }
     if (tab_game != ctx.GetActiveGame()) {
         tab_game = ctx.GetActiveGame();
         current_tab = DefaultTabForGame(ctx.GetActiveGame());
@@ -320,6 +364,12 @@ void Overlay::Render()
 
     if (!app_settings::menu_open && !RenderMenu)
         return;
+
+    RegisterCommandPages(&current_tab, ctx.GetActiveGame());
+    if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_K, false)) {
+        command_palette_open = true;
+        GlobalSearch::Open();
+    }
 
     const ImVec2 display = ImGui::GetIO().DisplaySize;
     const ImVec2 menu_size(
@@ -521,6 +571,10 @@ const PerformanceMode::State performance = PerformanceMode::Update(
         ImGuiWindowFlags_NoBackground);
     ImGui::PushStyleVar(ImGuiStyleVar_Alpha, (std::max)(0.18f, tabEase));
     DrawPageHeading(current_tab);
+    const PagePresentation search_page = PresentationFor(current_tab);
+    MenuTab* current_tab_ptr = &current_tab;
+    GlobalSearch::BeginPage(search_page.title, search_page.description,
+                            [current_tab_ptr, current = current_tab] { *current_tab_ptr = current; });
     DrawCurrentTab(current_tab, this);
 
     ImGui::Dummy(ImVec2(0.0f, CyberTheme::Spacing::Xl));
@@ -542,6 +596,7 @@ const PerformanceMode::State performance = PerformanceMode::Update(
     ImGui::End();
     ImGui::PopStyleColor(3);
     ImGui::PopStyleVar(3);
+    GlobalSearch::DrawCommandPalette(&command_palette_open);
 }
 
 void Overlay::WaitForEvents(std::chrono::milliseconds timeout) {

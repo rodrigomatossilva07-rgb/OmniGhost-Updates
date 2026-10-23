@@ -1,5 +1,6 @@
 #pragma warning(disable: 4100 4189)
 #include "widgets.h"
+#include "global_search.h"
 #include "theme.h"
 #include "fonts.h"
 #include "animations.h"
@@ -297,6 +298,7 @@ namespace CyberWidgets {
     {
         if (!value)
             return false;
+        GlobalSearch::ObserveToggle(label, value);
         if (!PassSearch(label))
             return false;
 
@@ -537,6 +539,7 @@ namespace CyberWidgets {
     {
         if (!value)
             return false;
+        GlobalSearch::ObserveItem(label);
         if (!PassSearch(label))
             return false;
 
@@ -611,6 +614,7 @@ namespace CyberWidgets {
     {
         if (!current_item)
             return false;
+        GlobalSearch::ObserveItem(label);
         if (!PassSearch(label))
             return false;
 
@@ -726,6 +730,7 @@ namespace CyberWidgets {
     {
         if (!value)
             return false;
+        GlobalSearch::ObserveItem(label);
         if (!PassSearch(label))
             return false;
 
@@ -796,6 +801,7 @@ namespace CyberWidgets {
     {
         if (!value)
             return false;
+        GlobalSearch::ObserveToggle(label, value);
         if (!PassSearch(label))
             return false;
 
@@ -999,6 +1005,9 @@ namespace CyberWidgets {
 
     bool InputInt(const char* label, int* value)
     {
+        if (!value)
+            return false;
+        GlobalSearch::ObserveItem(label);
         ImGui::PushID(label);
         const ImVec2 pos = ImGui::GetCursorScreenPos();
         const float width = WidgetWidth();

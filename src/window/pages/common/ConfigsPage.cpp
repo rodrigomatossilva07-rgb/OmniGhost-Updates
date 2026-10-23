@@ -145,35 +145,8 @@ void DrawProfileAvatar(ImDrawList* draw, ImVec2 min, ImVec2 max) {
 }
 }
 
-static bool g_search_registered = false;
-
 void DrawConfigs(Overlay* self)
 {
-    if (!g_search_registered) {
-        GlobalSearch::RegisterItem("Black Background", "Configs", "Visual", []{});
-        GlobalSearch::RegisterItem("Black Level Opacity", "Configs", "Visual", []{});
-        GlobalSearch::RegisterItem("Performance Mode", "Configs", "Visual", []{});
-        GlobalSearch::RegisterItem("Auto Performance", "Configs", "Visual", []{});
-        GlobalSearch::RegisterItem("Auto Save", "Configs", "Visual", []{});
-        GlobalSearch::RegisterItem("Digital Rain", "Configs", "Visual", []{});
-        GlobalSearch::RegisterItem("Animation Intensity", "Configs", "Visual", []{});
-        GlobalSearch::RegisterItem("Reduce Motion", "Configs", "Visual", []{});
-        GlobalSearch::RegisterItem("UI Scale", "Configs", "Visual", []{});
-        GlobalSearch::RegisterItem("Monitor Selection", "Configs", "Visual", []{});
-        GlobalSearch::RegisterItem("Show FPS", "Configs", "Visual", []{});
-        GlobalSearch::RegisterItem("Hotkey Overlay", "Configs", "Visual", []{});
-        GlobalSearch::RegisterItem("VSync", "Configs", "Visual", []{});
-        GlobalSearch::RegisterItem("Primary Color", "Configs", "Colors", []{});
-        GlobalSearch::RegisterItem("Secondary Color", "Configs", "Colors", []{});
-        GlobalSearch::RegisterItem("FPS Color", "Configs", "Colors", []{});
-        GlobalSearch::RegisterItem("Theme", "Configs", "Colors", []{});
-        GlobalSearch::RegisterItem("Language", "Configs", "Settings", []{});
-        GlobalSearch::RegisterItem("Menu Bind", "Configs", "Settings", []{});
-        GlobalSearch::RegisterItem("DMA Reinit", "Configs", "Devices", []{});
-        GlobalSearch::RegisterItem("Return to Launcher", "Configs", "Settings", []{});
-        g_search_registered = true;
-    }
-
     static int settingsTab = 0;
     const char* tabLabels[] = {
         app_settings::T("GERAL##settings_general", "GENERAL##settings_general"),
