@@ -212,7 +212,7 @@ bool DrawOffscreenArrow(ImDrawList* draw, const float world[3], const float matr
     const ImVec2 side(-ny, nx);
     const ImVec2 base(tip.x - nx * size, tip.y - ny * size);
     const float* sourceColor = settings.col_offscreen_arrow;
-    if (settings.visibility_colors && settings.visible_check && player.visibility_known)
+    if (settings.visibility_colors && player.visibility_known)
         sourceColor = player.visible ? settings.col_visible : settings.col_occluded;
     float colorValues[4] = { sourceColor[0], sourceColor[1], sourceColor[2],
         std::clamp(sourceColor[3] * settings.offscreen_arrow_opacity, 0.f, 1.f) };
@@ -322,7 +322,7 @@ void DrawExtras(ImDrawList* draw, const CS2::Player& player, const ImVec2& head,
     const float scale = std::clamp(height / 180.f, .45f, 2.2f);
     const auto visibilityColor = [&](const float configured[4]) {
         if (settings.rgb_mode) return rgb;
-        if (settings.visibility_colors && settings.visible_check && player.visibility_known)
+        if (settings.visibility_colors && player.visibility_known)
             return Color(player.visible ? settings.col_visible : settings.col_occluded);
         return Color(configured);
     };
@@ -664,6 +664,7 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
     ImDrawList* draw = ImGui::GetBackgroundDrawList();
     const bool hideTeam = settings.team_check;
     const bool useVisibilityColors = settings.visibility_colors;
+    const bool visiblePlayersOnly = settings.visible_check && !settings.visibility_colors;
     const float maxDistance = settings.max_distance;
     const ImU32 rgbColor = settings.rgb_mode ? RgbColor() : 0;
     const uint64_t framePositionSampleMs = snapshot.world_sample_ms
@@ -871,6 +872,7 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
         if (!settings.show_bots && player.is_bot) continue;
         measuredDeathMs.erase(player.pawn);
         if (hideTeam && player.team == snapshot.local_team) continue;
+        if (visiblePlayersOnly && (!player.visibility_known || !player.visible)) continue;
         if (!std::isfinite(player.distance) || (maxDistance > 0.f && player.distance > maxDistance)) continue;
         if (!std::isfinite(player.pos[0]) || !std::isfinite(player.pos[1]) || !std::isfinite(player.pos[2])) continue;
 

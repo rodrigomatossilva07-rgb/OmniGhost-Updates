@@ -110,6 +110,7 @@ struct Cs2PreviewAdapter : EspPreview::IConfigAdapter {
     }
 
     ImU32 GetBoxColor(bool rgbMode, bool visibilityColors, bool visibleCheck) const override {
+        (void)visibleCheck;
         if (rgbMode) {
             float time = static_cast<float>(ImGui::GetTime()) * 0.35f;
             auto channel = [time](float phase) {
@@ -117,7 +118,7 @@ struct Cs2PreviewAdapter : EspPreview::IConfigAdapter {
             };
             return IM_COL32(channel(0.f), channel(2.094f), channel(4.188f), 255);
         }
-        if (visibilityColors && visibleCheck)
+        if (visibilityColors)
             return EspPreview::ToImU32(CS2::config.col_visible);
         return EspPreview::ToImU32(CS2::config.box_corner ? CS2::config.col_box_corner : CS2::config.col_box);
     }
@@ -239,7 +240,7 @@ void DrawCs2Visuals() {
     CyberWidgets::ToggleSwitch("Modo RGB", &CS2::config.rgb_mode);
     CyberWidgets::ToggleSwitch("Cores por visibilidade", &CS2::config.visibility_colors);
     CyberWidgets::SectionTitle("JOGADORES");
-    ImGui::BeginDisabled(!CS2::config.visibility_colors || !CS2::config.visible_check);
+    ImGui::BeginDisabled(!CS2::config.visibility_colors);
     ImGui::ColorEdit4("Visível", CS2::config.col_visible, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     ImGui::ColorEdit4("Oculto", CS2::config.col_occluded, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
     ImGui::EndDisabled();
