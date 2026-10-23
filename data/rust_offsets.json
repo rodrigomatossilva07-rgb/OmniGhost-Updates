@@ -8,7 +8,7 @@
   "module_hint": "GameAssembly.dll",
   "updated_at": "2026-10-23T00:00:00Z",
   "note": "Prepared for the future Rust backend from the complete 2026-10-22 dump. Zero values are intentionally unavailable in the supplied dump and must not fall back to stale offsets.",
-  "offset_catalog_header": "src/games/Rust/rust_offsets_2026_10_22.h",
+  "offset_catalog_header": "src/games/Rust/rust_offsets.h",
   "decrypt_header": "src/games/Rust/rust_decrypt.h",
   "ListComponentProjectile_TypeInfo": "0x11204AF0",
   "SingletonComponentCameraMan_TypeInfo": "0x11263D98",
