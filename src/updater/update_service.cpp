@@ -830,7 +830,8 @@ void UpdateService::VerifyInstallationAsync() {
         } else {
             WriteLog(LogFile(), LogLevel::Info, OmniGhost::Version, {}, "integrity", report.message);
         }
-    });
+        });
+    }
 }
 
 void UpdateService::PrepareRepairAsync() {
