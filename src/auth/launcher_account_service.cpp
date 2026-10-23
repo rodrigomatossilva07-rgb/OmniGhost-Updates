@@ -531,7 +531,14 @@ void LauncherAccountService::Logout() noexcept {
 
 bool LauncherAccountService::IsAuthenticated() const noexcept {
     std::lock_guard lock(mutex_);
-    return state_.authenticated;
+    if (!state_.authenticated)
+        return false;
+    // AU-003: enforce local da expiração quando é conhecida — o epoch
+    // significa desconhecida (o NeedsRenewal trata esse caso e o servidor
+    // continua a ser o gate real).
+    if (state_.expiresAt == std::chrono::system_clock::time_point{})
+        return true;
+    return std::chrono::system_clock::now() < state_.expiresAt;
 }
 
 bool LauncherAccountService::NeedsRenewal(
