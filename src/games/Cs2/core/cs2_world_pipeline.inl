@@ -394,7 +394,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
     const bool needs_collision = (frame_config.esp_enabled &&
         (frame_config.visibility_colors || frame_config.visible_check)) ||
         (frame_config.aim_enabled &&
-        (frame_config.aim_visibility_check || frame_config.aim_visible_bones_only));
+        (frame_config.aim_visibility_check || frame_config.aim_visible_bones_only ||
+         frame_config.aim_auto_bone));
     g_collision_loader.Request(runtime.map_name, needs_collision, map_now_ms);
 
     const bool map_reports_match = IsPlayableMapName(runtime.map_name);
@@ -1279,7 +1280,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
     unifiedFlags.aim_enabled = frame_config.aim_enabled;
     unifiedFlags.trigger_enabled = frame_config.trigger_enabled;
     unifiedFlags.aim_visibility_check = frame_config.aim_visibility_check ||
-        frame_config.aim_visible_bones_only || frame_config.trigger_visibility_check;
+        frame_config.aim_visible_bones_only || frame_config.aim_auto_bone ||
+        frame_config.trigger_visibility_check;
     unifiedFlags.aim_prediction = frame_config.aim_prediction;
     unifiedFlags.aim_ignore_bots = frame_config.aim_ignore_bots;
     const auto fields = unifiedFlags.RequiredFields();
@@ -1369,7 +1371,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
     const bool need_weapon = OmniGhost::Gameplay::UnifiedESP::Has(
         fields, OmniGhost::Gameplay::UnifiedESP::DataField::Weapon);
     const bool need_spotted = (frame_config.aim_enabled &&
-        (frame_config.aim_visibility_check || frame_config.aim_visible_bones_only)) ||
+        (frame_config.aim_visibility_check || frame_config.aim_visible_bones_only ||
+         frame_config.aim_auto_bone)) ||
         (frame_config.trigger_enabled && frame_config.trigger_visibility_check);
     const bool need_weapon_services = need_weapon || need_spotted;
 

@@ -16,7 +16,7 @@ namespace CS2::VisibilityPipeline {
 
 struct Target {
     uintptr_t pawn = 0;
-    std::array<Trajectory::Vec3, 4> points{};
+    std::array<Trajectory::Vec3, 7> points{};
 };
 
 struct Result {

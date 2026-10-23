@@ -291,11 +291,11 @@ bool DeserializeAll(const std::string& data) {
                 cs.aim_fov_curve_distance[i] = std::max(cs.aim_fov_curve_distance[i],
                     cs.aim_fov_curve_distance[i - 1] + .1f);
         }
-        std::array<bool, 4> used{};
+        std::array<bool, 7> used{};
         for (int& bone : cs.aim_bone_priority) {
-            bone = std::clamp(bone, 0, 3);
+            bone = std::clamp(bone, 0, 6);
             if (used[bone]) {
-                for (int candidate = 0; candidate < 4; ++candidate)
+                for (int candidate = 0; candidate < 7; ++candidate)
                     if (!used[candidate]) { bone = candidate; break; }
             }
             used[bone] = true;

@@ -64,7 +64,8 @@ static void RunOptionalEnrichment(const Config& frame_config,
     unifiedFlags.aim_enabled = frame_config.aim_enabled;
     unifiedFlags.trigger_enabled = frame_config.trigger_enabled;
     unifiedFlags.aim_visibility_check = frame_config.aim_visibility_check ||
-        frame_config.aim_visible_bones_only || frame_config.trigger_visibility_check;
+        frame_config.aim_visible_bones_only || frame_config.aim_auto_bone ||
+        frame_config.trigger_visibility_check;
     unifiedFlags.aim_prediction = frame_config.aim_prediction;
     unifiedFlags.aim_ignore_bots = frame_config.aim_ignore_bots;
     const auto fields = unifiedFlags.RequiredFields();
@@ -573,8 +574,18 @@ static void RunOptionalEnrichment(const Config& frame_config,
                         break;
                     }
                 }
-                constexpr std::array<std::size_t, 4> kAimSlots = { 0u, 1u, 2u, 4u };
-                constexpr std::array<float, 4> kFallbackHeights = { 70.f, 55.f, 40.f, 22.f };
+                constexpr std::array<std::size_t, 7> kAimSlots = {
+                    static_cast<std::size_t>(BoneSlot::Head),
+                    static_cast<std::size_t>(BoneSlot::Neck),
+                    static_cast<std::size_t>(BoneSlot::SpineUpper),
+                    static_cast<std::size_t>(BoneSlot::SpineLower),
+                    static_cast<std::size_t>(BoneSlot::Pelvis),
+                    static_cast<std::size_t>(BoneSlot::KneeLeft),
+                    static_cast<std::size_t>(BoneSlot::KneeRight)
+                };
+                constexpr std::array<float, 7> kFallbackHeights = {
+                    70.f, 55.f, 46.f, 36.f, 28.f, 18.f, 18.f
+                };
                 for (std::size_t pointIndex = 0; pointIndex < vt.points.size(); ++pointIndex) {
                     const std::size_t slot = kAimSlots[pointIndex];
                     if (cachedPlayer && cachedPlayer->bones_ok && slot < kBoneSlotCount) {

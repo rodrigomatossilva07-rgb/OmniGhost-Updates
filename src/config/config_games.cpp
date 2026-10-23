@@ -112,7 +112,7 @@ void SerializeCS2(std::ostringstream& o) {
     WBool(o, "cs2.aim_auto_bone", c.aim_auto_bone);
     WBool(o, "cs2.aim_visibility_check", c.aim_visibility_check);
     WBool(o, "cs2.aim_visible_bones_only", c.aim_visible_bones_only);
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < 7; ++i) {
         const std::string key = std::string("cs2.aim_bone_priority.") + std::to_string(i);
         WInt(o, key.c_str(), c.aim_bone_priority[i]);
     }
@@ -325,7 +325,7 @@ bool DeserializeCS2(const std::string& key, const std::string& val) {
     if (bi("cs2.aim_auto_bone")) { c.aim_auto_bone = toB(); return true; }
     if (bi("cs2.aim_visibility_check")) { c.aim_visibility_check = toB(); return true; }
     if (bi("cs2.aim_visible_bones_only")) { c.aim_visible_bones_only = toB(); return true; }
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < 7; ++i) {
         if (key == std::string("cs2.aim_bone_priority.") + std::to_string(i)) { c.aim_bone_priority[i] = toI(); return true; }
     }
     if (bi("cs2.aim_rcs_standalone")) { c.aim_rcs_standalone = toB(); return true; }

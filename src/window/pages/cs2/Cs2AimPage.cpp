@@ -149,23 +149,25 @@ void DrawCs2Aim() {
 
 
         CyberWidgets::ToggleSwitch("Osso automatico", &CS2::config.aim_auto_bone);
-        static const char* kPoints[] = { "Head", "Neck", "Chest", "Stomach" };
+        static const char* kPoints[] = {
+            "Head", "Neck", "Chest", "Stomach", "Pelvis", "Left leg", "Right leg"
+        };
         int point = CS2::config.aim_bone;
         if (point < 0) point = 0;
-        if (point > 3) point = 3;
-        if (CyberWidgets::Combo("Aim Point", &point, kPoints, 4))
+        if (point > 6) point = 6;
+        if (CyberWidgets::Combo("Aim Point", &point, kPoints, 7))
             CS2::config.aim_bone = point;
 
         CyberWidgets::ToggleSwitch("Apenas bones visíveis", &CS2::config.aim_visible_bones_only);
         if (CS2::config.aim_visible_bones_only) {
             CyberWidgets::TextLine("Requer mapa de colisão carregado; dados desconhecidos são rejeitados.",
                                    CyberWidgets::TextTone::Secondary);
-            for (int priority = 0; priority < 4; ++priority) {
+            for (int priority = 0; priority < 7; ++priority) {
                 char label[32];
                 std::snprintf(label, sizeof(label), "Prioridade %d", priority + 1);
-                int selected = std::clamp(CS2::config.aim_bone_priority[priority], 0, 3);
-                if (CyberWidgets::Combo(label, &selected, kPoints, 4)) {
-                    for (int other = 0; other < 4; ++other) {
+                int selected = std::clamp(CS2::config.aim_bone_priority[priority], 0, 6);
+                if (CyberWidgets::Combo(label, &selected, kPoints, 7)) {
+                    for (int other = 0; other < 7; ++other) {
                         if (other != priority && CS2::config.aim_bone_priority[other] == selected)
                             std::swap(CS2::config.aim_bone_priority[other], CS2::config.aim_bone_priority[priority]);
                     }

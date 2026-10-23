@@ -117,7 +117,7 @@ struct Config : OmniGhost::Gameplay::EspConfigBase {
     bool aim_auto_bone = false;
     bool aim_visibility_check = false;
     bool aim_visible_bones_only = false;
-    int aim_bone_priority[4] = { 0, 1, 2, 3 };
+    int aim_bone_priority[7] = { 0, 1, 2, 3, 4, 5, 6 };
     bool aim_rcs_standalone = false;
     bool aim_rcs_auto = true;
     float aim_rcs_x = 1.f;

@@ -94,6 +94,9 @@ void PickBone(const CS2::Player& p, int bone, float out[3]) {
         case 1: selected = p.bones[1]; break;
         case 2: selected = p.bones[2]; break;
         case 3: selected = p.bones[4]; break;
+        case 4: selected = p.bones[static_cast<std::size_t>(CS2::BoneSlot::Pelvis)]; break;
+        case 5: selected = p.bones[static_cast<std::size_t>(CS2::BoneSlot::KneeLeft)]; break;
+        case 6: selected = p.bones[static_cast<std::size_t>(CS2::BoneSlot::KneeRight)]; break;
         default: selected = p.bones[0]; break;
         }
         out[0] = selected[0];
@@ -106,6 +109,8 @@ void PickBone(const CS2::Player& p, int bone, float out[3]) {
     case 1: height = 62.f; break;
     case 2: height = 46.f; break;
     case 3: height = 36.f; break;
+    case 4: height = 28.f; break;
+    case 5: case 6: height = 18.f; break;
     default: break;
     }
     out[0] = p.pos[0];
@@ -196,6 +201,9 @@ float WeaponThreat(int definition) noexcept {
     }
 }
 
+bool BoneVisibilityKnown(const CS2::Player& player, int bone) noexcept;
+bool BoneVisible(const CS2::Player& player, int bone) noexcept;
+
 int AutoSelectBone(const CS2::Player& p, int weapon_def, float distance_m, bool auto_bone_enabled, int fallback_bone) {
     if (!auto_bone_enabled) return fallback_bone;
 
@@ -212,11 +220,16 @@ int AutoSelectBone(const CS2::Player& p, int weapon_def, float distance_m, bool 
 
 
 
-    return preferred;
+    constexpr int kAllBones[] = { 0, 1, 2, 3, 4, 5, 6 };
+    if (BoneVisible(p, preferred)) return preferred;
+    for (const int bone : kAllBones) {
+        if (bone != preferred && BoneVisible(p, bone)) return bone;
+    }
+    return BoneVisibilityKnown(p, preferred) ? -1 : fallback_bone;
 }
 
 bool BoneVisibilityKnown(const CS2::Player& player, int bone) noexcept {
-    if (bone < 0 || bone > 3) return false;
+    if (bone < 0 || bone > 6) return false;
     return (player.bone_visibility_known_mask & static_cast<uint8_t>(1u << bone)) != 0;
 }
 
@@ -226,10 +239,10 @@ bool BoneVisible(const CS2::Player& player, int bone) noexcept {
 }
 
 int SelectAimBone(const CS2::Player& player, const CS2::Config& cfg, int weaponDefinition) {
-    const int fallback = std::clamp(cfg.aim_bone, 0, 3);
+    const int fallback = std::clamp(cfg.aim_bone, 0, 6);
     if (cfg.aim_visible_bones_only) {
         for (const int configured : cfg.aim_bone_priority) {
-            const int bone = std::clamp(configured, 0, 3);
+            const int bone = std::clamp(configured, 0, 6);
             if (BoneVisible(player, bone)) return bone;
         }
         return -1;
@@ -372,7 +385,7 @@ TargetCandidate SelectTarget(const CS2::Runtime& rt, const CS2::Config& cfg,
 
 
 
-        const int bone = SelectAimBone(player, cfg, rt.local_weapon_definition);
+        int bone = SelectAimBone(player, cfg, rt.local_weapon_definition);
         if (bone < 0) { ++g_target_diag.hidden; continue; }
 
         float point[3]{};
@@ -382,10 +395,34 @@ TargetCandidate SelectTarget(const CS2::Runtime& rt, const CS2::Config& cfg,
 
         float sx = 0.f, sy = 0.f;
         if (!W2S(point, cameraMatrix, sx, sy)) { ++g_target_diag.projection; continue; }
-        const float dx = sx - cx;
-        const float dy = sy - cy;
-        const float screen = std::sqrt(dx * dx + dy * dy);
-        if (screen > EffectiveFov(cfg, player.distance)) { ++g_target_diag.fov; continue; }
+        float dx = sx - cx;
+        float dy = sy - cy;
+        float screen = std::sqrt(dx * dx + dy * dy);
+        const float effectiveFov = EffectiveFov(cfg, player.distance);
+        if (screen > effectiveFov && cfg.aim_auto_bone) {
+            for (int alternative = 0; alternative < 7; ++alternative) {
+                if (alternative == bone || !BoneVisible(player, alternative)) continue;
+                float alternativePoint[3]{};
+                PickBone(player, alternative, alternativePoint);
+                ApplyRobustPrediction(alternativePoint, player, rt, cfg, now_ms);
+                float alternativeX = 0.f, alternativeY = 0.f;
+                if (!W2S(alternativePoint, cameraMatrix, alternativeX, alternativeY)) continue;
+                const float alternativeDx = alternativeX - cx;
+                const float alternativeDy = alternativeY - cy;
+                const float alternativeScreen = std::sqrt(
+                    alternativeDx * alternativeDx + alternativeDy * alternativeDy);
+                if (alternativeScreen > effectiveFov) continue;
+                bone = alternative;
+                std::memcpy(point, alternativePoint, sizeof(point));
+                sx = alternativeX;
+                sy = alternativeY;
+                dx = alternativeDx;
+                dy = alternativeDy;
+                screen = alternativeScreen;
+                break;
+            }
+        }
+        if (screen > effectiveFov) { ++g_target_diag.fov; continue; }
 
         ++g_target_diag.eligible;
 
@@ -782,7 +819,7 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
                 "lock %.1f,%.1f err=%.1f bone=%d smooth=%.0f hum=%.0f",
                 aim_output_x, aim_output_y,
                 std::sqrt(target.error_x * target.error_x + target.error_y * target.error_y),
-                std::clamp(cfg.aim_bone, 0, 3), cfg.aim_smooth, cfg.aim_humanization);
+                std::clamp(cfg.aim_bone, 0, 6), cfg.aim_smooth, cfg.aim_humanization);
     } else {
         g_active_target_idx = -1;
         g_aim_motion.Reset();
