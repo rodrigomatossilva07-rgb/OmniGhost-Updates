@@ -115,69 +115,6 @@ void PickBone(const CS2::Player& p, int bone, float out[3]) {
 
 
 
-float SmoothToStrength(float smooth) {
-    if (smooth <= 0.f) return 1.f;
-    if (smooth >= 100.f) return 0.f;
-    const float t = smooth * 0.01f;
-
-    return std::pow(1.f - t, 1.75f);
-}
-
-
-
-struct PaidAimController {
-    float phase = 0.f;
-    float phase2 = 0.f;
-    void Reset() { phase = phase2 = 0.f; }
-
-    void Step(float err_x, float err_y, float smooth, float humanization, float dt,
-              float deadzone, float& out_x, float& out_y) {
-        out_x = out_y = 0.f;
-        dt = std::clamp(dt, 1.e-4f, 0.05f);
-        const float err = std::sqrt(err_x * err_x + err_y * err_y);
-
-        if (err <= deadzone)
-            return;
-
-        const float strength = SmoothToStrength(smooth);
-        if (strength <= 1.e-6f)
-            return;
-
-
-
-        float frac;
-        if (strength >= 0.999f) {
-            frac = 1.f;
-        } else {
-            const float rate = 4.f + strength * 22.f;
-            frac = 1.f - std::exp(-rate * dt * strength);
-        }
-
-        float mx = err_x * frac;
-        float my = err_y * frac;
-
-
-
-        const float h = std::clamp(humanization, 0.f, 100.f) * 0.01f;
-        if (h > 0.001f) {
-            phase  += dt * (0.85f + 1.4f * h);
-            phase2 += dt * (0.55f + 0.9f * h);
-            const float speedVar = 1.f + 0.10f * h * std::sin(phase);
-            const float curve    = 0.06f * h * std::sin(phase2);
-            const float rx = mx * speedVar - my * curve;
-            const float ry = my * speedVar + mx * curve;
-            const float over = 0.025f * h * std::sin(phase * 0.37f);
-            mx = rx * (1.f + over);
-            my = ry * (1.f + over);
-        }
-
-        out_x = mx;
-        out_y = my;
-    }
-};
-
-static PaidAimController g_paid_aim;
-
 void MoveMouse(float dx, float dy) {
 
 
@@ -712,7 +649,7 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
         AimKeyDown(CS2::Config{});
         g_active_target_idx = -1;
         g_target_pawn = 0;
-        g_paid_aim.Reset();
+        g_aim_motion.Reset();
         g_output_residual_x = g_output_residual_y = 0.f;
         g_shots_fired = 0;
         g_last_shots_fired = 0;
@@ -723,7 +660,7 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
         AimKeyDown(cfg);
         g_active_target_idx = -1;
         g_target_pawn = 0;
-        g_paid_aim.Reset();
+        g_aim_motion.Reset();
         g_output_residual_x = g_output_residual_y = 0.f;
         std::snprintf(g_debug, sizeof(g_debug), "aim/trig OFF");
         return;
@@ -738,7 +675,7 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
         g_active_target_idx = -1;
         g_last_target_idx = -1;
         g_target_pawn = 0;
-        g_paid_aim.Reset();
+        g_aim_motion.Reset();
         g_output_residual_x = g_output_residual_y = 0.f;
         std::snprintf(g_debug, sizeof(g_debug), "aim bloqueado: utilitario (%d)", local_weapon_definition);
         return;
@@ -781,7 +718,7 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
         g_active_target_idx = -1;
         g_last_target_idx = -1;
         g_target_pawn = 0;
-        g_paid_aim.Reset();
+        g_aim_motion.Reset();
         g_output_residual_x = g_output_residual_y = 0.f;
         std::snprintf(g_debug, sizeof(g_debug), "aim: aguarda tecla");
     } else if (target.index >= 0) {
@@ -829,39 +766,26 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
             g_target_pawn = target.pawn;
             g_target_acquired = now;
             g_last_switch = now;
-            g_paid_aim.Reset();
+            g_aim_motion.Reset();
         }
         g_active_target_idx = target.index;
         g_last_target_idx = target.index;
-
-
-
-
-
-        const int boneFixed = std::clamp(cfg.aim_bone, 0, 3);
-        (void)boneFixed;
-        const float dt = ImGui::GetIO().DeltaTime;
-        const float deadzone = (std::max)(1.0f, cfg.aim_deadzone > 0.f ? cfg.aim_deadzone : 1.5f);
-        float mx = 0.f, my = 0.f;
-        g_paid_aim.Step(target.error_x, target.error_y,
-                        cfg.aim_smooth,
-                        cfg.aim_humanization,
-                        dt,
-                        deadzone,
-                        mx, my);
-        aim_output_x = mx;
-        aim_output_y = my;
-        if (std::fabs(mx) < 0.01f && std::fabs(my) < 0.01f)
+        g_aim_motion.SetTarget(static_cast<std::uint64_t>(target.pawn));
+        const auto motion = g_aim_motion.Step(
+            target.error_x, target.error_y, BuildMotionSettings(cfg, target.distance_m));
+        aim_output_x = static_cast<float>(motion.x);
+        aim_output_y = static_cast<float>(motion.y);
+        if (!motion)
             std::snprintf(g_debug, sizeof(g_debug), "aim: on target (deadzone/smooth100)");
         else
             std::snprintf(g_debug, sizeof(g_debug),
                 "lock %.1f,%.1f err=%.1f bone=%d smooth=%.0f hum=%.0f",
-                mx, my,
+                aim_output_x, aim_output_y,
                 std::sqrt(target.error_x * target.error_x + target.error_y * target.error_y),
                 std::clamp(cfg.aim_bone, 0, 3), cfg.aim_smooth, cfg.aim_humanization);
     } else {
         g_active_target_idx = -1;
-        g_paid_aim.Reset();
+        g_aim_motion.Reset();
         if (g_target_diag.hidden)
             std::snprintf(g_debug, sizeof(g_debug), "sem alvo: filt_vis=%d fov=%d", g_target_diag.hidden, g_target_diag.fov);
         else if (g_target_diag.fov)
@@ -880,7 +804,9 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
 
 
 
-    if (cfg.aim_rcs_standalone || (cfg.aim_enabled && cfg.aim_rcs_auto && aim_key_down)) {
+    const bool activeAimLock = aim_key_down && target.index >= 0;
+    if (cfg.aim_rcs_standalone ||
+        (cfg.aim_enabled && cfg.aim_rcs_auto && aim_key_down && !activeAimLock)) {
         const auto [rcs_x, rcs_y] = CalculateRCS(rt, cfg, local_weapon_definition);
         aim_output_x += rcs_x;
         aim_output_y += rcs_y;
@@ -913,7 +839,7 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
                             if (cfg.trigger_team_check &&
                                 (rt.local_team < 2 || p.team == rt.local_team)) continue;
                             if (!p.alive || p.health <= 0) continue;
-                            if (cfg.aim_visibility_check && !p.spotted) continue;
+                            if (cfg.trigger_visibility_check && !p.spotted) continue;
                             if (p.ent_index == idEnt || p.ent_index == (idEnt & 0x7FFF)) {
                                 if (cfg.trigger_head_only) {
 
@@ -948,7 +874,7 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
                         if (cfg.trigger_team_check &&
                             (rt.local_team < 2 || p.team == rt.local_team)) continue;
                         if (!p.alive || p.health <= 0) continue;
-                        if (cfg.aim_visibility_check && !p.spotted) continue;
+                        if (cfg.trigger_visibility_check && !p.spotted) continue;
                         auto testPoint = [&](const float* w) {
                             float sx = 0.f, sy = 0.f;
                             if (!W2S(w, updateViewMatrix, sx, sy)) return false;

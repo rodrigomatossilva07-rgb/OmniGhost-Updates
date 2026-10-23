@@ -223,6 +223,7 @@ void DrawCs2Aim() {
         CyberWidgets::ToggleSwitch(Loc::Tr("aim.trigger_always"), &CS2::config.trigger_always_on);
         CyberWidgets::ToggleSwitch(Loc::Tr("aim.trigger_head"), &CS2::config.trigger_head_only);
         CyberWidgets::ToggleSwitch(Loc::Tr("vis.team_check"), &CS2::config.trigger_team_check);
+        CyberWidgets::ToggleSwitch(Loc::Tr("vis.visible_check"), &CS2::config.trigger_visibility_check);
         float delay_ms = static_cast<float>(CS2::config.trigger_delay_ms);
         if (CyberWidgets::SliderFloat(Loc::Tr("aim.trigger_reaction"), &delay_ms, 0.f, 500.f, "%.0f ms"))
             CS2::config.trigger_delay_ms = static_cast<int>(delay_ms);

@@ -320,6 +320,12 @@ void DrawExtras(ImDrawList* draw, const CS2::Player& player, const ImVec2& head,
                 uint64_t sessionGeneration) {
     const float height = max.y - min.y;
     const float scale = std::clamp(height / 180.f, .45f, 2.2f);
+    const auto visibilityColor = [&](const float configured[4]) {
+        if (settings.rgb_mode) return rgb;
+        if (settings.visibility_colors && settings.visible_check && player.visibility_known)
+            return Color(player.visible ? settings.col_visible : settings.col_occluded);
+        return Color(configured);
+    };
 
     const ImVec2 displaySize = ImGui::GetIO().DisplaySize;
     if (settings.snaplines) {
@@ -328,7 +334,7 @@ void DrawExtras(ImDrawList* draw, const CS2::Player& player, const ImVec2& head,
                       EffectColor(settings, settings.col_snaplines, rgb), std::clamp(settings.snapline_thickness, .5f, 5.f));
     }
     if (settings.head_dot)
-        draw->AddCircle(head, std::clamp(height * .028f, 2.5f, 11.f), EffectColor(settings, settings.col_head, rgb), 20,
+        draw->AddCircle(head, std::clamp(height * .028f, 2.5f, 11.f), visibilityColor(settings.col_head), 20,
                         std::clamp(settings.head_circle_thickness, .5f, 5.f));
     if (settings.head_halo) {
         ImVec2 halo[17]{};
@@ -958,8 +964,34 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
             predictedPosition[0], predictedPosition[1], predictedPosition[2] + headHeight.units
         };
         ImVec2 boxHead{};
-        if (!WorldSegmentToScreenClipped(headWorld, predictedPosition, viewMatrix, boxHead, feet))
-            continue;
+        if (!WorldSegmentToScreenClipped(headWorld, predictedPosition, viewMatrix, boxHead, feet)) {
+            // At point-blank range the camera can sit inside the player's vertical
+            // segment, putting both synthetic endpoints behind the near plane even
+            // though part of the model is still visible. Recover bounds from every
+            // currently projectable bone instead of dropping the whole ESP entry.
+            float left = FLT_MAX, right = -FLT_MAX, top = FLT_MAX, bottom = -FLT_MAX;
+            std::size_t projectedBones = 0;
+            if (bonesFresh && player.full_bones_ok) {
+                for (std::size_t bone = 0; bone < CS2::kBoneSlotCount; ++bone) {
+                    const float boneWorld[3] = {
+                        player.bones[bone][0] + boneOffset[0],
+                        player.bones[bone][1] + boneOffset[1],
+                        player.bones[bone][2] + boneOffset[2]
+                    };
+                    ImVec2 point{};
+                    if (!WorldToScreen(boneWorld, viewMatrix, point)) continue;
+                    left = (std::min)(left, point.x);
+                    right = (std::max)(right, point.x);
+                    top = (std::min)(top, point.y);
+                    bottom = (std::max)(bottom, point.y);
+                    ++projectedBones;
+                }
+            }
+            if (projectedBones < 2 || bottom - top < 8.f) continue;
+            const float centerX = (left + right) * .5f;
+            boxHead = ImVec2(centerX, top);
+            feet = ImVec2(centerX, bottom);
+        }
         head = boxHead;
         if (bonesFresh && headPlausible) {
             const float actualHead[3] = {

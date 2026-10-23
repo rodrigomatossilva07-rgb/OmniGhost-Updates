@@ -1278,7 +1278,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
     unifiedFlags.webradar_enabled = frame_config.webradar_enabled;
     unifiedFlags.aim_enabled = frame_config.aim_enabled;
     unifiedFlags.trigger_enabled = frame_config.trigger_enabled;
-    unifiedFlags.aim_visibility_check = frame_config.aim_visibility_check || frame_config.aim_visible_bones_only;
+    unifiedFlags.aim_visibility_check = frame_config.aim_visibility_check ||
+        frame_config.aim_visible_bones_only || frame_config.trigger_visibility_check;
     unifiedFlags.aim_prediction = frame_config.aim_prediction;
     unifiedFlags.aim_ignore_bots = frame_config.aim_ignore_bots;
     const auto fields = unifiedFlags.RequiredFields();
@@ -1369,7 +1370,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
         fields, OmniGhost::Gameplay::UnifiedESP::DataField::Weapon);
     const bool need_spotted = (frame_config.aim_enabled &&
         (frame_config.aim_visibility_check || frame_config.aim_visible_bones_only)) ||
-        (frame_config.trigger_enabled && frame_config.aim_visibility_check);
+        (frame_config.trigger_enabled && frame_config.trigger_visibility_check);
     const bool need_weapon_services = need_weapon || need_spotted;
 
 

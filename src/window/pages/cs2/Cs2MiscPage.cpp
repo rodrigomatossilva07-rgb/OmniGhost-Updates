@@ -16,15 +16,6 @@ void DrawCs2Misc()
     TextLine("Widgets e informacao util durante a partida.", TextTone::Secondary);
     ToggleSwitch(Loc::Tr("cs2.misc.spectators"), &CS2::config.spectator_list);
     ToggleSwitch(Loc::Tr("cs2.misc.bomb_timer"), &CS2::config.bomb_timer);
-    ToggleSwitch("Armas largadas", &CS2::config.dropped_weapons);
-    if (CS2::config.dropped_weapons) {
-        ToggleSwitch("Pistolas", &CS2::config.dropped_weapon_pistols);
-        ToggleSwitch("SMGs", &CS2::config.dropped_weapon_smgs);
-        ToggleSwitch("Rifles", &CS2::config.dropped_weapon_rifles);
-        ToggleSwitch("Pesadas", &CS2::config.dropped_weapon_heavy);
-        ToggleSwitch("Icone", &CS2::config.dropped_weapon_icons);
-        ToggleSwitch("Municao", &CS2::config.dropped_weapon_ammo);
-    }
     Separator();
     if (CS2::config.bomb_timer) {
         TextLine("Com o menu aberto, arrasta as janelas de bomba e espectadores para guardar a posicao.", TextTone::Secondary);

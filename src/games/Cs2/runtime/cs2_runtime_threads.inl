@@ -189,8 +189,10 @@ void EnsureAcquisitionStarted() {
                 mem.SetDmaLane("full");
                 mem.SetDmaCallTag("CS2.Acquire");
                 auto frame_config = RuntimePipeline::AcquireConfig();
+                Config effective_config = *frame_config;
+                effective_config.dropped_weapons = false;
                 g_publish_runtime_this_scan = true;
-                RunFrameWithConfig(*frame_config);
+                RunFrameWithConfig(effective_config);
                 runtime.acquisition_ms = OmniGhost::Gameplay::TimeMs(acquire_begin);
                 if (g_publish_runtime_this_scan) {
                     ScopedPhase _phPub(&g_phase.publish_ms);

@@ -203,6 +203,7 @@ public:
     bool aim_enabled = false;
     bool trigger_enabled = false;
     bool aim_visibility_check = false;
+    bool trigger_visibility_check = false;
     bool trigger_head_only = false;
     bool trigger_scoped_only = false;
     bool aim_prediction = false;
@@ -250,7 +251,8 @@ public:
         f.hit_marker = false; f.look_direction = look_direction;
         f.radar_2d = radar_2d; f.webradar_enabled = webradar_enabled;
         f.aim_enabled = aim_enabled; f.trigger_enabled = trigger_enabled;
-        f.aim_visibility_check = aim_visibility_check; f.trigger_head_only = trigger_head_only;
+        f.aim_visibility_check = aim_visibility_check || trigger_visibility_check;
+        f.trigger_head_only = trigger_head_only;
         f.trigger_scoped_only = trigger_scoped_only; f.aim_prediction = aim_prediction;
         f.visible_check = visible_check; f.visibility_colors = visibility_colors; f.team_check = team_check;
         f.show_bots = show_bots; f.bomb_timer = bomb_timer; f.spectator_list = spectator_list;
@@ -352,6 +354,7 @@ public:
         Register("aim_enabled", &aim_enabled, "aim", "Aimbot enabled");
         Register("trigger_enabled", &trigger_enabled, "aim", "Triggerbot");
         Register("aim_visibility_check", &aim_visibility_check, "aim", "Aim visibility check");
+        Register("trigger_visibility_check", &trigger_visibility_check, "aim", "Trigger visibility check");
         Register("trigger_head_only", &trigger_head_only, "aim", "Trigger head only");
         Register("trigger_scoped_only", &trigger_scoped_only, "aim", "Trigger scoped only");
         Register("aim_prediction", &aim_prediction, "aim", "Aim prediction");

@@ -130,6 +130,7 @@ struct Config : OmniGhost::Gameplay::EspConfigBase {
     int trigger_bind = 0x12;
     int trigger_delay_ms = 30;
     bool trigger_team_check = true;
+    bool trigger_visibility_check = false;
     bool trigger_scoped_only = false;
     bool trigger_head_only = false;
     bool trigger_use_ident = true;

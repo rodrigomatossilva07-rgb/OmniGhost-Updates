@@ -125,6 +125,7 @@ void SerializeCS2(std::ostringstream& o) {
     WInt(o, "cs2.trigger_bind", c.trigger_bind);
     WInt(o, "cs2.trigger_delay_ms", c.trigger_delay_ms);
     WBool(o, "cs2.trigger_team_check", c.trigger_team_check);
+    WBool(o, "cs2.trigger_visibility_check", c.trigger_visibility_check);
     WBool(o, "cs2.trigger_head_only", c.trigger_head_only);
     WBool(o, "cs2.trigger_scoped_only", c.trigger_scoped_only);
     WBool(o, "cs2.trigger_use_ident", c.trigger_use_ident);
@@ -336,6 +337,7 @@ bool DeserializeCS2(const std::string& key, const std::string& val) {
     if (bi("cs2.trigger_bind")) { c.trigger_bind = toI(); return true; }
     if (bi("cs2.trigger_delay_ms")) { c.trigger_delay_ms = toI(); return true; }
     if (bi("cs2.trigger_team_check")) { c.trigger_team_check = toB(); return true; }
+    if (bi("cs2.trigger_visibility_check")) { c.trigger_visibility_check = toB(); return true; }
     if (bi("cs2.trigger_head_only")) { c.trigger_head_only = toB(); return true; }
     if (bi("cs2.trigger_scoped_only")) { c.trigger_scoped_only = toB(); return true; }
     if (bi("cs2.trigger_use_ident")) { c.trigger_use_ident = toB(); return true; }
@@ -353,7 +355,9 @@ bool DeserializeCS2(const std::string& key, const std::string& val) {
     if (bi("cs2.flag_kit")) { c.flag_kit = toB(); return true; }
     if (bi("cs2.flag_money")) { c.flag_money = toB(); return true; }
     if (bi("cs2.weapon_ammo")) { c.weapon_ammo = toB(); return true; }
-    if (bi("cs2.dropped_weapons")) { c.dropped_weapons = toB(); return true; }
+    // Legacy configurations may still contain this removed feature. Consume the
+    // key without re-enabling its DMA collection or renderer.
+    if (bi("cs2.dropped_weapons")) { c.dropped_weapons = false; return true; }
     if (bi("cs2.dropped_weapon_pistols")) { c.dropped_weapon_pistols = toB(); return true; }
     if (bi("cs2.dropped_weapon_smgs")) { c.dropped_weapon_smgs = toB(); return true; }
     if (bi("cs2.dropped_weapon_rifles")) { c.dropped_weapon_rifles = toB(); return true; }
