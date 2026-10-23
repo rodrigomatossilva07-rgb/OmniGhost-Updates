@@ -62,18 +62,13 @@ bool ReinitDma() {
 }
 
 void Shutdown() {
-    config.webradar_enabled = false;
-    config.webradar_cloudflare = false;
-    SubmitAcquisitionConfig(config);
     std::clog << "[CS2][Shutdown] acquisition begin\n";
     StopAcquisition();
     std::clog << "[CS2][Shutdown] acquisition complete; visibility begin\n";
     g_visibility_worker.Stop();
     std::clog << "[CS2][Shutdown] visibility complete; collision begin\n";
     g_collision_loader.Stop();
-    std::clog << "[CS2][Shutdown] collision complete; radar begin\n";
-    WebRadar::Stop();
-    std::clog << "[CS2][Shutdown] radar complete; scatter begin\n";
+    std::clog << "[CS2][Shutdown] collision complete; scatter begin\n";
     DestroyScatter();
     ResetSessionState("shutdown");
     g_pending_entity_list = 0;

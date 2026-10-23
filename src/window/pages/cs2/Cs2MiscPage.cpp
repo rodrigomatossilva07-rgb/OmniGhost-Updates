@@ -37,7 +37,7 @@ void DrawCs2Misc()
         char blob[384];
         std::snprintf(blob, sizeof(blob),
             "radar=%d\naim=%d\ntrigger=%d\nbomb=%d\nspectators=%d\nperf_mode=%d",
-            (CS2::config.radar_2d || CS2::config.webradar_enabled) ? 1 : 0,
+            CS2::config.radar_2d ? 1 : 0,
             CS2::config.aim_enabled ? 1 : 0,
             CS2::config.trigger_enabled ? 1 : 0,
             CS2::config.bomb_timer ? 1 : 0,

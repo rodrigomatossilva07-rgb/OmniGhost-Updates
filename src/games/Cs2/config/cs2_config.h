@@ -61,9 +61,6 @@ struct Config : OmniGhost::Gameplay::EspConfigBase {
     float layout_distance_x = .50f, layout_distance_y = .94f;
     float layout_ammo_x = .50f, layout_ammo_y = .78f;
     bool radar_2d = false;
-    bool webradar_enabled = false;
-    int webradar_port = 8080;
-    bool webradar_cloudflare = false;
     float radar_2d_x = 18.f;
     float radar_2d_y = 18.f;
     float radar_2d_size = 160.f;

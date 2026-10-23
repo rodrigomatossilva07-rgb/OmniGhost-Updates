@@ -78,7 +78,6 @@ struct FeatureFlags {
     bool spectator_list = false;
     bool dropped_weapons = false;
     bool radar_2d = false;
-    bool webradar_enabled = false;
     bool aim_enabled = false;
     bool trigger_enabled = false;
     bool aim_visibility_check = false;
@@ -104,7 +103,7 @@ struct FeatureFlags {
             hit_marker || look_direction || radar_enabled || triangle_radar ||
             blip_esp || waypoint_line || square_radar || self_esp || show_dead ||
             show_knocked || npc_esp || bomb_timer || spectator_list || dropped_weapons ||
-            radar_2d || webradar_enabled || aim_enabled || trigger_enabled || radar_enabled)
+            radar_2d || aim_enabled || trigger_enabled || radar_enabled)
             fields |= DataField::Position;
 
 
@@ -121,7 +120,7 @@ struct FeatureFlags {
 
 
         if (name || player_name || player_id || npc_esp || show_bots ||
-            bomb_timer || spectator_list || webradar_enabled || radar_2d ||
+            bomb_timer || spectator_list || radar_2d ||
             (aim_enabled && aim_ignore_bots))
             fields |= DataField::Name;
 
@@ -142,7 +141,7 @@ struct FeatureFlags {
             fields |= DataField::Facing;
 
 
-        if (team_check || visibility_colors || radar_2d || webradar_enabled || aim_enabled)
+        if (team_check || visibility_colors || radar_2d || aim_enabled)
             fields |= DataField::Team;
 
 

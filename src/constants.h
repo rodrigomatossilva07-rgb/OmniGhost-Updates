@@ -178,8 +178,6 @@ inline constexpr int kScatterTimeoutMs = 5000;
 
 
 inline constexpr int kUpdaterCheckIntervalHours = 24;
-inline constexpr int kCloudflareStartTimeoutMs = 5000;
-inline constexpr int kWebRadarPort = 8080;
 
 
 

@@ -60,7 +60,6 @@ static void RunOptionalEnrichment(const Config& frame_config,
     unifiedFlags.bomb_timer = frame_config.bomb_timer;
     unifiedFlags.spectator_list = frame_config.spectator_list;
     unifiedFlags.dropped_weapons = frame_config.dropped_weapons;
-    unifiedFlags.webradar_enabled = frame_config.webradar_enabled;
     unifiedFlags.aim_enabled = frame_config.aim_enabled;
     unifiedFlags.trigger_enabled = frame_config.trigger_enabled;
     unifiedFlags.aim_visibility_check = frame_config.aim_visibility_check ||

@@ -53,7 +53,7 @@ VisualPreviewState CurrentVisualState() {
     VisualPreviewState value{};
     switch (g_activeGame) {
     case ActiveGame::CS2:
-        value.radar = CS2::config.radar_2d || CS2::config.webradar_enabled;
+        value.radar = CS2::config.radar_2d;
         break;
     case ActiveGame::Warzone:
         value.enabled = Warzone::config.esp_enabled;

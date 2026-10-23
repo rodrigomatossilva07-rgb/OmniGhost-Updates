@@ -623,7 +623,7 @@ void LogSpikeBreakdown(std::string_view tag, const SpikeBreakdown& b) noexcept {
     if (s_last.time_since_epoch().count() != 0 && now - s_last < minGap)
         return;
     s_last = now;
-    const float accounted = b.webradar_ms + b.entity_ms + b.local_ms + b.core_scatter_ms
+    const float accounted = b.entity_ms + b.local_ms + b.core_scatter_ms
         + b.positions_ms + b.bones_ms + b.weapon_ms + b.ammo_ms + b.flags_ms
         + b.visibility_ms + b.spectator_ms + b.bomb_ms
         + b.publish_ms + b.cleanup_ms;
@@ -633,7 +633,7 @@ void LogSpikeBreakdown(std::string_view tag, const SpikeBreakdown& b) noexcept {
         "SPIKE_BREAKDOWN\n"
         "scan_id=%llu\n"
         "total_ms=%.2f\n"
-        "webradar_ms=%.2f\nentity_ms=%.2f\nlocal_ms=%.2f\n"
+        "entity_ms=%.2f\nlocal_ms=%.2f\n"
         "core_scatter_ms=%.2f\npositions_ms=%.2f\nbones_ms=%.2f\n"
         "weapon_ms=%.2f\nammo_ms=%.2f\nflags_ms=%.2f\nvisibility_ms=%.2f\nspectator_ms=%.2f\nbomb_ms=%.2f\n"
         "publish_ms=%.2f\ncleanup_ms=%.2f\nother_ms=%.2f\nlock_wait_ms=%.2f\n"
@@ -644,7 +644,7 @@ void LogSpikeBreakdown(std::string_view tag, const SpikeBreakdown& b) noexcept {
         "players=%d\nbones_players=%d\nvisibility_players_tested=%d\nvisibility_rays=%d\n"
         "entity_full_probe=%d\nspectator_refresh=%d\nbomb_refresh=%d\ncache_cleanup=%d",
         static_cast<unsigned long long>(b.scan_id),
-        b.total_ms, b.webradar_ms, b.entity_ms, b.local_ms,
+        b.total_ms, b.entity_ms, b.local_ms,
         b.core_scatter_ms, b.positions_ms, b.bones_ms,
         b.weapon_ms, b.ammo_ms, b.flags_ms, b.visibility_ms, b.spectator_ms, b.bomb_ms,
         b.publish_ms, b.cleanup_ms, b.other_ms, b.lock_wait_ms, unaccounted,

@@ -91,7 +91,7 @@
     <OmniGhostRootResource Include="$(ProjectDir)resources\OmniGhost.ico;$(ProjectDir)resources\OmniGhost.png"/>
     <OmniGhostGameResource Include="$(ProjectDir)resources\games\**\*.png;$(ProjectDir)resources\games\**\*.jpg;$(ProjectDir)resources\games\**\*.jpeg;$(ProjectDir)resources\games\**\*.webp"/>
     <OmniGhostProjectData Include="$(ProjectDir)data\**\*" Exclude="$(ProjectDir)data\*offsets.json;$(ProjectDir)data\offsets.json;$(ProjectDir)data\fortnite_offsets\**\*;$(ProjectDir)data\**\*offsets*.json"/>
-    <OmniGhostCs2Data Include="$(ProjectDir)src\games\Cs2\data\weapons\**\*;$(ProjectDir)src\games\Cs2\data\webradar\**\*" Exclude="$(ProjectDir)src\games\Cs2\data\offsets.json"/>
+    <OmniGhostCs2Data Include="$(ProjectDir)src\games\Cs2\data\weapons\**\*" Exclude="$(ProjectDir)src\games\Cs2\data\offsets.json"/>
   </ItemGroup>
   <Target Name="BuildOmniGhostEmbeddedOffsets" BeforeTargets="ResourceCompile" Condition="'$(DesignTimeBuild)'!='true'">
     <Message Importance="High" Text="[OmniGhost Offsets] Generating embedded offset resources..."/>
@@ -414,7 +414,6 @@
     <ClCompile Include="src\games\Cs2\visibility\cs2_visibility_worker.cpp"/>
     <ClCompile Include="src\games\Cs2\trajectory\cs2_collision_mesh.cpp"/>
     <ClCompile Include="src\games\Cs2\trajectory\cs2_map_collision_cache.cpp"/>
-    <ClCompile Include="src\games\Cs2\radar\cs2_radar.cpp"/>
     <ClCompile Include="src\games\Cs2\config\cs2_config_io.cpp"/>
     <ClCompile Include="src\games\Cs2\weapons\cs2_weapon_icons.cpp"/>
     <ClCompile Include="src\games\Warzone\warzone_game.cpp"/>

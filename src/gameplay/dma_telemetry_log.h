@@ -213,7 +213,6 @@ void RefreshFromMemory() noexcept;
 struct SpikeBreakdown {
     uint64_t scan_id = 0;
     float total_ms = 0.f;
-    float webradar_ms = 0.f;
     float entity_ms = 0.f;
     float local_ms = 0.f;
     float core_scatter_ms = 0.f;

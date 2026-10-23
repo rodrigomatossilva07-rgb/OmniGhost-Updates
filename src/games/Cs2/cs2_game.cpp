@@ -1,5 +1,4 @@
 #include "cs2_game.h"
-#include "radar/cs2_radar.h"
 #include "platform/session_log.h"
 #include "../src/platform/offset_auto.h"
 #include "../src/platform/app_paths.h"
@@ -372,7 +371,6 @@ uint64_t g_process_liveness_next_probe_ms = 0;
 std::atomic_bool g_process_liveness_last_result{true};
 std::thread g_acquisition_thread;
 std::thread g_camera_thread;
-std::thread g_web_radar_control_thread;
 
 
 std::thread g_optional_thread;
@@ -384,10 +382,6 @@ bool g_optional_in_match = false;
 bool g_optional_dropped_only = false;
 uintptr_t g_optional_client_base = 0;
 
-std::atomic_bool g_web_radar_control_stop{false};
-std::atomic_bool g_web_radar_desired_enabled{false};
-std::atomic_bool g_web_radar_desired_cloudflare{false};
-std::atomic<int> g_web_radar_desired_port{8080};
 OmniGhost::Gameplay::PipelineTelemetry g_pipeline_metrics;
 
 OmniGhost::Gameplay::SnapshotExchange<OptionalResults, 3> g_optional_results;
@@ -631,7 +625,6 @@ bool NeedsPlayerScan(const Config& frame_config) {
     return HasEnabledPlayerVisuals(frame_config)
         || frame_config.aim_enabled
         || frame_config.trigger_enabled
-        || frame_config.webradar_enabled
         || frame_config.spectator_list
         || frame_config.bomb_timer
         || frame_config.hotkey_overlay;

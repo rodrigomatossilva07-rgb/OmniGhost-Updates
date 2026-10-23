@@ -2,38 +2,13 @@
 #include "../../theme.h"
 #include "config/cs2_config.h"
 #include "cs2_game.h"
-#include "radar/cs2_radar.h"
 #include "platform/offset_auto.h"
 #include "Memory/Memory.h"
 #include "globals.h"
 #include "imgui.h"
-#include <Windows.h>
-#include <shellapi.h>
 #include <algorithm>
 #include <cstdio>
 #include <cmath>
-#include <string>
-
-namespace {
-
-void CopyToClipboard(const std::string& text) {
-
-
-
-    if (!OpenClipboard(nullptr)) return;
-    EmptyClipboard();
-    HGLOBAL clipboardMemory = GlobalAlloc(GMEM_MOVEABLE, text.size() + 1);
-    if (!clipboardMemory) { CloseClipboard(); return; }
-    void* locked = GlobalLock(clipboardMemory);
-    if (!locked) { GlobalFree(clipboardMemory); CloseClipboard(); return; }
-    memcpy(locked, text.c_str(), text.size() + 1);
-    GlobalUnlock(clipboardMemory);
-    if (!SetClipboardData(CF_TEXT, clipboardMemory))
-        GlobalFree(clipboardMemory);
-    CloseClipboard();
-}
-
-}
 
 void DrawCs2Radar() {
     const float full = CyberWidgets::CardContentWidth();
@@ -44,62 +19,13 @@ void DrawCs2Radar() {
     ImGui::BeginGroup();
 
 
-    CyberWidgets::BeginCard("WEB RADAR", left);
+    CyberWidgets::BeginCard("RADAR 2D", left);
     CyberWidgets::ToggleSwitch("Ativar Radar 2D", &CS2::config.radar_2d);
     if (CS2::config.radar_2d) {
         CyberWidgets::SliderFloat("Tamanho do Radar 2D", &CS2::config.radar_2d_size, 110.f, 360.f, "%.0f px");
         CyberWidgets::TextLine("Com o menu aberto, arrasta o radar para qualquer posição.", CyberWidgets::TextTone::Secondary);
-        CyberWidgets::Separator();
-    }
-    CyberWidgets::ToggleSwitch("Ativar Web Radar", &CS2::config.webradar_enabled);
-
-    if (CS2::config.webradar_enabled) {
-        int port = CS2::config.webradar_port;
-        ImGui::SetNextItemWidth((std::min)(left * 0.50f, 260.f));
-        if (ImGui::SliderInt("Porta", &port, 1024, 65535)) {
-            CS2::config.webradar_port = port;
-        }
-
-        const bool online = CS2::WebRadar::IsRunning();
-        CyberWidgets::Badge(online ? "ONLINE" : "OFFLINE",
-            online ? CyberWidgets::TextTone::Success : CyberWidgets::TextTone::Warning);
-
-        CyberWidgets::SectionTitle("LINK PUBLICO (CLOUDFLARE)");
-        bool cf = CS2::config.webradar_cloudflare;
-        if (CyberWidgets::ToggleSwitch("Ativar túnel Cloudflare", &cf)) {
-            CS2::config.webradar_cloudflare = cf;
-        }
-        const std::string pub = CS2::WebRadar::PublicUrl();
-        if (!pub.empty()) {
-            CyberWidgets::TextLine(pub.c_str(), CyberWidgets::TextTone::Secondary);
-            if (CyberWidgets::Button("Copiar link publico", CyberWidgets::ButtonStyle::Secondary, ImVec2(190.f, 32.f))) {
-                CopyToClipboard(pub);
-                CyberWidgets::Notify("Link publico copiado", CyberWidgets::ToastType::Success);
-            }
-            ImGui::SameLine();
-            if (CyberWidgets::Button("Abrir publico", CyberWidgets::ButtonStyle::Ghost, ImVec2(130.f, 32.f))) {
-                ShellExecuteA(nullptr, "open", pub.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
-            }
-        } else if (CS2::config.webradar_cloudflare) {
-            const std::string tunnelStatus = CS2::WebRadar::CloudflareStatus();
-            const bool actionableError =
-                tunnelStatus.find("não foi possível") != std::string::npos ||
-                tunnelStatus.find("não foi encontrado") != std::string::npos ||
-                tunnelStatus.find("terminou antes") != std::string::npos ||
-                tunnelStatus.find("não conseguiu") != std::string::npos;
-            CyberWidgets::TextLine(
-                actionableError ? tunnelStatus.c_str() : "A criar o link público seguro...",
-                actionableError ? CyberWidgets::TextTone::Warning : CyberWidgets::TextTone::Secondary);
-        } else {
-            CyberWidgets::TextLine("Ativa o tunel para obter um link https publico.",
-                                   CyberWidgets::TextTone::Secondary);
-        }
-
-        CyberWidgets::Separator();
-        CyberWidgets::TextLine("O link público aparece apenas depois de o túnel ficar ligado.",
-                               CyberWidgets::TextTone::Secondary);
     } else {
-        CyberWidgets::TextLine("Web Radar desativado.", CyberWidgets::TextTone::Secondary);
+        CyberWidgets::TextLine("Radar 2D desativado.", CyberWidgets::TextTone::Secondary);
     }
     CyberWidgets::EndCard();
     ImGui::EndGroup();
@@ -115,10 +41,7 @@ void DrawCs2Radar() {
     const char* mapLabel = snapshot && snapshot->map_name[0] ? snapshot->map_name : "-";
     std::snprintf(line, sizeof(line), "%s", mapLabel);
     CyberWidgets::KeyValueRow("Mapa", line);
-    std::snprintf(line, sizeof(line), "%s", CS2::WebRadar::IsRunning() ? "HTTP a escutar" : "parado");
-    CyberWidgets::KeyValueRow("Servidor", line);
-    std::snprintf(line, sizeof(line), "%s", CS2::WebRadar::CloudflareRunning() ? "tunel ativo" : "off");
-    CyberWidgets::KeyValueRow("Cloudflare", line);
+    CyberWidgets::KeyValueRow("Radar 2D", CS2::config.radar_2d ? "ativo" : "desativado");
     CyberWidgets::EndCard();
     ImGui::EndGroup();
 }

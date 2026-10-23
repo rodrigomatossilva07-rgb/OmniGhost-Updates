@@ -7,12 +7,6 @@ static void RunFrameWithConfig(const Config& frame_config) {
     runtime.read_fails = g_read_fails.load(std::memory_order_relaxed);
 
 
-    const int radarPort = frame_config.webradar_port > 0 && frame_config.webradar_port <= 65535
-        ? frame_config.webradar_port : 8080;
-    g_web_radar_desired_port.store(radarPort, std::memory_order_relaxed);
-    g_web_radar_desired_cloudflare.store(frame_config.webradar_cloudflare, std::memory_order_relaxed);
-    g_web_radar_desired_enabled.store(frame_config.webradar_enabled, std::memory_order_release);
-
     if (!ready || !offsets.loaded || !runtime.client_base)
         return;
 
@@ -26,7 +20,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
         static bool s_cfgInitialized = false;
         uint64_t bits = 0;
         auto bit = [&](bool v, int i) { if (v) bits |= (1ull << i); };
-        bit(frame_config.radar_2d || frame_config.webradar_enabled, 0);
+        bit(frame_config.radar_2d, 0);
         bit(frame_config.aim_enabled, 1);
         bit(frame_config.trigger_enabled, 2);
         bit(frame_config.bomb_timer, 3);
@@ -38,7 +32,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
             char blob[320];
             std::snprintf(blob, sizeof(blob),
                 "radar=%d\naim=%d\ntrigger=%d\nbomb=%d\nspectators=%d\nperf_mode=%d",
-                (frame_config.radar_2d || frame_config.webradar_enabled) ? 1 : 0,
+                frame_config.radar_2d ? 1 : 0,
                 frame_config.aim_enabled ? 1 : 0,
                 frame_config.trigger_enabled ? 1 : 0,
                 frame_config.bomb_timer ? 1 : 0,
@@ -54,7 +48,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
         decltype(_frameWallBegin) begin;
         ~PhaseFinalize() {
             const float wall = OmniGhost::Gameplay::TimeMs(begin);
-            const float accounted = g_phase.webradar_ms + g_phase.entity_ms + g_phase.local_ms
+            const float accounted = g_phase.entity_ms + g_phase.local_ms
                 + g_phase.core_scatter_ms + g_phase.positions_ms + g_phase.early_publish_ms
                 + g_phase.publish_ms;
             g_phase.other_ms = (std::max)(0.f, wall - accounted);
@@ -1276,7 +1270,6 @@ static void RunFrameWithConfig(const Config& frame_config) {
     unifiedFlags.bomb_timer = frame_config.bomb_timer;
     unifiedFlags.spectator_list = frame_config.spectator_list;
     unifiedFlags.dropped_weapons = frame_config.dropped_weapons;
-    unifiedFlags.webradar_enabled = frame_config.webradar_enabled;
     unifiedFlags.aim_enabled = frame_config.aim_enabled;
     unifiedFlags.trigger_enabled = frame_config.trigger_enabled;
     unifiedFlags.aim_visibility_check = frame_config.aim_visibility_check ||

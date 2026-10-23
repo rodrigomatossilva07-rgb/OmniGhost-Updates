@@ -188,7 +188,6 @@ public:
     bool show_bots = false;
     float max_distance = 200.f;
     bool bomb_timer = false, spectator_list = false, radar_2d = false;
-    bool webradar_enabled = false, webradar_cloudflare = false; int webradar_port = 8080;
     bool telemetry_enabled = false, performance_mode = false, hotkey_overlay = false;
     float optional_lane_budget_ms = 0.f;
     bool dropped_weapons = false;
@@ -249,7 +248,7 @@ public:
         f.snaplines = snaplines; f.trails = trails;
         f.chinese_hat = chinese_hat; f.angel_wings = angel_wings; f.devil_horns = devil_horns; f.floating_crown = floating_crown;
         f.hit_marker = false; f.look_direction = look_direction;
-        f.radar_2d = radar_2d; f.webradar_enabled = webradar_enabled;
+        f.radar_2d = radar_2d;
         f.aim_enabled = aim_enabled; f.trigger_enabled = trigger_enabled;
         f.aim_visibility_check = aim_visibility_check || trigger_visibility_check;
         f.trigger_head_only = trigger_head_only;
@@ -335,9 +334,6 @@ public:
         Register("bomb_timer", &bomb_timer, "misc", "Bomb timer");
         Register("spectator_list", &spectator_list, "misc", "Spectator list");
         Register("radar_2d", &radar_2d, "misc", "2D radar");
-        Register("webradar_enabled", &webradar_enabled, "misc", "Web radar");
-        Register("webradar_cloudflare", &webradar_cloudflare, "misc", "Cloudflare tunnel");
-        Register("webradar_port", &webradar_port, "misc", "Web radar port");
         Register("telemetry_enabled", &telemetry_enabled, "misc", "Telemetry");
         Register("performance_mode", &performance_mode, "misc", "Performance mode");
         Register("hotkey_overlay", &hotkey_overlay, "misc", "Hotkey overlay");

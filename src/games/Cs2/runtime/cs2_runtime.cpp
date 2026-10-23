@@ -1,7 +1,5 @@
 #include "cs2_runtime.h"
 
-#include "../radar/cs2_radar.h"
-
 #include <Windows.h>
 
 #include <atomic>
@@ -76,7 +74,6 @@ void Publish(Runtime& source, uint64_t generation, uint64_t read_fails) {
     g_runtime_snapshots.Publish(slot.index);
     g_published_client_base.store(slot.value->client_base, std::memory_order_release);
     g_published_in_match.store(slot.value->in_match, std::memory_order_release);
-    WebRadar::SubmitSnapshot(*slot.value);
 
 
 

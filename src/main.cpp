@@ -1314,8 +1314,6 @@ while (application.shouldRun && !authenticated) {
         if (application.ConsumeReturnToLauncherRequest()) {
             std::clog << "[SESSION] user requested game shutdown and launcher return\n";
             if (g_activeGame == ActiveGame::CS2) {
-                CS2::config.webradar_enabled = false;
-                CS2::config.webradar_cloudflare = false;
                 CS2::config.radar_2d = false;
                 CS2::config.esp_enabled = false;
                 CS2::config.aim_enabled = false;

@@ -7,7 +7,6 @@ namespace CS2::Telemetry {
 
 struct PhaseTiming {
     uint64_t scan_id = 0;
-    float webradar_ms = 0.f;
     float entity_ms = 0.f;
     float local_ms = 0.f;
     float core_scatter_ms = 0.f;

@@ -41,7 +41,6 @@ namespace {
         {"nav.trigger", {"Disparo automático", "Trigger", "Trigger", "Trigger", "Trigger", "Trigger", "ðóÐÇð©ð│ð│ðÁÐÇ"}},
         {"nav.player_esp", {"ESP de jogadores", "Player ESP", "Player ESP", "Player ESP", "Player ESP", "Player ESP", "ESP ðÿð│ÐÇð¥ð║ð¥ð▓"}},
         {"nav.world_esp", {"ESP do mundo", "World ESP", "World ESP", "World ESP", "World ESP", "World ESP", "ESP ð£ð©ÐÇð░"}},
-        {"nav.webradar", {"Web Radar", "Web Radar", "Web Radar", "Web Radar", "Web Radar", "Web Radar", "ðÆðÁð▒ ðáð░ð┤ð░ÐÇ"}},
         {"nav.interface", {"Interface", "Interface", "Interface", "Interface", "Interface", "Interface", "ðÿð¢ÐéðÁÐÇÐäðÁð╣Ðü"}},
         {"nav.macros", {"Macros", "Macros", "Macros", "Macros", "Macros", "Macros", "ð£ð░ð║ÐÇð¥ÐüÐï"}},
 
@@ -416,7 +415,6 @@ namespace {
         {"vis.show_bots", {"Mostrar bots", "Show Bots", "Show Bots", "Show Bots", "Show Bots", "Show Bots"}},
         {"vis.bomb", {"Bomb timer", "Bomb Timer", "Bomb Timer", "Bomb Timer", "Bomb Timer", "Bomb Timer"}},
         {"vis.spectators", {"Spectator list", "Spectator List", "Spectator List", "Spectator List", "Spectator List", "Spectator List"}},
-        {"vis.webradar", {"Radar Web", "Web Radar", "Web Radar", "Web Radar", "Web Radar", "Web Radar"}},
         {"vis.rgb_mode", {"Modo RGB", "RGB Mode", "RGB Modus", "Modo RGB", "Mode RGB", "Modalità RGB"}},
         {"vis.elements", {"ELEMENTOS", "ELEMENTS", "ELEMENTE", "ELEMENTOS", "ÉLÉMENTS", "ELEMENTI"}},
         {"vis.trails", {"Rastros", "Trails", "Spuren", "Rastros", "Traînées", "Scie"}},

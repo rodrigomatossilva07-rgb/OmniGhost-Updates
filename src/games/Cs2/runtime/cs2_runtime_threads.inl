@@ -12,44 +12,6 @@ void EnsureAcquisitionStarted() {
         g_process_liveness_next_probe_ms = 0;
         g_process_liveness_last_result.store(true, std::memory_order_release);
     }
-    g_web_radar_control_stop.store(false, std::memory_order_release);
-    g_web_radar_desired_enabled.store(false, std::memory_order_release);
-    g_web_radar_control_thread = std::thread([] {
-        uint64_t nextServerAttemptMs = 0;
-        uint64_t nextCloudflareAttemptMs = 0;
-        while (!g_web_radar_control_stop.load(std::memory_order_acquire)) {
-            (void)RefreshProcessLiveness();
-            if (g_web_radar_desired_enabled.load(std::memory_order_acquire)) {
-                const int port = g_web_radar_desired_port.load(std::memory_order_relaxed);
-                const uint64_t now = GetTickCount64();
-                if ((!WebRadar::IsRunning() || WebRadar::Port() != port) &&
-                    now >= nextServerAttemptMs) {
-                    WebRadar::Start(port);
-                    nextCloudflareAttemptMs = 0;
-                    nextServerAttemptMs = now + 1000u;
-                }
-                if (WebRadar::IsRunning() &&
-                    g_web_radar_desired_cloudflare.load(std::memory_order_relaxed)) {
-                    if (!WebRadar::CloudflareRunning() && now >= nextCloudflareAttemptMs) {
-                        WebRadar::StartCloudflare();
-
-
-                        nextCloudflareAttemptMs = now + 35000u;
-                    }
-                } else if (WebRadar::CloudflareRunning()) {
-                    WebRadar::StopCloudflare();
-                    nextCloudflareAttemptMs = 0;
-                } else if (!g_web_radar_desired_cloudflare.load(std::memory_order_relaxed)) {
-                    nextCloudflareAttemptMs = 0;
-                }
-            } else {
-                if (WebRadar::IsRunning()) WebRadar::Stop();
-                else if (WebRadar::CloudflareRunning()) WebRadar::StopCloudflare();
-                nextCloudflareAttemptMs = 0;
-            }
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
-    });
     Camera::Reset();
 
 
@@ -277,7 +239,6 @@ void EnsureAcquisitionStarted() {
                             bd.top3_tag = ds.top3_tag;
                             bd.top3_tag_ms = static_cast<float>(ds.top3_tag_ms);
                         }
-                        bd.webradar_ms = g_phase.webradar_ms;
                         bd.entity_ms = g_phase.entity_ms;
                         bd.local_ms = g_phase.local_ms;
                         bd.core_scatter_ms = g_phase.core_scatter_ms;
@@ -400,15 +361,7 @@ void StopAcquisition() {
 
 
 
-    g_web_radar_control_stop.store(true, std::memory_order_release);
-    g_web_radar_desired_enabled.store(false, std::memory_order_release);
     g_acqState.RequestStop();
-    if (g_web_radar_control_thread.joinable())
-        g_web_radar_control_thread.join();
-
-
-
-    WebRadar::Stop();
     if (g_optional_thread.joinable())
         g_optional_thread.join();
     if (g_camera_thread.joinable())
