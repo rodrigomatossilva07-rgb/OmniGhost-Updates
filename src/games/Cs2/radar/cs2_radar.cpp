@@ -826,8 +826,8 @@ bool StartCloudflare() {
     wchar_t cmd[512]{};
 
 
-    // Let cloudflared negotiate QUIC/HTTP2. Forcing HTTP2 made quick tunnels
-    // remain in startup forever on networks where only QUIC was usable.
+
+
     std::swprintf(cmd, 512, L"\"%s\" tunnel --no-autoupdate --ha-connections 1 --loglevel info --url http://127.0.0.1:%d",
                   exe.c_str(), g_port.load());
 

@@ -32,8 +32,8 @@ void EnsureAcquisitionStarted() {
                     g_web_radar_desired_cloudflare.load(std::memory_order_relaxed)) {
                     if (!WebRadar::CloudflareRunning() && now >= nextCloudflareAttemptMs) {
                         WebRadar::StartCloudflare();
-                        // Avoid a tight process-spawn loop when Cloudflare or the
-                        // local network is temporarily unavailable.
+
+
                         nextCloudflareAttemptMs = now + 35000u;
                     }
                 } else if (WebRadar::CloudflareRunning()) {

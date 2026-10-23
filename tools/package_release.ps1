@@ -306,9 +306,9 @@ try {
         -Quiet
     Write-ReleaseLog 'SBOM e política de dependências validados.'
 
-    # Capture the already validated runtime before touching any output directory.
-    # Publish can run alongside cleanup hooks, so the build directory must not be
-    # treated as durable once validation has completed.
+
+
+
     New-Item -ItemType Directory -Path $StageDir -Force | Out-Null
     $RequiredRuntimeFiles = @('OmniGhost.exe')
     foreach ($Name in $RequiredRuntimeFiles) {

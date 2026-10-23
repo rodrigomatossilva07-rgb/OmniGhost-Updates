@@ -967,10 +967,10 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
         };
         ImVec2 boxHead{};
         if (!WorldSegmentToScreenClipped(headWorld, predictedPosition, viewMatrix, boxHead, feet)) {
-            // At point-blank range the camera can sit inside the player's vertical
-            // segment, putting both synthetic endpoints behind the near plane even
-            // though part of the model is still visible. Recover bounds from every
-            // currently projectable bone instead of dropping the whole ESP entry.
+
+
+
+
             float left = FLT_MAX, right = -FLT_MAX, top = FLT_MAX, bottom = -FLT_MAX;
             std::size_t projectedBones = 0;
             if (bonesFresh && player.full_bones_ok) {

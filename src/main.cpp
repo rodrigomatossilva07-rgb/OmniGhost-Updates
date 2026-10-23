@@ -249,18 +249,18 @@ int RunDmaIntegrationTest(int argc, wchar_t** argv) {
             break;
         }
     }
-    // MAIN-2: the token used to be validated only when provided, so an
-    // invocation without --token skipped the check entirely and still ran
-    // the DMA test. Require it unconditionally.
+
+
+
     if (providedToken.empty()) {
         std::clog << "[SECURITY] RunDmaIntegrationTest blocked: --token is required\n";
         return 101;
     }
-    // MAIN-2: this is a FORMAT check only (64 chars, "OMNITEST" prefix) — it
-    // is not an HMAC and does not authenticate the caller by itself. The
-    // OMNIGHOST_CI_INTEGRATION_TEST env-var guard plus the hard-coded FiveM
-    // targets keep the exposure low; a real HMAC would require a shared
-    // secret agreed with the CI invoker.
+
+
+
+
+
     {
 
 

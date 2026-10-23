@@ -502,7 +502,7 @@ static void ScatterReadPawnCore(const uintptr_t* pawns, const uintptr_t* control
     }
 
 
-    // Keep the projection matrix current before the largest position batch.
+
     CS2::GiveCameraPriorityBeforeOptionalDma();
     if (!mem.ExecuteReadScatter(g_scatter_full)) {
         for (int i = 0; i < count; ++i) {

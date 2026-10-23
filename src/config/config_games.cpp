@@ -355,8 +355,8 @@ bool DeserializeCS2(const std::string& key, const std::string& val) {
     if (bi("cs2.flag_kit")) { c.flag_kit = toB(); return true; }
     if (bi("cs2.flag_money")) { c.flag_money = toB(); return true; }
     if (bi("cs2.weapon_ammo")) { c.weapon_ammo = toB(); return true; }
-    // Legacy configurations may still contain this removed feature. Consume the
-    // key without re-enabling its DMA collection or renderer.
+
+
     if (bi("cs2.dropped_weapons")) { c.dropped_weapons = false; return true; }
     if (bi("cs2.dropped_weapon_pistols")) { c.dropped_weapon_pistols = toB(); return true; }
     if (bi("cs2.dropped_weapon_smgs")) { c.dropped_weapon_smgs = toB(); return true; }
