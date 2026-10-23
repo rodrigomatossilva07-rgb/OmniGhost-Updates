@@ -826,7 +826,9 @@ bool StartCloudflare() {
     wchar_t cmd[512]{};
 
 
-    std::swprintf(cmd, 512, L"\"%s\" tunnel --no-autoupdate --protocol http2 --url http://127.0.0.1:%d",
+    // Let cloudflared negotiate QUIC/HTTP2. Forcing HTTP2 made quick tunnels
+    // remain in startup forever on networks where only QUIC was usable.
+    std::swprintf(cmd, 512, L"\"%s\" tunnel --no-autoupdate --ha-connections 1 --loglevel info --url http://127.0.0.1:%d",
                   exe.c_str(), g_port.load());
 
     SECURITY_ATTRIBUTES sa{ sizeof(sa), nullptr, TRUE };
@@ -866,9 +868,10 @@ bool StartCloudflare() {
 
 
     g_cf_reader = std::thread([rd]() {
-        constexpr uint64_t kTunnelStartupTimeoutMs = 45000u;
+        constexpr uint64_t kTunnelStartupTimeoutMs = 30000u;
         const uint64_t startedMs = GetTickCount64();
         std::string output;
+        std::string candidateUrl;
         char tmp[512];
         while (!g_cf_stop.load()) {
             if (GetTickCount64() - startedMs >= kTunnelStartupTimeoutMs) {
@@ -882,7 +885,7 @@ bool StartCloudflare() {
                     {
                         std::lock_guard<std::mutex> lock(g_mu);
                         g_cloudflare_status =
-                            "O Cloudflare não respondeu em 45 segundos. A repetir automaticamente.";
+                            "O Cloudflare não conseguiu criar o link em 30 segundos. Tenta novamente.";
                         timedOutProcess = g_cf_proc;
                         g_cf_proc = nullptr;
                     }
@@ -922,9 +925,13 @@ bool StartCloudflare() {
             }
             if (!url.empty()) {
                 while (!url.empty() && url.back() == '/') url.pop_back();
+                candidateUrl = std::move(url);
+            }
+            const bool connected = output.find("Registered tunnel connection") != std::string::npos;
+            if (!candidateUrl.empty() && connected) {
                 {
                     std::lock_guard<std::mutex> lock(g_mu);
-                    if (g_public_url.empty()) g_public_url = url;
+                    if (g_public_url.empty()) g_public_url = candidateUrl;
                     g_cloudflare_status = "Túnel ligado.";
                 }
                 if (output.size() > 4096) output.erase(0, pos);

@@ -85,7 +85,8 @@ void DrawCs2Radar() {
             const bool actionableError =
                 tunnelStatus.find("não foi possível") != std::string::npos ||
                 tunnelStatus.find("não foi encontrado") != std::string::npos ||
-                tunnelStatus.find("terminou antes") != std::string::npos;
+                tunnelStatus.find("terminou antes") != std::string::npos ||
+                tunnelStatus.find("não conseguiu") != std::string::npos;
             CyberWidgets::TextLine(
                 actionableError ? tunnelStatus.c_str() : "A criar o link público seguro...",
                 actionableError ? CyberWidgets::TextTone::Warning : CyberWidgets::TextTone::Secondary);
