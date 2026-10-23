@@ -1052,7 +1052,10 @@ void UpdateService::InstallPreparedUpdateAsync() {
 
 void UpdateService::DeferForSession() {
     installOnExit_.store(false, std::memory_order_release);
-    std::lock_guard lock(mutex_); deferred_ = true; snapshot_.installOnExit = false; snapshot_.status = Status::Deferred; snapshot_.userMessage = "Atualização adiada nesta sessão.";
+    std::lock_guard lock(mutex_);
+    snapshot_.installOnExit = false;
+    snapshot_.status = Status::Deferred;
+    snapshot_.userMessage = "Atualização adiada nesta sessão.";
 }
 void UpdateService::Cancel() {
     cancelled_ = true;
