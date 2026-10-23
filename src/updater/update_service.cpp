@@ -388,26 +388,26 @@ void UpdateService::CheckAsync(bool force) {
     }
 
     cancelled_ = false;
-        cancelled_ = false;
-        {
-            // UP-006: join/assign do worker serializados por workerMutex_.
-            std::lock_guard workerLock(workerMutex_);
-            if (worker_.joinable())
-                worker_.join();
+    {
+        // UP-006: join/assign do worker serializados por workerMutex_.
+        std::lock_guard workerLock(workerMutex_);
+        if (worker_.joinable())
+            worker_.join();
 
-            worker_ = std::jthread([this, force](std::stop_token stopToken) {
-        Platform::SetCurrentThreadName(L"OmniGhost.UpdateCheck");
-        std::stop_callback cancelOnStop(stopToken, [this] { cancelled_.store(true, std::memory_order_release); });
-        auto busyReset = Platform::MakeScopeExit([this] { busy_ = false; });
-        try {
-            RunCheck(force);
-        } catch (const std::exception& exception) {
-            SetError("A verificação terminou de forma inesperada.", exception.what(), "worker");
-        } catch (...) {
-            SetError("A verificação terminou de forma inesperada.",
-                "Exceção não identificada na thread de verificação.", "worker");
-        }
-    });
+        worker_ = std::jthread([this, force](std::stop_token stopToken) {
+            Platform::SetCurrentThreadName(L"OmniGhost.UpdateCheck");
+            std::stop_callback cancelOnStop(stopToken, [this] { cancelled_.store(true, std::memory_order_release); });
+            auto busyReset = Platform::MakeScopeExit([this] { busy_ = false; });
+            try {
+                RunCheck(force);
+            } catch (const std::exception& exception) {
+                SetError("A verificação terminou de forma inesperada.", exception.what(), "worker");
+            } catch (...) {
+                SetError("A verificação terminou de forma inesperada.",
+                    "Exceção não identificada na thread de verificação.", "worker");
+            }
+        });
+    }
 }
 
 void UpdateService::RunCheck(bool force) {
