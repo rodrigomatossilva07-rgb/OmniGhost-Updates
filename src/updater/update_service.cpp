@@ -838,8 +838,11 @@ void UpdateService::PrepareRepairAsync() {
     if (!initialized_) Initialize();
     if (busy_.exchange(true)) return;
     cancelled_ = false;
-    if (worker_.joinable()) worker_.join();
-    worker_ = std::jthread([this](std::stop_token stopToken) {
+    {
+        // UP-006: join/assign do worker serializados por workerMutex_.
+        std::lock_guard workerLock(workerMutex_);
+        if (worker_.joinable()) worker_.join();
+        worker_ = std::jthread([this](std::stop_token stopToken) {
         Platform::SetCurrentThreadName(L"OmniGhost.UpdateRepair");
         std::stop_callback cancelOnStop(stopToken, [this] { cancelled_.store(true, std::memory_order_release); });
         auto busyReset = Platform::MakeScopeExit([this] { busy_ = false; });
@@ -847,6 +850,7 @@ void UpdateService::PrepareRepairAsync() {
         catch (const std::exception& exception) { SetError({}, exception.what(), "repair"); }
         catch (...) { SetError({}, "Exceção não identificada ao preparar reparação.", "repair"); }
     });
+    }
 }
 
 void UpdateService::RunPrepareRepair() {

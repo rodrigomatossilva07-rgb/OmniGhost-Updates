@@ -72,6 +72,7 @@ private:
     UINT pending_resize_width_ = 0;
     UINT pending_resize_height_ = 0;
     bool resize_pending_ = false;
+    bool high_resolution_timer_active_ = false;
 
 
 

@@ -19,6 +19,7 @@
 #include "../globals.h"
 
 #include <dwmapi.h>
+#include <mmsystem.h>
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -29,6 +30,7 @@
 #include <thread>
 
 #pragma comment(lib, "dwmapi.lib")
+#pragma comment(lib, "winmm.lib")
 
 
 extern LRESULT ImGui_ImplWin32_WndProcHandler(
@@ -116,6 +118,11 @@ void Overlay::CreateOverlay(const char* window_name) {
     if (overlay) {
         return;
     }
+
+    // The acquisition workers use 2-8 ms deadlines. Requesting 1 ms timer
+    // resolution prevents Windows from coalescing those waits into ~15.6 ms
+    // bursts. This is process-scoped on supported Windows versions.
+    high_resolution_timer_active_ = timeBeginPeriod(1) == TIMERR_NOERROR;
 
 
 
@@ -805,6 +812,11 @@ void Overlay::Shutdown() {
         overlay = nullptr;
     }
     window_visible_ = false;
+
+    if (high_resolution_timer_active_) {
+        timeEndPeriod(1);
+        high_resolution_timer_active_ = false;
+    }
 
     if (class_registered_) {
         UnregisterClassW(

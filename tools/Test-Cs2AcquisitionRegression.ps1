@@ -102,6 +102,8 @@ Require-Match $source 'targetPeriodMs = cfgLease->performance_mode \? 12 : 8' 'T
 Require-Match $source 'level >= 3\) targetPeriodMs = \(std::max\)\(targetPeriodMs, 22\)' 'DMA pressure fallback must not collapse active acquisition to 25 Hz.'
 Require-Match $windowRuntimeSource "kFramePeriod = std::chrono::microseconds\(16'667\)" 'The overlay must be capped at a stable 60 Hz.'
 Require-Match $windowRuntimeSource 'std::this_thread::sleep_until\(next_frame_deadline_\)' 'The overlay limiter must use an absolute deadline to avoid cumulative drift.'
+Require-Match $windowRuntimeSource 'timeBeginPeriod\(1\) == TIMERR_NOERROR' 'High-rate acquisition requires 1 ms Windows timer resolution.'
+Require-Match $windowRuntimeSource 'timeEndPeriod\(1\)' 'Windows timer resolution must be restored during shutdown.'
 Require-Condition ($bonesSource -notmatch 'BoneJointSnapshot48|s_use48Stride') 'Bone acquisition must not switch to an unvalidated speculative stride.'
 Require-Match $bonesSource 'validBoneCount >= 8' 'A safe partial pose must remain drawable when one optional limb is unavailable.'
 
