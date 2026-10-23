@@ -32,9 +32,9 @@ struct SharedState {
     std::atomic_bool checking{false};
     std::jthread worker{};
     Clock::time_point lastStart{};
-    // LN-007: fs::last_write_time() used to run per card per frame from the
-    // Library page; cache the offsets-file timestamp per game and refresh it
-    // at most once every 5 seconds instead.
+
+
+
     std::array<std::uint64_t, kGames.size()> cachedTimestamps{};
     std::array<Clock::time_point, kGames.size()> timestampNextRefresh{};
 };
@@ -165,10 +165,10 @@ Status Get(GameId game) {
     SharedState& shared = Shared();
     Status result;
     { std::scoped_lock lock(shared.mutex); result = shared.status[index]; }
-    // LN-007: while a query is in flight the shared status still says Checking
-    // (set by StartForLibrary). The stale latestNewsUnix from the previous
-    // check must NOT be re-derived into Current/OffsetsOutdated here, or the
-    // card would stop showing "Checking" on the second frame of the check.
+
+
+
+
     if (shared.checking.load(std::memory_order_acquire))
         return result;
     const Clock::time_point now = Clock::now();
@@ -182,8 +182,8 @@ Status Get(GameId game) {
         }
     }
     if (needRefresh) {
-        // Refresh outside the lock; a racing thread may repeat the stat, which
-        // is harmless because every thread stores the same value.
+
+
         localTimestamp = FileTimestamp(*query);
         std::scoped_lock lock(shared.mutex);
         shared.cachedTimestamps[index] = localTimestamp;

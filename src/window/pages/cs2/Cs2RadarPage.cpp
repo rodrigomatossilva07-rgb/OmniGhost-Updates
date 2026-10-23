@@ -182,40 +182,40 @@ void DrawCs2Status() {
     EndCard();
     EndCardRow();
 
-    /* Data-freshness diagnostics remain available internally; the noisy card was removed. */
-    /* BeginCard("FRESCURA DOS DADOS");
-    if (worldFresh) {
-        std::snprintf(value, sizeof(value), "%llu ms",
-            static_cast<unsigned long long>(now - world->snapshot_timestamp_ms));
-        KeyValueRow("Snapshot do mundo", value);
-        if (world->world_sample_ms && now >= world->world_sample_ms) {
-            std::snprintf(value, sizeof(value), "%llu ms",
-                static_cast<unsigned long long>(now - world->world_sample_ms));
-            KeyValueRow("Amostra do mundo", value);
-        }
-        std::snprintf(value, sizeof(value), "%.1f Hz (média)", world->acquisition_hz);
-        KeyValueRow("Publicação de dados", value);
-        std::snprintf(value, sizeof(value), "%llu",
-            static_cast<unsigned long long>(world->read_fails));
-        KeyValueRow("Falhas de leitura", value);
-        std::snprintf(value, sizeof(value), "%d", CS2::DmaPressureLevel());
-        KeyValueRow("Pressão DMA", value);
-    } else {
-        TextLine("Sem snapshot recente; entra no jogo e aguarda a aquisição.", TextTone::Secondary);
-    }
-    if (camera && camera->timestamp_ms && now >= camera->timestamp_ms) {
-        std::snprintf(value, sizeof(value), "%llu ms",
-            static_cast<unsigned long long>(now - camera->timestamp_ms));
-        KeyValueRow("Amostra da câmara", value);
-    }
-    EndCard(); */
 
-    /* Compatibility detail remains part of the health rows above. if (!compatibility.detail.empty()) {
-        CardGap();
-        BeginCard("COMPATIBILIDADE");
-        TextLine(compatibility.detail.c_str(),
-            compatibility.state == OmniGhost::OffsetAuto::CompatibilityState::Outdated ?
-            TextTone::Warning : TextTone::Secondary);
-        EndCard();
-    } */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 }

@@ -249,7 +249,19 @@ int RunDmaIntegrationTest(int argc, wchar_t** argv) {
             break;
         }
     }
-    if (!providedToken.empty()) {
+    // MAIN-2: the token used to be validated only when provided, so an
+    // invocation without --token skipped the check entirely and still ran
+    // the DMA test. Require it unconditionally.
+    if (providedToken.empty()) {
+        std::clog << "[SECURITY] RunDmaIntegrationTest blocked: --token is required\n";
+        return 101;
+    }
+    // MAIN-2: this is a FORMAT check only (64 chars, "OMNITEST" prefix) — it
+    // is not an HMAC and does not authenticate the caller by itself. The
+    // OMNIGHOST_CI_INTEGRATION_TEST env-var guard plus the hard-coded FiveM
+    // targets keep the exposure low; a real HMAC would require a shared
+    // secret agreed with the CI invoker.
+    {
 
 
 
@@ -269,7 +281,7 @@ int RunDmaIntegrationTest(int argc, wchar_t** argv) {
 
 
         if (tokenStr.size() != 64 || tokenStr.substr(0, 8) != "OMNITEST") {
-            std::clog << "[SECURITY] RunDmaIntegrationTest blocked: invalid token format or HMAC\n";
+            std::clog << "[SECURITY] RunDmaIntegrationTest blocked: invalid token format\n";
             return 101;
         }
 
@@ -843,9 +855,9 @@ while (application.shouldRun && !authenticated) {
         default: pending_game = ActiveGame::FiveM; break;
     }
 
-    // LN-004: the Library background jobs (remote process scan every 6s and
-    // the offset refresh future) share the DMA data plane with the launch
-    // worker below. Drain/cancel them before taking over the device.
+
+
+
     Launcher::DrainBackgroundWorkBeforeLaunch();
 
     if (!startupState.Transition(OmniGhost::Startup::State::Ready,

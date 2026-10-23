@@ -185,6 +185,11 @@ void DrawCs2Aim() {
             CyberWidgets::TextLine("So puxa alvos visiveis (spotted). Desliga para puxar atras de paredes.",
                                    CyberWidgets::TextTone::Secondary);
 
+        bool allowBots = !CS2::config.aim_ignore_bots;
+        if (CyberWidgets::ToggleSwitch("Permitir bots como alvo", &allowBots))
+            CS2::config.aim_ignore_bots = !allowBots;
+        CyberWidgets::ToggleSwitch("Ignorar jogadores da equipa", &CS2::config.aim_ignore_team);
+
 
         CyberWidgets::ToggleSwitch("Dynamic FOV", &CS2::config.aim_dynamic_fov);
         if (CS2::config.aim_dynamic_fov) {

@@ -870,6 +870,8 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
             std::snprintf(g_debug, sizeof(g_debug), "sem alvo: distancia=%d", g_target_diag.distance);
         else if (g_target_diag.team)
             std::snprintf(g_debug, sizeof(g_debug), "sem alvo: equipa=%d", g_target_diag.team);
+        else if (g_target_diag.bots)
+            std::snprintf(g_debug, sizeof(g_debug), "sem alvo: bots ignorados=%d", g_target_diag.bots);
         else if (g_target_diag.scanned == 0)
             std::snprintf(g_debug, sizeof(g_debug), "sem alvo: sem jogadores validos");
         else

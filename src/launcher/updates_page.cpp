@@ -957,12 +957,12 @@ namespace LauncherUpdates {
                 card.module->changes.size() >
                 visibleChanges;
 
-            // LN-011: the changelog parser accepts texts up to 4096 chars, so
-            // the card must be sized from the real wrapped heights instead of
-            // fixed offsets (summary at +88, changes at +119, 38px rows), or
-            // long content spills over the card onto the next element.
-            // Measure first, using the same wrap widths the drawing below
-            // uses, then size the card from the measured blocks.
+
+
+
+
+
+
             const float contentLeft = 18.0f;
             const float summaryWrapWidth =
                 (std::max)(1.0f, width - contentLeft - 18.0f);
@@ -994,8 +994,8 @@ namespace LauncherUpdates {
                         nullptr,
                         false,
                         changeWrapWidth);
-                // Keep the original 38px rhythm for one-line changes, grow
-                // for wrapped multi-line ones.
+
+
                 const float rowHeight =
                     (std::max)(38.0f, changeSize.y + 10.0f);
                 changeRowHeights.push_back(rowHeight);
@@ -1210,8 +1210,8 @@ namespace LauncherUpdates {
 
                 ImGui::PopTextWrapPos();
 
-                // LN-011: advance by the measured wrapped height so a long
-                // change never overlaps the row below it.
+
+
                 changeY += changeRowHeights[index];
             }
 

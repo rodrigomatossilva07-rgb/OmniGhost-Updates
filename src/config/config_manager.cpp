@@ -262,6 +262,9 @@ bool DeserializeAll(const std::string& data) {
         cs.devil_horns = false;
         cs.floating_crown = false;
         cs.dropped_weapons = false;
+        // Existing profiles created before the CS2 Trainer support silently excluded every bot.
+        // Keep bots targetable by default; the explicit menu toggle can still change this in-session.
+        cs.aim_ignore_bots = false;
         if (cs.aim_bind <= 0) cs.aim_bind = 0x01;
         cs.offscreen_arrow_size = std::clamp(cs.offscreen_arrow_size, 6.f, 32.f);
         cs.offscreen_arrow_margin = std::clamp(cs.offscreen_arrow_margin, 12.f, 200.f);

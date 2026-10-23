@@ -31,11 +31,11 @@ namespace makcu {
         static_assert(!IsBinaryButtonMask(static_cast<uint8_t>('m')));
         static_assert(!IsBinaryButtonMask(static_cast<uint8_t>('l')));
 
-        // HW-005: LegacyV2Binary button stream command. Per the published MAKCU
-        // V2 binary API, the button stream frame is
-        //   [0x50][0x02][len=2][buttons_lo:u8][buttons_hi:u8]
-        // with the same 5-bit mask as text mode (bit0=left, 1=right,
-        // 2=middle, 3=side1, 4=side2).
+
+
+
+
+
         constexpr uint8_t kV2ButtonStreamCommand = 0x02;
     }
 
@@ -371,16 +371,16 @@ namespace makcu {
                         }
                         const size_t frameLength = 4 + payloadLength;
                         if (binaryBuffer.size() < frameLength) break;
-                        // HW-005: this branch used to consume and silently drop
-                        // every 0x50 frame, so V2/AIO button reports never
-                        // reached the mask/button callbacks and
-                        // makcu_wrapper::GetButtonState always fell back to
-                        // LocalWindows (useless in a 2-PC setup). Route button
-                        // stream frames (cmd 0x02, buttons_lo = first payload
-                        // byte) through the same handler the text mode uses.
-                        // NEEDS VALIDATION: wire format taken from the
-                        // published V2 binary API; end-to-end behaviour still
-                        // requires a real V2/AIO device.
+
+
+
+
+
+
+
+
+
+
                         if (binaryBuffer[1] == kV2ButtonStreamCommand && payloadLength >= 1)
                             handleButtonData(binaryBuffer[4]);
                         binaryBuffer.erase(binaryBuffer.begin(), binaryBuffer.begin() + static_cast<ptrdiff_t>(frameLength));

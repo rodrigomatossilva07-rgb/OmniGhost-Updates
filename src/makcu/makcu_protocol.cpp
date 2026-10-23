@@ -232,14 +232,14 @@ public:
         return V2Command(0x18, {static_cast<uint8_t>(static_cast<int8_t>(delta))});
     }
 
-    // HW-005: the published MAKCU V2 binary API defines the button stream as
-    // command 0x02 ("buttons(mode)": 1=raw 2=mut, 0=off). The setter replies
-    // with a status byte and the device then streams
-    // [0x02][buttons_lo][buttons_hi] on every change (documented requirement:
-    // baud >= 1M; the connection manager probes 4M first). The listener
-    // dispatches those frames through the shared text-mode mask handler.
-    // NEEDS VALIDATION: implemented from the documented wire format; confirm
-    // on a real V2/AIO device.
+
+
+
+
+
+
+
+
     std::optional<WireCommand> ButtonMonitoring(bool enable) const override {
         if (capabilities_.Get(Capability::ButtonMonitoring) == CapabilityState::Unsupported)
             return std::nullopt;
@@ -367,10 +367,10 @@ CapabilitySet MakcuCapabilityRegistry::Resolve(const FirmwareDescriptor& descrip
         result.Set(capability, CapabilityState::Supported);
 
     if (descriptor.family == FirmwareFamily::LegacyV2Binary) {
-        // HW-005: the V2 binary API documents the 0x02 button stream
-        // (LegacyV2Protocol::ButtonMonitoring now issues it), so the
-        // capability is reported as supported. Hardware end-to-end
-        // validation on a real V2/AIO device is still pending.
+
+
+
+
         result.Set(Capability::ButtonMonitoring, CapabilityState::Supported);
         result.Set(Capability::MouseLocks, CapabilityState::Unknown);
         result.Set(Capability::SmoothMove, CapabilityState::Supported);

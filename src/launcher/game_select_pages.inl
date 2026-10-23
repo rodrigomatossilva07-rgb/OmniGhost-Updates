@@ -456,10 +456,10 @@ CyberWidgets::HealthStatus BuildHealthStatus() {
     return CyberWidgets::HealthStatus::Ok;
 }
 
-// LN-013: CaptureSystemInfo() queries the OS (build, uptime, arch, ...) and
-// FormatSystemInfo() re-renders the "Windows" line. DrawDiagnostics used to do
-// this every frame while the page was open. Cache the snapshot and its
-// formatted text for 2 seconds and serve the cached copy in between.
+
+
+
+
 struct SystemSnapshot {
     OmniGhost::Platform::SystemInfo info{};
     std::string formatted;
@@ -539,10 +539,10 @@ std::string BuildDiagnosticsText() {
     return OmniGhost::SessionLog::RedactForSupport(out.str());
 }
 
-// LN-013: the full diagnostics report used to be rebuilt every frame while
-// the Diagnostics page was open (snapshots, OS info, redaction pass) even
-// though the text is only consumed by the copy/package/report buttons.
-// Rebuild at most once every 2 seconds and serve the cache in between.
+
+
+
+
 std::string CachedDiagnosticsText() {
     static std::string cached;
     static double nextRebuild = 0.0;
@@ -576,8 +576,8 @@ void DrawDiagnostics(ImVec2 display) {
 
     const auto dma = mem.GetDiagnosticsSnapshot();
     const auto update = OmniGhost::Update::UpdateService::Instance().GetSnapshot();
-    // LN-013: serve the 2s-cached OS snapshot instead of re-querying the OS
-    // every frame.
+
+
     const SystemSnapshot& system = CachedSystemSnapshot();
     const GameId gameId = DiagnosticsGameId();
     const GameDefinition* selectedGame = FindGame(gameId);
@@ -631,7 +631,7 @@ void DrawDiagnostics(ImVec2 display) {
                                      CyberWidgets::TextTone::Error, lastError.c_str());
 
     ImGui::Dummy(ImVec2(0, S(8.f)));
-    // LN-013: draw from the 2s cache; the buttons below only read it.
+
     const std::string diagnostics = CachedDiagnosticsText();
     if (CyberWidgets::Button(Loc::Tr("launcher.copy_diagnostics"), CyberWidgets::ButtonStyle::Secondary, ImVec2(S(170.f), S(34.f))))
         CyberWidgets::CopyToClipboard(diagnostics.c_str(), Loc::Tr("launcher.diagnostics_copied"));

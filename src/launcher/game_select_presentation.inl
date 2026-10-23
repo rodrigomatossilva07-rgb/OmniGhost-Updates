@@ -285,8 +285,8 @@ void DrawHeader(ImDrawList* draw, ImVec2 display) {
             draw->AddRectFilled(ImVec2(x, height - S(3.f)), ImVec2(x + size.x, height), C_GOLD(), S(1.f));
         if (hovered && ImGui::IsMouseClicked(0))
             ChangeNavigation(static_cast<int>(item.page));
-        // LN-005: unread badge on the Updates tab, fed by the changelog service
-        // (same counter the page uses to highlight new release notes).
+
+
         float badgeWidth = 0.f;
         if (item.page == NavPage::Updates) {
             const int unread = ChangelogService::Instance().UnreadCount();

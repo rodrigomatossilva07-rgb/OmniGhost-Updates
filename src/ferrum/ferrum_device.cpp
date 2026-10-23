@@ -150,9 +150,9 @@ std::string ProbeVersion() {
 }
 
 void ParseButtonCallbacks(std::vector<std::uint8_t>& pending) {
-    // HW-007: scan every position for complete "km.<mask>" frames and remember
-    // one past the last fully examined frame so the truncation below never
-    // slices a frame in half.
+
+
+
     std::size_t lastFrameEnd = 0;
     for (std::size_t index = 0; index + 3 < pending.size(); ++index) {
         if (pending[index] != 'k' || pending[index + 1] != 'm' || pending[index + 2] != '.')
@@ -163,14 +163,14 @@ void ParseButtonCallbacks(std::vector<std::uint8_t>& pending) {
         lastFrameEnd = index + 4;
     }
     if (pending.size() > 256) {
-        // HW-007: the old truncation kept a fixed 16-byte tail, which could
-        // cut through the middle of a "km." prefix (or a mask byte still in
-        // flight) and permanently lose the next mask update. Instead, drop
-        // everything up to the last complete frame and preserve only a
-        // trailing partial "km." prefix (at most 3 bytes) that the next read
-        // can complete. Bytes between the last complete frame and that prefix
-        // can never become a frame and are discarded, so the buffer stays
-        // bounded no matter what the device streams.
+
+
+
+
+
+
+
+
         static constexpr std::uint8_t kPrefix[3] = {'k', 'm', '.'};
         std::size_t keep = 0;
         for (std::size_t length = 3; length > 0; --length) {

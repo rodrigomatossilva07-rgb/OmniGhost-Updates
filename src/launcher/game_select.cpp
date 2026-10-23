@@ -192,19 +192,19 @@ std::string BuildDiagnosticsText();
 #include "game_select_presentation.inl"
 #include "game_select_pages.inl"
 #include "game_select_modals.inl"
-} // namespace
+}
 
 void DrainBackgroundWorkBeforeLaunch() {
     DrainBackgroundDmaWork();
 }
 
-// LN-012: called from the coordinated shutdown (LibraryChecks component).
-// std::async tasks cannot be cancelled and RefreshAllSupported() does not
-// honour stop tokens, so a check that is still running here has to be waited
-// out — doing it at this well-defined point, while every singleton the task
-// touches is still alive, instead of inside the future's destructor during
-// static destruction. The per-frame tick already consumed the common case
-// (check finished long before exit), so this is normally a no-op.
+
+
+
+
+
+
+
 void DrainStartupOffsetChecks() {
     if (!g_startup_offset_checks.valid())
         return;
@@ -285,11 +285,11 @@ void Reset(EntryReason reason) {
         if (GetGameHistory(runtime.definition->launch_id).lastResult == SessionResult::OffsetsFailed)
             OmniGhost::OffsetAuto::MarkOutdated(active, "A validação no jogo falhou na última sessão");
     }
-    // LN-012: spawn at most once per process. The per-frame tick in
-    // RefreshRuntimeStates() consumes the future as soon as the refresh
-    // completes, and the coordinated shutdown drains a still-running check
-    // (see DrainStartupOffsetChecks), so the future's destructor never has
-    // to block on it during static destruction.
+
+
+
+
+
     if (!g_startup_offset_checks_done && !g_startup_offset_checks.valid()) {
 
         for (ActiveGame g : {
@@ -359,9 +359,9 @@ bool Draw() {
     } else if (g_nav == static_cast<int>(NavPage::Marketplace)) {
         DrawMarketplace(display);
     } else if (g_nav == static_cast<int>(NavPage::Updates)) {
-        // LN-005: wire the Updates page into the router. LauncherUpdates::Draw
-        // calls OnOpened() itself (changelog Initialize + RefreshAsync); Reset()
-        // already runs from Launcher::Reset() on every launcher entry.
+
+
+
         LauncherUpdates::Draw(display, S(76.f), S(48.f));
     } else if (g_nav == static_cast<int>(NavPage::Diagnostics)) {
         DrawDiagnostics(display);

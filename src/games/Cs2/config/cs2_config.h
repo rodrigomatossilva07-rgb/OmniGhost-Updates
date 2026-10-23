@@ -113,7 +113,7 @@ struct Config : OmniGhost::Gameplay::EspConfigBase {
     float aim_reversal_damping = 0.16f;
     bool aim_ignore_team = true;
     bool aim_ignore_spectators = false;
-    bool aim_ignore_bots = true;
+    bool aim_ignore_bots = false;
     bool aim_auto_bone = false;
     bool aim_visibility_check = false;
     bool aim_visible_bones_only = false;
@@ -156,7 +156,7 @@ inline void ApplyLegitProfile(Config& c) {
     c.aim_humanization = 35.f;
     c.aim_auto_bone = false;
     c.aim_visibility_check = true;
-    c.aim_ignore_bots = true;
+    c.aim_ignore_bots = false;
     c.aim_ignore_spectators = true;
     c.aim_rcs_standalone = false;
     c.aim_rcs_auto = true;

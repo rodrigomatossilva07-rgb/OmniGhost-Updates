@@ -363,8 +363,8 @@ void TestV2BinaryWheelRange() {
     Check(protocol->Wheel(-100).has_value(), "V2 Wheel accepts -100");
 }
 
-// HW-005: the V2 binary API button stream command must be encoded as
-// [0x50][0x02][len=1][mode] with mode 1=on / 0=off.
+
+
 void TestV2BinaryButtonMonitoring() {
     makcu::FirmwareDescriptor descriptor;
     descriptor.family = makcu::FirmwareFamily::LegacyV2Binary;

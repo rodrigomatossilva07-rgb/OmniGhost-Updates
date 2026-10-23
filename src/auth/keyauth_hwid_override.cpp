@@ -11,8 +11,8 @@
 
 namespace {
 
-// MachineGuid é ASCII (GUID com chavetas); conversão explícita para evitar
-// o narrowing implícito wchar_t→char (C4244 tratado como erro).
+
+
 std::string NarrowGuid(const std::wstring& text) {
     std::string out;
     out.reserve(text.size());
@@ -77,16 +77,16 @@ bool Sha256Hex(const std::string& input, std::string& outHex) {
     return true;
 }
 
-} // namespace
+}
 
-// AU-002: o HWID combina o SID do utilizador com o MachineGuid da máquina e
-// reduz a mistura a um SHA-256 estável — nunca colapsa para a constante
-// partilhada "none" (o default do SDK), que fazia dois PCs diferentes
-// apresentarem o mesmo HWID quando o token não abria.
-// Falha fechado: sem nenhuma fonte de identidade, devolve vazio e o login
-// aborta em vez de partilhar um HWID entre máquinas.
-// NOTA: mudar o formato do HWID invalida sessões/HWID-locks existentes na
-// KeyAuth — os utilizadores terão de reautorizar o novo HWID uma única vez.
+
+
+
+
+
+
+
+
 std::string utils::get_hwid() {
     std::string sidText;
     ATL::CAccessToken accessToken;

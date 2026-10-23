@@ -30,10 +30,10 @@ namespace makcu {
     public:
         std::unique_ptr<SerialPort> serialPort;
         DeviceInfo deviceInfo;
-        // HW-006: status is read by getStatus() from any thread while
-        // executeWire() writes it, and executeWire() does not always run
-        // under `mutex` (BatchCommandBuilder::execute, tryReconnect helpers),
-        // so the state is atomic.
+
+
+
+
         std::atomic<ConnectionStatus> status{ConnectionStatus::DISCONNECTED};
         std::atomic<bool> connected;
         std::atomic<bool> monitoring;
@@ -44,10 +44,10 @@ namespace makcu {
         std::unique_ptr<IMakcuProtocol> protocol;
         MakcuConnectionManager connectionManager;
         std::string lastError;
-        // HW-006: guards lastError. Deliberately NOT `mutex`: executeWire()
-        // already runs under `mutex` on the hot paths and re-locking it for
-        // the error write would deadlock. Lock order everywhere is
-        // mutex -> statusMutex.
+
+
+
+
         mutable std::mutex statusMutex;
 
 
@@ -66,9 +66,9 @@ namespace makcu {
         mutable std::string moveCommandBuffer;
         mutable std::mutex moveBufferMutex;
 
-        // HW-006: thread-safe status/lastError bookkeeping shared by every
-        // writer (executeWire, connect, disconnect, tryReconnect) and reader
-        // (getStatus/getLastError), including paths that run without `mutex`.
+
+
+
         void markConnectionStatus(ConnectionStatus value) noexcept {
             status.store(value, std::memory_order_release);
         }
@@ -375,10 +375,10 @@ namespace makcu {
     }
 
     ConnectionStatus Device::getStatus() const {
-        // HW-006: status is atomic and SerialPort::isOpen() is internally
-        // synchronized, so the Impl::mutex is no longer needed here — it
-        // would needlessly block behind long connect()/disconnect() calls
-        // while another thread only wants the connection state.
+
+
+
+
         const ConnectionStatus status = m_impl->status.load(std::memory_order_acquire);
         if (status == ConnectionStatus::CONNECTED && !m_impl->serialPort->isOpen())
             return ConnectionStatus::CONNECTION_ERROR;
@@ -408,8 +408,8 @@ namespace makcu {
     }
 
     std::string Device::getLastError() const {
-        // HW-006: lastError moved to its own mutex (Impl::statusMutex) because
-        // executeWire() updates it while already holding Impl::mutex.
+
+
         std::lock_guard<std::mutex> lock(m_impl->statusMutex);
         return m_impl->lastError;
     }
@@ -696,8 +696,8 @@ namespace makcu {
 
 
     uint8_t Device::catchMouseLeft() {
-        // HW-006: serialize against connect()/disconnect(), which reconfigure
-        // the serial port and firmware state under the same mutex.
+
+
         std::lock_guard<std::mutex> guard(m_impl->mutex);
         if (!m_impl->connected.load() || m_impl->firmware.family != FirmwareFamily::LegacyText) return 0;
 
@@ -718,8 +718,8 @@ namespace makcu {
     }
 
     uint8_t Device::catchMouseMiddle() {
-        // HW-006: serialize against connect()/disconnect(), which reconfigure
-        // the serial port and firmware state under the same mutex.
+
+
         std::lock_guard<std::mutex> guard(m_impl->mutex);
         if (!m_impl->connected.load() || m_impl->firmware.family != FirmwareFamily::LegacyText) return 0;
 
@@ -740,8 +740,8 @@ namespace makcu {
     }
 
     uint8_t Device::catchMouseRight() {
-        // HW-006: serialize against connect()/disconnect(), which reconfigure
-        // the serial port and firmware state under the same mutex.
+
+
         std::lock_guard<std::mutex> guard(m_impl->mutex);
         if (!m_impl->connected.load() || m_impl->firmware.family != FirmwareFamily::LegacyText) return 0;
 
@@ -762,8 +762,8 @@ namespace makcu {
     }
 
     uint8_t Device::catchMouseSide1() {
-        // HW-006: serialize against connect()/disconnect(), which reconfigure
-        // the serial port and firmware state under the same mutex.
+
+
         std::lock_guard<std::mutex> guard(m_impl->mutex);
         if (!m_impl->connected.load() || m_impl->firmware.family != FirmwareFamily::LegacyText) return 0;
 
@@ -784,8 +784,8 @@ namespace makcu {
     }
 
     uint8_t Device::catchMouseSide2() {
-        // HW-006: serialize against connect()/disconnect(), which reconfigure
-        // the serial port and firmware state under the same mutex.
+
+
         std::lock_guard<std::mutex> guard(m_impl->mutex);
         if (!m_impl->connected.load() || m_impl->firmware.family != FirmwareFamily::LegacyText) return 0;
 
@@ -826,8 +826,8 @@ namespace makcu {
 
 
     std::string Device::getMouseSerial() {
-        // HW-006: serialize against connect()/disconnect() (same rationale as
-        // the catchMouse* accessors above).
+
+
         std::lock_guard<std::mutex> guard(m_impl->mutex);
         if (!m_impl->connected.load() ||
             m_impl->capabilities.Get(Capability::MouseSerial) != CapabilityState::Supported) return "";
@@ -843,7 +843,7 @@ namespace makcu {
     }
 
     bool Device::setMouseSerial(const std::string& serial) {
-        // HW-006: serialize against connect()/disconnect().
+
         std::lock_guard<std::mutex> guard(m_impl->mutex);
         if (!m_impl->connected.load() ||
             m_impl->capabilities.Get(Capability::MouseSerial) != CapabilityState::Supported) return false;
@@ -861,7 +861,7 @@ namespace makcu {
     }
 
     bool Device::resetMouseSerial() {
-        // HW-006: serialize against connect()/disconnect().
+
         std::lock_guard<std::mutex> guard(m_impl->mutex);
         if (!m_impl->connected.load() ||
             m_impl->capabilities.Get(Capability::MouseSerial) != CapabilityState::Supported) return false;
@@ -996,9 +996,9 @@ namespace makcu {
     }
 
     bool Device::BatchCommandBuilder::execute() {
-        // HW-006: serialize against connect()/disconnect() like every other
-        // command path; executeWire() updates the (now atomic) status and the
-        // statusMutex-guarded lastError from here without holding Impl::mutex.
+
+
+
         std::lock_guard<std::mutex> guard(m_device->m_impl->mutex);
         if (!m_device->m_impl->connected.load()) {
             return false;
@@ -1014,8 +1014,8 @@ namespace makcu {
 
 
     bool Device::sendRawCommand(const std::string& command) const {
-        // HW-006: serialize against connect()/disconnect() so the raw write
-        // cannot interleave with a port close/reconfigure.
+
+
         std::lock_guard<std::mutex> guard(m_impl->mutex);
         if (!m_impl->connected.load()) {
             return false;
@@ -1031,8 +1031,8 @@ namespace makcu {
     }
 
     std::future<std::string> Device::sendRawCommandAsync(const std::string& command) const {
-        // HW-006: serialize against connect()/disconnect(); the response is
-        // resolved by the listener thread, which never takes Impl::mutex.
+
+
         std::lock_guard<std::mutex> guard(m_impl->mutex);
         if (!m_impl->connected.load()) {
             std::promise<std::string> promise;
