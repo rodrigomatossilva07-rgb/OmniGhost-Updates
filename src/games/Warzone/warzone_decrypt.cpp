@@ -1351,7 +1351,7 @@ inline std::uint16_t get_bone_index(ReadFn fn, void* ctx, std::uint64_t base, st
     rax = rcx * 0xFA;
     rcx = r8 * 0xFC;
     rcx -= rax;
-    rax = rd<std::uint16_t>(fn, ctx, rcx + r11 * 1 + 0xC51BD00);
+    rax = rd<std::uint16_t>(fn, ctx, rcx + r11 * 1 + 0xC884B40);
     r8 = rax * 0x13C8;
     rax = r10;
     rax = _umul128(rax, r8, (std::uint64_t*)&rdx);
@@ -1375,7 +1375,7 @@ inline std::uint16_t get_bone_index(ReadFn fn, void* ctx, std::uint64_t base, st
     rax = rcx * 0x176;
     rcx = r9 * 0x178;
     rcx -= rax;
-    r14 = rd<std::uint16_t>(fn, ctx, rcx + r11 * 1 + 0xC51FF70);
+    r14 = rd<std::uint16_t>(fn, ctx, rcx + r11 * 1 + 0xC888DB0);
     return static_cast<std::uint16_t>(r14);
 }
 
