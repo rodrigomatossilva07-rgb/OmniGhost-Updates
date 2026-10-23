@@ -4,7 +4,6 @@
 #include "changelog_service.h"
 #include "steam_game_update_check.h"
 #include "epic_game_update_check.h"
-#include "updates_page.h"
 #include "launcher_status.h"
 #include "../app_version.h"
 #include "../updater/update_ui.h"
@@ -142,11 +141,10 @@ enum class NavPage : int {
     Home = 0,
     Library = 1,
     Marketplace = 2,
-    Updates = 3,
-    Diagnostics = 4,
-    Settings = 5,
-    Account = 6,
-    Admin = 7,
+    Diagnostics = 3,
+    Settings = 4,
+    Account = 5,
+    Admin = 6,
 };
 
 std::vector<GameRuntime> g_games;
@@ -274,7 +272,6 @@ void Reset(EntryReason reason) {
         g_nav = static_cast<int>(NavPage::Home);
         break;
     }
-    LauncherUpdates::Reset();
     g_games.clear();
     std::size_t count = 0;
     const GameDefinition* games = Games(count);
@@ -369,11 +366,6 @@ bool Draw() {
         ImGui::PopStyleColor();
     } else if (g_nav == static_cast<int>(NavPage::Marketplace)) {
         DrawMarketplace(display);
-    } else if (g_nav == static_cast<int>(NavPage::Updates)) {
-
-
-
-        LauncherUpdates::Draw(display, S(76.f), S(48.f));
     } else if (g_nav == static_cast<int>(NavPage::Diagnostics)) {
         DrawDiagnostics(display);
     } else if (g_nav == static_cast<int>(NavPage::Settings)) {

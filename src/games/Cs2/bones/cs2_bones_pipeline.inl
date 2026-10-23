@@ -55,6 +55,8 @@ static void RunOptionalEnrichment(const Config& frame_config,
     unifiedFlags.self_esp = frame_config.self_esp;
     unifiedFlags.show_dead = frame_config.show_dead;
     unifiedFlags.show_bots = frame_config.show_bots;
+    unifiedFlags.visibility_colors = frame_config.visibility_colors;
+    unifiedFlags.visible_check = frame_config.visible_check;
     unifiedFlags.bomb_timer = frame_config.bomb_timer;
     unifiedFlags.spectator_list = frame_config.spectator_list;
     unifiedFlags.dropped_weapons = frame_config.dropped_weapons;
@@ -547,8 +549,7 @@ static void RunOptionalEnrichment(const Config& frame_config,
 
 
     if (OmniGhost::Gameplay::UnifiedESP::Has(
-            fields, OmniGhost::Gameplay::UnifiedESP::DataField::Visibility) &&
-        !!budget.Remaining() && pressure < 2) {
+            fields, OmniGhost::Gameplay::UnifiedESP::DataField::Visibility)) {
 
 
         auto& collision = Trajectory::CollisionCache();

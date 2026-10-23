@@ -76,6 +76,45 @@ bool WorldToScreen(const float world[3], const float matrix[16], ImVec2& screen)
     return std::isfinite(screen.x) && std::isfinite(screen.y);
 }
 
+bool WorldSegmentToScreenClipped(const float first[3], const float second[3],
+                                 const float matrix[16], ImVec2& firstScreen,
+                                 ImVec2& secondScreen) {
+    struct ClipPoint { float x, y, w; };
+    const auto project = [matrix](const float world[3]) {
+        return ClipPoint{
+            world[0] * matrix[0] + world[1] * matrix[1] + world[2] * matrix[2] + matrix[3],
+            world[0] * matrix[4] + world[1] * matrix[5] + world[2] * matrix[6] + matrix[7],
+            world[0] * matrix[12] + world[1] * matrix[13] + world[2] * matrix[14] + matrix[15]
+        };
+    };
+    ClipPoint a = project(first);
+    ClipPoint b = project(second);
+    if (!std::isfinite(a.x) || !std::isfinite(a.y) || !std::isfinite(a.w) ||
+        !std::isfinite(b.x) || !std::isfinite(b.y) || !std::isfinite(b.w))
+        return false;
+    constexpr float kNearW = .01f;
+    if (a.w < kNearW && b.w < kNearW) return false;
+    const auto clipNear = [](ClipPoint& behind, const ClipPoint& visible) {
+        constexpr float nearW = .01f;
+        const float denominator = visible.w - behind.w;
+        if (std::abs(denominator) < 1e-6f) return false;
+        const float t = std::clamp((nearW - behind.w) / denominator, 0.f, 1.f);
+        behind.x += (visible.x - behind.x) * t;
+        behind.y += (visible.y - behind.y) * t;
+        behind.w = nearW;
+        return true;
+    };
+    if (a.w < kNearW && !clipNear(a, b)) return false;
+    if (b.w < kNearW && !clipNear(b, a)) return false;
+    const ImVec2 viewport = ImGui::GetIO().DisplaySize;
+    firstScreen = ImVec2((viewport.x * .5f) * (1.f + a.x / a.w),
+                         (viewport.y * .5f) * (1.f - a.y / a.w));
+    secondScreen = ImVec2((viewport.x * .5f) * (1.f + b.x / b.w),
+                          (viewport.y * .5f) * (1.f - b.y / b.w));
+    return std::isfinite(firstScreen.x) && std::isfinite(firstScreen.y) &&
+           std::isfinite(secondScreen.x) && std::isfinite(secondScreen.y);
+}
+
 ImU32 Color(const float color[4]) {
     return IM_COL32(static_cast<int>(color[0] * 255.f), static_cast<int>(color[1] * 255.f),
                     static_cast<int>(color[2] * 255.f), static_cast<int>(color[3] * 255.f));
@@ -172,9 +211,11 @@ bool DrawOffscreenArrow(ImDrawList* draw, const float world[3], const float matr
                      viewport.y * .5f + ny * ringRadius);
     const ImVec2 side(-ny, nx);
     const ImVec2 base(tip.x - nx * size, tip.y - ny * size);
-    float colorValues[4] = { settings.col_offscreen_arrow[0], settings.col_offscreen_arrow[1],
-        settings.col_offscreen_arrow[2],
-        std::clamp(settings.col_offscreen_arrow[3] * settings.offscreen_arrow_opacity, 0.f, 1.f) };
+    const float* sourceColor = settings.col_offscreen_arrow;
+    if (settings.visibility_colors && settings.visible_check && player.visibility_known)
+        sourceColor = player.visible ? settings.col_visible : settings.col_occluded;
+    float colorValues[4] = { sourceColor[0], sourceColor[1], sourceColor[2],
+        std::clamp(sourceColor[3] * settings.offscreen_arrow_opacity, 0.f, 1.f) };
     draw->AddTriangleFilled(tip,
         ImVec2(base.x + side.x * size * .55f, base.y + side.y * size * .55f),
         ImVec2(base.x - side.x * size * .55f, base.y - side.y * size * .55f), Color(colorValues));
@@ -873,7 +914,6 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
         if (DrawOffscreenArrow(draw, predictedPosition, viewMatrix, player, settings))
             continue;
         ImVec2 feet{}, head{};
-        if (!WorldToScreen(predictedPosition, viewMatrix, feet)) continue;
 
 
 
@@ -918,7 +958,8 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
             predictedPosition[0], predictedPosition[1], predictedPosition[2] + headHeight.units
         };
         ImVec2 boxHead{};
-        if (!WorldToScreen(headWorld, viewMatrix, boxHead)) continue;
+        if (!WorldSegmentToScreenClipped(headWorld, predictedPosition, viewMatrix, boxHead, feet))
+            continue;
         head = boxHead;
         if (bonesFresh && headPlausible) {
             const float actualHead[3] = {
@@ -929,14 +970,14 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
             ImVec2 actualHeadScreen{};
             if (WorldToScreen(actualHead, viewMatrix, actualHeadScreen)) head = actualHeadScreen;
         }
-        const float height = feet.y - boxHead.y;
-        if (!std::isfinite(height) || height < 8.f || height > 4000.f) continue;
+        const ImVec2 viewport = ImGui::GetIO().DisplaySize;
+        const float height = std::min(feet.y - boxHead.y, viewport.y * 4.f);
+        if (!std::isfinite(height) || height < 8.f) continue;
         const float width = height * 0.60f;
         const ImVec2 min(feet.x - width * .5f, boxHead.y - height * .08f);
         const ImVec2 max(feet.x + width * .5f, min.y + height * 1.09f);
 
 
-        const ImVec2 viewport = ImGui::GetIO().DisplaySize;
         constexpr float kViewportMargin = 240.f;
         if (max.x < -kViewportMargin || min.x > viewport.x + kViewportMargin ||
             max.y < -kViewportMargin || min.y > viewport.y + kViewportMargin)

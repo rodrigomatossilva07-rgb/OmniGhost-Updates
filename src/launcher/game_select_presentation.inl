@@ -263,7 +263,6 @@ void DrawHeader(ImDrawList* draw, ImVec2 display) {
         {NavPage::Home, "launcher.home"},
         {NavPage::Library, "launcher.library"},
         {NavPage::Marketplace, "launcher.marketplace"},
-        {NavPage::Updates, "launcher.updates"},
         {NavPage::Diagnostics, "launcher.diagnostics"},
         {NavPage::Admin, "launcher.admin"},
     };
@@ -286,24 +285,7 @@ void DrawHeader(ImDrawList* draw, ImVec2 display) {
         if (hovered && ImGui::IsMouseClicked(0))
             ChangeNavigation(static_cast<int>(item.page));
 
-
-        float badgeWidth = 0.f;
-        if (item.page == NavPage::Updates) {
-            const int unread = ChangelogService::Instance().UnreadCount();
-            if (unread > 0) {
-                char badge[8]{};
-                std::snprintf(badge, sizeof(badge), "%d", unread > 99 ? 99 : unread);
-                const ImVec2 badgeTextSize = ImGui::CalcTextSize(badge);
-                badgeWidth = badgeTextSize.x + S(8.f);
-                const ImVec2 badgeMin(x + size.x + S(5.f), S(13.f));
-                const ImVec2 badgeMax(badgeMin.x + badgeWidth, badgeMin.y + S(15.f));
-                draw->AddRectFilled(badgeMin, badgeMax, C_GOLD(), S(7.f));
-                draw->AddText(ImVec2(badgeMin.x + S(4.f), badgeMin.y + S(2.f)),
-                              IM_COL32(24, 20, 8, 255), badge);
-                badgeWidth += S(5.f);
-            }
-        }
-        x += size.x + badgeWidth + (display.x < S(900.f) ? S(18.f) : S(28.f));
+        x += size.x + (display.x < S(900.f) ? S(18.f) : S(28.f));
     }
 
 

@@ -412,7 +412,8 @@ void RefreshRuntimeStates() {
 }
 
 void ToastOpenUpdates() {
-    ChangeNavigation(static_cast<int>(NavPage::Updates));
+    g_settings_page = app_settings::SettingsPage::Updates;
+    ChangeNavigation(static_cast<int>(NavPage::Settings));
 }
 
 void ToastOpenLogs() {
