@@ -361,7 +361,17 @@ void RefreshRuntimeStates() {
         if (g_startup_offset_checks.wait_for(0ms) == std::future_status::ready) {
             try {
                 g_startup_offset_checks.get();
+            } catch (const std::exception& error) {
+                OmniGhost::SessionLog::Write(
+                    OmniGhost::SessionLog::Severity::Error,
+                    OmniGhost::SessionLog::Subsystem::Updater,
+                    "startup offset validation failed",
+                    {{"error", error.what(), false}});
             } catch (...) {
+                OmniGhost::SessionLog::Write(
+                    OmniGhost::SessionLog::Severity::Error,
+                    OmniGhost::SessionLog::Subsystem::Updater,
+                    "startup offset validation failed with an unknown exception");
             }
             g_startup_offset_checks_done = true;
         }

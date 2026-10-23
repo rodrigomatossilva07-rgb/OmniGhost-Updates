@@ -71,6 +71,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cwchar>
+#include <exception>
 #include <filesystem>
 #include <future>
 #include <fstream>
@@ -210,7 +211,17 @@ void DrainStartupOffsetChecks() {
         return;
     try {
         g_startup_offset_checks.get();
+    } catch (const std::exception& error) {
+        OmniGhost::SessionLog::Write(
+            OmniGhost::SessionLog::Severity::Error,
+            OmniGhost::SessionLog::Subsystem::Updater,
+            "startup offset validation failed",
+            {{"error", error.what(), false}});
     } catch (...) {
+        OmniGhost::SessionLog::Write(
+            OmniGhost::SessionLog::Severity::Error,
+            OmniGhost::SessionLog::Subsystem::Updater,
+            "startup offset validation failed with an unknown exception");
     }
     g_startup_offset_checks_done = true;
 }
