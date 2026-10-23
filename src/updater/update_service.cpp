@@ -389,7 +389,7 @@ void UpdateService::CheckAsync(bool force) {
 
     cancelled_ = false;
     {
-
+        // UP-006: join/assign do worker serializados por workerMutex_.
         std::lock_guard workerLock(workerMutex_);
         if (worker_.joinable())
             worker_.join();
