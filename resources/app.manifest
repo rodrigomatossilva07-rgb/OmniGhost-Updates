@@ -3,7 +3,7 @@
   <assemblyIdentity
     name="OmniGhost.Launcher"
     processorArchitecture="amd64"
-    version="2.1.6.0"
+    version="2.1.7.0"
     type="win32" />
   <description>OmniGhost Launcher</description>
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
