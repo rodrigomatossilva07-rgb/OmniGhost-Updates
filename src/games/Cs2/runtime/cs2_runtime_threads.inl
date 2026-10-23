@@ -77,12 +77,6 @@ void EnsureAcquisitionStarted() {
             const bool in_match = RuntimePipeline::PublishedInMatch();
             const bool canRead = ready && offsets.loaded && client_base && offsets.dwViewMatrix;
             const uint64_t camera_now_ms = GetTickCount64();
-            const int camera_pressure = g_pressure_level.load(std::memory_order_relaxed);
-
-
-
-
-
             // Camera freshness directly controls screen-space alignment. Keep
             // it at 250 Hz even while optional DMA work is being throttled.
             const int camera_period_ms = std::clamp(g_intervals.camera_ms, 2, 4);

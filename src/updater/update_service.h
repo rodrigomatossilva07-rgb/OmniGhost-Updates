@@ -42,9 +42,18 @@ private:
     void SetSnapshot(const std::function<void(Snapshot&)>& change);
     Configuration config_{}; std::unique_ptr<IHttpClient> http_;
     mutable std::mutex mutex_; Snapshot snapshot_{}; std::optional<Manifest> manifest_; std::optional<Package> package_;
-    std::filesystem::path downloadedPackage_; std::jthread worker_; std::atomic_bool cancelled_{false};
+    // UP-006: downloadedPackage_ é escrito pelo worker de download e lido
+    // pela UI no Install — guardado por mutex_ (cópia no acesso).
+    std::filesystem::path downloadedPackage_;
+    // UP-006: worker_ é joinado/atribuído pela UI e pela thread de shutdown —
+    // mutações serializadas por workerMutex_ (dedicado: o worker NUNCA o
+    // toma, usa apenas o mutex_ dos snapshots — sem deadlock no join).
+    std::jthread worker_;
+    mutable std::mutex workerMutex_;
+    std::atomic_bool cancelled_{false};
     std::atomic_bool busy_{false}; std::atomic_bool initialized_{false}; std::atomic_bool exitRequested_{false};
-    std::atomic_bool installOnExit_{false}; bool deferred_{};
+    std::atomic_bool installOnExit_{false};
+    // UP-006: deferred_ removido — escrito sem leitor.
 };
 
 
