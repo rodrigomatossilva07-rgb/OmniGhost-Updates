@@ -30,7 +30,7 @@ void Publish(const float* matrix, uint64_t sample_ms) {
         return;
 
     std::memcpy(slot.value->view_matrix, matrix, sizeof(slot.value->view_matrix));
-    slot.value->timestamp_ms = sample_ms ? sample_ms : GetTickCount64();
+    slot.value->timestamp_ms = sample_ms ? sample_ms : CS2::SampleClockMs();
     {
         std::lock_guard lock(g_history_mutex);
         g_history[g_history_next] = *slot.value;

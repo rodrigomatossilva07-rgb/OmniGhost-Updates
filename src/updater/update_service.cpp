@@ -1078,6 +1078,9 @@ void UpdateService::DeferForSession() {
 }
 void UpdateService::Cancel() {
     cancelled_ = true;
+
+
+    std::lock_guard workerLock(workerMutex_);
     if (worker_.joinable()) worker_.request_stop();
 }
 bool UpdateService::BlocksGameLaunch() const {
@@ -1112,9 +1115,13 @@ void UpdateService::SetError(const std::string& userMessage, const std::string& 
 }
 void UpdateService::Shutdown() {
     cancelled_ = true;
-    if (worker_.joinable()) {
-        worker_.request_stop();
-        worker_.join();
+    {
+
+        std::lock_guard workerLock(workerMutex_);
+        if (worker_.joinable()) {
+            worker_.request_stop();
+            worker_.join();
+        }
     }
     busy_ = false;
     if (installOnExit_.exchange(false, std::memory_order_acq_rel)) {

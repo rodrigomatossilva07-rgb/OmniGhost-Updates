@@ -94,10 +94,10 @@ void EnsureAcquisitionStarted() {
                     camera_tel.camera.camera_cooldown_bypasses.fetch_add(1, std::memory_order_relaxed);
                 bool attempted = false;
                 const auto camera_read_begin = std::chrono::steady_clock::now();
-                const uint64_t camera_read_begin_ms = GetTickCount64();
+                const uint64_t camera_read_begin_ms = CS2::SampleClockMs();
                 const bool read_ok = QTryRead(client_base + offsets.dwViewMatrix, matrix, sizeof(matrix),
                                               attempted, "CS2.Camera");
-                const uint64_t camera_read_end_ms = GetTickCount64();
+                const uint64_t camera_read_end_ms = CS2::SampleClockMs();
                 if (read_ok)
                     Camera::Publish(matrix, camera_read_begin_ms +
                         (camera_read_end_ms - camera_read_begin_ms) / 2u);
@@ -228,12 +228,12 @@ void EnsureAcquisitionStarted() {
                     {
                         const auto cam = Camera::Acquire();
                         if (cam) {
-                            const float age = static_cast<float>(GetTickCount64() - cam->timestamp_ms);
+                            const float age = static_cast<float>(CS2::SampleClockMs() - cam->timestamp_ms);
 							OmniGhost::Gameplay::DmaTelemetry::ObserveCameraAge(tel, age);
                         }
                         const auto rt = RuntimePipeline::Acquire();
                         if (rt) {
-                            const uint64_t nowMs = GetTickCount64();
+                            const uint64_t nowMs = CS2::SampleClockMs();
                             const float snapshotAge = static_cast<float>(nowMs - rt->snapshot_timestamp_ms);
                             const uint64_t worldSample = rt->world_sample_ms ? rt->world_sample_ms : rt->snapshot_timestamp_ms;
                             const float worldAge = static_cast<float>(nowMs - worldSample);
@@ -314,15 +314,15 @@ void EnsureAcquisitionStarted() {
 
 
 
-            int targetPeriodMs = runtime.in_match ? 8 : 16;
+            int targetPeriodUs = runtime.in_match ? 6'944 : 16'000;
             try {
                 auto cfgLease = RuntimePipeline::AcquireConfig();
                 if (cfgLease) {
                     if (!NeedsPlayerScan(*cfgLease))
-                        targetPeriodMs = 50;
+                        targetPeriodUs = 50'000;
                     else if (runtime.in_match) {
 
-                        targetPeriodMs = cfgLease->performance_mode ? 12 : 8;
+                        targetPeriodUs = cfgLease->performance_mode ? 12'000 : 6'944;
                     }
                 }
 
@@ -373,16 +373,16 @@ void EnsureAcquisitionStarted() {
 
                 g_intervals.Update(runtime.player_count, runtime.acquisition_ms, level, kOptionalBudgetMs);
 
-                if (level >= 3) targetPeriodMs = (std::max)(targetPeriodMs, 22);
-                else if (level == 2) targetPeriodMs = (std::max)(targetPeriodMs, 16);
-                else if (level == 1) targetPeriodMs = (std::max)(targetPeriodMs, 12);
+                if (level >= 3) targetPeriodUs = (std::max)(targetPeriodUs, 22'000);
+                else if (level == 2) targetPeriodUs = (std::max)(targetPeriodUs, 16'000);
+                else if (level == 1) targetPeriodUs = (std::max)(targetPeriodUs, 12'000);
             }
 
 
-            const int workMs = std::max(0, static_cast<int>(std::ceil(runtime.acquisition_ms)));
-            const int delayMs = std::max(1, targetPeriodMs - workMs);
+            const int workUs = std::max(0, static_cast<int>(std::ceil(runtime.acquisition_ms * 1000.f)));
+            const int delayUs = std::max(250, targetPeriodUs - workUs);
             const auto waitBegin = std::chrono::steady_clock::now();
-            scheduler.Wait(std::chrono::milliseconds(delayMs));
+            scheduler.Wait(std::chrono::microseconds(delayUs));
             OmniGhost::Gameplay::DmaTelemetry::ObserveSchedulerWait(
                 OmniGhost::Gameplay::DmaTelemetry::CS2(),
                 OmniGhost::Gameplay::TimeMs(waitBegin));

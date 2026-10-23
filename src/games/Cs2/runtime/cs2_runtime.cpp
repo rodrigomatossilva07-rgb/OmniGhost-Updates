@@ -26,7 +26,7 @@ std::atomic<bool> g_published_in_match{false};
 }
 
 void Publish(Runtime& source, uint64_t generation, uint64_t read_fails) {
-    const uint64_t now = GetTickCount64();
+    const uint64_t now = CS2::SampleClockMs();
     const uint64_t previous = g_last_publish_ms.exchange(now, std::memory_order_relaxed);
     if (previous != 0 && now > previous) {
         const float interval = static_cast<float>(now - previous);

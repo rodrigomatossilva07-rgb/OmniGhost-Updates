@@ -17,7 +17,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
         return;
 
 
-    const uint64_t frame_time_ms = GetTickCount64();
+    const uint64_t frame_time_ms = CS2::SampleClockMs();
 
 
 
@@ -1373,7 +1373,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
 
     mem.SetDmaCallTag("CS2.PawnCore");
     const auto _posBegin = std::chrono::steady_clock::now();
-    const uint64_t position_read_begin_ms = GetTickCount64();
+    const uint64_t position_read_begin_ms = CS2::SampleClockMs();
     ScatterReadPawnCore(resolved_pawns, candidateControllers, core, candidate_count, need_armor,
                         need_scoped, need_flash, need_yaw, need_weapon_services,
                         need_spotted, cachedTeams, refreshTeams,
@@ -1381,7 +1381,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
                         cachedScenes, refreshScenes, positions, track_velocity,
                         cachedWeaponServices, refreshWeaponServices,
                         cachedSpotted, refreshSpotted);
-    const uint64_t position_read_end_ms = GetTickCount64();
+    const uint64_t position_read_end_ms = CS2::SampleClockMs();
     const uint64_t position_sample_ms = position_read_begin_ms +
         (position_read_end_ms - position_read_begin_ms) / 2u;
     runtime.world_sample_ms = position_sample_ms;

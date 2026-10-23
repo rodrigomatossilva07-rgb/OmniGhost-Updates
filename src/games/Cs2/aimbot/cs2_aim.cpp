@@ -84,7 +84,7 @@ void PickBone(const CS2::Player& p, int bone, float out[3]) {
 
 
 
-    const uint64_t now_ms = GetTickCount64();
+    const uint64_t now_ms = CS2::SampleClockMs();
     const bool bonesFresh = p.bones_ok && p.bone_pose_sample_ms != 0 &&
         now_ms >= p.bone_pose_sample_ms &&
         (now_ms - p.bone_pose_sample_ms) <= 250u;
@@ -419,7 +419,7 @@ TargetCandidate SelectTarget(const CS2::Runtime& rt, const CS2::Config& cfg,
     TargetCandidate best{};
     TargetCandidate incumbent{};
     g_target_diag = {};
-    const uint64_t now_ms = GetTickCount64();
+    const uint64_t now_ms = CS2::SampleClockMs();
 
     for (std::size_t i = 0; i < rt.players.size(); ++i) {
         const auto& player = rt.players[i];
@@ -618,7 +618,7 @@ std::pair<float, float> CalculateRCS(const CS2::Runtime& rt, const CS2::Config& 
 
 
 
-    const uint64_t nowMs = GetTickCount64();
+    const uint64_t nowMs = CS2::SampleClockMs();
     if (!rt.local_aim_sample_ms || nowMs < rt.local_aim_sample_ms ||
         nowMs - rt.local_aim_sample_ms > 100u)
         return {};
@@ -809,7 +809,7 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
                     PickBone(held, bone, point);
 
 
-                    const uint64_t sticky_now_ms = GetTickCount64();
+                    const uint64_t sticky_now_ms = CS2::SampleClockMs();
                     ApplyRobustPrediction(point, held, rt, cfg, sticky_now_ms);
                     float sx = 0.f, sy = 0.f;
                     if (held.alive && held.health > 0 && W2S(point, updateViewMatrix, sx, sy)) {
@@ -916,7 +916,7 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
                                 if (cfg.trigger_head_only) {
 
 
-                                    const uint64_t identNowMs = GetTickCount64();
+                                    const uint64_t identNowMs = CS2::SampleClockMs();
                                     const bool identBonesFresh = p.bones_ok &&
                                         p.bone_pose_sample_ms != 0 &&
                                         identNowMs >= p.bone_pose_sample_ms &&
@@ -961,7 +961,7 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
 
 
 
-                        const uint64_t trigNowMs = GetTickCount64();
+                        const uint64_t trigNowMs = CS2::SampleClockMs();
                         const bool trigBonesFresh = p.bones_ok && p.bone_pose_sample_ms != 0 &&
                             trigNowMs >= p.bone_pose_sample_ms &&
                             (trigNowMs - p.bone_pose_sample_ms) <= 250u;

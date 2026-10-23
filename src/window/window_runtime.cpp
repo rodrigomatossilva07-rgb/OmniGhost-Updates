@@ -753,7 +753,7 @@ void Overlay::EndRender() {
 
 
 
-    constexpr auto kFramePeriod = std::chrono::microseconds(8'000);
+    constexpr auto kFramePeriod = std::chrono::microseconds(6'944);
     const auto now = std::chrono::steady_clock::now();
     if (next_frame_deadline_.time_since_epoch().count() == 0 ||
         now > next_frame_deadline_ + kFramePeriod * 2) {

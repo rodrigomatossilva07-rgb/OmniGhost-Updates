@@ -2,6 +2,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <chrono>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -10,6 +11,11 @@
 #include "gameplay/unified_esp.h"
 
 namespace CS2 {
+
+[[nodiscard]] inline uint64_t SampleClockMs() noexcept {
+    return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count());
+}
 
 struct Offsets {
     uintptr_t dwEntityList = 0;

@@ -195,9 +195,9 @@ static void RunOptionalEnrichment(const Config& frame_config,
                 ++scanQueuedBatches;
                 CS2::GiveCameraPriorityBeforeOptionalDma();
                 mem.SetDmaCallTag("CS2.Optional.Bones");
-                const uint64_t bone_read_begin_ms = GetTickCount64();
+                const uint64_t bone_read_begin_ms = CS2::SampleClockMs();
                 const bool boneReadOk = mem.ExecuteReadScatter(g_scatter_optional);
-                const uint64_t bone_read_end_ms = GetTickCount64();
+                const uint64_t bone_read_end_ms = CS2::SampleClockMs();
 
                 if (jobGen != g_session_generation.load(std::memory_order_acquire)) return;
 

@@ -590,7 +590,7 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
         }
         return false;
     };
-    const uint64_t nowMs = GetTickCount64();
+    const uint64_t nowMs = CS2::SampleClockMs();
     const auto frameCamera = CS2::PredictCameraSnapshot(nowMs);
 
 
