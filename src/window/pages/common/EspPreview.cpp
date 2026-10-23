@@ -670,7 +670,36 @@ void DrawPreview(ImDrawList* dl, const ImVec2& origin, float width, float height
     ImU32 outlineTextCol = SmoothColor(previewId, "outline_color", ToImU32(cfg.col_text_outline), espAlpha);
 
 
-    TextStack stack(g.textStackY, g.boundsCenter.x);
+    const auto layoutPoint = [&g](float nx, float ny) {
+        return ImVec2(g.boundsMin.x + nx * g.boundsWidth,
+                      g.boundsMin.y + ny * g.boundsHeight);
+    };
+    const auto drawLayoutText = [&](const char* text, float nx, float ny, ImU32 color) {
+        const ImVec2 point = layoutPoint(nx, ny);
+        const ImVec2 size = ImGui::CalcTextSize(text);
+        TextStack placed(point.y - size.y * .5f, point.x);
+        placed.DrawTextCentered(dl, text, color, cfg.text_outline, outlineTextCol,
+                                cfg.text_outline_thickness);
+    };
+    const auto drawLayoutBar = [&](float nx, float ny, float fraction, ImU32 color,
+                                   const char* value, bool showValue) {
+        const ImVec2 point = layoutPoint(nx, ny);
+        const float halfHeight = g.boundsHeight * .46f;
+        const float top = point.y - halfHeight;
+        const float bottom = point.y + halfHeight;
+        const float x = point.x - 2.f;
+        dl->AddRectFilled(ImVec2(x - 1.f, top - 1.f), ImVec2(x + 5.f, bottom + 1.f), OUTLINE_DARK_STRONG);
+        dl->AddRectFilled(ImVec2(x, top), ImVec2(x + 4.f, bottom), IM_COL32(18, 18, 18, 235));
+        const float fillTop = bottom - (bottom - top) * std::clamp(fraction, 0.f, 1.f);
+        dl->AddRectFilled(ImVec2(x, fillTop), ImVec2(x + 4.f, bottom), color);
+        if (showValue) {
+            const bool rightSide = nx >= .5f;
+            const ImVec2 size = ImGui::CalcTextSize(value);
+            const ImVec2 textPos(rightSide ? x + 8.f : x - size.x - 5.f,
+                                 fillTop - size.y * .5f);
+            dl->AddText(textPos, color, value);
+        }
+    };
 
 
 
@@ -695,8 +724,10 @@ void DrawPreview(ImDrawList* dl, const ImVec2& origin, float width, float height
     if ((jointsCol >> 24) != 0) DrawJoints(dl, g, jointsCol);
 
 
-    if ((healthCol >> 24) != 0) DrawHealthBar(dl, g, healthCol, 0.75f, cfg.health_value);
-    if ((armorCol >> 24) != 0) DrawArmorBar(dl, g, armorCol, 0.65f, cfg.armor_value);
+    if ((healthCol >> 24) != 0)
+        drawLayoutBar(cfg.layout_health_x, cfg.layout_health_y, .75f, healthCol, "75 HP", cfg.health_value);
+    if ((armorCol >> 24) != 0)
+        drawLayoutBar(cfg.layout_armor_x, cfg.layout_armor_y, .65f, armorCol, "65 AP", cfg.armor_value);
 
 
     if ((headCol >> 24) != 0) DrawHeadCircle(dl, g, headCol, cfg.head_circle_thickness);
@@ -714,11 +745,14 @@ void DrawPreview(ImDrawList* dl, const ImVec2& origin, float width, float height
     if ((lookCol >> 24) != 0) DrawEyeLine(dl, g, lookCol, cfg.eye_line_thickness, cfg.look_direction_length);
 
 
-    if (cfg.name && (nameCol >> 24) != 0) DrawPlayerName(dl, stack, g, "Enemy", nameCol, cfg.text_outline, outlineTextCol, cfg.text_outline_thickness,
-                                 cfg.head_halo, cfg.chinese_hat, cfg.devil_horns, cfg.floating_crown);
-    if (cfg.weapon_name && (weaponCol >> 24) != 0) DrawWeaponName(dl, stack, "AK-47", weaponCol, cfg.text_outline, outlineTextCol, cfg.text_outline_thickness);
-    if (cfg.weapon_ammo && (weaponCol >> 24) != 0) DrawAmmo(dl, stack, "24 / 30", 0.8f, weaponCol, IM_COL32(18, 18, 18, 235), cfg.text_outline, outlineTextCol, cfg.text_outline_thickness);
-    if ((distCol >> 24) != 0) DrawDistance(dl, stack, "18m", distCol, cfg.text_outline, outlineTextCol, cfg.text_outline_thickness);
+    if (cfg.name && (nameCol >> 24) != 0)
+        drawLayoutText("Enemy", cfg.layout_name_x, cfg.layout_name_y, nameCol);
+    if (cfg.weapon_name && (weaponCol >> 24) != 0)
+        drawLayoutText("AK-47", cfg.layout_weapon_x, cfg.layout_weapon_y, weaponCol);
+    if (cfg.weapon_ammo && (weaponCol >> 24) != 0)
+        drawLayoutText("24 / 30", cfg.layout_ammo_x, cfg.layout_ammo_y, weaponCol);
+    if ((distCol >> 24) != 0)
+        drawLayoutText("18m", cfg.layout_distance_x, cfg.layout_distance_y, distCol);
 
 
     if (previewLabel && *previewLabel)

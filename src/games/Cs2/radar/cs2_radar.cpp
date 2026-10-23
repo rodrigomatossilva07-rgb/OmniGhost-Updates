@@ -866,7 +866,7 @@ bool StartCloudflare() {
 
 
     g_cf_reader = std::thread([rd]() {
-        constexpr uint64_t kTunnelStartupTimeoutMs = 15000u;
+        constexpr uint64_t kTunnelStartupTimeoutMs = 45000u;
         const uint64_t startedMs = GetTickCount64();
         std::string output;
         char tmp[512];
@@ -882,7 +882,7 @@ bool StartCloudflare() {
                     {
                         std::lock_guard<std::mutex> lock(g_mu);
                         g_cloudflare_status =
-                            "O Cloudflare não respondeu em 15 segundos. Nova tentativa em breve.";
+                            "O Cloudflare não respondeu em 45 segundos. A repetir automaticamente.";
                         timedOutProcess = g_cf_proc;
                         g_cf_proc = nullptr;
                     }

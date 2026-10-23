@@ -16,7 +16,7 @@ void EnsureAcquisitionStarted() {
     g_web_radar_desired_enabled.store(false, std::memory_order_release);
     g_web_radar_control_thread = std::thread([] {
         uint64_t nextServerAttemptMs = 0;
-        bool cloudflareAttempted = false;
+        uint64_t nextCloudflareAttemptMs = 0;
         while (!g_web_radar_control_stop.load(std::memory_order_acquire)) {
             (void)RefreshProcessLiveness();
             if (g_web_radar_desired_enabled.load(std::memory_order_acquire)) {
@@ -25,25 +25,25 @@ void EnsureAcquisitionStarted() {
                 if ((!WebRadar::IsRunning() || WebRadar::Port() != port) &&
                     now >= nextServerAttemptMs) {
                     WebRadar::Start(port);
-                    cloudflareAttempted = false;
+                    nextCloudflareAttemptMs = 0;
                     nextServerAttemptMs = now + 1000u;
                 }
                 if (WebRadar::IsRunning() &&
                     g_web_radar_desired_cloudflare.load(std::memory_order_relaxed)) {
-                    if (!WebRadar::CloudflareRunning() && !cloudflareAttempted) {
+                    if (!WebRadar::CloudflareRunning() && now >= nextCloudflareAttemptMs) {
                         WebRadar::StartCloudflare();
-                        cloudflareAttempted = true;
+                        nextCloudflareAttemptMs = now + 5000u;
                     }
                 } else if (WebRadar::CloudflareRunning()) {
                     WebRadar::StopCloudflare();
-                    cloudflareAttempted = false;
+                    nextCloudflareAttemptMs = 0;
                 } else if (!g_web_radar_desired_cloudflare.load(std::memory_order_relaxed)) {
-                    cloudflareAttempted = false;
+                    nextCloudflareAttemptMs = 0;
                 }
             } else {
                 if (WebRadar::IsRunning()) WebRadar::Stop();
                 else if (WebRadar::CloudflareRunning()) WebRadar::StopCloudflare();
-                cloudflareAttempted = false;
+                nextCloudflareAttemptMs = 0;
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }

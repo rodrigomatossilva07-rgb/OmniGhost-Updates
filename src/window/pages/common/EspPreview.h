@@ -276,6 +276,12 @@ struct PreviewConfig {
     bool weapon_ammo = false;
     bool text_outline = true;
     float text_outline_thickness = 1.f;
+    float layout_name_x = .50f, layout_name_y = .10f;
+    float layout_health_x = .18f, layout_health_y = .50f;
+    float layout_armor_x = .82f, layout_armor_y = .50f;
+    float layout_weapon_x = .50f, layout_weapon_y = .86f;
+    float layout_distance_x = .50f, layout_distance_y = .94f;
+    float layout_ammo_x = .50f, layout_ammo_y = .78f;
 
 
     bool self_esp = false;

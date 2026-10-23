@@ -45,6 +45,18 @@ struct Cs2PreviewAdapter : EspPreview::IConfigAdapter {
         cfg.weapon_ammo = CS2::config.weapon_ammo;
         cfg.text_outline = CS2::config.text_outline;
         cfg.text_outline_thickness = CS2::config.text_outline_thickness;
+        cfg.layout_name_x = CS2::config.layout_name_x;
+        cfg.layout_name_y = CS2::config.layout_name_y;
+        cfg.layout_health_x = CS2::config.layout_health_x;
+        cfg.layout_health_y = CS2::config.layout_health_y;
+        cfg.layout_armor_x = CS2::config.layout_armor_x;
+        cfg.layout_armor_y = CS2::config.layout_armor_y;
+        cfg.layout_weapon_x = CS2::config.layout_weapon_x;
+        cfg.layout_weapon_y = CS2::config.layout_weapon_y;
+        cfg.layout_distance_x = CS2::config.layout_distance_x;
+        cfg.layout_distance_y = CS2::config.layout_distance_y;
+        cfg.layout_ammo_x = CS2::config.layout_ammo_x;
+        cfg.layout_ammo_y = CS2::config.layout_ammo_y;
 
         cfg.snaplines = CS2::config.snaplines;
         cfg.snapline_position = CS2::config.snapline_position;
@@ -120,27 +132,32 @@ void DrawLayoutBuilder(const ImVec2& origin, float width, float height) {
     const ImVec2 boxMax = geometry.boundsMax;
     const ImVec2 restoreCursor = ImGui::GetCursorScreenPos();
 
-    struct Item { const char* label; float* x; float* y; };
+    struct Item { const char* sample; float* x; float* y; bool enabled; bool verticalBar; };
     Item items[] = {
-        { "Name", &CS2::config.layout_name_x, &CS2::config.layout_name_y },
-        { "Health", &CS2::config.layout_health_x, &CS2::config.layout_health_y },
-        { "Armor", &CS2::config.layout_armor_x, &CS2::config.layout_armor_y },
-        { "Weapon", &CS2::config.layout_weapon_x, &CS2::config.layout_weapon_y },
-        { "Distance", &CS2::config.layout_distance_x, &CS2::config.layout_distance_y },
-        { "Ammo", &CS2::config.layout_ammo_x, &CS2::config.layout_ammo_y }
+        { "Enemy", &CS2::config.layout_name_x, &CS2::config.layout_name_y, CS2::config.name, false },
+        { "75 HP", &CS2::config.layout_health_x, &CS2::config.layout_health_y, CS2::config.health_bar, true },
+        { "65 AP", &CS2::config.layout_armor_x, &CS2::config.layout_armor_y, CS2::config.armor_bar, true },
+        { "AK-47", &CS2::config.layout_weapon_x, &CS2::config.layout_weapon_y, CS2::config.weapon_name, false },
+        { "18m", &CS2::config.layout_distance_x, &CS2::config.layout_distance_y, CS2::config.distance, false },
+        { "24 / 30", &CS2::config.layout_ammo_x, &CS2::config.layout_ammo_y, CS2::config.weapon_ammo, false }
     };
     for (int index = 0; index < static_cast<int>(std::size(items)); ++index) {
-        const ImVec2 text = ImGui::CalcTextSize(items[index].label);
+        if (!items[index].enabled) continue;
+        const ImVec2 text = ImGui::CalcTextSize(items[index].sample);
         ImVec2 pos(boxMin.x + *items[index].x * (boxMax.x - boxMin.x) - text.x * .5f,
                    boxMin.y + *items[index].y * (boxMax.y - boxMin.y) - text.y * .5f);
+        const ImVec2 hitSize = items[index].verticalBar
+            ? ImVec2((std::max)(18.f, text.x), boxMax.y - boxMin.y)
+            : ImVec2(text.x + 12.f, text.y + 10.f);
+        if (items[index].verticalBar)
+            pos.y = boxMin.y;
         ImGui::SetCursorScreenPos(pos);
         ImGui::PushID(index);
-        ImGui::InvisibleButton("##layout_item", ImVec2(text.x + 8.f, text.y + 6.f));
+        ImGui::InvisibleButton("##layout_item", hitSize);
         const bool active = ImGui::IsItemActive();
-        draw->AddRectFilled(ImVec2(pos.x - 4.f, pos.y - 3.f),
-            ImVec2(pos.x + text.x + 4.f, pos.y + text.y + 3.f),
-            active ? IM_COL32(229, 184, 55, 90) : IM_COL32(31, 28, 18, 230), 4.f);
-        draw->AddText(pos, IM_COL32(235, 225, 196, 255), items[index].label);
+        if (active || ImGui::IsItemHovered())
+            draw->AddRect(pos, ImVec2(pos.x + hitSize.x, pos.y + hitSize.y),
+                active ? IM_COL32(229, 184, 55, 180) : IM_COL32(229, 184, 55, 85), 4.f, 0, 1.f);
         if (active && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
             const ImVec2 mouse = ImGui::GetIO().MousePos;
             *items[index].x = std::clamp((mouse.x - boxMin.x) / (boxMax.x - boxMin.x), -.20f, 1.20f);
