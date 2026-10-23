@@ -306,6 +306,27 @@ try {
         -Quiet
     Write-ReleaseLog 'SBOM e política de dependências validados.'
 
+    # Capture the already validated runtime before touching any output directory.
+    # Publish can run alongside cleanup hooks, so the build directory must not be
+    # treated as durable once validation has completed.
+    New-Item -ItemType Directory -Path $StageDir -Force | Out-Null
+    $RequiredRuntimeFiles = @('OmniGhost.exe')
+    foreach ($Name in $RequiredRuntimeFiles) {
+        $Source = Join-Path $BuildDir $Name
+        if (-not (Test-Path -LiteralPath $Source -PathType Leaf)) {
+            throw "Ficheiro runtime obrigatório em falta: $Name"
+        }
+        $StagedRuntime = Join-Path $StageDir $Name
+        Copy-Item -LiteralPath $Source -Destination $StagedRuntime -Force
+        Assert-CopyMatches -Source $Source -Destination $StagedRuntime
+    }
+    $UnexpectedRuntime = @(Get-ChildItem -LiteralPath $BuildDir -Recurse -Force | Where-Object {
+        -not $_.PSIsContainer -and $_.FullName -ne (Join-Path $BuildDir 'OmniGhost.exe')
+    })
+    if ($UnexpectedRuntime.Count -gt 0) {
+        throw "A build comercial não é single-EXE: $($UnexpectedRuntime[0].FullName)"
+    }
+
     $script:ReleaseOutputDir = Get-ReleaseOutputDirectory
     Write-ReleaseLog "Pasta de Transferências selecionada: $ReleaseOutputDir"
 
@@ -321,25 +342,6 @@ try {
 
     New-Item -ItemType Directory -Path $ArtifactOutputDir -Force | Out-Null
     New-Item -ItemType Directory -Path $ReleaseOutputDir -Force | Out-Null
-    New-Item -ItemType Directory -Path $StageDir -Force | Out-Null
-
-
-
-
-    $RequiredRuntimeFiles = @('OmniGhost.exe')
-    foreach ($Name in $RequiredRuntimeFiles) {
-        $Source = Join-Path $BuildDir $Name
-        if (-not (Test-Path -LiteralPath $Source -PathType Leaf)) {
-            throw "Ficheiro runtime obrigatório em falta: $Name"
-        }
-        Copy-Item -LiteralPath $Source -Destination (Join-Path $StageDir $Name) -Force
-    }
-    $UnexpectedRuntime = @(Get-ChildItem -LiteralPath $BuildDir -Recurse -Force | Where-Object {
-        -not $_.PSIsContainer -and $_.FullName -ne (Join-Path $BuildDir 'OmniGhost.exe')
-    })
-    if ($UnexpectedRuntime.Count -gt 0) {
-        throw "A build comercial não é single-EXE: $($UnexpectedRuntime[0].FullName)"
-    }
 
     foreach ($plaintextOffset in @('data\fortnite_offsets.json','data\warzone_offsets.json')) {
         if (Test-Path -LiteralPath (Join-Path $StageDir $plaintextOffset) -PathType Leaf) {
