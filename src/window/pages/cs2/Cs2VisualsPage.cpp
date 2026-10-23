@@ -195,7 +195,7 @@ void DrawCs2Visuals() {
     CyberWidgets::ToggleSwitch("Setas fora do ecrã", &CS2::config.offscreen_arrows);
     if (CS2::config.offscreen_arrows) {
         CyberWidgets::SliderFloat("Tamanho da seta", &CS2::config.offscreen_arrow_size, 6.f, 32.f, "%.0f px");
-        CyberWidgets::SliderFloat("Margem da seta", &CS2::config.offscreen_arrow_margin, 12.f, 160.f, "%.0f px");
+        CyberWidgets::SliderFloat("Distância ao FOV", &CS2::config.offscreen_arrow_margin, 12.f, 160.f, "%.0f px");
         CyberWidgets::SliderFloat("Distância das setas", &CS2::config.offscreen_arrow_max_distance, 10.f, 500.f, "%.0f m");
         CyberWidgets::SliderFloat("Opacidade das setas", &CS2::config.offscreen_arrow_opacity, .1f, 1.f, "%.2f");
     }

@@ -82,7 +82,8 @@ void EnsureAcquisitionStarted() {
 
 
 
-            constexpr int camera_period_ms = 2;
+            constexpr int camera_period_ms = 4;
+            constexpr auto camera_period = std::chrono::microseconds(4'167);
             Camera::SetDeadline(next_camera_ms);
             int wait_ms = in_match ? camera_period_ms : 20;
             bool busyRetry = false;
@@ -153,6 +154,8 @@ void EnsureAcquisitionStarted() {
                     } while (g_acqState.IsRunning() &&
                              std::chrono::steady_clock::now() < retryAt);
                 }
+            } else if (in_match) {
+                scheduler.Wait(camera_period);
             } else {
                 scheduler.Wait(std::chrono::milliseconds(wait_ms));
             }

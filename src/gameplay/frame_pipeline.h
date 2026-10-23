@@ -14,10 +14,12 @@ class FixedRateScheduler final {
 public:
     using Clock = std::chrono::steady_clock;
 
-    void Wait(std::chrono::milliseconds period) {
+    template <typename Rep, typename Period>
+    void Wait(std::chrono::duration<Rep, Period> period) {
+        const auto clockPeriod = std::chrono::duration_cast<Clock::duration>(period);
         const auto now = Clock::now();
-        if (!started_ || next_ <= now - period * 2) {
-            next_ = now + period;
+        if (!started_ || next_ <= now - clockPeriod * 2) {
+            next_ = now + clockPeriod;
             started_ = true;
         } else {
 
@@ -29,13 +31,13 @@ public:
             std::this_thread::sleep_until(next_);
         else
             next_ = now;
-        last_period_ = period;
+        last_period_ = clockPeriod;
     }
 
 private:
     Clock::time_point next_{};
     bool started_ = false;
-    std::chrono::milliseconds last_period_{0};
+    Clock::duration last_period_{};
 };
 
 struct PipelineTelemetry final {

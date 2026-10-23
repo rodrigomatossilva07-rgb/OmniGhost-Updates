@@ -133,9 +133,14 @@ bool DrawOffscreenArrow(ImDrawList* draw, const float world[3], const float matr
     float nx = clipX / safeW;
     float ny = -clipY / safeW;
     if (clipW < 0.f) { nx = -nx; ny = -ny; }
-    if (clipW > .001f && std::abs(nx) <= 1.f && std::abs(ny) <= 1.f) return false;
-    const float length = std::sqrt(nx * nx + ny * ny);
-    if (!std::isfinite(length) || length < .001f) return false;
+    const bool onScreen = clipW > .001f && std::abs(nx) <= 1.f && std::abs(ny) <= 1.f;
+    float length = std::sqrt(nx * nx + ny * ny);
+    if (!std::isfinite(length)) return false;
+    if (length < .001f) {
+        nx = 0.f;
+        ny = -1.f;
+        length = 1.f;
+    }
     nx /= length; ny /= length;
     const float size = std::clamp(settings.offscreen_arrow_size, 6.f, 32.f);
     float fovRadius = settings.aim_fov;
@@ -157,6 +162,12 @@ bool DrawOffscreenArrow(ImDrawList* draw, const float world[3], const float matr
         fovRadius + settings.offscreen_arrow_margin,
         size * 2.f,
         (std::min)(viewport.x, viewport.y) * .5f - size * 2.f);
+    if (onScreen) {
+        const float projectedX = clipX / safeW * viewport.x * .5f;
+        const float projectedY = clipY / safeW * viewport.y * .5f;
+        if (std::sqrt(projectedX * projectedX + projectedY * projectedY) <= fovRadius)
+            return false;
+    }
     const ImVec2 tip(viewport.x * .5f + nx * ringRadius,
                      viewport.y * .5f + ny * ringRadius);
     const ImVec2 side(-ny, nx);
@@ -167,7 +178,7 @@ bool DrawOffscreenArrow(ImDrawList* draw, const float world[3], const float matr
     draw->AddTriangleFilled(tip,
         ImVec2(base.x + side.x * size * .55f, base.y + side.y * size * .55f),
         ImVec2(base.x - side.x * size * .55f, base.y - side.y * size * .55f), Color(colorValues));
-    return true;
+    return !onScreen;
 }
 
 void DrawSkeleton(ImDrawList* draw, const CS2::Player& player, const float viewMatrix[16],
