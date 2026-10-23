@@ -323,7 +323,7 @@ namespace FiveM {
         static void CameraLoop() {
 
 
-            constexpr int kCameraIntervalMs = 16;
+            constexpr auto kCameraInterval = std::chrono::microseconds(4167);
             using Clock = std::chrono::steady_clock;
             auto nextCameraTime = Clock::now();
             VMMDLL_SCATTER_HANDLE camScatter = nullptr;
@@ -438,7 +438,7 @@ namespace FiveM {
                 }
                 s_cameraPending.store(false, std::memory_order_release);
 
-                nextCameraTime += std::chrono::milliseconds(kCameraIntervalMs);
+                nextCameraTime += kCameraInterval;
                 if (nextCameraTime <= Clock::now())
                     nextCameraTime = Clock::now() + std::chrono::milliseconds(1);
             }
@@ -836,10 +836,10 @@ namespace FiveM {
 
 
                 const int pressure = s_pressureLevel.load(std::memory_order_relaxed);
-                int delayMs = s_performanceMode.load(std::memory_order_relaxed) ? 24 : 18;
-                if (pressure >= 3) delayMs = (std::max)(delayMs, 40);
-                else if (pressure == 2) delayMs = (std::max)(delayMs, 28);
-                else if (pressure == 1) delayMs = (std::max)(delayMs, 22);
+                int delayMs = s_performanceMode.load(std::memory_order_relaxed) ? 12 : 7;
+                if (pressure >= 3) delayMs = (std::max)(delayMs, 22);
+                else if (pressure == 2) delayMs = (std::max)(delayMs, 16);
+                else if (pressure == 1) delayMs = (std::max)(delayMs, 12);
                 const auto waitBegin = std::chrono::steady_clock::now();
                 scheduler.Wait(std::chrono::milliseconds(delayMs));
                 OmniGhost::Gameplay::DmaTelemetry::ObserveSchedulerWait(

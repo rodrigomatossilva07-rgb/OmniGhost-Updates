@@ -51,6 +51,7 @@ public:
     }
 
     void Touch(double now) noexcept { last_seen_ = now; }
+    void Clear() noexcept { start_ = 0; count_ = 0; last_seen_ = 0.0; }
     bool Stale(double now, double seconds) const noexcept {
         return count_ == 0 || now - last_seen_ > seconds;
     }
@@ -58,6 +59,15 @@ public:
 
     const TrailPoint& At(std::size_t index) const noexcept {
         return points_[(start_ + index) % Capacity];
+    }
+
+    bool Discontinuous(float x, float y, float z, double now,
+                       float maximum_distance, double maximum_interval) const noexcept {
+        if (count_ == 0) return false;
+        const TrailPoint& last = points_[(start_ + count_ - 1) % Capacity];
+        const float dx = x - last.x, dy = y - last.y, dz = z - last.z;
+        return now <= last.time || now - last.time > maximum_interval ||
+            dx * dx + dy * dy + dz * dz > maximum_distance * maximum_distance;
     }
 
 private:

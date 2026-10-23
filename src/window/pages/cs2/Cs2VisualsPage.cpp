@@ -55,9 +55,9 @@ struct Cs2PreviewAdapter : EspPreview::IConfigAdapter {
         cfg.look_direction_length = CS2::config.look_direction_length;
 
         cfg.chinese_hat = CS2::config.chinese_hat;
-        cfg.angel_wings = CS2::config.angel_wings;
-        cfg.devil_horns = CS2::config.devil_horns;
-        cfg.floating_crown = CS2::config.floating_crown;
+        cfg.angel_wings = false;
+        cfg.devil_horns = false;
+        cfg.floating_crown = false;
         cfg.trails = CS2::config.trails;
         cfg.chinese_hat_scale = CS2::config.chinese_hat_scale;
         cfg.fun_effects_scale = CS2::config.fun_effects_scale;
@@ -120,23 +120,19 @@ void DrawLayoutBuilder(const ImVec2& origin, float width, float height) {
     const ImVec2 boxMax = geometry.boundsMax;
     const ImVec2 restoreCursor = ImGui::GetCursorScreenPos();
 
-    struct Item { const char* label; int* anchor; };
+    struct Item { const char* label; float* x; float* y; };
     Item items[] = {
-        { "Name", &CS2::config.layout_name_anchor }, { "Health", &CS2::config.layout_health_anchor },
-        { "Armor", &CS2::config.layout_armor_anchor }, { "Weapon", &CS2::config.layout_weapon_anchor },
-        { "Distance", &CS2::config.layout_distance_anchor }, { "Ammo", &CS2::config.layout_ammo_anchor }
+        { "Name", &CS2::config.layout_name_x, &CS2::config.layout_name_y },
+        { "Health", &CS2::config.layout_health_x, &CS2::config.layout_health_y },
+        { "Armor", &CS2::config.layout_armor_x, &CS2::config.layout_armor_y },
+        { "Weapon", &CS2::config.layout_weapon_x, &CS2::config.layout_weapon_y },
+        { "Distance", &CS2::config.layout_distance_x, &CS2::config.layout_distance_y },
+        { "Ammo", &CS2::config.layout_ammo_x, &CS2::config.layout_ammo_y }
     };
-    int sideCounts[4]{};
     for (int index = 0; index < static_cast<int>(std::size(items)); ++index) {
-        const int anchor = std::clamp(*items[index].anchor, 0, 3);
         const ImVec2 text = ImGui::CalcTextSize(items[index].label);
-        const int order = sideCounts[anchor]++;
-        ImVec2 pos{};
-        const float spacing = std::clamp(CS2::config.layout_spacing, 0.f, 18.f);
-        if (anchor == 0) pos = ImVec2((boxMin.x + boxMax.x - text.x) * .5f, boxMin.y - 22.f - order * (18.f + spacing));
-        else if (anchor == 1) pos = ImVec2((boxMin.x + boxMax.x - text.x) * .5f, boxMax.y + 7.f + order * (18.f + spacing));
-        else if (anchor == 2) pos = ImVec2(boxMin.x - text.x - 12.f, boxMin.y + 18.f + order * (20.f + spacing));
-        else pos = ImVec2(boxMax.x + 12.f, boxMin.y + 18.f + order * (20.f + spacing));
+        ImVec2 pos(boxMin.x + *items[index].x * (boxMax.x - boxMin.x) - text.x * .5f,
+                   boxMin.y + *items[index].y * (boxMax.y - boxMin.y) - text.y * .5f);
         ImGui::SetCursorScreenPos(pos);
         ImGui::PushID(index);
         ImGui::InvisibleButton("##layout_item", ImVec2(text.x + 8.f, text.y + 6.f));
@@ -147,12 +143,8 @@ void DrawLayoutBuilder(const ImVec2& origin, float width, float height) {
         draw->AddText(pos, IM_COL32(235, 225, 196, 255), items[index].label);
         if (active && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
             const ImVec2 mouse = ImGui::GetIO().MousePos;
-            const float dTop = std::abs(mouse.y - boxMin.y);
-            const float dBottom = std::abs(mouse.y - boxMax.y);
-            const float dLeft = std::abs(mouse.x - boxMin.x);
-            const float dRight = std::abs(mouse.x - boxMax.x);
-            const float nearest = std::min({ dTop, dBottom, dLeft, dRight });
-            *items[index].anchor = nearest == dTop ? 0 : nearest == dBottom ? 1 : nearest == dLeft ? 2 : 3;
+            *items[index].x = std::clamp((mouse.x - boxMin.x) / (boxMax.x - boxMin.x), -.20f, 1.20f);
+            *items[index].y = std::clamp((mouse.y - boxMin.y) / (boxMax.y - boxMin.y), -.20f, 1.20f);
         }
         ImGui::PopID();
     }
@@ -189,8 +181,8 @@ void DrawCs2Visuals() {
     CyberWidgets::ToggleSwitch("Valor de armadura", &CS2::config.armor_value); CyberWidgets::ToggleSwitch("Caixa 2D", &CS2::config.box);
     CyberWidgets::ToggleSwitch("Caixa de cantos", &CS2::config.box_corner); CyberWidgets::ToggleSwitch("Linhas guia", &CS2::config.snaplines);
     CyberWidgets::ToggleSwitch("Halo na cabeça", &CS2::config.head_halo); CyberWidgets::ToggleSwitch("Chapéu chinês", &CS2::config.chinese_hat);
-    CyberWidgets::ToggleSwitch("Asas de anjo", &CS2::config.angel_wings); CyberWidgets::ToggleSwitch("Chifres de demónio", &CS2::config.devil_horns);
-    CyberWidgets::ToggleSwitch("Coroa flutuante", &CS2::config.floating_crown); CyberWidgets::ToggleSwitch("Rastros", &CS2::config.trails);
+    CS2::config.angel_wings = false; CS2::config.devil_horns = false; CS2::config.floating_crown = false;
+    CyberWidgets::ToggleSwitch("Rastros", &CS2::config.trails);
     CyberWidgets::ToggleSwitch("Eye Line", &CS2::config.look_direction);
     CyberWidgets::ToggleSwitch("Setas fora do ecrã", &CS2::config.offscreen_arrows);
     if (CS2::config.offscreen_arrows) {
@@ -296,8 +288,6 @@ void DrawCs2Visuals() {
 
     ImGui::BeginGroup();
     CyberWidgets::BeginCard("PREVIEW & ESP BUILDER", previewWidth);
-    CyberWidgets::SliderFloat("Espaçamento", &CS2::config.layout_spacing, 0.f, 18.f, "%.0f px");
-    CyberWidgets::SliderFloat("Escala do texto", &CS2::config.layout_text_scale, .65f, 1.6f, "%.2fx");
     CyberWidgets::TextLine("Arrasta os rótulos na pré-visualização.", CyberWidgets::TextTone::Secondary);
     const float panelHeight = (std::max)(CyberTheme::Px(260.f), height - CyberTheme::Metrics::CardHeaderHeight - CyberTheme::Metrics::CardPadding * 2.f - CyberTheme::Px(116.f));
     const float drawWidth = (std::max)(CyberTheme::Px(180.f), previewWidth - CyberTheme::Metrics::CardPadding * 2.f);

@@ -12,6 +12,7 @@
 #include <objbase.h>
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <iostream>
@@ -30,6 +31,9 @@ std::mutex g_mutex;
 std::jthread g_worker;
 std::jthread g_drainer;
 std::map<int, Summary> g_summaries;
+
+
+std::atomic<bool> g_suppressFinalFlush{false};
 
 const char* GameName(::Launcher::GameId game) noexcept {
     switch (game) {
@@ -142,6 +146,12 @@ void Run(std::stop_token stop, ::Launcher::GameId game) {
         if (!eventId.empty()) (void)Licensing::UsageRequest("PUT", "/api/usage/sessions/" + sessionId +
             "/heartbeat", "{\"eventId\":\"" + eventId + "\"}", token);
     }
+
+
+
+
+    if (g_suppressFinalFlush.load(std::memory_order_acquire))
+        return;
     const std::string finishId = Uuid();
     if (!finishId.empty()) (void)Licensing::UsageRequest("POST", "/api/usage/sessions/" + sessionId +
         "/finish", "{\"eventId\":\"" + finishId + "\"}", token);
@@ -213,6 +223,9 @@ void Refresh() {
     if (!token.empty()) RefreshSummary(token);
 }
 void Shutdown() noexcept { StopWorker(); }
+void SuppressFinalFlush() noexcept {
+    g_suppressFinalFlush.store(true, std::memory_order_release);
+}
 bool TryGetSummary(::Launcher::GameId game, Summary& summary) noexcept {
     std::lock_guard lock(g_mutex);
     const auto found = g_summaries.find(static_cast<int>(game));

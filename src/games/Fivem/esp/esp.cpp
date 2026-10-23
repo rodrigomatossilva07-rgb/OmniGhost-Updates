@@ -845,7 +845,12 @@ static void DrawMotionVisuals(uintptr_t ped, Matrix viewport, const PedData* cac
 
     if (cfg.trails && !veryFar) {
         auto& history = trails[ped];
-        history.Push(origin.x, origin.y, origin.z + 0.04f, now, 0.10f, 0.035);
+        const float trailX = origin.x;
+        const float trailY = origin.y;
+        const float trailZ = origin.z + .58f;
+        if (history.Discontinuous(trailX, trailY, trailZ, now, 4.0f, .35))
+            history.Clear();
+        history.Push(trailX, trailY, trailZ, now, 0.10f, 0.035);
         const double duration = std::clamp(static_cast<double>(cfg.trail_duration), 0.20, 2.50);
         const ImU32 base = EspPedColor(ped, cfg.color_trail, visible);
         for (std::size_t i = 1; i < history.Size(); ++i) {

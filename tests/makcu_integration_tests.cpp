@@ -162,8 +162,12 @@ void TestCapabilitiesAndCommands() {
     const auto v2Move = v2Protocol->Move(1, -1);
     Require(v2Move && v2Move->bytes == std::vector<uint8_t>({0x50,0x0D,0x07,0x00,0x01,0x00,0xFF,0xFF,0x01,0x00,0x00}),
             "V2 move encoding");
+    const auto v2Buttons = v2Protocol->ButtonMonitoring(true);
+    Require(v2Buttons && v2Buttons->bytes == std::vector<uint8_t>({0x50,0x02,0x01,0x00,0x01}),
+            "V2 button stream enable encoding");
     Require(v2Protocol->Capabilities().Get(makcu::Capability::ButtonMonitoring) ==
-            makcu::CapabilityState::Unknown, "V2 unverified stream remains unknown");
+            makcu::CapabilityState::Supported,
+            "V2 button stream documented capability");
 }
 
 void TestConnectionSelection() {

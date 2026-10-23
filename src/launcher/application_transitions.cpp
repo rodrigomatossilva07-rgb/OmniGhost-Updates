@@ -15,6 +15,7 @@
 #include <cfloat>
 #include <cmath>
 #include <future>
+#include <iostream>
 
 namespace OmniGhost::UI {
 
@@ -145,7 +146,20 @@ void EndGameSessionWithTransition(Overlay& application,
         DrawTransitionOverlay({"A terminar sessão", {}, elapsed, 1.0f, false});
         application.EndRender();
     }
-    (void)teardown.get();
+    // LN-009: ShutdownCoordinator::EndSession may throw (adapter shutdown
+    // failures, log write errors, ...). Nothing below this call catches, so a
+    // rethrown exception would terminate the UI thread and kill the process
+    // mid-transition. Log and continue: the launcher must survive teardown
+    // errors and return to the game selection screen.
+    try {
+        (void)teardown.get();
+    } catch (const std::exception& ex) {
+        std::cerr << "[SESSION] EndSession falhou durante o teardown (ignorado): "
+                  << ex.what() << std::endl;
+    } catch (...) {
+        std::cerr << "[SESSION] EndSession falhou durante o teardown (ignorado): "
+                     "exceção desconhecida." << std::endl;
+    }
 }
 
 }

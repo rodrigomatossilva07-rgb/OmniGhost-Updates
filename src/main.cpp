@@ -708,6 +708,7 @@ while (application.shouldRun && !authenticated) {
         [] {
             Launcher::SteamGameUpdateCheck::Shutdown();
             Launcher::EpicGameUpdateCheck::Shutdown();
+            Launcher::DrainStartupOffsetChecks();
         });
     WritePostAuthStage("launcher-ready");
 
@@ -841,6 +842,11 @@ while (application.shouldRun && !authenticated) {
         case Launcher::GameId::FiveM: pending_game = ActiveGame::FiveM; break;
         default: pending_game = ActiveGame::FiveM; break;
     }
+
+    // LN-004: the Library background jobs (remote process scan every 6s and
+    // the offset refresh future) share the DMA data plane with the launch
+    // worker below. Drain/cancel them before taking over the device.
+    Launcher::DrainBackgroundWorkBeforeLaunch();
 
     if (!startupState.Transition(OmniGhost::Startup::State::Ready,
                                  OmniGhost::Startup::State::StartingGame)) {
@@ -1295,6 +1301,14 @@ while (application.shouldRun && !authenticated) {
         application.EndRender();
         if (application.ConsumeReturnToLauncherRequest()) {
             std::clog << "[SESSION] user requested game shutdown and launcher return\n";
+            if (g_activeGame == ActiveGame::CS2) {
+                CS2::config.webradar_enabled = false;
+                CS2::config.webradar_cloudflare = false;
+                CS2::config.radar_2d = false;
+                CS2::config.esp_enabled = false;
+                CS2::config.aim_enabled = false;
+                CS2::config.trigger_enabled = false;
+            }
             return_to_launcher = true;
             return_requested_by_user = true;
         }

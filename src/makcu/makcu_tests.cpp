@@ -265,8 +265,8 @@ void TestV2BinaryCapabilities() {
           "V2: SmoothMove supported");
     Check(caps.Get(makcu::Capability::BezierMove) == makcu::CapabilityState::Supported,
           "V2: BezierMove supported");
-    Check(caps.Get(makcu::Capability::ButtonMonitoring) == makcu::CapabilityState::Unknown,
-          "V2: ButtonMonitoring unknown");
+    Check(caps.Get(makcu::Capability::ButtonMonitoring) == makcu::CapabilityState::Supported,
+          "V2: ButtonMonitoring supported (documented 0x02 button stream)");
     Check(caps.Get(makcu::Capability::MouseLocks) == makcu::CapabilityState::Unknown,
           "V2: MouseLocks unknown");
 }
@@ -361,6 +361,35 @@ void TestV2BinaryWheelRange() {
     auto protocol = makcu::MakcuProtocolRegistry::Create(descriptor);
     Check(!protocol->Wheel(200).has_value(), "V2 Wheel rejects > 127");
     Check(protocol->Wheel(-100).has_value(), "V2 Wheel accepts -100");
+}
+
+// HW-005: the V2 binary API button stream command must be encoded as
+// [0x50][0x02][len=1][mode] with mode 1=on / 0=off.
+void TestV2BinaryButtonMonitoring() {
+    makcu::FirmwareDescriptor descriptor;
+    descriptor.family = makcu::FirmwareFamily::LegacyV2Binary;
+    descriptor.compatible = true;
+    auto protocol = makcu::MakcuProtocolRegistry::Create(descriptor);
+    Check(protocol != nullptr, "V2 protocol created (button monitoring)");
+
+    const auto enable = protocol->ButtonMonitoring(true);
+    Check(enable.has_value(), "V2 ButtonMonitoring(true) produced command");
+    if (enable) {
+        Check(enable->encoding == makcu::WireEncoding::Binary, "V2 ButtonMonitoring is Binary");
+        Check(enable->bytes.size() == 5, "V2 ButtonMonitoring frame is header + 1 payload byte");
+        if (enable->bytes.size() == 5) {
+            Check(enable->bytes[0] == 0x50, "V2 ButtonMonitoring starts with 0x50");
+            Check(enable->bytes[1] == 0x02, "V2 ButtonMonitoring command == 0x02");
+            Check(enable->bytes[2] == 0x01 && enable->bytes[3] == 0x00,
+                  "V2 ButtonMonitoring payload length == 1");
+            Check(enable->bytes[4] == 0x01, "V2 ButtonMonitoring enable mode == 1");
+        }
+    }
+
+    const auto disable = protocol->ButtonMonitoring(false);
+    Check(disable.has_value(), "V2 ButtonMonitoring(false) produced command");
+    if (disable && disable->bytes.size() == 5)
+        Check(disable->bytes[4] == 0x00, "V2 ButtonMonitoring disable mode == 0");
 }
 
 void TestButtonEncoding() {
@@ -564,6 +593,7 @@ int main() {
     TestV4ProtocolSmoothUnsupported();
     TestV2BinaryProtocolMove();
     TestV2BinaryWheelRange();
+    TestV2BinaryButtonMonitoring();
     TestButtonEncoding();
     TestLockEncoding();
     TestUnknownFirmwareNoProtocol();

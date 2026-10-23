@@ -32,13 +32,21 @@
 #include <cstdio>
 #include <exception>
 #include <future>
+#include <mutex>
 #include <string>
 #include <vector>
 
 namespace LauncherAuth {
 namespace {
 
+// LN-010: WriteAuthStage runs on both the async login worker and the UI thread
+// (Poll/Reset). CREATE_ALWAYS re-truncates the marker file on every open, so
+// two concurrent writers can interleave and leave a torn or empty file behind.
+// One file-scope mutex serializes all writes; lock-free reads are unaffected.
+std::mutex g_auth_stage_mutex;
+
 void WriteAuthStage(const char* stage) noexcept {
+    const std::lock_guard<std::mutex> lock(g_auth_stage_mutex);
     wchar_t localAppData[MAX_PATH]{};
     const DWORD length = GetEnvironmentVariableW(L"LOCALAPPDATA", localAppData, MAX_PATH);
     if (length == 0 || length >= MAX_PATH) return;

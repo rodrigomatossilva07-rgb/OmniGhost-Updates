@@ -952,18 +952,63 @@ namespace LauncherUpdates {
                     card.module->changes.size(),
                     3);
 
+            const bool collapsedWithMore =
+                !expanded &&
+                card.module->changes.size() >
+                visibleChanges;
+
+            // LN-011: the changelog parser accepts texts up to 4096 chars, so
+            // the card must be sized from the real wrapped heights instead of
+            // fixed offsets (summary at +88, changes at +119, 38px rows), or
+            // long content spills over the card onto the next element.
+            // Measure first, using the same wrap widths the drawing below
+            // uses, then size the card from the measured blocks.
+            const float contentLeft = 18.0f;
+            const float summaryWrapWidth =
+                (std::max)(1.0f, width - contentLeft - 18.0f);
+            const ImVec2 summarySize =
+                ImGui::CalcTextSize(
+                    card.release->summary.c_str(),
+                    nullptr,
+                    false,
+                    summaryWrapWidth);
+
+            std::vector<float> changeRowHeights;
+            changeRowHeights.reserve(visibleChanges);
+            float changesBlock = 0.0f;
+            for (std::size_t index = 0;
+                index < visibleChanges;
+                ++index) {
+                const Launcher::ChangelogChange& change =
+                    card.module->changes[index];
+                const float badgeWidth =
+                    ImGui::CalcTextSize(
+                        Launcher::ChangeTypeLabel(change.type)).x;
+                const float changeTextX =
+                    contentLeft + badgeWidth + 14.0f;
+                const float changeWrapWidth =
+                    (std::max)(1.0f, width - changeTextX - 20.0f);
+                const ImVec2 changeSize =
+                    ImGui::CalcTextSize(
+                        change.text.c_str(),
+                        nullptr,
+                        false,
+                        changeWrapWidth);
+                // Keep the original 38px rhythm for one-line changes, grow
+                // for wrapped multi-line ones.
+                const float rowHeight =
+                    (std::max)(38.0f, changeSize.y + 10.0f);
+                changeRowHeights.push_back(rowHeight);
+                changesBlock += rowHeight;
+            }
+
+            const float summaryTop = 88.0f;
+            const float changesTop =
+                summaryTop + summarySize.y + 14.0f;
+            const float bottomPadding = 23.0f;
             const float cardHeight =
-                142.0f +
-                static_cast<float>(
-                    visibleChanges) *
-                38.0f +
-                (
-                    !expanded &&
-                    card.module->changes.size() >
-                    visibleChanges
-                    ? 32.0f
-                    : 0.0f
-                    );
+                changesTop + changesBlock + bottomPadding +
+                (collapsedWithMore ? 32.0f : 0.0f);
 
             const ImVec2 cardMinimum =
                 ImGui::GetCursorScreenPos();
@@ -1135,7 +1180,7 @@ namespace LauncherUpdates {
             ImGui::PopTextWrapPos();
 
             float changeY =
-                cardMinimum.y + 119.0f;
+                cardMinimum.y + changesTop;
 
             for (std::size_t index = 0;
                 index < visibleChanges;
@@ -1165,7 +1210,9 @@ namespace LauncherUpdates {
 
                 ImGui::PopTextWrapPos();
 
-                changeY += 38.0f;
+                // LN-011: advance by the measured wrapped height so a long
+                // change never overlaps the row below it.
+                changeY += changeRowHeights[index];
             }
 
             if (!expanded &&

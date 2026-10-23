@@ -352,6 +352,20 @@ void PollOffsetRefresh() {
 }
 
 void RefreshRuntimeStates() {
+    // LN-012: consume the one-shot startup offset check as soon as it
+    // completes. An unconsumed std::async future blocks its destructor (at
+    // static destruction) until the whole refresh finishes, which could stall
+    // process exit for the duration of three network offset fetches.
+    if (g_startup_offset_checks.valid()) {
+        using namespace std::chrono_literals;
+        if (g_startup_offset_checks.wait_for(0ms) == std::future_status::ready) {
+            try {
+                g_startup_offset_checks.get();
+            } catch (...) {
+            }
+            g_startup_offset_checks_done = true;
+        }
+    }
     PollLicenseOperation();
     PollOffsetRefresh();
     static double nextRefresh = 0.0;
@@ -388,7 +402,7 @@ void RefreshRuntimeStates() {
 }
 
 void ToastOpenUpdates() {
-    ChangeNavigation(static_cast<int>(NavPage::Library));
+    ChangeNavigation(static_cast<int>(NavPage::Updates));
 }
 
 void ToastOpenLogs() {
@@ -571,4 +585,46 @@ void RequestOffsetRefresh(GameId id, bool silent = false) {
     g_offset_refresh = std::async(std::launch::async, [game] {
         return OmniGhost::OffsetAuto::EnsureOffsets(game, true);
     });
+}
+
+// LN-004: the launch worker (ProbeProcess/StartGameAdapter -> mem.Init) shares
+// the DMA data plane with two Library background jobs: the remote process scan
+// and the offset refresh future. Drain both before the launch transition so
+// they never race the adapter's device/control-plane work.
+void DrainBackgroundDmaWork() {
+    using namespace std::chrono_literals;
+
+    // (a) Remote process scan. Memory::GetProcessNames() only observes
+    // RequestCancel() at data-call entry (the cancel flag is checked before
+    // the VMM call starts), so request the cancel AND wait out an in-flight
+    // scan with the same 3s budget used by EnsureFreshRemoteProcessScan().
+    if (g_remote_process_scan.valid()) {
+        mem.RequestCancel();
+        if (g_remote_process_scan.wait_for(3s) == std::future_status::ready) {
+            try {
+                const auto result = g_remote_process_scan.get();
+                if (result.generation == g_remote_process_generation) {
+                    g_remote_process_mask = result.mask;
+                    g_remote_process_scanned_at = ImGui::GetTime();
+                }
+            } catch (...) {
+                g_remote_process_mask = 0;
+                g_remote_process_scanned_at = 0.0;
+            }
+        }
+        // A scan that outlives the 3s budget was still cancelled at the
+        // data-plane entry; any straggler VMM call is drained by the launch
+        // worker's own BeginVmmMaintenance() before it touches the device.
+    }
+    // Do not leave the cancellation armed for the rest of the pipeline.
+    mem.ClearCancel();
+
+    // (b) Offset refresh. EnsureOffsets() (network + shared offset state) must
+    // not overlap the launch pipeline: wait up to 5s and consume the result so
+    // the future never blocks later. main.cpp re-runs EnsureOffsets when
+    // critical offsets are still missing, so a timeout does not block launch.
+    if (g_offset_refresh_pending && g_offset_refresh.valid() &&
+        g_offset_refresh.wait_for(5s) == std::future_status::ready) {
+        PollOffsetRefresh();
+    }
 }

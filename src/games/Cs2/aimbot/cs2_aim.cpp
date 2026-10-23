@@ -932,9 +932,6 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
                                         const float d = std::sqrt((sx - cx) * (sx - cx) + (sy - cy) * (sy - cy));
                                         if (d < 16.f) { hit = true; hitPawn = p.pawn; }
                                     }
-                                } else {
-                                    hit = true;
-                                    hitPawn = p.pawn;
                                 }
                                 break;
                             }
@@ -942,9 +939,7 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
                     }
                 }
                 if (!hit) {
-                    const float triggerFov = cfg.trigger_head_only
-                        ? 14.f
-                        : (std::max)(18.f, cfg.aim_fov > 1.f ? cfg.aim_fov * 0.35f : 28.f);
+                    const float triggerFov = cfg.trigger_head_only ? 8.f : 7.f;
                     for (const auto& p : rt.players) {
                         if (p.is_local) continue;
 
@@ -980,10 +975,6 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
                                 if (testPoint(p.bones[bi])) { hit = true; hitPawn = p.pawn; break; }
                             }
                             if (hit) break;
-                        } else {
-                            if (testPoint(headPoint) || testPoint(p.pos)) {
-                                hit = true; hitPawn = p.pawn; break;
-                            }
                         }
                     }
                 }

@@ -6,6 +6,7 @@
 #include "../platform/thread_utils.h"
 #include "../platform/text_encoding.h"
 #include "../platform/unique_handle.h"
+#include "../launcher/remote_usage_service.h"
 #include "crypto.h"
 #include "github_release_resolver.h"
 #include "installation_integrity.h"
@@ -630,8 +631,8 @@ void UpdateService::RunCheck(bool force) {
 
 
 
-    // UP-006: honra o campo `mandatory` do manifesto (validado em
-    // manifest.cpp) em vez de hardcoded true.
+
+
     const bool mandatory = manifest.mandatory || belowMinimumSupported;
     std::string mandatoryReason;
     if (mandatory) {
@@ -785,7 +786,7 @@ void UpdateService::RunDownload() {
     }
     fs::remove(final, ec); fs::rename(partial, final, ec); if (ec) { SetError({}, ec.message(), "prepare"); return; }
     {
-        // UP-006: escrito pelo worker, lido pela UI no Install — sob mutex_.
+
         std::lock_guard lock(mutex_);
         downloadedPackage_ = final;
     }
@@ -948,7 +949,7 @@ bool UpdateService::InstallPreparedUpdate() {
     { std::lock_guard lock(mutex_); if (!manifest_ || !package_ ||
           (snapshot_.status != Status::Ready && snapshot_.status != Status::Installing)) return false;
       version = manifest_->version.original; expectedHash = package_->sha256; expectedSize = package_->size;
-      // UP-006: cópia do path sob mutex_ (escrito pelo worker de download).
+
       downloadedPackage = downloadedPackage_; }
     const fs::path installedExecutable = Paths::Executable();
     if (!fs::exists(installedExecutable) || !fs::exists(downloadedPackage)) { SetError({}, "Executável ou pacote em falta.", "launch-updater"); return false; }
@@ -1037,6 +1038,9 @@ bool UpdateService::InstallPreparedUpdate() {
         s.technicalDetail.clear();
     });
     RecordHealth("install-launched", version, expectedHash, "sha256-verified");
+
+
+    OmniGhost::RemoteUsage::SuppressFinalFlush();
     exitRequested_ = true; return true;
 }
 

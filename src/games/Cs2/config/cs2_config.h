@@ -54,6 +54,12 @@ struct Config : OmniGhost::Gameplay::EspConfigBase {
     int layout_ammo_anchor = static_cast<int>(EspLayoutAnchor::Bottom);
     float layout_spacing = 4.f;
     float layout_text_scale = 1.f;
+    float layout_name_x = .50f, layout_name_y = .10f;
+    float layout_health_x = .18f, layout_health_y = .50f;
+    float layout_armor_x = .82f, layout_armor_y = .50f;
+    float layout_weapon_x = .50f, layout_weapon_y = .86f;
+    float layout_distance_x = .50f, layout_distance_y = .94f;
+    float layout_ammo_x = .50f, layout_ammo_y = .78f;
     bool radar_2d = false;
     bool webradar_enabled = false;
     int webradar_port = 8080;

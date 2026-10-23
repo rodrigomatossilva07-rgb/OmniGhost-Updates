@@ -471,6 +471,10 @@ namespace makcu_wrapper {
     }
 
     std::string GetConnectionStatus() {
+        // HW-006: MakcuInitialize()/MakcuShutdown() replace and reconfigure
+        // the global device under device_mutex; read it under the same lock,
+        // like IsConnected() does.
+        std::shared_lock deviceLock(device_mutex);
         if (!device) return "Nenhuma instância do dispositivo";
         switch (device->getStatus()) {
         case makcu::ConnectionStatus::CONNECTED: return "Ligado";

@@ -95,6 +95,7 @@ static void UpdateLocalWeaponDefinitionThrottled() {
         cached_definition = 0;
         runtime.local_weapon_definition = 0;
     }
+    // Keep the projection matrix current before the largest position batch.
     CS2::GiveCameraPriorityBeforeOptionalDma();
     uintptr_t services = cached_services;
     uint32_t handle = 0;

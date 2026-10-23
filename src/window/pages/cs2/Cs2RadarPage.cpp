@@ -45,6 +45,12 @@ void DrawCs2Radar() {
 
 
     CyberWidgets::BeginCard("WEB RADAR", left);
+    CyberWidgets::ToggleSwitch("Ativar Radar 2D", &CS2::config.radar_2d);
+    if (CS2::config.radar_2d) {
+        CyberWidgets::SliderFloat("Tamanho do Radar 2D", &CS2::config.radar_2d_size, 110.f, 360.f, "%.0f px");
+        CyberWidgets::TextLine("Com o menu aberto, arrasta o radar para qualquer posição.", CyberWidgets::TextTone::Secondary);
+        CyberWidgets::Separator();
+    }
     CyberWidgets::ToggleSwitch("Ativar Web Radar", &CS2::config.webradar_enabled);
 
     if (CS2::config.webradar_enabled) {
@@ -121,7 +127,7 @@ void DrawCs2Status() {
     const auto world = CS2::AcquireRuntimeSnapshot();
     const auto camera = CS2::AcquireCameraSnapshot();
     const auto compatibility = OmniGhost::OffsetAuto::Compatibility(ActiveGame::CS2);
-    const uint64_t now = GetTickCount64();
+    const uint64_t now = CS2::SampleClockMs();
     const bool worker = CS2::AcquisitionRunning();
     const auto dma = mem.GetDiagnosticsSnapshot();
     const bool worldFresh = worker && world && world->snapshot_timestamp_ms &&
@@ -176,8 +182,8 @@ void DrawCs2Status() {
     EndCard();
     EndCardRow();
 
-    CardGap();
-    BeginCard("FRESCURA DOS DADOS");
+    /* Data-freshness diagnostics remain available internally; the noisy card was removed. */
+    /* BeginCard("FRESCURA DOS DADOS");
     if (worldFresh) {
         std::snprintf(value, sizeof(value), "%llu ms",
             static_cast<unsigned long long>(now - world->snapshot_timestamp_ms));
@@ -202,14 +208,14 @@ void DrawCs2Status() {
             static_cast<unsigned long long>(now - camera->timestamp_ms));
         KeyValueRow("Amostra da câmara", value);
     }
-    EndCard();
+    EndCard(); */
 
-    if (!compatibility.detail.empty()) {
+    /* Compatibility detail remains part of the health rows above. if (!compatibility.detail.empty()) {
         CardGap();
         BeginCard("COMPATIBILIDADE");
         TextLine(compatibility.detail.c_str(),
             compatibility.state == OmniGhost::OffsetAuto::CompatibilityState::Outdated ?
             TextTone::Warning : TextTone::Secondary);
         EndCard();
-    }
+    } */
 }

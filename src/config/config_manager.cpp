@@ -240,6 +240,9 @@ bool DeserializeAll(const std::string& data) {
         clampRange(aim.weapon_range_sniper); clampRange(aim.weapon_range_heavy);
 
         auto& visual = esp::config;
+        visual.angel_wings = false;
+        visual.devil_horns = false;
+        visual.floating_crown = false;
         visual.offscreen_arrow_size = std::clamp(visual.offscreen_arrow_size, 6.f, 32.f);
         visual.offscreen_arrow_margin = std::clamp(visual.offscreen_arrow_margin, 12.f, 200.f);
         visual.offscreen_arrow_max_distance = std::clamp(visual.offscreen_arrow_max_distance, 1.f, 1000.f);
@@ -255,6 +258,10 @@ bool DeserializeAll(const std::string& data) {
 
     if (g_activeGame == ActiveGame::CS2) {
         auto& cs = CS2::config;
+        cs.angel_wings = false;
+        cs.devil_horns = false;
+        cs.floating_crown = false;
+        cs.dropped_weapons = false;
         if (cs.aim_bind <= 0) cs.aim_bind = 0x01;
         cs.offscreen_arrow_size = std::clamp(cs.offscreen_arrow_size, 6.f, 32.f);
         cs.offscreen_arrow_margin = std::clamp(cs.offscreen_arrow_margin, 12.f, 200.f);
@@ -266,6 +273,10 @@ bool DeserializeAll(const std::string& data) {
         cs.active_features_opacity = std::clamp(cs.active_features_opacity, .15f, 1.f);
         cs.layout_spacing = std::clamp(cs.layout_spacing, 0.f, 18.f);
         cs.layout_text_scale = std::clamp(cs.layout_text_scale, .65f, 1.6f);
+        float* freeLayout[] = { &cs.layout_name_x, &cs.layout_name_y, &cs.layout_health_x, &cs.layout_health_y,
+            &cs.layout_armor_x, &cs.layout_armor_y, &cs.layout_weapon_x, &cs.layout_weapon_y,
+            &cs.layout_distance_x, &cs.layout_distance_y, &cs.layout_ammo_x, &cs.layout_ammo_y };
+        for (float* value : freeLayout) *value = std::clamp(*value, -.20f, 1.20f);
         int* anchors[] = { &cs.layout_name_anchor, &cs.layout_health_anchor,
             &cs.layout_armor_anchor, &cs.layout_weapon_anchor,
             &cs.layout_distance_anchor, &cs.layout_ammo_anchor };

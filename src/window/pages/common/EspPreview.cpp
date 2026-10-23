@@ -450,15 +450,18 @@ void DrawChineseHat(ImDrawList* dl, const PlayerGeometry& g, ImU32 col, float sc
     ImVec2 rightBase(g.headCenter.x + hatW * 0.5f, baseY);
 
 
-    DrawBezierOutlined(dl, leftBase,
-        ImVec2(leftBase.x - hatW * 0.15f, (leftBase.y + topY) * 0.5f),
-        ImVec2(top.x - hatW * 0.1f, (top.y + baseY) * 0.5f),
-        top, col, thick);
-
-    DrawBezierOutlined(dl, rightBase,
-        ImVec2(rightBase.x + hatW * 0.15f, (rightBase.y + topY) * 0.5f),
-        ImVec2(top.x + hatW * 0.1f, (top.y + baseY) * 0.5f),
-        top, col, thick);
+    const float phase = static_cast<float>(ImGui::GetTime()) * .16f;
+    constexpr int spokes = 14;
+    for (int i = 0; i <= spokes; ++i) {
+        const float t = static_cast<float>(i) / spokes;
+        const float x = leftBase.x + (rightBase.x - leftBase.x) * t;
+        const ImU32 rainbow = ImColor::HSV(std::fmod(t + phase, 1.f), .88f, 1.f, .96f);
+        dl->AddLine(top, ImVec2(x, baseY), rainbow, thick);
+        if (i < spokes) {
+            const float nt = static_cast<float>(i + 1) / spokes;
+            dl->AddLine(ImVec2(x, baseY), ImVec2(leftBase.x + (rightBase.x - leftBase.x) * nt, baseY), rainbow, thick);
+        }
+    }
 
 
     ImVec2 brimC(g.headCenter.x, baseY + brimH * 0.5f);
@@ -711,7 +714,7 @@ void DrawPreview(ImDrawList* dl, const ImVec2& origin, float width, float height
     if ((lookCol >> 24) != 0) DrawEyeLine(dl, g, lookCol, cfg.eye_line_thickness, cfg.look_direction_length);
 
 
-    if ((nameCol >> 24) != 0) DrawPlayerName(dl, stack, g, "Enemy", nameCol, cfg.text_outline, outlineTextCol, cfg.text_outline_thickness,
+    if (cfg.name && (nameCol >> 24) != 0) DrawPlayerName(dl, stack, g, "Enemy", nameCol, cfg.text_outline, outlineTextCol, cfg.text_outline_thickness,
                                  cfg.head_halo, cfg.chinese_hat, cfg.devil_horns, cfg.floating_crown);
     if (cfg.weapon_name && (weaponCol >> 24) != 0) DrawWeaponName(dl, stack, "AK-47", weaponCol, cfg.text_outline, outlineTextCol, cfg.text_outline_thickness);
     if (cfg.weapon_ammo && (weaponCol >> 24) != 0) DrawAmmo(dl, stack, "24 / 30", 0.8f, weaponCol, IM_COL32(18, 18, 18, 235), cfg.text_outline, outlineTextCol, cfg.text_outline_thickness);

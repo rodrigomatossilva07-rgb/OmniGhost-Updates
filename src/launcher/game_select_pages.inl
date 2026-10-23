@@ -456,10 +456,31 @@ CyberWidgets::HealthStatus BuildHealthStatus() {
     return CyberWidgets::HealthStatus::Ok;
 }
 
+// LN-013: CaptureSystemInfo() queries the OS (build, uptime, arch, ...) and
+// FormatSystemInfo() re-renders the "Windows" line. DrawDiagnostics used to do
+// this every frame while the page was open. Cache the snapshot and its
+// formatted text for 2 seconds and serve the cached copy in between.
+struct SystemSnapshot {
+    OmniGhost::Platform::SystemInfo info{};
+    std::string formatted;
+};
+
+const SystemSnapshot& CachedSystemSnapshot() {
+    static SystemSnapshot snapshot;
+    static double nextRefresh = 0.0;
+    const double now = ImGui::GetTime();
+    if (now >= nextRefresh) {
+        snapshot.info = OmniGhost::Platform::CaptureSystemInfo();
+        snapshot.formatted = OmniGhost::Platform::FormatSystemInfo(snapshot.info);
+        nextRefresh = now + 2.0;
+    }
+    return snapshot;
+}
+
 std::string BuildDiagnosticsText() {
     const auto dma = mem.GetDiagnosticsSnapshot();
     const auto update = OmniGhost::Update::UpdateService::Instance().GetSnapshot();
-    const auto system = OmniGhost::Platform::CaptureSystemInfo();
+    const SystemSnapshot& system = CachedSystemSnapshot();
     const GameId gameId = DiagnosticsGameId();
     const GameDefinition* game = FindGame(gameId);
     const bool rendererOk = g_overlay_instance && g_overlay_instance->device;
@@ -490,7 +511,7 @@ std::string BuildDiagnosticsText() {
     out << Loc::Tr("launcher.compiler") << ": " << OmniGhost::BuildInfo::CompilerVersion << "\n";
     out << "Windows SDK: " << OmniGhost::BuildInfo::WindowsSdkVersion << "\n";
     out << Loc::Tr("launcher.release_channel") << ": " << LocalizedChannelLabel(OmniGhost::BuildInfo::ReleaseChannel) << "\n";
-    out << "Windows: " << OmniGhost::Platform::FormatSystemInfo(system) << "\n";
+    out << "Windows: " << system.formatted << "\n";
     out << Loc::Tr("launcher.renderer") << ": "
         << (rendererOk ? Loc::Tr("launcher.renderer_ready") : Loc::Tr("launcher.renderer_unavailable")) << "\n";
     out << "DMA: " << (dma.deviceOpen ? Loc::Tr("launcher.connected")
@@ -518,6 +539,21 @@ std::string BuildDiagnosticsText() {
     return OmniGhost::SessionLog::RedactForSupport(out.str());
 }
 
+// LN-013: the full diagnostics report used to be rebuilt every frame while
+// the Diagnostics page was open (snapshots, OS info, redaction pass) even
+// though the text is only consumed by the copy/package/report buttons.
+// Rebuild at most once every 2 seconds and serve the cache in between.
+std::string CachedDiagnosticsText() {
+    static std::string cached;
+    static double nextRebuild = 0.0;
+    const double now = ImGui::GetTime();
+    if (now >= nextRebuild || cached.empty()) {
+        cached = BuildDiagnosticsText();
+        nextRebuild = now + 2.0;
+    }
+    return cached;
+}
+
 std::string SupportJsonEscape(std::string_view value) {
     std::string out;
     out.reserve(value.size() + 16);
@@ -540,14 +576,16 @@ void DrawDiagnostics(ImVec2 display) {
 
     const auto dma = mem.GetDiagnosticsSnapshot();
     const auto update = OmniGhost::Update::UpdateService::Instance().GetSnapshot();
-    const auto system = OmniGhost::Platform::CaptureSystemInfo();
+    // LN-013: serve the 2s-cached OS snapshot instead of re-querying the OS
+    // every frame.
+    const SystemSnapshot& system = CachedSystemSnapshot();
     const GameId gameId = DiagnosticsGameId();
     const GameDefinition* selectedGame = FindGame(gameId);
     const bool rendererOk = g_overlay_instance && g_overlay_instance->device;
     const bool offsetsOk = selectedGame && HasRequiredOffsets(*selectedGame);
     const std::filesystem::path logPath = OmniGhost::SessionLog::CurrentLogPath();
     const std::string logPathUtf8 = OmniGhost::Platform::WideToUtf8(logPath.wstring());
-    const std::string windows = OmniGhost::Platform::FormatSystemInfo(system);
+    const std::string& windows = system.formatted;
     const std::string version = UiFormat::Version(OmniGhost::Version);
     const std::string build = std::string(OmniGhost::BuildInfo::BuildId) + " · " +
         OmniGhost::BuildInfo::Configuration + " · " + OmniGhost::BuildInfo::Architecture;
@@ -562,7 +600,7 @@ void DrawDiagnostics(ImVec2 display) {
     CyberWidgets::BeginCard(Loc::Tr("launcher.system_health"), 0.f);
     CyberWidgets::HealthRow(Loc::Tr("launcher.version"), version.c_str(), CyberWidgets::HealthStatus::Ok);
     CyberWidgets::HealthRow(Loc::Tr("launcher.build"), build.c_str(), BuildHealthStatus());
-    CyberWidgets::HealthRow(Loc::Tr("launcher.windows"), windows.c_str(), system.windowsBuild ? CyberWidgets::HealthStatus::Ok : CyberWidgets::HealthStatus::Warning);
+    CyberWidgets::HealthRow(Loc::Tr("launcher.windows"), windows.c_str(), system.info.windowsBuild ? CyberWidgets::HealthStatus::Ok : CyberWidgets::HealthStatus::Warning);
     CyberWidgets::HealthRow(Loc::Tr("launcher.renderer"),
                             rendererOk ? Loc::Tr("launcher.renderer_ready") : Loc::Tr("launcher.renderer_unavailable"),
                             rendererOk ? CyberWidgets::HealthStatus::Ok : CyberWidgets::HealthStatus::Error);
@@ -593,7 +631,8 @@ void DrawDiagnostics(ImVec2 display) {
                                      CyberWidgets::TextTone::Error, lastError.c_str());
 
     ImGui::Dummy(ImVec2(0, S(8.f)));
-    const std::string diagnostics = BuildDiagnosticsText();
+    // LN-013: draw from the 2s cache; the buttons below only read it.
+    const std::string diagnostics = CachedDiagnosticsText();
     if (CyberWidgets::Button(Loc::Tr("launcher.copy_diagnostics"), CyberWidgets::ButtonStyle::Secondary, ImVec2(S(170.f), S(34.f))))
         CyberWidgets::CopyToClipboard(diagnostics.c_str(), Loc::Tr("launcher.diagnostics_copied"));
     ImGui::SameLine();
@@ -647,7 +686,7 @@ void DrawDiagnostics(ImVec2 display) {
     const bool supportValid = std::strlen(supportSubject) >= 5 && std::strlen(supportDescription) >= 10;
     if (CyberWidgets::LoadingButton("Enviar relatório", "A enviar…", supportBusy, CyberWidgets::ButtonStyle::Primary, ImVec2(S(170.f), S(34.f))) && supportValid && !supportBusy) {
         const std::string product = selectedGame ? selectedGame->id : "";
-        const std::string safeDiagnostics = supportIncludeDiagnostics ? BuildDiagnosticsText().substr(0, 30000) : "";
+        const std::string safeDiagnostics = supportIncludeDiagnostics ? CachedDiagnosticsText().substr(0, 30000) : "";
         const std::string body = "{\"subject\":\"" + SupportJsonEscape(supportSubject) + "\",\"category\":\"" + supportCategoryIds[supportCategory] +
             "\",\"productId\":" + (product.empty() ? "null" : "\"" + SupportJsonEscape(product) + "\"") +
             ",\"description\":\"" + SupportJsonEscape(supportDescription) + "\",\"diagnostics\":{\"launcherVersion\":\"" + SupportJsonEscape(OmniGhost::Version) +

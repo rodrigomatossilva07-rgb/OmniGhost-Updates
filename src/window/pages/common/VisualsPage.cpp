@@ -289,14 +289,10 @@ void DrawVisuals()
     }
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.head_halo"), &esp::config.head_halo);
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.chinese_hat"), &esp::config.chinese_hat);
-    CyberWidgets::ToggleSwitch(Loc::Tr("vis.angel_wings"), &esp::config.angel_wings);
-    CyberWidgets::ToggleSwitch(Loc::Tr("vis.devil_horns"), &esp::config.devil_horns);
-    CyberWidgets::ToggleSwitch(Loc::Tr("vis.floating_crown"), &esp::config.floating_crown);
+    esp::config.angel_wings = false;
+    esp::config.devil_horns = false;
+    esp::config.floating_crown = false;
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.hit_marker"), &esp::config.hit_marker);
-    if (esp::config.angel_wings || esp::config.devil_horns || esp::config.floating_crown) {
-        CyberWidgets::ToggleSwitch(Loc::Tr("vis.fun_rainbow"), &esp::config.fun_effects_rainbow);
-        CyberWidgets::SliderFloat(Loc::Tr("vis.fun_size"), &esp::config.fun_effects_scale, .5f, 2.5f, "%.2f");
-    }
     CyberWidgets::ToggleSwitch("Rastros", &esp::config.trails);
     if (esp::config.trails)
         CyberWidgets::ToggleSwitch("Rastros arco-iris", &esp::config.rainbow_trails);

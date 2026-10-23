@@ -14,5 +14,9 @@ void Begin(::Launcher::GameId game);
 void Finish(::Launcher::GameId game) noexcept;
 void Refresh();
 void Shutdown() noexcept;
+
+
+
+void SuppressFinalFlush() noexcept;
 [[nodiscard]] bool TryGetSummary(::Launcher::GameId game, Summary& summary) noexcept;
 }

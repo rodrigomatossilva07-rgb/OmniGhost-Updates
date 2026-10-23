@@ -159,9 +159,9 @@ void DrawFivemVisuals() {
     CyberWidgets::SectionTitle("EFEITOS");
     CyberWidgets::ToggleSwitch("Halo na cabeça", &esp::config.head_halo);
     CyberWidgets::ToggleSwitch("Chapéu chinês", &esp::config.chinese_hat);
-    CyberWidgets::ToggleSwitch("Asas de anjo", &esp::config.angel_wings);
-    CyberWidgets::ToggleSwitch("Chifres de demónio", &esp::config.devil_horns);
-    CyberWidgets::ToggleSwitch("Coroa flutuante", &esp::config.floating_crown);
+    esp::config.angel_wings = false;
+    esp::config.devil_horns = false;
+    esp::config.floating_crown = false;
     CyberWidgets::ToggleSwitch("Rastros", &esp::config.trails);
     CyberWidgets::ToggleSwitch("Eye Line", &esp::config.look_direction);
     CyberWidgets::ToggleSwitch("Hit marker", &esp::config.hit_marker);

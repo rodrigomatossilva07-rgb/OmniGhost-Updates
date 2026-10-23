@@ -168,6 +168,12 @@ void SerializeCS2(std::ostringstream& o) {
     WInt(o, "cs2.layout_ammo_anchor", c.layout_ammo_anchor);
     WFloat(o, "cs2.layout_spacing", c.layout_spacing);
     WFloat(o, "cs2.layout_text_scale", c.layout_text_scale);
+    WFloat(o, "cs2.layout_name_x", c.layout_name_x); WFloat(o, "cs2.layout_name_y", c.layout_name_y);
+    WFloat(o, "cs2.layout_health_x", c.layout_health_x); WFloat(o, "cs2.layout_health_y", c.layout_health_y);
+    WFloat(o, "cs2.layout_armor_x", c.layout_armor_x); WFloat(o, "cs2.layout_armor_y", c.layout_armor_y);
+    WFloat(o, "cs2.layout_weapon_x", c.layout_weapon_x); WFloat(o, "cs2.layout_weapon_y", c.layout_weapon_y);
+    WFloat(o, "cs2.layout_distance_x", c.layout_distance_x); WFloat(o, "cs2.layout_distance_y", c.layout_distance_y);
+    WFloat(o, "cs2.layout_ammo_x", c.layout_ammo_x); WFloat(o, "cs2.layout_ammo_y", c.layout_ammo_y);
     WFloat(o, "cs2.radar_2d_x", c.radar_2d_x);
     WFloat(o, "cs2.radar_2d_y", c.radar_2d_y);
     WFloat(o, "cs2.radar_2d_size", c.radar_2d_size);
@@ -374,6 +380,18 @@ bool DeserializeCS2(const std::string& key, const std::string& val) {
     if (bi("cs2.layout_ammo_anchor")) { c.layout_ammo_anchor = toI(); return true; }
     if (bi("cs2.layout_spacing")) { c.layout_spacing = toF(); return true; }
     if (bi("cs2.layout_text_scale")) { c.layout_text_scale = toF(); return true; }
+    if (bi("cs2.layout_name_x")) { c.layout_name_x = toF(); return true; }
+    if (bi("cs2.layout_name_y")) { c.layout_name_y = toF(); return true; }
+    if (bi("cs2.layout_health_x")) { c.layout_health_x = toF(); return true; }
+    if (bi("cs2.layout_health_y")) { c.layout_health_y = toF(); return true; }
+    if (bi("cs2.layout_armor_x")) { c.layout_armor_x = toF(); return true; }
+    if (bi("cs2.layout_armor_y")) { c.layout_armor_y = toF(); return true; }
+    if (bi("cs2.layout_weapon_x")) { c.layout_weapon_x = toF(); return true; }
+    if (bi("cs2.layout_weapon_y")) { c.layout_weapon_y = toF(); return true; }
+    if (bi("cs2.layout_distance_x")) { c.layout_distance_x = toF(); return true; }
+    if (bi("cs2.layout_distance_y")) { c.layout_distance_y = toF(); return true; }
+    if (bi("cs2.layout_ammo_x")) { c.layout_ammo_x = toF(); return true; }
+    if (bi("cs2.layout_ammo_y")) { c.layout_ammo_y = toF(); return true; }
     if (bi("cs2.radar_2d_x")) { c.radar_2d_x = toF(); return true; }
     if (bi("cs2.radar_2d_y")) { c.radar_2d_y = toF(); return true; }
     if (bi("cs2.radar_2d_size")) { c.radar_2d_size = toF(); return true; }
