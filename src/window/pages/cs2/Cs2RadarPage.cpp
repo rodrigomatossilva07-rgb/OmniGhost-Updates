@@ -187,8 +187,8 @@ void DrawCs2Status() {
                 static_cast<unsigned long long>(now - world->world_sample_ms));
             KeyValueRow("Amostra do mundo", value);
         }
-        std::snprintf(value, sizeof(value), "%.1f Hz", world->acquisition_hz);
-        KeyValueRow("Aquisição", value);
+        std::snprintf(value, sizeof(value), "%.1f Hz (média)", world->acquisition_hz);
+        KeyValueRow("Publicação de dados", value);
         std::snprintf(value, sizeof(value), "%llu",
             static_cast<unsigned long long>(world->read_fails));
         KeyValueRow("Falhas de leitura", value);

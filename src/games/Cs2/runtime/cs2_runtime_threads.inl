@@ -83,9 +83,9 @@ void EnsureAcquisitionStarted() {
 
 
 
-            const int camera_period_ms = camera_pressure >= 3
-                ? 6
-                : std::clamp(g_intervals.camera_ms, 2, 4);
+            // Camera freshness directly controls screen-space alignment. Keep
+            // it at 250 Hz even while optional DMA work is being throttled.
+            const int camera_period_ms = std::clamp(g_intervals.camera_ms, 2, 4);
             Camera::SetDeadline(next_camera_ms);
             int wait_ms = in_match ? camera_period_ms : 20;
             bool busyRetry = false;
@@ -314,15 +314,15 @@ void EnsureAcquisitionStarted() {
 
 
 
-            int delayMs = runtime.in_match ? g_intervals.full_scan_ms : 16;
+            int targetPeriodMs = runtime.in_match ? g_intervals.full_scan_ms : 16;
             try {
                 auto cfgLease = RuntimePipeline::AcquireConfig();
                 if (cfgLease) {
                     if (!NeedsPlayerScan(*cfgLease))
-                        delayMs = 50;
+                        targetPeriodMs = 50;
                     else if (runtime.in_match) {
 
-                        delayMs = cfgLease->performance_mode ? 24 : 18;
+                        targetPeriodMs = cfgLease->performance_mode ? 24 : 16;
                     }
                 }
 
@@ -373,10 +373,14 @@ void EnsureAcquisitionStarted() {
 
                 g_intervals.Update(runtime.player_count, runtime.acquisition_ms, level, kOptionalBudgetMs);
 
-                if (level >= 3) delayMs = (std::max)(delayMs, 40);
-                else if (level == 2) delayMs = (std::max)(delayMs, 28);
-                else if (level == 1) delayMs = (std::max)(delayMs, 22);
+                if (level >= 3) targetPeriodMs = (std::max)(targetPeriodMs, 40);
+                else if (level == 2) targetPeriodMs = (std::max)(targetPeriodMs, 28);
+                else if (level == 1) targetPeriodMs = (std::max)(targetPeriodMs, 20);
             }
+            // The period is end-to-end. Waiting the whole period after doing
+            // the DMA work made a nominal 60 Hz scan run closer to 30-45 Hz.
+            const int workMs = std::max(0, static_cast<int>(std::ceil(runtime.acquisition_ms)));
+            const int delayMs = std::max(1, targetPeriodMs - workMs);
             const auto waitBegin = std::chrono::steady_clock::now();
             scheduler.Wait(std::chrono::milliseconds(delayMs));
             OmniGhost::Gameplay::DmaTelemetry::ObserveSchedulerWait(

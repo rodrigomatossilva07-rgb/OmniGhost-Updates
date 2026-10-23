@@ -14,10 +14,12 @@ $sourceFiles = Get-ChildItem -LiteralPath $cs2Root -Recurse -File |
 $source = ($sourceFiles | ForEach-Object { [IO.File]::ReadAllText($_.FullName) }) -join "`n"
 $espSource = [IO.File]::ReadAllText((Join-Path $ProjectDir 'src/games/Cs2/esp/cs2_esp.cpp'))
 $cameraSource = [IO.File]::ReadAllText((Join-Path $ProjectDir 'src/games/Cs2/runtime/cs2_camera.cpp'))
+$runtimeSource = [IO.File]::ReadAllText((Join-Path $ProjectDir 'src/games/Cs2/runtime/cs2_runtime.cpp'))
 $bonesSource = [IO.File]::ReadAllText((Join-Path $ProjectDir 'src/games/Cs2/bones/cs2_bones_pipeline.inl'))
 $memoryIoSource = [IO.File]::ReadAllText((Join-Path $ProjectDir 'third_party/DMALibrary/Memory/MemoryIO.cpp'))
 $memoryLifecycleSource = [IO.File]::ReadAllText((Join-Path $ProjectDir 'third_party/DMALibrary/Memory/MemoryLifecycle.cpp'))
 $commonBuildProps = [IO.File]::ReadAllText((Join-Path $ProjectDir 'config/build/OmniGhost.Common.props'))
+$offsetSnapshot = Get-Content -Raw -LiteralPath (Join-Path $ProjectDir 'data/cs2_offsets.json') | ConvertFrom-Json
 
 function Require-Match([string]$Text, [string]$Pattern, [string]$Reason) {
     if ($Text -notmatch $Pattern) { throw $Reason }
@@ -92,8 +94,23 @@ $historyLocks = [regex]::Matches($source, 'lock\(g_history_mutex\)').Count
 Require-Condition ($historyLocks -eq 4) 'Camera history publish, reset, selection and prediction must all lock the same mutex.'
 Require-Condition ($cameraSource -notmatch 'newest\.view_matrix\[i\].*previous\.view_matrix') 'Projection matrix coefficients must never be extrapolated independently.'
 Require-Match $cameraSource 'return newest;' 'Presentation must use the newest coherent camera matrix.'
+Require-Match $runtimeSource 'previousAverage \+ \(interval - previousAverage\) \* 0\.20f' 'Published acquisition rate must use a stable moving average.'
+Require-Match $source 'targetPeriodMs - workMs' 'The acquisition scheduler still adds work time on top of its target period.'
+Require-Match $source 'const int camera_period_ms = std::clamp\(g_intervals\.camera_ms, 2, 4\)' 'DMA pressure must not slow the camera below its 250 Hz target.'
 Require-Condition ($bonesSource -notmatch 'BoneJointSnapshot48|s_use48Stride') 'Bone acquisition must not switch to an unvalidated speculative stride.'
 Require-Match $bonesSource 'validBoneCount >= 8' 'A safe partial pose must remain drawable when one optional limb is unavailable.'
+
+$expectedBoneMapping = [ordered]@{
+    Head = '0x7'; Neck = '0x6'; SpineUpper = '0x17'; SpineMiddle = '0x4';
+    SpineLower = '0x3'; Pelvis = '0x1'; ClavicleLeft = '0x8'; ShoulderLeft = '0x9';
+    ElbowLeft = '0xA'; HandLeft = '0xB'; ClavicleRight = '0xC'; ShoulderRight = '0xD';
+    ElbowRight = '0xE'; HandRight = '0xF'; HipLeft = '0x11'; KneeLeft = '0x12';
+    AnkleLeft = '0x13'; HipRight = '0x14'; KneeRight = '0x15'; AnkleRight = '0x16'
+}
+foreach ($entry in $expectedBoneMapping.GetEnumerator()) {
+    Require-Condition ($offsetSnapshot.bone_mapping.($entry.Key) -eq $entry.Value) `
+        "CS2 anatomical bone mapping is stale at $($entry.Key)."
+}
 
 $drawPlayers = [regex]::Match($espSource, '(?s)void DrawPlayers\(const Runtime& snapshot, const Config& settings\) \{.*?\n\}').Value
 Require-Condition ($drawPlayers.Length -gt 0) 'CS2 presentation loop not found.'

@@ -470,8 +470,14 @@ std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
             const fs::path backupHashSidecar = backupExe.parent_path() /
                 (executableName.wstring() + std::wstring(L".previous.sha256"));
             const std::string expectedBackupHash = ReadTrimmedTextFile(backupHashSidecar);
-            bool backupVerified = true;
-            if (expectedBackupHash.size() == 64) {
+            // UP-004: sidecar ausente/inválido BLOQUEIA o rollback — sem
+            // hash de referência não há garantia de integridade do backup;
+            // mantém a versão nova (que passou o VerifyStartup) em vez de
+            // restaurar às cegas.
+            bool backupVerified = false;
+            if (expectedBackupHash.size() != 64) {
+                rollbackDetail = "rollback blocked: backup hash unavailable";
+            } else {
                 std::string actualBackupHash, hashError;
                 backupVerified = Sha256File(backupExe, actualBackupHash, hashError) &&
                                 ConstantTimeEquals(actualBackupHash, expectedBackupHash);

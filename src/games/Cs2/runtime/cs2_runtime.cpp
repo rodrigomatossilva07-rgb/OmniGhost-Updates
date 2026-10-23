@@ -16,6 +16,7 @@ OmniGhost::Gameplay::SnapshotExchange<Config> g_config_snapshots;
 std::atomic<uint64_t> g_last_publish_ms{0};
 std::atomic<uint64_t> g_snapshot_drops{0};
 std::atomic<float> g_acquisition_hz{0.f};
+std::atomic<float> g_publish_interval_ms{0.f};
 
 
 
@@ -28,8 +29,15 @@ void Publish(Runtime& source, uint64_t generation, uint64_t read_fails) {
     const uint64_t now = GetTickCount64();
     const uint64_t previous = g_last_publish_ms.exchange(now, std::memory_order_relaxed);
     if (previous != 0 && now > previous) {
-        g_acquisition_hz.store(
-            1000.0f / static_cast<float>(now - previous), std::memory_order_relaxed);
+        const float interval = static_cast<float>(now - previous);
+        const float previousAverage = g_publish_interval_ms.load(std::memory_order_relaxed);
+        // A short EWMA reports the sustained publication cadence instead of
+        // jumping between reciprocals of individual millisecond intervals.
+        const float average = previousAverage > 0.f
+            ? previousAverage + (interval - previousAverage) * 0.20f
+            : interval;
+        g_publish_interval_ms.store(average, std::memory_order_relaxed);
+        g_acquisition_hz.store(1000.0f / average, std::memory_order_relaxed);
     }
 
 
@@ -62,8 +70,7 @@ void Publish(Runtime& source, uint64_t generation, uint64_t read_fails) {
     slot.value->session_generation = generation;
     slot.value->read_fails = read_fails;
     slot.value->acquisition_hz = g_acquisition_hz.load(std::memory_order_relaxed);
-    slot.value->snapshot_interval_ms = previous && now > previous
-        ? static_cast<float>(now - previous) : 0.f;
+    slot.value->snapshot_interval_ms = g_publish_interval_ms.load(std::memory_order_relaxed);
     slot.value->snapshot_drops = g_snapshot_drops.load(std::memory_order_relaxed);
 
     g_runtime_snapshots.Publish(slot.index);
@@ -109,6 +116,7 @@ void ResetPublishMetrics() noexcept {
     g_last_publish_ms.store(0, std::memory_order_relaxed);
     g_snapshot_drops.store(0, std::memory_order_relaxed);
     g_acquisition_hz.store(0.f, std::memory_order_relaxed);
+    g_publish_interval_ms.store(0.f, std::memory_order_relaxed);
 }
 
 float AcquisitionHz() noexcept {
