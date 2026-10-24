@@ -714,11 +714,11 @@ void DrawGoldMotif(ImDrawList* dl, const ImVec2& position, const ImVec2& size,
         for (int col = 0; col < columns; ++col) {
             const int index = row * columns + col;
             const ImVec2& point = nodes[index];
-            if (col + 1 < columns) dl->AddLine(point, nodes[index + 1], gold(23), 1.0f);
-            if (row + 1 < rows) dl->AddLine(point, nodes[index + columns], gold(20), 1.0f);
+            if (col + 1 < columns) dl->AddLine(point, nodes[index + 1], gold(31), 1.0f);
+            if (row + 1 < rows) dl->AddLine(point, nodes[index + columns], gold(28), 1.0f);
             if (row + 1 < rows && col + 1 < columns && (row + col) % 2 == 0)
-                dl->AddLine(point, nodes[index + columns + 1], gold(17), 1.0f);
-            dl->AddCircleFilled(point, performance_mode ? 1.0f : 1.45f, gold(73), 8);
+                dl->AddLine(point, nodes[index + columns + 1], gold(24), 1.0f);
+            dl->AddCircleFilled(point, performance_mode ? 1.0f : 1.45f, gold(88), 8);
             if (!performance_mode && (index % 7 == 0))
                 dl->AddCircleFilled(point, 3.5f, gold(12), 10);
         }
@@ -738,8 +738,8 @@ void DrawGoldMotif(ImDrawList* dl, const ImVec2& position, const ImVec2& size,
                     envelope * size.y * 0.057f * std::sin(u * 10.0f - time * 0.38f + band * 0.25f);
                 const ImVec2 current(x, y);
                 if (step > 0) {
-                    dl->AddLine(previous, current, gold(8), 7.0f);
-                    dl->AddLine(previous, current, gold(band == 1 ? 55 : 31), band == 1 ? 1.6f : 1.0f);
+                    dl->AddLine(previous, current, gold(11), 7.0f);
+                    dl->AddLine(previous, current, gold(band == 1 ? 65 : 38), band == 1 ? 1.6f : 1.0f);
                 }
                 previous = current;
             }

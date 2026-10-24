@@ -1064,14 +1064,15 @@ bool Draw() {
     CyberTheme::DrawSubtleNoise(background, ImVec2(0, 0), display, 0.012f, 0x41555448u, 180);
     const PerformanceMode::State performance = PerformanceMode::Current();
     if (app_settings::DigitalRainDensity() > 0.0f) {
+        const float rainOpacity = std::max(app_settings::DigitalRainOpacity(), 0.64f);
         DigitalRain::Draw(background, ImVec2(0, 0), display, true,
             performance.effective, 0.0f,
-            app_settings::DigitalRainOpacity() * 0.48f,
+            rainOpacity * 0.68f,
             app_settings::DigitalRainDensity() * 0.82f,
             app_settings::AnimationScale(), false, true);
         DigitalRain::DrawGoldMotif(background, ImVec2(0, 0), display,
             performance.effective, app_settings::AnimationScale(),
-            0.72f);
+            performance.effective ? 0.72f : 0.88f);
     }
 
 
@@ -1121,7 +1122,7 @@ bool Draw() {
         draw->PushClipRect(windowPos, Add(windowPos, ImVec2(width, height)), true);
         DigitalRain::Draw(draw, windowPos, ImVec2(width, height), true,
             performance.effective, 0.0f,
-            app_settings::DigitalRainOpacity() * 0.90f,
+            std::max(app_settings::DigitalRainOpacity(), 0.64f) * 0.94f,
             app_settings::DigitalRainDensity() * 0.72f,
             animation, false, true);
         draw->PopClipRect();

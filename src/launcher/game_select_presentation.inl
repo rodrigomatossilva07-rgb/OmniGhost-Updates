@@ -130,9 +130,11 @@ void DrawBackground(
     const float rainDensity = app_settings::DigitalRainDensity();
 
 
-    const float rainOpacity = std::clamp(
-        app_settings::DigitalRainOpacity() * (performance_mode ? 0.34f : 0.52f),
-        0.18f, 0.48f);
+    const float rainOpacity = rainDensity > 0.0f
+        ? std::clamp(
+            app_settings::DigitalRainOpacity() * (performance_mode ? 0.62f : 0.78f),
+            0.40f, 0.68f)
+        : 0.0f;
     DigitalRain::Draw(
         draw,
         ImVec2(0.0f, header),
@@ -143,11 +145,12 @@ void DrawBackground(
         rainOpacity,
         rainDensity,
         app_settings::AnimationScale(),
-        false);
+        false,
+        true);
     if (rainDensity > 0.0f)
         DigitalRain::DrawGoldMotif(draw, ImVec2(0.0f, header),
             ImVec2(display.x, display.y - header - footer), performance_mode,
-            app_settings::AnimationScale(), 0.65f);
+            app_settings::AnimationScale(), performance_mode ? 0.72f : 0.88f);
 
 
     const float grid = S(performance_mode ? 118.0f : 94.0f);

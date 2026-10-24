@@ -23,11 +23,18 @@ void DrawTransitionOverlay(const TransitionOverlayOptions& options) {
     background->AddRectFilled(ImVec2(0, 0), display,
         IM_COL32(3, 3, 4, static_cast<int>(255.0f * alpha)));
     const PerformanceMode::State performance = PerformanceMode::Current();
-    DigitalRain::Draw(background, ImVec2(0, 0), display, true,
-        performance.effective, 0.0f,
-        app_settings::DigitalRainOpacity() * 0.48f * alpha,
-        app_settings::DigitalRainDensity() * 0.82f,
-        app_settings::AnimationScale(), false, true);
+    const float rainDensity = app_settings::DigitalRainDensity();
+    if (rainDensity > 0.0f) {
+        const float rainOpacity = std::max(app_settings::DigitalRainOpacity(), 0.64f);
+        DigitalRain::Draw(background, ImVec2(0, 0), display, true,
+            performance.effective, 0.0f,
+            rainOpacity * 0.68f * alpha,
+            rainDensity * 0.82f,
+            app_settings::AnimationScale(), false, true);
+        DigitalRain::DrawGoldMotif(background, ImVec2(0, 0), display,
+            performance.effective, app_settings::AnimationScale(),
+            (performance.effective ? 0.72f : 0.88f) * alpha);
+    }
 
     const ImVec2 center(display.x * 0.5f, display.y * 0.5f - 4.0f * scale);
     const float panelHalfWidth = (std::min)(220.0f * scale, display.x * 0.43f);

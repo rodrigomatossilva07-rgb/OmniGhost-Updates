@@ -467,8 +467,12 @@ const PerformanceMode::State performance = PerformanceMode::Update(
         performance.effective ? 100 : 210);
 
 
-    const float rainDensity = app_settings::DigitalRainDensity() *
+    const float configuredRainDensity = app_settings::DigitalRainDensity();
+    const float rainDensity = configuredRainDensity *
         perfLevels.digitalRainDensity;
+    const float rainOpacity = configuredRainDensity > 0.0f
+        ? std::max(app_settings::DigitalRainOpacity(), 0.64f)
+        : 0.0f;
     const float backgroundMotionScale = app_settings::AnimationScale() *
         perfLevels.motionScale;
 
@@ -479,14 +483,16 @@ const PerformanceMode::State performance = PerformanceMode::Update(
         rainDensity > 0.0f && (app_settings::menu_open || RenderMenu),
         performance.effective,
         CyberTheme::Metrics::SidebarWidth,
-        app_settings::DigitalRainOpacity(),
+        rainOpacity,
         rainDensity,
         backgroundMotionScale,
-        false);
+        false,
+        true);
     if (rainDensity > 0.0f && (app_settings::menu_open || RenderMenu))
         DigitalRain::DrawGoldMotif(draw_list, window_pos, window_size,
             performance.effective, app_settings::AnimationScale(),
-            0.65f, CyberTheme::Metrics::SidebarWidth);
+            performance.effective ? 0.72f : 0.88f,
+            CyberTheme::Metrics::SidebarWidth);
 
 
     DrawTechGrid(draw_list, window_pos, window_size, performance.effective);
