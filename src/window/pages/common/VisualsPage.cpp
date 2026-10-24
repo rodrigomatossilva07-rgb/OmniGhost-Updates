@@ -219,48 +219,19 @@ void DrawVisuals()
     CyberWidgets::Separator();
     CyberWidgets::SectionTitle(Loc::Tr("vis.elements"));
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.skeleton"), &esp::config.skeleton);
-    if (esp::config.skeleton) {
-        CyberWidgets::ToggleSwitch(Loc::Tr("vis.skeleton_lod"), &esp::config.skeleton_lod);
-        if (esp::config.skeleton_lod) {
-            CyberWidgets::SliderFloat(Loc::Tr("vis.lod_full"), &esp::config.lod_full_dist, 10.f, 100.f, "%.0f m");
-            CyberWidgets::SliderFloat(Loc::Tr("vis.lod_high"), &esp::config.lod_high_dist, 50.f, 200.f, "%.0f m");
-            CyberWidgets::SliderFloat(Loc::Tr("vis.lod_med"), &esp::config.lod_med_dist, 100.f, 300.f, "%.0f m");
-        }
-    }
+    // O LOD do esqueleto é sempre automático. Manter isto explícito também
+    // normaliza configurações antigas que tinham o controlo manual desligado.
+    esp::config.skeleton_lod = true;
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.joints"), &esp::config.joints);
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.head_circle"), &esp::config.head_circle);
-    if (esp::config.head_circle) {
-        const char* circleTypes[] = { Loc::Tr("vis.circle_normal"), Loc::Tr("vis.circle_filled"), Loc::Tr("vis.circle_cross") };
-        CyberWidgets::Combo(Loc::Tr("vis.circle_type"), &esp::config.circle_type, circleTypes, 3);
-    }
+    esp::config.circle_type = 0;
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.health_bar"), &esp::config.health_bar);
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.armor_bar"), &esp::config.armor_bar);
-    CyberWidgets::ToggleSwitch(app_settings::T("Nome", "Name"), &esp::config.player_name);
-    CyberWidgets::ToggleSwitch(app_settings::T("ID", "ID"), &esp::config.player_id);
+    esp::config.player_name = false;
+    esp::config.player_id = false;
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.weapon_name"), &esp::config.weapon_name);
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.distance"), &esp::config.distance);
-    CyberWidgets::Separator();
-    CyberWidgets::SectionTitle(app_settings::T("FORA DO ECRA", "OFFSCREEN"));
-    CyberWidgets::ToggleSwitch(app_settings::T("Setas fora do ecra", "Offscreen arrows"),
-        &esp::config.offscreen_arrows);
-    if (esp::config.offscreen_arrows) {
-        CyberWidgets::SliderFloat(app_settings::T("Tamanho das setas", "Arrow size"),
-            &esp::config.offscreen_arrow_size, 6.f, 32.f, "%.0f px");
-        CyberWidgets::SliderFloat(app_settings::T("Margem", "Margin"),
-            &esp::config.offscreen_arrow_margin, 12.f, 160.f, "%.0f px");
-        CyberWidgets::SliderFloat(app_settings::T("Distancia maxima", "Maximum distance"),
-            &esp::config.offscreen_arrow_max_distance, 10.f, 500.f, "%.0f m");
-        CyberWidgets::SliderFloat(app_settings::T("Opacidade", "Opacity"),
-            &esp::config.offscreen_arrow_opacity, .1f, 1.f, "%.2f");
-        CyberWidgets::ToggleSwitch(app_settings::T("Mostrar distancia", "Show distance"),
-            &esp::config.offscreen_arrow_distance);
-        CyberWidgets::ToggleSwitch(app_settings::T("Mostrar nome", "Show name"),
-            &esp::config.offscreen_arrow_name);
-        const char* arrowStyles[] = { app_settings::T("Preenchida", "Filled"),
-            app_settings::T("Contorno", "Outline"), app_settings::T("Preenchida com contorno", "Filled with outline") };
-        CyberWidgets::Combo(app_settings::T("Estilo", "Style"),
-            &esp::config.offscreen_arrow_style, arrowStyles, 3);
-    }
+    esp::config.offscreen_arrows = false;
     CyberWidgets::Separator();
     CyberWidgets::SectionTitle(app_settings::T("PAINEL ATIVO", "ACTIVE PANEL"));
     CyberWidgets::ToggleSwitch(app_settings::T("Mostrar funcionalidades ativas", "Show active features"),
@@ -292,18 +263,17 @@ void DrawVisuals()
     esp::config.angel_wings = false;
     esp::config.devil_horns = false;
     esp::config.floating_crown = false;
-    CyberWidgets::ToggleSwitch(Loc::Tr("vis.hit_marker"), &esp::config.hit_marker);
+    esp::config.hit_marker = false;
     CyberWidgets::ToggleSwitch("Rastros", &esp::config.trails);
     if (esp::config.trails)
         CyberWidgets::ToggleSwitch("Rastros arco-iris", &esp::config.rainbow_trails);
-    CyberWidgets::ToggleSwitch("Eye Line", &esp::config.look_direction);
+    esp::config.look_direction = false;
 
     CyberWidgets::SectionTitle("ESPESSURA");
     CyberWidgets::SliderFloat("Esqueleto", &esp::config.skeleton_thickness, 0.5f, 6.f, "%.1f");
     CyberWidgets::SliderFloat("Linhas guia", &esp::config.snapline_thickness, 0.5f, 6.f, "%.1f");
     CyberWidgets::SliderFloat("Circulo cabeca", &esp::config.head_circle_thickness, 0.5f, 6.f, "%.1f");
     CyberWidgets::SliderFloat("Caixa", &esp::config.box_thickness, 0.5f, 6.f, "%.1f");
-    CyberWidgets::SliderFloat("Eye Line", &esp::config.eye_line_thickness, 0.5f, 6.f, "%.1f");
     if (esp::config.trails)
         CyberWidgets::SliderFloat("Rastro", &esp::config.trail_thickness, 1.f, 8.f, "%.1f");
     if (esp::config.chinese_hat)
@@ -349,9 +319,6 @@ void DrawVisuals()
                      espEnabled && esp::config.corner_box);
     colorWhenEnabled(Loc::Tr("vis.snaplines"), &esp::config.color_snaplines,
                      espEnabled && esp::config.snaplines);
-    colorWhenEnabled(app_settings::T("Setas fora do ecra", "Offscreen arrows"),
-                     &esp::config.color_offscreen_arrow,
-                     espEnabled && esp::config.offscreen_arrows);
     colorWhenEnabled(Loc::Tr("vis.fun_color"), &esp::config.color_fun_effects,
                      espEnabled && !esp::config.fun_effects_rainbow &&
                      (esp::config.angel_wings || esp::config.devil_horns || esp::config.floating_crown));

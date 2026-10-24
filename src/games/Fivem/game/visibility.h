@@ -23,7 +23,7 @@ inline bool IsPedVisibilityKnown(uintptr_t ped) {
     return ped && offset::pedVisibilityOffset &&
         g_pedCacheManager.getPedData(ped, data) && data.visibility_known &&
         std::chrono::steady_clock::now() - data.visibility_updated <
-            std::chrono::milliseconds(80);
+            std::chrono::milliseconds(180);
 }
 
 inline bool IsPedVisible(uintptr_t ped) {
@@ -31,7 +31,7 @@ inline bool IsPedVisible(uintptr_t ped) {
     return ped && offset::pedVisibilityOffset &&
         g_pedCacheManager.getPedData(ped, data) && data.visibility_known &&
         std::chrono::steady_clock::now() - data.visibility_updated <
-            std::chrono::milliseconds(80) && data.visible;
+            std::chrono::milliseconds(180) && data.visible;
 }
 
 
@@ -82,7 +82,7 @@ inline void BatchCheckVisibility(const std::vector<uintptr_t>& peds,
 
         PedData cached;
         if (g_pedCacheManager.getPedData(peds[i], cached) && cached.visibility_known &&
-            now - cached.visibility_updated < std::chrono::milliseconds(60)) {
+            now - cached.visibility_updated < std::chrono::milliseconds(120)) {
             visibilityResults[i] = cached.visible;
         } else {
 

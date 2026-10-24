@@ -593,6 +593,13 @@ static bool EspPedVisibilityKnown(uintptr_t ped) {
     return (prepared && prepared->visibility_known) || FiveM::Visibility::IsPedVisibilityKnown(ped);
 }
 
+static bool EspPedPassesVisibility(uintptr_t ped) {
+    // Dados desconhecidos não significam "oculto". Num leitor DMA externo não
+    // há uma chamada segura às natives de raycast; ocultamos apenas quando a
+    // amostra é recente, conhecida e explicitamente bloqueada.
+    return !esp::config.visible_check || !EspPedVisibilityKnown(ped) || EspPedVisible(ped);
+}
+
 
 struct PedFrameFlags {
     uint32_t frame = 0;
@@ -758,8 +765,11 @@ static bool EspPedIsFriend(uintptr_t ped) {
 static ImU32 EspPedColor(uintptr_t ped, ImU32 configured, bool visible) {
 
 
-    if (esp::config.visibility_colors && EspPedVisibilityKnown(ped))
+    if (esp::config.visibility_colors) {
+        if (!EspPedVisibilityKnown(ped))
+            return IM_COL32(150, 156, 166, 255);
         return visible ? esp::config.color_visible : esp::config.color_invisible;
+    }
     if (esp::config.rgb_mode)
         return EspRGB();
     if (esp::config.show_knocked && EspPedIsKnocked(ped))
@@ -1698,7 +1708,7 @@ static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer,
         return;
 
     const bool visible = EspPedVisible(ped);
-    if (rcfg->visible_check && !visible)
+    if (rcfg->visible_check && !EspPedPassesVisibility(ped))
         return;
 
     Vec2 originProjection{};
@@ -2158,7 +2168,7 @@ void esp::render_esp_for_ped(uintptr_t ped, Matrix viewport, uintptr_t localplay
     if (!EspPedMayDraw(ped, config.show_dead, config.show_knocked))
         return;
 
-    if (config.visible_check && !EspPedVisible(ped))
+    if (config.visible_check && !EspPedPassesVisibility(ped))
         return;
 
     if (config.head_circle)
@@ -2179,7 +2189,7 @@ void esp::render_esp_for_ped_cached(uintptr_t ped, Matrix viewport, uintptr_t lo
         return;
     if (!EspPedMayDraw(ped, config.show_dead, config.show_knocked))
         return;
-    if (config.visible_check && !EspPedVisible(ped))
+    if (config.visible_check && !EspPedPassesVisibility(ped))
         return;
 
     if (config.head_circle)
@@ -2322,11 +2332,12 @@ void esp::draw_head_circle_cached(uintptr_t ped, Matrix viewport, uintptr_t loca
 
     const bool visible = EspPedVisible(ped);
     ImU32 color = EspPedColor(ped, config.color_head_circle, visible);
-    if (!config.visibility_colors && cached_ped_data.health < 50.0f)
+    if (!config.rgb_mode && !config.visibility_colors && cached_ped_data.health < 50.0f)
         color = IM_COL32(255, 255, 0, 255);
-    if (!config.visibility_colors && cached_ped_data.health < 25.0f)
+    if (!config.rgb_mode && !config.visibility_colors && cached_ped_data.health < 25.0f)
         color = IM_COL32(255, 0, 0, 255);
-    if (cached_ped_data.health <= 0.0f) color = IM_COL32(100, 100, 100, 255);
+    if (!config.rgb_mode && cached_ped_data.health <= 0.0f)
+        color = IM_COL32(100, 100, 100, 255);
 
     float dist = 25.f;
     if (localplayer) {
@@ -2864,7 +2875,7 @@ void esp::DrawPlayerRadar(const Matrix& , uintptr_t localplayer) {
         uintptr_t ped = snapshot.validPeds[i];
         if (!ped || ped == localplayer) continue;
         const bool visible = EspPedVisible(ped);
-        if (config.visible_check && !visible) continue;
+        if (config.visible_check && !EspPedPassesVisibility(ped)) continue;
         Vec3 pos = (i < snapshot.positions.size()) ? snapshot.positions[i] : Vec3{};
         if (pos.IsZero()) continue;
         float dx = pos.x - localPos.x, dy = pos.y - localPos.y;
@@ -2961,7 +2972,7 @@ void esp::DrawPlayerRadar(const Matrix& , uintptr_t localplayer) {
         if (!ped || ped == localplayer) continue;
         if (config.team_check && EspPedIsFriend(ped)) continue;
         const bool visible = EspPedVisible(ped);
-        if (config.visible_check && !visible) continue;
+        if (config.visible_check && !EspPedPassesVisibility(ped)) continue;
 
         Vec3 pos = (i < snapshot.positions.size()) ? snapshot.positions[i] : Vec3{};
         if (pos.IsZero()) continue;

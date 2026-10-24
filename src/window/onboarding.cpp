@@ -249,22 +249,28 @@ namespace Onboarding {
         }
 
         void DrawFeatureGlyph(ImDrawList* dl, const ImVec2& center, int kind, ImU32 color) {
+            dl->AddCircleFilled(center, 17.0f,
+                CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.075f), 28);
+            dl->AddCircle(center, 17.0f,
+                CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.20f), 28, 1.0f);
             if (kind == 0) {
-                dl->AddCircle(center, 6.0f, color, 12, 1.2f);
-                dl->AddLine(ImVec2(center.x - 9.0f, center.y), ImVec2(center.x + 9.0f, center.y), color, 1.2f);
+                dl->AddCircle(center, 6.0f, color, 20, 1.5f);
+                dl->AddCircleFilled(center, 2.2f, color, 12);
+                dl->AddLine(ImVec2(center.x - 10.0f, center.y), ImVec2(center.x - 7.0f, center.y), color, 1.5f);
+                dl->AddLine(ImVec2(center.x + 7.0f, center.y), ImVec2(center.x + 10.0f, center.y), color, 1.5f);
             } else if (kind == 1) {
-                dl->AddRect(ImVec2(center.x - 6.0f, center.y - 5.0f), ImVec2(center.x + 6.0f, center.y + 5.0f), color, 2.0f, 0, 1.2f);
+                dl->AddRect(ImVec2(center.x - 6.0f, center.y - 5.0f), ImVec2(center.x + 6.0f, center.y + 5.0f), color, 2.0f, 0, 1.5f);
                 dl->AddLine(ImVec2(center.x - 10.0f, center.y - 5.0f), ImVec2(center.x - 7.0f, center.y - 5.0f), color, 1.2f);
                 dl->AddLine(ImVec2(center.x - 10.0f, center.y + 5.0f), ImVec2(center.x - 7.0f, center.y + 5.0f), color, 1.2f);
                 dl->AddLine(ImVec2(center.x + 7.0f, center.y - 5.0f), ImVec2(center.x + 10.0f, center.y - 5.0f), color, 1.2f);
                 dl->AddLine(ImVec2(center.x + 7.0f, center.y + 5.0f), ImVec2(center.x + 10.0f, center.y + 5.0f), color, 1.2f);
             } else if (kind == 2) {
-                dl->AddLine(ImVec2(center.x, center.y - 9.0f), ImVec2(center.x - 6.0f, center.y + 1.0f), color, 1.5f);
+                dl->AddLine(ImVec2(center.x, center.y - 9.0f), ImVec2(center.x - 6.0f, center.y + 1.0f), color, 1.7f);
                 dl->AddLine(ImVec2(center.x - 6.0f, center.y + 1.0f), ImVec2(center.x + 1.0f, center.y + 1.0f), color, 1.5f);
                 dl->AddLine(ImVec2(center.x + 1.0f, center.y + 1.0f), ImVec2(center.x - 1.0f, center.y + 9.0f), color, 1.5f);
                 dl->AddLine(ImVec2(center.x - 1.0f, center.y + 9.0f), ImVec2(center.x + 7.0f, center.y - 2.0f), color, 1.5f);
             } else {
-                dl->AddCircle(center, 3.0f, color, 12, 1.2f);
+                dl->AddCircle(center, 3.0f, color, 16, 1.5f);
                 dl->AddLine(ImVec2(center.x, center.y - 9.0f), ImVec2(center.x, center.y - 5.0f), color, 1.2f);
                 dl->AddLine(ImVec2(center.x, center.y + 5.0f), ImVec2(center.x, center.y + 9.0f), color, 1.2f);
                 dl->AddLine(ImVec2(center.x - 9.0f, center.y), ImVec2(center.x - 5.0f, center.y), color, 1.2f);
@@ -276,7 +282,7 @@ namespace Onboarding {
             ImDrawList* dl = ImGui::GetWindowDrawList();
             const ImVec2 pos = ImGui::GetCursorScreenPos();
             const float width = ImGui::GetContentRegionAvail().x;
-            constexpr float height = 63.0f;
+            constexpr float height = 68.0f;
             ImGui::InvisibleButton(id, ImVec2(width, height));
             const bool hovered = ImGui::IsItemHovered();
             const ImGuiID hoverId = ImGui::GetItemID();
@@ -290,10 +296,10 @@ namespace Onboarding {
             if (hover > 0.01f)
                 dl->AddCircleFilled(ImVec2(pos.x + 27.0f, pos.y + height * 0.5f),
                     14.0f + 3.0f * hover, CyberTheme::WithAlpha(CyberTheme::Colors.GoldGlow, 0.14f * hover), 20);
-            dl->AddLine(ImVec2(pos.x, pos.y + 10.0f), ImVec2(pos.x, pos.y + height - 10.0f), accent, 1.5f);
-            DrawFeatureGlyph(dl, ImVec2(pos.x + 27.0f, pos.y + height * 0.5f), icon, accent);
-            dl->AddText(ImVec2(pos.x + 56.0f, pos.y + 13.0f), CyberTheme::U32(CyberTheme::Colors.Text), title);
-            dl->AddText(ImVec2(pos.x + 56.0f, pos.y + 35.0f), CyberTheme::U32(CyberTheme::Colors.TextDisabled), description);
+            dl->AddLine(ImVec2(pos.x, pos.y + 12.0f), ImVec2(pos.x, pos.y + height - 12.0f), accent, 2.0f);
+            DrawFeatureGlyph(dl, ImVec2(pos.x + 31.0f, pos.y + height * 0.5f), icon, accent);
+            dl->AddText(ImVec2(pos.x + 62.0f, pos.y + 15.0f), CyberTheme::U32(CyberTheme::Colors.Text), title);
+            dl->AddText(ImVec2(pos.x + 62.0f, pos.y + 39.0f), CyberTheme::U32(CyberTheme::Colors.TextDisabled), description);
             ImGui::Dummy(ImVec2(0.0f, 7.0f));
         }
 
@@ -391,8 +397,8 @@ namespace Onboarding {
         ImVec2 center = viewport->GetCenter();
         const ImVec2 work_size = viewport->WorkSize;
         const ImVec2 wizard_size(
-            std::min(760.0f, std::max(1.0f, work_size.x - 32.0f)),
-            std::min(600.0f, std::max(1.0f, work_size.y - 32.0f)));
+            std::min(780.0f, std::max(1.0f, work_size.x - 40.0f)),
+            std::min(610.0f, std::max(1.0f, work_size.y - 40.0f)));
         ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
         ImGui::SetNextWindowSize(wizard_size, ImGuiCond_Appearing);
         ImGui::PushStyleColor(ImGuiCol_PopupBg, CyberTheme::WithAlpha(CyberTheme::Colors.Surface, 0.99f));
@@ -407,6 +413,12 @@ namespace Onboarding {
             ImDrawList* dl = ImGui::GetWindowDrawList();
             ImVec2 win_pos = ImGui::GetWindowPos();
             ImVec2 win_size = ImGui::GetWindowSize();
+            dl->AddRectFilledMultiColor(win_pos,
+                ImVec2(win_pos.x + win_size.x, win_pos.y + 178.0f),
+                CyberTheme::WithAlpha(CyberTheme::Colors.CardHover, 0.92f),
+                CyberTheme::WithAlpha(CyberTheme::Colors.Surface, 0.98f),
+                CyberTheme::WithAlpha(CyberTheme::Colors.Surface, 0.98f),
+                CyberTheme::WithAlpha(CyberTheme::Colors.CardHover, 0.92f));
             CyberTheme::DrawRadialAccent(dl,
                 ImVec2(win_pos.x + win_size.x * 0.72f, win_pos.y + 16.0f), 220.0f, 0.045f);
             CyberTheme::DrawSubtleNoise(dl, win_pos, ImVec2(win_pos.x + win_size.x, win_pos.y + win_size.y), 0.015f);
@@ -455,7 +467,7 @@ namespace Onboarding {
             ImGui::SetCursorPos(ImVec2(kContentInset, win_size.y - 52.0f));
             const float btn_width = step_idx >= total_steps - 1 ? 156.0f : 136.0f;
             if (step_idx > 0) {
-                if (CyberWidgets::Button("<- Back", CyberWidgets::ButtonStyle::Secondary, ImVec2(110.0f, 38.0f))) {
+                if (CyberWidgets::Button("←  Back", CyberWidgets::ButtonStyle::Secondary, ImVec2(116.0f, 38.0f))) {
                     PreviousStep();
                 }
             }
@@ -464,12 +476,12 @@ namespace Onboarding {
             bool is_last = step_idx >= total_steps - 1;
             const bool license_accepted = app_settings::config.license_accepted;
             if (is_last) {
-                if (CyberWidgets::Button("Finish Setup ->", CyberWidgets::ButtonStyle::Primary, ImVec2(btn_width, 38.0f))) {
+                if (CyberWidgets::Button("Finish Setup  →", CyberWidgets::ButtonStyle::Primary, ImVec2(btn_width, 38.0f))) {
                     Complete();
                 }
             } else {
                 const bool enabled = g_current_step != Step::LicenseAgreement || license_accepted;
-                if (CyberWidgets::Button("Continue ->", CyberWidgets::ButtonStyle::Primary, ImVec2(btn_width, 38.0f), enabled)) {
+                if (CyberWidgets::Button("Continue  →", CyberWidgets::ButtonStyle::Primary, ImVec2(btn_width, 38.0f), enabled)) {
                     NextStep();
                 }
             }

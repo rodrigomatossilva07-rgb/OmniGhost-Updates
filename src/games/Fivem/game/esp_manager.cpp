@@ -538,8 +538,10 @@ namespace FiveM {
                                 break;
 
 
+                            // O batch atualiza o cache tri-state. Passar apenas
+                            // bool aqui transformava UNKNOWN em HIDDEN.
                             esp::prepare_esp_frame(job.peds, job.positions, job.healths,
-                                job.espConfig, job.aimConfig, needVis ? &prodVis : nullptr);
+                                job.espConfig, job.aimConfig, nullptr);
                         }
                     }
                     if (job.boneMask && !job.peds.empty() && pressure < 2 && elapsed() < kBudgetMs && checkGen()) {
@@ -616,10 +618,18 @@ namespace FiveM {
                 const bool needPeds = s_needPeds.load(std::memory_order_acquire);
                 const auto options = s_optionSnapshots.Acquire();
                 esp::Config espOptions = options->espConfig;
+                espOptions.skeleton_lod = true;
+                espOptions.circle_type = 0;
+                espOptions.player_name = false;
+                espOptions.player_id = false;
+                espOptions.hit_marker = false;
+                espOptions.look_direction = false;
+                espOptions.offscreen_arrows = false;
                 const bool friendsListRequested = friends::PlayerListRequestedRecently();
                 if (friendsListRequested) espOptions.player_name = true;
                 const auto& aimOptions = options->aimConfig;
-                const auto& vehicleOptions = options->vehicleConfig;
+                auto vehicleOptions = options->vehicleConfig;
+                vehicleOptions.show_speed = false;
                 bool cacheValid = false;
                 uint16_t pendingBoneMask = 0;
                 const bool npcEspEnabled = s_npcEsp.load(std::memory_order_acquire);

@@ -786,7 +786,8 @@ void DrawLogin() {
     DrawFeedback(contentWidth);
     ImGui::Dummy(ImVec2(0, S(2.f)));
     CenterCursor(contentWidth);
-    if (CyberWidgets::GhostButton(text.createAccount, ImVec2(contentWidth, S(38.f))))
+    if (CyberWidgets::Button(text.createAccount, CyberWidgets::ButtonStyle::Secondary,
+            ImVec2(contentWidth, S(40.f))))
         SetScreen(Screen::Register);
     ImGui::Dummy(ImVec2(0, S(5.f)));
     const std::string back = std::string("← ") + text.back;
@@ -806,7 +807,7 @@ void DrawRegister() {
     const float blockHeight = S(430.f);
     CenterBlockVertically(blockHeight, 0.48f);
     DrawBrand(false);
-    DrawPageHeading(ui.createTitle, ui.createSubtitle);
+    DrawPageHeading(ui.createTitle, "");
 
     CenterCursor(contentWidth);
     ImGui::BeginGroup();
@@ -847,8 +848,10 @@ void DrawRegister() {
     ImGui::EndGroup();
     DrawFeedback(contentWidth);
     ImGui::Dummy(ImVec2(0, S(4.f)));
-    const std::string back = std::string("<- ") + text.back;
-    if (DrawTextAction(back.c_str())) {
+    CenterCursor(contentWidth);
+    const std::string back = std::string("←  ") + text.back;
+    if (CyberWidgets::Button(back.c_str(), CyberWidgets::ButtonStyle::Secondary,
+            ImVec2(contentWidth, S(40.f)))) {
         SecureClear(g_password, sizeof(g_password));
         SecureClear(g_confirm, sizeof(g_confirm));
         SecureClear(g_license_key, sizeof(g_license_key));

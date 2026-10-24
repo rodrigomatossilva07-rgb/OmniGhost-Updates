@@ -30,7 +30,7 @@ void DrawVehicles()
         CyberWidgets::ToggleSwitch(Loc::Tr("veh.distance"), &vehicle_esp::config.distance);
         CyberWidgets::ToggleSwitch(Loc::Tr("veh.occupants"), &vehicle_esp::config.show_occupants);
         CyberWidgets::ToggleSwitch(Loc::Tr("veh.lock_status"), &vehicle_esp::config.lock_status);
-        CyberWidgets::ToggleSwitch(Loc::Tr("veh.speed"), &vehicle_esp::config.show_speed);
+        vehicle_esp::config.show_speed = false;
         CyberWidgets::ToggleSwitch(Loc::Tr("veh.ignore_occ"), &vehicle_esp::config.ignore_occupied);
         CyberWidgets::SliderFloat(Loc::Tr("veh.max_dist"), &vehicle_esp::config.max_distance,
                                   10.f, 500.f, "%.0f m");
