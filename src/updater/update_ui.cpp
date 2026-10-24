@@ -237,7 +237,7 @@ void Draw() {
         const float elapsed = static_cast<float>(ImGui::GetTime());
         OmniGhost::UI::DrawTransitionOverlay({
             state.repairMode ? "A reparar o OmniGhost" : "A instalar atualização",
-            "O OmniGhost será reiniciado automaticamente",
+            "A aplicação reiniciará automaticamente quando estiver pronta",
             elapsed,
             1.0f,
             false

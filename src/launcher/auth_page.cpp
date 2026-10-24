@@ -154,6 +154,20 @@ const char* LicenseKeyHint() {
     return labels[static_cast<std::size_t>(index)];
 }
 
+const char* CredentialsHint() {
+    static constexpr std::array<const char*, 6> labels{{
+        "Indica um email válido e a palavra-passe.",
+        "Enter a valid email and password.",
+        "Gib eine gültige E-Mail-Adresse und dein Passwort ein.",
+        "Introduce un correo válido y la contraseña.",
+        "Saisissez une adresse e-mail valide et le mot de passe.",
+        "Inserisci un indirizzo e-mail valido e la password."
+    }};
+    const int index = std::clamp(static_cast<int>(app_settings::config.language), 0,
+                                 static_cast<int>(labels.size() - 1));
+    return labels[static_cast<std::size_t>(index)];
+}
+
 
 Screen g_screen = Screen::Landing;
 float g_transition = 1.0f;
@@ -201,8 +215,9 @@ std::string LocalizedRemoteError(std::string_view code, const std::string& fallb
     if (code == "auth.unavailable" || code == "auth.not_configured" ||
         code == "website.unavailable")
         return ui.serviceUnavailable;
-    if (code == "auth.invalid_input" || code == "website.invalid_input" ||
-        code == "website.invalid_registration")
+    if (code == "auth.invalid_input" || code == "website.invalid_input")
+        return ui.invalidCredentials;
+    if (code == "website.invalid_registration")
         return ui.enterEmailLicense;
     if (code == "website.no_active_license" || code == "website.invalid_licenses")
         return ui.noActiveLicense;
@@ -490,10 +505,14 @@ void DrawBrand(bool prominent) {
 void DrawPageHeading(const char* title, const char* subtitle) {
     ImGui::Dummy(ImVec2(0, S(14.f)));
     DrawCenteredText(title, CyberTheme::Colors.Text, CyberFonts::GetTitleFont());
-    ImGui::Dummy(ImVec2(0, S(3.f)));
-    DrawCenteredText(subtitle, ImGui::ColorConvertU32ToFloat4(
-        CyberTheme::WithAlpha(CyberTheme::Colors.TextDisabled, 0.92f)));
-    ImGui::Dummy(ImVec2(0, S(18.f)));
+    if (subtitle && subtitle[0] != '\0') {
+        ImGui::Dummy(ImVec2(0, S(3.f)));
+        DrawCenteredText(subtitle, ImGui::ColorConvertU32ToFloat4(
+            CyberTheme::WithAlpha(CyberTheme::Colors.TextDisabled, 0.92f)));
+        ImGui::Dummy(ImVec2(0, S(18.f)));
+    } else {
+        ImGui::Dummy(ImVec2(0, S(20.f)));
+    }
 }
 
 enum class AuthFieldIcon { Email, Lock };
@@ -734,9 +753,9 @@ void DrawLogin() {
 
 
 
-    CenterBlockVertically(S(365.f), 0.48f);
+    CenterBlockVertically(S(392.f), 0.48f);
     DrawBrand(false);
-    DrawPageHeading(ui.welcomeTitle, ui.welcomeSubtitle);
+    DrawPageHeading(ui.welcomeTitle, "");
 
     CenterCursor(contentWidth);
     ImGui::BeginGroup();
@@ -753,18 +772,25 @@ void DrawLogin() {
         ImVec2(contentWidth, S(42.f))) || enter;
     ImGui::EndDisabled();
     if (submit && !g_remote_operation_pending) {
-        StartRemoteOperation(RemoteOperation::WebsiteLogin, g_email, g_password, {});
-        SecureClear(g_password, sizeof(g_password));
-        ImGui::EndGroup();
-        DrawFeedback(contentWidth);
-        return;
+        if (std::strchr(g_email, '@') == nullptr || g_password[0] == '\0') {
+            g_error = CredentialsHint();
+        } else {
+            StartRemoteOperation(RemoteOperation::WebsiteLogin, g_email, g_password, {});
+            SecureClear(g_password, sizeof(g_password));
+            ImGui::EndGroup();
+            DrawFeedback(contentWidth);
+            return;
+        }
     }
     ImGui::EndGroup();
     DrawFeedback(contentWidth);
-    ImGui::Dummy(ImVec2(0, S(4.f)));
+    ImGui::Dummy(ImVec2(0, S(2.f)));
     CenterCursor(contentWidth);
-    const std::string back = std::string("<  ") + text.back;
-    if (CyberWidgets::GhostButton(back.c_str(), ImVec2(contentWidth, S(34.f)))) {
+    if (CyberWidgets::GhostButton(text.createAccount, ImVec2(contentWidth, S(38.f))))
+        SetScreen(Screen::Register);
+    ImGui::Dummy(ImVec2(0, S(5.f)));
+    const std::string back = std::string("← ") + text.back;
+    if (DrawTextAction(back.c_str())) {
         SecureClear(g_password, sizeof(g_password));
         SetScreen(Screen::Landing);
     }
@@ -1049,18 +1075,6 @@ bool Draw() {
     }
 
 
-
-    const float frameInset = S(1.5f);
-    const ImVec2 frameMin(frameInset, frameInset);
-    const ImVec2 frameMax(display.x - frameInset, display.y - frameInset);
-    const ImU32 frame = CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.34f);
-    const ImU32 accent = CyberTheme::WithAlpha(CyberTheme::Colors.GoldHover, 0.68f);
-    background->AddRect(frameMin, frameMax, frame, S(20.f), 0, S(1.15f));
-    const float corner = S(66.f);
-    background->AddLine(Add(frameMin, ImVec2(S(20.f), 0)), Add(frameMin, ImVec2(corner, 0)), accent, S(1.5f));
-    background->AddLine(Add(frameMin, ImVec2(0, S(20.f))), Add(frameMin, ImVec2(0, corner)), accent, S(1.5f));
-    background->AddLine(ImVec2(frameMax.x - corner, frameMax.y), ImVec2(frameMax.x - S(20.f), frameMax.y), accent, S(1.5f));
-    background->AddLine(ImVec2(frameMax.x, frameMax.y - corner), ImVec2(frameMax.x, frameMax.y - S(20.f)), accent, S(1.5f));
 
     const float desiredWidth = g_startup_preparing ? S(456.f) : S(
         g_screen == Screen::Login || g_screen == Screen::Register ? 508.f : 456.f);
