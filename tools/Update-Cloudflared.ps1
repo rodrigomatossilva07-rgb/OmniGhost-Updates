@@ -13,6 +13,17 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'Hashing.ps1')
 
+
+
+
+
+
+$securityModule = Join-Path $PSHOME 'Modules\Microsoft.PowerShell.Security\Microsoft.PowerShell.Security.psd1'
+if (-not (Test-Path -LiteralPath $securityModule -PathType Leaf)) {
+    throw "Microsoft.PowerShell.Security was not found for the active PowerShell host: $securityModule"
+}
+Import-Module -Name $securityModule -Force -ErrorAction Stop
+
 if ([string]::IsNullOrWhiteSpace($ProjectDir)) {
     if ($PSScriptRoot) { $ProjectDir = Split-Path -Parent $PSScriptRoot }
     else { throw "ProjectDir is required when $PSScriptRoot is unavailable." }
@@ -115,7 +126,7 @@ function Get-CloudflaredReportedVersion([string]$Path) {
 }
 
 function Remove-StrayCloudflaredFiles {
-    # cloudflared may materialize an empty config.yml next to the binary when probed.
+
     $stray = Join-Path (Split-Path -Parent $ExePath) 'config.yml'
     if (Test-Path -LiteralPath $stray -PathType Leaf) {
         Remove-Item -LiteralPath $stray -Force -ErrorAction SilentlyContinue

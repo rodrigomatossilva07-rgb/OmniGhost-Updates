@@ -33,9 +33,9 @@ void UpdateAvailability() {
     runtime.modules_ok = runtime.game_assembly > 0x10000 && runtime.unity_player > 0x10000;
     runtime.offset_catalog_ok = HasSuppliedCriticalOffsets();
 
-    // The supplied dump deliberately records these two required roots as zero.
-    // Keep the backend truthful until a current dump supplies them or a tested
-    // dynamic resolver is implemented for this Unity/IL2CPP build.
+
+
+
     runtime.entity_source_ok = false;
     runtime.camera_ok = false;
     runtime.acquisition_ok = runtime.entity_source_ok && runtime.camera_ok;
@@ -70,8 +70,8 @@ bool Attach() {
     runtime.game_assembly = mem.GetBaseDaddy("GameAssembly.dll");
     runtime.unity_player = mem.GetBaseDaddy("UnityPlayer.dll");
     UpdateAvailability();
-    // Opening the diagnostic/menu session is useful even while a critical
-    // runtime root is missing; the System page exposes the exact blocker.
+
+
     ready.store(runtime.process_ok && runtime.modules_ok, std::memory_order_release);
     return ready.load(std::memory_order_acquire);
 }

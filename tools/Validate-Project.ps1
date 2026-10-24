@@ -47,8 +47,8 @@ function Assert-ManifestHash([object]$Expected, [string]$Relative) {
 }
 
 
-# Keep the embedded Cloudflare helper present, Cloudflare-signed and in sync with the
-# versions.json pin. This self-heals version changes instead of failing the build.
+
+
 & (Join-Path $PSScriptRoot 'Update-Cloudflared.ps1') -Ensure -ProjectDir $ProjectDir
 if ($LASTEXITCODE -ne 0) {
     Fail 'cloudflared.exe could not be verified or repaired; run tools\Update-Cloudflared.ps1 -Latest and review logs\cloudflared-update-*.log.'

@@ -5,8 +5,8 @@
 #include <cstring>
 #include <functional>
 
-// Rust decrypt/encrypt formulas supplied with the 2026-10-22 dump.
-// read/get_handle must be bound by the future DMA runtime before handle decryptors are used.
+
+
 namespace Rust::Crypto::Build_2026_10_22 {
 namespace decryptor
 {

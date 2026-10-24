@@ -688,16 +688,16 @@ namespace {
     {
 
         static const char* names[] = {
-            "Portugues", "English", "Deutsch", "Espanol", "Francais", "Italiano", "Russian"
+            "Português", "English", "Deutsch", "Español", "Français", "Italiano"
         };
-        if (index < 0 || index >= 7)
+        if (index < 0 || index >= 6)
             return names[0];
         return names[index];
     }
 
     int LanguageCount()
     {
-        return 7;
+        return 6;
     }
 
 }

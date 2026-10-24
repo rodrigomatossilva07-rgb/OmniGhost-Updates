@@ -5,6 +5,7 @@
 #include "steam_game_update_check.h"
 #include "epic_game_update_check.h"
 #include "launcher_status.h"
+#include "remote_usage_service.h"
 #include "../app_version.h"
 #include "../updater/update_ui.h"
 #include "../updater/update_service.h"
@@ -180,6 +181,8 @@ bool g_offset_refresh_pending = false;
 std::future<void> g_startup_offset_checks;
 bool g_startup_offset_checks_done = false;
 bool g_library_update_check_requested = false;
+std::future<void> g_usage_summary_refresh;
+double g_next_usage_summary_refresh = 0.0;
 
 void ChangeNavigation(int page);
 void PushToast(const char* text, ImU32 color, ToastAction action, const char* action_label);
@@ -254,6 +257,7 @@ void Reset(EntryReason reason) {
     g_license_feedback_success = false;
     g_settings_page = app_settings::SettingsPage::General;
     g_library_update_check_requested = false;
+    g_next_usage_summary_refresh = 0.0;
     LoadLauncherState();
     switch (app_settings::config.start_behavior) {
     case app_settings::StartBehavior::Library:
@@ -322,6 +326,31 @@ bool Draw() {
     if (!background || !foreground) return false;
 
     RefreshRuntimeStates();
+
+
+
+
+    if (g_usage_summary_refresh.valid() &&
+        g_usage_summary_refresh.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) {
+        try { g_usage_summary_refresh.get(); }
+        catch (const std::exception& error) {
+            OmniGhost::SessionLog::Write(OmniGhost::SessionLog::Severity::Warning,
+                OmniGhost::SessionLog::Subsystem::Runtime, "usage summary refresh failed",
+                {{"error", error.what(), false}});
+        }
+        catch (...) {
+            OmniGhost::SessionLog::Write(OmniGhost::SessionLog::Severity::Warning,
+                OmniGhost::SessionLog::Subsystem::Runtime, "usage summary refresh failed");
+        }
+    }
+    const double now = ImGui::GetTime();
+    if (OmniGhost::Licensing::IsWebsiteAuthenticated() &&
+        now >= g_next_usage_summary_refresh && !g_usage_summary_refresh.valid()) {
+        g_next_usage_summary_refresh = now + 30.0;
+        g_usage_summary_refresh = std::async(std::launch::async, [] {
+            OmniGhost::RemoteUsage::Refresh();
+        });
+    }
 
     if (g_nav == static_cast<int>(NavPage::Admin) && !OmniGhost::Licensing::IsAdmin())
         ChangeNavigation(static_cast<int>(NavPage::Home));

@@ -1,7 +1,7 @@
 #pragma once
 #include <cstdint>
 
-// Rust dump dated 2026-10-22. Kept versioned until a Rust runtime selects it.
+
 namespace Rust::Offsets::Build_2026_10_22 {
 namespace Rvas {
     inline static constexpr uintptr_t TypeManagerInstance = 0x221D020;

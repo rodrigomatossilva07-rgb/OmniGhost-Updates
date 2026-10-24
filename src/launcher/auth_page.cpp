@@ -34,6 +34,7 @@
 #include <future>
 #include <mutex>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace LauncherAuth {
@@ -81,16 +82,63 @@ struct Copy {
     const char* back;
 };
 
+struct AuthUiCopy {
+    const char* welcomeTitle;
+    const char* welcomeSubtitle;
+    const char* createTitle;
+    const char* createSubtitle;
+    const char* preparingTitle;
+    const char* restoringSession;
+    const char* finishing;
+    const char* authenticating;
+    const char* registering;
+    const char* accountCreated;
+    const char* accessGranted;
+    const char* user;
+    const char* licenseKey;
+    const char* upgradeLicense;
+    const char* activateLicense;
+    const char* updating;
+    const char* activating;
+    const char* updateAccess;
+    const char* activate;
+    const char* activateOnly;
+    const char* updateExisting;
+    const char* serviceUnavailable;
+    const char* signInFailed;
+    const char* enterPassword;
+    const char* passwordTooShort;
+    const char* enterEmailLicense;
+    const char* invalidCredentials;
+    const char* noActiveLicense;
+    const char* rateLimited;
+    const char* sessionExpired;
+};
+
+const AuthUiCopy& UiText() {
+    static constexpr std::array<AuthUiCopy, 6> copy{{
+        {"Bem-vindo de volta.", "O teu acesso começa aqui.", "Cria a tua conta.", "Ativa o teu acesso OmniGhost.", "A preparar sessão", "A verificar a sessão guardada…", "A finalizar…", "A autenticar…", "A registar…", "Conta criada", "Acesso autorizado", "Utilizador", "Chave de licença", "ATUALIZAR LICENÇA", "ATIVAR LICENÇA", "A atualizar…", "A ativar…", "ATUALIZAR ACESSO", "ATIVAR", "Ativar apenas com chave", "Atualizar uma conta existente", "Não foi possível contactar o serviço de autenticação.", "Não foi possível iniciar sessão.", "Indica uma palavra-passe.", "A palavra-passe deve ter pelo menos 8 caracteres.", "Indica um email válido e uma chave de licença.", "Email ou palavra-passe incorretos.", "A conta não possui uma licença ativa.", "Demasiadas tentativas. Tenta novamente mais tarde.", "A sessão terminou. Inicia sessão novamente."},
+        {"Welcome back.", "Your access starts here.", "Create your account.", "Activate your OmniGhost access.", "Preparing session", "Checking your saved session…", "Finalizing…", "Authenticating…", "Creating account…", "Account created", "Access granted", "User", "License key", "UPGRADE LICENSE", "ACTIVATE LICENSE", "Updating…", "Activating…", "UPDATE ACCESS", "ACTIVATE", "Activate with key only", "Update an existing account", "The authentication service could not be reached.", "Unable to sign in.", "Enter your password.", "The password must be at least 8 characters long.", "Enter a valid email and license key.", "Incorrect email or password.", "This account has no active license.", "Too many attempts. Try again later.", "Your session has expired. Sign in again."},
+        {"Willkommen zurück.", "Dein Zugang beginnt hier.", "Erstelle dein Konto.", "Aktiviere deinen OmniGhost-Zugang.", "Sitzung wird vorbereitet", "Gespeicherte Sitzung wird geprüft…", "Wird abgeschlossen…", "Authentifizierung…", "Konto wird erstellt…", "Konto erstellt", "Zugriff gewährt", "Benutzer", "Lizenzschlüssel", "LIZENZ AKTUALISIEREN", "LIZENZ AKTIVIEREN", "Wird aktualisiert…", "Wird aktiviert…", "ZUGANG AKTUALISIEREN", "AKTIVIEREN", "Nur mit Schlüssel aktivieren", "Bestehendes Konto aktualisieren", "Der Authentifizierungsdienst ist nicht erreichbar.", "Anmeldung nicht möglich.", "Gib dein Passwort ein.", "Das Passwort muss mindestens 8 Zeichen lang sein.", "Gib eine gültige E-Mail-Adresse und einen Lizenzschlüssel ein.", "E-Mail-Adresse oder Passwort ist falsch.", "Dieses Konto besitzt keine aktive Lizenz.", "Zu viele Versuche. Versuche es später erneut.", "Deine Sitzung ist abgelaufen. Melde dich erneut an."},
+        {"Te damos la bienvenida.", "Tu acceso comienza aquí.", "Crea tu cuenta.", "Activa tu acceso a OmniGhost.", "Preparando la sesión", "Comprobando la sesión guardada…", "Finalizando…", "Autenticando…", "Creando la cuenta…", "Cuenta creada", "Acceso autorizado", "Usuario", "Clave de licencia", "ACTUALIZAR LICENCIA", "ACTIVAR LICENCIA", "Actualizando…", "Activando…", "ACTUALIZAR ACCESO", "ACTIVAR", "Activar solo con clave", "Actualizar una cuenta existente", "No se ha podido contactar con el servicio de autenticación.", "No se ha podido iniciar sesión.", "Introduce tu contraseña.", "La contraseña debe tener al menos 8 caracteres.", "Introduce un correo válido y una clave de licencia.", "El correo o la contraseña son incorrectos.", "Esta cuenta no tiene una licencia activa.", "Demasiados intentos. Inténtalo más tarde.", "Tu sesión ha caducado. Inicia sesión de nuevo."},
+        {"Bon retour.", "Votre accès commence ici.", "Créez votre compte.", "Activez votre accès OmniGhost.", "Préparation de la session", "Vérification de la session enregistrée…", "Finalisation…", "Authentification…", "Création du compte…", "Compte créé", "Accès autorisé", "Utilisateur", "Clé de licence", "METTRE À JOUR LA LICENCE", "ACTIVER LA LICENCE", "Mise à jour…", "Activation…", "METTRE À JOUR L’ACCÈS", "ACTIVER", "Activer uniquement avec une clé", "Mettre à jour un compte existant", "Impossible de contacter le service d’authentification.", "Impossible de se connecter.", "Saisissez votre mot de passe.", "Le mot de passe doit comporter au moins 8 caractères.", "Saisissez une adresse e-mail valide et une clé de licence.", "L’adresse e-mail ou le mot de passe est incorrect.", "Ce compte ne possède aucune licence active.", "Trop de tentatives. Réessayez plus tard.", "Votre session a expiré. Reconnectez-vous."},
+        {"Bentornato.", "Il tuo accesso inizia qui.", "Crea il tuo account.", "Attiva il tuo accesso OmniGhost.", "Preparazione della sessione", "Verifica della sessione salvata…", "Finalizzazione…", "Autenticazione…", "Creazione dell’account…", "Account creato", "Accesso autorizzato", "Utente", "Chiave di licenza", "AGGIORNA LICENZA", "ATTIVA LICENZA", "Aggiornamento…", "Attivazione…", "AGGIORNA ACCESSO", "ATTIVA", "Attiva solo con la chiave", "Aggiorna un account esistente", "Impossibile contattare il servizio di autenticazione.", "Impossibile accedere.", "Inserisci la password.", "La password deve contenere almeno 8 caratteri.", "Inserisci un indirizzo e-mail valido e una chiave di licenza.", "E-mail o password non corretti.", "Questo account non dispone di una licenza attiva.", "Troppi tentativi. Riprova più tardi.", "La sessione è scaduta. Accedi di nuovo."}
+    }};
+    const int index = std::clamp(static_cast<int>(app_settings::config.language), 0,
+                                 static_cast<int>(copy.size() - 1));
+    return copy[static_cast<std::size_t>(index)];
+}
+
 const Copy& Text() {
 
 
     static constexpr std::array<Copy, 6> copy{{
         {"ENTRAR", "CRIAR CONTA", "Sair", "Email", "Palavra-passe", "Confirmar palavra-passe", "REGISTAR", "VOLTAR"},
         {"SIGN IN", "CREATE ACCOUNT", "Exit", "Email", "Password", "Confirm password", "REGISTER", "BACK"},
-        {"ANMELDEN", "KONTO ERSTELLEN", "Beenden", "E-Mail", "Passwort", "Passwort bestaetigen", "REGISTRIEREN", "ZURUECK"},
-        {"ENTRAR", "CREAR CUENTA", "Salir", "Email", "Contrasena", "Confirmar contrasena", "REGISTRARSE", "VOLVER"},
-        {"CONNEXION", "CREER UN COMPTE", "Quitter", "E-mail", "Mot de passe", "Confirmer le mot de passe", "S'INSCRIRE", "RETOUR"},
-        {"ACCEDI", "CREA ACCOUNT", "Esci", "Email", "Password", "Conferma password", "REGISTRATI", "INDIETRO"}
+        {"ANMELDEN", "KONTO ERSTELLEN", "Beenden", "E-Mail", "Passwort", "Passwort bestätigen", "REGISTRIEREN", "ZURÜCK"},
+        {"INICIAR SESIÓN", "CREAR CUENTA", "Salir", "Correo electrónico", "Contraseña", "Confirmar contraseña", "REGISTRARSE", "VOLVER"},
+        {"CONNEXION", "CRÉER UN COMPTE", "Quitter", "E-mail", "Mot de passe", "Confirmer le mot de passe", "S’INSCRIRE", "RETOUR"},
+        {"ACCEDI", "CREA ACCOUNT", "Esci", "E-mail", "Password", "Conferma password", "REGISTRATI", "INDIETRO"}
     }};
     const int index = std::clamp(static_cast<int>(app_settings::config.language), 0,
                                  static_cast<int>(copy.size() - 1));
@@ -99,7 +147,7 @@ const Copy& Text() {
 
 const char* LicenseKeyHint() {
     static constexpr std::array<const char*, 6> labels{{
-        "Chave de licenca", "License key", "Lizenzschluessel", "Clave de licencia", "Cle de licence", "Chiave di licenza"
+        "Chave de licença", "License key", "Lizenzschlüssel", "Clave de licencia", "Clé de licence", "Chiave di licenza"
     }};
     const int index = std::clamp(static_cast<int>(app_settings::config.language), 0,
                                  static_cast<int>(labels.size() - 1));
@@ -148,6 +196,28 @@ std::uint64_t g_operation_generation = 0;
 std::uint64_t g_pending_operation_generation = 0;
 bool g_remote_operation_pending = false;
 
+std::string LocalizedRemoteError(std::string_view code, const std::string& fallback) {
+    const AuthUiCopy& ui = UiText();
+    if (code == "auth.unavailable" || code == "auth.not_configured" ||
+        code == "website.unavailable")
+        return ui.serviceUnavailable;
+    if (code == "auth.invalid_input" || code == "website.invalid_input" ||
+        code == "website.invalid_registration")
+        return ui.enterEmailLicense;
+    if (code == "website.no_active_license" || code == "website.invalid_licenses")
+        return ui.noActiveLicense;
+    if (code == "website.rate_limited" || code == "auth.locked_out")
+        return ui.rateLimited;
+    if (code == "website.no_session" || code == "website.session_forbidden" ||
+        code == "website.session_unauthorized" || code == "auth.session_missing")
+        return ui.sessionExpired;
+    if (code == "website.rejected")
+        return ui.invalidCredentials;
+    if (app_settings::config.language == app_settings::Language::PT && !fallback.empty())
+        return fallback;
+    return ui.signInFailed;
+}
+
 void SecureClear(char* value, std::size_t size) {
     if (value && size) SecureZeroMemory(value, size);
 }
@@ -190,9 +260,10 @@ void StartRemoteOperation(RemoteOperation operation, std::string username,
         g_draining_operations.push_back(std::move(g_remote_operation));
     const std::uint64_t generation = g_operation_generation;
     g_pending_operation_generation = generation;
+    const std::string contactError = UiText().serviceUnavailable;
     g_remote_operation = std::async(std::launch::async,
         [operation, generation, username = std::move(username), password = std::move(password),
-         licenseKey = std::move(licenseKey)]() mutable {
+         licenseKey = std::move(licenseKey), contactError]() mutable {
             RemoteOperationResult outcome{};
             try {
                 OmniGhost::Auth::LicenseResult result{};
@@ -232,7 +303,7 @@ void StartRemoteOperation(RemoteOperation operation, std::string username,
             } catch (...) {
                 WriteAuthStage("auth-service-exception");
                 outcome.success = false;
-                outcome.message = "Não foi possível contactar o serviço de autenticação.";
+                outcome.message = contactError;
             }
             if (!password.empty()) SecureZeroMemory(password.data(), password.size());
             if (!licenseKey.empty()) SecureZeroMemory(licenseKey.data(), licenseKey.size());
@@ -277,7 +348,7 @@ void PollRemoteOperation() {
                 SetScreen(Screen::Login);
             }
             if (result.diagnosticCode != "website.no_saved_session")
-                g_error = result.message.empty() ? "Não foi possível iniciar sessão." : result.message;
+                g_error = LocalizedRemoteError(result.diagnosticCode, result.message);
         }
     } catch (...) {
         if (completedGeneration != g_operation_generation)
@@ -288,7 +359,7 @@ void PollRemoteOperation() {
             g_auto_login_attempt = false;
             SetScreen(Screen::Login);
         }
-        g_error = "Não foi possível contactar o serviço de autenticação.";
+            g_error = UiText().serviceUnavailable;
     }
 }
 
@@ -396,7 +467,7 @@ void DrawBrand(bool prominent) {
     const float pulse = app_settings::AnimationScale() <= 0.0f
         ? 1.0f
         : 1.0f + std::sin(static_cast<float>(ImGui::GetTime()) * 0.55f) * 0.006f;
-    const float markSize = S(prominent ? 31.f : 26.f) * pulse;
+    const float markSize = S(prominent ? 40.f : 32.f) * pulse;
     const ImVec2 markStart(ImGui::GetCursorScreenPos().x + (ImGui::GetContentRegionAvail().x - markSize) * 0.5f,
                            ImGui::GetCursorScreenPos().y + S(8.f));
     DrawBrandSignal(ImVec2(markStart.x + markSize * 0.5f, markStart.y + markSize * 0.5f));
@@ -414,6 +485,15 @@ void DrawBrand(bool prominent) {
     DrawCenteredText("OMNIGHOST", CyberTheme::Colors.GoldHover, title);
     ImGui::Dummy(ImVec2(0, S(1.f)));
     DrawCenteredText("Everywhere. Nowhere.", CyberTheme::Colors.TextDisabled);
+}
+
+void DrawPageHeading(const char* title, const char* subtitle) {
+    ImGui::Dummy(ImVec2(0, S(14.f)));
+    DrawCenteredText(title, CyberTheme::Colors.Text, CyberFonts::GetTitleFont());
+    ImGui::Dummy(ImVec2(0, S(3.f)));
+    DrawCenteredText(subtitle, ImGui::ColorConvertU32ToFloat4(
+        CyberTheme::WithAlpha(CyberTheme::Colors.TextDisabled, 0.92f)));
+    ImGui::Dummy(ImVec2(0, S(18.f)));
 }
 
 enum class AuthFieldIcon { Email, Lock };
@@ -629,54 +709,47 @@ void DrawLanding() {
     constexpr float baseWidth = 342.f;
     const float contentWidth = S(baseWidth);
 
-    CenterBlockVertically(S(238.f));
+    CenterBlockVertically(S(252.f), 0.46f);
     DrawBrand(true);
-    ImGui::Dummy(ImVec2(0, S(9.f)));
-    DrawCenteredText("IDENTIDADE OMNIGHOST // ACESSO SEGURO",
-        ImGui::ColorConvertU32ToFloat4(
-            CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.72f)));
-    ImGui::Dummy(ImVec2(0, S(18.f)));
+    ImGui::Dummy(ImVec2(0, S(27.f)));
 
     CenterCursor(contentWidth);
     if (AuthPrimaryButton(text.enter, ImVec2(contentWidth, S(42.f))))
         SetScreen(Screen::Login);
-    ImGui::Dummy(ImVec2(0, S(6.f)));
+    ImGui::Dummy(ImVec2(0, S(9.f)));
     CenterCursor(contentWidth);
     if (CyberWidgets::GhostButton(text.createAccount, ImVec2(contentWidth, S(42.f))))
         SetScreen(Screen::Register);
-    ImGui::Dummy(ImVec2(0, S(5.f)));
+    ImGui::Dummy(ImVec2(0, S(9.f)));
     if (DrawTextAction(text.exit))
         g_close_requested = true;
 }
 
 void DrawLogin() {
     const Copy& text = Text();
+    const AuthUiCopy& ui = UiText();
 
 
     const float contentWidth = S(392.f);
 
 
 
-    CenterBlockVertically(S(334.f), 0.48f);
+    CenterBlockVertically(S(365.f), 0.48f);
     DrawBrand(false);
-    ImGui::Dummy(ImVec2(0, S(7.f)));
-    DrawCenteredText("SESSÃO SEGURA // CONTA DO WEBSITE",
-        ImGui::ColorConvertU32ToFloat4(
-            CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.70f)));
-    ImGui::Dummy(ImVec2(0, S(15.f)));
+    DrawPageHeading(ui.welcomeTitle, ui.welcomeSubtitle);
 
     CenterCursor(contentWidth);
     ImGui::BeginGroup();
-    AuthInputField("login_email", g_email, sizeof(g_email), "Email",
+    AuthInputField("login_email", g_email, sizeof(g_email), text.email,
                    contentWidth, true, AuthFieldIcon::Email);
     ImGui::Dummy(ImVec2(0, S(7.f)));
     const bool enter = AuthPasswordField("login_password", g_password,
         sizeof(g_password), &g_show_password,
-        "Palavra-Passe", contentWidth,
+        text.password, contentWidth,
         ImGuiInputTextFlags_EnterReturnsTrue);
     ImGui::Dummy(ImVec2(0, S(7.f)));
     ImGui::BeginDisabled(g_remote_operation_pending);
-    const bool submit = AuthPrimaryButton(g_remote_operation_pending ? "A AUTENTICAR..." : text.enter,
+    const bool submit = AuthPrimaryButton(g_remote_operation_pending ? ui.authenticating : text.enter,
         ImVec2(contentWidth, S(42.f))) || enter;
     ImGui::EndDisabled();
     if (submit && !g_remote_operation_pending) {
@@ -699,18 +772,15 @@ void DrawLogin() {
 
 void DrawRegister() {
     const Copy& text = Text();
+    const AuthUiCopy& ui = UiText();
 
     const float contentWidth = S(392.f);
 
 
-    const float blockHeight = S(420.f);
+    const float blockHeight = S(430.f);
     CenterBlockVertically(blockHeight, 0.48f);
     DrawBrand(false);
-    ImGui::Dummy(ImVec2(0, S(7.f)));
-    DrawCenteredText("ATIVAÇÃO SEGURA // LICENÇA ASSOCIADA",
-        ImGui::ColorConvertU32ToFloat4(
-            CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.70f)));
-    ImGui::Dummy(ImVec2(0, S(15.f)));
+    DrawPageHeading(ui.createTitle, ui.createSubtitle);
 
     CenterCursor(contentWidth);
     ImGui::BeginGroup();
@@ -718,31 +788,25 @@ void DrawRegister() {
                    contentWidth, true, AuthFieldIcon::Email);
     ImGui::Dummy(ImVec2(0, S(6.f)));
     bool submit = AuthPasswordField("register_password", g_password, sizeof(g_password),
-        &g_show_password, "Palavra-Passe",
+        &g_show_password, text.password,
         contentWidth, 0);
     ImGui::Dummy(ImVec2(0, S(6.f)));
     submit = AuthPasswordField("register_key", g_license_key,
         sizeof(g_license_key), &g_show_license_key, LicenseKeyHint(), contentWidth,
         ImGuiInputTextFlags_EnterReturnsTrue) || submit;
-    ImGui::Dummy(ImVec2(0, S(8.f)));
-    CenterCursor(contentWidth);
-    ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + contentWidth);
-    ImGui::TextColored(CyberTheme::Colors.TextDisabled,
-        "Usa o mesmo email e a mesma palavra-passe da tua conta no site.");
-    ImGui::PopTextWrapPos();
-    ImGui::Dummy(ImVec2(0, S(6.f)));
+    ImGui::Dummy(ImVec2(0, S(12.f)));
     ImGui::BeginDisabled(g_remote_operation_pending);
     const bool registerPressed = AuthPrimaryButton(
-        g_remote_operation_pending ? "A REGISTAR..." : text.registerAction,
+        g_remote_operation_pending ? ui.registering : text.registerAction,
         ImVec2(contentWidth, S(42.f))) || submit;
     ImGui::EndDisabled();
     if (registerPressed && !g_remote_operation_pending) {
         if (g_password[0] == '\0') {
-            g_error = "Indica uma palavra-passe.";
+            g_error = ui.enterPassword;
         } else if (std::strlen(g_password) < 8) {
-            g_error = "Indica a palavra-passe da tua conta do site.";
+            g_error = ui.passwordTooShort;
         } else if (std::strchr(g_email, '@') == nullptr || g_license_key[0] == '\0') {
-            g_error = "Indica o email usado no site e a licença comprada nessa conta.";
+            g_error = ui.enterEmailLicense;
         } else {
             StartRemoteOperation(RemoteOperation::WebsiteRegister, g_email,
                                  g_password, g_license_key);
@@ -767,30 +831,32 @@ void DrawRegister() {
 }
 
 void DrawActivate() {
+    const Copy& text = Text();
+    const AuthUiCopy& ui = UiText();
     const float contentWidth = S(330.f);
     CenterBlockVertically(S(298.f));
     DrawBrand(false);
     ImGui::Dummy(ImVec2(0, S(24.f)));
-    DrawCenteredText(g_upgrade_mode ? "UPGRADE // LICENSE" : "ACTIVATE // LICENSE",
+    DrawCenteredText(g_upgrade_mode ? ui.upgradeLicense : ui.activateLicense,
         ImGui::ColorConvertU32ToFloat4(CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.70f)));
     ImGui::Dummy(ImVec2(0, S(22.f)));
 
     CenterCursor(contentWidth);
     ImGui::BeginGroup();
     if (g_upgrade_mode) {
-        DrawFieldLabel("Utilizador");
-        AuthInputField("upgrade_username", g_email, sizeof(g_email), "Utilizador",
+        DrawFieldLabel(ui.user);
+        AuthInputField("upgrade_username", g_email, sizeof(g_email), ui.user,
             contentWidth, true, AuthFieldIcon::Email);
         ImGui::Dummy(ImVec2(0, S(12.f)));
     }
-    DrawFieldLabel("Chave de licença");
+    DrawFieldLabel(ui.licenseKey);
     const bool enter = AuthPasswordField("activate_key", g_license_key, sizeof(g_license_key),
-        &g_show_license_key, "Chave de licença", contentWidth, ImGuiInputTextFlags_EnterReturnsTrue);
+        &g_show_license_key, ui.licenseKey, contentWidth, ImGuiInputTextFlags_EnterReturnsTrue);
     ImGui::Dummy(ImVec2(0, S(18.f)));
     ImGui::BeginDisabled(g_remote_operation_pending);
     const bool activatePressed = AuthPrimaryButton(g_remote_operation_pending
-        ? (g_upgrade_mode ? "A ATUALIZAR..." : "A ATIVAR...")
-        : (g_upgrade_mode ? "ATUALIZAR ACESSO" : "ATIVAR"),
+        ? (g_upgrade_mode ? ui.updating : ui.activating)
+        : (g_upgrade_mode ? ui.updateAccess : ui.activate),
         ImVec2(contentWidth, S(46.f))) || enter;
     ImGui::EndDisabled();
     if (activatePressed && !g_remote_operation_pending) {
@@ -804,10 +870,11 @@ void DrawActivate() {
     ImGui::EndGroup();
     DrawFeedback(contentWidth);
     ImGui::Dummy(ImVec2(0, S(8.f)));
-    if (DrawTextAction(g_upgrade_mode ? "Ativar apenas com key" : "Atualizar uma conta existente"))
+    if (DrawTextAction(g_upgrade_mode ? ui.activateOnly : ui.updateExisting))
         g_upgrade_mode = !g_upgrade_mode;
     ImGui::Dummy(ImVec2(0, S(12.f)));
-    if (DrawTextAction("← Voltar")) {
+    const std::string back = std::string("← ") + text.back;
+    if (DrawTextAction(back.c_str())) {
         SecureClear(g_license_key, sizeof(g_license_key));
         g_upgrade_mode = false;
         SetScreen(Screen::Landing);
@@ -816,41 +883,55 @@ void DrawActivate() {
 
 void DrawStartupPreparation(ImDrawList* draw, const ImVec2& windowPos,
                             float windowWidth, float windowHeight) {
-    const float centerY = windowPos.y + windowHeight * .43f;
-    ImGui::SetCursorScreenPos(ImVec2(windowPos.x + S(28.f), centerY - S(76.f)));
+    const AuthUiCopy& ui = UiText();
+    const float centerX = windowPos.x + windowWidth * 0.5f;
+    const float centerY = windowPos.y + windowHeight * 0.43f;
+    const float motion = app_settings::AnimationScale();
+    const float time = static_cast<float>(ImGui::GetTime());
+
+    ImGui::SetCursorScreenPos(ImVec2(windowPos.x + S(28.f), windowPos.y + S(52.f)));
     DrawBrand(false);
-    ImGui::Dummy(ImVec2(0, S(26.f)));
-    DrawCenteredText("A PREPARAR SESSÃO", CyberTheme::Colors.Text,
+
+    const ImVec2 loader(centerX, centerY + S(24.f));
+    for (int ring = 0; ring < 3; ++ring) {
+        const float radius = S(23.f + ring * 8.f);
+        draw->AddCircle(loader, radius,
+            CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.08f + ring * 0.025f),
+            48, S(1.f));
+    }
+    if (motion > 0.f) {
+        const float phase = time * (1.10f + motion * 0.18f);
+        for (int ring = 0; ring < 3; ++ring) {
+            const float radius = S(23.f + ring * 8.f);
+            const float start = phase * (ring % 2 == 0 ? 1.f : -0.74f) + ring * 1.7f;
+            draw->PathArcTo(loader, radius, start, start + 1.32f, 24);
+            draw->PathStroke(CyberTheme::WithAlpha(
+                ring == 0 ? CyberTheme::Colors.GoldHover : CyberTheme::Colors.Gold,
+                0.86f - ring * 0.16f), 0, S(1.4f));
+        }
+    }
+    draw->AddCircleFilled(loader, S(3.2f),
+        CyberTheme::WithAlpha(CyberTheme::Colors.GoldHover, 0.92f), 16);
+
+    ImGui::SetCursorScreenPos(ImVec2(windowPos.x + S(28.f), loader.y + S(54.f)));
+    DrawCenteredText(ui.preparingTitle, CyberTheme::Colors.Text,
                      CyberFonts::GetBodyFont());
     ImGui::Dummy(ImVec2(0, S(6.f)));
-    static constexpr const char* stages[] = {
-        "A validar a sessão guardada",
-        "A verificar as credenciais",
-        "A carregar as permissões",
-        "A sincronizar os dados do utilizador"
-    };
-    const int stage = (std::min)(3, static_cast<int>(g_startup_time / 0.28f));
-    DrawCenteredText(stages[stage], CyberTheme::Colors.TextDisabled);
+    DrawCenteredText(g_remote_operation_pending ? ui.restoringSession : ui.finishing,
+                     CyberTheme::Colors.TextDisabled);
 
-    const float lineWidth = S(126.f);
-    const float phase = std::fmod(g_startup_time * 0.82f, 1.0f);
-    const ImVec2 lineMin(windowPos.x + (windowWidth - lineWidth) * .5f,
-                         ImGui::GetCursorScreenPos().y + S(20.f));
+    const float lineWidth = S(154.f);
+    const float phase = std::fmod(g_startup_time * 0.72f, 1.0f);
+    const ImVec2 lineMin(centerX - lineWidth * 0.5f,
+                         ImGui::GetCursorScreenPos().y + S(22.f));
     draw->AddLine(lineMin, ImVec2(lineMin.x + lineWidth, lineMin.y),
-        CyberTheme::WithAlpha(CyberTheme::Colors.Gold, .15f), S(1.f));
-    const float segment = lineWidth * .34f;
+        CyberTheme::WithAlpha(CyberTheme::Colors.Gold, .13f), S(1.f));
+    const float segment = lineWidth * .28f;
     const float start = lineMin.x + (lineWidth + segment) * phase - segment;
-    draw->PushClipRect(lineMin, ImVec2(lineMin.x + lineWidth, lineMin.y + S(3.f)), true);
+    draw->PushClipRect(lineMin, ImVec2(lineMin.x + lineWidth, lineMin.y + S(4.f)), true);
     draw->AddLine(ImVec2(start, lineMin.y), ImVec2(start + segment, lineMin.y),
-        CyberTheme::WithAlpha(CyberTheme::Colors.GoldHover, .94f), S(1.7f));
+        CyberTheme::WithAlpha(CyberTheme::Colors.GoldHover, .96f), S(1.7f));
     draw->PopClipRect();
-    const float dotsY = lineMin.y + S(18.f);
-    for (int index = 0; index < 4; ++index) {
-        const float x = windowPos.x + windowWidth * .5f + (index - 1.5f) * S(18.f);
-        draw->AddCircleFilled(ImVec2(x, dotsY), S(index == stage ? 3.2f : 2.2f),
-            CyberTheme::WithAlpha(index <= stage ? CyberTheme::Colors.GoldHover : CyberTheme::Colors.TextDisabled,
-                index == stage ? .92f : .30f));
-    }
 }
 
 }
@@ -925,9 +1006,7 @@ bool Draw() {
 
     if (g_startup_preparing) {
         g_startup_time += delta;
-
-
-        if (g_startup_time >= 1.12f && !g_remote_operation_pending)
+        if (!g_remote_operation_pending)
             g_startup_preparing = false;
     }
 
@@ -983,12 +1062,12 @@ bool Draw() {
     background->AddLine(ImVec2(frameMax.x - corner, frameMax.y), ImVec2(frameMax.x - S(20.f), frameMax.y), accent, S(1.5f));
     background->AddLine(ImVec2(frameMax.x, frameMax.y - corner), ImVec2(frameMax.x, frameMax.y - S(20.f)), accent, S(1.5f));
 
-    const float desiredWidth = S(
-        g_screen == Screen::Login || g_screen == Screen::Register ? 588.f : 492.f);
-    const float desiredHeight =
-        g_screen == Screen::Register ? S(650.f) :
-        (g_screen == Screen::Login ? S(582.f) :
-         (g_screen == Screen::Activate ? S(458.f) : S(382.f)));
+    const float desiredWidth = g_startup_preparing ? S(456.f) : S(
+        g_screen == Screen::Login || g_screen == Screen::Register ? 508.f : 456.f);
+    const float desiredHeight = g_startup_preparing ? S(430.f) :
+        (g_screen == Screen::Register ? S(488.f) :
+         (g_screen == Screen::Login ? S(468.f) :
+          (g_screen == Screen::Activate ? S(458.f) : S(410.f))));
     const float width = (std::max)(S(340.f), (std::min)(desiredWidth, display.x - S(20.f)));
     const float availableHeight = (std::max)(S(300.f), display.y - S(24.f));
     const float height = (std::min)(desiredHeight, availableHeight);
@@ -1003,8 +1082,8 @@ bool Draw() {
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, CyberTheme::Radius::Lg);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, S(1.f));
     ImGui::PushStyleVar(ImGuiStyleVar_Alpha, entryEased);
-    ImGui::PushStyleColor(ImGuiCol_WindowBg, CyberTheme::WithAlpha(CyberTheme::Colors.Card, 0.985f));
-    ImGui::PushStyleColor(ImGuiCol_Border, CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.16f));
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, CyberTheme::WithAlpha(CyberTheme::Colors.Card, 0.955f));
+    ImGui::PushStyleColor(ImGuiCol_Border, CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.22f));
     if (!needsVerticalScroll) {
         ImGui::GetIO().MouseWheel = 0.0f;
         ImGui::GetIO().MouseWheelH = 0.0f;
@@ -1019,8 +1098,9 @@ bool Draw() {
 
     const ImVec2 windowPos = ImGui::GetWindowPos();
     ImDrawList* draw = ImGui::GetWindowDrawList();
-    const bool showAuthRain = !g_startup_preparing && g_completion == Completion::None &&
-        (g_screen == Screen::Landing || g_screen == Screen::Login || g_screen == Screen::Register);
+    const bool showAuthRain = g_completion == Completion::None &&
+        (g_startup_preparing || g_screen == Screen::Landing ||
+         g_screen == Screen::Login || g_screen == Screen::Register);
     if (showAuthRain) {
 
 
@@ -1055,9 +1135,10 @@ bool Draw() {
     } else {
         const bool success = g_completion == Completion::Login ||
                              g_completion == Completion::Register;
+        const AuthUiCopy& ui = UiText();
         const char* status = success
-            ? (g_completion == Completion::Register ? "CONTA CRIADA" : "ACCESS GRANTED")
-            : "A preparar o OmniGhost";
+            ? (g_completion == Completion::Register ? ui.accountCreated : ui.accessGranted)
+            : ui.finishing;
         const float centerY = windowPos.y + height * 0.43f;
         if (success) {
             const float duration = (std::max)(0.12f, 0.30f * (std::max)(0.35f, animation));

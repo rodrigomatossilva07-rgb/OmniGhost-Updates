@@ -634,8 +634,8 @@ void Draw(
             alpha = std::clamp(alpha * opacity, 1.0f, 255.0f);
             if (alpha < 1.0f) continue;
 
-            // ImGui expects straight-alpha colours. Premultiplying RGB here
-            // applied the opacity twice and made the gold almost invisible.
+
+
             ImU32 color = IM_COL32(212, 175, 55, static_cast<int>(alpha));
 
             ImVec2 pos(window_pos.x + local_offset + x, window_pos.y + ty);

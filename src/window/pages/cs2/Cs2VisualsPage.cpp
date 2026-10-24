@@ -305,7 +305,11 @@ void DrawCs2Visuals() {
 
 
     ImGui::BeginChild("##cs2_esp_preview_fixed", ImVec2(previewWidth, height), false,
-        ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+        ImGuiWindowFlags_NoScrollbar);
+
+
+
+    ImGui::SetScrollY(0.0f);
     CyberWidgets::BeginCard("PREVIEW & ESP BUILDER", previewWidth);
     CyberWidgets::TextLine("Arrasta os rótulos na pré-visualização.", CyberWidgets::TextTone::Secondary);
     const float panelHeight = (std::max)(CyberTheme::Px(220.f), height - CyberTheme::Metrics::CardHeaderHeight - CyberTheme::Metrics::CardPadding * 2.f - CyberTheme::Px(116.f));

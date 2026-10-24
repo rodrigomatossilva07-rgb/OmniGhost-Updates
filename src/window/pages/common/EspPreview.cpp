@@ -68,7 +68,7 @@ PlayerGeometry BuildGeometry(const ImVec2& origin, float width, float height) {
     g.boundsWidth = g.boundsMax.x - g.boundsMin.x;
     g.boundsHeight = g.boundsMax.y - g.boundsMin.y;
     g.headCenter = point(.505f, .103f);
-    // Preview-only geometry: keep the head marker tight to the portrait.
+
     g.headRadius = imageW * .070f;
     g.headTop = point(.505f, .025f);
     g.headBottom = point(.505f, .177f);

@@ -296,14 +296,17 @@ ImU32 EffectColor(const CS2::Config& settings, const float color[4], ImU32 rgb) 
     return settings.rgb_mode ? rgb : Color(color);
 }
 
-void DrawOutlinedText(ImDrawList* draw, ImVec2 pos, ImU32 color, const char* text, const CS2::Config& settings) {
+void DrawOutlinedText(ImDrawList* draw, ImVec2 pos, ImU32 color, const char* text,
+                      const CS2::Config& settings, float distanceScale = 1.0f) {
     if (!text || !*text) return;
+    const float fontSize = ImGui::GetFontSize() *
+        std::clamp(settings.layout_text_scale, .65f, 1.6f) *
+        std::clamp(distanceScale, .55f, 1.0f);
     if (settings.text_outline) {
         const ImU32 outline = Color(settings.col_text_outline);
         const float t = std::clamp(settings.text_outline_thickness, .5f, 2.f);
 
 
-        const float fontSize = ImGui::GetFontSize() * std::clamp(settings.layout_text_scale, .65f, 1.6f);
         draw->AddText(nullptr, fontSize, ImVec2(pos.x - t, pos.y - t), outline, text);
         draw->AddText(nullptr, fontSize, ImVec2(pos.x + t, pos.y + t), outline, text);
         if (t >= 1.25f) {
@@ -311,7 +314,7 @@ void DrawOutlinedText(ImDrawList* draw, ImVec2 pos, ImU32 color, const char* tex
             draw->AddText(nullptr, fontSize, ImVec2(pos.x - t, pos.y + t), outline, text);
         }
     }
-    draw->AddText(nullptr, ImGui::GetFontSize() * std::clamp(settings.layout_text_scale, .65f, 1.6f), pos, color, text);
+    draw->AddText(nullptr, fontSize, pos, color, text);
 }
 
 void DrawExtras(ImDrawList* draw, const CS2::Player& player, const ImVec2& head, const ImVec2& feet,
@@ -1052,8 +1055,9 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
             DrawSkeleton(draw, player, viewMatrix, boneOffset, skeletonColor, Color(settings.col_joints),
                          std::clamp(settings.skeleton_thickness, .5f, 4.f), settings.skeleton_joints, height);
         }
+        const float entityTextScale = std::clamp(height / 180.f, .55f, 1.0f);
         const auto textSize = [&](const char* text) {
-            const float fontSize = ImGui::GetFontSize() * std::clamp(settings.layout_text_scale, .65f, 1.6f);
+            const float fontSize = ImGui::GetFontSize() * std::clamp(settings.layout_text_scale, .65f, 1.6f) * entityTextScale;
             return ImGui::GetFont()->CalcTextSizeA(fontSize, FLT_MAX, 0.f, text);
         };
         const auto placeText = [&](const char* text, float nx, float ny, ImU32 color) {
@@ -1061,7 +1065,7 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
             const ImVec2 size = textSize(text);
             const ImVec2 pos(min.x + nx * (max.x - min.x) - size.x * .5f,
                              min.y + ny * (max.y - min.y) - size.y * .5f);
-            DrawOutlinedText(draw, pos, color, text, settings);
+            DrawOutlinedText(draw, pos, color, text, settings, entityTextScale);
         };
         if (settings.name && player.name[0])
             placeText(player.name, settings.layout_name_x, settings.layout_name_y, Color(settings.col_name));
@@ -1079,8 +1083,8 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
             FormatAmmo(ammo, sizeof(ammo), player.ammo_clip, (std::max)(0, player.ammo_reserve));
             placeText(ammo, settings.layout_ammo_x, settings.layout_ammo_y, Color(settings.col_weapon));
         }
-        if (settings.health_value) { char hp[16]; FormatInt(hp, sizeof(hp), player.health); DrawOutlinedText(draw, ImVec2(min.x - 25.f, min.y), Color(settings.col_health), hp, settings); }
-        if (settings.armor_value && player.armor > 0) { char ap[16]; FormatInt(ap, sizeof(ap), player.armor); DrawOutlinedText(draw, ImVec2(max.x + 8.f, min.y), Color(settings.col_armor), ap, settings); }
+        if (settings.health_value) { char hp[16]; FormatInt(hp, sizeof(hp), player.health); DrawOutlinedText(draw, ImVec2(min.x - 25.f * entityTextScale, min.y), Color(settings.col_health), hp, settings, entityTextScale); }
+        if (settings.armor_value && player.armor > 0) { char ap[16]; FormatInt(ap, sizeof(ap), player.armor); DrawOutlinedText(draw, ImVec2(max.x + 8.f * entityTextScale, min.y), Color(settings.col_armor), ap, settings, entityTextScale); }
         DrawExtras(draw, player, head, feet, min, max, viewMatrix, predictedPosition, settings,
                    rgbColor, snapshot.session_generation);
         lastDrawnMs[player.pawn] = nowMs;
