@@ -304,18 +304,22 @@ void DrawCs2Visuals() {
     ImGui::SameLine(0.f, gap);
 
 
-    ImGui::BeginGroup();
+    ImGui::BeginChild("##cs2_esp_preview_fixed", ImVec2(previewWidth, height), false,
+        ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     CyberWidgets::BeginCard("PREVIEW & ESP BUILDER", previewWidth);
     CyberWidgets::TextLine("Arrasta os rótulos na pré-visualização.", CyberWidgets::TextTone::Secondary);
-    const float panelHeight = (std::max)(CyberTheme::Px(260.f), height - CyberTheme::Metrics::CardHeaderHeight - CyberTheme::Metrics::CardPadding * 2.f - CyberTheme::Px(116.f));
-    const float drawWidth = (std::max)(CyberTheme::Px(180.f), previewWidth - CyberTheme::Metrics::CardPadding * 2.f);
+    const float panelHeight = (std::max)(CyberTheme::Px(220.f), height - CyberTheme::Metrics::CardHeaderHeight - CyberTheme::Metrics::CardPadding * 2.f - CyberTheme::Px(116.f));
+    const float availableWidth = ImGui::GetContentRegionAvail().x;
+    const float drawWidth = (std::max)(CyberTheme::Px(180.f), (std::min)(availableWidth,
+        previewWidth - CyberTheme::Metrics::CardPadding * 2.f));
 
     ImDrawList* dl = ImGui::GetWindowDrawList();
-    const ImVec2 origin = ImGui::GetCursorScreenPos();
+    ImVec2 origin = ImGui::GetCursorScreenPos();
+    origin.x += (std::max)(0.0f, (availableWidth - drawWidth) * 0.5f);
 
     EspPreview::DrawPreview(dl, origin, drawWidth, panelHeight, g_cs2Adapter, "");
     DrawLayoutBuilder(origin, drawWidth, panelHeight);
 
     CyberWidgets::EndCard();
-    ImGui::EndGroup();
+    ImGui::EndChild();
 }

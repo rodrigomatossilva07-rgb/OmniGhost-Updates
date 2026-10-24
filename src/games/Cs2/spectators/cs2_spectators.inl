@@ -26,8 +26,17 @@ static void UpdateSpectators(const Config& frame_config,
     }
     const uint64_t now = GetTickCount64();
     const bool localDead = runtime.local_health <= 0;
-    if (cachedLocalPawn == runtime.local_pawn && cachedLocalDead == localDead &&
-        (now < nextRefreshMs || g_pressure_level.load(std::memory_order_relaxed) >= 2)) {
+    constexpr uint64_t kSpectatorRefreshMs = 1000u;
+    const bool localStateChanged = cachedLocalPawn != runtime.local_pawn ||
+                                   cachedLocalDead != localDead;
+    if (localStateChanged) {
+        cachedSpectators.clear();
+        cachedTarget = runtime.local_pawn;
+        cachedLocalPawn = runtime.local_pawn;
+        cachedLocalDead = localDead;
+        nextRefreshMs = 0;
+    }
+    if (!localStateChanged && now < nextRefreshMs) {
         runtime.spectator_target = cachedTarget;
         runtime.spectators = cachedSpectators;
         runtime.spectator_count = static_cast<int>(runtime.spectators.size());
@@ -35,8 +44,6 @@ static void UpdateSpectators(const Config& frame_config,
             cachedSpectators.size(), std::memory_order_relaxed);
         return;
     }
-    if (g_pressure_level.load(std::memory_order_relaxed) >= 2)
-        return;
 
 
     CS2::GiveCameraPriorityBeforeOptionalDma();
@@ -60,7 +67,12 @@ static void UpdateSpectators(const Config& frame_config,
     uint32_t observerHandles[kSpectatorSlots]{};
     EnsureScatter();
     if (!g_scatter_full || !offsets.m_hObserverPawn) {
-        nextRefreshMs = now + 500u;
+        cachedSpectators.clear();
+        cachedTarget = runtime.spectator_target;
+        cachedLocalPawn = runtime.local_pawn;
+        cachedLocalDead = localDead;
+        nextRefreshMs = now + kSpectatorRefreshMs;
+        CacheManager::Metrics().spectators.store(0, std::memory_order_relaxed);
         return;
     }
     const int spectatorControllerCount = (std::min)(count, kSpectatorSlots);
@@ -175,7 +187,7 @@ static void UpdateSpectators(const Config& frame_config,
     cachedTarget = runtime.spectator_target;
     cachedLocalPawn = runtime.local_pawn;
     cachedLocalDead = localDead;
-    nextRefreshMs = now + 500u;
+    nextRefreshMs = now + kSpectatorRefreshMs;
     runtime.spectator_count = static_cast<int>(runtime.spectators.size());
     CacheManager::Metrics().spectators.store(
         cachedSpectators.size(), std::memory_order_relaxed);

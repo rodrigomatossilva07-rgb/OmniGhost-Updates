@@ -48,6 +48,9 @@ std::string SerializeAll() {
     case ActiveGame::CS2:
         SerializeCS2(o);
         break;
+    case ActiveGame::Rust:
+        SerializeRust(o);
+        break;
     case ActiveGame::Warzone:
         SerializeWarzone(o);
         break;
@@ -177,6 +180,10 @@ bool DeserializeAll(const std::string& data) {
             std::cout << "[Config] Ignoring foreign game section: " << key << " (active game: " << ActiveGameMeta() << ")\n";
             continue;
         }
+        if (key.rfind("rust.", 0) == 0 && g_activeGame != ActiveGame::Rust) {
+            std::cout << "[Config] Ignoring foreign game section: " << key << " (active game: " << ActiveGameMeta() << ")\n";
+            continue;
+        }
         if (key.rfind("warzone.", 0) == 0 && g_activeGame != ActiveGame::Warzone) {
             std::cout << "[Config] Ignoring foreign game section: " << key << " (active game: " << ActiveGameMeta() << ")\n";
             continue;
@@ -199,6 +206,7 @@ bool DeserializeAll(const std::string& data) {
         if (DeserializeFriends(key, val)) continue;
         if (DeserializeAimType(key, val)) continue;
         if (DeserializeCS2(key, val)) continue;
+        if (DeserializeRust(key, val)) continue;
         if (DeserializeWarzone(key, val)) continue;
         if (DeserializeFortnite(key, val)) continue;
         if (DeserializeFiveM(key, val)) continue;

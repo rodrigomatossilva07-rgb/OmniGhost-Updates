@@ -338,9 +338,6 @@
     <ClCompile Include="src\platform\service_container.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\platform\cheatoffsets_api.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="src\platform\screenshot.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -438,6 +435,15 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\games\Warzone\warzone_esp.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\games\Rust\rust_game.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\games\Rust\rust_esp.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\window\pages\rust\RustPages.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="third_party\DMALibrary\Memory\MemoryLifecycle.cpp">

@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory=$true, Position=0)]
-    [ValidateSet('validate','build','package-release','publish-release','diagnostics','doctor','package-source','package-runtime','dependencies')]
+    [ValidateSet('validate','build','package-release','publish-release','diagnostics','doctor','complexity','package-source','package-runtime','dependencies','dependencies-latest')]
     [string]$Action,
     [Parameter(Mandatory=$false)]
     [string]$ProjectDir = (Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)),
@@ -26,7 +26,13 @@ switch ($Action) {
         if ($OutputPath) { $args.OutputPath = $OutputPath }
         Invoke-Tool 'Export-Diagnostics.ps1' $args
     }
-    'doctor' { Invoke-Tool 'Doctor.ps1' @{ ProjectDir = $ProjectDir } }
+    'doctor' {
+        Write-Host "=== OmniGhost Engineering Doctor ===" -ForegroundColor Cyan
+        Invoke-Tool 'Validate-Project.ps1' @{ ProjectDir = $ProjectDir }
+        Invoke-Tool 'Update-DmaDependencies.ps1' @{ Validate = $true }
+        Write-Host "Doctor: PASS" -ForegroundColor Green
+    }
+    'complexity' { Invoke-Tool 'Audit-SourceComplexity.ps1' @{ ProjectDir = $ProjectDir } }
     'package-source' {
         $args = @{ ProjectDir = $ProjectDir }
         if ($OutputPath) { $args.OutputPath = $OutputPath }
@@ -38,4 +44,5 @@ switch ($Action) {
         Invoke-Tool 'Create-RuntimePackage.ps1' $args
     }
     'dependencies' { Invoke-Tool 'Update-DmaDependencies.ps1' @{ Validate = $true } }
+    'dependencies-latest' { Invoke-Tool 'Update-DmaDependencies.ps1' @{ Latest = $true } }
 }

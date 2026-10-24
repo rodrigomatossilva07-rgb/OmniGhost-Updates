@@ -15,6 +15,7 @@
 #include "src/games/Fivem/game/offsets.h"
 #include "src/games/Fortnite/fortnite_game.h"
 #include "src/games/Warzone/warzone_game.h"
+#include "src/games/Rust/rust_game.h"
 #include "imgui.h"
 
 #include <functional>
@@ -248,6 +249,16 @@ bool StartWarzone() {
     return false;
 }
 
+bool StartRust() {
+    ScopedActiveGame gameGuard;
+    g_activeGame = ActiveGame::Rust;
+    config_manager::ActivateCurrentGameConfig();
+    if (!Rust::Attach())
+        return false;
+    gameGuard.Commit();
+    return true;
+}
+
 bool StartFortnite() {
     ScopedActiveGame gameGuard;
     g_activeGame = ActiveGame::Fortnite;
@@ -336,6 +347,11 @@ bool WarzoneValidateOffsets() { return Warzone::ValidateLiveOffsets(); }
 std::string_view WarzoneTerminationReason() { return "Processo Warzone terminou"; }
 ActiveGame WarzoneGameId() { return ActiveGame::Warzone; }
 
+bool RustIsAlive() { return Rust::IsGameProcessAlive(); }
+bool RustValidateOffsets() { return Rust::ValidateLiveOffsets(); }
+std::string_view RustTerminationReason() { return "Processo RustClient.exe terminou"; }
+ActiveGame RustGameId() { return ActiveGame::Rust; }
+
 
 bool FortniteIsAlive() { return Fortnite::IsGameProcessAlive(); }
 bool FortniteValidateOffsets() { return Fortnite::ValidateLiveOffsets(); }
@@ -404,6 +420,20 @@ IGameAdapter* FindGameAdapter(::Launcher::GameId game) noexcept {
             }
         },
         WarzoneIsAlive, WarzoneValidateOffsets, WarzoneTerminationReason, WarzoneGameId);
+    static FunctionGameAdapter rust({ ::Launcher::GameId::Rust, "Rust", AdapterMaturity::Experimental,
+        Capability::Menu | Capability::ReadOnlyMemory | Capability::Overlay },
+        StartRust, [] { Rust::Shutdown(); },
+        [] { return std::string_view(Rust::StatusLine()); },
+        [] {
+            try {
+                Rust::Tick();
+            } catch (const std::exception& ex) {
+                std::cerr << "[Rust] CRASH em Tick: " << ex.what() << std::endl;
+            } catch (...) {
+                std::cerr << "[Rust] CRASH desconhecido em Tick" << std::endl;
+            }
+        },
+        RustIsAlive, RustValidateOffsets, RustTerminationReason, RustGameId);
     static FunctionGameAdapter fortnite({ ::Launcher::GameId::Fortnite, "Fortnite", AdapterMaturity::Beta,
         Capability::Menu | Capability::ReadOnlyMemory | Capability::Overlay },
         StartFortnite, [] { Fortnite::Detach(); },
@@ -426,6 +456,7 @@ IGameAdapter* FindGameAdapter(::Launcher::GameId game) noexcept {
     case ::Launcher::GameId::FiveM: return &fivem;
     case ::Launcher::GameId::CS2: return &cs2;
     case ::Launcher::GameId::Warzone: return &warzone;
+    case ::Launcher::GameId::Rust: return &rust;
     case ::Launcher::GameId::Fortnite: return &fortnite;
     default: return nullptr;
     }

@@ -634,11 +634,9 @@ void Draw(
             alpha = std::clamp(alpha * opacity, 1.0f, 255.0f);
             if (alpha < 1.0f) continue;
 
-            ImU32 color = IM_COL32(
-                (int)(212 * alpha / 255.0f),
-                (int)(175 * alpha / 255.0f),
-                (int)(55 * alpha / 255.0f),
-                static_cast<int>(alpha));
+            // ImGui expects straight-alpha colours. Premultiplying RGB here
+            // applied the opacity twice and made the gold almost invisible.
+            ImU32 color = IM_COL32(212, 175, 55, static_cast<int>(alpha));
 
             ImVec2 pos(window_pos.x + local_offset + x, window_pos.y + ty);
             dl->AddText(font, col.font_size, pos, color, &ch, &ch + 1);

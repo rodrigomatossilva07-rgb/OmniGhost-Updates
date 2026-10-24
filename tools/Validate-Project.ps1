@@ -47,6 +47,13 @@ function Assert-ManifestHash([object]$Expected, [string]$Relative) {
 }
 
 
+# Keep the embedded Cloudflare helper present, Cloudflare-signed and in sync with the
+# versions.json pin. This self-heals version changes instead of failing the build.
+& (Join-Path $PSScriptRoot 'Update-Cloudflared.ps1') -Ensure -ProjectDir $ProjectDir
+if ($LASTEXITCODE -ne 0) {
+    Fail 'cloudflared.exe could not be verified or repaired; run tools\Update-Cloudflared.ps1 -Latest and review logs\cloudflared-update-*.log.'
+}
+
 foreach ($file in @(
     'OmiGhost.vcxproj','config\build\OmniGhost.Common.props','config\build\OmniGhost.Release.props',
     'config\release\versions.json',
@@ -60,13 +67,6 @@ foreach ($file in @(
     'data\fortnite_offsets.json','data\warzone_offsets.json',
     'src\licensing\license_service.cpp'
 )) { Require-File $file }
-
-$cloudflaredPath = Join-Path $ProjectDir 'src\runtime\cloudflared\cloudflared.exe'
-$expectedCloudflaredSha256 = 'c29eee2b121f5436a642eed69fd9767da7e7b8c510fa50aaa130337f931357b5'
-if ((Get-Sha256 $cloudflaredPath) -cne $expectedCloudflaredSha256) {
-    Fail 'cloudflared.exe does not match the approved signed Cloudflare 2026.8.2 binary.'
-}
-Pass 'cloudflared.exe matches the approved Cloudflare 2026.8.2 SHA-256.'
 
 foreach ($path in @('third_party\DMALibrary\libs','third_party\DMALibrary\info.db','libs\info.db','src\launcher\calibration_page.cpp','src\launcher\calibration_page.h')) {
     Require-Absent $path
@@ -95,6 +95,14 @@ if ($markdown.Count -gt 0) {
 $versions = Read-Utf8Text (Join-Path $ProjectDir 'config\release\versions.json') | ConvertFrom-Json
 Assert-ManifestHash $versions.memprocfs.sha256.'vmm.dll' 'libs\vmm.dll'
 Assert-ManifestHash $versions.leechcore.sha256.'leechcore.dll' 'libs\leechcore.dll'
+if (-not ($versions.PSObject.Properties.Name -contains 'cloudflared')) {
+    Fail 'config\release\versions.json is missing the cloudflared pin section; run tools\Update-Cloudflared.ps1 -Latest.'
+}
+if (-not ($versions.cloudflared.PSObject.Properties.Name -contains 'sha256') -or
+    -not ($versions.cloudflared.sha256.PSObject.Properties.Name -contains 'cloudflared.exe')) {
+    Fail 'config\release\versions.json cloudflared section is missing the cloudflared.exe SHA-256 pin.'
+}
+Assert-ManifestHash $versions.cloudflared.sha256.'cloudflared.exe' 'src\runtime\cloudflared\cloudflared.exe'
 
 
 

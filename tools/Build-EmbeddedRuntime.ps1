@@ -113,12 +113,12 @@ if (-not [string]::IsNullOrWhiteSpace($VcToolsRedistDir) -and
     }
 }
 $cloudflared = Join-Path $ProjectDir 'src\runtime\cloudflared\cloudflared.exe'
+& (Join-Path $PSScriptRoot 'Update-Cloudflared.ps1') -Ensure -ProjectDir $ProjectDir
+if ($LASTEXITCODE -ne 0) {
+    throw 'cloudflared.exe nao pode ser verificado/atualizado; consulta logs\cloudflared-update-*.log.'
+}
 if (-not (Test-Path -LiteralPath $cloudflared -PathType Leaf)) {
     throw 'cloudflared.exe canonico em src\runtime\cloudflared esta em falta.'
-}
-$expectedCloudflaredSha256 = 'C29EEE2B121F5436A642EED69FD9767DA7E7B8C510FA50AAA130337F931357B5'
-if ((Get-Sha256Hex $cloudflared) -cne $expectedCloudflaredSha256) {
-    throw 'cloudflared.exe nao corresponde ao binario Cloudflare 2026.8.2 aprovado.'
 }
 Add-RuntimeFile $cloudflared 'libs/cloudflared.exe'
 

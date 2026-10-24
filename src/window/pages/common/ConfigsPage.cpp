@@ -6,7 +6,6 @@
 #include "../../hotkeys.h"
 #include "../../InputDevicesCard.h"
 #include "config/app_settings.h"
-#include "gameplay/dma_telemetry_log.h"
 #include "../../../globals.h"
 #include "../../../launcher/launcher_assets.h"
 #include "../../brand_assets.h"
@@ -26,41 +25,6 @@
 #include <vector>
 
 namespace {
-const char* ActiveGameTelemetryName() {
-    switch (g_activeGame) {
-    case ActiveGame::CS2: return "CS2";
-    case ActiveGame::FiveM: return "FiveM";
-    case ActiveGame::Warzone: return "Warzone";
-    case ActiveGame::Fortnite: return "Fortnite";
-    default: return "OmniGhost";
-    }
-}
-
-void DrawTelemetryWindow() {
-
-
-    CyberWidgets::ToggleSwitch(
-        app_settings::T("Telemetria (logs.txt)", "Telemetry (logs.txt)"),
-        &app_settings::config.telemetry_log_enabled);
-    if (app_settings::config.telemetry_log_enabled) {
-        if (g_activeGame == ActiveGame::CS2)
-            OmniGhost::Gameplay::DmaTelemetry::Tick("CS2");
-        else if (g_activeGame == ActiveGame::FiveM)
-            OmniGhost::Gameplay::DmaTelemetry::Tick("FIVEM");
-        CyberWidgets::TextLine(
-            app_settings::T(
-                "A gravar PERF/WARN no logs.txt (sem janela). Análise offline.",
-                "Writing PERF/WARN to logs.txt (no window). Offline analysis."),
-            CyberWidgets::TextTone::Secondary);
-    } else {
-        CyberWidgets::TextLine(
-            app_settings::T(
-                "Ativa para registar leituras DMA no logs.txt.",
-                "Enable to record DMA readings into logs.txt."),
-            CyberWidgets::TextTone::Secondary);
-    }
-}
-
 
 const char* MenuVkName(int vk) {
     switch (vk) {
@@ -342,17 +306,6 @@ void DrawConfigs(Overlay* self)
         CyberWidgets::CardGap();
         Hotkeys::DrawHotkeyConfig();
     } else {
-        CyberWidgets::BeginCard(app_settings::T("AVANÇADO", "ADVANCED"));
-        if (CyberWidgets::ToggleSwitch(Loc::Tr("cfg.vsync"), &app_settings::config.vsync))
-            saveSettings();
-        if (CyberWidgets::ToggleSwitch(Loc::Tr("cfg.hotkey_overlay"), &app_settings::config.show_hotkey_overlay))
-            saveSettings();
-        if (CyberWidgets::ToggleSwitch(app_settings::T("Detalhes técnicos", "Technical details"), &app_settings::config.show_advanced))
-            saveSettings();
-        CyberWidgets::Separator();
-        DrawTelemetryWindow();
-        CyberWidgets::EndCard();
-        CyberWidgets::CardGap();
         InputDevicesCard::Draw();
         CyberWidgets::CardGap();
         CyberWidgets::BeginCard(app_settings::T("MANUTENÇÃO", "MAINTENANCE"));

@@ -29,9 +29,10 @@ void DrawTransitionOverlay(const TransitionOverlayOptions& options) {
         app_settings::DigitalRainDensity() * 0.82f,
         app_settings::AnimationScale(), false, true);
 
-    const ImVec2 center(display.x * 0.5f, display.y * 0.5f - 18.0f * scale);
-    const ImVec2 panelMin(center.x - 260.0f * scale, center.y - 166.0f * scale);
-    const ImVec2 panelMax(center.x + 260.0f * scale, center.y + 116.0f * scale);
+    const ImVec2 center(display.x * 0.5f, display.y * 0.5f - 8.0f * scale);
+    const float panelHalfWidth = (std::min)(210.0f * scale, display.x * 0.42f);
+    const ImVec2 panelMin(center.x - panelHalfWidth, center.y - 126.0f * scale);
+    const ImVec2 panelMax(center.x + panelHalfWidth, center.y + 92.0f * scale);
     foreground->AddRectFilled(panelMin, panelMax,
         CyberTheme::WithAlpha(CyberTheme::Colors.Card, 0.965f * alpha), 14.0f * scale);
     foreground->AddRect(panelMin, panelMax,
@@ -50,22 +51,22 @@ void DrawTransitionOverlay(const TransitionOverlayOptions& options) {
     const float pulse = app_settings::MotionEnabled()
         ? 1.0f + std::sin(options.elapsedSeconds * 2.15f) * 0.018f
         : 1.0f;
-    const float logoSize = 62.0f * scale * pulse;
+    const float logoSize = 50.0f * scale * pulse;
     if (ImTextureID logo = BrandAssets::GetLogoTexture()) {
         foreground->AddImage(logo,
-            ImVec2(center.x - logoSize * 0.5f, center.y - 112.0f * scale),
-            ImVec2(center.x + logoSize * 0.5f, center.y - 112.0f * scale + logoSize),
+            ImVec2(center.x - logoSize * 0.5f, center.y - 94.0f * scale),
+            ImVec2(center.x + logoSize * 0.5f, center.y - 94.0f * scale + logoSize),
             ImVec2(0, 0), ImVec2(1, 1), IM_COL32(255, 255, 255, static_cast<int>(178.0f * alpha)));
     }
 
     if (app_settings::MotionEnabled() && !options.success) {
         const float orbit = options.elapsedSeconds * 1.55f;
-        const ImVec2 orbitCenter(center.x, center.y - 81.0f * scale);
-        foreground->AddCircle(orbitCenter, 40.0f * scale,
+        const ImVec2 orbitCenter(center.x, center.y - 69.0f * scale);
+        foreground->AddCircle(orbitCenter, 33.0f * scale,
             CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.14f * alpha), 48, scale);
         foreground->AddCircleFilled(
-            ImVec2(orbitCenter.x + std::cos(orbit) * 40.0f * scale,
-                   orbitCenter.y + std::sin(orbit) * 40.0f * scale),
+            ImVec2(orbitCenter.x + std::cos(orbit) * 33.0f * scale,
+                   orbitCenter.y + std::sin(orbit) * 33.0f * scale),
             2.6f * scale, CyberTheme::WithAlpha(CyberTheme::Colors.GoldHover, 0.90f * alpha), 16);
     }
 
@@ -101,7 +102,7 @@ void DrawTransitionOverlay(const TransitionOverlayOptions& options) {
             CyberTheme::WithAlpha(CyberTheme::Colors.TextDisabled, 0.82f * alpha), subtitle.c_str());
     }
 
-    const float nodeY = center.y + 82.0f * scale;
+    const float nodeY = center.y + 65.0f * scale;
     const int activeNode = options.success ? 3
         : static_cast<int>(std::fmod(options.elapsedSeconds * 1.15f, 4.0f));
     for (int index = 0; index < 4; ++index) {

@@ -21,6 +21,7 @@ namespace {
 const char* ActiveGameName() {
     switch (g_activeGame) {
     case ActiveGame::CS2: return "Counter-Strike 2";
+    case ActiveGame::Rust: return "Rust";
     case ActiveGame::Warzone: return "Warzone";
     case ActiveGame::Fortnite: return "Fortnite";
     case ActiveGame::Apex: return "Apex";
@@ -407,6 +408,13 @@ void DrawCommunityConfigHub() {
 
 void DrawSaveConfigs()
 {
+    const auto rowButtonWidth = [](int count) {
+        const float spacing = ImGui::GetStyle().ItemSpacing.x;
+        return (std::max)(96.0f,
+            (ImGui::GetContentRegionAvail().x - spacing * static_cast<float>(count - 1)) /
+                static_cast<float>(count));
+    };
+
     CyberWidgets::BeginCard(app_settings::T("Perfis por jogo", "Game profiles"));
     CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, app_settings::T("%s · perfil atual: %s", "%s · current profile: %s"),
         ActiveGameName(), config_manager::CurrentGameProfileName());
@@ -415,27 +423,28 @@ void DrawSaveConfigs()
         CyberWidgets::TextTone::Secondary);
     CyberWidgets::CardGap(8.f);
 
-    if (CyberWidgets::GoldButton(app_settings::T("Predefinido", "Default"), ImVec2(112, 34))) {
+    const float profileButtonWidth = rowButtonWidth(5);
+    if (CyberWidgets::GoldButton(app_settings::T("Predefinido", "Default"), ImVec2(profileButtonWidth, 34))) {
         config_manager::ApplyGameProfile(config_manager::GameProfile::Default);
         CyberWidgets::Notify("Perfil predefinido aplicado", CyberWidgets::ToastType::Success);
     }
     ImGui::SameLine();
-    if (CyberWidgets::CyberButton(app_settings::T("Mínimo", "Minimal"), ImVec2(112, 34))) {
+    if (CyberWidgets::CyberButton(app_settings::T("Mínimo", "Minimal"), ImVec2(profileButtonWidth, 34))) {
         config_manager::ApplyGameProfile(config_manager::GameProfile::Minimal);
         CyberWidgets::Notify("Perfil mínimo aplicado", CyberWidgets::ToastType::Info);
     }
     ImGui::SameLine();
-    if (CyberWidgets::CyberButton("Visual", ImVec2(112, 34))) {
+    if (CyberWidgets::CyberButton("Visual", ImVec2(profileButtonWidth, 34))) {
         config_manager::ApplyGameProfile(config_manager::GameProfile::Visual);
         CyberWidgets::Notify("Perfil Visual aplicado", CyberWidgets::ToastType::Info);
     }
     ImGui::SameLine();
-    if (CyberWidgets::CyberButton(app_settings::T("Personalizado", "Custom"), ImVec2(132, 34))) {
+    if (CyberWidgets::CyberButton(app_settings::T("Personalizado", "Custom"), ImVec2(profileButtonWidth, 34))) {
         config_manager::ApplyGameProfile(config_manager::GameProfile::Custom);
         CyberWidgets::Notify("Perfil personalizado carregado", CyberWidgets::ToastType::Info);
     }
     ImGui::SameLine();
-    if (CyberWidgets::GoldButton(app_settings::T("Guardar personalizado", "Save custom"), ImVec2(180, 34))) {
+    if (CyberWidgets::GoldButton(app_settings::T("Guardar personalizado", "Save custom"), ImVec2(profileButtonWidth, 34))) {
         const bool ok = config_manager::SaveCustomGameProfile();
         CyberWidgets::Notify(ok ? "Perfil personalizado atualizado" : "Falha ao guardar o perfil personalizado",
             ok ? CyberWidgets::ToastType::Success : CyberWidgets::ToastType::Error);
@@ -449,7 +458,8 @@ void DrawSaveConfigs()
     CyberWidgets::InputField("##cfg_name_full", config_manager::new_config_name,
         sizeof(config_manager::new_config_name), "ex: Visual cidade X", 0, -1.0f);
     CyberWidgets::CardGap(6.0f);
-    if (CyberWidgets::GoldButton(Loc::TrID("save.create"), ImVec2(140, 32))) {
+    const float fileButtonWidth = rowButtonWidth(3);
+    if (CyberWidgets::GoldButton(Loc::TrID("save.create"), ImVec2(fileButtonWidth, 32))) {
         char* n = config_manager::new_config_name;
         while (*n == ' ') ++n;
         const bool saved = config_manager::SaveToFile(*n ? n : "config");
@@ -457,21 +467,22 @@ void DrawSaveConfigs()
             saved ? CyberWidgets::ToastType::Success : CyberWidgets::ToastType::Error);
     }
     ImGui::SameLine();
-    if (CyberWidgets::CyberButton(Loc::TrID("save.open_folder"), ImVec2(120, 32)))
+    if (CyberWidgets::CyberButton(Loc::TrID("save.open_folder"), ImVec2(fileButtonWidth, 32)))
         config_manager::OpenConfigFolder();
     ImGui::SameLine();
-    if (CyberWidgets::CyberButton(Loc::TrID("common.refresh"), ImVec2(100, 32)))
+    if (CyberWidgets::CyberButton(Loc::TrID("common.refresh"), ImVec2(fileButtonWidth, 32)))
         config_manager::RefreshList();
     if (!config_manager::active_config_name.empty()) {
         CyberWidgets::CardGap(6.f);
-        if (CyberWidgets::CyberButton(app_settings::T("Duplicar ativa", "Duplicate active"), ImVec2(150, 32))) {
+        const float activeButtonWidth = rowButtonWidth(2);
+        if (CyberWidgets::CyberButton(app_settings::T("Duplicar ativa", "Duplicate active"), ImVec2(activeButtonWidth, 32))) {
             const bool ok = config_manager::DuplicateConfigFile(
                 config_manager::active_config_name, config_manager::new_config_name);
             CyberWidgets::Notify(config_manager::last_status.c_str(),
                 ok ? CyberWidgets::ToastType::Success : CyberWidgets::ToastType::Error);
         }
         ImGui::SameLine();
-        if (CyberWidgets::CyberButton(app_settings::T("Renomear ativa", "Rename active"), ImVec2(150, 32))) {
+        if (CyberWidgets::CyberButton(app_settings::T("Renomear ativa", "Rename active"), ImVec2(activeButtonWidth, 32))) {
             const bool ok = config_manager::RenameConfigFile(
                 config_manager::active_config_name, config_manager::new_config_name);
             CyberWidgets::Notify(config_manager::last_status.c_str(),
@@ -479,12 +490,13 @@ void DrawSaveConfigs()
         }
     }
     CyberWidgets::Separator();
-    if (CyberWidgets::GoldButton(Loc::TrID("save.copy"), ImVec2(160, 32))) {
+    const float clipboardButtonWidth = rowButtonWidth(2);
+    if (CyberWidgets::GoldButton(Loc::TrID("save.copy"), ImVec2(clipboardButtonWidth, 32))) {
         config_manager::CopyToClipboard();
         CyberWidgets::Notify(Loc::Tr("status.copied"), CyberWidgets::ToastType::Success);
     }
     ImGui::SameLine();
-    if (CyberWidgets::CyberButton(Loc::TrID("save.paste"), ImVec2(160, 32))) {
+    if (CyberWidgets::CyberButton(Loc::TrID("save.paste"), ImVec2(clipboardButtonWidth, 32))) {
         config_manager::PasteFromClipboard();
         CyberWidgets::Notify(Loc::Tr("status.pasted"), CyberWidgets::ToastType::Info);
     }
@@ -494,19 +506,20 @@ void DrawSaveConfigs()
         "Exporta para OmniGhost-export.json. Para importar, coloca OmniGhost-import.json na pasta Configs.",
         "Exports to OmniGhost-export.json. To import, place OmniGhost-import.json in the Configs folder."),
         CyberWidgets::TextTone::Secondary);
-    if (CyberWidgets::GoldButton(app_settings::T("Exportar JSON", "Export JSON"), ImVec2(160, 32))) {
+    const float jsonButtonWidth = rowButtonWidth(3);
+    if (CyberWidgets::GoldButton(app_settings::T("Exportar JSON", "Export JSON"), ImVec2(jsonButtonWidth, 32))) {
         const bool ok = config_manager::ExportJson();
         CyberWidgets::Notify(config_manager::last_status.c_str(),
             ok ? CyberWidgets::ToastType::Success : CyberWidgets::ToastType::Error);
     }
     ImGui::SameLine();
-    if (CyberWidgets::CyberButton(app_settings::T("Importar JSON", "Import JSON"), ImVec2(160, 32))) {
+    if (CyberWidgets::CyberButton(app_settings::T("Importar JSON", "Import JSON"), ImVec2(jsonButtonWidth, 32))) {
         const bool ok = config_manager::ImportJson();
         CyberWidgets::Notify(config_manager::last_status.c_str(),
             ok ? CyberWidgets::ToastType::Success : CyberWidgets::ToastType::Error);
     }
     ImGui::SameLine();
-    if (CyberWidgets::CyberButton(app_settings::T("Repor jogo", "Reset game"), ImVec2(130, 32))) {
+    if (CyberWidgets::CyberButton(app_settings::T("Repor jogo", "Reset game"), ImVec2(jsonButtonWidth, 32))) {
         config_manager::ResetActiveGameToDefaults();
         CyberWidgets::Notify("Configuração do jogo reposta", CyberWidgets::ToastType::Warning);
     }
@@ -516,19 +529,20 @@ void DrawSaveConfigs()
         "Associadas à conta OmniGhost. O nome acima identifica o preset remoto.",
         "Bound to the OmniGhost account. The name above identifies the remote preset."),
         CyberWidgets::TextTone::Secondary);
-    if (CyberWidgets::GoldButton(app_settings::T("Guardar na cloud", "Save to cloud"), ImVec2(160, 32))) {
+    const float cloudButtonWidth = rowButtonWidth(3);
+    if (CyberWidgets::GoldButton(app_settings::T("Guardar na cloud", "Save to cloud"), ImVec2(cloudButtonWidth, 32))) {
         const bool ok = config_manager::UploadCloudConfig(config_manager::new_config_name);
         CyberWidgets::Notify(config_manager::last_status.c_str(),
             ok ? CyberWidgets::ToastType::Success : CyberWidgets::ToastType::Error);
     }
     ImGui::SameLine();
-    if (CyberWidgets::CyberButton(app_settings::T("Carregar da cloud", "Load from cloud"), ImVec2(170, 32))) {
+    if (CyberWidgets::CyberButton(app_settings::T("Carregar da cloud", "Load from cloud"), ImVec2(cloudButtonWidth, 32))) {
         const bool ok = config_manager::DownloadCloudConfig(config_manager::new_config_name);
         CyberWidgets::Notify(config_manager::last_status.c_str(),
             ok ? CyberWidgets::ToastType::Success : CyberWidgets::ToastType::Error);
     }
     ImGui::SameLine();
-    if (CyberWidgets::CyberButton(app_settings::T("Apagar da cloud", "Delete from cloud"), ImVec2(160, 32))) {
+    if (CyberWidgets::CyberButton(app_settings::T("Apagar da cloud", "Delete from cloud"), ImVec2(cloudButtonWidth, 32))) {
         const bool ok = config_manager::DeleteCloudConfig(config_manager::new_config_name);
         CyberWidgets::Notify(config_manager::last_status.c_str(),
             ok ? CyberWidgets::ToastType::Warning : CyberWidgets::ToastType::Error);

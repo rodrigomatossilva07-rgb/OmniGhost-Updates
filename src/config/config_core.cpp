@@ -359,6 +359,7 @@ void SaveOrder() {
 const char* ActiveGamePrefix() {
     switch (g_activeGame) {
     case ActiveGame::CS2: return "cs2_";
+    case ActiveGame::Rust: return "rust_";
     case ActiveGame::Warzone: return "warzone_";
 
 
@@ -371,6 +372,7 @@ const char* ActiveGamePrefix() {
 const char* ActiveGameMeta() {
     switch (g_activeGame) {
     case ActiveGame::CS2: return "cs2";
+    case ActiveGame::Rust: return "rust";
     case ActiveGame::Warzone: return "warzone";
 
 

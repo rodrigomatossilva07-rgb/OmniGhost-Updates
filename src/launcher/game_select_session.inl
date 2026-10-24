@@ -445,6 +445,7 @@ void PushToast(const char* text, ImU32 color = 0,
 ActiveGame ToActiveGame(GameId id) {
     switch (id) {
     case GameId::CS2: return ActiveGame::CS2;
+    case GameId::Rust: return ActiveGame::Rust;
     case GameId::Warzone: return ActiveGame::Warzone;
     case GameId::Fortnite: return ActiveGame::Fortnite;
     case GameId::Apex: return ActiveGame::Apex;

@@ -68,7 +68,8 @@ PlayerGeometry BuildGeometry(const ImVec2& origin, float width, float height) {
     g.boundsWidth = g.boundsMax.x - g.boundsMin.x;
     g.boundsHeight = g.boundsMax.y - g.boundsMin.y;
     g.headCenter = point(.505f, .103f);
-    g.headRadius = imageW * .085f;
+    // Preview-only geometry: keep the head marker tight to the portrait.
+    g.headRadius = imageW * .070f;
     g.headTop = point(.505f, .025f);
     g.headBottom = point(.505f, .177f);
     g.neck = point(.505f, .194f);
@@ -80,12 +81,12 @@ PlayerGeometry BuildGeometry(const ImVec2& origin, float width, float height) {
     g.rightElbow = point(.775f, .365f);
     g.leftHand = point(.215f, .520f);
     g.rightHand = point(.795f, .520f);
-    g.leftHip = point(.405f, .550f);
-    g.rightHip = point(.615f, .550f);
-    g.leftKnee = point(.395f, .735f);
-    g.rightKnee = point(.625f, .735f);
-    g.leftFoot = point(.325f, .970f);
-    g.rightFoot = point(.715f, .970f);
+    g.leftHip = point(.415f, .550f);
+    g.rightHip = point(.595f, .550f);
+    g.leftKnee = point(.405f, .735f);
+    g.rightKnee = point(.610f, .735f);
+    g.leftFoot = point(.355f, .970f);
+    g.rightFoot = point(.675f, .970f);
     g.feetCenter = point(.52f, .970f);
     g.textStackY = g.boundsMax.y + 6.f;
 
@@ -385,7 +386,7 @@ void DrawArmorBar(ImDrawList* dl, const PlayerGeometry& g, ImU32 col, float frac
 
 void DrawHeadCircle(ImDrawList* dl, const PlayerGeometry& g, ImU32 col, float thick) {
 
-    float radius = g.headRadius * 1.15f;
+    float radius = g.headRadius * 1.05f;
     DrawCircleOutlined(dl, g.headCenter, radius, col, thick, 32);
 }
 

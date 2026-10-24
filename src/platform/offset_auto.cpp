@@ -1,14 +1,12 @@
 #include "offset_auto.h"
 
-#include "cheatoffsets_api.h"
 #include "src/games/Cs2/cs2_game.h"
 #include "src/games/Warzone/warzone_game.h"
 #include "src/games/Fivem/game/offsets.h"
-#include "app_paths.h"
+#include "src/games/Rust/rust_game.h"
+#include "src/games/Rust/rust_offsets.h"
 
 #include <array>
-#include <filesystem>
-#include <iostream>
 #include <mutex>
 
 namespace OmniGhost::OffsetAuto {
@@ -48,24 +46,6 @@ void SetState(ActiveGame game, CompatibilityState state, const std::string& deta
     g_states[index] = {state, detail};
 }
 
-bool InstallCandidate(const std::filesystem::path& candidate,
-                      const std::filesystem::path& target) {
-    std::error_code ec;
-    std::filesystem::create_directories(target.parent_path(), ec);
-    if (std::filesystem::exists(target, ec)) {
-        const auto backup = target.wstring() + L".lastgood";
-        std::filesystem::copy_file(target, backup,
-            std::filesystem::copy_options::overwrite_existing, ec);
-        ec.clear();
-    }
-    std::filesystem::rename(candidate, target, ec);
-    if (!ec) return true;
-    ec.clear();
-    std::filesystem::copy_file(candidate, target,
-        std::filesystem::copy_options::overwrite_existing, ec);
-    if (!ec) std::filesystem::remove(candidate, ec);
-    return !ec;
-}
 }
 
 CompatibilitySnapshot Compatibility(ActiveGame game) {
@@ -101,16 +81,8 @@ bool BlocksLaunch(ActiveGame game) {
     return false;
 }
 bool SupportsAutomaticRefresh(ActiveGame game) {
-    switch (game) {
-    case ActiveGame::CS2:
-#if defined(OMNIGHOST_DEV_EXTERNAL_OFFSETS)
-    case ActiveGame::Warzone:
-#endif
-    case ActiveGame::FiveM:
-        return true;
-    default:
-        return false;
-    }
+    (void)game;
+    return false;
 }
 
 bool HasCriticalOffsets(ActiveGame game) {
@@ -125,6 +97,12 @@ bool HasCriticalOffsets(ActiveGame game) {
     if (game == ActiveGame::FiveM) {
 
         return FiveM::HasAnyCriticalOffsets();
+    }
+    if (game == ActiveGame::Rust) {
+        using namespace Rust::Offsets::Build_2026_10_22;
+        return Rvas::TypeManagerInstance != 0 && Rvas::TypeToObjectSet != 0 &&
+               BaseNetworkableStatic::clientEntities != 0 &&
+               BasePlayer::_displayName != 0 && BaseCombatEntity::_health != 0;
     }
     if (game == ActiveGame::Apex) {
 
@@ -149,6 +127,8 @@ bool SoftProbeLive(ActiveGame game) {
         return Warzone::ready && Warzone::SoftProbeLobbyOffsets();
     case ActiveGame::FiveM:
         return FiveM::SoftProbeLobbyOffsets();
+    case ActiveGame::Rust:
+        return Rust::ValidateLiveOffsets();
     case ActiveGame::Apex:
         return true;
     default:
@@ -164,6 +144,8 @@ const char* SoftProbeFailReason(ActiveGame game) {
         return "Offsets Warzone inválidos (view_matrix / módulo). Atualiza os offsets.";
     case ActiveGame::FiveM:
         return "Offsets FiveM inválidos (world pointer / build). Verifica a build do servidor.";
+    case ActiveGame::Rust:
+        return "Runtime Rust ainda sem BaseNetworkable_TypeInfo/viewMatrix válidos.";
     default:
         return "Offsets inválidos — atualiza e tenta de novo.";
     }
@@ -178,113 +160,40 @@ Result EnsureOffsets(ActiveGame game, bool force_refresh) {
     } reset;
 
     MarkChecking(game);
-#if !defined(OMNIGHOST_DEV_EXTERNAL_OFFSETS)
     (void)force_refresh;
 
-
-
-    g_status = "Offsets integrados na versão instalada";
-    MarkLiveValid(game, g_status);
-    return Result::Current;
-#else
-    std::string networkStatus;
-    const auto data = OmniGhost::Paths::InstallDirectory() / L"data";
-
-    auto try_install = [&](const std::filesystem::path& candidate,
-                           const std::filesystem::path& target,
-                           auto load_fn) -> bool {
-        if (!std::filesystem::exists(candidate)) return false;
-        if (!load_fn(candidate.string().c_str())) return false;
-        if (!HasCriticalOffsets(game)) return false;
-        if (!InstallCandidate(candidate, target)) return false;
-        load_fn(target.string().c_str());
-        return true;
-    };
-
     if (game == ActiveGame::CS2) {
-        const auto candidate = data / L"cs2_offsets.candidate.json";
-        const bool downloaded = force_refresh
-            ? OmniGhost::CheatOffsets::FetchGame("cs2", candidate.string().c_str(), &networkStatus)
-            : OmniGhost::CheatOffsets::FetchGameIfChanged("cs2", candidate.string().c_str(), &networkStatus);
-
-        if (downloaded && try_install(candidate, data / L"cs2_offsets.json",
-                [](const char* p) { return CS2::LoadOffsetsFromJson(p); })) {
-            MarkLiveValid(game, networkStatus.empty()
-                ? "CS2: offsets atualizados via cheatoffsets.com" : networkStatus);
-            g_status = "CS2: offsets atualizados";
-            return Result::Ok;
-        }
-        if (!force_refresh && networkStatus.find("304") != std::string::npos) {
-            const bool cached = CS2::LoadOffsetsFromJson(nullptr) && HasCriticalOffsets(game);
-            if (cached) {
-                MarkLiveValid(game, "CS2: já atuais (API 304)");
-                g_status = "CS2: offsets já atuais";
-                return Result::Current;
-            }
-        }
-        const bool cached = CS2::LoadOffsetsFromJson(nullptr) && HasCriticalOffsets(game);
-        if (!downloaded) {
-            g_status = cached
-                ? (std::string("CS2: API indisponível (") + networkStatus + "); mantido último válido")
-                : (std::string("CS2: API falhou (") + networkStatus + ") e offsets críticos em falta");
-        } else {
-            g_status = cached
-                ? "CS2: dump descarregado mas validação parcial; mantido último válido"
-                : "CS2: dump da API sem dwEntityList/dwViewMatrix reconhecíveis";
-        }
-        if (cached && !BlocksLaunch(game)) MarkLiveValid(game, g_status);
-        else if (!cached) MarkOutdated(game, g_status);
-        return cached ? Result::UsingCached : Result::RefreshFailed;
+        const bool usable = CS2::LoadOffsetsFromJson(nullptr) && HasCriticalOffsets(game);
+        g_status = usable ? "CS2: offsets manuais carregados"
+                          : "CS2: offsets manuais inválidos ou em falta";
+        if (usable) MarkLiveValid(game, g_status);
+        else MarkOutdated(game, g_status);
+        return usable ? Result::Current : Result::RefreshFailed;
     }
     if (game == ActiveGame::Warzone) {
-#if defined(OMNIGHOST_DEV_EXTERNAL_OFFSETS)
-        const auto candidate = data / L"warzone_offsets.candidate.json";
-        const bool downloaded = force_refresh
-            ? OmniGhost::CheatOffsets::FetchGame("warzone", candidate.string().c_str(), &networkStatus)
-            : OmniGhost::CheatOffsets::FetchGameIfChanged("warzone", candidate.string().c_str(), &networkStatus);
-        if (downloaded && InstallCandidate(candidate, data / L"warzone_offsets.json")) {
-            const std::string external = (data / L"warzone_offsets.json").string();
-            Warzone::LoadOffsetsFromJson(external.c_str());
-            if (HasCriticalOffsets(game)) {
-                MarkLiveValid(game, "Warzone: offsets externos atualizados (desenvolvimento)");
-                g_status = "Warzone: offsets externos atualizados (desenvolvimento)";
-                return Result::Ok;
-            }
-        }
-#endif
         const bool loaded = Warzone::ReloadOffsets();
         const bool usable = loaded && HasCriticalOffsets(game);
-        g_status = usable ? "Warzone: offsets embedded carregados"
-                          : "Warzone: recurso de offsets embedded invalido/ausente";
+        g_status = usable ? "Warzone: offsets manuais carregados"
+                          : "Warzone: offsets manuais inválidos ou em falta";
         if (usable) MarkLiveValid(game, g_status);
         else MarkOutdated(game, g_status);
         return usable ? Result::Current : Result::RefreshFailed;
     }
     if (game == ActiveGame::FiveM) {
-        const auto candidate = data / L"fivem_offsets.candidate.json";
-        const auto target = data / L"fivem_offsets.json";
-        const bool downloaded = force_refresh
-            ? OmniGhost::CheatOffsets::FetchGame("fivem", candidate.string().c_str(), &networkStatus)
-            : OmniGhost::CheatOffsets::FetchGameIfChanged("fivem", candidate.string().c_str(), &networkStatus);
-        if (downloaded && std::filesystem::exists(candidate)) {
-
-
-            if (InstallCandidate(candidate, target) || std::filesystem::exists(target)) {
-                MarkLiveValid(game, networkStatus.empty()
-                    ? "FiveM: offsets atualizados via cheatoffsets.com" : networkStatus);
-                g_status = "FiveM: offsets atualizados (API + tabela de builds local)";
-                return Result::Ok;
-            }
-        }
-        if (!force_refresh && networkStatus.find("304") != std::string::npos) {
-            MarkLiveValid(game, "FiveM: já atuais (API 304)");
-            g_status = "FiveM: offsets já atuais";
-            return Result::Current;
-        }
-
-        MarkLiveValid(game, "FiveM: tabela de builds local (API indisponível)");
-        g_status = std::string("FiveM: API indisponível (") + networkStatus + "); tabela local OK";
-        return Result::UsingCached;
+        const bool usable = HasCriticalOffsets(game);
+        g_status = usable ? "FiveM: tabela manual de builds carregada"
+                          : "FiveM: offsets manuais inválidos ou em falta";
+        if (usable) MarkLiveValid(game, g_status);
+        else MarkOutdated(game, g_status);
+        return usable ? Result::Current : Result::RefreshFailed;
+    }
+    if (game == ActiveGame::Rust) {
+        const bool usable = HasCriticalOffsets(game);
+        g_status = usable ? "Rust: catálogo manual 2026-10-22 carregado"
+                          : "Rust: catálogo manual inválido ou em falta";
+        if (usable) MarkLiveValid(game, g_status);
+        else MarkOutdated(game, g_status);
+        return usable ? Result::Current : Result::RefreshFailed;
     }
 
 
@@ -292,7 +201,6 @@ Result EnsureOffsets(ActiveGame game, bool force_refresh) {
     g_status = "Atualização automática não suportada com segurança para este jogo";
     MarkUnsupported(game, g_status);
     return Result::NotSupported;
-#endif
 }
 
 int RefreshAllSupported(bool force) {
@@ -301,6 +209,7 @@ int RefreshAllSupported(bool force) {
         ActiveGame::CS2,
         ActiveGame::Warzone,
         ActiveGame::FiveM,
+        ActiveGame::Rust,
     };
     std::string all;
     for (ActiveGame g : games) {

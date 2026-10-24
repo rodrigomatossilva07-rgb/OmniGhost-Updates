@@ -3,10 +3,39 @@
 #include "../src/games/Cs2/cs2_game.h"
 #include "../src/games/Warzone/warzone_game.h"
 #include "../src/games/Fortnite/fortnite_game.h"
+#include "../src/games/Rust/rust_game.h"
 #include <cstring>
 #include <iterator>
 
 namespace config_manager {
+
+void SerializeRust(std::ostringstream& o) {
+    const auto& c = Rust::config;
+    WBool(o, "rust.esp_enabled", c.esp_enabled);
+    WBool(o, "rust.box_2d", c.box_2d);
+    WBool(o, "rust.box_fill", c.box_fill);
+    WFloat(o, "rust.box_thickness", c.box_thickness);
+    WFloat(o, "rust.box_rounding", c.box_rounding);
+    WFloat(o, "rust.max_distance", c.max_distance);
+    SerializeColorArray(o, "rust.box_color", c.box_color);
+    SerializeColorArray(o, "rust.box_fill_color", c.box_fill_color);
+}
+
+bool DeserializeRust(const std::string& key, const std::string& val) {
+    auto& c = Rust::config;
+    const auto asBool = [&] { return val == "1" || val == "true"; };
+    const auto asFloat = [&] { return std::strtof(val.c_str(), nullptr); };
+    if (key == "rust.esp_enabled") c.esp_enabled = asBool();
+    else if (key == "rust.box_2d") c.box_2d = asBool();
+    else if (key == "rust.box_fill") c.box_fill = asBool();
+    else if (key == "rust.box_thickness") c.box_thickness = asFloat();
+    else if (key == "rust.box_rounding") c.box_rounding = asFloat();
+    else if (key == "rust.max_distance") c.max_distance = asFloat();
+    else if (DeserializeColorArray(key, val, "rust.box_color", c.box_color)) return true;
+    else if (DeserializeColorArray(key, val, "rust.box_fill_color", c.box_fill_color)) return true;
+    else return false;
+    return true;
+}
 
 
 

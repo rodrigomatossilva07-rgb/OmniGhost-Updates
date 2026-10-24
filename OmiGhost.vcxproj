@@ -115,6 +115,18 @@
           Condition="'$(DesignTimeBuild)'!='true' And '$(OmniGhostUpdateDmaDependencies)'!='true' And '$(OmniGhostSilentDependencyNotice)'!='true'">
     <Message Importance="Low" Text="[OmniGhost] DMA dependency auto-update skipped (hermetic build). Set OmniGhostUpdateDmaDependencies=true to refresh the stack."/>
   </Target>
+  <Target Name="EnsureOmniGhostCloudflared" BeforeTargets="PrepareForBuild"
+          Condition="'$(DesignTimeBuild)'!='true' And '$(OmniGhostUpdateCloudflared)'!='false'">
+    <Message Importance="High" Text="[OmniGhost Cloudflared] Verifying/updating the official Cloudflare helper..."/>
+    <Exec Command="&quot;%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe&quot; -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\tools\Update-Cloudflared.ps1&quot; -EnsureLatest -ProjectDir &quot;$(MSBuildProjectDirectory)&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
+      <Output TaskParameter="ExitCode" PropertyName="OmniGhostCloudflaredExitCode"/>
+    </Exec>
+    <Error Condition="'$(OmniGhostCloudflaredExitCode)'!='0'" Code="OGCFD001" Text="Nao foi possivel garantir o cloudflared oficial assinado pela Cloudflare. A build foi interrompida para nao embutir um binario nao verificado. Corre tools\Update-Cloudflared.ps1 -Latest e consulta logs\cloudflared-update-*.log, ou define OmniGhostUpdateCloudflared=false para uma build hermetica."/>
+  </Target>
+  <Target Name="NoticeOmniGhostCloudflaredSkipped" BeforeTargets="PrepareForBuild"
+          Condition="'$(DesignTimeBuild)'!='true' And '$(OmniGhostUpdateCloudflared)'=='false'">
+    <Message Importance="Low" Text="[OmniGhost] cloudflared auto-update skipped (hermetic build). Set OmniGhostUpdateCloudflared=true to refresh the helper."/>
+  </Target>
   <Target Name="BuildOmniGhostEmbeddedRuntime" BeforeTargets="ClCompile;ResourceCompile" Condition="'$(DesignTimeBuild)'!='true' And '$(OmniGhostSkipEmbeddedGeneration)'!='true'">
     <Message Importance="High" Text="[OmniGhost Runtime] Generating single-process native dependency bundle..."/>
     <Exec Command="&quot;$(MSBuildProjectDirectory)\tools\Run-OmniGhostPowerShell.cmd&quot; generate-embedded-runtime &quot;$(MSBuildProjectDirectory)&quot; &quot;$(VCInstallDir)Redist\MSVC\$(VCToolsVersion)\x64&quot; &quot;$(Configuration)&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
@@ -306,7 +318,6 @@
     <ClCompile Include="src\platform\text_encoding.cpp"/>
     <ClCompile Include="src\platform\process_metrics.cpp"/>
     <ClCompile Include="src\platform\system_info.cpp"/>
-    <ClCompile Include="src\platform\cheatoffsets_api.cpp"/>
     <ClCompile Include="src\platform\offset_auto.cpp">
       <ObjectFileName>$(IntDir)platform_offset_auto.obj</ObjectFileName>
     </ClCompile>
@@ -420,9 +431,12 @@
     <ClCompile Include="src\games\Warzone\warzone_decrypt.cpp"/>
     <ClCompile Include="src\games\Warzone\warzone_aim.cpp"/>
     <ClCompile Include="src\games\Warzone\warzone_esp.cpp"/>
+    <ClCompile Include="src\games\Rust\rust_game.cpp"/>
+    <ClCompile Include="src\games\Rust\rust_esp.cpp"/>
     <ClCompile Include="src\games\Fortnite\fortnite_game.cpp"/>
     <ClCompile Include="src\window\pages\fortnite\FortniteVisualsPage.cpp"/>
     <ClCompile Include="src\window\pages\fortnite\FortniteStatusPage.cpp"/>
+    <ClCompile Include="src\window\pages\rust\RustPages.cpp"/>
     <ClCompile Include="src\window\pages\fortnite\FortniteAimPage.cpp"/>
     <ClCompile Include="src\window\pages\fivem\FivemVisualsPage.cpp"/>
     <ClCompile Include="src\window\pages\fivem\FivemObjectEspPage.cpp"/>

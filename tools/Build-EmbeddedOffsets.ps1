@@ -163,7 +163,7 @@ function Build-Snapshot([string]$InputPath, [uint16]$GameId, [string]$ExpectedGa
         }
     }
     $source = [string](Get-PropertyValue $json 'source' '')
-    if ([string]::IsNullOrWhiteSpace($source)) { $source = "https://www.cheatoffsets.com/g/$ExpectedGame" }
+    if ([string]::IsNullOrWhiteSpace($source)) { $source = "manual:$ExpectedGame" }
     $generatedAt = [string](Get-PropertyValue $json 'generated_at' (Get-PropertyValue $json 'verified_utc' (Get-PropertyValue $json 'updated_at' (Get-PropertyValue $json 'updated_utc' ''))))
     $note = [string](Get-PropertyValue $json 'note' (Get-PropertyValue $json 'build_note' (Get-PropertyValue $json 'label' '')))
     if ($game -cne $ExpectedGame) { throw "Expected game '$ExpectedGame' in $InputPath, got '$game'." }

@@ -20,6 +20,7 @@ if "%~1"=="" (
     echo   cleanup-verified-build          ^<ProjectDir^>
     echo   validate-embedded-offsets       ^<ProjectDir^> ^<Executable^> ^<Configuration^> ^<Platform^>
     echo   validate-project                ^<ProjectDir^>
+    echo   update-cloudflared              ^<ProjectDir^>
     echo   prepare-publish-version         ^<ProjectDir^>
     echo   ensure-metadata                 ^<ProjectDir^>
     echo   validate-distribution           ^<ProjectDir^> ^<Configuration^>
@@ -107,6 +108,15 @@ if "%COMMAND%"=="validate-project" (
         exit /b 1
     )
     "%PS_CMD%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& \"%SCRIPT_DIR%Validate-Project.ps1\" -ProjectDir \"%~1\""
+    exit /b
+)
+
+if "%COMMAND%"=="update-cloudflared" (
+    if "%~1"=="" (
+        echo Erro: update-cloudflared requer ProjectDir
+        exit /b 1
+    )
+    "%PS_CMD%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& \"%SCRIPT_DIR%Update-Cloudflared.ps1\" -Latest -ProjectDir \"%~1\""
     exit /b
 )
 
