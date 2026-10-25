@@ -106,8 +106,8 @@ namespace CyberWidgets {
             const char* offsets_text =
                 (g_activeGame == ActiveGame::Warzone && Warzone::runtime.matrix_ok) ? "Matrix OK" :
                 (g_activeGame == ActiveGame::Warzone && Warzone::offsets.loaded) ? "Offsets carregados" :
-                (g_activeGame == ActiveGame::Warzone) ? "Offsets ?" :
-                (verified ? "Offsets OK" : "Offsets ?");
+                (g_activeGame == ActiveGame::Warzone) ? "Offsets por validar" :
+                (verified ? "Offsets OK" : "Offsets por validar");
             x = DrawFooterItem(dl, body, x, text_y,
                 offsets_text,
                 verified ? CyberTheme::U32(CyberTheme::Colors.Success) : CyberTheme::U32(CyberTheme::Colors.Warning), kFont);

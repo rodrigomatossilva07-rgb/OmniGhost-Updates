@@ -1080,7 +1080,7 @@ namespace CyberWidgets {
     {
         const TextTone tone = status == HealthStatus::Ok ? TextTone::Success
             : (status == HealthStatus::Warning ? TextTone::Warning : TextTone::Error);
-        const char* mark = status == HealthStatus::Ok ? "✓" : (status == HealthStatus::Warning ? "!" : "×");
+        const char* mark = status == HealthStatus::Ok ? "OK" : (status == HealthStatus::Warning ? "!" : "X");
         const ImVec2 pos = ImGui::GetCursorScreenPos();
         const float width = WidgetWidth();
         ImDrawList* dl = ImGui::GetWindowDrawList();
@@ -1157,7 +1157,7 @@ namespace CyberWidgets {
         dl->AddCircle(ImVec2(pos.x + size * 0.5f, pos.y + size * 0.5f), size * 0.45f,
             CyberTheme::WithAlpha(hovered ? CyberTheme::Colors.GoldHover : CyberTheme::Colors.Border,
                                   hovered ? 0.72f : 0.52f), 18, 1.0f);
-        const char* mark = "?";
+        const char* mark = "i";
         const ImVec2 markSize = ImGui::CalcTextSize(mark);
         dl->AddText(ImVec2(pos.x + (size - markSize.x) * 0.5f,
                            pos.y + (size - markSize.y) * 0.5f - CyberTheme::Px(1.0f)),

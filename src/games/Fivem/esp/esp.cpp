@@ -406,7 +406,7 @@ esp::ESPMode esp::get_esp_mode() {
 
 const char* esp::get_esp_mode_name(ESPMode mode) {
     switch (mode) {
-    case ESPMode::HEAD_CIRCLE: return "CÃƒÂ­rculo na cabeÃƒÂ§a";
+    case ESPMode::HEAD_CIRCLE: return "Círculo na cabeça";
     case ESPMode::SKELETON_BONES: return "Ossos do esqueleto";
     default: return "Desconhecido";
     }
@@ -414,7 +414,7 @@ const char* esp::get_esp_mode_name(ESPMode mode) {
 
 std::vector<const char*> esp::get_esp_mode_names() {
     return {
-        "CÃƒÂ­rculo na cabeÃƒÂ§a",
+        "Círculo na cabeça",
         "Ossos do esqueleto"
     };
 }
@@ -1861,6 +1861,16 @@ static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer,
     } else {
         return;
     }
+
+    // Give the 2D box a little breathing room around the projected body.
+    // Expand only sideways and above so the feet remain the stable anchor.
+    const float projectedWidth = boxMax.x - boxMin.x;
+    const float projectedHeight = boxMax.y - boxMin.y;
+    const float sidePadding = (std::max)(1.5f, projectedWidth * 0.06f);
+    const float topPadding = (std::max)(2.0f, projectedHeight * 0.035f);
+    boxMin.x -= sidePadding;
+    boxMax.x += sidePadding;
+    boxMin.y -= topPadding;
 
     ImU32 colBox = EspPedColor(ped, rcfg->color_box_2d, visible);
     if (health <= 0.f) colBox = rcfg->color_dead;

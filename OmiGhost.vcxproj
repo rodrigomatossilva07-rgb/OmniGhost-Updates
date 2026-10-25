@@ -410,6 +410,7 @@
     <ClCompile Include="src\games\Fivem\game\game_setup.cpp"/>
     <ClCompile Include="src\games\Fivem\game\offsets.cpp"/>
     <ClCompile Include="src\games\Fivem\radar\fivem_web_radar.cpp"/>
+    <ClCompile Include="third_party\keyauth\x64\lib\QRCode\qrcode.cpp"/>
     <ClCompile Include="src\games\Fivem\playerInfo\PedData.cpp"/>
     <ClCompile Include="src\games\Cs2\aimbot\cs2_aim.cpp"/>
     <ClCompile Include="src\games\Cs2\esp\cs2_esp.cpp"/>

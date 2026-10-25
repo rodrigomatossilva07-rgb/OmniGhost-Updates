@@ -23,13 +23,9 @@ void StopCloudflare();
 bool CloudflareRunning() noexcept;
 std::string CloudflareStatus();
 
-void SetDemoMode(bool enabled) noexcept;
-bool DemoMode() noexcept;
-
 struct Diagnostics {
     bool running = false;
     bool sourceFresh = false;
-    bool demo = false;
     std::uint32_t clients = 0;
     std::uint32_t players = 0;
     std::uint32_t vehicles = 0;
