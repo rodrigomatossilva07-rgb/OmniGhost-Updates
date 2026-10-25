@@ -27,8 +27,6 @@ namespace {
         {"nav.visuals", {"Visuais", "Visuals", "Visuals", "Visuales", "Visuels", "Visuali", "ðÆð©ðÀÐâð░ð╗Ðï"}},
         {"nav.aim", {"Mira", "Aim", "Aim", "Punteria", "Visee", "Mira", "ðƒÐÇð©ÐåðÁð╗ð©ð▓ð░ð¢ð©ðÁ"}},
         {"nav.vehicles", {"Veículos", "Vehicles", "Fahrzeuge", "Vehiculos", "Vehicules", "Veicoli", "ðóÐÇð░ð¢Ðüð┐ð¥ÐÇÐé"}},
-        {"nav.object_esp", {"Object ESP", "Object ESP", "Object ESP", "Object ESP", "Object ESP", "Object ESP", "Object ESP"}},
-        {"nav.object_explorer", {"Explorador de objetos", "Object Explorer", "Objekt-Explorer", "Explorador de objetos", "Explorateur d'objets", "Esplora oggetti", "Object Explorer"}},
         {"nav.friends", {"Amigos", "Friends", "Freunde", "Amigos", "Amis", "Amici", "ðöÐÇÐâðÀÐîÐÅ"}},
         {"nav.configs", {"Definições", "Configs", "Einstellungen", "Ajustes", "Reglages", "Impostazioni", "ðØð░ÐüÐéÐÇð¥ð╣ð║ð©"}},
         {"nav.save", {"Guardar", "Save/Load", "Speichern/Laden", "Guardar/Cargar", "Sauver/Charger", "Salva/Carica", "ðíð¥ÐàÐÇð░ð¢ð©ÐéÐî/ðùð░ð│ÐÇÐâðÀð©ÐéÐî"}},

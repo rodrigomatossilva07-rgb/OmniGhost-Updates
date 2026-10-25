@@ -364,6 +364,27 @@ bool esp::try_get_prepared_health(uintptr_t ped, float& out) {
     return data->health > 0.0f && data->health < 1000.0f;
 }
 
+bool esp::try_get_prepared_armor(uintptr_t ped, float& out) {
+    const PreparedEspData* data = FindPreparedEsp(ped);
+    if (!data) { out = 0.0f; return false; }
+    const float candidates[] = { data->armor, data->armor_alt_1, data->armor_alt_2 };
+    for (float value : candidates) {
+        if (std::isfinite(value) && value >= 0.0f && value <= 200.0f) {
+            out = value > 100.0f ? value * 0.5f : value;
+            return true;
+        }
+    }
+    out = 0.0f;
+    return false;
+}
+
+bool esp::try_get_prepared_visibility(uintptr_t ped, bool& visible, bool& known) {
+    const PreparedEspData* data = FindPreparedEsp(ped);
+    known = data && data->visibility_known;
+    visible = known && data->visible;
+    return known;
+}
+
 bool esp::try_get_prepared_vehicle(uintptr_t ped, uintptr_t& out) {
     const PreparedEspData* data = FindPreparedEsp(ped);
     if (!data) {

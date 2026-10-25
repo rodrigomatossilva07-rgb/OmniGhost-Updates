@@ -16,7 +16,10 @@
     { "name": "GameWarzoneBanner", "id": 414, "logicalName": "resources/games/warzone/banner.png", "source": "resources/games/warzone/banner.png", "type": "image", "mandatory": true },
     { "name": "GameWarzoneLogo", "id": 415, "logicalName": "resources/games/warzone/logo.png", "source": "resources/games/warzone/logo.png", "type": "image", "mandatory": true },
     { "name": "DmaStackVersions", "id": 416, "logicalName": "runtime/dma_stack_versions.json", "source": "config/release/versions.json", "type": "json", "mandatory": true },
-    { "name": "LicenseAgreementPdf", "id": 418, "logicalName": "legal/OmniGhost_EULA_and_Terms_of_Use.pdf", "source": "resources/OmniGhost_EULA_and_Terms_of_Use.pdf", "type": "binary", "mandatory": true }
+    { "name": "LicenseAgreementPdf", "id": 418, "logicalName": "legal/OmniGhost_EULA_and_Terms_of_Use.pdf", "source": "resources/OmniGhost_EULA_and_Terms_of_Use.pdf", "type": "binary", "mandatory": true },
+    { "name": "FivemWebRadarHtml", "id": 419, "logicalName": "fivem/webradar/index.html", "source": "src/games/Fivem/data/webradar/index.html", "type": "text", "mandatory": true },
+    { "name": "FivemWebRadarCss", "id": 420, "logicalName": "fivem/webradar/styles.css", "source": "src/games/Fivem/data/webradar/styles.css", "type": "text", "mandatory": true },
+    { "name": "FivemWebRadarJs", "id": 421, "logicalName": "fivem/webradar/app.js", "source": "src/games/Fivem/data/webradar/app.js", "type": "text", "mandatory": true }
   ],
   "trees": [
     { "namePrefix": "Cs2Weapon", "idStart": 10000, "logicalPrefix": "cs2/weapons", "source": "src/games/Cs2/data/weapons", "mandatory": true },

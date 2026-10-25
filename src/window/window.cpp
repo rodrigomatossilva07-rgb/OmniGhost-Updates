@@ -51,8 +51,6 @@ namespace {
         case MenuTab::TAB_VISUALS:          return { Loc::Tr("nav.visuals"), app_settings::T("Jogadores, informação e aparência", "Players, information and appearance") };
         case MenuTab::TAB_AIM:              return { Loc::Tr("nav.aim"), app_settings::T("Alvo, suavidade e disparo", "Targeting, smoothing and trigger") };
         case MenuTab::TAB_VEHICLES:         return { Loc::Tr("nav.vehicles"), app_settings::T("ESP, estado e personalização", "ESP, status and customization") };
-        case MenuTab::TAB_OBJECT_ESP:       return { Loc::Tr("nav.object_esp"), app_settings::T("Objetos do mundo, filtros e apresentação", "World objects, filters and appearance") };
-        case MenuTab::TAB_OBJECT_EXPLORER:  return { Loc::Tr("nav.object_explorer"), app_settings::T("Pesquisa, favoritos e modelos ignorados", "Search, favorites and ignored models") };
         case MenuTab::TAB_RADAR:            return { Loc::Tr("nav.radar"), app_settings::T("Posição, alcance e apresentação", "Position, range and appearance") };
         case MenuTab::TAB_FRIENDS:          return { Loc::Tr("nav.friends"), app_settings::T("Lista segura e jogadores próximos", "Friend list and nearby players") };
         case MenuTab::TAB_STATUS:           return { Loc::Tr("nav.status"), app_settings::T("Ligação, offsets e diagnóstico", "Connection, offsets and diagnostics") };
@@ -140,8 +138,6 @@ namespace {
         case MenuTab::TAB_VISUALS:     DrawVisuals(); break;
         case MenuTab::TAB_AIM:         DrawAim(); break;
         case MenuTab::TAB_VEHICLES:    DrawVehicles(); break;
-        case MenuTab::TAB_OBJECT_ESP:  DrawObjectEsp(); break;
-        case MenuTab::TAB_OBJECT_EXPLORER: DrawObjectExplorer(); break;
         case MenuTab::TAB_RADAR:       DrawRadar(); break;
         case MenuTab::TAB_FRIENDS:     DrawFriends(); break;
         case MenuTab::TAB_STATUS:      DrawFiveMStatus(); break;
@@ -224,8 +220,6 @@ namespace {
             add("Visuais FiveM", MenuTab::TAB_VISUALS, "ESP e apresentação");
             add("Mira FiveM", MenuTab::TAB_AIM, "Assistência");
             add("Veículos FiveM", MenuTab::TAB_VEHICLES, "Veículos");
-            add("Objetos FiveM", MenuTab::TAB_OBJECT_ESP, "Objetos do mundo");
-            add("Object Explorer FiveM", MenuTab::TAB_OBJECT_EXPLORER, "Pesquisa e filtros de objetos");
             add("Radar FiveM", MenuTab::TAB_RADAR, "Radar");
             add("Amigos FiveM", MenuTab::TAB_FRIENDS, "Jogadores");
             add("Sistema FiveM", MenuTab::TAB_STATUS, "Diagnóstico");

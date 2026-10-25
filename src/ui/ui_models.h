@@ -106,6 +106,10 @@ namespace esp {
         float radar_pos_x = 0.88f;
         float radar_pos_y = 0.78f;
         float radar_2d_size = 110.0f;
+        bool web_radar_enabled = false;
+        bool web_radar_cloudflare = false;
+        bool web_radar_demo = false;
+        int web_radar_port = 8765;
 
 
         bool skeleton_lod = true;

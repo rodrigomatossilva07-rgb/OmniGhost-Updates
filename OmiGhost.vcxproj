@@ -409,8 +409,7 @@
     <ClCompile Include="src\games\Fivem\game\game.cpp"/>
     <ClCompile Include="src\games\Fivem\game\game_setup.cpp"/>
     <ClCompile Include="src\games\Fivem\game\offsets.cpp"/>
-    <ClCompile Include="src\games\Fivem\objects\object_debugger.cpp"/>
-    <ClCompile Include="src\games\Fivem\objects\object_explorer.cpp"/>
+    <ClCompile Include="src\games\Fivem\radar\fivem_web_radar.cpp"/>
     <ClCompile Include="src\games\Fivem\playerInfo\PedData.cpp"/>
     <ClCompile Include="src\games\Cs2\aimbot\cs2_aim.cpp"/>
     <ClCompile Include="src\games\Cs2\esp\cs2_esp.cpp"/>
@@ -441,8 +440,6 @@
     <ClCompile Include="src\window\pages\rust\RustPages.cpp"/>
     <ClCompile Include="src\window\pages\fortnite\FortniteAimPage.cpp"/>
     <ClCompile Include="src\window\pages\fivem\FivemVisualsPage.cpp"/>
-    <ClCompile Include="src\window\pages\fivem\FivemObjectEspPage.cpp"/>
-    <ClCompile Include="src\window\pages\fivem\FivemObjectExplorerPage.cpp"/>
     <ClCompile Include="src\window\pages\unified_stubs.cpp"/>
 
     <ClCompile Include="third_party\ImGui\imgui.cpp"/>
@@ -516,6 +513,7 @@
     <ClInclude Include="src\platform\runtime_bootstrap.h"/>
     <ClInclude Include="src\platform\path_security.h"/>
     <ClInclude Include="src\platform\radar_access.h"/>
+    <ClInclude Include="src\games\Fivem\radar\fivem_web_radar.h"/>
     <ClInclude Include="src\platform\support_error.h"/>
     <ClInclude Include="src\licensing\license_service.h"/>
   </ItemGroup>

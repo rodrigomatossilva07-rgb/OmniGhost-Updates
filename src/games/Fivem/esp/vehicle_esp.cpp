@@ -30,6 +30,11 @@ namespace vehicle_esp {
     static std::chrono::steady_clock::time_point g_lastGearRefresh{};
     static std::unordered_map<uintptr_t, std::pair<Vec3, float>> g_speedHistory;
 
+    std::vector<VehicleData> GetSnapshot() {
+        std::scoped_lock lock(g_vehicleMutex);
+        return vehicles;
+    }
+
     static bool IsValidPtr(uintptr_t p) {
         return p > 0x10000ULL && p < 0x7FFFFFFFFFFFULL;
     }

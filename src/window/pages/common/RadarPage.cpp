@@ -1,6 +1,11 @@
 #include "../../widgets.h"
 #include "../../theme.h"
 #include "config/app_settings.h"
+#ifndef UI_PREVIEW
+#include "games/Fivem/radar/fivem_web_radar.h"
+#include <Windows.h>
+#include <shellapi.h>
+#endif
 #ifdef UI_PREVIEW
 #include "preview/preview_runtime.h"
 #else
@@ -64,6 +69,52 @@ void DrawRadar()
         CyberWidgets::TextLine(app_settings::T("Radar desativado.", "Radar disabled."), CyberWidgets::TextTone::Secondary);
     }
     CyberWidgets::EndCard();
+
+#ifndef UI_PREVIEW
+    CyberWidgets::CardGap(gap);
+    CyberWidgets::BeginCard(app_settings::T("WEB RADAR", "WEB RADAR"), left);
+    bool enabled = esp::config.web_radar_enabled;
+    if (CyberWidgets::ToggleSwitch(app_settings::T("Ativar Web Radar", "Enable Web Radar"), &enabled)) {
+        esp::config.web_radar_enabled = enabled;
+        if (enabled) FiveM::WebRadar::Start(esp::config.web_radar_port);
+        else FiveM::WebRadar::Stop();
+    }
+    if (enabled) {
+        if (!FiveM::WebRadar::IsRunning()) FiveM::WebRadar::Start(esp::config.web_radar_port);
+        bool demo = esp::config.web_radar_demo;
+        FiveM::WebRadar::SetDemoMode(demo);
+        if (CyberWidgets::ToggleSwitch(app_settings::T("Modo demonstração", "Demo mode"), &demo)) {
+            esp::config.web_radar_demo = demo;
+            FiveM::WebRadar::SetDemoMode(demo);
+        }
+        bool cloud = esp::config.web_radar_cloudflare;
+        if (cloud && !FiveM::WebRadar::CloudflareRunning() && FiveM::WebRadar::PublicUrl().empty())
+            FiveM::WebRadar::StartCloudflare();
+        if (CyberWidgets::ToggleSwitch(app_settings::T("Link público Cloudflare", "Cloudflare public link"), &cloud)) {
+            esp::config.web_radar_cloudflare = cloud;
+            if (cloud) FiveM::WebRadar::StartCloudflare(); else FiveM::WebRadar::StopCloudflare();
+        }
+        const auto d = FiveM::WebRadar::GetDiagnostics();
+        CyberWidgets::KeyValueRow(app_settings::T("Fonte de dados", "Data source"),
+            demo ? app_settings::T("Demonstração", "Demo") : (d.sourceFresh ? app_settings::T("Em direto", "Live") : app_settings::T("A aguardar", "Waiting")));
+        CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, "%u jogadores · %u veículos · %u ligações",
+            d.players, d.vehicles, d.clients);
+        if (CyberWidgets::GoldButton(app_settings::T("Abrir radar local", "Open local radar"), ImVec2(180.f, 34.f))) {
+            const auto url = FiveM::WebRadar::LocalUrl();
+            ShellExecuteA(nullptr, "open", url.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+        }
+        if (cloud) {
+            const auto publicUrl = FiveM::WebRadar::PublicUrl();
+            if (!publicUrl.empty() && CyberWidgets::CyberButton(app_settings::T("Abrir link público", "Open public link"), ImVec2(180.f, 34.f)))
+                ShellExecuteA(nullptr, "open", publicUrl.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+            const auto status = FiveM::WebRadar::CloudflareStatus();
+            if (!status.empty()) CyberWidgets::TextLine(status.c_str(), CyberWidgets::TextTone::Secondary);
+        }
+        CyberWidgets::TextLine(app_settings::T("O token privado fica no fragmento do link e nunca é incluído nos dados do mapa.",
+            "The private token remains in the URL fragment and is never included in map data."), CyberWidgets::TextTone::Secondary);
+    }
+    CyberWidgets::EndCard();
+#endif
 
     ImGui::EndGroup();
 

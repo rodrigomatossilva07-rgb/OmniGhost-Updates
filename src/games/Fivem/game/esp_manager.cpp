@@ -4,7 +4,7 @@
 #include "offsets.h"
 #include "../esp/esp.h"
 #include "../esp/vehicle_esp.h"
-#include "../objects/object_debugger.h"
+#include "../radar/fivem_web_radar.h"
 #include "config/config_manager.h"
 #include "../aimbot/aimbot.h"
 #include "../friends/friends.h"
@@ -530,7 +530,7 @@ namespace FiveM {
                                 job.peds, job.positions, job.localPos,
                                 &viewMatrix, maxVisDist, prodVis);
                         }
-                        if (job.friendsListRequested || job.espConfig.enabled ||
+                        if (job.friendsListRequested || job.espConfig.enabled || job.espConfig.web_radar_enabled ||
                             job.aimConfig.aimbot_enabled || job.aimConfig.trigger_enabled ||
                             (job.espConfig.radar_enabled &&
                              (job.espConfig.team_check || friends::HasFriends()))) {
@@ -566,13 +566,7 @@ namespace FiveM {
                             cam->sessionGeneration == s_sessionGeneration.load(std::memory_order_acquire))
                             vehicleCamera = cam->viewMatrix;
                         vehicle_esp::Collect(job.vehicleConfig, job.peds,
-                            job.localPos, vehicleCamera);
-                    }
-                    if (FiveM::ObjectDebugger::RequestedRecently() && pressure < 2 && checkGen()) {
-                        mem.SetDmaPriority(Memory::DmaPri::OtherMetadata);
-                        if (!GiveCameraPriorityBeforeOptionalDma())
-                            break;
-                        FiveM::ObjectDebugger::Collect(job.localPos, jobGen);
+                            job.localPos, vehicleCamera, job.espConfig.web_radar_enabled);
                     }
                     } while (false);
                 } catch (const std::exception& ex) {
@@ -917,6 +911,7 @@ namespace FiveM {
         }
 
         void StopAcquisition() {
+            FiveM::WebRadar::Stop();
             aimbot::ResetTrackingState();
             s_acquisitionStop.store(true, std::memory_order_release);
             s_cameraStop.store(true, std::memory_order_release);
@@ -945,7 +940,6 @@ namespace FiveM {
             esp::ShutdownWaypointAndBlips();
             esp::ShutdownPreparedFrames();
             vehicle_esp::Shutdown();
-            FiveM::ObjectDebugger::Shutdown();
             g_pedCacheManager.clearCache();
             s_acquisitionRunning.store(false, std::memory_order_release);
             s_acquireRawPeds.clear();

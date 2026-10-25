@@ -4,7 +4,6 @@
 #include "../src/games/Warzone/warzone_game.h"
 #include "../src/games/Fortnite/fortnite_game.h"
 #include "../src/games/Rust/rust_game.h"
-#include "../src/games/Fivem/objects/object_explorer.h"
 #include <cstring>
 #include <iterator>
 
@@ -835,24 +834,12 @@ bool DeserializeFortnite(const std::string& key, const std::string& val) {
 
 
 void SerializeFiveM(std::ostringstream& o) {
-    WStr(o, "fivem.objects.favorites",
-        FiveM::ObjectExplorer::SerializeHashSet(FiveM::ObjectExplorer::config.favorites));
-    WStr(o, "fivem.objects.hidden",
-        FiveM::ObjectExplorer::SerializeHashSet(FiveM::ObjectExplorer::config.hiddenModels));
-    WStr(o, "fivem.objects.ignored",
-        FiveM::ObjectExplorer::SerializeHashSet(FiveM::ObjectExplorer::config.ignoredModels));
+    (void)o;
 }
 
 bool DeserializeFiveM(const std::string& key, const std::string& val) {
-    if (key == "fivem.objects.favorites")
-        return FiveM::ObjectExplorer::DeserializeHashSet(
-            val, FiveM::ObjectExplorer::config.favorites);
-    if (key == "fivem.objects.hidden")
-        return FiveM::ObjectExplorer::DeserializeHashSet(
-            val, FiveM::ObjectExplorer::config.hiddenModels);
-    if (key == "fivem.objects.ignored")
-        return FiveM::ObjectExplorer::DeserializeHashSet(
-            val, FiveM::ObjectExplorer::config.ignoredModels);
+    (void)key;
+    (void)val;
     return false;
 }
 

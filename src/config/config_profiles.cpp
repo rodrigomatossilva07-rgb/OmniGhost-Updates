@@ -6,7 +6,6 @@
 #include "../../src/games/Fivem/aimbot/aimbot.h"
 #include "../../src/games/Fivem/esp/vehicle_esp.h"
 #include "../../src/games/Fivem/friends/friends.h"
-#include "../../src/games/Fivem/objects/object_explorer.h"
 #include "../../src/games/Fortnite/fortnite_game.h"
 #include "../../src/games/Rust/rust_game.h"
 #include <cstring>
@@ -168,7 +167,6 @@ void ResetActiveGameToDefaults() {
         aimbot::config = aimbot::Config{};
         vehicle_esp::config = vehicle_esp::Config{};
         friends::config = friends::Config{};
-        FiveM::ObjectExplorer::Reset();
         break;
     }
     active_profile_name = "Default";

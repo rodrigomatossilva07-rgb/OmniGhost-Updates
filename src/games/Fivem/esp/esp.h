@@ -122,6 +122,8 @@ namespace esp {
     bool try_get_prepared_network_id(uintptr_t ped, uint32_t& out);
     bool try_get_prepared_player_name(uintptr_t ped, char* out, size_t outSize);
     bool try_get_prepared_health(uintptr_t ped, float& out);
+    bool try_get_prepared_armor(uintptr_t ped, float& out);
+    bool try_get_prepared_visibility(uintptr_t ped, bool& visible, bool& known);
     bool try_get_prepared_vehicle(uintptr_t ped, uintptr_t& out);
 
     void draw_health_info(const Vec2& position, float health);

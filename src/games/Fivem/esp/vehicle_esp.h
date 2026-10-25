@@ -22,6 +22,7 @@ namespace vehicle_esp {
 
     extern Config config;
     extern std::vector<VehicleData> vehicles;
+    std::vector<VehicleData> GetSnapshot();
 
     void Collect(const Config& frameConfig, const std::vector<uintptr_t>& peds,
                  const Vec3& localPos,
