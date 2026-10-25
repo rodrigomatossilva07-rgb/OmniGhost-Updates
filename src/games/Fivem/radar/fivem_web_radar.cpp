@@ -62,6 +62,7 @@ std::mutex g_cloudMutex;
 PROCESS_INFORMATION g_cloudProcess{};
 std::thread g_cloudThread;
 std::atomic<bool> g_cloudStop{false};
+std::atomic<bool> g_cloudWorkerActive{false};
 std::string g_publicUrl, g_cloudStatus;
 
 std::string Escape(std::string_view in) {
@@ -203,13 +204,13 @@ void ServerLoop(){WSADATA w{};if(WSAStartup(MAKEWORD(2,2),&w)!=0){g_running=fals
 }
 
 std::wstring CloudflaredPath(){std::wstring err;if(OmniGhost::RuntimeBootstrap::MaterializePrivateRuntimeFile(L"libs/cloudflared.exe",err))return OmniGhost::RuntimeBootstrap::PrivateRuntimePath(L"libs/cloudflared.exe").wstring();return L"libs\\cloudflared.exe";}
-void CloudLoop(){SECURITY_ATTRIBUTES sa{sizeof(sa),nullptr,TRUE};HANDLE rd=nullptr,wr=nullptr;if(!CreatePipe(&rd,&wr,&sa,0)){std::scoped_lock l(g_cloudMutex);g_cloudStatus="Falha ao criar canal do túnel.";return;}SetHandleInformation(rd,HANDLE_FLAG_INHERIT,0);
+void CloudLoop(){SECURITY_ATTRIBUTES sa{sizeof(sa),nullptr,TRUE};HANDLE rd=nullptr,wr=nullptr;if(!CreatePipe(&rd,&wr,&sa,0)){std::scoped_lock l(g_cloudMutex);g_cloudStatus="Falha ao criar canal do túnel.";g_cloudWorkerActive=false;return;}SetHandleInformation(rd,HANDLE_FLAG_INHERIT,0);
   STARTUPINFOW si{};si.cb=sizeof(si);si.dwFlags=STARTF_USESTDHANDLES|STARTF_USESHOWWINDOW;si.wShowWindow=SW_HIDE;si.hStdOutput=wr;si.hStdError=wr;
   const auto exe=CloudflaredPath();std::wstring cmd=L"\""+exe+L"\" tunnel --no-autoupdate --protocol http2 --url http://127.0.0.1:"+std::to_wstring(g_port);std::vector<wchar_t> mutableCmd(cmd.begin(),cmd.end());mutableCmd.push_back(0);
-  PROCESS_INFORMATION pi{};if(!CreateProcessW(exe.c_str(),mutableCmd.data(),nullptr,nullptr,TRUE,CREATE_NO_WINDOW,nullptr,nullptr,&si,&pi)){CloseHandle(rd);CloseHandle(wr);std::scoped_lock l(g_cloudMutex);g_cloudStatus="Não foi possível iniciar cloudflared.";return;}CloseHandle(wr);{std::scoped_lock l(g_cloudMutex);g_cloudProcess=pi;g_cloudStatus="A criar link público...";}
+  PROCESS_INFORMATION pi{};if(!CreateProcessW(exe.c_str(),mutableCmd.data(),nullptr,nullptr,TRUE,CREATE_NO_WINDOW,nullptr,nullptr,&si,&pi)){CloseHandle(rd);CloseHandle(wr);std::scoped_lock l(g_cloudMutex);g_cloudStatus="Não foi possível iniciar cloudflared.";g_cloudWorkerActive=false;return;}CloseHandle(wr);{std::scoped_lock l(g_cloudMutex);g_cloudProcess=pi;g_cloudStatus="A criar link público...";}
   std::string text,pendingUrl;char b[1024];while(!g_cloudStop){DWORD avail=0;if(PeekNamedPipe(rd,nullptr,0,nullptr,&avail,nullptr)&&avail){DWORD got=0;if(ReadFile(rd,b,(std::min)(avail,DWORD(sizeof(b))),&got,nullptr)&&got){text.append(b,got);if(text.size()>32768)text.erase(0,text.size()-16384);auto p=text.find("https://");while(p!=std::string::npos){auto e=text.find_first_of(" \r\n\t",p);auto u=text.substr(p,e-p);if(u.find(".trycloudflare.com")!=std::string::npos){pendingUrl=u;break;}p=text.find("https://",p+8);}if(!pendingUrl.empty()&&text.find("Registered tunnel connection")!=std::string::npos){std::scoped_lock l(g_cloudMutex);g_publicUrl=pendingUrl+"/#"+g_token;g_cloudStatus="Túnel ligado e pronto.";}}}
     if(WaitForSingleObject(pi.hProcess,50)==WAIT_OBJECT_0)break;}
-  if(g_cloudStop)TerminateProcess(pi.hProcess,0);WaitForSingleObject(pi.hProcess,3000);CloseHandle(rd);CloseHandle(pi.hThread);CloseHandle(pi.hProcess);{std::scoped_lock l(g_cloudMutex);g_cloudProcess={};if(!g_cloudStop){g_publicUrl.clear();g_cloudStatus="Ligação Cloudflare interrompida; a tentar novamente...";}}
+  if(g_cloudStop)TerminateProcess(pi.hProcess,0);WaitForSingleObject(pi.hProcess,3000);CloseHandle(rd);CloseHandle(pi.hThread);CloseHandle(pi.hProcess);{std::scoped_lock l(g_cloudMutex);g_cloudProcess={};if(!g_cloudStop){g_publicUrl.clear();g_cloudStatus="Ligação Cloudflare interrompida; a tentar novamente...";}}g_cloudWorkerActive=false;
 }
 }
 
@@ -218,7 +219,7 @@ void Stop(){StopCloudflare();g_stop=true;if(g_listener!=INVALID_SOCKET)shutdown(
 bool IsRunning() noexcept{return g_running;} int Port() noexcept{return g_port;}
 void PublishFromCaches(){std::uint32_t pc=0,vc=0;std::string json=BuildFromCaches(pc,vc);g_sourceConnected=json.find("\"connected\":true")!=std::string::npos;std::scoped_lock l(g_stateMutex);g_json=std::move(json);g_sampleTime=Clock::now();g_players=pc;g_vehicles=vc;}
 std::string AccessToken(){return g_token;} std::string LocalUrl(){return "http://127.0.0.1:"+std::to_string(g_port)+"/#"+g_token;} std::string PublicUrl(){std::scoped_lock l(g_cloudMutex);return g_publicUrl;}
-bool StartCloudflare(){if(!g_running&&!Start(g_port))return false;if(g_cloudThread.joinable()){if(CloudflareRunning())return true;g_cloudThread.join();}g_cloudStop=false;{std::scoped_lock l(g_cloudMutex);g_publicUrl.clear();g_cloudStatus="A iniciar túnel...";}g_cloudThread=std::thread(CloudLoop);return true;}
+bool StartCloudflare(){if(!g_running&&!Start(g_port))return false;if(g_cloudThread.joinable()){if(g_cloudWorkerActive||CloudflareRunning())return true;g_cloudThread.join();}g_cloudStop=false;g_cloudWorkerActive=true;{std::scoped_lock l(g_cloudMutex);g_publicUrl.clear();g_cloudStatus="A iniciar túnel...";}try{g_cloudThread=std::thread(CloudLoop);}catch(...){g_cloudWorkerActive=false;std::scoped_lock l(g_cloudMutex);g_cloudStatus="Não foi possível criar a thread do túnel.";return false;}return true;}
 void StopCloudflare(){g_cloudStop=true;{std::scoped_lock l(g_cloudMutex);if(g_cloudProcess.hProcess)TerminateProcess(g_cloudProcess.hProcess,0);}if(g_cloudThread.joinable())g_cloudThread.join();std::scoped_lock l(g_cloudMutex);g_publicUrl.clear();g_cloudStatus.clear();}
 bool CloudflareRunning() noexcept{std::scoped_lock l(g_cloudMutex);return g_cloudProcess.hProcess!=nullptr;}std::string CloudflareStatus(){std::scoped_lock l(g_cloudMutex);return g_cloudStatus;}
 Diagnostics GetDiagnostics() noexcept{Diagnostics d;d.running=g_running;d.clients=g_clientCount;std::scoped_lock l(g_stateMutex);d.players=g_players;d.vehicles=g_vehicles;d.sourceFresh=g_sourceConnected&&g_sampleTime.time_since_epoch().count()!=0&&Clock::now()-g_sampleTime<kStaleAfter;d.lastSampleAgeMs=g_sampleTime.time_since_epoch().count()?std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now()-g_sampleTime).count():0;return d;}
