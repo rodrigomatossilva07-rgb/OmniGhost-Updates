@@ -83,6 +83,16 @@ void SerializeESP(std::ostringstream& o) {
     WInt(o, "esp.layout_armor", (int)e.layout_armor);
     WInt(o, "esp.layout_weapon", (int)e.layout_weapon);
     WInt(o, "esp.layout_distance", (int)e.layout_distance);
+    WFloat(o, "esp.layout_name_x", e.layout_name_x);
+    WFloat(o, "esp.layout_name_y", e.layout_name_y);
+    WFloat(o, "esp.layout_health_x", e.layout_health_x);
+    WFloat(o, "esp.layout_health_y", e.layout_health_y);
+    WFloat(o, "esp.layout_armor_x", e.layout_armor_x);
+    WFloat(o, "esp.layout_armor_y", e.layout_armor_y);
+    WFloat(o, "esp.layout_weapon_x", e.layout_weapon_x);
+    WFloat(o, "esp.layout_weapon_y", e.layout_weapon_y);
+    WFloat(o, "esp.layout_distance_x", e.layout_distance_x);
+    WFloat(o, "esp.layout_distance_y", e.layout_distance_y);
     WFloat(o, "esp.layout_spacing", e.layout_spacing);
     WFloat(o, "esp.layout_text_scale", e.layout_text_scale);
     WBool(o, "esp.layout_snap", e.layout_snap);
@@ -193,6 +203,16 @@ bool DeserializeESP(const std::string& key, const std::string& val) {
     if (bi("esp.layout_armor")) { e.layout_armor = (esp::LayoutAnchor)std::clamp(toI(), 0, 3); return true; }
     if (bi("esp.layout_weapon")) { e.layout_weapon = (esp::LayoutAnchor)std::clamp(toI(), 0, 3); return true; }
     if (bi("esp.layout_distance")) { e.layout_distance = (esp::LayoutAnchor)std::clamp(toI(), 0, 3); return true; }
+    if (bi("esp.layout_name_x")) { e.layout_name_x = std::clamp(toF(), -.20f, 1.20f); return true; }
+    if (bi("esp.layout_name_y")) { e.layout_name_y = std::clamp(toF(), -.20f, 1.20f); return true; }
+    if (bi("esp.layout_health_x")) { e.layout_health_x = std::clamp(toF(), -.20f, 1.20f); return true; }
+    if (bi("esp.layout_health_y")) { e.layout_health_y = std::clamp(toF(), -.20f, 1.20f); return true; }
+    if (bi("esp.layout_armor_x")) { e.layout_armor_x = std::clamp(toF(), -.20f, 1.20f); return true; }
+    if (bi("esp.layout_armor_y")) { e.layout_armor_y = std::clamp(toF(), -.20f, 1.20f); return true; }
+    if (bi("esp.layout_weapon_x")) { e.layout_weapon_x = std::clamp(toF(), -.20f, 1.20f); return true; }
+    if (bi("esp.layout_weapon_y")) { e.layout_weapon_y = std::clamp(toF(), -.20f, 1.20f); return true; }
+    if (bi("esp.layout_distance_x")) { e.layout_distance_x = std::clamp(toF(), -.20f, 1.20f); return true; }
+    if (bi("esp.layout_distance_y")) { e.layout_distance_y = std::clamp(toF(), -.20f, 1.20f); return true; }
     if (bi("esp.layout_spacing")) { e.layout_spacing = toF(); return true; }
     if (bi("esp.layout_text_scale")) { e.layout_text_scale = toF(); return true; }
     if (bi("esp.layout_snap")) { e.layout_snap = toB(); return true; }

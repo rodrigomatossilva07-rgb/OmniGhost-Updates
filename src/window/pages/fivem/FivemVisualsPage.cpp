@@ -8,6 +8,8 @@
 #include "imgui.h"
 
 #include <algorithm>
+#include <cmath>
+#include <iterator>
 
 namespace {
 
@@ -45,6 +47,16 @@ struct FivemPreviewAdapter : EspPreview::IConfigAdapter {
         cfg.weapon_ammo = false;
         cfg.text_outline = true;
         cfg.text_outline_thickness = 1.f;
+        cfg.layout_name_x = esp::config.layout_name_x;
+        cfg.layout_name_y = esp::config.layout_name_y;
+        cfg.layout_health_x = esp::config.layout_health_x;
+        cfg.layout_health_y = esp::config.layout_health_y;
+        cfg.layout_armor_x = esp::config.layout_armor_x;
+        cfg.layout_armor_y = esp::config.layout_armor_y;
+        cfg.layout_weapon_x = esp::config.layout_weapon_x;
+        cfg.layout_weapon_y = esp::config.layout_weapon_y;
+        cfg.layout_distance_x = esp::config.layout_distance_x;
+        cfg.layout_distance_y = esp::config.layout_distance_y;
 
         cfg.snaplines = esp::config.snaplines;
         cfg.snapline_position = esp::config.snapline_pos;
@@ -114,6 +126,54 @@ struct FivemPreviewAdapter : EspPreview::IConfigAdapter {
 };
 
 static FivemPreviewAdapter g_fivemAdapter;
+
+void DrawLayoutBuilder(const ImVec2& origin, float panelWidth, float panelHeight) {
+    ImDrawList* draw = ImGui::GetWindowDrawList();
+    const EspPreview::PlayerGeometry geometry = EspPreview::BuildGeometry(origin, panelWidth, panelHeight);
+    const ImVec2 boxMin = geometry.boundsMin;
+    const ImVec2 boxMax = geometry.boundsMax;
+    const ImVec2 restoreCursor = ImGui::GetCursorScreenPos();
+
+    struct Item { const char* sample; float* x; float* y; bool enabled; bool verticalBar; };
+    Item items[] = {
+        { "Enemy", &esp::config.layout_name_x, &esp::config.layout_name_y,
+          esp::config.player_name || esp::config.player_id, false },
+        { "75 HP", &esp::config.layout_health_x, &esp::config.layout_health_y,
+          esp::config.health_bar, true },
+        { "65 AP", &esp::config.layout_armor_x, &esp::config.layout_armor_y,
+          esp::config.armor_bar, true },
+        { "Pistol", &esp::config.layout_weapon_x, &esp::config.layout_weapon_y,
+          esp::config.weapon_name, false },
+        { "18m", &esp::config.layout_distance_x, &esp::config.layout_distance_y,
+          esp::config.distance, false }
+    };
+
+    for (int index = 0; index < static_cast<int>(std::size(items)); ++index) {
+        if (!items[index].enabled) continue;
+        const ImVec2 text = ImGui::CalcTextSize(items[index].sample);
+        ImVec2 pos(boxMin.x + *items[index].x * (boxMax.x - boxMin.x) - text.x * .5f,
+                   boxMin.y + *items[index].y * (boxMax.y - boxMin.y) - text.y * .5f);
+        const ImVec2 hitSize = items[index].verticalBar
+            ? ImVec2((std::max)(18.f, text.x), boxMax.y - boxMin.y)
+            : ImVec2(text.x + 12.f, text.y + 10.f);
+        if (items[index].verticalBar)
+            pos.y = boxMin.y;
+        ImGui::SetCursorScreenPos(pos);
+        ImGui::PushID(index);
+        ImGui::InvisibleButton("##fivem_layout_item", hitSize);
+        const bool active = ImGui::IsItemActive();
+        if (active || ImGui::IsItemHovered())
+            draw->AddRect(pos, ImVec2(pos.x + hitSize.x, pos.y + hitSize.y),
+                active ? IM_COL32(229, 184, 55, 180) : IM_COL32(229, 184, 55, 85), 4.f, 0, 1.f);
+        if (active && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
+            const ImVec2 mouse = ImGui::GetIO().MousePos;
+            *items[index].x = std::clamp((mouse.x - boxMin.x) / (boxMax.x - boxMin.x), -.20f, 1.20f);
+            *items[index].y = std::clamp((mouse.y - boxMin.y) / (boxMax.y - boxMin.y), -.20f, 1.20f);
+        }
+        ImGui::PopID();
+    }
+    ImGui::SetCursorScreenPos(restoreCursor);
+}
 
 }
 
@@ -222,8 +282,11 @@ void DrawFivemVisuals() {
     if (!stacked) ImGui::SameLine(0.f, gap);
 
 
-    ImGui::BeginChild("##fm_visual_preview", ImVec2(previewWidth, childHeight), false);
-    CyberWidgets::BeginCard("PRÉ-VISUALIZAÇÃO", previewWidth);
+    ImGui::BeginChild("##fm_visual_preview", ImVec2(previewWidth, childHeight), false,
+        ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    ImGui::SetScrollY(0.f);
+    CyberWidgets::BeginCard("PREVIEW & ESP BUILDER", previewWidth);
+    ImGui::TextDisabled("Arrasta os elementos na pré-visualização.");
 
     const float panelHeight = (std::max)(CyberTheme::Px(300.f), childHeight - CyberTheme::Metrics::CardHeaderHeight - CyberTheme::Metrics::CardPadding * 2.f);
     const float drawWidth = (std::max)(CyberTheme::Px(180.f), previewWidth - CyberTheme::Metrics::CardPadding * 2.f);
@@ -232,6 +295,7 @@ void DrawFivemVisuals() {
     const ImVec2 origin = ImGui::GetCursorScreenPos();
 
     EspPreview::DrawPreview(dl, origin, drawWidth, panelHeight, g_fivemAdapter, "PRÉ-VISUALIZAÇÃO ESP");
+    DrawLayoutBuilder(origin, drawWidth, panelHeight);
 
     CyberWidgets::EndCard();
     ImGui::EndChild();

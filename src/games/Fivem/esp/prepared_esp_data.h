@@ -113,6 +113,11 @@ struct PreparedRenderConfig {
     int layout_armor = 3;
     int layout_weapon = 1;
     int layout_distance = 1;
+    float layout_name_x = .50f, layout_name_y = .10f;
+    float layout_health_x = .18f, layout_health_y = .50f;
+    float layout_armor_x = .82f, layout_armor_y = .50f;
+    float layout_weapon_x = .50f, layout_weapon_y = .86f;
+    float layout_distance_x = .50f, layout_distance_y = .94f;
     float layout_spacing = 4.f;
     float layout_text_scale = 1.f;
 };

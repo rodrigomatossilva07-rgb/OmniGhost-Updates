@@ -1241,6 +1241,16 @@ void esp::prepare_esp_frame(const std::vector<uintptr_t>& peds,
     next.renderConfig.layout_armor = static_cast<int>(frameConfig.layout_armor);
     next.renderConfig.layout_weapon = static_cast<int>(frameConfig.layout_weapon);
     next.renderConfig.layout_distance = static_cast<int>(frameConfig.layout_distance);
+    next.renderConfig.layout_name_x = frameConfig.layout_name_x;
+    next.renderConfig.layout_name_y = frameConfig.layout_name_y;
+    next.renderConfig.layout_health_x = frameConfig.layout_health_x;
+    next.renderConfig.layout_health_y = frameConfig.layout_health_y;
+    next.renderConfig.layout_armor_x = frameConfig.layout_armor_x;
+    next.renderConfig.layout_armor_y = frameConfig.layout_armor_y;
+    next.renderConfig.layout_weapon_x = frameConfig.layout_weapon_x;
+    next.renderConfig.layout_weapon_y = frameConfig.layout_weapon_y;
+    next.renderConfig.layout_distance_x = frameConfig.layout_distance_x;
+    next.renderConfig.layout_distance_y = frameConfig.layout_distance_y;
     next.renderConfig.layout_spacing = frameConfig.layout_spacing;
     next.renderConfig.layout_text_scale = frameConfig.layout_text_scale;
     next.renderConfig.skeleton_lod = frameConfig.skeleton_lod;
@@ -1885,22 +1895,14 @@ static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer,
     if (rcfg->health_bar) {
         const float bw = 4.f;
         const ImU32 healthColor = EspPedColor(ped, rcfg->color_health, visible);
-        const int anchor = std::clamp(rcfg->layout_health, 0, 3);
-        if (anchor == 2 || anchor == 3) {
-            const float x = anchor == 2 ? boxMin.x - bw - rcfg->layout_spacing
-                                        : boxMax.x + rcfg->layout_spacing;
-            OmniGhost::Gameplay::EspCore::DrawVerticalBar(dl, ImVec2(x, boxMin.y),
-                ImVec2(x + bw, boxMax.y), hpFrac, healthColor, Darker(healthColor));
-        } else {
-            const float y = anchor == 0 ? boxMin.y - bw - rcfg->layout_spacing
-                                        : boxMax.y + rcfg->layout_spacing;
-            const ImVec2 barMin(boxMin.x, y), barMax(boxMax.x, y + bw);
-            dl->AddRectFilled(ImVec2(barMin.x - 1.f, barMin.y - 1.f),
-                ImVec2(barMax.x + 1.f, barMax.y + 1.f), IM_COL32(0, 0, 0, 210), 1.f);
-            dl->AddRectFilled(barMin, barMax, IM_COL32(18, 18, 22, 225));
-            dl->AddRectFilled(barMin, ImVec2(barMin.x + (barMax.x - barMin.x) * hpFrac,
-                barMax.y), healthColor);
-        }
+        const float x = boxMin.x + std::clamp(rcfg->layout_health_x, -.20f, 1.20f) *
+            (boxMax.x - boxMin.x) - bw * .5f;
+        const float centerY = boxMin.y + std::clamp(rcfg->layout_health_y, -.20f, 1.20f) *
+            (boxMax.y - boxMin.y);
+        const float halfHeight = (boxMax.y - boxMin.y) * .46f;
+        OmniGhost::Gameplay::EspCore::DrawVerticalBar(dl,
+            ImVec2(x, centerY - halfHeight), ImVec2(x + bw, centerY + halfHeight),
+            hpFrac, healthColor, Darker(healthColor));
     }
 
 
@@ -1921,49 +1923,29 @@ static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer,
             float arFrac = ar100 / 100.f;
             const float bw = 5.f;
             const ImU32 armorColor = EspPedColor(ped, rcfg->color_armor, visible);
-            const int anchor = std::clamp(rcfg->layout_armor, 0, 3);
-            if (anchor == 2 || anchor == 3) {
-                const float x = anchor == 2 ? boxMin.x - bw - rcfg->layout_spacing - 6.f
-                                            : boxMax.x + rcfg->layout_spacing;
-                OmniGhost::Gameplay::EspCore::DrawVerticalBar(dl, ImVec2(x, boxMin.y),
-                    ImVec2(x + bw, boxMax.y), arFrac, armorColor, Darker(armorColor));
-            } else {
-                const float y = anchor == 0 ? boxMin.y - bw - rcfg->layout_spacing - 6.f
-                                            : boxMax.y + rcfg->layout_spacing + 6.f;
-                const ImVec2 barMin(boxMin.x, y), barMax(boxMax.x, y + bw);
-                dl->AddRectFilled(ImVec2(barMin.x - 1.f, barMin.y - 1.f),
-                    ImVec2(barMax.x + 1.f, barMax.y + 1.f), IM_COL32(0, 0, 0, 210), 1.f);
-                dl->AddRectFilled(barMin, barMax, IM_COL32(18, 18, 22, 225));
-                dl->AddRectFilled(barMin, ImVec2(barMin.x + (barMax.x - barMin.x) * arFrac,
-                    barMax.y), armorColor);
-            }
+            const float x = boxMin.x + std::clamp(rcfg->layout_armor_x, -.20f, 1.20f) *
+                (boxMax.x - boxMin.x) - bw * .5f;
+            const float centerY = boxMin.y + std::clamp(rcfg->layout_armor_y, -.20f, 1.20f) *
+                (boxMax.y - boxMin.y);
+            const float halfHeight = (boxMax.y - boxMin.y) * .46f;
+            OmniGhost::Gameplay::EspCore::DrawVerticalBar(dl,
+                ImVec2(x, centerY - halfHeight), ImVec2(x + bw, centerY + halfHeight),
+                arFrac, armorColor, Darker(armorColor));
         }
     }
 
 
     {
-        const float cx = (boxMin.x + boxMax.x) * 0.5f;
-        float sideOffsets[4] = { rcfg->layout_spacing, rcfg->layout_spacing,
-                                 rcfg->layout_spacing, rcfg->layout_spacing };
-        auto drawLayoutText = [&](const char* text, ImU32 color, int rawAnchor) {
+        auto drawLayoutText = [&](const char* text, ImU32 color, float normalizedX, float normalizedY) {
             if (!text || !*text) return;
-            const int anchor = std::clamp(rawAnchor, 0, 3);
             const float scale = std::clamp(rcfg->layout_text_scale, .65f, 1.6f);
             ImFont* font = ImGui::GetFont();
             const float fontSize = ImGui::GetFontSize() * scale;
             const ImVec2 ts = font->CalcTextSizeA(fontSize, FLT_MAX, 0.f, text);
-            ImVec2 pos{};
-            if (anchor == 0) {
-                pos = ImVec2(cx - ts.x * .5f, boxMin.y - sideOffsets[0] - ts.y);
-            } else if (anchor == 1) {
-                pos = ImVec2(cx - ts.x * .5f, boxMax.y + sideOffsets[1]);
-            } else if (anchor == 2) {
-                pos = ImVec2(boxMin.x - sideOffsets[2] - ts.x, boxMin.y + sideOffsets[2]);
-            } else {
-                pos = ImVec2(boxMax.x + sideOffsets[3], boxMin.y + sideOffsets[3]);
-            }
+            const ImVec2 pos(
+                boxMin.x + std::clamp(normalizedX, -.20f, 1.20f) * (boxMax.x - boxMin.x) - ts.x * .5f,
+                boxMin.y + std::clamp(normalizedY, -.20f, 1.20f) * (boxMax.y - boxMin.y) - ts.y * .5f);
             DrawTextOutlinedScaled(dl, pos, color, text, scale);
-            sideOffsets[anchor] += ts.y + 2.f;
         };
 
 
@@ -1987,7 +1969,7 @@ static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer,
                 snprintf(line, sizeof(line), "%s", nbuf);
             drawLayoutText(line, EspPedColor(ped,
                 (rcfg->player_name ? rcfg->color_name : rcfg->color_id), visible),
-                rcfg->layout_name);
+                rcfg->layout_name_x, rcfg->layout_name_y);
         }
 
         if (rcfg->weapon_name) {
@@ -2130,14 +2112,14 @@ static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer,
                 }
             }
             drawLayoutText(wname, EspPedColor(ped, rcfg->color_weapon, visible),
-                rcfg->layout_weapon);
+                rcfg->layout_weapon_x, rcfg->layout_weapon_y);
         }
 
         if (rcfg->distance) {
             char buf[32];
             snprintf(buf, sizeof(buf), "%.0fm", dist);
             drawLayoutText(buf, EspPedColor(ped, rcfg->color_distance, visible),
-                rcfg->layout_distance);
+                rcfg->layout_distance_x, rcfg->layout_distance_y);
         }
     }
 }
