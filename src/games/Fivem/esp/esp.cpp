@@ -594,9 +594,9 @@ static bool EspPedVisibilityKnown(uintptr_t ped) {
 }
 
 static bool EspPedPassesVisibility(uintptr_t ped) {
-    // Dados desconhecidos não significam "oculto". Num leitor DMA externo não
-    // há uma chamada segura às natives de raycast; ocultamos apenas quando a
-    // amostra é recente, conhecida e explicitamente bloqueada.
+
+
+
     return !esp::config.visible_check || !EspPedVisibilityKnown(ped) || EspPedVisible(ped);
 }
 

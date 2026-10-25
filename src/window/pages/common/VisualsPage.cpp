@@ -219,8 +219,8 @@ void DrawVisuals()
     CyberWidgets::Separator();
     CyberWidgets::SectionTitle(Loc::Tr("vis.elements"));
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.skeleton"), &esp::config.skeleton);
-    // O LOD do esqueleto é sempre automático. Manter isto explícito também
-    // normaliza configurações antigas que tinham o controlo manual desligado.
+
+
     esp::config.skeleton_lod = true;
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.joints"), &esp::config.joints);
     CyberWidgets::ToggleSwitch(Loc::Tr("vis.head_circle"), &esp::config.head_circle);

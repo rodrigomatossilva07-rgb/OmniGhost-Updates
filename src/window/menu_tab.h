@@ -6,6 +6,7 @@ enum class MenuTab : int {
     TAB_AIM,
     TAB_VEHICLES,
     TAB_OBJECT_ESP,
+    TAB_OBJECT_EXPLORER,
     TAB_FRIENDS,
     TAB_CONFIGS,
     TAB_SAVECONFIG,
@@ -60,6 +61,7 @@ void DrawVisuals();
 void DrawAim();
 void DrawVehicles();
 void DrawObjectEsp();
+void DrawObjectExplorer();
 void DrawRadar();
 void DrawFriends();
 void DrawSaveConfigs();

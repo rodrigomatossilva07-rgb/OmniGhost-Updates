@@ -4,6 +4,7 @@
 #include "offsets.h"
 #include "../esp/esp.h"
 #include "../esp/vehicle_esp.h"
+#include "../objects/object_debugger.h"
 #include "config/config_manager.h"
 #include "../aimbot/aimbot.h"
 #include "../friends/friends.h"
@@ -538,8 +539,8 @@ namespace FiveM {
                                 break;
 
 
-                            // O batch atualiza o cache tri-state. Passar apenas
-                            // bool aqui transformava UNKNOWN em HIDDEN.
+
+
                             esp::prepare_esp_frame(job.peds, job.positions, job.healths,
                                 job.espConfig, job.aimConfig, nullptr);
                         }
@@ -566,6 +567,12 @@ namespace FiveM {
                             vehicleCamera = cam->viewMatrix;
                         vehicle_esp::Collect(job.vehicleConfig, job.peds,
                             job.localPos, vehicleCamera);
+                    }
+                    if (FiveM::ObjectDebugger::RequestedRecently() && pressure < 2 && checkGen()) {
+                        mem.SetDmaPriority(Memory::DmaPri::OtherMetadata);
+                        if (!GiveCameraPriorityBeforeOptionalDma())
+                            break;
+                        FiveM::ObjectDebugger::Collect(job.localPos, jobGen);
                     }
                     } while (false);
                 } catch (const std::exception& ex) {
@@ -938,6 +945,7 @@ namespace FiveM {
             esp::ShutdownWaypointAndBlips();
             esp::ShutdownPreparedFrames();
             vehicle_esp::Shutdown();
+            FiveM::ObjectDebugger::Shutdown();
             g_pedCacheManager.clearCache();
             s_acquisitionRunning.store(false, std::memory_order_release);
             s_acquireRawPeds.clear();

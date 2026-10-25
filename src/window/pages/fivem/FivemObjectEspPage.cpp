@@ -1,114 +1,150 @@
 #include "../../widgets.h"
 #include "../../theme.h"
 #include "config/app_settings.h"
+#include "games/Fivem/objects/object_debugger.h"
+#include "games/Fivem/objects/object_explorer.h"
 
 #include "third_party/ImGui/imgui.h"
 
+#include <algorithm>
+#include <cstdio>
+#include <string>
+#include <vector>
+
 namespace {
 
-void DrawObjectPreview(float width, float height)
-{
-    const ImVec2 min = ImGui::GetCursorScreenPos();
-    const ImVec2 max(min.x + width, min.y + height);
-    ImDrawList* draw = ImGui::GetWindowDrawList();
-
-    draw->AddRectFilled(min, max, IM_COL32(5, 5, 5, 255), CyberTheme::Px(8.f));
-    draw->AddRect(min, max, CyberTheme::WithAlpha(CyberTheme::Colors.Gold, .18f),
-        CyberTheme::Px(8.f));
-
-    const ImVec2 objectMin(min.x + width * .28f, min.y + height * .30f);
-    const ImVec2 objectMax(min.x + width * .72f, min.y + height * .72f);
-    draw->AddRect(objectMin, objectMax,
-        CyberTheme::WithAlpha(CyberTheme::Colors.Gold, .75f), CyberTheme::Px(3.f), 0,
-        CyberTheme::Px(1.5f));
-    draw->AddLine(ImVec2(objectMin.x, objectMin.y),
-        ImVec2(objectMin.x - CyberTheme::Px(11.f), objectMin.y - CyberTheme::Px(11.f)),
-        CyberTheme::WithAlpha(CyberTheme::Colors.Gold, .36f));
-    draw->AddLine(ImVec2(objectMax.x, objectMin.y),
-        ImVec2(objectMax.x + CyberTheme::Px(11.f), objectMin.y - CyberTheme::Px(11.f)),
-        CyberTheme::WithAlpha(CyberTheme::Colors.Gold, .36f));
-    draw->AddText(ImVec2(objectMin.x, objectMin.y - CyberTheme::Px(24.f)),
-        CyberTheme::U32(CyberTheme::Colors.Text), "World object");
-    draw->AddText(ImVec2(objectMin.x, objectMax.y + CyberTheme::Px(8.f)),
-        CyberTheme::U32(CyberTheme::Colors.TextDisabled), "24 m");
-    draw->AddText(ImVec2(min.x + CyberTheme::Px(12.f), min.y + CyberTheme::Px(10.f)),
-        CyberTheme::U32(CyberTheme::Colors.TextDisabled),
-        app_settings::T("PRE-VISUALIZACAO", "PREVIEW"));
-
-    ImGui::Dummy(ImVec2(width, height));
+CyberWidgets::TextTone ToneFor(FiveM::ObjectDebugger::AcquisitionState state) {
+    using State = FiveM::ObjectDebugger::AcquisitionState;
+    if (state == State::CandidateData || state == State::NoObjects ||
+        state == State::LayoutUnavailable)
+        return CyberWidgets::TextTone::Warning;
+    if (state == State::Idle || state == State::WaitingForGame)
+        return CyberWidgets::TextTone::Secondary;
+    return CyberWidgets::TextTone::Error;
 }
 
 }
 
 void DrawObjectEsp()
 {
-    static bool enabled = false;
-    static bool worldObjects = true;
-    static bool pickups = true;
-    static bool droppedWeapons = true;
-    static bool missionObjects = false;
-    static bool showName = true;
-    static bool showDistance = true;
-    static bool showIcon = true;
-    static float maximumDistance = 150.f;
+    using namespace FiveM::ObjectDebugger;
+    RequestRefresh();
+    const auto snapshotLease = AcquireSnapshot();
+    static const Snapshot emptySnapshot{};
+    const Snapshot& snapshot = snapshotLease ? *snapshotLease : emptySnapshot;
 
-    const float full = CyberWidgets::CardContentWidth();
-    const float gap = CyberTheme::Spacing::Sm;
-    const float left = (full - gap) * .58f;
-    const float right = full - left - gap;
+    static char search[96]{};
+    static int stateFilter = 0;
+    static bool onlyKnownModels = false;
 
-    ImGui::BeginGroup();
-    CyberWidgets::BeginCard("OBJECT ESP", left);
-    CyberWidgets::Badge(app_settings::T("EM PREPARACAO", "IN PREPARATION"),
+    CyberWidgets::BeginCard("OBJECT DEBUGGER");
+    CyberWidgets::Badge(app_settings::T("DIAGNOSTICO — ESP BLOQUEADO", "DIAGNOSTIC — ESP LOCKED"),
         CyberWidgets::TextTone::Warning);
     CyberWidgets::TextLine(
         app_settings::T(
-            "A interface esta preparada para a futura leitura validada de objetos do FiveM.",
-            "The interface is prepared for future validated FiveM object acquisition."),
+            "Esta ferramenta valida a aquisicao de CObject. Nenhum objeto e desenhado no jogo.",
+            "This tool validates CObject acquisition. No objects are drawn in game."),
         CyberWidgets::TextTone::Secondary);
-
-    ImGui::BeginDisabled();
-    CyberWidgets::ToggleSwitch(app_settings::T("Ativar Object ESP", "Enable Object ESP"), &enabled);
-    CyberWidgets::Separator();
-    CyberWidgets::ToggleSwitch(app_settings::T("Objetos do mundo", "World objects"), &worldObjects);
-    CyberWidgets::ToggleSwitch("Pickups", &pickups);
-    CyberWidgets::ToggleSwitch(app_settings::T("Armas largadas", "Dropped weapons"), &droppedWeapons);
-    CyberWidgets::ToggleSwitch(app_settings::T("Objetos de missao", "Mission objects"), &missionObjects);
-    ImGui::EndDisabled();
     CyberWidgets::EndCard();
 
-    CyberWidgets::CardGap(gap);
-    CyberWidgets::BeginCard(app_settings::T("APRESENTACAO", "APPEARANCE"), left);
-    ImGui::BeginDisabled();
-    CyberWidgets::ToggleSwitch(app_settings::T("Mostrar nome", "Show name"), &showName);
-    CyberWidgets::ToggleSwitch(app_settings::T("Mostrar distancia", "Show distance"), &showDistance);
-    CyberWidgets::ToggleSwitch(app_settings::T("Mostrar icone", "Show icon"), &showIcon);
-    CyberWidgets::SliderFloat(app_settings::T("Distancia maxima", "Maximum distance"),
-        &maximumDistance, 10.f, 500.f, "%.0f m");
-    ImGui::EndDisabled();
-    CyberWidgets::EndCard();
-    ImGui::EndGroup();
-
-    ImGui::SameLine(0.f, gap);
-    ImGui::BeginGroup();
-    CyberWidgets::BeginCard(app_settings::T("PRE-VISUALIZACAO", "PREVIEW"), right);
-    DrawObjectPreview((std::max)(CyberTheme::Px(160.f), right - CyberTheme::Px(20.f)),
-        CyberTheme::Px(230.f));
-    CyberWidgets::EndCard();
-
-    CyberWidgets::CardGap(gap);
-    CyberWidgets::BeginCard(app_settings::T("ESTADO", "STATUS"), right);
-    CyberWidgets::KeyValueRow("Object pool",
-        app_settings::T("Offset disponivel", "Offset available"));
-    CyberWidgets::KeyValueRow(app_settings::T("Aquisicao", "Acquisition"),
-        app_settings::T("Ainda nao implementada", "Not implemented yet"));
-    CyberWidgets::KeyValueRow(app_settings::T("Renderizacao", "Rendering"),
-        app_settings::T("Inativa", "Inactive"));
-    CyberWidgets::TextLine(
+    CyberWidgets::CardGap();
+    CyberWidgets::BeginCard(app_settings::T("ESTADO DA AQUISICAO", "ACQUISITION STATUS"));
+    CyberWidgets::Badge(StateText(snapshot.state), ToneFor(snapshot.state));
+    char value[96]{};
+    std::snprintf(value, sizeof(value), "b%d", snapshot.build);
+    CyberWidgets::KeyValueRow("Build", value);
+    std::snprintf(value, sizeof(value), "%u", snapshot.reportedCount);
+    CyberWidgets::KeyValueRow(app_settings::T("Objetos reportados", "Reported objects"), value);
+    std::snprintf(value, sizeof(value), "%u / %u", snapshot.inspectedCount, snapshot.reportedCount);
+    CyberWidgets::KeyValueRow(app_settings::T("Entradas inspecionadas", "Inspected entries"), value);
+    std::snprintf(value, sizeof(value), "%u", snapshot.validPositions);
+    CyberWidgets::KeyValueRow(app_settings::T("Posicoes validas", "Valid positions"), value);
+    std::snprintf(value, sizeof(value), "%u", snapshot.rejectedPointers);
+    CyberWidgets::KeyValueRow(app_settings::T("Ponteiros rejeitados", "Rejected pointers"), value);
+    std::snprintf(value, sizeof(value), "%.2f ms", snapshot.acquisitionMs);
+    CyberWidgets::KeyValueRow(app_settings::T("Tempo de aquisicao", "Acquisition time"), value);
+    CyberWidgets::InlineMessage(
         app_settings::T(
-            "Os controlos permanecem bloqueados ate existir uma pipeline de leitura segura e validada.",
-            "Controls remain locked until a safe, validated acquisition pipeline exists."),
-        CyberWidgets::TextTone::Secondary);
+            "A leitura permanece bloqueada enquanto nao existir um layout CObject verificado para a build ativa. Offsets antigos nao sao utilizados.",
+            "Reading remains locked until a verified CObject layout exists for the active build. Old offsets are not used."),
+        CyberWidgets::TextTone::Warning);
     CyberWidgets::EndCard();
-    ImGui::EndGroup();
+
+    CyberWidgets::CardGap();
+    CyberWidgets::BeginCard(app_settings::T("OBJETOS RECEBIDOS", "RECEIVED OBJECTS"));
+    CyberWidgets::InputField("##object_debug_search", search, sizeof(search),
+        app_settings::T("Pesquisar nome ou hash...", "Search name or hash..."));
+    const char* statesPt[] = { "Todos os estados", "Validos", "Com problemas" };
+    const char* statesEn[] = { "All states", "Valid", "With issues" };
+    CyberWidgets::Combo(app_settings::T("Estado", "State"), &stateFilter,
+        app_settings::config.language == app_settings::Language::PT ? statesPt : statesEn, 3);
+    CyberWidgets::ToggleSwitch(
+        app_settings::T("Apenas modelos conhecidos", "Known models only"), &onlyKnownModels);
+
+    static std::vector<const ObjectRecord*> filtered;
+    filtered.clear();
+    if (filtered.capacity() < snapshot.objects.size()) filtered.reserve(snapshot.objects.size());
+    for (const auto& object : snapshot.objects) {
+        const bool valid = object.state == ObjectState::Valid;
+        if (stateFilter == 1 && !valid) continue;
+        if (stateFilter == 2 && valid) continue;
+        if (onlyKnownModels && object.modelName.rfind("Unknown [", 0) == 0) continue;
+        if (!FiveM::ObjectExplorer::MatchesSearch(
+                object.modelName, object.modelHash, search)) continue;
+        filtered.push_back(&object);
+    }
+    std::stable_sort(filtered.begin(), filtered.end(), [](const auto* left, const auto* right) {
+        const bool leftValid = left->state == ObjectState::Valid;
+        const bool rightValid = right->state == ObjectState::Valid;
+        if (leftValid != rightValid) return leftValid > rightValid;
+        return left->distance < right->distance;
+    });
+
+    std::snprintf(value, sizeof(value), "%zu / %zu", filtered.size(), snapshot.objects.size());
+    CyberWidgets::KeyValueRow(app_settings::T("Resultados", "Results"), value);
+
+    constexpr ImGuiTableFlags flags = ImGuiTableFlags_BordersInnerH |
+        ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable |
+        ImGuiTableFlags_ScrollY | ImGuiTableFlags_SizingStretchProp;
+    if (ImGui::BeginTable("##object_debugger_table", 7, flags,
+            ImVec2(0.f, CyberTheme::Px(330.f)))) {
+        ImGui::TableSetupScrollFreeze(0, 1);
+        ImGui::TableSetupColumn("ID", ImGuiTableColumnFlags_WidthFixed, CyberTheme::Px(48.f));
+        ImGui::TableSetupColumn(app_settings::T("Modelo", "Model"), ImGuiTableColumnFlags_WidthStretch, 1.8f);
+        ImGui::TableSetupColumn("Hash", ImGuiTableColumnFlags_WidthFixed, CyberTheme::Px(92.f));
+        ImGui::TableSetupColumn("X", ImGuiTableColumnFlags_WidthStretch, .7f);
+        ImGui::TableSetupColumn("Y", ImGuiTableColumnFlags_WidthStretch, .7f);
+        ImGui::TableSetupColumn("Z", ImGuiTableColumnFlags_WidthStretch, .7f);
+        ImGui::TableSetupColumn(app_settings::T("Distancia / estado", "Distance / state"),
+            ImGuiTableColumnFlags_WidthStretch, 1.3f);
+        ImGui::TableHeadersRow();
+
+        ImGuiListClipper clipper;
+        clipper.Begin(static_cast<int>(filtered.size()));
+        while (clipper.Step()) {
+            for (int row = clipper.DisplayStart; row < clipper.DisplayEnd; ++row) {
+                const ObjectRecord& object = *filtered[static_cast<std::size_t>(row)];
+                ImGui::TableNextRow();
+                ImGui::TableSetColumnIndex(0); ImGui::Text("%u", object.slot);
+                ImGui::TableSetColumnIndex(1); ImGui::TextUnformatted(object.modelName.c_str());
+                ImGui::TableSetColumnIndex(2); ImGui::Text("0x%08X", object.modelHash);
+                ImGui::TableSetColumnIndex(3); ImGui::Text("%.2f", object.position.x);
+                ImGui::TableSetColumnIndex(4); ImGui::Text("%.2f", object.position.y);
+                ImGui::TableSetColumnIndex(5); ImGui::Text("%.2f", object.position.z);
+                ImGui::TableSetColumnIndex(6);
+                if (object.state == ObjectState::Valid)
+                    ImGui::Text("%.1f m - %s", object.distance, ObjectStateText(object.state));
+                else
+                    ImGui::TextUnformatted(ObjectStateText(object.state));
+            }
+        }
+        ImGui::EndTable();
+    }
+
+    if (filtered.empty())
+        CyberWidgets::TextLine(
+            app_settings::T("Ainda nao existem objetos que correspondam aos filtros.",
+                            "No objects currently match the filters."),
+            CyberWidgets::TextTone::Secondary);
+    CyberWidgets::EndCard();
 }
