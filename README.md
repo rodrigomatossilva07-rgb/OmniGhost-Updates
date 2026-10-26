@@ -5,7 +5,6 @@
     src="https://capsule-render.vercel.app/api?type=waving&height=230&color=0:080808,35:17130A,55:D4AF37,75:17130A,100:080808&text=OMNIGHOST&fontColor=FFFFFF&fontSize=52&fontAlignY=38&desc=Everywhere.%20Nowhere.&descAlignY=59&descSize=17"
   />
 </p>
-
 <div align="center">
 
 [![Windows](https://img.shields.io/badge/WINDOWS-x64-D4AF37?style=for-the-badge\&logo=windows\&logoColor=white\&labelColor=101010)](#-requirements)
