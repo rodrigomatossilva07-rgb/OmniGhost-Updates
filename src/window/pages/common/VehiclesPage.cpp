@@ -22,6 +22,9 @@ void DrawVehicles()
     CyberWidgets::ToggleSwitch(Loc::Tr("veh.enabled"), &vehicle_esp::config.enabled);
     if (vehicle_esp::config.enabled) {
         CyberWidgets::ToggleSwitch(Loc::Tr("veh.box3d"), &vehicle_esp::config.box_3d);
+        CyberWidgets::ToggleSwitch(app_settings::T("Caixa 2D", "2D box"), &vehicle_esp::config.box_2d);
+        CyberWidgets::ToggleSwitch(app_settings::T("Marcador direcional", "Direction marker"), &vehicle_esp::config.marker);
+        CyberWidgets::ToggleSwitch(app_settings::T("Nome do veículo", "Vehicle name"), &vehicle_esp::config.show_name);
         CyberWidgets::ToggleSwitch(Loc::Tr("veh.snaplines"), &vehicle_esp::config.snaplines);
         if (vehicle_esp::config.snaplines) {
             const char* snap_pos[] = { Loc::Tr("common.top"), Loc::Tr("common.center"), Loc::Tr("common.bottom") };
@@ -30,10 +33,16 @@ void DrawVehicles()
         CyberWidgets::ToggleSwitch(Loc::Tr("veh.distance"), &vehicle_esp::config.distance);
         CyberWidgets::ToggleSwitch(Loc::Tr("veh.occupants"), &vehicle_esp::config.show_occupants);
         CyberWidgets::ToggleSwitch(Loc::Tr("veh.lock_status"), &vehicle_esp::config.lock_status);
-        vehicle_esp::config.show_speed = false;
+        CyberWidgets::ToggleSwitch(app_settings::T("Velocidade", "Speed"), &vehicle_esp::config.show_speed);
+        CyberWidgets::ToggleSwitch(app_settings::T("Direção", "Direction"), &vehicle_esp::config.show_direction);
+        CyberWidgets::ToggleSwitch(app_settings::T("Destacar veículo local", "Highlight local vehicle"), &vehicle_esp::config.highlight_local);
         CyberWidgets::ToggleSwitch(Loc::Tr("veh.ignore_occ"), &vehicle_esp::config.ignore_occupied);
         CyberWidgets::SliderFloat(Loc::Tr("veh.max_dist"), &vehicle_esp::config.max_distance,
-                                  10.f, 500.f, "%.0f m");
+                                  10.f, 2000.f, "%.0f m");
+        ImGui::SliderInt(app_settings::T("Máximo de veículos", "Maximum vehicles"),
+                         &vehicle_esp::config.max_vehicles, 8, 128);
+        CyberWidgets::SliderFloat(app_settings::T("Espessura das caixas", "Box thickness"),
+                                  &vehicle_esp::config.box_thickness, .5f, 4.f, "%.1f px");
     } else {
         CyberWidgets::TextLine(app_settings::T("Ativa o ESP para revelar as opções relacionadas.",
                                               "Enable ESP to reveal its options."), CyberWidgets::TextTone::Secondary);
@@ -51,6 +60,10 @@ void DrawVehicles()
     } else {
         if (vehicle_esp::config.box_3d)
             CyberWidgets::ColorEditU32(Loc::Tr("veh.color_box"), &vehicle_esp::config.color_box_3d);
+        if (vehicle_esp::config.box_2d)
+            CyberWidgets::ColorEditU32(app_settings::T("Caixa 2D", "2D box"), &vehicle_esp::config.color_box_3d);
+        if (vehicle_esp::config.marker)
+            CyberWidgets::ColorEditU32(app_settings::T("Marcador", "Marker"), &vehicle_esp::config.color_marker);
         if (vehicle_esp::config.snaplines)
             CyberWidgets::ColorEditU32(Loc::Tr("veh.color_snap"), &vehicle_esp::config.color_snaplines);
         if (vehicle_esp::config.distance)
@@ -61,6 +74,7 @@ void DrawVehicles()
             CyberWidgets::ColorEditU32(Loc::Tr("veh.color_lock"), &vehicle_esp::config.color_locked);
         }
         CyberWidgets::ColorEditU32(Loc::Tr("veh.color_occ"), &vehicle_esp::config.color_occupants);
+        CyberWidgets::ColorEditU32(app_settings::T("Veículo local", "Local vehicle"), &vehicle_esp::config.color_local);
 
     }
 

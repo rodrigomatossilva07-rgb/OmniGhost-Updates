@@ -8,10 +8,15 @@ void SerializeVehicle(std::ostringstream& o) {
     auto& v = vehicle_esp::config;
     WBool(o, "veh.enabled", v.enabled);
     WBool(o, "veh.box_3d", v.box_3d);
+    WBool(o, "veh.box_2d", v.box_2d);
+    WBool(o, "veh.marker", v.marker);
+    WBool(o, "veh.show_name", v.show_name);
     WBool(o, "veh.snaplines", v.snaplines);
     WBool(o, "veh.distance", v.distance);
     WFloat(o, "veh.max_distance", v.max_distance);
     WBool(o, "veh.show_speed", v.show_speed);
+    WBool(o, "veh.show_direction", v.show_direction);
+    WBool(o, "veh.highlight_local", v.highlight_local);
     WBool(o, "veh.lock_status", v.lock_status);
     WBool(o, "veh.show_occupants", v.show_occupants);
     WBool(o, "veh.ignore_occupied", v.ignore_occupied);
@@ -21,7 +26,11 @@ void SerializeVehicle(std::ostringstream& o) {
     WU32(o, "veh.color_unlocked", v.color_unlocked);
     WU32(o, "veh.color_locked", v.color_locked);
     WU32(o, "veh.color_occupants", v.color_occupants);
+    WU32(o, "veh.color_marker", v.color_marker);
+    WU32(o, "veh.color_local", v.color_local);
     WInt(o, "veh.snapline_pos", v.snapline_pos);
+    WInt(o, "veh.max_vehicles", v.max_vehicles);
+    WFloat(o, "veh.box_thickness", v.box_thickness);
 }
 
 bool DeserializeVehicle(const std::string& key, const std::string& val) {
@@ -35,10 +44,15 @@ bool DeserializeVehicle(const std::string& key, const std::string& val) {
 
     if (bi("veh.enabled")) { v.enabled = toB(); return true; }
     if (bi("veh.box_3d")) { v.box_3d = toB(); return true; }
+    if (bi("veh.box_2d")) { v.box_2d = toB(); return true; }
+    if (bi("veh.marker")) { v.marker = toB(); return true; }
+    if (bi("veh.show_name")) { v.show_name = toB(); return true; }
     if (bi("veh.snaplines")) { v.snaplines = toB(); return true; }
     if (bi("veh.distance")) { v.distance = toB(); return true; }
     if (bi("veh.max_distance")) { v.max_distance = toF(); return true; }
     if (bi("veh.show_speed")) { v.show_speed = toB(); return true; }
+    if (bi("veh.show_direction")) { v.show_direction = toB(); return true; }
+    if (bi("veh.highlight_local")) { v.highlight_local = toB(); return true; }
     if (bi("veh.lock_status")) { v.lock_status = toB(); return true; }
     if (bi("veh.show_occupants")) { v.show_occupants = toB(); return true; }
     if (bi("veh.ignore_occupied")) { v.ignore_occupied = toB(); return true; }
@@ -48,7 +62,11 @@ bool DeserializeVehicle(const std::string& key, const std::string& val) {
     if (bi("veh.color_unlocked")) { v.color_unlocked = toU(); return true; }
     if (bi("veh.color_locked")) { v.color_locked = toU(); return true; }
     if (bi("veh.color_occupants")) { v.color_occupants = toU(); return true; }
+    if (bi("veh.color_marker")) { v.color_marker = toU(); return true; }
+    if (bi("veh.color_local")) { v.color_local = toU(); return true; }
     if (bi("veh.snapline_pos")) { v.snapline_pos = toI(); return true; }
+    if (bi("veh.max_vehicles")) { v.max_vehicles = std::clamp(toI(), 8, 128); return true; }
+    if (bi("veh.box_thickness")) { v.box_thickness = std::clamp(toF(), .5f, 4.f); return true; }
 
 
 

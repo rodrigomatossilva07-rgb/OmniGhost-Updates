@@ -134,7 +134,7 @@ input[type="range"] { min-height: 22px; padding: 0; accent-color: var(--gold); }
   .filters { grid-template-columns: 1fr 1fr; }
 }
 
-/* Premium radar surfaces */
+
 .quality { padding: 5px 8px; border-radius: 999px; font-size: 9px; font-weight: 800; letter-spacing: .08em; border: 1px solid var(--line); }
 .quality.fresh { color: var(--ok); background: rgba(40,217,146,.1); }
 .quality.stale { color: #ffbdc4; background: rgba(141,43,55,.18); }

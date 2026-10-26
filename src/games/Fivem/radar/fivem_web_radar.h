@@ -19,8 +19,8 @@ struct Settings {
 };
 void Configure(const Settings& settings) noexcept;
 
-// Publishes one immutable copy of the already-acquired FiveM caches. This never
-// performs DMA reads and is intentionally safe to call from the radar worker.
+
+
 void PublishFromCaches();
 
 std::string LocalUrl();

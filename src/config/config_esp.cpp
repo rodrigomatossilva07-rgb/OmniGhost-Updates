@@ -53,6 +53,18 @@ void SerializeESP(std::ostringstream& o) {
     WFloat(o, "esp.radar_size", e.radar_size);
     WFloat(o, "esp.radar_pos_x", e.radar_pos_x);
     WFloat(o, "esp.radar_pos_y", e.radar_pos_y);
+    WBool(o, "esp.radar_rotate", e.radar_rotate);
+    WBool(o, "esp.radar_show_players", e.radar_show_players);
+    WBool(o, "esp.radar_show_vehicles", e.radar_show_vehicles);
+    WBool(o, "esp.radar_show_names", e.radar_show_names);
+    WBool(o, "esp.radar_show_distances", e.radar_show_distances);
+    WBool(o, "esp.radar_show_height", e.radar_show_height);
+    WBool(o, "esp.radar_show_rings", e.radar_show_rings);
+    WBool(o, "esp.radar_group_markers", e.radar_group_markers);
+    WBool(o, "esp.radar_trails", e.radar_trails);
+    WBool(o, "esp.radar_compact", e.radar_compact);
+    WFloat(o, "esp.radar_marker_size", e.radar_marker_size);
+    WFloat(o, "esp.radar_smoothing", e.radar_smoothing);
     WBool(o, "esp.web_radar_enabled", e.web_radar_enabled);
     WBool(o, "esp.web_radar_cloudflare", e.web_radar_cloudflare);
     WInt(o, "esp.web_radar_port", e.web_radar_port);
@@ -181,6 +193,18 @@ bool DeserializeESP(const std::string& key, const std::string& val) {
     if (bi("esp.radar_size")) { e.radar_size = toF(); return true; }
     if (bi("esp.radar_pos_x")) { e.radar_pos_x = toF(); return true; }
     if (bi("esp.radar_pos_y")) { e.radar_pos_y = toF(); return true; }
+    if (bi("esp.radar_rotate")) { e.radar_rotate = toB(); return true; }
+    if (bi("esp.radar_show_players")) { e.radar_show_players = toB(); return true; }
+    if (bi("esp.radar_show_vehicles")) { e.radar_show_vehicles = toB(); return true; }
+    if (bi("esp.radar_show_names")) { e.radar_show_names = toB(); return true; }
+    if (bi("esp.radar_show_distances")) { e.radar_show_distances = toB(); return true; }
+    if (bi("esp.radar_show_height")) { e.radar_show_height = toB(); return true; }
+    if (bi("esp.radar_show_rings")) { e.radar_show_rings = toB(); return true; }
+    if (bi("esp.radar_group_markers")) { e.radar_group_markers = toB(); return true; }
+    if (bi("esp.radar_trails")) { e.radar_trails = toB(); return true; }
+    if (bi("esp.radar_compact")) { e.radar_compact = toB(); return true; }
+    if (bi("esp.radar_marker_size")) { e.radar_marker_size = std::clamp(toF(), 2.f, 12.f); return true; }
+    if (bi("esp.radar_smoothing")) { e.radar_smoothing = std::clamp(toF(), 1.f, 30.f); return true; }
     if (bi("esp.web_radar_enabled")) { e.web_radar_enabled = toB(); return true; }
     if (bi("esp.web_radar_cloudflare")) { e.web_radar_cloudflare = toB(); return true; }
     if (bi("esp.web_radar_port")) { e.web_radar_port = std::clamp(toI(), 1024, 65535); return true; }

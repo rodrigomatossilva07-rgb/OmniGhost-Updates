@@ -597,7 +597,8 @@ namespace FiveM {
                             cam->sessionGeneration == s_sessionGeneration.load(std::memory_order_acquire))
                             vehicleCamera = cam->viewMatrix;
                         vehicle_esp::Collect(job.vehicleConfig, job.peds,
-                            job.localPos, vehicleCamera, job.espConfig.web_radar_enabled);
+                            job.localPos, vehicleCamera,
+                            job.espConfig.web_radar_enabled || job.espConfig.radar_enabled);
                     }
                     } while (false);
                 } catch (const std::exception& ex) {
@@ -928,8 +929,8 @@ namespace FiveM {
             s_snapshots.ResetProducerThread();
             s_cameraSnapshots.ResetProducerThread();
 
-            // Carrega apenas o manifesto aqui. As regiões pesadas são pedidas
-            // assincronamente quando a visibilidade realmente precisa delas.
+
+
             FiveM::Collision::World::Instance().Initialize("data/fivem/collision");
 
 
@@ -1011,8 +1012,8 @@ namespace FiveM {
 
 
             s_needPeds.store(needPeds, std::memory_order_release);
-            // O radar necessita sempre da posição local para distâncias e follow,
-            // mesmo quando o utilizador não quer desenhar o próprio ESP.
+
+
             s_selfEsp.store(esp::config.self_esp || esp::config.web_radar_enabled,
                 std::memory_order_release);
             s_npcEsp.store(esp::config.npc_esp, std::memory_order_release);
@@ -1038,6 +1039,11 @@ namespace FiveM {
                     slot.value->vehicleConfig.max_distance = (std::max)(
                         slot.value->vehicleConfig.max_distance,
                         esp::config.web_radar_distance);
+                }
+                if (esp::config.radar_enabled) {
+                    slot.value->vehicleConfig.max_distance = (std::max)(
+                        slot.value->vehicleConfig.max_distance,
+                        esp::config.radar_range);
                 }
                 s_optionSnapshots.Publish(slot.index);
             }

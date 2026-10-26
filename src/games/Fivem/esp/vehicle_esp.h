@@ -4,6 +4,7 @@
 #include "ui/ui_models.h"
 #include <vector>
 #include <cstdint>
+#include <string>
 
 namespace vehicle_esp {
 
@@ -14,8 +15,13 @@ namespace vehicle_esp {
         bool locked = false;
         bool lock_state_known = false;
         bool occupied = false;
+        int occupants = 0;
+        bool local_vehicle = false;
         int8_t gear = 0;
         float engine_health = 0.f;
+        float speed_kmh = 0.f;
+        float heading_degrees = 0.f;
+        std::string display_name{"Veículo"};
         bool valid = false;
         uint64_t sample_ms = 0;
     };

@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <cstdio>
 #include <chrono>
+#include <cfloat>
 #include <unordered_map>
 #include <unordered_set>
 #include <mutex>
@@ -29,6 +30,8 @@ namespace vehicle_esp {
     static std::unordered_map<uintptr_t, GearState> g_gearCache;
     static std::chrono::steady_clock::time_point g_lastGearRefresh{};
     static std::unordered_map<uintptr_t, std::pair<Vec3, float>> g_speedHistory;
+    struct MotionSample { Vec3 position{}; std::chrono::steady_clock::time_point sampled{}; };
+    static std::unordered_map<uintptr_t, MotionSample> g_motionSamples;
 
     std::vector<VehicleData> GetSnapshot() {
         std::scoped_lock lock(g_vehicleMutex);
@@ -145,8 +148,9 @@ namespace vehicle_esp {
             return;
         }
 
+        const int configuredLimit = std::clamp(frameConfig.max_vehicles, 8, 128);
         const int listCount = (vehicleCount > 0 && vehicleCount <= 2048)
-            ? (std::min)(vehicleCount, MAX_VEHICLES) : MAX_VEHICLES;
+            ? (std::min)(vehicleCount, configuredLimit) : configuredLimit;
         std::vector<uintptr_t> rawPtrs(listCount, 0);
         for (int i = 0; i < listCount; ++i)
             mem.AddScatterReadRequest(handle, vehicleListBase + (uintptr_t)i * FiveM::offset::vehicleEntryStride,
@@ -171,7 +175,8 @@ namespace vehicle_esp {
         std::vector<uint32_t> lockState(valid.size(), UINT32_MAX);
         std::vector<uintptr_t> driverPrimary(valid.size(), 0), driverFallback(valid.size(), 0);
 
-        const bool needMatrix = frameConfig.box_3d;
+        const bool needMatrix = frameConfig.box_3d || frameConfig.box_2d ||
+            frameConfig.show_direction || frameConfig.marker;
         const bool needLock = frameConfig.lock_status;
         const bool needOccupied = frameConfig.ignore_occupied || frameConfig.show_occupants;
         for (size_t i = 0; i < valid.size(); ++i) {
@@ -234,13 +239,21 @@ namespace vehicle_esp {
             mem.ExecuteReadScatter(handle);
         }
 
-        std::unordered_set<uintptr_t> occupiedVehicles;
-        occupiedVehicles.reserve(pedVehicles.size() * 2 + valid.size());
+        std::unordered_map<uintptr_t, int> occupantCounts;
+        occupantCounts.reserve(pedVehicles.size() * 2 + valid.size());
         for (uintptr_t vehicle : pedVehicles)
-            if (IsValidPtr(vehicle)) occupiedVehicles.insert(vehicle);
+            if (IsValidPtr(vehicle)) ++occupantCounts[vehicle];
         for (size_t i = 0; i < valid.size(); ++i) {
             uintptr_t driver = IsValidPtr(driverPrimary[i]) ? driverPrimary[i] : driverFallback[i];
-            if (IsValidPtr(driver)) occupiedVehicles.insert(valid[i]);
+            if (IsValidPtr(driver) && occupantCounts[valid[i]] == 0) occupantCounts[valid[i]] = 1;
+        }
+
+        uintptr_t localVehicle = 0;
+        if (IsValidPtr(offset::localplayer) && offset::pedVehicle) {
+            mem.AddScatterReadRequest(handle, offset::localplayer + offset::pedVehicle,
+                                      &localVehicle, sizeof(localVehicle));
+            mem.SetDmaCallTag("FiveM.LocalVehicle");
+            mem.ExecuteReadScatter(handle);
         }
 
         for (size_t i = 0; i < valid.size(); ++i) {
@@ -261,7 +274,8 @@ namespace vehicle_esp {
             if (!std::isfinite(dist) || dist > frameConfig.max_distance || dist < 0.1f)
                 continue;
 
-            bool occupied = occupiedVehicles.find(valid[i]) != occupiedVehicles.end();
+            const int occupants = occupantCounts[valid[i]];
+            bool occupied = occupants > 0;
 
             if (frameConfig.ignore_occupied && occupied)
                 continue;
@@ -276,6 +290,22 @@ namespace vehicle_esp {
             vd.locked = locked;
             vd.lock_state_known = lockKnown;
             vd.occupied = occupied;
+            vd.occupants = occupants;
+            vd.local_vehicle = valid[i] == localVehicle;
+            if (const auto previous = g_motionSamples.find(valid[i]); previous != g_motionSamples.end()) {
+                const float seconds = std::chrono::duration<float>(nowc - previous->second.sampled).count();
+                if (seconds >= .02f && seconds <= 1.0f) {
+                    const float measured = positions[i].distance_to(previous->second.position) / seconds * 3.6f;
+                    if (std::isfinite(measured) && measured >= 0.f && measured < 700.f)
+                        vd.speed_kmh = measured;
+                }
+            }
+            g_motionSamples[valid[i]] = {positions[i], nowc};
+            if (needMatrix) {
+                const float fx = matrices[i]._21, fy = matrices[i]._22;
+                if (std::isfinite(fx) && std::isfinite(fy) && std::fabs(fx) + std::fabs(fy) > .001f)
+                    vd.heading_degrees = std::atan2(fx, fy) * 57.2957795f;
+            }
             if (const auto gear = g_gearCache.find(valid[i]); gear != g_gearCache.end()) {
                 vd.gear = gear->second.gear;
                 vd.engine_health = gear->second.engine;
@@ -299,6 +329,12 @@ namespace vehicle_esp {
             for (auto it = g_gearCache.begin(); it != g_gearCache.end();) {
                 if (nowc - it->second.seen > std::chrono::seconds(10)) it = g_gearCache.erase(it);
                 else ++it;
+            }
+        }
+        if (g_motionSamples.size() > 256) {
+            std::unordered_set<uintptr_t> present(valid.begin(), valid.end());
+            for (auto it = g_motionSamples.begin(); it != g_motionSamples.end();) {
+                if (!present.count(it->first)) it = g_motionSamples.erase(it); else ++it;
             }
         }
     }
@@ -372,6 +408,35 @@ namespace vehicle_esp {
             if (!ok[a] || !ok[b]) continue;
             dl->AddLine(ImVec2(sc[a].x, sc[a].y), ImVec2(sc[b].x, sc[b].y), col, thickness);
         }
+    }
+
+    static bool ProjectVehicleBounds(const Matrix& entityMat, const Matrix& view,
+                                     ImVec2& minimum, ImVec2& maximum) {
+        Vec3 right, forward, up, pos;
+        MatrixAxes(entityMat, right, forward, up, pos);
+        auto norm = [](Vec3 v) {
+            const float length = std::sqrt(v.x*v.x + v.y*v.y + v.z*v.z);
+            return length > 1.0e-4f ? Vec3(v.x/length, v.y/length, v.z/length) : Vec3{};
+        };
+        right = norm(right); forward = norm(forward); up = norm(up);
+        if (pos.IsZero() || right.IsZero() || forward.IsZero()) return false;
+        if (up.IsZero()) up = Vec3(0, 0, 1);
+        constexpr float hx = 1.05f, hy = 2.30f, hz = .85f;
+        const Vec3 center(pos.x + up.x*hz, pos.y + up.y*hz, pos.z + up.z*hz);
+        minimum = ImVec2(FLT_MAX, FLT_MAX); maximum = ImVec2(-FLT_MAX, -FLT_MAX);
+        int projected = 0;
+        for (int i = 0; i < 8; ++i) {
+            const float sx = (i & 1) ? hx : -hx, sy = (i & 2) ? hy : -hy, sz = (i & 4) ? hz : -hz;
+            const Vec3 point(center.x + right.x*sx + forward.x*sy + up.x*sz,
+                             center.y + right.y*sx + forward.y*sy + up.y*sz,
+                             center.z + right.z*sx + forward.z*sy + up.z*sz);
+            Vec2 screen{};
+            if (!Project(point, view, screen)) continue;
+            minimum.x = (std::min)(minimum.x, screen.x); minimum.y = (std::min)(minimum.y, screen.y);
+            maximum.x = (std::max)(maximum.x, screen.x); maximum.y = (std::max)(maximum.y, screen.y);
+            ++projected;
+        }
+        return projected >= 4 && maximum.x > minimum.x && maximum.y > minimum.y;
     }
 
     void Render() {
@@ -457,13 +522,22 @@ namespace vehicle_esp {
 
 
             ImU32 useBox = boxCol;
-            if (v.address == nearestAddr)
+            if (config.highlight_local && v.local_vehicle)
+                useBox = config.color_local;
+            else if (v.address == nearestAddr)
                 useBox = IM_COL32(255, 220, 50, 255);
 
+            const auto matrixIt = frameMatrices.find(v.address);
+            if (config.box_2d && matrixIt != frameMatrices.end()) {
+                ImVec2 mn{}, mx{};
+                if (ProjectVehicleBounds(matrixIt->second, view_matrix, mn, mx))
+                    dl->AddRect(mn, mx, useBox, 3.f, 0, config.box_thickness);
+            }
+
             if (config.box_3d) {
-                auto it = frameMatrices.find(v.address);
-                if (it != frameMatrices.end()) {
-                    DrawOrientedBox3D(dl, it->second, view_matrix, useBox, v.address == nearestAddr ? 2.4f : 1.6f);
+                if (matrixIt != frameMatrices.end()) {
+                    DrawOrientedBox3D(dl, matrixIt->second, view_matrix, useBox,
+                                      v.local_vehicle ? 2.4f : config.box_thickness);
                 } else {
 
                     float scale = std::clamp(180.0f / (v.distance + 2.0f), 20.0f, 120.0f);
@@ -489,6 +563,29 @@ namespace vehicle_esp {
 
             float textY = screenPos.y + 8.f;
 
+            if (config.marker) {
+                const float markerSize = v.local_vehicle ? 8.f : 6.f;
+                const ImU32 markerColor = v.local_vehicle ? config.color_local : config.color_marker;
+                if (config.show_direction) {
+                    const float angle = (v.heading_degrees - 90.f) * 0.0174532925f;
+                    const ImVec2 direction(std::cos(angle), std::sin(angle));
+                    const ImVec2 side(-direction.y, direction.x);
+                    dl->AddTriangleFilled(
+                        ImVec2(screenPos.x + direction.x*markerSize, screenPos.y + direction.y*markerSize),
+                        ImVec2(screenPos.x - direction.x*markerSize*.6f + side.x*markerSize*.65f,
+                               screenPos.y - direction.y*markerSize*.6f + side.y*markerSize*.65f),
+                        ImVec2(screenPos.x - direction.x*markerSize*.6f - side.x*markerSize*.65f,
+                               screenPos.y - direction.y*markerSize*.6f - side.y*markerSize*.65f), markerColor);
+                } else dl->AddCircleFilled(ImVec2(screenPos.x, screenPos.y), markerSize*.65f, markerColor, 12);
+            }
+
+            if (config.show_name) {
+                const char* name = v.local_vehicle ? "Veículo local" : v.display_name.c_str();
+                const ImVec2 ts = ImGui::CalcTextSize(name);
+                dl->AddText(ImVec2(screenPos.x - ts.x*.5f, textY), useBox, name);
+                textY += ts.y + 2.f;
+            }
+
             if (config.distance) {
                 char buf[32];
                 snprintf(buf, sizeof(buf), "%.0fm", v.distance);
@@ -499,20 +596,9 @@ namespace vehicle_esp {
 
             if (config.show_speed) {
 
-                float now = (float)ImGui::GetTime();
-                float speedKmh = 0.f;
-                auto it = g_speedHistory.find(v.address);
-                if (it != g_speedHistory.end()) {
-                    float dt = now - it->second.second;
-                    if (dt > 0.02f && dt < 1.0f) {
-                        float meters = v.position.distance_to(it->second.first);
-                        speedKmh = (meters / dt) * 3.6f;
-                    }
-                }
-                g_speedHistory[v.address] = { v.position, now };
-                if (speedKmh > 0.5f) {
+                if (v.speed_kmh > 0.5f) {
                     char buf[32];
-                    snprintf(buf, sizeof(buf), "%.0f km/h", speedKmh);
+                    snprintf(buf, sizeof(buf), "%.0f km/h", v.speed_kmh);
                     ImVec2 ts = ImGui::CalcTextSize(buf);
                     dl->AddText(ImVec2(screenPos.x - ts.x * 0.5f, textY),
                         IM_COL32(180, 220, 255, 230), buf);
@@ -521,7 +607,11 @@ namespace vehicle_esp {
             }
 
             if (config.show_occupants) {
-                const char* occ = v.occupied ? "Ocupado" : "Desocupado";
+                char occupantText[32]{};
+                if (v.occupied) snprintf(occupantText, sizeof(occupantText), "%d ocupante%s",
+                                         v.occupants, v.occupants == 1 ? "" : "s");
+                else snprintf(occupantText, sizeof(occupantText), "Desocupado");
+                const char* occ = occupantText;
                 ImU32 col = v.occupied ? config.color_occupants : IM_COL32(120, 200, 120, 220);
                 ImVec2 ts = ImGui::CalcTextSize(occ);
                 dl->AddText(ImVec2(screenPos.x - ts.x * 0.5f, textY), col, occ);
@@ -578,6 +668,7 @@ namespace vehicle_esp {
         g_gearCache.clear();
         g_lastGearRefresh = {};
         g_speedHistory.clear();
+        g_motionSamples.clear();
     }
 
 }

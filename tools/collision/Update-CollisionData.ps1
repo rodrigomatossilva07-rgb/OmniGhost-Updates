@@ -66,14 +66,14 @@ function Update-CS2Collision {
     $scopeChoice = switch ($Cs2Scope) { 'All' { '1' } 'Official' { '2' } 'Workshop' { '3' } }
     $start = [Diagnostics.ProcessStartInfo]::new()
     $start.FileName = 'dotnet'
-    # Windows PowerShell 5.1 does not expose ProcessStartInfo.ArgumentList.
+
     $start.Arguments = '"' + $assembly.Replace('"', '\"') + '"'
     $start.WorkingDirectory = $appRoot
     $start.UseShellExecute = $false
     $start.RedirectStandardInput = $true
     $process = [Diagnostics.Process]::Start($start)
     $process.StandardInput.WriteLine($scopeChoice)
-    $process.StandardInput.WriteLine('2') # apenas TRI
+    $process.StandardInput.WriteLine('2')
     $process.StandardInput.WriteLine('')
     $process.StandardInput.Close()
     $process.WaitForExit()
@@ -83,8 +83,8 @@ function Update-CS2Collision {
         throw "O extrator CS2 terminou com o código $($process.ExitCode) e não produziu ficheiros em $triRoot"
     }
     if ($process.ExitCode -ne 0) {
-        # A versão legada conclui a extração e depois chama Console.ReadKey(), que não aceita stdin
-        # redirecionado. Só toleramos esse código depois de confirmar que há resultados validáveis.
+
+
         Write-Warning "O extrator devolveu $($process.ExitCode) após produzir os mapas; os ficheiros serão validados antes de serem aceites."
     }
     foreach ($file in $files) {

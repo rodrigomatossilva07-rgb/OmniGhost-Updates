@@ -55,6 +55,6 @@ OmniGhost-Release/
 OmniGhost.zip
 imgui.ini
 
-# Generated locally by tools/FiveMCollisionBuilder; never package test/full maps from the worktree.
+
 /data/fivem/collision*/
 

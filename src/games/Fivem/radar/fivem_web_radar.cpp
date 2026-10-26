@@ -141,7 +141,10 @@ std::string BuildFromCaches(std::uint32_t& playerCount, std::uint32_t& vehicleCo
         if(!first)o<<','; first=false;
         o<<"{\"id\":\"vehicle-"<<std::hex<<Mix(v.address^g_sessionSalt)<<std::dec
          <<"\",\"x\":"<<v.position.x<<",\"y\":"<<v.position.y<<",\"z\":"<<v.position.z
-         <<",\"distance\":"<<v.distance<<",\"occupied\":"<<(v.occupied?"true":"false")<<"}";
+         <<",\"name\":\""<<Escape(v.display_name)<<"\",\"distance\":"<<v.distance
+         <<",\"heading\":"<<v.heading_degrees<<",\"speedKmh\":"<<v.speed_kmh
+         <<",\"occupants\":"<<v.occupants<<",\"local\":"<<(v.local_vehicle?"true":"false")
+         <<",\"occupied\":"<<(v.occupied?"true":"false")<<"}";
         ++vehicleCount;
     }
     o << "]}"; return o.str();

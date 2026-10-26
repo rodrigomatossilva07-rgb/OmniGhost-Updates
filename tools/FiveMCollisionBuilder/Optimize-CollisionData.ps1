@@ -41,13 +41,13 @@ if ($Undo) {
     if ($LASTEXITCODE -ne 0) { throw "compact.exe terminou com código $LASTEXITCODE" }
     Write-Host '[FiveM Collision] Compressão NTFS removida.'
 } else {
-    # LZX dá a melhor relação do CompactOS e continua a permitir leitura aleatória transparente.
+
     & $compact /c /s:"$folder" /i /f /q /exe:lzx
     if ($LASTEXITCODE -ne 0) { throw "compact.exe terminou com código $LASTEXITCODE" }
     Write-Host '[FiveM Collision] Compressão LZX aplicada. O formato .ogcol não foi alterado.'
 }
 
-# Confirma que todos os ficheiros continuam legíveis depois da operação.
+
 foreach ($region in $regions) {
     $stream = [IO.File]::Open($region.FullName, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
     try {

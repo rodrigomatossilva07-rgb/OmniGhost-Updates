@@ -1,5 +1,6 @@
 #include "esp.h"
 #include "prepared_esp_data.h"
+#include "vehicle_esp.h"
 #include "math/math.h"
 #include "../game/game.h"
 #include "third_party/ImGui/imgui.h"
@@ -615,10 +616,10 @@ static bool EspPedVisibilityKnown(uintptr_t ped) {
 }
 
 static bool EspPedPassesVisibility(uintptr_t ped, bool visibleCheck, bool visibilityColors) {
-    // Match the CS2 semantics exactly:
-    //   check only          -> render only positively confirmed visible peds;
-    //   check + colours     -> keep both groups and colour the known result;
-    //   colours only        -> never filter, only colour the known result.
+
+
+
+
     if (!visibleCheck || visibilityColors)
         return true;
     return EspPedVisibilityKnown(ped) && EspPedVisible(ped);
@@ -787,8 +788,8 @@ static bool EspPedIsFriend(uintptr_t ped) {
 }
 
 static ImU32 EspPedColor(uintptr_t ped, ImU32 configured, bool visible) {
-    // RGB is a global visual override. Visibility and state colours apply only
-    // when the user is not explicitly requesting the animated palette.
+
+
     if (esp::config.rgb_mode)
         return EspRGB();
     if (esp::config.visibility_colors) {
@@ -1865,8 +1866,8 @@ static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer,
         return;
     }
 
-    // Give the 2D box a little breathing room around the projected body.
-    // Expand only sideways and above so the feet remain the stable anchor.
+
+
     const float projectedWidth = boxMax.x - boxMin.x;
     const float projectedHeight = boxMax.y - boxMin.y;
     const float sidePadding = (std::max)(1.5f, projectedWidth * 0.06f);
@@ -2834,7 +2835,7 @@ void esp::DrawPlayerRadar(const Matrix& , uintptr_t localplayer) {
 
 
 
-    if (config.square_radar && config.radar_enabled) {
+    if (config.radar_enabled) {
         ImDrawList* dl = ImGui::GetForegroundDrawList();
         if (!dl) return;
         ImVec2 scr = ImGui::GetIO().DisplaySize;
@@ -2858,14 +2859,42 @@ void esp::DrawPlayerRadar(const Matrix& , uintptr_t localplayer) {
             config.radar_pos_y = cy / (std::max)(1.f, scr.y);
         }
 
+        const ImVec2 resizeHandle(cx + R, cy + R);
+        const bool resizeHover = std::fabs(io.MousePos.x - resizeHandle.x) < 12.f &&
+                                 std::fabs(io.MousePos.y - resizeHandle.y) < 12.f;
+        static bool resizingRadar = false;
+        if (app_settings::menu_open && resizeHover && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+            resizingRadar = true;
+        if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) resizingRadar = false;
+        if (resizingRadar) {
+            R = std::clamp((std::max)(std::fabs(io.MousePos.x - cx), std::fabs(io.MousePos.y - cy)), 90.f, 320.f);
+            config.radar_size = R;
+        }
+        if (app_settings::menu_open && mouseInside && io.MouseWheel != 0.f)
+            config.radar_range = std::clamp(config.radar_range * (io.MouseWheel > 0.f ? .88f : 1.14f), 100.f, 2000.f);
+
         const ImVec2 radarMin(cx - R, cy - R);
         const ImVec2 radarMax(cx + R, cy + R);
-        dl->AddRectFilled(ImVec2(radarMin.x - 4.f, radarMin.y - 4.f),
-            ImVec2(radarMax.x + 4.f, radarMax.y + 4.f), IM_COL32(8, 8, 12, 205), 9.f);
-        dl->AddRect(radarMin, radarMax, IM_COL32(212, 175, 55, 165), 7.f, 0, 1.5f);
-        dl->AddLine(ImVec2(radarMin.x, cy), ImVec2(radarMax.x, cy), IM_COL32(212, 175, 55, 45), 1.f);
-        dl->AddLine(ImVec2(cx, radarMin.y), ImVec2(cx, radarMax.y), IM_COL32(212, 175, 55, 45), 1.f);
+        if (config.square_radar) {
+            dl->AddRectFilled(ImVec2(radarMin.x - 4.f, radarMin.y - 4.f),
+                ImVec2(radarMax.x + 4.f, radarMax.y + 4.f), IM_COL32(8, 8, 12, 205), 9.f);
+            dl->AddRect(radarMin, radarMax, IM_COL32(212, 175, 55, 165), 7.f, 0, 1.5f);
+        } else {
+            dl->AddCircleFilled(ImVec2(cx, cy), R + 4.f, IM_COL32(8, 8, 12, 205), 64);
+            dl->AddCircle(ImVec2(cx, cy), R, IM_COL32(212, 175, 55, 165), 64, 1.5f);
+        }
+        if (!config.radar_compact) {
+            dl->AddLine(ImVec2(radarMin.x, cy), ImVec2(radarMax.x, cy), IM_COL32(212, 175, 55, 45), 1.f);
+            dl->AddLine(ImVec2(cx, radarMin.y), ImVec2(cx, radarMax.y), IM_COL32(212, 175, 55, 45), 1.f);
+        }
+        if (config.radar_show_rings) {
+            dl->AddCircle(ImVec2(cx, cy), R*.5f, IM_COL32(212, 175, 55, 42), 48, 1.f);
+            dl->AddCircle(ImVec2(cx, cy), R*.75f, IM_COL32(212, 175, 55, 28), 48, 1.f);
+        }
         dl->AddCircleFilled(ImVec2(cx, cy), 3.5f, IM_COL32(0, 255, 120, 255), 12);
+        if (app_settings::menu_open)
+            dl->AddRectFilled(ImVec2(cx + R - 7.f, cy + R - 7.f), ImVec2(cx + R + 3.f, cy + R + 3.f),
+                              resizeHover ? IM_COL32(255, 215, 70, 240) : IM_COL32(212, 175, 55, 120), 2.f);
         if (!FiveM::ESP::FrameCacheValid()) return;
         const Vec3 localPos = FiveM::ESP::GetFrameLocalPos();
         if (localPos.IsZero()) return;
@@ -2889,7 +2918,16 @@ void esp::DrawPlayerRadar(const Matrix& , uintptr_t localplayer) {
             fy = rightX / len;
         }
     }
+    if (!config.radar_rotate) { fx = 0.f; fy = 1.f; }
     float rx = fy, ry = -fx;
+    struct RadarMotion { float x{}, y{}; float heading{}; Vec3 world{}; uint32_t lastFrame{}; std::vector<ImVec2> trail; };
+    static std::unordered_map<uintptr_t, RadarMotion> radarMotion;
+    std::unordered_map<std::int64_t, std::pair<ImVec2, int>> markerGroups;
+    const uint32_t radarFrame = static_cast<uint32_t>(ImGui::GetFrameCount());
+    const float smooth = 1.f - std::exp(-config.radar_smoothing * ImGui::GetIO().DeltaTime);
+    uintptr_t clickedPed = 0;
+    float clickedDistance = 14.f;
+    if (config.radar_show_players)
     for (size_t i = 0; i < snapshot.validPeds.size(); ++i) {
         uintptr_t ped = snapshot.validPeds[i];
         if (!ped || ped == localplayer) continue;
@@ -2904,12 +2942,93 @@ void esp::DrawPlayerRadar(const Matrix& , uintptr_t localplayer) {
         float localY = dx * fx + dy * fy;
         float nx = (localX / range) * R;
         float ny = (-localY / range) * R;
-        nx = std::clamp(nx, -R + 5.f, R - 5.f);
-        ny = std::clamp(ny, -R + 5.f, R - 5.f);
+        if (config.square_radar) {
+            nx = std::clamp(nx, -R + 5.f, R - 5.f);
+            ny = std::clamp(ny, -R + 5.f, R - 5.f);
+        } else {
+            const float length = std::sqrt(nx*nx + ny*ny);
+            if (length > R - 6.f) { nx *= (R - 6.f)/length; ny *= (R - 6.f)/length; }
+        }
+        auto& motion = radarMotion[ped];
+        const bool hadPrevious = motion.lastFrame != 0;
+        if (!hadPrevious) { motion.x = nx; motion.y = ny; motion.world = pos; }
+        motion.x += (nx - motion.x) * smooth; motion.y += (ny - motion.y) * smooth;
+        const float moveX = hadPrevious ? pos.x - motion.world.x : 0.f;
+        const float moveY = hadPrevious ? pos.y - motion.world.y : 0.f;
+        if (moveX*moveX + moveY*moveY > .0025f) motion.heading = std::atan2(moveX, moveY);
+        motion.world = pos; motion.lastFrame = radarFrame;
         ImU32 col = EspPedColor(ped, config.color_box_2d, visible);
         if (!config.visibility_colors && friends::config.show_friend_esp && EspPedIsFriend(ped))
             col = friends::config.friend_color;
-        dl->AddCircleFilled(ImVec2(cx + nx, cy + ny), 3.0f, col, 10);
+        const ImVec2 marker(cx + motion.x, cy + motion.y);
+        const float markerSize = config.radar_marker_size;
+        if (config.radar_trails) {
+            if (motion.trail.empty() || std::hypot(marker.x-motion.trail.back().x, marker.y-motion.trail.back().y) > 2.f) {
+                motion.trail.push_back(marker);
+                if (motion.trail.size() > 12) motion.trail.erase(motion.trail.begin());
+            }
+            for (size_t t=1;t<motion.trail.size();++t)
+                dl->AddLine(motion.trail[t-1],motion.trail[t],(col & 0x00FFFFFFu)|0x50000000u,1.f);
+        } else motion.trail.clear();
+        if (config.radar_group_markers) {
+            const int gx = static_cast<int>(marker.x/14.f), gy = static_cast<int>(marker.y/14.f);
+            const std::int64_t groupKey = static_cast<std::int64_t>(
+                (static_cast<std::uint64_t>(static_cast<std::uint32_t>(gx)) << 32) |
+                 static_cast<std::uint32_t>(gy));
+            auto [group, inserted] = markerGroups.try_emplace(groupKey, marker, 1);
+            if (!inserted) {
+                ++group->second.second;
+                char count[12]; snprintf(count,sizeof(count),"%d",group->second.second);
+                dl->AddCircleFilled(group->second.first,markerSize+3.f,IM_COL32(20,20,24,235),16);
+                dl->AddText(ImVec2(group->second.first.x-3.f,group->second.first.y-7.f),IM_COL32(255,215,70,255),count);
+                continue;
+            }
+        }
+        const ImVec2 dir(std::sin(motion.heading), -std::cos(motion.heading)), side(-dir.y, dir.x);
+        dl->AddTriangleFilled(ImVec2(marker.x + dir.x*markerSize, marker.y + dir.y*markerSize),
+            ImVec2(marker.x - dir.x*markerSize*.55f + side.x*markerSize*.65f, marker.y - dir.y*markerSize*.55f + side.y*markerSize*.65f),
+            ImVec2(marker.x - dir.x*markerSize*.55f - side.x*markerSize*.65f, marker.y - dir.y*markerSize*.55f - side.y*markerSize*.65f), col);
+        char label[128]{};
+        char name[64]{};
+        if (config.radar_show_names) try_get_prepared_player_name(ped, name, sizeof(name));
+        const float dz = pos.z - localPos.z;
+        if (config.radar_show_names && name[0]) snprintf(label, sizeof(label), "%s", name);
+        if (config.radar_show_distances) snprintf(label + strlen(label), sizeof(label) - strlen(label), "%s%.0fm", label[0] ? " · " : "", dist);
+        if (config.radar_show_height && std::fabs(dz) >= 2.f) snprintf(label + strlen(label), sizeof(label) - strlen(label), "%s%c%.0fm", label[0] ? " · " : "", dz > 0 ? '^' : 'v', std::fabs(dz));
+        if (label[0]) dl->AddText(ImVec2(marker.x + markerSize + 3.f, marker.y - 7.f), col, label);
+        if (app_settings::menu_open && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+            const float clickDistance = std::hypot(io.MousePos.x - marker.x, io.MousePos.y - marker.y);
+            if (clickDistance < clickedDistance) { clickedDistance = clickDistance; clickedPed = ped; }
+        }
+    }
+    for (auto it = radarMotion.begin(); it != radarMotion.end();) {
+        if (radarFrame > it->second.lastFrame + 120) it = radarMotion.erase(it); else ++it;
+    }
+
+    if (config.radar_show_vehicles) {
+        for (const auto& vehicle : vehicle_esp::GetSnapshot()) {
+            if (!vehicle.valid || vehicle.distance > range) continue;
+            const float dx = vehicle.position.x - localPos.x, dy = vehicle.position.y - localPos.y;
+            float vx = ((dx*rx + dy*ry)/range)*R, vy = (-(dx*fx + dy*fy)/range)*R;
+            if (config.square_radar) { vx = std::clamp(vx, -R+6.f, R-6.f); vy = std::clamp(vy, -R+6.f, R-6.f); }
+            else { const float length=std::hypot(vx,vy); if(length>R-7.f){vx*=(R-7.f)/length;vy*=(R-7.f)/length;} }
+            const ImVec2 p(cx+vx,cy+vy);
+            const ImU32 color = vehicle.local_vehicle ? IM_COL32(255,210,50,255) : IM_COL32(70,170,255,240);
+            const float angle=(vehicle.heading_degrees-90.f)*.0174532925f;
+            const ImVec2 direction(std::cos(angle),std::sin(angle)), side(-direction.y,direction.x);
+            dl->AddTriangleFilled(ImVec2(p.x+direction.x*6.f,p.y+direction.y*6.f),
+                ImVec2(p.x-direction.x*4.f+side.x*4.f,p.y-direction.y*4.f+side.y*4.f),
+                ImVec2(p.x-direction.x*4.f-side.x*4.f,p.y-direction.y*4.f-side.y*4.f),color);
+            if (config.radar_show_distances) { char text[32]; snprintf(text,sizeof(text),"%.0fm",vehicle.distance); dl->AddText(ImVec2(p.x+7.f,p.y-7.f),color,text); }
+        }
+    }
+    static uintptr_t selectedRadarPed = 0;
+    if (clickedPed) selectedRadarPed = clickedPed;
+    if (selectedRadarPed && !config.radar_compact) {
+        char name[64] = "Jogador"; try_get_prepared_player_name(selectedRadarPed, name, sizeof(name));
+        Vec3 selected{}; try_get_prepared_origin(selectedRadarPed, selected);
+        char details[160]; snprintf(details,sizeof(details),"%s  |  X %.0f Y %.0f Z %.0f",name,selected.x,selected.y,selected.z);
+        dl->AddText(ImVec2(radarMin.x+8.f,radarMax.y-20.f),IM_COL32(235,235,235,235),details);
     }
     }
 

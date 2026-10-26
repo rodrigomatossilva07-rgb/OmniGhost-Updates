@@ -184,7 +184,7 @@ public:
         const int y0 = static_cast<int>(std::floor(mny / size_));
         const int x1 = static_cast<int>(std::floor(mxx / size_));
         const int y1 = static_cast<int>(std::floor(mxy / size_));
-        if (x1 - x0 > 64 || y1 - y0 > 64) return; // malformed/astronomical source polygon
+        if (x1 - x0 > 64 || y1 - y0 > 64) return;
         for (int y = y0; y <= y1; ++y)
             for (int x = x0; x <= x1; ++x)
                 regions_[{x, y}].push_back(t);
@@ -513,7 +513,7 @@ int Run(const BuildOptions& options) {
     return counters.errors == 0 ? 0 : 1;
 }
 
-} // namespace
+}
 
 int main(int argc, char** argv) {
     try {

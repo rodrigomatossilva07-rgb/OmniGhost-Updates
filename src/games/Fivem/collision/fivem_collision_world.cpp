@@ -74,7 +74,7 @@ bool IntersectsTriangle(Vec3 origin, Vec3 delta, const Triangle& triangle, float
     if (length > 0.0f) { normal.x /= length; normal.y /= length; normal.z /= length; }
     return true;
 }
-} // namespace
+}
 
 bool Region::Load(const std::filesystem::path& path) {
     cellX_ = cellY_ = 0; regionSize_ = 0.0f;
@@ -196,7 +196,7 @@ float ReadRegionSize(const std::filesystem::path& manifest) {
         return std::isfinite(value) && value >= 128.0f && value <= 2048.0f ? value : 0.0f;
     } catch (...) { return 0.0f; }
 }
-} // namespace
+}
 
 struct World::Impl {
     struct Entry { std::shared_ptr<Region> region; std::uint64_t bytes{}; std::uint64_t lastUse{}; };
@@ -286,9 +286,9 @@ bool World::Initialize(const std::filesystem::path& folder, std::uint64_t cacheL
     candidates.push_back(std::filesystem::path("..") / folder);
     candidates.push_back(std::filesystem::path("..") / ".." / folder);
 
-    // The working directory is not stable: Visual Studio, the launcher and an installed
-    // build may all start the same EXE from different directories. Resolve relative to
-    // the actual executable as well, so build/OmniGhost.exe finds ../data/fivem/collision.
+
+
+
     const auto executableDir = OmniGhost::Paths::InstallDirectory();
     candidates.push_back(executableDir / folder);
     candidates.push_back(executableDir / ".." / folder);
@@ -375,4 +375,4 @@ Diagnostics World::GetDiagnostics() const {
             impl_->missingQueries, impl_->regionSize, impl_->status};
 }
 
-} // namespace FiveM::Collision
+}

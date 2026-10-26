@@ -106,6 +106,18 @@ namespace esp {
         float radar_pos_x = 0.88f;
         float radar_pos_y = 0.78f;
         float radar_2d_size = 110.0f;
+        bool radar_rotate = true;
+        bool radar_show_players = true;
+        bool radar_show_vehicles = true;
+        bool radar_show_names = false;
+        bool radar_show_distances = false;
+        bool radar_show_height = true;
+        bool radar_show_rings = true;
+        bool radar_group_markers = true;
+        bool radar_trails = false;
+        bool radar_compact = false;
+        float radar_marker_size = 5.0f;
+        float radar_smoothing = 12.0f;
         bool web_radar_enabled = false;
         bool web_radar_cloudflare = false;
         int web_radar_port = 8765;
@@ -113,7 +125,7 @@ namespace esp {
         int web_radar_max_players = 64;
         int web_radar_max_vehicles = 64;
         float web_radar_update_hz = 10.f;
-        int web_radar_mode = 0; // 0 equilibrado, 1 cobertura, 2 desempenho
+        int web_radar_mode = 0;
 
 
         bool skeleton_lod = true;
@@ -260,14 +272,21 @@ namespace vehicle_esp {
         bool enabled = false;
 
         bool box_3d = false;
+        bool box_2d = true;
+        bool marker = true;
+        bool show_name = true;
         bool snaplines = false;
         bool distance = true;
         bool show_occupants = false;
         bool ignore_occupied = false;
         bool lock_status = true;
         bool show_speed = false;
+        bool show_direction = true;
+        bool highlight_local = true;
 
         float max_distance = 200.0f;
+        int max_vehicles = 64;
+        float box_thickness = 1.5f;
 
         ImU32 color_box_3d = IM_COL32(0, 255, 100, 255);
         ImU32 color_snaplines = IM_COL32(255, 200, 50, 200);
@@ -275,6 +294,8 @@ namespace vehicle_esp {
         ImU32 color_unlocked = IM_COL32(50, 255, 80, 255);
         ImU32 color_locked = IM_COL32(255, 50, 50, 255);
         ImU32 color_occupants = IM_COL32(100, 200, 255, 255);
+        ImU32 color_marker = IM_COL32(80, 180, 255, 255);
+        ImU32 color_local = IM_COL32(255, 210, 50, 255);
 
         int snapline_pos = 0;
 
