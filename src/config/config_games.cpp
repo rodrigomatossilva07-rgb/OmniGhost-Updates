@@ -92,6 +92,11 @@ void SerializeCS2(std::ostringstream& o) {
     WFloat(o, "cs2.bomb_window_x", c.bomb_window_x);
     WFloat(o, "cs2.bomb_window_y", c.bomb_window_y);
     WBool(o, "cs2.radar_2d", c.radar_2d);
+    WBool(o, "cs2.web_radar_enabled", c.web_radar_enabled);
+    WBool(o, "cs2.web_radar_cloudflare", c.web_radar_cloudflare);
+    WInt(o, "cs2.web_radar_port", c.web_radar_port);
+    WInt(o, "cs2.web_radar_max_players", c.web_radar_max_players);
+    WFloat(o, "cs2.web_radar_update_hz", c.web_radar_update_hz);
     WBool(o, "cs2.performance_mode", c.performance_mode);
     WBool(o, "cs2.telemetry_enabled", c.telemetry_enabled);
     WFloat(o, "cs2.max_distance", c.max_distance);
@@ -304,6 +309,11 @@ bool DeserializeCS2(const std::string& key, const std::string& val) {
     if (bi("cs2.bomb_window_x")) { c.bomb_window_x = toF(); return true; }
     if (bi("cs2.bomb_window_y")) { c.bomb_window_y = toF(); return true; }
     if (bi("cs2.radar_2d")) { c.radar_2d = toB(); return true; }
+    if (bi("cs2.web_radar_enabled")) { c.web_radar_enabled = toB(); return true; }
+    if (bi("cs2.web_radar_cloudflare")) { c.web_radar_cloudflare = toB(); return true; }
+    if (bi("cs2.web_radar_port")) { c.web_radar_port = toI(); return true; }
+    if (bi("cs2.web_radar_max_players")) { c.web_radar_max_players = toI(); return true; }
+    if (bi("cs2.web_radar_update_hz")) { c.web_radar_update_hz = toF(); return true; }
     if (bi("cs2.performance_mode")) { c.performance_mode = toB(); return true; }
     if (bi("cs2.telemetry_enabled")) { c.telemetry_enabled = toB(); return true; }
     if (bi("cs2.max_distance")) { c.max_distance = toF(); return true; }

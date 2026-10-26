@@ -2696,6 +2696,20 @@ void esp::draw_skeleton(uintptr_t ped, Matrix viewport, uintptr_t localplayer) {
 
     Vec3 lhip = vadd(hip, vscale(side, -hipW));
     Vec3 rhip = vadd(hip, vscale(side,  hipW));
+    // Keep each foot on its anatomical side of the pelvis. Some streamed GTA
+    // poses briefly swap/collapse the two foot samples while sprinting; joining
+    // those raw points to fixed hips makes the rendered legs cross each other.
+    const auto lateralFromHip = [&](const Vec3& point) {
+        const Vec3 delta(point.x - hip.x, point.y - hip.y, point.z - hip.z);
+        return delta.x * side.x + delta.y * side.y + delta.z * side.z;
+    };
+    constexpr float minFootSeparation = .035f;
+    const float leftLateral = lateralFromHip(lfoot);
+    if (leftLateral > -minFootSeparation)
+        lfoot = vadd(lfoot, vscale(side, -minFootSeparation - leftLateral));
+    const float rightLateral = lateralFromHip(rfoot);
+    if (rightLateral < minFootSeparation)
+        rfoot = vadd(rfoot, vscale(side, minFootSeparation - rightLateral));
     // A straight interpolation makes every leg segment overlap visually while
     // running. Reconstruct a stable two-segment leg: the hip/foot distance
     // determines the knee bend and the ped matrix supplies its forward axis.

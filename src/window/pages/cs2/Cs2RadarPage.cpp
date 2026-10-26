@@ -5,7 +5,10 @@
 #include "platform/offset_auto.h"
 #include "Memory/Memory.h"
 #include "globals.h"
+#include "games/Cs2/radar/cs2_web_radar.h"
 #include "imgui.h"
+#include <Windows.h>
+#include <shellapi.h>
 #include <algorithm>
 #include <cstdio>
 #include <cmath>
@@ -44,6 +47,54 @@ void DrawCs2Radar() {
     CyberWidgets::KeyValueRow("Radar 2D", CS2::config.radar_2d ? "ativo" : "desativado");
     CyberWidgets::EndCard();
     ImGui::EndGroup();
+
+    CyberWidgets::CardGap(gap);
+    CyberWidgets::BeginCard("WEB RADAR", full);
+    bool webEnabled = CS2::config.web_radar_enabled;
+    if (CyberWidgets::ToggleSwitch("Ativar Web Radar", &webEnabled)) {
+        CS2::config.web_radar_enabled = webEnabled;
+        if (webEnabled) CS2::WebRadar::Start(CS2::config.web_radar_port);
+        else CS2::WebRadar::Stop();
+    }
+    if (webEnabled) {
+        if (!CS2::WebRadar::IsRunning()) CS2::WebRadar::Start(CS2::config.web_radar_port);
+        ImGui::SliderInt("Máximo de jogadores", &CS2::config.web_radar_max_players, 8, 64);
+        CyberWidgets::SliderFloat("Atualização", &CS2::config.web_radar_update_hz, 2.f, 30.f, "%.0f Hz");
+        CS2::WebRadar::Configure({static_cast<std::uint32_t>(CS2::config.web_radar_max_players),
+                                  CS2::config.web_radar_update_hz});
+        bool cloud = CS2::config.web_radar_cloudflare;
+        if (cloud && !CS2::WebRadar::CloudflareRunning() && CS2::WebRadar::PublicUrl().empty())
+            CS2::WebRadar::StartCloudflare();
+        if (CyberWidgets::ToggleSwitch("Link público Cloudflare", &cloud)) {
+            CS2::config.web_radar_cloudflare = cloud;
+            if (cloud) CS2::WebRadar::StartCloudflare(); else CS2::WebRadar::StopCloudflare();
+        }
+        const auto diagnostics = CS2::WebRadar::GetDiagnostics();
+        CyberWidgets::KeyValueRow("Fonte de dados", diagnostics.sourceFresh ? "Em direto" : "A aguardar partida");
+        CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary,
+            "%u jogadores | %u ligações | %.1f / %.0f Hz | amostra %llu ms",
+            diagnostics.players, diagnostics.clients, diagnostics.updateHz, diagnostics.configuredHz,
+            static_cast<unsigned long long>(diagnostics.lastSampleAgeMs));
+        if (CyberWidgets::GoldButton("Abrir radar local", ImVec2(180.f, 34.f))) {
+            const auto url = CS2::WebRadar::LocalUrl();
+            ShellExecuteA(nullptr, "open", url.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+        }
+        if (cloud) {
+            const auto publicUrl = CS2::WebRadar::PublicUrl();
+            if (!publicUrl.empty()) {
+                ImGui::SameLine();
+                if (CyberWidgets::CyberButton("Abrir link público", ImVec2(180.f, 34.f)))
+                    ShellExecuteA(nullptr, "open", publicUrl.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+                if (CyberWidgets::CyberButton("Copiar link público", ImVec2(180.f, 34.f)))
+                    ImGui::SetClipboardText(publicUrl.c_str());
+            }
+            const auto status = CS2::WebRadar::CloudflareStatus();
+            if (!status.empty()) CyberWidgets::TextLine(status.c_str(), CyberWidgets::TextTone::Secondary);
+        }
+        CyberWidgets::TextLine("O token privado permanece no fragmento do endereço e nunca é enviado como parte do mapa.",
+                               CyberWidgets::TextTone::Secondary);
+    }
+    CyberWidgets::EndCard();
 }
 
 void DrawCs2Status() {

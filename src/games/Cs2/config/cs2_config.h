@@ -64,6 +64,11 @@ struct Config : OmniGhost::Gameplay::EspConfigBase {
     float radar_2d_x = 18.f;
     float radar_2d_y = 18.f;
     float radar_2d_size = 160.f;
+    bool web_radar_enabled = false;
+    bool web_radar_cloudflare = false;
+    int web_radar_port = 8766;
+    int web_radar_max_players = 64;
+    float web_radar_update_hz = 20.f;
     bool hotkey_overlay = false;
     bool panic_key_enabled = true;
     int panic_key = 0x23;

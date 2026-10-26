@@ -62,6 +62,7 @@ bool ReinitDma() {
 }
 
 void Shutdown() {
+    WebRadar::Stop();
     std::clog << "[CS2][Shutdown] acquisition begin\n";
     StopAcquisition();
     std::clog << "[CS2][Shutdown] acquisition complete; visibility begin\n";

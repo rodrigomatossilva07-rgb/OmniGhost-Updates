@@ -19,6 +19,7 @@
 #include "runtime/cs2_runtime.h"
 #include "visibility/cs2_visibility_worker.h"
 #include "collision/cs2_collision_loader.h"
+#include "radar/cs2_web_radar.h"
 #include "telemetry/cs2_telemetry.h"
 #include "core/cs2_core_world.h"
 #include "metadata/cs2_metadata.h"
@@ -627,6 +628,7 @@ bool NeedsPlayerScan(const Config& frame_config) {
         || frame_config.trigger_enabled
         || frame_config.spectator_list
         || frame_config.bomb_timer
+        || frame_config.web_radar_enabled
         || frame_config.hotkey_overlay;
 }
 
