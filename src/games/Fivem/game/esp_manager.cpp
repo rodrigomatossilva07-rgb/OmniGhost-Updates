@@ -133,6 +133,11 @@ namespace FiveM {
         static std::atomic_bool s_npcEsp{false};
         static std::atomic_bool s_performanceMode{false};
         static std::atomic<float> s_maxDistance{500.f};
+        static std::atomic<int> s_lastRawPedCount{0};
+        static std::atomic<int> s_lastFilteredPedCount{0};
+
+        int LastRawPedCount() noexcept { return s_lastRawPedCount.load(std::memory_order_relaxed); }
+        int LastFilteredPedCount() noexcept { return s_lastFilteredPedCount.load(std::memory_order_relaxed); }
         static std::atomic<float> s_displayWidth{1920.f};
         static std::atomic<float> s_displayHeight{1080.f};
         static std::thread s_acquisitionThread;
@@ -964,7 +969,7 @@ namespace FiveM {
             auto currentTime = std::chrono::steady_clock::now();
             const auto renderBegin = currentTime;
 
-            const bool needPeds = esp::config.enabled ||
+            const bool needPeds = esp::config.enabled || esp::config.web_radar_enabled ||
                 aimbot::config.aimbot_enabled || aimbot::config.trigger_enabled ||
                 esp::config.radar_enabled || friends::PlayerListRequestedRecently();
 
@@ -973,16 +978,34 @@ namespace FiveM {
 
 
             s_needPeds.store(needPeds, std::memory_order_release);
-            s_selfEsp.store(esp::config.self_esp, std::memory_order_release);
+            // O radar necessita sempre da posição local para distâncias e follow,
+            // mesmo quando o utilizador não quer desenhar o próprio ESP.
+            s_selfEsp.store(esp::config.self_esp || esp::config.web_radar_enabled,
+                std::memory_order_release);
             s_npcEsp.store(esp::config.npc_esp, std::memory_order_release);
             s_performanceMode.store(app_settings::config.performance_mode, std::memory_order_release);
-            s_maxDistance.store(esp::config.max_esp_distance, std::memory_order_release);
+            const float acquisitionDistance = esp::config.web_radar_enabled
+                ? (std::max)(esp::config.max_esp_distance, esp::config.web_radar_distance)
+                : esp::config.max_esp_distance;
+            s_maxDistance.store(acquisitionDistance, std::memory_order_release);
+            FiveM::WebRadar::Configure({
+                esp::config.web_radar_distance,
+                static_cast<std::uint32_t>(std::clamp(esp::config.web_radar_max_players, 8, MAX_PEDS)),
+                static_cast<std::uint32_t>(std::clamp(esp::config.web_radar_max_vehicles, 8, 64)),
+                esp::config.web_radar_update_hz,
+                esp::config.web_radar_mode
+            });
             s_displayWidth.store(display.x, std::memory_order_release);
             s_displayHeight.store(display.y, std::memory_order_release);
             if (auto slot = s_optionSnapshots.TryBeginWrite()) {
                 slot.value->espConfig = esp::config;
                 slot.value->aimConfig = aimbot::config;
                 slot.value->vehicleConfig = vehicle_esp::config;
+                if (esp::config.web_radar_enabled) {
+                    slot.value->vehicleConfig.max_distance = (std::max)(
+                        slot.value->vehicleConfig.max_distance,
+                        esp::config.web_radar_distance);
+                }
                 s_optionSnapshots.Publish(slot.index);
             }
             EnsureAcquisitionStarted();
@@ -1370,6 +1393,10 @@ namespace FiveM {
                         writeRawPeds.data(), sizeof(uintptr_t) * listCap);
                     mem.SetDmaCallTag("FiveM.PedList");
                     mem.ExecuteReadScatter(handle);
+                    s_lastRawPedCount.store(static_cast<int>(std::count_if(
+                        writeRawPeds.begin(), writeRawPeds.end(),
+                        [](uintptr_t value) { return value > 0x10000u; })),
+                        std::memory_order_relaxed);
 
 
                     static std::vector<uintptr_t> playerInfoPtrs;
@@ -1615,8 +1642,11 @@ namespace FiveM {
 
 
 
-                    size_t kMax = 48;
-                    if (s_performanceMode.load(std::memory_order_relaxed))
+                    size_t kMax = esp::config.web_radar_enabled
+                        ? static_cast<size_t>(std::clamp(esp::config.web_radar_max_players, 8, MAX_PEDS))
+                        : 48u;
+                    if (s_performanceMode.load(std::memory_order_relaxed) ||
+                        (esp::config.web_radar_enabled && esp::config.web_radar_mode == 2))
                         kMax = (std::min)(kMax, (size_t)30);
 
                     const Matrix vmCull = s_acquireViewMatrix;
@@ -1703,6 +1733,9 @@ namespace FiveM {
                         if (s_acquireHealths.size() > kMax) s_acquireHealths.resize(kMax);
                         if (s_acquireKnockFlags.size() > kMax) s_acquireKnockFlags.resize(kMax);
                     }
+                    s_lastFilteredPedCount.store((std::max)(0,
+                        s_lastRawPedCount.load(std::memory_order_relaxed) -
+                        static_cast<int>(writePeds.size())), std::memory_order_relaxed);
                 }
             }
 

@@ -109,6 +109,11 @@ namespace esp {
         bool web_radar_enabled = false;
         bool web_radar_cloudflare = false;
         int web_radar_port = 8765;
+        float web_radar_distance = 1500.f;
+        int web_radar_max_players = 64;
+        int web_radar_max_vehicles = 64;
+        float web_radar_update_hz = 10.f;
+        int web_radar_mode = 0; // 0 equilibrado, 1 cobertura, 2 desempenho
 
 
         bool skeleton_lod = true;

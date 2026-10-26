@@ -640,33 +640,33 @@ void DrawPreview(ImDrawList* dl, const ImVec2& origin, float width, float height
         espAlpha * SmoothFeature(previewId, "box", cfg.box));
     const ImU32 cornerBoxCol = SmoothColor(previewId, "corner_color", sharedBoxColor ? boxCol : ToImU32(cfg.col_box_corner),
         espAlpha * SmoothFeature(previewId, "corner", cfg.box_corner));
-    ImU32 skeletonCol = SmoothColor(previewId, "skeleton_color", ToImU32(cfg.col_skeleton),
+    ImU32 skeletonCol = SmoothColor(previewId, "skeleton_color", cfg.rgb_mode ? boxCol : ToImU32(cfg.col_skeleton),
         espAlpha * SmoothFeature(previewId, "skeleton", cfg.skeleton));
-    ImU32 jointsCol = SmoothColor(previewId, "joints_color", ToImU32(cfg.col_joints),
+    ImU32 jointsCol = SmoothColor(previewId, "joints_color", cfg.rgb_mode ? boxCol : ToImU32(cfg.col_joints),
         espAlpha * SmoothFeature(previewId, "joints", cfg.skeleton_joints && cfg.skeleton));
-    ImU32 headCol = SmoothColor(previewId, "head_color", ToImU32(cfg.col_head),
+    ImU32 headCol = SmoothColor(previewId, "head_color", cfg.rgb_mode ? boxCol : ToImU32(cfg.col_head),
         espAlpha * SmoothFeature(previewId, "head", cfg.head_dot));
-    ImU32 haloCol = SmoothColor(previewId, "halo_color", ToImU32(cfg.col_halo),
+    ImU32 haloCol = SmoothColor(previewId, "halo_color", cfg.rgb_mode ? boxCol : ToImU32(cfg.col_halo),
         espAlpha * SmoothFeature(previewId, "halo", cfg.head_halo));
-    ImU32 healthCol = SmoothColor(previewId, "health_color", ToImU32(cfg.col_health),
+    ImU32 healthCol = SmoothColor(previewId, "health_color", cfg.rgb_mode ? boxCol : ToImU32(cfg.col_health),
         espAlpha * SmoothFeature(previewId, "health", cfg.health_bar));
-    ImU32 armorCol = SmoothColor(previewId, "armor_color", ToImU32(cfg.col_armor),
+    ImU32 armorCol = SmoothColor(previewId, "armor_color", cfg.rgb_mode ? boxCol : ToImU32(cfg.col_armor),
         espAlpha * SmoothFeature(previewId, "armor", cfg.armor_bar));
-    ImU32 nameCol = SmoothColor(previewId, "name_color", ToImU32(cfg.col_name),
+    ImU32 nameCol = SmoothColor(previewId, "name_color", cfg.rgb_mode ? boxCol : ToImU32(cfg.col_name),
         espAlpha * SmoothFeature(previewId, "name", cfg.name));
-    ImU32 distCol = SmoothColor(previewId, "distance_color", ToImU32(cfg.col_distance),
+    ImU32 distCol = SmoothColor(previewId, "distance_color", cfg.rgb_mode ? boxCol : ToImU32(cfg.col_distance),
         espAlpha * SmoothFeature(previewId, "distance", cfg.distance));
     const bool anyWeapon = cfg.weapon_name || cfg.weapon_ammo;
-    ImU32 weaponCol = SmoothColor(previewId, "weapon_color", ToImU32(cfg.col_weapon),
+    ImU32 weaponCol = SmoothColor(previewId, "weapon_color", cfg.rgb_mode ? boxCol : ToImU32(cfg.col_weapon),
         espAlpha * SmoothFeature(previewId, "weapon", anyWeapon));
-    ImU32 snapCol = SmoothColor(previewId, "snap_color", ToImU32(cfg.col_snaplines),
+    ImU32 snapCol = SmoothColor(previewId, "snap_color", cfg.rgb_mode ? boxCol : ToImU32(cfg.col_snaplines),
         espAlpha * SmoothFeature(previewId, "snap", cfg.snaplines));
-    ImU32 trailCol = SmoothColor(previewId, "trail_color", ToImU32(cfg.col_trail),
+    ImU32 trailCol = SmoothColor(previewId, "trail_color", cfg.rgb_mode ? boxCol : ToImU32(cfg.col_trail),
         espAlpha * SmoothFeature(previewId, "trail", cfg.trails));
     const bool anyFun = cfg.angel_wings || cfg.chinese_hat || cfg.devil_horns || cfg.floating_crown;
-    ImU32 funCol = SmoothColor(previewId, "fun_color", ToImU32(cfg.col_fun_effects),
+    ImU32 funCol = SmoothColor(previewId, "fun_color", cfg.rgb_mode ? boxCol : ToImU32(cfg.col_fun_effects),
         espAlpha * SmoothFeature(previewId, "fun", anyFun));
-    ImU32 lookCol = SmoothColor(previewId, "look_color", ToImU32(cfg.col_look),
+    ImU32 lookCol = SmoothColor(previewId, "look_color", cfg.rgb_mode ? boxCol : ToImU32(cfg.col_look),
         espAlpha * SmoothFeature(previewId, "look", cfg.look_direction));
     ImU32 outlineTextCol = SmoothColor(previewId, "outline_color", ToImU32(cfg.col_text_outline), espAlpha);
 
@@ -714,7 +714,7 @@ void DrawPreview(ImDrawList* dl, const ImVec2& origin, float width, float height
 
     const float previewBoxThickness = (std::max)(cfg.box_thickness, 2.f);
     if ((fullBoxCol >> 24) != 0) DrawBox2D(dl, g, fullBoxCol, previewBoxThickness, cfg.box_rounding,
-        cfg.box_fill, SmoothColor(previewId, "box_fill_color", ToImU32(cfg.col_box_fill),
+        cfg.box_fill, SmoothColor(previewId, "box_fill_color", cfg.rgb_mode ? boxCol : ToImU32(cfg.col_box_fill),
         espAlpha * SmoothFeature(previewId, "box_fill", cfg.box && cfg.box_fill)));
     if ((cornerBoxCol >> 24) != 0) DrawCornerBox(dl, g, cornerBoxCol, previewBoxThickness);
 

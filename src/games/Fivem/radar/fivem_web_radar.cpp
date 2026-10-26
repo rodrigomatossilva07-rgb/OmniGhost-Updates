@@ -42,7 +42,6 @@ using Clock = std::chrono::steady_clock;
 constexpr char kWsGuid[] = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 constexpr std::size_t kMaxRequest = 16 * 1024;
 constexpr std::size_t kMaxClients = 16;
-constexpr auto kPushPeriod = std::chrono::milliseconds(100);
 constexpr auto kStaleAfter = std::chrono::milliseconds(1500);
 
 struct Client {
@@ -63,6 +62,11 @@ std::string g_token, g_json = R"({"type":"snapshot","connected":false,"players":
 Clock::time_point g_sampleTime{};
 std::uint32_t g_players = 0, g_vehicles = 0;
 std::uint64_t g_sessionSalt = 0;
+std::atomic<float> g_maxDistance{1500.f};
+std::atomic<std::uint32_t> g_maxPlayers{64}, g_maxVehicles{64};
+std::atomic<float> g_updateHz{10.f}, g_measuredHz{0.f};
+std::atomic<int> g_mode{0};
+Clock::time_point g_previousSampleTime{};
 
 std::mutex g_cloudMutex;
 PROCESS_INFORMATION g_cloudProcess{};
@@ -105,9 +109,13 @@ std::string BuildFromCaches(std::uint32_t& playerCount, std::uint32_t& vehicleCo
       << GetTickCount64() << ",\"players\":[";
     bool first=true; playerCount=0;
     const std::size_t count=(std::min)(snap.validPeds.size(), snap.positions.size());
-    for(std::size_t i=0;i<count && playerCount<256;++i) {
+    const float maxDistance = g_maxDistance.load(std::memory_order_relaxed);
+    const std::uint32_t playerLimit = g_maxPlayers.load(std::memory_order_relaxed);
+    for(std::size_t i=0;i<count && playerCount<playerLimit;++i) {
         const auto ped=snap.validPeds[i]; Vec3 p=snap.positions[i];
         if(!ped || !Finite(p) || p.IsZero()) continue;
+        const float distance = p.distance_to(local);
+        if (!std::isfinite(distance) || distance > maxDistance) continue;
         std::uint32_t net=0; esp::try_get_prepared_network_id(ped,net);
         char name[48]{}; esp::try_get_prepared_player_name(ped,name,sizeof(name));
         float health=0, armor=0; const bool hasHealth=esp::try_get_prepared_health(ped,health);
@@ -118,7 +126,7 @@ std::string BuildFromCaches(std::uint32_t& playerCount, std::uint32_t& vehicleCo
         if(!first)o<<','; first=false;
         o << "{\"id\":\""<<StableId(ped,net)<<"\",\"name\":\""<<Escape(name[0]?name:"Jogador")
           <<"\",\"x\":"<<p.x<<",\"y\":"<<p.y<<",\"z\":"<<p.z
-          <<",\"distance\":"<<p.distance_to(local)<<",\"local\":"<<(ped==FiveM::offset::localplayer?"true":"false");
+          <<",\"distance\":"<<distance<<",\"local\":"<<(ped==FiveM::offset::localplayer?"true":"false");
         if(net)o<<",\"networkId\":"<<net;
         if(hasHealth)o<<",\"health\":"<<health;
         if(hasArmor)o<<",\"armor\":"<<armor;
@@ -127,8 +135,9 @@ std::string BuildFromCaches(std::uint32_t& playerCount, std::uint32_t& vehicleCo
         o << '}'; ++playerCount;
     }
     o << "],\"vehicles\":["; first=true; vehicleCount=0;
+    const std::uint32_t vehicleLimit = g_maxVehicles.load(std::memory_order_relaxed);
     for(const auto& v: vehicle_esp::GetSnapshot()) {
-        if(!v.valid || !Finite(v.position) || vehicleCount>=128)continue;
+        if(!v.valid || !Finite(v.position) || v.distance > maxDistance || vehicleCount>=vehicleLimit)continue;
         if(!first)o<<','; first=false;
         o<<"{\"id\":\"vehicle-"<<std::hex<<Mix(v.address^g_sessionSalt)<<std::dec
          <<"\",\"x\":"<<v.position.x<<",\"y\":"<<v.position.y<<",\"z\":"<<v.position.z
@@ -202,10 +211,10 @@ void ServerLoop(){WSADATA w{};if(WSAStartup(MAKEWORD(2,2),&w)!=0){g_running=fals
   sockaddr_in addr{};addr.sin_family=AF_INET;addr.sin_port=htons(static_cast<u_short>(g_port));inet_pton(AF_INET,"127.0.0.1",&addr.sin_addr);
   int reuse=1;setsockopt(g_listener,SOL_SOCKET,SO_REUSEADDR,reinterpret_cast<char*>(&reuse),sizeof(reuse));
   if(g_listener==INVALID_SOCKET||bind(g_listener,reinterpret_cast<sockaddr*>(&addr),sizeof(addr))||listen(g_listener,8)){if(g_listener!=INVALID_SOCKET)closesocket(g_listener);g_listener=INVALID_SOCKET;WSACleanup();g_running=false;return;}
-  u_long nb=1;ioctlsocket(g_listener,FIONBIO,&nb);g_running=true;std::vector<Client> clients;auto lastPush=Clock::now()-kPushPeriod;auto lastPing=Clock::now();
+  u_long nb=1;ioctlsocket(g_listener,FIONBIO,&nb);g_running=true;std::vector<Client> clients;auto lastPush=Clock::now()-std::chrono::milliseconds(100);auto lastPing=Clock::now();
   while(!g_stop){
     SOCKET s=accept(g_listener,nullptr,nullptr);if(s!=INVALID_SOCKET){if(clients.size()<kMaxClients){std::string req;char buf[4096];for(int loops=0;loops<5&&req.size()<kMaxRequest;++loops){int n=recv(s,buf,sizeof(buf),0);if(n<=0)break;req.append(buf,n);if(req.find("\r\n\r\n")!=std::string::npos)break;}HandleHttp(s,req,clients);if(std::none_of(clients.begin(),clients.end(),[&](const Client&c){return c.socket==s;}))closesocket(s);}else closesocket(s);}
-    const auto now=Clock::now();if(now-lastPush>=kPushPeriod){PublishFromCaches();std::string json;{std::scoped_lock l(g_stateMutex);json=g_json;}
+    const auto now=Clock::now();const float configuredHz=std::clamp(g_updateHz.load(std::memory_order_relaxed),2.f,30.f);const auto pushPeriod=std::chrono::duration_cast<Clock::duration>(std::chrono::duration<float>(1.f/configuredHz));if(now-lastPush>=pushPeriod){PublishFromCaches();std::string json;{std::scoped_lock l(g_stateMutex);json=g_json;}
       for(auto&c:clients)if(c.socket!=INVALID_SOCKET)QueueWs(c,json);lastPush=now;}
     if(now-lastPing>=std::chrono::seconds(10)){for(auto&c:clients)if(c.socket!=INVALID_SOCKET&&c.pending.empty())QueueWs(c,"",9);lastPing=now;}
     for(auto&c:clients)if(c.socket!=INVALID_SOCKET&&!FlushWs(c))Close(c);
@@ -229,10 +238,11 @@ void CloudLoop(){SECURITY_ATTRIBUTES sa{sizeof(sa),nullptr,TRUE};HANDLE rd=nullp
 bool Start(int port){if(g_running)return true;if(g_thread.joinable())g_thread.join();g_port=std::clamp(port,1024,65535);std::string tokenError;if(!OmniGhost::RadarAccess::GenerateSessionToken(g_token,tokenError))return false;std::random_device rd;g_sessionSalt=(static_cast<std::uint64_t>(rd())<<32)^rd();g_stop=false;g_thread=std::thread(ServerLoop);for(int i=0;i<100&&!g_running;++i)Sleep(10);return g_running;}
 void Stop(){StopCloudflare();g_stop=true;if(g_listener!=INVALID_SOCKET)shutdown(g_listener,SD_BOTH);if(g_thread.joinable())g_thread.join();g_sourceConnected=false;std::scoped_lock l(g_stateMutex);g_json=R"({"type":"snapshot","connected":false,"players":[],"vehicles":[]})";g_sampleTime={};g_players=g_vehicles=0;}
 bool IsRunning() noexcept{return g_running;} int Port() noexcept{return g_port;}
-void PublishFromCaches(){std::uint32_t pc=0,vc=0;std::string json=BuildFromCaches(pc,vc);g_sourceConnected=json.find("\"connected\":true")!=std::string::npos;std::scoped_lock l(g_stateMutex);g_json=std::move(json);g_sampleTime=Clock::now();g_players=pc;g_vehicles=vc;}
+void Configure(const Settings& settings) noexcept {g_maxDistance=std::clamp(settings.maxDistance,100.f,10000.f);g_maxPlayers=std::clamp(settings.maxPlayers,8u,110u);g_maxVehicles=std::clamp(settings.maxVehicles,8u,64u);g_updateHz=std::clamp(settings.updateHz,2.f,30.f);g_mode=std::clamp(settings.mode,0,2);}
+void PublishFromCaches(){std::uint32_t pc=0,vc=0;std::string json=BuildFromCaches(pc,vc);g_sourceConnected=json.find("\"connected\":true")!=std::string::npos;const auto sampleNow=Clock::now();if(g_previousSampleTime.time_since_epoch().count()){const float interval=std::chrono::duration<float>(sampleNow-g_previousSampleTime).count();if(interval>.001f){const float instant=1.f/interval;const float previous=g_measuredHz.load(std::memory_order_relaxed);g_measuredHz.store(previous>0.f?previous*.85f+instant*.15f:instant,std::memory_order_relaxed);}}g_previousSampleTime=sampleNow;std::scoped_lock l(g_stateMutex);g_json=std::move(json);g_sampleTime=sampleNow;g_players=pc;g_vehicles=vc;}
 std::string AccessToken(){return g_token;} std::string LocalUrl(){return "http://127.0.0.1:"+std::to_string(g_port)+"/#"+g_token;} std::string PublicUrl(){std::scoped_lock l(g_cloudMutex);return g_publicUrl;}
 bool StartCloudflare(){if(!g_running&&!Start(g_port))return false;if(g_cloudThread.joinable()){if(g_cloudWorkerActive||CloudflareRunning())return true;g_cloudThread.join();}g_cloudStop=false;g_cloudWorkerActive=true;{std::scoped_lock l(g_cloudMutex);g_publicUrl.clear();g_cloudStatus="A iniciar túnel...";}try{g_cloudThread=std::thread(CloudLoop);}catch(...){g_cloudWorkerActive=false;std::scoped_lock l(g_cloudMutex);g_cloudStatus="Não foi possível criar a thread do túnel.";return false;}return true;}
 void StopCloudflare(){g_cloudStop=true;{std::scoped_lock l(g_cloudMutex);if(g_cloudProcess.hProcess)TerminateProcess(g_cloudProcess.hProcess,0);}if(g_cloudThread.joinable())g_cloudThread.join();std::scoped_lock l(g_cloudMutex);g_publicUrl.clear();g_cloudStatus.clear();}
 bool CloudflareRunning() noexcept{std::scoped_lock l(g_cloudMutex);return g_cloudProcess.hProcess!=nullptr;}std::string CloudflareStatus(){std::scoped_lock l(g_cloudMutex);return g_cloudStatus;}
-Diagnostics GetDiagnostics() noexcept{Diagnostics d;d.running=g_running;d.clients=g_clientCount;std::scoped_lock l(g_stateMutex);d.players=g_players;d.vehicles=g_vehicles;d.sourceFresh=g_sourceConnected&&g_sampleTime.time_since_epoch().count()!=0&&Clock::now()-g_sampleTime<kStaleAfter;d.lastSampleAgeMs=g_sampleTime.time_since_epoch().count()?std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now()-g_sampleTime).count():0;return d;}
+Diagnostics GetDiagnostics() noexcept{Diagnostics d;d.running=g_running;d.clients=g_clientCount;d.updateHz=g_measuredHz.load(std::memory_order_relaxed);d.configuredHz=g_updateHz.load(std::memory_order_relaxed);d.maxDistance=g_maxDistance.load(std::memory_order_relaxed);d.maxPlayers=g_maxPlayers.load(std::memory_order_relaxed);d.maxVehicles=g_maxVehicles.load(std::memory_order_relaxed);std::scoped_lock l(g_stateMutex);d.players=g_players;d.vehicles=g_vehicles;d.sourceFresh=g_sourceConnected&&g_sampleTime.time_since_epoch().count()!=0&&Clock::now()-g_sampleTime<kStaleAfter;d.lastSampleAgeMs=g_sampleTime.time_since_epoch().count()?std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now()-g_sampleTime).count():0;return d;}
 }

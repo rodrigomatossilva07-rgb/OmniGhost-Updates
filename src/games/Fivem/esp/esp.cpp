@@ -784,15 +784,15 @@ static bool EspPedIsFriend(uintptr_t ped) {
 }
 
 static ImU32 EspPedColor(uintptr_t ped, ImU32 configured, bool visible) {
-
-
+    // RGB is a global visual override. Visibility and state colours apply only
+    // when the user is not explicitly requesting the animated palette.
+    if (esp::config.rgb_mode)
+        return EspRGB();
     if (esp::config.visibility_colors) {
         if (!EspPedVisibilityKnown(ped))
             return IM_COL32(150, 156, 166, 255);
         return visible ? esp::config.color_visible : esp::config.color_invisible;
     }
-    if (esp::config.rgb_mode)
-        return EspRGB();
     if (esp::config.show_knocked && EspPedIsKnocked(ped))
         return esp::config.color_knocked ? esp::config.color_knocked : IM_COL32(255, 165, 0, 255);
     if (EspPedIsDead(ped))
@@ -1873,7 +1873,7 @@ static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer,
     boxMin.y -= topPadding;
 
     ImU32 colBox = EspPedColor(ped, rcfg->color_box_2d, visible);
-    if (health <= 0.f) colBox = rcfg->color_dead;
+    if (health <= 0.f && !esp::config.rgb_mode) colBox = rcfg->color_dead;
     ImU32 colCorner = EspPedColor(ped, rcfg->color_corner_box, visible);
     ImU32 colSnap = EspPedColor(ped, rcfg->color_snaplines, visible);
 
@@ -1892,7 +1892,10 @@ static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer,
     if (rcfg->box_2d) {
 
         if (rcfg->filled_box) {
-            dl->AddRectFilled(boxMin, boxMax, IM_COL32(0, 0, 0, 80));
+            ImU32 fill = esp::config.rgb_mode ? EspRGB() : IM_COL32(0, 0, 0, 80);
+            if (esp::config.rgb_mode)
+                fill = (fill & 0x00FFFFFFu) | (80u << 24);
+            dl->AddRectFilled(boxMin, boxMax, fill);
         }
 
         dl->AddRect(ImVec2(boxMin.x - 1.f, boxMin.y - 1.f),

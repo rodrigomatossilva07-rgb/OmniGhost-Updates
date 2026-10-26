@@ -25,6 +25,8 @@ namespace FiveM {
 
         void UpdateValidPedsSnapshot(const std::vector<uintptr_t>& peds, const std::vector<Vec3>& pos, uint64_t gen);
         [[nodiscard]] ValidPedsSnapshot GetValidPedsSnapshot() noexcept;
+        [[nodiscard]] int LastRawPedCount() noexcept;
+        [[nodiscard]] int LastFilteredPedCount() noexcept;
 
 
         [[nodiscard]] const std::vector<uintptr_t>& GetValidPeds() noexcept;

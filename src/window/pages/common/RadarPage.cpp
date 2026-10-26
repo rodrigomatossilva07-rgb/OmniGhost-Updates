@@ -102,6 +102,48 @@ void DrawRadar()
     }
     if (enabled) {
         if (!FiveM::WebRadar::IsRunning()) FiveM::WebRadar::Start(esp::config.web_radar_port);
+        CyberWidgets::Separator();
+        CyberWidgets::SectionTitle(app_settings::T("AQUISIÇÃO", "ACQUISITION"));
+        const char* radarModes[] = {
+            app_settings::T("Equilibrado", "Balanced"),
+            app_settings::T("Cobertura", "Coverage"),
+            app_settings::T("Desempenho", "Performance")
+        };
+        if (CyberWidgets::Combo(app_settings::T("Perfil", "Profile"),
+                &esp::config.web_radar_mode, radarModes, 3)) {
+            if (esp::config.web_radar_mode == 1) {
+                esp::config.web_radar_max_players = 110;
+                esp::config.web_radar_max_vehicles = 64;
+                esp::config.web_radar_update_hz = 10.f;
+            } else if (esp::config.web_radar_mode == 2) {
+                esp::config.web_radar_max_players = 30;
+                esp::config.web_radar_max_vehicles = 32;
+                esp::config.web_radar_update_hz = 8.f;
+            } else {
+                esp::config.web_radar_max_players = 64;
+                esp::config.web_radar_max_vehicles = 48;
+                esp::config.web_radar_update_hz = 10.f;
+            }
+        }
+        CyberWidgets::SliderFloat(app_settings::T("Distância do radar", "Radar distance"),
+            &esp::config.web_radar_distance, 100.f, 5000.f, "%.0f m");
+        ImGui::SliderInt(app_settings::T("Máximo de jogadores", "Maximum players"),
+            &esp::config.web_radar_max_players, 8, 110);
+        ImGui::SliderInt(app_settings::T("Máximo de veículos", "Maximum vehicles"),
+            &esp::config.web_radar_max_vehicles, 8, 64);
+        CyberWidgets::SliderFloat(app_settings::T("Atualização", "Update rate"),
+            &esp::config.web_radar_update_hz, 2.f, 30.f, "%.0f Hz");
+        FiveM::WebRadar::Configure({
+            esp::config.web_radar_distance,
+            static_cast<std::uint32_t>(esp::config.web_radar_max_players),
+            static_cast<std::uint32_t>(esp::config.web_radar_max_vehicles),
+            esp::config.web_radar_update_hz,
+            esp::config.web_radar_mode
+        });
+        CyberWidgets::TextLine(app_settings::T(
+            "O radar mostra apenas entidades transmitidas pelo streaming do FiveM ao teu cliente.",
+            "The radar only shows entities streamed by FiveM to your client."),
+            CyberWidgets::TextTone::Secondary);
         bool cloud = esp::config.web_radar_cloudflare;
         if (cloud && !FiveM::WebRadar::CloudflareRunning() && FiveM::WebRadar::PublicUrl().empty())
             FiveM::WebRadar::StartCloudflare();
@@ -114,6 +156,10 @@ void DrawRadar()
             d.sourceFresh ? app_settings::T("Em direto", "Live") : app_settings::T("A aguardar", "Waiting"));
         CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, "%u jogadores | %u veículos | %u ligações",
             d.players, d.vehicles, d.clients);
+        CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary,
+            "%.1f / %.0f Hz | amostra %llu ms | %.0f m",
+            d.updateHz, d.configuredHz,
+            static_cast<unsigned long long>(d.lastSampleAgeMs), d.maxDistance);
         if (CyberWidgets::GoldButton(app_settings::T("Abrir radar local", "Open local radar"), ImVec2(180.f, 34.f))) {
             const auto url = FiveM::WebRadar::LocalUrl();
             ShellExecuteA(nullptr, "open", url.c_str(), nullptr, nullptr, SW_SHOWNORMAL);

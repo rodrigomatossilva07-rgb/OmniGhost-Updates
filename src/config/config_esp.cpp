@@ -56,6 +56,11 @@ void SerializeESP(std::ostringstream& o) {
     WBool(o, "esp.web_radar_enabled", e.web_radar_enabled);
     WBool(o, "esp.web_radar_cloudflare", e.web_radar_cloudflare);
     WInt(o, "esp.web_radar_port", e.web_radar_port);
+    WFloat(o, "esp.web_radar_distance", e.web_radar_distance);
+    WInt(o, "esp.web_radar_max_players", e.web_radar_max_players);
+    WInt(o, "esp.web_radar_max_vehicles", e.web_radar_max_vehicles);
+    WFloat(o, "esp.web_radar_update_hz", e.web_radar_update_hz);
+    WInt(o, "esp.web_radar_mode", e.web_radar_mode);
     WBool(o, "esp.skeleton_lod", e.skeleton_lod);
     WBool(o, "esp.triangle_radar", e.triangle_radar);
     WBool(o, "esp.blip_esp", e.blip_esp);
@@ -179,6 +184,11 @@ bool DeserializeESP(const std::string& key, const std::string& val) {
     if (bi("esp.web_radar_enabled")) { e.web_radar_enabled = toB(); return true; }
     if (bi("esp.web_radar_cloudflare")) { e.web_radar_cloudflare = toB(); return true; }
     if (bi("esp.web_radar_port")) { e.web_radar_port = std::clamp(toI(), 1024, 65535); return true; }
+    if (bi("esp.web_radar_distance")) { e.web_radar_distance = std::clamp(toF(), 100.f, 10000.f); return true; }
+    if (bi("esp.web_radar_max_players")) { e.web_radar_max_players = std::clamp(toI(), 8, 110); return true; }
+    if (bi("esp.web_radar_max_vehicles")) { e.web_radar_max_vehicles = std::clamp(toI(), 8, 64); return true; }
+    if (bi("esp.web_radar_update_hz")) { e.web_radar_update_hz = std::clamp(toF(), 2.f, 30.f); return true; }
+    if (bi("esp.web_radar_mode")) { e.web_radar_mode = std::clamp(toI(), 0, 2); return true; }
     if (bi("esp.skeleton_lod")) { e.skeleton_lod = toB(); return true; }
     if (bi("esp.triangle_radar")) { e.triangle_radar = toB(); return true; }
     if (bi("esp.blip_esp")) { e.blip_esp = toB(); return true; }

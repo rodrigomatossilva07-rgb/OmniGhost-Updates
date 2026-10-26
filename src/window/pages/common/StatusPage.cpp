@@ -6,9 +6,13 @@
 #include "game/esp_manager.h"
 #include "platform/offset_auto.h"
 #include "esp/esp.h"
+#include "esp/vehicle_esp.h"
+#include "games/Fivem/radar/fivem_web_radar.h"
+#include "gameplay/dma_telemetry_log.h"
 #include "aimbot/aim_type.h"
 #include "Memory/Memory.h"
 #include "imgui.h"
+#include <algorithm>
 #include <cstdio>
 #include "../../hardware_monitor.h"
 #include "../../config_history.h"
@@ -34,7 +38,17 @@ void DrawFiveMStatus()
     const bool offsetsOk = OmniGhost::OffsetAuto::HasCriticalOffsets(ActiveGame::FiveM)
         && worldOk && viewOk;
     const int pedCount = static_cast<int>(FiveM::ESP::GetValidPedsSnapshot().validPeds.size());
+    const int rawPedCount = FiveM::ESP::LastRawPedCount();
+    const int filteredPedCount = FiveM::ESP::LastFilteredPedCount();
+    const int cachedVehicleCount = static_cast<int>(vehicle_esp::GetSnapshot().size());
     const bool espOn = esp::config.enabled;
+    const auto& telemetry = OmniGhost::Gameplay::DmaTelemetry::FiveM();
+    const auto radar = FiveM::WebRadar::GetDiagnostics();
+    const float worldAge = telemetry.snapshot.world_age_ms.load(std::memory_order_relaxed);
+    const float snapshotHz = telemetry.snapshot.snapshot_hz.load(std::memory_order_relaxed);
+    const int pressure = telemetry.pressure.pressure_level.load(std::memory_order_relaxed);
+    const auto readFails = telemetry.counts.read_fails.load(std::memory_order_relaxed);
+    const bool coreWorldOk = pedCount > 0 && worldAge >= 0.f && worldAge < 150.f;
 
     BeginCardRow();
     const float half = CardRowHalfWidth();
@@ -61,6 +75,44 @@ void DrawFiveMStatus()
               aim_type::config.kmbox_net_connected ? HealthStatus::Ok : HealthStatus::Warning);
     HealthRow("Ferrum", aim_type::config.ferrum_connected ? "Ligado" : "Desligado",
               aim_type::config.ferrum_connected ? HealthStatus::Ok : HealthStatus::Warning);
+    EndCard();
+    EndCardRow();
+
+    CardGap();
+    BeginCardRow();
+    BeginCard("CORE WORLD", half);
+    HealthRow("Aquisição", coreWorldOk ? "Dados recentes" : (worldOk ? "A aguardar entidades" : "World indisponível"),
+              coreWorldOk ? HealthStatus::Ok : HealthStatus::Warning);
+    TextLineF(TextTone::Secondary, "Pool: %d lidos | %d válidos | %d filtrados",
+              rawPedCount, pedCount, filteredPedCount);
+    TextLineF(TextTone::Secondary, "Veículos válidos: %d", cachedVehicleCount);
+    TextLineF(TextTone::Secondary, "Snapshot: %.1f Hz | idade %.1f ms", snapshotHz, worldAge);
+    TextLineF(pressure > 1 ? TextTone::Warning : TextTone::Secondary,
+              "Pressão DMA: %d | falhas: %llu", pressure,
+              static_cast<unsigned long long>(readFails));
+    EndCard();
+
+    NextCardColumn();
+    BeginCard("WEB RADAR", half);
+    HealthRow("Servidor local", radar.running ? "Ligado" : "Desligado",
+              radar.running ? HealthStatus::Ok : HealthStatus::Warning);
+    HealthRow("Fonte", radar.sourceFresh ? "Em direto" : "Sem amostra recente",
+              radar.sourceFresh ? HealthStatus::Ok : HealthStatus::Warning);
+    HealthRow("Cloudflare", FiveM::WebRadar::CloudflareRunning() ? "Ligado" : "Desligado",
+              FiveM::WebRadar::CloudflareRunning() ? HealthStatus::Ok : HealthStatus::Warning);
+    TextLineF(TextTone::Secondary, "%u jogadores | %u veículos | %u clientes",
+              radar.players, radar.vehicles, radar.clients);
+    TextLineF(TextTone::Secondary, "Envio: %.1f / %.0f Hz | idade %llu ms",
+              radar.updateHz, radar.configuredHz,
+              static_cast<unsigned long long>(radar.lastSampleAgeMs));
+    if (!radar.running)
+        TextLine("Motivo: Web Radar desativado nas definições do Radar.", TextTone::Secondary);
+    else if (!worldOk)
+        TextLine("Motivo: ponteiro World do FiveM indisponível.", TextTone::Warning);
+    else if (!localOk)
+        TextLine("Motivo: jogador local ainda não identificado.", TextTone::Warning);
+    else if (!radar.sourceFresh)
+        TextLine("Motivo: cache do Core World vazia ou com mais de 1,5 s.", TextTone::Warning);
     EndCard();
     EndCardRow();
 #else

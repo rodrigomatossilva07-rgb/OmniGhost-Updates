@@ -53,6 +53,16 @@ struct FivemPreviewAdapter : EspPreview::IConfigAdapter {
         cfg.weapon_ammo = false;
         cfg.text_outline = true;
         cfg.text_outline_thickness = 1.f;
+        cfg.layout_name_x = esp::config.layout_name_x;
+        cfg.layout_name_y = esp::config.layout_name_y;
+        cfg.layout_health_x = esp::config.layout_health_x;
+        cfg.layout_health_y = esp::config.layout_health_y;
+        cfg.layout_armor_x = esp::config.layout_armor_x;
+        cfg.layout_armor_y = esp::config.layout_armor_y;
+        cfg.layout_weapon_x = esp::config.layout_weapon_x;
+        cfg.layout_weapon_y = esp::config.layout_weapon_y;
+        cfg.layout_distance_x = esp::config.layout_distance_x;
+        cfg.layout_distance_y = esp::config.layout_distance_y;
 
         cfg.snaplines = esp::config.snaplines;
         cfg.snapline_position = esp::config.snapline_pos;
@@ -123,69 +133,46 @@ struct FivemPreviewAdapter : EspPreview::IConfigAdapter {
 
 static FivemPreviewAdapter g_fivemAdapter;
 
-void DrawEspLayoutBuilder(float canvasWidth, float canvasHeight)
+void DrawEspLayoutBuilder(const ImVec2& origin, float canvasWidth, float canvasHeight)
 {
-    const ImVec2 origin = ImGui::GetCursorScreenPos();
     ImDrawList* draw = ImGui::GetWindowDrawList();
-    const ImVec2 end(origin.x + canvasWidth, origin.y + canvasHeight);
-    draw->AddRectFilled(origin, end, CyberTheme::WithAlpha(CyberTheme::Colors.Surface, .68f), 7.f);
-    draw->AddRect(origin, end, CyberTheme::WithAlpha(CyberTheme::Colors.Border, .55f), 7.f);
+    const EspPreview::PlayerGeometry geometry = EspPreview::BuildGeometry(origin, canvasWidth, canvasHeight);
+    const ImVec2 boxMin = geometry.boundsMin;
+    const ImVec2 boxMax = geometry.boundsMax;
+    const ImVec2 restoreCursor = ImGui::GetCursorScreenPos();
 
-    const ImVec2 boxMin(origin.x + canvasWidth * .36f, origin.y + canvasHeight * .22f);
-    const ImVec2 boxMax(origin.x + canvasWidth * .64f, origin.y + canvasHeight * .78f);
-    draw->AddRect(boxMin, boxMax, CyberTheme::U32(CyberTheme::Colors.Gold), 3.f, 0, 1.5f);
-
-    struct Item { const char* label; esp::LayoutAnchor* anchor; ImU32 color; };
+    struct Item { const char* label; float* x; float* y; bool enabled; bool vertical; };
     Item items[] = {
-        { "Name", &esp::config.layout_name, esp::config.color_name },
-        { "Health", &esp::config.layout_health, esp::config.color_health },
-        { "Armor", &esp::config.layout_armor, esp::config.color_armor },
-        { "Weapon", &esp::config.layout_weapon, esp::config.color_weapon },
-        { "Distance", &esp::config.layout_distance, esp::config.color_distance }
+        { "Enemy", &esp::config.layout_name_x, &esp::config.layout_name_y, esp::config.player_name, false },
+        { "75 HP", &esp::config.layout_health_x, &esp::config.layout_health_y, esp::config.health_bar, true },
+        { "65 AP", &esp::config.layout_armor_x, &esp::config.layout_armor_y, esp::config.armor_bar, true },
+        { "AK-47", &esp::config.layout_weapon_x, &esp::config.layout_weapon_y, esp::config.weapon_name, false },
+        { "18m", &esp::config.layout_distance_x, &esp::config.layout_distance_y, esp::config.distance, false }
     };
-    int slots[4] = {};
     for (int i = 0; i < 5; ++i) {
-        const int anchor = std::clamp(static_cast<int>(*items[i].anchor), 0, 3);
-        const int slot = slots[anchor]++;
+        if (!items[i].enabled) continue;
         const ImVec2 textSize = ImGui::CalcTextSize(items[i].label);
-        const ImVec2 chipSize(textSize.x + 12.f, textSize.y + 6.f);
-        ImVec2 chip{};
-        if (anchor == 0)
-            chip = ImVec2((boxMin.x + boxMax.x - chipSize.x) * .5f,
-                          boxMin.y - chipSize.y - 8.f - slot * (chipSize.y + 3.f));
-        else if (anchor == 1)
-            chip = ImVec2((boxMin.x + boxMax.x - chipSize.x) * .5f,
-                          boxMax.y + 8.f + slot * (chipSize.y + 3.f));
-        else if (anchor == 2)
-            chip = ImVec2(boxMin.x - chipSize.x - 8.f,
-                          boxMin.y + slot * (chipSize.y + 3.f));
-        else
-            chip = ImVec2(boxMax.x + 8.f, boxMin.y + slot * (chipSize.y + 3.f));
-
+        ImVec2 chip(boxMin.x + *items[i].x * (boxMax.x - boxMin.x) - textSize.x * .5f,
+                    boxMin.y + *items[i].y * (boxMax.y - boxMin.y) - textSize.y * .5f);
+        const ImVec2 hitSize = items[i].vertical
+            ? ImVec2((std::max)(18.f, textSize.x), boxMax.y - boxMin.y)
+            : ImVec2(textSize.x + 12.f, textSize.y + 10.f);
+        if (items[i].vertical) chip.y = boxMin.y;
         ImGui::PushID(i);
         ImGui::SetCursorScreenPos(chip);
-        ImGui::InvisibleButton("##layout_item", chipSize);
+        ImGui::InvisibleButton("##layout_item", hitSize);
         if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
             const ImVec2 mouse = ImGui::GetIO().MousePos;
-            const float distances[] = { fabsf(mouse.y - boxMin.y), fabsf(mouse.y - boxMax.y),
-                fabsf(mouse.x - boxMin.x), fabsf(mouse.x - boxMax.x) };
-            int nearest = 0;
-            for (int side = 1; side < 4; ++side)
-                if (distances[side] < distances[nearest]) nearest = side;
-            *items[i].anchor = static_cast<esp::LayoutAnchor>(nearest);
+            *items[i].x = std::clamp((mouse.x - boxMin.x) / (boxMax.x - boxMin.x), -.20f, 1.20f);
+            *items[i].y = std::clamp((mouse.y - boxMin.y) / (boxMax.y - boxMin.y), -.20f, 1.20f);
         }
         const bool active = ImGui::IsItemActive() || ImGui::IsItemHovered();
-        draw->AddRectFilled(chip, ImVec2(chip.x + chipSize.x, chip.y + chipSize.y),
-            active ? CyberTheme::WithAlpha(CyberTheme::Colors.Gold, .22f)
-                   : CyberTheme::WithAlpha(CyberTheme::Colors.Panel, .92f), 4.f);
-        draw->AddRect(chip, ImVec2(chip.x + chipSize.x, chip.y + chipSize.y),
-            active ? CyberTheme::U32(CyberTheme::Colors.Gold)
-                   : CyberTheme::WithAlpha(CyberTheme::Colors.Border, .8f), 4.f);
-        draw->AddText(ImVec2(chip.x + 6.f, chip.y + 3.f), items[i].color, items[i].label);
+        if (active)
+            draw->AddRect(chip, ImVec2(chip.x + hitSize.x, chip.y + hitSize.y),
+                ImGui::IsItemActive() ? IM_COL32(229, 184, 55, 190) : IM_COL32(229, 184, 55, 90), 4.f);
         ImGui::PopID();
     }
-    ImGui::SetCursorScreenPos(origin);
-    ImGui::Dummy(ImVec2(canvasWidth, canvasHeight));
+    ImGui::SetCursorScreenPos(restoreCursor);
 }
 
 }
@@ -370,18 +357,7 @@ void DrawVisuals()
 
 
     EspPreview::DrawPreview(dl, origin, drawWidth, panelHeight, g_fivemAdapter, Loc::Tr("vis.preview"));
-
-    CyberWidgets::Separator();
-    CyberWidgets::SectionTitle(app_settings::T("ESP BUILDER", "ESP BUILDER"));
-    CyberWidgets::TextLine(app_settings::T("Arrasta os elementos para cima, baixo ou para os lados da caixa.",
-                                          "Drag elements above, below or to either side of the box."),
-        CyberWidgets::TextTone::Secondary);
-    DrawEspLayoutBuilder(drawWidth, CyberTheme::Px(210.f));
-    CyberWidgets::SliderFloat(app_settings::T("Espacamento", "Spacing"),
-        &esp::config.layout_spacing, 0.f, 18.f, "%.0f px");
-    CyberWidgets::SliderFloat(app_settings::T("Escala do texto", "Text scale"),
-        &esp::config.layout_text_scale, .65f, 1.6f, "%.2f");
-    CyberWidgets::ToggleSwitch("Snapping", &esp::config.layout_snap);
+    DrawEspLayoutBuilder(origin, drawWidth, panelHeight);
 
     CyberWidgets::EndCard();
     ImGui::EndGroup();

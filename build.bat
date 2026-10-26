@@ -3,7 +3,7 @@ setlocal
 
 set "ROOT=%~dp0"
 set "CONFIG=%~1"
-if "%CONFIG%"=="" set "CONFIG=Publish"
+if "%CONFIG%"=="" set "CONFIG=publish"
 set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
 
 if not exist "%VSWHERE%" (
