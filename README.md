@@ -23,7 +23,7 @@
 
 [![Latest Release](https://img.shields.io/github/v/release/rodrigomatossilva07-rgb/OmniGhost-Updates?display_name=tag\&style=for-the-badge\&label=LATEST%20RELEASE\&labelColor=101010\&color=D4AF37)](https://github.com/rodrigomatossilva07-rgb/OmniGhost-Updates/releases/latest)
 [![Download](https://img.shields.io/badge/DOWNLOAD-OMNIGHOST.EXE-C9A227?style=for-the-badge\&logo=github\&logoColor=white\&labelColor=101010)](https://github.com/rodrigomatossilva07-rgb/OmniGhost-Updates/releases/latest)
-[![Discord](https://img.shields.io/badge/DISCORD-JOIN%20COMMUNITY-D4AF37?style=for-the-badge\&logo=discord\&logoColor=white\&labelColor=101010)](https://discord.gg/wsXAyWd5)
+[![Discord](https://img.shields.io/badge/DISCORD-JOIN%20COMMUNITY-D4AF37?style=for-the-badge\&logo=discord\&logoColor=white\&labelColor=101010)]([https://discord.gg/2KUHghZv))
 
 </div>
 
