@@ -1,4 +1,5 @@
 #include "fivem_collision_world.h"
+#include "../../../platform/app_paths.h"
 
 #include <algorithm>
 #include <array>
@@ -7,6 +8,7 @@
 #include <limits>
 #include <atomic>
 #include <condition_variable>
+#include <cstdlib>
 #include <deque>
 #include <mutex>
 #include <shared_mutex>
@@ -275,11 +277,29 @@ bool World::Initialize(const std::filesystem::path& folder, std::uint64_t cacheL
     std::error_code ec;
     std::filesystem::path absolute;
     float size = 0.0f;
-    const std::array<std::filesystem::path, 3> candidates{
-        folder, std::filesystem::path("..") / folder, std::filesystem::path("..") / ".." / folder};
+    std::vector<std::filesystem::path> candidates;
+    if (const char* overrideFolder = std::getenv("OMNIGHOST_FIVEM_COLLISION_DIR");
+        overrideFolder && *overrideFolder) {
+        candidates.emplace_back(overrideFolder);
+    }
+    candidates.push_back(folder);
+    candidates.push_back(std::filesystem::path("..") / folder);
+    candidates.push_back(std::filesystem::path("..") / ".." / folder);
+
+    // The working directory is not stable: Visual Studio, the launcher and an installed
+    // build may all start the same EXE from different directories. Resolve relative to
+    // the actual executable as well, so build/OmniGhost.exe finds ../data/fivem/collision.
+    const auto executableDir = OmniGhost::Paths::InstallDirectory();
+    candidates.push_back(executableDir / folder);
+    candidates.push_back(executableDir / ".." / folder);
+    candidates.push_back(executableDir / ".." / ".." / folder);
+    candidates.push_back(OmniGhost::Paths::LocalData() / "collision" / "fivem");
+
     for (const auto& candidate : candidates) {
         ec.clear();
-        const auto resolved = std::filesystem::absolute(candidate, ec);
+        const auto candidateAbsolute = std::filesystem::absolute(candidate, ec);
+        if (ec) continue;
+        const auto resolved = std::filesystem::weakly_canonical(candidateAbsolute, ec);
         if (ec) continue;
         const float candidateSize = ReadRegionSize(resolved / "manifest.json");
         if (candidateSize > 0.0f) { absolute = resolved; size = candidateSize; break; }
