@@ -614,11 +614,14 @@ static bool EspPedVisibilityKnown(uintptr_t ped) {
     return (prepared && prepared->visibility_known) || FiveM::Visibility::IsPedVisibilityKnown(ped);
 }
 
-static bool EspPedPassesVisibility(uintptr_t ped) {
-
-
-
-    return !esp::config.visible_check || !EspPedVisibilityKnown(ped) || EspPedVisible(ped);
+static bool EspPedPassesVisibility(uintptr_t ped, bool visibleCheck, bool visibilityColors) {
+    // Match the CS2 semantics exactly:
+    //   check only          -> render only positively confirmed visible peds;
+    //   check + colours     -> keep both groups and colour the known result;
+    //   colours only        -> never filter, only colour the known result.
+    if (!visibleCheck || visibilityColors)
+        return true;
+    return EspPedVisibilityKnown(ped) && EspPedVisible(ped);
 }
 
 
@@ -1739,7 +1742,7 @@ static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer,
         return;
 
     const bool visible = EspPedVisible(ped);
-    if (rcfg->visible_check && !EspPedPassesVisibility(ped))
+    if (rcfg->visible_check && !EspPedPassesVisibility(ped, rcfg->visible_check, rcfg->visibility_colors))
         return;
 
     Vec2 originProjection{};
@@ -2184,7 +2187,7 @@ void esp::render_esp_for_ped(uintptr_t ped, Matrix viewport, uintptr_t localplay
     if (!EspPedMayDraw(ped, config.show_dead, config.show_knocked))
         return;
 
-    if (config.visible_check && !EspPedPassesVisibility(ped))
+    if (config.visible_check && !EspPedPassesVisibility(ped, config.visible_check, config.visibility_colors))
         return;
 
     if (config.head_circle)
@@ -2205,7 +2208,7 @@ void esp::render_esp_for_ped_cached(uintptr_t ped, Matrix viewport, uintptr_t lo
         return;
     if (!EspPedMayDraw(ped, config.show_dead, config.show_knocked))
         return;
-    if (config.visible_check && !EspPedPassesVisibility(ped))
+    if (config.visible_check && !EspPedPassesVisibility(ped, config.visible_check, config.visibility_colors))
         return;
 
     if (config.head_circle)
@@ -2891,7 +2894,7 @@ void esp::DrawPlayerRadar(const Matrix& , uintptr_t localplayer) {
         uintptr_t ped = snapshot.validPeds[i];
         if (!ped || ped == localplayer) continue;
         const bool visible = EspPedVisible(ped);
-        if (config.visible_check && !EspPedPassesVisibility(ped)) continue;
+        if (config.visible_check && !EspPedPassesVisibility(ped, config.visible_check, config.visibility_colors)) continue;
         Vec3 pos = (i < snapshot.positions.size()) ? snapshot.positions[i] : Vec3{};
         if (pos.IsZero()) continue;
         float dx = pos.x - localPos.x, dy = pos.y - localPos.y;
@@ -2988,7 +2991,7 @@ void esp::DrawPlayerRadar(const Matrix& , uintptr_t localplayer) {
         if (!ped || ped == localplayer) continue;
         if (config.team_check && EspPedIsFriend(ped)) continue;
         const bool visible = EspPedVisible(ped);
-        if (config.visible_check && !EspPedPassesVisibility(ped)) continue;
+        if (config.visible_check && !EspPedPassesVisibility(ped, config.visible_check, config.visibility_colors)) continue;
 
         Vec3 pos = (i < snapshot.positions.size()) ? snapshot.positions[i] : Vec3{};
         if (pos.IsZero()) continue;

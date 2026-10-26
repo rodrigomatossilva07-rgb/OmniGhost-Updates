@@ -271,6 +271,49 @@ void WriteNode(std::ofstream& out, const Node& value) {
     WriteValue(out, value.left); WriteValue(out, value.right);
 }
 
+template <typename T>
+T ReadValue(std::ifstream& in) {
+    T value{};
+    in.read(reinterpret_cast<char*>(&value), static_cast<std::streamsize>(sizeof(value)));
+    if (!in) throw std::runtime_error("ficheiro de colisão truncado");
+    return value;
+}
+
+Vec3 ReadVec3(std::ifstream& in) {
+    return {ReadValue<float>(in), ReadValue<float>(in), ReadValue<float>(in)};
+}
+
+void VerifyRegion(const fs::path& path, CellKey expectedKey, float expectedRegionSize) {
+    constexpr std::uint64_t headerBytes = 8u + 4u + 4u + 4u + 4u + 4u + 4u + 4u + 12u + 12u;
+    constexpr std::uint64_t triangleBytes = 9u * sizeof(float);
+    constexpr std::uint64_t nodeBytes = 10u * sizeof(std::uint32_t);
+    std::ifstream in(path, std::ios::binary);
+    if (!in) throw std::runtime_error("não foi possível validar " + path.string());
+    std::array<char, 8> magic{};
+    in.read(magic.data(), static_cast<std::streamsize>(magic.size()));
+    if (!in || magic != kMagic) throw std::runtime_error("assinatura OGCOL inválida: " + path.string());
+    const auto version = ReadValue<std::uint32_t>(in);
+    const auto cellX = ReadValue<std::int32_t>(in);
+    const auto cellY = ReadValue<std::int32_t>(in);
+    const auto regionSize = ReadValue<float>(in);
+    const auto triangleCount = ReadValue<std::uint32_t>(in);
+    const auto nodeCount = ReadValue<std::uint32_t>(in);
+    const auto indexCount = ReadValue<std::uint32_t>(in);
+    const Vec3 rootMin = ReadVec3(in);
+    const Vec3 rootMax = ReadVec3(in);
+    if (version != kFormatVersion || cellX != expectedKey.x || cellY != expectedKey.y ||
+        regionSize != expectedRegionSize || !triangleCount || !nodeCount || indexCount != triangleCount)
+        throw std::runtime_error("cabeçalho OGCOL inconsistente: " + path.string());
+    if (!std::isfinite(rootMin.x) || !std::isfinite(rootMin.y) || !std::isfinite(rootMin.z) ||
+        !std::isfinite(rootMax.x) || !std::isfinite(rootMax.y) || !std::isfinite(rootMax.z) ||
+        rootMin.x > rootMax.x || rootMin.y > rootMax.y || rootMin.z > rootMax.z)
+        throw std::runtime_error("AABB raiz inválida: " + path.string());
+    const std::uint64_t expectedBytes = headerBytes + triangleBytes * triangleCount +
+                                        nodeBytes * nodeCount + sizeof(std::uint32_t) * indexCount;
+    if (fs::file_size(path) != expectedBytes)
+        throw std::runtime_error("tamanho OGCOL inconsistente: " + path.string());
+}
+
 RegionResult WriteRegion(const fs::path& folder, CellKey key, float regionSize, const std::vector<Triangle>& triangles) {
     BvhBuilder bvh(triangles);
     if (bvh.Nodes().empty()) throw std::runtime_error("BVH vazio");
@@ -298,6 +341,7 @@ RegionResult WriteRegion(const fs::path& folder, CellKey key, float regionSize, 
     fs::remove(finalPath, ec);
     fs::rename(temporary, finalPath, ec);
     if (ec) throw std::runtime_error("não foi possível finalizar " + finalPath.string() + ": " + ec.message());
+    VerifyRegion(finalPath, key, regionSize);
     return {key, finalPath.filename(), fs::file_size(finalPath), triangleCount, nodeCount, root.min, root.max};
 }
 

@@ -86,6 +86,9 @@ public:
     void updatePedVisibilities(const std::vector<uintptr_t>& peds,
         const std::vector<uint8_t>& flags, uint8_t unreadFlag,
         std::chrono::steady_clock::time_point sampledAt);
+    void updatePedRaycastVisibilities(const std::vector<uintptr_t>& peds,
+        const std::vector<bool>& visible, const std::vector<bool>& known,
+        std::chrono::steady_clock::time_point sampledAt);
     void clearPedVisibilities();
     void removePed(uintptr_t pedId);
     void clearCache();

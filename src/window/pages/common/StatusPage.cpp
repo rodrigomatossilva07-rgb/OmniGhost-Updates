@@ -8,6 +8,7 @@
 #include "esp/esp.h"
 #include "esp/vehicle_esp.h"
 #include "games/Fivem/radar/fivem_web_radar.h"
+#include "games/Fivem/collision/fivem_collision_world.h"
 #include "gameplay/dma_telemetry_log.h"
 #include "aimbot/aim_type.h"
 #include "Memory/Memory.h"
@@ -44,6 +45,7 @@ void DrawFiveMStatus()
     const bool espOn = esp::config.enabled;
     const auto& telemetry = OmniGhost::Gameplay::DmaTelemetry::FiveM();
     const auto radar = FiveM::WebRadar::GetDiagnostics();
+    const auto collision = FiveM::Collision::World::Instance().GetDiagnostics();
     const float worldAge = telemetry.snapshot.world_age_ms.load(std::memory_order_relaxed);
     const float snapshotHz = telemetry.snapshot.snapshot_hz.load(std::memory_order_relaxed);
     const int pressure = telemetry.pressure.pressure_level.load(std::memory_order_relaxed);
@@ -90,6 +92,19 @@ void DrawFiveMStatus()
     TextLineF(pressure > 1 ? TextTone::Warning : TextTone::Secondary,
               "Pressão DMA: %d | falhas: %llu", pressure,
               static_cast<unsigned long long>(readFails));
+    HealthRow("Raycast do mapa", collision.initialized ? "Disponível" : "Indisponível",
+              collision.initialized ? HealthStatus::Ok : HealthStatus::Warning);
+    TextLineF(TextTone::Secondary, "Colisão: %u regiões em RAM | %u em fila | %.1f / %.0f MiB",
+              collision.cachedRegions, collision.pendingRegions,
+              static_cast<double>(collision.cacheBytes) / (1024.0 * 1024.0),
+              static_cast<double>(collision.cacheLimitBytes) / (1024.0 * 1024.0));
+    TextLineF(collision.failedLoads ? TextTone::Warning : TextTone::Secondary,
+              "Regiões: %llu carregadas | %llu falharam | %llu consultas pendentes",
+              static_cast<unsigned long long>(collision.successfulLoads),
+              static_cast<unsigned long long>(collision.failedLoads),
+              static_cast<unsigned long long>(collision.missingQueries));
+    if (!collision.initialized || collision.failedLoads)
+        TextLineF(TextTone::Warning, "Motivo: %s", collision.status.c_str());
     EndCard();
 
     NextCardColumn();

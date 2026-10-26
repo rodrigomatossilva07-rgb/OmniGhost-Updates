@@ -5,8 +5,15 @@
 #include "third_party/DMALibrary/Memory/Memory.h"
 #include "../playerInfo/PedData.h"
 #include "offsets.h"
+#include "../collision/fivem_collision_world.h"
 
 namespace FiveM::Visibility {
+
+struct RaycastTargets {
+    Vec3 head{};
+    Vec3 neck{};
+    Vec3 torso{};
+};
 
 static_assert(!PedVisibilityFlagMeansVisible(0) &&
               !PedVisibilityFlagMeansVisible(4) &&
@@ -20,7 +27,7 @@ inline VMMDLL_SCATTER_HANDLE& ScatterHandle() {
 
 inline bool IsPedVisibilityKnown(uintptr_t ped) {
     PedData data;
-    return ped && offset::pedVisibilityOffset &&
+    return ped &&
         g_pedCacheManager.getPedData(ped, data) && data.visibility_known &&
         std::chrono::steady_clock::now() - data.visibility_updated <
             std::chrono::milliseconds(180);
@@ -28,7 +35,7 @@ inline bool IsPedVisibilityKnown(uintptr_t ped) {
 
 inline bool IsPedVisible(uintptr_t ped) {
     PedData data;
-    return ped && offset::pedVisibilityOffset &&
+    return ped &&
         g_pedCacheManager.getPedData(ped, data) && data.visibility_known &&
         std::chrono::steady_clock::now() - data.visibility_updated <
             std::chrono::milliseconds(180) && data.visible;
@@ -42,12 +49,67 @@ inline bool IsPedVisible(uintptr_t ped) {
 inline void BatchCheckVisibility(const std::vector<uintptr_t>& peds,
                                  const std::vector<Vec3>& positions,
                                  const Vec3& localPos,
+                                 const Vec3& cameraPos,
+                                 const std::vector<RaycastTargets>& targets,
                                  const Matrix* viewMatrix,
                                  float maxDistance,
                                  std::vector<bool>& visibilityResults,
                                  std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now()) {
     visibilityResults.assign(peds.size(), false);
-    if (peds.empty() || !offset::pedVisibilityOffset) {
+    if (peds.empty()) {
+        g_pedCacheManager.clearPedVisibilities();
+        return;
+    }
+
+    auto& collision = FiveM::Collision::World::Instance();
+    auto collisionDiagnostics = collision.GetDiagnostics();
+    static auto lastCollisionInit = std::chrono::steady_clock::time_point{};
+    if (!collisionDiagnostics.initialized &&
+        (lastCollisionInit.time_since_epoch().count() == 0 ||
+         now - lastCollisionInit > std::chrono::seconds(2))) {
+        lastCollisionInit = now;
+        collision.Initialize("data/fivem/collision");
+        collisionDiagnostics = collision.GetDiagnostics();
+    }
+    if (collisionDiagnostics.initialized) {
+        const Vec3 source = (!cameraPos.IsZero() && std::isfinite(cameraPos.x) &&
+            std::isfinite(cameraPos.y) && std::isfinite(cameraPos.z))
+            ? cameraPos : Vec3(localPos.x, localPos.y, localPos.z + 1.45f);
+        collision.RequestAround({source.x, source.y, source.z});
+        std::vector<bool> known(peds.size(), false);
+        std::vector<bool> visible(peds.size(), false);
+        for (size_t i = 0; i < peds.size(); ++i) {
+            if (!peds[i] || i >= positions.size()) continue;
+            const Vec3& origin = positions[i];
+            const float dx = origin.x - localPos.x, dy = origin.y - localPos.y, dz = origin.z - localPos.z;
+            if (maxDistance > 0.0f && dx*dx + dy*dy + dz*dz > maxDistance*maxDistance) continue;
+            RaycastTargets fallback{
+                {origin.x, origin.y, origin.z + 1.62f},
+                {origin.x, origin.y, origin.z + 1.35f},
+                {origin.x, origin.y, origin.z + 0.92f}};
+            const RaycastTargets& sample = i < targets.size() ? targets[i] : fallback;
+            const Vec3 points[3] = {
+                sample.head.IsZero() ? fallback.head : sample.head,
+                sample.neck.IsZero() ? fallback.neck : sample.neck,
+                sample.torso.IsZero() ? fallback.torso : sample.torso};
+            bool anyClear = false, anyMissing = false;
+            for (const Vec3& point : points) {
+                const auto result = collision.TraceSegment(
+                    {source.x, source.y, source.z}, {point.x, point.y, point.z});
+                if (result.state == FiveM::Collision::TraceState::Clear) anyClear = true;
+                else if (result.state == FiveM::Collision::TraceState::MissingRegion ||
+                         result.state == FiveM::Collision::TraceState::Unavailable) anyMissing = true;
+                if (anyClear) break;
+            }
+            visible[i] = anyClear;
+            known[i] = anyClear || !anyMissing;
+            visibilityResults[i] = known[i] && visible[i];
+        }
+        g_pedCacheManager.updatePedRaycastVisibilities(peds, visible, known, now);
+        return;
+    }
+
+    if (!offset::pedVisibilityOffset) {
         g_pedCacheManager.clearPedVisibilities();
         return;
     }

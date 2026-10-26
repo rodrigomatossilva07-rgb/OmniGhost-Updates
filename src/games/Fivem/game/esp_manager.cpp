@@ -5,6 +5,7 @@
 #include "../esp/esp.h"
 #include "../esp/vehicle_esp.h"
 #include "../radar/fivem_web_radar.h"
+#include "../collision/fivem_collision_world.h"
 #include "config/config_manager.h"
 #include "../aimbot/aimbot.h"
 #include "../friends/friends.h"
@@ -91,6 +92,7 @@ namespace FiveM {
 
         struct CameraSnapshot {
             Matrix viewMatrix{};
+            Vec3 position{};
             std::chrono::steady_clock::time_point sampleTime{};
             uint64_t sampleMs = 0;
             uint64_t sessionGeneration = 0;
@@ -236,7 +238,7 @@ namespace FiveM {
             cameraCopy.sampleMs = toTickMs(cameraCopy.sampleTime);
             for (unsigned i = 0; i < cameraCopy.historyCount && i < historyTimesMs.size(); ++i)
                 historyTimesMs[i] = toTickMs(cameraCopy.historyTimes[i]);
-            return { &cameraCopy.viewMatrix, cameraCopy.sampleMs, cameraCopy.sessionGeneration,
+            return { &cameraCopy.viewMatrix, &cameraCopy.position, cameraCopy.sampleMs, cameraCopy.sessionGeneration,
                      &cameraCopy.historyMatrices, &historyTimesMs, cameraCopy.historyCount };
         }
 
@@ -392,6 +394,7 @@ namespace FiveM {
                 }
                 s_cameraPending.store(true, std::memory_order_release);
                 Matrix matrix{};
+                Vec3 cameraPosition{};
                 bool ok = false;
                 const auto cameraBegin = now;
                 if (!camScatter)
@@ -399,6 +402,9 @@ namespace FiveM {
                 if (camScatter) {
                     mem.AddScatterReadRequest(camScatter, offset::viewport + offset::viewportMatrix,
                                               &matrix, sizeof(Matrix));
+                    if (offset::camera && offset::cam_position)
+                        mem.AddScatterReadRequest(camScatter, offset::camera + offset::cam_position,
+                                                  &cameraPosition, sizeof(Vec3));
                     mem.SetDmaPriority(Memory::DmaPri::Camera);
                     mem.SetDmaCallTag("FiveM.Camera");
                     ok = mem.ExecuteReadScatter(camScatter);
@@ -422,6 +428,9 @@ namespace FiveM {
                     auto slot = s_cameraSnapshots.TryBeginWrite();
                     if (slot) {
                         slot.value->viewMatrix = matrix;
+                        slot.value->position = (!cameraPosition.IsZero() &&
+                            std::isfinite(cameraPosition.x) && std::isfinite(cameraPosition.y) &&
+                            std::isfinite(cameraPosition.z)) ? cameraPosition : Vec3{};
                         slot.value->sampleTime = sampleTime;
 
 
@@ -523,9 +532,25 @@ namespace FiveM {
 
 
                             Matrix viewMatrix{};
+                            Vec3 cameraPosition = job.localPos;
+                            cameraPosition.z += 1.45f;
                             if (auto cam = s_cameraSnapshots.Acquire(); cam &&
                                 cam->sessionGeneration == s_sessionGeneration.load(std::memory_order_acquire)) {
                                 viewMatrix = cam->viewMatrix;
+                                if (!cam->position.IsZero()) cameraPosition = cam->position;
+                            }
+
+                            std::vector<FiveM::Visibility::RaycastTargets> raycastTargets(job.peds.size());
+                            for (size_t i = 0; i < job.peds.size(); ++i) {
+                                const Vec3 origin = i < job.positions.size() ? job.positions[i] : Vec3{};
+                                auto& target = raycastTargets[i];
+                                target.head = Vec3(origin.x, origin.y, origin.z + 1.62f);
+                                target.neck = Vec3(origin.x, origin.y, origin.z + 1.35f);
+                                target.torso = Vec3(origin.x, origin.y, origin.z + 0.92f);
+                                Vec3 prepared{};
+                                if (esp::try_get_prepared_bone_position(job.peds[i], 0, prepared)) target.head = prepared;
+                                if (esp::try_get_prepared_bone_position(job.peds[i], 7, prepared)) target.neck = prepared;
+                                if (esp::try_get_prepared_bone_position(job.peds[i], 8, prepared)) target.torso = prepared;
                             }
 
 
@@ -533,6 +558,7 @@ namespace FiveM {
                                 ? job.espConfig.max_esp_distance : 200.f;
                             FiveM::Visibility::BatchCheckVisibility(
                                 job.peds, job.positions, job.localPos,
+                                cameraPosition, raycastTargets,
                                 &viewMatrix, maxVisDist, prodVis);
                         }
                         if (job.friendsListRequested || job.espConfig.enabled || job.espConfig.web_radar_enabled ||
@@ -734,6 +760,8 @@ namespace FiveM {
                             if (espOptions.box_2d || espOptions.corner_box || espOptions.snaplines ||
                                 espOptions.health_bar || espOptions.armor_bar)
                                 boneMask |= 0x0007u;
+                            if (espOptions.visible_check || espOptions.visibility_colors || aimOptions.visible_check)
+                                boneMask |= uint16_t((1u << 0) | (1u << 7) | (1u << 8));
                             pendingBoneMask = boneMask;
                         }
                         }
@@ -900,6 +928,10 @@ namespace FiveM {
             s_snapshots.ResetProducerThread();
             s_cameraSnapshots.ResetProducerThread();
 
+            // Carrega apenas o manifesto aqui. As regiões pesadas são pedidas
+            // assincronamente quando a visibilidade realmente precisa delas.
+            FiveM::Collision::World::Instance().Initialize("data/fivem/collision");
+
 
 
             s_acquisitionStop.store(false, std::memory_order_release);
@@ -942,6 +974,7 @@ namespace FiveM {
             }
 
             FiveM::Visibility::Shutdown();
+            FiveM::Collision::World::Instance().Shutdown();
             esp::ShutdownWaypointAndBlips();
             esp::ShutdownPreparedFrames();
             vehicle_esp::Shutdown();

@@ -72,6 +72,7 @@ namespace FiveM {
 
         struct CameraSnapshotHandle {
             const Matrix* viewMatrix = nullptr;
+            const Vec3* position = nullptr;
             uint64_t sampleMs = 0;
             uint64_t sessionGeneration = 0;
             const std::array<Matrix, 12>* historyMatrices = nullptr;

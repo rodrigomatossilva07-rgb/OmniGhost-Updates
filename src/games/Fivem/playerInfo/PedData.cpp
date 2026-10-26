@@ -242,6 +242,21 @@ void PedCacheManager::updatePedVisibilities(const std::vector<uintptr_t>& peds,
     }
 }
 
+void PedCacheManager::updatePedRaycastVisibilities(const std::vector<uintptr_t>& peds,
+    const std::vector<bool>& visible, const std::vector<bool>& known,
+    std::chrono::steady_clock::time_point sampledAt) {
+    std::unique_lock lock(mutex_);
+    for (size_t i = 0; i < peds.size() && i < visible.size() && i < known.size(); ++i) {
+        const auto it = pedCache.find(peds[i]);
+        if (it == pedCache.end() || !it->second.isValid) continue;
+        auto& data = it->second;
+        data.visibility_known = known[i];
+        data.visible = known[i] && visible[i];
+        data.visibility_flag = data.visibility_known ? (data.visible ? 1u : 0u) : 0xFFu;
+        data.visibility_updated = sampledAt;
+    }
+}
+
 void PedCacheManager::clearPedVisibilities() {
     std::unique_lock lock(mutex_);
     for (auto& [ped, data] : pedCache) {

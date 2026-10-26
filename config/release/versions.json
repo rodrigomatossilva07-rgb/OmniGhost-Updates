@@ -23,13 +23,13 @@
                                  }
                   },
     "cloudflared":  {
-                        "updated_at":  "2026-10-24T00:17:43.4750858Z",
+                        "updated_at":  "2026-10-26T14:15:49.4831913Z",
                         "asset":  "cloudflared-windows-amd64.exe",
-                        "version":  "2026.10.3",
+                        "version":  "2026.10.4",
                         "architecture":  "win-x64",
                         "source":  "https://github.com/cloudflare/cloudflared/releases/latest",
                         "sha256":  {
-                                       "cloudflared.exe":  "76b2805253d0d6ffacb092a7acfbee99e7af6917835c0c5410e23f3ef5052da2"
+                                       "cloudflared.exe":  "411b16d40c8d872243efeb52c550053d00af0a8a97fbb32e730fb8aba429eaa8"
                                    }
                     },
     "d3xx":  {

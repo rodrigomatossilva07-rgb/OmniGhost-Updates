@@ -26,9 +26,16 @@ endif()
 add_executable(FiveMCollisionBuilder main.cpp)
 target_link_libraries(FiveMCollisionBuilder PRIVATE ragekit::ragekit)
 
+add_executable(FiveMCollisionReaderTest
+    reader_test.cpp
+    ../../src/games/Fivem/collision/fivem_collision_world.cpp)
+target_include_directories(FiveMCollisionReaderTest PRIVATE ../../src/games/Fivem/collision)
+
 if(MSVC)
     target_compile_options(FiveMCollisionBuilder PRIVATE /W4 /WX /permissive- /utf-8)
+    target_compile_options(FiveMCollisionReaderTest PRIVATE /W4 /WX /permissive- /utf-8)
 else()
     target_compile_options(FiveMCollisionBuilder PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    target_compile_options(FiveMCollisionReaderTest PRIVATE -Wall -Wextra -Wpedantic -Werror)
 endif()
 
