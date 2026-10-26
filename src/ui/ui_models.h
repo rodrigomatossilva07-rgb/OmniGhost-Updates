@@ -274,7 +274,6 @@ namespace vehicle_esp {
         bool box_3d = false;
         bool box_2d = true;
         bool marker = true;
-        bool show_name = true;
         bool snaplines = false;
         bool distance = true;
         bool show_occupants = false;

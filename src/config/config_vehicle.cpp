@@ -10,7 +10,6 @@ void SerializeVehicle(std::ostringstream& o) {
     WBool(o, "veh.box_3d", v.box_3d);
     WBool(o, "veh.box_2d", v.box_2d);
     WBool(o, "veh.marker", v.marker);
-    WBool(o, "veh.show_name", v.show_name);
     WBool(o, "veh.snaplines", v.snaplines);
     WBool(o, "veh.distance", v.distance);
     WFloat(o, "veh.max_distance", v.max_distance);
@@ -46,7 +45,6 @@ bool DeserializeVehicle(const std::string& key, const std::string& val) {
     if (bi("veh.box_3d")) { v.box_3d = toB(); return true; }
     if (bi("veh.box_2d")) { v.box_2d = toB(); return true; }
     if (bi("veh.marker")) { v.marker = toB(); return true; }
-    if (bi("veh.show_name")) { v.show_name = toB(); return true; }
     if (bi("veh.snaplines")) { v.snaplines = toB(); return true; }
     if (bi("veh.distance")) { v.distance = toB(); return true; }
     if (bi("veh.max_distance")) { v.max_distance = toF(); return true; }

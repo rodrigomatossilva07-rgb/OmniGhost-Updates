@@ -282,18 +282,30 @@ bool World::Initialize(const std::filesystem::path& folder, std::uint64_t cacheL
         overrideFolder && *overrideFolder) {
         candidates.emplace_back(overrideFolder);
     }
-    candidates.push_back(folder);
-    candidates.push_back(std::filesystem::path("..") / folder);
-    candidates.push_back(std::filesystem::path("..") / ".." / folder);
-
-
-
-
     const auto executableDir = OmniGhost::Paths::InstallDirectory();
-    candidates.push_back(executableDir / folder);
-    candidates.push_back(executableDir / ".." / folder);
-    candidates.push_back(executableDir / ".." / ".." / folder);
-    candidates.push_back(OmniGhost::Paths::LocalData() / "collision" / "fivem");
+    const auto localCollision = OmniGhost::Paths::LocalData() / "collision";
+    {
+        std::ifstream location(localCollision / "fivem.location");
+        std::string configured;
+        if (location && std::getline(location, configured) && !configured.empty())
+            candidates.emplace_back(configured);
+    }
+    const auto addFromParents = [&](std::filesystem::path base) {
+        for (int depth = 0; depth < 8 && !base.empty(); ++depth) {
+            candidates.push_back(base / folder);
+            const auto parent = base.parent_path();
+            if (parent == base) break;
+            base = parent;
+        }
+    };
+    std::error_code currentError;
+    addFromParents(std::filesystem::current_path(currentError));
+    addFromParents(executableDir);
+    candidates.push_back(localCollision / "fivem");
+    if (const char* profile = std::getenv("USERPROFILE"); profile && *profile) {
+        candidates.push_back(std::filesystem::path(profile) / "Downloads" / "OmniGhost" / folder);
+        candidates.push_back(std::filesystem::path(profile) / "Documents" / "OmniGhost" / folder);
+    }
 
     for (const auto& candidate : candidates) {
         ec.clear();

@@ -195,13 +195,5 @@ void DrawRadar()
     CyberWidgets::EndCard();
 #endif
 
-    CyberWidgets::CardGap(gap);
-    CyberWidgets::BeginCard(app_settings::T("ESTADO", "STATUS"), full);
-    CyberWidgets::KeyValueRow(
-        app_settings::T("Radar 2D", "2D Radar"),
-        esp::config.radar_enabled
-            ? app_settings::T("Ativo", "Active")
-            : app_settings::T("Desativado", "Disabled"));
-    CyberWidgets::EndCard();
     ImGui::EndGroup();
 }

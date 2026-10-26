@@ -115,7 +115,11 @@ function Update-FiveMCollision {
     if (-not $SkipStorageCompression) {
         & (Join-Path $toolRoot 'Optimize-CollisionData.ps1') -CollisionRoot $destination
     }
+    $runtimeLocator = Join-Path $env:LOCALAPPDATA 'OmniGhost\collision\fivem.location'
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $runtimeLocator) | Out-Null
+    [IO.File]::WriteAllText($runtimeLocator, [IO.Path]::GetFullPath($destination), [Text.UTF8Encoding]::new($false))
     Write-Host ("  OK  {0} regiões OGCOL validadas em {1}" -f $regions.Count, $destination) -ForegroundColor Green
+    Write-Host ("      Localização registada em {0}" -f $runtimeLocator) -ForegroundColor DarkGray
     Write-Host '      O pacote permanece externo ao EXE e não entra na release normal.' -ForegroundColor DarkGray
 }
 

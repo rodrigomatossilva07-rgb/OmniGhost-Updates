@@ -11,10 +11,10 @@
 
 void DrawVehicles()
 {
-    CyberWidgets::BeginCardRow();
-    float half = CyberWidgets::CardRowHalfWidth();
+    const float full = CyberWidgets::CardContentWidth();
+    ImGui::BeginGroup();
 
-    CyberWidgets::BeginCard(Loc::Tr("nav.vehicles"), half);
+    CyberWidgets::BeginCard(Loc::Tr("nav.vehicles"), full);
     CyberWidgets::TextLine(app_settings::T("Estado, ocupantes e movimento sem sobrecarregar o ecrã.",
                                           "Status, occupants and movement in a clean layout."),
                            CyberWidgets::TextTone::Secondary);
@@ -24,7 +24,6 @@ void DrawVehicles()
         CyberWidgets::ToggleSwitch(Loc::Tr("veh.box3d"), &vehicle_esp::config.box_3d);
         CyberWidgets::ToggleSwitch(app_settings::T("Caixa 2D", "2D box"), &vehicle_esp::config.box_2d);
         CyberWidgets::ToggleSwitch(app_settings::T("Marcador direcional", "Direction marker"), &vehicle_esp::config.marker);
-        CyberWidgets::ToggleSwitch(app_settings::T("Nome do veículo", "Vehicle name"), &vehicle_esp::config.show_name);
         CyberWidgets::ToggleSwitch(Loc::Tr("veh.snaplines"), &vehicle_esp::config.snaplines);
         if (vehicle_esp::config.snaplines) {
             const char* snap_pos[] = { Loc::Tr("common.top"), Loc::Tr("common.center"), Loc::Tr("common.bottom") };
@@ -49,9 +48,9 @@ void DrawVehicles()
     }
     CyberWidgets::EndCard();
 
-    CyberWidgets::NextCardColumn();
+    CyberWidgets::CardGap(CyberTheme::Spacing::Sm);
 
-    CyberWidgets::BeginCard(Loc::Tr("vis.customize"), half);
+    CyberWidgets::BeginCard(Loc::Tr("vis.customize"), full);
     CyberWidgets::TextLine(app_settings::T("As cores só aparecem quando o respetivo elemento está ativo.",
                                           "Colors appear when their corresponding element is enabled."),
                            CyberWidgets::TextTone::Secondary);
@@ -79,6 +78,5 @@ void DrawVehicles()
     }
 
     CyberWidgets::EndCard();
-
-    CyberWidgets::EndCardRow();
+    ImGui::EndGroup();
 }

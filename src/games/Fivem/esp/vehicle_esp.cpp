@@ -579,13 +579,6 @@ namespace vehicle_esp {
                 } else dl->AddCircleFilled(ImVec2(screenPos.x, screenPos.y), markerSize*.65f, markerColor, 12);
             }
 
-            if (config.show_name) {
-                const char* name = v.local_vehicle ? "Veículo local" : v.display_name.c_str();
-                const ImVec2 ts = ImGui::CalcTextSize(name);
-                dl->AddText(ImVec2(screenPos.x - ts.x*.5f, textY), useBox, name);
-                textY += ts.y + 2.f;
-            }
-
             if (config.distance) {
                 char buf[32];
                 snprintf(buf, sizeof(buf), "%.0fm", v.distance);

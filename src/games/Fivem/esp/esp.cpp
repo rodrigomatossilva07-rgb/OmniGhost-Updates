@@ -2696,17 +2696,34 @@ void esp::draw_skeleton(uintptr_t ped, Matrix viewport, uintptr_t localplayer) {
 
     Vec3 lhip = vadd(hip, vscale(side, -hipW));
     Vec3 rhip = vadd(hip, vscale(side,  hipW));
-    Vec3 lknee = lerp3(lhip, lfoot, 0.48f);
-    Vec3 rknee = lerp3(rhip, rfoot, 0.48f);
-
-    lknee = vadd(lknee, vscale(side, -0.02f));
-    rknee = vadd(rknee, vscale(side,  0.02f));
+    // A straight interpolation makes every leg segment overlap visually while
+    // running. Reconstruct a stable two-segment leg: the hip/foot distance
+    // determines the knee bend and the ped matrix supplies its forward axis.
+    Vec3 bodyForward = vnorm(Vec3(bone_matrix._21, bone_matrix._22, 0.f));
+    if (vlen(bodyForward) < .1f)
+        bodyForward = vnorm(vcross(side, Vec3(0.f, 0.f, 1.f)));
+    const auto articulatedKnee = [&](const Vec3& legHip, const Vec3& foot, float sideBias) {
+        const Vec3 middle = lerp3(legHip, foot, .50f);
+        const float legDistance = legHip.distance_to(foot);
+        // Approximate each half of a normal GTA ped leg. The square-root term
+        // behaves like simple two-bone IK: straighter at full extension and
+        // increasingly bent when the foot approaches the hip.
+        constexpr float halfLeg = .52f;
+        const float halfSpan = (std::min)(legDistance * .5f, halfLeg);
+        const float bend = std::clamp(std::sqrt((std::max)(0.f,
+            halfLeg*halfLeg - halfSpan*halfSpan)), .025f, .24f);
+        Vec3 knee = vadd(middle, vscale(bodyForward, bend));
+        knee = vadd(knee, vscale(side, sideBias));
+        return knee;
+    };
+    Vec3 lknee = articulatedKnee(lhip, lfoot, -.018f);
+    Vec3 rknee = articulatedKnee(rhip, rfoot,  .018f);
     Vec3 lthigh = lerp3(lhip,  lknee, 0.50f);
     Vec3 rthigh = lerp3(rhip,  rknee, 0.50f);
-    Vec3 lshin  = lerp3(lknee, lfoot, 0.45f);
-    Vec3 rshin  = lerp3(rknee, rfoot, 0.45f);
-    Vec3 lankle = lerp3(lknee, lfoot, 0.82f);
-    Vec3 rankle = lerp3(rknee, rfoot, 0.82f);
+    Vec3 lshin  = lerp3(lknee, lfoot, 0.42f);
+    Vec3 rshin  = lerp3(rknee, rfoot, 0.42f);
+    Vec3 lankle = lerp3(lknee, lfoot, 0.84f);
+    Vec3 rankle = lerp3(rknee, rfoot, 0.84f);
 
     struct Jnt { Vec3 w; Vec2 s; bool on; };
     Jnt J[36]{};

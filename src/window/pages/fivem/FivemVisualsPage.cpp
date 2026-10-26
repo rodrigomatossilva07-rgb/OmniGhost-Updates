@@ -285,7 +285,7 @@ void DrawFivemVisuals() {
     ImGui::BeginChild("##fm_visual_preview", ImVec2(previewWidth, childHeight), false,
         ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     ImGui::SetScrollY(0.f);
-    CyberWidgets::BeginCard("PREVIEW & ESP BUILDER", previewWidth);
+    CyberWidgets::BeginCard(Loc::Tr("vis.preview"), previewWidth);
     ImGui::TextDisabled("Arrasta os elementos na pré-visualização.");
 
     const float panelHeight = (std::max)(CyberTheme::Px(300.f), childHeight - CyberTheme::Metrics::CardHeaderHeight - CyberTheme::Metrics::CardPadding * 2.f);
@@ -294,7 +294,7 @@ void DrawFivemVisuals() {
     ImDrawList* dl = ImGui::GetWindowDrawList();
     const ImVec2 origin = ImGui::GetCursorScreenPos();
 
-    EspPreview::DrawPreview(dl, origin, drawWidth, panelHeight, g_fivemAdapter, "PRÉ-VISUALIZAÇÃO ESP");
+    EspPreview::DrawPreview(dl, origin, drawWidth, panelHeight, g_fivemAdapter, "");
     DrawLayoutBuilder(origin, drawWidth, panelHeight);
 
     CyberWidgets::EndCard();
