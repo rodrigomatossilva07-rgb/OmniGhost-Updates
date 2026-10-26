@@ -1,7 +1,81 @@
-<!doctype html><html lang="pt"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>OmniGhost · FiveM Radar</title><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin><link rel="stylesheet" href="/styles.css"></head>
-<body><div id="app">
-  <header><div class="brand"><span class="logo">◈</span><div><b>OMNIGHOST</b><small>FIVEM WEB RADAR</small></div></div><div class="summary"><span id="status" class="status connecting">A ligar</span><span><b id="playerCount">0</b> jogadores</span><select id="layer"><option value="Atlas">Atlas</option><option value="Satellite">Satellite</option><option value="Roadmap">Roadmap</option></select><button id="settingsButton" title="Definições">⚙</button></div></header>
-  <aside id="sidebar"><div class="aside-head"><input id="search" placeholder="Pesquisar jogador"><button id="compactButton">‹</button></div><div class="filters"><label><input id="showPlayers" type="checkbox" checked> Jogadores</label><label><input id="showVehicles" type="checkbox" checked> Veículos</label><label><input id="showNames" type="checkbox" checked> Nomes</label><label><input id="showDirections" type="checkbox" checked> Direções</label><label><input id="follow" type="checkbox" checked> Seguir seleção</label><label><input id="heatEnabled" type="checkbox"> Heatmap</label></div><div id="playerList"></div></aside>
-  <main><div id="map"></div><div id="stale" hidden>Ligação interrompida — posições ocultadas</div><section id="details" hidden></section></main>
-  <section id="settings" hidden><div class="dialog"><button id="closeSettings">×</button><h2>Definições</h2><label>Tamanho dos marcadores <input id="markerSize" type="range" min="8" max="26" value="15"></label><label>Suavização <input id="smoothing" type="range" min="0" max="100" value="65"></label><label>Opacidade do heatmap <input id="heatOpacity" type="range" min="10" max="90" value="55"></label><label>Raio do heatmap <input id="heatRadius" type="range" min="10" max="80" value="36"></label><label>Histórico <select id="heatHistory"><option value="15">15 segundos</option><option value="30" selected>30 segundos</option><option value="60">60 segundos</option></select></label><button id="addMarker">Adicionar marcador no centro</button><button id="clearMarkers">Limpar marcadores pessoais</button><p class="hint">O token de acesso permanece no fragmento do endereço e nunca é enviado como parâmetro HTTP.</p></div></section>
-</div><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin></script><script src="/app.js"></script></body></html>
+<!doctype html>
+<html lang="pt">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#07080a">
+  <title>OmniGhost · FiveM Radar</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/omnighost.png">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body data-theme="gold">
+<div id="app">
+  <main><div id="map"></div></main>
+
+  <header>
+    <div class="brand"><img src="/omnighost.png" alt="OmniGhost"><div><b>OMNIGHOST</b><small>FIVEM WEB RADAR</small></div></div>
+    <div class="summary">
+      <span id="quality" class="quality waiting" title="Qualidade dos dados">AGUARDAR</span>
+      <span id="status" class="status connecting">A ligar</span>
+      <span class="count"><b id="playerCount">0</b> jogadores</span>
+      <select id="layer" aria-label="Estilo do mapa"><option value="Atlas">Atlas</option><option value="Satellite">Satélite</option><option value="Roadmap">Estradas</option></select>
+      <button id="focusButton" title="Modo foco (F)">⌗</button>
+      <button id="mobilePanelButton" title="Jogadores e filtros" aria-label="Jogadores e filtros">☰</button>
+      <button id="settingsButton" title="Definições" aria-label="Definições">⚙</button>
+    </div>
+  </header>
+
+  <div id="sidebarBackdrop" class="sidebar-backdrop"></div>
+  <aside id="sidebar" class="panel">
+    <div class="panel-title"><div><small>CONTROLO DO RADAR</small><strong>Jogadores e filtros</strong></div><button id="compactButton" aria-label="Fechar painel">×</button></div>
+    <div class="search-row"><input id="search" placeholder="Pesquisar jogador ou ID"><button id="commandButton" title="Paleta de comandos">⌘K</button></div>
+    <div class="sort-row"><select id="playerSort"><option value="distance">Mais próximos</option><option value="name">Nome</option><option value="id">ID</option><option value="favorite">Favoritos</option></select><button id="diagnosticsButton">Diagnóstico</button></div>
+    <div class="filters">
+      <label><input id="showPlayers" type="checkbox" checked><span>Jogadores</span></label>
+      <label><input id="showVehicles" type="checkbox" checked><span>Veículos</span></label>
+      <label><input id="showNames" type="checkbox" checked><span>Nomes</span></label>
+      <label><input id="showDirections" type="checkbox" checked><span>Direções</span></label>
+      <label><input id="follow" type="checkbox" checked><span>Seguir</span></label>
+      <label><input id="heatEnabled" type="checkbox"><span>Heatmap</span></label>
+      <label><input id="trailEnabled" type="checkbox"><span>Percursos</span></label>
+      <label><input id="ringsEnabled" type="checkbox"><span>Anéis</span></label>
+      <label><input id="gridEnabled" type="checkbox"><span>Grelha</span></label>
+      <label><input id="privacyEnabled" type="checkbox"><span>Privacidade</span></label>
+    </div>
+    <div class="list-heading"><span>ENTIDADES EM DIRETO</span><span id="vehicleCount">0 veículos</span></div>
+    <div id="playerList"><div class="empty-state">Os jogadores ligados aparecem aqui.</div></div>
+  </aside>
+
+  <section id="details" class="panel" hidden></section>
+  <section id="diagnostics" class="panel" hidden><div class="panel-title"><div><small>SISTEMA</small><strong>Diagnóstico em direto</strong></div><button id="closeDiagnostics">×</button></div><div id="diagMetrics" class="metric-grid"></div><canvas id="performanceGraph" width="360" height="90"></canvas><div id="debugLog" class="debug-log"></div></section>
+  <section id="timeline" class="panel" hidden><span>REPLAY LOCAL</span><input id="replayRange" type="range" min="0" max="0" value="0"><button id="liveButton">Em direto</button></section>
+  <div id="cursorInfo">X 0 · Y 0</div>
+  <div id="stale" hidden>Ligação interrompida — dados antigos removidos</div>
+  <div id="toastContainer" aria-live="polite"></div>
+
+  <section id="settings" class="modal" hidden><div class="dialog">
+    <div class="dialog-head"><div><small>PREFERÊNCIAS</small><h2>Definições do radar</h2></div><button id="closeSettings">×</button></div>
+    <div class="setting-grid">
+      <label>Tamanho dos marcadores <input id="markerSize" type="range" min="8" max="26" value="15"></label>
+      <label>Suavização <input id="smoothing" type="range" min="0" max="100" value="65"></label>
+      <label>Opacidade do heatmap <input id="heatOpacity" type="range" min="10" max="90" value="55"></label>
+      <label>Raio do heatmap <input id="heatRadius" type="range" min="10" max="80" value="36"></label>
+      <label>Histórico <select id="heatHistory"><option value="15">15 segundos</option><option value="30" selected>30 segundos</option><option value="60">60 segundos</option></select></label>
+      <label>Tema <select id="theme"><option value="gold">Black & Gold</option><option value="blue">Midnight Blue</option><option value="red">Crimson Red</option><option value="minimal">Minimal Dark</option></select></label>
+      <label>Preset do mapa <select id="mapPreset"><option value="overview">Overview</option><option value="minimal">Minimal</option><option value="detailed">Detailed</option></select></label>
+      <label>Alertar acima da distância <select id="alertDistance"><option value="0">Desativado</option><option value="250">250 m</option><option value="500">500 m</option><option value="1000">1 km</option></select></label>
+      <label>Perfil <select id="settingsProfile"><option value="default">Predefinido</option><option value="stream">Transmissão</option><option value="tactical">Tático</option></select></label>
+    </div>
+    <div class="dialog-actions"><button id="addMarker" class="primary">Adicionar waypoint</button><button id="measureButton">Medir distância</button><button id="clearMarkers">Limpar waypoints</button><button id="saveProfile">Guardar perfil</button></div>
+    <div class="shortcut-list"><b>Atalhos</b><span>Ctrl+K comandos</span><span>F modo foco</span><span>P jogadores</span><span>V veículos</span><span>H heatmap</span><span>R recentrar</span></div>
+    <p class="hint">Preferências, favoritos, percursos e perfis são guardados apenas neste navegador. O link expira quando a sessão/túnel termina.</p>
+  </div></section>
+
+  <section id="commandPalette" class="modal" hidden><div class="command-dialog"><input id="commandSearch" placeholder="Procurar jogador, localização ou ação…"><div id="commandResults"></div><small>Enter executar · Esc fechar</small></div></section>
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin></script>
+<script src="/app.js"></script>
+</body>
+</html>

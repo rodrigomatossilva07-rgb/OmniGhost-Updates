@@ -93,13 +93,7 @@ function Find-Gh {
 function Get-RequiredAssets {
     return @(
         'OmniGhost.zip',
-        'update.json',
-        'install-manifest.sha256',
-        'SBOM.cdx.json',
-        'changelog.json',
-        'release-notes.md',
-        'release-meta.json',
-        'SHA256SUMS.txt'
+        'update.json'
     )
 }
 
@@ -425,11 +419,6 @@ if ([string]$UpdateManifest.version -ne $Version -or
     [string]$UpdateManifest.packages[0].url -notlike "*/$Tag/OmniGhost.zip") {
     throw 'update.json não corresponde ao OmniGhost.zip ou à tag calculada.'
 }
-$Changelog = Get-Content -LiteralPath $LocalInfo['changelog.json'].Path -Raw | ConvertFrom-Json
-if (-not ($Changelog.releases | Where-Object { $_.version -eq $Version -and $_.tag -eq $Tag })) {
-    throw "changelog.json não contém a versão/tag $Version/$Tag."
-}
-
 $Gh = Find-Gh
 if (-not $Gh) {
     throw "GitHub CLI (gh) não encontrada. Instala com: winget install --id GitHub.cli -e ; depois fecha e abre o Visual Studio e executa: gh auth login"
@@ -465,7 +454,7 @@ if ($Existing) {
         'release', 'edit', $Tag,
         '--repo', $Repository,
         '--title', "OmniGhost $Version",
-        '--notes-file', $LocalInfo['release-notes.md'].Path
+        '--notes', ' '
     )
     if ($Draft) {
         $EditArguments += '--draft'
@@ -494,7 +483,7 @@ else {
         '--repo', $Repository,
         '--target', $Branch,
         '--title', "OmniGhost $Version",
-        '--notes-file', $LocalInfo['release-notes.md'].Path,
+        '--notes', ' ',
         '--draft'
     )
     Write-Gh 'A criar Release draft para validação dos assets...'

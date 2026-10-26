@@ -45,7 +45,13 @@ constexpr std::size_t kMaxClients = 16;
 constexpr auto kPushPeriod = std::chrono::milliseconds(100);
 constexpr auto kStaleAfter = std::chrono::milliseconds(1500);
 
-struct Client { SOCKET socket = INVALID_SOCKET; bool websocket = false; Clock::time_point lastSeen{}; };
+struct Client {
+    SOCKET socket = INVALID_SOCKET;
+    bool websocket = false;
+    Clock::time_point lastSeen{};
+    std::string pending;
+    std::size_t sent = 0;
+};
 std::atomic<bool> g_running{false}, g_stop{false};
 std::atomic<std::uint32_t> g_clientCount{0};
 std::atomic<bool> g_sourceConnected{false};
@@ -158,9 +164,11 @@ std::string Header(const std::string& request,std::string_view name) {
     return{};
 }
 bool SendAll(SOCKET s,const char* data,std::size_t n){while(n){int sent=send(s,data,static_cast<int>((std::min)(n,std::size_t(INT_MAX))),0);if(sent<=0)return false;data+=sent;n-=sent;}return true;}
-bool SendWs(SOCKET s,std::string_view payload,unsigned char opcode=1){std::string f;f.push_back(static_cast<char>(0x80|opcode));
+std::string WsFrame(std::string_view payload,unsigned char opcode=1){std::string f;f.push_back(static_cast<char>(0x80|opcode));
   if(payload.size()<126)f.push_back(static_cast<char>(payload.size()));else if(payload.size()<=0xffff){f.push_back(126);f.push_back(static_cast<char>((payload.size()>>8)&255));f.push_back(static_cast<char>(payload.size()&255));}else{f.push_back(127);for(int shift=56;shift>=0;shift-=8)f.push_back(static_cast<char>((static_cast<std::uint64_t>(payload.size())>>shift)&255));}
-  f.append(payload);return SendAll(s,f.data(),f.size());}
+  f.append(payload);return f;}
+void QueueWs(Client& c,std::string_view payload,unsigned char opcode=1){if(c.pending.empty()){c.pending=WsFrame(payload,opcode);c.sent=0;}else if(c.sent==0&&opcode==1){c.pending=WsFrame(payload,opcode);}}
+bool FlushWs(Client& c){while(c.sent<c.pending.size()){const int n=send(c.socket,c.pending.data()+c.sent,static_cast<int>((std::min)(c.pending.size()-c.sent,std::size_t(INT_MAX))),0);if(n>0){c.sent+=static_cast<std::size_t>(n);continue;}if(n==SOCKET_ERROR&&WSAGetLastError()==WSAEWOULDBLOCK)return true;return false;}c.pending.clear();c.sent=0;return true;}
 std::string Http(int code,std::string_view status,std::string_view type,std::string_view body){std::ostringstream o;o<<"HTTP/1.1 "<<code<<' '<<status<<"\r\nContent-Type: "<<type<<"\r\nContent-Length: "<<body.size()<<"\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nReferrer-Policy: no-referrer\r\nConnection: close\r\n\r\n"<<body;return o.str();}
 std::string Asset(std::string_view logical){auto bytes=OmniGhost::LoadEmbeddedResource(logical);return bytes?std::string(reinterpret_cast<const char*>(bytes->data()),bytes->size()):std::string{};}
 
@@ -183,6 +191,9 @@ void HandleHttp(SOCKET s,const std::string& req,std::vector<Client>& clients){
     if(path=="/"||path=="/index.html"){body=Asset("fivem/webradar/index.html");type="text/html; charset=utf-8";}
     else if(path=="/app.js"){body=Asset("fivem/webradar/app.js");type="application/javascript; charset=utf-8";}
     else if(path=="/styles.css"){body=Asset("fivem/webradar/styles.css");type="text/css; charset=utf-8";}
+    else if(path=="/manifest.json"){body=Asset("fivem/webradar/manifest.json");type="application/manifest+json; charset=utf-8";}
+    else if(path=="/sw.js"){body=Asset("fivem/webradar/sw.js");type="application/javascript; charset=utf-8";}
+    else if(path=="/omnighost.png"){body=Asset("fivem/webradar/omnighost.png");type="image/png";}
     if(body.empty()){auto r=Http(404,"Not Found","text/plain","Not found");SendAll(s,r.data(),r.size());return;}
     auto r=Http(200,"OK",type,body);SendAll(s,r.data(),r.size());
 }
@@ -195,8 +206,9 @@ void ServerLoop(){WSADATA w{};if(WSAStartup(MAKEWORD(2,2),&w)!=0){g_running=fals
   while(!g_stop){
     SOCKET s=accept(g_listener,nullptr,nullptr);if(s!=INVALID_SOCKET){if(clients.size()<kMaxClients){std::string req;char buf[4096];for(int loops=0;loops<5&&req.size()<kMaxRequest;++loops){int n=recv(s,buf,sizeof(buf),0);if(n<=0)break;req.append(buf,n);if(req.find("\r\n\r\n")!=std::string::npos)break;}HandleHttp(s,req,clients);if(std::none_of(clients.begin(),clients.end(),[&](const Client&c){return c.socket==s;}))closesocket(s);}else closesocket(s);}
     const auto now=Clock::now();if(now-lastPush>=kPushPeriod){PublishFromCaches();std::string json;{std::scoped_lock l(g_stateMutex);json=g_json;}
-      for(auto&c:clients)if(c.socket!=INVALID_SOCKET&&!SendWs(c.socket,json))Close(c);lastPush=now;}
-    if(now-lastPing>=std::chrono::seconds(10)){for(auto&c:clients)if(c.socket!=INVALID_SOCKET&&!SendWs(c.socket,"",9))Close(c);lastPing=now;}
+      for(auto&c:clients)if(c.socket!=INVALID_SOCKET)QueueWs(c,json);lastPush=now;}
+    if(now-lastPing>=std::chrono::seconds(10)){for(auto&c:clients)if(c.socket!=INVALID_SOCKET&&c.pending.empty())QueueWs(c,"",9);lastPing=now;}
+    for(auto&c:clients)if(c.socket!=INVALID_SOCKET&&!FlushWs(c))Close(c);
     for(auto&c:clients)if(c.socket!=INVALID_SOCKET){char b[256];int n=recv(c.socket,b,sizeof(b),0);if(n==0)Close(c);else if(n>0){c.lastSeen=now;const auto op=static_cast<unsigned char>(b[0])&0x0f;if(op==8)Close(c);}if(c.socket!=INVALID_SOCKET&&now-c.lastSeen>std::chrono::seconds(30))Close(c);}
     clients.erase(std::remove_if(clients.begin(),clients.end(),[](const Client&c){return c.socket==INVALID_SOCKET;}),clients.end());g_clientCount=static_cast<std::uint32_t>(clients.size());Sleep(5);
   }

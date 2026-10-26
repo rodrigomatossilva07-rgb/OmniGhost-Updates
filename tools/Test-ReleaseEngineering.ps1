@@ -56,6 +56,7 @@ $project = [IO.File]::ReadAllText((Join-Path $ProjectDir 'OmiGhost.vcxproj'))
 $publishBuild = [IO.File]::ReadAllText((Join-Path $ProjectDir 'tools\Publish-Build.ps1'))
 $powerShellBridge = [IO.File]::ReadAllText((Join-Path $ProjectDir 'tools\Run-OmniGhostPowerShell.cmd'))
 $packageRelease = [IO.File]::ReadAllText((Join-Path $ProjectDir 'tools\package_release.ps1'))
+$publishGithub = [IO.File]::ReadAllText((Join-Path $ProjectDir 'tools\publish_github_release.ps1'))
 $prepareVersion = [IO.File]::ReadAllText((Join-Path $ProjectDir 'tools\Prepare-PublishVersion.ps1'))
 $reproBuild = [IO.File]::ReadAllText((Join-Path $ProjectDir 'tools\Verify-ReproducibleBuild.ps1'))
 Assert ($project -match 'PublishOmniGhostRelease') 'Publish remote target is missing.'
@@ -92,6 +93,8 @@ Assert ($prepareVersion -match 'maximumAdvances') 'Automatic version selection h
 Assert ($workflow -match 'lfs:\s*true') 'Release checkout does not fetch Git LFS assets.'
 Assert ($workflow -match 'Validate-ReleaseArtifacts\.ps1') 'Workflow does not validate the final ZIP.'
 Assert ($workflow -match 'SBOM\.cdx\.json') 'Workflow does not publish the SBOM.'
+Assert ($publishGithub -match "return\s+@\(\s*'OmniGhost\.zip',\s*'update\.json'\s*\)") 'Direct publication is not restricted to the essential public assets.'
+Assert ($workflow -match '\$expected\s*=\s*@\(''OmniGhost\.zip'',''update\.json''\)') 'CI publication is not restricted to the essential public assets.'
 Assert ($workflow -notmatch 'uses:\s*[^\r\n]+@v\d') 'A GitHub Action still uses a mutable major-version reference.'
 
 Write-Host '[OmniGhost Tests] Version rollover, synchronized metadata, publication policy and CI workflow: PASS'

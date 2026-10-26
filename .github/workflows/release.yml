@@ -150,7 +150,7 @@ jobs:
           ./tools/Validate-ReleaseArtifacts.ps1 -ProjectDir . -ReleaseDirectory ./artifacts/release -Version $version
           "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
-      - name: Create draft, upload every asset, then publish
+      - name: Create minimal public release from validated assets
         id: publish_release
         shell: pwsh
         env:
@@ -165,18 +165,12 @@ jobs:
           if ($LASTEXITCODE -eq 0) {
             throw "Release $tag already exists in $repo; refusing to treat a prior upload as validated by this workflow."
           }
-          gh release create $tag --repo $repo --target $env:RELEASE_TARGET_BRANCH --draft --title "OmniGhost $tag" `
-            --notes-file artifacts/release/release-notes.md `
+          gh release create $tag --repo $repo --target $env:RELEASE_TARGET_BRANCH --draft --title "OmniGhost $tag" --notes ' ' `
             artifacts/release/OmniGhost.zip `
-            artifacts/release/update.json `
-            artifacts/release/install-manifest.sha256 `
-            artifacts/release/SBOM.cdx.json `
-            artifacts/release/changelog.json `
-            artifacts/release/release-meta.json `
-            artifacts/release/SHA256SUMS.txt
+            artifacts/release/update.json
           if ($LASTEXITCODE -ne 0) { throw 'Could not create the complete draft release.' }
           $view = gh release view $tag --repo $repo --json isDraft,assets | ConvertFrom-Json
-          $expected = @('OmniGhost.zip','update.json','install-manifest.sha256','SBOM.cdx.json','changelog.json','release-meta.json','SHA256SUMS.txt')
+          $expected = @('OmniGhost.zip','update.json')
           $actual = @($view.assets | ForEach-Object name)
           foreach ($asset in $expected) {
             if ($asset -notin $actual) { throw "Draft release is incomplete: $asset missing." }
