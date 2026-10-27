@@ -292,9 +292,13 @@ void DrawHeader(ImDrawList* draw, ImVec2 display) {
     }
 
 
+    const float profileWidth = display.x >= S(1180.f) ? S(240.f)
+        : (display.x >= S(950.f) ? S(180.f) : S(48.f));
+    const float profileX = display.x - S(92.f) - profileWidth;
+
     if (display.x >= S(1180.f)) {
         float statusX = (std::max)(x + S(18.f), display.x - S(620.f));
-        const float statusRight = display.x - S(254.f);
+        const float statusRight = profileX - S(10.f);
         const auto dma = mem.GetDiagnosticsSnapshot();
         const auto update = OmniGhost::Update::UpdateService::Instance().GetSnapshot();
         DrawStatusChip(draw, statusX, S(15.f), Loc::Tr("launcher.dma"),
@@ -311,8 +315,6 @@ void DrawHeader(ImDrawList* draw, ImVec2 display) {
     const auto license = OmniGhost::Licensing::GetSnapshot();
     const bool remoteSession = license.remoteServiceConfigured && license.remoteAuthenticated;
     const std::string identity = remoteSession ? license.remoteUsername : MaskEmail(auth.CurrentEmail());
-    const float profileWidth = display.x >= S(950.f) ? S(155.f) : S(48.f);
-    const float profileX = display.x - S(92.f) - profileWidth;
     const ImVec2 profileMin(profileX, S(10.f));
     const ImVec2 profileMax(profileX + profileWidth, S(48.f));
     const bool profileHover = ImGui::IsMouseHoveringRect(profileMin, profileMax);
@@ -331,9 +333,26 @@ void DrawHeader(ImDrawList* draw, ImVec2 display) {
     const ImVec2 initSize = ImGui::CalcTextSize(initial);
     draw->AddText(ImVec2(avatar.x - initSize.x * .5f, avatar.y - initSize.y * .5f), C_GOLD_LT(), initial);
     if (profileWidth > S(90.f)) {
-        std::string shortMasked = identity;
-        if (shortMasked.size() > 19) shortMasked.resize(19), shortMasked += "…";
-        draw->AddText(ImVec2(profileMin.x + S(38.f), profileMin.y + S(11.f)), C_TEXT(), shortMasked.c_str());
+        const float labelX = profileMin.x + S(38.f);
+        const float labelMaxWidth = profileMax.x - labelX - S(10.f);
+        std::string fitted = identity;
+        if (ImGui::CalcTextSize(fitted.c_str()).x > labelMaxWidth) {
+            const std::size_t at = fitted.find('@');
+            const std::string suffix = at == std::string::npos ? std::string{} : fitted.substr(at);
+            const std::string source = at == std::string::npos ? fitted : fitted.substr(0, at);
+            fitted = "..." + suffix;
+            for (std::size_t keep = source.size(); keep > 0; --keep) {
+                const std::string candidate = source.substr(0, keep) + "..." + suffix;
+                if (ImGui::CalcTextSize(candidate.c_str()).x <= labelMaxWidth) {
+                    fitted = candidate;
+                    break;
+                }
+            }
+        }
+        draw->PushClipRect(ImVec2(labelX, profileMin.y),
+                           ImVec2(profileMax.x - S(8.f), profileMax.y), true);
+        draw->AddText(ImVec2(labelX, profileMin.y + S(11.f)), C_TEXT(), fitted.c_str());
+        draw->PopClipRect();
     }
     if (profileHover && ImGui::IsMouseClicked(0)) {
         g_profile_menu_open = !g_profile_menu_open;

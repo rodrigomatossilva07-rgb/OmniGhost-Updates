@@ -37,6 +37,9 @@ void DrawHome(ImVec2 display) {
     DrawPageHeading(Loc::Tr("launcher.home"), Loc::Tr("launcher.home.subtitle"));
 
     const float gap = S(14.f);
+    const float verticalExpansion = std::clamp(
+        (ImGui::GetContentRegionAvail().y - S(560.f)) / 3.0f, 0.0f, S(72.f));
+    const float overviewExpansion = verticalExpansion * 0.45f;
     const float available = ImGui::GetContentRegionAvail().x;
     const bool two = available >= S(760.f);
     const auto account = OmniGhost::Licensing::GetSnapshot();
@@ -54,28 +57,36 @@ void DrawHome(ImVec2 display) {
     const float overviewWidth = available >= S(900.f) ? (available - gap * 3.f) * .25f
         : (available - gap) * .5f;
     CyberWidgets::BeginCard("CONTA", overviewWidth);
+    ImGui::Dummy(ImVec2(0.f, overviewExpansion * 0.5f));
     CyberWidgets::Badge(account.websiteAccount ? "CONTA OMNIGHOST" : "ACESSO LEGACY",
         account.remoteAuthenticated ? CyberWidgets::TextTone::Success : CyberWidgets::TextTone::Warning);
     CyberWidgets::TextLine(account.remoteUsername.empty() ? "Sessão local" : account.remoteUsername.c_str(),
         CyberWidgets::TextTone::Secondary);
+    ImGui::Dummy(ImVec2(0.f, overviewExpansion * 0.5f));
     CyberWidgets::EndCard();
     ImGui::SameLine(0.f, gap);
     CyberWidgets::BeginCard("BIBLIOTECA", overviewWidth);
+    ImGui::Dummy(ImVec2(0.f, overviewExpansion * 0.5f));
     CyberWidgets::TextLineF(CyberWidgets::TextTone::Primary, "%zu produtos autorizados", licensedCount);
     CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, "%zu prontos para iniciar", readyCount);
+    ImGui::Dummy(ImVec2(0.f, overviewExpansion * 0.5f));
     CyberWidgets::EndCard();
     if (available >= S(900.f)) ImGui::SameLine(0.f, gap); else ImGui::Dummy(ImVec2(0.f, gap));
     CyberWidgets::BeginCard("SESSÃO", overviewWidth);
+    ImGui::Dummy(ImVec2(0.f, overviewExpansion * 0.5f));
     const GameId overviewRecent = MostRecentHistoryGame();
     const GameHistory overviewHistory = GetGameHistory(overviewRecent);
     CyberWidgets::TextLineF(CyberWidgets::TextTone::Primary, "%u sessões registadas", overviewHistory.sessionCount);
     CyberWidgets::TextLine(FormatActiveDuration(overviewHistory.totalActiveSeconds).c_str(), CyberWidgets::TextTone::Secondary);
+    ImGui::Dummy(ImVec2(0.f, overviewExpansion * 0.5f));
     CyberWidgets::EndCard();
     ImGui::SameLine(0.f, gap);
     CyberWidgets::BeginCard("SEGURANÇA", overviewWidth);
+    ImGui::Dummy(ImVec2(0.f, overviewExpansion * 0.5f));
     CyberWidgets::Badge(account.websiteAccount ? "SESSÃO PROTEGIDA" : "MIGRAÇÃO DISPONÍVEL",
         account.websiteAccount ? CyberWidgets::TextTone::Success : CyberWidgets::TextTone::Warning);
     CyberWidgets::TextLine(account.websiteAccount ? "Token guardado pelo Windows" : "Usa a conta do website", CyberWidgets::TextTone::Secondary);
+    ImGui::Dummy(ImVec2(0.f, overviewExpansion * 0.5f));
     CyberWidgets::EndCard();
     ImGui::Dummy(ImVec2(0.f, gap));
 
@@ -83,6 +94,7 @@ void DrawHome(ImVec2 display) {
     const float systemWidth = two ? (available - gap) - heroWidth : available;
 
     CyberWidgets::BeginCard("CONTINUAR", heroWidth);
+    ImGui::Dummy(ImVec2(0.f, verticalExpansion * 0.5f));
     const GameId last = LastPlayedGame();
     if (last != GameId::None) {
         const GameDefinition* game = FindGame(last);
@@ -113,10 +125,12 @@ void DrawHome(ImVec2 display) {
                 ? "Abre um menu para começar o teu histórico de sessões."
                 : "Ativa 'Recordar o último jogo' para continuar daqui.");
     }
+    ImGui::Dummy(ImVec2(0.f, verticalExpansion * 0.5f));
     CyberWidgets::EndCard();
 
     if (two) ImGui::SameLine(0.f, gap);
     CyberWidgets::BeginCard(Loc::Tr("launcher.system_health"), systemWidth);
+    ImGui::Dummy(ImVec2(0.f, verticalExpansion * 0.5f));
     const auto dma = mem.GetDiagnosticsSnapshot();
     const auto update = OmniGhost::Update::UpdateService::Instance().GetSnapshot();
     CyberWidgets::HealthRow("DMA", dma.deviceOpen ? Loc::Tr("launcher.connected")
@@ -129,10 +143,12 @@ void DrawHome(ImVec2 display) {
         update.status == OmniGhost::Update::Status::Error ? CyberWidgets::HealthStatus::Error : CyberWidgets::HealthStatus::Ok);
     if (!dma.dependencyIntegrityOk)
         CyberWidgets::TextLine("Integridade das dependências DMA requer atenção.", CyberWidgets::TextTone::Warning);
+    ImGui::Dummy(ImVec2(0.f, verticalExpansion * 0.5f));
     CyberWidgets::EndCard();
 
     ImGui::Dummy(ImVec2(0, gap));
     CyberWidgets::BeginCard("ATIVIDADE RECENTE", two ? (available - gap) * .5f : available);
+    ImGui::Dummy(ImVec2(0.f, verticalExpansion * 0.5f));
     const GameId recent = MostRecentHistoryGame();
     if (recent != GameId::None) {
         const GameDefinition* game = FindGame(recent);
@@ -151,10 +167,12 @@ void DrawHome(ImVec2 display) {
     } else {
         CyberWidgets::EmptyState("SEM ATIVIDADE", "Quando iniciares um jogo, a última sessão será mostrada aqui.");
     }
+    ImGui::Dummy(ImVec2(0.f, verticalExpansion * 0.5f));
     CyberWidgets::EndCard();
 
     if (two) ImGui::SameLine(0.f, gap);
     CyberWidgets::BeginCard(Loc::Tr("launcher.games"), two ? (available - gap) * .5f : available);
+    ImGui::Dummy(ImVec2(0.f, verticalExpansion * 0.5f));
     std::size_t homeGameCount = 0;
     const GameDefinition* homeGames = Games(homeGameCount);
     std::size_t availableGames = 0;
@@ -179,6 +197,7 @@ void DrawHome(ImVec2 display) {
     ImGui::SameLine();
     if (CyberWidgets::Button(Loc::Tr("launcher.diagnostics"), CyberWidgets::ButtonStyle::Ghost, ImVec2(S(140.f), S(33.f))))
         ChangeNavigation(static_cast<int>(NavPage::Diagnostics));
+    ImGui::Dummy(ImVec2(0.f, verticalExpansion * 0.5f));
     CyberWidgets::EndCard();
 
     EndControlPage();

@@ -1037,11 +1037,12 @@ namespace CyberWidgets {
     {
         const ImVec2 pos = ImGui::GetCursorScreenPos();
         ImFont* font = CyberFonts::GetBodyFont();
+        const float fontSize = font ? font->FontSize : ImGui::GetFontSize();
         if (font)
-            ImGui::GetWindowDrawList()->AddText(font, 13.0f, pos, ToneColor(tone), text ? text : "");
+            ImGui::GetWindowDrawList()->AddText(font, fontSize, pos, ToneColor(tone), text ? text : "");
         else
             ImGui::GetWindowDrawList()->AddText(pos, ToneColor(tone), text ? text : "");
-        ImGui::Dummy(ImVec2(0.0f, 19.0f));
+        ImGui::Dummy(ImVec2(0.0f, fontSize + CyberTheme::Px(7.0f)));
     }
 
     void TextLineF(TextTone tone, const char* format, ...)
