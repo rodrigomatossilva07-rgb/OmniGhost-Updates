@@ -2394,7 +2394,7 @@ void esp::draw_skeleton(uintptr_t ped, Matrix viewport, uintptr_t localplayer) {
 
 
     struct SkelSmooth {
-        Vec3 head{}, neck{}, hip{}, lfoot{}, rfoot{}, lhand{}, rhand{}, origin{};
+        Vec3 head{}, neck{}, hip{}, lfoot{}, rfoot{}, lhand{}, rhand{}, origin{}, side{};
         int lod = 0;
         int swapHands = 0;
         bool init = false;
@@ -2658,6 +2658,13 @@ void esp::draw_skeleton(uintptr_t ped, Matrix viewport, uintptr_t localplayer) {
                 side = vnorm(vcross(spineDir, Vec3(0.f, 1.f, 0.f)));
         }
     }
+    // The hand span can invert for a single streamed animation sample. Keep the
+    // anatomical left/right basis continuous per ped so the reconstructed legs
+    // cannot exchange sides while walking or sprinting.
+    if (sm.init && vlen(sm.side) > .1f &&
+        side.x * sm.side.x + side.y * sm.side.y + side.z * sm.side.z < 0.f)
+        side = vscale(side, -1.f);
+    sm.side = side;
 
 
     const float shW  = 0.20f;
@@ -2704,6 +2711,9 @@ void esp::draw_skeleton(uintptr_t ped, Matrix viewport, uintptr_t localplayer) {
         return delta.x * side.x + delta.y * side.y + delta.z * side.z;
     };
     constexpr float minFootSeparation = .035f;
+    // Correct transient left/right foot label swaps before enforcing separation.
+    if (lateralFromHip(lfoot) > lateralFromHip(rfoot))
+        std::swap(lfoot, rfoot);
     const float leftLateral = lateralFromHip(lfoot);
     if (leftLateral > -minFootSeparation)
         lfoot = vadd(lfoot, vscale(side, -minFootSeparation - leftLateral));

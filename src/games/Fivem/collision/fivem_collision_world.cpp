@@ -196,6 +196,24 @@ float ReadRegionSize(const std::filesystem::path& manifest) {
         return std::isfinite(value) && value >= 128.0f && value <= 2048.0f ? value : 0.0f;
     } catch (...) { return 0.0f; }
 }
+
+float ReadRegionSizeFromRegion(const std::filesystem::path& folder) {
+    std::error_code ec;
+    for (std::filesystem::directory_iterator it(folder, ec), end; !ec && it != end; it.increment(ec)) {
+        if (!it->is_regular_file(ec) || it->path().extension() != ".ogcol") continue;
+        std::ifstream in(it->path(), std::ios::binary);
+        std::array<char, 8> magic{};
+        std::uint32_t version{};
+        std::int32_t cellX{}, cellY{};
+        float regionSize{};
+        if (in.read(magic.data(), static_cast<std::streamsize>(magic.size())) &&
+            magic == kMagic && Read(in, version) && Read(in, cellX) && Read(in, cellY) &&
+            Read(in, regionSize) && version == kVersion && std::isfinite(regionSize) &&
+            regionSize >= 128.f && regionSize <= 2048.f)
+            return regionSize;
+    }
+    return 0.f;
+}
 }
 
 struct World::Impl {
@@ -313,7 +331,12 @@ bool World::Initialize(const std::filesystem::path& folder, std::uint64_t cacheL
         if (ec) continue;
         const auto resolved = std::filesystem::weakly_canonical(candidateAbsolute, ec);
         if (ec) continue;
-        const float candidateSize = ReadRegionSize(resolved / "manifest.json");
+        float candidateSize = ReadRegionSize(resolved / "manifest.json");
+        // Older/external extraction bundles can have a missing or partially
+        // written JSON manifest even though every OGCOL header is self-describing.
+        // Recover from one validated region header instead of disabling raycast.
+        if (candidateSize <= 0.f)
+            candidateSize = ReadRegionSizeFromRegion(resolved);
         if (candidateSize > 0.0f) { absolute = resolved; size = candidateSize; break; }
     }
     std::scoped_lock lock(impl_->mutex);
@@ -324,7 +347,7 @@ bool World::Initialize(const std::filesystem::path& folder, std::uint64_t cacheL
     impl_->initialized = impl_->manifestValid;
     impl_->stop = false;
     impl_->status = impl_->initialized ? "Índice de colisão carregado; regiões sob procura"
-                                       : "manifest.json de colisão ausente ou inválido";
+                                       : "Pasta de colisão ausente ou sem regiões OGCOL válidas";
     if (impl_->initialized) impl_->loader = std::thread([this] { impl_->LoaderLoop(); });
     return impl_->initialized;
 }

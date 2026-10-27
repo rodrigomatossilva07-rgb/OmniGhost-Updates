@@ -4,7 +4,6 @@
 #include "localization.h"
 #include "globals.h"
 #include "src/games/Cs2/cs2_game.h"
-#include "src/games/Warzone/warzone_game.h"
 #include "../config/app_settings.h"
 #include "game/offsets.h"
 #include "../platform/session_log.h"
@@ -69,9 +68,7 @@ namespace CyberWidgets {
         x = DrawFooterItem(dl, body, x, text_y, "DMA",
             CyberTheme::U32(CyberTheme::Colors.Gold), kFont);
         x = DrawDivider(dl, x, text_y);
-        const char* connection_text = (g_activeGame == ActiveGame::Warzone)
-            ? (Warzone::runtime.module_base ? "Processo ligado" : "A ligar...")
-            : (dma_ok ? Loc::Tr("footer.connected") : Loc::Tr("footer.offline"));
+        const char* connection_text = dma_ok ? Loc::Tr("footer.connected") : Loc::Tr("footer.offline");
         x = DrawFooterItem(dl, body, x, text_y,
             connection_text,
             CyberTheme::U32(CyberTheme::Colors.Text), kFont);
@@ -80,8 +77,6 @@ namespace CyberWidgets {
         char value[192];
         if (g_activeGame == ActiveGame::CS2) {
             snprintf(value, sizeof(value), "%s", CS2::StatusLine());
-        } else if (g_activeGame == ActiveGame::Warzone) {
-            snprintf(value, sizeof(value), "%s", Warzone::StatusLine());
         } else {
 
             snprintf(value, sizeof(value), Loc::Tr("footer.build"), build ? build : "--");
@@ -98,16 +93,10 @@ namespace CyberWidgets {
                 const auto snapshot = CS2::AcquireRuntimeSnapshot();
                 verified = (snapshot && snapshot->offsets_self_test_ok) || CS2::ready;
             }
-            else if (g_activeGame == ActiveGame::Warzone)
-                verified = Warzone::runtime.matrix_ok;
             else
                 verified = FiveM::IsBuildSupported();
 #endif
-            const char* offsets_text =
-                (g_activeGame == ActiveGame::Warzone && Warzone::runtime.matrix_ok) ? "Matrix OK" :
-                (g_activeGame == ActiveGame::Warzone && Warzone::offsets.loaded) ? "Offsets carregados" :
-                (g_activeGame == ActiveGame::Warzone) ? "Offsets por validar" :
-                (verified ? "Offsets OK" : "Offsets por validar");
+            const char* offsets_text = verified ? "Offsets OK" : "Offsets por validar";
             x = DrawFooterItem(dl, body, x, text_y,
                 offsets_text,
                 verified ? CyberTheme::U32(CyberTheme::Colors.Success) : CyberTheme::U32(CyberTheme::Colors.Warning), kFont);

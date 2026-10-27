@@ -25,7 +25,6 @@
 #include "../platform/text_encoding.h"
 #include "game/esp_manager.h"
 #include "src/games/Cs2/cs2_game.h"
-#include "src/games/Warzone/warzone_game.h"
 #include "src/games/Rust/rust_game.h"
 #include <shellapi.h>
 #ifndef UI_PREVIEW
@@ -66,12 +65,6 @@ namespace {
         case MenuTab::TAB_RUST_MISC:        return { "DIVERSOS RUST", "Preparado para implementação futura" };
         case MenuTab::TAB_RUST_RADAR:       return { "RADAR RUST", "Preparado para implementação futura" };
         case MenuTab::TAB_RUST_STATUS:      return { "SISTEMA RUST", "Ligação e diagnóstico em tempo real" };
-        case MenuTab::TAB_WARZONE_AIM:      return { "MIRA WARZONE", "Alvo, precisão e suavidade" };
-        case MenuTab::TAB_WARZONE_VISUALS:  return { "VISUAIS WARZONE", "ESP de jogadores" };
-        case MenuTab::TAB_WARZONE_RADAR:    return { "RADAR WARZONE", "Posições e orientação" };
-        case MenuTab::TAB_WARZONE_WORLD:    return { "MUNDO WARZONE", "Objetos e informação" };
-        case MenuTab::TAB_WARZONE_PLAYERS:  return { "JOGADORES WARZONE", "Lista e prioridades" };
-        case MenuTab::TAB_WARZONE_MISC:     return { "EXTRAS WARZONE", "Sistema e utilidades" };
         case MenuTab::TAB_FORTNITE_VISUALS: return { "VISUAIS FORTNITE", "ESP e informação" };
         case MenuTab::TAB_FORTNITE_AIM:     return { "MIRA FORTNITE", "Alvo e assistência" };
         case MenuTab::TAB_FORTNITE_STATUS:  return { "SISTEMA FORTNITE", "Ligação e diagnóstico" };
@@ -153,12 +146,6 @@ namespace {
         case MenuTab::TAB_RUST_MISC:    DrawRustMisc(); break;
         case MenuTab::TAB_RUST_RADAR:   DrawRustRadar(); break;
         case MenuTab::TAB_RUST_STATUS:  DrawRustStatus(); break;
-        case MenuTab::TAB_WARZONE_AIM:      DrawWarzoneAim(); break;
-        case MenuTab::TAB_WARZONE_VISUALS:  DrawWarzoneVisuals(); break;
-        case MenuTab::TAB_WARZONE_RADAR:    DrawWarzoneRadar(); break;
-        case MenuTab::TAB_WARZONE_WORLD:    DrawWarzoneWorld(); break;
-        case MenuTab::TAB_WARZONE_PLAYERS:  DrawWarzonePlayers(); break;
-        case MenuTab::TAB_WARZONE_MISC:     DrawWarzoneMisc(); break;
         case MenuTab::TAB_FORTNITE_VISUALS:  DrawFortniteVisuals(); break;
         case MenuTab::TAB_FORTNITE_AIM:      DrawFortniteAim(); break;
         case MenuTab::TAB_FORTNITE_STATUS:   DrawFortniteStatus(); break;
@@ -205,13 +192,6 @@ namespace {
             add("Diversos Rust", MenuTab::TAB_RUST_MISC, "Em preparação");
             add("Radar Rust", MenuTab::TAB_RUST_RADAR, "Em preparação");
             add("Sistema Rust", MenuTab::TAB_RUST_STATUS, "Diagnóstico");
-        } else if (game == OmniGhost::ActiveGame::Warzone) {
-            add("Mira Warzone", MenuTab::TAB_WARZONE_AIM, "Assistência");
-            add("Visuais Warzone", MenuTab::TAB_WARZONE_VISUALS, "ESP e apresentação");
-            add("Radar Warzone", MenuTab::TAB_WARZONE_RADAR, "Radar");
-            add("Mundo Warzone", MenuTab::TAB_WARZONE_WORLD, "Objetos do mundo");
-            add("Jogadores Warzone", MenuTab::TAB_WARZONE_PLAYERS, "Jogadores");
-            add("Extras Warzone", MenuTab::TAB_WARZONE_MISC, "Sistema e utilitários");
         } else if (game == OmniGhost::ActiveGame::Fortnite) {
             add("Visuais Fortnite", MenuTab::TAB_FORTNITE_VISUALS, "ESP e apresentação");
             add("Mira Fortnite", MenuTab::TAB_FORTNITE_AIM, "Assistência");
@@ -314,9 +294,14 @@ bool Overlay::CreateImGui()
     Changelog::Initialize();
     OmniGhost::UiFeedback::Initialize();
     OmniGhost::UiFeedback::PlayStartupOnce();
-    const float initialScale = std::clamp(
-        OmniGhost::Platform::DpiScaleForWindow(overlay) * app_settings::UiScalePreference(),
-        0.75f, 2.50f);
+    // The native window runtime has already selected the effective per-monitor
+    // scale (including the compact-window fit constraint).  Reuse it verbatim
+    // so ImGui geometry and rasterized fonts are never scaled twice.
+    const float initialScale = applied_ui_scale_ > 0.0f
+        ? applied_ui_scale_
+        : std::clamp(
+            OmniGhost::Platform::DpiScaleForWindow(overlay) * app_settings::UiScalePreference(),
+            0.75f, 2.50f);
     CyberTheme::SetUiScale(initialScale);
     CyberFonts::LoadFonts(initialScale);
     applied_ui_scale_ = initialScale;
@@ -336,7 +321,6 @@ bool Overlay::CreateImGui()
 static MenuTab DefaultTabForGame(OmniGhost::ActiveGame game) {
     if (game == OmniGhost::ActiveGame::CS2) return MenuTab::TAB_CS2_VISUALS;
     if (game == OmniGhost::ActiveGame::Rust) return MenuTab::TAB_RUST_VISUALS;
-    if (game == OmniGhost::ActiveGame::Warzone) return MenuTab::TAB_WARZONE_AIM;
     if (game == OmniGhost::ActiveGame::Fortnite) return MenuTab::TAB_FORTNITE_VISUALS;
     return MenuTab::TAB_VISUALS;
 }
@@ -531,11 +515,6 @@ const PerformanceMode::State performance = PerformanceMode::Update(
             players = snapshot ? static_cast<int>(snapshot->players.size()) : 0;
             break;
         }
-        case OmniGhost::ActiveGame::Warzone:
-            connected = Warzone::ready;
-            build = "Warzone · BETA";
-            players = static_cast<int>(Warzone::runtime.players.size());
-            break;
         case OmniGhost::ActiveGame::Rust:
             connected = Rust::ready;
             build = "Rust · BETA";

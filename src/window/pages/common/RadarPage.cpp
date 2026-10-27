@@ -139,10 +139,17 @@ void DrawRadar()
         }
         CyberWidgets::SliderFloat(app_settings::T("Distância do radar", "Radar distance"),
             &esp::config.web_radar_distance, 100.f, 5000.f, "%.0f m");
-        ImGui::SliderInt(app_settings::T("Máximo de jogadores", "Maximum players"),
-            &esp::config.web_radar_max_players, 8, 110);
-        ImGui::SliderInt(app_settings::T("Máximo de veículos", "Maximum vehicles"),
-            &esp::config.web_radar_max_vehicles, 8, 64);
+        const float compactSliderWidth = (std::min)(260.f, ImGui::GetContentRegionAvail().x * .42f);
+        CyberWidgets::TextLine(app_settings::T("Máximo de jogadores", "Maximum players"),
+            CyberWidgets::TextTone::Secondary);
+        ImGui::SetNextItemWidth(compactSliderWidth);
+        ImGui::SliderInt("##fivem_web_radar_max_players", &esp::config.web_radar_max_players,
+            8, 110, "%d jogadores");
+        CyberWidgets::TextLine(app_settings::T("Máximo de veículos", "Maximum vehicles"),
+            CyberWidgets::TextTone::Secondary);
+        ImGui::SetNextItemWidth(compactSliderWidth);
+        ImGui::SliderInt("##fivem_web_radar_max_vehicles", &esp::config.web_radar_max_vehicles,
+            8, 64, "%d veículos");
         CyberWidgets::SliderFloat(app_settings::T("Atualização", "Update rate"),
             &esp::config.web_radar_update_hz, 2.f, 30.f, "%.0f Hz");
         FiveM::WebRadar::Configure({

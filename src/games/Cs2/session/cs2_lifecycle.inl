@@ -102,7 +102,7 @@ bool RefreshProcessLiveness() {
 	std::scoped_lock lock(g_process_liveness_mutex);
 	if (now_ms < g_process_liveness_next_probe_ms)
 		return g_process_liveness_last_result.load(std::memory_order_acquire);
-	g_process_liveness_next_probe_ms = now_ms + 1000;
+	g_process_liveness_next_probe_ms = now_ms + 250;
 
 
     DWORD pid = 0;
@@ -114,10 +114,6 @@ bool RefreshProcessLiveness() {
 }
 
 bool IsGameProcessAlive() {
-
-
-    if (g_acqState.IsAcquisitionRunning())
-        return g_process_liveness_last_result.load(std::memory_order_acquire);
     return RefreshProcessLiveness();
 }
 

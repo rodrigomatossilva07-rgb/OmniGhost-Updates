@@ -51,9 +51,6 @@ std::string SerializeAll() {
     case ActiveGame::Rust:
         SerializeRust(o);
         break;
-    case ActiveGame::Warzone:
-        SerializeWarzone(o);
-        break;
     case ActiveGame::Fortnite:
 
 
@@ -118,7 +115,6 @@ bool DeserializeAll(const std::string& data) {
 
 
         ResetCS2ToDefaults();
-        ResetWarzoneToDefaults();
         ResetActiveGameToDefaults();
     }
     if (schema_version < 4) {
@@ -207,7 +203,6 @@ bool DeserializeAll(const std::string& data) {
         if (DeserializeAimType(key, val)) continue;
         if (DeserializeCS2(key, val)) continue;
         if (DeserializeRust(key, val)) continue;
-        if (DeserializeWarzone(key, val)) continue;
         if (DeserializeFortnite(key, val)) continue;
         if (DeserializeFiveM(key, val)) continue;
         if (Hotkeys::DeserializeFeatureToggle(key, val)) continue;

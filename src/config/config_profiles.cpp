@@ -27,19 +27,6 @@ void ApplyMinimalProfileForActiveGame() {
     case ActiveGame::Rust:
         Rust::config = Rust::Config{};
         break;
-    case ActiveGame::Warzone:
-        Warzone::config.esp_enabled = true;
-        Warzone::config.box = true;
-        Warzone::config.health_bar = true;
-        Warzone::config.name = true;
-        Warzone::config.distance = true;
-        Warzone::config.skeleton = false;
-        Warzone::config.radar_2d = false;
-        Warzone::config.aim_enabled = false;
-        Warzone::config.trigger_enabled = false;
-        std::strncpy(Warzone::config.scenario_preset, "minimal", sizeof(Warzone::config.scenario_preset) - 1);
-        Warzone::config.scenario_preset[sizeof(Warzone::config.scenario_preset) - 1] = '\0';
-        break;
     default:
         esp::config.enabled = true;
         esp::config.box_2d = true;
@@ -62,14 +49,6 @@ void ApplyVisualProfileForActiveGame() {
         CS2::config.distance = true;
         CS2::config.radar_2d = true;
         CS2::config.radar_2d_size = 180.f;
-        break;
-    case ActiveGame::Warzone:
-        Warzone::config.skeleton = true;
-        Warzone::config.radar_2d = true;
-        Warzone::config.radar_size = 180.f;
-        Warzone::config.esp_auto_hide_names = true;
-        std::strncpy(Warzone::config.scenario_preset, "visuals", sizeof(Warzone::config.scenario_preset) - 1);
-        Warzone::config.scenario_preset[sizeof(Warzone::config.scenario_preset) - 1] = '\0';
         break;
     default:
         esp::config.skeleton = true;
@@ -152,9 +131,6 @@ void ResetActiveGameToDefaults() {
         break;
     case ActiveGame::Rust:
         Rust::config = Rust::Config{};
-        break;
-    case ActiveGame::Warzone:
-        Warzone::config = Warzone::Config{};
         break;
     case ActiveGame::Fortnite:
 

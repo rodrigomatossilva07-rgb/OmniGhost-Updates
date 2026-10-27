@@ -45,10 +45,39 @@ Overlay* g_overlay_instance = nullptr;
 
 namespace {
 
-constexpr float kCompactWindowWidth = 480.0f;
+constexpr float kCompactWindowWidth = 580.0f;
 
 
-constexpr float kCompactWindowHeight = 520.0f;
+constexpr float kCompactWindowHeight = 640.0f;
+
+constexpr float kMinimumUiScale = 0.75f;
+constexpr float kMaximumUiScale = 2.50f;
+
+int RectWidth(const RECT& rect) {
+    return (std::max)(0L, rect.right - rect.left);
+}
+
+int RectHeight(const RECT& rect) {
+    return (std::max)(0L, rect.bottom - rect.top);
+}
+
+float EffectiveUiScale(const OmniGhost::Platform::MonitorInfo& monitor, bool compact) {
+    const float requested = std::clamp(
+        OmniGhost::Platform::DpiScaleForMonitor(monitor) * app_settings::UiScalePreference(),
+        kMinimumUiScale,
+        kMaximumUiScale);
+    if (!compact)
+        return requested;
+
+    // Compact authentication/loading windows must remain completely inside the
+    // monitor work area.  This is a layout constraint, not resolution-based
+    // scaling: on normal displays it is exactly the Windows DPI scale.  Only
+    // unusually small work areas cap it so controls and the footer stay usable.
+    const float fitX = static_cast<float>(RectWidth(monitor.work)) / kCompactWindowWidth;
+    const float fitY = static_cast<float>(RectHeight(monitor.work)) / kCompactWindowHeight;
+    return std::clamp((std::min)({requested, fitX, fitY}),
+                      kMinimumUiScale, kMaximumUiScale);
+}
 
 std::wstring Widen(const char* text) {
     if (!text || !*text) {
@@ -177,16 +206,19 @@ void Overlay::CreateOverlay(const char* window_name) {
 
     const OmniGhost::Platform::MonitorInfo targetMonitor =
         OmniGhost::Platform::SelectMonitor(app_settings::config.monitor_index, nullptr);
-    const int monitor_width = targetMonitor.rect.right - targetMonitor.rect.left;
-    const int monitor_height = targetMonitor.rect.bottom - targetMonitor.rect.top;
+    const RECT targetArea = targetMonitor.work;
+    const int monitor_width = RectWidth(targetArea);
+    const int monitor_height = RectHeight(targetArea);
     int window_width = monitor_width;
     int window_height = monitor_height;
-    int window_left = targetMonitor.rect.left;
-    int window_top = targetMonitor.rect.top;
+    int window_left = targetArea.left;
+    int window_top = targetArea.top;
     if (compact_mode_) {
-        const float systemScale = static_cast<float>(GetDpiForSystem()) / 96.0f;
-        window_width = (std::min)(monitor_width, static_cast<int>(kCompactWindowWidth * systemScale));
-        window_height = (std::min)(monitor_height, static_cast<int>(kCompactWindowHeight * systemScale));
+        const float uiScale = EffectiveUiScale(targetMonitor, true);
+        window_width = (std::min)(monitor_width,
+            static_cast<int>(std::lround(kCompactWindowWidth * uiScale)));
+        window_height = (std::min)(monitor_height,
+            static_cast<int>(std::lround(kCompactWindowHeight * uiScale)));
         window_left += (monitor_width - window_width) / 2;
         window_top += (monitor_height - window_height) / 2;
     }
@@ -241,8 +273,8 @@ void Overlay::CreateOverlay(const char* window_name) {
 
 
     window_visible_ = false;
-    ApplyWindowShape(overlay, compact_mode_,
-        static_cast<float>(GetDpiForWindow(overlay)) / 96.0f);
+    applied_ui_scale_ = EffectiveUiScale(targetMonitor, compact_mode_);
+    ApplyWindowShape(overlay, compact_mode_, applied_ui_scale_);
     applied_monitor_index_ = app_settings::config.monitor_index;
     display_configuration_dirty_ = true;
 }
@@ -256,16 +288,19 @@ void Overlay::ApplyDisplayConfiguration(bool force) {
     if (force || monitorChanged || display_configuration_dirty_) {
         const OmniGhost::Platform::MonitorInfo monitor =
             OmniGhost::Platform::SelectMonitor(requestedMonitor, overlay);
-        int width = monitor.rect.right - monitor.rect.left;
-        int height = monitor.rect.bottom - monitor.rect.top;
-        int left = monitor.rect.left;
-        int top = monitor.rect.top;
+        const RECT targetArea = monitor.work;
+        const float uiScale = EffectiveUiScale(monitor, compact_mode_);
+        int width = RectWidth(targetArea);
+        int height = RectHeight(targetArea);
+        int left = targetArea.left;
+        int top = targetArea.top;
         if (compact_mode_) {
-            const float dpi = OmniGhost::Platform::DpiScaleForWindow(overlay);
-            width = (std::min)(width, static_cast<int>(kCompactWindowWidth * dpi));
-            height = (std::min)(height, static_cast<int>(kCompactWindowHeight * dpi));
-            left = monitor.rect.left + ((monitor.rect.right - monitor.rect.left) - width) / 2;
-            top = monitor.rect.top + ((monitor.rect.bottom - monitor.rect.top) - height) / 2;
+            width = (std::min)(width,
+                static_cast<int>(std::lround(kCompactWindowWidth * uiScale)));
+            height = (std::min)(height,
+                static_cast<int>(std::lround(kCompactWindowHeight * uiScale)));
+            left = targetArea.left + (RectWidth(targetArea) - width) / 2;
+            top = targetArea.top + (RectHeight(targetArea) - height) / 2;
         }
         if (width > 0 && height > 0) {
             RECT current{};
@@ -280,8 +315,7 @@ void Overlay::ApplyDisplayConfiguration(bool force) {
 
             SetWindowPos(overlay, HWND_TOPMOST, left, top,
                          width, height, SWP_NOACTIVATE | SWP_FRAMECHANGED);
-            ApplyWindowShape(overlay, compact_mode_,
-                OmniGhost::Platform::DpiScaleForWindow(overlay));
+            ApplyWindowShape(overlay, compact_mode_, uiScale);
 
             if (geometryChanged) {
                 InvalidateRect(overlay, nullptr, FALSE);
@@ -291,9 +325,9 @@ void Overlay::ApplyDisplayConfiguration(bool force) {
         display_configuration_dirty_ = false;
     }
 
-    const float dpiScale = OmniGhost::Platform::DpiScaleForWindow(overlay);
-    const float requestedScale = std::clamp(
-        dpiScale * app_settings::UiScalePreference(), 0.75f, 2.50f);
+    const OmniGhost::Platform::MonitorInfo currentMonitor =
+        OmniGhost::Platform::SelectMonitor(requestedMonitor, overlay);
+    const float requestedScale = EffectiveUiScale(currentMonitor, compact_mode_);
     const bool scaleChanged = std::fabs(requestedScale - applied_ui_scale_) >= 0.01f;
     if (!scaleChanged)
         return;
@@ -358,6 +392,14 @@ void Overlay::ApplyPendingResize() {
 void Overlay::SetCompactMode(bool enabled) {
     if (compact_mode_ == enabled)
         return;
+
+    // Do not expose the old swap-chain surface while the single native window
+    // changes between the compact authentication size and the launcher size.
+    // It otherwise looks like a second, displaced window for one frame.
+    if (overlay && window_visible_) {
+        ShowWindow(overlay, SW_HIDE);
+        window_visible_ = false;
+    }
     compact_mode_ = enabled;
     display_configuration_dirty_ = true;
     ApplyDisplayConfiguration(true);
@@ -875,6 +917,14 @@ LRESULT CALLBACK Overlay::WindowProc(
         if (g_overlay_instance)
             g_overlay_instance->display_configuration_dirty_ = true;
         return 0;
+
+    case WM_SETTINGCHANGE:
+        // Includes taskbar/work-area and display-scale changes.  Windows sends
+        // WM_DPICHANGED for per-monitor transitions, while this covers changes
+        // made in Settings without requiring an application restart.
+        if (g_overlay_instance)
+            g_overlay_instance->display_configuration_dirty_ = true;
+        break;
 
     case WM_SIZE:
         if (g_overlay_instance && wparam != SIZE_MINIMIZED) {

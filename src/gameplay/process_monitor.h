@@ -34,15 +34,15 @@ inline ProcessMonitorConfig GetDefaultMonitorConfig(int game_type) {
 
     switch (game_type) {
         case 0:
-            return {3000, 5000, 1000, 2, true};
+            return {250, 500, 250, 2, true};
         case 1:
-            return {5000, 10000, 1000, 3, true};
+            return {350, 750, 250, 2, true};
         case 2:
-            return {2000, 4000, 1000, 2, false};
+            return {250, 500, 250, 2, false};
         case 3:
-            return {1500, 3000, 750, 2, true};
+            return {250, 500, 250, 2, true};
         default:
-            return {3000, 5000, 1000, 2, true};
+            return {250, 500, 250, 2, true};
     }
 }
 

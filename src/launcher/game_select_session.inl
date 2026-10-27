@@ -298,7 +298,7 @@ bool CanStartGame(GameId selected) {
 bool AdapterAttached(GameId id) {
     switch (id) {
     case GameId::CS2: return CS2::ready;
-    case GameId::Warzone: return Warzone::ready;
+    case GameId::Warzone: return false;
     case GameId::Fortnite: return Fortnite::runtime.attached;
     case GameId::FiveM:
         return g_activeGame == ActiveGame::FiveM && mem.GetDiagnosticsSnapshot().processInitialized;

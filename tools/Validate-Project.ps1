@@ -334,8 +334,7 @@ $offsetAdapterFiles = @(
     'src\games\Cs2\cs2_game.h',
     'src\games\Fivem\game\offsets.cpp',
     'src\games\Fivem\game\offsets.h',
-    'src\games\Fortnite\fortnite_game.h',
-    'src\games\Warzone\warzone_game.h'
+    'src\games\Fortnite\fortnite_game.h'
 )
 foreach ($relative in $offsetAdapterFiles) {
     $offsetAdapter = Read-Utf8Text (Join-Path $ProjectDir $relative)

@@ -4,7 +4,6 @@
 #include "../../../globals.h"
 #include "config/app_settings.h"
 #include "src/games/Cs2/config/cs2_config.h"
-#include "src/games/Warzone/warzone_config.h"
 #include "aimbot/aimbot.h"
 #include "esp/esp.h"
 #ifdef UI_PREVIEW
@@ -56,15 +55,6 @@ VisualPreviewState CurrentVisualState() {
     case ActiveGame::CS2:
         value.radar = CS2::config.radar_2d;
         break;
-    case ActiveGame::Warzone:
-        value.enabled = Warzone::config.esp_enabled;
-        value.box = Warzone::config.box || Warzone::config.box_corner;
-        value.skeleton = Warzone::config.skeleton;
-        value.health = Warzone::config.health_bar;
-        value.name = Warzone::config.name;
-        value.distance = Warzone::config.distance;
-        value.radar = Warzone::config.radar_2d;
-        break;
     default:
         value.enabled = esp::config.enabled;
         value.box = esp::config.box_2d || esp::config.corner_box;
@@ -90,16 +80,6 @@ AimPreviewState CurrentAimState() {
         value.prediction = CS2::config.aim_prediction;
         value.aim_key = CS2::config.aim_bind;
         value.max_dist = CS2::config.aim_max_dist;
-        break;
-    case ActiveGame::Warzone:
-        value.enabled = Warzone::config.aim_enabled;
-        value.fov = Warzone::config.aim_fov;
-        value.smooth = Warzone::config.aim_smooth;
-        value.bone = Warzone::config.aim_bone;
-        value.rcs = false;
-        value.prediction = Warzone::config.aim_prediction;
-        value.aim_key = Warzone::config.aim_bind;
-        value.max_dist = Warzone::config.aim_max_dist;
         break;
     default:
         value.enabled = aimbot::config.aimbot_enabled;

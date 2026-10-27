@@ -24,12 +24,6 @@ enum class MenuTab : int {
     TAB_RUST_RADAR,
     TAB_RUST_STATUS,
 
-    TAB_WARZONE_AIM = 300,
-    TAB_WARZONE_VISUALS,
-    TAB_WARZONE_RADAR,
-    TAB_WARZONE_WORLD,
-    TAB_WARZONE_PLAYERS,
-    TAB_WARZONE_MISC,
 
 
     TAB_UNIFIED_AIM = 600,
@@ -80,12 +74,6 @@ void DrawRustRadar();
 void DrawRustStatus();
 
 
-void DrawWarzoneAim();
-void DrawWarzoneVisuals();
-void DrawWarzoneRadar();
-void DrawWarzoneWorld();
-void DrawWarzonePlayers();
-void DrawWarzoneMisc();
 
 void DrawFortniteVisuals();
 void DrawFortniteAim();

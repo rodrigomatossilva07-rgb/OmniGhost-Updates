@@ -1,7 +1,6 @@
 #include "offset_auto.h"
 
 #include "src/games/Cs2/cs2_game.h"
-#include "src/games/Warzone/warzone_game.h"
 #include "src/games/Fivem/game/offsets.h"
 #include "src/games/Rust/rust_game.h"
 #include "src/games/Rust/rust_offsets.h"
@@ -91,9 +90,6 @@ bool HasCriticalOffsets(ActiveGame game) {
             && CS2::offsets.dwEntityList != 0
             && CS2::offsets.dwViewMatrix != 0;
     }
-    if (game == ActiveGame::Warzone) {
-        return Warzone::offsets.loaded && Warzone::offsets.view_matrix != 0;
-    }
     if (game == ActiveGame::FiveM) {
 
         return FiveM::HasAnyCriticalOffsets();
@@ -123,8 +119,6 @@ bool SoftProbeLive(ActiveGame game) {
     switch (game) {
     case ActiveGame::CS2:
         return CS2::ready && CS2::ValidateLiveOffsets();
-    case ActiveGame::Warzone:
-        return Warzone::ready && Warzone::SoftProbeLobbyOffsets();
     case ActiveGame::FiveM:
         return FiveM::SoftProbeLobbyOffsets();
     case ActiveGame::Rust:
@@ -170,15 +164,6 @@ Result EnsureOffsets(ActiveGame game, bool force_refresh) {
         else MarkOutdated(game, g_status);
         return usable ? Result::Current : Result::RefreshFailed;
     }
-    if (game == ActiveGame::Warzone) {
-        const bool loaded = Warzone::ReloadOffsets();
-        const bool usable = loaded && HasCriticalOffsets(game);
-        g_status = usable ? "Warzone: offsets manuais carregados"
-                          : "Warzone: offsets manuais inválidos ou em falta";
-        if (usable) MarkLiveValid(game, g_status);
-        else MarkOutdated(game, g_status);
-        return usable ? Result::Current : Result::RefreshFailed;
-    }
     if (game == ActiveGame::FiveM) {
         const bool usable = HasCriticalOffsets(game);
         g_status = usable ? "FiveM: tabela manual de builds carregada"
@@ -207,7 +192,6 @@ int RefreshAllSupported(bool force) {
     int ok = 0;
     const ActiveGame games[] = {
         ActiveGame::CS2,
-        ActiveGame::Warzone,
         ActiveGame::FiveM,
         ActiveGame::Rust,
     };

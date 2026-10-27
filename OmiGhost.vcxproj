@@ -374,12 +374,6 @@
     <ClCompile Include="src\window\pages\cs2\Cs2VisualsPage.cpp"/>
     <ClCompile Include="src\window\pages\cs2\Cs2MiscPage.cpp"/>
     <ClCompile Include="src\window\pages\cs2\Cs2RadarPage.cpp"/>
-    <ClCompile Include="src\window\pages\warzone\WarzoneAimPage.cpp"/>
-    <ClCompile Include="src\window\pages\warzone\WarzoneVisualsPage.cpp"/>
-    <ClCompile Include="src\window\pages\warzone\WarzoneRadarPage.cpp"/>
-    <ClCompile Include="src\window\pages\warzone\WarzoneWorldPage.cpp"/>
-    <ClCompile Include="src\window\pages\warzone\WarzonePlayersPage.cpp"/>
-    <ClCompile Include="src\window\pages\warzone\WarzoneMiscPage.cpp"/>
         <ClCompile Include="src\gameplay\smooth_curves.cpp"/>
     <ClCompile Include="src\gameplay\dma_telemetry_log.cpp"/>
     <ClCompile Include="src\gameplay\unified_stub.cpp"/>
@@ -431,10 +425,6 @@
     <ClCompile Include="src\games\Cs2\trajectory\cs2_map_collision_cache.cpp"/>
     <ClCompile Include="src\games\Cs2\config\cs2_config_io.cpp"/>
     <ClCompile Include="src\games\Cs2\weapons\cs2_weapon_icons.cpp"/>
-    <ClCompile Include="src\games\Warzone\warzone_game.cpp"/>
-    <ClCompile Include="src\games\Warzone\warzone_decrypt.cpp"/>
-    <ClCompile Include="src\games\Warzone\warzone_aim.cpp"/>
-    <ClCompile Include="src\games\Warzone\warzone_esp.cpp"/>
     <ClCompile Include="src\games\Rust\rust_game.cpp"/>
     <ClCompile Include="src\games\Rust\rust_esp.cpp"/>
     <ClCompile Include="src\games\Fortnite\fortnite_game.cpp"/>

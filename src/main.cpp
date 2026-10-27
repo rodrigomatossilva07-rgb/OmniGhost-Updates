@@ -28,7 +28,6 @@
 #include "src/games/Fivem/friends/friends.h"
 #include "src/games/Cs2/cs2_game.h"
 #include "src/games/Cs2/aimbot/cs2_aim.h"
-#include "src/games/Warzone/warzone_game.h"
 #include "src/games/Fortnite/fortnite_game.h"
 #include "src/games/Rust/rust_game.h"
 #include "platform/offset_auto.h"
@@ -669,12 +668,11 @@ while (application.shouldRun && !authenticated) {
         std::clog << "[WINDOW][Invariant] transient launcher audit mismatch; continuing with valid HWND. current="
                   << transitionAudit.currentProcessWindows << "\n";
     }
-    ShowWindow(application.overlay, SW_SHOWNORMAL);
-    SetWindowPos(application.overlay, HWND_TOPMOST, 0, 0, 0, 0,
-                 SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW | SWP_NOACTIVATE);
-    SetForegroundWindow(application.overlay);
-    WritePostAuthStage("launcher-window-shown");
-    std::clog << "[UI][Transition] SetCompactMode(false) returned; same HWND retained and DXGI resize is deferred to render loop\n";
+    // SetCompactMode intentionally keeps the HWND hidden until EndRender has
+    // presented a correctly resized frame. Showing it here would briefly
+    // expose the previous compact backbuffer at the launcher coordinates.
+    WritePostAuthStage("launcher-window-resize-pending");
+    std::clog << "[UI][Transition] SetCompactMode(false) returned; same HWND retained and first resized frame will reveal it\n";
     OmniGhost::SessionLog::Write(
         OmniGhost::SessionLog::Severity::Info,
         OmniGhost::SessionLog::Subsystem::Core,
@@ -870,7 +868,7 @@ while (application.shouldRun && !authenticated) {
     }
 
 
-    if (pending_game != ActiveGame::Warzone) {
+    {
         bool need_refresh = false;
 
         if (pending_game == ActiveGame::CS2) {
@@ -1154,8 +1152,6 @@ while (application.shouldRun && !authenticated) {
         if (g_activeGame == ActiveGame::CS2) {
             CS2::Shutdown();
             CS2::ready = false;
-        } else if (g_activeGame == ActiveGame::Warzone) {
-            Warzone::Shutdown();
         } else if (g_activeGame == ActiveGame::Rust) {
             Rust::Shutdown();
         } else if (g_activeGame == ActiveGame::Fortnite) {
@@ -1220,9 +1216,6 @@ while (application.shouldRun && !authenticated) {
             case ActiveGame::CS2:
                 dma_alive = CS2::IsGameProcessAlive();
                 break;
-            case ActiveGame::Warzone:
-                dma_alive = Warzone::IsGameProcessAlive();
-                break;
             case ActiveGame::Rust:
                 dma_alive = Rust::IsGameProcessAlive();
                 break;
@@ -1232,7 +1225,7 @@ while (application.shouldRun && !authenticated) {
             case ActiveGame::FiveM:
                 dma_alive = FiveM::ESP::RemoteProcessRecentlySeen();
                 if (GetTickCount64() >= next_local_process_probe) {
-                    next_local_process_probe = GetTickCount64() + 1000;
+                    next_local_process_probe = GetTickCount64() + 250;
                     local_process_alive = IsLocalFiveMProcessRunning();
                 }
                 local_alive = local_process_alive;
@@ -1303,11 +1296,6 @@ while (application.shouldRun && !authenticated) {
                         .acquire.acquire_p50_ms.load(std::memory_order_relaxed);
                     break;
                 }
-                case ActiveGame::Warzone:
-                    entity_players = Warzone::runtime.player_count;
-                    acquire_p50_ms = OmniGhost::Gameplay::DmaTelemetry::Warzone()
-                        .acquire.acquire_p50_ms.load(std::memory_order_relaxed);
-                    break;
                 case ActiveGame::Rust:
                     entity_players = static_cast<int>(Rust::runtime.players.size());
                     break;

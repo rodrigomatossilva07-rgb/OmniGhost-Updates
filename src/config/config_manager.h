@@ -125,19 +125,14 @@ void SerializeAimType(std::ostringstream& o);
 bool DeserializeAimType(const std::string& key, const std::string& val);
 void SerializeCS2(std::ostringstream& o);
 bool DeserializeCS2(const std::string& key, const std::string& val);
-void SerializeWarzone(std::ostringstream& o);
-bool DeserializeWarzone(const std::string& key, const std::string& val);
 void SerializeFiveM(std::ostringstream& o);
 bool DeserializeFiveM(const std::string& key, const std::string& val);
 void SerializeColorArray(std::ostringstream& o, const char* prefix, const float value[4]);
 bool DeserializeColorArray(const std::string& key, const std::string& val, const char* prefix, float value[4]);
 
 void ResetCS2ToDefaults();
-void ResetWarzoneToDefaults();
 void ApplyMinimalCS2();
-void ApplyMinimalWarzone();
 void ApplyVisualCS2();
-void ApplyVisualWarzone();
 void ApplyMinimalProfileForActiveGame();
 void ApplyVisualProfileForActiveGame();
 

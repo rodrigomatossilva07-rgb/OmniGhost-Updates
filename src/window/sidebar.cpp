@@ -115,16 +115,6 @@ namespace CyberWidgets {
             { "nav.configs", MenuTab::TAB_CONFIGS,      CyberIcons::DrawSettingsIcon },
             { "nav.save",    MenuTab::TAB_SAVECONFIG,   CyberIcons::DrawSaveIcon },
         };
-        static const TabItem warzoneTabs[] = {
-            { "nav.aim", MenuTab::TAB_WARZONE_AIM,      CyberIcons::DrawAimIcon },
-            { "nav.player_esp", MenuTab::TAB_WARZONE_VISUALS,  CyberIcons::DrawESPIcon },
-            { "nav.world_esp", MenuTab::TAB_WARZONE_WORLD,    CyberIcons::DrawWorldIcon },
-            { "nav.radar", MenuTab::TAB_WARZONE_RADAR,    CyberIcons::DrawRadarIcon },
-            { "nav.players", MenuTab::TAB_WARZONE_PLAYERS,  CyberIcons::DrawUserIcon },
-            { "nav.misc", MenuTab::TAB_WARZONE_MISC,     CyberIcons::DrawWrenchIcon },
-            { "nav.configs", MenuTab::TAB_CONFIGS,          CyberIcons::DrawSettingsIcon },
-            { "nav.save", MenuTab::TAB_SAVECONFIG,       CyberIcons::DrawSaveIcon },
-        };
         static const TabItem fortniteTabs[] = {
             { "nav.visuals", MenuTab::TAB_FORTNITE_VISUALS, CyberIcons::DrawESPIcon },
             { "nav.aim", MenuTab::TAB_FORTNITE_AIM,     CyberIcons::DrawAimIcon },
@@ -138,9 +128,6 @@ namespace CyberWidgets {
         } else if (OmniGhost::GameContext::Instance().GetActiveGame() == OmniGhost::ActiveGame::Rust) {
             tabs = rustTabs;
             tabCount = (int)(sizeof(rustTabs) / sizeof(rustTabs[0]));
-        } else if (OmniGhost::GameContext::Instance().GetActiveGame() == OmniGhost::ActiveGame::Warzone) {
-            tabs = warzoneTabs;
-            tabCount = (int)(sizeof(warzoneTabs) / sizeof(warzoneTabs[0]));
         } else if (OmniGhost::GameContext::Instance().GetActiveGame() == OmniGhost::ActiveGame::Fortnite) {
             tabs = fortniteTabs;
             tabCount = (int)(sizeof(fortniteTabs) / sizeof(fortniteTabs[0]));

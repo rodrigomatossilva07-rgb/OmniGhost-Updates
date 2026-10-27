@@ -54,12 +54,6 @@
     <Filter Include="Header Files\Cs2">
       <UniqueIdentifier>{B2C3D4E5-F6A7-8901-BCDE-F12345678901}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\Warzone">
-      <UniqueIdentifier>{A7C19D84-610E-49C5-920A-ED52B5670001}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Header Files\Warzone">
-      <UniqueIdentifier>{A7C19D84-610E-49C5-920A-ED52B5670002}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Source Files\launcher">
       <UniqueIdentifier>{C3D4E5F6-A7B8-9012-CDEF-123456789012}</UniqueIdentifier>
     </Filter>
@@ -434,12 +428,6 @@
     <ClCompile Include="src\launcher\game_adapter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\games\Warzone\warzone_aim.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="src\games\Warzone\warzone_esp.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="src\games\Rust\rust_game.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -558,14 +546,6 @@
   <ItemGroup>
     <ClCompile Include="src\window\sidebar.cpp">
       <Filter>Source Files\window</Filter>
-    </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="src\games\Warzone\warzone_game.cpp">
-      <Filter>Source Files\Warzone</Filter>
-    </ClCompile>
-    <ClCompile Include="src\games\Warzone\warzone_decrypt.cpp">
-      <Filter>Source Files\Warzone</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

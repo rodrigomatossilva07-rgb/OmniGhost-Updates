@@ -6,12 +6,50 @@
 #include "Memory/Memory.h"
 #include "globals.h"
 #include "games/Cs2/radar/cs2_web_radar.h"
+#include "../../../../third_party/keyauth/x64/lib/QRCode/qrcode.hpp"
 #include "imgui.h"
 #include <Windows.h>
 #include <shellapi.h>
 #include <algorithm>
 #include <cstdio>
 #include <cmath>
+#include <memory>
+
+namespace {
+void DrawCs2PublicLinkQr(const std::string& url) {
+    static std::string encodedUrl;
+    static std::unique_ptr<qrcodegen::QrCode> qr;
+    if (url != encodedUrl) {
+        encodedUrl = url;
+        qr.reset();
+        if (!url.empty()) {
+            try {
+                qr = std::make_unique<qrcodegen::QrCode>(
+                    qrcodegen::QrCode::encodeText(url.c_str(), qrcodegen::QrCode::Ecc::MEDIUM));
+            } catch (...) { encodedUrl.clear(); }
+        }
+    }
+    if (!qr) return;
+    constexpr int quietZone = 4;
+    const int modules = qr->getSize();
+    const float available = (std::min)(220.f, CyberWidgets::CardContentWidth() - 24.f);
+    const float moduleSize = (std::max)(2.f, std::floor(available / float(modules + quietZone * 2)));
+    const float side = moduleSize * float(modules + quietZone * 2);
+    ImGui::SetCursorPosX(ImGui::GetCursorPosX() +
+        (std::max)(0.f, (CyberWidgets::CardContentWidth() - side) * .5f));
+    const ImVec2 origin = ImGui::GetCursorScreenPos();
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    dl->AddRectFilled(origin, ImVec2(origin.x + side, origin.y + side), IM_COL32_WHITE, 6.f);
+    for (int y = 0; y < modules; ++y) for (int x = 0; x < modules; ++x) {
+        if (!qr->getModule(x, y)) continue;
+        const ImVec2 a(origin.x + (x + quietZone) * moduleSize,
+                       origin.y + (y + quietZone) * moduleSize);
+        dl->AddRectFilled(a, ImVec2(a.x + moduleSize, a.y + moduleSize), IM_COL32_BLACK);
+    }
+    ImGui::Dummy(ImVec2(side, side));
+    CyberWidgets::TextLine("Lê o QR Code para abrir o radar público.", CyberWidgets::TextTone::Secondary);
+}
+}
 
 void DrawCs2Radar() {
     const float full = CyberWidgets::CardContentWidth();
@@ -58,7 +96,10 @@ void DrawCs2Radar() {
     }
     if (webEnabled) {
         if (!CS2::WebRadar::IsRunning()) CS2::WebRadar::Start(CS2::config.web_radar_port);
-        ImGui::SliderInt("Máximo de jogadores", &CS2::config.web_radar_max_players, 8, 64);
+        CyberWidgets::TextLine("Máximo de jogadores", CyberWidgets::TextTone::Secondary);
+        const float maxPlayersWidth = (std::min)(260.f, ImGui::GetContentRegionAvail().x * 0.42f);
+        ImGui::SetNextItemWidth(maxPlayersWidth);
+        ImGui::SliderInt("##web_radar_max_players", &CS2::config.web_radar_max_players, 8, 64, "%d jogadores");
         CyberWidgets::SliderFloat("Atualização", &CS2::config.web_radar_update_hz, 2.f, 30.f, "%.0f Hz");
         CS2::WebRadar::Configure({static_cast<std::uint32_t>(CS2::config.web_radar_max_players),
                                   CS2::config.web_radar_update_hz});
@@ -87,6 +128,7 @@ void DrawCs2Radar() {
                     ShellExecuteA(nullptr, "open", publicUrl.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
                 if (CyberWidgets::CyberButton("Copiar link público", ImVec2(180.f, 34.f)))
                     ImGui::SetClipboardText(publicUrl.c_str());
+                DrawCs2PublicLinkQr(publicUrl);
             }
             const auto status = CS2::WebRadar::CloudflareStatus();
             if (!status.empty()) CyberWidgets::TextLine(status.c_str(), CyberWidgets::TextTone::Secondary);

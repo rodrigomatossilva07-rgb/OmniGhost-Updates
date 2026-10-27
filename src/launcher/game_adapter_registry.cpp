@@ -14,7 +14,6 @@
 #include "src/games/Fivem/game/offset_auto.h"
 #include "src/games/Fivem/game/offsets.h"
 #include "src/games/Fortnite/fortnite_game.h"
-#include "src/games/Warzone/warzone_game.h"
 #include "src/games/Rust/rust_game.h"
 #include "imgui.h"
 
@@ -238,17 +237,6 @@ bool StartCs2() {
     }
 }
 
-bool StartWarzone() {
-    ScopedActiveGame gameGuard;
-    g_activeGame = ActiveGame::Warzone;
-    if (Warzone::Attach()) {
-        gameGuard.Commit();
-        return true;
-    }
-    std::cerr << "[Warzone] Falha na comunicacao com DMA/FPGA.\n";
-    return false;
-}
-
 bool StartRust() {
     ScopedActiveGame gameGuard;
     g_activeGame = ActiveGame::Rust;
@@ -342,11 +330,6 @@ bool Cs2ValidateOffsets() { return CS2::ValidateLiveOffsets(); }
 std::string_view Cs2TerminationReason() { return "Processo cs2.exe terminou"; }
 ActiveGame Cs2GameId() { return ActiveGame::CS2; }
 
-bool WarzoneIsAlive() { return Warzone::IsGameProcessAlive(); }
-bool WarzoneValidateOffsets() { return Warzone::ValidateLiveOffsets(); }
-std::string_view WarzoneTerminationReason() { return "Processo Warzone terminou"; }
-ActiveGame WarzoneGameId() { return ActiveGame::Warzone; }
-
 bool RustIsAlive() { return Rust::IsGameProcessAlive(); }
 bool RustValidateOffsets() { return Rust::ValidateLiveOffsets(); }
 std::string_view RustTerminationReason() { return "Processo RustClient.exe terminou"; }
@@ -404,22 +387,6 @@ IGameAdapter* FindGameAdapter(::Launcher::GameId game) noexcept {
         },
         Cs2IsAlive, Cs2ValidateOffsets, Cs2TerminationReason, Cs2GameId,
         Cs2StartFailure);
-    static FunctionGameAdapter warzone({ ::Launcher::GameId::Warzone, "Call of Duty: Warzone", AdapterMaturity::Beta,
-        Capability::Menu | Capability::ReadOnlyMemory },
-        StartWarzone, [] { Warzone::Shutdown(); },
-        [] { return std::string_view(Warzone::status); },
-        [] {
-            try {
-                if (Warzone::ready) {
-                    Warzone::RunFrame();
-                }
-            } catch (const std::exception& ex) {
-                std::cerr << "[Warzone] CRASH em Tick: " << ex.what() << std::endl;
-            } catch (...) {
-                std::cerr << "[Warzone] CRASH desconhecido em Tick" << std::endl;
-            }
-        },
-        WarzoneIsAlive, WarzoneValidateOffsets, WarzoneTerminationReason, WarzoneGameId);
     static FunctionGameAdapter rust({ ::Launcher::GameId::Rust, "Rust", AdapterMaturity::Experimental,
         Capability::Menu | Capability::ReadOnlyMemory | Capability::Overlay },
         StartRust, [] { Rust::Shutdown(); },
@@ -455,7 +422,6 @@ IGameAdapter* FindGameAdapter(::Launcher::GameId game) noexcept {
     switch (game) {
     case ::Launcher::GameId::FiveM: return &fivem;
     case ::Launcher::GameId::CS2: return &cs2;
-    case ::Launcher::GameId::Warzone: return &warzone;
     case ::Launcher::GameId::Rust: return &rust;
     case ::Launcher::GameId::Fortnite: return &fortnite;
     default: return nullptr;
