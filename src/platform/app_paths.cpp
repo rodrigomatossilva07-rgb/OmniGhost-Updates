@@ -205,7 +205,8 @@ fs::path LocalData() {
 }
 
 fs::path NativeRuntime() {
-    return LocalData() / L"runtime";
+    return TemporaryBasePath() / L"OmniGhost" / L"runtime" /
+        InstallIdentity() / (L"pid-" + std::to_wstring(GetCurrentProcessId()));
 }
 
 fs::path Configs() {
@@ -231,8 +232,7 @@ fs::path Updates() {
 }
 
 fs::path Backups() {
-
-    return LocalData() / L"backups";
+    return TemporaryBasePath() / L"OmniGhost" / L"update-backups" / InstallIdentity();
 }
 
 bool EnsureUserDirectories() {
@@ -310,6 +310,27 @@ void MigrateLegacyUserData() {
         }
     }
 #endif
+
+
+
+
+    std::error_code cleanupError;
+    fs::remove_all(LocalData() / L"runtime", cleanupError);
+    cleanupError.clear();
+    fs::remove_all(LocalData() / L"backups", cleanupError);
+    cleanupError.clear();
+    fs::remove(LocalData() / L"post-auth-stage.txt", cleanupError);
+    cleanupError.clear();
+    fs::remove(LocalData() / L"logs.txt.prev", cleanupError);
+    cleanupError.clear();
+    for (fs::directory_iterator it(LocalData(), fs::directory_options::skip_permission_denied,
+             cleanupError), end; it != end; it.increment(cleanupError)) {
+        if (cleanupError) { cleanupError.clear(); continue; }
+        const std::wstring name = it->path().filename().wstring();
+        if (name.starts_with(L"run-state-") && it->is_regular_file(cleanupError))
+            fs::remove(it->path(), cleanupError);
+        cleanupError.clear();
+    }
 }
 
 

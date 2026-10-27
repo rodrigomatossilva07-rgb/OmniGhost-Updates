@@ -521,14 +521,15 @@ void ArchiveExistingLog(const fs::path& path, const char* ) {
         return;
     }
 
-    const fs::path prev = path.wstring() + L".prev";
-    fs::remove(prev, error);
+    const fs::path archive = Paths::Logs() / L"archive";
+    fs::create_directories(archive, error);
     error.clear();
-    fs::rename(path, prev, error);
-    if (error) {
-        error.clear();
+    const fs::path encrypted = archive /
+        (L"session-" + Platform::Utf8ToWide(TimestampForFilename()) + L"-pid" +
+         std::to_wstring(GetCurrentProcessId()) + L".logs.enc");
+    if (!EncryptLogFile(path, encrypted))
         fs::remove(path, error);
-    }
+    PruneArchives();
 }
 
 fs::path PreferredLogPath() {

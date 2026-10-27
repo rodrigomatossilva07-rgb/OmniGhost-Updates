@@ -175,23 +175,7 @@ LaunchIssue DiagnoseLaunchFailure(
 }
 
 void WritePostAuthStage(const char* stage) noexcept {
-    wchar_t localAppData[MAX_PATH]{};
-    const DWORD length = GetEnvironmentVariableW(L"LOCALAPPDATA", localAppData, MAX_PATH);
-    if (length == 0 || length >= MAX_PATH)
-        return;
-
-    std::wstring directory(localAppData);
-    directory += L"\\OmniGhost";
-    CreateDirectoryW(directory.c_str(), nullptr);
-    const std::wstring path = directory + L"\\post-auth-stage.txt";
-    HANDLE file = CreateFileW(path.c_str(), GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
-                              nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (file == INVALID_HANDLE_VALUE)
-        return;
-    DWORD written = 0;
-    WriteFile(file, stage, static_cast<DWORD>(std::strlen(stage)), &written, nullptr);
-    FlushFileBuffers(file);
-    CloseHandle(file);
+    (void)stage;
 }
 
 
@@ -668,9 +652,9 @@ while (application.shouldRun && !authenticated) {
         std::clog << "[WINDOW][Invariant] transient launcher audit mismatch; continuing with valid HWND. current="
                   << transitionAudit.currentProcessWindows << "\n";
     }
-    // SetCompactMode intentionally keeps the HWND hidden until EndRender has
-    // presented a correctly resized frame. Showing it here would briefly
-    // expose the previous compact backbuffer at the launcher coordinates.
+
+
+
     WritePostAuthStage("launcher-window-resize-pending");
     std::clog << "[UI][Transition] SetCompactMode(false) returned; same HWND retained and first resized frame will reveal it\n";
     OmniGhost::SessionLog::Write(

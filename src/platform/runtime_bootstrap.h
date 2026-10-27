@@ -26,6 +26,7 @@ Result Prepare();
 
 
 [[nodiscard]] bool EmbeddedRuntimeFileAvailable(std::wstring_view relativePath) noexcept;
+[[nodiscard]] bool ValidateEmbeddedRuntimeBundle(std::wstring& error) noexcept;
 
 
 

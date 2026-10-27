@@ -45,8 +45,8 @@ fs::path CrashDirectory() {
     return Paths::LocalData() / L"crash-dumps";
 }
 
-fs::path RunMarker() {
-    return Paths::LocalData() / (L"run-state-" + Paths::InstallIdentity() + L".marker");
+std::wstring RunStateValueName() {
+    return L"RunState-" + Paths::InstallIdentity();
 }
 
 std::wstring Timestamp() {
@@ -138,27 +138,16 @@ void PruneCrashDumps() noexcept {
 
 bool WriteMarker(bool startupComplete) noexcept {
     try {
-        Paths::EnsureUserDirectories();
-        const fs::path marker = RunMarker();
-        const fs::path temporary = marker.wstring() + L".tmp";
-        std::ofstream output(temporary, std::ios::binary | std::ios::trunc);
-        if (!output)
+        HKEY key = nullptr;
+        if (RegCreateKeyExW(HKEY_CURRENT_USER, L"Software\\OmniGhost\\Runtime", 0, nullptr,
+                REG_OPTION_NON_VOLATILE, KEY_SET_VALUE, nullptr, &key, nullptr) != ERROR_SUCCESS)
             return false;
-        output << "version=" << OmniGhost::Version << "\n"
-               << "pid=" << GetCurrentProcessId() << "\n"
-               << "startup_complete=" << (startupComplete ? 1 : 0) << "\n";
-        output.flush();
-        if (!output)
-            return false;
-        output.close();
-
-        if (!MoveFileExW(temporary.c_str(), marker.c_str(),
-                MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
-            std::error_code error;
-            fs::remove(temporary, error);
-            return false;
-        }
-        return true;
+        const DWORD state = startupComplete ? 2u : 1u;
+        const std::wstring name = RunStateValueName();
+        const LSTATUS result = RegSetValueExW(key, name.c_str(), 0, REG_DWORD,
+            reinterpret_cast<const BYTE*>(&state), sizeof(state));
+        RegCloseKey(key);
+        return result == ERROR_SUCCESS;
     } catch (const std::exception& ex) {
         OutputDebugStringA("[OmniGhost CrashHandler] WriteMarker failed: ");
         OutputDebugStringA(ex.what());
@@ -172,15 +161,21 @@ bool WriteMarker(bool startupComplete) noexcept {
 
 PreviousRunState ReadPreviousMarker() noexcept {
     try {
-        std::ifstream input(RunMarker(), std::ios::binary);
-        if (!input)
+        HKEY key = nullptr;
+        if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\OmniGhost\\Runtime", 0,
+                KEY_QUERY_VALUE, &key) != ERROR_SUCCESS)
             return PreviousRunState::Clean;
-        std::string line;
-        while (std::getline(input, line)) {
-            if (line == "startup_complete=1")
-                return PreviousRunState::RuntimeInterrupted;
-        }
-        return PreviousRunState::StartupInterrupted;
+        DWORD state = 0;
+        DWORD type = 0;
+        DWORD size = sizeof(state);
+        const std::wstring name = RunStateValueName();
+        const LSTATUS result = RegQueryValueExW(key, name.c_str(), nullptr, &type,
+            reinterpret_cast<BYTE*>(&state), &size);
+        RegCloseKey(key);
+        if (result != ERROR_SUCCESS || type != REG_DWORD || size != sizeof(state))
+            return PreviousRunState::Clean;
+        return state == 2u ? PreviousRunState::RuntimeInterrupted
+                           : PreviousRunState::StartupInterrupted;
     } catch (const std::exception& ex) {
         OutputDebugStringA("[OmniGhost CrashHandler] ReadPreviousMarker failed: ");
         OutputDebugStringA(ex.what());
@@ -309,9 +304,13 @@ void MarkStartupComplete() noexcept {
 
 void MarkCleanShutdown() noexcept {
     try {
-        std::error_code error;
-        fs::remove(RunMarker(), error);
-        fs::remove(RunMarker().wstring() + L".tmp", error);
+        HKEY key = nullptr;
+        if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\OmniGhost\\Runtime", 0,
+                KEY_SET_VALUE, &key) == ERROR_SUCCESS) {
+            const std::wstring name = RunStateValueName();
+            RegDeleteValueW(key, name.c_str());
+            RegCloseKey(key);
+        }
     } catch (const std::exception& ex) {
         OutputDebugStringA("[OmniGhost CrashHandler] MarkCleanShutdown failed: ");
         OutputDebugStringA(ex.what());

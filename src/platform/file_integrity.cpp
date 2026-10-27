@@ -136,6 +136,15 @@ bool Sha256Text(std::string_view text, std::string& hexDigest, std::string& erro
     return true;
 }
 
+bool Sha256Bytes(const void* data, std::size_t size, std::string& hexDigest, std::string& error) {
+    if (!data && size != 0) {
+        hexDigest.clear();
+        error = "Dados inválidos para SHA-256.";
+        return false;
+    }
+    return Sha256Text(std::string_view(static_cast<const char*>(data), size), hexDigest, error);
+}
+
 bool ConstantTimeEquals(std::string_view left, std::string_view right) noexcept {
     unsigned char difference = static_cast<unsigned char>(left.size() ^ right.size());
     const std::size_t size = (std::max)(left.size(), right.size());

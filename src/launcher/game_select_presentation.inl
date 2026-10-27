@@ -193,7 +193,7 @@ void DrawBackground(
 void ChangeNavigation(int page) {
     if (page < static_cast<int>(NavPage::Home) || page > static_cast<int>(NavPage::Admin))
         page = static_cast<int>(NavPage::Home);
-    if (page == static_cast<int>(NavPage::Admin) && !OmniGhost::Licensing::IsAdmin())
+    if (page == static_cast<int>(NavPage::Admin))
         page = static_cast<int>(NavPage::Home);
     if (page == g_nav) return;
     g_nav = page;
@@ -267,13 +267,9 @@ void DrawHeader(ImDrawList* draw, ImVec2 display) {
         {NavPage::Library, "launcher.library"},
         {NavPage::Marketplace, "launcher.marketplace"},
         {NavPage::Diagnostics, "launcher.diagnostics"},
-        {NavPage::Admin, "launcher.admin"},
     };
-    const bool isAdmin = OmniGhost::Licensing::IsAdmin();
     float x = display.x < S(900.f) ? S(92.f) : S(112.f);
     for (const NavItem& item : kTabs) {
-        if (item.page == NavPage::Admin && !isAdmin)
-            continue;
         const char* text = Loc::Tr(item.key);
         const ImVec2 size = ImGui::CalcTextSize(text);
         const ImVec2 min(x - S(8.f), S(7.f));

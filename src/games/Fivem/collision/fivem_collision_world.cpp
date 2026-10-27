@@ -332,9 +332,9 @@ bool World::Initialize(const std::filesystem::path& folder, std::uint64_t cacheL
         const auto resolved = std::filesystem::weakly_canonical(candidateAbsolute, ec);
         if (ec) continue;
         float candidateSize = ReadRegionSize(resolved / "manifest.json");
-        // Older/external extraction bundles can have a missing or partially
-        // written JSON manifest even though every OGCOL header is self-describing.
-        // Recover from one validated region header instead of disabling raycast.
+
+
+
         if (candidateSize <= 0.f)
             candidateSize = ReadRegionSizeFromRegion(resolved);
         if (candidateSize > 0.0f) { absolute = resolved; size = candidateSize; break; }

@@ -475,6 +475,15 @@ CyberWidgets::HealthStatus BuildHealthStatus() {
     return CyberWidgets::HealthStatus::Ok;
 }
 
+std::string FriendlyBuildLabel() {
+    const std::string_view id = OmniGhost::BuildInfo::BuildId;
+    const bool local = id.starts_with("local-") || id == "development";
+    std::string label = local ? "Compilação de desenvolvimento" : "Versão oficial";
+    label += " · ";
+    label += OmniGhost::BuildInfo::Architecture[0] ? OmniGhost::BuildInfo::Architecture : "x64";
+    return label;
+}
+
 
 
 
@@ -573,22 +582,6 @@ std::string CachedDiagnosticsText() {
     return cached;
 }
 
-std::string SupportJsonEscape(std::string_view value) {
-    std::string out;
-    out.reserve(value.size() + 16);
-    for (const unsigned char ch : value) {
-        switch (ch) {
-        case '"': out += "\\\""; break;
-        case '\\': out += "\\\\"; break;
-        case '\n': out += "\\n"; break;
-        case '\r': out += "\\r"; break;
-        case '\t': out += "\\t"; break;
-        default: if (ch >= 0x20) out.push_back(static_cast<char>(ch)); break;
-        }
-    }
-    return out;
-}
-
 void DrawDiagnostics(ImVec2 display) {
     BeginControlPage("##launcher_diagnostics", display);
     DrawPageHeading(Loc::Tr("launcher.diagnostics"), Loc::Tr("launcher.diagnostics.subtitle"));
@@ -606,8 +599,7 @@ void DrawDiagnostics(ImVec2 display) {
     const std::string logPathUtf8 = OmniGhost::Platform::WideToUtf8(logPath.wstring());
     const std::string& windows = system.formatted;
     const std::string version = UiFormat::Version(OmniGhost::Version);
-    const std::string build = std::string(OmniGhost::BuildInfo::BuildId) + " · " +
-        OmniGhost::BuildInfo::Configuration + " · " + OmniGhost::BuildInfo::Architecture;
+    const std::string build = FriendlyBuildLabel();
 
     const auto updaterHealth = update.status == OmniGhost::Update::Status::Error
         ? CyberWidgets::HealthStatus::Error
@@ -668,56 +660,6 @@ void DrawDiagnostics(ImVec2 display) {
             CyberWidgets::Notify(error.empty() ? Loc::Tr("launcher.diagnostics_package_failed") : error.c_str(), CyberWidgets::ToastType::Error);
         }
     }
-    CyberWidgets::EndCard();
-
-    ImGui::Dummy(ImVec2(0, S(14.f)));
-    CyberWidgets::BeginCard("Reportar um problema", 0.f);
-    CyberWidgets::TextLine("Cria um ticket associado à tua conta. Revê o diagnóstico antes de enviar; credenciais e tokens são removidos.", CyberWidgets::TextTone::Secondary);
-    static char supportSubject[161]{};
-    static char supportDescription[3001]{};
-    static int supportCategory = 0;
-    static bool supportIncludeDiagnostics = true;
-    static std::future<OmniGhost::Auth::LauncherApiResponse> supportRequest;
-    static bool supportBusy = false;
-    static std::string supportResult;
-    const char* supportCategories[] = {"Problema do launcher", "Problema de licença", "Problema do menu", "Problema da conta", "Outro"};
-    const char* supportCategoryIds[] = {"launcher_issue", "license_issue", "game_menu_issue", "account_issue", "other"};
-    ImGui::SetNextItemWidth(std::min(S(520.f), ImGui::GetContentRegionAvail().x));
-    ImGui::InputTextWithHint("##support_subject", "Assunto", supportSubject, sizeof(supportSubject));
-    ImGui::SetNextItemWidth(std::min(S(520.f), ImGui::GetContentRegionAvail().x));
-    ImGui::Combo("##support_category", &supportCategory, supportCategories, IM_ARRAYSIZE(supportCategories));
-    ImGui::SetNextItemWidth(std::min(S(720.f), ImGui::GetContentRegionAvail().x));
-    ImGui::InputTextMultiline("##support_description", supportDescription, sizeof(supportDescription), ImVec2(-1.f, S(105.f)));
-    ImGui::Checkbox("Incluir diagnóstico técnico revisto", &supportIncludeDiagnostics);
-    if (supportBusy && supportRequest.valid() && supportRequest.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
-        const auto response = supportRequest.get();
-        supportBusy = false;
-        if (response.statusCode == 201) {
-            supportResult = "Ticket criado com sucesso no Centro de Suporte.";
-            supportSubject[0] = '\0'; supportDescription[0] = '\0';
-            CyberWidgets::Notify(supportResult.c_str(), CyberWidgets::ToastType::Success);
-        } else {
-            supportResult = response.statusCode == 401 ? "A sessão expirou. Inicia sessão novamente." :
-                response.error.empty() ? "Não foi possível criar o ticket." : response.error;
-            CyberWidgets::Notify(supportResult.c_str(), CyberWidgets::ToastType::Error);
-        }
-    }
-    const bool supportValid = std::strlen(supportSubject) >= 5 && std::strlen(supportDescription) >= 10;
-    if (CyberWidgets::LoadingButton("Enviar relatório", "A enviar…", supportBusy, CyberWidgets::ButtonStyle::Primary, ImVec2(S(170.f), S(34.f))) && supportValid && !supportBusy) {
-        const std::string product = selectedGame ? selectedGame->id : "";
-        const std::string safeDiagnostics = supportIncludeDiagnostics ? CachedDiagnosticsText().substr(0, 30000) : "";
-        const std::string body = "{\"subject\":\"" + SupportJsonEscape(supportSubject) + "\",\"category\":\"" + supportCategoryIds[supportCategory] +
-            "\",\"productId\":" + (product.empty() ? "null" : "\"" + SupportJsonEscape(product) + "\"") +
-            ",\"description\":\"" + SupportJsonEscape(supportDescription) + "\",\"diagnostics\":{\"launcherVersion\":\"" + SupportJsonEscape(OmniGhost::Version) +
-            "\",\"osVersion\":\"" + SupportJsonEscape(windows) + "\",\"errorCode\":\"" + SupportJsonEscape(lastError) +
-            "\",\"licenseValidationStatus\":\"" + (OmniGhost::Licensing::IsWebsiteAuthenticated() ? "authenticated" : "unauthenticated") +
-            "\",\"logs\":\"" + SupportJsonEscape(safeDiagnostics) + "\"}}";
-        supportBusy = true;
-        supportResult.clear();
-        supportRequest = std::async(std::launch::async, [body] { return OmniGhost::Licensing::WebsiteRequest("POST", "/api/launcher/support", body); });
-    }
-    if (!supportValid) CyberWidgets::TextLine("Indica um assunto (5 caracteres) e uma descrição (10 caracteres).", CyberWidgets::TextTone::Secondary);
-    if (!supportResult.empty()) CyberWidgets::TextLine(supportResult.c_str(), CyberWidgets::TextTone::Secondary);
     CyberWidgets::EndCard();
 
     ImGui::Dummy(ImVec2(0, S(14.f)));
@@ -1206,9 +1148,9 @@ void DrawSettings(ImVec2 display) {
         CyberWidgets::BeginCard(Loc::Tr("launcher.settings.about"), 0.f);
         const std::string aboutVersion = UiFormat::Version(OmniGhost::Version);
         CyberWidgets::KeyValueRow("OmniGhost", aboutVersion.c_str());
-        const bool localBuild = std::string_view(OmniGhost::BuildInfo::BuildId).find("local-source") != std::string_view::npos;
-        CyberWidgets::KeyValueRow(Loc::Tr("launcher.build"), localBuild
-            ? "Compilação local (não publicada)" : OmniGhost::BuildInfo::BuildId);
+        const std::string friendlyBuild = FriendlyBuildLabel();
+        const bool localBuild = std::string_view(OmniGhost::BuildInfo::BuildId).starts_with("local-");
+        CyberWidgets::KeyValueRow(Loc::Tr("launcher.build"), friendlyBuild.c_str());
         CyberWidgets::KeyValueRow(Loc::Tr("launcher.channel"), LocalizedChannelLabel(OmniGhost::BuildInfo::ReleaseChannel));
         CyberWidgets::KeyValueRow(Loc::Tr("launcher.architecture"), OmniGhost::BuildInfo::Architecture);
         CyberWidgets::KeyValueRow(Loc::Tr("launcher.commit_source"), localBuild

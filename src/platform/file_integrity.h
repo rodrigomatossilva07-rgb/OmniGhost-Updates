@@ -13,6 +13,9 @@ namespace OmniGhost::Platform {
 [[nodiscard]] bool Sha256Text(std::string_view text,
                               std::string& hexDigest,
                               std::string& error);
+[[nodiscard]] bool Sha256Bytes(const void* data, std::size_t size,
+                               std::string& hexDigest,
+                               std::string& error);
 [[nodiscard]] bool ConstantTimeEquals(std::string_view left, std::string_view right) noexcept;
 
 

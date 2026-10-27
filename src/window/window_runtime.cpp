@@ -69,10 +69,10 @@ float EffectiveUiScale(const OmniGhost::Platform::MonitorInfo& monitor, bool com
     if (!compact)
         return requested;
 
-    // Compact authentication/loading windows must remain completely inside the
-    // monitor work area.  This is a layout constraint, not resolution-based
-    // scaling: on normal displays it is exactly the Windows DPI scale.  Only
-    // unusually small work areas cap it so controls and the footer stay usable.
+
+
+
+
     const float fitX = static_cast<float>(RectWidth(monitor.work)) / kCompactWindowWidth;
     const float fitY = static_cast<float>(RectHeight(monitor.work)) / kCompactWindowHeight;
     return std::clamp((std::min)({requested, fitX, fitY}),
@@ -206,7 +206,10 @@ void Overlay::CreateOverlay(const char* window_name) {
 
     const OmniGhost::Platform::MonitorInfo targetMonitor =
         OmniGhost::Platform::SelectMonitor(app_settings::config.monitor_index, nullptr);
-    const RECT targetArea = targetMonitor.work;
+
+
+
+    const RECT targetArea = compact_mode_ ? targetMonitor.work : targetMonitor.rect;
     const int monitor_width = RectWidth(targetArea);
     const int monitor_height = RectHeight(targetArea);
     int window_width = monitor_width;
@@ -288,7 +291,9 @@ void Overlay::ApplyDisplayConfiguration(bool force) {
     if (force || monitorChanged || display_configuration_dirty_) {
         const OmniGhost::Platform::MonitorInfo monitor =
             OmniGhost::Platform::SelectMonitor(requestedMonitor, overlay);
-        const RECT targetArea = monitor.work;
+
+
+        const RECT targetArea = compact_mode_ ? monitor.work : monitor.rect;
         const float uiScale = EffectiveUiScale(monitor, compact_mode_);
         int width = RectWidth(targetArea);
         int height = RectHeight(targetArea);
@@ -393,9 +398,9 @@ void Overlay::SetCompactMode(bool enabled) {
     if (compact_mode_ == enabled)
         return;
 
-    // Do not expose the old swap-chain surface while the single native window
-    // changes between the compact authentication size and the launcher size.
-    // It otherwise looks like a second, displaced window for one frame.
+
+
+
     if (overlay && window_visible_) {
         ShowWindow(overlay, SW_HIDE);
         window_visible_ = false;

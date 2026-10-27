@@ -2658,9 +2658,9 @@ void esp::draw_skeleton(uintptr_t ped, Matrix viewport, uintptr_t localplayer) {
                 side = vnorm(vcross(spineDir, Vec3(0.f, 1.f, 0.f)));
         }
     }
-    // The hand span can invert for a single streamed animation sample. Keep the
-    // anatomical left/right basis continuous per ped so the reconstructed legs
-    // cannot exchange sides while walking or sprinting.
+
+
+
     if (sm.init && vlen(sm.side) > .1f &&
         side.x * sm.side.x + side.y * sm.side.y + side.z * sm.side.z < 0.f)
         side = vscale(side, -1.f);
@@ -2703,15 +2703,15 @@ void esp::draw_skeleton(uintptr_t ped, Matrix viewport, uintptr_t localplayer) {
 
     Vec3 lhip = vadd(hip, vscale(side, -hipW));
     Vec3 rhip = vadd(hip, vscale(side,  hipW));
-    // Keep each foot on its anatomical side of the pelvis. Some streamed GTA
-    // poses briefly swap/collapse the two foot samples while sprinting; joining
-    // those raw points to fixed hips makes the rendered legs cross each other.
+
+
+
     const auto lateralFromHip = [&](const Vec3& point) {
         const Vec3 delta(point.x - hip.x, point.y - hip.y, point.z - hip.z);
         return delta.x * side.x + delta.y * side.y + delta.z * side.z;
     };
     constexpr float minFootSeparation = .035f;
-    // Correct transient left/right foot label swaps before enforcing separation.
+
     if (lateralFromHip(lfoot) > lateralFromHip(rfoot))
         std::swap(lfoot, rfoot);
     const float leftLateral = lateralFromHip(lfoot);
@@ -2720,18 +2720,18 @@ void esp::draw_skeleton(uintptr_t ped, Matrix viewport, uintptr_t localplayer) {
     const float rightLateral = lateralFromHip(rfoot);
     if (rightLateral < minFootSeparation)
         rfoot = vadd(rfoot, vscale(side, minFootSeparation - rightLateral));
-    // A straight interpolation makes every leg segment overlap visually while
-    // running. Reconstruct a stable two-segment leg: the hip/foot distance
-    // determines the knee bend and the ped matrix supplies its forward axis.
+
+
+
     Vec3 bodyForward = vnorm(Vec3(bone_matrix._21, bone_matrix._22, 0.f));
     if (vlen(bodyForward) < .1f)
         bodyForward = vnorm(vcross(side, Vec3(0.f, 0.f, 1.f)));
     const auto articulatedKnee = [&](const Vec3& legHip, const Vec3& foot, float sideBias) {
         const Vec3 middle = lerp3(legHip, foot, .50f);
         const float legDistance = legHip.distance_to(foot);
-        // Approximate each half of a normal GTA ped leg. The square-root term
-        // behaves like simple two-bone IK: straighter at full extension and
-        // increasingly bent when the foot approaches the hip.
+
+
+
         constexpr float halfLeg = .52f;
         const float halfSpan = (std::min)(legDistance * .5f, halfLeg);
         const float bend = std::clamp(std::sqrt((std::max)(0.f,

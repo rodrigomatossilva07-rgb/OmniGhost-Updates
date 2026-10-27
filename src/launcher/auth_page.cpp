@@ -47,20 +47,7 @@ std::mutex g_auth_stage_mutex;
 
 void WriteAuthStage(const char* stage) noexcept {
     const std::lock_guard<std::mutex> lock(g_auth_stage_mutex);
-    wchar_t localAppData[MAX_PATH]{};
-    const DWORD length = GetEnvironmentVariableW(L"LOCALAPPDATA", localAppData, MAX_PATH);
-    if (length == 0 || length >= MAX_PATH) return;
-    std::wstring directory(localAppData);
-    directory += L"\\OmniGhost";
-    CreateDirectoryW(directory.c_str(), nullptr);
-    const std::wstring path = directory + L"\\post-auth-stage.txt";
-    HANDLE file = CreateFileW(path.c_str(), GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
-                              nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (file == INVALID_HANDLE_VALUE) return;
-    DWORD written = 0;
-    WriteFile(file, stage, static_cast<DWORD>(std::strlen(stage)), &written, nullptr);
-    FlushFileBuffers(file);
-    CloseHandle(file);
+    (void)stage;
 }
 
 float S(float value) { return CyberTheme::Px(value); }
@@ -129,8 +116,8 @@ const AuthUiCopy& UiText() {
 }
 
 const char* ReadableStatus(const char* value) {
-    // The compact font atlas does not guarantee a glyph for U+2026. When that
-    // glyph is absent ImGui renders a question mark, e.g. "A finalizar?".
+
+
     static thread_local std::string text;
     text = value ? value : "";
     constexpr std::string_view ellipsis = "\xE2\x80\xA6";
@@ -490,9 +477,9 @@ void DrawCenteredText(const char* text, ImVec4 color, ImFont* font = nullptr) {
 }
 
 void DrawBrandSignal(const ImVec2& center) {
-    // Kept as a deliberately restrained halo so the brand mark remains the
-    // only decorative element. The former concentric radar rings competed
-    // with the form and made the authentication screens look busy.
+
+
+
     ImGui::GetWindowDrawList()->AddCircleFilled(
         center, S(42.f), CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.018f), 48);
 }
@@ -604,8 +591,8 @@ void DrawLucideVisibilityIcon(ImDrawList* draw, const ImVec2& center,
     if (!draw)
         return;
 
-    // Lucide's 24-unit eye/eye-off geometry rendered directly into ImGui keeps
-    // the icon crisp at every DPI without introducing a raster asset or font.
+
+
     const float halfWidth = S(9.0f);
     const float curveHeight = S(6.0f);
     const float stroke = S(1.9f);
@@ -624,7 +611,7 @@ void DrawLucideVisibilityIcon(ImDrawList* draw, const ImVec2& center,
     draw->AddCircle(center, S(3.0f), color, 20, stroke);
 
     if (!visible) {
-        // EyeOff: a clean diagonal matching the Lucide optical proportions.
+
         draw->AddLine(ImVec2(center.x - S(7.2f), center.y - S(7.2f)),
                       ImVec2(center.x + S(7.2f), center.y + S(7.2f)),
                       color, stroke);
@@ -881,8 +868,8 @@ void DrawLogin() {
 
 
 
-    // Login and registration share the same visual anchor so the brand does
-    // not jump when moving between the two forms.
+
+
     ImGui::SetCursorPosY(S(62.f));
     DrawBrand(false);
     DrawPageHeading(ui.welcomeTitle, "");
@@ -1025,7 +1012,7 @@ void DrawActivate() {
 }
 
 void DrawStartupPreparation(ImDrawList* draw, const ImVec2& windowPos,
-                            float windowWidth, float /*windowHeight*/) {
+                            float windowWidth, float                 ) {
     const AuthUiCopy& ui = UiText();
     const float centerX = windowPos.x + windowWidth * 0.5f;
 
@@ -1052,8 +1039,8 @@ void DrawStartupPreparation(ImDrawList* draw, const ImVec2& windowPos,
         CyberTheme::WithAlpha(CyberTheme::Colors.GoldHover, .94f), S(2.f));
     draw->PopClipRect();
 
-    // Three quiet activity dots reinforce that this is indeterminate without
-    // pretending that the underlying authentication operation has a percent.
+
+
     const float dotY = lineMin.y + S(24.f);
     for (int index = 0; index < 3; ++index) {
         const float wave = app_settings::AnimationScale() <= 0.f ? 1.f :
@@ -1165,17 +1152,17 @@ bool Draw() {
     ImDrawList* background = ImGui::GetBackgroundDrawList();
     background->AddRectFilled(ImVec2(0, 0), display, IM_COL32(3, 3, 4, 255));
     CyberTheme::DrawSubtleNoise(background, ImVec2(0, 0), display, 0.012f, 0x41555448u, 180);
-    // Authentication deliberately ignores the launcher visual-effects level.
-    // A quiet charcoal canvas is easier to read and prevents visual noise from
-    // competing with credentials and status messages.
+
+
+
     const ImVec2 glowCenter(display.x * 0.5f, display.y * 0.30f);
     background->AddCircleFilled(glowCenter, S(190.f),
         CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.008f), 64);
 
 
 
-    // Leave only a restrained native-window reveal around the ImGui surface.
-    // This keeps the rounded silhouette while avoiding a heavy black frame.
+
+
     const float desiredWidth = S(564.f);
     const float desiredHeight = S(624.f);
     const float width = (std::max)(S(340.f), (std::min)(desiredWidth, display.x - S(20.f)));

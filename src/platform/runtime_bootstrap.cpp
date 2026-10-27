@@ -623,6 +623,35 @@ if (!IsSafeRelative(requested))
     return false;
 }
 
+bool ValidateEmbeddedRuntimeBundle(std::wstring& error) noexcept {
+    try {
+        if (OmniGhost::EmbeddedRuntimeGenerated::kEntryCount == 0) {
+            error = L"O manifesto incorporado está vazio.";
+            return false;
+        }
+        for (const auto& entry : OmniGhost::EmbeddedRuntimeGenerated::kEntries) {
+            const auto resource = OmniGhost::GetPeResourceView(entry.resourceId);
+            if (!resource || resource->empty() || resource->size() != entry.size) {
+                error = L"Um recurso do runtime incorporado está em falta ou truncado.";
+                return false;
+            }
+            std::string actual;
+            std::string hashError;
+            if (!OmniGhost::Platform::Sha256Bytes(resource->data(), resource->size(), actual, hashError) ||
+                !OmniGhost::Platform::ConstantTimeEquals(
+                    actual, OmniGhost::Platform::DigestHex(entry.sha256))) {
+                error = L"A validação SHA-256 do runtime incorporado falhou.";
+                return false;
+            }
+        }
+        error.clear();
+        return true;
+    } catch (...) {
+        error = L"Não foi possível validar o manifesto incorporado.";
+        return false;
+    }
+}
+
 bool ValidatePrivateRuntimeFile(std::wstring_view relativePath, std::wstring& error) {
     const fs::path requested(relativePath);
     if (!IsSafeRelative(requested)) {

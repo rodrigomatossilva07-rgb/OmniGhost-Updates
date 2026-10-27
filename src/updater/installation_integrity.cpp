@@ -1,4 +1,6 @@
 #include "installation_integrity.h"
+#include "../platform/runtime_bootstrap.h"
+#include "../platform/text_encoding.h"
 #include "crypto.h"
 #include "../platform/text_encoding.h"
 #include <charconv>
@@ -40,9 +42,18 @@ IntegrityReport VerifyInstallationFiles(const fs::path& installDirectory, std::s
 
 
         if (fs::is_regular_file(installDirectory / L"OmniGhost.exe")) {
-            report.status = IntegrityStatus::ManifestMissing;
-            report.checkedFiles = 0;
-            report.message = "Instalação single-EXE sem manifesto de integridade: ficheiros não verificáveis.";
+            std::wstring embeddedError;
+            if (OmniGhost::RuntimeBootstrap::ValidateEmbeddedRuntimeBundle(embeddedError)) {
+                report.status = IntegrityStatus::Healthy;
+                report.checkedFiles = 1;
+                report.message = "Instalação single-EXE verificada através do manifesto incorporado.";
+            } else {
+                report.status = IntegrityStatus::Damaged;
+                report.failedFiles = 1;
+                report.message = embeddedError.empty()
+                    ? "O manifesto de integridade incorporado é inválido."
+                    : OmniGhost::Platform::WideToUtf8(embeddedError);
+            }
         } else {
             report.status = IntegrityStatus::ManifestMissing;
             report.message = "O executável principal não existe.";

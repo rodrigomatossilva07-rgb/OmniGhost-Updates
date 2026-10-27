@@ -351,7 +351,7 @@ bool Draw() {
         });
     }
 
-    if (g_nav == static_cast<int>(NavPage::Admin) && !OmniGhost::Licensing::IsAdmin())
+    if (g_nav == static_cast<int>(NavPage::Admin))
         ChangeNavigation(static_cast<int>(NavPage::Home));
 
     const PerformanceMode::State performance = PerformanceMode::Update(

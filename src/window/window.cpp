@@ -294,9 +294,9 @@ bool Overlay::CreateImGui()
     Changelog::Initialize();
     OmniGhost::UiFeedback::Initialize();
     OmniGhost::UiFeedback::PlayStartupOnce();
-    // The native window runtime has already selected the effective per-monitor
-    // scale (including the compact-window fit constraint).  Reuse it verbatim
-    // so ImGui geometry and rasterized fonts are never scaled twice.
+
+
+
     const float initialScale = applied_ui_scale_ > 0.0f
         ? applied_ui_scale_
         : std::clamp(
