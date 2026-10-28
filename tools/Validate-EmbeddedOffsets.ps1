@@ -23,7 +23,7 @@ $rc = Get-Content -LiteralPath $generatedRc -Raw
 
 $required = @(
     @{ id = 201; name = 'FORTNITE' }, @{ id = 202; name = 'WARZONE' },
-    @{ id = 203; name = 'CS2' },
+    @{ id = 203; name = 'CS2' }, @{ id = 204; name = 'RUST' },
     @{ id = 205; name = 'FIVEM' }
 )
 foreach ($entry in $required) {

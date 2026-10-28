@@ -225,17 +225,6 @@ void DrawFivemVisuals() {
     CyberWidgets::ToggleSwitch("Rastros", &esp::config.trails);
     CyberWidgets::ToggleSwitch("Eye Line", &esp::config.look_direction);
     CyberWidgets::ToggleSwitch("Hit marker", &esp::config.hit_marker);
-    CyberWidgets::SectionTitle("AJUSTES");
-    CyberWidgets::SliderFloat("Espessura da caixa", &esp::config.box_thickness, 0.5f, 4.f, "%.1f");
-    CyberWidgets::SliderFloat("Esqueleto", &esp::config.skeleton_thickness, 0.5f, 4.f, "%.1f");
-    CyberWidgets::SliderFloat("Círculo cabeça", &esp::config.head_circle_thickness, 0.5f, 4.f, "%.1f");
-    CyberWidgets::SliderFloat("Linhas guia", &esp::config.snapline_thickness, 0.5f, 4.f, "%.1f");
-    CyberWidgets::SliderFloat("Eye Line", &esp::config.eye_line_thickness, 0.5f, 4.f, "%.1f");
-    CyberWidgets::SliderFloat("Distância máxima", &esp::config.max_esp_distance, 20.f, 500.f, "%.0f m");
-    CyberWidgets::SliderFloat("Escala chapéu", &esp::config.chinese_hat_scale, 0.5f, 2.f, "%.1f");
-    CyberWidgets::SliderFloat("Escala efeitos", &esp::config.fun_effects_scale, 0.5f, 2.f, "%.1f");
-    CyberWidgets::SliderFloat("Duração rastros", &esp::config.trail_duration, 0.1f, 3.f, "%.1f");
-    CyberWidgets::SliderFloat("Espessura rastros", &esp::config.trail_thickness, 0.5f, 5.f, "%.1f");
     CyberWidgets::EndCard();
     ImGui::EndChild();
 
@@ -246,6 +235,77 @@ void DrawFivemVisuals() {
     CyberWidgets::BeginCard("PERSONALIZAÇÃO");
     CyberWidgets::ToggleSwitch("Modo RGB", &esp::config.rgb_mode);
     CyberWidgets::ToggleSwitch("Cores por visibilidade", &esp::config.visibility_colors);
+    CyberWidgets::SectionTitle("AJUSTES");
+    CyberWidgets::SliderFloat("Distância máxima", &esp::config.max_esp_distance, 20.f, 500.f, "%.0f m");
+    if (esp::config.box_2d || esp::config.corner_box) {
+        CyberWidgets::SliderFloat("Espessura da caixa", &esp::config.box_thickness, 0.5f, 4.f, "%.1f");
+        CyberWidgets::SliderFloat("Margem da caixa", &esp::config.box_margin, 0.f, 16.f, "%.0f px");
+        if (esp::config.corner_box)
+            CyberWidgets::SliderFloat("Comprimento dos cantos", &esp::config.box_corner_length, .10f, .50f, "%.2f");
+        if (esp::config.filled_box)
+            CyberWidgets::SliderFloat("Opacidade do preenchimento", &esp::config.box_fill_opacity, 0.f, .85f, "%.2f");
+    }
+    if (esp::config.skeleton) {
+        CyberWidgets::SliderFloat("Espessura do esqueleto", &esp::config.skeleton_thickness, 0.5f, 4.f, "%.1f");
+        CyberWidgets::SliderFloat("Opacidade do esqueleto", &esp::config.skeleton_opacity, .1f, 1.f, "%.2f");
+        if (esp::config.joints)
+            CyberWidgets::SliderFloat("Tamanho das articulações", &esp::config.skeleton_joint_size, .6f, 5.f, "%.1f px");
+    }
+    if (esp::config.head_circle) {
+        CyberWidgets::SliderFloat("Espessura do círculo", &esp::config.head_circle_thickness, 0.5f, 4.f, "%.1f");
+        CyberWidgets::SliderFloat("Escala do círculo", &esp::config.head_circle_scale, .5f, 2.f, "%.2fx");
+        ImGui::SliderInt("Segmentos do círculo", &esp::config.head_circle_segments, 8, 64);
+    }
+    if (esp::config.health_bar || esp::config.armor_bar) {
+        CyberWidgets::SliderFloat("Largura das barras", &esp::config.bar_width, 2.f, 12.f, "%.1f px");
+        CyberWidgets::SliderFloat("Espessura das barras", &esp::config.bar_thickness, .5f, 3.f, "%.1f px");
+        CyberWidgets::SliderFloat("Espaçamento das barras", &esp::config.bar_spacing, 0.f, 16.f, "%.1f px");
+    }
+    if (esp::config.player_name || esp::config.weapon_name || esp::config.distance || esp::config.player_id) {
+        CyberWidgets::SliderFloat("Tamanho do texto", &esp::config.layout_text_scale, .65f, 1.6f, "%.2fx");
+        CyberWidgets::SliderFloat("Espaçamento do texto", &esp::config.layout_spacing, 0.f, 18.f, "%.1f px");
+    }
+    if (esp::config.snaplines) {
+        CyberWidgets::SliderFloat("Espessura das linhas guia", &esp::config.snapline_thickness, 0.5f, 4.f, "%.1f");
+        CyberWidgets::SliderFloat("Opacidade das linhas guia", &esp::config.snapline_opacity, .1f, 1.f, "%.2f");
+        const char* origins[] = { "Topo", "Centro", "Fundo" };
+        ImGui::Combo("Origem das linhas guia", &esp::config.snapline_pos, origins, 3);
+    }
+    if (esp::config.look_direction) {
+        CyberWidgets::SliderFloat("Espessura da Eye Line", &esp::config.eye_line_thickness, 0.5f, 4.f, "%.1f");
+        CyberWidgets::SliderFloat("Comprimento da Eye Line", &esp::config.look_direction_length, 20.f, 220.f, "%.0f px");
+        CyberWidgets::SliderFloat("Opacidade da Eye Line", &esp::config.eye_line_opacity, .1f, 1.f, "%.2f");
+    }
+    if (esp::config.head_halo) {
+        CyberWidgets::SliderFloat("Tamanho do halo", &esp::config.halo_scale, .5f, 2.f, "%.2fx");
+        CyberWidgets::SliderFloat("Espessura do halo", &esp::config.halo_thickness, .5f, 5.f, "%.1f");
+        CyberWidgets::SliderFloat("Altura do halo", &esp::config.halo_height, .4f, 2.f, "%.2fx");
+    }
+    if (esp::config.chinese_hat) {
+        CyberWidgets::SliderFloat("Escala do chapéu", &esp::config.chinese_hat_scale, 0.5f, 2.f, "%.1fx");
+        CyberWidgets::SliderFloat("Altura do chapéu", &esp::config.chinese_hat_height, .5f, 1.8f, "%.2fx");
+        CyberWidgets::SliderFloat("Largura do chapéu", &esp::config.chinese_hat_width, .5f, 1.8f, "%.2fx");
+        CyberWidgets::SliderFloat("Velocidade do chapéu", &esp::config.chinese_hat_rotation_speed, .1f, 3.f, "%.2fx");
+    }
+    if (esp::config.head_halo || esp::config.chinese_hat)
+        CyberWidgets::SliderFloat("Escala dos efeitos", &esp::config.fun_effects_scale, 0.5f, 2.f, "%.1fx");
+    if (esp::config.trails) {
+        CyberWidgets::SliderFloat("Tempo visível dos rastros", &esp::config.trail_duration, 0.5f, 10.f, "%.1f s");
+        CyberWidgets::SliderFloat("Espessura dos rastros", &esp::config.trail_thickness, 0.5f, 5.f, "%.1f");
+        CyberWidgets::SliderFloat("Opacidade dos rastros", &esp::config.trail_opacity, .1f, 1.f, "%.2f");
+        CyberWidgets::SliderFloat("Suavização dos rastros", &esp::config.trail_smoothing, 0.f, 1.f, "%.2f");
+    }
+    if (esp::config.offscreen_arrows) {
+        CyberWidgets::SliderFloat("Tamanho das setas", &esp::config.offscreen_arrow_size, 6.f, 32.f, "%.0f px");
+        CyberWidgets::SliderFloat("Distância das setas ao centro", &esp::config.offscreen_arrow_margin, 12.f, 160.f, "%.0f px");
+        CyberWidgets::SliderFloat("Opacidade das setas", &esp::config.offscreen_arrow_opacity, .1f, 1.f, "%.2f");
+        CyberWidgets::SliderFloat("Espessura das setas", &esp::config.offscreen_arrow_thickness, .5f, 5.f, "%.1f");
+    }
+    CyberWidgets::ToggleSwitch("Escala por distância", &esp::config.esp_distance_scaling);
+    if (esp::config.esp_distance_scaling)
+        CyberWidgets::SliderFloat("Tamanho mínimo do ESP", &esp::config.esp_min_scale, .25f, 1.f, "%.2fx");
+    CyberWidgets::SliderFloat("Suavização visual", &esp::config.esp_visual_smoothing, 0.f, 1.f, "%.2f");
+    CyberWidgets::Separator();
     CyberWidgets::SectionTitle("JOGADORES");
     CyberWidgets::ColorEditU32("Visível", &esp::config.color_visible);
     CyberWidgets::ColorEditU32("Oculto", &esp::config.color_invisible);

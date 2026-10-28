@@ -40,6 +40,30 @@ void SerializeESP(std::ostringstream& o) {
     WFloat(o, "esp.trail_duration", e.trail_duration);
     WFloat(o, "esp.trail_thickness", e.trail_thickness);
     WFloat(o, "esp.look_direction_length", e.look_direction_length);
+    WFloat(o, "esp.skeleton_joint_size", e.skeleton_joint_size);
+    WFloat(o, "esp.skeleton_opacity", e.skeleton_opacity);
+    WFloat(o, "esp.head_circle_scale", e.head_circle_scale);
+    WInt(o, "esp.head_circle_segments", e.head_circle_segments);
+    WFloat(o, "esp.box_corner_length", e.box_corner_length);
+    WFloat(o, "esp.box_fill_opacity", e.box_fill_opacity);
+    WFloat(o, "esp.box_margin", e.box_margin);
+    WFloat(o, "esp.bar_width", e.bar_width);
+    WFloat(o, "esp.bar_thickness", e.bar_thickness);
+    WFloat(o, "esp.bar_spacing", e.bar_spacing);
+    WFloat(o, "esp.snapline_opacity", e.snapline_opacity);
+    WFloat(o, "esp.eye_line_opacity", e.eye_line_opacity);
+    WFloat(o, "esp.halo_scale", e.halo_scale);
+    WFloat(o, "esp.halo_thickness", e.halo_thickness);
+    WFloat(o, "esp.halo_height", e.halo_height);
+    WFloat(o, "esp.chinese_hat_height", e.chinese_hat_height);
+    WFloat(o, "esp.chinese_hat_width", e.chinese_hat_width);
+    WFloat(o, "esp.chinese_hat_rotation_speed", e.chinese_hat_rotation_speed);
+    WFloat(o, "esp.trail_opacity", e.trail_opacity);
+    WFloat(o, "esp.trail_smoothing", e.trail_smoothing);
+    WFloat(o, "esp.offscreen_arrow_thickness", e.offscreen_arrow_thickness);
+    WBool(o, "esp.distance_scaling", e.esp_distance_scaling);
+    WFloat(o, "esp.min_scale", e.esp_min_scale);
+    WFloat(o, "esp.visual_smoothing", e.esp_visual_smoothing);
 
 
     WFloat(o, "esp.box_thickness", e.box_thickness);
@@ -184,9 +208,33 @@ bool DeserializeESP(const std::string& key, const std::string& val) {
     if (bi("esp.hit_marker")) { e.hit_marker = toB(); return true; }
     if (bi("esp.fun_effects_rainbow")) { e.fun_effects_rainbow = toB(); return true; }
     if (bi("esp.fun_effects_scale")) { e.fun_effects_scale = toF(); return true; }
-    if (bi("esp.trail_duration")) { e.trail_duration = toF(); return true; }
+    if (bi("esp.trail_duration")) { e.trail_duration = std::clamp(toF(), .5f, 10.f); return true; }
     if (bi("esp.trail_thickness")) { e.trail_thickness = toF(); return true; }
     if (bi("esp.look_direction_length")) { e.look_direction_length = toF(); return true; }
+    if (bi("esp.skeleton_joint_size")) { e.skeleton_joint_size = std::clamp(toF(), .6f, 5.f); return true; }
+    if (bi("esp.skeleton_opacity")) { e.skeleton_opacity = std::clamp(toF(), .1f, 1.f); return true; }
+    if (bi("esp.head_circle_scale")) { e.head_circle_scale = std::clamp(toF(), .5f, 2.f); return true; }
+    if (bi("esp.head_circle_segments")) { e.head_circle_segments = std::clamp(toI(), 8, 64); return true; }
+    if (bi("esp.box_corner_length")) { e.box_corner_length = std::clamp(toF(), .1f, .5f); return true; }
+    if (bi("esp.box_fill_opacity")) { e.box_fill_opacity = std::clamp(toF(), 0.f, .85f); return true; }
+    if (bi("esp.box_margin")) { e.box_margin = std::clamp(toF(), 0.f, 16.f); return true; }
+    if (bi("esp.bar_width")) { e.bar_width = std::clamp(toF(), 2.f, 12.f); return true; }
+    if (bi("esp.bar_thickness")) { e.bar_thickness = std::clamp(toF(), .5f, 3.f); return true; }
+    if (bi("esp.bar_spacing")) { e.bar_spacing = std::clamp(toF(), 0.f, 16.f); return true; }
+    if (bi("esp.snapline_opacity")) { e.snapline_opacity = std::clamp(toF(), .1f, 1.f); return true; }
+    if (bi("esp.eye_line_opacity")) { e.eye_line_opacity = std::clamp(toF(), .1f, 1.f); return true; }
+    if (bi("esp.halo_scale")) { e.halo_scale = std::clamp(toF(), .5f, 2.f); return true; }
+    if (bi("esp.halo_thickness")) { e.halo_thickness = std::clamp(toF(), .5f, 5.f); return true; }
+    if (bi("esp.halo_height")) { e.halo_height = std::clamp(toF(), .4f, 2.f); return true; }
+    if (bi("esp.chinese_hat_height")) { e.chinese_hat_height = std::clamp(toF(), .5f, 1.8f); return true; }
+    if (bi("esp.chinese_hat_width")) { e.chinese_hat_width = std::clamp(toF(), .5f, 1.8f); return true; }
+    if (bi("esp.chinese_hat_rotation_speed")) { e.chinese_hat_rotation_speed = std::clamp(toF(), .1f, 3.f); return true; }
+    if (bi("esp.trail_opacity")) { e.trail_opacity = std::clamp(toF(), .1f, 1.f); return true; }
+    if (bi("esp.trail_smoothing")) { e.trail_smoothing = std::clamp(toF(), 0.f, 1.f); return true; }
+    if (bi("esp.offscreen_arrow_thickness")) { e.offscreen_arrow_thickness = std::clamp(toF(), .5f, 5.f); return true; }
+    if (bi("esp.distance_scaling")) { e.esp_distance_scaling = toB(); return true; }
+    if (bi("esp.min_scale")) { e.esp_min_scale = std::clamp(toF(), .25f, 1.f); return true; }
+    if (bi("esp.visual_smoothing")) { e.esp_visual_smoothing = std::clamp(toF(), 0.f, 1.f); return true; }
     if (bi("esp.rgb_mode")) { e.rgb_mode = toB(); return true; }
     if (bi("esp.radar_enabled")) { e.radar_enabled = toB(); return true; }
     if (bi("esp.radar_range")) { e.radar_range = toF(); return true; }

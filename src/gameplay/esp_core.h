@@ -75,12 +75,13 @@ struct FeatureSet {
 };
 
 inline void DrawCornerBox(ImDrawList* draw, ImVec2 min, ImVec2 max,
-                          ImU32 color, float thickness = 1.5f) {
+                          ImU32 color, float thickness = 1.5f, float length_ratio = .25f) {
     if (!draw) return;
     const float boxWidth = (std::max)(0.f, max.x - min.x);
     const float boxHeight = (std::max)(0.f, max.y - min.y);
-    const float x_len = boxWidth * 0.25f;
-    const float y_len = boxHeight * 0.20f;
+    const float ratio = std::clamp(length_ratio, .10f, .50f);
+    const float x_len = boxWidth * ratio;
+    const float y_len = boxHeight * ratio;
 
     draw->AddLine(min, ImVec2(min.x + x_len, min.y), color, thickness);
     draw->AddLine(min, ImVec2(min.x, min.y + y_len), color, thickness);
@@ -104,11 +105,13 @@ inline ImU32 HealthColor(float fraction, int alpha = 255) {
 inline void DrawVerticalBar(ImDrawList* draw, ImVec2 min, ImVec2 max,
                             float fraction, ImU32 top_color, ImU32 bottom_color,
                             ImU32 track_color = IM_COL32(18, 18, 22, 225),
-                            ImU32 outline_color = IM_COL32(0, 0, 0, 210)) {
+                            ImU32 outline_color = IM_COL32(0, 0, 0, 210),
+                            float outline_thickness = 1.f) {
     if (!draw || max.x <= min.x || max.y <= min.y) return;
     const float value = std::clamp(fraction, 0.f, 1.f);
-    draw->AddRectFilled(ImVec2(min.x - 1.f, min.y - 1.f),
-                        ImVec2(max.x + 1.f, max.y + 1.f), outline_color, 1.f);
+    const float outline = std::clamp(outline_thickness, .5f, 3.f);
+    draw->AddRectFilled(ImVec2(min.x - outline, min.y - outline),
+                        ImVec2(max.x + outline, max.y + outline), outline_color, 1.f);
     draw->AddRectFilled(min, max, track_color);
     const float fill_top = max.y - (max.y - min.y) * value;
     if (fill_top < max.y - 0.25f) {

@@ -833,12 +833,6 @@ static ImU32 MultiplyAlpha(ImU32 color, float factor) {
     return ImGui::ColorConvertFloat4ToU32(value);
 }
 
-static int FxSegCount(float distM, int nearSegs, int farSegs) {
-    if (distM > 90.f) return (std::max)(3, farSegs / 2);
-    if (distM > 50.f) return (std::max)(4, (nearSegs + farSegs) / 2);
-    return nearSegs;
-}
-
 static void DrawMotionVisuals(uintptr_t ped, Matrix viewport, const PedData* cached) {
     const auto& cfg = esp::config;
     if (!EspPedMayDraw(ped, cfg.show_dead, cfg.show_knocked))
@@ -869,7 +863,8 @@ static void DrawMotionVisuals(uintptr_t ped, Matrix viewport, const PedData* cac
     const bool visible = EspPedVisible(ped);
     const double now = ImGui::GetTime();
 
-    static std::unordered_map<uintptr_t, OmniGhost::Gameplay::FixedTrailHistory<18>> trails;
+    // 320 samples cover ten seconds at the 35 ms minimum sampling interval.
+    static std::unordered_map<uintptr_t, OmniGhost::Gameplay::FixedTrailHistory<320>> trails;
     static uint64_t trailsSessionGen = 0;
     const uint64_t currentSessionGen = FiveM::ESP::GetSessionGeneration().load(std::memory_order_acquire);
     if (trailsSessionGen != currentSessionGen) {
@@ -880,13 +875,20 @@ static void DrawMotionVisuals(uintptr_t ped, Matrix viewport, const PedData* cac
 
     if (cfg.trails && !veryFar) {
         auto& history = trails[ped];
-        const float trailX = origin.x;
-        const float trailY = origin.y;
-        const float trailZ = origin.z + .58f;
-        if (history.Discontinuous(trailX, trailY, trailZ, now, 4.0f, .35))
+        const double duration = std::clamp(static_cast<double>(cfg.trail_duration), 0.50, 10.0);
+        float trailX = origin.x;
+        float trailY = origin.y;
+        float trailZ = origin.z + .58f;
+        if (history.Discontinuous(trailX, trailY, trailZ, now, 4.0f, duration + .25))
             history.Clear();
+        if (history.Size() > 0 && cfg.trail_smoothing > .001f) {
+            const auto& previous = history.At(history.Size() - 1);
+            const float alpha = 1.f - std::clamp(cfg.trail_smoothing, 0.f, 1.f) * .75f;
+            trailX = std::lerp(previous.x, trailX, alpha);
+            trailY = std::lerp(previous.y, trailY, alpha);
+            trailZ = std::lerp(previous.z, trailZ, alpha);
+        }
         history.Push(trailX, trailY, trailZ, now, 0.10f, 0.035);
-        const double duration = std::clamp(static_cast<double>(cfg.trail_duration), 0.20, 2.50);
         const ImU32 base = EspPedColor(ped, cfg.color_trail, visible);
         for (std::size_t i = 1; i < history.Size(); ++i) {
             const auto& a = history.At(i - 1);
@@ -900,7 +902,7 @@ static void DrawMotionVisuals(uintptr_t ped, Matrix viewport, const PedData* cac
             const float fade = static_cast<float>(1.0 - age / duration);
             const ImU32 col = cfg.rainbow_trails
                 ? OmniGhost::Gameplay::EspFx::RainbowFade(static_cast<float>(b.time) * 0.35f, fade > 0.f ? 1.f - fade : 1.f)
-                : MultiplyAlpha(base, fade * fade);
+                : MultiplyAlpha(base, fade * fade * std::clamp(cfg.trail_opacity, .1f, 1.f));
             draw->AddLine(ImVec2(sa.x, sa.y), ImVec2(sb.x, sb.y),
                 col, std::clamp(cfg.trail_thickness, 1.f, 8.f));
         }
@@ -910,7 +912,8 @@ static void DrawMotionVisuals(uintptr_t ped, Matrix viewport, const PedData* cac
     if (frame != cleanup_frame && (frame % 120) == 0) {
         cleanup_frame = frame;
         for (auto it = trails.begin(); it != trails.end();) {
-            if (it->second.Stale(now, 3.0)) it = trails.erase(it);
+            if (it->second.Stale(now, std::clamp(static_cast<double>(cfg.trail_duration), .5, 10.0) * 2.0 + 1.0))
+                it = trails.erase(it);
             else ++it;
         }
     }
@@ -954,9 +957,9 @@ static void DrawMotionVisuals(uintptr_t ped, Matrix viewport, const PedData* cac
         const ImU32 color = EspPedColor(ped, cfg.color_halo, visible);
         const ImU32 glow = MultiplyAlpha(color, 0.35f);
         constexpr int segments = 32;
-        const float rx = 0.22f;
-        const float ry = 0.11f;
-        const float z = head.z + 0.16f;
+        const float rx = 0.22f * std::clamp(cfg.halo_scale, .5f, 2.f);
+        const float ry = 0.11f * std::clamp(cfg.halo_scale, .5f, 2.f);
+        const float z = head.z + 0.16f * std::clamp(cfg.halo_height, .4f, 2.f);
         Vec2 prev{}, first{};
         bool prev_ok = false, first_ok = false;
         for (int i = 0; i <= segments; ++i) {
@@ -968,7 +971,8 @@ static void DrawMotionVisuals(uintptr_t ped, Matrix viewport, const PedData* cac
             Vec2 screen{};
             const bool ok = point.world_to_screen(viewport, screen);
             if (ok && prev_ok) {
-                draw->AddLine(ImVec2(prev.x, prev.y), ImVec2(screen.x, screen.y), color, 2.0f);
+                draw->AddLine(ImVec2(prev.x, prev.y), ImVec2(screen.x, screen.y), color,
+                              std::clamp(cfg.halo_thickness, .5f, 5.f));
 
                 Vec3 gout(
                     head.x + std::cos(a) * rx * 1.18f,
@@ -1008,7 +1012,9 @@ static void DrawMotionVisuals(uintptr_t ped, Matrix viewport, const PedData* cac
             return true;
         };
         OmniGhost::Gameplay::EspFx::DrawChineseHat(
-            draw, head.x, head.y, head.z, project, static_cast<float>(now), hatScale, true);
+            draw, head.x, head.y, head.z + .10f * (cfg.chinese_hat_height - 1.f), project,
+            static_cast<float>(now) * cfg.chinese_hat_rotation_speed,
+            hatScale * cfg.chinese_hat_width, true);
     }
 
     if (cfg.angel_wings && !farOrnament) {
@@ -1157,7 +1163,8 @@ static void DrawMotionVisuals(uintptr_t ped, Matrix viewport, const PedData* cac
                      head.z);
             Vec2 from{}, to{};
             if (head.world_to_screen(viewport, from) && end.world_to_screen(viewport, to)) {
-                const ImU32 color = EspPedColor(ped, cfg.color_look_direction, visible);
+                const ImU32 color = MultiplyAlpha(EspPedColor(ped, cfg.color_look_direction, visible),
+                                                   std::clamp(cfg.eye_line_opacity, .1f, 1.f));
                 draw->AddLine(ImVec2(from.x, from.y), ImVec2(to.x, to.y), color, std::clamp(cfg.eye_line_thickness, 1.f, 6.f));
                 draw->AddCircleFilled(ImVec2(to.x, to.y), 2.2f, color, 8);
             }
@@ -1221,6 +1228,8 @@ void esp::prepare_esp_frame(const std::vector<uintptr_t>& peds,
     next.renderConfig.trails = frameConfig.trails;
     next.renderConfig.trail_duration = frameConfig.trail_duration;
     next.renderConfig.trail_thickness = frameConfig.trail_thickness;
+    next.renderConfig.trail_opacity = frameConfig.trail_opacity;
+    next.renderConfig.trail_smoothing = frameConfig.trail_smoothing;
     next.renderConfig.rainbow_trails = frameConfig.rainbow_trails;
     next.renderConfig.color_visible = frameConfig.color_visible;
     next.renderConfig.color_invisible = frameConfig.color_invisible;
@@ -1240,10 +1249,21 @@ void esp::prepare_esp_frame(const std::vector<uintptr_t>& peds,
     next.renderConfig.color_skeleton_points = frameConfig.color_skeleton_points;
     next.renderConfig.joints = frameConfig.joints;
     next.renderConfig.skeleton_thickness = frameConfig.skeleton_thickness;
+    next.renderConfig.skeleton_joint_size = frameConfig.skeleton_joint_size;
+    next.renderConfig.skeleton_opacity = frameConfig.skeleton_opacity;
     next.renderConfig.circle_type = frameConfig.circle_type;
     next.renderConfig.head_circle_thickness = frameConfig.head_circle_thickness;
+    next.renderConfig.head_circle_scale = frameConfig.head_circle_scale;
+    next.renderConfig.head_circle_segments = frameConfig.head_circle_segments;
     next.renderConfig.box_thickness = frameConfig.box_thickness;
+    next.renderConfig.box_corner_length = frameConfig.box_corner_length;
+    next.renderConfig.box_fill_opacity = frameConfig.box_fill_opacity;
+    next.renderConfig.box_margin = frameConfig.box_margin;
+    next.renderConfig.bar_width = frameConfig.bar_width;
+    next.renderConfig.bar_thickness = frameConfig.bar_thickness;
+    next.renderConfig.bar_spacing = frameConfig.bar_spacing;
     next.renderConfig.snapline_thickness = frameConfig.snapline_thickness;
+    next.renderConfig.snapline_opacity = frameConfig.snapline_opacity;
     next.renderConfig.snapline_pos = frameConfig.snapline_pos;
     next.renderConfig.filled_box = frameConfig.filled_box;
     next.renderConfig.box_rounding = frameConfig.box_rounding;
@@ -1257,6 +1277,7 @@ void esp::prepare_esp_frame(const std::vector<uintptr_t>& peds,
     next.renderConfig.offscreen_arrow_margin = frameConfig.offscreen_arrow_margin;
     next.renderConfig.offscreen_arrow_max_distance = frameConfig.offscreen_arrow_max_distance;
     next.renderConfig.offscreen_arrow_opacity = frameConfig.offscreen_arrow_opacity;
+    next.renderConfig.offscreen_arrow_thickness = frameConfig.offscreen_arrow_thickness;
     next.renderConfig.offscreen_arrow_distance = frameConfig.offscreen_arrow_distance;
     next.renderConfig.offscreen_arrow_name = frameConfig.offscreen_arrow_name;
     next.renderConfig.offscreen_arrow_style = frameConfig.offscreen_arrow_style;
@@ -1278,6 +1299,16 @@ void esp::prepare_esp_frame(const std::vector<uintptr_t>& peds,
     next.renderConfig.layout_distance_y = frameConfig.layout_distance_y;
     next.renderConfig.layout_spacing = frameConfig.layout_spacing;
     next.renderConfig.layout_text_scale = frameConfig.layout_text_scale;
+    next.renderConfig.eye_line_opacity = frameConfig.eye_line_opacity;
+    next.renderConfig.halo_scale = frameConfig.halo_scale;
+    next.renderConfig.halo_thickness = frameConfig.halo_thickness;
+    next.renderConfig.halo_height = frameConfig.halo_height;
+    next.renderConfig.chinese_hat_height = frameConfig.chinese_hat_height;
+    next.renderConfig.chinese_hat_width = frameConfig.chinese_hat_width;
+    next.renderConfig.chinese_hat_rotation_speed = frameConfig.chinese_hat_rotation_speed;
+    next.renderConfig.esp_distance_scaling = frameConfig.esp_distance_scaling;
+    next.renderConfig.esp_min_scale = frameConfig.esp_min_scale;
+    next.renderConfig.esp_visual_smoothing = frameConfig.esp_visual_smoothing;
     next.renderConfig.skeleton_lod = frameConfig.skeleton_lod;
 
     const auto publish = [&](PreparedEspFrame&& frame) {
@@ -1671,9 +1702,12 @@ static bool DrawOffscreenArrow(uintptr_t ped, const Vec3& world, const Matrix& v
     const ImU32 arrowColor = ImGui::ColorConvertFloat4ToU32(color);
     ImDrawList* draw = ImGui::GetForegroundDrawList();
     if (cfg.offscreen_arrow_style == 1)
-        draw->AddTriangle(tip, left, right, arrowColor, 2.f);
+        draw->AddTriangle(tip, left, right, arrowColor,
+                          std::clamp(cfg.offscreen_arrow_thickness, .5f, 5.f));
     else {
         draw->AddTriangleFilled(tip, left, right, arrowColor);
+        draw->AddTriangle(tip, left, right, arrowColor,
+                          std::clamp(cfg.offscreen_arrow_thickness, .5f, 5.f));
         if (cfg.offscreen_arrow_style == 2)
             draw->AddTriangle(tip, left, right, IM_COL32(0, 0, 0, 190), 1.5f);
     }
@@ -1875,6 +1909,23 @@ static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer,
     boxMin.x -= sidePadding;
     boxMax.x += sidePadding;
     boxMin.y -= topPadding;
+    const float configuredMargin = std::clamp(rcfg->box_margin, 0.f, 16.f);
+    boxMin.x -= configuredMargin;
+    boxMax.x += configuredMargin;
+    boxMin.y -= configuredMargin;
+    boxMax.y += configuredMargin;
+    if (rcfg->esp_visual_smoothing > .001f) {
+        struct SmoothBox { ImVec2 min{}, max{}; uint64_t generation = 0; };
+        static std::unordered_map<uintptr_t, SmoothBox> smoothBoxes;
+        auto& previous = smoothBoxes[ped];
+        const uint64_t generation = FiveM::ESP::GetSessionGeneration().load(std::memory_order_acquire);
+        if (previous.generation == generation) {
+            const float alpha = 1.f - std::clamp(rcfg->esp_visual_smoothing, 0.f, 1.f) * .82f;
+            boxMin.x = std::lerp(previous.min.x, boxMin.x, alpha); boxMin.y = std::lerp(previous.min.y, boxMin.y, alpha);
+            boxMax.x = std::lerp(previous.max.x, boxMax.x, alpha); boxMax.y = std::lerp(previous.max.y, boxMax.y, alpha);
+        }
+        previous = { boxMin, boxMax, generation };
+    }
 
     ImU32 colBox = EspPedColor(ped, rcfg->color_box_2d, visible);
     if (health <= 0.f && !esp::config.rgb_mode) colBox = rcfg->color_dead;
@@ -1896,9 +1947,10 @@ static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer,
     if (rcfg->box_2d) {
 
         if (rcfg->filled_box) {
-            ImU32 fill = esp::config.rgb_mode ? EspRGB() : IM_COL32(0, 0, 0, 80);
+            const int fillAlpha = static_cast<int>(std::clamp(rcfg->box_fill_opacity, 0.f, .85f) * 255.f);
+            ImU32 fill = esp::config.rgb_mode ? EspRGB() : IM_COL32(0, 0, 0, fillAlpha);
             if (esp::config.rgb_mode)
-                fill = (fill & 0x00FFFFFFu) | (80u << 24);
+                fill = (fill & 0x00FFFFFFu) | (static_cast<ImU32>(fillAlpha) << 24);
             dl->AddRectFilled(boxMin, boxMax, fill);
         }
 
@@ -1910,7 +1962,7 @@ static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer,
 
     if (rcfg->corner_box)
         OmniGhost::Gameplay::EspCore::DrawCornerBox(dl, boxMin, boxMax, colCorner,
-            std::clamp(rcfg->box_thickness, 0.5f, 8.f));
+            std::clamp(rcfg->box_thickness, 0.5f, 8.f), rcfg->box_corner_length);
 
     if (rcfg->snaplines) {
         ImVec2 scr = ImGui::GetIO().DisplaySize;
@@ -1918,7 +1970,8 @@ static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer,
         if (rcfg->snapline_pos == 0) start = ImVec2(scr.x * 0.5f, 0.f);
         else if (rcfg->snapline_pos == 1) start = ImVec2(scr.x * 0.5f, scr.y * 0.5f);
         else start = ImVec2(scr.x * 0.5f, scr.y);
-        dl->AddLine(start, ImVec2((boxMin.x + boxMax.x) * 0.5f, boxMin.y), colSnap,
+        dl->AddLine(start, ImVec2((boxMin.x + boxMax.x) * 0.5f, boxMin.y),
+            MultiplyAlpha(colSnap, rcfg->snapline_opacity),
             std::clamp(rcfg->snapline_thickness, 0.5f, 8.f));
     }
 
@@ -1931,16 +1984,18 @@ static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer,
 
 
     if (rcfg->health_bar) {
-        const float bw = 4.f;
+        const float bw = std::clamp(rcfg->bar_width, 2.f, 12.f);
         const ImU32 healthColor = EspPedColor(ped, rcfg->color_health, visible);
         const float x = boxMin.x + std::clamp(rcfg->layout_health_x, -.20f, 1.20f) *
-            (boxMax.x - boxMin.x) - bw * .5f;
+            (boxMax.x - boxMin.x) - bw * .5f +
+            (rcfg->layout_health_x < .5f ? -rcfg->bar_spacing : rcfg->bar_spacing);
         const float centerY = boxMin.y + std::clamp(rcfg->layout_health_y, -.20f, 1.20f) *
             (boxMax.y - boxMin.y);
         const float halfHeight = (boxMax.y - boxMin.y) * .46f;
         OmniGhost::Gameplay::EspCore::DrawVerticalBar(dl,
             ImVec2(x, centerY - halfHeight), ImVec2(x + bw, centerY + halfHeight),
-            hpFrac, healthColor, Darker(healthColor));
+            hpFrac, healthColor, Darker(healthColor), IM_COL32(18, 18, 22, 225),
+            IM_COL32(0, 0, 0, 210), rcfg->bar_thickness);
     }
 
 
@@ -1959,16 +2014,18 @@ static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer,
             float ar100 = armor;
             if (ar100 > 100.f) ar100 = 100.f;
             float arFrac = ar100 / 100.f;
-            const float bw = 5.f;
+            const float bw = std::clamp(rcfg->bar_width, 2.f, 12.f);
             const ImU32 armorColor = EspPedColor(ped, rcfg->color_armor, visible);
             const float x = boxMin.x + std::clamp(rcfg->layout_armor_x, -.20f, 1.20f) *
-                (boxMax.x - boxMin.x) - bw * .5f;
+                (boxMax.x - boxMin.x) - bw * .5f +
+                (rcfg->layout_armor_x < .5f ? -rcfg->bar_spacing : rcfg->bar_spacing);
             const float centerY = boxMin.y + std::clamp(rcfg->layout_armor_y, -.20f, 1.20f) *
                 (boxMax.y - boxMin.y);
             const float halfHeight = (boxMax.y - boxMin.y) * .46f;
             OmniGhost::Gameplay::EspCore::DrawVerticalBar(dl,
                 ImVec2(x, centerY - halfHeight), ImVec2(x + bw, centerY + halfHeight),
-                arFrac, armorColor, Darker(armorColor));
+                arFrac, armorColor, Darker(armorColor), IM_COL32(18, 18, 22, 225),
+                IM_COL32(0, 0, 0, 210), rcfg->bar_thickness);
         }
     }
 
@@ -1976,7 +2033,9 @@ static void DrawEspExtras(uintptr_t ped, Matrix viewport, uintptr_t localplayer,
     {
         auto drawLayoutText = [&](const char* text, ImU32 color, float normalizedX, float normalizedY) {
             if (!text || !*text) return;
-            const float scale = std::clamp(rcfg->layout_text_scale, .65f, 1.6f);
+            const float distanceScale = rcfg->esp_distance_scaling
+                ? std::clamp(projectedHeight / 180.f, rcfg->esp_min_scale, 1.f) : 1.f;
+            const float scale = std::clamp(rcfg->layout_text_scale, .65f, 1.6f) * distanceScale;
             ImFont* font = ImGui::GetFont();
             const float fontSize = ImGui::GetFontSize() * scale;
             const ImVec2 ts = font->CalcTextSizeA(fontSize, FLT_MAX, 0.f, text);
@@ -2278,13 +2337,13 @@ void esp::DrawActiveFeaturesPanel() {
 
 static void DrawHeadCircleAt(ImDrawList* draw_list, const Vec2& screen, ImU32 col, float distance_m = 25.f) {
 
-    float r = 220.0f / (distance_m + 12.0f);
+    float r = (220.0f / (distance_m + 12.0f)) * std::clamp(esp::config.head_circle_scale, .5f, 2.f);
     if (r < 2.0f) r = 2.0f;
     if (r > 9.0f) r = 9.0f;
     float th = std::clamp(esp::config.head_circle_thickness, 0.5f, 6.f);
     if (r <= 4.f) th = (std::min)(th, 1.6f);
 
-    const int segs = FxSegCount(distance_m, 20, 10);
+    const int segs = std::clamp(esp::config.head_circle_segments, 8, 64);
     if (esp::config.circle_type == 1) {
         draw_list->AddCircleFilled(ImVec2(screen.x, screen.y), r, col, segs);
     } else if (esp::config.circle_type == 2) {
@@ -2799,8 +2858,8 @@ void esp::draw_skeleton(uintptr_t ped, Matrix viewport, uintptr_t localplayer) {
     const int iRfoot  = add(rfoot);
 
     const bool visible = EspPedVisible(ped);
-    ImU32 col = EspPedColor(ped, config.color_skeleton, visible);
-    ImU32 jointCol = EspPedColor(ped, config.color_skeleton_points, visible);
+    ImU32 col = MultiplyAlpha(EspPedColor(ped, config.color_skeleton, visible), config.skeleton_opacity);
+    ImU32 jointCol = MultiplyAlpha(EspPedColor(ped, config.color_skeleton_points, visible), config.skeleton_opacity);
 
     float bodyPx = 50.f;
     if (iHead >= 0 && iHip >= 0 && J[iHead].on && J[iHip].on)
@@ -2850,7 +2909,7 @@ void esp::draw_skeleton(uintptr_t ped, Matrix viewport, uintptr_t localplayer) {
 
 
     if (config.joints) {
-        const float jointR = (std::max)(2.2f, th * 1.15f);
+        const float jointR = std::clamp(config.skeleton_joint_size, .6f, 5.f);
         const ImU32 jc = jointCol;
         static const int kClose[] = {
             iHead, iNeck, iSpU, iChest, iSpM, iSpL, iHip,

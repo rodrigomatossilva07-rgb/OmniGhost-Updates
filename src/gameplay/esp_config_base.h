@@ -30,15 +30,22 @@ struct EspConfigBase {
     bool skeleton = false;
     bool skeleton_joints = false;
     float skeleton_thickness = 1.85f;
+    float skeleton_joint_size = 1.4f;
+    float skeleton_opacity = 1.f;
 
     bool head_dot = false;
     bool head_halo = false;
     float head_circle_thickness = 1.5f;
+    float head_circle_scale = 1.f;
+    int head_circle_segments = 20;
 
     bool health_bar = true;
     bool armor_bar = false;
     bool health_value = false;
     bool armor_value = false;
+    float bar_width = 4.f;
+    float bar_thickness = 1.f;
+    float bar_spacing = 4.f;
 
     bool name = true;
     bool distance = true;
@@ -52,11 +59,13 @@ struct EspConfigBase {
     bool snaplines = false;
     int snapline_position = 2;
     float snapline_thickness = 1.5f;
+    float snapline_opacity = 1.f;
 
 
     bool look_direction = false;
     float eye_line_thickness = 1.6f;
     float look_direction_length = 90.f;
+    float eye_line_opacity = 1.f;
 
     bool chinese_hat = false;
     bool angel_wings = false;
@@ -65,9 +74,17 @@ struct EspConfigBase {
     bool trails = false;
     bool hit_marker = false;
     float chinese_hat_scale = 1.f;
+    float chinese_hat_height = 1.f;
+    float chinese_hat_width = 1.f;
+    float chinese_hat_rotation_speed = 1.f;
     float fun_effects_scale = 1.f;
+    float halo_scale = 1.f;
+    float halo_thickness = 2.f;
+    float halo_height = 1.f;
     float trail_duration = 0.8f;
     float trail_thickness = 2.f;
+    float trail_opacity = 1.f;
+    float trail_smoothing = .45f;
     bool rainbow_trails = true;
     bool fun_effects_rainbow = true;
 
@@ -86,6 +103,14 @@ struct EspConfigBase {
 
 
     float max_distance = 300.f;
+
+    float box_corner_length = .25f;
+    float box_fill_opacity = .16f;
+    float box_margin = 0.f;
+    float offscreen_arrow_thickness = 1.5f;
+    bool esp_distance_scaling = true;
+    float esp_min_scale = .55f;
+    float esp_visual_smoothing = .35f;
 
 
     bool performance_mode = false;

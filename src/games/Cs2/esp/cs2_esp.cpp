@@ -120,6 +120,16 @@ ImU32 Color(const float color[4]) {
                     static_cast<int>(color[2] * 255.f), static_cast<int>(color[3] * 255.f));
 }
 
+ImU32 WithOpacity(ImU32 color, float opacity) {
+    const auto alpha = static_cast<ImU32>(std::clamp(((color >> 24) & 0xFFu) * opacity, 0.f, 255.f));
+    return (color & 0x00FFFFFFu) | (alpha << 24);
+}
+
+ImU32 WithAbsoluteOpacity(ImU32 color, float opacity) {
+    const auto alpha = static_cast<ImU32>(std::clamp(opacity, 0.f, 1.f) * 255.f);
+    return (color & 0x00FFFFFFu) | (alpha << 24);
+}
+
 ImU32 RgbColor() {
     const float t = static_cast<float>(ImGui::GetTime()) * .35f;
     const auto channel = [t](float phase) {
@@ -128,9 +138,10 @@ ImU32 RgbColor() {
     return IM_COL32(channel(0.f), channel(2.094f), channel(4.188f), 255);
 }
 
-void DrawCornerBox(ImDrawList* draw, const ImVec2& min, const ImVec2& max, ImU32 color, float thickness) {
+void DrawCornerBox(ImDrawList* draw, const ImVec2& min, const ImVec2& max, ImU32 color, float thickness, float lengthRatio) {
     const float w = max.x - min.x, h = max.y - min.y;
-    const float lx = w * .25f, ly = h * .20f;
+    const float ratio = std::clamp(lengthRatio, .10f, .50f);
+    const float lx = w * ratio, ly = h * ratio;
     draw->AddLine(min, ImVec2(min.x + lx, min.y), color, thickness);
     draw->AddLine(min, ImVec2(min.x, min.y + ly), color, thickness);
     draw->AddLine(ImVec2(max.x - lx, min.y), ImVec2(max.x, min.y), color, thickness);
@@ -141,10 +152,12 @@ void DrawCornerBox(ImDrawList* draw, const ImVec2& min, const ImVec2& max, ImU32
     draw->AddLine(ImVec2(max.x, max.y - ly), max, color, thickness);
 }
 
-void DrawVerticalBar(ImDrawList* draw, float x, float top, float bottom, float fraction, ImU32 color) {
-    constexpr float kWidth = 4.f;
+void DrawVerticalBar(ImDrawList* draw, float x, float top, float bottom, float fraction, ImU32 color,
+                     float width, float outlineThickness) {
+    const float kWidth = std::clamp(width, 2.f, 12.f);
+    const float outline = std::clamp(outlineThickness, .5f, 3.f);
     fraction = std::clamp(fraction, 0.f, 1.f);
-    draw->AddRectFilled(ImVec2(x - 1.f, top - 1.f), ImVec2(x + kWidth + 1.f, bottom + 1.f), IM_COL32(0, 0, 0, 180));
+    draw->AddRectFilled(ImVec2(x - outline, top - outline), ImVec2(x + kWidth + outline, bottom + outline), IM_COL32(0, 0, 0, 180));
     draw->AddRectFilled(ImVec2(x, top), ImVec2(x + kWidth, bottom), IM_COL32(18, 18, 18, 235));
     const float filledTop = bottom - (bottom - top) * fraction;
     draw->AddRectFilled(ImVec2(x, filledTop), ImVec2(x + kWidth, bottom), color);
@@ -219,6 +232,10 @@ bool DrawOffscreenArrow(ImDrawList* draw, const float world[3], const float matr
     draw->AddTriangleFilled(tip,
         ImVec2(base.x + side.x * size * .55f, base.y + side.y * size * .55f),
         ImVec2(base.x - side.x * size * .55f, base.y - side.y * size * .55f), Color(colorValues));
+    draw->AddTriangle(tip,
+        ImVec2(base.x + side.x * size * .55f, base.y + side.y * size * .55f),
+        ImVec2(base.x - side.x * size * .55f, base.y - side.y * size * .55f),
+        WithOpacity(Color(colorValues), .9f), std::clamp(settings.offscreen_arrow_thickness, .5f, 5.f));
     return !onScreen;
 }
 
@@ -286,8 +303,9 @@ void DrawSkeleton(ImDrawList* draw, const CS2::Player& player, const float viewM
         for (std::size_t index = 0; index < CS2::kBoneSlotCount; ++index) {
             if (!used[index]) continue;
             if (!drawn[index]) continue;
-            draw->AddCircleFilled(points[index], 2.3f, IM_COL32(0, 0, 0, 195), 8);
-            draw->AddCircleFilled(points[index], 1.4f, jointColor, 8);
+            const float radius = std::clamp(CS2::config.skeleton_joint_size, .6f, 5.f);
+            draw->AddCircleFilled(points[index], radius + .9f, IM_COL32(0, 0, 0, 195), 12);
+            draw->AddCircleFilled(points[index], radius, jointColor, 12);
         }
     }
 }
@@ -334,19 +352,22 @@ void DrawExtras(ImDrawList* draw, const CS2::Player& player, const ImVec2& head,
     if (settings.snaplines) {
         const float y = settings.snapline_position == 0 ? 0.f : settings.snapline_position == 1 ? displaySize.y * .5f : displaySize.y;
         draw->AddLine(ImVec2(displaySize.x * .5f, y), feet,
-                      EffectColor(settings, settings.col_snaplines, rgb), std::clamp(settings.snapline_thickness, .5f, 5.f));
+                      WithOpacity(EffectColor(settings, settings.col_snaplines, rgb), settings.snapline_opacity),
+                      std::clamp(settings.snapline_thickness, .5f, 5.f));
     }
     if (settings.head_dot)
-        draw->AddCircle(head, std::clamp(height * .028f, 2.5f, 11.f), visibilityColor(settings.col_head), 20,
+        draw->AddCircle(head, std::clamp(height * .028f * settings.head_circle_scale, 2.f, 18.f),
+                        visibilityColor(settings.col_head), std::clamp(settings.head_circle_segments, 8, 64),
                         std::clamp(settings.head_circle_thickness, .5f, 5.f));
     if (settings.head_halo) {
         ImVec2 halo[17]{};
         for (int index = 0; index <= 16; ++index) {
             const float angle = index * 6.28318530718f / 16.f;
-            halo[index] = ImVec2(head.x + std::cos(angle) * 17.f * scale,
-                head.y - 13.f * scale + std::sin(angle) * 5.f * scale);
+            halo[index] = ImVec2(head.x + std::cos(angle) * 17.f * scale * settings.halo_scale,
+                head.y - 13.f * scale * settings.halo_height + std::sin(angle) * 5.f * scale * settings.halo_scale);
         }
-        draw->AddPolyline(halo, 17, EffectColor(settings, settings.col_halo, rgb), true, 2.f);
+        draw->AddPolyline(halo, 17, EffectColor(settings, settings.col_halo, rgb), true,
+                          std::clamp(settings.halo_thickness, .5f, 5.f));
     }
     if (settings.chinese_hat) {
         // Keep the effect proportional to the player while avoiding the
@@ -354,8 +375,10 @@ void DrawExtras(ImDrawList* draw, const CS2::Player& player, const ImVec2& head,
         constexpr float kCs2ChineseHatSize = .82f;
         const float s = std::clamp(settings.chinese_hat_scale, .4f, 2.5f) *
             scale * kCs2ChineseHatSize;
-        const ImVec2 a(head.x, head.y - 38.f * s), b(head.x - 28.f * s, head.y - 9.f * s), c(head.x + 28.f * s, head.y - 9.f * s);
-        const float phase = static_cast<float>(ImGui::GetTime()) * 1.4f;
+        const ImVec2 a(head.x, head.y - 38.f * s * settings.chinese_hat_height),
+            b(head.x - 28.f * s * settings.chinese_hat_width, head.y - 9.f * s),
+            c(head.x + 28.f * s * settings.chinese_hat_width, head.y - 9.f * s);
+        const float phase = static_cast<float>(ImGui::GetTime()) * 1.4f * settings.chinese_hat_rotation_speed;
         constexpr int kSpokes = 12;
         for (int i = 0; i <= kSpokes; ++i) {
             const float t = static_cast<float>(i) / static_cast<float>(kSpokes);
@@ -377,7 +400,7 @@ void DrawExtras(ImDrawList* draw, const CS2::Player& player, const ImVec2& head,
                                     predictedPosition[2] + 64.f };
         ImVec2 end{};
         if (WorldToScreen(endWorld, viewMatrix, end))
-            draw->AddLine(head, end, EffectColor(settings, settings.col_look, rgb),
+            draw->AddLine(head, end, WithOpacity(EffectColor(settings, settings.col_look, rgb), settings.eye_line_opacity),
                           std::clamp(settings.eye_line_thickness, .5f, 5.f));
     }
     if (settings.trails) {
@@ -393,6 +416,7 @@ void DrawExtras(ImDrawList* draw, const CS2::Player& player, const ImVec2& head,
         }
         auto& points = history[player.pawn];
         const double now = ImGui::GetTime();
+        const double duration = std::clamp(static_cast<double>(settings.trail_duration), .5, 10.0);
 
 
         if (player.position_sample_ms &&
@@ -409,22 +433,27 @@ void DrawExtras(ImDrawList* draw, const CS2::Player& player, const ImVec2& head,
                 const float dz = point.world[2] - points.back().world[2];
                 const float jumpSq = dx * dx + dy * dy + dz * dz;
                 if (jumpSq > 225.f * 225.f || point.sample_ms <= points.back().sample_ms ||
-                    now - points.back().time > .35)
+                    now - points.back().time > duration + .25)
                     points.clear();
+            }
+            if (!points.empty() && settings.trail_smoothing > .001f) {
+                const float alpha = 1.f - std::clamp(settings.trail_smoothing, 0.f, 1.f) * .75f;
+                for (int axis = 0; axis < 3; ++axis)
+                    point.world[axis] = std::lerp(points.back().world[axis], point.world[axis], alpha);
             }
             points.push_back(point);
 
 
-            constexpr size_t kMaxTrailPoints = 360;
+            // Enough history for ten seconds even when the world snapshot runs at 144 Hz.
+            constexpr size_t kMaxTrailPoints = 1536;
             if (points.size() > kMaxTrailPoints)
                 points.pop_front();
         }
-        const double duration = std::clamp(static_cast<double>(settings.trail_duration), .2, 2.5);
         while (!points.empty() && now - points.front().time > duration) points.pop_front();
         for (size_t i = 1; i < points.size(); ++i) {
             const float fade = static_cast<float>(1.0 - (now - points[i].time) / duration);
             ImU32 color = EffectColor(settings, settings.col_trail, rgb);
-            color = (color & 0x00FFFFFFu) | (static_cast<ImU32>(std::clamp(fade, 0.f, 1.f) * 220.f) << 24);
+            color = (color & 0x00FFFFFFu) | (static_cast<ImU32>(std::clamp(fade * settings.trail_opacity, 0.f, 1.f) * 220.f) << 24);
             ImVec2 from{}, to{};
             if (WorldToScreen(points[i - 1].world, viewMatrix, from) &&
                 WorldToScreen(points[i].world, viewMatrix, to))
@@ -1018,8 +1047,20 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
         const float height = std::min(feet.y - boxHead.y, viewport.y * 4.f);
         if (!std::isfinite(height) || height < 8.f) continue;
         const float width = height * 0.60f;
-        const ImVec2 min(feet.x - width * .5f, boxHead.y - height * .08f);
-        const ImVec2 max(feet.x + width * .5f, min.y + height * 1.09f);
+        const float margin = std::clamp(settings.box_margin, 0.f, 16.f);
+        ImVec2 min(feet.x - width * .5f - margin, boxHead.y - height * .08f - margin);
+        ImVec2 max(feet.x + width * .5f + margin, min.y + height * 1.09f + margin * 2.f);
+        if (settings.esp_visual_smoothing > .001f) {
+            struct SmoothBox { ImVec2 min{}, max{}; uint64_t generation = 0; };
+            static std::unordered_map<uintptr_t, SmoothBox> smoothBoxes;
+            auto& previous = smoothBoxes[player.pawn];
+            if (previous.generation == snapshot.session_generation) {
+                const float alpha = 1.f - std::clamp(settings.esp_visual_smoothing, 0.f, 1.f) * .82f;
+                min.x = std::lerp(previous.min.x, min.x, alpha); min.y = std::lerp(previous.min.y, min.y, alpha);
+                max.x = std::lerp(previous.max.x, max.x, alpha); max.y = std::lerp(previous.max.y, max.y, alpha);
+            }
+            previous = { min, max, snapshot.session_generation };
+        }
 
 
         constexpr float kViewportMargin = 240.f;
@@ -1036,18 +1077,22 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
                     : Color(player.team == snapshot.local_team ? settings.col_team : configured);
             };
             if (settings.box_fill)
-                draw->AddRectFilled(min, max, Color(settings.col_box_fill), std::clamp(settings.box_rounding, 0.f, 18.f));
+                draw->AddRectFilled(min, max, WithAbsoluteOpacity(Color(settings.col_box_fill), settings.box_fill_opacity),
+                                    std::clamp(settings.box_rounding, 0.f, 18.f));
             if (settings.box)
                 draw->AddRect(min, max, boxColor(settings.col_box),
                               std::clamp(settings.box_rounding, 0.f, 18.f), 0, thickness);
             if (settings.box_corner || settings.box_style == 3)
-                DrawCornerBox(draw, min, max, boxColor(settings.col_box_corner), thickness);
+                DrawCornerBox(draw, min, max, boxColor(settings.col_box_corner), thickness, settings.box_corner_length);
         }
         const auto freeBar = [&](float nx, float ny, float fraction, ImU32 color) {
-            const float x = min.x + nx * (max.x - min.x) - 3.f;
+            const float side = nx < .5f ? -1.f : 1.f;
+            const float x = min.x + nx * (max.x - min.x) - settings.bar_width * .5f +
+                side * settings.bar_spacing;
             const float centerY = min.y + ny * (max.y - min.y);
             const float halfHeight = (max.y - min.y) * .46f;
-            DrawVerticalBar(draw, x, centerY - halfHeight, centerY + halfHeight, fraction, color);
+            DrawVerticalBar(draw, x, centerY - halfHeight, centerY + halfHeight, fraction, color,
+                            settings.bar_width, settings.bar_thickness);
         };
         if (settings.health_bar)
             freeBar(settings.layout_health_x, settings.layout_health_y,
@@ -1059,10 +1104,12 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
             const ImU32 skeletonColor = settings.rgb_mode ? rgbColor
                 : useVisibilityColors && player.visibility_known ? Color(player.visible ? settings.col_visible : settings.col_occluded)
                 : Color(settings.col_skeleton);
-            DrawSkeleton(draw, player, viewMatrix, boneOffset, skeletonColor, Color(settings.col_joints),
+            DrawSkeleton(draw, player, viewMatrix, boneOffset, WithOpacity(skeletonColor, settings.skeleton_opacity),
+                         WithOpacity(Color(settings.col_joints), settings.skeleton_opacity),
                          std::clamp(settings.skeleton_thickness, .5f, 4.f), settings.skeleton_joints, height);
         }
-        const float entityTextScale = std::clamp(height / 180.f, .55f, 1.0f);
+        const float entityTextScale = settings.esp_distance_scaling
+            ? std::clamp(height / 180.f, settings.esp_min_scale, 1.0f) : 1.f;
         const auto textSize = [&](const char* text) {
             const float fontSize = ImGui::GetFontSize() * std::clamp(settings.layout_text_scale, .65f, 1.6f) * entityTextScale;
             return ImGui::GetFont()->CalcTextSizeA(fontSize, FLT_MAX, 0.f, text);

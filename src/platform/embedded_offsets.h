@@ -42,6 +42,7 @@ enum class Game : std::uint16_t {
     Fortnite = 1,
     Warzone = 2,
     CS2 = 3,
+    Rust = 4,
     FiveM = 5,
     Apex = 6,
 };

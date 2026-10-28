@@ -37,7 +37,7 @@ $Utf8 = New-Object System.Text.UTF8Encoding($false, $true)
 $SkipMetadataKeys = @(
     'schema_version','game','build','cl','module','source','generated_at','verified_utc',
     'note','build_note','id','game_slug','version','label','pinned','published',
-    'created_at','updated_at','markdown','updated_utc','build_id'
+    'created_at','updated_at','markdown','updated_utc','build_id','steam_appid'
 )
 
 function Get-PropertyValue($Object, [string]$Name, $Default = $null) {
@@ -155,6 +155,7 @@ function Build-Snapshot([string]$InputPath, [uint16]$GameId, [string]$ExpectedGa
         switch ($ExpectedGame) {
             'cs2' { $module = 'client.dll' }
             'fivem' { $module = 'GTA5.exe' }
+            'rust' { $module = 'GameAssembly.dll' }
             'apex' { $module = 'r5apex.exe' }
             'warzone' { $module = 'cod.exe' }
             'fortnite' { $module = 'FortniteClient-Win64-Shipping.exe' }
@@ -241,6 +242,7 @@ $games = @(
     @{ Id=1; Name='fortnite'; Json='data\fortnite_offsets.json'; Resource='IDR_OFFSETS_FORTNITE' },
     @{ Id=2; Name='warzone';  Json='data\warzone_offsets.json';  Resource='IDR_OFFSETS_WARZONE' },
     @{ Id=3; Name='cs2';      Json='data\cs2_offsets.json';      Resource='IDR_OFFSETS_CS2' },
+    @{ Id=4; Name='rust';     Json='data\rust_offsets.json';     Resource='IDR_OFFSETS_RUST' },
     @{ Id=5; Name='fivem';    Json='data\fivem_offsets.json';    Resource='IDR_OFFSETS_FIVEM' }
 
 )

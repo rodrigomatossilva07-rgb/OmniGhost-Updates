@@ -50,6 +50,30 @@ void SerializeCS2(std::ostringstream& o) {
     WFloat(o, "cs2.head_circle_thickness", c.head_circle_thickness);
     WFloat(o, "cs2.box_thickness", c.box_thickness);
     WFloat(o, "cs2.eye_line_thickness", c.eye_line_thickness);
+    WFloat(o, "cs2.skeleton_joint_size", c.skeleton_joint_size);
+    WFloat(o, "cs2.skeleton_opacity", c.skeleton_opacity);
+    WFloat(o, "cs2.head_circle_scale", c.head_circle_scale);
+    WInt(o, "cs2.head_circle_segments", c.head_circle_segments);
+    WFloat(o, "cs2.box_corner_length", c.box_corner_length);
+    WFloat(o, "cs2.box_fill_opacity", c.box_fill_opacity);
+    WFloat(o, "cs2.box_margin", c.box_margin);
+    WFloat(o, "cs2.bar_width", c.bar_width);
+    WFloat(o, "cs2.bar_thickness", c.bar_thickness);
+    WFloat(o, "cs2.bar_spacing", c.bar_spacing);
+    WFloat(o, "cs2.snapline_opacity", c.snapline_opacity);
+    WFloat(o, "cs2.eye_line_opacity", c.eye_line_opacity);
+    WFloat(o, "cs2.halo_scale", c.halo_scale);
+    WFloat(o, "cs2.halo_thickness", c.halo_thickness);
+    WFloat(o, "cs2.halo_height", c.halo_height);
+    WFloat(o, "cs2.chinese_hat_height", c.chinese_hat_height);
+    WFloat(o, "cs2.chinese_hat_width", c.chinese_hat_width);
+    WFloat(o, "cs2.chinese_hat_rotation_speed", c.chinese_hat_rotation_speed);
+    WFloat(o, "cs2.trail_opacity", c.trail_opacity);
+    WFloat(o, "cs2.trail_smoothing", c.trail_smoothing);
+    WFloat(o, "cs2.offscreen_arrow_thickness", c.offscreen_arrow_thickness);
+    WBool(o, "cs2.distance_scaling", c.esp_distance_scaling);
+    WFloat(o, "cs2.min_scale", c.esp_min_scale);
+    WFloat(o, "cs2.visual_smoothing", c.esp_visual_smoothing);
     WBool(o, "cs2.snaplines", c.snaplines);
     WBool(o, "cs2.bomb_timer", c.bomb_timer);
     WBool(o, "cs2.spectator_list", c.spectator_list);
@@ -258,7 +282,7 @@ bool DeserializeCS2(const std::string& key, const std::string& val) {
     if (bi("cs2.fun_effects_scale")) { c.fun_effects_scale = toF(); return true; }
     if (bi("cs2.hit_marker")) { c.hit_marker = toB(); return true; }
     if (bi("cs2.rainbow_trails")) { c.rainbow_trails = toB(); return true; }
-    if (bi("cs2.trail_duration")) { c.trail_duration = toF(); return true; }
+    if (bi("cs2.trail_duration")) { c.trail_duration = std::clamp(toF(), .5f, 10.f); return true; }
     if (bi("cs2.trail_thickness")) { c.trail_thickness = toF(); return true; }
     if (bi("cs2.look_direction_length")) { c.look_direction_length = toF(); return true; }
     if (bi("cs2.skeleton_thickness")) { c.skeleton_thickness = toF(); return true; }
@@ -266,6 +290,30 @@ bool DeserializeCS2(const std::string& key, const std::string& val) {
     if (bi("cs2.head_circle_thickness")) { c.head_circle_thickness = toF(); return true; }
     if (bi("cs2.box_thickness")) { c.box_thickness = toF(); return true; }
     if (bi("cs2.eye_line_thickness")) { c.eye_line_thickness = toF(); return true; }
+    if (bi("cs2.skeleton_joint_size")) { c.skeleton_joint_size = std::clamp(toF(), .6f, 5.f); return true; }
+    if (bi("cs2.skeleton_opacity")) { c.skeleton_opacity = std::clamp(toF(), .1f, 1.f); return true; }
+    if (bi("cs2.head_circle_scale")) { c.head_circle_scale = std::clamp(toF(), .5f, 2.f); return true; }
+    if (bi("cs2.head_circle_segments")) { c.head_circle_segments = std::clamp(toI(), 8, 64); return true; }
+    if (bi("cs2.box_corner_length")) { c.box_corner_length = std::clamp(toF(), .1f, .5f); return true; }
+    if (bi("cs2.box_fill_opacity")) { c.box_fill_opacity = std::clamp(toF(), 0.f, .85f); return true; }
+    if (bi("cs2.box_margin")) { c.box_margin = std::clamp(toF(), 0.f, 16.f); return true; }
+    if (bi("cs2.bar_width")) { c.bar_width = std::clamp(toF(), 2.f, 12.f); return true; }
+    if (bi("cs2.bar_thickness")) { c.bar_thickness = std::clamp(toF(), .5f, 3.f); return true; }
+    if (bi("cs2.bar_spacing")) { c.bar_spacing = std::clamp(toF(), 0.f, 16.f); return true; }
+    if (bi("cs2.snapline_opacity")) { c.snapline_opacity = std::clamp(toF(), .1f, 1.f); return true; }
+    if (bi("cs2.eye_line_opacity")) { c.eye_line_opacity = std::clamp(toF(), .1f, 1.f); return true; }
+    if (bi("cs2.halo_scale")) { c.halo_scale = std::clamp(toF(), .5f, 2.f); return true; }
+    if (bi("cs2.halo_thickness")) { c.halo_thickness = std::clamp(toF(), .5f, 5.f); return true; }
+    if (bi("cs2.halo_height")) { c.halo_height = std::clamp(toF(), .4f, 2.f); return true; }
+    if (bi("cs2.chinese_hat_height")) { c.chinese_hat_height = std::clamp(toF(), .5f, 1.8f); return true; }
+    if (bi("cs2.chinese_hat_width")) { c.chinese_hat_width = std::clamp(toF(), .5f, 1.8f); return true; }
+    if (bi("cs2.chinese_hat_rotation_speed")) { c.chinese_hat_rotation_speed = std::clamp(toF(), .1f, 3.f); return true; }
+    if (bi("cs2.trail_opacity")) { c.trail_opacity = std::clamp(toF(), .1f, 1.f); return true; }
+    if (bi("cs2.trail_smoothing")) { c.trail_smoothing = std::clamp(toF(), 0.f, 1.f); return true; }
+    if (bi("cs2.offscreen_arrow_thickness")) { c.offscreen_arrow_thickness = std::clamp(toF(), .5f, 5.f); return true; }
+    if (bi("cs2.distance_scaling")) { c.esp_distance_scaling = toB(); return true; }
+    if (bi("cs2.min_scale")) { c.esp_min_scale = std::clamp(toF(), .25f, 1.f); return true; }
+    if (bi("cs2.visual_smoothing")) { c.esp_visual_smoothing = std::clamp(toF(), 0.f, 1.f); return true; }
     if (bi("cs2.snaplines")) { c.snaplines = toB(); return true; }
     if (bi("cs2.bomb_timer")) { c.bomb_timer = toB(); return true; }
     if (bi("cs2.spectator_list")) { c.spectator_list = toB(); return true; }
