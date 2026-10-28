@@ -61,7 +61,8 @@ void DrawCs2Radar() {
 
 
     CyberWidgets::BeginCard("RADAR 2D", left);
-    CyberWidgets::ToggleSwitch("Ativar Radar 2D", &CS2::config.radar_2d);
+    if (CyberWidgets::ToggleSwitch("Ativar Radar 2D", &CS2::config.radar_2d))
+        CS2::SubmitAcquisitionConfig(CS2::config);
     if (CS2::config.radar_2d) {
         CyberWidgets::SliderFloat("Tamanho do Radar 2D", &CS2::config.radar_2d_size, 110.f, 360.f, "%.0f px");
         CyberWidgets::TextLine("Com o menu aberto, arrasta o radar para qualquer posição.", CyberWidgets::TextTone::Secondary);
@@ -91,6 +92,10 @@ void DrawCs2Radar() {
     bool webEnabled = CS2::config.web_radar_enabled;
     if (CyberWidgets::ToggleSwitch("Ativar Web Radar", &webEnabled)) {
         CS2::config.web_radar_enabled = webEnabled;
+        // The acquisition worker owns an immutable configuration snapshot.
+        // Publish the change before starting the server so Web Radar can keep
+        // its own player acquisition active even when ESP is disabled.
+        CS2::SubmitAcquisitionConfig(CS2::config);
         if (webEnabled) CS2::WebRadar::Start(CS2::config.web_radar_port);
         else CS2::WebRadar::Stop();
     }

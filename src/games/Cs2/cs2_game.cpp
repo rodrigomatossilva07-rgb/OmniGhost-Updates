@@ -628,6 +628,7 @@ bool NeedsPlayerScan(const Config& frame_config) {
         || frame_config.trigger_enabled
         || frame_config.spectator_list
         || frame_config.bomb_timer
+        || frame_config.radar_2d
         || frame_config.web_radar_enabled
         || frame_config.hotkey_overlay;
 }

@@ -73,11 +73,6 @@ struct Cs2PreviewAdapter : EspPreview::IConfigAdapter {
         cfg.trails = CS2::config.trails;
         cfg.chinese_hat_scale = CS2::config.chinese_hat_scale;
         cfg.fun_effects_scale = CS2::config.fun_effects_scale;
-
-
-        cfg.self_esp = CS2::config.self_esp;
-
-
         for (int i = 0; i < 4; ++i) {
             cfg.col_box[i] = CS2::config.col_box[i];
             cfg.col_box_corner[i] = CS2::config.col_box_corner[i];
@@ -186,7 +181,7 @@ void DrawCs2Visuals() {
     CyberWidgets::ToggleSwitch("Ativar ESP", &CS2::config.esp_enabled);
     CyberWidgets::Separator();
     ImGui::BeginDisabled(!CS2::config.esp_enabled);
-    CyberWidgets::ToggleSwitch("ESP próprio", &CS2::config.self_esp); CyberWidgets::ToggleSwitch("Mostrar bots", &CS2::config.show_bots);
+    CyberWidgets::ToggleSwitch("Mostrar bots", &CS2::config.show_bots);
     CyberWidgets::ToggleSwitch("Verificação de visibilidade", &CS2::config.visible_check);
     CyberWidgets::ToggleSwitch("Ocultar equipa", &CS2::config.team_check);
     CyberWidgets::Separator();

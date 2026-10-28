@@ -349,7 +349,11 @@ void DrawExtras(ImDrawList* draw, const CS2::Player& player, const ImVec2& head,
         draw->AddPolyline(halo, 17, EffectColor(settings, settings.col_halo, rgb), true, 2.f);
     }
     if (settings.chinese_hat) {
-        const float s = std::clamp(settings.chinese_hat_scale, .4f, 2.5f) * scale;
+        // Keep the effect proportional to the player while avoiding the
+        // oversized brim that previously extended too far beyond the head.
+        constexpr float kCs2ChineseHatSize = .82f;
+        const float s = std::clamp(settings.chinese_hat_scale, .4f, 2.5f) *
+            scale * kCs2ChineseHatSize;
         const ImVec2 a(head.x, head.y - 38.f * s), b(head.x - 28.f * s, head.y - 9.f * s), c(head.x + 28.f * s, head.y - 9.f * s);
         const float phase = static_cast<float>(ImGui::GetTime()) * 1.4f;
         constexpr int kSpokes = 12;
@@ -872,6 +876,9 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
             headHeights.erase(player.pawn);
             continue;
         }
+        // CS2 is first-person: the local entity remains in Core World for the
+        // native/web radars, but it must never be drawn as player ESP.
+        if (player.is_local) continue;
         if (!settings.show_bots && player.is_bot) continue;
         measuredDeathMs.erase(player.pawn);
         if (hideTeam && player.team == snapshot.local_team) continue;

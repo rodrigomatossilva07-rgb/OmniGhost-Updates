@@ -10,7 +10,6 @@ struct Config : OmniGhost::Gameplay::EspConfigBase {
 
     int box_style = 0;
     bool vsync = false;
-    bool self_esp = false;
     bool show_bots = true;
     bool scope_check = false;
     bool footstep_esp = false;

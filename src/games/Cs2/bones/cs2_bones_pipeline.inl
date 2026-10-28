@@ -52,7 +52,7 @@ static void RunOptionalEnrichment(const Config& frame_config,
     unifiedFlags.devil_horns = frame_config.devil_horns;
     unifiedFlags.floating_crown = frame_config.floating_crown;
     unifiedFlags.look_direction = frame_config.look_direction;
-    unifiedFlags.self_esp = frame_config.self_esp;
+    unifiedFlags.self_esp = false;
     unifiedFlags.show_dead = frame_config.show_dead;
     unifiedFlags.show_bots = frame_config.show_bots;
     unifiedFlags.visibility_colors = frame_config.visibility_colors;

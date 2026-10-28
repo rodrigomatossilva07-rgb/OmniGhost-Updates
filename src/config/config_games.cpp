@@ -42,7 +42,6 @@ bool DeserializeRust(const std::string& key, const std::string& val) {
 void SerializeCS2(std::ostringstream& o) {
     auto& c = CS2::config;
     WBool(o, "cs2.esp_enabled", c.esp_enabled);
-    WBool(o, "cs2.self_esp", c.self_esp);
     WBool(o, "cs2.rgb_mode", c.rgb_mode);
     WBool(o, "cs2.box", c.box);
     WBool(o, "cs2.skeleton", c.skeleton);
@@ -259,7 +258,6 @@ bool DeserializeCS2(const std::string& key, const std::string& val) {
     auto toU = [&]() -> ImU32 { return config_manager::toU(val); };
 
     if (bi("cs2.esp_enabled")) { c.esp_enabled = toB(); return true; }
-    if (bi("cs2.self_esp")) { c.self_esp = toB(); return true; }
     if (bi("cs2.rgb_mode")) { c.rgb_mode = toB(); return true; }
     if (bi("cs2.box")) { c.box = toB(); return true; }
     if (bi("cs2.skeleton")) { c.skeleton = toB(); return true; }

@@ -67,6 +67,7 @@ namespace BaseNetworkable {
 }
 namespace BaseNetworkableStatic {
     inline static constexpr uintptr_t clientEntities = 0x28;
+    inline static constexpr uintptr_t TypeInfo       = 0x111F0768;
 }
 namespace BasePlayer {
     inline static constexpr uintptr_t OnViewModeChanged          = 0x3E90C40;
@@ -238,6 +239,20 @@ namespace ListComponentProjectile {
 namespace ListDictionary {
     inline static constexpr uintptr_t vals = 0x20;
 }
+namespace BufferList {
+    // Managed BufferList<T>: backing T[] plus the number of occupied entries.
+    inline static constexpr uintptr_t buffer = 0x10;
+    inline static constexpr uintptr_t count  = 0x18;
+}
+namespace ManagedArray {
+    inline static constexpr uintptr_t length = 0x18;
+    inline static constexpr uintptr_t data   = 0x20;
+}
+namespace Il2CppClass {
+    // IL2CPP v39 / Unity 6000.3.15f1. Runtime code validates every pointer read
+    // through this member before accepting the corresponding source.
+    inline static constexpr uintptr_t staticFields = 0xB8;
+}
 namespace ListHashSet {
     inline static constexpr uintptr_t vals = 0x18;
 }
@@ -246,6 +261,7 @@ namespace LoadingScreen {
 }
 namespace LocalPlayerStatic {
     inline static constexpr uintptr_t Entity = 0x10;
+    inline static constexpr uintptr_t TypeInfo = 0x111E9EE0;
 }
 namespace LootableCorpse {
     inline static constexpr uintptr_t lootPanelName = 0x320;
@@ -260,12 +276,15 @@ namespace Magazine {
 }
 namespace MainCamera {
     inline static constexpr uintptr_t mainCamera = 0xB8;
+    inline static constexpr uintptr_t TypeInfo = 0x111C43A0;
 }
 namespace MixerSnapshotManager {
     inline static constexpr uintptr_t defaultSnapshot = 0x20;
     inline static constexpr uintptr_t loadingSnapshot = 0x30;
 }
 namespace Model {
+    inline static constexpr uintptr_t rootBone       = 0x28;
+    inline static constexpr uintptr_t headBone       = 0x30;
     inline static constexpr uintptr_t boneNames      = 0x58;
     inline static constexpr uintptr_t boneTransforms = 0x50;
 }
@@ -284,6 +303,26 @@ namespace NPCPlayer {
 }
 namespace Object {
     inline static constexpr uintptr_t m_CachedPtr = 0x10;
+}
+namespace NativeTransform {
+    // Unity TransformAccessReadOnly layout used by Unity 6000.3.15f1. It is
+    // never trusted solely from these constants: rust_game.cpp validates the
+    // hierarchy pointer, index, parent chain and all produced vectors.
+    inline static constexpr uintptr_t access        = 0x38;
+    inline static constexpr uintptr_t hierarchyData = 0x18;
+    inline static constexpr uintptr_t matrices      = 0x18;
+    inline static constexpr uintptr_t parents       = 0x20;
+}
+namespace UnityEngineTransform {
+    inline static constexpr uintptr_t TypeInfo                       = 0x111B9D30;
+    inline static constexpr uintptr_t get_position_Injected          = 0xE509990;
+    inline static constexpr uintptr_t get_localToWorldMatrix_Injected = 0xE509F20;
+}
+namespace UnityEngineCamera {
+    inline static constexpr uintptr_t TypeInfo                         = 0x11242210;
+    inline static constexpr uintptr_t get_main                         = 0xE463A70;
+    inline static constexpr uintptr_t get_worldToCameraMatrix_Injected = 0xE467F00;
+    inline static constexpr uintptr_t get_projectionMatrix_Injected    = 0xE467FC0;
 }
 namespace PlayerCorpse {
     inline static constexpr uintptr_t underwearSkin = 0x350;

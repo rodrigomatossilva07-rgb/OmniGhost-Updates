@@ -1262,7 +1262,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
     unifiedFlags.devil_horns = frame_config.devil_horns;
     unifiedFlags.floating_crown = frame_config.floating_crown;
     unifiedFlags.look_direction = frame_config.look_direction;
-    unifiedFlags.self_esp = frame_config.self_esp;
+    unifiedFlags.self_esp = false;
     unifiedFlags.show_dead = frame_config.show_dead;
     unifiedFlags.show_bots = frame_config.show_bots;
     unifiedFlags.visibility_colors = frame_config.visibility_colors;
@@ -1507,9 +1507,13 @@ static void RunFrameWithConfig(const Config& frame_config) {
         const bool alive = healthAlive &&
             (!controllerKnown || core[c].controller_alive != 0) &&
             IsPlayableTeam(static_cast<int>(core[c].team));
-        const bool hidden_teammate = frame_config.team_check &&
+        // Radars are independent consumers of the Core World snapshot.  Do not
+        // apply ESP presentation filters while building their source data.
+        const bool radar_needs_complete_roster =
+            frame_config.web_radar_enabled || frame_config.radar_2d;
+        const bool hidden_teammate = !radar_needs_complete_roster && frame_config.team_check &&
             static_cast<int>(core[c].team) == runtime.local_team;
-        if (!alive || is_local || hidden_teammate) continue;
+        if (!alive || (is_local && !radar_needs_complete_roster) || hidden_teammate) continue;
 
         if (!IsFinitePosition(positions[c]))
             continue;
