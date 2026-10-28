@@ -27,9 +27,17 @@ struct Runtime {
     uintptr_t entity_list = 0;
     uintptr_t local_player = 0;
     uintptr_t camera = 0;
+    uintptr_t camera_matrix_offset = 0;
+    std::uint32_t entity_count = 0;
+    std::uint32_t valid_player_count = 0;
+    std::uint32_t transform_failures = 0;
+    std::string collection_status = "Não validada";
+    std::string transform_status = "Não validado";
+    std::string camera_status = "Não validada";
     float view_matrix[16]{};
     std::vector<Player> players;
     std::uint64_t last_probe_ms = 0;
+    std::uint64_t last_acquisition_attempt_ms = 0;
     std::uint64_t last_world_sample_ms = 0;
     std::uint64_t last_camera_sample_ms = 0;
     std::uint64_t frames = 0;
