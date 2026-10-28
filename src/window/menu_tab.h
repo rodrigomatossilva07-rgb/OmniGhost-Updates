@@ -18,11 +18,6 @@ enum class MenuTab : int {
     TAB_CS2_STATUS,
     TAB_CS2_CONFIGS,
 
-    TAB_RUST_VISUALS = 200,
-    TAB_RUST_AIM,
-    TAB_RUST_MISC,
-    TAB_RUST_RADAR,
-    TAB_RUST_STATUS,
 
 
 
@@ -66,14 +61,6 @@ void DrawCs2Aim();
 void DrawCs2Misc();
 void DrawCs2Radar();
 void DrawCs2Status();
-
-void DrawRustVisuals();
-void DrawRustAim();
-void DrawRustMisc();
-void DrawRustRadar();
-void DrawRustStatus();
-
-
 
 void DrawFortniteVisuals();
 void DrawFortniteAim();

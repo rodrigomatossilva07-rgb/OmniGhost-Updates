@@ -425,12 +425,9 @@
     <ClCompile Include="src\games\Cs2\trajectory\cs2_map_collision_cache.cpp"/>
     <ClCompile Include="src\games\Cs2\config\cs2_config_io.cpp"/>
     <ClCompile Include="src\games\Cs2\weapons\cs2_weapon_icons.cpp"/>
-    <ClCompile Include="src\games\Rust\rust_game.cpp"/>
-    <ClCompile Include="src\games\Rust\rust_esp.cpp"/>
     <ClCompile Include="src\games\Fortnite\fortnite_game.cpp"/>
     <ClCompile Include="src\window\pages\fortnite\FortniteVisualsPage.cpp"/>
     <ClCompile Include="src\window\pages\fortnite\FortniteStatusPage.cpp"/>
-    <ClCompile Include="src\window\pages\rust\RustPages.cpp"/>
     <ClCompile Include="src\window\pages\fortnite\FortniteAimPage.cpp"/>
     <ClCompile Include="src\window\pages\fivem\FivemVisualsPage.cpp"/>
     <ClCompile Include="src\window\pages\unified_stubs.cpp"/>

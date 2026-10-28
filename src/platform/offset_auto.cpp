@@ -2,7 +2,6 @@
 
 #include "src/games/Cs2/cs2_game.h"
 #include "src/games/Fivem/game/offsets.h"
-#include "src/games/Rust/rust_game.h"
 #include "src/games/Rust/rust_offsets.h"
 
 #include <array>
@@ -122,7 +121,7 @@ bool SoftProbeLive(ActiveGame game) {
     case ActiveGame::FiveM:
         return FiveM::SoftProbeLobbyOffsets();
     case ActiveGame::Rust:
-        return Rust::ValidateLiveOffsets();
+        return HasCriticalOffsets(game);
     case ActiveGame::Apex:
         return true;
     default:
@@ -139,7 +138,7 @@ const char* SoftProbeFailReason(ActiveGame game) {
     case ActiveGame::FiveM:
         return "Offsets FiveM inválidos (world pointer / build). Verifica a build do servidor.";
     case ActiveGame::Rust:
-        return "Runtime Rust ainda sem BaseNetworkable_TypeInfo/viewMatrix válidos.";
+        return "Runtime Rust removido; apenas o catálogo manual de offsets foi preservado.";
     default:
         return "Offsets inválidos — atualiza e tenta de novo.";
     }

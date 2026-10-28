@@ -7,7 +7,6 @@
 #include "../../src/games/Fivem/esp/vehicle_esp.h"
 #include "../../src/games/Fivem/friends/friends.h"
 #include "../../src/games/Fortnite/fortnite_game.h"
-#include "../../src/games/Rust/rust_game.h"
 #include <cstring>
 
 namespace config_manager {
@@ -25,7 +24,6 @@ void ApplyMinimalProfileForActiveGame() {
         CS2::config.trigger_enabled = false;
         break;
     case ActiveGame::Rust:
-        Rust::config = Rust::Config{};
         break;
     default:
         esp::config.enabled = true;
@@ -130,7 +128,6 @@ void ResetActiveGameToDefaults() {
         CS2::config = CS2::Config{};
         break;
     case ActiveGame::Rust:
-        Rust::config = Rust::Config{};
         break;
     case ActiveGame::Fortnite:
 

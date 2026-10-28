@@ -8,7 +8,6 @@
 #include "src/games/Fivem/aimbot/aim_type.h"
 #include "src/games/Cs2/cs2_game.h"
 #include "src/games/Fortnite/fortnite_game.h"
-#include "src/games/Rust/rust_game.h"
 
 #include <algorithm>
 #include <cctype>
@@ -73,7 +72,6 @@ ProcessProbeResult ProbeProcess(::Launcher::GameId selected) {
     switch (selected) {
     case ::Launcher::GameId::CS2: direct = tryPidNames({"cs2.exe"}); break;
     case ::Launcher::GameId::Warzone: direct = tryPidNames({"cod.exe", "ModernWarfare.exe"}); break;
-    case ::Launcher::GameId::Rust: direct = tryPidNames({"RustClient.exe"}); break;
     case ::Launcher::GameId::Fortnite:
         direct = tryPidNames({"FortniteClient-Win64-Shipping.exe",
             "FortniteClient-Win64-Shipping_EAC_EOS.exe", "Fortnite.exe"});
@@ -99,7 +97,6 @@ ProcessProbeResult ProbeProcess(::Launcher::GameId selected) {
         case ::Launcher::GameId::CS2: found = matches("cs2.exe"); break;
         case ::Launcher::GameId::Warzone:
             found = matches("cod.exe") || matches("ModernWarfare.exe"); break;
-        case ::Launcher::GameId::Rust: found = matches("RustClient.exe"); break;
         case ::Launcher::GameId::Fortnite:
             found = matches("FortniteClient-Win64-Shipping.exe") ||
                 matches("FortniteClient-Win64-Shipping_EAC_EOS.exe") || matches("Fortnite.exe"); break;

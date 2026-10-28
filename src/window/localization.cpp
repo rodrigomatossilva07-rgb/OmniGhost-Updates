@@ -295,8 +295,6 @@ namespace {
         {"launcher.game.fivem.tagline", {"DMA PREMIUM", "DMA PREMIUM", "DMA PREMIUM", "DMA PREMIUM", "DMA PREMIUM", "DMA PREMIUM"}},
         {"launcher.game.cs2.description", {"Counter-Strike 2 - DMA Premium", "Counter-Strike 2 - Premium DMA", "Counter-Strike 2 - Premium DMA", "Counter-Strike 2 - Premium DMA", "Counter-Strike 2 - Premium DMA", "Counter-Strike 2 - Premium DMA"}},
         {"launcher.game.cs2.tagline", {"DMA PREMIUM", "DMA PREMIUM", "DMA PREMIUM", "DMA PREMIUM", "DMA PREMIUM", "DMA PREMIUM"}},
-        {"launcher.game.rust.description", {"Backend experimental com diagnóstico real e Caixa 2D", "Experimental backend with live diagnostics and 2D Box", "Experimentelles Backend mit Live-Diagnose und 2D-Box", "Backend experimental con diagnóstico real y Caja 2D", "Backend expérimental avec diagnostic réel et boîte 2D", "Backend sperimentale con diagnostica reale e Box 2D"}},
-        {"launcher.game.rust.tagline", {"BETA", "BETA", "BETA", "BETA", "BÊTA", "BETA"}},
         {"launcher.game.warzone.description", {"Call of Duty: Warzone - DMA Premium", "Call of Duty: Warzone - Premium DMA", "Call of Duty: Warzone - Premium DMA", "Call of Duty: Warzone - Premium DMA", "Call of Duty: Warzone - Premium DMA", "Call of Duty: Warzone - Premium DMA"}},
         {"launcher.game.warzone.tagline", {"DMA PREMIUM", "DMA PREMIUM", "DMA PREMIUM", "DMA PREMIUM", "DMA PREMIUM", "DMA PREMIUM"}},
         {"launcher.game.apex.description", {"Apex Legends - DMA Premium", "Apex Legends - Premium DMA", "Apex Legends - Premium DMA", "Apex Legends - Premium DMA", "Apex Legends - Premium DMA", "Apex Legends - Premium DMA"}},

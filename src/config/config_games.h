@@ -3,7 +3,6 @@
 #include "config_manager.h"
 #include "../src/games/Cs2/cs2_game.h"
 #include "../src/games/Fortnite/fortnite_game.h"
-#include "../src/games/Rust/rust_game.h"
 #include <string>
 #include <array>
 
@@ -12,12 +11,6 @@ namespace config_manager {
 
 void SerializeCS2(std::ostringstream& o);
 bool DeserializeCS2(const std::string& key, const std::string& val);
-
-
-
-void SerializeRust(std::ostringstream& o);
-bool DeserializeRust(const std::string& key, const std::string& val);
-
 
 
 

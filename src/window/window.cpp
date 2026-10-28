@@ -25,7 +25,6 @@
 #include "../platform/text_encoding.h"
 #include "game/esp_manager.h"
 #include "src/games/Cs2/cs2_game.h"
-#include "src/games/Rust/rust_game.h"
 #include <shellapi.h>
 #ifndef UI_PREVIEW
 #include "../launcher/launcher_assets.h"
@@ -60,11 +59,6 @@ namespace {
         case MenuTab::TAB_CS2_MISC:         return { "DIVERSOS CS2", "Widgets, bomba e utilitários" };
         case MenuTab::TAB_CS2_RADAR:        return { "RADAR CS2", "Posição, alcance e apresentação" };
         case MenuTab::TAB_CS2_STATUS:       return { Loc::Tr("nav.status"), app_settings::T("Ligação, offsets e estado em tempo real", "Connection, offsets and live status") };
-        case MenuTab::TAB_RUST_VISUALS:     return { "VISUAIS RUST", "ESP de jogadores · Caixa 2D" };
-        case MenuTab::TAB_RUST_AIM:         return { "MIRA RUST", "Preparado para implementação futura" };
-        case MenuTab::TAB_RUST_MISC:        return { "DIVERSOS RUST", "Preparado para implementação futura" };
-        case MenuTab::TAB_RUST_RADAR:       return { "RADAR RUST", "Preparado para implementação futura" };
-        case MenuTab::TAB_RUST_STATUS:      return { "SISTEMA RUST", "Ligação e diagnóstico em tempo real" };
         case MenuTab::TAB_FORTNITE_VISUALS: return { "VISUAIS FORTNITE", "ESP e informação" };
         case MenuTab::TAB_FORTNITE_AIM:     return { "MIRA FORTNITE", "Alvo e assistência" };
         case MenuTab::TAB_FORTNITE_STATUS:  return { "SISTEMA FORTNITE", "Ligação e diagnóstico" };
@@ -141,11 +135,6 @@ namespace {
         case MenuTab::TAB_CS2_MISC:    DrawCs2Misc(); break;
         case MenuTab::TAB_CS2_RADAR:   DrawCs2Radar(); break;
         case MenuTab::TAB_CS2_STATUS:  DrawCs2Status(); break;
-        case MenuTab::TAB_RUST_VISUALS: DrawRustVisuals(); break;
-        case MenuTab::TAB_RUST_AIM:     DrawRustAim(); break;
-        case MenuTab::TAB_RUST_MISC:    DrawRustMisc(); break;
-        case MenuTab::TAB_RUST_RADAR:   DrawRustRadar(); break;
-        case MenuTab::TAB_RUST_STATUS:  DrawRustStatus(); break;
         case MenuTab::TAB_FORTNITE_VISUALS:  DrawFortniteVisuals(); break;
         case MenuTab::TAB_FORTNITE_AIM:      DrawFortniteAim(); break;
         case MenuTab::TAB_FORTNITE_STATUS:   DrawFortniteStatus(); break;
@@ -186,12 +175,6 @@ namespace {
             add("Diversos CS2", MenuTab::TAB_CS2_MISC, "Widgets e utilitários");
             add("Radar CS2", MenuTab::TAB_CS2_RADAR, "Radar 2D");
             add("Sistema CS2", MenuTab::TAB_CS2_STATUS, "Diagnóstico");
-        } else if (game == OmniGhost::ActiveGame::Rust) {
-            add("Visuais Rust", MenuTab::TAB_RUST_VISUALS, "ESP e apresentação");
-            add("Mira Rust", MenuTab::TAB_RUST_AIM, "Em preparação");
-            add("Diversos Rust", MenuTab::TAB_RUST_MISC, "Em preparação");
-            add("Radar Rust", MenuTab::TAB_RUST_RADAR, "Em preparação");
-            add("Sistema Rust", MenuTab::TAB_RUST_STATUS, "Diagnóstico");
         } else if (game == OmniGhost::ActiveGame::Fortnite) {
             add("Visuais Fortnite", MenuTab::TAB_FORTNITE_VISUALS, "ESP e apresentação");
             add("Mira Fortnite", MenuTab::TAB_FORTNITE_AIM, "Assistência");
@@ -320,7 +303,6 @@ bool Overlay::CreateImGui()
 
 static MenuTab DefaultTabForGame(OmniGhost::ActiveGame game) {
     if (game == OmniGhost::ActiveGame::CS2) return MenuTab::TAB_CS2_VISUALS;
-    if (game == OmniGhost::ActiveGame::Rust) return MenuTab::TAB_RUST_VISUALS;
     if (game == OmniGhost::ActiveGame::Fortnite) return MenuTab::TAB_FORTNITE_VISUALS;
     return MenuTab::TAB_VISUALS;
 }
@@ -515,11 +497,6 @@ const PerformanceMode::State performance = PerformanceMode::Update(
             players = snapshot ? static_cast<int>(snapshot->players.size()) : 0;
             break;
         }
-        case OmniGhost::ActiveGame::Rust:
-            connected = Rust::ready;
-            build = "Rust · BETA";
-            players = static_cast<int>(Rust::runtime.players.size());
-            break;
         case OmniGhost::ActiveGame::FiveM:
         default:
             connected = true;

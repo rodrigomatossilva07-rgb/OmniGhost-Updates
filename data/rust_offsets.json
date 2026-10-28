@@ -9,7 +9,6 @@
   "updated_at": "2026-10-23T00:00:00Z",
   "note": "Prepared for the future Rust backend from the complete 2026-10-22 dump. Zero values are intentionally unavailable in the supplied dump and must not fall back to stale offsets.",
   "offset_catalog_header": "src/games/Rust/rust_offsets.h",
-  "decrypt_header": "src/games/Rust/rust_decrypt.h",
   "ListComponentProjectile_TypeInfo": "0x11204AF0",
   "SingletonComponentCameraMan_TypeInfo": "0x11263D98",
   "SingletonComponentLoadingScreen_TypeInfo": "0x111AFA80",
@@ -94,24 +93,6 @@
       "rootBone": "0x0",
       "headBone": "0x0",
       "boneTransforms": "0x50"
-    }
-  },
-  "decrypt": {
-    "gchandle_base_rva": "0x0",
-    "handle_payload": "0x18",
-    "client_entities_decrypt_rva": "0x0",
-    "entity_list_decrypt_rva": "0x0",
-    "ActiveItemDecryption": "0x0",
-    "PlayerInventoryDecryption": "0x0",
-    "PlayerEyesDecryption": "0x0",
-    "implementation": "src/games/Rust/rust_decrypt.h",
-    "algorithms": "clactiveitem,client_entities,client_tick_interval,entity_list,eyes,fov,ground_angle,ground_angle_new,ground_normal,ground_normal_new,ground_time,ground_velocity,ground_velocity_new,inventory,jump_time,land_time,last_tick_time,lastsentticktime,localplayer,max_velocity,next_attack_time,next_reload_time,next_tick_time,previous_inherited_velocity,previous_position,previous_velocity,start_reload_time,time_since_deploy,viewoffset",
-    "chain": {
-      "static_fields": "0xB8",
-      "client_entities": "0x28",
-      "entity_list": "0x10",
-      "buffer": "0x10",
-      "count": "0x18"
     }
   }
 }

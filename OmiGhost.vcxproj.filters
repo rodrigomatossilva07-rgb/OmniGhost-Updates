@@ -428,15 +428,6 @@
     <ClCompile Include="src\launcher\game_adapter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\games\Rust\rust_game.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="src\games\Rust\rust_esp.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="src\window\pages\rust\RustPages.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="third_party\DMALibrary\Memory\MemoryLifecycle.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

@@ -437,7 +437,7 @@ bool IsAdmin() {
     });
 }
 bool HasGameAccess(std::string_view productId) {
-    constexpr std::string_view kProducts[]{"fivem", "cs2", "rust", "warzone", "apex", "fortnite"};
+    constexpr std::string_view kProducts[]{"fivem", "cs2", "warzone", "apex", "fortnite"};
     if (std::find(std::begin(kProducts), std::end(kProducts), productId) == std::end(kProducts) ||
         !OmniGhost::Security::SecurityManager::Instance().CanUseProtectedFeatures())
         return false;
@@ -457,7 +457,7 @@ std::string GameAccessDuration(std::string_view productId) {
     return {};
 }
 bool HasAnyGameAccess() {
-    constexpr std::string_view kProducts[]{"fivem", "cs2", "rust", "warzone", "apex", "fortnite"};
+    constexpr std::string_view kProducts[]{"fivem", "cs2", "warzone", "apex", "fortnite"};
     if (WebsiteService().IsAuthenticated()) {
         if (WebsiteService().Snapshot().isAdmin) return true;
         return std::any_of(std::begin(kProducts), std::end(kProducts),

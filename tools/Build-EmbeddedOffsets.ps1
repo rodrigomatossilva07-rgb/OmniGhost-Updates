@@ -154,7 +154,6 @@ function Build-Snapshot([string]$InputPath, [uint16]$GameId, [string]$ExpectedGa
     if ([string]::IsNullOrWhiteSpace($module)) {
         switch ($ExpectedGame) {
             'cs2' { $module = 'client.dll' }
-            'rust' { $module = 'GameAssembly.dll' }
             'fivem' { $module = 'GTA5.exe' }
             'apex' { $module = 'r5apex.exe' }
             'warzone' { $module = 'cod.exe' }

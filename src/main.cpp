@@ -29,7 +29,6 @@
 #include "src/games/Cs2/cs2_game.h"
 #include "src/games/Cs2/aimbot/cs2_aim.h"
 #include "src/games/Fortnite/fortnite_game.h"
-#include "src/games/Rust/rust_game.h"
 #include "platform/offset_auto.h"
 #include "src/games/Fivem/game/offsets.h"
 #include "platform/app_paths.h"
@@ -1097,8 +1096,7 @@ while (application.shouldRun && !authenticated) {
     if (adapter && (OmniGhost::OffsetAuto::SupportsAutomaticRefresh(pending_game) ||
         pending_game == ActiveGame::FiveM ||
         pending_game == ActiveGame::CS2 ||
-        pending_game == ActiveGame::Warzone || pending_game == ActiveGame::Fortnite ||
-        pending_game == ActiveGame::Rust)) {
+        pending_game == ActiveGame::Warzone || pending_game == ActiveGame::Fortnite)) {
         const bool probe_ok = OmniGhost::OffsetAuto::SoftProbeLive(pending_game);
         if (probe_ok) {
             OmniGhost::OffsetAuto::MarkLiveValid(pending_game, "soft-probe lobby OK");
@@ -1136,8 +1134,6 @@ while (application.shouldRun && !authenticated) {
         if (g_activeGame == ActiveGame::CS2) {
             CS2::Shutdown();
             CS2::ready = false;
-        } else if (g_activeGame == ActiveGame::Rust) {
-            Rust::Shutdown();
         } else if (g_activeGame == ActiveGame::Fortnite) {
             Fortnite::Detach();
         } else if (g_activeGame == ActiveGame::FiveM) {
@@ -1163,7 +1159,6 @@ while (application.shouldRun && !authenticated) {
         case ActiveGame::FiveM: game_monitor_type = 1; break;
         case ActiveGame::Warzone: game_monitor_type = 2; break;
         case ActiveGame::Fortnite: game_monitor_type = 3; break;
-        case ActiveGame::Rust: game_monitor_type = 4; break;
         default: game_monitor_type = 0; break;
     }
     OmniGhost::Gameplay::ProcessMonitor process_monitor(
@@ -1200,9 +1195,6 @@ while (application.shouldRun && !authenticated) {
             case ActiveGame::CS2:
                 dma_alive = CS2::IsGameProcessAlive();
                 break;
-            case ActiveGame::Rust:
-                dma_alive = Rust::IsGameProcessAlive();
-                break;
             case ActiveGame::Fortnite:
                 dma_alive = Fortnite::IsGameProcessAlive();
                 break;
@@ -1230,7 +1222,6 @@ while (application.shouldRun && !authenticated) {
             std::cout << "[" << (g_activeGame == ActiveGame::CS2 ? "CS2" :
                                   g_activeGame == ActiveGame::Warzone ? "Warzone" :
                                   g_activeGame == ActiveGame::Fortnite ? "Fortnite" :
-                                  g_activeGame == ActiveGame::Rust ? "Rust" :
                                   "FiveM")
                       << "] " << terminationReason << " — a voltar ao launcher." << std::endl;
             return_to_launcher = true;
@@ -1280,9 +1271,6 @@ while (application.shouldRun && !authenticated) {
                         .acquire.acquire_p50_ms.load(std::memory_order_relaxed);
                     break;
                 }
-                case ActiveGame::Rust:
-                    entity_players = static_cast<int>(Rust::runtime.players.size());
-                    break;
                 case ActiveGame::Fortnite:
                     acquire_p50_ms = OmniGhost::Gameplay::DmaTelemetry::Fortnite()
                         .acquire.acquire_p50_ms.load(std::memory_order_relaxed);

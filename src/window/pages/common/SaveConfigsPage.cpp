@@ -20,7 +20,6 @@ namespace {
 const char* ActiveGameName() {
     switch (g_activeGame) {
     case ActiveGame::CS2: return "Counter-Strike 2";
-    case ActiveGame::Rust: return "Rust";
     case ActiveGame::Warzone: return "Warzone";
     case ActiveGame::Fortnite: return "Fortnite";
     case ActiveGame::Apex: return "Apex";
