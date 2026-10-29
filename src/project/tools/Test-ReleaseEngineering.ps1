@@ -6,6 +6,7 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $ProjectDir = [IO.Path]::GetFullPath((Join-Path $ProjectDir '.'))
+$gitIgnore = [IO.File]::ReadAllText((Join-Path $ProjectDir '.gitignore'))
 
 function Assert([bool]$Condition, [string]$Message) {
     if (-not $Condition) { throw "[Release engineering test] $Message" }
@@ -31,6 +32,10 @@ Assert (-not (Is-Version '2.10.0')) '2.10.0 must be rejected by the OmniGhost ve
 Assert (-not (Is-Version '2.11.2')) '2.11.2 must be rejected by the OmniGhost version policy.'
 Assert ((Next-Version '2.4.9') -ceq '2.5.0') 'PATCH rollover is incorrect.'
 Assert ((Next-Version '2.9.9') -ceq '3.0.0') 'MAJOR rollover is incorrect.'
+Assert ($gitIgnore -match '(?m)^/build/$' -and $gitIgnore -notmatch '(?m)^build/$') 'The root build ignore rule must not hide src/project/config/build property sheets.'
+foreach ($propertySheet in @('OmniGhost.Common.props', 'OmniGhost.Release.props', 'OmniGhost.Publish.props')) {
+    Assert (Test-Path -LiteralPath (Join-Path $ProjectDir "src\project\config\build\$propertySheet") -PathType Leaf) "Required MSBuild property sheet is missing: $propertySheet"
+}
 
 $version = [IO.File]::ReadAllText((Join-Path $ProjectDir 'src\project\config\release\version.txt')).Trim()
 $header = [IO.File]::ReadAllText((Join-Path $ProjectDir 'src\app_version.h'))
@@ -68,6 +73,8 @@ Assert ($powerShellBridge -match 'Publish-Build\.ps1[^\r\n]*-ExplicitConfirmed')
 Assert ($powerShellBridge -match 'chcp 65001') 'The MSBuild PowerShell bridge does not establish UTF-8 console output.'
 Assert ($project -match 'OmniGhost 01/10' -and $project -match 'OmniGhost 05/10') 'The Publish build does not expose numbered phases.'
 Assert ($reproBuild -match 'worktree add --quiet' -and $reproBuild -match 'repro-build\.log') 'The reproducible build does not preserve a quiet detailed log.'
+Assert ($reproBuild -match 'requiredCommittedFiles' -and $reproBuild -match 'OmniGhost\.Common\.props' -and $reproBuild -match 'cat-file -e') 'Reproducibility build does not verify required property sheets in the source commit.'
+Assert ($reproBuild -notmatch 'Select-Object -Last 80') 'Nested MSBuild diagnostics are still replayed into the Visual Studio error list.'
 Assert ($packageRelease -notmatch 'SignTool|Get-AuthenticodeSignature|Sign-UpdateManifest') 'Release packaging still depends on signing tools.'
 
 $workflow = [IO.File]::ReadAllText((Join-Path $ProjectDir '.github\workflows\release.yml'))

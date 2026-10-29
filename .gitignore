@@ -2,7 +2,10 @@
 .vs/
 .cache/
 .temp/
-build/
+/build/
+# Generated CMake output; do not ignore src/project/config/build, which holds
+# the MSBuild property sheets required by clean and reproducible checkouts.
+/src/project/tools/FiveMCollisionBuilder/build/
 artifacts/
 publish/
 *.user

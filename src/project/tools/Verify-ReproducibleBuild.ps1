@@ -55,6 +55,19 @@ if ($status.Count -gt 0) {
 $commit = (& $git -C $ProjectDir rev-parse HEAD).Trim()
 if ($LASTEXITCODE -ne 0 -or $commit -notmatch '^[0-9a-f]{40}$') { throw 'Could not resolve HEAD for independent rebuild.' }
 
+$requiredCommittedFiles = @(
+    'OmiGhost.vcxproj',
+    'src/project/config/build/OmniGhost.Common.props',
+    'src/project/config/build/OmniGhost.Release.props',
+    'src/project/config/build/OmniGhost.Publish.props'
+)
+foreach ($relativePath in $requiredCommittedFiles) {
+    & $git -C $ProjectDir cat-file -e "${commit}:$relativePath" 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        throw "O commit $commit não contém '$relativePath'. Inclui os ficheiros obrigatórios no commit antes da verificação de reprodutibilidade."
+    }
+}
+
 $keyAuthSecretsSource = Join-Path $ProjectDir 'src\auth\keyauth_secrets.h'
 if (-not (Test-Path -LiteralPath $keyAuthSecretsSource -PathType Leaf)) {
     throw 'Independent Publish rebuild requires the local ignored file src\auth\keyauth_secrets.h.'
@@ -92,8 +105,10 @@ try {
     $buildExitCode = $LASTEXITCODE
     [IO.File]::WriteAllLines($reproLog, @($buildOutput | ForEach-Object { [string]$_ }), (New-Object Text.UTF8Encoding($false)))
     if ($buildExitCode -ne 0) {
-        Write-Host '[OmniGhost Repro] Ultimas linhas da build independente:'
-        $buildOutput | Select-Object -Last 80 | ForEach-Object { Write-Host "  $_" }
+        # Do not replay raw nested-MSBuild diagnostics to stdout: Visual Studio
+        # otherwise registers errors against the temporary project and keeps a
+        # stale MSB4019 entry after the worktree is correctly removed.
+        Write-Host "[OmniGhost Repro] A build independente falhou. Diagnóstico completo preservado em: $reproLog"
         throw "Independent Publish rebuild failed with exit code $buildExitCode. Full log: $reproLog"
     }
 

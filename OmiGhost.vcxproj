@@ -216,7 +216,7 @@
     <Exec Command="powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(ProjectDir)src\project\tools\Verify-ReproducibleBuild.ps1&quot; -ProjectDir &quot;$(ProjectDir).&quot; -PrimaryExecutable &quot;$(TargetPath)&quot; -MSBuildPath &quot;$(MSBuildToolsPath)\MSBuild.exe&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
       <Output TaskParameter="ExitCode" PropertyName="OmniGhostReproducibilityExitCode"/>
     </Exec>
-    <Error Condition="'$(OmniGhostReproducibilityExitCode)'!='0'" Code="OGREPRO001" Text="A segunda build independente não corresponde byte-for-byte à build Publish principal."/>
+    <Error Condition="'$(OmniGhostReproducibilityExitCode)'!='0'" Code="OGREPRO001" Text="A verificação da segunda build independente falhou. Consulta a mensagem anterior e .cache\logs\repro-build.log para distinguir erro de compilação de diferença binária."/>
   </Target>
 
 
