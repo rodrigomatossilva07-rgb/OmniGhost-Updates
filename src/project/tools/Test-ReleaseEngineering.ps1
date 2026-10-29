@@ -79,7 +79,7 @@ Assert ($workflow -notmatch 'Validate-CommercialRelease\.ps1|Test-SignedReleaseT
 Assert ($workflow -notmatch 'DISCORD_WEBHOOK_URL|Notify-DiscordRelease') 'Removed Discord webhook is still referenced by the workflow.'
 Assert ($workflow -notmatch 'hardware_integration_test|OMNIGHOST_TEST_GAME') 'Obsolete mandatory DMA release gate is still configured.'
 Assert ($publishBuild -match 'publish_github_release\.ps1') 'Publish build does not upload its validated local artifacts directly.'
-Assert ($publishBuild -match 'Validate-ReleaseArtifacts\.ps1[\s\S]*Cleanup-PrePublish\.ps1[\s\S]*Write-OmniPhase 9') 'Publish must clean temporary data after local validation and before GitHub publication.'
+Assert ($publishBuild -match 'Write-OmniPhase 9[\s\S]*Finalize-VersionCommit\.ps1[\s\S]*publishCompleted\s*=\s*\$true[\s\S]*finally[\s\S]*Cleanup-PrePublish\.ps1') 'Temporary data cleanup must be the final action after GitHub publication and version finalization.'
 Assert ($publishBuild -match 'Finalize-VersionCommit\.ps1') 'Publish does not finalize the mechanical next-version commit.'
 Assert ($publishBuild -match 'Invoke-NativeCommandCapture' -and
         $publishBuild -match "ErrorActionPreference = 'Continue'" -and

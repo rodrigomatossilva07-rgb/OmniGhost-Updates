@@ -19,6 +19,7 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'ReleaseOutput.ps1')
 $publishTimer = [Diagnostics.Stopwatch]::StartNew()
 $packagingDuration = $null
+$publishCompleted = $false
 
 function Invoke-NativeCommandCapture {
     param(
@@ -171,9 +172,6 @@ $ReleaseDirectory = [IO.Path]::GetFullPath((Join-Path $ReleaseDirectory '.'))
 & (Join-Path $ProjectDir 'src\project\tools\Validate-ReleaseArtifacts.ps1') `
     -ProjectDir $ProjectDir -ReleaseDirectory $ReleaseDirectory -Version $version -Quiet
 if (-not $ValidateOnly -and -not $SkipRemoteUpload -and -not $usingApprovedSourceSnapshot) {
-    Write-Host '[OmniGhost Publish] Build e artefactos validados. A limpar caches antes da publicação remota.'
-    & (Join-Path $ProjectDir 'src\project\tools\Cleanup-PrePublish.ps1') -ProjectDir $ProjectDir
-
     Write-OmniPhase 9 'Publicação e confirmação no GitHub'
     $uploadTimer = [Diagnostics.Stopwatch]::StartNew()
     $git = Get-Command git -ErrorAction Stop
@@ -236,6 +234,7 @@ if (-not $ValidateOnly -and -not $SkipRemoteUpload -and -not $usingApprovedSourc
     Write-Host "Upload GitHub: $(Format-OmniDuration $uploadDuration)"
     Write-Host "Duração total do Publish: $(Format-OmniDuration $publishTimer.Elapsed)"
     Write-Host '═════════════════════════════════════════════'
+    $publishCompleted = $true
 }
 }
 finally {
@@ -245,5 +244,9 @@ finally {
         if ($LASTEXITCODE -ne 0) {
             Write-Warning '[OmniGhost Publish] Algumas cópias temporárias continuaram bloqueadas; consulta o aviso de limpeza acima.'
         }
+    }
+    if ($publishCompleted) {
+        Write-Host '[OmniGhost Publish] Publicação concluída. A executar a limpeza final do workspace.'
+        & (Join-Path $ProjectDir 'src\project\tools\Cleanup-PrePublish.ps1') -ProjectDir $ProjectDir
     }
 }
