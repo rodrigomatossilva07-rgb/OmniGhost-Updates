@@ -78,6 +78,27 @@ if (Test-Path -LiteralPath $libsDir -PathType Container) {
 
 
 $dmaBin = Join-Path $ProjectDir 'src\project\third_party\dma_stack\bin'
+$requiredDmaRuntime = @(
+    'dbghelp.dll',
+    'FTD3XX.dll',
+    'FTD3XXWU.dll',
+    'leechcore.dll',
+    'leechcore_device_hvsavedstate.dll',
+    'leechcore_device_rawtcp.dll',
+    'leechcore_driver.dll',
+    'symsrv.dll',
+    'tinylz4.dll',
+    'vmm.dll',
+    'vmmyara.dll'
+)
+if ($Configuration -ieq 'Publish') {
+    $missingDmaRuntime = @($requiredDmaRuntime | Where-Object {
+        -not (Test-Path -LiteralPath (Join-Path $dmaBin $_) -PathType Leaf)
+    })
+    if ($missingDmaRuntime.Count -gt 0) {
+        throw "Canonical DMA runtime is incomplete for Publish: $($missingDmaRuntime -join ', '). Restore src/project/third_party/dma_stack/bin from the source revision."
+    }
+}
 $dmaEmbedded = @()
 if (Test-Path -LiteralPath $dmaBin -PathType Container) {
     foreach ($file in Get-ChildItem -LiteralPath $dmaBin -File -Filter '*.dll') {

@@ -59,7 +59,18 @@ $requiredCommittedFiles = @(
     'OmiGhost.vcxproj',
     'src/project/config/build/OmniGhost.Common.props',
     'src/project/config/build/OmniGhost.Release.props',
-    'src/project/config/build/OmniGhost.Publish.props'
+    'src/project/config/build/OmniGhost.Publish.props',
+    'src/project/third_party/dma_stack/bin/dbghelp.dll',
+    'src/project/third_party/dma_stack/bin/FTD3XX.dll',
+    'src/project/third_party/dma_stack/bin/FTD3XXWU.dll',
+    'src/project/third_party/dma_stack/bin/leechcore.dll',
+    'src/project/third_party/dma_stack/bin/leechcore_device_hvsavedstate.dll',
+    'src/project/third_party/dma_stack/bin/leechcore_device_rawtcp.dll',
+    'src/project/third_party/dma_stack/bin/leechcore_driver.dll',
+    'src/project/third_party/dma_stack/bin/symsrv.dll',
+    'src/project/third_party/dma_stack/bin/tinylz4.dll',
+    'src/project/third_party/dma_stack/bin/vmm.dll',
+    'src/project/third_party/dma_stack/bin/vmmyara.dll'
 )
 foreach ($relativePath in $requiredCommittedFiles) {
     & $git -C $ProjectDir cat-file -e "${commit}:$relativePath" 2>$null

@@ -29,6 +29,11 @@ src/project/third_party/upstream/
 **/bin/
 **/obj/
 
+# Canonical DMA runtime payload is source input for the single-EXE bundle, not
+# a generated bin directory. It must exist in clean/reproducible checkouts.
+!/src/project/third_party/dma_stack/bin/
+!/src/project/third_party/dma_stack/bin/*.dll
+
 
 *.pfx
 *.p12
