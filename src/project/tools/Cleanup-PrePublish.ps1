@@ -52,6 +52,12 @@ function Remove-SafeFile {
     }
 
     $relative = $fullPath.Substring($projectPrefix.Length).Replace('/', '\')
+    # The active MSBuild file logger lives under .cache and cannot be removed
+    # by the Publish process that is still writing to it. The whole cache is
+    # handled by the deferred pass after MSBuild exits.
+    if ($relative.StartsWith('.cache\', [StringComparison]::OrdinalIgnoreCase)) {
+        return
+    }
     $protectedPrefixes = @(
         '.git\',
         'artifacts\release\',
@@ -70,6 +76,10 @@ function Remove-SafeFile {
         $script:removed++
         Write-Verbose "[OmniGhost Cleanup] Removido: $Label"
     } catch {
+        if ($relative.StartsWith('.cache\', [StringComparison]::OrdinalIgnoreCase)) {
+            Write-Verbose "[OmniGhost Cleanup] Adiado até ao fim do MSBuild: $Label"
+            return
+        }
         $script:failed.Add("${Label}: $($_.Exception.Message)")
     }
 }
@@ -214,10 +224,6 @@ Get-ChildItem -LiteralPath $ProjectDir -Recurse -File -Force -ErrorAction Silent
         Remove-SafeFile -Path $_.FullName -Label $_.FullName.Substring($projectPrefix.Length)
     }
 
-if ($failed.Count -gt 0) {
-    throw ("A limpeza pós-publicação não ficou completa:`n - " + ($failed -join "`n - "))
-}
-
 $deferredPowerShell = Get-Command pwsh.exe -ErrorAction SilentlyContinue
 if ($null -eq $deferredPowerShell) {
     $deferredPowerShell = Get-Command (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe') -ErrorAction Stop
@@ -230,5 +236,10 @@ $deferredArguments = @(
     '-ParentProcessId', [string]$PID
 )
 Start-Process -FilePath $deferredPowerShell.Source -ArgumentList $deferredArguments -WindowStyle Hidden | Out-Null
+
+if ($failed.Count -gt 0) {
+    throw ("A limpeza pós-publicação não ficou completa:`n - " + ($failed -join "`n - "))
+}
+
 Write-Host "[OmniGhost Cleanup] Limpeza imediata concluída ($removed alvo(s)); .cache será removida após o MSBuild libertar o log."
 
