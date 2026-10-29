@@ -1,4 +1,4 @@
-param([string]$ProjectDir = ([IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\..'))))
+﻿param([string]$ProjectDir = ([IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\..'))))
 $ErrorActionPreference = 'Stop'
 $files = @{
     manager = Join-Path $ProjectDir 'src/config/config_manager.h'

@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [ValidateSet('Menu', 'CS2', 'FiveM', 'All')]
     [string]$Game = 'Menu',

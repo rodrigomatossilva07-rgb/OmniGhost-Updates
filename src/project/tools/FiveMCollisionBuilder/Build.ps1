@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [string]$RageKitRoot = "C:\Users\Rodrigo Silva\Downloads\ragekit",
     [ValidateSet('Debug', 'Release')]

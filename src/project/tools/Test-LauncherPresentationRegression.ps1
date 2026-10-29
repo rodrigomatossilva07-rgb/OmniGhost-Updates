@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [string]$ProjectDir = ([IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\..')))
 )

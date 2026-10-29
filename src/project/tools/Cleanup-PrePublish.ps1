@@ -1,9 +1,11 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
     [string]$ProjectDir,
     [Parameter(Mandatory = $false)]
-    [string]$LocalAppDataRoot = $env:LOCALAPPDATA
+    [string]$LocalAppDataRoot = $env:LOCALAPPDATA,
+    [switch]$DeferredCacheOnly,
+    [int]$ParentProcessId = 0
 )
 
 $ErrorActionPreference = 'Stop'
@@ -72,11 +74,42 @@ function Remove-SafeFile {
     }
 }
 
-Write-Host '[OmniGhost Cleanup] Limpeza pré-publicação de caches e ficheiros temporários...'
+if ($DeferredCacheOnly) {
+    # The MSBuild file logger can keep OmiGhost.log open for a few seconds
+    # after the Publish PowerShell process exits.  Retry only the project
+    # cache after the parent has gone away; a locked diagnostic log must not
+    # turn an already published release into a failed build.
+    if ($ParentProcessId -gt 0) {
+        try { Wait-Process -Id $ParentProcessId -Timeout 300 -ErrorAction SilentlyContinue } catch {}
+    }
+
+    $cachePath = [IO.Path]::GetFullPath((Join-Path $ProjectDir '.cache'))
+    $expectedCachePath = $ProjectDir.TrimEnd('\') + '\.cache'
+    if (-not $cachePath.Equals($expectedCachePath, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Limpeza diferida recusada fora da cache esperada: $cachePath"
+    }
+
+    for ($attempt = 1; $attempt -le 24; ++$attempt) {
+        if (-not (Test-Path -LiteralPath $cachePath)) { exit 0 }
+        Start-Sleep -Seconds 5
+        try {
+            Remove-Item -LiteralPath $cachePath -Recurse -Force -ErrorAction Stop
+            exit 0
+        }
+        catch {
+            if ($attempt -eq 24) {
+                Write-Warning "A cache continuou bloqueada após as tentativas diferidas: $($_.Exception.Message)"
+            }
+        }
+    }
+    exit 0
+}
+
+Write-Host '[OmniGhost Cleanup] Limpeza pós-publicação de caches e ficheiros temporários...'
 
 # Apenas diretórios recriáveis. Os artefactos validados e build\Publish têm de
 # permanecer disponíveis para o upload que ocorre imediatamente a seguir.
-foreach ($relative in @('.cache', '.temp', 'logs')) {
+foreach ($relative in @('.temp', 'logs')) {
     Remove-SafeTree `
         -Path (Join-Path $ProjectDir $relative) `
         -AllowedParent $ProjectDir `
@@ -156,6 +189,7 @@ $temporaryExtensions = [Collections.Generic.HashSet[string]]::new([StringCompare
 $projectPrefix = $ProjectDir.TrimEnd('\') + '\'
 $protectedPrefixes = @(
     (Join-Path $ProjectDir '.git').TrimEnd('\') + '\',
+    (Join-Path $ProjectDir '.cache').TrimEnd('\') + '\',
     (Join-Path $ProjectDir 'artifacts\release').TrimEnd('\') + '\',
     (Join-Path $ProjectDir 'src\project\third_party').TrimEnd('\') + '\',
     (Join-Path $ProjectDir 'src\project\libs').TrimEnd('\') + '\'
@@ -181,8 +215,20 @@ Get-ChildItem -LiteralPath $ProjectDir -Recurse -File -Force -ErrorAction Silent
     }
 
 if ($failed.Count -gt 0) {
-    throw ("A limpeza pré-publicação não ficou completa:`n - " + ($failed -join "`n - "))
+    throw ("A limpeza pós-publicação não ficou completa:`n - " + ($failed -join "`n - "))
 }
 
-Write-Host "[OmniGhost Cleanup] Limpeza pré-publicação concluída ($removed alvo(s) removido(s))."
+$deferredPowerShell = Get-Command pwsh.exe -ErrorAction SilentlyContinue
+if ($null -eq $deferredPowerShell) {
+    $deferredPowerShell = Get-Command (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe') -ErrorAction Stop
+}
+$deferredArguments = @(
+    '-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+    '-File', ('"{0}"' -f $PSCommandPath),
+    '-ProjectDir', ('"{0}"' -f $ProjectDir),
+    '-DeferredCacheOnly',
+    '-ParentProcessId', [string]$PID
+)
+Start-Process -FilePath $deferredPowerShell.Source -ArgumentList $deferredArguments -WindowStyle Hidden | Out-Null
+Write-Host "[OmniGhost Cleanup] Limpeza imediata concluída ($removed alvo(s)); .cache será removida após o MSBuild libertar o log."
 

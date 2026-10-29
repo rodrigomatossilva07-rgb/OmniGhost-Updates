@@ -39,6 +39,15 @@ Assert ($embeddedRuntimeBuilder -match 'requiredDmaRuntime' -and $embeddedRuntim
 $changelogGeneratorPath = Join-Path $ProjectDir 'src\project\tools\Generate-Changelog.ps1'
 $changelogGeneratorBytes = [IO.File]::ReadAllBytes($changelogGeneratorPath)
 Assert ($changelogGeneratorBytes.Length -ge 3 -and $changelogGeneratorBytes[0] -eq 0xEF -and $changelogGeneratorBytes[1] -eq 0xBB -and $changelogGeneratorBytes[2] -eq 0xBF) 'Generate-Changelog.ps1 must carry an UTF-8 signature for Windows PowerShell 5.1 compatibility.'
+$strictUtf8 = New-Object Text.UTF8Encoding -ArgumentList @($false, $true)
+foreach ($localizedScript in Get-ChildItem (Join-Path $ProjectDir 'src\project\tools') -Recurse -File -Filter '*.ps1') {
+    $scriptBytes = [IO.File]::ReadAllBytes($localizedScript.FullName)
+    $hasUtf8Signature = $scriptBytes.Length -ge 3 -and $scriptBytes[0] -eq 0xEF -and $scriptBytes[1] -eq 0xBB -and $scriptBytes[2] -eq 0xBF
+    $textOffset = if ($hasUtf8Signature) { 3 } else { 0 }
+    $scriptText = $strictUtf8.GetString($scriptBytes, $textOffset, $scriptBytes.Length - $textOffset)
+    $containsLocalizedText = $null -ne ($scriptText.ToCharArray() | Where-Object { [int]$_ -gt 127 } | Select-Object -First 1)
+    Assert (-not $containsLocalizedText -or $hasUtf8Signature) "Localized PowerShell script requires an UTF-8 signature for Windows PowerShell 5.1: $($localizedScript.FullName)"
+}
 foreach ($propertySheet in @('OmniGhost.Common.props', 'OmniGhost.Release.props', 'OmniGhost.Publish.props')) {
     Assert (Test-Path -LiteralPath (Join-Path $ProjectDir "src\project\config\build\$propertySheet") -PathType Leaf) "Required MSBuild property sheet is missing: $propertySheet"
 }
@@ -93,6 +102,8 @@ Assert ($workflow -notmatch 'DISCORD_WEBHOOK_URL|Notify-DiscordRelease') 'Remove
 Assert ($workflow -notmatch 'hardware_integration_test|OMNIGHOST_TEST_GAME') 'Obsolete mandatory DMA release gate is still configured.'
 Assert ($publishBuild -match 'publish_github_release\.ps1') 'Publish build does not upload its validated local artifacts directly.'
 Assert ($publishBuild -match 'Write-OmniPhase 9[\s\S]*Finalize-VersionCommit\.ps1[\s\S]*publishCompleted\s*=\s*\$true[\s\S]*finally[\s\S]*Cleanup-PrePublish\.ps1') 'Temporary data cleanup must be the final action after GitHub publication and version finalization.'
+$cleanupPrePublish = [IO.File]::ReadAllText((Join-Path $ProjectDir 'src\project\tools\Cleanup-PrePublish.ps1'))
+Assert ($cleanupPrePublish -match 'DeferredCacheOnly' -and $cleanupPrePublish -match 'ParentProcessId' -and $cleanupPrePublish -match 'foreach \(\$relative in @\(''\.temp'', ''logs''\)\)') 'The active MSBuild cache must be cleaned only after its file logger releases OmiGhost.log.'
 Assert ($publishBuild -match 'Finalize-VersionCommit\.ps1') 'Publish does not finalize the mechanical next-version commit.'
 Assert ($publishBuild -match 'Invoke-NativeCommandCapture' -and
         $publishBuild -match "ErrorActionPreference = 'Continue'" -and

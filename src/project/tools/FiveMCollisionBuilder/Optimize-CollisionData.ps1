@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [string]$CollisionFolder = (Join-Path $PSScriptRoot '..\..\data\fivem\collision'),
     [switch]$Undo
