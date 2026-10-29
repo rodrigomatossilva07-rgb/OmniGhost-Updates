@@ -36,6 +36,9 @@ Assert ($gitIgnore -match '(?m)^/build/$' -and $gitIgnore -notmatch '(?m)^build/
 Assert ($gitIgnore -match '(?m)^!/src/project/third_party/dma_stack/bin/\*\.dll$') 'Canonical DMA runtime DLLs must not be hidden by the generic bin ignore rule.'
 $embeddedRuntimeBuilder = Get-Content -Raw -LiteralPath (Join-Path $ProjectDir 'src\project\tools\Build-EmbeddedRuntime.ps1')
 Assert ($embeddedRuntimeBuilder -match 'requiredDmaRuntime' -and $embeddedRuntimeBuilder -match "Configuration -ieq 'Publish'" -and $embeddedRuntimeBuilder -match 'Canonical DMA runtime is incomplete') 'Publish does not reject an incomplete canonical DMA runtime bundle.'
+$changelogGeneratorPath = Join-Path $ProjectDir 'src\project\tools\Generate-Changelog.ps1'
+$changelogGeneratorBytes = [IO.File]::ReadAllBytes($changelogGeneratorPath)
+Assert ($changelogGeneratorBytes.Length -ge 3 -and $changelogGeneratorBytes[0] -eq 0xEF -and $changelogGeneratorBytes[1] -eq 0xBB -and $changelogGeneratorBytes[2] -eq 0xBF) 'Generate-Changelog.ps1 must carry an UTF-8 signature for Windows PowerShell 5.1 compatibility.'
 foreach ($propertySheet in @('OmniGhost.Common.props', 'OmniGhost.Release.props', 'OmniGhost.Publish.props')) {
     Assert (Test-Path -LiteralPath (Join-Path $ProjectDir "src\project\config\build\$propertySheet") -PathType Leaf) "Required MSBuild property sheet is missing: $propertySheet"
 }

@@ -33,8 +33,12 @@ set "COMMAND=%~1"
 shift
 
 
-set "PS_CMD=powershell.exe"
-where powershell.exe >nul 2>nul || set "PS_CMD=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
+rem Prefer PowerShell 7: it interprets UTF-8 source files consistently.  The
+rem Windows PowerShell fallback remains supported for clean Windows installs;
+rem release scripts containing localized literals carry an UTF-8 signature.
+set "PS_CMD=pwsh.exe"
+where pwsh.exe >nul 2>nul || set "PS_CMD=powershell.exe"
+where "%PS_CMD%" >nul 2>nul || set "PS_CMD=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
 
 
 set "INVOKE_PS=^& \"%SCRIPT_DIR:~0,-1%\""
