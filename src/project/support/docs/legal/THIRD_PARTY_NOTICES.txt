@@ -26,7 +26,7 @@ Tiny PNG Output in the bundled KeyAuth static library
 
 cloudflared
   Upstream: https://github.com/cloudflare/cloudflared
-  Version bundled: 2026.10.5 (Windows x64).
+  Version bundled: 2026.10.6 (Windows x64).
   Declared repository license: Apache License 2.0 (Apache-2.0).
   The signed helper is embedded in OmniGhost and materialized only in the
   application-controlled private runtime.

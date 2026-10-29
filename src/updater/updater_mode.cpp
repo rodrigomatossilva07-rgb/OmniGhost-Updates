@@ -222,7 +222,7 @@ std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
     if (GetLastError() == ERROR_ALREADY_EXISTS)
         return reject(20, "mutex", "Já existe outro processo de atualização em execução.");
     const auto args = Arguments(argc, argv);
-    const wchar_t* required[] = { L"--pid", L"--package", L"--target", L"--executable", L"--version",
+    const wchar_t* required[] = { L"--pid", L"--package", L"--updates-root", L"--target", L"--executable", L"--version",
 		L"--sha256", L"--size" };
     for (const wchar_t* name : required) {
         if (!args.contains(name) || args.at(name).empty())
@@ -239,7 +239,7 @@ std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
         std::cerr << "[Updater] Invalid PID or size argument: unknown exception\n";
         return reject(21, "arguments", "PID ou tamanho do pacote inválido.");
     }
-	const fs::path package = args.at(L"--package"), target = args.at(L"--target");
+	const fs::path package = args.at(L"--package"), updatesRoot = args.at(L"--updates-root"), target = args.at(L"--target");
     const fs::path executableName = args.at(L"--executable");
     const auto targetVersionValue = NarrowAscii(args.at(L"--version"));
     const auto expectedHashValue = NarrowAscii(args.at(L"--sha256"));
@@ -261,10 +261,10 @@ std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
             return reject(21, "arguments", "O endereço das notas da atualização é inválido.");
         notesUrl = *value;
     }
-	if (!AbsoluteSafe(package) || !AbsoluteSafe(target) || executableName.is_absolute() ||
+	if (!AbsoluteSafe(package) || !AbsoluteSafe(updatesRoot) || !AbsoluteSafe(target) || executableName.is_absolute() ||
         executableName.has_parent_path() || _wcsicmp(executableName.c_str(), MainExecutable) != 0 ||
 		_wcsicmp(package.extension().c_str(), L".zip") != 0 || !fs::exists(target / executableName) ||
-		!Descendant(package, Paths::Updates()) ||
+		!Descendant(updatesRoot, Paths::RuntimeRoot()) || !Descendant(package, updatesRoot) ||
         !SemVersion::Parse(targetVersion) || expectedSize == 0 || expectedHash.size() != 64)
         return reject(22, "arguments", "Os caminhos ou metadados do pedido de atualização não são seguros/válidos.");
 

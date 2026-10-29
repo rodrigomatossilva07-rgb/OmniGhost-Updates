@@ -205,8 +205,12 @@ fs::path LocalData() {
 }
 
 fs::path NativeRuntime() {
-    return TemporaryBasePath() / L"OmniGhost" / L"runtime" /
+    return RuntimeRoot() /
         InstallIdentity() / (L"pid-" + std::to_wstring(GetCurrentProcessId()));
+}
+
+fs::path RuntimeRoot() {
+    return TemporaryBasePath() / L"OmniGhost" / L"runtime";
 }
 
 fs::path Configs() {

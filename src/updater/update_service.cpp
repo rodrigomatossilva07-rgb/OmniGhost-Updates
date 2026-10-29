@@ -977,6 +977,7 @@ bool UpdateService::InstallPreparedUpdate() {
     }
 
     std::wostringstream arguments; arguments << L"--apply-update --pid " << GetCurrentProcessId() << L" --package " << Quote(downloadedPackage)
+        << L" --updates-root " << Quote(Paths::Updates())
         << L" --target " << Quote(Paths::InstallDirectory()) << L" --executable " << Quote(fs::path(OmniGhost::MainExecutable))
 		<< L" --version \"" << Platform::Utf8ToWide(version) << L"\""
         << L" --sha256 \"" << Platform::Utf8ToWide(expectedHash) << L"\" --size " << expectedSize

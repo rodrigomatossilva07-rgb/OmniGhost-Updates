@@ -10,6 +10,7 @@ std::filesystem::path LocalData();
 
 
 std::filesystem::path NativeRuntime();
+std::filesystem::path RuntimeRoot();
 std::filesystem::path Configs();
 std::filesystem::path Cs2Configs();
 std::filesystem::path Logs();

@@ -839,7 +839,7 @@ bool DrawGameCard(ImDrawList* draw, ImVec2 min, ImVec2 max,
     const bool gameUpdateDetected = steamStatus.state == SteamGameUpdateCheck::State::OffsetsOutdated || epicStatus.updatePending;
     if (gameUpdateDetected) {
         draw->AddText(ImVec2(card_min.x + S(20.f), card_max.y - S(49.f)),
-            WithAlpha(C_GOLD(), alpha), "JOGO ATUALIZADO · ATUALIZA OS OFFSETS");
+            WithAlpha(C_GOLD(), alpha), Loc::Tr("launcher.game_update.compatibility_pending"));
     } else if (steamStatus.state == SteamGameUpdateCheck::State::Checking) {
         draw->AddText(ImVec2(card_min.x + S(20.f), card_max.y - S(49.f)),
             WithAlpha(C_MUTED2(), alpha), "A verificar atualização Steam…");
@@ -940,7 +940,10 @@ bool DrawGameCard(ImDrawList* draw, ImVec2 min, ImVec2 max,
         ImGui::TextColored(ImColor(status_color), "%s", status);
         if (gameUpdateDetected) {
             ImGui::Spacing();
-            ImGui::TextColored(ImColor(C_GOLD()), "Jogo atualizado: atualiza os offsets antes de usar.");
+            ImGui::TextColored(ImColor(C_GOLD()), "%s", Loc::Tr("launcher.game_update.compatibility_pending"));
+            ImGui::PushTextWrapPos(ImGui::GetFontSize() * 28.f);
+            ImGui::TextWrapped("%s", Loc::Tr("launcher.game_update.compatibility_detail"));
+            ImGui::PopTextWrapPos();
         }
         ImGui::PushTextWrapPos(ImGui::GetFontSize() * 28.f);
         ImGui::TextWrapped("%s", CardStateDescription(runtime.state));
