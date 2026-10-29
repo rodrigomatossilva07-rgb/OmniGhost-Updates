@@ -115,6 +115,30 @@ foreach ($buildRoot in $firstPartyBuildRoots) {
 # Cache de compressão criada pelo gerador de recursos fora do repositório.
 if (-not [string]::IsNullOrWhiteSpace($LocalAppDataRoot)) {
     $omniLocalRoot = [IO.Path]::GetFullPath((Join-Path $LocalAppDataRoot 'OmniGhost'))
+    $reproRoot = [IO.Path]::GetFullPath((Join-Path $omniLocalRoot 'build-cache\repro-worktrees')).TrimEnd('\')
+
+    # Unregister any residual reproducibility checkout before deleting its
+    # directory. Removing only the folder leaves stale Git worktree metadata
+    # and Visual Studio may continue evaluating a project that no longer has
+    # its imported props files.
+    $git = Get-Command git -ErrorAction SilentlyContinue
+    if ($null -ne $git -and (Test-Path -LiteralPath (Join-Path $ProjectDir '.git'))) {
+        $worktreeLines = @(& $git.Source -C $ProjectDir worktree list --porcelain 2>$null)
+        if ($LASTEXITCODE -eq 0) {
+            foreach ($line in $worktreeLines) {
+                if ($line -notmatch '^worktree\s+(.+)$') { continue }
+                $candidate = [IO.Path]::GetFullPath($Matches[1].Trim()).TrimEnd('\')
+                if (-not $candidate.StartsWith($reproRoot + '\', [StringComparison]::OrdinalIgnoreCase)) { continue }
+
+                & $git.Source -C $ProjectDir worktree remove --force $candidate 2>$null | Out-Null
+                if ($LASTEXITCODE -ne 0 -and (Test-Path -LiteralPath $candidate)) {
+                    $failed.Add("Git worktree $candidate não pôde ser removido corretamente")
+                }
+            }
+            & $git.Source -C $ProjectDir worktree prune --expire now 2>$null | Out-Null
+        }
+    }
+
     Remove-SafeTree `
         -Path (Join-Path $omniLocalRoot 'build-cache') `
         -AllowedParent $omniLocalRoot `
