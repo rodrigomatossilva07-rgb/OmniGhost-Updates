@@ -4,7 +4,7 @@
 #include "../config/cs2_config.h"
 #include "../weapons/cs2_weapon_icons.h"
 #include "gameplay/dma_telemetry_log.h"
-#include "third_party/ImGui/imgui.h"
+#include "src/project/third_party/ImGui/imgui.h"
 #include "../../src/config/app_settings.h"
 #include "../../src/window/window.hpp"
 
@@ -370,8 +370,8 @@ void DrawExtras(ImDrawList* draw, const CS2::Player& player, const ImVec2& head,
                           std::clamp(settings.halo_thickness, .5f, 5.f));
     }
     if (settings.chinese_hat) {
-        // Keep the effect proportional to the player while avoiding the
-        // oversized brim that previously extended too far beyond the head.
+
+
         constexpr float kCs2ChineseHatSize = .82f;
         const float s = std::clamp(settings.chinese_hat_scale, .4f, 2.5f) *
             scale * kCs2ChineseHatSize;
@@ -444,7 +444,7 @@ void DrawExtras(ImDrawList* draw, const CS2::Player& player, const ImVec2& head,
             points.push_back(point);
 
 
-            // Enough history for ten seconds even when the world snapshot runs at 144 Hz.
+
             constexpr size_t kMaxTrailPoints = 1536;
             if (points.size() > kMaxTrailPoints)
                 points.pop_front();
@@ -905,8 +905,8 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
             headHeights.erase(player.pawn);
             continue;
         }
-        // CS2 is first-person: the local entity remains in Core World for the
-        // native/web radars, but it must never be drawn as player ESP.
+
+
         if (player.is_local) continue;
         if (!settings.show_bots && player.is_bot) continue;
         measuredDeathMs.erase(player.pawn);

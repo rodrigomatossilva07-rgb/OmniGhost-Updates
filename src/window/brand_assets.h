@@ -2,7 +2,7 @@
 
 #include <Windows.h>
 #include <d3d11.h>
-#include "third_party/ImGui/imgui.h"
+#include "src/project/third_party/ImGui/imgui.h"
 
 namespace BrandAssets {
 

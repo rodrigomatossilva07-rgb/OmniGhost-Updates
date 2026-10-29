@@ -8,7 +8,7 @@
 #include "math/math.h"
 #include "../game/game.h"
 #include "ui/ui_models.h"
-#include "third_party/ImGui/imgui.h"
+#include "src/project/third_party/ImGui/imgui.h"
 #include "../playerInfo/PedData.h"
 
 namespace aimbot { struct Config; }

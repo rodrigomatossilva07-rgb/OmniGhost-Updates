@@ -3,7 +3,7 @@
 #include "vehicle_esp.h"
 #include "math/math.h"
 #include "../game/game.h"
-#include "third_party/ImGui/imgui.h"
+#include "src/project/third_party/ImGui/imgui.h"
 #include <iostream>
 #include "../playerInfo/PedData.h"
 #include "../friends/friends.h"
@@ -863,7 +863,7 @@ static void DrawMotionVisuals(uintptr_t ped, Matrix viewport, const PedData* cac
     const bool visible = EspPedVisible(ped);
     const double now = ImGui::GetTime();
 
-    // 320 samples cover ten seconds at the 35 ms minimum sampling interval.
+
     static std::unordered_map<uintptr_t, OmniGhost::Gameplay::FixedTrailHistory<320>> trails;
     static uint64_t trailsSessionGen = 0;
     const uint64_t currentSessionGen = FiveM::ESP::GetSessionGeneration().load(std::memory_order_acquire);

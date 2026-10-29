@@ -25,7 +25,7 @@ npm run build
 
 Vite writes the deployable files to the adjacent `../webradar` directory.
 Those files are embedded into `OmniGhost.exe` by
-`tools/Build-EmbeddedResources.ps1`.
+`src/project/tools/Build-EmbeddedResources.ps1`.
 
 ## Development
 

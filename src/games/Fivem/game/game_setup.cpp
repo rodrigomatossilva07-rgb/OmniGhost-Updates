@@ -1,7 +1,7 @@
 #include "game_setup.h"
 #include "esp_manager.h"
 #include "offsets.h"
-#include "third_party/DMALibrary/Memory/Memory.h"
+#include "src/project/third_party/DMALibrary/Memory/Memory.h"
 #include "globals.h"
 #include "../playerInfo/PedData.h"
 #include "gameplay/weapon_name_registry.h"

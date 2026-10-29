@@ -63,7 +63,7 @@ namespace {
  #if defined(OMNIGHOST_DEV_EXTERNAL_RESOURCES)
         if (!icon) {
             icon = static_cast<HICON>(LoadImageW(
-                nullptr, L"resources\\OmniGhost.ico",
+                nullptr, L"src\\project\\resources\\OmniGhost.ico",
                 IMAGE_ICON, size, size, LR_LOADFROMFILE));
         }
  #endif

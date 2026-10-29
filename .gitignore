@@ -11,7 +11,7 @@ publish/
 *.VC.VC.opendb
 
 
-third_party/upstream/
+src/project/third_party/upstream/
 
 
 *.zip
@@ -42,11 +42,6 @@ src/auth/keyauth_secrets.h
 
 
 logs/
-/config/
-!/config/
-/config/*
-!/config/msix/
-!/config/msix/**
 !src/games/Cs2/config/
 !src/games/Cs2/config/**
 cache/
@@ -56,5 +51,5 @@ OmniGhost.zip
 imgui.ini
 
 
-/data/fivem/collision*/
+/src/project/data/fivem/collision*/
 

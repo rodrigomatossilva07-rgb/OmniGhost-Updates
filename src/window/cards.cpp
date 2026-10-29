@@ -3,7 +3,7 @@
 #include "fonts.h"
 #include "animations.h"
 #include "../config/app_settings.h"
-#include "third_party/ImGui/imgui_internal.h"
+#include "src/project/third_party/ImGui/imgui_internal.h"
 
 #include <algorithm>
 #include <cfloat>

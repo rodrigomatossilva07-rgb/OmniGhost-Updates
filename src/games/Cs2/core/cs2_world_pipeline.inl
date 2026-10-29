@@ -1507,8 +1507,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
         const bool alive = healthAlive &&
             (!controllerKnown || core[c].controller_alive != 0) &&
             IsPlayableTeam(static_cast<int>(core[c].team));
-        // Radars are independent consumers of the Core World snapshot.  Do not
-        // apply ESP presentation filters while building their source data.
+
+
         const bool radar_needs_complete_roster =
             frame_config.web_radar_enabled || frame_config.radar_2d;
         const bool hidden_teammate = !radar_needs_complete_roster && frame_config.team_check &&

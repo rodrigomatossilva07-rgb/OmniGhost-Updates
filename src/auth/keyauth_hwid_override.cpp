@@ -1,4 +1,4 @@
-#include "third_party/keyauth/x64/lib/utils.hpp"
+#include "src/project/third_party/keyauth/x64/lib/utils.hpp"
 #include <atlsecurity.h>
 #include <Windows.h>
 #include <bcrypt.h>

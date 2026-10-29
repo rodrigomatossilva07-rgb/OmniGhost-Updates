@@ -37,7 +37,7 @@ namespace aimbot {
 #include "../game/visibility.h"
 #include "math/math.h"
 #include "config/app_settings.h"
-#include "third_party/ImGui/imgui.h"
+#include "src/project/third_party/ImGui/imgui.h"
 #include <Memory/Memory.h>
 #include <Windows.h>
 #include <cmath>

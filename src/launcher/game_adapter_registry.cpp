@@ -8,7 +8,7 @@
 #include "src/games/Cs2/cs2_game.h"
 #include "src/games/Cs2/aimbot/cs2_aim.h"
 #include "src/games/Cs2/esp/cs2_esp.h"
-#include "third_party/DMALibrary/Memory/Memory.h"
+#include "src/project/third_party/DMALibrary/Memory/Memory.h"
 #include "src/games/Fivem/aimbot/aim_type.h"
 #include "src/games/Fivem/game/game.h"
 #include "src/games/Fivem/game/offset_auto.h"
@@ -237,8 +237,8 @@ bool StartCs2() {
 }
 
 bool StartRust() {
-    // Keep the launcher entry, entitlement and offset catalogue without exposing
-    // a removed/partial runtime as if it were operational.
+
+
     return false;
 }
 

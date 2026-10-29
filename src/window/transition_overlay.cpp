@@ -5,7 +5,7 @@
 #include "performance_mode.h"
 #include "theme.h"
 #include "../config/app_settings.h"
-#include "third_party/ImGui/imgui.h"
+#include "src/project/third_party/ImGui/imgui.h"
 
 #include <algorithm>
 #include <cmath>

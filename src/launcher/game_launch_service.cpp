@@ -3,7 +3,7 @@
 
 #include "../globals.h"
 #include "../platform/offset_auto.h"
-#include "third_party/DMALibrary/Memory/Memory.h"
+#include "src/project/third_party/DMALibrary/Memory/Memory.h"
 #include "src/games/Fivem/game/game.h"
 #include "src/games/Fivem/aimbot/aim_type.h"
 #include "src/games/Cs2/cs2_game.h"

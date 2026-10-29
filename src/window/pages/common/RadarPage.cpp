@@ -1,7 +1,7 @@
 #include "../../widgets.h"
 #include "../../theme.h"
 #include "config/app_settings.h"
-#include "../../../../third_party/keyauth/x64/lib/QRCode/qrcode.hpp"
+#include "../../../project/third_party/keyauth/x64/lib/QRCode/qrcode.hpp"
 #include <cmath>
 #include <memory>
 #include <string>

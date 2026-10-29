@@ -21,7 +21,7 @@
 #include "licensing/license_service.h"
 #include "updater/update_service.h"
 #include "updater/updater_mode.h"
-#include "third_party/DMALibrary/Memory/Memory.h"
+#include "src/project/third_party/DMALibrary/Memory/Memory.h"
 #include "src/games/Fivem/game/game.h"
 #include "src/games/Fivem/aimbot/aim_type.h"
 #include "src/games/Fivem/aimbot/aimbot.h"
@@ -49,7 +49,7 @@
 #include "window/ui_feedback.h"
 #include "window/hardware_monitor.h"
 #include "gameplay/dma_telemetry_log.h"
-#include "third_party/ImGui/imgui.h"
+#include "src/project/third_party/ImGui/imgui.h"
 #include "makcu/makcu_wrapper.h"
 #include "gameplay/process_monitor.h"
 

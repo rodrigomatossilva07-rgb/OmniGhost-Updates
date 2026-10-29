@@ -4,8 +4,8 @@
 #include "../platform/text_encoding.h"
 
 #if defined(OMNIGHOST_KEYAUTH_ENABLED) && !defined(OMNIGHOST_SKIP_KEYAUTH)
-#include "third_party/keyauth/x64/auth.hpp"
-#include "third_party/keyauth/x64/skStr.h"
+#include "src/project/third_party/keyauth/x64/auth.hpp"
+#include "src/project/third_party/keyauth/x64/skStr.h"
 
 
 

@@ -49,7 +49,7 @@ std::string SerializeAll() {
         SerializeCS2(o);
         break;
     case ActiveGame::Rust:
-        // Rust runtime/configuration was intentionally removed; launcher metadata remains.
+
         break;
     case ActiveGame::Fortnite:
 

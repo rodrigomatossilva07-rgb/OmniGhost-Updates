@@ -2,7 +2,7 @@
 setlocal
 cd /d "%~dp0"
 
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\collision\Update-CollisionData.ps1" %*
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0src\project\tools\collision\Update-CollisionData.ps1" %*
 set "result=%ERRORLEVEL%"
 
 echo.

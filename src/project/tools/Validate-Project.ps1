@@ -1,0 +1,362 @@
+[CmdletBinding()]
+param(
+    [Parameter(Mandatory=$false)]
+    [string]$ProjectDir = (Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path))
+)
+$ErrorActionPreference = 'Stop'
+Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot 'Hashing.ps1')
+$ProjectDir = [IO.Path]::GetFullPath($ProjectDir)
+
+$script:PassCount = 0
+$script:VerbosePasses = $env:OMNIGHOST_VERBOSE_VALIDATION -eq '1'
+function Pass([string]$Message) {
+    $script:PassCount++
+    if ($script:VerbosePasses) { Write-Host "  [OK] $Message" -ForegroundColor DarkGreen }
+}
+function Fail([string]$Message) { throw "[FAIL] $Message" }
+function Require-File([string]$Relative) {
+    $path = Join-Path $ProjectDir $Relative
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { Fail "Missing file: $Relative" }
+    Pass "File: $Relative"
+}
+function Require-Absent([string]$Relative) {
+    if (Test-Path -LiteralPath (Join-Path $ProjectDir $Relative)) { Fail "Unexpected path: $Relative" }
+    Pass "Absent: $Relative"
+}
+function Require-Text([string]$Text, [string]$Pattern, [string]$Message) {
+    if ($Text -notmatch $Pattern) { Fail $Message }
+    Pass $Message
+}
+function Forbid-Text([string]$Text, [string]$Pattern, [string]$Message) {
+    if ($Text -match $Pattern) { Fail $Message }
+    Pass $Message
+}
+
+
+
+function Read-Utf8Text([string]$LiteralPath) {
+    return [System.IO.File]::ReadAllText($LiteralPath, [System.Text.UTF8Encoding]::new($false))
+}
+function Get-Sha256([string]$Path) { Get-OmniGhostSha256 -LiteralPath $Path }
+function Assert-ManifestHash([object]$Expected, [string]$Relative) {
+    if (-not $Expected) { Fail "Manifest hash missing for $Relative" }
+    $actual = Get-Sha256 (Join-Path $ProjectDir $Relative)
+    if ($actual -ne ([string]$Expected).ToLowerInvariant()) { Fail "Hash mismatch for $Relative" }
+    Pass "Hash: $Relative"
+}
+
+
+
+
+& (Join-Path $PSScriptRoot 'Update-Cloudflared.ps1') -Ensure -ProjectDir $ProjectDir
+if ($LASTEXITCODE -ne 0) {
+    Fail 'cloudflared.exe could not be verified or repaired; run src\project\tools\Update-Cloudflared.ps1 -Latest and review logs\cloudflared-update-*.log.'
+}
+
+foreach ($file in @(
+    'OmiGhost.vcxproj','src\project\config\build\OmniGhost.Common.props','src\project\config\build\OmniGhost.Release.props',
+    'src\project\config\release\versions.json',
+    'src\runtime\cloudflared\cloudflared.exe','src\project\support\docs\legal\THIRD_PARTY_NOTICES.txt',
+    'src\project\resources\OmniGhost.ico',
+    'src\project\resources\resource.h','src\project\resources\embedded-resources.json',
+    'src\platform\embedded_offsets.cpp','src\platform\embedded_offsets.h',
+    'src\platform\embedded_resources.cpp','src\platform\embedded_resources.h',
+    'src\platform\runtime_bootstrap.cpp','src\platform\runtime_bootstrap.h',
+	'src\project\tools\Build-EmbeddedOffsets.ps1','src\project\tools\Build-EmbeddedRuntime.ps1','src\project\tools\Build-EmbeddedResources.ps1','src\project\tools\Build-CompilePhase.ps1','src\project\tools\ReleaseOutput.ps1','src\project\tools\Verify-BuildMatrix.ps1','src\project\tools\Finalize-VersionCommit.ps1',
+    'src\project\data\fortnite_offsets.json','src\project\data\warzone_offsets.json',
+    'src\licensing\license_service.cpp'
+)) { Require-File $file }
+
+foreach ($path in @('src\project\third_party\DMALibrary\libs','src\project\third_party\DMALibrary\info.db','src\project\libs\info.db','src\launcher\calibration_page.cpp','src\launcher\calibration_page.h')) {
+    Require-Absent $path
+}
+foreach ($file in @('.github\workflows\release.yml')) {
+    Require-File $file
+}
+
+
+
+$libsDir = Join-Path $ProjectDir 'src\project\libs'
+if (-not (Test-Path -LiteralPath $libsDir -PathType Container)) { Fail 'Missing directory: src\project\libs' }
+$libsDlls = @(Get-ChildItem -LiteralPath $libsDir -File -Filter '*.dll' -ErrorAction SilentlyContinue)
+if ($libsDlls.Count -eq 0) { Fail 'No DLL files found in src\project\libs' }
+Pass ("Local runtime bundle: src/project/libs ({0} DLLs)" -f $libsDlls.Count)
+
+
+
+$markdown = @(Get-ChildItem -LiteralPath $ProjectDir -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.Extension -in @('.md','.markdown') })
+if ($markdown.Count -gt 0) {
+    Write-Host ("[INFO] Markdown documentation present: {0} file(s); ignored by build validation." -f $markdown.Count) -ForegroundColor DarkGray
+} else {
+    Pass 'No Markdown source files.'
+}
+
+$versions = Read-Utf8Text (Join-Path $ProjectDir 'src\project\config\release\versions.json') | ConvertFrom-Json
+Assert-ManifestHash $versions.memprocfs.sha256.'vmm.dll' 'src\project\libs\vmm.dll'
+Assert-ManifestHash $versions.leechcore.sha256.'leechcore.dll' 'src\project\libs\leechcore.dll'
+if (-not ($versions.PSObject.Properties.Name -contains 'cloudflared')) {
+    Fail 'src\project\config\release\versions.json is missing the cloudflared pin section; run src\project\tools\Update-Cloudflared.ps1 -Latest.'
+}
+if (-not ($versions.cloudflared.PSObject.Properties.Name -contains 'sha256') -or
+    -not ($versions.cloudflared.sha256.PSObject.Properties.Name -contains 'cloudflared.exe')) {
+    Fail 'src\project\config\release\versions.json cloudflared section is missing the cloudflared.exe SHA-256 pin.'
+}
+Assert-ManifestHash $versions.cloudflared.sha256.'cloudflared.exe' 'src\runtime\cloudflared\cloudflared.exe'
+
+
+
+
+
+$duplicates = @()
+$ignoredGeneratedRoots = @(
+    'build\', 'x64\', '.cache\', '.temp\', 'artifacts\', 'dist\', 'out\', 'src\project\libs\',
+    'src\project\third_party\dma_stack\bin\',
+
+
+    'src\project\third_party\dma_stack.backup\', 'src\project\third_party\dma_stack.staging\'
+)
+foreach ($name in @('vmm.dll','leechcore.dll')) {
+    foreach ($file in Get-ChildItem -LiteralPath $ProjectDir -Recurse -File -Filter $name -ErrorAction SilentlyContinue) {
+        $relative = $file.FullName.Substring($ProjectDir.Length).TrimStart('\')
+        if ($relative -ieq ('src\project\libs\' + $name)) { continue }
+        if ($relative -like 'libs.backup\*' -or $relative -like 'libs.failed-*\*') { continue }
+
+        $isGeneratedCopy = $false
+        foreach ($root in $ignoredGeneratedRoots) {
+            if ($relative.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) {
+                $isGeneratedCopy = $true
+                break
+            }
+        }
+        if ($isGeneratedCopy) { continue }
+
+        $duplicates += $relative
+    }
+}
+if ($duplicates.Count -gt 0) { Fail ('Duplicate DMA runtime DLLs in source tree: ' + ($duplicates -join ', ')) }
+Pass 'Canonical DMA runtime is authoritative; libs is an allowed fallback bundle.'
+
+$project = Read-Utf8Text (Join-Path $ProjectDir 'OmiGhost.vcxproj')
+Require-Text $project 'ProjectConfiguration Include="Release\|x64"' 'Release|x64 configuration exists.'
+Require-Text $project 'ProjectConfiguration Include="Publish\|x64"' 'Publish|x64 configuration exists.'
+Forbid-Text $project 'ProjectConfiguration Include="Tester\|x64"' 'Tester build configuration removed.'
+Forbid-Text $project 'ProjectConfiguration Include="Debug\|x64"' 'Debug build configuration removed.'
+Forbid-Text $project 'ProjectConfiguration Include="Diagnostics\|x64"' 'Diagnostics build configuration removed.'
+Forbid-Text $project 'OmniGhost\.Tester\.props' 'Tester policy import removed.'
+Require-Text $project 'OmniGhost\.Publish\.props' 'Publish policy is imported only by Publish builds.'
+$common = Read-Utf8Text (Join-Path $ProjectDir 'src\project\config\build\OmniGhost.Common.props')
+$release = Read-Utf8Text (Join-Path $ProjectDir 'src\project\config\build\OmniGhost.Release.props')
+$runtimeBootstrap = Read-Utf8Text (Join-Path $ProjectDir 'src\platform\runtime_bootstrap.cpp')
+
+
+Require-Text $project 'src\\project\\libs\\\*\.dll' 'Canonical DMA runtime configured.'
+Require-Text $project 'src\\project\\libs\\\*\.dll' 'Local libs source bundle configured.'
+Require-Text $project 'src\\licensing\\license_service\.cpp' 'Licensing service is part of the build.'
+Require-Text $project 'CleanOmniGhostRuntimeOutput' 'Release runtime output is cleaned before build.'
+Require-Text $project 'data\\runtime\\dma_stack_versions\.json' 'Dependency manifest is kept under data/runtime, not build root.'
+Forbid-Text $project 'dma_stack_managed-files\.json" DestinationFiles="\$\(OutDir\)' 'Development managed-files manifest is not copied to build root.'
+Forbid-Text $project 'ASan\|x64' 'ASan/test configuration removed.'
+Forbid-Text $project 'calibration_page\.cpp' 'Unused launcher calibration page removed from build.'
+Require-Text $project 'Code="OGPLAT001"' 'x64-only platform guard configured.'
+Require-Text $project 'Target Name="ValidateOmniGhostPublishVersion"' 'Publish validates immutable source version metadata.'
+Require-Text $project 'prepare-publish-version' 'Publish prepares the next version only after confirming the current GitHub release.'
+Require-Text $project "OmniGhostSkipVersionAdvance" 'Automatic version preparation is isolated to Publish and can be disabled for CI/preflight builds.'
+Require-Text $project 'Target Name="PublishOmniGhostRelease"' 'Publish owns the validated remote publication target.'
+Forbid-Text $project 'publish_github_release\.ps1' 'MSBuild contains no direct remote publication script.'
+Require-Text $project "publish-build"
+Require-Text $project "OmniGhostSkipRemotePublish" 'Remote publication is restricted to Publish and supports an explicit CI bypass.'
+Require-Text $project 'GenerateOmniGhostBuildMetadata' 'Build provenance metadata is generated without mutating source version.'
+Require-Text $project 'BuildOmniGhostEmbeddedOffsets' 'Embedded offset resources are generated before resource compilation.'
+Require-Text $project 'BuildOmniGhostEmbeddedRuntime' 'Private runtime bundle is generated before compilation.'
+Require-Text $project 'BuildOmniGhostEmbeddedResources' 'Generic embedded resources are generated before compilation.'
+Require-Text $project 'src\\platform\\embedded_resources\.cpp' 'Central embedded resource loader is compiled.'
+Require-Text $project 'ValidateOmniGhostSingleExeRuntime' 'Release/Publish enforce a single-EXE output.'
+Require-Text $common '<DelayLoadDLLs>leechcore\.dll;vmm\.dll' 'DMA imports are delayed until the private runtime is installed.'
+Forbid-Text $runtimeBootstrap 'CopySelf|LaunchInstalled|bootstrap-parent-pid' 'Runtime bootstrap never copies or relaunches OmniGhost.exe.'
+Require-Text $common '<RuntimeLibrary>MultiThreaded</RuntimeLibrary>' 'Main executable uses the static MSVC runtime for first-run portability.'
+$patternProjectData = @'
+<OmniGhostProjectData\s+Include="\$\(ProjectDir\)src\\project\\data\\\*\*\\\*"\s+Exclude="[^"]*\*offsets\.json[^"]*;[^"]*offsets\.json[^"]*"
+'@
+Require-Text $project $patternProjectData 'Customer builds exclude every plaintext offsets JSON from runtime data copy.'
+$patternCs2 = @'
+<OmniGhostCs2Data[^>]+Exclude="\$\(ProjectDir\)src\\games\\Cs2\\data\\offsets\.json"
+'@
+Require-Text $project $patternCs2 'CS2 runtime assets exclude the plaintext offsets snapshot.'
+Require-Text $project "Exists\('\$\(OutDir\)data\\fortnite_offsets\.json'\)" 'Release fails closed if a Fortnite offset JSON reaches runtime output.'
+Require-Text $project "Exists\('\$\(OutDir\)data\\warzone_offsets\.json'\)" 'Release fails closed if a Warzone offset JSON reaches runtime output.'
+Require-Text $project "Exists\('\$\(OutDir\)data\\offsets\.json'\)" 'Release fails closed if a generic offset JSON reaches runtime output.'
+
+
+Require-Text $common '<WarningLevel>Level4</WarningLevel>' 'Level4 warnings enabled.'
+Require-Text $common '/permissive-' 'Strict MSVC conformance enabled.'
+Require-Text $release '<ControlFlowGuard>Guard</ControlFlowGuard>' 'Control Flow Guard enabled for Release.'
+
+
+
+
+
+
+
+$patternOutDir = @'
+<OutDir Condition="'\$\(OutDir\)'==''">\$\(ProjectDir\)build\\</OutDir>
+'@
+Require-Text $common $patternOutDir 'build/ is the default runtime output directory.'
+$patternConfigPublish = @'
+\$\(Configuration\)'=='Publish'.*build\\Publish
+'@
+Require-Text $common $patternConfigPublish 'Publish output is isolated from local Release builds.'
+Require-Text $common '<IntDir>\$\(ProjectDir\)\.cache\\intermediate' 'Intermediates moved out of build/.'
+Require-Text $common '\.cache\\generated' 'Generated headers moved out of build/.'
+Require-Text $common '\.cache\\symbols' 'PDB output moved out of build/.'
+
+$releasePackager = Read-Utf8Text (Join-Path $ProjectDir 'src\project\tools\package_release.ps1')
+Forbid-Text $releasePackager 'robocopy' 'Release staging uses explicit runtime copy rules instead of broad robocopy.'
+Require-Text $releasePackager 'RequiredRuntimeFiles' 'Release staging has an explicit required-runtime allowlist.'
+Forbid-Text $releasePackager 'publish_github_release\.ps1' 'Package phase contains no remote publication code path.'
+Forbid-Text $releasePackager 'SkipPublish' 'Package phase does not expose a legacy publish toggle.'
+Require-Text $releasePackager 'install-manifest\.sha256' 'Runtime packages contain an installation integrity manifest.'
+Forbid-Text $releasePackager 'install-manifest\.sha256\.sig|update\.json\.sig|SignTool|Get-AuthenticodeSignature' 'Release packaging does not require signatures.'
+Forbid-Text $releasePackager "StageDir 'THIRD_PARTY_NOTICES\.txt'" 'Customer ZIP does not install dependency-notice sidecars.'
+Forbid-Text $releasePackager "StageDir 'install-manifest\.sha256'" 'Customer ZIP does not install integrity-manifest sidecars.'
+$installEngine = Read-Utf8Text (Join-Path $ProjectDir 'src\updater\install_engine.cpp')
+Require-Text $installEngine 'ContainsOnlyExecutable\(options\.staging' 'Updater requires a strictly single-executable package.'
+Forbid-Text $installEngine 'RemoveManaged\(' 'Updater cannot delete neighbouring files from the executable directory.'
+Require-Text $releasePackager '\.cache\\generated\\Publish\\x64\\build-metadata\.json' 'Commercial packaging validates generated Publish x64 build provenance metadata.'
+Require-Text $releasePackager 'Commercial package requires a clean reproducible source build' 'Commercial packaging rejects dirty/non-reproducible source builds.'
+Require-Text $releasePackager 'vc_tools_version' 'Commercial packaging requires captured MSVC toolchain metadata.'
+Require-Text $releasePackager 'windows_sdk_version' 'Commercial packaging requires captured Windows SDK metadata.'
+
+$packageWrapper = Read-Utf8Text (Join-Path $ProjectDir 'src\project\tools\Package-Release.ps1')
+Forbid-Text $packageWrapper 'Increment-Version\.ps1|Publish-Build\.ps1|publish_github_release\.ps1' 'Package wrapper can mutate the source version or publish remotely.'
+$publishWrapper = Read-Utf8Text (Join-Path $ProjectDir 'src\project\tools\Publish-Release.ps1')
+Require-Text $publishWrapper 'Publish-Build\.ps1' 'Manual retry reuses the Publish-only orchestrator.'
+$publishBuild = Read-Utf8Text (Join-Path $ProjectDir 'src\project\tools\Publish-Build.ps1')
+Require-Text $publishBuild "metadata\.configuration -cne 'Publish'" 'Publisher rejects outputs not produced by Publish.'
+Require-Text $publishBuild 'build\\Publish' 'Publisher accepts only the isolated Publish output.'
+Forbid-Text $publishBuild 'Validate-CommercialRelease\.ps1' 'Publish build still invokes legacy certificate validation.'
+Require-Text $publishBuild 'Validate-ReleaseArtifacts\.ps1' 'Publish build validates the ZIP, size and SHA-256.'
+$directPublisher = Read-Utf8Text (Join-Path $ProjectDir 'src\project\tools\publish_github_release.ps1')
+Require-Text $publishBuild 'publish_github_release\.ps1' 'Publish uploads validated local artifacts directly after packaging.'
+
+$publishConfig = Read-Utf8Text (Join-Path $ProjectDir 'src\project\config\release\release-publish.json') | ConvertFrom-Json
+if ($publishConfig.publishAfterBuild -ne $true) { Fail 'Publish must publish automatically after a successful build.' }
+Pass 'Publish automatically enters the guarded publication pipeline.'
+if ($publishConfig.requireExplicitPublishCommand -ne $false -or $publishConfig.requireConfirmation -ne $false) {
+    Fail 'Selecting Publish is the explicit operation; no second interactive prompt may block MSBuild.'
+}
+Pass 'Publish is non-interactive after the configuration was selected.'
+if ($publishConfig.requireCleanReproducibleBuild -ne $true -or $publishConfig.requireTagRelease -ne $true) {
+    Fail 'Commercial publication must require clean reproducible tagged source.'
+}
+Pass 'Commercial publication requires clean reproducible tagged source.'
+if ($publishConfig.allowDeterministicSourceSnapshot -ne $true) { Fail 'This source snapshot must explicitly allow deterministic snapshot publication.' }
+Pass 'Deterministic source snapshots are explicitly authorized without weakening validation for real Git clones.'
+if ($publishConfig.PSObject.Properties.Name -contains 'requireAuthenticode' -or
+    $publishConfig.PSObject.Properties.Name -contains 'requireManifestSignature') { Fail 'Release policy still exposes signature requirements.' }
+Pass 'Commercial publication uses HTTPS, size and SHA-256 without certificate dependencies.'
+if ($publishConfig.cleanWorkspaceAfterVerifiedPublish -ne $true) { Fail 'Publish must clean the requested local workspace only after a verified public release.' }
+Pass 'Post-publish workspace cleanup is enabled only after verified publication.'
+if ($publishConfig.PSObject.Properties.Name -contains 'deleteLocalReleaseAfterUpload') { Fail 'Use cleanWorkspaceAfterVerifiedPublish rather than the legacy cleanup setting.' }
+Pass 'No legacy automatic cleanup setting is exposed.'
+if ($publishConfig.defaultMandatory -ne $false) { Fail 'src\project\config\release\release-publish.json must default to optional updates; mandatory releases are explicit.' }
+Pass 'Update policy defaults to optional; mandatory releases require an explicit policy change.'
+
+$cryptoSource = Read-Utf8Text (Join-Path $ProjectDir 'src\updater\crypto.cpp')
+Forbid-Text $cryptoSource 'VerifyDetachedManifestSignature|VerifyAuthenticode|expectedCertificateThumbprint' 'Updater has no release-signature dependency.'
+$symbolsPackager = Read-Utf8Text (Join-Path $ProjectDir 'src\project\tools\Create-SymbolsPackage.ps1')
+Require-Text $symbolsPackager '\.cache\\symbols\\\$Configuration' 'Private symbol package reads the selected configuration PDBs from .cache, not build/.'
+
+$license = Read-Utf8Text (Join-Path $ProjectDir 'src\licensing\license_service.cpp')
+Require-Text $license 'CryptProtectData' 'Local license cache uses Windows DPAPI.'
+Require-Text $license 'CryptUnprotectData' 'Local license cache can be restored with Windows DPAPI.'
+Require-Text $license 'RemoteEntitlementGrants' 'Game access is checked against remote entitlements.'
+
+
+$runner = Read-Utf8Text (Join-Path $ProjectDir 'src\project\tools\Run-OmniGhostPowerShell.cmd')
+Require-Text $runner 'validate-project' 'MSBuild PowerShell bridge exposes validate-project.'
+Require-Text $runner 'Validate-Project\.ps1' 'MSBuild validation bridge points at Validate-Project.ps1.'
+Require-Text $runner 'publish-build' 'MSBuild bridge exposes the Publish-only publication action.'
+
+$metadataValidator = Read-Utf8Text (Join-Path $ProjectDir 'src\project\tools\Ensure-ProjectMetadata.ps1')
+Require-Text $metadataValidator 'sync_version\.ps1' 'Derived version files are synchronized from version.txt.'
+Require-Text $metadataValidator 'Get-VersionFromHeader|Get-VersionFromResource' 'Version validation checks C++ and resource files.'
+
+$sourcePackager = Read-Utf8Text (Join-Path $ProjectDir 'src\project\tools\Create-SourcePackage.ps1')
+Require-Text $sourcePackager 'Validate-Project\.ps1' 'Source packaging runs engineering/dependency preflight validation.'
+Require-Text $sourcePackager 'Preflight PASS' 'Source packaging only proceeds after preflight succeeds.'
+Require-Text $sourcePackager 'source-tree-' 'Source packages use a deterministic source-tree identity when Git metadata is unavailable.'
+
+$metadata = Read-Utf8Text (Join-Path $ProjectDir 'src\project\tools\Generate-BuildMetadata.ps1')
+Require-Text $metadata 'AppVersion' 'Application version is embedded in build metadata.'
+Require-Text $metadata 'CommitId' 'Commit/source identity is embedded in build metadata.'
+Require-Text $metadata 'SourceProvenance' 'Build metadata records how source identity was resolved.'
+Require-Text $metadata 'SOURCE_PACKAGE_MANIFEST\.json' 'Legacy source snapshots receive deterministic provenance fallback metadata.'
+Require-Text $metadata 'SourcePackageDirty' 'Edited extracted source packages are marked non-reproducible.'
+Require-Text $metadata 'WindowsSdkVersion' 'Windows SDK version is embedded in build metadata.'
+Require-Text $metadata 'CompilerVersion' 'Compiler version is embedded in build metadata.'
+Require-Text $metadata 'ReleaseChannel' 'Release channel is embedded in build metadata.'
+Require-Text $metadata 'SOURCE_BUILD_METADATA\.json' 'Extracted source packages preserve build provenance without shipping .git.'
+$manifestSource = Read-Utf8Text (Join-Path $ProjectDir 'src\updater\manifest.cpp')
+$updateTypes = Read-Utf8Text (Join-Path $ProjectDir 'src\updater\update_types.h')
+$updateHeader = Read-Utf8Text (Join-Path $ProjectDir 'src\updater\update_service.h')
+$updateService = Read-Utf8Text (Join-Path $ProjectDir 'src\updater\update_service.cpp')
+$updateUi = Read-Utf8Text (Join-Path $ProjectDir 'src\updater\update_ui.cpp')
+Require-Text $manifestSource 'mandatoryReason' 'Updater manifest supports an explicit mandatory-update reason.'
+Require-Text $updateTypes 'mandatoryReason' 'Updater snapshot carries the mandatory-update reason to UI.'
+Require-Text $updateHeader 'DownloadAndScheduleInstallOnExitAsync' 'Optional updates expose an install-on-exit download action.'
+Require-Text $updateService 'belowMinimumSupported' 'Mandatory status explains minimum-supported-version enforcement.'
+$patternStage = @'
+stage == "integrity".*VerifyInstallationAsync\(
+'@
+Require-Text $updateService $patternStage 'Retry repeats installation verification for integrity-stage failures.'
+
+
+
+Require-Text $updateUi 'DownloadAndScheduleInstallOnExitAsync\(\)' 'Optional update UI wires the Install-on-exit action.'
+Require-Text $updateUi 'RetryLastFailure\(\)' 'Updater UI wires stage-aware Retry.'
+Require-Text $updateUi 'releaseNotesForCompletedUpdate\.c_str\(\)' 'Updater UI exposes completed-update release notes.'
+
+$configManager = Read-Utf8Text (Join-Path $ProjectDir 'src\config\config_manager.cpp')
+$configCore = Read-Utf8Text (Join-Path $ProjectDir 'src\config\config_core.cpp')
+Require-Text $configManager 'CurrentAppVersion\(\)|meta\.app_version' 'Config metadata reads the embedded application version.'
+Require-Text $configCore 'BuildInfo::AppVersion' 'Config core resolves the embedded application version.'
+$patternInstallDir = @'
+InstallDirectory\(\).+version\.txt
+'@
+Forbid-Text $configManager $patternInstallDir 'Runtime config no longer depends on version.txt beside the EXE.'
+Forbid-Text $configCore $patternInstallDir 'Config core no longer depends on version.txt beside the EXE.'
+
+
+
+
+$offsetAdapterFiles = @(
+    'src\games\Cs2\cs2_game.h',
+    'src\games\Fivem\game\offsets.cpp',
+    'src\games\Fivem\game\offsets.h',
+    'src\games\Fortnite\fortnite_game.h'
+)
+foreach ($relative in $offsetAdapterFiles) {
+    $offsetAdapter = Read-Utf8Text (Join-Path $ProjectDir $relative)
+    Forbid-Text $offsetAdapter 'kSeedBuildOffsets|SeedFromHardcoded|kLegacyEntityIdentityStride' "No emergency offset table in $relative."
+}
+$fiveMOffsetsPath = Join-Path $ProjectDir 'src\project\data\fivem_offsets.json'
+$fiveMOffsets = Get-Content -LiteralPath $fiveMOffsetsPath -Raw | ConvertFrom-Json
+$indexedBuilds = @($fiveMOffsets.build_index.PSObject.Properties |
+    Where-Object Name -ne 'count' | ForEach-Object {
+        [Convert]::ToInt32(([string]$_.Value -replace '^0[xX]', ''), 16)
+    })
+$declaredBuilds = @($fiveMOffsets.builds.PSObject.Properties.Name | ForEach-Object { [int]$_ })
+if ([Convert]::ToInt32(([string]$fiveMOffsets.build_index.count -replace '^0[xX]', ''), 16) -ne $indexedBuilds.Count -or
+    @(Compare-Object ($indexedBuilds | Sort-Object) ($declaredBuilds | Sort-Object)).Count -ne 0) {
+    Fail 'src\project\data\fivem_offsets.json build_index must exactly match builds for embedded loading.'
+}
+Pass 'All game offsets use src/project/data JSON snapshots; FiveM embedded build index is complete.'
+
+Pass 'Engineering documentation is intentionally non-blocking for compilation.'
+
+Write-Host ''
+Write-Host ("[OmniGhost Validation] OK - {0} verificações concluídas" -f $script:PassCount) -ForegroundColor Green
+if (-not $script:VerbosePasses) {
+    Write-Host '  Detalhes ocultos para manter o output legível. Define OMNIGHOST_VERBOSE_VALIDATION=1 para os mostrar.' -ForegroundColor DarkGray
+}

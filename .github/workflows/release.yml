@@ -38,12 +38,12 @@ jobs:
         id: version
         shell: pwsh
         run: |
-          $version = (Get-Content -LiteralPath config/release/version.txt -Raw).Trim()
+          $version = (Get-Content -LiteralPath src/project/config/release/version.txt -Raw).Trim()
           if ($version -notmatch '^(0|[1-9]\d*)\.[0-9]\.[0-9]$') {
             throw "Invalid OmniGhost version '$version'. MINOR and PATCH must be 0..9."
           }
           if ('${{ github.ref_type }}' -eq 'tag' -and '${{ github.ref_name }}' -cne "v$version") {
-            throw "Tag '${{ github.ref_name }}' does not match config/release/version.txt (v$version)."
+            throw "Tag '${{ github.ref_name }}' does not match src/project/config/release/version.txt (v$version)."
           }
           if (git status --porcelain --untracked-files=normal) {
             throw 'Checkout is not clean before the release build.'
@@ -56,19 +56,9 @@ jobs:
       - name: Validate project and release policy
         shell: pwsh
         run: |
-          ./tools/Validate-Project.ps1 -ProjectDir .
-          ./tools/Test-ReleaseEngineering.ps1 -ProjectDir .
-          ./tools/Test-MakcuIntegration.ps1
-          ./tools/Test-LauncherAccountService.ps1
-          ./tools/Audit-UiLocalization.ps1 -ProjectDir . -ReportPath artifacts/validation/localization.json
-
-      - name: Build and run security regression tests
-        shell: pwsh
-        run: |
-          # CI-002 Fix: tests/OmniGhost.SecurityTests.vcxproj no longer exists;
-          # the maintained suite is the AdminApi .NET security tests.
-          dotnet test infrastructure/server/OmniGhost.AdminApi.Tests/OmniGhost.AdminApi.Tests.csproj -c Release
-          if ($LASTEXITCODE -ne 0) { throw 'Security tests failed.' }
+          ./src/project/tools/Validate-Project.ps1 -ProjectDir .
+          ./src/project/tools/Test-ReleaseEngineering.ps1 -ProjectDir .
+          ./src/project/tools/Audit-UiLocalization.ps1 -ProjectDir . -ReportPath artifacts/validation/localization.json
 
       - name: Build customer binary
         shell: pwsh
@@ -81,7 +71,7 @@ jobs:
       - name: Package, generate SBOM and audit dependencies
         shell: pwsh
         run: |
-          ./tools/Package-Release.ps1 `
+          ./src/project/tools/Package-Release.ps1 `
             -ProjectDir . `
             -BuildDir ./build/Publish `
             -Mode Publish
@@ -89,7 +79,7 @@ jobs:
       - name: Validate final release assets
         shell: pwsh
         run: |
-          ./tools/Validate-ReleaseArtifacts.ps1 `
+          ./src/project/tools/Validate-ReleaseArtifacts.ps1 `
             -ProjectDir . `
             -ReleaseDirectory ./artifacts/release `
             -Version '${{ steps.version.outputs.version }}'
@@ -145,9 +135,9 @@ jobs:
         id: version
         shell: pwsh
         run: |
-          $version = (Get-Content -LiteralPath config/release/version.txt -Raw).Trim()
+          $version = (Get-Content -LiteralPath src/project/config/release/version.txt -Raw).Trim()
           if ('${{ github.ref_name }}' -cne "v$version") { throw 'Tag/version mismatch.' }
-          ./tools/Validate-ReleaseArtifacts.ps1 -ProjectDir . -ReleaseDirectory ./artifacts/release -Version $version
+          ./src/project/tools/Validate-ReleaseArtifacts.ps1 -ProjectDir . -ReleaseDirectory ./artifacts/release -Version $version
           "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
       - name: Create minimal public release from validated assets

@@ -1,5 +1,5 @@
 #include "fonts.h"
-#include "third_party/ImGui/imgui_internal.h"
+#include "src/project/third_party/ImGui/imgui_internal.h"
 #include "../platform/app_paths.h"
 
 #include <Windows.h>

@@ -1,7 +1,7 @@
 #include "EspPreview.h"
 #include "../../../launcher/launcher_assets.h"
 #include "../../../config/app_settings.h"
-#include "third_party/ImGui/imgui_internal.h"
+#include "src/project/third_party/ImGui/imgui_internal.h"
 
 #include <cmath>
 #include <unordered_map>

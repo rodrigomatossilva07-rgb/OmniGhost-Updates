@@ -1,6 +1,6 @@
 
 #include "peddata.h"
-#include "third_party/DMALibrary/Memory/Memory.h"
+#include "src/project/third_party/DMALibrary/Memory/Memory.h"
 #include "../game/game.h"
 #include "globals.h"
 #include "../esp/esp.h"

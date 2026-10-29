@@ -2,7 +2,7 @@
 #include "../game/game.h"
 #include "../game/offsets.h"
 #include "../game/esp_manager.h"
-#include "third_party/ImGui/imgui.h"
+#include "src/project/third_party/ImGui/imgui.h"
 #include <Memory/Memory.h>
 #include <cmath>
 #include <algorithm>

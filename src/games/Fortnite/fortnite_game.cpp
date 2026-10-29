@@ -1,5 +1,5 @@
 #include "fortnite_game.h"
-#include "third_party/DMALibrary/Memory/Memory.h"
+#include "src/project/third_party/DMALibrary/Memory/Memory.h"
 #include "platform/offset_source.h"
 #include "gameplay/snapshot_exchange.h"
 #include "gameplay/frame_pipeline.h"

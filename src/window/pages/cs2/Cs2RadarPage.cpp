@@ -6,7 +6,7 @@
 #include "Memory/Memory.h"
 #include "globals.h"
 #include "games/Cs2/radar/cs2_web_radar.h"
-#include "../../../../third_party/keyauth/x64/lib/QRCode/qrcode.hpp"
+#include "../../../project/third_party/keyauth/x64/lib/QRCode/qrcode.hpp"
 #include "imgui.h"
 #include <Windows.h>
 #include <shellapi.h>
@@ -92,9 +92,9 @@ void DrawCs2Radar() {
     bool webEnabled = CS2::config.web_radar_enabled;
     if (CyberWidgets::ToggleSwitch("Ativar Web Radar", &webEnabled)) {
         CS2::config.web_radar_enabled = webEnabled;
-        // The acquisition worker owns an immutable configuration snapshot.
-        // Publish the change before starting the server so Web Radar can keep
-        // its own player acquisition active even when ESP is disabled.
+
+
+
         CS2::SubmitAcquisitionConfig(CS2::config);
         if (webEnabled) CS2::WebRadar::Start(CS2::config.web_radar_port);
         else CS2::WebRadar::Stop();

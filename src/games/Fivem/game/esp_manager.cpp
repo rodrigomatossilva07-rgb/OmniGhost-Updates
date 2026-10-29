@@ -1,6 +1,6 @@
 #include "esp_manager.h"
 #include "config/app_settings.h"
-#include "third_party/ImGui/imgui.h"
+#include "src/project/third_party/ImGui/imgui.h"
 #include "offsets.h"
 #include "../esp/esp.h"
 #include "../esp/vehicle_esp.h"
@@ -11,7 +11,7 @@
 #include "../friends/friends.h"
 #include "visibility.h"
 #include "../playerInfo/PedData.h"
-#include "third_party/DMALibrary/Memory/Memory.h"
+#include "src/project/third_party/DMALibrary/Memory/Memory.h"
 #include "globals.h"
 #include <iostream>
 #include <cstdio>

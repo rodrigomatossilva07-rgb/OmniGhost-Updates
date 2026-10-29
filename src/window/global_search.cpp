@@ -1,6 +1,6 @@
 #include "global_search.h"
 #include "theme.h"
-#include "third_party/ImGui/imgui.h"
+#include "src/project/third_party/ImGui/imgui.h"
 #include <algorithm>
 #include <cctype>
 #include <cstdio>

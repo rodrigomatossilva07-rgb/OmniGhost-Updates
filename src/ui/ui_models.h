@@ -1,6 +1,6 @@
 #pragma once
 
-#include "third_party/ImGui/imgui.h"
+#include "src/project/third_party/ImGui/imgui.h"
 #include "gameplay/esp_config_base.h"
 
 #include <cstdint>

@@ -89,43 +89,43 @@
     <ClCompile Include="src\updater\github_release_resolver.cpp">
       <Filter>Source Files\updater</Filter>
     </ClCompile>
-    <ClCompile Include="third_party\ImGui\imgui.cpp">
+    <ClCompile Include="src\project\third_party\ImGui\imgui.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="third_party\ImGui\imgui_draw.cpp">
+    <ClCompile Include="src\project\third_party\ImGui\imgui_draw.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="third_party\ImGui\imgui_impl_dx11.cpp">
+    <ClCompile Include="src\project\third_party\ImGui\imgui_impl_dx11.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="third_party\ImGui\imgui_impl_win32.cpp">
+    <ClCompile Include="src\project\third_party\ImGui\imgui_impl_win32.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="third_party\ImGui\imgui_tables.cpp">
+    <ClCompile Include="src\project\third_party\ImGui\imgui_tables.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="third_party\ImGui\imgui_widgets.cpp">
+    <ClCompile Include="src\project\third_party\ImGui\imgui_widgets.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="third_party\DMALibrary\Memory\InputManager.cpp">
+    <ClCompile Include="src\project\third_party\DMALibrary\Memory\InputManager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="third_party\DMALibrary\Memory\Memory.cpp">
+    <ClCompile Include="src\project\third_party\DMALibrary\Memory\Memory.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="third_party\DMALibrary\Memory\MemoryInit.cpp">
+    <ClCompile Include="src\project\third_party\DMALibrary\Memory\MemoryInit.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="third_party\DMALibrary\Memory\MemoryIO.cpp">
+    <ClCompile Include="src\project\third_party\DMALibrary\Memory\MemoryIO.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="third_party\DMALibrary\Memory\Registry.cpp">
+    <ClCompile Include="src\project\third_party\DMALibrary\Memory\Registry.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="third_party\DMALibrary\Memory\Shellcode.cpp">
+    <ClCompile Include="src\project\third_party\DMALibrary\Memory\Shellcode.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="third_party\DMALibrary\pch.cpp">
+    <ClCompile Include="src\project\third_party\DMALibrary\pch.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\math\math.cpp">
@@ -428,7 +428,7 @@
     <ClCompile Include="src\launcher\game_adapter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="third_party\DMALibrary\Memory\MemoryLifecycle.cpp">
+    <ClCompile Include="src\project\third_party\DMALibrary\Memory\MemoryLifecycle.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\platform\file_integrity.cpp">
@@ -608,7 +608,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="resources\app.rc">
+    <ResourceCompile Include="src\project\resources\app.rc">
       <Filter>Resource Files</Filter>
     </ResourceCompile>
   </ItemGroup>

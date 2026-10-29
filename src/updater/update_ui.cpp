@@ -7,7 +7,7 @@
 #include "../window/widgets.h"
 #include "../window/ui_feedback.h"
 #include "../window/transition_overlay.h"
-#include "third_party/ImGui/imgui.h"
+#include "src/project/third_party/ImGui/imgui.h"
 
 #include <Windows.h>
 #include <Shellapi.h>

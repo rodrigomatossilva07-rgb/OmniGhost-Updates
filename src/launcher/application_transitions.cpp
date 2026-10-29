@@ -9,7 +9,7 @@
 #include "../window/theme.h"
 #include "../window/transition_overlay.h"
 #include "../window/window.hpp"
-#include "third_party/ImGui/imgui.h"
+#include "src/project/third_party/ImGui/imgui.h"
 
 #include <algorithm>
 #include <cfloat>

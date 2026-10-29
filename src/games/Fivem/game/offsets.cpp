@@ -1,7 +1,7 @@
 #include "offsets.h"
 
 #include "globals.h"
-#include "third_party/DMALibrary/Memory/Memory.h"
+#include "src/project/third_party/DMALibrary/Memory/Memory.h"
 #include "../../../platform/offset_source.h"
 
 #include <cctype>

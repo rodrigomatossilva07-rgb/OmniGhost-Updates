@@ -2,7 +2,7 @@
 #include <chrono>
 #include <cstdint>
 #include <vector>
-#include "third_party/DMALibrary/Memory/Memory.h"
+#include "src/project/third_party/DMALibrary/Memory/Memory.h"
 #include "../playerInfo/PedData.h"
 #include "offsets.h"
 #include "../collision/fivem_collision_world.h"

@@ -1,7 +1,7 @@
 #include "gameplay/dma_telemetry_log.h"
 #include "platform/session_log.h"
 #include "platform/resource_tracker.h"
-#include "third_party/DMALibrary/Memory/Memory.h"
+#include "src/project/third_party/DMALibrary/Memory/Memory.h"
 
 #include <algorithm>
 #include <array>
