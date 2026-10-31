@@ -214,6 +214,10 @@ void DrawCs2Status() {
     int onScreen = 0;
     int bonesReady = 0;
     int visibilityKnown = 0;
+    int rejectedBots = 0;
+    int rejectedTeam = 0;
+    int rejectedVisibility = 0;
+    int rejectedDistance = 0;
     if (attached) {
         const ImVec2 displaySize = ImGui::GetIO().DisplaySize;
         for (const CS2::Player& player : world->players) {
@@ -224,13 +228,6 @@ void DrawCs2Status() {
                 player.position_sample_ms : world->world_sample_ms;
             if (!positionSample || now < positionSample || now - positionSample > 1000) continue;
             ++positionValid;
-            if (!CS2::config.show_bots && player.is_bot) continue;
-            if (CS2::config.team_check && player.team == world->local_team) continue;
-            if (CS2::config.visible_check && !CS2::config.visibility_colors &&
-                (!player.visibility_known || !player.visible)) continue;
-            if (!std::isfinite(player.distance) ||
-                (CS2::config.max_distance > 0.f && player.distance > CS2::config.max_distance)) continue;
-            ++filterCandidates;
             if (player.bones_ok) ++bonesReady;
             if (player.visibility_known) ++visibilityKnown;
             ImVec2 point{};
@@ -239,6 +236,22 @@ void DrawCs2Status() {
                 if (point.x >= 0.f && point.x <= displaySize.x &&
                     point.y >= 0.f && point.y <= displaySize.y) ++onScreen;
             }
+            if (!CS2::config.show_bots && player.is_bot) { ++rejectedBots; continue; }
+            if (CS2::config.team_check && player.team == world->local_team) {
+                ++rejectedTeam;
+                continue;
+            }
+            if (CS2::config.visible_check && !CS2::config.visibility_colors &&
+                (!player.visibility_known || !player.visible)) {
+                ++rejectedVisibility;
+                continue;
+            }
+            if (!std::isfinite(player.distance) ||
+                (CS2::config.max_distance > 0.f && player.distance > CS2::config.max_distance)) {
+                ++rejectedDistance;
+                continue;
+            }
+            ++filterCandidates;
         }
     }
 
@@ -296,17 +309,17 @@ void DrawCs2Status() {
     char projection[96]{};
     if (!renderMatrix)
         std::snprintf(projection, sizeof(projection), "Bloqueado pela ViewMatrix");
-    else if (filterCandidates == 0)
-        std::snprintf(projection, sizeof(projection), "A aguardar candidato válido");
+    else if (positionValid == 0)
+        std::snprintf(projection, sizeof(projection), "A aguardar posição válida");
     else
         std::snprintf(projection, sizeof(projection), "%d/%d projetáveis · %d no ecrã",
-            projected, filterCandidates, onScreen);
-    const bool projectionOk = renderMatrix && (filterCandidates == 0 || projected > 0);
+            projected, positionValid, onScreen);
+    const bool projectionOk = renderMatrix && (positionValid == 0 || projected > 0);
     HealthRow("World-to-Screen", projection,
         projectionOk ? HealthStatus::Ok : HealthStatus::Warning);
-    std::snprintf(value, sizeof(value), "%d/%d jogadores", bonesReady, filterCandidates);
+    std::snprintf(value, sizeof(value), "%d/%d jogadores", bonesReady, positionValid);
     HealthRow("Ossos", value,
-        filterCandidates == 0 || bonesReady > 0 ? HealthStatus::Ok : HealthStatus::Warning);
+        positionValid == 0 || bonesReady > 0 ? HealthStatus::Ok : HealthStatus::Warning);
     EndCard();
 
     NextCardColumn();
@@ -314,6 +327,9 @@ void DrawCs2Status() {
     std::snprintf(value, sizeof(value), "%d de %d elegíveis", filterCandidates, aliveRemote);
     HealthRow("Após filtros", value,
         aliveRemote == 0 || filterCandidates > 0 ? HealthStatus::Ok : HealthStatus::Warning);
+    std::snprintf(value, sizeof(value), "equipa %d · bots %d · visib. %d · distância %d",
+        rejectedTeam, rejectedBots, rejectedVisibility, rejectedDistance);
+    KeyValueRow("Excluídos", value);
     KeyValueRow("Equipa", CS2::config.team_check ? "Ocultar aliados" : "Mostrar todos");
     KeyValueRow("Bots", CS2::config.show_bots ? "Mostrar" : "Ocultar");
     std::snprintf(value, sizeof(value), "%.0f m", CS2::config.max_distance);
@@ -322,7 +338,7 @@ void DrawCs2Status() {
         (CS2::config.visibility_colors ? "Cores visível/oculto" : "Apenas visíveis") :
         (CS2::config.visibility_colors ? "Cores sem filtragem" : "Desativada");
     KeyValueRow("Visibilidade", visibilityMode);
-    std::snprintf(value, sizeof(value), "%d/%d conhecidos", visibilityKnown, filterCandidates);
+    std::snprintf(value, sizeof(value), "%d/%d conhecidos", visibilityKnown, positionValid);
     KeyValueRow("Dados de visibilidade", value);
     EndCard();
     EndCardRow();
