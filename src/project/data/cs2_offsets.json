@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "game": "cs2",
-  "build": "cs2-dumper-14193",
-  "cl": "14193",
+  "build": "cs2-dumper-14194",
+  "cl": "14194",
   "module": "client.dll",
-  "source": "cs2-dumper target/debug/output from src/games/Cs2/dumper (build 14193)",
-  "generated_at": "2026-10-29T00:30:34.768265300Z",
+  "source": "cs2-dumper output from src/games/Cs2/dumper (build 14194)",
+  "generated_at": "2026-10-31T22:03:44Z",
   "layout": {
     "entity_identity_stride": "0x70",
     "entity_identity_pointer": "0x10",
@@ -39,8 +39,8 @@
   },
   "client.dll": {
     "dwCSGOInput": "0x257F980",
-    "dwEntityList": "0x271EB08",
-    "dwGameEntitySystem": "0x271EB08",
+    "dwEntityList": "0x271EB28",
+    "dwGameEntitySystem": "0x271EB28",
     "dwGameEntitySystem_highestEntityIndex": "0x2120",
     "dwGameRules": "0x2569378",
     "dwGlobalVars": "0x2234108",

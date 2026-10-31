@@ -364,7 +364,6 @@ void DrawCs2Visuals() {
 
     ImGui::SetScrollY(0.0f);
     CyberWidgets::BeginCard("PREVIEW & ESP BUILDER", previewWidth);
-    CyberWidgets::TextLine("Arrasta os rótulos na pré-visualização.", CyberWidgets::TextTone::Secondary);
     const float panelHeight = (std::max)(CyberTheme::Px(220.f), height - CyberTheme::Metrics::CardHeaderHeight - CyberTheme::Metrics::CardPadding * 2.f - CyberTheme::Px(116.f));
     const float availableWidth = ImGui::GetContentRegionAvail().x;
     const float drawWidth = (std::max)(CyberTheme::Px(180.f), (std::min)(availableWidth,

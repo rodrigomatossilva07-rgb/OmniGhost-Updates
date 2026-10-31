@@ -1174,8 +1174,20 @@ bool ConfirmUpdaterStartupFromCommandLine(int argc, wchar_t** argv) {
         else if (std::wstring(argv[i]) == L"--update-confirm-file") file = argv[++i];
     }
     const fs::path confirmationPath(file);
+    const fs::path confirmationDirectory = confirmationPath.parent_path();
+    const std::wstring confirmationName = confirmationPath.filename().wstring();
+    const bool validConfirmationName =
+        confirmationName.rfind(L"startup-confirm-", 0) == 0 &&
+        confirmationPath.extension() == L".txt";
+    // The updater and the restarted application deliberately run under different
+    // PIDs, so Paths::Updates() points at a different per-process directory in
+    // each process. Accept only the updater's tightly scoped updates-staging
+    // directory below OmniGhost's private runtime root.
+    const bool validConfirmationDirectory =
+        _wcsicmp(confirmationDirectory.filename().c_str(), L"updates-staging") == 0 &&
+        DescendantPath(confirmationDirectory, Paths::RuntimeRoot());
     if (!IsHexToken(token, 64) || confirmationPath.empty() || !confirmationPath.is_absolute() ||
-        !DescendantPath(confirmationPath.parent_path(), Paths::Updates())) {
+        !validConfirmationName || !validConfirmationDirectory) {
         return false;
     }
 
