@@ -62,6 +62,19 @@ inline int FormatInt(char* buffer, size_t size, int value) {
     return std::snprintf(buffer, size, "%d", value);
 }
 
+bool IsUsableViewMatrix(const float matrix[16]) noexcept {
+    if (!matrix) return false;
+    int meaningful = 0;
+    for (int index = 0; index < 16; ++index) {
+        const float value = matrix[index];
+        if (!std::isfinite(value) || std::fabs(value) >= 1'000'000.f)
+            return false;
+        if (std::fabs(value) > .000001f)
+            ++meaningful;
+    }
+    return meaningful >= 4;
+}
+
 bool WorldToScreen(const float world[3], const float matrix[16], ImVec2& screen) {
     const float clipX = world[0] * matrix[0] + world[1] * matrix[1] + world[2] * matrix[2] + matrix[3];
     const float clipY = world[0] * matrix[4] + world[1] * matrix[5] + world[2] * matrix[6] + matrix[7];
@@ -800,11 +813,24 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
         return;
 
 
-    if (!frameCamera.timestamp_ms || nowMs < frameCamera.timestamp_ms ||
-        nowMs - frameCamera.timestamp_ms > 250u)
+    const float* frameViewMatrix = nullptr;
+    uint64_t presentationSampleMs = 0;
+    if (frameCamera.timestamp_ms && nowMs >= frameCamera.timestamp_ms &&
+        nowMs - frameCamera.timestamp_ms <= 250u &&
+        IsUsableViewMatrix(frameCamera.view_matrix)) {
+        frameViewMatrix = frameCamera.view_matrix;
+        presentationSampleMs = frameCamera.timestamp_ms;
+    } else if (snapshot.snapshot_timestamp_ms && nowMs >= snapshot.snapshot_timestamp_ms &&
+        nowMs - snapshot.snapshot_timestamp_ms <= 1000u &&
+        IsUsableViewMatrix(snapshot.view_matrix)) {
+        // The acquisition snapshot already validates/probes this matrix.  Do not
+        // suppress all ESP merely because the independent high-rate camera lane
+        // was temporarily busy or has not published its first sample yet.
+        frameViewMatrix = snapshot.view_matrix;
+        presentationSampleMs = snapshot.snapshot_timestamp_ms;
+    }
+    if (!frameViewMatrix)
         return;
-    const float* frameViewMatrix = frameCamera.view_matrix;
-    const uint64_t presentationSampleMs = frameCamera.timestamp_ms;
     const auto presentationDeltaMs = [presentationSampleMs](uint64_t sampleMs) {
         const float deltaMs = presentationSampleMs >= sampleMs
             ? static_cast<float>((std::min)(presentationSampleMs - sampleMs, uint64_t{35}))
