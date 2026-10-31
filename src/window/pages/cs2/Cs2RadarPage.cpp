@@ -16,6 +16,44 @@
 #include <memory>
 
 namespace {
+bool IsUsableCs2Matrix(const float* matrix) {
+    if (!matrix) return false;
+    int meaningful = 0;
+    for (int index = 0; index < 16; ++index) {
+        const float value = matrix[index];
+        if (!std::isfinite(value) || std::fabs(value) >= 1'000'000.f) return false;
+        if (std::fabs(value) > .000001f) ++meaningful;
+    }
+    return meaningful >= 4;
+}
+
+bool DiagnosticWorldToScreen(const float world[3], const float matrix[16],
+                             const ImVec2 displaySize, ImVec2& screen) {
+    if (!world || !IsUsableCs2Matrix(matrix) || displaySize.x <= 1.f || displaySize.y <= 1.f)
+        return false;
+    const float clipX = world[0] * matrix[0] + world[1] * matrix[1] + world[2] * matrix[2] + matrix[3];
+    const float clipY = world[0] * matrix[4] + world[1] * matrix[5] + world[2] * matrix[6] + matrix[7];
+    const float clipW = world[0] * matrix[12] + world[1] * matrix[13] + world[2] * matrix[14] + matrix[15];
+    if (!std::isfinite(clipX) || !std::isfinite(clipY) || !std::isfinite(clipW) || clipW < .01f)
+        return false;
+    screen.x = displaySize.x * .5f * (1.f + clipX / clipW);
+    screen.y = displaySize.y * .5f * (1.f - clipY / clipW);
+    return std::isfinite(screen.x) && std::isfinite(screen.y);
+}
+
+bool IsFiniteCs2Position(const float position[3]) {
+    return position && std::isfinite(position[0]) && std::isfinite(position[1]) &&
+        std::isfinite(position[2]);
+}
+
+void FormatAge(char* buffer, const size_t size, const uint64_t now, const uint64_t sample) {
+    if (!sample || now < sample) {
+        std::snprintf(buffer, size, "sem amostra");
+        return;
+    }
+    std::snprintf(buffer, size, "%llu ms", static_cast<unsigned long long>(now - sample));
+}
+
 void DrawCs2PublicLinkQr(const std::string& url) {
     static std::string encodedUrl;
     static std::unique_ptr<qrcodegen::QrCode> qr;
@@ -155,20 +193,54 @@ void DrawCs2Status() {
     const bool worldFresh = worker && world && world->snapshot_timestamp_ms &&
         now >= world->snapshot_timestamp_ms && now - world->snapshot_timestamp_ms < 1000;
     const bool attached = worldFresh && world->client_base != 0;
-    bool matrixValid = false;
-    if (camera && camera->timestamp_ms) {
-        int nonzero = 0;
-        matrixValid = true;
-        for (float value : camera->view_matrix) {
-            if (!std::isfinite(value)) { matrixValid = false; break; }
-            if (std::fabs(value) > 0.00001f) ++nonzero;
-        }
-        matrixValid = matrixValid && nonzero >= 4;
-    }
-    const bool cameraFresh = attached && matrixValid &&
-        now >= camera->timestamp_ms && now - camera->timestamp_ms < 250;
+    const bool fastMatrixValid = camera && camera->timestamp_ms &&
+        IsUsableCs2Matrix(camera->view_matrix);
+    const bool cameraFresh = attached && fastMatrixValid && now >= camera->timestamp_ms &&
+        now - camera->timestamp_ms <= 250;
+    const bool snapshotMatrixValid = attached && world->snapshot_timestamp_ms &&
+        now >= world->snapshot_timestamp_ms && now - world->snapshot_timestamp_ms <= 1000 &&
+        IsUsableCs2Matrix(world->view_matrix);
+    const float* renderMatrix = cameraFresh ? camera->view_matrix :
+        snapshotMatrixValid ? world->view_matrix : nullptr;
+    const uint64_t renderMatrixSample = cameraFresh ? camera->timestamp_ms :
+        snapshotMatrixValid ? world->snapshot_timestamp_ms : 0;
     const bool offsetsOk = CS2::offsets.loaded &&
         compatibility.state == OmniGhost::OffsetAuto::CompatibilityState::Ready;
+
+    int aliveRemote = 0;
+    int positionValid = 0;
+    int filterCandidates = 0;
+    int projected = 0;
+    int onScreen = 0;
+    int bonesReady = 0;
+    int visibilityKnown = 0;
+    if (attached) {
+        const ImVec2 displaySize = ImGui::GetIO().DisplaySize;
+        for (const CS2::Player& player : world->players) {
+            if (!player.pawn || player.is_local || !player.alive) continue;
+            ++aliveRemote;
+            if (!IsFiniteCs2Position(player.pos)) continue;
+            const uint64_t positionSample = player.position_sample_ms ?
+                player.position_sample_ms : world->world_sample_ms;
+            if (!positionSample || now < positionSample || now - positionSample > 1000) continue;
+            ++positionValid;
+            if (!CS2::config.show_bots && player.is_bot) continue;
+            if (CS2::config.team_check && player.team == world->local_team) continue;
+            if (CS2::config.visible_check && !CS2::config.visibility_colors &&
+                (!player.visibility_known || !player.visible)) continue;
+            if (!std::isfinite(player.distance) ||
+                (CS2::config.max_distance > 0.f && player.distance > CS2::config.max_distance)) continue;
+            ++filterCandidates;
+            if (player.bones_ok) ++bonesReady;
+            if (player.visibility_known) ++visibilityKnown;
+            ImVec2 point{};
+            if (renderMatrix && DiagnosticWorldToScreen(player.pos, renderMatrix, displaySize, point)) {
+                ++projected;
+                if (point.x >= 0.f && point.x <= displaySize.x &&
+                    point.y >= 0.f && point.y <= displaySize.y) ++onScreen;
+            }
+        }
+    }
 
     BeginCardRow();
     const float half = CardRowHalfWidth();
@@ -185,59 +257,73 @@ void DrawCs2Status() {
         offsetsOk ? HealthStatus::Ok :
         compatibility.state == OmniGhost::OffsetAuto::CompatibilityState::Outdated ?
         HealthStatus::Error : HealthStatus::Warning);
-    HealthRow("ViewMatrix", cameraFresh ? "Atual" : "Indisponível ou antiga",
-        cameraFresh ? HealthStatus::Ok : HealthStatus::Warning);
+    const char* matrixState = cameraFresh ? "Câmara rápida atual" :
+        snapshotMatrixValid ? "Fallback do snapshot ativo" : "Indisponível ou antiga";
+    HealthRow("ViewMatrix", matrixState, renderMatrix ? HealthStatus::Ok : HealthStatus::Warning);
     HealthRow("EntityList", worldFresh && world->entity_list_addr ? "Resolvida" : "A aguardar",
         attached && world->entity_list_addr ? HealthStatus::Ok : HealthStatus::Warning);
+    HealthRow("Jogador local", attached && world->local_pawn && world->local_controller ?
+        "Pawn e controller válidos" : "Pawn/controller em falta",
+        attached && world->local_pawn && world->local_controller ? HealthStatus::Ok : HealthStatus::Warning);
     EndCard();
 
     NextCardColumn();
     BeginCard("PARTIDA", half);
     HealthRow("Estado", attached && world->in_match ? "Em partida" : "Fora da partida",
         attached && world->in_match ? HealthStatus::Ok : HealthStatus::Warning);
-    HealthRow("Jogador local", attached && world->local_pawn ? "Detetado" : "A aguardar",
-        attached && world->local_pawn ? HealthStatus::Ok : HealthStatus::Warning);
     char value[96]{};
     std::snprintf(value, sizeof(value), "%d", attached ? world->player_count : 0);
     KeyValueRow("Jogadores remotos", value);
+    std::snprintf(value, sizeof(value), "%d vivos · %d com posição válida", aliveRemote, positionValid);
+    KeyValueRow("Entidades ESP", value);
     KeyValueRow("Mapa", attached && world->map_name[0] ? world->map_name : "-");
     EndCard();
     EndCardRow();
 
+    BeginCardRow();
+    BeginCard("CADEIA DO ESP", half);
+    HealthRow("ESP", CS2::config.esp_enabled ? "Ativado" : "Desativado nas opções",
+        CS2::config.esp_enabled ? HealthStatus::Ok : HealthStatus::Warning);
+    char age[64]{};
+    FormatAge(age, sizeof(age), now, world ?
+        (world->world_sample_ms ? world->world_sample_ms : world->snapshot_timestamp_ms) : 0);
+    HealthRow("Snapshot do mundo", worldFresh ? age : "Ausente ou desatualizado",
+        worldFresh ? HealthStatus::Ok : HealthStatus::Warning);
+    FormatAge(age, sizeof(age), now, renderMatrixSample);
+    HealthRow("Amostra da câmara", renderMatrix ? age : "Sem matriz utilizável",
+        renderMatrix ? HealthStatus::Ok : HealthStatus::Warning);
 
+    char projection[96]{};
+    if (!renderMatrix)
+        std::snprintf(projection, sizeof(projection), "Bloqueado pela ViewMatrix");
+    else if (filterCandidates == 0)
+        std::snprintf(projection, sizeof(projection), "A aguardar candidato válido");
+    else
+        std::snprintf(projection, sizeof(projection), "%d/%d projetáveis · %d no ecrã",
+            projected, filterCandidates, onScreen);
+    const bool projectionOk = renderMatrix && (filterCandidates == 0 || projected > 0);
+    HealthRow("World-to-Screen", projection,
+        projectionOk ? HealthStatus::Ok : HealthStatus::Warning);
+    std::snprintf(value, sizeof(value), "%d/%d jogadores", bonesReady, filterCandidates);
+    HealthRow("Ossos", value,
+        filterCandidates == 0 || bonesReady > 0 ? HealthStatus::Ok : HealthStatus::Warning);
+    EndCard();
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    NextCardColumn();
+    BeginCard("FILTROS E RESULTADO", half);
+    std::snprintf(value, sizeof(value), "%d de %d elegíveis", filterCandidates, aliveRemote);
+    HealthRow("Após filtros", value,
+        aliveRemote == 0 || filterCandidates > 0 ? HealthStatus::Ok : HealthStatus::Warning);
+    KeyValueRow("Equipa", CS2::config.team_check ? "Ocultar aliados" : "Mostrar todos");
+    KeyValueRow("Bots", CS2::config.show_bots ? "Mostrar" : "Ocultar");
+    std::snprintf(value, sizeof(value), "%.0f m", CS2::config.max_distance);
+    KeyValueRow("Distância máxima", value);
+    const char* visibilityMode = CS2::config.visible_check ?
+        (CS2::config.visibility_colors ? "Cores visível/oculto" : "Apenas visíveis") :
+        (CS2::config.visibility_colors ? "Cores sem filtragem" : "Desativada");
+    KeyValueRow("Visibilidade", visibilityMode);
+    std::snprintf(value, sizeof(value), "%d/%d conhecidos", visibilityKnown, filterCandidates);
+    KeyValueRow("Dados de visibilidade", value);
+    EndCard();
+    EndCardRow();
 }
