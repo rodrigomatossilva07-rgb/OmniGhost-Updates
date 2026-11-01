@@ -5,7 +5,8 @@
 
 namespace CS2::RCS {
 
-enum class ReadStatus { Ready, NoLocalPlayer, Dead, MissingWeapon, MissingSample, StaleSample, InvalidAngles };
+enum class ReadStatus { Ready, NoLocalPlayer, Dead, MissingWeapon, MissingSample,
+                        UnresolvedSample, StaleSample, InvalidAngles };
 
 struct ReadResult {
     RecoilSample sample{};

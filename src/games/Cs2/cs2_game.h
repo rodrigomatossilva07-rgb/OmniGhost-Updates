@@ -246,6 +246,7 @@ struct Runtime {
     int local_crosshair_entity = 0;
     int local_shots_fired = 0;
     float local_aim_punch[2]{};
+    bool local_aim_punch_final = false;
     uint64_t local_aim_sample_ms = 0;
     uint64_t local_last_shot_ms = 0;
     float view_matrix[16]{};
@@ -295,6 +296,7 @@ struct Runtime {
           local_scoped(other.local_scoped), local_has_defuser(other.local_has_defuser),
           local_crosshair_entity(other.local_crosshair_entity), local_shots_fired(other.local_shots_fired),
           local_aim_punch{other.local_aim_punch[0], other.local_aim_punch[1]},
+          local_aim_punch_final(other.local_aim_punch_final),
           local_aim_sample_ms(other.local_aim_sample_ms), local_last_shot_ms(other.local_last_shot_ms),
           view_matrix{other.view_matrix[0], other.view_matrix[1], other.view_matrix[2], other.view_matrix[3],
                        other.view_matrix[4], other.view_matrix[5], other.view_matrix[6], other.view_matrix[7],
@@ -339,6 +341,7 @@ struct Runtime {
             local_crosshair_entity = other.local_crosshair_entity;
             local_shots_fired = other.local_shots_fired;
             local_aim_punch[0] = other.local_aim_punch[0]; local_aim_punch[1] = other.local_aim_punch[1];
+            local_aim_punch_final = other.local_aim_punch_final;
             local_aim_sample_ms = other.local_aim_sample_ms;
             local_last_shot_ms = other.local_last_shot_ms;
             for (int i = 0; i < 16; ++i) view_matrix[i] = other.view_matrix[i];
@@ -404,6 +407,7 @@ struct Runtime {
         local_crosshair_entity = other.local_crosshair_entity;
         local_shots_fired = other.local_shots_fired;
         local_aim_punch[0] = other.local_aim_punch[0]; local_aim_punch[1] = other.local_aim_punch[1];
+        local_aim_punch_final = other.local_aim_punch_final;
         local_aim_sample_ms = other.local_aim_sample_ms;
         local_last_shot_ms = other.local_last_shot_ms;
         for (int i = 0; i < 16; ++i) view_matrix[i] = other.view_matrix[i];

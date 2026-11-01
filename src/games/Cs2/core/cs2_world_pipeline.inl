@@ -632,6 +632,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
         runtime.local_has_defuser = false;
         runtime.local_scoped = false;
         runtime.local_shots_fired = 0;
+        runtime.local_aim_punch_final = false;
         runtime.local_aim_sample_ms = 0;
         std::memset(runtime.local_aim_punch, 0, sizeof(runtime.local_aim_punch));
     }
@@ -694,7 +695,10 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 (std::numeric_limits<float>::quiet_NaN)(),
                 (std::numeric_limits<float>::quiet_NaN)()
             };
+            bool aimPunchIsFinal = false;
             const bool needRcsState = frame_config.aim_rcs_auto || frame_config.aim_rcs_standalone;
+            if (needRcsState)
+                runtime.local_aim_punch_final = false;
             runtime.local_has_defuser = false;
 
             EnsureScatter();
@@ -923,8 +927,46 @@ static void RunFrameWithConfig(const Config& frame_config) {
 
             if (needRcsState && offsets.m_pAimPunchServices &&
                 offsets.m_predictableBaseAngle && IsUserPointer(aim_punch_services)) {
-                (void)QRead(aim_punch_services + offsets.m_predictableBaseAngle,
-                    aimPunch, sizeof(aimPunch));
+                // C_CSPlayerPawn_GetAimPunch does not return m_predictableBaseAngle
+                // directly. It evaluates the QAngle history owned by the aim-punch
+                // service. In current builds the evaluated-history cache follows the
+                // schema-exported base angle by 0x38 bytes and uses the ordinary
+                // CUtlVector layout (count, padding, data pointer). Reading its newest
+                // element gives an external/DMA client the same axes that the game's
+                // getter consumes, without invoking an internal function.
+                //
+                // Keep this relative to the schema field so a relocated service
+                // continues to work after an offsets refresh. Every value is validated;
+                // if Valve changes the private history layout we fall back to the base
+                // angle and expose a non-destructive diagnostic sample.
+                struct AimPunchHistoryView {
+                    int32_t count = 0;
+                    uint32_t reserved = 0;
+                    uintptr_t data = 0;
+                } history{};
+                constexpr uintptr_t kHistoryCountFromBaseAngle = 0x38;
+                if (QReadT(aim_punch_services + offsets.m_predictableBaseAngle +
+                               kHistoryCountFromBaseAngle,
+                           history, "CS2.AimPunchHistory") &&
+                    history.count > 0 && history.count <= 128 &&
+                    IsUserPointer(history.data)) {
+                    const uintptr_t latest = history.data +
+                        static_cast<uintptr_t>(history.count - 1) * sizeof(float) * 3u;
+                    float evaluated[3]{};
+                    if (QRead(latest, evaluated, sizeof(evaluated),
+                              "CS2.AimPunchLatest") &&
+                        std::isfinite(evaluated[0]) && std::isfinite(evaluated[1]) &&
+                        std::fabs(evaluated[0]) <= 89.f &&
+                        std::fabs(evaluated[1]) <= 180.f) {
+                        aimPunch[0] = evaluated[0];
+                        aimPunch[1] = evaluated[1];
+                        aimPunchIsFinal = true;
+                    }
+                }
+                if (!aimPunchIsFinal) {
+                    (void)QRead(aim_punch_services + offsets.m_predictableBaseAngle,
+                        aimPunch, sizeof(aimPunch), "CS2.AimPunchBaseFallback");
+                }
             }
 
             const bool validPunch = std::isfinite(aimPunch[0]) && std::isfinite(aimPunch[1]);
@@ -959,6 +1001,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
             if (needRcsState && validPunch) {
                 runtime.local_aim_punch[0] = aimPunch[0];
                 runtime.local_aim_punch[1] = aimPunch[1];
+                runtime.local_aim_punch_final = aimPunchIsFinal;
                 runtime.local_aim_sample_ms = frame_time_ms;
             }
             if (!needRcsState) {
@@ -967,6 +1010,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 previous_aim_punch[0] = previous_aim_punch[1] = 0.f;
                 runtime.local_shots_fired = 0;
                 runtime.local_aim_sample_ms = 0;
+                runtime.local_aim_punch_final = false;
                 std::memset(runtime.local_aim_punch, 0, sizeof(runtime.local_aim_punch));
             }
         } else {

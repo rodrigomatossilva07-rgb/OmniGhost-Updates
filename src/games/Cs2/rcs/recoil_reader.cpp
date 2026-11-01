@@ -16,6 +16,9 @@ ReadResult RecoilReader::Read(const Runtime& snapshot, uint64_t nowMs) noexcept 
     if (!snapshot.local_aim_sample_ms || nowMs < snapshot.local_aim_sample_ms) {
         result.status = ReadStatus::MissingSample; return result;
     }
+    if (!snapshot.local_aim_punch_final) {
+        result.status = ReadStatus::UnresolvedSample; return result;
+    }
     if (nowMs - snapshot.local_aim_sample_ms > 100u) {
         result.status = ReadStatus::StaleSample; return result;
     }
@@ -37,6 +40,7 @@ const char* ToString(ReadStatus status) noexcept {
     case ReadStatus::Dead: return "local player dead";
     case ReadStatus::MissingWeapon: return "weapon unavailable";
     case ReadStatus::MissingSample: return "aim punch unavailable";
+    case ReadStatus::UnresolvedSample: return "final aim punch unavailable";
     case ReadStatus::StaleSample: return "aim punch stale";
     case ReadStatus::InvalidAngles: return "aim punch invalid";
     }
