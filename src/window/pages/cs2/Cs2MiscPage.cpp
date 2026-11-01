@@ -24,8 +24,8 @@ void DrawCs2Misc()
 
     BeginCard("TELEMETRIA", 0.f);
     TextLine(
-        "Grava no logs.txt leituras DMA, tempos de aquisicao, spikes e funcoes ativas do CS2. "
-        "Usa isto durante a partida e envia o ficheiro para diagnosticar lags.",
+        "Grava no logs.txt leituras DMA, tempos de aquisicao, spikes e cada nova amostra do RCS "
+        "com precisão de milissegundos. Usa isto durante a partida e envia o ficheiro para diagnóstico.",
         TextTone::Secondary);
     const bool prev = CS2::config.telemetry_enabled;
     ToggleSwitch("Telemetria", &CS2::config.telemetry_enabled);
@@ -34,11 +34,13 @@ void DrawCs2Misc()
 
     app_settings::config.telemetry_log_enabled = CS2::config.telemetry_enabled;
     if (CS2::config.telemetry_enabled && !prev) {
-        char blob[384];
+        char blob[448];
         std::snprintf(blob, sizeof(blob),
-            "radar=%d\naim=%d\ntrigger=%d\nbomb=%d\nspectators=%d\nperf_mode=%d",
+            "radar=%d\naim=%d\nrcs_standalone=%d\nrcs_auto=%d\ntrigger=%d\nbomb=%d\nspectators=%d\nperf_mode=%d",
             CS2::config.radar_2d ? 1 : 0,
             CS2::config.aim_enabled ? 1 : 0,
+            CS2::config.aim_rcs_standalone ? 1 : 0,
+            CS2::config.aim_rcs_auto ? 1 : 0,
             CS2::config.trigger_enabled ? 1 : 0,
             CS2::config.bomb_timer ? 1 : 0,
             CS2::config.spectator_list ? 1 : 0,
@@ -50,7 +52,7 @@ void DrawCs2Misc()
             "[CS2] Telemetria ativada — PERF/SPIKE vao para logs.txt");
     }
     if (CS2::config.telemetry_enabled) {
-        TextLine("Estado: a gravar (PERF ~1/s em partida, SPIKE se aquisicao >= 50 ms).", TextTone::Secondary);
+        TextLine("Estado: a gravar (PERF ~1/s, SPIKE >= 50 ms e RCS por amostra real).", TextTone::Secondary);
         const int pressure = CS2::DmaPressureLevel();
         const char* budget = pressure == 0 ? "normal" : pressure == 1 ? "opcionais reduzidas" :
             pressure == 2 ? "metadados em cache" : "recuperacao";

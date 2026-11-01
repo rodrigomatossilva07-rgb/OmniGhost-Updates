@@ -696,7 +696,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 (std::numeric_limits<float>::quiet_NaN)()
             };
             bool aimPunchIsFinal = false;
-            const bool needRcsState = frame_config.aim_rcs_auto || frame_config.aim_rcs_standalone;
+            const bool needRcsState = frame_config.aim_rcs_auto || frame_config.aim_rcs_standalone ||
+                frame_config.telemetry_enabled;
             if (needRcsState)
                 runtime.local_aim_punch_final = false;
             runtime.local_has_defuser = false;

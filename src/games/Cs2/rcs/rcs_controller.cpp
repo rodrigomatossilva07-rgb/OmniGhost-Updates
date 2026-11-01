@@ -89,7 +89,8 @@ Correction RCSController::Update(const RCSConfig& config,
     pendingX_ = std::clamp(pendingX_ - x, -maxStep * 4.f, maxStep * 4.f);
     pendingY_ = std::clamp(pendingY_ - y, -maxStep * 4.f, maxStep * 4.f);
     lastReason_ = ResetReason::None;
-    return {x, y, std::fabs(x) >= .001f || std::fabs(y) >= .001f, ResetReason::None};
+    return {x, y, std::fabs(x) >= .001f || std::fabs(y) >= .001f,
+            ResetReason::None, deltaPitch, deltaYaw, pendingX_, pendingY_};
 }
 
 const char* ToString(ResetReason reason) noexcept {

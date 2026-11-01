@@ -15,6 +15,7 @@ void Tick(std::string_view tag);
 
 void LogConfigChanged(std::string_view tag, std::string_view config_blob);
 void LogSessionSummary(std::string_view tag);
+void LogRcsSample(std::string_view payload);
 
 
 struct WindowStats {

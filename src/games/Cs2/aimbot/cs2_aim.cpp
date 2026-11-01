@@ -6,6 +6,7 @@
 #include "src/games/Fivem/aimbot/aim_type.h"
 #include "gameplay/aim_controller.h"
 #include "gameplay/smooth_curves.h"
+#include "gameplay/dma_telemetry_log.h"
 #include "../rcs/recoil_reader.h"
 #include "../rcs/rcs_controller.h"
 #include "../rcs/rcs_debug.h"
@@ -70,6 +71,42 @@ static bool g_patterns_loaded = false;
 
 CS2::RCS::RCSController g_rcs_controller{};
 CS2::RCS::RCSDebug g_rcs_debug{};
+std::mutex g_rcs_telemetry_mutex;
+RCSTelemetry g_rcs_telemetry{};
+
+void LogRcsTelemetrySample(const RCSTelemetry& sample, uint64_t nowMs) {
+    if (!OmniGhost::Gameplay::DmaTelemetry::IsEnabled()) return;
+    static uint64_t lastSampleMs = 0;
+    static uintptr_t lastPawn = 0;
+    if (sample.pawn != lastPawn) {
+        lastPawn = sample.pawn;
+        lastSampleMs = 0;
+    }
+    if (!sample.sampleMs || sample.sampleMs == lastSampleMs) return;
+    lastSampleMs = sample.sampleMs;
+
+    char line[1024]{};
+    const uint64_t age = nowMs >= sample.sampleMs ? nowMs - sample.sampleMs : 0;
+    std::snprintf(line, sizeof(line),
+        "RCS_SAMPLE sample_ms=%llu observed_ms=%llu age_ms=%llu pawn=0x%llX enabled=%d standalone=%d "
+        "final_punch=%d firing=%d shots=%d weapon=%d stage=%s reason=%s "
+        "pitch=%.6f yaw=%.6f delta_pitch=%.6f delta_yaw=%.6f "
+        "correction_x=%.6f correction_y=%.6f pending_x=%.6f pending_y=%.6f "
+        "sent_x=%d sent_y=%d produced=%d",
+        static_cast<unsigned long long>(sample.sampleMs),
+        static_cast<unsigned long long>(sample.observedMs),
+        static_cast<unsigned long long>(age),
+        static_cast<unsigned long long>(sample.pawn),
+        sample.enabled ? 1 : 0, sample.standalone ? 1 : 0,
+        sample.finalPunch ? 1 : 0, sample.firing ? 1 : 0,
+        sample.shots, sample.weaponDefinition,
+        sample.stage[0] ? sample.stage : "none",
+        sample.reason[0] ? sample.reason : "none",
+        sample.pitch, sample.yaw, sample.deltaPitch, sample.deltaYaw,
+        sample.correctionX, sample.correctionY, sample.pendingX, sample.pendingY,
+        sample.sentX, sample.sentY, sample.correctionProduced ? 1 : 0);
+    OmniGhost::Gameplay::DmaTelemetry::LogRcsSample(line);
+}
 
 bool W2S(const float* world, const float* vm, float& sx, float& sy) {
     const ImVec2 ds = ImGui::GetIO().DisplaySize;
@@ -126,7 +163,7 @@ void PickBone(const CS2::Player& p, int bone, float out[3]) {
 
 
 
-void MoveMouse(float dx, float dy) {
+std::pair<int, int> MoveMouse(float dx, float dy) {
 
 
     const float desired_x = dx + g_output_residual_x;
@@ -135,7 +172,7 @@ void MoveMouse(float dx, float dy) {
     int whole_y = static_cast<int>(std::lround(desired_y));
     g_output_residual_x = std::clamp(desired_x - static_cast<float>(whole_x), -0.95f, 0.95f);
     g_output_residual_y = std::clamp(desired_y - static_cast<float>(whole_y), -0.95f, 0.95f);
-    if (whole_x == 0 && whole_y == 0) return;
+    if (whole_x == 0 && whole_y == 0) return {0, 0};
 
     int left_x = whole_x;
     int left_y = whole_y;
@@ -147,6 +184,7 @@ void MoveMouse(float dx, float dy) {
         left_x -= sx;
         left_y -= sy;
     }
+    return {whole_x - left_x, whole_y - left_y};
 }
 
 void Click() {
@@ -762,6 +800,30 @@ std::pair<float, float> CalculateRCS(const CS2::Runtime& rt, const CS2::Config& 
 
     const uint64_t now_ms = CS2::SampleClockMs();
     const CS2::RCS::ReadResult read = CS2::RCS::RecoilReader::Read(rt, now_ms);
+    {
+        std::lock_guard lock(g_rcs_telemetry_mutex);
+        g_rcs_telemetry.enabled = settings.enabled;
+        g_rcs_telemetry.standalone = cfg.aim_rcs_standalone;
+        g_rcs_telemetry.finalPunch = rt.local_aim_punch_final;
+        g_rcs_telemetry.shots = rt.local_shots_fired;
+        g_rcs_telemetry.weaponDefinition = weapon_def;
+        g_rcs_telemetry.pawn = rt.local_pawn;
+        g_rcs_telemetry.sampleMs = rt.local_aim_sample_ms;
+        g_rcs_telemetry.observedMs = now_ms;
+        g_rcs_telemetry.pitch = rt.local_aim_punch[0];
+        g_rcs_telemetry.yaw = rt.local_aim_punch[1];
+        g_rcs_telemetry.firing = rt.local_last_shot_ms && now_ms >= rt.local_last_shot_ms &&
+            now_ms - rt.local_last_shot_ms <= 180u;
+        g_rcs_telemetry.correctionProduced = false;
+        g_rcs_telemetry.deltaPitch = g_rcs_telemetry.deltaYaw = 0.f;
+        g_rcs_telemetry.correctionX = g_rcs_telemetry.correctionY = 0.f;
+        g_rcs_telemetry.pendingX = g_rcs_telemetry.pendingY = 0.f;
+        g_rcs_telemetry.sentX = g_rcs_telemetry.sentY = 0;
+        std::snprintf(g_rcs_telemetry.stage, sizeof(g_rcs_telemetry.stage), "%s",
+                      read ? "controller" : "reader");
+        std::snprintf(g_rcs_telemetry.reason, sizeof(g_rcs_telemetry.reason), "%s",
+                      CS2::RCS::ToString(read.status));
+    }
     if (!read) {
         g_rcs_controller.Reset(CS2::RCS::ResetReason::InvalidSample);
         g_rcs_debug.Set(settings.debugMode, "reader", CS2::RCS::ToString(read.status));
@@ -773,6 +835,20 @@ std::pair<float, float> CalculateRCS(const CS2::Runtime& rt, const CS2::Config& 
         return {};
     }
     const CS2::RCS::Correction correction = g_rcs_controller.Update(settings, read.sample, now_ms);
+    {
+        std::lock_guard lock(g_rcs_telemetry_mutex);
+        g_rcs_telemetry.correctionProduced = correction.produced;
+        g_rcs_telemetry.deltaPitch = correction.deltaPitch;
+        g_rcs_telemetry.deltaYaw = correction.deltaYaw;
+        g_rcs_telemetry.correctionX = correction.x;
+        g_rcs_telemetry.correctionY = correction.y;
+        g_rcs_telemetry.pendingX = correction.pendingX;
+        g_rcs_telemetry.pendingY = correction.pendingY;
+        std::snprintf(g_rcs_telemetry.stage, sizeof(g_rcs_telemetry.stage), "%s",
+                      correction.produced ? "active" : "waiting");
+        std::snprintf(g_rcs_telemetry.reason, sizeof(g_rcs_telemetry.reason), "%s",
+                      CS2::RCS::ToString(correction.reason));
+    }
     char detail[192]{};
     std::snprintf(detail, sizeof(detail),
         "shots=%d punch=%.3f,%.3f out=%.2f,%.2f (%s)",
@@ -810,6 +886,11 @@ const char* RCSDebugStatus() {
     static thread_local std::string snapshot;
     snapshot = g_rcs_debug.Snapshot();
     return snapshot.c_str();
+}
+
+RCSTelemetry AcquireRCSTelemetry() {
+    std::lock_guard lock(g_rcs_telemetry_mutex);
+    return g_rcs_telemetry;
 }
 
 void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
@@ -885,6 +966,8 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
     TargetCandidate target{};
     float aim_output_x = 0.f;
     float aim_output_y = 0.f;
+    float rcs_output_x = 0.f;
+    float rcs_output_y = 0.f;
     if (aim_key_down) target = SelectTarget(rt, cfg, cx, cy, updateViewMatrix);
 
     if (cfg.aim_draw_fov) {
@@ -993,11 +1076,27 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
     if (cfg.aim_rcs_standalone ||
         (cfg.aim_enabled && cfg.aim_rcs_auto && aim_key_down && !activeAimLock)) {
         const auto [rcs_x, rcs_y] = CalculateRCS(rt, cfg, local_weapon_definition);
+        rcs_output_x = rcs_x;
+        rcs_output_y = rcs_y;
         aim_output_x += rcs_x;
         aim_output_y += rcs_y;
-    } else g_rcs_controller.Reset();
+    } else {
+        g_rcs_controller.Reset();
+        if (cfg.telemetry_enabled)
+            (void)CalculateRCS(rt, cfg, local_weapon_definition);
+    }
+    std::pair<int, int> sent{};
     if (std::fabs(aim_output_x) > 0.001f || std::fabs(aim_output_y) > 0.001f)
-        MoveMouse(aim_output_x, aim_output_y);
+        sent = MoveMouse(aim_output_x, aim_output_y);
+    if (cfg.aim_rcs_standalone || cfg.aim_rcs_auto) {
+        std::lock_guard lock(g_rcs_telemetry_mutex);
+        if (std::fabs(rcs_output_x) > .001f || std::fabs(rcs_output_y) > .001f) {
+            g_rcs_telemetry.sentX = sent.first;
+            g_rcs_telemetry.sentY = sent.second;
+        }
+    }
+    if (cfg.telemetry_enabled)
+        LogRcsTelemetrySample(AcquireRCSTelemetry(), CS2::SampleClockMs());
 
 
 

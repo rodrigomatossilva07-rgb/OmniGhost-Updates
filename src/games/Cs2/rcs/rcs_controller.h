@@ -35,6 +35,10 @@ struct Correction {
     float y = 0.f;
     bool produced = false;
     ResetReason reason = ResetReason::None;
+    float deltaPitch = 0.f;
+    float deltaYaw = 0.f;
+    float pendingX = 0.f;
+    float pendingY = 0.f;
 };
 
 class RCSController {

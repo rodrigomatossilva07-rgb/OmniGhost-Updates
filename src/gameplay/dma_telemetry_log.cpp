@@ -568,6 +568,11 @@ void LogConfigChanged(std::string_view tag, std::string_view config_blob) {
     Emit(tag, body);
 }
 
+void LogRcsSample(std::string_view payload) {
+    if (!IsEnabled()) return;
+    Emit("CS2.RCS", payload);
+}
+
 void LogSessionSummary(std::string_view tag) {
     Sample& s = (tag == "FIVEM") ? g_fivem
         : (tag == "WARZONE" || tag == "WZ") ? g_warzone
