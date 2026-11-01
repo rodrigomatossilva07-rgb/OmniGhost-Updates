@@ -151,9 +151,16 @@
     <OmniGhostEmbeddedResourceInput Include="$(MSBuildProjectDirectory)\src\games\Cs2\collision\**\*.tri"/>
     <OmniGhostEmbeddedResourceInput Include="$(MSBuildProjectDirectory)\src\games\Cs2\data\webradar\**\*"/>
   </ItemGroup>
+  <PropertyGroup>
+    <!-- Publish must regenerate the catalogue unconditionally. MSBuild's
+         timestamp-based Inputs cannot detect a resource that was deleted,
+         which previously allowed the primary build to link a stale catalogue
+         while the isolated reproducibility build generated a fresh one. -->
+    <OmniGhostEmbeddedResourceOutputs Condition="'$(Configuration)'!='Publish'">$(MSBuildProjectDirectory)\.cache\generated\$(Configuration)\$(Platform)\embedded_resource_catalog.h;$(MSBuildProjectDirectory)\.cache\generated\$(Configuration)\$(Platform)\embedded_resources.rc2</OmniGhostEmbeddedResourceOutputs>
+  </PropertyGroup>
   <Target Name="BuildOmniGhostEmbeddedResources" BeforeTargets="ClCompile;ResourceCompile"
           Inputs="@(OmniGhostEmbeddedResourceInput)"
-          Outputs="$(MSBuildProjectDirectory)\.cache\generated\$(Configuration)\$(Platform)\embedded_resource_catalog.h;$(MSBuildProjectDirectory)\.cache\generated\$(Configuration)\$(Platform)\embedded_resources.rc2"
+          Outputs="$(OmniGhostEmbeddedResourceOutputs)"
           Condition="'$(DesignTimeBuild)'!='true' And '$(OmniGhostSkipEmbeddedGeneration)'!='true'">
     <Message Importance="High" Text="[OmniGhost 03/10] Recursos embedded"/>
     <Exec Command="&quot;$(MSBuildProjectDirectory)\src\project\tools\Run-OmniGhostPowerShell.cmd&quot; generate-embedded-resources &quot;$(MSBuildProjectDirectory)&quot; &quot;$(Configuration)&quot; &quot;$(Platform)&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">

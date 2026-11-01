@@ -115,7 +115,12 @@ foreach ($tree in @($manifest.trees)) {
     $treeRoot = [IO.Path]::GetFullPath((Join-Path $ProjectDir ([string]$tree.source)))
     if (-not $treeRoot.StartsWith($ProjectDir, [StringComparison]::OrdinalIgnoreCase) -or
         -not (Test-Path -LiteralPath $treeRoot -PathType Container)) { throw "Invalid resource tree: $treeRoot" }
-    $treeFiles = @(Get-ChildItem -LiteralPath $treeRoot -Recurse -File | Sort-Object FullName)
+    [IO.FileInfo[]]$treeFiles = @(Get-ChildItem -LiteralPath $treeRoot -Recurse -File)
+    [Array]::Sort($treeFiles, [Collections.Generic.Comparer[IO.FileInfo]]::Create(
+        [Comparison[IO.FileInfo]]{
+            param([IO.FileInfo]$left, [IO.FileInfo]$right)
+            return [StringComparer]::OrdinalIgnoreCase.Compare($left.FullName, $right.FullName)
+        }))
     $extensions = @()
     if ($tree.PSObject.Properties.Name -contains 'extensions') {
         $extensions = @($tree.extensions | ForEach-Object { ([string]$_).ToLowerInvariant() })
