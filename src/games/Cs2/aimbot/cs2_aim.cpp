@@ -6,6 +6,9 @@
 #include "src/games/Fivem/aimbot/aim_type.h"
 #include "gameplay/aim_controller.h"
 #include "gameplay/smooth_curves.h"
+#include "../rcs/recoil_reader.h"
+#include "../rcs/rcs_controller.h"
+#include "../rcs/rcs_debug.h"
 #include "imgui.h"
 #include <Windows.h>
 #include <cmath>
@@ -64,6 +67,9 @@ static std::array<std::pair<float, float>, 30> g_current_pattern{};
 static int g_shots_fired = 0;
 static int g_last_shots_fired = 0;
 static bool g_patterns_loaded = false;
+
+CS2::RCS::RCSController g_rcs_controller{};
+CS2::RCS::RCSDebug g_rcs_debug{};
 
 bool W2S(const float* world, const float* vm, float& sx, float& sy) {
     const ImVec2 ds = ImGui::GetIO().DisplaySize;
@@ -509,6 +515,7 @@ void InitializeHumanizer() {
     g_curve_evaluator.SetConfig(ccfg);
 }
 
+#if 0 // Legacy fixed weapon tables retained temporarily for migration/reference only.
 void LoadRecoilPatterns() {
     std::unique_lock lock(g_recoil_patterns_mutex);
     if (g_patterns_loaded) return;
@@ -601,6 +608,7 @@ std::pair<float, float> CalculateRCS(const CS2::Runtime& rt, const CS2::Config& 
     if (shots_fired <= 1) {
         g_shots_fired = 0;
         g_last_shots_fired = 0;
+        g_rcs_controller.Reset();
         return {};
     }
 
@@ -642,6 +650,130 @@ std::pair<float, float> CalculateRCS(const CS2::Runtime& rt, const CS2::Config& 
 
 
 
+#endif
+
+#if 0 // Replaced by the standalone, unit-testable RCSController.
+float NormalizeAngleDelta(float value) noexcept {
+    if (!std::isfinite(value)) return 0.f;
+    value = std::remainder(value, 360.f);
+    return std::clamp(value, -180.f, 180.f);
+}
+
+std::pair<float, float> CalculateRCS(const CS2::Runtime& rt, const CS2::Config& cfg,
+                                    int weapon_def) {
+    const auto reset = []() -> std::pair<float, float> {
+        g_rcs_controller.Reset();
+        return {};
+    };
+    if ((!cfg.aim_rcs_auto && !cfg.aim_rcs_standalone) || !rt.local_pawn ||
+        rt.local_health <= 0 || !IsFirearm(weapon_def))
+        return reset();
+
+    const uint64_t now_ms = CS2::SampleClockMs();
+    if (!rt.local_aim_sample_ms || now_ms < rt.local_aim_sample_ms ||
+        now_ms - rt.local_aim_sample_ms > 100u)
+        return reset();
+
+    const int shots = rt.local_shots_fired;
+    const int start_shot = std::clamp(cfg.aim_rcs_start_shot, 1, 32);
+    const bool shot_recent = rt.local_last_shot_ms && now_ms >= rt.local_last_shot_ms &&
+        now_ms - rt.local_last_shot_ms <= 180u;
+    if (shots < start_shot || !shot_recent)
+        return reset();
+
+    const float pitch = rt.local_aim_punch[0];
+    const float yaw = rt.local_aim_punch[1];
+    if (!std::isfinite(pitch) || !std::isfinite(yaw) || std::fabs(pitch) > 89.f ||
+        std::fabs(yaw) > 180.f)
+        return reset();
+
+    if (!g_dynamic_rcs.initialized || g_dynamic_rcs.pawn != rt.local_pawn ||
+        g_dynamic_rcs.weapon != weapon_def || shots < g_dynamic_rcs.shots) {
+        g_rcs_controller.Reset();
+        g_dynamic_rcs.pawn = rt.local_pawn;
+        g_dynamic_rcs.weapon = weapon_def;
+        g_dynamic_rcs.shots = shots;
+        g_dynamic_rcs.sample_ms = rt.local_aim_sample_ms;
+        g_dynamic_rcs.previous_pitch = pitch;
+        g_dynamic_rcs.previous_yaw = yaw;
+        g_dynamic_rcs.initialized = true;
+        return {};
+    }
+
+    // A published AimPunch sample is consumed once. Re-running the render loop
+    // must never compensate the same recoil twice.
+    if (rt.local_aim_sample_ms <= g_dynamic_rcs.sample_ms)
+        return {};
+
+    float delta_pitch = NormalizeAngleDelta(pitch - g_dynamic_rcs.previous_pitch);
+    float delta_yaw = NormalizeAngleDelta(yaw - g_dynamic_rcs.previous_yaw);
+    g_dynamic_rcs.previous_pitch = pitch;
+    g_dynamic_rcs.previous_yaw = yaw;
+    g_dynamic_rcs.sample_ms = rt.local_aim_sample_ms;
+    g_dynamic_rcs.shots = shots;
+    if (!std::isfinite(delta_pitch) || !std::isfinite(delta_yaw) ||
+        std::fabs(delta_pitch) > 25.f || std::fabs(delta_yaw) > 25.f)
+        return reset();
+
+    const float weapon_scale = weapon_def >= 0 &&
+        weapon_def < static_cast<int>(cfg.aim_rcs_weapon_scale.size())
+        ? std::clamp(cfg.aim_rcs_weapon_scale[static_cast<std::size_t>(weapon_def)], 0.f, 3.f)
+        : 1.f;
+    const float scale = std::clamp(cfg.aim_rcs_scale, .01f, 100.f) * weapon_scale;
+    const float horizontal = std::clamp(cfg.aim_rcs_x, 0.f, 2.f);
+    const float vertical = std::clamp(cfg.aim_rcs_y, 0.f, 2.f);
+    g_dynamic_rcs.pending_x += -delta_yaw * scale * horizontal;
+    g_dynamic_rcs.pending_y += -delta_pitch * scale * vertical;
+
+    // Smoothing drains a pending correction rather than discarding part of a
+    // recoil delta, preventing long-spray accumulation errors.
+    const float smoothing = std::clamp(cfg.aim_rcs_smoothing, 0.f, .95f);
+    const float response = 1.f - smoothing;
+    const float max_step = std::clamp(cfg.aim_rcs_max_step, .25f, 127.f);
+    const float output_x = std::clamp(g_dynamic_rcs.pending_x * response, -max_step, max_step);
+    const float output_y = std::clamp(g_dynamic_rcs.pending_y * response, -max_step, max_step);
+    if (!std::isfinite(output_x) || !std::isfinite(output_y))
+        return reset();
+    g_dynamic_rcs.pending_x = std::clamp(g_dynamic_rcs.pending_x - output_x, -max_step * 4.f, max_step * 4.f);
+    g_dynamic_rcs.pending_y = std::clamp(g_dynamic_rcs.pending_y - output_y, -max_step * 4.f, max_step * 4.f);
+    if (std::fabs(output_x) < .001f && std::fabs(output_y) < .001f)
+        return {};
+    return {output_x, output_y};
+}
+#endif
+
+std::pair<float, float> CalculateRCS(const CS2::Runtime& rt, const CS2::Config& cfg,
+                                    int weapon_def) {
+    CS2::RCS::RCSConfig settings{};
+    settings.enabled = cfg.aim_rcs_auto || cfg.aim_rcs_standalone;
+    settings.horizontalStrength = cfg.aim_rcs_x;
+    settings.verticalStrength = cfg.aim_rcs_y;
+    settings.recoilScale = cfg.aim_rcs_scale;
+    settings.smoothing = cfg.aim_rcs_smoothing;
+    settings.startAfterShots = cfg.aim_rcs_start_shot;
+    settings.maxCorrection = cfg.aim_rcs_max_step;
+    settings.weaponSpecific = cfg.aim_rcs_weapon_specific;
+    settings.debugMode = cfg.aim_rcs_debug;
+    settings.weaponScale = cfg.aim_rcs_weapon_scale;
+
+    const uint64_t now_ms = CS2::SampleClockMs();
+    const CS2::RCS::ReadResult read = CS2::RCS::RecoilReader::Read(rt, now_ms);
+    if (!read) {
+        g_rcs_controller.Reset(CS2::RCS::ResetReason::InvalidSample);
+        g_rcs_debug.Set(settings.debugMode, "reader", CS2::RCS::ToString(read.status));
+        return {};
+    }
+    if (!IsFirearm(weapon_def)) {
+        g_rcs_controller.Reset(CS2::RCS::ResetReason::WeaponChanged);
+        return {};
+    }
+    const CS2::RCS::Correction correction = g_rcs_controller.Update(settings, read.sample, now_ms);
+    g_rcs_debug.Set(settings.debugMode, correction.produced ? "correction" : "state",
+        CS2::RCS::ToString(correction.reason));
+    return correction.produced ? std::pair<float, float>{correction.x, correction.y}
+                               : std::pair<float, float>{};
+}
+
 bool HandlePanic() {
     if (!CS2::config.panic_key_enabled || CS2::config.panic_key == 0) return false;
     static bool was_down = false;
@@ -665,6 +797,11 @@ bool HandlePanic() {
 
 int ActiveTargetIndex() { return g_active_target_idx; }
 const char* DebugStatus() { return g_debug; }
+const char* RCSDebugStatus() {
+    static thread_local std::string snapshot;
+    snapshot = g_rcs_debug.Snapshot();
+    return snapshot.c_str();
+}
 
 void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
     static std::string motion_map;
@@ -688,6 +825,7 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
         g_target_pawn = 0;
         g_aim_motion.Reset();
         g_output_residual_x = g_output_residual_y = 0.f;
+        g_rcs_controller.Reset();
         g_shots_fired = 0;
         g_last_shots_fired = 0;
         std::snprintf(g_debug, sizeof(g_debug), "sem partida");
@@ -699,6 +837,7 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
         g_target_pawn = 0;
         g_aim_motion.Reset();
         g_output_residual_x = g_output_residual_y = 0.f;
+        g_rcs_controller.Reset();
         std::snprintf(g_debug, sizeof(g_debug), "aim/trig OFF");
         return;
     }
@@ -847,7 +986,7 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
         const auto [rcs_x, rcs_y] = CalculateRCS(rt, cfg, local_weapon_definition);
         aim_output_x += rcs_x;
         aim_output_y += rcs_y;
-    }
+    } else g_rcs_controller.Reset();
     if (std::fabs(aim_output_x) > 0.001f || std::fabs(aim_output_y) > 0.001f)
         MoveMouse(aim_output_x, aim_output_y);
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "gameplay/esp_config_base.h"
+#include <array>
 
 namespace CS2 {
 
@@ -123,6 +124,17 @@ struct Config : OmniGhost::Gameplay::EspConfigBase {
     bool aim_rcs_auto = true;
     float aim_rcs_x = 1.f;
     float aim_rcs_y = 1.f;
+    float aim_rcs_scale = 1.f;
+    float aim_rcs_smoothing = .35f;
+    float aim_rcs_max_step = 8.f;
+    int aim_rcs_start_shot = 2;
+    bool aim_rcs_weapon_specific = true;
+    bool aim_rcs_debug = false;
+    std::array<float, 65> aim_rcs_weapon_scale = [] {
+        std::array<float, 65> values{};
+        values.fill(1.f);
+        return values;
+    }();
     float col_fov[4] = { 0.83f, 0.69f, 0.22f, 0.45f };
 
 

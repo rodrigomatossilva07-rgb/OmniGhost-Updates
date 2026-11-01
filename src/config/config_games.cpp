@@ -141,6 +141,16 @@ void SerializeCS2(std::ostringstream& o) {
     WBool(o, "cs2.aim_rcs_auto", c.aim_rcs_auto);
     WFloat(o, "cs2.aim_rcs_x", c.aim_rcs_x);
     WFloat(o, "cs2.aim_rcs_y", c.aim_rcs_y);
+    WFloat(o, "cs2.aim_rcs_scale", c.aim_rcs_scale);
+    WFloat(o, "cs2.aim_rcs_smoothing", c.aim_rcs_smoothing);
+    WFloat(o, "cs2.aim_rcs_max_step", c.aim_rcs_max_step);
+    WInt(o, "cs2.aim_rcs_start_shot", c.aim_rcs_start_shot);
+    WBool(o, "cs2.aim_rcs_weapon_specific", c.aim_rcs_weapon_specific);
+    WBool(o, "cs2.aim_rcs_debug", c.aim_rcs_debug);
+    for (int i = 0; i < static_cast<int>(c.aim_rcs_weapon_scale.size()); ++i) {
+        const std::string key = std::string("cs2.aim_rcs_weapon_scale.") + std::to_string(i);
+        WFloat(o, key.c_str(), c.aim_rcs_weapon_scale[static_cast<std::size_t>(i)]);
+    }
     WBool(o, "cs2.trigger_enabled", c.trigger_enabled);
     WBool(o, "cs2.trigger_always_on", c.trigger_always_on);
     WInt(o, "cs2.trigger_bind", c.trigger_bind);
@@ -378,6 +388,18 @@ bool DeserializeCS2(const std::string& key, const std::string& val) {
     if (bi("cs2.aim_rcs_auto")) { c.aim_rcs_auto = toB(); return true; }
     if (bi("cs2.aim_rcs_x")) { c.aim_rcs_x = toF(); return true; }
     if (bi("cs2.aim_rcs_y")) { c.aim_rcs_y = toF(); return true; }
+    if (bi("cs2.aim_rcs_scale")) { c.aim_rcs_scale = toF(); return true; }
+    if (bi("cs2.aim_rcs_smoothing")) { c.aim_rcs_smoothing = toF(); return true; }
+    if (bi("cs2.aim_rcs_max_step")) { c.aim_rcs_max_step = toF(); return true; }
+    if (bi("cs2.aim_rcs_start_shot")) { c.aim_rcs_start_shot = toI(); return true; }
+    if (bi("cs2.aim_rcs_weapon_specific")) { c.aim_rcs_weapon_specific = toB(); return true; }
+    if (bi("cs2.aim_rcs_debug")) { c.aim_rcs_debug = toB(); return true; }
+    for (int i = 0; i < static_cast<int>(c.aim_rcs_weapon_scale.size()); ++i) {
+        if (key == std::string("cs2.aim_rcs_weapon_scale.") + std::to_string(i)) {
+            c.aim_rcs_weapon_scale[static_cast<std::size_t>(i)] = toF();
+            return true;
+        }
+    }
     if (bi("cs2.trigger_enabled")) { c.trigger_enabled = toB(); return true; }
     if (bi("cs2.trigger_always_on")) { c.trigger_always_on = toB(); return true; }
     if (bi("cs2.trigger_bind")) { c.trigger_bind = toI(); return true; }

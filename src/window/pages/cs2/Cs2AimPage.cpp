@@ -218,6 +218,13 @@ void DrawCs2Aim() {
     CyberWidgets::EndCard();
 
     CyberWidgets::CardGap(gap);
+    CyberWidgets::BeginCard("RCS", left);
+    CyberWidgets::ToggleSwitch("Ativar RCS", &CS2::config.aim_rcs_standalone);
+    if (CS2::config.aim_rcs_debug)
+        CyberWidgets::KeyValueRow("Diagnóstico", CS2_Aim::RCSDebugStatus());
+    CyberWidgets::EndCard();
+
+    CyberWidgets::CardGap(gap);
     CyberWidgets::BeginCard(Loc::Tr("aim.trigger_title"), left);
     CyberWidgets::ToggleSwitch(Loc::Tr("aim.trigger"), &CS2::config.trigger_enabled);
     if (CS2::config.trigger_enabled) {

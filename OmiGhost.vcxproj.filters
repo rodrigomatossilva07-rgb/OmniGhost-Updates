@@ -21,6 +21,11 @@
     <ClInclude Include="src\games\Cs2\spectators\cs2_spectators.inl"><Filter>Header Files\Cs2</Filter></ClInclude>
     <ClInclude Include="src\games\Cs2\telemetry\cs2_telemetry.h"><Filter>Header Files\Cs2</Filter></ClInclude>
     <ClInclude Include="src\games\Cs2\visibility\cs2_visibility_worker.h"><Filter>Header Files\Cs2</Filter></ClInclude>
+    <ClInclude Include="src\games\Cs2\rcs\local_player_resolver.h"><Filter>Header Files\Cs2</Filter></ClInclude>
+    <ClInclude Include="src\games\Cs2\rcs\recoil_reader.h"><Filter>Header Files\Cs2</Filter></ClInclude>
+    <ClInclude Include="src\games\Cs2\rcs\rcs_config.h"><Filter>Header Files\Cs2</Filter></ClInclude>
+    <ClInclude Include="src\games\Cs2\rcs\rcs_controller.h"><Filter>Header Files\Cs2</Filter></ClInclude>
+    <ClInclude Include="src\games\Cs2\rcs\rcs_debug.h"><Filter>Header Files\Cs2</Filter></ClInclude>
     <Filter Include="Source Files">
       <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
       <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
@@ -597,6 +602,10 @@
     <ClCompile Include="src\games\Cs2\aimbot\cs2_aim.cpp">
       <Filter>Source Files\Cs2</Filter>
     </ClCompile>
+    <ClCompile Include="src\games\Cs2\rcs\local_player_resolver.cpp"><Filter>Source Files\Cs2</Filter></ClCompile>
+    <ClCompile Include="src\games\Cs2\rcs\recoil_reader.cpp"><Filter>Source Files\Cs2</Filter></ClCompile>
+    <ClCompile Include="src\games\Cs2\rcs\rcs_controller.cpp"><Filter>Source Files\Cs2</Filter></ClCompile>
+    <ClCompile Include="src\games\Cs2\rcs\rcs_debug.cpp"><Filter>Source Files\Cs2</Filter></ClCompile>
     <ClCompile Include="src\games\Cs2\esp\cs2_esp.cpp">
       <Filter>Source Files\Cs2</Filter>
     </ClCompile>

@@ -593,8 +593,9 @@ static void RunFrameWithConfig(const Config& frame_config) {
         bool queuedLocalIdentity = false;
         mem.SetDmaCallTag("CS2.LocalIdentity");
         if (refreshLocalBootstrap) {
-            mem.AddScatterReadRequest(g_scatter_full, client + offsets.dwLocalPlayerPawn,
-                                      &localPawn, sizeof(localPawn));
+            if (offsets.dwLocalPlayerPawn)
+                mem.AddScatterReadRequest(g_scatter_full, client + offsets.dwLocalPlayerPawn,
+                                          &localPawn, sizeof(localPawn));
             if (offsets.dwLocalPlayerController)
                 mem.AddScatterReadRequest(g_scatter_full, client + offsets.dwLocalPlayerController,
                                           &localController, sizeof(localController));
@@ -604,10 +605,17 @@ static void RunFrameWithConfig(const Config& frame_config) {
             mem.ExecuteReadScatter(g_scatter_full);
     } else {
         if (refreshLocalBootstrap) {
-            QReadT(client + offsets.dwLocalPlayerPawn, localPawn, "CS2.LocalPawn");
+            if (offsets.dwLocalPlayerPawn)
+                QReadT(client + offsets.dwLocalPlayerPawn, localPawn, "CS2.LocalPawn");
             if (offsets.dwLocalPlayerController)
                 QReadT(client + offsets.dwLocalPlayerController, localController, "CS2.LocalController");
         }
+    }
+    if (refreshLocalBootstrap) {
+        if (!ValidateLocalPawnCandidate(localPawn))
+            localPawn = ResolveLocalPawnFromController(localController);
+        if (!ValidateLocalPawnCandidate(localPawn))
+            localPawn = 0;
     }
     const uintptr_t previousLocalPawn = runtime.local_pawn;
     runtime.local_pawn = IsUserPointer(localPawn) ? localPawn : 0;

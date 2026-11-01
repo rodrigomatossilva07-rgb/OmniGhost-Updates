@@ -5,4 +5,5 @@ namespace CS2_Aim {
 void Run(const CS2::Runtime& rt, const CS2::Config& cfg);
 int ActiveTargetIndex();
 const char* DebugStatus();
+const char* RCSDebugStatus();
 }

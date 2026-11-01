@@ -77,6 +77,35 @@ static uintptr_t ResolvePawnFromHandle(uint32_t handle, uintptr_t expected_local
     return 0;
 }
 
+static bool ValidateLocalPawnCandidate(uintptr_t pawn) {
+    if (!IsUserPointer(pawn) || !offsets.m_iHealth || !offsets.m_iTeamNum ||
+        !offsets.m_pGameSceneNode)
+        return false;
+    int health = -1;
+    uint8_t team = 0xFFu;
+    uintptr_t scene = 0;
+    if (!QReadT(pawn + offsets.m_iHealth, health) || health < 0 || health > 200)
+        return false;
+    if (!QReadT(pawn + offsets.m_iTeamNum, team) || team > 3u)
+        return false;
+    if (!QReadT(pawn + offsets.m_pGameSceneNode, scene) || !IsUserPointer(scene))
+        return false;
+    return true;
+}
+
+static uintptr_t ResolveLocalPawnFromController(uintptr_t controller) {
+    if (!IsUserPointer(controller) || !offsets.m_hPlayerPawn)
+        return 0;
+    uint32_t handle = 0;
+    if (!QReadT(controller + offsets.m_hPlayerPawn, handle))
+        return 0;
+    const EntityHandleParts parts = DecodeEntityHandle(handle);
+    if (!parts.valid)
+        return 0;
+    const uintptr_t pawn = ResolvePawnFromHandle(handle, 0);
+    return ValidateLocalPawnCandidate(pawn) ? pawn : 0;
+}
+
 static void UpdateLocalWeaponDefinitionThrottled() {
     static uint64_t next_update_ms = 0;
     static uintptr_t cached_pawn = 0;
