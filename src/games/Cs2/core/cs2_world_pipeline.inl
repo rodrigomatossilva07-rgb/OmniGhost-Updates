@@ -683,6 +683,7 @@ static void RunFrameWithConfig(const Config& frame_config) {
             bool scoped = false;
             int crosshair = 0;
             int shots = -1;
+            uintptr_t aim_punch_services = 0;
             float aimPunch[2] = {
                 (std::numeric_limits<float>::quiet_NaN)(),
                 (std::numeric_limits<float>::quiet_NaN)()
@@ -721,7 +722,11 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 if (needRcsState && offsets.m_iShotsFired)
                     mem.AddScatterReadRequest(g_scatter_full, runtime.local_pawn + offsets.m_iShotsFired,
                                               &shots, sizeof(shots));
-                if (needRcsState && offsets.m_aimPunchAngle)
+                if (needRcsState && offsets.m_pAimPunchServices && offsets.m_vecCsViewPunchAngle)
+                    mem.AddScatterReadRequest(g_scatter_full,
+                                              runtime.local_pawn + offsets.m_pAimPunchServices,
+                                              &aim_punch_services, sizeof(aim_punch_services));
+                else if (needRcsState && offsets.m_aimPunchAngle)
                     mem.AddScatterReadRequest(g_scatter_full, runtime.local_pawn + offsets.m_aimPunchAngle,
                                               aimPunch, sizeof(aimPunch));
 
@@ -785,7 +790,11 @@ static void RunFrameWithConfig(const Config& frame_config) {
                         mem.AddScatterReadRequest(g_scatter_full,
                             runtime.local_pawn + offsets.m_iShotsFired,
                             &shots, sizeof(shots));
-                    if (needRcsState && offsets.m_aimPunchAngle)
+                    if (needRcsState && offsets.m_pAimPunchServices && offsets.m_vecCsViewPunchAngle)
+                        mem.AddScatterReadRequest(g_scatter_full,
+                            runtime.local_pawn + offsets.m_pAimPunchServices,
+                            &aim_punch_services, sizeof(aim_punch_services));
+                    else if (needRcsState && offsets.m_aimPunchAngle)
                         mem.AddScatterReadRequest(g_scatter_full,
                             runtime.local_pawn + offsets.m_aimPunchAngle,
                             aimPunch, sizeof(aimPunch));
@@ -824,7 +833,11 @@ static void RunFrameWithConfig(const Config& frame_config) {
                         if (needRcsState && offsets.m_iShotsFired)
                             mem.AddScatterReadRequest(h, runtime.local_pawn + offsets.m_iShotsFired,
                                 &shots, sizeof(shots));
-                        if (needRcsState && offsets.m_aimPunchAngle)
+                        if (needRcsState && offsets.m_pAimPunchServices && offsets.m_vecCsViewPunchAngle)
+                            mem.AddScatterReadRequest(h,
+                                runtime.local_pawn + offsets.m_pAimPunchServices,
+                                &aim_punch_services, sizeof(aim_punch_services));
+                        else if (needRcsState && offsets.m_aimPunchAngle)
                             mem.AddScatterReadRequest(h, runtime.local_pawn + offsets.m_aimPunchAngle,
                                 aimPunch, sizeof(aimPunch));
                     };
@@ -901,6 +914,12 @@ static void RunFrameWithConfig(const Config& frame_config) {
 
             if (IsFinitePosition(local_position_sample))
                 std::memcpy(runtime.local_pos, local_position_sample, sizeof(runtime.local_pos));
+
+            if (needRcsState && offsets.m_pAimPunchServices &&
+                offsets.m_vecCsViewPunchAngle && IsUserPointer(aim_punch_services)) {
+                (void)QRead(aim_punch_services + offsets.m_vecCsViewPunchAngle,
+                    aimPunch, sizeof(aimPunch));
+            }
 
             if (needRcsState && offsets.m_iShotsFired && shots >= 0 && shots < 256) {
                 if (previous_shots >= 0 && shots > previous_shots)
