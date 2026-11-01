@@ -54,6 +54,7 @@ private:
     std::atomic_bool cancelled_{false};
     std::atomic_bool busy_{false}; std::atomic_bool initialized_{false}; std::atomic_bool exitRequested_{false};
     std::atomic_bool installOnExit_{false};
+    std::atomic_bool installImmediately_{false};
 
 };
 

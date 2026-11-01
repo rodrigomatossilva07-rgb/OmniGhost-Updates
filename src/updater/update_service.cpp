@@ -802,6 +802,18 @@ void UpdateService::RunDownload() {
     });
     WriteLog(LogFile(), LogLevel::Info, OmniGhost::Version, version, "ready", "Tamanho e SHA-256 validados.");
     RecordHealth("ready", version, package.sha256, {}, {}, "package validated");
+
+    // A ação principal da interface é deliberadamente contínua: descarrega,
+    // valida e entrega a instalação ao processo temporário sem exigir um
+    // segundo clique no estado Ready.
+    if (installImmediately_.exchange(false, std::memory_order_acq_rel)) {
+        SetSnapshot([](Snapshot& s) {
+            s.status = Status::Installing;
+            s.installOnExit = false;
+            s.userMessage = "A concluir a instalação e a reiniciar o OmniGhost…";
+        });
+        (void)InstallPreparedUpdate();
+    }
 }
 
 void UpdateService::VerifyInstallationAsync() {
@@ -1003,9 +1015,10 @@ bool UpdateService::InstallPreparedUpdate() {
     launch.lpFile = runner.c_str();
     launch.lpParameters = argumentText.c_str();
     launch.lpDirectory = runnerDirectoryText.c_str();
-    // The runner now owns a dedicated updater window and must be visible even
-    // though the launcher itself is about to terminate.
-    launch.nShow = SW_SHOWNORMAL;
+    // Transfer progress is presented by the existing launcher UI. The small
+    // replacement process is intentionally silent and only owns the atomic
+    // file swap/restart phase.
+    launch.nShow = SW_HIDE;
     if (!ShellExecuteExW(&launch) || !launch.hProcess) {
         const DWORD code = GetLastError();
         if (needElevation && code == ERROR_CANCELLED) {
@@ -1057,22 +1070,32 @@ void UpdateService::InstallUpdateAsync() {
     if ((current.status != Status::Available && current.status != Status::Ready) ||
         busy_.exchange(true, std::memory_order_acq_rel))
         return;
-    SetSnapshot([](Snapshot& s) {
-        s.status = Status::Installing;
+    installImmediately_.store(current.status == Status::Available, std::memory_order_release);
+    SetSnapshot([&](Snapshot& s) {
+        s.status = current.status == Status::Available ? Status::Downloading : Status::Installing;
         s.installOnExit = false;
-        s.userMessage = "A iniciar o atualizador independente…";
+        s.userMessage = current.status == Status::Available
+            ? "A descarregar e validar a atualização…"
+            : "A concluir a instalação e a reiniciar o OmniGhost…";
         s.errorTitle.clear(); s.errorStage.clear(); s.technicalDetail.clear();
     });
     {
         std::lock_guard workerLock(workerMutex_);
         if (worker_.joinable()) worker_.join();
         worker_ = std::jthread([this](std::stop_token) {
-            Platform::SetCurrentThreadName(L"OmniGhost.IndependentUpdaterLaunch");
+            Platform::SetCurrentThreadName(L"OmniGhost.UpdateAndInstall");
             auto reset = Platform::MakeScopeExit([this] { busy_.store(false, std::memory_order_release); });
-            try { (void)InstallPreparedUpdate(); }
+            try {
+                if (installImmediately_.load(std::memory_order_acquire))
+                    RunDownload();
+                else
+                    (void)InstallPreparedUpdate();
+            }
             catch (const std::exception& exception) {
+                installImmediately_.store(false, std::memory_order_release);
                 SetError("Não foi possível iniciar o atualizador independente.", exception.what(), "launch-updater");
             } catch (...) {
+                installImmediately_.store(false, std::memory_order_release);
                 SetError("Não foi possível iniciar o atualizador independente.",
                          "Falha inesperada ao preparar o processo.", "launch-updater");
             }
@@ -1127,6 +1150,7 @@ void UpdateService::DeferForSession() {
 }
 void UpdateService::Cancel() {
     cancelled_ = true;
+    installImmediately_.store(false, std::memory_order_release);
 
 
     std::lock_guard workerLock(workerMutex_);
@@ -1146,6 +1170,7 @@ bool UpdateService::BlocksGameLaunch() const {
     }
 }
 void UpdateService::SetError(const std::string& userMessage, const std::string& detail, const std::string& stage) {
+    installImmediately_.store(false, std::memory_order_release);
     const std::string title = ExactErrorTitle(stage, detail);
     const std::string resolvedMessage =
         userMessage.empty() ? ExactUserMessage(stage, detail) : userMessage;

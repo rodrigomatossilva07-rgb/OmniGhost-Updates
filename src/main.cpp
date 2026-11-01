@@ -353,6 +353,13 @@ int RunOmniGhost(int argc, wchar_t** argv) {
         return 1;
     }
 
+    // A confirmação é escrita antes de inicializar segurança, runtime, DMA ou
+    // renderização. O atualizador precisa apenas de confirmar que o novo
+    // executável arrancou; esperar pelo bootstrap completo provocava falsos
+    // timeouts (código interno 28) em máquinas mais lentas.
+    OmniGhost::Update::ConfirmUpdaterStartupFromCommandLine(argc, argv);
+    OmniGhost::Update::CaptureUpdaterStartupNoticeFromCommandLine(argc, argv);
+
 
 
 
@@ -522,11 +529,6 @@ int RunOmniGhost(int argc, wchar_t** argv) {
 
 
 
-
-
-
-    OmniGhost::Update::ConfirmUpdaterStartupFromCommandLine(argc, argv);
-    OmniGhost::Update::CaptureUpdaterStartupNoticeFromCommandLine(argc, argv);
 
 
 

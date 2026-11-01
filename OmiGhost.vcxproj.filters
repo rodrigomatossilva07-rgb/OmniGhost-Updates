@@ -241,9 +241,6 @@
     <ClCompile Include="src\updater\update_ui.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\updater\updater_window.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="src\updater\updater_mode.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -454,9 +451,6 @@
       <Filter>Header Files\updater</Filter>
     </ClInclude>
     <ClInclude Include="src\updater\installation_integrity.h">
-      <Filter>Header Files\updater</Filter>
-    </ClInclude>
-    <ClInclude Include="src\updater\updater_window.h">
       <Filter>Header Files\updater</Filter>
     </ClInclude>
     <ClInclude Include="src\updater\wininet_fallback.h">
