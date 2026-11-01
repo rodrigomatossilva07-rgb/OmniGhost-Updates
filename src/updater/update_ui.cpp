@@ -199,9 +199,9 @@ void Draw() {
         if (state.bytesTotal > 0)
             CyberWidgets::TextLineF(CyberWidgets::TextTone::Secondary, "Pacote: %.1f MB",
                 static_cast<double>(state.bytesTotal) / 1048576.0);
-        if (CyberWidgets::Button(state.mandatory ? "Descarregar atualização" : "Descarregar",
+        if (CyberWidgets::Button(state.mandatory ? "Instalar atualização" : "Instalar agora",
                 CyberWidgets::ButtonStyle::Primary, ImVec2(CyberTheme::Px(180.0f), CyberTheme::Px(34.0f))))
-            service.DownloadAsync();
+            service.InstallUpdateAsync();
         if (!state.mandatory) {
             ImGui::SameLine();
             if (CyberWidgets::Button("Instalar ao sair", CyberWidgets::ButtonStyle::Secondary,

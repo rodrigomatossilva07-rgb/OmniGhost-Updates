@@ -944,15 +944,19 @@ void UpdateService::DismissStartupNotice() {
 }
 
 bool UpdateService::InstallPreparedUpdate() {
-    std::string version, expectedHash; std::uint64_t expectedSize{};
+    std::string version, expectedHash, packageUrl; std::uint64_t expectedSize{};
     fs::path downloadedPackage;
     { std::lock_guard lock(mutex_); if (!manifest_ || !package_ ||
-          (snapshot_.status != Status::Ready && snapshot_.status != Status::Installing)) return false;
-      version = manifest_->version.original; expectedHash = package_->sha256; expectedSize = package_->size;
+          (snapshot_.status != Status::Available && snapshot_.status != Status::Ready &&
+           snapshot_.status != Status::Installing)) return false;
+      version = manifest_->version.original; expectedHash = package_->sha256;
+      expectedSize = package_->size; packageUrl = package_->url;
 
-      downloadedPackage = downloadedPackage_; }
+      downloadedPackage = downloadedPackage_.empty()
+          ? Paths::Updates() / fs::path(package_->fileName)
+          : downloadedPackage_; }
     const fs::path installedExecutable = Paths::Executable();
-    if (!fs::exists(installedExecutable) || !fs::exists(downloadedPackage)) { SetError({}, "Executável ou pacote em falta.", "launch-updater"); return false; }
+    if (!fs::exists(installedExecutable)) { SetError({}, "Executável instalado em falta.", "launch-updater"); return false; }
     std::wstring runnerToken;
     std::string randomError;
     if (!RandomTokenHex(16, runnerToken, randomError)) {
@@ -980,6 +984,7 @@ bool UpdateService::InstallPreparedUpdate() {
         << L" --updates-root " << Quote(Paths::Updates())
         << L" --target " << Quote(Paths::InstallDirectory()) << L" --executable " << Quote(fs::path(OmniGhost::MainExecutable))
 		<< L" --version \"" << Platform::Utf8ToWide(version) << L"\""
+        << L" --package-url " << Quote(Platform::Utf8ToWide(packageUrl))
         << L" --sha256 \"" << Platform::Utf8ToWide(expectedHash) << L"\" --size " << expectedSize
         << L" --timeout " << config_.updaterExitTimeoutSeconds
         << L" --from-version \"" << Platform::Utf8ToWide(OmniGhost::Version) << L"\"";
@@ -998,7 +1003,9 @@ bool UpdateService::InstallPreparedUpdate() {
     launch.lpFile = runner.c_str();
     launch.lpParameters = argumentText.c_str();
     launch.lpDirectory = runnerDirectoryText.c_str();
-    launch.nShow = needElevation ? SW_SHOW : SW_HIDE;
+    // The runner now owns a dedicated updater window and must be visible even
+    // though the launcher itself is about to terminate.
+    launch.nShow = SW_SHOWNORMAL;
     if (!ShellExecuteExW(&launch) || !launch.hProcess) {
         const DWORD code = GetLastError();
         if (needElevation && code == ERROR_CANCELLED) {
@@ -1038,11 +1045,39 @@ bool UpdateService::InstallPreparedUpdate() {
         s.errorStage.clear();
         s.technicalDetail.clear();
     });
-    RecordHealth("install-launched", version, expectedHash, "sha256-verified");
+    RecordHealth("install-launched", version, expectedHash, "verification-delegated-to-independent-updater");
 
 
     OmniGhost::RemoteUsage::SuppressFinalFlush();
     exitRequested_ = true; return true;
+}
+
+void UpdateService::InstallUpdateAsync() {
+    const Snapshot current = GetSnapshot();
+    if ((current.status != Status::Available && current.status != Status::Ready) ||
+        busy_.exchange(true, std::memory_order_acq_rel))
+        return;
+    SetSnapshot([](Snapshot& s) {
+        s.status = Status::Installing;
+        s.installOnExit = false;
+        s.userMessage = "A iniciar o atualizador independente…";
+        s.errorTitle.clear(); s.errorStage.clear(); s.technicalDetail.clear();
+    });
+    {
+        std::lock_guard workerLock(workerMutex_);
+        if (worker_.joinable()) worker_.join();
+        worker_ = std::jthread([this](std::stop_token) {
+            Platform::SetCurrentThreadName(L"OmniGhost.IndependentUpdaterLaunch");
+            auto reset = Platform::MakeScopeExit([this] { busy_.store(false, std::memory_order_release); });
+            try { (void)InstallPreparedUpdate(); }
+            catch (const std::exception& exception) {
+                SetError("Não foi possível iniciar o atualizador independente.", exception.what(), "launch-updater");
+            } catch (...) {
+                SetError("Não foi possível iniciar o atualizador independente.",
+                         "Falha inesperada ao preparar o processo.", "launch-updater");
+            }
+        });
+    }
 }
 
 void UpdateService::InstallPreparedUpdateAsync() {

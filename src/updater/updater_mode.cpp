@@ -10,6 +10,7 @@
 #include "installation_integrity.h"
 #include "update_log.h"
 #include "update_types.h"
+#include "updater_window.h"
 #include <Windows.h>
 #include <algorithm>
 #include <atomic>
@@ -199,6 +200,16 @@ bool ConfirmStarted(DWORD pid, const fs::path& file, const std::wstring& token, 
         std::to_string(seconds) + " segundos.";
     return false;
 }
+
+bool RestartCurrentUpdater() {
+    const wchar_t* commandLine = GetCommandLineW();
+    if (!commandLine || !*commandLine) return false;
+    std::vector<wchar_t> command(commandLine, commandLine + wcslen(commandLine) + 1);
+    STARTUPINFOW startup{}; startup.cb = sizeof(startup);
+    Platform::UniqueProcessInformation process;
+    return CreateProcessW(nullptr, command.data(), nullptr, nullptr, FALSE, 0, nullptr, nullptr,
+                          &startup, process.put()) != FALSE;
+}
 }
 
 std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
@@ -209,21 +220,37 @@ std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
     const fs::path log = Paths::Logs() / L"logs.txt";
     WriteLog(log, LogLevel::Info, Version, {}, "entry",
         "Pedido para iniciar o modo atualizador recebido.");
+    const auto args = Arguments(argc, argv);
+    std::string requestedVersion;
+    if (const auto it = args.find(L"--version"); it != args.end()) {
+        if (const auto narrow = NarrowAscii(it->second)) requestedVersion = *narrow;
+    }
+    UpdaterWindow updaterWindow;
+    (void)updaterWindow.Start(requestedVersion);
+    updaterWindow.SetStage(L"A verificar atualização...",
+                           L"A validar a integridade e autenticidade do pacote.");
+
+    Platform::UniqueHandle mutex(CreateMutexW(nullptr, TRUE, L"Local\\OmniGhostUpdater-6A670FC7"));
     auto reject = [&](int code, const char* stage, const std::string& detail) -> std::optional<int> {
         WriteLog(log, LogLevel::Error, Version, {}, stage,
             detail + " Código interno=" + std::to_string(code) + ".");
         RecordHealth(stage, Version, {}, {}, {}, {}, detail);
+        updaterWindow.SetError(Platform::Utf8ToWide(detail),
+            Platform::Utf8ToWide("Etapa: " + std::string(stage) + " · Código interno: " + std::to_string(code)));
+        const bool retry = updaterWindow.WaitForErrorAction();
+        mutex.reset();
+        updaterWindow.Stop();
+        if (retry && !RestartCurrentUpdater())
+            MessageBoxW(nullptr, L"Não foi possível reiniciar o atualizador.", L"OmniGhost — Atualizador",
+                        MB_OK | MB_ICONERROR);
         return code;
     };
-
-    Platform::UniqueHandle mutex(CreateMutexW(nullptr, TRUE, L"Local\\OmniGhostUpdater-6A670FC7"));
     if (!mutex)
         return reject(20, "mutex", "Não foi possível criar o bloqueio do atualizador.");
     if (GetLastError() == ERROR_ALREADY_EXISTS)
         return reject(20, "mutex", "Já existe outro processo de atualização em execução.");
-    const auto args = Arguments(argc, argv);
-    const wchar_t* required[] = { L"--pid", L"--package", L"--updates-root", L"--target", L"--executable", L"--version",
-		L"--sha256", L"--size" };
+    const wchar_t* required[] = { L"--pid", L"--package", L"--package-url", L"--updates-root",
+        L"--target", L"--executable", L"--version", L"--sha256", L"--size" };
     for (const wchar_t* name : required) {
         if (!args.contains(name) || args.at(name).empty())
             return reject(21, "arguments", "Falta um argumento obrigatório no pedido de atualização.");
@@ -243,10 +270,12 @@ std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
     const fs::path executableName = args.at(L"--executable");
     const auto targetVersionValue = NarrowAscii(args.at(L"--version"));
     const auto expectedHashValue = NarrowAscii(args.at(L"--sha256"));
-    if (!targetVersionValue || !expectedHashValue)
+    const auto packageUrlValue = NarrowAscii(args.at(L"--package-url"));
+    if (!targetVersionValue || !expectedHashValue || !packageUrlValue)
         return reject(21, "arguments", "Versão ou SHA-256 contém caracteres inválidos.");
     const std::string& targetVersion = *targetVersionValue;
     const std::string& expectedHash = *expectedHashValue;
+    const std::string& packageUrl = *packageUrlValue;
     std::string fromVersion = Version;
     std::string notesUrl;
     if (args.contains(L"--from-version")) {
@@ -265,7 +294,8 @@ std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
         executableName.has_parent_path() || _wcsicmp(executableName.c_str(), MainExecutable) != 0 ||
 		_wcsicmp(package.extension().c_str(), L".zip") != 0 || !fs::exists(target / executableName) ||
 		!Descendant(updatesRoot, Paths::RuntimeRoot()) || !Descendant(package, updatesRoot) ||
-        !SemVersion::Parse(targetVersion) || expectedSize == 0 || expectedHash.size() != 64)
+        !SemVersion::Parse(targetVersion) || expectedSize == 0 || expectedHash.size() != 64 ||
+        packageUrl.rfind(Configuration{}.allowedPackageUrlPrefix, 0) != 0)
         return reject(22, "arguments", "Os caminhos ou metadados do pedido de atualização não são seguros/válidos.");
 
     WriteLog(log, LogLevel::Info, Version, targetVersion, "start", "Modo atualizador do OmniGhost iniciado.");
@@ -278,6 +308,35 @@ std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
 
 
 
+    if (!fs::exists(package)) {
+        updaterWindow.SetStage(L"A transferir atualização",
+            L"A obter os ficheiros necessários através de uma ligação segura.");
+        const fs::path partial = package.wstring() + L".partial";
+        std::error_code downloadCleanup;
+        fs::remove(partial, downloadCleanup);
+        std::atomic_bool cancelled{false};
+        WinHttpClient downloadClient;
+        const auto transferStarted = std::chrono::steady_clock::now();
+        HttpResult download = downloadClient.Download(packageUrl, partial, expectedSize,
+            Configuration{}.maximumPackageBytes, 30000, cancelled,
+            [&](std::uint64_t received, std::uint64_t total, double speed) {
+                updaterWindow.SetTransfer(received, total ? total : expectedSize, speed);
+            });
+        if (!download.error.empty()) {
+            fs::remove(partial, downloadCleanup);
+            return reject(34, "download", download.error);
+        }
+        fs::rename(partial, package, downloadCleanup);
+        if (downloadCleanup) {
+            fs::remove(partial, downloadCleanup);
+            return reject(34, "download", "Não foi possível preparar o pacote transferido.");
+        }
+        const auto transferDuration = std::chrono::steady_clock::now() - transferStarted;
+        (void)transferDuration;
+    }
+
+    updaterWindow.SetStage(L"A verificar atualização...",
+        L"A validar o tamanho e o SHA-256 do pacote transferido.");
     Platform::UniqueHandle packageLock(CreateFileW(package.c_str(), GENERIC_READ, FILE_SHARE_READ,
         nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
     if (!packageLock) {
@@ -285,7 +344,7 @@ std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
             "Não foi possível abrir o pacote em modo exclusivo de leitura (partilha de escrita negada).");
         RecordHealth("revalidate-failed", Version, targetVersion, expectedHash, {}, {},
             "package could not be locked for verification");
-        return 29;
+        return reject(29, "revalidate", "Não foi possível bloquear o pacote para verificação.");
     }
     LARGE_INTEGER pinnedSize{};
     if (!GetFileSizeEx(packageLock.get(), &pinnedSize) ||
@@ -296,12 +355,15 @@ std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
             error.empty() ? "Tamanho ou SHA-256 alterado antes da instalação." : error);
         RecordHealth("revalidate-failed", Version, targetVersion, expectedHash, {}, {},
             error.empty() ? "size or sha256 changed before install" : error);
-        return 29;
+        return reject(29, "revalidate", error.empty()
+            ? "O tamanho ou SHA-256 do pacote foi alterado antes da instalação." : error);
     }
     RecordHealth("revalidated", Version, targetVersion, expectedHash, {}, {},
         "package size and sha256 verified (write-locked during install)");
 
     {
+        updaterWindow.SetStage(L"A verificar atualização...",
+            L"A confirmar o pacote com a publicação oficial.");
         std::atomic_bool cancelled{false};
         WinHttpClient verifyClient;
         const int verifyTimeoutMs = 20000;
@@ -341,17 +403,25 @@ std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
                      std::string("Timeout inválido; usado valor seguro: ") + exception.what());
         }
     }
-    if (!WaitForExit(pid, timeout, error)) { WriteLog(log, LogLevel::Error, Version, targetVersion, "wait", error); return 23; }
+    updaterWindow.SetStage(L"A preparar atualização...",
+        L"A aguardar pelo encerramento seguro do OmniGhost.");
+    if (!WaitForExit(pid, timeout, error)) {
+        WriteLog(log, LogLevel::Error, Version, targetVersion, "wait", error);
+        return reject(23, "wait", error);
+    }
 
     Configuration configuration{};
     std::wstring stagingToken;
     if (!RandomTokenHex(16, stagingToken, error)) {
         WriteLog(log, LogLevel::Error, Version, targetVersion, "staging-token", error);
-        return 31;
+        return reject(31, "staging-token", error);
     }
     const fs::path staging = package.parent_path() / (L"staging-" + stagingToken); ArchiveInfo archive{};
+    updaterWindow.SetStage(L"A preparar atualização...",
+        L"A extrair os novos ficheiros para uma área temporária segura.");
     if (!ExtractZipSecurely(package, staging, configuration, archive, error)) {
-        WriteLog(log, LogLevel::Error, Version, targetVersion, "extract", error); return 24;
+        WriteLog(log, LogLevel::Error, Version, targetVersion, "extract", error);
+        return reject(24, "extract", error);
     }
 
 
@@ -370,7 +440,7 @@ std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
         !(singleExecutablePackage && stagedIntegrity.status == IntegrityStatus::ManifestMissing)) {
         WriteLog(log, LogLevel::Error, Version, targetVersion, "integrity", stagedIntegrity.message);
         RecordHealth("staged-integrity-failed", Version, targetVersion, expectedHash, {}, {}, stagedIntegrity.message);
-        return 33;
+        return reject(33, "integrity", stagedIntegrity.message);
     }
 
 
@@ -388,7 +458,8 @@ std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
                 : stagedExecutableHashError);
         RecordHealth("install-failed", Version, targetVersion, expectedHash, {}, "disabled-single-exe",
             "staged executable hash unavailable");
-        return 26;
+        return reject(26, "install", stagedExecutableHashError.empty()
+            ? "Não foi possível validar o executável extraído." : stagedExecutableHashError);
     }
 	InstallOptions install;
 	install.staging = staging;
@@ -396,12 +467,14 @@ std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
 	install.executableName = executableName.wstring();
 	install.backupDirectory = backupsDirectory;
 	install.expectedExecutableSha256 = stagedExecutableHash;
+	updaterWindow.SetStage(L"A instalar atualização",
+	    L"Os novos ficheiros estão a ser instalados com cópia de segurança.");
 	const InstallResult installed = InstallSingleExecutable(install);
     if (!installed.success) {
         WriteLog(log, LogLevel::Error, Version, targetVersion, "install", installed.error);
         RecordHealth("install-failed", Version, targetVersion, expectedHash, {},
 			"disabled-single-exe", installed.error);
-		return 26;
+		return reject(26, "install", installed.error);
     }
     RecordHealth("installed-awaiting-restart", Version, targetVersion, expectedHash, {}, {},
         "files installed; awaiting startup confirmation");
@@ -409,7 +482,7 @@ std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
     std::wstring token;
     if (!RandomTokenHex(32, token, error)) {
         WriteLog(log, LogLevel::Error, Version, targetVersion, "restart-token", error);
-        return 30;
+        return reject(30, "restart-token", error);
     }
     const fs::path confirmation = package.parent_path() / (L"startup-confirm-" + stagingToken + L".txt");
     std::error_code cleanupError; fs::remove(confirmation, cleanupError);
@@ -418,13 +491,14 @@ std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
         if (!confirmationStream) {
             WriteLog(log, LogLevel::Error, Version, targetVersion, "confirmation-acl",
                 "Não foi possível criar o ficheiro de confirmação protegido.");
-            return 32;
+            return reject(32, "confirmation-acl",
+                "Não foi possível criar o ficheiro protegido de confirmação de arranque.");
         }
     }
     if (!RestrictPathToCurrentUser(confirmation, false, error)) {
         WriteLog(log, LogLevel::Error, Version, targetVersion, "confirmation-acl", error);
         fs::remove(confirmation, cleanupError);
-        return 32;
+        return reject(32, "confirmation-acl", error);
     }
     const auto confirmationCleanup = Platform::MakeScopeExit([&confirmation] {
         std::error_code cleanup;
@@ -436,8 +510,13 @@ std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
         L" --updated-to " + Quote(Platform::Utf8ToWide(targetVersion));
     if (!notesUrl.empty())
         successArguments += L" --update-notes-url " + Quote(Platform::Utf8ToWide(notesUrl));
+    updaterWindow.SetStage(L"A verificar instalação...",
+        L"A confirmar a integridade da nova versão instalada.");
     const bool applicationStarted = StartApplication(target / executableName, confirmation, token,
         successArguments, newPid, error);
+    if (applicationStarted)
+        updaterWindow.SetStage(L"A iniciar OmniGhost...",
+            L"A aplicação será aberta automaticamente.");
     const bool startupConfirmed = applicationStarted &&
         ConfirmStarted(newPid, confirmation, token, configuration.startupConfirmationSeconds, error);
     if (!startupConfirmed) {
@@ -507,7 +586,9 @@ std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
                 : (rollbackDetail.empty()
                     ? "; kept latest version (no backup available)"
                     : "; " + rollbackDetail)));
-        return 28;
+        return reject(28, "restart", restartDetail + (rolledBack
+            ? "; a versão anterior foi restaurada com segurança."
+            : "; a versão instalada foi mantida."));
     }
 
     fs::remove(package, cleanupError); fs::remove_all(staging, cleanupError); fs::remove(confirmation, cleanupError);
@@ -518,7 +599,9 @@ std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
     RecordHealth("complete", targetVersion, targetVersion, expectedHash, {}, "not-required",
         "update completed and startup confirmed");
 
-
+    updaterWindow.SetSuccess();
+    std::this_thread::sleep_for(std::chrono::milliseconds(1100));
+    updaterWindow.Stop();
     MoveFileExW(Paths::Executable().c_str(), nullptr, MOVEFILE_DELAY_UNTIL_REBOOT);
     return 0;
 }

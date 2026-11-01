@@ -572,11 +572,15 @@ static void RunFrameWithConfig(const Config& frame_config) {
     static uint64_t s_localGen = 0;
     static ULONGLONG s_lastTeamMs = 0;
     static int previous_shots = -1;
+    static int inferred_shots = 0;
+    static float previous_aim_punch[2]{};
     if (s_localGen != currentGen) {
         s_localGen = currentGen;
         s_lastLocalBootstrapMs = 0;
         s_lastTeamMs = 0;
         previous_shots = -1;
+        inferred_shots = 0;
+        previous_aim_punch[0] = previous_aim_punch[1] = 0.f;
         runtime.local_pawn = 0;
         runtime.local_controller = 0;
         runtime.local_health = 0;
@@ -621,6 +625,8 @@ static void RunFrameWithConfig(const Config& frame_config) {
     runtime.local_pawn = IsUserPointer(localPawn) ? localPawn : 0;
     if (runtime.local_pawn != previousLocalPawn) {
         previous_shots = -1;
+        inferred_shots = 0;
+        previous_aim_punch[0] = previous_aim_punch[1] = 0.f;
         s_lastTeamMs = 0;
         runtime.local_team = 0;
         runtime.local_has_defuser = false;
@@ -921,20 +927,44 @@ static void RunFrameWithConfig(const Config& frame_config) {
                     aimPunch, sizeof(aimPunch));
             }
 
-            if (needRcsState && offsets.m_iShotsFired && shots >= 0 && shots < 256) {
-                if (previous_shots >= 0 && shots > previous_shots)
+            const bool validPunch = std::isfinite(aimPunch[0]) && std::isfinite(aimPunch[1]);
+            if (needRcsState && validPunch) {
+                const float previousMagnitude = std::hypot(previous_aim_punch[0], previous_aim_punch[1]);
+                const float currentMagnitude = std::hypot(aimPunch[0], aimPunch[1]);
+                const bool counterAdvanced = offsets.m_iShotsFired && shots >= 0 && shots < 256 &&
+                    previous_shots >= 0 && shots > previous_shots;
+                // Some builds expose a valid m_iShotsFired field that does not advance for the
+                // external snapshot. A fresh recoil impulse is still observable as a meaningful
+                // increase in punch magnitude. Falling magnitude is recovery and must not renew
+                // the firing window.
+                const bool recoilImpulse = currentMagnitude > 0.02f &&
+                    currentMagnitude > previousMagnitude + 0.0125f;
+                if (counterAdvanced || recoilImpulse) {
                     runtime.local_last_shot_ms = frame_time_ms;
-                previous_shots = shots;
-                runtime.local_shots_fired = shots;
+                    if (!counterAdvanced)
+                        inferred_shots = std::min(inferred_shots + 1, 255);
+                }
+                if (currentMagnitude < 0.01f)
+                    inferred_shots = 0;
+
+                previous_aim_punch[0] = aimPunch[0];
+                previous_aim_punch[1] = aimPunch[1];
             }
-            if (needRcsState && shots >= 0 && shots < 256 &&
-                std::isfinite(aimPunch[0]) && std::isfinite(aimPunch[1])) {
+            if (needRcsState && offsets.m_iShotsFired && shots >= 0 && shots < 256) {
+                previous_shots = shots;
+                runtime.local_shots_fired = std::max(shots, inferred_shots);
+            } else if (needRcsState) {
+                runtime.local_shots_fired = inferred_shots;
+            }
+            if (needRcsState && validPunch) {
                 runtime.local_aim_punch[0] = aimPunch[0];
                 runtime.local_aim_punch[1] = aimPunch[1];
                 runtime.local_aim_sample_ms = frame_time_ms;
             }
             if (!needRcsState) {
                 previous_shots = -1;
+                inferred_shots = 0;
+                previous_aim_punch[0] = previous_aim_punch[1] = 0.f;
                 runtime.local_shots_fired = 0;
                 runtime.local_aim_sample_ms = 0;
                 std::memset(runtime.local_aim_punch, 0, sizeof(runtime.local_aim_punch));

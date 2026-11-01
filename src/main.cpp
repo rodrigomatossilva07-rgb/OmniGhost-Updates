@@ -344,6 +344,15 @@ int RunOmniGhost(int argc, wchar_t** argv) {
         }
     }
 
+    // The temporary updater is an independent native application.  Enter it
+    // before launcher single-instance, security, DMA and graphics bootstrap so
+    // it remains responsive while the main process is shutting down.
+    if (updaterInvocation) {
+        if (const auto updaterResult = OmniGhost::Update::RunUpdaterModeIfRequested(argc, argv))
+            return *updaterResult;
+        return 1;
+    }
+
 
 
 
@@ -445,9 +454,6 @@ int RunOmniGhost(int argc, wchar_t** argv) {
             OmniGhost::SessionLog::Shutdown();
         }
     } session_shutdown_guard;
-    if (const auto updater_result = OmniGhost::Update::RunUpdaterModeIfRequested(argc, argv))
-        return *updater_result;
-
     if (!OmniGhost::Security::SecurityManager::Instance().VerifyStartup()) {
         MessageBoxW(nullptr, L"A instalação não passou a verificação de integridade. Reinstala a versão oficial (SEC-003/004).",
                     L"OmniGhost", MB_OK | MB_ICONERROR);

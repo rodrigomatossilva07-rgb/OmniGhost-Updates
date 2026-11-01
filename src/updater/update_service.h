@@ -20,6 +20,7 @@ public:
     void DownloadAsync();
     void DownloadAndScheduleInstallOnExitAsync();
     void InstallPreparedUpdateAsync();
+    void InstallUpdateAsync();
     bool InstallPreparedUpdate();
     bool ScheduleInstallOnExit();
     void DeferForSession();
