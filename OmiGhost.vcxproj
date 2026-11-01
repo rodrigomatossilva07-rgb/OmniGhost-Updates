@@ -139,7 +139,22 @@
     <Error Condition="'$(OmniGhostEmbeddedRuntimeValidationExitCode)'!='0' And '$(Configuration)'!='PrivateStatic'" Code="OGRUN002" Text="O runtime embedded está incompleto: vmm.dll/leechcore.dll não foram incorporados ao EXE."/>
   </Target>
 
-  <Target Name="BuildOmniGhostEmbeddedResources" BeforeTargets="ClCompile;ResourceCompile" Condition="'$(DesignTimeBuild)'!='true' And '$(OmniGhostSkipEmbeddedGeneration)'!='true'">
+  <ItemGroup Condition="'$(DesignTimeBuild)'!='true'">
+    <OmniGhostEmbeddedResourceInput Include="$(MSBuildProjectDirectory)\src\project\resources\embedded-resources.json"/>
+    <OmniGhostEmbeddedResourceInput Include="$(MSBuildProjectDirectory)\src\project\tools\Build-EmbeddedResources.ps1"/>
+    <OmniGhostEmbeddedResourceInput Include="$(MSBuildProjectDirectory)\src\project\resources\games\**\*"/>
+    <OmniGhostEmbeddedResourceInput Include="$(MSBuildProjectDirectory)\src\project\resources\OmniGhost.png"/>
+    <OmniGhostEmbeddedResourceInput Include="$(MSBuildProjectDirectory)\src\project\resources\OmniGhost_EULA_and_Terms_of_Use.pdf"/>
+    <OmniGhostEmbeddedResourceInput Include="$(MSBuildProjectDirectory)\src\project\config\release\versions.json"/>
+    <OmniGhostEmbeddedResourceInput Include="$(MSBuildProjectDirectory)\src\games\Fivem\data\webradar\**\*"/>
+    <OmniGhostEmbeddedResourceInput Include="$(MSBuildProjectDirectory)\src\games\Cs2\data\weapons\**\*"/>
+    <OmniGhostEmbeddedResourceInput Include="$(MSBuildProjectDirectory)\src\games\Cs2\collision\**\*.tri"/>
+    <OmniGhostEmbeddedResourceInput Include="$(MSBuildProjectDirectory)\src\games\Cs2\data\webradar\**\*"/>
+  </ItemGroup>
+  <Target Name="BuildOmniGhostEmbeddedResources" BeforeTargets="ClCompile;ResourceCompile"
+          Inputs="@(OmniGhostEmbeddedResourceInput)"
+          Outputs="$(MSBuildProjectDirectory)\.cache\generated\$(Configuration)\$(Platform)\embedded_resource_catalog.h;$(MSBuildProjectDirectory)\.cache\generated\$(Configuration)\$(Platform)\embedded_resources.rc2"
+          Condition="'$(DesignTimeBuild)'!='true' And '$(OmniGhostSkipEmbeddedGeneration)'!='true'">
     <Message Importance="High" Text="[OmniGhost 03/10] Recursos embedded"/>
     <Exec Command="&quot;$(MSBuildProjectDirectory)\src\project\tools\Run-OmniGhostPowerShell.cmd&quot; generate-embedded-resources &quot;$(MSBuildProjectDirectory)&quot; &quot;$(Configuration)&quot; &quot;$(Platform)&quot;" StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" IgnoreExitCode="true">
       <Output TaskParameter="ExitCode" PropertyName="OmniGhostEmbeddedResourcesExitCode"/>

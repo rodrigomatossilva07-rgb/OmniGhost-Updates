@@ -30,6 +30,15 @@ function Require-Condition([bool]$Condition, [string]$Reason) {
     if (-not $Condition) { throw $Reason }
 }
 
+Require-Condition ([int64]$offsetSnapshot.schemas.C_CSPlayerPawn.m_pAimPunchServices -eq 0x1598) `
+    'The embedded CS2 snapshot is missing C_CSPlayerPawn::m_pAimPunchServices.'
+Require-Condition ([int64]$offsetSnapshot.schemas.CCSPlayer_AimPunchServices.m_vecCsViewPunchAngle -eq 0x48) `
+    'The embedded CS2 snapshot is missing CCSPlayer_AimPunchServices::m_vecCsViewPunchAngle.'
+Require-Match $source 'schemas\.C_CSPlayerPawn\.m_pAimPunchServices' `
+    'The embedded offset loader does not import m_pAimPunchServices.'
+Require-Match $source 'schemas\.CCSPlayer_AimPunchServices\.m_vecCsViewPunchAngle' `
+    'The embedded offset loader does not import m_vecCsViewPunchAngle.'
+
 Require-Match $memoryIoSource 'DmaSpinLockGuard\(DmaSpinLock& lock, AdoptLockTag\)' 'The non-blocking DMA lane has no adopt-lock guard.'
 Require-Match $memoryIoSource 'DmaSpinLockGuard\(g_dmaSpinLock, DmaSpinLockGuard::AdoptLockTag\{\}\)' 'TryAcquireDmaTransportLock still risks locking the same transport twice.'
 Require-Match $memoryLifecycleSource 'if \(IsCancellationRequested\(\)\)' 'DMA shutdown cancellation must reject new data-plane calls.'

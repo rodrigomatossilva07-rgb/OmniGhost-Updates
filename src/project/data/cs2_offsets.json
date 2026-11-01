@@ -115,9 +115,13 @@
       "m_bIsScoped": "0x1EA0",
       "m_bIsDefusing": "0x1EA2",
       "m_iShotsFired": "0x1EB8",
+      "m_pAimPunchServices": "0x1598",
       "m_ArmorValue": "0x1ED0",
       "m_angEyeAngles": "0x3600",
       "m_iIDEntIndex": "0x36DC"
+    },
+    "CCSPlayer_AimPunchServices": {
+      "m_vecCsViewPunchAngle": "0x48"
     },
     "EntitySpottedState_t": {
       "m_bSpotted": "0x8"
