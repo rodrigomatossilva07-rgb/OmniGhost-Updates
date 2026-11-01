@@ -53,6 +53,11 @@ $generatorLock = Acquire-GeneratorLock 'resources'
 if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) { throw "Embedded resource manifest not found: $manifestPath" }
 $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
 if ($manifest.schemaVersion -ne 1 -or $null -eq $manifest.resources) { throw 'Unsupported embedded resource manifest.' }
+# The directory is generated output only. Recreate it so resources removed or
+# renamed in the source tree cannot survive under an obsolete numeric ID.
+if (Test-Path -LiteralPath $generatedDir -PathType Container) {
+    Remove-Item -LiteralPath $generatedDir -Recurse -Force
+}
 New-Item -ItemType Directory -Path $generatedDir -Force | Out-Null
 
 function Put-U16([Collections.Generic.List[byte]]$Out, [uint16]$Value) {

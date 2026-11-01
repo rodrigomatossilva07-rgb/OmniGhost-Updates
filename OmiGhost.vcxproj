@@ -156,7 +156,11 @@
          timestamp-based Inputs cannot detect a resource that was deleted,
          which previously allowed the primary build to link a stale catalogue
          while the isolated reproducibility build generated a fresh one. -->
-    <OmniGhostEmbeddedResourceOutputs Condition="'$(Configuration)'!='Publish'">$(MSBuildProjectDirectory)\.cache\generated\$(Configuration)\$(Platform)\embedded_resource_catalog.h;$(MSBuildProjectDirectory)\.cache\generated\$(Configuration)\$(Platform)\embedded_resources.rc2</OmniGhostEmbeddedResourceOutputs>
+    <OmniGhostEmbeddedResourceOutputs>$(MSBuildProjectDirectory)\.cache\generated\$(Configuration)\$(Platform)\embedded_resource_catalog.h;$(MSBuildProjectDirectory)\.cache\generated\$(Configuration)\$(Platform)\embedded_resources.rc2</OmniGhostEmbeddedResourceOutputs>
+    <!-- This sentinel is intentionally never created. Appending it only in
+         Publish makes the target out-of-date on every commercial build while
+         preserving normal incremental behaviour in Release. -->
+    <OmniGhostEmbeddedResourceOutputs Condition="'$(Configuration)'=='Publish'">$(OmniGhostEmbeddedResourceOutputs);$(MSBuildProjectDirectory)\.cache\generated\$(Configuration)\$(Platform)\.publish-force-regenerate</OmniGhostEmbeddedResourceOutputs>
   </PropertyGroup>
   <Target Name="BuildOmniGhostEmbeddedResources" BeforeTargets="ClCompile;ResourceCompile"
           Inputs="@(OmniGhostEmbeddedResourceInput)"
