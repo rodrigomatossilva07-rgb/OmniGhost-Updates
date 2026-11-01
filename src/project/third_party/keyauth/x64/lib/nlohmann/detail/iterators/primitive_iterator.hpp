@@ -1,21 +1,21 @@
 #pragma once
 
-#include <cstddef> // ptrdiff_t
-#include <limits>  // numeric_limits
+#include <cstddef>
+#include <limits>
 
 namespace nlohmann
 {
 namespace detail
 {
-/*
-@brief an iterator for primitive JSON types
 
-This class models an iterator for primitive JSON types (boolean, number,
-string). It's only purpose is to allow the iterator/const_iterator classes
-to "iterate" over primitive values. Internally, the iterator is modeled by
-a `difference_type` variable. Value begin_value (`0`) models the begin,
-end_value (`1`) models past the end.
-*/
+
+
+
+
+
+
+
+
 class primitive_iterator_t
 {
   private:
@@ -23,7 +23,7 @@ class primitive_iterator_t
     static constexpr difference_type begin_value = 0;
     static constexpr difference_type end_value = begin_value + 1;
 
-    /// iterator as signed integer type
+
     difference_type m_it = (std::numeric_limits<std::ptrdiff_t>::min)();
 
   public:
@@ -32,25 +32,25 @@ class primitive_iterator_t
         return m_it;
     }
 
-    /// set iterator to a defined beginning
+
     void set_begin() noexcept
     {
         m_it = begin_value;
     }
 
-    /// set iterator to a defined past the end
+
     void set_end() noexcept
     {
         m_it = end_value;
     }
 
-    /// return whether the iterator can be dereferenced
+
     constexpr bool is_begin() const noexcept
     {
         return m_it == begin_value;
     }
 
-    /// return whether the iterator is at end
+
     constexpr bool is_end() const noexcept
     {
         return m_it == end_value;
@@ -116,5 +116,5 @@ class primitive_iterator_t
         return *this;
     }
 };
-}  // namespace detail
-}  // namespace nlohmann
+}
+}

@@ -823,9 +823,9 @@ void DrawPlayers(const Runtime& snapshot, const Config& settings) {
     } else if (snapshot.snapshot_timestamp_ms && nowMs >= snapshot.snapshot_timestamp_ms &&
         nowMs - snapshot.snapshot_timestamp_ms <= 1000u &&
         IsUsableViewMatrix(snapshot.view_matrix)) {
-        // The acquisition snapshot already validates/probes this matrix.  Do not
-        // suppress all ESP merely because the independent high-rate camera lane
-        // was temporarily busy or has not published its first sample yet.
+
+
+
         frameViewMatrix = snapshot.view_matrix;
         presentationSampleMs = snapshot.snapshot_timestamp_ms;
     }

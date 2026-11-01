@@ -1,8 +1,8 @@
 #pragma once
 
-#include <cstdint> // size_t
-#include <utility> // declval
-#include <string> // string
+#include <cstdint>
+#include <utility>
+#include <string>
 
 #include <nlohmann/detail/meta/detected.hpp>
 #include <nlohmann/detail/meta/type_traits.hpp>
@@ -145,5 +145,5 @@ struct is_sax_static_asserts
         "Missing/invalid function: bool parse_error(std::size_t, const "
         "std::string&, const exception&)");
 };
-}  // namespace detail
-}  // namespace nlohmann
+}
+}

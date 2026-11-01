@@ -1,6 +1,6 @@
-//
-// Created by remy on 02-06-20.
-//
+
+
+
 
 #include "qr.png.h"
 #include "pngout.hpp"
@@ -12,7 +12,7 @@ QrToPng::QrToPng(std::string fileName, int imgSize, int minModulePixelSize, std:
 }
 
 bool QrToPng::writeToPNG() {
-    /* text is required */
+
     if (_text.empty())
         return false;
 
@@ -52,26 +52,26 @@ bool QrToPng::_writeToPNG(const qrcodegen::QrCode &qrData) const {
     auto qrSize = qrData.getSize();
     auto qrSizeWithBorder = qrData.getSize() + 2;
     if (qrSizeWithBorder > _size)
-        return false; // qrcode doesn't fit
+        return false;
 
     int qrSizeFitsInMaxImgSizeTimes = _size / qrSizeWithBorder;
     int pixelsWHPerModule = qrSizeFitsInMaxImgSizeTimes;
 
     if (qrSizeFitsInMaxImgSizeTimes < _minModulePixelSize)
-        return false; // image would be to small to scan
+        return false;
 
     std::vector<uint8_t> tmpData;
     const uint8_t blackPixel = 0x00;
     const uint8_t whitePixel = 0xFF;
 
-    /* The below loop converts the qrData to RGB8.8.8 pixels and writes it with
-     * the tinyPNGoutput library. since we probably have requested a larger
-     * qr module pixel size we must transform the qrData modules to be larger
-     * pixels (than just 1x1). */
 
-    // border above
-    for (int i = 0; i < pngWH; i++) // row
-        for (int j = 0; j < pixelsWHPerModule; j++) // module pixel (height)
+
+
+
+
+
+    for (int i = 0; i < pngWH; i++)
+        for (int j = 0; j < pixelsWHPerModule; j++)
             tmpData.insert(tmpData.end(), {whitePixel, whitePixel, whitePixel});
 
     pngout.write(tmpData.data(), static_cast<size_t>(tmpData.size() / 3));
@@ -79,34 +79,34 @@ bool QrToPng::_writeToPNG(const qrcodegen::QrCode &qrData) const {
 
     for (int qrModuleAtY = 0; qrModuleAtY < qrSize; qrModuleAtY++) {
         for (int col = 0; col < pixelsWHPerModule; col++) {
-            // border left
+
             for (int i = 0; i < qrSizeFitsInMaxImgSizeTimes; ++i)
                 tmpData.insert(tmpData.end(), {whitePixel, whitePixel, whitePixel});
 
-            // qr module to pixel
+
             for (int qrModuleAtX = 0; qrModuleAtX < (qrSize); qrModuleAtX++) {
             for (int row = 0; row < qrSizeFitsInMaxImgSizeTimes; ++row) {
                     if (qrData.getModule(qrModuleAtX, qrModuleAtY)) {
-                        // insert saves us a for loop or 3 times the same line.
+
                         tmpData.insert(tmpData.end(), {blackPixel, blackPixel, blackPixel});
                     } else {
                         tmpData.insert(tmpData.end(), {whitePixel, whitePixel, whitePixel});
                     }
                 }
             }
-            // border right
+
             for (int i = 0; i < qrSizeFitsInMaxImgSizeTimes; ++i)
                 tmpData.insert(tmpData.end(), {whitePixel, whitePixel, whitePixel});
 
-            // write the entire  row
+
             pngout.write(tmpData.data(), static_cast<size_t>(tmpData.size() / 3));
             tmpData.clear();
         }
     }
 
-    // border below
-    for (int i = 0; i < pngWH; i++) // row
-        for (int j = 0; j < pixelsWHPerModule; j++) // module pixel (height)
+
+    for (int i = 0; i < pngWH; i++)
+        for (int j = 0; j < pixelsWHPerModule; j++)
             tmpData.insert(tmpData.end(), {whitePixel, whitePixel, whitePixel});
 
     pngout.write(tmpData.data(), static_cast<size_t>(tmpData.size() / 3));

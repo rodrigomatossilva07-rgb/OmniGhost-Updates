@@ -33,7 +33,7 @@ int crypto_auth_hmacsha256_verify(const unsigned char *h,
                                   const unsigned char *k)
             __attribute__ ((warn_unused_result)) __attribute__ ((nonnull(1, 4)));
 
-/* ------------------------------------------------------------------------- */
+
 
 typedef struct crypto_auth_hmacsha256_state {
     crypto_hash_sha256_state ictx;

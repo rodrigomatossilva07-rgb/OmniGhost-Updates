@@ -12,10 +12,10 @@
 #include <cstring>
 #include <limits>
 
-// WaitOnAddress and WakeByAddressSingle require Windows 8+ and synchronization.lib
+
 #pragma comment(lib, "synchronization.lib")
 #ifndef _WIN32_WINNT
-#define _WIN32_WINNT 0x0602 // Windows 8
+#define _WIN32_WINNT 0x0602
 #endif
 
 
@@ -23,13 +23,13 @@ namespace OmniGhost::MemoryCounters {
 std::atomic<uint64_t> ScatterHandlesCreated{0};
 std::atomic<uint64_t> ScatterHandlesDestroyed{0};
 std::atomic<uint32_t> ScatterHandlesLive{0};
-} // namespace OmniGhost::MemoryCounters
+}
 
 namespace OmniGhost::MemoryCounters {
 uint64_t GetScatterHandlesCreated() noexcept { return ScatterHandlesCreated.load(std::memory_order_relaxed); }
 uint64_t GetScatterHandlesDestroyed() noexcept { return ScatterHandlesDestroyed.load(std::memory_order_relaxed); }
 uint32_t GetScatterHandlesLive() noexcept { return ScatterHandlesLive.load(std::memory_order_relaxed); }
-} // namespace OmniGhost::MemoryCounters
+}
 
 static const char* hexdigits =
 "\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
@@ -55,23 +55,23 @@ static uint8_t GetByte(const char* hex)
 }
 
 namespace {
-thread_local int t_dmaPriority = Memory::DmaPri::Position; // core world by default
+thread_local int t_dmaPriority = Memory::DmaPri::Position;
 
-// Lightweight spinlock with WaitOnAddress for efficient waiting.
-// Replaces busy-spin with yield() with kernel-assisted waiting.
+
+
 class DmaSpinLock {
-    std::atomic<uint32_t> state_{0}; // 0 = unlocked, 1 = locked
-    static constexpr uint32_t kSpinCount = 1000; // brief spin before waiting
+    std::atomic<uint32_t> state_{0};
+    static constexpr uint32_t kSpinCount = 1000;
 
 public:
     void lock() {
         for (;;) {
-            // Fast path: try to acquire immediately
+
             uint32_t expected = 0;
             if (state_.compare_exchange_strong(expected, 1, std::memory_order_acquire))
                 return;
 
-            // Spin briefly for very short critical sections
+
             for (uint32_t i = 0; i < kSpinCount; ++i) {
                 expected = 0;
                 if (state_.compare_exchange_weak(expected, 1, std::memory_order_acquire))
@@ -79,10 +79,10 @@ public:
                 std::this_thread::yield();
             }
 
-            // DMA-002 Fix: WaitOnAddress blocks while *Address == *CompareAddress.
-            // The compare value must be 1 (locked) — passing 0 returned
-            // immediately while locked, degrading into a 100% CPU busy-spin,
-            // and the recursive lock() retry could grow the stack.
+
+
+
+
             uint32_t one = 1;
             while (state_.load(std::memory_order_acquire) != 0) {
                 WaitOnAddress(&state_, &one, sizeof(one), INFINITE);
@@ -101,7 +101,7 @@ public:
     }
 };
 
-// RAII guard for DmaSpinLock (like unique_lock but for our spinlock)
+
 class DmaSpinLockGuard {
     DmaSpinLock* lock_ = nullptr;
 public:
@@ -122,32 +122,32 @@ public:
     DmaSpinLockGuard(const DmaSpinLockGuard&) = delete;
     DmaSpinLockGuard& operator=(const DmaSpinLockGuard&) = delete;
 
-    // Allow checking if guard holds a lock
+
     explicit operator bool() const noexcept { return lock_ != nullptr; }
 };
 
-// Global spinlock for DMA transport. DMA-001 Fix: there is exactly ONE
-// physical transport (FPGA/USB), so exactly ONE primitive serializes it.
+
+
 static DmaSpinLock g_dmaSpinLock;
 
-// Acquire the single DMA transport lock. Priority bands no longer switch
-// between *different* synchronization primitives (which let a camera read run
-// concurrently with a bones scatter on the same wire); they only decide how
-// eagerly a lane contends. Lower-priority lanes yield once before contending
-// so the camera/stat lanes win the common case.
+
+
+
+
+
 static DmaSpinLockGuard AcquireDmaTransportLock() {
     if (t_dmaPriority < Memory::DmaPri::Position)
         std::this_thread::yield();
     return DmaSpinLockGuard(g_dmaSpinLock);
 }
 
-// Non-blocking variant used by the camera try-read lane: never waits.
+
 static DmaSpinLockGuard TryAcquireDmaTransportLock() {
     if (g_dmaSpinLock.try_lock())
         return DmaSpinLockGuard(g_dmaSpinLock, DmaSpinLockGuard::AdoptLockTag{});
     return DmaSpinLockGuard();
 }
-} // namespace
+}
 
 uint64_t Memory::FindSignature(const char* signature, uint64_t range_start, uint64_t range_end, int PID)
 {
@@ -160,18 +160,18 @@ uint64_t Memory::FindSignature(const char* signature, uint64_t range_start, uint
 	if (PID == 0)
 		PID = current_process.PID;
 
-	// DMA-004 Fix: the old implementation read the ENTIRE range (up to 4 GB)
-	// under the transport lock and restarted pattern matching incorrectly on
-	// mismatch, skipping overlaps. Scan in 1 MB chunks with (patternLen-1)
-	// overlap between chunks; cancellation is honored between chunks so the
-	// camera lane is no longer blocked for seconds.
+
+
+
+
+
 	uint64_t patLen = 0;
 	for (const char* p = signature; *p; p += (*p == '?') ? 2 : 3) ++patLen;
 	if (patLen == 0 || patLen > 0x1000)
-		return 0; // zero-length, or larger than any sane pattern
+		return 0;
 
 	const uint64_t rangeSize = range_end - range_start;
-	constexpr uint64_t kChunkSize = 1ull << 20; // 1 MB
+	constexpr uint64_t kChunkSize = 1ull << 20;
 	std::vector<uint8_t> buffer(static_cast<size_t>(kChunkSize + patLen - 1));
 
 	uint64_t offset = 0;
@@ -191,7 +191,7 @@ uint64_t Memory::FindSignature(const char* signature, uint64_t range_start, uint
 		if (!readOk)
 			return 0;
 
-		// Scan this chunk byte-by-byte with a correct mismatch restart.
+
 		for (uint64_t i = 0; i + patLen <= wantClamped; ++i) {
 			const char* pat = signature;
 			uint64_t j = 0;
@@ -210,8 +210,8 @@ uint64_t Memory::FindSignature(const char* signature, uint64_t range_start, uint
 	return 0;
 }
 
-// Write paths. In OMNIGHOST_READONLY_MODE every write is compiled to a logged
-// no-op so the normal read-only build cannot mutate target memory.
+
+
 bool Memory::Write(uintptr_t address, void* buffer, size_t size) const
 {
 	return Write(address, buffer, size, current_process.PID);
@@ -271,7 +271,7 @@ void NoteDmaCall(const char* op, double duration_ms) {
         if (duration_ms > s.qread_max_ms) s.qread_max_ms = duration_ms;
     }
     const char* tag = t_dmaTag ? t_dmaTag : "untagged";
-    // accumulate by tag
+
     int found = -1;
     for (int i = 0; i < t_tagAccumCount; ++i) {
         if (t_tagAccums[i].tag == tag || (t_tagAccums[i].tag && tag && std::strcmp(t_tagAccums[i].tag, tag) == 0)) {
@@ -287,7 +287,7 @@ void NoteDmaCall(const char* op, double duration_ms) {
     if (found >= 0) {
         t_tagAccums[found].total_ms += duration_ms;
     }
-    // refresh top3
+
     double best[3] = {-1,-1,-1};
     const char* bestT[3] = {"none","none","none"};
     for (int i = 0; i < t_tagAccumCount; ++i) {
@@ -324,7 +324,7 @@ void LogSlowDma(const char* op, double duration_ms, int requests = 0) {
     if (duration_ms < 10.0) return;
     static std::atomic<uint64_t> s_last{0};
     const uint64_t now = GetTickCount64();
-    // Always log if >=50ms; rate-limit 10-50ms to 1/200ms
+
     if (duration_ms < 50.0) {
         uint64_t prev = s_last.load(std::memory_order_relaxed);
         if (now - prev < 200 && prev != 0) return;
@@ -349,7 +349,7 @@ void LogSlowDma(const char* op, double duration_ms, int requests = 0) {
         buf);
     std::cout << "[CS2] " << buf << std::endl;
 }
-} // namespace
+}
 
 void Memory::SetRenderThreadId(std::thread::id id) noexcept {
     g_renderThreadHash.store(ThreadHash(id), std::memory_order_release);
@@ -401,34 +401,34 @@ bool Memory::Read(uintptr_t address, void* buffer, size_t size) const
 	WarnIfDmaOnRenderThread("Read");
 	DataCallLease dataLease(this);
 	if (!dataLease) {
-		// Maintenance blocked the data plane â€” count as wait.
-		t_dmaWaitUs += 500; // approximate small wait quantum; caller aggregates
+
+		t_dmaWaitUs += 500;
 		return false;
 	}
 	if (!this->vHandle)
 		return false;
-	
-	// Validate address before attempting DMA read
+
+
 	if (!IsValidReadAddress(address, current_process.PID)) {
 		const unsigned fail_count = readFailureCount_.fetch_add(1, std::memory_order_relaxed) + 1;
 		if ((fail_count % 200) == 1)
 			LOG("[!] Invalid read address 0x%p (x%u)\n", address, fail_count);
 		return false;
 	}
-	
+
 	readRequestCount_.fetch_add(1, std::memory_order_relaxed);
 	if (size > static_cast<size_t>(MAXDWORD))
 		return false;
-	// Serialize only the physical transfer. In particular, do not make a CS2
-	// entity scan own the transport while it performs CPU-side processing.
+
+
 	const auto lockBegin = std::chrono::steady_clock::now();
 	auto dmaSpinLockGuard = AcquireDmaTransportLock();
 	t_lastDmaWaitUs = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
 		std::chrono::steady_clock::now() - lockBegin).count());
 	t_dmaWaitUs += t_lastDmaWaitUs;
-	// A chamada pode ter entrado na fila antes do shutdown. Não iniciar uma
-	// nova transferência depois de obter o transporte se entretanto houve
-	// cancelamento; isto elimina a cadeia de leituras que atrasava os joins.
+
+
+
 	if (IsCancellationRequested())
 		return false;
 	const auto transferBegin = std::chrono::steady_clock::now();
@@ -438,12 +438,12 @@ bool Memory::Read(uintptr_t address, void* buffer, size_t size) const
 		&& read_size == byteCount;
 	bool ok = ok1;
 	if (!ok) {
-		// Fallback: cached read (sometimes works when NOCACHE fails mid DTB fix)
+
 		read_size = 0;
 		ok = VMMDLL_MemReadEx(this->vHandle, current_process.PID, address,
 			static_cast<PBYTE>(buffer), byteCount, &read_size, 0) && read_size == byteCount;
 	}
-	// dmaSpinLockGuard and dmaReadLock automatically unlock on scope exit
+
 	const double ms = std::chrono::duration<double, std::milli>(
 		std::chrono::steady_clock::now() - transferBegin).count();
 	NoteDmaCall("Read", ms);
@@ -463,17 +463,17 @@ bool Memory::TryRead(uintptr_t address, void* buffer, size_t size, bool& attempt
 	DataCallLease dataLease(this);
 	if (!dataLease || !this->vHandle || !buffer || size > static_cast<size_t>(MAXDWORD))
 		return false;
-	
-	// Validate address before attempting DMA read
+
+
 	if (!IsValidReadAddress(address, current_process.PID)) {
 		const unsigned fail_count = readFailureCount_.fetch_add(1, std::memory_order_relaxed) + 1;
 		if ((fail_count % 200) == 1)
 			LOG("[!] Invalid read address 0x%p (x%u)\n", address, fail_count);
 		return false;
 	}
-	
-	// DMA-001 Fix: single-primitive transport. A non-blocking try so the camera
-	// lane never waits behind another transfer.
+
+
+
 	DmaSpinLockGuard transportGuard = TryAcquireDmaTransportLock();
 	if (!transportGuard)
 		return false;
@@ -492,7 +492,7 @@ bool Memory::TryRead(uintptr_t address, void* buffer, size_t size, bool& attempt
 			static_cast<PBYTE>(buffer), byteCount, &readSize, 0)
 			&& readSize == byteCount;
 	}
-	// unique_lock automatically unlocks on scope exit
+
 	const double ms = std::chrono::duration<double, std::milli>(
 		std::chrono::steady_clock::now() - t0).count();
 	NoteDmaCall("TryRead", ms);
@@ -509,15 +509,15 @@ bool Memory::ReadWithCount(uintptr_t address, void* buffer, size_t size, size_t&
 	DataCallLease dataLease(this);
 	if (!dataLease || !this->vHandle || !buffer)
 		return false;
-	
-	// Validate address before attempting DMA read
+
+
 	if (!IsValidReadAddress(address, current_process.PID)) {
 		const unsigned fail_count = readFailureCount_.fetch_add(1, std::memory_order_relaxed) + 1;
 		if ((fail_count % 200) == 1)
 			LOG("[!] Invalid read address 0x%p (x%u)\n", address, fail_count);
 		return false;
 	}
-	
+
 	readRequestCount_.fetch_add(1, std::memory_order_relaxed);
 	if (size > static_cast<size_t>(MAXDWORD))
 		return false;
@@ -537,7 +537,7 @@ bool Memory::ReadWithCount(uintptr_t address, void* buffer, size_t size, size_t&
 	if (ok && readSize == byteCount)
 		return true;
 
-	// Same cached fallback as Read(), while preserving the observed byte count.
+
 	readSize = 0;
 	ok = VMMDLL_MemReadEx(this->vHandle, current_process.PID, address,
 		static_cast<PBYTE>(buffer), byteCount, &readSize, 0);
@@ -635,10 +635,10 @@ bool Memory::ScatterHandleIsCurrent(VMMDLL_SCATTER_HANDLE handle) const noexcept
 		&& found->second.process == processGeneration_.load(std::memory_order_acquire);
 }
 
-// DMA-003 Fix: pin/unpin a scatter handle for the duration of a VMMDLL call.
-// Closers drain pins before handing the handle to VMMDLL_Scatter_CloseHandle,
-// eliminating the check/use (TOCTOU) window that could close a handle while
-// another thread was executing a scatter on it (use-after-close in vmm.dll).
+
+
+
+
 bool Memory::AcquireScatterUse(VMMDLL_SCATTER_HANDLE handle) const noexcept
 {
 	if (!handle)
@@ -663,9 +663,9 @@ void Memory::ReleaseScatterUse(VMMDLL_SCATTER_HANDLE handle) const noexcept
 
 void Memory::InvalidateScatterHandles(const char* reason) noexcept
 {
-	// Drain pass: only erase handles with no in-flight users; pin holders are
-	// executing DMA calls that finish in bounded time. Yield between passes
-	// instead of holding scatterMutex_ while waiting.
+
+
+
 	std::vector<VMMDLL_SCATTER_HANDLE> stale;
 	for (;;) {
 		bool anyInUse = false;
@@ -716,8 +716,8 @@ void Memory::CloseScatterHandle(VMMDLL_SCATTER_HANDLE handle)
 				break;
 			}
 		}
-		// Another thread is mid-execute on this handle; spins are bounded by
-		// the DMA transfer duration.
+
+
 		std::this_thread::yield();
 	}
 	OmniGhost::MemoryCounters::ScatterHandlesDestroyed.fetch_add(1, std::memory_order_relaxed);
@@ -775,9 +775,9 @@ bool Memory::ExecuteReadScatter(VMMDLL_SCATTER_HANDLE handle, int pid)
 		t_dmaWaitUs += 500;
 		return false;
 	}
-	// DMA-003 Fix: pin the scatter handle for the full execute/clear sequence.
-	// Closers now wait for in-use pins to drain, so the handle can no longer be
-	// closed by another thread between this validity check and the VMMDLL call.
+
+
+
 	if (!AcquireScatterUse(handle))
 		return false;
 	uint32_t preparedRequests = 0;
@@ -793,8 +793,8 @@ bool Memory::ExecuteReadScatter(VMMDLL_SCATTER_HANDLE handle, int pid)
 		ReleaseScatterUse(handle);
 		return false;
 	}
-	// Scatter preparation remains concurrent; only execution touches the
-	// shared physical DMA transport (single spinlock for every lane).
+
+
 	const auto lockBegin = std::chrono::steady_clock::now();
 	auto dmaSpinLockGuard = AcquireDmaTransportLock();
 	t_lastDmaWaitUs = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
@@ -811,7 +811,7 @@ bool Memory::ExecuteReadScatter(VMMDLL_SCATTER_HANDLE handle, int pid)
 	OMNIGHOST_VMM_TIMING("Scatter_ExecuteRead");
 
 	const bool executeOk = VMMDLL_Scatter_ExecuteRead(handle) != FALSE;
-	//Clear after using it
+
 	const bool clearOk = VMMDLL_Scatter_Clear(handle, pid, VMMDLL_FLAG_NOCACHE) != FALSE;
 	ReleaseScatterUse(handle);
 	const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - transferBegin).count();
@@ -835,7 +835,7 @@ void Memory::ExecuteWriteScatter(VMMDLL_SCATTER_HANDLE handle, int pid)
 	{
 		LOG("[-] Failed to Execute Scatter Read\n");
 	}
-	//Clear after using it
+
 	if (!VMMDLL_Scatter_Clear(handle, pid, VMMDLL_FLAG_NOCACHE))
 	{
 		LOG("[-] Failed to clear Scatter\n");
@@ -843,7 +843,7 @@ void Memory::ExecuteWriteScatter(VMMDLL_SCATTER_HANDLE handle, int pid)
 	ReleaseScatterUse(handle);
 }
 
-// VAD map entry for address validation
+
 struct VadEntry {
     uint64_t start;
     uint64_t end;
@@ -855,18 +855,18 @@ bool Memory::RefreshVadCache(int pid) const
 {
     if (!vHandle)
         return false;
-    
+
     int targetPid = pid ? pid : current_process.PID;
     if (targetPid == 0)
         return false;
-    
+
     PVMMDLL_MAP_VAD vadMap = nullptr;
     BOOL ok = VMMDLL_Map_GetVadW(vHandle, static_cast<DWORD>(targetPid), FALSE, &vadMap);
     if (!ok || !vadMap)
         return false;
-    
-    // In a real implementation, we would parse the VAD map and store it in a thread-safe cache.
-    // For now, we just verify the call succeeds.
+
+
+
     VMMDLL_MemFree(vadMap);
     return true;
 }
@@ -875,16 +875,16 @@ bool Memory::IsValidReadAddress(uint64_t address, int pid) const
 {
     if (!vHandle)
         return false;
-    
+
     int targetPid = pid ? pid : current_process.PID;
     if (targetPid == 0 || address == 0)
         return false;
-    
-    // Quick sanity check: address must be in user space (below 0x7FFFFFFFFFFF on x64)
+
+
     if (address >= 0x7FFFFFFFFFFFull)
         return false;
-    
-    // For now, just do basic range check. Full VAD validation would require caching the VAD map.
-    // This is a placeholder that can be expanded with full VAD map caching.
+
+
+
     return true;
 }

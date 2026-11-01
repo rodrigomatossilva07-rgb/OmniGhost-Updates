@@ -1,7 +1,7 @@
 #pragma once
 
-#include <iterator> // iterator, random_access_iterator_tag, bidirectional_iterator_tag, advance, next
-#include <type_traits> // conditional, is_const, remove_const
+#include <iterator>
+#include <type_traits>
 
 #include <nlohmann/detail/exceptions.hpp>
 #include <nlohmann/detail/iterators/internal_iterator.hpp>
@@ -15,30 +15,30 @@ namespace nlohmann
 {
 namespace detail
 {
-// forward declare, to be able to friend it later on
+
 template<typename IteratorType> class iteration_proxy;
 template<typename IteratorType> class iteration_proxy_value;
 
-/*!
-@brief a template for a bidirectional iterator for the @ref basic_json class
-This class implements a both iterators (iterator and const_iterator) for the
-@ref basic_json class.
-@note An iterator is called *initialized* when a pointer to a JSON value has
-      been set (e.g., by a constructor or a copy assignment). If the iterator is
-      default-constructed, it is *uninitialized* and most methods are undefined.
-      **The library uses assertions to detect calls on uninitialized iterators.**
-@requirement The class satisfies the following concept requirements:
--
-[BidirectionalIterator](https://en.cppreference.com/w/cpp/named_req/BidirectionalIterator):
-  The iterator that can be moved can be moved in both directions (i.e.
-  incremented and decremented).
-@since version 1.0.0, simplified in version 2.0.9, change to bidirectional
-       iterators in version 3.0.0 (see https://github.com/nlohmann/json/issues/593)
-*/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 template<typename BasicJsonType>
 class iter_impl
 {
-    /// allow basic_json to access private members
+
     friend iter_impl<typename std::conditional<std::is_const<BasicJsonType>::value, typename std::remove_const<BasicJsonType>::type, const BasicJsonType>::type>;
     friend BasicJsonType;
     friend iteration_proxy<iter_impl>;
@@ -46,42 +46,42 @@ class iter_impl
 
     using object_t = typename BasicJsonType::object_t;
     using array_t = typename BasicJsonType::array_t;
-    // make sure BasicJsonType is basic_json or const basic_json
+
     static_assert(is_basic_json<typename std::remove_const<BasicJsonType>::type>::value,
                   "iter_impl only accepts (const) basic_json");
 
   public:
 
-    /// The std::iterator class template (used as a base class to provide typedefs) is deprecated in C++17.
-    /// The C++ Standard has never required user-defined iterators to derive from std::iterator.
-    /// A user-defined iterator should provide publicly accessible typedefs named
-    /// iterator_category, value_type, difference_type, pointer, and reference.
-    /// Note that value_type is required to be non-const, even for constant iterators.
+
+
+
+
+
     using iterator_category = std::bidirectional_iterator_tag;
 
-    /// the type of the values when the iterator is dereferenced
+
     using value_type = typename BasicJsonType::value_type;
-    /// a type to represent differences between iterators
+
     using difference_type = typename BasicJsonType::difference_type;
-    /// defines a pointer to the type iterated over (value_type)
+
     using pointer = typename std::conditional<std::is_const<BasicJsonType>::value,
           typename BasicJsonType::const_pointer,
           typename BasicJsonType::pointer>::type;
-    /// defines a reference to the type iterated over (value_type)
+
     using reference =
         typename std::conditional<std::is_const<BasicJsonType>::value,
         typename BasicJsonType::const_reference,
         typename BasicJsonType::reference>::type;
 
-    /// default constructor
+
     iter_impl() = default;
 
-    /*!
-    @brief constructor for a given JSON instance
-    @param[in] object  pointer to a JSON object for this iterator
-    @pre object != nullptr
-    @post The iterator is initialized; i.e. `m_object != nullptr`.
-    */
+
+
+
+
+
+
     explicit iter_impl(pointer object) noexcept : m_object(object)
     {
         JSON_ASSERT(m_object != nullptr);
@@ -108,32 +108,32 @@ class iter_impl
         }
     }
 
-    /*!
-    @note The conventional copy constructor and copy assignment are implicitly
-          defined. Combined with the following converting constructor and
-          assignment, they support: (1) copy from iterator to iterator, (2)
-          copy from const iterator to const iterator, and (3) conversion from
-          iterator to const iterator. However conversion from const iterator
-          to iterator is not defined.
-    */
 
-    /*!
-    @brief const copy constructor
-    @param[in] other const iterator to copy from
-    @note This copy constructor had to be defined explicitly to circumvent a bug
-          occurring on msvc v19.0 compiler (VS 2015) debug build. For more
-          information refer to: https://github.com/nlohmann/json/issues/1608
-    */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     iter_impl(const iter_impl<const BasicJsonType>& other) noexcept
         : m_object(other.m_object), m_it(other.m_it)
     {}
 
-    /*!
-    @brief converting assignment
-    @param[in] other const iterator to copy from
-    @return const/non-const iterator
-    @note It is not checked whether @a other is initialized.
-    */
+
+
+
+
+
+
     iter_impl& operator=(const iter_impl<const BasicJsonType>& other) noexcept
     {
         m_object = other.m_object;
@@ -141,21 +141,21 @@ class iter_impl
         return *this;
     }
 
-    /*!
-    @brief converting constructor
-    @param[in] other  non-const iterator to copy from
-    @note It is not checked whether @a other is initialized.
-    */
+
+
+
+
+
     iter_impl(const iter_impl<typename std::remove_const<BasicJsonType>::type>& other) noexcept
         : m_object(other.m_object), m_it(other.m_it)
     {}
 
-    /*!
-    @brief converting assignment
-    @param[in] other  non-const iterator to copy from
-    @return const/non-const iterator
-    @note It is not checked whether @a other is initialized.
-    */
+
+
+
+
+
+
     iter_impl& operator=(const iter_impl<typename std::remove_const<BasicJsonType>::type>& other) noexcept
     {
         m_object = other.m_object;
@@ -164,10 +164,10 @@ class iter_impl
     }
 
   private:
-    /*!
-    @brief set the iterator to the first value
-    @pre The iterator is initialized; i.e. `m_object != nullptr`.
-    */
+
+
+
+
     void set_begin() noexcept
     {
         JSON_ASSERT(m_object != nullptr);
@@ -188,7 +188,7 @@ class iter_impl
 
             case value_t::null:
             {
-                // set to end so begin()==end() is true: null is empty
+
                 m_it.primitive_iterator.set_end();
                 break;
             }
@@ -201,10 +201,10 @@ class iter_impl
         }
     }
 
-    /*!
-    @brief set the iterator past the last value
-    @pre The iterator is initialized; i.e. `m_object != nullptr`.
-    */
+
+
+
+
     void set_end() noexcept
     {
         JSON_ASSERT(m_object != nullptr);
@@ -232,10 +232,10 @@ class iter_impl
     }
 
   public:
-    /*!
-    @brief return a reference to the value pointed to by the iterator
-    @pre The iterator is initialized; i.e. `m_object != nullptr`.
-    */
+
+
+
+
     reference operator*() const
     {
         JSON_ASSERT(m_object != nullptr);
@@ -269,10 +269,10 @@ class iter_impl
         }
     }
 
-    /*!
-    @brief dereference the iterator
-    @pre The iterator is initialized; i.e. `m_object != nullptr`.
-    */
+
+
+
+
     pointer operator->() const
     {
         JSON_ASSERT(m_object != nullptr);
@@ -303,10 +303,10 @@ class iter_impl
         }
     }
 
-    /*!
-    @brief post-increment (it++)
-    @pre The iterator is initialized; i.e. `m_object != nullptr`.
-    */
+
+
+
+
     iter_impl const operator++(int)
     {
         auto result = *this;
@@ -314,10 +314,10 @@ class iter_impl
         return result;
     }
 
-    /*!
-    @brief pre-increment (++it)
-    @pre The iterator is initialized; i.e. `m_object != nullptr`.
-    */
+
+
+
+
     iter_impl& operator++()
     {
         JSON_ASSERT(m_object != nullptr);
@@ -346,10 +346,10 @@ class iter_impl
         return *this;
     }
 
-    /*!
-    @brief post-decrement (it--)
-    @pre The iterator is initialized; i.e. `m_object != nullptr`.
-    */
+
+
+
+
     iter_impl const operator--(int)
     {
         auto result = *this;
@@ -357,10 +357,10 @@ class iter_impl
         return result;
     }
 
-    /*!
-    @brief pre-decrement (--it)
-    @pre The iterator is initialized; i.e. `m_object != nullptr`.
-    */
+
+
+
+
     iter_impl& operator--()
     {
         JSON_ASSERT(m_object != nullptr);
@@ -389,13 +389,13 @@ class iter_impl
         return *this;
     }
 
-    /*!
-    @brief  comparison: equal
-    @pre The iterator is initialized; i.e. `m_object != nullptr`.
-    */
+
+
+
+
     bool operator==(const iter_impl& other) const
     {
-        // if objects are not the same, the comparison is undefined
+
         if (JSON_HEDLEY_UNLIKELY(m_object != other.m_object))
         {
             JSON_THROW(invalid_iterator::create(212, "cannot compare iterators of different containers"));
@@ -416,22 +416,22 @@ class iter_impl
         }
     }
 
-    /*!
-    @brief  comparison: not equal
-    @pre The iterator is initialized; i.e. `m_object != nullptr`.
-    */
+
+
+
+
     bool operator!=(const iter_impl& other) const
     {
         return !operator==(other);
     }
 
-    /*!
-    @brief  comparison: smaller
-    @pre The iterator is initialized; i.e. `m_object != nullptr`.
-    */
+
+
+
+
     bool operator<(const iter_impl& other) const
     {
-        // if objects are not the same, the comparison is undefined
+
         if (JSON_HEDLEY_UNLIKELY(m_object != other.m_object))
         {
             JSON_THROW(invalid_iterator::create(212, "cannot compare iterators of different containers"));
@@ -452,37 +452,37 @@ class iter_impl
         }
     }
 
-    /*!
-    @brief  comparison: less than or equal
-    @pre The iterator is initialized; i.e. `m_object != nullptr`.
-    */
+
+
+
+
     bool operator<=(const iter_impl& other) const
     {
         return !other.operator < (*this);
     }
 
-    /*!
-    @brief  comparison: greater than
-    @pre The iterator is initialized; i.e. `m_object != nullptr`.
-    */
+
+
+
+
     bool operator>(const iter_impl& other) const
     {
         return !operator<=(other);
     }
 
-    /*!
-    @brief  comparison: greater than or equal
-    @pre The iterator is initialized; i.e. `m_object != nullptr`.
-    */
+
+
+
+
     bool operator>=(const iter_impl& other) const
     {
         return !operator<(other);
     }
 
-    /*!
-    @brief  add to iterator
-    @pre The iterator is initialized; i.e. `m_object != nullptr`.
-    */
+
+
+
+
     iter_impl& operator+=(difference_type i)
     {
         JSON_ASSERT(m_object != nullptr);
@@ -508,19 +508,19 @@ class iter_impl
         return *this;
     }
 
-    /*!
-    @brief  subtract from iterator
-    @pre The iterator is initialized; i.e. `m_object != nullptr`.
-    */
+
+
+
+
     iter_impl& operator-=(difference_type i)
     {
         return operator+=(-i);
     }
 
-    /*!
-    @brief  add to iterator
-    @pre The iterator is initialized; i.e. `m_object != nullptr`.
-    */
+
+
+
+
     iter_impl operator+(difference_type i) const
     {
         auto result = *this;
@@ -528,10 +528,10 @@ class iter_impl
         return result;
     }
 
-    /*!
-    @brief  addition of distance and iterator
-    @pre The iterator is initialized; i.e. `m_object != nullptr`.
-    */
+
+
+
+
     friend iter_impl operator+(difference_type i, const iter_impl& it)
     {
         auto result = it;
@@ -539,10 +539,10 @@ class iter_impl
         return result;
     }
 
-    /*!
-    @brief  subtract from iterator
-    @pre The iterator is initialized; i.e. `m_object != nullptr`.
-    */
+
+
+
+
     iter_impl operator-(difference_type i) const
     {
         auto result = *this;
@@ -550,10 +550,10 @@ class iter_impl
         return result;
     }
 
-    /*!
-    @brief  return difference
-    @pre The iterator is initialized; i.e. `m_object != nullptr`.
-    */
+
+
+
+
     difference_type operator-(const iter_impl& other) const
     {
         JSON_ASSERT(m_object != nullptr);
@@ -571,10 +571,10 @@ class iter_impl
         }
     }
 
-    /*!
-    @brief  access to successor
-    @pre The iterator is initialized; i.e. `m_object != nullptr`.
-    */
+
+
+
+
     reference operator[](difference_type n) const
     {
         JSON_ASSERT(m_object != nullptr);
@@ -602,10 +602,10 @@ class iter_impl
         }
     }
 
-    /*!
-    @brief  return the key of an object iterator
-    @pre The iterator is initialized; i.e. `m_object != nullptr`.
-    */
+
+
+
+
     const typename object_t::key_type& key() const
     {
         JSON_ASSERT(m_object != nullptr);
@@ -618,20 +618,20 @@ class iter_impl
         JSON_THROW(invalid_iterator::create(207, "cannot use key() for non-object iterators"));
     }
 
-    /*!
-    @brief  return the value of an iterator
-    @pre The iterator is initialized; i.e. `m_object != nullptr`.
-    */
+
+
+
+
     reference value() const
     {
         return operator*();
     }
 
   private:
-    /// associated JSON instance
+
     pointer m_object = nullptr;
-    /// the actual iterator of the associated instance
+
     internal_iterator<typename std::remove_const<BasicJsonType>::type> m_it {};
 };
-} // namespace detail
-} // namespace nlohmann
+}
+}

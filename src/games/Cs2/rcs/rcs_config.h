@@ -5,9 +5,9 @@
 
 namespace CS2::RCS {
 
-// Runtime-independent RCS settings. Strength values are multipliers, smoothing
-// is 0 (immediate) to 0.95 (very gradual), and maxCorrection is the maximum
-// relative mouse movement emitted by one update.
+
+
+
 struct RCSConfig {
     bool enabled = false;
     float horizontalStrength = 1.f;
@@ -32,4 +32,4 @@ struct RCSConfig {
     }
 };
 
-} // namespace CS2::RCS
+}

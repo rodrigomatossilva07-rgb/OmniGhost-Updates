@@ -25,7 +25,7 @@ typedef struct _LDR_DATA_TABLE_ENTRY
 	BYTE Reserved4[8];
 	PVOID Reserved5[3];
 #pragma warning(push)
-#pragma warning(disable: 4201) // we'll always use the Microsoft compiler
+#pragma warning(disable: 4201)
 	union
 	{
 		ULONG CheckSum;
@@ -43,7 +43,7 @@ typedef struct _RTL_USER_PROCESS_PARAMETERS
 	UNICODE_STRING CommandLine;
 } RTL_USER_PROCESS_PARAMETERS, *PRTL_USER_PROCESS_PARAMETERS;
 
-//This function pointer is undocumented and just valid for windows 2000. Therefore I guess. 
+
 typedef VOID (WINAPI*PPS_POST_PROCESS_INIT_ROUTINE)(VOID);
 
 typedef struct _PEB

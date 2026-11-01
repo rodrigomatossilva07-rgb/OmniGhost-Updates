@@ -17,4 +17,4 @@ LocalPlayerState LocalPlayerResolver::Inspect(const Runtime& snapshot) noexcept 
     return state;
 }
 
-} // namespace CS2::RCS
+}

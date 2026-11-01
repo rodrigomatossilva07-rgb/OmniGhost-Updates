@@ -24,8 +24,8 @@ uint64_t c_shellcode::find_codecave(size_t function_size, const std::string& pro
 		return 0;
 	}
 
-	// DMA-007 Fix: pSections was never freed (leak on every call), and the
-	// accept check matched ANY readable section instead of an executable one.
+
+
 	const PIMAGE_SECTION_HEADER pSections = static_cast<PIMAGE_SECTION_HEADER>(LocalAlloc(LMEM_ZEROINIT, cSections * sizeof(IMAGE_SECTION_HEADER)));
 	struct SectionsGuard {
 		HLOCAL p;
@@ -37,12 +37,12 @@ uint64_t c_shellcode::find_codecave(size_t function_size, const std::string& pro
 		return 0;
 	}
 
-	/*Scan for code cave*/
+
 	uint64_t codecave = 0;
 	for (DWORD i = 0; i < cSections; ++i)
 	{
-		// A code cave must live in an EXECUTABLE section ("free tail" of a
-		// code page). The old check accepted any READABLE section.
+
+
 		if (!codecave && ((pSections[i].Characteristics & IMAGE_SCN_MEM_EXECUTE) != 0) && ((pSections[i].Misc.VirtualSize & 0xfff) < (0x1000 - function_size)))
 		{
 			codecave = VMMDLL_ProcessGetModuleBaseU(mem.vHandle, pid, const_cast<LPSTR>(module.c_str())) + ((pSections[i].VirtualAddress + pSections[i].Misc.VirtualSize)) + 0x10;
@@ -99,11 +99,11 @@ bool c_shellcode::call_function(void* hook, void* function, const std::string& p
 	int pid = mem.GetPidFromName(process_name);
 
 	BYTE jmp_bytes[14] = {
-		0xff, 0x25, 0x00, 0x00, 0x00, 0x00, // jmp [RIP+0x00000000]
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 // RIP value
+		0xff, 0x25, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 	};
 
-	// Set jump address
+
 	*reinterpret_cast<uint64_t*>(jmp_bytes + 6) = reinterpret_cast<uintptr_t>(hook);
 
 	auto orig_bytes = std::unique_ptr<uint8_t[]>(new uint8_t[sizeof(jmp_bytes)]);
@@ -118,7 +118,7 @@ bool c_shellcode::call_function(void* hook, void* function, const std::string& p
 
 	Sleep(100);
 
-	//Restore function
+
 	if (!VMMDLL_MemWrite(mem.vHandle, pid, reinterpret_cast<uintptr_t>(function), orig_bytes.get(), sizeof(jmp_bytes)))
 	{
 		LOG("[!] 2 Failed to write memory at 0x%p\n", function);

@@ -1,7 +1,7 @@
 #pragma once
-// Internal helpers shared by the Memory translation units
-// (Memory.cpp, MemoryInit.cpp, MemoryIO.cpp, MemoryLifecycle.cpp).
-// Not part of the public Memory API; do not include outside DMALibrary/Memory.
+
+
+
 
 #include "../pch.h"
 #include "Memory.h"
@@ -13,8 +13,8 @@
 
 namespace MemoryDetail {
 
-// Measures one VMM call, feeds the latency statistics surfaced by
-// Memory::GetDiagnosticsSnapshot and logs calls that exceed 250 ms.
+
+
 class ScopedVmmTiming final
 {
 public:
@@ -57,9 +57,9 @@ private:
 	std::chrono::steady_clock::time_point started_;
 };
 
-// Result of the passive Windows PnP inspection used during startup. It never
-// opens the device; it only reports whether the FT60x/D3XX bridge is present
-// and started.
+
+
+
 struct PassiveDmaPnpResult
 {
 	bool candidateFound = false;
@@ -69,11 +69,11 @@ struct PassiveDmaPnpResult
 
 [[nodiscard]] PassiveDmaPnpResult ProbePassiveDmaPnp() noexcept;
 
-// Canonical 2-byte MZ gate used by attach validation (NOCACHE read).
+
 [[nodiscard]] bool ReadMzHeader(VMM_HANDLE vmm, DWORD pid, uint64_t base) noexcept;
 
-} // namespace MemoryDetail
+}
 
-// Convenience macro used by the Memory members to time a VMM call.
+
 #define OMNIGHOST_VMM_TIMING(label) \
 	MemoryDetail::ScopedVmmTiming vmmTiming_(label, vmmCallCount_, maxVmmLatencyMs_, vmmLatencySamples_, vmmLatencySampleIndex_)

@@ -1,5 +1,5 @@
-﻿// MemoryInit.cpp - runtime dependencies, FPGA/VMM session open, process bind,
-// ProcInfo/DTB reconciliation (FixCr3) and session teardown.
+﻿
+
 #include "pch.h"
 #include "Memory.h"
 #include "MemoryInternal.h"
@@ -40,8 +40,8 @@ constexpr const char* kProcInfoDir = "\\misc\\procinfo\\";
 constexpr const char* kProcInfoProgressFile = "\\misc\\procinfo\\progress_percent.txt";
 constexpr const char* kProcInfoDtbFile = "\\misc\\procinfo\\dtb.txt";
 
-// Sanitize process name: only allow alphanumeric, dot, hyphen, underscore.
-// Prevents potential issues with VMM process name matching.
+
+
 std::string SanitizeProcessName(std::string name) noexcept
 {
     std::string out;
@@ -176,10 +176,10 @@ FtdiDriverInfo QueryInstalledFtdiD3xxDriver()
             ContainsInsensitive(hwids, L"VID_0403&PID_601F");
         if (!looksLikeFt60x)
             continue;
-        // A FT601 can sit below a Microsoft USB composite parent carrying the
-        // same VID/PID.  Do not stop at the first match: prefer the actual
-        // FTDI D3XX function node and retain a generic parent only as evidence
-        // that the physical device is present.
+
+
+
+
         FtdiDriverInfo candidate;
         candidate.devicePresent = true;
         candidate.description = description;
@@ -205,7 +205,7 @@ FtdiDriverInfo QueryInstalledFtdiD3xxDriver()
         candidate.isWinUsbD3xx = ftdiProvider && winUsbInf;
         candidate.isLegacyWdfD3xx = ftdiProvider && legacyInf;
 
-        int score = 10; // physical FT60x/VID-PID match only
+        int score = 10;
         if (candidate.driverFound) score += 5;
         if (ftdiProvider) score += 40;
         if (winUsbInf || legacyInf) score += 100;
@@ -253,8 +253,8 @@ void LogFtdiDiagnostics()
             {{"version", Narrow(driver.version)}, {"provider", Narrow(driver.provider)},
              {"device", Narrow(driver.description)}, {"inf", Narrow(driver.publishedInf)}});
     } else if (driver.devicePresent) {
-        // This is intentionally not treated as a D3XX driver.  A Microsoft
-        // composite parent is not enough evidence to offer or perform update.
+
+
         std::cout << "[DMA][FTDI] FT60x present but D3XX function node unresolved; provider="
             << Narrow(driver.provider) << " device=" << Narrow(driver.description)
             << " inf=" << Narrow(driver.publishedInf) << "\n";
@@ -300,15 +300,15 @@ void ConfigureVmmLowLatencyRefresh(VMM_HANDLE handle)
     const bool havePartial = VMMDLL_ConfigGet(handle, VMMDLL_OPT_CONFIG_PROCCACHE_TICKS_PARTIAL, &partialTicks) != FALSE;
     const bool haveTotal = VMMDLL_ConfigGet(handle, VMMDLL_OPT_CONFIG_PROCCACHE_TICKS_TOTAL, &totalTicks) != FALSE;
 
-    // Process-cache refreshes stop the synchronous read path while MemProcFS
-    // rebuilds process metadata.  On an otherwise healthy FPGA that presented
-    // as a 0.6-0.8 s ESP freeze every ~13-15 s.  CS2 keeps a bound PID and
-    // resolves live entity pointers itself, so process metadata does not need
-    // a five-second cadence.  Memory/TLB/FAST refreshes remain enabled.
-    // Diagnostic A/B default: move the partial process-cache refresh from
-    // roughly one minute to five minutes. Override at runtime with
-    // OMNIGHOST_VMM_PARTIAL_REFRESH_MS (for example 60000 to restore the old
-    // cadence). Refresh stays enabled; this is never a permanent -norefresh.
+
+
+
+
+
+
+
+
+
     constexpr ULONG64 kDefaultPartialRefreshMs = 300000;
     constexpr ULONG64 kDefaultMediumRefreshMs = 300000;
     ULONG64 partialTargetMs = ReadEnvironmentU64(
@@ -355,8 +355,8 @@ void ConfigureVmmLowLatencyRefresh(VMM_HANDLE handle)
          {"changed", (changed || partialChanged) ? "yes" : "no"}});
 }
 
-// Loads one private-runtime library from its absolute path only. Never searches
-// PATH or the directory beside a portable EXE for a same-named DLL.
+
+
 HMODULE LoadPrivateLibrary(const std::filesystem::path& file)
 {
 	HMODULE existing = GetModuleHandleW(file.filename().c_str());
@@ -366,11 +366,11 @@ HMODULE LoadPrivateLibrary(const std::filesystem::path& file)
 		LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_USER_DIRS | LOAD_LIBRARY_SEARCH_SYSTEM32);
 }
 
-} // namespace
+}
 
-// ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
-// Runtime dependencies
-// ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+
+
+
 
 bool Memory::EnsureRuntimeDependencies()
 {
@@ -385,19 +385,19 @@ bool Memory::EnsureRuntimeDependencies()
 	dependencyIntegrityMessage_.clear();
 	std::wstring error;
 
-	// FTDI bridge policy (matches EXTERNAL_FTD3XXWU_ON_FPGA_OPEN):
-	// 1) Prefer private-runtime FTD3XX.dll / FTD3XXWU.dll when the embedded
-	//    manifest owns them (portable Publish builds).
-	// 2) Otherwise accept a side-by-side copy under NativeRuntime/libs or next
-	//    to the executable (dev machines with vendor drivers installed).
-	// 3) If nothing is present, do NOT hard-fail here - LeechCore loads the
-	//    FTDI DLL only when the FPGA device is opened. A missing bridge is
-	//    reported as a warning so static-VMM / PnP-only probes can continue.
+
+
+
+
+
+
+
+
 	auto ftdiOk = false;
 	std::string ftdiDetail;
 	const wchar_t* const kFtdiCandidates[] = {
-		L"libs/FTD3XXWU.dll", // WinUSB D3XX 1.4 preferred
-		L"libs/FTD3XX.dll",   // legacy WDF fallback
+		L"libs/FTD3XXWU.dll",
+		L"libs/FTD3XX.dll",
 	};
 	for (const wchar_t* relative : kFtdiCandidates) {
 		if (ValidatePrivateRuntimeFile(relative, error)) {
@@ -428,8 +428,8 @@ bool Memory::EnsureRuntimeDependencies()
 		}
 	}
 	if (!ftdiOk) {
-		// Soft-fail: integrity still OK for session bootstrap; FPGA open will
-		// surface a real device error if the driver is truly unavailable.
+
+
 		ftdiDetail = "FTD3XX/FTD3XXWU absent from private runtime and side-by-side paths "
 			"(EXTERNAL_FTD3XXWU_ON_FPGA_OPEN - deferred to device open)";
 		std::cout << "[DMA][Init] FTDI bridge not pre-validated: " << ftdiDetail << "\n";
@@ -438,9 +438,9 @@ bool Memory::EnsureRuntimeDependencies()
 	}
 
 #if !defined(OMNIGHOST_PRIVATE_STATIC_VMM)
-	// Release builds delay-load leechcore.dll + vmm.dll. Load them explicitly by
-	// absolute path from the validated private runtime so the delay-load thunk
-	// can never resolve a same-named DLL from an untrusted directory.
+
+
+
 	const wchar_t* const kRequired[] = { L"libs/leechcore.dll", L"libs/vmm.dll" };
 	for (const wchar_t* relative : kRequired) {
 		if (!ValidatePrivateRuntimeFile(relative, error)) {
@@ -461,7 +461,7 @@ bool Memory::EnsureRuntimeDependencies()
 	}
 #endif
 
-	// pdbcrust is optional (symbol support); a missing copy never blocks DMA.
+
 #if !defined(OMNIGHOST_DISABLE_VMM_SYMBOLS)
 	if (dependencyIntegrityOk_) {
 		std::wstring pdbError;
@@ -492,9 +492,9 @@ bool Memory::EnsureRuntimeDependencies()
 	return dependencyIntegrityOk_;
 }
 
-// ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
-// State reset helpers
-// ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+
+
+
 
 void Memory::ResetProcessState(bool preserveAppliedOverride) noexcept
 {
@@ -518,7 +518,7 @@ void Memory::ResetVmmState() noexcept
 	procInfoDtbFileSize_ = 0;
 	procInfoLastNt_ = 0;
 	procInfoSessionRecoveryRecommended_.store(false, std::memory_order_release);
-	// PROCESS_DTB lives inside the VMM session; a new session starts clean.
+
 	appliedProcessDtb_ = 0;
 	appliedProcessPid_ = 0;
 }
@@ -538,8 +538,8 @@ void Memory::ResetDeviceState() noexcept
 void Memory::InvalidateProcess()
 {
 	std::scoped_lock controlPlaneLock(controlPlaneMutex_);
-	// The VMM session (and its PROCESS_DTB override) stays alive; only OmniGhost's
-	// process binding is dropped so the next Init() re-attaches PID/modules.
+
+
 	ResetProcessState(true);
 }
 
@@ -549,8 +549,8 @@ void Memory::ResetDevice()
 	RequestCancel();
 	deviceResetCount_.fetch_add(1, std::memory_order_relaxed);
 	ResetDeviceState();
-	// ResetDevice is a completed recovery boundary: the epoch increment above
-	// cancels older operations while a subsequent Init may proceed normally.
+
+
 	ClearCancel();
 }
 
@@ -559,9 +559,9 @@ void Memory::Close() noexcept
 	std::scoped_lock controlPlaneLock(controlPlaneMutex_);
 	RequestCancel();
 	ResetDeviceState();
-	// DMA-006 Fix: do not leak the cancel flag into the NEXT session — a later
-	// Init() had to rely on every caller remembering ClearCancel() (main.cpp
-	// did, by contract). Close is a completed teardown boundary; clear it here.
+
+
+
 	ClearCancel();
 }
 
@@ -579,14 +579,14 @@ bool Memory::Rebind(std::string process_name, bool memMap, bool debug)
 	return Init(std::move(process_name), memMap, debug);
 }
 
-// ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
-// FPGA / VMM session open + process bind
-// ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+
+
+
 
 bool Memory::SetFPGA()
 {
-	// Match UC DMA base behaviour: query FPGA id/version, then clear the PCIe
-	// auto-clear register on modern firmware (same LcCommand the working base uses).
+
+
 	if (!vHandle)
 		return false;
 	OMNIGHOST_VMM_TIMING("SetFPGA");
@@ -602,7 +602,7 @@ bool Memory::SetFPGA()
 	std::cout << "[+] FPGA_ID=" << qwID << " VERSION=" << qwVersionMajor << "." << qwVersionMinor
 		<< " device=" << HexOf(deviceId) << std::endl;
 
-	// Same threshold as the working UC base (major>=5 or major==4 && minor>=7).
+
 	if ((qwVersionMajor >= 4) && ((qwVersionMajor >= 5) || (qwVersionMinor >= 7))) {
 		LC_CONFIG config{};
 		config.dwVersion = LC_CONFIG_VERSION;
@@ -649,7 +649,7 @@ static bool PreloadAllFtdiBridges() noexcept
 		OmniGhost::Paths::InstallDirectory() / L"third_party" / L"dma_stack" / L"bin",
 		OmniGhost::Paths::InstallDirectory(),
 	};
-	// LeechCore 2.22+ prefers the WinUSB bridge. Keep the old WDF DLL as fallback.
+
 	for (const auto& root : roots) {
 		if (PreloadFtdiFromPath(root / L"FTD3XXWU.dll"))
 			return true;
@@ -668,7 +668,7 @@ static bool HasFtdiBridge() noexcept
 	using OmniGhost::RuntimeBootstrap::ValidatePrivateRuntimeFile;
 	using OmniGhost::RuntimeBootstrap::MaterializePrivateRuntimeFile;
 
-	// Always try to materialize from the embedded PE first.
+
 	(void)MaterializePrivateRuntimeFile(L"libs/FTD3XX.dll", err);
 	(void)MaterializePrivateRuntimeFile(L"libs/FTD3XXWU.dll", err);
 
@@ -697,7 +697,7 @@ static bool HasFtdiBridge() noexcept
 }
 
 
-// UC-base style: plain VMMDLL_Initialize (no errorinfo out-param).
+
 static VMM_HANDLE SafeVmmInitialize(DWORD argc, LPCSTR argv[], DWORD* outSehCode) noexcept
 {
 	if (outSehCode)
@@ -715,8 +715,8 @@ static VMM_HANDLE SafeVmmInitialize(DWORD argc, LPCSTR argv[], DWORD* outSehCode
 
 bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickDeviceProbe)
 {
-	// One control-plane owner at a time. Concurrent VMMDLL/LeechCore opens against
-	// the same FPGA are a driver/firmware stability risk and never necessary.
+
+
 	std::scoped_lock controlPlaneLock(controlPlaneMutex_);
 
 	if (!EnsureRuntimeDependencies()) {
@@ -740,13 +740,13 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 		return false;
 	}
 
-	// A closed handle with a stale flag means a previous session died.
+
 	if (DMA_INITIALIZED && !vHandle) {
 		DMA_INITIALIZED = FALSE;
 		PROCESS_INITIALIZED = FALSE;
 	}
 
-	// Phase 1: open FPGA + VMM once. Device lifecycle is separate from process bind.
+
 	if (!DMA_INITIALIZED) {
 		OmniGhost::SessionLog::Write(OmniGhost::SessionLog::Severity::Info,
 			OmniGhost::SessionLog::Subsystem::DMA, "FPGA open started",
@@ -766,8 +766,8 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 		std::string lastApiMessage;
 		bool sehFaultObserved = false;
 
-		// UC-base compatible open: exactly like the working base
-		// Minimal argv: "", "-device", "fpga://algo=0" [+ optional -memmap / -v / -printf]
+
+
 			auto tryOpen = [&](const char* device, bool useMmap, int attemptNo, int attemptMax) -> bool {
 				std::vector<LPCSTR> args;
 				args.push_back("");
@@ -780,7 +780,7 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 				args.push_back("-disable-symbols");
 #endif
 			if (EnvironmentFlagEnabled(L"OMNIGHOST_VMM_NOREFRESH"))
-				args.push_back("-norefresh"); // diagnostic A/B only
+				args.push_back("-norefresh");
 			if (useMmap && !mmapPath.empty()) {
 				args.push_back("-memmap");
 				args.push_back(mmapPath.c_str());
@@ -811,9 +811,9 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 				{{"attempt", std::to_string(attemptNo)}, {"attempt_max", std::to_string(attemptMax)},
 				 {"device", device}, {"memmap", (useMmap && !mmapPath.empty()) ? "yes" : "no"}});
 
-			// The bridges were already loaded from validated absolute paths above.
-			// Do not call LoadLibraryA here: that would reintroduce an unrestricted
-			// search and could select a stale vendor DLL from the current directory.
+
+
+
 
 			DWORD sehCode = 0;
 			VMM_HANDLE handle = SafeVmmInitialize(static_cast<DWORD>(args.size()), args.data(), &sehCode);
@@ -851,8 +851,8 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 		};
 
 
-				// Preload FTDI (best-effort). UC base does LoadLibraryA("FTD3XX.dll") and
-		// continues even if lookup is soft — do not hard-fail before open.
+
+
 		std::cout << "[DMA][Init] Preloading FTDI bridges (UC-compatible)...\n";
 		PreloadAllFtdiBridges();
 		if (!HasFtdiBridge()) {
@@ -866,14 +866,14 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 			std::cout << "[DMA][FTDI] diagnostics skipped: unknown error\n";
 		}
 
-		// Exact match with working UC base: only fpga://algo=0, no extended flags
+
 		struct Candidate { const char* device; bool useMmap; };
 		const Candidate candidates[] = {
-			{ "fpga://algo=0", false }, // Primary (matches working base)
-			{ "fpga://algo=0", true  }, // + memmap fallback
-			{ "fpga",          false }, // Bare fpga fallback
+			{ "fpga://algo=0", false },
+			{ "fpga://algo=0", true  },
+			{ "fpga",          false },
 		};
-		constexpr int kAttemptsPerDevice = 1; // Single attempt like working base
+		constexpr int kAttemptsPerDevice = 1;
 		const int attemptMax = static_cast<int>(std::size(candidates)) * kAttemptsPerDevice;
 		int attemptNo = 0;
 		bool opened = false;
@@ -976,7 +976,7 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 		return true;
 	}
 
-	// Sanitize process name to prevent injection/validation issues.
+
 	process_name = SanitizeProcessName(std::move(process_name));
 	if (process_name.empty()) {
 		std::cout << "[DMA][Bind] process name sanitized to empty\n";
@@ -984,7 +984,7 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 		return false;
 	}
 
-	// Phase 2: bind to the target process.
+
 	std::cout << "[DMA][Bind] pid lookup start process=" << process_name << "\n";
 	DWORD pid = 0;
 	{
@@ -1042,9 +1042,9 @@ bool Memory::Init(std::string process_name, bool memMap, bool debug, bool quickD
 	return true;
 }
 
-// ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
-// Plugins / ProcInfo / PROCESS_DTB
-// ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+
+
+
 
 bool Memory::EnsurePluginsInitialized()
 {
@@ -1080,8 +1080,8 @@ bool Memory::ApplyProcessDtbOverride(uint64_t dtb)
 		std::cout << "[VMM] PROCESS_DTB override skipped: operation cancelled\n";
 		return false;
 	}
-	// Re-applying the identical override is redundant and VMMDLL_OPT_PROCESS_DTB
-	// has an implicit SLOW refresh side effect: avoid another procinfo invalidation.
+
+
 	if (appliedProcessPid_ == current_process.PID && appliedProcessDtb_ == dtb) {
 		std::cout << "[VMM] PROCESS_DTB override already active for PID=" << current_process.PID
 			<< " dtb=" << HexOf(dtb) << " - no ConfigSet/no additional SLOW refresh\n";
@@ -1101,8 +1101,8 @@ bool Memory::ApplyProcessDtbOverride(uint64_t dtb)
 
 	appliedProcessPid_ = current_process.PID;
 	appliedProcessDtb_ = dtb;
-	// MemProcFS: OPT_PROCESS_DTB writes paDTB_Override and runs VmmProcRefresh_Slow.
-	// misc/procinfo may discard its completed context and restart (progress 0).
+
+
 	std::cout << "[VMM] NOTE: PROCESS_DTB triggers internal SLOW process refresh\n";
 	std::cout << "[VFS] procinfo state marked INVALIDATED\n";
 	procInfoState_ = ProcInfoState::Invalidated;
@@ -1236,7 +1236,7 @@ bool Memory::WaitForProcInfo(int timeout_sec, bool* out_stuck, bool* out_cancell
 		}
 
 		if (progress >= 100) {
-			// Let the plugin publish dtb.txt before we list it.
+
 			std::this_thread::sleep_for(std::chrono::milliseconds(settleMs));
 			VfsProbeResult probe = ProbeProcInfoDtb("VfsList(procinfo/settle)");
 			if (!probe.found || probe.size == 0) {
@@ -1273,9 +1273,9 @@ bool Memory::WaitForProcInfo(int timeout_sec, bool* out_stuck, bool* out_cancell
 	}
 }
 
-// ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
-// FixCr3 - EAC CR3 shuffle reconciliation through MemProcFS misc/procinfo
-// ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+
+
+
 
 bool Memory::FixCr3()
 {
@@ -1290,12 +1290,12 @@ bool Memory::FixCr3()
 		return false;
 	}
 
-	// Lifecycle rules:
-	// 1) If module map + MZ already work -> done (no PROCESS_DTB touch).
-	// 2) If last_good is applied and the live MZ gate failed, explicitly clear
-	//    PROCESS_DTB inside MemProcFS (clearing only our cache leaves paDTB_Override stale).
-	// 3) After any real override invalidation: WaitForProcInfo (no MEDIUM-refresh thrash).
-	// 4) Parse dtb.txt only when READY; test candidates through the MZ gate.
+
+
+
+
+
+
 	last_attach_result = AttachResult::Failed;
 	const auto started = std::chrono::steady_clock::now();
 	const DWORD pid = static_cast<DWORD>(current_process.PID);
@@ -1310,7 +1310,7 @@ bool Memory::FixCr3()
 	};
 
 	auto resolve_validation_base = [&]() -> uintptr_t {
-		// 1) Process image (cod.exe, cs2.exe, ...)
+
 		const std::string& proc = current_process.process_name;
 		if (!proc.empty()) {
 			if (uintptr_t b = resolve_module_base(proc.c_str())) return b;
@@ -1319,12 +1319,12 @@ bool Memory::FixCr3()
 				if (uintptr_t b = resolve_module_base(proc.substr(0, dot).c_str())) return b;
 			}
 		}
-		// 2) Game-specific secondary modules (only if mapped)
+
 		static const char* const kSecondary[] = { "GameAssembly.dll", "client.dll", "GTA5.exe", "GTAProcess.exe" };
 		for (const char* name : kSecondary) {
 			if (uintptr_t b = resolve_module_base(name)) return b;
 		}
-		// 3) Already-known base from an earlier bind
+
 		return current_process.base_address;
 	};
 
@@ -1335,8 +1335,8 @@ bool Memory::FixCr3()
 		current_process.base_address = procBase ? procBase : validated;
 	};
 
-	// Unified validation: apply override + MZ of a process-appropriate module.
-	// After PROCESS_DTB MemProcFS runs a SLOW refresh; module map/user pages can lag.
+
+
 	auto dtb_works = [&](uint64_t dtb) -> bool {
 		if (!dtb || IsCancellationRequested(operation_epoch))
 			return false;
@@ -1373,7 +1373,7 @@ bool Memory::FixCr3()
 		return false;
 	};
 
-	// Fast path: OK only if MZ reads. Never touches PROCESS_DTB (preserves procinfo).
+
 	{
 		const uintptr_t base = resolve_validation_base();
 		if (base && MemoryDetail::ReadMzHeader(vHandle, pid, base)) {
@@ -1385,7 +1385,7 @@ bool Memory::FixCr3()
 		}
 	}
 
-	// Soft path: reuse last_good conservatively.
+
 	if (last_good_dtb) {
 		std::cout << "[DMA] FixCr3: considering last_good_dtb=" << HexOf(last_good_dtb) << "\n";
 		if (appliedProcessPid_ == current_process.PID && appliedProcessDtb_ == last_good_dtb) {
@@ -1413,8 +1413,8 @@ bool Memory::FixCr3()
 		}
 	}
 
-	// A previously rejected candidate can leave PROCESS_DTB active without a
-	// last_good marker. Reconcile that persistent VMM state before ProcInfo.
+
+
 	if (!last_good_dtb && appliedProcessPid_ == current_process.PID && appliedProcessDtb_ != 0) {
 		std::cout << "[DMA] FixCr3: stale applied PROCESS_DTB exists without last_good - clearing\n";
 		if (!ClearProcessDtbOverride()) {
@@ -1430,8 +1430,8 @@ bool Memory::FixCr3()
 		return false;
 	}
 
-	// Wait for a fresh procinfo generation. REFRESH_FREQ_MEDIUM is NOT a
-	// "restart procinfo" switch and is deliberately never used here.
+
+
 	bool stuck = false;
 	bool cancelled = false;
 	const int timeoutSec = timeouts_.procInfoTimeout.count() > 0
@@ -1450,7 +1450,7 @@ bool Memory::FixCr3()
 		return false;
 	}
 
-	// dtb.txt: distinguish missing vs empty vs sized.
+
 	const VfsProbeResult probe = ProbeProcInfoDtb("VfsList(procinfo)");
 	if (!probe.listed)
 		std::cout << "[VFS] VfsList procinfo FAIL\n";
@@ -1467,12 +1467,12 @@ bool Memory::FixCr3()
 
 	std::vector<uint64_t> candidates;
 	auto push = [&](uint64_t d) {
-		if (!d || (d & 0xFFF) != 0) return; // DTBs are page aligned
+		if (!d || (d & 0xFFF) != 0) return;
 		if (std::find(candidates.begin(), candidates.end(), d) == candidates.end())
 			candidates.push_back(d);
 	};
 
-	// Process-reported DTB (may be stale after the CR3 shuffle, still a useful seed).
+
 	{
 		VMMDLL_PROCESS_INFORMATION info{};
 		info.magic = VMMDLL_PROCESS_INFORMATION_MAGIC;
@@ -1486,8 +1486,8 @@ bool Memory::FixCr3()
 		}
 	}
 
-	// dtb.txt lines: "%04x%7i %16llx %16llx %s" -> index, pid, dtb, eprocess, name.
-	// EAC-style CR3 shuffles leave the real DTB attached to PID 0 ("---").
+
+
 	size_t pid0Candidates = 0;
 	{
 		const DWORD size = static_cast<DWORD>((std::min<uint64_t>)(probe.size, 8ull << 20));
@@ -1518,7 +1518,7 @@ bool Memory::FixCr3()
 			std::istringstream fields(line);
 			std::string index, pidText, dtbText;
 			if (!(fields >> index >> pidText >> dtbText)) continue;
-			// "%04x%7i" may glue index and pid together when pid has 7 digits; tolerate both.
+
 			int entryPid = -1;
 			try { entryPid = std::stoi(pidText); }
 			catch (const std::exception& ex) {
@@ -1575,7 +1575,7 @@ bool Memory::FixCr3()
 		}
 	}
 
-	// Every candidate was rejected: do not leave the last rejected override active.
+
 	if (appliedProcessPid_ == current_process.PID && appliedProcessDtb_ != 0) {
 		if (!ClearProcessDtbOverride()) {
 			std::cout << "[DMA] FixCr3: failed to clear final rejected DTB - fresh VMM session recommended\n";

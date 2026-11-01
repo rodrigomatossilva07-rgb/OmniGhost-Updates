@@ -60,4 +60,4 @@ private:
 
 [[nodiscard]] const char* ToString(ResetReason reason) noexcept;
 
-} // namespace CS2::RCS
+}

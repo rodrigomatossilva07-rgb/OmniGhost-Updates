@@ -58,9 +58,9 @@ private:
 
 	}
 
-	// Publish builds use MSVC deterministic mode, where __TIME__ is deliberately
-	// unavailable. A stable non-zero key keeps the strings obfuscated while
-	// allowing two independent builds of the same source to be byte-identical.
+
+
+
 #if defined(OMNIGHOST_PUBLISH_BUILD)
 	static constexpr auto XOR_KEY = static_cast<value_type>(0x5A3D);
 #else
@@ -94,7 +94,7 @@ private:
 	mutable value_type data[_length];
 	mutable bool encrypted;
 };
-//---------------------------------------------------------------------------
+
 template<size_t _length>
 using XorStrA = _Basic_XorStr<std::string, _length>;
 template<size_t _length>
@@ -103,7 +103,7 @@ template<size_t _length>
 using XorStrU16 = _Basic_XorStr<std::u16string, _length>;
 template<size_t _length>
 using XorStrU32 = _Basic_XorStr<std::u32string, _length>;
-//---------------------------------------------------------------------------
+
 template<typename _string_type, size_t _length, size_t _length2>
 inline auto operator==(const _Basic_XorStr<_string_type, _length>& lhs, const _Basic_XorStr<_string_type, _length2>& rhs)
 {
@@ -111,13 +111,13 @@ inline auto operator==(const _Basic_XorStr<_string_type, _length>& lhs, const _B
 
 	return _length == _length2 && lhs.str() == rhs.str();
 }
-//---------------------------------------------------------------------------
+
 template<typename _string_type, size_t _length>
 inline auto operator==(const _string_type& lhs, const _Basic_XorStr<_string_type, _length>& rhs)
 {
 	return lhs.size() == _length && lhs == rhs.str();
 }
-//---------------------------------------------------------------------------
+
 template<typename _stream_type, typename _string_type, size_t _length>
 inline auto& operator<<(_stream_type& lhs, const _Basic_XorStr<_string_type, _length>& rhs)
 {
@@ -125,40 +125,40 @@ inline auto& operator<<(_stream_type& lhs, const _Basic_XorStr<_string_type, _le
 
 	return lhs;
 }
-//---------------------------------------------------------------------------
+
 template<typename _string_type, size_t _length, size_t _length2>
 inline auto operator+(const _Basic_XorStr<_string_type, _length>& lhs, const _Basic_XorStr<_string_type, _length2>& rhs)
 {
 	return lhs.str() + rhs.str();
 }
-//---------------------------------------------------------------------------
+
 template<typename _string_type, size_t _length>
 inline auto operator+(const _string_type& lhs, const _Basic_XorStr<_string_type, _length>& rhs)
 {
 	return lhs + rhs.str();
 }
-//---------------------------------------------------------------------------
+
 template<size_t _length>
 constexpr ALWAYS_INLINE auto XorStr(char const (&str)[_length])
 {
 	return XorStrA<_length>(str);
 }
-//---------------------------------------------------------------------------
+
 template<size_t _length>
 constexpr ALWAYS_INLINE auto XorStr(wchar_t const (&str)[_length])
 {
 	return XorStrW<_length>(str);
 }
-//---------------------------------------------------------------------------
+
 template<size_t _length>
 constexpr ALWAYS_INLINE auto XorStr(char16_t const (&str)[_length])
 {
 	return XorStrU16<_length>(str);
 }
-//---------------------------------------------------------------------------
+
 template<size_t _length>
 constexpr ALWAYS_INLINE auto XorStr(char32_t const (&str)[_length])
 {
 	return XorStrU32<_length>(str);
 }
-//---------------------------------------------------------------------------
+

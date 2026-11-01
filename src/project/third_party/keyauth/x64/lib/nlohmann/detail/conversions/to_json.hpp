@@ -1,13 +1,13 @@
 #pragma once
 
-#include <algorithm> // copy
-#include <iterator> // begin, end
-#include <string> // string
-#include <tuple> // tuple, get
-#include <type_traits> // is_same, is_constructible, is_floating_point, is_enum, underlying_type
-#include <utility> // move, forward, declval, pair
-#include <valarray> // valarray
-#include <vector> // vector
+#include <algorithm>
+#include <iterator>
+#include <string>
+#include <tuple>
+#include <type_traits>
+#include <utility>
+#include <valarray>
+#include <vector>
 
 #include <nlohmann/detail/iterators/iteration_proxy.hpp>
 #include <nlohmann/detail/meta/cpp_future.hpp>
@@ -18,9 +18,9 @@ namespace nlohmann
 {
 namespace detail
 {
-//////////////////
-// constructors //
-//////////////////
+
+
+
 
 template<value_t> struct external_constructor;
 
@@ -215,9 +215,9 @@ struct external_constructor<value_t::object>
     }
 };
 
-/////////////
-// to_json //
-/////////////
+
+
+
 
 template<typename BasicJsonType, typename T,
          enable_if_t<std::is_same<T, typename BasicJsonType::boolean_t>::value, int> = 0>
@@ -335,7 +335,7 @@ void to_json(BasicJsonType& j, const std::pair<T1, T2>& p)
     j = { p.first, p.second };
 }
 
-// for https://github.com/nlohmann/json/pull/1134
+
 template<typename BasicJsonType, typename T,
          enable_if_t<std::is_same<T, iteration_proxy_value<typename BasicJsonType::iterator>>::value, int> = 0>
 void to_json(BasicJsonType& j, const T& b)
@@ -344,7 +344,7 @@ void to_json(BasicJsonType& j, const T& b)
 }
 
 template<typename BasicJsonType, typename Tuple, std::size_t... Idx>
-void to_json_tuple_impl(BasicJsonType& j, const Tuple& t, index_sequence<Idx...> /*unused*/)
+void to_json_tuple_impl(BasicJsonType& j, const Tuple& t, index_sequence<Idx...>           )
 {
     j = { std::get<Idx>(t)... };
 }
@@ -364,11 +364,11 @@ struct to_json_fn
         return to_json(j, std::forward<T>(val));
     }
 };
-}  // namespace detail
+}
 
-/// namespace to hold default `to_json` function
+
 namespace
 {
 constexpr const auto& to_json = detail::static_const<detail::to_json_fn>::value;
-} // namespace
-} // namespace nlohmann
+}
+}

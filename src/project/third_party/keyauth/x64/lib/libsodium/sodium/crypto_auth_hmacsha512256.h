@@ -33,7 +33,7 @@ int crypto_auth_hmacsha512256_verify(const unsigned char *h,
                                      const unsigned char *k)
             __attribute__ ((warn_unused_result)) __attribute__ ((nonnull(1, 4)));
 
-/* ------------------------------------------------------------------------- */
+
 
 typedef crypto_auth_hmacsha512_state crypto_auth_hmacsha512256_state;
 

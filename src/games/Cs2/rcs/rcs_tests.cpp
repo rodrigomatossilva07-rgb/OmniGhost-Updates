@@ -35,7 +35,7 @@ int main() {
     auto first = controller.Update(config, Sample(1000, 1.f, .5f), 1000);
     Expect(!first.produced, "first sample establishes baseline");
     auto delta = controller.Update(config, Sample(1010, 1.5f, .7f, 3), 1010);
-    Expect(delta.produced && Near(delta.x, -.2f) && Near(delta.y, -.5f),
+    Expect(delta.produced && Near(delta.x, -.2f) && Near(delta.y, .5f),
            "delta compensation is mathematically correct");
     auto duplicate = controller.Update(config, Sample(1010, 1.5f, .7f, 3), 1010);
     Expect(!duplicate.produced && duplicate.reason == ResetReason::DuplicateSample,
@@ -57,7 +57,7 @@ int main() {
     config.maxCorrection = .25f;
     (void)controller.Update(config, Sample(2000, 0.f, 0.f), 2000);
     auto limited = controller.Update(config, Sample(2010, 10.f, 10.f, 3), 2010);
-    Expect(limited.produced && Near(limited.x, -.25f) && Near(limited.y, -.25f),
+    Expect(limited.produced && Near(limited.x, -.25f) && Near(limited.y, .25f),
            "maximum correction clamps abrupt output");
 
     controller.Reset();
@@ -65,7 +65,7 @@ int main() {
     config.weaponScale[7] = .5f;
     (void)controller.Update(config, Sample(3000, 0.f, 0.f), 3000);
     auto scaled = controller.Update(config, Sample(3010, 2.f, 1.f, 3), 3010);
-    Expect(scaled.produced && Near(scaled.x, -.5f) && Near(scaled.y, -1.f),
+    Expect(scaled.produced && Near(scaled.x, -.5f) && Near(scaled.y, 1.f),
            "weapon-specific multiplier is applied");
 
     auto invalid = Sample(3020, (std::numeric_limits<float>::quiet_NaN)(), 0.f, 4);

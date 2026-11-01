@@ -1,15 +1,15 @@
 #pragma once
 
-#include <functional> // less
-#include <memory> // allocator
-#include <utility> // pair
-#include <vector> // vector
+#include <functional>
+#include <memory>
+#include <utility>
+#include <vector>
 
 namespace nlohmann
 {
 
-/// ordered_map: a minimal map-like container that preserves insertion order
-/// for use within nlohmann::basic_json<ordered_map>
+
+
 template <class Key, class T, class IgnoredLess = std::less<Key>,
           class Allocator = std::allocator<std::pair<const Key, T>>>
                   struct ordered_map : std::vector<std::pair<const Key, T>, Allocator>
@@ -22,8 +22,8 @@ template <class Key, class T, class IgnoredLess = std::less<Key>,
     using typename Container::size_type;
     using typename Container::value_type;
 
-    // Explicit constructors instead of `using Container::Container`
-    // otherwise older compilers choke on it (GCC <= 5.5, xcode <= 9.4)
+
+
     ordered_map(const Allocator& alloc = Allocator()) : Container{alloc} {}
     template <class It>
     ordered_map(It first, It last, const Allocator& alloc = Allocator())
@@ -86,10 +86,10 @@ template <class Key, class T, class IgnoredLess = std::less<Key>,
         {
             if (it->first == key)
             {
-                // Since we cannot move const Keys, re-construct them in place
+
                 for (auto next = it; ++next != this->end(); ++it)
                 {
-                    it->~value_type(); // Destroy but keep allocation
+                    it->~value_type();
                     new (&*it) value_type{std::move(*next)};
                 }
                 Container::pop_back();
@@ -103,10 +103,10 @@ template <class Key, class T, class IgnoredLess = std::less<Key>,
     {
         auto it = pos;
 
-        // Since we cannot move const Keys, re-construct them in place
+
         for (auto next = it; ++next != this->end(); ++it)
         {
-            it->~value_type(); // Destroy but keep allocation
+            it->~value_type();
             new (&*it) value_type{std::move(*next)};
         }
         Container::pop_back();
@@ -168,4 +168,4 @@ template <class Key, class T, class IgnoredLess = std::less<Key>,
     }
 };
 
-}  // namespace nlohmann
+}

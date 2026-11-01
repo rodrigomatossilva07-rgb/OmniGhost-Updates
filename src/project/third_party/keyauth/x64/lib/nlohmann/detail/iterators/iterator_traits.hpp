@@ -1,6 +1,6 @@
 #pragma once
 
-#include <iterator> // random_access_iterator_tag
+#include <iterator>
 
 #include <nlohmann/detail/meta/void_t.hpp>
 #include <nlohmann/detail/meta/cpp_future.hpp>
@@ -25,8 +25,8 @@ struct iterator_types <
     using iterator_category = typename It::iterator_category;
 };
 
-// This is required as some compilers implement std::iterator_traits in a way that
-// doesn't work with SFINAE. See https://github.com/nlohmann/json/issues/1341.
+
+
 template<typename T, typename = void>
 struct iterator_traits
 {
@@ -47,5 +47,5 @@ struct iterator_traits<T*, enable_if_t<std::is_object<T>::value>>
     using pointer = T*;
     using reference = T&;
 };
-} // namespace detail
-} // namespace nlohmann
+}
+}

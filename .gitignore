@@ -3,8 +3,8 @@
 .cache/
 .temp/
 /build/
-# Generated CMake output; do not ignore src/project/config/build, which holds
-# the MSBuild property sheets required by clean and reproducible checkouts.
+
+
 /src/project/tools/FiveMCollisionBuilder/build/
 artifacts/
 publish/
@@ -29,8 +29,8 @@ src/project/third_party/upstream/
 **/bin/
 **/obj/
 
-# Canonical DMA runtime payload is source input for the single-EXE bundle, not
-# a generated bin directory. It must exist in clean/reproducible checkouts.
+
+
 !/src/project/third_party/dma_stack/bin/
 !/src/project/third_party/dma_stack/bin/*.dll
 

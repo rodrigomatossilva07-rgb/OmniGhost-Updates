@@ -1,5 +1,5 @@
-// Minimal DirectX SimpleMath compatibility layer used by OmniGhost.
-// It intentionally implements only the types and operations referenced by this project.
+
+
 #pragma once
 
 #include <DirectXMath.h>
@@ -59,6 +59,6 @@ static_assert(sizeof(Vector3) == sizeof(XMFLOAT3));
 static_assert(sizeof(Vector4) == sizeof(XMFLOAT4));
 static_assert(sizeof(Matrix) == sizeof(XMFLOAT4X4));
 
-} // namespace DirectX::SimpleMath
+}
 
 #include "SimpleMath.inl"

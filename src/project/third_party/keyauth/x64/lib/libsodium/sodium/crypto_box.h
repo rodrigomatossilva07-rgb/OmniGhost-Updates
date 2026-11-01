@@ -1,12 +1,12 @@
 #ifndef crypto_box_H
 #define crypto_box_H
 
-/*
- * THREAD SAFETY: crypto_box_keypair() is thread-safe,
- * provided that sodium_init() was called before.
- *
- * Other functions are always thread-safe.
- */
+
+
+
+
+
+
 
 #include <stddef.h>
 
@@ -85,7 +85,7 @@ int crypto_box_open_detached(unsigned char *m, const unsigned char *c,
                              const unsigned char *sk)
             __attribute__ ((warn_unused_result)) __attribute__ ((nonnull(2, 3, 5, 6, 7)));
 
-/* -- Precomputation interface -- */
+
 
 #define crypto_box_BEFORENMBYTES crypto_box_curve25519xsalsa20poly1305_BEFORENMBYTES
 SODIUM_EXPORT
@@ -120,7 +120,7 @@ int crypto_box_open_detached_afternm(unsigned char *m, const unsigned char *c,
                                      const unsigned char *k)
             __attribute__ ((warn_unused_result)) __attribute__ ((nonnull(2, 3, 5, 6)));
 
-/* -- Ephemeral SK interface -- */
+
 
 #define crypto_box_SEALBYTES (crypto_box_PUBLICKEYBYTES + crypto_box_MACBYTES)
 SODIUM_EXPORT
@@ -137,7 +137,7 @@ int crypto_box_seal_open(unsigned char *m, const unsigned char *c,
                          const unsigned char *pk, const unsigned char *sk)
             __attribute__ ((warn_unused_result)) __attribute__ ((nonnull(2, 4, 5)));
 
-/* -- NaCl compatibility interface ; Requires padding -- */
+
 
 #define crypto_box_ZEROBYTES crypto_box_curve25519xsalsa20poly1305_ZEROBYTES
 SODIUM_EXPORT

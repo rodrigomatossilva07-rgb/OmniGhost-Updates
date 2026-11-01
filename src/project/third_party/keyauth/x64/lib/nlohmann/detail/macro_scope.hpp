@@ -1,12 +1,12 @@
 #pragma once
 
-#include <utility> // pair
+#include <utility>
 #include <nlohmann/thirdparty/hedley/hedley.hpp>
 
-// This file contains all internal macro definitions
-// You MUST include macro_unscope.hpp at the end of json.hpp to undef all of them
 
-// exclude unsupported compilers
+
+
+
 #if !defined(JSON_SKIP_UNSUPPORTED_COMPILER_CHECK)
     #if defined(__clang__)
         #if (__clang_major__ * 10000 + __clang_minor__ * 100 + __clang_patchlevel__) < 30400
@@ -19,33 +19,33 @@
     #endif
 #endif
 
-// C++ language standard detection
+
 #if (defined(__cplusplus) && __cplusplus >= 202002L) || (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L)
     #define JSON_HAS_CPP_20
     #define JSON_HAS_CPP_17
     #define JSON_HAS_CPP_14
-#elif (defined(__cplusplus) && __cplusplus >= 201703L) || (defined(_HAS_CXX17) && _HAS_CXX17 == 1) // fix for issue #464
+#elif (defined(__cplusplus) && __cplusplus >= 201703L) || (defined(_HAS_CXX17) && _HAS_CXX17 == 1)
     #define JSON_HAS_CPP_17
     #define JSON_HAS_CPP_14
 #elif (defined(__cplusplus) && __cplusplus >= 201402L) || (defined(_HAS_CXX14) && _HAS_CXX14 == 1)
     #define JSON_HAS_CPP_14
 #endif
 
-// disable float-equal warnings on GCC/clang
+
 #if defined(__clang__) || defined(__GNUC__) || defined(__GNUG__)
     #pragma GCC diagnostic push
     #pragma GCC diagnostic ignored "-Wfloat-equal"
 #endif
 
-// disable documentation warnings on clang
+
 #if defined(__clang__)
     #pragma GCC diagnostic push
     #pragma GCC diagnostic ignored "-Wdocumentation"
 #endif
 
-// allow to disable exceptions
+
 #if (defined(__cpp_exceptions) || defined(__EXCEPTIONS) || defined(_CPPUNWIND)) && !defined(JSON_NOEXCEPTION)
-    //#define JSON_THROW(exception) throw exception
+
     #define JSON_THROW(exception)
     #define JSON_TRY try
     #define JSON_CATCH(exception) catch(exception)
@@ -58,7 +58,7 @@
     #define JSON_INTERNAL_CATCH(exception) if(false)
 #endif
 
-// override exception macros
+
 #if defined(JSON_THROW_USER)
     #undef JSON_THROW
     #define JSON_THROW JSON_THROW_USER
@@ -78,17 +78,17 @@
     #define JSON_INTERNAL_CATCH JSON_INTERNAL_CATCH_USER
 #endif
 
-// allow to override assert
+
 #if !defined(JSON_ASSERT)
-    #include <cassert> // assert
+    #include <cassert>
     #define JSON_ASSERT(x) assert(x)
 #endif
 
-/*!
-@brief macro to briefly define a mapping between an enum and JSON
-@def NLOHMANN_JSON_SERIALIZE_ENUM
-@since version 3.4.0
-*/
+
+
+
+
+
 #define NLOHMANN_JSON_SERIALIZE_ENUM(ENUM_TYPE, ...)                                            \
     template<typename BasicJsonType>                                                            \
     inline void to_json(BasicJsonType& j, const ENUM_TYPE& e)                                   \
@@ -115,8 +115,8 @@
         e = ((it != std::end(m)) ? it : std::begin(m))->first;                                  \
     }
 
-// Ugly macros to avoid uglier copy-paste when specializing basic_json. They
-// may be removed in the future once the class is split.
+
+
 
 #define NLOHMANN_BASIC_JSON_TPL_DECLARATION                                \
     template<template<typename, typename, typename...> class ObjectType,   \
@@ -132,7 +132,7 @@
     NumberIntegerType, NumberUnsignedType, NumberFloatType,                \
     AllocatorType, JSONSerializer, BinaryType>
 
-// Macros to simplify conversion from/to types
+
 
 #define NLOHMANN_JSON_EXPAND( x ) x
 #define NLOHMANN_JSON_GET_MACRO(_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, _41, _42, _43, _44, _45, _46, _47, _48, _49, _50, _51, _52, _53, _54, _55, _56, _57, _58, _59, _60, _61, _62, _63, _64, NAME,...) NAME
@@ -268,20 +268,20 @@
 #define NLOHMANN_JSON_TO(v1) nlohmann_json_j[#v1] = nlohmann_json_t.v1;
 #define NLOHMANN_JSON_FROM(v1) nlohmann_json_j.at(#v1).get_to(nlohmann_json_t.v1);
 
-/*!
-@brief macro
-@def NLOHMANN_DEFINE_TYPE_INTRUSIVE
-@since version 3.9.0
-*/
+
+
+
+
+
 #define NLOHMANN_DEFINE_TYPE_INTRUSIVE(Type, ...)  \
     friend void to_json(nlohmann::json& nlohmann_json_j, const Type& nlohmann_json_t) { NLOHMANN_JSON_EXPAND(NLOHMANN_JSON_PASTE(NLOHMANN_JSON_TO, __VA_ARGS__)) } \
     friend void from_json(const nlohmann::json& nlohmann_json_j, Type& nlohmann_json_t) { NLOHMANN_JSON_EXPAND(NLOHMANN_JSON_PASTE(NLOHMANN_JSON_FROM, __VA_ARGS__)) }
 
-/*!
-@brief macro
-@def NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE
-@since version 3.9.0
-*/
+
+
+
+
+
 #define NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Type, ...)  \
     inline void to_json(nlohmann::json& nlohmann_json_j, const Type& nlohmann_json_t) { NLOHMANN_JSON_EXPAND(NLOHMANN_JSON_PASTE(NLOHMANN_JSON_TO, __VA_ARGS__)) } \
     inline void from_json(const nlohmann::json& nlohmann_json_j, Type& nlohmann_json_t) { NLOHMANN_JSON_EXPAND(NLOHMANN_JSON_PASTE(NLOHMANN_JSON_FROM, __VA_ARGS__)) }

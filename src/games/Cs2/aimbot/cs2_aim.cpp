@@ -515,7 +515,7 @@ void InitializeHumanizer() {
     g_curve_evaluator.SetConfig(ccfg);
 }
 
-#if 0 // Legacy fixed weapon tables retained temporarily for migration/reference only.
+#if 0
 void LoadRecoilPatterns() {
     std::unique_lock lock(g_recoil_patterns_mutex);
     if (g_patterns_loaded) return;
@@ -652,7 +652,7 @@ std::pair<float, float> CalculateRCS(const CS2::Runtime& rt, const CS2::Config& 
 
 #endif
 
-#if 0 // Replaced by the standalone, unit-testable RCSController.
+#if 0
 float NormalizeAngleDelta(float value) noexcept {
     if (!std::isfinite(value)) return 0.f;
     value = std::remainder(value, 360.f);
@@ -700,8 +700,8 @@ std::pair<float, float> CalculateRCS(const CS2::Runtime& rt, const CS2::Config& 
         return {};
     }
 
-    // A published AimPunch sample is consumed once. Re-running the render loop
-    // must never compensate the same recoil twice.
+
+
     if (rt.local_aim_sample_ms <= g_dynamic_rcs.sample_ms)
         return {};
 
@@ -725,8 +725,8 @@ std::pair<float, float> CalculateRCS(const CS2::Runtime& rt, const CS2::Config& 
     g_dynamic_rcs.pending_x += -delta_yaw * scale * horizontal;
     g_dynamic_rcs.pending_y += -delta_pitch * scale * vertical;
 
-    // Smoothing drains a pending correction rather than discarding part of a
-    // recoil delta, preventing long-spray accumulation errors.
+
+
     const float smoothing = std::clamp(cfg.aim_rcs_smoothing, 0.f, .95f);
     const float response = 1.f - smoothing;
     const float max_step = std::clamp(cfg.aim_rcs_max_step, .25f, 127.f);
@@ -744,11 +744,15 @@ std::pair<float, float> CalculateRCS(const CS2::Runtime& rt, const CS2::Config& 
 
 std::pair<float, float> CalculateRCS(const CS2::Runtime& rt, const CS2::Config& cfg,
                                     int weapon_def) {
+
+
+
+    constexpr float kPunchDegreesToInputCounts = 18.f;
     CS2::RCS::RCSConfig settings{};
     settings.enabled = cfg.aim_rcs_auto || cfg.aim_rcs_standalone;
     settings.horizontalStrength = cfg.aim_rcs_x;
     settings.verticalStrength = cfg.aim_rcs_y;
-    settings.recoilScale = cfg.aim_rcs_scale;
+    settings.recoilScale = cfg.aim_rcs_scale * kPunchDegreesToInputCounts;
     settings.smoothing = cfg.aim_rcs_smoothing;
     settings.startAfterShots = cfg.aim_rcs_start_shot;
     settings.maxCorrection = cfg.aim_rcs_max_step;
@@ -763,13 +767,18 @@ std::pair<float, float> CalculateRCS(const CS2::Runtime& rt, const CS2::Config& 
         g_rcs_debug.Set(settings.debugMode, "reader", CS2::RCS::ToString(read.status));
         return {};
     }
-    if (!IsFirearm(weapon_def)) {
+    if (weapon_def > 0 && !IsFirearm(weapon_def)) {
         g_rcs_controller.Reset(CS2::RCS::ResetReason::WeaponChanged);
+        g_rcs_debug.Set(true, "reader", "known non-firearm");
         return {};
     }
     const CS2::RCS::Correction correction = g_rcs_controller.Update(settings, read.sample, now_ms);
-    g_rcs_debug.Set(settings.debugMode, correction.produced ? "correction" : "state",
-        CS2::RCS::ToString(correction.reason));
+    char detail[192]{};
+    std::snprintf(detail, sizeof(detail),
+        "shots=%d punch=%.3f,%.3f out=%.2f,%.2f (%s)",
+        read.sample.shotsFired, read.sample.pitch, read.sample.yaw,
+        correction.x, correction.y, CS2::RCS::ToString(correction.reason));
+    g_rcs_debug.Set(true, correction.produced ? "active" : "waiting", detail);
     return correction.produced ? std::pair<float, float>{correction.x, correction.y}
                                : std::pair<float, float>{};
 }

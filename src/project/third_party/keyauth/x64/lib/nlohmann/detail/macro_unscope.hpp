@@ -1,6 +1,6 @@
 #pragma once
 
-// restore GCC/clang diagnostic settings
+
 #if defined(__clang__) || defined(__GNUC__) || defined(__GNUG__)
     #pragma GCC diagnostic pop
 #endif
@@ -8,7 +8,7 @@
     #pragma GCC diagnostic pop
 #endif
 
-// clean up
+
 #undef JSON_ASSERT
 #undef JSON_INTERNAL_CATCH
 #undef JSON_CATCH

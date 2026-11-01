@@ -1179,10 +1179,10 @@ bool ConfirmUpdaterStartupFromCommandLine(int argc, wchar_t** argv) {
     const bool validConfirmationName =
         confirmationName.rfind(L"startup-confirm-", 0) == 0 &&
         confirmationPath.extension() == L".txt";
-    // The updater and the restarted application deliberately run under different
-    // PIDs, so Paths::Updates() points at a different per-process directory in
-    // each process. Accept only the updater's tightly scoped updates-staging
-    // directory below OmniGhost's private runtime root.
+
+
+
+
     const bool validConfirmationDirectory =
         _wcsicmp(confirmationDirectory.filename().c_str(), L"updates-staging") == 0 &&
         DescendantPath(confirmationDirectory, Paths::RuntimeRoot());

@@ -1,12 +1,12 @@
 #ifndef crypto_sign_H
 #define crypto_sign_H
 
-/*
- * THREAD SAFETY: crypto_sign_keypair() is thread-safe,
- * provided that sodium_init() was called before.
- *
- * Other functions, including crypto_sign_seed_keypair() are always thread-safe.
- */
+
+
+
+
+
+
 
 #include <stddef.h>
 

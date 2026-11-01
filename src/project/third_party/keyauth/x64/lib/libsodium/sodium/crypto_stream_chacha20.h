@@ -1,13 +1,13 @@
 #ifndef crypto_stream_chacha20_H
 #define crypto_stream_chacha20_H
 
-/*
- *  WARNING: This is just a stream cipher. It is NOT authenticated encryption.
- *  While it provides some protection against eavesdropping, it does NOT
- *  provide any security against active attacks.
- *  Unless you know what you're doing, what you are looking for is probably
- *  the crypto_box functions.
- */
+
+
+
+
+
+
+
 
 #include <stddef.h>
 #include <stdint.h>
@@ -32,7 +32,7 @@ size_t crypto_stream_chacha20_noncebytes(void);
 SODIUM_EXPORT
 size_t crypto_stream_chacha20_messagebytes_max(void);
 
-/* ChaCha20 with a 64-bit nonce and a 64-bit counter, as originally designed */
+
 
 SODIUM_EXPORT
 int crypto_stream_chacha20(unsigned char *c, unsigned long long clen,
@@ -56,7 +56,7 @@ SODIUM_EXPORT
 void crypto_stream_chacha20_keygen(unsigned char k[crypto_stream_chacha20_KEYBYTES])
             __attribute__ ((nonnull));
 
-/* ChaCha20 with a 96-bit nonce and a 32-bit counter (IETF) */
+
 
 #define crypto_stream_chacha20_ietf_KEYBYTES 32U
 SODIUM_EXPORT
@@ -93,7 +93,7 @@ SODIUM_EXPORT
 void crypto_stream_chacha20_ietf_keygen(unsigned char k[crypto_stream_chacha20_ietf_KEYBYTES])
             __attribute__ ((nonnull));
 
-/* Aliases */
+
 
 #define crypto_stream_chacha20_IETF_KEYBYTES crypto_stream_chacha20_ietf_KEYBYTES
 #define crypto_stream_chacha20_IETF_NONCEBYTES crypto_stream_chacha20_ietf_NONCEBYTES

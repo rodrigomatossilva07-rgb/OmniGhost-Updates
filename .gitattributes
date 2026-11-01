@@ -1,12 +1,12 @@
 
-# Keep every detected text file deterministic across Windows, CI and source
-# packages. PowerShell, cmd.exe, MSBuild, Rust and the web toolchain all accept
-# LF, avoiding Git conversion warnings during automated release commits.
+
+
+
 * text=auto eol=lf
 
-# Preserve vendored files byte-for-byte. Their upstream line-ending policy is
-# outside OmniGhost and must not be rewritten by release automation.
+
+
 src/project/third_party/** -text
 
-# Large collision data is binary and managed through Git LFS.
+
 src/games/Cs2/collision/*.tri filter=lfs diff=lfs merge=lfs -text

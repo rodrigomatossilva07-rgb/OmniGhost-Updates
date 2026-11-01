@@ -20,4 +20,4 @@ public:
 
 [[nodiscard]] const char* ToString(ReadStatus status) noexcept;
 
-} // namespace CS2::RCS
+}

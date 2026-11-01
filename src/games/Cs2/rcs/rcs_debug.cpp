@@ -3,7 +3,7 @@
 namespace CS2::RCS {
 
 void RCSDebug::Set(bool enabled, const char* stage, const char* detail) {
-    if (!enabled) return;
+    (void)enabled;
     std::scoped_lock lock(mutex_);
     line_ = stage ? stage : "RCS";
     if (detail && *detail) {
@@ -17,4 +17,4 @@ std::string RCSDebug::Snapshot() const {
     return line_;
 }
 
-} // namespace CS2::RCS
+}

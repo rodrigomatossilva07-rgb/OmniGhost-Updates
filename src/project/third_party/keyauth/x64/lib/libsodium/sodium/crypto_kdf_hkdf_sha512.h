@@ -44,7 +44,7 @@ int crypto_kdf_hkdf_sha512_expand(unsigned char *out, size_t out_len,
                                   const unsigned char prk[crypto_kdf_hkdf_sha512_KEYBYTES])
             __attribute__ ((nonnull(1)));
 
-/* ------------------------------------------------------------------------- */
+
 
 typedef struct crypto_kdf_hkdf_sha512_state {
     crypto_auth_hmacsha512_state st;

@@ -1,16 +1,16 @@
 #pragma once
 
-#include <algorithm> // generate_n
-#include <array> // array
-#include <cmath> // ldexp
-#include <cstddef> // size_t
-#include <cstdint> // uint8_t, uint16_t, uint32_t, uint64_t
-#include <cstdio> // snprintf
-#include <cstring> // memcpy
-#include <iterator> // back_inserter
-#include <limits> // numeric_limits
-#include <string> // char_traits, string
-#include <utility> // make_pair, move
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <iterator>
+#include <limits>
+#include <string>
+#include <utility>
 
 #include <nlohmann/detail/exceptions.hpp>
 #include <nlohmann/detail/input/input_adapters.hpp>
@@ -25,33 +25,33 @@ namespace nlohmann
 namespace detail
 {
 
-/// how to treat CBOR tags
+
 enum class cbor_tag_handler_t
 {
-    error,  ///< throw a parse_error exception in case of a tag
-    ignore   ///< ignore tags
+    error,
+    ignore
 };
 
-/*!
-@brief determine system byte order
 
-@return true if and only if system's byte order is little endian
 
-@note from https://stackoverflow.com/a/1001328/266378
-*/
+
+
+
+
+
 static inline bool little_endianess(int num = 1) noexcept
 {
     return *reinterpret_cast<char*>(&num) == 1;
 }
 
 
-///////////////////
-// binary reader //
-///////////////////
 
-/*!
-@brief deserialization of CBOR, MessagePack, and UBJSON values
-*/
+
+
+
+
+
+
 template<typename BasicJsonType, typename InputAdapterType, typename SAX = json_sax_dom_parser<BasicJsonType>>
 class binary_reader
 {
@@ -65,31 +65,31 @@ class binary_reader
     using char_int_type = typename std::char_traits<char_type>::int_type;
 
   public:
-    /*!
-    @brief create a binary reader
 
-    @param[in] adapter  input adapter to read from
-    */
+
+
+
+
     explicit binary_reader(InputAdapterType&& adapter) : ia(std::move(adapter))
     {
         (void)detail::is_sax_static_asserts<SAX, BasicJsonType> {};
     }
 
-    // make class move-only
+
     binary_reader(const binary_reader&) = delete;
     binary_reader(binary_reader&&) = default;
     binary_reader& operator=(const binary_reader&) = delete;
     binary_reader& operator=(binary_reader&&) = default;
     ~binary_reader() = default;
 
-    /*!
-    @param[in] format  the binary format to parse
-    @param[in] sax_    a SAX event processor
-    @param[in] strict  whether to expect the input to be consumed completed
-    @param[in] tag_handler  how to treat CBOR tags
 
-    @return
-    */
+
+
+
+
+
+
+
     JSON_HEDLEY_NON_NULL(3)
     bool sax_parse(const input_format_t format,
                    json_sax_t* sax_,
@@ -117,11 +117,11 @@ class binary_reader
                 result = parse_ubjson_internal();
                 break;
 
-            default:            // LCOV_EXCL_LINE
-                JSON_ASSERT(false);  // LCOV_EXCL_LINE
+            default:
+                JSON_ASSERT(false);
         }
 
-        // strict mode: next byte must be EOF
+
         if (result && strict)
         {
             if (format == input_format_t::ubjson)
@@ -144,14 +144,14 @@ class binary_reader
     }
 
   private:
-    //////////
-    // BSON //
-    //////////
 
-    /*!
-    @brief Reads in a BSON-object and passes it to the SAX-parser.
-    @return whether a valid BSON-value was passed to the SAX parser
-    */
+
+
+
+
+
+
+
     bool parse_bson_internal()
     {
         std::int32_t document_size{};
@@ -162,7 +162,7 @@ class binary_reader
             return false;
         }
 
-        if (JSON_HEDLEY_UNLIKELY(!parse_bson_element_list(/*is_array*/false)))
+        if (JSON_HEDLEY_UNLIKELY(!parse_bson_element_list(            false)))
         {
             return false;
         }
@@ -170,13 +170,13 @@ class binary_reader
         return sax->end_object();
     }
 
-    /*!
-    @brief Parses a C-style string from the BSON input.
-    @param[in, out] result  A reference to the string variable where the read
-                            string is to be stored.
-    @return `true` if the \x00-byte indicating the end of the string was
-             encountered before the EOF; false` indicates an unexpected EOF.
-    */
+
+
+
+
+
+
+
     bool get_bson_cstr(string_t& result)
     {
         auto out = std::back_inserter(result);
@@ -195,17 +195,17 @@ class binary_reader
         }
     }
 
-    /*!
-    @brief Parses a zero-terminated string of length @a len from the BSON
-           input.
-    @param[in] len  The length (including the zero-byte at the end) of the
-                    string to be read.
-    @param[in, out] result  A reference to the string variable where the read
-                            string is to be stored.
-    @tparam NumberType The type of the length @a len
-    @pre len >= 1
-    @return `true` if the string was successfully parsed
-    */
+
+
+
+
+
+
+
+
+
+
+
     template<typename NumberType>
     bool get_bson_string(const NumberType len, string_t& result)
     {
@@ -218,15 +218,15 @@ class binary_reader
         return get_string(input_format_t::bson, len - static_cast<NumberType>(1), result) && get() != std::char_traits<char_type>::eof();
     }
 
-    /*!
-    @brief Parses a byte array input of length @a len from the BSON input.
-    @param[in] len  The length of the byte array to be read.
-    @param[in, out] result  A reference to the binary variable where the read
-                            array is to be stored.
-    @tparam NumberType The type of the length @a len
-    @pre len >= 0
-    @return `true` if the byte array was successfully parsed
-    */
+
+
+
+
+
+
+
+
+
     template<typename NumberType>
     bool get_bson_binary(const NumberType len, binary_t& result)
     {
@@ -236,7 +236,7 @@ class binary_reader
             return sax->parse_error(chars_read, last_token, parse_error::create(112, chars_read, exception_message(input_format_t::bson, "byte array length cannot be negative, is " + std::to_string(len), "binary")));
         }
 
-        // All BSON binary values have a subtype
+
         std::uint8_t subtype{};
         get_number<std::uint8_t>(input_format_t::bson, subtype);
         result.set_subtype(subtype);
@@ -244,74 +244,74 @@ class binary_reader
         return get_binary(input_format_t::bson, len, result);
     }
 
-    /*!
-    @brief Read a BSON document element of the given @a element_type.
-    @param[in] element_type The BSON element type, c.f. http://bsonspec.org/spec.html
-    @param[in] element_type_parse_position The position in the input stream,
-               where the `element_type` was read.
-    @warning Not all BSON element types are supported yet. An unsupported
-             @a element_type will give rise to a parse_error.114:
-             Unsupported BSON record type 0x...
-    @return whether a valid BSON-object/array was passed to the SAX parser
-    */
+
+
+
+
+
+
+
+
+
+
     bool parse_bson_element_internal(const char_int_type element_type,
                                      const std::size_t element_type_parse_position)
     {
         switch (element_type)
         {
-            case 0x01: // double
+            case 0x01:
             {
                 double number{};
                 return get_number<double, true>(input_format_t::bson, number) && sax->number_float(static_cast<number_float_t>(number), "");
             }
 
-            case 0x02: // string
+            case 0x02:
             {
                 std::int32_t len{};
                 string_t value;
                 return get_number<std::int32_t, true>(input_format_t::bson, len) && get_bson_string(len, value) && sax->string(value);
             }
 
-            case 0x03: // object
+            case 0x03:
             {
                 return parse_bson_internal();
             }
 
-            case 0x04: // array
+            case 0x04:
             {
                 return parse_bson_array();
             }
 
-            case 0x05: // binary
+            case 0x05:
             {
                 std::int32_t len{};
                 binary_t value;
                 return get_number<std::int32_t, true>(input_format_t::bson, len) && get_bson_binary(len, value) && sax->binary(value);
             }
 
-            case 0x08: // boolean
+            case 0x08:
             {
                 return sax->boolean(get() != 0);
             }
 
-            case 0x0A: // null
+            case 0x0A:
             {
                 return sax->null();
             }
 
-            case 0x10: // int32
+            case 0x10:
             {
                 std::int32_t value{};
                 return get_number<std::int32_t, true>(input_format_t::bson, value) && sax->number_integer(value);
             }
 
-            case 0x12: // int64
+            case 0x12:
             {
                 std::int64_t value{};
                 return get_number<std::int64_t, true>(input_format_t::bson, value) && sax->number_integer(value);
             }
 
-            default: // anything else not supported (yet)
+            default:
             {
                 std::array<char, 3> cr{{}};
                 (std::snprintf)(cr.data(), cr.size(), "%.2hhX", static_cast<unsigned char>(element_type));
@@ -320,18 +320,18 @@ class binary_reader
         }
     }
 
-    /*!
-    @brief Read a BSON element list (as specified in the BSON-spec)
 
-    The same binary layout is used for objects and arrays, hence it must be
-    indicated with the argument @a is_array which one is expected
-    (true --> array, false --> object).
 
-    @param[in] is_array Determines if the element list being read is to be
-                        treated as an object (@a is_array == false), or as an
-                        array (@a is_array == true).
-    @return whether a valid BSON-object/array was passed to the SAX parser
-    */
+
+
+
+
+
+
+
+
+
+
     bool parse_bson_element_list(const bool is_array)
     {
         string_t key;
@@ -359,17 +359,17 @@ class binary_reader
                 return false;
             }
 
-            // get_bson_cstr only appends
+
             key.clear();
         }
 
         return true;
     }
 
-    /*!
-    @brief Reads an array from the BSON input and passes it to the SAX-parser.
-    @return whether a valid BSON-array was passed to the SAX parser
-    */
+
+
+
+
     bool parse_bson_array()
     {
         std::int32_t document_size{};
@@ -380,7 +380,7 @@ class binary_reader
             return false;
         }
 
-        if (JSON_HEDLEY_UNLIKELY(!parse_bson_element_list(/*is_array*/true)))
+        if (JSON_HEDLEY_UNLIKELY(!parse_bson_element_list(            true)))
         {
             return false;
         }
@@ -388,28 +388,28 @@ class binary_reader
         return sax->end_array();
     }
 
-    //////////
-    // CBOR //
-    //////////
 
-    /*!
-    @param[in] get_char  whether a new character should be retrieved from the
-                         input (true) or whether the last read character should
-                         be considered instead (false)
-    @param[in] tag_handler how CBOR tags should be treated
 
-    @return whether a valid CBOR value was passed to the SAX parser
-    */
+
+
+
+
+
+
+
+
+
+
     bool parse_cbor_internal(const bool get_char,
                              const cbor_tag_handler_t tag_handler)
     {
         switch (get_char ? get() : current)
         {
-            // EOF
+
             case std::char_traits<char_type>::eof():
                 return unexpect_eof(input_format_t::cbor, "value");
 
-            // Integer 0x00..0x17 (0..23)
+
             case 0x00:
             case 0x01:
             case 0x02:
@@ -436,31 +436,31 @@ class binary_reader
             case 0x17:
                 return sax->number_unsigned(static_cast<number_unsigned_t>(current));
 
-            case 0x18: // Unsigned integer (one-byte uint8_t follows)
+            case 0x18:
             {
                 std::uint8_t number{};
                 return get_number(input_format_t::cbor, number) && sax->number_unsigned(number);
             }
 
-            case 0x19: // Unsigned integer (two-byte uint16_t follows)
+            case 0x19:
             {
                 std::uint16_t number{};
                 return get_number(input_format_t::cbor, number) && sax->number_unsigned(number);
             }
 
-            case 0x1A: // Unsigned integer (four-byte uint32_t follows)
+            case 0x1A:
             {
                 std::uint32_t number{};
                 return get_number(input_format_t::cbor, number) && sax->number_unsigned(number);
             }
 
-            case 0x1B: // Unsigned integer (eight-byte uint64_t follows)
+            case 0x1B:
             {
                 std::uint64_t number{};
                 return get_number(input_format_t::cbor, number) && sax->number_unsigned(number);
             }
 
-            // Negative integer -1-0x00..-1-0x17 (-1..-24)
+
             case 0x20:
             case 0x21:
             case 0x22:
@@ -487,32 +487,32 @@ class binary_reader
             case 0x37:
                 return sax->number_integer(static_cast<std::int8_t>(0x20 - 1 - current));
 
-            case 0x38: // Negative integer (one-byte uint8_t follows)
+            case 0x38:
             {
                 std::uint8_t number{};
                 return get_number(input_format_t::cbor, number) && sax->number_integer(static_cast<number_integer_t>(-1) - number);
             }
 
-            case 0x39: // Negative integer -1-n (two-byte uint16_t follows)
+            case 0x39:
             {
                 std::uint16_t number{};
                 return get_number(input_format_t::cbor, number) && sax->number_integer(static_cast<number_integer_t>(-1) - number);
             }
 
-            case 0x3A: // Negative integer -1-n (four-byte uint32_t follows)
+            case 0x3A:
             {
                 std::uint32_t number{};
                 return get_number(input_format_t::cbor, number) && sax->number_integer(static_cast<number_integer_t>(-1) - number);
             }
 
-            case 0x3B: // Negative integer -1-n (eight-byte uint64_t follows)
+            case 0x3B:
             {
                 std::uint64_t number{};
                 return get_number(input_format_t::cbor, number) && sax->number_integer(static_cast<number_integer_t>(-1)
                         - static_cast<number_integer_t>(number));
             }
 
-            // Binary data (0x00..0x17 bytes follow)
+
             case 0x40:
             case 0x41:
             case 0x42:
@@ -537,17 +537,17 @@ class binary_reader
             case 0x55:
             case 0x56:
             case 0x57:
-            case 0x58: // Binary data (one-byte uint8_t for n follows)
-            case 0x59: // Binary data (two-byte uint16_t for n follow)
-            case 0x5A: // Binary data (four-byte uint32_t for n follow)
-            case 0x5B: // Binary data (eight-byte uint64_t for n follow)
-            case 0x5F: // Binary data (indefinite length)
+            case 0x58:
+            case 0x59:
+            case 0x5A:
+            case 0x5B:
+            case 0x5F:
             {
                 binary_t b;
                 return get_cbor_binary(b) && sax->binary(b);
             }
 
-            // UTF-8 string (0x00..0x17 bytes follow)
+
             case 0x60:
             case 0x61:
             case 0x62:
@@ -572,17 +572,17 @@ class binary_reader
             case 0x75:
             case 0x76:
             case 0x77:
-            case 0x78: // UTF-8 string (one-byte uint8_t for n follows)
-            case 0x79: // UTF-8 string (two-byte uint16_t for n follow)
-            case 0x7A: // UTF-8 string (four-byte uint32_t for n follow)
-            case 0x7B: // UTF-8 string (eight-byte uint64_t for n follow)
-            case 0x7F: // UTF-8 string (indefinite length)
+            case 0x78:
+            case 0x79:
+            case 0x7A:
+            case 0x7B:
+            case 0x7F:
             {
                 string_t s;
                 return get_cbor_string(s) && sax->string(s);
             }
 
-            // array (0x00..0x17 data items follow)
+
             case 0x80:
             case 0x81:
             case 0x82:
@@ -609,34 +609,34 @@ class binary_reader
             case 0x97:
                 return get_cbor_array(static_cast<std::size_t>(static_cast<unsigned int>(current) & 0x1Fu), tag_handler);
 
-            case 0x98: // array (one-byte uint8_t for n follows)
+            case 0x98:
             {
                 std::uint8_t len{};
                 return get_number(input_format_t::cbor, len) && get_cbor_array(static_cast<std::size_t>(len), tag_handler);
             }
 
-            case 0x99: // array (two-byte uint16_t for n follow)
+            case 0x99:
             {
                 std::uint16_t len{};
                 return get_number(input_format_t::cbor, len) && get_cbor_array(static_cast<std::size_t>(len), tag_handler);
             }
 
-            case 0x9A: // array (four-byte uint32_t for n follow)
+            case 0x9A:
             {
                 std::uint32_t len{};
                 return get_number(input_format_t::cbor, len) && get_cbor_array(static_cast<std::size_t>(len), tag_handler);
             }
 
-            case 0x9B: // array (eight-byte uint64_t for n follow)
+            case 0x9B:
             {
                 std::uint64_t len{};
                 return get_number(input_format_t::cbor, len) && get_cbor_array(static_cast<std::size_t>(len), tag_handler);
             }
 
-            case 0x9F: // array (indefinite length)
+            case 0x9F:
                 return get_cbor_array(std::size_t(-1), tag_handler);
 
-            // map (0x00..0x17 pairs of data items follow)
+
             case 0xA0:
             case 0xA1:
             case 0xA2:
@@ -663,34 +663,34 @@ class binary_reader
             case 0xB7:
                 return get_cbor_object(static_cast<std::size_t>(static_cast<unsigned int>(current) & 0x1Fu), tag_handler);
 
-            case 0xB8: // map (one-byte uint8_t for n follows)
+            case 0xB8:
             {
                 std::uint8_t len{};
                 return get_number(input_format_t::cbor, len) && get_cbor_object(static_cast<std::size_t>(len), tag_handler);
             }
 
-            case 0xB9: // map (two-byte uint16_t for n follow)
+            case 0xB9:
             {
                 std::uint16_t len{};
                 return get_number(input_format_t::cbor, len) && get_cbor_object(static_cast<std::size_t>(len), tag_handler);
             }
 
-            case 0xBA: // map (four-byte uint32_t for n follow)
+            case 0xBA:
             {
                 std::uint32_t len{};
                 return get_number(input_format_t::cbor, len) && get_cbor_object(static_cast<std::size_t>(len), tag_handler);
             }
 
-            case 0xBB: // map (eight-byte uint64_t for n follow)
+            case 0xBB:
             {
                 std::uint64_t len{};
                 return get_number(input_format_t::cbor, len) && get_cbor_object(static_cast<std::size_t>(len), tag_handler);
             }
 
-            case 0xBF: // map (indefinite length)
+            case 0xBF:
                 return get_cbor_object(std::size_t(-1), tag_handler);
 
-            case 0xC6: // tagged item
+            case 0xC6:
             case 0xC7:
             case 0xC8:
             case 0xC9:
@@ -705,10 +705,10 @@ class binary_reader
             case 0xD2:
             case 0xD3:
             case 0xD4:
-            case 0xD8: // tagged item (1 bytes follow)
-            case 0xD9: // tagged item (2 bytes follow)
-            case 0xDA: // tagged item (4 bytes follow)
-            case 0xDB: // tagged item (8 bytes follow)
+            case 0xD8:
+            case 0xD9:
+            case 0xDA:
+            case 0xDB:
             {
                 switch (tag_handler)
                 {
@@ -752,21 +752,21 @@ class binary_reader
                         return parse_cbor_internal(true, tag_handler);
                     }
 
-                    default:            // LCOV_EXCL_LINE
-                        JSON_ASSERT(false);  // LCOV_EXCL_LINE
+                    default:
+                        JSON_ASSERT(false);
                 }
             }
 
-            case 0xF4: // false
+            case 0xF4:
                 return sax->boolean(false);
 
-            case 0xF5: // true
+            case 0xF5:
                 return sax->boolean(true);
 
-            case 0xF6: // null
+            case 0xF6:
                 return sax->null();
 
-            case 0xF9: // Half-Precision Float (two-byte IEEE 754)
+            case 0xF9:
             {
                 const auto byte1_raw = get();
                 if (JSON_HEDLEY_UNLIKELY(!unexpect_eof(input_format_t::cbor, "number")))
@@ -782,14 +782,14 @@ class binary_reader
                 const auto byte1 = static_cast<unsigned char>(byte1_raw);
                 const auto byte2 = static_cast<unsigned char>(byte2_raw);
 
-                // code from RFC 7049, Appendix D, Figure 3:
-                // As half-precision floating-point numbers were only added
-                // to IEEE 754 in 2008, today's programming platforms often
-                // still only have limited support for them. It is very
-                // easy to include at least decoding support for them even
-                // without such support. An example of a small decoder for
-                // half-precision floating-point numbers in the C language
-                // is shown in Fig. 3.
+
+
+
+
+
+
+
+
                 const auto half = static_cast<unsigned int>((byte1 << 8u) + byte2);
                 const double val = [&half]
                 {
@@ -814,19 +814,19 @@ class binary_reader
                                          : static_cast<number_float_t>(val), "");
             }
 
-            case 0xFA: // Single-Precision Float (four-byte IEEE 754)
+            case 0xFA:
             {
                 float number{};
                 return get_number(input_format_t::cbor, number) && sax->number_float(static_cast<number_float_t>(number), "");
             }
 
-            case 0xFB: // Double-Precision Float (eight-byte IEEE 754)
+            case 0xFB:
             {
                 double number{};
                 return get_number(input_format_t::cbor, number) && sax->number_float(static_cast<number_float_t>(number), "");
             }
 
-            default: // anything else (0xFF is handled inside the other types)
+            default:
             {
                 auto last_token = get_token_string();
                 return sax->parse_error(chars_read, last_token, parse_error::create(112, chars_read, exception_message(input_format_t::cbor, "invalid byte: 0x" + last_token, "value")));
@@ -834,17 +834,17 @@ class binary_reader
         }
     }
 
-    /*!
-    @brief reads a CBOR string
 
-    This function first reads starting bytes to determine the expected
-    string length and then copies this number of bytes into a string.
-    Additionally, CBOR's strings with indefinite lengths are supported.
 
-    @param[out] result  created string
 
-    @return whether string creation completed
-    */
+
+
+
+
+
+
+
+
     bool get_cbor_string(string_t& result)
     {
         if (JSON_HEDLEY_UNLIKELY(!unexpect_eof(input_format_t::cbor, "string")))
@@ -854,7 +854,7 @@ class binary_reader
 
         switch (current)
         {
-            // UTF-8 string (0x00..0x17 bytes follow)
+
             case 0x60:
             case 0x61:
             case 0x62:
@@ -883,31 +883,31 @@ class binary_reader
                 return get_string(input_format_t::cbor, static_cast<unsigned int>(current) & 0x1Fu, result);
             }
 
-            case 0x78: // UTF-8 string (one-byte uint8_t for n follows)
+            case 0x78:
             {
                 std::uint8_t len{};
                 return get_number(input_format_t::cbor, len) && get_string(input_format_t::cbor, len, result);
             }
 
-            case 0x79: // UTF-8 string (two-byte uint16_t for n follow)
+            case 0x79:
             {
                 std::uint16_t len{};
                 return get_number(input_format_t::cbor, len) && get_string(input_format_t::cbor, len, result);
             }
 
-            case 0x7A: // UTF-8 string (four-byte uint32_t for n follow)
+            case 0x7A:
             {
                 std::uint32_t len{};
                 return get_number(input_format_t::cbor, len) && get_string(input_format_t::cbor, len, result);
             }
 
-            case 0x7B: // UTF-8 string (eight-byte uint64_t for n follow)
+            case 0x7B:
             {
                 std::uint64_t len{};
                 return get_number(input_format_t::cbor, len) && get_string(input_format_t::cbor, len, result);
             }
 
-            case 0x7F: // UTF-8 string (indefinite length)
+            case 0x7F:
             {
                 while (get() != 0xFF)
                 {
@@ -929,17 +929,17 @@ class binary_reader
         }
     }
 
-    /*!
-    @brief reads a CBOR byte array
 
-    This function first reads starting bytes to determine the expected
-    byte array length and then copies this number of bytes into the byte array.
-    Additionally, CBOR's byte arrays with indefinite lengths are supported.
 
-    @param[out] result  created byte array
 
-    @return whether byte array creation completed
-    */
+
+
+
+
+
+
+
+
     bool get_cbor_binary(binary_t& result)
     {
         if (JSON_HEDLEY_UNLIKELY(!unexpect_eof(input_format_t::cbor, "binary")))
@@ -949,7 +949,7 @@ class binary_reader
 
         switch (current)
         {
-            // Binary data (0x00..0x17 bytes follow)
+
             case 0x40:
             case 0x41:
             case 0x42:
@@ -978,35 +978,35 @@ class binary_reader
                 return get_binary(input_format_t::cbor, static_cast<unsigned int>(current) & 0x1Fu, result);
             }
 
-            case 0x58: // Binary data (one-byte uint8_t for n follows)
+            case 0x58:
             {
                 std::uint8_t len{};
                 return get_number(input_format_t::cbor, len) &&
                        get_binary(input_format_t::cbor, len, result);
             }
 
-            case 0x59: // Binary data (two-byte uint16_t for n follow)
+            case 0x59:
             {
                 std::uint16_t len{};
                 return get_number(input_format_t::cbor, len) &&
                        get_binary(input_format_t::cbor, len, result);
             }
 
-            case 0x5A: // Binary data (four-byte uint32_t for n follow)
+            case 0x5A:
             {
                 std::uint32_t len{};
                 return get_number(input_format_t::cbor, len) &&
                        get_binary(input_format_t::cbor, len, result);
             }
 
-            case 0x5B: // Binary data (eight-byte uint64_t for n follow)
+            case 0x5B:
             {
                 std::uint64_t len{};
                 return get_number(input_format_t::cbor, len) &&
                        get_binary(input_format_t::cbor, len, result);
             }
 
-            case 0x5F: // Binary data (indefinite length)
+            case 0x5F:
             {
                 while (get() != 0xFF)
                 {
@@ -1028,12 +1028,12 @@ class binary_reader
         }
     }
 
-    /*!
-    @param[in] len  the length of the array or std::size_t(-1) for an
-                    array of indefinite size
-    @param[in] tag_handler how CBOR tags should be treated
-    @return whether array creation completed
-    */
+
+
+
+
+
+
     bool get_cbor_array(const std::size_t len,
                         const cbor_tag_handler_t tag_handler)
     {
@@ -1066,12 +1066,12 @@ class binary_reader
         return sax->end_array();
     }
 
-    /*!
-    @param[in] len  the length of the object or std::size_t(-1) for an
-                    object of indefinite size
-    @param[in] tag_handler how CBOR tags should be treated
-    @return whether object creation completed
-    */
+
+
+
+
+
+
     bool get_cbor_object(const std::size_t len,
                          const cbor_tag_handler_t tag_handler)
     {
@@ -1118,22 +1118,22 @@ class binary_reader
         return sax->end_object();
     }
 
-    /////////////
-    // MsgPack //
-    /////////////
 
-    /*!
-    @return whether a valid MessagePack value was passed to the SAX parser
-    */
+
+
+
+
+
+
     bool parse_msgpack_internal()
     {
         switch (get())
         {
-            // EOF
+
             case std::char_traits<char_type>::eof():
                 return unexpect_eof(input_format_t::msgpack, "value");
 
-            // positive fixint
+
             case 0x00:
             case 0x01:
             case 0x02:
@@ -1264,7 +1264,7 @@ class binary_reader
             case 0x7F:
                 return sax->number_unsigned(static_cast<number_unsigned_t>(current));
 
-            // fixmap
+
             case 0x80:
             case 0x81:
             case 0x82:
@@ -1283,7 +1283,7 @@ class binary_reader
             case 0x8F:
                 return get_msgpack_object(static_cast<std::size_t>(static_cast<unsigned int>(current) & 0x0Fu));
 
-            // fixarray
+
             case 0x90:
             case 0x91:
             case 0x92:
@@ -1302,7 +1302,7 @@ class binary_reader
             case 0x9F:
                 return get_msgpack_array(static_cast<std::size_t>(static_cast<unsigned int>(current) & 0x0Fu));
 
-            // fixstr
+
             case 0xA0:
             case 0xA1:
             case 0xA2:
@@ -1335,124 +1335,124 @@ class binary_reader
             case 0xBD:
             case 0xBE:
             case 0xBF:
-            case 0xD9: // str 8
-            case 0xDA: // str 16
-            case 0xDB: // str 32
+            case 0xD9:
+            case 0xDA:
+            case 0xDB:
             {
                 string_t s;
                 return get_msgpack_string(s) && sax->string(s);
             }
 
-            case 0xC0: // nil
+            case 0xC0:
                 return sax->null();
 
-            case 0xC2: // false
+            case 0xC2:
                 return sax->boolean(false);
 
-            case 0xC3: // true
+            case 0xC3:
                 return sax->boolean(true);
 
-            case 0xC4: // bin 8
-            case 0xC5: // bin 16
-            case 0xC6: // bin 32
-            case 0xC7: // ext 8
-            case 0xC8: // ext 16
-            case 0xC9: // ext 32
-            case 0xD4: // fixext 1
-            case 0xD5: // fixext 2
-            case 0xD6: // fixext 4
-            case 0xD7: // fixext 8
-            case 0xD8: // fixext 16
+            case 0xC4:
+            case 0xC5:
+            case 0xC6:
+            case 0xC7:
+            case 0xC8:
+            case 0xC9:
+            case 0xD4:
+            case 0xD5:
+            case 0xD6:
+            case 0xD7:
+            case 0xD8:
             {
                 binary_t b;
                 return get_msgpack_binary(b) && sax->binary(b);
             }
 
-            case 0xCA: // float 32
+            case 0xCA:
             {
                 float number{};
                 return get_number(input_format_t::msgpack, number) && sax->number_float(static_cast<number_float_t>(number), "");
             }
 
-            case 0xCB: // float 64
+            case 0xCB:
             {
                 double number{};
                 return get_number(input_format_t::msgpack, number) && sax->number_float(static_cast<number_float_t>(number), "");
             }
 
-            case 0xCC: // uint 8
+            case 0xCC:
             {
                 std::uint8_t number{};
                 return get_number(input_format_t::msgpack, number) && sax->number_unsigned(number);
             }
 
-            case 0xCD: // uint 16
+            case 0xCD:
             {
                 std::uint16_t number{};
                 return get_number(input_format_t::msgpack, number) && sax->number_unsigned(number);
             }
 
-            case 0xCE: // uint 32
+            case 0xCE:
             {
                 std::uint32_t number{};
                 return get_number(input_format_t::msgpack, number) && sax->number_unsigned(number);
             }
 
-            case 0xCF: // uint 64
+            case 0xCF:
             {
                 std::uint64_t number{};
                 return get_number(input_format_t::msgpack, number) && sax->number_unsigned(number);
             }
 
-            case 0xD0: // int 8
+            case 0xD0:
             {
                 std::int8_t number{};
                 return get_number(input_format_t::msgpack, number) && sax->number_integer(number);
             }
 
-            case 0xD1: // int 16
+            case 0xD1:
             {
                 std::int16_t number{};
                 return get_number(input_format_t::msgpack, number) && sax->number_integer(number);
             }
 
-            case 0xD2: // int 32
+            case 0xD2:
             {
                 std::int32_t number{};
                 return get_number(input_format_t::msgpack, number) && sax->number_integer(number);
             }
 
-            case 0xD3: // int 64
+            case 0xD3:
             {
                 std::int64_t number{};
                 return get_number(input_format_t::msgpack, number) && sax->number_integer(number);
             }
 
-            case 0xDC: // array 16
+            case 0xDC:
             {
                 std::uint16_t len{};
                 return get_number(input_format_t::msgpack, len) && get_msgpack_array(static_cast<std::size_t>(len));
             }
 
-            case 0xDD: // array 32
+            case 0xDD:
             {
                 std::uint32_t len{};
                 return get_number(input_format_t::msgpack, len) && get_msgpack_array(static_cast<std::size_t>(len));
             }
 
-            case 0xDE: // map 16
+            case 0xDE:
             {
                 std::uint16_t len{};
                 return get_number(input_format_t::msgpack, len) && get_msgpack_object(static_cast<std::size_t>(len));
             }
 
-            case 0xDF: // map 32
+            case 0xDF:
             {
                 std::uint32_t len{};
                 return get_number(input_format_t::msgpack, len) && get_msgpack_object(static_cast<std::size_t>(len));
             }
 
-            // negative fixint
+
             case 0xE0:
             case 0xE1:
             case 0xE2:
@@ -1487,7 +1487,7 @@ class binary_reader
             case 0xFF:
                 return sax->number_integer(static_cast<std::int8_t>(current));
 
-            default: // anything else
+            default:
             {
                 auto last_token = get_token_string();
                 return sax->parse_error(chars_read, last_token, parse_error::create(112, chars_read, exception_message(input_format_t::msgpack, "invalid byte: 0x" + last_token, "value")));
@@ -1495,16 +1495,16 @@ class binary_reader
         }
     }
 
-    /*!
-    @brief reads a MessagePack string
 
-    This function first reads starting bytes to determine the expected
-    string length and then copies this number of bytes into a string.
 
-    @param[out] result  created string
 
-    @return whether string creation completed
-    */
+
+
+
+
+
+
+
     bool get_msgpack_string(string_t& result)
     {
         if (JSON_HEDLEY_UNLIKELY(!unexpect_eof(input_format_t::msgpack, "string")))
@@ -1514,7 +1514,7 @@ class binary_reader
 
         switch (current)
         {
-            // fixstr
+
             case 0xA0:
             case 0xA1:
             case 0xA2:
@@ -1551,19 +1551,19 @@ class binary_reader
                 return get_string(input_format_t::msgpack, static_cast<unsigned int>(current) & 0x1Fu, result);
             }
 
-            case 0xD9: // str 8
+            case 0xD9:
             {
                 std::uint8_t len{};
                 return get_number(input_format_t::msgpack, len) && get_string(input_format_t::msgpack, len, result);
             }
 
-            case 0xDA: // str 16
+            case 0xDA:
             {
                 std::uint16_t len{};
                 return get_number(input_format_t::msgpack, len) && get_string(input_format_t::msgpack, len, result);
             }
 
-            case 0xDB: // str 32
+            case 0xDB:
             {
                 std::uint32_t len{};
                 return get_number(input_format_t::msgpack, len) && get_string(input_format_t::msgpack, len, result);
@@ -1577,19 +1577,19 @@ class binary_reader
         }
     }
 
-    /*!
-    @brief reads a MessagePack byte array
 
-    This function first reads starting bytes to determine the expected
-    byte array length and then copies this number of bytes into a byte array.
 
-    @param[out] result  created byte array
 
-    @return whether byte array creation completed
-    */
+
+
+
+
+
+
+
     bool get_msgpack_binary(binary_t& result)
     {
-        // helper function to set the subtype
+
         auto assign_and_return_true = [&result](std::int8_t subtype)
         {
             result.set_subtype(static_cast<std::uint8_t>(subtype));
@@ -1598,28 +1598,28 @@ class binary_reader
 
         switch (current)
         {
-            case 0xC4: // bin 8
+            case 0xC4:
             {
                 std::uint8_t len{};
                 return get_number(input_format_t::msgpack, len) &&
                        get_binary(input_format_t::msgpack, len, result);
             }
 
-            case 0xC5: // bin 16
+            case 0xC5:
             {
                 std::uint16_t len{};
                 return get_number(input_format_t::msgpack, len) &&
                        get_binary(input_format_t::msgpack, len, result);
             }
 
-            case 0xC6: // bin 32
+            case 0xC6:
             {
                 std::uint32_t len{};
                 return get_number(input_format_t::msgpack, len) &&
                        get_binary(input_format_t::msgpack, len, result);
             }
 
-            case 0xC7: // ext 8
+            case 0xC7:
             {
                 std::uint8_t len{};
                 std::int8_t subtype{};
@@ -1629,7 +1629,7 @@ class binary_reader
                        assign_and_return_true(subtype);
             }
 
-            case 0xC8: // ext 16
+            case 0xC8:
             {
                 std::uint16_t len{};
                 std::int8_t subtype{};
@@ -1639,7 +1639,7 @@ class binary_reader
                        assign_and_return_true(subtype);
             }
 
-            case 0xC9: // ext 32
+            case 0xC9:
             {
                 std::uint32_t len{};
                 std::int8_t subtype{};
@@ -1649,7 +1649,7 @@ class binary_reader
                        assign_and_return_true(subtype);
             }
 
-            case 0xD4: // fixext 1
+            case 0xD4:
             {
                 std::int8_t subtype{};
                 return get_number(input_format_t::msgpack, subtype) &&
@@ -1657,7 +1657,7 @@ class binary_reader
                        assign_and_return_true(subtype);
             }
 
-            case 0xD5: // fixext 2
+            case 0xD5:
             {
                 std::int8_t subtype{};
                 return get_number(input_format_t::msgpack, subtype) &&
@@ -1665,7 +1665,7 @@ class binary_reader
                        assign_and_return_true(subtype);
             }
 
-            case 0xD6: // fixext 4
+            case 0xD6:
             {
                 std::int8_t subtype{};
                 return get_number(input_format_t::msgpack, subtype) &&
@@ -1673,7 +1673,7 @@ class binary_reader
                        assign_and_return_true(subtype);
             }
 
-            case 0xD7: // fixext 8
+            case 0xD7:
             {
                 std::int8_t subtype{};
                 return get_number(input_format_t::msgpack, subtype) &&
@@ -1681,7 +1681,7 @@ class binary_reader
                        assign_and_return_true(subtype);
             }
 
-            case 0xD8: // fixext 16
+            case 0xD8:
             {
                 std::int8_t subtype{};
                 return get_number(input_format_t::msgpack, subtype) &&
@@ -1689,15 +1689,15 @@ class binary_reader
                        assign_and_return_true(subtype);
             }
 
-            default:           // LCOV_EXCL_LINE
-                return false;  // LCOV_EXCL_LINE
+            default:
+                return false;
         }
     }
 
-    /*!
-    @param[in] len  the length of the array
-    @return whether array creation completed
-    */
+
+
+
+
     bool get_msgpack_array(const std::size_t len)
     {
         if (JSON_HEDLEY_UNLIKELY(!sax->start_array(len)))
@@ -1716,10 +1716,10 @@ class binary_reader
         return sax->end_array();
     }
 
-    /*!
-    @param[in] len  the length of the object
-    @return whether object creation completed
-    */
+
+
+
+
     bool get_msgpack_object(const std::size_t len)
     {
         if (JSON_HEDLEY_UNLIKELY(!sax->start_object(len)))
@@ -1746,41 +1746,41 @@ class binary_reader
         return sax->end_object();
     }
 
-    ////////////
-    // UBJSON //
-    ////////////
 
-    /*!
-    @param[in] get_char  whether a new character should be retrieved from the
-                         input (true, default) or whether the last read
-                         character should be considered instead
 
-    @return whether a valid UBJSON value was passed to the SAX parser
-    */
+
+
+
+
+
+
+
+
+
     bool parse_ubjson_internal(const bool get_char = true)
     {
         return get_ubjson_value(get_char ? get_ignore_noop() : current);
     }
 
-    /*!
-    @brief reads a UBJSON string
 
-    This function is either called after reading the 'S' byte explicitly
-    indicating a string, or in case of an object key where the 'S' byte can be
-    left out.
 
-    @param[out] result   created string
-    @param[in] get_char  whether a new character should be retrieved from the
-                         input (true, default) or whether the last read
-                         character should be considered instead
 
-    @return whether string creation completed
-    */
+
+
+
+
+
+
+
+
+
+
+
     bool get_ubjson_string(string_t& result, const bool get_char = true)
     {
         if (get_char)
         {
-            get();  // TODO(niels): may we ignore N here?
+            get();
         }
 
         if (JSON_HEDLEY_UNLIKELY(!unexpect_eof(input_format_t::ubjson, "value")))
@@ -1826,10 +1826,10 @@ class binary_reader
         }
     }
 
-    /*!
-    @param[out] result  determined size
-    @return whether size determination completed
-    */
+
+
+
+
     bool get_ubjson_size_value(std::size_t& result)
     {
         switch (get_ignore_noop())
@@ -1897,26 +1897,26 @@ class binary_reader
         }
     }
 
-    /*!
-    @brief determine the type and size for a container
 
-    In the optimized UBJSON format, a type and a size can be provided to allow
-    for a more compact representation.
 
-    @param[out] result  pair of the size and the type
 
-    @return whether pair creation completed
-    */
+
+
+
+
+
+
+
     bool get_ubjson_size_type(std::pair<std::size_t, char_int_type>& result)
     {
-        result.first = string_t::npos; // size
-        result.second = 0; // type
+        result.first = string_t::npos;
+        result.second = 0;
 
         get_ignore_noop();
 
         if (current == '$')
         {
-            result.second = get();  // must not ignore 'N', because 'N' maybe the type
+            result.second = get();
             if (JSON_HEDLEY_UNLIKELY(!unexpect_eof(input_format_t::ubjson, "type")))
             {
                 return false;
@@ -1944,23 +1944,23 @@ class binary_reader
         return true;
     }
 
-    /*!
-    @param prefix  the previously read or set type prefix
-    @return whether value creation completed
-    */
+
+
+
+
     bool get_ubjson_value(const char_int_type prefix)
     {
         switch (prefix)
         {
-            case std::char_traits<char_type>::eof():  // EOF
+            case std::char_traits<char_type>::eof():
                 return unexpect_eof(input_format_t::ubjson, "value");
 
-            case 'T':  // true
+            case 'T':
                 return sax->boolean(true);
-            case 'F':  // false
+            case 'F':
                 return sax->boolean(false);
 
-            case 'Z':  // null
+            case 'Z':
                 return sax->null();
 
             case 'U':
@@ -2010,7 +2010,7 @@ class binary_reader
                 return get_ubjson_high_precision_number();
             }
 
-            case 'C':  // char
+            case 'C':
             {
                 get();
                 if (JSON_HEDLEY_UNLIKELY(!unexpect_eof(input_format_t::ubjson, "char")))
@@ -2026,19 +2026,19 @@ class binary_reader
                 return sax->string(s);
             }
 
-            case 'S':  // string
+            case 'S':
             {
                 string_t s;
                 return get_ubjson_string(s) && sax->string(s);
             }
 
-            case '[':  // array
+            case '[':
                 return get_ubjson_array();
 
-            case '{':  // object
+            case '{':
                 return get_ubjson_object();
 
-            default: // anything else
+            default:
             {
                 auto last_token = get_token_string();
                 return sax->parse_error(chars_read, last_token, parse_error::create(112, chars_read, exception_message(input_format_t::ubjson, "invalid byte: 0x" + last_token, "value")));
@@ -2046,9 +2046,9 @@ class binary_reader
         }
     }
 
-    /*!
-    @return whether array creation completed
-    */
+
+
+
     bool get_ubjson_array()
     {
         std::pair<std::size_t, char_int_type> size_and_type;
@@ -2108,9 +2108,9 @@ class binary_reader
         return sax->end_array();
     }
 
-    /*!
-    @return whether object creation completed
-    */
+
+
+
     bool get_ubjson_object()
     {
         std::pair<std::size_t, char_int_type> size_and_type;
@@ -2183,12 +2183,12 @@ class binary_reader
         return sax->end_object();
     }
 
-    // Note, no reader for UBJSON binary types is implemented because they do
-    // not exist
+
+
 
     bool get_ubjson_high_precision_number()
     {
-        // get size of following number string
+
         std::size_t size{};
         auto res = get_ubjson_size_value(size);
         if (JSON_HEDLEY_UNLIKELY(!res))
@@ -2196,7 +2196,7 @@ class binary_reader
             return res;
         }
 
-        // get number string
+
         std::vector<char> number_vector;
         for (std::size_t i = 0; i < size; ++i)
         {
@@ -2208,7 +2208,7 @@ class binary_reader
             number_vector.push_back(static_cast<char>(current));
         }
 
-        // parse number string
+
         auto number_ia = detail::input_adapter(std::forward<decltype(number_vector)>(number_vector));
         auto number_lexer = detail::lexer<BasicJsonType, decltype(number_ia)>(std::move(number_ia), false);
         const auto result_number = number_lexer.scan();
@@ -2235,28 +2235,28 @@ class binary_reader
         }
     }
 
-    ///////////////////////
-    // Utility functions //
-    ///////////////////////
 
-    /*!
-    @brief get next character from the input
 
-    This function provides the interface to the used input adapter. It does
-    not throw in case the input reached EOF, but returns a -'ve valued
-    `std::char_traits<char_type>::eof()` in that case.
 
-    @return character read from the input
-    */
+
+
+
+
+
+
+
+
+
+
     char_int_type get()
     {
         ++chars_read;
         return current = ia.get_character();
     }
 
-    /*!
-    @return character read from the input after ignoring all 'N' entries
-    */
+
+
+
     char_int_type get_ignore_noop()
     {
         do
@@ -2268,23 +2268,23 @@ class binary_reader
         return current;
     }
 
-    /*
-    @brief read a number from the input
 
-    @tparam NumberType the type of the number
-    @param[in] format   the current format (for diagnostics)
-    @param[out] result  number of type @a NumberType
 
-    @return whether conversion completed
 
-    @note This function needs to respect the system's endianess, because
-          bytes in CBOR, MessagePack, and UBJSON are stored in network order
-          (big endian) and therefore need reordering on little endian systems.
-    */
+
+
+
+
+
+
+
+
+
+
     template<typename NumberType, bool InputIsLittleEndian = false>
     bool get_number(const input_format_t format, NumberType& result)
     {
-        // step 1: read input into array with system's byte order
+
         std::array<std::uint8_t, sizeof(NumberType)> vec;
         for (std::size_t i = 0; i < sizeof(NumberType); ++i)
         {
@@ -2294,36 +2294,36 @@ class binary_reader
                 return false;
             }
 
-            // reverse byte order prior to conversion if necessary
+
             if (is_little_endian != InputIsLittleEndian)
             {
                 vec[sizeof(NumberType) - i - 1] = static_cast<std::uint8_t>(current);
             }
             else
             {
-                vec[i] = static_cast<std::uint8_t>(current); // LCOV_EXCL_LINE
+                vec[i] = static_cast<std::uint8_t>(current);
             }
         }
 
-        // step 2: convert array into number of type T and return
+
         std::memcpy(&result, vec.data(), sizeof(NumberType));
         return true;
     }
 
-    /*!
-    @brief create a string by reading characters from the input
 
-    @tparam NumberType the type of the number
-    @param[in] format the current format (for diagnostics)
-    @param[in] len number of characters to read
-    @param[out] result string created by reading @a len bytes
 
-    @return whether string creation completed
 
-    @note We can not reserve @a len bytes for the result, because @a len
-          may be too large. Usually, @ref unexpect_eof() detects the end of
-          the input before we run out of string memory.
-    */
+
+
+
+
+
+
+
+
+
+
+
     template<typename NumberType>
     bool get_string(const input_format_t format,
                     const NumberType len,
@@ -2343,20 +2343,20 @@ class binary_reader
         return success;
     }
 
-    /*!
-    @brief create a byte array by reading bytes from the input
 
-    @tparam NumberType the type of the number
-    @param[in] format the current format (for diagnostics)
-    @param[in] len number of bytes to read
-    @param[out] result byte array created by reading @a len bytes
 
-    @return whether byte array creation completed
 
-    @note We can not reserve @a len bytes for the result, because @a len
-          may be too large. Usually, @ref unexpect_eof() detects the end of
-          the input before we run out of memory.
-    */
+
+
+
+
+
+
+
+
+
+
+
     template<typename NumberType>
     bool get_binary(const input_format_t format,
                     const NumberType len,
@@ -2376,11 +2376,11 @@ class binary_reader
         return success;
     }
 
-    /*!
-    @param[in] format   the current format (for diagnostics)
-    @param[in] context  further context information (for diagnostics)
-    @return whether the last read character is not EOF
-    */
+
+
+
+
+
     JSON_HEDLEY_NON_NULL(3)
     bool unexpect_eof(const input_format_t format, const char* context) const
     {
@@ -2392,9 +2392,9 @@ class binary_reader
         return true;
     }
 
-    /*!
-    @return a string representation of the last read byte
-    */
+
+
+
     std::string get_token_string() const
     {
         std::array<char, 3> cr{{}};
@@ -2402,12 +2402,12 @@ class binary_reader
         return std::string{cr.data()};
     }
 
-    /*!
-    @param[in] format   the current format
-    @param[in] detail   a detailed error message
-    @param[in] context  further context information
-    @return a message string to use in the parse_error exceptions
-    */
+
+
+
+
+
+
     std::string exception_message(const input_format_t format,
                                   const std::string& detail,
                                   const std::string& context) const
@@ -2432,28 +2432,28 @@ class binary_reader
                 error_msg += "BSON";
                 break;
 
-            default:            // LCOV_EXCL_LINE
-                JSON_ASSERT(false);  // LCOV_EXCL_LINE
+            default:
+                JSON_ASSERT(false);
         }
 
         return error_msg + " " + context + ": " + detail;
     }
 
   private:
-    /// input adapter
+
     InputAdapterType ia;
 
-    /// the current character
+
     char_int_type current = std::char_traits<char_type>::eof();
 
-    /// the number of characters read
+
     std::size_t chars_read = 0;
 
-    /// whether we can assume little endianess
+
     const bool is_little_endian = little_endianess();
 
-    /// the SAX parser
+
     json_sax_t* sax = nullptr;
 };
-}  // namespace detail
-}  // namespace nlohmann
+}
+}

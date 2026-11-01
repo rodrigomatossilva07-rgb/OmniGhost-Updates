@@ -160,10 +160,10 @@ bool Memory::BeginVmmMaintenance(const char* reason, DWORD drainTimeoutMs)
 		<< " drain_timeout_ms=" << drainTimeoutMs << "\n";
 
 	const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(drainTimeoutMs);
-	// DMA-006 Fix: wait only for in-flight data calls. Registered-but-idle
-	// scatter handles (kept alive across frames by the game lanes) are
-	// invalidated separately by ResetDeviceState() — they must not keep the
-	// drain waiting until timeout.
+
+
+
+
 	while (activeDataCalls_.load(std::memory_order_acquire) != 0) {
 		if (std::chrono::steady_clock::now() >= deadline) {
 			std::cout << "[VMM][Maintenance] drain TIMEOUT active_calls="
@@ -203,8 +203,8 @@ bool Memory::ReopenVmmSession(bool memMap, bool debug)
 		<< oldSession << "\n";
 	deviceResetCount_.fetch_add(1, std::memory_order_relaxed);
 
-	// This is an in-operation recovery boundary, so do not mutate cancellationEpoch_.
-	// Closing the VMM session destroys any stuck procinfo/plugin context.
+
+
 	ResetDeviceState();
 	const auto settleMs = timeouts_.deviceReopenSettleMs.count() > 0
 		? timeouts_.deviceReopenSettleMs

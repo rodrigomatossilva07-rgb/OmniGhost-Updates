@@ -76,7 +76,9 @@ Correction RCSController::Update(const RCSConfig& config,
     const float weaponScale = std::clamp(config.ScaleForWeapon(sample.weaponDefinition), 0.f, 3.f);
     const float scale = std::clamp(config.recoilScale, .01f, 100.f) * weaponScale;
     pendingX_ += -deltaYaw * scale * std::clamp(config.horizontalStrength, 0.f, 2.f);
-    pendingY_ += -deltaPitch * scale * std::clamp(config.verticalStrength, 0.f, 2.f);
+
+
+    pendingY_ += deltaPitch * scale * std::clamp(config.verticalStrength, 0.f, 2.f);
 
     const float response = 1.f - std::clamp(config.smoothing, 0.f, .95f);
     const float maxStep = std::clamp(config.maxCorrection, .25f, 127.f);
@@ -107,4 +109,4 @@ const char* ToString(ResetReason reason) noexcept {
     return "unknown";
 }
 
-} // namespace CS2::RCS
+}

@@ -52,9 +52,9 @@ function Remove-SafeFile {
     }
 
     $relative = $fullPath.Substring($projectPrefix.Length).Replace('/', '\')
-    # The active MSBuild file logger lives under .cache and cannot be removed
-    # by the Publish process that is still writing to it. The whole cache is
-    # handled by the deferred pass after MSBuild exits.
+
+
+
     if ($relative.StartsWith('.cache\', [StringComparison]::OrdinalIgnoreCase)) {
         return
     }
@@ -85,10 +85,10 @@ function Remove-SafeFile {
 }
 
 if ($DeferredCacheOnly) {
-    # The MSBuild file logger can keep OmiGhost.log open for a few seconds
-    # after the Publish PowerShell process exits.  Retry only the project
-    # cache after the parent has gone away; a locked diagnostic log must not
-    # turn an already published release into a failed build.
+
+
+
+
     if ($ParentProcessId -gt 0) {
         try { Wait-Process -Id $ParentProcessId -Timeout 300 -ErrorAction SilentlyContinue } catch {}
     }
@@ -117,8 +117,8 @@ if ($DeferredCacheOnly) {
 
 Write-Host '[OmniGhost Cleanup] Limpeza pós-publicação de caches e ficheiros temporários...'
 
-# Apenas diretórios recriáveis. Os artefactos validados e build\Publish têm de
-# permanecer disponíveis para o upload que ocorre imediatamente a seguir.
+
+
 foreach ($relative in @('.temp', 'logs')) {
     Remove-SafeTree `
         -Path (Join-Path $ProjectDir $relative) `
@@ -126,7 +126,7 @@ foreach ($relative in @('.temp', 'logs')) {
         -Label $relative
 }
 
-# Outputs integralmente regeneráveis de ferramentas e componentes auxiliares.
+
 $generatedTrees = @(
     'src\games\Cs2\dumper\target',
     'src\project\tools\FiveMCollisionBuilder\build'
@@ -138,8 +138,8 @@ foreach ($relative in $generatedTrees) {
         -Label $relative
 }
 
-# bin/obj de componentes próprios. Dependências em third_party e libs são
-# deliberadamente excluídas porque podem conter binários de origem obrigatórios.
+
+
 $firstPartyBuildRoots = @(
     (Join-Path $ProjectDir 'src\project\support'),
     (Join-Path $ProjectDir 'src\games')
@@ -155,15 +155,15 @@ foreach ($buildRoot in $firstPartyBuildRoots) {
     }
 }
 
-# Cache de compressão criada pelo gerador de recursos fora do repositório.
+
 if (-not [string]::IsNullOrWhiteSpace($LocalAppDataRoot)) {
     $omniLocalRoot = [IO.Path]::GetFullPath((Join-Path $LocalAppDataRoot 'OmniGhost'))
     $reproRoot = [IO.Path]::GetFullPath((Join-Path $omniLocalRoot 'build-cache\repro-worktrees')).TrimEnd('\')
 
-    # Unregister any residual reproducibility checkout before deleting its
-    # directory. Removing only the folder leaves stale Git worktree metadata
-    # and Visual Studio may continue evaluating a project that no longer has
-    # its imported props files.
+
+
+
+
     $git = Get-Command git -ErrorAction SilentlyContinue
     if ($null -ne $git -and (Test-Path -LiteralPath (Join-Path $ProjectDir '.git'))) {
         $worktreeLines = @(& $git.Source -C $ProjectDir worktree list --porcelain 2>$null)
@@ -188,8 +188,8 @@ if (-not [string]::IsNullOrWhiteSpace($LocalAppDataRoot)) {
         -Label '%LOCALAPPDATA%\OmniGhost\build-cache'
 }
 
-# Resíduos de compilação e ficheiros temporários perdidos em qualquer parte do
-# projeto. A pesquisa ignora Git, dependências binárias e a release validada.
+
+
 $temporaryExtensions = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
 @('.obj', '.pdb', '.ilk', '.ipdb', '.iobj', '.tlog', '.lastbuildstate',
   '.tmp', '.temp', '.bak', '.old', '.log', '.pch', '.idb', '.exp', '.res',

@@ -15,4 +15,4 @@ private:
     std::string line_ = "RCS idle";
 };
 
-} // namespace CS2::RCS
+}

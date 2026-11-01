@@ -1,8 +1,8 @@
 #pragma once
 
-#include <limits> // numeric_limits
-#include <type_traits> // false_type, is_constructible, is_integral, is_same, true_type
-#include <utility> // declval
+#include <limits>
+#include <type_traits>
+#include <utility>
 
 #include <nlohmann/detail/iterators/iterator_traits.hpp>
 #include <nlohmann/detail/macro_scope.hpp>
@@ -12,37 +12,37 @@
 
 namespace nlohmann
 {
-/*!
-@brief detail namespace with internal helper functions
 
-This namespace collects functions that should not be exposed,
-implementations of some @ref basic_json methods, and meta-programming helpers.
 
-@since version 2.1.0
-*/
+
+
+
+
+
+
 namespace detail
 {
-/////////////
-// helpers //
-/////////////
 
-// Note to maintainers:
-//
-// Every trait in this file expects a non CV-qualified type.
-// The only exceptions are in the 'aliases for detected' section
-// (i.e. those of the form: decltype(T::member_function(std::declval<T>())))
-//
-// In this case, T has to be properly CV-qualified to constraint the function arguments
-// (e.g. to_json(BasicJsonType&, const T&))
+
+
+
+
+
+
+
+
+
+
+
 
 template<typename> struct is_basic_json : std::false_type {};
 
 NLOHMANN_BASIC_JSON_TPL_DECLARATION
 struct is_basic_json<NLOHMANN_BASIC_JSON_TPL> : std::true_type {};
 
-//////////////////////
-// json_ref helpers //
-//////////////////////
+
+
+
 
 template<typename>
 class json_ref;
@@ -53,9 +53,9 @@ struct is_json_ref : std::false_type {};
 template<typename T>
 struct is_json_ref<json_ref<T>> : std::true_type {};
 
-//////////////////////////
-// aliases for detected //
-//////////////////////////
+
+
+
 
 template<typename T>
 using mapped_type_t = typename T::mapped_type;
@@ -90,14 +90,14 @@ using from_json_function = decltype(T::from_json(std::declval<Args>()...));
 template<typename T, typename U>
 using get_template_function = decltype(std::declval<T>().template get<U>());
 
-// trait checking if JSONSerializer<T>::from_json(json const&, udt&) exists
+
 template<typename BasicJsonType, typename T, typename = void>
 struct has_from_json : std::false_type {};
 
-// trait checking if j.get<T> is valid
-// use this trait instead of std::is_constructible or std::is_convertible,
-// both rely on, or make use of implicit conversions, and thus fail when T
-// has several constructors/operator= (see https://github.com/nlohmann/json/issues/958)
+
+
+
+
 template <typename BasicJsonType, typename T>
 struct is_getable
 {
@@ -115,8 +115,8 @@ struct has_from_json < BasicJsonType, T,
         const BasicJsonType&, T&>::value;
 };
 
-// This trait checks if JSONSerializer<T>::from_json(json const&) exists
-// this overload is used for non-default-constructible user-defined-types
+
+
 template<typename BasicJsonType, typename T, typename = void>
 struct has_non_default_from_json : std::false_type {};
 
@@ -130,8 +130,8 @@ struct has_non_default_from_json < BasicJsonType, T, enable_if_t < !is_basic_jso
         const BasicJsonType&>::value;
 };
 
-// This trait checks if BasicJsonType::json_serializer<T>::to_json exists
-// Do not evaluate the trait when T is a basic_json type, to avoid template instantiation infinite recursion.
+
+
 template<typename BasicJsonType, typename T, typename = void>
 struct has_to_json : std::false_type {};
 
@@ -146,9 +146,9 @@ struct has_to_json < BasicJsonType, T, enable_if_t < !is_basic_json<T>::value >>
 };
 
 
-///////////////////
-// is_ functions //
-///////////////////
+
+
+
 
 template<typename T, typename = void>
 struct is_iterator_traits : std::false_type {};
@@ -168,7 +168,7 @@ struct is_iterator_traits<iterator_traits<T>>
         is_detected<reference_t, traits>::value;
 };
 
-// source: https://stackoverflow.com/a/37193089/4116453
+
 
 template<typename T, typename = void>
 struct is_complete_type : std::false_type {};
@@ -189,7 +189,7 @@ struct is_compatible_object_type_impl <
 
     using object_t = typename BasicJsonType::object_t;
 
-    // macOS's is_constructible does not play well with nonesuch...
+
     static constexpr bool value =
         std::is_constructible<typename object_t::key_type,
         typename CompatibleObjectType::key_type>::value &&
@@ -279,9 +279,9 @@ struct is_compatible_array_type_impl <
     BasicJsonType, CompatibleArrayType,
     enable_if_t < is_detected<value_type_t, CompatibleArrayType>::value&&
     is_detected<iterator_t, CompatibleArrayType>::value&&
-// This is needed because json_reverse_iterator has a ::iterator type...
-// Therefore it is detected as a CompatibleArrayType.
-// The real fix would be to have an Iterable concept.
+
+
+
     !is_iterator_traits <
     iterator_traits<CompatibleArrayType >>::value >>
 {
@@ -318,11 +318,11 @@ is_complete_type <
 detected_t<value_type_t, ConstructibleArrayType >>::value >>
 {
     static constexpr bool value =
-        // This is needed because json_reverse_iterator has a ::iterator type,
-        // furthermore, std::back_insert_iterator (and other iterators) have a
-        // base class `iterator`... Therefore it is detected as a
-        // ConstructibleArrayType. The real fix would be to have an Iterable
-        // concept.
+
+
+
+
+
         !is_iterator_traits<iterator_traits<ConstructibleArrayType>>::value &&
 
         (std::is_same<typename ConstructibleArrayType::value_type,
@@ -348,7 +348,7 @@ struct is_compatible_integer_type_impl <
     std::is_integral<CompatibleNumberIntegerType>::value&&
     !std::is_same<bool, CompatibleNumberIntegerType>::value >>
 {
-    // is there an assert somewhere on overflows?
+
     using RealLimits = std::numeric_limits<RealIntegerType>;
     using CompatibleLimits = std::numeric_limits<CompatibleNumberIntegerType>;
 
@@ -380,7 +380,7 @@ template<typename BasicJsonType, typename CompatibleType>
 struct is_compatible_type
     : is_compatible_type_impl<BasicJsonType, CompatibleType> {};
 
-// https://en.cppreference.com/w/cpp/types/conjunction
+
 template<class...> struct conjunction : std::true_type { };
 template<class B1> struct conjunction<B1> : B1 { };
 template<class B1, class... Bn>
@@ -392,5 +392,5 @@ struct is_constructible_tuple : std::false_type {};
 
 template<typename T1, typename... Args>
 struct is_constructible_tuple<T1, std::tuple<Args...>> : conjunction<std::is_constructible<T1, Args>...> {};
-}  // namespace detail
-}  // namespace nlohmann
+}
+}

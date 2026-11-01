@@ -116,9 +116,9 @@ try {
     $buildExitCode = $LASTEXITCODE
     [IO.File]::WriteAllLines($reproLog, @($buildOutput | ForEach-Object { [string]$_ }), (New-Object Text.UTF8Encoding($false)))
     if ($buildExitCode -ne 0) {
-        # Do not replay raw nested-MSBuild diagnostics to stdout: Visual Studio
-        # otherwise registers errors against the temporary project and keeps a
-        # stale MSB4019 entry after the worktree is correctly removed.
+
+
+
         Write-Host "[OmniGhost Repro] A build independente falhou. Diagnóstico completo preservado em: $reproLog"
         throw "Independent Publish rebuild failed with exit code $buildExitCode. Full log: $reproLog"
     }

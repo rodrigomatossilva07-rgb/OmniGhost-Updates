@@ -4,7 +4,7 @@
 #include "Memory/Memory.h"
 #include "platform/session_log.h"
 
-//TODO: Restart winlogon.exe when it doesn't exist.
+
 bool c_keys::InitKeyboard()
 {
 	std::string win = registry.QueryValue("HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\CurrentBuild", e_registry_type::sz);

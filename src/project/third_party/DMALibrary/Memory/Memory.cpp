@@ -1,6 +1,6 @@
-// Memory.cpp - construction, process/module/symbol queries and the passive
-// startup device probe. Session lifecycle lives in MemoryInit.cpp, data-plane
-// reads/scatter in MemoryIO.cpp and maintenance/recovery in MemoryLifecycle.cpp.
+
+
+
 #include "pch.h"
 #include "Memory.h"
 #include "MemoryInternal.h"
@@ -36,12 +36,12 @@ bool ContainsInsensitive(const std::wstring& haystack, const wchar_t* needle)
 
 bool IsFt60xHardwareId(const std::wstring& id)
 {
-	// FTDI FT600/FT601 (USB 3.0 FIFO bridge used by PCILeech FPGA boards).
+
 	if (!ContainsInsensitive(id, L"VID_0403")) return false;
 	return ContainsInsensitive(id, L"PID_601E") || ContainsInsensitive(id, L"PID_601F");
 }
 
-} // namespace
+}
 
 PassiveDmaPnpResult ProbePassiveDmaPnp() noexcept
 {
@@ -69,7 +69,7 @@ PassiveDmaPnpResult ProbePassiveDmaPnp() noexcept
 			static_cast<DWORD>(buffer.size() * sizeof(wchar_t)), &required))
 			continue;
 
-		// REG_MULTI_SZ: iterate every hardware id string.
+
 		bool match = false;
 		for (const wchar_t* cursor = buffer.data(); *cursor;) {
 			const std::wstring id(cursor);
@@ -103,17 +103,17 @@ bool ReadMzHeader(VMM_HANDLE vmm, DWORD pid, uint64_t base) noexcept
 	return read == sizeof(header) && header[0] == 'M' && header[1] == 'Z';
 }
 
-} // namespace MemoryDetail
+}
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Construction
-// ─────────────────────────────────────────────────────────────────────────────
+
+
+
 
 Memory::Memory()
 {
-	// Runtime files are installed by RuntimeBootstrap after the entrypoint.
-	// Loading them inside this global object's constructor would be too early
-	// for the portable, single-EXE first run.
+
+
+
 	dependencyIntegrityMessage_ = "runtime dependencies not initialized yet";
 	this->key = std::make_shared<c_keys>();
 #ifndef OMNIGHOST_READONLY_MODE
@@ -125,13 +125,13 @@ Memory::Memory()
 
 Memory::~Memory()
 {
-	// The VmmSession member closes the VMM handle; scatter handles are already
-	// invalidated by ResetDeviceState during Close()/Shutdown paths.
+
+
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Passive startup probe (PnP only, no device open)
-// ─────────────────────────────────────────────────────────────────────────────
+
+
+
 
 bool Memory::ProbeDeviceAvailability()
 {
@@ -164,13 +164,13 @@ bool Memory::ProbeDevicePresence()
 	return probe.candidateFound && probe.pnpStarted;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Process queries
-// ─────────────────────────────────────────────────────────────────────────────
+
+
+
 
 DWORD Memory::GetPidFromName(std::string process_name)
 {
-	// PidGetFromName may select a terminated instance after a quick restart.
+
 	const auto pids = GetPidListFromName(std::move(process_name));
 	return pids.empty() ? 0 : static_cast<DWORD>(pids.front());
 }
@@ -192,8 +192,8 @@ std::vector<std::string> Memory::GetProcessNames()
 	VmmOwned<VMMDLL_PROCESS_INFORMATION> owned(raw);
 	names.reserve(total);
 	for (DWORD index = 0; index < total; ++index) {
-		// ProcessGetInformationAll includes terminated processes. Only a live
-		// EPROCESS (dwState == 0) may drive launcher presence badges.
+
+
 		if (raw[index].dwState != 0)
 			continue;
 		const char* name = raw[index].szNameLong[0] ? raw[index].szNameLong : raw[index].szName;
@@ -260,13 +260,13 @@ PEB Memory::GetProcessPeb()
 	return {};
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Module queries
-// ─────────────────────────────────────────────────────────────────────────────
+
+
+
 
 std::vector<std::string> Memory::GetModuleList(std::string process_name)
 {
-	(void)process_name; // modules are always resolved against the bound process
+	(void)process_name;
 	std::vector<std::string> list;
 	if (!this->vHandle || !current_process.PID)
 		return list;
@@ -329,9 +329,9 @@ size_t Memory::GetBaseSize(std::string module_name)
 	return imageSize;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Symbol (EAT/IAT) queries
-// ─────────────────────────────────────────────────────────────────────────────
+
+
+
 
 uintptr_t Memory::GetExportTableAddress(std::string import, std::string process, std::string module)
 {
@@ -393,9 +393,9 @@ uintptr_t Memory::GetImportTableAddress(std::string import, std::string process,
 	return 0;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Diagnostics dumps (developer tooling; never used during normal sessions)
-// ─────────────────────────────────────────────────────────────────────────────
+
+
+
 
 bool Memory::DumpMemory(uintptr_t address, std::string path)
 {
@@ -420,7 +420,7 @@ bool Memory::DumpMemory(uintptr_t address, std::string path)
 	constexpr size_t kPage = 0x1000;
 	for (size_t offset = 0; offset < imageSize; offset += kPage) {
 		const size_t chunk = (std::min)(kPage, imageSize - offset);
-		(void)Read(address + offset, image.data() + offset, chunk); // unreadable pages stay zero
+		(void)Read(address + offset, image.data() + offset, chunk);
 	}
 	std::ofstream out(path, std::ios::binary | std::ios::trunc);
 	if (!out)
@@ -432,10 +432,10 @@ bool Memory::DumpMemory(uintptr_t address, std::string path)
 bool Memory::DumpMemoryMap(bool debug)
 {
 	(void)debug;
-	// OmniGhost opens the FPGA without a pre-dumped physical memory map
-	// (MemProcFS resolves it live). Kept for API compatibility only.
+
+
 	return false;
 }
 
-// Single definition of the process-wide Memory instance (header is extern only).
+
 Memory mem;

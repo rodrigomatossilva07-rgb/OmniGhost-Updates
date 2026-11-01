@@ -41,7 +41,7 @@ class json_ref
         , is_rvalue(true)
     {}
 
-    // class should be movable only
+
     json_ref(json_ref&&) = default;
     json_ref(const json_ref&) = delete;
     json_ref& operator=(const json_ref&) = delete;
@@ -72,5 +72,5 @@ class json_ref
     value_type* value_ref = nullptr;
     const bool is_rvalue = true;
 };
-}  // namespace detail
-}  // namespace nlohmann
+}
+}

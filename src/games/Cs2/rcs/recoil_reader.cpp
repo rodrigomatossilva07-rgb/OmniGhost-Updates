@@ -10,7 +10,9 @@ ReadResult RecoilReader::Read(const Runtime& snapshot, uint64_t nowMs) noexcept 
     const LocalPlayerState local = LocalPlayerResolver::Inspect(snapshot);
     if (!local.pawnValid) { result.status = ReadStatus::NoLocalPlayer; return result; }
     if (!local.alive) { result.status = ReadStatus::Dead; return result; }
-    if (snapshot.local_weapon_definition <= 0) { result.status = ReadStatus::MissingWeapon; return result; }
+
+
+
     if (!snapshot.local_aim_sample_ms || nowMs < snapshot.local_aim_sample_ms) {
         result.status = ReadStatus::MissingSample; return result;
     }
@@ -41,4 +43,4 @@ const char* ToString(ReadStatus status) noexcept {
     return "unknown";
 }
 
-} // namespace CS2::RCS
+}

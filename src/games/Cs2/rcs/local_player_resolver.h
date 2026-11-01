@@ -14,9 +14,9 @@ struct LocalPlayerState {
 
 class LocalPlayerResolver {
 public:
-    // Inspects the result produced by Core World. The DMA fallback itself lives
-    // in cs2_core_acquisition.inl so all consumers share one validated Pawn.
+
+
     [[nodiscard]] static LocalPlayerState Inspect(const Runtime& snapshot) noexcept;
 };
 
-} // namespace CS2::RCS
+}

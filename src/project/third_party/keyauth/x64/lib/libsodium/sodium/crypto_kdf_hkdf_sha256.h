@@ -43,7 +43,7 @@ int crypto_kdf_hkdf_sha256_expand(unsigned char *out, size_t out_len,
                                   const unsigned char prk[crypto_kdf_hkdf_sha256_KEYBYTES])
             __attribute__ ((nonnull(1)));
 
-/* ------------------------------------------------------------------------- */
+
 
 typedef struct crypto_kdf_hkdf_sha256_state {
     crypto_auth_hmacsha256_state st;

@@ -1,20 +1,20 @@
 #pragma once
 
-#include <algorithm> // copy
-#include <cstddef> // size_t
-#include <ios> // streamsize
-#include <iterator> // back_inserter
-#include <memory> // shared_ptr, make_shared
-#include <ostream> // basic_ostream
-#include <string> // basic_string
-#include <vector> // vector
+#include <algorithm>
+#include <cstddef>
+#include <ios>
+#include <iterator>
+#include <memory>
+#include <ostream>
+#include <string>
+#include <vector>
 #include <nlohmann/detail/macro_scope.hpp>
 
 namespace nlohmann
 {
 namespace detail
 {
-/// abstract output adapter interface
+
 template<typename CharType> struct output_adapter_protocol
 {
     virtual void write_character(CharType c) = 0;
@@ -22,11 +22,11 @@ template<typename CharType> struct output_adapter_protocol
     virtual ~output_adapter_protocol() = default;
 };
 
-/// a type to simplify interfaces
+
 template<typename CharType>
 using output_adapter_t = std::shared_ptr<output_adapter_protocol<CharType>>;
 
-/// output adapter for byte vectors
+
 template<typename CharType>
 class output_vector_adapter : public output_adapter_protocol<CharType>
 {
@@ -50,7 +50,7 @@ class output_vector_adapter : public output_adapter_protocol<CharType>
     std::vector<CharType>& v;
 };
 
-/// output adapter for output streams
+
 template<typename CharType>
 class output_stream_adapter : public output_adapter_protocol<CharType>
 {
@@ -74,7 +74,7 @@ class output_stream_adapter : public output_adapter_protocol<CharType>
     std::basic_ostream<CharType>& stream;
 };
 
-/// output adapter for basic_string
+
 template<typename CharType, typename StringType = std::basic_string<CharType>>
 class output_string_adapter : public output_adapter_protocol<CharType>
 {
@@ -119,5 +119,5 @@ class output_adapter
   private:
     output_adapter_t<CharType> oa = nullptr;
 };
-}  // namespace detail
-}  // namespace nlohmann
+}
+}

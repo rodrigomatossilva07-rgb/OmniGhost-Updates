@@ -6,7 +6,7 @@
 #include <thread>
 #include <functional>
 
-#define CURL_STATICLIB 
+#define CURL_STATICLIB
 
 struct channel_struct
 {
@@ -19,10 +19,10 @@ namespace KeyAuth {
 	class api {
 	public:
 
-		std::string name, ownerid, version, url, path; 
+		std::string name, ownerid, version, url, path;
 		static bool debug;
 
-		api(std::string name, std::string ownerid, std::string version, std::string url, std::string path, bool debugParameter = false) 
+		api(std::string name, std::string ownerid, std::string version, std::string url, std::string path, bool debugParameter = false)
 		: name(name), ownerid(ownerid), version(version), url(url), path(path)
 		{
 		    setDebug(debugParameter);
@@ -85,7 +85,7 @@ namespace KeyAuth {
 		class userdata {
 		public:
 
-			// user data
+
 			std::string username;
 			std::string ip;
 			std::string hwid;
@@ -97,7 +97,7 @@ namespace KeyAuth {
 
 		class appdata {
 		public:
-			// app data
+
 			std::string numUsers;
 			std::string numOnlineUsers;
 			std::string numKeys;
@@ -108,7 +108,7 @@ namespace KeyAuth {
 
 		class responsedata {
 		public:
-			// response data
+
 			std::vector<channel_struct> channeldata;
 			bool success{};
 			std::string message;
@@ -133,7 +133,7 @@ namespace KeyAuth {
 		responsedata response;
 		Tfa tfa;
 
-		// Optional network hardening controls (do not require backend changes).
+
 		void set_allowed_hosts(const std::vector<std::string>& hosts) { allowed_hosts = hosts; }
 		void add_allowed_host(const std::string& host) { allowed_hosts.push_back(host); }
 		void clear_allowed_hosts() { allowed_hosts.clear(); }
@@ -142,8 +142,8 @@ namespace KeyAuth {
 		void add_pinned_public_key(const std::string& pin) { pinned_public_keys.push_back(pin); }
 		void clear_pinned_public_keys() { pinned_public_keys.clear(); }
 
-		// Optional in-memory string protection. When enabled, public fields like
-		// name/ownerid/version/url/path are wiped and only decrypted on demand.
+
+
 		void enable_secure_strings(bool enable = true);
 	private:
 
@@ -178,7 +178,7 @@ namespace KeyAuth {
 		std::atomic<uint64_t> auth_nonce_{ 0 };
 		std::atomic<long long> auth_window_{ 0 };
 		std::atomic<uint64_t> auth_seal_{ 0 };
-		
+
 
 		void load_user_data(nlohmann::json data) {
 			const std::string key_username = XorStr("username");
@@ -232,11 +232,11 @@ namespace KeyAuth {
 		}
 
 		void load_channel_data(nlohmann::json data) {
-			api::response.success = data[XorStr("success")]; // intentional. Possibly trick a reverse engineer into thinking this string is for login function
+			api::response.success = data[XorStr("success")];
 			api::response.message = data["message"];
-			api::response.channeldata.clear(); //If you do not delete the data before pushing it, the data will be repeated. github.com/TTakaTit
+			api::response.channeldata.clear();
 			if (!data.contains("messages") || !data["messages"].is_array()) {
-				return; // avoid invalid server payload crash. -nigel
+				return;
 			}
 			const std::string key_author = XorStr("author");
 			const std::string key_timestamp = XorStr("timestamp");

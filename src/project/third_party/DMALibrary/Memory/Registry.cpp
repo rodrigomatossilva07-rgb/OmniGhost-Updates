@@ -23,7 +23,7 @@ std::string c_registry::QueryValue(const char* path, e_registry_type type)
 		--wideLength;
 	if (wideLength == 0)
 		return {};
-	const int sourceLength = static_cast<int>(wideLength); // buffer is only 0x128 bytes
+	const int sourceLength = static_cast<int>(wideLength);
 	const int required = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, wide, sourceLength, nullptr, 0, nullptr, nullptr);
 	if (required <= 0)
 		return {};
