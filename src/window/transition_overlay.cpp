@@ -36,6 +36,52 @@ void DrawTransitionOverlay(const TransitionOverlayOptions& options) {
             (performance.effective ? 0.72f : 0.88f) * alpha);
     }
 
+    if (options.minimal) {
+        const ImVec2 center(display.x * 0.5f, display.y * 0.5f);
+        const float width = (std::min)(360.0f * scale, display.x - 40.0f * scale);
+        const float height = 112.0f * scale;
+        const ImVec2 panelMin(center.x - width * 0.5f, center.y - height * 0.5f);
+        const ImVec2 panelMax(center.x + width * 0.5f, center.y + height * 0.5f);
+        foreground->AddRectFilled(panelMin, panelMax,
+            CyberTheme::WithAlpha(CyberTheme::Colors.Card, 0.985f * alpha), 11.0f * scale);
+        foreground->AddRect(panelMin, panelMax,
+            CyberTheme::WithAlpha(CyberTheme::Colors.Border, 0.58f * alpha), 11.0f * scale,
+            0, std::max(1.0f, scale));
+
+        const float logoSize = 30.0f * scale;
+        const ImVec2 logoMin(panelMin.x + 22.0f * scale, center.y - 28.0f * scale);
+        if (ImTextureID logo = BrandAssets::GetLogoTexture()) {
+            foreground->AddImage(logo, logoMin,
+                ImVec2(logoMin.x + logoSize, logoMin.y + logoSize),
+                ImVec2(0, 0), ImVec2(1, 1),
+                IM_COL32(255, 255, 255, static_cast<int>(218.0f * alpha)));
+        }
+
+        const std::string title(options.title);
+        const float textX = logoMin.x + logoSize + 15.0f * scale;
+        foreground->AddText(ImVec2(textX, center.y - 23.0f * scale),
+            CyberTheme::WithAlpha(CyberTheme::Colors.Text, alpha), title.c_str());
+        foreground->AddText(ImVec2(textX, center.y + 1.0f * scale),
+            CyberTheme::WithAlpha(CyberTheme::Colors.TextDisabled, 0.78f * alpha),
+            "A guardar e a fechar os módulos em segurança");
+
+        const float barLeft = textX;
+        const float barRight = panelMax.x - 22.0f * scale;
+        const float barY = center.y + 31.0f * scale;
+        foreground->AddRectFilled(ImVec2(barLeft, barY), ImVec2(barRight, barY + scale),
+            CyberTheme::WithAlpha(CyberTheme::Colors.Border, 0.46f * alpha), scale);
+        const float phase = app_settings::MotionEnabled()
+            ? std::fmod(options.elapsedSeconds * 0.9f, 1.0f) : 0.5f;
+        const float segment = 42.0f * scale;
+        const float start = barLeft + (barRight - barLeft + segment) * phase - segment;
+        foreground->PushClipRect(ImVec2(barLeft, barY - scale),
+            ImVec2(barRight, barY + 3.0f * scale), true);
+        foreground->AddRectFilled(ImVec2(start, barY), ImVec2(start + segment, barY + 2.0f * scale),
+            CyberTheme::WithAlpha(CyberTheme::Colors.Gold, 0.88f * alpha), scale);
+        foreground->PopClipRect();
+        return;
+    }
+
     const ImVec2 center(display.x * 0.5f, display.y * 0.5f - 4.0f * scale);
     const float panelHalfWidth = (std::min)(220.0f * scale, display.x * 0.43f);
     const ImVec2 panelMin(center.x - panelHalfWidth, center.y - 132.0f * scale);

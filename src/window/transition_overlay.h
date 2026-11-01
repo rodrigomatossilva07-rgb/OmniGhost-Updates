@@ -10,6 +10,7 @@ struct TransitionOverlayOptions {
     float elapsedSeconds{};
     float alpha{1.0f};
     bool success{};
+    bool minimal{};
 };
 
 

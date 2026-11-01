@@ -143,7 +143,7 @@ void EndGameSessionWithTransition(Overlay& application,
         application.StartRender();
         if (!application.shouldRun)
             break;
-        DrawTransitionOverlay({"A terminar sessão", {}, elapsed, 1.0f, false});
+        DrawTransitionOverlay({"A terminar sessão", {}, elapsed, 1.0f, false, true});
         application.EndRender();
     }
 
