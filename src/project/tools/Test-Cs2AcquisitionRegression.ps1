@@ -21,6 +21,7 @@ $memoryLifecycleSource = [IO.File]::ReadAllText((Join-Path $ProjectDir 'src/proj
 $commonBuildProps = [IO.File]::ReadAllText((Join-Path $ProjectDir 'src/project/config/build/OmniGhost.Common.props'))
 $windowRuntimeSource = [IO.File]::ReadAllText((Join-Path $ProjectDir 'src/window/window_runtime.cpp'))
 $offsetSnapshot = Get-Content -Raw -LiteralPath (Join-Path $ProjectDir 'src/project/data/cs2_offsets.json') | ConvertFrom-Json
+$dumperSchema = Get-Content -Raw -LiteralPath (Join-Path $ProjectDir 'src/games/Cs2/dumper/output/client_dll.json') | ConvertFrom-Json
 
 function Require-Match([string]$Text, [string]$Pattern, [string]$Reason) {
     if ($Text -notmatch $Pattern) { throw $Reason }
@@ -30,14 +31,19 @@ function Require-Condition([bool]$Condition, [string]$Reason) {
     if (-not $Condition) { throw $Reason }
 }
 
-Require-Condition ([int64]$offsetSnapshot.schemas.C_CSPlayerPawn.m_pAimPunchServices -eq 0x1598) `
-    'The embedded CS2 snapshot is missing C_CSPlayerPawn::m_pAimPunchServices.'
-Require-Condition ([int64]$offsetSnapshot.schemas.CCSPlayer_AimPunchServices.m_vecCsViewPunchAngle -eq 0x48) `
-    'The embedded CS2 snapshot is missing CCSPlayer_AimPunchServices::m_vecCsViewPunchAngle.'
+$expectedShotsFired = [int64]$dumperSchema.'client.dll'.classes.C_CSPlayerPawn.fields.m_iShotsFired
+$expectedAimPunchServices = [int64]$dumperSchema.'client.dll'.classes.C_CSPlayerPawn.fields.m_pAimPunchServices
+$expectedBaseAngle = [int64]$dumperSchema.'client.dll'.classes.CCSPlayer_AimPunchServices.fields.m_predictableBaseAngle
+Require-Condition ($expectedShotsFired -gt 0 -and [int64]$offsetSnapshot.schemas.C_CSPlayerPawn.m_iShotsFired -eq $expectedShotsFired) `
+    'The embedded CS2 snapshot does not match the current dumper m_iShotsFired field.'
+Require-Condition ($expectedAimPunchServices -gt 0 -and [int64]$offsetSnapshot.schemas.C_CSPlayerPawn.m_pAimPunchServices -eq $expectedAimPunchServices) `
+    'The embedded CS2 snapshot does not match the current dumper m_pAimPunchServices field.'
+Require-Condition ($expectedBaseAngle -gt 0 -and [int64]$offsetSnapshot.schemas.CCSPlayer_AimPunchServices.m_predictableBaseAngle -eq $expectedBaseAngle) `
+    'The embedded CS2 snapshot does not match the current dumper m_predictableBaseAngle field.'
 Require-Match $source 'schemas\.C_CSPlayerPawn\.m_pAimPunchServices' `
     'The embedded offset loader does not import m_pAimPunchServices.'
-Require-Match $source 'schemas\.CCSPlayer_AimPunchServices\.m_vecCsViewPunchAngle' `
-    'The embedded offset loader does not import m_vecCsViewPunchAngle.'
+Require-Match $source 'schemas\.CCSPlayer_AimPunchServices\.m_predictableBaseAngle' `
+    'The embedded offset loader does not import m_predictableBaseAngle.'
 
 Require-Match $memoryIoSource 'DmaSpinLockGuard\(DmaSpinLock& lock, AdoptLockTag\)' 'The non-blocking DMA lane has no adopt-lock guard.'
 Require-Match $memoryIoSource 'DmaSpinLockGuard\(g_dmaSpinLock, DmaSpinLockGuard::AdoptLockTag\{\}\)' 'TryAcquireDmaTransportLock still risks locking the same transport twice.'

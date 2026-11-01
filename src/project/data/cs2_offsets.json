@@ -121,7 +121,7 @@
       "m_iIDEntIndex": "0x36DC"
     },
     "CCSPlayer_AimPunchServices": {
-      "m_vecCsViewPunchAngle": "0x48"
+      "m_predictableBaseAngle": "0x50"
     },
     "EntitySpottedState_t": {
       "m_bSpotted": "0x8"

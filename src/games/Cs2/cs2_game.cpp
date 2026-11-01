@@ -667,8 +667,8 @@ void LoadSchemaOffsets(const std::string& schema) {
     JsonClassU64(schema, "C_CSPlayerPawn", "m_iIDEntIndex", offsets.m_iIDEntIndex);
     JsonClassU64(schema, "C_CSPlayerPawn", "m_iShotsFired", offsets.m_iShotsFired);
     JsonClassU64(schema, "C_CSPlayerPawn", "m_pAimPunchServices", offsets.m_pAimPunchServices);
-    JsonClassU64(schema, "CCSPlayer_AimPunchServices", "m_vecCsViewPunchAngle",
-        offsets.m_vecCsViewPunchAngle);
+    JsonClassU64(schema, "CCSPlayer_AimPunchServices", "m_predictableBaseAngle",
+                 offsets.m_predictableBaseAngle);
     JsonClassU64(schema, "C_CSPlayerPawn", "m_bIsDefusing", offsets.m_bIsDefusing);
     JsonClassU64(schema, "C_CSPlayerPawn", "m_bIsScoped", offsets.m_bIsScoped);
     JsonClassU64(schema, "C_CSPlayerPawnBase", "m_flFlashDuration", offsets.m_flFlashDuration);

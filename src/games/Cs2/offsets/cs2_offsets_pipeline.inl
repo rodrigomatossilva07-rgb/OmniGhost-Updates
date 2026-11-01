@@ -297,8 +297,8 @@ bool LoadEmbeddedOffsets() {
     read("schemas.C_CSPlayerPawn.m_iIDEntIndex", offsets.m_iIDEntIndex, false);
     read("schemas.C_CSPlayerPawn.m_iShotsFired", offsets.m_iShotsFired, false);
     read("schemas.C_CSPlayerPawn.m_pAimPunchServices", offsets.m_pAimPunchServices, false);
-    read("schemas.CCSPlayer_AimPunchServices.m_vecCsViewPunchAngle",
-        offsets.m_vecCsViewPunchAngle, false);
+    read("schemas.CCSPlayer_AimPunchServices.m_predictableBaseAngle",
+         offsets.m_predictableBaseAngle, false);
     read("schemas.C_CSPlayerPawn.m_bIsDefusing", offsets.m_bIsDefusing, false);
     read("schemas.C_CSPlayerPawn.m_bIsScoped", offsets.m_bIsScoped, false);
     read("schemas.C_CSPlayerPawnBase.m_flFlashDuration", offsets.m_flFlashDuration, false);
