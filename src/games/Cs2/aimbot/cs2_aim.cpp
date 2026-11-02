@@ -788,17 +788,20 @@ std::pair<float, float> CalculateRCS(const CS2::Runtime& rt, const CS2::Config& 
     constexpr float kPunchDegreesToInputCounts = 18.f;
     CS2::RCS::RCSConfig settings{};
     settings.enabled = cfg.aim_rcs_auto || cfg.aim_rcs_standalone;
-    settings.horizontalStrength = cfg.aim_rcs_x;
-    settings.verticalStrength = cfg.aim_rcs_y;
+    settings.horizontalStrength = 1.f;
+    settings.verticalStrength = 1.f;
     // 100% represents the tuned full-strength response. The user-facing
     // intensity slider scales this calibration directly and predictably.
     constexpr float kTunedRcsStrength = 1.65f;
     const float userIntensity = std::clamp(cfg.aim_rcs_scale, 0.f, 1.f);
     settings.recoilScale = userIntensity * kPunchDegreesToInputCounts * kTunedRcsStrength;
-    settings.smoothing = cfg.aim_rcs_smoothing;
-    settings.startAfterShots = cfg.aim_rcs_start_shot;
-    settings.maxCorrection = cfg.aim_rcs_max_step;
-    settings.weaponSpecific = cfg.aim_rcs_weapon_specific;
+    // Acquisition begins with the first valid punch. Response and correction
+    // headroom are derived internally so a single tap and a full magazine use
+    // the same user-facing intensity without requiring manual tuning.
+    settings.smoothing = .04f + (.08f * (1.f - userIntensity));
+    settings.startAfterShots = 1;
+    settings.maxCorrection = 16.f + (8.f * userIntensity);
+    settings.weaponSpecific = true;
     settings.debugMode = cfg.aim_rcs_debug;
     settings.weaponScale = cfg.aim_rcs_weapon_scale;
 
