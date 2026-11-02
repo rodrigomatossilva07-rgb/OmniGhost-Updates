@@ -548,9 +548,11 @@ const PerformanceMode::State performance = PerformanceMode::Update(
             CyberTheme::Metrics::ContentPaddingX,
             CyberTheme::Metrics::ContentPaddingY));
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(CyberTheme::Spacing::Sm, CyberTheme::Spacing::Xs));
-    ImGui::BeginChild(
-        "Content", content_size, false,
-        ImGuiWindowFlags_NoBackground);
+    ImGuiWindowFlags contentFlags = ImGuiWindowFlags_NoBackground;
+    if (current_tab == MenuTab::TAB_VISUALS ||
+        current_tab == MenuTab::TAB_CS2_VISUALS)
+        contentFlags |= ImGuiWindowFlags_NoScrollWithMouse;
+    ImGui::BeginChild("Content", content_size, false, contentFlags);
     ImGui::PushStyleVar(ImGuiStyleVar_Alpha, (std::max)(0.18f, tabEase));
     DrawPageHeading(current_tab);
     const PagePresentation search_page = PresentationFor(current_tab);

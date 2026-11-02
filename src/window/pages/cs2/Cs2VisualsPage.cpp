@@ -358,7 +358,7 @@ void DrawCs2Visuals() {
 
 
     ImGui::BeginChild("##cs2_esp_preview_fixed", ImVec2(previewWidth, height), false,
-        ImGuiWindowFlags_NoScrollbar);
+        ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 
 
 

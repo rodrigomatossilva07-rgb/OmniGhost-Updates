@@ -229,13 +229,6 @@ void DrawCs2Aim() {
         float intensity = CS2::config.aim_rcs_scale * 100.f;
         if (CyberWidgets::SliderFloat("Intensidade", &intensity, 0.f, 100.f, "%.0f%%"))
             CS2::config.aim_rcs_scale = intensity / 100.f;
-        CyberWidgets::TextLine(
-            "0% nao compensa; 100% aplica a compensacao maxima calibrada.",
-            CyberWidgets::TextTone::Secondary);
-        CyberWidgets::TextLine(
-            "Eixos, resposta, limite e inicio sao ajustados automaticamente.",
-            CyberWidgets::TextTone::Secondary);
-        CyberWidgets::KeyValueRow("Estado", CS2_Aim::RCSDebugStatus());
     }
     CyberWidgets::EndCard();
 

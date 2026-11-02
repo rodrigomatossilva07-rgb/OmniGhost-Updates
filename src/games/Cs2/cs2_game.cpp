@@ -739,17 +739,6 @@ bool GiveCameraPriorityBeforeOptionalDma() {
 
 
 
-[[maybe_unused]] static bool OptionalDmaShouldYieldToCamera() noexcept {
-    struct CameraState : OmniGhost::Gameplay::CameraPriority::ICameraState {
-        bool IsPending() const noexcept override { return Camera::Pending(); }
-        uint64_t GetDeadlineMs() const noexcept override { return Camera::Deadline(); }
-    };
-    static CameraState state;
-    return OmniGhost::Gameplay::CameraPriority::ShouldYieldToCamera(state);
-}
-
-
-
 static bool ShouldYieldToCameraQuick() noexcept {
     struct CameraState : OmniGhost::Gameplay::CameraPriority::ICameraState {
         bool IsPending() const noexcept override { return Camera::Pending(); }

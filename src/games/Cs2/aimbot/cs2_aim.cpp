@@ -19,7 +19,6 @@
 #include <array>
 #include <string>
 #include <mutex>
-#include <shared_mutex>
 #include <unordered_map>
 #include <utility>
 
@@ -55,19 +54,6 @@ TargetDiagnostics g_target_diag{};
 OmniGhost::Gameplay::ContinuousAimController g_aim_motion;
 Gameplay::SmoothCurves::AimHumanizer g_humanizer;
 Gameplay::SmoothCurves::SmoothCurveEvaluator g_curve_evaluator;
-
-struct WeaponRecoilPattern {
-    std::array<std::pair<float, float>, 30> offsets{};
-    int length = 0;
-    float scale = 1.f;
-};
-
-static std::unordered_map<int, WeaponRecoilPattern> g_recoil_patterns;
-static std::shared_mutex g_recoil_patterns_mutex;
-static std::array<std::pair<float, float>, 30> g_current_pattern{};
-static int g_shots_fired = 0;
-static int g_last_shots_fired = 0;
-static bool g_patterns_loaded = false;
 
 CS2::RCS::RCSController g_rcs_controller{};
 CS2::RCS::RCSDebug g_rcs_debug{};
@@ -553,232 +539,7 @@ void InitializeHumanizer() {
     g_curve_evaluator.SetConfig(ccfg);
 }
 
-#if 0
-void LoadRecoilPatterns() {
-    std::unique_lock lock(g_recoil_patterns_mutex);
-    if (g_patterns_loaded) return;
-    g_patterns_loaded = true;
 
-    auto add_pattern = [](int def, std::initializer_list<std::pair<float, float>> offsets, float scale = 1.f) {
-        WeaponRecoilPattern& p = g_recoil_patterns[def];
-        int i = 0;
-        for (auto& o : offsets) {
-            if (i >= 30) break;
-            p.offsets[i++] = o;
-        }
-        p.length = i;
-        p.scale = scale;
-    };
-
-    add_pattern(7, {
-        {0,0}, {0.5,2.1}, {1.2,3.8}, {1.8,5.2}, {2.1,6.5}, {2.3,7.8}, {2.4,9.1}, {2.3,10.3}, {2.1,11.4}, {1.8,12.4},
-        {1.4,13.3}, {1.0,14.1}, {0.5,14.8}, {0,15.4}, {-0.5,15.9}, {-1.0,16.3}, {-1.5,16.6}, {-2.0,16.8}, {-2.4,16.9}, {-2.8,16.9},
-        {-3.1,16.8}, {-3.3,16.6}, {-3.4,16.3}, {-3.4,15.8}, {-3.3,15.2}, {-3.1,14.5}, {-2.8,13.7}, {-2.4,12.8}, {-2.0,11.9}, {-1.5,10.9}
-    }, 1.0f);
-
-    add_pattern(8, {
-        {0,0}, {0.3,1.8}, {0.8,3.2}, {1.2,4.5}, {1.5,5.6}, {1.7,6.6}, {1.8,7.5}, {1.8,8.3}, {1.7,9.0}, {1.5,9.7},
-        {1.2,10.3}, {0.8,10.8}, {0.4,11.2}, {0,11.5}, {-0.4,11.7}, {-0.8,11.8}, {-1.2,11.8}, {-1.5,11.7}, {-1.8,11.5}, {-2.0,11.2},
-        {-2.2,10.8}, {-2.3,10.3}, {-2.4,9.7}, {-2.4,9.1}, {-2.3,8.4}, {-2.2,7.6}, {-2.0,6.8}, {-1.7,5.9}, {-1.4,5.0}, {-1.0,4.1}
-    }, 0.85f);
-
-    add_pattern(9, {
-        {0,0}, {0,12.0}, {0,24.0}, {0,36.0}, {0,48.0}, {0,60.0}, {0,72.0}, {0,84.0}, {0,96.0}, {0,108.0},
-        {0,120.0}, {0,132.0}, {0,144.0}, {0,156.0}, {0,168.0}, {0,180.0}, {0,192.0}, {0,204.0}, {0,216.0}, {0,228.0},
-        {0,240.0}, {0,252.0}, {0,264.0}, {0,276.0}, {0,288.0}, {0,300.0}, {0,312.0}, {0,324.0}, {0,336.0}, {0,348.0}
-    }, 1.0f);
-
-    add_pattern(10, {
-        {0,0}, {0.4,2.0}, {1.0,3.6}, {1.5,5.0}, {1.8,6.2}, {2.0,7.3}, {2.1,8.3}, {2.1,9.2}, {2.0,10.0}, {1.8,10.7},
-        {1.5,11.3}, {1.1,11.8}, {0.6,12.2}, {0,12.5}, {-0.5,12.7}, {-1.0,12.8}, {-1.5,12.8}, {-1.9,12.7}, {-2.3,12.5}, {-2.6,12.2},
-        {-2.8,11.7}, {-3.0,11.1}, {-3.1,10.4}, {-3.1,9.6}, {-3.0,8.8}, {-2.8,7.9}, {-2.5,7.0}, {-2.1,6.0}, {-1.7,5.1}, {-1.2,4.1}
-    }, 0.9f);
-
-    add_pattern(13, {
-        {0,0}, {0.6,2.2}, {1.4,4.0}, {2.0,5.5}, {2.4,6.8}, {2.6,8.0}, {2.7,9.1}, {2.7,10.1}, {2.5,11.0}, {2.2,11.8},
-        {1.8,12.5}, {1.3,13.1}, {0.7,13.6}, {0,14.0}, {-0.7,14.3}, {-1.4,14.5}, {-2.0,14.6}, {-2.6,14.6}, {-3.1,14.5}, {-3.6,14.3},
-        {-4.0,14.0}, {-4.3,13.5}, {-4.5,12.8}, {-4.6,12.1}, {-4.6,11.3}, {-4.5,10.4}, {-4.3,9.5}, {-4.0,8.5}, {-3.6,7.5}, {-3.1,6.5}
-    }, 0.95f);
-
-    add_pattern(16, {
-        {0,0}, {0.4,1.9}, {1.0,3.5}, {1.5,4.9}, {1.8,6.1}, {2.0,7.2}, {2.1,8.1}, {2.1,9.0}, {2.0,9.8}, {1.8,10.5},
-        {1.5,11.1}, {1.1,11.6}, {0.6,12.0}, {0,12.3}, {-0.5,12.5}, {-1.0,12.6}, {-1.4,12.6}, {-1.8,12.5}, {-2.1,12.3}, {-2.4,12.0},
-        {-2.6,11.6}, {-2.7,11.1}, {-2.8,10.5}, {-2.8,9.8}, {-2.7,9.1}, {-2.5,8.3}, {-2.3,7.5}, {-2.0,6.6}, {-1.6,5.7}, {-1.2,4.7}
-    }, 0.9f);
-
-    add_pattern(60, {
-        {0,0}, {0.3,1.7}, {0.8,3.1}, {1.2,4.3}, {1.5,5.4}, {1.7,6.4}, {1.8,7.2}, {1.8,8.0}, {1.7,8.7}, {1.5,9.3},
-        {1.2,9.9}, {0.9,10.3}, {0.5,10.7}, {0,11.0}, {-0.4,11.2}, {-0.8,11.3}, {-1.2,11.3}, {-1.5,11.2}, {-1.8,11.0}, {-2.0,10.7},
-        {-2.2,10.3}, {-2.3,9.9}, {-2.3,9.3}, {-2.3,8.7}, {-2.2,8.0}, {-2.0,7.3}, {-1.8,6.5}, {-1.5,5.7}, {-1.2,4.9}, {-0.9,4.1}
-    }, 0.85f);
-
-    add_pattern(1, {
-        {0,0}, {0,3.5}, {0,6.8}, {0,9.8}, {0,12.5}, {0,15.0}, {0,17.2}, {0,19.2}, {0,21.0}, {0,22.6},
-        {0,24.0}, {0,25.3}, {0,26.4}, {0,27.4}, {0,28.2}, {0,28.9}, {0,29.5}, {0,30.0}, {0,30.4}, {0,30.7},
-        {0,30.9}, {0,31.0}, {0,31.1}, {0,31.1}, {0,31.0}, {0,30.9}, {0,30.7}, {0,30.4}, {0,30.1}, {0,29.7}
-    }, 1.2f);
-
-    add_pattern(4, {
-        {0,0}, {0.2,1.5}, {0.5,2.8}, {0.8,3.9}, {1.0,4.8}, {1.1,5.6}, {1.2,6.3}, {1.2,6.9}, {1.1,7.4}, {1.0,7.8},
-        {0.8,8.1}, {0.5,8.3}, {0.2,8.5}, {0,8.6}, {-0.2,8.6}, {-0.5,8.5}, {-0.8,8.4}, {-1.1,8.2}, {-1.4,7.9}, {-1.6,7.5},
-        {-1.8,7.1}, {-1.9,6.6}, {-2.0,6.1}, {-2.0,5.5}, {-2.0,4.9}, {-1.9,4.3}, {-1.8,3.7}, {-1.6,3.1}, {-1.4,2.5}, {-1.1,1.9}
-    }, 0.7f);
-
-    add_pattern(61, {
-        {0,0}, {0.2,1.4}, {0.5,2.6}, {0.7,3.6}, {0.9,4.5}, {1.0,5.2}, {1.0,5.9}, {1.0,6.4}, {0.9,6.9}, {0.8,7.3},
-        {0.6,7.7}, {0.3,7.9}, {0,8.1}, {-0.3,8.1}, {-0.6,8.1}, {-0.9,8.0}, {-1.2,7.8}, {-1.5,7.5}, {-1.7,7.1}, {-1.9,6.6},
-        {-2.0,6.1}, {-2.1,5.5}, {-2.1,4.9}, {-2.1,4.2}, {-2.0,3.6}, {-1.9,2.9}, {-1.7,2.3}, {-1.5,1.7}, {-1.2,1.1}, {-0.9,0.5}
-    }, 0.75f);
-}
-
-std::pair<float, float> CalculateRCS(const CS2::Runtime& rt, const CS2::Config& cfg, int weapon_def) {
-    if (!cfg.aim_rcs_auto && !cfg.aim_rcs_standalone) return {};
-    if (!rt.local_pawn) return {};
-
-
-
-    const uint64_t nowMs = CS2::SampleClockMs();
-    if (!rt.local_aim_sample_ms || nowMs < rt.local_aim_sample_ms ||
-        nowMs - rt.local_aim_sample_ms > 100u)
-        return {};
-    const int shots_fired = rt.local_shots_fired;
-
-    if (shots_fired <= 1) {
-        g_shots_fired = 0;
-        g_last_shots_fired = 0;
-        g_rcs_controller.Reset();
-        return {};
-    }
-
-    if (shots_fired != g_last_shots_fired) {
-        g_shots_fired = shots_fired - 1;
-        g_last_shots_fired = shots_fired;
-    }
-
-    if (g_shots_fired <= 0) return {};
-
-    LoadRecoilPatterns();
-
-    WeaponRecoilPattern pattern{};
-    {
-        std::shared_lock lock(g_recoil_patterns_mutex);
-        auto it = g_recoil_patterns.find(weapon_def);
-        if (it == g_recoil_patterns.end()) return {};
-        pattern = it->second;
-    }
-    if (pattern.length == 0) return {};
-
-    int idx = std::clamp(g_shots_fired - 1, 0, pattern.length - 1);
-    const float punch_x = rt.local_aim_punch[0];
-    const float punch_y = rt.local_aim_punch[1];
-
-    float pattern_x = pattern.offsets[idx].first * pattern.scale * cfg.aim_rcs_x;
-    float pattern_y = pattern.offsets[idx].second * pattern.scale * cfg.aim_rcs_y;
-
-    float rcs_x = -punch_y * cfg.aim_rcs_x + pattern_x;
-    float rcs_y = -punch_x * cfg.aim_rcs_y + pattern_y;
-
-    if (std::fabs(rcs_x) <= 0.08f && std::fabs(rcs_y) <= 0.08f)
-        return {};
-    return { rcs_x, rcs_y };
-}
-
-
-
-
-
-
-#endif
-
-#if 0
-float NormalizeAngleDelta(float value) noexcept {
-    if (!std::isfinite(value)) return 0.f;
-    value = std::remainder(value, 360.f);
-    return std::clamp(value, -180.f, 180.f);
-}
-
-std::pair<float, float> CalculateRCS(const CS2::Runtime& rt, const CS2::Config& cfg,
-                                    int weapon_def) {
-    const auto reset = []() -> std::pair<float, float> {
-        g_rcs_controller.Reset();
-        return {};
-    };
-    if ((!cfg.aim_rcs_auto && !cfg.aim_rcs_standalone) || !rt.local_pawn ||
-        rt.local_health <= 0 || !IsFirearm(weapon_def))
-        return reset();
-
-    const uint64_t now_ms = CS2::SampleClockMs();
-    if (!rt.local_aim_sample_ms || now_ms < rt.local_aim_sample_ms ||
-        now_ms - rt.local_aim_sample_ms > 100u)
-        return reset();
-
-    const int shots = rt.local_shots_fired;
-    const int start_shot = std::clamp(cfg.aim_rcs_start_shot, 1, 32);
-    const bool shot_recent = rt.local_last_shot_ms && now_ms >= rt.local_last_shot_ms &&
-        now_ms - rt.local_last_shot_ms <= 180u;
-    if (shots < start_shot || !shot_recent)
-        return reset();
-
-    const float pitch = rt.local_aim_punch[0];
-    const float yaw = rt.local_aim_punch[1];
-    if (!std::isfinite(pitch) || !std::isfinite(yaw) || std::fabs(pitch) > 89.f ||
-        std::fabs(yaw) > 180.f)
-        return reset();
-
-    if (!g_dynamic_rcs.initialized || g_dynamic_rcs.pawn != rt.local_pawn ||
-        g_dynamic_rcs.weapon != weapon_def || shots < g_dynamic_rcs.shots) {
-        g_rcs_controller.Reset();
-        g_dynamic_rcs.pawn = rt.local_pawn;
-        g_dynamic_rcs.weapon = weapon_def;
-        g_dynamic_rcs.shots = shots;
-        g_dynamic_rcs.sample_ms = rt.local_aim_sample_ms;
-        g_dynamic_rcs.previous_pitch = pitch;
-        g_dynamic_rcs.previous_yaw = yaw;
-        g_dynamic_rcs.initialized = true;
-        return {};
-    }
-
-
-
-    if (rt.local_aim_sample_ms <= g_dynamic_rcs.sample_ms)
-        return {};
-
-    float delta_pitch = NormalizeAngleDelta(pitch - g_dynamic_rcs.previous_pitch);
-    float delta_yaw = NormalizeAngleDelta(yaw - g_dynamic_rcs.previous_yaw);
-    g_dynamic_rcs.previous_pitch = pitch;
-    g_dynamic_rcs.previous_yaw = yaw;
-    g_dynamic_rcs.sample_ms = rt.local_aim_sample_ms;
-    g_dynamic_rcs.shots = shots;
-    if (!std::isfinite(delta_pitch) || !std::isfinite(delta_yaw) ||
-        std::fabs(delta_pitch) > 25.f || std::fabs(delta_yaw) > 25.f)
-        return reset();
-
-    const float weapon_scale = weapon_def >= 0 &&
-        weapon_def < static_cast<int>(cfg.aim_rcs_weapon_scale.size())
-        ? std::clamp(cfg.aim_rcs_weapon_scale[static_cast<std::size_t>(weapon_def)], 0.f, 3.f)
-        : 1.f;
-    const float scale = std::clamp(cfg.aim_rcs_scale, .01f, 100.f) * weapon_scale;
-    const float horizontal = std::clamp(cfg.aim_rcs_x, 0.f, 2.f);
-    const float vertical = std::clamp(cfg.aim_rcs_y, 0.f, 2.f);
-    g_dynamic_rcs.pending_x += -delta_yaw * scale * horizontal;
-    g_dynamic_rcs.pending_y += -delta_pitch * scale * vertical;
-
-
-
-    const float smoothing = std::clamp(cfg.aim_rcs_smoothing, 0.f, .95f);
-    const float response = 1.f - smoothing;
-    const float max_step = std::clamp(cfg.aim_rcs_max_step, .25f, 127.f);
-    const float output_x = std::clamp(g_dynamic_rcs.pending_x * response, -max_step, max_step);
-    const float output_y = std::clamp(g_dynamic_rcs.pending_y * response, -max_step, max_step);
-    if (!std::isfinite(output_x) || !std::isfinite(output_y))
-        return reset();
-    g_dynamic_rcs.pending_x = std::clamp(g_dynamic_rcs.pending_x - output_x, -max_step * 4.f, max_step * 4.f);
-    g_dynamic_rcs.pending_y = std::clamp(g_dynamic_rcs.pending_y - output_y, -max_step * 4.f, max_step * 4.f);
-    if (std::fabs(output_x) < .001f && std::fabs(output_y) < .001f)
-        return {};
-    return {output_x, output_y};
-}
-#endif
 
 std::pair<float, float> CalculateRCS(const CS2::Runtime& rt, const CS2::Config& cfg,
                                     int weapon_def) {
@@ -923,8 +684,6 @@ void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
         g_aim_motion.Reset();
         g_output_residual_x = g_output_residual_y = 0.f;
         g_rcs_controller.Reset();
-        g_shots_fired = 0;
-        g_last_shots_fired = 0;
         std::snprintf(g_debug, sizeof(g_debug), "sem partida");
         return;
     }
