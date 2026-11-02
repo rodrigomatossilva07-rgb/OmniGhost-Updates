@@ -32,12 +32,12 @@ int main() {
     config.maxCorrection = 100.f;
     RCSController controller;
 
-    auto first = controller.Update(config, Sample(1000, 1.f, .5f), 1000);
-    Expect(!first.produced, "first sample establishes baseline");
-    auto delta = controller.Update(config, Sample(1010, 1.5f, .7f, 3), 1010);
+    auto first = controller.Update(config, Sample(1000, 1.f, .5f, 3), 1000);
+    Expect(!first.produced, "enabling midway through spray establishes baseline");
+    auto delta = controller.Update(config, Sample(1010, 1.5f, .7f, 4), 1010);
     Expect(delta.produced && Near(delta.x, -.2f) && Near(delta.y, -.5f),
            "delta compensation is mathematically correct");
-    auto duplicate = controller.Update(config, Sample(1010, 1.5f, .7f, 3), 1010);
+    auto duplicate = controller.Update(config, Sample(1010, 1.5f, .7f, 4), 1010);
     Expect(!duplicate.produced && duplicate.reason == ResetReason::DuplicateSample,
            "duplicate subtick sample is ignored");
 

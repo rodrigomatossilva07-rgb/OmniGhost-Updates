@@ -790,7 +790,11 @@ std::pair<float, float> CalculateRCS(const CS2::Runtime& rt, const CS2::Config& 
     settings.enabled = cfg.aim_rcs_auto || cfg.aim_rcs_standalone;
     settings.horizontalStrength = cfg.aim_rcs_x;
     settings.verticalStrength = cfg.aim_rcs_y;
-    settings.recoilScale = cfg.aim_rcs_scale * kPunchDegreesToInputCounts;
+    // 100% represents the tuned full-strength response. The user-facing
+    // intensity slider scales this calibration directly and predictably.
+    constexpr float kTunedRcsStrength = 1.65f;
+    const float userIntensity = std::clamp(cfg.aim_rcs_scale, 0.f, 1.f);
+    settings.recoilScale = userIntensity * kPunchDegreesToInputCounts * kTunedRcsStrength;
     settings.smoothing = cfg.aim_rcs_smoothing;
     settings.startAfterShots = cfg.aim_rcs_start_shot;
     settings.maxCorrection = cfg.aim_rcs_max_step;

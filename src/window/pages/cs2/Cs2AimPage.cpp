@@ -8,6 +8,7 @@
 #include <Windows.h>
 #include <cstdio>
 #include <algorithm>
+#include <cmath>
 
 namespace {
 
@@ -215,13 +216,39 @@ void DrawCs2Aim() {
         CyberWidgets::TextLine("Ativa a mira para configurar smooth, ponto e humanizacao.",
                                CyberWidgets::TextTone::Secondary);
     }
-    CyberWidgets::EndCard();
 
-    CyberWidgets::CardGap(gap);
-    CyberWidgets::BeginCard("RCS", left);
-    CyberWidgets::ToggleSwitch("Ativar RCS", &CS2::config.aim_rcs_standalone);
-    if (CS2::config.aim_rcs_standalone)
+    CyberWidgets::Separator();
+    CyberWidgets::TextLine("CONTROLO DE RECUO", CyberWidgets::TextTone::Accent);
+    bool rcsEnabled = CS2::config.aim_rcs_standalone || CS2::config.aim_rcs_auto;
+    if (CyberWidgets::ToggleSwitch("Ativar RCS", &rcsEnabled)) {
+        CS2::config.aim_rcs_standalone = rcsEnabled;
+        CS2::config.aim_rcs_auto = rcsEnabled;
+    }
+    if (rcsEnabled) {
+        CS2::config.aim_rcs_scale = std::clamp(CS2::config.aim_rcs_scale, 0.f, 1.f);
+        float intensity = CS2::config.aim_rcs_scale * 100.f;
+        if (CyberWidgets::SliderFloat("Intensidade", &intensity, 0.f, 100.f, "%.0f%%"))
+            CS2::config.aim_rcs_scale = intensity / 100.f;
+        CyberWidgets::TextLine(
+            "0% nao compensa; 100% aplica a compensacao maxima calibrada.",
+            CyberWidgets::TextTone::Secondary);
+        CyberWidgets::SliderFloat("Forca horizontal", &CS2::config.aim_rcs_x,
+                                  0.f, 2.f, "%.2fx");
+        CyberWidgets::SliderFloat("Forca vertical", &CS2::config.aim_rcs_y,
+                                  0.f, 2.f, "%.2fx");
+
+        float response = (1.f - CS2::config.aim_rcs_smoothing) * 100.f;
+        if (CyberWidgets::SliderFloat("Resposta", &response, 10.f, 100.f, "%.0f%%"))
+            CS2::config.aim_rcs_smoothing = 1.f - response / 100.f;
+
+        CyberWidgets::SliderFloat("Correcao maxima", &CS2::config.aim_rcs_max_step,
+                                  2.f, 32.f, "%.0f");
+        float startShot = static_cast<float>(CS2::config.aim_rcs_start_shot);
+        if (CyberWidgets::SliderFloat("Comecar no tiro", &startShot, 1.f, 5.f, "%.0f"))
+            CS2::config.aim_rcs_start_shot = static_cast<int>(std::lround(startShot));
+        CyberWidgets::ToggleSwitch("Ajuste por arma", &CS2::config.aim_rcs_weapon_specific);
         CyberWidgets::KeyValueRow("Estado", CS2_Aim::RCSDebugStatus());
+    }
     CyberWidgets::EndCard();
 
     CyberWidgets::CardGap(gap);

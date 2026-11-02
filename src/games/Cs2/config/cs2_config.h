@@ -125,9 +125,9 @@ struct Config : OmniGhost::Gameplay::EspConfigBase {
     float aim_rcs_x = 1.f;
     float aim_rcs_y = 1.f;
     float aim_rcs_scale = 1.f;
-    float aim_rcs_smoothing = .35f;
-    float aim_rcs_max_step = 8.f;
-    int aim_rcs_start_shot = 2;
+    float aim_rcs_smoothing = .10f;
+    float aim_rcs_max_step = 16.f;
+    int aim_rcs_start_shot = 1;
     bool aim_rcs_weapon_specific = true;
     bool aim_rcs_debug = false;
     std::array<float, 65> aim_rcs_weapon_scale = [] {
@@ -176,6 +176,10 @@ inline void ApplyLegitProfile(Config& c) {
     c.aim_rcs_auto = true;
     c.aim_rcs_x = 1.f;
     c.aim_rcs_y = 1.f;
+    c.aim_rcs_scale = 1.f;
+    c.aim_rcs_smoothing = .10f;
+    c.aim_rcs_max_step = 16.f;
+    c.aim_rcs_start_shot = 1;
     c.sticky_ms = 100.f;
     c.aim_switch_cooldown_ms = 120.f;
     c.trigger_enabled = false;
@@ -205,6 +209,10 @@ inline void ApplyRageProfile(Config& c) {
     c.aim_rcs_auto = true;
     c.aim_rcs_x = 1.f;
     c.aim_rcs_y = 1.f;
+    c.aim_rcs_scale = 1.f;
+    c.aim_rcs_smoothing = .10f;
+    c.aim_rcs_max_step = 16.f;
+    c.aim_rcs_start_shot = 1;
     c.sticky_ms = 200.f;
     c.aim_switch_cooldown_ms = 40.f;
     c.trigger_enabled = true;

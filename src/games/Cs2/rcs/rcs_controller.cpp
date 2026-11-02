@@ -55,12 +55,20 @@ Correction RCSController::Update(const RCSConfig& config,
         weapon_ = sample.weaponDefinition;
         shots_ = sample.shotsFired;
         sampleMs_ = sample.sampleMs;
-        previousPitch_ = sample.pitch;
-        previousYaw_ = sample.yaw;
         initialized_ = true;
-        return {0.f, 0.f, false, identityReason};
+        // When RCS starts naturally on its configured first shot, zero is the
+        // known pre-spray baseline and the first observed punch must also be
+        // compensated. If it is enabled halfway through a spray, establish a
+        // safe baseline instead of causing a large jump.
+        if (identityReason != ResetReason::None || sample.shotsFired > startShot) {
+            previousPitch_ = sample.pitch;
+            previousYaw_ = sample.yaw;
+            return {0.f, 0.f, false, identityReason};
+        }
+        previousPitch_ = 0.f;
+        previousYaw_ = 0.f;
     }
-    if (sample.sampleMs <= sampleMs_)
+    else if (sample.sampleMs <= sampleMs_)
         return {0.f, 0.f, false, ResetReason::DuplicateSample};
 
     const float deltaPitch = NormalizeDelta(sample.pitch - previousPitch_);
