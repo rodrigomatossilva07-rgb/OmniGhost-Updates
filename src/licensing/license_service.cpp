@@ -4,6 +4,7 @@
 #include "../launcher/remote_usage_service.h"
 #include "../platform/app_paths.h"
 #include "../platform/scope_exit.h"
+#include "../platform/session_log.h"
 #include "../security/security_manager.h"
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -256,9 +257,12 @@ bool RemoteEntitlementGrants(std::string_view productId) {
     const std::string product = NormalizeEntitlement(productId);
     if (product.empty()) return false;
     const std::string canonical = "omnighost_" + product;
+    const std::string dma = product + "_dma";
+    const std::string canonicalDma = canonical + "_dma";
     for (const auto& item : RemoteGateway().CurrentEntitlements()) {
         const std::string entitlement = NormalizeEntitlement(item.name);
-        if (IsUniversalEntitlement(entitlement) || entitlement == product || entitlement == canonical)
+        if (IsUniversalEntitlement(entitlement) || entitlement == product || entitlement == canonical ||
+            entitlement == dma || entitlement == canonicalDma)
             return true;
     }
     return false;
@@ -352,7 +356,26 @@ OmniGhost::Auth::LicenseResult RegisterWebsite(std::string_view email,
                                                std::string_view password,
                                                std::string_view licenseKey) {
     const auto result = WebsiteService().Register(email, password, licenseKey);
-    if (result.Ok()) OmniGhost::RemoteUsage::Refresh();
+    if (result.Ok()) {
+        // The website owns the account/session, but KeyAuth only changes a fresh key
+        // from "Not Used" after an actual license authentication. Perform that first-use
+        // activation here while the plaintext key is still available. A temporary KeyAuth
+        // outage must not roll back an account that the website has already created.
+        const auto keyAuthActivation = RemoteGateway().Activate(licenseKey);
+        OmniGhost::SessionLog::Write(
+            keyAuthActivation.Ok()
+                ? OmniGhost::SessionLog::Severity::Info
+                : OmniGhost::SessionLog::Severity::Warning,
+            OmniGhost::SessionLog::Subsystem::Auth,
+            keyAuthActivation.Ok()
+                ? "KeyAuth license first-use activation completed"
+                : "Website registration succeeded but KeyAuth first-use activation did not complete",
+            {{"result", keyAuthActivation.Ok() ? "success" : "deferred", false},
+             {"code", keyAuthActivation.diagnosticCode, false}});
+        if (keyAuthActivation.Ok())
+            (void)WebsiteService().RefreshLicenses();
+        OmniGhost::RemoteUsage::Refresh();
+    }
     Refresh();
     return result;
 }
@@ -373,7 +396,11 @@ OmniGhost::Auth::LicenseResult Register(std::string_view username, std::string_v
     return RemoteGateway().Register(username, password, licenseKey);
 }
 OmniGhost::Auth::LicenseResult ActivateKey(std::string_view licenseKey) {
-    return RemoteGateway().Activate(licenseKey);
+    const auto result = RemoteGateway().Activate(licenseKey);
+    if (result.Ok() && WebsiteService().IsAuthenticated())
+        (void)WebsiteService().RefreshLicenses();
+    Refresh();
+    return result;
 }
 OmniGhost::Auth::LicenseResult Upgrade(std::string_view username, std::string_view licenseKey) {
     return RemoteGateway().Upgrade(username, licenseKey);
@@ -437,7 +464,7 @@ bool IsAdmin() {
     });
 }
 bool HasGameAccess(std::string_view productId) {
-    constexpr std::string_view kProducts[]{"fivem", "cs2", "warzone", "apex", "fortnite"};
+    constexpr std::string_view kProducts[]{"fivem", "cs2", "rust", "warzone", "apex", "fortnite"};
     if (std::find(std::begin(kProducts), std::end(kProducts), productId) == std::end(kProducts) ||
         !OmniGhost::Security::SecurityManager::Instance().CanUseProtectedFeatures())
         return false;
@@ -449,15 +476,18 @@ std::string GameAccessDuration(std::string_view productId) {
     if (WebsiteService().IsAuthenticated()) return WebsiteService().ProductDuration(productId);
     const std::string product = NormalizeEntitlement(productId);
     const std::string canonical = "omnighost_" + product;
+    const std::string dma = product + "_dma";
+    const std::string canonicalDma = canonical + "_dma";
     for (const auto& item : RemoteGateway().CurrentEntitlements()) {
         const std::string entitlement = NormalizeEntitlement(item.name);
-        if (IsUniversalEntitlement(entitlement) || entitlement == product || entitlement == canonical)
+        if (IsUniversalEntitlement(entitlement) || entitlement == product || entitlement == canonical ||
+            entitlement == dma || entitlement == canonicalDma)
             return item.remaining.empty() ? "Ativo" : item.remaining;
     }
     return {};
 }
 bool HasAnyGameAccess() {
-    constexpr std::string_view kProducts[]{"fivem", "cs2", "warzone", "apex", "fortnite"};
+    constexpr std::string_view kProducts[]{"fivem", "cs2", "rust", "warzone", "apex", "fortnite"};
     if (WebsiteService().IsAuthenticated()) {
         if (WebsiteService().Snapshot().isAdmin) return true;
         return std::any_of(std::begin(kProducts), std::end(kProducts),

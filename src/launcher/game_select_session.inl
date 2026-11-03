@@ -18,7 +18,10 @@ void StartRemoteLicenseUpgrade(std::string key) {
         [username, key = std::move(key)]() mutable {
             LicenseOperationResult result;
             try {
-                const auto response = OmniGhost::Licensing::Upgrade(username, key);
+                const bool websiteAccount = OmniGhost::Licensing::GetSnapshot().websiteAccount;
+                const auto response = websiteAccount
+                    ? OmniGhost::Licensing::ActivateKey(key)
+                    : OmniGhost::Licensing::Upgrade(username, key);
                 result.success = response.Ok();
                 result.message = response.userMessage;
                 if (result.success)
