@@ -584,11 +584,13 @@ void DrawTextureCover(ImDrawList* draw, const LauncherAssets::Texture& texture,
 }
 
 void DrawTextureContained(ImDrawList* draw, const LauncherAssets::Texture& texture,
-                          ImVec2 min, ImVec2 max, float scale, ImU32 tint) {
+                          ImVec2 min, ImVec2 max, float scale, ImU32 tint,
+                          ImVec2 uv0 = ImVec2(0, 0), ImVec2 uv1 = ImVec2(1, 1)) {
     if (!texture || texture.width <= 0 || texture.height <= 0) return;
     const float box_width = max.x - min.x;
     const float box_height = max.y - min.y;
-    const float ratio = static_cast<float>(texture.width) / texture.height;
+    const float ratio = (static_cast<float>(texture.width) * (uv1.x - uv0.x)) /
+                        (static_cast<float>(texture.height) * (uv1.y - uv0.y));
     float width = box_width;
     float height = width / ratio;
     if (height > box_height) { height = box_height; width = height * ratio; }
@@ -597,7 +599,7 @@ void DrawTextureContained(ImDrawList* draw, const LauncherAssets::Texture& textu
     const ImVec2 image_min((min.x + max.x - width) * .5f,
                            (min.y + max.y - height) * .5f);
     draw->AddImage(texture.id, image_min,
-        ImVec2(image_min.x + width, image_min.y + height), ImVec2(0, 0), ImVec2(1, 1), tint);
+        ImVec2(image_min.x + width, image_min.y + height), uv0, uv1, tint);
 }
 
 float OpticalLogoScale(GameId id) {
@@ -785,7 +787,14 @@ bool DrawGameCard(ImDrawList* draw, ImVec2 min, ImVec2 max,
     const ImVec2 logo_min(card_min.x + S(24.f), card_min.y + S(15.f));
     const ImVec2 logo_max(card_max.x - S(24.f), art_max.y - S(18.f));
     const LauncherAssets::Texture logo = LauncherAssets::Logo(game.launch_id);
-    if (logo) DrawTextureContained(draw, logo, logo_min, logo_max, logo_scale, IM_COL32(255, 255, 255, alpha));
+    if (logo) {
+        if (game.launch_id == GameId::Rust)
+            DrawTextureContained(draw, logo, logo_min, logo_max, 0.82f,
+                IM_COL32(255, 255, 255, alpha), ImVec2(0.34f, 0.08f), ImVec2(0.67f, 0.92f));
+        else
+            DrawTextureContained(draw, logo, logo_min, logo_max, logo_scale,
+                IM_COL32(255, 255, 255, alpha));
+    }
     else DrawFallbackIdentity(draw, game, logo_min, logo_max, logo_scale, alpha);
 
     if (game.tagline && game.tagline[0])

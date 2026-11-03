@@ -24,6 +24,9 @@ void ApplyMinimalProfileForActiveGame() {
         CS2::config.trigger_enabled = false;
         break;
     case ActiveGame::Rust:
+        CS2::config.esp_enabled = true;
+        CS2::config.box = true;
+        CS2::config.box_corner = false;
         break;
     default:
         esp::config.enabled = true;
@@ -128,6 +131,9 @@ void ResetActiveGameToDefaults() {
         CS2::config = CS2::Config{};
         break;
     case ActiveGame::Rust:
+        CS2::config = CS2::Config{};
+        CS2::config.esp_enabled = true;
+        CS2::config.box = true;
         break;
     case ActiveGame::Fortnite:
 

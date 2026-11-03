@@ -49,7 +49,7 @@ std::string SerializeAll() {
         SerializeCS2(o);
         break;
     case ActiveGame::Rust:
-
+        SerializeCS2(o);
         break;
     case ActiveGame::Fortnite:
 
@@ -172,7 +172,8 @@ bool DeserializeAll(const std::string& data) {
         if (bi("meta.config_version")) { config_version = toI(); continue; }
 
 
-        if (key.rfind("cs2.", 0) == 0 && g_activeGame != ActiveGame::CS2) {
+        if (key.rfind("cs2.", 0) == 0 && g_activeGame != ActiveGame::CS2 &&
+            g_activeGame != ActiveGame::Rust) {
             std::cout << "[Config] Ignoring foreign game section: " << key << " (active game: " << ActiveGameMeta() << ")\n";
             continue;
         }

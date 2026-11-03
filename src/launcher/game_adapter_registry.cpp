@@ -14,6 +14,7 @@
 #include "src/games/Fivem/game/offset_auto.h"
 #include "src/games/Fivem/game/offsets.h"
 #include "src/games/Fortnite/fortnite_game.h"
+#include "src/games/Rust/rust_game.h"
 #include "imgui.h"
 
 #include <functional>
@@ -237,9 +238,14 @@ bool StartCs2() {
 }
 
 bool StartRust() {
-
-
-    return false;
+    ScopedActiveGame gameGuard;
+    g_activeGame = ActiveGame::Rust;
+    config_manager::ActivateCurrentGameConfig();
+    if (!Rust::Attach())
+        return false;
+    OmniGhost::GameContext::Instance().SetActiveGame(ActiveGame::Rust);
+    gameGuard.Commit();
+    return true;
 }
 
 bool StartFortnite() {
@@ -325,8 +331,8 @@ bool Cs2ValidateOffsets() { return CS2::ValidateLiveOffsets(); }
 std::string_view Cs2TerminationReason() { return "Processo cs2.exe terminou"; }
 ActiveGame Cs2GameId() { return ActiveGame::CS2; }
 
-bool RustIsAlive() { return false; }
-bool RustValidateOffsets() { return OmniGhost::OffsetAuto::HasCriticalOffsets(ActiveGame::Rust); }
+bool RustIsAlive() { return Rust::IsGameProcessAlive(); }
+bool RustValidateOffsets() { return Rust::ValidateLiveOffsets(); }
 std::string_view RustTerminationReason() { return "Processo RustClient.exe terminou"; }
 ActiveGame RustGameId() { return ActiveGame::Rust; }
 
@@ -382,11 +388,11 @@ IGameAdapter* FindGameAdapter(::Launcher::GameId game) noexcept {
         },
         Cs2IsAlive, Cs2ValidateOffsets, Cs2TerminationReason, Cs2GameId,
         Cs2StartFailure);
-    static FunctionGameAdapter rust({ ::Launcher::GameId::Rust, "Rust", AdapterMaturity::Unavailable,
-        Capability::None },
-        StartRust, [] {},
-        [] { return std::string_view("Runtime Rust removido; launcher e offsets preservados"); },
-        [] {},
+    static FunctionGameAdapter rust({ ::Launcher::GameId::Rust, "Rust", AdapterMaturity::Beta,
+        Capability::Menu | Capability::ReadOnlyMemory | Capability::Overlay },
+        StartRust, [] { Rust::Shutdown(); mem.InvalidateProcess(); },
+        [] { return std::string_view(Rust::StatusLine()); },
+        [] { Rust::Tick(); },
         RustIsAlive, RustValidateOffsets, RustTerminationReason, RustGameId);
     static FunctionGameAdapter fortnite({ ::Launcher::GameId::Fortnite, "Fortnite", AdapterMaturity::Beta,
         Capability::Menu | Capability::ReadOnlyMemory | Capability::Overlay },

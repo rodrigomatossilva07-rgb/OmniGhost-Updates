@@ -25,6 +25,7 @@
 #include "../platform/text_encoding.h"
 #include "game/esp_manager.h"
 #include "src/games/Cs2/cs2_game.h"
+#include "src/games/Rust/rust_game.h"
 #include <shellapi.h>
 #ifndef UI_PREVIEW
 #include "../launcher/launcher_assets.h"
@@ -54,10 +55,10 @@ namespace {
         case MenuTab::TAB_STATUS:           return { Loc::Tr("nav.status"), app_settings::T("Ligação, offsets e diagnóstico", "Connection, offsets and diagnostics") };
         case MenuTab::TAB_CONFIGS:          return { Loc::Tr("nav.configs"), app_settings::T("Interface, desempenho e preferências", "Interface, performance and preferences") };
         case MenuTab::TAB_SAVECONFIG:       return { Loc::Tr("nav.save"), app_settings::T("Guardar, carregar e organizar perfis", "Save, load and organize profiles") };
-        case MenuTab::TAB_CS2_VISUALS:      return { "VISUAIS CS2", "ESP de jogadores" };
-        case MenuTab::TAB_CS2_AIM:          return { "MIRA CS2", "Perfis e assistência de mira" };
-        case MenuTab::TAB_CS2_MISC:         return { "DIVERSOS CS2", "Widgets, bomba e utilitários" };
-        case MenuTab::TAB_CS2_RADAR:        return { "RADAR CS2", "Posição, alcance e apresentação" };
+        case MenuTab::TAB_CS2_VISUALS:      return { OmniGhost::GameContext::Instance().GetActiveGame() == OmniGhost::ActiveGame::Rust ? "VISUAIS RUST" : "VISUAIS CS2", "ESP de jogadores" };
+        case MenuTab::TAB_CS2_AIM:          return { OmniGhost::GameContext::Instance().GetActiveGame() == OmniGhost::ActiveGame::Rust ? "MIRA RUST" : "MIRA CS2", "Interface preparada; runtime desativado" };
+        case MenuTab::TAB_CS2_MISC:         return { OmniGhost::GameContext::Instance().GetActiveGame() == OmniGhost::ActiveGame::Rust ? "DIVERSOS RUST" : "DIVERSOS CS2", "Interface preparada; runtime desativado" };
+        case MenuTab::TAB_CS2_RADAR:        return { OmniGhost::GameContext::Instance().GetActiveGame() == OmniGhost::ActiveGame::Rust ? "RADAR RUST" : "RADAR CS2", "Interface preparada; runtime desativado" };
         case MenuTab::TAB_CS2_STATUS:       return { Loc::Tr("nav.status"), app_settings::T("Ligação, offsets e estado em tempo real", "Connection, offsets and live status") };
         case MenuTab::TAB_FORTNITE_VISUALS: return { "VISUAIS FORTNITE", "ESP e informação" };
         case MenuTab::TAB_FORTNITE_AIM:     return { "MIRA FORTNITE", "Alvo e assistência" };
@@ -169,12 +170,20 @@ namespace {
         const auto add = [current](const char* label, MenuTab tab, const char* section) {
             GlobalSearch::RegisterPage(label, label, section, [current, tab] { *current = tab; });
         };
-        if (game == OmniGhost::ActiveGame::CS2) {
-            add("Visuais CS2", MenuTab::TAB_CS2_VISUALS, "ESP e apresentação");
-            add("Mira CS2", MenuTab::TAB_CS2_AIM, "Assistência e disparo");
-            add("Diversos CS2", MenuTab::TAB_CS2_MISC, "Widgets e utilitários");
-            add("Radar CS2", MenuTab::TAB_CS2_RADAR, "Radar 2D");
-            add("Sistema CS2", MenuTab::TAB_CS2_STATUS, "Diagnóstico");
+        if (game == OmniGhost::ActiveGame::CS2 || game == OmniGhost::ActiveGame::Rust) {
+            if (game == OmniGhost::ActiveGame::Rust) {
+                add("Visuais Rust", MenuTab::TAB_CS2_VISUALS, "ESP e apresentação");
+                add("Mira Rust", MenuTab::TAB_CS2_AIM, "Interface preparada");
+                add("Diversos Rust", MenuTab::TAB_CS2_MISC, "Interface preparada");
+                add("Radar Rust", MenuTab::TAB_CS2_RADAR, "Interface preparada");
+                add("Sistema Rust", MenuTab::TAB_CS2_STATUS, "Diagnóstico");
+            } else {
+                add("Visuais CS2", MenuTab::TAB_CS2_VISUALS, "ESP e apresentação");
+                add("Mira CS2", MenuTab::TAB_CS2_AIM, "Assistência e disparo");
+                add("Diversos CS2", MenuTab::TAB_CS2_MISC, "Widgets e utilitários");
+                add("Radar CS2", MenuTab::TAB_CS2_RADAR, "Radar 2D");
+                add("Sistema CS2", MenuTab::TAB_CS2_STATUS, "Diagnóstico");
+            }
         } else if (game == OmniGhost::ActiveGame::Fortnite) {
             add("Visuais Fortnite", MenuTab::TAB_FORTNITE_VISUALS, "ESP e apresentação");
             add("Mira Fortnite", MenuTab::TAB_FORTNITE_AIM, "Assistência");
@@ -302,7 +311,7 @@ bool Overlay::CreateImGui()
 }
 
 static MenuTab DefaultTabForGame(OmniGhost::ActiveGame game) {
-    if (game == OmniGhost::ActiveGame::CS2) return MenuTab::TAB_CS2_VISUALS;
+    if (game == OmniGhost::ActiveGame::CS2 || game == OmniGhost::ActiveGame::Rust) return MenuTab::TAB_CS2_VISUALS;
     if (game == OmniGhost::ActiveGame::Fortnite) return MenuTab::TAB_FORTNITE_VISUALS;
     return MenuTab::TAB_VISUALS;
 }
@@ -497,6 +506,11 @@ const PerformanceMode::State performance = PerformanceMode::Update(
             players = snapshot ? static_cast<int>(snapshot->players.size()) : 0;
             break;
         }
+        case OmniGhost::ActiveGame::Rust:
+            connected = Rust::ready;
+            build = "Rust";
+            players = static_cast<int>(Rust::runtime.players.size());
+            break;
         case OmniGhost::ActiveGame::FiveM:
         default:
             connected = true;

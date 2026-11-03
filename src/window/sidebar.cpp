@@ -113,7 +113,8 @@ namespace CyberWidgets {
             { "nav.configs", MenuTab::TAB_CONFIGS, CyberIcons::DrawSettingsIcon },
             { "nav.save", MenuTab::TAB_SAVECONFIG, CyberIcons::DrawSaveIcon },
         };
-        if (OmniGhost::GameContext::Instance().GetActiveGame() == OmniGhost::ActiveGame::CS2) {
+        if (OmniGhost::GameContext::Instance().GetActiveGame() == OmniGhost::ActiveGame::CS2 ||
+            OmniGhost::GameContext::Instance().GetActiveGame() == OmniGhost::ActiveGame::Rust) {
             tabs = cs2Tabs;
             tabCount = (int)(sizeof(cs2Tabs) / sizeof(cs2Tabs[0]));
         } else if (OmniGhost::GameContext::Instance().GetActiveGame() == OmniGhost::ActiveGame::Fortnite) {

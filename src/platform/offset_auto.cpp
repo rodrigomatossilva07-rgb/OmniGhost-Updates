@@ -94,10 +94,10 @@ bool HasCriticalOffsets(ActiveGame game) {
         return FiveM::HasAnyCriticalOffsets();
     }
     if (game == ActiveGame::Rust) {
-        using namespace Rust::Offsets::Build_2026_10_22;
-        return Rvas::TypeManagerInstance != 0 && Rvas::TypeToObjectSet != 0 &&
-               BaseNetworkableStatic::clientEntities != 0 &&
-               BasePlayer::_displayName != 0 && BaseCombatEntity::_health != 0;
+        using namespace Rust::Offsets::Build_25231061;
+        return Rvas::BaseNetworkable != 0 && Rvas::Camera != 0 &&
+               BaseNetworkable::clientEntities != 0 &&
+               BasePlayer::playerModel != 0 && BaseCombatEntity::health != 0;
     }
     if (game == ActiveGame::Apex) {
 
@@ -138,7 +138,7 @@ const char* SoftProbeFailReason(ActiveGame game) {
     case ActiveGame::FiveM:
         return "Offsets FiveM inválidos (world pointer / build). Verifica a build do servidor.";
     case ActiveGame::Rust:
-        return "Runtime Rust removido; apenas o catálogo manual de offsets foi preservado.";
+        return "Offsets Rust inválidos em runtime (entidades/câmara). Atualiza o snapshot da build.";
     default:
         return "Offsets inválidos — atualiza e tenta de novo.";
     }
@@ -173,7 +173,7 @@ Result EnsureOffsets(ActiveGame game, bool force_refresh) {
     }
     if (game == ActiveGame::Rust) {
         const bool usable = HasCriticalOffsets(game);
-        g_status = usable ? "Rust: catálogo manual 2026-10-22 carregado"
+        g_status = usable ? "Rust: offsets build 25231061 carregados"
                           : "Rust: catálogo manual inválido ou em falta";
         if (usable) MarkLiveValid(game, g_status);
         else MarkOutdated(game, g_status);
