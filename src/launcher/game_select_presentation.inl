@@ -609,6 +609,7 @@ float OpticalLogoScale(GameId id) {
     case GameId::Warzone: return 0.72f;
     case GameId::Apex: return 0.66f;
     case GameId::Fortnite: return 0.84f;
+    case GameId::Rust: return 0.88f;
     default: return 0.72f;
     }
 }
@@ -789,7 +790,7 @@ bool DrawGameCard(ImDrawList* draw, ImVec2 min, ImVec2 max,
     const LauncherAssets::Texture logo = LauncherAssets::Logo(game.launch_id);
     if (logo) {
         if (game.launch_id == GameId::Rust)
-            DrawTextureContained(draw, logo, logo_min, logo_max, 0.82f,
+            DrawTextureContained(draw, logo, logo_min, logo_max, logo_scale,
                 IM_COL32(255, 255, 255, alpha), ImVec2(0.34f, 0.08f), ImVec2(0.67f, 0.92f));
         else
             DrawTextureContained(draw, logo, logo_min, logo_max, logo_scale,

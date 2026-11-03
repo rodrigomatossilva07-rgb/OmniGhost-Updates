@@ -41,6 +41,8 @@ inline ProcessMonitorConfig GetDefaultMonitorConfig(int game_type) {
             return {250, 500, 250, 2, false};
         case 3:
             return {250, 500, 250, 2, true};
+        case 4:
+            return {250, 500, 250, 2, false};
         default:
             return {250, 500, 250, 2, true};
     }
