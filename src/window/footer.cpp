@@ -4,6 +4,7 @@
 #include "localization.h"
 #include "globals.h"
 #include "src/games/Cs2/cs2_game.h"
+#include "src/games/Rust/rust_game.h"
 #include "../config/app_settings.h"
 #include "game/offsets.h"
 #include "../platform/session_log.h"
@@ -77,6 +78,8 @@ namespace CyberWidgets {
         char value[192];
         if (g_activeGame == ActiveGame::CS2) {
             snprintf(value, sizeof(value), "%s", CS2::StatusLine());
+        } else if (g_activeGame == ActiveGame::Rust) {
+            snprintf(value, sizeof(value), "%s", Rust::StatusLine());
         } else {
 
             snprintf(value, sizeof(value), Loc::Tr("footer.build"), build ? build : "--");
@@ -93,6 +96,8 @@ namespace CyberWidgets {
                 const auto snapshot = CS2::AcquireRuntimeSnapshot();
                 verified = (snapshot && snapshot->offsets_self_test_ok) || CS2::ready;
             }
+            else if (g_activeGame == ActiveGame::Rust)
+                verified = Rust::runtime.offset_catalog_ok && Rust::runtime.modules_ok;
             else
                 verified = FiveM::IsBuildSupported();
 #endif

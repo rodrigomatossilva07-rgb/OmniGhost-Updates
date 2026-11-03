@@ -117,6 +117,61 @@ namespace {
 
     std::string g_imgui_ini_path;
 
+    void DrawRustPreparedPage(void (*drawPage)())
+    {
+        CyberWidgets::InlineMessage(
+            "Interface copiada do CS2 e reservada para integração futura. Os controlos desta página ainda não alteram o runtime Rust.",
+            CyberWidgets::TextTone::Info);
+        ImGui::Spacing();
+        ImGui::BeginDisabled(true);
+        drawPage();
+        ImGui::EndDisabled();
+    }
+
+    void DrawRustVisualsPage()
+    {
+        CyberWidgets::BeginCard("BOX 2D — TESTE RUNTIME");
+        CyberWidgets::InlineMessage(
+            "Nesta fase, apenas a Box 2D utiliza entidades e câmara lidas do Rust. As restantes opções aparecem abaixo apenas como estrutura preparada.",
+            CyberWidgets::TextTone::Warning);
+        CyberWidgets::ToggleSwitch("Ativar ESP", &CS2::config.esp_enabled);
+        ImGui::BeginDisabled(!CS2::config.esp_enabled);
+        CyberWidgets::ToggleSwitch("Caixa 2D", &CS2::config.box);
+        ImGui::BeginDisabled(!CS2::config.box);
+        CyberWidgets::SliderFloat("Espessura", &CS2::config.box_thickness, 0.5f, 4.0f, "%.1f");
+        CyberWidgets::SliderFloat("Arredondamento", &CS2::config.box_rounding, 0.0f, 18.0f, "%.0f px");
+        CyberWidgets::ToggleSwitch("Preenchimento", &CS2::config.box_fill);
+        if (CS2::config.box_fill)
+            CyberWidgets::SliderFloat("Opacidade do preenchimento", &CS2::config.box_fill_opacity, 0.0f, 0.85f, "%.2f");
+        ImGui::ColorEdit4("Cor da Box 2D", CS2::config.col_box,
+            ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
+        ImGui::EndDisabled();
+        ImGui::EndDisabled();
+        CyberWidgets::EndCard();
+        ImGui::Spacing();
+        ImGui::BeginDisabled(true);
+        DrawCs2Visuals();
+        ImGui::EndDisabled();
+    }
+
+    void DrawRustStatusPage()
+    {
+        CyberWidgets::BeginCard("SISTEMA RUST");
+        CyberWidgets::HealthRow("Processo", Rust::runtime.process_ok ? "RustClient.exe ligado" : "A aguardar RustClient.exe",
+            Rust::runtime.process_ok ? CyberWidgets::HealthStatus::Ok : CyberWidgets::HealthStatus::Warning);
+        CyberWidgets::HealthRow("GameAssembly", Rust::runtime.modules_ok ? "Módulo localizado" : "Módulo indisponível",
+            Rust::runtime.modules_ok ? CyberWidgets::HealthStatus::Ok : CyberWidgets::HealthStatus::Error);
+        CyberWidgets::HealthRow("Entidades", Rust::runtime.collection_status.c_str(),
+            Rust::runtime.entity_source_ok ? CyberWidgets::HealthStatus::Ok : CyberWidgets::HealthStatus::Warning);
+        CyberWidgets::HealthRow("Câmara / W2S", Rust::runtime.camera_status.c_str(),
+            Rust::runtime.camera_ok ? CyberWidgets::HealthStatus::Ok : CyberWidgets::HealthStatus::Warning);
+        CyberWidgets::KeyValueRow("Entidades lidas", std::to_string(Rust::runtime.entity_count).c_str());
+        CyberWidgets::KeyValueRow("Jogadores válidos", std::to_string(Rust::runtime.valid_player_count).c_str());
+        CyberWidgets::KeyValueRow("Build dos offsets", "25231061");
+        CyberWidgets::KeyValueRow("Estado", Rust::StatusLine());
+        CyberWidgets::EndCard();
+    }
+
     void DrawCurrentTab(MenuTab tab, Overlay* overlay)
     {
 
@@ -131,11 +186,21 @@ namespace {
         case MenuTab::TAB_STATUS:      DrawFiveMStatus(); break;
         case MenuTab::TAB_CONFIGS:     DrawConfigs(overlay); break;
         case MenuTab::TAB_SAVECONFIG:  DrawSaveConfigs(); break;
-        case MenuTab::TAB_CS2_VISUALS: DrawCs2Visuals(); break;
-        case MenuTab::TAB_CS2_AIM:     DrawCs2Aim(); break;
-        case MenuTab::TAB_CS2_MISC:    DrawCs2Misc(); break;
-        case MenuTab::TAB_CS2_RADAR:   DrawCs2Radar(); break;
-        case MenuTab::TAB_CS2_STATUS:  DrawCs2Status(); break;
+        case MenuTab::TAB_CS2_VISUALS:
+            if (g_activeGame == ActiveGame::Rust) DrawRustVisualsPage(); else DrawCs2Visuals();
+            break;
+        case MenuTab::TAB_CS2_AIM:
+            if (g_activeGame == ActiveGame::Rust) DrawRustPreparedPage(DrawCs2Aim); else DrawCs2Aim();
+            break;
+        case MenuTab::TAB_CS2_MISC:
+            if (g_activeGame == ActiveGame::Rust) DrawRustPreparedPage(DrawCs2Misc); else DrawCs2Misc();
+            break;
+        case MenuTab::TAB_CS2_RADAR:
+            if (g_activeGame == ActiveGame::Rust) DrawRustPreparedPage(DrawCs2Radar); else DrawCs2Radar();
+            break;
+        case MenuTab::TAB_CS2_STATUS:
+            if (g_activeGame == ActiveGame::Rust) DrawRustStatusPage(); else DrawCs2Status();
+            break;
         case MenuTab::TAB_FORTNITE_VISUALS:  DrawFortniteVisuals(); break;
         case MenuTab::TAB_FORTNITE_AIM:      DrawFortniteAim(); break;
         case MenuTab::TAB_FORTNITE_STATUS:   DrawFortniteStatus(); break;
