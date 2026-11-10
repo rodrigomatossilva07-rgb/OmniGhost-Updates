@@ -1,5 +1,5 @@
 // Generated using https://github.com/a2x/cs2-dumper
-// 2026-10-31 22:03:44.491654800 UTC
+// 2026-11-07 22:05:22.994283500 UTC
 
 namespace CS2Dumper.Offsets {
     // Module: animationsystem.dll
@@ -8,59 +8,59 @@ namespace CS2Dumper.Offsets {
     }
     // Module: client.dll
     public static class ClientDll {
-        public const nint C_CSPlayerPawn_GetAimPunch = 0x854500;
-        public const nint GetViewAngles = 0xB728B0;
-        public const nint SetViewAngles = 0xB82710;
-        public const nint dwCSGOInput = 0x257F980;
-        public const nint dwEntityList = 0x271EB28;
-        public const nint dwGameEntitySystem = 0x271EB28;
+        public const nint C_CSPlayerPawn_GetAimPunch = 0x854680;
+        public const nint GetViewAngles = 0xB72A30;
+        public const nint SetViewAngles = 0xB82890;
+        public const nint dwCSGOInput = 0x2580A10;
+        public const nint dwEntityList = 0x271FBB8;
+        public const nint dwGameEntitySystem = 0x271FBB8;
         public const nint dwGameEntitySystem_highestEntityIndex = 0x2120;
-        public const nint dwGameRules = 0x2569378;
-        public const nint dwGlobalVars = 0x2234108;
-        public const nint dwGlowManager = 0x25660A0;
-        public const nint dwLocalPlayerController = 0x25413F8;
-        public const nint dwLocalPlayerPawn = 0x25698C8;
-        public const nint dwPlantedC4 = 0x24CFB60;
-        public const nint dwPrediction = 0x25697D0;
-        public const nint dwSensitivity = 0x2566BC0;
+        public const nint dwGameRules = 0x256A3F8;
+        public const nint dwGlobalVars = 0x2235108;
+        public const nint dwGlowManager = 0x2567120;
+        public const nint dwLocalPlayerController = 0x2542548;
+        public const nint dwLocalPlayerPawn = 0x256A948;
+        public const nint dwPlantedC4 = 0x24D0B70;
+        public const nint dwPrediction = 0x256A850;
+        public const nint dwSensitivity = 0x2567C40;
         public const nint dwSensitivity_sensitivity = 0x58;
-        public const nint dwViewAngles = 0x2580008;
-        public const nint dwViewMatrix = 0x256F1D0;
-        public const nint dwViewRender = 0x256FB98;
-        public const nint dwWeaponC4 = 0x24CE108;
-        public const nint pCSGOInputInstance = 0x257F980;
-        public const nint pCSInventoryManager = 0x24DCCB0;
-        public const nint pClientMode = 0x257D6E0;
-        public const nint pDynamicLightManager = 0x255DD28;
-        public const nint pEconItemSystem = 0x25F83E0;
-        public const nint pEntitySystem = 0x23BFA00;
-        public const nint pGameEntitySystem = 0x271EB28;
-        public const nint pGameEventManager = 0x254FE00;
-        public const nint pGameRules = 0x2569378;
-        public const nint pGameTraceManager = 0x222AFA8;
-        public const nint pGlobalVariables = 0x2234108;
-        public const nint pGlowManager = 0x25660A0;
-        public const nint pHudPanel = 0x25DA648;
-        public const nint pInterpolationPhase = 0x21C30A0;
-        public const nint pInventoryCategoryTree = 0x25F7130;
-        public const nint pLocalPlayerController = 0x25413F8;
-        public const nint pMainMenuPanel = 0x25CD8C8;
-        public const nint pMatchFramework = 0x27A1090;
-        public const nint pMatchmakingReservation = 0x2580E88;
-        public const nint pMaterialManager = 0x27A11D0;
-        public const nint pParticleManager = 0x222B248;
-        public const nint pPlantedC4s = 0x24CFB60;
-        public const nint pPrediction = 0x25697D0;
-        public const nint pPredictionPlayer = 0x255AA50;
-        public const nint pPredictionRandomSeed = 0x21C6E90;
-        public const nint pRenderGameSystem = 0x23C1240;
-        public const nint pSensitivity = 0x2566BC0;
-        public const nint pUIInventory = 0x252F7A0;
-        public const nint pUiEngine = 0x2738160;
-        public const nint pViewRender = 0x256FB98;
-        public const nint pViewToProjectionMatrix = 0x256F190;
-        public const nint pWeaponC4 = 0x24CE108;
-        public const nint pWorldToProjectionMatrix = 0x256F1D0;
+        public const nint dwViewAngles = 0x2581098;
+        public const nint dwViewMatrix = 0x2570250;
+        public const nint dwViewRender = 0x2570C18;
+        public const nint dwWeaponC4 = 0x24CF118;
+        public const nint pCSGOInputInstance = 0x2580A10;
+        public const nint pCSInventoryManager = 0x24DDCD0;
+        public const nint pClientMode = 0x257E770;
+        public const nint pDynamicLightManager = 0x255ED38;
+        public const nint pEconItemSystem = 0x25F9470;
+        public const nint pEntitySystem = 0x23C0A10;
+        public const nint pGameEntitySystem = 0x271FBB8;
+        public const nint pGameEventManager = 0x2550E00;
+        public const nint pGameRules = 0x256A3F8;
+        public const nint pGameTraceManager = 0x222BFA8;
+        public const nint pGlobalVariables = 0x2235108;
+        public const nint pGlowManager = 0x2567120;
+        public const nint pHudPanel = 0x25DB6C8;
+        public const nint pInterpolationPhase = 0x21C40A0;
+        public const nint pInventoryCategoryTree = 0x25F81C0;
+        public const nint pLocalPlayerController = 0x2542548;
+        public const nint pMainMenuPanel = 0x25CE948;
+        public const nint pMatchFramework = 0x27A2120;
+        public const nint pMatchmakingReservation = 0x257DAB0;
+        public const nint pMaterialManager = 0x27A2260;
+        public const nint pParticleManager = 0x222C248;
+        public const nint pPlantedC4s = 0x24D0B70;
+        public const nint pPrediction = 0x256A850;
+        public const nint pPredictionPlayer = 0x255BA58;
+        public const nint pPredictionRandomSeed = 0x21C7E90;
+        public const nint pRenderGameSystem = 0x23C2250;
+        public const nint pSensitivity = 0x2567C40;
+        public const nint pUIInventory = 0x25307C0;
+        public const nint pUiEngine = 0x27391E0;
+        public const nint pViewRender = 0x2570C18;
+        public const nint pViewToProjectionMatrix = 0x2570210;
+        public const nint pWeaponC4 = 0x24CF118;
+        public const nint pWorldToProjectionMatrix = 0x2570250;
     }
     // Module: engine2.dll
     public static class Engine2Dll {

@@ -74,13 +74,15 @@ bool TryManagedBuffer(std::uintptr_t node, std::vector<std::uintptr_t>& entities
 }
 
 bool ReadCollection(std::vector<std::uintptr_t>& entities) {
+    const std::uintptr_t rootAddress = runtime.game_assembly + Rvas::BaseNetworkable;
+    std::vector<std::uintptr_t> frontier;
+    AddUnique(frontier, rootAddress);
     std::uintptr_t root = 0;
-    if (!ReadPointer(runtime.game_assembly + Rvas::BaseNetworkable, root)) {
-        runtime.collection_status = "BaseNetworkable pointer ilegível";
+    if (ReadPointer(rootAddress, root)) AddUnique(frontier, root);
+    if (frontier.empty()) {
+        runtime.collection_status = "BaseNetworkable RVA fora do módulo";
         return false;
     }
-
-    std::vector<std::uintptr_t> frontier{root};
     for (int depth = 0; depth < 7; ++depth) {
         const auto current = frontier;
         for (std::uintptr_t node : current) {
@@ -168,12 +170,15 @@ int MatrixScore(const float* m) {
 }
 
 bool ReadCamera() {
+    const std::uintptr_t rootAddress = runtime.game_assembly + Rvas::Camera;
+    std::vector<std::uintptr_t> candidates;
+    AddUnique(candidates, rootAddress);
     std::uintptr_t root = 0;
-    if (!ReadPointer(runtime.game_assembly + Rvas::Camera, root)) {
-        runtime.camera_status = "Camera pointer ilegível";
+    if (ReadPointer(rootAddress, root)) AddUnique(candidates, root);
+    if (candidates.empty()) {
+        runtime.camera_status = "Camera RVA fora do módulo";
         return false;
     }
-    std::vector<std::uintptr_t> candidates{root};
     for (int depth = 0; depth < 5; ++depth) {
         const auto current = candidates;
         for (std::uintptr_t node : current) {

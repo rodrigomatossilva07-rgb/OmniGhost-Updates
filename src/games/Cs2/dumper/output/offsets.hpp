@@ -1,5 +1,5 @@
 // Generated using https://github.com/a2x/cs2-dumper
-// 2026-10-31 22:03:44.491654800 UTC
+// 2026-11-07 22:05:22.994283500 UTC
 
 #pragma once
 
@@ -14,59 +14,59 @@ namespace cs2_dumper {
         }
         // Module: client.dll
         namespace client_dll {
-            constexpr std::ptrdiff_t C_CSPlayerPawn_GetAimPunch = 0x854500;
-            constexpr std::ptrdiff_t GetViewAngles = 0xB728B0;
-            constexpr std::ptrdiff_t SetViewAngles = 0xB82710;
-            constexpr std::ptrdiff_t dwCSGOInput = 0x257F980;
-            constexpr std::ptrdiff_t dwEntityList = 0x271EB28;
-            constexpr std::ptrdiff_t dwGameEntitySystem = 0x271EB28;
+            constexpr std::ptrdiff_t C_CSPlayerPawn_GetAimPunch = 0x854680;
+            constexpr std::ptrdiff_t GetViewAngles = 0xB72A30;
+            constexpr std::ptrdiff_t SetViewAngles = 0xB82890;
+            constexpr std::ptrdiff_t dwCSGOInput = 0x2580A10;
+            constexpr std::ptrdiff_t dwEntityList = 0x271FBB8;
+            constexpr std::ptrdiff_t dwGameEntitySystem = 0x271FBB8;
             constexpr std::ptrdiff_t dwGameEntitySystem_highestEntityIndex = 0x2120;
-            constexpr std::ptrdiff_t dwGameRules = 0x2569378;
-            constexpr std::ptrdiff_t dwGlobalVars = 0x2234108;
-            constexpr std::ptrdiff_t dwGlowManager = 0x25660A0;
-            constexpr std::ptrdiff_t dwLocalPlayerController = 0x25413F8;
-            constexpr std::ptrdiff_t dwLocalPlayerPawn = 0x25698C8;
-            constexpr std::ptrdiff_t dwPlantedC4 = 0x24CFB60;
-            constexpr std::ptrdiff_t dwPrediction = 0x25697D0;
-            constexpr std::ptrdiff_t dwSensitivity = 0x2566BC0;
+            constexpr std::ptrdiff_t dwGameRules = 0x256A3F8;
+            constexpr std::ptrdiff_t dwGlobalVars = 0x2235108;
+            constexpr std::ptrdiff_t dwGlowManager = 0x2567120;
+            constexpr std::ptrdiff_t dwLocalPlayerController = 0x2542548;
+            constexpr std::ptrdiff_t dwLocalPlayerPawn = 0x256A948;
+            constexpr std::ptrdiff_t dwPlantedC4 = 0x24D0B70;
+            constexpr std::ptrdiff_t dwPrediction = 0x256A850;
+            constexpr std::ptrdiff_t dwSensitivity = 0x2567C40;
             constexpr std::ptrdiff_t dwSensitivity_sensitivity = 0x58;
-            constexpr std::ptrdiff_t dwViewAngles = 0x2580008;
-            constexpr std::ptrdiff_t dwViewMatrix = 0x256F1D0;
-            constexpr std::ptrdiff_t dwViewRender = 0x256FB98;
-            constexpr std::ptrdiff_t dwWeaponC4 = 0x24CE108;
-            constexpr std::ptrdiff_t pCSGOInputInstance = 0x257F980;
-            constexpr std::ptrdiff_t pCSInventoryManager = 0x24DCCB0;
-            constexpr std::ptrdiff_t pClientMode = 0x257D6E0;
-            constexpr std::ptrdiff_t pDynamicLightManager = 0x255DD28;
-            constexpr std::ptrdiff_t pEconItemSystem = 0x25F83E0;
-            constexpr std::ptrdiff_t pEntitySystem = 0x23BFA00;
-            constexpr std::ptrdiff_t pGameEntitySystem = 0x271EB28;
-            constexpr std::ptrdiff_t pGameEventManager = 0x254FE00;
-            constexpr std::ptrdiff_t pGameRules = 0x2569378;
-            constexpr std::ptrdiff_t pGameTraceManager = 0x222AFA8;
-            constexpr std::ptrdiff_t pGlobalVariables = 0x2234108;
-            constexpr std::ptrdiff_t pGlowManager = 0x25660A0;
-            constexpr std::ptrdiff_t pHudPanel = 0x25DA648;
-            constexpr std::ptrdiff_t pInterpolationPhase = 0x21C30A0;
-            constexpr std::ptrdiff_t pInventoryCategoryTree = 0x25F7130;
-            constexpr std::ptrdiff_t pLocalPlayerController = 0x25413F8;
-            constexpr std::ptrdiff_t pMainMenuPanel = 0x25CD8C8;
-            constexpr std::ptrdiff_t pMatchFramework = 0x27A1090;
-            constexpr std::ptrdiff_t pMatchmakingReservation = 0x2580E88;
-            constexpr std::ptrdiff_t pMaterialManager = 0x27A11D0;
-            constexpr std::ptrdiff_t pParticleManager = 0x222B248;
-            constexpr std::ptrdiff_t pPlantedC4s = 0x24CFB60;
-            constexpr std::ptrdiff_t pPrediction = 0x25697D0;
-            constexpr std::ptrdiff_t pPredictionPlayer = 0x255AA50;
-            constexpr std::ptrdiff_t pPredictionRandomSeed = 0x21C6E90;
-            constexpr std::ptrdiff_t pRenderGameSystem = 0x23C1240;
-            constexpr std::ptrdiff_t pSensitivity = 0x2566BC0;
-            constexpr std::ptrdiff_t pUIInventory = 0x252F7A0;
-            constexpr std::ptrdiff_t pUiEngine = 0x2738160;
-            constexpr std::ptrdiff_t pViewRender = 0x256FB98;
-            constexpr std::ptrdiff_t pViewToProjectionMatrix = 0x256F190;
-            constexpr std::ptrdiff_t pWeaponC4 = 0x24CE108;
-            constexpr std::ptrdiff_t pWorldToProjectionMatrix = 0x256F1D0;
+            constexpr std::ptrdiff_t dwViewAngles = 0x2581098;
+            constexpr std::ptrdiff_t dwViewMatrix = 0x2570250;
+            constexpr std::ptrdiff_t dwViewRender = 0x2570C18;
+            constexpr std::ptrdiff_t dwWeaponC4 = 0x24CF118;
+            constexpr std::ptrdiff_t pCSGOInputInstance = 0x2580A10;
+            constexpr std::ptrdiff_t pCSInventoryManager = 0x24DDCD0;
+            constexpr std::ptrdiff_t pClientMode = 0x257E770;
+            constexpr std::ptrdiff_t pDynamicLightManager = 0x255ED38;
+            constexpr std::ptrdiff_t pEconItemSystem = 0x25F9470;
+            constexpr std::ptrdiff_t pEntitySystem = 0x23C0A10;
+            constexpr std::ptrdiff_t pGameEntitySystem = 0x271FBB8;
+            constexpr std::ptrdiff_t pGameEventManager = 0x2550E00;
+            constexpr std::ptrdiff_t pGameRules = 0x256A3F8;
+            constexpr std::ptrdiff_t pGameTraceManager = 0x222BFA8;
+            constexpr std::ptrdiff_t pGlobalVariables = 0x2235108;
+            constexpr std::ptrdiff_t pGlowManager = 0x2567120;
+            constexpr std::ptrdiff_t pHudPanel = 0x25DB6C8;
+            constexpr std::ptrdiff_t pInterpolationPhase = 0x21C40A0;
+            constexpr std::ptrdiff_t pInventoryCategoryTree = 0x25F81C0;
+            constexpr std::ptrdiff_t pLocalPlayerController = 0x2542548;
+            constexpr std::ptrdiff_t pMainMenuPanel = 0x25CE948;
+            constexpr std::ptrdiff_t pMatchFramework = 0x27A2120;
+            constexpr std::ptrdiff_t pMatchmakingReservation = 0x257DAB0;
+            constexpr std::ptrdiff_t pMaterialManager = 0x27A2260;
+            constexpr std::ptrdiff_t pParticleManager = 0x222C248;
+            constexpr std::ptrdiff_t pPlantedC4s = 0x24D0B70;
+            constexpr std::ptrdiff_t pPrediction = 0x256A850;
+            constexpr std::ptrdiff_t pPredictionPlayer = 0x255BA58;
+            constexpr std::ptrdiff_t pPredictionRandomSeed = 0x21C7E90;
+            constexpr std::ptrdiff_t pRenderGameSystem = 0x23C2250;
+            constexpr std::ptrdiff_t pSensitivity = 0x2567C40;
+            constexpr std::ptrdiff_t pUIInventory = 0x25307C0;
+            constexpr std::ptrdiff_t pUiEngine = 0x27391E0;
+            constexpr std::ptrdiff_t pViewRender = 0x2570C18;
+            constexpr std::ptrdiff_t pViewToProjectionMatrix = 0x2570210;
+            constexpr std::ptrdiff_t pWeaponC4 = 0x24CF118;
+            constexpr std::ptrdiff_t pWorldToProjectionMatrix = 0x2570250;
         }
         // Module: engine2.dll
         namespace engine2_dll {

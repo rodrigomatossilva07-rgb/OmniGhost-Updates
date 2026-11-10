@@ -130,28 +130,10 @@ namespace {
 
     void DrawRustVisualsPage()
     {
-        CyberWidgets::BeginCard("BOX 2D — TESTE RUNTIME");
-        CyberWidgets::InlineMessage(
-            "Nesta fase, apenas a Box 2D utiliza entidades e câmara lidas do Rust. As restantes opções aparecem abaixo apenas como estrutura preparada.",
-            CyberWidgets::TextTone::Warning);
-        CyberWidgets::ToggleSwitch("Ativar ESP", &CS2::config.esp_enabled);
-        ImGui::BeginDisabled(!CS2::config.esp_enabled);
-        CyberWidgets::ToggleSwitch("Caixa 2D", &CS2::config.box);
-        ImGui::BeginDisabled(!CS2::config.box);
-        CyberWidgets::SliderFloat("Espessura", &CS2::config.box_thickness, 0.5f, 4.0f, "%.1f");
-        CyberWidgets::SliderFloat("Arredondamento", &CS2::config.box_rounding, 0.0f, 18.0f, "%.0f px");
-        CyberWidgets::ToggleSwitch("Preenchimento", &CS2::config.box_fill);
-        if (CS2::config.box_fill)
-            CyberWidgets::SliderFloat("Opacidade do preenchimento", &CS2::config.box_fill_opacity, 0.0f, 0.85f, "%.2f");
-        ImGui::ColorEdit4("Cor da Box 2D", CS2::config.col_box,
-            ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
-        ImGui::EndDisabled();
-        ImGui::EndDisabled();
-        CyberWidgets::EndCard();
-        ImGui::Spacing();
-        ImGui::BeginDisabled(true);
+        // Box 2D is the only Rust renderer wired at this stage. Keep it implicit so
+        // the normal "Ativar ESP" switch is the single control required for testing.
+        CS2::config.box = true;
         DrawCs2Visuals();
-        ImGui::EndDisabled();
     }
 
     void DrawRustStatusPage()

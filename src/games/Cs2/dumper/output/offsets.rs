@@ -1,5 +1,5 @@
 // Generated using https://github.com/a2x/cs2-dumper
-// 2026-10-31 22:03:44.491654800 UTC
+// 2026-11-07 22:05:22.994283500 UTC
 
 #![allow(non_upper_case_globals, unused)]
 
@@ -11,59 +11,59 @@ pub mod cs2_dumper {
         }
         // Module: client.dll
         pub mod client_dll {
-            pub const C_CSPlayerPawn_GetAimPunch: usize = 0x854500;
-            pub const GetViewAngles: usize = 0xB728B0;
-            pub const SetViewAngles: usize = 0xB82710;
-            pub const dwCSGOInput: usize = 0x257F980;
-            pub const dwEntityList: usize = 0x271EB28;
-            pub const dwGameEntitySystem: usize = 0x271EB28;
+            pub const C_CSPlayerPawn_GetAimPunch: usize = 0x854680;
+            pub const GetViewAngles: usize = 0xB72A30;
+            pub const SetViewAngles: usize = 0xB82890;
+            pub const dwCSGOInput: usize = 0x2580A10;
+            pub const dwEntityList: usize = 0x271FBB8;
+            pub const dwGameEntitySystem: usize = 0x271FBB8;
             pub const dwGameEntitySystem_highestEntityIndex: usize = 0x2120;
-            pub const dwGameRules: usize = 0x2569378;
-            pub const dwGlobalVars: usize = 0x2234108;
-            pub const dwGlowManager: usize = 0x25660A0;
-            pub const dwLocalPlayerController: usize = 0x25413F8;
-            pub const dwLocalPlayerPawn: usize = 0x25698C8;
-            pub const dwPlantedC4: usize = 0x24CFB60;
-            pub const dwPrediction: usize = 0x25697D0;
-            pub const dwSensitivity: usize = 0x2566BC0;
+            pub const dwGameRules: usize = 0x256A3F8;
+            pub const dwGlobalVars: usize = 0x2235108;
+            pub const dwGlowManager: usize = 0x2567120;
+            pub const dwLocalPlayerController: usize = 0x2542548;
+            pub const dwLocalPlayerPawn: usize = 0x256A948;
+            pub const dwPlantedC4: usize = 0x24D0B70;
+            pub const dwPrediction: usize = 0x256A850;
+            pub const dwSensitivity: usize = 0x2567C40;
             pub const dwSensitivity_sensitivity: usize = 0x58;
-            pub const dwViewAngles: usize = 0x2580008;
-            pub const dwViewMatrix: usize = 0x256F1D0;
-            pub const dwViewRender: usize = 0x256FB98;
-            pub const dwWeaponC4: usize = 0x24CE108;
-            pub const pCSGOInputInstance: usize = 0x257F980;
-            pub const pCSInventoryManager: usize = 0x24DCCB0;
-            pub const pClientMode: usize = 0x257D6E0;
-            pub const pDynamicLightManager: usize = 0x255DD28;
-            pub const pEconItemSystem: usize = 0x25F83E0;
-            pub const pEntitySystem: usize = 0x23BFA00;
-            pub const pGameEntitySystem: usize = 0x271EB28;
-            pub const pGameEventManager: usize = 0x254FE00;
-            pub const pGameRules: usize = 0x2569378;
-            pub const pGameTraceManager: usize = 0x222AFA8;
-            pub const pGlobalVariables: usize = 0x2234108;
-            pub const pGlowManager: usize = 0x25660A0;
-            pub const pHudPanel: usize = 0x25DA648;
-            pub const pInterpolationPhase: usize = 0x21C30A0;
-            pub const pInventoryCategoryTree: usize = 0x25F7130;
-            pub const pLocalPlayerController: usize = 0x25413F8;
-            pub const pMainMenuPanel: usize = 0x25CD8C8;
-            pub const pMatchFramework: usize = 0x27A1090;
-            pub const pMatchmakingReservation: usize = 0x2580E88;
-            pub const pMaterialManager: usize = 0x27A11D0;
-            pub const pParticleManager: usize = 0x222B248;
-            pub const pPlantedC4s: usize = 0x24CFB60;
-            pub const pPrediction: usize = 0x25697D0;
-            pub const pPredictionPlayer: usize = 0x255AA50;
-            pub const pPredictionRandomSeed: usize = 0x21C6E90;
-            pub const pRenderGameSystem: usize = 0x23C1240;
-            pub const pSensitivity: usize = 0x2566BC0;
-            pub const pUIInventory: usize = 0x252F7A0;
-            pub const pUiEngine: usize = 0x2738160;
-            pub const pViewRender: usize = 0x256FB98;
-            pub const pViewToProjectionMatrix: usize = 0x256F190;
-            pub const pWeaponC4: usize = 0x24CE108;
-            pub const pWorldToProjectionMatrix: usize = 0x256F1D0;
+            pub const dwViewAngles: usize = 0x2581098;
+            pub const dwViewMatrix: usize = 0x2570250;
+            pub const dwViewRender: usize = 0x2570C18;
+            pub const dwWeaponC4: usize = 0x24CF118;
+            pub const pCSGOInputInstance: usize = 0x2580A10;
+            pub const pCSInventoryManager: usize = 0x24DDCD0;
+            pub const pClientMode: usize = 0x257E770;
+            pub const pDynamicLightManager: usize = 0x255ED38;
+            pub const pEconItemSystem: usize = 0x25F9470;
+            pub const pEntitySystem: usize = 0x23C0A10;
+            pub const pGameEntitySystem: usize = 0x271FBB8;
+            pub const pGameEventManager: usize = 0x2550E00;
+            pub const pGameRules: usize = 0x256A3F8;
+            pub const pGameTraceManager: usize = 0x222BFA8;
+            pub const pGlobalVariables: usize = 0x2235108;
+            pub const pGlowManager: usize = 0x2567120;
+            pub const pHudPanel: usize = 0x25DB6C8;
+            pub const pInterpolationPhase: usize = 0x21C40A0;
+            pub const pInventoryCategoryTree: usize = 0x25F81C0;
+            pub const pLocalPlayerController: usize = 0x2542548;
+            pub const pMainMenuPanel: usize = 0x25CE948;
+            pub const pMatchFramework: usize = 0x27A2120;
+            pub const pMatchmakingReservation: usize = 0x257DAB0;
+            pub const pMaterialManager: usize = 0x27A2260;
+            pub const pParticleManager: usize = 0x222C248;
+            pub const pPlantedC4s: usize = 0x24D0B70;
+            pub const pPrediction: usize = 0x256A850;
+            pub const pPredictionPlayer: usize = 0x255BA58;
+            pub const pPredictionRandomSeed: usize = 0x21C7E90;
+            pub const pRenderGameSystem: usize = 0x23C2250;
+            pub const pSensitivity: usize = 0x2567C40;
+            pub const pUIInventory: usize = 0x25307C0;
+            pub const pUiEngine: usize = 0x27391E0;
+            pub const pViewRender: usize = 0x2570C18;
+            pub const pViewToProjectionMatrix: usize = 0x2570210;
+            pub const pWeaponC4: usize = 0x24CF118;
+            pub const pWorldToProjectionMatrix: usize = 0x2570250;
         }
         // Module: engine2.dll
         pub mod engine2_dll {
