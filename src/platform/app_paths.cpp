@@ -1,0 +1,343 @@
+#include "app_paths.h"
+
+#include <Windows.h>
+#include <ShlObj.h>
+
+#include <algorithm>
+#include <array>
+#include <cstdint>
+#include <cwctype>
+#include <system_error>
+
+namespace fs = std::filesystem;
+
+namespace {
+
+fs::path EnvironmentPath(const wchar_t* name) {
+    const DWORD required = GetEnvironmentVariableW(name, nullptr, 0);
+    if (required <= 1)
+        return {};
+
+    std::wstring buffer(static_cast<size_t>(required), L'\0');
+    const DWORD length = GetEnvironmentVariableW(
+        name,
+        buffer.data(),
+        static_cast<DWORD>(buffer.size()));
+    if (length == 0 || length >= buffer.size())
+        return {};
+
+    buffer.resize(length);
+    return fs::path(buffer);
+}
+
+fs::path TemporaryBasePath() {
+    std::wstring buffer(32768, L'\0');
+    const DWORD length = GetTempPathW(
+        static_cast<DWORD>(buffer.size()),
+        buffer.data());
+
+    if (length != 0 && length < buffer.size()) {
+        buffer.resize(length);
+        return fs::path(buffer);
+    }
+
+    std::error_code error;
+    const fs::path fallback = fs::temp_directory_path(error);
+    return error ? fs::current_path(error) : fallback;
+}
+
+fs::path KnownFolder(REFKNOWNFOLDERID id) {
+    PWSTR raw = nullptr;
+    fs::path result;
+
+    const HRESULT status = SHGetKnownFolderPath(
+        id,
+        KF_FLAG_CREATE,
+        nullptr,
+        &raw);
+
+    if (SUCCEEDED(status) && raw && *raw)
+        result = raw;
+
+    if (raw)
+        CoTaskMemFree(raw);
+
+    return result;
+}
+
+fs::path LocalApplicationDataBase() {
+    fs::path result = KnownFolder(FOLDERID_LocalAppData);
+    if (!result.empty())
+        return result;
+
+
+
+    result = EnvironmentPath(L"LOCALAPPDATA");
+    if (!result.empty())
+        return result;
+
+
+
+    return TemporaryBasePath();
+}
+
+void CopyMissing(const fs::path& source, const fs::path& destination) {
+    std::error_code error;
+    if (!fs::exists(source, error))
+        return;
+
+    fs::create_directories(destination, error);
+
+    for (fs::recursive_directory_iterator iterator(
+             source,
+             fs::directory_options::skip_permission_denied,
+             error),
+         end;
+         iterator != end;
+         iterator.increment(error)) {
+        if (error) {
+            error.clear();
+            continue;
+        }
+
+        if (iterator->is_symlink(error)) {
+            error.clear();
+            iterator.disable_recursion_pending();
+            continue;
+        }
+        error.clear();
+
+        const fs::path relative = fs::relative(iterator->path(), source, error);
+        if (error) {
+            error.clear();
+            continue;
+        }
+
+        const fs::path target = destination / relative;
+        if (iterator->is_directory(error)) {
+            fs::create_directories(target, error);
+        } else if (iterator->is_regular_file(error) && !fs::exists(target, error)) {
+            fs::create_directories(target.parent_path(), error);
+            fs::copy_file(iterator->path(), target, fs::copy_options::none, error);
+        }
+
+        error.clear();
+    }
+}
+
+void CopyFileMissing(const fs::path& source, const fs::path& destination) {
+    std::error_code error;
+    if (!fs::is_regular_file(source, error) || fs::exists(destination, error))
+        return;
+
+    fs::create_directories(destination.parent_path(), error);
+    if (error)
+        return;
+    fs::copy_file(source, destination, fs::copy_options::none, error);
+}
+
+}
+
+namespace OmniGhost::Paths {
+
+fs::path Executable() {
+    std::wstring buffer(512, L'\0');
+    for (;;) {
+        SetLastError(ERROR_SUCCESS);
+        const DWORD length = GetModuleFileNameW(
+            nullptr,
+            buffer.data(),
+            static_cast<DWORD>(buffer.size()));
+
+        if (length == 0)
+            break;
+
+        if (length < buffer.size() - 1) {
+            buffer.resize(length);
+            std::error_code error;
+            const fs::path canonical = fs::weakly_canonical(fs::path(buffer), error);
+            return error ? fs::path(buffer) : canonical;
+        }
+
+        if (buffer.size() >= 32768)
+            break;
+        buffer.resize((std::min)(buffer.size() * 2, static_cast<size_t>(32768)), L'\0');
+    }
+
+    std::error_code error;
+    const fs::path fallback = fs::absolute(L"OmniGhost.exe", error);
+    return error ? fs::path(L"OmniGhost.exe") : fallback;
+}
+
+fs::path InstallDirectory() {
+    return Executable().parent_path();
+}
+
+std::wstring InstallIdentity() {
+
+
+
+    std::wstring normalized = InstallDirectory().wstring();
+    std::replace(normalized.begin(), normalized.end(), L'/', L'\\');
+    while (normalized.size() > 3 && !normalized.empty() && normalized.back() == L'\\')
+        normalized.pop_back();
+
+    std::uint64_t hash = 14695981039346656037ull;
+    for (wchar_t character : normalized) {
+        const wchar_t folded = static_cast<wchar_t>(std::towlower(character));
+        hash ^= static_cast<std::uint64_t>(static_cast<std::uint16_t>(folded));
+        hash *= 1099511628211ull;
+    }
+
+    static constexpr wchar_t kHex[] = L"0123456789ABCDEF";
+    std::wstring identity(16, L'0');
+    for (size_t index = 0; index < identity.size(); ++index) {
+        const unsigned shift = static_cast<unsigned>((identity.size() - 1 - index) * 4);
+        identity[index] = kHex[(hash >> shift) & 0x0Fu];
+    }
+    return identity;
+}
+
+fs::path LocalData() {
+
+
+    return LocalApplicationDataBase() / L"OmniGhost";
+}
+
+fs::path NativeRuntime() {
+    return RuntimeRoot() /
+        InstallIdentity() / (L"pid-" + std::to_wstring(GetCurrentProcessId()));
+}
+
+fs::path RuntimeRoot() {
+    return TemporaryBasePath() / L"OmniGhost" / L"runtime";
+}
+
+fs::path Configs() {
+    return LocalData() / L"Configs";
+}
+
+fs::path Cs2Configs() {
+    return LocalData() / L"CS2";
+}
+
+fs::path Cache() {
+    return LocalData() / L"cache";
+}
+
+fs::path Logs() {
+
+    return LocalData();
+}
+
+fs::path Updates() {
+
+    return NativeRuntime() / L"updates-staging";
+}
+
+fs::path Backups() {
+    return TemporaryBasePath() / L"OmniGhost" / L"update-backups" / InstallIdentity();
+}
+
+bool EnsureUserDirectories() {
+
+
+
+    const std::array<fs::path, 3> directories = {
+        LocalData(),
+        NativeRuntime(),
+        Configs(),
+    };
+
+    for (const fs::path& directory : directories) {
+        std::error_code error;
+        fs::create_directories(directory, error);
+        if (error || !fs::exists(directory, error) || !fs::is_directory(directory, error))
+            return false;
+    }
+
+    return true;
+}
+
+void MigrateLegacyUserData() {
+    EnsureUserDirectories();
+
+
+
+
+
+    fs::path volumeRoot = Executable().root_path();
+    if (volumeRoot.empty()) {
+        volumeRoot = EnvironmentPath(L"SystemDrive");
+        if (!volumeRoot.empty() && volumeRoot.filename() == volumeRoot)
+            volumeRoot /= L"\\";
+    }
+    const fs::path portableRoot = volumeRoot / L"OmniGhost";
+    std::error_code equivalentError;
+    const bool sameRoot = fs::exists(portableRoot, equivalentError) &&
+        fs::exists(LocalData(), equivalentError) &&
+        fs::equivalent(portableRoot, LocalData(), equivalentError) &&
+        !equivalentError;
+    if (!sameRoot) {
+        static constexpr std::array<const wchar_t*, 2> mutableDirectories = {
+            L"Configs", L"CS2"
+        };
+        for (const wchar_t* name : mutableDirectories)
+            CopyMissing(portableRoot / name, LocalData() / name);
+
+        static constexpr std::array<const wchar_t*, 6> mutableFiles = {
+            L"license.dat", L"auth.dat", L"settings.cfg", L"launcher_state.cfg",
+            L"imgui.ini", L"logs.txt"
+        };
+        for (const wchar_t* name : mutableFiles)
+            CopyFileMissing(portableRoot / name, LocalData() / name);
+    }
+
+    const fs::path install = InstallDirectory();
+    CopyFileMissing(install / L"imgui.ini", LocalData() / L"imgui.ini");
+    CopyMissing(install / L"Configs", Configs());
+    CopyMissing(install / L"configs", Configs());
+
+#ifdef OMNIGHOST_DEV_EXTERNAL_RESOURCES
+
+
+    const fs::path legacyData = install / L"data";
+    std::error_code error;
+    if (fs::exists(legacyData, error)) {
+        for (const auto& entry : fs::directory_iterator(legacyData, error)) {
+            if (entry.is_regular_file(error) && entry.path().extension() == L".cfg") {
+                const fs::path target = Cs2Configs() / entry.path().filename();
+                if (!fs::exists(target, error))
+                    fs::copy_file(entry.path(), target, error);
+            }
+            error.clear();
+        }
+    }
+#endif
+
+
+
+
+    std::error_code cleanupError;
+    fs::remove_all(LocalData() / L"runtime", cleanupError);
+    cleanupError.clear();
+    fs::remove_all(LocalData() / L"backups", cleanupError);
+    cleanupError.clear();
+    fs::remove(LocalData() / L"post-auth-stage.txt", cleanupError);
+    cleanupError.clear();
+    fs::remove(LocalData() / L"logs.txt.prev", cleanupError);
+    cleanupError.clear();
+    for (fs::directory_iterator it(LocalData(), fs::directory_options::skip_permission_denied,
+             cleanupError), end; it != end; it.increment(cleanupError)) {
+        if (cleanupError) { cleanupError.clear(); continue; }
+        const std::wstring name = it->path().filename().wstring();
+        if (name.starts_with(L"run-state-") && it->is_regular_file(cleanupError))
+            fs::remove(it->path(), cleanupError);
+        cleanupError.clear();
+    }
+}
+
+
+
+
+}

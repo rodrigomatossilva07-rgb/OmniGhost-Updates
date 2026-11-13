@@ -1,0 +1,105 @@
+{
+  "animationsystem.dll": {
+    "pAnimationSystemUtils": 8648376
+  },
+  "client.dll": {
+    "C_CSPlayerPawn_GetAimPunch": 8734336,
+    "GetViewAngles": 12003888,
+    "SetViewAngles": 12069008,
+    "dwCSGOInput": 39324176,
+    "dwEntityList": 41024440,
+    "dwGameEntitySystem": 41024440,
+    "dwGameEntitySystem_highestEntityIndex": 8480,
+    "dwGameRules": 39232504,
+    "dwGlobalVars": 35868936,
+    "dwGlowManager": 39219488,
+    "dwLocalPlayerController": 39069000,
+    "dwLocalPlayerPawn": 39233864,
+    "dwPlantedC4": 38603632,
+    "dwPrediction": 39233616,
+    "dwSensitivity": 39222336,
+    "dwSensitivity_sensitivity": 88,
+    "dwViewAngles": 39325848,
+    "dwViewMatrix": 39256656,
+    "dwViewRender": 39259160,
+    "dwWeaponC4": 38596888,
+    "pCSGOInputInstance": 39324176,
+    "pCSInventoryManager": 38657232,
+    "pClientMode": 39315312,
+    "pDynamicLightManager": 39185720,
+    "pEconItemSystem": 39818352,
+    "pEntitySystem": 37489168,
+    "pGameEntitySystem": 41024440,
+    "pGameEventManager": 39128576,
+    "pGameRules": 39232504,
+    "pGameTraceManager": 35831720,
+    "pGlobalVariables": 35868936,
+    "pGlowManager": 39219488,
+    "pHudPanel": 39696072,
+    "pInterpolationPhase": 35405984,
+    "pInventoryCategoryTree": 39813568,
+    "pLocalPlayerController": 39069000,
+    "pMainMenuPanel": 39643464,
+    "pMatchFramework": 41558304,
+    "pMatchmakingReservation": 39312048,
+    "pMaterialManager": 41558624,
+    "pParticleManager": 35832392,
+    "pPlantedC4s": 38603632,
+    "pPrediction": 39233616,
+    "pPredictionPlayer": 39172696,
+    "pPredictionRandomSeed": 35421840,
+    "pRenderGameSystem": 37495376,
+    "pSensitivity": 39222336,
+    "pUIInventory": 38995904,
+    "pUiEngine": 41128416,
+    "pViewRender": 39259160,
+    "pViewToProjectionMatrix": 39256592,
+    "pWeaponC4": 38596888,
+    "pWorldToProjectionMatrix": 39256656
+  },
+  "engine2.dll": {
+    "dwBuildNumber": 7053352,
+    "dwNetworkGameClient": 10193088,
+    "dwNetworkGameClient_clientTickCount": 920,
+    "dwNetworkGameClient_deltaTick": 588,
+    "dwNetworkGameClient_isBackgroundMap": 2888767,
+    "dwNetworkGameClient_localPlayer": 248,
+    "dwNetworkGameClient_maxClients": 576,
+    "dwNetworkGameClient_serverTickCount": 588,
+    "dwNetworkGameClient_signOnState": 560,
+    "dwWindowHeight": 10211308,
+    "dwWindowWidth": 10211304,
+    "pBuildNumber": 7053352,
+    "pFrameInputRing": 10202288,
+    "pFrameInputRingIndex": 10201500,
+    "pNetworkGameClient": 10193088,
+    "pPVSManager": 7078912,
+    "pWindowHeight": 10211308,
+    "pWindowWidth": 10211304
+  },
+  "inputsystem.dll": {
+    "dwInputSystem": 289728,
+    "pInputSystemSvc": 289728
+  },
+  "matchmaking.dll": {
+    "dwGameTypes": 1773520
+  },
+  "networksystem.dll": {
+    "pNetworkSystem": 2691488
+  },
+  "scenesystem.dll": {
+    "pSceneLightDataQueue": 9574952,
+    "pSceneSystem": 9567008
+  },
+  "schemasystem.dll": {
+    "pSchemaSystem": 485136
+  },
+  "soundsystem.dll": {
+    "dwSoundSystem": 5448736,
+    "pSoundSystem": 5448736
+  },
+  "tier0.dll": {
+    "pCVar": 3851888,
+    "pCvarRegistry": 3839336
+  }
+}

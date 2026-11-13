@@ -1,0 +1,12 @@
+#pragma once
+
+
+#define IDI_OMNIGHOST_ICON 101
+
+
+#define IDR_OFFSETS_FORTNITE 201
+#define IDR_OFFSETS_WARZONE  202
+#define IDR_OFFSETS_CS2      203
+#define IDR_OFFSETS_RUST     204
+#define IDR_OFFSETS_FIVEM    205
+

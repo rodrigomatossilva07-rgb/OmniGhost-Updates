@@ -1,0 +1,18 @@
+OmniGhost FiveM offsets
+build=3889
+family=legacy
+module=FiveM_b3889_GTAProcess.exe
+
+camera=0x1F6C480
+replay_interface=0x1EC2BB8
+viewport=0x1F6B320
+world=0x2503A58
+player_info=0x10A8
+
+# validation
+# camera=confirmed (camera position and direction confirmed)
+# ped_pool=rejected (pool layout validation failed)
+# replay_interface=confirmed (replay interface, list, capacity and count confirmed)
+# viewport=confirmed (finite non-degenerate matrix confirmed at +0x24C)
+# world=confirmed (local player, health and position confirmed)
+# player_info=confirmed (local ped, name, Net ID and wanted level confirmed)

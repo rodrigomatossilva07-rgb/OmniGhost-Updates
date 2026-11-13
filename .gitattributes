@@ -1,0 +1,12 @@
+
+
+
+
+* text=auto eol=lf
+
+
+
+src/project/third_party/** -text
+
+
+src/games/Cs2/collision/*.tri filter=lfs diff=lfs merge=lfs -text

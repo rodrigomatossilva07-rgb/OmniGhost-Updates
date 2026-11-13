@@ -1,0 +1,164 @@
+#pragma once
+
+#include <string>
+#include <string_view>
+#include <atomic>
+#include <optional>
+#include <mutex>
+
+namespace OmniGhost {
+
+enum class ActiveGame : int {
+    FiveM = 0,
+    CS2 = 1,
+    Rust = 2,
+    Warzone = 3,
+    Fortnite = 5,
+    Apex = 6
+};
+
+class GameContext {
+public:
+    GameContext() = default;
+    ~GameContext() = default;
+
+    GameContext(const GameContext&) = delete;
+    GameContext& operator=(const GameContext&) = delete;
+    GameContext(GameContext&&) = default;
+    GameContext& operator=(GameContext&&) = default;
+
+
+    [[nodiscard]] ActiveGame GetActiveGame() const noexcept {
+        return activeGame_.load(std::memory_order_acquire);
+    }
+
+    void SetActiveGame(ActiveGame game) noexcept {
+        activeGame_.store(game, std::memory_order_release);
+    }
+
+
+    [[nodiscard]] std::string GetValidExecutable() const {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return validExecutable_;
+    }
+
+    void SetValidExecutable(std::string_view exe) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        validExecutable_ = exe;
+    }
+
+    void ClearValidExecutable() noexcept {
+        std::lock_guard<std::mutex> lock(mutex_);
+        validExecutable_.clear();
+    }
+
+    [[nodiscard]] bool HasValidExecutable() const noexcept {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return !validExecutable_.empty();
+    }
+
+
+    [[nodiscard]] bool IsInSession() const noexcept {
+        return inSession_.load(std::memory_order_acquire);
+    }
+
+    void SetInSession(bool inSession) noexcept {
+        inSession_.store(inSession, std::memory_order_release);
+    }
+
+
+    [[nodiscard]] std::string GetGamePrefix() const noexcept {
+        return GetGamePrefix(GetActiveGame());
+    }
+
+    static std::string GetGamePrefix(ActiveGame game) noexcept {
+        switch (game) {
+            case ActiveGame::CS2: return "cs2_";
+            case ActiveGame::Rust: return "rust_";
+            case ActiveGame::Warzone: return "warzone_";
+            case ActiveGame::Fortnite: return "fortnite_";
+            case ActiveGame::Apex: return "apex_";
+            default: return "fivem_";
+        }
+    }
+
+    static std::string GetGameMeta(ActiveGame game) noexcept {
+        switch (game) {
+            case ActiveGame::CS2: return "cs2";
+            case ActiveGame::Rust: return "rust";
+            case ActiveGame::Warzone: return "warzone";
+            case ActiveGame::Fortnite: return "fortnite";
+            case ActiveGame::Apex: return "apex";
+            default: return "fivem";
+        }
+    }
+
+    static bool NameBelongsToActiveGame(const std::string& name, ActiveGame game) noexcept {
+        const std::string prefix = GetGamePrefix(game);
+        return name.rfind(prefix, 0) == 0;
+    }
+
+
+    static GameContext& Instance() noexcept {
+        static GameContext instance;
+        return instance;
+    }
+
+private:
+    std::atomic<ActiveGame> activeGame_{ActiveGame::FiveM};
+    std::atomic<bool> inSession_{false};
+    std::string validExecutable_;
+    mutable std::mutex mutex_;
+};
+
+}
+
+
+
+
+
+
+using OmniGhost::ActiveGame;
+
+struct LegacyActiveGameProxy {
+    [[nodiscard]] operator ActiveGame() const noexcept {
+        return OmniGhost::GameContext::Instance().GetActiveGame();
+    }
+    LegacyActiveGameProxy& operator=(ActiveGame game) noexcept {
+        OmniGhost::GameContext::Instance().SetActiveGame(game);
+        return *this;
+    }
+    [[nodiscard]] bool operator==(ActiveGame game) const noexcept {
+        return OmniGhost::GameContext::Instance().GetActiveGame() == game;
+    }
+    [[nodiscard]] bool operator!=(ActiveGame game) const noexcept {
+        return !(*this == game);
+    }
+};
+
+struct LegacyValidExecutableProxy {
+    [[nodiscard]] operator std::string() const {
+        return OmniGhost::GameContext::Instance().GetValidExecutable();
+    }
+    LegacyValidExecutableProxy& operator=(std::string_view value) {
+        OmniGhost::GameContext::Instance().SetValidExecutable(value);
+        return *this;
+    }
+    LegacyValidExecutableProxy& operator=(const std::string& value) {
+        OmniGhost::GameContext::Instance().SetValidExecutable(value);
+        return *this;
+    }
+    LegacyValidExecutableProxy& operator=(const char* value) {
+        OmniGhost::GameContext::Instance().SetValidExecutable(value ? value : "");
+        return *this;
+    }
+    [[nodiscard]] bool empty() const noexcept {
+        return !OmniGhost::GameContext::Instance().HasValidExecutable();
+    }
+    void clear() noexcept {
+        OmniGhost::GameContext::Instance().ClearValidExecutable();
+    }
+};
+
+inline LegacyActiveGameProxy g_activeGame{};
+inline LegacyValidExecutableProxy g_validExecutable{};

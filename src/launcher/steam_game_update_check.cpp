@@ -1,0 +1,199 @@
+#include "steam_game_update_check.h"
+
+#include "../platform/app_paths.h"
+#include "../updater/http_client.h"
+
+#include <algorithm>
+#include <array>
+#include <atomic>
+#include <charconv>
+#include <chrono>
+#include <filesystem>
+#include <iostream>
+#include <mutex>
+#include <stop_token>
+#include <string_view>
+#include <thread>
+#include "platform/strprotect/strprotect.h"
+
+namespace Launcher::SteamGameUpdateCheck {
+namespace {
+namespace fs = std::filesystem;
+using Clock = std::chrono::steady_clock;
+
+struct GameQuery { GameId game; unsigned appId; const wchar_t* offsetsFile; };
+constexpr std::array<GameQuery, 2> kGames{{
+    {GameId::CS2, 730, L"cs2_offsets.json"},
+    {GameId::Warzone, 1938090, L"warzone_offsets.json"},
+}};
+
+struct SharedState {
+    std::mutex mutex;
+    std::array<Status, kGames.size()> status{};
+    std::atomic_bool checking{false};
+    std::jthread worker{};
+    Clock::time_point lastStart{};
+
+
+
+    std::array<std::uint64_t, kGames.size()> cachedTimestamps{};
+    std::array<Clock::time_point, kGames.size()> timestampNextRefresh{};
+};
+
+SharedState& Shared() { static SharedState state; return state; }
+
+const GameQuery* QueryFor(GameId game) {
+    for (const GameQuery& query : kGames) if (query.game == game) return &query;
+    return nullptr;
+}
+
+std::size_t IndexFor(GameId game) {
+    for (std::size_t index = 0; index < kGames.size(); ++index)
+        if (kGames[index].game == game) return index;
+    return kGames.size();
+}
+
+std::uint64_t FileTimestamp(const GameQuery& query) {
+    const fs::path path = OmniGhost::Paths::InstallDirectory() / std::wstring(OGS_WIDE("data")) / query.offsetsFile;
+    std::error_code error;
+    fs::path reference = path;
+
+
+
+
+    if (!fs::is_regular_file(reference, error)) {
+        error.clear();
+        reference = OmniGhost::Paths::Executable();
+    }
+    if (!fs::is_regular_file(reference, error)) return 0;
+    const auto writeTime = fs::last_write_time(reference, error);
+    if (error) return 0;
+    const auto systemTime = std::chrono::time_point_cast<std::chrono::seconds>(
+        writeTime - fs::file_time_type::clock::now() + std::chrono::system_clock::now());
+    const auto seconds = systemTime.time_since_epoch().count();
+    return seconds > 0 ? static_cast<std::uint64_t>(seconds) : 0;
+}
+
+std::uint64_t LatestNewsTimestamp(std::string_view json) {
+    std::uint64_t latest{};
+    std::size_t cursor{};
+    while ((cursor = json.find(OGS_LIT("\"date\""), cursor)) != std::string_view::npos) {
+        const std::size_t colon = json.find(':', cursor + 6);
+        if (colon == std::string_view::npos) break;
+        const std::size_t begin = json.find_first_of("0123456789", colon + 1);
+        if (begin == std::string_view::npos) break;
+        std::uint64_t value{};
+        const char* first = json.data() + begin;
+        const char* last = json.data() + json.size();
+        const auto [end, code] = std::from_chars(first, last, value);
+        if (code == std::errc{}) latest = (std::max)(latest, value);
+        cursor = static_cast<std::size_t>(end - json.data());
+    }
+    return latest;
+}
+
+Status MakeStatus(const GameQuery& query, std::uint64_t latestNews, std::string detail) {
+    Status result{};
+    result.latestNewsUnix = latestNews;
+    result.localOffsetsUnix = FileTimestamp(query);
+    result.detail = std::move(detail);
+    if (latestNews == 0) result.state = State::Unavailable;
+    else if (result.localOffsetsUnix == 0 || latestNews > result.localOffsetsUnix) result.state = State::OffsetsOutdated;
+    else result.state = State::Current;
+    return result;
+}
+
+void QuerySteam(const std::stop_token& stop) {
+    std::atomic_bool cancelled{false};
+    const std::stop_callback stopCallback(stop, [&cancelled] {
+        cancelled.store(true);
+    });
+    try {
+        OmniGhost::Update::WinHttpClient http;
+        std::array<Status, kGames.size()> results{};
+        for (std::size_t index = 0; index < kGames.size(); ++index) {
+            if (stop.stop_requested()) break;
+            const GameQuery& query = kGames[index];
+            const std::string url = OGS_LIT("https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid=")
+                + std::to_string(query.appId) + OGS_LIT("&count=1&maxlength=1&format=json");
+            const OmniGhost::Update::HttpResult response = http.GetText(url, 8000, cancelled);
+            if (response.statusCode != 200) {
+                results[index] = MakeStatus(query, 0, OGS_LIT("Não foi possível consultar a Steam agora."));
+                continue;
+            }
+            const std::uint64_t newsDate = LatestNewsTimestamp(response.body);
+            results[index] = MakeStatus(query, newsDate,
+                newsDate ? OGS_LIT("Steam consultada automaticamente.") : OGS_LIT("A Steam não devolveu notícias para este jogo."));
+        }
+        SharedState& shared = Shared();
+        { std::scoped_lock lock(shared.mutex); shared.status = std::move(results); }
+    } catch (...) {
+        std::cerr << OGS_LIT("[OmniGhost][SteamUpdate] Falha ao verificar atualizações.") << std::endl;
+    }
+    SharedState& shared = Shared();
+    shared.checking.store(false, std::memory_order_release);
+}
+}
+
+void StartForLibrary() {
+    SharedState& shared = Shared();
+    if (shared.checking.load(std::memory_order_acquire)) return;
+    const Clock::time_point now = Clock::now();
+    {
+        std::scoped_lock lock(shared.mutex);
+        if (shared.lastStart.time_since_epoch().count() != 0 && now - shared.lastStart < std::chrono::minutes(5)) return;
+        shared.lastStart = now;
+        for (Status& status : shared.status) status.state = State::Checking;
+    }
+    bool expected = false;
+    if (!shared.checking.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) return;
+    if (shared.worker.joinable())
+        shared.worker.join();
+    shared.worker = std::jthread([](std::stop_token stop) { QuerySteam(stop); });
+}
+
+void Shutdown() {
+    SharedState& shared = Shared();
+    shared.worker.request_stop();
+    if (shared.worker.joinable())
+        shared.worker.join();
+}
+
+Status Get(GameId game) {
+    const GameQuery* query = QueryFor(game);
+    const std::size_t index = IndexFor(game);
+    if (!query || index == kGames.size()) return {};
+    SharedState& shared = Shared();
+    Status result;
+    { std::scoped_lock lock(shared.mutex); result = shared.status[index]; }
+
+
+
+
+    if (shared.checking.load(std::memory_order_acquire))
+        return result;
+    const Clock::time_point now = Clock::now();
+    std::uint64_t localTimestamp = 0;
+    bool needRefresh = true;
+    {
+        std::scoped_lock lock(shared.mutex);
+        if (now < shared.timestampNextRefresh[index]) {
+            localTimestamp = shared.cachedTimestamps[index];
+            needRefresh = false;
+        }
+    }
+    if (needRefresh) {
+
+
+        localTimestamp = FileTimestamp(*query);
+        std::scoped_lock lock(shared.mutex);
+        shared.cachedTimestamps[index] = localTimestamp;
+        shared.timestampNextRefresh[index] = now + std::chrono::seconds(5);
+    }
+    result.localOffsetsUnix = localTimestamp;
+    if (result.latestNewsUnix != 0)
+        result.state = result.localOffsetsUnix == 0 || result.latestNewsUnix > result.localOffsetsUnix
+            ? State::OffsetsOutdated : State::Current;
+    return result;
+}
+}

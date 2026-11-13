@@ -1,0 +1,192 @@
+#pragma once
+#include "src/project/third_party/ImGui/imgui.h"
+
+#include <cstdint>
+#include <string>
+#include <vector>
+#include <filesystem>
+
+namespace CyberTheme {
+
+    enum class ThemeMode : int {
+        Dark = 0,
+        Light = 1,
+        System = 2
+    };
+
+    enum class AccentPreset : int {
+        Cyber = 0,
+        Gold = 1,
+        Purple = 2,
+        Matrix = 3,
+        Red = 4,
+        Blue = 5,
+        Teal = 6,
+        Orange = 7,
+        Pink = 8,
+        Custom = 99
+    };
+
+    enum class VisualStyle : int {
+        Omni = 0,
+        Obsidian,
+        Azure,
+        Violet,
+        Matrix,
+        Crimson,
+        Arctic
+    };
+
+    struct AccentColor {
+        ImVec4 base;
+        ImVec4 hover;
+        ImVec4 glow;
+        const char* name;
+        const char* id;
+    };
+
+
+
+
+    namespace Spacing {
+        inline float Xs = 4.0f;
+        inline float Sm = 8.0f;
+        inline float Md = 12.0f;
+        inline float Lg = 16.0f;
+        inline float Xl = 24.0f;
+        inline float Xxl = 32.0f;
+    }
+
+    namespace Radius {
+        inline float Sm = 6.0f;
+        inline float Md = 10.0f;
+        inline float Lg = 14.0f;
+    }
+
+    namespace Typography {
+        inline float Title = 20.0f;
+        inline float Heading = 16.0f;
+        inline float Body = 14.0f;
+        inline float Caption = 11.5f;
+        inline float Mono = 11.0f;
+    }
+
+    namespace Shadow {
+        inline float SoftOffsetY = 5.0f;
+        inline float SoftRadius = 12.0f;
+        inline int SoftAlpha = 46;
+    }
+
+    namespace Metrics {
+        inline float WindowWidth = 1180.0f;
+        inline float WindowHeight = 720.0f;
+        inline float WindowRounding = 14.0f;
+        inline float HeaderHeight = 70.0f;
+        inline float FooterHeight = 40.0f;
+        inline float SidebarWidth = 210.0f;
+        inline float ContentInset = 12.0f;
+        inline float ContentPaddingX = 14.0f;
+        inline float ContentPaddingY = 12.0f;
+        inline float GridGap = 12.0f;
+        inline float CardPadding = 14.0f;
+        inline float CardHeaderHeight = 42.0f;
+        inline float CardRounding = 10.0f;
+        inline float ControlHeight = 36.0f;
+        inline float ControlRounding = 8.0f;
+        inline float RowHeight = 34.0f;
+        inline float ToggleWidth = 48.0f;
+        inline float ToggleHeight = 25.0f;
+        inline float SearchHeight = 36.0f;
+        inline float LogoSize = 44.0f;
+        inline float SidebarItemHeight = 40.0f;
+        inline float CardMinHeight = 0.0f;
+        inline float PageTransitionSeconds = 0.20f;
+    }
+
+    struct ColorPalette {
+
+        ImVec4 Background;
+        ImVec4 Surface;
+        ImVec4 Card;
+        ImVec4 CardHover;
+
+
+
+        ImVec4 Panel;
+        ImVec4 PanelHover;
+
+        ImVec4 Gold;
+        ImVec4 GoldHover;
+        ImVec4 GoldGlow;
+        ImVec4 Text;
+        ImVec4 TextDisabled;
+        ImVec4 Border;
+        ImVec4 Success;
+        ImVec4 Warning;
+        ImVec4 Error;
+        ImVec4 Info;
+    };
+
+    extern ColorPalette Colors;
+    extern ThemeMode g_theme_mode;
+    extern AccentPreset g_accent_preset;
+    extern VisualStyle g_visual_style;
+    extern ImVec4 g_custom_accent;
+
+    void Initialize();
+    void ApplyTheme();
+    void SetUiScale(float scale);
+    float UiScale();
+    float Px(float logicalPixels);
+
+    ImU32 SafeShadowU32(int alpha);
+
+    ImVec4 Mix(const ImVec4& a, const ImVec4& b, float amount);
+    ImU32 U32(const ImVec4& color);
+    ImU32 WithAlpha(const ImVec4& color, float alpha);
+
+    void SetHighContrast(bool enabled);
+    bool IsHighContrast();
+
+    void SetThemeMode(ThemeMode mode);
+    ThemeMode GetThemeMode();
+    void SetAccentPreset(AccentPreset preset);
+    AccentPreset GetAccentPreset();
+    void SetVisualStyle(VisualStyle style);
+    VisualStyle GetVisualStyle();
+    void SetCustomAccent(const ImVec4& color);
+    const ImVec4& GetCustomAccent();
+    const std::vector<AccentColor>& GetAccentPresets();
+
+
+    struct ThemeExportData {
+        ThemeMode mode = ThemeMode::Dark;
+        AccentPreset accent = AccentPreset::Cyber;
+        VisualStyle visual_style = VisualStyle::Omni;
+        ImVec4 custom_accent = ImVec4(0.83f, 0.69f, 0.22f, 1.0f);
+        float ui_scale = 1.0f;
+        bool high_contrast = false;
+        int schema_version = 1;
+    };
+
+    bool ExportTheme(const std::filesystem::path& path, std::string* error = nullptr);
+    std::string SerializeTheme();
+    bool DeserializeTheme(const std::string& json, std::string* error = nullptr);
+
+
+
+    void DrawSubtleNoise(
+        ImDrawList* draw,
+        const ImVec2& min,
+        const ImVec2& max,
+        float opacity = 0.025f,
+        std::uint32_t seed = 0x4F474E49u,
+        int density = 420);
+
+    void DrawRadialAccent(
+        ImDrawList* draw,
+        const ImVec2& center,
+        float radius,
+        float opacity = 0.10f);
+
+}

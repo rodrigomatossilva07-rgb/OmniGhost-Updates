@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files"><UniqueIdentifier>{6628C69E-B16A-4BD0-948C-B52EA82564DB}</UniqueIdentifier><Extensions>cpp;c</Extensions></Filter>
+    <Filter Include="Header Files"><UniqueIdentifier>{C95D27ED-B8D3-4A2F-9635-45CE9EE26727}</UniqueIdentifier><Extensions>h;hpp</Extensions></Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="main.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="memory\memory.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="process\process.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="utils\utils.cpp"><Filter>Source Files</Filter></ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="build_profiles.hpp"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="patterns.hpp"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="memory\memory.hpp"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="process\process.hpp"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="utils\utils.hpp"><Filter>Header Files</Filter></ClInclude>
+  </ItemGroup>
+</Project>

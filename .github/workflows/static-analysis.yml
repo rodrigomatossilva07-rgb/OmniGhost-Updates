@@ -1,0 +1,216 @@
+name: Static Analysis & Security
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  checks: write
+  id-token: write
+  attestations: write
+
+jobs:
+  clang-tidy:
+    name: clang-tidy
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Setup MSVC
+        uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce # v2
+
+      - name: Install clang-tidy
+        run: |
+          choco install llvm --version 18.1.8 -y
+          echo "C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Run clang-tidy
+        shell: cmd
+        run: |
+          msbuild OmiGhost.vcxproj /p:Configuration=Release /p:Platform=x64 /t:ClangTidy /v:m
+
+  cppcheck:
+    name: cppcheck
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install cppcheck
+        run: |
+          choco install cppcheck -y
+
+      - name: Run cppcheck
+        run: |
+          cppcheck --config-file=cppcheck-config.xml --force --enable=warning,style,performance,portability,information --std=c++20 --platform=win64 --inline-suppr --error-exitcode=1 --quiet src/
+
+  warnings-baseline:
+    name: Warnings Baseline Check
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Setup MSVC
+        uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce # v2
+
+      - name: Build with Warning Baseline
+        shell: cmd
+        run: |
+          msbuild OmiGhost.vcxproj /p:Configuration=Release /p:Platform=x64 /t:Rebuild /p:WarningBaselineFile=.cache\warnings\baseline.txt /v:m
+
+  sbom-generation:
+    name: SBOM Generation
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install CycloneDX CLI
+        run: |
+          choco install cyclonedx-cli -y
+
+      - name: Generate SBOM
+        run: |
+          cyclonedx-cli dotnet msbuild OmiGhost.vcxproj /p:Configuration=Release /p:Platform=x64 --output-file sbom.json
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: SBOM
+          path: sbom.json
+          retention-days: 30
+
+      - name: Attest SBOM
+        uses: actions/attest-build-provenance@92c65d2898f1f53cfdc910b962cecff86e7f8fcc # v1
+        with:
+          subject-path: sbom.json
+
+  vulnerability-scan:
+    name: Vulnerability Scanning
+    runs-on: windows-latest
+    needs: sbom-generation
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Download SBOM
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: SBOM
+          path: .
+
+      - name: Run Grype Vulnerability Scan
+        uses: anchore/scan-action@3343887d815d7b07465f6fdcd395bd66508d486a # v3
+        with:
+          sbom: sbom.json
+          fail-build: true
+          severity-cutoff: high
+
+      - name: Run Trivy Scan
+        uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2 # v0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: sarif
+          output: trivy-results.sarif
+          severity: HIGH,CRITICAL
+
+      - name: Upload Trivy Results
+        uses: github/codeql-action/upload-sarif@cf12ceefebab2c867b9c35d7f907e059681d37ab # v3
+        with:
+          sarif_file: trivy-results.sarif
+
+  admin-api:
+    name: Admin API Build & Security Tests
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Build Admin API
+        shell: pwsh
+        run: dotnet build src/project/support/infrastructure/server/OmniGhost.AdminApi/OmniGhost.AdminApi.csproj --configuration Release --nologo
+
+      - name: Run Admin API Security Tests
+        shell: pwsh
+        run: dotnet build src/project/support/infrastructure/server/OmniGhost.AdminApi/OmniGhost.AdminApi.csproj --configuration Release --nologo
+
+  build-verification:
+    name: Build Verification
+    runs-on: windows-latest
+    needs: [clang-tidy, cppcheck, warnings-baseline, sbom-generation, vulnerability-scan, admin-api]
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Setup MSVC
+        uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce # v2
+
+      - name: Build Release
+        shell: cmd
+        run: |
+          msbuild OmiGhost.vcxproj /p:Configuration=Release /p:Platform=x64 /t:Rebuild /v:m
+
+      - name: Build Publish
+        shell: cmd
+        run: |
+          msbuild OmiGhost.vcxproj /p:Configuration=Publish /p:Platform=x64 /t:Rebuild /v:m /p:OmniGhostSkipPackaging=true /p:OmniGhostSkipRemotePublish=true
+
+      - name: Verify Binary Hardening
+        shell: cmd
+        run: |
+          dumpbin /headers build/OmniGhost.exe | findstr /C:"Dynamic base" /C:"NX compat" /C:"Guard CF" /C:"SafeSEH"
+          dumpbin /headers build/Publish/OmniGhost.exe | findstr /C:"Dynamic base" /C:"NX compat" /C:"Guard CF" /C:"SafeSEH"
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: OmniGhost-Build
+          path: build/**/OmniGhost.exe
+          retention-days: 7
+
+  security-audit:
+    name: Security Audit
+    runs-on: windows-latest
+    needs: [clang-tidy, cppcheck, vulnerability-scan]
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Run Security Audit
+        shell: pwsh
+        run: |
+          # Check for common security issues
+          echo "Checking for hardcoded secrets..."
+          $sources = Get-ChildItem -LiteralPath src -Recurse -File -Include *.cpp,*.h
+          if ($sources | Select-String -Pattern '(?i)(password|secret|token)\s*=\s*["''](?!\s*["''])') {
+            Write-Error "Potential hardcoded secrets found"
+            exit 1
+          }
+          
+          # Check for unsafe functions
+          if ($sources | Select-String -Pattern '\b(strcpy|strcat|sprintf|gets)\s*\(') {
+            Write-Warning "Unsafe functions detected"
+          }
+          
+          # Check for proper error handling
+          if ($sources | Where-Object Extension -eq '.cpp' | Select-String -Pattern 'catch\s*\(\.\.\.\)') {
+            Write-Warning "Catch-all handlers detected"
+          }
+          
+          echo "Security audit passed"

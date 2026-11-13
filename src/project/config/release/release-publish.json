@@ -1,0 +1,21 @@
+{
+    "enabled":  true,
+    "repository":  "rodrigomatossilva07-rgb/OmniGhost-Updates",
+    "targetBranch":  "main",
+    "draft":  false,
+    "makeLatest":  true,
+    "publishAfterBuild":  true,
+    "requireExplicitPublishCommand":  false,
+    "requireConfirmation":  false,
+    "confirmationPhrase":  "PUBLISH OMNIGHOST",
+    "preserveLocalReleaseAfterUpload":  false,
+    "cleanWorkspaceAfterVerifiedPublish":  true,
+    "requireCleanReproducibleBuild":  true,
+    "requireTagRelease":  true,
+    "allowDeterministicSourceSnapshot":  true,
+    "releaseChannel":  "stable",
+    "minimumSupportedVersion":  "1.0.0",
+    "defaultMandatory":  false,
+    "mandatoryReason":  "",
+    "appId":  "com.omnighost.launcher"
+}

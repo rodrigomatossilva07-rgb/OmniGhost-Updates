@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "resources": [
+    { "name": "GameApexBanner", "id": 401, "logicalName": "resources/games/apex/banner.png", "source": "src/project/resources/games/apex/banner.png", "type": "image", "mandatory": true },
+    { "name": "GameApexLogo", "id": 402, "logicalName": "resources/games/apex/logo.png", "source": "src/project/resources/games/apex/logo.png", "type": "image", "mandatory": true },
+    { "name": "GameCs2Banner", "id": 403, "logicalName": "resources/games/cs2/banner.png", "source": "src/project/resources/games/cs2/banner.png", "type": "image", "mandatory": true },
+    { "name": "GameCs2Logo", "id": 404, "logicalName": "resources/games/cs2/logo.png", "source": "src/project/resources/games/cs2/logo.png", "type": "image", "mandatory": true },
+    { "name": "GameFivemBanner", "id": 405, "logicalName": "resources/games/fivem/banner.png", "source": "src/project/resources/games/fivem/banner.png", "type": "image", "mandatory": true },
+    { "name": "GameFivemLogo", "id": 406, "logicalName": "resources/games/fivem/logo.png", "source": "src/project/resources/games/fivem/logo.png", "type": "image", "mandatory": true },
+    { "name": "GameFortniteBanner", "id": 407, "logicalName": "resources/games/fortnite/banner.png", "source": "src/project/resources/games/fortnite/banner.png", "type": "image", "mandatory": true },
+    { "name": "GameFortniteLogo", "id": 408, "logicalName": "resources/games/fortnite/logo.png", "source": "src/project/resources/games/fortnite/logo.png", "type": "image", "mandatory": true },
+    { "name": "GameFivemEspPreview", "id": 417, "logicalName": "resources/games/fivem/esp_preview_operator.png", "source": "src/project/resources/games/fivem/esp_preview_operator.png", "type": "image", "mandatory": true },
+    { "name": "GameWarzoneBanner", "id": 414, "logicalName": "resources/games/warzone/banner.png", "source": "src/project/resources/games/warzone/banner.png", "type": "image", "mandatory": true },
+    { "name": "GameWarzoneLogo", "id": 415, "logicalName": "resources/games/warzone/logo.png", "source": "src/project/resources/games/warzone/logo.png", "type": "image", "mandatory": true },
+    { "name": "DmaStackVersions", "id": 416, "logicalName": "runtime/dma_stack_versions.json", "source": "src/project/config/release/versions.json", "type": "json", "mandatory": true },
+    { "name": "LicenseAgreementPdf", "id": 418, "logicalName": "legal/OmniGhost_EULA_and_Terms_of_Use.pdf", "source": "src/project/resources/OmniGhost_EULA_and_Terms_of_Use.pdf", "type": "binary", "mandatory": true },
+    { "name": "FivemWebRadarHtml", "id": 419, "logicalName": "fivem/webradar/index.html", "source": "src/games/Fivem/data/webradar/index.html", "type": "text", "mandatory": true },
+    { "name": "FivemWebRadarCss", "id": 420, "logicalName": "fivem/webradar/styles.css", "source": "src/games/Fivem/data/webradar/styles.css", "type": "text", "mandatory": true },
+    { "name": "FivemWebRadarJs", "id": 421, "logicalName": "fivem/webradar/app.js", "source": "src/games/Fivem/data/webradar/app.js", "type": "text", "mandatory": true },
+    { "name": "FivemWebRadarManifest", "id": 422, "logicalName": "fivem/webradar/manifest.json", "source": "src/games/Fivem/data/webradar/manifest.json", "type": "json", "mandatory": true },
+    { "name": "FivemWebRadarServiceWorker", "id": 423, "logicalName": "fivem/webradar/sw.js", "source": "src/games/Fivem/data/webradar/sw.js", "type": "text", "mandatory": true },
+    { "name": "FivemWebRadarLogo", "id": 424, "logicalName": "fivem/webradar/omnighost.png", "source": "src/project/resources/OmniGhost.png", "type": "image", "mandatory": true }
+  ],
+  "trees": [
+    { "namePrefix": "Cs2Weapon", "idStart": 10000, "logicalPrefix": "cs2/weapons", "source": "src/games/Cs2/data/weapons", "mandatory": true },
+    { "namePrefix": "Cs2Collision", "idStart": 30000, "logicalPrefix": "cs2/collision", "source": "src/games/Cs2/collision", "extensions": [ ".tri" ], "mandatory": true },
+    { "namePrefix": "Cs2WebRadar", "idStart": 50000, "logicalPrefix": "cs2/webradar", "source": "src/games/Cs2/data/webradar", "extensions": [ ".html", ".js", ".css", ".json", ".png", ".svg" ], "mandatory": true }
+  ]
+}

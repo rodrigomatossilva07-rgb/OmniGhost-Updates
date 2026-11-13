@@ -1,0 +1,24 @@
+#pragma once
+#include "cs2_collision_mesh.h"
+#include <memory>
+#include <shared_mutex>
+#include <string>
+#include <cstdint>
+namespace CS2::Trajectory {
+class MapCollisionCache {
+public:
+
+    bool LoadForMap(const char* mapName, const std::atomic_bool* cancel = nullptr);
+    bool IsLoadedFor(const char* mapName) const;
+    void Clear();
+    std::shared_ptr<const CollisionBvh> WorldSnapshot() const;
+    std::string Map() const;
+    std::string Error() const;
+private:
+    std::string map, error;
+    std::shared_ptr<CollisionBvh> world;
+    mutable std::shared_mutex mutex;
+    std::uint64_t generation = 0;
+};
+MapCollisionCache& CollisionCache();
+}

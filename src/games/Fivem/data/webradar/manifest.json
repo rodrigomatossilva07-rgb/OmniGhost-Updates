@@ -1,0 +1,13 @@
+{
+  "name": "OmniGhost FiveM Web Radar",
+  "short_name": "OmniGhost Radar",
+  "description": "Radar FiveM em tempo real do OmniGhost.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#050608",
+  "theme_color": "#07080a",
+  "icons": [
+    { "src": "/omnighost.png", "sizes": "any", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

@@ -1,0 +1,70 @@
+#include "../../widgets.h"
+#include "cs2_game.h"
+#include "config/cs2_config.h"
+#include "config/app_settings.h"
+#include "../../localization.h"
+#include "imgui.h"
+#include "gameplay/dma_telemetry_log.h"
+#include "platform/session_log.h"
+#include <cstdio>
+
+void DrawCs2Misc()
+{
+    using namespace CyberWidgets;
+    ImGui::PushID("cs2_misc");
+    BeginCard("DIVERSOS", 0.f);
+    TextLine("Widgets e informacao util durante a partida.", TextTone::Secondary);
+    ToggleSwitch(Loc::Tr("cs2.misc.spectators"), &CS2::config.spectator_list);
+    ToggleSwitch(Loc::Tr("cs2.misc.bomb_timer"), &CS2::config.bomb_timer);
+    Separator();
+    if (CS2::config.bomb_timer) {
+        TextLine("Com o menu aberto, arrasta as janelas de bomba e espectadores para guardar a posicao.", TextTone::Secondary);
+    }
+    EndCard();
+
+    BeginCard("TELEMETRIA", 0.f);
+    TextLine(
+        "Grava no logs.txt leituras DMA, tempos de aquisicao, spikes e cada nova amostra do RCS "
+        "com precisão de milissegundos. Usa isto durante a partida e envia o ficheiro para diagnóstico.",
+        TextTone::Secondary);
+    const bool prev = CS2::config.telemetry_enabled;
+    ToggleSwitch("Telemetria", &CS2::config.telemetry_enabled);
+
+
+
+    app_settings::config.telemetry_log_enabled = CS2::config.telemetry_enabled;
+    if (CS2::config.telemetry_enabled && !prev) {
+        char blob[448];
+        std::snprintf(blob, sizeof(blob),
+            "radar=%d\naim=%d\nrcs_standalone=%d\nrcs_auto=%d\ntrigger=%d\nbomb=%d\nspectators=%d\nperf_mode=%d",
+            CS2::config.radar_2d ? 1 : 0,
+            CS2::config.aim_enabled ? 1 : 0,
+            CS2::config.aim_rcs_standalone ? 1 : 0,
+            CS2::config.aim_rcs_auto ? 1 : 0,
+            CS2::config.trigger_enabled ? 1 : 0,
+            CS2::config.bomb_timer ? 1 : 0,
+            CS2::config.spectator_list ? 1 : 0,
+            CS2::config.performance_mode ? 1 : 0);
+        OmniGhost::Gameplay::DmaTelemetry::LogConfigChanged("CS2", blob);
+        OmniGhost::SessionLog::Write(
+            OmniGhost::SessionLog::Severity::Info,
+            OmniGhost::SessionLog::Subsystem::Adapter,
+            "[CS2] Telemetria ativada — PERF/SPIKE vao para logs.txt");
+    }
+    if (CS2::config.telemetry_enabled) {
+        TextLine("Estado: a gravar (PERF ~1/s, SPIKE >= 50 ms e RCS por amostra real).", TextTone::Secondary);
+        const int pressure = CS2::DmaPressureLevel();
+        const char* budget = pressure == 0 ? "normal" : pressure == 1 ? "opcionais reduzidas" :
+            pressure == 2 ? "metadados em cache" : "recuperacao";
+        TextLineF(TextTone::Secondary, "Orcamento DMA: %s%s", budget,
+            CS2::LastSlowDmaMs() >= 300.f ? " (ultimo pico protegido)" : "");
+        TextLineF(TextTone::Secondary, "Custos recentes: arma %.1f ms | municao %.1f ms | flags/sons %.1f ms",
+            CS2::LastWeaponPhaseMs(), CS2::LastAmmoPhaseMs(), CS2::LastFlagsPhaseMs());
+        TextLine("Ficheiro: %%LOCALAPPDATA%%\\OmniGhost\\logs\\logs.txt", TextTone::Secondary);
+    } else {
+        TextLine("Estado: desligada.", TextTone::Secondary);
+    }
+    EndCard();
+
+    ImGui::PopID();
+}

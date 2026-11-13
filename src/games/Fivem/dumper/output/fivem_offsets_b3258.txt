@@ -1,0 +1,23 @@
+OmniGhost FiveM offsets
+build=3258
+module=FiveM_b3258_GTAProcess.exe
+
+aim_cped=0x1F73508
+blip_list=0x2023400
+camera=0x201E7D0
+camera_gameplay_director=0x201ED50
+game_build_string=0x22295B0
+network_object_manager=0x2982050
+network_player_manager=0x2244218
+ped_pool=0x25B1758
+player_names=0x1E63C68
+raycast_xword=0x2CFA4E0
+replay_interface=0x1FBD4F0
+sky_settings=0x2721250
+streamable_texture_dictionary=0x26671F0
+swapchain=0x2D2CAA0
+vehicle_pool=0x2F23F78
+viewport=0x201DBA0
+world=0x25B14B0
+player_info=0x10A8
+# player_info runtime_validation=local player unavailable

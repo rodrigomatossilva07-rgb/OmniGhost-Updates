@@ -1,0 +1,133 @@
+{
+    "schemaVersion":  1,
+    "minEligibleLength":  4,
+    "wrappers":  [
+                     "OGS_LIT",
+                     "OGS_ONE",
+                     "OGS_WIDE",
+                     "OGS_PACK6",
+                     "OGS_PACK7",
+                     "skCrypt"
+                 ],
+    "tier1":  [
+                  "^src/auth/",
+                  "^src/licensing/",
+                  "^src/updater/",
+                  "^src/security/",
+                  "^src/launcher/admin/",
+                  "^src/launcher/.*remote",
+                  "^src/launcher/.*update",
+                  "^src/launcher/changelog",
+                  "^src/launcher/steam_game",
+                  "^src/launcher/epic_game",
+                  "^src/platform/radar_access",
+                  "^src/games/[^/]+/radar/",
+                  "^src/makcu/",
+                  "^src/kmbox/",
+                  "^src/ferrum/"
+              ],
+    "exemptFiles":  [
+                        "^src/project/third_party/",
+                        "^src/platform/strprotect/",
+                        "^src/project/tools/",
+                        "^\\.cache/",
+                        "^build/"
+                    ],
+    "allowlist":  [
+                      {
+                          "reason":  "OGPS-ALLOW-001: alfabeto hexadecimal publico (constante padrao, contexto constexpr char[]).",
+                          "file":  "src/auth/launcher_account_service\\.cpp",
+                          "length":  16
+                      },
+                      {
+                          "reason":  "OGPS-ALLOW-002: GUID magic do WebSocket RFC 6455 (constante publica).",
+                          "file":  "src/games/(Cs2|Fivem)/radar/.*_web_radar\\.cpp",
+                          "length":  36
+                      },
+                      {
+                          "reason":  "OGPS-ALLOW-003: alfabeto Base64 RFC 4648 (constante publica).",
+                          "file":  "src/games/(Cs2|Fivem)/radar/.*_web_radar\\.cpp",
+                          "length":  64
+                      },
+                      {
+                          "reason":  "OGPS-ALLOW-004: id de produto em tabela constexpr std::string_view (nao envolvivel em tempo de execucao).",
+                          "file":  "src/licensing/license_service\\.cpp",
+                          "length":  5
+                      },
+                      {
+                          "reason":  "OGPS-ALLOW-004: id de produto em tabela constexpr std::string_view.",
+                          "file":  "src/licensing/license_service\\.cpp",
+                          "length":  3
+                      },
+                      {
+                          "reason":  "OGPS-ALLOW-004: id de produto em tabela constexpr std::string_view.",
+                          "file":  "src/licensing/license_service\\.cpp",
+                          "length":  4
+                      },
+                      {
+                          "reason":  "OGPS-ALLOW-004: id de produto em tabela constexpr std::string_view.",
+                          "file":  "src/licensing/license_service\\.cpp",
+                          "length":  7
+                      },
+                      {
+                          "reason":  "OGPS-ALLOW-004: id de produto em tabela constexpr std::string_view.",
+                          "file":  "src/licensing/license_service\\.cpp",
+                          "length":  8
+                      },
+                      {
+                          "reason":  "OGPS-ALLOW-005: nome de dispositivo USB CH343 (constante de protocolo, constexpr).",
+                          "file":  "src/makcu/makcu\\.cpp",
+                          "length":  25
+                      },
+                      {
+                          "reason":  "OGPS-ALLOW-005: nome de dispositivo USB CH340 (constante de protocolo, constexpr).",
+                          "file":  "src/makcu/makcu\\.cpp",
+                          "length":  16
+                      },
+                      {
+                          "reason":  "OGPS-ALLOW-006: nomes de botoes em tabela constexpr (protocolo do dispositivo).",
+                          "file":  "src/makcu/makcu_protocol\\.cpp",
+                          "length":  4
+                      },
+                      {
+                          "reason":  "OGPS-ALLOW-006: nomes de botoes em tabela constexpr (protocolo do dispositivo).",
+                          "file":  "src/makcu/makcu_protocol\\.cpp",
+                          "length":  5
+                      },
+                      {
+                          "reason":  "OGPS-ALLOW-007: nome de jogo em tabela constexpr de manifestos.",
+                          "file":  "src/launcher/epic_game_update_check\\.cpp",
+                          "length":  8
+                      },
+                      {
+                          "reason":  "OGPS-ALLOW-008: alfabeto hexadecimal publico.",
+                          "file":  "src/platform/radar_access\\.cpp",
+                          "length":  16
+                      },
+                      {
+                          "reason":  "OGPS-ALLOW-009: prefixo HTTP Bearer (constante padrao).",
+                          "file":  "src/platform/radar_access\\.cpp",
+                          "length":  7
+                      },
+                      {
+                          "reason":  "OGPS-ALLOW-010: alfabeto hexadecimal publico.",
+                          "file":  "src/updater/crypto\\.cpp",
+                          "length":  16
+                      },
+                      {
+                          "reason":  "OGPS-ALLOW-010: alfabeto hexadecimal publico.",
+                          "file":  "src/updater/update_log\\.cpp",
+                          "length":  16
+                      },
+                      {
+                          "reason":  "OGPS-ALLOW-006: nome de botao em tabela constexpr (protocolo do dispositivo).",
+                          "file":  "src/makcu/makcu_protocol\\.cpp",
+                          "length":  6
+                      },
+                      {
+                          "reason":  "OGPS-ALLOW-006: nome de botao em tabela constexpr (protocolo do dispositivo).",
+                          "file":  "src/makcu/makcu_protocol\\.cpp",
+                          "length":  3
+                      }
+                  ]
+}

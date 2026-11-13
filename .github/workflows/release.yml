@@ -1,0 +1,170 @@
+name: Build, test and release OmniGhost
+
+# CI-003 Fix: the publish job required github.ref_type == 'tag' but the
+# workflow only ran on workflow_dispatch, so a release could never publish.
+# Tag pushes now trigger the pipeline directly; manual dispatch stays for
+# package-only validation runs from main.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: omnighost-release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  RELEASE_REPOSITORY: rodrigomatossilva07-rgb/OmniGhost-Updates
+  RELEASE_TARGET_BRANCH: main
+
+jobs:
+  build_test_package:
+    name: Build, test and validate
+    runs-on: [self-hosted, windows]
+    timeout-minutes: 75
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      - name: Validate version and tag
+        id: version
+        shell: pwsh
+        run: |
+          $version = (Get-Content -LiteralPath src/project/config/release/version.txt -Raw).Trim()
+          if ($version -notmatch '^(0|[1-9]\d*)\.[0-9]\.[0-9]$') {
+            throw "Invalid OmniGhost version '$version'. MINOR and PATCH must be 0..9."
+          }
+          if ('${{ github.ref_type }}' -eq 'tag' -and '${{ github.ref_name }}' -cne "v$version") {
+            throw "Tag '${{ github.ref_name }}' does not match src/project/config/release/version.txt (v$version)."
+          }
+          if (git status --porcelain --untracked-files=normal) {
+            throw 'Checkout is not clean before the release build.'
+          }
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Configure MSBuild
+        uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce # v2
+
+      - name: Validate project and release policy
+        shell: pwsh
+        run: |
+          ./src/project/tools/Validate-Project.ps1 -ProjectDir .
+          ./src/project/tools/Test-ReleaseEngineering.ps1 -ProjectDir .
+          ./src/project/tools/Audit-UiLocalization.ps1 -ProjectDir . -ReportPath artifacts/validation/localization.json
+
+      - name: Build customer binary
+        shell: pwsh
+        run: |
+          msbuild OmiGhost.vcxproj /m:1 /nr:false `
+            /p:Configuration=Publish /p:Platform=x64 /p:PlatformToolset=v145 `
+            /p:OmniGhostSkipPackaging=true /p:OmniGhostSkipRemotePublish=true `
+            /p:OmniGhostSkipVersionAdvance=true
+
+      - name: Package, generate SBOM and audit dependencies
+        shell: pwsh
+        run: |
+          ./src/project/tools/Package-Release.ps1 `
+            -ProjectDir . `
+            -BuildDir ./build/Publish `
+            -Mode Publish
+
+      - name: Validate final release assets
+        shell: pwsh
+        run: |
+          ./src/project/tools/Validate-ReleaseArtifacts.ps1 `
+            -ProjectDir . `
+            -ReleaseDirectory ./artifacts/release `
+            -Version '${{ steps.version.outputs.version }}'
+
+      - name: Upload validated release assets
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: omnighost-release-${{ steps.version.outputs.version }}
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            artifacts/release/OmniGhost.zip
+            artifacts/release/update.json
+            artifacts/release/install-manifest.sha256
+            artifacts/release/SBOM.cdx.json
+            artifacts/release/changelog.json
+            artifacts/release/release-notes.md
+            artifacts/release/release-meta.json
+            artifacts/release/SHA256SUMS.txt
+
+      - name: Upload engineering validation reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: engineering-validation-${{ steps.version.outputs.version }}
+          if-no-files-found: warn
+          retention-days: 30
+          path: artifacts/validation
+
+  publish:
+    name: Publish approved tag
+    if: github.ref_type == 'tag'
+    needs: build_test_package
+    runs-on: [self-hosted, windows]
+    timeout-minutes: 20
+    environment: production
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout release scripts
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      - name: Download validated assets
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: omnighost-release-${{ needs.build_test_package.outputs.version }}
+          path: artifacts/release
+
+      - name: Resolve and revalidate release version
+        id: version
+        shell: pwsh
+        run: |
+          $version = (Get-Content -LiteralPath src/project/config/release/version.txt -Raw).Trim()
+          if ('${{ github.ref_name }}' -cne "v$version") { throw 'Tag/version mismatch.' }
+          ./src/project/tools/Validate-ReleaseArtifacts.ps1 -ProjectDir . -ReleaseDirectory ./artifacts/release -Version $version
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Create minimal public release from validated assets
+        id: publish_release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.OMNIGHOST_RELEASE_TOKEN }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:GH_TOKEN)) {
+            throw 'OMNIGHOST_RELEASE_TOKEN is required for the separate release repository.'
+          }
+          $tag = '${{ github.ref_name }}'
+          $repo = $env:RELEASE_REPOSITORY
+          gh release view $tag --repo $repo *> $null
+          if ($LASTEXITCODE -eq 0) {
+            throw "Release $tag already exists in $repo; refusing to treat a prior upload as validated by this workflow."
+          }
+          gh release create $tag --repo $repo --target $env:RELEASE_TARGET_BRANCH --draft --title "OmniGhost $tag" --notes ' ' `
+            artifacts/release/OmniGhost.zip `
+            artifacts/release/update.json
+          if ($LASTEXITCODE -ne 0) { throw 'Could not create the complete draft release.' }
+          $view = gh release view $tag --repo $repo --json isDraft,assets | ConvertFrom-Json
+          $expected = @('OmniGhost.zip','update.json')
+          $actual = @($view.assets | ForEach-Object name)
+          foreach ($asset in $expected) {
+            if ($asset -notin $actual) { throw "Draft release is incomplete: $asset missing." }
+          }
+          gh release edit $tag --repo $repo --draft=false --latest
+          if ($LASTEXITCODE -ne 0) { throw 'Assets were uploaded, but the draft could not be published.' }
+          "published=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8

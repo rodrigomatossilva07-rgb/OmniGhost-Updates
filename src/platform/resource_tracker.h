@@ -1,0 +1,99 @@
+#pragma once
+
+#include <atomic>
+#include <chrono>
+#include <cstdint>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <mutex>
+#include <unordered_map>
+
+namespace OmniGhost::Platform {
+
+
+
+
+class ResourceTracker {
+public:
+    struct Snapshot {
+        uint32_t threadCount = 0;
+        uint64_t handleCount = 0;
+        uint64_t memoryBytes = 0;
+        uint64_t gdiObjects = 0;
+        uint64_t userObjects = 0;
+        std::chrono::steady_clock::time_point timestamp;
+    };
+
+    static ResourceTracker& Instance() noexcept {
+        static ResourceTracker instance;
+        return instance;
+    }
+
+
+    Snapshot TakeSnapshot() const noexcept;
+
+
+    void SetBaseline() noexcept {
+        const Snapshot snapshot = TakeSnapshot();
+
+
+        std::lock_guard lock(baselineMutex_);
+        baseline_ = snapshot;
+        hasBaseline_ = true;
+    }
+
+
+    struct Delta {
+        int32_t threadDelta = 0;
+        int64_t handleDelta = 0;
+        int64_t memoryDelta = 0;
+        int64_t gdiDelta = 0;
+        int64_t userDelta = 0;
+        bool hasLeak = false;
+    };
+
+    [[nodiscard]] std::optional<Delta> GetDelta() const noexcept {
+        Snapshot baseline{};
+        {
+            std::lock_guard lock(baselineMutex_);
+            if (!hasBaseline_) return std::nullopt;
+            baseline = baseline_;
+        }
+        Snapshot current = TakeSnapshot();
+        Delta delta;
+        delta.threadDelta = static_cast<int32_t>(current.threadCount) - static_cast<int32_t>(baseline.threadCount);
+        delta.handleDelta = static_cast<int64_t>(current.handleCount) - static_cast<int64_t>(baseline.handleCount);
+        delta.memoryDelta = static_cast<int64_t>(current.memoryBytes) - static_cast<int64_t>(baseline.memoryBytes);
+        delta.gdiDelta = static_cast<int64_t>(current.gdiObjects) - static_cast<int64_t>(baseline.gdiObjects);
+        delta.userDelta = static_cast<int64_t>(current.userObjects) - static_cast<int64_t>(baseline.userObjects);
+        delta.hasLeak = (delta.threadDelta > 0 || delta.handleDelta > 0 ||
+                         delta.memoryDelta > 1024 * 1024 ||
+                         delta.gdiDelta > 0 || delta.userDelta > 0);
+        return delta;
+    }
+
+
+    void LogUsage(std::string_view context) noexcept;
+
+
+    void Reset() noexcept {
+        std::lock_guard lock(baselineMutex_);
+        hasBaseline_ = false;
+    }
+
+
+    [[nodiscard]] Snapshot GetCurrentSnapshot() const noexcept {
+        return TakeSnapshot();
+    }
+
+
+
+private:
+    ResourceTracker() = default;
+    mutable std::mutex baselineMutex_;
+    Snapshot baseline_;
+    bool hasBaseline_ = false;
+};
+
+}

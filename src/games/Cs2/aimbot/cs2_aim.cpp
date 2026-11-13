@@ -1,0 +1,984 @@
+#pragma warning(disable: 4100 4244)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include "cs2_aim.h"
+#include "src/games/Fivem/aimbot/aim_type.h"
+#include "gameplay/aim_controller.h"
+#include "gameplay/smooth_curves.h"
+#include "gameplay/dma_telemetry_log.h"
+#include "../rcs/recoil_reader.h"
+#include "../rcs/rcs_controller.h"
+#include "../rcs/rcs_debug.h"
+#include "imgui.h"
+#include <Windows.h>
+#include <cmath>
+#include <algorithm>
+#include <chrono>
+#include <cstdio>
+#include <array>
+#include <string>
+#include <mutex>
+#include <unordered_map>
+#include <utility>
+
+namespace CS2_Aim {
+namespace {
+
+int g_last_target_idx = -1;
+int g_active_target_idx = -1;
+std::chrono::steady_clock::time_point g_last_switch{};
+std::chrono::steady_clock::time_point g_target_acquired{};
+uintptr_t g_target_pawn = 0;
+char g_debug[128] = "aim idle";
+int g_frames_sem_bind = 0;
+float g_output_residual_x = 0.f;
+float g_output_residual_y = 0.f;
+
+struct TargetDiagnostics {
+    int scanned = 0;
+    int dead = 0;
+    int team = 0;
+    int bots = 0;
+    int spectators = 0;
+    int hidden = 0;
+    int distance = 0;
+    int projection = 0;
+    int fov = 0;
+    int eligible = 0;
+    int retained = 0;
+};
+
+TargetDiagnostics g_target_diag{};
+
+OmniGhost::Gameplay::ContinuousAimController g_aim_motion;
+Gameplay::SmoothCurves::AimHumanizer g_humanizer;
+Gameplay::SmoothCurves::SmoothCurveEvaluator g_curve_evaluator;
+
+CS2::RCS::RCSController g_rcs_controller{};
+CS2::RCS::RCSDebug g_rcs_debug{};
+std::mutex g_rcs_telemetry_mutex;
+RCSTelemetry g_rcs_telemetry{};
+
+void LogRcsTelemetrySample(const RCSTelemetry& sample, uint64_t nowMs) {
+    if (!OmniGhost::Gameplay::DmaTelemetry::IsEnabled()) return;
+    static uint64_t lastSampleMs = 0;
+    static uintptr_t lastPawn = 0;
+    if (sample.pawn != lastPawn) {
+        lastPawn = sample.pawn;
+        lastSampleMs = 0;
+    }
+    if (!sample.sampleMs || sample.sampleMs == lastSampleMs) return;
+    lastSampleMs = sample.sampleMs;
+
+    char line[1024]{};
+    const uint64_t age = nowMs >= sample.sampleMs ? nowMs - sample.sampleMs : 0;
+    std::snprintf(line, sizeof(line),
+        "RCS_SAMPLE sample_ms=%llu observed_ms=%llu age_ms=%llu pawn=0x%llX enabled=%d standalone=%d "
+        "final_punch=%d firing=%d shots=%d weapon=%d stage=%s reason=%s "
+        "pitch=%.6f yaw=%.6f delta_pitch=%.6f delta_yaw=%.6f "
+        "correction_x=%.6f correction_y=%.6f pending_x=%.6f pending_y=%.6f "
+        "sent_x=%d sent_y=%d produced=%d",
+        static_cast<unsigned long long>(sample.sampleMs),
+        static_cast<unsigned long long>(sample.observedMs),
+        static_cast<unsigned long long>(age),
+        static_cast<unsigned long long>(sample.pawn),
+        sample.enabled ? 1 : 0, sample.standalone ? 1 : 0,
+        sample.finalPunch ? 1 : 0, sample.firing ? 1 : 0,
+        sample.shots, sample.weaponDefinition,
+        sample.stage[0] ? sample.stage : "none",
+        sample.reason[0] ? sample.reason : "none",
+        sample.pitch, sample.yaw, sample.deltaPitch, sample.deltaYaw,
+        sample.correctionX, sample.correctionY, sample.pendingX, sample.pendingY,
+        sample.sentX, sample.sentY, sample.correctionProduced ? 1 : 0);
+    OmniGhost::Gameplay::DmaTelemetry::LogRcsSample(line);
+}
+
+bool W2S(const float* world, const float* vm, float& sx, float& sy) {
+    const ImVec2 ds = ImGui::GetIO().DisplaySize;
+    if (ds.x < 10.f || ds.y < 10.f) return false;
+    const float clipX = world[0] * vm[0]  + world[1] * vm[1]  + world[2] * vm[2]  + vm[3];
+    const float clipY = world[0] * vm[4]  + world[1] * vm[5]  + world[2] * vm[6]  + vm[7];
+    const float clipW = world[0] * vm[12] + world[1] * vm[13] + world[2] * vm[14] + vm[15];
+    if (!std::isfinite(clipW) || clipW < 0.001f) return false;
+    const float inv = 1.f / clipW;
+    sx = (ds.x * 0.5f) + (0.5f * clipX * inv * ds.x);
+    sy = (ds.y * 0.5f) - (0.5f * clipY * inv * ds.y);
+    return std::isfinite(sx) && std::isfinite(sy);
+}
+
+
+void PickBone(const CS2::Player& p, int bone, float out[3]) {
+
+
+
+
+    const uint64_t now_ms = CS2::SampleClockMs();
+    const bool bonesFresh = p.bones_ok && p.bone_pose_sample_ms != 0 &&
+        now_ms >= p.bone_pose_sample_ms &&
+        (now_ms - p.bone_pose_sample_ms) <= 250u;
+    if (bonesFresh) {
+        const float* selected = p.bones[0];
+        switch (bone) {
+        case 1: selected = p.bones[1]; break;
+        case 2: selected = p.bones[2]; break;
+        case 3: selected = p.bones[4]; break;
+        case 4: selected = p.bones[static_cast<std::size_t>(CS2::BoneSlot::Pelvis)]; break;
+        case 5: selected = p.bones[static_cast<std::size_t>(CS2::BoneSlot::KneeLeft)]; break;
+        case 6: selected = p.bones[static_cast<std::size_t>(CS2::BoneSlot::KneeRight)]; break;
+        default: selected = p.bones[0]; break;
+        }
+        out[0] = selected[0];
+        out[1] = selected[1];
+        out[2] = selected[2];
+        return;
+    }
+    float height = 72.f;
+    switch (bone) {
+    case 1: height = 62.f; break;
+    case 2: height = 46.f; break;
+    case 3: height = 36.f; break;
+    case 4: height = 28.f; break;
+    case 5: case 6: height = 18.f; break;
+    default: break;
+    }
+    out[0] = p.pos[0];
+    out[1] = p.pos[1];
+    out[2] = p.pos[2] + height;
+}
+
+
+
+std::pair<int, int> MoveMouse(float dx, float dy) {
+
+
+    const float desired_x = dx + g_output_residual_x;
+    const float desired_y = dy + g_output_residual_y;
+    int whole_x = static_cast<int>(std::lround(desired_x));
+    int whole_y = static_cast<int>(std::lround(desired_y));
+    g_output_residual_x = std::clamp(desired_x - static_cast<float>(whole_x), -0.95f, 0.95f);
+    g_output_residual_y = std::clamp(desired_y - static_cast<float>(whole_y), -0.95f, 0.95f);
+    if (whole_x == 0 && whole_y == 0) return {0, 0};
+
+    int left_x = whole_x;
+    int left_y = whole_y;
+    for (int n = 0; n < 12 && (left_x != 0 || left_y != 0); ++n) {
+        int sx = left_x; if (sx > 127) sx = 127; if (sx < -127) sx = -127;
+        int sy = left_y; if (sy > 127) sy = 127; if (sy < -127) sy = -127;
+        if (sx == 0 && sy == 0) break;
+        aim_type::Move(sx, sy);
+        left_x -= sx;
+        left_y -= sy;
+    }
+    return {whole_x - left_x, whole_y - left_y};
+}
+
+void Click() {
+    aim_type::LeftClick();
+    aim_type::LeftClickRelease();
+}
+
+bool KeyDown(int vk) {
+    if (vk <= 0) return false;
+    return aim_type::IsDown(vk) || ((GetKeyState(vk) & 0x8000) != 0);
+}
+
+bool AimKeyDown(const CS2::Config& cfg) {
+
+    if (!cfg.aim_enabled) return false;
+    if (cfg.aim_bind > 0 && KeyDown(cfg.aim_bind)) return true;
+    if (cfg.aim_bind2 > 0 && KeyDown(cfg.aim_bind2)) return true;
+    if (cfg.aim_bind3 > 0 && KeyDown(cfg.aim_bind3)) return true;
+    return false;
+}
+
+bool IsFirearm(int definition) {
+    switch (definition) {
+    case 1: case 2: case 3: case 4:
+    case 7: case 8: case 9: case 10: case 11:
+    case 13: case 14: case 16: case 17: case 19:
+    case 23: case 24: case 25: case 26: case 27:
+    case 28: case 29: case 30: case 32: case 33:
+    case 34: case 35: case 36: case 38: case 39:
+    case 40: case 60: case 61: case 63: case 64:
+        return true;
+    default:
+        return false;
+    }
+}
+
+float EffectiveFov(const CS2::Config& cfg, float distance_m) {
+    float fov = cfg.aim_fov > 1.f ? cfg.aim_fov : 80.f;
+    if (!cfg.aim_dynamic_fov) return fov;
+    const float distance = std::max(distance_m, 0.f);
+    for (std::size_t i = 1; i < std::size(cfg.aim_fov_curve_distance); ++i) {
+        const float leftDistance = cfg.aim_fov_curve_distance[i - 1];
+        const float rightDistance = std::max(cfg.aim_fov_curve_distance[i], leftDistance + .01f);
+        if (distance <= rightDistance) {
+            const float t = std::clamp((distance - leftDistance) / (rightDistance - leftDistance), 0.f, 1.f);
+            return std::lerp(cfg.aim_fov_curve_value[i - 1], cfg.aim_fov_curve_value[i], t);
+        }
+    }
+    return cfg.aim_fov_curve_value[std::size(cfg.aim_fov_curve_value) - 1];
+}
+
+float WeaponThreat(int definition) noexcept {
+    switch (definition) {
+    case 9: case 11: case 38: case 40: return 1.f;
+    case 7: case 8: case 10: case 13: case 16: case 39: case 60: return .75f;
+    case 1: case 2: case 3: case 4: case 30: case 32: case 36: case 61: case 63: case 64: return .45f;
+    default: return .2f;
+    }
+}
+
+bool BoneVisibilityKnown(const CS2::Player& player, int bone) noexcept;
+bool BoneVisible(const CS2::Player& player, int bone) noexcept;
+
+int AutoSelectBone(const CS2::Player& p, int weapon_def, float distance_m, bool auto_bone_enabled, int fallback_bone) {
+    if (!auto_bone_enabled) return fallback_bone;
+
+    bool is_sniper = (weapon_def == 9 || weapon_def == 11 || weapon_def == 38 || weapon_def == 40);
+    bool is_rifle = (weapon_def == 7 || weapon_def == 8 || weapon_def == 10 || weapon_def == 13 || weapon_def == 16 || weapon_def == 39 || weapon_def == 60);
+    bool is_pistol = (weapon_def >= 1 && weapon_def <= 4) || weapon_def == 30 || weapon_def == 32 || weapon_def == 36 || weapon_def == 61 || weapon_def == 63 || weapon_def == 64;
+
+    int preferred = 0;
+    if (is_sniper) preferred = 0;
+    else if (is_rifle) preferred = (distance_m > 50.f) ? 0 : 1;
+    else if (is_pistol) preferred = (distance_m > 30.f) ? 1 : 2;
+    else preferred = 0;
+
+
+
+
+    constexpr int kAllBones[] = { 0, 1, 2, 3, 4, 5, 6 };
+    if (BoneVisible(p, preferred)) return preferred;
+    for (const int bone : kAllBones) {
+        if (bone != preferred && BoneVisible(p, bone)) return bone;
+    }
+    return BoneVisibilityKnown(p, preferred) ? -1 : fallback_bone;
+}
+
+bool BoneVisibilityKnown(const CS2::Player& player, int bone) noexcept {
+    if (bone < 0 || bone > 6) return false;
+    return (player.bone_visibility_known_mask & static_cast<uint8_t>(1u << bone)) != 0;
+}
+
+bool BoneVisible(const CS2::Player& player, int bone) noexcept {
+    return BoneVisibilityKnown(player, bone) &&
+        (player.bone_visibility_mask & static_cast<uint8_t>(1u << bone)) != 0;
+}
+
+int SelectAimBone(const CS2::Player& player, const CS2::Config& cfg, int weaponDefinition) {
+    const int fallback = std::clamp(cfg.aim_bone, 0, 6);
+    if (cfg.aim_visible_bones_only) {
+        for (const int configured : cfg.aim_bone_priority) {
+            const int bone = std::clamp(configured, 0, 6);
+            if (BoneVisible(player, bone)) return bone;
+        }
+        return -1;
+    }
+    return cfg.aim_auto_bone
+        ? AutoSelectBone(player, weaponDefinition, player.distance, true, fallback)
+        : fallback;
+}
+
+struct TargetCandidate {
+    int index = -1;
+    uintptr_t pawn = 0;
+    float error_x = 0.f;
+    float error_y = 0.f;
+    float screen_distance = FLT_MAX;
+    float distance_m = 0.f;
+    float score = FLT_MAX;
+    float velocity_x = 0.f;
+    float velocity_y = 0.f;
+    float velocity_z = 0.f;
+    float prev_velocity_x = 0.f;
+    float prev_velocity_y = 0.f;
+    float prev_velocity_z = 0.f;
+    int weapon_def = 0;
+    int bone = 0;
+};
+
+struct MotionHistory {
+    std::array<float, 3> velocity{};
+    std::array<float, 3> acceleration{};
+    uint64_t sample_ms = 0;
+    bool initialized = false;
+};
+
+static std::unordered_map<uintptr_t, MotionHistory> g_motion_history;
+
+void EnsureMotionHistoryCapacity() {
+    if (g_motion_history.bucket_count() < 128) g_motion_history.reserve(128);
+}
+
+float Length3(const std::array<float, 3>& value) noexcept {
+    return std::sqrt(value[0] * value[0] + value[1] * value[1] + value[2] * value[2]);
+}
+
+void ClampMagnitude(std::array<float, 3>& value, float maximum) noexcept {
+    const float length = Length3(value);
+    if (length <= maximum || length <= 0.0001f) return;
+    const float scale = maximum / length;
+    value[0] *= scale;
+    value[1] *= scale;
+    value[2] *= scale;
+}
+
+
+
+
+void ApplyRobustPrediction(float point[3], const CS2::Player& player,
+                           const CS2::Runtime& rt, const CS2::Config& cfg,
+                           uint64_t now_ms) {
+    if (!cfg.aim_prediction || !player.pawn) return;
+    EnsureMotionHistoryCapacity();
+
+    const uint64_t sample_ms = player.position_sample_ms ? player.position_sample_ms :
+        (rt.snapshot_timestamp_ms ? rt.snapshot_timestamp_ms : now_ms);
+    if (g_motion_history.size() > 96) {
+        for (auto it = g_motion_history.begin(); it != g_motion_history.end();) {
+            if (!it->second.sample_ms || now_ms - it->second.sample_ms > 5000u)
+                it = g_motion_history.erase(it);
+            else
+                ++it;
+        }
+    }
+    auto& history = g_motion_history[player.pawn];
+    std::array<float, 3> raw_velocity{ player.velocity[0], player.velocity[1], player.velocity[2] };
+    std::array<float, 3> filtered_velocity = raw_velocity;
+    bool reversal = false;
+
+    if (history.initialized) {
+        const float dot = raw_velocity[0] * history.velocity[0] +
+                          raw_velocity[1] * history.velocity[1] +
+                          raw_velocity[2] * history.velocity[2];
+        reversal = dot < -25.f && Length3(raw_velocity) > 20.f && Length3(history.velocity) > 20.f;
+        const float velocity_alpha = reversal ? .78f : .42f;
+        for (int axis = 0; axis < 3; ++axis)
+            filtered_velocity[axis] = history.velocity[axis] * (1.f - velocity_alpha) + raw_velocity[axis] * velocity_alpha;
+    }
+
+    if (!history.initialized || history.sample_ms != sample_ms) {
+        std::array<float, 3> acceleration{};
+        if (history.initialized && sample_ms > history.sample_ms) {
+            const float dt = std::clamp(static_cast<float>(sample_ms - history.sample_ms) * .001f, .003f, .100f);
+            for (int axis = 0; axis < 3; ++axis)
+                acceleration[axis] = (filtered_velocity[axis] - history.velocity[axis]) / dt;
+            ClampMagnitude(acceleration, 2400.f);
+            if (reversal) acceleration = {};
+            else for (int axis = 0; axis < 3; ++axis)
+                acceleration[axis] = history.acceleration[axis] * .72f + acceleration[axis] * .28f;
+        }
+        history.velocity = filtered_velocity;
+        history.acceleration = acceleration;
+        history.sample_ms = sample_ms;
+        history.initialized = true;
+    } else {
+        filtered_velocity = history.velocity;
+    }
+
+    const float snapshot_age = sample_ms && now_ms > sample_ms
+        ? std::clamp(static_cast<float>(now_ms - sample_ms) * .001f, 0.f, .050f) : 0.f;
+    float lead = std::clamp((.004f + snapshot_age) * cfg.prediction_strength, 0.f, .045f);
+    if (reversal) lead *= .35f;
+    std::array<float, 3> displacement{};
+    const float accel_term = reversal ? 0.f : .5f * lead * lead;
+    for (int axis = 0; axis < 3; ++axis)
+        displacement[axis] = history.velocity[axis] * lead + history.acceleration[axis] * accel_term;
+
+
+
+    ClampMagnitude(displacement, std::clamp(2.f + player.distance * .055f, 4.f, 14.f));
+    for (int axis = 0; axis < 3; ++axis) point[axis] += displacement[axis];
+}
+
+TargetCandidate SelectTarget(const CS2::Runtime& rt, const CS2::Config& cfg,
+                             float cx, float cy, const float* cameraMatrix) {
+    TargetCandidate best{};
+    TargetCandidate incumbent{};
+    g_target_diag = {};
+    const uint64_t now_ms = CS2::SampleClockMs();
+
+    for (std::size_t i = 0; i < rt.players.size(); ++i) {
+        const auto& player = rt.players[i];
+        if (player.is_local) continue;
+        ++g_target_diag.scanned;
+        if (!player.alive || player.health <= 0) { ++g_target_diag.dead; continue; }
+        if (cfg.aim_ignore_team && player.team == rt.local_team && rt.local_team >= 2) { ++g_target_diag.team; continue; }
+        if (cfg.aim_ignore_bots && player.is_bot) { ++g_target_diag.bots; continue; }
+        if (cfg.aim_ignore_spectators && player.is_spectator) { ++g_target_diag.spectators; continue; }
+        if (cfg.aim_visibility_check && !player.spotted) { ++g_target_diag.hidden; continue; }
+        if (player.distance > cfg.aim_max_dist) { ++g_target_diag.distance; continue; }
+
+
+
+
+        int bone = SelectAimBone(player, cfg, rt.local_weapon_definition);
+        if (bone < 0) { ++g_target_diag.hidden; continue; }
+
+        float point[3]{};
+        PickBone(player, bone, point);
+
+        ApplyRobustPrediction(point, player, rt, cfg, now_ms);
+
+        float sx = 0.f, sy = 0.f;
+        if (!W2S(point, cameraMatrix, sx, sy)) { ++g_target_diag.projection; continue; }
+        float dx = sx - cx;
+        float dy = sy - cy;
+        float screen = std::sqrt(dx * dx + dy * dy);
+        const float effectiveFov = EffectiveFov(cfg, player.distance);
+        if (screen > effectiveFov && cfg.aim_auto_bone) {
+            for (int alternative = 0; alternative < 7; ++alternative) {
+                if (alternative == bone || !BoneVisible(player, alternative)) continue;
+                float alternativePoint[3]{};
+                PickBone(player, alternative, alternativePoint);
+                ApplyRobustPrediction(alternativePoint, player, rt, cfg, now_ms);
+                float alternativeX = 0.f, alternativeY = 0.f;
+                if (!W2S(alternativePoint, cameraMatrix, alternativeX, alternativeY)) continue;
+                const float alternativeDx = alternativeX - cx;
+                const float alternativeDy = alternativeY - cy;
+                const float alternativeScreen = std::sqrt(
+                    alternativeDx * alternativeDx + alternativeDy * alternativeDy);
+                if (alternativeScreen > effectiveFov) continue;
+                bone = alternative;
+                std::memcpy(point, alternativePoint, sizeof(point));
+                sx = alternativeX;
+                sy = alternativeY;
+                dx = alternativeDx;
+                dy = alternativeDy;
+                screen = alternativeScreen;
+                break;
+            }
+        }
+        if (screen > effectiveFov) { ++g_target_diag.fov; continue; }
+
+        ++g_target_diag.eligible;
+
+        float score = screen;
+        score += std::clamp(player.distance, 0.f, 300.f) * .018f;
+        score += std::clamp(static_cast<float>(player.health), 0.f, 100.f) * .008f;
+        if (!player.spotted) score += 18.f;
+        score -= WeaponThreat(player.weapon_def) * 2.f;
+        TargetCandidate candidate{};
+        candidate.index = static_cast<int>(i);
+        candidate.pawn = player.pawn;
+        candidate.error_x = dx;
+        candidate.error_y = dy;
+        candidate.screen_distance = screen;
+        candidate.distance_m = player.distance;
+        candidate.score = score;
+        candidate.velocity_x = player.velocity[0];
+        candidate.velocity_y = player.velocity[1];
+        candidate.velocity_z = player.velocity[2];
+        candidate.weapon_def = player.weapon_def;
+        candidate.bone = bone;
+        if (candidate.pawn == g_target_pawn) incumbent = candidate;
+        if (candidate.score < best.score) best = candidate;
+    }
+
+
+
+
+    if (incumbent.index >= 0 && best.pawn != incumbent.pawn) {
+        const float required_gain = 3.f + std::clamp(cfg.aim_switch_margin, .02f, .50f) * 32.f;
+        if ((incumbent.score - best.score) < required_gain) {
+            ++g_target_diag.retained;
+            return incumbent;
+        }
+    }
+    return best;
+}
+
+OmniGhost::Gameplay::AimMotionSettings BuildMotionSettings(const CS2::Config& cfg, float distance_m) noexcept {
+    OmniGhost::Gameplay::AimMotionSettings settings{};
+    settings.smooth = cfg.aim_smooth;
+    settings.deadzone = cfg.aim_deadzone;
+    settings.humanize = cfg.aim_humanize;
+    settings.permanent_humanize = cfg.aim_humanize;
+    settings.reaction_delay_ms_min = cfg.aim_reaction_min_ms;
+    settings.reaction_delay_ms_max = cfg.aim_reaction_max_ms;
+    settings.overshoot_px = cfg.aim_overshoot_px;
+    settings.micro_jitter_px = cfg.aim_micro_jitter_px;
+    settings.minimum_error = .35f;
+    settings.prediction = false;
+    OmniGhost::Gameplay::ApplyStableDistanceProfile(settings, distance_m);
+    settings.minimum_interval_ms = std::clamp(cfg.aim_motion_interval_ms, 1, 20);
+    settings.max_step = std::clamp(cfg.aim_max_step, 0, 48);
+    settings.ema_alpha = std::clamp(cfg.aim_ema_alpha, .15f, .85f);
+    settings.reversal_damping = std::clamp(cfg.aim_reversal_damping, .05f, .75f);
+    return settings;
+}
+
+void InitializeHumanizer() {
+    static bool initialized = false;
+    if (initialized) return;
+    initialized = true;
+
+    Gameplay::SmoothCurves::AimHumanizer::HumanizerConfig hcfg;
+    hcfg.enabled = true;
+    hcfg.micro_jitter = 0.12f;
+    hcfg.macro_drift = 0.03f;
+    hcfg.reaction_variance = 0.015f;
+    hcfg.overshoot_chance = 0.025f;
+    hcfg.overshoot_amount = 0.08f;
+    hcfg.pause_chance = 0.008f;
+    hcfg.pause_duration = 0.04f;
+    hcfg.curve_variance = 0.04f;
+    hcfg.close_range_multiplier = 0.6f;
+    hcfg.mid_range_multiplier = 1.0f;
+    hcfg.far_range_multiplier = 1.3f;
+    g_humanizer.SetConfig(hcfg);
+
+    Gameplay::SmoothCurves::SmoothCurveConfig ccfg = Gameplay::SmoothCurves::SmoothCurveEvaluator::LegitConfig();
+    ccfg.type = Gameplay::SmoothCurves::CurveType::EaseOutCubic;
+    ccfg.dynamic_adjustment = true;
+    ccfg.distance_factor = 0.03f;
+    ccfg.velocity_factor = 0.08f;
+    g_curve_evaluator.SetConfig(ccfg);
+}
+
+
+
+std::pair<float, float> CalculateRCS(const CS2::Runtime& rt, const CS2::Config& cfg,
+                                    int weapon_def) {
+
+
+
+    constexpr float kPunchDegreesToInputCounts = 18.f;
+    CS2::RCS::RCSConfig settings{};
+    settings.enabled = cfg.aim_rcs_auto || cfg.aim_rcs_standalone;
+    settings.horizontalStrength = 1.f;
+    settings.verticalStrength = 1.f;
+    // 100% represents the tuned full-strength response. The user-facing
+    // intensity slider scales this calibration directly and predictably.
+    constexpr float kTunedRcsStrength = 1.65f;
+    const float userIntensity = std::clamp(cfg.aim_rcs_scale, 0.f, 1.f);
+    settings.recoilScale = userIntensity * kPunchDegreesToInputCounts * kTunedRcsStrength;
+    // Acquisition begins with the first valid punch. Response and correction
+    // headroom are derived internally so a single tap and a full magazine use
+    // the same user-facing intensity without requiring manual tuning.
+    settings.smoothing = .04f + (.08f * (1.f - userIntensity));
+    settings.startAfterShots = 1;
+    settings.maxCorrection = 16.f + (8.f * userIntensity);
+    settings.weaponSpecific = true;
+    settings.debugMode = cfg.aim_rcs_debug;
+    settings.weaponScale = cfg.aim_rcs_weapon_scale;
+
+    const uint64_t now_ms = CS2::SampleClockMs();
+    const CS2::RCS::ReadResult read = CS2::RCS::RecoilReader::Read(rt, now_ms);
+    {
+        std::lock_guard lock(g_rcs_telemetry_mutex);
+        g_rcs_telemetry.enabled = settings.enabled;
+        g_rcs_telemetry.standalone = cfg.aim_rcs_standalone;
+        g_rcs_telemetry.finalPunch = rt.local_aim_punch_final;
+        g_rcs_telemetry.shots = rt.local_shots_fired;
+        g_rcs_telemetry.weaponDefinition = weapon_def;
+        g_rcs_telemetry.pawn = rt.local_pawn;
+        g_rcs_telemetry.sampleMs = rt.local_aim_sample_ms;
+        g_rcs_telemetry.observedMs = now_ms;
+        g_rcs_telemetry.pitch = rt.local_aim_punch[0];
+        g_rcs_telemetry.yaw = rt.local_aim_punch[1];
+        g_rcs_telemetry.firing = rt.local_last_shot_ms && now_ms >= rt.local_last_shot_ms &&
+            now_ms - rt.local_last_shot_ms <= 180u;
+        g_rcs_telemetry.correctionProduced = false;
+        g_rcs_telemetry.deltaPitch = g_rcs_telemetry.deltaYaw = 0.f;
+        g_rcs_telemetry.correctionX = g_rcs_telemetry.correctionY = 0.f;
+        g_rcs_telemetry.pendingX = g_rcs_telemetry.pendingY = 0.f;
+        g_rcs_telemetry.sentX = g_rcs_telemetry.sentY = 0;
+        std::snprintf(g_rcs_telemetry.stage, sizeof(g_rcs_telemetry.stage), "%s",
+                      read ? "controller" : "reader");
+        std::snprintf(g_rcs_telemetry.reason, sizeof(g_rcs_telemetry.reason), "%s",
+                      CS2::RCS::ToString(read.status));
+    }
+    if (!read) {
+        g_rcs_controller.Reset(CS2::RCS::ResetReason::InvalidSample);
+        g_rcs_debug.Set(settings.debugMode, "reader", CS2::RCS::ToString(read.status));
+        return {};
+    }
+    if (weapon_def > 0 && !IsFirearm(weapon_def)) {
+        g_rcs_controller.Reset(CS2::RCS::ResetReason::WeaponChanged);
+        g_rcs_debug.Set(true, "reader", "known non-firearm");
+        return {};
+    }
+    const CS2::RCS::Correction correction = g_rcs_controller.Update(settings, read.sample, now_ms);
+    {
+        std::lock_guard lock(g_rcs_telemetry_mutex);
+        g_rcs_telemetry.correctionProduced = correction.produced;
+        g_rcs_telemetry.deltaPitch = correction.deltaPitch;
+        g_rcs_telemetry.deltaYaw = correction.deltaYaw;
+        g_rcs_telemetry.correctionX = correction.x;
+        g_rcs_telemetry.correctionY = correction.y;
+        g_rcs_telemetry.pendingX = correction.pendingX;
+        g_rcs_telemetry.pendingY = correction.pendingY;
+        std::snprintf(g_rcs_telemetry.stage, sizeof(g_rcs_telemetry.stage), "%s",
+                      correction.produced ? "active" : "waiting");
+        std::snprintf(g_rcs_telemetry.reason, sizeof(g_rcs_telemetry.reason), "%s",
+                      CS2::RCS::ToString(correction.reason));
+    }
+    char detail[192]{};
+    std::snprintf(detail, sizeof(detail),
+        "shots=%d punch=%.3f,%.3f out=%.2f,%.2f (%s)",
+        read.sample.shotsFired, read.sample.pitch, read.sample.yaw,
+        correction.x, correction.y, CS2::RCS::ToString(correction.reason));
+    g_rcs_debug.Set(true, correction.produced ? "active" : "waiting", detail);
+    return correction.produced ? std::pair<float, float>{correction.x, correction.y}
+                               : std::pair<float, float>{};
+}
+
+bool HandlePanic() {
+    if (!CS2::config.panic_key_enabled || CS2::config.panic_key == 0) return false;
+    static bool was_down = false;
+    const bool down = KeyDown(CS2::config.panic_key);
+    if (down && !was_down) {
+        CS2::config.aim_enabled = false;
+        CS2::config.trigger_enabled = false;
+        CS2::config.radar_2d = false;
+        CS2::config.bomb_timer = false;
+        CS2::SubmitAcquisitionConfig(CS2::config);
+        MessageBeep(MB_OK);
+        std::snprintf(g_debug, sizeof(g_debug), "PANIC — tudo OFF");
+        was_down = down;
+        return true;
+    }
+    was_down = down;
+    return false;
+}
+
+}
+
+int ActiveTargetIndex() { return g_active_target_idx; }
+const char* DebugStatus() { return g_debug; }
+const char* RCSDebugStatus() {
+    static thread_local std::string snapshot;
+    snapshot = g_rcs_debug.Snapshot();
+    return snapshot.c_str();
+}
+
+RCSTelemetry AcquireRCSTelemetry() {
+    std::lock_guard lock(g_rcs_telemetry_mutex);
+    return g_rcs_telemetry;
+}
+
+void Run(const CS2::Runtime& rt, const CS2::Config& cfg_in) {
+    static std::string motion_map;
+    const std::string current_map = rt.map_name;
+    if (current_map != motion_map) {
+        g_motion_history.clear();
+        motion_map = current_map;
+    }
+
+
+    CS2::Config cfg = cfg_in;
+    if (HandlePanic())
+        cfg = CS2::config;
+
+    InitializeHumanizer();
+
+    const bool playable = rt.in_match || !rt.players.empty();
+    if (!playable) {
+        AimKeyDown(CS2::Config{});
+        g_active_target_idx = -1;
+        g_target_pawn = 0;
+        g_aim_motion.Reset();
+        g_output_residual_x = g_output_residual_y = 0.f;
+        g_rcs_controller.Reset();
+        std::snprintf(g_debug, sizeof(g_debug), "sem partida");
+        return;
+    }
+    if (!cfg.aim_enabled && !cfg.trigger_enabled && !cfg.aim_rcs_standalone) {
+        AimKeyDown(cfg);
+        g_active_target_idx = -1;
+        g_target_pawn = 0;
+        g_aim_motion.Reset();
+        g_output_residual_x = g_output_residual_y = 0.f;
+        g_rcs_controller.Reset();
+        std::snprintf(g_debug, sizeof(g_debug), "aim/trig OFF");
+        return;
+    }
+
+    const int local_weapon_definition = rt.local_weapon_definition;
+
+
+
+
+    if (local_weapon_definition > 0 && !IsFirearm(local_weapon_definition)) {
+        g_active_target_idx = -1;
+        g_last_target_idx = -1;
+        g_target_pawn = 0;
+        g_aim_motion.Reset();
+        g_output_residual_x = g_output_residual_y = 0.f;
+        std::snprintf(g_debug, sizeof(g_debug), "aim bloqueado: utilitario (%d)", local_weapon_definition);
+        return;
+    }
+
+    const ImVec2 ds = ImGui::GetIO().DisplaySize;
+    if (ds.x < 10.f || ds.y < 10.f) {
+        std::snprintf(g_debug, sizeof(g_debug), "display invalido");
+        return;
+    }
+
+    const float cx = ds.x * 0.5f;
+    const float cy = ds.y * 0.5f;
+
+
+
+    const auto updateCamera = CS2::SelectCameraSnapshot(
+        rt.world_sample_ms ? rt.world_sample_ms : rt.snapshot_timestamp_ms);
+    const float* updateViewMatrix = updateCamera.timestamp_ms
+        ? updateCamera.view_matrix : rt.view_matrix;
+    const bool aim_key_down = AimKeyDown(cfg);
+    TargetCandidate target{};
+    float aim_output_x = 0.f;
+    float aim_output_y = 0.f;
+    float rcs_output_x = 0.f;
+    float rcs_output_y = 0.f;
+    if (aim_key_down) target = SelectTarget(rt, cfg, cx, cy, updateViewMatrix);
+
+    if (cfg.aim_draw_fov) {
+        const float previewDistance = target.index >= 0 ? target.distance_m :
+            cfg.aim_fov_curve_distance[2];
+        const float radius = std::clamp(EffectiveFov(cfg, previewDistance), 1.f, 1000.f);
+        const ImU32 color = IM_COL32(
+            static_cast<int>(std::clamp(cfg.col_fov[0], 0.f, 1.f) * 255.f),
+            static_cast<int>(std::clamp(cfg.col_fov[1], 0.f, 1.f) * 255.f),
+            static_cast<int>(std::clamp(cfg.col_fov[2], 0.f, 1.f) * 255.f),
+            static_cast<int>(std::clamp(cfg.col_fov[3], 0.f, 1.f) * 255.f));
+        ImGui::GetBackgroundDrawList()->AddCircle(ImVec2(cx, cy), radius, color, 96, 1.25f);
+    }
+
+    if (!aim_key_down) {
+        g_active_target_idx = -1;
+        g_last_target_idx = -1;
+        g_target_pawn = 0;
+        g_aim_motion.Reset();
+        g_output_residual_x = g_output_residual_y = 0.f;
+        std::snprintf(g_debug, sizeof(g_debug), "aim: aguarda tecla");
+    } else if (target.index >= 0) {
+        const auto now = std::chrono::steady_clock::now();
+        if (g_target_pawn && target.pawn != g_target_pawn) {
+            const auto held_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                now - g_target_acquired).count();
+
+
+            const float lock_ms = (std::max)(cfg.sticky_ms, cfg.aim_switch_cooldown_ms) +
+                std::clamp(cfg.aim_switch_margin, 0.f, .50f) * 200.f;
+            if (held_ms < static_cast<long long>(lock_ms)) {
+                for (std::size_t i = 0; i < rt.players.size(); ++i) {
+                    if (rt.players[i].pawn != g_target_pawn) continue;
+                    const auto& held = rt.players[i];
+                    if (!held.alive || held.health <= 0 ||
+                        (cfg.aim_ignore_team && held.team == rt.local_team && rt.local_team >= 2) ||
+                        (cfg.aim_ignore_bots && held.is_bot) ||
+                        (cfg.aim_ignore_spectators && held.is_spectator) ||
+                        (cfg.aim_visibility_check && !held.spotted) || held.distance > cfg.aim_max_dist)
+                        break;
+                    float point[3]{};
+                    const int bone = SelectAimBone(held, cfg, rt.local_weapon_definition);
+                    if (bone < 0) break;
+                    PickBone(held, bone, point);
+
+
+                    const uint64_t sticky_now_ms = CS2::SampleClockMs();
+                    ApplyRobustPrediction(point, held, rt, cfg, sticky_now_ms);
+                    float sx = 0.f, sy = 0.f;
+                    if (held.alive && held.health > 0 && W2S(point, updateViewMatrix, sx, sy)) {
+                        target.index = static_cast<int>(i);
+                        target.pawn = held.pawn;
+                        target.error_x = sx - cx;
+                        target.error_y = sy - cy;
+                        target.screen_distance = std::sqrt(target.error_x * target.error_x + target.error_y * target.error_y);
+                        target.distance_m = held.distance;
+                        target.bone = bone;
+                    }
+                    break;
+                }
+            }
+        }
+        if (target.pawn != g_target_pawn) {
+            g_target_pawn = target.pawn;
+            g_target_acquired = now;
+            g_last_switch = now;
+            g_aim_motion.Reset();
+        }
+        g_active_target_idx = target.index;
+        g_last_target_idx = target.index;
+        g_aim_motion.SetTarget(static_cast<std::uint64_t>(target.pawn));
+        const auto motion = g_aim_motion.Step(
+            target.error_x, target.error_y, BuildMotionSettings(cfg, target.distance_m));
+        aim_output_x = static_cast<float>(motion.x);
+        aim_output_y = static_cast<float>(motion.y);
+        if (!motion)
+            std::snprintf(g_debug, sizeof(g_debug), "aim: on target (deadzone/smooth100)");
+        else
+            std::snprintf(g_debug, sizeof(g_debug),
+                "lock %.1f,%.1f err=%.1f bone=%d smooth=%.0f hum=%.0f",
+                aim_output_x, aim_output_y,
+                std::sqrt(target.error_x * target.error_x + target.error_y * target.error_y),
+                std::clamp(cfg.aim_bone, 0, 6), cfg.aim_smooth, cfg.aim_humanization);
+    } else {
+        g_active_target_idx = -1;
+        g_aim_motion.Reset();
+        if (g_target_diag.hidden)
+            std::snprintf(g_debug, sizeof(g_debug), "sem alvo: filt_vis=%d fov=%d", g_target_diag.hidden, g_target_diag.fov);
+        else if (g_target_diag.fov)
+            std::snprintf(g_debug, sizeof(g_debug), "sem alvo: fora FOV=%d", g_target_diag.fov);
+        else if (g_target_diag.distance)
+            std::snprintf(g_debug, sizeof(g_debug), "sem alvo: distancia=%d", g_target_diag.distance);
+        else if (g_target_diag.team)
+            std::snprintf(g_debug, sizeof(g_debug), "sem alvo: equipa=%d", g_target_diag.team);
+        else if (g_target_diag.bots)
+            std::snprintf(g_debug, sizeof(g_debug), "sem alvo: bots ignorados=%d", g_target_diag.bots);
+        else if (g_target_diag.scanned == 0)
+            std::snprintf(g_debug, sizeof(g_debug), "sem alvo: sem jogadores validos");
+        else
+            std::snprintf(g_debug, sizeof(g_debug), "sem alvo: projecao=%d", g_target_diag.projection);
+    }
+
+
+
+    const bool activeAimLock = aim_key_down && target.index >= 0;
+    if (cfg.aim_rcs_standalone ||
+        (cfg.aim_enabled && cfg.aim_rcs_auto && aim_key_down && !activeAimLock)) {
+        const auto [rcs_x, rcs_y] = CalculateRCS(rt, cfg, local_weapon_definition);
+        rcs_output_x = rcs_x;
+        rcs_output_y = rcs_y;
+        aim_output_x += rcs_x;
+        aim_output_y += rcs_y;
+    } else {
+        g_rcs_controller.Reset();
+        if (cfg.telemetry_enabled)
+            (void)CalculateRCS(rt, cfg, local_weapon_definition);
+    }
+    std::pair<int, int> sent{};
+    if (std::fabs(aim_output_x) > 0.001f || std::fabs(aim_output_y) > 0.001f)
+        sent = MoveMouse(aim_output_x, aim_output_y);
+    if (cfg.aim_rcs_standalone || cfg.aim_rcs_auto) {
+        std::lock_guard lock(g_rcs_telemetry_mutex);
+        if (std::fabs(rcs_output_x) > .001f || std::fabs(rcs_output_y) > .001f) {
+            g_rcs_telemetry.sentX = sent.first;
+            g_rcs_telemetry.sentY = sent.second;
+        }
+    }
+    if (cfg.telemetry_enabled)
+        LogRcsTelemetrySample(AcquireRCSTelemetry(), CS2::SampleClockMs());
+
+
+
+    const bool local_scoped = rt.local_scoped;
+
+    if (cfg.trigger_enabled) {
+        static auto lastShot = std::chrono::steady_clock::now();
+        static auto targetEntered = std::chrono::steady_clock::now();
+        static uintptr_t triggerTarget = 0;
+        const bool triggerActive = cfg.trigger_always_on || cfg.trigger_bind <= 0 ||
+            KeyDown(cfg.trigger_bind);
+        if (triggerActive) {
+            if (!(cfg.trigger_scoped_only && !local_scoped)) {
+                bool hit = false;
+                uintptr_t hitPawn = 0;
+                if (cfg.trigger_use_ident && rt.local_pawn && CS2::offsets.m_iIDEntIndex) {
+                    const int idEnt = rt.local_crosshair_entity;
+                    if (idEnt > 0) {
+                        for (const auto& p : rt.players) {
+                            if (p.is_local) continue;
+
+
+
+                            if (cfg.trigger_team_check &&
+                                (rt.local_team < 2 || p.team == rt.local_team)) continue;
+                            if (!p.alive || p.health <= 0) continue;
+                            if (cfg.trigger_visibility_check && !p.spotted) continue;
+                            if (p.ent_index == idEnt || p.ent_index == (idEnt & 0x7FFF)) {
+                                if (cfg.trigger_head_only) {
+
+
+                                    const uint64_t identNowMs = CS2::SampleClockMs();
+                                    const bool identBonesFresh = p.bones_ok &&
+                                        p.bone_pose_sample_ms != 0 &&
+                                        identNowMs >= p.bone_pose_sample_ms &&
+                                        (identNowMs - p.bone_pose_sample_ms) <= 250u;
+                                    float identHead[3] = { p.head[0], p.head[1], p.head[2] };
+                                    if (!identBonesFresh) {
+                                        identHead[0] = p.pos[0];
+                                        identHead[1] = p.pos[1];
+                                        identHead[2] = p.pos[2] + 72.f;
+                                    }
+                                    float sx, sy;
+                                    if (W2S(identHead, updateViewMatrix, sx, sy)) {
+                                        const float d = std::sqrt((sx - cx) * (sx - cx) + (sy - cy) * (sy - cy));
+                                        if (d < 16.f) { hit = true; hitPawn = p.pawn; }
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (!hit) {
+                    const float triggerFov = cfg.trigger_head_only ? 8.f : 7.f;
+                    for (const auto& p : rt.players) {
+                        if (p.is_local) continue;
+
+                        if (cfg.trigger_team_check &&
+                            (rt.local_team < 2 || p.team == rt.local_team)) continue;
+                        if (!p.alive || p.health <= 0) continue;
+                        if (cfg.trigger_visibility_check && !p.spotted) continue;
+                        auto testPoint = [&](const float* w) {
+                            float sx = 0.f, sy = 0.f;
+                            if (!W2S(w, updateViewMatrix, sx, sy)) return false;
+                            const float d = std::sqrt((sx - cx) * (sx - cx) + (sy - cy) * (sy - cy));
+                            return d < triggerFov;
+                        };
+
+
+
+                        const uint64_t trigNowMs = CS2::SampleClockMs();
+                        const bool trigBonesFresh = p.bones_ok && p.bone_pose_sample_ms != 0 &&
+                            trigNowMs >= p.bone_pose_sample_ms &&
+                            (trigNowMs - p.bone_pose_sample_ms) <= 250u;
+                        float headPoint[3] = { p.head[0], p.head[1], p.head[2] };
+                        if (!trigBonesFresh) {
+                            headPoint[0] = p.pos[0];
+                            headPoint[1] = p.pos[1];
+                            headPoint[2] = p.pos[2] + 72.f;
+                        }
+                        if (cfg.trigger_head_only) {
+                            if (testPoint(headPoint)) { hit = true; hitPawn = p.pawn; break; }
+                            continue;
+                        }
+                        if (trigBonesFresh) {
+                            for (int bi = 0; bi < 20; ++bi) {
+                                if (testPoint(p.bones[bi])) { hit = true; hitPawn = p.pawn; break; }
+                            }
+                            if (hit) break;
+                        }
+                    }
+                }
+                if (hit) {
+                    const auto now = std::chrono::steady_clock::now();
+                    if (hitPawn != triggerTarget) {
+                        triggerTarget = hitPawn;
+                        targetEntered = now;
+                    }
+                    const auto reactionMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+                        now - targetEntered).count();
+                    const auto cooldownMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+                        now - lastShot).count();
+                    const int weaponDelayMs = local_weapon_definition == 64 ? 90 : 0;
+                    if (reactionMs >= (std::max)(cfg.trigger_delay_ms, 0) + weaponDelayMs && cooldownMs >= 60) {
+                        Click();
+                        lastShot = now;
+                    }
+                } else {
+                    triggerTarget = 0;
+                }
+            }
+        } else {
+            triggerTarget = 0;
+        }
+    }
+}
+
+}
