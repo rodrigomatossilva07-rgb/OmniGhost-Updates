@@ -37,20 +37,17 @@ namespace {
 
 const wchar_t* ApiHost()
 {
-    static const wchar_t* value = OGS_WIDE("omnighost.store");
-    return value;
+    return OGS_WCSTR("omnighost.store");
 }
 
 const wchar_t* CredentialTarget()
 {
-    static const wchar_t* value = OGS_WIDE("OmniGhost/LauncherSession/v1");
-    return value;
+    return OGS_WCSTR("OmniGhost/LauncherSession/v1");
 }
 
 const wchar_t* DeviceCredentialTarget()
 {
-    static const wchar_t* value = OGS_WIDE("OmniGhost/InstallationDevice/v1");
-    return value;
+    return OGS_WCSTR("OmniGhost/InstallationDevice/v1");
 }
 
 constexpr std::size_t kMaximumResponseBytes = 256u * 1024u;
@@ -322,7 +319,8 @@ public:
         credential.CredentialBlobSize = static_cast<DWORD>(payload.size());
         credential.CredentialBlob = reinterpret_cast<LPBYTE>(payload.data());
         credential.Persist = CRED_PERSIST_LOCAL_MACHINE;
-        credential.UserName = const_cast<LPWSTR>(OGS_WIDE("OmniGhost Website Account"));
+        const std::wstring accountName = OGS_WIDE("OmniGhost Website Account");
+        credential.UserName = const_cast<LPWSTR>(accountName.c_str());
         const bool written = CredWriteW(&credential, 0) != FALSE;
         SecureZeroMemory(payload.data(), payload.size());
         return written;
@@ -388,7 +386,7 @@ std::string GetOrCreateInstallationDeviceId() {
     GUID guid{};
     if (FAILED(CoCreateGuid(&guid))) return {};
     char value[64]{};
-    const int length = sprintf_s(value, OGS_LIT("ogdi_%08lx%04hx%04hx%02x%02x%02x%02x%02x%02x%02x%02x"),
+    const int length = sprintf_s(value, OGS_CSTR("ogdi_%08lx%04hx%04hx%02x%02x%02x%02x%02x%02x%02x%02x"),
         guid.Data1, guid.Data2, guid.Data3,
         guid.Data4[0], guid.Data4[1], guid.Data4[2], guid.Data4[3],
         guid.Data4[4], guid.Data4[5], guid.Data4[6], guid.Data4[7]);
@@ -400,7 +398,8 @@ std::string GetOrCreateInstallationDeviceId() {
     stored.CredentialBlobSize = static_cast<DWORD>(created.size());
     stored.CredentialBlob = reinterpret_cast<LPBYTE>(created.data());
     stored.Persist = CRED_PERSIST_LOCAL_MACHINE;
-    stored.UserName = const_cast<LPWSTR>(OGS_WIDE("OmniGhost Installation"));
+    const std::wstring installationName = OGS_WIDE("OmniGhost Installation");
+    stored.UserName = const_cast<LPWSTR>(installationName.c_str());
     if (!CredWriteW(&stored, 0)) return {};
     return created;
 }
@@ -542,7 +541,7 @@ void LauncherAccountService::Logout() noexcept {
         try {
             (void)transport_->Request(OGS_LIT("DELETE"), OGS_LIT("/api/launcher/session"), {}, token, deviceId_);
         } catch (...) {
-            OutputDebugStringA(OGS_LIT("[OmniGhost][Auth] Remote session revocation failed.\n"));
+            OutputDebugStringA(OGS_CSTR("[OmniGhost][Auth] Remote session revocation failed.\n"));
         }
         SecureZeroMemory(token.data(), token.size());
     }

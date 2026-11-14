@@ -305,7 +305,7 @@ void UpdateService::Initialize(Configuration configuration, std::unique_ptr<IHtt
 
 
 
-        if (entry.path().extension() == OGS_WIDE(".partial")) {
+        if (entry.path().extension().wstring() == OGS_WIDE(".partial")) {
             std::error_code timeError;
             const auto modified = entry.last_write_time(timeError);
             if (!timeError && modified < stale) fs::remove(entry.path(), cleanupError);
@@ -313,7 +313,7 @@ void UpdateService::Initialize(Configuration configuration, std::unique_ptr<IHtt
         std::error_code typeError;
         const bool isRegular = entry.is_regular_file(typeError) && !typeError;
         if (isRegular && entryName.rfind(OGS_WIDE("startup-confirm-"), 0) == 0 &&
-            entry.path().extension() == OGS_WIDE(".txt")) {
+            entry.path().extension().wstring() == OGS_WIDE(".txt")) {
             std::error_code timeError;
             const auto modified = entry.last_write_time(timeError);
             if (!timeError && modified < stale) fs::remove(entry.path(), cleanupError);
@@ -1005,7 +1005,7 @@ bool UpdateService::InstallPreparedUpdate() {
     if (!installSnapshot.releaseNotesUrl.empty())
         arguments << OGS_WIDE(" --notes-url ") << Quote(Platform::Utf8ToWide(installSnapshot.releaseNotesUrl));
     const bool needElevation = !DirectoryWritable(Paths::InstallDirectory());
-    const wchar_t* verb = needElevation ? OGS_WIDE("runas") : OGS_WIDE("open");
+    const wchar_t* verb = needElevation ? OGS_WCSTR("runas") : OGS_WCSTR("open");
     const std::wstring argumentText = arguments.str();
     const std::wstring runnerDirectoryText = runnerDirectory.wstring();
     SHELLEXECUTEINFOW launch{};
@@ -1245,7 +1245,7 @@ bool ConfirmUpdaterStartupFromCommandLine(int argc, wchar_t** argv) {
 
 
     const bool validConfirmationDirectory =
-        _wcsicmp(confirmationDirectory.filename().c_str(), OGS_WIDE("updates-staging")) == 0 &&
+        _wcsicmp(confirmationDirectory.filename().c_str(), OGS_WCSTR("updates-staging")) == 0 &&
         DescendantPath(confirmationDirectory, Paths::RuntimeRoot());
     if (!IsHexToken(token, 64) || confirmationPath.empty() || !confirmationPath.is_absolute() ||
         !validConfirmationName || !validConfirmationDirectory) {

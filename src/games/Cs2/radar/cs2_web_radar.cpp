@@ -173,13 +173,13 @@ bool FlushWs(Client& c){while(c.sent<c.pending.size()){const int n=send(c.socket
 std::string Http(int code,std::string_view status,std::string_view type,std::string_view body){std::ostringstream o;o<<OGS_LIT("HTTP/1.1 ")<<code<<' '<<status<<OGS_LIT("\r\nContent-Type: ")<<type<<OGS_LIT("\r\nContent-Length: ")<<body.size()<<OGS_LIT("\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nReferrer-Policy: no-referrer\r\nConnection: close\r\n\r\n")<<body;return o.str();}
 std::string Asset(std::string_view logical){auto bytes=OmniGhost::LoadEmbeddedResource(logical);return bytes?std::string(reinterpret_cast<const char*>(bytes->data()),bytes->size()):std::string{};}
 std::string_view Mime(std::string_view path) {
-    if (path.ends_with(OGS_LIT(".html"))) return OGS_LIT("text/html; charset=utf-8");
-    if (path.ends_with(".js")) return OGS_LIT("application/javascript; charset=utf-8");
-    if (path.ends_with(OGS_LIT(".css"))) return OGS_LIT("text/css; charset=utf-8");
-    if (path.ends_with(OGS_LIT(".json"))) return OGS_LIT("application/json; charset=utf-8");
-    if (path.ends_with(OGS_LIT(".svg"))) return OGS_LIT("image/svg+xml");
-    if (path.ends_with(OGS_LIT(".png"))) return OGS_LIT("image/png");
-    return OGS_LIT("application/octet-stream");
+    if (path.ends_with(OGS_CSTR(".html"))) return OGS_CSTR("text/html; charset=utf-8");
+    if (path.ends_with(".js")) return OGS_CSTR("application/javascript; charset=utf-8");
+    if (path.ends_with(OGS_CSTR(".css"))) return OGS_CSTR("text/css; charset=utf-8");
+    if (path.ends_with(OGS_CSTR(".json"))) return OGS_CSTR("application/json; charset=utf-8");
+    if (path.ends_with(OGS_CSTR(".svg"))) return OGS_CSTR("image/svg+xml");
+    if (path.ends_with(OGS_CSTR(".png"))) return OGS_CSTR("image/png");
+    return OGS_CSTR("application/octet-stream");
 }
 
 void Close(Client& c){if(c.socket!=INVALID_SOCKET){shutdown(c.socket,SD_BOTH);closesocket(c.socket);c.socket=INVALID_SOCKET;}}

@@ -192,18 +192,18 @@ namespace LauncherUpdates {
 
             static const char* months[] = {
                 "",
-                OGS_LIT("JANEIRO"),
-                OGS_LIT("FEVEREIRO"),
-                OGS_LIT("MARÇO"),
-                OGS_LIT("ABRIL"),
-                OGS_LIT("MAIO"),
-                OGS_LIT("JUNHO"),
-                OGS_LIT("JULHO"),
-                OGS_LIT("AGOSTO"),
-                OGS_LIT("SETEMBRO"),
-                OGS_LIT("OUTUBRO"),
-                OGS_LIT("NOVEMBRO"),
-                OGS_LIT("DEZEMBRO")
+                OGS_CSTR("JANEIRO"),
+                OGS_CSTR("FEVEREIRO"),
+                OGS_CSTR("MARÇO"),
+                OGS_CSTR("ABRIL"),
+                OGS_CSTR("MAIO"),
+                OGS_CSTR("JUNHO"),
+                OGS_CSTR("JULHO"),
+                OGS_CSTR("AGOSTO"),
+                OGS_CSTR("SETEMBRO"),
+                OGS_CSTR("OUTUBRO"),
+                OGS_CSTR("NOVEMBRO"),
+                OGS_CSTR("DEZEMBRO")
             };
 
             int year = 0;
@@ -1745,9 +1745,9 @@ namespace LauncherUpdates {
         }
 
         const char* sortLabels[] = {
-            OGS_LIT("Mais recentes"),
-            OGS_LIT("Mais antigas"),
-            OGS_LIT("Apenas não lidas")
+            OGS_CSTR("Mais recentes"),
+            OGS_CSTR("Mais antigas"),
+            OGS_CSTR("Apenas não lidas")
         };
 
         if (g_sort < 0 ||

@@ -55,16 +55,16 @@ Assessment SecurityManager::Classify(EventId id) noexcept {
 
 std::string_view SecurityManager::Code(EventId id) noexcept {
     switch (id) {
-    case EventId::InstallManifestInvalid: return OGS_LIT("SEC-003");
-    case EventId::InstallManifestMissing: return OGS_LIT("SEC-011");
-    case EventId::RuntimeFileInvalid: return OGS_LIT("SEC-004");
-    case EventId::SessionInvalid: return OGS_LIT("SEC-005");
-    case EventId::SessionUnavailable: return OGS_LIT("SEC-006");
-    case EventId::SessionRestored: return OGS_LIT("SEC-007");
-    case EventId::DebuggerObserved: return OGS_LIT("SEC-008");
-    case EventId::UnknownModuleObserved: return OGS_LIT("SEC-009");
+    case EventId::InstallManifestInvalid: return OGS_CSTR("SEC-003");
+    case EventId::InstallManifestMissing: return OGS_CSTR("SEC-011");
+    case EventId::RuntimeFileInvalid: return OGS_CSTR("SEC-004");
+    case EventId::SessionInvalid: return OGS_CSTR("SEC-005");
+    case EventId::SessionUnavailable: return OGS_CSTR("SEC-006");
+    case EventId::SessionRestored: return OGS_CSTR("SEC-007");
+    case EventId::DebuggerObserved: return OGS_CSTR("SEC-008");
+    case EventId::UnknownModuleObserved: return OGS_CSTR("SEC-009");
     }
-    return OGS_LIT("SEC-000");
+    return OGS_CSTR("SEC-000");
 }
 
 void SecurityManager::Record(EventId id) noexcept {
@@ -99,7 +99,7 @@ bool SecurityManager::VerifyProtectedFiles() noexcept {
 
 
 
-    for (const wchar_t* module : {OGS_WIDE("libs/vmm.dll"), OGS_WIDE("libs/leechcore.dll"), OGS_WIDE("libs/FTD3XXWU.dll")}) {
+    for (const wchar_t* module : {OGS_WCSTR("libs/vmm.dll"), OGS_WCSTR("libs/leechcore.dll"), OGS_WCSTR("libs/FTD3XXWU.dll")}) {
         std::wstring error;
         if (!OmniGhost::RuntimeBootstrap::ValidatePrivateRuntimeFile(module, error)) {
             Record(EventId::RuntimeFileInvalid);

@@ -82,7 +82,7 @@ int SemVersion::Compare(const SemVersion& other) const {
 }
 
 const char* ChannelName(Channel channel) {
-    switch (channel) { case Channel::Stable: return OGS_LIT("stable"); case Channel::Beta: return OGS_LIT("beta"); default: return OGS_LIT("development"); }
+    switch (channel) { case Channel::Stable: return OGS_CSTR("stable"); case Channel::Beta: return OGS_CSTR("beta"); default: return OGS_CSTR("development"); }
 }
 std::optional<Channel> ParseChannel(const std::string& value) {
     if (value == OGS_LIT("stable")) return Channel::Stable;

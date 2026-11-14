@@ -70,18 +70,18 @@ ErrorClass ClassifyFailure(int statusCode, std::string_view error) noexcept {
 
 const char* ErrorClassName(ErrorClass value) noexcept {
     switch (value) {
-    case ErrorClass::None: return OGS_LIT("none");
-    case ErrorClass::Cancelled: return OGS_LIT("cancelled");
-    case ErrorClass::Timeout: return OGS_LIT("timeout");
+    case ErrorClass::None: return OGS_CSTR("none");
+    case ErrorClass::Cancelled: return OGS_CSTR("cancelled");
+    case ErrorClass::Timeout: return OGS_CSTR("timeout");
     case ErrorClass::Dns: return "dns";
-    case ErrorClass::Connection: return OGS_LIT("connection");
+    case ErrorClass::Connection: return OGS_CSTR("connection");
     case ErrorClass::Tls: return "tls";
-    case ErrorClass::Http: return OGS_LIT("http");
-    case ErrorClass::Redirect: return OGS_LIT("redirect");
-    case ErrorClass::SizeLimit: return OGS_LIT("size-limit");
+    case ErrorClass::Http: return OGS_CSTR("http");
+    case ErrorClass::Redirect: return OGS_CSTR("redirect");
+    case ErrorClass::SizeLimit: return OGS_CSTR("size-limit");
     case ErrorClass::Io: return "io";
-    case ErrorClass::InvalidUrl: return OGS_LIT("invalid-url");
-    default: return OGS_LIT("unknown");
+    case ErrorClass::InvalidUrl: return OGS_CSTR("invalid-url");
+    default: return OGS_CSTR("unknown");
     }
 }
 

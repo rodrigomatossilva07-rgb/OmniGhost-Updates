@@ -2,9 +2,9 @@
     "schemaVersion":  1,
     "tool":  "Protect-Strings.ps1",
     "appVersion":  "1.3.4",
-    "gitCommit":  "8fe0b902e871f74f8092352967917d123dab9437",
+    "gitCommit":  "cd4e3abfadde06c3a1b4c71926b1388724bf4255",
     "gitBranch":  "main",
-    "updatedUtc":  "2026-11-14T19:46:45.5632824Z",
+    "updatedUtc":  "2026-11-14T19:48:44.5194564Z",
     "entryCount":  11572,
     "entries":  [
                     {

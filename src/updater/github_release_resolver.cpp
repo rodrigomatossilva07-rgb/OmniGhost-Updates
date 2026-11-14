@@ -14,9 +14,9 @@ constexpr std::size_t kMaximumResponseBytes = 4u * 1024u * 1024u;
 constexpr std::size_t kMaximumReleaseCount = 100;
 constexpr std::size_t kMaximumAssetCount = 128;
 constexpr std::size_t kMaximumStringLength = 4096;
-constexpr std::string_view kReleaseDownloadPrefix =
+const std::string kReleaseDownloadPrefix =
     OGS_LIT("https://github.com/rodrigomatossilva07-rgb/OmniGhost-Updates/releases/download/");
-constexpr std::string_view kReleasePagePrefix =
+const std::string kReleasePagePrefix =
     OGS_LIT("https://github.com/rodrigomatossilva07-rgb/OmniGhost-Updates/releases/tag/");
 
 const Json::Value* Field(const Json::Object& object, const char* name) {

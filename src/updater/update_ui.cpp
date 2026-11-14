@@ -21,7 +21,7 @@
 namespace OmniGhost::UpdateUI {
 namespace {
 
-const char* StageLabel(const std::string& stage) {
+std::string StageLabel(const std::string& stage) {
     if (stage == OGS_LIT("release-resolution")) return OGS_LIT("Resolução da versão");
     if (stage == OGS_LIT("check")) return OGS_LIT("Rede / transferência do manifesto");
     if (stage == OGS_LIT("manifest")) return OGS_LIT("Validação do manifesto");
@@ -50,7 +50,7 @@ std::string ClipboardDiagnostic(const Update::Snapshot& state) {
     return output.str();
 }
 
-const char* TitleFor(const Update::Snapshot& state) {
+std::string TitleFor(const Update::Snapshot& state) {
     using Update::Status;
     switch (state.status) {
     case Status::Checking: return OGS_LIT("A verificar atualizações");
@@ -80,7 +80,7 @@ CyberWidgets::TextTone MessageTone(const Update::Snapshot& state) {
 
 void OpenLogs() {
     const std::wstring logs = OmniGhost::Paths::Logs().wstring();
-    ShellExecuteW(nullptr, OGS_WIDE("open"), logs.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+    ShellExecuteW(nullptr, OGS_WCSTR("open"), logs.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
 }
 
 void DrawVersionLine(const Update::Snapshot& state) {
@@ -151,16 +151,17 @@ void Draw() {
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, CyberTheme::Radius::Md);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(CyberTheme::Spacing::Lg, CyberTheme::Spacing::Md));
 
-    ImGui::Begin(OGS_LIT("##omnighost_update"), nullptr,
+    ImGui::Begin(OGS_CSTR("##omnighost_update"), nullptr,
         ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
         ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoCollapse);
 
-    CyberWidgets::TextLine(TitleFor(state), CyberWidgets::TextTone::Accent);
+    const std::string title = TitleFor(state);
+    CyberWidgets::TextLine(title.c_str(), CyberWidgets::TextTone::Accent);
 
     if (state.status == Status::Checking) {
         CyberWidgets::Spinner(OGS_LIT("update_check_spinner"), CyberTheme::Px(7.0f), CyberTheme::Px(1.8f));
         ImGui::SameLine(0.0f, CyberTheme::Spacing::Sm);
-        ImGui::TextColored(CyberTheme::Colors.TextDisabled, OGS_LIT("A procurar uma versão mais recente…"));
+        ImGui::TextColored(CyberTheme::Colors.TextDisabled, "%s", OGS_CSTR("A procurar uma versão mais recente…"));
     } else {
         DrawVersionLine(state);
         if (!state.userMessage.empty())
@@ -168,13 +169,13 @@ void Draw() {
 
         if (state.status == Status::Error && technicalDetailsExpanded) {
             CyberWidgets::TextLineF(CyberWidgets::TextTone::Accent,
-                OGS_LIT("Etapa: %s"), StageLabel(state.errorStage));
-            ImGui::BeginChild(OGS_LIT("##omnighost_update_error_detail"),
+                OGS_CSTR("Etapa: %s"), StageLabel(state.errorStage).c_str());
+            ImGui::BeginChild(OGS_CSTR("##omnighost_update_error_detail"),
                 ImVec2(-1.0f, CyberTheme::Px(104.0f)), true,
                 ImGuiWindowFlags_AlwaysVerticalScrollbar);
             ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x);
             ImGui::TextColored(CyberTheme::Colors.TextDisabled, "%s",
-                state.technicalDetail.empty() ? OGS_LIT("Nenhum detalhe técnico disponível.") : state.technicalDetail.c_str());
+                state.technicalDetail.empty() ? OGS_CSTR("Nenhum detalhe técnico disponível.") : state.technicalDetail.c_str());
             ImGui::PopTextWrapPos();
             ImGui::EndChild();
             ImGui::Dummy(ImVec2(0.0f, CyberTheme::Spacing::Xs));
@@ -215,7 +216,7 @@ void Draw() {
                 ImGui::SameLine();
                 if (CyberWidgets::Button(OGS_LIT("Notas"), CyberWidgets::ButtonStyle::Ghost,
                         ImVec2(CyberTheme::Px(90.0f), CyberTheme::Px(32.0f))))
-                    ShellExecuteA(nullptr, OGS_LIT("open"), state.releaseNotesUrl.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+                    ShellExecuteA(nullptr, OGS_CSTR("open"), state.releaseNotesUrl.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
             }
         }
     } else if (state.status == Status::Ready) {
@@ -252,7 +253,7 @@ void Draw() {
         if (!state.releaseNotesForCompletedUpdate.empty()) {
             if (CyberWidgets::Button(OGS_LIT("O que há de novo"), CyberWidgets::ButtonStyle::Secondary,
                     ImVec2(CyberTheme::Px(150.0f), CyberTheme::Px(34.0f))))
-                ShellExecuteA(nullptr, OGS_LIT("open"), state.releaseNotesForCompletedUpdate.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+                ShellExecuteA(nullptr, OGS_CSTR("open"), state.releaseNotesForCompletedUpdate.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
             ImGui::SameLine();
         }
         if (CyberWidgets::Button(OGS_LIT("Concluir"), CyberWidgets::ButtonStyle::Primary,

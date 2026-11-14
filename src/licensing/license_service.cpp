@@ -54,7 +54,7 @@ void LogLicenseFailure(const char* what) {
 }
 
 void LogRemoteLogoutFailure(const char* detail) noexcept {
-    OutputDebugStringA(OGS_LIT("[OmniGhost][License] Failed to start remote logout"));
+    OutputDebugStringA(OGS_CSTR("[OmniGhost][License] Failed to start remote logout"));
     if (detail && *detail) {
         OutputDebugStringA(": ");
         OutputDebugStringA(detail);
@@ -245,15 +245,14 @@ std::string NormalizeEntitlement(std::string_view value) {
     while (!result.empty() && result.back() == '_') result.pop_back();
     return result;
 }
-constexpr bool IsAdminEntitlement(std::string_view entitlement) noexcept {
+bool IsAdminEntitlement(std::string_view entitlement) noexcept {
     return entitlement == OGS_LIT("admin");
 }
-constexpr bool IsUniversalEntitlement(std::string_view entitlement) noexcept {
+bool IsUniversalEntitlement(std::string_view entitlement) noexcept {
     return IsAdminEntitlement(entitlement) || entitlement == "all" || entitlement == OGS_LIT("todos") ||
            entitlement == OGS_LIT("todos_os_jogos") || entitlement == OGS_LIT("omnighost_all") ||
            entitlement == OGS_LIT("omnighost_full") || entitlement == OGS_LIT("omnighost_universal");
 }
-static_assert(IsUniversalEntitlement("admin"));
 bool RemoteEntitlementGrants(std::string_view productId) {
     const std::string product = NormalizeEntitlement(productId);
     if (product.empty()) return false;

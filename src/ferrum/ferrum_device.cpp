@@ -97,7 +97,7 @@ std::vector<std::pair<std::string, std::string>> SerialPorts() {
 
 std::string AutoDetectPort() {
     const auto ports = SerialPorts();
-    const char* preferred[] = { OGS_LIT("FERRUM"), OGS_LIT("SILICON LABS CP210"), "CP210X", "CP210" };
+    const char* preferred[] = { OGS_CSTR("FERRUM"), OGS_CSTR("SILICON LABS CP210"), "CP210X", "CP210" };
     for (const char* probe : preferred) {
         for (const auto& [port, description] : ports) {
             std::string upper = description;

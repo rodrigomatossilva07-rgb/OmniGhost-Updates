@@ -24,14 +24,14 @@ bool IsSafeRelative(const fs::path& path) {
 
 const char* IntegrityStatusName(IntegrityStatus status) {
     switch (status) {
-    case IntegrityStatus::Unknown: return OGS_LIT("unknown");
-    case IntegrityStatus::Checking: return OGS_LIT("checking");
-    case IntegrityStatus::Healthy: return OGS_LIT("healthy");
-    case IntegrityStatus::Damaged: return OGS_LIT("damaged");
-    case IntegrityStatus::ManifestMissing: return OGS_LIT("manifest-missing");
-    case IntegrityStatus::Error: return OGS_LIT("error");
+    case IntegrityStatus::Unknown: return OGS_CSTR("unknown");
+    case IntegrityStatus::Checking: return OGS_CSTR("checking");
+    case IntegrityStatus::Healthy: return OGS_CSTR("healthy");
+    case IntegrityStatus::Damaged: return OGS_CSTR("damaged");
+    case IntegrityStatus::ManifestMissing: return OGS_CSTR("manifest-missing");
+    case IntegrityStatus::Error: return OGS_CSTR("error");
     }
-    return OGS_LIT("unknown");
+    return OGS_CSTR("unknown");
 }
 
 IntegrityReport VerifyInstallationFiles(const fs::path& installDirectory, std::size_t maximumIssues) {

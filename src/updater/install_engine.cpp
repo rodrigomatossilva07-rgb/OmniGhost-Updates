@@ -461,7 +461,7 @@ InstallResult InstallSingleExecutable(const InstallOptions& options) {
         }
     }
 
-    for (const wchar_t* manifestName : { OGS_WIDE("install-manifest.sha256") }) {
+    for (const wchar_t* manifestName : { OGS_WCSTR("install-manifest.sha256") }) {
         const fs::path source = options.staging / manifestName;
         std::error_code manifestError;
         if (fs::exists(source, manifestError))

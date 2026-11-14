@@ -55,25 +55,14 @@ std::wstring ToWide(std::string_view utf8);
 
 
 template <ogs::detail::CipherText Blob>
-class Lit : public std::string {
+class Lit {
 public:
-    Lit()
-        : std::string(Storage())
-    {
-    }
-
-    static const std::string& Storage() noexcept
-    {
-        static const std::string text = [] {
-            const auto decrypted = detail::DecryptRuntimeText(Blob);
-            return std::string{decrypted.data(), Blob.kLen};
-        }();
-        return text;
-    }
+    constexpr Lit() noexcept = default;
 
     const char* c_str() const noexcept
     {
-        return std::string::c_str();
+        static const std::array<char, Blob.kBuf> text = detail::DecryptRuntimeText(Blob);
+        return text.data();
     }
 
     std::string_view view() const noexcept
@@ -92,12 +81,9 @@ public:
 
 
 template <ogs::detail::CipherText Blob>
-class WideLit : public std::wstring {
+class WideLit {
 public:
-    WideLit()
-        : std::wstring(Storage())
-    {
-    }
+    constexpr WideLit() noexcept = default;
 
     static const std::wstring& Storage() noexcept
     {
@@ -105,8 +91,8 @@ public:
         return text;
     }
 
-    const wchar_t* c_str() const noexcept { return std::wstring::c_str(); }
-    std::wstring_view view() const noexcept { return std::wstring_view{*this}; }
+    const wchar_t* c_str() const noexcept { return Storage().c_str(); }
+    std::wstring_view view() const noexcept { return Storage(); }
 };
 
 
@@ -251,9 +237,11 @@ struct PackTable7 {
 
 
 
-#define OGS_LIT(s) ::ogs::Lit<::ogs::detail::EncryptLiteral(s)>{}
+#define OGS_LIT(s) std::string(::ogs::Lit<::ogs::detail::EncryptLiteral(s)>{}.view())
+#define OGS_CSTR(s) (::ogs::Lit<::ogs::detail::EncryptLiteral(s)>{}.c_str())
 #define OGS_ONE(s) ::ogs::SecretText(::ogs::detail::EncryptLiteral(s))
-#define OGS_WIDE(s) ::ogs::WideLit<::ogs::detail::EncryptLiteral(s)>{}
+#define OGS_WIDE(s) std::wstring(::ogs::WideLit<::ogs::detail::EncryptLiteral(s)>{}.view())
+#define OGS_WCSTR(s) (::ogs::WideLit<::ogs::detail::EncryptLiteral(s)>{}.c_str())
 
 #define OGS_PACK6(a, b, c, d, e, f) \
     ::ogs::LocPackRef{&::ogs::detail::PackTable6<::ogs::detail::EncryptLiteral(a),  \

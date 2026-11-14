@@ -213,14 +213,14 @@ std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
         OGS_LIT("Pedido para iniciar o modo atualizador recebido."));
     const auto args = Arguments(argc, argv);
 
-    Platform::UniqueHandle mutex(CreateMutexW(nullptr, TRUE, OGS_WIDE("Local\\OmniGhostUpdater-6A670FC7")));
-    auto reject = [&](int code, const char* stage, const std::string& detail) -> std::optional<int> {
+    Platform::UniqueHandle mutex(CreateMutexW(nullptr, TRUE, OGS_WCSTR("Local\\OmniGhostUpdater-6A670FC7")));
+    auto reject = [&](int code, const std::string& stage, const std::string& detail) -> std::optional<int> {
         WriteLog(log, LogLevel::Error, Version, {}, stage,
             detail + OGS_LIT(" Código interno=") + std::to_string(code) + ".");
         RecordHealth(stage, Version, {}, {}, {}, {}, detail);
         const std::wstring message = Platform::Utf8ToWide(detail +
-            OGS_LIT("\n\nEtapa: ") + std::string(stage) + OGS_LIT(" · Código interno: ") + std::to_string(code));
-        MessageBoxW(nullptr, message.c_str(), OGS_WIDE("OmniGhost \u2014 Atualiza\u00e7\u00e3o"), MB_OK | MB_ICONERROR);
+            OGS_LIT("\n\nEtapa: ") + stage + OGS_LIT(" · Código interno: ") + std::to_string(code));
+        MessageBoxW(nullptr, message.c_str(), OGS_WCSTR("OmniGhost \u2014 Atualiza\u00e7\u00e3o"), MB_OK | MB_ICONERROR);
         mutex.reset();
         return code;
     };
@@ -228,8 +228,8 @@ std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
         return reject(20, OGS_LIT("mutex"), OGS_LIT("Não foi possível criar o bloqueio do atualizador."));
     if (GetLastError() == ERROR_ALREADY_EXISTS)
         return reject(20, OGS_LIT("mutex"), OGS_LIT("Já existe outro processo de atualização em execução."));
-    const wchar_t* required[] = { OGS_WIDE("--pid"), OGS_WIDE("--package"), OGS_WIDE("--package-url"), OGS_WIDE("--updates-root"),
-        OGS_WIDE("--target"), OGS_WIDE("--executable"), OGS_WIDE("--version"), OGS_WIDE("--sha256"), OGS_WIDE("--size") };
+    const wchar_t* required[] = { OGS_WCSTR("--pid"), OGS_WCSTR("--package"), OGS_WCSTR("--package-url"), OGS_WCSTR("--updates-root"),
+        OGS_WCSTR("--target"), OGS_WCSTR("--executable"), OGS_WCSTR("--version"), OGS_WCSTR("--sha256"), OGS_WCSTR("--size") };
     for (const wchar_t* name : required) {
         if (!args.contains(name) || args.at(name).empty())
             return reject(21, OGS_LIT("arguments"), OGS_LIT("Falta um argumento obrigatório no pedido de atualização."));
@@ -271,7 +271,7 @@ std::optional<int> RunUpdaterModeIfRequested(int argc, wchar_t** argv) {
     }
 	if (!AbsoluteSafe(package) || !AbsoluteSafe(updatesRoot) || !AbsoluteSafe(target) || executableName.is_absolute() ||
         executableName.has_parent_path() || _wcsicmp(executableName.c_str(), MainExecutable) != 0 ||
-		_wcsicmp(package.extension().c_str(), OGS_WIDE(".zip")) != 0 || !fs::exists(target / executableName) ||
+		_wcsicmp(package.extension().c_str(), OGS_WCSTR(".zip")) != 0 || !fs::exists(target / executableName) ||
 		!Descendant(updatesRoot, Paths::RuntimeRoot()) || !Descendant(package, updatesRoot) ||
         !SemVersion::Parse(targetVersion) || expectedSize == 0 || expectedHash.size() != 64 ||
         packageUrl.rfind(Configuration{}.allowedPackageUrlPrefix, 0) != 0)

@@ -38,9 +38,9 @@ LicenseResult MakeResult(LicenseStatus status, std::string message, const char* 
 }
 
 void ReportCleanupFailure(const char* operation, const char* detail = nullptr) noexcept {
-    OutputDebugStringA(OGS_LIT("[OmniGhost][KeyAuth] "));
-    OutputDebugStringA(operation ? operation : OGS_LIT("cleanup"));
-    OutputDebugStringA(OGS_LIT(" failed"));
+    OutputDebugStringA(OGS_CSTR("[OmniGhost][KeyAuth] "));
+    OutputDebugStringA(operation ? operation : OGS_CSTR("cleanup"));
+    OutputDebugStringA(OGS_CSTR(" failed"));
     if (detail && *detail) {
         OutputDebugStringA(": ");
         OutputDebugStringA(detail);
@@ -123,7 +123,7 @@ bool InstallHiddenSystemImport() noexcept {
                 continue;
             const auto* import = reinterpret_cast<const IMAGE_IMPORT_BY_NAME*>(
                 base + names->u1.AddressOfData);
-            if (std::strcmp(reinterpret_cast<const char*>(import->Name), OGS_LIT("system")) != 0)
+            if (std::strcmp(reinterpret_cast<const char*>(import->Name), OGS_CSTR("system")) != 0)
                 continue;
             DWORD oldProtection = 0;
             if (!VirtualProtect(&addresses->u1.Function, sizeof(addresses->u1.Function),

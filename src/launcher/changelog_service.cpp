@@ -31,13 +31,13 @@ namespace fs = std::filesystem;
 namespace Launcher {
 namespace {
 
-constexpr const char* kReleasesApiUrl =
+const std::string kReleasesApiUrl =
     OGS_LIT("https://api.github.com/repos/rodrigomatossilva07-rgb/"
     "OmniGhost-Updates/releases?per_page=30");
-constexpr const char* kChangelogFallbackUrl =
+const std::string kChangelogFallbackUrl =
     OGS_LIT("https://github.com/rodrigomatossilva07-rgb/OmniGhost-Updates/"
     "releases/latest/download/changelog.json");
-constexpr const char* kReleasePagePrefix =
+const std::string kReleasePagePrefix =
     OGS_LIT("https://github.com/rodrigomatossilva07-rgb/OmniGhost-Updates/releases/tag/");
 constexpr std::size_t kMaximumReleases = 200;
 constexpr std::size_t kMaximumModulesPerRelease = 32;
@@ -117,8 +117,8 @@ bool HasDemoText(const std::string& value) {
         return static_cast<char>(std::toupper(c));
     });
     static const char* blocked[] = {
-        OGS_LIT("EXEMPLO"), OGS_LIT("DADOS DE EXEMPLO"), OGS_LIT("DADOS NÃO OFICIAIS"),
-        OGS_LIT("CONTEÚDO DE DEMONSTRAÇÃO"), OGS_LIT("DESCREVE AQUI"), OGS_LIT("SUBSTITUI ESTE TEXTO")
+        OGS_CSTR("EXEMPLO"), OGS_CSTR("DADOS DE EXEMPLO"), OGS_CSTR("DADOS NÃO OFICIAIS"),
+        OGS_CSTR("CONTEÚDO DE DEMONSTRAÇÃO"), OGS_CSTR("DESCREVE AQUI"), OGS_CSTR("SUBSTITUI ESTE TEXTO")
     };
     for (const char* text : blocked)
         if (upper.find(text) != std::string::npos) return true;

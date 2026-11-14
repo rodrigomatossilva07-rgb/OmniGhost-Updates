@@ -420,18 +420,18 @@ std::unique_ptr<IMakcuProtocol> MakcuProtocolRegistry::Create(const FirmwareDesc
 
 const char* FirmwareFamilyName(FirmwareFamily family) noexcept {
     switch (family) {
-    case FirmwareFamily::LegacyText: return OGS_LIT("Legacy V27/V29");
-    case FirmwareFamily::LegacyV2Binary: return OGS_LIT("Legacy V2/AIO");
+    case FirmwareFamily::LegacyText: return OGS_CSTR("Legacy V27/V29");
+    case FirmwareFamily::LegacyV2Binary: return OGS_CSTR("Legacy V2/AIO");
     case FirmwareFamily::V4: return "V4";
-    default: return OGS_LIT("Unknown");
+    default: return OGS_CSTR("Unknown");
     }
 }
 
 const char* CapabilityStateName(CapabilityState state) noexcept {
     switch (state) {
-    case CapabilityState::Supported: return OGS_LIT("Supported");
-    case CapabilityState::Unsupported: return OGS_LIT("Unsupported");
-    default: return OGS_LIT("Unknown");
+    case CapabilityState::Supported: return OGS_CSTR("Supported");
+    case CapabilityState::Unsupported: return OGS_CSTR("Unsupported");
+    default: return OGS_CSTR("Unknown");
     }
 }
 

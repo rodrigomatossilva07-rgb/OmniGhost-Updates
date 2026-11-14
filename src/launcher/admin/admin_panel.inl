@@ -31,7 +31,7 @@ UiState& State() {
 }
 
 bool OpenExternal(const wchar_t* url, const char* failure) {
-    const HINSTANCE result = ShellExecuteW(nullptr, OGS_WIDE("open"), url, nullptr, nullptr, SW_SHOWNORMAL);
+    const HINSTANCE result = ShellExecuteW(nullptr, OGS_WCSTR("open"), url, nullptr, nullptr, SW_SHOWNORMAL);
     if (reinterpret_cast<INT_PTR>(result) > 32)
         return true;
     CyberWidgets::NotifyAdmin(failure, CyberWidgets::ToastType::Error);
@@ -40,21 +40,21 @@ bool OpenExternal(const wchar_t* url, const char* failure) {
 
 const char* SectionTitle(Section section) {
     switch (section) {
-    case Section::Overview: return OGS_LIT("Visão geral");
-    case Section::Users: return OGS_LIT("Utilizadores");
-    case Section::Licenses: return OGS_LIT("Licenças");
-    case Section::Analytics: return OGS_LIT("Analytics");
-    case Section::Games: return OGS_LIT("Jogos e offsets");
-    case Section::Builds: return OGS_LIT("Builds e releases");
-    case Section::Security: return OGS_LIT("Segurança e auditoria");
-    case Section::Developer: return OGS_LIT("Ferramentas");
-    case Section::Support: return OGS_LIT("Suporte e operações");
+    case Section::Overview: return OGS_CSTR("Visão geral");
+    case Section::Users: return OGS_CSTR("Utilizadores");
+    case Section::Licenses: return OGS_CSTR("Licenças");
+    case Section::Analytics: return OGS_CSTR("Analytics");
+    case Section::Games: return OGS_CSTR("Jogos e offsets");
+    case Section::Builds: return OGS_CSTR("Builds e releases");
+    case Section::Security: return OGS_CSTR("Segurança e auditoria");
+    case Section::Developer: return OGS_CSTR("Ferramentas");
+    case Section::Support: return OGS_CSTR("Suporte e operações");
     }
-    return OGS_LIT("Admin");
+    return OGS_CSTR("Admin");
 }
 
 void DrawSectionNavigation() {
-    static constexpr struct Entry { Section section; const char* label; } entries[] = {
+    static const struct Entry { Section section; std::string label; } entries[] = {
         {Section::Overview, OGS_LIT("VISÃO GERAL")},
         {Section::Users, OGS_LIT("UTILIZADORES")},
         {Section::Licenses, OGS_LIT("LICENÇAS")},
@@ -77,7 +77,7 @@ void DrawSectionNavigation() {
             ImGui::PushStyleColor(ImGuiCol_Header, selectedColor);
             ImGui::PushStyleColor(ImGuiCol_HeaderHovered, selectedColor);
         }
-        if (ImGui::Selectable(entry.label, selected, 0,
+        if (ImGui::Selectable(entry.label.c_str(), selected, 0,
                               ImVec2(ImGui::GetContentRegionAvail().x, S(34.f))))
             state.section = entry.section;
         if (selected)
@@ -166,7 +166,7 @@ void DrawAdminUsers() {
     UiState& state = State();
     CyberWidgets::BeginCard(OGS_LIT("PESQUISA DE UTILIZADORES"), 0.f);
     ImGui::SetNextItemWidth(-1.f);
-    ImGui::InputTextWithHint(OGS_LIT("##admin_user_filter"), OGS_LIT("Username, email ou HWID..."),
+    ImGui::InputTextWithHint(OGS_CSTR("##admin_user_filter"), OGS_CSTR("Username, email ou HWID..."),
                              state.userFilter, sizeof(state.userFilter));
     CyberWidgets::TextLine(OGS_LIT("A sessão atual é mostrada localmente. A listagem global permanece no KeyAuth."),
                            CyberWidgets::TextTone::Secondary);
@@ -191,7 +191,7 @@ void DrawAdminLicenses() {
     const auto license = OmniGhost::Licensing::GetSnapshot();
     CyberWidgets::BeginCard(OGS_LIT("SUBSCRIÇÕES DA SESSÃO"), 0.f);
     ImGui::SetNextItemWidth(-1.f);
-    ImGui::InputTextWithHint(OGS_LIT("##admin_license_filter"), OGS_LIT("Filtrar subscrições visíveis..."),
+    ImGui::InputTextWithHint(OGS_CSTR("##admin_license_filter"), OGS_CSTR("Filtrar subscrições visíveis..."),
                              state.licenseFilter, sizeof(state.licenseFilter));
     bool shown = false;
     std::string filter = state.licenseFilter;
@@ -262,11 +262,11 @@ void DrawAdminAnalytics() {
 const char* OffsetStateText(OmniGhost::OffsetAuto::CompatibilityState state) {
     using StateType = OmniGhost::OffsetAuto::CompatibilityState;
     switch (state) {
-    case StateType::Checking: return OGS_LIT("A verificar");
-    case StateType::Ready: return OGS_LIT("Prontos");
-    case StateType::Outdated: return OGS_LIT("Desatualizados");
-    case StateType::Unsupported: return OGS_LIT("Sem atualização automática");
-    default: return OGS_LIT("Ainda não validados");
+    case StateType::Checking: return OGS_CSTR("A verificar");
+    case StateType::Ready: return OGS_CSTR("Prontos");
+    case StateType::Outdated: return OGS_CSTR("Desatualizados");
+    case StateType::Unsupported: return OGS_CSTR("Sem atualização automática");
+    default: return OGS_CSTR("Ainda não validados");
     }
 }
 
@@ -446,14 +446,14 @@ void DrawAdminSupport() {
     }
     ImGui::SameLine();
     if (CyberWidgets::Button(OGS_LIT("ABRIR LOGS"), CyberWidgets::ButtonStyle::Ghost, ImVec2(S(135.f), S(34.f))))
-        ShellExecuteW(nullptr, OGS_WIDE("open"), OmniGhost::Paths::Logs().c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+        ShellExecuteW(nullptr, OGS_WCSTR("open"), OmniGhost::Paths::Logs().c_str(), nullptr, nullptr, SW_SHOWNORMAL);
     ImGui::SameLine();
     if (CyberWidgets::Button(OGS_LIT("CRIAR PACOTE"), CyberWidgets::ButtonStyle::Primary, ImVec2(S(145.f), S(34.f)))) {
         std::filesystem::path packagePath;
         std::string error;
         if (OmniGhost::Diagnostics::CreatePackage(BuildDiagnosticsText(), packagePath, error)) {
             CyberWidgets::NotifyAdmin(OGS_LIT("Pacote de diagnóstico criado."), CyberWidgets::ToastType::Success);
-            ShellExecuteW(nullptr, OGS_WIDE("open"), packagePath.parent_path().c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+            ShellExecuteW(nullptr, OGS_WCSTR("open"), packagePath.parent_path().c_str(), nullptr, nullptr, SW_SHOWNORMAL);
         } else {
             CyberWidgets::NotifyAdmin(error.empty() ? OGS_LIT("Não foi possível criar o pacote.") : error.c_str(),
                                  CyberWidgets::ToastType::Error);
@@ -502,13 +502,13 @@ void DrawAdmin(ImVec2 display) {
 
     const float sidebarWidth = S(220.f);
     const float gap = S(14.f);
-    ImGui::BeginChild(OGS_LIT("##admin_navigation"), ImVec2(sidebarWidth, -1.f), true,
+    ImGui::BeginChild(OGS_CSTR("##admin_navigation"), ImVec2(sidebarWidth, -1.f), true,
                       ImGuiWindowFlags_NoSavedSettings);
     ImGui::SetScrollX(0.0f);
     AdminPanel::DrawSectionNavigation();
     ImGui::EndChild();
     ImGui::SameLine(0.f, gap);
-    ImGui::BeginChild(OGS_LIT("##admin_content"), ImVec2(0.f, -1.f), false);
+    ImGui::BeginChild(OGS_CSTR("##admin_content"), ImVec2(0.f, -1.f), false);
     AdminPanel::DrawContent();
     ImGui::EndChild();
 

@@ -38,12 +38,12 @@ std::atomic<bool> g_suppressFinalFlush{false};
 
 const char* GameName(::Launcher::GameId game) noexcept {
     switch (game) {
-    case ::Launcher::GameId::FiveM: return OGS_LIT("fivem");
+    case ::Launcher::GameId::FiveM: return OGS_CSTR("fivem");
     case ::Launcher::GameId::CS2: return "cs2";
-    case ::Launcher::GameId::Fortnite: return OGS_LIT("fortnite");
-    case ::Launcher::GameId::Rust: return OGS_LIT("rust");
-    case ::Launcher::GameId::Warzone: return OGS_LIT("warzone");
-    case ::Launcher::GameId::Apex: return OGS_LIT("apex");
+    case ::Launcher::GameId::Fortnite: return OGS_CSTR("fortnite");
+    case ::Launcher::GameId::Rust: return OGS_CSTR("rust");
+    case ::Launcher::GameId::Warzone: return OGS_CSTR("warzone");
+    case ::Launcher::GameId::Apex: return OGS_CSTR("apex");
     default: return nullptr;
     }
 }

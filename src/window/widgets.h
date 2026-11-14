@@ -7,6 +7,7 @@
 #include <cfloat>
 #include <functional>
 #include <string>
+#include <utility>
 #include <chrono>
 
 namespace CyberWidgets {
@@ -19,11 +20,18 @@ namespace CyberWidgets {
     bool ToggleSwitch(const char* label, bool* v);
     bool Button(const char* label, ButtonStyle style = ButtonStyle::Secondary,
                 const ImVec2& size = ImVec2(0, 0), bool enabled = true);
+    inline bool Button(const std::string& label, ButtonStyle style = ButtonStyle::Secondary,
+                       const ImVec2& size = ImVec2(0, 0), bool enabled = true) {
+        return Button(label.c_str(), style, size, enabled);
+    }
     bool LoadingButton(const char* label, const char* pending_label, bool pending,
                        ButtonStyle style = ButtonStyle::Primary,
                        const ImVec2& size = ImVec2(0, 0), bool enabled = true);
     bool CyberButton(const char* label, const ImVec2& size = ImVec2(0, 0));
     bool GoldButton(const char* label, const ImVec2& size = ImVec2(0, 0));
+    inline bool GoldButton(const std::string& label, const ImVec2& size = ImVec2(0, 0)) {
+        return GoldButton(label.c_str(), size);
+    }
     bool GhostButton(const char* label, const ImVec2& size = ImVec2(0, 0));
     bool DangerButton(const char* label, const ImVec2& size = ImVec2(0, 0));
     bool SidebarButton(const char* label, bool active,
@@ -46,11 +54,21 @@ namespace CyberWidgets {
                    const char* hint = nullptr);
     bool InputInt(const char* label, int* value);
     void TextLine(const char* text, TextTone tone = TextTone::Primary);
+    inline void TextLine(const std::string& text, TextTone tone = TextTone::Primary) {
+        TextLine(text.c_str(), tone);
+    }
     void TextLineF(TextTone tone, const char* format, ...);
+    template <typename... Args>
+    inline void TextLineF(TextTone tone, const std::string& format, Args&&... args) {
+        TextLineF(tone, format.c_str(), std::forward<Args>(args)...);
+    }
     void KeyValueRow(const char* label, const char* value);
     void HealthRow(const char* label, const char* value, HealthStatus status);
     void StatusBadge(const char* label, bool online);
     void Badge(const char* label, TextTone tone = TextTone::Secondary);
+    inline void Badge(const std::string& label, TextTone tone = TextTone::Secondary) {
+        Badge(label.c_str(), tone);
+    }
     void HelpMarker(const char* description);
     void InlineMessage(const char* message, TextTone tone = TextTone::Info,
                        const char* error_id = nullptr);
@@ -61,6 +79,9 @@ namespace CyberWidgets {
     void EndSurfaceList();
 
     void BeginCard(const char* title, float width = 0.f);
+    inline void BeginCard(const std::string& title, float width = 0.f) {
+        BeginCard(title.c_str(), width);
+    }
     void EndCard();
     void CardGap(float y = 10.f);
     void BeginCardRow(int columns = 2);
@@ -80,6 +101,10 @@ namespace CyberWidgets {
 
     void Spinner(const char* id, float radius = 7.0f, float thickness = 2.0f,
                  TextTone tone = TextTone::Accent);
+    inline void Spinner(const std::string& id, float radius = 7.0f, float thickness = 2.0f,
+                        TextTone tone = TextTone::Accent) {
+        Spinner(id.c_str(), radius, thickness, tone);
+    }
     void DrawSpinner(ImDrawList* draw, ImVec2 center, float radius = 7.0f,
                      float thickness = 2.0f, TextTone tone = TextTone::Accent);
 
