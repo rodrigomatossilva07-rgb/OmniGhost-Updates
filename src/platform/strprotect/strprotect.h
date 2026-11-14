@@ -55,14 +55,25 @@ std::wstring ToWide(std::string_view utf8);
 
 
 template <ogs::detail::CipherText Blob>
-class Lit {
+class Lit : public std::string {
 public:
-    constexpr Lit() noexcept = default;
+    Lit()
+        : std::string(Storage())
+    {
+    }
+
+    static const std::string& Storage() noexcept
+    {
+        static const std::string text = [] {
+            const auto decrypted = detail::DecryptRuntimeText(Blob);
+            return std::string{decrypted.data(), Blob.kLen};
+        }();
+        return text;
+    }
 
     const char* c_str() const noexcept
     {
-        static const std::array<char, Blob.kBuf> text = detail::DecryptRuntimeText(Blob);
-        return text.data();
+        return std::string::c_str();
     }
 
     std::string_view view() const noexcept
@@ -70,57 +81,23 @@ public:
         return std::string_view{c_str(), Blob.kLen};
     }
 
-    operator const char*() const noexcept { return c_str(); }
-
-    // Implicit conversions to the standard text containers/cursors. The
-    // plaintext is still produced lazily at runtime; these simply let protected
-    // literals flow into existing APIs that take std::string/string_view.
-    operator std::string_view() const noexcept { return view(); }
-    operator std::string() const { return std::string(view()); }
 };
 
 
 
 
-template <ogs::detail::CipherText Blob>
-std::string operator+(const Lit<Blob>& lit, const std::string& rhs)
-{
-    return std::string(lit.c_str()) + rhs;
-}
-
-template <ogs::detail::CipherText Blob>
-std::string operator+(const Lit<Blob>& lit, const char* rhs)
-{
-    return std::string(lit.c_str()) + rhs;
-}
-
-template <ogs::detail::CipherText Blob>
-std::string operator+(const char* lhs, const Lit<Blob>& lit)
-{
-    return std::string(lhs) + lit.c_str();
-}
-
-template <ogs::detail::CipherText Blob>
-std::string operator+(const std::string& lhs, const Lit<Blob>& lit)
-{
-    return lhs + lit.c_str();
-}
-
-template <ogs::detail::CipherText BlobA, ogs::detail::CipherText BlobB>
-std::string operator+(const Lit<BlobA>& a, const Lit<BlobB>& b)
-{
-    return std::string(a.c_str()) + b.c_str();
-}
-
 
 
 
 
 
 template <ogs::detail::CipherText Blob>
-class WideLit {
+class WideLit : public std::wstring {
 public:
-    constexpr WideLit() noexcept = default;
+    WideLit()
+        : std::wstring(Storage())
+    {
+    }
 
     static const std::wstring& Storage() noexcept
     {
@@ -128,42 +105,9 @@ public:
         return text;
     }
 
-    const wchar_t* c_str() const noexcept { return Storage().c_str(); }
-    std::wstring_view view() const noexcept { return Storage(); }
-    operator const wchar_t*() const noexcept { return c_str(); }
-    operator std::wstring_view() const noexcept { return view(); }
-    operator std::wstring() const { return Storage(); }
+    const wchar_t* c_str() const noexcept { return std::wstring::c_str(); }
+    std::wstring_view view() const noexcept { return std::wstring_view{*this}; }
 };
-
-template <ogs::detail::CipherText Blob>
-std::wstring operator+(const WideLit<Blob>& lit, const std::wstring& rhs)
-{
-    return std::wstring(lit.c_str()) + rhs;
-}
-
-template <ogs::detail::CipherText Blob>
-std::wstring operator+(const WideLit<Blob>& lit, const wchar_t* rhs)
-{
-    return std::wstring(lit.c_str()) + rhs;
-}
-
-template <ogs::detail::CipherText Blob>
-std::wstring operator+(const wchar_t* lhs, const WideLit<Blob>& lit)
-{
-    return std::wstring(lhs) + lit.c_str();
-}
-
-template <ogs::detail::CipherText Blob>
-std::wstring operator+(const std::wstring& lhs, const WideLit<Blob>& lit)
-{
-    return lhs + lit.c_str();
-}
-
-template <ogs::detail::CipherText BlobA, ogs::detail::CipherText BlobB>
-std::wstring operator+(const WideLit<BlobA>& a, const WideLit<BlobB>& b)
-{
-    return std::wstring(a.c_str()) + b.c_str();
-}
 
 
 
