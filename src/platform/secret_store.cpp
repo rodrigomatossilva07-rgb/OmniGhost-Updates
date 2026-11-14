@@ -1,6 +1,6 @@
-// ============================================================================
-// OmniGhost local secret store (SEC-004) - DPAPI-backed persistence.
-// ============================================================================
+
+
+
 
 #include "platform/secret_store.h"
 
@@ -36,7 +36,7 @@ std::filesystem::path SecretDirectory()
 
 std::filesystem::path SecretPath(std::string_view name)
 {
-    // Sanitize: names are simple identifiers; strip anything path-like.
+
     std::string clean;
     clean.reserve(name.size());
     for (const char c : name) {
@@ -106,7 +106,7 @@ bool WriteFileBytes(const std::filesystem::path& path, const std::vector<unsigne
     return ok;
 }
 
-} // namespace
+}
 
 bool Store(std::string_view name, std::string_view plaintext)
 {
@@ -124,7 +124,7 @@ ogs::SecretText Load(std::string_view name)
     std::vector<unsigned char> plain = Unseal(bytes);
     if (plain.empty())
         return ogs::SecretText(std::string_view{});
-    // Wrap through SecretText so the plaintext buffer is zeroized on release.
+
     const std::string text(plain.begin(), plain.end());
     ogs::ZeroRange(plain.data(), plain.size());
     return ogs::SecretText(std::string_view{text});
@@ -142,4 +142,4 @@ void Delete(std::string_view name)
     std::filesystem::remove(SecretPath(name), ec);
 }
 
-} // namespace OmniGhost::Secrets
+}

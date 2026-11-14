@@ -1,5 +1,5 @@
-// Standalone runner for the OmniGhost String Protection self-test.
-// Built and executed by src\project\tools\Test-StringProtectionRuntime.ps1.
+
+
 
 #include "platform/strprotect/strprotect.h"
 

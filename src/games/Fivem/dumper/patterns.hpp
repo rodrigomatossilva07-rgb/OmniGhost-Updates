@@ -19,16 +19,16 @@ struct PatternCandidate {
     const char* source;
 };
 
-// Community candidates are deliberately kept as candidates until runtime validation succeeds.
-// Sources:
-// - UnknownCheats thread 759172 (FiveM Signature Pattern List V2)
-// - syslink47/fivem-offset-dumper- (MIT), signatures.h
-// - vgszf/Fivem-External-SilentAim, Fivem.hpp (cross-reference for core patterns)
-// Legacy and Enhanced must never share a candidate inventory implicitly.  The
-// Enhanced list is intentionally empty until patterns are captured and
-// validated against an Enhanced executable.
+
+
+
+
+
+
+
+
 inline constexpr PatternCandidate kLegacyPatternCandidates[] = {
-    // b3258 patterns generated from unique RIP references in the user's running module.
+
     {"world", "world_b3258", "48 8B 0D ? ? ? ? 8B C3 48 85 C9 74 0E 48 39 59 08 0F 95", ResolveKind::RipRelative, 3, 7, 0, 0, 3258, 3258, "runtime-derived b3258 unique xref"},
     {"viewport", "viewport_b3258", "48 8B 15 ? ? ? ? 48 8D 2D F8 4D FF 01 48 8B CD E8 6C 8C", ResolveKind::RipRelative, 3, 7, 0, 0, 3258, 3258, "runtime-derived b3258 unique xref"},
     {"camera", "camera_b3258", "48 8B 1D ? ? ? ? 0F 29 70 E8 48 8B F2 48 8B F9 48 85 DB", ResolveKind::RipRelative, 3, 7, 0, 0, 3258, 3258, "runtime-derived b3258 unique xref"},

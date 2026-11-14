@@ -408,9 +408,9 @@ try {
     [System.IO.Compression.ZipFile]::CreateFromDirectory(
         $StageDir,
         $ArtifactZip,
-        # The single EXE already contains compressed LZMS resources. Fastest
-        # keeps the updater-compatible ZIP while avoiding minutes of redundant
-        # maximum-deflate work for a comparatively small size reduction.
+
+
+
         [System.IO.Compression.CompressionLevel]::Fastest,
         $false)
 

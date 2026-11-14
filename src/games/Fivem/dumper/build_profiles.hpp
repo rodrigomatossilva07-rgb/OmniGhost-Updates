@@ -10,8 +10,8 @@ struct BuildOffset {
     std::string_view source;
 };
 
-// Published build-specific reference RVAs. These are validation anchors, never export fallbacks.
-// A value is emitted only after the current executable resolves and validates it.
+
+
 inline constexpr BuildOffset kBuildOffsets[] = {
     {2060, "world", 0x24C8858, "vgszf/Fivem-External-SilentAim"},
     {2060, "replay_interface", 0x1EC3828, "vgszf/Fivem-External-SilentAim"},

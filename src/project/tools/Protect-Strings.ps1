@@ -1,16 +1,16 @@
-# ============================================================================
-# Protect-Strings.ps1 - OmniGhost String Protection System (OGSP)
-#
-# Build-time automation for string protection:
-#   scan      - extract + classify string literals (read-only)
-#   protect   - scan + manifest + history diff + key generation (build step)
-#   validate  - enforcement policy check (Tier-1 violations fail Release/Publish)
-#   apply     - rewrite eligible unprotected literals with OGS_LIT / OGS_PACK
-#   keygen    - (re)generate omni_strprotect_key.h
-#   selftest  - lexer / classification assertions on a synthetic fixture
-#
-# See src\project\config\strings\README.md for the full system documentation.
-# ============================================================================
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 [CmdletBinding()]
 param(
@@ -23,14 +23,14 @@ param(
     [string]$Configuration = 'Release',
     [string]$Platform = 'x64',
 
-    # apply: wrap Tier-1 unprotected literals in place.
+
     [switch]$ApplyAutoProtect,
-    # apply: also include files outside the Tier-1 areas.
+
     [switch]$AllFiles,
-    # apply: rewrite the localization table (src\window\localization.cpp).
+
     [switch]$ProtectLocalization,
 
-    # Overrides used by the scenario tests (fixture directories).
+
     [string]$SourceRoot = '',
     [string]$ConfigPath = '',
     [string]$ManifestPath = '',
@@ -38,7 +38,7 @@ param(
     [string]$ReportPath = '',
     [string]$GeneratedDir = '',
 
-    # Force enforcement regardless of Configuration.
+
     [switch]$Enforce
 )
 
@@ -57,9 +57,9 @@ function Write-Fail {
     Write-Host "[FAIL] $Message"
 }
 
-# ---------------------------------------------------------------------------
-# Paths + configuration.
-# ---------------------------------------------------------------------------
+
+
+
 
 $ProjectDir = [System.IO.Path]::GetFullPath($ProjectDir).TrimEnd('\')
 
@@ -84,9 +84,9 @@ if (-not (Test-Path -LiteralPath $ConfigPath -PathType Leaf)) {
 }
 $Config = Get-Content -LiteralPath $ConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
 
-# ---------------------------------------------------------------------------
-# Small helpers.
-# ---------------------------------------------------------------------------
+
+
+
 
 $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 
@@ -136,7 +136,7 @@ function Get-GitInfo {
         $branch = & git -C $ProjectDir rev-parse --abbrev-ref HEAD 2>$null
         if ($LASTEXITCODE -eq 0 -and $branch) { $info.Branch = ([string]$branch).Trim() }
     } catch {
-        # Git present but unusable: history stays inventory-based.
+
     }
     return $info
 }
@@ -160,13 +160,13 @@ function Test-PathPattern {
     return $false
 }
 
-# ---------------------------------------------------------------------------
-# C++ lexer: extracts string literals with protection context.
-# ---------------------------------------------------------------------------
 
-# Ordered alternation: comments, preprocessor directives, raw strings,
-# prefixed plain strings, char literals. Singleline so "." spans raw strings
-# and block comments; every other construct uses explicit character classes.
+
+
+
+
+
+
 $script:TokenPattern = '(?<blockcomment>/\*.*?\*/)|(?<linecomment>//[^\r\n]*)|(?<preproc>(?m)^[ \t]*#[^\r\n]*)|(?<rawstring>(?:u8|u|U|L)?R"(?<rdelim>[^ ()\\\r\n]{0,16})\(.*?\)\k<rdelim>")|(?<string>(?:u8|u|U|L)?"(?:\\.|[^"\\\r\n])*")|(?<charliteral>(?:u8|u|U|L)?''(?:\\.|[^''\\\r\n])*'')'
 $script:TokenRegex = [regex]::new($script:TokenPattern, [System.Text.RegularExpressions.RegexOptions]::Singleline)
 
@@ -182,7 +182,7 @@ function Get-CppLiterals {
     $matches_ = $script:TokenRegex.Matches($text)
     $wrapperNames = @($Config.wrappers)
 
-    # Ranges the wrapper scan must jump over (comments, directives, literals).
+
     $skipRanges = New-Object System.Collections.Generic.List[object]
     foreach ($m in $matches_) {
         foreach ($groupName in $script:SkipGroupNames) {
@@ -202,10 +202,10 @@ function Get-CppLiterals {
         return -1
     }
 
-    # Protected spans: wrapper identifier + '(' tracked to the matching ')',
-    # ignoring parentheses inside strings/comments/directives.
+
+
     $spans = New-Object System.Collections.Generic.List[object]
-    # Unsafe spans: constant-expression calls where wrapping would break compilation.
+
     $unsafeSpans = New-Object System.Collections.Generic.List[object]
     $unsafeNames = @('sizeof', 'static_assert', 'alignof', 'alignas', 'offsetof', '_countof', 'static_cast', 'reinterpret_cast')
     $allSpanNames = @()
@@ -237,7 +237,7 @@ function Get-CppLiterals {
         }
     }
 
-    # Line start offsets.
+
     $lineStarts = New-Object System.Collections.Generic.List[int]
     $lineStarts.Add(0)
     for ($i = 0; $i -lt $text.Length; $i++) {
@@ -253,7 +253,7 @@ function Get-CppLiterals {
         return $lo + 1
     }
 
-    # Collect string tokens (raw + plain), then merge adjacent literals.
+
     $tokens = New-Object System.Collections.Generic.List[object]
     foreach ($m in $matches_) {
         foreach ($groupName in @('rawstring', 'string')) {
@@ -340,7 +340,7 @@ function Get-CppLiterals {
 
 function ConvertFrom-CppLiteral {
     param([string]$Raw)
-    # Raw strings: content is the text between the delimiters.
+
     if ($Raw -match '(?:u8|u|U|L)?R"(?<d>[^ ()\\\r\n]{0,16})\(') {
         $delim = $Matches['d']
         $openPattern = '(?:u8|u|U|L)?R"' + [regex]::Escape($delim) + '\('
@@ -353,7 +353,7 @@ function ConvertFrom-CppLiteral {
         return $Raw.Substring($contentStart, $close.Index - $contentStart)
     }
 
-    # Plain literals: may be several adjacent segments ("a" "b" => "ab").
+
     $segments = [regex]::Matches($Raw, '(?:u8|u|U|L)?"(?:\\.|[^"\\\r\n])*"')
     if ($segments.Count -eq 0) { return $null }
     $builder = New-Object System.Text.StringBuilder
@@ -363,8 +363,8 @@ function ConvertFrom-CppLiteral {
         $lastQuote = $body.LastIndexOf('"')
         if ($lastQuote -le $firstQuote) { continue }
         $body = $body.Substring($firstQuote + 1, $lastQuote - $firstQuote - 1)
-        # Resolve escapes to logical characters (if/elseif chain: PS switch
-        # interacts badly with manual index advancement).
+
+
         $i = 0
         while ($i -lt $body.Length) {
             $c = $body[$i]
@@ -402,9 +402,9 @@ function ConvertFrom-CppLiteral {
     return $builder.ToString()
 }
 
-# ---------------------------------------------------------------------------
-# Classification.
-# ---------------------------------------------------------------------------
+
+
+
 
 function Get-Classification {
     param([object]$Literal, [string]$RelativePath)
@@ -416,10 +416,10 @@ function Get-Classification {
 
     $hasWords = [regex]::IsMatch($text, '[A-Za-z]{3,}')
     $isUrl = ($text -match '^[a-zA-Z][a-zA-Z0-9+.\-]*://')
-    if (-not $hasWords -and -not $isUrl) { return $result } # pure format/punctuation
+    if (-not $hasWords -and -not $isUrl) { return $result }
 
     if ([regex]::IsMatch($text, '^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z0-9_\-]+)+$')) {
-        $result.Category = 'locator-key' # e.g. Loc::Tr("nav.visuals") lookup keys
+        $result.Category = 'locator-key'
         return $result
     }
 
@@ -451,9 +451,9 @@ function Get-Classification {
     return $result
 }
 
-# ---------------------------------------------------------------------------
-# Scan all first-party sources.
-# ---------------------------------------------------------------------------
+
+
+
 
 function Get-SourceFiles {
     $roots = @('src')
@@ -508,9 +508,9 @@ function Invoke-Scan {
     }
 }
 
-# ---------------------------------------------------------------------------
-# Manifest + history.
-# ---------------------------------------------------------------------------
+
+
+
 
 function Read-Manifest {
     if (-not (Test-Path -LiteralPath $ManifestPath -PathType Leaf)) { return $null }
@@ -588,7 +588,7 @@ function Add-HistoryEvents {
             try {
                 $event = $line | ConvertFrom-Json
                 if ($event.kind -eq 'removed' -and $event.fp) { [void]$removedFps.Add([string]$event.fp) }
-            } catch { # ignore malformed history lines
+            } catch {
             }
         }
     }
@@ -601,7 +601,7 @@ function Add-HistoryEvents {
     $matchedRemoved = New-Object 'System.Collections.Generic.HashSet[string]'
     $matchedAdded = New-Object 'System.Collections.Generic.HashSet[string]'
 
-    # modified: same file + category within a small line window.
+
     foreach ($newEntry in $added) {
         foreach ($oldEntry in $removed) {
             if ($matchedRemoved.Contains([string]$oldEntry.id)) { continue }
@@ -616,7 +616,7 @@ function Add-HistoryEvents {
         }
     }
 
-    # moved: same fingerprint, different file.
+
     foreach ($newEntry in $added) {
         if ($matchedAdded.Contains([string]$newEntry.id)) { continue }
         foreach ($oldEntry in $removed) {
@@ -642,7 +642,7 @@ function Add-HistoryEvents {
         $events.Add((New-EventRecord -Kind 'removed' -Entry $oldEntry -Version $Version -Git $Git))
     }
 
-    # duplicated fingerprints (informational, current state only).
+
     $seenFp = @{}
     foreach ($entry in $Scan.Entries) {
         $key = [string]$entry.fp
@@ -664,9 +664,9 @@ function Add-HistoryEvents {
     return $events
 }
 
-# ---------------------------------------------------------------------------
-# Enforcement.
-# ---------------------------------------------------------------------------
+
+
+
 
 function Get-EnforceMode {
     $envMode = $env:OMNIGHOST_STRING_ENFORCE
@@ -688,7 +688,7 @@ function Invoke-Enforce {
     $violations = New-Object System.Collections.Generic.List[object]
     $unprotectedCount = 0
     foreach ($entry in $Scan.Entries) {
-        if ($entry.status -ne 'unprotected') { continue } # protected + unsafe (const-expr) contexts
+        if ($entry.status -ne 'unprotected') { continue }
         $unprotectedCount++
         $inScope = ($mode -eq 'all') -or (Test-PathPattern -RelativePath ([string]$entry.file) -Patterns @($Config.tier1))
         if (-not $inScope) { continue }
@@ -728,9 +728,9 @@ function Invoke-Enforce {
     return @{ Violations = $violations; Mode = $mode; Failed = $failed; UnprotectedCount = $unprotectedCount }
 }
 
-# ---------------------------------------------------------------------------
-# Apply: rewrite sources (Tier-1 wrapping + localization table).
-# ---------------------------------------------------------------------------
+
+
+
 
 function Add-StrProtectInclude {
     param([string]$Text, [string]$IncludeLine)
@@ -747,10 +747,10 @@ function Add-StrProtectInclude {
 
 function ConvertTo-NarrowCppLiteral {
     param([string]$Content)
-    # Re-encodes a decoded string as a narrow C++ literal. Non-ASCII and
-    # control characters become \uXXXX escapes so the result is independent of
-    # the source file encoding (the project compiles with /utf-8, and universal
-    # character names are converted to UTF-8 execution bytes by MSVC).
+
+
+
+
     $builder = New-Object System.Text.StringBuilder
     foreach ($ch in $Content.ToCharArray()) {
         $code = [int]$ch
@@ -770,11 +770,11 @@ function New-WrapExpression {
     param([object]$Literal)
     $raw = [string]$Literal.Raw
     if ($raw -match '^L"') {
-        # Wide literal: store the UTF-8 form, restore UTF-16 at first use.
+
         return 'OGS_WIDE("' + (ConvertTo-NarrowCppLiteral -Content $Literal.Text) + '")'
     }
     if ($raw -match '^u8"') {
-        # C++20 u8 literals are char8_t; the plain form has identical bytes.
+
         return 'OGS_LIT(' + $raw.Substring(2) + ')'
     }
     return 'OGS_LIT(' + $raw + ')'
@@ -801,10 +801,10 @@ function Invoke-ApplyWrapping {
             if ($literal.Protected) { continue }
             $classification = Get-Classification -Literal $literal -RelativePath $relative
             if (-not $classification.Eligible) { continue }
-            # C++20 u"/U" literals are char16_t/char32_t: OGS cannot wrap them.
+
             if ($literal.Raw -match '^[uU]"') { continue }
-            # Conservative contexts only: literal as a complete call argument,
-            # assignment initializer, ternary branch or return/throw operand.
+
+
             $prevOk = ($literal.PrevChar -eq '(') -or ($literal.PrevChar -eq ',') -or ($literal.PrevChar -eq '=') -or ($literal.PrevChar -eq '?') -or ($literal.PrevChar -eq ':') -or ($literal.PrevChar -eq '+') -or ($literal.PrevChar -eq '/') -or ($literal.PrevChar -eq '{') -or (($literal.PrevChar -eq '<') -and ($literal.LineText -match '<<'))
             $nextOk = ($literal.NextChar -eq ')') -or ($literal.NextChar -eq ',') -or ($literal.NextChar -eq '}') -or ($literal.NextChar -eq ';') -or ($literal.NextChar -eq ':') -or ($literal.NextChar -eq '|') -or ($literal.NextChar -eq '&') -or ($literal.NextChar -eq '+') -or ($literal.NextChar -eq '/') -or ($literal.NextChar -eq '?') -or (($literal.NextChar -eq '<') -and ($literal.LineText -match '<<'))
             if (-not ($prevOk -and $nextOk)) {
@@ -812,16 +812,16 @@ function Invoke-ApplyWrapping {
                 if (-not $returnContext) { continue }
             }
             $line = $literal.LineText
-            if ($literal.InUnsafe) { continue } # sizeof/static_assert/... spans
+            if ($literal.InUnsafe) { continue }
             if ($line -match '\bconstexpr\b') { continue }
             if ($line -match '__declspec' -or $line -match '\buuid\s*\(' -or $line -match '\[\[') { continue }
-            if ($line -match '(wchar_t|char)\s+\w+\s*\[\s*\]\s*=') { continue } # char array init from literal
+            if ($line -match '(wchar_t|char)\s+\w+\s*\[\s*\]\s*=') { continue }
             if ($line -match '^[ \t]*#') { continue }
             $wraps.Add($literal)
         }
         if ($wraps.Count -eq 0) { continue }
 
-        # Replace from the end so offsets stay valid.
+
         $wraps = @([System.Linq.Enumerable]::OrderByDescending($wraps, [Func[object, int]]{ param($w) $w.Offset }))
         $builder = $text
         foreach ($wrap in $wraps) {
@@ -893,15 +893,15 @@ function Invoke-ApplyLocalization {
     }
     $updated = $text.Substring(0, $tableStart) + $newTable + $text.Substring($tableEnd)
 
-    # kTable value type.
+
     $updated = $updated.Replace($tableStartMarker,
                                  'const std::unordered_map<std::string_view, ogs::LocPackRef> kTable = {')
 
-    # Remove the local Pack struct (replaced by ogs::LocPackRef lookups).
+
     $packStructPattern = [regex]'(?s)[ \t]*struct Pack \{[^}]*\};\r?\n\r?\n'
     $updated = $packStructPattern.Replace($updated, '', 1)
 
-    # Replace Pick() with the LocPackRef version.
+
     $pickPattern = [regex]'(?s)[ \t]*const char\* Pick\(const Pack& pack\)\r?\n[ \t]*\{.*?\r?\n[ \t]*\}\r?\n'
     $newPick = @'
     const char* Pick(const ogs::LocPackRef& ref)
@@ -934,9 +934,9 @@ function Invoke-ApplyLocalization {
     return @{ Modified = $true }
 }
 
-# ---------------------------------------------------------------------------
-# Key generation.
-# ---------------------------------------------------------------------------
+
+
+
 
 function Invoke-KeyGen {
     $version = Get-AppVersion
@@ -1031,9 +1031,9 @@ inline constexpr std::uint64_t kNonceSaltB = 0x$($saltB.ToString('x16'))ull;
     return @{ Path = $keyPath; Changed = $changed }
 }
 
-# ---------------------------------------------------------------------------
-# Selftest: lexer + classification assertions on a synthetic fixture.
-# ---------------------------------------------------------------------------
+
+
+
 
 function Invoke-SelfTest {
     $failures = 0
@@ -1103,9 +1103,9 @@ const char* h = OGS_ONE("https://keyauth.win/api/1.3/");
     return $false
 }
 
-# ---------------------------------------------------------------------------
-# Report.
-# ---------------------------------------------------------------------------
+
+
+
 
 function Write-Report {
     param([object]$Scan, [object]$EnforceResult, [hashtable]$Extra)
@@ -1133,9 +1133,9 @@ function Write-Report {
     [System.IO.File]::WriteAllText($ReportPath, ($report | ConvertTo-Json -Depth 5), $Utf8NoBom)
 }
 
-# ---------------------------------------------------------------------------
-# Main dispatch.
-# ---------------------------------------------------------------------------
+
+
+
 
 $script:FailCount = 0
 $script:ReplacedCount = 0
@@ -1160,10 +1160,10 @@ switch ($Command) {
         exit 0
     }
     'plaintexts' {
-        # Emits the plaintexts of protected strings (JSON) for the post-link
-        # binary validator. Strings that are substrings of any other literal in
-        # the tree are flagged allowIf=true (they can legitimately appear via
-        # that other literal; the validator must not fail on them).
+
+
+
+
         $scan = Invoke-Scan
         $plainEntries = New-Object System.Collections.Generic.List[object]
         foreach ($file in (Get-SourceFiles)) {

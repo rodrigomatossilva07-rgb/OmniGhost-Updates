@@ -109,10 +109,10 @@ try {
     $project = Join-Path $reproRoot 'OmiGhost.vcxproj'
     Write-Host '[Repro 2/3] A executar build independente (detalhes em .cache\logs\repro-build.log)...'
     [IO.Directory]::CreateDirectory((Split-Path -Parent $reproLog)) | Out-Null
-    # The isolated build remains a full byte-for-byte verification, but it no
-    # longer forces MSBuild to a single worker. Compilation units are
-    # independent and deterministic, so using all available cores preserves
-    # the guarantee while substantially reducing Publish time.
+
+
+
+
     $buildOutput = @(& $MSBuildPath $project /t:Build /m /nr:false /p:Configuration=Publish /p:Platform=x64 `
         /p:OmniGhostReproducibilityPass=true `
         /p:OmniGhostSkipPackaging=true /p:OmniGhostSkipRemotePublish=true `

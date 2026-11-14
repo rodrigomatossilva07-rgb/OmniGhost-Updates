@@ -1,10 +1,10 @@
-// ============================================================================
-// OmniGhost String Protection (OGSP) - runtime implementation + self-test.
-//
-// The self-test pins the implementation against the official RFC 8439 test
-// vectors (sections 2.3.2 and 2.4.2), verifies compile-time/runtime cipher
-// consistency, RAII zeroization and thread-safe lazy decryption.
-// ============================================================================
+
+
+
+
+
+
+
 
 #include "strprotect.h"
 
@@ -43,7 +43,7 @@ std::wstring ToWide(std::string_view utf8)
     return wide;
 }
 
-} // namespace ogs
+}
 
 namespace {
 
@@ -65,14 +65,14 @@ constexpr std::array<Word, 3> Rfc8439CipherNonce() noexcept
     return {0x00000000u, 0x4a000000u, 0x00000000u};
 }
 
-// RFC 8439 section 2.3.2 - serialized block output.
+
 constexpr std::array<std::uint8_t, 64> kRfc8439Block{
     0x10, 0xf1, 0xe7, 0xe4, 0xd1, 0x3b, 0x59, 0x15, 0x50, 0x0f, 0xdd, 0x1f, 0xa3, 0x20, 0x71, 0xc4,
     0xc7, 0xd1, 0xf4, 0xc7, 0x33, 0xc0, 0x68, 0x03, 0x04, 0x22, 0xaa, 0x9a, 0xc3, 0xd4, 0x6c, 0x4e,
     0xd2, 0x82, 0x64, 0x46, 0x07, 0x9f, 0xaa, 0x09, 0x14, 0xc2, 0xd7, 0x05, 0xd9, 0x8b, 0x02, 0xa2,
     0xb5, 0x12, 0x9c, 0xd1, 0xde, 0x16, 0x4e, 0xb9, 0xcb, 0xd0, 0x83, 0xe8, 0xa2, 0x50, 0x3c, 0x4e};
 
-// RFC 8439 section 2.4.2 - "Sunscreen" ciphertext (114 bytes).
+
 constexpr std::array<std::uint8_t, 114> kRfc8439Ciphertext{
     0x6e, 0x2e, 0x35, 0x9a, 0x25, 0x68, 0xf9, 0x80, 0x41, 0xba, 0x07, 0x28, 0xdd, 0x0d, 0x69, 0x81,
     0xe9, 0x7e, 0x7a, 0xec, 0x1d, 0x43, 0x60, 0xc2, 0x0a, 0x27, 0xaf, 0xcc, 0xfd, 0x9f, 0xae, 0x0b,
@@ -118,7 +118,7 @@ bool TestRfc8439Cipher() noexcept
         if (ogs::detail::ToByte(cipher[i]) != kRfc8439Ciphertext[i])
             return false;
     }
-    // Decrypt back to the original plaintext (XOR is symmetric).
+
     ogs::detail::XorKeystream(Rfc8439Key(), 1u, Rfc8439CipherNonce(), cipher.data(), cipher.data(),
                               cipher.size());
     for (std::size_t i = 0; i < plainLen; ++i) {
@@ -136,7 +136,7 @@ bool TestLiteralRoundtrip() noexcept
     if (std::string_view(plain.data(), blob.kLen) != expected)
         return false;
 
-    // Runtime path (volatile-read) must match the constexpr result exactly.
+
     const auto runtime = ogs::detail::DecryptRuntimeText(blob);
     for (std::size_t i = 0; i < blob.kBuf; ++i) {
         if (runtime[i] != plain[i])
@@ -147,7 +147,7 @@ bool TestLiteralRoundtrip() noexcept
     if (std::string_view(lit) != "Lazy decryption stays cached and stable")
         return false;
     if (lit != OGS_LIT("Lazy decryption stays cached and stable"))
-        return false; // same pointer from the cached instantiation
+        return false;
 
     const auto& wide = ogs::ToWide(OGS_LIT("Acentuação: ção, ünïcøde").view());
     if (wide.empty())
@@ -166,8 +166,8 @@ bool TestSecretLifetime() noexcept
         if (secret.wide() != ogs::ToWide("https://one-shot.example/token"))
             return false;
     }
-    // The buffer was zeroed and released with the temporary; keep the compiler
-    // from complaining about the dangling pointer under W4.
+
+
     (void)leaked;
 
     ogs::SecretText first(ogs::detail::EncryptLiteral("first secret value"));
@@ -176,7 +176,7 @@ bool TestSecretLifetime() noexcept
     if (second.view() != "first secret value")
         return false;
     if (!first.view().empty())
-        return false; // moved-from must be empty (and its buffer zeroed)
+        return false;
     return true;
 }
 
@@ -186,7 +186,7 @@ bool TestLocPack() noexcept
     if (std::string_view(pack6[0]) != "pt6" || std::string_view(pack6[5]) != "it6")
         return false;
     if (pack6[6] != nullptr)
-        return false; // 6-value packs must preserve the null 7th language
+        return false;
 
     const auto& pack7 = OGS_PACK7("pt7", "en7", "de7", "es7", "fr7", "it7", "ru7").get();
     if (std::string_view(pack7[6]) != "ru7")
@@ -200,7 +200,7 @@ bool TestWideLit() noexcept
     if (std::wstring_view(wide) != ogs::ToWide("Wide UTF-16: ção ✓"))
         return false;
     if (wide != OGS_WIDE("Wide UTF-16: ção ✓"))
-        return false; // same cached instance
+        return false;
     const auto& stored = ogs::WideLit<ogs::detail::EncryptLiteral("stable storage")>::Storage();
     if (stored != ogs::ToWide("stable storage"))
         return false;
@@ -219,7 +219,7 @@ bool TestConcurrency() noexcept
         workers.emplace_back([&failures, &ready, lit]() {
             ++ready;
             while (ready.load() < 8) {
-                // spin until all threads race for the lazy init
+
             }
             for (int i = 0; i < 2000; ++i) {
                 if (std::string_view(lit) != expected)
@@ -245,7 +245,7 @@ bool TestZeroRange() noexcept
     return true;
 }
 
-} // namespace
+}
 
 namespace ogs {
 
@@ -278,4 +278,4 @@ bool SelfTest()
     return ok;
 }
 
-} // namespace ogs
+}

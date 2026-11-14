@@ -928,18 +928,18 @@ static void RunFrameWithConfig(const Config& frame_config) {
 
             if (needRcsState && offsets.m_pAimPunchServices &&
                 offsets.m_predictableBaseAngle && IsUserPointer(aim_punch_services)) {
-                // C_CSPlayerPawn_GetAimPunch does not return m_predictableBaseAngle
-                // directly. It evaluates the QAngle history owned by the aim-punch
-                // service. In current builds the evaluated-history cache follows the
-                // schema-exported base angle by 0x38 bytes and uses the ordinary
-                // CUtlVector layout (count, padding, data pointer). Reading its newest
-                // element gives an external/DMA client the same axes that the game's
-                // getter consumes, without invoking an internal function.
-                //
-                // Keep this relative to the schema field so a relocated service
-                // continues to work after an offsets refresh. Every value is validated;
-                // if Valve changes the private history layout we fall back to the base
-                // angle and expose a non-destructive diagnostic sample.
+
+
+
+
+
+
+
+
+
+
+
+
                 struct AimPunchHistoryView {
                     int32_t count = 0;
                     uint32_t reserved = 0;
@@ -976,10 +976,10 @@ static void RunFrameWithConfig(const Config& frame_config) {
                 const float currentMagnitude = std::hypot(aimPunch[0], aimPunch[1]);
                 const bool counterAdvanced = offsets.m_iShotsFired && shots >= 0 && shots < 256 &&
                     previous_shots >= 0 && shots > previous_shots;
-                // Some builds expose a valid m_iShotsFired field that does not advance for the
-                // external snapshot. A fresh recoil impulse is still observable as a meaningful
-                // increase in punch magnitude. Falling magnitude is recovery and must not renew
-                // the firing window.
+
+
+
+
                 const bool recoilImpulse = currentMagnitude > 0.02f &&
                     currentMagnitude > previousMagnitude + 0.0125f;
                 if (counterAdvanced || recoilImpulse) {

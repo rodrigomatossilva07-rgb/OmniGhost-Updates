@@ -358,10 +358,10 @@ OmniGhost::Auth::LicenseResult RegisterWebsite(std::string_view email,
                                                std::string_view licenseKey) {
     const auto result = WebsiteService().Register(email, password, licenseKey);
     if (result.Ok()) {
-        // The website owns the account/session, but KeyAuth only changes a fresh key
-        // from "Not Used" after an actual license authentication. Perform that first-use
-        // activation here while the plaintext key is still available. A temporary KeyAuth
-        // outage must not roll back an account that the website has already created.
+
+
+
+
         const auto keyAuthActivation = RemoteGateway().Activate(licenseKey);
         OmniGhost::SessionLog::Write(
             keyAuthActivation.Ok()

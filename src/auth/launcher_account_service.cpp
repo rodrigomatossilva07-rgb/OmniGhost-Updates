@@ -32,9 +32,9 @@
 namespace OmniGhost::Auth {
 namespace {
 
-// Protected identifiers (OGS): the literal values are stored encrypted in the
-// binary; the accessors below decrypt lazily and cache for the process
-// lifetime. See src\project\config\strings\README.md.
+
+
+
 const wchar_t* ApiHost()
 {
     static const wchar_t* value = OGS_WIDE("omnighost.store");

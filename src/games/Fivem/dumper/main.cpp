@@ -55,7 +55,7 @@ GameFamily DetectFamily(const std::string& module_name, int build) {
     std::transform(lower.begin(), lower.end(), lower.begin(),
         [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
     if (lower.find("enhanced") != std::string::npos) return GameFamily::Enhanced;
-    // All currently curated FiveM game-build profiles belong to GTA V Legacy.
+
     if (build >= 1604) return GameFamily::Legacy;
     return GameFamily::Unknown;
 }
@@ -349,8 +349,8 @@ void WriteOutputs(const std::filesystem::path& output_directory,
         const auto semantic = semantics.find(symbol);
         const bool has_validator = semantic != semantics.end();
         const bool profile_identity = selected->status == "profile_confirmed";
-        // A generic, previously unknown candidate is never promoted merely
-        // because it points to readable memory.
+
+
         if ((!profile_identity && (!has_validator || !semantic->second.passed)) ||
             (has_validator && !semantic->second.passed)) continue;
         output << symbol << '=' << Hex(selected->resolved.front() - module.base) << "\n";
@@ -364,7 +364,7 @@ void WriteOutputs(const std::filesystem::path& output_directory,
     output << "# player_info=" << (player_info_valid ? "confirmed" : "rejected")
            << " (" << player_info_reason << ")\n";
 }
-} // namespace
+}
 
 int main(int argc, char** argv) {
     SetConsoleTitleA("OmniGhost FiveM Offset Dumper");

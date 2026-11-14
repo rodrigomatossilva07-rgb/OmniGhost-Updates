@@ -130,8 +130,8 @@ namespace {
 
     void DrawRustVisualsPage()
     {
-        // Box 2D is the only Rust renderer wired at this stage. Keep it implicit so
-        // the normal "Ativar ESP" switch is the single control required for testing.
+
+
         CS2::config.box = true;
         DrawCs2Visuals();
     }

@@ -345,19 +345,19 @@ int RunOmniGhost(int argc, wchar_t** argv) {
         }
     }
 
-    // The temporary updater is an independent native application.  Enter it
-    // before launcher single-instance, security, DMA and graphics bootstrap so
-    // it remains responsive while the main process is shutting down.
+
+
+
     if (updaterInvocation) {
         if (const auto updaterResult = OmniGhost::Update::RunUpdaterModeIfRequested(argc, argv))
             return *updaterResult;
         return 1;
     }
 
-    // A confirmação é escrita antes de inicializar segurança, runtime, DMA ou
-    // renderização. O atualizador precisa apenas de confirmar que o novo
-    // executável arrancou; esperar pelo bootstrap completo provocava falsos
-    // timeouts (código interno 28) em máquinas mais lentas.
+
+
+
+
     OmniGhost::Update::ConfirmUpdaterStartupFromCommandLine(argc, argv);
     OmniGhost::Update::CaptureUpdaterStartupNoticeFromCommandLine(argc, argv);
 

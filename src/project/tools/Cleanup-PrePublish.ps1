@@ -182,10 +182,10 @@ if (-not [string]::IsNullOrWhiteSpace($LocalAppDataRoot)) {
         }
     }
 
-    # Keep the content-addressed LZMS cache. It contains no source or user data,
-    # is validated by SHA-256 before reuse, and avoids recompressing hundreds of
-    # MiB of collision maps after every publication. Repro worktrees are still
-    # temporary and must be removed.
+
+
+
+
     Remove-SafeTree `
         -Path (Join-Path $omniLocalRoot 'build-cache\repro-worktrees') `
         -AllowedParent (Join-Path $omniLocalRoot 'build-cache') `

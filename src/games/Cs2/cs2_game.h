@@ -68,7 +68,7 @@ struct Offsets {
     uintptr_t m_iShotsFired = 0;
     uintptr_t m_pAimPunchServices = 0;
     uintptr_t m_predictableBaseAngle = 0;
-    // Legacy direct field retained for older schema builds.
+
     uintptr_t m_aimPunchAngle = 0;
 
 

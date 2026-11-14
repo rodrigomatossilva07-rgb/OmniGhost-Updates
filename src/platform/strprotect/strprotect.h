@@ -1,29 +1,29 @@
 #pragma once
 
-// ============================================================================
-// OmniGhost String Protection (OGSP) - public API.
-//
-// Usage model
-// -----------
-//   * OGS_LIT("text")   -> ogs::Lit<...>: lazily decrypted ONCE, pointer stays
-//                          valid for the process lifetime. Use for UI text,
-//                          ImGui labels, localization values, identifiers.
-//   * OGS_ONE("text")   -> ogs::SecretText: RAII buffer decrypted on
-//                          construction and securely zeroed when the full
-//                          expression ends. Use for URLs, tokens, credentials
-//                          and one-shot protocol data. Do NOT store the
-//                          pointer beyond the statement.
-//   * OGS_PACK6/7(...)  -> ogs::LocPackRef: localization pack (6-7 languages)
-//                          consumed by src\window\localization.cpp.
-//
-// The plaintext only exists inside the compiler during constexpr evaluation;
-// the binary contains ChaCha20 ciphertext (RFC 8439). Keys are generated per
-// build by src\project\tools\Protect-Strings.ps1 (omni_strprotect_key.h).
-//
-// Enforcement of unprotected eligible strings is handled by the same tool:
-// Release/Publish builds fail with OGPS001 when sensitive areas contain bare
-// string literals. See src\project\config\strings\README.md.
-// ============================================================================
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 #include "strprotect_crypto.h"
 
@@ -37,22 +37,22 @@
 namespace ogs {
 
 namespace detail {
-// Forward declaration: Lit below lazily decrypts through this runtime helper
-// (defined after Lit; deliberately non-constexpr, see its definition).
+
+
 template <std::size_t N>
 std::array<char, N> DecryptRuntimeText(const ogs::detail::CipherText<N>& blob) noexcept;
-} // namespace detail
+}
 
 
-// Securely zeroes a memory range (volatile writes; not optimized away).
+
 void ZeroRange(void* data, std::size_t bytes) noexcept;
 
-// UTF-8 -> UTF-16 conversion helper (mirrors platform\text_encoding.h).
+
 std::wstring ToWide(std::string_view utf8);
 
-// ---------------------------------------------------------------------------
-// ogs::Lit - lazily decrypted, process-lifetime text.
-// ---------------------------------------------------------------------------
+
+
+
 
 template <ogs::detail::CipherText Blob>
 class Lit {
@@ -73,9 +73,9 @@ public:
     operator const char*() const noexcept { return c_str(); }
 };
 
-// String concatenation helpers. std::operator+ templates cannot deduce from a
-// class-type left operand, so these free operators make Lit usable directly
-// in concatenation expressions (Lit + string, char* + Lit, Lit + Lit).
+
+
+
 template <ogs::detail::CipherText Blob>
 std::string operator+(const Lit<Blob>& lit, const std::string& rhs)
 {
@@ -106,10 +106,10 @@ std::string operator+(const Lit<BlobA>& a, const Lit<BlobB>& b)
     return std::string(a.c_str()) + b.c_str();
 }
 
-// ---------------------------------------------------------------------------
-// ogs::WideLit - lazily decrypted, process-lifetime wide (UTF-16) text.
-// The ciphertext stores the UTF-8 form; conversion happens once, on first use.
-// ---------------------------------------------------------------------------
+
+
+
+
 
 template <ogs::detail::CipherText Blob>
 class WideLit {
@@ -157,9 +157,9 @@ std::wstring operator+(const WideLit<BlobA>& a, const WideLit<BlobB>& b)
     return std::wstring(a.c_str()) + b.c_str();
 }
 
-// ---------------------------------------------------------------------------
-// ogs::SecretText - RAII one-shot text, zeroized on destruction.
-// ---------------------------------------------------------------------------
+
+
+
 
 class SecretText {
 public:
@@ -167,12 +167,12 @@ public:
     explicit SecretText(const ogs::detail::CipherText<N>& blob)
         : buf_(N, '\0')
     {
-        // Volatile reads prevent the optimizer from constant-folding the
-        // plaintext; the ciphertext is fetched from memory at runtime.
+
+
         const volatile char* cipher = blob.data.data();
         for (std::size_t i = 0; i < N; ++i)
             buf_[i] = cipher[i];
-        // XOR keystream in place: ChaCha20 encryption == decryption.
+
         std::array<ogs::detail::Word, 3> nonce{};
         for (std::size_t i = 0; i < 3; ++i)
             nonce[i] = blob.nonce[i];
@@ -181,8 +181,8 @@ public:
         len_ = N - 1;
     }
 
-    // Wraps plaintext obtained at runtime (e.g. DPAPI unseal) under the same
-    // zeroization-on-destruction discipline.
+
+
     explicit SecretText(std::string_view plaintext)
         : buf_(plaintext.begin(), plaintext.end()), len_(plaintext.size()) {}
 
@@ -233,26 +233,26 @@ private:
     std::size_t len_ = 0;
 };
 
-// ---------------------------------------------------------------------------
-// ogs::LocPackRef - localization pack reference (7 language slots).
-// ---------------------------------------------------------------------------
+
+
+
 
 struct LocPackRef {
     using GetFn = const std::array<const char*, 7>& (*)();
     GetFn get = nullptr;
 };
 
-// ---------------------------------------------------------------------------
-// Self-test (RFC 8439 vectors + roundtrips + concurrency smoke).
-// ---------------------------------------------------------------------------
+
+
+
 
 bool SelfTest();
 
 namespace detail {
 
-// Runtime decryptor used by Lit. Deliberately NOT constexpr: the ciphertext is
-// read through a volatile pointer so the optimizer cannot constant-fold the
-// decrypted text into .rdata.
+
+
+
 template <std::size_t N>
 std::array<char, N> DecryptRuntimeText(const ogs::detail::CipherText<N>& blob) noexcept
 {
@@ -292,12 +292,12 @@ struct PackTable7 {
     }
 };
 
-} // namespace detail
-} // namespace ogs
+}
+}
 
-// ---------------------------------------------------------------------------
-// Macros.
-// ---------------------------------------------------------------------------
+
+
+
 
 #define OGS_LIT(s) ::ogs::Lit<::ogs::detail::EncryptLiteral(s)>{}
 #define OGS_ONE(s) ::ogs::SecretText(::ogs::detail::EncryptLiteral(s))

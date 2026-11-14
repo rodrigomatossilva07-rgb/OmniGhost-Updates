@@ -1,14 +1,14 @@
-# ============================================================================
-# Validate-StringProtection.ps1 - post-link binary proof (OGPS-VAL).
-#
-# Scans the built executable for the plaintext bytes (UTF-8 and UTF-16LE) of
-# every protected string. Any finding is a leak unless the string is also a
-# substring of another literal that legitimately lives in the binary
-# (allowIf=true from Protect-Strings.ps1 -Command plaintexts).
-#
-# This does not declare absolute protection: it verifies the specific property
-# "no protected plaintext in the binary" for this build.
-# ============================================================================
+
+
+
+
+
+
+
+
+
+
+
 
 [CmdletBinding()]
 param(
@@ -32,7 +32,7 @@ if (-not (Test-Path -LiteralPath $Executable -PathType Leaf)) {
     exit 1
 }
 
-# Reuse the scanner via the plaintexts command (JSON on stdout).
+
 $plaintextsJson = & (Join-Path $PSScriptRoot 'Protect-Strings.ps1') `
     -ProjectDir $ProjectDir -Command plaintexts -Configuration $Configuration -Platform $Platform
 if ($LASTEXITCODE -ne 0) {

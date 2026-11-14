@@ -804,9 +804,9 @@ void UpdateService::RunDownload() {
     WriteLog(LogFile(), LogLevel::Info, OmniGhost::Version, version, OGS_LIT("ready"), OGS_LIT("Tamanho e SHA-256 validados."));
     RecordHealth(OGS_LIT("ready"), version, package.sha256, {}, {}, OGS_LIT("package validated"));
 
-    // A ação principal da interface é deliberadamente contínua: descarrega,
-    // valida e entrega a instalação ao processo temporário sem exigir um
-    // segundo clique no estado Ready.
+
+
+
     if (installImmediately_.exchange(false, std::memory_order_acq_rel)) {
         SetSnapshot([](Snapshot& s) {
             s.status = Status::Installing;
@@ -1016,9 +1016,9 @@ bool UpdateService::InstallPreparedUpdate() {
     launch.lpFile = runner.c_str();
     launch.lpParameters = argumentText.c_str();
     launch.lpDirectory = runnerDirectoryText.c_str();
-    // Transfer progress is presented by the existing launcher UI. The small
-    // replacement process is intentionally silent and only owns the atomic
-    // file swap/restart phase.
+
+
+
     launch.nShow = SW_HIDE;
     if (!ShellExecuteExW(&launch) || !launch.hProcess) {
         const DWORD code = GetLastError();

@@ -56,10 +56,10 @@ Correction RCSController::Update(const RCSConfig& config,
         shots_ = sample.shotsFired;
         sampleMs_ = sample.sampleMs;
         initialized_ = true;
-        // When RCS starts naturally on its configured first shot, zero is the
-        // known pre-spray baseline and the first observed punch must also be
-        // compensated. If it is enabled halfway through a spray, establish a
-        // safe baseline instead of causing a large jump.
+
+
+
+
         if (identityReason != ResetReason::None || sample.shotsFired > startShot) {
             previousPitch_ = sample.pitch;
             previousYaw_ = sample.yaw;
@@ -86,9 +86,9 @@ Correction RCSController::Update(const RCSConfig& config,
     pendingX_ += -deltaYaw * scale * std::clamp(config.horizontalStrength, 0.f, 2.f);
 
 
-    // CS2 pitch decreases while recoil raises the view. Mouse Y uses the
-    // opposite screen-space convention (positive moves down), therefore the
-    // vertical compensation must negate the AimPunch delta.
+
+
+
     pendingY_ += -deltaPitch * scale * std::clamp(config.verticalStrength, 0.f, 2.f);
 
     const float response = 1.f - std::clamp(config.smoothing, 0.f, .95f);

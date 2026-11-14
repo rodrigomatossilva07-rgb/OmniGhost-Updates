@@ -1,22 +1,22 @@
 #pragma once
 
-// ============================================================================
-// OmniGhost String Protection (OGSP) - compile-time crypto primitives.
-//
-// Implements the ChaCha20 stream cipher exactly as specified in RFC 8439
-// (https://www.rfc-editor.org/rfc/rfc8439) so that:
-//   * string literals are encrypted during constexpr evaluation (the plaintext
-//     exists only inside the compiler, never in the binary);
-//   * decryption happens lazily at runtime with the same algorithm.
-//
-// The key material comes from the generated header omni_strprotect_key.h
-// (produced by src\project\tools\Protect-Strings.ps1). When that header has
-// not been generated (e.g. standalone tooling builds) a deterministic dev
-// fallback is used; Release/Publish builds always generate the real key.
-//
-// NOTE: this raises the bar for static extraction, it is not absolute
-// protection. See src\project\config\strings\README.md for the threat model.
-// ============================================================================
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 #include <array>
 #include <cstddef>
@@ -100,8 +100,8 @@ constexpr std::uint8_t SerializeByte(const ChaChaState& input, const ChaChaState
     return static_cast<std::uint8_t>(word >> (static_cast<int>(index % 4) * 8));
 }
 
-// XORs `length` bytes of `in` into `out` with the ChaCha20 keystream.
-// Valid in constexpr evaluation and at runtime (no reinterpret_cast).
+
+
 constexpr void XorKeystream(const std::array<Word, 8>& key, Word counter,
                             const std::array<Word, 3>& nonce,
                             const char* in, char* out, std::size_t length) noexcept
@@ -121,11 +121,11 @@ constexpr void XorKeystream(const std::array<Word, 8>& key, Word counter,
     }
 }
 
-// ---------------------------------------------------------------------------
-// Fingerprint / nonce derivation hashes (FNV-1a 64 + SplitMix64).
-// Nonces are derived from the string CONTENT plus per-build salts, never from
-// file paths or __LINE__, so identical builds stay reproducible.
-// ---------------------------------------------------------------------------
+
+
+
+
+
 
 constexpr std::uint64_t Fnv1a64(const char* data, std::size_t length) noexcept
 {
@@ -150,9 +150,9 @@ constexpr std::uint64_t SplitMix64(std::uint64_t value) noexcept
     return value ^ (value >> 31);
 }
 
-// ---------------------------------------------------------------------------
-// Key material reconstruction.
-// ---------------------------------------------------------------------------
+
+
+
 
 #if OGSP_HAS_BUILD_KEY
 
@@ -180,7 +180,7 @@ constexpr std::array<Word, 3> DeriveNonce(std::uint64_t contentHash, std::size_t
             static_cast<Word>((low >> 32) ^ (high >> 32))};
 }
 
-#else // fallback for standalone tooling builds; Release/Publish always generate the real key
+#else
 
 constexpr std::array<Word, 8> ReconstructKey() noexcept
 {
@@ -199,21 +199,21 @@ constexpr std::array<Word, 3> DeriveNonce(std::uint64_t contentHash, std::size_t
 
 #endif
 
-// ---------------------------------------------------------------------------
-// Encrypted literal blob (structural type usable as a C++20 class NTTP).
-// kBuf is the protected byte count INCLUDING the terminating NUL (>= 1).
-// ---------------------------------------------------------------------------
+
+
+
+
 
 template <std::size_t BufN>
 struct CipherText {
     static constexpr std::size_t kBuf = BufN;
-    static constexpr std::size_t kLen = BufN - 1; // content length without the NUL
+    static constexpr std::size_t kLen = BufN - 1;
 
     std::array<char, BufN> data{};
     std::array<Word, 3> nonce{};
 };
 
-// Encrypts a string literal (content plus trailing NUL) at compile time.
+
 template <std::size_t N>
 constexpr CipherText<N> EncryptLiteral(const char (&literal)[N]) noexcept
 {
@@ -224,8 +224,8 @@ constexpr CipherText<N> EncryptLiteral(const char (&literal)[N]) noexcept
     return result;
 }
 
-// Pure decryption of a blob (constexpr-evaluable; used by the runtime wrapper
-// in strprotect.h and cross-checked by the selftest).
+
+
 template <std::size_t N>
 constexpr std::array<char, N> DecryptCipher(const CipherText<N>& blob) noexcept
 {
@@ -235,4 +235,4 @@ constexpr std::array<char, N> DecryptCipher(const CipherText<N>& blob) noexcept
     return out;
 }
 
-} // namespace ogs::detail
+}
