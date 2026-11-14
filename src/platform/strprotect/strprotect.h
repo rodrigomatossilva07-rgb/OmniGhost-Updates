@@ -71,6 +71,12 @@ public:
     }
 
     operator const char*() const noexcept { return c_str(); }
+
+    // Implicit conversions to the standard text containers/cursors. The
+    // plaintext is still produced lazily at runtime; these simply let protected
+    // literals flow into existing APIs that take std::string/string_view.
+    operator std::string_view() const noexcept { return view(); }
+    operator std::string() const { return std::string(view()); }
 };
 
 
@@ -125,6 +131,8 @@ public:
     const wchar_t* c_str() const noexcept { return Storage().c_str(); }
     std::wstring_view view() const noexcept { return Storage(); }
     operator const wchar_t*() const noexcept { return c_str(); }
+    operator std::wstring_view() const noexcept { return view(); }
+    operator std::wstring() const { return Storage(); }
 };
 
 template <ogs::detail::CipherText Blob>
