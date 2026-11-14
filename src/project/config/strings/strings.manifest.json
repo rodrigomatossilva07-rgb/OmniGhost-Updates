@@ -2,10 +2,10 @@
     "schemaVersion":  1,
     "tool":  "Protect-Strings.ps1",
     "appVersion":  "1.3.4",
-    "gitCommit":  "cd4e3abfadde06c3a1b4c71926b1388724bf4255",
+    "gitCommit":  "9e621302d89cf78c69a30f4203efbdcc15865ca1",
     "gitBranch":  "main",
-    "updatedUtc":  "2026-11-14T19:48:44.5194564Z",
-    "entryCount":  11572,
+    "updatedUtc":  "2026-11-14T20:00:11.4520750Z",
+    "entryCount":  11571,
     "entries":  [
                     {
                         "id":  "cb7f8f38f5ab9529",
@@ -345,7 +345,7 @@
                         "file":  "src/auth/keyauth_remote_provider.cpp",
                         "line":  126,
                         "length":  6,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "28e0183669f2c8dc",
@@ -635,7 +635,7 @@
                         "file":  "src/auth/keyauth_remote_provider.cpp",
                         "line":  41,
                         "length":  21,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "b11ea5d78c3559ae",
@@ -645,7 +645,7 @@
                         "file":  "src/auth/keyauth_remote_provider.cpp",
                         "line":  42,
                         "length":  7,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "d69ecb29bf491343",
@@ -655,7 +655,7 @@
                         "file":  "src/auth/keyauth_remote_provider.cpp",
                         "line":  43,
                         "length":  7,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "7bec3d64e2d25987",
@@ -853,7 +853,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  143,
+                        "line":  140,
                         "length":  7,
                         "status":  "protected"
                     },
@@ -863,7 +863,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  144,
+                        "line":  141,
                         "length":  5,
                         "status":  "protected"
                     },
@@ -873,7 +873,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  145,
+                        "line":  142,
                         "length":  19,
                         "status":  "protected"
                     },
@@ -883,7 +883,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  146,
+                        "line":  143,
                         "length":  128,
                         "status":  "protected"
                     },
@@ -893,7 +893,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  147,
+                        "line":  144,
                         "length":  23,
                         "status":  "protected"
                     },
@@ -903,7 +903,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  148,
+                        "line":  145,
                         "length":  60,
                         "status":  "protected"
                     },
@@ -913,7 +913,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  149,
+                        "line":  146,
                         "length":  26,
                         "status":  "protected"
                     },
@@ -923,7 +923,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  150,
+                        "line":  147,
                         "length":  63,
                         "status":  "protected"
                     },
@@ -933,7 +933,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  151,
+                        "line":  148,
                         "length":  27,
                         "status":  "protected"
                     },
@@ -943,7 +943,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  152,
+                        "line":  149,
                         "length":  48,
                         "status":  "protected"
                     },
@@ -953,7 +953,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  153,
+                        "line":  150,
                         "length":  17,
                         "status":  "protected"
                     },
@@ -963,7 +963,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  154,
+                        "line":  151,
                         "length":  39,
                         "status":  "protected"
                     },
@@ -973,7 +973,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  155,
+                        "line":  152,
                         "length":  13,
                         "status":  "protected"
                     },
@@ -983,7 +983,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  155,
+                        "line":  152,
                         "length":  12,
                         "status":  "protected"
                     },
@@ -993,7 +993,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  156,
+                        "line":  153,
                         "length":  45,
                         "status":  "protected"
                     },
@@ -1003,7 +1003,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  157,
+                        "line":  154,
                         "length":  15,
                         "status":  "protected"
                     },
@@ -1013,7 +1013,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  158,
+                        "line":  155,
                         "length":  65,
                         "status":  "protected"
                     },
@@ -1023,7 +1023,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  159,
+                        "line":  156,
                         "length":  12,
                         "status":  "protected"
                     },
@@ -1033,7 +1033,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  160,
+                        "line":  157,
                         "length":  71,
                         "status":  "protected"
                     },
@@ -1043,7 +1043,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  187,
+                        "line":  184,
                         "length":  8,
                         "status":  "protected"
                     },
@@ -1053,7 +1053,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  200,
+                        "line":  197,
                         "length":  7,
                         "status":  "protected"
                     },
@@ -1063,7 +1063,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  201,
+                        "line":  198,
                         "length":  4,
                         "status":  "protected"
                     },
@@ -1073,7 +1073,7 @@
                         "category":  "path",
                         "sensitivity":  "medium",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  202,
+                        "line":  199,
                         "length":  13,
                         "status":  "protected"
                     },
@@ -1083,7 +1083,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  203,
+                        "line":  200,
                         "length":  10,
                         "status":  "protected"
                     },
@@ -1093,7 +1093,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  204,
+                        "line":  201,
                         "length":  15,
                         "status":  "protected"
                     },
@@ -1103,7 +1103,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  221,
+                        "line":  218,
                         "length":  17,
                         "status":  "protected"
                     },
@@ -1113,7 +1113,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  224,
+                        "line":  221,
                         "length":  20,
                         "status":  "protected"
                     },
@@ -1123,7 +1123,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  226,
+                        "line":  223,
                         "length":  46,
                         "status":  "protected"
                     },
@@ -1133,7 +1133,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  231,
+                        "line":  228,
                         "length":  45,
                         "status":  "protected"
                     },
@@ -1143,7 +1143,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  238,
+                        "line":  235,
                         "length":  44,
                         "status":  "protected"
                     },
@@ -1153,7 +1153,7 @@
                         "category":  "protocol",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  247,
+                        "line":  244,
                         "length":  73,
                         "status":  "protected"
                     },
@@ -1163,7 +1163,7 @@
                         "category":  "protocol",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  249,
+                        "line":  246,
                         "length":  22,
                         "status":  "protected"
                     },
@@ -1173,7 +1173,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  254,
+                        "line":  251,
                         "length":  22,
                         "status":  "protected"
                     },
@@ -1183,7 +1183,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  269,
+                        "line":  266,
                         "length":  57,
                         "status":  "protected"
                     },
@@ -1193,7 +1193,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  277,
+                        "line":  274,
                         "length":  24,
                         "status":  "protected"
                     },
@@ -1203,7 +1203,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  283,
+                        "line":  280,
                         "length":  46,
                         "status":  "protected"
                     },
@@ -1213,7 +1213,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  290,
+                        "line":  287,
                         "length":  50,
                         "status":  "protected"
                     },
@@ -1223,7 +1223,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  299,
+                        "line":  296,
                         "length":  46,
                         "status":  "protected"
                     },
@@ -1233,7 +1233,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  316,
+                        "line":  313,
                         "length":  6,
                         "status":  "protected"
                     },
@@ -1243,7 +1243,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  325,
+                        "line":  322,
                         "length":  25,
                         "status":  "protected"
                     },
@@ -1253,7 +1253,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  346,
+                        "line":  344,
                         "length":  6,
                         "status":  "protected"
                     },
@@ -1263,7 +1263,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  386,
+                        "line":  384,
                         "length":  5,
                         "status":  "protected"
                     },
@@ -1273,9 +1273,9 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  391,
+                        "line":  389,
                         "length":  52,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "c5c2fe89e0f7b82a",
@@ -1283,7 +1283,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  403,
+                        "line":  401,
                         "length":  22,
                         "status":  "protected"
                     },
@@ -1293,7 +1293,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  412,
+                        "line":  411,
                         "length":  6,
                         "status":  "protected"
                     },
@@ -1303,7 +1303,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  412,
+                        "line":  411,
                         "length":  5,
                         "status":  "protected"
                     },
@@ -1313,7 +1313,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  436,
+                        "line":  435,
                         "length":  58,
                         "status":  "protected"
                     },
@@ -1323,7 +1323,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  438,
+                        "line":  437,
                         "length":  10,
                         "status":  "protected"
                     },
@@ -1333,7 +1333,7 @@
                         "category":  "credential",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  439,
+                        "line":  438,
                         "length":  14,
                         "status":  "protected"
                     },
@@ -1343,7 +1343,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  440,
+                        "line":  439,
                         "length":  14,
                         "status":  "protected"
                     },
@@ -1353,7 +1353,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  441,
+                        "line":  440,
                         "length":  21,
                         "status":  "protected"
                     },
@@ -1363,7 +1363,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  442,
+                        "line":  441,
                         "length":  15,
                         "status":  "protected"
                     },
@@ -1373,7 +1373,7 @@
                         "category":  "protocol",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  447,
+                        "line":  446,
                         "length":  4,
                         "status":  "protected"
                     },
@@ -1383,18 +1383,8 @@
                         "category":  "path",
                         "sensitivity":  "medium",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  447,
+                        "line":  446,
                         "length":  21,
-                        "status":  "protected"
-                    },
-                    {
-                        "id":  "524de80cba189c84",
-                        "fp":  "2bab80cea8edaa2b",
-                        "category":  "auth",
-                        "sensitivity":  "high",
-                        "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  459,
-                        "length":  83,
                         "status":  "protected"
                     },
                     {
@@ -1403,8 +1393,18 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  46,
+                        "line":  45,
                         "length":  28,
+                        "status":  "unprotected"
+                    },
+                    {
+                        "id":  "524de80cba189c84",
+                        "fp":  "2bab80cea8edaa2b",
+                        "category":  "auth",
+                        "sensitivity":  "high",
+                        "file":  "src/auth/launcher_account_service.cpp",
+                        "line":  458,
+                        "length":  83,
                         "status":  "protected"
                     },
                     {
@@ -1413,7 +1413,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  461,
+                        "line":  460,
                         "length":  10,
                         "status":  "protected"
                     },
@@ -1423,7 +1423,7 @@
                         "category":  "credential",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  462,
+                        "line":  461,
                         "length":  14,
                         "status":  "protected"
                     },
@@ -1433,7 +1433,7 @@
                         "category":  "credential",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  463,
+                        "line":  462,
                         "length":  16,
                         "status":  "protected"
                     },
@@ -1443,7 +1443,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  464,
+                        "line":  463,
                         "length":  14,
                         "status":  "protected"
                     },
@@ -1453,7 +1453,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  465,
+                        "line":  464,
                         "length":  21,
                         "status":  "protected"
                     },
@@ -1463,7 +1463,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  466,
+                        "line":  465,
                         "length":  15,
                         "status":  "protected"
                     },
@@ -1473,7 +1473,7 @@
                         "category":  "protocol",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  471,
+                        "line":  470,
                         "length":  4,
                         "status":  "protected"
                     },
@@ -1483,7 +1483,7 @@
                         "category":  "path",
                         "sensitivity":  "medium",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  471,
+                        "line":  470,
                         "length":  22,
                         "status":  "protected"
                     },
@@ -1493,9 +1493,19 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  478,
+                        "line":  477,
                         "length":  33,
                         "status":  "protected"
+                    },
+                    {
+                        "id":  "70419b7c04bebb26",
+                        "fp":  "63a524bc1ba6c832",
+                        "category":  "auth",
+                        "sensitivity":  "high",
+                        "file":  "src/auth/launcher_account_service.cpp",
+                        "line":  50,
+                        "length":  31,
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "78b3fb612ec28062",
@@ -1503,7 +1513,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  504,
+                        "line":  503,
                         "length":  45,
                         "status":  "protected"
                     },
@@ -1513,7 +1523,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  506,
+                        "line":  505,
                         "length":  13,
                         "status":  "protected"
                     },
@@ -1523,18 +1533,8 @@
                         "category":  "path",
                         "sensitivity":  "medium",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  508,
+                        "line":  507,
                         "length":  21,
-                        "status":  "protected"
-                    },
-                    {
-                        "id":  "70419b7c04bebb26",
-                        "fp":  "63a524bc1ba6c832",
-                        "category":  "auth",
-                        "sensitivity":  "high",
-                        "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  52,
-                        "length":  31,
                         "status":  "protected"
                     },
                     {
@@ -1543,7 +1543,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  525,
+                        "line":  524,
                         "length":  45,
                         "status":  "protected"
                     },
@@ -1553,7 +1553,7 @@
                         "category":  "path",
                         "sensitivity":  "medium",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  528,
+                        "line":  527,
                         "length":  22,
                         "status":  "protected"
                     },
@@ -1563,7 +1563,7 @@
                         "category":  "protocol",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  543,
+                        "line":  542,
                         "length":  6,
                         "status":  "protected"
                     },
@@ -1573,7 +1573,7 @@
                         "category":  "path",
                         "sensitivity":  "medium",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  543,
+                        "line":  542,
                         "length":  21,
                         "status":  "protected"
                     },
@@ -1583,9 +1583,9 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  545,
+                        "line":  544,
                         "length":  52,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "4027c3cf291d32c9",
@@ -1593,7 +1593,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  595,
+                        "line":  594,
                         "length":  5,
                         "status":  "protected"
                     },
@@ -1603,7 +1603,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  602,
+                        "line":  601,
                         "length":  13,
                         "status":  "protected"
                     },
@@ -1613,7 +1613,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  606,
+                        "line":  605,
                         "length":  5,
                         "status":  "protected"
                     },
@@ -1623,7 +1623,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  607,
+                        "line":  606,
                         "length":  8,
                         "status":  "protected"
                     },
@@ -1633,7 +1633,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  607,
+                        "line":  606,
                         "length":  10,
                         "status":  "protected"
                     },
@@ -1643,7 +1643,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  619,
+                        "line":  618,
                         "length":  22,
                         "status":  "protected"
                     },
@@ -1653,7 +1653,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  630,
+                        "line":  629,
                         "length":  20,
                         "status":  "protected"
                     },
@@ -1663,7 +1663,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  646,
+                        "line":  645,
                         "length":  40,
                         "status":  "protected"
                     },
@@ -1673,7 +1673,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  656,
+                        "line":  655,
                         "length":  43,
                         "status":  "protected"
                     },
@@ -1683,7 +1683,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  661,
+                        "line":  660,
                         "length":  34,
                         "status":  "protected"
                     },
@@ -1693,7 +1693,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  667,
+                        "line":  666,
                         "length":  12,
                         "status":  "protected"
                     },
@@ -1703,7 +1703,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  668,
+                        "line":  667,
                         "length":  16,
                         "status":  "protected"
                     },
@@ -1713,7 +1713,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  670,
+                        "line":  669,
                         "length":  45,
                         "status":  "protected"
                     },
@@ -1723,7 +1723,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  676,
+                        "line":  675,
                         "length":  7,
                         "status":  "protected"
                     },
@@ -1733,7 +1733,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  678,
+                        "line":  677,
                         "length":  5,
                         "status":  "protected"
                     },
@@ -1743,7 +1743,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  679,
+                        "line":  678,
                         "length":  7,
                         "status":  "protected"
                     },
@@ -1753,7 +1753,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  689,
+                        "line":  688,
                         "length":  8,
                         "status":  "protected"
                     },
@@ -1763,7 +1763,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  691,
+                        "line":  690,
                         "length":  43,
                         "status":  "protected"
                     },
@@ -1773,9 +1773,19 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  714,
+                        "line":  713,
                         "length":  39,
                         "status":  "protected"
+                    },
+                    {
+                        "id":  "3f9cae0951660228",
+                        "fp":  "9f9f5111f7b27a78",
+                        "category":  "auth",
+                        "sensitivity":  "high",
+                        "file":  "src/auth/launcher_account_service.cpp",
+                        "line":  73,
+                        "length":  16,
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "777e56c746cc720c",
@@ -1783,7 +1793,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  737,
+                        "line":  736,
                         "length":  71,
                         "status":  "protected"
                     },
@@ -1793,7 +1803,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  742,
+                        "line":  741,
                         "length":  27,
                         "status":  "protected"
                     },
@@ -1803,19 +1813,9 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  753,
+                        "line":  752,
                         "length":  49,
                         "status":  "protected"
-                    },
-                    {
-                        "id":  "3f9cae0951660228",
-                        "fp":  "9f9f5111f7b27a78",
-                        "category":  "auth",
-                        "sensitivity":  "high",
-                        "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  76,
-                        "length":  16,
-                        "status":  "unprotected"
                     },
                     {
                         "id":  "5e007fc28bae31e0",
@@ -1823,7 +1823,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  760,
+                        "line":  759,
                         "length":  43,
                         "status":  "protected"
                     },
@@ -1833,7 +1833,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  764,
+                        "line":  763,
                         "length":  43,
                         "status":  "protected"
                     },
@@ -1843,7 +1843,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  769,
+                        "line":  768,
                         "length":  7,
                         "status":  "protected"
                     },
@@ -1853,7 +1853,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  771,
+                        "line":  770,
                         "length":  7,
                         "status":  "protected"
                     },
@@ -1863,7 +1863,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  785,
+                        "line":  784,
                         "length":  39,
                         "status":  "protected"
                     },
@@ -1873,7 +1873,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  811,
+                        "line":  810,
                         "length":  48,
                         "status":  "protected"
                     },
@@ -1883,7 +1883,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/auth/launcher_account_service.cpp",
-                        "line":  815,
+                        "line":  814,
                         "length":  22,
                         "status":  "protected"
                     },
@@ -6925,7 +6925,7 @@
                         "file":  "src/ferrum/ferrum_device.cpp",
                         "line":  100,
                         "length":  6,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "87289e781675aa57",
@@ -6935,7 +6935,7 @@
                         "file":  "src/ferrum/ferrum_device.cpp",
                         "line":  100,
                         "length":  18,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "bf18dc89f939f1d8",
@@ -15725,7 +15725,7 @@
                         "file":  "src/games/Cs2/radar/cs2_web_radar.cpp",
                         "line":  176,
                         "length":  5,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "33c049fd52a4e9d9",
@@ -15735,7 +15735,7 @@
                         "file":  "src/games/Cs2/radar/cs2_web_radar.cpp",
                         "line":  176,
                         "length":  24,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "d9f0d5a67169fd62",
@@ -15745,7 +15745,7 @@
                         "file":  "src/games/Cs2/radar/cs2_web_radar.cpp",
                         "line":  177,
                         "length":  37,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "7b92f358e198de2a",
@@ -15755,7 +15755,7 @@
                         "file":  "src/games/Cs2/radar/cs2_web_radar.cpp",
                         "line":  178,
                         "length":  4,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "6dac0f26b2a6077e",
@@ -15765,7 +15765,7 @@
                         "file":  "src/games/Cs2/radar/cs2_web_radar.cpp",
                         "line":  178,
                         "length":  23,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "bcbcd0ea410ba77a",
@@ -15775,7 +15775,7 @@
                         "file":  "src/games/Cs2/radar/cs2_web_radar.cpp",
                         "line":  179,
                         "length":  5,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "8444c9b78bee8dd5",
@@ -15785,7 +15785,7 @@
                         "file":  "src/games/Cs2/radar/cs2_web_radar.cpp",
                         "line":  179,
                         "length":  31,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "61401c86c42cbc1a",
@@ -15795,7 +15795,7 @@
                         "file":  "src/games/Cs2/radar/cs2_web_radar.cpp",
                         "line":  180,
                         "length":  13,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "1eac43e4a1e2c621",
@@ -15805,7 +15805,7 @@
                         "file":  "src/games/Cs2/radar/cs2_web_radar.cpp",
                         "line":  180,
                         "length":  4,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "036106e1f962a02f",
@@ -15815,7 +15815,7 @@
                         "file":  "src/games/Cs2/radar/cs2_web_radar.cpp",
                         "line":  181,
                         "length":  9,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "ac71c42ffdd61e45",
@@ -15825,7 +15825,7 @@
                         "file":  "src/games/Cs2/radar/cs2_web_radar.cpp",
                         "line":  181,
                         "length":  4,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "07420f4ec6159ce3",
@@ -15835,7 +15835,7 @@
                         "file":  "src/games/Cs2/radar/cs2_web_radar.cpp",
                         "line":  182,
                         "length":  24,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "cd7f45f23d192efe",
@@ -29095,7 +29095,7 @@
                         "file":  "src/launcher/admin/admin_panel.inl",
                         "line":  169,
                         "length":  26,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "07c86a46eb23a35b",
@@ -29105,7 +29105,7 @@
                         "file":  "src/launcher/admin/admin_panel.inl",
                         "line":  169,
                         "length":  19,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "701c8afb01a2bb47",
@@ -29225,7 +29225,7 @@
                         "file":  "src/launcher/admin/admin_panel.inl",
                         "line":  194,
                         "length":  22,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "6aa631b3eaed5be6",
@@ -29235,7 +29235,7 @@
                         "file":  "src/launcher/admin/admin_panel.inl",
                         "line":  194,
                         "length":  31,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "7c13f1255296c892",
@@ -29395,7 +29395,7 @@
                         "file":  "src/launcher/admin/admin_panel.inl",
                         "line":  265,
                         "length":  11,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "a517049a45666549",
@@ -29405,7 +29405,7 @@
                         "file":  "src/launcher/admin/admin_panel.inl",
                         "line":  266,
                         "length":  7,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "3884a947dd1343ad",
@@ -29415,7 +29415,7 @@
                         "file":  "src/launcher/admin/admin_panel.inl",
                         "line":  267,
                         "length":  14,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "069ee8263fe5cf2a",
@@ -29425,7 +29425,7 @@
                         "file":  "src/launcher/admin/admin_panel.inl",
                         "line":  268,
                         "length":  26,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "e8787dcb366b143c",
@@ -29435,7 +29435,7 @@
                         "file":  "src/launcher/admin/admin_panel.inl",
                         "line":  269,
                         "length":  19,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "9ef205e27077e768",
@@ -29745,7 +29745,7 @@
                         "file":  "src/launcher/admin/admin_panel.inl",
                         "line":  34,
                         "length":  4,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "6f3cff4df4ddb2f3",
@@ -30155,7 +30155,7 @@
                         "file":  "src/launcher/admin/admin_panel.inl",
                         "line":  43,
                         "length":  11,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "db08030b6b7643eb",
@@ -30165,7 +30165,7 @@
                         "file":  "src/launcher/admin/admin_panel.inl",
                         "line":  44,
                         "length":  12,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "8c9698ba61fc541f",
@@ -30225,7 +30225,7 @@
                         "file":  "src/launcher/admin/admin_panel.inl",
                         "line":  449,
                         "length":  4,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "5cce31dc911366b4",
@@ -30235,7 +30235,7 @@
                         "file":  "src/launcher/admin/admin_panel.inl",
                         "line":  45,
                         "length":  8,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "f2869e781ad7c308",
@@ -30265,7 +30265,7 @@
                         "file":  "src/launcher/admin/admin_panel.inl",
                         "line":  456,
                         "length":  4,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "7096fa2bec737189",
@@ -30285,7 +30285,7 @@
                         "file":  "src/launcher/admin/admin_panel.inl",
                         "line":  46,
                         "length":  9,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "416030253ddc5da6",
@@ -30315,7 +30315,7 @@
                         "file":  "src/launcher/admin/admin_panel.inl",
                         "line":  47,
                         "length":  15,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "06f0885911d36bf0",
@@ -30325,7 +30325,7 @@
                         "file":  "src/launcher/admin/admin_panel.inl",
                         "line":  48,
                         "length":  17,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "e2d07dab23f6eb4a",
@@ -30345,7 +30345,7 @@
                         "file":  "src/launcher/admin/admin_panel.inl",
                         "line":  49,
                         "length":  21,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "44c707146afcc0a6",
@@ -30395,7 +30395,7 @@
                         "file":  "src/launcher/admin/admin_panel.inl",
                         "line":  50,
                         "length":  11,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "2a6f1998bf35c60b",
@@ -30405,7 +30405,7 @@
                         "file":  "src/launcher/admin/admin_panel.inl",
                         "line":  505,
                         "length":  18,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "9826e3f86063a55d",
@@ -30415,7 +30415,7 @@
                         "file":  "src/launcher/admin/admin_panel.inl",
                         "line":  51,
                         "length":  19,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "41b51bd942b4f0a3",
@@ -30425,7 +30425,7 @@
                         "file":  "src/launcher/admin/admin_panel.inl",
                         "line":  511,
                         "length":  15,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "105c8de0239835df",
@@ -30435,7 +30435,7 @@
                         "file":  "src/launcher/admin/admin_panel.inl",
                         "line":  53,
                         "length":  5,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "63ec59ce823dc5ee",
@@ -33515,7 +33515,7 @@
                         "file":  "src/launcher/changelog_service.cpp",
                         "line":  120,
                         "length":  7,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "e946ae0bb3852991",
@@ -33525,7 +33525,7 @@
                         "file":  "src/launcher/changelog_service.cpp",
                         "line":  120,
                         "length":  18,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "1866d07d998d1d18",
@@ -33535,7 +33535,7 @@
                         "file":  "src/launcher/changelog_service.cpp",
                         "line":  120,
                         "length":  16,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "5ba7ed09cac88603",
@@ -33545,7 +33545,7 @@
                         "file":  "src/launcher/changelog_service.cpp",
                         "line":  121,
                         "length":  24,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "2508fd2d50804131",
@@ -33555,7 +33555,7 @@
                         "file":  "src/launcher/changelog_service.cpp",
                         "line":  121,
                         "length":  13,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "3343f3d21edbcc0a",
@@ -33565,7 +33565,7 @@
                         "file":  "src/launcher/changelog_service.cpp",
                         "line":  121,
                         "length":  20,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "bdeb62f286dcd507",
@@ -39795,7 +39795,7 @@
                         "file":  "src/launcher/remote_usage_service.cpp",
                         "line":  41,
                         "length":  5,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "d49c49338826785b",
@@ -39805,7 +39805,7 @@
                         "file":  "src/launcher/remote_usage_service.cpp",
                         "line":  43,
                         "length":  8,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "6246cb975d463865",
@@ -39815,7 +39815,7 @@
                         "file":  "src/launcher/remote_usage_service.cpp",
                         "line":  44,
                         "length":  4,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "070dce0567b7838c",
@@ -39825,7 +39825,7 @@
                         "file":  "src/launcher/remote_usage_service.cpp",
                         "line":  45,
                         "length":  7,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "b406baf7e13f1c75",
@@ -39835,7 +39835,7 @@
                         "file":  "src/launcher/remote_usage_service.cpp",
                         "line":  46,
                         "length":  4,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "435bcccca92a5e1e",
@@ -40345,7 +40345,7 @@
                         "file":  "src/launcher/updates_page.cpp",
                         "line":  1748,
                         "length":  13,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "71a80619f69e20bf",
@@ -40355,7 +40355,7 @@
                         "file":  "src/launcher/updates_page.cpp",
                         "line":  1749,
                         "length":  12,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "b6e6704747740f5f",
@@ -40365,7 +40365,7 @@
                         "file":  "src/launcher/updates_page.cpp",
                         "line":  1750,
                         "length":  16,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "e8624d70d9866c18",
@@ -40445,7 +40445,7 @@
                         "file":  "src/launcher/updates_page.cpp",
                         "line":  195,
                         "length":  7,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "8bc826f815bf38e9",
@@ -40475,7 +40475,7 @@
                         "file":  "src/launcher/updates_page.cpp",
                         "line":  196,
                         "length":  9,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "f109119fdcb0e6c9",
@@ -40495,7 +40495,7 @@
                         "file":  "src/launcher/updates_page.cpp",
                         "line":  197,
                         "length":  5,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "e7d68f7e1000b788",
@@ -40525,7 +40525,7 @@
                         "file":  "src/launcher/updates_page.cpp",
                         "line":  198,
                         "length":  5,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "33b5b6c8cd340eea",
@@ -40545,7 +40545,7 @@
                         "file":  "src/launcher/updates_page.cpp",
                         "line":  199,
                         "length":  4,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "cc9163a73e8afcba",
@@ -40555,7 +40555,7 @@
                         "file":  "src/launcher/updates_page.cpp",
                         "line":  200,
                         "length":  5,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "57f6ff2b321a5e37",
@@ -40565,7 +40565,7 @@
                         "file":  "src/launcher/updates_page.cpp",
                         "line":  201,
                         "length":  5,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "89cde40c70d52dfe",
@@ -40575,7 +40575,7 @@
                         "file":  "src/launcher/updates_page.cpp",
                         "line":  202,
                         "length":  6,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "cfa353c9aec484e4",
@@ -40585,7 +40585,7 @@
                         "file":  "src/launcher/updates_page.cpp",
                         "line":  203,
                         "length":  8,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "f95ae48f177e096f",
@@ -40595,7 +40595,7 @@
                         "file":  "src/launcher/updates_page.cpp",
                         "line":  204,
                         "length":  7,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "16d1a3125d6065fd",
@@ -40605,7 +40605,7 @@
                         "file":  "src/launcher/updates_page.cpp",
                         "line":  205,
                         "length":  8,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "11682791d111b139",
@@ -40615,7 +40615,7 @@
                         "file":  "src/launcher/updates_page.cpp",
                         "line":  206,
                         "length":  8,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "6e101d2b49e5e698",
@@ -40908,23 +40908,23 @@
                         "status":  "protected"
                     },
                     {
-                        "id":  "3b9ec3241abbd286",
-                        "fp":  "8c6976e5b5410415",
-                        "category":  "auth",
-                        "sensitivity":  "high",
-                        "file":  "src/licensing/license_service.cpp",
-                        "line":  256,
-                        "length":  5,
-                        "status":  "unsafe"
-                    },
-                    {
                         "id":  "dd8cd2d0e42127a8",
                         "fp":  "0d85886f3db3b46f",
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/licensing/license_service.cpp",
-                        "line":  260,
+                        "line":  259,
                         "length":  10,
+                        "status":  "protected"
+                    },
+                    {
+                        "id":  "1e9bd7b4443e048e",
+                        "fp":  "897eaeb5ef699053",
+                        "category":  "auth",
+                        "sensitivity":  "high",
+                        "file":  "src/licensing/license_service.cpp",
+                        "line":  260,
+                        "length":  4,
                         "status":  "protected"
                     },
                     {
@@ -40938,22 +40938,12 @@
                         "status":  "protected"
                     },
                     {
-                        "id":  "1e9bd7b4443e048e",
-                        "fp":  "897eaeb5ef699053",
-                        "category":  "auth",
-                        "sensitivity":  "high",
-                        "file":  "src/licensing/license_service.cpp",
-                        "line":  262,
-                        "length":  4,
-                        "status":  "protected"
-                    },
-                    {
                         "id":  "8f43aeea7f69e317",
                         "fp":  "6251d2d174568b13",
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/licensing/license_service.cpp",
-                        "line":  279,
+                        "line":  278,
                         "length":  28,
                         "status":  "protected"
                     },
@@ -40963,7 +40953,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/licensing/license_service.cpp",
-                        "line":  303,
+                        "line":  302,
                         "length":  5,
                         "status":  "protected"
                     },
@@ -40973,7 +40963,7 @@
                         "category":  "path",
                         "sensitivity":  "medium",
                         "file":  "src/licensing/license_service.cpp",
-                        "line":  372,
+                        "line":  371,
                         "length":  46,
                         "status":  "protected"
                     },
@@ -40983,7 +40973,7 @@
                         "category":  "path",
                         "sensitivity":  "medium",
                         "file":  "src/licensing/license_service.cpp",
-                        "line":  373,
+                        "line":  372,
                         "length":  80,
                         "status":  "protected"
                     },
@@ -40993,7 +40983,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/licensing/license_service.cpp",
-                        "line":  374,
+                        "line":  373,
                         "length":  8,
                         "status":  "protected"
                     },
@@ -41003,7 +40993,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/licensing/license_service.cpp",
-                        "line":  374,
+                        "line":  373,
                         "length":  7,
                         "status":  "protected"
                     },
@@ -41013,7 +41003,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/licensing/license_service.cpp",
-                        "line":  374,
+                        "line":  373,
                         "length":  6,
                         "status":  "protected"
                     },
@@ -41023,7 +41013,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/licensing/license_service.cpp",
-                        "line":  375,
+                        "line":  374,
                         "length":  4,
                         "status":  "protected"
                     },
@@ -41033,7 +41023,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/licensing/license_service.cpp",
-                        "line":  440,
+                        "line":  439,
                         "length":  17,
                         "status":  "protected"
                     },
@@ -41043,7 +41033,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/licensing/license_service.cpp",
-                        "line":  468,
+                        "line":  467,
                         "length":  8,
                         "status":  "unprotected"
                     },
@@ -41053,7 +41043,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/licensing/license_service.cpp",
-                        "line":  468,
+                        "line":  467,
                         "length":  4,
                         "status":  "unprotected"
                     },
@@ -41063,7 +41053,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/licensing/license_service.cpp",
-                        "line":  468,
+                        "line":  467,
                         "length":  4,
                         "status":  "unprotected"
                     },
@@ -41073,7 +41063,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/licensing/license_service.cpp",
-                        "line":  468,
+                        "line":  467,
                         "length":  5,
                         "status":  "unprotected"
                     },
@@ -41083,7 +41073,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/licensing/license_service.cpp",
-                        "line":  468,
+                        "line":  467,
                         "length":  7,
                         "status":  "unprotected"
                     },
@@ -41093,8 +41083,18 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/licensing/license_service.cpp",
-                        "line":  479,
+                        "line":  478,
                         "length":  10,
+                        "status":  "protected"
+                    },
+                    {
+                        "id":  "1e9bd7b4443e048e",
+                        "fp":  "897eaeb5ef699053",
+                        "category":  "auth",
+                        "sensitivity":  "high",
+                        "file":  "src/licensing/license_service.cpp",
+                        "line":  479,
+                        "length":  4,
                         "status":  "protected"
                     },
                     {
@@ -41108,22 +41108,12 @@
                         "status":  "protected"
                     },
                     {
-                        "id":  "1e9bd7b4443e048e",
-                        "fp":  "897eaeb5ef699053",
-                        "category":  "auth",
-                        "sensitivity":  "high",
-                        "file":  "src/licensing/license_service.cpp",
-                        "line":  481,
-                        "length":  4,
-                        "status":  "protected"
-                    },
-                    {
                         "id":  "df5e44cb393e62ff",
                         "fp":  "499ee302f6884f27",
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/licensing/license_service.cpp",
-                        "line":  486,
+                        "line":  485,
                         "length":  5,
                         "status":  "protected"
                     },
@@ -41133,7 +41123,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/licensing/license_service.cpp",
-                        "line":  491,
+                        "line":  490,
                         "length":  8,
                         "status":  "unprotected"
                     },
@@ -41143,7 +41133,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/licensing/license_service.cpp",
-                        "line":  491,
+                        "line":  490,
                         "length":  4,
                         "status":  "unprotected"
                     },
@@ -41153,7 +41143,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/licensing/license_service.cpp",
-                        "line":  491,
+                        "line":  490,
                         "length":  4,
                         "status":  "unprotected"
                     },
@@ -41163,7 +41153,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/licensing/license_service.cpp",
-                        "line":  491,
+                        "line":  490,
                         "length":  5,
                         "status":  "unprotected"
                     },
@@ -41173,7 +41163,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/licensing/license_service.cpp",
-                        "line":  491,
+                        "line":  490,
                         "length":  7,
                         "status":  "unprotected"
                     },
@@ -41195,7 +41185,7 @@
                         "file":  "src/licensing/license_service.cpp",
                         "line":  57,
                         "length":  50,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "12998b6672b24edf",
@@ -44265,7 +44255,7 @@
                         "file":  "src/makcu/makcu_protocol.cpp",
                         "line":  423,
                         "length":  14,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "13d3ed799bd1f0b3",
@@ -44275,7 +44265,7 @@
                         "file":  "src/makcu/makcu_protocol.cpp",
                         "line":  424,
                         "length":  13,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "e056e993c1623a49",
@@ -44285,7 +44275,7 @@
                         "file":  "src/makcu/makcu_protocol.cpp",
                         "line":  426,
                         "length":  7,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "f7d48a18c2d51c6b",
@@ -44295,7 +44285,7 @@
                         "file":  "src/makcu/makcu_protocol.cpp",
                         "line":  432,
                         "length":  9,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "8971110f7e621fef",
@@ -44305,7 +44295,7 @@
                         "file":  "src/makcu/makcu_protocol.cpp",
                         "line":  433,
                         "length":  11,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "e056e993c1623a49",
@@ -44315,7 +44305,7 @@
                         "file":  "src/makcu/makcu_protocol.cpp",
                         "line":  434,
                         "length":  7,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "abc5117cfccdd2d4",
@@ -53335,7 +53325,7 @@
                         "file":  "src/security/security_manager.cpp",
                         "line":  102,
                         "length":  17,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "1e7cdb3c1d929ffd",
@@ -53345,7 +53335,7 @@
                         "file":  "src/security/security_manager.cpp",
                         "line":  102,
                         "length":  18,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "3c8707336e0dd23b",
@@ -53355,7 +53345,7 @@
                         "file":  "src/security/security_manager.cpp",
                         "line":  102,
                         "length":  12,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "d6a089ff0a9c2483",
@@ -53365,7 +53355,7 @@
                         "file":  "src/security/security_manager.cpp",
                         "line":  58,
                         "length":  7,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "10725ff3a6c65a64",
@@ -53375,7 +53365,7 @@
                         "file":  "src/security/security_manager.cpp",
                         "line":  59,
                         "length":  7,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "5945a78080f0ac57",
@@ -53385,7 +53375,7 @@
                         "file":  "src/security/security_manager.cpp",
                         "line":  60,
                         "length":  7,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "13626f6f4ff8789d",
@@ -53395,7 +53385,7 @@
                         "file":  "src/security/security_manager.cpp",
                         "line":  61,
                         "length":  7,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "bc68209e1bdca696",
@@ -53405,7 +53395,7 @@
                         "file":  "src/security/security_manager.cpp",
                         "line":  62,
                         "length":  7,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "4947fefeda635dc7",
@@ -53415,7 +53405,7 @@
                         "file":  "src/security/security_manager.cpp",
                         "line":  63,
                         "length":  7,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "a47b5cd25bb42632",
@@ -53425,7 +53415,7 @@
                         "file":  "src/security/security_manager.cpp",
                         "line":  64,
                         "length":  7,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "ad3f3203e27313e0",
@@ -53435,7 +53425,7 @@
                         "file":  "src/security/security_manager.cpp",
                         "line":  65,
                         "length":  7,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "f402d03fcf6863af",
@@ -53445,7 +53435,7 @@
                         "file":  "src/security/security_manager.cpp",
                         "line":  67,
                         "length":  7,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "dd18fa406b7e2a2f",
@@ -54655,7 +54645,7 @@
                         "file":  "src/updater/http_policy.cpp",
                         "line":  73,
                         "length":  4,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "2d4a38d42c93a761",
@@ -54665,7 +54655,7 @@
                         "file":  "src/updater/http_policy.cpp",
                         "line":  74,
                         "length":  9,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "a9e72c0c8215d6e1",
@@ -54675,7 +54665,7 @@
                         "file":  "src/updater/http_policy.cpp",
                         "line":  75,
                         "length":  7,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "f6cda670694407fe",
@@ -54685,7 +54675,7 @@
                         "file":  "src/updater/http_policy.cpp",
                         "line":  77,
                         "length":  10,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "4741cae152d03dd7",
@@ -54695,7 +54685,7 @@
                         "file":  "src/updater/http_policy.cpp",
                         "line":  79,
                         "length":  4,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "88b4b71747f4c79b",
@@ -54705,7 +54695,7 @@
                         "file":  "src/updater/http_policy.cpp",
                         "line":  80,
                         "length":  8,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "53719d3738c86baa",
@@ -54715,7 +54705,7 @@
                         "file":  "src/updater/http_policy.cpp",
                         "line":  81,
                         "length":  10,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "37feec029d3d3075",
@@ -54725,7 +54715,7 @@
                         "file":  "src/updater/http_policy.cpp",
                         "line":  83,
                         "length":  11,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "7025b47fa968ebf3",
@@ -54735,7 +54725,7 @@
                         "file":  "src/updater/http_policy.cpp",
                         "line":  84,
                         "length":  7,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "4ade32e736cb9f00",
@@ -55315,7 +55305,7 @@
                         "file":  "src/updater/install_engine.cpp",
                         "line":  464,
                         "length":  23,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "d705bc25d6bc10c4",
@@ -55475,7 +55465,7 @@
                         "file":  "src/updater/installation_integrity.cpp",
                         "line":  27,
                         "length":  7,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "3716dc03762d4323",
@@ -55485,7 +55475,7 @@
                         "file":  "src/updater/installation_integrity.cpp",
                         "line":  28,
                         "length":  8,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "486c3bf57be907f2",
@@ -55495,7 +55485,7 @@
                         "file":  "src/updater/installation_integrity.cpp",
                         "line":  29,
                         "length":  7,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "ed8c9449197a3698",
@@ -55505,7 +55495,7 @@
                         "file":  "src/updater/installation_integrity.cpp",
                         "line":  30,
                         "length":  7,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "5fae815fbc53b4b8",
@@ -55515,7 +55505,7 @@
                         "file":  "src/updater/installation_integrity.cpp",
                         "line":  31,
                         "length":  16,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "d4f572e0ba8f73c7",
@@ -55525,7 +55515,7 @@
                         "file":  "src/updater/installation_integrity.cpp",
                         "line":  32,
                         "length":  5,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "5267b668e6353c6b",
@@ -55535,7 +55525,7 @@
                         "file":  "src/updater/installation_integrity.cpp",
                         "line":  34,
                         "length":  7,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "5bce8d2f7299e7b5",
@@ -56745,7 +56735,7 @@
                         "file":  "src/updater/update_service.cpp",
                         "line":  1008,
                         "length":  4,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "e1a2fff52c830fab",
@@ -56755,7 +56745,7 @@
                         "file":  "src/updater/update_service.cpp",
                         "line":  1008,
                         "length":  5,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "339c49d3274d80a9",
@@ -57195,7 +57185,7 @@
                         "file":  "src/updater/update_service.cpp",
                         "line":  1248,
                         "length":  15,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "88c298580abd4b70",
@@ -59465,7 +59455,7 @@
                         "file":  "src/updater/update_ui.cpp",
                         "line":  154,
                         "length":  18,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "c9e3205679542fd9",
@@ -59473,7 +59463,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/updater/update_ui.cpp",
-                        "line":  161,
+                        "line":  162,
                         "length":  20,
                         "status":  "protected"
                     },
@@ -59483,9 +59473,9 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/updater/update_ui.cpp",
-                        "line":  163,
+                        "line":  164,
                         "length":  35,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "b1b9ef0ec30eff5b",
@@ -59493,9 +59483,9 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/updater/update_ui.cpp",
-                        "line":  171,
+                        "line":  172,
                         "length":  9,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "81a3ff612fc2a4ae",
@@ -59503,9 +59493,9 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/updater/update_ui.cpp",
-                        "line":  172,
+                        "line":  173,
                         "length":  31,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "0c72d034f6369445",
@@ -59513,9 +59503,9 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/updater/update_ui.cpp",
-                        "line":  177,
+                        "line":  178,
                         "length":  34,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "9b48f6860b544a81",
@@ -59523,7 +59513,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/updater/update_ui.cpp",
-                        "line":  196,
+                        "line":  197,
                         "length":  8,
                         "status":  "protected"
                     },
@@ -59533,7 +59523,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/updater/update_ui.cpp",
-                        "line":  201,
+                        "line":  202,
                         "length":  15,
                         "status":  "protected"
                     },
@@ -59543,7 +59533,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/updater/update_ui.cpp",
-                        "line":  203,
+                        "line":  204,
                         "length":  14,
                         "status":  "protected"
                     },
@@ -59553,7 +59543,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/updater/update_ui.cpp",
-                        "line":  203,
+                        "line":  204,
                         "length":  20,
                         "status":  "protected"
                     },
@@ -59563,7 +59553,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/updater/update_ui.cpp",
-                        "line":  208,
+                        "line":  209,
                         "length":  16,
                         "status":  "protected"
                     },
@@ -59573,7 +59563,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/updater/update_ui.cpp",
-                        "line":  211,
+                        "line":  212,
                         "length":  10,
                         "status":  "protected"
                     },
@@ -59583,7 +59573,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/updater/update_ui.cpp",
-                        "line":  216,
+                        "line":  217,
                         "length":  5,
                         "status":  "protected"
                     },
@@ -59593,9 +59583,9 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/updater/update_ui.cpp",
-                        "line":  218,
+                        "line":  219,
                         "length":  4,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "66f60775158e9fb1",
@@ -59603,7 +59593,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/updater/update_ui.cpp",
-                        "line":  223,
+                        "line":  224,
                         "length":  24,
                         "status":  "protected"
                     },
@@ -59613,7 +59603,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/updater/update_ui.cpp",
-                        "line":  225,
+                        "line":  226,
                         "length":  14,
                         "status":  "protected"
                     },
@@ -59623,7 +59613,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/updater/update_ui.cpp",
-                        "line":  225,
+                        "line":  226,
                         "length":  19,
                         "status":  "protected"
                     },
@@ -59633,7 +59623,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/updater/update_ui.cpp",
-                        "line":  230,
+                        "line":  231,
                         "length":  16,
                         "status":  "protected"
                     },
@@ -59643,7 +59633,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/updater/update_ui.cpp",
-                        "line":  230,
+                        "line":  231,
                         "length":  18,
                         "status":  "protected"
                     },
@@ -59653,7 +59643,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/updater/update_ui.cpp",
-                        "line":  233,
+                        "line":  234,
                         "length":  10,
                         "status":  "protected"
                     },
@@ -59663,7 +59653,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/updater/update_ui.cpp",
-                        "line":  240,
+                        "line":  241,
                         "length":  21,
                         "status":  "protected"
                     },
@@ -59673,7 +59663,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/updater/update_ui.cpp",
-                        "line":  240,
+                        "line":  241,
                         "length":  22,
                         "status":  "protected"
                     },
@@ -59683,7 +59673,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/updater/update_ui.cpp",
-                        "line":  241,
+                        "line":  242,
                         "length":  60,
                         "status":  "protected"
                     },
@@ -59713,7 +59703,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/updater/update_ui.cpp",
-                        "line":  253,
+                        "line":  254,
                         "length":  16,
                         "status":  "protected"
                     },
@@ -59723,9 +59713,9 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/updater/update_ui.cpp",
-                        "line":  255,
+                        "line":  256,
                         "length":  4,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "fb929f0223346f54",
@@ -59733,7 +59723,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/updater/update_ui.cpp",
-                        "line":  258,
+                        "line":  259,
                         "length":  8,
                         "status":  "protected"
                     },
@@ -59763,7 +59753,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/updater/update_ui.cpp",
-                        "line":  264,
+                        "line":  265,
                         "length":  10,
                         "status":  "protected"
                     },
@@ -59773,7 +59763,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/updater/update_ui.cpp",
-                        "line":  267,
+                        "line":  268,
                         "length":  9,
                         "status":  "protected"
                     },
@@ -59783,7 +59773,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/updater/update_ui.cpp",
-                        "line":  268,
+                        "line":  269,
                         "length":  16,
                         "status":  "protected"
                     },
@@ -59813,7 +59803,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/updater/update_ui.cpp",
-                        "line":  274,
+                        "line":  275,
                         "length":  10,
                         "status":  "protected"
                     },
@@ -59823,7 +59813,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/updater/update_ui.cpp",
-                        "line":  278,
+                        "line":  279,
                         "length":  7,
                         "status":  "protected"
                     },
@@ -59853,7 +59843,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/updater/update_ui.cpp",
-                        "line":  282,
+                        "line":  283,
                         "length":  16,
                         "status":  "protected"
                     },
@@ -59863,7 +59853,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/updater/update_ui.cpp",
-                        "line":  287,
+                        "line":  288,
                         "length":  6,
                         "status":  "protected"
                     },
@@ -59893,7 +59883,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/updater/update_ui.cpp",
-                        "line":  292,
+                        "line":  293,
                         "length":  8,
                         "status":  "protected"
                     },
@@ -59903,7 +59893,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/updater/update_ui.cpp",
-                        "line":  292,
+                        "line":  293,
                         "length":  16,
                         "status":  "protected"
                     },
@@ -59913,7 +59903,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/updater/update_ui.cpp",
-                        "line":  297,
+                        "line":  298,
                         "length":  11,
                         "status":  "protected"
                     },
@@ -59943,7 +59933,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/updater/update_ui.cpp",
-                        "line":  300,
+                        "line":  301,
                         "length":  12,
                         "status":  "protected"
                     },
@@ -59953,7 +59943,7 @@
                         "category":  "auth",
                         "sensitivity":  "high",
                         "file":  "src/updater/update_ui.cpp",
-                        "line":  303,
+                        "line":  304,
                         "length":  10,
                         "status":  "protected"
                     },
@@ -60295,7 +60285,7 @@
                         "file":  "src/updater/update_ui.cpp",
                         "line":  83,
                         "length":  4,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "fa87c421d4793844",
@@ -60515,7 +60505,7 @@
                         "file":  "src/updater/updater_mode.cpp",
                         "line":  216,
                         "length":  31,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "359f9e8c79047dc2",
@@ -60555,7 +60545,7 @@
                         "file":  "src/updater/updater_mode.cpp",
                         "line":  223,
                         "length":  23,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "4fc2076334dab6a6",
@@ -60605,7 +60595,7 @@
                         "file":  "src/updater/updater_mode.cpp",
                         "line":  231,
                         "length":  13,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "42c767de18f84772",
@@ -60615,7 +60605,7 @@
                         "file":  "src/updater/updater_mode.cpp",
                         "line":  231,
                         "length":  9,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "f855bc4f34679a53",
@@ -60625,7 +60615,7 @@
                         "file":  "src/updater/updater_mode.cpp",
                         "line":  231,
                         "length":  14,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "cedcff206de01804",
@@ -60635,7 +60625,7 @@
                         "file":  "src/updater/updater_mode.cpp",
                         "line":  231,
                         "length":  5,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "5e6b3a1f63b6bb03",
@@ -60645,7 +60635,7 @@
                         "file":  "src/updater/updater_mode.cpp",
                         "line":  232,
                         "length":  8,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "33f028e80a6c3fdf",
@@ -60655,7 +60645,7 @@
                         "file":  "src/updater/updater_mode.cpp",
                         "line":  232,
                         "length":  9,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "ff2e244e4378b727",
@@ -60665,7 +60655,7 @@
                         "file":  "src/updater/updater_mode.cpp",
                         "line":  232,
                         "length":  6,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "1f36825196e6637e",
@@ -60675,7 +60665,7 @@
                         "file":  "src/updater/updater_mode.cpp",
                         "line":  232,
                         "length":  12,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "88c801450eccca91",
@@ -60685,7 +60675,7 @@
                         "file":  "src/updater/updater_mode.cpp",
                         "line":  232,
                         "length":  8,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "76cca6ba03031043",
@@ -60975,7 +60965,7 @@
                         "file":  "src/updater/updater_mode.cpp",
                         "line":  274,
                         "length":  4,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "efe4e8a6362fe288",
@@ -61945,7 +61935,7 @@
                         "file":  "src/updater/version_comparer.cpp",
                         "line":  85,
                         "length":  11,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "7658fc12b3aebf67",
@@ -61955,7 +61945,7 @@
                         "file":  "src/updater/version_comparer.cpp",
                         "line":  85,
                         "length":  6,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "2246abf75bc26ee3",
@@ -61965,7 +61955,7 @@
                         "file":  "src/updater/version_comparer.cpp",
                         "line":  85,
                         "length":  4,
-                        "status":  "protected"
+                        "status":  "unprotected"
                     },
                     {
                         "id":  "7658fc12b3aebf67",
@@ -114323,7 +114313,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/widgets.h",
-                        "line":  102,
+                        "line":  127,
                         "length":  7,
                         "status":  "unprotected"
                     },
@@ -114333,7 +114323,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/widgets.h",
-                        "line":  108,
+                        "line":  133,
                         "length":  8,
                         "status":  "unprotected"
                     },
@@ -114343,7 +114333,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/widgets.h",
-                        "line":  137,
+                        "line":  162,
                         "length":  13,
                         "status":  "unprotected"
                     },
@@ -114353,7 +114343,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/widgets.h",
-                        "line":  138,
+                        "line":  163,
                         "length":  12,
                         "status":  "unprotected"
                     },
@@ -114363,7 +114353,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/widgets.h",
-                        "line":  138,
+                        "line":  163,
                         "length":  16,
                         "status":  "unprotected"
                     },
@@ -114373,7 +114363,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/widgets.h",
-                        "line":  139,
+                        "line":  164,
                         "length":  15,
                         "status":  "unprotected"
                     },
@@ -114383,7 +114373,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/widgets.h",
-                        "line":  139,
+                        "line":  164,
                         "length":  16,
                         "status":  "unprotected"
                     },
@@ -114393,7 +114383,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/widgets.h",
-                        "line":  140,
+                        "line":  165,
                         "length":  11,
                         "status":  "unprotected"
                     },
@@ -114403,7 +114393,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/widgets.h",
-                        "line":  141,
+                        "line":  166,
                         "length":  17,
                         "status":  "unprotected"
                     },
@@ -114413,7 +114403,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/widgets.h",
-                        "line":  141,
+                        "line":  166,
                         "length":  16,
                         "status":  "unprotected"
                     },
@@ -114423,7 +114413,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/widgets.h",
-                        "line":  197,
+                        "line":  222,
                         "length":  14,
                         "status":  "unprotected"
                     },
@@ -114433,7 +114423,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/widgets.h",
-                        "line":  200,
+                        "line":  225,
                         "length":  8,
                         "status":  "unprotected"
                     },
@@ -114443,7 +114433,7 @@
                         "category":  "ui",
                         "sensitivity":  "standard",
                         "file":  "src/window/widgets.h",
-                        "line":  78,
+                        "line":  99,
                         "length":  18,
                         "status":  "unprotected"
                     },
